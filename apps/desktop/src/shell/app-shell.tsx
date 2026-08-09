@@ -15,6 +15,7 @@ import {
   agentFor,
   currentAgentId,
   desktopAgentCapabilities,
+  desktopPermissionPosture,
   subscribeAgent,
 } from '../assistant/agent-session'
 import { ThreadsProvider } from '../assistant/threads-provider'
@@ -257,6 +258,8 @@ export function AppShell({ runtime }: AppShellProps) {
   const [agentControls] = useState(
     () =>
       new AgentCapabilityStore({
+        posture: desktopPermissionPosture(),
+
         report: {
           readFailed: (cause) => {
             reportFailure('AGENT_CAPABILITIES_UNREADABLE', {

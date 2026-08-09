@@ -8,6 +8,7 @@ import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-questio
 import type { ComposerAsset } from './attachment-intake'
 import { ComposerActions } from './composer-actions'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
+import { PermissionPicker } from './permission-picker'
 import type { PromptInputHandle } from './prompt-input'
 import {
   PromptInput,
@@ -103,15 +104,17 @@ function ComposerToolbar({
   return (
     <PromptInputToolbar>
       <PromptInputTools>
-        {/*
-          左下这一簇回答两个问题:往这一句里加什么,以及这一句怎么被处理。
-          模式因此在这里,不在发送键那一侧 —— 那一侧回答的是"谁来答"。
-
-          此前这里还有「命令」「上下文」「终端命令」三行,它们的实现是往草稿
-          末尾拼一个字符(insertText)。那不是命令面板,那是替用户按了一下键,
-          而菜单里一条读起来像功能的行必须真的是功能。
-        */}
+        {/* 加号那一侧只回答一个问题:往这一句里加什么。 */}
         <ComposerActions controls={controls} onSelectControl={onSelectControl} />
+
+        {/*
+          批准方式是一颗常显的胶囊,不是菜单里的一行。
+
+          它说的是「这一句将被怎么执行」,而那是按下发送之前唯一还需要人确认的事:
+          藏进菜单意味着人必须先点开才知道自己此刻授了多大的权,而完全访问那一档是
+          不可撤销的。它也因此同时是切换入口 —— 一颗只能"摘掉"的标记不是控件。
+        */}
+        <PermissionPicker controls={controls} onSelect={onSelectControl} />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />

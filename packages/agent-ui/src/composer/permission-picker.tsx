@@ -109,8 +109,6 @@ export const PermissionPicker = memo(function PermissionPicker({
         side="top"
         sideOffset={6}
       >
-        <p className="assistant-posture-menu__heading">应如何批准操作？</p>
-
         <DropdownMenuRadioGroup
           onValueChange={(value) => {
             if (value === control.current) {
