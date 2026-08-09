@@ -93,20 +93,20 @@ export function paletteEntryOf(name: string, description: string): PaletteEntry 
  * 前者不该覆盖已经收到的那一份，后者该。
  */
 export function paletteFrom(payload: unknown): readonly PaletteEntry[] | undefined {
-  if (!isRecord(payload) || !Array.isArray(payload.commands)) {
+  if (!isRecord(payload) || !Array.isArray(payload['commands'])) {
     return undefined
   }
 
   const entries: PaletteEntry[] = []
 
-  for (const offered of payload.commands) {
-    if (!isRecord(offered) || typeof offered.name !== 'string') {
+  for (const offered of payload['commands']) {
+    if (!isRecord(offered) || typeof offered['name'] !== 'string') {
       continue
     }
 
-    const said = offered.description
+    const said = offered['description']
 
-    entries.push(paletteEntryOf(offered.name, typeof said === 'string' ? said : ''))
+    entries.push(paletteEntryOf(offered['name'], typeof said === 'string' ? said : ''))
   }
 
   return entries
