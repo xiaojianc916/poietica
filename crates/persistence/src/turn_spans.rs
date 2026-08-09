@@ -38,7 +38,12 @@ impl AgentStore {
              ON CONFLICT (thread_id, turn) DO UPDATE SET
                started_at = excluded.started_at,
                ended_at   = excluded.ended_at",
-            rusqlite::params![thread.to_string(), span.turn, span.started_at, span.ended_at],
+            rusqlite::params![
+                thread.to_string(),
+                span.turn,
+                span.started_at,
+                span.ended_at
+            ],
         )
     }
 

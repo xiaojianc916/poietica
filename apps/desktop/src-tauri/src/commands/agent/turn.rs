@@ -124,9 +124,9 @@ pub async fn agent_prompt(
     .await?;
 
     /* 这一轮的起点：命令发出去这一刻。记录器盖在 run_started 上的戳与它是
-       同一个时钟、同一个动作的两侧 —— 中间隔着一次到驱动器的排队，差不出一
-       毫秒。之所以在这里另记一本账：agent 经 session/load 交还的历史不带任何
-       原来的时刻（协议里没有这一格），重启之后封条的耗时只能由这本账回答。 */
+    同一个时钟、同一个动作的两侧 —— 中间隔着一次到驱动器的排队，差不出一
+    毫秒。之所以在这里另记一本账：agent 经 session/load 交还的历史不带任何
+    原来的时刻（协议里没有这一格），重启之后封条的耗时只能由这本账回答。 */
     let asked_at = epoch_millis();
 
     /* 落定的那一趟还要碰一次库，先把手上的 AppHandle 复制一份交过去。 */
@@ -143,8 +143,8 @@ pub async fn agent_prompt(
         let outcome = answer.await;
 
         /* 三种结局都算落定：答复、失败、对面没了 —— 这一轮的时长不因结局而
-           改写。轮次号就是 record_prompt 发的那一号，与附件同一把尺子。记不上
-           只留一行日志：封条退回没有耗时的旧样子，不是这一轮的失败。 */
+        改写。轮次号就是 record_prompt 发的那一号，与附件同一把尺子。记不上
+        只留一行日志：封条退回没有耗时的旧样子，不是这一轮的失败。 */
         let span = TurnSpan {
             turn,
             started_at: asked_at,
@@ -152,7 +152,9 @@ pub async fn agent_prompt(
         };
         let state = settle_app.state::<AgentRuntime>();
         let recorded = on_store(&state, move |store| {
-            store.record_turn_span(thread_id, &span).map_err(persistence)
+            store
+                .record_turn_span(thread_id, &span)
+                .map_err(persistence)
         })
         .await;
 

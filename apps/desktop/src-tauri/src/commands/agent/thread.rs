@@ -128,7 +128,7 @@ pub async fn agent_open_thread(
         let prompts = store.prompt_count(thread_id).map_err(persistence)?;
 
         /* 「长什么样」「问过几次」「每一轮各花了多久」是同一次打开要的三个
-           答案，所以共用这一次借用 —— 与 prompts 同一条规矩。 */
+        答案，所以共用这一次借用 —— 与 prompts 同一条规矩。 */
         let spans = store.turn_spans_of(thread_id).map_err(persistence)?;
 
         Ok((thread, prompts, spans))
@@ -140,8 +140,8 @@ pub async fn agent_open_thread(
     let prompts = counted(prompts)?;
 
     /* 账本的轮次号与时刻都是 i64，而这份 IPC 面没有 64 位整数（见 counted
-       与 AgentThreadAttachment 的 turn 上那条界线）：轮次收进 u32，时刻放进
-       f64 —— epoch 毫秒离 2^53 还远，精度不丢。 */
+    与 AgentThreadAttachment 的 turn 上那条界线）：轮次收进 u32，时刻放进
+    f64 —— epoch 毫秒离 2^53 还远，精度不丢。 */
     let mut span_dtos = Vec::with_capacity(spans.len());
 
     for span in spans {
