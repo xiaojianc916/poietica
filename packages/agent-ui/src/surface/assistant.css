@@ -435,7 +435,7 @@
   align-items: center;
   border-radius: var(--ui-row-radius);
   gap: var(--ui-row-gap);
-  padding-inline-start: var(--ui-row-lead);
+  padding-inline-start: calc(var(--ui-row-lead) + var(--ui-row-icon-size) + var(--ui-row-gap));
   padding-inline-end: var(--ui-row-trail);
   font-size: var(--cp-font-caption);
 }
@@ -1357,7 +1357,8 @@ svg.assistant-provider-icon {
 .assistant-threads__more {
   display: block;
   width: 100%;
-  padding: 4px var(--ui-row-trail, 6px) 4px var(--ui-row-lead, 8px);
+  padding: 4px var(--ui-row-trail, 6px) 4px
+    calc(var(--ui-row-lead, 8px) + var(--ui-row-icon-size, 16px) + var(--ui-row-gap, 6px));
   border: 0;
   background: none;
   color: var(--cp-ink-subtle);
