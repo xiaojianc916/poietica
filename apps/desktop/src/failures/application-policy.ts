@@ -13,6 +13,8 @@ export const APPLICATION_FAILURE_CODES = [
   'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
   'AGENT_CAPABILITIES_UNREADABLE',
   'AGENT_CONFIG_CHANGE_REJECTED',
+  'SESSION_CONFIG_CHANGE_REJECTED',
+  'THREAD_REOPEN_FAILED',
   'UPDATE_DOWNLOAD_FAILED',
 ] as const
 
@@ -169,6 +171,51 @@ export const APPLICATION_FAILURE_POLICIES = {
     recovery: 'retry',
 
     scope: operationScope('change-capability'),
+  },
+  /*
+   * 这一条对话的会话设置没换成。
+   *
+   * 与上面那条的区别不是严重程度，是作用域。那一条改的是这一家 agent 的默认值
+   * （落到 config.toml 的 default_model，此后每一条新对话都跟着变）；这一条改的
+   * 是一条对话背后那个会话（ACP 的 session/set_config_option，按 sessionId 寻址，
+   * 别的对话一个字节都不动）。同一句话盖两边，人会以为刚才那次失败的改动影响了
+   * 所有对话。
+   *
+   * 不列 agent 拒绝的措辞：那是它自己的话，脱敏之后剩不下能对人说的东西 —— 与下
+   * 面那条更新失败同一条规矩。屏幕上那颗胶囊已经退回它真在用的值（见
+   * SessionControlsStore.#dispatch 的 catch：向权威重问一次，不在本地猜一个旧值
+   * 填回去），所以这句话只需要说清「这条没换成」，以及它还能再试。
+   *
+   * 作用域是一次操作而不是一个功能：别的对话照常，没有任何控件需要变灰。
+   */
+  SESSION_CONFIG_CHANGE_REJECTED: {
+    impact: 'recoverable',
+    userMessage: '这条对话的设置没有改成，选择器已经退回它正在用的值。可以再试一次。',
+
+    recovery: 'retry',
+
+    scope: operationScope('change-session-config'),
+  },
+  /*
+   * 这条对话没能重新连上。
+   *
+   * 不并进「没能读到可用的模型」那一条：后者说的是这一家 agent 装没装好、密钥填
+   * 没填，而这里是一条具体的对话握不住会话，别的对话可能好着。并进去就会把人送
+   * 去设置页检查一把本来就是对的钥匙。
+   *
+   * 屏幕上另有两处已经在说这件事：那一格的 selectorFailure（可以点重试），以及
+   * 转录那一侧报这条对话打不开。这一条走的是第三个用途 —— 日志与降级。三处同一
+   * 份原因，措辞各按各的用途。
+   *
+   * 作用域是一次操作：重试就在那一格上，没有功能需要变灰。
+   */
+  THREAD_REOPEN_FAILED: {
+    impact: 'recoverable',
+    userMessage: '这条对话没能重新连上 agent。可以在设置那一格点重试。',
+
+    recovery: 'retry',
+
+    scope: operationScope('reopen-thread'),
   },
   /*
    * 更新没能下下来。
