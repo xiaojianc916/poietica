@@ -5,13 +5,15 @@
  * 是这个包自己的事，外面只需要「装了什么、市场上有什么、界面长什么样」。
  */
 
+export type { PluginCommand } from './command'
 export {
   type BuiltinMcpServer,
   type ContributionInput,
+  type ResolvedCommand,
   type ResolvedContributions,
   type ResolvedMcpServer,
   type ResolvedPrompt,
-  type ResolvedRoot,
+  type ResolvedSkill,
   resolveContributions,
 } from './contribution'
 export {
@@ -93,4 +95,6 @@ export {
   type StagedInstall,
   type StagingInstall,
 } from './plugin-store'
+export type { PluginRegistry } from './registry'
+export type { PluginSkill } from './skill'
 export { PluginsSurface, type PluginsSurfaceProps } from './surface/plugins-surface'

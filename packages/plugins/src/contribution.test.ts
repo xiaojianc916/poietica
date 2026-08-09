@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { PluginCommand } from './command'
 import {
   type BuiltinMcpServer,
   type ResolvedContributions,
@@ -6,12 +7,13 @@ import {
 } from './contribution'
 import type { InstalledPlugin } from './installation'
 import type { PluginMcpServerDeclaration } from './manifest'
+import type { PluginSkill } from './skill'
 
 interface PluginParts {
   readonly enabled?: boolean
   readonly installedAt?: string
-  readonly skillRoots?: readonly string[]
-  readonly commandRoots?: readonly string[]
+  readonly skills?: readonly PluginSkill[]
+  readonly commands?: readonly PluginCommand[]
   readonly mcpServers?: readonly PluginMcpServerDeclaration[]
   readonly disabledMcpServers?: readonly string[]
   readonly systemPromptText?: string
@@ -28,9 +30,9 @@ function plugin(name: string, parts: PluginParts = {}): InstalledPlugin {
       developerName: undefined,
       homepage: undefined,
       capabilities: [],
-      skillRoots: parts.skillRoots ?? [],
+      skillRoots: [],
       agentRoots: [],
-      commandRoots: parts.commandRoots ?? [],
+      commandRoots: [],
       mcpServers: parts.mcpServers ?? [],
       sessionStartSkill: undefined,
       skillInstructions: undefined,
@@ -40,9 +42,35 @@ function plugin(name: string, parts: PluginParts = {}): InstalledPlugin {
     trust: 'third-party',
     enabled: parts.enabled ?? true,
     installedAt: parts.installedAt ?? '2026-01-01T00:00:00.000Z',
+    registry: { skills: parts.skills ?? [], commands: parts.commands ?? [], diagnostics: [] },
     systemPromptText: parts.systemPromptText,
     disabledMcpServers: parts.disabledMcpServers ?? [],
     diagnostics: [],
+  }
+}
+
+function skill(pluginId: string, name: string): PluginSkill {
+  return {
+    pluginId,
+    name,
+    description: name,
+    type: 'prompt',
+    whenToUse: undefined,
+    modelInvocable: true,
+    argumentNames: [],
+    path: `./skills/${name}/SKILL.md`,
+    invocation: `/skill:${name}`,
+  }
+}
+
+function command(pluginId: string, name: string): PluginCommand {
+  return {
+    pluginId,
+    name,
+    description: undefined,
+    invocation: `/${pluginId}:${name}`,
+    acceptsArguments: false,
+    path: `./commands/${name}.md`,
   }
 }
 
@@ -52,12 +80,13 @@ function resolve(plugins: readonly InstalledPlugin[]): ResolvedContributions {
 }
 
 describe('resolveContributions', () => {
-  it('关掉的插件仍然列出来，只是不生效', () => {
-    const resolved = resolve([plugin('demo', { enabled: false, skillRoots: ['./skills'] })])
-
-    expect(resolved.skillRoots).toEqual([
-      { origin: { kind: 'plugin', pluginId: 'demo' }, path: './skills', enabled: false },
+  it('关掉的插件的技能仍然列出来，只是不生效', () => {
+    const resolved = resolve([
+      plugin('demo', { enabled: false, skills: [skill('demo', 'writing-plans')] }),
     ])
+
+    expect(resolved.skills.map((entry) => entry.skill.invocation)).toEqual(['/skill:writing-plans'])
+    expect(resolved.skills.map((entry) => entry.enabled)).toEqual([false])
   })
 
   it('单独关掉的服务器留在列表里，开关因此有落脚点', () => {
@@ -85,10 +114,22 @@ describe('resolveContributions', () => {
     expect(resolved.mcpServers[0]?.active).toBe(false)
   })
 
-  it('命令目录原样交出，不被当成命令名', () => {
-    const resolved = resolve([plugin('vercel-plugin', { commandRoots: ['./commands'] })])
+  it('两个插件各有一条同名命令时，命名空间把它们分开', () => {
+    const resolved = resolve([
+      plugin('vercel-plugin', {
+        commands: [command('vercel-plugin', 'deploy')],
+        installedAt: '2026-01-02T00:00:00.000Z',
+      }),
+      plugin('fly-plugin', {
+        commands: [command('fly-plugin', 'deploy')],
+        installedAt: '2026-01-01T00:00:00.000Z',
+      }),
+    ])
 
-    expect(resolved.commandRoots.map((root) => root.path)).toEqual(['./commands'])
+    expect(resolved.commands.map((entry) => entry.command.invocation)).toEqual([
+      '/fly-plugin:deploy',
+      '/vercel-plugin:deploy',
+    ])
   })
 
   it('会话提示词预算耗尽时丢的是后来者，且与输入顺序无关', () => {

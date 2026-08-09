@@ -1,13 +1,10 @@
 import type { PluginDiagnostic } from './manifest'
-import { type MarkdownFile, parseFrontmatter, stringField } from './markdown'
+import { MARKDOWN_SUFFIX, type MarkdownFile, parseFrontmatter, stringField } from './markdown'
 
 /*
  * 命令是目录里的 Markdown 文件，一份文件一条命令，名字就是文件名去掉 .md。清单里的
- * commands 是路径不是定义 —— vercel-plugin 写的是 ["./commands"]，把它当成一条名叫
- * "./commands" 的命令是上一版的错。
+ * commands 是路径不是定义 —— vercel-plugin 写的是 ["./commands"]，那是一条路径。
  */
-
-const MARKDOWN_SUFFIX = '.md'
 
 export interface PluginCommand {
   readonly pluginId: string

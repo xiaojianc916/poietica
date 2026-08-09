@@ -1,6 +1,7 @@
 import type { PluginDiagnostic } from './manifest'
 import {
   booleanField,
+  MARKDOWN_SUFFIX,
   type MarkdownFile,
   nameListField,
   parseFrontmatter,
@@ -13,8 +14,6 @@ import {
  */
 
 const SKILL_FILENAME = 'SKILL.md'
-
-const MARKDOWN_SUFFIX = '.md'
 
 /* 扁平技能省略 description 时回落到正文第一行非空文字，上限由官方字段表给出。 */
 const DESCRIPTION_FALLBACK_LIMIT = 240

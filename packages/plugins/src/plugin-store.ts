@@ -7,6 +7,7 @@ import {
   readMcpEndpoint,
   readPluginCatalog,
   readPluginText,
+  readPluginTree,
   refreshPluginCatalog,
   removePlugin,
   setPluginEnabled,
@@ -47,6 +48,12 @@ import {
 } from './marketplace'
 import { type DeclaredMcpServer, decodeMcpConfig } from './mcp-config'
 import type { ManagedOrigin } from './origin'
+import {
+  EMPTY_REGISTRY,
+  type PluginRegistry,
+  type PluginTreeReader,
+  readRegistry,
+} from './registry'
 
 /**
  * 「装了什么、开没开、市场上有什么」的唯一持有者。
@@ -107,8 +114,14 @@ export const INSTALL_IDLE: InstallFlow = { kind: 'idle' }
 export interface PluginStore {
   readonly getSnapshot: () => PluginsViewModel
   readonly subscribe: (listener: () => void) => () => void
-  /** 读账本，并在从未取过目录时拉一次。返回停表函数。 */
-  readonly start: () => () => void
+  /**
+   * 读账本、读环境、问内置那台的地址、取市场目录，然后投一次屏幕。
+   *
+   * 不返回停表函数：订阅归 subscribe 所有，start 一个也没建，所以它没有东西可停。交回
+   * 一个 listeners.clear() 会把别人的订阅一并清掉，而 React 在开发期必然会挂载—卸载—
+   * 再挂载一次。重复调用是幂等的。
+   */
+  readonly start: () => void
   readonly setEnabled: (pluginId: string, enabled: boolean) => void
   /**
    * 拨动一台服务器。
@@ -141,13 +154,14 @@ export interface PluginStoreOptions {
  * 账本里的一条，解码之后的样子。
  *
  * 开关与清单在同一条记录里，所以拨一个开关不需要回头重读清单：写成之后就地改这一条的
- * enabled 再发布。上一版为了得知一个已经在内存里的布尔值要把整个 plugins/ 重扫一遍 ——
- * VS Code 切 enablement 不触发 extension scan，Obsidian 的 enabledPlugins 不触发
- * manifest 扫描，理由就是这个。
+ * enabled 再发布。VS Code 切 enablement 不触发 extension scan，Obsidian 的
+ * enabledPlugins 不触发 manifest 扫描，理由就是这个。
  */
 interface ScannedPlugin {
   readonly pluginId: string
   readonly manifest: PluginManifest
+  /* 清单声明的路径底下真的读到的技能与命令。清单读不出来时是空的。 */
+  readonly registry: PluginRegistry
   readonly systemPromptText: string | undefined
   readonly diagnostics: readonly PluginDiagnostic[]
   /** 清单读不出来的记录仍然装着，但它不受那个开关支配。 */
@@ -223,12 +237,16 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 写盘串行。
+   * 这个 store 的状态迁移串行走一条队列。
    *
    * 连着拨两个开关会开出两次读—改—写；并发跑的话后写的那次带着更旧的账本，第一个
-   * 开关就被悄悄拨回去了。链成一条队列，每次都在上一次落定之后才动。
+   * 开关就被悄悄拨回去了。链成一条队列，每次都在上一次落定之后才动。启动那一趟也在
+   * 这条队列上：它读完账本要投一次屏幕，不能与一次拨动交错。
    */
   let queue: Promise<void> = Promise.resolve()
+
+  /* 开发期的挂载—卸载—再挂载会让 start() 被调用两次。第二次什么也不做。 */
+  let started = false
 
   function publish(next: Partial<PluginsViewModel>): void {
     snapshot = { ...snapshot, ...next }
@@ -266,6 +284,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       return {
         pluginId: entry.pluginId,
         manifest: entry.manifest,
+        registry: entry.registry,
         source: listed?.source,
         trust: listed?.trust ?? UNLISTED_TRUST,
         enabled: entry.readable && entry.enabled,
@@ -348,6 +367,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       return {
         ...shared,
         manifest: unreadableManifest(payload.pluginId),
+        registry: EMPTY_REGISTRY,
         systemPromptText: undefined,
         diagnostics: decoded.diagnostics,
         readable: false,
@@ -356,16 +376,42 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
     const diagnostics = [...decoded.diagnostics]
 
+    /* 提示词与技能/命令互不依赖，一起读：一次扫描因此是一趟往返的深度，不是两趟。 */
+    const [systemPromptText, registry] = await Promise.all([
+      promptTextOf(payload.pluginId, decoded.manifest.promptSources, diagnostics),
+      readRegistry(payload.pluginId, decoded.manifest, treeReaderFor(payload.pluginId)),
+    ])
+
     return {
       ...shared,
       manifest: decoded.manifest,
-      systemPromptText: await promptTextOf(
-        payload.pluginId,
-        decoded.manifest.promptSources,
-        diagnostics,
-      ),
+      registry,
+      systemPromptText,
       diagnostics,
       readable: true,
+    }
+  }
+
+  /*
+   * 一条声明路径底下的 Markdown。
+   *
+   * 原生侧把「路径不在盘上」交成 null，把「越界、太大、太多」交成失败。对这一层前者是
+   * 一条诊断（由 readRegistry 记下），后者是这个插件这一次读不出技能 —— 两种都不该让
+   * 另外几个插件的扫描一起没有结果，所以在这里就地折成 null。
+   */
+  function treeReaderFor(pluginId: string): PluginTreeReader {
+    return async (declared, suffix) => {
+      try {
+        const files = await readPluginTree({ pluginId, relativePath: declared, suffix })
+
+        return files === null
+          ? null
+          : files.map((file) => ({ path: file.relativePath, contents: file.contents }))
+      } catch (cause: unknown) {
+        warn('插件目录读不出来', { scope: 'plugins', pluginId, declared, cause })
+
+        return null
+      }
     }
   }
 
@@ -450,48 +496,65 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     return listing(describeInstallSource(source))?.trust ?? UNLISTED_TRUST
   }
 
-  function loadCatalog(): void {
-    queue = queue.then(async () => {
-      try {
-        const contents = await readPluginCatalog()
+  /*
+   * 启动时那几趟只读取用。
+   *
+   * 一趟坏了不该让另外几趟的结果也进不了屏幕，所以失败在这里落地；「读不出来算什么」
+   * 只有调用方知道，兜底值因此由它给。
+   */
+  async function guard(
+    what: string,
+    read: () => Promise<void>,
+    fallback: () => void,
+  ): Promise<void> {
+    try {
+      await read()
+    } catch (cause: unknown) {
+      warn(what, { scope: 'plugins', cause })
 
-        if (contents === null) {
-          return
-        }
-
-        publish({
-          marketplace: completeFetch(MARKETPLACE_ABSENT, JSON.parse(contents), '', origin),
-        })
-      } catch (cause: unknown) {
-        warn('本地市场目录读不出来', { scope: 'plugins', cause })
-      }
-    })
+      fallback()
+    }
   }
 
-  function fetchCatalog(): void {
-    queue = queue.then(async () => {
-      publish({ marketplace: beginFetch(snapshot.marketplace) })
+  /* 上一次拉下来、存在盘上那一份。它决定了「算不算从来没取过」。 */
+  async function loadCatalog(): Promise<void> {
+    try {
+      const contents = await readPluginCatalog()
 
-      try {
-        const contents = await refreshPluginCatalog(options.marketplaceUrl)
-
-        publish({
-          marketplace: completeFetch(
-            snapshot.marketplace,
-            JSON.parse(contents),
-            options.now(),
-            origin,
-          ),
-        })
-      } catch (cause: unknown) {
-        publish({
-          marketplace: failFetch(
-            snapshot.marketplace,
-            cause instanceof Error ? cause.message : String(cause),
-          ),
-        })
+      if (contents === null) {
+        return
       }
-    })
+
+      publish({
+        marketplace: completeFetch(snapshot.marketplace, JSON.parse(contents), '', origin),
+      })
+    } catch (cause: unknown) {
+      warn('本地市场目录读不出来', { scope: 'plugins', cause })
+    }
+  }
+
+  async function fetchCatalog(): Promise<void> {
+    publish({ marketplace: beginFetch(snapshot.marketplace) })
+
+    try {
+      const contents = await refreshPluginCatalog(options.marketplaceUrl)
+
+      publish({
+        marketplace: completeFetch(
+          snapshot.marketplace,
+          JSON.parse(contents),
+          options.now(),
+          origin,
+        ),
+      })
+    } catch (cause: unknown) {
+      publish({
+        marketplace: failFetch(
+          snapshot.marketplace,
+          cause instanceof Error ? cause.message : String(cause),
+        ),
+      })
+    }
   }
 
   return {
@@ -506,64 +569,43 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     start() {
-      queue = queue.then(async () => {
-        try {
-          await rescan()
-        } catch (cause: unknown) {
-          warn('插件列表读取失败', { scope: 'plugins', cause })
-
-          scanned = []
-        }
-
-        republish()
-      })
-
-      queue = queue.then(async () => {
-        try {
-          await readEnvironment()
-        } catch (cause: unknown) {
-          warn('这个 agent 的 mcp.json 读不出来', { scope: 'plugins', cause })
-
-          environment = []
-        }
-
-        republish()
-      })
-
-      queue = queue.then(async () => {
-        try {
-          await readBuiltinEndpoint()
-        } catch (cause: unknown) {
-          warn('内置 MCP 服务器的地址问不出来', { scope: 'plugins', cause })
-
-          builtinUrl = undefined
-        }
-
-        republish()
-      })
-
-      loadCatalog()
-
-      /*
-       * 只有从来没取过才自动拉一次，这条判据由 shouldFetchOnOpen 一个地方说了算。
-       * 排在 loadCatalog 之后：本地那一份读完了，才知道自己算不算「从来没取过」。
-       *
-       * 目录到手之后要再投一次：背书是拿账本里的 originalSource 回目录里查出来的，
-       * 目录还没到时每一条都只能是「没有背书」。
-       */
-      queue = queue.then(() => {
-        if (shouldFetchOnOpen(snapshot.marketplace)) {
-          fetchCatalog()
-        }
-      })
-
-      queue = queue.then(() => {
-        republish()
-      })
-
-      return () => {
-        listeners.clear()
+      if (started) {
+        return
       }
+
+      started = true
+
+      queue = queue.then(async () => {
+        /*
+         * 四趟互不依赖，一起等而不是排成四趟：每一趟都只读，写的只是各自那个模块级
+         * 变量，所以并发跑不会互相盖。首屏因此是一趟往返的时间，不是四趟。
+         */
+        await Promise.all([
+          guard('插件列表读取失败', rescan, () => {
+            scanned = []
+          }),
+          guard('这个 agent 的 mcp.json 读不出来', readEnvironment, () => {
+            environment = []
+          }),
+          guard('内置 MCP 服务器的地址问不出来', readBuiltinEndpoint, () => {
+            builtinUrl = undefined
+          }),
+          loadCatalog(),
+        ])
+
+        /*
+         * 只有从来没取过才自动拉一次，这条判据由 shouldFetchOnOpen 一个地方说了算，
+         * 而它要等 loadCatalog 落定才问得出来。
+         *
+         * 这里必须 await：背书是拿账本里的 originalSource 回目录里查出来的，目录没到
+         * 时每一条都只能是「没有背书」，所以最后那次 republish 必须排在目录之后。
+         */
+        if (shouldFetchOnOpen(snapshot.marketplace)) {
+          await fetchCatalog()
+        }
+
+        republish()
+      })
     },
 
     setEnabled(pluginId, enabled) {
@@ -571,10 +613,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         '插件开关没能写进 agent 的账本，屏幕上仍是账本里那一份',
         () => setPluginEnabled(pluginId, enabled),
         () => {
-          /*
-           * 就地改这一条，不回头重读账本。清单一个字节没动，重扫一遍是白扫 ——
-           * 为了得知一个已经在内存里的布尔值。
-           */
+          /* 就地改这一条，不回头重读账本：清单一个字节没动，重扫一遍是白扫。 */
           scanned = scanned.map((entry) =>
             entry.pluginId === pluginId ? { ...entry, enabled } : entry,
           )
@@ -617,7 +656,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     /*
      * 卸载 = 账本里那一条没了。
      *
-     * 上一版是「目录不在了才算卸载」，那是因为当时装了什么由我们自己扫目录决定。现在
      * 装载与不装载都由那份记录说了算，删记录就是卸载本身；托管副本由原生侧顺手清掉，
      * 那只是清垃圾，不是这件事的语义。
      */
@@ -719,7 +757,14 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       })
     },
 
-    refreshMarketplace: fetchCatalog,
+    /* 目录换了背书就可能变，所以拉完要再投一次。 */
+    refreshMarketplace() {
+      queue = queue.then(async () => {
+        await fetchCatalog()
+
+        republish()
+      })
+    },
   }
 
   /*

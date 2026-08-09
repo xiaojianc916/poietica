@@ -2,8 +2,7 @@ import { assertUnreachable } from '@poietica/core'
 import { Button, Switch } from '@poietica/ui'
 import { useState, useSyncExternalStore } from 'react'
 
-import type { ResolvedMcpServer } from '../contribution'
-import type { InstalledPlugin } from '../installation'
+import type { ResolvedMcpServer, ResolvedSkill } from '../contribution'
 import { latestCatalog } from '../marketplace'
 import { describeOrigin, type ManagedOrigin } from '../origin'
 import type { PluginStore } from '../plugin-store'
@@ -61,7 +60,7 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
 
   const counts: Record<PluginTabId, number> = {
     plugins: view.plugins.length,
-    skills: view.contributions.skillRoots.length,
+    skills: view.contributions.skills.length,
     mcp: view.contributions.mcpServers.length,
   }
 
@@ -72,7 +71,7 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
           <PluginDetail
             entry={latestCatalog(view.marketplace)?.entries.find((one) => one.id === openedId)}
             onBack={() => setOpenedId(undefined)}
-            plugin={view.plugins.find((one) => one.manifest.name === openedId)}
+            plugin={view.plugins.find((one) => one.pluginId === openedId)}
             store={store}
           />
         </div>
@@ -152,10 +151,7 @@ function TabBody({ needle, onOpen, store, tab, view }: TabBodyProps) {
       return (
         <ContributionList
           empty="还没有插件带来技能。"
-          rows={view.plugins
-            .filter((plugin) => plugin.manifest.skillRoots.length > 0)
-            .map((plugin) => skillRow(plugin, store))
-            .filter(keep)}
+          rows={view.contributions.skills.map((entry) => skillRow(entry, store)).filter(keep)}
         />
       )
     case 'mcp':
@@ -172,22 +168,27 @@ function TabBody({ needle, onOpen, store, tab, view }: TabBodyProps) {
   }
 }
 
-function skillRow(plugin: InstalledPlugin, store: PluginStore): ContributionRow {
-  const { displayName, name, sessionStartSkill, skillRoots } = plugin.manifest
+/*
+ * 一行是一个技能，不是一个插件。
+ *
+ * 人在这一格找的是「我能调用什么」，所以主标题是调用式。一个插件带来五个技能时，五行
+ * 同名的插件名说不出任何一个能怎么用。
+ *
+ * 开关落在插件上：官方没有「单独关掉一个技能」这一格，能拨的最小单位就是插件。
+ */
+function skillRow(entry: ResolvedSkill, store: PluginStore): ContributionRow {
+  const { skill } = entry
 
   return {
-    key: name,
-    title: displayName,
-    detail:
-      sessionStartSkill === undefined
-        ? `技能目录 ${skillRoots.join('、')}`
-        : `技能目录 ${skillRoots.join('、')} · 会话开始自动装载 ${sessionStartSkill}`,
-    badge: name,
+    key: `${skill.pluginId}/${skill.path}`,
+    title: skill.invocation,
+    detail: skill.modelInvocable ? skill.description : `${skill.description} · 只能手动调用`,
+    badge: skill.pluginId,
     trailing: (
       <Switch
-        aria-label={`启用 ${displayName} 的技能`}
-        checked={plugin.enabled}
-        onCheckedChange={(next) => store.setEnabled(name, next)}
+        aria-label={`启用 ${skill.pluginId} 的技能`}
+        checked={entry.enabled}
+        onCheckedChange={(next) => store.setEnabled(skill.pluginId, next)}
         size="sm"
       />
     ),

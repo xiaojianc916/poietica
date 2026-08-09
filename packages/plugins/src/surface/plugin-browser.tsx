@@ -13,17 +13,16 @@ import { TrustBadge } from './trust-badge'
  *
  * 「装了什么」不在这里判 —— 传进来的 plugins 就是磁盘上那一份，这里只做减法：
  * 已经在盘上的条目不再出现在下面的目录网格里，而是升到上面那一行「已安装」。
- * 之前这份名单来自账本，账本一解不开就整份为空，于是装过的插件在网格里重新长出
- * 一颗「安装」按钮。
  */
 
+/* 数的是真的读到的那些：清单声明几条路径不是能力，路径下有什么才是。 */
 function capabilitySummary(plugin: InstalledPlugin): string {
-  const { agentRoots, commandRoots, mcpServers, skillRoots } = plugin.manifest
+  const { mcpServers } = plugin.manifest
+  const { commands, skills } = plugin.registry
 
   const parts = [
-    skillRoots.length > 0 ? `技能 ${skillRoots.length} 处` : undefined,
-    commandRoots.length > 0 ? `命令 ${commandRoots.length} 处` : undefined,
-    agentRoots.length > 0 ? `代理 ${agentRoots.length} 处` : undefined,
+    skills.length > 0 ? `技能 ${skills.length} 个` : undefined,
+    commands.length > 0 ? `命令 ${commands.length} 条` : undefined,
     mcpServers.length > 0 ? `MCP ${mcpServers.length} 台` : undefined,
   ].filter((part) => part !== undefined)
 
@@ -59,14 +58,14 @@ export function PluginBrowser({
   store,
 }: PluginBrowserProps) {
   const catalog = latestCatalog(marketplace)
-  const installedIds = new Set(plugins.map((plugin) => plugin.manifest.name))
+  const installedIds = new Set(plugins.map((plugin) => plugin.pluginId))
   const listed = (catalog?.entries ?? []).filter(
     (entry) =>
       !installedIds.has(entry.id) &&
       matches(needle, entry.displayName, entry.id, entry.description),
   )
   const installed = plugins.filter((plugin) =>
-    matches(needle, plugin.manifest.displayName, plugin.manifest.name, plugin.manifest.description),
+    matches(needle, plugin.manifest.displayName, plugin.pluginId, plugin.manifest.description),
   )
 
   return (
@@ -77,15 +76,15 @@ export function PluginBrowser({
         <Section title="已安装">
           <ul className="divide-y divide-divider">
             {installed.map((plugin) => (
-              <li className="flex items-center gap-3 py-3" key={plugin.manifest.name}>
+              <li className="flex items-center gap-3 py-3" key={plugin.pluginId}>
                 <PluginGlyph
                   displayName={plugin.manifest.displayName}
-                  id={plugin.manifest.name}
+                  id={plugin.pluginId}
                   size="sm"
                 />
                 <button
                   className="min-w-0 flex-1 text-left"
-                  onClick={() => onOpen(plugin.manifest.name)}
+                  onClick={() => onOpen(plugin.pluginId)}
                   type="button"
                 >
                   <span className="flex items-center gap-2">
@@ -101,11 +100,7 @@ export function PluginBrowser({
                     {capabilitySummary(plugin)}
                   </span>
                 </button>
-                <Button
-                  onClick={() => store.remove(plugin.manifest.name)}
-                  size="xs"
-                  variant="ghost"
-                >
+                <Button onClick={() => store.remove(plugin.pluginId)} size="xs" variant="ghost">
                   卸载
                 </Button>
               </li>
@@ -264,10 +259,15 @@ function InstallBanner({ install, store }: InstallBannerProps) {
   return (
     <div className="mt-4 rounded-xl border border-divider bg-background p-4">
       <p className="text-sm font-medium">{install.manifest.displayName}</p>
+      {/*
+        装之前只知道清单说了什么：技能与命令要装完扫盘才数得出来。所以这里只说清单里确实
+        写着的那几台 MCP 服务器，不拿声明的路径条数冒充技能个数。
+      */}
       <p className="pt-1 text-xs leading-5 text-muted-foreground">
-        来自 {describeInstallSource(install.source)}。装上之后它会带来
-        {` ${capabilityLine(install.manifest.skillRoots.length, install.manifest.mcpServers.length)}`}
-        。
+        来自 {describeInstallSource(install.source)}。
+        {install.manifest.mcpServers.length === 0
+          ? '装上之后它带来的技能与命令会列在详情页里。'
+          : `它会启动 ${install.manifest.mcpServers.length} 台 MCP 服务器；技能与命令装完列在详情页里。`}
       </p>
       {install.diagnostics.map((diagnostic) => (
         <p className="pt-1 text-xs text-muted-foreground" key={diagnostic.detail}>
@@ -284,13 +284,4 @@ function InstallBanner({ install, store }: InstallBannerProps) {
       </div>
     </div>
   )
-}
-
-function capabilityLine(skills: number, servers: number): string {
-  const parts = [
-    skills > 0 ? `${skills} 处技能` : undefined,
-    servers > 0 ? `${servers} 台 MCP 服务器` : undefined,
-  ].filter((part) => part !== undefined)
-
-  return parts.length === 0 ? '一段系统提示词' : parts.join(' 与 ')
 }

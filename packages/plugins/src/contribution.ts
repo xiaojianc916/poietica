@@ -1,29 +1,33 @@
+import type { PluginCommand } from './command'
 import { type InstalledPlugin, resolutionOrder } from './installation'
 import { type PluginDiagnostic, SESSION_PROMPT_BUDGET_BYTES, utf8ByteLength } from './manifest'
 import type { DeclaredMcpServer } from './mcp-config'
 import { type McpServerWire, mcpServerWireOf } from './mcp-server'
 import type { BuiltinOrigin, ContributionOrigin } from './origin'
+import type { PluginSkill } from './skill'
 
 /*
  * 一次遍历，两个读者。
  *
- * 管理界面要看见全部：关掉的插件、关掉的服务器都得留在列表里，否则拨到关就再也
- * 开不回来 —— 上一版就是这样，关掉一台 MCP 服务器，它从 MCP 那一格消失，开关无处
- * 可寻。会话要的是「真的会生效的那些」。所以这里一次产出全部，每一条带上自己的
- * 启用位，会话读 active 那一档（apps/desktop 的 plugins/plugin-runtime 里那个
- * activeMcpServers 就是那一档的唯一读者）。不是两条管线，是一份结果加一个显式过滤。
+ * 管理界面要看见全部：关掉的插件、关掉的服务器都得留在列表里，否则拨到关就再也开不
+ * 回来。会话要的是「真的会生效的那些」。所以这里一次产出全部，每一条带上自己的启用
+ * 位，会话读 enabled / active 那一档。不是两条管线，是一份结果加一个显式过滤。
  *
  * 每一条都说得出自己从哪来。三种来源 —— 本应用自带的、这台机器上配好的、插件带来的
  * —— 是同一种东西，因此走同一个列表，而不是界面上另起几格自己去合并。
  *
- * 技能与代理两类在清单里仍然只是一条 ./ 路径，路径下那些文件才是真正的实体；这一层
- * 如实交出路径，不凭空造出名字来撑版面。
+ * 技能与命令进来时已经是实体（InstalledPlugin.registry），这一层只做跨插件仲裁：排
+ * 序、带上启用位、把诊断汇总。它不读盘，也不认识 Markdown。
  */
 
-export interface ResolvedRoot {
-  readonly origin: ContributionOrigin
-  /* 清单里声明的 ./ 路径。 */
-  readonly path: string
+export interface ResolvedSkill {
+  readonly skill: PluginSkill
+  /** 带来它的那个插件开着没有。关掉的照样列出来，否则开关就没有落脚点。 */
+  readonly enabled: boolean
+}
+
+export interface ResolvedCommand {
+  readonly command: PluginCommand
   readonly enabled: boolean
 }
 
@@ -65,9 +69,8 @@ export interface ResolvedPrompt {
 }
 
 export interface ResolvedContributions {
-  readonly skillRoots: readonly ResolvedRoot[]
-  readonly agentRoots: readonly ResolvedRoot[]
-  readonly commandRoots: readonly ResolvedRoot[]
+  readonly skills: readonly ResolvedSkill[]
+  readonly commands: readonly ResolvedCommand[]
   readonly mcpServers: readonly ResolvedMcpServer[]
   /* 提示词没有管理界面，它是会话的载荷而不是一个可列举的实体，所以只收启用的。 */
   readonly prompts: readonly ResolvedPrompt[]
@@ -86,9 +89,8 @@ export interface ContributionInput {
 const BUILTIN_ORIGIN: BuiltinOrigin = { kind: 'builtin' }
 
 export function resolveContributions(input: ContributionInput): ResolvedContributions {
-  const skillRoots: ResolvedRoot[] = []
-  const agentRoots: ResolvedRoot[] = []
-  const commandRoots: ResolvedRoot[] = []
+  const skills: ResolvedSkill[] = []
+  const commands: ResolvedCommand[] = []
   const mcpServers: ResolvedMcpServer[] = []
   const prompts: ResolvedPrompt[] = []
   const diagnostics: PluginDiagnostic[] = []
@@ -102,28 +104,22 @@ export function resolveContributions(input: ContributionInput): ResolvedContribu
   for (const plugin of resolutionOrder(input.plugins)) {
     const origin: ContributionOrigin = { kind: 'plugin', pluginId: plugin.pluginId }
 
-    diagnostics.push(...plugin.diagnostics)
+    diagnostics.push(...plugin.diagnostics, ...plugin.registry.diagnostics)
 
-    collectRoots(origin, plugin.manifest.skillRoots, plugin.enabled, skillRoots)
-    collectRoots(origin, plugin.manifest.agentRoots, plugin.enabled, agentRoots)
-    collectRoots(origin, plugin.manifest.commandRoots, plugin.enabled, commandRoots)
+    for (const skill of plugin.registry.skills) {
+      skills.push({ skill, enabled: plugin.enabled })
+    }
+
+    for (const command of plugin.registry.commands) {
+      commands.push({ command, enabled: plugin.enabled })
+    }
+
     collectMcpServers(plugin, origin, mcpServers, diagnostics)
 
     promptBytes = collectPrompt(plugin, promptBytes, prompts, diagnostics)
   }
 
-  return { agentRoots, commandRoots, diagnostics, mcpServers, promptBytes, prompts, skillRoots }
-}
-
-function collectRoots(
-  origin: ContributionOrigin,
-  paths: readonly string[],
-  enabled: boolean,
-  into: ResolvedRoot[],
-): void {
-  for (const declared of paths) {
-    into.push({ origin, path: declared, enabled })
-  }
+  return { commands, diagnostics, mcpServers, promptBytes, prompts, skills }
 }
 
 /*
@@ -181,7 +177,7 @@ function collectMcpServers(
   into: ResolvedMcpServer[],
   diagnostics: PluginDiagnostic[],
 ): void {
-  const pluginId = plugin.manifest.name
+  const { pluginId } = plugin
   const disabled = new Set(plugin.disabledMcpServers)
 
   for (const server of plugin.manifest.mcpServers) {
@@ -225,7 +221,7 @@ function collectPrompt(
     return used
   }
 
-  const pluginId = plugin.manifest.name
+  const { pluginId } = plugin
   const bytes = utf8ByteLength(text)
 
   if (used + bytes > SESSION_PROMPT_BUDGET_BYTES) {

@@ -18,6 +18,9 @@ const FENCE = '---'
 /* 编辑器与 Windows 工具链会在文件开头写 BOM，它会让第一行不再等于三横线。 */
 const BYTE_ORDER_MARK = '\uFEFF'
 
+/* 技能与命令都是 Markdown。「哪个后缀算数」是插件域的语义，原生侧不认识它。 */
+export const MARKDOWN_SUFFIX = '.md'
+
 export interface MarkdownFile {
   /* 相对插件根，回头重读原文时原样传回去。 */
   readonly path: string

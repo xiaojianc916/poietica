@@ -1,12 +1,11 @@
 import type { PluginInstallSource, PluginTrustTier } from './install-source'
 import type { PluginDiagnostic, PluginManifest } from './manifest'
+import type { PluginRegistry } from './registry'
 
 /*
  * 一个装好的插件 = agent 的 installed.json 里的一条记录，加上那条记录指向的清单。
  *
- * 「装了什么」的真相在 agent 家里那份账本，不在任何一个我们自己维护的地方。上一版
- * 是扫我们自己的 plugins/ 目录：装是我们装的、扫也是我们扫的，自洽，但 agent 一眼
- * 不看，于是从对话里装的插件界面看不见，界面上装的插件会话里不生效。
+ * 「装了什么」的真相在 agent 家里那份账本，不在任何一个我们自己维护的地方。
  *
  * source 与 trust 不落盘。官方记录里只有 originalSource 这一串地址，背书是我们的
  * 概念 —— 读的时候拿它回目录里查，查不到就是没有背书。往人家的契约里塞我们的字段，
@@ -33,6 +32,13 @@ export interface InstalledPlugin {
   /* ISO-8601。装载顺序按它排。 */
   readonly installedAt: string | undefined
   readonly systemPromptText: string | undefined
+  /*
+   * 清单声明的那几条 ./ 路径，加上路径下那些 Markdown，物化出来的技能与命令。
+   *
+   * 与 systemPromptText 同一档：清单只说「到哪里找」，实体要读盘才知道，读完落在这里，
+   * 领域层因此不需要碰文件系统。
+   */
+  readonly registry: PluginRegistry
   /* 插件整体启用、但被单独关掉的那几台 MCP 服务器。 */
   readonly disabledMcpServers: readonly string[]
   readonly diagnostics: readonly PluginDiagnostic[]

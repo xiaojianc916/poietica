@@ -11,10 +11,9 @@ import { TrustBadge } from './trust-badge'
 /*
  * 详情页。
  *
- * 「装上之后会发生什么」这一段只说清单真的声明了的事：会话开始装载哪个技能、命令
- * 从哪个目录来、以什么前缀调用。上一版在这里列了三条形如 /plugin:command 的示例，
- * 那些名字是从一个不存在的清单字段里读的 —— commands 在上游是路径不是命令名，
- * 真正的命令要扫盘才知道。宁可少说一行，不能编一行。
+ * 技能与命令列的是真的读到的那些，连同它们的调用式。文件系统路径不出现在这里：人要的
+ * 是「我能敲什么」，./skills 这样一条路径回答不了它；而且路径是实现细节，插件换一次目
+ * 录结构不该让这一页跟着变样。
  */
 
 export interface PluginDetailProps {
@@ -25,11 +24,14 @@ export interface PluginDetailProps {
 }
 
 export function PluginDetail({ entry, onBack, plugin, store }: PluginDetailProps) {
-  const id = plugin?.manifest.name ?? entry?.id ?? ''
+  const id = plugin?.pluginId ?? entry?.id ?? ''
   const displayName = plugin?.manifest.displayName ?? entry?.displayName ?? id
   const description = plugin?.manifest.description ?? entry?.description
   const trust = plugin?.trust ?? entry?.trust ?? 'third-party'
   const hue = pluginHue(id)
+  /* 清单坏了，和「声明的技能目录空着」，是同一类东西：都在说这个插件为什么没全生效。 */
+  const diagnostics =
+    plugin === undefined ? [] : [...plugin.diagnostics, ...plugin.registry.diagnostics]
 
   return (
     <div className="pb-20">
@@ -91,13 +93,13 @@ export function PluginDetail({ entry, onBack, plugin, store }: PluginDetailProps
           />
         </dl>
       </section>
-      {plugin === undefined || plugin.diagnostics.length === 0 ? null : (
+      {diagnostics.length === 0 ? null : (
         <section className="pt-8">
           <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             诊断
           </h2>
           <ul className="divide-y divide-divider border-y border-divider">
-            {plugin.diagnostics.map((diagnostic) => (
+            {diagnostics.map((diagnostic) => (
               <li className="py-3 text-xs leading-5 text-muted-foreground" key={diagnostic.detail}>
                 <span className="pr-2 font-medium text-foreground">{diagnostic.code}</span>
                 {diagnostic.detail}
@@ -124,15 +126,16 @@ interface BehaviourProps {
 }
 
 function Behaviour({ plugin }: BehaviourProps) {
-  const { commandRoots, name, sessionStartSkill, skillRoots } = plugin.manifest
-  const hue = pluginHue(name)
+  const { sessionStartSkill } = plugin.manifest
+  const { commands, skills } = plugin.registry
+  const hue = pluginHue(plugin.pluginId)
 
   const lines = [
     sessionStartSkill === undefined ? undefined : `新会话开始时自动装载技能 ${sessionStartSkill}`,
-    skillRoots.length === 0 ? undefined : `技能来自 ${skillRoots.join('、')}，模型按需取用`,
-    commandRoots.length === 0
+    skills.length === 0 ? undefined : `带来 ${skills.length} 个技能，模型按需取用`,
+    commands.length === 0
       ? undefined
-      : `命令来自 ${commandRoots.join('、')}，在对话里以 /${name}: 前缀调用`,
+      : `带来 ${commands.length} 条命令，在对话里以 /${plugin.pluginId}: 前缀调用`,
     plugin.systemPromptText === undefined ? undefined : '每次会话都会注入一段系统提示词',
   ].filter((line) => line !== undefined)
 
@@ -169,13 +172,30 @@ interface CapabilitiesProps {
 function Capabilities({ plugin, store }: CapabilitiesProps) {
   const disabled = new Set(plugin.disabledMcpServers)
   /* 这一页只讲一个插件，它带来的每一台服务器都出自同一个来源。 */
-  const origin: PluginOrigin = { kind: 'plugin', pluginId: plugin.manifest.name }
+  const origin: PluginOrigin = { kind: 'plugin', pluginId: plugin.pluginId }
 
   return (
     <>
-      <PathSection paths={plugin.manifest.skillRoots} title="技能" />
-      <PathSection paths={plugin.manifest.commandRoots} title="命令" />
-      <PathSection paths={plugin.manifest.agentRoots} title="代理" />
+      <InvocationSection
+        empty="清单声明的技能目录下没有读到 SKILL.md。"
+        entries={plugin.registry.skills.map((skill) => ({
+          key: skill.path,
+          invocation: skill.invocation,
+          detail: skill.description,
+        }))}
+        title="技能"
+      />
+      {plugin.manifest.commandRoots.length === 0 ? null : (
+        <InvocationSection
+          empty="清单声明的命令目录下没有读到 .md。"
+          entries={plugin.registry.commands.map((command) => ({
+            key: command.path,
+            invocation: command.invocation,
+            detail: command.description ?? '这条命令没有写说明。',
+          }))}
+          title="命令"
+        />
+      )}
       {plugin.manifest.mcpServers.length === 0 ? null : (
         <section className="pt-8">
           <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -200,28 +220,42 @@ function Capabilities({ plugin, store }: CapabilitiesProps) {
   )
 }
 
-interface PathSectionProps {
-  readonly paths: readonly string[]
+interface InvocationEntry {
+  readonly key: string
+  readonly invocation: string
+  readonly detail: string
+}
+
+interface InvocationSectionProps {
+  readonly entries: readonly InvocationEntry[]
+  readonly empty: string
   readonly title: string
 }
 
-function PathSection({ paths, title }: PathSectionProps) {
-  if (paths.length === 0) {
-    return null
-  }
-
+/*
+ * 空也要出现。清单声明了技能目录、盘上却一份 SKILL.md 都没有，说的是「这个插件没装
+ * 全」；整节消失只会让人以为它本来就不提供技能。
+ */
+function InvocationSection({ empty, entries, title }: InvocationSectionProps) {
   return (
     <section className="pt-8">
       <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {title}
       </h2>
-      <ul className="divide-y divide-divider border-y border-divider">
-        {paths.map((path) => (
-          <li className="py-3 font-mono text-xs text-muted-foreground" key={path}>
-            {path}
-          </li>
-        ))}
-      </ul>
+      {entries.length === 0 ? (
+        <p className="py-3 text-xs text-muted-foreground">{empty}</p>
+      ) : (
+        <ul className="divide-y divide-divider border-y border-divider">
+          {entries.map((entry) => (
+            <li className="py-3" key={entry.key}>
+              <span className="font-mono text-xs">{entry.invocation}</span>
+              <span className="block pt-1 text-xs leading-5 text-muted-foreground">
+                {entry.detail}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
