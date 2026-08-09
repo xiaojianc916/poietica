@@ -15,7 +15,6 @@ import { Surface } from '../primitives/surface'
 import { type ToolCallFacets, toToolCallFacets } from '../semantics/tool-call-facets'
 import { readToolIntent, type ToolIntent } from '../semantics/tool-intent'
 import { ToolCallPanels } from './tool-call-panels'
-import { ToolDuration } from './tool-duration'
 
 function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
   const className = 'timeline-tool__icon'
@@ -42,16 +41,14 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
  * 这张卡片此刻是什么样子 —— 一次算完，渲染器只读不算。
  *
  * 抽屉里的两个面由投影层交回来（toToolCallFacets），这一层只做属于卡片自己的三件
- * 派生：意图那一行、跑没跑完、抽屉默不默认开着。此前这里还要自己拼任务书、自己挑
- * 那句空话 —— 那两件事都是「抽屉里怎么画」，已经跟着一起搬走了。
+ * 派生：意图那一行，以及这次调用是否仍在运行。抽屉的开合不再从运行状态
+ * 派生；工具卡默认收起，此后只响应用户手动点击。
  */
 interface ToolCallCardView {
   readonly facets: ToolCallFacets
   /** 子代理已把意图写在标题上，所以它那一路不叠第二句。 */
   readonly intent: ToolIntent | null
   readonly isRunning: boolean
-  /** 活着而且真有东西可看才默认开着。人点过之后以人为准（useDisclosure 的语义）。 */
-  readonly opensByDefault: boolean
 }
 
 /*
@@ -59,10 +56,8 @@ interface ToolCallCardView {
  * 单独用不得 —— status 是 agent 说过的话，一次没等到终态的调用会永远停在
  * in_progress，那张卡片会在一轮早就结束之后还在转。轮次是否还在飞由读模型说。
  *
- * 开合判据落在「它还在跑吗」，不落在「它跑成了什么」：上游对多数工具不回传过程，而
- * 终端类的实时输出走 terminal/* 反向 RPC —— 用结果轴当判据，两头都会错。入参现在也
- * 算「有东西可看」：运行中它往往是唯一到齐的那一份。失败不自动摊开，标题栏那枚失败
- * 图标是常驻记号，点开才是一次动作。
+ * 开合不属于这份投影。无论运行、成功还是失败，工具卡都不会根据状态自行改变
+ * 展开状态；标题栏保留运行与失败记号，详情只在用户点击后显示。
  */
 function describeToolCall(item: ToolCallTimelineItem, isInFlight: boolean): ToolCallCardView {
   const facets = toToolCallFacets(item)
@@ -72,7 +67,6 @@ function describeToolCall(item: ToolCallTimelineItem, isInFlight: boolean): Tool
     facets,
     intent: facets.brief === null ? readToolIntent(item) : null,
     isRunning,
-    opensByDefault: isRunning && (facets.response !== null || facets.request !== null),
   }
 }
 
@@ -156,8 +150,6 @@ function ToolCallHeader({
 
       <ToolCallDiffStat diffStat={diffStat} />
 
-      <ToolDuration isRunning={isRunning} item={item} />
-
       {isRunning ? <SpinnerIcon aria-hidden="true" className="timeline-tool__spinner" /> : null}
 
       {item.status === 'failed' ? (
@@ -176,8 +168,8 @@ function ToolCallHeader({
  * "Read" and then "Reading README.md" — so it is displayed rather than
  * reconstructed from the arguments.
  *
- * 运行时展开，落定后收起 —— 和思考链同一个抽屉、同一条判据，因为两者是同一种
- * 东西：过程。过程值得看，结果不值得摊着。人点过一次之后以人为准。
+ * 工具卡默认收起，开合完全由用户决定。运行开始、收到结果、成功或失败都不会
+ * 自动展开或自动收起，状态变化只更新标题栏和抽屉里的内容。
  *
  * 抽屉：内容常驻挂载，0fr 与 1fr 之间一次跳变，收起时 inert。不补间 —— 这一行
  * 挂着虚拟器的 measureElement，补间高度就是每帧让它下面所有行重排一次。
@@ -193,7 +185,7 @@ export function ToolCallCard({
   readonly item: ToolCallTimelineItem
 }) {
   const view = describeToolCall(item, isInFlight)
-  const { isOpen, toggle } = useDisclosure(view.opensByDefault)
+  const { isOpen, toggle } = useDisclosure(false)
 
   return (
     <Surface

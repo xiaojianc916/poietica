@@ -1336,19 +1336,6 @@
 }
 
 /*
- * 工具卡标题栏右侧的耗时。
- *
- * tabular-nums：秒数每秒跳一次，等宽数字才不会让整行左右抽动。
- */
-.timeline-tool__duration {
-  flex: none;
-  font: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/*
  * 后台派发的记号。
  *
  * 一个词，不染色：它不是警告，只是说明这次派发不占前台，答复会晚一些回来。
