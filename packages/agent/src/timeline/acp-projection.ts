@@ -26,7 +26,7 @@ import type {
   UserMessageItem,
 } from './timeline-contract'
 import type { Draft } from './timeline-draft'
-import { namespace, positionOf, push, sealTail } from './timeline-draft'
+import { markTurnEnd, markTurnStart, namespace, positionOf, push, sealTail } from './timeline-draft'
 import { pendingPermission } from './timeline-queries'
 
 /**
@@ -69,6 +69,8 @@ export function apply(draft: Draft, event: RunEvent): void {
   switch (event.kind) {
     case 'run_started': {
       draft.status = 'running'
+      /* 起点是这一帧的时刻，不是本机此刻：回放要复现同一个耗时。 */
+      markTurnStart(draft, event.at)
       withPrompt(draft, event)
 
       return
@@ -135,6 +137,7 @@ export function apply(draft: Draft, event: RunEvent): void {
          调用就停在它最后被报到的地方：status 装的是协议值，也就是 agent 说过
          的话，这一层没有资格替它补一句「失败」。停住的纺锤怎么画，归读模型。 */
       draft.status = finalStatus(event.stopReason)
+      markTurnEnd(draft, event.at)
 
       const said = event.diagnostics?.trim() ?? ''
       const told = said.length > 0 ? said : silentTurn(draft, event.stopReason)
@@ -155,6 +158,7 @@ export function apply(draft: Draft, event: RunEvent): void {
     case 'run_failed': {
       sealTail(draft)
       draft.status = 'failed'
+      markTurnEnd(draft, event.at)
       push(draft, {
         type: 'error',
         id: `${namespace(draft)}error-${String(event.seq)}`,

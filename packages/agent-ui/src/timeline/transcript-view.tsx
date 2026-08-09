@@ -6,12 +6,15 @@ import {
   selectIsWaiting,
   selectTurns,
 } from '@poietica/agent'
-import { type ReactNode, useCallback, useMemo } from 'react'
+import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { ThinkingIndicator } from './thinking-indicator'
+import { foldFeed } from './turn-fold'
+import { TurnSeal } from './turn-seal'
 
 /*
  * 转录，以及只随转录变化的那些东西。
@@ -22,6 +25,21 @@ import { ThinkingIndicator } from './thinking-indicator'
  *
  * 这里不量任何几何，也不持有任何状态：滚动归虚拟器，答复归上层。
  */
+
+/* 没有一轮被点开时共用同一个空集：状态的初值不该每次渲染换一个引用。 */
+const NOTHING_OPENED: ReadonlySet<number> = new Set()
+
+/**
+ * 让浏览器自己补这段过渡。
+ *
+ * 收起改变的是「有多少行」，不是某一行的高度：虚拟器按实测高度定位每一行，用 CSS
+ * 过渡去逼近它只会让几何和动画各说一套。View Transition 对变更前后各拍一张，中间
+ * 的补间与我们的布局无关。类型定义里还没有它，所以就近声明一次，而不是往全局塞
+ * 一个 any。
+ */
+type ViewTransitionHost = {
+  readonly startViewTransition?: (update: () => void) => unknown
+}
 
 export interface TranscriptViewProps {
   readonly sessionKey: string
@@ -65,10 +83,94 @@ export function TranscriptView({
   )
 
   /*
-   * 轮次读的是屏幕上真正在滚的那个数组：摘出去一行，两个数组的下标就错开一位，
-   * 而 ConversationTurn.rowIndex 正是喂给 virtualizer.scrollToIndex 的那个行号。
+   * 哪几轮被人点开了。
+   *
+   * 只记被点开的那几轮，不记全体：默认是「落定就收起」，而一条长对话里被点开的
+   * 永远是少数。按轮号记，不按行 id —— 行会随流式重建，轮号不会。
    */
-  const turns = selectTurns(visibleRows)
+  const [opened, setOpened] = useState<ReadonlySet<number>>(NOTHING_OPENED)
+
+  /*
+   * flushSync 是 View Transition 的前提：回调必须在这一帧内把 DOM 改完，而 setState
+   * 默认是批处理的。拿不到这个能力，或者用户在系统里要求减少动态效果，就直接改状态
+   * —— 少一段动画，不少一个功能。
+   */
+  const toggleTurn = useCallback((turn: number) => {
+    const flip = () => {
+      setOpened((current) => {
+        const next = new Set(current)
+
+        if (!next.delete(turn)) {
+          next.add(turn)
+        }
+
+        return next
+      })
+    }
+
+    const host = document as unknown as ViewTransitionHost
+    const stillness = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (host.startViewTransition === undefined || stillness) {
+      flip()
+
+      return
+    }
+
+    host.startViewTransition(() => {
+      flushSync(flip)
+    })
+  }, [])
+
+  /*
+   * 折叠只发生在这一层。
+   *
+   * 领域层不知道有折叠这件事：它只记下每一轮的两端（TimelineState.spans），折哪几行
+   * 是屏幕的事。所以这里是一次纯函数派生 —— 一行都不用折时原样交回入参那个数组，
+   * 下游按引用比较的投影缓存不会被白打掉。
+   */
+  const feed = useMemo(
+    () => foldFeed(visibleRows, timeline.spans, opened),
+    [opened, timeline.spans, visibleRows],
+  )
+
+  /*
+   * 轮次读的是屏幕上真正在滚的那个数组：摘出去一行、折起一段过程，下标都会跟着
+   * 错位，而 ConversationTurn.rowIndex 正是喂给 virtualizer.scrollToIndex 的那个行号。
+   */
+  const turns = selectTurns(feed.rows)
+
+  /*
+   * 封条画在一行的上面，而不是自己占一行。
+   *
+   * 行的类型是领域层的投影，虚拟器的估高表与几处穷尽 switch 都按类型建；为一个纯
+   * 展示的标签新增一种行，等于让三处一起认识它。所以它长在行的外面：位置由那一轮
+   * 第一行「不是人话」的那一行决定，那一行在，它就在。
+   */
+  const renderRowWithSeal = useCallback(
+    (row: FeedRow) => {
+      const seal = feed.seals.get(row.item.id)
+
+      if (seal === undefined) {
+        return renderRow(row)
+      }
+
+      return (
+        <>
+          <TurnSeal
+            endedAt={seal.endedAt}
+            hasProcess={seal.hasProcess}
+            isOpen={seal.isOpen}
+            onToggle={toggleTurn}
+            startedAt={seal.startedAt}
+            turn={seal.turn}
+          />
+          {renderRow(row)}
+        </>
+      )
+    },
+    [feed.seals, renderRow, toggleTurn],
+  )
 
   const overlay = useCallback(
     (port: FeedPort) =>
@@ -90,8 +192,8 @@ export function TranscriptView({
         footer={selectIsWaiting(timeline) ? <ThinkingIndicator /> : undefined}
         isBusy={selectIsBusy(timeline)}
         overlay={overlay}
-        renderRow={renderRow}
-        rows={visibleRows}
+        renderRow={renderRowWithSeal}
+        rows={feed.rows}
       />
     </>
   )

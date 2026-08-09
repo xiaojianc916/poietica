@@ -49,6 +49,7 @@ export type {
   TimelineItemId,
   TimelineState,
   ToolCallTimelineItem,
+  TurnSpan,
   UserMessageItem,
 } from './timeline'
 export {

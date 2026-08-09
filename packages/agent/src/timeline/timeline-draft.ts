@@ -10,7 +10,7 @@
  */
 
 import type { RunStatus } from '@poietica/agent-contract'
-import type { TimelineItem, TimelineState } from './timeline-contract'
+import type { TimelineItem, TimelineState, TurnSpan } from './timeline-contract'
 
 export interface Draft {
   status: RunStatus
@@ -19,6 +19,8 @@ export interface Draft {
   index: Map<string, number> | null
   lastSeq: number
   runIndex: number
+  /** 每一轮的两端。当轮恒是末尾那一条，见 markTurnStart。 */
+  readonly spans: TurnSpan[]
 }
 
 /**
@@ -58,6 +60,8 @@ export function draftOf(state: TimelineState): Draft {
     index,
     lastSeq: state.lastSeq,
     runIndex: state.runIndex,
+    /* 复制一层：草稿要能给末尾那一条补上终点，而交出去的那份是只读的。 */
+    spans: state.spans.slice(),
   }
 }
 
@@ -67,6 +71,7 @@ export function freeze(draft: Draft): TimelineState {
     items: draft.items,
     lastSeq: draft.lastSeq,
     runIndex: draft.runIndex,
+    spans: draft.spans,
   }
 
   /* 这一趟没人按 id 找过，就没有东西要交下去：不为「以后也许会用」凭空建一张表。 */
@@ -142,6 +147,40 @@ export function sealTail(draft: Draft): void {
   }
 
   draft.items[draft.items.length - 1] = { ...tail, sealed: true }
+}
+
+/**
+ * 开一轮的计时。
+ *
+ * 当轮恒是数组末尾那一条：段号只增不减（openSegment），而调用方在段号换过之后才走
+ * 到这里（applyRunEvents 里 beginRun 在 apply 之前）。所以这里不查找、不建索引 ——
+ * 认当轮只看末尾那一条的段号。
+ *
+ * 同一轮里第二帧 run_started 不会再开一条：一轮只有一个起点。
+ */
+export function markTurnStart(draft: Draft, at: number): void {
+  if (draft.spans.at(-1)?.turn === draft.runIndex) {
+    return
+  }
+
+  draft.spans.push({ turn: draft.runIndex, startedAt: at })
+}
+
+/**
+ * 给当轮收口。
+ *
+ * 落定过的不再改：先 run_failed、后面又补一帧 run_finished 时，屏幕上的耗时不该往后
+ * 跳。一段还没开过就到了终点的日志（起点那一格是后加的）这里什么都不做 —— 没有起点
+ * 就算不出耗时，不画比画一个 0s 诚实。
+ */
+export function markTurnEnd(draft: Draft, at: number): void {
+  const open = draft.spans.at(-1)
+
+  if (open === undefined || open.endedAt !== undefined) {
+    return
+  }
+
+  draft.spans[draft.spans.length - 1] = { ...open, endedAt: at }
 }
 
 /**

@@ -44,6 +44,7 @@ export function createTimelineState(): TimelineState {
     items: [],
     lastSeq: 0,
     runIndex: 0,
+    spans: [],
   }
 }
 

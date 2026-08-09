@@ -1,0 +1,58 @@
+/*
+ * 封条：一行小字，和紧贴它的那条线。
+ *
+ * 线是这一行自己的下边框，不是外面某个盒子的。挂在把过程包起来的那层壳上会让线随开合
+ * 移动 —— 摊开之后它跟着壳的底边跑到整段过程的下面，而它本来是用来分隔「这一轮的过程」
+ * 与「这一轮的回复」的。现在过程不是它的孩子，摊开多少行都不会动它。
+ *
+ * 它是一行注记，不是一张卡：不要外框、不要底色、不要强调色。字号与墨色取安静那一档，
+ * 与流里其它注记同源（见 outcome-card.css 的 __note）。
+ */
+
+.turn-seal {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  inline-size: 100%;
+  margin: 0;
+  padding-block: 0.375rem;
+  border: 0;
+  border-block-end: 1px solid color-mix(in oklab, currentcolor 14%, transparent);
+  font-size: var(--ui-prose-size-meta);
+  line-height: var(--ui-line-height-tight);
+  color: var(--cp-timeline-quiet-text);
+  text-align: start;
+}
+
+/*
+ * 可以点的那一种是按钮，不是一个装了 onClick 的 div：键盘、焦点圈、以及读屏软件念出的
+ * 「已折叠 / 已展开」都由它自带，aria-expanded 说的是折叠区此刻开着还是关着。
+ */
+.turn-seal--toggle {
+  appearance: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--ui-prose-size-meta);
+  color: inherit;
+}
+
+.turn-seal--toggle:hover {
+  color: var(--cp-ink);
+}
+
+/*
+ * 箭头朝下是「点开会往下长出东西」，摊开之后翻过来。
+ *
+ * 它自己不带过渡：这一次点击的补间由 View Transition 统一负责（见 transcript-view 的
+ * toggleTurn），再写一条 CSS 过渡就是两套动画各说一遍同一件事。
+ */
+.turn-seal__chevron {
+  flex: none;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+.turn-seal--toggle[aria-expanded="true"] .turn-seal__chevron {
+  rotate: 180deg;
+}

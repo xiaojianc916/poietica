@@ -144,6 +144,25 @@ export type TimelineItem =
   | ErrorItem
 
 /**
+ * 一轮的两端。
+ *
+ * 起点是 run_started 那一帧的 at，终点在 run_finished / run_failed 落定时补上；终点
+ * 缺席就是「这一轮还在跑」，所以不需要另一个布尔去说同一件事。
+ *
+ * 两端都取自日志里的 at（epoch 毫秒墙钟，原生侧 recorder.rs 的 now_millis 写下），
+ * 不取本机时钟：同一份日志放两遍必须算出同一个耗时。performance.now() 的原点是每个
+ * 进程各自的，与帧里的 at 不在同一条数轴上，所以它在这条链上不是一个可选项。
+ *
+ * 没有起点的一轮不会得到一条 span —— 这一格加进来之前录下的日志就是这样。算不出的
+ * 耗时宁可不显示，也不显示成 0s。
+ */
+export interface TurnSpan {
+  readonly turn: number
+  readonly startedAt: number
+  readonly endedAt?: number
+}
+
+/**
  * The conversation, as the feed reads it.
  *
  * 它没有轮次号，因为它不是一轮：它是一条对话，由若干段组成。段号（runIndex）
@@ -168,4 +187,12 @@ export interface TimelineState {
    */
   readonly lastSeq: number
   readonly runIndex: number
+  /**
+   * 每一轮的两端，按轮次顺序。
+   *
+   * 与 items 分开，因为它答的是另一个问题：items 说这一轮里发生了什么，spans 说这
+   * 一轮从什么时候到什么时候。把它算进条目会让「一轮的耗时」只存在于读模型里，而它
+   * 由帧决定，本来就该跟着状态一起被持久化、被重放。
+   */
+  readonly spans: readonly TurnSpan[]
 }

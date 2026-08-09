@@ -1,0 +1,114 @@
+import './turn-seal.css'
+
+import { memo, useEffect, useState } from 'react'
+import { ChevronDownIcon } from '../primitives/icons'
+
+/*
+ * 一轮的封条：这一轮花了多久，以及它的过程收在哪里。
+ *
+ * 它不是一条时间线条目 —— 它不来自任何一帧，它是「这一轮」本身的标签，所以它长在行的
+ * 外面（见 transcript-view 的 renderRowWithSeal）。横线是它自己的下边框：过程不是它的
+ * 孩子，摊开多少行都不会把这条线推走。
+ */
+
+export interface TurnSealProps {
+  readonly turn: number
+  readonly startedAt: number
+  /** 缺席就是这一轮还在跑。 */
+  readonly endedAt: number | undefined
+  readonly hasProcess: boolean
+  readonly isOpen: boolean
+  readonly onToggle: (turn: number) => void
+}
+
+const SECOND_MS = 1_000
+
+/*
+ * 耗时读的是墙钟，因为两端都是墙钟。
+ *
+ * 起止取自日志里的 at（原生侧 recorder.rs 的 now_millis 写下的 epoch 毫秒），所以这里
+ * 只能拿 Date.now() 与它相减；performance.now() 的原点是每个进程各自的，与日志里的时刻
+ * 不在同一条数轴上。
+ *
+ * 落定之后不起定时器：一个不会再变的数字不需要每秒醒一次。运行中每秒重读时钟，而不是
+ * 把一个计数器加一 —— 定时器会被节流（后台窗口、系统休眠），累加会漂，重读不会。
+ */
+function useElapsed(startedAt: number, endedAt: number | undefined): number {
+  const [now, setNow] = useState(Date.now)
+
+  useEffect(() => {
+    if (endedAt !== undefined) {
+      return
+    }
+
+    const tick = setInterval(() => {
+      setNow(Date.now())
+    }, SECOND_MS)
+
+    return () => {
+      clearInterval(tick)
+    }
+  }, [endedAt])
+
+  return Math.max((endedAt ?? now) - startedAt, 0)
+}
+
+/*
+ * 三档：一分钟以内只说秒，一小时以内说分和秒，再长只说时和分。
+ *
+ * 不补零 —— 读的人认的是「多少分多少秒」，不是一个时刻。
+ */
+function spell(ms: number): string {
+  const total = Math.floor(ms / SECOND_MS)
+  const hours = Math.floor(total / 3_600)
+  const minutes = Math.floor(total / 60) % 60
+  const seconds = total % 60
+
+  if (hours > 0) {
+    return `${String(hours)}h ${String(minutes)}m`
+  }
+
+  if (minutes > 0) {
+    return `${String(minutes)}m ${String(seconds)}s`
+  }
+
+  return `${String(seconds)}s`
+}
+
+/*
+ * 文案只说耗时，不说成败。
+ *
+ * 一轮以失败结束时，协议给出的 stopReason 与正常结束的那一轮相同：上游
+ * turnEndReasonToStopReason 把 failed 也映成 end_turn，它的注释说 ACP 的 StopReason 里
+ * 没有 failed 这个变体。所以这里没有可靠依据说「失败」，说了就是编。出错这件事由这一轮
+ * 里那条 error 条目自己讲，它就在下面几行。
+ */
+function Seal({ endedAt, hasProcess, isOpen, onToggle, startedAt, turn }: TurnSealProps) {
+  const elapsed = useElapsed(startedAt, endedAt)
+  const label = `${endedAt === undefined ? '正在处理' : '已处理'} ${spell(elapsed)}`
+
+  /* 没有可折的过程时它就是一行字：一个按不出东西的按钮比没有按钮更难懂。 */
+  if (!hasProcess) {
+    return <p className="turn-seal">{label}</p>
+  }
+
+  return (
+    <button
+      aria-expanded={isOpen}
+      className="turn-seal turn-seal--toggle"
+      onClick={() => {
+        onToggle(turn)
+      }}
+      type="button"
+    >
+      <span>{label}</span>
+      <ChevronDownIcon className="turn-seal__chevron" />
+    </button>
+  )
+}
+
+/*
+ * 属性全是原始值，所以浅比较真的挡得住：流式期间整棵转录每帧协调一次，而一条已经落定
+ * 的封条一个字都不会变。
+ */
+export const TurnSeal = memo(Seal)
