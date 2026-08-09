@@ -52,4 +52,5 @@ export type {
   ThreadPort,
   ThreadRecord,
   ThreadTitleSource,
+  TurnSpanTiming,
 } from './thread'
