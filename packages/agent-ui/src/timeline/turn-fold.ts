@@ -80,14 +80,9 @@ function foldTurn(
   const process = answerAt < 0 ? [] : processIn(rows, own, answerAt)
   /* 可点 ⟺ 真有东西可收。还没有回复时封条只是一行字，不给假按钮。 */
   const hasProcess = process.length > 0
-  /* 人手动点开的轮次当场摊开；其余轮次折掉「最后那段回复之前的全部过程」。 */
-  const isOpen = opened.has(span.turn)
+  /* 人手动点开的轮次当场摊开；还没见到最终回复的那一轮本来就在滚，也摊开。 */
+  const isOpen = opened.has(span.turn) || answerAt < 0
   const hidden = isOpen ? undefined : new Set(process)
-  /* 秒表从第一帧落屏那一刻起算，不从这一轮被发出去那一刻起算：屏幕上还在三点跳动
-   时人看不到任何数字，首帧一到就该从 0s 开始跳。取的是那条行自己的 at，所以回放
-   与实时算出同一个数。 */
-  const framed = own.find((at) => isFrame(rows, at))
-  const framedAt = framed === undefined ? undefined : rows[framed]?.item.at
   if (hidden !== undefined) {
     for (const at of hidden) {
       folded.add(at)
@@ -105,13 +100,12 @@ function foldTurn(
 
   seals.set(id, {
     turn: span.turn,
-    /* 一帧都没有的轮次（取消，或只留下一条报错）退回这一轮发起的时刻：那时量的
-     是整轮，而不是退化成 0s。 */
-    startedAt: framedAt ?? span.startedAt,
-    /* 秒表停在回复的第一帧，不是这一轮的末尾：之后流出来的是答案，不是处理。
-       一个字都没说就收场的轮次（取消、报错）退回这一轮真正的结束时间，于是
-       它照样显示「已处理 Xm Ys」而不是永远跳字。 */
-    endedAt: (answerAt < 0 ? undefined : rows[answerAt]?.item.at) ?? span.endedAt,
+    /* 秒表量的是整轮：起点是 run_started 落账那一刻，终点是 run_finished /
+       run_failed 那一刻 —— 两端都是原生侧盖下的墙钟，与「回复从哪一帧开始流」
+       无关。还在跑的轮次没有终点，封条继续跳字。此前起点取第一帧、终点取回复
+       的第一帧：一轮只有一段话时两端撞在同一帧上，耗时恒为 0s。 */
+    startedAt: span.startedAt,
+    endedAt: span.endedAt,
     hasProcess,
     isOpen,
   })

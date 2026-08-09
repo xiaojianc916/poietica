@@ -42,8 +42,9 @@ describe('foldFeed', () => {
     expect(idsOf(feed.rows)).toEqual(['q', 'a'])
     expect(feed.seals.get('a')).toEqual({
       turn: 0,
-      startedAt: 2_000,
-      endedAt: 5_000,
+      startedAt: 1_000,
+      /* 这一轮还在跑：没有终点，封条继续跳字。 */
+      endedAt: undefined,
       hasProcess: true,
       isOpen: false,
     })
@@ -56,7 +57,7 @@ describe('foldFeed', () => {
     expect(feed.rows).toBe(rows)
     expect(feed.seals.get('t')).toEqual({
       turn: 0,
-      startedAt: 2_000,
+      startedAt: 1_000,
       endedAt: undefined,
       hasProcess: false,
       isOpen: true,
@@ -99,7 +100,7 @@ describe('foldFeed', () => {
     expect(feed.rows).toBe(rows)
     expect(feed.seals.get('t')).toEqual({
       turn: 0,
-      startedAt: 2_000,
+      startedAt: 1_000,
       endedAt: 4_500,
       hasProcess: false,
       isOpen: true,
@@ -145,6 +146,21 @@ describe('foldFeed', () => {
       endedAt: 7_000,
       hasProcess: false,
       isOpen: true,
+    })
+  })
+
+  it('measures a pure-answer turn from send to settle, never zero by construction', () => {
+    /* 一轮只有一段话时，「第一帧」与「最终回复」本是同一条 —— 起点与终点曾撞在
+       同一帧上，耗时恒为 0s。现在两端都取自 span。 */
+    const rows = [said('q', 0, 1_000), spoke('a', 0, 2_000)]
+    const feed = foldFeed(rows, [settled(0, 1_000, 31_000)], new Set())
+
+    expect(feed.seals.get('a')).toEqual({
+      turn: 0,
+      startedAt: 1_000,
+      endedAt: 31_000,
+      hasProcess: false,
+      isOpen: false,
     })
   })
 })
