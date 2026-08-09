@@ -11,6 +11,7 @@
 | --- | --- | --- |
 | 包分层与依赖方向 | `tools/architecture/rules.config.mjs` | `pnpm test:architecture` |
 | 包内目录命名 | `tools/architecture/rules.config.mjs` 的 `forbiddenDirectoryNames` | `pnpm test:architecture` |
+| 包内目录命名 | `tools/architecture/rules.config.mjs` 的 `forbiddenDirectoryNames` | `pnpm test:architecture` |
 | 依赖版本 | `pnpm-workspace.yaml` 的 catalog | pnpm |
 | IPC 契约 | Rust 侧类型，导出到 `packages/ipc/src/generated/` | `pnpm ipc:check` |
 | 磁盘布局 | `apps/desktop/src-tauri/src/paths.rs` | 运行时 |
