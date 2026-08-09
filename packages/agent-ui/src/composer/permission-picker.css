@@ -20,7 +20,7 @@
  */
 .assistant-posture,
 .assistant-posture-menu {
-  --pp-ink-alert: #b06a12;
+  --pp-ink-alert: #e46620;
 }
 
 .assistant-posture {
@@ -57,8 +57,7 @@
   flex: none;
 }
 
-.assistant-posture:hover,
-.assistant-posture[data-popup-open] {
+.assistant-posture:hover {
   background: color-mix(in oklab, var(--pp-ink) var(--cp-pill-wash-hover), var(--cp-surface));
 }
 

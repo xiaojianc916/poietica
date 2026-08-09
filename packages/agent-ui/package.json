@@ -26,6 +26,7 @@
     "@tanstack/react-virtual": "catalog:",
     "diff": "catalog:",
     "katex": "catalog:",
+    "lucide-react": "catalog:",
     "motion": "catalog:",
     "streamdown": "catalog:",
     "tailwind-merge": "catalog:",

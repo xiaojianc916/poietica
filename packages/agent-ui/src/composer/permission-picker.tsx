@@ -10,8 +10,9 @@ import {
   DropdownMenuRadioItemIndicator,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import { type ComponentType, memo } from 'react'
-import { CheckIcon, GlobeIcon, ModelIcon, ThreadIcon } from '../primitives/icons'
+import { Hand, type LucideIcon, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { memo } from 'react'
+import { CheckIcon } from '../primitives/icons'
 
 /*
  * 批准方式那颗胶囊，以及它打开的那一张。
@@ -27,29 +28,22 @@ import { CheckIcon, GlobeIcon, ModelIcon, ThreadIcon } from '../primitives/icons
  * 打字选中、Esc 关闭、焦点归还。这里只给皮肤与文案。
  */
 
-/** 图标槽位的最小 props 契约：放宽到完整 SVG props 会在
- *  exactOptionalPropertyTypes 下与图标库的 props 逆变冲突。 */
-type GlyphProps = {
-  'aria-hidden'?: 'true'
-  className?: string
-}
-
-type Glyph = ComponentType<GlyphProps>
-
 /*
  * 字形按产品自己的档位取，不按 agent 的 id 取。
  *
- * 完全访问那一档用地球：它的说明写的就是「不受限制地访问互联网和您电脑上的任何
- * 文件」。提醒靠颜色（data-alert），不靠再叠一个警告字形。
+ * 权限切换从这里开始迁移到 Lucide，其他界面仍可继续使用原有图标库。
+ *
+ * 当前档位在菜单中的顺序是：
+ * default（请求批准）、yolo（帮我批准）、auto（完全访问权限）。
  */
-const GLYPH: Readonly<Record<string, Glyph>> = {
-  auto: GlobeIcon,
-  default: ThreadIcon,
-  yolo: ModelIcon,
+const GLYPH: Readonly<Record<string, LucideIcon>> = {
+  auto: ShieldAlert,
+  default: Hand,
+  yolo: ShieldCheck,
 }
 
-function glyphOf(value: string): Glyph {
-  return GLYPH[value] ?? ModelIcon
+function glyphOf(value: string): LucideIcon {
+  return GLYPH[value] ?? Hand
 }
 
 export interface PermissionPickerProps {
