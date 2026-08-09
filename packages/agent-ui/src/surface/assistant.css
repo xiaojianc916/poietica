@@ -1598,30 +1598,53 @@ svg.assistant-provider-icon {
 /* composer workspace context bar */
 
 /*
- * 新对话的输入上下文栏。
+ * 新建对话的输入基座：
  *
- * 它在输入框下面，承载下一条会话将使用的工作目录。整栏是一层中性灰表面，
- * 内部控件不再自己画第二张卡；已有对话不会渲染这一节点。
+ *   上：保持原样的输入框；
+ *   下：独立的工作区 Context Bar。
+ *
+ * Context Bar 向上藏到输入框后面一个圆角的距离。输入框处于更高绘制层，
+ * 因此完整圆角、边框和阴影原样覆盖接缝，不需要修改 prompt-input 自身。
  */
 .assistant-surface__context {
-  margin-block-start: var(--cp-control-gap);
+  position: relative;
+  z-index: 0;
+  margin-block-start: calc(-1 * var(--cp-radius));
 }
 
+/*
+ * 只调整输入框外层的绘制顺序，不修改输入框本身的任何视觉属性。
+ *
+ * 不声明 border-radius、border、background 或 box-shadow。
+ */
+.assistant-surface[data-phase="entry"] .assistant-surface__composer {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * Context Bar 是下面那块独立的中性灰容器。
+ *
+ * 顶部被输入框覆盖，内容通过 padding-block-start 主动避开重叠区；
+ * 露在外面的部分拥有底部两个圆角，与上方完整圆角输入框形成一体基座。
+ */
 .workspace-picker[data-placement="composer"] {
   display: flex;
   block-size: auto;
-  min-block-size: calc(var(--cp-control) + var(--cp-pad-mid));
+  min-block-size: calc(var(--cp-control) + var(--cp-pad-mid) + var(--cp-radius));
   inline-size: 100%;
   align-items: center;
   justify-content: flex-start;
   gap: var(--cp-control-gap);
-  margin-block-start: 0;
-  border-radius: var(--cp-radius-tile);
-  padding-block: calc(var(--cp-pad-mid) / 2);
+  margin: 0;
+  border-radius: 0 0 var(--cp-radius) var(--cp-radius);
+  padding-block-start: calc(var(--cp-radius) + var(--cp-pad-mid) / 2);
+  padding-block-end: calc(var(--cp-pad-mid) / 2);
   padding-inline: var(--cp-inset);
   background: var(--cp-shelf);
 }
 
+/* 灰色栏内部只有轻量工作区控件，不再出现第三层卡片。 */
 .workspace-picker__context-trigger {
   display: inline-flex;
   block-size: var(--cp-control);
