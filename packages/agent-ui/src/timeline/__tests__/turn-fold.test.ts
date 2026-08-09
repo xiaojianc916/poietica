@@ -42,7 +42,7 @@ describe('foldFeed', () => {
     expect(idsOf(feed.rows)).toEqual(['q', 'a'])
     expect(feed.seals.get('a')).toEqual({
       turn: 0,
-      startedAt: 1_000,
+      startedAt: 2_000,
       endedAt: 5_000,
       hasProcess: true,
       isOpen: false,
@@ -56,7 +56,7 @@ describe('foldFeed', () => {
     expect(feed.rows).toBe(rows)
     expect(feed.seals.get('t')).toEqual({
       turn: 0,
-      startedAt: 1_000,
+      startedAt: 2_000,
       endedAt: undefined,
       hasProcess: false,
       isOpen: true,
@@ -99,7 +99,7 @@ describe('foldFeed', () => {
     expect(feed.rows).toBe(rows)
     expect(feed.seals.get('t')).toEqual({
       turn: 0,
-      startedAt: 1_000,
+      startedAt: 2_000,
       endedAt: 4_500,
       hasProcess: false,
       isOpen: true,
@@ -133,5 +133,18 @@ describe('foldFeed', () => {
 
     expect(feed.rows).toBe(rows)
     expect(feed.seals.size).toBe(0)
+  })
+
+  it('measures a turn that produced nothing from the moment it began', () => {
+    const rows = [said('q', 0, 1_000), broke('e', 0, 7_000)]
+    const feed = foldFeed(rows, [settled(0, 1_000, 7_000)], new Set())
+
+    expect(feed.seals.get('e')).toEqual({
+      turn: 0,
+      startedAt: 1_000,
+      endedAt: 7_000,
+      hasProcess: false,
+      isOpen: true,
+    })
   })
 })

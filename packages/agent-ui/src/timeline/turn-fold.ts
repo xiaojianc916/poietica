@@ -60,9 +60,11 @@ export function foldFeed(
     const process = answerAt < 0 ? [] : processIn(rows, own, answerAt)
     /* 可点 ⟺ 真有东西可收。还没有回复时封条只是一行字，不给假按钮。 */
     const hasProcess = process.length > 0
-    const isOpen = !hasProcess || opened.has(span.turn)
-    const hidden = isOpen ? undefined : new Set(process)
-
+    /* 秒表从第一帧落屏那一刻起算，不从这一轮被发出去那一刻起算：屏幕上还在三点跳动
+   时人看不到任何数字，首帧一到就该从 0s 开始跳。取的是那条行自己的 at，所以回放
+   与实时算出同一个数。 */
+    const framed = own.find((at) => isFrame(rows, at))
+    const framedAt = framed === undefined ? undefined : rows[framed]?.item.at
     if (hidden !== undefined) {
       for (const at of hidden) {
         folded.add(at)
@@ -77,7 +79,9 @@ export function foldFeed(
     if (id !== undefined) {
       seals.set(id, {
         turn: span.turn,
-        startedAt: span.startedAt,
+        /* 一帧都没有的轮次（取消，或只留下一条报错）退回这一轮发起的时刻：那时量的
+     是整轮，而不是退化成 0s。 */
+        startedAt: framedAt ?? span.startedAt,
         /* 秒表停在回复的第一帧，不是这一轮的末尾：之后流出来的是答案，不是处理。
            一个字都没说就收场的轮次（取消、报错）退回这一轮真正的结束时间，于是
            它照样显示「已处理 Xm Ys」而不是永远跳字。 */
@@ -138,9 +142,12 @@ function processIn(
   own: readonly number[],
   answerAt: number,
 ): readonly number[] {
-  return own.filter((at) => {
-    const type = rows[at]?.item.type
+  return own.filter((at) => at < answerAt && isFrame(rows, at))
+}
 
-    return at < answerAt && type !== undefined && type !== SAID && !ASIDE.has(type)
-  })
+/** agent 的一帧：人问的那句不是，报错与授权这类旁白也不是。 */
+function isFrame(rows: readonly FeedRow[], at: number): boolean {
+  const type = rows[at]?.item.type
+
+  return type !== undefined && type !== SAID && !ASIDE.has(type)
 }
