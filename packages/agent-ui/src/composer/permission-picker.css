@@ -85,7 +85,9 @@
 }
 
 .assistant-posture-menu[data-assistant-skin] {
-  min-inline-size: var(--cp-menu-min-wide);
+  inline-size: 21rem;
+  min-inline-size: 0;
+  max-inline-size: calc(100vw - 2 * var(--cp-gutter));
   padding: var(--am-pad);
   border-color: var(--cp-menu-edge);
   background: var(--cp-menu-face);
@@ -148,7 +150,7 @@
 [data-assistant-skin] .assistant-posture-menu__name {
   grid-area: name;
   font-size: var(--cp-font-caption);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 [data-assistant-skin] .assistant-posture-menu__detail {

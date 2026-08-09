@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/ui'
 import { Hand, type LucideIcon, ShieldAlert, ShieldCheck } from 'lucide-react'
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { CheckIcon } from '../primitives/icons'
 
 /*
@@ -58,6 +58,7 @@ export const PermissionPicker = memo(function PermissionPicker({
   controls,
   onSelect,
 }: PermissionPickerProps) {
+  const [open, setOpen] = useState(false)
   const control = permissionControlOf(controls)
 
   if (control === undefined) {
@@ -85,7 +86,12 @@ export const PermissionPicker = memo(function PermissionPicker({
     control.current
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+      }}
+      open={open}
+    >
       <DropdownMenuTrigger
         aria-label="批准方式"
         className="assistant-posture"
@@ -109,6 +115,7 @@ export const PermissionPicker = memo(function PermissionPicker({
               return
             }
             onSelect(control.id, value)
+            setOpen(false)
           }}
           value={control.current}
         >
