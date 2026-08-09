@@ -28,6 +28,7 @@ export {
   permissionControlOf,
   permissionPostureOf,
   permissionPosturesOf,
+  SessionControlsStore,
   shorten,
   ThreadsStore,
   TranscriptStore,

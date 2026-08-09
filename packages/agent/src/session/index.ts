@@ -11,6 +11,7 @@ export {
   permissionPosturesOf,
 } from './permission-posture'
 export type { SessionControlsFailureReport } from './session-controls-store'
+export { SessionControlsStore } from './session-controls-store'
 export type {
   ThreadListItem,
   ThreadsList,

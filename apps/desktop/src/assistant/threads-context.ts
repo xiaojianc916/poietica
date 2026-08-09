@@ -1,6 +1,5 @@
 import { groupByWorkspace, type ThreadsStore, type ThreadWorkspaceList } from '@poietica/agent'
-import type { SessionConfigControl } from '@poietica/agent-contract'
-import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react'
+import { createContext, useContext, useMemo, useSyncExternalStore } from 'react'
 
 /*
  * One conversation state, shared by the sidebar and the tab strip.
@@ -57,40 +56,4 @@ export function useThreadsList(): ThreadWorkspaceList {
   const groups = useMemo(() => groupByWorkspace(list.items), [list.items])
 
   return { failure: list.failure, groups, isLoading: list.isLoading }
-}
-
-/*
- * 一格只订自己要的那一片。
- *
- * #commit 每次提交都换一个 Held 对象，订阅整份快照就等于让「另一条对话认领到了
- * 选择器」这种与本格无关的事实重画整棵助手树 —— 转录、虚拟列表、输入框。
- *
- * 切片天然是引用稳定的：selectors 那张表由 #with 维护，值没变就原样交回同一个
- * Map，useSyncExternalStore 自己就会跳过。与转录那一侧的 useSlice 同一个形状。
- */
-
-/** 这条对话的选择器；还没拿到过是 undefined。 */
-export function useThreadSelectors(
-  threadId: string | null,
-): readonly SessionConfigControl[] | undefined {
-  const store = useStore()
-
-  const read = useCallback(
-    () => (threadId === null ? undefined : store.selectorsOf(threadId)),
-    [store, threadId],
-  )
-
-  return useSyncExternalStore(store.subscribe, read, read)
-}
-
-/** 这条对话上一次认领或改动失败时的说法。 */
-export function useThreadSelectorFailure(threadId: string | null): string | undefined {
-  const store = useStore()
-
-  const read = useCallback(
-    () => (threadId === null ? undefined : store.selectorFailureOf(threadId)),
-    [store, threadId],
-  )
-
-  return useSyncExternalStore(store.subscribe, read, read)
 }

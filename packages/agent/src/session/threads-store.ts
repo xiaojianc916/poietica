@@ -1,18 +1,9 @@
-import type {
-  PermissionPosturePort,
-  SessionConfigControl,
-  SessionConfigPort,
-  ThreadPort,
-  ThreadRecord,
-} from '@poietica/agent-contract'
+import type { OpenedThread, ThreadPort, ThreadRecord } from '@poietica/agent-contract'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
-import type { SessionControlsFailureReport } from './session-controls-store'
-import { SessionControlsStore } from './session-controls-store'
 import type { ThreadsList } from './thread-order'
 import { NO_ITEMS, ThreadProjection } from './thread-projection'
 import { nameOf, shorten } from './thread-title'
-import type { TranscriptSink } from './transcript-sink'
 
 interface Held {
   readonly threads: readonly ThreadRecord[]
@@ -31,19 +22,17 @@ const EMPTY: Held = {
 }
 
 export interface ThreadsStoreOptions {
-  readonly config?: SessionConfigPort | undefined
   /** 没有记下目录的对话落在哪个工作区。答案属于宿主，这一层不猜。 */
   readonly defaultWorkspaceId?: (() => string | null) | undefined
   readonly port?: ThreadPort | undefined
-  /** 批准方式的持久意图。原样交给会话那一侧，这一层不解释。 */
-  readonly posture?: PermissionPosturePort | undefined
-  /** 会话那一侧的失败往哪里说一声。原样交给它，这一层不解释。 */
-  readonly report?: SessionControlsFailureReport | undefined
-  readonly transcripts?: TranscriptSink | undefined
 }
 
 /**
- * 会话与它们的名字，整个应用一份。
+ * 一条对话是一份记录：名字、活动时间、置顶、在哪个目录里。整个应用一份。
+ *
+ * 只有这些。一条对话背后那个活着的会话（握着哪个模型、还能选什么、上次切换成没成）
+ * 是另一份状态，住在 session-controls-store.ts，自己有订阅者，不从这里转手。两者
+ * 之间只有一根线，方向单一：这里 open 一趟拿回来的整份答复，经 onOpened 交过去。
  *
  * 形制与 workspaceLayoutStore 一致：状态是一个不可变快照，改动经由 #commit
  * 落定，没有真的变化就不通知。这不是风格选择——此前状态摊在七个 useState 上，
@@ -63,14 +52,15 @@ export interface ThreadsStoreOptions {
 export class ThreadsStore {
   readonly #port: ThreadPort | undefined
 
-  readonly #controls: SessionControlsStore
-
   #held: Held = EMPTY
 
   #listeners = new Set<() => void>()
 
   /* 想知道「某条对话没了」的人。 */
   #removed = new Set<(threadId: string) => void>()
+
+  /* 想拿到「刚打开一条对话，这是它的整份答复」的人。 */
+  #opened = new Set<(answer: OpenedThread) => void>()
 
   /* 一次索引，而不是每一行各扫一遍整张表。投影交出来的那一份。 */
   #byId: ReadonlyMap<string, ThreadRecord> = new Map()
@@ -92,8 +82,6 @@ export class ThreadsStore {
 
   #list: ThreadsList = { items: NO_ITEMS, isLoading: true, failure: null }
 
-  readonly #transcripts: TranscriptSink | undefined
-
   /*
    * 没有记下目录的对话落在哪个工作区 —— 一次求值，不是一个值。
    *
@@ -104,32 +92,9 @@ export class ThreadsStore {
    */
   readonly #defaultWorkspaceId: (() => string | null) | undefined
 
-  constructor({
-    config,
-    defaultWorkspaceId,
-    port,
-    posture,
-    report,
-    transcripts,
-  }: ThreadsStoreOptions) {
+  constructor({ defaultWorkspaceId, port }: ThreadsStoreOptions) {
     this.#port = port
-    this.#transcripts = transcripts
     this.#defaultWorkspaceId = defaultWorkspaceId
-
-    /*
-     * 会话那一侧自己记状态，但通知汇到这一条订阅上：读谁的状态，与他怎么被叫醒，
-     * 是两件事。分片订阅是下一刀。
-     */
-    this.#controls = new SessionControlsStore({
-      announce: () => {
-        this.#announce()
-      },
-      config,
-      port,
-      posture,
-      report,
-      transcripts,
-    })
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -155,6 +120,21 @@ export class ThreadsStore {
     }
   }
 
+  /**
+   * 刚打开一条对话，这是平台交回来的整份答复；交回取消订阅的办法。
+   *
+   * 打开是这里的动作（create 走 port.open），而那份答复里有一多半不属于这里：会话号、
+   * 选择器、经过、附件、已发轮数。发出去，由认得它们的人自己接 —— 这里不替他们转手，
+   * 也就不需要知道他们是谁。
+   */
+  onOpened = (listener: (answer: OpenedThread) => void): (() => void) => {
+    this.#opened.add(listener)
+
+    return () => {
+      this.#opened.delete(listener)
+    }
+  }
+
   getSnapshot = (): Held => this.#held
 
   /** 侧栏读的那一片。引用只在这一片真的变了时才更换。 */
@@ -167,37 +147,6 @@ export class ThreadsStore {
   /** The stand in name a message would give a conversation. */
   standInTitle = (message: string): string => shorten(message)
 
-  /*
-   * 会话那一侧的问答，原样交给它自己回答。
-   *
-   * 一条对话是一份记录（名字、活动时间、置顶）；它背后那个会话是一个活着的连接
-   * （握着哪个模型、还能选什么、上次切换成没成）。两者此前挤在同一个快照里，而
-   * 下面的 #commit 早把界线画出来了 —— 它按字段分流，只有 threads / pending /
-   * provisional 变了才重算列表。
-   */
-  start = (): (() => void) => this.#controls.start()
-
-  /** 认领一条不是本次运行开出来的对话：让它握住一个会话。 */
-  adopt = (threadId: string): void => {
-    this.#controls.adopt(threadId)
-  }
-
-  /** 这条对话所持有的会话给出的选择器；从没拿到过就是 undefined。 */
-  selectorsOf = (threadId: string): readonly SessionConfigControl[] | undefined =>
-    this.#controls.selectorsOf(threadId)
-
-  /** 上一次认领或改动失败时的说法，按对话记。 */
-  selectorFailureOf = (threadId: string): string | undefined =>
-    this.#controls.selectorFailureOf(threadId)
-
-  /** 改这条对话的一项会话设置。 */
-  selectControl = (threadId: string, controlId: string, value: string): void => {
-    this.#controls.selectControl(threadId, controlId, value)
-  }
-
-  retrySelectors = (threadId: string): void => {
-    this.#controls.retrySelectors(threadId)
-  }
   refresh = async (): Promise<void> => {
     const port = this.#port
 
@@ -234,8 +183,10 @@ export class ThreadsStore {
 
       this.#roots.set(threadId, opened.thread.workspaceRoot ?? null)
 
-      /* 路由、经过、选择器：一份答复到手之后的一切，都在会话那一侧落地。 */
-      this.#controls.opened(opened)
+      /* 路由、经过、选择器：一份答复到手之后的一切，交给认得它们的人。 */
+      for (const listener of this.#opened) {
+        listener(opened)
+      }
 
       /*
        * 一条对话在有人开口之前不进列表，所以这里不添行：那会留下一串从未
@@ -352,9 +303,9 @@ export class ThreadsStore {
      * 删除先落库，再在本地生效。这一条与改名、置顶反过来，是有理由的。
      *
      * 那两个是可逆的属性变更：乐观更新失败了，向权威重问一次就回到原样。删除
-     * 不是。它同时作废这条对话的转录（forget）、并向 #removed 广播让工作台关掉
-     * 开着它的那一格 —— 两件事都不是一次 refresh 能复原的，于是「先删本地再落
-     * 库」在失败时留下的是一份谁都没认可的状态：屏幕上没有了，盘上还在。
+     * 不是。它向 #removed 广播，工作台关掉开着它的那一格、会话与经过跟着作废
+     * —— 这些都不是一次 refresh 能复原的，于是「先删本地再落库」在失败时留下的
+     * 是一份谁都没认可的状态：屏幕上没有了，盘上还在。
      *
      * 破坏性动作等一次本地往返（落的是本机 SQLite，不是网络），换的是「屏幕上
      * 没有的东西盘上也没有」。
@@ -367,8 +318,6 @@ export class ThreadsStore {
       return
     }
 
-    /* 会话那一侧按对话记的每一格，一句话作废：它们的家在那个文件里。 */
-    this.#controls.forget(threadId)
     this.#roots.delete(threadId)
 
     this.#commit({
@@ -377,9 +326,13 @@ export class ThreadsStore {
       failure: null,
     })
 
-    /* 经过随对话一起作废：删掉的东西不该还能被读回来。 */
-    this.#transcripts?.forget(threadId)
-
+    /*
+     * 会话与经过随对话一起作废，由听的人自己收拾。
+     *
+     * 与 onRemoved 那一段是同一条规矩：说得出「这条对话没了」的只有这里，跟着要
+     * 收拾什么由各自决定。此前这里点名叫了两台 store 的 forget，那是把「谁存了这
+     * 条对话的东西」这份知识抄在了删除入口上 —— 再多一个存东西的人就要再抄一遍。
+     */
     for (const listener of this.#removed) {
       listener(threadId)
     }

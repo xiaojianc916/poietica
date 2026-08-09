@@ -3,15 +3,14 @@ import {
   AssistantSurface,
   installAttachmentIntake,
   useAgentControls,
+  useSessionControlsActions,
+  useThreadSelectorFailure,
+  useThreadSelectors,
   type WorkspacePickerProps,
 } from '@poietica/agent-ui'
 import { createAttachmentIntake } from '@poietica/desktop-adapters'
 import { useCallback, useEffect } from 'react'
-import {
-  useThreadSelectorFailure,
-  useThreadSelectors,
-  useThreadsActions,
-} from '../assistant/threads-context'
+import { useThreadsActions } from '../assistant/threads-context'
 
 /*
  * 一格只画一条对话。
@@ -54,6 +53,8 @@ export function ConversationSurface({
 }: ConversationSurfaceProps) {
   const threads = useThreadsActions()
 
+  const controls = useSessionControlsActions()
+
   /*
    * 这一格只关心这两样，所以只订这两样。
    *
@@ -93,8 +94,8 @@ export function ConversationSurface({
       return
     }
 
-    threads.adopt(threadId)
-  }, [threadId, threads])
+    controls.adopt(threadId)
+  }, [controls, threadId])
 
   /*
    * 两个 scope，一条判据。
@@ -130,8 +131,8 @@ export function ConversationSurface({
       return
     }
 
-    threads.retrySelectors(threadId)
-  }, [retry, threadId, threads])
+    controls.retrySelectors(threadId)
+  }, [controls, retry, threadId])
 
   /* 改一项，交给持有这张表的那一方：入口那格是 agent，对话里是那条会话。 */
   const chooseControl = useCallback(
@@ -142,9 +143,9 @@ export function ConversationSurface({
         return
       }
 
-      threads.selectControl(threadId, controlId, value)
+      controls.selectControl(threadId, controlId, value)
     },
-    [selectControl, threadId, threads],
+    [controls, selectControl, threadId],
   )
 
   const userMessage = useCallback(

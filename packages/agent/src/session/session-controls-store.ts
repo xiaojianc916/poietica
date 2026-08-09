@@ -1,4 +1,5 @@
 import type {
+  OpenedThread,
   PermissionPosturePort,
   SessionConfigControl,
   SessionConfigPort,
@@ -11,9 +12,6 @@ import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import { permissionControlOf, postureAlignment } from './permission-posture'
 import type { TranscriptSink } from './transcript-sink'
-
-/** 打开一条对话拿回来的那一整份答复。形状由端口说了算，不另抄一遍。 */
-type OpenedThread = Awaited<ReturnType<ThreadPort['open']>>
 
 interface Held {
   readonly selectors: ReadonlyMap<string, readonly SessionConfigControl[]>
@@ -38,8 +36,6 @@ export interface SessionControlsFailureReport {
 }
 
 export interface SessionControlsOptions {
-  /** 状态变了叫一声。 */
-  readonly announce: () => void
   readonly config?: SessionConfigPort | undefined
   readonly port?: ThreadPort | undefined
   /** 批准方式的持久意图。缺席即不对齐，这台 store 因此仍能裸构造单测。 */
@@ -73,9 +69,12 @@ export interface SessionControlsOptions {
  * ArrivalOrder 定，而不由落地顺序定 —— 后发的那一问才是最新的问题，先回来的那
  * 张表答的是上一个。
  *
- * 依赖全部构造时交进来：端口、配置、转录，以及通知 —— announce 汇回 ThreadsStore
- * 那一条订阅，读谁的状态与怎么被叫醒是两件事。这台 store 因此可以在没有任何进程
- * 单例的情况下被单独构造。
+ * 依赖全部构造时交进来：端口、配置、批准意图、转录。这台 store 因此可以在没有任何
+ * 进程单例的情况下被单独构造。
+ *
+ * 自己的订阅由 subscribe 交出去，不借别人那一条：一条对话的记录（名字、活动时间、
+ * 置顶）和它背后那个会话是两份互不相交的状态，读者也是两批 —— 侧栏与标签读前者，
+ * 输入框旁的选择器读后者。合用一条通知，代价是任何一侧变化都叫醒另一侧的全部读者。
  */
 export class SessionControlsStore {
   readonly #port: ThreadPort | undefined
@@ -84,7 +83,7 @@ export class SessionControlsStore {
 
   readonly #transcripts: TranscriptSink | undefined
 
-  readonly #announce: () => void
+  readonly #listeners = new Set<() => void>()
 
   readonly #posture: PermissionPosturePort | undefined
 
@@ -117,8 +116,7 @@ export class SessionControlsStore {
    */
   #alignedTo = new Map<string, string>()
 
-  constructor({ announce, config, port, posture, report, transcripts }: SessionControlsOptions) {
-    this.#announce = announce
+  constructor({ config, port, posture, report, transcripts }: SessionControlsOptions) {
     this.#config = config
     this.#port = port
     this.#posture = posture
@@ -127,6 +125,20 @@ export class SessionControlsStore {
   }
 
   snapshot = (): Held => this.#held
+
+  /**
+   * 自己的读者自己收，并交回退订的办法。
+   *
+   * 与 AgentCapabilityStore 同一个形状（subscribe / snapshot 两个箭头字段），
+   * useSyncExternalStore 直接就能用；引用终生不变，订阅不会因为重画而重装。
+   */
+  subscribe = (listener: () => void): (() => void) => {
+    this.#listeners.add(listener)
+
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
 
   /**
    * 开始听 agent 自己说话，并交回停下来的办法。
@@ -452,5 +464,11 @@ export class SessionControlsStore {
 
     this.#held = next
     this.#announce()
+  }
+
+  #announce(): void {
+    for (const listener of this.#listeners) {
+      listener()
+    }
   }
 }

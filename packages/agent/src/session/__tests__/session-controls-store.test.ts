@@ -89,7 +89,7 @@ describe('一条对话的那张表', () => {
       },
     }
 
-    const store = new SessionControlsStore({ announce: () => undefined, config })
+    const store = new SessionControlsStore({ config })
     const stop = store.start()
 
     store.opened(opened(WITH_LOW))
@@ -118,7 +118,7 @@ describe('一条对话的那张表', () => {
       subscribe: () => () => undefined,
     }
 
-    const store = new SessionControlsStore({ announce: () => undefined, config })
+    const store = new SessionControlsStore({ config })
     const stop = store.start()
 
     store.opened(opened(WITH_LOW))
@@ -128,5 +128,27 @@ describe('一条对话的那张表', () => {
     expect(currentOf(store, 'thought')).toBe('medium')
 
     stop()
+  })
+
+  /* 通知是自己的：不再借道任何别的 store，所以裸构造就能验。 */
+  it('自己的订阅：一份答复叫醒它，退订之后不再叫', () => {
+    const store = new SessionControlsStore({})
+
+    let woken = 0
+
+    const stop = store.subscribe(() => {
+      woken += 1
+    })
+
+    store.opened(opened(WITH_LOW))
+
+    expect(woken).toBe(1)
+    expect(currentOf(store, 'thought')).toBe('low')
+
+    stop()
+    store.forget(THREAD)
+
+    expect(woken).toBe(1)
+    expect(store.selectorsOf(THREAD)).toBeUndefined()
   })
 })
