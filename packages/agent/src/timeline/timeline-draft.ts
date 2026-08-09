@@ -124,11 +124,43 @@ export function namespace(draft: Draft): string {
   return `r${String(draft.runIndex)}-`
 }
 
+/** 模型真的在干活的证据：这几种帧只可能由它那一侧产生。 */
+const AGENT_FRAME: ReadonlySet<TimelineItem['type']> = new Set([
+  'agent_text',
+  'agent_thought',
+  'plan',
+  'tool_call',
+])
+
 /** 追加一条：末尾那段说到这里为止，新的一条排在它后面。 */
 export function push(draft: Draft, item: TimelineItem): void {
   sealTail(draft)
   draft.items.push(item)
   draft.index?.set(item.id, draft.items.length - 1)
+  markFirstFrame(draft, item)
+}
+
+/**
+ * 记下这一轮收到第一帧的时刻。
+ *
+ * 只认末尾那一条 span，与 markTurnStart 同一条规矩：段号只增不减，当轮恒在末尾，
+ * 所以这里不查找也不建索引。
+ *
+ * 报错与授权不算。额度耗尽的密钥也会立刻回一条错，它证明的是请求到过服务端，不是
+ * 模型在干活 —— 而屏幕正是靠这一格决定要不要立那块「正在处理」的碑。
+ */
+function markFirstFrame(draft: Draft, item: TimelineItem): void {
+  const open = draft.spans.at(-1)
+
+  if (open === undefined || open.turn !== item.turn || open.firstFrameAt !== undefined) {
+    return
+  }
+
+  if (!AGENT_FRAME.has(item.type)) {
+    return
+  }
+
+  draft.spans[draft.spans.length - 1] = { ...open, firstFrameAt: item.at }
 }
 
 export function sealTail(draft: Draft): void {

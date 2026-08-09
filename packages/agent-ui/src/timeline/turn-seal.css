@@ -67,7 +67,12 @@
 
 .turn-seal__reveal {
   min-inline-size: 0;
-  animation: turn-seal-reveal 140ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: turn-seal-reveal 180ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/* 落定的那一轮：这一帧不是折叠，是虚拟器把它挂回来而已。 */
+.turn-seal__reveal[data-settled] {
+  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -142,10 +142,18 @@ export function TranscriptView({
         return renderRow(row)
       }
 
+      /* 淡入属于「刚刚折过」那一帧，不属于这一行本身。落定的轮次滚出视野再滚回来会被
+         虚拟器重新挂载，那不是一次折叠，不该再淡一次；还在跑的那一轮钉在底部，不会被
+         这样回收。包装层照留 —— min-inline-size 归它管，撤掉会改布局。 */
       return (
         <>
           {sealOf(seal)}
-          <div className="turn-seal__reveal">{renderRow(row)}</div>
+          <div
+            className="turn-seal__reveal"
+            data-settled={seal.endedAt === undefined ? undefined : 'true'}
+          >
+            {renderRow(row)}
+          </div>
         </>
       )
     },

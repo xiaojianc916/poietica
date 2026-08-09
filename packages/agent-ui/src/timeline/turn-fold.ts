@@ -7,23 +7,31 @@ import type { FeedRow, TurnSpan } from '@poietica/agent'
  * 列表的行，加上每一轮的封条落在哪里。这里不持有任何东西，所以「这一轮折没折」
  * 不可能与屏幕上显示的东西对不上。
  *
- * 封条在不在，只由一件事决定：这一轮有没有 span。span 是原生侧发出 run_started 时
- * 记下的，它同时是封条那只秒表的起点 —— 于是「有没有封条」与「秒表从几点算」是同
- * 一个事实，不会各说一套。此前它还要求这一轮已经有东西上屏，而思考不上屏
- * （renderable.ts 的 isRenderable 对 agent_thought 恒为假）：读者把原始思考链藏起来
- * 之后，模型推理的那一整段里一轮明明在跑，屏幕上却没有一样东西承认它在跑。
+ * 封条在不在，由两件事决定：这一轮有没有 span，以及模型有没有真的开过口。
+ *
+ * span 是原生侧发出 run_started 时记下的，它同时是封条那只秒表的起点 —— 于是「有没有
+ * 封条」与「秒表从几点算」是同一个事实，不会各说一套。但起点只证明请求出去了：额度
+ * 耗尽的密钥同样有起点，光凭它立碑，「正在处理」会抢在报错前面亮一下。所以还要
+ * span.firstFrameAt —— 收到第一帧 agent 内容的时刻，由 timeline-draft 在写入转录时
+ * 盖章。它不能在这里算：思考不上屏（renderable.ts 的 isRenderable 对 agent_thought
+ * 恒为假），屏幕这一侧根本看不见模型已经在推理。
  *
  * 落点有两处，规则只有一条：封条排在它那一轮的内容前面。已经有行了，落点就是那一
  * 行；一行都还没有，落点就是转录尾部 —— 等待指示器正在那里。落定的一轮不会再有东
  * 西上屏，所以它一行都没有时就是真的什么也没发生过，不给它立一块空碑。
  *
- * 什么算最终回复，判据只有一条：这一轮末尾（跳过报错与授权这类旁白）那一条是
- * agent_text。不按类型认 —— 协议给不出「这条是最终回复」的标记，上游的
+ * 折到哪里为止：这一轮最后那一段连续 agent_text 的起点，不要求它落在末尾。
+ *
+ * 协议认不出最终回复 —— ACP 的 SessionUpdate 十三个变体里没有终局位，上游的
  * agent_message_chunk 只有 sessionUpdate 与 content 两格（kimi-code 的
- * events-map.ts），一句开场白与一句结论在报文里逐字同形。位置能分开它们：结论
- * 后面不会再有过程，开场白后面还有。所以模型先说一句再去调工具时，末尾不再是
- * agent_text，这一轮当场自动摊开继续滚 —— 折叠区永远精确等于「最后那段回复之前
- * 的全部过程」，不需要闩锁，也不会藏掉任何一条。
+ * events-map.ts），一句开场白与一句结论在报文里逐字同形。既然认不出来就不认：每一次
+ * 开口都把它之前的过程收进封条，最后一次开口自然就是最终回复。
+ *
+ * 判据因此是单调的 —— 新的一段话只把边界往后推，随后的工具调用推不回去，流式追加也
+ * 推不动它（追加改的是同一条 item，行下标不变）。此前要求末尾那一条是 agent_text，
+ * 于是模型说完一句又去干活时边界当场退回 -1：已经收起的过程整段弹回屏幕，封条的落点
+ * 也跟着从回复那一行退回过程第一行 —— 宿主一换就是一次卸载重挂，连封条自己都在闪。
+ * 单调之后这两件事都不可能发生。
  */
 
 export type TurnSealPlan = {
@@ -70,8 +78,9 @@ export function foldFeed(
     const unplaced = foldTurn(rows, span, own, opened, folded, seals)
 
     /* 落定的一轮不会再有东西上屏，一行都没有就是真的什么也没发生过；还在跑的那一轮
-       不同 —— 它正在跑，而这恰恰是要说出来的那件事。 */
-    if (unplaced !== undefined && span.endedAt === undefined) {
+       不同 —— 它正在跑，而这恰恰是要说出来的那件事。但「在跑」要有证据：一帧都还没
+       收到时只让等待指示器说话，不拿封条替一个还没回过话的请求作证。 */
+    if (unplaced !== undefined && span.endedAt === undefined && span.firstFrameAt !== undefined) {
       tail = unplaced
     }
   }
@@ -98,7 +107,7 @@ function foldTurn(
   folded: Set<number>,
   seals: Map<string, TurnSealPlan>,
 ): TurnSealPlan | undefined {
-  const answerAt = finalReplyIn(rows, own)
+  const answerAt = latestSpeechIn(rows, own)
   const process = answerAt < 0 ? [] : processIn(rows, own, answerAt)
   /* 可点 ⟺ 真有东西可收。还没有回复时封条只是一行字，不给假按钮。 */
   const hasProcess = process.length > 0
@@ -155,7 +164,16 @@ function groupByTurn(rows: readonly FeedRow[]): Map<number, number[]> {
   return byTurn
 }
 
-function finalReplyIn(rows: readonly FeedRow[], own: readonly number[]): number {
+/**
+ * 最后那一段连续 agent_text 从哪一行开始。倒着走：先找到最后一条回复，再沿着它往前
+ * 收拢同一段，撞上第一条不是回复的帧就停。
+ *
+ * 跳过旁白，也跳过回复后面的过程 —— 后者正是单调的来源：模型说完又去干活时，这里
+ * 交回的还是那句话的起点，边界不退。
+ */
+function latestSpeechIn(rows: readonly FeedRow[], own: readonly number[]): number {
+  let start = -1
+
   for (let index = own.length - 1; index >= 0; index -= 1) {
     const at = own[index]
 
@@ -169,10 +187,17 @@ function finalReplyIn(rows: readonly FeedRow[], own: readonly number[]): number 
       continue
     }
 
-    return type === 'agent_text' ? at : -1
+    if (type === 'agent_text') {
+      start = at
+      continue
+    }
+
+    if (start >= 0) {
+      break
+    }
   }
 
-  return -1
+  return start
 }
 
 function processIn(

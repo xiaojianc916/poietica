@@ -30,6 +30,10 @@ function running(turn: number, startedAt: number): TurnSpan {
   return { turn, startedAt }
 }
 
+function heard(turn: number, startedAt: number, firstFrameAt: number): TurnSpan {
+  return { turn, startedAt, firstFrameAt }
+}
+
 function idsOf(rows: readonly FeedRow[]): string[] {
   return rows.map((one) => one.item.id)
 }
@@ -64,12 +68,19 @@ describe('foldFeed', () => {
     })
   })
 
-  it('opens again when process resumes after a first remark', () => {
-    const rows = [said('q', 0, 1_000), spoke('a', 0, 2_000), thought('t', 0, 3_000)]
+  it('keeps the fold where it is when process resumes after a remark', () => {
+    /* 说一句、再去干活：边界停在那句话上不退回去，已经收起的东西不会弹回屏幕，
+       封条也就不会从回复那一行挪走。 */
+    const rows = [
+      said('q', 0, 1_000),
+      thought('t0', 0, 2_000),
+      spoke('a', 0, 3_000),
+      thought('t1', 0, 4_000),
+    ]
     const feed = foldFeed(rows, [running(0, 1_000)], new Set())
 
-    expect(feed.rows).toBe(rows)
-    expect(feed.seals.get('a')?.hasProcess).toBe(false)
+    expect(idsOf(feed.rows)).toEqual(['q', 'a', 't1'])
+    expect(feed.seals.get('a')?.hasProcess).toBe(true)
   })
 
   it('honours a turn the reader opened, sealing the first process row', () => {
@@ -107,10 +118,19 @@ describe('foldFeed', () => {
     })
   })
 
-  it('seals a running turn that has not put anything on screen yet', () => {
+  it('holds the seal back until the turn has actually heard something', () => {
+    /* 请求出去了，模型一帧都没回过（额度耗尽、端点连不上）：这时候只该有等待指示器，
+       立一块「正在处理」等于替一个还没回过话的请求作证。 */
+    const feed = foldFeed([said('q', 0, 1_000)], [running(0, 1_000)], new Set())
+
+    expect(feed.seals.size).toBe(0)
+    expect(feed.tail).toBeUndefined()
+  })
+
+  it('seals a running turn that heard a frame but put nothing on screen yet', () => {
     /* 生产里的真实形态：思考不上屏（renderable.ts），所以这一轮此刻只有提问那一行 ——
        而它确实在跑，封条归尾部。 */
-    const feed = foldFeed([said('q', 0, 1_000)], [running(0, 1_000)], new Set())
+    const feed = foldFeed([said('q', 0, 1_000)], [heard(0, 1_000, 1_200)], new Set())
 
     expect(feed.seals.size).toBe(0)
     expect(feed.tail).toEqual({

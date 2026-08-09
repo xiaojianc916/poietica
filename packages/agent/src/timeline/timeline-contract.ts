@@ -160,6 +160,17 @@ export interface TurnSpan {
   readonly turn: number
   readonly startedAt: number
   readonly endedAt?: number
+  /**
+   * 这一轮收到第一帧 agent 内容的时刻 —— 思考、工具、计划、回复都算，报错与授权不算。
+   *
+   * startedAt 是 run_started 落账那一刻，它只证明请求出去了：一个额度耗尽的密钥、一个
+   * 连不上的端点，同样会有起点。于是「正在处理」会抢在报错前面亮一下，而那时模型一帧
+   * 都没回过。「模型已经在干活」因此是另一个事实，只能在这里记 —— 思考不上屏
+   * （agent-ui 的 renderable），屏幕那一侧看不见它。
+   *
+   * 没收到过就没有这一格。回放出来的轮次也没有：它们都已经落定，用不着这个事实。
+   */
+  readonly firstFrameAt?: number
 }
 
 /**
