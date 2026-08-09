@@ -4,6 +4,7 @@ import type {
   RunEvent,
   ThreadAttachment,
   ThreadHistory,
+  TurnSpanTiming,
 } from '@poietica/agent-contract'
 import type { TimelineState } from '../timeline'
 import {
@@ -14,6 +15,7 @@ import {
   attachImagesTo,
   createTimelineState,
   replayThreadEvents,
+  restampTurns,
 } from '../timeline'
 import { describeFailure } from './describe-failure'
 
@@ -378,11 +380,14 @@ export class TranscriptStore {
     history: ThreadHistory,
     carried: readonly ThreadAttachment[],
     prompts: number,
+    spans: readonly TurnSpanTiming[],
   ): void => {
-    /* 经过由 agent 交还，图由本地账本交还，两者在这里合成一条时间线。
-       对齐规则只有一处（attachImages），因为它是一条会算错的规则。 */
+    /* 经过由 agent 交还，图与每一轮的两端由本地账本交还，三者在这里合成一条
+       时间线。对齐规则只有一处：attachImages 与 restampTurns 共用那把从末尾
+       对齐的尺子，因为它是一条会算错的规则。 */
     const restored = replayThreadEvents(events as readonly RunEvent[])
-    const replayed = attachImages(restored, carried, prompts)
+    const restamped = restampTurns(restored, spans, prompts)
+    const replayed = attachImages(restamped, carried, prompts)
     const lost = lossOf(history)
 
     this.#put(threadId, {

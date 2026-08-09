@@ -412,6 +412,7 @@ export function createAgentThreadBridge({
         是对齐用的尺子 —— 账本里的 turn 从某次迁移之后才开始记，所以认领方
         要从末尾往回数，而末尾在哪只有这个计数说得准。 */
         attachments: opened.attachments,
+        spans: opened.spans,
         prompts: opened.prompts,
       }
     },

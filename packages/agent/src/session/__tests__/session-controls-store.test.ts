@@ -57,6 +57,7 @@ const opened = (selectors: readonly SessionConfigControl[]): OpenedThread => ({
   events: [],
   history: { state: 'fresh' },
   attachments: [],
+  spans: [],
   prompts: 0,
 })
 

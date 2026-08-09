@@ -11,7 +11,8 @@ use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
     AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest, AgentRenameThreadRequest,
-    AgentThread, AgentThreadRequest, AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD,
+    AgentThread, AgentThreadRequest, AgentTitleSource, AgentTurnSpan, FALLBACK_THREAD_TITLE,
+    NO_THREAD,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
@@ -117,7 +118,7 @@ pub async fn agent_open_thread(
     它们共用一次借用：一趟阻塞线程、一次上锁、两条 prepare_cached。拆成两趟就
     是各排一次线程池、各抢一次那把库锁，而打开一条对话正是人点一下就要等的那
     条路径 —— turn.rs 里那批附件写入用的是同一条规矩。 */
-    let (thread, prompts) = on_store(&state, move |store| {
+    let (thread, prompts, spans) = on_store(&state, move |store| {
         let thread = store
             .thread(thread_id)
             .map_err(persistence)?
@@ -126,7 +127,11 @@ pub async fn agent_open_thread(
 
         let prompts = store.prompt_count(thread_id).map_err(persistence)?;
 
-        Ok((thread, prompts))
+        /* 「长什么样」「问过几次」「每一轮各花了多久」是同一次打开要的三个
+           答案，所以共用这一次借用 —— 与 prompts 同一条规矩。 */
+        let spans = store.turn_spans_of(thread_id).map_err(persistence)?;
+
+        Ok((thread, prompts, spans))
     })
     .await?;
 
@@ -134,12 +139,26 @@ pub async fn agent_open_thread(
 
     let prompts = counted(prompts)?;
 
+    /* 账本的轮次号与时刻都是 i64，而这份 IPC 面没有 64 位整数（见 counted
+       与 AgentThreadAttachment 的 turn 上那条界线）：轮次收进 u32，时刻放进
+       f64 —— epoch 毫秒离 2^53 还远，精度不丢。 */
+    let mut span_dtos = Vec::with_capacity(spans.len());
+
+    for span in spans {
+        span_dtos.push(AgentTurnSpan {
+            turn: counted(span.turn)?,
+            started_at: span.started_at as f64,
+            ended_at: span.ended_at as f64,
+        });
+    }
+
     Ok(AgentOpenedThread {
         thread,
         selectors: offered.into_iter().map(restate).collect(),
         events,
         history,
         attachments,
+        spans: span_dtos,
         prompts,
     })
 }

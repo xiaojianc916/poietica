@@ -232,6 +232,7 @@ impl AgentStore {
          * 没人要的那些由 unreferenced_attachments 一次扫出来。
          */
         self.release_attachments(id)?;
+        self.release_turn_spans(id)?;
         self.write(
             "DELETE FROM threads WHERE id = ?1",
             rusqlite::params![id.to_string()],

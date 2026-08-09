@@ -273,6 +273,27 @@ pub struct AgentThreadAttachment {
     pub ordinal: u32,
 }
 
+/// 一轮的两端，epoch 毫秒：这一轮什么时候发出去、什么时候落定。
+///
+/// 为什么由账本回答：agent 经 session/load 交还历史，而历史的帧上没有任何
+/// 原来的时刻 —— 协议里没有这一格。内容是 agent 的，计时是这台机器的，与
+/// 附件同一类账（这个程序不存对话内容，见 persistence 的 lib.rs）。
+///
+/// 时刻装在 f64 里：epoch 毫秒装不进 u32，而这份 IPC 面不收 64 位整数
+///（界线写在 AgentThreadAttachment 的 turn 上）。JS 的 number 本来就是 f64，
+/// 1.8e12 这个量级精度不丢。
+#[derive(Clone, Copy, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTurnSpan {
+    /// 这是这条对话里的第几轮，从 0 数起 —— record_prompt 发的那一号，
+    /// 与附件同一把尺子。
+    pub turn: u32,
+    /// 这一轮发出去的时刻。
+    pub started_at: f64,
+    /// 这一轮落定的时刻。
+    pub ended_at: f64,
+}
+
 /// 要打开的对话，以及必要时怎样启动 agent。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -320,6 +341,11 @@ pub struct AgentOpenedThread {
     /// 也确实不交还 —— 所以这一格由本地账本回答（见 persistence 的
     /// attachments.rs）。
     pub attachments: Vec<AgentThreadAttachment>,
+    /// 这条对话每一轮的两端，本地账本记下的那些。
+    ///
+    /// 与 attachments 同一本账、同一把「从末尾对齐」的尺子：agent 交还的帧
+    /// 不带原来的时刻，封条的耗时由这里回答。
+    pub spans: Vec<AgentTurnSpan>,
     /// 这条对话至今问过多少句话。
     ///
     /// 上面那些附件的 turn 是照着它量的,而且是从末尾量起:计数为 N,就表示

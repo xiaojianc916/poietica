@@ -183,6 +183,7 @@ export class SessionControlsStore {
       answer.history,
       answer.attachments,
       answer.prompts,
+      answer.spans,
     )
 
     /* 一整份权威答复：此前发出去的那些下发，答案都已经过期。 */

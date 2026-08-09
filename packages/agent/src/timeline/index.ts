@@ -28,3 +28,4 @@ export {
   replayRunEvents,
   replayThreadEvents,
 } from './timeline-reducer'
+export { restampTurns } from './turn-spans'

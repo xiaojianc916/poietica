@@ -4,8 +4,9 @@
 
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
+use poietica_agent_persistence_native::TurnSpan;
 use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
-use tauri::{AppHandle, Emitter, State, async_runtime};
+use tauri::{AppHandle, Emitter, Manager, State, async_runtime};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, timeout_at};
 
@@ -122,6 +123,15 @@ pub async fn agent_prompt(
     })
     .await?;
 
+    /* 这一轮的起点：命令发出去这一刻。记录器盖在 run_started 上的戳与它是
+       同一个时钟、同一个动作的两侧 —— 中间隔着一次到驱动器的排队，差不出一
+       毫秒。之所以在这里另记一本账：agent 经 session/load 交还的历史不带任何
+       原来的时刻（协议里没有这一格），重启之后封条的耗时只能由这本账回答。 */
+    let asked_at = epoch_millis();
+
+    /* 落定的那一趟还要碰一次库，先把手上的 AppHandle 复制一份交过去。 */
+    let settle_app = app.clone();
+
     let frames = batched(app);
 
     let answer = session
@@ -130,7 +140,27 @@ pub async fn agent_prompt(
         .map_err(translate)?;
 
     async_runtime::spawn(async move {
-        match answer.await {
+        let outcome = answer.await;
+
+        /* 三种结局都算落定：答复、失败、对面没了 —— 这一轮的时长不因结局而
+           改写。轮次号就是 record_prompt 发的那一号，与附件同一把尺子。记不上
+           只留一行日志：封条退回没有耗时的旧样子，不是这一轮的失败。 */
+        let span = TurnSpan {
+            turn,
+            started_at: asked_at,
+            ended_at: epoch_millis(),
+        };
+        let state = settle_app.state::<AgentRuntime>();
+        let recorded = on_store(&state, move |store| {
+            store.record_turn_span(thread_id, &span).map_err(persistence)
+        })
+        .await;
+
+        if let Err(error) = recorded {
+            log::warn!("could not record the turn span: {error}");
+        }
+
+        match outcome {
             // A turn that ends without a word looks, from the outside, exactly
             // like a turn that never reached the agent. The stop reason is the
             // account the agent gave, so it is written down even when nothing
@@ -286,4 +316,17 @@ pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> 
     state.disconnect()?;
 
     Ok(())
+}
+
+/// 现在，epoch 毫秒。
+///
+/// 与 recorder.rs 的 now_millis 同一个算法，两处各写一遍：那个函数是运行时
+/// crate 的私有物，而「毫秒怎么说」不值得为它开一个公共出口。时钟不对劲时
+/// 算 0 也是同款：封条少一个数字，不少一轮。
+fn epoch_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok())
+        .unwrap_or_default()
 }
