@@ -182,6 +182,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         client,
         book: _,
         reports: _,
+        commands: _,
         handshake,
         driver,
     } = connect(spawn, slot, desk).expect("the program to be launchable");
