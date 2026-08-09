@@ -72,6 +72,7 @@ export function WorkspacePicker({
 }: WorkspacePickerProps) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
+  const [expanded, setExpanded] = useState(true)
 
   const others = choices.filter((choice) => choice.id !== current?.id)
   const needle = query.trim().toLowerCase()
@@ -84,7 +85,12 @@ export function WorkspacePicker({
         )
 
   return (
-    <div className="workspace-picker" data-assistant-skin data-placement={placement}>
+    <div
+      className="workspace-picker"
+      data-assistant-skin
+      data-expanded={placement === 'sidebar' ? (expanded ? 'true' : 'false') : undefined}
+      data-placement={placement}
+    >
       <DropdownMenu
         modal={false}
         onOpenChange={(nextOpen) => {
@@ -113,33 +119,32 @@ export function WorkspacePicker({
           </DropdownMenuTrigger>
         ) : (
           <>
-            <DropdownMenuTrigger
-              aria-label="切换工作区"
+            <button
+              aria-expanded={expanded}
               className="workspace-picker__repositories-title"
-              title="切换工作区"
+              onClick={() => {
+                setOpen(false)
+                setExpanded((held) => !held)
+              }}
+              title={expanded ? '收起仓库和会话' : '展开仓库和会话'}
+              type="button"
             >
               <span>Repositories</span>
 
               <ChevronDownIcon
                 aria-hidden="true"
                 className="workspace-picker__repositories-chevron"
-                data-open={open ? 'true' : undefined}
               />
-            </DropdownMenuTrigger>
+            </button>
 
             <span className="workspace-picker__repositories-actions">
-              <button
-                aria-label="筛选仓库"
-                aria-pressed={open}
+              <DropdownMenuTrigger
+                aria-label="筛选和切换工作区"
                 className="workspace-picker__repositories-action"
-                onClick={() => {
-                  setOpen(true)
-                }}
-                title="筛选仓库"
-                type="button"
+                title="筛选和切换工作区"
               >
                 <ListFilter aria-hidden="true" />
-              </button>
+              </DropdownMenuTrigger>
 
               <button
                 aria-label="添加工作区"
@@ -158,7 +163,7 @@ export function WorkspacePicker({
         )}
 
         <DropdownMenuContent
-          align="start"
+          align={placement === 'composer' ? 'start' : 'end'}
           className="workspace-picker__menu assistant-menu-surface"
           data-assistant-skin
           side="bottom"

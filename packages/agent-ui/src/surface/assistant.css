@@ -483,20 +483,12 @@
   min-inline-size: 0;
   flex: 1;
   align-items: center;
-  gap: var(--ui-row-gap);
   border: 0;
   padding: 0;
   background: transparent;
   cursor: pointer;
   margin-inline: 0;
   font-size: inherit;
-}
-
-.assistant-thread__icon {
-  block-size: var(--ui-row-icon-size);
-  inline-size: var(--ui-row-icon-size);
-  flex: none;
-  color: var(--cp-ink-muted);
 }
 
 .assistant-thread__title {
@@ -1079,7 +1071,6 @@
   min-inline-size: 0;
   flex: 1;
   align-items: center;
-  gap: var(--ui-row-gap);
 }
 
 .assistant-thread__rename-field {
@@ -1304,8 +1295,7 @@ svg.assistant-provider-icon {
  * 不用 :focus-within —— 那个伪类对鼠标点击同样成立，点开一次组头就常亮，
  * 这个文件上面已经为它栽过一次。
  *
- * 文件夹与 ThreadIcon 来源不同（本地字形 / 图标库）而重量相同：同一张 24px
- * 网格、线宽同由 --ui-icon-stroke 定，尺寸同读 --ui-row-icon-size，中线对齐。
+ * 文件夹图标只属于工作区组头；具体会话行不再绘制前导 message 图标。
  */
 .assistant-threads__group-header {
   display: flex;
@@ -1352,11 +1342,6 @@ svg.assistant-provider-icon {
   white-space: nowrap;
 }
 
-/* Cursor repository conversation indentation */
-.assistant-threads__group-header + .assistant-threads__list {
-  padding-inline-start: calc(var(--ui-row-icon-size) + var(--ui-row-gap));
-}
-
 /* 组内新建只在这一组被介入时出现，安静时组头只有名字。 */
 .assistant-threads__group-header .assistant-threads__create {
   flex: none;
@@ -1372,8 +1357,7 @@ svg.assistant-provider-icon {
 .assistant-threads__more {
   display: block;
   width: 100%;
-  padding: 4px var(--ui-row-trail, 6px) 4px
-    calc(var(--ui-row-lead, 8px) + var(--ui-row-icon-size, 16px) + var(--ui-row-gap, 6px));
+  padding: 4px var(--ui-row-trail, 6px) 4px var(--ui-row-lead, 8px);
   border: 0;
   background: none;
   color: var(--cp-ink-subtle);
@@ -1423,6 +1407,7 @@ svg.assistant-provider-icon {
   padding-inline-end: calc(var(--ui-row-inset) + var(--ui-row-trail));
 }
 
+/* repositories disclosure controls: hover arrow and whole-list collapse */
 .workspace-picker__repositories-title {
   display: inline-flex;
   min-inline-size: 0;
@@ -1447,12 +1432,28 @@ svg.assistant-provider-icon {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
   flex: none;
+  opacity: 0;
   color: var(--cp-ink-muted);
-  transition: transform var(--cp-motion-swift) var(--cp-motion-ease);
+  pointer-events: none;
+  transform: rotate(-90deg);
+  transition:
+    opacity var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.workspace-picker__repositories-chevron[data-open="true"] {
-  transform: rotate(180deg);
+.workspace-picker[data-placement="sidebar"][data-expanded="true"]
+  .workspace-picker__repositories-chevron {
+  transform: rotate(0deg);
+}
+
+.workspace-picker__repositories-title:hover .workspace-picker__repositories-chevron,
+.workspace-picker__repositories-title:focus-visible .workspace-picker__repositories-chevron {
+  opacity: 1;
+}
+
+.workspace-picker__repositories-title:focus-visible {
+  outline: var(--cp-px) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
 }
 
 .workspace-picker__repositories-actions {
@@ -1485,13 +1486,22 @@ svg.assistant-provider-icon {
 }
 
 .workspace-picker__repositories-action:hover,
-.workspace-picker__repositories-action[aria-pressed="true"] {
+.workspace-picker__repositories-action[data-popup-open],
+.workspace-picker__repositories-action[aria-expanded="true"] {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }
 
 .workspace-picker__repositories-action:active {
   transform: scale(0.94);
+}
+
+/*
+ * WorkspacePicker 与 AssistantThreadList 是 assistant-panel 中的相邻兄弟。
+ * 收起时只隐藏下面整张会话导航，Repositories 工具栏本身继续保留。
+ */
+.workspace-picker[data-placement="sidebar"][data-expanded="false"] + .assistant-threads {
+  display: none;
 }
 
 .workspace-picker__menu[data-assistant-skin] {

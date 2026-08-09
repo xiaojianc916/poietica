@@ -16,7 +16,6 @@ import {
   PinFilledIcon,
   PinIcon,
   PlusIcon,
-  ThreadIcon,
 } from '../primitives/icons'
 import { useHorizon, useNow } from './clock'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
@@ -218,8 +217,6 @@ function RenameField({ initial, onCommit, onCancel }: RenameFieldProps) {
         finish('commit')
       }}
     >
-      <ThreadIcon aria-hidden="true" className="assistant-thread__icon" />
-
       <input
         aria-label="重命名会话"
         className="assistant-thread__rename-field"
@@ -328,7 +325,6 @@ const ThreadRow = memo(function ThreadRow({
             }}
             type="button"
           >
-            <ThreadIcon aria-hidden="true" className="assistant-thread__icon" />
             <span className="assistant-thread__title">{thread.title}</span>
           </button>
 
@@ -462,9 +458,8 @@ interface WorkspaceHeaderProps {
  * 开与合是两枚文件夹，不是一枚箭头的两个角度，也不是一枚文件夹的两种
  * 填法：此前库里没有 folder-open，只好展开画实心 —— 而实心在这一列已被
  * 图钉占去表示「已固定」，同一种填法不能说两件事。现在两枚都是轮廓，几
- * 何取自 Lucide，住在设计系统的本地字形里。它与会话行的 ThreadIcon 来源
- * 不同而重量相同：同一张 24px 网格，线宽同由 --ui-icon-stroke 一条声明定
- * 死，尺寸读同一枚 --ui-row-icon-size，中线因此天然对齐。
+ * 何取自 Lucide，住在设计系统的本地字形里。具体会话行不再绘制前导
+ * message 图标；文件夹只属于工作区组头，工作区与会话的层级不会混淆。
  *
  * 不数条数：条数是一个没有人问过的问题，它占着行尾，只是让名字在
  * 数字变化时多抖一次。
