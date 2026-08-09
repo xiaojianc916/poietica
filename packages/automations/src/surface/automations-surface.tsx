@@ -1,3 +1,4 @@
+import type { SessionConfigControl } from '@poietica/agent-contract'
 import { useMemo, useState, useSyncExternalStore } from 'react'
 
 import { type AutomationDraft, BLANK_DRAFT, draftOf, summarize } from '../automation'
@@ -32,10 +33,12 @@ type SurfaceView =
   | { readonly kind: 'draft'; readonly draft: AutomationDraft }
 
 export interface AutomationsSurfaceProps {
+  /** agent 此刻报出来的可调项，由 apps/desktop 读了交进来。 */
+  readonly controls: readonly SessionConfigControl[]
   readonly store: AutomationStore
 }
 
-export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
+export function AutomationsSurface({ controls, store }: AutomationsSurfaceProps) {
   const { automations, loaded } = useSyncExternalStore(
     store.subscribe,
     store.getSnapshot,
@@ -52,7 +55,15 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
 
   /* 还没有身份的一份草稿，所以 automation 传 null：能删能试运行的前提是它已经存在。 */
   if (view.kind === 'draft') {
-    return <AutomationEditor automation={null} draft={view.draft} onBack={back} store={store} />
+    return (
+      <AutomationEditor
+        automation={null}
+        controls={controls}
+        draft={view.draft}
+        onBack={back}
+        store={store}
+      />
+    )
   }
 
   /*
@@ -68,6 +79,7 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
     return (
       <AutomationEditor
         automation={editing}
+        controls={controls}
         draft={draftOf(editing)}
         /* 换一条就换一个 key：草稿状态跟着重置，不会串到上一条身上。 */
         key={editing.id}

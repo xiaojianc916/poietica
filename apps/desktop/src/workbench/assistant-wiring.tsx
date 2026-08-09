@@ -1,9 +1,8 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { AutomationsSurface } from '@poietica/automations'
 import { PluginsSurface } from '@poietica/plugins'
 import type { WorkspaceSurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'
-import { automationStore } from '../automations/automation-runtime'
+import { AutomationsView } from '../automations/automations-view'
 import { pluginStore } from '../plugins/plugin-runtime'
 import { AssistantPane } from './assistant-pane'
 import { ConversationSurface } from './conversation-surface'
@@ -56,7 +55,7 @@ export function createAssistantWiring({
        * surface.ts）：注册表里登记了 automations，这里就必须交出一条，
        * 漏掉是编译错误而不是一张空态图。
        */
-      automations: () => <AutomationsSurface store={automationStore} />,
+      automations: () => <AutomationsView />,
 
       /* Tool 那一格。注册表里 tools 已经是 surface，漏掉这一条是编译错误。 */
       tools: () => <PluginsSurface store={pluginStore} />,

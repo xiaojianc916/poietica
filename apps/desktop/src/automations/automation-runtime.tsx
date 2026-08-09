@@ -1,5 +1,5 @@
-import { useTranscripts } from '@poietica/agent'
 import type { AgentSessionPort } from '@poietica/agent-contract'
+import { useTranscripts } from '@poietica/agent-ui'
 import { createAutomationStore, sessionConfigOf } from '@poietica/automations'
 import type { Automation } from '@poietica/ipc'
 import { useEffect } from 'react'
@@ -56,14 +56,12 @@ export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
       /*
        * 这条自动化要的会话设置，只下发到它自己开出来的这条对话。
        *
-       * 不走 chooseAgentControl。那一个是全进程那一份（agent-capability-store
-       * 的 #chosen）：它会改写 config.toml 的 default_model，会把人选的推理档位
-       * 与模式一并清掉（换模型时那段 for 循环），还会让 ThreadsStore 把每一条
-       * 开着的对话都对齐过去。一次后台到期改掉人正在用的模型，那是 bug。
+       * 走会话那个 scope，不走 agent 那个：后者是这一家 agent 的默认值，改它会落到
+       * config.toml 的 default_model 上，也就是改掉人此刻正在用的模型 —— 一次后台
+       * 到期不该有那种权限。作用域正好就是这一次运行。
        *
-       * selectControl 点名一条对话，作用域正好就是这一次运行。它是尽力而为的：
-       * agent 可以拒绝、改名或撤回某个取值，失败由会话那一侧按对话记下来
-       * （selectorFailureOf），这里不替它兜底，也不假装设过。
+       * 它是尽力而为的：agent 可以拒绝、改名或撤回某个取值，失败由会话那一侧按对话
+       * 记下来（selectorFailureOf），这里不替它兜底，也不假装设过。
        */
       for (const [controlId, value] of Object.entries(sessionConfigOf(automation))) {
         threads.selectControl(threadId, controlId, value)
@@ -72,9 +70,6 @@ export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
       /*
        * 指令从唯一的发送管线进去（TranscriptStore.send → AgentSessionPort.prompt），
        * 与人打字发送同一条路：先上屏、再接帧流、再发出去。
-       *
-       * 上一版开完对话就结束了 —— prompt 从头到尾没有送达，每次「成功」的运行
-       * 留下的都是一条一句话也没说的空对话。
        *
        * onUserMessage 报自动化的名字而不是指令原文：侧栏的乐观标题与库里的
        * manual 名是同一个词，下一次整表读取不会把名字换掉。不 openConversation：

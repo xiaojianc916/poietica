@@ -1,4 +1,4 @@
-import type { AgentCapabilityPort, SessionConfigControl } from '@poietica/agent-contract'
+import type { SessionConfigControl } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
 
 import { AgentCapabilityStore } from '../agent-capability-store'

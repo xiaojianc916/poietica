@@ -338,9 +338,6 @@ importers:
 
   packages/automations:
     dependencies:
-      '@poietica/agent':
-        specifier: workspace:*
-        version: link:../agent
       '@poietica/agent-contract':
         specifier: workspace:*
         version: link:../agent-contract

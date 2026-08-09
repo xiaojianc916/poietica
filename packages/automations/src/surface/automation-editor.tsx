@@ -1,4 +1,3 @@
-import { useAgentControls } from '@poietica/agent'
 import type { SessionConfigControl } from '@poietica/agent-contract'
 import type { Automation } from '@poietica/ipc'
 import { ArrowLeftIcon, ConfirmationDialog, cn, PlayIcon } from '@poietica/ui'
@@ -28,6 +27,13 @@ import { AutomationSessionConfig } from './automation-session-config'
 export interface AutomationEditorProps {
   /** 已经存在的那一条；新建时为 null。它只提供身份：id、运行记录、能不能试运行。 */
   readonly automation: Automation | null
+  /**
+   * 这一家 agent 此刻报出来的可调项。
+   *
+   * 由 apps/desktop 读了交进来（见 automations/automations-view.tsx）：这一层与
+   * @poietica/agent-ui 同层，不能横向去拿，它只认识这份数据的形状。
+   */
+  readonly controls: readonly SessionConfigControl[]
   /**
    * 打开这一屏时表单里应该有的东西。
    *
@@ -69,9 +75,13 @@ function resolve(
   return resolved
 }
 
-export function AutomationEditor({ automation, draft, onBack, store }: AutomationEditorProps) {
-  const controls = useAgentControls()
-
+export function AutomationEditor({
+  automation,
+  controls,
+  draft,
+  onBack,
+  store,
+}: AutomationEditorProps) {
   const [tab, setTab] = useState<EditorTab>('settings')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [title, setTitle] = useState(draft.title)
