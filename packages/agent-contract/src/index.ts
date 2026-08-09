@@ -17,6 +17,7 @@ export type {
 } from './config'
 export type { AgentPalettePort, PaletteEntry, PaletteKind } from './palette'
 export { paletteEntryOf, paletteFrom } from './palette'
+export type { PermissionPosturePort } from './permission'
 export type {
   AcpAvailableCommand,
   AcpContentBlock,

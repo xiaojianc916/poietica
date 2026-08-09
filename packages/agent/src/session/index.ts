@@ -4,6 +4,12 @@ export type {
   CapabilityFailureReport,
 } from './agent-capability-store'
 export { AgentCapabilityStore } from './agent-capability-store'
+export type { PermissionPosture } from './permission-posture'
+export {
+  permissionControlOf,
+  permissionPostureOf,
+  permissionPosturesOf,
+} from './permission-posture'
 export type { SessionControlsFailureReport } from './session-controls-store'
 export type {
   ThreadListItem,

@@ -1,6 +1,11 @@
-import type { AgentCapabilityPort, SessionConfigControl } from '@poietica/agent-contract'
+import type {
+  AgentCapabilityPort,
+  PermissionPosturePort,
+  SessionConfigControl,
+} from '@poietica/agent-contract'
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
+import { permissionControlOf, postureAlignment } from './permission-posture'
 
 /*
  * 锚会话提供哪些可调项，以及每一项此刻生效的是什么。
@@ -52,6 +57,8 @@ export interface CapabilityFailureReport {
 }
 
 export interface AgentCapabilityOptions {
+  /** 批准方式的持久意图。缺席即不对齐，这台 store 因此仍能裸构造单测。 */
+  readonly posture?: PermissionPosturePort | undefined
   readonly report?: CapabilityFailureReport | undefined
 }
 
@@ -62,6 +69,8 @@ export interface AgentCapabilityOptions {
  * 时交进来，所以测试能各造一份自己的来跑，用例之间没有先后可言。
  */
 export class AgentCapabilityStore {
+  readonly #posture: PermissionPosturePort | undefined
+
   readonly #report: CapabilityFailureReport | undefined
 
   /* 唯一的状态。引用只在真的变了时才更换，useSyncExternalStore 要的就是这个稳定性。 */
@@ -86,7 +95,14 @@ export class AgentCapabilityStore {
   /* read 与 select 都在飞时，该赢的是问得晚的那一个。规则与对话那一侧同一条。 */
   #order = new ArrivalOrder()
 
-  constructor({ report }: AgentCapabilityOptions = {}) {
+  /*
+   * 已经为哪一个意图补发过对齐。同一个意图不补第二次：改动被拒会 refresh 回权威
+   * 表，而那正是 #align 再次被叫到的时刻 —— 不记这一格就是一个自己喂自己的循环。
+   */
+  #alignedTo: string | undefined
+
+  constructor({ posture, report }: AgentCapabilityOptions = {}) {
+    this.#posture = posture
     this.#report = report
   }
 
@@ -111,6 +127,7 @@ export class AgentCapabilityStore {
   start = (port: AgentCapabilityPort): (() => void) => {
     this.#source = port
     this.#asked = false
+    this.#alignedTo = undefined
     this.#commit(EMPTY)
 
     /*
@@ -165,6 +182,15 @@ export class AgentCapabilityStore {
         return
       }
 
+      /*
+       * 批准方式同时是一个跨会话的决定，所以这一次点击既发给锚会话，也落成持久
+       * 意图。写在发出之前，与 default_model 同一条顺序。
+       */
+      if (control.purpose === 'mode') {
+        this.#posture?.write(value)
+        this.#alignedTo = value
+      }
+
       const ticket = this.#order.issue()
 
       try {
@@ -201,6 +227,36 @@ export class AgentCapabilityStore {
     }
 
     this.#commit({ controls: table, failure: undefined })
+    this.#align(table)
+  }
+
+  /*
+   * 让锚会话回到用户上次选的那个批准方式。
+   *
+   * 理由与 SessionControlsStore 的 #align 同一条：ACP 的 session/new 不带配置参数，
+   * 持久意图只能在表到达之后补一次。补发走 selectControl，所以「发出 set_config」
+   * 仍然只有一条路。
+   */
+  #align(table: readonly SessionConfigControl[]): void {
+    const posture = this.#posture
+
+    if (posture === undefined) {
+      return
+    }
+
+    const control = permissionControlOf(table)
+
+    if (control === undefined) {
+      return
+    }
+
+    const wanted = postureAlignment(control, posture.read())
+
+    if (wanted === undefined || this.#alignedTo === wanted) {
+      return
+    }
+
+    this.selectControl(control.id, wanted)
   }
 
   /* 读一次整张表。没有端口就没有产地；问过了就不再问 —— 重读走 refresh。 */

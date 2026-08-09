@@ -8,10 +8,11 @@ import {
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
+  PermissionPosturePort,
   SessionConfigPort,
   ThreadPort,
 } from '@poietica/agent-contract'
-import { createExternalStore, error as reportError } from '@poietica/core'
+import { createExternalStore, createPreference, error as reportError } from '@poietica/core'
 import {
   createAgentCapabilityBridge,
   createAgentCommandBridge,
@@ -107,6 +108,49 @@ function noteListenFailure(cause: unknown): void {
  * 这里没有任何缓存可言，一个实例够了；每次渲染新建一个对象只会让下游的依赖数组
  * 每帧都变。
  */
+/*
+ * 批准方式的持久意图，一个进程一份。
+ *
+ * ACP 的 mode 是会话级活状态：session/set_config_option 按 sessionId 寻址，而
+ * session/new 不带配置参数，所以"重启之后还是我上次选的那个"协议自己答不出来。
+ * agent 那一侧持久的是它 config.toml 里的 default_permission_mode，而那是 agent
+ * 的资产；客户端这一侧的对应位置就是这一格偏好。
+ *
+ * 走 @poietica/core 的偏好管线 —— 这个仓库唯一允许触碰 Web Storage 的入口（见
+ * tools/architecture/rules.config.mjs 的 client-preferences-single-pipeline）。
+ * 它必须同步读得到：输入框那颗胶囊与第一张控件表同帧上屏。
+ */
+const posture = createPreference<string | undefined>({
+  key: 'poietica.permission-posture',
+  fallback: undefined,
+  decode: (raw) => raw,
+  encode: (value) => value ?? null,
+  onFailure: (failure) => {
+    reportError('permission posture preference failed', {
+      scope: 'agent-session',
+      operation: failure.stage,
+      cause: failure.cause,
+    })
+  },
+})
+
+/*
+ * 端口的两半就是这一格偏好的两半：读上次选的，写这次选的。
+ *
+ * 域层只认这个接口，不认它落在哪里 —— 两台 store 因此共用同一个持久意图，而不是
+ * 各自去摸一个全局单例，单测也不需要一个 Storage。
+ */
+const permissionPosture: PermissionPosturePort = {
+  read: posture.read,
+  write: (value) => {
+    posture.write(value)
+  },
+}
+
+export function desktopPermissionPosture(): PermissionPosturePort {
+  return permissionPosture
+}
+
 let sessionConfig: SessionConfigPort | undefined
 
 export function desktopSessionConfig(): SessionConfigPort {

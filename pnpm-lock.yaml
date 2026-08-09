@@ -432,6 +432,9 @@ importers:
 
   packages/plugins:
     dependencies:
+      '@poietica/agent-contract':
+        specifier: workspace:*
+        version: link:../agent-contract
       '@poietica/core':
         specifier: workspace:*
         version: link:../core

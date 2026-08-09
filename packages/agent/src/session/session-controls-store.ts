@@ -1,4 +1,5 @@
 import type {
+  PermissionPosturePort,
   SessionConfigControl,
   SessionConfigPort,
   SessionConfigReport,
@@ -8,6 +9,7 @@ import type {
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
+import { permissionControlOf, postureAlignment } from './permission-posture'
 import type { TranscriptSink } from './transcript-sink'
 
 /** 打开一条对话拿回来的那一整份答复。形状由端口说了算，不另抄一遍。 */
@@ -40,6 +42,8 @@ export interface SessionControlsOptions {
   readonly announce: () => void
   readonly config?: SessionConfigPort | undefined
   readonly port?: ThreadPort | undefined
+  /** 批准方式的持久意图。缺席即不对齐，这台 store 因此仍能裸构造单测。 */
+  readonly posture?: PermissionPosturePort | undefined
   readonly report?: SessionControlsFailureReport | undefined
   readonly transcripts?: TranscriptSink | undefined
 }
@@ -52,12 +56,14 @@ export interface SessionControlsOptions {
  * 画的就是它。没有投影，没有影子值，也没有"显示值"与"实际值"两格 —— 那两格一旦
  * 分开，屏幕上写甲而会话里跑乙就成了合法状态。
  *
- * 这一层不做跨会话对齐。ACP 把配置定义成会话级的：session/new、session/load、
- * session/set_config_option、以及 session/update 的 config_option_update 全部按
- * sessionId 寻址，一条会话选了什么说明不了另一条选了什么。想让新对话继承某个模型，
- * 办法是 config.toml 里的 default_model —— agent 开新会话时读它，已经开着的会话
- * 不受影响。因此这个文件里不存在"应用替用户改配置"的路径：set_config 只由
- * selectControl（用户点击）发出。
+ * ACP 把配置定义成会话级的：session/new、session/load、session/set_config_option、
+ * 以及 session/update 的 config_option_update 全部按 sessionId 寻址，而 session/new
+ * 不带任何配置参数。所以"上次选的那个批准方式"不可能由协议自己带过来，只能由这一
+ * 层在一张表到达时补发一次：补的值就是用户自己上次按下的那一颗（意图由
+ * PermissionPosturePort 持有），同一个意图只补一次，agent 没提供的档位不补。
+ *
+ * 模型不在此列。它的持久位置是 agent 自己的 config.toml（default_model），由 agent
+ * 开会话时读，这一层不碰。
  *
  * 下发按对话串行。ACP 规定改一项可能增删另一项（见 @poietica/agent-contract 的 config.ts，
  * 以及原生侧 commands.rs 的 select 文档），所以同一条会话上的两次改动必须分先后：
@@ -80,6 +86,8 @@ export class SessionControlsStore {
 
   readonly #announce: () => void
 
+  readonly #posture: PermissionPosturePort | undefined
+
   readonly #report: SessionControlsFailureReport | undefined
 
   #held: Held = EMPTY
@@ -101,10 +109,19 @@ export class SessionControlsStore {
   /* 这条对话的表按什么先后写入。作废在 forget。 */
   #order = new Map<string, ArrivalOrder>()
 
-  constructor({ announce, config, port, report, transcripts }: SessionControlsOptions) {
+  /*
+   * 这条对话已经为哪一个意图补发过对齐。
+   *
+   * 同一个意图不补第二次：agent 拒了那一次改动会走 #reopen 拉回权威表，而那正是
+   * #align 再次被叫到的时刻 —— 不记这一格就是一个自己喂自己的循环。
+   */
+  #alignedTo = new Map<string, string>()
+
+  constructor({ announce, config, port, posture, report, transcripts }: SessionControlsOptions) {
     this.#announce = announce
     this.#config = config
     this.#port = port
+    this.#posture = posture
     this.#report = report
     this.#transcripts = transcripts
   }
@@ -172,6 +189,7 @@ export class SessionControlsStore {
     /* 在飞的那一次不取消 —— 它已经发出去了，收不回来；只是不再由它排队。 */
     this.#inflight.delete(threadId)
     this.#order.delete(threadId)
+    this.#alignedTo.delete(threadId)
 
     /* 会话号那张反查表同样按对话记。#hold 只写不删，这里是它唯一的出口。 */
     for (const [sessionId, owner] of this.#sessions) {
@@ -209,8 +227,21 @@ export class SessionControlsStore {
     void this.#reopen(threadId)
   }
 
-  /** 改这条对话的一项会话设置；答案就是改完之后的整张表。 */
+  /**
+   * 改这条对话的一项会话设置；答案就是改完之后的整张表。
+   *
+   * 批准方式多一件事：它同时是一个跨会话的决定，所以这一次点击既发给这条会话，也
+   * 落成持久意图。写在发出之前，与 default_model 同一条顺序（见 apps/desktop 的
+   * agent-session.ts）：失手时盘上那份仍是用户上一次真的按下的那一颗。
+   */
   selectControl = (threadId: string, controlId: string, value: string): void => {
+    const control = this.#held.selectors.get(threadId)?.find((offered) => offered.id === controlId)
+
+    if (control?.purpose === 'mode') {
+      this.#posture?.write(value)
+      this.#alignedTo.set(threadId, value)
+    }
+
     this.#dispatch(threadId, controlId, value)
   }
 
@@ -366,6 +397,36 @@ export class SessionControlsStore {
       selectors: withEntry(this.#held.selectors, threadId, offered),
       selectorFailure: withoutEntry(this.#held.selectorFailure, threadId),
     })
+
+    this.#align(threadId, offered)
+  }
+
+  /*
+   * 让这条会话回到用户上次选的那个批准方式。
+   *
+   * 判据全部来自刚落地的那张表：agent 提供哪些档位由它说了算。补发走 selectControl，
+   * 所以「发出 set_config」仍然只有一条路。
+   */
+  #align(threadId: string, offered: readonly SessionConfigControl[]): void {
+    const posture = this.#posture
+
+    if (posture === undefined) {
+      return
+    }
+
+    const control = permissionControlOf(offered)
+
+    if (control === undefined) {
+      return
+    }
+
+    const wanted = postureAlignment(control, posture.read())
+
+    if (wanted === undefined || this.#alignedTo.get(threadId) === wanted) {
+      return
+    }
+
+    this.selectControl(threadId, control.id, wanted)
   }
 
   #noteSelectorFailure(threadId: string, reason: unknown): void {

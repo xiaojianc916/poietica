@@ -1,0 +1,125 @@
+/*
+ * 批准方式：一颗常显的胶囊，和它打开的那一张。
+ *
+ * 提醒色只有一个数 —— 胶囊与行用的是同一支墨水，所以它是一个变量，不是两处各
+ * 写一遍的十六进制。
+ *
+ * 几何量取自 composer 的 --cp-* 契约，并且每一处都带 var() 兜底值（CSS Variables
+ * Level 1 的 var 第二参数）：令牌缺席时控件仍然是一颗可点的胶囊，而不是一段裸文字。
+ */
+
+.assistant-posture {
+  --pp-ink-alert: #b06a12;
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cp-pill-gap, 6px);
+  height: var(--cp-pill, 26px);
+  padding-inline: var(--cp-pill-lead, 8px) var(--cp-pill-trail, 10px);
+  border: 0;
+  border-radius: 999px;
+  background: var(--cp-pill-wash, rgb(0 0 0 / 4%));
+  color: var(--cp-ink-muted);
+  font-size: var(--cp-font-caption);
+  cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-posture > svg {
+  flex: none;
+  width: var(--cp-icon);
+  height: var(--cp-icon);
+}
+
+.assistant-posture:hover,
+.assistant-posture[data-popup-open] {
+  background: var(--cp-pill-wash-hover, rgb(0 0 0 / 8%));
+  color: var(--cp-ink);
+}
+
+/* 不可撤销的那一档在收起状态下也必须看得出来。 */
+.assistant-posture[data-alert] {
+  color: var(--pp-ink-alert);
+}
+
+.assistant-posture__label {
+  max-width: var(--cp-pill-label-max, 12ch);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.assistant-posture-menu {
+  min-width: var(--cp-menu-min-wide, 280px);
+  padding: var(--am-pad, 6px);
+}
+
+.assistant-posture-menu__heading {
+  margin: 0;
+  padding: var(--am-pad, 6px) var(--cp-px, 10px) var(--am-pad, 6px);
+  color: var(--cp-ink);
+  font-size: var(--cp-font-caption);
+  font-weight: 600;
+}
+
+/*
+ * 一行三件事：字形、标题、说明；勾在最右并跨两行。
+ *
+ * 用 grid areas 而不是嵌套 flex —— 说明与标题要左对齐同一条竖线，而字形是一列，
+ * 不是标题的前缀。
+ */
+.assistant-posture-menu__item {
+  display: grid;
+  grid-template-areas: "glyph name tick" "glyph detail tick";
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: var(--cp-px, 10px);
+  row-gap: 2px;
+  align-items: center;
+  padding: var(--am-pad, 6px) var(--cp-px, 10px);
+  border-radius: 6px;
+  color: var(--cp-ink);
+  cursor: pointer;
+}
+
+.assistant-posture-menu__item[data-highlighted] {
+  background: var(--cp-menu-hover);
+}
+
+.assistant-posture-menu__item[data-alert] {
+  color: var(--pp-ink-alert, #b06a12);
+}
+
+.assistant-posture-menu__glyph {
+  grid-area: glyph;
+  width: var(--cp-icon);
+  height: var(--cp-icon);
+}
+
+.assistant-posture-menu__name {
+  grid-area: name;
+  font-size: var(--cp-font-caption);
+  font-weight: 600;
+}
+
+.assistant-posture-menu__detail {
+  grid-area: detail;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+}
+
+.assistant-posture-menu__tick {
+  grid-area: tick;
+  display: inline-flex;
+  align-items: center;
+}
+
+.assistant-posture-menu__tick > svg {
+  width: var(--cp-icon);
+  height: var(--cp-icon);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-posture {
+    transition: none;
+  }
+}

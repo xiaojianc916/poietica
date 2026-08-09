@@ -1,4 +1,5 @@
 import type {
+  PermissionPosturePort,
   SessionConfigControl,
   SessionConfigPort,
   ThreadPort,
@@ -34,6 +35,8 @@ export interface ThreadsStoreOptions {
   /** 没有记下目录的对话落在哪个工作区。答案属于宿主，这一层不猜。 */
   readonly defaultWorkspaceId?: (() => string | null) | undefined
   readonly port?: ThreadPort | undefined
+  /** 批准方式的持久意图。原样交给会话那一侧，这一层不解释。 */
+  readonly posture?: PermissionPosturePort | undefined
   /** 会话那一侧的失败往哪里说一声。原样交给它，这一层不解释。 */
   readonly report?: SessionControlsFailureReport | undefined
   readonly transcripts?: TranscriptSink | undefined
@@ -101,7 +104,14 @@ export class ThreadsStore {
    */
   readonly #defaultWorkspaceId: (() => string | null) | undefined
 
-  constructor({ config, defaultWorkspaceId, port, report, transcripts }: ThreadsStoreOptions) {
+  constructor({
+    config,
+    defaultWorkspaceId,
+    port,
+    posture,
+    report,
+    transcripts,
+  }: ThreadsStoreOptions) {
     this.#port = port
     this.#transcripts = transcripts
     this.#defaultWorkspaceId = defaultWorkspaceId
@@ -116,6 +126,7 @@ export class ThreadsStore {
       },
       config,
       port,
+      posture,
       report,
       transcripts,
     })

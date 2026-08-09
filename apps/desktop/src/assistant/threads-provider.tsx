@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 
 import { defaultWorkspaceId, defaultWorkspaceReady } from '../workspace-root'
-import { desktopSessionConfig, desktopThreads } from './agent-session'
+import { desktopPermissionPosture, desktopSessionConfig, desktopThreads } from './agent-session'
 import { ThreadsContext } from './threads-context'
 
 /*
@@ -45,6 +45,7 @@ export function ThreadsProvider({ children, report }: ThreadsProviderProps) {
         config: desktopSessionConfig(),
         defaultWorkspaceId,
         port: desktopThreads(),
+        posture: desktopPermissionPosture(),
         report,
         transcripts: transcriptStore,
       }),
