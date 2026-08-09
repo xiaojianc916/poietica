@@ -746,8 +746,9 @@
  * 圆形字形的光学重心比外接方框靠里；图标已经不在了，纯文字的 chip 两侧对称，
  * 再留那 4px 差就是把补偿留给了一个不存在的东西。
  *
- * line-height 锁 1：壳高固定，字身若还带着继承来的 1.625，CJK 基线会被半行
- * 间距顶偏，文字与胶囊差半个像素 —— 与模式胶囊同因，那里已经栽过一次。
+ * 胶囊继续由固定高度和 align-items: center 负责垂直居中；文字标签单独使用
+ * 1.35 行高。不能锁成 1：标签还要用 overflow: hidden 生成省略号，过窄的行盒
+ * 会把 g、y、p 等英文字符的下行笔画一并裁掉。
  *
  * Two states are worth showing and no more: the pointer is over it, and its
  * menu is open. Both are painted on the capsule.
@@ -764,7 +765,6 @@
   background: transparent;
   font-size: var(--cp-font-caption);
   font-weight: 500;
-  line-height: 1;
   color: var(--cp-ink-muted);
   cursor: pointer;
   transition:
@@ -789,10 +789,16 @@
   color: var(--cp-ink);
 }
 
-/* A long name is truncated rather than allowed to squeeze the editor. */
+/*
+ * 长名称继续横向省略，但文字行盒必须完整容纳英文的上伸与下行笔画。
+ * 按钮的 align-items: center 负责把这条正常行盒垂直居中。
+ */
 .assistant-model-select__button .assistant-model-select__label {
+  display: block;
+  min-inline-size: 0;
   max-inline-size: 18ch;
   overflow: hidden;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
