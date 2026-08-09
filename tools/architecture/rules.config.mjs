@@ -874,30 +874,7 @@ const ruleIdentifiersAreUnique = () => {
     }))
 }
 
-/*
- * 判据自己的名字必须唯一。
- *
- * 违规按 rule.id 汇报，同名规则会把一次违规记成多笔，而重复的那一条不会让任何
- * 检查失败 —— 它腐烂时没有任何东西会说话。读的是 rules 自己：run.mjs 调用 check
- * 时模块已经求值完毕，引用是安全的。
- */
-const ruleIdentifiersAreUnique = () => {
-  const counts = new Map()
-
-  for (const rule of rules) {
-    counts.set(rule.id, (counts.get(rule.id) ?? 0) + 1)
-  }
-
-  return [...counts]
-    .filter(([, count]) => count > 1)
-    .map(([id, count]) => ({
-      file: 'tools/architecture/rules.config.mjs',
-      message: `规则 "${id}" 注册了 ${count} 次：违规按 id 汇报，同名会把一次违规记成多笔`,
-    }))
-}
-
 const governanceRules = [
-  { id: 'rule-identifiers-are-unique', check: ruleIdentifiersAreUnique },
   { id: 'rule-identifiers-are-unique', check: ruleIdentifiersAreUnique },
   { id: 'manifest-scripts-resolve', check: manifestScriptsResolve },
   { id: 'capability-scoped-directory-names', check: capabilityScopedDirectoryNames },
