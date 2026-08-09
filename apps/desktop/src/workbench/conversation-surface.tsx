@@ -53,7 +53,7 @@ export function ConversationSurface({
 }: ConversationSurfaceProps) {
   const threads = useThreadsActions()
 
-  const controls = useSessionControlsActions()
+  const sessionControls = useSessionControlsActions()
 
   /*
    * 这一格只关心这两样，所以只订这两样。
@@ -94,8 +94,8 @@ export function ConversationSurface({
       return
     }
 
-    controls.adopt(threadId)
-  }, [controls, threadId])
+    sessionControls.adopt(threadId)
+  }, [sessionControls, threadId])
 
   /*
    * 两个 scope，一条判据。
@@ -131,8 +131,8 @@ export function ConversationSurface({
       return
     }
 
-    controls.retrySelectors(threadId)
-  }, [controls, retry, threadId])
+    sessionControls.retrySelectors(threadId)
+  }, [retry, sessionControls, threadId])
 
   /* 改一项，交给持有这张表的那一方：入口那格是 agent，对话里是那条会话。 */
   const chooseControl = useCallback(
@@ -143,9 +143,9 @@ export function ConversationSurface({
         return
       }
 
-      controls.selectControl(threadId, controlId, value)
+      sessionControls.selectControl(threadId, controlId, value)
     },
-    [controls, selectControl, threadId],
+    [selectControl, sessionControls, threadId],
   )
 
   const userMessage = useCallback(
