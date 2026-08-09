@@ -55,7 +55,6 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
             </main>
           </section>
         }
-        overlays={parts.overlay?.content}
         sidebar={
           <SidebarRegion
             isOpen={sidebarOpen}

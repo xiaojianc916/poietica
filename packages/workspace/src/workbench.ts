@@ -1,16 +1,9 @@
+import { DEFAULT_SURFACE_ID, type WorkspaceSurfaceId } from './surface-registry'
+
 export type WorkbenchTabId = string
 
 /** 一条对话的身份就是它的 thread id：一条对话最多一格。 */
 export type ConversationId = string
-
-import {
-  CONVERSATION_ENTRY_TITLE,
-  DEFAULT_SURFACE_ID,
-  describeWorkspaceSurface,
-  type WorkspaceSurfaceId,
-} from './surface-registry'
-
-export { CONVERSATION_ENTRY_TITLE, type WorkspaceSurfaceId }
 
 interface WorkbenchTabBase {
   readonly id: WorkbenchTabId
@@ -115,40 +108,10 @@ export interface WorkbenchSessionStore extends WorkbenchSessionCommands {
 }
 
 /**
- * 会话入口（AI 表面）的名字。
+ * 默认表面那一格的标签 id。
  *
- * 与侧栏「新建对话」导航项、会话列表的加号、标签条的加号同名：一个入口只
- * 默认表面的标签 id 由默认表面 id 派生，不另立字面量。
+ * 由默认表面 id 派生，不另立字面量：controller 的 entryId() 拼的是同一条规则，
+ * 两处对不上就是一格永远激活不了的标签。首帧快照由 project(INITIAL_STATE) 给出，
+ * 这里不再手写第二份。
  */
 export const DEFAULT_SURFACE_TAB_ID: WorkbenchTabId = `workspace:${DEFAULT_SURFACE_ID}`
-
-/**
- * 首帧兜底快照。
- *
- * 由 registry 派生而不是手写字面量：此前这里有 DEFAULT_TAB 与 DEFAULT_SURFACE
- * 两个冻结对象，controller 里还有第三个 DEFAULT_ENTRY —— 同一个「默认表面」
- * 存了三份，靠三条运行时不变量互相看住。现在只有这一处。
- */
-export function emptyWorkbenchViewModel(): WorkbenchViewModel {
-  const descriptor = describeWorkspaceSurface(DEFAULT_SURFACE_ID)
-
-  return {
-    activeTabId: DEFAULT_SURFACE_TAB_ID,
-    tabs: [
-      {
-        id: DEFAULT_SURFACE_TAB_ID,
-        kind: 'workspace',
-        title: descriptor.title,
-        isActive: true,
-        canClose: true,
-        surfaceId: DEFAULT_SURFACE_ID,
-      },
-    ],
-    activeSurface: {
-      kind: 'workspace',
-      tabId: DEFAULT_SURFACE_TAB_ID,
-      surfaceId: DEFAULT_SURFACE_ID,
-      title: descriptor.title,
-    },
-  }
-}

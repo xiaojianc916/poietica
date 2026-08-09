@@ -1,6 +1,9 @@
 import type { WorkspaceSurfaceRenderers } from '../surface'
-import { describeWorkspaceSurface, isReadyWorkspaceSurfaceId } from '../surface-registry'
-import type { WorkspaceSurfaceId } from '../workbench'
+import {
+  describeWorkspaceSurface,
+  isReadyWorkspaceSurfaceId,
+  type WorkspaceSurfaceId,
+} from '../surface-registry'
 import { surfaceIcon } from './surface-icons'
 
 export interface WorkspaceSurfaceProps {
@@ -24,9 +27,6 @@ export interface WorkspaceSurfaceProps {
  *   - 其余的走下面那张明说「还没实现」的页面。命令行（activation.kind 为
  *     'command'）正常路径到不了这里 —— 点它执行命令，主区不动；只有上次会话
  *     留下的旧标签能落到这一支，那时这张页面就是最诚实的说法。
- *
- * 此前这里是 if (render) —— 同一个分支同时承担着「还没做」和「写漏了」，
- * 而后者本该是编译错误。
  */
 export function WorkspaceSurface({ surfaceId, renderers }: WorkspaceSurfaceProps) {
   if (isReadyWorkspaceSurfaceId(surfaceId)) {

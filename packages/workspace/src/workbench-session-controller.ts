@@ -1,5 +1,4 @@
 import {
-  CONVERSATION_ENTRY_TITLE,
   DEFAULT_SURFACE_ID,
   describeWorkspaceSurface,
   type WorkspaceSurfaceId,
@@ -359,5 +358,3 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
     },
   }
 }
-
-export { CONVERSATION_ENTRY_TITLE }

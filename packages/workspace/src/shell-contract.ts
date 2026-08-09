@@ -1,5 +1,6 @@
 import type { WorkspaceParts } from './parts'
-import type { WorkbenchTabId, WorkbenchViewModel, WorkspaceSurfaceId } from './workbench'
+import type { WorkspaceSurfaceId } from './surface-registry'
+import type { WorkbenchTabId, WorkbenchViewModel } from './workbench'
 
 /**
  * 工作台的动作表。

@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
  * 位置是有限且由布局决定的，因此是一个封闭联合而不是任意字符串键：
  * 新增一个位置必须同时给出它在栅格里的坐标，类型会强制这件事被想到。
  */
-export type WorkspacePartId = 'chrome' | 'sidebar' | 'main' | 'overlay'
+export type WorkspacePartId = 'chrome' | 'sidebar' | 'main'
 
 export interface WorkspacePart {
   readonly content: ReactNode
@@ -22,12 +22,7 @@ export interface WorkspacePart {
 /**
  * Part 表。
  *
- * chrome / sidebar / main 是工作台的骨架，必须有；overlay 可空。
- * 此前 sidebarOverride、sidebarFooterSlot、assistantOverlay 三个插槽表达的
- * 都是「往某个位置放东西」，现在由这张表统一表达，Shell 不再逐个透传。
+ * 每个停靠位都必须有内容：可选插槽在这张表里没有位置 —— 一个没有生产者的槽
+ * 永远编译得过，而它的消费方要为一个不会出现的值一直留着分支。
  */
-export type WorkspaceParts = {
-  readonly [K in Exclude<WorkspacePartId, 'overlay'>]: WorkspacePart
-} & {
-  readonly overlay?: WorkspacePart | undefined
-}
+export type WorkspaceParts = Record<WorkspacePartId, WorkspacePart>

@@ -194,9 +194,8 @@ const SPECIFIER = String.raw`(?<=(?:from|import)\s*\(?\s*['"])`
  *
  * 方向判据抓不到它（自己永远在自己的允许集里），public-package-exports 管的是
  * src/ 深路径，no-cross-boundary-relative-imports 管的是相对路径跨包 —— 三条围了
- * 一圈，恰好漏掉这一个方向。于是 agent-timeline 里 index → timeline-reducer →
- * index 成了模块环，只因为全是 import type 才没在运行时炸，而检查器一路报着
- * Architecture rules passed.
+ * 一圈，恰好漏掉这一个方向，而绕一圈回到包入口就是模块环：全是 import type 时
+ * 运行时不炸，于是没有任何东西会说话。
  *
  * 包入口是给别人看的那道边界。自己人绕它一圈，这道边界就是假的。这条只能落在源
  * 文件上：manifest 看不见一个包怎么引用它自己。
@@ -236,12 +235,17 @@ const restrictedUtilityClasses = [
  * ════════════════════════════════════════════════════════════════════════ */
 
 /*
- * application / presentation / ports 是 DDD 的层名；services / stores / managers
- * / helpers / common / utils / types 不声明任何边界。上面那张 tiers 表已经用包边界
- * 承担了分层，包内部再套一套就是两套架构叠着。zed 的 crates 是 acp_thread /
- * agent_ui / project / settings_ui，codex-rs 是 core / protocol / thread-store，
- * VS Code 是 base / platform / editor / workbench —— 三家一个 DDD 层名都没有。
- * AGENTS.md 早就写了这条禁令，此前没有任何配置执行它。
+ * 三类名字被禁，下面这张表是唯一一份，AGENTS.md 只指向它、不重抄。
+ *
+ *   application / domain / presentation / ports —— DDD 的层名。上面那张 layers
+ *     表已经用包边界承担了分层，包内再套一套就是两套架构叠着。
+ *   common / helpers / lib / utils / services / managers / stores / state /
+ *     types —— 不声明任何边界，最终什么都往里塞。
+ *   components —— 按技术种类切，不回答「这是什么能力」。
+ *
+ * zed 的 crates 是 acp_thread / agent_ui / project / settings_ui，codex-rs 是
+ * core / protocol / thread-store，VS Code 是 base / platform / editor /
+ * workbench —— 三家一个 DDD 层名、一个万能桶都没有。
  */
 const forbiddenDirectoryNames = new Set([
   'application',
@@ -848,7 +852,30 @@ const documentedPackagesExist = () => {
 
   return defects
 }
+/*
+ * 判据自己的名字必须唯一。
+ *
+ * 违规按 rule.id 汇报，同名规则会把一次违规记成多笔，而重复的那一条不会让任何
+ * 检查失败 —— 它腐烂时没有任何东西会说话。读的是 rules 自己：run.mjs 调用 check
+ * 时模块已经求值完毕，引用是安全的。
+ */
+const ruleIdentifiersAreUnique = () => {
+  const counts = new Map()
+
+  for (const rule of rules) {
+    counts.set(rule.id, (counts.get(rule.id) ?? 0) + 1)
+  }
+
+  return [...counts]
+    .filter(([, count]) => count > 1)
+    .map(([id, count]) => ({
+      file: 'tools/architecture/rules.config.mjs',
+      message: `规则 "${id}" 注册了 ${count} 次：违规按 id 汇报，同名会把一次违规记成多笔`,
+    }))
+}
+
 const governanceRules = [
+  { id: 'rule-identifiers-are-unique', check: ruleIdentifiersAreUnique },
   { id: 'manifest-scripts-resolve', check: manifestScriptsResolve },
   { id: 'capability-scoped-directory-names', check: capabilityScopedDirectoryNames },
   { id: 'layered-workspace-dependencies', check: layeredWorkspaceDependencies },
@@ -985,12 +1012,6 @@ export const rules = [
       file !== COMPOSITION_ROOT,
     pattern: /\binstallAgentCapabilityPort\b/g,
     message: 'agent 能力表只在组合根接一次线，不要在渲染层装',
-  },
-  {
-    id: 'timeline-projection-stays-pure',
-    appliesTo: (file) => file.startsWith(TIMELINE_CORE),
-    pattern: /(?<=(?:from|import)\s*\(?\s*['"])react(?:-dom)?(?=['"/])/g,
-    message: 'timeline/ 是纯投影：React 只允许出现在 session/ 与 UI 包',
   },
   {
     id: 'timeline-projection-stays-pure',

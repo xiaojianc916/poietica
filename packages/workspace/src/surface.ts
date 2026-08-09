@@ -7,14 +7,12 @@ import type { ReadyWorkspaceSurfaceId } from './surface-registry'
  *
  * 键是 ReadyWorkspaceSurfaceId，不是 WorkspaceSurfaceId，也不是 Partial：
  *
- *   - 注册表里 status: 'ready' 的每一条，组合根都必须交出渲染器，漏一条是
- *     编译错误；
- *   - status: 'planned' 的那几条不在这个 Record 里，所以「还没做」不需要
- *     一个假渲染器来顶着。
+ *   - activation.kind 为 'surface' 的每一条，组合根都必须交出渲染器，漏一条
+ *     是编译错误；
+ *   - 其余那几条不在这个 Record 里，所以「还没做」不需要一个假渲染器顶着。
  *
- * 此前这里是 Partial<Record<...>>，两种情况都塌进同一个空位里，于是
- * WorkspaceSurface 只能靠运行时 if (render) 兜底 —— 一个编译期能证明的事实
- * 被降级成了运行期分支。
+ * 不用 Partial<Record<...>>：那会让「还没做」与「写漏了」塌进同一个空位，消费
+ * 方只能靠运行时兜底，一个编译期能证明的事实被降级成运行期分支。
  *
  * 所有权：apps 组合根。workspace 只消费，不实现具体业务表面。
  */

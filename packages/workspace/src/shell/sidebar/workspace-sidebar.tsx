@@ -1,7 +1,7 @@
 import './sidebar-rows.css'
 
 import type { ReactNode } from 'react'
-import type { WorkspaceSurfaceId } from '../../workbench'
+import type { WorkspaceSurfaceId } from '../../surface-registry'
 import { SidebarFooter } from './sidebar-footer'
 import { SidebarNav } from './sidebar-nav'
 

@@ -1,6 +1,9 @@
 import { cn } from '@poietica/ui'
-import { describeWorkspaceSurface, WORKSPACE_NAVIGATION_ORDER } from '../../surface-registry'
-import type { WorkspaceSurfaceId } from '../../workbench'
+import {
+  describeWorkspaceSurface,
+  WORKSPACE_NAVIGATION_ORDER,
+  type WorkspaceSurfaceId,
+} from '../../surface-registry'
 import { type SurfaceIcon, surfaceIcon } from '../surface-icons'
 
 export interface SidebarNavProps {

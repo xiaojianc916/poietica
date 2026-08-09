@@ -28,7 +28,6 @@ export interface WorkspaceFrameProps {
   readonly chrome: ReactNode
   readonly sidebar: ReactNode
   readonly main: ReactNode
-  readonly overlays?: ReactNode
   readonly sidebarColumnWidth: number
   readonly isSidebarDocked: boolean
   readonly disableLayoutAnimation?: boolean
@@ -45,7 +44,6 @@ export function WorkspaceFrame({
   chrome,
   sidebar,
   main,
-  overlays,
   sidebarColumnWidth,
   isSidebarDocked,
   disableLayoutAnimation = false,
@@ -81,7 +79,6 @@ export function WorkspaceFrame({
       {chrome}
       {sidebar}
       {main}
-      {overlays}
     </motion.div>
   )
 }

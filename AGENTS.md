@@ -10,6 +10,7 @@
 | 事实 | 定义在 | 由谁执行 |
 | --- | --- | --- |
 | 包分层与依赖方向 | `tools/architecture/rules.config.mjs` | `pnpm test:architecture` |
+| 包内目录命名 | `tools/architecture/rules.config.mjs` 的 `forbiddenDirectoryNames` | `pnpm test:architecture` |
 | 依赖版本 | `pnpm-workspace.yaml` 的 catalog | pnpm |
 | IPC 契约 | Rust 侧类型，导出到 `packages/ipc/src/generated/` | `pnpm ipc:check` |
 | 磁盘布局 | `apps/desktop/src-tauri/src/paths.rs` | 运行时 |
@@ -70,15 +71,15 @@ tools/architecture/      机器执行的那部分架构
 
 ### 包内怎么分目录
 
-目录名必须声明**能力**，不是**技术种类**。
+目录名必须声明**能力**，不是**技术种类**。禁用清单在
+`tools/architecture/rules.config.mjs` 的 `forbiddenDirectoryNames`，由
+`pnpm test:architecture` 执行。**本文不重抄它** —— 上面已经说过为什么。
 
-`application`、`presentation`、`ports`、`services`、`stores`、`managers`、`helpers`、
-`common`、`utils`、`types` 在任何层级都不允许。前三个是 DDD 的层名 —— 包边界已经承担了
-分层，包内再套一层就是两套架构叠着；后七个不声明任何边界，最终什么都往里塞。
+两类名字被禁：DDD 的层名，因为包边界已经承担了分层，包内再套一层就是两套架构叠着；
+以及万能桶名和按技术种类起的名，它们不声明任何边界，最终什么都往里塞。
 
-`contracts` / `domain` / `state` / `ui` 是这个仓库里几个包实际采用的一组能力名，
-**不是白名单**。按能力命名的目录同样正确 —— `composer`、`timeline`、`minimap`、
-`persistence` 都是好名字。判据是黑名单：不在禁用清单里，且说得出自己是什么能力。
+**这是一份黑名单，不是白名单。** 判据只有两条：不在禁用清单里，且说得出自己是什么
+能力。`composer`、`timeline`、`minimap`、`persistence` 都是好名字。
 
 ### 原生侧
 

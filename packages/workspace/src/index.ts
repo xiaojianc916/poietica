@@ -44,20 +44,20 @@ export {
 export type { WorkspaceShellActions, WorkspaceShellProps } from './shell-contract'
 export type { WorkspaceSurfaceRenderers } from './surface'
 export {
+  CONVERSATION_ENTRY_TITLE,
   DEFAULT_SURFACE_ID,
   describeWorkspaceSurface,
   isWorkspaceSurfaceId,
   WORKSPACE_NAVIGATION_ORDER,
   WORKSPACE_SURFACE_REGISTRY,
   type WorkspaceSurfaceDescriptor,
+  type WorkspaceSurfaceId,
 } from './surface-registry'
 export {
   type ActiveConversationViewModel,
-  CONVERSATION_ENTRY_TITLE,
   type ConversationId,
   type ConversationTabViewModel,
   DEFAULT_SURFACE_TAB_ID,
-  emptyWorkbenchViewModel,
   type OpenConversationRequest,
   type OpenWorkspaceSurfaceRequest,
   type WorkbenchSessionCommands,
@@ -66,7 +66,6 @@ export {
   type WorkbenchTabId,
   type WorkbenchTabViewModel,
   type WorkbenchViewModel,
-  type WorkspaceSurfaceId,
   type WorkspaceSurfaceViewModel,
   type WorkspaceTabViewModel,
 } from './workbench'

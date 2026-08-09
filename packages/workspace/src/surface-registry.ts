@@ -10,13 +10,9 @@
  *   planned —— 导航里画得出来，点进去是一张写明「还没实现」的页面。
  *   command —— 点它是执行一条命令，主区不动。
  *
- * 它此前是 status: 'ready' | 'planned'，只能表达「做没做」。于是「搜索」这种
- * 本来就不是一格页面的东西只能挂成 planned，点下去主区换成一张「还没实现」——
- * 一个动作被硬塞进了「地方」的形状里，而用户按下去得到的是一次假的导航。
- *
  * 判别联合而不是两列（status + commandId?）：两列之间存在「planned 却带着
  * commandId」这种说不通的组合，而不变量是要靠人记住的东西。这里让它连写都
- * 写不出来。
+ * 写不出来。「搜索」是一个动作而不是一格页面，只有这个形状表达得了它。
  */
 
 export type WorkspaceSurfaceIconId = 'box' | 'clock' | 'message' | 'search' | 'webhook'
@@ -88,7 +84,7 @@ export type WorkspaceSurfaceId = keyof typeof WORKSPACE_SURFACE_REGISTRY
 /**
  * 真的画得出来的那些表面。
  *
- * 从 status 的字面量推出来，不是手写的第二份名单：注册表改一个字，这个联合
+ * 从 activation.kind 推出来，不是手写的第二份名单：注册表改一个字，这个联合
  * 跟着变，组合根少交一条渲染器立刻编译失败。
  */
 export type ReadyWorkspaceSurfaceId = {
