@@ -12,7 +12,7 @@ import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { ThinkingIndicator } from './thinking-indicator'
-import { foldFeed } from './turn-fold'
+import { foldFeed, type TurnSealPlan } from './turn-fold'
 import { TurnSeal } from './turn-seal'
 
 /*
@@ -27,15 +27,6 @@ import { TurnSeal } from './turn-seal'
 
 /* 没有一轮被点开时共用同一个空集：状态的初值不该每次渲染换一个引用。 */
 const NOTHING_OPENED: ReadonlySet<number> = new Set()
-
-/**
- * 让浏览器自己补这段过渡。
- *
- * 收起改变的是「有多少行」，不是某一行的高度：虚拟器按实测高度定位每一行，用 CSS
- * 过渡去逼近它只会让几何和动画各说一套。View Transition 对变更前后各拍一张，中间
- * 的补间与我们的布局无关。类型定义里还没有它，所以就近声明一次，而不是往全局塞
- * 一个 any。
- */
 
 export interface TranscriptViewProps {
   readonly sessionKey: string
@@ -86,11 +77,6 @@ export function TranscriptView({
    */
   const [opened, setOpened] = useState<ReadonlySet<number>>(NOTHING_OPENED)
 
-  /*
-   * flushSync 是 View Transition 的前提：回调必须在这一帧内把 DOM 改完，而 setState
-   * 默认是批处理的。拿不到这个能力，或者用户在系统里要求减少动态效果，就直接改状态
-   * —— 少一段动画，不少一个功能。
-   */
   const toggleTurn = useCallback((turn: number) => {
     setOpened((held) => {
       const next = new Set(held)
@@ -122,11 +108,31 @@ export function TranscriptView({
   const turns = selectTurns(feed.rows)
 
   /*
-   * 封条画在一行的上面，而不是自己占一行。
+   * 封条只在这里构造一次。
+   *
+   * 它有两个落点 —— 行的上面、转录尾部 —— 但那是同一枚封条的两个位置，不是两套实现：
+   * 计划由 foldFeed 一处算出，构造也只有这一处。
+   */
+  const sealOf = useCallback(
+    (plan: TurnSealPlan) => (
+      <TurnSeal
+        endedAt={plan.endedAt}
+        hasProcess={plan.hasProcess}
+        isOpen={plan.isOpen}
+        onToggle={toggleTurn}
+        startedAt={plan.startedAt}
+        turn={plan.turn}
+      />
+    ),
+    [toggleTurn],
+  )
+
+  /*
+   * 封条排在它那一轮内容的前面，而不是自己占一行。
    *
    * 行的类型是领域层的投影，虚拟器的估高表与几处穷尽 switch 都按类型建；为一个纯
-   * 展示的标签新增一种行，等于让三处一起认识它。所以它长在行的外面：位置由那一轮
-   * 第一行「不是人话」的那一行决定，那一行在，它就在。
+   * 展示的标签新增一种行，等于让三处一起认识它。所以它长在行的外面：内容已经有行
+   * 时，落点就是那一轮第一行「不是人话」的那一行。
    */
   const renderRowWithSeal = useCallback(
     (row: FeedRow) => {
@@ -138,20 +144,29 @@ export function TranscriptView({
 
       return (
         <>
-          <TurnSeal
-            endedAt={seal.endedAt}
-            hasProcess={seal.hasProcess}
-            isOpen={seal.isOpen}
-            onToggle={toggleTurn}
-            startedAt={seal.startedAt}
-            turn={seal.turn}
-          />
+          {sealOf(seal)}
           <div className="turn-seal__reveal">{renderRow(row)}</div>
         </>
       )
     },
-    [feed.seals, renderRow, toggleTurn],
+    [feed.seals, renderRow, sealOf],
   )
+
+  /*
+   * 尾部装的是属于这一轮、而不属于其中某一条的东西：还没有行可落的那枚封条，以及
+   * 等待指示器。两者各说各的事实 —— 封条说的是「这一轮已经在跑」（span 由
+   * run_started 开出），指示器说的是「屏幕上没有东西在动」。此前只有后者，于是读者
+   * 把原始思考链藏起来之后，一轮明明在跑，界面上没有任何东西承认它在跑。
+   */
+  const waiting = selectIsWaiting(timeline)
+
+  const footer =
+    feed.tail === undefined && !waiting ? undefined : (
+      <>
+        {feed.tail === undefined ? null : sealOf(feed.tail)}
+        {waiting ? <ThinkingIndicator /> : null}
+      </>
+    )
 
   const overlay = useCallback(
     (port: FeedPort) =>
@@ -170,7 +185,7 @@ export function TranscriptView({
       <RestoreSpinner active={isRestoring && rows.length === 0} />
 
       <AgentActivityFeed
-        footer={selectIsWaiting(timeline) ? <ThinkingIndicator /> : undefined}
+        footer={footer}
         isBusy={selectIsBusy(timeline)}
         overlay={overlay}
         renderRow={renderRowWithSeal}

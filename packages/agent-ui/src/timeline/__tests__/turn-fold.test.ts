@@ -107,10 +107,34 @@ describe('foldFeed', () => {
     })
   })
 
-  it('seals nothing on a turn that is only a question', () => {
+  it('seals a running turn that has not put anything on screen yet', () => {
+    /* 生产里的真实形态：思考不上屏（renderable.ts），所以这一轮此刻只有提问那一行 ——
+       而它确实在跑，封条归尾部。 */
     const feed = foldFeed([said('q', 0, 1_000)], [running(0, 1_000)], new Set())
 
     expect(feed.seals.size).toBe(0)
+    expect(feed.tail).toEqual({
+      turn: 0,
+      startedAt: 1_000,
+      endedAt: undefined,
+      hasProcess: false,
+      isOpen: true,
+    })
+  })
+
+  it('moves the seal onto the first row the turn puts on screen', () => {
+    const rows = [said('q', 0, 1_000), spoke('a', 0, 2_000)]
+    const feed = foldFeed(rows, [running(0, 1_000)], new Set())
+
+    expect(feed.tail).toBeUndefined()
+    expect(feed.seals.get('a')?.endedAt).toBeUndefined()
+  })
+
+  it('leaves no seal for a finished turn that never reached the screen', () => {
+    const feed = foldFeed([said('q', 0, 1_000)], [settled(0, 1_000, 4_000)], new Set())
+
+    expect(feed.seals.size).toBe(0)
+    expect(feed.tail).toBeUndefined()
   })
 
   it('gives every turn its own seal', () => {
@@ -134,6 +158,7 @@ describe('foldFeed', () => {
 
     expect(feed.rows).toBe(rows)
     expect(feed.seals.size).toBe(0)
+    expect(feed.tail).toBeUndefined()
   })
 
   it('measures a turn that produced nothing from the moment it began', () => {

@@ -4,8 +4,18 @@ import type { FeedRow, TurnSpan } from '@poietica/agent'
  * 折叠是一次派生，不是一个状态。
  *
  * 输入是屏幕上真正在滚的那个数组、每一轮的起止、人手动点开过哪几轮；输出是交给
- * 列表的行，加上每一轮的封条挂在哪一行。这里不持有任何东西，所以「这一轮折没折」
+ * 列表的行，加上每一轮的封条落在哪里。这里不持有任何东西，所以「这一轮折没折」
  * 不可能与屏幕上显示的东西对不上。
+ *
+ * 封条在不在，只由一件事决定：这一轮有没有 span。span 是原生侧发出 run_started 时
+ * 记下的，它同时是封条那只秒表的起点 —— 于是「有没有封条」与「秒表从几点算」是同
+ * 一个事实，不会各说一套。此前它还要求这一轮已经有东西上屏，而思考不上屏
+ * （renderable.ts 的 isRenderable 对 agent_thought 恒为假）：读者把原始思考链藏起来
+ * 之后，模型推理的那一整段里一轮明明在跑，屏幕上却没有一样东西承认它在跑。
+ *
+ * 落点有两处，规则只有一条：封条排在它那一轮的内容前面。已经有行了，落点就是那一
+ * 行；一行都还没有，落点就是转录尾部 —— 等待指示器正在那里。落定的一轮不会再有东
+ * 西上屏，所以它一行都没有时就是真的什么也没发生过，不给它立一块空碑。
  *
  * 什么算最终回复，判据只有一条：这一轮末尾（跳过报错与授权这类旁白）那一条是
  * agent_text。不按类型认 —— 协议给不出「这条是最终回复」的标记，上游的
@@ -27,6 +37,8 @@ export type TurnSealPlan = {
 export type FoldedFeed = {
   readonly rows: readonly FeedRow[]
   readonly seals: ReadonlyMap<string, TurnSealPlan>
+  /** 还没有行可落的那一枚：这一轮在跑，而它的第一样东西还没上屏。 */
+  readonly tail: TurnSealPlan | undefined
 }
 
 export const NO_SEALS: ReadonlyMap<string, TurnSealPlan> = new Map()
@@ -36,38 +48,48 @@ const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set(['error', 'permissio
 
 const SAID: FeedRow['item']['type'] = 'user_message'
 
+/** 一轮还什么都没上屏时共用同一个空数组。 */
+const NO_ROWS: readonly number[] = []
+
 export function foldFeed(
   rows: readonly FeedRow[],
   spans: readonly TurnSpan[],
   opened: ReadonlySet<number>,
 ): FoldedFeed {
   if (spans.length === 0) {
-    return { rows, seals: NO_SEALS }
+    return { rows, seals: NO_SEALS, tail: undefined }
   }
 
   const byTurn = groupByTurn(rows)
   const seals = new Map<string, TurnSealPlan>()
   const folded = new Set<number>()
+  let tail: TurnSealPlan | undefined
 
   for (const span of spans) {
-    const own = byTurn.get(span.turn)
+    const own = byTurn.get(span.turn) ?? NO_ROWS
+    const unplaced = foldTurn(rows, span, own, opened, folded, seals)
 
-    if (own === undefined) {
-      continue
+    /* 落定的一轮不会再有东西上屏，一行都没有就是真的什么也没发生过；还在跑的那一轮
+       不同 —— 它正在跑，而这恰恰是要说出来的那件事。 */
+    if (unplaced !== undefined && span.endedAt === undefined) {
+      tail = unplaced
     }
-
-    foldTurn(rows, span, own, opened, folded, seals)
   }
 
   if (folded.size === 0) {
     /* 一行都没折就把入参原样交回：引用稳定是下游记忆化的前提。 */
-    return { rows, seals: seals.size === 0 ? NO_SEALS : seals }
+    return { rows, seals: seals.size === 0 ? NO_SEALS : seals, tail }
   }
 
-  return { rows: rows.filter((_, at) => !folded.has(at)), seals }
+  return { rows: rows.filter((_, at) => !folded.has(at)), seals, tail }
 }
 
-/** 折叠一轮：把要藏起来的过程行写进 folded，再把封条挂到锚点行上。 */
+/**
+ * 折一轮：把要藏起来的过程行写进 folded，再把封条放到它的落点上。
+ *
+ * 落在行上就写进 seals；这一轮还没有行可落时把这枚封条交回去，归不归尾部由调用方按
+ * 「它是不是还在跑」决定。
+ */
 function foldTurn(
   rows: readonly FeedRow[],
   span: TurnSpan,
@@ -75,7 +97,7 @@ function foldTurn(
   opened: ReadonlySet<number>,
   folded: Set<number>,
   seals: Map<string, TurnSealPlan>,
-): void {
+): TurnSealPlan | undefined {
   const answerAt = finalReplyIn(rows, own)
   const process = answerAt < 0 ? [] : processIn(rows, own, answerAt)
   /* 可点 ⟺ 真有东西可收。还没有回复时封条只是一行字，不给假按钮。 */
@@ -83,22 +105,14 @@ function foldTurn(
   /* 人手动点开的轮次当场摊开；还没见到最终回复的那一轮本来就在滚，也摊开。 */
   const isOpen = opened.has(span.turn) || answerAt < 0
   const hidden = isOpen ? undefined : new Set(process)
+
   if (hidden !== undefined) {
     for (const at of hidden) {
       folded.add(at)
     }
   }
 
-  /* 封条挂在这一轮第一条「不是人话、且没被折掉」的行上面：收起时那是回复的首
-     行，摊开时那是第一条过程 —— 两种状态下它都恰在提问与内容之间，不会挪。 */
-  const anchor = own.find((at) => rows[at]?.item.type !== SAID && hidden?.has(at) !== true)
-  const id = anchor === undefined ? undefined : rows[anchor]?.item.id
-
-  if (id === undefined) {
-    return
-  }
-
-  seals.set(id, {
+  const plan: TurnSealPlan = {
     turn: span.turn,
     /* 秒表量的是整轮：起点是 run_started 落账那一刻，终点是 run_finished /
        run_failed 那一刻 —— 两端都是原生侧盖下的墙钟，与「回复从哪一帧开始流」
@@ -108,7 +122,20 @@ function foldTurn(
     endedAt: span.endedAt,
     hasProcess,
     isOpen,
-  })
+  }
+
+  /* 有行可落时，落在这一轮第一条「不是人话、且没被折掉」的行上面：收起时那是回复的
+     首行，摊开时那是第一条过程 —— 两种状态下它都恰在提问与内容之间，不会挪。 */
+  const anchor = own.find((at) => rows[at]?.item.type !== SAID && hidden?.has(at) !== true)
+  const id = anchor === undefined ? undefined : rows[anchor]?.item.id
+
+  if (id === undefined) {
+    return plan
+  }
+
+  seals.set(id, plan)
+
+  return undefined
 }
 
 /** 一趟分桶。按轮次逐轮筛一遍是 O(行×轮)，这条对话越长越贵。 */

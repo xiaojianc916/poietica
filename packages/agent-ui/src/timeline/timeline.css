@@ -898,54 +898,6 @@
   }
 }
 
-/*
- * Waiting is a state, so it is drawn.
- *
- * Between the question and the first frame there is nothing in the transcript
- * to render, and an empty column there is indistinguishable from a product that
- * swallowed the message.
- */
-.timeline-pending {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin: 0;
-}
-
-.timeline-pending__dot {
-  inline-size: 0.375rem;
-  block-size: 0.375rem;
-  border-radius: 50%;
-  background: var(--cp-timeline-quiet-text);
-  animation: timeline-pending-pulse 1200ms ease-in-out infinite;
-}
-
-.timeline-pending__dot:nth-child(2) {
-  animation-delay: 160ms;
-}
-
-.timeline-pending__dot:nth-child(3) {
-  animation-delay: 320ms;
-}
-
-@keyframes timeline-pending-pulse {
-  0%,
-  100% {
-    opacity: 0.25;
-  }
-
-  50% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .timeline-pending__dot {
-    animation: none;
-    opacity: 0.55;
-  }
-}
-
 /* ── 表格 ───────────────────────────────────────────────────────────
  *
  * 上游把表格包成三层：外层 rounded-lg border bg-sidebar p-2，里层滚动盒

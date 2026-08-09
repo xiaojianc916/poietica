@@ -1,0 +1,50 @@
+/*
+ * 「正在思考」，以及扫过它的那道光。
+ *
+ * 做法借自 AI Elements 的 Shimmer（vercel/ai-elements，packages/elements/src/shimmer.tsx）：
+ * 一条比盒子宽得多的渐变当背景，background-clip: text 把它裁进字形，文字自身透明，
+ * 再让背景横着走 —— 亮的那一段于是从字上扫过。
+ *
+ * 借的是做法，不是那份实现。上游用 motion/react 逐帧写 backgroundPosition，因为它的
+ * 文字是任意的、亮带宽度要按字数算；这里的文字是一个常量，两样都不需要：位移交给
+ * CSS 动画，它不进 React 的渲染；亮带宽度是渐变里两个写死的色标。上游那句
+ * background-repeat: no-repeat, padding-box 的第二个值不是这个属性的合法值，整条声明
+ * 会被丢掉、两层一起回落到 repeat —— 它靠的是这个。这里把两层各要什么直接写出来：
+ * 亮带只扫一趟，底色平铺，位移才不会在字上留白。
+ *
+ * 静止态是一行安静的字，渐变只在 no-preference 下加上去：读者要求减少动态效果时，
+ * 看到的仍是一行正常颜色的字，而不是一片透明。background-clip 不带前缀 —— 这台渲染器
+ * 只有 WebView2/Chromium，同一批样式里 light-dark() 与 :has() 已经这么用了。
+ */
+.timeline-thinking {
+  margin: 0;
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--ui-prose-size);
+  line-height: var(--ui-line-height-tight);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .timeline-thinking {
+    background-image:
+      linear-gradient(90deg, transparent 40%, var(--cp-ink) 50%, transparent 60%),
+      linear-gradient(var(--cp-timeline-quiet-text), var(--cp-timeline-quiet-text));
+    background-repeat: no-repeat, repeat;
+    background-size:
+      250% 100%,
+      auto;
+    background-clip: text;
+    color: transparent;
+    animation: timeline-thinking-sweep 2000ms linear infinite;
+  }
+}
+
+/* 位置百分比对齐的是同名百分点：250% 宽的那层因此从字的一侧进、另一侧出。 */
+@keyframes timeline-thinking-sweep {
+  from {
+    background-position: 100% center;
+  }
+
+  to {
+    background-position: 0% center;
+  }
+}
