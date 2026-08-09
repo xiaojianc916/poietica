@@ -1,5 +1,10 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { AssistantSurface, installAttachmentIntake, useAgentControls } from '@poietica/agent-ui'
+import {
+  AssistantSurface,
+  installAttachmentIntake,
+  useAgentControls,
+  type WorkspacePickerProps,
+} from '@poietica/agent-ui'
 import { createAttachmentIntake } from '@poietica/desktop-adapters'
 import { useCallback, useEffect } from 'react'
 import {
@@ -28,6 +33,8 @@ export interface ConversationSurfaceProps {
   readonly onStarted?: (threadId: string, title: string) => void
   readonly session: AgentSessionPort
   readonly threadId: string | null
+  /** 只有新对话入口会交出这项。 */
+  readonly workspace?: Omit<WorkspacePickerProps, 'placement'> | undefined
 }
 
 /*
@@ -43,6 +50,7 @@ export function ConversationSurface({
   onStarted,
   session,
   threadId,
+  workspace,
 }: ConversationSurfaceProps) {
   const threads = useThreadsActions()
 
@@ -157,6 +165,7 @@ export function ConversationSurface({
       onSelectControl={chooseControl}
       onUserMessage={userMessage}
       session={session}
+      workspace={workspace}
     />
   )
 }

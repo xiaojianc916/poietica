@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/ui'
 import { useState } from 'react'
-import { FolderClosedIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons'
+import { ChevronDownIcon, FolderClosedIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons'
 
 /*
  * 当前的工作目录，以及换一个。
@@ -47,6 +47,8 @@ export interface WorkspacePickerProps {
   readonly onChoose: (rootPath: string) => void
   /** 开系统的文件夹选择器。这一层不知道那是怎么开的。 */
   readonly onBrowse: () => void
+  /** 侧栏行，或者新对话输入框下方的上下文栏。 */
+  readonly placement?: 'sidebar' | 'composer'
 }
 
 /*
@@ -60,7 +62,13 @@ function focusOnMount(node: HTMLInputElement | null): void {
   node?.focus()
 }
 
-export function WorkspacePicker({ choices, current, onBrowse, onChoose }: WorkspacePickerProps) {
+export function WorkspacePicker({
+  choices,
+  current,
+  onBrowse,
+  onChoose,
+  placement = 'sidebar',
+}: WorkspacePickerProps) {
   const [query, setQuery] = useState('')
 
   const others = choices.filter((choice) => choice.id !== current?.id)
@@ -74,7 +82,7 @@ export function WorkspacePicker({ choices, current, onBrowse, onChoose }: Worksp
         )
 
   return (
-    <div className="workspace-picker" data-assistant-skin>
+    <div className="workspace-picker" data-assistant-skin data-placement={placement}>
       <DropdownMenu
         modal={false}
         onOpenChange={(open) => {
@@ -84,20 +92,38 @@ export function WorkspacePicker({ choices, current, onBrowse, onChoose }: Worksp
           }
         }}
       >
-        <span className="workspace-picker__name" title={current?.id}>
-          {current?.name ?? '选择工作目录'}
-        </span>
+        {placement === 'composer' ? (
+          <DropdownMenuTrigger
+            aria-label="切换工作目录"
+            className="workspace-picker__context-trigger"
+            title={current?.id ?? '选择工作目录'}
+          >
+            <FolderClosedIcon aria-hidden="true" />
 
-        <DropdownMenuTrigger
-          aria-label="切换工作目录"
-          className="workspace-picker__browse"
-          title="切换工作目录"
-        >
-          <FolderClosedIcon aria-hidden="true" />
-        </DropdownMenuTrigger>
+            <span className="workspace-picker__context-name">
+              {current?.name ?? '选择工作目录'}
+            </span>
+
+            <ChevronDownIcon aria-hidden="true" className="workspace-picker__context-chevron" />
+          </DropdownMenuTrigger>
+        ) : (
+          <>
+            <span className="workspace-picker__name" title={current?.id}>
+              {current?.name ?? '选择工作目录'}
+            </span>
+
+            <DropdownMenuTrigger
+              aria-label="切换工作目录"
+              className="workspace-picker__browse"
+              title="切换工作目录"
+            >
+              <FolderClosedIcon aria-hidden="true" />
+            </DropdownMenuTrigger>
+          </>
+        )}
 
         <DropdownMenuContent
-          align="end"
+          align={placement === 'composer' ? 'start' : 'end'}
           className="workspace-picker__menu assistant-menu-surface"
           data-assistant-skin
           side="bottom"

@@ -23,6 +23,7 @@ import {
   useAssistantPendingCount,
   useAssistantSession,
 } from '../session/use-assistant-session'
+import { WorkspacePicker, type WorkspacePickerProps } from '../threads/workspace-picker'
 import { TimelineRow } from '../timeline/timeline-row'
 import { TranscriptView } from '../timeline/transcript-view'
 export interface AssistantSurfaceProps {
@@ -56,6 +57,12 @@ export interface AssistantSurfaceProps {
   readonly onSelectControl: (controlId: string, value: string) => void
   /** 认领或改动失败之后重新问一次。 */
   readonly onRetryControls?: (() => void) | undefined
+  /**
+   * 新对话入口即将使用的工作目录。
+   *
+   * 已有对话没有这项；第一句话发出后 entry 相位结束，这一栏也随之卸载。
+   */
+  readonly workspace?: Omit<WorkspacePickerProps, 'placement'> | undefined
 }
 
 const STARTERS: Readonly<Record<string, string>> = {
@@ -87,6 +94,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   onSelectControl,
   onUserMessage,
   session,
+  workspace,
 }: AssistantSurfaceProps) {
   const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
 
@@ -303,6 +311,12 @@ export const AssistantSurface = memo(function AssistantSurface({
       */}
       <div className="assistant-surface__dock" ref={dockRef}>
         {dock}
+
+        {live || workspace === undefined ? null : (
+          <div className="assistant-surface__context">
+            <WorkspacePicker {...workspace} placement="composer" />
+          </div>
+        )}
 
         {live ? null : (
           <div className="assistant-surface__starters">

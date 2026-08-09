@@ -1594,3 +1594,80 @@ svg.assistant-provider-icon {
   margin: var(--am-pad) 8px;
   background: var(--cp-hairline);
 }
+
+/* composer workspace context bar */
+
+/*
+ * 新对话的输入上下文栏。
+ *
+ * 它在输入框下面，承载下一条会话将使用的工作目录。整栏是一层中性灰表面，
+ * 内部控件不再自己画第二张卡；已有对话不会渲染这一节点。
+ */
+.assistant-surface__context {
+  margin-block-start: var(--cp-control-gap);
+}
+
+.workspace-picker[data-placement="composer"] {
+  display: flex;
+  block-size: auto;
+  min-block-size: calc(var(--cp-control) + var(--cp-pad-mid));
+  inline-size: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--cp-control-gap);
+  margin-block-start: 0;
+  border-radius: var(--cp-radius-tile);
+  padding-block: calc(var(--cp-pad-mid) / 2);
+  padding-inline: var(--cp-inset);
+  background: var(--cp-shelf);
+}
+
+.workspace-picker__context-trigger {
+  display: inline-flex;
+  block-size: var(--cp-control);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  padding-inline: var(--cp-inset);
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.workspace-picker__context-trigger:hover,
+.workspace-picker__context-trigger[data-popup-open] {
+  background: var(--cp-hover);
+}
+
+.workspace-picker__context-trigger:focus-visible {
+  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+.workspace-picker__context-trigger svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+  color: var(--cp-ink-muted);
+}
+
+.workspace-picker__context-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-picker__context-chevron {
+  margin-inline-start: calc(var(--cp-control-gap) / 2);
+}
+
+/* composer workspace context bar end */

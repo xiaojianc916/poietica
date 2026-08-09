@@ -1,6 +1,10 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { useCallback, useRef, useState } from 'react'
-import { useThreadsActions } from '../assistant/threads-context'
+import type { WorkspacePickerProps } from '@poietica/agent-ui'
+import { workspaceRootName } from '@poietica/core'
+import { pickWorkspaceRoot } from '@poietica/ipc'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useThreadsActions, useThreadsList } from '../assistant/threads-context'
+import { setActiveWorkspaceRoot, useActiveWorkspaceRoot } from '../workspace-root'
 import { ConversationSurface } from './conversation-surface'
 
 /*
@@ -31,6 +35,47 @@ export interface AssistantPaneProps {
 export function AssistantPane({ onConversationStarted, session }: AssistantPaneProps) {
   /* 只要动作。这一格一个字的会话状态都不读，此前却订着整份快照。 */
   const open = useThreadsActions().create
+  const { groups } = useThreadsList()
+  const activeRoot = useActiveWorkspaceRoot()
+
+  /*
+   * 最近工作区不另存一份：已经存在对话的工作区就是最近使用过的工作区。
+   */
+  const choices = useMemo(
+    () =>
+      groups.flatMap((group) => (group.name === null ? [] : [{ id: group.id, name: group.name }])),
+    [groups],
+  )
+
+  const current = useMemo(
+    () =>
+      activeRoot === null
+        ? null
+        : {
+            id: activeRoot,
+            name: workspaceRootName(activeRoot) ?? activeRoot,
+          },
+    [activeRoot],
+  )
+
+  const browse = useCallback(() => {
+    void pickWorkspaceRoot().then((picked) => {
+      if (picked !== null) {
+        setActiveWorkspaceRoot(picked)
+      }
+    })
+  }, [])
+
+  const workspace = useMemo<Omit<WorkspacePickerProps, 'placement'>>(
+    () => ({
+      choices,
+      current,
+      onBrowse: browse,
+      onChoose: setActiveWorkspaceRoot,
+    }),
+    [browse, choices, current],
+  )
+
   const [threadId, setThreadId] = useState<string | null>(null)
   const opening = useRef<Promise<string | null> | null>(null)
 
@@ -58,6 +103,7 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
       onStarted={onConversationStarted}
       session={session}
       threadId={threadId}
+      workspace={workspace}
     />
   )
 }
