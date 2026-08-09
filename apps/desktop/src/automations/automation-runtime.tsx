@@ -1,5 +1,5 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { useTranscripts } from '@poietica/agent-ui'
+import { useSessionControlsActions, useTranscripts } from '@poietica/agent-ui'
 import { createAutomationStore, sessionConfigOf } from '@poietica/automations'
 import type { Automation } from '@poietica/ipc'
 import { useEffect } from 'react'
@@ -32,6 +32,7 @@ export interface AutomationDispatcherProps {
  * 管线（TranscriptStore.send），自动化不另立一套执行器，也不另存一份运行日志。
  */
 export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
+  const controls = useSessionControlsActions()
   const threads = useThreadsActions()
   const transcripts = useTranscripts()
 
@@ -64,7 +65,7 @@ export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
        * 记下来（selectorFailureOf），这里不替它兜底，也不假装设过。
        */
       for (const [controlId, value] of Object.entries(sessionConfigOf(automation))) {
-        threads.selectControl(threadId, controlId, value)
+        controls.selectControl(threadId, controlId, value)
       }
 
       /*
@@ -91,7 +92,7 @@ export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
     }
 
     return automationStore.start(dispatch)
-  }, [session, threads, transcripts])
+  }, [controls, session, threads, transcripts])
 
   return null
 }
