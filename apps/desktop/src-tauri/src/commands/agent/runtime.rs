@@ -15,9 +15,9 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 
 use super::config::restate;
-use super::dto::{AgentLaunch, AgentSelectorReport};
+use super::dto::{AgentCommandReport, AgentLaunch, AgentSelectorReport};
 use super::failure::translate;
-use super::{AGENT_SELECTOR_EVENT, NO_SESSION_ID, POISONED};
+use super::{AGENT_COMMAND_EVENT, AGENT_SELECTOR_EVENT, NO_SESSION_ID, POISONED};
 
 /// The live connection, if one has been started.
 ///
@@ -254,6 +254,7 @@ pub(super) async fn ensure_session(
         handshake,
         driver,
         reports,
+        commands: palette,
         book,
     } = connect(spawn, slot.clone(), desk.clone()).map_err(translate)?;
 
@@ -286,6 +287,28 @@ pub(super) async fn ensure_session(
 
             // 渲染层没在听不是错：下一次 open 这条对话仍然会拿到权威的整张表。
             let _ignored = herald.emit(AGENT_SELECTOR_EVENT, &payload);
+        }
+    });
+
+    // agent 报来的命令表，这里把它送上屏。
+    //
+    // 一条连接一个排空任务，与上面那一条同一条规矩、同一个理由。表里那些命令是
+    // agent 自己算出来的 —— 内置的、它按自己那套目录分层认得的技能、插件带来的
+    // —— 本应用不复算，也没有第二处知道它们：界面上那份清单的唯一事实来源就是
+    // 这条通道。
+    let crier = app.clone();
+
+    async_runtime::spawn(async move {
+        let mut palette = palette;
+
+        while let Some(report) = palette.next().await {
+            let payload = AgentCommandReport {
+                session_id: report.session_id,
+                commands: report.commands,
+            };
+
+            // 渲染层没在听不是错：下一份报告到达时它仍然是整张表。
+            let _ignored = crier.emit(AGENT_COMMAND_EVENT, &payload);
         }
     });
 

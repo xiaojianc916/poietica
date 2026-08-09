@@ -82,6 +82,46 @@ impl fmt::Debug for SelectorReports {
     }
 }
 
+/// agent 主动报的一份命令表。
+///
+/// 与 [`SelectorReport`] 同一类东西：会话的状态，不是某一轮的内容。会话刚建好、
+/// 装载刚结束、技能目录被改过时它都会到达，那些时刻多半没有一轮在飞。
+///
+/// 表里每一条是 ACP 自己的线上形状。这个 crate 一格都不认识它 —— 认识它的是读它
+/// 的那一层，与 MCP 名册、图片块、停止原因同一条规矩。
+#[derive(Debug, Clone)]
+pub struct CommandReport {
+    /// 报这张表的那条会话。
+    pub session_id: String,
+    /// 那条会话上现在的整张命令表。
+    pub commands: Vec<serde_json::Value>,
+}
+
+/// 一条连接上 agent 主动报的命令表，接收端。
+///
+/// 与 [`SelectorReports`] 同一条规矩：通道类型包在这里，不把执行器生态的类型名
+/// 泄进公共字段。
+pub struct CommandReports(mpsc::UnboundedReceiver<CommandReport>);
+
+impl CommandReports {
+    pub(crate) const fn new(reports: mpsc::UnboundedReceiver<CommandReport>) -> Self {
+        Self(reports)
+    }
+
+    /// 收下一份报告；通道合上（连接走了）时得到 None。
+    pub async fn next(&mut self) -> Option<CommandReport> {
+        futures::StreamExt::next(&mut self.0).await
+    }
+}
+
+impl fmt::Debug for CommandReports {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CommandReports")
+            .finish_non_exhaustive()
+    }
+}
+
 /// A connected session, before anything has been spawned onto a runtime.
 ///
 /// The crate stays runtime-agnostic on purpose: it hands back a future and the
@@ -101,6 +141,11 @@ pub struct AgentConnection {
     /// （导入配置、终端 CLI、热重载），所以它有自己到达界面的路，而不搭运行
     /// 帧的车 —— 帧过了轮次就不录，是本仓库刻意的设计，保护的是日志。
     pub reports: SelectorReports,
+    /// agent 主动报的命令表，往界面去的那条路。
+    ///
+    /// 与上面那一条分开，因为它们说的不是一件事：一个是这条会话能改什么，一个是
+    /// 这条会话上敲得出什么。混成一条通道，接收方就只能靠一个字符串标签去分辨。
+    pub commands: CommandReports,
     /// 握手谈成之后才知道的那几件事，或者握手为什么没成。
     ///
     /// 此前是 `Receiver<String>`：失败只能靠把发送端丢掉来表示，于是调用者收到

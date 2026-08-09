@@ -50,6 +50,13 @@ pub const AGENT_EVENT: &str = "ai-run-event";
 /// 依据只会是一个字符串标签。
 pub const AGENT_SELECTOR_EVENT: &str = "ai-selector-report";
 
+/// 会话自己报来的命令表走这一条。
+///
+/// 与上面那一条分开，理由与它和 [`AGENT_EVENT`] 分开完全一样：说的不是一件事。
+/// 那一条回答"这条会话能改什么"，这一条回答"这条会话上敲得出什么" —— 内置命令、
+/// agent 自己认得的技能、插件带来的，全在这一张表里，而它由 agent 算，不由本应用算。
+pub const AGENT_COMMAND_EVENT: &str = "ai-command-report";
+
 /// How much of the first message stands in as a conversation name.
 const TITLE_CHARS: usize = 60;
 

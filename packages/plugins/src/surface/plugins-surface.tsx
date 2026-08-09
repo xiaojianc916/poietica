@@ -1,8 +1,9 @@
+import type { PaletteEntry } from '@poietica/agent-contract'
 import { assertUnreachable } from '@poietica/core'
 import { Button, Switch } from '@poietica/ui'
 import { useState, useSyncExternalStore } from 'react'
 
-import type { ResolvedMcpServer, ResolvedSkill } from '../contribution'
+import type { ResolvedMcpServer } from '../contribution'
 import { latestCatalog } from '../marketplace'
 import { describeOrigin, type ManagedOrigin } from '../origin'
 import type { PluginStore } from '../plugin-store'
@@ -35,7 +36,7 @@ const TABS = {
   skills: {
     label: '技能',
     title: '技能',
-    subtitle: '通过任务专用的技能扩展 AI 的能力。目前技能都随插件一起装载。',
+    subtitle: '这个 agent 现在认得的技能：全局装的、它自己带的，加上插件带来的。',
   },
   mcp: {
     label: 'MCP',
@@ -60,7 +61,7 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
 
   const counts: Record<PluginTabId, number> = {
     plugins: view.plugins.length,
-    skills: view.contributions.skills.length,
+    skills: skillsOf(view.palette).length,
     mcp: view.contributions.mcpServers.length,
   }
 
@@ -150,8 +151,8 @@ function TabBody({ needle, onOpen, store, tab, view }: TabBodyProps) {
     case 'skills':
       return (
         <ContributionList
-          empty="还没有插件带来技能。"
-          rows={view.contributions.skills.map((entry) => skillRow(entry, store)).filter(keep)}
+          empty="这个 agent 还没有报来任何技能。"
+          rows={skillsOf(view.palette).map(skillRow).filter(keep)}
         />
       )
     case 'mcp':
@@ -176,22 +177,30 @@ function TabBody({ needle, onOpen, store, tab, view }: TabBodyProps) {
  *
  * 开关落在插件上：官方没有「单独关掉一个技能」这一格，能拨的最小单位就是插件。
  */
-function skillRow(entry: ResolvedSkill, store: PluginStore): ContributionRow {
-  const { skill } = entry
+/*
+ * 表里属于技能的那些，顺序原样保留。
+ *
+ * 顺序是 agent 报的顺序，也就是人在对话里敲斜杠时看到的顺序 —— 两处读的是同一张
+ * 表，所以两处不可能对不上。
+ */
+function skillsOf(palette: readonly PaletteEntry[]): readonly PaletteEntry[] {
+  return palette.filter((entry) => entry.kind === 'skill')
+}
 
+/*
+ * 技能行上没有开关。
+ *
+ * 技能的启停不在本应用手上：它们由 agent 按自己那套目录分层装载，关掉一条要改的是
+ * 那份目录或者 agent 自己的配置。此前这里画着一个开关，标签写"启用某插件的技能"，
+ * 而它拨的是整个插件 —— 点一下会连带停掉那个插件的 MCP 服务器和系统提示词。一个
+ * 说谎的控件比没有控件坏。
+ */
+function skillRow(entry: PaletteEntry): ContributionRow {
   return {
-    key: `${skill.pluginId}/${skill.path}`,
-    title: skill.invocation,
-    detail: skill.modelInvocable ? skill.description : `${skill.description} · 只能手动调用`,
-    badge: skill.pluginId,
-    trailing: (
-      <Switch
-        aria-label={`启用 ${skill.pluginId} 的技能`}
-        checked={entry.enabled}
-        onCheckedChange={(next) => store.setEnabled(skill.pluginId, next)}
-        size="sm"
-      />
-    ),
+    key: entry.name,
+    title: entry.label,
+    detail: entry.description === '' ? '这个技能没有写说明。' : entry.description,
+    badge: '技能',
   }
 }
 

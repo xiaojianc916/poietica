@@ -47,8 +47,8 @@ pub use program::resolve_program;
 pub use recorder::{FrameSink, Frames, RecordedEvent, Recorder, SeqLine};
 pub use run_slot::{Listening, RunSlot};
 pub use session::{
-    AgentConnection, AgentSpawn, Handshake, OpenedSession, SelectorReport, SelectorReports,
-    SessionEntry,
+    AgentConnection, AgentSpawn, CommandReport, CommandReports, Handshake, OpenedSession,
+    SelectorReport, SelectorReports, SessionEntry,
 };
 pub use sessions::SessionBook;
 pub use stderr::StderrLog;

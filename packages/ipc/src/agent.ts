@@ -1,10 +1,13 @@
 import type {
   AgentCapabilityPort,
+  AgentPalettePort,
+  PaletteEntry,
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
   ThreadPort,
 } from '@poietica/agent-contract'
+import { paletteFrom } from '@poietica/agent-contract'
 import type { AgentCommandBridge, AgentEventSource } from './acp-session'
 import { throughIpc } from './error'
 import {
@@ -41,6 +44,9 @@ export const AGENT_EVENT = 'ai-run-event'
 
 /** 会话自己报来的选择器表走这一条。它不属于任何一轮，所以不与运行帧同流。 */
 export const AGENT_SELECTOR_EVENT = 'ai-selector-report'
+
+/** 会话自己报来的命令表走这一条。它同样不属于任何一轮。 */
+export const AGENT_COMMAND_EVENT = 'ai-command-report'
 
 /**
  * The envelope the native side broadcasts.
@@ -420,6 +426,68 @@ export function createAgentThreadBridge({
 
     setPinned: async (threadId, pinned) => {
       await throughIpc(() => commands.agentPinThread({ threadId, pinned }))
+    },
+  }
+}
+
+/*
+ * 命令表这一路。
+ *
+ * 它自己留一份，因为表是 agent 主动推的：没有任何命令可以顺路把它问回来，而界面
+ * 打开插件页时那张表早就报过了。这一份不是缓存 —— 它就是那条推送在这一侧的落点，
+ * 唯一的一处。
+ *
+ * 到达即整表替换。协议规定载荷恒为整表，所以这里没有合并逻辑，也就没有一份会与
+ * agent 分叉的累积状态。
+ *
+ * 通道按订阅者引用计数：第一个订阅者来时接上，最后一个走时收掉。没有人看的时候
+ * 不必留着一个监听器，而这一层也不该有一个只能装不能卸的全局副作用。
+ */
+export function createAgentPaletteBridge({
+  onListenFailure,
+}: AgentEventSourceOptions = {}): AgentPalettePort {
+  let entries: readonly PaletteEntry[] = []
+  let stop: (() => void) | null = null
+
+  const listeners = new Set<() => void>()
+
+  const listen = (): (() => void) =>
+    subscribeToEvent<unknown>(
+      AGENT_COMMAND_EVENT,
+      (payload) => {
+        const reported = paletteFrom(payload)
+
+        /* 不是一张命令表就不动已经收到的那一份。 */
+        if (reported === undefined) {
+          return
+        }
+
+        entries = reported
+
+        for (const listener of listeners) {
+          listener()
+        }
+      },
+      onListenFailure,
+    )
+
+  return {
+    read: () => entries,
+
+    subscribe: (listener) => {
+      listeners.add(listener)
+      stop ??= listen()
+
+      return () => {
+        listeners.delete(listener)
+
+        if (listeners.size > 0) {
+          return
+        }
+
+        stop?.()
+        stop = null
+      }
     },
   }
 }

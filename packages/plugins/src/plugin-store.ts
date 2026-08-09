@@ -1,3 +1,4 @@
+import type { AgentPalettePort, PaletteEntry } from '@poietica/agent-contract'
 import { assertUnreachable, createPreference, warn } from '@poietica/core'
 import {
   commitPlugin,
@@ -70,6 +71,14 @@ export interface PluginsViewModel {
   readonly plugins: readonly InstalledPlugin[]
   /* 各类贡献同一次遍历产出，界面上几个 tab 读的就是它，不另算一遍。 */
   readonly contributions: ResolvedContributions
+  /**
+   * 对话里敲得出来的那些命令，agent 报来的整张表。
+   *
+   * 技能那一格读的是它，不是上面那格里的 skills：上面那格只回答"某个插件带来了
+   * 什么"，而屏幕上那份清单要回答"这个 agent 现在认得哪些技能" —— 全局装的、它
+   * 自己带的、插件带来的都算。后者只有 agent 说得出来。
+   */
+  readonly palette: readonly PaletteEntry[]
   readonly marketplace: MarketplaceState
   readonly install: InstallFlow
   /** 首帧与「读完了确实一个都没装」不是同一件事，空态因此不会闪。 */
@@ -146,6 +155,13 @@ export interface PluginStore {
 
 export interface PluginStoreOptions {
   readonly marketplaceUrl: string
+  /**
+   * 命令表从哪来。
+   *
+   * 领域层不认识 IPC，也不该认识：这条端口由组合根交进来，所以这个 store 在
+   * Node 里可以脱离进程与界面单独测。
+   */
+  readonly palette: AgentPalettePort
   /** 领域层不摸时钟，时钟从这里交进去。测试因此不需要冻结全局时间。 */
   readonly now: () => string
 }
@@ -231,6 +247,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   let snapshot: PluginsViewModel = {
     plugins: [],
     contributions: resolveContributions({ builtin: [], environment: [], plugins: [] }),
+    palette: [],
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
     loaded: false,
@@ -247,6 +264,14 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
   /* 开发期的挂载—卸载—再挂载会让 start() 被调用两次。第二次什么也不做。 */
   let started = false
+
+  /*
+   * 命令表的订阅。
+   *
+   * 它不挂在 start() 上：那个方法幂等、也不交回停表函数（见它自己的文档），挂上去
+   * 就没有地方收。归 subscribe 所有，与 listeners 同一个寿命。
+   */
+  let stopPalette: (() => void) | null = null
 
   function publish(next: Partial<PluginsViewModel>): void {
     snapshot = { ...snapshot, ...next }
@@ -563,8 +588,28 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     subscribe(listener) {
       listeners.add(listener)
 
+      /*
+       * 第一个订阅者来时接上命令表，最后一个走时收掉。这条通道有一个真的要收的
+       * 东西，所以它的家在这里而不是 start() 里 —— 后者收不了。
+       */
+      if (stopPalette === null) {
+        stopPalette = options.palette.subscribe(() => {
+          publish({ palette: options.palette.read() })
+        })
+
+        /* 接上之前 agent 可能已经报过一份：会话在插件页打开之前就建好了。 */
+        publish({ palette: options.palette.read() })
+      }
+
       return () => {
         listeners.delete(listener)
+
+        if (listeners.size > 0) {
+          return
+        }
+
+        stopPalette?.()
+        stopPalette = null
       }
     },
 

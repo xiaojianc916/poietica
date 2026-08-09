@@ -27,8 +27,8 @@ use crate::program::resolve_program;
 use crate::recorder::{Frames, RecordedEvent, Recorder};
 use crate::run_slot::{Listening, RunSlot};
 use crate::session::{
-    AgentConnection, AgentSpawn, Handshake, OpenedSession, SelectorReport, SelectorReports,
-    SessionEntry,
+    AgentConnection, AgentSpawn, CommandReport, CommandReports, Handshake, OpenedSession,
+    SelectorReport, SelectorReports, SessionEntry,
 };
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -157,6 +157,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
     let (commands, receiver) = mpsc::unbounded::<Command>();
     let (reports, selector_reports) = mpsc::unbounded::<SelectorReport>();
+    let (palettes, command_reports) = mpsc::unbounded::<CommandReport>();
     let (ready, handshake) = oneshot::channel::<Result<Handshake>>();
 
     // One book per connection. The handlers live as long as the connection
@@ -168,6 +169,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     let ledger = book.clone();
     let waiting = desk.clone();
     let reported = commands.clone();
+    let listed = commands.clone();
 
     let driver = async move {
         let served = agent_client_protocol::Client
@@ -190,6 +192,17 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             let _sent = reported.unbounded_send(Command::Reported {
                                 session_id: named.clone(),
                                 offered: controls(&update.config_options),
+                            });
+                        }
+
+                        /* 命令表同理，理由同上一段：它到达的时刻多半不在任何一轮
+                        里（会话刚建好、装载刚结束、技能目录被改过），所以它也有
+                        自己到达界面的路，而不搭运行帧的车 —— 轮外到达的帧没有去
+                        处，会被下面那句 record 丢掉。 */
+                        if let Some(offered) = palette_of(&notification.update) {
+                            let _sent = listed.unbounded_send(Command::Palette {
+                                session_id: named.clone(),
+                                commands: offered,
                             });
                         }
 
@@ -464,6 +477,18 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                 controls: offered,
                             });
                         }
+                        /* 命令表只过路。选择器要在册子里留一份，因为 Selectors
+                        命令要就地答得出来；命令表没有那样的读者 —— 它唯一的消费者
+                        是界面，留第二份就是留第二个事实来源。 */
+                        Step::Asked(Some(Command::Palette {
+                            session_id,
+                            commands,
+                        })) => {
+                            let _sent = palettes.unbounded_send(CommandReport {
+                                session_id,
+                                commands,
+                            });
+                        }
                         // 读一份列表不需要问 agent，就地答。
                         Step::Asked(Some(Command::Selectors { session_id, reply })) => {
                             let answer = match sessions.get(&session_id) {
@@ -679,6 +704,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         client: AgentClient::new(commands),
         handshake,
         reports: SelectorReports::new(selector_reports),
+        commands: CommandReports::new(command_reports),
         driver,
     })
 }
@@ -721,6 +747,25 @@ async fn open_session(
     };
 
     Settled::Opened { opened, reply }
+}
+
+/// agent 刚报过来的那张命令表，若这一条通知说的正是它。
+///
+/// 每一条原样序列化。命令的形状归 ACP 所有，这个 crate 一格都不认识 —— 与
+/// `mcp_servers_of` 那一处、图片块那一处、停止原因那一处同一条规矩：线上形状
+/// 才是契约。读不成的那一条跳过，不让一条坏记录作废整张表。
+fn palette_of(update: &SessionUpdate) -> Option<Vec<Value>> {
+    let SessionUpdate::AvailableCommandsUpdate(listing) = update else {
+        return None;
+    };
+
+    Some(
+        listing
+            .available_commands
+            .iter()
+            .filter_map(|offered| serde_json::to_value(offered).ok())
+            .collect(),
+    )
 }
 
 /// 线上形状变成协议的类型。

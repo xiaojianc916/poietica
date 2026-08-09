@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@poietica/agent-contract": "workspace:*",
     "@poietica/core": "workspace:*",
     "@poietica/ipc": "workspace:*",
     "@poietica/ui": "workspace:*",

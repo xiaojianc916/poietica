@@ -1,4 +1,5 @@
-import type { McpServerWire, PluginCommand, PluginSkill } from '@poietica/plugins'
+import { createAgentPaletteBridge } from '@poietica/ipc'
+import type { McpServerWire } from '@poietica/plugins'
 import { createPluginStore } from '@poietica/plugins'
 import { useEffect } from 'react'
 
@@ -14,6 +15,8 @@ const MARKETPLACE_URL =
 export const pluginStore = createPluginStore({
   marketplaceUrl: MARKETPLACE_URL,
   now: () => new Date().toISOString(),
+  /* 命令表这条端口在这里接上：领域层声明它，平台层实现它，两者只在组合根相见。 */
+  palette: createAgentPaletteBridge(),
 })
 
 export function PluginLoader() {
@@ -38,16 +41,4 @@ export function activeMcpServers(): readonly McpServerWire[] {
   return contributions.mcpServers.flatMap((server) =>
     server.active && server.wire !== undefined ? [server.wire] : [],
   )
-}
-
-export function activeSkills(): readonly PluginSkill[] {
-  const { contributions } = pluginStore.getSnapshot()
-
-  return contributions.skills.flatMap((entry) => (entry.enabled ? [entry.skill] : []))
-}
-
-export function activeCommands(): readonly PluginCommand[] {
-  const { contributions } = pluginStore.getSnapshot()
-
-  return contributions.commands.flatMap((entry) => (entry.enabled ? [entry.command] : []))
 }

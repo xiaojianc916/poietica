@@ -117,6 +117,14 @@ pub(crate) enum Command {
         session_id: String,
         offered: Vec<ConfigControl>,
     },
+    /// agent 自己报的命令表（ACP `available_commands_update`）。
+    ///
+    /// 与 [`Command::Reported`] 同一类：协议里这是通知而不是答复，载荷恒为整表，
+    /// 到达即替换，所以重报无害。表里那些命令这一层不认识，原样过路。
+    Palette {
+        session_id: String,
+        commands: Vec<Value>,
+    },
     /// Asks the agent to change one selector on one session.
     Select {
         session_id: String,

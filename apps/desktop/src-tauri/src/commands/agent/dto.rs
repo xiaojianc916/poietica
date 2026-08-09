@@ -165,6 +165,23 @@ pub struct AgentSelectorReport {
     pub selectors: Vec<AgentConfigControl>,
 }
 
+/// agent 刚报过来的那张命令表。
+///
+/// 与 [`AgentSelectorReport`] 同一条路、同一个地址：会话号是它唯一带得出的地址，
+/// 反查由渲染层用"开这条会话时是哪条对话"去做。它不出现在任何命令签名里，所以不
+/// 进生成绑定 —— 事件不是命令。
+///
+/// 每一条原样是 ACP 的线上形状。这一侧不认识它的字段，认识它的是读它的那一层
+/// （packages/agent-contract 的 palette.ts），与 events 那一格同一个理由。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentCommandReport {
+    /// 报这张表的那条会话。
+    pub session_id: String,
+    /// 那条会话上现在的整张命令表。
+    pub commands: Vec<Value>,
+}
+
 /// A change made in the interface.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
