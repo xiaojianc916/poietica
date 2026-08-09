@@ -6,6 +6,7 @@ import type {
 } from '@poietica/agent-contract'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
+import type { SessionControlsFailureReport } from './session-controls-store'
 import { SessionControlsStore } from './session-controls-store'
 import type { ThreadsList } from './thread-order'
 import { NO_ITEMS, ThreadProjection } from './thread-projection'
@@ -33,6 +34,8 @@ export interface ThreadsStoreOptions {
   /** 没有记下目录的对话落在哪个工作区。答案属于宿主，这一层不猜。 */
   readonly defaultWorkspaceId?: (() => string | null) | undefined
   readonly port?: ThreadPort | undefined
+  /** 会话那一侧的失败往哪里说一声。原样交给它，这一层不解释。 */
+  readonly report?: SessionControlsFailureReport | undefined
   readonly transcripts?: TranscriptSink | undefined
 }
 
@@ -98,7 +101,7 @@ export class ThreadsStore {
    */
   readonly #defaultWorkspaceId: (() => string | null) | undefined
 
-  constructor({ config, defaultWorkspaceId, port, transcripts }: ThreadsStoreOptions) {
+  constructor({ config, defaultWorkspaceId, port, report, transcripts }: ThreadsStoreOptions) {
     this.#port = port
     this.#transcripts = transcripts
     this.#defaultWorkspaceId = defaultWorkspaceId
@@ -113,6 +116,7 @@ export class ThreadsStore {
       },
       config,
       port,
+      report,
       transcripts,
     })
   }

@@ -4,6 +4,7 @@ export type {
   CapabilityFailureReport,
 } from './agent-capability-store'
 export { AgentCapabilityStore } from './agent-capability-store'
+export type { SessionControlsFailureReport } from './session-controls-store'
 export type {
   ThreadListItem,
   ThreadsList,

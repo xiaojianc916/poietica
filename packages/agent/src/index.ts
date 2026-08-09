@@ -11,6 +11,7 @@ export type {
   AgentCapabilityOptions,
   AgentControls,
   CapabilityFailureReport,
+  SessionControlsFailureReport,
   ThreadListItem,
   ThreadsList,
   ThreadsStoreOptions,

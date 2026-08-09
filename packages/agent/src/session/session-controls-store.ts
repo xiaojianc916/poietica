@@ -20,11 +20,27 @@ interface Held {
 
 const EMPTY: Held = { selectors: new Map(), selectorFailure: new Map() }
 
+/**
+ * 失败往哪里说一声。与 AgentCapabilityStore 的 CapabilityFailureReport 是同一条
+ * 规矩：屏幕要的是「能不能再试一次」，日志与降级要的是「因为什么」，两者不是同
+ * 一件事，也不该由同一格承担。
+ *
+ * 两条分开报，因为它们的处置不同：改不动是 agent 拒了这一次改动，读不回来是这条
+ * 对话连不上。可选 —— 这台 store 因此仍然能在 Node 里裸构造单测。
+ */
+export interface SessionControlsFailureReport {
+  /** set_config 被拒。屏幕上那颗胶囊自己弹回权威值，这里只负责让它留下痕迹。 */
+  readonly changeFailed: (cause: unknown) => void
+  /** 重开这条对话失败。同一次失败另有两个后果，见 #reopen。 */
+  readonly openFailed: (cause: unknown) => void
+}
+
 export interface SessionControlsOptions {
   /** 状态变了叫一声。 */
   readonly announce: () => void
   readonly config?: SessionConfigPort | undefined
   readonly port?: ThreadPort | undefined
+  readonly report?: SessionControlsFailureReport | undefined
   readonly transcripts?: TranscriptSink | undefined
 }
 
@@ -64,6 +80,8 @@ export class SessionControlsStore {
 
   readonly #announce: () => void
 
+  readonly #report: SessionControlsFailureReport | undefined
+
   #held: Held = EMPTY
 
   /* 问过的对话不再问第二遍：重读是显式动作，不是渲染的副作用。 */
@@ -83,10 +101,11 @@ export class SessionControlsStore {
   /* 这条对话的表按什么先后写入。作废在 forget。 */
   #order = new Map<string, ArrivalOrder>()
 
-  constructor({ announce, config, port, transcripts }: SessionControlsOptions) {
+  constructor({ announce, config, port, report, transcripts }: SessionControlsOptions) {
     this.#announce = announce
     this.#config = config
     this.#port = port
+    this.#report = report
     this.#transcripts = transcripts
   }
 
@@ -227,7 +246,16 @@ export class SessionControlsStore {
         if (order.isLatest(ticket)) {
           this.#remember(threadId, offered)
         }
-      } catch {
+      } catch (reason: unknown) {
+        /*
+         * 原因交出去，值交回权威。
+         *
+         * 这两件事不能互相顶替：向 agent 重问一次修得回屏幕上的值，修不回「为什么
+         * 被拒」—— 密钥过期、模型下线、参数不被接受，全都长成同一次静默的弹回。
+         * 这里不写进 selectorFailure，那一格说的是「这条对话连没连上 agent」。
+         */
+        this.#report?.changeFailed(reason)
+
         await this.#reopen(threadId)
       }
     })
@@ -267,6 +295,9 @@ export class SessionControlsStore {
 
       /* 同一次失败的两个后果：设置那一格画不出来，对话也打不开。 */
       this.#transcripts?.failed(threadId, reason)
+
+      /* 那两处都是画给人看的。日志与降级是第三个用途，同一份原因。 */
+      this.#report?.openFailed(reason)
     }
   }
 

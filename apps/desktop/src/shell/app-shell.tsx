@@ -1,3 +1,4 @@
+import type { SessionControlsFailureReport } from '@poietica/agent'
 import { AgentCapabilityStore } from '@poietica/agent'
 import type { AgentSessionPort } from '@poietica/agent-contract'
 import type { AgentDialect } from '@poietica/agent-ui'
@@ -277,6 +278,37 @@ export function AppShell({ runtime }: AppShellProps) {
   )
 
   /*
+   * 会话那一侧的失败也走同一条上报路。
+   *
+   * 与上面那台能力表 store 的 report 是同一条规矩：屏幕上那一格读的是各自快照里的
+   * failure（它要能被再试一次），而「因为什么」到这里汇成降级与日志。同一件事在
+   * agent scope 与会话 scope 上不该有两套错误规则。
+   *
+   * 记忆化，因为它是 ThreadsProvider 的 prop：每次渲染换一个对象，等于每次都换掉
+   * 那棵子树的输入。reportFailure 是模块级函数，依赖为空。
+   */
+  const sessionControlsReport = useMemo<SessionControlsFailureReport>(
+    () => ({
+      changeFailed: (cause) => {
+        reportFailure('SESSION_CONFIG_CHANGE_REJECTED', {
+          scope: 'assistant',
+          operation: 'change-session-config',
+          cause,
+        })
+      },
+
+      openFailed: (cause) => {
+        reportFailure('THREAD_REOPEN_FAILED', {
+          scope: 'assistant',
+          operation: 'reopen-thread',
+          cause,
+        })
+      },
+    }),
+    [],
+  )
+
+  /*
    * 端口与重问的通知同源同寿，所以它们是同一个 effect 的一次装载与一次清理。
    *
    * 端口按「用哪一家 agent」建，设置页动过它的配置之后那张表就不再作数。装载几次
@@ -306,7 +338,7 @@ export function AppShell({ runtime }: AppShellProps) {
      */
     <AgentDialectContext value={dialect}>
       <AgentControlsContext value={agentControls}>
-        <ThreadsProvider>
+        <ThreadsProvider report={sessionControlsReport}>
           {/*
            * 无渲染产出，只是让「到期时做什么」与应用同寿；表本身在原生侧走。放在
            * ThreadsProvider 之内是硬要求：一次运行要开出一条对话，而开对话的动作出

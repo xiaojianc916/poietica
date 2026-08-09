@@ -1,3 +1,4 @@
+import type { SessionControlsFailureReport } from '@poietica/agent'
 import { ThreadsStore, TranscriptStore } from '@poietica/agent'
 import { TranscriptsContext } from '@poietica/agent-ui'
 import type { ReactNode } from 'react'
@@ -14,10 +15,17 @@ import { ThreadsContext } from './threads-context'
 
 export interface ThreadsProviderProps {
   readonly children: ReactNode
+  /**
+   * 会话那一侧的失败往哪里说一声。
+   *
+   * 由组合根交进来，不在这里就地 import 失败策略：这个 Provider 的职责是把两台
+   * store 建出来并让它们与树同寿，「一次失败算不算降级」是应用的政策。
+   */
+  readonly report: SessionControlsFailureReport
 }
 
 /** Holds the shared conversation state for everything below it. */
-export function ThreadsProvider({ children }: ThreadsProviderProps) {
+export function ThreadsProvider({ children, report }: ThreadsProviderProps) {
   /*
    * 两个 store 在这里成对建出来，一棵树一份。
    *
@@ -37,6 +45,7 @@ export function ThreadsProvider({ children }: ThreadsProviderProps) {
         config: desktopSessionConfig(),
         defaultWorkspaceId,
         port: desktopThreads(),
+        report,
         transcripts: transcriptStore,
       }),
       transcripts: transcriptStore,
