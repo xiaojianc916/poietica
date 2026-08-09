@@ -2,17 +2,13 @@ import { Box, Message, Search } from '@mynaui/icons-react'
 import { ClockTenIcon, WebhookIcon } from '@poietica/ui'
 import type { ComponentType } from 'react'
 
-import {
-  describeWorkspaceSurface,
-  type WorkspaceSurfaceIconId,
-  type WorkspaceSurfaceId,
-} from '../surface-registry'
+import { describeSurface, type SurfaceIconId, type SurfaceId } from '../surface-registry'
 
 /**
  * iconId 到组件的唯一映射。
  *
  * 领域层只声明图标标识，组件引用留在这一层，分层方向因此不会反过来。
- * 键是 WorkspaceSurfaceIconId 而非 WorkspaceSurfaceId：否则新增表面时
+ * 键是 SurfaceIconId 而非 SurfaceId：否则新增表面时
  * 得同时改两张按表面分行的表，又变成两份真相。
  *
  * 映射是全域的（Record 而非 Partial），漏一个图标是编译错误，
@@ -24,7 +20,7 @@ export type SurfaceIcon = ComponentType<{
   readonly 'aria-hidden'?: boolean | 'true' | 'false'
 }>
 
-const SURFACE_ICONS: Record<WorkspaceSurfaceIconId, SurfaceIcon> = {
+const SURFACE_ICONS: Record<SurfaceIconId, SurfaceIcon> = {
   box: Box,
   clock: ClockTenIcon,
   message: Message,
@@ -32,6 +28,6 @@ const SURFACE_ICONS: Record<WorkspaceSurfaceIconId, SurfaceIcon> = {
   webhook: WebhookIcon,
 }
 
-export function surfaceIcon(id: WorkspaceSurfaceId): SurfaceIcon {
-  return SURFACE_ICONS[describeWorkspaceSurface(id).iconId]
+export function surfaceIcon(id: SurfaceId): SurfaceIcon {
+  return SURFACE_ICONS[describeSurface(id).iconId]
 }

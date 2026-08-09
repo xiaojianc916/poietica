@@ -152,7 +152,7 @@ export function AppShell({ runtime }: AppShellProps) {
   }, [])
 
   const openAssistantSurface = useCallback(() => {
-    runtime.workspace.openWorkspaceSurface({ surfaceId: 'ai' })
+    runtime.workspace.openSurface({ surfaceId: 'ai' })
   }, [runtime.workspace])
 
   const openSettings = useCallback(() => {

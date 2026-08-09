@@ -44,7 +44,7 @@ const APPLICATION_COMMANDS: readonly ApplicationCommand[] = [
     label: '打开自动化',
     category: '推荐',
     execute: (context) => {
-      context.workspace.openWorkspaceSurface({ surfaceId: 'automations' })
+      context.workspace.openSurface({ surfaceId: 'automations' })
     },
   },
   {

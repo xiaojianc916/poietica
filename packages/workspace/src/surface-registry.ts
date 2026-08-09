@@ -2,7 +2,7 @@
  * 工作区表面的唯一注册处。
  *
  * 表面集合、标题、描述、图标标识、导航次序、实现状态只在此处声明一次；
- * WorkspaceSurfaceId 由本表的键派生，不再另立字面量联合。
+ * SurfaceId 由本表的键派生，不再另立字面量联合。
  *
  * activation 是这张表最关键的一列：点这一行会发生什么。
  *
@@ -15,17 +15,17 @@
  * 写不出来。「搜索」是一个动作而不是一格页面，只有这个形状表达得了它。
  */
 
-export type WorkspaceSurfaceIconId = 'box' | 'clock' | 'message' | 'search' | 'webhook'
+export type SurfaceIconId = 'box' | 'clock' | 'message' | 'search' | 'webhook'
 
 export type SurfaceActivation =
   | { readonly kind: 'surface' }
   | { readonly kind: 'planned' }
   | { readonly kind: 'command'; readonly commandId: string }
 
-export interface WorkspaceSurfaceDescriptor {
+export interface SurfaceDescriptor {
   readonly title: string
   readonly description: string
-  readonly iconId: WorkspaceSurfaceIconId
+  readonly iconId: SurfaceIconId
   /**
    * 侧边栏导航中的次序。
    *
@@ -37,7 +37,7 @@ export interface WorkspaceSurfaceDescriptor {
   readonly activation: SurfaceActivation
 }
 
-export const WORKSPACE_SURFACE_REGISTRY = {
+export const SURFACE_REGISTRY = {
   ai: {
     title: '新建对话',
     description: '与 AI 协作，驱动工具完成任务。',
@@ -77,9 +77,9 @@ export const WORKSPACE_SURFACE_REGISTRY = {
     navigationOrder: 3,
     activation: { kind: 'planned' },
   },
-} as const satisfies Record<string, WorkspaceSurfaceDescriptor>
+} as const satisfies Record<string, SurfaceDescriptor>
 
-export type WorkspaceSurfaceId = keyof typeof WORKSPACE_SURFACE_REGISTRY
+export type SurfaceId = keyof typeof SURFACE_REGISTRY
 
 /**
  * 真的画得出来的那些表面。
@@ -87,30 +87,29 @@ export type WorkspaceSurfaceId = keyof typeof WORKSPACE_SURFACE_REGISTRY
  * 从 activation.kind 推出来，不是手写的第二份名单：注册表改一个字，这个联合
  * 跟着变，组合根少交一条渲染器立刻编译失败。
  */
-export type ReadyWorkspaceSurfaceId = {
-  [Id in WorkspaceSurfaceId]: (typeof WORKSPACE_SURFACE_REGISTRY)[Id]['activation']['kind'] extends 'surface'
+export type ReadySurfaceId = {
+  [Id in SurfaceId]: (typeof SURFACE_REGISTRY)[Id]['activation']['kind'] extends 'surface'
     ? Id
     : never
-}[WorkspaceSurfaceId]
+}[SurfaceId]
 
 /*
  * as const 之后每条记录都是字面量类型，直接索引取不到接口上的属性。
  * 放宽一次到接口类型，后续读取全部经由这里，避免逐处 as。
  */
-const DESCRIPTORS: Record<WorkspaceSurfaceId, WorkspaceSurfaceDescriptor> =
-  WORKSPACE_SURFACE_REGISTRY
+const DESCRIPTORS: Record<SurfaceId, SurfaceDescriptor> = SURFACE_REGISTRY
 
-export const DEFAULT_SURFACE_ID: WorkspaceSurfaceId = 'ai'
+export const DEFAULT_SURFACE_ID: SurfaceId = 'ai'
 
 /* 会话标签的名字就是默认表面的标题，不另抄一份字面量。 */
-export const CONVERSATION_ENTRY_TITLE: string = WORKSPACE_SURFACE_REGISTRY.ai.title
+export const CONVERSATION_ENTRY_TITLE: string = SURFACE_REGISTRY.ai.title
 
-export function describeWorkspaceSurface(id: WorkspaceSurfaceId): WorkspaceSurfaceDescriptor {
+export function describeSurface(id: SurfaceId): SurfaceDescriptor {
   return DESCRIPTORS[id]
 }
 
-export function isWorkspaceSurfaceId(value: string): value is WorkspaceSurfaceId {
-  return Object.hasOwn(WORKSPACE_SURFACE_REGISTRY, value)
+export function isSurfaceId(value: string): value is SurfaceId {
+  return Object.hasOwn(SURFACE_REGISTRY, value)
 }
 
 /* 运行时这一份也从同一张表派生，不存在会跟类型分叉的第二份名单。 */
@@ -120,7 +119,7 @@ const READY_SURFACE_IDS: ReadonlySet<string> = new Set(
     .map(([id]) => id),
 )
 
-export function isReadyWorkspaceSurfaceId(id: WorkspaceSurfaceId): id is ReadyWorkspaceSurfaceId {
+export function isReadySurfaceId(id: SurfaceId): id is ReadySurfaceId {
   return READY_SURFACE_IDS.has(id)
 }
 
@@ -131,8 +130,8 @@ export function isReadyWorkspaceSurfaceId(id: WorkspaceSurfaceId): id is ReadyWo
  * 于是上一版的比较器里挂着一个 ?? 0 —— 那是一段永远不会执行的兜底。
  * flatMap 就地收窄类型，兜底随之消失。
  */
-export const WORKSPACE_NAVIGATION_ORDER: readonly WorkspaceSurfaceId[] = (
-  Object.keys(WORKSPACE_SURFACE_REGISTRY) as WorkspaceSurfaceId[]
+export const SURFACE_NAVIGATION_ORDER: readonly SurfaceId[] = (
+  Object.keys(SURFACE_REGISTRY) as SurfaceId[]
 )
   .flatMap((id) => {
     const { navigationOrder } = DESCRIPTORS[id]

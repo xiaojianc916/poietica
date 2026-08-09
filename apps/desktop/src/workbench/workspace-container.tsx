@@ -15,10 +15,10 @@ import type {
 } from '@poietica/workspace'
 import {
   SidebarFooter,
+  SurfaceHost,
   WorkbenchTabs,
   WorkspaceShell,
   WorkspaceSidebar,
-  WorkspaceSurface,
 } from '@poietica/workspace'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useThreadsActions } from '../assistant/threads-context'
@@ -132,8 +132,8 @@ export function WorkspaceContainer({
       },
 
       /* 只递 id：标题是注册表已经拥有的事实，递第二遍就是第二个来源。 */
-      openWorkspaceSurface(surfaceId) {
-        workspace.openWorkspaceSurface({ surfaceId })
+      openSurface(surfaceId) {
+        workspace.openSurface({ surfaceId })
       },
 
       openDeveloperTools: onDeveloperToolsOpen,
@@ -154,12 +154,12 @@ export function WorkspaceContainer({
    * （见 WorkbenchTab.resolveTabIcon），那是另一格的事。
    */
   const activeNavigationId =
-    workbench.activeSurface.kind === 'workspace' ? workbench.activeSurface.surfaceId : null
+    workbench.activeSurface.kind === 'surface' ? workbench.activeSurface.surfaceId : null
 
   /*
    * 一条对话开口说话的那一刻，AI 那一格就变成这条对话。
    *
-   * openConversation 会就地顶掉 workspace:ai（会话槽本来的规则），于是标签
+   * openConversation 会就地顶掉 surface:ai（会话槽本来的规则），于是标签
    * 标题变成这句话、activeSurface 变成 conversation，左侧高亮也随之落到列表
    * 的那一行——三件事同一个来源，不需要各自同步。
    */
@@ -177,7 +177,7 @@ export function WorkspaceContainer({
    * 打开一条对话与「说出第一句话」是同一件事，共用 startConversation。
    */
   const openAssistantEntry = useCallback(() => {
-    workspace.openWorkspaceSurface({ surfaceId: 'ai' })
+    workspace.openSurface({ surfaceId: 'ai' })
   }, [workspace])
 
   const openConversationInNewTab = useCallback(
@@ -201,10 +201,7 @@ export function WorkspaceContainer({
     workbench.activeSurface.kind === 'conversation' ? (
       assistant.renderConversation(workbench.activeSurface.threadId)
     ) : (
-      <WorkspaceSurface
-        renderers={assistant.surfaces}
-        surfaceId={workbench.activeSurface.surfaceId}
-      />
+      <SurfaceHost renderers={assistant.surfaces} surfaceId={workbench.activeSurface.surfaceId} />
     )
 
   /*
@@ -258,7 +255,7 @@ export function WorkspaceContainer({
           onCreateConversation={openAssistantEntry}
           onDeveloperToolsOpen={onDeveloperToolsOpen}
           onSettingsOpen={onSettingsOpen}
-          onSurfaceActivate={actions.openWorkspaceSurface}
+          onSurfaceActivate={actions.openSurface}
           panel={
             <AssistantSidebarPanel
               activeThreadId={activeConversationId}

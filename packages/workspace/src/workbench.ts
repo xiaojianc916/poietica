@@ -1,4 +1,4 @@
-import { DEFAULT_SURFACE_ID, type WorkspaceSurfaceId } from './surface-registry'
+import { DEFAULT_SURFACE_ID, type SurfaceId } from './surface-registry'
 
 export type WorkbenchTabId = string
 
@@ -17,12 +17,12 @@ export interface ConversationTabViewModel extends WorkbenchTabBase {
   readonly threadId: ConversationId
 }
 
-export interface WorkspaceTabViewModel extends WorkbenchTabBase {
-  readonly kind: 'workspace'
-  readonly surfaceId: WorkspaceSurfaceId
+export interface SurfaceTabViewModel extends WorkbenchTabBase {
+  readonly kind: 'surface'
+  readonly surfaceId: SurfaceId
 }
 
-export type WorkbenchTabViewModel = ConversationTabViewModel | WorkspaceTabViewModel
+export type WorkbenchTabViewModel = ConversationTabViewModel | SurfaceTabViewModel
 
 export interface ActiveConversationViewModel {
   readonly kind: 'conversation'
@@ -31,14 +31,14 @@ export interface ActiveConversationViewModel {
   readonly title: string
 }
 
-export interface WorkspaceSurfaceViewModel {
-  readonly kind: 'workspace'
+export interface SurfaceViewModel {
+  readonly kind: 'surface'
   readonly tabId: WorkbenchTabId
-  readonly surfaceId: WorkspaceSurfaceId
+  readonly surfaceId: SurfaceId
   readonly title: string
 }
 
-export type WorkbenchSurfaceViewModel = ActiveConversationViewModel | WorkspaceSurfaceViewModel
+export type WorkbenchSurfaceViewModel = ActiveConversationViewModel | SurfaceViewModel
 
 /**
  * 工作台快照。
@@ -57,11 +57,11 @@ export interface WorkbenchViewModel {
  * 打开一个表面。
  *
  * 只收 id：标题是 registry 已经拥有的事实，让调用方再传一遍就是让同一个
- * 值有两个来源——此前 WorkspaceShell 正是靠 describeWorkspaceSurface(id).title
+ * 值有两个来源——此前 WorkspaceShell 正是靠 describeSurface(id).title
  * 把查出来的值又喂了回去。
  */
-export interface OpenWorkspaceSurfaceRequest {
-  readonly surfaceId: WorkspaceSurfaceId
+export interface OpenSurfaceRequest {
+  readonly surfaceId: SurfaceId
 }
 
 export interface OpenConversationRequest {
@@ -70,7 +70,7 @@ export interface OpenConversationRequest {
 }
 
 export interface WorkbenchSessionCommands {
-  readonly openWorkspaceSurface: (request: OpenWorkspaceSurfaceRequest) => void
+  readonly openSurface: (request: OpenSurfaceRequest) => void
 
   /**
    * 打开一条已有对话。
@@ -114,4 +114,4 @@ export interface WorkbenchSessionStore extends WorkbenchSessionCommands {
  * 两处对不上就是一格永远激活不了的标签。首帧快照由 project(INITIAL_STATE) 给出，
  * 这里不再手写第二份。
  */
-export const DEFAULT_SURFACE_TAB_ID: WorkbenchTabId = `workspace:${DEFAULT_SURFACE_ID}`
+export const DEFAULT_SURFACE_TAB_ID: WorkbenchTabId = `surface:${DEFAULT_SURFACE_ID}`

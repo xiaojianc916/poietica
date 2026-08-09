@@ -26,6 +26,10 @@ export {
 } from './shell/sidebar/sidebar-footer'
 export { WorkspaceSidebar } from './shell/sidebar/workspace-sidebar'
 export {
+  SurfaceHost,
+  type SurfaceHostProps,
+} from './shell/surface-host'
+export {
   useIsSidebarDocked,
   useWorkspaceLayoutMode,
   type WorkspaceLayoutMode,
@@ -37,21 +41,17 @@ export {
 export { WORKSPACE_LAYOUT } from './shell/workspace-layout'
 export { useWorkspaceLayoutState, workspaceLayoutStore } from './shell/workspace-layout-store'
 export { WorkspaceShell } from './shell/workspace-shell'
-export {
-  WorkspaceSurface,
-  type WorkspaceSurfaceProps,
-} from './shell/workspace-surface'
 export type { WorkspaceShellActions, WorkspaceShellProps } from './shell-contract'
-export type { WorkspaceSurfaceRenderers } from './surface'
+export type { SurfaceRenderers } from './surface'
 export {
   CONVERSATION_ENTRY_TITLE,
   DEFAULT_SURFACE_ID,
-  describeWorkspaceSurface,
-  isWorkspaceSurfaceId,
-  WORKSPACE_NAVIGATION_ORDER,
-  WORKSPACE_SURFACE_REGISTRY,
-  type WorkspaceSurfaceDescriptor,
-  type WorkspaceSurfaceId,
+  describeSurface,
+  isSurfaceId,
+  SURFACE_NAVIGATION_ORDER,
+  SURFACE_REGISTRY,
+  type SurfaceDescriptor,
+  type SurfaceId,
 } from './surface-registry'
 export {
   type ActiveConversationViewModel,
@@ -59,14 +59,14 @@ export {
   type ConversationTabViewModel,
   DEFAULT_SURFACE_TAB_ID,
   type OpenConversationRequest,
-  type OpenWorkspaceSurfaceRequest,
+  type OpenSurfaceRequest,
+  type SurfaceTabViewModel,
+  type SurfaceViewModel,
   type WorkbenchSessionCommands,
   type WorkbenchSessionStore,
   type WorkbenchSurfaceViewModel,
   type WorkbenchTabId,
   type WorkbenchTabViewModel,
   type WorkbenchViewModel,
-  type WorkspaceSurfaceViewModel,
-  type WorkspaceTabViewModel,
 } from './workbench'
 export { createWorkbenchSessionController } from './workbench-session-controller'

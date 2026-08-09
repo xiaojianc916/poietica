@@ -1,6 +1,6 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
 import { PluginsSurface } from '@poietica/plugins'
-import type { WorkspaceSurfaceRenderers } from '@poietica/workspace'
+import type { SurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'
 import { AutomationsView } from '../automations/automations-view'
 import { pluginStore } from '../plugins/plugin-runtime'
@@ -25,7 +25,7 @@ import { ConversationSurface } from './conversation-surface'
  */
 export interface AssistantWiring {
   /** 工作区表面插槽：注册表里每一条 surface 都要在这里交出渲染器。 */
-  readonly surfaces: WorkspaceSurfaceRenderers
+  readonly surfaces: SurfaceRenderers
   /** 一条对话占住整个标签页时的样子。 */
   readonly renderConversation: (threadId: string) => ReactNode
 }

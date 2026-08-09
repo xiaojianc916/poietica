@@ -1,15 +1,15 @@
 import './sidebar-rows.css'
 
 import type { ReactNode } from 'react'
-import type { WorkspaceSurfaceId } from '../../surface-registry'
+import type { SurfaceId } from '../../surface-registry'
 import { SidebarFooter } from './sidebar-footer'
 import { SidebarNav } from './sidebar-nav'
 
 export interface WorkspaceSidebarProps {
   readonly footerLeading?: ReactNode
-  readonly activeNavigationId: WorkspaceSurfaceId | null
+  readonly activeNavigationId: SurfaceId | null
   readonly panel: ReactNode
-  readonly onSurfaceActivate: (surfaceId: WorkspaceSurfaceId) => void
+  readonly onSurfaceActivate: (surfaceId: SurfaceId) => void
   readonly onCreateConversation: () => void
   readonly onCommand: (commandId: string) => void
   readonly onSettingsOpen: () => void

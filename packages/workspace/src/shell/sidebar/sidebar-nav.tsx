@@ -1,15 +1,11 @@
 import { cn } from '@poietica/ui'
-import {
-  describeWorkspaceSurface,
-  WORKSPACE_NAVIGATION_ORDER,
-  type WorkspaceSurfaceId,
-} from '../../surface-registry'
+import { describeSurface, SURFACE_NAVIGATION_ORDER, type SurfaceId } from '../../surface-registry'
 import { type SurfaceIcon, surfaceIcon } from '../surface-icons'
 
 export interface SidebarNavProps {
   /** 当前高亮的导航项，等于当前活动表面；非表面形态为 null。 */
-  readonly activeNavigationId: WorkspaceSurfaceId | null
-  readonly onSurfaceActivate: (surfaceId: WorkspaceSurfaceId) => void
+  readonly activeNavigationId: SurfaceId | null
+  readonly onSurfaceActivate: (surfaceId: SurfaceId) => void
   readonly onCreateConversation: () => void
   /** 动作行按下去执行的那条命令。执行由组合根接线，这一层只报 id。 */
   readonly onCommand: (commandId: string) => void
@@ -39,13 +35,13 @@ export function SidebarNav({
           <NavRow
             active={activeNavigationId === 'ai'}
             icon={surfaceIcon('ai')}
-            label={describeWorkspaceSurface('ai').title}
+            label={describeSurface('ai').title}
             onClick={onCreateConversation}
           />
         </li>
 
-        {WORKSPACE_NAVIGATION_ORDER.map((surfaceId) => {
-          const { title, activation } = describeWorkspaceSurface(surfaceId)
+        {SURFACE_NAVIGATION_ORDER.map((surfaceId) => {
+          const { title, activation } = describeSurface(surfaceId)
 
           /*
            * 动作行不参与高亮：弹窗不是「我现在在哪」，点完人还在原来那一格。

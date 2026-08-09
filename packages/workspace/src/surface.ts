@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react'
 
-import type { ReadyWorkspaceSurfaceId } from './surface-registry'
+import type { ReadySurfaceId } from './surface-registry'
 
 /**
  * 表面渲染扩展点。
  *
- * 键是 ReadyWorkspaceSurfaceId，不是 WorkspaceSurfaceId，也不是 Partial：
+ * 键是 ReadySurfaceId，不是 SurfaceId，也不是 Partial：
  *
  *   - activation.kind 为 'surface' 的每一条，组合根都必须交出渲染器，漏一条
  *     是编译错误；
@@ -16,4 +16,4 @@ import type { ReadyWorkspaceSurfaceId } from './surface-registry'
  *
  * 所有权：apps 组合根。workspace 只消费，不实现具体业务表面。
  */
-export type WorkspaceSurfaceRenderers = Record<ReadyWorkspaceSurfaceId, () => ReactNode>
+export type SurfaceRenderers = Record<ReadySurfaceId, () => ReactNode>

@@ -1,12 +1,8 @@
-import {
-  DEFAULT_SURFACE_ID,
-  describeWorkspaceSurface,
-  type WorkspaceSurfaceId,
-} from './surface-registry'
+import { DEFAULT_SURFACE_ID, describeSurface, type SurfaceId } from './surface-registry'
 import type {
   ConversationId,
   OpenConversationRequest,
-  OpenWorkspaceSurfaceRequest,
+  OpenSurfaceRequest,
   WorkbenchSessionStore,
   WorkbenchSurfaceViewModel,
   WorkbenchTabId,
@@ -14,7 +10,7 @@ import type {
   WorkbenchViewModel,
 } from './workbench'
 
-type Entry = ConversationEntry | WorkspaceEntry
+type Entry = ConversationEntry | SurfaceEntry
 
 interface ConversationEntry {
   readonly kind: 'conversation'
@@ -22,9 +18,9 @@ interface ConversationEntry {
   readonly title: string
 }
 
-interface WorkspaceEntry {
-  readonly kind: 'workspace'
-  readonly surfaceId: WorkspaceSurfaceId
+interface SurfaceEntry {
+  readonly kind: 'surface'
+  readonly surfaceId: SurfaceId
 }
 
 /**
@@ -38,7 +34,7 @@ interface WorkbenchState {
   readonly activeIndex: number
 }
 
-const DEFAULT_ENTRY: WorkspaceEntry = { kind: 'workspace', surfaceId: DEFAULT_SURFACE_ID }
+const DEFAULT_ENTRY: SurfaceEntry = { kind: 'surface', surfaceId: DEFAULT_SURFACE_ID }
 
 const INITIAL_STATE: WorkbenchState = { entries: [DEFAULT_ENTRY], activeIndex: 0 }
 
@@ -53,13 +49,11 @@ const projectionCache = new WeakMap<Entry, Projection>()
 function entryId(entry: Entry): WorkbenchTabId {
   return entry.kind === 'conversation'
     ? `conversation:${entry.threadId}`
-    : `workspace:${entry.surfaceId}`
+    : `surface:${entry.surfaceId}`
 }
 
 function entryTitle(entry: Entry): string {
-  return entry.kind === 'conversation'
-    ? entry.title
-    : describeWorkspaceSurface(entry.surfaceId).title
+  return entry.kind === 'conversation' ? entry.title : describeSurface(entry.surfaceId).title
 }
 
 function buildProjection(entry: Entry): Projection {
@@ -78,7 +72,7 @@ function buildProjection(entry: Entry): Projection {
         }
       : {
           id: tabId,
-          kind: 'workspace',
+          kind: 'surface',
           surfaceId: entry.surfaceId,
           title,
           isActive: false,
@@ -96,7 +90,7 @@ function buildProjection(entry: Entry): Projection {
           title,
         }
       : {
-          kind: 'workspace',
+          kind: 'surface',
           tabId,
           surfaceId: entry.surfaceId,
           title,
@@ -159,15 +153,12 @@ function insertRightOfActive(state: WorkbenchState, entry: Entry): WorkbenchStat
 
 /* ── reducer：全部是全函数，无一处 throw ─────────────────────────── */
 
-function openWorkspaceSurface(
-  state: WorkbenchState,
-  surfaceId: WorkspaceSurfaceId,
-): WorkbenchState {
-  const existing = indexOfId(state, `workspace:${surfaceId}`)
+function openSurface(state: WorkbenchState, surfaceId: SurfaceId): WorkbenchState {
+  const existing = indexOfId(state, `surface:${surfaceId}`)
 
   return existing >= 0
     ? settle(state.entries, existing)
-    : insertRightOfActive(state, { kind: 'workspace', surfaceId })
+    : insertRightOfActive(state, { kind: 'surface', surfaceId })
 }
 
 /**
@@ -192,7 +183,7 @@ function openConversation(state: WorkbenchState, request: OpenConversationReques
   const replaceable =
     active !== undefined &&
     (active.kind === 'conversation' ||
-      (active.kind === 'workspace' && active.surfaceId === DEFAULT_SURFACE_ID))
+      (active.kind === 'surface' && active.surfaceId === DEFAULT_SURFACE_ID))
 
   if (!replaceable) {
     return insertRightOfActive(state, entry)
@@ -331,8 +322,8 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       }
     },
 
-    openWorkspaceSurface: (request: OpenWorkspaceSurfaceRequest) => {
-      commit(openWorkspaceSurface(state, request.surfaceId))
+    openSurface: (request: OpenSurfaceRequest) => {
+      commit(openSurface(state, request.surfaceId))
     },
     openConversation: (request) => {
       commit(openConversation(state, request))

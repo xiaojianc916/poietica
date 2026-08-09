@@ -1,5 +1,5 @@
 import type { WorkspaceParts } from './parts'
-import type { WorkspaceSurfaceId } from './surface-registry'
+import type { SurfaceId } from './surface-registry'
 import type { WorkbenchTabId, WorkbenchViewModel } from './workbench'
 
 /**
@@ -15,7 +15,7 @@ export interface WorkspaceShellActions {
   readonly closeTab: (tabId: WorkbenchTabId) => void
   readonly moveTab: (tabId: WorkbenchTabId, targetIndex: number) => void
   /** 只收 id，标题由 registry 查。 */
-  readonly openWorkspaceSurface: (surfaceId: WorkspaceSurfaceId) => void
+  readonly openSurface: (surfaceId: SurfaceId) => void
   readonly openDeveloperTools: () => void
   readonly openSettingsWindow: () => void
 }
