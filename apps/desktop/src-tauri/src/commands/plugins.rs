@@ -227,9 +227,12 @@ fn index_of(entries: &[Value], plugin_id: &str) -> Option<usize> {
         .position(|entry| entry.get("id").and_then(Value::as_str) == Some(plugin_id))
 }
 
-fn entry_at<'a>(entries: &'a mut [Value], at: usize) -> Result<&'a mut Map<String, Value>> {
-    entries[at]
-        .as_object_mut()
+/// `at` 一律来自同一张表上的 index_of，所以越界与「不是对象」在这里是同一件事：
+/// 账本不是它该有的形状。
+fn entry_at(entries: &mut [Value], at: usize) -> Result<&mut Map<String, Value>> {
+    entries
+        .get_mut(at)
+        .and_then(Value::as_object_mut)
         .ok_or_else(|| plugin_failure("installed.json 里的记录不是对象"))
 }
 
