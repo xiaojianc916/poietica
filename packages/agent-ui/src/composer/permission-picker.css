@@ -168,3 +168,28 @@
     transition: none;
   }
 }
+
+/* permission-picker: hover-only background */
+
+/*
+ * 权限入口常态下只显示图标和文字。
+ *
+ * Base UI 在菜单打开时会添加 data-popup-open，但打开菜单不等于鼠标悬停，
+ * 因此普通状态和菜单打开状态都保持透明。只有真正 hover 时才显示背景。
+ */
+.assistant-posture:not(:hover),
+.assistant-posture[data-popup-open]:not(:hover),
+.assistant-posture[data-alert]:not(:hover),
+.assistant-posture[data-alert][data-popup-open]:not(:hover) {
+  background: transparent;
+  box-shadow: none;
+}
+
+.assistant-posture:hover,
+.assistant-posture[data-alert]:hover,
+.assistant-posture[data-popup-open]:hover,
+.assistant-posture[data-alert][data-popup-open]:hover {
+  background: color-mix(in oklab, var(--pp-ink) var(--cp-pill-wash-hover), var(--cp-surface));
+}
+
+/* permission-picker: hover-only background end */
