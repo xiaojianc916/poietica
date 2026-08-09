@@ -104,7 +104,80 @@ export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
     draft.status = 'failed'
   }
 
+  /*
+   * 一条 span 都没有的重放，是 session/load 交回来的那一种。
+   *
+   * run_started / run_finished 是实时那一轮的客户端事实，协议不模型它们
+   *（agent-contract 的 run.ts），agent 装载旧会话时只以 session/update 重放
+   *（driver.rs 的 replay）——那批事件里这两种帧一帧都没有：段一次没开过，整段
+   * 历史全落进 r0，每一轮的两端也没记过。而封条由 spans 派生：spans 一空，重启
+   * 之后「已处理」就整条消失，尽管经过逐字都在。
+   *
+   * 段的边界从条目本身补回来：一条用户消息开一轮，与实时那侧 appendUserMessage
+   * 先开段是同一个判据。id 保持重放铸下的原样 —— 身份负责唯一，段号负责语义，
+   * 换名只会把刚建好的索引作废。
+   */
+  if (draft.spans.length === 0) {
+    retellTurns(draft)
+  }
+
   return freeze(draft)
+}
+
+/**
+ * 段与每一轮的两端，从条目本身补回来。
+ *
+ * 只在重放里没有 run 帧时调用（见 replayThreadEvents 末尾）。判据与实时同一条：
+ * 一条用户消息开一轮。号从末端倒着编，末轮恒为 r0，与 run_started 在的时候同一
+ * 种编法 —— 接着说下去时新段从 r1 开始，两边接得上。
+ *
+ * 每一轮的两端取它自己第一条与最后一条目的 at：同一份日志放两遍，算出同一个
+ * 耗时。agent 的重放不给帧带回原来的时刻（协议里没有这一格），所以这两个端点
+ * 量的是「历史被读回来」那一段 —— 精确的耗时仍只有实时那一轮自己记得出；这里
+ * 补回的是段与封条本身，让它们与对话文本同级地活下来。
+ */
+function retellTurns(draft: Draft): void {
+  let total = 0
+
+  for (const item of draft.items) {
+    if (item.type === 'user_message') {
+      total += 1
+    }
+  }
+
+  if (total === 0) {
+    return
+  }
+
+  let seen = 0
+  let openedAt: number | undefined
+  let endedAt: number | undefined
+
+  for (const [at, item] of draft.items.entries()) {
+    /* 一问开一轮：这一条之前的条目属于上一轮，轮到它收口。 */
+    if (item.type === 'user_message') {
+      if (openedAt !== undefined && endedAt !== undefined) {
+        draft.spans.push({ turn: seen - total, startedAt: openedAt, endedAt })
+      }
+
+      seen += 1
+      openedAt = item.at
+    }
+
+    endedAt = item.at
+
+    /* 第一条用户消息之前的条目归第一轮；末轮恒为 r0。 */
+    const turn = Math.max(seen, 1) - total
+
+    if (item.turn !== turn) {
+      draft.items[at] = { ...item, turn }
+    }
+  }
+
+  /* 末轮在这里收口：重放回来的对话，没有一轮还在跑。 */
+  if (openedAt !== undefined && endedAt !== undefined) {
+    draft.spans.push({ turn: 0, startedAt: openedAt, endedAt })
+  }
 }
 
 /**

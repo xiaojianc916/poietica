@@ -279,6 +279,29 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
   return settled
 }
 
+/**
+ * 这一轮在跑，而屏幕上没有一样东西在动。
+ *
+ * 等待指示器唯一的出现条件。判据落在末尾那一行：回答正在写（isStreamingTail）、
+ * 调用正在跑（isInFlight），动的那个东西自己就是进度，再挂一个转圈是两个人报同
+ * 一件事；两者都不成立时模型在推理，而推理不上屏（renderable.ts），转录一个字都
+ * 不会变——那段静止正是这一格要补的。
+ *
+ * 问的是行而不是条目：「屏幕上有没有东西在动」本来就是屏幕的性质。
+ *
+ * awaiting_permission 不在其中：那一刻输入框上方摊着审批带，等的是人，不是模型。
+ */
+export function selectIsWaiting(state: TimelineState): boolean {
+  if (state.status !== 'running') {
+    return false
+  }
+
+  const tail = selectFeedRows(state).at(-1)
+
+  return tail === undefined || !(tail.isStreamingTail || tail.isInFlight)
+}
+
+/* 会长大的只有回答：思考不上屏，它永远不会是一行。 */
 function isGrowable(item: TimelineItem): boolean {
-  return item.type === 'agent_text' || item.type === 'agent_thought'
+  return item.type === 'agent_text'
 }
