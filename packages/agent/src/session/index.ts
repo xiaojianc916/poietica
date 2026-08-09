@@ -1,9 +1,9 @@
-export {
-  chooseAgentControl,
-  installAgentCapabilityPort,
-  refreshAgentCapabilities,
-  useAgentControls,
+export type {
+  AgentCapabilityOptions,
+  AgentControls,
+  CapabilityFailureReport,
 } from './agent-capability-store'
+export { AgentCapabilityStore } from './agent-capability-store'
 export type {
   ThreadListItem,
   ThreadsList,
@@ -20,16 +20,5 @@ export { shorten } from './thread-title'
 export type { ThreadsStoreOptions } from './threads-store'
 export { ThreadsStore } from './threads-store'
 export type { TranscriptSink } from './transcript-sink'
+export type { Transcript } from './transcript-store'
 export { TranscriptStore } from './transcript-store'
-export { TranscriptsContext, useTranscripts } from './transcripts-context'
-export type {
-  AssistantSession,
-  AssistantSessionOptions,
-  AssistantSubmission,
-} from './use-assistant-session'
-export {
-  useAssistantPending,
-  useAssistantPendingCount,
-  useAssistantSession,
-  useAssistantTimeline,
-} from './use-assistant-session'

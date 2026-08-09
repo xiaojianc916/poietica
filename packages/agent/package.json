@@ -17,12 +17,7 @@
     "valibot": "catalog:"
   },
   "devDependencies": {
-    "@types/react": "catalog:",
-    "react": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  },
-  "peerDependencies": {
-    "react": "catalog:"
   }
 }

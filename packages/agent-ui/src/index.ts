@@ -13,6 +13,20 @@ export type {
 export { ImageLightbox, ImageThumbnailGrid } from './media/image-lightbox'
 export type { AgentDialect } from './semantics/agent-dialect'
 export { AgentDialectContext } from './semantics/agent-dialect'
+export type { AgentControlsView } from './session/agent-controls-context'
+export { AgentControlsContext, useAgentControls } from './session/agent-controls-context'
+export { TranscriptsContext, useTranscripts } from './session/transcripts-context'
+export type {
+  AssistantSession,
+  AssistantSessionOptions,
+  AssistantSubmission,
+} from './session/use-assistant-session'
+export {
+  useAssistantPending,
+  useAssistantPendingCount,
+  useAssistantSession,
+  useAssistantTimeline,
+} from './session/use-assistant-session'
 export type { AssistantSurfaceProps } from './surface/assistant-surface'
 export { AssistantSurface } from './surface/assistant-surface'
 export type {

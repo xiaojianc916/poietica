@@ -1,13 +1,12 @@
-import type { SessionConfigControl } from '@poietica/agent-contract'
+import type { AgentCapabilityPort, SessionConfigControl } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
 
 import { AgentCapabilityStore } from '../agent-capability-store'
 
 /*
- * 每个用例造一份自己的 store。
+ * 每个用例造一份自己的 store，端口由 start() 交进去。
  *
- * 它不认识 React、不认识进程，也不认识 IPC，只认一个端口 —— 此前这些用例共用
- * 进程里那一个实例，顺序一换结论就换。
+ * 它不认识 React、不认识进程，也不认识 IPC，所以这里不需要任何模块级的复位动作。
  */
 
 const control = (
@@ -23,7 +22,7 @@ const control = (
   choices: values.map((value) => ({ value, label: value })),
 })
 
-/* 两个模型报的两张表。档位候选不同，那正是"档位随模型变"这件事本身。 */
+/* 三张表。档位候选各不相同，那正是"档位随模型变"这件事本身。 */
 const ON_OFF: readonly SessionConfigControl[] = [
   control('model', 'model', 'kimi-k2', ['kimi-k2', 'kimi-k3']),
   control('thought', 'thought', 'off', ['off', 'on']),
@@ -34,9 +33,14 @@ const THREE_TIER: readonly SessionConfigControl[] = [
   control('thought', 'thought', 'high', ['off', 'high', 'max']),
 ]
 
+const MAXED: readonly SessionConfigControl[] = [
+  control('model', 'model', 'kimi-k3', ['kimi-k2', 'kimi-k3']),
+  control('thought', 'thought', 'max', ['off', 'high', 'max']),
+]
+
 /* 让已经兑现的那些 then 跑完。这里没有计时器，所以不需要假时钟。 */
 async function settled(): Promise<void> {
-  for (let tick = 0; tick < 8; tick += 1) {
+  for (let tick = 0; tick < 32; tick += 1) {
     await Promise.resolve()
   }
 }
@@ -44,38 +48,37 @@ async function settled(): Promise<void> {
 const currentOf = (table: readonly SessionConfigControl[], id: string): string | undefined =>
   table.find((offered) => offered.id === id)?.current
 
+const inert = (): (() => void) => () => undefined
+
 describe('锚会话的那张表', () => {
   it('换模型时下发的是整个控件，档位随同一次答复一起换掉', async () => {
     const store = new AgentCapabilityStore()
 
     let asked: SessionConfigControl | undefined
 
-    store.installPort({
+    const stop = store.start({
       read: () => Promise.resolve(ON_OFF),
       select: (control) => {
         asked = control
 
         return Promise.resolve(THREE_TIER)
       },
-      subscribe: () => () => undefined,
+      subscribe: inert,
     })
-
-    const stop = store.subscribe(() => undefined)
 
     await settled()
 
-    expect(currentOf(store.snapshot(), 'thought')).toBe('off')
+    expect(currentOf(store.snapshot().controls, 'thought')).toBe('off')
 
-    store.choose('model', 'kimi-k3')
+    store.selectControl('model', 'kimi-k3')
     await settled()
 
     /* 一次答复整张换掉：不存在"新模型 + 旧档位"这种中间形态。 */
-    expect(currentOf(store.snapshot(), 'model')).toBe('kimi-k3')
-    expect(currentOf(store.snapshot(), 'thought')).toBe('high')
+    expect(currentOf(store.snapshot().controls, 'model')).toBe('kimi-k3')
+    expect(currentOf(store.snapshot().controls, 'thought')).toBe('high')
 
-    /* 端口收的是控件，不是它的 id。桌面那一侧靠 purpose 认出「模型那一格」才会
-    去写 default_model，而线上那一格填的是 control.id —— 传字符串过去，两处一起
-    读出 undefined，命令在原生侧连反序列化都过不了。 */
+    /* 端口收的是控件，不是它的 id：桌面那一侧靠 purpose 认出「模型那一格」才会去
+    写 default_model。传字符串过去，两处一起读出 undefined。 */
     expect(asked?.id).toBe('model')
     expect(asked?.purpose).toBe('model')
 
@@ -85,11 +88,10 @@ describe('锚会话的那张表', () => {
   it('agent 换完模型自己收敛一次，入口那张表跟着换掉', async () => {
     const store = new AgentCapabilityStore()
 
-    /* agent 先报 ON_OFF；它自己收敛完模型之后，报的是 THREE_TIER 那张。 */
     let table: readonly SessionConfigControl[] = ON_OFF
     let announce: (() => void) | undefined
 
-    store.installPort({
+    const stop = store.start({
       read: () => Promise.resolve(table),
       select: () => Promise.resolve(table),
       subscribe: (handler) => {
@@ -101,20 +103,17 @@ describe('锚会话的那张表', () => {
       },
     })
 
-    const stop = store.subscribe(() => undefined)
-
     await settled()
 
-    /* 入口先看到 agent 当下那张表：ON_OFF 的档位是 off。 */
-    expect(currentOf(store.snapshot(), 'thought')).toBe('off')
+    expect(currentOf(store.snapshot().controls, 'thought')).toBe('off')
 
-    /* agent 补推了一次：屏幕必须跟着回到它真在用的那张表，而不是等下一次有人再问。 */
+    /* agent 补推了一次：屏幕必须跟着回到它真在用的那张表。 */
     table = THREE_TIER
     announce?.()
 
     await settled()
 
-    expect(currentOf(store.snapshot(), 'thought')).toBe('high')
+    expect(currentOf(store.snapshot().controls, 'thought')).toBe('high')
 
     stop()
   })
@@ -125,7 +124,7 @@ describe('锚会话的那张表', () => {
     let release: ((table: readonly SessionConfigControl[]) => void) | undefined
     let reads = 0
 
-    store.installPort({
+    const stop = store.start({
       read: () => {
         reads += 1
 
@@ -138,25 +137,23 @@ describe('锚会话的那张表', () => {
         })
       },
       select: () => Promise.resolve(THREE_TIER),
-      subscribe: () => () => undefined,
+      subscribe: inert,
     })
-
-    const stop = store.subscribe(() => undefined)
 
     await settled()
 
     /* 第二次读取还在飞的时候，切换的答复先回来。 */
     store.refresh()
-    store.choose('model', 'kimi-k3')
+    store.selectControl('model', 'kimi-k3')
     await settled()
 
-    expect(currentOf(store.snapshot(), 'thought')).toBe('high')
+    expect(currentOf(store.snapshot().controls, 'thought')).toBe('high')
 
     release?.(ON_OFF)
     await settled()
 
     /* 该赢的是问得晚的那一个，不是回来得晚的那一个。 */
-    expect(currentOf(store.snapshot(), 'thought')).toBe('high')
+    expect(currentOf(store.snapshot().controls, 'thought')).toBe('high')
 
     stop()
   })
@@ -166,26 +163,95 @@ describe('锚会话的那张表', () => {
 
     let asked = 0
 
-    store.installPort({
+    const stop = store.start({
       read: () => Promise.resolve(ON_OFF),
       select: () => {
         asked += 1
 
         return Promise.resolve(THREE_TIER)
       },
-      subscribe: () => () => undefined,
+      subscribe: inert,
     })
-
-    const stop = store.subscribe(() => undefined)
 
     await settled()
 
     /* 这张表的档位只有 off/on：max 不属于它，发出去只会换回一个错误。 */
-    store.choose('thought', 'max')
+    store.selectControl('thought', 'max')
     await settled()
 
     expect(asked).toBe(0)
-    expect(currentOf(store.snapshot(), 'thought')).toBe('off')
+    expect(currentOf(store.snapshot().controls, 'thought')).toBe('off')
+
+    stop()
+  })
+
+  it('连着改两项时，后一项的判据是前一项的答复', async () => {
+    const store = new AgentCapabilityStore()
+
+    const sent: Array<{ id: string; value: string; from: string }> = []
+
+    let table: readonly SessionConfigControl[] = ON_OFF
+
+    const stop = store.start({
+      read: () => Promise.resolve(table),
+      select: (control, value) => {
+        sent.push({ id: control.id, value, from: control.current })
+
+        table = control.id === 'model' ? THREE_TIER : MAXED
+
+        return Promise.resolve(table)
+      },
+      subscribe: inert,
+    })
+
+    await settled()
+
+    /*
+     * 同一拍里发两次。max 只存在于换完模型之后那张表里 —— 并发下发的第二条命令
+     * 读的是改动前那张，于是它会被当成"agent 从没提供过的值"静默丢掉。
+     */
+    store.selectControl('model', 'kimi-k3')
+    store.selectControl('thought', 'max')
+    await settled()
+
+    /* 两条都发出去了，而且第二条带着的是新表里那个档位控件。 */
+    expect(sent).toHaveLength(2)
+    expect(sent[0]).toEqual({ id: 'model', value: 'kimi-k3', from: 'kimi-k2' })
+    expect(sent[1]).toEqual({ id: 'thought', value: 'max', from: 'high' })
+    expect(currentOf(store.snapshot().controls, 'thought')).toBe('max')
+
+    stop()
+  })
+
+  it('读不到时理由进快照，再试一次能回来', async () => {
+    const store = new AgentCapabilityStore()
+
+    let reads = 0
+
+    const stop = store.start({
+      read: () => {
+        reads += 1
+
+        return reads === 1 ? Promise.reject(new Error('agent 没起来')) : Promise.resolve(ON_OFF)
+      },
+      select: () => Promise.resolve(ON_OFF),
+      subscribe: inert,
+    })
+
+    await settled()
+
+    /*
+     * 空表与失败是两种不同的画法：一个都没有时屏幕上什么都不画，而这是一次真的
+     * 失败，它必须说出理由并且能被再试一次（见 agent-ui 的 session-controls.tsx）。
+     */
+    expect(store.snapshot().controls).toHaveLength(0)
+    expect(store.snapshot().failure).toContain('agent 没起来')
+
+    store.refresh()
+    await settled()
+
+    expect(store.snapshot().failure).toBeUndefined()
+    expect(currentOf(store.snapshot().controls, 'thought')).toBe('off')
 
     stop()
   })

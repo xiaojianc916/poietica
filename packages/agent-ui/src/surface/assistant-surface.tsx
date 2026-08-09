@@ -1,12 +1,6 @@
 import './assistant.css'
 
-import {
-  type AssistantSubmission,
-  type FeedRow,
-  useAssistantPending,
-  useAssistantPendingCount,
-  useAssistantSession,
-} from '@poietica/agent'
+import type { FeedRow } from '@poietica/agent'
 import type { AgentSessionPort, SessionConfigControl } from '@poietica/agent-contract'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
@@ -23,6 +17,12 @@ import {
   isQuestionRequest,
   readQuestionPrompt,
 } from '../semantics/ask-user-question'
+import {
+  type AssistantSubmission,
+  useAssistantPending,
+  useAssistantPendingCount,
+  useAssistantSession,
+} from '../session/use-assistant-session'
 import { TimelineRow } from '../timeline/timeline-row'
 import { TranscriptView } from '../timeline/transcript-view'
 export interface AssistantSurfaceProps {

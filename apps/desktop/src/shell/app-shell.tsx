@@ -1,7 +1,7 @@
-import { installAgentCapabilityPort, refreshAgentCapabilities } from '@poietica/agent'
+import { AgentCapabilityStore } from '@poietica/agent'
 import type { AgentSessionPort } from '@poietica/agent-contract'
 import type { AgentDialect } from '@poietica/agent-ui'
-import { AgentDialectContext } from '@poietica/agent-ui'
+import { AgentControlsContext, AgentDialectContext } from '@poietica/agent-ui'
 import type { AppUpdateController, MainWindowController } from '@poietica/desktop-adapters'
 import { AppUpdateStore } from '@poietica/desktop-adapters'
 import type { AgentConfigStore, SettingsStore } from '@poietica/settings'
@@ -243,46 +243,55 @@ export function AppShell({ runtime }: AppShellProps) {
   }, [runtime.settings])
 
   /*
-   * 这一家 agent 提供哪些可调项：从哪里问、什么时候重问，都在这里接一次。
+   * 这一家 agent 提供哪些可调项，一个进程一份。
    *
-   * 两件事同源同寿 —— 端口按「用哪一家」建，而设置页动过它的配置之后那张表就不
-   * 再作数。此前接线在那一格的 effect 里、重问在这里：它卸载时通知落空，重新挂载
-   * 时装载又在 source === port 上提前返回，等于什么都没发生，人只好去重启。
+   * useState 的初始化函数，不是 useMemo：useMemo 是性能优化，React 允许丢弃缓存
+   * 重算，而这台 store 有身份（start() 返回退订），丢一次缓存就多一个实例、多一份
+   * 订阅。理由与上面那枚更新胶囊逐字相同。
    *
-   * 而且那一格每开一个标签就有一个实例，各自装各自的。它能对，靠的是端口按 agent
-   * 记过一次、能力表又按端口身份判过一次 —— 两层记忆化叠出来的巧合。
+   * 读不到和改不动分开报：一次被拒的改动顶着「没能读到可用的模型，去看看密钥填了
+   * 没有」上屏，唯一的效果是让人去检查一把本来就是对的钥匙。这两个回调是给日志与
+   * 降级用的；屏幕上那一格读的是 store 快照里的 failure，因为它要能被再试一次。
+   */
+  const [agentControls] = useState(
+    () =>
+      new AgentCapabilityStore({
+        report: {
+          readFailed: (cause) => {
+            reportFailure('AGENT_CAPABILITIES_UNREADABLE', {
+              scope: 'app-shell',
+              operation: 'read-capabilities',
+              cause,
+            })
+          },
+
+          changeFailed: (cause) => {
+            reportFailure('AGENT_CONFIG_CHANGE_REJECTED', {
+              scope: 'app-shell',
+              operation: 'change-capability',
+              cause,
+            })
+          },
+        },
+      }),
+  )
+
+  /*
+   * 端口与重问的通知同源同寿，所以它们是同一个 effect 的一次装载与一次清理。
    *
-   * 这一层与方言、会话列表同级，都是「一个进程一份、活到进程结束」的事实。
+   * 端口按「用哪一家 agent」建，设置页动过它的配置之后那张表就不再作数。装载几次
+   * 就退订几次，不可能配不平 —— 与 ThreadsStore.start 同一条纪律。
    */
   useEffect(() => {
-    const port = desktopAgentCapabilities(runtime.agentConfig, agentId)
+    const stop = agentControls.start(desktopAgentCapabilities(runtime.agentConfig, agentId))
 
-    /*
-     * 读不到和改不动分开报。
-     *
-     * 共用一个回调的那段时间里，一次被拒的改动会顶着「没能读到可用的模型，去看看
-     * 密钥填了没有」上屏 —— 而密钥好好的，那句话唯一的效果是让人去检查没坏的东西。
-     */
-    installAgentCapabilityPort(port, {
-      readFailed: (cause) => {
-        reportFailure('AGENT_CAPABILITIES_UNREADABLE', {
-          scope: 'app-shell',
-          operation: 'read-capabilities',
-          cause,
-        })
-      },
+    const stopWatchingConfig = runtime.agentConfig.subscribeConfigChanged(agentControls.refresh)
 
-      changeFailed: (cause) => {
-        reportFailure('AGENT_CONFIG_CHANGE_REJECTED', {
-          scope: 'app-shell',
-          operation: 'change-capability',
-          cause,
-        })
-      },
-    })
-
-    return runtime.agentConfig.subscribeConfigChanged(refreshAgentCapabilities)
-  }, [agentId, runtime.agentConfig])
+    return () => {
+      stopWatchingConfig()
+      stop()
+    }
+  }, [agentControls, agentId, runtime.agentConfig])
 
   useCommandKeybindings(runtime.commands)
 
@@ -296,51 +305,53 @@ export function AppShell({ runtime }: AppShellProps) {
      * 同一份，否则列表亮着一条而标签停在另一条。
      */
     <AgentDialectContext value={dialect}>
-      <ThreadsProvider>
-        {/*
-         * 无渲染产出，只是让「到期时做什么」与应用同寿；表本身在原生侧走。放在
-         * ThreadsProvider 之内是硬要求：一次运行要开出一条对话，而开对话的动作出
-         * 自这个 provider。
-         */}
-        <AutomationDispatcher session={runtime.agentSession} />
+      <AgentControlsContext value={agentControls}>
+        <ThreadsProvider>
+          {/*
+           * 无渲染产出，只是让「到期时做什么」与应用同寿；表本身在原生侧走。放在
+           * ThreadsProvider 之内是硬要求：一次运行要开出一条对话，而开对话的动作出
+           * 自这个 provider。
+           */}
+          <AutomationDispatcher session={runtime.agentSession} />
 
-        {/* 同样无渲染产出：让插件的装载与应用同寿。 */}
-        <PluginLoader />
+          {/* 同样无渲染产出：让插件的装载与应用同寿。 */}
+          <PluginLoader />
 
-        {/*
-          同样无渲染产出：把会话列表贡献进命令注册表，于是搜索框里第一组就是
-          「聊天」。必须在 ThreadsProvider 之内 —— 它读的就是那份列表。
-        */}
-        <ConversationCommands registry={runtime.commands} workspace={runtime.workspace} />
+          {/*
+            同样无渲染产出：把会话列表贡献进命令注册表，于是搜索框里第一组就是
+            「聊天」。必须在 ThreadsProvider 之内 —— 它读的就是那份列表。
+          */}
+          <ConversationCommands registry={runtime.commands} workspace={runtime.workspace} />
 
-        <WorkspaceContainer
-          agentConfigStore={runtime.agentConfig}
-          agentSession={runtime.agentSession}
-          appVersion={runtime.appVersion}
-          capabilities={capabilities}
-          commands={runtime.commands}
-          dataDirectory={runtime.dataDirectory}
-          isSettingsOpen={isSettingsOpen && capabilities.settings}
-          isWindowMaximized={isWindowMaximized}
-          onDeveloperToolsOpen={openDeveloperTools}
-          onSettingsClose={closeSettings}
-          onSettingsOpen={openSettings}
-          onWindowClose={closeWindow}
-          onWindowMaximize={maximizeWindow}
-          onWindowMinimize={minimizeWindow}
-          settingsStore={runtime.settings}
-          sidebarFooterSlot={<UpdateCapsule store={updates} />}
-          workspace={runtime.workspace}
-        />
+          <WorkspaceContainer
+            agentConfigStore={runtime.agentConfig}
+            agentSession={runtime.agentSession}
+            appVersion={runtime.appVersion}
+            capabilities={capabilities}
+            commands={runtime.commands}
+            dataDirectory={runtime.dataDirectory}
+            isSettingsOpen={isSettingsOpen && capabilities.settings}
+            isWindowMaximized={isWindowMaximized}
+            onDeveloperToolsOpen={openDeveloperTools}
+            onSettingsClose={closeSettings}
+            onSettingsOpen={openSettings}
+            onWindowClose={closeWindow}
+            onWindowMaximize={maximizeWindow}
+            onWindowMinimize={minimizeWindow}
+            settingsStore={runtime.settings}
+            sidebarFooterSlot={<UpdateCapsule store={updates} />}
+            workspace={runtime.workspace}
+          />
 
-        <CommandPalette
-          onOpenChange={setCommandPaletteOpen}
-          open={isCommandPaletteOpen}
-          registry={runtime.commands}
-        />
+          <CommandPalette
+            onOpenChange={setCommandPaletteOpen}
+            open={isCommandPaletteOpen}
+            registry={runtime.commands}
+          />
 
-        <UiFeedbackRegion />
-      </ThreadsProvider>
+          <UiFeedbackRegion />
+        </ThreadsProvider>
+      </AgentControlsContext>
     </AgentDialectContext>
   )
 }

@@ -902,24 +902,21 @@ const AGENT_IDENTITY = 'apps/desktop/src/assistant/agent-session.ts'
 const COMPOSITION_ROOT = 'apps/desktop/src/shell/app-shell.tsx'
 
 /*
- * 进程里那一份 agent 选择的产地，和它出包要经过的两道门：session 那一侧的内部桶，
- * 以及整个包的公共入口。两道门都得让路，否则出口自己会被规则报出来。
- */
-const AGENT_CHOICES = 'packages/agent/src/session/agent-capability-store.ts'
-const AGENT_ENTRIES = new Set([
-  'packages/agent/src/index.ts',
-  'packages/agent/src/session/index.ts',
-])
-
-/*
- * 投影那一半不认识 React。
+ * domain 层不认识 React。
  *
- * 合并进同一个包之前，「纯」是靠 manifest 守的：agent-timeline 的依赖表里没有
- * react，写了在 pnpm 的隔离式 node_modules 下根本解析不到。合并之后 manifest 只
- * 剩一份，那道墙必须由这里接着立 —— 否则第一个图省事的 useMemo 就会把一段能在
- * Node 里直接单测的纯投影绑死在渲染器上。测试文件一并算数：纯度是整棵子树的事。
+ * 这一层是投影、状态与不变式：它必须能在 Node 里直接单测，也必须能在渲染器之外被
+ * 构造。判据不能只靠 manifest —— 依赖表里没有 react 时 pnpm 的隔离式 node_modules
+ * 确实解析不到，但那张表随时可以被加上一行，而方向判据只认 @poietica/* 的边（见
+ * LOCAL_PACKAGE），react 不在其中：hooks 与 Context 搬进 domain 时整条规则一声不响。
+ *
+ * 范围取自分层表本身，不另抄一份包名 —— domain 是哪几个包只有一个答案。测试文件
+ * 一并算数：这是整棵子树的事。zed 的 crates/agent 里没有 gpui，gpui 在
+ * crates/agent_ui；VS Code 同样把框架依赖算进方向判据（vs/base/common 不得 import
+ * vs/base/browser）。
  */
-const TIMELINE_CORE = 'packages/agent/src/timeline/'
+const FRAMEWORK_FREE_ROOTS = layers
+  .find((layer) => layer.name === 'domain')
+  .packages.map((pkg) => `${layeredPackages.get(pkg)}/src/`)
 
 export const rules = [
   {
@@ -972,52 +969,25 @@ export const rules = [
     message: 'agent 身份只在组合根订阅一次，其余顺 props 接下去',
   },
   /*
-   * 领域层不许伸手去拿那份进程单例。
+   * 能力表只在组合根造出来。
    *
-   * SessionControlsStore 的另外四个依赖（端口、配置、转录、通知）本来就是构造时
-   * 交进来的，唯独「人选中了哪个模型」曾是 import 进来的两个自由函数。同一个类里
-   * 两套依赖获取方式，后一套让它没法脱离进程单例被构造 —— 依赖是 import 进来的，
-   * 测试就没有地方把替身交进去。
+   * 端口按「用哪一家 agent」建，重问的通知也按同一家来，两件事同源同寿，所以它们
+   * 是同一个 effect 的一次装载与一次清理。判据落在构造上，不落在某个函数名上：
+   * 「一个进程一份」这条纪律唯一可验证的形状，就是全仓只有组合根出现一次 new。
    *
-   * 规则守的是方向：产地可以造它，包的出口可以转手，中间的领域代码只能收下别人
-   * 交进来的那一份。
-   */
-  {
-    id: 'agent-choices-are-injected',
-    appliesTo: (file) =>
-      isProductionSource(file) &&
-      file.startsWith('packages/agent/src/session/') &&
-      file !== AGENT_CHOICES &&
-      !AGENT_ENTRIES.has(file),
-    pattern: /\bagentChoices\b/g,
-    message: 'agent 选择要构造时交进来，不要 import 进来',
-  },
-  /*
-   * 能力表只接一次线，在组合根。
-   *
-   * 端口按「用哪一家 agent」建，重问的通知也按同一家来，两件事同源同寿。此前接线
-   * 在标签那一格的 effect 里、重问在组合根：那一格每开一个标签就有一个实例，各自
-   * 装各自的；它卸载时通知落空，重挂时又在 source === port 上提前返回。它能对，
-   * 靠的是端口按 agent 记过一次、能力表又按端口身份判过一次 —— 两层记忆化叠出来
-   * 的巧合，其中任何一层松一下都是「设置里改完，工具条不动」。
-   *
-   * 判据落在原始文本上，注释也算：一条教人在别处再装一次的注释，与真装一次等价。
+   * 测试文件不在此列（isProductionSource）—— 它们本来就该各造一份自己的。
    */
   {
     id: 'agent-capabilities-wired-at-the-root',
-    appliesTo: (file) =>
-      isProductionSource(file) &&
-      file !== AGENT_CHOICES &&
-      !AGENT_ENTRIES.has(file) &&
-      file !== COMPOSITION_ROOT,
-    pattern: /\binstallAgentCapabilityPort\b/g,
-    message: 'agent 能力表只在组合根接一次线，不要在渲染层装',
+    appliesTo: (file) => isProductionSource(file) && file !== COMPOSITION_ROOT,
+    pattern: /\bnew AgentCapabilityStore\b/g,
+    message: 'agent 能力表只在组合根造一份，经 Context 下发，不要在渲染层新建',
   },
   {
-    id: 'timeline-projection-stays-pure',
-    appliesTo: (file) => file.startsWith(TIMELINE_CORE),
+    id: 'framework-free-domain',
+    appliesTo: (file) => FRAMEWORK_FREE_ROOTS.some((root) => file.startsWith(root)),
     pattern: /(?<=(?:from|import)\s*\(?\s*['"])react(?:-dom)?(?=['"/])/g,
-    message: 'timeline/ 是纯投影：React 只允许出现在 session/ 与 UI 包',
+    message: 'domain 不认识 React：hooks 与 Context 归 UI 包，投影与状态要能在 Node 里单测',
   },
   ...entryOwnershipRules,
   {

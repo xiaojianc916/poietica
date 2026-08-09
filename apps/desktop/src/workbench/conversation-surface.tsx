@@ -1,6 +1,5 @@
-import { chooseAgentControl, useAgentControls } from '@poietica/agent'
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { AssistantSurface, installAttachmentIntake } from '@poietica/agent-ui'
+import { AssistantSurface, installAttachmentIntake, useAgentControls } from '@poietica/agent-ui'
 import { createAttachmentIntake } from '@poietica/desktop-adapters'
 import { useCallback, useEffect } from 'react'
 import {
@@ -90,18 +89,25 @@ export function ConversationSurface({
   }, [threadId, threads])
 
   /*
-   * 没有会话的那一格，画的是偏好。
+   * 两个 scope，一条判据。
    *
-   * 此前它是 NO_CONTROLS —— 一个空数组，于是工具条里那个模型选择器连数据都
-   * 没有，画不出来。可"有哪些模型可选"是这个 agent 的能力，不是某条会话的
-   * 属性；人想用哪个更是他自己的事。两者都不需要一条对话存在。
+   * 入口那一格既没有对话也没有会话，它画的是这一家 agent 的表 —— 能力属于 agent,
+   * 人想用哪个模型更是他自己的事，两者都不需要一条对话存在。进了对话之后画的是那条
+   * 会话自己的表（见 @poietica/agent 的 SessionControlsStore）：ACP 的配置是会话级的,
+   * 一条会话选了什么说明不了另一条选了什么。
    *
-   * 已有对话在自己的表到达之前也落在这里：先画已知的那张，而不是先画一个空
-   * 工具条再让它长出来。
+   * 所以读、写、重试三样都按同一个 threadId === null 分岔。少分一样就够了：写恒发往
+   * 锚会话时，屏幕上显示的是这条会话的值，改动却落在另一条会话和 config.toml 上，而
+   * session-controls-store.ts 开头把「屏幕写甲、会话跑乙」列为不允许存在的状态。
+   *
+   * 已有对话在自己的表到达之前先画 agent 那张：那是一份已知的真话，比一个空工具条
+   * 再长出来好。
    */
-  const known = useAgentControls()
+  const { controls: known, failure: knownFailure, retry, selectControl } = useAgentControls()
 
   const controls = threadId === null ? known : (offered ?? known)
+
+  const controlsFailure = threadId === null ? knownFailure : failure
 
   /*
    * 交下去的每一个回调都钉住标识。
@@ -110,10 +116,28 @@ export function ConversationSurface({
    * 一次也命中不了：这一格但凡重画一次，转录、虚拟列表、输入框整棵树跟着走一遍。
    */
   const retryControls = useCallback(() => {
-    if (threadId !== null) {
-      threads.retrySelectors(threadId)
+    if (threadId === null) {
+      retry()
+
+      return
     }
-  }, [threadId, threads])
+
+    threads.retrySelectors(threadId)
+  }, [retry, threadId, threads])
+
+  /* 改一项，交给持有这张表的那一方：入口那格是 agent，对话里是那条会话。 */
+  const chooseControl = useCallback(
+    (controlId: string, value: string) => {
+      if (threadId === null) {
+        selectControl(controlId, value)
+
+        return
+      }
+
+      threads.selectControl(threadId, controlId, value)
+    },
+    [selectControl, threadId, threads],
+  )
 
   const userMessage = useCallback(
     (conversation: string, text: string) => {
@@ -126,11 +150,11 @@ export function ConversationSurface({
   return (
     <AssistantSurface
       controls={controls}
-      controlsFailure={failure}
+      controlsFailure={controlsFailure}
       endpoint={threadId}
       identify={onIdentify}
       onRetryControls={retryControls}
-      onSelectControl={chooseAgentControl}
+      onSelectControl={chooseControl}
       onUserMessage={userMessage}
       session={session}
     />

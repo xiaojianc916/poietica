@@ -5,11 +5,11 @@ import {
   selectIsBusy,
   selectIsWaiting,
   selectTurns,
-  useAssistantTimeline,
 } from '@poietica/agent'
 import { type ReactNode, useCallback, useMemo } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
+import { useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { ThinkingIndicator } from './thinking-indicator'
 

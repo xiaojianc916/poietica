@@ -227,12 +227,6 @@ importers:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
     devDependencies:
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.18
-      react:
-        specifier: 'catalog:'
-        version: 19.2.8
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

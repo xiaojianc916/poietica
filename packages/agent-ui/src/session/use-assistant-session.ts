@@ -1,26 +1,24 @@
+import type { PermissionItem, TimelineState, Transcript } from '@poietica/agent'
+import { pendingPermission, pendingPermissionCount } from '@poietica/agent'
 import type { AgentSessionPort, ChatStatus, PromptAsset } from '@poietica/agent-contract'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
-import type { PermissionItem, TimelineState } from '../timeline'
-import { pendingPermission, pendingPermissionCount } from '../timeline'
-import type { Transcript } from './transcript-store'
 import { useTranscripts } from './transcripts-context'
 
 /*
  * 界面从 store 里读什么，以什么粒度读。
  *
- * 此前这里只有一条订阅，读的是整个 Transcript —— 而 store 每一拍都交出一个新
- * 对象（#settle 里的 { ...current, timeline }）。于是唯一的订阅者 AssistantSurface
- * 在流式期间以帧率重渲染，连同它挂着的整个输入框子树：草稿、附件、模型选择器、
+ * store 每一拍都交出一个新的 Transcript 对象，所以「一条订阅读整份」等于让唯一的
+ * 订阅者在流式期间以帧率重渲染，连同它挂着的整个输入框子树：草稿、附件、模型选择器、
  * 发送键，没有一个与转录内容有关。
  *
- * React 对 useSyncExternalStore 的保证是：快照 Object.is 相等就不重渲染。所以
- * 正确的形状不是「一条订阅 + 一堆 memo 去挡」，而是按字段各订一条，每条都交出
- * 一个能稳定比较的东西：
+ * React 对 useSyncExternalStore 的保证是：快照 Object.is 相等就不重渲染。所以正确的
+ * 形状不是「一条订阅 + 一堆 memo 去挡」，而是按字段各订一条，每条都交出一个能稳定
+ * 比较的东西：
  *
  *   status     字符串字面量
  *   restoring  布尔
  *   timeline   转录本身 —— 只有真正画转录的那棵子树订它
- *   pending    条目引用，reducer 只在它被答复时才换（timeline-reducer 的就地替换）
+ *   pending    条目引用，reducer 只在它被答复时才换
  *
  * 这不是四份数据，是同一份状态的四个投影，共用同一个订阅入口。
  */
@@ -30,10 +28,8 @@ export interface AssistantSubmission {
   /**
    * 这一句带的图片，已经在原生的交付注册表里。
    *
-   * 不是 File。字节在用户放手的那一刻就入了库（拖放与文件对话框交路径，
-   * 剪贴板交一次 base64），所以发送这条路上再没有任何要读、要编码、要等的
-   * 东西 —— 此前这里是一次 arrayBuffer 加一次 btoa，一张十六兆的图会在
-   * 发送前把主线程占住，而它换来的只是把本机文件交给本机进程。
+   * 不是 File：字节在用户放手的那一刻就入了库（拖放与文件对话框交路径，剪贴板交
+   * 一次 base64），所以发送这条路上再没有任何要读、要编码、要等的东西。
    */
   readonly assets: readonly PromptAsset[]
 }
@@ -89,7 +85,7 @@ function useSlice<TValue>(key: string, project: (transcript: Transcript) => TVal
   )
 }
 
-/* 纯 switch,返回字符串字面量:依赖数组的分配与比较比它本身贵。 */
+/* 纯 switch，返回字符串字面量：依赖数组的分配与比较比它本身贵。 */
 function toChatStatus(status: TimelineState['status']): ChatStatus {
   switch (status) {
     case 'running':
@@ -156,14 +152,7 @@ export function useAssistantSession({
     transcripts.ensure(session)
   }, [session, transcripts])
 
-  /*
-   * 说一句话，就是说一句话。
-   *
-   * 这里此前要先把附件读成 base64，于是发送是异步的、可能失败的、而且失败
-   * 的理由（读文件）与这句话本身毫无关系。附件现在进门就已经入库，所以这条
-   * 路上没有任何要等的东西 —— toPromptImages 连同它那个 32 KiB 分块的
-   * base64 编码器整个不存在了。
-   */
+  /* 说一句话，就是说一句话：附件进门就已经入库，这条路上没有任何要等的东西。 */
   const send = useCallback(
     (submission: AssistantSubmission) => {
       transcripts.send({
@@ -207,8 +196,8 @@ export function useAssistantTimeline(key: string): TimelineState {
  * 这一轮此刻卡在哪一道权限请求上，没有就是 undefined。
  *
  * 交回条目本身：它的身份由 reducer 维护（答复到达时才就地替换那一条），所以
- * 订阅它不会被流式追加打扰。是不是一道「提问」由界面层按方言判，那是 domain
- * 的事，这一层只回答「有没有人在等」。
+ * 订阅它不会被流式追加打扰。是不是一道「提问」由界面层按方言判，这一层只回答
+ * 「有没有人在等」。
  */
 export function useAssistantPending(key: string): PermissionItem | undefined {
   return useSlice(key, readPending)
