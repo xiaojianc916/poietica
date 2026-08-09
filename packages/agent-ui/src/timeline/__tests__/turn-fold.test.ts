@@ -1,147 +1,135 @@
-import type { FeedRow, TimelineItem, TurnSpan } from '@poietica/agent'
+import type { FeedRow, TurnSpan } from '@poietica/agent'
 import { describe, expect, it } from 'vitest'
 import { foldFeed } from '../turn-fold'
 
-/*
- * 折叠的七条不变量，逐条钉住。
- *
- * 这里面有一条是上一版最贵的教训：一轮以过程收尾时一个字都不许折。当时的判据从末尾
- * 倒扫、撞上工具就返回「没有回复」，而随后那一步把「不是回复」当成「都是过程」，于是
- * 整轮输出连正文一起被折进一行。
- */
+function row(item: FeedRow['item']): FeedRow {
+  return { item, isStreamingTail: false, isInFlight: false }
+}
 
-const row = (item: TimelineItem): FeedRow => ({
-  item,
-  isStreamingTail: false,
-  isInFlight: false,
-})
+function said(id: string, turn: number, at: number): FeedRow {
+  return row({ type: 'user_message', id, turn, at, text: '问一句' })
+}
 
-const said = (id: string, turn = 0): TimelineItem => ({
-  type: 'user_message',
-  id,
-  turn,
-  at: 0,
-  text: '把 README 里的构建命令核对一遍',
-})
+function thought(id: string, turn: number, at: number): FeedRow {
+  return row({ type: 'agent_thought', id, turn, at, text: '想一下', sealed: true })
+}
 
-const thought = (id: string, turn = 0): TimelineItem => ({
-  type: 'agent_thought',
-  id,
-  turn,
-  at: 0,
-  text: '先读 README，再与 package.json 对照。',
-  sealed: true,
-})
+function spoke(id: string, turn: number, at: number): FeedRow {
+  return row({ type: 'agent_text', id, turn, at, text: '答一句', sealed: true })
+}
 
-const spoke = (id: string, text: string, turn = 0): TimelineItem => ({
-  type: 'agent_text',
-  id,
-  turn,
-  at: 0,
-  text,
-  sealed: true,
-})
+function broke(id: string, turn: number, at: number): FeedRow {
+  return row({ type: 'error', id, turn, at, message: '断了' })
+}
 
-const broke = (id: string, turn = 0): TimelineItem => ({
-  type: 'error',
-  id,
-  turn,
-  at: 0,
-  message: '答复送不出去',
-})
+function settled(turn: number, startedAt: number, endedAt: number): TurnSpan {
+  return { turn, startedAt, endedAt }
+}
 
-const settled: readonly TurnSpan[] = [{ turn: 0, startedAt: 1_000, endedAt: 89_000 }]
-const running: readonly TurnSpan[] = [{ turn: 0, startedAt: 1_000 }]
+function running(turn: number, startedAt: number): TurnSpan {
+  return { turn, startedAt }
+}
 
-const idsOf = (rows: readonly FeedRow[]): readonly string[] => rows.map((row) => row.item.id)
+function idsOf(rows: readonly FeedRow[]): string[] {
+  return rows.map((one) => one.item.id)
+}
 
-describe('folding a settled turn', () => {
-  it('leaves the question, the seal and the answer', () => {
-    const rows = [row(said('q')), row(thought('t')), row(spoke('a', '构建命令与 scripts 一致。'))]
-    const feed = foldFeed(rows, settled, new Set<number>())
+describe('foldFeed', () => {
+  it('folds as the answer arrives, without waiting for the turn to end', () => {
+    const rows = [said('q', 0, 1_000), thought('t', 0, 2_000), spoke('a', 0, 5_000)]
+    const feed = foldFeed(rows, [running(0, 1_000)], new Set())
 
     expect(idsOf(feed.rows)).toEqual(['q', 'a'])
     expect(feed.seals.get('a')).toEqual({
       turn: 0,
       startedAt: 1_000,
-      endedAt: 89_000,
+      endedAt: 5_000,
       hasProcess: true,
       isOpen: false,
     })
   })
 
-  it('never folds what the user said, not even mid-turn', () => {
-    const rows = [
-      row(said('q1')),
-      row(thought('t')),
-      row(said('q2')),
-      row(spoke('a', '两处都改好了。')),
-    ]
-
-    expect(idsOf(foldFeed(rows, settled, new Set<number>()).rows)).toEqual(['q1', 'q2', 'a'])
-  })
-
-  it('reads past an error to find the answer, and keeps the error', () => {
-    const rows = [row(said('q')), row(thought('t')), row(spoke('a', '好了。')), row(broke('e'))]
-
-    expect(idsOf(foldFeed(rows, settled, new Set<number>()).rows)).toEqual(['q', 'a', 'e'])
-  })
-
-  it('folds nothing when the turn ended on its process', () => {
-    const rows = [row(said('q')), row(thought('t'))]
-    const feed = foldFeed(rows, settled, new Set<number>())
+  it('keeps everything open while the turn is still working', () => {
+    const rows = [said('q', 0, 1_000), thought('t', 0, 2_000)]
+    const feed = foldFeed(rows, [running(0, 1_000)], new Set())
 
     expect(feed.rows).toBe(rows)
-    expect(feed.seals.get('t')?.hasProcess).toBe(false)
+    expect(feed.seals.get('t')).toEqual({
+      turn: 0,
+      startedAt: 1_000,
+      endedAt: undefined,
+      hasProcess: false,
+      isOpen: true,
+    })
   })
 
-  it('opens the turn on request and says so', () => {
-    const rows = [row(said('q')), row(thought('t')), row(spoke('a', '好了。'))]
-    const feed = foldFeed(rows, settled, new Set([0]))
+  it('opens again when process resumes after a first remark', () => {
+    const rows = [said('q', 0, 1_000), spoke('a', 0, 2_000), thought('t', 0, 3_000)]
+    const feed = foldFeed(rows, [running(0, 1_000)], new Set())
+
+    expect(feed.rows).toBe(rows)
+    expect(feed.seals.get('a')?.hasProcess).toBe(false)
+  })
+
+  it('honours a turn the reader opened, sealing the first process row', () => {
+    const rows = [said('q', 0, 1_000), thought('t', 0, 2_000), spoke('a', 0, 5_000)]
+    const feed = foldFeed(rows, [settled(0, 1_000, 9_000)], new Set([0]))
 
     expect(feed.rows).toBe(rows)
     expect(feed.seals.get('t')?.isOpen).toBe(true)
-    expect(feed.seals.get('t')?.hasProcess).toBe(true)
+    expect(feed.seals.get('a')).toBeUndefined()
   })
 
-  it('folds each turn on its own', () => {
+  it('never folds an aside, and reads past it to find the answer', () => {
     const rows = [
-      row(said('q0')),
-      row(thought('t0')),
-      row(spoke('a0', '第一轮好了。')),
-      row(said('q1', 1)),
-      row(thought('t1', 1)),
-      row(spoke('a1', '第二轮好了。', 1)),
+      said('q', 0, 1_000),
+      thought('t', 0, 2_000),
+      spoke('a', 0, 5_000),
+      broke('e', 0, 6_000),
     ]
+    const feed = foldFeed(rows, [settled(0, 1_000, 9_000)], new Set())
 
-    const feed = foldFeed(
-      rows,
-      [
-        { turn: 0, startedAt: 0, endedAt: 1_000 },
-        { turn: 1, startedAt: 2_000, endedAt: 5_000 },
-      ],
-      new Set([1]),
-    )
-
-    expect(idsOf(feed.rows)).toEqual(['q0', 'a0', 'q1', 't1', 'a1'])
-    expect(feed.seals.get('a0')?.isOpen).toBe(false)
-    expect(feed.seals.get('t1')?.isOpen).toBe(true)
+    expect(idsOf(feed.rows)).toEqual(['q', 'a', 'e'])
   })
-})
 
-describe('folding a turn that has not settled', () => {
-  it('shows everything and offers no toggle', () => {
-    const rows = [row(said('q')), row(thought('t'))]
-    const feed = foldFeed(rows, running, new Set<number>())
+  it('settles the clock on a turn that ended without an answer', () => {
+    const rows = [said('q', 0, 1_000), thought('t', 0, 2_000)]
+    const feed = foldFeed(rows, [settled(0, 1_000, 4_500)], new Set())
 
     expect(feed.rows).toBe(rows)
-    expect(feed.seals.get('t')?.endedAt).toBeUndefined()
-    expect(feed.seals.get('t')?.hasProcess).toBe(false)
+    expect(feed.seals.get('t')).toEqual({
+      turn: 0,
+      startedAt: 1_000,
+      endedAt: 4_500,
+      hasProcess: false,
+      isOpen: true,
+    })
   })
 
-  it('draws no seal at all for a log that never recorded a start', () => {
-    const rows = [row(said('q')), row(spoke('a', '这是上个月那条对话。'))]
-    const feed = foldFeed(rows, [], new Set<number>())
+  it('seals nothing on a turn that is only a question', () => {
+    const feed = foldFeed([said('q', 0, 1_000)], [running(0, 1_000)], new Set())
+
+    expect(feed.seals.size).toBe(0)
+  })
+
+  it('gives every turn its own seal', () => {
+    const rows = [
+      said('q0', 0, 1_000),
+      thought('t0', 0, 2_000),
+      spoke('a0', 0, 3_000),
+      said('q1', 1, 4_000),
+      thought('t1', 1, 5_000),
+      spoke('a1', 1, 6_000),
+    ]
+    const feed = foldFeed(rows, [settled(0, 1_000, 3_500), running(1, 4_000)], new Set())
+
+    expect(idsOf(feed.rows)).toEqual(['q0', 'a0', 'q1', 'a1'])
+    expect([...feed.seals.keys()]).toEqual(['a0', 'a1'])
+  })
+
+  it('leaves an older conversation untouched when no span was recorded', () => {
+    const rows = [said('q', 0, 1_000), spoke('a', 0, 2_000)]
+    const feed = foldFeed(rows, [], new Set())
 
     expect(feed.rows).toBe(rows)
     expect(feed.seals.size).toBe(0)

@@ -7,7 +7,6 @@ import {
   selectTurns,
 } from '@poietica/agent'
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { flushSync } from 'react-dom'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useAssistantTimeline } from '../session/use-assistant-session'
@@ -37,9 +36,6 @@ const NOTHING_OPENED: ReadonlySet<number> = new Set()
  * 的补间与我们的布局无关。类型定义里还没有它，所以就近声明一次，而不是往全局塞
  * 一个 any。
  */
-type ViewTransitionHost = {
-  readonly startViewTransition?: (update: () => void) => unknown
-}
 
 export interface TranscriptViewProps {
   readonly sessionKey: string
@@ -96,29 +92,14 @@ export function TranscriptView({
    * —— 少一段动画，不少一个功能。
    */
   const toggleTurn = useCallback((turn: number) => {
-    const flip = () => {
-      setOpened((current) => {
-        const next = new Set(current)
+    setOpened((held) => {
+      const next = new Set(held)
 
-        if (!next.delete(turn)) {
-          next.add(turn)
-        }
+      if (!next.delete(turn)) {
+        next.add(turn)
+      }
 
-        return next
-      })
-    }
-
-    const host = document as unknown as ViewTransitionHost
-    const stillness = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-    if (host.startViewTransition === undefined || stillness) {
-      flip()
-
-      return
-    }
-
-    host.startViewTransition(() => {
-      flushSync(flip)
+      return next
     })
   }, [])
 
@@ -165,7 +146,7 @@ export function TranscriptView({
             startedAt={seal.startedAt}
             turn={seal.turn}
           />
-          {renderRow(row)}
+          <div className="turn-seal__reveal">{renderRow(row)}</div>
         </>
       )
     },
