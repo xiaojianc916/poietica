@@ -7,6 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/ui'
+import { ListFilter } from 'lucide-react'
 import { useState } from 'react'
 import { ChevronDownIcon, FolderClosedIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons'
 
@@ -70,6 +71,7 @@ export function WorkspacePicker({
   placement = 'sidebar',
 }: WorkspacePickerProps) {
   const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
 
   const others = choices.filter((choice) => choice.id !== current?.id)
   const needle = query.trim().toLowerCase()
@@ -85,12 +87,15 @@ export function WorkspacePicker({
     <div className="workspace-picker" data-assistant-skin data-placement={placement}>
       <DropdownMenu
         modal={false}
-        onOpenChange={(open) => {
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen)
+
           /* 搜索词是这一次弹层的草稿，关了就清。 */
-          if (!open) {
+          if (!nextOpen) {
             setQuery('')
           }
         }}
+        open={open}
       >
         {placement === 'composer' ? (
           <DropdownMenuTrigger
@@ -108,22 +113,52 @@ export function WorkspacePicker({
           </DropdownMenuTrigger>
         ) : (
           <>
-            <span className="workspace-picker__name" title={current?.id}>
-              {current?.name ?? '选择工作目录'}
-            </span>
-
             <DropdownMenuTrigger
-              aria-label="切换工作目录"
-              className="workspace-picker__browse"
-              title="切换工作目录"
+              aria-label="切换工作区"
+              className="workspace-picker__repositories-title"
+              title="切换工作区"
             >
-              <FolderClosedIcon aria-hidden="true" />
+              <span>Repositories</span>
+
+              <ChevronDownIcon
+                aria-hidden="true"
+                className="workspace-picker__repositories-chevron"
+                data-open={open ? 'true' : undefined}
+              />
             </DropdownMenuTrigger>
+
+            <span className="workspace-picker__repositories-actions">
+              <button
+                aria-label="筛选仓库"
+                aria-pressed={open}
+                className="workspace-picker__repositories-action"
+                onClick={() => {
+                  setOpen(true)
+                }}
+                title="筛选仓库"
+                type="button"
+              >
+                <ListFilter aria-hidden="true" />
+              </button>
+
+              <button
+                aria-label="添加工作区"
+                className="workspace-picker__repositories-action"
+                onClick={() => {
+                  setOpen(false)
+                  onBrowse()
+                }}
+                title="添加工作区"
+                type="button"
+              >
+                <FolderPlusIcon aria-hidden="true" />
+              </button>
+            </span>
           </>
         )}
 
         <DropdownMenuContent
-          align={placement === 'composer' ? 'start' : 'end'}
+          align="start"
           className="workspace-picker__menu assistant-menu-surface"
           data-assistant-skin
           side="bottom"

@@ -333,53 +333,6 @@
   inline-size: var(--cp-icon);
 }
 
-.assistant-quick-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--cp-control-gap);
-}
-
-.assistant-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  border: var(--cp-px) solid var(--cp-edge);
-  border-radius: var(--cp-radius-tile);
-  padding: var(--cp-pad-tile) var(--cp-pad-x);
-  background: var(--cp-surface);
-  box-shadow: none;
-  text-align: start;
-  cursor: pointer;
-  transition:
-    box-shadow var(--cp-motion-swift) var(--cp-motion-ease),
-    transform var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.assistant-tile:hover {
-  box-shadow: var(--cp-lift);
-}
-
-/* 位移取偶数像素：1px 在 dpr 1.5 上是 1.5 个设备像素，整张卡会糊一帧。 */
-.assistant-tile:active {
-  transform: translateY(2px);
-}
-
-.assistant-tile__icon {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  color: var(--cp-ink-muted);
-}
-
-.assistant-tile__title {
-  font-size: var(--cp-font-label);
-  font-weight: 600;
-}
-
-.assistant-tile__subtitle {
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink-subtle);
-}
-
 /*
  * 行几何全部来自设计系统的 --ui-row-* 一族：会话行与侧边栏上方五个导航行是
  * 同一种行，中线、内缩、行高、图标尺寸各只有一个所有者。
@@ -746,10 +699,6 @@
     var(--cp-gutter),
     round(calc((100% - var(--cp-grid)) / 2), var(--ui-hairline))
   );
-}
-
-.assistant-surface__starters {
-  margin-block-start: var(--cp-stack);
 }
 
 .assistant-surface__composer {
@@ -1403,6 +1352,11 @@ svg.assistant-provider-icon {
   white-space: nowrap;
 }
 
+/* Cursor repository conversation indentation */
+.assistant-threads__group-header + .assistant-threads__list {
+  padding-inline-start: calc(var(--ui-row-icon-size) + var(--ui-row-gap));
+}
+
 /* 组内新建只在这一组被介入时出现，安静时组头只有名字。 */
 .assistant-threads__group-header .assistant-threads__create {
   flex: none;
@@ -1453,40 +1407,65 @@ svg.assistant-provider-icon {
 }
 
 /*
- * 工作目录那一行。
+ * Cursor 风格的 Repositories 区域标题。
  *
- * 它是侧栏的一行，所以它读侧栏的行几何（--ui-row-*），与会话行、导航行同高
- * 同缩进；菜单读 --am-* 那一族，与会话行的菜单是同一张皮。这里不新增任何令牌。
- *
- * 行本身不是动作，所以没有悬停底色：悬停只属于行尾那枚图标。名字的
- * 左缘落在会话行图标的中线上，图标的右缘与组头加号对齐。
+ * 左侧标题仍然是实际的工作区切换入口；右侧筛选按钮打开同一张选择菜单，
+ * 添加按钮继续调用宿主提供的系统文件夹选择器。
  */
-.workspace-picker {
+.workspace-picker[data-placement="sidebar"] {
   display: flex;
   block-size: var(--ui-row-height);
   flex: none;
   align-items: center;
-  justify-content: space-between;
   gap: var(--ui-row-gap);
   margin-block-start: var(--cp-mast-gap);
   padding-inline-start: calc(var(--ui-row-inset) + var(--ui-row-lead));
   padding-inline-end: calc(var(--ui-row-inset) + var(--ui-row-trail));
 }
 
-.workspace-picker__name {
-  overflow: hidden;
+.workspace-picker__repositories-title {
+  display: inline-flex;
+  min-inline-size: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  border: 0;
+  border-radius: var(--ui-row-radius);
+  padding: 0;
+  background: transparent;
   color: var(--cp-ink);
+  font: inherit;
   font-size: var(--cp-font-caption);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: pointer;
 }
 
-/* 几何与行内操作按钮同一枚令牌；底色与它共享的 --ui-sidebar-accent 同源。 */
-.workspace-picker__browse {
+.workspace-picker__repositories-title:hover {
+  color: var(--ui-foreground);
+}
+
+.workspace-picker__repositories-chevron {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+  color: var(--cp-ink-muted);
+  transition: transform var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.workspace-picker__repositories-chevron[data-open="true"] {
+  transform: rotate(180deg);
+}
+
+.workspace-picker__repositories-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--ui-hairline) * 2);
+  margin-inline-start: auto;
+}
+
+.workspace-picker__repositories-action {
   display: grid;
   block-size: var(--assistant-threads-action-size);
   inline-size: var(--assistant-threads-action-size);
-  flex: none;
   place-items: center;
   border: 0;
   border-radius: var(--cp-optical);
@@ -1496,21 +1475,22 @@ svg.assistant-provider-icon {
   cursor: pointer;
   transition:
     background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease),
     transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.workspace-picker__browse svg {
+.workspace-picker__repositories-action svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
 }
 
-.workspace-picker__browse:hover,
-.workspace-picker__browse[aria-expanded="true"] {
+.workspace-picker__repositories-action:hover,
+.workspace-picker__repositories-action[aria-pressed="true"] {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }
 
-.workspace-picker__browse:active {
+.workspace-picker__repositories-action:active {
   transform: scale(0.94);
 }
 

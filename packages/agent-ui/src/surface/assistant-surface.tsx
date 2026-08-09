@@ -2,12 +2,10 @@ import './assistant.css'
 
 import type { FeedRow } from '@poietica/agent'
 import type { AgentSessionPort, SessionConfigControl } from '@poietica/agent-contract'
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
-import { AssistantQuickActions } from '../composer/assistant-quick-actions'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
-import type { PromptInputHandle } from '../composer/prompt-input'
 import { modelProviderOf } from '../primitives/model-provider'
 import { ProviderIcon } from '../primitives/provider-icon'
 import { useAgentDialect } from '../semantics/agent-dialect'
@@ -65,12 +63,6 @@ export interface AssistantSurfaceProps {
   readonly workspace?: Omit<WorkspacePickerProps, 'placement'> | undefined
 }
 
-const STARTERS: Readonly<Record<string, string>> = {
-  create: '帮我创建 ',
-  find: '帮我查找 ',
-  research: '帮我研究 ',
-}
-
 /*
  * 两个静止态,两棵树,一个输入框。
  *
@@ -118,9 +110,6 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 所以两处永远说同一件事，换模型时一起换，不需要任何同步。
    */
   const provider = useMemo(() => modelProviderOf(controls), [controls])
-
-  /* Where a starter is written: the draft belongs to the field that holds it. */
-  const composer = useRef<PromptInputHandle | null>(null)
 
   /* 输入框盖在转录上，所以转录要知道它有多高。理由见 dock-clearance。 */
   const dockRef = useDockClearance()
@@ -265,7 +254,6 @@ export const AssistantSurface = memo(function AssistantSurface({
         onSelectControl={onSelectControl}
         onSubmit={submit}
         questionDeck={questionDeck}
-        ref={composer}
         status={assistant.status}
       />
     </div>
@@ -315,21 +303,6 @@ export const AssistantSurface = memo(function AssistantSurface({
         {live || workspace === undefined ? null : (
           <div className="assistant-surface__context">
             <WorkspacePicker {...workspace} placement="composer" />
-          </div>
-        )}
-
-        {live ? null : (
-          <div className="assistant-surface__starters">
-            <AssistantQuickActions
-              onSelect={(actionId) => {
-                const starter = STARTERS[actionId]
-
-                if (starter !== undefined) {
-                  composer.current?.setText(starter)
-                  composer.current?.focus()
-                }
-              }}
-            />
           </div>
         )}
       </div>
