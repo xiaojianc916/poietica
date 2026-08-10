@@ -1,7 +1,6 @@
 import { throughIpc } from './error'
 import type {
   ForeignPluginLedger,
-  ForeignPluginRecord,
   PluginCommitRequest,
   PluginFetch,
   PluginPayload,

@@ -15,18 +15,23 @@ import { TrustBadge } from './trust-badge'
  * 已经在盘上的条目不再出现在下面的目录网格里，而是升到上面那一行「已安装」。
  */
 
-/* 数的是真的读到的那些：清单声明几条路径不是能力，路径下有什么才是。 */
+/*
+ * 清单说得出的那几件事。
+ *
+ * 技能与命令的条数不在这里出现：读它们的是 CLI，本应用没有那份数字，硬要有就得自己
+ * 再扫一遍盘 —— 而扫出来的那份看不见全局技能，与「技能」那一格永远对不上。
+ */
 function capabilitySummary(plugin: InstalledPlugin): string {
-  const { mcpServers } = plugin.manifest
-  const { commands, skills } = plugin.registry
+  const { commandRoots, mcpServerNames, promptSources, sessionStartSkill } = plugin.manifest
 
   const parts = [
-    skills.length > 0 ? `技能 ${skills.length} 个` : undefined,
-    commands.length > 0 ? `命令 ${commands.length} 条` : undefined,
-    mcpServers.length > 0 ? `MCP ${mcpServers.length} 台` : undefined,
+    mcpServerNames.length > 0 ? `MCP ${mcpServerNames.length} 台` : undefined,
+    commandRoots.length > 0 ? '带来命令' : undefined,
+    sessionStartSkill === undefined ? undefined : '会话开始装载技能',
+    promptSources.length > 0 ? '注入系统提示词' : undefined,
   ].filter((part) => part !== undefined)
 
-  return parts.length === 0 ? '没有带来可调用的能力' : parts.join(' · ')
+  return parts.length === 0 ? '清单没有声明会带来什么' : parts.join(' · ')
 }
 
 /*
@@ -327,14 +332,14 @@ function InstallBanner({ install, store }: InstallBannerProps) {
     <div className="mt-4 rounded-xl border border-divider bg-background p-4">
       <p className="text-sm font-medium">{install.manifest.displayName}</p>
       {/*
-        装之前只知道清单说了什么：技能与命令要装完扫盘才数得出来。所以这里只说清单里确实
-        写着的那几台 MCP 服务器，不拿声明的路径条数冒充技能个数。
+        装之前只知道清单说了什么。技能与命令由 CLI 在装载时自己读，所以这里只说清单里确实
+        写着的那几台 MCP 服务器，也不承诺详情页会列出技能 —— 列它们的是「技能」那一格。
       */}
       <p className="pt-1 text-xs leading-5 text-muted-foreground">
         来自 {describeInstallSource(install.source)}。
-        {install.manifest.mcpServers.length === 0
-          ? '装上之后它带来的技能与命令会列在详情页里。'
-          : `它会启动 ${install.manifest.mcpServers.length} 台 MCP 服务器；技能与命令装完列在详情页里。`}
+        {install.manifest.mcpServerNames.length === 0
+          ? '装上之后它带来的技能会出现在「技能」那一格里。'
+          : `它会启动 ${install.manifest.mcpServerNames.length} 台 MCP 服务器；技能出现在「技能」那一格里。`}
       </p>
       {install.diagnostics.map((diagnostic) => (
         <p className="pt-1 text-xs text-muted-foreground" key={diagnostic.detail}>
