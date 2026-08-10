@@ -95,13 +95,15 @@ export function TranscriptView({
    * 折叠只发生在这一层。
    *
    * 领域层不知道有折叠这件事：它只记下每一轮的两端（TimelineState.spans），折哪几行
-   * 是屏幕的事。所以这里是一次纯函数派生 —— 一行都不用折时原样交回入参那个数组，
-   * 下游按引用比较的投影缓存不会被白打掉。
+   * 是屏幕的事。一行都不用折时它原样交回入参那个数组，下游按引用比较的投影缓存不会
+   * 被白打掉。
+   *
+   * 不包 useMemo，理由与上面那三个选择器同一条：foldFeed 自带按轮记账的投影缓存
+   * （turn-fold 的 FOLDS 弱表，三个入参都没换时交还同一个对象），而这里的依赖里有每帧
+   * 换引用的 visibleRows —— 再包一层永远不命中，只是每帧多一次依赖数组的分配与比较。
+   * 缓存的所有权只能有一个，而它在派生里。
    */
-  const feed = useMemo(
-    () => foldFeed(visibleRows, timeline.spans, opened),
-    [opened, timeline.spans, visibleRows],
-  )
+  const feed = foldFeed(visibleRows, timeline.spans, opened)
 
   /*
    * 轮次读的是屏幕上真正在滚的那个数组：摘出去一行、折起一段过程，下标都会跟着
