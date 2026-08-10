@@ -22,6 +22,21 @@ import type { FeedRow, TurnSpan } from '@poietica/agent'
  *
  * 折到哪里为止：这一轮最后那一段连续 agent_text 的起点，不要求它落在末尾。
  *
+ * 两条通道。转录里只放内容 —— 人说的话、回答、报错与授权；过程（思考、工具调用、
+ * 计划）在轮次还在跑的时候一律不进转录，它去转录尾部那块瞬态区。理由是虚拟列表：
+ * 一行先上屏、再被移出数组，虚拟器的 count 与 getItemKey 当场改变，一整屏行重新
+ * 落位 —— 那就是「思考完成后前面的内容整段消失又出现」。过程从出生就不在数组里，
+ * 这件事因此不可能发生；一轮之内转录只会追加。
+ *
+ * 标杆是同一套分法：Codex 的进度住 status_indicator_widget（底部瞬态区，随轮次
+ * 收走），回答走 history_cell 进终端 scrollback（物理上不可回收）—— 两条通道，两种
+ * 寿命。这里的对应物是 AgentActivityFeed 的 footer：它坐在 paddingEnd 预留出来的
+ * 那块空间里，在虚拟器的条目表之外，所以它的内容变化只经过一个数，碰不到任何一行
+ * 的身份与实测高度。
+ *
+ * 瞬态区的范围不由一个上限数字给出，由同一个边界给出：只收「最后一段回复之后」的
+ * 帧。模型说完一句话，之前那段工作就已经归封条了，它不该还留在「现在正在做」里。
+ *
  * 协议认不出最终回复 —— ACP 的 SessionUpdate 十三个变体里没有终局位，上游的
  * agent_message_chunk 只有 sessionUpdate 与 content 两格（kimi-code 的
  * events-map.ts），一句开场白与一句结论在报文里逐字同形。既然认不出来就不认：每一次
@@ -45,11 +60,22 @@ export type TurnSealPlan = {
 export type FoldedFeed = {
   readonly rows: readonly FeedRow[]
   readonly seals: ReadonlyMap<string, TurnSealPlan>
+  /**
+   * 这一段还没有结论的工作，按转录顺序。
+   *
+   * 它不在 rows 里，所以列表在一轮之内只会追加。读者是转录尾部那块瞬态区
+   * （transcript-view.tsx 的 footer）—— 那里在虚拟器的条目表之外，改动只经过
+   * paddingEnd，不碰 count、不碰 getItemKey，也不作废任何一行的实测高度。
+   */
+  readonly live: readonly FeedRow[]
   /** 还没有行可落的那一枚：这一轮在跑，而它的第一样东西还没上屏。 */
   readonly tail: TurnSealPlan | undefined
 }
 
 export const NO_SEALS: ReadonlyMap<string, TurnSealPlan> = new Map()
+
+/** 瞬态区空着时交出同一个数组：下游按引用判等。 */
+const NO_LIVE: readonly FeedRow[] = []
 
 /** 旁白：不是过程也不是回复。倒扫时跨过它，也永远不折。 */
 const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set(['error', 'permission'])
@@ -65,17 +91,18 @@ export function foldFeed(
   opened: ReadonlySet<number>,
 ): FoldedFeed {
   if (spans.length === 0) {
-    return { rows, seals: NO_SEALS, tail: undefined }
+    return { rows, seals: NO_SEALS, live: NO_LIVE, tail: undefined }
   }
 
   const byTurn = groupByTurn(rows)
   const seals = new Map<string, TurnSealPlan>()
   const folded = new Set<number>()
+  const live: FeedRow[] = []
   let tail: TurnSealPlan | undefined
 
   for (const span of spans) {
     const own = byTurn.get(span.turn) ?? NO_ROWS
-    const unplaced = foldTurn(rows, span, own, opened, folded, seals)
+    const unplaced = foldTurn(rows, span, own, opened, folded, seals, live)
 
     /* 落定的一轮不会再有东西上屏，一行都没有就是真的什么也没发生过；还在跑的那一轮
        不同 —— 它正在跑，而这恰恰是要说出来的那件事。但「在跑」要有证据：一帧都还没
@@ -85,12 +112,13 @@ export function foldFeed(
     }
   }
 
-  if (folded.size === 0) {
+  return {
     /* 一行都没折就把入参原样交回：引用稳定是下游记忆化的前提。 */
-    return { rows, seals: seals.size === 0 ? NO_SEALS : seals, tail }
+    rows: folded.size === 0 ? rows : rows.filter((_, at) => !folded.has(at)),
+    seals: seals.size === 0 ? NO_SEALS : seals,
+    live: live.length === 0 ? NO_LIVE : live,
+    tail,
   }
-
-  return { rows: rows.filter((_, at) => !folded.has(at)), seals, tail }
 }
 
 /**
@@ -106,18 +134,29 @@ function foldTurn(
   opened: ReadonlySet<number>,
   folded: Set<number>,
   seals: Map<string, TurnSealPlan>,
+  live: FeedRow[],
 ): TurnSealPlan | undefined {
+  const running = span.endedAt === undefined
   const answerAt = latestSpeechIn(rows, own)
-  const process = answerAt < 0 ? [] : processIn(rows, own, answerAt)
-  /* 可点 ⟺ 真有东西可收。还没有回复时封条只是一行字，不给假按钮。 */
+  const process = processIn(rows, own, answerAt, running)
+  /* 可点 ⟺ 真有东西可收。什么都没收起时封条只是一行字，不给假按钮。 */
   const hasProcess = process.length > 0
-  /* 人手动点开的轮次当场摊开；还没见到最终回复的那一轮本来就在滚，也摊开。 */
-  const isOpen = opened.has(span.turn) || answerAt < 0
+  /* 只有人手动点开才摊开。「还没见到最终回复就摊开」是上一版的做法，而那正是缺陷
+     本身：过程先上屏，回复一到再撤掉，撤掉的那一帧就是内容整段消失又出现。 */
+  const isOpen = opened.has(span.turn)
   const hidden = isOpen ? undefined : new Set(process)
 
   if (hidden !== undefined) {
     for (const at of hidden) {
       folded.add(at)
+
+      const row = rows[at]
+
+      /* 还在跑、且还没被哪一句话盖过去的那几帧，交给瞬态区。回复不交 —— 它是内容，
+         归转录；被开口盖过的过程也不交 —— 它已经归封条了。 */
+      if (running && at > answerAt && row !== undefined && row.item.type !== 'agent_text') {
+        live.push(row)
+      }
     }
   }
 
@@ -200,12 +239,26 @@ function latestSpeechIn(rows: readonly FeedRow[], own: readonly number[]): numbe
   return start
 }
 
+/**
+ * 这一轮要从转录里收起来的行。两条判据的并集。
+ *
+ * 回顾的那一条：最后那一段回复之前的一切。落定之后转录里剩下的就只有结论。
+ *
+ * 当下的那一条：还在跑的时候，这一轮的每一帧过程都收起来 —— 它们改由瞬态区呈现。
+ * 这一条是这次改动的全部。收起的时机没变（仍然是「新的一段话开始」那一帧），变的是
+ * 被收起的东西里再也没有工具卡片与计划：它们从出生就不在数组里，因此不存在「先上屏
+ * 再被撤掉」这一步，而那一步正是虚拟器整表重新落位的成因。
+ */
 function processIn(
   rows: readonly FeedRow[],
   own: readonly number[],
   answerAt: number,
+  running: boolean,
 ): readonly number[] {
-  return own.filter((at) => at < answerAt && isFrame(rows, at))
+  return own.filter(
+    (at) =>
+      isFrame(rows, at) && (at < answerAt || (running && rows[at]?.item.type !== 'agent_text')),
+  )
 }
 
 /** agent 的一帧：人问的那句不是，报错与授权这类旁白也不是。 */

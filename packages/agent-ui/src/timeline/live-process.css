@@ -1,0 +1,40 @@
+/*
+ * 转录尾部那块瞬态区。
+ *
+ * 它长在 .agent-activity-feed__tail 里：那个盒子绝对定位、贴着转录框下沿，实测边框
+ * 盒高度反过来就是交给虚拟器的 paddingEnd —— 这里放多高的东西，末端就让开多少，
+ * 声明与实物是同一个数，不会各走一边。
+ *
+ * 行距沿用转录的那一格，两条通道的节奏因此对齐：同一帧从瞬态区被封条收走时，它在
+ * 两边占的竖向空间一样，位置不跳。
+ */
+.live-process {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+@keyframes live-process-arrive {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * 上屏时淡入，曲线与封条那一枚同一条（turn-seal.css）。
+ *
+ * 只淡入，不淡出。卸载不可补间 —— 一个已经不在树里的元素没有可以动画的对象，要做
+ * 退场就得先有第二份真相把它多留一帧，而那份真相会与这里「唯一读者是派生结果」这
+ * 条立场对立。这是一条诚实的边界，不是一个待补的缺口。
+ */
+.live-process__frame {
+  min-inline-size: 0;
+  padding-block: var(--cp-feed-row-gap);
+  animation: live-process-arrive 180ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-process__frame {
+    animation: none;
+  }
+}

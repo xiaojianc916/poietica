@@ -54,18 +54,15 @@ describe('foldFeed', () => {
     })
   })
 
-  it('keeps everything open while the turn is still working', () => {
+  it('routes the process of a working turn to the transient channel', () => {
+    /* 过程从出生就不在转录里：它不可能先上屏再被撤掉，而那次撤销正是「前面的内容
+       整段消失又出现」的成因。它去尾部那块瞬态区，随轮次一起收走。 */
     const rows = [said('q', 0, 1_000), thought('t', 0, 2_000)]
-    const feed = foldFeed(rows, [running(0, 1_000)], new Set())
+    const feed = foldFeed(rows, [heard(0, 1_000, 1_500)], new Set())
 
-    expect(feed.rows).toBe(rows)
-    expect(feed.seals.get('t')).toEqual({
-      turn: 0,
-      startedAt: 1_000,
-      endedAt: undefined,
-      hasProcess: false,
-      isOpen: true,
-    })
+    expect(idsOf(feed.rows)).toEqual(['q'])
+    expect(idsOf(feed.live)).toEqual(['t'])
+    expect(feed.tail?.hasProcess).toBe(true)
   })
 
   it('keeps the fold where it is when process resumes after a remark', () => {
@@ -79,7 +76,9 @@ describe('foldFeed', () => {
     ]
     const feed = foldFeed(rows, [running(0, 1_000)], new Set())
 
-    expect(idsOf(feed.rows)).toEqual(['q', 'a', 't1'])
+    expect(idsOf(feed.rows)).toEqual(['q', 'a'])
+    /* t0 已经被那句话盖过去了，它归封条；t1 是当下这一段工作，它归瞬态区。 */
+    expect(idsOf(feed.live)).toEqual(['t1'])
     expect(feed.seals.get('a')?.hasProcess).toBe(true)
   })
 
@@ -104,6 +103,14 @@ describe('foldFeed', () => {
     expect(idsOf(feed.rows)).toEqual(['q', 'a', 'e'])
   })
 
+  it('empties the transient channel once the turn has settled', () => {
+    const rows = [said('q', 0, 1_000), thought('t', 0, 2_000), spoke('a', 0, 5_000)]
+    const feed = foldFeed(rows, [settled(0, 1_000, 9_000)], new Set())
+
+    expect(feed.live).toHaveLength(0)
+    expect(idsOf(feed.rows)).toEqual(['q', 'a'])
+  })
+
   it('settles the clock on a turn that ended without an answer', () => {
     const rows = [said('q', 0, 1_000), thought('t', 0, 2_000)]
     const feed = foldFeed(rows, [settled(0, 1_000, 4_500)], new Set())
@@ -114,7 +121,7 @@ describe('foldFeed', () => {
       startedAt: 1_000,
       endedAt: 4_500,
       hasProcess: false,
-      isOpen: true,
+      isOpen: false,
     })
   })
 
@@ -138,7 +145,7 @@ describe('foldFeed', () => {
       startedAt: 1_000,
       endedAt: undefined,
       hasProcess: false,
-      isOpen: true,
+      isOpen: false,
     })
   })
 
@@ -190,7 +197,7 @@ describe('foldFeed', () => {
       startedAt: 1_000,
       endedAt: 7_000,
       hasProcess: false,
-      isOpen: true,
+      isOpen: false,
     })
   })
 

@@ -11,6 +11,7 @@ import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
+import { LiveProcess } from './live-process'
 import { ThinkingIndicator } from './thinking-indicator'
 import { foldFeed, type TurnSealPlan } from './turn-fold'
 import { TurnSeal } from './turn-seal'
@@ -161,17 +162,24 @@ export function TranscriptView({
   )
 
   /*
-   * 尾部装的是属于这一轮、而不属于其中某一条的东西：还没有行可落的那枚封条，以及
-   * 等待指示器。两者各说各的事实 —— 封条说的是「这一轮已经在跑」（span 由
-   * run_started 开出），指示器说的是「屏幕上没有东西在动」。此前只有后者，于是读者
-   * 把原始思考链藏起来之后，一轮明明在跑，界面上没有任何东西承认它在跑。
+   * 尾部装的是属于这一轮、而不属于其中某一条的东西，三样，各说各的事实：还没有行可
+   * 落的那枚封条说「这一轮已经在跑」（span 由 run_started 开出）；瞬态区说「此刻在
+   * 做什么」；等待指示器说「屏幕上没有东西在动」。
+   *
+   * 瞬态区是这一批新搬进来的。它此前住在转录正文里，随着回复上屏被 rows.filter 撤
+   * 掉 —— 而那次撤销改的是虚拟器的 count 与 getItemKey，一整屏行跟着重新落位。这里
+   * 不在虚拟器的条目表内，内容变化只经过实测出来的 paddingEnd。
+   *
+   * 顺序是自上而下的时间顺序：封条排在它那一轮的内容前面，正在做的事排在下面，还没
+   * 有任何东西在动时最后那行「正在思考」在最底下。
    */
   const waiting = selectIsWaiting(timeline)
 
   const footer =
-    feed.tail === undefined && !waiting ? undefined : (
+    feed.tail === undefined && feed.live.length === 0 && !waiting ? undefined : (
       <>
         {feed.tail === undefined ? null : sealOf(feed.tail)}
+        <LiveProcess renderRow={renderRow} rows={feed.live} />
         {waiting ? <ThinkingIndicator /> : null}
       </>
     )
