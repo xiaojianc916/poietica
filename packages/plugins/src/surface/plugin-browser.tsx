@@ -173,17 +173,22 @@ function ForeignList({ records, store }: ForeignListProps) {
         这些插件记在 {records[0]?.location} 里。本应用开出去的会话读的是它自己那份账本，
         所以它们在这里没有装上；导入会按原来的地址重装一次。
       </p>
+      {/*
+        解构不是为了短。originalSource === undefined 那道收窄只对 const 绑定穿透进闭包；
+        属性访问在 onClick 这个收窄之后才建的函数里会被重新看成 string | undefined ——
+        属性在回调真正执行时可能已经变了，这是控制流分析的既定行为，不是配置问题。
+      */}
       <ul className="divide-y divide-divider">
-        {records.map((record) => (
-          <li className="flex items-center gap-3 py-3" key={record.pluginId}>
+        {records.map(({ originalSource, pluginId }) => (
+          <li className="flex items-center gap-3 py-3" key={pluginId}>
             <div className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">{record.pluginId}</span>
+              <span className="block truncate text-sm font-medium">{pluginId}</span>
               <span className="block truncate text-xs text-muted-foreground">
-                {record.originalSource ?? '那条记录没有记下当初的安装地址，导入不了'}
+                {originalSource ?? '那条记录没有记下当初的安装地址，导入不了'}
               </span>
             </div>
-            {record.originalSource === undefined ? null : (
-              <Button onClick={() => store.beginInstall(parseInstallSource(record.originalSource))}>
+            {originalSource === undefined ? null : (
+              <Button onClick={() => store.beginInstall(parseInstallSource(originalSource))}>
                 导入
               </Button>
             )}
