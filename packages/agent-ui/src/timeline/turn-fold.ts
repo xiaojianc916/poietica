@@ -57,8 +57,19 @@ export type TurnSealPlan = {
   readonly isOpen: boolean
 }
 
+export type ReplyActionPlan = {
+  /** 复制的是这一轮最后一段 AI 回复，不包含工具过程和旁白。 */
+  readonly text: string
+}
+
 export type FoldedFeed = {
   readonly rows: readonly FeedRow[]
+  /**
+   * 每一轮至多一项，key 是该轮最后一个可见条目的 id。
+   *
+   * 操作区因此永远落在整轮内容之后，而不是跟着其中某一条 agent_text。
+   */
+  readonly replyActions: ReadonlyMap<string, ReplyActionPlan>
   readonly seals: ReadonlyMap<string, TurnSealPlan>
   /**
    * 这一段还没有结论的工作，按转录顺序。
@@ -73,6 +84,9 @@ export type FoldedFeed = {
 }
 
 export const NO_SEALS: ReadonlyMap<string, TurnSealPlan> = new Map()
+
+/** 没有已完成回复时复用同一个空映射。 */
+const NO_REPLY_ACTIONS: ReadonlyMap<string, ReplyActionPlan> = new Map()
 
 /** 瞬态区空着时交出同一个数组：下游按引用判等。 */
 const NO_LIVE: readonly FeedRow[] = []
@@ -91,7 +105,19 @@ export function foldFeed(
   opened: ReadonlySet<number>,
 ): FoldedFeed {
   if (spans.length === 0) {
-    return { rows, seals: NO_SEALS, live: NO_LIVE, tail: undefined }
+    /*
+     * 没有 span 的是旧版恢复出来的历史会话。
+     *
+     * 它不参与折叠，但仍然应该拥有回复操作；没有流式或执行中标记的历史轮次
+     * 可以安全视为已经结束。
+     */
+    return {
+      rows,
+      replyActions: replyActionsIn(rows, spans),
+      seals: NO_SEALS,
+      live: NO_LIVE,
+      tail: undefined,
+    }
   }
 
   const byTurn = groupByTurn(rows)
@@ -112,9 +138,18 @@ export function foldFeed(
     }
   }
 
+  /* 一行都没折就把入参原样交回：引用稳定是下游记忆化的前提。 */
+  const visibleRows = folded.size === 0 ? rows : rows.filter((_, at) => !folded.has(at))
+
   return {
-    /* 一行都没折就把入参原样交回：引用稳定是下游记忆化的前提。 */
-    rows: folded.size === 0 ? rows : rows.filter((_, at) => !folded.has(at)),
+    rows: visibleRows,
+    /*
+     * 操作区必须根据折叠后的可见行确定落点。
+     *
+     * 一轮展开时，它落在展开内容的最后；一轮收起时，它落在最终可见内容的最后。
+     * 无论哪种状态，都不可能被挂到封条下面的某一段中间回复上。
+     */
+    replyActions: replyActionsIn(visibleRows, spans),
     seals: seals.size === 0 ? NO_SEALS : seals,
     live: live.length === 0 ? NO_LIVE : live,
     tail,
@@ -184,6 +219,92 @@ function foldTurn(
   seals.set(id, plan)
 
   return undefined
+}
+
+/**
+ * 为已完成的轮次确定唯一的回复操作落点。
+ *
+ * “一轮”只有一个定义：拥有相同 item.turn 的全部条目。agent_text 只是这一轮中的
+ * 一种帧，可能出现在工具调用之前、之后，甚至出现多段，因此绝不能拿它自身充当轮次。
+ *
+ * 操作区的落点是该轮最后一个可见条目；复制内容则是该轮最后一段连续 AI 发言。
+ * 两件事故意分开：最后一条可见内容可能是工具结果或错误记录，但按钮仍应出现在
+ * 整轮最下面，复制的仍然只能是 AI 的回答。
+ */
+function replyActionsIn(
+  rows: readonly FeedRow[],
+  spans: readonly TurnSpan[],
+): ReadonlyMap<string, ReplyActionPlan> {
+  const runningTurns = new Set(
+    spans.filter((span) => span.endedAt === undefined).map((span) => span.turn),
+  )
+  const byTurn = groupByTurn(rows)
+  const actions = new Map<string, ReplyActionPlan>()
+
+  for (const [turn, own] of byTurn) {
+    /*
+     * 正在运行的轮次没有“最终回复”。
+     *
+     * span 是首选事实来源；流式和执行中标记是无 span 历史数据之外的额外保护，
+     * 防止恢复边界上短暂出现一组过早的按钮。
+     */
+    const isStillRunning =
+      runningTurns.has(turn) ||
+      own.some((at) => {
+        const one = rows[at]
+
+        return one?.isStreamingTail === true || one?.isInFlight === true
+      })
+
+    if (isStillRunning) {
+      continue
+    }
+
+    const answerAt = latestSpeechIn(rows, own)
+
+    if (answerAt < 0) {
+      continue
+    }
+
+    /*
+     * latestSpeechIn 给出最后一段 AI 发言的起点。
+     *
+     * 从这里向后只收 agent_text，工具调用、计划、报错和权限记录都不进入剪贴板。
+     * 多个连续文本条目之间保留段落边界。
+     */
+    const parts: string[] = []
+
+    for (const at of own) {
+      if (at < answerAt) {
+        continue
+      }
+
+      const item = rows[at]?.item
+
+      if (item?.type === 'agent_text') {
+        parts.push(item.text)
+      }
+    }
+
+    const text = parts.join('\n\n')
+
+    if (text.trim().length === 0) {
+      continue
+    }
+
+    /*
+     * own 来自折叠后的 rows，所以最后一项就是人此刻真正看到的轮次末端。
+     * 操作区只在这里出现一次。
+     */
+    const anchorAt = own[own.length - 1]
+    const anchor = anchorAt === undefined ? undefined : rows[anchorAt]
+
+    if (anchor !== undefined) {
+      actions.set(anchor.item.id, { text })
+    }
+  }
+
+  return actions.size === 0 ? NO_REPLY_ACTIONS : actions
 }
 
 /** 一趟分桶。按轮次逐轮筛一遍是 O(行×轮)，这条对话越长越贵。 */

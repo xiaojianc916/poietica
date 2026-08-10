@@ -1,51 +1,59 @@
 /*
- * 一轮已完成的 AI 回复。
+ * 整轮最后一个可见条目的包裹层。
  *
- * 操作区以它为定位参照，但不参与正文布局。按钮因此可以出现在回复下方，
- * 同时不会改变虚拟器测得的行高，也不会把下一条消息向下推。
+ * 它只提供绝对定位参照，不增加高度。按钮的轮次归属已经由 turn-fold 决定，
+ * 这里不再依赖 agent_text 这样的局部条目类型。
  */
-.timeline-agent-reply {
+.timeline-turn-end {
   position: relative;
   min-inline-size: 0;
 }
 
 /*
- * 整条按钮行都是 hover 命中区。
+ * 专业聊天界面的悬停操作轨道通常需要三层容错：
  *
- * inset-inline 两端都设为 0，使这个绝对定位盒子横贯整条回复列，而不是只覆盖
- * 左侧两个图标。即使按钮尚未显示，它仍然接收指针命中；指针进入这一行时，
- * 它作为 .timeline-agent-reply 的后代会让父级进入 :hover，按钮随即出现。
+ * 1. 横贯整行，而不是只覆盖图标本身；
+ * 2. 与正文区域有少量重叠，鼠标向下移动时不穿过 hover 空洞；
+ * 3. 在按钮下方保留约 10px 的透明安全区，并延迟退场，吸收手部微小偏移。
  *
- * 这里不能再使用 pointer-events: none。上一版正是因为关闭了隐藏状态下的
- * 指针命中，导致鼠标从正文向绝对定位的按钮行移动时失去 hover，按钮先于点击消失。
+ * 整块区域仍然绝对定位，所以这些命中空间不会进入虚拟列表的高度测量，
+ * 也不会增加下一轮消息与当前回复之间的布局间距。
  */
 .timeline-reply-actions {
   position: absolute;
-  z-index: 2;
-  inset-block-start: calc(100% - 0.125rem);
+  z-index: 3;
+  inset-block-start: calc(100% - 0.375rem);
   inset-inline: 0;
   display: flex;
   align-items: flex-start;
   gap: 0.125rem;
-  block-size: 1.75rem;
-  padding-block-start: 0.25rem;
+  block-size: 2.625rem;
+  padding-block-start: 0.5rem;
   opacity: 0;
   pointer-events: auto;
   transform: translateY(-2px);
+
+  /*
+   * 默认态的 140ms 是退场宽限，不是入场延迟。
+   * 显示态会在下面把 delay 清零，因此移入立即出现，移出则稍等后再淡出。
+   */
   transition:
-    opacity 120ms var(--cp-motion-ease),
-    transform 120ms var(--cp-motion-ease);
+    opacity 100ms var(--cp-motion-ease) 140ms,
+    transform 100ms var(--cp-motion-ease) 140ms;
 }
 
 /*
- * 悬停正文或按钮所在的整行都会保持操作区可见。
- * focus-within 同时保留键盘操作能力。
+ * 悬停轮次末端、整条按钮轨道或聚焦任一按钮，都立即显示并保持显示。
+ *
+ * 轨道本身即使透明也保留 pointer hit testing，所以鼠标可以从正文、左右空白处
+ * 或按钮下方的安全区重新进入，不会出现“看得到但移不过去”的情况。
  */
-.timeline-agent-reply:hover .timeline-reply-actions,
-.timeline-agent-reply:focus-within .timeline-reply-actions,
+.timeline-turn-end:hover .timeline-reply-actions,
+.timeline-turn-end:focus-within .timeline-reply-actions,
 .timeline-reply-actions:hover {
   opacity: 1;
   transform: none;
+  transition-delay: 0ms;
 }
 
 .timeline-reply-actions__button {
@@ -63,8 +71,8 @@
   cursor: pointer;
   line-height: 0;
   transition:
-    color 120ms var(--cp-motion-ease),
-    background-color 120ms var(--cp-motion-ease);
+    color 100ms var(--cp-motion-ease),
+    background-color 100ms var(--cp-motion-ease);
 }
 
 .timeline-reply-actions__button:hover:not(:disabled),
@@ -77,7 +85,7 @@
   color: var(--cp-ink);
 }
 
-/* 分叉目前只有视觉入口，不通过透明度伪装成加载失败。 */
+/* 分叉当前只有 UI，但仍使用真实的 Lucide GitFork 图标。 */
 .timeline-reply-actions__button:disabled {
   cursor: default;
 }
@@ -87,6 +95,14 @@
   inline-size: 1rem;
   block-size: 1rem;
   stroke-width: 1.75;
+}
+
+/* 没有 hover 能力的设备不能依赖悬停发现操作。 */
+@media (hover: none) and (pointer: coarse) {
+  .timeline-reply-actions {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

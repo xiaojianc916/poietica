@@ -232,4 +232,40 @@ describe('foldFeed', () => {
       isOpen: false,
     })
   })
+
+  it('anchors reply actions after the final visible row of a settled turn', () => {
+    /*
+     * 这正是此前出错的形态：AI 先说一句，随后继续做事。
+     *
+     * agent_text 不是轮次末端，所以操作区不能挂在 a 上；整轮最后一个可见条目
+     * 是 after，操作区只能在那里出现一次。
+     */
+    const rows = [said('q', 0, 1_000), spoke('a', 0, 2_000), thought('after', 0, 3_000)]
+    const feed = foldFeed(rows, [settled(0, 1_000, 4_000)], new Set())
+
+    expect([...feed.replyActions.keys()]).toEqual(['after'])
+    expect(feed.replyActions.get('after')).toEqual({ text: '答一句' })
+    expect(feed.replyActions.get('a')).toBeUndefined()
+  })
+
+  it('does not expose reply actions before the turn has settled', () => {
+    const rows = [said('q', 0, 1_000), spoke('a', 0, 2_000)]
+    const feed = foldFeed(rows, [running(0, 1_000)], new Set())
+
+    expect(feed.replyActions.size).toBe(0)
+  })
+
+  it('gives a settled turn exactly one reply action', () => {
+    const rows = [
+      said('q', 0, 1_000),
+      spoke('early', 0, 2_000),
+      thought('work', 0, 3_000),
+      spoke('final', 0, 4_000),
+    ]
+    const feed = foldFeed(rows, [settled(0, 1_000, 5_000)], new Set())
+
+    expect(feed.replyActions.size).toBe(1)
+    expect(feed.replyActions.get('final')).toEqual({ text: '答一句' })
+    expect(feed.replyActions.get('early')).toBeUndefined()
+  })
 })

@@ -10,8 +10,8 @@ export interface ReplyActionsProps {
 /*
  * 一轮已经完成的 AI 回复所拥有的操作。
  *
- * 图标统一来自 lucide-react。复制复用已有的 useCopy，分叉目前只保留视觉入口，
- * 等真正接入会话分叉能力时再增加事件与状态。
+ * 组件不判断自己属于哪一轮，也不判断应该挂在哪条记录上；这些事实由 turn-fold
+ * 一处决定。这里仅负责交互与视觉。三个图标全部来自 lucide-react。
  */
 export function ReplyActions({ text }: ReplyActionsProps) {
   const { copied, copy } = useCopy(text)

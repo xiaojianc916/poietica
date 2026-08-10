@@ -12,6 +12,7 @@ import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { LiveProcess } from './live-process'
+import { ReplyActions } from './reply-actions'
 import { ThinkingIndicator } from './thinking-indicator'
 import { foldFeed, type TurnSealPlan } from './turn-fold'
 import { TurnSeal } from './turn-seal'
@@ -138,9 +139,27 @@ export function TranscriptView({
   const renderRowWithSeal = useCallback(
     (row: FeedRow) => {
       const seal = feed.seals.get(row.item.id)
+      const replyAction = feed.replyActions.get(row.item.id)
+      const rendered = renderRow(row)
+
+      /*
+       * 回复操作属于整轮，不属于某一条 agent_text。
+       *
+       * foldFeed 已经把它的 key 放在这一轮最后一个可见条目上，因此这里不推断轮次、
+       * 不检查条目类型，只负责把操作区挂到经过证明的唯一落点。
+       */
+      const content =
+        replyAction === undefined ? (
+          rendered
+        ) : (
+          <div className="timeline-turn-end">
+            {rendered}
+            <ReplyActions text={replyAction.text} />
+          </div>
+        )
 
       if (seal === undefined) {
-        return renderRow(row)
+        return content
       }
 
       /* 淡入属于「刚刚折过」那一帧，不属于这一行本身。落定的轮次滚出视野再滚回来会被
@@ -153,12 +172,12 @@ export function TranscriptView({
             className="turn-seal__reveal"
             data-settled={seal.endedAt === undefined ? undefined : 'true'}
           >
-            {renderRow(row)}
+            {content}
           </div>
         </>
       )
     },
-    [feed.seals, renderRow, sealOf],
+    [feed.replyActions, feed.seals, renderRow, sealOf],
   )
 
   /*

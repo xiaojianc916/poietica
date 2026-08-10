@@ -7,7 +7,6 @@ import { PermissionRecord } from './permission-record'
 import { PlanPanel } from './plan-panel'
 import { Prose } from './prose'
 import { ReasoningPanel } from './reasoning-panel'
-import { ReplyActions } from './reply-actions'
 import { ToolCallCard } from './tool-call-card'
 import { UserMessage } from './user-message'
 
@@ -42,10 +41,7 @@ export const TimelineRow = memo(function TimelineRow({ row }: TimelineRowProps) 
 
     case 'agent_text':
       return (
-        <div className="timeline-agent-reply">
-          <Prose className="timeline-message" isStreaming={row.isStreamingTail} text={item.text} />
-          {row.isStreamingTail ? null : <ReplyActions text={item.text} />}
-        </div>
+        <Prose className="timeline-message" isStreaming={row.isStreamingTail} text={item.text} />
       )
 
     case 'agent_thought':
