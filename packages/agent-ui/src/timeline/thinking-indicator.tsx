@@ -1,3 +1,4 @@
+import './shimmer.css'
 import './thinking-indicator.css'
 
 /**
@@ -13,7 +14,7 @@ import './thinking-indicator.css'
  */
 export function ThinkingIndicator() {
   return (
-    <p className="timeline-thinking" role="status">
+    <p className="timeline-thinking timeline-shimmer" role="status">
       正在思考
     </p>
   )

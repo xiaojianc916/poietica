@@ -1,6 +1,8 @@
+import './shimmer.css'
 import './tool-call.css'
 
 import type { ToolCallTimelineItem } from '@poietica/agent'
+import { cx } from '../primitives/class-names'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
   ChevronDownIcon,
@@ -77,7 +79,8 @@ function readToolCallLine(
  * 句单独用不得 —— status 是 agent 说过的话，一次没等到终态的调用会永远停在
  * in_progress。轮次是否还在飞由读模型说。
  *
- * 它只喂抽屉里的空态文案（还在跑，所以还没有输出）；标题栏不画状态。
+ * 它有两个去处：抽屉里那句空态文案（还在跑，所以还没有返回），以及这一行的字上扫过
+ * 的那道光。除此之外标题栏不画状态 —— 失败与耗时不在这一行上说。
  *
  * 开合不属于这份投影：默认收起，此后只响应用户点击。
  */
@@ -110,7 +113,7 @@ function ToolCallDiffStat({ diffStat }: { readonly diffStat: ToolCallFacets['dif
 }
 
 /**
- * 这一行：一枚图标，一句话，指到才出现的箭头。
+ * 这一行：一枚图标，一句话，指到才出现的箭头 —— 还在跑的时候，那句话上有一道光扫过。
  *
  * 子代理不是一种 ACP 工具类别（AcpToolKind 里没有它），所以图标那一格的分流在
  * 这一层，不在 ToolKindIcon 的 switch 里：那个 switch 认的是协议枚举。
@@ -126,7 +129,7 @@ function ToolCallHeader({
   readonly onToggle: () => void
   readonly view: ToolCallCardView
 }) {
-  const { facets, line } = view
+  const { facets, isRunning, line } = view
   const { brief, diffStat } = facets
 
   return (
@@ -142,7 +145,10 @@ function ToolCallHeader({
         <ModelIcon aria-hidden="true" className="timeline-tool__icon" />
       )}
 
-      <span className="timeline-tool__label" title={line.full}>
+      <span
+        className={cx('timeline-tool__label', isRunning && 'timeline-shimmer')}
+        title={line.full}
+      >
         {line.text}
       </span>
 
