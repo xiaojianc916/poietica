@@ -597,162 +597,6 @@
   margin-block-start: 0;
 }
 
-/* 外框归 [data-surface]；这里只留裁剪 —— 展开后的输出要靠它收住圆角。 */
-.timeline-tool {
-  overflow: hidden;
-}
-
-.timeline-tool__header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  inline-size: 100%;
-  min-block-size: var(--ui-control-height-sm);
-  padding-inline: 0.75rem;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-
-/*
- * 线重归设计系统，不归字形库。
- *
- * 这一组此前只声明尺寸，描边宽度是字形库的默认值 —— 于是同一档尺寸下，路径密度高
- * 的字形比稀疏的视觉重量明显更大，因为它们共用的是同一个绝对线宽，而不是同一个视
- * 觉密度。这不是某一枚图标画错了，是这一层从来没有对线重表过态。
- *
- * 取值与理由在 composer-metrics.css 的 --cp-icon-stroke 上。
- */
-.timeline-tool__icon,
-.timeline-tool__failed,
-.timeline-tool__spinner,
-.timeline-tool__chevron {
-  flex: none;
-  inline-size: 1rem;
-  block-size: 1rem;
-  stroke-width: var(--cp-icon-stroke);
-}
-
-.timeline-tool__spinner {
-  animation: timeline-tool-spin 900ms linear infinite;
-}
-
-.timeline-tool__title {
-  flex: 1 1 auto;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/*
- * Open, the output is the card's floor — not a panel parked inside the card.
- *
- * It used to be a rounded, tinted box inset by the body's padding, inside an
- * already rounded and bordered card: two frames, with a strip of the parent
- * showing on every side. Now the card's border is the only frame. The output
- * runs edge to edge and its corners come from the card's own `overflow: hidden`.
- * Collapsed, none of it is on screen — the drawer clips it — so the row reads
- * exactly as it did.
- *
- * 一张纸，不是叠在一起的几块。底色在这一条上声明一次，切换带与下面那一面都不再各
- * 自写一份 —— 两处各写一份要靠人去保证它们相等，而它们本来就是同一个平面；此前那
- * 两处取的是两个不同的令牌，一个实色一个半透明墨，屏幕上就是深浅两块。面板那两根
- * 滚动条的轨道也取这个颜色：轨道是纸的一部分，不是浮在纸上的另一个控件。
- *
- * 上面那一条线保留：它分开的是白色的标题栏与这张纸，那是两个平面之间真实存在的
- * 边界。纸自己内部不再有线 —— 理由在切换带那一节。
- */
-.timeline-tool__body {
-  display: grid;
-  gap: 0;
-  border-block-start: var(--ui-region-divider-width) solid var(--surface-rule);
-  background: var(--cp-timeline-drawer-surface);
-}
-
-/*
- * 抽屉里唯一的滚动容器。
- *
- * 上限此前挂在每一段产出自己身上（diff 两栏各一次、正文块一次，任务书还额外写了一个
- * max-height: 12em 的物理属性），而面板本身一个上限都没有 —— 一次改三个文件就是三份
- * 18rem 叠起来，同屏冒出三个互不相干的滚动容器，滚轮停在卡片里出不去。
- *
- * 一个面板一个滚动容器，是 DevTools 的 Response 面板与 VS Code 输出面板的做法。上限
- * 仍是 --cp-timeline-output-max，只是它现在管的是整个面，不是其中一块；内容不满就不
- * 撑高。滚动链不在这里掐断 —— 理由紧跟在下一节。
- *
- * 两个轴，不是一个。上一版把横轴留给了围栏自己（code-block-body: auto hidden），于是
- * 那根横条贴在围栏的底边 —— 而围栏是这个面板内容流里的一个盒子，内容一滚，横条跟着
- * 上下跑。滚动条是滚动容器的边缘，不是内容的边缘：两个轴归同一个盒子，横条才钉得住。
- * 上面那两个参照物也都是这么做的。
- *
- * 滚动条取 thin，轨道也是这张纸。
- *
- * 这里试过一版两个 auto，赌的是「不写 scrollbar-color 就能拿回 Windows 那套会自己
- * 淡出的覆盖式滚动条」。实测不成立：这个 WebView 在这个盒子上给回来的是占布局的经
- * 典滚动条，两端带三角按钮，常驻且不淡出 —— 也就是说这里根本没有覆盖式实现可退回，
- * 写不写颜色都一样。赌注不兑现，那一档就没有留下的理由。
- *
- * 连带作废一句旧结论：app.css 那条注释说「指定 scrollbar-color 同时也就退出了覆盖
- * 式滚动条」。对那个盒子也许成立，对这一个不成立 —— 把颜色拿掉之后覆盖式并没有回来。
- *
- * 所以是 thin，理由回到几何：这个面板两个轴都可滚，两根 auto 各占一条约 17px 的车
- * 道，横的那根还压在一个 18rem 高的面板的最后一行上。
- *
- * 轨道显式给成抽屉的纸色。scrollbar-color 是两个值 —— 只写滑块时，轨道由平台自己
- * 画，而它并不知道下面铺了什么，于是在一张浅灰的纸上画出两条白带。滑块是半透明墨，
- * 压在纸上跟着纸走。
- *
- * 思考盒那一处仍是 auto：它要的是常驻加两端的三角，而 thin 会把按钮一起去掉。两处
- * 取值不同是因为诉求不同，不是漏改了一处。
- *
- * 用标准属性而不是 ::-webkit-scrollbar：两者互斥，标准的那条才被推荐。
- */
-.timeline-tool__panel {
-  position: relative;
-  max-block-size: var(--cp-timeline-output-max);
-  padding: 0.625rem 0.75rem;
-  overflow: auto;
-  /*
-   * 锚定只能有一个所有者：末端锚定与增量补偿归虚拟器，浏览器原生的滚动锚定若同时
-   * 生效，同一次尺寸变化会被两个纠正者各补一次。思考盒那一层同一条。
-   */
-  overflow-anchor: none;
-  scrollbar-width: thin;
-  scrollbar-color: var(--cp-timeline-drawer-thumb) var(--cp-timeline-drawer-surface);
-}
-
-/*
- * overscroll-behavior 不写在这里。
- *
- * 上一版把它写上了，而这张表末尾那一节早就为同一件事下过结论：它按轴阻断滚动链，
- * 不问这个轴上有没有可滚的距离 —— 一个内容不满的面板会让滚轮停在卡片里出不去。
- * 「到边界先顿一下、手势松开后再滚就带走外层」本来就是 Chromium 滚动闩锁的行为。
- */
-
-/*
- * 切换条自占一条窄带，它和下面那一面之间没有边界。
- *
- * 底色不在这里给 —— 带和面是同一张纸，纸色归 __body 一处声明。这一条只管留白。
- *
- * 选中态在这里重新给一次，不改 tabs.css：那一层是全局原语，别处的标签仍要它原来的那
- * 一档。底色一旦落到纸上，原语给的半透明墨叠上去只解出约 12% 的对比，偏弱；换成实色
- * 的上一档，两者的差正是设计系统在菜单那两级边界上定下的量。
- *
- * 悬停不必动：原语用的 4% 半透明墨叠在这层底色上解出约 10%，正好落在纸面与选中态之
- * 间，三档的次序自然成立。
- */
-.timeline-tool__tabs {
-  padding: 0.375rem 0.75rem;
-}
-
-.timeline-tool__tabs .tabs__tab[aria-selected="true"] {
-  background: var(--cp-timeline-tabs-active);
-}
-
 /*
  * 页签与它自己的面板之间不画线。
  *
@@ -884,18 +728,6 @@
 
 .timeline-error[data-copied="true"] .timeline-error__mark {
   color: inherit;
-}
-
-@keyframes timeline-tool-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .timeline-tool__spinner {
-    animation: none;
-  }
 }
 
 /* ── 表格 ───────────────────────────────────────────────────────────
@@ -1081,30 +913,6 @@
   );
 }
 
-/* ── 改动规模 ───────────────────────────────────────────────────────
- *
- * 只有带 diff 的调用才有这一对数字，所以它是标题旁的一处事实，而不是每张卡片
- * 都要预留的一个槽位。等宽且表格数字对齐：连续几次编辑读下来是一列，不是一堆。
- */
-
-.timeline-tool__diffstat {
-  display: inline-flex;
-  flex: 0 0 auto;
-  gap: 0.375rem;
-  font-family: var(--cp-font-mono);
-  font-size: var(--ui-prose-size-meta);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.timeline-tool__diffstat-added {
-  color: var(--cp-diff-added-text);
-}
-
-.timeline-tool__diffstat-removed {
-  color: var(--cp-diff-removed-text);
-}
-
 /* ── 滚动链 ────────────────────────────────────────────────────
  *
  * 滚动条由引擎画。这张表只在需要时说两件事：它是哪一档（auto / thin），以及它是什么
@@ -1187,95 +995,6 @@
 }
 
 /*
- * 卡片里的 markdown。
- *
- * 排版本身全部来自 .timeline-prose —— 标题级差、围栏、表格与回答里的完全同款，
- * 这里不再写第二套。
- *
- * 盒子的那几条（底色、上限、滚动、留白）已经不在这一条里了：它们归 __panel，也就是
- * 抽屉里唯一的那个滚动容器。这一条只剩下两件属于「这一面的内容」自己的事 —— 它是
- * 虚拟块的包含块，以及它比回答小一档。
- */
-.timeline-prose.timeline-tool__prose {
-  /* 虚拟块的包含块。高度由虚拟器给出，是行内样式 —— 这里不声明第二个来源。 */
-  position: relative;
-  font-size: var(--ui-prose-size-aux);
-}
-
-/*
- * 抽屉里的围栏没有外壳。
- *
- * 一段围栏出现在回答里，它是文章引用的一段代码：报一下语言、给一个复制按钮、用边框
- * 把自己和正文隔开 —— 上面那四条规则说的就是这件事，它们在那个语境里是对的。
- *
- * 出现在抽屉里，它就是这一面的全部内容。页签上写着 Request，再挂一枚 json 胶囊是
- * 同一句话说两遍；卡片已经有一圈边，再套一圈就是卡中卡（这张表在表格那一节已经为
- * 同一个毛病做过一次同样的手术）。
- *
- * 最要紧的是 code-block-body 那个 max-block-size 加 overflow：它让围栏成为面板里第二
- * 个滚动容器，而「一个面板一个滚动容器」正是上面那条规则的全部内容。两个轴一起交还
- * 给面板 —— 围栏在这里不滚，它只是长，长出来的部分由面板去滚。
- *
- * 判据是「围栏在哪」，不是「围栏是什么」：这四条与上面那四条特异性相同，靠书写顺序
- * 决定胜负，而这里在后面。
- */
-.timeline-prose.timeline-tool__prose [data-streamdown="code-block"] {
-  display: block;
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.timeline-prose.timeline-tool__prose [data-streamdown="code-block-header"],
-.timeline-prose.timeline-tool__prose
-  [data-streamdown="code-block"]
-  > :has(> [data-streamdown="code-block-actions"]) {
-  display: none;
-}
-
-.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] {
-  max-block-size: none;
-  overflow: visible;
-  padding: 0;
-}
-
-/*
- * 代码不折行。
- *
- * 上一版这里是 pre-wrap 加 anywhere，理由是「被裁掉的字符取不回来」。前半句对，后半
- * 句选错了出口：一条十几行的命令、一份深层嵌套的 JSON 折下来之后层级全平，屏幕上是
- * 一整块看不出结构的字 —— 那不是把字符还给读者，是把结构拿走了。上一版还为此补了一
- * 条悬挂缩进去救，一个补丁上再摞一个补丁，两条一起删。
- *
- * 代码视图默认不折行，是 DevTools、VS Code、GitHub、Sublime 的一致行为：等宽排版的
- * 全部价值就在于列是对齐的，而折行按定义会破坏列。出口给横向滚动，字符一个不少。
- *
- * 出口在面板上，不在这里：这个盒子 overflow 是 visible，长行照直伸出去，由面板那唯一
- * 一个滚动容器接住。横条因此钉在面板底边，不随内容上下跑 —— 滚动条是滚动容器的边，不
- * 是内容的边。
- *
- * 「照直伸出去」之后还能被滚到，靠的是含围栏的那些虚拟块把自己撑到最长那一行的宽度：
- * 绝对定位的盒子只以 border box 计入可滚区，撑宽是唯一的来源。理由写在
- * .timeline-prose__block 上。
- */
-.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
-  white-space: pre;
-}
-
-/*
- * 行内代码在这张卡里要再退一档。
- *
- * 它平时的底色就是 --cp-timeline-output-surface —— 那在回答里是对的，因为回答
- * 铺在卡面上。可这个块自己已经是那个颜色了，同色叠同色，胶囊直接消失。所以在
- * 这个作用域里往上挪一档，用 hover 那一层：仍是同一套灰阶，只是不再和自己的
- * 背景撞在一起。
- */
-.timeline-prose.timeline-tool__prose :not(pre) > code {
-  background: var(--cp-hover);
-}
-
-/*
  * 封口段与在写段是同一篇文章。
  *
  * 拆成两个渲染实例是为了不重复解析，不是为了在版面上多一层。display: contents 让
@@ -1285,39 +1004,6 @@
  */
 .timeline-prose__segment {
   display: contents;
-}
-
-/*
- * 后台派发的记号。
- *
- * 一个词，不染色：它不是警告，只是说明这次派发不占前台，答复会晚一些回来。
- */
-.timeline-tool__background {
-  flex: none;
-  font: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-  white-space: nowrap;
-}
-
-/*
- * 意图就是这一行的标题。
- *
- * 它和工具名共用同一个位置（分岔在 tool-call-card 里），所以这里不再有那条
- * 「名字压暗给意图让位」的相邻选择器 —— 两者从不同时出现，它永远命不中。
- *
- * 比工具名退半档：字号收到 aux，墨色收到 muted。它是标题栏里最该被读到的那句话，
- * 但它同时也只是一句由入参派生出来的描述，不该拿到与卡片本身相同的重量。
- *
- * min-width: 0 不能省 —— flex 子项的默认最小宽度是内容宽度，省掉它省略号永远不出现。
- */
-.timeline-tool__intent {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--cp-ink-muted);
-  font-size: var(--ui-prose-size-aux);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 /*
  * 图面板。
