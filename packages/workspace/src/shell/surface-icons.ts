@@ -1,5 +1,4 @@
-import { Box, Message, Search } from '@mynaui/icons-react'
-import { ClockTenIcon, WebhookIcon } from '@poietica/ui'
+import { AlarmClock, MessageCircle, Search, Unplug, Webhook } from 'lucide-react'
 import type { ComponentType } from 'react'
 
 import { describeSurface, type SurfaceIconId, type SurfaceId } from '../surface-registry'
@@ -21,11 +20,11 @@ export type SurfaceIcon = ComponentType<{
 }>
 
 const SURFACE_ICONS: Record<SurfaceIconId, SurfaceIcon> = {
-  box: Box,
-  clock: ClockTenIcon,
-  message: Message,
+  box: Unplug,
+  clock: AlarmClock,
+  message: MessageCircle,
   search: Search,
-  webhook: WebhookIcon,
+  webhook: Webhook,
 }
 
 export function surfaceIcon(id: SurfaceId): SurfaceIcon {

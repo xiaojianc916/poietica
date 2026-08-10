@@ -7,9 +7,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import { ListFilter } from 'lucide-react'
+import { FolderClosed, ListFilter } from 'lucide-react'
 import { useState } from 'react'
-import { ChevronDownIcon, FolderClosedIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons'
+import { ChevronDownIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons'
 
 /*
  * 当前的工作目录，以及换一个。
@@ -109,7 +109,7 @@ export function WorkspacePicker({
             className="workspace-picker__context-trigger"
             title={current?.id ?? '选择工作目录'}
           >
-            <FolderClosedIcon aria-hidden="true" />
+            <FolderClosed aria-hidden="true" />
 
             <span className="workspace-picker__context-name">
               {current?.name ?? '选择工作目录'}
@@ -201,7 +201,7 @@ export function WorkspacePicker({
               }}
               title={choice.id}
             >
-              <FolderClosedIcon aria-hidden="true" />
+              <FolderClosed aria-hidden="true" />
 
               <span className="workspace-picker__item-name">{choice.name}</span>
             </DropdownMenuItem>

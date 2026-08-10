@@ -19,6 +19,7 @@
     "@poietica/agent-contract": "workspace:*",
     "@poietica/core": "workspace:*",
     "@poietica/ui": "workspace:*",
+    "lucide-react": "catalog:",
     "motion": "catalog:",
     "valibot": "catalog:"
   },

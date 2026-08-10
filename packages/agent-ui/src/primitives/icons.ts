@@ -43,7 +43,6 @@ export {
   Check as CheckIcon,
   ChevronDown as ChevronDownIcon,
   Code as CodeIcon,
-  Copy as CopyIcon,
   DangerCircle as FailureIcon,
   Dots as MoreIcon,
   Edit as PencilIcon,
@@ -69,17 +68,15 @@ export {
   Tool as ToolIcon,
   X as CloseIcon,
 } from '@mynaui/icons-react'
-
 /*
- * 设计系统里的本地字形（packages/ui/src/local-glyphs.tsx）。别名层在这里，
- * 所以调用点一个字都不用改。
- *
- * 它们不在图标库里，各有各的原因：库中没有 lightbulb；文件夹的开与合，库里
- * 只有「合」那一枚 —— 此前拿 FolderSolid 顶替 folder-open，而实心在本仓已经
- * 是「已固定」的说法（见 PinSolid），一种填法说两件事。
+ * 思考图标仍保留当前本地字形。本轮文件夹图标已经由实际消费位置直接改用
+ * lucide-react，不再经过这里的本地别名。
  */
-export {
-  FolderClosedIcon,
-  FolderOpenIcon,
-  LightbulbIcon as ThinkingIcon,
-} from '@poietica/ui'
+export { LightbulbIcon as ThinkingIcon } from '@poietica/ui'
+/*
+ * Copy 是本轮首先迁移的通用操作图标。
+ *
+ * 继续保留 CopyIcon 这个应用语义别名，调用点不需要跟随图标库命名变化；
+ * 字形实现已经直接来自 lucide-react。
+ */
+export { Copy as CopyIcon } from 'lucide-react'

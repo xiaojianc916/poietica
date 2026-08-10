@@ -1,5 +1,6 @@
-import { Copy, Minus, Square, X } from '@mynaui/icons-react'
+import { Minus, Square, X } from '@mynaui/icons-react'
 import { Button, cn } from '@poietica/ui'
+import { Copy } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 const WINDOW_CONTROLS_DISABLED_TITLE = '窗口控制暂时不可用'

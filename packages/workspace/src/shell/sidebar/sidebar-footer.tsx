@@ -1,4 +1,4 @@
-import { BookOpen, Code, CogFour, Download, QuestionCircle } from '@mynaui/icons-react'
+import { BookOpen, Code, Download } from '@mynaui/icons-react'
 import {
   Button,
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@poietica/ui'
+import { CircleQuestionMark, Settings } from 'lucide-react'
 
 import type { ReactNode } from 'react'
 
@@ -67,7 +68,7 @@ export function SidebarFooter({
 
       <HelpMenu onDeveloperToolsOpen={onDeveloperToolsOpen} />
 
-      <FooterButton active={settingsActive} icon={CogFour} label="设置" onClick={onSettingsOpen} />
+      <FooterButton active={settingsActive} icon={Settings} label="设置" onClick={onSettingsOpen} />
     </div>
   )
 }
@@ -111,7 +112,7 @@ function HelpMenu({ onDeveloperToolsOpen }: { readonly onDeveloperToolsOpen: () 
         aria-label="帮助"
         className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground data-[popup-open]:bg-sidebar-accent data-[popup-open]:text-foreground"
       >
-        <QuestionCircle aria-hidden="true" className="size-4" />
+        <CircleQuestionMark aria-hidden="true" className="size-4" />
       </DropdownMenuTrigger>
 
       {/*

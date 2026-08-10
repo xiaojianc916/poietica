@@ -8,15 +8,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/ui'
+import { FolderClosed, FolderOpen } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import {
-  FolderClosedIcon,
-  FolderOpenIcon,
-  MoreIcon,
-  PinFilledIcon,
-  PinIcon,
-  PlusIcon,
-} from '../primitives/icons'
+import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon } from '../primitives/icons'
 import { useHorizon, useNow } from './clock'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
 
@@ -471,7 +465,7 @@ interface WorkspaceHeaderProps {
  */
 function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle }: WorkspaceHeaderProps) {
   const createLabel = `在${name}中新建对话`
-  const Glyph = isOpen ? FolderOpenIcon : FolderClosedIcon
+  const Glyph = isOpen ? FolderOpen : FolderClosed
 
   return (
     <div className="assistant-threads__group-header">

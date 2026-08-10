@@ -1,5 +1,6 @@
-import { CheckCircle, Copy, Refresh } from '@mynaui/icons-react'
+import { CheckCircle, Refresh } from '@mynaui/icons-react'
 import { createMainWindowController } from '@poietica/desktop-adapters'
+import { Copy } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useWindowChrome } from '../chrome/use-window-chrome'
 import { WindowControls } from '../chrome/window-controls'
