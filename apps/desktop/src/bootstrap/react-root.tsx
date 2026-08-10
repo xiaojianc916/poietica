@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import type { Root } from 'react-dom/client'
 import { createRoot } from 'react-dom/client'
 import { FatalErrorHost } from '../failures/host'
@@ -98,9 +99,11 @@ export function mountReactApplication(container: HTMLElement): MountedReactAppli
   markReactFatalHostMounted()
 
   root.render(
-    <FatalErrorHost>
-      <AppShell runtime={runtime} />
-    </FatalErrorHost>,
+    <StrictMode>
+      <FatalErrorHost>
+        <AppShell runtime={runtime} />
+      </FatalErrorHost>
+    </StrictMode>,
   )
 
   return {

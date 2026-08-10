@@ -1,8 +1,12 @@
 import type { SessionControlsFailureReport } from '@poietica/agent'
 import { AgentCapabilityStore } from '@poietica/agent'
-import type { AgentSessionPort } from '@poietica/agent-contract'
-import type { AgentDialect } from '@poietica/agent-ui'
-import { AgentControlsContext, AgentDialectContext } from '@poietica/agent-ui'
+import type { AcpAgentDescriptor } from '@poietica/agent-catalog'
+import type { AgentDialect, AttachmentIntake } from '@poietica/agent-ui'
+import {
+  AgentControlsContext,
+  AgentDialectContext,
+  AttachmentIntakeContext,
+} from '@poietica/agent-ui'
 import type { AppUpdateController, MainWindowController } from '@poietica/desktop-adapters'
 import { AppUpdateStore } from '@poietica/desktop-adapters'
 import type { AgentConfigStore, SettingsStore } from '@poietica/settings'
@@ -11,13 +15,7 @@ import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace
 import { CommandPalette, useCommandKeybindings, workspaceLayoutStore } from '@poietica/workspace'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { type ApplicationCommandContext, registerApplicationCommands } from '../app-commands'
-import {
-  agentFor,
-  currentAgentId,
-  desktopAgentCapabilities,
-  desktopPermissionPosture,
-  subscribeAgent,
-} from '../assistant/agent-session'
+import type { DesktopAgentRuntime } from '../assistant/agent-runtime'
 import { ThreadsProvider } from '../assistant/threads-provider'
 import { AutomationDispatcher } from '../automations/automation-runtime'
 import { useWindowChrome } from '../chrome/use-window-chrome'
@@ -43,7 +41,7 @@ const CHECKS_UPDATES = !import.meta.env.DEV
  * 所以「跟谁说话」和「它怎么说话」出自同一个答案,不会各说各的。
  * 界面包不认识名单:这一层拿到的已经是一份档案,不是一次查名单。
  */
-function dialectOf(agent: ReturnType<typeof agentFor>): AgentDialect {
+function dialectOf(agent: AcpAgentDescriptor): AgentDialect {
   return {
     optionLabels: agent.optionLabels,
     questions: agent.questionDialect === undefined ? [] : [agent.questionDialect],
@@ -57,7 +55,8 @@ export interface AppShellRuntime {
   readonly appUpdate: AppUpdateController
   readonly settings: SettingsStore
   readonly agentConfig: AgentConfigStore
-  readonly agentSession: AgentSessionPort
+  readonly agent: DesktopAgentRuntime
+  readonly attachments: AttachmentIntake
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
 }
@@ -77,9 +76,16 @@ export function AppShell({ runtime }: AppShellProps) {
    * 此前它是一个模块常量，取自注册表的第一行：设置页换了 agent，权限按钮上的
    * 文案与认题的正则仍是上一家的 —— 画得出来，只是全错，而且不报任何错。
    */
-  const agentId = useSyncExternalStore(subscribeAgent, currentAgentId, currentAgentId)
+  const agentId = useSyncExternalStore(
+    runtime.agent.subscribeAgent,
+    runtime.agent.getAgentId,
+    runtime.agent.getAgentId,
+  )
 
-  const dialect = useMemo(() => dialectOf(agentFor(agentId)), [agentId])
+  const dialect = useMemo(
+    () => dialectOf(runtime.agent.descriptor(agentId)),
+    [agentId, runtime.agent],
+  )
 
   const {
     isMaximized: isWindowMaximized,
@@ -258,7 +264,7 @@ export function AppShell({ runtime }: AppShellProps) {
   const [agentControls] = useState(
     () =>
       new AgentCapabilityStore({
-        posture: desktopPermissionPosture(),
+        posture: runtime.agent.permissionPosture,
 
         report: {
           readFailed: (cause) => {
@@ -318,7 +324,7 @@ export function AppShell({ runtime }: AppShellProps) {
    * 就退订几次，不可能配不平 —— 与 ThreadsStore.start 同一条纪律。
    */
   useEffect(() => {
-    const stop = agentControls.start(desktopAgentCapabilities(runtime.agentConfig, agentId))
+    const stop = agentControls.start(runtime.agent.capabilities(agentId))
 
     const stopWatchingConfig = runtime.agentConfig.subscribeConfigChanged(agentControls.refresh)
 
@@ -326,7 +332,7 @@ export function AppShell({ runtime }: AppShellProps) {
       stopWatchingConfig()
       stop()
     }
-  }, [agentControls, agentId, runtime.agentConfig])
+  }, [agentControls, agentId, runtime.agent, runtime.agentConfig])
 
   useCommandKeybindings(runtime.commands)
 
@@ -339,55 +345,57 @@ export function AppShell({ runtime }: AppShellProps) {
      * 它比工作区更宽：侧栏的列表、标签条上的那一格、输入框旁的选择器读的是
      * 同一份，否则列表亮着一条而标签停在另一条。
      */
-    <AgentDialectContext value={dialect}>
-      <AgentControlsContext value={agentControls}>
-        <ThreadsProvider report={sessionControlsReport}>
-          {/*
-           * 无渲染产出，只是让「到期时做什么」与应用同寿；表本身在原生侧走。放在
-           * ThreadsProvider 之内是硬要求：一次运行要开出一条对话，而开对话的动作出
-           * 自这个 provider。
-           */}
-          <AutomationDispatcher session={runtime.agentSession} />
+    <AttachmentIntakeContext value={runtime.attachments}>
+      <AgentDialectContext value={dialect}>
+        <AgentControlsContext value={agentControls}>
+          <ThreadsProvider agent={runtime.agent} report={sessionControlsReport}>
+            {/*
+             * 无渲染产出，只是让「到期时做什么」与应用同寿；表本身在原生侧走。放在
+             * ThreadsProvider 之内是硬要求：一次运行要开出一条对话，而开对话的动作出
+             * 自这个 provider。
+             */}
+            <AutomationDispatcher session={runtime.agent.session} />
 
-          {/* 同样无渲染产出：让插件的装载与应用同寿。 */}
-          <PluginLoader />
+            {/* 同样无渲染产出：让插件的装载与应用同寿。 */}
+            <PluginLoader />
 
-          {/*
+            {/*
             同样无渲染产出：把会话列表贡献进命令注册表，于是搜索框里第一组就是
             「聊天」。必须在 ThreadsProvider 之内 —— 它读的就是那份列表。
           */}
-          <ConversationCommands registry={runtime.commands} workspace={runtime.workspace} />
+            <ConversationCommands registry={runtime.commands} workspace={runtime.workspace} />
 
-          <WorkspaceContainer
-            agentConfigStore={runtime.agentConfig}
-            agentSession={runtime.agentSession}
-            appVersion={runtime.appVersion}
-            capabilities={capabilities}
-            commands={runtime.commands}
-            dataDirectory={runtime.dataDirectory}
-            isSettingsOpen={isSettingsOpen && capabilities.settings}
-            isWindowMaximized={isWindowMaximized}
-            onDeveloperToolsOpen={openDeveloperTools}
-            onSettingsClose={closeSettings}
-            onSettingsOpen={openSettings}
-            onWindowClose={closeWindow}
-            onWindowMaximize={maximizeWindow}
-            onWindowMinimize={minimizeWindow}
-            settingsStore={runtime.settings}
-            sidebarFooterSlot={<UpdateCapsule store={updates} />}
-            workspace={runtime.workspace}
-          />
+            <WorkspaceContainer
+              agentConfigStore={runtime.agentConfig}
+              agentSession={runtime.agent.session}
+              appVersion={runtime.appVersion}
+              capabilities={capabilities}
+              commands={runtime.commands}
+              dataDirectory={runtime.dataDirectory}
+              isSettingsOpen={isSettingsOpen && capabilities.settings}
+              isWindowMaximized={isWindowMaximized}
+              onDeveloperToolsOpen={openDeveloperTools}
+              onSettingsClose={closeSettings}
+              onSettingsOpen={openSettings}
+              onWindowClose={closeWindow}
+              onWindowMaximize={maximizeWindow}
+              onWindowMinimize={minimizeWindow}
+              settingsStore={runtime.settings}
+              sidebarFooterSlot={<UpdateCapsule store={updates} />}
+              workspace={runtime.workspace}
+            />
 
-          <CommandPalette
-            onOpenChange={setCommandPaletteOpen}
-            open={isCommandPaletteOpen}
-            registry={runtime.commands}
-          />
+            <CommandPalette
+              onOpenChange={setCommandPaletteOpen}
+              open={isCommandPaletteOpen}
+              registry={runtime.commands}
+            />
 
-          <UiFeedbackRegion />
-        </ThreadsProvider>
-      </AgentControlsContext>
-    </AgentDialectContext>
+            <UiFeedbackRegion />
+          </ThreadsProvider>
+        </AgentControlsContext>
+      </AgentDialectContext>
+    </AttachmentIntakeContext>
   )
 }
 

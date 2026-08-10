@@ -1,3 +1,5 @@
+import { createContext, useContext } from 'react'
+
 /*
  * 附件从哪里来。
  *
@@ -38,19 +40,9 @@ export interface AttachmentIntake {
   readonly discard: (asset: ComposerAsset) => void
 }
 
-let installed: AttachmentIntake | null = null
+export const AttachmentIntakeContext = createContext<AttachmentIntake | null>(null)
 
-/** 由组合层装上，一个进程一次。重复装是幂等的。 */
-export function installAttachmentIntake(intake: AttachmentIntake): void {
-  installed = intake
-}
-
-/**
- * 现在装着的那一个，没装就是 null。
- *
- * 不抛异常：没有原生收件口的地方（组件用例、fixture、浏览器里跑的 storybook）
- * 输入框照样要画得出来，只是加号点了没有反应 —— 那正是那种环境里应该发生的事。
- */
-export function attachmentIntake(): AttachmentIntake | null {
-  return installed
+/** 没有原生能力的渲染环境得到 null；桌面组合根必须显式提供实现。 */
+export function useAttachmentIntake(): AttachmentIntake | null {
+  return useContext(AttachmentIntakeContext)
 }

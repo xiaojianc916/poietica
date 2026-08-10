@@ -57,57 +57,37 @@ function stampedName(mediaType: string): string {
   return `pasted-${stamp}.${extension}`
 }
 
-let opened: Promise<string> | undefined
+export function createAttachmentIntake(): AttachmentIntake {
+  let opened: Promise<string> | undefined
+  let offered: Promise<readonly AssetFormat[]> | undefined
 
-/*
- * 输入框的暂存会话，一个进程一条，第一次要用时才开。
- *
- * 不在模块求值时开：那会让每一次启动都为一个可能永远不会被用到的东西付一次
- * IPC 往返 —— 与 AgentRuntime 不在 boot 时起 agent 进程同一条判据。
- */
-function composerSession(): Promise<string> {
-  opened ??= openAssetSession()
-
-  return opened
-}
-
-let offered: Promise<readonly AssetFormat[]> | undefined
-
-/*
- * 对话框过滤器里那张扩展名清单，问原生要。
- *
- * 此前它是这个文件里的一个常量，与 commands/asset.rs 的 sniff 是同一条策略的
- * 两份文本 —— 靠注释维系，漏改哪一侧都不报错。现在它只有一个产地，这一侧连
- * 「有哪些格式」都不知道。
- *
- * 一个进程问一次：清单在进程存活期间不会变，而它只在第一次打开对话框时才需要。
- */
-function knownFormats(): Promise<readonly AssetFormat[]> {
-  offered ??= listAssetFormats()
-
-  return offered
-}
-
-async function intake(paths: readonly string[]): Promise<readonly ComposerAsset[]> {
-  if (paths.length === 0) {
-    return []
+  const composerSession = (): Promise<string> => {
+    opened ??= openAssetSession()
+    return opened
   }
 
-  const sessionToken = await composerSession()
-  const stored = await importAssets(sessionToken, paths)
+  const knownFormats = (): Promise<readonly AssetFormat[]> => {
+    offered ??= listAssetFormats()
+    return offered
+  }
 
-  /* 顺序与传入一致（importAssets 的契约），所以按下标取回名字是对的。
-  名字只有路径这一侧知道：原生交回的是身份与地址，不是文件名。 */
-  return stored.map((asset, index) => ({
-    sessionToken,
-    assetToken: asset.assetToken,
-    url: asset.source,
-    filename: basename(paths[index] ?? asset.assetToken),
-    mediaType: asset.contentType,
-  }))
-}
+  const intake = async (paths: readonly string[]): Promise<readonly ComposerAsset[]> => {
+    if (paths.length === 0) {
+      return []
+    }
 
-export function createAttachmentIntake(): AttachmentIntake {
+    const sessionToken = await composerSession()
+    const stored = await importAssets(sessionToken, paths)
+
+    return stored.map((asset, index) => ({
+      sessionToken,
+      assetToken: asset.assetToken,
+      url: asset.source,
+      filename: basename(paths[index] ?? asset.assetToken),
+      mediaType: asset.contentType,
+    }))
+  }
+
   return {
     async pick(multiple) {
       /* 两件事互不依赖，串着等没有理由。第二次起清单已经在手，这里就只剩

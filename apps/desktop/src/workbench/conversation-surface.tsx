@@ -1,14 +1,12 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
 import {
   AssistantSurface,
-  installAttachmentIntake,
   useAgentControls,
   useSessionControlsActions,
   useThreadSelectorFailure,
   useThreadSelectors,
   type WorkspacePickerProps,
 } from '@poietica/agent-ui'
-import { createAttachmentIntake } from '@poietica/desktop-adapters'
 import { useCallback, useEffect } from 'react'
 import { useThreadsActions } from '../assistant/threads-context'
 
@@ -35,14 +33,6 @@ export interface ConversationSurfaceProps {
   /** 只有新对话入口会交出这项。 */
   readonly workspace?: Omit<WorkspacePickerProps, 'placement'> | undefined
 }
-
-/*
- * 输入框的收件口，一个进程一份。
- *
- * 装在模块求值时，不装在 effect 里：它不随任何一条对话变化，而且拖放监听要在
- * 第一次渲染之前就位。会话本身仍然是懒开的（见 createAttachmentIntake）。
- */
-installAttachmentIntake(createAttachmentIntake())
 
 export function ConversationSurface({
   onIdentify,

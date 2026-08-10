@@ -92,7 +92,7 @@ export interface AgentBridgeOptions {
    * 读回来才知道，之后还会被设置页改掉：捕获建桥那一刻的答案，等于把第一帧的
    * 猜测钉死一整个进程。
    */
-  readonly launch: () => AgentLaunchDescription
+  readonly launch: () => AgentLaunchDescription | Promise<AgentLaunchDescription>
   /**
    * 这一次在哪个工作目录里开会话。
    *
@@ -209,6 +209,7 @@ export function createAgentCommandBridge({
 }: AgentBridgeOptions): AgentCommandBridge {
   return {
     prompt: async (request) => {
+      const resolvedLaunch = await launch()
       const result = await throughIpc(() =>
         commands.agentPrompt({
           text: request.text,
@@ -219,7 +220,7 @@ export function createAgentCommandBridge({
             sessionToken: asset.sessionToken,
             assetToken: asset.assetToken,
           })),
-          launch: nativeLaunch(launch()),
+          launch: nativeLaunch(resolvedLaunch),
           cwd: cwd?.() ?? null,
           mcpServers: [...(mcpServers?.() ?? [])],
         }),
@@ -346,8 +347,12 @@ export function createAgentCapabilityBridge({
 }: AgentBridgeOptions & AgentEventSourceOptions): AgentCapabilityPort {
   return {
     read: async () => {
+      const resolvedLaunch = await launch()
       const offered = await throughIpc(() =>
-        commands.agentCapabilities({ launch: nativeLaunch(launch()), cwd: cwd?.() ?? null }),
+        commands.agentCapabilities({
+          launch: nativeLaunch(resolvedLaunch),
+          cwd: cwd?.() ?? null,
+        }),
       )
 
       return offered.map(controlOf)
@@ -393,10 +398,11 @@ export function createAgentThreadBridge({
     list: () => throughIpc(() => commands.agentThreads()),
 
     open: async (threadId) => {
+      const resolvedLaunch = await launch()
       const opened = await throughIpc(() =>
         commands.agentOpenThread({
           threadId: threadId ?? null,
-          launch: nativeLaunch(launch()),
+          launch: nativeLaunch(resolvedLaunch),
           cwd: cwd?.() ?? null,
           mcpServers: [...(mcpServers?.() ?? [])],
         }),

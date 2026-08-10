@@ -13,7 +13,7 @@ import {
 import { ImageLightbox, type PreviewableImage } from '../media/image-lightbox'
 import { cx } from '../primitives/class-names'
 import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
-import { attachmentIntake, type ComposerAsset } from './attachment-intake'
+import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
 
 /*
  * The composer input.
@@ -154,6 +154,7 @@ export function PromptInput({
   onSubmit,
   ref,
 }: PromptInputProps) {
+  const intake = useAttachmentIntake()
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<readonly ComposerAsset[]>([])
 
@@ -203,19 +204,22 @@ export function PromptInput({
 
   useImperativeHandle(ref, () => ({ setText, focus: focusTextarea }), [focusTextarea])
 
-  const removeAttachment = useCallback((assetToken: string) => {
-    setAttachments((current) => {
-      const going = current.find((attachment) => attachment.assetToken === assetToken)
+  const removeAttachment = useCallback(
+    (assetToken: string) => {
+      setAttachments((current) => {
+        const going = current.find((attachment) => attachment.assetToken === assetToken)
 
-      /* 移掉一张卡片就是放掉那一份字节。不放，注册表会一直替一个已经不在
+        /* 移掉一张卡片就是放掉那一份字节。不放，注册表会一直替一个已经不在
       屏幕上的东西占着预算，而那笔预算是整个进程共用的（MAX_REGISTRY_BYTES）。 */
-      if (going !== undefined) {
-        attachmentIntake()?.discard(going)
-      }
+        if (going !== undefined) {
+          intake?.discard(going)
+        }
 
-      return current.filter((attachment) => attachment.assetToken !== assetToken)
-    })
-  }, [])
+        return current.filter((attachment) => attachment.assetToken !== assetToken)
+      })
+    },
+    [intake],
+  )
 
   /*
    * 加号：系统文件对话框，不是一个藏起来的 <input type="file">。
@@ -225,8 +229,6 @@ export function PromptInput({
    * 节点是顺带的，真正换掉的是这条路的形状。
    */
   const openFilePicker = useCallback(() => {
-    const intake = attachmentIntake()
-
     if (intake === null) {
       return
     }
@@ -236,7 +238,7 @@ export function PromptInput({
       收不下的原因（格式不对）由原生说，而它说的话属于这一句消息的转录，
       不属于输入框 —— 输入框只是没有多出一张卡片。 */
     })
-  }, [addAssets, multiple])
+  }, [addAssets, intake, multiple])
 
   const registerTextarea = useCallback((element: HTMLTextAreaElement | null) => {
     textareaRef.current = element
@@ -259,14 +261,12 @@ export function PromptInput({
    * 字节还得进 webview。而是听原生这一条：它给的是路径。
    */
   useEffect(() => {
-    const intake = attachmentIntake()
-
     if (intake === null) {
       return undefined
     }
 
     return intake.watchDrop(addAssets)
-  }, [addAssets])
+  }, [addAssets, intake])
 
   /* 全是 useCallback 或 setState，所以这个对象建一次就到卸载。 */
   const actions = useMemo<PromptInputActions>(
@@ -324,7 +324,6 @@ export function PromptInput({
                 /* 三条路里唯一还经过字节的一条：剪贴板里的截图没有路径，
                 系统给不出，所以它走不了按路径入库那一条。粘贴文字不该被
                 这一层碰到，所以先看有没有文件。 */
-                const intake = attachmentIntake()
                 const [pasted] = Array.from(event.clipboardData.files)
 
                 if (intake === null || pasted === undefined) {

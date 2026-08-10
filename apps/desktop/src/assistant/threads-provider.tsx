@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 
 import { defaultWorkspaceId, defaultWorkspaceReady } from '../workspace-root'
-import { desktopPermissionPosture, desktopSessionConfig, desktopThreads } from './agent-session'
+import type { DesktopAgentRuntime } from './agent-runtime'
 import { ThreadsContext } from './threads-context'
 
 /*
@@ -14,6 +14,7 @@ import { ThreadsContext } from './threads-context'
  */
 
 export interface ThreadsProviderProps {
+  readonly agent: Pick<DesktopAgentRuntime, 'permissionPosture' | 'sessionConfig' | 'threads'>
   readonly children: ReactNode
   /**
    * 会话那一侧的失败往哪里说一声。
@@ -25,7 +26,7 @@ export interface ThreadsProviderProps {
 }
 
 /** Holds the shared conversation state for everything below it. */
-export function ThreadsProvider({ children, report }: ThreadsProviderProps) {
+export function ThreadsProvider({ agent, children, report }: ThreadsProviderProps) {
   /*
    * 三台 store 在这里建出来，一棵树一份。
    *
@@ -40,13 +41,13 @@ export function ThreadsProvider({ children, report }: ThreadsProviderProps) {
    */
   const [{ controls, store, transcripts }] = useState(() => {
     const transcriptStore = new TranscriptStore()
-    const port = desktopThreads()
+    const port = agent.threads
 
     return {
       controls: new SessionControlsStore({
-        config: desktopSessionConfig(),
+        config: agent.sessionConfig,
         port,
-        posture: desktopPermissionPosture(),
+        posture: agent.permissionPosture,
         report,
         transcripts: transcriptStore,
       }),

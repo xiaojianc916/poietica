@@ -11,6 +11,7 @@ export const APPLICATION_FAILURE_CODES = [
   'WINDOW_STATE_QUERY_UNAVAILABLE',
   'WINDOW_RESIZE_SYNC_UNAVAILABLE',
   'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
+  'AGENT_SELECTION_UNAVAILABLE',
   'AGENT_CAPABILITIES_UNREADABLE',
   'AGENT_CONFIG_CHANGE_REJECTED',
   'SESSION_CONFIG_CHANGE_REJECTED',
@@ -144,6 +145,13 @@ export const APPLICATION_FAILURE_POLICIES = {
    * 这句话至少要把人指向唯一能解决问题的地方 —— 设置页会说出真实的原因：
    * 程序找不到、还是密钥没填。让人对着一句"没能读到"按重试，是最坏的一种。
    */
+  AGENT_SELECTION_UNAVAILABLE: {
+    impact: 'recoverable',
+    userMessage: '无法读取当前 Agent 配置，暂时无法启动 Agent；修正配置后会自动恢复。',
+    recovery: 'retry',
+    scope: operationScope('load-agent-selection'),
+  },
+
   AGENT_CAPABILITIES_UNREADABLE: {
     impact: 'recoverable',
     userMessage: '没能读到可用的模型。到「设置 → 模型」看看 agent 装好了没有、密钥填了没有。',

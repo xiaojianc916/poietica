@@ -898,7 +898,7 @@ const PREFERENCE_PIPELINE = 'packages/core/src/preference.ts'
  * 「现在用哪一家 agent」与「这一家提供哪些可调项」出自同一个文件，也在同一处接
  * 上，所以这里是一对常量而不是两对：下面两条规则守的是同一条纪律。
  */
-const AGENT_IDENTITY = 'apps/desktop/src/assistant/agent-session.ts'
+const AGENT_IDENTITY = 'apps/desktop/src/assistant/agent-runtime.ts'
 const COMPOSITION_ROOT = 'apps/desktop/src/shell/app-shell.tsx'
 
 /*

@@ -141,19 +141,20 @@ export function Dialog({
                 </div>
 
                 {showCloseButton ? (
-                  <Button
-                    aria-label={closeLabel}
+                  <BaseDialog.Close
                     disabled={busy}
-                    onClick={() => {
-                      requestOpenChange(false)
-                    }}
-                    ref={closeButtonRef}
-                    size="icon"
-                    type="button"
-                    variant="ghost"
+                    render={
+                      <Button
+                        aria-label={closeLabel}
+                        ref={closeButtonRef}
+                        size="icon"
+                        type="button"
+                        variant="ghost"
+                      />
+                    }
                   >
                     <X aria-hidden="true" className="size-4" />
-                  </Button>
+                  </BaseDialog.Close>
                 ) : null}
               </header>
             ) : (
