@@ -1,0 +1,64 @@
+/*
+ * 一组连续同类调用。
+ *
+ * 组头与 .timeline-tool__header 同一个音量：这是活动流里的一条记事，不是一张卡。
+ * 颜色与 hover 的所有权仍在 tool-call.css，这里只管「成组」多出来的那点几何。
+ */
+
+.timeline-group {
+  display: grid;
+}
+
+.timeline-group__header {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  max-inline-size: var(--cp-timeline-tool-max);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--cp-timeline-quiet-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: color var(--cp-motion-swift) ease;
+}
+
+.timeline-group__header:hover {
+  color: var(--cp-ink);
+}
+
+.timeline-group__label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 箭头跟着文字走，不钉在行尾 —— 与工具行那一条同一个约定。 */
+.timeline-group__chevron {
+  flex: none;
+  opacity: 0;
+  transition:
+    opacity var(--cp-motion-swift) ease,
+    transform var(--cp-motion-swift) ease;
+}
+
+.timeline-group__header:hover .timeline-group__chevron,
+.timeline-group[data-open="true"] .timeline-group__chevron {
+  opacity: 1;
+}
+
+/*
+ * 成员之间比转录级行距紧。
+ *
+ * 展开之后这几行是同一件事的几个部分，不是几条各自独立的记事 —— 松成转录的间距会
+ * 让「它们属于上面那一行」这件事读不出来。
+ *
+ * 令牌暂时带兜底值：--cp-timeline-group-gap 还没有归位到 metrics，那是下一批的账。
+ */
+.timeline-group__members {
+  display: grid;
+  gap: var(--cp-timeline-group-gap, 2px);
+  padding-block-start: var(--cp-timeline-group-gap, 2px);
+  padding-inline-start: var(--cp-timeline-tool-indent);
+}

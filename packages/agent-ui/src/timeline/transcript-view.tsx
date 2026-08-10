@@ -14,6 +14,8 @@ import { RestoreSpinner } from '../surface/restore-spinner'
 import { LiveProcess } from './live-process'
 import { ReplyActionHost } from './reply-actions'
 import { ThinkingIndicator } from './thinking-indicator'
+import { groupTools } from './tool-group'
+import { ToolGroupCard } from './tool-group-card'
 import { foldFeed, type TurnSealPlan } from './turn-fold'
 import { TurnSeal } from './turn-seal'
 
@@ -106,10 +108,24 @@ export function TranscriptView({
   const feed = foldFeed(visibleRows, timeline.spans, opened)
 
   /*
-   * 轮次读的是屏幕上真正在滚的那个数组：摘出去一行、折起一段过程，下标都会跟着
-   * 错位，而 ConversationTurn.rowIndex 正是喂给 virtualizer.scrollToIndex 的那个行号。
+   * 聚合排在折叠之后，两条通道各过一遍同一个函数。
+   *
+   * 折叠管的是「一整轮的过程收不收起」，聚合管的是「相邻的同类调用并不并」——
+   * 两件事各自成立，所以是两次派生，不是一次。转录与瞬态区因此长同一个样子。
+   *
+   * 不包 useMemo：groupTools 自带按 rows[0] 记账的投影缓存，一组都没并时原样交回入参
+   * 那个数组。再包一层的依赖里有每帧换引用的 feed.rows —— 永远不命中，只是每帧多一次
+   * 依赖数组的分配与比较。缓存的所有权只能有一个，而它在派生里。
    */
-  const turns = selectTurns(feed.rows)
+  const grouped = groupTools(feed.rows)
+  const groupedLive = groupTools(feed.live)
+
+  /*
+   * 轮次读的是屏幕上真正在滚的那个数组：摘出去一行、折起一段过程、并掉几条调用，下标
+   * 都会跟着错位，而 ConversationTurn.rowIndex 正是喂给 virtualizer.scrollToIndex 的那个
+   * 行号。所以这里读的是聚合之后的那一份，不是 feed.rows。
+   */
+  const turns = selectTurns(grouped.rows)
 
   /*
    * 封条只在这里构造一次。
@@ -138,11 +154,32 @@ export function TranscriptView({
    * 展示的标签新增一种行，等于让三处一起认识它。所以它长在行的外面：内容已经有行
    * 时，落点就是那一轮第一行「不是人话」的那一行。
    */
+  /*
+   * 瞬态区那一份。
+   *
+   * 组挂在行外面（key 是组内第一条的 id），所以这里的判断与封条那一处同一个形状：
+   * 查得到就画组，查不到就照旧画这一行。成员仍旧交给 renderRow —— 组不改成员的样子。
+   */
+  const renderLiveRow = useCallback(
+    (row: FeedRow) => {
+      const plan = groupedLive.groups.get(row.item.id)
+
+      return plan === undefined ? (
+        renderRow(row)
+      ) : (
+        <ToolGroupCard plan={plan} renderRow={renderRow} />
+      )
+    },
+    [groupedLive.groups, renderRow],
+  )
+
   const renderRowWithSeal = useCallback(
     (row: FeedRow) => {
       const seal = feed.seals.get(row.item.id)
       const replyAction = feed.replyActions.get(row.item.id)
-      const rendered = renderRow(row)
+      const plan = grouped.groups.get(row.item.id)
+      const rendered =
+        plan === undefined ? renderRow(row) : <ToolGroupCard plan={plan} renderRow={renderRow} />
 
       /*
        * 回复操作属于整轮，不属于某一条 agent_text。
@@ -176,7 +213,7 @@ export function TranscriptView({
         </>
       )
     },
-    [feed.replyActions, feed.seals, renderRow, sealOf],
+    [feed.replyActions, feed.seals, grouped.groups, renderRow, sealOf],
   )
 
   /*
@@ -201,7 +238,7 @@ export function TranscriptView({
   const footer = (
     <>
       {feed.tail === undefined ? null : sealOf(feed.tail)}
-      <LiveProcess renderRow={renderRow} rows={feed.live} />
+      <LiveProcess renderRow={renderLiveRow} rows={groupedLive.rows} />
       {waiting ? <ThinkingIndicator /> : null}
     </>
   )
@@ -227,7 +264,7 @@ export function TranscriptView({
         isBusy={selectIsBusy(timeline)}
         overlay={overlay}
         renderRow={renderRowWithSeal}
-        rows={feed.rows}
+        rows={grouped.rows}
       />
     </>
   )

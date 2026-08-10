@@ -17,7 +17,7 @@ import { type ToolCallFacets, toToolCallFacets } from '../semantics/tool-call-fa
 import { readToolIntent } from '../semantics/tool-intent'
 import { ToolCallPanels } from './tool-call-panels'
 
-function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
+export function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
   const className = 'timeline-tool__icon'
 
   switch (kind) {
