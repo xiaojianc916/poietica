@@ -1,6 +1,7 @@
-import { useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
+import { useFollowLatest } from '../primitives/follow-latest'
 import { ChevronDownIcon, ThinkingIcon } from '../primitives/icons'
 import { VirtualProse } from './virtual-prose'
 
@@ -37,8 +38,62 @@ export interface ReasoningPanelProps {
 export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
   const { isOpen, toggle } = useDisclosure(isStreaming)
 
-  /* 滚动容器归这一层：那个盒子的上限、滚动条与锚定策略都写在它自己的类里。 */
+  /* 滚动容器归这一层：那个盒子的上限与滚动条写在它自己的类里，滚动位置也归它。 */
   const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  const { release, resume, stick, watch } = useFollowLatest()
+
+  /*
+   * 盒子的主人装订它自己的跟随。
+   *
+   * 一个 ref 回调做两件事：登记元素给虚拟窗口量高度，装上跟随的监听。一个盒子一处装卸，
+   * 而 React 19 的 ref 回调可以交回卸载函数，所以不需要第二个效应去对齐它的生命周期。
+   */
+  const bindScroll = useCallback(
+    (element: HTMLDivElement | null) => {
+      scrollRef.current = element
+
+      if (element === null) {
+        return
+      }
+
+      return watch(element)
+    },
+    [watch],
+  )
+
+  /*
+   * 边写边看才跟，写完或收起就让开。
+   *
+   * 收起时让开是必要的：再打开时人要看的是最新一行，而不是上次离开的地方 —— 那一下由
+   * resume 自己拨。写完让开也是必要的：思考完毕之后这段内容不再长，而一个还举着旗的
+   * 跟随只会在人向上读时跟他抢位置。
+   */
+  const chasing = isOpen && isStreaming
+
+  useLayoutEffect(() => {
+    if (chasing) {
+      resume()
+
+      return
+    }
+
+    release()
+  }, [chasing, release, resume])
+
+  /*
+   * 每次提交之后拨一次末端。
+   *
+   * 这一层在 VirtualProse 之外,所以它的布局效应跑在后者提交之后 —— 新的一块已经落进
+   * DOM,盒子的高度是新的。同一帧完成,看不见中间态。
+   *
+   * 没有依赖数组是刻意的:每一次重渲染都可能改变这个盒子的高度,而这里不需要区分是哪
+   * 一种。stick 只在人还跟着最新内容时写一次 scrollTop,写的值与当前值相同时浏览器连
+   * 事件都不派发。
+   */
+  useLayoutEffect(() => {
+    stick()
+  })
 
   return (
     <div className="timeline-reasoning" data-open={isOpen ? 'true' : undefined}>
@@ -59,10 +114,9 @@ export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
       </button>
 
       <DisclosureBody isOpen={isOpen}>
-        <div className="timeline-reasoning__scroll" ref={scrollRef}>
+        <div className="timeline-reasoning__scroll" ref={bindScroll}>
           <VirtualProse
             bodyClassName="timeline-reasoning__body"
-            chaseEnd={isOpen && isStreaming}
             isStreaming={isStreaming}
             scrollRef={scrollRef}
             text={text}

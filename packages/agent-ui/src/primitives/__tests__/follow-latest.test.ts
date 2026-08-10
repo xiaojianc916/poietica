@@ -3,7 +3,7 @@ import { distanceFromEnd, staysWithLatest } from '../follow-latest'
 
 /*
  * 判据是纯的，所以它能脱离 DOM 单独钉住 —— 这也是把它从 hook 里分出来的理由：jsdom 的
- * scrollHeight 与 clientHeight 恒为 0，留在组件里就永远测不到这五种几何。
+ * scrollHeight 与 clientHeight 恒为 0，留在组件里就永远测不到这几种几何。
  */
 describe('follow-latest', () => {
   it('reads the distance straight off one box', () => {

@@ -3,8 +3,8 @@ import './agent-activity-feed.css'
 import type { FeedRow } from '@poietica/agent'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useFollowLatest } from '../primitives/follow-latest'
 import { useDevicePixels } from '../primitives/use-device-pixels'
-import { useFollowLatest } from './follow-latest'
 import { type RowSpan, rowAtAnchor } from './reading-position'
 import { useRevealIntent } from './use-reveal-intent'
 
@@ -158,8 +158,8 @@ export function AgentActivityFeed({
    * 而这个理由当时也不成立:CSS 过渡期间根本不产生 React 渲染。
    *
    * 而 ref 的代价是实打实的:改 ref 不触发重渲染,虚拟器在渲染期读到的 scrollMargin
-   * 会一直停在首帧的 0,挂载时的 scrollToEnd 正好落在那之前 —— 初次打开必定差一个
-   * 转录偏移。
+   * 会一直停在首帧的 0,于是每一行的落点都整体上移那么多,直到别的什么事情恰好引起
+   * 一次重渲染。
    *
    * 滚动区是转录的 offsetParent(样式里的 position: relative),所以这是一次
    * offsetTop,不需要两次 getBoundingClientRect 再减去 scrollTop。
@@ -171,9 +171,9 @@ export function AgentActivityFeed({
    *
    * scrollMargin 说的是转录之前，这个说的是转录之后，两者必须成对存在：滚动盒的
    * 末端等于 scrollMargin + getTotalSize() + 这一段，而虚拟器算末端时只用前两项。
-   * 少声明一头，它的「底」就永远比真正的底高出这么多 —— 那正是流式输出停下之后
-   * 还能再往下拨一点的距离，而且它落在 BOTTOM_THRESHOLD_PX 的容差里，所以既不会
-   * 被察觉、也不会被纠正。
+   * 少声明一头，它的「底」就永远比真正的底高出这么多。跟随不再问它的底 ——
+   * follow-latest 读的是 DOM 的底，那个数把这一段含在里面 —— 所以这个量现在只服务于
+   * 区间与总高：少了它，最后几行会被尾部压住。
    *
    * 交给 paddingEnd 之后，这段空间进入虚拟器的坐标系，两个末端合成一个。数值是实
    * 测的而不是抄自令牌：尾部里装着等待指示器，高度本来就不是常量，而抄一份令牌就
@@ -224,10 +224,9 @@ export function AgentActivityFeed({
    * 分开写会读两次几何，还会让两个真源在时间上错开。这里全部是读，没有写夹在
    * 中间，所以不会有强制回流。
    *
-   * 曾经是三个：还有一个「人是不是贴在末端」。它被删掉不是因为多余，而是因为
-   * 它是第二个答案 —— 虚拟器用 scrollEndThreshold 判同一件事，判得比这里早一帧，
-   * 而且量的是自己的末端而不是 DOM 的末端。同一个问题有两个答案时，问题不在
-   * 哪个更准，在于不该有两个。
+   * 不含「人是不是贴在末端」。那个量确实要读，但它归 follow-latest：它读完只写
+   * scrollTop，一个 state 都不碰，也就没有理由挤进这次 setState。同一个问题仍然只有
+   * 一个答案 —— 只是那个答案在别的文件里，而且量的是 DOM 的末端。
    */
   const syncScrollState = useCallback(
     (viewport: HTMLDivElement) => {
@@ -397,15 +396,14 @@ export function AgentActivityFeed({
   /*
    * 量，然后交出去。这里一个字都不写回 DOM。
    *
-   * 末端的位置只能通过交给虚拟器的那几个数（scrollMargin / paddingEnd / anchorTo）
-   * 去表达。绕过它去写滚动位置的路子试过两条，都坏在同一件事上：直接写
-   * viewport.scrollTop 是引入第二个所有者，与末端锚定对同一次尺寸变化各补偿一次；
-   * 改走 virtualizer.scrollBy 也不行 —— 它内部是 scrollToOffset(getScrollOffset() + d)，
-   * 写的是绝对位置，而这里开着 useScrollendEvent，滚动状态收敛推迟到 scrollend，
-   * 尾部尺寸在这期间一变，基准就过期了。两次的症状一模一样：滑到底也到不了底。
+   * 偏移是交给虚拟器的一个输入，而写滚动位置是 follow-latest 的事，两件事在这里不该
+   * 合流：这个回调由 ResizeObserver 叫醒，而此刻新的高度还没提交，任何在这里写下的
+   * 滚动位置都会被浏览器夹掉 —— 那也正是库自己的增量补偿会丢步的地方。
    *
-   * 「输入框长高时最后一行与它的距离会变」这件事仍然成立，但解法只能在唯一那个
-   * 所有者里面：改这几个数的含义，或者换掉整套锚定模型。
+   * 「滑到底也到不了底」不是写入方式的错。判据错了：虚拟器的
+   * getVirtualDistanceFromEnd() 走 getTotalSize()，而后者减掉了 scrollMargin 却没有
+   * 加回，于是只要滚动区有上内边距，它的「底」就恒定比 DOM 的底高出那一段。换掉的是
+   * 判据，不是写入者。
    */
   const measureMargin = useCallback(() => {
     const transcript = transcriptRef.current
@@ -518,9 +516,10 @@ export function AgentActivityFeed({
   /*
    * 跳转是意图的效应,不是点击的副作用。
    *
-   * 写成点击时直接 scrollToIndex 是错的:意图要先改变 anchorTo 与 followOnAppend,
-   * 而那要等下一次渲染 —— 同步调用会让跳转本身发生在旧策略下,恰好绕开了这套设计
-   * 想要的那条保证。放进效应里,顺序由 React 保证,不由调用顺序碰运气。
+   * 写成点击时直接 scrollToIndex 是错的:跳转必须发生在闩锁已经立起来之后 —— 那次
+   * 滚动自己会派发 scroll,而回调里的 settleReveal 拿它去回答「到了没有」。pending
+   * 还没提交就滚,这一问会被自己的滚动提前答成「到了」。放进效应里,顺序由 React
+   * 保证,不由调用顺序碰运气。
    *
    * 而且必须是瞬移。平滑滚动在这里不是一个体验选项:行是动态测量的(下面的
    * measureElement),平滑滚动要求目标偏移在一段动画期间保持不变 —— 途中每挂载
@@ -529,8 +528,8 @@ export function AgentActivityFeed({
    * 滚动位置连续经过中间每一个像素,于是中间每一行都要挂载、测量、卸载一遍 ——
    * 那等于把整条会话读了一遍。
    *
-   * 落点的稳定不靠动画去掩饰,靠 anchorTo 'start' 去保证;高亮的连续不靠动画去补,
-   * 靠闩锁去锁。
+   * 落点的稳定不靠动画去掩饰:跳转之前 releaseFollow 已经让开,末端不再来抢,而库默认
+   * 的锚点把视口上方的补偿仍然钉在原处。高亮的连续不靠动画去补,靠闩锁去锁。
    */
   useLayoutEffect(() => {
     if (pending === null) {
@@ -584,8 +583,8 @@ export function AgentActivityFeed({
            *     虚拟器只测量目标附近缓冲区内的条目，跳过的那些若各自定位就会错位。
            *
            * 本组件落在前者，理由是后者的前提在这里不存在：这里没有任何一次平滑
-           * 滚动。跳转是 scrollToIndex(align 'start') 不带 behavior，开场是
-           * scrollToEnd()，都是瞬移 —— 而瞬移是刻意的，行是动态测量的，平滑滚动
+           * 滚动。跳转是 scrollToIndex(align 'start') 不带 behavior，跟随是一次
+           * scrollTop 赋值，都是瞬移 —— 而瞬移是刻意的，行是动态测量的，平滑滚动
            * 要求目标偏移在动画期间保持不变，而它会自己跑掉。
            *
            * 于是这里取一致性：每一行都坐在虚拟器算出来的 start 上，模型说它在哪

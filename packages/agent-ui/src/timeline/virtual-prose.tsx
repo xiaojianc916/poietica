@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { type RefObject, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type RefObject, useCallback, useMemo, useState } from 'react'
 
 import { cx } from '../primitives/class-names'
 import { useDevicePixels } from '../primitives/use-device-pixels'
@@ -20,6 +20,10 @@ import { createBlockScanner } from './split-stream'
  * 滚动容器不归它。调用方才知道那个盒子是什么 —— 思考盒是一个普通的裁剪盒，抽屉那个是
  * 一个 role=\"tabpanel\"。把它造在这里，调用方就只能隔着 prop 往里塞属性，而 ARIA 角色
  * 恰恰是最不该被塞进来的东西。这一层要的只是「往哪个盒子里量」，那就是一个 ref。
+ *
+ * 滚动位置同样不归它，而且是同一条理由的延长：盒子的主人才知道这个盒子该不该跟着最新
+ * 内容走 —— 思考链边写边看要跟，工具载荷要从头读起不能跟。这里因此一个 scrollTop 都不
+ * 写，也不判「贴没贴底」：那两件事都在盒子的主人那边，由 follow-latest 承担。
  */
 
 /**
@@ -33,34 +37,16 @@ const ESTIMATED_LINE_PX = 19
 /** 视口之外预留的块数。块比转录的行小得多，四块盖得住一次滚轮的位移。 */
 const OVERSCAN_BLOCKS = 4
 
-/**
- * 距末端多近算作「仍在看最新一行」。
- *
- * 这个数是自动跟随的唯一判据（scrollEndThreshold 同时喂给 followOnAppend 与末端锚定
- * 的增量补偿），所以它有下界也有上界：必须大于一帧的长高（一行 19px 加一个段间距），
- * 否则内容刚越过高度上限的那一刻跟随接不上；必须小于一格滚轮（转录那一层取 48），
- * 否则人往上拨一格还被判成贴底，放手也就不成立。
- */
-const BOTTOM_THRESHOLD_PX = 32
-
 export interface VirtualProseProps {
   /** 包含块自己的类；.timeline-prose 由这一层补上，两个调用点的排版因此同源。 */
   readonly bodyClassName: string
-  /** 挂载时直奔末端，只做一次。写完或收起之后闩锁复位。 */
-  readonly chaseEnd: boolean
   readonly isStreaming: boolean
   /** 往哪个盒子里量。那个盒子归调用方，连同它的角色与它的边。 */
   readonly scrollRef: RefObject<HTMLDivElement | null>
   readonly text: string
 }
 
-export function VirtualProse({
-  bodyClassName,
-  chaseEnd,
-  isStreaming,
-  scrollRef,
-  text,
-}: VirtualProseProps) {
+export function VirtualProse({ bodyClassName, isStreaming, scrollRef, text }: VirtualProseProps) {
   /*
    * 一条流一个切分器：进度跟着这个组件实例走（useState 的惰性初始化，一个实例只造一次）。
    *
@@ -96,19 +82,6 @@ export function VirtualProse({
     getScrollElement: () => scrollRef.current,
     estimateSize,
     getItemKey,
-    /*
-     * 这类盒子的稳定侧永远是末端，与转录那一层同一个立场。
-     *
-     * 「内容长高时若人还贴在末端就跟随，人往上滚就放手，滚回末端就重新接管」——
-     * 这三句话不需要在产品代码里复刻：末端锚定负责最后一块长高时的增量补偿，
-     * followOnAppend 负责新块追加时的跟随，scrollEndThreshold 负责判「够不够近」。
-     *
-     * 落定的内容不追加也不长高，这三项因此对它恒等于不做事 —— 一份配置两处都对，
-     * 不必为「这一处不流式」再分一次岔。
-     */
-    anchorTo: 'end',
-    followOnAppend: true,
-    scrollEndThreshold: BOTTOM_THRESHOLD_PX,
     overscan: OVERSCAN_BLOCKS,
     /* 单引擎渲染器（WebView2），原生 scrollend 可用；理由见 AgentActivityFeed 同一处。 */
     useScrollendEvent: true,
@@ -116,24 +89,6 @@ export function VirtualProse({
 
   const items = virtualizer.getVirtualItems()
   const live = blocks.length - 1
-
-  /* 只做一次，此后贴底与否由 scrollEndThreshold 判 —— 这里不记第二本账。 */
-  const jumped = useRef(false)
-
-  useLayoutEffect(() => {
-    if (!chaseEnd) {
-      jumped.current = false
-
-      return
-    }
-
-    if (jumped.current) {
-      return
-    }
-
-    jumped.current = true
-    virtualizer.scrollToEnd()
-  }, [chaseEnd, virtualizer])
 
   return (
     <div
