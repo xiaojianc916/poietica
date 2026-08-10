@@ -24,8 +24,13 @@ import type { BuiltinOrigin, ContributionOrigin } from './origin'
  * 只有 http 这一支。判别式由协议钉死（schema 那一侧是
  * #[serde(tag = "type", rename_all = "snake_case")]），而本应用送得出去的只有内置那一台
  * 本机 http 端点。子进程那一支不在这里出现 —— 起子进程的是 CLI，形状也归它。
+ *
+ * 写成类型别名而不是 interface，是因为桥那一层把它当不透明 JSON 送过去（原生侧只能把
+ * ACP 的结构体反序列化出来，它们全是 #[non_exhaustive]，构造不出来），而 TypeScript 只
+ * 给对象类型别名隐式索引签名，不给 interface —— interface 可以在别处被声明合并追加字段，
+ * 属性集合不封闭。改回 interface 会当场编译不过；加索引签名或强转都是把约束扔掉换编译过。
  */
-export interface McpServerWire {
+export type McpServerWire = {
   readonly type: 'http'
   readonly name: string
   readonly url: string
