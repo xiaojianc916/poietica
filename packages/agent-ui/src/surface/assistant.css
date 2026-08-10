@@ -1641,7 +1641,13 @@ svg.assistant-provider-icon {
   align-items: center;
   gap: var(--cp-control-gap);
   border: 0;
-  border-radius: var(--cp-radius-item);
+  /*
+   * Hover 底色使用与外层 Context Bar 相同的圆角尺度。
+   *
+   * 控件高度会自然限制实际圆角，既保持柔和的 Apple 风格轮廓，
+   * 又让内部高亮与外层容器形成对应关系。
+   */
+  border-radius: var(--cp-radius);
   padding-inline: var(--cp-inset);
   background: transparent;
   color: var(--cp-ink);
@@ -1675,10 +1681,6 @@ svg.assistant-provider-icon {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.workspace-picker__context-chevron {
-  margin-inline-start: calc(var(--cp-control-gap) / 2);
 }
 
 /* composer workspace context bar end */

@@ -114,8 +114,6 @@ export function WorkspacePicker({
             <span className="workspace-picker__context-name">
               {current?.name ?? '选择工作目录'}
             </span>
-
-            <ChevronDownIcon aria-hidden="true" className="workspace-picker__context-chevron" />
           </DropdownMenuTrigger>
         ) : (
           <>
