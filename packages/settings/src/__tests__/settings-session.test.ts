@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import type { AppSettings } from '../settings'
+import { type AppSettings, DEFAULT_APP_SETTINGS } from '../settings'
 import { createSettingsSession } from '../settings-session'
 import type { SettingsStore } from '../settings-store'
 
+/*
+ * 起点从默认值铺开，只钉住用例真正断言到的那两格。
+ *
+ * 原来这里是一份手抄的字面量，于是 AppSettings 一改它就烂：shortcuts 那张表早已删掉
+ * （settings.ts 写着理由 —— 全仓没有读取点，快捷键的真相在命令注册表里），这份抄本还
+ * 留着它；而后来加的 general 与 appearance 它一个都没有。展开默认值之后这类漂移不会
+ * 再发生 —— 那个常量的类型就是 AppSettings，它不可能缺字段。
+ *
+ * theme 是被断言的：reset 落地之后那一次保存要看见 'system'。language 只需要与用例里
+ * 改成的 'en' 不同，钉住它是为了把起点写在纸面上，而不是藏进默认值里。
+ */
 const INITIAL: AppSettings = {
+  ...DEFAULT_APP_SETTINGS,
   theme: 'system',
   language: 'zh-CN',
-  shortcuts: {},
-  privacy: {
-    telemetry: false,
-    crashReporting: true,
-    updateCheck: true,
-  },
 }
 
 function deferred<T>() {
