@@ -87,23 +87,36 @@ function Seal({ endedAt, hasProcess, isOpen, onToggle, startedAt, turn }: TurnSe
   const elapsed = useElapsed(startedAt, endedAt)
   const label = `${endedAt === undefined ? '正在处理' : '已处理'} ${spell(elapsed)}`
 
-  /* 没有可折的过程时它就是一行字：一个按不出东西的按钮比没有按钮更难懂。 */
+  /*
+   * 横线与交互控件分开。
+   *
+   * 横线仍然横贯整列，但 hover 和点击命中区只属于里面真正可操作的按钮，
+   * 不再因为鼠标经过这一整行而变色。
+   */
   if (!hasProcess) {
-    return <p className="turn-seal">{label}</p>
+    return (
+      <div className="turn-seal-line">
+        <p className="turn-seal">
+          <span className="turn-seal__label">{label}</span>
+        </p>
+      </div>
+    )
   }
 
   return (
-    <button
-      aria-expanded={isOpen}
-      className="turn-seal turn-seal--toggle"
-      onClick={() => {
-        onToggle(turn)
-      }}
-      type="button"
-    >
-      <span>{label}</span>
-      <ChevronDownIcon className="turn-seal__chevron" />
-    </button>
+    <div className="turn-seal-line">
+      <button
+        aria-expanded={isOpen}
+        className="turn-seal turn-seal--toggle"
+        onClick={() => {
+          onToggle(turn)
+        }}
+        type="button"
+      >
+        <span className="turn-seal__label">{label}</span>
+        <ChevronDownIcon aria-hidden="true" className="turn-seal__chevron" />
+      </button>
+    </div>
   )
 }
 
