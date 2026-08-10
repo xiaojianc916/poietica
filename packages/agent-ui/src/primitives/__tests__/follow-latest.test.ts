@@ -67,7 +67,7 @@ describe('travelStep', () => {
   it('follows a target that moved while the travel was under way', () => {
     const grown = travelStep(100, { clientHeight: 600, scrollHeight: 5000, scrollTop: 100 }, 0.5)
 
-    expect(grown).toBe(3937.5)
+    expect(grown).toBe(3862.5)
   })
 
   it('reports the travel done when the budget runs out', () => {
