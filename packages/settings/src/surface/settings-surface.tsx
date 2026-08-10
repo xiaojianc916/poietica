@@ -79,8 +79,8 @@ const SECTIONS: Record<SettingsSection, string> = {
  * 标签仍然来自 SECTIONS，避免同一份文案出现两处。
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
-  ['general', 'appearance', 'archived'],
-  ['models', 'keymap', 'hooks', 'tools'],
+  ['general', 'appearance'],
+  ['models', 'keymap', 'hooks', 'tools', 'archived'],
   ['privacy', 'about'],
 ]
 
