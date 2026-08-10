@@ -44,7 +44,15 @@
   transition: color 120ms var(--cp-motion-ease);
 }
 
-.turn-seal--toggle:hover {
+/*
+ * 悬停与键盘焦点同一个落点。
+ *
+ * 此前只有 :hover。这个按钮是这一轮唯一的开关，用键盘走到它上面时屏幕上不会有
+ * 任何变化 —— 那不是样式没写全，是一条走不通的路。用 :focus-visible 而不是
+ * :focus：指针点过之后不该留下一个焦点环，这一档正是浏览器替我们区分的。
+ */
+.turn-seal--toggle:hover,
+.turn-seal--toggle:focus-visible {
   color: var(--cp-ink);
 }
 
@@ -98,6 +106,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /*
+   * 变色也是过渡。
+   *
+   * 这一条此前漏了：箭头的旋转与换行的浮现都关了，只有封条自己那 120ms 的颜色
+   * 补间还在跑。声明了少一些动效的人，看到的仍然是一处会慢慢变色的东西。
+   */
+  .turn-seal--toggle {
+    transition: none;
+  }
+
   .turn-seal__chevron {
     transition: none;
   }
