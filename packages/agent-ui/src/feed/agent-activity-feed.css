@@ -1,5 +1,5 @@
 /*
- * 会话态的滚动区,外加一层不随滚动移动的浮层。这一层只有这两样东西。
+ * 会话态的滚动区,一枚回到末端的按钮,外加一层不随滚动移动的浮层。这一层只有这三样。
  *
  * 首尾两个撑开的伪元素、两条 flex-grow 过渡、以及 data-started 的全部规则都已
  * 删除:位置不该是一个可以被补间的数字(理由写在 assistant.css)。现在这个组件
@@ -158,4 +158,56 @@
 
 .agent-activity-feed__tail:not(:empty) {
   padding-block-start: var(--cp-feed-row-gap);
+}
+
+/*
+ * 回到最新。
+ *
+ * 它不在滚动区里 —— 一枚把视口带回末端的控件不该跟着视口一起走。居中不用 transform:
+ * inset-inline: 0 加 margin-inline: auto 是不动变换的居中写法,而变换要留给下面那段进出。
+ *
+ * 落点在带子之上、溶解带之外:压进渐变里它自己会是淡的,而它是一个控件,不是内容。
+ *
+ * 实色面加一圈发丝边加一层浮层阴影 —— 与菜单同一档高度,因为它也脱离文档流浮在内容之上。
+ */
+.agent-activity-feed__to-latest {
+  position: absolute;
+  inset-block-end: calc(var(--cp-dock-clearance, var(--cp-gutter)) + var(--cp-dock-dissolve));
+  inset-inline: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--cp-control);
+  block-size: var(--cp-control);
+  margin-inline: auto;
+  appearance: none;
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: 50%;
+  background: var(--cp-surface);
+  box-shadow: var(--cp-lift-menu);
+  color: var(--cp-ink);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(var(--cp-motion-rise));
+  transition:
+    opacity var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease),
+    background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.agent-activity-feed__to-latest[data-shown="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+.agent-activity-feed__to-latest:hover {
+  background: var(--cp-overlay-hover);
+}
+
+/* 焦点圈不自己画:没有 outline: none,浏览器的 :focus-visible 因此照常生效。 */
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-activity-feed__to-latest {
+    transition: none;
+  }
 }

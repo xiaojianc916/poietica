@@ -172,6 +172,16 @@
 
   /* 悬停是一层墨,不是一个固定的灰:深色下它必须变亮而不是变暗。 */
   --cp-hover: color-mix(in srgb, var(--ui-foreground) 6%, transparent);
+
+  /*
+   * 同一层悬停墨压在一张实色浮层上时的等效实色。
+   *
+   * 上面那一层是半透明墨,铺在什么底上就跟着什么底走;而浮层自己是实色(--cp-surface),
+   * 半透明墨盖不住它,只能把它兑淡。--cp-shelf 与 --cp-timeline-drawer-surface 两段说明
+   * 已经把这一条写清楚过:实色面上要的是实色。式子与 --cp-menu-hover 同构,浓度沿用上面
+   * 那一档,所以两处悬停在感知上是同一下。
+   */
+  --cp-overlay-hover: color-mix(in srgb, var(--ui-foreground) 6%, var(--cp-surface));
   --cp-hairline: var(--ui-divider-subtle);
 
   /*

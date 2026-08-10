@@ -4,7 +4,9 @@ import type { FeedRow } from '@poietica/agent'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useFollowLatest } from '../primitives/follow-latest'
+import { ChevronDownIcon } from '../primitives/icons'
 import { useDevicePixels } from '../primitives/use-device-pixels'
+import { latestOwnMessage } from './own-message'
 import { type RowSpan, rowAtAnchor } from './reading-position'
 import { useRevealIntent } from './use-reveal-intent'
 
@@ -71,7 +73,7 @@ const READING_ANCHOR_RATIO = 1 / 3
 /**
  * 会话流的滚动区。
  *
- * 这个组件只画会话态:一个滚动区,加一层不随滚动移动的浮层。
+ * 这个组件只画会话态:一个滚动区,一枚回到末端的按钮,加一层不随滚动移动的浮层。
  *
  * 入口态不是它的一种姿势 —— 它此前是,靠 feed 根上两个伪元素的 flex-grow 在
  * "居中"与"落底"之间插值;开场白与输入框因此是它的两个插槽。那套东西已经删掉,
@@ -199,11 +201,21 @@ export function AgentActivityFeed({
   /*
    * 末端由它拨,不由虚拟器拨。整段理由写在 follow-latest。
    *
-   * 这一层用它三样:watch 装在滚动区上(与跳转闩锁同一处装卸),stick 在每次提交之后与每
-   * 次尺寸变化之后各拨一次,release 在人下跳转指令时让开。重新跟上归 resume,而这一层没
-   * 有那个入口:让开由人自己滚回末端解除,不由代码解除。
+   * 各有各的调用点:watch 装在滚动区上(与跳转闩锁同一处装卸),stick 在每次提交之后与每
+   * 次尺寸变化之后各拨一次,release 在人下跳转指令时让开,resume 在人要求回到末端时重新
+   * 跟上 —— 那有两个入口,一个是他又说了一句话,一个是那枚按钮。
+   *
+   * atLatest 只喂那枚按钮的存在。它问的是几何(视口此刻在不在末端),不是意图(要不要跟):
+   * 人在末端点开一段内容时两者分叉 —— 意图为假(不该把他拽回去),几何为真(不该冒出一枚
+   * 按钮)。两个问题,同一条 staysWithLatest 判据。
    */
-  const { release: releaseFollow, stick, watch: watchFollow } = useFollowLatest()
+  const {
+    atLatest,
+    release: releaseFollow,
+    resume: resumeFollow,
+    stick,
+    watch: watchFollow,
+  } = useFollowLatest()
 
   /*
    * 虚拟器此刻铺出来的区间表，给滚动回调里的那次二分用。
@@ -376,6 +388,27 @@ export function AgentActivityFeed({
   useLayoutEffect(() => {
     spansRef.current = items
   }, [items])
+
+  /*
+   * 自己说的话把视线带回末端。
+   *
+   * 专业软件在这里是一致的:发出去之后视线回到底部,因为那是答复将要出现的地方 —— 停在半
+   * 空是把「我在读历史」这个已经作废的意图当成了当前意图。
+   *
+   * 触发者是数据而不是点击:最后一条我说的话换了 id,就是我又说了一句。所以输入框不必把
+   * 发送事件传进滚动区,而「恢复会话」「重新发送」这些同样该回到末端的情形自动成立。
+   *
+   * resume 自己会拨一次,所以这里不必再叫 stick:两件事在同一帧里完成。
+   */
+  const ownMessage = latestOwnMessage(rows)
+
+  useLayoutEffect(() => {
+    if (ownMessage === null) {
+      return
+    }
+
+    resumeFollow()
+  }, [ownMessage, resumeFollow])
 
   /*
    * 每一次提交之后,拨一次末端。
@@ -623,6 +656,31 @@ export function AgentActivityFeed({
           </div>
         </div>
       </div>
+
+      {/*
+       * 回到最新。
+       *
+       * 常驻挂载,靠 data-shown 在两个静态状态之间过渡 —— 它不需要 AnimatePresence 解决的
+       * 那个问题(元素卸载时还要播退场),所以时长与曲线可以直接吃样式表里的令牌,一个新数字
+       * 都不用造,减弱动态偏好也由那张表里既有的查询接住。
+       *
+       * 隐藏时挂 inert:一个 opacity 为 0 的按钮仍然可点、仍然进得了 Tab 序 —— inert 是
+       * 官方给「这块东西现在不存在」的声明,与 DisclosureBody 收起时用的是同一个属性。
+       *
+       * 判据是 atLatest 而不是 isBusy:人离开末端与模型在不在跑无关,这枚按钮回答的是「下面
+       * 还有我没看见的东西」。标杆同一形状 —— AI Elements 的 ConversationScrollButton 也是
+       * !isAtBottom 才出现。
+       */}
+      <button
+        aria-label="回到最新"
+        className="agent-activity-feed__to-latest"
+        data-shown={atLatest ? undefined : 'true'}
+        inert={atLatest}
+        onClick={resumeFollow}
+        type="button"
+      >
+        <ChevronDownIcon aria-hidden="true" />
+      </button>
 
       {overlay === undefined ? null : overlay({ activeRow, scrollToRow })}
     </div>
