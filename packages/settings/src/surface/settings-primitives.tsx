@@ -22,16 +22,19 @@ export function SettingsPage({ children }: SettingsPageProps) {
 }
 
 export interface SettingsGroupProps {
-  readonly title: string
+  /* 省略即不画表头：整页只有一张卡时，一个组标题是在复述页面标题。 */
+  readonly title?: string
   readonly children: ReactNode
 }
 
 export function SettingsGroup({ title, children }: SettingsGroupProps) {
   return (
     <section className="settings-group">
-      <header className="settings-group__header">
-        <h3>{title}</h3>
-      </header>
+      {title === undefined ? null : (
+        <header className="settings-group__header">
+          <h3>{title}</h3>
+        </header>
+      )}
 
       <div className="settings-group__surface">{children}</div>
     </section>

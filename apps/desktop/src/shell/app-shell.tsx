@@ -19,7 +19,7 @@ import { applyThemePreference } from '@poietica/ui'
 import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
 import {
   CommandPalette,
-  keybindingParts,
+  formatKeybinding,
   useCommandKeybindings,
   workspaceLayoutStore,
 } from '@poietica/workspace'
@@ -518,10 +518,9 @@ function createKeybindingCatalog(registry: CommandRegistry): KeybindingCatalog {
         }
 
         next.push({
-          category: command.category ?? '其他',
           id: command.id,
-          keys: keybindingParts(command.shortcut),
           label: command.label,
+          shortcut: formatKeybinding(command.shortcut),
         })
       }
 

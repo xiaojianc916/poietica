@@ -254,6 +254,64 @@
   line-height: 1.6;
 }
 
+/* ---------------- 说明与筛选 ---------------- */
+
+/*
+ * 列表页顶部的一句说明加一个筛选框。
+ *
+ * 输入格的几何与 models-settings.css 的 .models-input 同源（28px 高、圆角 8、
+ * --settings-field 填充、无描边、--ui-ring 内描焦点圈）：设置界面里的输入格只有
+ * 一种长相。这里不写色值，只引语义令牌。
+ */
+.settings-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-filter p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-search {
+  inline-size: 100%;
+  min-block-size: 28px;
+  block-size: 28px;
+  padding-inline: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--settings-field);
+  color: var(--ui-foreground);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.settings-search::placeholder {
+  color: var(--ui-muted-foreground);
+}
+
+.settings-search:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
+}
+
+/*
+ * 一条绑定的写法。
+ *
+ * 与命令面板里那颗 kbd 同一种长相（muted、12px、等宽数字，无键帽框）：同一条
+ * 快捷键在两个界面上不该有两种画法。等宽数字是为了 Ctrl+1 / Ctrl+2 这一列不
+ * 随字宽左右跳，与 .models-row__meta 同一条理由。
+ */
+.settings-shortcut {
+  color: var(--ui-muted-foreground);
+  font-family: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------------- 局部区块 ---------------- */
 
 .settings-about-card {
