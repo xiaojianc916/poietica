@@ -194,20 +194,28 @@ export function TranscriptView({
           <ReplyActionHost text={replyAction.text}>{rendered}</ReplyActionHost>
         )
 
-      if (seal === undefined) {
-        return content
-      }
+      /*
+       * 形状恒定：有没有封条，交出去的都是同一棵树。
+       *
+       * 此前无封条时直接交回 content，有封条时交回一个片段。而封条的落点随折叠改变
+       * （turn-fold 的 anchorIn：收起时是回复首行，摊开时是第一条过程行），于是开合
+       * 那一刻，回复那一行的根元素在两种形状之间换了一次 —— React 把它整棵子树连同
+       * 已经排好版的正文一起卸载重建。行高随之作废，虚拟器拿着过期的实测值重排，封条
+       * 按钮也跟着重挂：屏幕抽一下，按钮闪一下，两个症状同一个根。
+       *
+       * 封条缺席时交 null。一个 null 孩子不产生任何节点，包装层与它里面的正文因此在
+       * 开合前后是同一批实例，一次重建都没有。
+       */
+      const settled = seal === undefined || seal.endedAt !== undefined
 
       /* 淡入属于「刚刚折过」那一帧，不属于这一行本身。落定的轮次滚出视野再滚回来会被
-         虚拟器重新挂载，那不是一次折叠，不该再淡一次；还在跑的那一轮钉在底部，不会被
-         这样回收。包装层照留 —— min-inline-size 归它管，撤掉会改布局。 */
+         虚拟器重新挂载，那不是一次折叠，不该再淡一次；没有封条的行同理，一律按落定处
+         理 —— 它此前连包装层都没有，也就从来不淡。包装层照留 —— min-inline-size 归它
+         管，撤掉会改布局。 */
       return (
         <>
-          {sealOf(seal)}
-          <div
-            className="turn-seal__reveal"
-            data-settled={seal.endedAt === undefined ? undefined : 'true'}
-          >
+          {seal === undefined ? null : sealOf(seal)}
+          <div className="turn-seal__reveal" data-settled={settled ? 'true' : undefined}>
             {content}
           </div>
         </>

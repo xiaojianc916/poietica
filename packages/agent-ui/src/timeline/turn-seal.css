@@ -39,9 +39,19 @@
   min-block-size: 1rem;
 }
 
+/*
+ * 不给颜色补间。
+ *
+ * 曾经是 transition: color 120ms。删掉不是嫌它慢：这个按钮会在开合的那一刻从一行
+ * 搬到另一行（封条的落点随折叠改变，见 turn-fold 的 anchorIn），搬家意味着旧节点
+ * 卸载、新节点挂载 —— 新节点挂上的那一帧还没被判定为悬停，颜色回到底色，随后 hover
+ * 命中再补回来。没有补间时这是一帧之内的事，看不见；有 120ms 补间时它变成一次
+ * 「暗下去再亮回来」的往返，那就是开合封条时看见的那一闪。
+ *
+ * 悬停本来也不需要补间：它要的是即时反馈，而这一档颜色差本身就轻。
+ */
 .turn-seal--toggle {
   cursor: pointer;
-  transition: color 120ms var(--cp-motion-ease);
 }
 
 /*
@@ -106,16 +116,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /*
-   * 变色也是过渡。
-   *
-   * 这一条此前漏了：箭头的旋转与换行的浮现都关了，只有封条自己那 120ms 的颜色
-   * 补间还在跑。声明了少一些动效的人，看到的仍然是一处会慢慢变色的东西。
-   */
-  .turn-seal--toggle {
-    transition: none;
-  }
-
+  /* 封条的颜色补间已经整个删掉了，这里不再需要为它写一条覆盖。 */
   .turn-seal__chevron {
     transition: none;
   }
