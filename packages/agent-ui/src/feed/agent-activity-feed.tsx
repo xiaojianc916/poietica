@@ -397,11 +397,25 @@ export function AgentActivityFeed({
    *
    * travel 自己会把视口送到末端,所以这里不必再叫 stick:重新跟上与回到末端是同一次动作。
    * 从很上面发出去时那一段位移是看得见的 —— 那是刻意的,读者要知道自己被带去了哪里。
+   *
+   * 判据必须是「两个真实 id 之间的更替」,不能只看「id 变了」。转录是异步灌进来的(恢复会话
+   * 时它先是空的,RestoreSpinner 就为这一刻存在),于是 null 到 id 那一跳也是一次变化 —— 把它
+   * 当成「我又说了一句」,进入会话就会从顶端一路滑到底。那一跳的落位归无依赖的那次 stick,
+   * 瞬时,看不见。
+   *
+   * 代价说清楚:会话里的第一句话不走位移。那时转录本来就没有距离可走。
+   *
+   * 末一项比较不是冗余:travel 的身份随「减弱动态偏好」变化,效应会因此在 id 没变时重跑。
    */
   const ownMessage = latestOwnMessage(rows)
+  const saidBefore = useRef<string | null>(null)
 
   useLayoutEffect(() => {
-    if (ownMessage === null) {
+    const before = saidBefore.current
+
+    saidBefore.current = ownMessage
+
+    if (before === null || ownMessage === null || before === ownMessage) {
       return
     }
 

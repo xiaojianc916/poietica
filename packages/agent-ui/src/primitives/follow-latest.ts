@@ -4,11 +4,9 @@ import { useCallback, useRef, useSyncExternalStore } from 'react'
 /**
  * 距末端多近算作「回到了最新」。
  *
- * 它只回答「回来了没有」，不回答「走开了没有」——后者由方向回答，见 nextFollow。约等于
- * 一格滚轮，所以人滚回底部附近就重新接管，不必压到零。
- *
- * 它同时是「一段返回位移」与「一次瞬时贴合」的交界：位移进了这一带就交回瞬时贴合，剩下的
- * 这点距离不值得再动一次画。
+ * 它回答两件事：跟随要不要重新上闩，以及那枚「回到最新」的按钮该不该在。它不回答「人走开
+ * 了没有」——那由方向回答，见 nextFollow。约等于一格滚轮，所以人滚回底部附近就重新接管，
+ * 不必压到零。
  */
 const NEAR_END_PX = 48
 
@@ -57,11 +55,26 @@ export function staysWithLatest(geometry: ScrollGeometry): boolean {
 }
 
 /**
+ * 一段返回位移从哪里起飞。
+ *
+ * 动画只演最后一屏，起飞点之前的那一段瞬时跳过去。理由是时长不在我手里：
+ * scrollTo 的 smooth 由 UA 定时长与曲线，没有任何接口能调，所以能控制的只有距离 —— 而距离
+ * 一旦无界，位移时长就随会话长度增长，几万像素的路上你看见的是一片还没渲染的空白在糊过去。
+ *
+ * 上界取一屏，不取一个像素数：它自己跟着窗口缩放走，也不必往令牌表里添一个新数字。距离
+ * 不足一屏时它退化成 0，于是「往上翻了一点点」这种常见情形完全不受影响。
+ *
+ * 这也是标杆的形状：回到最新的时长与历史长度无关。
+ */
+export function takeoffOffset(geometry: ScrollGeometry): number {
+  return Math.max(geometry.scrollHeight - geometry.clientHeight * 2, 0)
+}
+
+/**
  * 跟随的状态。两位，各回答一个问题。
  *
  * follows：内容长高时要不要把视口带走。
- * traveling：此刻有没有一段返回位移正在进行 —— 有的话，贴合必须让路，一次瞬时写入会当场
- * 把浏览器的平滑滚动掐掉。
+ * traveling：此刻有没有一段返回位移正在进行 —— 有的话，贴合必须整段让路。
  */
 export interface FollowState {
   readonly follows: boolean
@@ -69,6 +82,8 @@ export interface FollowState {
 }
 
 const AT_LATEST: FollowState = { follows: true, traveling: false }
+const LET_GO: FollowState = { follows: false, traveling: false }
+const TRAVELING: FollowState = { follows: true, traveling: true }
 
 /**
  * 一次滚动之后的下一状态。四个入参就是全部判据，所以它是纯函数，能脱离 DOM 钉住。
@@ -82,9 +97,10 @@ const AT_LATEST: FollowState = { follows: true, traveling: false }
  * shrank 那一项不是保险，是必须：内容变短时浏览器会把 scrollTop 夹小，这在事件层与人往上
  * 拨一模一样，而它是折叠引起的，不是手势。
  *
- * 上行判据在位移进行中同样生效，而且必须生效：浏览器会为用户的输入中止程序化的平滑滚动，
- * 若这里把位移期间的每一帧都算作自己的，人在途中拨一下滚轮，落定之后又会被拽回末端 ——
- * 那正是这条判据一开始要修的毛病。
+ * 位移一旦开始就整段归浏览器，中途不看距离、不提前交接。提前交接过一版：进了近末端那一带
+ * 就收回控制权，结果两个写者同时存在 —— 这边瞬时写到最大偏移，那边还在朝它捕获的旧目标
+ * 插值，而旧目标更靠上，于是落底前会被往上顶一下。位移的收尾只有两个出口：scrollend，
+ * 或者有人往上拨。
  */
 export function nextFollow(
   before: ScrollGeometry,
@@ -92,7 +108,7 @@ export function nextFollow(
   now: FollowState,
   ours: boolean,
 ): FollowState {
-  /* 自己那一笔瞬时写入必然写到末端，所以位移无从进行，跟随继续。 */
+  /* 自己那一笔瞬时写入必然写到末端，而位移期间不会有那一笔。 */
   if (ours) {
     return AT_LATEST
   }
@@ -100,13 +116,13 @@ export function nextFollow(
   const wentUp = after.scrollTop < before.scrollTop
   const shrank = after.scrollHeight < before.scrollHeight
 
+  /* 位移途中也一样成立：浏览器会为用户的输入中止程序化的平滑滚动，这里必须当场让开。 */
   if (wentUp && !shrank) {
-    return { follows: false, traveling: false }
+    return LET_GO
   }
 
-  /* 位移正把视口往末端送：还没进那一带不算离开，进了就交回瞬时贴合。 */
   if (now.traveling) {
-    return { follows: true, traveling: !staysWithLatest(after) }
+    return TRAVELING
   }
 
   return { follows: staysWithLatest(after), traveling: false }
@@ -122,7 +138,7 @@ export interface FollowLatest {
   readonly release: () => void
   /** 重新跟上，并瞬时拨到末端。给「打开一个小盒子」这类没有距离的返回。 */
   readonly resume: () => void
-  /** 重新跟上，并带着可见的位移回到末端。给人亲手要求的那一次返回。 */
+  /** 重新跟上，并带着一段有上界的可见位移回到末端。给人亲手要求的那一次返回。 */
   readonly travel: () => void
   readonly watch: (viewport: HTMLElement) => () => void
 }
@@ -154,13 +170,16 @@ export interface FollowLatest {
  * 持续跟随不补间：流式输出每帧长几十像素，动画追一个还在往下跑的目标永远追不上，视口会一直
  * 落在真末端后面一截，纸面读起来是自己在往上爬。所以 stick 写 scrollTop，瞬时。
  *
- * 人亲手要求的那一次返回反过来必须补间：那是一段有距离的位移，闪现会把「我现在在哪」这个
- * 信息抹掉 —— 读者需要看见自己是怎么过去的。这一段交给 scrollTo 的 smooth：那是 CSSOM View
- * 定义的平台能力，跑在合成器上，用户一拨滚轮浏览器自己会中止它。手写一个 rAF 循环去写
- * scrollTop 做不到这一点，它只会跟用户对着写。
+ * 人亲手要求的那一次返回反过来必须补间：那是一段有距离的位移，闪现会把「我刚才在哪」抹掉。
+ * 这一段整段交给 scrollTo 的 smooth —— CSSOM View 定义的平台能力，跑在合成器上，用户一拨
+ * 滚轮浏览器自己会中止它。手写一个 rAF 循环去写 scrollTop 换来的是曲线控制权，代价是那套
+ * 中止语义要自己重写一遍，必然漏；而曲线控制权我并不需要，因为距离已经被 takeoffOffset
+ * 限住了。
  *
- * 两种方式共存的代价就是 traveling 这一位：位移进行时贴合让路。这个状态不是可以省掉的，
- * 省掉它，第一个 token 到达就会把位移掐死在起点。
+ * 两种方式共存的代价就是 traveling 这一位：位移进行时贴合整段让路，一次瞬时写入会当场把
+ * 动画掐掉。它有两个出口，都不依赖运气：scrollend（平台给「滚动真的停了」的事件，两个虚拟
+ * 窗口已经在用它），或者有人往上拨。而位移只在确实有距离可走时才开始，所以它一定会产生
+ * 滚动，也就一定会有这两个出口之一。
  *
  * 减弱动态偏好下位移退化成瞬时贴合，问的是 motion 的 useReducedMotion —— 与 live-process
  * 同一个来源，这个界面上「要不要少一些动效」只有一个答案。
@@ -245,7 +264,7 @@ export function useFollowLatest(): FollowLatest {
   }, [publish])
 
   const release = useCallback(() => {
-    state.current = { follows: false, traveling: false }
+    state.current = LET_GO
   }, [])
 
   /*
@@ -270,9 +289,7 @@ export function useFollowLatest(): FollowLatest {
     const geometry = seen(element)
 
     /*
-     * 没有距离可走，或者这个人要求少一些动效：直接贴合。
-     *
-     * 一段看不见的动画不值得一个状态，而近末端那一带之内的位移正是看不见的那种。
+     * 没有距离可走，或者这个人要求少一些动效：直接贴合。一段看不见的动画不值得一个状态。
      */
     if (reduced === true || staysWithLatest(geometry)) {
       state.current = AT_LATEST
@@ -281,15 +298,23 @@ export function useFollowLatest(): FollowLatest {
       return
     }
 
-    state.current = { follows: true, traveling: true }
-    last.current = geometry
-    publish(false)
+    /* 先立状态，再写位置：这两笔写入都会派发 scroll，而那时判据必须已经知道位移开始了。 */
+    state.current = TRAVELING
+
+    const takeoff = takeoffOffset(geometry)
+
+    if (geometry.scrollTop < takeoff) {
+      element.scrollTop = takeoff
+    }
+
+    last.current = seen(element)
+    publish(staysWithLatest(last.current))
 
     /*
      * 目标写成 scrollHeight 而不是 scrollHeight - clientHeight：越界值由浏览器夹到最大滚动
-     * 偏移，与上面那次瞬时写入同一个写法，两条路径因此没有第二个「末端在哪」的定义。
+     * 偏移，与瞬时贴合同一个写法，两条路径因此没有第二个「末端在哪」的定义。
      */
-    element.scrollTo({ behavior: 'smooth', top: geometry.scrollHeight })
+    element.scrollTo({ behavior: 'smooth', top: element.scrollHeight })
   }, [publish, reduced, stick])
 
   const watch = useCallback(
@@ -308,11 +333,10 @@ export function useFollowLatest(): FollowLatest {
       }
 
       /*
-       * 位移落定。
+       * 位移落定，控制权交回来。
        *
-       * 到达近末端那一带时 nextFollow 已经把 traveling 收掉了，所以这里通常什么都不做；它接
-       * 的是另一种收尾：位移途中内容长高，动画停在了真末端上方一截 —— 那一截由这里的瞬时
-       * 贴合闭掉。scrollend 是平台给「滚动真的停了」的事件，两个虚拟窗口已经在用它。
+       * 位移途中内容会长高，动画因此可能停在真末端上方一截 —— 那一截由这里的瞬时贴合补上，
+       * 方向永远向下。这是整段位移里我唯一插手的一次，而它发生在动画结束之后。
        */
       const onScrollEnd = () => {
         if (!state.current.traveling) {
@@ -333,7 +357,7 @@ export function useFollowLatest(): FollowLatest {
         const target = event.target
 
         if (target instanceof Element && target.closest(DISCLOSURE) !== null) {
-          state.current = { follows: false, traveling: false }
+          state.current = LET_GO
         }
       }
 

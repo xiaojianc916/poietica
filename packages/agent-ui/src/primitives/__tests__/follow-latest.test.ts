@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { distanceFromEnd, type FollowState, nextFollow, staysWithLatest } from '../follow-latest'
+import {
+  distanceFromEnd,
+  type FollowState,
+  nextFollow,
+  staysWithLatest,
+  takeoffOffset,
+} from '../follow-latest'
 
 /*
  * 判据是纯的，所以它能脱离 DOM 钉住 —— 这也是把它从 hook 里分出来的理由：jsdom 的
@@ -38,6 +44,21 @@ describe('staysWithLatest', () => {
   })
 })
 
+describe('takeoffOffset', () => {
+  /* 位移只演最后一屏，所以起飞点是「最大偏移减一屏」，与历史长度无关。 */
+  it('keeps the animated stretch one viewport long', () => {
+    expect(takeoffOffset({ clientHeight: 600, scrollHeight: 40000, scrollTop: 0 })).toBe(38800)
+  })
+
+  it('takes off from the top when the content is under two viewports', () => {
+    expect(takeoffOffset({ clientHeight: 600, scrollHeight: 900, scrollTop: 0 })).toBe(0)
+  })
+
+  it('never asks for a negative offset', () => {
+    expect(takeoffOffset({ clientHeight: 600, scrollHeight: 600, scrollTop: 0 })).toBe(0)
+  })
+})
+
 describe('nextFollow', () => {
   /* 回归：带动画的滚轮一格只走几个像素，而它必须已经算作「人走开了」。 */
   it('lets go on the first few pixels of a wheel notch', () => {
@@ -68,16 +89,18 @@ describe('nextFollow', () => {
     expect(nextFollow(FAR, grown, LET_GO, false)).toEqual(LET_GO)
   })
 
-  /* 位移途中距离还很远，但那是我们在把人送回去，不是人在离开。 */
-  it('keeps the latch armed while a travel is still under way', () => {
+  it('keeps the travel while it is still under way', () => {
     expect(nextFollow(FAR, { ...AT_END, scrollTop: 200 }, TRAVELING, false)).toEqual(TRAVELING)
   })
 
-  it('hands the last stretch back to the instant pin', () => {
-    expect(nextFollow({ ...AT_END, scrollTop: 200 }, AT_END, TRAVELING, false)).toEqual(FOLLOWING)
+  /*
+   * 回归：位移进了近末端那一带也不交接。交接过的那一版会在落底前被往上顶一下 —— 瞬时写入
+   * 与还在跑的动画同时存在，而动画的目标更靠上。
+   */
+  it('does not take the wheel back inside the near-end band', () => {
+    expect(nextFollow({ ...AT_END, scrollTop: 380 }, AT_END, TRAVELING, false)).toEqual(TRAVELING)
   })
 
-  /* 位移途中有人拨了滚轮：浏览器会中止动画，这里必须当场让开，否则落定后又把人拽回去。 */
   it('gives up the travel the moment someone scrolls up', () => {
     expect(nextFollow(AT_END, { ...AT_END, scrollTop: 300 }, TRAVELING, false)).toEqual(LET_GO)
   })
