@@ -21,6 +21,7 @@
 .assistant-posture,
 .assistant-posture-menu {
   --pp-ink-alert: #e46620;
+  --pp-hover: #f2f2f3;
 }
 
 .assistant-posture {
@@ -39,7 +40,7 @@
   background: color-mix(in oklab, var(--pp-ink) var(--cp-pill-wash), var(--cp-surface));
   font: inherit;
   font-size: var(--cp-font-caption);
-  font-weight: 500;
+  font-weight: 400;
   /*
    * 行高锁 1。壳的高度是固定的，字身若还带着继承来的行间距，CJK 的基线会在这个盒子
    * 里被半行顶偏 —— 图标居中、文字不居中，而那正是"内部位置不对"最容易被看见的地方。
@@ -58,7 +59,7 @@
 }
 
 .assistant-posture:hover {
-  background: color-mix(in oklab, var(--pp-ink) var(--cp-pill-wash-hover), var(--cp-surface));
+  background: var(--pp-hover);
 }
 
 /*
@@ -128,7 +129,7 @@
 [data-assistant-skin] .assistant-posture-menu__item:hover,
 [data-assistant-skin] .assistant-posture-menu__item[data-highlighted] {
   outline: none;
-  background: var(--cp-menu-hover);
+  background: var(--pp-hover);
 }
 
 [data-assistant-skin] .assistant-posture-menu__item[data-alert] {
@@ -150,7 +151,7 @@
 [data-assistant-skin] .assistant-posture-menu__name {
   grid-area: name;
   font-size: var(--cp-font-caption);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 [data-assistant-skin] .assistant-posture-menu__detail {
@@ -191,7 +192,7 @@
 .assistant-posture[data-alert]:hover,
 .assistant-posture[data-popup-open]:hover,
 .assistant-posture[data-alert][data-popup-open]:hover {
-  background: color-mix(in oklab, var(--pp-ink) var(--cp-pill-wash-hover), var(--cp-surface));
+  background: var(--pp-hover);
 }
 
 /* permission-picker: hover-only background end */
