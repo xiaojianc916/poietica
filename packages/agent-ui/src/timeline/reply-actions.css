@@ -1,8 +1,8 @@
 /*
  * 一轮已完成的 AI 回复。
  *
- * 操作区以它为定位参照，但不参与正文布局。这样按钮可以出现在回复下方，
- * 同时不改变虚拟器测得的行高，也不会扩大 AI 回复与下一条用户消息之间的间距。
+ * 操作区以它为定位参照，但不参与正文布局。按钮因此可以出现在回复下方，
+ * 同时不会改变虚拟器测得的行高，也不会把下一条消息向下推。
  */
 .timeline-agent-reply {
   position: relative;
@@ -10,22 +10,27 @@
 }
 
 /*
- * 操作区落在正文盒子的下沿。
+ * 整条按钮行都是 hover 命中区。
  *
- * padding-block-start 同时充当正文与按钮之间的视觉间隔和连续 hover 命中区，
- * 指针从正文移向按钮时不会经过一个让按钮突然消失的空洞。
+ * inset-inline 两端都设为 0，使这个绝对定位盒子横贯整条回复列，而不是只覆盖
+ * 左侧两个图标。即使按钮尚未显示，它仍然接收指针命中；指针进入这一行时，
+ * 它作为 .timeline-agent-reply 的后代会让父级进入 :hover，按钮随即出现。
+ *
+ * 这里不能再使用 pointer-events: none。上一版正是因为关闭了隐藏状态下的
+ * 指针命中，导致鼠标从正文向绝对定位的按钮行移动时失去 hover，按钮先于点击消失。
  */
 .timeline-reply-actions {
   position: absolute;
   z-index: 2;
   inset-block-start: calc(100% - 0.125rem);
-  inset-inline-start: 0;
+  inset-inline: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.125rem;
+  block-size: 1.75rem;
   padding-block-start: 0.25rem;
   opacity: 0;
-  pointer-events: none;
+  pointer-events: auto;
   transform: translateY(-2px);
   transition:
     opacity 120ms var(--cp-motion-ease),
@@ -33,21 +38,21 @@
 }
 
 /*
- * 只在这一轮回复本身被悬停时出现。
- *
- * focus-within 保留键盘入口：Tab 聚焦到一个透明按钮时，操作区会先显现，
- * 不会形成看不见的焦点。
+ * 悬停正文或按钮所在的整行都会保持操作区可见。
+ * focus-within 同时保留键盘操作能力。
  */
 .timeline-agent-reply:hover .timeline-reply-actions,
-.timeline-agent-reply:focus-within .timeline-reply-actions {
+.timeline-agent-reply:focus-within .timeline-reply-actions,
+.timeline-reply-actions:hover {
   opacity: 1;
-  pointer-events: auto;
   transform: none;
 }
 
 .timeline-reply-actions__button {
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
   inline-size: 1.5rem;
   block-size: 1.5rem;
   padding: 0;
@@ -56,6 +61,7 @@
   background: transparent;
   color: var(--cp-timeline-quiet-text);
   cursor: pointer;
+  line-height: 0;
   transition:
     color 120ms var(--cp-motion-ease),
     background-color 120ms var(--cp-motion-ease);
@@ -71,7 +77,7 @@
   color: var(--cp-ink);
 }
 
-/* 分叉目前只有 UI，不用降低透明度，以免看起来像渲染错误。 */
+/* 分叉目前只有视觉入口，不通过透明度伪装成加载失败。 */
 .timeline-reply-actions__button:disabled {
   cursor: default;
 }
@@ -80,10 +86,7 @@
   display: block;
   inline-size: 1rem;
   block-size: 1rem;
-  stroke: currentcolor;
-  stroke-width: var(--cp-icon-stroke);
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  stroke-width: 1.75;
 }
 
 @media (prefers-reduced-motion: reduce) {

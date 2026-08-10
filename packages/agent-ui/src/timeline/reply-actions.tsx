@@ -1,7 +1,6 @@
 import './reply-actions.css'
 
-import type { SVGProps } from 'react'
-import { CheckIcon, CopyIcon } from '../primitives/icons'
+import { Check, Copy, GitFork } from 'lucide-react'
 import { useCopy } from '../primitives/use-copy'
 
 export interface ReplyActionsProps {
@@ -9,33 +8,14 @@ export interface ReplyActionsProps {
 }
 
 /*
- * 图标库当前没有在本仓语义映射中暴露“分叉”字形。
+ * 一轮已经完成的 AI 回复所拥有的操作。
  *
- * 这一枚先作为本组件的局部字形存在。分叉功能接入时，如果其它界面也需要它，
- * 再把语义映射提升到 primitives/icons.ts；在只有一个消费者时不提前扩大公共 API。
- */
-function BranchIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" {...props}>
-      <circle cx="6" cy="5" r="2" />
-      <circle cx="18" cy="5" r="2" />
-      <circle cx="12" cy="19" r="2" />
-      <path d="M6 7v2.5c0 2.2 1.8 4 4 4h2" />
-      <path d="M18 7v2.5c0 2.2-1.8 4-4 4h-2" />
-      <path d="M12 13.5V17" />
-    </svg>
-  )
-}
-
-/*
- * 一轮 AI 回复的操作区。
- *
- * 它绝对定位在回复正文之后，不参与行高计算，因此不会把下一条用户气泡向下推。
- * 复制走已有的 useCopy，分叉暂时只提供视觉入口。
+ * 图标统一来自 lucide-react。复制复用已有的 useCopy，分叉目前只保留视觉入口，
+ * 等真正接入会话分叉能力时再增加事件与状态。
  */
 export function ReplyActions({ text }: ReplyActionsProps) {
   const { copied, copy } = useCopy(text)
-  const CopyStateIcon = copied ? CheckIcon : CopyIcon
+  const CopyStateIcon = copied ? Check : Copy
 
   return (
     <div aria-label="回复操作" className="timeline-reply-actions" role="group">
@@ -57,7 +37,7 @@ export function ReplyActions({ text }: ReplyActionsProps) {
         title="分叉对话（即将推出）"
         type="button"
       >
-        <BranchIcon />
+        <GitFork aria-hidden="true" />
       </button>
     </div>
   )

@@ -1,7 +1,7 @@
 import './turn-seal.css'
 
+import { ChevronDown } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
-import { ChevronDownIcon } from '../primitives/icons'
 
 /*
  * 一轮的封条：这一轮花了多久，以及它的过程收在哪里。
@@ -114,7 +114,7 @@ function Seal({ endedAt, hasProcess, isOpen, onToggle, startedAt, turn }: TurnSe
         type="button"
       >
         <span className="turn-seal__label">{label}</span>
-        <ChevronDownIcon aria-hidden="true" className="turn-seal__chevron" />
+        <ChevronDown aria-hidden="true" className="turn-seal__chevron" />
       </button>
     </div>
   )
