@@ -1,7 +1,7 @@
 //! 这个应用在磁盘上占了哪些位置 —— 唯一的声明处。
 //!
 //! 一个根，一个位置。settings.json、agents.json、automations.json、线程索引、
-//! 附件字节、各 agent 的受控 home、日志与崩溃报告，全都在它下面。用户要备份、
+//! 附件字节、各 agent 的受控 home、日志与崩溃报告、临时中转与缓存，全都在它下面。用户要备份、
 //! 要搬机器、要把这个应用从磁盘上抹干净，需要知道的路径只有一条。
 //!
 //! 此前是三个根：三份 store 在 `app_config_dir`（Windows 上的漫游 %APPDATA%），
@@ -47,6 +47,12 @@ const AUTOMATIONS_FILE: &str = "automations.json";
 const THREAD_DATABASE: &str = "threads.sqlite3";
 
 const LOG_DIRECTORY: &str = "logs";
+
+/// 本次运行的中转盘。进程退出它就没有意义了，所以启动时清空。
+const TEMP_DIRECTORY: &str = "tmp";
+
+/// 丢了也不会少任何东西的副本。跨运行保留。
+const CACHE_DIRECTORY: &str = "cache";
 const CRASH_REPORT_FILE: &str = "last-native-crash.json";
 const ATTACHMENTS_DIRECTORY: &str = "attachments";
 const MARKETPLACE_CATALOG_FILE: &str = "marketplace.json";
@@ -156,6 +162,48 @@ pub fn log_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
 /// 日志目录无法解析或创建时返回错误。
 pub fn crash_report<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     Ok(log_directory(app)?.join(CRASH_REPORT_FILE))
+}
+
+/// 临时目录，清空后返回。
+///
+/// tmp 与 cache 的区别不在内容，在寿命，而寿命只有靠「谁在什么时候清它」才立得住：
+/// 这里的东西活不过一次运行，所以每次启动抹一遍；cache 里的东西跨运行有效，所以没
+/// 人自动动它。两个目录若都只是建出来不管，那它们就只是两个名字不同的空壳。
+///
+/// 抹得掉才抹：清不干净不该让应用起不来。一个正被别的进程占着的临时文件，最坏的结
+/// 果是它多活一轮，那远好过启动失败。单实例插件保证同时只有一个我们自己的进程，所
+/// 以这里不会抹掉另一个自己正在用的东西。
+///
+/// # Errors
+///
+/// 根目录无法解析、或临时目录无法创建时返回错误。
+pub fn temp_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    let directory = root(app)?.join(TEMP_DIRECTORY);
+
+    let _swept = fs::remove_dir_all(&directory);
+
+    fs::create_dir_all(&directory)?;
+
+    Ok(directory)
+}
+
+/// 缓存目录，创建后返回。
+///
+/// 这里放的是「丢了还能重新取回来」的东西：重新拉一次、重新算一次就有了。判据是这
+/// 一条，不是「大不大」或「常不常用」—— 用户数据再小也不进这里。
+///
+/// 谁清理它：没有人自动清。它的每一项都该能被独立丢掉，所以清理是用户在关于面板上
+/// 的一次动作，不是启动时的一次副作用。
+///
+/// # Errors
+///
+/// 根目录无法解析、或缓存目录无法创建时返回错误。
+pub fn cache_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    let directory = root(app)?.join(CACHE_DIRECTORY);
+
+    fs::create_dir_all(&directory)?;
+
+    Ok(directory)
 }
 
 /// 附件字节的根，内容寻址，创建后返回。

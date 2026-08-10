@@ -110,6 +110,19 @@ pub fn build() -> tauri::Builder<Wry> {
 
             handle.plugin(logging::plugin(paths::log_directory(handle)?).build())?;
 
+            /*
+             * tmp 与 cache 跟日志同一批建出来。
+             *
+             * 它们各自的使用者调 paths 时也会 create_dir_all，所以这两句不是为了让
+             * 它们能用 —— 是为了让它们一直在。少了这两句，数据目录的布局会随这一次
+             * 运行恰好用到过什么而变：打开目录的人每次看见的东西都不一样，而这个模块
+             * 存在的理由正是「一个根，一个位置」。
+             *
+             * tmp 顺带在这里被抹一次，那是它与 cache 唯一的区别所在。
+             */
+            let _tmp = paths::temp_directory(handle)?;
+            let _cache = paths::cache_directory(handle)?;
+
             ipc.mount_events(app);
 
             app.store(paths::settings_store(handle)?)?;
