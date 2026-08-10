@@ -22,24 +22,24 @@
 .timeline-reply-actions {
   position: absolute;
   z-index: 3;
-  inset-block-start: calc(100% - 0.375rem);
+  inset-block-start: calc(100% - 0.75rem);
   inset-inline: 0;
   display: flex;
   align-items: flex-start;
   gap: 0.125rem;
-  block-size: 2.625rem;
+  block-size: 3.75rem;
   padding-block-start: 0.5rem;
   opacity: 0;
-  pointer-events: auto;
+  pointer-events: none;
   transform: translateY(-2px);
 
   /*
-   * 默认态的 140ms 是退场宽限，不是入场延迟。
-   * 显示态会在下面把 delay 清零，因此移入立即出现，移出则稍等后再淡出。
+   * 这里只负责淡入淡出。真正的退场宽限由 ReplyActionHost 的指针意图
+   * 计时器控制，因此重新进入时不会与 CSS 延迟互相竞争。
    */
   transition:
-    opacity 100ms var(--cp-motion-ease) 140ms,
-    transform 100ms var(--cp-motion-ease) 140ms;
+    opacity 120ms var(--cp-motion-ease),
+    transform 120ms var(--cp-motion-ease);
 }
 
 /*
@@ -49,9 +49,11 @@
  * 或按钮下方的安全区重新进入，不会出现“看得到但移不过去”的情况。
  */
 .timeline-turn-end:hover .timeline-reply-actions,
+.timeline-turn-end[data-actions-visible="true"] .timeline-reply-actions,
 .timeline-turn-end:focus-within .timeline-reply-actions,
 .timeline-reply-actions:hover {
   opacity: 1;
+  pointer-events: auto;
   transform: none;
   transition-delay: 0ms;
 }
@@ -61,8 +63,8 @@
   align-items: center;
   justify-content: center;
   flex: none;
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
   padding: 0;
   border: 0;
   border-radius: var(--ui-radius-sm);
@@ -110,6 +112,7 @@
 @media (hover: none) and (pointer: coarse) {
   .timeline-reply-actions {
     opacity: 1;
+    pointer-events: auto;
     transform: none;
   }
 }

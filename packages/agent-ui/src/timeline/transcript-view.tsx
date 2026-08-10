@@ -12,7 +12,7 @@ import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { LiveProcess } from './live-process'
-import { ReplyActions } from './reply-actions'
+import { ReplyActionHost } from './reply-actions'
 import { ThinkingIndicator } from './thinking-indicator'
 import { foldFeed, type TurnSealPlan } from './turn-fold'
 import { TurnSeal } from './turn-seal'
@@ -154,10 +154,7 @@ export function TranscriptView({
         replyAction === undefined ? (
           rendered
         ) : (
-          <div className="timeline-turn-end">
-            {rendered}
-            <ReplyActions text={replyAction.text} />
-          </div>
+          <ReplyActionHost text={replyAction.text}>{rendered}</ReplyActionHost>
         )
 
       if (seal === undefined) {

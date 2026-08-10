@@ -1,8 +1,80 @@
 import './reply-actions.css'
 
 import { Check, Copy, Split } from 'lucide-react'
-import { memo } from 'react'
+import { memo, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useCopy } from '../primitives/use-copy'
+
+/*
+ * 回复操作的指针意图宽限期。
+ *
+ * 专业桌面软件通常不会在指针越过一两个像素后立刻撤走操作入口：
+ * 用户已经看见工具栏并开始朝它移动，这时短暂离开目标区域仍应被视为
+ * 同一次操作意图。500ms 足以修正轨迹，又不会让工具栏长时间滞留。
+ */
+const REPLY_ACTION_HIDE_GRACE_MS = 500
+
+export interface ReplyActionHostProps {
+  readonly children: ReactNode
+  readonly text: string
+}
+
+/*
+ * 一轮回复末端与操作工具栏的共同交互边界。
+ *
+ * 显示立即发生，隐藏延后发生。重新进入、移动到工具栏内部或取得键盘
+ * 焦点都会取消隐藏。计时器归这个宿主所有，卸载时一定清除。
+ */
+export function ReplyActionHost({ children, text }: ReplyActionHostProps) {
+  const [visible, setVisible] = useState(false)
+  const hideTimer = useRef<number | undefined>(undefined)
+
+  const cancelScheduledHide = useCallback(() => {
+    if (hideTimer.current === undefined) {
+      return
+    }
+
+    window.clearTimeout(hideTimer.current)
+    hideTimer.current = undefined
+  }, [])
+
+  const showActions = useCallback(() => {
+    cancelScheduledHide()
+    setVisible(true)
+  }, [cancelScheduledHide])
+
+  const scheduleHide = useCallback(() => {
+    cancelScheduledHide()
+
+    hideTimer.current = window.setTimeout(() => {
+      hideTimer.current = undefined
+      setVisible(false)
+    }, REPLY_ACTION_HIDE_GRACE_MS)
+  }, [cancelScheduledHide])
+
+  useEffect(() => cancelScheduledHide, [cancelScheduledHide])
+
+  return (
+    <div
+      className="timeline-turn-end"
+      data-actions-visible={visible ? 'true' : undefined}
+      onBlurCapture={(event) => {
+        const nextTarget = event.relatedTarget
+
+        if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+          return
+        }
+
+        scheduleHide()
+      }}
+      onFocusCapture={showActions}
+      onPointerEnter={showActions}
+      onPointerLeave={scheduleHide}
+    >
+      {children}
+      <ReplyActions text={text} />
+    </div>
+  )
+}
 
 export interface ReplyActionsProps {
   readonly text: string
