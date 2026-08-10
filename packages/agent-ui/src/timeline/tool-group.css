@@ -1,64 +1,103 @@
 /*
  * 一组连续同类调用。
  *
- * 组头与 .timeline-tool__header 同一个音量：这是活动流里的一条记事，不是一张卡。
- * 颜色与 hover 的所有权仍在 tool-call.css，这里只管「成组」多出来的那点几何。
+ * 与 .timeline-tool 同一个音量、同一个字号、同一套缩进 —— 组头是活动流里的一条记事，
+ * 不因为它汇总了几条就变大一档。上一版只抄了 font: inherit 而漏掉后面那两行，于是它
+ * 继承了外层容器那一档，比它自己的成员还大。
  */
 
 .timeline-group {
   display: grid;
 }
 
+/*
+ * 排版整段照 .timeline-tool__header，理由是它们本来就该长得一样。
+ *
+ * 这不是复制粘贴的托词：两处若哪天要一起改，编译器帮不上忙。但把它抽成共享类需要
+ * 先给「活动流里一条可点的记事」起一个跨组件的名字，而现在只有两处 —— 第三处出现
+ * 之前，一个名字的成本高于一份重复。
+ */
 .timeline-group__header {
   display: inline-flex;
+  justify-self: start;
   align-items: center;
   gap: var(--cp-control-gap);
-  max-inline-size: var(--cp-timeline-tool-max);
-  padding: 0;
+  max-inline-size: min(100%, var(--cp-timeline-tool-max));
   border: 0;
+  padding: 0;
   background: none;
   color: var(--cp-timeline-quiet-text);
   font: inherit;
+  font-size: var(--ui-prose-size);
+  line-height: var(--ui-prose-line-height);
   text-align: start;
   cursor: pointer;
-  transition: color var(--cp-motion-swift) ease;
+  transition: color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.timeline-group__header:hover {
+.timeline-group__header:hover,
+.timeline-group__header:focus-visible {
   color: var(--cp-ink);
 }
 
-.timeline-group__label {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/* 箭头跟着文字走，不钉在行尾 —— 与工具行那一条同一个约定。 */
+/* 与 .timeline-tool__chevron 同一个尺寸，同上一段的理由。图标那一枚不必再写：
+   ToolKindIcon 内部戴的 .timeline-tool__icon 是无作用域的类，在这里照样生效。 */
 .timeline-group__chevron {
   flex: none;
+  inline-size: var(--cp-icon);
+  block-size: var(--cp-icon);
+  stroke-width: var(--cp-icon-stroke);
   opacity: 0;
-  transition:
-    opacity var(--cp-motion-swift) ease,
-    transform var(--cp-motion-swift) ease;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .timeline-group__header:hover .timeline-group__chevron,
-.timeline-group[data-open="true"] .timeline-group__chevron {
+.timeline-group__header:focus-visible .timeline-group__chevron,
+.timeline-group[data-expanded="true"] .timeline-group__chevron {
   opacity: 1;
 }
 
+/* 一句话一格：不长、会缩、解到 0 才有省略号 —— 与工具行同一条，理由写在那边。 */
+.timeline-group__label {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /*
- * 成员之间比转录级行距紧。
+ * 开合由这两条接管，判据是 data-expanded 而不是 data-open。
  *
- * 展开之后这几行是同一件事的几个部分，不是几条各自独立的记事 —— 松成转录的间距会
- * 让「它们属于上面那一行」这件事读不出来。
+ * 机制仍是原语那一套（0fr↔1fr 的轨道插值、箭头转四分之一圈），这里只换了触发它的
+ * 那个属性，并且一律走子选择器。原因写在 tool-group-card.tsx 那段注释里：原语的
+ * 打开态是后代选择器，组头一旦叫 data-open,组里每个成员的抽屉都会被顺带撑开。
  *
- * 令牌暂时带兜底值：--cp-timeline-group-gap 还没有归位到 metrics，那是下一批的账。
+ * 特异性 (0,3,0) 高过基础规则的 (0,1,0)，胜负与这张表落在层叠哪一段无关。
+ */
+.timeline-group[data-expanded="true"] > .disclosure__reveal {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.timeline-group[data-expanded="true"] > .timeline-group__header .disclosure__chevron {
+  transform: rotate(0deg);
+}
+
+/*
+ * 成员从组头那句话的同一个起点开始，不缩进。
+ *
+ * 上一版往右推了一枚图标的宽度，想的是「成员从属于组头」。但从属关系已经由展开这个
+ * 动作说清楚了，再推一次就是同一句话说两遍 —— 而且推完之后成员那一行的图标落在组头
+ * 文字的下面，两列都不成列。
+ *
+ * 行距比转录级窄：展开之后这几行是同一件事的几个部分，松成转录的间距会让「它们属于
+ * 上面那一行」读不出来。
+ *
+ * 令牌带兜底值：--cp-timeline-group-gap 还没归位到 metrics，那仍是下一批的账。
  */
 .timeline-group__members {
   display: grid;
   gap: var(--cp-timeline-group-gap, 2px);
   padding-block-start: var(--cp-timeline-group-gap, 2px);
-  padding-inline-start: var(--cp-timeline-tool-indent);
 }

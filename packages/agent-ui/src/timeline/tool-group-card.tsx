@@ -72,8 +72,19 @@ export function ToolGroupCard({ plan, renderRow }: ToolGroupCardProps) {
      合过了（feed-rows.ts 的 inFlightAt），这里不重判一遍。 */
   const isRunning = plan.members.some((row) => row.isInFlight)
 
+  /*
+   * 这里不能叫 data-open。
+   *
+   * disclosure.css 的打开态是 [data-open="true"] .disclosure__reveal —— 后代选择器，
+   * 而成员就长在组的抽屉里。属性一挂，组内每一个成员的抽屉会被同一条规则一起撑开，
+   * 可它们各自的 isOpen 仍是 false，reveal 上还挂着 inert：盒子看着开着，里面的
+   * VirtualProse 从没收到过「我有高度了」，滚也滚不动。开着的空盒子，正是这么来的。
+   *
+   * 所以开合的判据换个名字，由 tool-group.css 用子选择器自己接管 —— 那条路径够不到
+   * 成员。原语一个字不动：它说的「调用方要覆盖外观照旧加自己的类」，指的就是这个。
+   */
   return (
-    <section className="timeline-group" data-open={isOpen ? 'true' : undefined}>
+    <section className="timeline-group" data-expanded={isOpen ? 'true' : undefined}>
       <button
         aria-expanded={isOpen}
         className="timeline-group__header"

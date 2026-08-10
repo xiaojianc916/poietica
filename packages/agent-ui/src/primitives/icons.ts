@@ -71,6 +71,7 @@ export {
   Send as AgentIcon,
   Sparkles as ModelIcon,
   Square as StopIcon,
+  SquareTerminal as TerminalIcon,
   Wrench as ToolIcon,
   X as CloseIcon,
   ZoomIn as ZoomInIcon,
