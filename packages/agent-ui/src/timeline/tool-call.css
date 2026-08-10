@@ -14,6 +14,13 @@
  * 整行就是那个按钮：可聚焦、可回车、由 aria-expanded 说开合 —— WAI-ARIA APG 的
  * Disclosure 模式要求这三样长在同一个 button 上，所以行内不再放第二个开关。
  *
+ * 宽度由内容定并且封顶（--cp-timeline-tool-max）：铺满整列的那一版把箭头顶到了
+ * 列的最右端，离它解释的那句话隔着一片空白。行只有内容那么宽，箭头就紧跟着文字。
+ *
+ * 不留内边距，悬停也不铺底：底色是「一块可点的面」的语言，而这一行是一句话。
+ * 转录里另外两条可点的摘要 —— 思考链那一行与报错摘要 —— 同样是 padding: 0，
+ * 同样只换墨色。
+ *
  * 字号取正文那一档，不取次要那一档：这一行是活动流的正文，淡是它的音量而不是
  * 它的字号。淡色取 --cp-timeline-quiet-text，与思考链那一行同一个刻度。
  *
@@ -21,13 +28,13 @@
  * 节奏上，换一档正文字号不必回来改这里。
  */
 .timeline-tool__header {
-  display: flex;
+  display: inline-flex;
+  justify-self: start;
   align-items: center;
   gap: var(--cp-control-gap);
-  inline-size: 100%;
-  padding-inline: var(--cp-control-gap);
+  max-inline-size: min(100%, var(--cp-timeline-tool-max));
   border: 0;
-  border-radius: var(--cp-radius-item);
+  padding: 0;
   background: none;
   color: var(--cp-timeline-quiet-text);
   font: inherit;
@@ -35,18 +42,12 @@
   line-height: var(--ui-prose-line-height);
   text-align: start;
   cursor: pointer;
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    color var(--cp-motion-swift) var(--cp-motion-ease);
+  transition: color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-/*
- * 悬停与键盘聚焦是同一件事的两种到达方式，所以是同一条规则：WCAG 2.2 的 2.4.7
- * 要求焦点看得见，而一个只在鼠标底下才有反应的行等于把键盘用户排除在外。
- */
+/* 指到就亮一档墨色。思考链那一行与报错摘要是同一下反馈，这里不另立一套。 */
 .timeline-tool__header:hover,
 .timeline-tool__header:focus-visible {
-  background: var(--cp-hover);
   color: var(--cp-ink);
 }
 
@@ -74,9 +75,15 @@
   opacity: 1;
 }
 
-/* 一个槽位一句话：长了单行截断，全文进 title。 */
+/*
+ * 一个槽位一句话：长了单行截断，全文进 title。
+ *
+ * 不长（grow 是 0 而不是 1）：会长的那一版把这一格撑满整行，箭头与右侧那两个记
+ * 号于是被顶到列的最右端。会缩再加 min-inline-size: 0 才有省略号 —— 弹性子项的
+ * 默认最小尺寸是 auto，不解到 0 就不会截断。
+ */
 .timeline-tool__label {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -89,10 +96,14 @@
  * 没有边框也没有投影 —— 它不是浮起来的一张卡，是这一行摊开之后的内容。必须是
  * 实色而不是一层半透明墨，理由写在 --cp-timeline-drawer-surface 那一段。圆角要
  * 能剪掉里面那一面的滚动条，所以收边在这一层。
+ *
+ * 宽度与折叠着的那一行同一个上限：纸是这一行摊开的样子，两者不同宽就是两个东西。
+ * 长内容不折行，横向由面板那唯一一个滚动容器接住 —— 封顶不会吃掉任何字符。
  */
 .timeline-tool__body {
   display: grid;
   gap: 0;
+  max-inline-size: min(100%, var(--cp-timeline-tool-max));
   margin-block-start: var(--cp-control-gap);
   border-radius: var(--cp-radius-item);
   background: var(--cp-timeline-drawer-surface);
