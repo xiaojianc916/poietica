@@ -172,27 +172,26 @@
   }
 }
 
-/* permission-picker: hover-only background */
+/* permission-picker: hover and open background */
 
 /*
- * 权限入口常态下只显示图标和文字。
+ * 权限入口有两个等价的介入状态：
  *
- * Base UI 在菜单打开时会添加 data-popup-open，但打开菜单不等于鼠标悬停，
- * 因此普通状态和菜单打开状态都保持透明。只有真正 hover 时才显示背景。
+ * 1. 鼠标正悬停在按钮上；
+ * 2. 按钮打开的权限菜单仍然显示。
+ *
+ * 菜单通过 Portal 渲染，鼠标移入菜单后触发按钮不再命中 :hover，
+ * 但 Base UI 会继续在触发按钮上保留 data-popup-open。因此两种状态
+ * 必须共同维持同一个背景，避免弹窗出现后胶囊突然恢复透明。
  */
-.assistant-posture:not(:hover),
-.assistant-posture[data-popup-open]:not(:hover),
-.assistant-posture[data-alert]:not(:hover),
-.assistant-posture[data-alert][data-popup-open]:not(:hover) {
+.assistant-posture:not(:hover):not([data-popup-open]) {
   background: transparent;
   box-shadow: none;
 }
 
 .assistant-posture:hover,
-.assistant-posture[data-alert]:hover,
-.assistant-posture[data-popup-open]:hover,
-.assistant-posture[data-alert][data-popup-open]:hover {
+.assistant-posture[data-popup-open] {
   background: var(--pp-hover);
 }
 
-/* permission-picker: hover-only background end */
+/* permission-picker: hover and open background end */
