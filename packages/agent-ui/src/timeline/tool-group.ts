@@ -178,7 +178,7 @@ export function liveMemberOf(plan: ToolGroupPlan): FeedRow | undefined {
   for (let at = plan.members.length - 1; at >= 0; at -= 1) {
     const row = plan.members[at]
 
-    if (row !== undefined && row.isInFlight) {
+    if (row?.isInFlight) {
       return row
     }
   }
