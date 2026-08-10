@@ -65,6 +65,23 @@ describe('foldFeed', () => {
     expect(feed.tail?.hasProcess).toBe(true)
   })
 
+  it('never takes a row off the transcript while the turn is still working', () => {
+    /* 一轮之内转录只追加。过程从出生就不在 rows 里，所以不存在「先上屏、再被移出数
+       组」这一步 —— 而那一步正是虚拟器整表重新落位、屏幕上内容整段消失又出现的成因。
+       这里把同一轮逐帧走一遍，断言的是整条序列，而不是某一个终局。 */
+    const span = [running(0, 1_000)]
+    const q = said('q', 0, 1_000)
+    const t0 = thought('t0', 0, 2_000)
+    const t1 = thought('t1', 0, 3_000)
+    const a = spoke('a', 0, 4_000)
+
+    const seen = [[q], [q, t0], [q, t0, t1], [q, t0, t1, a]].map((rows) =>
+      idsOf(foldFeed(rows, span, new Set()).rows),
+    )
+
+    expect(seen).toEqual([['q'], ['q'], ['q'], ['q', 'a']])
+  })
+
   it('keeps the fold where it is when process resumes after a remark', () => {
     /* 说一句、再去干活：边界停在那句话上不退回去，已经收起的东西不会弹回屏幕，
        封条也就不会从回复那一行挪走。 */

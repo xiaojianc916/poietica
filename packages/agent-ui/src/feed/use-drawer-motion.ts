@@ -4,8 +4,13 @@ import { type RefObject, useCallback, useRef, useState } from 'react'
  * 抽屉那条过渡改的是哪个属性。
  *
  * 思考面板与工具卡片的展开收起都靠 grid-template-rows 从 0fr 走到 1fr
- * （timeline.css）。滚动区认这一个属性名，就等于认「有人正在故意改变某一
- * 行的高度」，而不必知道是谁在改。
+ * （primitives/disclosure.css）。滚动区认这一个属性名，就等于认「有人正在
+ * 故意改变某一行的高度」，而不必知道是谁在改。
+ *
+ * 只认 CSS 过渡这一种驱动，而这是有意的。转录尾部那块瞬态区的让位由 motion
+ * 驱动（timeline/live-process.tsx），它不派发 transitionrun，所以永远进不了
+ * 这个判据 —— 让位要解决的是「某一行正在长高，末端不该跟着跑」，而瞬态区收拢
+ * 时末端跟着走恰好是要的效果：回答落到底部的那段路就是它。
  */
 const DRAWER_PROPERTY = 'grid-template-rows'
 

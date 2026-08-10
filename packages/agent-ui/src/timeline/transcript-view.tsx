@@ -166,23 +166,27 @@ export function TranscriptView({
    * 落的那枚封条说「这一轮已经在跑」（span 由 run_started 开出）；瞬态区说「此刻在
    * 做什么」；等待指示器说「屏幕上没有东西在动」。
    *
-   * 瞬态区是这一批新搬进来的。它此前住在转录正文里，随着回复上屏被 rows.filter 撤
-   * 掉 —— 而那次撤销改的是虚拟器的 count 与 getItemKey，一整屏行跟着重新落位。这里
-   * 不在虚拟器的条目表内，内容变化只经过实测出来的 paddingEnd。
+   * 瞬态区不在虚拟器的条目表内：它的内容变化只经过实测出来的 paddingEnd，碰不到任何
+   * 一行的身份与实测高度。过程若走转录正文，一轮之内就必然有一次中段删除，而那次删除
+   * 会改掉 count 与 getItemKey，一整屏行跟着重新落位。
    *
    * 顺序是自上而下的时间顺序：封条排在它那一轮的内容前面，正在做的事排在下面，还没
    * 有任何东西在动时最后那行「正在思考」在最底下。
+   *
+   * 三样都没有时这里也照样交出去，而不是交 undefined。瞬态区的退场要让最后那一帧多留
+   * 一会儿，而「多留」只能发生在还挂着的那棵子树里 —— 按内容有无摘掉整个尾部，等于在
+   * 退场开始的同一帧把宿主连根拔掉。空的片段不产生任何节点，尾部盒子照旧是 :empty，
+   * 末端留白一分没变。
    */
   const waiting = selectIsWaiting(timeline)
 
-  const footer =
-    feed.tail === undefined && feed.live.length === 0 && !waiting ? undefined : (
-      <>
-        {feed.tail === undefined ? null : sealOf(feed.tail)}
-        <LiveProcess renderRow={renderRow} rows={feed.live} />
-        {waiting ? <ThinkingIndicator /> : null}
-      </>
-    )
+  const footer = (
+    <>
+      {feed.tail === undefined ? null : sealOf(feed.tail)}
+      <LiveProcess renderRow={renderRow} rows={feed.live} />
+      {waiting ? <ThinkingIndicator /> : null}
+    </>
+  )
 
   const overlay = useCallback(
     (port: FeedPort) =>

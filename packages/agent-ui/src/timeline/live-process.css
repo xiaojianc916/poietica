@@ -8,33 +8,22 @@
  * 行距沿用转录的那一格，两条通道的节奏因此对齐：同一帧从瞬态区被封条收走时，它在
  * 两边占的竖向空间一样，位置不跳。
  */
-.live-process {
-  display: flex;
-  min-inline-size: 0;
-  flex-direction: column;
-}
-
-@keyframes live-process-arrive {
-  from {
-    opacity: 0;
-  }
-}
-
 /*
- * 上屏时淡入，曲线与封条那一枚同一条（turn-seal.css）。
+ * 一帧占一格，格子会让位。
  *
- * 只淡入，不淡出。卸载不可补间 —— 一个已经不在树里的元素没有可以动画的对象，要做
- * 退场就得先有第二份真相把它多留一帧，而那份真相会与这里「唯一读者是派生结果」这
- * 条立场对立。这是一条诚实的边界，不是一个待补的缺口。
+ * 高度补间发生在这一层，所以裁剪也在这一层：让位途中的中间高度要合法，内容不能溢
+ * 出到封条上去。同一条裁剪已经在 primitives/disclosure.css 的 .disclosure__clip 上
+ * 管着同样这些工具卡与思考面板，这里不是第二种口径。
+ *
+ * 进场与退场都由 motion 驱动（live-process.tsx）：卸载不可补间 —— 一个已经不在树里
+ * 的元素没有可以动画的对象，而让它多留一会儿正是 AnimatePresence 唯一在做的事。所以
+ * 这张表里没有 keyframes，也没有第二处时长，少动效那条分支同样归那边一处决定。
  */
+.live-process__slot {
+  overflow: hidden;
+}
+
 .live-process__frame {
   min-inline-size: 0;
   padding-block: var(--cp-feed-row-gap);
-  animation: live-process-arrive 180ms cubic-bezier(0.2, 0, 0, 1) both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .live-process__frame {
-    animation: none;
-  }
 }
