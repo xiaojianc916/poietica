@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
-    "@mynaui/icons-react": "catalog:",
     "clsx": "catalog:",
     "lucide-react": "catalog:",
     "motion": "catalog:",

@@ -3,13 +3,13 @@ import type { SVGProps } from 'react'
 /**
  * 本地字形。
  *
- * 这些不是 @mynaui/icons-react 里的图标，改这个文件不会影响图标库，升级图标库
+ * 这些不是  @lucide/react 里的图标，改这个文件不会影响图标库，升级图标库
  * 也不会影响这里——放在设计系统里只是因为工作区外壳和 AI 界面都要用，字形不该
  * 有两份。
  *
  * 几何取自 Lucide（ISC 许可），放进图标库的默认视口：width=24 height=24
  * fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"
- * 圆头圆角（见 mynaui-icons 仓库 icons/chevron-left.svg 原文）。描边而非实心，
+ * 圆头圆角（见  @lucide/react 仓库 icons/chevron-left.svg 原文）。描边而非实心，
  * 是因为实心字形无法与描边字形对齐视觉重量，也不随 currentColor 变化粗细。
  */
 

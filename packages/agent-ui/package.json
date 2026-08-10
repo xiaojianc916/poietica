@@ -14,7 +14,6 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@mynaui/icons-react": "catalog:",
     "@poietica/agent": "workspace:*",
     "@poietica/agent-contract": "workspace:*",
     "@poietica/core": "workspace:*",

@@ -109,7 +109,7 @@ const TRANSLATIONS: Partial<StreamdownTranslations> = {
  * 控件里的图标也归这个应用。
  *
  * 上游自带一套，代码块与表格的控件默认渲染的就是它们；而这个界面其余每一个图标都来自
- * @mynaui/icons-react —— 两种笔画（2px 与 1.5px）此前并排出现在同一块面板上。icons 收
+ *  @lucide/react —— 两种笔画（2px 与 1.5px）此前并排出现在同一块面板上。icons 收
  * Partial<IconMap>，是官方给的覆盖点，一处声明覆盖全部控件。
  *
  * 只映真的会渲染的四个：下载与外链弹窗都关着，缩放三件由图面板自己画。映一个永远不出现的

@@ -63,7 +63,7 @@
    * 图标的描边宽度。
    *
    * 它此前不存在，于是线重的所有权在图标库手里 —— 消费处只声明了 1rem 见方，
-   * 描边由 @mynaui/icons-react 的默认值决定。那一档是主流字形库的通例（Lucide
+   * 描边由 @lucide/react 的默认值决定。那一档是主流字形库的通例（Lucide
    * 官方文档写明 default stroke width of 2px，Tabler、Feather 同），在 24 的
    * viewBox 缩到 16px 显示时解出 1.33 CSS px，dpr 1.5 上就是两个设备像素。
    *
