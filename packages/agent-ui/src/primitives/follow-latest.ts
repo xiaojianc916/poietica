@@ -178,6 +178,23 @@ export function nextFollow(
     return LET_GO
   }
 
+  /*
+   * 走上去了，但走的量夹紧全额解释得了 —— 这一次滚动不携带任何人的意图。
+   *
+   * 上面那一条挡的是「夹紧被读成人往上拨」。这一条挡的是对称的另一半：夹紧同样不该
+   * 被读成「人自己滚回了末端」。少了它，人在末端点开或收起一段内容会这样：onToggle
+   * 刚把状态设成 LET_GO，收起引起的变短立刻把 scrollTop 夹小，那一下派发的滚动事件落
+   * 到下面那行 staysWithLatest —— 视口确实在新的末端附近，于是跟随重新上闩，LET_GO 被
+   * 它自己引发的那次夹紧当场撤销。而虚拟器此时还在一行行把估高换成真高，高度反复变，
+   * 于是反复上闩、反复贴合，屏幕就在那里抽。
+   *
+   * 交回 now 而不是某个常量：这一次滚动没有信息，就不该改变任何一位 —— 本来在跟的继续
+   * 跟，本来让开的继续让开，位移途中的继续走。额度之内两种归因都是编，而不归因不是。
+   */
+  if (moved > 0) {
+    return now
+  }
+
   if (now.traveling) {
     return TRAVELING
   }
@@ -259,6 +276,14 @@ export function useFollowLatest(): FollowLatest {
    */
   const ours = useRef(false)
 
+  /*
+   * 开场那一次贴合做过没有。
+   *
+   * 只立一次，之后永远为真。settle 的长高闸拿它区分「高度从无到有」与「什么都没长」——
+   * 前者要拨，后者不该拨。此前这件事是无闸 stick 的副产品，加了闸就得把它说出来。
+   */
+  const primed = useRef(false)
+
   const last = useRef<ScrollGeometry>({ clientHeight: 0, scrollHeight: 0, scrollTop: 0 })
   const travelFrame = useRef<number | null>(null)
 
@@ -294,35 +319,68 @@ export function useFollowLatest(): FollowLatest {
     }
   }, [])
 
-  const stick = useCallback(() => {
-    const element = viewport.current
+  /*
+   * 拨一次末端，然后重新发布几何。
+   *
+   * forced 回答的是「这一次为什么要拨」，而不是所有调用点都有内容要跟：
+   *
+   *   false —— 每一次提交、每一次尺寸变化。这两处问的是「内容也许长高了」，所以只有真
+   *     的长高了才写。没长高还写，就是把人从近末端硬拽到末端。
+   *   true —— 人亲手要求回到末端（resume 与 travel 的落位）。那时高度往往一动不动，而
+   *     拨过去正是这次调用的全部目的。
+   *
+   * 这道闸是有出处的：调用它的那个布局效应在 agent-activity-feed 里写着「写的值与当前值
+   * 相同时浏览器连事件都不派发，所以每次提交都跑的代价就是一次赋值」。那句话只在人正好
+   * 压在末端时成立。NEAR_END_PX 那一带里 follows 为真而视口不在末端，同一句赋值于是变成
+   * 一次至多 48 像素的瞬时位移 —— 人把滚动条拖到接近底部松手，就被吸了下去。
+   *
+   * 阈值本身不动：它同时回答「那枚按钮该不该在」，而按钮要的正是这份宽容。要改的是把
+   * 「下次长高时跟着走」读成「现在就贴过去」的这一层，不是那个数。
+   */
+  const settle = useCallback(
+    (forced: boolean) => {
+      const element = viewport.current
 
-    if (element === null) {
-      return
-    }
-
-    if (state.current.follows && !state.current.traveling) {
-      const before = element.scrollTop
-
-      /*
-       * 写一个必然越界的值，让浏览器去夹。
-       *
-       * CSSOM View 规定 scrollTop 的 setter 把值夹进可滚动范围，所以这一句就是「拨到末端」
-       * 的全文。它是瞬时的，因为滚动区的 scroll-behavior 是 auto —— setter 用的是那个计算
-       * 值。那句声明因此是承重的：改成 smooth 会让持续跟随和位移循环的每帧写入全都变成动画。
-       */
-      element.scrollTop = element.scrollHeight
-
-      if (element.scrollTop !== before) {
-        ours.current = true
+      if (element === null) {
+        return
       }
-    }
 
-    const geometry = seen(element)
+      if (state.current.follows && !state.current.traveling) {
+        /* 开场那一次没有「上一次」可比：高度是从无到有的，不是长高。 */
+        const grew = !primed.current || element.scrollHeight > last.current.scrollHeight
 
-    last.current = geometry
-    publish(staysWithLatest(geometry))
-  }, [publish])
+        primed.current = true
+
+        if (forced || grew) {
+          const before = element.scrollTop
+
+          /*
+           * 写一个必然越界的值，让浏览器去夹。
+           *
+           * CSSOM View 规定 scrollTop 的 setter 把值夹进可滚动范围，所以这一句就是「拨到
+           * 末端」的全文。它是瞬时的，因为滚动区的 scroll-behavior 是 auto —— setter 用的
+           * 是那个计算值。那句声明因此是承重的：改成 smooth 会让持续跟随和位移循环的每帧
+           * 写入全都变成动画。
+           */
+          element.scrollTop = element.scrollHeight
+
+          if (element.scrollTop !== before) {
+            ours.current = true
+          }
+        }
+      }
+
+      const geometry = seen(element)
+
+      last.current = geometry
+      publish(staysWithLatest(geometry))
+    },
+    [publish],
+  )
+
+  const stick = useCallback(() => {
+    settle(false)
+  }, [settle])
 
   const release = useCallback(() => {
     state.current = LET_GO
@@ -337,8 +395,8 @@ export function useFollowLatest(): FollowLatest {
    */
   const resume = useCallback(() => {
     state.current = AT_LATEST
-    stick()
-  }, [stick])
+    settle(true)
+  }, [settle])
 
   const travel = useCallback(() => {
     const element = viewport.current
@@ -355,7 +413,7 @@ export function useFollowLatest(): FollowLatest {
     /* 没有距离可走，或者这个人要求少一些动效：直接贴合。一段看不见的动画不值得一个状态。 */
     if (reduced === true || staysWithLatest(geometry)) {
       state.current = AT_LATEST
-      stick()
+      settle(true)
 
       return
     }
@@ -381,7 +439,7 @@ export function useFollowLatest(): FollowLatest {
 
       if (next === null) {
         state.current = AT_LATEST
-        stick()
+        settle(true)
 
         return
       }
@@ -391,7 +449,7 @@ export function useFollowLatest(): FollowLatest {
     }
 
     travelFrame.current = requestAnimationFrame(step)
-  }, [reduced, stick, stopTravel])
+  }, [reduced, settle, stopTravel])
 
   const watch = useCallback(
     (element: HTMLElement) => {
