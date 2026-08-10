@@ -8,16 +8,6 @@ import * as v from 'valibot'
 export const PLUGIN_MANIFEST_FILENAMES = ['kimi.plugin.json', '.kimi-plugin/plugin.json'] as const
 
 /*
- * 提示词预算：单个插件 32 KiB，一次会话内全部启用插件合计 64 KiB。
- *
- * 单位是 UTF-8 字节，不是 String.length 的 UTF-16 码元数 —— '插件'.length 是 2，
- * 字节数是 6。按码元算会让预算在中文场景下形同虚设。
- */
-export const PLUGIN_PROMPT_BUDGET_BYTES = 32 * 1024
-
-export const SESSION_PROMPT_BUDGET_BYTES = 64 * 1024
-
-/*
  * 上游运行时已经不认这几个字段。读到只记一条诊断、不生效 —— 静默忽略会把
  * 「装上了却没反应」变成一个查不出原因的问题。
  */
@@ -32,20 +22,15 @@ export const DEFAULT_AGENT_ROOT = './agents'
 /* 插件名同时是命令命名空间与磁盘目录名，所以约束由上游定死。 */
 const PLUGIN_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/
 
-const encoder = new TextEncoder()
-
+/*
+ * 每一个都有产出者，一个不多。扫盘、提示词预算、传输识别都不再由本应用做，它们那几
+ * 条码于是不该存在 —— 一个永远不会出现的诊断码等于一句永远不会兑现的承诺。
+ */
 export type PluginDiagnosticCode =
-  | 'frontmatter-invalid'
   | 'hooks-not-executed'
   | 'manifest-invalid'
-  | 'mcp-transport-unrecognised'
   | 'name-invalid'
-  | 'name-taken'
   | 'path-escapes-root'
-  | 'path-missing'
-  | 'prompt-budget-exhausted'
-  | 'prompt-too-large'
-  | 'skill-incomplete'
   | 'unsupported-field'
 
 export interface PluginDiagnostic {
@@ -73,12 +58,6 @@ export interface FilePromptSource {
 
 export type PluginPromptSource = FilePromptSource | InlinePromptSource
 
-export interface PluginMcpServerDeclaration {
-  readonly name: string
-  /* 服务器配置原样透传：它的形状归 MCP 规范所有，插件域不重新定义一遍。 */
-  readonly config: Readonly<Record<string, unknown>>
-}
-
 /*
  * 归一之后的清单：没有可选属性。
  *
@@ -100,7 +79,14 @@ export interface PluginManifest {
   readonly skillRoots: readonly string[]
   readonly agentRoots: readonly string[]
   readonly commandRoots: readonly string[]
-  readonly mcpServers: readonly PluginMcpServerDeclaration[]
+  /*
+   * 清单里那张「名字 → 配置」表的名字，配置本身不进来。
+   *
+   * 起这些服务器的是 CLI（官方 plugins 文档：插件声明的 MCP 服务器由运行时按
+   * installed.json 里的 capabilities.mcpServers.<名字>.enabled 装载）。本应用只需要
+   * 名字：列一行、拨一个开关。把配置也搬进领域层，就会有人忍不住去解它。
+   */
+  readonly mcpServerNames: readonly string[]
   /* 新会话开始时自动装载的那个技能的名字。 */
   readonly sessionStartSkill: string | undefined
   readonly skillInstructions: string | undefined
@@ -151,10 +137,6 @@ const RawManifest = v.looseObject({
   systemPromptPath: v.optional(v.string()),
   hooks: v.optional(v.array(v.unknown())),
 })
-
-export function utf8ByteLength(value: string): number {
-  return encoder.encode(value).length
-}
 
 /* 落在插件根之内：以 ./ 开头（或就是 .），且没有任何一段是 ..。 */
 function insideRoot(candidate: string): boolean {
@@ -207,40 +189,6 @@ function promptSourcesOf(
   }
 
   return sources
-}
-
-export interface PromptClamp {
-  readonly text: string | undefined
-  readonly diagnostics: readonly PluginDiagnostic[]
-}
-
-/**
- * 物化之后的提示词进不进会话。
- *
- * 预算按 UTF-8 字节算，而这一段可能是内联与磁盘文件拼起来的 —— 只有读完文件才
- * 知道它有多大，所以这条判据不在解码期。规则仍然只有这一处。
- */
-export function clampPluginPrompt(pluginId: string, text: string): PromptClamp {
-  if (text.trim() === '') {
-    return { text: undefined, diagnostics: [] }
-  }
-
-  const bytes = utf8ByteLength(text)
-
-  if (bytes > PLUGIN_PROMPT_BUDGET_BYTES) {
-    return {
-      text: undefined,
-      diagnostics: [
-        {
-          code: 'prompt-too-large',
-          pluginId,
-          detail: `${bytes} 字节，超过单个插件 ${PLUGIN_PROMPT_BUDGET_BYTES} 字节的上限`,
-        },
-      ],
-    }
-  }
-
-  return { text, diagnostics: [] }
 }
 
 function unsupportedFieldDiagnostics(name: string, input: unknown): readonly PluginDiagnostic[] {
@@ -314,7 +262,7 @@ export function decodePluginManifest(input: unknown): ManifestDecoding {
   const skills = normalizeRoots(raw.name, 'skills', raw.skills, [DEFAULT_SKILL_ROOT], diagnostics)
   const agents = normalizeRoots(raw.name, 'agents', raw.agents, [DEFAULT_AGENT_ROOT], diagnostics)
   const commands = normalizeRoots(raw.name, 'commands', raw.commands, [], diagnostics)
-  const servers: Readonly<Record<string, Record<string, unknown>>> = raw.mcpServers ?? {}
+  const servers = Object.keys(raw.mcpServers ?? {})
 
   return {
     kind: 'accepted',
@@ -330,7 +278,7 @@ export function decodePluginManifest(input: unknown): ManifestDecoding {
       skillRoots: skills,
       agentRoots: agents,
       commandRoots: commands,
-      mcpServers: Object.entries(servers).map(([name, config]) => ({ name, config })),
+      mcpServerNames: servers,
       sessionStartSkill: raw.sessionStart?.skill,
       skillInstructions: raw.skillInstructions,
       promptSources: promptSourcesOf(raw.systemPrompt, raw.systemPromptPath),

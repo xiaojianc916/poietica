@@ -100,7 +100,7 @@ describe('上游真清单', () => {
   it('kimi-datasource 只带一台 MCP 服务器', () => {
     const manifest = manifestOf(KIMI_DATASOURCE)
 
-    expect(manifest.mcpServers.map((server) => server.name)).toEqual(['data'])
+    expect(manifest.mcpServerNames).toEqual(['data'])
     expect(manifest.commandRoots).toEqual([])
   })
 
@@ -120,6 +120,6 @@ describe('上游真清单', () => {
 
     expect(manifest.commandRoots).toEqual(['./commands'])
     expect(manifest.skillRoots).toEqual(['./skills'])
-    expect(manifest.mcpServers.map((server) => server.name)).toEqual(['vercel'])
+    expect(manifest.mcpServerNames).toEqual(['vercel'])
   })
 })

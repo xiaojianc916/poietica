@@ -8,20 +8,12 @@ import {
   readEnvironmentMcpConfig,
   readMcpEndpoint,
   readPluginCatalog,
-  readPluginText,
-  readPluginTree,
   refreshPluginCatalog,
   removePlugin,
   setPluginEnabled,
   setPluginMcpEnabled,
   stagePlugin,
 } from '@poietica/ipc'
-
-import {
-  type BuiltinMcpServer,
-  type ResolvedContributions,
-  resolveContributions,
-} from './contribution'
 import { planFetch } from './fetch-plan'
 import {
   describeInstallSource,
@@ -31,13 +23,7 @@ import {
   UNLISTED_TRUST,
 } from './install-source'
 import type { InstalledPlugin } from './installation'
-import {
-  clampPluginPrompt,
-  decodePluginManifest,
-  type PluginDiagnostic,
-  type PluginManifest,
-  type PluginPromptSource,
-} from './manifest'
+import { decodePluginManifest, type PluginDiagnostic, type PluginManifest } from './manifest'
 import {
   beginFetch,
   completeFetch,
@@ -48,13 +34,8 @@ import {
   shouldFetchOnOpen,
 } from './marketplace'
 import { type DeclaredMcpServer, decodeMcpConfig } from './mcp-config'
+import { type BuiltinMcpServer, type ResolvedMcpServer, resolveMcpServers } from './mcp-servers'
 import type { ManagedOrigin } from './origin'
-import {
-  EMPTY_REGISTRY,
-  type PluginRegistry,
-  type PluginTreeReader,
-  readRegistry,
-} from './registry'
 
 /**
  * 「装了什么、开没开、市场上有什么」的唯一持有者。
@@ -84,14 +65,14 @@ export interface ForeignPlugin {
 
 export interface PluginsViewModel {
   readonly plugins: readonly InstalledPlugin[]
-  /* 各类贡献同一次遍历产出，界面上几个 tab 读的就是它，不另算一遍。 */
-  readonly contributions: ResolvedContributions
+  /* 屏幕上那张 MCP 列表：内置的、这台机器上配好的、插件带来的，同一张表。 */
+  readonly mcpServers: readonly ResolvedMcpServer[]
   /**
    * 对话里敲得出来的那些命令，agent 报来的整张表。
    *
-   * 技能那一格读的是它，不是上面那格里的 skills：上面那格只回答"某个插件带来了
-   * 什么"，而屏幕上那份清单要回答"这个 agent 现在认得哪些技能" —— 全局装的、它
-   * 自己带的、插件带来的都算。后者只有 agent 说得出来。
+   * 技能那一格读的就是它。技能只有 agent 说得出来 —— 全局装的、它自己带的、插件带来
+   * 的都算，而这三样只有装载它们的那一侧看得见。本应用不扫盘：扫出来的那份永远只是
+   * 其中一部分，两份清单并存就一定有一天对不上。
    */
   readonly palette: readonly PaletteEntry[]
   /**
@@ -208,9 +189,6 @@ export interface PluginStoreOptions {
 interface ScannedPlugin {
   readonly pluginId: string
   readonly manifest: PluginManifest
-  /* 清单声明的路径底下真的读到的技能与命令。清单读不出来时是空的。 */
-  readonly registry: PluginRegistry
-  readonly systemPromptText: string | undefined
   readonly diagnostics: readonly PluginDiagnostic[]
   /** 清单读不出来的记录仍然装着，但它不受那个开关支配。 */
   readonly readable: boolean
@@ -274,7 +252,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   let builtinUrl: string | undefined
   let snapshot: PluginsViewModel = {
     plugins: [],
-    contributions: resolveContributions({ builtin: [], environment: [], plugins: [] }),
+    mcpServers: [],
     palette: [],
     foreign: [],
     marketplace: MARKETPLACE_ABSENT,
@@ -338,12 +316,10 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       return {
         pluginId: entry.pluginId,
         manifest: entry.manifest,
-        registry: entry.registry,
         source: listed?.source,
         trust: listed?.trust ?? UNLISTED_TRUST,
         enabled: entry.readable && entry.enabled,
         installedAt: entry.installedAt,
-        systemPromptText: entry.systemPromptText,
         disabledMcpServers: entry.disabledMcpServers,
         diagnostics: entry.diagnostics,
       }
@@ -353,7 +329,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
     publish({
       plugins,
-      contributions: resolveContributions({ builtin: builtinServers(), environment, plugins }),
+      mcpServers: resolveMcpServers({ builtin: builtinServers(), environment, plugins }),
       /* 两边都装着的不算「别处装过」：那一条已经在上面的 plugins 里了。 */
       foreign: foreignRecords.filter((record) => !here.has(record.pluginId)),
       loaded: true,
@@ -361,56 +337,20 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 把清单声明的几段提示词读成一段。
+   * 解一条记录：账本里那几格，加上清单原文解出来的形状。
    *
-   * 顺序就是清单里的顺序（内联在前，文件在后），预算在拼完之后才算 —— 32 KiB 说的
-   * 是这个插件最终注入多少字节，而那要读完文件才知道。
+   * 没有 I/O。清单原文由原生侧在列举时一并交过来，所以全部开销就是一次 JSON 解析加一次
+   * schema 校验 —— 此前这里每个插件要为每条声明路径再走一趟原生读目录，而读出来的技能
+   * 与命令没有第二个读者：装载它们的是 CLI。
    */
-  async function promptTextOf(
-    pluginId: string,
-    sources: readonly PluginPromptSource[],
-    diagnostics: PluginDiagnostic[],
-  ): Promise<string | undefined> {
-    const parts: string[] = []
-
-    for (const source of sources) {
-      switch (source.kind) {
-        case 'inline':
-          parts.push(source.text)
-          break
-        case 'file':
-          try {
-            parts.push(await readPluginText({ pluginId, relativePath: source.path }))
-          } catch (cause: unknown) {
-            warn('插件提示词读不出来', { scope: 'plugins', pluginId, cause })
-          }
-          break
-        default:
-          return assertUnreachable(source)
-      }
-    }
-
-    const clamped = clampPluginPrompt(pluginId, parts.join('\n\n'))
-
-    diagnostics.push(...clamped.diagnostics)
-
-    return clamped.text
-  }
-
-  /*
-   * 解一条记录：把清单解出来，把提示词读进来。
-   *
-   * 这是这条路上全部的开销所在 —— 一次 JSON 解析、一次 schema 校验、每条 file 来源一趟
-   * 原生读文件。它只在装、卸、启动时发生。
-   */
-  async function scan(payload: {
+  function scan(payload: {
     readonly pluginId: string
     readonly manifestJson: string
     readonly enabled: boolean
     readonly installedAt: string | null
     readonly originalSource: string | null
     readonly disabledMcpServers: string[]
-  }): Promise<ScannedPlugin> {
+  }): ScannedPlugin {
     const shared = {
       pluginId: payload.pluginId,
       enabled: payload.enabled,
@@ -425,51 +365,16 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       return {
         ...shared,
         manifest: unreadableManifest(payload.pluginId),
-        registry: EMPTY_REGISTRY,
-        systemPromptText: undefined,
         diagnostics: decoded.diagnostics,
         readable: false,
       }
     }
 
-    const diagnostics = [...decoded.diagnostics]
-
-    /* 提示词与技能/命令互不依赖，一起读：一次扫描因此是一趟往返的深度，不是两趟。 */
-    const [systemPromptText, registry] = await Promise.all([
-      promptTextOf(payload.pluginId, decoded.manifest.promptSources, diagnostics),
-      readRegistry(payload.pluginId, decoded.manifest, treeReaderFor(payload.pluginId)),
-    ])
-
     return {
       ...shared,
       manifest: decoded.manifest,
-      registry,
-      systemPromptText,
-      diagnostics,
+      diagnostics: decoded.diagnostics,
       readable: true,
-    }
-  }
-
-  /*
-   * 一条声明路径底下的 Markdown。
-   *
-   * 原生侧把「路径不在盘上」交成 null，把「越界、太大、太多」交成失败。对这一层前者是
-   * 一条诊断（由 readRegistry 记下），后者是这个插件这一次读不出技能 —— 两种都不该让
-   * 另外几个插件的扫描一起没有结果，所以在这里就地折成 null。
-   */
-  function treeReaderFor(pluginId: string): PluginTreeReader {
-    return async (declared, suffix) => {
-      try {
-        const files = await readPluginTree({ pluginId, relativePath: declared, suffix })
-
-        return files === null
-          ? null
-          : files.map((file) => ({ path: file.relativePath, contents: file.contents }))
-      } catch (cause: unknown) {
-        warn('插件目录读不出来', { scope: 'plugins', pluginId, declared, cause })
-
-        return null
-      }
     }
   }
 
@@ -528,7 +433,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   async function rescan(): Promise<void> {
     const payloads = await listPlugins()
 
-    scanned = await Promise.all(payloads.map((payload) => scan(payload)))
+    scanned = payloads.map(scan)
   }
 
   /*

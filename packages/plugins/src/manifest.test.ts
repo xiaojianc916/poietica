@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  clampPluginPrompt,
-  DEFAULT_AGENT_ROOT,
-  DEFAULT_SKILL_ROOT,
-  decodePluginManifest,
-  PLUGIN_PROMPT_BUDGET_BYTES,
-} from './manifest'
+import { DEFAULT_AGENT_ROOT, DEFAULT_SKILL_ROOT, decodePluginManifest } from './manifest'
 
 function accept(raw: Record<string, unknown>) {
   const decoded = decodePluginManifest({ name: 'demo', ...raw })
@@ -81,18 +75,5 @@ describe('decodePluginManifest', () => {
     expect(manifest.description).toBe('短的')
     expect(manifest.homepage).toBe('https://demo.example')
     expect(manifest.capabilities).toEqual(['Read'])
-  })
-})
-
-describe('clampPluginPrompt', () => {
-  it('空白等于没有提示词', () => {
-    expect(clampPluginPrompt('demo', '   ').text).toBeUndefined()
-  })
-
-  it('超过单个插件的预算就不注入，并说出为什么', () => {
-    const clamped = clampPluginPrompt('demo', 'x'.repeat(PLUGIN_PROMPT_BUDGET_BYTES + 1))
-
-    expect(clamped.text).toBeUndefined()
-    expect(clamped.diagnostics[0]?.code).toBe('prompt-too-large')
   })
 })

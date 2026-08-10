@@ -1,6 +1,5 @@
 import type { PluginInstallSource, PluginTrustTier } from './install-source'
 import type { PluginDiagnostic, PluginManifest } from './manifest'
-import type { PluginRegistry } from './registry'
 
 /*
  * 一个装好的插件 = agent 的 installed.json 里的一条记录，加上那条记录指向的清单。
@@ -11,9 +10,9 @@ import type { PluginRegistry } from './registry'
  * 概念 —— 读的时候拿它回目录里查，查不到就是没有背书。往人家的契约里塞我们的字段，
  * 换来的只有一份迟早被对方的写入抹掉的数据。
  *
- * systemPromptText 是物化之后的正文：清单说的是提示词在哪（内联，或一条路径，
- * 或两者依次），预算算的是它有多少字节 —— 算不了一条还没读的路径。读文件是原生
- * 侧的事，读完落在这里，领域层因此不需要碰文件系统。
+ * 清单之外什么都不带。技能、命令、提示词是 CLI 在装载时自己读的东西 —— 官方 plugins
+ * 文档里 skills 与 commands 是路径、systemPrompt 由运行时注入，我们再读一遍只会得到
+ * 一份没人用的副本，而且它看不见全局技能。这里只留「账本记了什么、清单声明了什么」。
  */
 export interface InstalledPlugin {
   /**
@@ -31,14 +30,6 @@ export interface InstalledPlugin {
   readonly enabled: boolean
   /* ISO-8601。装载顺序按它排。 */
   readonly installedAt: string | undefined
-  readonly systemPromptText: string | undefined
-  /*
-   * 清单声明的那几条 ./ 路径，加上路径下那些 Markdown，物化出来的技能与命令。
-   *
-   * 与 systemPromptText 同一档：清单只说「到哪里找」，实体要读盘才知道，读完落在这里，
-   * 领域层因此不需要碰文件系统。
-   */
-  readonly registry: PluginRegistry
   /* 插件整体启用、但被单独关掉的那几台 MCP 服务器。 */
   readonly disabledMcpServers: readonly string[]
   readonly diagnostics: readonly PluginDiagnostic[]
@@ -47,8 +38,8 @@ export interface InstalledPlugin {
 /*
  * 解析顺序：安装时间升序，同刻按 id 升序，时间未知的排在最前。
  *
- * 预算耗尽时被丢掉的是后来者，所以这个顺序必须是全序且稳定 —— 否则同一批插件
- * 两次启动会得到两套不同的提示词。id 在账本里天然唯一，所以同刻那一档也是全序。
+ * 这个顺序必须是全序且稳定：屏幕上那张 MCP 列表按它排，不稳定就会在两次启动之间
+ * 自己换位置。id 在账本里天然唯一，所以同刻那一档也是全序。
  */
 export function resolutionOrder(plugins: readonly InstalledPlugin[]): readonly InstalledPlugin[] {
   return [...plugins].sort((left, right) => {
