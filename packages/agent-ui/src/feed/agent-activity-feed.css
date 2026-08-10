@@ -26,9 +26,9 @@
  * 虚拟器需要的那段偏移因此是一次 offsetTop,不必用两次 getBoundingClientRect
  * 再减去 scrollTop 去凑。
  *
- * overflow-anchor 显式关闭:末端锚定与流式增长的补偿由虚拟器承担,浏览器原生
- * 的滚动锚定若同时生效,同一次测量引起的尺寸变化会被两个纠正者各补一次,叠加
- * 出来就是回滚时那一下跳变。锚定只能有一个所有者。
+ * overflow-anchor 显式关闭:这个盒子的滚动位置有两个写入者 —— 虚拟器补偿视口上方的
+ * 估高误差,follow-latest 拨末端。浏览器原生的滚动锚定是第三个,而它不知道另外两个的
+ * 存在:同一次尺寸变化被补两次,叠加出来就是那一下跳变。
  *
  * 下沿不涂颜色,用遮罩化开:涂色必须先假定背后是什么颜色,再准也只是一块压在
  * 字上的色块;遮罩按渐变抹掉像素本身的不透明度,换主题、换背景都成立。停靠点
@@ -50,6 +50,14 @@
   flex-direction: column;
   overflow-y: auto;
   overflow-anchor: none;
+  /*
+   * 滚动位置是代码写的,所以平滑滚动在这里不是一个体验选项。
+   *
+   * scroll-behavior: smooth 会把 scrollTop 的赋值变成一段动画,而 follow-latest 每次
+   * 提交都要拨一次 —— 动画会把每一帧的新目标都当成新起点,于是永远追不上。这一句把这条
+   * 约束写在盒子上,而不是留给下一个人换主题时踩。
+   */
+  scroll-behavior: auto;
   overscroll-behavior: contain;
   contain: layout paint;
   padding-block-start: var(--cp-gutter);

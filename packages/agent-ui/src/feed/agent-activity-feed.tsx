@@ -4,8 +4,8 @@ import type { FeedRow } from '@poietica/agent'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useDevicePixels } from '../primitives/use-device-pixels'
+import { useFollowLatest } from './follow-latest'
 import { type RowSpan, rowAtAnchor } from './reading-position'
-import { useDrawerMotion } from './use-drawer-motion'
 import { useRevealIntent } from './use-reveal-intent'
 
 /**
@@ -53,14 +53,6 @@ const ESTIMATED_ROW_PX: Record<FeedRow['item']['type'], number> = {
 const ESTIMATED_FALLBACK_PX = 120
 
 /**
- * 距末端多近算作「仍在看最新一条」。约等于一格滚轮。
- *
- * 只交给虚拟器：scrollEndThreshold 是 followOnAppend 与 isAtEnd() 共用的判据，
- * 官方 Chat 指南给的参考值是 80，这里取一格滚轮的量。
- */
-const BOTTOM_THRESHOLD_PX = 48
-
-/**
  * 视口之外预留的行数。
  *
  * 会话行远高于表格行,预留少了会在快速滚动时露白,多了则白白测量。
@@ -86,14 +78,16 @@ const READING_ANCHOR_RATIO = 1 / 3
  * 理由见 assistant.css:位置不该是一个可以被补间的数字。开场白与输入框现在由
  * AssistantSurface 持有,这个组件不知道它们存在。
  *
- * 滚动位置只有一个所有者:虚拟器。末端锚定、追随新消息、贴底阈值,以及流式输出时
- * 最后一行长高的增量补偿,都由 anchorTo 这套原语承担 —— 这正是它们存在的理由,
- * 不该在产品代码里复刻。浏览器原生的滚动锚定因此在样式里显式关闭:两个纠正者对
- * 同一次尺寸变化各补偿一次,位移就会翻倍。
+ * 滚动位置有两个写入者,而它们从不写同一件事:虚拟器补偿视口上方那些刚被测量的行,
+ * follow-latest 拨末端。前者是唯一知道「哪一行的估高刚被真高替换」的,后者是唯一看得见
+ * 真实末端的 —— 整段理由写在 follow-latest 里。库的 anchorTo 'end' 与 followOnAppend
+ * 因此都不再声明:它们做的是第三件事,而那件事这里已经有主了。浏览器原生的滚动锚定是
+ * 第四个,它不知道前两个的存在,所以在样式里显式关闭。
  *
- * 本组件不做任何几何计算 —— 除了两个派生量,而它们共用一次读取:视线落在哪一行、
- * 视口顶端是哪一行。两者是同一次布局的两个侧面,一次布局只读一次几何,它们在时间
- * 上因此不会错开。「贴没贴末端」不在其中:那归虚拟器的 scrollEndThreshold。
+ * 本组件不做任何几何计算 —— 除了两个派生量,而它们共用一次读取:视线落在哪一行、视口
+ * 顶端是哪一行。两者是同一次布局的两个侧面,一次布局只读一次几何,它们在时间上因此不会
+ * 错开。「离末端多远」不在其中:那是 follow-latest 自己读的一次,而它读完只写 scrollTop,
+ * 一个 state 都不碰。
  *
  * 这次读取挂在两处:滚动事件,以及尺寸变化。只挂滚动是不够的 —— 流式输出把行撑高、
  * 面板被拖窄、抽屉展开,都会让同一个滚动位置对应到另一行上,而它们都不产生滚动
@@ -196,50 +190,6 @@ export function AgentActivityFeed({
    */
   const [readingRow, setReadingRow] = useState<number | null>(null)
 
-  /*
-   * 是否有抽屉正在改某一行的高度，以及这件事发生在空闲时。
-   *
-   * 它只服务一件事：抽屉动的时候，末端锚定要让位。理由在库的源码里 ——
-   * resizeItem 中，anchorTo 为 end 且 getVirtualDistanceFromEnd() 落在
-   * scrollEndThreshold 之内时，任何一行长高都会走
-   *
-   *   applyScrollAdjustment(getTotalSize() - prevTotalSize)
-   *
-   * 也就是把这次长高原样加到 scrollTop 上。这对流式输出的最后一条是对的
-   * （末端钉住），对读者亲手点开的抽屉是错的：整条转录跟着上移，面板于是
-   * 看起来是向上长出来的。
-   *
-   * 调小 scrollEndThreshold 躲不掉。判据是「距末端 <= 阈值」，而人看完一条
-   * 回复停在的位置距末端就是 0，任何非负阈值都成立。何况那个数还兼着
-   * followOnAppend 与 isAtEnd 的判据（官方 API 文档原话），调小它等于让
-   * 新消息不再自动跟到底部 —— 一个数两份工，修一头砸另一头。
-   *
-   * 库给的 shouldAdjustScrollPositionOnItemSizeChange 也够不着：它是
-   * wasAtEnd 的 else 分支。所以唯一的开关就是 anchorTo 本身。
-   *
-   * 让位期间走库的默认判据：只补偿整个都在视口上方的行。视口上方的抽屉展开
-   * 仍然保持读者的位置不动，视口内的抽屉直接向下长。两者都是要的。
-   *
-   * 让位还有一个前提：只在空闲时。库的 setOptions 里，followOnAppend 的整段
-   * 判断包在 merged.anchorTo === "end" 里头 —— 让位期间若正好来了一段追加，
-   * 这次跟随被整个跳过；跟随漏一次，视口就落后一个分块，下一次
-   * isAtEnd(scrollEndThreshold) 不再成立，于是再也回不来，表现就是滑到底了
-   * 界面还没到底。所以 isBusy 为真时锚点一步不让：回复在流的时候，追加与
-   * 增长照常跟随；回复停了才允许让位，而那时候没有东西会被追加，也就没有
-   * 东西会丢。
-   *
-   * 这同时是第三道保险：万一让位状态因为任何原因没收回来，下一轮开始时
-   * isBusy 转真，锚点自己就回到末端。
-   *
-   * 「正在动」不自己记账，读的是活动动画表，理由见
-   * use-drawer-motion —— 它与 useRevealIntent 同形：一个 watch，交回一个卸载函数。
-   *
-   * 一个诚实的边界：prefers-reduced-motion 下过渡被关掉，不发事件，这次让位
-   * 也就不发生，那种情况下仍会上移一次。不为它加兜底定时器 —— 那是拿一个
-   * 猜测去补一个已知的缺口。
-   */
-  const { moving: drawersMoving, watch: watchDrawers } = useDrawerMotion(transcriptRef)
-
   const {
     pending,
     begin: beginReveal,
@@ -248,12 +198,17 @@ export function AgentActivityFeed({
   } = useRevealIntent()
 
   /*
+   * 末端由它拨,不由虚拟器拨。整段理由写在 follow-latest。
+   *
+   * 交回来的三样东西各有一个调用点:watch 装在滚动区上(与跳转闩锁同一处装卸),stick 在
+   * 每次提交之后与每次尺寸变化之后各拨一次,release 在人下跳转指令时让开。
+   */
+  const { release: releaseFollow, stick, watch: watchFollow } = useFollowLatest()
+
+  /*
    * 虚拟器此刻铺出来的区间表，给滚动回调里的那次二分用。
    */
   const spansRef = useRef<readonly RowSpan[]>([])
-
-  /** 开场那一次定位只做一次,而且要等几何定下来之后才做。 */
-  const opened = useRef(false)
 
   /*
    * 本帧已经排好的那次几何读取。
@@ -344,7 +299,7 @@ export function AgentActivityFeed({
       viewport.addEventListener('scroll', scheduleSync, { passive: true })
 
       /* 一个滚动区，一处装卸：两处订阅各自交回自己的卸载函数。 */
-      const unwatchDrawers = watchDrawers(viewport)
+      const unwatchFollow = watchFollow(viewport)
       const unwatchReveal = watchReveal(viewport)
 
       return () => {
@@ -355,26 +310,13 @@ export function AgentActivityFeed({
           frame.current = null
         }
 
-        unwatchDrawers()
+        unwatchFollow()
         unwatchReveal()
         viewportRef.current = null
       }
     },
-    [scheduleSync, watchDrawers, watchReveal],
+    [scheduleSync, watchFollow, watchReveal],
   )
-
-  /*
-   * 一次主动跳转期间,末端不再是家。
-   *
-   * anchorTo 与 followOnAppend 原本只看"忙不忙"和"贴没贴底",跳转不在它们的判据
-   * 里 —— 于是流式输出时点开上面某一轮,会同时挨两下:末端反推让落点随每一次吐字
-   * 整体位移,追随又把视口拽回最新一条。两者都在做正确的事,只是没人告诉它们人已经
-   * 走开了。
-   *
-   * 所以把"人已经走开了"变成一个显式的事实,让它排在前面。这不是兼容层,是优先级:
-   * 导航是人下的指令,自动跟随是默认行为,指令高于默认。
-   */
-  const revealing = pending !== null
 
   /*
    * 条目的身份函数与估高，依赖如实声明。
@@ -411,32 +353,6 @@ export function AgentActivityFeed({
     getItemKey,
     scrollMargin,
     paddingEnd: tailSize,
-    /*
-     * 会话流是末端锚定的，恒定如此。
-     *
-     * 这里曾经按「不在跳转 && 忙 && 贴底」在 start/end 之间来回切。三个判据都
-     * 是对的问题，但都问错了地方 —— 官方 Chat 指南把它们各自的归属写得很清楚：
-     *
-     *   anchorTo 'end'  —— 末端被钉住时，最后一条流式长高要跟着
-     *   followOnAppend  —— 只有在追加之前就已经贴底，才跟随新消息
-     *   scrollEndThreshold —— 「够不够近算贴底」由它判
-     *
-     * 也就是说，那三个条件里有两个本来就在库内部、按同一份坐标、在数据变化那
-     * 一刻同步求值。在外面用 React state 再判一遍，得到的是同一个答案的延迟版，
-     * 而它却决定着模式翻不翻面。anchorTo 是模式不是开关：库为它维护一个待定
-     * 锚点，模式在两次渲染之间换掉，锚点的含义也就换了。
-     *
-     * 于是这里只留立场：这是一条会话流，它的稳定侧永远是末端。
-     *
-     * 唯一的例外是抽屉：读者亲手改变一行的高度时，末端锚定会把这次长高加到
-     * scrollTop 上，面板于是向上长。那段时间锚点让给 start，理由与判据写在
-     * 上面 drawersMoving 那里。这不是把模式当开关用 —— 立场没变，会话流的稳定
-     * 侧仍然是末端；变的是「谁引起了这次尺寸变化」，而库自己不区分。
-     */
-    anchorTo: drawersMoving && !isBusy ? 'start' : 'end',
-    /* 人正在别处看的时候,新消息不夺取视口。 */
-    followOnAppend: !revealing,
-    scrollEndThreshold: BOTTOM_THRESHOLD_PX,
     overscan: OVERSCAN_ROWS,
     /*
      * 滚动停没停，问浏览器。
@@ -463,6 +379,22 @@ export function AgentActivityFeed({
   }, [items])
 
   /*
+   * 每一次提交之后,拨一次末端。
+   *
+   * 没有依赖数组是刻意的:任何一次提交都可能改变滚动盒的高度 —— 多一行、封条开合、瞬态
+   * 区换帧、尾部因为输入框长高而变厚,而这里不需要区分是哪一种。stick 只在人还跟着最新
+   * 内容时写一次 scrollTop,写的值与当前值相同时浏览器连事件都不派发,所以「每次提交都
+   * 跑」的代价就是一次赋值。
+   *
+   * 挂在布局效应而不是只挂 ResizeObserver:布局效应与这次提交同帧,末端因此在同一次绘制
+   * 里就跟上了。下面那个观察者不是它的替补,是它的补集 —— 负责不经过 React 的那些高度
+   * 变化。
+   */
+  useLayoutEffect(() => {
+    stick()
+  })
+
+  /*
    * 量，然后交出去。这里一个字都不写回 DOM。
    *
    * 末端的位置只能通过交给虚拟器的那几个数（scrollMargin / paddingEnd / anchorTo）
@@ -482,31 +414,6 @@ export function AgentActivityFeed({
       setScrollMargin(transcript.offsetTop)
     }
   }, [])
-
-  /*
-   * 开场那一次定位，只做一次，而且要等基准定下来。
-   *
-   * 这里仍然读一次 offsetTop：偏移那一步可能刚刚把它改过，而 scrollToEnd 用的是
-   * 上一次渲染的 scrollMargin，基准不对就差一整个偏移。但这道门前面挡着
-   * opened.current —— 整个生命周期最多几次，不是每次滚动几次。
-   *
-   * 表里得有东西。此前它在首帧就把 opened 置真，于是从列表打开一段既存对话时，
-   * 那一次 scrollToEnd 落在空表上，而它再也不会重来。
-   */
-  useLayoutEffect(() => {
-    const transcript = transcriptRef.current
-
-    if (opened.current || transcript === null || items.length === 0) {
-      return
-    }
-
-    if (transcript.offsetTop !== scrollMargin) {
-      return
-    }
-
-    opened.current = true
-    virtualizer.scrollToEnd()
-  }, [items.length, scrollMargin, virtualizer])
 
   /*
    * 尺寸变了,同一个滚动位置就对应到另一行上。
@@ -552,9 +459,27 @@ export function AgentActivityFeed({
 
       measureMargin()
       scheduleSync()
+      stick()
     })
 
     observer.observe(viewport)
+
+    /*
+     * 转录框也在观察名单上,而它此前被明确排除。
+     *
+     * 排除的理由是「观察它等于给每一帧接上一条回路:尺寸变化叫醒回调,回调量一次边界、
+     * 排一次同步、写两次 state,重渲染又把高度改一次」。那条理由针对的是会写 state 的
+     * 回调,而现在多出来的那一件事只写 scrollTop —— 一次赋值,不产生渲染,回路接不上。
+     * 上面那两句仍然写 state,但它们都在值没变时被 React 挡掉:偏移不随转录框自身的高度
+     * 变化,视线所在的行只在跨行时才是新值。
+     *
+     * 要它的理由是它盖住了另外两个盖不到的东西:行内的异步排版(图片解码、公式、图表),
+     * 以及瞬态区换帧引起的高度变化 —— 后者虽然也走 tailRef 那条通知,但那条通知只带来
+     * paddingEnd 的新值,盒子的新高度要等下一次提交。
+     */
+    if (transcriptRef.current !== null) {
+      observer.observe(transcriptRef.current)
+    }
 
     /*
      * 尾部要按边框盒观察，这不是一个可选项。
@@ -588,7 +513,7 @@ export function AgentActivityFeed({
     return () => {
       observer.disconnect()
     }
-  }, [measureMargin, scheduleSync])
+  }, [measureMargin, scheduleSync, stick])
 
   /*
    * 跳转是意图的效应,不是点击的副作用。
@@ -626,9 +551,16 @@ export function AgentActivityFeed({
 
   const scrollToRow = useCallback(
     (index: number) => {
+      /*
+       * 跳转是人下的指令,自动跟随是默认行为,指令高于默认 —— 所以先让开,再跳。
+       *
+       * 让开是粘滞的,由「人自己滚回末端」解除,不由这次跳转落定解除:落点在上面,落定
+       * 的那一刻人正看着历史。
+       */
+      releaseFollow()
       beginReveal(index)
     },
-    [beginReveal],
+    [beginReveal, releaseFollow],
   )
 
   return (
