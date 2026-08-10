@@ -85,7 +85,7 @@
   color: var(--cp-ink);
 }
 
-/* 分叉当前只有 UI，但仍使用真实的 Lucide GitFork 图标。 */
+/* 分叉当前只有 UI，但仍使用真实的 Lucide Split 图标。 */
 .timeline-reply-actions__button:disabled {
   cursor: default;
 }
@@ -95,6 +95,15 @@
   inline-size: 1rem;
   block-size: 1rem;
   stroke-width: 1.75;
+}
+
+/*
+ * Lucide Split 默认从下方向上分叉。
+ * 顺时针旋转 90° 后，主干从左侧进入，两条分叉箭头朝向右侧。
+ */
+.timeline-reply-actions__split-icon {
+  transform: rotate(90deg);
+  transform-origin: center;
 }
 
 /* 没有 hover 能力的设备不能依赖悬停发现操作。 */

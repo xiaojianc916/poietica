@@ -1,6 +1,6 @@
 import './reply-actions.css'
 
-import { Check, Copy, GitFork } from 'lucide-react'
+import { Check, Copy, Split } from 'lucide-react'
 import { memo } from 'react'
 import { useCopy } from '../primitives/use-copy'
 
@@ -44,7 +44,7 @@ function Actions({ text }: ReplyActionsProps) {
         title="分叉对话（即将推出）"
         type="button"
       >
-        <GitFork aria-hidden="true" />
+        <Split aria-hidden="true" className="timeline-reply-actions__split-icon" />
       </button>
     </div>
   )
