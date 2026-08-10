@@ -14,7 +14,7 @@ export {
   type CommandProviderProps,
   useCommands,
 } from './commands/command-provider'
-export { formatKeybinding, useCommandKeybindings } from './commands/keybinding'
+export { formatKeybinding, keybindingParts, useCommandKeybindings } from './commands/keybinding'
 export type {
   WorkspacePart,
   WorkspacePartId,

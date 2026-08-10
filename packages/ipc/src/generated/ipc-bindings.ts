@@ -1392,7 +1392,8 @@ startedAt: number;
  * 这一轮落定的时刻。
  */
 endedAt: number }
-export type AppSettings = { theme: ThemePreference; language: string; shortcuts: Partial<{ [key in string]: string }>; privacy: PrivacySettings }
+export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; privacy: PrivacySettings }
+export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 /**
  * 一种收得下的格式，交给渲染层的那一面。
  * 
@@ -1500,6 +1501,10 @@ export type AutomationRunOutcome = "succeeded" | "failed"
  */
 export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: AutomationReschedule }
 /**
+ * 疏密同样是闭集，理由与 `ThemePreference` 逐字相同。
+ */
+export type Density = "comfortable" | "compact"
+/**
  * 一份配置文件的现状：它在哪，以及它的正文。
  * 
  * 文件不在时 contents 是 None 而不是空串：一个空文件与一个不存在的文件，界面要
@@ -1525,6 +1530,7 @@ export type ForeignPluginRecord = { pluginId: string;
  * 人当初给命令行的那一串地址。缺席表示那条记录没记，导入因此没有起点。
  */
 originalSource: string | null }
+export type GeneralSettings = { sendWithModifier: boolean; confirmBeforeDelete: boolean; notifyOnCompletion: boolean }
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"
 export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"

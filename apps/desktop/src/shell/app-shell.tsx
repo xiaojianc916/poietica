@@ -9,10 +9,20 @@ import {
 } from '@poietica/agent-ui'
 import type { AppUpdateController, MainWindowController } from '@poietica/desktop-adapters'
 import { AppUpdateStore } from '@poietica/desktop-adapters'
-import type { AgentConfigStore, SettingsStore } from '@poietica/settings'
+import type {
+  AgentConfigStore,
+  KeybindingCatalog,
+  KeybindingEntry,
+  SettingsStore,
+} from '@poietica/settings'
 import { applyThemePreference } from '@poietica/ui'
 import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
-import { CommandPalette, useCommandKeybindings, workspaceLayoutStore } from '@poietica/workspace'
+import {
+  CommandPalette,
+  keybindingParts,
+  useCommandKeybindings,
+  workspaceLayoutStore,
+} from '@poietica/workspace'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { type ApplicationCommandContext, registerApplicationCommands } from '../app-commands'
 import type { DesktopAgentRuntime } from '../assistant/agent-runtime'
@@ -334,6 +344,12 @@ export function AppShell({ runtime }: AppShellProps) {
     }
   }, [agentControls, agentId, runtime.agent, runtime.agentConfig])
 
+  /*
+   * 目录一个进程一份，理由与上面两台 store 逐字相同：useState 的初始化函数给
+   * 的是"创建一次"的保证，useMemo 只是性能优化，React 允许丢弃缓存重算。
+   */
+  const [keybindings] = useState(() => createKeybindingCatalog(runtime.commands))
+
   useCommandKeybindings(runtime.commands)
 
   useTerminationRequests(runtime.mainWindow, closeWindow)
@@ -374,6 +390,7 @@ export function AppShell({ runtime }: AppShellProps) {
               dataDirectory={runtime.dataDirectory}
               isSettingsOpen={isSettingsOpen && capabilities.settings}
               isWindowMaximized={isWindowMaximized}
+              keybindings={keybindings}
               onDeveloperToolsOpen={openDeveloperTools}
               onSettingsClose={closeSettings}
               onSettingsOpen={openSettings}
@@ -461,4 +478,57 @@ function useTerminationRequests(
       disposers.length = 0
     }
   }, [mainWindow, onCloseRequested])
+}
+
+/*
+ * 命令注册表在设置页那一侧的读法。
+ *
+ * 建在组合根，因为只有这里同时认识 workspace 与 settings —— tools/architecture
+ * 里 settings ✗→ workspace 是显式禁止的一条，理由就是这个方向会让两个 feature
+ * 互相咬住。设置页拿到的是一份已按平台渲染好的只读列表，它不认识命令注册表，
+ * 也就没有第二处解析快捷键的代码。
+ *
+ * 快照按注册表快照的引用缓存：注册表快照是稳定引用（useSyncExternalStore 的
+ * 前提），引用没变就还是上一份 —— 否则 getSnapshot 每次都造新数组，React 会
+ * 判定"外部状态一直在变"而无限重渲。这与 keybinding.ts 里那张和弦索引是同一
+ * 条纪律。
+ */
+function createKeybindingCatalog(registry: CommandRegistry): KeybindingCatalog {
+  type Snapshot = ReturnType<CommandRegistry['getSnapshot']>
+
+  let source: Snapshot | null = null
+  let entries: readonly KeybindingEntry[] = []
+
+  return {
+    subscribe: (listener) => registry.subscribe(listener),
+
+    getSnapshot() {
+      const snapshot = registry.getSnapshot()
+
+      if (snapshot === source) {
+        return entries
+      }
+
+      const next: KeybindingEntry[] = []
+
+      for (const command of snapshot) {
+        /* 没声明绑定的命令不进这张表：设置页列的是"当前生效的"，不是"全部命令"。 */
+        if (command.shortcut === undefined) {
+          continue
+        }
+
+        next.push({
+          category: command.category ?? '其他',
+          id: command.id,
+          keys: keybindingParts(command.shortcut),
+          label: command.label,
+        })
+      }
+
+      source = snapshot
+      entries = next
+
+      return entries
+    },
+  }
 }

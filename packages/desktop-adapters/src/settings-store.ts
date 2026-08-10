@@ -1,19 +1,20 @@
-import { type AppSettings as AppSettingsDto, commands } from '@poietica/ipc/generated/ipc-bindings'
-import type { AppSettings, SettingsStore } from '@poietica/settings'
+import { commands } from '@poietica/ipc/generated/ipc-bindings'
+import type { SettingsStore } from '@poietica/settings'
 
 /*
  * 设置在桌面端的存储。
  *
- * 边界上只剩一处真实的翻译：Rust 的 HashMap 生成出来是
- * Partial<Record<string, string>>，每个键都可能缺值，而领域里的快捷键表不接受
- * undefined。其余字段两侧同名同类型（生成物本来就是 camelCase，主题是同一个
- * 三值联合），所以既没有逐字段抄写的转换函数，也没有把已经收窄的联合再 switch
- * 一遍的主题解析——那两层挡不住任何错误，只会让每加一个设置项都要改两遍。
+ * 边界上没有翻译：生成物与领域类型同名、同形、同为 camelCase，所以这一层只是把
+ * 三条命令接上端口。此前那处唯一的翻译是为 Rust 的 HashMap 服务的 —— 那张只写
+ * 不读的 shortcuts 表已经删掉，翻译跟着它一起走，而不是留一个逐字段抄写的壳。
+ *
+ * 契约由 pnpm ipc:generate 从 Rust 单向生成：两侧对不上是 typecheck 阶段的错误，
+ * 不是运行期的惊喜。
  */
 export function createDesktopSettingsStore(): SettingsStore {
   return {
     async load() {
-      return fromDto(await commands.settingsGet())
+      return commands.settingsGet()
     },
 
     async save(settings) {
@@ -21,19 +22,7 @@ export function createDesktopSettingsStore(): SettingsStore {
     },
 
     async reset() {
-      return fromDto(await commands.settingsReset())
+      return commands.settingsReset()
     },
   }
-}
-
-function fromDto(dto: AppSettingsDto): AppSettings {
-  return { ...dto, shortcuts: definedShortcuts(dto.shortcuts) }
-}
-
-function definedShortcuts(
-  shortcuts: AppSettingsDto['shortcuts'],
-): Readonly<Record<string, string>> {
-  return Object.fromEntries(
-    Object.entries(shortcuts).filter((entry): entry is [string, string] => entry[1] !== undefined),
-  )
 }

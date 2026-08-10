@@ -2,7 +2,6 @@ use crate::error::{IpcError, Result};
 use crate::paths::settings_store;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::collections::HashMap;
 use tauri::{AppHandle, command};
 use tauri_plugin_store::StoreExt;
 
@@ -21,6 +20,15 @@ pub enum ThemePreference {
     System,
 }
 
+/// 疏密同样是闭集，理由与 `ThemePreference` 逐字相同。
+#[derive(Debug, Deserialize, Serialize, Type, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum Density {
+    #[default]
+    Comfortable,
+    Compact,
+}
+
 /*
  * 线上字段名一律 camelCase。
  *
@@ -30,14 +38,34 @@ pub enum ThemePreference {
  *
  * 容器级 default 让旧盘上缺键的 settings.json 逐项退回默认值，而不是整份读取
  * 失败：用户的设置不该因为一次字段改名炸成一个错误横幅。
+ *
+ * theme 与 language 留在顶层，不并进 appearance：它们在第一帧之前就要被读走
+ * （data-theme 缺席时令牌解成浅色），那时"设置有哪些分类"还不存在。
  */
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
     pub theme: ThemePreference,
     pub language: String,
-    pub shortcuts: HashMap<String, String>,
+    pub general: GeneralSettings,
+    pub appearance: AppearanceSettings,
     pub privacy: PrivacySettings,
+}
+
+#[derive(Debug, Deserialize, Serialize, Type, Clone)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GeneralSettings {
+    pub send_with_modifier: bool,
+    pub confirm_before_delete: bool,
+    pub notify_on_completion: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize, Type, Clone)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AppearanceSettings {
+    pub density: Density,
+    pub reduce_motion: bool,
+    pub message_timestamps: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
@@ -53,8 +81,29 @@ impl Default for AppSettings {
         Self {
             theme: ThemePreference::System,
             language: "zh-CN".into(),
-            shortcuts: HashMap::new(),
+            general: GeneralSettings::default(),
+            appearance: AppearanceSettings::default(),
             privacy: PrivacySettings::default(),
+        }
+    }
+}
+
+impl Default for GeneralSettings {
+    fn default() -> Self {
+        Self {
+            send_with_modifier: false,
+            confirm_before_delete: true,
+            notify_on_completion: true,
+        }
+    }
+}
+
+impl Default for AppearanceSettings {
+    fn default() -> Self {
+        Self {
+            density: Density::Comfortable,
+            reduce_motion: false,
+            message_timestamps: true,
         }
     }
 }

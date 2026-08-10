@@ -1,0 +1,93 @@
+/*
+ * 键帽与分组卡片。
+ *
+ * 颜色一律从 currentColor 混出：这个面板要同时活在浅色与深色两套令牌下，写死
+ * 十六进制等于在主题之外再开一个颜色来源，换主题时它不会跟着变。
+ */
+
+.keymap-note {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  opacity: 0.66;
+}
+
+.keymap-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 20px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+
+.keymap-search:focus-visible {
+  outline: 2px solid color-mix(in srgb, currentColor 32%, transparent);
+  outline-offset: 1px;
+}
+
+.keymap-group + .keymap-group {
+  margin-top: 24px;
+}
+
+.keymap-group__label {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.keymap-card {
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.keymap-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+}
+
+.keymap-row + .keymap-row {
+  border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.keymap-row__name {
+  font-size: 13px;
+}
+
+.keymap-row__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.keymap-key {
+  min-width: 22px;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.keymap-empty {
+  margin: 0;
+  padding: 24px 0;
+  font-size: 13px;
+  text-align: center;
+  opacity: 0.55;
+}

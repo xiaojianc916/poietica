@@ -80,9 +80,15 @@ function parseChord(shortcut: string): string | null {
   )
 }
 
-/** 把逻辑快捷键渲染成当前平台的习惯写法。 */
-export function formatKeybinding(shortcut: string): string {
-  const parts = shortcut.split('+').map((part) => {
+/*
+ * 把逻辑快捷键拆成当前平台的按键片段。
+ *
+ * 设置页要一枚键一个键帽地画，所以这一层给的是片段，拼接留在 formatKeybinding。
+ * 两个形态共用同一张 KEY_LABELS 表 —— 否则命令面板与设置页会对同一条绑定给出
+ * 两种写法，而没有任何机制会在它们分叉时报错。
+ */
+export function keybindingParts(shortcut: string): string[] {
+  return shortcut.split('+').map((part) => {
     switch (part) {
       case 'Mod':
         return APPLE ? '⌘' : 'Ctrl'
@@ -97,8 +103,11 @@ export function formatKeybinding(shortcut: string): string {
         return KEY_LABELS[part] ?? (part.length === 1 ? part.toUpperCase() : part)
     }
   })
+}
 
-  return parts.join(APPLE ? '' : '+')
+/** 把逻辑快捷键渲染成当前平台的习惯写法。 */
+export function formatKeybinding(shortcut: string): string {
+  return keybindingParts(shortcut).join(APPLE ? '' : '+')
 }
 
 /*

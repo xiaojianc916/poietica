@@ -5,10 +5,18 @@ import {
   LoadingState,
   Select,
   type SelectOption,
-  Switch,
   WebhookIcon,
 } from '@poietica/ui'
-import { Archive, Box, Settings as CogFour } from 'lucide-react'
+import {
+  Archive,
+  Box,
+  Settings as CogFour,
+  Cpu,
+  Info,
+  Keyboard,
+  ShieldCheck,
+  Sun,
+} from 'lucide-react'
 import {
   type ComponentType,
   createContext,
@@ -21,10 +29,13 @@ import {
   useState,
 } from 'react'
 import type { AgentConfigStore } from '../agent-config-store'
+import type { KeybindingCatalog } from '../keymap/keybinding-catalog'
+import { KeymapSettings } from '../keymap/keymap-settings'
 import { ModelsSettings } from '../models/models-settings'
 import type { AppSettings } from '../settings'
 import type { SettingsStore } from '../settings-store'
 import { ArchivedChatsSettings } from './archived-chats-settings'
+import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from './settings-primitives'
 import {
   type SettingsController,
   type SettingsOperation,
@@ -43,39 +54,100 @@ type SettingsSection =
   | 'privacy'
   | 'about'
 
+type GlyphComponent = ComponentType<{
+  readonly className?: string
+  readonly 'aria-hidden'?: 'true'
+}>
+
 /*
- * 导航只列产品当前真的有的东西。
+ * 一个分类只在这里定义一次：标签、图标、内容各是它的一列。
  *
- * 导出那一组的三个控件（SVG / PNG DPI / PDF 质量）随旧产品形态一起退场；
- * 「插件」这个词从来没有对应实现，换成 Tool——内置工具、Skill 与 MCP
- * 服务器是这个产品真正的扩展面。
+ * 此前这三件事分在三张表加一个 switch 里，新增一页要改四处，而只有标签那一处
+ * 缺键会被 typecheck 拦下；图标那两张表还要靠一个运行时类型守卫去分割分类集合，
+ * 守卫本身也得跟着手改。写成一张 Record 之后，缺任何一列都是编译错误。
  *
- * privacy 里的每一项都写进 AppSettings 并落盘。models / keymap / hooks /
- * tools 在 AppSettings 里还没有任何字段，所以它们渲染明确的空状态，而不是
- * 拨得动却存不下的假开关。
+ * 图标全部取自图标库。此前有五个分类是在这个文件里手描 path 的 —— "通用"那颗
+ * 齿轮与侧边栏底部那颗是同一个"设置"，却有两个画法，粗细、齿数、内圆半径都对
+ * 不上，而且没有任何机制会在它们分叉时报错。
  *
- * 分类到标签是一张按分类穷尽的表，不是一个待搜索的数组：全文没有一处遍历它，
- * 两个调用点都是拿 id 去搜，再对搜不到的情况判空、抛错。而 id 的类型就是这八个
- * 字面量的联合 —— 那个分支在类型上不可能走到，它把编译期已经证明的事挪到运行时
- * 又验了一遍，代价是每次渲染一次线性扫描，和一条永远读不到的错误文案。
- *
- * 写成 Record 之后查找是索引，缺键在 typecheck 阶段就是错误。下面的
- * SECTION_GLYPHS 与 SECTION_PATHS 本来就是这个形状，这里跟它们对齐。
+ * render 是闭包，求值发生在渲染时、晚于模块体，所以它引用下面声明的面板组件合法。
  */
-const SECTIONS: Record<SettingsSection, string> = {
-  general: '通用',
-  appearance: '外观',
-  archived: '已归档',
-  models: '模型',
-  keymap: '快捷键',
-  hooks: '钩子',
-  tools: 'plugin',
-  privacy: '隐私',
-  about: '关于',
+interface SettingsSectionContext {
+  readonly settings: AppSettings
+  readonly controller: SettingsController
+  readonly agentConfigStore: AgentConfigStore
+  readonly threads: ThreadsStore
+  readonly keybindings: KeybindingCatalog
+  readonly appVersion: () => Promise<string>
+  readonly dataDirectory: () => Promise<string>
+}
+
+interface SettingsSectionDescriptor {
+  readonly label: string
+  readonly icon: GlyphComponent
+  readonly render: (context: SettingsSectionContext) => ReactNode
+}
+
+const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
+  general: {
+    label: '通用',
+    icon: CogFour,
+    render: ({ controller, settings }) => (
+      <GeneralSettings controller={controller} settings={settings} />
+    ),
+  },
+  appearance: {
+    label: '外观',
+    icon: Sun,
+    render: ({ controller, settings }) => (
+      <AppearanceSettings controller={controller} settings={settings} />
+    ),
+  },
+  archived: {
+    label: '已归档',
+    icon: Archive,
+    render: ({ threads }) => <ArchivedChatsSettings threads={threads} />,
+  },
+  models: {
+    label: '模型',
+    icon: Cpu,
+    render: ({ agentConfigStore }) => <ModelsSettings store={agentConfigStore} />,
+  },
+  keymap: {
+    label: '快捷键',
+    icon: Keyboard,
+    render: ({ keybindings }) => <KeymapSettings catalog={keybindings} />,
+  },
+  hooks: {
+    label: '钩子',
+    icon: WebhookIcon,
+    render: () => <SettingsPlaceholder description="Hook 尚未实现。" />,
+  },
+  tools: {
+    label: '工具',
+    icon: Box,
+    render: () => (
+      <SettingsPlaceholder description="内置工具、Skill 与 MCP 服务器的管理尚未实现。" />
+    ),
+  },
+  privacy: {
+    label: '隐私',
+    icon: ShieldCheck,
+    render: ({ controller, settings }) => (
+      <PrivacySettings controller={controller} settings={settings} />
+    ),
+  },
+  about: {
+    label: '关于',
+    icon: Info,
+    render: ({ appVersion, dataDirectory }) => (
+      <AboutSettings readDataDirectory={dataDirectory} readVersion={appVersion} />
+    ),
+  },
 }
 
 /**
- * 导航分组。图二用间距而不是标题分隔分组，所以这里只描述分组关系，
+ * 导航分组。用间距而不是标题分隔分组，所以这里只描述分组关系，
  * 标签仍然来自 SECTIONS，避免同一份文案出现两处。
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
@@ -95,6 +167,7 @@ interface SettingsSurfaceContextValue {
   readonly controller: SettingsController
   readonly agentConfigStore: AgentConfigStore
   readonly threads: ThreadsStore
+  readonly keybindings: KeybindingCatalog
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
   readonly section: SettingsSection
@@ -119,6 +192,13 @@ export interface SettingsProviderProps {
   readonly agentConfigStore: AgentConfigStore
   readonly threads: ThreadsStore
   /**
+   * 当前生效的快捷键，由组合根注入。
+   *
+   * 真相在命令注册表里，而这个包不认识 packages/workspace —— 架构规则里
+   * settings ✗→ workspace 是显式禁止的一条。与 appVersion 同一条理由。
+   */
+  readonly keybindings: KeybindingCatalog
+  /**
    * 这台机器上，这个应用的数据落在哪，由组合根注入。
    *
    * 与 appVersion 同一条理由：这个包不认识桌面传输层，它的依赖里没有
@@ -141,6 +221,7 @@ export function SettingsProvider({
   store,
   agentConfigStore,
   threads,
+  keybindings,
   appVersion,
   dataDirectory,
   onDismiss,
@@ -169,13 +250,14 @@ export function SettingsProvider({
       controller,
       agentConfigStore,
       threads,
+      keybindings,
       appVersion,
       dataDirectory,
       section,
       onSelect: setSection,
       onBack: controller.requestClose,
     }),
-    [agentConfigStore, appVersion, controller, dataDirectory, section, threads],
+    [agentConfigStore, appVersion, controller, dataDirectory, keybindings, section, threads],
   )
 
   return <SettingsSurfaceContext value={value}>{children}</SettingsSurfaceContext>
@@ -200,13 +282,13 @@ export function SettingsNavigationRegion({ footer }: SettingsNavigationRegionPro
 }
 
 export function SettingsContentRegion() {
-  const { controller, agentConfigStore, appVersion, dataDirectory, section, threads } =
+  const { controller, agentConfigStore, appVersion, dataDirectory, keybindings, section, threads } =
     useSettingsSurface()
 
   return (
     <div aria-live="polite" className="settings-content">
       <div className="settings-content__inner">
-        <h2 className="settings-content__title">{SECTIONS[section]}</h2>
+        <h2 className="settings-content__title">{SECTIONS[section].label}</h2>
 
         {controller.loading ? (
           <div className="settings-state">
@@ -230,15 +312,15 @@ export function SettingsContentRegion() {
               />
             ) : null}
 
-            <SettingsSectionContent
-              agentConfigStore={agentConfigStore}
-              appVersion={appVersion}
-              controller={controller}
-              dataDirectory={dataDirectory}
-              section={section}
-              settings={controller.settings}
-              threads={threads}
-            />
+            {SECTIONS[section].render({
+              agentConfigStore,
+              appVersion,
+              controller,
+              dataDirectory,
+              keybindings,
+              settings: controller.settings,
+              threads,
+            })}
           </>
         ) : null}
       </div>
@@ -284,6 +366,7 @@ const SettingsNavigation = memo(function SettingsNavigation({
           <nav className="settings-navigation__items" key={group.join('-')}>
             {group.map((id) => {
               const active = id === activeSection
+              const Glyph = SECTIONS[id].icon
 
               return (
                 <button
@@ -296,9 +379,9 @@ const SettingsNavigation = memo(function SettingsNavigation({
                   }}
                   type="button"
                 >
-                  <SectionIcon section={id} />
+                  <Glyph aria-hidden="true" className="settings-navigation__icon" />
 
-                  <span>{SECTIONS[id]}</span>
+                  <span>{SECTIONS[id].label}</span>
                 </button>
               )
             })}
@@ -311,67 +394,64 @@ const SettingsNavigation = memo(function SettingsNavigation({
   )
 })
 
-interface SettingsSectionContentProps {
-  readonly section: SettingsSection
-  readonly settings: AppSettings
-  readonly controller: SettingsController
-  readonly agentConfigStore: AgentConfigStore
-  readonly threads: ThreadsStore
-  readonly appVersion: () => Promise<string>
-  readonly dataDirectory: () => Promise<string>
-}
-
-function SettingsSectionContent({
-  section,
-  settings,
-  controller,
-  agentConfigStore,
-  threads,
-  appVersion,
-  dataDirectory,
-}: SettingsSectionContentProps) {
-  switch (section) {
-    case 'general':
-      return <GeneralSettings controller={controller} />
-
-    case 'appearance':
-      return <AppearanceSettings controller={controller} settings={settings} />
-
-    case 'archived':
-      return <ArchivedChatsSettings threads={threads} />
-
-    case 'models':
-      return <ModelsSettings store={agentConfigStore} />
-
-    case 'keymap':
-      return (
-        <SettingsPlaceholder description="快捷键还不可改写。当前生效的绑定可在命令面板（Mod+K）中查看。" />
-      )
-
-    case 'hooks':
-      return <SettingsPlaceholder description="Hook 尚未实现。" />
-
-    case 'tools':
-      return <SettingsPlaceholder description="内置工具、Skill 与 MCP 服务器的管理尚未实现。" />
-
-    case 'privacy':
-      return <PrivacySettings controller={controller} settings={settings} />
-
-    case 'about':
-      return <AboutSettings readDataDirectory={dataDirectory} readVersion={appVersion} />
-  }
-}
-
 interface SettingsPanelProps {
   readonly settings: AppSettings
   readonly controller: SettingsController
 }
 
+/*
+ * 通用页放的是"这台软件怎么陪你干活"，不是杂物抽屉。
+ *
+ * 三件事按用户心智分组：说话（怎么发出去、干完了怎么告诉我）、后悔（删之前拦
+ * 一下）、重来（全部还原）。这也是 Codex / VS Code 一类工具在这一页的形态 ——
+ * 通用不是"没地方放的东西"的集合，而是每次会话都会碰到的那几条。
+ */
 const GeneralSettings = memo(function GeneralSettings({
+  settings,
   controller,
-}: Pick<SettingsPanelProps, 'controller'>) {
+}: SettingsPanelProps) {
   return (
     <SettingsPage>
+      <SettingsGroup title="对话">
+        <ToggleRow
+          checked={settings.general.sendWithModifier}
+          description="开启后 Enter 换行，Ctrl / ⌘ + Enter 发送；关闭时相反"
+          label="用修饰键发送"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              general: { ...current.general, sendWithModifier: checked },
+            }))
+          }}
+        />
+
+        <ToggleRow
+          checked={settings.general.notifyOnCompletion}
+          description="长任务结束时发一条系统通知，窗口在前台时不打扰"
+          label="完成时通知"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              general: { ...current.general, notifyOnCompletion: checked },
+            }))
+          }}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup title="安全">
+        <ToggleRow
+          checked={settings.general.confirmBeforeDelete}
+          description="删除对话前再确认一次"
+          label="删除前确认"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              general: { ...current.general, confirmBeforeDelete: checked },
+            }))
+          }}
+        />
+      </SettingsGroup>
+
       <SettingsGroup title="重置">
         <SettingRow description="把全部设置项还原为初始值" label="恢复默认设置">
           <Button
@@ -384,6 +464,113 @@ const GeneralSettings = memo(function GeneralSettings({
             {controller.saving && controller.operation === 'reset' ? '正在恢复…' : '恢复默认'}
           </Button>
         </SettingRow>
+      </SettingsGroup>
+    </SettingsPage>
+  )
+})
+
+/*
+ * 两张静态表，和 SECTIONS / SECTION_GROUPS 一样属于模块。
+ *
+ * 形状直接写成基元认的那一种：类型参数保住"只可能是这几个字面量"，
+ * onValueChange 的入参因此就是 AppSettings 上那个字段本身，末端不欠一次断言。
+ */
+const COLOR_MODES: readonly SelectOption<AppSettings['theme']>[] = [
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' },
+  { value: 'system', label: '跟随系统' },
+]
+
+const LANGUAGES: readonly SelectOption<AppSettings['language']>[] = [
+  { value: 'zh-CN', label: '简体中文' },
+  { value: 'en', label: 'English' },
+]
+
+const DENSITIES: readonly SelectOption<AppSettings['appearance']['density']>[] = [
+  { value: 'comfortable', label: '宽松' },
+  { value: 'compact', label: '紧凑' },
+]
+
+const AppearanceSettings = memo(function AppearanceSettings({
+  settings,
+  controller,
+}: SettingsPanelProps) {
+  return (
+    <SettingsPage>
+      <SettingsGroup title="主题与语言">
+        <SettingRow description="浅色、深色或跟随系统" label="颜色模式">
+          <Select
+            align="end"
+            className="settings-select-trigger"
+            data={COLOR_MODES}
+            onValueChange={(theme) => {
+              controller.update((current) => ({
+                ...current,
+                theme,
+              }))
+            }}
+            type="颜色模式"
+            value={settings.theme}
+          />
+        </SettingRow>
+
+        <SettingRow description="界面文案使用的语言" label="界面语言">
+          <Select
+            align="end"
+            className="settings-select-trigger"
+            data={LANGUAGES}
+            onValueChange={(language) => {
+              controller.update((current) => ({
+                ...current,
+                language,
+              }))
+            }}
+            type="界面语言"
+            value={settings.language}
+          />
+        </SettingRow>
+      </SettingsGroup>
+
+      <SettingsGroup title="界面">
+        <SettingRow description="列表与消息之间的留白" label="显示密度">
+          <Select
+            align="end"
+            className="settings-select-trigger"
+            data={DENSITIES}
+            onValueChange={(density) => {
+              controller.update((current) => ({
+                ...current,
+                appearance: { ...current.appearance, density },
+              }))
+            }}
+            type="显示密度"
+            value={settings.appearance.density}
+          />
+        </SettingRow>
+
+        <ToggleRow
+          checked={settings.appearance.reduceMotion}
+          description="关掉过渡与位移动画，只保留状态变化"
+          label="减少动效"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              appearance: { ...current.appearance, reduceMotion: checked },
+            }))
+          }}
+        />
+
+        <ToggleRow
+          checked={settings.appearance.messageTimestamps}
+          description="在每条消息旁显示发生时间"
+          label="消息时间戳"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              appearance: { ...current.appearance, messageTimestamps: checked },
+            }))
+          }}
+        />
       </SettingsGroup>
     </SettingsPage>
   )
@@ -403,14 +590,10 @@ const PrivacySettings = memo(function PrivacySettings({
           onChange={(checked) => {
             controller.update((current) => ({
               ...current,
-              privacy: {
-                ...current.privacy,
-                telemetry: checked,
-              },
+              privacy: { ...current.privacy, telemetry: checked },
             }))
           }}
         />
-
         <ToggleRow
           checked={settings.privacy.crashReporting}
           description="崩溃时上报堆栈以便定位问题"
@@ -418,10 +601,7 @@ const PrivacySettings = memo(function PrivacySettings({
           onChange={(checked) => {
             controller.update((current) => ({
               ...current,
-              privacy: {
-                ...current.privacy,
-                crashReporting: checked,
-              },
+              privacy: { ...current.privacy, crashReporting: checked },
             }))
           }}
         />
@@ -433,10 +613,7 @@ const PrivacySettings = memo(function PrivacySettings({
           onChange={(checked) => {
             controller.update((current) => ({
               ...current,
-              privacy: {
-                ...current.privacy,
-                updateCheck: checked,
-              },
+              privacy: { ...current.privacy, updateCheck: checked },
             }))
           }}
         />
@@ -462,12 +639,9 @@ const AboutSettings = memo(function AboutSettings({
    *
    * 此前这里是写死的 "Version 0.1.0" —— 版本号的第四个真相来源，而
    * scripts/release/check-versions.mjs 只对齐 package.json、Cargo.toml 与
-   * tauri.conf.json 那三个，扫不到一段 JSX 里的字符串。发到 0.1.1 之后这里会
-   * 一直说 0.1.0，而更新器比对的是另一个数：用户看到的版本，和软件认为自己是
-   * 的版本，从此不是同一个东西。
+   * tauri.conf.json 那三个，扫不到一段 JSX 里的字符串。
    *
-   * 读不出来就不写出一个数。一个说错了的版本号比一个没说出来的有害得多 ——
-   * 这正是这段代码在修的那个 bug 的教训。
+   * 读不出来就不写出一个数。一个说错了的版本号比一个没说出来的有害得多。
    */
   useEffect(() => {
     let active = true
@@ -489,9 +663,9 @@ const AboutSettings = memo(function AboutSettings({
   /*
    * 路径问的是原生侧，与版本号同一条纪律。
    *
-   * 渲染层没有第二种算法：安装期可以把数据目录指到任何地方，「%LOCALAPPDATA%
-   * 加产品名」这个假设在那一刻就不成立了。读不出来就不写出一条路径 —— 一条
-   * 说错了的路径会把用户的备份引到一个空目录。
+   * 渲染层没有第二种算法：安装期可以把数据目录指到任何地方，"%LOCALAPPDATA%
+   * 加产品名"这个假设在那一刻就不成立了。一条说错了的路径会把用户的备份引到
+   * 一个空目录。
    */
   useEffect(() => {
     let active = true
@@ -562,76 +736,6 @@ const AboutSettings = memo(function AboutSettings({
   )
 })
 
-interface SettingsPageProps {
-  readonly children: ReactNode
-}
-
-function SettingsPage({ children }: SettingsPageProps) {
-  return (
-    <section className="settings-page">
-      <div className="settings-page__body">{children}</div>
-    </section>
-  )
-}
-
-interface SettingsGroupProps {
-  readonly title: string
-  readonly children: ReactNode
-}
-
-function SettingsGroup({ title, children }: SettingsGroupProps) {
-  return (
-    <section className="settings-group">
-      <header className="settings-group__header">
-        <h3>{title}</h3>
-      </header>
-
-      <div className="settings-group__surface">{children}</div>
-    </section>
-  )
-}
-
-interface SettingRowProps {
-  readonly label: string
-  readonly description?: string
-  readonly children: ReactNode
-}
-
-function SettingRow({ label, description, children }: SettingRowProps) {
-  return (
-    <div className="settings-row">
-      <div className="settings-row__copy">
-        <strong>{label}</strong>
-        {description ? <p>{description}</p> : null}
-      </div>
-
-      <div className="settings-row__control">{children}</div>
-    </div>
-  )
-}
-
-interface ToggleRowProps {
-  readonly checked: boolean
-  readonly label: string
-  readonly description?: string
-  readonly onChange: (checked: boolean) => void
-}
-
-function ToggleRow({ checked, label, description, onChange }: ToggleRowProps) {
-  return (
-    <div className="settings-row">
-      <div className="settings-row__copy">
-        <strong>{label}</strong>
-        {description ? <p>{description}</p> : null}
-      </div>
-
-      <div className="settings-row__control">
-        <Switch aria-label={label} checked={checked} onCheckedChange={onChange} size="sm" />
-      </div>
-    </div>
-  )
-}
-
 interface SettingsErrorBannerProps {
   readonly operation: SettingsOperation | undefined
   readonly message: string
@@ -672,176 +776,12 @@ function ArchitecturePrinciple({ index, title, description }: ArchitecturePrinci
   )
 }
 
-type GlyphComponent = ComponentType<{
-  readonly className?: string
-  readonly 'aria-hidden'?: 'true'
-}>
-
-/*
- * 分类图标有两个来源，各自穷尽自己的分类集合。
- *
- * GlyphSection 里的分类直接用主侧边栏的字形组件：Hook 在主导航里已经有确定的
- * 画法，设置里再描一份 path 就是第二个来源，两处迟早对不上。
- *
- * 「通用」曾经就是这句话的反例。侧边栏底部那颗齿轮是 CogFour，而这里另手描了
- * 一份齿轮 path —— 同一个「设置」在同一个产品里有两个画法，粗细、齿数、内圆
- * 半径都对不上，而且没有任何机制会在它们分叉时报错。现在它也从库里取同一枚。
- *
- * 图标不从 packages/workspace 的导航注册表取：features-settings 依赖另一个
- * feature 会被架构测试拦下。两边共同的下游是 design-system，所以两处引用的是
- * 同一个组件，而不是同一张图的两份摹本。
- *
- * 拆成两张 Record 而不是在组件里写 if：新增分类时 PathSection 一侧会缺键，
- * typecheck 阶段就会失败，而不是运行时渲染出一个空图标。
- */
-type GlyphSection = 'general' | 'archived' | 'hooks' | 'tools'
-
-type PathSection = Exclude<SettingsSection, GlyphSection>
-
-const SECTION_GLYPHS: Record<GlyphSection, GlyphComponent> = {
-  general: CogFour,
-  archived: Archive,
-  hooks: WebhookIcon,
-  tools: Box,
-}
-
-/*
- * 描边路径与上面那张字形表同级、同纪律。
- *
- * 它此前造在 SectionIcon 的函数体里：五棵 JSX 子树每次渲染全部新建，用掉一棵、
- * 扔掉四棵，侧边栏八个按钮每重画一次就是四十棵。而这个文件对静态表本来就有
- * 定论 —— COLOR_MODES / LANGUAGES 那段注释说的就是这件事。
- */
-const SECTION_PATHS: Record<PathSection, ReactNode> = {
-  appearance: (
-    <>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" />
-    </>
-  ),
-  models: (
-    <>
-      <rect height="12" rx="2" width="12" x="6" y="6" />
-      <path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3" />
-    </>
-  ),
-  keymap: (
-    <>
-      <rect height="12" rx="2" width="18" x="3" y="6" />
-      <path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8" />
-    </>
-  ),
-  privacy: (
-    <>
-      <path d="M12 3 5 6v5c0 4.4 2.9 8.4 7 10 4.1-1.6 7-5.6 7-10V6l-7-3Z" />
-      <path d="m9 12 2 2 4-4" />
-    </>
-  ),
-  about: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5M12 8h.01" />
-    </>
-  ),
-}
-
-function isGlyphSection(section: SettingsSection): section is GlyphSection {
-  return (
-    section === 'general' || section === 'archived' || section === 'hooks' || section === 'tools'
-  )
-}
-
-function SectionIcon({ section }: { readonly section: SettingsSection }) {
-  if (isGlyphSection(section)) {
-    const Glyph = SECTION_GLYPHS[section]
-
-    return <Glyph aria-hidden="true" className="settings-navigation__icon" />
-  }
-
-  return (
-    <svg
-      aria-hidden="true"
-      className="settings-navigation__icon"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.7"
-      viewBox="0 0 24 24"
-    >
-      {SECTION_PATHS[section]}
-    </svg>
-  )
-}
-
-/*
- * 两张静态表，和 SECTIONS / SECTION_GROUPS 一样属于模块。
- *
- * 上一版它们已经不再是 JSX 里的行内字面量，但形状还是 [value, label] 元组 —— 于是
- * 每次渲染仍要 map 成基元认的 { value, label }，末端还欠一次 as 断言把闭合联合接
- * 回去。形状直接写成基元认的那一种，两样一起没有了：类型参数保住「只可能是这几个
- * 字面量」，onValueChange 的入参因此就是 AppSettings 上那个字段本身。
- */
-const COLOR_MODES: readonly SelectOption<AppSettings['theme']>[] = [
-  { value: 'light', label: '浅色' },
-  { value: 'dark', label: '深色' },
-  { value: 'system', label: '跟随系统' },
-]
-
-const LANGUAGES: readonly SelectOption<AppSettings['language']>[] = [
-  { value: 'zh-CN', label: '简体中文' },
-  { value: 'en', label: 'English' },
-]
-
-const AppearanceSettings = memo(function AppearanceSettings({
-  settings,
-  controller,
-}: SettingsPanelProps) {
-  return (
-    <SettingsPage>
-      <SettingsGroup title="主题与语言">
-        <SettingRow description="浅色、深色或跟随系统" label="颜色模式">
-          <Select
-            align="end"
-            className="settings-select-trigger"
-            data={COLOR_MODES}
-            onValueChange={(theme) => {
-              controller.update((current) => ({
-                ...current,
-                theme,
-              }))
-            }}
-            type="颜色模式"
-            value={settings.theme}
-          />
-        </SettingRow>
-
-        <SettingRow description="界面文案使用的语言" label="界面语言">
-          <Select
-            align="end"
-            className="settings-select-trigger"
-            data={LANGUAGES}
-            onValueChange={(language) => {
-              controller.update((current) => ({
-                ...current,
-                language,
-              }))
-            }}
-            type="界面语言"
-            value={settings.language}
-          />
-        </SettingRow>
-      </SettingsGroup>
-    </SettingsPage>
-  )
-})
-
 interface SettingsPlaceholderProps {
   readonly description: string
 }
 
 /*
- * 一个还没有数据的分组说自己没有数据。
+ * 一个还没有实现的分组说自己还没有实现。
  *
  * 这里刻意不放能拨动的控件：写不进 AppSettings 的开关会让人以为设置生效了，
  * 比一句实话有害得多。
