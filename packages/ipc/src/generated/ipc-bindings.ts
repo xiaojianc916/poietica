@@ -405,6 +405,22 @@ async pluginsDiscard(stagingId: string) : Promise<null> {
     return await TAURI_INVOKE("plugins_discard", { stagingId });
 },
 /**
+ * 用户在命令行上装的那些插件 —— 只读，一个字节都不写。
+ * 
+ * 不 create_dir_all：那个目录不归我们所有，探测一份不存在的账本不该在用户的 home 里
+ * 留下一个空目录（`store_root` 会建目录，正因为那一个是我们自己的家）。
+ * 
+ * 返回 None 表示这台机器上没有第二本账：受控 home 没有生效时，CLI 与我们读的是同一个
+ * 文件，而同一个文件没有「另一份」。
+ * 
+ * # Errors
+ * 
+ * 家目录算不出来、账本读不动、不是合法 JSON，或里面没有 plugins 数组时返回错误。
+ */
+async pluginsForeignList() : Promise<ForeignPluginLedger | null> {
+    return await TAURI_INVOKE("plugins_foreign_list");
+},
+/**
  * 装了什么，agent 的账本说了算。
  * 
  * 不扫目录。官方卸载「only deletes the installation record; the managed copy and
@@ -1481,6 +1497,25 @@ export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: 
  * 说的话不一样。
  */
 export type EnvironmentFile = { location: string; contents: string | null }
+/**
+ * 另一本账的现状：它在哪，以及里面有哪些插件。
+ * 
+ * 形状与 `EnvironmentFile` 同源 —— 界面要说得出自己读的是哪个文件，否则「别处已装」
+ * 这句话没有落点。
+ */
+export type ForeignPluginLedger = { location: string; plugins: ForeignPluginRecord[] }
+/**
+ * 用户在命令行上装的一个插件，按他自己那个家里的账本读出来。
+ * 
+ * 这不是「已安装」。我们开出去的会话把 home 变量指向受控 home，CLI 因此只装载受控
+ * home 那本账里的插件；这一份里的东西一个都不参与会话。把两份合成一个列表，屏幕上
+ * 就会有一半的行是假的。
+ */
+export type ForeignPluginRecord = { pluginId: string; 
+/**
+ * 人当初给命令行的那一串地址。缺席表示那条记录没记，导入因此没有起点。
+ */
+originalSource: string | null }
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"
 export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"

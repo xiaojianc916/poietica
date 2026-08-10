@@ -56,11 +56,10 @@ export {
   UNSUPPORTED_MANIFEST_FIELDS,
   utf8ByteLength,
 } from './manifest'
-export {
-  MARKETPLACE_CATALOG_VERSION,
-  type MarketplaceCatalog,
-  type MarketplaceEntry,
-  type MarketplaceState,
+export type {
+  MarketplaceCatalog,
+  MarketplaceEntry,
+  MarketplaceState,
 } from './marketplace'
 export {
   type DeclaredMcpServer,
@@ -85,6 +84,7 @@ export {
 } from './origin'
 export {
   createPluginStore,
+  type ForeignPlugin,
   type IdleInstall,
   INSTALL_IDLE,
   type InstallFlow,

@@ -36,8 +36,8 @@ use crate::commands::{
     },
     environment::EnvironmentFile,
     plugins::{
-        PluginCommitRequest, PluginFetch, PluginFileRequest, PluginFileText, PluginPayload,
-        PluginStaged, PluginTreeRequest,
+        ForeignPluginLedger, ForeignPluginRecord, PluginCommitRequest, PluginFetch,
+        PluginFileRequest, PluginFileText, PluginPayload, PluginStaged, PluginTreeRequest,
     },
     settings::{AppSettings, PrivacySettings},
     updates::{UpdateProgress, UpdateRelease},
@@ -80,6 +80,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::plugins::plugins_catalog_refresh,
             crate::commands::plugins::plugins_commit,
             crate::commands::plugins::plugins_discard,
+            crate::commands::plugins::plugins_foreign_list,
             crate::commands::plugins::plugins_list,
             crate::commands::plugins::plugins_read_text,
             crate::commands::plugins::plugins_read_tree,
@@ -136,6 +137,8 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AutomationRunRecord>()
         .typ::<crate::mcp::McpEndpoint>()
         .typ::<EnvironmentFile>()
+        .typ::<ForeignPluginLedger>()
+        .typ::<ForeignPluginRecord>()
         .typ::<PluginFetch>()
         .typ::<PluginStaged>()
         .typ::<PluginCommitRequest>()

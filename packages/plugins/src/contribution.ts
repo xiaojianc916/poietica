@@ -189,7 +189,7 @@ function collectMcpServers(
       diagnostics.push({
         code: 'mcp-transport-unrecognised',
         pluginId,
-        detail: `"${server.name}"·的传输方式无法识别，本次会话没有装载它`,
+        detail: `"${server.name}"的传输方式无法识别，本次会话没有装载它`,
       })
     }
 

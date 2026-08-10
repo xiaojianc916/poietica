@@ -57,6 +57,9 @@ export { type McpEndpoint, readMcpEndpoint } from './mcp'
 export {
   commitPlugin,
   discardStagedPlugin,
+  type ForeignPluginLedger,
+  type ForeignPluginRecord,
+  listForeignPlugins,
   listPlugins,
   type PluginCommitRequest,
   type PluginFetch,

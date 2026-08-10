@@ -25,7 +25,7 @@ use serde_json::{Map, Value, json};
 use specta::Type;
 use tauri::{AppHandle, command};
 
-use crate::commands::agent_setup::profile::agent_home_directory;
+use crate::commands::agent_setup::profile::{agent_home_directory, own_home_directory};
 use crate::error::{Error, IpcError, Result};
 use crate::paths::marketplace_catalog;
 
@@ -136,6 +136,30 @@ pub struct PluginPayload {
     pub source: String,
     pub original_source: Option<String>,
     pub disabled_mcp_servers: Vec<String>,
+}
+
+/// 用户在命令行上装的一个插件，按他自己那个家里的账本读出来。
+///
+/// 这不是「已安装」。我们开出去的会话把 home 变量指向受控 home，CLI 因此只装载受控
+/// home 那本账里的插件；这一份里的东西一个都不参与会话。把两份合成一个列表，屏幕上
+/// 就会有一半的行是假的。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ForeignPluginRecord {
+    pub plugin_id: String,
+    /// 人当初给命令行的那一串地址。缺席表示那条记录没记，导入因此没有起点。
+    pub original_source: Option<String>,
+}
+
+/// 另一本账的现状：它在哪，以及里面有哪些插件。
+///
+/// 形状与 `EnvironmentFile` 同源 —— 界面要说得出自己读的是哪个文件，否则「别处已装」
+/// 这句话没有落点。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ForeignPluginLedger {
+    pub location: String,
+    pub plugins: Vec<ForeignPluginRecord>,
 }
 
 /// 折成 IPC 上那条插件错误，并把真正的原因留在日志里。
@@ -393,6 +417,62 @@ pub async fn plugins_list(app: AppHandle) -> PluginsCommandResult<Vec<PluginPayl
         found.sort_by(|left, right| left.plugin_id.cmp(&right.plugin_id));
 
         Ok(found)
+    })()
+    .map_err(IpcError::from)
+}
+
+/// 用户在命令行上装的那些插件 —— 只读，一个字节都不写。
+///
+/// 不 create_dir_all：那个目录不归我们所有，探测一份不存在的账本不该在用户的 home 里
+/// 留下一个空目录（`store_root` 会建目录，正因为那一个是我们自己的家）。
+///
+/// 返回 None 表示这台机器上没有第二本账：受控 home 没有生效时，CLI 与我们读的是同一个
+/// 文件，而同一个文件没有「另一份」。
+///
+/// # Errors
+///
+/// 家目录算不出来、账本读不动、不是合法 JSON，或里面没有 plugins 数组时返回错误。
+#[command]
+#[specta::specta]
+pub async fn plugins_foreign_list(
+    app: AppHandle,
+) -> PluginsCommandResult<Option<ForeignPluginLedger>> {
+    (|| -> Result<Option<ForeignPluginLedger>> {
+        let Some(home) = own_home_directory(&app)? else {
+            return Ok(None);
+        };
+
+        let path = home.join(PLUGINS_DIRECTORY).join(RECORD_FILE);
+        let location = path.to_string_lossy().into_owned();
+
+        let Some(text) = host::read_optional(&path).map_err(plugin_failure)? else {
+            return Ok(Some(ForeignPluginLedger {
+                location,
+                plugins: Vec::new(),
+            }));
+        };
+
+        let parsed: Value = serde_json::from_str(&text)?;
+
+        let plugins = parsed
+            .get("plugins")
+            .and_then(Value::as_array)
+            .ok_or_else(|| plugin_failure("installed.json 里没有 plugins 数组"))?
+            .iter()
+            .filter_map(|entry| {
+                let object = entry.as_object()?;
+
+                Some(ForeignPluginRecord {
+                    plugin_id: object.get("id").and_then(Value::as_str)?.to_owned(),
+                    original_source: object
+                        .get("originalSource")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
+                })
+            })
+            .collect();
+
+        Ok(Some(ForeignPluginLedger { location, plugins }))
     })()
     .map_err(IpcError::from)
 }

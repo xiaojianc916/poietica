@@ -430,6 +430,30 @@ pub fn agent_home_directory(app: &AppHandle) -> Result<PathBuf> {
     agent_data_home(app, &agent_id)
 }
 
+/// 用户自己在命令行上用这家 agent 时，它认的那个家 —— 仅当受控 home 生效时才存在。
+///
+/// 受控 home 一旦生效（`launch_env` 把 homeVar 设成 `agent_home`），我们启动的那个
+/// 进程只会去读受控 home；用户在终端里跑同一个 CLI 时读的是这一个。两个目录各有一份
+/// plugins/installed.json，而只有前者参与我们开出去的会话。
+///
+/// 不受控时两者是同一个目录，返回 None：同一个文件没有「另一份」。
+///
+/// 只读用途。没有什么该写进这个家 —— 与 `global_launch_env` 同一条规矩。
+///
+/// # Errors
+///
+/// 没有默认 agent、档案不存在、档案没说这家把配置放在哪、或用户 home 算不出来时返回错误。
+pub fn own_home_directory(app: &AppHandle) -> Result<Option<PathBuf>> {
+    let agent_id = default_agent_id(app)?;
+    let profile = profile_of(app, &agent_id)?;
+
+    if controlled_home(app, &agent_id, &profile)?.is_none() {
+        return Ok(None);
+    }
+
+    own_home(app, &agent_id, &profile).map(Some)
+}
+
 /// 现在默认用哪一个 agent。
 ///
 /// 空串当作没有：agents.json 里那一格的缺省值就是空串，拿它去查档案只会得到一句

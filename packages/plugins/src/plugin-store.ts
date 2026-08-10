@@ -3,6 +3,7 @@ import { assertUnreachable, createPreference, warn } from '@poietica/core'
 import {
   commitPlugin,
   discardStagedPlugin,
+  listForeignPlugins,
   listPlugins,
   readEnvironmentMcpConfig,
   readMcpEndpoint,
@@ -44,7 +45,6 @@ import {
   latestCatalog,
   MARKETPLACE_ABSENT,
   type MarketplaceState,
-  parseMarketplaceOrigin,
   shouldFetchOnOpen,
 } from './marketplace'
 import { type DeclaredMcpServer, decodeMcpConfig } from './mcp-config'
@@ -67,6 +67,21 @@ import {
  * /reload or in new sessions」。已经开着的那条会话不会自己更新。
  */
 
+/**
+ * 用户在命令行上装的一个插件。
+ *
+ * 它不是一个「已安装」的插件：受控 home 生效时，我们开出去的会话只装载受控 home 那本
+ * 账里的插件。这一格存在的唯一理由是把「你在别处装过它」这句话说出来 —— 否则目录里
+ * 那张卡片写着可安装，而人记得自己装过，屏幕与记忆对不上时人只会认为屏幕坏了。
+ */
+export interface ForeignPlugin {
+  readonly pluginId: string
+  /** 人当初给命令行的那一串地址。缺席表示那条记录没记，导入因此没有起点。 */
+  readonly originalSource: string | undefined
+  /** 读到它的那本账在哪。 */
+  readonly location: string
+}
+
 export interface PluginsViewModel {
   readonly plugins: readonly InstalledPlugin[]
   /* 各类贡献同一次遍历产出，界面上几个 tab 读的就是它，不另算一遍。 */
@@ -79,6 +94,13 @@ export interface PluginsViewModel {
    * 自己带的、插件带来的都算。后者只有 agent 说得出来。
    */
   readonly palette: readonly PaletteEntry[]
+  /**
+   * 命令行上装过、这里没有的那些。
+   *
+   * 它们不在 plugins 里，因为它们确实没有装在这里。这一格不参与任何状态计算：装了
+   * 什么只有受控 home 那本账说得出来。
+   */
+  readonly foreign: readonly ForeignPlugin[]
   readonly marketplace: MarketplaceState
   readonly install: InstallFlow
   /** 首帧与「读完了确实一个都没装」不是同一件事，空态因此不会闪。 */
@@ -154,6 +176,16 @@ export interface PluginStore {
 }
 
 export interface PluginStoreOptions {
+  /**
+   * 市场目录在哪。
+   *
+   * 官方默认值是 CDN 上那一份（上游 apps/kimi-code/src/constant/app.ts 的
+   * KIMI_CODE_PLUGIN_MARKETPLACE_URL），不是仓库里那份源码检出兜底 —— 后者由上游
+   * getSourceCheckoutMarketplaceLocation 提供，只在没配来源且 CDN 取失败时才用。
+   *
+   * 相对来源相对的就是这个地址，所以这里换一个地址，条目跟着换一个仓库，不需要在
+   * 第二处配一遍。
+   */
   readonly marketplaceUrl: string
   /**
    * 命令表从哪来。
@@ -215,12 +247,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   const listeners = new Set<() => void>()
 
   /*
-   * 目录里的官方条目写的是相对路径，相对的是目录文件自己所在的目录。这个上下文
-   * 从目录地址一处推出来，不另外配一遍 —— 配两遍就会有一天对不上。
-   */
-  const origin = parseMarketplaceOrigin(options.marketplaceUrl)
-
-  /*
    * 内置那台的开关。
    *
    * 它不进 agent 的账本：那份文件的形状是「按插件号索引的一张表」，塞一个不存在的
@@ -242,12 +268,15 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   let scanned: readonly ScannedPlugin[] = []
   /* 这个 agent 自己那份 mcp.json 里的服务器。读不出来就是空。 */
   let environment: readonly DeclaredMcpServer[] = []
+  /* 另一本账里的那些。读不出来就是空 —— 那只意味着这句话说不出来，不意味着装了什么。 */
+  let foreignRecords: readonly ForeignPlugin[] = []
   /* 原生侧登记的那个地址。绑不上端口时缺席，那一行照样显示并说明原因。 */
   let builtinUrl: string | undefined
   let snapshot: PluginsViewModel = {
     plugins: [],
     contributions: resolveContributions({ builtin: [], environment: [], plugins: [] }),
     palette: [],
+    foreign: [],
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
     loaded: false,
@@ -320,9 +349,13 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       }
     })
 
+    const here = new Set(plugins.map((plugin) => plugin.pluginId))
+
     publish({
       plugins,
       contributions: resolveContributions({ builtin: builtinServers(), environment, plugins }),
+      /* 两边都装着的不算「别处装过」：那一条已经在上面的 plugins 里了。 */
+      foreign: foreignRecords.filter((record) => !here.has(record.pluginId)),
       loaded: true,
     })
   }
@@ -499,6 +532,28 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
+   * 另一本账 —— 用户自己那个家里的那一份。只读。
+   *
+   * 读它不是为了把它算进「装了什么」：受控 home 生效时，我们开出去的会话只装载受控
+   * home 那本账，所以这一份里的插件在这里确实没有装上，目录卡片写「可安装」是真话。
+   * 假的是屏幕对此一言不发。
+   *
+   * null 表示这台机器上没有第二本账（受控 home 没有生效，两边读同一个文件）。
+   */
+  async function readForeign(): Promise<void> {
+    const ledger = await listForeignPlugins()
+
+    foreignRecords =
+      ledger === null
+        ? []
+        : ledger.plugins.map((record) => ({
+            pluginId: record.pluginId,
+            originalSource: record.originalSource ?? undefined,
+            location: ledger.location,
+          }))
+  }
+
+  /*
    * 写成了才发布。失败不动屏幕：人看到的仍然是账本里那一份。
    *
    * 每一次改动都是「先写 agent 会读的那个文件，再改屏幕」，没有第三种顺序。
@@ -551,7 +606,12 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       }
 
       publish({
-        marketplace: completeFetch(snapshot.marketplace, JSON.parse(contents), '', origin),
+        marketplace: completeFetch(
+          snapshot.marketplace,
+          JSON.parse(contents),
+          '',
+          options.marketplaceUrl,
+        ),
       })
     } catch (cause: unknown) {
       warn('本地市场目录读不出来', { scope: 'plugins', cause })
@@ -569,7 +629,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           snapshot.marketplace,
           JSON.parse(contents),
           options.now(),
-          origin,
+          options.marketplaceUrl,
         ),
       })
     } catch (cause: unknown) {
@@ -622,12 +682,15 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
       queue = queue.then(async () => {
         /*
-         * 四趟互不依赖，一起等而不是排成四趟：每一趟都只读，写的只是各自那个模块级
-         * 变量，所以并发跑不会互相盖。首屏因此是一趟往返的时间，不是四趟。
+         * 五趟互不依赖，一起等而不是排成五趟：每一趟都只读，写的只是各自那个模块级
+         * 变量，所以并发跑不会互相盖。首屏因此是一趟往返的时间，不是五趟。
          */
         await Promise.all([
           guard('插件列表读取失败', rescan, () => {
             scanned = []
+          }),
+          guard('命令行上那本插件账读不出来', readForeign, () => {
+            foreignRecords = []
           }),
           guard('这个 agent 的 mcp.json 读不出来', readEnvironment, () => {
             environment = []

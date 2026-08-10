@@ -1,21 +1,11 @@
 import { assertUnreachable } from '@poietica/core'
 import * as v from 'valibot'
 import {
-  type GitHubRef,
   type PluginInstallSource,
   type PluginTrustTier,
   parseInstallSource,
   UNLISTED_TRUST,
 } from './install-source'
-
-/*
- * 目录格式的版本号由上游定，认不出版本就整份拒收。
- *
- * 这个 "1" 是从 MoonshotAI/kimi-code 的 plugins/marketplace.json 第二行读来的。
- * 上一版写死 "2" —— 一个凭空造的数字，于是拉回来的第一份真目录当场被整份拒收，
- * 界面上只剩一句 Invalid type: Expected "2" but received "1"。
- */
-export const MARKETPLACE_CATALOG_VERSION = '1'
 
 /*
  * 上游那一列叫 tier，值是 official / curated；这个仓库内部用的是三档 trust。
@@ -29,78 +19,31 @@ const TIER_TRUST: Readonly<Record<string, PluginTrustTier>> = {
   curated: 'curated',
 }
 
-/**
- * 一份目录自己住在哪。
- *
- * 目录里的官方条目写的是相对路径（"./official/kimi-datasource"），相对的是目录
- * 文件自己所在的那个目录。没有这个上下文，那串东西会被当成本地路径，指向磁盘上
- * 不存在的地方 —— 四条官方条目就是这么全部装不上的。
- */
-export interface MarketplaceOrigin {
-  readonly owner: string
-  readonly repo: string
-  readonly ref: GitHubRef
-  /** 目录文件所在目录，相对仓库根。仓库根是空串。 */
-  readonly directory: string
-}
-
-const RAW_GITHUB_HOST = 'raw.githubusercontent.com'
-
-/*
- * raw.githubusercontent.com/<owner>/<repo>/<ref>/<path...> 是 GitHub 取单文件原文的
- * 固定形状，这里的每一段都有确定含义，不需要猜。认不出这个形状就没有仓库上下文 ——
- * 那时相对路径只能按字面理解成本地路径，而那恰好也是它字面上的意思。
- */
-export function parseMarketplaceOrigin(url: string): MarketplaceOrigin | undefined {
-  let parsed: URL
-
-  try {
-    parsed = new URL(url)
-  } catch {
-    return undefined
-  }
-
-  if (parsed.hostname !== RAW_GITHUB_HOST) {
-    return undefined
-  }
-
-  const segments = parsed.pathname.split('/').filter((segment) => segment !== '')
-  const [owner, repo, ref, ...file] = segments
-
-  if (owner === undefined || repo === undefined || ref === undefined || file.length === 0) {
-    return undefined
-  }
-
-  return { owner, repo, ref: { kind: 'tree', ref }, directory: file.slice(0, -1).join('/') }
-}
-
 const RELATIVE_SOURCE = /^\.\.?\//
 
 /*
- * 把目录里那条相对路径接到目录自己所在的目录上。".." 不接受 —— 一份目录没有理由
- * 指到自己仓库外面去，而放行它就等于让远端 JSON 决定我们从哪个仓库取代码。
+ * 目录里的相对来源，相对的是目录文件自己那个地址。
+ *
+ * 解析交给 URL 构造器的第二个参数，也就是 WHATWG URL Standard 里 new URL(input, base)
+ * 那条 base-relative 解析（底下是 RFC 3986 §5），与上游
+ * apps/kimi-code/src/utils/plugin-marketplace.ts 解条目来源时用的是同一句。
+ *
+ * 手写「拆四段、拼路径、挡 ..」是在重做一件标准库已经做完的事，而它挡住的东西目录
+ * 本来就能用绝对地址直接写出来 —— 挡的是自己，不是攻击者。真正拦第三方来源的那道门
+ * 是 requiresInstallConfirmation，不在这里。
+ *
+ * 解不开就按字面交给唯一的解析器：一串解不成地址的相对路径，字面意思本来就是路径。
  */
-function joinInsideRepository(directory: string, relative: string): string | undefined {
-  const segments = [...directory.split('/'), ...relative.split('/')].filter(
-    (segment) => segment !== '' && segment !== '.',
-  )
-
-  return segments.includes('..') || segments.length === 0 ? undefined : segments.join('/')
-}
-
-function resolveEntrySource(
-  specifier: string,
-  origin: MarketplaceOrigin | undefined,
-): PluginInstallSource {
-  if (origin === undefined || !RELATIVE_SOURCE.test(specifier)) {
+function resolveEntrySource(specifier: string, catalogUrl: string): PluginInstallSource {
+  if (!RELATIVE_SOURCE.test(specifier)) {
     return parseInstallSource(specifier)
   }
 
-  const subdirectory = joinInsideRepository(origin.directory, specifier)
-
-  return subdirectory === undefined
-    ? parseInstallSource(specifier)
-    : { kind: 'github', owner: origin.owner, repo: origin.repo, ref: origin.ref, subdirectory }
+  try {
+    return parseInstallSource(new URL(specifier, catalogUrl).toString())
+  } catch {
+    return parseInstallSource(specifier)
+  }
 }
 
 export interface MarketplaceEntry {
@@ -121,19 +64,39 @@ export interface MarketplaceCatalog {
   readonly fetchedAt: string
 }
 
+/*
+ * 每一格都接受上游接受的那两个名字（apps/kimi-code/src/utils/plugin-marketplace.ts 的
+ * parseMarketplaceEntry：source|url|downloadUrl、displayName|name、
+ * description|shortDescription、homepage|websiteURL）。
+ *
+ * 只认一个名字，官方目录里用另一个名字写的条目会安静地少掉半格 —— 少掉来源的那一条
+ * 直接装不上，而界面上它看起来与别的条目没有任何区别。
+ */
 const RawEntry = v.looseObject({
   id: v.string(),
   displayName: v.optional(v.string()),
+  name: v.optional(v.string()),
   description: v.optional(v.string()),
+  shortDescription: v.optional(v.string()),
   homepage: v.optional(v.string()),
+  websiteURL: v.optional(v.string()),
   version: v.optional(v.string()),
   keywords: v.optional(v.array(v.string())),
   tier: v.optional(v.string()),
-  source: v.string(),
+  source: v.optional(v.string()),
+  url: v.optional(v.string()),
+  downloadUrl: v.optional(v.string()),
 })
 
+/*
+ * version 读进来，不比较。
+ *
+ * 上游 parsePluginMarketplace 对这一格只做 stringField，全程没有任何比较：目录格式的
+ * 版本号是发布方自己的记事，不是消费方的准入条件。写死一个数字去比，等于官方哪天把它
+ * 从一个字符串改成另一个，我们这边整页空白，而目录的形状一个字节都没变。
+ */
 const RawCatalog = v.looseObject({
-  version: v.literal(MARKETPLACE_CATALOG_VERSION),
+  version: v.optional(v.string()),
   plugins: v.array(RawEntry),
 })
 
@@ -156,7 +119,7 @@ export type CatalogDecoding = DecodedCatalog | UndecodableCatalog
 export function decodeMarketplaceCatalog(
   raw: unknown,
   fetchedAt: string,
-  origin: MarketplaceOrigin | undefined,
+  catalogUrl: string,
 ): CatalogDecoding {
   const parsed = v.safeParse(RawCatalog, raw)
 
@@ -164,22 +127,32 @@ export function decodeMarketplaceCatalog(
     return { kind: 'undecodable', reason: parsed.issues.map((issue) => issue.message).join('; ') }
   }
 
-  return {
-    kind: 'decoded',
-    catalog: {
-      fetchedAt,
-      entries: parsed.output.plugins.map((entry) => ({
-        id: entry.id,
-        displayName: entry.displayName ?? entry.id,
-        description: entry.description,
-        homepage: entry.homepage,
-        version: entry.version,
-        keywords: entry.keywords ?? [],
-        source: resolveEntrySource(entry.source, origin),
-        trust: (entry.tier === undefined ? undefined : TIER_TRUST[entry.tier]) ?? UNLISTED_TRUST,
-      })),
-    },
+  const entries: MarketplaceEntry[] = []
+
+  for (const entry of parsed.output.plugins) {
+    const specifier = entry.source ?? entry.url ?? entry.downloadUrl
+
+    /*
+     * 一条没有来源的条目不是「一条装不上的条目」，是这份目录不成形。丢掉它，界面上
+     * 少一张卡片而没有任何人知道少了哪一张；整份拒收会带着 id 说出来。
+     */
+    if (specifier === undefined) {
+      return { kind: 'undecodable', reason: `目录条目 ${entry.id} 没有说从哪里取` }
+    }
+
+    entries.push({
+      id: entry.id,
+      displayName: entry.displayName ?? entry.name ?? entry.id,
+      description: entry.description ?? entry.shortDescription,
+      homepage: entry.homepage ?? entry.websiteURL,
+      version: entry.version,
+      keywords: entry.keywords ?? [],
+      source: resolveEntrySource(specifier, catalogUrl),
+      trust: (entry.tier === undefined ? undefined : TIER_TRUST[entry.tier]) ?? UNLISTED_TRUST,
+    })
   }
+
+  return { kind: 'decoded', catalog: { fetchedAt, entries } }
 }
 
 export interface AbsentCatalog {
@@ -244,9 +217,9 @@ export function completeFetch(
   state: MarketplaceState,
   raw: unknown,
   fetchedAt: string,
-  origin: MarketplaceOrigin | undefined,
+  catalogUrl: string,
 ): MarketplaceState {
-  const decoded = decodeMarketplaceCatalog(raw, fetchedAt, origin)
+  const decoded = decodeMarketplaceCatalog(raw, fetchedAt, catalogUrl)
 
   if (decoded.kind === 'undecodable') {
     return { kind: 'failed', previous: latestCatalog(state), reason: decoded.reason }

@@ -139,6 +139,7 @@ function TabBody({ needle, onOpen, store, tab, view }: TabBodyProps) {
     case 'plugins':
       return (
         <PluginBrowser
+          foreign={view.foreign}
           install={view.install}
           loaded={view.loaded}
           marketplace={view.marketplace}

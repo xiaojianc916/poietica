@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { describeInstallSource, parseInstallSource } from '../install-source'
 import type { InstalledPlugin } from '../installation'
 import { latestCatalog, type MarketplaceEntry, type MarketplaceState } from '../marketplace'
-import type { InstallFlow, PluginStore } from '../plugin-store'
+import type { ForeignPlugin, InstallFlow, PluginStore } from '../plugin-store'
 import { PluginGlyph } from './plugin-glyph'
 import { TrustBadge } from './trust-badge'
 
@@ -40,6 +40,7 @@ function matches(needle: string, ...fields: readonly (string | undefined)[]): bo
 
 export interface PluginBrowserProps {
   readonly plugins: readonly InstalledPlugin[]
+  readonly foreign: readonly ForeignPlugin[]
   readonly marketplace: MarketplaceState
   readonly install: InstallFlow
   readonly loaded: boolean
@@ -49,6 +50,7 @@ export interface PluginBrowserProps {
 }
 
 export function PluginBrowser({
+  foreign,
   install,
   loaded,
   marketplace,
@@ -59,6 +61,16 @@ export function PluginBrowser({
 }: PluginBrowserProps) {
   const catalog = latestCatalog(marketplace)
   const installedIds = new Set(plugins.map((plugin) => plugin.pluginId))
+  const foreignIds = new Set(foreign.map((record) => record.pluginId))
+  const catalogIds = new Set((catalog?.entries ?? []).map((entry) => entry.id))
+  /*
+   * 目录里有的那些不单独列一遍：卡片上那个标记已经把同一件事说完了，列两遍等于让人
+   * 在两处读到同一句话，还得自己判断它们说的是不是一回事。
+   */
+  const elsewhere = foreign.filter(
+    (record) =>
+      !catalogIds.has(record.pluginId) && matches(needle, record.pluginId, record.originalSource),
+  )
   const listed = (catalog?.entries ?? []).filter(
     (entry) =>
       !installedIds.has(entry.id) &&
@@ -108,22 +120,72 @@ export function PluginBrowser({
           </ul>
         </Section>
       ) : null}
+      <ForeignList records={elsewhere} store={store} />
       <CatalogGrid
         entries={listed.filter((entry) => entry.trust !== 'third-party')}
+        foreignIds={foreignIds}
         onOpen={onOpen}
         title="精选"
       />
       <CatalogGrid
         entries={listed.filter((entry) => entry.trust === 'third-party')}
+        foreignIds={foreignIds}
         onOpen={onOpen}
         title="更多"
       />
-      {loaded && installed.length === 0 && listed.length === 0 ? (
+      {loaded && installed.length === 0 && listed.length === 0 && elsewhere.length === 0 ? (
         <p className="py-16 text-center text-sm text-muted-foreground">
           {needle === '' ? '目录还没取到。点右上角刷新试试。' : `没有匹配「${needle}」的插件。`}
         </p>
       ) : null}
     </div>
+  )
+}
+
+interface ForeignListProps {
+  readonly records: readonly ForeignPlugin[]
+  readonly store: PluginStore
+}
+
+/*
+ * 命令行上装过、这里没有的那些。
+ *
+ * 「装在哪」不是一句废话：我们开出去的会话把 home 变量指向受控 home，命令行上那个家
+ * 里的插件一个都不参与会话。所以这一节不写「已安装」，写的是它记在哪本账里、以及怎么
+ * 把它装到这边来。
+ *
+ * 导入就是按原来那串地址重装一次，走的是与手动输入完全同一条路 —— 没有第二套安装
+ * 通道，也就没有第二处会与它走样的判断。
+ */
+function ForeignList({ records, store }: ForeignListProps) {
+  if (records.length === 0) {
+    return null
+  }
+
+  return (
+    <Section title="命令行上装过">
+      <p className="pb-2 text-xs leading-5 text-muted-foreground">
+        这些插件记在 {records[0]?.location} 里。本应用开出去的会话读的是它自己那份账本，
+        所以它们在这里没有装上；导入会按原来的地址重装一次。
+      </p>
+      <ul className="divide-y divide-divider">
+        {records.map((record) => (
+          <li className="flex items-center gap-3 py-3" key={record.pluginId}>
+            <div className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">{record.pluginId}</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {record.originalSource ?? '那条记录没有记下当初的安装地址，导入不了'}
+              </span>
+            </div>
+            {record.originalSource === undefined ? null : (
+              <Button onClick={() => store.beginInstall(parseInstallSource(record.originalSource))}>
+                导入
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Section>
   )
 }
 
@@ -146,10 +208,12 @@ function Section({ children, title }: SectionProps) {
 interface CatalogGridProps {
   readonly entries: readonly MarketplaceEntry[]
   readonly title: string
+  /** 在命令行那本账里出现过的 id。卡片仍然可装 —— 这里没装是事实，标记只是说清原因。 */
+  readonly foreignIds: ReadonlySet<string>
   readonly onOpen: (id: string) => void
 }
 
-function CatalogGrid({ entries, onOpen, title }: CatalogGridProps) {
+function CatalogGrid({ entries, foreignIds, onOpen, title }: CatalogGridProps) {
   if (entries.length === 0) {
     return null
   }
@@ -173,6 +237,9 @@ function CatalogGrid({ entries, onOpen, title }: CatalogGridProps) {
                   {entry.displayName}
                 </button>
                 <TrustBadge trust={entry.trust} />
+                {foreignIds.has(entry.id) ? (
+                  <span className="shrink-0 text-[11px] text-muted-foreground">CLI 已装</span>
+                ) : null}
               </div>
               <p className="line-clamp-2 pt-1 text-xs leading-5 text-muted-foreground">
                 {entry.description ?? describeInstallSource(entry.source)}
