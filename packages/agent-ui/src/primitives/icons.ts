@@ -38,40 +38,6 @@ export function asIcon(glyph: FunctionComponent<{ className?: string; size?: num
     })
 }
 
-export {
-  ArrowUp as SubmitIcon,
-  Check as CheckIcon,
-  ChevronDown as ChevronDownIcon,
-  Code as CodeIcon,
-  DangerCircle as FailureIcon,
-  Dots as MoreIcon,
-  Edit as PencilIcon,
-  Eye as PreviewIcon,
-  File as FileIcon,
-  FolderPlus as FolderPlusIcon,
-  Globe as GlobeIcon,
-  Maximize as MaximizeIcon,
-  Message as ThreadIcon,
-  Microphone as MicIcon,
-  Paperclip as AttachIcon,
-  Pin as PinIcon,
-  PinSolid as PinFilledIcon,
-  Plus as PlusIcon,
-  Refresh as ResetIcon,
-  Search as SearchIcon,
-  SearchMinus as ZoomOutIcon,
-  SearchPlus as ZoomInIcon,
-  Send as AgentIcon,
-  Sparkles as ModelIcon,
-  Spinner as SpinnerIcon,
-  Square as StopIcon,
-  Tool as ToolIcon,
-  X as CloseIcon,
-} from '@mynaui/icons-react'
-/*
- * 思考图标仍保留当前本地字形。本轮文件夹图标已经由实际消费位置直接改用
- * lucide-react，不再经过这里的本地别名。
- */
 export { LightbulbIcon as ThinkingIcon } from '@poietica/ui'
 /*
  * Copy 是本轮首先迁移的通用操作图标。
@@ -79,4 +45,37 @@ export { LightbulbIcon as ThinkingIcon } from '@poietica/ui'
  * 继续保留 CopyIcon 这个应用语义别名，调用点不需要跟随图标库命名变化；
  * 字形实现已经直接来自 lucide-react。
  */
-export { Copy as CopyIcon } from 'lucide-react'
+export {
+  ArrowUp as SubmitIcon,
+  Check as CheckIcon,
+  ChevronDown as ChevronDownIcon,
+  CircleAlert as FailureIcon,
+  Code as CodeIcon,
+  Copy as CopyIcon,
+  Ellipsis as MoreIcon,
+  Eye as PreviewIcon,
+  File as FileIcon,
+  FolderPlus as FolderPlusIcon,
+  Globe as GlobeIcon,
+  LoaderCircle as SpinnerIcon,
+  Maximize as MaximizeIcon,
+  MessageCircle as ThreadIcon,
+  Microphone as MicIcon,
+  Paperclip as AttachIcon,
+  Pencil as PencilIcon,
+  Pin as PinFilledIcon,
+  Pin as PinIcon,
+  Plus as PlusIcon,
+  RefreshCw as ResetIcon,
+  Search as SearchIcon,
+  Send as AgentIcon,
+  Sparkles as ModelIcon,
+  Square as StopIcon,
+  Wrench as ToolIcon,
+  X as CloseIcon,
+  ZoomIn as ZoomInIcon,
+  ZoomOut as ZoomOutIcon,
+} from 'lucide-react' /*
+ * 思考图标仍保留当前本地字形。本轮文件夹图标已经由实际消费位置直接改用
+ * lucide-react，不再经过这里的本地别名。
+ */

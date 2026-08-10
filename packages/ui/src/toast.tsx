@@ -1,5 +1,5 @@
 import { Toast as BaseToast } from '@base-ui/react/toast'
-import { DangerCircle, X } from '@mynaui/icons-react'
+import { CircleAlert as DangerCircle, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { cn } from './class-names'
 

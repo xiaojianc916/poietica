@@ -1,4 +1,4 @@
-import { X } from '@mynaui/icons-react'
+import { X } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../workbench'
 import { type SurfaceIcon, surfaceIcon } from '../surface-icons'

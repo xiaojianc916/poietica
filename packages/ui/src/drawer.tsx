@@ -1,5 +1,5 @@
 import { Dialog as BaseDialog } from '@base-ui/react/dialog'
-import { X } from '@mynaui/icons-react'
+import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from './class-names'
 

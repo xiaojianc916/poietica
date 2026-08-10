@@ -135,9 +135,6 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@mynaui/icons-react':
-        specifier: 'catalog:'
-        version: 0.4.11(react@19.2.8)
       '@poietica/agent':
         specifier: workspace:*
         version: link:../../packages/agent
@@ -177,6 +174,9 @@ importers:
       '@tauri-apps/api':
         specifier: catalog:tauri
         version: 2.11.1
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.30.0(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -478,9 +478,6 @@ importers:
 
   packages/settings:
     dependencies:
-      '@mynaui/icons-react':
-        specifier: 'catalog:'
-        version: 0.4.11(react@19.2.8)
       '@poietica/agent':
         specifier: workspace:*
         version: link:../agent
@@ -496,6 +493,9 @@ importers:
       '@poietica/ui':
         specifier: workspace:*
         version: link:../ui
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.30.0(react@19.2.8)
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
@@ -530,6 +530,9 @@ importers:
       clsx:
         specifier: 'catalog:'
         version: 2.1.1
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.30.0(react@19.2.8)
       motion:
         specifier: 'catalog:'
         version: 13.0.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -564,9 +567,6 @@ importers:
 
   packages/workspace:
     dependencies:
-      '@mynaui/icons-react':
-        specifier: 'catalog:'
-        version: 0.4.11(react@19.2.8)
       '@poietica/agent':
         specifier: workspace:*
         version: link:../agent
@@ -579,6 +579,9 @@ importers:
       '@poietica/ui':
         specifier: workspace:*
         version: link:../ui
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.30.0(react@19.2.8)
       motion:
         specifier: 'catalog:'
         version: 13.0.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)

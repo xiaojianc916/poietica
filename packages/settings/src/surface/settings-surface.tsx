@@ -1,4 +1,3 @@
-import { Box, CogFour } from '@mynaui/icons-react'
 import {
   Button,
   ErrorState,
@@ -8,6 +7,7 @@ import {
   Switch,
   WebhookIcon,
 } from '@poietica/ui'
+import { Box, Settings as CogFour } from 'lucide-react'
 import {
   type ComponentType,
   createContext,

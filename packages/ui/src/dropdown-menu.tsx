@@ -1,5 +1,5 @@
 import { Menu } from '@base-ui/react/menu'
-import { ChevronRight } from '@mynaui/icons-react'
+import { ChevronRight } from 'lucide-react'
 import type { ComponentProps } from 'react'
 import { cn } from './class-names'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'

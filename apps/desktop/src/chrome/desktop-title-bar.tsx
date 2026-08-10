@@ -1,4 +1,3 @@
-import { ChevronLeft, ChevronRight } from '@mynaui/icons-react'
 import { Button } from '@poietica/ui'
 import {
   useIsSidebarDocked,
@@ -6,7 +5,7 @@ import {
   useWorkspaceLayoutState,
   workspaceLayoutStore,
 } from '@poietica/workspace'
-import { PanelLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { WindowControls } from './window-controls'
 import './desktop-title-bar.css'

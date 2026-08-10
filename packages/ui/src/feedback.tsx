@@ -1,4 +1,4 @@
-import { DangerCircle, Spinner } from '@mynaui/icons-react'
+import { CircleAlert as DangerCircle, LoaderCircle as Spinner } from 'lucide-react'
 import { Button } from './button'
 
 /*

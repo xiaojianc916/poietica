@@ -11,12 +11,12 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@mynaui/icons-react": "catalog:",
     "@poietica/agent": "workspace:*",
     "@poietica/agent-catalog": "workspace:*",
     "@poietica/core": "workspace:*",
     "@poietica/ipc": "workspace:*",
     "@poietica/ui": "workspace:*",
+    "lucide-react": "catalog:",
     "valibot": "catalog:"
   },
   "devDependencies": {

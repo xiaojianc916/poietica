@@ -1,6 +1,5 @@
 import '../surface/assistant.css'
 
-import { Edit, ExternalLink, Trash } from '@mynaui/icons-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +7,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import { FolderClosed, FolderOpen } from 'lucide-react'
+import {
+  Pencil as Edit,
+  ExternalLink,
+  FolderClosed,
+  FolderOpen,
+  Trash2 as Trash,
+} from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon } from '../primitives/icons'
 import { useHorizon, useNow } from './clock'

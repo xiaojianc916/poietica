@@ -1,4 +1,4 @@
-import { Plus } from '@mynaui/icons-react'
+import { Plus } from 'lucide-react'
 import { useCallback, useMemo, useRef } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../workbench'
 import { useWorkbenchTabsBaselineGap } from './use-workbench-tabs-baseline-gap'

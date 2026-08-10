@@ -1,4 +1,3 @@
-import { BookOpen, Code, Download } from '@mynaui/icons-react'
 import {
   Button,
   DropdownMenu,
@@ -12,7 +11,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@poietica/ui'
-import { CircleQuestionMark, Settings } from 'lucide-react'
+import { BookOpen, CircleQuestionMark, Code, Download, Settings } from 'lucide-react'
 
 import type { ReactNode } from 'react'
 

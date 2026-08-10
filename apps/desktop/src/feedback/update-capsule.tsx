@@ -1,5 +1,5 @@
-import { ArrowDown, Refresh, Spinner } from '@mynaui/icons-react'
 import type { AppUpdateState, AppUpdateStore } from '@poietica/desktop-adapters'
+import { ArrowDown, RefreshCw as Refresh, LoaderCircle as Spinner } from 'lucide-react'
 import { useSyncExternalStore } from 'react'
 
 import './update-capsule.css'

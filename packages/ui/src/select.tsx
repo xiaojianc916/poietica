@@ -1,5 +1,5 @@
 import { Select as BaseSelect } from '@base-ui/react/select'
-import { Check, ChevronDown } from '@mynaui/icons-react'
+import { Check, ChevronDown } from 'lucide-react'
 import { cn } from './class-names'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
