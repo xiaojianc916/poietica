@@ -1,4 +1,5 @@
 import type { FeedRow, ToolCallTimelineItem } from '@poietica/agent'
+import { readToolKind } from '../semantics/tool-kind'
 
 /*
  * 连续的同类工具调用合成一组。
@@ -23,6 +24,9 @@ import type { FeedRow, ToolCallTimelineItem } from '@poietica/agent'
  * semantics/tool-intent.ts 顶上那段：接第二家 agent 时那些键要搬进 AgentDialect），
  * 而 kind 是协议的（agent-contract/protocol.ts 从上游 SDK 直接 re-export）。认工具名的
  * 白名单会在接第二家 agent 那天静默失效。
+ *
+ * 查表之前先过一道 readToolKind（semantics/tool-kind.ts）：上游漏填 kind 的调用在那里
+ * 按入参形状认一次，认得出来的照常并组，认不出来的仍然是 other。查的仍然是 kind。
  *
  * 表里没有的 kind 一律不并：other 是协议的默认档，MCP 与 skill 都落在那里 —— 把语义
  * 未知的几条并成「其他 3 项」是纯粹的信息损失，读者反而要多点一次。think 不上屏
@@ -75,7 +79,7 @@ function kindOf(row: FeedRow | undefined): ToolGroupKind | undefined {
     return undefined
   }
 
-  return GROUPED.get(row.item.kind)
+  return GROUPED.get(readToolKind(row.item))
 }
 
 /**

@@ -16,14 +16,15 @@ import {
 } from '../primitives/icons'
 import { type ToolCallFacets, toToolCallFacets } from '../semantics/tool-call-facets'
 import { readToolIntent } from '../semantics/tool-intent'
+import { readToolKind } from '../semantics/tool-kind'
 import { ToolCallPanels } from './tool-call-panels'
 
 /*
  * 协议那九档各自的字形。
  *
  * default 从此只接住 other 一档 —— 九档里其余八档都在上面点了名。所以扳手不再是
- * 「兜底」，它是一个确切的意思：这次调用没有报类别。屏幕上看见扳手，就是上游那个
- * 工具没有填 kind，而不是这里少写了一个 case。
+ * 「兜底」，它是一个确切的意思：这次调用没有报类别，而且入参的形状也认不出它在做
+ * 什么（semantics/tool-kind.ts），而不是这里少写了一个 case。
  *
  * 这件事有实际用处：不报 kind 的调用不参与聚合（见 tool-group.ts 的白名单），于是
  * 「几条同类调用没有并起来」与「它们戴着扳手」是同一个原因的两个面，看一眼就够了。
@@ -153,7 +154,7 @@ function ToolCallHeader({
       type="button"
     >
       {brief === null ? (
-        <ToolKindIcon kind={item.kind} />
+        <ToolKindIcon kind={readToolKind(item)} />
       ) : (
         <ModelIcon aria-hidden="true" className="timeline-tool__icon" />
       )}
