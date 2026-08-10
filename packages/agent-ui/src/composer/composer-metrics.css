@@ -284,7 +284,7 @@
   --cp-timeline-pad: 0.625rem 0.875rem;
   --cp-timeline-said-max: 10.5rem;
   --cp-timeline-code-cap: 32rem;
-  --cp-timeline-output-max: 18rem;
+  --cp-timeline-output-max: 14rem;
   --cp-timeline-thought-cap: 13rem;
   --cp-timeline-thought-max: 48rem;
 
@@ -301,7 +301,21 @@
    * 报错摘要是 30rem，取宽的那一个：路径与 URL 的信息在尾部，截得越早，被省略号
    * 吃掉的越是文件名。
    */
-  --cp-timeline-tool-max: 32rem;
+  --cp-timeline-tool-max: 36rem;
+
+  /*
+   * 摊开的那张纸相对折叠行的缩进：一枚图标，加行内那一道间隙。
+   *
+   * 左边缘对齐图标，读起来是「一枚记号带着一整块」；对齐那句话的第一个字，读起来才是
+   * 「一句话，和它的下文」。图标说的是这次调用属于哪一类，它是行首的记号，不是这一段
+   * 内容的左界；纸是那句话摊开的样子，所以纸从字起。缩进表达从属，是树视图与日志分组
+   * 的通行编码，不是这里的发明。
+   *
+   * 这个数不许量：那一行是 flex，图标那一格是 --cp-icon，它与文字之间是 --cp-control-gap，
+   * 于是文字的起点恰好是两者之和。写成和而不是写成一个像素数，换一档图标尺寸或行内间隙
+   * 时这一处自动跟上 —— 本表第二条。
+   */
+  --cp-timeline-tool-indent: calc(var(--cp-icon) + var(--cp-control-gap));
 
   --cp-timeline-error-gap: 1rem;
 

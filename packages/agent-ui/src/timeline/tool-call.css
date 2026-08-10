@@ -97,14 +97,21 @@
  * 实色而不是一层半透明墨，理由写在 --cp-timeline-drawer-surface 那一段。圆角要
  * 能剪掉里面那一面的滚动条，所以收边在这一层。
  *
- * 宽度与折叠着的那一行同一个上限：纸是这一行摊开的样子，两者不同宽就是两个东西。
+ * 左边缘从那句话的第一个字起，不从图标起 —— 缩进为什么是那两个量的和，写在
+ * --cp-timeline-tool-indent 那一节。
+ *
+ * 右边缘仍与那一行齐平，所以上限是同一个数减掉缩进：只把纸右移而不收上限，它会整块
+ * 探出一枚图标的宽度，右侧于是参差，而这一段注释又在说两者同宽。这一步减法留在消费
+ * 处 —— 两个独立的量归令牌表，「右边与行齐平」是这一处的排版主张，不是第三个可调的数。
+ *
  * 长内容不折行，横向由面板那唯一一个滚动容器接住 —— 封顶不会吃掉任何字符。
  */
 .timeline-tool__body {
   display: grid;
   gap: 0;
-  max-inline-size: min(100%, var(--cp-timeline-tool-max));
+  max-inline-size: min(100%, var(--cp-timeline-tool-max) - var(--cp-timeline-tool-indent));
   margin-block-start: var(--cp-control-gap);
+  margin-inline-start: var(--cp-timeline-tool-indent);
   border-radius: var(--cp-radius-item);
   background: var(--cp-timeline-drawer-surface);
   overflow: hidden;
