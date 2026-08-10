@@ -172,6 +172,12 @@ async agentRenameThread(request: AgentRenameThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_rename_thread", { request });
 },
 /**
+ * Archives or restores a conversation.
+ */
+async agentArchiveThread(request: AgentArchiveThreadRequest) : Promise<null> {
+    return await TAURI_INVOKE("agent_archive_thread", { request });
+},
+/**
  * Deletes a conversation, on this side and on the agent's.
  * 
  * 本地那一份是一行索引，一句 DELETE 就没了：这张表底下已经不挂任何东西。
@@ -509,7 +515,7 @@ async windowOpenDevtools(label: string) : Promise<void> {
  * 到外站，等于把应用替换成一个回不来的浏览器 —— 用户只能去杀进程。所以渲染层
  * 里所有 http(s) 链接都在 capture 阶段被拦下，改走这里。
  * 
- * 协议白名单在渲染层（presentation/chrome/external-links.ts）先过一遍，这里
+ * 协议白名单在渲染层（chrome/external-links.ts）先过一遍，这里
  * 再过一遍：一条能把任意字符串交给系统 shell 的命令，不能只靠调用方自律。
  * 
  * 打不开一个链接不是故障，不中断调用方：拒掉一个非 web 协议、以及系统浏览器没能
@@ -806,6 +812,18 @@ updateProgress: "update-progress"
 
 /** user-defined types **/
 
+/**
+ * A conversation being archived or restored.
+ */
+export type AgentArchiveThreadRequest = { 
+/**
+ * The conversation the action applies to.
+ */
+threadId: string; 
+/**
+ * True archives it; false restores it.
+ */
+archived: boolean }
 /**
  * 要停的那条对话。
  */
@@ -1286,7 +1304,11 @@ pinned: boolean;
  * 它是在哪个工作目录里开的。列表按它分组；空表示默认那一个工作区
  * （thread-order.ts 的 DEFAULT_WORKSPACE_ID 那一段说明了为什么）。
  */
-workspaceRoot: string | null }
+workspaceRoot: string | null; 
+/**
+ * 是否已经离开活动会话列表。
+ */
+archived: boolean }
 /**
  * 这条对话挂着的一张附件，以及它该出现在哪里。
  * 

@@ -288,6 +288,7 @@ export function WorkspaceContainer({
       dataDirectory={dataDirectory}
       onDismiss={onSettingsClose}
       store={settingsStore}
+      threads={threads}
     >
       {shell}
     </SettingsProvider>

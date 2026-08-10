@@ -119,6 +119,7 @@ impl AgentStore {
                 updated_at: row.get(5)?,
                 pinned: row.get::<_, i64>(6)? != 0,
                 workspace_root: row.get(7)?,
+                archived_at: row.get(8)?,
             })),
             None => Ok(None),
         }

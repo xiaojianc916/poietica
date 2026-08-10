@@ -1,3 +1,4 @@
+import type { ThreadsStore } from '@poietica/agent'
 import {
   Button,
   ErrorState,
@@ -7,7 +8,7 @@ import {
   Switch,
   WebhookIcon,
 } from '@poietica/ui'
-import { Box, Settings as CogFour } from 'lucide-react'
+import { Archive, Box, Settings as CogFour } from 'lucide-react'
 import {
   type ComponentType,
   createContext,
@@ -23,6 +24,7 @@ import type { AgentConfigStore } from '../agent-config-store'
 import { ModelsSettings } from '../models/models-settings'
 import type { AppSettings } from '../settings'
 import type { SettingsStore } from '../settings-store'
+import { ArchivedChatsSettings } from './archived-chats-settings'
 import {
   type SettingsController,
   type SettingsOperation,
@@ -33,6 +35,7 @@ import './settings-surface.css'
 type SettingsSection =
   | 'general'
   | 'appearance'
+  | 'archived'
   | 'models'
   | 'keymap'
   | 'hooks'
@@ -62,6 +65,7 @@ type SettingsSection =
 const SECTIONS: Record<SettingsSection, string> = {
   general: '通用',
   appearance: '外观',
+  archived: '已归档',
   models: '模型',
   keymap: '快捷键',
   hooks: '钩子',
@@ -75,7 +79,7 @@ const SECTIONS: Record<SettingsSection, string> = {
  * 标签仍然来自 SECTIONS，避免同一份文案出现两处。
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
-  ['general', 'appearance'],
+  ['general', 'appearance', 'archived'],
   ['models', 'keymap', 'hooks', 'tools'],
   ['privacy', 'about'],
 ]
@@ -90,6 +94,7 @@ const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
 interface SettingsSurfaceContextValue {
   readonly controller: SettingsController
   readonly agentConfigStore: AgentConfigStore
+  readonly threads: ThreadsStore
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
   readonly section: SettingsSection
@@ -112,6 +117,7 @@ function useSettingsSurface(): SettingsSurfaceContextValue {
 export interface SettingsProviderProps {
   readonly store: SettingsStore
   readonly agentConfigStore: AgentConfigStore
+  readonly threads: ThreadsStore
   /**
    * 这台机器上，这个应用的数据落在哪，由组合根注入。
    *
@@ -134,6 +140,7 @@ export interface SettingsProviderProps {
 export function SettingsProvider({
   store,
   agentConfigStore,
+  threads,
   appVersion,
   dataDirectory,
   onDismiss,
@@ -161,13 +168,14 @@ export function SettingsProvider({
     () => ({
       controller,
       agentConfigStore,
+      threads,
       appVersion,
       dataDirectory,
       section,
       onSelect: setSection,
       onBack: controller.requestClose,
     }),
-    [agentConfigStore, appVersion, controller, dataDirectory, section],
+    [agentConfigStore, appVersion, controller, dataDirectory, section, threads],
   )
 
   return <SettingsSurfaceContext value={value}>{children}</SettingsSurfaceContext>
@@ -192,7 +200,8 @@ export function SettingsNavigationRegion({ footer }: SettingsNavigationRegionPro
 }
 
 export function SettingsContentRegion() {
-  const { controller, agentConfigStore, appVersion, dataDirectory, section } = useSettingsSurface()
+  const { controller, agentConfigStore, appVersion, dataDirectory, section, threads } =
+    useSettingsSurface()
 
   return (
     <div aria-live="polite" className="settings-content">
@@ -228,6 +237,7 @@ export function SettingsContentRegion() {
               dataDirectory={dataDirectory}
               section={section}
               settings={controller.settings}
+              threads={threads}
             />
           </>
         ) : null}
@@ -306,6 +316,7 @@ interface SettingsSectionContentProps {
   readonly settings: AppSettings
   readonly controller: SettingsController
   readonly agentConfigStore: AgentConfigStore
+  readonly threads: ThreadsStore
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
 }
@@ -315,6 +326,7 @@ function SettingsSectionContent({
   settings,
   controller,
   agentConfigStore,
+  threads,
   appVersion,
   dataDirectory,
 }: SettingsSectionContentProps) {
@@ -324,6 +336,9 @@ function SettingsSectionContent({
 
     case 'appearance':
       return <AppearanceSettings controller={controller} settings={settings} />
+
+    case 'archived':
+      return <ArchivedChatsSettings threads={threads} />
 
     case 'models':
       return <ModelsSettings store={agentConfigStore} />
@@ -679,12 +694,13 @@ type GlyphComponent = ComponentType<{
  * 拆成两张 Record 而不是在组件里写 if：新增分类时 PathSection 一侧会缺键，
  * typecheck 阶段就会失败，而不是运行时渲染出一个空图标。
  */
-type GlyphSection = 'general' | 'hooks' | 'tools'
+type GlyphSection = 'general' | 'archived' | 'hooks' | 'tools'
 
 type PathSection = Exclude<SettingsSection, GlyphSection>
 
 const SECTION_GLYPHS: Record<GlyphSection, GlyphComponent> = {
   general: CogFour,
+  archived: Archive,
   hooks: WebhookIcon,
   tools: Box,
 }
@@ -730,7 +746,9 @@ const SECTION_PATHS: Record<PathSection, ReactNode> = {
 }
 
 function isGlyphSection(section: SettingsSection): section is GlyphSection {
-  return section === 'general' || section === 'hooks' || section === 'tools'
+  return (
+    section === 'general' || section === 'archived' || section === 'hooks' || section === 'tools'
+  )
 }
 
 function SectionIcon({ section }: { readonly section: SettingsSection }) {
