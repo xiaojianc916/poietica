@@ -74,7 +74,6 @@ export function ToolCallPanels({
   const face = (
     <VirtualProse
       bodyClassName="timeline-tool__prose"
-      chaseEnd={false}
       isStreaming={false}
       scrollRef={scrollRef}
       text={text}
