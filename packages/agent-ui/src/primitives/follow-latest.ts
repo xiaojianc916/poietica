@@ -11,6 +11,18 @@ import { useCallback, useRef, useSyncExternalStore } from 'react'
 const NEAR_END_PX = 48
 
 /**
+ * 一段返回位移走多久。
+ *
+ * 固定值，与要走的距离无关，所以一段很长的对话与一段很短的对话回到末端的手感是同一个 ——
+ * 这是「回到最新」这个动作该有的性质：它不是在遍历历史，是在换一个落点。
+ *
+ * 量级取自仓库里最近的同类数字 --cp-motion-settle（320ms）。没有直接吃那个令牌：它是 CSS
+ * 自定义属性，从这里拿它要 getComputedStyle 再解析字符串，还会把这个 hook 拴到皮肤层上，
+ * 而这个数字描述的是滚动位置的行为，不是外观。
+ */
+const TRAVEL_MS = 360
+
+/**
  * 人主动改变一段内容高度的标准声明。
  *
  * aria-expanded 是 WAI-ARIA 给「这个控件控制一段可展开区域」的属性，封条与抽屉的开关全都
@@ -55,19 +67,45 @@ export function staysWithLatest(geometry: ScrollGeometry): boolean {
 }
 
 /**
- * 一段返回位移从哪里起飞。
+ * 位移的曲线：三次缓出。
  *
- * 动画只演最后一屏，起飞点之前的那一段瞬时跳过去。理由是时长不在我手里：
- * scrollTo 的 smooth 由 UA 定时长与曲线，没有任何接口能调，所以能控制的只有距离 —— 而距离
- * 一旦无界，位移时长就随会话长度增长，几万像素的路上你看见的是一片还没渲染的空白在糊过去。
- *
- * 上界取一屏，不取一个像素数：它自己跟着窗口缩放走，也不必往令牌表里添一个新数字。距离
- * 不足一屏时它退化成 0，于是「往上翻了一点点」这种常见情形完全不受影响。
- *
- * 这也是标杆的形状：回到最新的时长与历史长度无关。
+ * 前段快、末段慢。匀速读起来像机器在拖，而缓出读起来是「被拽了一把然后放手」—— 这是位移
+ * 类过渡的通行形状，也是这个界面上其它过渡的形状（--ui-ease-standard 一族同样是减速为主）。
  */
-export function takeoffOffset(geometry: ScrollGeometry): number {
-  return Math.max(geometry.scrollHeight - geometry.clientHeight * 2, 0)
+export function easeOut(fraction: number): number {
+  const remaining = 1 - fraction
+
+  return 1 - remaining * remaining * remaining
+}
+
+/**
+ * 位移在某一时刻该落在哪；返回 null 表示这一段走完了。
+ *
+ * 目标每一次都从传进来的几何重算，而不是在开始时算一次记住：虚拟列表的总高是估出来的，行
+ * 被真实测量后它会改，内容边写边长时它也在改。捕获一次目标的做法（平台的平滑滚动就是这么
+ * 做的）会在半路把终点定死在一个已经不存在的位置上。
+ *
+ * 两个终止条件都不依赖运气：时间到，或者末端跑到了当前位置的后面（内容缩短时会发生）。
+ *
+ * 取 max 是为了单调：目标缩短会让算出的位置回到当前位置之上，而位移途中任何一次向上写入
+ * 都是可见的抽动。宁可写一个没有位移的值（浏览器不会为它派发滚动），也不往上顶。
+ */
+export function travelStep(
+  origin: number,
+  geometry: ScrollGeometry,
+  fraction: number,
+): number | null {
+  if (fraction >= 1) {
+    return null
+  }
+
+  const target = geometry.scrollHeight - geometry.clientHeight
+
+  if (target <= geometry.scrollTop) {
+    return null
+  }
+
+  return Math.max(origin + (target - origin) * easeOut(fraction), geometry.scrollTop)
 }
 
 /**
@@ -97,10 +135,8 @@ const TRAVELING: FollowState = { follows: true, traveling: true }
  * shrank 那一项不是保险，是必须：内容变短时浏览器会把 scrollTop 夹小，这在事件层与人往上
  * 拨一模一样，而它是折叠引起的，不是手势。
  *
- * 位移一旦开始就整段归浏览器，中途不看距离、不提前交接。提前交接过一版：进了近末端那一带
- * 就收回控制权，结果两个写者同时存在 —— 这边瞬时写到最大偏移，那边还在朝它捕获的旧目标
- * 插值，而旧目标更靠上，于是落底前会被往上顶一下。位移的收尾只有两个出口：scrollend，
- * 或者有人往上拨。
+ * 位移途中不看距离：进了近末端那一带也不收状态。收过一版，结果是两个写者同时存在，落底前
+ * 会被往上顶一下。位移只由持有它的那个循环终止，或者由人往上拨终止。
  */
 export function nextFollow(
   before: ScrollGeometry,
@@ -108,7 +144,7 @@ export function nextFollow(
   now: FollowState,
   ours: boolean,
 ): FollowState {
-  /* 自己那一笔瞬时写入必然写到末端，而位移期间不会有那一笔。 */
+  /* 自己那一笔瞬时贴合必然写到末端，而位移期间不会有那一笔。 */
   if (ours) {
     return AT_LATEST
   }
@@ -116,7 +152,7 @@ export function nextFollow(
   const wentUp = after.scrollTop < before.scrollTop
   const shrank = after.scrollHeight < before.scrollHeight
 
-  /* 位移途中也一样成立：浏览器会为用户的输入中止程序化的平滑滚动，这里必须当场让开。 */
+  /* 位移途中同样成立，而且这就是位移的取消路径。 */
   if (wentUp && !shrank) {
     return LET_GO
   }
@@ -138,7 +174,7 @@ export interface FollowLatest {
   readonly release: () => void
   /** 重新跟上，并瞬时拨到末端。给「打开一个小盒子」这类没有距离的返回。 */
   readonly resume: () => void
-  /** 重新跟上，并带着一段有上界的可见位移回到末端。给人亲手要求的那一次返回。 */
+  /** 重新跟上，并带着一段看得见的位移回到末端。给人亲手要求的那一次返回。 */
   readonly travel: () => void
   readonly watch: (viewport: HTMLElement) => () => void
 }
@@ -155,39 +191,36 @@ export interface FollowLatest {
  * 界面最活跃的东西，而这不是配置没调好，是它的坐标系里没有那些东西：
  *
  *   - 瞬态过程区与等待指示器坐在 paddingEnd 里。paddingEnd 是一个数字而不是条目，它变大既
- *     不经过 resizeItem（那个只由带 data-index 的节点触发），也不满足追加判据 —— 库里没有
- *     任何一条路径会为它拨动滚动位置。
- *   - 「贴没贴底」在库内部有两个不同源的定义：resizeItem 读 getVirtualDistanceFromEnd()，
- *     追加那条门读 isAtEnd()。前者是模型推算，后者是 DOM 真值。
- *   - 增量补偿写在 ResizeObserver 回调里，而长高要等 React 提交才落到 DOM，所以那次
- *     scrollTop 写入会被浏览器夹掉；库把意图记在自己的 scrollOffset 里，DOM 从此落后一截。
- *     这一条是库源码自己的注释写下的。
- *   - 它还不受调用方的策略约束：一个声明了「不要追末端」的盒子，仍然会在内容追加时被拨到
- *     最后一行。策略与判据在那套原语里是同一个开关，而它们不是同一件事。
+ *     不经过 resizeItem（那个只由带 data-index 的节点触发），也不满足追加判据。
+ *   - 「贴没贴底」在库内部有两个不同源的定义：resizeItem 读推算距离，追加那道门读 DOM 真值。
+ *   - 增量补偿写在 ResizeObserver 回调里，而长高要等 React 提交才落到 DOM，那次写入会被
+ *     浏览器夹掉；库把意图记在自己的偏移量里，DOM 从此落后一截。这条是库源码自己的注释。
+ *   - 它不受调用方的策略约束：一个声明了「不要追末端」的盒子，仍会在内容追加时被拨到末行。
  *
  * 落位有两种方式，而不是一种。
  *
  * 持续跟随不补间：流式输出每帧长几十像素，动画追一个还在往下跑的目标永远追不上，视口会一直
  * 落在真末端后面一截，纸面读起来是自己在往上爬。所以 stick 写 scrollTop，瞬时。
  *
- * 人亲手要求的那一次返回反过来必须补间：那是一段有距离的位移，闪现会把「我刚才在哪」抹掉。
- * 这一段整段交给 scrollTo 的 smooth —— CSSOM View 定义的平台能力，跑在合成器上，用户一拨
- * 滚轮浏览器自己会中止它。手写一个 rAF 循环去写 scrollTop 换来的是曲线控制权，代价是那套
- * 中止语义要自己重写一遍，必然漏；而曲线控制权我并不需要，因为距离已经被 takeoffOffset
- * 限住了。
+ * 人亲手要求的那一次返回必须补间：那是一段有距离的位移，闪现会把「我刚才在哪」抹掉。这一段
+ * 由这里自己持有一个 rAF 循环走完，不用 scrollTo 的 smooth —— 那个原语在这个场景下三条都不
+ * 成立：时长与曲线由 UA 定、没有接口；它在开始时捕获一次目标，而虚拟列表的目标每帧都在动；
+ * 它的完成事件同样会被程序化的瞬时写入触发，于是位移的收尾会被自己的启动动作提前放行。标杆
+ * 也是自己写循环并每帧重读目标（use-stick-to-bottom），理由就是内容会在途中长高。
  *
- * 两种方式共存的代价就是 traveling 这一位：位移进行时贴合整段让路，一次瞬时写入会当场把
- * 动画掐掉。它有两个出口，都不依赖运气：scrollend（平台给「滚动真的停了」的事件，两个虚拟
- * 窗口已经在用它），或者有人往上拨。而位移只在确实有距离可走时才开始，所以它一定会产生
- * 滚动，也就一定会有这两个出口之一。
+ * 自己持有循环唯一要还的债是取消，而这笔债由规范抵掉：HTML 的 update the rendering 把滚动
+ * 事件的派发排在 rAF 回调之前，所以人在第 N 帧拨了滚轮，第 N 帧的滚动事件先到、方向判据当场
+ * 放手，同一帧稍后的循环回调看见状态已变就直接不写。取消是一帧内精确的，不需要额外去监听
+ * 任何输入事件。
+ *
+ * 两种方式共存的代价是 traveling 这一位：位移进行时贴合整段让路，一次瞬时写入会当场把它掐掉。
  *
  * 减弱动态偏好下位移退化成瞬时贴合，问的是 motion 的 useReducedMotion —— 与 live-process
  * 同一个来源，这个界面上「要不要少一些动效」只有一个答案。
  *
- * 状态一共三处，各自只有一个存储位置：意图与位移（FollowState）、几何（在不在末端）、以及
- * 上一次读到的几何。前两位不参与渲染，所以是 ref；几何要画那枚按钮，所以它经
- * useSyncExternalStore 发布 —— 那是 React 给「外部可变值参与渲染」的官方接口，一处存储加
- * 一条通知，而不是 ref 一份、state 一份互相同步。
+ * 状态各自只有一个存储位置：意图与位移（FollowState）、上一次读到的几何、几何（在不在末端）。
+ * 前两者不参与渲染，所以是 ref；末一个要画那枚按钮，所以它经 useSyncExternalStore 发布 ——
+ * 那是 React 给「外部可变值参与渲染」的官方接口，一处存储加一条通知。
  */
 export function useFollowLatest(): FollowLatest {
   const viewport = useRef<HTMLElement | null>(null)
@@ -197,14 +230,16 @@ export function useFollowLatest(): FollowLatest {
   const state = useRef<FollowState>(AT_LATEST)
 
   /*
-   * 自己写的那一笔。
+   * 自己写的那一笔瞬时贴合。
    *
-   * 只在写入真的改变了值时才立起来：值没变浏览器不派发 scroll，标记会一直挂着，然后吞掉人
-   * 下一次向上滚 —— 那是同一类 bug 的另一种形态。
+   * 只在写入真的改变了值时才立起来：值没变浏览器不派发滚动事件，标记会一直挂着，然后吞掉人
+   * 下一次向上滚。位移循环的每帧写入不立这个标记 —— 立了会让判据把位移当成「贴合刚做完」，
+   * 当场收掉状态。
    */
   const ours = useRef(false)
 
   const last = useRef<ScrollGeometry>({ clientHeight: 0, scrollHeight: 0, scrollTop: 0 })
+  const travelFrame = useRef<number | null>(null)
 
   const atLatest = useRef(true)
   const listeners = useRef(new Set<() => void>())
@@ -231,6 +266,13 @@ export function useFollowLatest(): FollowLatest {
     }
   }, [])
 
+  const stopTravel = useCallback(() => {
+    if (travelFrame.current !== null) {
+      cancelAnimationFrame(travelFrame.current)
+      travelFrame.current = null
+    }
+  }, [])
+
   const stick = useCallback(() => {
     const element = viewport.current
 
@@ -245,10 +287,8 @@ export function useFollowLatest(): FollowLatest {
        * 写一个必然越界的值，让浏览器去夹。
        *
        * CSSOM View 规定 scrollTop 的 setter 把值夹进可滚动范围，所以这一句就是「拨到末端」
-       * 的全文，不必先读再算再写回去。写完立刻读，读到的是夹过的真值。
-       *
-       * 它是瞬时的，因为滚动区的 scroll-behavior 是 auto —— setter 用的是那个计算值。那句
-       * 声明因此是承重的，改成 smooth 会把这一路也变成动画，两条落位方式当场打架。
+       * 的全文。它是瞬时的，因为滚动区的 scroll-behavior 是 auto —— setter 用的是那个计算
+       * 值。那句声明因此是承重的：改成 smooth 会让持续跟随和位移循环的每帧写入全都变成动画。
        */
       element.scrollTop = element.scrollHeight
 
@@ -286,11 +326,12 @@ export function useFollowLatest(): FollowLatest {
       return
     }
 
+    /* 连点两次不该跑出两个循环互相写。 */
+    stopTravel()
+
     const geometry = seen(element)
 
-    /*
-     * 没有距离可走，或者这个人要求少一些动效：直接贴合。一段看不见的动画不值得一个状态。
-     */
+    /* 没有距离可走，或者这个人要求少一些动效：直接贴合。一段看不见的动画不值得一个状态。 */
     if (reduced === true || staysWithLatest(geometry)) {
       state.current = AT_LATEST
       stick()
@@ -298,24 +339,38 @@ export function useFollowLatest(): FollowLatest {
       return
     }
 
-    /* 先立状态，再写位置：这两笔写入都会派发 scroll，而那时判据必须已经知道位移开始了。 */
     state.current = TRAVELING
 
-    const takeoff = takeoffOffset(geometry)
+    const origin = geometry.scrollTop
 
-    if (geometry.scrollTop < takeoff) {
-      element.scrollTop = takeoff
+    /* rAF 回调的时间戳与 performance.now() 同一个时间原点，所以这两个数可以直接相减。 */
+    const startedAt = performance.now()
+
+    const step = (time: number) => {
+      travelFrame.current = null
+
+      const box = viewport.current
+
+      /* 有人接手了滚动位置，或者盒子已经拆了：一步都不写。 */
+      if (box === null || !state.current.traveling) {
+        return
+      }
+
+      const next = travelStep(origin, seen(box), (time - startedAt) / TRAVEL_MS)
+
+      if (next === null) {
+        state.current = AT_LATEST
+        stick()
+
+        return
+      }
+
+      box.scrollTop = next
+      travelFrame.current = requestAnimationFrame(step)
     }
 
-    last.current = seen(element)
-    publish(staysWithLatest(last.current))
-
-    /*
-     * 目标写成 scrollHeight 而不是 scrollHeight - clientHeight：越界值由浏览器夹到最大滚动
-     * 偏移，与瞬时贴合同一个写法，两条路径因此没有第二个「末端在哪」的定义。
-     */
-    element.scrollTo({ behavior: 'smooth', top: element.scrollHeight })
-  }, [publish, reduced, stick])
+    travelFrame.current = requestAnimationFrame(step)
+  }, [reduced, stick, stopTravel])
 
   const watch = useCallback(
     (element: HTMLElement) => {
@@ -333,21 +388,6 @@ export function useFollowLatest(): FollowLatest {
       }
 
       /*
-       * 位移落定，控制权交回来。
-       *
-       * 位移途中内容会长高，动画因此可能停在真末端上方一截 —— 那一截由这里的瞬时贴合补上，
-       * 方向永远向下。这是整段位移里我唯一插手的一次，而它发生在动画结束之后。
-       */
-      const onScrollEnd = () => {
-        if (!state.current.traveling) {
-          return
-        }
-
-        state.current = { follows: state.current.follows, traveling: false }
-        stick()
-      }
-
-      /*
        * 人亲手展开或收起一段内容时，末端不再是家。
        *
        * 没有这一条，读者在末端点开封条会被立刻拨回末端 —— 而他要看的东西在上面。委托在滚动
@@ -362,17 +402,16 @@ export function useFollowLatest(): FollowLatest {
       }
 
       element.addEventListener('scroll', onScroll, { passive: true })
-      element.addEventListener('scrollend', onScrollEnd)
       element.addEventListener('click', onToggle)
 
       return () => {
+        stopTravel()
         element.removeEventListener('scroll', onScroll)
-        element.removeEventListener('scrollend', onScrollEnd)
         element.removeEventListener('click', onToggle)
         viewport.current = null
       }
     },
-    [publish, stick],
+    [publish, stopTravel],
   )
 
   return {
