@@ -228,8 +228,9 @@ describe('SettingsSession', () => {
         theme: 'dark',
       }),
 
-      save: async (settings) => {
+      save: (settings) => {
         saves.push(settings)
+        return Promise.resolve()
       },
 
       reset: () => resetResult.promise,
@@ -269,14 +270,14 @@ describe('SettingsSession', () => {
     let attempts = 0
 
     const store: SettingsStore = {
-      load: async () => {
+      load: () => {
         attempts += 1
 
         if (attempts === 1) {
-          throw new Error('disk unavailable')
+          return Promise.reject(new Error('disk unavailable'))
         }
 
-        return INITIAL
+        return Promise.resolve(INITIAL)
       },
 
       save: async () => undefined,
