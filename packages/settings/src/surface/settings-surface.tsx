@@ -65,7 +65,7 @@ const SECTIONS: Record<SettingsSection, string> = {
   models: '模型',
   keymap: '快捷键',
   hooks: '钩子',
-  tools: 'Tool',
+  tools: 'plugin',
   privacy: '隐私',
   about: '关于',
 }

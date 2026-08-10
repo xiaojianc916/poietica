@@ -1,8 +1,14 @@
-//! 对话本身：列、开、改名、删、置顶。
+//! 对话本身：列、开、改名、归档、删、置顶。
+
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::attachments::forget_blob;
-use crate::error::Error;
+use crate::error::{Error, Result};
+use crate::paths::agent_home;
 use poietica_agent_persistence_native::TitleSource;
 use tauri::{AppHandle, State, async_runtime};
 
@@ -10,7 +16,8 @@ use super::addressing::{Held, Wanted, session_for};
 use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
-    AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest, AgentRenameThreadRequest,
+    AgentArchiveThreadRequest, AgentOpenThreadRequest, AgentOpenedThread,
+    AgentPinThreadRequest, AgentRenameThreadRequest,
     AgentThread, AgentThreadRequest, AgentTitleSource, AgentTurnSpan, FALLBACK_THREAD_TITLE,
     NO_THREAD,
 };
@@ -177,6 +184,7 @@ fn retitle(thread: poietica_agent_persistence_native::ThreadSummary) -> AgentThr
         updated_at: thread.updated_at,
         pinned: thread.pinned,
         workspace_root: thread.workspace_root,
+        archived: thread.archived_at.is_some(),
     }
 }
 
@@ -210,6 +218,183 @@ pub async fn agent_rename_thread(
     .await?;
 
     Ok(())
+}
+
+/// Archives or restores a conversation.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_archive_thread(
+    app: AppHandle,
+    state: State<'_, AgentRuntime>,
+    request: AgentArchiveThreadRequest,
+) -> AgentCommandResult<()> {
+    let id = conversation(&request.thread_id)?;
+    let archived = request.archived;
+
+    let stored = on_store(&state, move |store| {
+        store
+            .thread(id)
+            .map_err(persistence)?
+            .ok_or_else(|| Error::Validation("the conversation does not exist".to_owned()))
+    })
+    .await?;
+
+    /*
+     * Kimi 的归档状态属于 Kimi 自己的会话。
+     *
+     * Poietica 不启动 kimi web，因此不能依赖它的 HTTP PATCH 路由。官方路由最终
+     * 写的就是 state.json 中这三格；这里写同一份文件、同一组字段，并保留其它
+     * 所有字段。找不到官方状态文件时拒绝本地归档，避免两边显示出两个答案。
+     */
+    if stored.agent_id.as_deref() == Some("kimi")
+        && let Some(session_id) = stored.session_id
+    {
+        let home = agent_home(&app, "kimi")?;
+
+        async_runtime::spawn_blocking(move || {
+            sync_kimi_archive_state(&home, &session_id, archived)
+        })
+        .await
+        .map_err(|_dropped| {
+            Error::Internal("the Kimi archive write did not finish".to_owned())
+        })??;
+    }
+
+    on_store(&state, move |store| {
+        store.set_archived(id, archived).map_err(persistence)
+    })
+    .await?;
+
+    Ok(())
+}
+
+/// Writes the fields used by Kimi Code's official archive implementation.
+fn sync_kimi_archive_state(
+    home: &Path,
+    session_id: &str,
+    archived: bool,
+) -> Result<()> {
+    let state_path = find_kimi_state(home, session_id, 0)?
+        .ok_or_else(|| {
+            Error::Internal(format!(
+                "找不到 Kimi 会话 {session_id} 的官方 state.json，归档已取消"
+            ))
+        })?;
+
+    let text = fs::read_to_string(&state_path)
+        .map_err(|error| Error::Persistence(error.to_string()))?;
+
+    let mut state: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|error| Error::Persistence(error.to_string()))?;
+
+    let object = state.as_object_mut().ok_or_else(|| {
+        Error::Persistence("Kimi state.json 的根不是对象".to_owned())
+    })?;
+
+    object.insert(
+        "archived".to_owned(),
+        serde_json::Value::Bool(archived),
+    );
+
+    object.insert(
+        "auto_archive_exempt".to_owned(),
+        serde_json::Value::Bool(!archived),
+    );
+
+    let archived_at = if archived {
+        let seconds = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|error| Error::Internal(error.to_string()))?
+            .as_secs_f64();
+
+        serde_json::Number::from_f64(seconds)
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| {
+                Error::Internal("无法生成 Kimi 归档时间".to_owned())
+            })?
+    } else {
+        serde_json::Value::Null
+    };
+
+    object.insert("archived_at".to_owned(), archived_at);
+
+    let parent = state_path.parent().ok_or_else(|| {
+        Error::Persistence("Kimi state.json 没有父目录".to_owned())
+    })?;
+
+    /*
+     * tempfile::persist 使用同目录临时文件替换目标文件，避免只写到一半时
+     * Kimi 读到截断 JSON。
+     */
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)
+        .map_err(|error| Error::Persistence(error.to_string()))?;
+
+    serde_json::to_writer_pretty(&mut temporary, &state)
+        .map_err(|error| Error::Persistence(error.to_string()))?;
+
+    temporary
+        .write_all(b"\n")
+        .map_err(|error| Error::Persistence(error.to_string()))?;
+
+    temporary
+        .as_file()
+        .sync_all()
+        .map_err(|error| Error::Persistence(error.to_string()))?;
+
+    temporary.persist(&state_path).map_err(|error| {
+        Error::Persistence(error.error.to_string())
+    })?;
+
+    Ok(())
+}
+
+/// Finds a session state below the controlled Kimi home without reproducing
+/// Kimi's work-directory hash algorithm.
+fn find_kimi_state(
+    directory: &Path,
+    session_id: &str,
+    depth: usize,
+) -> Result<Option<PathBuf>> {
+    if depth > 10 || !directory.is_dir() {
+        return Ok(None);
+    }
+
+    let entries = fs::read_dir(directory)
+        .map_err(|error| Error::Persistence(error.to_string()))?;
+
+    let prefixed = format!("session_{session_id}");
+
+    for entry in entries {
+        let entry = entry
+            .map_err(|error| Error::Persistence(error.to_string()))?;
+
+        let file_type = entry
+            .file_type()
+            .map_err(|error| Error::Persistence(error.to_string()))?;
+
+        if !file_type.is_dir() {
+            continue;
+        }
+
+        let path = entry.path();
+        let name = entry.file_name();
+
+        if name == session_id || name == prefixed.as_str() {
+            let state = path.join("state.json");
+
+            if state.is_file() {
+                return Ok(Some(state));
+            }
+        }
+
+        if let Some(found) =
+            find_kimi_state(&path, session_id, depth + 1)?
+        {
+            return Ok(Some(found));
+        }
+    }
+
+    Ok(None)
 }
 
 /// Deletes a conversation, on this side and on the agent's.

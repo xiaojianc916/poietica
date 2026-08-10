@@ -431,6 +431,15 @@ export function createAgentThreadBridge({
       await throughIpc(() => commands.agentDeleteThread({ threadId }))
     },
 
+    archive: async (threadId, archived) => {
+      await throughIpc(() =>
+        commands.agentArchiveThread({
+          threadId,
+          archived,
+        }),
+      )
+    },
+
     setPinned: async (threadId, pinned) => {
       await throughIpc(() => commands.agentPinThread({ threadId, pinned }))
     },

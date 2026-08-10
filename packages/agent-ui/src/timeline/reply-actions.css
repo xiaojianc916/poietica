@@ -94,8 +94,8 @@
 
 .timeline-reply-actions__button svg {
   display: block;
-  inline-size: 1rem;
-  block-size: 1rem;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
   stroke-width: 1.75;
 }
 

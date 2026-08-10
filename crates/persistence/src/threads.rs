@@ -41,7 +41,7 @@ impl AgentStore {
     pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned,
-                    workspace_root
+                    workspace_root, archived_at
                FROM threads
               WHERE title_source <> 'fallback'
               ORDER BY pinned DESC, updated_at DESC",
@@ -58,6 +58,7 @@ impl AgentStore {
                     updated_at: row.get(5)?,
                     pinned: row.get::<_, i64>(6)? != 0,
                     workspace_root: row.get(7)?,
+                    archived_at: row.get(8)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -101,7 +102,7 @@ impl AgentStore {
     pub fn thread(&self, id: Uuid) -> Result<Option<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned,
-                    workspace_root
+                    workspace_root, archived_at
                FROM threads
               WHERE id = ?1",
         )?;
@@ -211,6 +212,21 @@ impl AgentStore {
         Ok(())
     }
 
+    /// Changes whether a conversation belongs to the active list.
+    ///
+    /// 归档不是删除。标题、会话号、工作区、附件关系与轮次计时全部保留，
+    /// 这里只写一枚时间戳。取消归档把时间戳清空。
+    pub fn set_archived(&self, id: Uuid, archived: bool) -> Result<()> {
+        let archived_at = if archived { Some(now()?) } else { None };
+
+        self.write(
+            "UPDATE threads SET archived_at = ?2 WHERE id = ?1",
+            rusqlite::params![id.to_string(), archived_at],
+        )?;
+
+        Ok(())
+    }
+
     /// Deletes a conversation from the local index.
     ///
     /// 一行没了就是没了：这张表底下已经不挂任何东西。对话在 agent 那边的
@@ -268,6 +284,8 @@ pub struct ThreadSummary {
     /// 空是迁移 0013 之前写下的行，含义是「默认那一个工作区」，不是「不知道」：
     /// 那时候运行期只有一个工作目录，它们本来就都在它里面。
     pub workspace_root: Option<String>,
+    /// 归档时间。空表示仍在活动列表中。
+    pub archived_at: Option<String>,
 }
 
 /// Where a thread name came from, in the order they outrank each other.

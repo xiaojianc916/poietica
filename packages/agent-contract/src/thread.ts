@@ -37,6 +37,8 @@ export interface ThreadRecord {
    * 里，读回来一行不差。这一格开始带上路径之后，界面不需要任何改动。
    */
   readonly workspaceRoot?: string | null
+  /** Whether the conversation is outside the active list. */
+  readonly archived?: boolean
 }
 
 /**
@@ -159,5 +161,7 @@ export interface ThreadPort {
   /** Renames one. The name becomes the user's and outlives the agent's. */
   readonly rename?: (threadId: ThreadId, title: string) => Promise<void>
   readonly remove?: (threadId: ThreadId) => Promise<void>
+  /** Archives or restores a conversation without deleting its history. */
+  readonly archive?: (threadId: ThreadId, archived: boolean) => Promise<void>
   readonly setPinned?: (threadId: ThreadId, pinned: boolean) => Promise<void>
 }

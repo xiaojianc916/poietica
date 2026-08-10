@@ -130,9 +130,9 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
     [threads],
   )
 
-  const remove = useCallback(
+  const archive = useCallback(
     (threadId: string) => {
-      void threads.remove(threadId)
+      void threads.archive(threadId, true)
     },
     [threads],
   )
@@ -153,8 +153,8 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
         groups={groups}
         isLoading={isLoading}
         onActivate={activate}
+        onArchive={archive}
         onCreate={create}
-        onDelete={remove}
         onOpenInNewTab={openInNewTab}
         onPin={pin}
         onRename={rename}

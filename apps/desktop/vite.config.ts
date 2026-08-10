@@ -18,6 +18,19 @@ export default defineConfig({
     tailwindcss(),
   ],
   clearScreen: false,
+
+  /*
+   * Mermaid 面板仍然通过动态 import 按需加载，生产构建不会因此进入首屏。
+   *
+   * 开发环境则提前完成依赖预构建。否则它第一次出现时才进入 Vite
+   * dependency optimizer；依赖或锁文件刚发生变化时，已经打开的页面可能
+   * 继续请求旧 Hash 对应的 @streamdown_mermaid.js，最终得到
+   * “Failed to fetch dynamically imported module”。
+   */
+  optimizeDeps: {
+    include: ['@streamdown/mermaid'],
+  },
+
   server: {
     port: 1420,
     strictPort: true,

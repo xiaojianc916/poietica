@@ -13,6 +13,8 @@ interface Held {
   readonly failure: string | null
 }
 
+const NO_PROVISIONAL: ReadonlyMap<string, string> = new Map()
+
 const EMPTY: Held = {
   threads: [],
   pending: [],
@@ -68,6 +70,9 @@ export class ThreadsStore {
   /* 快照投影成列表的那一段，连同它逐行复用的缓存。 */
   readonly #projection = new ThreadProjection()
 
+  /** 已归档列表有自己的逐行复用缓存，不能和活动列表共用。 */
+  readonly #archivedProjection = new ThreadProjection()
+
   /*
    * 刚开出来、还没有人开口的那些对话在哪个目录里。
    *
@@ -81,6 +86,12 @@ export class ThreadsStore {
   #roots = new Map<string, string | null>()
 
   #list: ThreadsList = { items: NO_ITEMS, isLoading: true, failure: null }
+
+  #archived: ThreadsList = {
+    items: NO_ITEMS,
+    isLoading: true,
+    failure: null,
+  }
 
   /*
    * 没有记下目录的对话落在哪个工作区 —— 一次求值，不是一个值。
@@ -139,6 +150,9 @@ export class ThreadsStore {
 
   /** 侧栏读的那一片。引用只在这一片真的变了时才更换。 */
   listSnapshot = (): ThreadsList => this.#list
+
+  /** 设置页读的已归档列表。 */
+  archivedSnapshot = (): ThreadsList => this.#archived
 
   /** 这条对话现在叫什么。 */
   titleOf = (threadId: string): string =>
@@ -338,6 +352,45 @@ export class ThreadsStore {
     }
   }
 
+  archive = async (threadId: string, archived: boolean): Promise<void> => {
+    const act = this.#port?.archive
+
+    if (act === undefined) {
+      return
+    }
+
+    /*
+     * 先让后端落定。Kimi 官方 state.json 与本地索引都成功后，界面才移动这一行，
+     * 避免出现屏幕已经归档、磁盘实际没有归档的状态。
+     */
+    try {
+      await act(threadId, archived)
+    } catch (reason) {
+      this.#commit({
+        failure: describeFailure(reason),
+      })
+
+      return
+    }
+
+    this.#commit({
+      threads: this.#held.threads.map((thread) =>
+        thread.threadId === threadId ? { ...thread, archived } : thread,
+      ),
+      failure: null,
+    })
+
+    /*
+     * 归档后它离开活动工作区。打开的标签、选择器和转录跟着离场；
+     * 取消归档只把它放回列表，不擅自重新打开。
+     */
+    if (archived) {
+      for (const listener of this.#removed) {
+        listener(threadId)
+      }
+    }
+  }
+
   setPinned = async (threadId: string, pinned: boolean): Promise<void> => {
     const act = this.#port?.setPinned
 
@@ -407,8 +460,18 @@ export class ThreadsStore {
     if (listing) {
       this.#project()
     } else if (next.isLoading !== this.#list.isLoading || next.failure !== this.#list.failure) {
-      /* 只有这两格变了:行一个都没变,连数组引用都不该换。 */
-      this.#list = { items: this.#list.items, isLoading: next.isLoading, failure: next.failure }
+      /* 只有加载与错误变了，两张列表都保留原来的 items 引用。 */
+      this.#list = {
+        items: this.#list.items,
+        isLoading: next.isLoading,
+        failure: next.failure,
+      }
+
+      this.#archived = {
+        items: this.#archived.items,
+        isLoading: next.isLoading,
+        failure: next.failure,
+      }
     }
 
     this.#announce()
@@ -427,25 +490,50 @@ export class ThreadsStore {
    * 它与此前那个 same 提前返回是同一个判据，只是短了。
    */
   #project(): void {
-    const { byId, items } = this.#projection.of(
-      this.#held.threads,
+    const activeThreads = this.#held.threads.filter((thread) => thread.archived !== true)
+
+    const archivedThreads = this.#held.threads.filter((thread) => thread.archived === true)
+
+    const active = this.#projection.of(
+      activeThreads,
       this.#held.pending,
       this.#held.provisional,
       this.#defaultWorkspaceId?.() ?? undefined,
     )
 
-    this.#byId = byId
+    const archived = this.#archivedProjection.of(
+      archivedThreads,
+      [],
+      NO_PROVISIONAL,
+      this.#defaultWorkspaceId?.() ?? undefined,
+    )
+
+    this.#byId = new Map([...active.byId, ...archived.byId])
 
     const { failure, isLoading } = this.#held
 
     if (
-      items === this.#list.items &&
-      this.#list.isLoading === isLoading &&
-      this.#list.failure === failure
+      active.items !== this.#list.items ||
+      this.#list.isLoading !== isLoading ||
+      this.#list.failure !== failure
     ) {
-      return
+      this.#list = {
+        items: active.items,
+        isLoading,
+        failure,
+      }
     }
 
-    this.#list = { items, isLoading, failure }
+    if (
+      archived.items !== this.#archived.items ||
+      this.#archived.isLoading !== isLoading ||
+      this.#archived.failure !== failure
+    ) {
+      this.#archived = {
+        items: archived.items,
+        isLoading,
+        failure,
+      }
+    }
   }
 }

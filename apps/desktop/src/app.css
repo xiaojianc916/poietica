@@ -251,5 +251,5 @@ body {
    * 宽度不再在这里给：条的粗细由 scrollbar-width 的 thin 一档决定，全应用同一
    * 个值。原来那两个数是画给手绘滑块看的。
    */
-  --desktop-scrollbar-thumb: #c9c9c9;
+  --desktop-scrollbar-thumb: #e4e4e5;
 }

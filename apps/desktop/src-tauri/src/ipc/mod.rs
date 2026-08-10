@@ -18,7 +18,8 @@ use tauri_specta::{Builder, ErrorHandlingMode};
 
 use crate::commands::{
     agent::dto::{
-        AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentConfigPurpose,
+        AgentArchiveThreadRequest, AgentCapabilitiesRequest, AgentConfigChoice,
+        AgentConfigControl, AgentConfigPurpose,
         AgentPinThreadRequest, AgentPromptRequest, AgentPromptResult, AgentRenameThreadRequest,
         AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentThreadRequest,
     },
@@ -61,6 +62,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent::thread::agent_threads,
             crate::commands::agent::thread::agent_open_thread,
             crate::commands::agent::thread::agent_rename_thread,
+            crate::commands::agent::thread::agent_archive_thread,
             crate::commands::agent::thread::agent_delete_thread,
             crate::commands::agent::thread::agent_pin_thread,
             crate::commands::asset::asset_formats,
@@ -118,6 +120,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentCapabilitiesRequest>()
         .typ::<AgentSelectConfigRequest>()
         .typ::<AgentRenameThreadRequest>()
+        .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()
         .typ::<AgentPinThreadRequest>()
         .typ::<AssetFormat>()

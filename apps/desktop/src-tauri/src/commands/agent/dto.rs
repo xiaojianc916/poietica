@@ -248,6 +248,8 @@ pub struct AgentThread {
     /// 它是在哪个工作目录里开的。列表按它分组；空表示默认那一个工作区
     /// （thread-order.ts 的 DEFAULT_WORKSPACE_ID 那一段说明了为什么）。
     pub workspace_root: Option<String>,
+    /// 是否已经离开活动会话列表。
+    pub archived: bool,
 }
 
 /// 这条对话挂着的一张附件，以及它该出现在哪里。
@@ -375,6 +377,16 @@ pub struct AgentRenameThreadRequest {
 pub struct AgentThreadRequest {
     /// The conversation the action applies to.
     pub thread_id: String,
+}
+
+/// A conversation being archived or restored.
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentArchiveThreadRequest {
+    /// The conversation the action applies to.
+    pub thread_id: String,
+    /// True archives it; false restores it.
+    pub archived: bool,
 }
 
 /// A conversation being held at the top of the list, or released.

@@ -7,13 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import {
-  Pencil as Edit,
-  ExternalLink,
-  FolderClosed,
-  FolderOpen,
-  Trash2 as Trash,
-} from 'lucide-react'
+import { Archive, Pencil as Edit, ExternalLink, FolderClosed, FolderOpen } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon } from '../primitives/icons'
 import { useHorizon, useNow } from './clock'
@@ -94,7 +88,7 @@ export interface AssistantThreadListProps {
   readonly onCreate: (workspaceId?: string) => void
   readonly onPin: (threadId: string, pinned: boolean) => void
   readonly onRename?: (threadId: string, title: string) => void
-  readonly onDelete?: (threadId: string) => void
+  readonly onArchive?: (threadId: string) => void
   readonly onOpenInNewTab?: (threadId: string) => void
 }
 
@@ -254,7 +248,7 @@ interface ThreadRowProps {
   readonly onBeginRename: (threadId: string) => void
   readonly onCommitRename: (threadId: string, title: string) => void
   readonly onCancelRename: () => void
-  readonly onDelete?: ((threadId: string) => void) | undefined
+  readonly onArchive?: ((threadId: string) => void) | undefined
   readonly onOpenInNewTab?: ((threadId: string) => void) | undefined
 }
 
@@ -276,7 +270,7 @@ const ThreadRow = memo(function ThreadRow({
   onBeginRename,
   onCommitRename,
   onCancelRename,
-  onDelete,
+  onArchive,
   onOpenInNewTab,
 }: ThreadRowProps) {
   /*
@@ -398,15 +392,15 @@ const ThreadRow = memo(function ThreadRow({
                     </DropdownMenuItem>
                   ) : null}
 
-                  {onDelete === undefined ? null : (
+                  {onArchive === undefined ? null : (
                     <DropdownMenuItem
                       className="assistant-thread-menu__item assistant-thread-menu__item--destructive"
                       onClick={() => {
-                        onDelete(thread.id)
+                        onArchive(thread.id)
                       }}
                     >
-                      <Trash aria-hidden="true" />
-                      <span>删除</span>
+                      <Archive aria-hidden="true" />
+                      <span>归档</span>
                     </DropdownMenuItem>
                   )}
 
@@ -513,7 +507,7 @@ export function AssistantThreadList({
   onCreate,
   onPin,
   onRename,
-  onDelete,
+  onArchive,
   onOpenInNewTab,
 }: AssistantThreadListProps) {
   /*
@@ -636,10 +630,10 @@ export function AssistantThreadList({
                       isRenaming={thread.id === renamingId}
                       key={thread.id}
                       onActivate={onActivate}
+                      onArchive={onArchive}
                       onBeginRename={beginRename}
                       onCancelRename={cancelRename}
                       onCommitRename={commitRename}
-                      onDelete={onDelete}
                       onOpenInNewTab={onOpenInNewTab}
                       onPin={onPin}
                       thread={thread}
