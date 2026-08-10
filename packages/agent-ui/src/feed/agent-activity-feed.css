@@ -57,6 +57,13 @@
    * 提交都要拨一次 —— 动画会把每一帧的新目标都当成新起点,于是永远追不上。这一句把这条
    * 约束写在盒子上,而不是留给下一个人换主题时踩。
    */
+  /*
+   * 必须留在 auto。
+   *
+   * scrollTop 的 setter 用的是这里的计算值,而末端跟随每次提交都写一次它 —— 改成 smooth,
+   * 那一路会变成动画,跟「人亲手要求回到末端」那一段位移当场互掐。要动画的那一次自己在
+   * scrollTo 里点名 smooth,那是逐次的声明,不是整个盒子的默认。
+   */
   scroll-behavior: auto;
   overscroll-behavior: contain;
   contain: layout paint;

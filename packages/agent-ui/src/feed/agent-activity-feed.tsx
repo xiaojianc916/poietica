@@ -202,20 +202,17 @@ export function AgentActivityFeed({
    * 末端由它拨,不由虚拟器拨。整段理由写在 follow-latest。
    *
    * 各有各的调用点:watch 装在滚动区上(与跳转闩锁同一处装卸),stick 在每次提交之后与每
-   * 次尺寸变化之后各拨一次,release 在人下跳转指令时让开,resume 在人要求回到末端时重新
-   * 跟上 —— 那有两个入口,一个是他又说了一句话,一个是那枚按钮。
+   * 次尺寸变化之后各拨一次,release 在人下跳转指令时让开,travel 在人亲手要求回到末端时把
+   * 视口送回去 —— 那有两个入口,一个是他又说了一句话,一个是那枚按钮。
+   *
+   * 这一层要的是 travel 而不是 resume:两者的差别只在落位方式,而这里两个入口都有距离要走,
+   * 闪现会把「我刚才在哪」抹掉。瞬时的那一路留给没有距离的返回(思考链那个小盒子)。
    *
    * atLatest 只喂那枚按钮的存在。它问的是几何(视口此刻在不在末端),不是意图(要不要跟):
    * 人在末端点开一段内容时两者分叉 —— 意图为假(不该把他拽回去),几何为真(不该冒出一枚
    * 按钮)。两个问题,同一条 staysWithLatest 判据。
    */
-  const {
-    atLatest,
-    release: releaseFollow,
-    resume: resumeFollow,
-    stick,
-    watch: watchFollow,
-  } = useFollowLatest()
+  const { atLatest, release: releaseFollow, stick, travel, watch: watchFollow } = useFollowLatest()
 
   /*
    * 虚拟器此刻铺出来的区间表，给滚动回调里的那次二分用。
@@ -398,7 +395,8 @@ export function AgentActivityFeed({
    * 触发者是数据而不是点击:最后一条我说的话换了 id,就是我又说了一句。所以输入框不必把
    * 发送事件传进滚动区,而「恢复会话」「重新发送」这些同样该回到末端的情形自动成立。
    *
-   * resume 自己会拨一次,所以这里不必再叫 stick:两件事在同一帧里完成。
+   * travel 自己会把视口送到末端,所以这里不必再叫 stick:重新跟上与回到末端是同一次动作。
+   * 从很上面发出去时那一段位移是看得见的 —— 那是刻意的,读者要知道自己被带去了哪里。
    */
   const ownMessage = latestOwnMessage(rows)
 
@@ -407,8 +405,8 @@ export function AgentActivityFeed({
       return
     }
 
-    resumeFollow()
-  }, [ownMessage, resumeFollow])
+    travel()
+  }, [ownMessage, travel])
 
   /*
    * 每一次提交之后,拨一次末端。
@@ -676,7 +674,7 @@ export function AgentActivityFeed({
         className="agent-activity-feed__to-latest"
         data-shown={atLatest ? undefined : 'true'}
         inert={atLatest}
-        onClick={resumeFollow}
+        onClick={travel}
         type="button"
       >
         <ChevronDownIcon aria-hidden="true" />
