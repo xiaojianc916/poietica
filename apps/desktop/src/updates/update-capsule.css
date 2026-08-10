@@ -1,0 +1,215 @@
+/*
+ * 更新胶囊。
+ *
+ * 图标格是锚：边长恒等于胶囊高度、位置不随相位变化，所以「圆 ⇄ 胶囊」的变形过程里
+ * 图标一个像素都不动。文字是一条可折叠的网格轨道（0fr ⇄ 1fr），展开宽度由内容决定
+ * —— 这里没有、也不允许有一个展开宽度常量。
+ *
+ * 摆在哪一端不归这一层管：底部行自己有一个 flex-1 撑开器（workspace 包的
+ * sidebar-footer.tsx），插槽内容不该知道自己被放在父布局的哪一侧。
+ *
+ * 配色只引用既有令牌，不派生。--ui-sidebar-accent 是侧栏这一层唯一的压深色（见
+ * tokens/light.css 的约定：一列界面一个色阶，不允许第二份），同一行的设置键在选中
+ * 态用的就是它；强调一律走 --ui-primary，于是深色主题自动成立。
+ *
+ * 边框与内边距不在这里声明为 0：Tailwind preflight 的 *{margin:0;padding:0;border:0 solid}
+ * 已经清过，再写一遍只是把「没有边框」这件事说两次。
+ */
+.update-capsule {
+  /* 与同行两个按钮同高，且随根字号缩放：写死 px 会在系统文本缩放下掉队。 */
+  --update-capsule-size: var(--ui-control-height-xs);
+
+  /*
+   * 填充是一层透明度而不是实色：文字要在盖住与没盖住的两侧都读得清。这个数是那条
+   * 约束的落点，不是配色口味 —— 实色填充会让被扫过的那半截字直接消失。
+   */
+  --update-capsule-fill-opacity: 0.22;
+
+  display: grid;
+  position: relative;
+  grid-template-columns: 0fr var(--update-capsule-size);
+  align-items: center;
+  border-radius: var(--ui-radius-full);
+  block-size: var(--update-capsule-size);
+  overflow: hidden;
+  background: var(--ui-sidebar-accent);
+  color: var(--ui-primary);
+  font-weight: var(--ui-font-weight-medium);
+  font-size: var(--ui-font-size-xs);
+  line-height: var(--ui-line-height-tight);
+  white-space: nowrap;
+  cursor: pointer;
+  animation: update-capsule-enter var(--ui-duration-normal) var(--ui-ease-emphasized);
+  transition:
+    grid-template-columns var(--ui-duration-normal) var(--ui-ease-standard),
+    background-color var(--ui-duration-fast) var(--ui-ease-standard),
+    color var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+/* 悬停、聚焦，或者本来就在忙：这几种情况下文字轨道是打开的。 */
+.update-capsule:hover,
+.update-capsule:focus-visible,
+.update-capsule[data-phase="downloading"],
+.update-capsule[data-phase="ready"] {
+  grid-template-columns: 1fr var(--update-capsule-size);
+}
+
+/*
+ * 悬停不换色，换的是形；实心只留给这一条。
+ *
+ * 侧栏只有 --ui-sidebar-accent 一个压深色，取第二个就是在这一层多立一份真相。而
+ * 胶囊本来就有一个别人没有的反馈 —— 它会长出来。实心是「就是这一下」的语气，只有
+ * 已经下好、真的要重启时才配得上。
+ */
+.update-capsule[data-phase="ready"]:hover {
+  background: var(--ui-primary);
+  color: var(--ui-primary-foreground);
+}
+
+.update-capsule:focus-visible {
+  outline: var(--ui-focus-ring-width) solid var(--ui-ring);
+  outline-offset: var(--ui-focus-ring-offset);
+}
+
+.update-capsule[data-phase="available"]:active,
+.update-capsule[data-phase="ready"]:active {
+  transform: scale(0.96);
+}
+
+.update-capsule[data-phase="downloading"] {
+  cursor: default;
+}
+
+/* 到达提示：一次，只一次。角落里的循环动画就是噪音。 */
+.update-capsule[data-phase="ready"] {
+  animation: update-capsule-arrive var(--ui-duration-emphasized) var(--ui-ease-emphasized);
+}
+
+/*
+ * 文字与图标压在填充层上面。
+ *
+ * 填充层是绝对定位，按 CSS 2.2 附录 E 的绘制顺序排在最后一步，普通流内容更早；这
+ * 两格不定位就会被进度盖掉。定位之后按文档顺序绘制，它们本来就排在填充层之后。
+ */
+.update-capsule__text,
+.update-capsule__glyph {
+  position: relative;
+}
+
+.update-capsule__text {
+  display: grid;
+
+  /* 网格轨道的自动最小尺寸是 auto，不归零，0fr 那一列压不下去。 */
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.update-capsule__label {
+  padding-inline: var(--ui-space-3) var(--ui-space-1);
+  opacity: 0;
+  transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.update-capsule:hover .update-capsule__label,
+.update-capsule:focus-visible .update-capsule__label,
+.update-capsule[data-phase="downloading"] .update-capsule__label,
+.update-capsule[data-phase="ready"] .update-capsule__label {
+  opacity: 1;
+
+  /* 先让出空间再上字，错开一档：否则字会在还没撑开的格子里先出现。 */
+  transition-delay: var(--ui-duration-fast);
+}
+
+/*
+ * 百分比只占数字这一格，不是整枚胶囊。
+ *
+ * tabular-nums 下每个数字恰好 1ch，三位共用同一格，于是 0% 走到 100% 期间胶囊宽度
+ * 恒定。「不抖」这条要求的落点在这里；把整枚胶囊钉成定宽不是 —— 那只会在内容短的
+ * 时候空出一大块。
+ */
+.update-capsule__value {
+  display: inline-block;
+  min-inline-size: 3ch;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.update-capsule__glyph {
+  display: grid;
+  place-items: center;
+  inline-size: var(--update-capsule-size);
+  block-size: var(--update-capsule-size);
+}
+
+/* 胶囊自己就是进度槽：填充只动 transform，逐帧不重排、不重绘。 */
+.update-capsule__fill {
+  position: absolute;
+  inset: 0;
+  transform: scaleX(var(--update-capsule-progress, 0));
+  transform-origin: left center;
+  opacity: var(--update-capsule-fill-opacity);
+  background: var(--ui-primary);
+  transition: transform var(--ui-duration-normal) var(--ui-ease-standard);
+}
+
+/*
+ * 缺 aria-valuenow 即进度未知（WAI-ARIA 1.2 progressbar）：样式与可访问性语义读同
+ * 一个属性。1400ms 是循环周期，不是交互过渡 —— --ui-duration-* 那一组是过渡刻度，
+ * 最长 320ms，装不下一次扫光，所以这里是本文件唯一一个裸数字。
+ */
+.update-capsule[data-phase="downloading"]:not([aria-valuenow]) .update-capsule__fill {
+  inline-size: 40%;
+  animation: update-capsule-sweep 1400ms var(--ui-ease-standard) infinite;
+}
+
+@keyframes update-capsule-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+}
+
+@keyframes update-capsule-arrive {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  55% {
+    transform: scale(1.06);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes update-capsule-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-capsule,
+  .update-capsule[data-phase="ready"] {
+    animation: none;
+  }
+
+  .update-capsule,
+  .update-capsule__label,
+  .update-capsule__fill {
+    transition: none;
+  }
+
+  /* 停在 40% 会被读成「已完成 40%」；进度未知就铺满，那只说明在忙。 */
+  .update-capsule[data-phase="downloading"]:not([aria-valuenow]) .update-capsule__fill {
+    inline-size: 100%;
+    transform: none;
+    animation: none;
+  }
+}
