@@ -41,7 +41,7 @@ pub async fn window_open_devtools(app: AppHandle, label: String) {
 /// 到外站，等于把应用替换成一个回不来的浏览器 —— 用户只能去杀进程。所以渲染层
 /// 里所有 http(s) 链接都在 capture 阶段被拦下，改走这里。
 ///
-/// 协议白名单在渲染层（presentation/chrome/external-links.ts）先过一遍，这里
+/// 协议白名单在渲染层（chrome/external-links.ts）先过一遍，这里
 /// 再过一遍：一条能把任意字符串交给系统 shell 的命令，不能只靠调用方自律。
 ///
 /// 打不开一个链接不是故障，不中断调用方：拒掉一个非 web 协议、以及系统浏览器没能
