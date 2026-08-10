@@ -132,8 +132,9 @@ const TRAVELING: FollowState = { follows: true, traveling: true }
  * use-stick-to-bottom（Vercel AI Elements 的 Conversation 用的就是它）判的是方向加「是不是
  * 自己写的」，距离只用来重新上闩。
  *
- * shrank 那一项不是保险，是必须：内容变短时浏览器会把 scrollTop 夹小，这在事件层与人往上
- * 拨一模一样，而它是折叠引起的，不是手势。
+ * 但方向本身不够：内容变短时浏览器会把 scrollTop 夹小，这在事件层与人往上拨一模一样，而
+ * 它是折叠或重测引起的，不是手势。所以方向要减去「这一次夹紧最多能推多少」，算法与理由
+ * 写在下面那两行旁边。
  *
  * 位移途中不看距离：进了近末端那一带也不收状态。收过一版，结果是两个写者同时存在，落底前
  * 会被往上顶一下。位移只由持有它的那个循环终止，或者由人往上拨终止。
@@ -149,11 +150,31 @@ export function nextFollow(
     return AT_LATEST
   }
 
-  const wentUp = after.scrollTop < before.scrollTop
-  const shrank = after.scrollHeight < before.scrollHeight
+  /*
+   * 一次夹紧最多能把 scrollTop 往上推多少。
+   *
+   * 可滚动范围的上界是 scrollHeight - clientHeight。内容变短、或者视口变高，这个上界就
+   * 下移，浏览器随即把越界的 scrollTop 夹回来 —— 那一下在事件层与人往上拨一模一样，这
+   * 正是原来那个 shrank 项要挡的东西。
+   *
+   * 但夹紧是有界的：它至多把 scrollTop 推到新的上界，也就是至多推这么多。超出这个额度
+   * 的位移，没有任何被动机制能产生，只可能是人。所以判据从「有没有变短」换成「走得比变
+   * 短的多不多」—— 后者是前者的严格推广：什么都没变短时额度是 0，条件退化成 moved > 0，
+   * 与原来的 wentUp 逐位相同。改动面因此精确地只有一种情形，而那一种正是坏掉的那一种。
+   *
+   * 这一项是承重的。工具行的估高与真高差着数倍（见 agent-activity-feed 的
+   * ESTIMATED_ROW_PX），人往上滚时每挂载一行就被真高替换一次，总高连着往下掉；原来的
+   * shrank 项于是一路否决放手，而变短同时把「离末端多远」压进近末端那一带，跟随重新成立，
+   * 下一次提交把人拨回底部 —— 人就粘在最底下滚不上去。
+   */
+  const moved = before.scrollTop - after.scrollTop
+  const slack = Math.max(
+    0,
+    before.scrollHeight - after.scrollHeight + (after.clientHeight - before.clientHeight),
+  )
 
   /* 位移途中同样成立，而且这就是位移的取消路径。 */
-  if (wentUp && !shrank) {
+  if (moved > slack) {
     return LET_GO
   }
 
