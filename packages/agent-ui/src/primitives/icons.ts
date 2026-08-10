@@ -60,7 +60,7 @@ export {
   LoaderCircle as SpinnerIcon,
   Maximize as MaximizeIcon,
   MessageCircle as ThreadIcon,
-  Microphone as MicIcon,
+  Mic as MicIcon,
   Paperclip as AttachIcon,
   Pencil as PencilIcon,
   Pin as PinFilledIcon,
