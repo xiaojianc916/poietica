@@ -11,9 +11,9 @@ import { TrustBadge } from './trust-badge'
 /*
  * 详情页。
  *
- * 技能与命令列的是真的读到的那些，连同它们的调用式。文件系统路径不出现在这里：人要的
- * 是「我能敲什么」，./skills 这样一条路径回答不了它；而且路径是实现细节，插件换一次目
- * 录结构不该让这一页跟着变样。
+ * 技能与命令不在这一页逐条列。装载它们的是 CLI，能敲什么由 agent 报回来的那张命令表说
+ * 了算 —— 「技能」那一格读的就是它。本应用自己扫一遍只会得到其中一部分（全局装的技能
+ * 它看不见），两份清单并存就一定有一天对不上。这一页只说这个插件声明了什么、拨得动什么。
  */
 
 export interface PluginDetailProps {
@@ -29,9 +29,7 @@ export function PluginDetail({ entry, onBack, plugin, store }: PluginDetailProps
   const description = plugin?.manifest.description ?? entry?.description
   const trust = plugin?.trust ?? entry?.trust ?? 'third-party'
   const hue = pluginHue(id)
-  /* 清单坏了，和「声明的技能目录空着」，是同一类东西：都在说这个插件为什么没全生效。 */
-  const diagnostics =
-    plugin === undefined ? [] : [...plugin.diagnostics, ...plugin.registry.diagnostics]
+  const diagnostics = plugin?.diagnostics ?? []
 
   return (
     <div className="pb-20">
@@ -126,17 +124,15 @@ interface BehaviourProps {
 }
 
 function Behaviour({ plugin }: BehaviourProps) {
-  const { sessionStartSkill } = plugin.manifest
-  const { commands, skills } = plugin.registry
+  const { commandRoots, mcpServerNames, promptSources, sessionStartSkill } = plugin.manifest
   const hue = pluginHue(plugin.pluginId)
 
+  /* 每一条都是清单自己说的。数技能要读盘，而读盘是 CLI 的事，所以这里不数。 */
   const lines = [
     sessionStartSkill === undefined ? undefined : `新会话开始时自动装载技能 ${sessionStartSkill}`,
-    skills.length === 0 ? undefined : `带来 ${skills.length} 个技能，模型按需取用`,
-    commands.length === 0
-      ? undefined
-      : `带来 ${commands.length} 条命令，在对话里以 /${plugin.pluginId}: 前缀调用`,
-    plugin.systemPromptText === undefined ? undefined : '每次会话都会注入一段系统提示词',
+    commandRoots.length === 0 ? undefined : `带来命令，在对话里以 /${plugin.pluginId}: 前缀调用`,
+    mcpServerNames.length === 0 ? undefined : `带来 ${mcpServerNames.length} 台 MCP 服务器`,
+    promptSources.length === 0 ? undefined : '每次会话都会注入一段系统提示词',
   ].filter((line) => line !== undefined)
 
   if (lines.length === 0) {
@@ -170,92 +166,34 @@ interface CapabilitiesProps {
 }
 
 function Capabilities({ plugin, store }: CapabilitiesProps) {
+  const { mcpServerNames } = plugin.manifest
+
+  if (mcpServerNames.length === 0) {
+    return null
+  }
+
   const disabled = new Set(plugin.disabledMcpServers)
   /* 这一页只讲一个插件，它带来的每一台服务器都出自同一个来源。 */
   const origin: PluginOrigin = { kind: 'plugin', pluginId: plugin.pluginId }
 
   return (
-    <>
-      <InvocationSection
-        empty="清单声明的技能目录下没有读到 SKILL.md。"
-        entries={plugin.registry.skills.map((skill) => ({
-          key: skill.path,
-          invocation: skill.invocation,
-          detail: skill.description,
-        }))}
-        title="技能"
-      />
-      {plugin.manifest.commandRoots.length === 0 ? null : (
-        <InvocationSection
-          empty="清单声明的命令目录下没有读到 .md。"
-          entries={plugin.registry.commands.map((command) => ({
-            key: command.path,
-            invocation: command.invocation,
-            detail: command.description ?? '这条命令没有写说明。',
-          }))}
-          title="命令"
-        />
-      )}
-      {plugin.manifest.mcpServers.length === 0 ? null : (
-        <section className="pt-8">
-          <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            MCP 服务器
-          </h2>
-          <ul className="divide-y divide-divider border-y border-divider">
-            {plugin.manifest.mcpServers.map((server) => (
-              <li className="flex items-center gap-4 py-3" key={server.name}>
-                <span className="flex-1 text-sm">{server.name}</span>
-                <Switch
-                  aria-label={`启用 ${server.name}`}
-                  checked={!disabled.has(server.name)}
-                  onCheckedChange={(next) => store.setMcpServerEnabled(origin, server.name, next)}
-                  size="sm"
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </>
-  )
-}
-
-interface InvocationEntry {
-  readonly key: string
-  readonly invocation: string
-  readonly detail: string
-}
-
-interface InvocationSectionProps {
-  readonly entries: readonly InvocationEntry[]
-  readonly empty: string
-  readonly title: string
-}
-
-/*
- * 空也要出现。清单声明了技能目录、盘上却一份 SKILL.md 都没有，说的是「这个插件没装
- * 全」；整节消失只会让人以为它本来就不提供技能。
- */
-function InvocationSection({ empty, entries, title }: InvocationSectionProps) {
-  return (
     <section className="pt-8">
       <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {title}
+        MCP 服务器
       </h2>
-      {entries.length === 0 ? (
-        <p className="py-3 text-xs text-muted-foreground">{empty}</p>
-      ) : (
-        <ul className="divide-y divide-divider border-y border-divider">
-          {entries.map((entry) => (
-            <li className="py-3" key={entry.key}>
-              <span className="font-mono text-xs">{entry.invocation}</span>
-              <span className="block pt-1 text-xs leading-5 text-muted-foreground">
-                {entry.detail}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul className="divide-y divide-divider border-y border-divider">
+        {mcpServerNames.map((name) => (
+          <li className="flex items-center gap-4 py-3" key={name}>
+            <span className="flex-1 text-sm">{name}</span>
+            <Switch
+              aria-label={`启用 ${name}`}
+              checked={!disabled.has(name)}
+              onCheckedChange={(next) => store.setMcpServerEnabled(origin, name, next)}
+              size="sm"
+            />
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

@@ -39,16 +39,20 @@ export function PluginLoader() {
 }
 
 /*
- * 会话此刻真的会拿到的那三样东西。
+ * 会话此刻真的会拿到的那几台 MCP 服务器。
  *
- * 都是一次求值，不是一个值：桥在启动时就建好，而插件随时会被装上、拨掉或卸载 —— 捕获
- * 建桥那一刻的答案，等于把第一帧的猜测钉死一整个进程。与 launch 和 cwd 同一条规矩。
+ * 只有内置那一台。插件带来的那些由命令行按 installed.json 自己装载（官方 plugins 文档：
+ * capabilities.mcpServers.<名字>.enabled 就是 /plugins mcp disable 写的那一格），机器上
+ * 那份 mcp.json 里的同理 —— 本应用再送一遍，同一台服务器会被起两次。
+ *
+ * 是一次求值，不是一个值：桥在启动时就建好，而内置那台的端口可能还没绑上、开关也随时
+ * 会被拨 —— 捕获建桥那一刻的答案，等于把第一帧的猜测钉死一整个进程。与 launch 和 cwd
+ * 同一条规矩。
  */
 export function activeMcpServers(): readonly McpServerWire[] {
-  const { contributions } = pluginStore.getSnapshot()
+  const { mcpServers } = pluginStore.getSnapshot()
 
-  /* 传输认不出的那几台在这里落地：诊断已经在解析那一层记过，这里不重复报，也不假装能送。 */
-  return contributions.mcpServers.flatMap((server) =>
-    server.active && server.wire !== undefined ? [server.wire] : [],
+  return mcpServers.flatMap((server) =>
+    server.launchedBy === 'client' && server.wire !== undefined ? [server.wire] : [],
   )
 }

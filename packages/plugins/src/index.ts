@@ -5,17 +5,6 @@
  * 是这个包自己的事，外面只需要「装了什么、市场上有什么、界面长什么样」。
  */
 
-export type { PluginCommand } from './command'
-export {
-  type BuiltinMcpServer,
-  type ContributionInput,
-  type ResolvedCommand,
-  type ResolvedContributions,
-  type ResolvedMcpServer,
-  type ResolvedPrompt,
-  type ResolvedSkill,
-  resolveContributions,
-} from './contribution'
 export {
   type ArchiveSource,
   type CommitRef,
@@ -36,7 +25,6 @@ export {
 export { type InstalledPlugin, resolutionOrder } from './installation'
 export {
   type AcceptedManifest,
-  clampPluginPrompt,
   DEFAULT_AGENT_ROOT,
   DEFAULT_SKILL_ROOT,
   decodePluginManifest,
@@ -44,17 +32,12 @@ export {
   type InlinePromptSource,
   type ManifestDecoding,
   PLUGIN_MANIFEST_FILENAMES,
-  PLUGIN_PROMPT_BUDGET_BYTES,
   type PluginDiagnostic,
   type PluginDiagnosticCode,
   type PluginManifest,
-  type PluginMcpServerDeclaration,
   type PluginPromptSource,
-  type PromptClamp,
   type RejectedManifest,
-  SESSION_PROMPT_BUDGET_BYTES,
   UNSUPPORTED_MANIFEST_FIELDS,
-  utf8ByteLength,
 } from './manifest'
 export type {
   MarketplaceCatalog,
@@ -67,13 +50,13 @@ export {
   type McpConfigDecoding,
 } from './mcp-config'
 export {
-  type McpServerHttpWire,
-  type McpServerStdioWire,
+  type BuiltinMcpServer,
+  type McpServerInput,
+  type McpServerLaunchedBy,
   type McpServerWire,
-  type McpTransports,
-  mcpServerWireOf,
-  transportIsOffered,
-} from './mcp-server'
+  type ResolvedMcpServer,
+  resolveMcpServers,
+} from './mcp-servers'
 export {
   type BuiltinOrigin,
   type ContributionOrigin,
@@ -95,6 +78,4 @@ export {
   type StagedInstall,
   type StagingInstall,
 } from './plugin-store'
-export type { PluginRegistry } from './registry'
-export type { PluginSkill } from './skill'
 export { PluginsSurface, type PluginsSurfaceProps } from './surface/plugins-surface'

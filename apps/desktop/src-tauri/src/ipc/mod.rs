@@ -36,8 +36,8 @@ use crate::commands::{
     },
     environment::EnvironmentFile,
     plugins::{
-        ForeignPluginLedger, ForeignPluginRecord, PluginCommitRequest, PluginFetch,
-        PluginFileRequest, PluginFileText, PluginPayload, PluginStaged, PluginTreeRequest,
+        ForeignPluginLedger, ForeignPluginRecord, PluginCommitRequest, PluginFetch, PluginPayload,
+        PluginStaged,
     },
     settings::{AppSettings, PrivacySettings},
     updates::{UpdateProgress, UpdateRelease},
@@ -82,8 +82,6 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::plugins::plugins_discard,
             crate::commands::plugins::plugins_foreign_list,
             crate::commands::plugins::plugins_list,
-            crate::commands::plugins::plugins_read_text,
-            crate::commands::plugins::plugins_read_tree,
             crate::commands::plugins::plugins_remove,
             crate::commands::plugins::plugins_set_enabled,
             crate::commands::plugins::plugins_set_mcp_enabled,
@@ -142,10 +140,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<PluginFetch>()
         .typ::<PluginStaged>()
         .typ::<PluginCommitRequest>()
-        .typ::<PluginFileRequest>()
-        .typ::<PluginFileText>()
         .typ::<PluginPayload>()
-        .typ::<PluginTreeRequest>()
         .typ::<NativeCrashReport>()
         .typ::<AppSettings>()
         .typ::<PrivacySettings>()

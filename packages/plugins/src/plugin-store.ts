@@ -844,7 +844,7 @@ function unreadableManifest(name: string): PluginManifest {
     skillRoots: [],
     agentRoots: [],
     commandRoots: [],
-    mcpServers: [],
+    mcpServerNames: [],
     sessionStartSkill: undefined,
     skillInstructions: undefined,
     promptSources: [],

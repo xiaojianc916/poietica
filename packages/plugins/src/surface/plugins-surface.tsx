@@ -2,9 +2,8 @@ import type { PaletteEntry } from '@poietica/agent-contract'
 import { assertUnreachable } from '@poietica/core'
 import { Button, Switch } from '@poietica/ui'
 import { useState, useSyncExternalStore } from 'react'
-
-import type { ResolvedMcpServer } from '../contribution'
 import { latestCatalog } from '../marketplace'
+import type { ResolvedMcpServer } from '../mcp-servers'
 import { describeOrigin, type ManagedOrigin } from '../origin'
 import type { PluginStore } from '../plugin-store'
 import { ContributionList, type ContributionRow } from './contribution-list'
@@ -62,7 +61,7 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
   const counts: Record<PluginTabId, number> = {
     plugins: view.plugins.length,
     skills: skillsOf(view.palette).length,
-    mcp: view.contributions.mcpServers.length,
+    mcp: view.mcpServers.length,
   }
 
   if (openedId !== undefined) {
@@ -160,9 +159,7 @@ function TabBody({ needle, onOpen, store, tab, view }: TabBodyProps) {
       return (
         <ContributionList
           empty="这台机器上没有配置 MCP 服务器，插件也没有带来。"
-          rows={view.contributions.mcpServers
-            .map((server) => serverRow(server, store))
-            .filter(keep)}
+          rows={view.mcpServers.map((server) => serverRow(server, store)).filter(keep)}
         />
       )
     default:
@@ -206,8 +203,8 @@ function skillRow(entry: PaletteEntry): ContributionRow {
 }
 
 /*
- * enabled 是这一台自己的开关，active 是「本应用会在会话开始时启动它」。两个都要
- * 显示：插件整体关掉时这一台的开关不该被悄悄拨回去，但也不能让人以为它还在跑。
+ * enabled 是这一台自己的开关，launchedBy 是「这一次谁会起它」。两个都要显示：插件
+ * 整体关掉时这一台的开关不该被悄悄拨回去，但也不能让人以为它还在跑。
  *
  * 机器上那份 mcp.json 里的没有开关。那份文件不归本应用所有 —— 从这里改掉它，等于
  * 让人下次在终端里跑 CLI 时莫名其妙地换了一套服务器。它们只显示，并且明说是谁在管。
@@ -216,13 +213,17 @@ function serverRow(server: ResolvedMcpServer, store: PluginStore): ContributionR
   const { origin } = server
 
   if (origin.kind === 'user') {
+    /*
+     * 认不认得它的传输不由本应用说：起它的是 CLI。此前这里拿我们自己那个解码器判，而
+     * 那个解码器连官方 kimi-datasource 的 cwd 都不认 —— 一台 CLI 能正常装载的服务器
+     * 会被印成坏的。
+     */
+    const state = server.enabled ? '由这台机器上的 CLI 装载' : '已在配置里关闭'
+
     return {
       key: `${origin.location}/${server.name}`,
       title: server.name,
-      detail:
-        server.wire === undefined
-          ? `${origin.location} · 传输方式无法识别`
-          : `${origin.location} · ${server.enabled ? '由这台机器上的 CLI 装载' : '已在配置里关闭'}`,
+      detail: `${origin.location} · ${state}`,
       badge: describeOrigin(origin),
     }
   }
@@ -252,11 +253,16 @@ function detailOf(origin: ManagedOrigin, server: ResolvedMcpServer): string {
     return '已关闭'
   }
 
-  if (server.active) {
-    return '会话开始时装载'
+  switch (server.launchedBy) {
+    case 'client':
+      return '会话开始时由本应用装载'
+    case 'agent':
+      return '会话开始时由命令行装载'
+    case 'none':
+      return origin.kind === 'builtin'
+        ? '本机端口没能绑上，这一台不会装载'
+        : '插件已关闭，这一台不会装载'
+    default:
+      return assertUnreachable(server.launchedBy)
   }
-
-  return origin.kind === 'builtin'
-    ? '本机端口没能绑上，这一台不会装载'
-    : '插件已关闭，这一台不会装载'
 }
