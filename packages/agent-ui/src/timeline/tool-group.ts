@@ -163,3 +163,25 @@ export function groupTools(rows: readonly FeedRow[]): ToolGrouping {
 
   return result
 }
+
+/**
+ * 组里此刻正在跑的那一条。全都落定就返回 undefined。
+ *
+ * 倒着找第一条还在飞的：members 是屏幕顺序，也就是到达顺序，所以倒序里第一条命中的就是
+ * 最晚开始的那一条。串行派发时它就是「唯一那条」；并行派发时取最晚的那条，因为这一格
+ * 说的是「现在」，而最晚开始的最接近现在。
+ *
+ * 判据只借 FeedRow.isInFlight，不看 startedAt：那一格是不是时间戳、是什么单位，都是条目
+ * 那一层的约定；而到达顺序是这个数组自己的事实，不会随协议改口。
+ */
+export function liveMemberOf(plan: ToolGroupPlan): FeedRow | undefined {
+  for (let at = plan.members.length - 1; at >= 0; at -= 1) {
+    const row = plan.members[at]
+
+    if (row !== undefined && row.isInFlight) {
+      return row
+    }
+  }
+
+  return undefined
+}

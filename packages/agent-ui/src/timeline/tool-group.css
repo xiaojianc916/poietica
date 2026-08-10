@@ -57,14 +57,8 @@
   opacity: 1;
 }
 
-/* 一句话一格：不长、会缩、解到 0 才有省略号 —— 与工具行同一条，理由写在那边。 */
-.timeline-group__label {
-  flex: 0 1 auto;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* 那一格现在是 GroupTicker，几何搬去了 group-ticker.css：会缩的那两条归外面那一格，
+   省略号归里面印字的那一层 —— 换字期间外面那一格里有两句话，截断只能落在单句上。 */
 
 /*
  * 开合由这两条接管，判据是 data-expanded 而不是 data-open。

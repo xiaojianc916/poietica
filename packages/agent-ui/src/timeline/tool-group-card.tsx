@@ -1,13 +1,13 @@
-import './shimmer.css'
 import './tool-group.css'
 
 import type { FeedRow, ToolCallTimelineItem } from '@poietica/agent'
 import type { ReactNode } from 'react'
-import { cx } from '../primitives/class-names'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import { ChevronDownIcon } from '../primitives/icons'
+import { readToolIntent } from '../semantics/tool-intent'
+import { GroupTicker } from './group-ticker'
 import { ToolKindIcon } from './tool-call-card'
-import type { ToolGroupKind, ToolGroupPlan } from './tool-group'
+import { liveMemberOf, type ToolGroupKind, type ToolGroupPlan } from './tool-group'
 
 /**
  * 一组连续的同类调用。
@@ -58,6 +58,24 @@ function unhandled(_kind: never): string {
   return ''
 }
 
+/**
+ * 正在跑的那一条要印的那句话。
+ *
+ * 用的是成员行自己那一句，与展开之后看到的完全同一串 —— 组头不另起一套说法。取不到就退
+ * 回派发的标题；连标题都是空的就返回 undefined，那时候印账目比印一片空白强。
+ */
+function sayingOf(row: FeedRow): string | undefined {
+  const item = row.item
+
+  if (item.type !== 'tool_call') {
+    return undefined
+  }
+
+  const said = readToolIntent(item)?.text ?? item.title
+
+  return said === '' ? undefined : said
+}
+
 export interface ToolGroupCardProps {
   readonly plan: ToolGroupPlan
   /** 成员照转录那一份画，两条通道因此长同一个样子。 */
@@ -73,6 +91,19 @@ export function ToolGroupCard({ plan, renderRow }: ToolGroupCardProps) {
   const isRunning = plan.members.some((row) => row.isInFlight)
 
   /*
+   * 组头说什么：跑的时候报现场，落定之后报账目。
+   *
+   * 展开时一律报账目。成员都摊在下面、各自带着状态了，组头再播一遍是同一句话说两遍 ——
+   * 它会说话本来就是因为成员藏着。
+   *
+   * 顺带一句：跑的过程里那个计数本来就靠不住，成员是一条条到的，「3」下一秒可能是「5」。
+   * 报现场不只是更好看，它比报账目更诚实。
+   */
+  const live = isOpen ? undefined : liveMemberOf(plan)
+  const saying = live === undefined ? undefined : sayingOf(live)
+  const summary = describeToolGroup(plan)
+
+  /*
    * 这里不能叫 data-open。
    *
    * disclosure.css 的打开态是 [data-open="true"] .disclosure__reveal —— 后代选择器，
@@ -85,17 +116,20 @@ export function ToolGroupCard({ plan, renderRow }: ToolGroupCardProps) {
    */
   return (
     <section className="timeline-group" data-expanded={isOpen ? 'true' : undefined}>
+      {/* 可访问名钉死成账目那一句。轮播那一格每几百毫秒换一次内容，让它同时充当按钮的
+          名字，等于让读屏用户的落脚点一直在动；而这个按钮的语义本来就是「这一组的汇总」，
+          账目才是它的名字。代价是运行途中可见文字与可访问名对不上，语音操控要念账目那
+          一句 —— 在这个取舍里我认为值得。 */}
       <button
         aria-expanded={isOpen}
+        aria-label={summary}
         className="timeline-group__header"
         onClick={toggle}
         type="button"
       >
         <ToolKindIcon kind={ICON_OF[plan.kind]} />
 
-        <span className={cx('timeline-group__label', isRunning && 'timeline-shimmer')}>
-          {describeToolGroup(plan)}
-        </span>
+        <GroupTicker isRunning={isRunning} text={saying ?? summary} />
 
         <ChevronDownIcon
           aria-hidden="true"
