@@ -1,6 +1,7 @@
 //! 会话给出的那些选择器，以及改动它们。
 
 use crate::error::Error;
+use crate::local_index::LocalIndex;
 use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose};
 use tauri::{AppHandle, State};
 
@@ -32,6 +33,7 @@ use super::{AgentCommandResult, NO_ANSWER, NO_SESSION};
 #[specta::specta]
 pub async fn agent_set_config_option(
     state: State<'_, AgentRuntime>,
+    index: State<'_, LocalIndex>,
     request: AgentSelectConfigRequest,
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
     let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
@@ -45,7 +47,7 @@ pub async fn agent_set_config_option(
      */
     let addressed = match request.thread_id.as_deref() {
         Some(named) => {
-            let held = session_for(&state, &live, named, Wanted::Address, Vec::new()).await?;
+            let held = session_for(&state, &index, &live, named, Wanted::Address, Vec::new()).await?;
 
             held.session_id
         }
