@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import { Check, FolderClosed, ListFilter, X } from 'lucide-react'
+import { Check, FolderClosed, ListFilter, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { ChevronDownIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons'
 
@@ -77,6 +77,13 @@ export function WorkspacePicker({
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(true)
 
+  /*
+   * Base UI 的 data-highlighted 只表示指针或键盘此刻停在哪里，指针离开菜单后
+   * 会被清掉。工作区选择器需要的是更稳定的“预选项目”：离开弹窗后仍然保留，
+   * 直到另一个项目被指向。
+   */
+  const [heldHighlightId, setHeldHighlightId] = useState<string | null>(null)
+
   const needle = query.trim().toLowerCase()
   const matches =
     needle.length === 0
@@ -85,6 +92,17 @@ export function WorkspacePicker({
           (choice) =>
             choice.name.toLowerCase().includes(needle) || choice.id.toLowerCase().includes(needle),
         )
+
+  /*
+   * 搜索可能把此前高亮的项目过滤掉。这时优先回到当前项目；当前项目也不在
+   * 结果中时，选择第一条结果。这个值只负责视觉高亮，不会改变实际工作区。
+   */
+  const activeHighlightId =
+    heldHighlightId !== null && matches.some((choice) => choice.id === heldHighlightId)
+      ? heldHighlightId
+      : current !== null && matches.some((choice) => choice.id === current.id)
+        ? current.id
+        : (matches[0]?.id ?? null)
 
   return (
     <div
@@ -96,6 +114,23 @@ export function WorkspacePicker({
       <DropdownMenu
         modal={false}
         onOpenChange={(nextOpen) => {
+          /*
+           * 每次打开都重新选择初始高亮：
+           *
+           * - 有当前项目：当前项目；
+           * - 无当前项目：列表中的第一个项目。
+           *
+           * 后续指针或键盘移动只会替换这个 id，因此不会同时留下多个高亮项。
+           */
+          if (nextOpen) {
+            const initialHighlight =
+              current !== null && choices.some((choice) => choice.id === current.id)
+                ? current.id
+                : (choices[0]?.id ?? null)
+
+            setHeldHighlightId(initialHighlight)
+          }
+
           setOpen(nextOpen)
 
           /* 搜索词是这一次弹层的草稿，关了就清。 */
@@ -106,7 +141,10 @@ export function WorkspacePicker({
         open={open}
       >
         {placement === 'composer' ? (
-          <div className="workspace-picker__context-control">
+          <div
+            className="workspace-picker__context-control"
+            data-projectless={current === null ? 'true' : undefined}
+          >
             {current === null ? null : (
               <button
                 aria-label="不在项目中工作"
@@ -193,7 +231,7 @@ export function WorkspacePicker({
             <SearchIcon aria-hidden="true" />
 
             <input
-              aria-label="搜索工作目录"
+              aria-label="搜索项目"
               className="workspace-picker__search"
               onChange={(event) => {
                 setQuery(event.target.value)
@@ -203,7 +241,7 @@ export function WorkspacePicker({
                   event.stopPropagation()
                 }
               }}
-              placeholder="搜索目录…"
+              placeholder="搜索项目…"
               ref={focusOnMount}
               type="search"
               value={query}
@@ -217,9 +255,17 @@ export function WorkspacePicker({
               <DropdownMenuItem
                 className="workspace-picker__item"
                 data-current={selected ? 'true' : undefined}
+                data-persisted-highlight={choice.id === activeHighlightId ? 'true' : undefined}
+                data-workspace-choice="true"
                 key={choice.id}
                 onClick={() => {
                   onChoose(choice.id)
+                }}
+                onFocus={() => {
+                  setHeldHighlightId(choice.id)
+                }}
+                onPointerMove={() => {
+                  setHeldHighlightId(choice.id)
                 }}
                 title={choice.id}
               >
@@ -241,16 +287,18 @@ export function WorkspacePicker({
           <DropdownMenuSeparator className="workspace-picker__separator" />
 
           <DropdownMenuItem className="workspace-picker__item" onClick={onBrowse}>
-            <FolderPlusIcon aria-hidden="true" />
+            <Plus aria-hidden="true" />
 
             <span className="workspace-picker__item-name">新建项目</span>
           </DropdownMenuItem>
 
-          <DropdownMenuItem className="workspace-picker__item" onClick={onClear}>
-            <X aria-hidden="true" />
+          {current === null ? null : (
+            <DropdownMenuItem className="workspace-picker__item" onClick={onClear}>
+              <X aria-hidden="true" />
 
-            <span className="workspace-picker__item-name">不在项目中工作</span>
-          </DropdownMenuItem>
+              <span className="workspace-picker__item-name">不在项目中工作</span>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

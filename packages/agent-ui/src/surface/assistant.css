@@ -1755,11 +1755,13 @@ svg.assistant-provider-icon {
 
 /* composer workspace context bar end */
 
-/* projectless workspace picker additions */
+/* projectless workspace picker refinements */
 
 /*
- * Composer 里的项目控件是一颗完整胶囊。已选择项目时，左侧图标是独立的清除
- * 按钮；只有指针真正落在图标上时，文件夹才换成叉号。
+ * Composer 里的项目控件是一颗完整胶囊。
+ *
+ * data-projectless 是稳定的业务状态，不依赖 DropdownMenu 打开时内部是否插入
+ * 额外节点，因此“选择项目”在菜单打开、关闭期间不会发生横向位移。
  */
 .workspace-picker__context-control {
   display: inline-flex;
@@ -1769,7 +1771,10 @@ svg.assistant-provider-icon {
   align-items: center;
   border-radius: var(--cp-radius);
   background: transparent;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  color: var(--cp-ink);
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .workspace-picker__context-control:hover,
@@ -1777,6 +1782,9 @@ svg.assistant-provider-icon {
   background: var(--cp-hover);
 }
 
+/*
+ * 已选择项目时，文件夹/叉号按钮占据左侧固定的一格，文字触发器不再重复左边距。
+ */
 .workspace-picker__context-control .workspace-picker__context-trigger {
   min-inline-size: 0;
   border-radius: 0 var(--cp-radius) var(--cp-radius) 0;
@@ -1784,9 +1792,20 @@ svg.assistant-provider-icon {
   background: transparent;
 }
 
-.workspace-picker__context-control > .workspace-picker__context-trigger:first-child {
+/*
+ * 无项目状态没有左侧清除按钮，所以触发器自己恢复完整圆角和左右内边距。
+ *
+ * 这条规则不使用 :first-child。Base UI 打开弹窗时可能改变触发器附近的辅助
+ * DOM，使用结构伪类会让 padding 突然失效，造成图标和文字一起向左跳。
+ */
+.workspace-picker__context-control[data-projectless="true"] .workspace-picker__context-trigger {
   border-radius: var(--cp-radius);
   padding-inline-start: var(--cp-inset);
+  color: var(--cp-ink-subtle);
+}
+
+.workspace-picker__context-control[data-projectless="true"] .workspace-picker__context-trigger svg {
+  color: currentcolor;
 }
 
 .workspace-picker__context-control .workspace-picker__context-trigger:hover,
@@ -1794,19 +1813,29 @@ svg.assistant-provider-icon {
   background: transparent;
 }
 
+/*
+ * 文件夹切换成叉号时，叉号拥有自己的一圈深色圆形底。
+ *
+ * 外层胶囊仍然使用普通 hover 色；内层圆形只属于清除按钮，不会延伸到项目文字。
+ */
 .workspace-picker__context-clear {
   position: relative;
   display: grid;
-  block-size: var(--cp-control);
-  inline-size: calc(var(--cp-icon) + var(--cp-inset) * 2);
+  block-size: calc(var(--cp-icon) + var(--cp-optical));
+  inline-size: calc(var(--cp-icon) + var(--cp-optical));
   flex: none;
   place-items: center;
+  margin-inline-start: var(--cp-optical);
+  margin-inline-end: var(--cp-control-gap);
   border: 0;
-  border-radius: var(--cp-radius) 0 0 var(--cp-radius);
+  border-radius: 9999px;
   padding: 0;
   background: transparent;
   color: var(--cp-ink-muted);
   cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .workspace-picker__context-folder,
@@ -1819,6 +1848,12 @@ svg.assistant-provider-icon {
 
 .workspace-picker__context-x {
   opacity: 0;
+}
+
+.workspace-picker__context-clear:hover,
+.workspace-picker__context-clear:focus-visible {
+  background: color-mix(in srgb, var(--cp-ink) 13%, transparent);
+  color: var(--cp-ink);
 }
 
 .workspace-picker__context-clear:hover .workspace-picker__context-folder,
@@ -1840,6 +1875,29 @@ svg.assistant-provider-icon {
   margin-inline-start: auto;
 }
 
-.workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-current="true"] {
+/*
+ * 工作区项目不直接使用 Base UI 短暂的 data-highlighted 底色。
+ *
+ * data-persisted-highlight 由组件维护：
+ *
+ * - 菜单打开时自动落在当前项目或第一项；
+ * - 指针/键盘移动时只替换为一个新 id；
+ * - 指针离开菜单后不会清除。
+ *
+ * 当前项目的 data-current 只负责右侧勾号，不再额外绘制第二块背景。
+ */
+.workspace-picker__menu[data-assistant-skin]
+.workspace-picker__item[data-workspace-choice="true"][data-highlighted],
+.workspace-picker__menu[data-assistant-skin]
+  .workspace-picker__item[data-workspace-choice="true"][data-current="true"] {
+  background: transparent;
+}
+
+.workspace-picker__menu[data-assistant-skin]
+  .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"],
+.workspace-picker__menu[data-assistant-skin]
+  .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-highlighted],
+.workspace-picker__menu[data-assistant-skin]
+  .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-current="true"] {
   background: var(--cp-hover);
 }
