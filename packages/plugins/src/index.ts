@@ -10,7 +10,7 @@ export {
   type BuiltinServer,
   type BuiltinTransport,
   type HttpTransport,
-  mcpConfigFragment,
+  mcpServerBody,
   type StdioTransport,
 } from './catalog/builtin'
 export {

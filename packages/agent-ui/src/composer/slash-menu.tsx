@@ -19,9 +19,9 @@ export interface SlashMenuProps {
 export function SlashMenu({ entries, highlighted, onPick }: SlashMenuProps) {
   return (
     <div className="assistant-slash">
-      <ul className="assistant-slash__menu" role="listbox">
+      <div className="assistant-slash__menu" role="listbox">
         {entries.map((entry, index) => (
-          <li key={entry.name}>
+          <div key={entry.name}>
             {/* mousedown 而不是 click：preventDefault 留住 textarea 的焦点，选完接着打字。 */}
             <button
               aria-selected={index === highlighted}
@@ -39,9 +39,9 @@ export function SlashMenu({ entries, highlighted, onPick }: SlashMenuProps) {
                 <span className="assistant-slash__detail">{entry.description}</span>
               )}
             </button>
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   )
 }

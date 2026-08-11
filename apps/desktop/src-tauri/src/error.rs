@@ -124,9 +124,7 @@ impl Error {
 
     fn operation(&self) -> IpcOperation {
         match self {
-            Self::Persistence(_) | Self::File(_) | Self::Io(_) => {
-                IpcOperation::File
-            }
+            Self::Persistence(_) | Self::File(_) | Self::Io(_) => IpcOperation::File,
             Self::Plugin(_) => IpcOperation::Plugin,
             Self::Asset(_) => IpcOperation::Asset,
             _ => IpcOperation::Platform,

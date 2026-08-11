@@ -164,7 +164,7 @@ function InstallServer({ id, onInstall }: InstallServerProps) {
     return null
   }
 
-  const missing = server.input !== undefined && server.input.required && filled.trim() === ''
+  const missing = server.input?.required && filled.trim() === ''
 
   return (
     <div className="flex shrink-0 items-center gap-2">
