@@ -380,8 +380,14 @@
   padding-inline: var(--ui-row-lead) var(--ui-row-trail);
   background: transparent;
   color: var(--cp-ink);
+
+  /* shared top-level thread section typography */
   font: inherit;
   font-size: var(--cp-font-caption);
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: normal;
+
   text-align: start;
   cursor: pointer;
 }

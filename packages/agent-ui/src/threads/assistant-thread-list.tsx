@@ -675,7 +675,7 @@ export function AssistantThreadList({
         <section className="assistant-threads__section">
           <ThreadSectionHeader
             isOpen={isPinOpen}
-            label="Pin"
+            label="Pined"
             onToggle={() => {
               setPinOpen((open) => !open)
             }}
@@ -770,7 +770,7 @@ export function AssistantThreadList({
         <section className="assistant-threads__section">
           <ThreadSectionHeader
             isOpen={isRecentOpen}
-            label="最新"
+            label="Recents"
             onToggle={() => {
               setRecentOpen((open) => !open)
             }}
