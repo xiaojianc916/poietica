@@ -249,18 +249,88 @@
  * 一格指标不是一张卡：这个界面的卡是 .settings-group__surface，一组一张。六个
  * 指标因此是同一张卡里的六格，分隔仍旧是那条内缩的发丝线，与 .settings-row 之间
  * 的分隔同一个来源。参考稿把它们画成六张浮起来的小卡，那是另一套皮肤。
+ *
+ * 时间范围那一行也在这张卡里，就在六格上面 —— 它只管概览，把它放进它所管的那张
+ * 卡，是这层从属关系最短的说法。
  */
 
+.settings-segmented {
+  position: relative;
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  border-radius: 8px;
+  background: var(--settings-field);
+}
+
+/*
+ * 滑块是一个独立的方块，不是给选中项加背景 —— 它要能从一档滑到另一档，位置本身
+ * 就是这个控件的状态。
+ *
+ * 位移走 inset-inline-start 而不是 translate：这一仓的排版全用逻辑属性，物理位移
+ * 在从右往左的书写方向下会滑向反面。
+ *
+ * 这里不写 prefers-reduced-motion：accessibility.css 已经全局把过渡时长压到
+ * 0.01ms 且带 !important，再写一遍就是第二份实现。
+ */
+.settings-segmented__thumb {
+  position: absolute;
+  inset-block: 0;
+  border-radius: 8px;
+  background: var(--settings-surface);
+  transition: inset-inline-start var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.settings-segmented__option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px;
+  border-radius: 8px;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.settings-segmented__option:has(:checked) {
+  color: var(--ui-foreground);
+}
+
+.settings-segmented__option:has(:focus-visible) {
+  outline: var(--ui-focus-ring-width) solid var(--ui-ring);
+  outline-offset: var(--ui-focus-ring-offset);
+}
+
+/* 单选钮不显形，但盖住整格：点标签哪里都算点这一档。 */
+.settings-segmented__option input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  appearance: none;
+  cursor: pointer;
+}
+
 .settings-metrics {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-row + .settings-metrics::before {
+  position: absolute;
+  content: "";
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  block-size: 2px;
+  background: var(--settings-divider);
 }
 
 .settings-metric {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   padding: 12px 14px;
 }
 
@@ -295,13 +365,6 @@
   line-height: 1.3;
 }
 
-.settings-metric__hint {
-  margin: 0;
-  color: var(--ui-muted-foreground);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
 .settings-usage__panel {
   display: flex;
   flex-direction: column;
@@ -309,28 +372,24 @@
   padding: 14px;
 }
 
-.settings-usage__note {
-  margin: 0;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
 /*
  * 热力图的五档。
  *
- * 设计系统里没有「热力档位」这种东西，所以这里声明一次：五档全部由 --ui-info 与
- * 行底色调和而来，两头都是语义令牌，跟着主题走。调色板原语不在这里出现 ——
- * palette.css 开头就写着功能包不得直接消费它们。
+ * 设计系统里没有「热力档位」这种东西，所以这里声明一次：底色取分隔线的灰，满档
+ * 是 --ui-info，中间三档由这两头调和。两头都是语义令牌，跟着主题走；调色板原语
+ * 不在这里出现 —— palette.css 开头就写着功能包不得直接消费它们。
+ *
+ * 空格子用分隔线的灰而不是卡面色：一张还没有账可记的图，格子必须看得见，否则
+ * 那不是「这段时间没有用量」，那是一片白。
  *
  * 五个离散档而不是连续渐变：格子要能被一眼归类，不是被两两比较。
  */
 .settings-heatmap {
-  --settings-heat-size: 11px;
-  --settings-heat-0: var(--settings-field);
-  --settings-heat-1: color-mix(in oklch, var(--ui-info) 24%, var(--settings-field));
-  --settings-heat-2: color-mix(in oklch, var(--ui-info) 48%, var(--settings-field));
-  --settings-heat-3: color-mix(in oklch, var(--ui-info) 72%, var(--settings-field));
+  --settings-heat-swatch: 10px;
+  --settings-heat-0: var(--ui-divider);
+  --settings-heat-1: color-mix(in oklch, var(--ui-info) 30%, var(--ui-divider));
+  --settings-heat-2: color-mix(in oklch, var(--ui-info) 55%, var(--ui-divider));
+  --settings-heat-3: color-mix(in oklch, var(--ui-info) 78%, var(--ui-divider));
   --settings-heat-4: var(--ui-info);
 
   display: flex;
@@ -338,17 +397,20 @@
   gap: 10px;
 }
 
+/*
+ * 一列一周，一行一个星期几。列宽按卡片均分而不是写死像素 —— 26 列固定 11px 只占
+ * 卡片一半，右边空一大截；方形由 aspect-ratio 保住，不用另算高度。
+ */
 .settings-heatmap__grid {
   display: grid;
-  grid-auto-columns: var(--settings-heat-size);
+  grid-auto-columns: minmax(8px, 1fr);
   grid-auto-flow: column;
-  grid-template-rows: repeat(7, var(--settings-heat-size));
+  grid-template-rows: repeat(7, auto);
   gap: 3px;
-  overflow-x: auto;
-  padding-block-end: 2px;
 }
 
 .settings-heatmap__cell {
+  aspect-ratio: 1;
   border-radius: 2px;
   background: var(--settings-heat-0);
 }
@@ -378,9 +440,9 @@
   font-size: 11px;
 }
 
+/* 图例里的方块不在栅格里，得自己给一个宽度，高度仍由 aspect-ratio 跟上。 */
 .settings-heatmap__legend .settings-heatmap__cell {
-  inline-size: var(--settings-heat-size);
-  block-size: var(--settings-heat-size);
+  inline-size: var(--settings-heat-swatch);
 }
 
 .settings-placeholder {
