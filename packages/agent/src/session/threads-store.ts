@@ -184,7 +184,7 @@ export class ThreadsStore {
     }
   }
 
-  create = async (): Promise<string | null> => {
+  create = async (workspaceRoot?: string): Promise<string | null> => {
     const port = this.#port
 
     if (port === undefined) {
@@ -192,7 +192,7 @@ export class ThreadsStore {
     }
 
     try {
-      const opened = await port.open()
+      const opened = await port.open(undefined, workspaceRoot)
       const threadId = opened.thread.threadId
 
       this.#roots.set(threadId, opened.thread.workspaceRoot ?? null)

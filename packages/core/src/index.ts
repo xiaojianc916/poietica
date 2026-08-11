@@ -87,6 +87,7 @@ export {
   type PreferenceSource,
 } from './preference'
 export {
+  isProjectlessWorkspaceRoot,
   normalizeWorkspaceRoot,
   workspaceRootName,
 } from './workspace-root'

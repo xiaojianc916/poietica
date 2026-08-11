@@ -157,7 +157,7 @@ export interface ThreadPort {
    * 只有 agent 在握手时声明它不装载旧会话，才会真的新开一条。三种情况都在同
    * 一次答复里带回整张选择器表。
    */
-  readonly open: (threadId?: ThreadId) => Promise<OpenedThread>
+  readonly open: (threadId?: ThreadId, workspaceRoot?: string | null) => Promise<OpenedThread>
   /** Renames one. The name becomes the user's and outlives the agent's. */
   readonly rename?: (threadId: ThreadId, title: string) => Promise<void>
   readonly remove?: (threadId: ThreadId) => Promise<void>

@@ -1,6 +1,9 @@
 use tauri::{AppHandle, command};
 use tauri_plugin_dialog::DialogExt;
 
+use crate::error::{IpcError, Result};
+use crate::paths::create_projectless_workspace;
+
 /// 请系统的文件夹选择器给出一个工作目录。人按了取消就是 None。
 ///
 /// 为什么是一条自己的命令，而不是让渲染层直接调 dialog 插件 —— 这与 opener 的
@@ -27,4 +30,27 @@ pub async fn workspace_pick_root(app: AppHandle) -> Option<String> {
         })
         .ok()
         .and_then(|picked| picked.as_ref().map(ToString::to_string))
+}
+
+/**
+ * 为下一条无项目会话创建一个独立工作目录。
+ *
+ * 目录名由原生层发放，渲染层不能自己拼应用数据路径。返回的是可以直接作为 agent
+ * cwd 使用的绝对路径。
+ *
+ * # Errors
+ *
+ * 数据目录无法解析或创建时返回错误。
+ */
+#[command]
+#[specta::specta]
+pub async fn workspace_create_projectless_root(
+    app: AppHandle,
+) -> std::result::Result<String, IpcError> {
+    (|| -> Result<String> {
+        Ok(create_projectless_workspace(&app)?
+            .to_string_lossy()
+            .into_owned())
+    })()
+    .map_err(IpcError::from)
 }

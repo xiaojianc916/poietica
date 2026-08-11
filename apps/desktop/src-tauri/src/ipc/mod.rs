@@ -111,6 +111,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::workbench::workbench_session_load,
             crate::commands::workbench::workbench_session_save,
             crate::commands::workspace::workspace_pick_root,
+            crate::commands::workspace::workspace_create_projectless_root,
         ])
         .events(tauri_specta::collect_events![AutomationDue, UpdateProgress])
         .typ::<AgentPromptRequest>()

@@ -77,4 +77,7 @@ export {
   stagePlugin,
 } from './plugins'
 export { readWorkbenchSession, writeWorkbenchSession } from './workbench'
-export { pickWorkspaceRoot } from './workspace'
+export {
+  createProjectlessWorkspace,
+  pickWorkspaceRoot,
+} from './workspace'

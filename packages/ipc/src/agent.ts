@@ -397,13 +397,13 @@ export function createAgentThreadBridge({
   return {
     list: () => throughIpc(() => commands.agentThreads()),
 
-    open: async (threadId) => {
+    open: async (threadId, workspaceRoot) => {
       const resolvedLaunch = await launch()
       const opened = await throughIpc(() =>
         commands.agentOpenThread({
           threadId: threadId ?? null,
           launch: nativeLaunch(resolvedLaunch),
-          cwd: cwd?.() ?? null,
+          cwd: workspaceRoot ?? cwd?.() ?? null,
           mcpServers: [...(mcpServers?.() ?? [])],
         }),
       )

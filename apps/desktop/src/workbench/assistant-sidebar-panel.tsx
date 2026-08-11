@@ -1,5 +1,6 @@
 import { AssistantThreadList } from '@poietica/agent-ui'
-import { memo, useCallback } from 'react'
+import { isProjectlessWorkspaceRoot } from '@poietica/core'
+import { memo, useCallback, useMemo } from 'react'
 
 import { useThreadsActions, useThreadsList } from '../assistant/threads-context'
 import { toggleWorkspace, useCollapsedWorkspaces } from '../assistant/workspace-collapse'
@@ -63,6 +64,14 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   const { failure, groups, isLoading } = useThreadsList()
   const collapsedWorkspaces = useCollapsedWorkspaces()
 
+  const projectlessWorkspaces = useMemo(
+    () =>
+      new Set(
+        groups.filter((group) => isProjectlessWorkspaceRoot(group.id)).map((group) => group.id),
+      ),
+    [groups],
+  )
+
   /* 不点名工作区就是「当前那个」，点了名就先切过去 —— 见上面那段。 */
   const create = useCallback(
     (workspaceId?: string) => {
@@ -125,6 +134,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
         onPin={pin}
         onRename={rename}
         onToggleWorkspace={toggleWorkspace}
+        projectlessWorkspaces={projectlessWorkspaces}
       />
     </div>
   )

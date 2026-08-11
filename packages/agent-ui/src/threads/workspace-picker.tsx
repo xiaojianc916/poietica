@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import { FolderClosed, ListFilter } from 'lucide-react'
+import { Check, FolderClosed, ListFilter, X } from 'lucide-react'
 import { useState } from 'react'
 import { ChevronDownIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons'
 
@@ -46,6 +46,8 @@ export interface WorkspacePickerProps {
   readonly current: WorkspaceChoice | null
   readonly choices: readonly WorkspaceChoice[]
   readonly onChoose: (rootPath: string) => void
+  /** 清除项目选择；下一条会话会获得独立的临时工作目录。 */
+  readonly onClear: () => void
   /** 开系统的文件夹选择器。这一层不知道那是怎么开的。 */
   readonly onBrowse: () => void
   /** 侧栏行，或者新对话输入框下方的上下文栏。 */
@@ -68,18 +70,18 @@ export function WorkspacePicker({
   current,
   onBrowse,
   onChoose,
+  onClear,
   placement = 'sidebar',
 }: WorkspacePickerProps) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(true)
 
-  const others = choices.filter((choice) => choice.id !== current?.id)
   const needle = query.trim().toLowerCase()
   const matches =
     needle.length === 0
-      ? others
-      : others.filter(
+      ? choices
+      : choices.filter(
           (choice) =>
             choice.name.toLowerCase().includes(needle) || choice.id.toLowerCase().includes(needle),
         )
@@ -104,17 +106,33 @@ export function WorkspacePicker({
         open={open}
       >
         {placement === 'composer' ? (
-          <DropdownMenuTrigger
-            aria-label="切换工作目录"
-            className="workspace-picker__context-trigger"
-            title={current?.id ?? '选择工作目录'}
-          >
-            <FolderClosed aria-hidden="true" />
+          <div className="workspace-picker__context-control">
+            {current === null ? null : (
+              <button
+                aria-label="不在项目中工作"
+                className="workspace-picker__context-clear"
+                onClick={() => {
+                  setOpen(false)
+                  onClear()
+                }}
+                title="不在项目中工作"
+                type="button"
+              >
+                <FolderClosed aria-hidden="true" className="workspace-picker__context-folder" />
+                <X aria-hidden="true" className="workspace-picker__context-x" />
+              </button>
+            )}
 
-            <span className="workspace-picker__context-name">
-              {current?.name ?? '选择工作目录'}
-            </span>
-          </DropdownMenuTrigger>
+            <DropdownMenuTrigger
+              aria-label="切换项目"
+              className="workspace-picker__context-trigger"
+              title={current?.id ?? '选择项目'}
+            >
+              {current === null ? <FolderClosed aria-hidden="true" /> : null}
+
+              <span className="workspace-picker__context-name">{current?.name ?? '选择项目'}</span>
+            </DropdownMenuTrigger>
+          </div>
         ) : (
           <>
             <button
@@ -192,24 +210,31 @@ export function WorkspacePicker({
             />
           </div>
 
-          {matches.map((choice) => (
-            <DropdownMenuItem
-              className="workspace-picker__item"
-              key={choice.id}
-              onClick={() => {
-                onChoose(choice.id)
-              }}
-              title={choice.id}
-            >
-              <FolderClosed aria-hidden="true" />
+          {matches.map((choice) => {
+            const selected = choice.id === current?.id
 
-              <span className="workspace-picker__item-name">{choice.name}</span>
-            </DropdownMenuItem>
-          ))}
+            return (
+              <DropdownMenuItem
+                className="workspace-picker__item"
+                data-current={selected ? 'true' : undefined}
+                key={choice.id}
+                onClick={() => {
+                  onChoose(choice.id)
+                }}
+                title={choice.id}
+              >
+                <FolderClosed aria-hidden="true" />
+
+                <span className="workspace-picker__item-name">{choice.name}</span>
+
+                {selected ? <Check aria-hidden="true" className="workspace-picker__check" /> : null}
+              </DropdownMenuItem>
+            )
+          })}
 
           {matches.length === 0 ? (
             <p className="workspace-picker__none">
-              {others.length === 0 ? '还没有别的工作目录。' : '没有匹配的工作目录。'}
+              {choices.length === 0 ? '还没有项目。' : '没有匹配的项目。'}
             </p>
           ) : null}
 
@@ -218,7 +243,13 @@ export function WorkspacePicker({
           <DropdownMenuItem className="workspace-picker__item" onClick={onBrowse}>
             <FolderPlusIcon aria-hidden="true" />
 
-            <span className="workspace-picker__item-name">打开文件夹…</span>
+            <span className="workspace-picker__item-name">新建项目</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem className="workspace-picker__item" onClick={onClear}>
+            <X aria-hidden="true" />
+
+            <span className="workspace-picker__item-name">不在项目中工作</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

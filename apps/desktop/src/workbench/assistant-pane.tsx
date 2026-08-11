@@ -1,7 +1,7 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
 import type { WorkspacePickerProps } from '@poietica/agent-ui'
-import { workspaceRootName } from '@poietica/core'
-import { pickWorkspaceRoot } from '@poietica/ipc'
+import { isProjectlessWorkspaceRoot, workspaceRootName } from '@poietica/core'
+import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/ipc'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useThreadsActions, useThreadsList } from '../assistant/threads-context'
 import { setActiveWorkspaceRoot, useActiveWorkspaceRoot } from '../workspace-root'
@@ -43,7 +43,11 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
    */
   const choices = useMemo(
     () =>
-      groups.flatMap((group) => (group.name === null ? [] : [{ id: group.id, name: group.name }])),
+      groups.flatMap((group) =>
+        group.name === null || isProjectlessWorkspaceRoot(group.id)
+          ? []
+          : [{ id: group.id, name: group.name }],
+      ),
     [groups],
   )
 
@@ -66,14 +70,19 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
     })
   }, [])
 
+  const clearWorkspace = useCallback(() => {
+    setActiveWorkspaceRoot(null)
+  }, [])
+
   const workspace = useMemo<Omit<WorkspacePickerProps, 'placement'>>(
     () => ({
       choices,
       current,
       onBrowse: browse,
       onChoose: setActiveWorkspaceRoot,
+      onClear: clearWorkspace,
     }),
-    [browse, choices, current],
+    [browse, choices, clearWorkspace, current],
   )
 
   const [threadId, setThreadId] = useState<string | null>(null)
@@ -86,7 +95,10 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
    * 都自称是这一格。
    */
   const identify = useCallback(async (): Promise<string | null> => {
-    opening.current ??= open()
+    opening.current ??=
+      activeRoot === null
+        ? createProjectlessWorkspace().then((root) => open(root))
+        : open(activeRoot)
 
     const opened = await opening.current
 
@@ -95,7 +107,7 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
     }
 
     return opened
-  }, [open])
+  }, [activeRoot, open])
 
   return (
     <ConversationSurface

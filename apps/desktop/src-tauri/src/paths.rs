@@ -33,6 +33,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use tauri::{AppHandle, Manager, Runtime};
+use uuid::Uuid;
 
 use crate::error::Result;
 
@@ -57,6 +58,12 @@ const CRASH_REPORT_FILE: &str = "last-native-crash.json";
 const ATTACHMENTS_DIRECTORY: &str = "attachments";
 const MARKETPLACE_CATALOG_FILE: &str = "marketplace.json";
 const AGENTS_DIRECTORY: &str = "agents";
+
+/// 无项目会话的工作目录根。
+///
+/// 这个名字同时由 packages/core/src/workspace-root.ts 识别；复制处带着正本路径，
+/// 任一侧改名时必须同步修改。
+const PROJECTLESS_DIRECTORY: &str = "projectless";
 
 /// 受控 home：agent 自己的 CLI 往这里写它自己的配置文件，由它自己热重载。
 const AGENT_HOME_DIRECTORY: &str = "home";
@@ -272,4 +279,26 @@ pub fn marketplace_catalog<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     let _swept = fs::remove_file(stale);
 
     Ok(cache_directory(app)?.join(MARKETPLACE_CATALOG_FILE))
+}
+
+/**
+ * 为一条新的无项目会话创建独立工作目录。
+ *
+ * 目录跨应用重启保留，因为会话恢复时 agent 仍然需要原来的 cwd。它不是 paths.rs
+ * 里的 tmp：tmp 每次启动都会被清空，而这份目录与会话同寿。
+ *
+ * # Errors
+ *
+ * 数据根无法解析，或目录无法创建时返回错误。
+ */
+pub fn create_projectless_workspace<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    let parent = root(app)?.join(PROJECTLESS_DIRECTORY);
+
+    fs::create_dir_all(&parent)?;
+
+    let directory = parent.join(Uuid::now_v7().to_string());
+
+    fs::create_dir(&directory)?;
+
+    Ok(directory)
 }

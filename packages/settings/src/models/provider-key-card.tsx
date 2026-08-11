@@ -253,7 +253,6 @@ export function ProviderKeyCard({
     }
 
     setBusy(true)
-    setMessage('正在验证密钥…')
 
     void store
       .verifyProviderKey({ baseUrl: provider.baseUrl, secret })

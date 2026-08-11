@@ -1754,3 +1754,92 @@ svg.assistant-provider-icon {
 }
 
 /* composer workspace context bar end */
+
+/* projectless workspace picker additions */
+
+/*
+ * Composer 里的项目控件是一颗完整胶囊。已选择项目时，左侧图标是独立的清除
+ * 按钮；只有指针真正落在图标上时，文件夹才换成叉号。
+ */
+.workspace-picker__context-control {
+  display: inline-flex;
+  block-size: var(--cp-control);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  align-items: center;
+  border-radius: var(--cp-radius);
+  background: transparent;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.workspace-picker__context-control:hover,
+.workspace-picker__context-control:has(.workspace-picker__context-trigger[data-popup-open]) {
+  background: var(--cp-hover);
+}
+
+.workspace-picker__context-control .workspace-picker__context-trigger {
+  min-inline-size: 0;
+  border-radius: 0 var(--cp-radius) var(--cp-radius) 0;
+  padding-inline-start: 0;
+  background: transparent;
+}
+
+.workspace-picker__context-control > .workspace-picker__context-trigger:first-child {
+  border-radius: var(--cp-radius);
+  padding-inline-start: var(--cp-inset);
+}
+
+.workspace-picker__context-control .workspace-picker__context-trigger:hover,
+.workspace-picker__context-control .workspace-picker__context-trigger[data-popup-open] {
+  background: transparent;
+}
+
+.workspace-picker__context-clear {
+  position: relative;
+  display: grid;
+  block-size: var(--cp-control);
+  inline-size: calc(var(--cp-icon) + var(--cp-inset) * 2);
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--cp-radius) 0 0 var(--cp-radius);
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+}
+
+.workspace-picker__context-folder,
+.workspace-picker__context-x {
+  grid-area: 1 / 1;
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.workspace-picker__context-x {
+  opacity: 0;
+}
+
+.workspace-picker__context-clear:hover .workspace-picker__context-folder,
+.workspace-picker__context-clear:focus-visible .workspace-picker__context-folder {
+  opacity: 0;
+}
+
+.workspace-picker__context-clear:hover .workspace-picker__context-x,
+.workspace-picker__context-clear:focus-visible .workspace-picker__context-x {
+  opacity: 1;
+}
+
+.workspace-picker__context-clear:focus-visible {
+  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+.workspace-picker__check {
+  margin-inline-start: auto;
+}
+
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-current="true"] {
+  background: var(--cp-hover);
+}

@@ -78,6 +78,8 @@ export interface AssistantThreadWorkspaceGroup {
 
 export interface AssistantThreadListProps {
   readonly groups: readonly AssistantThreadWorkspaceGroup[]
+  /** 工作目录属于内部 projectless 命名空间的那些组。 */
+  readonly projectlessWorkspaces?: ReadonlySet<string>
   /** True while the list is still being read for the first time. */
   readonly isLoading?: boolean
   /**
@@ -112,6 +114,8 @@ const PLACEHOLDER_WIDTHS = ['72%', '54%', '64%', '46%']
 const PAGE = 10
 
 const NO_PAGES: ReadonlyMap<string, number> = new Map()
+
+const NO_PROJECTLESS_WORKSPACES: ReadonlySet<string> = new Set()
 
 /** 读完了，确实没有。这句话只有读成功才说得出口。 */
 const EMPTY = '还没有对话。'
@@ -528,6 +532,7 @@ function ThreadSectionHeader({ label, isOpen, onToggle }: ThreadSectionHeaderPro
 
 export function AssistantThreadList({
   groups,
+  projectlessWorkspaces = NO_PROJECTLESS_WORKSPACES,
   isLoading,
   failure,
   activeThreadId,
@@ -566,15 +571,26 @@ export function AssistantThreadList({
     [painted],
   )
 
+  const recent = useMemo(
+    () =>
+      painted
+        .filter((group) => projectlessWorkspaces.has(group.id))
+        .flatMap((group) => group.members)
+        .filter(({ thread }) => !thread.isPinned)
+        .sort((left, right) => right.thread.updatedAt.localeCompare(left.thread.updatedAt)),
+    [painted, projectlessWorkspaces],
+  )
+
   const repositories = useMemo(
     () =>
       painted
+        .filter((group) => !projectlessWorkspaces.has(group.id))
         .map((group) => ({
           ...group,
           members: group.members.filter(({ thread }) => !thread.isPinned),
         }))
         .filter((group) => group.members.length > 0),
-    [painted],
+    [painted, projectlessWorkspaces],
   )
 
   /* 期限从解析好的时刻上求 —— 它与分组维度无关，所以只认一串数字。 */
@@ -583,6 +599,7 @@ export function AssistantThreadList({
   useHorizon(nextChangeIn(instants, now))
 
   const [isPinOpen, setPinOpen] = useState(true)
+  const [isRecentOpen, setRecentOpen] = useState(true)
   const [isRepositoriesOpen, setRepositoriesOpen] = useState(true)
   const [renamingId, setRenamingId] = useState<string | null>(null)
 
@@ -666,6 +683,22 @@ export function AssistantThreadList({
 
           {isPinOpen ? (
             <ul className="assistant-threads__list">{pinned.map(renderThread)}</ul>
+          ) : null}
+        </section>
+      )}
+
+      {recent.length === 0 ? null : (
+        <section className="assistant-threads__section">
+          <ThreadSectionHeader
+            isOpen={isRecentOpen}
+            label="最近"
+            onToggle={() => {
+              setRecentOpen((open) => !open)
+            }}
+          />
+
+          {isRecentOpen ? (
+            <ul className="assistant-threads__list">{recent.map(renderThread)}</ul>
           ) : null}
         </section>
       )}

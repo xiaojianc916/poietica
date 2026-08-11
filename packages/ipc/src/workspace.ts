@@ -17,3 +17,12 @@ import { commands } from './generated/ipc-bindings'
 export function pickWorkspaceRoot(): Promise<string | null> {
   return throughIpc(() => commands.workspacePickRoot())
 }
+
+/**
+ * 为下一条无项目会话申请一个独立工作目录。
+ *
+ * 路径由原生层创建并返回；这一层不拼应用数据目录，也不制造 UUID。
+ */
+export function createProjectlessWorkspace(): Promise<string> {
+  return throughIpc(() => commands.workspaceCreateProjectlessRoot())
+}
