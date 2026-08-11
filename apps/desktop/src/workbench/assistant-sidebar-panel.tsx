@@ -1,11 +1,9 @@
-import { AssistantThreadList, WorkspacePicker } from '@poietica/agent-ui'
-import { workspaceRootName } from '@poietica/core'
-import { pickWorkspaceRoot } from '@poietica/ipc'
-import { memo, useCallback, useMemo } from 'react'
+import { AssistantThreadList } from '@poietica/agent-ui'
+import { memo, useCallback } from 'react'
 
 import { useThreadsActions, useThreadsList } from '../assistant/threads-context'
 import { toggleWorkspace, useCollapsedWorkspaces } from '../assistant/workspace-collapse'
-import { setActiveWorkspaceRoot, useActiveWorkspaceRoot } from '../workspace-root'
+import { setActiveWorkspaceRoot } from '../workspace-root'
 
 /*
  * 侧栏的会话列表。
@@ -64,31 +62,6 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   const threads = useThreadsActions()
   const { failure, groups, isLoading } = useThreadsList()
   const collapsedWorkspaces = useCollapsedWorkspaces()
-  const activeRoot = useActiveWorkspaceRoot()
-
-  /* 名字缺席的那一组说的是「目录没被记下来」，它不是一个能切过去的地方。 */
-  const choices = useMemo(
-    () =>
-      groups.flatMap((group) => (group.name === null ? [] : [{ id: group.id, name: group.name }])),
-    [groups],
-  )
-
-  const current = useMemo(
-    () =>
-      activeRoot === null
-        ? null
-        : { id: activeRoot, name: workspaceRootName(activeRoot) ?? activeRoot },
-    [activeRoot],
-  )
-
-  /* 选完就换过去；人按了取消就什么都不改。 */
-  const browse = useCallback(() => {
-    void pickWorkspaceRoot().then((picked) => {
-      if (picked !== null) {
-        setActiveWorkspaceRoot(picked)
-      }
-    })
-  }, [])
 
   /* 不点名工作区就是「当前那个」，点了名就先切过去 —— 见上面那段。 */
   const create = useCallback(

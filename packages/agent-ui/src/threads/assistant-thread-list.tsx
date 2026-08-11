@@ -9,7 +9,7 @@ import {
 } from '@poietica/ui'
 import { Archive, Pencil as Edit, ExternalLink, FolderClosed, FolderOpen } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon } from '../primitives/icons'
+import { ChevronDownIcon, MoreIcon, PinFilledIcon, PinIcon, PlusIcon } from '../primitives/icons'
 import { useHorizon, useNow } from './clock'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
 
@@ -496,6 +496,29 @@ function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle }: Work
   )
 }
 
+interface ThreadSectionHeaderProps {
+  readonly label: string
+  readonly isOpen: boolean
+  readonly onToggle: () => void
+}
+
+function ThreadSectionHeader({ label, isOpen, onToggle }: ThreadSectionHeaderProps) {
+  return (
+    <button
+      aria-expanded={isOpen}
+      className="assistant-threads__section-title"
+      data-expanded={isOpen ? 'true' : 'false'}
+      onClick={onToggle}
+      title={isOpen ? '收起此分组' : '展开此分组'}
+      type="button"
+    >
+      <span>{label}</span>
+
+      <ChevronDownIcon aria-hidden="true" className="assistant-threads__section-chevron" />
+    </button>
+  )
+}
+
 export function AssistantThreadList({
   groups,
   isLoading,
@@ -521,11 +544,39 @@ export function AssistantThreadList({
   const dated = useMemo(() => datedGroupsOf(groups), [groups])
   const painted = useMemo(() => paintedGroupsOf(dated, now), [dated, now])
 
+  /*
+   * 固定是一个独立的顶层入口，不再同时留在工作区下面。
+   *
+   * 从已经算好时间文案的投影里拆，避免为同一行重复解析日期。固定列表跨工作区，
+   * 因此按最近活动时间统一排序；Repositories 保留原来的工作区顺序。
+   */
+  const pinned = useMemo(
+    () =>
+      painted
+        .flatMap((group) => group.members)
+        .filter(({ thread }) => thread.isPinned)
+        .sort((left, right) => right.thread.updatedAt.localeCompare(left.thread.updatedAt)),
+    [painted],
+  )
+
+  const repositories = useMemo(
+    () =>
+      painted
+        .map((group) => ({
+          ...group,
+          members: group.members.filter(({ thread }) => !thread.isPinned),
+        }))
+        .filter((group) => group.members.length > 0),
+    [painted],
+  )
+
   /* 期限从解析好的时刻上求 —— 它与分组维度无关，所以只认一串数字。 */
   const instants = useMemo(() => instantsOf(dated), [dated])
 
   useHorizon(nextChangeIn(instants, now))
 
+  const [isPinOpen, setPinOpen] = useState(true)
+  const [isRepositoriesOpen, setRepositoriesOpen] = useState(true)
   const [renamingId, setRenamingId] = useState<string | null>(null)
 
   /*
@@ -573,90 +624,122 @@ export function AssistantThreadList({
     [onRename],
   )
 
+  type PaintedThread = (typeof pinned)[number]
+
+  const renderThread = ({ absolute, elapsed, thread }: PaintedThread) => (
+    <ThreadRow
+      absolute={absolute}
+      canRename={onRename !== undefined}
+      elapsed={elapsed}
+      isActive={thread.id === activeThreadId}
+      isRenaming={thread.id === renamingId}
+      key={thread.id}
+      onActivate={onActivate}
+      onArchive={onArchive}
+      onBeginRename={beginRename}
+      onCancelRename={cancelRename}
+      onCommitRename={commitRename}
+      onOpenInNewTab={onOpenInNewTab}
+      onPin={onPin}
+      thread={thread}
+    />
+  )
+
   return (
     <nav aria-label="AI 会话记录" className="assistant-threads" data-assistant-skin>
-      {showPlaceholders ? (
-        <ul aria-hidden="true" className="assistant-threads__list">
-          {PLACEHOLDER_WIDTHS.map((width) => (
-            <li className="assistant-thread" data-placeholder="true" key={width}>
-              <span className="assistant-thread__ghost" style={{ width }} />
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {pinned.length === 0 ? null : (
+        <section className="assistant-threads__section">
+          <ThreadSectionHeader
+            isOpen={isPinOpen}
+            label="Pin"
+            onToggle={() => {
+              setPinOpen((open) => !open)
+            }}
+          />
 
-      {notice === null ? null : <p className="assistant-threads__empty">{notice}</p>}
+          {isPinOpen ? (
+            <ul className="assistant-threads__list">{pinned.map(renderThread)}</ul>
+          ) : null}
+        </section>
+      )}
 
-      {painted.map((group) => {
-        /*
-         * 名字缺席的那一组不长组头。
-         *
-         * 缺席说的是「这些对话的工作目录还没有被记下来」，不是「它们没有工作
-         * 区」：会话本来就是对着一个目录开的。缺的是那个目录到这一层的路，所以
-         * 这里没有任何东西可以写在组头上。替它编一个名字（此前写的是「默认工作
-         * 区」）不是省事，是造一个用户问得出「它在哪」而界面答不上来的标题。
-         *
-         * 于是这一组按它本来的样子画：一列对话，没有标题，也没有折叠 —— 收不收
-         * 起一个说不出名字的东西，不是一个能提给用户的选择。原生侧把目录记下来
-         * 之后，它自然长出名字与组头，这一层不用再改。
-         */
-        const named = group.name
-        const isOpen = named === null || !collapsedWorkspaces.has(group.id)
-        const limit = shown.get(group.id) ?? PAGE
-        const members = group.members.slice(0, limit)
-        const rest = group.members.length - members.length
+      <section className="assistant-threads__section">
+        <ThreadSectionHeader
+          isOpen={isRepositoriesOpen}
+          label="Repositories"
+          onToggle={() => {
+            setRepositoriesOpen((open) => !open)
+          }}
+        />
 
-        return (
-          <section className="assistant-threads__group" key={group.id}>
-            {named === null ? null : (
-              <WorkspaceHeader
-                isOpen={isOpen}
-                name={named}
-                onCreate={onCreate}
-                onToggle={onToggleWorkspace}
-                workspaceId={group.id}
-              />
-            )}
-
-            {isOpen ? (
-              <>
-                <ul className="assistant-threads__list">
-                  {members.map(({ absolute, elapsed, thread }) => (
-                    <ThreadRow
-                      absolute={absolute}
-                      canRename={onRename !== undefined}
-                      elapsed={elapsed}
-                      isActive={thread.id === activeThreadId}
-                      isRenaming={thread.id === renamingId}
-                      key={thread.id}
-                      onActivate={onActivate}
-                      onArchive={onArchive}
-                      onBeginRename={beginRename}
-                      onCancelRename={cancelRename}
-                      onCommitRename={commitRename}
-                      onOpenInNewTab={onOpenInNewTab}
-                      onPin={onPin}
-                      thread={thread}
-                    />
-                  ))}
-                </ul>
-
-                {rest > 0 ? (
-                  <button
-                    className="assistant-threads__more"
-                    onClick={() => {
-                      showMore(group.id)
-                    }}
-                    type="button"
-                  >
-                    更多
-                  </button>
-                ) : null}
-              </>
+        {isRepositoriesOpen ? (
+          <>
+            {showPlaceholders ? (
+              <ul aria-hidden="true" className="assistant-threads__list">
+                {PLACEHOLDER_WIDTHS.map((width) => (
+                  <li className="assistant-thread" data-placeholder="true" key={width}>
+                    <span className="assistant-thread__ghost" style={{ width }} />
+                  </li>
+                ))}
+              </ul>
             ) : null}
-          </section>
-        )
-      })}
+
+            {notice === null ? null : <p className="assistant-threads__empty">{notice}</p>}
+
+            {repositories.map((group) => {
+              /*
+               * 名字缺席的那一组不长组头。
+               *
+               * 缺席说的是「这些对话的工作目录还没有被记下来」，不是「它们没有工作
+               * 区」：会话本来就是对着一个目录开的。缺的是那个目录到这一层的路，所以
+               * 这里没有任何东西可以写在组头上。替它编一个名字（此前写的是「默认工作
+               * 区」）不是省事，是造一个用户问得出「它在哪」而界面答不上来的标题。
+               *
+               * 于是这一组按它本来的样子画：一列对话，没有标题，也没有折叠 —— 收不收
+               * 起一个说不出名字的东西，不是一个能提给用户的选择。原生侧把目录记下来
+               * 之后，它自然长出名字与组头，这一层不用再改。
+               */
+              const named = group.name
+              const isOpen = named === null || !collapsedWorkspaces.has(group.id)
+              const limit = shown.get(group.id) ?? PAGE
+              const members = group.members.slice(0, limit)
+              const rest = group.members.length - members.length
+
+              return (
+                <section className="assistant-threads__group" key={group.id}>
+                  {named === null ? null : (
+                    <WorkspaceHeader
+                      isOpen={isOpen}
+                      name={named}
+                      onCreate={onCreate}
+                      onToggle={onToggleWorkspace}
+                      workspaceId={group.id}
+                    />
+                  )}
+
+                  {isOpen ? (
+                    <>
+                      <ul className="assistant-threads__list">{members.map(renderThread)}</ul>
+
+                      {rest > 0 ? (
+                        <button
+                          className="assistant-threads__more"
+                          onClick={() => {
+                            showMore(group.id)
+                          }}
+                          type="button"
+                        >
+                          更多
+                        </button>
+                      ) : null}
+                    </>
+                  ) : null}
+                </section>
+              )
+            })}
+          </>
+        ) : null}
+      </section>
     </nav>
   )
 }

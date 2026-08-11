@@ -357,6 +357,66 @@
   padding-inline: var(--ui-row-inset);
 }
 
+/*
+ * Pin 与 Repositories 是同级区域。
+ *
+ * 区域之间与普通行使用同一道紧凑间距；标题占一整行，点击整行即可展开或收起。
+ * 右侧不再放筛选与添加动作，箭头只在悬停或键盘聚焦时出现。
+ */
+.assistant-threads__section {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--ui-hairline) * 2);
+}
+
+.assistant-threads__section-title {
+  display: inline-flex;
+  block-size: var(--ui-row-height);
+  align-items: center;
+  align-self: stretch;
+  gap: var(--ui-row-gap);
+  border: 0;
+  border-radius: var(--ui-row-radius);
+  padding-inline: var(--ui-row-lead) var(--ui-row-trail);
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  text-align: start;
+  cursor: pointer;
+}
+
+.assistant-threads__section-title:hover {
+  color: var(--ui-foreground);
+}
+
+.assistant-threads__section-title:focus-visible {
+  outline: var(--cp-px) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+.assistant-threads__section-chevron {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+  opacity: 0;
+  color: var(--cp-ink-muted);
+  pointer-events: none;
+  transform: rotate(-90deg);
+  transition:
+    opacity var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-threads__section-title[data-expanded="true"] .assistant-threads__section-chevron {
+  transform: rotate(0deg);
+}
+
+.assistant-threads__section-title:hover .assistant-threads__section-chevron,
+.assistant-threads__section-title:focus-visible .assistant-threads__section-chevron {
+  opacity: 1;
+}
+
 /* 读完之后才成立的一句话，说得和列表行一样轻。 */
 .assistant-threads__empty {
   margin: 0;
