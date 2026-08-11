@@ -157,8 +157,9 @@ allow。
 
 ## 10. 已知偏差登记（禁止模仿，按批次收敛中）
 
-1. src-tauri/commands 的 agent/、agent_setup/profile.rs、install.rs 超出薄封装，
-   业务分支下沉中——新代码不得以它们为样板。
+1. agent_setup/profile.rs 与 install.rs 超出薄封装（§3 判据：不需要
+   AppHandle/State 就能写出的逻辑必须住进 crate 并单测）——新代码不得以
+   它们为样板。
 2. 部分注释仍引用 Python 版 kimi_cli 路径，逐批替换为 TS 版锚点。
 
 ## 11. 文档地图

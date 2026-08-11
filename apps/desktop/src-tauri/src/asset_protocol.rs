@@ -55,8 +55,7 @@ impl AssetSessionSnapshotEntry {
     /// Builds an entry by hashing the bytes and comparing them to the declared
     /// identity.
     ///
-    /// This is the constructor to reach for unless the digest has demonstrably
-    /// already been computed over these exact bytes.
+    /// 这是唯一的构造入口：身份保证在这里用一次摘要付清。
     pub fn verify(
         content_hash: String,
         content_type: String,
@@ -72,41 +71,6 @@ impl AssetSessionSnapshotEntry {
         if hex::encode(Sha256::digest(bytes.as_slice())) != content_hash {
             return Err(AssetProtocolError::InvalidContentHash);
         }
-
-        Ok(Self {
-            content_hash,
-            content_type,
-            bytes,
-        })
-    }
-
-    /// Builds an entry from bytes a container decoder has just verified against
-    /// this exact identity, without hashing them a second time.
-    ///
-    /// Contract for the caller: a SHA-256 digest of exactly these bytes must
-    /// already have been compared against exactly this content hash, in this
-    /// process, with no opportunity for the bytes to change in between.
-    /// Callers that cannot show such a check use `verify` instead — the
-    /// restore path in commands/agent/attachment.rs reads bytes back from
-    /// disk, so it does exactly that.
-    ///
-    /// The point is to avoid hashing the same bytes twice on one path. The
-    /// obligation is discharged once at the construction site instead of on
-    /// every call.
-    ///
-    /// Identity format and content type are still validated. Only the digest,
-    /// the one check whose cost scales with the asset, is skipped.
-    pub fn from_verified_container(
-        content_hash: String,
-        content_type: String,
-        #[allow(
-            clippy::rc_buffer,
-            reason = "the payload is produced as a Vec and shared read-only; Arc<[u8]> would force an extra copy"
-        )]
-        bytes: Arc<Vec<u8>>,
-    ) -> Result<Self, AssetProtocolError> {
-        validate_content_hash(&content_hash)?;
-        validate_content_type(&content_type)?;
 
         Ok(Self {
             content_hash,

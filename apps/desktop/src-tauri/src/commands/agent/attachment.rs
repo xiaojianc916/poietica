@@ -153,7 +153,7 @@ pub(super) async fn deliver_attachments(
     remove_session —— 两条返回路径,两处撤除时机,而它们必须永远一致。 */
 
     /* 按摘要去重。同一张图挂在两轮上是常事 —— 内容寻址的全部意义就在这里 ——
-    而 restore_session 收到两个相同的摘要会把整批拒掉。账本给的是链接行，不是
+    而 replace_session 收到两个相同的摘要会把整批拒掉。账本给的是链接行，不是
     字节，两者的条数本来就不相等。 */
     let mut seen = HashSet::new();
     let mut wanted = Vec::new();
@@ -184,9 +184,9 @@ pub(super) async fn deliver_attachments(
                 Err(error) => return Err(Error::Io(error)),
             };
 
-            /* verify，不是 from_verified_container：后者的契约要求调用方已经
-            在本进程里对这批字节做过摘要，而这些字节刚从磁盘读上来，没有人验过。
-            文件名就是摘要，所以这一次哈希同时就是一次完整性检查。 */
+            /* verify 在这里重新付一次摘要：这些字节刚从磁盘读上来，进程里
+            没有人对它们的身份验过。文件名就是摘要，所以这一次哈希同时就是一
+            次完整性检查。 */
             match AssetSessionSnapshotEntry::verify(hash.clone(), mime, Arc::new(bytes)) {
                 Ok(entry) => entries.push(entry),
                 /* 门口现在挡着这类附件（见 agent_prompt），但迁移之前存下的那些
