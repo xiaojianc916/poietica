@@ -22,12 +22,19 @@ export const WORKSPACE_LAYOUT = {
   },
 
   /*
-   * 布局断点以 CSS 媒体查询字符串表达：matches 的取值由引擎维护，永远与
-   * 当前视口几何同步。订阅与采样时机由 use-workspace-layout 拥有。
+   * 布局断点以 CSS 媒体查询字符串表达，由 matchMedia 订阅：浏览器只在
+   * 跨越断点时通知一次，不需要在每一帧 resize 上重新计算布局模式。
    */
   breakpoints: {
     compact: '(min-width: 900px)',
     wide: '(min-width: 1280px)',
+
+    /*
+     * 跨断点的布局切换等几何静止后才提交：resize 事件停歇这么久，视为这次
+     * 拖拽缩放已经结束。取值需远大于拖拽中相邻 resize 事件的间隔（实测
+     * 165Hz 下含丢帧最大约 24ms），又小到松手后感知不到迟滞。
+     */
+    settleMs: 180,
   },
 
   chrome: {

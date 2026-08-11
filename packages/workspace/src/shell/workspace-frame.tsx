@@ -14,6 +14,12 @@ const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
    * data-ui-rows 上。少任何一个，所有行的图标都会贴到 hover 背景左边缘。
    */
   '--ui-row-icon-center': `${WORKSPACE_LAYOUT.sidebar.navIconCenter}px`,
+
+  /*
+   * 布局动画时长同时给 motion 的 transition 和 CSS 侧的过渡使用，两边共用
+   * 一条时间轴：否则标题栏的竖线渐隐会和面板滑动各跑各的节奏。
+   */
+  '--workspace-layout-duration': `${WORKSPACE_LAYOUT.motion.layoutDurationSeconds}s`,
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
 }
 
@@ -44,26 +50,15 @@ export function WorkspaceFrame({
 }: WorkspaceFrameProps) {
   const shouldReduceMotion = useReducedMotion()
 
-  /*
-   * 布局动画时长同时给 motion 的列宽补间和 CSS 侧的竖线过渡，两边共用一条
-   * 时间轴。抑制动画（拖拽调宽、系统减弱动态）时把时长归零而不是只关补间：
-   * 栅格几何与竖线必须在同一次提交里一起硬切，否则几何瞬移完，线还按旧的
-   * 时长在淡。
-   */
-  const layoutDurationSeconds =
-    disableLayoutAnimation || shouldReduceMotion ? 0 : WORKSPACE_LAYOUT.motion.layoutDurationSeconds
-
-  const transition = {
-    type: 'tween' as const,
-    duration: layoutDurationSeconds,
-    ease: WORKSPACE_LAYOUT.motion.layoutEase,
-  }
-
-  const frameStyle: WorkspaceMotionStyle = {
-    ...WORKSPACE_LAYOUT_STYLE,
-    '--workspace-layout-duration': `${layoutDurationSeconds}s`,
-    willChange: layoutDurationSeconds === 0 ? 'auto' : 'grid-template-columns',
-  }
+  /* 侧边栏停靠动画与 CSS 侧的竖线过渡共用一条时间轴。 */
+  const transition =
+    disableLayoutAnimation || shouldReduceMotion
+      ? { duration: 0 }
+      : {
+          type: 'tween' as const,
+          duration: WORKSPACE_LAYOUT.motion.layoutDurationSeconds,
+          ease: WORKSPACE_LAYOUT.motion.layoutEase,
+        }
 
   return (
     <motion.div
@@ -75,7 +70,10 @@ export function WorkspaceFrame({
       data-ui-rows=""
       initial={false}
       ref={rootRef}
-      style={frameStyle}
+      style={{
+        ...WORKSPACE_LAYOUT_STYLE,
+        willChange: disableLayoutAnimation ? 'auto' : 'grid-template-columns',
+      }}
       transition={transition}
     >
       {chrome}

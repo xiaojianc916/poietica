@@ -37,18 +37,6 @@ function getSnapshot(): WorkspaceLayoutMode {
   return 'narrow'
 }
 
-/*
- * 订阅同时挂在 matchMedia change 与 window resize 上，两者都只触发一次
- * 快照比对：快照不变时 useSyncExternalStore 不重渲染，代价是每帧两次
- * 布尔读取。本机实测 change 紧随越界派发（+0.1ms 量级）；resize 直采
- * 兜住的是派发时机的平台差异 —— matches 由引擎维护、永远同步于当前
- * 视口，「提交时的模式是当前视口的函数」因此成为结构保证，不依赖事件
- * 调度的及时性。
- *
- * 模式随越界立即提交，不等几何静止：等静止的代价已实测过 —— 静候
- * 180ms 的旧机制叠加拖拽尾巴后，从越界到列宽首动要 218–510ms，读感
- * 就是慢半拍、不跟手。
- */
 function subscribe(listener: () => void): () => void {
   const queries = [
     mediaQuery(WORKSPACE_LAYOUT.breakpoints.wide),
@@ -59,19 +47,93 @@ function subscribe(listener: () => void): () => void {
     query.addEventListener('change', listener)
   }
 
-  window.addEventListener('resize', listener)
-
   return () => {
     for (const query of queries) {
       query.removeEventListener('change', listener)
     }
-
-    window.removeEventListener('resize', listener)
   }
 }
 
+/*
+ * 裸采样随断点越界立即翻转，而越界只发生在窗口正被拖拽缩放的当口——模式
+ * 只由窗口宽度决定。探针数据（165Hz）显示补间本身逐帧平滑、跑满 0.22s，
+ * 主线程全程无超过 50ms 的长任务：顿挫不是卡顿，而是叠加——一越界就提交，
+ * 主内容区左缘随即在 220ms 内平移一整个列宽，与仍在指针手里移动的窗口
+ * 边缘互相拉扯。手动开合丝滑是对照组：同一条补间，窗口静止就没有问题。
+ *
+ * 因此模式切换等几何静止：越界后 resize 停歇 settleMs 才提交，动画在静止
+ * 窗口上播放，与手动开合走同一条呈现管线；拖拽期间布局保持原形态，仅被
+ * 栅格 minmax 挤压。来回快速越界被合并为至多一次提交——实测出现过收起
+ * 补间刚播完 20ms 就反向展开的背靠背抽搐，合并后不再存在。
+ *
+ * matchMedia 仍负责发现越界；resize 只在「越界后、静止前」的窗口内被监听，
+ * 判定拖拽结束后立即移除。OS 的模态缩放循环不向页面转发指针状态，resize
+ * 的停歇是页面内唯一可用的「拖拽结束」信号。
+ *
+ * 提交后的模式放在模块级而非各消费组件里：外壳栅格与标题栏必须在同一次
+ * 提交中看到同一个模式，各自计时会让竖线、开合按钮与栅格错开一帧。
+ */
+const settleListeners = new Set<() => void>()
+
+let settledMode: WorkspaceLayoutMode | null = null
+let settleTimer = 0
+let unsubscribeSample: (() => void) | null = null
+
+function commitSettledMode(): void {
+  window.removeEventListener('resize', deferSettledMode)
+
+  const next = getSnapshot()
+
+  if (next === settledMode) {
+    return
+  }
+
+  settledMode = next
+
+  for (const listener of settleListeners) {
+    listener()
+  }
+}
+
+function deferSettledMode(): void {
+  window.clearTimeout(settleTimer)
+
+  settleTimer = window.setTimeout(commitSettledMode, WORKSPACE_LAYOUT.breakpoints.settleMs)
+}
+
+function onSampledModeChange(): void {
+  /* 对同一回调重复 addEventListener 会被事件目标去重，连续越界也只挂一份。 */
+  window.addEventListener('resize', deferSettledMode)
+  deferSettledMode()
+}
+
+function subscribeSettled(listener: () => void): () => void {
+  if (settleListeners.size === 0) {
+    settledMode = getSnapshot()
+    unsubscribeSample = subscribe(onSampledModeChange)
+  }
+
+  settleListeners.add(listener)
+
+  return () => {
+    settleListeners.delete(listener)
+
+    if (settleListeners.size === 0) {
+      unsubscribeSample?.()
+      unsubscribeSample = null
+      window.clearTimeout(settleTimer)
+      window.removeEventListener('resize', deferSettledMode)
+      settledMode = null
+    }
+  }
+}
+
+function getSettledSnapshot(): WorkspaceLayoutMode {
+  return settledMode ?? getSnapshot()
+}
+
 export function useWorkspaceLayoutMode(): WorkspaceLayoutMode {
-  return useSyncExternalStore(subscribe, getSnapshot)
+  return useSyncExternalStore(subscribeSettled, getSettledSnapshot)
 }
 
 /**
