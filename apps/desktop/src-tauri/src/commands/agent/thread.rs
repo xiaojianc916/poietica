@@ -16,10 +16,9 @@ use super::addressing::{Held, Wanted, session_for};
 use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
-    AgentArchiveThreadRequest, AgentOpenThreadRequest, AgentOpenedThread,
-    AgentPinThreadRequest, AgentRenameThreadRequest,
-    AgentThread, AgentThreadRequest, AgentTitleSource, AgentTurnSpan, FALLBACK_THREAD_TITLE,
-    NO_THREAD,
+    AgentArchiveThreadRequest, AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest,
+    AgentRenameThreadRequest, AgentThread, AgentThreadRequest, AgentTitleSource, AgentTurnSpan,
+    FALLBACK_THREAD_TITLE, NO_THREAD,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
@@ -269,32 +268,24 @@ pub async fn agent_archive_thread(
 }
 
 /// Writes the fields used by Kimi Code's official archive implementation.
-fn sync_kimi_archive_state(
-    home: &Path,
-    session_id: &str,
-    archived: bool,
-) -> Result<()> {
-    let state_path = find_kimi_state(home, session_id, 0)?
-        .ok_or_else(|| {
-            Error::Internal(format!(
-                "找不到 Kimi 会话 {session_id} 的官方 state.json，归档已取消"
-            ))
-        })?;
-
-    let text = fs::read_to_string(&state_path)
-        .map_err(|error| Error::Persistence(error.to_string()))?;
-
-    let mut state: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|error| Error::Persistence(error.to_string()))?;
-
-    let object = state.as_object_mut().ok_or_else(|| {
-        Error::Persistence("Kimi state.json 的根不是对象".to_owned())
+fn sync_kimi_archive_state(home: &Path, session_id: &str, archived: bool) -> Result<()> {
+    let state_path = find_kimi_state(home, session_id, 0)?.ok_or_else(|| {
+        Error::Internal(format!(
+            "找不到 Kimi 会话 {session_id} 的官方 state.json，归档已取消"
+        ))
     })?;
 
-    object.insert(
-        "archived".to_owned(),
-        serde_json::Value::Bool(archived),
-    );
+    let text =
+        fs::read_to_string(&state_path).map_err(|error| Error::Persistence(error.to_string()))?;
+
+    let mut state: serde_json::Value =
+        serde_json::from_str(&text).map_err(|error| Error::Persistence(error.to_string()))?;
+
+    let object = state
+        .as_object_mut()
+        .ok_or_else(|| Error::Persistence("Kimi state.json 的根不是对象".to_owned()))?;
+
+    object.insert("archived".to_owned(), serde_json::Value::Bool(archived));
 
     object.insert(
         "auto_archive_exempt".to_owned(),
@@ -309,18 +300,16 @@ fn sync_kimi_archive_state(
 
         serde_json::Number::from_f64(seconds)
             .map(serde_json::Value::Number)
-            .ok_or_else(|| {
-                Error::Internal("无法生成 Kimi 归档时间".to_owned())
-            })?
+            .ok_or_else(|| Error::Internal("无法生成 Kimi 归档时间".to_owned()))?
     } else {
         serde_json::Value::Null
     };
 
     object.insert("archived_at".to_owned(), archived_at);
 
-    let parent = state_path.parent().ok_or_else(|| {
-        Error::Persistence("Kimi state.json 没有父目录".to_owned())
-    })?;
+    let parent = state_path
+        .parent()
+        .ok_or_else(|| Error::Persistence("Kimi state.json 没有父目录".to_owned()))?;
 
     /*
      * tempfile::persist 使用同目录临时文件替换目标文件，避免只写到一半时
@@ -341,32 +330,26 @@ fn sync_kimi_archive_state(
         .sync_all()
         .map_err(|error| Error::Persistence(error.to_string()))?;
 
-    temporary.persist(&state_path).map_err(|error| {
-        Error::Persistence(error.error.to_string())
-    })?;
+    temporary
+        .persist(&state_path)
+        .map_err(|error| Error::Persistence(error.error.to_string()))?;
 
     Ok(())
 }
 
 /// Finds a session state below the controlled Kimi home without reproducing
 /// Kimi's work-directory hash algorithm.
-fn find_kimi_state(
-    directory: &Path,
-    session_id: &str,
-    depth: usize,
-) -> Result<Option<PathBuf>> {
+fn find_kimi_state(directory: &Path, session_id: &str, depth: usize) -> Result<Option<PathBuf>> {
     if depth > 10 || !directory.is_dir() {
         return Ok(None);
     }
 
-    let entries = fs::read_dir(directory)
-        .map_err(|error| Error::Persistence(error.to_string()))?;
+    let entries = fs::read_dir(directory).map_err(|error| Error::Persistence(error.to_string()))?;
 
     let prefixed = format!("session_{session_id}");
 
     for entry in entries {
-        let entry = entry
-            .map_err(|error| Error::Persistence(error.to_string()))?;
+        let entry = entry.map_err(|error| Error::Persistence(error.to_string()))?;
 
         let file_type = entry
             .file_type()
@@ -387,9 +370,7 @@ fn find_kimi_state(
             }
         }
 
-        if let Some(found) =
-            find_kimi_state(&path, session_id, depth + 1)?
-        {
+        if let Some(found) = find_kimi_state(&path, session_id, depth + 1)? {
             return Ok(Some(found));
         }
     }

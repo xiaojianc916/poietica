@@ -18,10 +18,10 @@ use tauri_specta::{Builder, ErrorHandlingMode};
 
 use crate::commands::{
     agent::dto::{
-        AgentArchiveThreadRequest, AgentCapabilitiesRequest, AgentConfigChoice,
-        AgentConfigControl, AgentConfigPurpose,
-        AgentPinThreadRequest, AgentPromptRequest, AgentPromptResult, AgentRenameThreadRequest,
-        AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentThreadRequest,
+        AgentArchiveThreadRequest, AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl,
+        AgentConfigPurpose, AgentPinThreadRequest, AgentPromptRequest, AgentPromptResult,
+        AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentSelectConfigRequest,
+        AgentThreadRequest,
     },
     agent_setup::cli::{AgentCliRequest, AgentCliResult},
     agent_setup::install::{AgentInstallState, AgentInstallStatus},
