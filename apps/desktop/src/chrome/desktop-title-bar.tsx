@@ -47,13 +47,15 @@ export interface DesktopTitleBarProps {
 /**
  * Desktop platform chrome.
  *
- * 窗口拖拽与双击最大化由 Tauri 原生处理：标注 data-tauri-drag-region 的元素
- * 交给 webview（capabilities 已声明 core:window:allow-start-dragging），前端
- * 不监听 mousedown、不维护交互元素黑名单、也没有会失败的原生调用需要降级。
+ * 窗口拖拽、双击最大化与标题栏右键系统菜单由 WebView2 原生处理：两段拖拽区经
+ * CSS -webkit-app-region 在命中测试层面就是标题栏（见 desktop-title-bar.css），
+ * 事件在进入网页之前就归系统，前端不监听 mousedown、不经 IPC 中继，光标全程由
+ * 系统持有，拖拽起手不再闪光标。
  *
- * 标注挂在容器上是安全的：Tauri v2 规定该属性只对被直接标注的元素生效，不向
- * 子元素继承，正是为了让按钮、输入框照常工作。此前源码注释断言"挂在含按钮的
- * 容器上会让按钮静默失灵"，与官方文档相悖，代价是最左侧一段标题栏长期不可拖。
+ * 不用 Tauri 的拖拽标注：那条路径是注入脚本捕获 mousedown 后异步调用
+ * start_dragging，光标所有权要在 WebView2 与系统模态移动循环之间交接，起手会
+ * 闪一次，触屏与笔也拖不动（tauri#13762）。本应用只出 Windows，app-region 的
+ * 跨平台限制（tauri#9860 被放弃的原因）在这里不存在。
  *
  * 拖拽区属于标题栏本身。之前全仓库唯一的标注寄生在标签条里，设置界面不渲染
  * 标签条，整窗随之不可拖——归属错了，不是漏标。这里是两段：左侧开合区、中间
@@ -119,7 +121,7 @@ export function DesktopTitleBar({
        * 留白因此与左侧恒等。此前 workspace-layout.ts 写死 44px，而按同一条中线对称
        * 应得 48px——那段注释在追述一个不成立的推导。
        */}
-      <div className="desktop-title-bar__toggle-zone" data-tauri-drag-region>
+      <div className="desktop-title-bar__toggle-zone desktop-title-bar__drag-region">
         <Button
           aria-label={sidebarOpen ? '收起侧边栏' : '展开侧边栏'}
           className={CHROME_BUTTON_CLASS}
@@ -175,7 +177,7 @@ export function DesktopTitleBar({
         />
       </div>
 
-      <div className="flex min-w-0 flex-1 items-stretch" data-tauri-drag-region>
+      <div className="desktop-title-bar__drag-region flex min-w-0 flex-1 items-stretch">
         {children}
       </div>
 

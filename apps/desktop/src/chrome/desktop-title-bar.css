@@ -92,3 +92,28 @@
     transition: none;
   }
 }
+
+/*
+ * 两段拖拽区是 WebView2 的原生非客户区，不走 Tauri 的拖拽标注：标注路径由注入
+ * 脚本捕获 mousedown、经 IPC 调 start_dragging、再发 WM_NCLBUTTONDOWN 进系统
+ * 移动循环，光标所有权在 Chromium 与系统之间交接，拖拽起手会闪一次；app-region
+ * 让这两块在命中测试层面就是标题栏，拖动、双击最大化、右键系统菜单、触屏与笔
+ * 全部原生。写带前缀的形式：它是 Chromium 该特性的原始属性名，无前缀只是别名，
+ * 且 lint 对带厂商前缀的属性不做未知属性检查。
+ *
+ * 特性开关是 tauri.conf.json additionalBrowserArgs 里的
+ * msWebView2EnableDraggableRegions（WebView2 运行时 110+，安装器带常青运行时）。
+ * 那个字段对 wry 默认参数是整体替换而非追加，所以那一行同时复刻了 wry 的默认
+ * 值；升级 wry 后若上游默认值变动，需要人工同步那一行。
+ *
+ * 命中区域按元素绘制矩形算、不随 DOM 继承：直接子元素一律反挖，可拖的只有两段
+ * 区自己的空白。容器里托管的内容（按钮、标签条）各自管理自己的输入，标题栏不
+ * 点名它们的内部结构；这也与旧标注只认容器自身为靶的可拖范围逐点一致。
+ */
+.desktop-title-bar__drag-region {
+  -webkit-app-region: drag;
+}
+
+.desktop-title-bar__drag-region > * {
+  -webkit-app-region: no-drag;
+}
