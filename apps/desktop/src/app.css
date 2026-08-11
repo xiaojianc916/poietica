@@ -127,6 +127,16 @@ body {
   user-select: none;
 }
 
+/*
+ * 崩溃屏 caption 条的填充区，与标题栏同一条拖拽机制：主窗口
+ * additionalBrowserArgs 开启的 WebView2 原生可拖拽区域。该元素是叶子
+ * 节点，没有子元素需要反挖；WindowControls 是它的兄弟节点，天然在
+ * 拖拽区外。
+ */
+.fatal-drag-region {
+  -webkit-app-region: drag;
+}
+
 /* fatal-error-icon-actions */
 .fatal-icon-button {
   display: inline-grid;

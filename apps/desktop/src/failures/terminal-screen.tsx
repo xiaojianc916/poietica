@@ -70,11 +70,12 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
        * 覆盖在客户区之上的非客户区，和原生 caption 一样：不介入 .fatal-surface
        * 自己的布局，居中内容原样不动。
        *
-       * 填充区标注 data-tauri-drag-region，拖动与双击最大化交给 webview；按钮
-       * 不标注，原生拖拽一旦开始就会吞掉 click。
+       * 填充区挂 fatal-drag-region，走 WebView2 原生可拖拽区域：拖动与双击
+       * 最大化由系统非客户区处理。WindowControls 是填充区的兄弟节点，天然在
+       * 拖拽区外——caption 命中会吞掉按钮的 click。
        */}
       <div className="fixed inset-x-0 top-0 z-50 flex h-8 items-stretch">
-        <div className="h-full flex-1" data-tauri-drag-region />
+        <div className="fatal-drag-region h-full flex-1" />
 
         <WindowControls
           isMaximized={isMaximized}
