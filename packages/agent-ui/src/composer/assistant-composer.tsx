@@ -6,13 +6,13 @@ import { memo, type Ref } from 'react'
 import { MicIcon } from '../primitives/icons'
 import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
 import type { ComposerAsset } from './attachment-intake'
+import { AttachmentTray } from './attachment-tray'
 import { ComposerActions } from './composer-actions'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PermissionPicker } from './permission-picker'
 import type { PromptInputHandle } from './prompt-input'
 import {
   PromptInput,
-  PromptInputAttachments,
   PromptInputBody,
   PromptInputButton,
   PromptInputSubmit,
@@ -219,7 +219,7 @@ export const AssistantComposer = memo(function AssistantComposer({
         ) : (
           <>
             <PromptInputBody>
-              <PromptInputAttachments />
+              <AttachmentTray />
 
               <PromptInputTextarea placeholder={placeholder} />
             </PromptInputBody>

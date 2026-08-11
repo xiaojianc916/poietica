@@ -96,6 +96,26 @@
   --cp-control-sm: calc(var(--cp-control) - 8px);
   --cp-control-xs: calc(var(--cp-control) - 12px);
 
+  /*
+   * 附件缩略图那一格。
+   *
+   * 边长取控件高的两倍：它与工具栏那排 32px 圆钮同处一张卡，倍数关系让两者共用
+   * 同一个纵向节奏，而不是各挑一个像素数。角上那颗按钮取本表最小的一档控件，
+   * 它有一半探出格外，所以这一格四周需要留出它的半径。
+   *
+   * 圆点减字形是 20 − 12 = 8，偶数，居中偏移落在整数 CSS 像素上 —— 与上面控件
+   * 那一节同一条硬约束。
+   *
+   * --cp-target-min 是 WCAG 2.2 SC 2.5.8 Target Size (Minimum) 的下限：指针目标
+   * 不小于 24×24 CSS 像素。20px 的圆点自身不够，用一层透明伪元素把命中区撑到这
+   * 个数 —— 撑命中区而不是撑字形，正是该准则给出的做法。
+   */
+  --cp-tile: calc(var(--cp-control) * 2);
+  --cp-tile-face: color-mix(in srgb, var(--ui-foreground) 6%, var(--cp-surface));
+  --cp-tile-badge: var(--cp-control-xs);
+  --cp-tile-badge-glyph: calc(var(--cp-icon) - 4px);
+  --cp-target-min: 24px;
+
   --cp-dot: calc(var(--cp-icon) * 3 / 8);
 
   --cp-inset: 10px;

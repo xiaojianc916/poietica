@@ -1,0 +1,148 @@
+/*
+ * 附件是一格图，不是一行文件名。
+ *
+ * 几何全部来自 composer-metrics.css：这一格与输入框、工具栏同处一张卡，尺寸不能
+ * 各挑各的。
+ */
+
+.composer-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cp-control-gap);
+  margin: 0;
+  /* 与 textarea 同一组内缩：同一张卡里上下相邻的两块，左边缘必须对齐。 */
+  padding: var(--cp-pad-top) var(--cp-pad-x) 0;
+  list-style: none;
+}
+
+/* 角上那颗按钮有一半探出格外，所以裁剪归里面那张脸，这一层不裁。 */
+.composer-tile {
+  position: relative;
+  flex: none;
+}
+
+.composer-tile__face {
+  position: relative;
+  display: grid;
+  box-sizing: border-box;
+  block-size: var(--cp-tile);
+  inline-size: var(--cp-tile);
+  place-items: center;
+  overflow: hidden;
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: var(--cp-radius-tile);
+  padding: 0;
+  background: var(--cp-tile-face);
+}
+
+.composer-tile__open {
+  cursor: zoom-in;
+}
+
+.composer-tile__open:focus-visible {
+  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+/* 图、转圈、字形同占一格：解码完成的那一刻这一格不会有任何位移。 */
+.composer-tile__image,
+.composer-tile__spinner,
+.composer-tile__mark {
+  grid-area: 1 / 1;
+}
+
+.composer-tile__image {
+  display: block;
+  block-size: 100%;
+  inline-size: 100%;
+  object-fit: cover;
+  /* 还没解码完的那一帧不画：半张图比一格干净的底更吵。 */
+  opacity: 0;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.composer-tile__image[data-state="ready"] {
+  opacity: 1;
+}
+
+.composer-tile__spinner,
+.composer-tile__mark {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  color: var(--cp-ink-subtle);
+}
+
+.composer-tile__spinner {
+  animation: composer-tile-turn 900ms linear infinite;
+}
+
+@keyframes composer-tile-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * 持续旋转对前庭敏感的人是诱因（WCAG 2.2 SC 2.3.3）。停掉的是位移，不是「还在
+ * 等」这句话，所以换成明暗呼吸而不是直接不动。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .composer-tile__spinner {
+    animation: composer-tile-breathe 1600ms ease-in-out infinite;
+  }
+}
+
+@keyframes composer-tile-breathe {
+  from,
+  to {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+/*
+ * 删除键咬在右上角，一半在格内一半在格外：排在图旁边就要为它另留一列，那正是
+ * 旧那一行占满整个输入框宽度的原因。
+ */
+.composer-tile__remove {
+  position: absolute;
+  display: grid;
+  block-size: var(--cp-tile-badge);
+  inline-size: var(--cp-tile-badge);
+  place-items: center;
+  inset-block-start: calc(-1 * var(--cp-tile-badge) / 2);
+  inset-inline-end: calc(-1 * var(--cp-tile-badge) / 2);
+  border: var(--cp-px) solid var(--cp-surface);
+  border-radius: 9999px;
+  padding: 0;
+  background: var(--cp-ink);
+  color: var(--cp-surface);
+  cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/*
+ * 命中区撑到 24×24（WCAG 2.2 SC 2.5.8）。撑的是命中区不是字形：圆点再大就会啃掉
+ * 缩略图的一个角。
+ */
+.composer-tile__remove::after {
+  content: "";
+  position: absolute;
+  inset: calc((var(--cp-tile-badge) - var(--cp-target-min)) / 2);
+}
+
+.composer-tile__remove:hover {
+  background: var(--cp-ink-muted);
+}
+
+.composer-tile__remove:focus-visible {
+  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+.composer-tile__remove svg {
+  block-size: var(--cp-tile-badge-glyph);
+  inline-size: var(--cp-tile-badge-glyph);
+}

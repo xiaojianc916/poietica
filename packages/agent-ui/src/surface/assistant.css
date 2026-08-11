@@ -264,66 +264,6 @@
   white-space: nowrap;
 }
 
-[data-slot="prompt-input-attachments"] {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--cp-control-gap);
-  padding: var(--cp-pad-top) var(--cp-pad-x) 0;
-}
-
-[data-slot="prompt-input-attachment"] {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--cp-control-gap);
-  border: var(--cp-px) solid var(--cp-hairline);
-  border-radius: var(--cp-radius-menu);
-  padding: var(--cp-optical) var(--cp-inset);
-  background: var(--cp-surface);
-}
-
-.assistant-attachment__icon {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  color: var(--cp-ink-muted);
-}
-
-.assistant-attachment__meta {
-  display: flex;
-  flex-direction: column;
-}
-
-.assistant-attachment__name {
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink);
-}
-
-.assistant-attachment__type {
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-}
-
-.assistant-attachment__remove {
-  display: inline-grid;
-  block-size: var(--cp-control-xs);
-  inline-size: var(--cp-control-xs);
-  place-items: center;
-  border: 0;
-  border-radius: 9999px;
-  background: transparent;
-  color: var(--cp-ink-subtle);
-  cursor: pointer;
-}
-
-.assistant-attachment__remove:hover {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
-
-.assistant-attachment__remove svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-}
-
 /*
  * 行几何全部来自设计系统的 --ui-row-* 一族：会话行与侧边栏上方五个导航行是
  * 同一种行，中线、内缩、行高、图标尺寸各只有一个所有者。

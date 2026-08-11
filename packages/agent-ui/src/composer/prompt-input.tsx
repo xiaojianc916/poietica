@@ -10,9 +10,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ImageLightbox, type PreviewableImage } from '../media/image-lightbox'
 import { cx } from '../primitives/class-names'
-import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
+import { SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
 import { SlashMenu } from './slash-menu'
 
@@ -475,106 +474,6 @@ export function PromptInput({
 
 export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) {
   return <div className={className} data-slot="prompt-input-body" {...props} />
-}
-
-const isImage = (mediaType: string) => mediaType.startsWith('image/')
-
-export function PromptInputAttachments({ className, ...props }: ComponentProps<'div'>) {
-  const attachments = usePromptInputAttachments()
-  const { removeAttachment } = usePromptInputActions()
-  const [openIndex, setOpenIndex] = useState<number | null>(null)
-
-  /*
-   * 灯箱只装图片，编号也只在图片之间连续。
-   *
-   * 混排时若直接拿附件下标当 slide index，左右键会翻到一张不存在的幻灯片 ——
-   * 一个 PDF 夹在两张图中间就够了。所以这里先塌缩成纯图片序列，附件行再回头
-   * 按 id 找自己的位置。
-   */
-  const images = useMemo<readonly PreviewableImage[]>(
-    () =>
-      attachments.flatMap((attachment) =>
-        isImage(attachment.mediaType)
-          ? [
-              {
-                id: attachment.assetToken,
-                src: attachment.url,
-                alt: attachment.filename,
-                caption: attachment.filename,
-              },
-            ]
-          : [],
-      ),
-    [attachments],
-  )
-
-  /* 一次建好「附件 → 幻灯片」的对照：此前每张卡片各扫一遍图片序列。 */
-  const slides = useMemo(() => new Map(images.map((image, index) => [image.id, index])), [images])
-
-  if (attachments.length === 0) {
-    return null
-  }
-
-  return (
-    <div className={className} data-slot="prompt-input-attachments" {...props}>
-      {attachments.map((attachment) => {
-        /* 地址从入库那一刻就有了，所以没有"第一帧还没有 URL"这回事 —— 那是
-        object URL 时代的处境，它要等一个 effect 跑完才存在。 */
-        const preview = isImage(attachment.mediaType) ? attachment.url : undefined
-        const slide = slides.get(attachment.assetToken) ?? -1
-
-        return (
-          <div
-            className="assistant-attachment"
-            data-slot="prompt-input-attachment"
-            key={attachment.assetToken}
-          >
-            {preview === undefined || slide === -1 ? (
-              <FileIcon aria-hidden="true" className="assistant-attachment__icon" />
-            ) : (
-              <button
-                aria-label={`预览 ${attachment.filename}`}
-                className="assistant-attachment__preview"
-                onClick={() => {
-                  setOpenIndex(slide)
-                }}
-                type="button"
-              >
-                <img
-                  alt=""
-                  className="assistant-attachment__thumb"
-                  decoding="async"
-                  draggable={false}
-                  src={preview}
-                />
-              </button>
-            )}
-
-            <span className="assistant-attachment__meta">
-              <span className="assistant-attachment__name">{attachment.filename}</span>
-
-              <span className="assistant-attachment__type">
-                {attachment.mediaType === '' ? '文件' : attachment.mediaType}
-              </span>
-            </span>
-
-            <button
-              aria-label={`移除 ${attachment.filename}`}
-              className="assistant-attachment__remove"
-              onClick={() => {
-                removeAttachment(attachment.assetToken)
-              }}
-              type="button"
-            >
-              <CloseIcon aria-hidden="true" />
-            </button>
-          </div>
-        )
-      })}
-
-      <ImageLightbox images={images} index={openIndex} onIndexChange={setOpenIndex} />
-    </div>
-  )
 }
 
 export function PromptInputTextarea({ className, ...props }: ComponentProps<'textarea'>) {
