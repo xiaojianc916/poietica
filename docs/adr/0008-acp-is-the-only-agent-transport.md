@@ -1,4 +1,4 @@
-# 0001. ACP is the only agent transport
+# 0008. ACP is the only agent transport
 
 - Status: accepted
 - Date: 2026-07-25

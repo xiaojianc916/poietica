@@ -1,4 +1,4 @@
-# ADR-003: Opaque window surface for resize stability
+# 0001. Opaque window surface for resize stability
 
 - Status: Accepted
 - Date: 2026-07-22

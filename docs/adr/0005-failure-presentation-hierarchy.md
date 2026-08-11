@@ -1,4 +1,4 @@
-# ADR-009: Failure presentation hierarchy
+# 0005. Failure presentation hierarchy
 
 - Status: Accepted
 - Date: 2026-07-24

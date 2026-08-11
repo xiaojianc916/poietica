@@ -1,8 +1,8 @@
-# 0002 · 一轮里可以同时挂着几个权限请求
+# 0014 · 一轮里可以同时挂着几个权限请求
 
 ## 背景
 
-ADR 0001 把权限处理器移出 ACP 派发循环之后，一条不变式随之失效：
+ADR 0013 把权限处理器移出 ACP 派发循环之后，一条不变式随之失效：
 
 > At most one: the agent waits for an answer before asking anything else.
 

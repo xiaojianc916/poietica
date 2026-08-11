@@ -1,4 +1,4 @@
-# ADR-011: Unified failure coordinator
+# 0007. Unified failure coordinator
 
 - Status: Accepted
 - Date: 2026-07-24

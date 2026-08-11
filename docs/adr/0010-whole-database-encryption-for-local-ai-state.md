@@ -1,6 +1,6 @@
-# 0003. Whole-database encryption for local AI state
+# 0010. Whole-database encryption for local AI state
 
-- Status: accepted
+- Status: superseded by ADR 0018 — the run log this decision protected was removed by migration 0009_drop_run_log, and the remaining thread index is deliberately unencrypted
 - Date: 2026-07-25
 ## Context
 

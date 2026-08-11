@@ -1,6 +1,10 @@
 # Architecture Decision Records
 
-Each ADR documents a significant architectural decision in the format:
-`NNNN-title-with-dashes.md` using the MADR template.
+命名：`NNNN-title-with-dashes.md`。编号全目录单调唯一：新决策取当前最大号 +1，
+一号一文件，永不复用、永不重排。决策被取代时在原文件加 Status 行指向取代者，
+不删文件、不改编号；同一决策被推翻重写时新开一号。
 
-Decisions live in this directory in file order.
+编号在 2026-08-11 统一重排过一次（此前英文、中文、ADR-NNN 三套编号并存，
+0004 一度同号两义）；本页规则自该日起生效。
+
+按文件顺序阅读即按决策时间顺序。

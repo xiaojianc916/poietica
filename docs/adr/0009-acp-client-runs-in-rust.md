@@ -1,7 +1,10 @@
-# 0002. The ACP client runs in Rust, never in the WebView
+# 0009. The ACP client runs in Rust, never in the WebView
 
 - Status: accepted
 - Date: 2026-07-25
+- Note (2026-08-11): the encrypted event log described below was removed by
+  migration 0009_drop_run_log; history is replayed by the agent via session/load,
+  and the local thread index is deliberately unencrypted. See ADR 0018.
 ## Context
 
 An ACP client owns a child process speaking JSON-RPC over stdio, handles permission

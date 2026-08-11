@@ -1,10 +1,10 @@
-# 4. No vendored shadcn components in the agent feed
+# 0011. No vendored shadcn components in the agent feed
 
 Date: 2026-07-25
 
 ## Status
 
-Accepted. Refines ADR-0001.
+Accepted. Refines ADR 0008.
 
 ## Context
 
@@ -27,7 +27,7 @@ Most importantly, the tool component models state as the AI SDK's seven part
 states. Our domain speaks ACP, whose tool calls have four statuses. Adopting
 the component means maintaining a translation between two models for the
 lifetime of the project, and depending on the `ai` package to do it, which
-contradicts ADR-0001.
+contradicts ADR 0008.
 
 ## Decision
 

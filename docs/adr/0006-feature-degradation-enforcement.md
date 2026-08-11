@@ -1,4 +1,4 @@
-# ADR-010: Feature degradation enforcement
+# 0006. Feature degradation enforcement
 
 - Status: Accepted
 - Date: 2026-07-24

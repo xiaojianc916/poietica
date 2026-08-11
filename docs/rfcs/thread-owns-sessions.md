@@ -1,3 +1,13 @@
+# 对话拥有会话：本地日志、多 agent 常驻与对话内切换（提案）
+
+- 状态：提案，未实施。
+- 已知过时点（2026-08-11 核对）：文中 agent-client-protocol 锁定 `=1.3.0` 已过时，
+  工作区现为 `"2"`；文中排的迁移号 0014–0016 已被 turn_spans、archiving、
+  workbench_session 占用，实施时顺延取号。
+- 本文由两份工作稿合并；附录保留产品语义与先例对照两节。
+
+---
+
 同一对话内切换 agent：本地对话日志与会话分段
 <aside>
 🎯
@@ -176,7 +186,7 @@ seq 命名空间再套一层。界面按 seq 去重,两个分段之后会撞号�
 附件现在靠「从末尾数第几条用户消息」认领,还要在 `M < N` 时整批放弃。这套精巧的东西存在的唯一原因,是本地不知道对话长什么样。
 有了日志,附件直接挂 `(session_id, seq)`。`threads.prompts` 那一列可以退休。这一刀是净减法。
 8.3 迁移力学的坑,0012 已经踩过
-> 给已有表加 CHECK 只能走官方那套 12 步重建表流程,而重建要求 PRAGMA foreign_keys=OFF,pragma 在事务里是空操作;[migrations.rs](http://migrations.rs) 把每条迁移都包在一个事务里,[connection.rs](http://connection.rs) 又把外键打开了,而 0010 的 thread_attachments 还引用着这张表,DROP TABLE threads 会当场被外键拒。
+> 给已有表加 CHECK 只能走官方那套 12 步重建表流程,而重建要求 PRAGMA foreign_keys=OFF,pragma 在事务里是空操作;`migrations.rs` 把每条迁移都包在一个事务里,`connection.rs` 又把外键打开了,而 0010 的 thread_attachments 还引用着这张表,DROP TABLE threads 会当场被外键拒。
 > 
 所以 `threads` 表重建不了。这直接决定了 §4.2 的选择：保留 `threads.session_id` / `agent_id` 当活跃分段指针,而不是把它们删掉。
 真要删的话顺序是：`DROP TRIGGER` 两个 → `DROP INDEX threads_session_id` → `ALTER TABLE DROP COLUMN`。SQLite 拒绝删有索引的列,顺序反了就失败。不推荐,收益不抵风险。
@@ -205,3 +215,39 @@ Kimi 不发 `availableModes`	全树搜不到,`set_mode` 从未被调用。模型
 第一期完全不碰多 agent。 只做本地日志 + 断掉 session/load 的显示路径。它独立可发布，而且顺带修掉了「换模型丢历史」——因为 Kimi 换模型也是重建 session，走的是同一条水合路径。
 有一处结构选择我替你定了：threads 表不重建，session_id / agent_id 保留为活跃分段指针。理由是 0012 记录的那个外键 + 事务内 pragma 空操作的坑，收益不抵风险。
 两处待核实已列在 §10：runtime.rs 我没通读（第二期开工前要读完），以及 =1.3.0 是否有 session/resume——若没有，L0 退化为同进程内的 suspended 分段，跨重启走 L1，不影响整体设计。
+
+---
+
+# 附录（并自另一份工作稿）
+
+## 七、产品层：三种"切换"是不同的东西，别做混了
+
+1. **Switch（永久切换）** — 此后由新 agent 负责。走上面的水合流程。
+2. **@mention（一次性委派）** — 只让另一个 agent 答这一轮，然后回到主 agent。**主 agent 需要把这一轮结果作为"外部观察"吸收**（以 user-side observation 形式注入，而非伪装成它自己说的）。
+3. **Fork（分叉对比）** — 从某点复制子树，不同 agent 各跑一支并排比较。LibreChat 的消息树就是干这个的。
+
+还有个白送的差异化功能：**Race / Ensemble** — 同一 prompt 同时发给多个 agent，用户"采纳"其一进主线。你已经接了多 agent，这是几乎零边际成本的杀手锏，Open WebUI 的多模型并行回答已经验证了这个交互。
+
+**人格取舍**：让新 agent 内部把历史当作自己的（否则它会反复说"我不清楚之前发生了什么"，体验极差），但 UI 上用 provenance 明确标注每条消息的出处。**内部无缝，外部透明。**
+
+---
+
+## 八、开源先例
+
+没有哪个开源项目直接给了你"ACP 跨 agent 会话迁移"的成品——这确实是个空白。但**这个问题的每一块都有成熟实现可抄**：
+
+| 项目 / 规范 | 类型 | 它解决的等价问题 | 可直接抄的机制 |
+| --- | --- | --- | --- |
+| Zed (crates/acp_thread) | ACP 客户端 | ACP 的会话状态如何独立于 agent 进程存在于客户端侧 | 客户端持有 thread entries 作为事实来源，agent 只是 session/update 事件流的产生者；agent 崩溃或重启后 UI 与历史不丢 |
+| LibreChat | 对话产品 | 同一条对话里自由切换 endpoint / provider / model，并支持从任意点分叉 | 消息树（parentMessageId）而非线性数组；每条消息自带 model / endpoint 的 provenance 字段；fork 复制子树 |
+| Open WebUI | 对话产品 | 一个 chat 内并行让多个模型回答同一轮，再采纳其中一个 | 同一 turn 挂多个候选 response（每个带 model 标识），用户选中的那个才进入主线历史 |
+| LangGraph / langgraph-swarm | 编排框架 | 多个 agent 共享同一份消息历史，「当前谁在说话」只是 state 里的一个字段 | active_agent 存于 state；handoff 用 Command(goto=...)；历史天然共享，切换不需要迁移任何东西 |
+| OpenAI Agents SDK (handoffs) | 编排框架 | 交接时把完整对话历史移交给新 agent，并允许裁剪 | handoff 建模为一次工具调用；input_filter 决定哪些历史条目传递给接手方（对应你的「可移植性标记」） |
+| AG-UI (CopilotKit) | 协议/规范 | 前端协议层面明确区分「一条对话」和「一次 agent 执行」 | threadId（长生命周期对话）与 runId（单次执行）分层；thread 状态由客户端拥有，run 可换后端 |
+| A2A Protocol | 协议/规范 | 跨多个 agent 的若干 task 归属同一个上下文容器 | contextId 作为高于 task 的一层，多个 agent 的 task 可共享同一 contextId —— 正是 ACP 缺的那一层 |
+| Roo Code / Cline | 编码 Agent | 同一个 task 进行中切换模式与模型（Plan/Act、自定义 mode） | 切换只在 turn 边界发生；mode 变更作为一条事件写入历史；不同 mode 可绑不同 model 但共享 task 历史 |
+| Pydantic AI 的 ACP harness | ACP 客户端 | session/load 到底该存什么、怎么重放 | 双存储：模型侧 message history 与客户端可见 transcript 分开持久化，恢复时前者灌回模型、后者重放给 UI |
+
+其中 **Zed 的 `crates/acp_thread`** 是你最该先读的——它就是一个成熟的多 agent ACP 客户端，且已经把"客户端拥有 thread"这件事做对了；你要加的是它没做的"跨 agent 水合"那一层。**LangGraph swarm** 则是"会话与执行者解耦"最干净的教科书。
+
+---

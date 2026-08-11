@@ -1,7 +1,7 @@
-# ADR-005: Unified fatal incident architecture
+# 0002. Unified fatal incident architecture
 
 - Status: Superseded
-- Superseded by: ADR-011
+- Superseded by: ADR 0007
 - Date: 2026-07-24
 - Owners: Desktop application composition root
 

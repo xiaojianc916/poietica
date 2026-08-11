@@ -1,7 +1,11 @@
-# 0004 — kimi 起的是 acp-v2 入口
+# 0016 — kimi 起的是 acp-v2 入口
 
 状态：已定。取代同编号的前一版结论 —— 那一版反对切换的三条理由里，两条已被
 证据推翻（v2 自带 builtin-commands.ts 与 slash.ts；fs 反向 RPC legacy 也有）。
+
+注（2026-08-11）：上游 0.33.0 起把 agent-core-v2 设为 `acp` 子命令的默认引擎并退役
+`acp-v2` 子命令，现行档案因此起 `kimi acp`（见 packages/agent-catalog/src/kimi/descriptor.ts）。
+本篇的选型理由与契约事实不变。
 
 ## 上游有两套并存的 ACP 实现
 
