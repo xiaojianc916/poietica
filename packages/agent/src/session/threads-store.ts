@@ -398,10 +398,21 @@ export class ThreadsStore {
       return
     }
 
+    /*
+     * 新会话在平台下一次整表读取以前住在 pending，而已经从数据库读取到的
+     * 会话住在 threads。两者是同一张活动列表的两个输入，因此固定状态必须
+     * 同时投影到两边。
+     *
+     * 此前这里只更新 threads。projectless 会话刚发出第一条消息时仍然位于
+     * pending，点击固定后数据库虽然可能已经写入，当前快照却没有任何变化，
+     * 所以它既不会出现图钉，也不会从“最新”移动到“Pin”。
+     */
+    const updatePinned = (thread: ThreadRecord): ThreadRecord =>
+      thread.threadId === threadId ? { ...thread, pinned } : thread
+
     this.#commit({
-      threads: this.#held.threads.map((thread) =>
-        thread.threadId === threadId ? { ...thread, pinned } : thread,
-      ),
+      threads: this.#held.threads.map(updatePinned),
+      pending: this.#held.pending.map(updatePinned),
     })
 
     await this.#settle(act(threadId, pinned))

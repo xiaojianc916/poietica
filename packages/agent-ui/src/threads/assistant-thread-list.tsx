@@ -687,22 +687,6 @@ export function AssistantThreadList({
         </section>
       )}
 
-      {recent.length === 0 ? null : (
-        <section className="assistant-threads__section">
-          <ThreadSectionHeader
-            isOpen={isRecentOpen}
-            label="最近"
-            onToggle={() => {
-              setRecentOpen((open) => !open)
-            }}
-          />
-
-          {isRecentOpen ? (
-            <ul className="assistant-threads__list">{recent.map(renderThread)}</ul>
-          ) : null}
-        </section>
-      )}
-
       <section className="assistant-threads__section">
         <ThreadSectionHeader
           isOpen={isRepositoriesOpen}
@@ -780,6 +764,23 @@ export function AssistantThreadList({
           </>
         ) : null}
       </section>
+
+      {/* projectless conversations follow repositories */}
+      {recent.length === 0 ? null : (
+        <section className="assistant-threads__section">
+          <ThreadSectionHeader
+            isOpen={isRecentOpen}
+            label="最新"
+            onToggle={() => {
+              setRecentOpen((open) => !open)
+            }}
+          />
+
+          {isRecentOpen ? (
+            <ul className="assistant-threads__list">{recent.map(renderThread)}</ul>
+          ) : null}
+        </section>
+      )}
     </nav>
   )
 }
