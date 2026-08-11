@@ -1665,7 +1665,7 @@ svg.assistant-provider-icon {
  * 新建对话的输入基座：
  *
  *   上：保持原样的输入框；
- *   下：独立的工作区 Context Bar。
+ *   下：上下文栏 —— 项目与分支两枚平级 chip 的灰色基座。
  *
  * Context Bar 向上藏到输入框后面一个圆角的距离。输入框处于更高绘制层，
  * 因此完整圆角、边框和阴影原样覆盖接缝，不需要修改 prompt-input 自身。
@@ -1673,7 +1673,16 @@ svg.assistant-provider-icon {
 .assistant-surface__context {
   position: relative;
   z-index: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  min-block-size: calc(var(--cp-control) + var(--cp-pad-mid) + var(--cp-radius));
   margin-block-start: calc(-1 * var(--cp-radius));
+  border-radius: 0 0 var(--cp-radius) var(--cp-radius);
+  padding-block-start: calc(var(--cp-radius) + var(--cp-pad-mid) / 2);
+  padding-block-end: calc(var(--cp-pad-mid) / 2);
+  padding-inline: var(--cp-inset);
+  background: var(--cp-shelf);
 }
 
 /*
@@ -1687,25 +1696,13 @@ svg.assistant-provider-icon {
 }
 
 /*
- * Context Bar 是下面那块独立的中性灰容器。
- *
- * 顶部被输入框覆盖，内容通过 padding-block-start 主动避开重叠区；
- * 露在外面的部分拥有底部两个圆角，与上方完整圆角输入框形成一体基座。
+ * 灰色基座属于 .assistant-surface__context：项目与分支是它里面的两枚平级
+ * chip，条不归任何一枚 chip 所有。这里只剩项目胶囊自己的盒子。
  */
 .workspace-picker[data-placement="composer"] {
-  display: flex;
-  block-size: auto;
-  min-block-size: calc(var(--cp-control) + var(--cp-pad-mid) + var(--cp-radius));
-  inline-size: 100%;
+  display: inline-flex;
+  min-inline-size: 0;
   align-items: center;
-  justify-content: flex-start;
-  gap: var(--cp-control-gap);
-  margin: 0;
-  border-radius: 0 0 var(--cp-radius) var(--cp-radius);
-  padding-block-start: calc(var(--cp-radius) + var(--cp-pad-mid) / 2);
-  padding-block-end: calc(var(--cp-pad-mid) / 2);
-  padding-inline: var(--cp-inset);
-  background: var(--cp-shelf);
 }
 
 /* 灰色栏内部只有轻量工作区控件，不再出现第三层卡片。 */

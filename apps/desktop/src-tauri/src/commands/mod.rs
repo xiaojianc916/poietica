@@ -5,6 +5,7 @@ pub mod automations;
 pub mod catalog_server;
 pub mod diagnostics;
 pub mod environment;
+pub mod git;
 pub mod plugins;
 pub mod process;
 pub mod settings;

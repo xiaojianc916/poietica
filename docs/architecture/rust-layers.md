@@ -1,6 +1,6 @@
 # Rust Crate 分层
 
-工作区成员见根 `Cargo.toml`。三个 crate 加一个组合根，依赖单向向下。
+工作区成员见根 `Cargo.toml`。四个 crate 加一个组合根，依赖单向向下。
 
 ## crates/agent-runtime — `poietica-agent-runtime-native`
 
@@ -28,6 +28,15 @@
   `decodePluginManifest`，原生再解析一遍就会有两套规则 —— 所以这个 crate 交出去
   的是路径与原文，命令层递上来的也是字节与路径。
 
+## crates/git — `poietica-git-native`
+
+拥有对一个工作目录的 git 分支问答与操作：仓库检测、分支清单、切换、创建并检出。
+外调 git CLI 而不是 libgit2 —— 分支状态的唯一真相是磁盘上的仓库，只有 git 自己
+的回答永远与用户在终端里看到的一致。
+
+- 依赖 `thiserror`、`tokio`。
+- **不依赖 `tauri`**。
+
 ## apps/desktop/src-tauri — `poietica`
 
 唯一的组合根：初始化 Tauri 与插件、建窗、注册命令、持有 native 服务、
@@ -35,7 +44,7 @@
 
 ## 规则
 
-- 三个 native crate 都不得依赖 `tauri`，也不得互相依赖。
+- native crate 都不得依赖 `tauri`，也不得互相依赖。
 - 命令函数是薄封装，业务分支应下沉到 native crate。
 - 领域实体定义在 native crate，不在 `src-tauri`。
 - 每个 crate 都必须写 `[lints] workspace = true`，否则工作区的

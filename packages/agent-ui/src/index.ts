@@ -40,5 +40,7 @@ export type {
   AssistantThreadWorkspaceGroup,
 } from './threads/assistant-thread-list'
 export { AssistantThreadList } from './threads/assistant-thread-list'
+export type { GitBranchPickerProps } from './threads/git-branch-picker'
+export { GitBranchPicker } from './threads/git-branch-picker'
 export type { WorkspaceChoice, WorkspacePickerProps } from './threads/workspace-picker'
 export { WorkspacePicker } from './threads/workspace-picker'

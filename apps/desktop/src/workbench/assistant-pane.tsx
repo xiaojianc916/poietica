@@ -4,6 +4,7 @@ import { isProjectlessWorkspaceRoot, workspaceRootName } from '@poietica/core'
 import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/ipc'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useThreadsActions, useThreadsList } from '../assistant/threads-context'
+import { useWorkspaceGit } from '../workspace-git'
 import { setActiveWorkspaceRoot, useActiveWorkspaceRoot } from '../workspace-root'
 import { ConversationSurface } from './conversation-surface'
 
@@ -37,6 +38,9 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
   const open = useThreadsActions().create
   const { groups } = useThreadsList()
   const activeRoot = useActiveWorkspaceRoot()
+
+  /* 分支 chip 的数据与动作；不是 git 仓库时为 undefined，chip 整个不渲染。 */
+  const git = useWorkspaceGit(activeRoot)
 
   /*
    * 最近工作区不另存一份：已经存在对话的工作区就是最近使用过的工作区。
@@ -111,6 +115,7 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
 
   return (
     <ConversationSurface
+      git={git}
       onIdentify={identify}
       onStarted={onConversationStarted}
       session={session}

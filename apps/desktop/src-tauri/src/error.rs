@@ -58,7 +58,7 @@ pub enum Error {
 
     /// 受控 agent CLI 调用被拒或失败，或 agent 自己说明了失败的原因。
     ///
-    /// 这是唯一一个消息原样透给界面的变体。
+    /// 它与 Git 是仅有的两个消息原样透给界面的变体。
     ///
     /// 判据是：这是一个桌面单机应用。屏幕前的人就是跑这个 agent 进程
     /// 的本机用户，agent 对他说的话不是秘密，而是他唯一拿得去排查的东西。
@@ -67,6 +67,11 @@ pub enum Error {
     /// 失败」，等于让人去猜。
     #[error("Agent CLI error: {0}")]
     AgentCli(String),
+
+    /// git CLI 拒绝或失败。与 AgentCli 同一判据：理由原样透给界面，
+    /// 那是用户唯一拿得去修正的信息（分支重名、工作区不干净……）。
+    #[error("Git error: {0}")]
+    Git(String),
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Type)]
@@ -117,7 +122,7 @@ impl Error {
             Self::Plugin(_) => IpcErrorCode::Plugin,
             Self::Asset(_) => IpcErrorCode::Asset,
             /* 参数无效与 agent 拒绝在 IPC 上是同一码：都是这次请求本身不成立。 */
-            Self::Validation(_) | Self::AgentCli(_) => IpcErrorCode::Validation,
+            Self::Validation(_) | Self::AgentCli(_) | Self::Git(_) => IpcErrorCode::Validation,
             _ => IpcErrorCode::Platform,
         }
     }
@@ -140,6 +145,7 @@ impl Error {
                 | Self::File(_)
                 | Self::NotFound(_)
                 | Self::AgentCli(_)
+                | Self::Git(_)
         )
     }
 }
@@ -151,7 +157,7 @@ impl Error {
     /// 不得在这里使用 `self.to_string()`、底层 `source` 或文件路径：
     /// Rust/Tauri/插件错误可能包含绝对路径、用户名、权限信息或系统细节。
     ///
-    /// `AgentCli` 是唯一的例外，它原样透出自己的消息 —— 理由见那个变体的
+    /// `AgentCli` 与 `Git` 是仅有的例外，原样透出自己的消息 —— 理由见那个变体的
     /// 文档。用 `Cow` 而不是把整张表改成 `String`：其余分支仍然是借用，一个
     /// 字节都不多分配。
     ///
@@ -174,7 +180,7 @@ impl Error {
 
             Self::Plugin(_) => Cow::Borrowed("插件操作失败"),
 
-            Self::AgentCli(reason) => Cow::Owned(reason.clone()),
+            Self::AgentCli(reason) | Self::Git(reason) => Cow::Owned(reason.clone()),
 
             Self::Tauri(_)
             | Self::Dialog(_)

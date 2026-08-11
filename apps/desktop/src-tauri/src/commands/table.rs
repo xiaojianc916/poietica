@@ -54,10 +54,7 @@ impl TableExportFormat {
 /// 内容超过上限、保存对话框异常或文件写入失败时返回脱敏后的 IPC 错误。
 #[command]
 #[specta::specta]
-pub async fn table_export(
-    app: AppHandle,
-    request: TableExportRequest,
-) -> Result<bool, IpcError> {
+pub async fn table_export(app: AppHandle, request: TableExportRequest) -> Result<bool, IpcError> {
     if request.content.len() > MAX_TABLE_EXPORT_BYTES {
         return Err(IpcError::from(Error::Validation(
             "table export exceeds the size limit".to_owned(),

@@ -847,6 +847,25 @@ async workspacePickRoot() : Promise<string | null> {
  */
 async workspaceCreateProjectlessRoot() : Promise<string> {
     return await TAURI_INVOKE("workspace_create_projectless_root");
+},
+/**
+ * 问一个目录的分支快照。不是 git 仓库、或机器没有 git，都是 None：
+ * 界面据此整个隐藏分支 chip，这不是错误。
+ */
+async gitBranches(root: string) : Promise<GitBranches | null> {
+    return await TAURI_INVOKE("git_branches", { root });
+},
+/**
+ * 检出一个已有分支。成功即交回盘面上的新快照 —— 界面不自己拼「操作后的世界」。
+ */
+async gitSwitchBranch(root: string, branch: string) : Promise<GitBranches> {
+    return await TAURI_INVOKE("git_switch_branch", { root, branch });
+},
+/**
+ * 创建并检出一个新分支，交回盘面上的新快照。名字合法性由 git 自己判。
+ */
+async gitCreateBranch(root: string, branch: string) : Promise<GitBranches> {
+    return await TAURI_INVOKE("git_create_branch", { root, branch });
 }
 }
 
@@ -1582,6 +1601,10 @@ export type ForeignPluginRecord = { pluginId: string;
  */
 originalSource: string | null }
 export type GeneralSettings = { sendWithModifier: boolean; confirmBeforeDelete: boolean; notifyOnCompletion: boolean }
+/**
+ * 一个工作目录此刻的分支快照。branch 为空即 HEAD 分离，detachedAt 给出所在短号。
+ */
+export type GitBranches = { branch: string | null; detachedAt: string | null; branches: string[] }
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "permission-denied" | "persistence" | "plugin" | "asset" | "platform"
 export type IpcOperation = "file" | "plugin" | "asset" | "platform"

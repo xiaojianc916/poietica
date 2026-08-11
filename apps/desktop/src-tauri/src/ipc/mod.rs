@@ -36,6 +36,7 @@ use crate::commands::{
         AutomationRunRecord,
     },
     environment::EnvironmentFile,
+    git::GitBranches,
     plugins::{
         ForeignPluginLedger, ForeignPluginRecord, PluginCommitRequest, PluginFetch, PluginPayload,
         PluginStaged,
@@ -113,6 +114,9 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::workbench::workbench_session_save,
             crate::commands::workspace::workspace_pick_root,
             crate::commands::workspace::workspace_create_projectless_root,
+            crate::commands::git::git_branches,
+            crate::commands::git::git_switch_branch,
+            crate::commands::git::git_create_branch,
         ])
         .events(tauri_specta::collect_events![AutomationDue, UpdateProgress])
         .typ::<AgentPromptRequest>()
@@ -158,4 +162,5 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentCliResult>()
         .typ::<ProviderProbeOutcome>()
         .typ::<UpdateRelease>()
+        .typ::<GitBranches>()
 }

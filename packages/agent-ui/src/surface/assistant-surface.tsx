@@ -21,6 +21,7 @@ import {
   useAssistantPendingCount,
   useAssistantSession,
 } from '../session/use-assistant-session'
+import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branch-picker'
 import { WorkspacePicker, type WorkspacePickerProps } from '../threads/workspace-picker'
 import { TimelineRow } from '../timeline/timeline-row'
 import { TranscriptView } from '../timeline/transcript-view'
@@ -61,6 +62,8 @@ export interface AssistantSurfaceProps {
    * 已有对话没有这项；第一句话发出后 entry 相位结束，这一栏也随之卸载。
    */
   readonly workspace?: Omit<WorkspacePickerProps, 'placement'> | undefined
+  /** 工作目录的 git 分支上下文。不是仓库就是 undefined，整枚 chip 不渲染。 */
+  readonly git?: GitBranchPickerProps | undefined
   /** 对话里敲得出来的命令表，喂给输入框的斜杠菜单。 */
   readonly palette?: readonly PaletteEntry[] | undefined
 }
@@ -83,6 +86,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   controls,
   controlsFailure,
   endpoint,
+  git,
   identify,
   onRetryControls,
   onSelectControl,
@@ -307,6 +311,8 @@ export const AssistantSurface = memo(function AssistantSurface({
         {live || workspace === undefined ? null : (
           <div className="assistant-surface__context">
             <WorkspacePicker {...workspace} placement="composer" />
+
+            {git === undefined ? null : <GitBranchPicker {...git} />}
           </div>
         )}
       </div>

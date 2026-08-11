@@ -57,6 +57,7 @@ export {
   isIpcError,
   throughIpc,
 } from './error'
+export { type GitBranches, gitBranches, gitCreateBranch, gitSwitchBranch } from './git'
 export { type McpEndpoint, readMcpEndpoint } from './mcp'
 export {
   commitPlugin,

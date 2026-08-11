@@ -1,0 +1,151 @@
+/*
+ * 上下文栏里的第二枚 chip：几何与项目胶囊同一族令牌（--cp-control /
+ * --cp-radius / --cp-hover），弹层骨架与项目选择器同一套
+ * （assistant-menu-surface + 顶部搜索 + 28px 行）。这里只声明它自己的
+ * 差异，不复制一份色板。
+ */
+.git-branch-picker {
+  display: inline-flex;
+  min-inline-size: 0;
+}
+
+.git-branch-picker__trigger {
+  display: inline-flex;
+  block-size: var(--cp-control);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  border: 0;
+  border-radius: var(--cp-radius);
+  padding-inline: var(--cp-inset);
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.git-branch-picker__trigger:hover,
+.git-branch-picker__trigger[data-popup-open] {
+  background: var(--cp-hover);
+}
+
+.git-branch-picker__trigger:focus-visible {
+  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+.git-branch-picker__trigger svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+  color: var(--cp-ink-muted);
+}
+
+/* 分支名可以很长（feature/…），省略号在 chip 里断，不许把上下文栏挤开。 */
+.git-branch-picker__name {
+  min-inline-size: 0;
+  max-inline-size: 24ch;
+  overflow: hidden;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-branch-picker__menu[data-assistant-skin] {
+  min-inline-size: 216px;
+  font-size: var(--cp-font-caption);
+}
+
+/* 搜索是弹层的标题栏，与项目选择器同一形状：图标在左，与名单隔一条线。 */
+.git-branch-picker__field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 4px var(--am-pad);
+  border-block-end: var(--cp-px) solid var(--cp-hairline);
+  padding: 4px 4px 8px;
+  color: var(--cp-ink-subtle);
+}
+
+.git-branch-picker__field svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+}
+
+.git-branch-picker__search {
+  min-inline-size: 0;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  outline: none;
+}
+
+.git-branch-picker__search::placeholder {
+  color: var(--cp-placeholder);
+}
+
+.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__item {
+  display: flex;
+  min-block-size: 28px;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--am-item);
+  padding: 0 8px;
+  color: var(--cp-ink);
+  cursor: pointer;
+}
+
+.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__item svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+  color: var(--cp-ink-muted);
+}
+
+.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__item[data-highlighted] {
+  outline: none;
+  background: var(--cp-hover);
+}
+
+.git-branch-picker__item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-branch-picker__check {
+  margin-inline-start: auto;
+}
+
+.git-branch-picker__none {
+  margin: 0;
+  padding: 4px 8px 8px;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+}
+
+/* git 的拒绝理由原文说给人听：它是弹层里的一行，不是一次弹窗惊吓。 */
+.git-branch-picker__failure {
+  margin: 0;
+  padding: 4px 8px;
+  overflow-wrap: anywhere;
+  color: var(--ui-destructive);
+  font-size: var(--cp-font-micro);
+  line-height: 1.35;
+}
+
+.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__separator {
+  block-size: var(--cp-px);
+  margin: var(--am-pad) 8px;
+  background: var(--cp-hairline);
+}

@@ -1,6 +1,7 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
 import {
   AssistantSurface,
+  type GitBranchPickerProps,
   useAgentControls,
   useSessionControlsActions,
   useThreadSelectorFailure,
@@ -33,9 +34,12 @@ export interface ConversationSurfaceProps {
   readonly threadId: string | null
   /** 只有新对话入口会交出这项。 */
   readonly workspace?: Omit<WorkspacePickerProps, 'placement'> | undefined
+  /** 工作目录的分支上下文，与 workspace 同来源同去处；不是仓库就没有。 */
+  readonly git?: GitBranchPickerProps | undefined
 }
 
 export function ConversationSurface({
+  git,
   onIdentify,
   onStarted,
   session,
@@ -162,6 +166,7 @@ export function ConversationSurface({
       controls={controls}
       controlsFailure={controlsFailure}
       endpoint={threadId}
+      git={git}
       identify={onIdentify}
       onRetryControls={retryControls}
       onSelectControl={chooseControl}
