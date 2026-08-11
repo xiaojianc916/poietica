@@ -33,7 +33,7 @@
  */
 .conversation-minimap {
   --cp-rail-hit: 12px;
-  --cp-rail-len: 9px;
+  --cp-rail-len: calc(var(--cp-rail-dpx) * 9);
   --cp-rail-gain: 25px;
   /*
    * 厚度是常量，而且用设备像素定义：3 × dpx，永久是屏幕上的 3px。
