@@ -57,7 +57,7 @@ impl TableExportFormat {
 pub async fn table_export(
     app: AppHandle,
     request: TableExportRequest,
-) -> std::result::Result<bool, IpcError> {
+) -> Result<bool, IpcError> {
     if request.content.len() > MAX_TABLE_EXPORT_BYTES {
         return Err(IpcError::from(Error::Validation(
             "table export exceeds the size limit".to_owned(),
