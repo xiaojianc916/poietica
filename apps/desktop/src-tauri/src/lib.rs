@@ -20,6 +20,7 @@ pub mod commands;
 pub mod diagnostics;
 pub mod error;
 pub mod ipc;
+pub mod local_index;
 pub mod mcp;
 pub mod paths;
 

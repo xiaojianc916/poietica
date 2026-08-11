@@ -8,6 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::attachments::forget_blob;
 use crate::error::{Error, Result};
+use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::agent_home;
 use poietica_agent_persistence_native::TitleSource;
 use tauri::{AppHandle, State, async_runtime};
@@ -22,7 +23,6 @@ use super::dto::{
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
-use super::store::{conversation, counted, on_store, persistence};
 use super::{AgentCommandResult, NO_ANSWER, TITLE_CHARS};
 
 /// Lists the stored conversations, newest first.
@@ -43,8 +43,8 @@ use super::{AgentCommandResult, NO_ANSWER, TITLE_CHARS};
 /// Fails when the database cannot be opened or read.
 #[tauri::command]
 #[specta::specta]
-pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult<Vec<AgentThread>> {
-    let stored = on_store(&state, |store| store.list_threads().map_err(persistence)).await?;
+pub async fn agent_threads(index: State<'_, LocalIndex>) -> AgentCommandResult<Vec<AgentThread>> {
+    let stored = on_index(&index, |store| store.list_threads().map_err(persistence)).await?;
 
     Ok(stored.into_iter().map(retitle).collect())
 }
@@ -76,6 +76,7 @@ pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult
 pub async fn agent_open_thread(
     app: AppHandle,
     state: State<'_, AgentRuntime>,
+    index: State<'_, LocalIndex>,
     assets: State<'_, AssetProtocolRegistry>,
     request: AgentOpenThreadRequest,
 ) -> AgentCommandResult<AgentOpenedThread> {
@@ -88,7 +89,7 @@ pub async fn agent_open_thread(
     } else {
         /* 新建的这一条属于此刻这个工作目录，而且从此属于它：之后每一次为这条
         对话开会话都照这一行，不照「渲染层此刻选的那个」。 */
-        on_store(&state, move |store| {
+        on_index(&index, move |store| {
             store
                 .create_thread(FALLBACK_THREAD_TITLE, asked.as_deref())
                 .map(|id| id.to_string())
@@ -103,7 +104,7 @@ pub async fn agent_open_thread(
         offered,
         events,
         history,
-    } = session_for(&state, &live, &named, Wanted::History, mcp).await?;
+    } = session_for(&state, &index, &live, &named, Wanted::History, mcp).await?;
 
     let offered = if let Some(offered) = offered {
         offered
@@ -124,7 +125,7 @@ pub async fn agent_open_thread(
     它们共用一次借用：一趟阻塞线程、一次上锁、两条 prepare_cached。拆成两趟就
     是各排一次线程池、各抢一次那把库锁，而打开一条对话正是人点一下就要等的那
     条路径 —— turn.rs 里那批附件写入用的是同一条规矩。 */
-    let (thread, prompts, spans) = on_store(&state, move |store| {
+    let (thread, prompts, spans) = on_index(&index, move |store| {
         let thread = store
             .thread(thread_id)
             .map_err(persistence)?
@@ -141,7 +142,7 @@ pub async fn agent_open_thread(
     })
     .await?;
 
-    let attachments = deliver_attachments(&state, &assets, thread_id).await?;
+    let attachments = deliver_attachments(&state, &index, &assets, thread_id).await?;
 
     let prompts = counted(prompts)?;
 
@@ -200,7 +201,7 @@ fn retitle(thread: poietica_agent_persistence_native::ThreadSummary) -> AgentThr
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_rename_thread(
-    state: State<'_, AgentRuntime>,
+    index: State<'_, LocalIndex>,
     request: AgentRenameThreadRequest,
 ) -> AgentCommandResult<()> {
     let title: String = request.title.trim().chars().take(TITLE_CHARS).collect();
@@ -211,7 +212,7 @@ pub async fn agent_rename_thread(
 
     let id = conversation(&request.thread_id)?;
 
-    on_store(&state, move |store| {
+    on_index(&index, move |store| {
         store.name_by_user(id, &title).map_err(persistence)
     })
     .await?;
@@ -224,13 +225,13 @@ pub async fn agent_rename_thread(
 #[specta::specta]
 pub async fn agent_archive_thread(
     app: AppHandle,
-    state: State<'_, AgentRuntime>,
+    index: State<'_, LocalIndex>,
     request: AgentArchiveThreadRequest,
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
     let archived = request.archived;
 
-    let stored = on_store(&state, move |store| {
+    let stored = on_index(&index, move |store| {
         store
             .thread(id)
             .map_err(persistence)?
@@ -259,7 +260,7 @@ pub async fn agent_archive_thread(
         })??;
     }
 
-    on_store(&state, move |store| {
+    on_index(&index, move |store| {
         store.set_archived(id, archived).map_err(persistence)
     })
     .await?;
@@ -398,11 +399,12 @@ fn find_kimi_state(directory: &Path, session_id: &str, depth: usize) -> Result<O
 #[specta::specta]
 pub async fn agent_delete_thread(
     state: State<'_, AgentRuntime>,
+    index: State<'_, LocalIndex>,
     request: AgentThreadRequest,
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
 
-    let stored = on_store(&state, move |store| store.thread(id).map_err(persistence)).await?;
+    let stored = on_index(&index, move |store| store.thread(id).map_err(persistence)).await?;
 
     let live = borrow(&state)?;
 
@@ -437,7 +439,7 @@ pub async fn agent_delete_thread(
     删行与扫孤儿共用一次借用。拆成两趟不只是多排一次线程池、多抢一次那把库
     锁：两次上锁之间那道缝里，别人读到的是「对话行没了、附件账还在」——一个
     谁都不该看见的中间态。 */
-    let orphans = on_store(&state, move |store| {
+    let orphans = on_index(&index, move |store| {
         store.delete_thread(id).map_err(persistence)?;
 
         let orphans = store.unreferenced_attachments().map_err(persistence)?;
@@ -473,13 +475,13 @@ pub async fn agent_delete_thread(
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_pin_thread(
-    state: State<'_, AgentRuntime>,
+    index: State<'_, LocalIndex>,
     request: AgentPinThreadRequest,
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
     let pinned = request.pinned;
 
-    on_store(&state, move |store| {
+    on_index(&index, move |store| {
         store.set_pinned(id, pinned).map_err(persistence)
     })
     .await?;

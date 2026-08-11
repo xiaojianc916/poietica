@@ -11,4 +11,5 @@ pub mod settings;
 pub mod storage;
 pub mod updates;
 pub mod window;
+pub mod workbench;
 pub mod workspace;

@@ -8,6 +8,7 @@ use crate::asset_protocol::{
 };
 use crate::attachments::{blob_path, store_bytes};
 use crate::error::{Error, Result};
+use crate::local_index::{LocalIndex, counted, on_index, persistence};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use poietica_agent_persistence_native::ThreadAttachment;
@@ -20,7 +21,6 @@ use uuid::Uuid;
 
 use super::dto::{AgentPromptAsset, AgentThreadAttachment};
 use super::runtime::AgentRuntime;
-use super::store::{counted, on_store, persistence};
 use super::{IMAGE_TOO_LARGE, NO_READ, NO_SUCH_ASSET, TOO_MANY_IMAGES};
 
 /// 一句话里的图片落定之后的三份东西。
@@ -137,10 +137,11 @@ pub(super) async fn keep_bytes(
 /// 账本读不出、字节读不动（缺失除外）、或注册表拒绝这一批时返回错误。
 pub(super) async fn deliver_attachments(
     state: &State<'_, AgentRuntime>,
+    index: &State<'_, LocalIndex>,
     assets: &State<'_, AssetProtocolRegistry>,
     thread_id: Uuid,
 ) -> Result<Vec<AgentThreadAttachment>> {
-    let ledger = on_store(state, move |store| {
+    let ledger = on_index(index, move |store| {
         store.attachments_of(thread_id).map_err(persistence)
     })
     .await?;

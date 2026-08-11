@@ -33,7 +33,6 @@ pub mod config;
 pub mod dto;
 mod failure;
 pub mod runtime;
-mod store;
 pub mod thread;
 pub mod turn;
 
@@ -94,12 +93,6 @@ const NO_SUCH_ASSET: &str = "an attachment is no longer available";
 
 /// 一句话里的图片多到序号装不下。实际到不了，但转换要有个说法。
 const TOO_MANY_IMAGES: &str = "too many attachments in one message";
-
-/// 账本里的一个计数，大到线上那一格装不下。
-///
-/// 同样到不了：四十亿条用户消息，或者一句话里四十亿张图。但静默截断是
-/// 不能接受的，所以它有一个说法。
-const COUNT_TOO_LARGE: &str = "a stored count does not fit the wire";
 
 /// 一句话只有图片时，这条对话叫什么。
 ///

@@ -5,13 +5,12 @@
 
 use crate::commands::agent_setup::profile::launch_env;
 use crate::error::{Error, Result};
-use crate::paths::{attachments_root, thread_database};
-use poietica_agent_persistence_native::AgentStore;
+use crate::paths::attachments_root;
 use poietica_agent_runtime_native::{
     AgentClient, AgentConnection, AgentSpawn, PermissionDesk, RunSlot, SessionBook, connect,
 };
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 
 use super::config::restate;
@@ -63,15 +62,17 @@ struct Connection {
     book: SessionBook,
 }
 
-/// 这个进程活多久就活多久的那些东西：库、附件、根目录，以及此刻那一条连接。
+/// 这个进程活多久就活多久的那些东西：附件、根目录，以及此刻那一条连接。
 ///
 /// 连接自己的东西不在这里 —— 记录槽、权限台、它开出来的会话号，寿命都是一条
 /// 连接。它们此前是这个结构的字段，于是全进程只有一份，而第二个 agent 在结构
 /// 上就放不进来。
+///
+/// 库也不在这里。它是这台机器的东西，不是这个子系统的：工作台那一份与对话
+/// 索引同库，而工作台不归 agent 管。它归 crate::local_index。
 #[derive(Debug)]
 pub struct AgentRuntime {
-    pub(super) database: PathBuf,
-    /// 附件字节的根。与库文件同一个时刻解析：两者都是布局，不是某条命令的参数。
+    /// 附件字节的根。开机时解析一次：它是布局，不是某条命令的参数。
     pub(super) attachments: PathBuf,
     pub(super) root: PathBuf,
     connection: Mutex<Option<Connection>>,
@@ -86,12 +87,6 @@ pub struct AgentRuntime {
     /// `agent_shutdown` 之后重新起一条连接照样成立 —— 这是它比 `OnceCell` 合适
     /// 的地方，后者一次成型，没有回头路。
     pub(super) starting: tokio::sync::Mutex<()>,
-    /// The one connection to the index, opened on first use.
-    ///
-    /// Every command used to open one of its own: a full migrate, all of
-    /// it again for something as ordinary as refreshing the sidebar. The
-    /// single writer this file claims to have had never actually existed.
-    pub(super) store: OnceLock<Arc<Mutex<AgentStore>>>,
 }
 
 impl AgentRuntime {
@@ -122,12 +117,10 @@ impl AgentRuntime {
         let root = handle.path().home_dir()?;
 
         Ok(Self {
-            database: thread_database(handle)?,
             attachments: attachments_root(handle)?,
             root,
             connection: Mutex::new(None),
             starting: tokio::sync::Mutex::new(()),
-            store: OnceLock::new(),
         })
     }
 }

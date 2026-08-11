@@ -72,6 +72,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "thread_archiving",
         include_str!("schema/0015_thread_archiving.sql"),
     ),
+    (
+        16,
+        "workbench_session",
+        include_str!("schema/0016_workbench_session.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.

@@ -36,11 +36,14 @@ function reportReactError(input: {
   })
 }
 
-export function mountReactApplication(container: HTMLElement): MountedReactApplication {
+export function mountReactApplication(
+  container: HTMLElement,
+  restored: string | null,
+): MountedReactApplication {
   let runtime: ReturnType<typeof createApplicationRuntime>
 
   try {
-    runtime = createApplicationRuntime()
+    runtime = createApplicationRuntime(restored)
   } catch (error: unknown) {
     reportFatalIncident({
       impact: 'application-fatal',

@@ -135,6 +135,18 @@ pub fn build() -> tauri::Builder<Wry> {
              */
             commands::automations::watch(handle);
             crate::mcp::serve(handle)?;
+
+            /*
+             * 库在窗口出现之前打开，迁移在这里跑完。
+             *
+             * 它不再是某个子系统的私产：工作台开着哪几格与对话索引同库，而
+             * 渲染层在挂载 React 之前就要读它一次 —— 每一次启动都要读。所以
+             * 「没打开助手的那一次启动不该为迁移付钱」这条旧理由不再成立，
+             * 而放在这里的收益是确定的：前端那一次等待只是一条 SELECT，不是
+             * 一次时长不可预测的迁移。
+             */
+            let database = paths::thread_database(handle)?;
+            let _index = app.manage(crate::local_index::LocalIndex::open(&database)?);
             let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;

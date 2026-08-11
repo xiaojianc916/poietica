@@ -69,4 +69,7 @@ export {
   type WorkbenchTabViewModel,
   type WorkbenchViewModel,
 } from './workbench'
-export { createWorkbenchSessionController } from './workbench-session-controller'
+export {
+  createWorkbenchSessionController,
+  type WorkbenchSessionOptions,
+} from './workbench-session-controller'

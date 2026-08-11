@@ -4,6 +4,7 @@
 
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
+use crate::local_index::{LocalIndex, conversation, on_index, persistence};
 use poietica_agent_persistence_native::TurnSpan;
 use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
 use tauri::{AppHandle, Emitter, Manager, State, async_runtime};
@@ -17,7 +18,6 @@ use super::dto::{
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
-use super::store::{conversation, on_store, persistence};
 use super::{
     AGENT_EVENT, AgentCommandResult, FRAME_INTERVAL, IMAGE_OPENER, NO_CONVERSATION, NO_SESSION,
     NOTHING_TO_STOP, TITLE_CHARS,
@@ -38,6 +38,7 @@ use super::{
 pub async fn agent_prompt(
     app: AppHandle,
     state: State<'_, AgentRuntime>,
+    index: State<'_, LocalIndex>,
     assets: State<'_, AssetProtocolRegistry>,
     request: AgentPromptRequest,
 ) -> AgentCommandResult<AgentPromptResult> {
@@ -67,7 +68,7 @@ pub async fn agent_prompt(
         .ok_or_else(|| Error::Validation(NO_CONVERSATION.to_owned()))?;
 
     /* 提问不需要历史：屏幕上正看着的就是这条对话。 */
-    let held = session_for(&state, &session, named, Wanted::Address, mcp).await?;
+    let held = session_for(&state, &index, &session, named, Wanted::Address, mcp).await?;
     let thread_id = held.thread_id;
     let addressed = held.session_id;
 
@@ -90,7 +91,7 @@ pub async fn agent_prompt(
     //
     // 库操作只有一条路。它在阻塞线程池上，所以这一次写不会停住这个运行时上
     // 别的东西 —— 包括 ACP driver 的 future，它就在这里 spawn 的。
-    let turn = on_store(&state, move |store| {
+    let turn = on_index(&index, move |store| {
         store.record_prompt(thread_id, &opener).map_err(persistence)
     })
     .await?;
@@ -111,8 +112,8 @@ pub async fn agent_prompt(
     .await?;
 
     /* 一句话里的图写的是同一张表、属于同一句话：一次借用，一趟阻塞线程。逐张
-    各走一次 `on_store`，就是各排一次线程池、各抢一次那把库锁。 */
-    on_store(&state, move |store| {
+    各走一次 `on_index`，就是各排一次线程池、各抢一次那把库锁。 */
+    on_index(&index, move |store| {
         for attachment in ledger {
             store
                 .remember_attachment(thread_id, &attachment)
@@ -150,8 +151,8 @@ pub async fn agent_prompt(
             started_at: asked_at,
             ended_at: epoch_millis(),
         };
-        let state = settle_app.state::<AgentRuntime>();
-        let recorded = on_store(&state, move |store| {
+        let index = settle_app.state::<LocalIndex>();
+        let recorded = on_index(&index, move |store| {
             store
                 .record_turn_span(thread_id, &span)
                 .map_err(persistence)
@@ -262,7 +263,7 @@ pub fn agent_resolve_permission(
 ///
 /// 它是 async 的，因为它要读一次库。同步命令跑在主线程上，而一次库读可能要等
 /// 写锁，最长等满 `DEFAULT_BUSY_TIMEOUT`，窗口会在那段时间里停止应答
-/// （见 `on_store`）。
+/// （见 `on_index`）。
 ///
 /// Cancellation is cooperative: the agent may still finish normally, and the
 /// recorded stop reason reports which of the two happened.
@@ -275,12 +276,13 @@ pub fn agent_resolve_permission(
 #[specta::specta]
 pub async fn agent_cancel(
     state: State<'_, AgentRuntime>,
+    index: State<'_, LocalIndex>,
     request: AgentCancelRequest,
 ) -> AgentCommandResult<()> {
     let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
     let id = conversation(&request.thread_id)?;
-    let stored = on_store(&state, move |store| store.thread(id).map_err(persistence)).await?;
+    let stored = on_index(&index, move |store| store.thread(id).map_err(persistence)).await?;
 
     /* 持有者对不上就不发：会话号活在各自 agent 的命名空间里，把 A 的号发给 B
     停的可能是 B 的东西。与 session_for 和 agent_delete_thread 同一条规矩。 */

@@ -4,6 +4,7 @@
 //! 把「对话」翻成「本次连接认得的会话」，认不出就重开或装载。
 
 use crate::error::Result;
+use crate::local_index::{LocalIndex, conversation, on_index, persistence};
 use poietica_agent_runtime_native::ConfigControl;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -13,7 +14,6 @@ use uuid::Uuid;
 use super::dto::{AgentHistory, AgentHistoryLoss};
 use super::failure::translate;
 use super::runtime::{AgentRuntime, Handle};
-use super::store::{conversation, on_store, persistence};
 
 /// 这一次寻址，要的是什么。
 ///
@@ -80,6 +80,7 @@ pub(super) struct Held {
 会话不该重挂 —— session/load 恢复的是它原来那一条，连同它原来那几台。 */
 pub(super) async fn session_for(
     state: &State<'_, AgentRuntime>,
+    index: &State<'_, LocalIndex>,
     live: &Handle,
     named: &str,
     wanted: Wanted,
@@ -87,7 +88,7 @@ pub(super) async fn session_for(
 ) -> Result<Held> {
     let thread_id = conversation(named)?;
 
-    let stored = on_store(state, move |store| {
+    let stored = on_index(index, move |store| {
         store.thread(thread_id).map_err(persistence)
     })
     .await?;
@@ -156,7 +157,7 @@ pub(super) async fn session_for(
                         let attached = session_id.clone();
                         let owner = live.agent_id.clone();
 
-                        on_store(state, move |store| {
+                        on_index(index, move |store| {
                             store
                                 .attach_session(thread_id, &attached, &owner)
                                 .map_err(persistence)
@@ -230,7 +231,7 @@ pub(super) async fn session_for(
         let attached = opened.session_id.clone();
         let owner = live.agent_id.clone();
 
-        on_store(state, move |store| {
+        on_index(index, move |store| {
             store
                 .attach_session(thread_id, &attached, &owner)
                 .map_err(persistence)
