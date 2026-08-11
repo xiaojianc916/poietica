@@ -44,6 +44,7 @@ use crate::commands::{
     settings::{AppSettings, PrivacySettings},
     updates::{UpdateProgress, UpdateRelease},
 };
+use crate::browser::BrowserState;
 use crate::diagnostics::NativeCrashReport;
 
 /// 这个应用的全部 IPC 命令与 DTO。
@@ -117,8 +118,20 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::git::git_branches,
             crate::commands::git::git_switch_branch,
             crate::commands::git::git_create_branch,
+            crate::browser::browser_state,
+            crate::browser::browser_open_tab,
+            crate::browser::browser_close_tab,
+            crate::browser::browser_select_tab,
+            crate::browser::browser_navigate,
+            crate::browser::browser_back,
+            crate::browser::browser_forward,
+            crate::browser::browser_reload,
+            crate::browser::browser_reopen_closed,
+            crate::browser::browser_set_bounds,
+            crate::browser::browser_set_visible,
+            crate::browser::browser_open_devtools,
         ])
-        .events(tauri_specta::collect_events![AutomationDue, UpdateProgress])
+        .events(tauri_specta::collect_events![AutomationDue, BrowserState, UpdateProgress])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
         .typ::<AgentResolvePermissionRequest>()
@@ -163,4 +176,5 @@ pub fn surface() -> Builder<Wry> {
         .typ::<ProviderProbeOutcome>()
         .typ::<UpdateRelease>()
         .typ::<GitBranches>()
+        .typ::<BrowserState>()
 }

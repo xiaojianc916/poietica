@@ -32,6 +32,7 @@
 | `threads.sqlite3` | 对话索引 | 对话列表清空 |
 | `attachments/` | 附件字节，内容寻址 | 历史对话里的附件打不开 |
 | `agents/<id>/home/` | 各 agent 自己的配置，含 API 密钥 | 需要重新配置 provider |
+| `browser/profile/` | 内置浏览器面板的 WebView2 用户数据（Cookie、站点存储） | 面板里的网站登录态消失 |
 | `plugins/<id>/` | 装进来的插件的托管副本 | 那个插件的本体消失 |
 | `plugins/installed.json` | 装了哪些插件、开没开、哪些 MCP 服务器被关掉 | 插件全部回到未安装 |
 | `plugins/marketplace.json` | 上一次拉到的市场目录 | 下次打开市场时重新拉 |
@@ -61,4 +62,5 @@
 - **窗口位置与尺寸**。`tauri-plugin-window-state` 的落点写死在
   `${dataDir}/${bundleIdentifier}/`，插件没有开放这个参数。
 - **WebView2 的缓存**（`EBWebView`）。它归 WebView2 运行时管，位置由宿主进程的
-  用户数据目录决定。这不是我们的数据，是浏览器内核的缓存。
+  用户数据目录决定。这不是我们的数据，是浏览器内核的缓存。内置浏览器面板不在此列：它的
+  profile 显式钉在数据根的 `browser/profile/` 下，见上表。

@@ -22,6 +22,7 @@ import {
 } from '@poietica/workspace'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useThreadsActions } from '../assistant/threads-context'
+import { BrowserDock, BrowserPanelToggle } from '../browser/browser-dock'
 import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/desktop-title-bar'
 import { AssistantSidebarPanel } from './assistant-sidebar-panel'
 import { createAssistantWiring } from './assistant-wiring'
@@ -271,7 +272,22 @@ export function WorkspaceContainer({
     },
 
     main: {
-      content: isSettingsOpen ? <SettingsContentRegion /> : surface,
+      content: isSettingsOpen ? (
+        <SettingsContentRegion />
+      ) : (
+        /*
+         * 对话表面右侧的浏览器 dock。切换按钮只在对话里出现 —— 它属于对话
+         * 的工作方式，不属于其他表面；开合状态活在 browserPanelStore，
+         * 一份，跨表面与设置往返不丢。
+         */
+        <div className="relative flex h-full min-h-0 min-w-0">
+          <div className="relative min-w-0 flex-1">
+            {surface}
+            {workbench.activeSurface.kind === 'conversation' ? <BrowserPanelToggle /> : null}
+          </div>
+          <BrowserDock surfaceActive={workbench.activeSurface.kind === 'conversation'} />
+        </div>
+      ),
       label: isSettingsOpen ? '设置' : undefined,
     },
   }

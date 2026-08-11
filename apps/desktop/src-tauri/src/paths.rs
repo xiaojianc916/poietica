@@ -68,6 +68,16 @@ const PROJECTLESS_DIRECTORY: &str = "projectless";
 /// 受控 home：agent 自己的 CLI 往这里写它自己的配置文件，由它自己热重载。
 const AGENT_HOME_DIRECTORY: &str = "home";
 
+/// 内置浏览器占的一格。
+const BROWSER_DIRECTORY: &str = "browser";
+
+/// 内置浏览器面板的 WebView2 用户数据目录（Cookie、站点存储、内核缓存）。
+///
+/// 与应用 UI webview 的用户数据分开是硬要求：这一份属于「用户在面板里逛过
+/// 哪些网站」，寿命、备份与清除都跟着数据根走；混进 EBWebView 就再也分不出
+/// 谁是谁的。
+const BROWSER_PROFILE_DIRECTORY: &str = "profile";
+
 /// 根解析一次就固定。它在进程存续期间不会变，而每条命令都要问它。
 static ROOT: OnceLock<PathBuf> = OnceLock::new();
 
@@ -299,6 +309,21 @@ pub fn create_projectless_workspace<R: Runtime>(app: &AppHandle<R>) -> Result<Pa
     let directory = parent.join(Uuid::now_v7().to_string());
 
     fs::create_dir(&directory)?;
+
+    Ok(directory)
+}
+
+/// 内置浏览器的 WebView2 profile，创建后返回。
+///
+/// # Errors
+///
+/// 根目录无法解析、或目录无法创建时返回错误。
+pub fn browser_profile<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    let directory = root(app)?
+        .join(BROWSER_DIRECTORY)
+        .join(BROWSER_PROFILE_DIRECTORY);
+
+    fs::create_dir_all(&directory)?;
 
     Ok(directory)
 }

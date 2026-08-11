@@ -3056,6 +3056,7 @@ dependencies = [
  "log",
  "poietica-agent-persistence-native",
  "poietica-agent-runtime-native",
+ "poietica-browser-native",
  "poietica-git-native",
  "poietica-plugin-host-native",
  "reqwest 0.12.28",
@@ -3115,6 +3116,13 @@ dependencies = [
  "thiserror 2.0.19",
  "uuid",
  "which",
+]
+
+[[package]]
+name = "poietica-browser-native"
+version = "0.1.6"
+dependencies = [
+ "url",
 ]
 
 [[package]]

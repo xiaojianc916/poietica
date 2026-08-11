@@ -3,8 +3,10 @@ resolver = "3"
 members = [
   "apps/desktop/src-tauri",
   "crates/agent-runtime",
+  "crates/browser",
   "crates/git",
-  "crates/persistence", "crates/plugin-host",
+  "crates/persistence",
+  "crates/plugin-host",
 ]
 default-members = [
   "apps/desktop/src-tauri",
@@ -113,7 +115,10 @@ reqwest = { version = "0.12", default-features = false, features = [
 # Developer Tools、Obsidian 的 Ctrl+Shift+I、Slack、Discord、Figma 桌面版都
 # 带。前端代码本来就原样躺在安装包里，何况这个仓库是公开的 —— 开发者工具不
 # 增加任何暴露，它只是一个查看器。
-tauri = { version = "2.5.1", features = ["tray-icon", "image-png", "devtools"] }
+# unstable 只为 multiwebview：内置浏览器面板是主窗口里的原生子 webview
+# （Window::add_child）。iframe 不是备选 —— X-Frame-Options/frame-ancestors
+# 会把大多数站点挡在外面。该 feature 门后的 API 一旦破坏性变更，编译期即暴露。
+tauri = { version = "2.5.1", features = ["tray-icon", "image-png", "devtools", "unstable"] }
 tauri-build = { version = "2.2.0", features = [] }
 tauri-plugin-clipboard-manager = "2.3.0"
 tauri-plugin-dialog = "2.3.0"

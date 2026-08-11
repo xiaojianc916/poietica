@@ -148,6 +148,12 @@ pub fn build() -> tauri::Builder<Wry> {
             let database = paths::thread_database(handle)?;
             let _index = app.manage(crate::local_index::LocalIndex::open(&database)?);
             let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
+
+            /*
+             * 内置浏览器的标签宿主，进程级。webview 是懒创建的 —— 这里只放
+             * 空模型，第一次导航才碰内核。
+             */
+            let _browser = app.manage(crate::browser::BrowserHost::default());
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;
 

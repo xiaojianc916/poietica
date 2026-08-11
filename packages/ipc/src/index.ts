@@ -47,6 +47,25 @@ export {
   watchAutomations,
 } from './automations'
 export {
+  type BrowserClosedTab,
+  type BrowserState,
+  type BrowserTab,
+  type BrowserViewportBounds,
+  browserTabBack,
+  browserTabForward,
+  browserTabReload,
+  closeBrowserTab,
+  navigateBrowserTab,
+  openBrowserDevtools,
+  openBrowserTab,
+  openBrowserUrlExternally,
+  reopenClosedBrowserTab,
+  selectBrowserTab,
+  setBrowserViewportBounds,
+  setBrowserVisible,
+  watchBrowserState,
+} from './browser'
+export {
   type EnvironmentFile,
   readEnvironmentMcpConfig,
   writeEnvironmentMcpConfig,

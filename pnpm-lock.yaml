@@ -147,6 +147,9 @@ importers:
       '@poietica/automations':
         specifier: workspace:*
         version: link:../../packages/automations
+      '@poietica/browser':
+        specifier: workspace:*
+        version: link:../../packages/browser
       '@poietica/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -353,6 +356,37 @@ importers:
       croner:
         specifier: 10.0.1
         version: 10.0.1
+    devDependencies:
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.4(@types/react@19.2.18)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.8
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.8(react@19.2.8)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.2)(vite@8.2.1(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/browser:
+    dependencies:
+      '@poietica/core':
+        specifier: workspace:*
+        version: link:../core
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.30.0(react@19.2.8)
+      valibot:
+        specifier: 'catalog:'
+        version: 1.4.2(typescript@7.0.2)
     devDependencies:
       '@types/react':
         specifier: 'catalog:'

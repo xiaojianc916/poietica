@@ -18,6 +18,7 @@
     "@poietica/agent-contract": "workspace:*",
     "@poietica/agent-ui": "workspace:*",
     "@poietica/automations": "workspace:*",
+    "@poietica/browser": "workspace:*",
     "@poietica/core": "workspace:*",
     "@poietica/desktop-adapters": "workspace:*",
     "@poietica/ipc": "workspace:*",

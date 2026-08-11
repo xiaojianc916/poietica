@@ -82,7 +82,7 @@ const layers = [
   { name: 'transport', packages: ['ipc'] },
   {
     name: 'features',
-    packages: ['automations', 'agent-ui', 'plugins', 'settings', 'workspace'],
+    packages: ['automations', 'agent-ui', 'browser', 'plugins', 'settings', 'workspace'],
   },
   { name: 'composition', packages: ['desktop-adapters'] },
   { name: 'application', packages: ['desktop'] },
@@ -278,7 +278,7 @@ const capabilityScopedDirectoryNames = (inventory) =>
  * 定义在 native crate，不在 src-tauri」判不了 —— 那需要语义分析，不是正则或
  * 清单能做的事，所以不假装它被守住了。
  */
-const nativeCrates = ['agent-runtime', 'git', 'persistence', 'plugin-host']
+const nativeCrates = ['agent-runtime', 'browser', 'git', 'persistence', 'plugin-host']
 
 const nativeCratesStayHostAgnostic = async (inventory) => {
   const present = new Set(inventory.files)

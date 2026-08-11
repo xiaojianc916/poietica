@@ -866,6 +866,67 @@ async gitSwitchBranch(root: string, branch: string) : Promise<GitBranches> {
  */
 async gitCreateBranch(root: string, branch: string) : Promise<GitBranches> {
     return await TAURI_INVOKE("git_create_branch", { root, branch });
+},
+/**
+ * 渲染层进面板时拉一次的初始快照。之后靠事件。
+ */
+async browserState() : Promise<BrowserState> {
+    return await TAURI_INVOKE("browser_state");
+},
+/**
+ * 开标签。不带地址就是空白页（图一的 about:blank 形态）。
+ */
+async browserOpenTab(url: string | null) : Promise<void> {
+    await TAURI_INVOKE("browser_open_tab", { url });
+},
+async browserCloseTab(id: number) : Promise<void> {
+    await TAURI_INVOKE("browser_close_tab", { id });
+},
+async browserSelectTab(id: number) : Promise<void> {
+    await TAURI_INVOKE("browser_select_tab", { id });
+},
+/**
+ * 地址栏回车。规整不出 URL 就什么也不做 —— 这个地址栏只认 URL，不做搜索。
+ */
+async browserNavigate(id: number, address: string) : Promise<void> {
+    await TAURI_INVOKE("browser_navigate", { id, address });
+},
+/**
+ * 后退。历史归内核所有，这里只请求 —— 没有历史时它自然无事发生，
+ * 与浏览器本体的行为一致，不另记一份「能不能后退」的影子账。
+ */
+async browserBack(id: number) : Promise<void> {
+    await TAURI_INVOKE("browser_back", { id });
+},
+async browserForward(id: number) : Promise<void> {
+    await TAURI_INVOKE("browser_forward", { id });
+},
+async browserReload(id: number) : Promise<void> {
+    await TAURI_INVOKE("browser_reload", { id });
+},
+/**
+ * 重开最近关闭下拉里的第 index 条。
+ */
+async browserReopenClosed(index: number) : Promise<void> {
+    await TAURI_INVOKE("browser_reopen_closed", { index });
+},
+/**
+ * 渲染层量好的视口逻辑坐标。React 只报数，摆放由这里做。
+ */
+async browserSetBounds(x: number, y: number, width: number, height: number) : Promise<void> {
+    await TAURI_INVOKE("browser_set_bounds", { x, y, width, height });
+},
+/**
+ * 面板开合（含切到非对话表面）。隐藏不销毁：标签还在，回来接着用。
+ */
+async browserSetVisible(visible: boolean) : Promise<void> {
+    await TAURI_INVOKE("browser_set_visible", { visible });
+},
+/**
+ * 图三「打开调试工具」：WebView2 的 DevTools 独立窗口。
+ */
+async browserOpenDevtools(id: number) : Promise<void> {
+    await TAURI_INVOKE("browser_open_devtools", { id });
 }
 }
 
@@ -874,9 +935,11 @@ async gitCreateBranch(root: string, branch: string) : Promise<GitBranches> {
 
 export const events = __makeEvents__<{
 automationDue: AutomationDue,
+browserState: BrowserState,
 updateProgress: UpdateProgress
 }>({
 automationDue: "automation-due",
+browserState: "browser-state",
 updateProgress: "update-progress"
 })
 
@@ -1570,6 +1633,19 @@ export type AutomationRunOutcome = "succeeded" | "failed"
  * 一次运行的提交：记一笔账，并按上面的判定推进日程。
  */
 export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: AutomationReschedule }
+/**
+ * 最近关闭的一条，够画出下拉里的那一行。
+ */
+export type BrowserClosedTab = { url: string; title: string }
+/**
+ * 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，
+ * 增量协议换来的只是两侧各一份需要对账的账本。
+ */
+export type BrowserState = { tabs: BrowserTab[]; activeTabId: number | null; recentlyClosed: BrowserClosedTab[] }
+/**
+ * 一个标签在渲染层眼里的样子。url 缺席 = 空白页。
+ */
+export type BrowserTab = { id: number; url: string | null; title: string }
 /**
  * 疏密同样是闭集，理由与 `ThemePreference` 逐字相同。
  */
