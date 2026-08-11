@@ -165,46 +165,38 @@ mod tests {
 
     use super::{Blob, blob_path, forget_blob, is_content_hash, store_bytes};
     use std::fs;
-    use std::path::PathBuf;
-    use uuid::Uuid;
 
     /// 一间自带清理的临时仓。
     ///
-    /// 不引 tempfile：这个 crate 的测试目前没有它，为四条测试加一个 dev 依赖
-    /// 不划算，而这里要的只是一个没人用过的目录。
-    struct Scratch {
-        root: PathBuf,
-    }
-
-    impl Scratch {
-        fn new() -> Self {
-            let root = std::env::temp_dir()
-                .join("poietica-attachments-test")
-                .join(Uuid::now_v7().simple().to_string());
-
-            fs::create_dir_all(&root).expect("scratch directory");
-
-            Self { root }
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ignored = fs::remove_dir_all(&self.root);
-        }
+    /// 这里此前手写了二十行的 Scratch，理由写着「不引 tempfile：这个 crate 的
+    /// 测试目前没有它」。那句话是假的：tempfile 一直在 Cargo.toml 的
+    /// dependencies 段里，commands/agent/thread.rs 用它替换 Kimi 的
+    /// state.json，而普通依赖对同一个 crate 的测试本来就可见 —— 一个 dev 依赖
+    /// 都不需要。作者以为它不在，它却就在，于是那二十行把 TempDir 已经做好的
+    /// 事重写了一遍：开一个没人用过的目录，drop 时抹掉。
+    ///
+    /// 前缀是留着的：TempDir 默认叫 .tmpXXXXXX，谁都认不出那是谁掉的。测试进程
+    /// 被硬杀时 drop 不跑，残留得能一眼归到我们头上。
+    ///
+    /// 全限定写法跟着 thread.rs 走，那边也没有为 tempfile 立一行 use。
+    fn scratch() -> tempfile::TempDir {
+        tempfile::Builder::new()
+            .prefix("poietica-attachments-")
+            .tempdir()
+            .expect("scratch directory")
     }
 
     #[test]
     fn the_same_bytes_occupy_one_file_however_often_they_are_sent() {
-        let scratch = Scratch::new();
+        let scratch = scratch();
 
-        let first: Blob = store_bytes(&scratch.root, b"an image").expect("first send");
-        let second: Blob = store_bytes(&scratch.root, b"an image").expect("second send");
+        let first: Blob = store_bytes(scratch.path(), b"an image").expect("first send");
+        let second: Blob = store_bytes(scratch.path(), b"an image").expect("second send");
 
         assert_eq!(first.hash, second.hash, "内容一样，身份就一样");
         assert_eq!(first.byte_size, 8);
 
-        let path = blob_path(&scratch.root, &first.hash).expect("path");
+        let path = blob_path(scratch.path(), &first.hash).expect("path");
 
         assert!(path.is_file());
         assert_eq!(
@@ -216,9 +208,9 @@ mod tests {
 
     #[test]
     fn a_digest_is_sharded_by_its_first_two_characters() {
-        let scratch = Scratch::new();
-        let blob = store_bytes(&scratch.root, b"sharded").expect("send");
-        let path = blob_path(&scratch.root, &blob.hash).expect("path");
+        let scratch = scratch();
+        let blob = store_bytes(scratch.path(), b"sharded").expect("send");
+        let path = blob_path(scratch.path(), &blob.hash).expect("path");
 
         let shard = path
             .parent()
@@ -232,7 +224,7 @@ mod tests {
 
     #[test]
     fn nothing_that_is_not_a_digest_can_reach_the_filesystem() {
-        let scratch = Scratch::new();
+        let scratch = scratch();
 
         for hostile in [
             "..",
@@ -243,7 +235,7 @@ mod tests {
         ] {
             assert!(!is_content_hash(hostile), "{hostile} 不是摘要");
             assert!(
-                blob_path(&scratch.root, hostile).is_err(),
+                blob_path(scratch.path(), hostile).is_err(),
                 "路径是从 hash 拼出来的，所以拒绝必须发生在拼之前: {hostile}"
             );
         }
@@ -251,22 +243,22 @@ mod tests {
 
     #[test]
     fn forgetting_bytes_that_are_already_gone_is_not_a_failure() {
-        let scratch = Scratch::new();
-        let blob = store_bytes(&scratch.root, b"transient").expect("send");
+        let scratch = scratch();
+        let blob = store_bytes(scratch.path(), b"transient").expect("send");
 
-        forget_blob(&scratch.root, &blob.hash).expect("first sweep");
-        forget_blob(&scratch.root, &blob.hash).expect("回收会重复扫到同一份字节");
+        forget_blob(scratch.path(), &blob.hash).expect("first sweep");
+        forget_blob(scratch.path(), &blob.hash).expect("回收会重复扫到同一份字节");
 
-        assert!(!blob_path(&scratch.root, &blob.hash).expect("path").exists());
+        assert!(!blob_path(scratch.path(), &blob.hash).expect("path").exists());
     }
 
     #[test]
     fn staging_does_not_keep_what_it_handed_over() {
-        let scratch = Scratch::new();
+        let scratch = scratch();
 
-        store_bytes(&scratch.root, b"handed over").expect("send");
+        store_bytes(scratch.path(), b"handed over").expect("send");
 
-        let staging = scratch.root.join(super::STAGING_DIRECTORY);
+        let staging = scratch.path().join(super::STAGING_DIRECTORY);
         let leftovers = fs::read_dir(&staging).expect("staging directory").count();
 
         assert_eq!(leftovers, 0, "改名成功之后暂存目录必须是空的");

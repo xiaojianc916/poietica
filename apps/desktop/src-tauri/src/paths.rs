@@ -249,6 +249,27 @@ pub fn agent_home<R: Runtime>(app: &AppHandle<R>, agent_id: &str) -> Result<Path
 ///
 /// 它挂在应用自己的数据根下，不在 agent 的家里：这是我们的界面缓存，agent 从不读它。
 /// 装了什么则相反 —— 那份账本是 agent 的，位置由 agent_home_directory 说了算。
+///
+/// 它落在 cache 里，不在数据根上。判据是 cache_directory 写着的那一条 ——
+/// 丢了还能重新取回来 —— 而这个函数第一行自己就说了，刷新是用户的动作：
+/// 抹掉它，用户点一次刷新就全回来了。
+///
+/// 此前它躺在根上，那个位置两头都不占：它不是用户数据，却又不在任何一个可以
+/// 整个丢掉的目录里。cache_directory 说「每一项都该能被独立丢掉」，那句话要
+/// 成立，这一项就得在那个目录里。
+///
+/// 那行删除是搬家的收尾，不是数据迁移：抹得掉才抹，与 temp_directory 同一条
+/// 规矩。搬完之后它每次都白跑一趟，而调用点只有两个，都由用户点出来。
+///
+/// 代价照实说：装过旧版本的人搬完家第一次打开市场是空的，要自己刷新一次。
+///
+/// # Errors
+///
+/// 数据根无法解析、或 cache 目录无法创建时返回错误。
 pub fn marketplace_catalog<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
-    Ok(root(app)?.join(MARKETPLACE_CATALOG_FILE))
+    let stale = root(app)?.join(MARKETPLACE_CATALOG_FILE);
+
+    let _swept = fs::remove_file(stale);
+
+    Ok(cache_directory(app)?.join(MARKETPLACE_CATALOG_FILE))
 }
