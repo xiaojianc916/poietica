@@ -350,9 +350,9 @@ const ThreadRow = memo(function ThreadRow({
 
             <span className="assistant-thread__actions">
               <button
+                aria-label={pinLabel}
                 className="assistant-thread__action"
                 onClick={togglePin}
-                title={pinLabel}
                 type="button"
               >
                 <PinGlyph isPinned={isPinned} />
@@ -366,11 +366,7 @@ const ThreadRow = memo(function ThreadRow({
                   受控：开合状态上报给这一行，行的底色与行尾那一格据此保持。
                 */}
               <DropdownMenu modal={false} onOpenChange={setIsMenuOpen} open={isMenuOpen}>
-                <DropdownMenuTrigger
-                  aria-label="更多操作"
-                  className="assistant-thread__action"
-                  title="更多操作"
-                >
+                <DropdownMenuTrigger aria-label="更多操作" className="assistant-thread__action">
                   <MoreIcon aria-hidden="true" />
                 </DropdownMenuTrigger>
 
@@ -498,7 +494,6 @@ function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle }: Work
         onClick={() => {
           onCreate(workspaceId)
         }}
-        title={createLabel}
         type="button"
       >
         <PlusIcon aria-hidden="true" />
@@ -520,7 +515,6 @@ function ThreadSectionHeader({ label, isOpen, onToggle }: ThreadSectionHeaderPro
       className="assistant-threads__section-title"
       data-expanded={isOpen ? 'true' : 'false'}
       onClick={onToggle}
-      title={isOpen ? '收起此分组' : '展开此分组'}
       type="button"
     >
       <span>{label}</span>

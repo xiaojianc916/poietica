@@ -177,7 +177,6 @@ function createIconButton(className: string, label: string, icon: string): HTMLB
 
   button.setAttribute('type', 'button')
   button.setAttribute('aria-label', label)
-  button.setAttribute('title', label)
 
   button.innerHTML = icon
 
@@ -186,7 +185,6 @@ function createIconButton(className: string, label: string, icon: string): HTMLB
 
 function setCopyButtonState(button: HTMLButtonElement, label: string, icon: string): void {
   button.setAttribute('aria-label', label)
-  button.setAttribute('title', label)
 
   button.innerHTML = icon
 }

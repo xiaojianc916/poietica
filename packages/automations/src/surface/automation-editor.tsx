@@ -277,7 +277,6 @@ function IconButton({
       className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
       disabled={disabled}
       onClick={onClick}
-      title={label}
       type="button"
     >
       {children}

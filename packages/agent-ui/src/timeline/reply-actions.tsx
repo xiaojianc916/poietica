@@ -103,7 +103,6 @@ function Actions({ text }: ReplyActionsProps) {
         className="timeline-reply-actions__button"
         data-copied={copied ? 'true' : undefined}
         onClick={copy}
-        title={copied ? '已复制' : '复制'}
         type="button"
       >
         <CopyStateIcon aria-hidden="true" />
@@ -113,7 +112,6 @@ function Actions({ text }: ReplyActionsProps) {
         aria-label="分叉对话（即将推出）"
         className="timeline-reply-actions__button"
         disabled
-        title="分叉对话（即将推出）"
         type="button"
       >
         <Split aria-hidden="true" className="timeline-reply-actions__split-icon" />

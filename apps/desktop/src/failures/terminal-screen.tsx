@@ -111,7 +111,6 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
                 onClick={() => {
                   executePrimaryAction(primaryAction)
                 }}
-                title={primaryAction.label}
                 type="button"
               >
                 <Refresh aria-hidden="true" />
@@ -124,7 +123,6 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
               onClick={() => {
                 void copyDiagnostic()
               }}
-              title={copyState === 'copied' ? model.copySuccessLabel : model.copyActionLabel}
               type="button"
             >
               {copyState === 'copied' ? (

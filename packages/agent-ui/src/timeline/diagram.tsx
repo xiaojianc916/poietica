@@ -543,7 +543,6 @@ export function Diagram({ code, isIncomplete }: DiagramProps) {
           onClick={() => {
             setAsCode(!asCode)
           }}
-          title={toggle}
           type="button"
         >
           <Toggle aria-hidden="true" />
@@ -558,7 +557,6 @@ export function Diagram({ code, isIncomplete }: DiagramProps) {
               onClick={() => {
                 canvas.zoomAt(1 / ZOOM_RATE)
               }}
-              title="缩小"
               type="button"
             >
               <ZoomOutIcon aria-hidden="true" />
@@ -570,7 +568,6 @@ export function Diagram({ code, isIncomplete }: DiagramProps) {
               onClick={() => {
                 canvas.zoomAt(ZOOM_RATE)
               }}
-              title="放大"
               type="button"
             >
               <ZoomInIcon aria-hidden="true" />
@@ -579,7 +576,6 @@ export function Diagram({ code, isIncomplete }: DiagramProps) {
               aria-label="适应页面"
               className="timeline-prose__diagram-tool"
               onClick={canvas.home}
-              title="适应页面"
               type="button"
             >
               <ResetIcon aria-hidden="true" />

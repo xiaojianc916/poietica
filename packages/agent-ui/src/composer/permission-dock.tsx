@@ -161,9 +161,7 @@ export const PermissionDock = memo(function PermissionDock({
           写成「需要批准 · 执行终端命令：…」是在用一句我们编的话，去复述一句
           agent 已经说清楚了的话。
         */}
-        <span className="assistant-approval__title" title={item.title}>
-          {item.title}
-        </span>
+        <span className="assistant-approval__title">{item.title}</span>
 
         {/*
           要签字的那份原文占主位：一屏的 Bash、Read、Glob 之间没有区别，把这一次和
@@ -173,11 +171,7 @@ export const PermissionDock = memo(function PermissionDock({
           这里决定放不放行 —— 看不全就批，等于没批。多长由 CSS 收（三行），不在这里
           切字符：切掉的那一段没有人能再要回来。
         */}
-        {said === null ? null : (
-          <span className="assistant-approval__intent" title={said}>
-            {said}
-          </span>
-        )}
+        {said === null ? null : <span className="assistant-approval__intent">{said}</span>}
 
         <div className="assistant-approval__options">
           {item.options.map((option) => (

@@ -153,7 +153,6 @@ export function WorkspacePicker({
                   setOpen(false)
                   onClear()
                 }}
-                title="不在项目中工作"
                 type="button"
               >
                 <FolderClosed aria-hidden="true" className="workspace-picker__context-folder" />
@@ -164,7 +163,6 @@ export function WorkspacePicker({
             <DropdownMenuTrigger
               aria-label="切换项目"
               className="workspace-picker__context-trigger"
-              title={current?.id ?? '选择项目'}
             >
               {current === null ? <FolderClosed aria-hidden="true" /> : null}
 
@@ -180,7 +178,6 @@ export function WorkspacePicker({
                 setOpen(false)
                 setExpanded((held) => !held)
               }}
-              title={expanded ? '收起仓库和会话' : '展开仓库和会话'}
               type="button"
             >
               <span>Repositories</span>
@@ -195,7 +192,6 @@ export function WorkspacePicker({
               <DropdownMenuTrigger
                 aria-label="筛选和切换工作区"
                 className="workspace-picker__repositories-action"
-                title="筛选和切换工作区"
               >
                 <ListFilter aria-hidden="true" />
               </DropdownMenuTrigger>
@@ -207,7 +203,6 @@ export function WorkspacePicker({
                   setOpen(false)
                   onBrowse()
                 }}
-                title="添加工作区"
                 type="button"
               >
                 <FolderPlusIcon aria-hidden="true" />
@@ -267,7 +262,6 @@ export function WorkspacePicker({
                 onPointerMove={() => {
                   setHeldHighlightId(choice.id)
                 }}
-                title={choice.id}
               >
                 <FolderClosed aria-hidden="true" />
 

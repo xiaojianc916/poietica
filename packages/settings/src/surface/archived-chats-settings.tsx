@@ -226,7 +226,6 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
                         void deleteForever(item.id, item.title)
                       }}
                       size="xs"
-                      title="永久删除"
                       type="button"
                       variant="ghost"
                     >

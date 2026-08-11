@@ -2,8 +2,6 @@ import { Button, cn } from '@poietica/ui'
 import { Copy, Minus, Square, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-const WINDOW_CONTROLS_DISABLED_TITLE = '窗口控制暂时不可用'
-
 export interface WindowControlsProps {
   readonly isMaximized: boolean
   readonly onMinimize: () => void
@@ -19,7 +17,7 @@ export interface WindowControlsProps {
  * 而窗口是无装饰的——没有这组按钮，用户除了杀进程没有别的出路。窗口控制属于
  * 非客户区，本来就不该随业务树一起死。
  *
- * 尺寸、原生红、禁用文案因此只有这一份。
+ * 尺寸与原生红因此只有这一份。
  *
  * 字形尺寸不在这一份里：四枚字形一律走 :where(svg) 的 --ui-icon（16px），
  * 这里不写 size-* 工具类。此前它们是 14 / 14 / 12 / 16 四个值，最大化按钮
@@ -39,12 +37,7 @@ export function WindowControls({
 }: WindowControlsProps) {
   return (
     <div className="flex shrink-0 items-stretch">
-      <WindowControlButton
-        ariaLabel="最小化"
-        disabled={disabled}
-        onClick={onMinimize}
-        title="最小化"
-      >
+      <WindowControlButton ariaLabel="最小化" disabled={disabled} onClick={onMinimize}>
         <Minus aria-hidden="true" />
       </WindowControlButton>
 
@@ -52,12 +45,11 @@ export function WindowControls({
         ariaLabel={isMaximized ? '还原窗口' : '最大化窗口'}
         disabled={disabled}
         onClick={onMaximize}
-        title={isMaximized ? '还原窗口' : '最大化窗口'}
       >
         {isMaximized ? <Copy aria-hidden="true" /> : <Square aria-hidden="true" />}
       </WindowControlButton>
 
-      <WindowControlButton ariaLabel="关闭" close onClick={onClose} title="关闭">
+      <WindowControlButton ariaLabel="关闭" close onClick={onClose}>
         <X aria-hidden="true" />
       </WindowControlButton>
     </div>
@@ -68,22 +60,18 @@ interface WindowControlButtonProps {
   readonly ariaLabel: string
   readonly children: ReactNode
   readonly onClick: () => void
-  readonly title: string
   readonly disabled?: boolean
   readonly close?: boolean
 }
 
 /*
- * 宽度与禁用文案都由 close / disabled 推导，不再从外面递进来：两者原本各自
- * 只有两种取值且完全由这两个布尔量决定，作为 prop 等于给同一个判断开了第二个
- * 入口。关闭键按 Windows 惯例比其余控制键宽一档，并且永不禁用——它走的是应用
- * 退出流程，不依赖原生窗口能力。
+ * 宽度由 close 推导，不从外面递进来。关闭键按 Windows 惯例比其余控制键
+ * 宽一档，并且永不禁用——它走的是应用退出流程，不依赖原生窗口能力。
  */
 function WindowControlButton({
   ariaLabel,
   children,
   onClick,
-  title,
   disabled = false,
   close = false,
 }: WindowControlButtonProps) {
@@ -115,7 +103,6 @@ function WindowControlButton({
       )}
       disabled={disabled}
       onClick={onClick}
-      title={disabled ? WINDOW_CONTROLS_DISABLED_TITLE : title}
       type="button"
       variant="ghost"
     >

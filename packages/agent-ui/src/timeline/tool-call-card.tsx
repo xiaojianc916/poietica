@@ -52,10 +52,9 @@ export function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['ki
   }
 }
 
-/** 这一行印的那句话，以及它截断之后的全文去处。 */
+/** 这一行印出来的那句话。完整调用信息仍然位于可展开的详情中。 */
 interface ToolCallLine {
   readonly text: string
-  readonly full: string | undefined
 }
 
 interface ToolCallCardView {
@@ -76,16 +75,16 @@ function readToolCallLine(
   brief: ToolCallFacets['brief'],
 ): ToolCallLine {
   if (brief !== null) {
-    return { full: brief.gist, text: brief.label }
+    return { text: brief.label }
   }
 
   const intent = readToolIntent(item)
 
   if (intent !== null) {
-    return { full: intent.full, text: intent.text }
+    return { text: intent.text }
   }
 
-  return { full: undefined, text: item.title }
+  return { text: item.title }
 }
 
 /*
@@ -159,10 +158,7 @@ function ToolCallHeader({
         <ModelIcon aria-hidden="true" className="timeline-tool__icon" />
       )}
 
-      <span
-        className={cx('timeline-tool__label', isRunning && 'timeline-shimmer')}
-        title={line.full}
-      >
+      <span className={cx('timeline-tool__label', isRunning && 'timeline-shimmer')}>
         {line.text}
       </span>
 
