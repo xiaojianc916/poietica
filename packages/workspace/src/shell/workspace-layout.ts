@@ -28,6 +28,13 @@ export const WORKSPACE_LAYOUT = {
   breakpoints: {
     compact: '(min-width: 900px)',
     wide: '(min-width: 1280px)',
+
+    /*
+     * 跨断点的布局切换等几何静止后才提交：resize 事件停歇这么久，视为这次
+     * 拖拽缩放已经结束。取值需远大于拖拽中相邻 resize 事件的间隔（实测
+     * 165Hz 下含丢帧最大约 24ms），又小到松手后感知不到迟滞。
+     */
+    settleMs: 180,
   },
 
   chrome: {
