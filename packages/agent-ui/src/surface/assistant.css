@@ -1495,6 +1495,16 @@ svg.assistant-provider-icon {
 }
 
 /*
+ * Repositories 工具栏与会话列表是相邻兄弟。
+ *
+ * 列表原本使用 --cp-mast-gap 作为顶部内边距，导致第一行工作区离工具栏过远。
+ * 这里直接约束这两个相邻区域，只保留一道最小的视觉间隔，不影响列表底部留白。
+ */
+.workspace-picker[data-placement="sidebar"] + .assistant-threads {
+  padding-block-start: calc(var(--ui-hairline) * 2);
+}
+
+/*
  * WorkspacePicker 与 AssistantThreadList 是 assistant-panel 中的相邻兄弟。
  * 收起时只隐藏下面整张会话导航，Repositories 工具栏本身继续保留。
  */
