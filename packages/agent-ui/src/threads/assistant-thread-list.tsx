@@ -7,9 +7,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import { Archive, Pencil as Edit, ExternalLink, FolderClosed, FolderOpen } from 'lucide-react'
+import {
+  Archive,
+  Pencil as Edit,
+  ExternalLink,
+  FolderClosed,
+  FolderOpen,
+  PinOff,
+} from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { ChevronDownIcon, MoreIcon, PinFilledIcon, PinIcon, PlusIcon } from '../primitives/icons'
+import { ChevronDownIcon, MoreIcon, PinIcon, PlusIcon } from '../primitives/icons'
 import { useHorizon, useNow } from './clock'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
 
@@ -133,7 +140,7 @@ function noticeOf(failure: string | null | undefined, count: number): string | n
  * 同族字形、同一轮廓，语义由填充承担。
  */
 function PinGlyph({ isPinned }: { readonly isPinned: boolean }) {
-  const Glyph = isPinned ? PinFilledIcon : PinIcon
+  const Glyph = isPinned ? PinOff : PinIcon
 
   return (
     <span

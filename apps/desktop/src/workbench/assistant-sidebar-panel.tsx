@@ -112,13 +112,6 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
 
   return (
     <div className="assistant-panel">
-      <WorkspacePicker
-        choices={choices}
-        current={current}
-        onBrowse={browse}
-        onChoose={setActiveWorkspaceRoot}
-      />
-
       <AssistantThreadList
         activeThreadId={activeThreadId}
         collapsedWorkspaces={collapsedWorkspaces}
