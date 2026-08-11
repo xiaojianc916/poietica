@@ -288,33 +288,12 @@
   flex-direction: column;
 }
 
-.models-keys__summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.models-keys__title {
+  margin: 0;
   padding-block: 8px;
   color: var(--ui-foreground);
   font-size: 13px;
   font-weight: 550;
-  list-style: none;
-  cursor: pointer;
-}
-
-.models-keys__summary::-webkit-details-marker {
-  display: none;
-}
-
-.models-keys__summary:focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: 2px;
-}
-
-.models-icon--chevron {
-  transition: transform 120ms ease;
-}
-
-.models-keys[open] .models-icon--chevron {
-  transform: rotate(90deg);
 }
 
 .models-keys__body {

@@ -562,11 +562,8 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
         ) : null}
       </div>
 
-      <details className="models-keys">
-        <summary className="models-keys__summary">
-          <ChevronIcon />
-          <span>API 配置</span>
-        </summary>
+      <section className="models-keys">
+        <h2 className="models-keys__title">API 配置</h2>
 
         <div className="models-keys__body">
           {BUILTIN_PROVIDERS.map((preset) => (
@@ -646,7 +643,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
             )}
           </div>
         </div>
-      </details>
+      </section>
     </>
   )
 }
@@ -708,23 +705,6 @@ function RefreshIcon(): ReactNode {
     >
       <path d="M20 11a8 8 0 1 0-2.3 5.7" />
       <path d="M20 5v6h-6" />
-    </svg>
-  )
-}
-
-function ChevronIcon(): ReactNode {
-  return (
-    <svg
-      aria-hidden="true"
-      className="models-icon models-icon--chevron"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.7"
-      viewBox="0 0 24 24"
-    >
-      <path d="m9 6 6 6-6 6" />
     </svg>
   )
 }
