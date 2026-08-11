@@ -18,7 +18,7 @@ export interface ArchivedChatsSettingsProps {
 }
 
 function groupTitle(name: string | null, count: number): string {
-  return (name ?? '默认项目') + ' · ' + count + ' 个聊天'
+  return `${name ?? '默认项目'} · ${count} 个聊天`
 }
 
 /**
@@ -91,7 +91,7 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
         return
       }
 
-      const confirmed = window.confirm('永久删除“' + title + '”？此操作无法撤销。')
+      const confirmed = window.confirm(`永久删除“${title}”？此操作无法撤销。`)
 
       if (!confirmed) {
         return
@@ -114,7 +114,7 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
     }
 
     const confirmed = window.confirm(
-      '永久删除全部 ' + snapshot.items.length + ' 个已归档聊天？此操作无法撤销。',
+      `永久删除全部 ${snapshot.items.length} 个已归档聊天？此操作无法撤销。`,
     )
 
     if (!confirmed) {
@@ -219,7 +219,7 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
 
                   <div className="archived-chats__actions">
                     <Button
-                      aria-label={'永久删除 ' + item.title}
+                      aria-label={`永久删除 ${item.title}`}
                       className="archived-chats__delete"
                       disabled={busy}
                       onClick={() => {

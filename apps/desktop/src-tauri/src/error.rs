@@ -41,9 +41,6 @@ pub enum Error {
     #[error("Not found: {0}")]
     NotFound(String),
 
-    #[error("File conflict: {0}")]
-    FileConflict(String),
-
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
 
@@ -52,15 +49,6 @@ pub enum Error {
 
     #[error("Plugin error: {0}")]
     Plugin(String),
-
-    #[error("Collaboration error: {0}")]
-    Collaboration(String),
-
-    #[error("Export error: {0}")]
-    Export(String),
-
-    #[error("Import error: {0}")]
-    Import(String),
 
     #[error("Asset error: {0}")]
     Asset(String),
@@ -86,12 +74,10 @@ pub enum Error {
 pub enum IpcErrorCode {
     Validation,
     NotFound,
-    FileConflict,
     PermissionDenied,
     Persistence,
     Plugin,
     Asset,
-    ImportExport,
     Platform,
 }
 
@@ -101,7 +87,6 @@ pub enum IpcOperation {
     File,
     Plugin,
     Asset,
-    ImportExport,
     Platform,
 }
 
@@ -127,12 +112,10 @@ impl Error {
     fn code(&self) -> IpcErrorCode {
         match self {
             Self::NotFound(_) => IpcErrorCode::NotFound,
-            Self::FileConflict(_) => IpcErrorCode::FileConflict,
             Self::PermissionDenied(_) => IpcErrorCode::PermissionDenied,
             Self::Persistence(_) | Self::File(_) | Self::Io(_) => IpcErrorCode::Persistence,
             Self::Plugin(_) => IpcErrorCode::Plugin,
             Self::Asset(_) => IpcErrorCode::Asset,
-            Self::Import(_) | Self::Export(_) => IpcErrorCode::ImportExport,
             /* 参数无效与 agent 拒绝在 IPC 上是同一码：都是这次请求本身不成立。 */
             Self::Validation(_) | Self::AgentCli(_) => IpcErrorCode::Validation,
             _ => IpcErrorCode::Platform,
@@ -141,12 +124,11 @@ impl Error {
 
     fn operation(&self) -> IpcOperation {
         match self {
-            Self::Persistence(_) | Self::File(_) | Self::FileConflict(_) | Self::Io(_) => {
+            Self::Persistence(_) | Self::File(_) | Self::Io(_) => {
                 IpcOperation::File
             }
             Self::Plugin(_) => IpcOperation::Plugin,
             Self::Asset(_) => IpcOperation::Asset,
-            Self::Import(_) | Self::Export(_) => IpcOperation::ImportExport,
             _ => IpcOperation::Platform,
         }
     }
@@ -158,7 +140,6 @@ impl Error {
                 | Self::Persistence(_)
                 | Self::PermissionDenied(_)
                 | Self::File(_)
-                | Self::FileConflict(_)
                 | Self::NotFound(_)
                 | Self::AgentCli(_)
         )
@@ -183,7 +164,6 @@ impl Error {
         match self {
             Self::Validation(_) => Cow::Borrowed("请求参数无效"),
             Self::NotFound(_) => Cow::Borrowed("请求的资源不存在"),
-            Self::FileConflict(_) => Cow::Borrowed("文件已在其他位置被修改"),
             Self::PermissionDenied(_) => Cow::Borrowed("该操作未获授权"),
 
             Self::Io(_) | Self::Persistence(_) | Self::File(_) | Self::Store(_) => {
@@ -192,8 +172,6 @@ impl Error {
 
             Self::SerdeJson(_) => Cow::Borrowed("数据格式无效"),
 
-            Self::Import(_) => Cow::Borrowed("导入失败"),
-            Self::Export(_) => Cow::Borrowed("导出失败"),
             Self::Asset(_) => Cow::Borrowed("资源处理失败"),
 
             Self::Plugin(_) => Cow::Borrowed("插件操作失败"),
@@ -206,8 +184,7 @@ impl Error {
             | Self::WindowState(_)
             | Self::GlobalShortcut(_)
             | Self::Log(_)
-            | Self::Internal(_)
-            | Self::Collaboration(_) => Cow::Borrowed("应用操作失败"),
+            | Self::Internal(_) => Cow::Borrowed("应用操作失败"),
         }
     }
 }
@@ -243,34 +220,11 @@ mod tests {
     use super::{Error, IpcErrorCode, IpcOperation};
 
     #[test]
-    fn import_error_uses_import_message() {
-        let error = Error::Import("invalid document".to_owned());
-
-        assert_eq!(error.to_string(), "Import error: invalid document");
-    }
-
-    #[test]
-    fn export_error_uses_export_message() {
-        let error = Error::Export("unsupported target".to_owned());
-
-        assert_eq!(error.to_string(), "Export error: unsupported target");
-    }
-
-    #[test]
     fn validation_error_has_validation_ipc_mapping() {
         let error = Error::Validation("invalid input".to_owned());
 
         assert!(matches!(error.code(), IpcErrorCode::Validation));
         assert!(matches!(error.operation(), IpcOperation::Platform));
-        assert!(!error.recoverable());
-    }
-
-    #[test]
-    fn import_error_has_import_export_operation() {
-        let error = Error::Import("invalid document".to_owned());
-
-        assert!(matches!(error.code(), IpcErrorCode::ImportExport));
-        assert!(matches!(error.operation(), IpcOperation::ImportExport));
         assert!(!error.recoverable());
     }
 
@@ -295,19 +249,6 @@ mod tests {
         assert_eq!(value["operation"], "platform");
         assert_eq!(value["message"], "请求参数无效");
         assert_eq!(value["recoverable"], false);
-    }
-
-    #[test]
-    fn serialized_file_conflict_has_stable_contract() {
-        let value = serde_json::to_value(Error::FileConflict(
-            "private conflict diagnostics".to_owned(),
-        ))
-        .expect("error should serialize");
-
-        assert_eq!(value["code"], "file-conflict");
-        assert_eq!(value["operation"], "file");
-        assert_eq!(value["recoverable"], true);
-        assert_eq!(value["message"], "文件已在其他位置被修改");
     }
 
     #[test]

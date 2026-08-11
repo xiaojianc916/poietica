@@ -1,8 +1,14 @@
-//! Native delivery boundary for document-owned binary assets.
+//! Native delivery boundary for conversation-attachment binary assets.
 //!
-//! Asset bytes are addressed only by opaque session and asset tokens. The
-//! protocol never accepts filesystem paths, archive entry names or renderer
-//! supplied MIME response headers.
+//! Two kinds of sessions hold bytes here: the composer's asset session
+//! (filled by commands/asset.rs) and one delivery session per conversation
+//! (refilled by commands/agent/attachment.rs). Asset bytes are addressed only
+//! by opaque session and asset tokens. The protocol never accepts filesystem
+//! paths or renderer supplied MIME response headers.
+//!
+//! 单文件而不拆：注册表状态机、HTTP 语义（Range/206）与校验共用私有类型
+//! `RegisteredAsset`，全部服务同一个交付出口（response）。拆开要么公开内部
+//! 类型，要么复制校验 —— 两者都是为拆而拆。
 
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -79,13 +85,14 @@ impl AssetSessionSnapshotEntry {
     ///
     /// Contract for the caller: a SHA-256 digest of exactly these bytes must
     /// already have been compared against exactly this content hash, in this
-    /// process, with no opportunity for the bytes to change in between. The
-    /// .draw decoder satisfies this by rejecting the entire container when any
-    /// asset digest disagrees with its index.
+    /// process, with no opportunity for the bytes to change in between.
+    /// Callers that cannot show such a check use `verify` instead — the
+    /// restore path in commands/agent/attachment.rs reads bytes back from
+    /// disk, so it does exactly that.
     ///
-    /// Without this, opening a document hashes every asset twice: once in the
-    /// decoder and once again on the way into the registry. The obligation is
-    /// discharged once at the construction site instead of on every call.
+    /// The point is to avoid hashing the same bytes twice on one path. The
+    /// obligation is discharged once at the construction site instead of on
+    /// every call.
     ///
     /// Identity format and content type are still validated. Only the digest,
     /// the one check whose cost scales with the asset, is skipped.
@@ -142,10 +149,11 @@ struct RegistryState {
     total_bytes: usize,
 }
 
-/// Process-local delivery registry for opened document sessions.
+/// Process-local delivery registry for live asset sessions.
 ///
-/// The `DocumentCodec` owns durable bytes. This registry owns only the bounded
-/// runtime delivery cache used by the `WebView` custom protocol.
+/// Durable bytes live in the attachment store on disk (attachments.rs, keyed
+/// by content hash). This registry owns only the bounded runtime delivery
+/// cache used by the `WebView` custom protocol.
 #[derive(Clone, Debug, Default)]
 pub struct AssetProtocolRegistry {
     state: Arc<RwLock<RegistryState>>,
@@ -343,7 +351,7 @@ impl AssetProtocolRegistry {
         Ok(true)
     }
 
-    /// Restores one complete document-owned asset session atomically.
+    /// Restores one complete asset session atomically.
     ///
     /// Every asset is materialized in private temporary state before the
     /// registry write lock is acquired. The session becomes visible only after
@@ -352,11 +360,10 @@ impl AssetProtocolRegistry {
     /// Failure never publishes an empty or partially restored session.
     ///
     /// Content identity, content type and digest are guaranteed by the entry
-    /// type and are deliberately not rechecked. Re-hashing here meant every
-    /// asset in a document was hashed twice on open: once by the container
-    /// decoder that produced these entries, and once again on arrival. Only the
-    /// registry's own budgets, which the entry knows nothing about, are
-    /// enforced below.
+    /// type and are deliberately not rechecked. Re-hashing here would charge
+    /// every restored asset a second digest that the entry's construction
+    /// site already paid or named. Only the registry's own budgets, which the
+    /// entry knows nothing about, are enforced below.
     pub fn restore_session(
         &self,
         session_token: &str,
@@ -396,7 +403,7 @@ impl AssetProtocolRegistry {
     /// 换掉一条交付会话：撤旧与铺新在同一次写锁里完成。
     ///
     /// 打开一条对话此前是"先 remove_session，末尾再 restore_session"（见
-    /// commands/agent.rs 的 deliver_attachments）。两次写锁之间隔着一次库读和
+    /// commands/agent/attachment.rs 的 deliver_attachments）。两次写锁之间隔着一次库读和
     /// 一整趟磁盘读，那段时间这条会话在注册表里并不存在 —— 而这条命令的重入
     /// 是常态：Ctrl+R 与第二个窗口都会让它重来一遍。旧页面上还挂着的 <img>
     /// 在那一瞬取到的是 404，协议这一侧没有重试，于是它就一直是个破图标。
@@ -733,8 +740,9 @@ fn materialise(
 /// 此前两个平台都发 `poietica-asset://`。resolve_request 一直认得
 /// `poietica-asset.localhost` 这个 host，tauri.conf.json 的 CSP 也一直放行着
 /// 它 —— 而全仓没有一处生成过它。于是 Windows 上每一条附件 URL 都指向一个取
-/// 不到东西的地址，重启之后整条对话的图片全是破图标；实时那条路看起来正常，
-/// 只是因为它走的是另一种 URL（见 transcript-store 的 data:）。
+/// 不到东西的地址，重启之后整条对话的图片全是破图标；实时那条路当时看起来
+/// 正常，只是因为它当时走的是 data: 内联 —— 那条路已收敛掉：地址如今只有这
+/// 一种，由持有字节的原生侧随 agent_prompt 的答复交出。
 pub fn asset_protocol_url(
     session_token: &str,
     asset_token: &str,

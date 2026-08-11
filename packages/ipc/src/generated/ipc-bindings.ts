@@ -1538,8 +1538,8 @@ export type ForeignPluginRecord = { pluginId: string;
 originalSource: string | null }
 export type GeneralSettings = { sendWithModifier: boolean; confirmBeforeDelete: boolean; notifyOnCompletion: boolean }
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
-export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"
-export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"
+export type IpcErrorCode = "validation" | "not-found" | "permission-denied" | "persistence" | "plugin" | "asset" | "platform"
+export type IpcOperation = "file" | "plugin" | "asset" | "platform"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 /**
  * 服务器的落脚地址。渲染层照着它把这台服务器登记进 MCP 那一格。

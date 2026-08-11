@@ -183,5 +183,3 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
 
   return { loading, snapshot, error, refreshError, reload: ask }
 }
-
-/* describeExit 曾在这里。另一处有一份逐字相同的副本，两份都搬进了 agentCliText.ts。 */

@@ -65,15 +65,6 @@ struct PersistedAgentConfig {
     default_agent_id: String,
 }
 
-/*
- * 这里曾有 keyring_account、legacy_keyring_account、has_secret 与
- * secret_vars_of。它们随「不存密钥」一起删了。
- *
- * 顺带记一笔 secret_vars_of 的下场：它读的是档案里的 secretVars，而
- * AcpAgentProfile 从来没有过这个字段，于是它恒返回空，secret_states 恒返回空，
- * snapshot.secrets 从第一天起就是空数组。没有人看得出来，因为也没有人读它。
- */
-
 /// 这个 agent 的接入档案。
 ///
 /// 此前 `launch_env_inner` 与 `agent_program` 各写一遍同样的 find、各写一句同样的
@@ -307,19 +298,6 @@ fn launch_env_inner(
     Ok(env.into_iter().collect())
 }
 
-/// 这个 agent 的可执行文件。
-///
-/// 与 `launch_env` 读同一份档案。CLI 用哪个程序、往哪个 home 写 provider，
-/// 必须与 ACP 会话起来的那个进程一致；两处各算一次，迟早算出两个。
-///
-/// 它刻意不来自请求。渲染层报一个程序路径过来，而 `is_allowed` 只校验参数，
-/// 于是白名单挡不住 `{ command: 任意程序, args: ["provider", "list"] }`。档案
-/// 要先过 TS 侧的 `parseAcpAgentProfile` 才写得进 agents.json，绕过这里的成本
-/// 因此高得多 —— 但也仅此而已，所以调用方仍要自己校验一遍程序名。
-///
-/// # Errors
-///
-/// store 无法打开、档案不存在、或档案里没有可用的 command 时返回错误。
 /// 档案里声明的安装方式。缺席表示这个 agent 不由我们管安装。
 #[derive(Debug)]
 pub struct AgentInstallSpec {
@@ -379,6 +357,16 @@ fn is_npm_package_name(name: &str) -> bool {
         .all(|glyph| glyph.is_ascii_lowercase() || glyph.is_ascii_digit() || "._-/".contains(glyph))
 }
 
+/// 这个 agent 的可执行文件。
+///
+/// 与 `launch_env` 读同一份档案。CLI 用哪个程序、往哪个 home 写 provider，
+/// 必须与 ACP 会话起来的那个进程一致；两处各算一次，迟早算出两个。
+///
+/// 它刻意不来自请求。渲染层报一个程序路径过来，而 `is_allowed` 只校验参数，
+/// 于是白名单挡不住 `{ command: 任意程序, args: ["provider", "list"] }`。档案
+/// 要先过 TS 侧的 `parseAcpAgentProfile` 才写得进 agents.json，绕过这里的成本
+/// 因此高得多 —— 但也仅此而已，所以调用方仍要自己校验一遍程序名。
+///
 /// # Errors
 ///
 /// 当 `agent_id` 对应的配置缺失、无法读取，或其中没有可解析的程序路径时返回错误。
@@ -461,10 +449,6 @@ fn default_agent_id(app: &AppHandle) -> Result<String> {
 
     Ok(config.default_agent_id)
 }
-
-/*
- * secret_states 也一并删了：快照不再有 secrets 字段。
- */
 
 fn read_config(app: &AppHandle) -> Result<(PersistedAgentConfig, Vec<String>)> {
     let store = app.store(agents_store(app)?)?;
@@ -923,24 +907,6 @@ pub fn global_provider_secret(
         .ok_or_else(|| Error::AgentCli(format!("全局配置里读不到 {provider_id} 的密钥")))
 }
 
-/*
- * agent_provider_secret 曾在这里：从受控 home 里把一家 provider 的密钥再取一次。
- *
- * 它唯一的用途是重放 provider catalog add —— 那条命令先删后建，所以「改一个默认模型」
- * 被迫连带把密钥重新交一遍。现在 default_model 由 agent_set_default_model 原地改，
- * 没有重放，也就没有第二次交付密钥这件事。
- *
- * secret_from_config 留着：global_provider_secret 还在用它，一次性导入要从用户全局
- * 配置里取密钥。
- */
-
-/* agent_import_global 与整份复制曾在这里。
- *
- * 整份替换的前提（受控 home 里现有的都不重要）在任何一台已配置过的机器上都是假的，
- * 而官方语义里写入/迁移的原子单位本来就是 provider（catalog add 的先删再建）。
- * 导入改为 provider 粒度：global_provider_secret 取密钥，catalog add 走写入。
- */
-
 /// 替换 agent 列表与默认 agent。
 ///
 /// # Errors
@@ -962,19 +928,3 @@ pub async fn agent_config_save_agents(
     })()
     .map_err(IpcError::from)
 }
-
-/*
- * agent_config_save_catalog 曾在这里。
- *
- * 它把 models.dev 的响应体缓存进 agents.json。缓存的是我们自己拉的那一份，而
- * agent 内部也拉同一份、并且只认自己那份 —— 候选模型改问它的
- * provider catalog list，这里就没有第二份目录需要存了。
- */
-
-/*
- * agent_config_set_secret、agent_config_clear_secret 与
- * agent_config_migrate_secret 曾在这里。
- *
- * 三条命令都在维护一份我们保护不了的副本。migrate_secret 更是把旧账户名搬到新
- * 账户名 —— 一次为了兼容自己上一版而存在的迁移。不存密钥，两样都不需要。
- */

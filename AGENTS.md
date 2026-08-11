@@ -159,9 +159,7 @@ allow。
 
 1. src-tauri/commands 的 agent/、agent_setup/profile.rs、install.rs 超出薄封装，
    业务分支下沉中——新代码不得以它们为样板。
-2. asset_protocol.rs 的模块头仍是旧产品叙述（DocumentCodec/.draw），拆分与注释
-   重写排期中。
-3. 部分注释仍引用 Python 版 kimi_cli 路径，逐批替换为 TS 版锚点。
+2. 部分注释仍引用 Python 版 kimi_cli 路径，逐批替换为 TS 版锚点。
 
 ## 11. 文档地图
 

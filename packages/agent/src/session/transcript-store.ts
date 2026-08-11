@@ -22,7 +22,7 @@ import { describeFailure } from './describe-failure'
 /*
  * 转录归这里，不归组件。
  *
- * 转录是后端状态：它来自一份本地加密日志，加上一条实时帧流。这里是 React 官方
+ * 转录是后端状态：它来自 agent 经 session/load 交还的重放帧，加上一条实时帧流。这里是 React 官方
  * 为这件事给出的形状（useSyncExternalStore 的对侧）：一份按对话规范化的状态、
  * 一个订阅入口、以及唯一的写入方。
  *
@@ -44,7 +44,7 @@ const DRAFT = 'draft:'
 /**
  * 一句话只有图片时，这条对话叫什么。
  *
- * 与 apps/desktop/src-tauri/src/commands/agent.rs 的 IMAGE_OPENER 逐字相同：
+ * 与 apps/desktop/src-tauri/src/commands/agent/mod.rs 的 IMAGE_OPENER 逐字相同：
  * 那一处是权威（它写进库），这一处是它到达之前的乐观占位。两种语言共享不了
  * 一个常量，所以退而求其次 —— 只有一个地方定义规则，另一处标明自己是拷贝，
  * 并说得出正本在哪。
