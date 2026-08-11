@@ -271,16 +271,15 @@
   grid-auto-columns: 1fr;
   grid-auto-flow: column;
   border-radius: 8px;
-  background: var(--ui-divider);
+  background: color-mix(in oklab, var(--ui-divider) 30%, var(--settings-surface));
 }
 
 /*
  * 滑块是一个独立的方块，不是给选中项加背景 —— 它要能从一档滑到另一档，位置本身
  * 就是这个控件的状态。
  *
- * 时间范围是局部筛选，不是提交、确认或品牌动作，因此不使用高饱和度主色。滑块从
- * 当前设置卡片与普通前景色混出一档中性表面：浅色主题下轻微压暗，深色主题下轻微
- * 提亮。内描边只负责让它与轨道分开，不额外增加一层卡片感。
+ * 选中滑块继续使用设计系统主色；本次只降低轨道背景的对比度。滑块不画边框或
+ * 阴影，选中状态由它原有的主色和位置表达。
  *
  * 位移走 inset-inline-start 而不是 translate：这一仓的排版全用逻辑属性，物理位移
  * 在从右往左的书写方向下会滑向反面。
@@ -292,9 +291,7 @@
   position: absolute;
   inset-block: 0;
   border-radius: 8px;
-  background: color-mix(in oklab, var(--ui-foreground) 9%, var(--settings-surface));
-  box-shadow: inset 0 0 0 var(--ui-hairline)
-    color-mix(in oklab, var(--ui-foreground) 8%, transparent);
+  background: color-mix(in oklab, var(--ui-foreground) 8%, var(--settings-surface));
   transition: inset-inline-start var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
