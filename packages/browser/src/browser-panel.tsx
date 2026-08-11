@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
-import type { BrowserPanelStore } from './browser-panel-store'
+import { BROWSER_PANEL, type BrowserPanelStore } from './browser-panel-store'
 import type { BrowserTabView } from './browser-port'
 import { BrowserTabStrip } from './browser-tab-strip'
 
@@ -57,10 +57,22 @@ function ResizeHandle({ store, width }: { store: BrowserPanelStore; width: numbe
 
   return (
     /* 拖拽宽度。松手那一次由 setResizing(false) 收尾落盘，与侧栏同款。 */
-    <div
+    <hr
       aria-label="调整浏览器面板宽度"
       aria-orientation="vertical"
-      className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize"
+      aria-valuemax={BROWSER_PANEL.maxWidth}
+      aria-valuemin={BROWSER_PANEL.minWidth}
+      aria-valuenow={width}
+      className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize border-0"
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault()
+          store.setPanelWidth(width + 10)
+        } else if (event.key === 'ArrowRight') {
+          event.preventDefault()
+          store.setPanelWidth(width - 10)
+        }
+      }}
       onPointerDown={(event) => {
         drag.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width }
         event.currentTarget.setPointerCapture(event.pointerId)
@@ -83,7 +95,7 @@ function ResizeHandle({ store, width }: { store: BrowserPanelStore; width: numbe
         drag.current = null
         store.setResizing(false)
       }}
-      role="separator"
+      tabIndex={0}
     />
   )
 }

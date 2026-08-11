@@ -101,7 +101,7 @@ function matches(title: string, url: string | null, needle: string): boolean {
   }
 
   return (
-    title.toLowerCase().includes(needle) || (url !== null && url.toLowerCase().includes(needle))
+    title.toLowerCase().includes(needle) || (url?.toLowerCase().includes(needle) ?? false)
   )
 }
 

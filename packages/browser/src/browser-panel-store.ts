@@ -94,7 +94,7 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
   /* 界面动作打不动宿主不是调用方要接的错误：记日志，界面靠快照自愈。 */
   function run(operation: string, task: () => Promise<void>): void {
     task().catch((cause: unknown) => {
-      warn('浏览器宿主没接上这次操作：' + operation, { scope: 'browser-panel', cause })
+      warn(`浏览器宿主没接上这次操作：${operation}`, { scope: 'browser-panel', cause })
     })
   }
 
