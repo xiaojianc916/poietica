@@ -47,7 +47,8 @@ pub async fn agent_set_config_option(
      */
     let addressed = match request.thread_id.as_deref() {
         Some(named) => {
-            let held = session_for(&state, &index, &live, named, Wanted::Address, Vec::new()).await?;
+            let held =
+                session_for(&state, &index, &live, named, Wanted::Address, Vec::new()).await?;
 
             held.session_id
         }

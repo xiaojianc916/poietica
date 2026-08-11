@@ -5,6 +5,7 @@ import {
   type NativeCrashReport,
   takePreviousNativeCrashReport,
 } from '@poietica/desktop-adapters'
+import { readWorkbenchSession } from '@poietica/ipc'
 import { DEFAULT_APP_SETTINGS } from '@poietica/settings'
 import { applyThemePreference } from '@poietica/ui'
 import { mountReactApplication } from './bootstrap/react-root'
@@ -13,7 +14,7 @@ import { installExternalLinks } from './chrome/external-links'
 import { installScrollbarSize } from './chrome/scrollbar-size'
 import { reportFatalIncident } from './failures/terminal-policy'
 
-function bootstrapApplication(): void {
+async function bootstrapApplication(): Promise<void> {
   installScrollbarSize()
   installExternalLinks()
   installContextMenuGuard()
@@ -33,15 +34,15 @@ function bootstrapApplication(): void {
   applyThemePreference(DEFAULT_APP_SETTINGS.theme)
 
   /*
-   * 首帧不排在任何一次原生往返之后。
+   * 工作台恢复是首帧的输入，必须在 React 挂载前读回；否则会先画默认标签，
+   * 再切换到上次状态。原生侧已经在窗口出现前完成数据库迁移，这里只等待
+   * 一条 SELECT。
    *
-   * 上一次崩溃的报告要走一次 IPC 和一次磁盘读，而它与"这一次能不能画"无关：
-   * 正常启动每一次都读到 null，却每一次都让挂载、布局与呈现计时一起往后挪。
-   * 所以 React 先挂，报告并发去读，读到了交给已经在跑的那条致命管线
-   * （reportFatalIncident → FatalErrorHost）——那也正是 pre-react-entry 在
-   * isReactFatalHostMounted 之后让位的对象。一件事只剩一条路径。
+   * 上一次崩溃的报告仍不阻塞挂载：React 就绪后再读取，读到了交给已经在跑
+   * 的致命管线（reportFatalIncident → FatalErrorHost）。
    */
-  const mounted = mountReactApplication(getApplicationRoot())
+  const restored = await readWorkbenchSession()
+  const mounted = mountReactApplication(getApplicationRoot(), restored)
 
   presentWhenPainted(mounted.runtime.mainWindow)
 
@@ -162,4 +163,4 @@ function getApplicationRoot(): HTMLElement {
  * 挪到末尾不花时间：整个模块体是同一次同步求值，调用在第几行都在同一个任务里
  * 跑完，早于任何一次绘制。
  */
-bootstrapApplication()
+void bootstrapApplication()

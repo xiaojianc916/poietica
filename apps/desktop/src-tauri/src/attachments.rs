@@ -249,7 +249,11 @@ mod tests {
         forget_blob(scratch.path(), &blob.hash).expect("first sweep");
         forget_blob(scratch.path(), &blob.hash).expect("回收会重复扫到同一份字节");
 
-        assert!(!blob_path(scratch.path(), &blob.hash).expect("path").exists());
+        assert!(
+            !blob_path(scratch.path(), &blob.hash)
+                .expect("path")
+                .exists()
+        );
     }
 
     #[test]

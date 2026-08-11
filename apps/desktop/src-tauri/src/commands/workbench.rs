@@ -22,9 +22,11 @@ use crate::local_index::{LocalIndex, on_index, persistence};
 pub async fn workbench_session_load(
     index: State<'_, LocalIndex>,
 ) -> Result<Option<String>, IpcError> {
-    on_index(&index, |store| store.workbench_session().map_err(persistence))
-        .await
-        .map_err(IpcError::from)
+    on_index(&index, |store| {
+        store.workbench_session().map_err(persistence)
+    })
+    .await
+    .map_err(IpcError::from)
 }
 
 /// 记下工作台此刻开着什么。整份覆盖，不是增量。

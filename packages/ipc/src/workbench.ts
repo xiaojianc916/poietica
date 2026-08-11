@@ -15,6 +15,6 @@ export function readWorkbenchSession(): Promise<string | null> {
 }
 
 /** 记下工作台此刻的样子。整份覆盖。 */
-export function writeWorkbenchSession(document: string): Promise<void> {
-  return throughIpc(() => commands.workbenchSessionSave(document))
+export async function writeWorkbenchSession(document: string): Promise<void> {
+  await throughIpc(() => commands.workbenchSessionSave(document))
 }
