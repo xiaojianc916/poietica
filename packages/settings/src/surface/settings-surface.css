@@ -243,6 +243,146 @@
   max-inline-size: 220px;
 }
 
+/*
+ * 用量页。
+ *
+ * 一格指标不是一张卡：这个界面的卡是 .settings-group__surface，一组一张。六个
+ * 指标因此是同一张卡里的六格，分隔仍旧是那条内缩的发丝线，与 .settings-row 之间
+ * 的分隔同一个来源。参考稿把它们画成六张浮起来的小卡，那是另一套皮肤。
+ */
+
+.settings-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-metric {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+}
+
+.settings-metric:not(:nth-child(3n + 1))::before {
+  position: absolute;
+  content: "";
+  inset-block: var(--settings-divider-inset);
+  inset-inline-start: 0;
+  inline-size: 2px;
+  background: var(--settings-divider);
+}
+
+.settings-metric:nth-child(n + 4)::after {
+  position: absolute;
+  content: "";
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  block-size: 2px;
+  background: var(--settings-divider);
+}
+
+.settings-metric__label {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+}
+
+.settings-metric__value {
+  font-size: 22px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+.settings-metric__hint {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.settings-usage__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.settings-usage__note {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/*
+ * 热力图的五档。
+ *
+ * 设计系统里没有「热力档位」这种东西，所以这里声明一次：五档全部由 --ui-info 与
+ * 行底色调和而来，两头都是语义令牌，跟着主题走。调色板原语不在这里出现 ——
+ * palette.css 开头就写着功能包不得直接消费它们。
+ *
+ * 五个离散档而不是连续渐变：格子要能被一眼归类，不是被两两比较。
+ */
+.settings-heatmap {
+  --settings-heat-size: 11px;
+  --settings-heat-0: var(--settings-field);
+  --settings-heat-1: color-mix(in oklch, var(--ui-info) 24%, var(--settings-field));
+  --settings-heat-2: color-mix(in oklch, var(--ui-info) 48%, var(--settings-field));
+  --settings-heat-3: color-mix(in oklch, var(--ui-info) 72%, var(--settings-field));
+  --settings-heat-4: var(--ui-info);
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-heatmap__grid {
+  display: grid;
+  grid-auto-columns: var(--settings-heat-size);
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, var(--settings-heat-size));
+  gap: 3px;
+  overflow-x: auto;
+  padding-block-end: 2px;
+}
+
+.settings-heatmap__cell {
+  border-radius: 2px;
+  background: var(--settings-heat-0);
+}
+
+.settings-heatmap__cell[data-level="1"] {
+  background: var(--settings-heat-1);
+}
+
+.settings-heatmap__cell[data-level="2"] {
+  background: var(--settings-heat-2);
+}
+
+.settings-heatmap__cell[data-level="3"] {
+  background: var(--settings-heat-3);
+}
+
+.settings-heatmap__cell[data-level="4"] {
+  background: var(--settings-heat-4);
+}
+
+.settings-heatmap__legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+}
+
+.settings-heatmap__legend .settings-heatmap__cell {
+  inline-size: var(--settings-heat-size);
+  block-size: var(--settings-heat-size);
+}
+
 .settings-placeholder {
   margin: 0;
   padding: 24px 16px;

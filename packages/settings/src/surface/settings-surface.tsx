@@ -1,21 +1,15 @@
 import type { ThreadsStore } from '@poietica/agent'
+import { Button, ErrorState, LoadingState, Select, type SelectOption } from '@poietica/ui'
 import {
-  Button,
-  ErrorState,
-  LoadingState,
-  Select,
-  type SelectOption,
-  WebhookIcon,
-} from '@poietica/ui'
-import {
+  Activity,
   Archive,
-  Box,
   Settings as CogFour,
   Cpu,
   Info,
   Keyboard,
   ShieldCheck,
   Sun,
+  Unplug,
 } from 'lucide-react'
 import {
   type ComponentType,
@@ -34,6 +28,7 @@ import { KeymapSettings } from '../keymap/keymap-settings'
 import { ModelsSettings } from '../models/models-settings'
 import type { AppSettings } from '../settings'
 import type { SettingsStore } from '../settings-store'
+import { UsageSettings } from '../usage/usage-settings'
 import { ArchivedChatsSettings } from './archived-chats-settings'
 import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from './settings-primitives'
 import {
@@ -49,8 +44,8 @@ type SettingsSection =
   | 'archived'
   | 'models'
   | 'keymap'
-  | 'hooks'
   | 'tools'
+  | 'usage'
   | 'privacy'
   | 'about'
 
@@ -118,17 +113,17 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
     icon: Keyboard,
     render: ({ keybindings }) => <KeymapSettings catalog={keybindings} />,
   },
-  hooks: {
-    label: '钩子',
-    icon: WebhookIcon,
-    render: () => <SettingsPlaceholder description="Hook 尚未实现。" />,
-  },
   tools: {
-    label: '工具',
-    icon: Box,
+    label: '插件',
+    icon: Unplug,
     render: () => (
-      <SettingsPlaceholder description="内置工具、Skill 与 MCP 服务器的管理尚未实现。" />
+      <SettingsPlaceholder description="插件、技能与 MCP 服务器的安装与管理尚未实现。" />
     ),
+  },
+  usage: {
+    label: '用量',
+    icon: Activity,
+    render: ({ threads }) => <UsageSettings threads={threads} />,
   },
   privacy: {
     label: '隐私',
@@ -152,7 +147,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
-  ['models', 'keymap', 'hooks', 'tools', 'archived'],
+  ['models', 'keymap', 'tools', 'usage', 'archived'],
   ['privacy', 'about'],
 ]
 
