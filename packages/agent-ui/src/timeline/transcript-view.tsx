@@ -268,6 +268,7 @@ export function TranscriptView({
       <RestoreSpinner active={isRestoring && rows.length === 0} />
 
       <AgentActivityFeed
+        conversation={sessionKey}
         footer={footer}
         isBusy={selectIsBusy(timeline)}
         overlay={overlay}

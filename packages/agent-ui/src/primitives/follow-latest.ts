@@ -227,7 +227,7 @@ export interface FollowLatest {
   readonly stick: () => void
   /** 人接管了滚动位置。粘滞，由「人自己滚回末端」解除。 */
   readonly release: () => void
-  /** 重新跟上，并瞬时拨到末端。给「打开一个小盒子」这类没有距离的返回。 */
+  /** 重新跟上，并瞬时拨到末端。给开场，以及「打开一个小盒子」这类没有距离的返回。 */
   readonly resume: () => void
   /** 重新跟上，并带着一段看得见的位移回到末端。给人亲手要求的那一次返回。 */
   readonly travel: () => void

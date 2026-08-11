@@ -123,6 +123,14 @@ export interface FeedPort {
 }
 
 export interface AgentActivityFeedProps {
+  /**
+   * 这些行属于哪一条对话。
+   *
+   * 滚动位置是这个盒子的状态，而这个盒子跨对话复用（上层不为它换 key）。「换了一条对话」
+   * 与「同一条对话里又多了一句」是两件事，而 rows 分不出它们 —— 分不出的后果就是进一条
+   * 旧对话时会看见一段本不该发生的位移。身份因此必须由持有它的那一层交下来，不从内容里猜。
+   */
+  readonly conversation: string
   readonly rows: readonly FeedRow[]
   readonly renderRow: (row: FeedRow) => ReactNode
   readonly isBusy: boolean
@@ -141,6 +149,7 @@ export interface AgentActivityFeedProps {
 }
 
 export function AgentActivityFeed({
+  conversation,
   rows,
   renderRow,
   isBusy,
@@ -217,14 +226,24 @@ export function AgentActivityFeed({
    * 次尺寸变化之后各拨一次,release 在人下跳转指令时让开,travel 在人亲手要求回到末端时把
    * 视口送回去 —— 那有两个入口,一个是他又说了一句话,一个是那枚按钮。
    *
-   * 这一层要的是 travel 而不是 resume:两者的差别只在落位方式,而这里两个入口都有距离要走,
-   * 闪现会把「我刚才在哪」抹掉。瞬时的那一路留给没有距离的返回(思考链那个小盒子)。
+   * 落位有两种,各有各的入口。人亲手要求回到末端时走 travel:那是一段有距离的返回,闪现会
+   * 把「我刚才在哪」抹掉。换一条对话时走 resume:那不是返回,是开场 —— 开场不该有位移,而上
+   * 一条对话留在这个盒子上的滚动位置更没有资格当这一条的起点。resume 也是唯一做得到的那
+   * 一个:stick 只在内容真的长高时才写(见 follow-latest 的 settle),而换对话时高度往往不增
+   * 反减。
    *
    * atLatest 只喂那枚按钮的存在。它问的是几何(视口此刻在不在末端),不是意图(要不要跟):
    * 人在末端点开一段内容时两者分叉 —— 意图为假(不该把他拽回去),几何为真(不该冒出一枚
    * 按钮)。两个问题,同一条 staysWithLatest 判据。
    */
-  const { atLatest, release: releaseFollow, stick, travel, watch: watchFollow } = useFollowLatest()
+  const {
+    atLatest,
+    release: releaseFollow,
+    resume,
+    stick,
+    travel,
+    watch: watchFollow,
+  } = useFollowLatest()
 
   /*
    * 虚拟器此刻铺出来的区间表，给滚动回调里的那次二分用。
@@ -410,29 +429,41 @@ export function AgentActivityFeed({
    * travel 自己会把视口送到末端,所以这里不必再叫 stick:重新跟上与回到末端是同一次动作。
    * 从很上面发出去时那一段位移是看得见的 —— 那是刻意的,读者要知道自己被带去了哪里。
    *
-   * 判据必须是「两个真实 id 之间的更替」,不能只看「id 变了」。转录是异步灌进来的(恢复会话
-   * 时它先是空的,RestoreSpinner 就为这一刻存在),于是 null 到 id 那一跳也是一次变化 —— 把它
-   * 当成「我又说了一句」,进入会话就会从顶端一路滑到底。那一跳的落位归无依赖的那次 stick,
-   * 瞬时,看不见。
+   * 判据必须是「同一条对话里,两个真实 id 之间的更替」。少了对话身份那一半,换一条对话时
+   * 「最后一条我说的话」也换了 id,于是「进了一条旧对话」被判成「我又说了一句」,走的是带缓
+   * 动的位移 —— 从上一条对话残留的滚动位置一路滑到末端,那正是进旧对话时看见的那一下。转
+   * 录仍然是异步灌进来的(恢复会话时它先是空的,RestoreSpinner 就为这一刻存在),所以 null 到
+   * id 那一跳照旧不算。
    *
    * 代价说清楚:会话里的第一句话不走位移。那时转录本来就没有距离可走。
    *
-   * 末一项比较不是冗余:travel 的身份随「减弱动态偏好」变化,效应会因此在 id 没变时重跑。
+   * 末两项比较不是冗余:travel 与 resume 的身份随「减弱动态偏好」变化,效应会因此在 id 没变
+   * 时重跑。
    */
   const ownMessage = latestOwnMessage(rows)
-  const saidBefore = useRef<string | null>(null)
+  const said = useRef<{ readonly conversation: string; readonly message: string | null } | null>(
+    null,
+  )
 
   useLayoutEffect(() => {
-    const before = saidBefore.current
+    const before = said.current
 
-    saidBefore.current = ownMessage
+    said.current = { conversation, message: ownMessage }
 
-    if (before === null || ownMessage === null || before === ownMessage) {
+    /* 换了一条对话,或者这个盒子刚挂上:瞬时落到末端,一帧位移都不产生。resume 而不是 stick
+       —— 人可能在上一条对话里翻着历史,跟随此刻是让开的状态,而 stick 还要等内容长高。 */
+    if (before === null || before.conversation !== conversation) {
+      resume()
+
+      return
+    }
+
+    if (before.message === null || ownMessage === null || before.message === ownMessage) {
       return
     }
 
     travel()
-  }, [ownMessage, travel])
+  }, [conversation, ownMessage, resume, travel])
 
   /*
    * 每一次提交之后,拨一次末端。

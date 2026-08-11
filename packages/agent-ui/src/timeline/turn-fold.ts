@@ -56,7 +56,8 @@ import type { FeedRow, TurnSpan } from '@poietica/agent'
 
 export type TurnSealPlan = {
   readonly turn: number
-  readonly startedAt: number
+  /** 缺席表示这台机器没有记下这一轮的两端：封条照立，但不报耗时。 */
+  readonly startedAt: number | undefined
   readonly endedAt: number | undefined
   readonly hasProcess: boolean
   readonly isOpen: boolean
@@ -192,7 +193,10 @@ export function foldFeed(
   /* 有 span 的轮次先折。它们是唯一会被折叠、也是唯一会有封条的。 */
   for (const span of spans) {
     const bound = bounds.get(span.turn)
-    const done = span.endedAt !== undefined
+    /* 收了尾的一轮不会再变；不是行序里最后一轮的那些同样不会 —— 后面已经有别的轮次的行，
+       说明它早就结束了。恢复出来的轮次两端都不知道（账本没盖住那一段），落定与否只能由
+       后一条判据回答，而它只看行的形状，与任何时间戳无关。 */
+    const done = span.endedAt !== undefined || span.turn !== lastTurn
 
     folds.set(span.turn, foldOf(rows, span.turn, span, bound, done, opened, held))
   }
@@ -341,7 +345,9 @@ function foldOf(
   }
 
   const own = ownOf(rows, turn, bound)
-  const running = span !== undefined && span.endedAt === undefined
+  /* 在跑 = 有起点、还没终点。两端都没有是「不知道」，不是「还在跑」—— 重放回来的对话
+     一轮都不在跑，判成在跑会把整轮过程塞进瞬态区、收走回复操作，秒表还从此刻起空转。 */
+  const running = span?.startedAt !== undefined && span.endedAt === undefined
   const answerAt = latestSpeechIn(rows, own)
   const process = span === undefined ? NO_INDEXES : processIn(rows, own, answerAt, running)
   /* 只有人手动点开才摊开：过程先上屏、回复一到再撤掉，撤掉的那一帧就是内容整段消失又
@@ -422,6 +428,9 @@ function ownOf(
 /*
  * 秒表量的是整轮：起点是执行落账那一刻，终点是它收尾那一刻 —— 两端都是原生侧盖下的墙
  * 钟，与「回复从哪一帧开始流」无关。还在跑的轮次没有终点，封条继续跳字。
+ *
+ * 账本没盖住的那些轮次两端都不知道，它们的封条只剩另一半职责：过程收在这里。两半都没
+ * 有时不立碑 —— 那会是一行既不报耗时、又收不起任何东西的字。
  */
 function sealOf(
   turn: number,
@@ -429,7 +438,7 @@ function sealOf(
   isOpen: boolean,
   hasProcess: boolean,
 ): TurnSealPlan | undefined {
-  if (span === undefined) {
+  if (span === undefined || (span.startedAt === undefined && !hasProcess)) {
     return undefined
   }
 

@@ -13,8 +13,9 @@ import { memo, useEffect, useState } from 'react'
 
 export interface TurnSealProps {
   readonly turn: number
-  readonly startedAt: number
-  /** 缺席就是这一轮还在跑。 */
+  /** 缺席表示这台机器没有记下这一轮的两端：不报耗时，也不空转秒表。 */
+  readonly startedAt: number | undefined
+  /** 有起点而缺终点，就是这一轮还在跑。 */
   readonly endedAt: number | undefined
   readonly hasProcess: boolean
   readonly isOpen: boolean
@@ -33,11 +34,16 @@ const SECOND_MS = 1_000
  * 落定之后不起定时器：一个不会再变的数字不需要每秒醒一次。运行中每秒重读时钟，而不是
  * 把一个计数器加一 —— 定时器会被节流（后台窗口、系统休眠），累加会漂，重读不会。
  */
-function useElapsed(startedAt: number, endedAt: number | undefined): number {
+function useElapsed(
+  startedAt: number | undefined,
+  endedAt: number | undefined,
+): number | undefined {
+  /* 没有起点就没有秒表可走：起不起定时器与报不报耗时是同一个事实。 */
+  const running = startedAt !== undefined && endedAt === undefined
   const [now, setNow] = useState(Date.now)
 
   useEffect(() => {
-    if (endedAt !== undefined) {
+    if (!running) {
       return
     }
 
@@ -48,9 +54,9 @@ function useElapsed(startedAt: number, endedAt: number | undefined): number {
     return () => {
       clearInterval(tick)
     }
-  }, [endedAt])
+  }, [running])
 
-  return Math.max((endedAt ?? now) - startedAt, 0)
+  return startedAt === undefined ? undefined : Math.max((endedAt ?? now) - startedAt, 0)
 }
 
 /*
@@ -85,7 +91,18 @@ function spell(ms: number): string {
  */
 function Seal({ endedAt, hasProcess, isOpen, onToggle, startedAt, turn }: TurnSealProps) {
   const elapsed = useElapsed(startedAt, endedAt)
-  const label = `${endedAt === undefined ? '正在处理' : '已处理'} ${spell(elapsed)}`
+
+  /*
+   * 不知道的耗时不编一个出来。
+   *
+   * 重放回来的历史里没有时刻（协议不带这一格），本机账本没盖住的那些轮次因此算不出耗
+   * 时。此前它们一律显示「已处理 0s」—— 那个 0 是把「历史被读回来」的那一瞬间当成了整
+   * 整一轮的长度，一个说得斩钉截铁的假数。缺了就只说这里收着过程。
+   */
+  const label =
+    elapsed === undefined
+      ? '过程'
+      : `${endedAt === undefined ? '正在处理' : '已处理'} ${spell(elapsed)}`
 
   /*
    * 横线与交互控件分开。
