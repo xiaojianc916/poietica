@@ -36,6 +36,7 @@ import {
 import { type DeclaredMcpServer, decodeMcpConfig } from './mcp-config'
 import { type BuiltinMcpServer, type ResolvedMcpServer, resolveMcpServers } from './mcp-servers'
 import type { ManagedOrigin } from './origin'
+import { createSnapshotCache } from './registry/snapshot'
 
 /**
  * 「装了什么、开没开、市场上有什么」的唯一持有者。
@@ -84,6 +85,13 @@ export interface PluginsViewModel {
   readonly foreign: readonly ForeignPlugin[]
   readonly marketplace: MarketplaceState
   readonly install: InstallFlow
+  /**
+   * 探测完成的时刻。空串表示屏幕上这一份还是快照，真相没到。
+   *
+   * 它必须露在界面上：一个从缓存里画出来的列表和一个刚探测完的列表长得一模一样，没有这
+   * 一格，人无从判断自己看的是不是旧的。
+   */
+  readonly detectedAt: string
   /** 首帧与「读完了确实一个都没装」不是同一件事，空态因此不会闪。 */
   readonly loaded: boolean
 }
@@ -250,13 +258,27 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   let foreignRecords: readonly ForeignPlugin[] = []
   /* 原生侧登记的那个地址。绑不上端口时缺席，那一行照样显示并说明原因。 */
   let builtinUrl: string | undefined
+  /*
+   * 上一次探测落在盘上的那一份。
+   *
+   * 只存命令表：账本与 mcp.json 一趟本地读就回来了，把它们也塞进快照等于造第二份降级的
+   * 真相；真正会长时间为空的是命令表 —— 它由 agent 在会话建立后报来，会话没建之前那一格
+   * 恒空，人看到的是「我的技能全没了」。
+   *
+   * 它只回答「真相到达之前先画什么」，从不参与任何判定：装了什么永远由账本说了算。
+   */
+  const cache = createSnapshotCache({ now: options.now })
+
+  const restored = cache.read()
+
   let snapshot: PluginsViewModel = {
     plugins: [],
     mcpServers: [],
-    palette: [],
+    palette: restored.palette,
     foreign: [],
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
+    detectedAt: restored.detectedAt,
     loaded: false,
   }
 
@@ -271,6 +293,32 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
   /* 开发期的挂载—卸载—再挂载会让 start() 被调用两次。第二次什么也不做。 */
   let started = false
+
+  /*
+   * 安装的世代号。
+   *
+   * 取消只改得了屏幕上的状态，改不了已经飞出去的那一趟取件。带上世代号，落定的结果自己
+   * 就能回答「我还是不是当前这一次」—— 不是就丢掉，而不是把确认框又拽回来。
+   */
+  let installEpoch = 0
+
+  /*
+   * 收下 agent 报来的命令表。
+   *
+   * 空表不写进屏幕：会话建起来之前报来的就是空表，而 AgentPalettePort 只有 read 与
+   * subscribe，没有会话存活信号，「还没建会话」与「真的一个命令都没有」在这条端口上分不
+   * 开。取保守的那一侧 —— 让上一次的结果留着，好过让人看见技能全没了。
+   */
+  function adoptPalette(): void {
+    const entries = options.palette.read()
+
+    if (entries.length === 0) {
+      return
+    }
+
+    publish({ palette: entries, detectedAt: options.now() })
+    cache.write(entries, cache.read().catalogFetchedAt)
+  }
 
   /*
    * 命令表的订阅。
@@ -514,7 +562,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         marketplace: completeFetch(
           snapshot.marketplace,
           JSON.parse(contents),
-          '',
+          cache.read().catalogFetchedAt,
           options.marketplaceUrl,
         ),
       })
@@ -558,12 +606,10 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
        * 东西，所以它的家在这里而不是 start() 里 —— 后者收不了。
        */
       if (stopPalette === null) {
-        stopPalette = options.palette.subscribe(() => {
-          publish({ palette: options.palette.read() })
-        })
+        stopPalette = options.palette.subscribe(adoptPalette)
 
         /* 接上之前 agent 可能已经报过一份：会话在插件页打开之前就建好了。 */
-        publish({ palette: options.palette.read() })
+        adoptPalette()
       }
 
       return () => {
@@ -617,7 +663,13 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           await fetchCatalog()
         }
 
+        /*
+         * 探测完成的时刻只在这里落一次，不写在 republish 里 —— 后者每拨一个开关都会走一
+         * 遍，写在那儿会让「上次检测」在拨开关时无缘无故往前跳。
+         */
+        publish({ detectedAt: options.now() })
         republish()
+        cache.write(snapshot.palette, latestCatalog(snapshot.marketplace)?.fetchedAt ?? '')
       })
     },
 
@@ -638,8 +690,14 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
     setMcpServerEnabled(target, server, enabled) {
       if (target.kind === 'builtin') {
-        builtinEnabled.write(enabled)
-        republish()
+        /*
+         * 内置那一台的开关落在偏好里，插件那一台落在账本里，可它们在屏幕上是同一个控件。
+         * 两条写入必须走同一条队列，否则连拨两下的落点顺序由调度决定。
+         */
+        queue = queue.then(() => {
+          builtinEnabled.write(enabled)
+          republish()
+        })
 
         return
       }
@@ -692,6 +750,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         return
       }
 
+      const epoch = ++installEpoch
+
       publish({ install: { kind: 'staging', source } })
 
       const subdirectory = planning.plan.kind === 'archive' ? planning.plan.subdirectory : null
@@ -699,6 +759,17 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       queue = queue.then(async () => {
         try {
           const staged = await stagePlugin(planning.plan)
+
+          /*
+           * 取件途中人按了取消、或者又发起了下一次：这一趟的结果已经没人要了。丢掉它并把
+           * 暂存目录清掉 —— 不看世代号就直接发布，确认框会在人取消之后自己弹回来。
+           */
+          if (epoch !== installEpoch) {
+            await discardStagedPlugin(staged.stagingId)
+
+            return
+          }
+
           const decoded = decodeManifestJson('', staged.manifestJson)
 
           if (decoded.kind === 'rejected') {
@@ -754,6 +825,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
     cancelInstall() {
       const { install } = snapshot
+
+      /* 往前一格：还在路上的那一趟落定时会看见自己已经过期，于是自行丢弃。 */
+      installEpoch += 1
 
       publish({ install: INSTALL_IDLE })
 

@@ -6,6 +6,34 @@
  */
 
 export {
+  BUILTIN_SERVERS,
+  type BuiltinServer,
+  type BuiltinTransport,
+  type HttpTransport,
+  mcpConfigFragment,
+  type StdioTransport,
+} from './catalog/builtin'
+export {
+  builtinServerRows,
+  type CatalogRow,
+  groupRows,
+  type ListingStatus,
+  matches,
+  type PluginListingInput,
+  personalPluginRows,
+  publicPluginRows,
+  type RowGroup,
+  statusText,
+} from './catalog/listing'
+export {
+  CATALOG_CHANNELS,
+  type CatalogChannel,
+  describeChannel,
+  type ExtensionScope,
+  scopeOf,
+  survivesUninstall,
+} from './catalog/scope'
+export {
   type ArchiveSource,
   type CommitRef,
   type DefaultBranchRef,
@@ -78,4 +106,11 @@ export {
   type StagedInstall,
   type StagingInstall,
 } from './plugin-store'
+export {
+  createSnapshotCache,
+  EMPTY_SNAPSHOT,
+  type ExtensionSnapshot,
+  type SnapshotCache,
+  type SnapshotCacheOptions,
+} from './registry/snapshot'
 export { PluginsSurface, type PluginsSurfaceProps } from './surface/plugins-surface'

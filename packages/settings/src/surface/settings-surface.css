@@ -254,18 +254,32 @@
  * 卡，是这层从属关系最短的说法。
  */
 
+/*
+ * 轨与滑块的明暗关系相对卡片定，不相对页面定。
+ *
+ * --ui-surface 在两个主题里都是比卡更抬起的那一层，--ui-card 是卡片本身，而这两
+ * 层的极性在浅色与深色下是相反的（见 light.css / dark.css 里 --ui-card 那一段）。
+ * 拿 field 当槽、card 当滑块，浅色下就成了「白槽 + 与卡同色的滑块」—— 滑块和它
+ * 趴着的卡一个颜色，等于没有滑块。
+ *
+ * 槽取分隔线那一档：两个主题都把它定义成「在卡上看得见」，浅色压暗、深色提亮，
+ * 各自成立。
+ */
 .settings-segmented {
   position: relative;
   display: grid;
   grid-auto-columns: 1fr;
   grid-auto-flow: column;
   border-radius: 8px;
-  background: var(--settings-field);
+  background: var(--ui-divider);
 }
 
 /*
  * 滑块是一个独立的方块，不是给选中项加背景 —— 它要能从一档滑到另一档，位置本身
  * 就是这个控件的状态。
+ *
+ * 直接上主色：选中态是个动作，用中性灰去表达它，就要靠人比较两块相邻的灰谁更
+ * 亮一点。主色与它的前景色两个主题都成对给了，字压在上面一定读得出来。
  *
  * 位移走 inset-inline-start 而不是 translate：这一仓的排版全用逻辑属性，物理位移
  * 在从右往左的书写方向下会滑向反面。
@@ -277,7 +291,7 @@
   position: absolute;
   inset-block: 0;
   border-radius: 8px;
-  background: var(--settings-surface);
+  background: var(--ui-primary);
   transition: inset-inline-start var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
@@ -294,10 +308,15 @@
 }
 
 .settings-segmented__option:has(:checked) {
-  color: var(--ui-foreground);
+  color: var(--ui-primary-foreground);
 }
 
-.settings-segmented__option:has(:focus-visible) {
+/*
+ * 焦点环画在整条轨上，不画在单格上：--ui-ring 与 --ui-primary 在两个主题里是同一
+ * 支蓝，画在被选中的那一格上就是蓝压蓝。而单选组里焦点跟着选中走，环出现在哪一
+ * 格并不带额外信息。
+ */
+.settings-segmented:has(:focus-visible) {
   outline: var(--ui-focus-ring-width) solid var(--ui-ring);
   outline-offset: var(--ui-focus-ring-offset);
 }
