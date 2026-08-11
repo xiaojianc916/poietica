@@ -63,3 +63,89 @@ export function decodeMcpConfig(origin: ContributionOrigin, document: unknown): 
 
   return { servers, malformed: false }
 }
+
+/*
+ * 写回侧：同一份形状的三种改法，与解码住同一个文件 —— mcpServers 的解释全仓只有这
+ * 一处。三个函数都收正文、交正文，不碰磁盘：读、比对、落盘归原生侧那条写入命令，
+ * 队列与失败处理归 plugin-store，这里只算内容。
+ *
+ * 用 JSON.parse/JSON.stringify 原样携带：条目里 CLI 认得而这里不认识的字段
+ * （command、args、cwd、headers…）原封不动。缩进两格，与官方示例同形。
+ */
+
+interface EditableMcpConfig {
+  readonly mcpServers?: Record<string, Record<string, unknown>>
+  readonly [key: string]: unknown
+}
+
+function parseForEdit(contents: string | null): EditableMcpConfig {
+  if (contents === null || contents.trim() === '') {
+    return {}
+  }
+
+  const parsed: unknown = JSON.parse(contents)
+
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('mcp.json 的顶层不是一个 JSON 对象，不改它')
+  }
+
+  return parsed as EditableMcpConfig
+}
+
+function editServers(
+  contents: string | null,
+  edit: (servers: Record<string, Record<string, unknown>>) => void,
+): string {
+  const document = parseForEdit(contents)
+  const servers: Record<string, Record<string, unknown>> = { ...(document.mcpServers ?? {}) }
+
+  edit(servers)
+
+  return `${JSON.stringify({ ...document, mcpServers: servers }, null, 2)}\n`
+}
+
+/** 装上（或换掉）一台：条目正文整个来自调用方，别的条目一个字节不动。 */
+export function upsertMcpServer(
+  contents: string | null,
+  name: string,
+  body: Record<string, unknown>,
+): string {
+  return editServers(contents, (servers) => {
+    servers[name] = body
+  })
+}
+
+/** 卸掉一台。本来就没有时照样交回整份 —— 卸载是幂等的。 */
+export function removeMcpServer(contents: string | null, name: string): string {
+  return editServers(contents, (servers) => {
+    delete servers[name]
+  })
+}
+
+/**
+ * 拨一台的开关。开 = 抹掉 enabled 那一格（官方语义缺席即开），关 = enabled: false ——
+ * 与 CLI 读的是同一格，所以两边看到的永远是同一个答案。
+ */
+export function setMcpServerEnabledInConfig(
+  contents: string | null,
+  name: string,
+  enabled: boolean,
+): string {
+  return editServers(contents, (servers) => {
+    const entry = servers[name]
+
+    if (entry === undefined) {
+      throw new Error(`mcp.json 里没有 ${name} 这一台，拨不了它的开关`)
+    }
+
+    if (enabled) {
+      const { enabled: _gone, ...rest } = entry
+
+      servers[name] = rest
+
+      return
+    }
+
+    servers[name] = { ...entry, enabled: false }
+  })
+}

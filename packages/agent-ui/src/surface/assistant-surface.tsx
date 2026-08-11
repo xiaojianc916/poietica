@@ -1,7 +1,7 @@
 import './assistant.css'
 
 import type { FeedRow } from '@poietica/agent'
-import type { AgentSessionPort, SessionConfigControl } from '@poietica/agent-contract'
+import type { AgentSessionPort, PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
@@ -61,6 +61,8 @@ export interface AssistantSurfaceProps {
    * 已有对话没有这项；第一句话发出后 entry 相位结束，这一栏也随之卸载。
    */
   readonly workspace?: Omit<WorkspacePickerProps, 'placement'> | undefined
+  /** 对话里敲得出来的命令表，喂给输入框的斜杠菜单。 */
+  readonly palette?: readonly PaletteEntry[] | undefined
 }
 
 /*
@@ -85,6 +87,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   onRetryControls,
   onSelectControl,
   onUserMessage,
+  palette,
   session,
   workspace,
 }: AssistantSurfaceProps) {
@@ -253,6 +256,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         onRetryControls={onRetryControls}
         onSelectControl={onSelectControl}
         onSubmit={submit}
+        palette={palette}
         questionDeck={questionDeck}
         status={assistant.status}
       />

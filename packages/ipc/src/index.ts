@@ -46,7 +46,11 @@ export {
   upsertAutomation,
   watchAutomations,
 } from './automations'
-export { type EnvironmentFile, readEnvironmentMcpConfig } from './environment'
+export {
+  type EnvironmentFile,
+  readEnvironmentMcpConfig,
+  writeEnvironmentMcpConfig,
+} from './environment'
 export {
   type IpcError,
   IpcInvocationError,

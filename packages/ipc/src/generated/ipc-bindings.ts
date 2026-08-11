@@ -378,6 +378,23 @@ async environmentMcpConfig() : Promise<EnvironmentFile> {
     return await TAURI_INVOKE("environment_mcp_config");
 },
 /**
+ * 改写受控 home 里那份 mcp.json，先比对再落盘。
+ * 
+ * expected_contents 是调用方这次读—改—写开始时读到的原文（文件不存在时是 None）。
+ * 比不上就拒绝：领域层的改写是整份写回，两个写者并发时，后落盘的那份拿着更旧的
+ * 原文，直接写会把前一次的改动静默抹掉。被拒的一方重读一遍再来，谁的改动都不丢。
+ * 
+ * 落盘走与 config.toml 同一条原子路径（`write_config_atomically`）：会话随时
+ * 可能起来读它，残缺的半份文件不该有被读到的窗口。
+ * 
+ * # Errors
+ * 
+ * 这家 agent 不受控、正文不是合法 JSON、文件在比对后被别人改过、或写不进去时返回错误。
+ */
+async environmentMcpConfigWrite(expectedContents: string | null, contents: string) : Promise<EnvironmentFile> {
+    return await TAURI_INVOKE("environment_mcp_config_write", { expectedContents, contents });
+},
+/**
  * Reports where the in-process MCP server is listening.
  * 
  * Returns None while the server failed to bind: the caller then simply has no

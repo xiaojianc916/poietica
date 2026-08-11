@@ -1,7 +1,7 @@
 import './composer-actions.css'
 import './question-panel.css'
 
-import type { ChatStatus, SessionConfigControl } from '@poietica/agent-contract'
+import type { ChatStatus, PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
 import { memo, type Ref } from 'react'
 import { MicIcon } from '../primitives/icons'
 import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
@@ -42,6 +42,8 @@ export interface AssistantComposerProps {
   readonly onCancel?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
   readonly ref?: Ref<PromptInputHandle> | undefined
+  /** 斜杠菜单的候选表：agent 报来的命令表。不给就没有菜单。 */
+  readonly palette?: readonly PaletteEntry[] | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
   readonly controlsFailure?: string | undefined
@@ -156,6 +158,7 @@ function ComposerToolbar({
 export const AssistantComposer = memo(function AssistantComposer({
   approval,
   onAnswerQuestions,
+  palette,
   placeholder = '问我任何问题…',
   questionDeck,
   ref,
@@ -202,6 +205,7 @@ export const AssistantComposer = memo(function AssistantComposer({
         className={asking ? 'assistant-prompt-input--question' : undefined}
         multiple
         onSubmit={onSubmit}
+        palette={palette}
         ref={ref}
       >
         {asking ? (

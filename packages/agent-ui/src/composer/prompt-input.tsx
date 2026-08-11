@@ -1,4 +1,4 @@
-import type { ChatStatus } from '@poietica/agent-contract'
+import type { ChatStatus, PaletteEntry } from '@poietica/agent-contract'
 import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 import {
   createContext,
@@ -14,6 +14,7 @@ import { ImageLightbox, type PreviewableImage } from '../media/image-lightbox'
 import { cx } from '../primitives/class-names'
 import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
+import { SlashMenu } from './slash-menu'
 
 /*
  * The composer input.
@@ -51,6 +52,7 @@ export interface PromptInputMessage {
  * 醒一次。
  */
 const NO_ATTACHMENTS: readonly ComposerAsset[] = []
+const NO_SLASH_ENTRIES: readonly PaletteEntry[] = []
 
 /** 能不能发，就这两位。整串草稿不出现在这里，因为没有人需要它。 */
 export interface PromptInputDraft {
@@ -143,6 +145,8 @@ export interface PromptInputProps {
   readonly ref?: Ref<PromptInputHandle> | undefined
   readonly multiple?: boolean
   readonly maxFiles?: number
+  /** 斜杠菜单的候选表：agent 报来的命令表。不给就没有菜单。 */
+  readonly palette?: readonly PaletteEntry[] | undefined
   readonly onSubmit: (message: PromptInputMessage) => void
 }
 
@@ -152,10 +156,23 @@ export function PromptInput({
   maxFiles,
   multiple = false,
   onSubmit,
+  palette,
   ref,
 }: PromptInputProps) {
   const intake = useAttachmentIntake()
-  const [text, setText] = useState('')
+  const [text, setTextState] = useState('')
+  const [slashDismissed, setSlashDismissed] = useState(false)
+  const [slashHighlighted, setSlashHighlighted] = useState(0)
+
+  /*
+   * 草稿一变，菜单的两样状态就回到起点：Esc 压住的只是当前这份草稿的菜单，接着敲字
+   * 就该重新看见它；候选换了一批之后，高亮也不该停在旧下标上。
+   */
+  const setText = useCallback((next: string) => {
+    setSlashDismissed(false)
+    setSlashHighlighted(0)
+    setTextState(next)
+  }, [])
   const [attachments, setAttachments] = useState<readonly ComposerAsset[]>([])
 
   const formRef = useRef<HTMLFormElement>(null)
@@ -202,7 +219,7 @@ export function PromptInput({
     editor.setSelectionRange(editor.value.length, editor.value.length)
   }, [])
 
-  useImperativeHandle(ref, () => ({ setText, focus: focusTextarea }), [focusTextarea])
+  useImperativeHandle(ref, () => ({ setText, focus: focusTextarea }), [focusTextarea, setText])
 
   const removeAttachment = useCallback(
     (assetToken: string) => {
@@ -279,7 +296,15 @@ export function PromptInput({
       registerTextarea,
       requestSubmit,
     }),
-    [addAssets, focusTextarea, openFilePicker, registerTextarea, removeAttachment, requestSubmit],
+    [
+      addAssets,
+      focusTextarea,
+      openFilePicker,
+      registerTextarea,
+      removeAttachment,
+      requestSubmit,
+      setText,
+    ],
   )
 
   /*
@@ -291,6 +316,77 @@ export function PromptInput({
   const hasText = text.trim().length > 0
   const hasFiles = attachments.length > 0
   const draft = useMemo<PromptInputDraft>(() => ({ hasText, hasFiles }), [hasFiles, hasText])
+
+  /*
+   * 斜杠菜单开不开，从草稿推出来，不另记一位：正文以 / 开头、还没敲出空白、表里真有
+   * 对得上的条目。空格落下的那一刻它自然关掉 —— 命令敲完了，后面是参数。
+   */
+  const slashEntries = useMemo(() => {
+    if (palette === undefined || slashDismissed || !/^\/\S*$/.test(text)) {
+      return NO_SLASH_ENTRIES
+    }
+
+    const needle = text.toLowerCase()
+
+    return palette
+      .filter(
+        (entry) =>
+          entry.label.toLowerCase().startsWith(needle) ||
+          entry.name.toLowerCase().includes(needle.slice(1)),
+      )
+      .slice(0, 8)
+  }, [palette, slashDismissed, text])
+
+  const slashOpen = slashEntries.length > 0
+
+  const pickSlash = useCallback(
+    (entry: PaletteEntry) => {
+      setText(`${entry.label} `)
+      focusTextarea()
+    },
+    [focusTextarea, setText],
+  )
+
+  /*
+   * 菜单开着时这几个键归菜单：方向键走高亮，Enter/Tab 落定，Esc 压住。挂在捕获相：
+   * textarea 的 Enter 提交挂在目标相，捕获相先到，stopPropagation 一停它就不会跑 ——
+   * textarea 不需要知道菜单的存在。输入法组词中的键一律不碰。
+   */
+  const onSlashKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
+    if (!slashOpen || event.nativeEvent.isComposing) {
+      return
+    }
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      event.stopPropagation()
+
+      const step = event.key === 'ArrowDown' ? 1 : -1
+
+      setSlashHighlighted((current) => (current + step + slashEntries.length) % slashEntries.length)
+
+      return
+    }
+
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      event.stopPropagation()
+
+      const chosen = slashEntries[slashHighlighted] ?? slashEntries[0]
+
+      if (chosen !== undefined) {
+        pickSlash(chosen)
+      }
+
+      return
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      setSlashDismissed(true)
+    }
+  }
 
   /* Scoped to the composer, so it cannot outrank the workbench command table. */
   const onFormKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
@@ -319,6 +415,7 @@ export function PromptInput({
               className={cx('assistant-prompt-input', className)}
               data-slot="prompt-input"
               onKeyDown={onFormKeyDown}
+              onKeyDownCapture={onSlashKeyDown}
               onMouseDown={onFormMouseDown}
               onPaste={(event) => {
                 /* 三条路里唯一还经过字节的一条：剪贴板里的截图没有路径，
@@ -359,6 +456,14 @@ export function PromptInput({
               }}
               ref={formRef}
             >
+              {slashOpen ? (
+                <SlashMenu
+                  entries={slashEntries}
+                  highlighted={slashHighlighted}
+                  onPick={pickSlash}
+                />
+              ) : null}
+
               {children}
             </form>
           </DraftContext>

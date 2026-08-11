@@ -44,13 +44,14 @@ export interface UserOrigin {
 export type ContributionOrigin = BuiltinOrigin | PluginOrigin | UserOrigin
 
 /**
- * 本应用拨得动的那些。
+ * 本应用拨得动的那些 —— 如今三种全是。
  *
- * 机器上那份 mcp.json 不归本应用所有：从这个界面改它，等于替人改掉他下次在终端里跑
- * CLI 时的那套服务器。所以 UserOrigin 不在这个联合里 —— 「那几台改不了」是一条类型
- * 约束，由编译器执行，不靠每个调用点自觉。
+ * mcp.json 那一档从前被排除在外，理由是「那份文件不归本应用所有」。这句话把两个家
+ * 混成了一个：受控 home 生效时，会话读的那份 mcp.json 就住在本应用的数据根之下
+ * （paths.rs 的 agent_home），终端里的 CLI 读的是用户自己的家 —— 前者本来就归本应用
+ * 写，后者由原生侧的写入命令一律拒绝。归属判断在原生侧一处，不在这里。
  */
-export type ManagedOrigin = BuiltinOrigin | PluginOrigin
+export type ManagedOrigin = BuiltinOrigin | PluginOrigin | UserOrigin
 
 /** 列表右边那个标签。 */
 export function describeOrigin(origin: ContributionOrigin): string {

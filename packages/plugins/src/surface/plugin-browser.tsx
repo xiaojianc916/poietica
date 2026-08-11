@@ -70,7 +70,12 @@ export function PluginBrowser({
   return (
     <div className="pb-20">
       <InstallBanner install={install} store={store} />
-      <CatalogGrid groups={groupRows(publicRows)} onInstall={store.beginInstall} onOpen={onOpen} />
+      <CatalogGrid
+        groups={groupRows(publicRows)}
+        onInstall={store.beginInstall}
+        onInstallServer={undefined}
+        onOpen={onOpen}
+      />
       <PersonalSection
         elsewhere={elsewhere}
         loaded={loaded}

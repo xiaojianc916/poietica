@@ -65,7 +65,7 @@ export interface BuiltinMcpServer {
 
 export interface McpServerInput {
   readonly plugins: readonly InstalledPlugin[]
-  /** 这个 agent 自己那份 mcp.json 里已经配好的那些。本应用只读，不写。 */
+  /** 这个 agent 自己那份 mcp.json 里已经配好的那些。受控 home 生效时由本应用增删与启停。 */
   readonly environment: readonly DeclaredMcpServer[]
   /** 本应用自己起的那些。 */
   readonly builtin: readonly BuiltinMcpServer[]

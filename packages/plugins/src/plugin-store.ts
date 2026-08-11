@@ -13,6 +13,7 @@ import {
   setPluginEnabled,
   setPluginMcpEnabled,
   stagePlugin,
+  writeEnvironmentMcpConfig,
 } from '@poietica/ipc'
 import { planFetch } from './fetch-plan'
 import {
@@ -33,7 +34,13 @@ import {
   type MarketplaceState,
   shouldFetchOnOpen,
 } from './marketplace'
-import { type DeclaredMcpServer, decodeMcpConfig } from './mcp-config'
+import {
+  type DeclaredMcpServer,
+  decodeMcpConfig,
+  removeMcpServer,
+  setMcpServerEnabledInConfig,
+  upsertMcpServer,
+} from './mcp-config'
 import { type BuiltinMcpServer, type ResolvedMcpServer, resolveMcpServers } from './mcp-servers'
 import type { ManagedOrigin } from './origin'
 import { createSnapshotCache } from './registry/snapshot'
@@ -147,10 +154,19 @@ export interface PluginStore {
    * 拨动一台服务器。
    *
    * 收的是来源而不是插件号：内置那台不属于任何插件，硬塞进账本就得给它编一个假的
-   * 插件号，而那个号会出现在 agent 的 installed.json 里。机器上那些根本不在
-   * ManagedOrigin 里，所以「它们改不了」由编译器说，不靠调用方自觉。
+   * 插件号，而那个号会出现在 agent 的 installed.json 里。开关落在哪份真相里由来源
+   * 说了算：内置在偏好里，插件在账本里，mcp.json 里那些落回文件本身的 enabled 那
+   * 一格 —— 与 CLI 拨的是同一格。
    */
   readonly setMcpServerEnabled: (target: ManagedOrigin, server: string, enabled: boolean) => void
+  /**
+   * 把一台服务器写进这个 agent 的 mcp.json —— 内置名单的一键安装。条目正文由调用方
+   * 给：名单知道每台的形状与钥匙落在哪一格，这里只管读—改—写那一趟。同名条目会被
+   * 整个换掉，所以「重装」与「改配置再装」是同一个动作。
+   */
+  readonly installEnvironmentServer: (name: string, body: Record<string, unknown>) => void
+  /** 从 mcp.json 里删掉一台。名单上有它的卡片会拨回「可安装」，随时装得回来。 */
+  readonly removeEnvironmentServer: (name: string) => void
   readonly remove: (pluginId: string) => void
   /**
    * 开始一次安装：下载、解压到暂存区。
@@ -525,6 +541,24 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     })
   }
 
+  /*
+   * mcp.json 的一次读—改—写。原文连同改好的正文一起交给原生侧（写入命令先比对再
+   * 落盘）：这条队列已经把本进程内的改写串成一串，比对挡的是进程外的写者 —— 终端里
+   * 的 CLI 或人手改。写成之后就地重读再投影，屏幕上那份永远来自文件。
+   */
+  function rewriteEnvironment(what: string, transform: (contents: string | null) => string): void {
+    commit(
+      what,
+      async () => {
+        const file = await readEnvironmentMcpConfig()
+
+        await writeEnvironmentMcpConfig(file.contents, transform(file.contents))
+        await readEnvironment()
+      },
+      republish,
+    )
+  }
+
   function trustOf(source: PluginInstallSource): PluginTrustTier {
     return listing(describeInstallSource(source))?.trust ?? UNLISTED_TRUST
   }
@@ -702,6 +736,14 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         return
       }
 
+      if (target.kind === 'user') {
+        rewriteEnvironment('MCP 服务器的开关没能写进 mcp.json，屏幕上仍是文件里那一份', (raw) =>
+          setMcpServerEnabledInConfig(raw, server, enabled),
+        )
+
+        return
+      }
+
       const { pluginId } = target
 
       commit(
@@ -721,6 +763,18 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
           republish()
         },
+      )
+    },
+
+    installEnvironmentServer(name, body) {
+      rewriteEnvironment('MCP 服务器没能写进 mcp.json，名单上那张卡片因此不动', (raw) =>
+        upsertMcpServer(raw, name, body),
+      )
+    },
+
+    removeEnvironmentServer(name) {
+      rewriteEnvironment('MCP 服务器没能从 mcp.json 里删掉，界面因此不动', (raw) =>
+        removeMcpServer(raw, name),
       )
     },
 

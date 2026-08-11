@@ -77,6 +77,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::automations::automations_record_run,
             crate::commands::automations::automations_sweep,
             crate::commands::environment::environment_mcp_config,
+            crate::commands::environment::environment_mcp_config_write,
             crate::mcp::mcp_endpoint,
             crate::commands::plugins::plugins_catalog_read,
             crate::commands::plugins::plugins_catalog_refresh,

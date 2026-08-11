@@ -394,6 +394,28 @@ pub fn agent_mcp_config(app: &AppHandle) -> Result<PathBuf> {
     Ok(agent_home_directory(app)?.join(MCP_CONFIG_FILE))
 }
 
+/// 受控 home 里那份 mcp.json —— 写入只认它。
+///
+/// 判据与 `agent_set_default_model` 同一条：受控 home 生效时，这个目录本来就在本应用
+/// 的数据根之下（paths.rs 的 agent_home），终端里的 CLI 读的是它自己的家，两边互不
+/// 相扰；不受控时那份 mcp.json 是用户在终端里的那套服务器，从这里写等于替人改配置，
+/// 所以拒绝 —— 归属判断只在这里做一次，界面与领域层都不猜路径。
+///
+/// # Errors
+///
+/// 没有默认 agent、档案不存在、或这家 agent 不受控时返回错误。
+pub fn agent_mcp_config_for_write(app: &AppHandle) -> Result<PathBuf> {
+    let agent_id = default_agent_id(app)?;
+    let profile = profile_of(app, &agent_id)?;
+
+    match controlled_home(app, &agent_id, &profile)? {
+        Some(home) => Ok(home.path.join(MCP_CONFIG_FILE)),
+        None => Err(Error::AgentCli(format!(
+            "{agent_id} 的 mcp.json 不归 Poietica 管：它的档案没有声明受控 home 的变量名，写下去它也不会读"
+        ))),
+    }
+}
+
 /// 默认 agent 那个家的目录本身。
 ///
 /// config.toml、mcp.json、skills/、plugins/ 都挂在它下面。插件仓库的位置因此不是
@@ -719,13 +741,18 @@ fn alias_has_usable_credentials(document: &DocumentMut, alias: &str) -> bool {
 /// 截断与写入之间那一瞬如果被读到，对方拿到的是一份残缺的 TOML，整份配置判为无效。
 ///
 /// rename 在三个平台上都是覆盖语义，对 watcher 是一次事件而不是两次。
-fn write_config_atomically(path: &Path, text: &str) -> Result<()> {
+pub(crate) fn write_config_atomically(path: &Path, text: &str) -> Result<()> {
     let directory = path
         .parent()
         .ok_or_else(|| Error::Internal("配置文件没有父目录".to_owned()))?;
 
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| Error::Internal("配置文件没有文件名".to_owned()))?;
+
     // 名字里带上进程号：一份崩溃残留的临时文件不该被下一次写入静默复用。
-    let temporary = directory.join(format!("config.toml.poietica-{}", std::process::id()));
+    let temporary = directory.join(format!("{name}.poietica-{}", std::process::id()));
 
     /*
      * 落盘之后才 rename。std::fs::write 返回只说明字节进了页缓存 —— 那之后

@@ -7,8 +7,9 @@ import {
   useThreadSelectors,
   type WorkspacePickerProps,
 } from '@poietica/agent-ui'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { useThreadsActions } from '../assistant/threads-context'
+import { pluginStore } from '../plugins/plugin-runtime'
 
 /*
  * 一格只画一条对话。
@@ -42,6 +43,16 @@ export function ConversationSurface({
   workspace,
 }: ConversationSurfaceProps) {
   const threads = useThreadsActions()
+
+  /*
+   * 斜杠菜单的候选表，读插件 store 快照上的命令表。订阅顺带把命令表端口接上（store
+   * 在第一个订阅者到来时才接 palette），所以不开插件面板，输入框也拿得到表；agent
+   * 报来新表之前，先画上一次运行存下的那份。
+   */
+  const palette = useSyncExternalStore(
+    pluginStore.subscribe,
+    () => pluginStore.getSnapshot().palette,
+  )
 
   const sessionControls = useSessionControlsActions()
 
@@ -155,6 +166,7 @@ export function ConversationSurface({
       onRetryControls={retryControls}
       onSelectControl={chooseControl}
       onUserMessage={userMessage}
+      palette={palette}
       session={session}
       workspace={workspace}
     />

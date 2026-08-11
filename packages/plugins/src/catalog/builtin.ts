@@ -5,8 +5,9 @@
  * 造不出第二份真实存在的条目；而一台 MCP 服务器的配置形状是协议侧公开的（mcpServers
  * 表：远端一条 url，本地一条 command 加 args），任何 MCP 客户端认的都是同一份。
  *
- * 收录判据两条：官方或一方维护，且配置片段原样粘进 mcp.json 就跑得起来。跑之前还要用户
- * 自己补钥匙或路径的，needs 里写出来 —— 装上才发现跑不起来，比不收录更糟。
+ * 收录判据两条：官方或一方维护，且写进 mcp.json 就跑得起来。跑之前还要用户自己补
+ * 钥匙或路径的，needs 说给人听，input 把那一格做成安装动作的一部分 —— 装上才发现
+ * 跑不起来，比不收录更糟。
  */
 
 export interface HttpTransport {
@@ -33,6 +34,20 @@ export interface BuiltinServer {
   readonly transport: BuiltinTransport
   /** 跑起来之前用户还得自己补什么。没有就是 undefined。 */
   readonly needs: string | undefined
+  /**
+   * 安装卡片上那一格输入。没有就是纯一键。结构化而不是让人手改 JSON：needs 是说给
+   * 人听的那句话，input 是机器接的那个值 —— 落在条目哪一格由 apply 说了算，卡片不
+   * 认识配置的形状。
+   */
+  readonly input: ServerInput | undefined
+}
+
+export interface ServerInput {
+  readonly label: string
+  readonly placeholder: string
+  /** 空着能不能装。 */
+  readonly required: boolean
+  readonly apply: (body: Record<string, unknown>, value: string) => Record<string, unknown>
 }
 
 export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
@@ -44,6 +59,7 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
     homepage: 'https://context7.com',
     transport: { kind: 'http', url: 'https://mcp.context7.com/mcp' },
     needs: '免费额度可直接用，提高速率上限需在 context7.com 取一把 key。',
+    input: undefined,
   },
   {
     id: 'deepwiki',
@@ -53,6 +69,7 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
     homepage: 'https://deepwiki.com',
     transport: { kind: 'http', url: 'https://mcp.deepwiki.com/mcp' },
     needs: undefined,
+    input: undefined,
   },
   {
     id: 'playwright',
@@ -62,6 +79,7 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
     homepage: 'https://github.com/microsoft/playwright-mcp',
     transport: { kind: 'stdio', command: 'npx', args: ['@playwright/mcp@latest'] },
     needs: '需要本机有 Node 18+，首次运行会下载浏览器内核。',
+    input: undefined,
   },
   {
     id: 'chrome-devtools',
@@ -71,6 +89,7 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
     homepage: 'https://github.com/ChromeDevTools/chrome-devtools-mcp',
     transport: { kind: 'stdio', command: 'npx', args: ['chrome-devtools-mcp@latest'] },
     needs: '需要本机有 Node 18+ 与一个 Chrome。',
+    input: undefined,
   },
   {
     id: 'github',
@@ -79,7 +98,13 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
     group: '代码与协作',
     homepage: 'https://github.com/github/github-mcp-server',
     transport: { kind: 'http', url: 'https://api.githubcopilot.com/mcp/' },
-    needs: '首次连接要走一次 GitHub 授权，或自备一枚 PAT。',
+    needs: '要一枚 GitHub PAT，homepage 有申请入口。',
+    input: {
+      label: 'GitHub PAT',
+      placeholder: 'ghp_…',
+      required: true,
+      apply: (body, value) => ({ ...body, headers: { Authorization: `Bearer ${value}` } }),
+    },
   },
   {
     id: 'filesystem',
@@ -90,9 +115,18 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
     transport: {
       kind: 'stdio',
       command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-filesystem', '/path/to/allowed/files'],
+      args: ['-y', '@modelcontextprotocol/server-filesystem'],
     },
-    needs: '把最后一段换成你允许它进的目录 —— 不换它进不去任何地方。',
+    needs: '要指定允许它进的目录 —— 不指定它进不去任何地方。',
+    input: {
+      label: '允许访问的目录',
+      placeholder: '这台机器上的一个目录路径',
+      required: true,
+      apply: (body, value) => ({
+        ...body,
+        args: ['-y', '@modelcontextprotocol/server-filesystem', value],
+      }),
+    },
   },
   {
     id: 'memory',
@@ -106,6 +140,7 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
       args: ['-y', '@modelcontextprotocol/server-memory'],
     },
     needs: undefined,
+    input: undefined,
   },
   {
     id: 'sequential-thinking',
@@ -119,22 +154,27 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
       args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
     },
     needs: undefined,
+    input: undefined,
   },
 ]
 
 /*
- * 粘进 mcp.json 就能用的那一段。
- *
- * 序列化交给 JSON.stringify 的第三个参数，缩进两格 —— 与协议侧文档里的示例同形，人对照
- * 的时候不会因为格式差异分神。
+ * 写进 mcp.json 的那一条正文。形状与协议侧文档同形：远端一条 url，本地一条 command
+ * 加 args。钥匙或路径由条目自己的 apply 并进来 —— 这里认识的只有传输形状。
  */
-export function mcpConfigFragment(server: BuiltinServer): string {
+export function mcpServerBody(server: BuiltinServer, filled: string): Record<string, unknown> {
   const { transport } = server
 
-  const body =
+  const body: Record<string, unknown> =
     transport.kind === 'http'
       ? { url: transport.url }
       : { command: transport.command, args: [...transport.args] }
 
-  return JSON.stringify({ mcpServers: { [server.id]: body } }, null, 2)
+  const value = filled.trim()
+
+  if (server.input === undefined || value === '') {
+    return body
+  }
+
+  return server.input.apply(body, value)
 }

@@ -1,17 +1,15 @@
 import { Button } from '@poietica/ui'
 import { useState } from 'react'
 
-import { BUILTIN_SERVERS, mcpConfigFragment } from '../catalog/builtin'
+import { BUILTIN_SERVERS, mcpServerBody } from '../catalog/builtin'
 import { type CatalogRow, type RowGroup, statusText } from '../catalog/listing'
 import { describeChannel } from '../catalog/scope'
 import type { PluginInstallSource } from '../install-source'
 import { PluginGlyph } from './plugin-glyph'
 
 /*
- * 分组网格。
- *
- * 一组一个标题，组内两列，超出前四条折起来 —— 名单是几十条的量级，一次铺开人只会滚过去
- * 而不会读。折起来的那几条不是被藏了：标题下那个按钮写着还有几条。
+ * 分组网格。一组一个标题，组内两列，超出前四条折起来 —— 名单是几十条的量级，一次铺开
+ * 人只会滚过去而不会读。折起的那几条没有被藏：标题下那个按钮写着还有几条。
  */
 
 const VISIBLE = 4
@@ -21,13 +19,21 @@ export interface CatalogGridProps {
   /** 有详情页的行才给回调。内置 MCP 名单没有详情页，传 undefined。 */
   readonly onOpen: ((id: string) => void) | undefined
   readonly onInstall: (source: PluginInstallSource) => void
+  /** 内置 MCP 名单的一键安装：把这一台写进这个 agent 的 mcp.json。插件名单传 undefined。 */
+  readonly onInstallServer: ((name: string, body: Record<string, unknown>) => void) | undefined
 }
 
-export function CatalogGrid({ groups, onInstall, onOpen }: CatalogGridProps) {
+export function CatalogGrid({ groups, onInstall, onInstallServer, onOpen }: CatalogGridProps) {
   return (
     <>
       {groups.map((group) => (
-        <CatalogSection group={group} key={group.title} onInstall={onInstall} onOpen={onOpen} />
+        <CatalogSection
+          group={group}
+          key={group.title}
+          onInstall={onInstall}
+          onInstallServer={onInstallServer}
+          onOpen={onOpen}
+        />
       ))}
     </>
   )
@@ -37,9 +43,10 @@ interface CatalogSectionProps {
   readonly group: RowGroup
   readonly onOpen: ((id: string) => void) | undefined
   readonly onInstall: (source: PluginInstallSource) => void
+  readonly onInstallServer: ((name: string, body: Record<string, unknown>) => void) | undefined
 }
 
-function CatalogSection({ group, onInstall, onOpen }: CatalogSectionProps) {
+function CatalogSection({ group, onInstall, onInstallServer, onOpen }: CatalogSectionProps) {
   const [expanded, setExpanded] = useState(false)
 
   const shown = expanded ? group.rows : group.rows.slice(0, VISIBLE)
@@ -50,7 +57,13 @@ function CatalogSection({ group, onInstall, onOpen }: CatalogSectionProps) {
       <h2 className="pb-3 text-sm font-medium">{group.title}</h2>
       <ul className="grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
         {shown.map((row) => (
-          <CatalogCard key={row.key} onInstall={onInstall} onOpen={onOpen} row={row} />
+          <CatalogCard
+            key={row.key}
+            onInstall={onInstall}
+            onInstallServer={onInstallServer}
+            onOpen={onOpen}
+            row={row}
+          />
         ))}
       </ul>
       {rest > 0 ? (
@@ -70,9 +83,10 @@ interface CatalogCardProps {
   readonly row: CatalogRow
   readonly onOpen: ((id: string) => void) | undefined
   readonly onInstall: (source: PluginInstallSource) => void
+  readonly onInstallServer: ((name: string, body: Record<string, unknown>) => void) | undefined
 }
 
-function CatalogCard({ onInstall, onOpen, row }: CatalogCardProps) {
+function CatalogCard({ onInstall, onInstallServer, onOpen, row }: CatalogCardProps) {
   return (
     <li className="flex items-center gap-3 py-2">
       <PluginGlyph displayName={row.displayName} id={row.id} size="sm" />
@@ -90,7 +104,7 @@ function CatalogCard({ onInstall, onOpen, row }: CatalogCardProps) {
         )}
         <span className="block truncate text-xs text-muted-foreground">{row.description}</span>
       </div>
-      <CardAction onInstall={onInstall} row={row} />
+      <CardAction onInstall={onInstall} onInstallServer={onInstallServer} row={row} />
     </li>
   )
 }
@@ -98,19 +112,18 @@ function CatalogCard({ onInstall, onOpen, row }: CatalogCardProps) {
 interface CardActionProps {
   readonly row: CatalogRow
   readonly onInstall: (source: PluginInstallSource) => void
+  readonly onInstallServer: ((name: string, body: Record<string, unknown>) => void) | undefined
 }
 
 /*
- * 右边那个动作。
+ * 右边那个动作。已装的一律不给按钮，只写状态 —— 按下去什么也不发生的按钮比没有按钮坏。
+ * 卸载不在卡片上：装上的那一台会出现在上方已装列表里，开关与移除都在那一行；公开名单
+ * 的卡片只负责「装回来」，卸载之后它留在原处，状态拨回可安装。
  *
- * 已装的一律不给按钮，只写状态 —— 按下去什么也不发生的按钮比没有按钮坏。
- *
- * 内置名单给的是「复制配置」而不是「安装」：装一台 MCP 服务器要写这个 agent 的 mcp.json，
- * 而本应用现在只读那个文件（origin.ts 的 ManagedOrigin 在类型上就把它排除在外，写入通道
- * 需要一条新的原生命令）。在那条通道打通之前，把能直接粘贴的那段交到人手上是唯一诚实的
- * 做法 —— 它真的能用，只是要两步。
+ * 内置名单是真安装：把这一台写进这个 agent 的 mcp.json。要人补钥匙或路径的，那一格
+ * 输入就长在卡片上 —— 装上才发现跑不起来，比多一格输入更糟。
  */
-function CardAction({ onInstall, row }: CardActionProps) {
+function CardAction({ onInstall, onInstallServer, row }: CardActionProps) {
   if (row.status.kind === 'installed') {
     return (
       <span className="shrink-0 text-[11px] text-muted-foreground">{statusText(row.status)}</span>
@@ -118,7 +131,9 @@ function CardAction({ onInstall, row }: CardActionProps) {
   }
 
   if (row.channel === 'builtin') {
-    return <CopyConfig id={row.id} />
+    return onInstallServer === undefined ? null : (
+      <InstallServer id={row.id} onInstall={onInstallServer} />
+    )
   }
 
   const { source } = row
@@ -135,12 +150,13 @@ function CardAction({ onInstall, row }: CardActionProps) {
   )
 }
 
-interface CopyConfigProps {
+interface InstallServerProps {
   readonly id: string
+  readonly onInstall: (name: string, body: Record<string, unknown>) => void
 }
 
-function CopyConfig({ id }: CopyConfigProps) {
-  const [copied, setCopied] = useState(false)
+function InstallServer({ id, onInstall }: InstallServerProps) {
+  const [filled, setFilled] = useState('')
 
   const server = BUILTIN_SERVERS.find((one) => one.id === id)
 
@@ -148,23 +164,36 @@ function CopyConfig({ id }: CopyConfigProps) {
     return null
   }
 
+  const missing = server.input !== undefined && server.input.required && filled.trim() === ''
+
   return (
     <div className="flex shrink-0 items-center gap-2">
-      {server.needs === undefined ? null : (
-        <span className="max-w-40 truncate text-[11px] text-muted-foreground" title={server.needs}>
-          {server.needs}
-        </span>
+      {server.input === undefined ? (
+        server.needs === undefined ? null : (
+          <span
+            className="max-w-40 truncate text-[11px] text-muted-foreground"
+            title={server.needs}
+          >
+            {server.needs}
+          </span>
+        )
+      ) : (
+        <input
+          aria-label={server.input.label}
+          className="h-7 w-40 rounded-md border border-divider bg-background px-2 text-xs outline-none focus:border-foreground/25"
+          onChange={(event) => setFilled(event.target.value)}
+          placeholder={server.input.placeholder}
+          title={server.needs}
+          value={filled}
+        />
       )}
       <Button
-        onClick={() => {
-          void navigator.clipboard.writeText(mcpConfigFragment(server)).then(() => {
-            setCopied(true)
-          })
-        }}
+        disabled={missing}
+        onClick={() => onInstall(server.id, mcpServerBody(server, filled))}
         size="xs"
         variant="secondary"
       >
-        {copied ? '已复制' : '复制配置'}
+        安装
       </Button>
     </div>
   )

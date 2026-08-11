@@ -205,6 +205,7 @@ function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyP
           <CatalogGrid
             groups={groupRows(builtinServerRows(view.mcpServers, needle))}
             onInstall={store.beginInstall}
+            onInstallServer={store.installEnvironmentServer}
             onOpen={undefined}
           />
         </>
@@ -232,20 +233,38 @@ function skillRow(entry: PaletteEntry): ContributionRow {
  * enabled 是这一台自己的开关，launchedBy 是「这一次谁会起它」。两个都要显示：插件整体关掉
  * 时这一台的开关不该被悄悄拨回去，但也不能让人以为它还在跑。
  *
- * 机器上那份 mcp.json 里的没有开关：那份文件不归本应用所有，从这里改它等于替人改掉他下次
- * 在终端里跑 CLI 时的那套服务器。
+ * mcp.json 里那些的开关与移除落回文件本身：enabled 与 CLI 拨的是同一格（缺席即开，
+ * 官方语义），两边看到的永远是同一个答案。受控 home 不生效时原生侧拒绝写入，开关会
+ * 弹回 —— 拒绝的理由在日志里。
  */
 function serverRow(server: ResolvedMcpServer, store: PluginStore): ContributionRow {
   const { origin } = server
 
   if (origin.kind === 'user') {
-    const state = server.enabled ? '由这台机器上的 CLI 装载' : '已在配置里关闭'
+    const state = server.enabled ? '会话开始时由命令行装载' : '已在配置里关闭'
 
     return {
       key: `${origin.location}/${server.name}`,
       title: server.name,
       detail: `${origin.location} · ${state}`,
       badge: describeOrigin(origin),
+      trailing: (
+        <span className="flex items-center gap-2">
+          <Button
+            onClick={() => store.removeEnvironmentServer(server.name)}
+            size="xs"
+            variant="ghost"
+          >
+            移除
+          </Button>
+          <Switch
+            aria-label={`启用 ${server.name}`}
+            checked={server.enabled}
+            onCheckedChange={(next) => store.setMcpServerEnabled(origin, server.name, next)}
+            size="sm"
+          />
+        </span>
+      ),
     }
   }
 
