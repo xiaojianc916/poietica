@@ -65,6 +65,56 @@ function focusOnMount(node: HTMLInputElement | null): void {
   node?.focus()
 }
 
+/**
+ * 返回与本次搜索匹配的项目。
+ *
+ * 搜索与组件的开合、高亮和文件选择无关，所以不应成为 WorkspacePicker 主函数
+ * 的分支。项目名称和完整路径都可以参与搜索，但只返回原有对象，不复制数据。
+ */
+function matchingWorkspaceChoices(
+  choices: readonly WorkspaceChoice[],
+  query: string,
+): readonly WorkspaceChoice[] {
+  const needle = query.trim().toLowerCase()
+
+  if (needle.length === 0) {
+    return choices
+  }
+
+  return choices.filter(
+    (choice) =>
+      choice.name.toLowerCase().includes(needle) || choice.id.toLowerCase().includes(needle),
+  )
+}
+
+/**
+ * 决定项目菜单中唯一保持高亮的项目。
+ *
+ * 优先级：
+ *
+ * 1. 指针或键盘最后经过、并且仍在结果中的项目；
+ * 2. 当前项目；
+ * 3. 第一条搜索结果；
+ * 4. 没有结果时为 null。
+ *
+ * 这个函数只计算视觉高亮，不会切换实际工作区。
+ */
+function preferredWorkspaceHighlight(
+  choices: readonly WorkspaceChoice[],
+  heldId: string | null,
+  current: WorkspaceChoice | null,
+): string | null {
+  if (heldId !== null && choices.some((choice) => choice.id === heldId)) {
+    return heldId
+  }
+
+  if (current !== null && choices.some((choice) => choice.id === current.id)) {
+    return current.id
+  }
+
+  return choices[0]?.id ?? null
+}
+
 export function WorkspacePicker({
   choices,
   current,
@@ -84,25 +134,9 @@ export function WorkspacePicker({
    */
   const [heldHighlightId, setHeldHighlightId] = useState<string | null>(null)
 
-  const needle = query.trim().toLowerCase()
-  const matches =
-    needle.length === 0
-      ? choices
-      : choices.filter(
-          (choice) =>
-            choice.name.toLowerCase().includes(needle) || choice.id.toLowerCase().includes(needle),
-        )
+  const matches = matchingWorkspaceChoices(choices, query)
 
-  /*
-   * 搜索可能把此前高亮的项目过滤掉。这时优先回到当前项目；当前项目也不在
-   * 结果中时，选择第一条结果。这个值只负责视觉高亮，不会改变实际工作区。
-   */
-  const activeHighlightId =
-    heldHighlightId !== null && matches.some((choice) => choice.id === heldHighlightId)
-      ? heldHighlightId
-      : current !== null && matches.some((choice) => choice.id === current.id)
-        ? current.id
-        : (matches[0]?.id ?? null)
+  const activeHighlightId = preferredWorkspaceHighlight(matches, heldHighlightId, current)
 
   return (
     <div
@@ -123,12 +157,7 @@ export function WorkspacePicker({
            * 后续指针或键盘移动只会替换这个 id，因此不会同时留下多个高亮项。
            */
           if (nextOpen) {
-            const initialHighlight =
-              current !== null && choices.some((choice) => choice.id === current.id)
-                ? current.id
-                : (choices[0]?.id ?? null)
-
-            setHeldHighlightId(initialHighlight)
+            setHeldHighlightId(preferredWorkspaceHighlight(choices, null, current))
           }
 
           setOpen(nextOpen)
