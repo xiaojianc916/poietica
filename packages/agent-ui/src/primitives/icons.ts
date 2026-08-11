@@ -52,6 +52,7 @@ export {
   CircleAlert as FailureIcon,
   Code as CodeIcon,
   Copy as CopyIcon,
+  Download as DownloadIcon,
   Ellipsis as MoreIcon,
   Eye as PreviewIcon,
   File as FileIcon,

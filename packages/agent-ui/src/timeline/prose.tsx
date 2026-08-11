@@ -13,7 +13,7 @@ import {
 } from 'streamdown'
 
 import { cx } from '../primitives/class-names'
-import { asIcon, CheckIcon, CloseIcon, CopyIcon, MaximizeIcon } from '../primitives/icons'
+import { asIcon, CheckIcon, CopyIcon, DownloadIcon } from '../primitives/icons'
 import { DIAGRAM_RENDERER } from './diagram'
 import { createBlockScanner, type StreamBlock } from './split-stream'
 
@@ -72,26 +72,25 @@ const ANIMATION: AnimateOptions = {
 }
 
 /*
- * Copying a snippet is an action; saving it as file.txt is not.
+ * Copying a code snippet is an action; saving it as file.txt is not.
  *
- * Every group is named, including the ones being declined. An unnamed group is
- * not off: shouldShowTableControl reads an absent `table` as true, which is why
- * the table arrived carrying three buttons nobody chose.
+ * Tables are different: structured model output should be exportable for use in
+ * spreadsheets and documents. Every control is still named explicitly so an
+ * upstream default change cannot silently add another table action.
  */
 const CONTROLS: ControlsConfig = {
   code: { copy: true, download: false },
-  table: { copy: true, download: false, fullscreen: true },
+  table: { copy: true, download: true, fullscreen: false },
 }
 
 /*
  * 控件的中文标签。
  *
- * 上游的 37 个键默认全是英文（defaultTranslations），落在一个整体中文的界面上
- * 就是半句英文半句中文。translations 收的是 Partial，没写的键继续用英文默认值,
- * 所以这里只译真正会出现的那些 —— download 那一组全部关掉了，不译。
+ * 上游的默认标签全部是英文，落在一个整体中文的界面上会形成语言混用。
+ * translations 收的是 Partial，所以这里只翻译当前配置实际会显示的控件。
  *
- * 外链弹窗的那几个键不在这里：那个弹窗已经关掉（见下方 LINK_SAFETY）。译一个
- * 永远不会出现的界面，留下的只是一份没人会去维护的死文案。
+ * 外链弹窗和表格全屏已经关闭，对应文案不在这里保留；表格下载菜单则完整翻译，
+ * 避免触发按钮和格式选项退回英文。
  */
 const TRANSLATIONS: Partial<StreamdownTranslations> = {
   copied: '已复制',
@@ -100,20 +99,21 @@ const TRANSLATIONS: Partial<StreamdownTranslations> = {
   copyTableAsCsv: '复制为 CSV',
   copyTableAsMarkdown: '复制为 Markdown',
   copyTableAsTsv: '复制为 TSV',
-  exitFullscreen: '退出全屏',
+  downloadTable: '下载表格',
+  downloadTableAsCsv: '下载为 CSV',
+  downloadTableAsMarkdown: '下载为 Markdown',
+  downloadTableAsTsv: '下载为 TSV',
   imageNotAvailable: '图片无法显示',
-  viewFullscreen: '全屏查看',
 }
 
 /*
  * 控件里的图标也归这个应用。
  *
  * 上游自带一套，代码块与表格的控件默认渲染的就是它们；而这个界面其余每一个图标都来自
- *  @lucide/react —— 两种笔画（2px 与 1.5px）此前并排出现在同一块面板上。icons 收
- * Partial<IconMap>，是官方给的覆盖点，一处声明覆盖全部控件。
+ * @lucide/react。icons 收 Partial<IconMap>，是官方提供的统一覆盖点。
  *
- * 只映真的会渲染的四个：下载与外链弹窗都关着，缩放三件由图面板自己画。映一个永远不出现的
- * 键，和译一句永远不出现的文案是同一件事。
+ * 这里只映当前会渲染的复制、完成与下载图标。表格全屏已经关闭，因此不再保留进入和退出
+ * 全屏所需的 Maximize2Icon 与 XIcon。
  *
  * 每一枚都过一道 asIcon：图标槽收的是组件本身，而图标库的 props 类型不肯收 undefined
  * （见 primitives/icons.ts）。只写在 JSX 里的时候看不出来，当成值交出去的那一刻才现形。
@@ -121,8 +121,7 @@ const TRANSLATIONS: Partial<StreamdownTranslations> = {
 const ICONS: Partial<IconMap> = {
   CheckIcon: asIcon(CheckIcon),
   CopyIcon: asIcon(CopyIcon),
-  Maximize2Icon: asIcon(MaximizeIcon),
-  XIcon: asIcon(CloseIcon),
+  DownloadIcon: asIcon(DownloadIcon),
 }
 
 /*
