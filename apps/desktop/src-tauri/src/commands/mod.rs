@@ -9,6 +9,7 @@ pub mod plugins;
 pub mod process;
 pub mod settings;
 pub mod storage;
+pub mod table;
 pub mod updates;
 pub mod window;
 pub mod workbench;

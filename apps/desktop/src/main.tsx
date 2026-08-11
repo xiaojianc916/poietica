@@ -12,11 +12,13 @@ import { mountReactApplication } from './bootstrap/react-root'
 import { installContextMenuGuard } from './chrome/context-menu-guard'
 import { installExternalLinks } from './chrome/external-links'
 import { installScrollbarSize } from './chrome/scrollbar-size'
+import { installTableDownloads } from './chrome/table-downloads'
 import { reportFatalIncident } from './failures/terminal-policy'
 
 async function bootstrapApplication(): Promise<void> {
   installScrollbarSize()
   installExternalLinks()
+  installTableDownloads()
   installContextMenuGuard()
 
   /*

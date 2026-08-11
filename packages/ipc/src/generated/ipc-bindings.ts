@@ -787,6 +787,19 @@ async storageDataDirectory() : Promise<string> {
     return await TAURI_INVOKE("storage_data_directory");
 },
 /**
+ * 把一张 AI 回复里的表格保存到用户明确选择的位置。
+ * 
+ * 路径只能由系统保存对话框产生，渲染层不能指定任意磁盘位置。用户取消时返回
+ * false；成功写入时返回 true。
+ * 
+ * # Errors
+ * 
+ * 内容超过上限、保存对话框异常或文件写入失败时返回脱敏后的 IPC 错误。
+ */
+async tableExport(request: TableExportRequest) : Promise<boolean> {
+    return await TAURI_INVOKE("table_export", { request });
+},
+/**
  * 上一次关掉时工作台开着什么。第一次启动是 None。
  * 
  * # Errors
@@ -819,6 +832,21 @@ async workbenchSessionSave(document: string) : Promise<null> {
  */
 async workspacePickRoot() : Promise<string | null> {
     return await TAURI_INVOKE("workspace_pick_root");
+},
+/**
+ * 
+ * * 为下一条无项目会话创建一个独立工作目录。
+ * *
+ * * 目录名由原生层发放，渲染层不能自己拼应用数据路径。返回的是可以直接作为 agent
+ * * cwd 使用的绝对路径。
+ * *
+ * * # Errors
+ * *
+ * * 数据目录无法解析或创建时返回错误。
+ * 
+ */
+async workspaceCreateProjectlessRoot() : Promise<string> {
+    return await TAURI_INVOKE("workspace_create_projectless_root");
 }
 }
 
@@ -1648,6 +1676,8 @@ export type ProviderProbeVerdict =
  * 超时、连不上、或其它状态码。关于密钥本身什么都不能下结论。
  */
 "unreachable"
+export type TableExportFormat = "csv" | "markdown"
+export type TableExportRequest = { content: string; format: TableExportFormat }
 /**
  * 颜色模式是一个闭集，不是一段自由文本。
  * 

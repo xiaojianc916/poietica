@@ -102,7 +102,8 @@ const TRANSLATIONS: Partial<StreamdownTranslations> = {
   downloadTable: '下载表格',
   downloadTableAsCsv: '下载为 CSV',
   downloadTableAsMarkdown: '下载为 Markdown',
-  downloadTableAsTsv: '下载为 TSV',
+  tableFormatCsv: 'CSV',
+  tableFormatMarkdown: 'Markdown',
   imageNotAvailable: '图片无法显示',
 }
 
