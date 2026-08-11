@@ -143,6 +143,14 @@ function lossOf(history: ThreadHistory): string | null {
  */
 export type Paint = (flush: () => void) => void
 
+/**
+ * 没有画面时的节拍。
+ *
+ * 它只需要粗到不浪费、细到让队列有界：一轮回答的帧以毫秒计到达，四分之一秒一折，
+ * 攒下的量与前台时同阶。
+ */
+const HIDDEN_TEMPO_MS = 250
+
 /*
  * 默认按屏幕的节拍。
  *
@@ -156,14 +164,6 @@ export type Paint = (flush: () => void) => void
  *
  * 没有屏幕的地方（测试、SSR）退回微任务：同一句语义（下一个空档），换一个时基。
  */
-/**
- * 没有画面时的节拍。
- *
- * 它只需要粗到不浪费、细到让队列有界：一轮回答的帧以毫秒计到达，四分之一秒一折，
- * 攒下的量与前台时同阶。
- */
-const HIDDEN_TEMPO_MS = 250
-
 const onNextPaint: Paint = (flush) => {
   /*
    * 隐藏的窗口不画帧。

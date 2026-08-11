@@ -419,7 +419,8 @@ impl Recorder {
 /// 时钟走在 1970 之前、或者走过 i64 毫秒能表示的尽头时算 0。两处兜底都是有意
 /// 的：帧上的时刻是给人看的排序依据，让一次记录因为系统时钟不对劲而失败，换来
 /// 的是一条对话在屏幕上断掉 —— 代价不对等。
-fn now_millis() -> i64 {
+#[must_use]
+pub fn now_millis() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()

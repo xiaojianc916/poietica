@@ -6,7 +6,7 @@ use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
 use poietica_agent_persistence_native::TurnSpan;
-use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
+use poietica_agent_runtime_native::{FrameSink, RecordedEvent, now_millis};
 use tauri::{AppHandle, Emitter, Manager, State, async_runtime};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, timeout_at};
@@ -128,7 +128,7 @@ pub async fn agent_prompt(
     同一个时钟、同一个动作的两侧 —— 中间隔着一次到驱动器的排队，差不出一
     毫秒。之所以在这里另记一本账：agent 经 session/load 交还的历史不带任何
     原来的时刻（协议里没有这一格），重启之后封条的耗时只能由这本账回答。 */
-    let asked_at = epoch_millis();
+    let asked_at = now_millis();
 
     /* 落定的那一趟还要碰一次库，先把手上的 AppHandle 复制一份交过去。 */
     let settle_app = app.clone();
@@ -149,7 +149,7 @@ pub async fn agent_prompt(
         let span = TurnSpan {
             turn,
             started_at: asked_at,
-            ended_at: epoch_millis(),
+            ended_at: now_millis(),
         };
         let index = settle_app.state::<LocalIndex>();
         let recorded = on_index(&index, move |store| {
@@ -320,17 +320,4 @@ pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> 
     state.disconnect()?;
 
     Ok(())
-}
-
-/// 现在，epoch 毫秒。
-///
-/// 与 recorder.rs 的 now_millis 同一个算法，两处各写一遍：那个函数是运行时
-/// crate 的私有物，而「毫秒怎么说」不值得为它开一个公共出口。时钟不对劲时
-/// 算 0 也是同款：封条少一个数字，不少一轮。
-fn epoch_millis() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()
-        .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok())
-        .unwrap_or_default()
 }

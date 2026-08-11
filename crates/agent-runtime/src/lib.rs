@@ -44,7 +44,7 @@ pub use frame::{
 };
 pub use permission::{Decision, answers, decide};
 pub use program::resolve_program;
-pub use recorder::{FrameSink, Frames, RecordedEvent, Recorder, SeqLine};
+pub use recorder::{FrameSink, Frames, RecordedEvent, Recorder, SeqLine, now_millis};
 pub use run_slot::{Listening, RunSlot};
 pub use session::{
     AgentConnection, AgentSpawn, CommandReport, CommandReports, Handshake, OpenedSession,
