@@ -1,6 +1,8 @@
 import { groupByWorkspace, type ThreadsStore } from '@poietica/agent'
-import { ArchiveRestore, FolderClosed, Search, Trash2 } from 'lucide-react'
+import { Button, Select, type SelectOption } from '@poietica/ui'
+import { ArchiveRestore, Search, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
+import { SettingRow, SettingsGroup, SettingsPage } from './settings-primitives'
 import './archived-chats-settings.css'
 
 const ARCHIVED_DATE = new Intl.DateTimeFormat('zh-CN', {
@@ -15,11 +17,15 @@ export interface ArchivedChatsSettingsProps {
   readonly threads: ThreadsStore
 }
 
+function groupTitle(name: string | null, count: number): string {
+  return (name ?? '默认项目') + ' · ' + count + ' 个聊天'
+}
+
 /**
  * 已归档聊天管理页。
  *
- * 侧边栏的“归档”只把对话移出活动列表；永久删除只能从这里进行，
- * 避免把高风险动作放在每天频繁使用的对话菜单里。
+ * 页面结构沿用设置界面的页、组、面板和行，不再为归档列表另建一套卡片语言。
+ * 永久删除仍然只从这里进入，避免把高风险动作放进日常会话菜单。
  */
 export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
   const snapshot = useSyncExternalStore(
@@ -29,6 +35,17 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
   )
 
   const groups = useMemo(() => groupByWorkspace(snapshot.items), [snapshot.items])
+
+  const workspaceOptions = useMemo<readonly SelectOption[]>(
+    () => [
+      { value: 'all', label: '所有项目' },
+      ...groups.map((group) => ({
+        value: group.id,
+        label: group.name ?? '默认项目',
+      })),
+    ],
+    [groups],
+  )
 
   const [query, setQuery] = useState('')
   const [workspaceId, setWorkspaceId] = useState('all')
@@ -74,7 +91,7 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
         return
       }
 
-      const confirmed = window.confirm(`永久删除“${title}”？此操作无法撤销。`)
+      const confirmed = window.confirm('永久删除“' + title + '”？此操作无法撤销。')
 
       if (!confirmed) {
         return
@@ -92,12 +109,12 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
   )
 
   const deleteAll = useCallback(async () => {
-    if (deletingAll || snapshot.items.length === 0) {
+    if (deletingAll || busyThreadId !== null || snapshot.items.length === 0) {
       return
     }
 
     const confirmed = window.confirm(
-      `永久删除全部 ${snapshot.items.length} 个已归档聊天？此操作无法撤销。`,
+      '永久删除全部 ' + snapshot.items.length + ' 个已归档聊天？此操作无法撤销。',
     )
 
     if (!confirmed) {
@@ -113,59 +130,58 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
     } finally {
       setDeletingAll(false)
     }
-  }, [deletingAll, snapshot.items, threads])
+  }, [busyThreadId, deletingAll, snapshot.items, threads])
 
   return (
-    <section className="archived-chats">
-      <div className="archived-chats__heading">
-        <p>归档不会删除聊天内容，可以随时恢复。</p>
-
-        <button
-          className="archived-chats__delete-all"
-          disabled={deletingAll || snapshot.items.length === 0}
-          onClick={() => {
-            void deleteAll()
-          }}
-          type="button"
+    <SettingsPage>
+      <SettingsGroup title="管理">
+        <SettingRow
+          description="归档只会将聊天移出活动列表，内容仍然保留并可随时恢复"
+          label="保留与恢复"
         >
-          {deletingAll ? '正在删除…' : '全部删除'}
-        </button>
-      </div>
-
-      <div className="archived-chats__toolbar">
-        <label className="archived-chats__search">
-          <Search aria-hidden="true" />
-
-          <input
-            onChange={(event) => {
-              setQuery(event.target.value)
+          <Button
+            className="archived-chats__delete-all"
+            disabled={deletingAll || busyThreadId !== null || snapshot.items.length === 0}
+            onClick={() => {
+              void deleteAll()
             }}
-            placeholder="搜索已归档聊天"
-            type="search"
-            value={query}
-          />
-        </label>
-
-        <label className="archived-chats__filter">
-          <FolderClosed aria-hidden="true" />
-
-          <select
-            aria-label="筛选项目"
-            onChange={(event) => {
-              setWorkspaceId(event.target.value)
-            }}
-            value={workspaceId}
+            size="xs"
+            type="button"
+            variant="ghost"
           >
-            <option value="all">所有项目</option>
+            {deletingAll ? '正在删除…' : '全部删除'}
+          </Button>
+        </SettingRow>
+      </SettingsGroup>
 
-            {groups.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name ?? '默认项目'}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <SettingsGroup title="筛选">
+        <div className="archived-chats__toolbar">
+          <label className="archived-chats__search">
+            <Search aria-hidden="true" />
+
+            <input
+              aria-label="搜索已归档聊天"
+              onChange={(event) => {
+                setQuery(event.target.value)
+              }}
+              placeholder="搜索已归档聊天"
+              type="search"
+              value={query}
+            />
+          </label>
+
+          <Select
+            align="end"
+            className="archived-chats__filter"
+            data={workspaceOptions}
+            onValueChange={(value) => {
+              setWorkspaceId(value)
+            }}
+            type="项目"
+            value={workspaceId}
+          />
+        </div>
+      </SettingsGroup>
 
       {snapshot.failure ? (
         <p className="archived-chats__message archived-chats__message--error" role="alert">
@@ -187,62 +203,57 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
 
       <div className="archived-chats__groups">
         {visibleGroups.map((group) => (
-          <section className="archived-chats__group" key={group.id}>
-            <header className="archived-chats__group-header">
-              <FolderClosed aria-hidden="true" />
+          <SettingsGroup key={group.id} title={groupTitle(group.name, group.items.length)}>
+            {group.items.map((item) => {
+              const busy = busyThreadId === item.id || deletingAll
 
-              <strong>{group.name ?? '默认项目'}</strong>
+              return (
+                <div className="archived-chats__row" key={item.id}>
+                  <div className="archived-chats__row-copy">
+                    <strong>{item.title}</strong>
 
-              <span>{group.items.length} 个聊天</span>
-            </header>
+                    <time dateTime={item.updatedAt}>
+                      {ARCHIVED_DATE.format(new Date(item.updatedAt))}
+                    </time>
+                  </div>
 
-            <div className="archived-chats__list">
-              {group.items.map((item) => {
-                const busy = busyThreadId === item.id || deletingAll
+                  <div className="archived-chats__actions">
+                    <Button
+                      aria-label={'永久删除 ' + item.title}
+                      className="archived-chats__delete"
+                      disabled={busy}
+                      onClick={() => {
+                        void deleteForever(item.id, item.title)
+                      }}
+                      size="xs"
+                      title="永久删除"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </Button>
 
-                return (
-                  <article className="archived-chats__row" key={item.id}>
-                    <div className="archived-chats__row-copy">
-                      <strong>{item.title}</strong>
+                    <Button
+                      className="archived-chats__restore"
+                      disabled={busy}
+                      onClick={() => {
+                        void restore(item.id)
+                      }}
+                      size="xs"
+                      type="button"
+                      variant="soft"
+                    >
+                      <ArchiveRestore aria-hidden="true" />
 
-                      <time dateTime={item.updatedAt}>
-                        {ARCHIVED_DATE.format(new Date(item.updatedAt))}
-                      </time>
-                    </div>
-
-                    <div className="archived-chats__actions">
-                      <button
-                        aria-label={`永久删除 ${item.title}`}
-                        className="archived-chats__delete"
-                        disabled={busy}
-                        onClick={() => {
-                          void deleteForever(item.id, item.title)
-                        }}
-                        title="永久删除"
-                        type="button"
-                      >
-                        <Trash2 aria-hidden="true" />
-                      </button>
-
-                      <button
-                        className="archived-chats__restore"
-                        disabled={busy}
-                        onClick={() => {
-                          void restore(item.id)
-                        }}
-                        type="button"
-                      >
-                        <ArchiveRestore aria-hidden="true" />
-                        <span>{busyThreadId === item.id ? '处理中…' : '取消归档'}</span>
-                      </button>
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-          </section>
+                      <span>{busyThreadId === item.id ? '处理中…' : '取消归档'}</span>
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </SettingsGroup>
         ))}
       </div>
-    </section>
+    </SettingsPage>
   )
 }
