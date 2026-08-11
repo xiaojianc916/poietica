@@ -144,14 +144,14 @@ pub async fn agent_open_thread(
 
     /* 账本的轮次号与时刻都是 i64，而这份 IPC 面没有 64 位整数（见 counted
     与 AgentThreadAttachment 的 turn 上那条界线）：轮次收进 u32，时刻放进
-    f64 —— epoch 毫秒离 2^53 还远，精度不丢。 */
+    f64。转换前显式验证 JavaScript 安全整数边界，避免异常数据静默丢失精度。 */
     let mut span_dtos = Vec::with_capacity(spans.len());
 
     for span in spans {
         span_dtos.push(AgentTurnSpan {
             turn: counted(span.turn)?,
-            started_at: span.started_at as f64,
-            ended_at: span.ended_at as f64,
+            started_at: ipc_epoch_millis(span.started_at)?,
+            ended_at: ipc_epoch_millis(span.ended_at)?,
         });
     }
 
@@ -164,6 +164,22 @@ pub async fn agent_open_thread(
         spans: span_dtos,
         prompts,
     })
+}
+
+const MAX_SAFE_INTEGER: i64 = (1_i64 << 53) - 1;
+
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "the value is checked against the exact integer range before conversion"
+)]
+fn ipc_epoch_millis(value: i64) -> Result<f64> {
+    if !(-MAX_SAFE_INTEGER..=MAX_SAFE_INTEGER).contains(&value) {
+        return Err(Error::Internal(
+            "a stored epoch millisecond timestamp does not fit the IPC number".to_owned(),
+        ));
+    }
+
+    Ok(value as f64)
 }
 
 /// Restates one stored conversation in the shape the bindings carry.
