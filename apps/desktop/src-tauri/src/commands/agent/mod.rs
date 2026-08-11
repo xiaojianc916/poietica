@@ -32,6 +32,7 @@ mod attachment;
 pub mod config;
 pub mod dto;
 mod failure;
+mod kimi_state;
 pub mod runtime;
 pub mod thread;
 pub mod turn;

@@ -99,7 +99,6 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent_setup::profile::agent_set_default_model,
             crate::commands::agent_setup::profile::agent_key_tails,
             crate::commands::agent_setup::profile::agent_config_save_agents,
-            crate::commands::agent_setup::profile::agent_config_clear_legacy_providers,
             crate::commands::agent_setup::cli::agent_cli_exec,
             crate::commands::agent_setup::install::agent_install_status,
             crate::commands::agent_setup::install::agent_install_run,

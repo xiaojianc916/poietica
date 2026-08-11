@@ -81,8 +81,6 @@ export interface ProviderKeyProbe {
 export interface AgentConfigSnapshot {
   readonly agents: readonly AcpAgentProfile[]
   readonly defaultAgentId: string
-  /** 旧版顶层 provider 列表，仅供一次性迁移。迁移完应清空。 */
-  readonly legacyProviders: readonly unknown[]
   /** 配置文件里被丢弃的坏条目。界面应该显示出来，而不是假装配置是干净的。 */
   readonly issues: readonly string[]
 }
@@ -132,12 +130,6 @@ export interface AgentConfigStore {
     readonly agents: readonly AcpAgentProfile[]
     readonly defaultAgentId: string
   }) => Promise<AgentConfigSnapshot>
-  /*
-   * setSecret、clearSecret 与 migrateSecret 曾在这里。三者都在维护一份我们保
-   * 护不了的副本 —— 理由见上面那段。migrateSecret 更是把钥匙串的旧账户名搬到
-   * 新账户名，一个只为兼容自己上一版而存在的方法。
-   */
-  readonly clearLegacyProviders: () => Promise<AgentConfigSnapshot>
   readonly execCli: (invocation: AgentCliInvocation) => Promise<AgentCliOutcome>
   /*
    * 每个已配置 provider 的密钥尾号。只读现算：原生侧扫 agent 自己的 config.toml，

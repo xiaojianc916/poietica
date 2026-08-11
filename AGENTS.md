@@ -10,21 +10,21 @@
 
 | 事实 | 定义在 | 由谁执行 |
 | --- | --- | --- |
-| 包分层与依赖方向 | \`tools/architecture/rules.config.mjs\` | \`pnpm test:architecture\` |
-| 包内目录命名禁用清单 | 同上 \`forbiddenDirectoryNames\` | 同上 |
-| 依赖版本 | \`pnpm-workspace.yaml\` 的 catalog | pnpm |
-| IPC 契约 | Rust 类型，生成到 \`packages/ipc/src/generated/\` | \`pnpm ipc:check\` |
-| IPC 命令清单 | \`apps/desktop/src-tauri/src/ipc/mod.rs\` 的 surface()，唯一一份 | 同上 |
-| 磁盘布局 | \`apps/desktop/src-tauri/src/paths.rs\` | 运行时 |
-| 帧的形状 | \`crates/agent-runtime/src/frame.rs\` | serde + 测试 |
+| 包分层与依赖方向 | `tools/architecture/rules.config.mjs` | `pnpm test:architecture` |
+| 包内目录命名禁用清单 | 同上 `forbiddenDirectoryNames` | 同上 |
+| 依赖版本 | `pnpm-workspace.yaml` 的 catalog | pnpm |
+| IPC 契约 | Rust 类型，生成到 `packages/ipc/src/generated/` | `pnpm ipc:check` |
+| IPC 命令清单 | `apps/desktop/src-tauri/src/ipc/mod.rs` 的 surface()，唯一一份 | 同上 |
+| 磁盘布局 | `apps/desktop/src-tauri/src/paths.rs` | 运行时 |
+| 帧的形状 | `crates/agent-runtime/src/frame.rs` | serde + 测试 |
 
 **不要在文档里重抄任何一张表。** 手抄表制造第二个事实，第二个事实必然分叉。
 
 ## 1. 产品不变量
 
 Poietica 是本地高性能 ACP 客户端桌面应用，对标 Codex 桌面版。围绕 Kimi Code
-（TypeScript 版，\`kimi acp\` 入口）构建，Kimi 是一等公民但不独占：agent 以
-\`packages/agent-catalog\` 的档案接入，通用层不认识任何一家的名字。多会话并发
+（TypeScript 版，`kimi acp` 入口）构建，Kimi 是一等公民但不独占：agent 以
+`packages/agent-catalog` 的档案接入，通用层不认识任何一家的名字。多会话并发
 是常态而非特例。
 
 - **会话是唯一中心。** 任何能力不得绕过会话另立入口。
@@ -36,7 +36,7 @@ Poietica 是本地高性能 ACP 客户端桌面应用，对标 Codex 桌面版�
 
 ## 2. 数据流（一句话验收）
 
-帧从 \`kimi acp\` 子进程 stdout 进 driver（官方 ACP Rust SDK），经
+帧从 `kimi acp` 子进程 stdout 进 driver（官方 ACP Rust SDK），经
 RunSlot → Recorder（会话内单调序号）→ FrameSink → 宿主 16ms 攒批 →
 Tauri event → transcript-store（按会话号路由到对话）→ timeline 投影 →
 React。反向只有三条命令路：prompt / cancel / resolvePermission。
@@ -46,16 +46,16 @@ React。反向只有三条命令路：prompt / cancel / resolvePermission。
 
 ## 3. 宏观架构
 
-\`\`\`text
+```text
 apps/desktop/src/        产品界面与应用编排（组合根：shell/app-shell.tsx）
 apps/desktop/src-tauri/  唯一的 Rust 组合根：建窗、注册命令、DTO 互转
 crates/                  native crate：互不依赖、不依赖 tauri、可 cargo test 单测
 packages/                TS 工作区包：分层由 rules.config.mjs 裁决，依赖单向向下
 tools/architecture/      机器执行的那部分架构
-\`\`\`
+```
 
 三条 TS 不变量：依赖只指向更低层（判据落在 package.json 边上）；只有
-transport/composition/application 三层可碰 \`@tauri-apps/*\`；跨包只走公开
+transport/composition/application 三层可碰 `@tauri-apps/*`；跨包只走公开
 exports。新包先定层，否则架构检查失败。
 
 Rust 侧四元结构：每个 crate 拥有一块与宿主无关的能力；src-tauri 命令函数是
@@ -70,8 +70,8 @@ emit、宿主节拍（攒批、窗口、托盘）。
 - 目录名声明能力（composer、timeline、recorder、persistence），禁技术种类名与
   万能桶名——禁用清单由机器执行，这里不重抄。
 - **agent 专属知识只允许住在两个地方**：agent-catalog 的档案（数据），或以该
-  agent 命名的专属模块（代码，如 \`kimi_state.rs\`）。通用层出现
-  \`if agent_id == "某家"\` 即为缺陷——判例：thread.rs 曾把改写 Kimi 私有
+  agent 命名的专属模块（代码，如 `kimi_state.rs`）。通用层出现
+  `if agent_id == "某家"` 即为缺陷——判例：thread.rs 曾把改写 Kimi 私有
   state.json 的逻辑写死在通用归档命令里。
 - 常量单一产地。跨语言不得不复制时（如 IMAGE_OPENER），拷贝处必须注明正本
   的**当前**路径，正本移动时拷贝注释必须跟着改。
@@ -127,7 +127,7 @@ transcript-store.ts 的 held/alias/routes 互相耦合，rename 同写三张表�
 - **加一家 agent**：agent-catalog 加档案（program/args/homeVar/ownHomeDirectory/
   installSpec/方言）。验收：通用层零改动。专属行为走档案能力开关 + 专属模块。
 - **加一条 IPC 命令**：Rust 定类型与命令 → 挂进 ipc/mod.rs 的 surface() →
-  \`pnpm ipc:generate\` → TS 端口层适配。TS 侧先写形状即为缺陷。
+  `pnpm ipc:generate` → TS 端口层适配。TS 侧先写形状即为缺陷。
 - **加一种帧**：frame.rs 加 variant，两侧由编译器与生成绑定兜底。
 - **加一个包**：先在分层表定层，再建目录。
 - **协议升级**：ACP 稳定版是 v1；v2 是 draft，升级必须显式版本协商 + 特性开关，
@@ -139,16 +139,16 @@ transcript-store.ts 的 held/alias/routes 互相耦合，rename 同写三张表�
 
 - **一次换干净**：替换旧实现必须同一次改动删掉旧路径。禁兼容层、禁开关双活、
   禁无期限迁移设施——一次性迁移代码必须写明删除条件与预计删除时间，条件满足
-  即删（反例登记：profile.rs 的 legacy_providers，见 §10）。
+  即删。
 - ADR 单调唯一编号，一号一文件；决策被取代时旧 ADR 标 superseded，不删不改号。
 - 改动触及 AI 上下文、持久化、IPC、权限或公开 API 时记 ADR。
 - 范围保持聚焦；未验证不得宣称完成。
 
 ## 9. 验证
 
-\`\`\`bash
+```bash
 pnpm check
-\`\`\`
+```
 
 一条命令串起 Biome、架构规则、全工作区 typecheck/test、rustfmt、Clippy、
 cargo test 与 IPC 绑定一致性。涉 AI 的改动另验：取消、超时、异常模型输出、
@@ -161,16 +161,14 @@ allow。
    业务分支下沉中——新代码不得以它们为样板。
 2. asset_protocol.rs 的模块头仍是旧产品叙述（DocumentCodec/.draw），拆分与注释
    重写排期中。
-3. thread.rs 的 Kimi state.json 专属分支待迁出通用层。
-4. legacy_providers 一次性迁移设施待收口删除。
-5. 部分注释仍引用 Python 版 kimi_cli 路径，逐批替换为 TS 版锚点。
+3. 部分注释仍引用 Python 版 kimi_cli 路径，逐批替换为 TS 版锚点。
 
 ## 11. 文档地图
 
 | 位置 | 内容 |
 | --- | --- |
-| \`docs/architecture/\` | 稳定的系统边界与实现约束 |
-| \`docs/adr/\` | 已接受的技术决策及其理由 |
-| \`docs/rfcs/\` | 进行中的提案 |
-| \`docs/runbooks/\` | 开发、维护与运维流程 |
-| \`tools/architecture/README.md\` | 机器执行的那部分架构 |
+| `docs/architecture/` | 稳定的系统边界与实现约束 |
+| `docs/adr/` | 已接受的技术决策及其理由 |
+| `docs/rfcs/` | 进行中的提案 |
+| `docs/runbooks/` | 开发、维护与运维流程 |
+| `tools/architecture/README.md` | 机器执行的那部分架构 |

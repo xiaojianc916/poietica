@@ -16,7 +16,7 @@
 //!
 //! 上游自己的范式也是一次性的：`KIMI_REGISTRY_API_KEY=...` kimi provider add ...
 //! 「哪些 provider 已配好」的权威因此是 agent，问它的 provider list，不是问
-//! 我们。旧的 provider 列表仍原样保留在 `legacy_providers` 里交给界面处置。
+//! 我们。
 
 use crate::error::{Error, IpcError, Result};
 use crate::paths::{agent_home, agents_store};
@@ -53,8 +53,6 @@ const MCP_CONFIG_FILE: &str = "mcp.json";
 pub struct AgentConfigSnapshot {
     pub agents: Vec<Value>,
     pub default_agent_id: String,
-    /// 旧版顶层 provider 列表，仅用于一次性迁移。迁移完由界面清空。
-    pub legacy_providers: Vec<Value>,
     /// agents.json 中存在但无法反序列化的内容。界面应显示出来。
     pub issues: Vec<String>,
 }
@@ -65,10 +63,6 @@ pub struct AgentConfigSnapshot {
 struct PersistedAgentConfig {
     agents: Vec<Value>,
     default_agent_id: String,
-    /// 旧字段。serde 默认会丢弃未知字段，若不显式接住，用户既有的 provider
-    /// 配置会在第一次保存时无声蒸发。
-    #[serde(rename = "providers")]
-    legacy_providers: Vec<Value>,
 }
 
 /*
@@ -494,7 +488,6 @@ fn to_snapshot(config: PersistedAgentConfig, issues: Vec<String>) -> AgentConfig
     AgentConfigSnapshot {
         agents: config.agents,
         default_agent_id: config.default_agent_id,
-        legacy_providers: config.legacy_providers,
         issues,
     }
 }
@@ -985,22 +978,3 @@ pub async fn agent_config_save_agents(
  * 三条命令都在维护一份我们保护不了的副本。migrate_secret 更是把旧账户名搬到新
  * 账户名 —— 一次为了兼容自己上一版而存在的迁移。不存密钥，两样都不需要。
  */
-
-/// 清空旧的顶层 provider 列表。界面确认迁移完成后调用一次。
-///
-/// # Errors
-///
-/// store 无法写入时返回错误。
-#[command]
-#[specta::specta]
-pub async fn agent_config_clear_legacy_providers(
-    app: AppHandle,
-) -> AgentConfigCommandResult<AgentConfigSnapshot> {
-    (|| -> Result<AgentConfigSnapshot> {
-        let (mut config, issues) = read_config(&app)?;
-        config.legacy_providers = Vec::new();
-        save_config(&app, &config)?;
-        Ok(to_snapshot(config, issues))
-    })()
-    .map_err(IpcError::from)
-}

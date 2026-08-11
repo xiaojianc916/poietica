@@ -109,7 +109,6 @@ export interface AgentConfigBridge {
     agents: readonly unknown[],
     defaultAgentId: string,
   ) => Promise<AgentConfigSnapshot>
-  readonly clearLegacyProviders: () => Promise<AgentConfigSnapshot>
   readonly execCli: (request: AgentCliRequest) => Promise<AgentCliResult>
   /**
    * 每个已配置 provider 的密钥尾号。只读现算，尽力而为：取不到就是空表。
@@ -146,8 +145,6 @@ export function createAgentConfigBridge(): AgentConfigBridge {
      */
     saveAgents: (agents, defaultAgentId) =>
       throughIpc(() => commands.agentConfigSaveAgents(agents as JsonValue[], defaultAgentId)),
-
-    clearLegacyProviders: () => throughIpc(() => commands.agentConfigClearLegacyProviders()),
 
     execCli: (request) =>
       inOrder(request.agentId, () =>

@@ -83,17 +83,12 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
       return {
         agents: reconciled.profiles,
         defaultAgentId: parsed.value.defaultProfileId,
-        legacyProviders: dto.legacyProviders,
         issues: [...dto.issues, ...parsed.issues, ...reconciled.issues],
       }
     },
 
     async saveAgents({ agents, defaultAgentId }) {
       return fromDto(await bridge.saveAgents(agents, defaultAgentId))
-    },
-
-    async clearLegacyProviders() {
-      return fromDto(await bridge.clearLegacyProviders())
     },
 
     /* 请求与结果两侧同名同类型，没有可翻译的东西，翻一遍只会多一个出错的地方。 */
@@ -140,7 +135,6 @@ function fromDto(dto: AgentConfigSnapshotDto): AgentConfigSnapshot {
   return {
     agents: parsed.value.profiles,
     defaultAgentId: parsed.value.defaultProfileId,
-    legacyProviders: dto.legacyProviders,
     issues: [...dto.issues, ...parsed.issues],
   }
 }

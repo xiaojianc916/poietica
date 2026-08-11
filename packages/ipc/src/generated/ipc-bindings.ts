@@ -31,7 +31,7 @@ async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
  * 
  * 它是 async 的，因为它要读一次库。同步命令跑在主线程上，而一次库读可能要等
  * 写锁，最长等满 `DEFAULT_BUSY_TIMEOUT`，窗口会在那段时间里停止应答
- * （见 `on_store`）。
+ * （见 `on_index`）。
  * 
  * Cancellation is cooperative: the agent may still finish normally, and the
  * recorded stop reason reports which of the two happened.
@@ -673,16 +673,6 @@ async agentConfigSaveAgents(agents: JsonValue[], defaultAgentId: string) : Promi
     return await TAURI_INVOKE("agent_config_save_agents", { agents, defaultAgentId });
 },
 /**
- * 清空旧的顶层 provider 列表。界面确认迁移完成后调用一次。
- * 
- * # Errors
- * 
- * store 无法写入时返回错误。
- */
-async agentConfigClearLegacyProviders() : Promise<AgentConfigSnapshot> {
-    return await TAURI_INVOKE("agent_config_clear_legacy_providers");
-},
-/**
  * 在白名单内调用 agent 的 CLI。
  * 
  * 凭据由调用方随这一次请求带上，经环境变量注入子进程。
@@ -778,6 +768,26 @@ async updateRelaunch() : Promise<null> {
  */
 async storageDataDirectory() : Promise<string> {
     return await TAURI_INVOKE("storage_data_directory");
+},
+/**
+ * 上一次关掉时工作台开着什么。第一次启动是 None。
+ * 
+ * # Errors
+ * 
+ * 库读不出时返回错误。
+ */
+async workbenchSessionLoad() : Promise<string | null> {
+    return await TAURI_INVOKE("workbench_session_load");
+},
+/**
+ * 记下工作台此刻开着什么。整份覆盖，不是增量。
+ * 
+ * # Errors
+ * 
+ * 库写不进时返回错误。
+ */
+async workbenchSessionSave(document: string) : Promise<null> {
+    return await TAURI_INVOKE("workbench_session_save", { document });
 },
 /**
  * 请系统的文件夹选择器给出一个工作目录。人按了取消就是 None。
@@ -967,10 +977,6 @@ export type AgentConfigPurpose =
  * 只负责存取，不解释任何字段。
  */
 export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string; 
-/**
- * 旧版顶层 provider 列表，仅用于一次性迁移。迁移完由界面清空。
- */
-legacyProviders: JsonValue[]; 
 /**
  * agents.json 中存在但无法反序列化的内容。界面应显示出来。
  */
