@@ -1,8 +1,8 @@
 /*
  * 附件是一格图，不是一行文件名。
  *
- * 几何全部来自 composer-metrics.css：这一格与输入框、工具栏同处一张卡，尺寸不能
- * 各挑各的。
+ * 几何与颜色全部来自 composer-metrics.css：这一格与输入框、工具栏同处一张卡，
+ * 尺寸与边色不能各挑各的。
  */
 
 .composer-tray {
@@ -15,22 +15,21 @@
   list-style: none;
 }
 
-/* 角上那颗按钮有一半探出格外，所以裁剪归里面那张脸，这一层不裁。 */
+/* 删除键的定位祖先就是这一格；裁剪归里面那张脸，图要跟着圆角收边。 */
 .composer-tile {
   position: relative;
   flex: none;
 }
 
 .composer-tile__face {
-  position: relative;
   display: grid;
   box-sizing: border-box;
   block-size: var(--cp-tile);
   inline-size: var(--cp-tile);
   place-items: center;
   overflow: hidden;
-  border: var(--cp-px) solid var(--cp-edge);
-  border-radius: var(--cp-radius-tile);
+  border: var(--cp-px) solid var(--cp-tile-edge);
+  border-radius: var(--cp-tile-corner);
   padding: 0;
   background: var(--cp-tile-face);
 }
@@ -103,8 +102,11 @@
 }
 
 /*
- * 删除键咬在右上角，一半在格内一半在格外：排在图旁边就要为它另留一列，那正是
- * 旧那一行占满整个输入框宽度的原因。
+ * 删除键落在格内右上角。
+ *
+ * 它压在图上，而不是排在图旁边：并排要为按钮另留一列，那正是旧那一行占满整个
+ * 输入框宽度的原因。白色那一圈不是装饰 —— 圆点底下是任意一张图，深底加白环这
+ * 一对在深浅两种画面上都分得开。
  */
 .composer-tile__remove {
   position: absolute;
@@ -112,8 +114,8 @@
   block-size: var(--cp-tile-badge);
   inline-size: var(--cp-tile-badge);
   place-items: center;
-  inset-block-start: calc(-1 * var(--cp-tile-badge) / 2);
-  inset-inline-end: calc(-1 * var(--cp-tile-badge) / 2);
+  inset-block-start: var(--cp-tile-inset);
+  inset-inline-end: var(--cp-tile-inset);
   border: var(--cp-px) solid var(--cp-surface);
   border-radius: 9999px;
   padding: 0;
@@ -125,7 +127,7 @@
 
 /*
  * 命中区撑到 24×24（WCAG 2.2 SC 2.5.8）。撑的是命中区不是字形：圆点再大就会啃掉
- * 缩略图的一个角。
+ * 缩略图的一个角。外扩 2px 之后仍落在格内，不会伸到相邻那一格上。
  */
 .composer-tile__remove::after {
   content: "";
