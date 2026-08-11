@@ -13,7 +13,7 @@ import type { SettingsStore } from '@poietica/settings'
  */
 export function createDesktopSettingsStore(): SettingsStore {
   return {
-    async load() {
+    load() {
       return commands.settingsGet()
     },
 
@@ -21,7 +21,7 @@ export function createDesktopSettingsStore(): SettingsStore {
       await commands.settingsSet(settings)
     },
 
-    async reset() {
+    reset() {
       return commands.settingsReset()
     },
   }

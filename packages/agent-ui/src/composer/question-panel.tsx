@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight, Circle, CircleCheck, X } from 'lucide-react'
 import { useState } from 'react'
 
 import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
@@ -16,75 +17,14 @@ import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-questio
  * 的按钮是"发送"，这时才把整组答案一次交出去。中途不回任何东西，因为 ACP 的
  * request_permission 一旦答了就收不回来，而用户要能改。
  *
- * 不 import 设计系统与 primitives：这一层要能在目录重排后原样存活，图标就地
- * 画，类名就地拼，省得为三行工具函数绑一条相对路径。
+ * 不 import 设计系统与 primitives：这一层要能在目录重排后原样存活。标准操作字形直接
+ * 来自 lucide-react，与应用其余界面共享同一套几何和描边。
  */
 
-function ChevronLeftIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
-      <path
-        d="M10 3.5 5.5 8l4.5 4.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </svg>
-  )
-}
-
-function ChevronRightIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
-      <path
-        d="M6 3.5 10.5 8 6 12.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </svg>
-  )
-}
-
-function DismissIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" height="12" viewBox="0 0 16 16" width="12">
-      <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
-    </svg>
-  )
-}
-
-/*
- * 选项左侧那枚记号。
- *
- * 未选是空心圈，选中是实心加一个勾——选中与否首先由这枚图标说，颜色只是跟着
- * 它走。勾的描边取外壳底色而不是白色，深色皮肤下才不会糊成一团。
- */
 function MarkIcon({ selected }: { readonly selected: boolean }) {
-  return (
-    <svg aria-hidden="true" fill="none" height="16" viewBox="0 0 16 16" width="16">
-      <circle
-        cx="8"
-        cy="8"
-        fill={selected ? 'currentColor' : 'none'}
-        r="6.25"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
+  const Mark = selected ? CircleCheck : Circle
 
-      {selected ? (
-        <path
-          d="M5.4 8.3 7.1 10 10.6 6.4"
-          stroke="var(--assistant-surface, #fff)"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="1.6"
-        />
-      ) : null}
-    </svg>
-  )
+  return <Mark aria-hidden="true" size={16} strokeWidth={1.5} />
 }
 
 /*
@@ -187,7 +127,7 @@ export function QuestionPanel({ deck, onAnswer }: QuestionPanelProps) {
                 }}
                 type="button"
               >
-                <ChevronLeftIcon />
+                <ChevronLeft aria-hidden="true" size={14} strokeWidth={1.5} />
               </button>
 
               <span className="assistant-question-panel__count">
@@ -203,7 +143,7 @@ export function QuestionPanel({ deck, onAnswer }: QuestionPanelProps) {
                 }}
                 type="button"
               >
-                <ChevronRightIcon />
+                <ChevronRight aria-hidden="true" size={14} strokeWidth={1.5} />
               </button>
 
               <button
@@ -215,7 +155,7 @@ export function QuestionPanel({ deck, onAnswer }: QuestionPanelProps) {
                 }}
                 type="button"
               >
-                <DismissIcon />
+                <X aria-hidden="true" size={12} strokeWidth={1.5} />
               </button>
             </div>
           </header>

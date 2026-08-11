@@ -3,6 +3,7 @@ import { Button, ErrorState, LoadingState, Select, type SelectOption } from '@po
 import {
   Activity,
   Archive,
+  ArrowLeft,
   Settings as CogFour,
   Cpu,
   Info,
@@ -339,19 +340,7 @@ const SettingsNavigation = memo(function SettingsNavigation({
   return (
     <section aria-label="设置分类" className="settings-navigation">
       <button className="settings-navigation__back" onClick={onBack} type="button">
-        <svg
-          aria-hidden="true"
-          className="settings-navigation__icon"
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="1.7"
-          viewBox="0 0 24 24"
-        >
-          <path d="M19 12H5" />
-          <path d="m11 6-6 6 6 6" />
-        </svg>
+        <ArrowLeft aria-hidden="true" className="settings-navigation__icon" strokeWidth={1.7} />
 
         <span>返回</span>
       </button>

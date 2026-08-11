@@ -109,9 +109,15 @@ export function groupRows(rows: readonly CatalogRow[]): readonly RowGroup[] {
 
   return [...buckets.entries()]
     .sort(([left], [right]) => {
-      if (left === right) { return 0 }
-      if (left === FEATURED) { return -1 }
-      if (right === FEATURED) { return 1 }
+      if (left === right) {
+        return 0
+      }
+      if (left === FEATURED) {
+        return -1
+      }
+      if (right === FEATURED) {
+        return 1
+      }
 
       return left.localeCompare(right)
     })

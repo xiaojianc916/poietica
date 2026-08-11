@@ -25,20 +25,8 @@
   fill: none;
   stroke-width: 2;
   stroke-linecap: round;
-  animation: restore-spinner-turn 900ms linear infinite;
-}
-
-.restore-spinner__track {
-  stroke: currentcolor;
-  opacity: 0.16;
-}
-
-.restore-spinner__head {
-  stroke: currentcolor;
   opacity: 0.72;
-
-  /* 2πr ≈ 56.5：画四分之一弧，其余留白。 */
-  stroke-dasharray: 14 42;
+  animation: restore-spinner-turn 900ms linear infinite;
 }
 
 @keyframes restore-spinner-turn {
@@ -55,11 +43,6 @@
 @media (prefers-reduced-motion: reduce) {
   .restore-spinner__mark {
     animation: restore-spinner-pulse 1600ms ease-in-out infinite;
-  }
-
-  .restore-spinner__head {
-    stroke-dasharray: none;
-    opacity: 0.5;
   }
 }
 

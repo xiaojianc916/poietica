@@ -1,3 +1,4 @@
+import { LoaderCircle } from 'lucide-react'
 import './restore-spinner.css'
 
 export interface RestoreSpinnerProps {
@@ -19,9 +20,8 @@ export interface RestoreSpinnerProps {
  * 它是浮层，不占文档流。外面已经按"必然有内容"排好了版，图标一旦参与布局，
  * 撤除时就会把内容顶一下，那正是 data-started 花力气避开的东西。
  *
- * 名字挂在 svg 上，不挂在外面那层。外层是 live region，负责"这里出现了新
- * 状态"；名字属于那个图形本身，而且这也是 Biome 的 noSvgWithoutTitle 承认的
- * 两种写法之一（另一种是把 <title> 作为第一个子节点）。一个名字，一次播报。
+ * 名字直接传给 LoaderCircle 渲染出的 svg，不挂在外面那层。外层是 live region，
+ * 负责"这里出现了新状态"；名字属于图形本身，因此仍然只有一个名字、一次播报。
  */
 export function RestoreSpinner({ active }: RestoreSpinnerProps) {
   if (!active) {
@@ -30,16 +30,12 @@ export function RestoreSpinner({ active }: RestoreSpinnerProps) {
 
   return (
     <div className="restore-spinner" role="status">
-      <svg
+      <LoaderCircle
         aria-label="正在载入对话"
         className="restore-spinner__mark"
         focusable="false"
         role="img"
-        viewBox="0 0 24 24"
-      >
-        <circle className="restore-spinner__track" cx="12" cy="12" r="9" />
-        <circle className="restore-spinner__head" cx="12" cy="12" r="9" />
-      </svg>
+      />
     </div>
   )
 }

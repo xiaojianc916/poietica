@@ -1,3 +1,4 @@
+import { Globe } from 'lucide-react'
 import type { ReactElement, SVGProps } from 'react'
 
 /**
@@ -43,14 +44,7 @@ function Mark({ children, ...props }: SVGProps<SVGSVGElement>) {
  * .assistant-provider-icon[data-fallback="true"] 统一给，一个值只有一个所有者。
  */
 export function GenericMark(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Mark fill="none" stroke="currentColor" strokeWidth="1.4" {...props}>
-      <circle cx="12" cy="12" r="8.25" />
-      <path d="M12 3.75c2.2 2.3 3.3 5 3.3 8.25s-1.1 5.95-3.3 8.25" />
-      <path d="M12 3.75c-2.2 2.3-3.3 5-3.3 8.25s1.1 5.95 3.3 8.25" />
-      <path d="M4.2 9.4h15.6M4.2 14.6h15.6" />
-    </Mark>
-  )
+  return <Globe strokeWidth={1.4} {...props} />
 }
 
 /** DeepSeek。品牌色，不着色。 */

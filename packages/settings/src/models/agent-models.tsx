@@ -9,7 +9,8 @@ import {
   parseAgentProviderListOutput,
 } from '@poietica/agent-catalog'
 import { Button, InlineSpinner } from '@poietica/ui'
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { LoaderCircle } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigStore } from '../agent-config-store'
 import { describeAgentCliFailure, describeAgentCliOutcome } from '../agent-install/agent-cli-text'
 import { ProviderKeyCard } from './provider-key-card'
@@ -537,7 +538,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
             onClick={providers.reload}
             type="button"
           >
-            <RefreshIcon />
+            <LoaderCircle aria-hidden="true" className="models-icon" size={16} strokeWidth={1.7} />
           </button>
         </div>
 
@@ -683,28 +684,4 @@ function describeModel(model: AgentModelState): string {
   }
 
   return parts.join(' · ')
-}
-
-/*
- * 图标属性直接写在标签上，不走 spread。
- *
- * lint/a11y/noSvgWithoutTitle 是静态规则：aria-hidden 藏在展开对象里它看不见，于是把纯
- * 装饰图标判成缺少替代文本。
- */
-function RefreshIcon(): ReactNode {
-  return (
-    <svg
-      aria-hidden="true"
-      className="models-icon"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.7"
-      viewBox="0 0 24 24"
-    >
-      <path d="M20 11a8 8 0 1 0-2.3 5.7" />
-      <path d="M20 5v6h-6" />
-    </svg>
-  )
 }
