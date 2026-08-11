@@ -278,8 +278,9 @@
  * 滑块是一个独立的方块，不是给选中项加背景 —— 它要能从一档滑到另一档，位置本身
  * 就是这个控件的状态。
  *
- * 直接上主色：选中态是个动作，用中性灰去表达它，就要靠人比较两块相邻的灰谁更
- * 亮一点。主色与它的前景色两个主题都成对给了，字压在上面一定读得出来。
+ * 时间范围是局部筛选，不是提交、确认或品牌动作，因此不使用高饱和度主色。滑块从
+ * 当前设置卡片与普通前景色混出一档中性表面：浅色主题下轻微压暗，深色主题下轻微
+ * 提亮。内描边只负责让它与轨道分开，不额外增加一层卡片感。
  *
  * 位移走 inset-inline-start 而不是 translate：这一仓的排版全用逻辑属性，物理位移
  * 在从右往左的书写方向下会滑向反面。
@@ -291,7 +292,9 @@
   position: absolute;
   inset-block: 0;
   border-radius: 8px;
-  background: var(--ui-primary);
+  background: color-mix(in oklab, var(--ui-foreground) 9%, var(--settings-surface));
+  box-shadow: inset 0 0 0 var(--ui-hairline)
+    color-mix(in oklab, var(--ui-foreground) 8%, transparent);
   transition: inset-inline-start var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
@@ -308,7 +311,7 @@
 }
 
 .settings-segmented__option:has(:checked) {
-  color: var(--ui-primary-foreground);
+  color: var(--ui-foreground);
 }
 
 /*
