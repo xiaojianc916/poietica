@@ -1,0 +1,11 @@
+/*
+ * 收起展开这段路的机制，一份。
+ *
+ * 高度在动，所以这一层必须裁剪：一个中间高度只有在裁剪之下才是合法的。
+ * 时长与曲线不在这里——它们要分展开与收起两套，写在 thread-disclosure.tsx。
+ * prefers-reduced-motion 同理，由那一侧归零。
+ */
+
+.thread-disclosure {
+  overflow: hidden;
+}

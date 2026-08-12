@@ -19,6 +19,7 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { ChevronDownIcon, MoreIcon, PinIcon, PlusIcon } from '../primitives/icons'
 import { useHorizon, useNow } from './clock'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
+import { ThreadDisclosure } from './thread-disclosure'
 
 /*
  * 会话列表。
@@ -700,9 +701,9 @@ export function AssistantThreadList({
             }}
           />
 
-          {isPinOpen ? (
+          <ThreadDisclosure isOpen={isPinOpen}>
             <ul className="assistant-threads__list">{pinned.map(renderThread)}</ul>
-          ) : null}
+          </ThreadDisclosure>
         </section>
       )}
 
@@ -715,73 +716,69 @@ export function AssistantThreadList({
           }}
         />
 
-        {isRepositoriesOpen ? (
-          <>
-            {showPlaceholders ? (
-              <ul aria-hidden="true" className="assistant-threads__list">
-                {PLACEHOLDER_WIDTHS.map((width) => (
-                  <li className="assistant-thread" data-placeholder="true" key={width}>
-                    <span className="assistant-thread__ghost" style={{ width }} />
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+        <ThreadDisclosure isOpen={isRepositoriesOpen}>
+          {showPlaceholders ? (
+            <ul aria-hidden="true" className="assistant-threads__list">
+              {PLACEHOLDER_WIDTHS.map((width) => (
+                <li className="assistant-thread" data-placeholder="true" key={width}>
+                  <span className="assistant-thread__ghost" style={{ width }} />
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
-            {notice === null ? null : <p className="assistant-threads__empty">{notice}</p>}
+          {notice === null ? null : <p className="assistant-threads__empty">{notice}</p>}
 
-            {repositories.map((group) => {
-              /*
-               * 名字缺席的那一组不长组头。
-               *
-               * 缺席说的是「这些对话的工作目录还没有被记下来」，不是「它们没有工作
-               * 区」：会话本来就是对着一个目录开的。缺的是那个目录到这一层的路，所以
-               * 这里没有任何东西可以写在组头上。替它编一个名字（此前写的是「默认工作
-               * 区」）不是省事，是造一个用户问得出「它在哪」而界面答不上来的标题。
-               *
-               * 于是这一组按它本来的样子画：一列对话，没有标题，也没有折叠 —— 收不收
-               * 起一个说不出名字的东西，不是一个能提给用户的选择。原生侧把目录记下来
-               * 之后，它自然长出名字与组头，这一层不用再改。
-               */
-              const named = group.name
-              const isOpen = named === null || !collapsedWorkspaces.has(group.id)
-              const limit = shown.get(group.id) ?? PAGE
-              const members = group.members.slice(0, limit)
-              const rest = group.members.length - members.length
+          {repositories.map((group) => {
+            /*
+             * 名字缺席的那一组不长组头。
+             *
+             * 缺席说的是「这些对话的工作目录还没有被记下来」，不是「它们没有工作
+             * 区」：会话本来就是对着一个目录开的。缺的是那个目录到这一层的路，所以
+             * 这里没有任何东西可以写在组头上。替它编一个名字（此前写的是「默认工作
+             * 区」）不是省事，是造一个用户问得出「它在哪」而界面答不上来的标题。
+             *
+             * 于是这一组按它本来的样子画：一列对话，没有标题，也没有折叠 —— 收不收
+             * 起一个说不出名字的东西，不是一个能提给用户的选择。原生侧把目录记下来
+             * 之后，它自然长出名字与组头，这一层不用再改。
+             */
+            const named = group.name
+            const isOpen = named === null || !collapsedWorkspaces.has(group.id)
+            const limit = shown.get(group.id) ?? PAGE
+            const members = group.members.slice(0, limit)
+            const rest = group.members.length - members.length
 
-              return (
-                <section className="assistant-threads__group" key={group.id}>
-                  {named === null ? null : (
-                    <WorkspaceHeader
-                      isOpen={isOpen}
-                      name={named}
-                      onCreate={onCreate}
-                      onToggle={onToggleWorkspace}
-                      workspaceId={group.id}
-                    />
-                  )}
+            return (
+              <section className="assistant-threads__group" key={group.id}>
+                {named === null ? null : (
+                  <WorkspaceHeader
+                    isOpen={isOpen}
+                    name={named}
+                    onCreate={onCreate}
+                    onToggle={onToggleWorkspace}
+                    workspaceId={group.id}
+                  />
+                )}
 
-                  {isOpen ? (
-                    <>
-                      <ul className="assistant-threads__list">{members.map(renderThread)}</ul>
+                <ThreadDisclosure isOpen={isOpen}>
+                  <ul className="assistant-threads__list">{members.map(renderThread)}</ul>
 
-                      {rest > 0 ? (
-                        <button
-                          className="assistant-threads__more"
-                          onClick={() => {
-                            showMore(group.id)
-                          }}
-                          type="button"
-                        >
-                          更多
-                        </button>
-                      ) : null}
-                    </>
+                  {rest > 0 ? (
+                    <button
+                      className="assistant-threads__more"
+                      onClick={() => {
+                        showMore(group.id)
+                      }}
+                      type="button"
+                    >
+                      更多
+                    </button>
                   ) : null}
-                </section>
-              )
-            })}
-          </>
-        ) : null}
+                </ThreadDisclosure>
+              </section>
+            )
+          })}
+        </ThreadDisclosure>
       </section>
 
       {/* projectless conversations follow repositories */}
@@ -795,9 +792,9 @@ export function AssistantThreadList({
             }}
           />
 
-          {isRecentOpen ? (
+          <ThreadDisclosure isOpen={isRecentOpen}>
             <ul className="assistant-threads__list">{recent.map(renderThread)}</ul>
-          ) : null}
+          </ThreadDisclosure>
         </section>
       )}
     </nav>
