@@ -818,9 +818,23 @@ async fn load_session(
     let named = SessionId::new(Arc::<str>::from(session_id.as_str()));
 
     // 帧要落在这条会话名下，所以它先进册子，再开始装载。
+    /* 册子里已有的条目属于一条此刻还活着的会话（同名重装载就是），装载失败
+    也不能动它；只有这一次新建的条目，失败了要跟着收回 —— 否则册子与主循环
+    的选择器表从这里开始各说各话，而 agent_cancel 判断「有没有东西可停」读的
+    正是这本册子。 */
+    let fresh = matches!(ledger.slot(&session_id), Ok(None));
+
     let loaded = match ledger.open(&session_id) {
         Err(unusable) => Err(unusable),
-        Ok(slot) => replay(connection, &slot, session_id, named, cwd).await,
+        Ok(slot) => {
+            let opened = replay(connection, &slot, session_id.clone(), named, cwd).await;
+
+            if opened.is_err() && fresh {
+                let _forgotten = ledger.close(&session_id);
+            }
+
+            opened
+        }
     };
 
     Settled::Opened {

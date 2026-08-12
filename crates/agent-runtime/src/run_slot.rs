@@ -9,13 +9,10 @@ use crate::recorder::{Frames, Recorder, SeqLine};
 ///
 /// 两种，因为一条会话上确实会发生两件不同的事。
 ///
-/// 一轮在飞时听的是记录器：帧要落进加密日志、要更新投影、要上屏。而
+/// 一轮在飞时听的是记录器：帧除了成形交出去，还要喂这一轮自己的工作内存
+/// —— 哪些权限问答没落定、每个工具调用叫什么、这一轮有没有失败。而
 /// `session/load` 期间 agent 把整条会话重放一遍，那些帧的持有者是 agent
-/// 自己 —— 它们只要成形和投递，没有日志可写。
-///
-/// 此前这里只有前一种。于是重播帧到达时槽是空的，[`RunSlot::record`] 交回
-/// false，帧被静默丢掉；屏幕上的历史只好从本地日志再读一份 —— 那份副本就是
-/// 第二个事实来源。它不是被选出来的，是被这个类型逼出来的。
+/// 自己 —— 它们只要成形和投递，一轮的工作内存对它们没有意义。
 #[derive(Debug)]
 pub enum Listening {
     /// 一轮正在飞。
@@ -27,8 +24,7 @@ pub enum Listening {
 impl Listening {
     /// 一帧会话通知，按此刻听着的那一位的办法处理。
     ///
-    /// 接收路径上只有这一个分发点。第三刀删掉本地日志之后，上面那一支退化成
-    /// 下面这一支，这个 enum 自己消失。
+    /// 接收路径上只有这一个分发点。
     pub fn session_update(&mut self, notification: &SessionNotification) {
         match self {
             Self::Turn(recorder) => recorder.record_session_update(notification),

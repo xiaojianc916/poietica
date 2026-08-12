@@ -27,13 +27,6 @@ import {
  * 端口不在这一层重新声明一遍。ThreadPort / SessionConfigPort / AgentCapabilityPort
  * 就是下面几个工厂的返回类型，所以「桥」与「端口」是同一个名字下的同一样东西。
  *
- * 此前这里另立了一整套 *Description 与 *Bridge：字段与端口逐格相同，组合层因此
- * 编译得过 —— 靠的是两份手写接口今天恰好一样，而不是同一个定义。同一个形状有了
- * 第二个名字，注释立刻就分叉了：那份 AgentThreadDescription 说 titleSource 有
- * official 一档，而 ThreadTitleSource 与生成绑定的 AgentTitleSource 都只有三档,
- * 后者的文档还专门写着 official 是被删掉的那一档。抄本没有承担任何转换，它只是
- * 一份会过期的说明。
- *
  * Frame shapes are never redefined here. Command payloads come from the
  * generated bindings, and the frames themselves are handed onwards as unknown
  * because the feature package validates every one of them before use.
@@ -278,17 +271,10 @@ function detailOf(detail: string | null): { detail?: string } {
 }
 
 /*
- * 进来的是线上的类型本身，出去的是端口的类型本身。
- *
- * 这里曾经手抄着 NativeChoice 与 NativeControl，而这个文件开头写着 "Frame shapes
- * are never redefined here"。抄本还抄漏了一格：purpose 被写成 string，于是需要一个
- * purposeOf 把它再窄回四选一 —— 那段小写化防的是协议产生不了的值，那段 other 兜底
- * 则是把原生侧已经做过的决定又做了一遍。
- *
- * 出参此前也是抄本（AgentConfigControlDescription），与 SessionConfigControl 逐格
- * 相同。今天两头都只有一个定义：线上一个，端口一个，中间只剩 detail 那一格真正的
- * 转换。purpose 不需要任何处理 —— AgentConfigPurpose 与 SessionConfigPurpose 是同
- * 一个四值集，原生侧已经把 agent 自己发明的类别归进了 other。
+ * 进来的是线上的类型本身，出去的是端口的类型本身：线上一个定义，端口一个
+ * 定义，中间只剩 detail 那一格真正的转换。purpose 不需要任何处理 ——
+ * AgentConfigPurpose 与 SessionConfigPurpose 是同一个四值集，原生侧已经把
+ * agent 自己发明的类别归进了 other。
  */
 function choiceOf(native: AgentConfigChoice): SessionConfigChoice {
   return { value: native.value, label: native.label, ...detailOf(native.detail) }
