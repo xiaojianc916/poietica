@@ -8,7 +8,7 @@ import {
   AttachmentIntakeContext,
 } from '@poietica/agent-ui'
 import type { AppUpdateController, MainWindowController } from '@poietica/desktop-adapters'
-import { AppUpdateStore, confirmWithNativeDialog } from '@poietica/desktop-adapters'
+import { AppUpdateStore } from '@poietica/desktop-adapters'
 import type {
   AgentConfigStore,
   KeybindingCatalog,
@@ -387,7 +387,6 @@ export function AppShell({ runtime }: AppShellProps) {
               appVersion={runtime.appVersion}
               capabilities={capabilities}
               commands={runtime.commands}
-              confirmAction={confirmWithNativeDialog}
               dataDirectory={runtime.dataDirectory}
               isSettingsOpen={isSettingsOpen && capabilities.settings}
               isWindowMaximized={isWindowMaximized}

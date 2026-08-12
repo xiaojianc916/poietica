@@ -4,7 +4,6 @@ export type {
   AgentConfigSnapshot,
   AgentConfigStore,
 } from './agent-config-store'
-export type { ConfirmationPort, ConfirmationRequest } from './confirmation'
 export type { KeybindingCatalog, KeybindingEntry } from './keymap/keybinding-catalog'
 export {
   type AppearanceSettings,

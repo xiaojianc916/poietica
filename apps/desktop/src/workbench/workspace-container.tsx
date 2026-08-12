@@ -1,10 +1,5 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import type {
-  AgentConfigStore,
-  ConfirmationPort,
-  KeybindingCatalog,
-  SettingsStore,
-} from '@poietica/settings'
+import type { AgentConfigStore, KeybindingCatalog, SettingsStore } from '@poietica/settings'
 import {
   SettingsContentRegion,
   SettingsNavigationRegion,
@@ -52,7 +47,6 @@ export interface WorkspaceContainerProps {
   readonly dataDirectory: () => Promise<string>
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
-  readonly confirmAction: ConfirmationPort
   readonly capabilities: AppCapabilities
   readonly isSettingsOpen: boolean
   readonly onSettingsClose: () => void
@@ -82,7 +76,6 @@ export function WorkspaceContainer({
   dataDirectory,
   workspace,
   commands,
-  confirmAction,
   capabilities,
   isSettingsOpen,
   onSettingsClose,
@@ -310,7 +303,6 @@ export function WorkspaceContainer({
     <SettingsProvider
       agentConfigStore={agentConfigStore}
       appVersion={appVersion}
-      confirmAction={confirmAction}
       dataDirectory={dataDirectory}
       keybindings={keybindings}
       onDismiss={onSettingsClose}
