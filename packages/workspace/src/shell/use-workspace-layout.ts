@@ -83,13 +83,18 @@ function commitSettledMode(): void {
   window.removeEventListener('resize', deferSettledMode)
 
   /*
-   * 最小化护栏。任务栏最小化会把窗口缩成图标尺寸，WebView 将其当作真实
-   * resize 透传（实测 1303 -> 144px），断点随之翻成 narrow：还原窗口的第一帧
-   * 是被收起的侧栏，然后再当着用户的面展开一遍。低于视口下限的几何不可能
-   * 出自用户缩放 —— 丢弃采样，保持上一个已提交的模式；还原后的采样与其一
-   * 致，于是什么也不发生。
+   * 最小化护栏。任务栏最小化会把窗口缩成图标尺寸（实测 1303 -> 144px），
+   * 断点随之翻成 narrow，settle 定时器照常触发；此刻页面已转入 hidden，
+   * 几何不代表用户意图，直接提交会把「收起」写进已定模式，还原时就会
+   * 先看到被收起的侧栏再当面展开一遍。故挂起本次提交、下个 settle 周期
+   * 重试：恢复可见后的重试读到的是还原后的真实几何，与挂起前的已定模式
+   * 一致则自然无操作。判据用可见性而不用宽度阈值——DevTools 停靠、页面
+   * 缩放都会把视口真实地压到窗口最小宽度以下，宽度阈值会连同这些场景的
+   * 正常提交一并吞掉，让自动收起/展开整体失效。
    */
-  if (window.innerWidth < WORKSPACE_LAYOUT.breakpoints.viewportFloor) {
+  if (document.hidden) {
+    settleTimer = window.setTimeout(commitSettledMode, WORKSPACE_LAYOUT.breakpoints.settleMs)
+
     return
   }
 

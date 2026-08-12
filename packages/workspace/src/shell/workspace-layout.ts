@@ -30,14 +30,6 @@ export const WORKSPACE_LAYOUT = {
     wide: '(min-width: 1280px)',
 
     /*
-     * 视口下限。主窗口在 tauri.conf.json 里定着 minWidth: 800 —— 用户拖不出
-     * 更窄的窗口，低于此值的宽度必然不是视口：那是 Windows 最小化把窗口缩成
-     * 图标尺寸（实测 144px）后，宿主当作真实 resize 透传进来的假几何。这样
-     * 的采样不参与布局模式判定，由 use-workspace-layout 在提交前丢弃。
-     */
-    viewportFloor: 800,
-
-    /*
      * 跨断点的布局切换等几何静止后才提交：resize 事件停歇这么久，视为这次
      * 拖拽缩放已经结束。取值需远大于拖拽中相邻 resize 事件的间隔（实测
      * 165Hz 下含丢帧最大约 24ms），又小到松手后感知不到迟滞。
