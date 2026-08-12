@@ -211,6 +211,7 @@ export function createAgentCommandBridge({
   return {
     prompt: async (request) => {
       const resolvedLaunch = await launch()
+      const resolvedMcpServers = (await mcpServers?.()) ?? []
       const result = await throughIpc(() =>
         commands.agentPrompt({
           text: request.text,
@@ -223,7 +224,7 @@ export function createAgentCommandBridge({
           })),
           launch: nativeLaunch(resolvedLaunch),
           cwd: cwd?.() ?? null,
-          mcpServers: [...((await mcpServers?.()) ?? [])],
+          mcpServers: [...resolvedMcpServers],
         }),
       )
 
@@ -400,12 +401,13 @@ export function createAgentThreadBridge({
 
     open: async (threadId, workspaceRoot) => {
       const resolvedLaunch = await launch()
+      const resolvedMcpServers = (await mcpServers?.()) ?? []
       const opened = await throughIpc(() =>
         commands.agentOpenThread({
           threadId: threadId ?? null,
           launch: nativeLaunch(resolvedLaunch),
           cwd: workspaceRoot ?? cwd?.() ?? null,
-          mcpServers: [...((await mcpServers?.()) ?? [])],
+          mcpServers: [...resolvedMcpServers],
         }),
       )
 

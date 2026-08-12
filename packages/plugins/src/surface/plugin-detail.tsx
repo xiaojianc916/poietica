@@ -61,39 +61,13 @@ export function PluginDetail({ entry, onBack, plugin, store }: PluginDetailProps
             )}
           </div>
         </div>
-        {plugin === undefined ? (
-          entry === undefined ? null : (
-            <Button
-              onClick={() => {
-                /* 确认卡与安装进度挂在列表视图上，留在这一页会看不见流程。 */
-                store.beginInstall(entry.source)
-                onBack()
-              }}
-              size="sm"
-            >
-              安装
-            </Button>
-          )
-        ) : (
-          <div className="flex items-center gap-3">
-            <Switch
-              aria-label={`启用 ${displayName}`}
-              checked={plugin.enabled}
-              onCheckedChange={(next) => store.setEnabled(plugin.pluginId, next)}
-              size="sm"
-            />
-            <Button
-              onClick={() => {
-                store.remove(plugin.pluginId)
-                onBack()
-              }}
-              size="sm"
-              variant="secondary"
-            >
-              移除
-            </Button>
-          </div>
-        )}
+        <PluginActions
+          displayName={displayName}
+          entry={entry}
+          onBack={onBack}
+          plugin={plugin}
+          store={store}
+        />
       </header>
       <p className="max-w-prose pt-4 text-sm leading-6 text-muted-foreground">
         {description ?? '这个扩展没有写说明。'}
@@ -131,23 +105,70 @@ export function PluginDetail({ entry, onBack, plugin, store }: PluginDetailProps
           )}
           <InfoRow label="版本" value={version ?? '未标注'} />
           <InfoRow label="主页" value={plugin?.manifest.homepage ?? entry?.homepage ?? '没有'} />
-          <InfoRow
-            label="来源"
-            value={
-              plugin === undefined
-                ? entry === undefined
-                  ? '账本没记它从哪来'
-                  : describeInstallSource(entry.source)
-                : plugin.source === undefined
-                  ? '账本没记它从哪来'
-                  : describeInstallSource(plugin.source)
-            }
-          />
+          <InfoRow label="来源" value={pluginSourceDescription(plugin, entry)} />
         </dl>
       </DetailSection>
       <Diagnostics plugin={plugin} />
     </div>
   )
+}
+
+interface PluginActionsProps {
+  readonly displayName: string
+  readonly entry: MarketplaceEntry | undefined
+  readonly plugin: InstalledPlugin | undefined
+  readonly store: PluginStore
+  readonly onBack: () => void
+}
+
+function PluginActions({ displayName, entry, onBack, plugin, store }: PluginActionsProps) {
+  if (plugin === undefined) {
+    if (entry === undefined) {
+      return null
+    }
+
+    return (
+      <Button
+        onClick={() => {
+          /* 确认卡与安装进度挂在列表视图上，留在这一页会看不见流程。 */
+          store.beginInstall(entry.source)
+          onBack()
+        }}
+        size="sm"
+      >
+        安装
+      </Button>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <Switch
+        aria-label={`启用 ${displayName}`}
+        checked={plugin.enabled}
+        onCheckedChange={(next) => store.setEnabled(plugin.pluginId, next)}
+        size="sm"
+      />
+      <Button
+        onClick={() => {
+          store.remove(plugin.pluginId)
+          onBack()
+        }}
+        size="sm"
+        variant="secondary"
+      >
+        移除
+      </Button>
+    </div>
+  )
+}
+
+function pluginSourceDescription(
+  plugin: InstalledPlugin | undefined,
+  entry: MarketplaceEntry | undefined,
+): string {
+  const source = plugin === undefined ? entry?.source : plugin.source
+  return source === undefined ? '账本没记它从哪来' : describeInstallSource(source)
 }
 
 function joinOrDash(values: readonly string[]): string {
