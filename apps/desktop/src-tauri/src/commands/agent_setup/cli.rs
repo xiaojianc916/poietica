@@ -129,7 +129,7 @@ fn missing_program(program: &str) -> Error {
 /// agents.json 是一个可以手改的文件，信它等于把校验交给了文本编辑器。
 fn validate_program(program: &str) -> Result<()> {
     if program.is_empty() || program.len() > MAX_ARG_LEN {
-        return Err(Error::AgentCli("agent 接入档案里的程序名为空".to_owned()));
+        return Err(Error::AgentCli("agent 接入档案里的程序名为空或超长".to_owned()));
     }
 
     if contains_metacharacter(program) {

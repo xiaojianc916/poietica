@@ -350,15 +350,35 @@ pub fn agent_install_spec(app: &AppHandle, agent_id: &str) -> Result<Option<Agen
     }))
 }
 
+/// npm 名字里允许的字符：小写字母、数字、`.`、`_`、`-`。斜杠是结构，不进字符集。
+fn is_npm_name_glyph(glyph: char) -> bool {
+    glyph.is_ascii_lowercase() || glyph.is_ascii_digit() || "._-".contains(glyph)
+}
+
+/// 包名的一段（scope 或名字本体）：非空、不以 `.`/`_`/`-` 开头、字符集之内。
+///
+/// 开头字符的禁令有两个出处：npm 的命名规则不许以 `.` 或 `_` 起头；以 `-` 起头的
+/// token 会被 npm/pnpm 的选项解析器读成旗标而不是包名 —— 这一格要拦的正是它。
+fn is_npm_package_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && !segment.starts_with(['.', '_', '-'])
+        && segment.chars().all(is_npm_name_glyph)
+}
+
+/// 会被交给 `pnpm add --global` / `npm install --global` 的那个包名。
+///
+/// 形状取自 npm 的命名规则：`name` 或 `@scope/name`，长度上限 214。此前只判字符集，
+/// 于是 `--registry` 这种整串合法字符的旗标形态 token 也放行 —— 字符集判不住选项，
+/// 逐段的首字符判得住。
 fn is_npm_package_name(name: &str) -> bool {
     if name.is_empty() || name.len() > 214 {
         return false;
     }
 
-    let body = name.strip_prefix('@').map_or(name, |scoped| scoped);
+    let body = name.strip_prefix('@').unwrap_or(name);
+    let expected = if name.starts_with('@') { 2 } else { 1 };
 
-    body.chars()
-        .all(|glyph| glyph.is_ascii_lowercase() || glyph.is_ascii_digit() || "._-/".contains(glyph))
+    body.split('/').count() == expected && body.split('/').all(is_npm_package_segment)
 }
 
 /// 这个 agent 的可执行文件。
@@ -765,4 +785,56 @@ pub async fn agent_config_save_agents(
         Ok(to_snapshot(config, issues))
     })()
     .map_err(IpcError::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_npm_package_name, is_plain_directory_name};
+
+    #[test]
+    fn real_package_names_pass_the_gate() {
+        assert!(is_npm_package_name("lodash"));
+        assert!(is_npm_package_name("@moonshot-ai/kimi-code"));
+    }
+
+    #[test]
+    fn an_option_shaped_token_is_not_a_package_name() {
+        assert!(!is_npm_package_name("--registry"));
+        assert!(!is_npm_package_name("-g"));
+        assert!(!is_npm_package_name("@scope/-flag"));
+    }
+
+    #[test]
+    fn npm_forbids_leading_dots_and_underscores() {
+        assert!(!is_npm_package_name(".hidden"));
+        assert!(!is_npm_package_name("_private"));
+        assert!(!is_npm_package_name("@.scope/name"));
+    }
+
+    #[test]
+    fn the_charset_is_npm_lowercase() {
+        assert!(!is_npm_package_name("Lodash"));
+        assert!(!is_npm_package_name("pkg name"));
+        assert!(!is_npm_package_name("pkg;rm"));
+    }
+
+    #[test]
+    fn only_the_scoped_shape_may_contain_a_slash() {
+        assert!(!is_npm_package_name(""));
+        assert!(!is_npm_package_name("a/b"));
+        assert!(!is_npm_package_name("@a/b/c"));
+        assert!(!is_npm_package_name("@scope"));
+        assert!(!is_npm_package_name("@scope/"));
+    }
+
+    #[test]
+    fn a_directory_name_is_a_name_not_a_path() {
+        assert!(is_plain_directory_name(".kimi-code"));
+        assert!(!is_plain_directory_name(""));
+        assert!(!is_plain_directory_name("."));
+        assert!(!is_plain_directory_name(".."));
+        assert!(!is_plain_directory_name("a/b"));
+        assert!(!is_plain_directory_name("a\\b"));
+        assert!(!is_plain_directory_name("C:"));
+    }
 }

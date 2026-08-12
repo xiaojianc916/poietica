@@ -186,6 +186,10 @@ agent-client-protocol = "2"
 # crates/project/src/debugger/dap_store.rs 的 which::which_in 与这里同构。
 which = "8"
 
+# 包管理器 view 与 agent --version 输出里的版本号判读。判据交给 semver 官方
+# 实现 —— 与 cargo 自己用的是同一个 crate，不手搓字符串比大小。
+semver = "1"
+
 [workspace.lints.rust]
 unsafe_code = "deny"
 missing_debug_implementations = "warn"

@@ -28,7 +28,7 @@ tauri-build.workspace = true
 # 边界条件（填充、换行、URL 变体）。
 base64.workspace = true
 # 版本比较交给 cargo 自己用的那个实现，不手搓字符串比大小。
-semver = "1"
+semver.workspace = true
 hex.workspace = true
 log.workspace = true
 serde.workspace = true
@@ -79,7 +79,7 @@ specta-typescript.workspace = true
 tauri-specta.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
-poietica-plugin-host-native = { version = "0.1.6", path = "../../../crates/plugin-host" }
+poietica-plugin-host-native = { path = "../../../crates/plugin-host" }
 rmcp.workspace = true
 axum.workspace = true
 schemars.workspace = true
