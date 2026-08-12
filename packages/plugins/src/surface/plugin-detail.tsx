@@ -96,7 +96,7 @@ export function PluginDetail({ entry, onBack, plugin, store }: PluginDetailProps
         </>
       )}
       <DetailSection title="信息">
-        <dl className="divide-y divide-divider border-y border-divider">
+        <dl className="grid gap-1">
           {plugin === undefined ? null : (
             <>
               <InfoRow label="功能" value={joinOrDash(plugin.manifest.capabilities)} />
@@ -195,9 +195,12 @@ function Behaviour({ plugin }: BehaviourProps) {
 
   return (
     <DetailSection title="行为">
-      <ul className="divide-y divide-divider border-y border-divider">
+      <ul className="grid gap-1">
         {lines.map((line) => (
-          <li className="py-3 text-sm leading-6" key={line}>
+          <li
+            className="rounded-xl px-3 py-2.5 text-sm leading-6 transition-colors hover:bg-muted/50"
+            key={line}
+          >
             {line}
           </li>
         ))}
@@ -224,9 +227,12 @@ function McpServers({ plugin, store }: McpServersProps) {
 
   return (
     <DetailSection count={mcpServerNames.length} title="MCP 服务器">
-      <ul className="divide-y divide-divider border-y border-divider">
+      <ul className="grid gap-1">
         {mcpServerNames.map((name) => (
-          <li className="flex items-center gap-4 py-3" key={name}>
+          <li
+            className="flex items-center gap-4 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/50"
+            key={name}
+          >
             <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
             <Switch
               aria-label={`启用 ${name}`}
@@ -254,9 +260,12 @@ function Diagnostics({ plugin }: DiagnosticsProps) {
 
   return (
     <DetailSection count={diagnostics.length} title="诊断">
-      <ul className="divide-y divide-divider border-y border-divider">
+      <ul className="grid gap-1">
         {diagnostics.map((diagnostic) => (
-          <li className="py-3 text-xs leading-5 text-muted-foreground" key={diagnostic.detail}>
+          <li
+            className="rounded-xl px-3 py-2.5 text-xs leading-5 text-muted-foreground transition-colors hover:bg-muted/50"
+            key={diagnostic.detail}
+          >
             <span className="pr-2 font-medium text-foreground">{diagnostic.code}</span>
             {diagnostic.detail}
           </li>
@@ -293,7 +302,7 @@ interface InfoRowProps {
 
 function InfoRow({ label, value }: InfoRowProps) {
   return (
-    <div className="flex gap-4 py-3">
+    <div className="flex gap-4 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/50">
       <dt className="w-24 shrink-0 text-xs text-muted-foreground">{label}</dt>
       <dd className="min-w-0 flex-1 truncate text-xs">{value}</dd>
     </div>

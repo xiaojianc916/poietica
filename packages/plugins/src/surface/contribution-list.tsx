@@ -35,30 +35,30 @@ export interface ContributionListProps {
 export function ContributionList({ empty, rows }: ContributionListProps) {
   if (rows.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-divider px-6 py-10 text-center text-xs leading-5 text-muted-foreground">
+      <p className="rounded-2xl bg-muted/40 px-6 py-10 text-center text-[13px] leading-5 text-muted-foreground">
         {empty}
       </p>
     )
   }
 
   return (
-    <ul className="grid gap-0.5">
+    <ul className="grid gap-1">
       {rows.map((row) => (
         <li
           className={cn(
-            'group flex min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/60',
+            'group flex min-w-0 items-center gap-3.5 rounded-2xl px-3 py-3 transition-colors hover:bg-muted/60',
             row.dimmed === true ? 'opacity-55' : '',
           )}
           key={row.key}
         >
-          <PluginGlyph displayName={row.title} id={row.key} size="sm" />
+          <PluginGlyph displayName={row.title} id={row.key} size="md" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               {row.onOpen === undefined ? (
-                <span className="truncate text-[13px] font-medium">{row.title}</span>
+                <span className="truncate text-sm font-medium">{row.title}</span>
               ) : (
                 <button
-                  className="truncate text-left text-[13px] font-medium hover:underline"
+                  className="truncate text-left text-sm font-medium hover:underline"
                   onClick={row.onOpen}
                   type="button"
                 >
@@ -66,12 +66,12 @@ export function ContributionList({ empty, rows }: ContributionListProps) {
                 </button>
               )}
               {row.badge === undefined ? null : (
-                <span className="shrink-0 rounded-md border border-divider px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
                   {row.badge}
                 </span>
               )}
             </div>
-            <p className="truncate pt-0.5 text-xs text-muted-foreground" title={row.detail}>
+            <p className="truncate pt-0.5 text-[13px] text-muted-foreground" title={row.detail}>
               {row.detail}
             </p>
           </div>

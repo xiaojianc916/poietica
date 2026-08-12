@@ -81,8 +81,8 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
 
   if (openedId !== undefined) {
     return (
-      <div className="h-full overflow-y-auto bg-ground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="mx-auto w-full max-w-5xl px-10">
+      <div className="plugins-scroll-region h-full overflow-y-auto overscroll-contain bg-ground">
+        <div className="mx-auto w-full max-w-6xl px-10">
           <PluginDetail
             entry={entries.find((one) => one.id === openedId)}
             onBack={() => setOpenedId(undefined)}
@@ -95,15 +95,15 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-ground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div className="mx-auto w-full max-w-5xl px-10">
+    <div className="plugins-scroll-region h-full overflow-y-auto overscroll-contain bg-ground">
+      <div className="mx-auto w-full max-w-6xl px-10">
         <header className="pt-12 pb-5">
           <h1 className="text-[26px] font-semibold leading-none tracking-tight">扩展</h1>
           <p className="max-w-2xl pt-3 text-[13px] leading-6 text-muted-foreground">
             {TABS[tab].subtitle}
           </p>
         </header>
-        <div className="sticky top-0 z-10 -mx-10 border-b border-divider bg-ground/90 px-10 py-3 backdrop-blur">
+        <div className="sticky top-0 z-10 -mx-10 bg-ground/95 px-10 py-3 backdrop-blur-xl">
           <div className="flex items-center gap-3">
             <nav
               aria-label="扩展分类"
@@ -130,7 +130,7 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
             </nav>
             <input
               aria-label={`搜索${TABS[tab].label}`}
-              className="h-9 min-w-0 flex-1 rounded-full border border-divider bg-background px-4 text-[13px] outline-none transition-colors focus:border-foreground/25"
+              className="h-9 min-w-0 flex-1 rounded-full bg-muted/60 px-4 text-[13px] outline-none ring-1 ring-transparent transition-[background-color,box-shadow] placeholder:text-muted-foreground/70 focus:bg-background focus:ring-foreground/10"
               onChange={(event) => setNeedles({ ...needles, [tab]: event.target.value })}
               placeholder={`搜索${TABS[tab].label}`}
               value={needle}

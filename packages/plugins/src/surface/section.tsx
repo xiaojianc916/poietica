@@ -17,18 +17,19 @@ export interface SectionProps {
 
 export function Section({ action, children, count, hint, title }: SectionProps) {
   return (
-    <section className="pt-8">
-      <div className="flex items-center justify-between gap-3 pb-3">
-        <div className="flex items-baseline gap-2">
+    <section className="pt-9">
+      <div className="flex items-center gap-4 pb-4">
+        <div className="flex shrink-0 items-baseline gap-2">
           <h2 className="text-[13px] font-medium">{title}</h2>
           {count === undefined ? null : (
             <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
           )}
         </div>
-        {action}
+        <span aria-hidden="true" className="h-px min-w-8 flex-1 bg-divider/70" />
+        {action === undefined ? null : <div className="shrink-0">{action}</div>}
       </div>
       {hint === undefined ? null : (
-        <p className="pb-3 text-xs leading-5 text-muted-foreground">{hint}</p>
+        <p className="pb-4 text-xs leading-5 text-muted-foreground">{hint}</p>
       )}
       {children}
     </section>

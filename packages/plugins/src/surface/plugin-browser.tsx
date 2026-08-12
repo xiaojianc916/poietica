@@ -215,7 +215,7 @@ function CustomSource({ store }: CustomSourceProps) {
         }}
       >
         <input
-          className="h-9 min-w-0 flex-1 rounded-lg border border-divider bg-background px-3 text-[13px] outline-none focus:border-foreground/25"
+          className="h-9 min-w-0 flex-1 rounded-xl bg-muted/60 px-3 text-[13px] outline-none ring-1 ring-transparent transition-[background-color,box-shadow] focus:bg-background focus:ring-foreground/10"
           onChange={(event) => setText(event.target.value)}
           placeholder="本地目录、.zip 直链，或 github.com/owner/repo"
           value={text}
@@ -240,7 +240,7 @@ function InstallBanner({ install, store }: InstallBannerProps) {
 
   if (install.kind === 'staging') {
     return (
-      <div className="mt-6 flex items-center gap-3 rounded-xl border border-divider bg-background px-4 py-3">
+      <div className="mt-6 flex items-center gap-3 rounded-2xl bg-muted/50 px-4 py-3">
         <p className="flex-1 text-xs text-muted-foreground">
           正在取 {describeInstallSource(install.source)}…
         </p>
@@ -253,7 +253,7 @@ function InstallBanner({ install, store }: InstallBannerProps) {
 
   if (install.kind === 'refused') {
     return (
-      <div className="mt-6 flex items-center gap-3 rounded-xl border border-divider bg-background px-4 py-3">
+      <div className="mt-6 flex items-center gap-3 rounded-2xl bg-muted/50 px-4 py-3">
         <p className="flex-1 text-xs text-destructive">{install.reason}</p>
         <Button onClick={() => store.cancelInstall()} size="xs" variant="ghost">
           知道了
@@ -270,7 +270,7 @@ function InstallBanner({ install, store }: InstallBannerProps) {
   const servers = install.manifest.mcpServerNames.length
 
   return (
-    <div className="mt-6 rounded-xl border border-divider bg-background p-4">
+    <div className="mt-6 rounded-2xl bg-muted/50 p-4">
       <p className="text-sm font-medium">{install.manifest.displayName}</p>
       <p className="pt-1 text-xs leading-5 text-muted-foreground">
         来自 {describeInstallSource(install.source)}。

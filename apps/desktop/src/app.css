@@ -263,3 +263,20 @@ body {
    */
   --desktop-scrollbar-thumb: #e4e4e5;
 }
+
+/* plugins-surface-scrollbar */
+/*
+ * 扩展中心保留滚动能力，但不显示原生滚动条。
+ *
+ * 这条规则专门覆盖上面的全局 * { scrollbar-width: auto }。不用全局隐藏，
+ * 因为对话、侧栏和设置页仍需要可见的滚动位置反馈。
+ */
+.plugins-scroll-region {
+  scrollbar-width: none;
+}
+
+.plugins-scroll-region::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}

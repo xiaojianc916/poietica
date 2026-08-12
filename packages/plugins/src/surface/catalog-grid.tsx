@@ -73,7 +73,7 @@ function CatalogSection({ action, group }: CatalogSectionProps) {
       count={group.rows.length}
       title={group.title}
     >
-      <ul className="grid grid-cols-1 gap-1 md:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-x-8 gap-y-1 md:grid-cols-2">
         {shown.map((row) => (
           <CatalogCard action={action} key={row.key} row={row} />
         ))}
@@ -89,22 +89,22 @@ interface CatalogCardProps {
 
 function CatalogCard({ action, row }: CatalogCardProps) {
   return (
-    <li className="group flex min-w-0 items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 transition-colors hover:border-divider hover:bg-background">
-      <PluginGlyph displayName={row.displayName} id={row.id} size="sm" />
+    <li className="group flex min-w-0 items-center gap-3.5 rounded-2xl px-3 py-3 transition-colors hover:bg-muted/60">
+      <PluginGlyph displayName={row.displayName} id={row.id} size="md" />
       <div className="min-w-0 flex-1">
         {action.kind === 'plugin' ? (
           <button
-            className="block max-w-full truncate text-left text-[13px] font-medium hover:underline"
+            className="block max-w-full truncate text-left text-sm font-medium hover:underline"
             onClick={() => action.open(row.id)}
             type="button"
           >
             {row.displayName}
           </button>
         ) : (
-          <span className="block truncate text-[13px] font-medium">{row.displayName}</span>
+          <span className="block truncate text-sm font-medium">{row.displayName}</span>
         )}
         <span
-          className="block truncate pt-0.5 text-xs text-muted-foreground"
+          className="block truncate pt-0.5 text-[13px] text-muted-foreground"
           title={row.description}
         >
           {row.description}
@@ -183,7 +183,7 @@ function InstallServer({ id, onInstall }: InstallServerProps) {
       ) : (
         <input
           aria-label={server.input.label}
-          className="h-[26px] w-40 rounded-lg border border-divider bg-background px-2.5 text-xs outline-none focus:border-foreground/25"
+          className="h-7 w-40 rounded-lg bg-muted/60 px-2.5 text-xs outline-none ring-1 ring-transparent transition-[background-color,box-shadow] focus:bg-background focus:ring-foreground/10"
           onChange={(event) => setFilled(event.target.value)}
           placeholder={server.input.placeholder}
           title={server.needs}
