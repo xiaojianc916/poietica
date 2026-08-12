@@ -38,38 +38,21 @@
  */
 
 /*
- * 状态从分隔条身上读，不新增任何一处状态。
+ * 粗细只由浏览器拥有的悬停与按下状态控制。
  *
- * data-resizing 本来就写在那个 <hr> 上（写入方是 useSidebarResize），:hover
- * 与 :focus-visible 是它自己的伪类 —— :has() 把这三件事原地取走，因此不需要
- * 新的 prop、不需要 store 里的第二个布尔，拖拽期间也不会有任何一次重渲染。
- *
- * 加粗只朝盒内长：栅格列宽由 grid-template-columns 定死，与项的边框无关；
- * 侧栏内层是固定像素宽的盒，多吃的那 1px 落在行的 --ui-row-trail 内缩里。
- * 主区域一格不动，所以这一档粗细可以是即时的，不需要过渡去掩饰位移。
- */
-/*
- * 三个选择器，一档反馈。
- *
- * 此前拖拽期间比悬停再深一档。那一档没有信息量：拖拽进行中，位移本身就是
- * 反馈 —— 线跟着指针走、宽度实时变，用户已经知道自己在拖。反馈应该说人还
- * 不知道的事。它还制造了一个说不通的瞬间：按下鼠标时线会跳一次颜色，而那
- * 一刻手还没动、宽度还没变，什么都没发生。
- *
- * VS Code 的 sash 只有 sash.hoverBorder 一个颜色，按下与拖动期间不换；
- * Figma、Chrome DevTools 的面板边界同样只有一档。
- *
- * data-resizing 仍然必须在这里，但它的职责不是「更深」：指针拖出分隔条范围
- * 后 :hover 会失效，而指针捕获让拖拽继续 —— 它是同一档反馈的延长，不是新的
- * 一档。:focus-visible 同理：键盘调宽度和鼠标拖宽度是同一件事，没有理由长
- * 得不一样。
- *
- * 墨色只有这一处，改它就是改全部三个状态。
+ * 焦点和应用拖拽状态只维持原有墨色：即使 pointerup 后焦点仍在，或应用状态
+ * 收尾延迟，也不会把分隔线卡在粗线。指针仍在线上时保留 hover 加粗，离开后
+ * 立即恢复发丝宽。
  */
 .workspace-shell:has(.workspace-sidebar-splitter:hover),
 .workspace-shell:has(.workspace-sidebar-splitter:focus-visible),
+.workspace-shell:has(.workspace-sidebar-splitter:active),
 .workspace-shell:has(.workspace-sidebar-splitter[data-resizing="true"]) {
   --workspace-divider-ink: color-mix(in oklab, var(--color-foreground) 3%, var(--color-divider));
+}
+
+.workspace-shell:has(.workspace-sidebar-splitter:hover),
+.workspace-shell:has(.workspace-sidebar-splitter:active) {
   --workspace-divider-width: calc(var(--ui-region-divider-width) * 2);
 }
 
