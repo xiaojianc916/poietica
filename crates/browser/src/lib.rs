@@ -19,6 +19,8 @@ pub struct Tab {
     pub id: TabId,
     pub url: Option<String>,
     pub title: String,
+    /// 内核此刻是否在装载这一页。宿主的 on_page_load 事件驱动它。
+    pub loading: bool,
 }
 
 /// 最近关闭的一条。空白页关掉不进环 —— 重开一个空白页没有意义。
@@ -59,7 +61,9 @@ impl Tabs {
             .as_deref()
             .map_or_else(|| "新标签页".to_owned(), display_host);
 
-        self.entries.push(Tab { id, url, title });
+        let loading = url.is_some();
+
+        self.entries.push(Tab { id, url, title, loading });
         self.active = Some(id);
 
         id
@@ -116,6 +120,7 @@ impl Tabs {
 
         tab.title = display_host(url);
         tab.url = Some(url.to_owned());
+        tab.loading = true;
 
         true
     }
@@ -135,6 +140,13 @@ impl Tabs {
 
         if let Some(tab) = self.entries.iter_mut().find(|tab| tab.id == id) {
             title.clone_into(&mut tab.title);
+        }
+    }
+
+    /// 宿主报来的装载进度：Started 亮，Finished 熄。
+    pub fn note_loading(&mut self, id: TabId, loading: bool) {
+        if let Some(tab) = self.entries.iter_mut().find(|tab| tab.id == id) {
+            tab.loading = loading;
         }
     }
 
@@ -321,6 +333,19 @@ mod tests {
             tabs.entries().first().map(|tab| tab.title.as_str()),
             Some("Example Domain"),
         );
+    }
+
+    #[test]
+    fn loading_follows_navigation_and_kernel_reports() {
+        let mut tabs = Tabs::new();
+        let blank = tabs.open(None);
+        assert!(!tabs.entries().first().unwrap().loading);
+
+        tabs.navigate(blank, "https://example.com/");
+        assert!(tabs.entries().first().unwrap().loading);
+
+        tabs.note_loading(blank, false);
+        assert!(!tabs.entries().first().unwrap().loading);
     }
 
     #[test]

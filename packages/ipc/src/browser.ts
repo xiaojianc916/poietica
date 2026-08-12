@@ -82,3 +82,8 @@ export function openBrowserDevtools(id: number): Promise<void> {
 export function openBrowserUrlExternally(url: string): Promise<void> {
   return throughIpc(() => commands.windowOpenExternalUrl(url))
 }
+
+/** 内核 CDP 端点；非 Windows 或端口没抽到时为 null，mcp.json 对账用。 */
+export function browserDevtoolsEndpoint(): Promise<string | null> {
+  return throughIpc(() => commands.browserDevtoolsEndpoint())
+}

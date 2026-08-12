@@ -136,6 +136,7 @@ pub fn surface() -> Builder<Wry> {
             crate::browser::browser_set_bounds,
             crate::browser::browser_set_visible,
             crate::browser::browser_open_devtools,
+            crate::browser::browser_devtools_endpoint,
         ])
         .events(tauri_specta::collect_events![
             AutomationDue,

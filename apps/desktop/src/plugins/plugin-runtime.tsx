@@ -2,6 +2,7 @@ import { createAgentPaletteBridge } from '@poietica/ipc'
 import type { McpServerWire } from '@poietica/plugins'
 import { createPluginStore } from '@poietica/plugins'
 import { useEffect } from 'react'
+import { reconcileBrowserMcpServer } from '../browser/browser-mcp'
 
 /*
  * 市场目录在哪。
@@ -33,6 +34,10 @@ export function PluginLoader() {
   /* start() 自己幂等，也不持有订阅，所以这个 effect 没有东西要清理。 */
   useEffect(() => {
     void pluginStore.start()
+
+    // 内核的 CDP 端口每次启动随机抽，mcp.json 里的端点因此每次启动都要
+    // 重新对账；对账自己消化失败，不影响插件运行时起步。
+    void reconcileBrowserMcpServer()
   }, [])
 
   return null

@@ -75,6 +75,9 @@ export {
   type DeclaredMcpServer,
   decodeMcpConfig,
   type McpConfigDecoding,
+  mcpServerBodyInConfig,
+  removeMcpServer,
+  upsertMcpServer,
 } from './mcp-config'
 export {
   type BuiltinMcpServer,

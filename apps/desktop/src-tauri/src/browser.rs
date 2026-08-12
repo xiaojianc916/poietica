@@ -48,6 +48,7 @@ pub struct BrowserTab {
     pub id: u32,
     pub url: Option<String>,
     pub title: String,
+    pub loading: bool,
 }
 
 /// 最近关闭的一条，够画出下拉里的那一行。
@@ -75,9 +76,43 @@ pub struct BrowserHost {
     webviews: Mutex<HashMap<u32, tauri::Webview>>,
     bounds: Mutex<PanelBounds>,
     visible: Mutex<bool>,
+    /// CDP 端口。启动时抽一次，写进 WebView2 的环境参数；非 Windows 或
+    /// 端口抽取失败时为 None，agent 操控面就不存在，浏览器本体不受影响。
+    devtools_port: Option<u16>,
 }
 
 impl BrowserHost {
+    /// 抽一个 127.0.0.1 上的空闲端口给 CDP 用。
+    ///
+    /// 只能启动时抽：端口要进 WebView2 的环境参数，而环境在第一个 webview
+    /// 创建时定型。绑定成功即释放，端口在释放与内核启动之间存在被其他进程
+    /// 抢走的窗口 —— 抢走时这一次启动没有 agent 操控面，属于已声明的限制。
+    #[must_use]
+    pub fn new() -> Self {
+        let devtools_port = if cfg!(windows) {
+            match std::net::TcpListener::bind(("127.0.0.1", 0)) {
+                Ok(listener) => listener.local_addr().map(|address| address.port()).ok(),
+                Err(error) => {
+                    log::warn!("browser devtools port was not allocated: {error}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        Self {
+            devtools_port,
+            ..Self::default()
+        }
+    }
+
+    /// 内核 CDP 端点。playwright-mcp 的 --cdp-endpoint 接的就是它。
+    fn devtools_endpoint(&self) -> Option<String> {
+        self.devtools_port
+            .map(|port| format!("http://127.0.0.1:{port}"))
+    }
+
     fn snapshot(&self) -> BrowserState {
         let tabs = lock(&self.tabs);
 
@@ -89,6 +124,7 @@ impl BrowserHost {
                     id: tab.id,
                     url: tab.url.clone(),
                     title: tab.title.clone(),
+                    loading: tab.loading,
                 })
                 .collect(),
             active_tab_id: tabs.active_id(),
@@ -136,6 +172,17 @@ fn note_title(app: &AppHandle, id: u32, title: &str) {
         let host = app.state::<BrowserHost>();
         let mut tabs = lock(&host.tabs);
         tabs.note_title(id, title);
+    }
+
+    publish(app);
+}
+
+/// 内核报来的装载进度：Started 亮转圈，Finished 熄掉。
+fn note_loading(app: &AppHandle, id: u32, loading: bool) {
+    {
+        let host = app.state::<BrowserHost>();
+        let mut tabs = lock(&host.tabs);
+        tabs.note_loading(id, loading);
     }
 
     publish(app);
@@ -207,6 +254,8 @@ fn drive(app: &AppHandle, id: u32, url: &Url) {
 
     let nav_handle = app.clone();
     let title_handle = app.clone();
+    let load_handle = app.clone();
+    let open_handle = app.clone();
 
     let builder = WebviewBuilder::new(
         format!("{LABEL_PREFIX}{id}"),
@@ -219,7 +268,38 @@ fn drive(app: &AppHandle, id: u32, url: &Url) {
     })
     .on_document_title_changed(move |_webview, title| {
         note_title(&title_handle, id, title.as_ref());
+    })
+    .on_page_load(move |_webview, payload| {
+        note_loading(
+            &load_handle,
+            id,
+            matches!(payload.event(), tauri::webview::PageLoadEvent::Started),
+        );
+    })
+    .on_new_window(move |target, _features| {
+        // 页面里的 window.open 收编成新标签。在这个回调里同步建 webview 会
+        // 在 Windows 上死锁（回调占着 WebView2 的线程），所以拒掉原生窗口，
+        // 异步把同一个地址开进标签条。
+        let handle = open_handle.clone();
+        let address = target.to_string();
+
+        tauri::async_runtime::spawn(async move {
+            browser_open_tab(handle, Some(address)).await;
+        });
+
+        tauri::webview::NewWindowResponse::Deny
     });
+
+    // CDP 端口是环境级参数：第一个 webview 创建时环境定型，之后同 profile
+    // 的实例共用。默认的 msWebOOUI 关闭项要一并带上 —— additional_browser_args
+    // 是整体替换，不是追加。
+    #[cfg(windows)]
+    let builder = match app.state::<BrowserHost>().devtools_port {
+        Some(port) => builder.additional_browser_args(&format!(
+            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port}"
+        )),
+        None => builder,
+    };
 
     let bounds = *lock(&app.state::<BrowserHost>().bounds);
 
@@ -440,4 +520,58 @@ pub async fn browser_open_devtools(app: AppHandle, id: u32) {
     if let Some(webview) = webview {
         webview.open_devtools();
     }
+}
+
+/// 内核 CDP 端点，mcp.json 对账用。非 Windows 或端口没抽到时为 None。
+#[command]
+#[specta::specta]
+pub async fn browser_devtools_endpoint(app: AppHandle) -> Option<String> {
+    app.state::<BrowserHost>().devtools_endpoint()
+}
+
+/// 把内核预热出来，让 CDP 端点上有页面可听。
+///
+/// 已有活的 webview 或没有端口时是空操作。有带地址的标签就驱动第一个；
+/// 一个都没有就开一页 about:blank —— agent 拿到的是真实内核里的真实页面。
+pub fn ensure_live_kernel(app: &AppHandle) {
+    {
+        let host = app.state::<BrowserHost>();
+
+        if host.devtools_port.is_none() || !lock(&host.webviews).is_empty() {
+            return;
+        }
+    }
+
+    let driven = {
+        let host = app.state::<BrowserHost>();
+        let tabs = lock(&host.tabs);
+
+        tabs.entries().iter().find_map(|tab| {
+            tab.url
+                .as_deref()
+                .and_then(|value| Url::parse(value).ok())
+                .map(|url| (tab.id, url))
+        })
+    };
+
+    if let Some((id, url)) = driven {
+        drive(app, id, &url);
+        apply_layout(app);
+        publish(app);
+        return;
+    }
+
+    let id = {
+        let host = app.state::<BrowserHost>();
+        let mut tabs = lock(&host.tabs);
+        tabs.open(Some("about:blank".to_owned()))
+    };
+
+    let Ok(url) = Url::parse("about:blank") else {
+        return;
+    };
+
+    drive(app, id, &url);
+    apply_layout(app);
+    publish(app);
 }

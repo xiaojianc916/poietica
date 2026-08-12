@@ -186,9 +186,14 @@ async agentArchiveThread(request: AgentArchiveThreadRequest) : Promise<null> {
  * 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。ACP 为此
  * 有 session/delete，而它可不可用由 agent 在握手时自己说。
  * 
- * 三个前提缺一不可：连接还活着、这条会话确实是这个 agent 的、它声明了这
- * 项能力。都不满足就只删本地那一份 —— 并且不为此去起一个进程：删一条对话
- * 不该是拉起一个 agent 的理由。那种情况下 agent 那份会留到下次它自己清理。
+ * 当场送达要三个前提：连接还活着、这条会话确实是这个 agent 的、它声明了
+ * 这项能力。凑不齐就先记进处置账 —— 不为此去起一个进程：删一条对话不该
+ * 是拉起一个 agent 的理由。账由下一次对上这个 agent 的连接握手后冲销
+ * （runtime.rs 的 record_and_flush_disposals）。
+ * 
+ * 无项目对话还占着一个应用替它签发的工作目录（paths.rs 的
+ * create_projectless_workspace）。库里最后一条指着它的行删掉后，目录一并
+ * 回收：它与会话同寿，会话没了它就只是一个没人能再找到的空壳。
  * 
  * # Errors
  * 
@@ -957,6 +962,12 @@ async browserSetVisible(visible: boolean) : Promise<void> {
  */
 async browserOpenDevtools(id: number) : Promise<void> {
     await TAURI_INVOKE("browser_open_devtools", { id });
+},
+/**
+ * 内核 CDP 端点，mcp.json 对账用。非 Windows 或端口没抽到时为 None。
+ */
+async browserDevtoolsEndpoint() : Promise<string | null> {
+    return await TAURI_INVOKE("browser_devtools_endpoint");
 }
 }
 
@@ -1130,7 +1141,7 @@ export type AgentConfigPurpose =
 /**
  * 渲染层工作所依据的完整配置快照。
  * 
- * agents 是不透明 JSON，由 TS 侧的 @poietica/agent-registry 校验；Rust 侧
+ * agents 是不透明 JSON，由 TS 侧的 @poietica/agent-catalog 校验；Rust 侧
  * 只负责存取，不解释任何字段。
  */
 export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string; 
@@ -1675,7 +1686,7 @@ export type BrowserState = { tabs: BrowserTab[]; activeTabId: number | null; rec
 /**
  * 一个标签在渲染层眼里的样子。url 缺席 = 空白页。
  */
-export type BrowserTab = { id: number; url: string | null; title: string }
+export type BrowserTab = { id: number; url: string | null; title: string; loading: boolean }
 /**
  * 疏密同样是闭集，理由与 `ThemePreference` 逐字相同。
  */

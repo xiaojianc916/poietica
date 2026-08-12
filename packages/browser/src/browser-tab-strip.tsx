@@ -1,4 +1,4 @@
-import { ChevronDown, Globe, Plus, Search, X } from 'lucide-react'
+import { ChevronDown, Globe, LoaderCircle, Plus, Search, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import type { BrowserPanelStore } from './browser-panel-store'
@@ -53,7 +53,11 @@ export function BrowserTabStrip({ host, actions }: BrowserTabStripProps) {
                 title={tab.url ?? tab.title}
                 type="button"
               >
-                <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
+                {tab.loading ? (
+                  <LoaderCircle aria-hidden className="size-3.5 shrink-0 animate-spin opacity-60" />
+                ) : (
+                  <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
+                )}
                 <span className="min-w-0 truncate text-xs">{tab.title}</span>
               </button>
               <button

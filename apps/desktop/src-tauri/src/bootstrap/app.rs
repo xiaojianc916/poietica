@@ -215,10 +215,10 @@ pub fn build() -> tauri::Builder<Wry> {
             });
 
             /*
-             * 内置浏览器的标签宿主，进程级。webview 是懒创建的 —— 这里只放
-             * 空模型，第一次导航才碰内核。
+             * 内置浏览器的标签宿主，进程级。new() 顺手抽好 CDP 端口；webview
+             * 仍是懒创建的 —— 第一次导航或会话预热才碰内核。
              */
-            let _browser = app.manage(crate::browser::BrowserHost::default());
+            let _browser = app.manage(crate::browser::BrowserHost::new());
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;
 

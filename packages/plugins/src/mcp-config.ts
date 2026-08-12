@@ -104,6 +104,34 @@ function editServers(
   return `${JSON.stringify({ ...document, mcpServers: servers }, null, 2)}\n`
 }
 
+/** 读出一台条目的正文；文件缺席、不是合法 JSON 或没这台时给 undefined。 */
+export function mcpServerBodyInConfig(
+  contents: string | null,
+  name: string,
+): Record<string, unknown> | undefined {
+  if (contents === null) {
+    return undefined
+  }
+
+  try {
+    const document: unknown = JSON.parse(contents)
+    if (typeof document !== 'object' || document === null) {
+      return undefined
+    }
+    const servers: unknown = (document as Record<string, unknown>).mcpServers
+    if (typeof servers !== 'object' || servers === null) {
+      return undefined
+    }
+    const body: unknown = (servers as Record<string, unknown>)[name]
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+      return undefined
+    }
+    return body as Record<string, unknown>
+  } catch {
+    return undefined
+  }
+}
+
 /** 装上（或换掉）一台：条目正文整个来自调用方，别的条目一个字节不动。 */
 export function upsertMcpServer(
   contents: string | null,

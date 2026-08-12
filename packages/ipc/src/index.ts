@@ -51,6 +51,7 @@ export {
   type BrowserState,
   type BrowserTab,
   type BrowserViewportBounds,
+  browserDevtoolsEndpoint,
   browserTabBack,
   browserTabForward,
   browserTabReload,

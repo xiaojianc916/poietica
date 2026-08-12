@@ -10,6 +10,8 @@ export interface BrowserTabView {
   readonly id: number
   readonly url: string | null
   readonly title: string
+  /** 内核此刻是否在装载这一页；标签条用它把地球换成转圈。 */
+  readonly loading: boolean
 }
 
 export interface BrowserClosedTabView {

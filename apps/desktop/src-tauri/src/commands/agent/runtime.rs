@@ -220,6 +220,10 @@ pub(super) async fn ensure_session(
         None => state.root.clone(),
     };
 
+    // 会话拉起前先把浏览器内核预热出来：CDP 端点上要有页面可听，agent 的
+    // browser_* 工具才有东西可接。没有端口或已有实例时它是空操作。
+    crate::browser::ensure_live_kernel(app);
+
     // 受控 home 在这里被解析成一个环境变量。写 provider 用的是 agent 自己的
     // CLI，起会话用的是这条连接，两边必须指向同一个目录 —— 否则 provider 写
     // 进了一个 home，而对话读的是另一个：界面上 provider 添加成功，一开口却
