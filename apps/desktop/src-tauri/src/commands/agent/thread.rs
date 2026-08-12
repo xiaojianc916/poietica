@@ -432,6 +432,15 @@ pub async fn agent_fork_thread(
     request: AgentForkThreadRequest,
 ) -> AgentCommandResult<AgentThread> {
     let source = conversation(&request.thread_id)?;
+
+    /* 名字是界面按规则算好的（thread-title.ts 的 forkNameOf）；这里只做与
+    改名同一条防线：去空白、按上限截断、拒绝空名。 */
+    let title: String = request.title.trim().chars().take(TITLE_CHARS).collect();
+
+    if title.is_empty() {
+        return Err(Error::Validation("the conversation name is empty".to_owned()).into());
+    }
+
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
     if !live.can_fork_session {
@@ -482,7 +491,7 @@ pub async fn agent_fork_thread(
 
     let thread = on_index(&index, move |store| {
         let id = store
-            .fork_thread(source, &attached, &owner)
+            .fork_thread(source, &title, &attached, &owner)
             .map_err(persistence)?;
 
         store

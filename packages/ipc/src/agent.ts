@@ -416,7 +416,7 @@ export function createAgentThreadBridge({
       await throughIpc(() => commands.agentRenameThread({ threadId, title }))
     },
 
-    fork: async (threadId) => {
+    fork: async (threadId, title) => {
       const resolvedLaunch = await launch()
 
       /* 交回的行与 list 的行同形，原样交出去；打开分叉出的对话不在这里，
@@ -424,6 +424,7 @@ export function createAgentThreadBridge({
       return throughIpc(() =>
         commands.agentForkThread({
           threadId,
+          title,
           launch: nativeLaunch(resolvedLaunch),
           cwd: cwd?.() ?? null,
         }),

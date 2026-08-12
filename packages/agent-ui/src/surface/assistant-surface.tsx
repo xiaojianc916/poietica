@@ -46,6 +46,11 @@ export interface AssistantSurfaceProps {
    */
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
   /**
+   * 分叉这条对话（整条带走）。只在最后一轮的操作区亮起：ACP 的 session/fork
+   * 没有分叉点参数，从最后一轮分叉恰好就是整条。缺席 = 平台没有这个动作。
+   */
+  readonly onFork?: (() => void) | undefined
+  /**
    * 这条对话所持有的会话给出的选择器。
    *
    * 它是被交进来的，不是在这里问出来的：选择器属于会话，会话属于对话，而
@@ -88,6 +93,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   endpoint,
   git,
   identify,
+  onFork,
   onRetryControls,
   onSelectControl,
   onUserMessage,
@@ -285,6 +291,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         <TranscriptView
           excluded={blocked}
           isRestoring={assistant.isRestoring}
+          onFork={onFork}
           renderRow={renderRow}
           sessionKey={assistant.key}
         />

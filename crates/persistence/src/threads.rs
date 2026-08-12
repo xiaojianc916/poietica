@@ -88,7 +88,11 @@ impl AgentStore {
         Ok(())
     }
 
-    /// 从一条对话整行分叉：同标题、同来历、同目录、同轮数，握住分叉出的新会话。
+    /// 从一条对话分叉出新行：名字由调用方给、按用户起的名落库，目录与轮数照
+    /// 抄，握住分叉出的新会话。
+    ///
+    /// 名字记为 manual，因为序号规则只住在界面那一处（forkNameOf）；manual 不
+    /// 会被首句的派生名顶掉 —— record_prompt 只在 fallback 时改名。
     ///
     /// 一条 INSERT … SELECT 完成复制与挂接：号与主人成对落下（迁移 0012 的
     /// 触发器拒绝有号无主的行），中间不存在「行在而号不在」的一瞬。
@@ -101,7 +105,7 @@ impl AgentStore {
     /// # Errors
     ///
     /// 源对话不存在，或写入被拒时返回错误。
-    pub fn fork_thread(&self, source: Uuid, session_id: &str, agent_id: &str) -> Result<Uuid> {
+    pub fn fork_thread(&self, source: Uuid, title: &str, session_id: &str, agent_id: &str) -> Result<Uuid> {
         let id = Uuid::now_v7();
         let timestamp = now()?;
 
@@ -110,7 +114,7 @@ impl AgentStore {
                 "INSERT INTO threads
                     (id, title, title_source, created_at, updated_at, workspace_root, prompts,
                      session_id, agent_id)
-                 SELECT ?2, title, title_source, ?3, ?3, workspace_root, prompts, ?4, ?5
+                 SELECT ?2, ?6, ?7, ?3, ?3, workspace_root, prompts, ?4, ?5
                    FROM threads
                   WHERE id = ?1
               RETURNING id",
@@ -121,7 +125,9 @@ impl AgentStore {
                     id.to_string(),
                     timestamp,
                     session_id,
-                    agent_id
+                    agent_id,
+                    title,
+                    TitleSource::Manual
                 ],
                 |row| row.get::<_, String>(0),
             )?;

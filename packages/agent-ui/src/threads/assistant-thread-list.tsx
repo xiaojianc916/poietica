@@ -13,7 +13,6 @@ import {
   ExternalLink,
   FolderClosed,
   FolderOpen,
-  GitFork,
   PinOff,
 } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
@@ -99,8 +98,6 @@ export interface AssistantThreadListProps {
   readonly onPin: (threadId: string, pinned: boolean) => void
   readonly onRename?: (threadId: string, title: string) => void
   readonly onArchive?: (threadId: string) => void
-  /** 从这条对话分叉出一条新对话，源对话不动。不给就没有这个菜单项。 */
-  readonly onFork?: (threadId: string) => void
   readonly onOpenInNewTab?: (threadId: string) => void
 }
 
@@ -246,6 +243,31 @@ function RenameField({ initial, onCommit, onCancel }: RenameFieldProps) {
   )
 }
 
+/** 结尾的分叉序号，例如 (2)。 */
+const TRAILING_ORDINAL = /^(?<base>.*)(?<ordinal>\(\d+\))$/su
+
+/*
+ * 一行的标题。带分叉序号的名字拆成两段：正文那一段吃省略号，序号钉在末尾 ——
+ * 数据层的宽度上限（thread-title.ts）保证多数时候整串放得下，这里守的是侧栏
+ * 更窄的那些时刻。普通标题原样一段，不动既有样式。
+ */
+function ThreadTitle({ title }: { readonly title: string }) {
+  const matched = TRAILING_ORDINAL.exec(title)
+  const base = matched?.groups?.['base']
+  const ordinal = matched?.groups?.['ordinal']
+
+  if (base === undefined || ordinal === undefined) {
+    return <span className="assistant-thread__title">{title}</span>
+  }
+
+  return (
+    <span className="assistant-thread__title" data-ordinal="true">
+      <span className="assistant-thread__title-base">{base}</span>
+      <span className="assistant-thread__title-ordinal">{ordinal}</span>
+    </span>
+  )
+}
+
 interface ThreadRowProps {
   readonly thread: AssistantThreadSummary
   /** 已经算好的相对文案；无法解析的时刻是 null。 */
@@ -263,7 +285,6 @@ interface ThreadRowProps {
   readonly onCommitRename: (threadId: string, title: string) => void
   readonly onCancelRename: () => void
   readonly onArchive?: ((threadId: string) => void) | undefined
-  readonly onFork?: ((threadId: string) => void) | undefined
   readonly onOpenInNewTab?: ((threadId: string) => void) | undefined
 }
 
@@ -286,7 +307,6 @@ const ThreadRow = memo(function ThreadRow({
   onCommitRename,
   onCancelRename,
   onArchive,
-  onFork,
   onOpenInNewTab,
 }: ThreadRowProps) {
   /*
@@ -334,7 +354,7 @@ const ThreadRow = memo(function ThreadRow({
             }}
             type="button"
           >
-            <span className="assistant-thread__title">{thread.title}</span>
+            <ThreadTitle title={thread.title} />
           </button>
 
           {/* 时间与操作共用这一个格子，谁可见由同一个判定决定。 */}
@@ -403,17 +423,6 @@ const ThreadRow = memo(function ThreadRow({
                       <span>重命名</span>
                     </DropdownMenuItem>
                   ) : null}
-                  {onFork === undefined ? null : (
-                    <DropdownMenuItem
-                      className="assistant-thread-menu__item"
-                      onClick={() => {
-                        onFork(thread.id)
-                      }}
-                    >
-                      <GitFork aria-hidden="true" />
-                      <span>分叉对话</span>
-                    </DropdownMenuItem>
-                  )}
 
                   {onArchive === undefined ? null : (
                     <DropdownMenuItem
@@ -553,7 +562,6 @@ export function AssistantThreadList({
   onPin,
   onRename,
   onArchive,
-  onFork,
   onOpenInNewTab,
 }: AssistantThreadListProps) {
   /*
@@ -674,7 +682,6 @@ export function AssistantThreadList({
       onBeginRename={beginRename}
       onCancelRename={cancelRename}
       onCommitRename={commitRename}
-      onFork={onFork}
       onOpenInNewTab={onOpenInNewTab}
       onPin={onPin}
       thread={thread}

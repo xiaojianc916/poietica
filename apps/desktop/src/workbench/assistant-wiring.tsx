@@ -38,11 +38,14 @@ export interface AssistantWiring {
  * 转手，终点那一格拿去在 effect 里接一次线 —— 而那根线本来就不该从渲染树上走。
  */
 export interface AssistantWiringOptions {
+  /** 分叉出的对话开出来之后，去它那里 —— 与打开一条对话同一个动作。 */
+  readonly onConversationForked: (threadId: string, title: string) => void
   readonly onConversationStarted: (threadId: string, title: string) => void
   readonly session: AgentSessionPort
 }
 
 export function createAssistantWiring({
+  onConversationForked,
   onConversationStarted,
   session,
 }: AssistantWiringOptions): AssistantWiring {
@@ -63,6 +66,7 @@ export function createAssistantWiring({
 
     renderConversation: (threadId) => (
       <ConversationSurface
+        onForked={onConversationForked}
         onStarted={onConversationStarted}
         session={session}
         threadId={threadId}

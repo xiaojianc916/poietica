@@ -193,6 +193,8 @@ export function WorkspaceContainer({
   const assistant = useMemo(
     () =>
       createAssistantWiring({
+        /* 分叉出的对话就地打开：与点开列表里一条是同一个动作。 */
+        onConversationForked: startConversation,
         onConversationStarted: startConversation,
         session: agentSession,
       }),

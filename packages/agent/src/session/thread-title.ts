@@ -10,8 +10,26 @@ import type { ThreadRecord } from '@poietica/agent-contract'
 /** Shown for a conversation nothing has named yet: the words of the entry. */
 export const FALLBACK_TITLE = '新建对话'
 
-/** How much of a stand in title a tab can carry. */
-const TITLE_LIMIT = 24
+/**
+ * 名字最多占多少显示列。
+ *
+ * 此前按 UTF-16 码元数 24 截：汉字与拉丁字母在屏幕上不等宽，同一个 24 对中文
+ * 是一整句、对英文只有半句，而且 slice 会把一枚 emoji 从代理对中间切开。现在
+ * 按列数：宽字符记 2、窄字符记 1，48 列对纯中文恰好还是 24 个字，对英文翻倍。
+ * 像素级的省略号仍归 CSS —— 这里守的是落库与标签页的数据上限。
+ */
+const TITLE_COLUMNS = 48
+
+/* 切名字用字素簇（Intl.Segmenter，平台自带），不数码元：码元会切开 emoji。 */
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+/*
+ * UAX #11 East Asian Width 里稳定的宽块（CJK 表意与扩展、假名、谚文、全角形、
+ * CJK 标点），emoji 用 Extended_Pictographic 判。与 string-width 一类库同一做法；
+ * 上限差一列没有可见后果，所以不为它引依赖。
+ */
+const WIDE =
+  /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]|\p{Extended_Pictographic}/u
 
 /** Cuts a stand in title down to something a tab can show. */
 export const shorten = (text: string): string => {
@@ -21,11 +39,37 @@ export const shorten = (text: string): string => {
     return FALLBACK_TITLE
   }
 
-  if (tidy.length <= TITLE_LIMIT) {
-    return tidy
+  const graphemes = [...segmenter.segment(tidy)].map((segment) => segment.segment)
+  let used = 0
+  let kept = 0
+
+  for (const grapheme of graphemes) {
+    used += WIDE.test(grapheme) ? 2 : 1
+
+    if (used > TITLE_COLUMNS) {
+      return `${graphemes.slice(0, kept).join('')}…`
+    }
+
+    kept += 1
   }
 
-  return `${tidy.slice(0, TITLE_LIMIT)}…`
+  return tidy
+}
+
+/** 结尾的分叉序号：半角 (n)。 */
+const FORK_ORDINAL = /^(?<base>.*?)\((?<ordinal>\d+)\)$/u
+
+/**
+ * 分叉出的对话叫什么：源名加 (2)；源名自己带序号就换成下一个 —— (2) 的分叉
+ * 是 (3)，不是 (2)(2)。序号排在截断之后，所以它永远在：'122345…(2)'，省略号
+ * 只吃正文。落库按用户起的名（manual）对待，首句派生名顶不掉它。
+ */
+export const forkNameOf = (source: string): string => {
+  const matched = FORK_ORDINAL.exec(source.trim())
+  const base = matched?.groups?.['base'] ?? source
+  const next = Number(matched?.groups?.['ordinal'] ?? '1') + 1
+
+  return `${shorten(base)}(${String(next)})`
 }
 
 /**

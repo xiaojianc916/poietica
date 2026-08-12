@@ -3,7 +3,7 @@ import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import type { ThreadsList } from './thread-order'
 import { NO_ITEMS, ThreadProjection } from './thread-projection'
-import { nameOf, shorten } from './thread-title'
+import { forkNameOf, nameOf, shorten } from './thread-title'
 
 interface Held {
   readonly threads: readonly ThreadRecord[]
@@ -321,7 +321,8 @@ export class ThreadsStore {
     }
 
     try {
-      const forked = await act(threadId)
+      /* 名字此刻起：源的显示名加下一个序号，规则只有 thread-title 一处。 */
+      const forked = await act(threadId, forkNameOf(this.titleOf(threadId)))
 
       await this.refresh()
 

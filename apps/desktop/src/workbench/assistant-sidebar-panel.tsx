@@ -119,19 +119,6 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
     [threads],
   )
 
-  /* 分叉成功就打开分出的那条 —— 与 Codex 的 fork 落点一致：人留在新分支
-  里。打开走 onOpen 那条既有的路，历史由 session/load 重放。 */
-  const fork = useCallback(
-    (threadId: string) => {
-      void threads.fork(threadId).then((forkedId) => {
-        if (forkedId !== null) {
-          onOpen(forkedId, threads.titleOf(forkedId))
-        }
-      })
-    },
-    [onOpen, threads],
-  )
-
   return (
     <div className="assistant-panel">
       <AssistantThreadList
@@ -143,7 +130,6 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
         onActivate={activate}
         onArchive={archive}
         onCreate={create}
-        onFork={fork}
         onOpenInNewTab={openInNewTab}
         onPin={pin}
         onRename={rename}

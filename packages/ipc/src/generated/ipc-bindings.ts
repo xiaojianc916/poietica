@@ -1185,6 +1185,13 @@ export type AgentForkThreadRequest = {
  */
 threadId: string; 
 /**
+ * 分叉出的新对话叫什么。
+ * 
+ * 名字由界面按命名规则算好（thread-title.ts 的 forkNameOf）：源名加下一
+ * 个序号。这一侧照改名那条防线收：去空白、按上限截断、拒绝空名。
+ */
+title: string; 
+/**
  * 起哪个 agent。
  */
 launch: AgentLaunch; 

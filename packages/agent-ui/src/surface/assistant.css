@@ -1844,3 +1844,23 @@ svg.assistant-provider-icon {
   .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-current="true"] {
   background: var(--cp-hover);
 }
+
+/*
+ * 标题结尾的分叉序号钉在可见端：正文那一段吃省略号，(n) 永远在。
+ * 只在真的带序号时改布局，普通标题不动原有的省略号规则。
+ */
+[data-assistant-skin] .assistant-thread__title[data-ordinal] {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+}
+
+[data-assistant-skin] .assistant-thread__title[data-ordinal] .assistant-thread__title-base {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-assistant-skin] .assistant-thread__title[data-ordinal] .assistant-thread__title-ordinal {
+  flex: none;
+}

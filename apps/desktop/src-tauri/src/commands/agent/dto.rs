@@ -388,6 +388,11 @@ pub struct AgentThreadRequest {
 pub struct AgentForkThreadRequest {
     /// 从哪条对话分叉。
     pub thread_id: String,
+    /// 分叉出的新对话叫什么。
+    ///
+    /// 名字由界面按命名规则算好（thread-title.ts 的 forkNameOf）：源名加下一
+    /// 个序号。这一侧照改名那条防线收：去空白、按上限截断、拒绝空名。
+    pub title: String,
     /// 起哪个 agent。
     pub launch: AgentLaunch,
     /// The working directory the session is created against.

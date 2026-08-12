@@ -32,6 +32,8 @@ export interface ConversationSurfaceProps {
   readonly onStarted?: (threadId: string, title: string) => void
   readonly session: AgentSessionPort
   readonly threadId: string | null
+  /** 分叉出的对话开出来之后，去它那里 —— 与打开列表里一条是同一个动作。 */
+  readonly onForked?: ((threadId: string, title: string) => void) | undefined
   /** 只有新对话入口会交出这项。 */
   readonly workspace?: Omit<WorkspacePickerProps, 'placement'> | undefined
   /** 工作目录的分支上下文，与 workspace 同来源同去处；不是仓库就没有。 */
@@ -40,6 +42,7 @@ export interface ConversationSurfaceProps {
 
 export function ConversationSurface({
   git,
+  onForked,
   onIdentify,
   onStarted,
   session,
@@ -161,6 +164,25 @@ export function ConversationSurface({
     [onStarted, threads],
   )
 
+  /*
+   * 分叉整条对话，然后去分叉出的那一条。
+   *
+   * 名字与行由 ThreadsStore.fork 落定（命名规则在 thread-title.ts 一处）；这里
+   * 只把动作接进转录的操作区，并把分出的对话交给工作台打开。失败已由 store
+   * 记进列表那条失败横幅，这里不再说第二遍。
+   */
+  const fork = useCallback(() => {
+    if (threadId === null) {
+      return
+    }
+
+    void threads.fork(threadId).then((forked) => {
+      if (forked !== null) {
+        onForked?.(forked, threads.titleOf(forked))
+      }
+    })
+  }, [onForked, threadId, threads])
+
   return (
     <AssistantSurface
       controls={controls}
@@ -168,6 +190,7 @@ export function ConversationSurface({
       endpoint={threadId}
       git={git}
       identify={onIdentify}
+      onFork={threadId === null ? undefined : fork}
       onRetryControls={retryControls}
       onSelectControl={chooseControl}
       onUserMessage={userMessage}

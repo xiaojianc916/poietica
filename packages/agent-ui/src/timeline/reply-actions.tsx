@@ -15,6 +15,10 @@ const REPLY_ACTION_HIDE_GRACE_MS = 500
 
 export interface ReplyActionHostProps {
   readonly children: ReactNode
+  /** 这一轮是不是此刻的最后一轮。分叉只在最后一轮是真的（ACP 无分叉点）。 */
+  readonly isFinal: boolean
+  /** 分叉整条对话。缺席 = 动作不可用，按钮禁用而不是点了没反应。 */
+  readonly onFork: (() => void) | undefined
   readonly text: string
 }
 
@@ -24,7 +28,7 @@ export interface ReplyActionHostProps {
  * 显示立即发生，隐藏延后发生。重新进入、移动到工具栏内部或取得键盘
  * 焦点都会取消隐藏。计时器归这个宿主所有，卸载时一定清除。
  */
-export function ReplyActionHost({ children, text }: ReplyActionHostProps) {
+export function ReplyActionHost({ children, isFinal, onFork, text }: ReplyActionHostProps) {
   const [visible, setVisible] = useState(false)
   const hideTimer = useRef<number | undefined>(undefined)
 
@@ -71,12 +75,14 @@ export function ReplyActionHost({ children, text }: ReplyActionHostProps) {
       onPointerLeave={scheduleHide}
     >
       {children}
-      <ReplyActions text={text} />
+      <ReplyActions isFinal={isFinal} onFork={onFork} text={text} />
     </div>
   )
 }
 
 export interface ReplyActionsProps {
+  readonly isFinal: boolean
+  readonly onFork: (() => void) | undefined
   readonly text: string
 }
 
@@ -92,7 +98,20 @@ export interface ReplyActionsProps {
  * reply-actions.css 里的 :disabled 与 :hover:not(:disabled) 一起改。宁可不声明，也不声明
  * 一个自己不履行的角色。
  */
-function Actions({ text }: ReplyActionsProps) {
+/*
+ * 分叉按钮的三种说法：能分（最后一轮、动作在）、这一轮不能分（ACP 的
+ * session/fork 没有分叉点参数，只能整条带走 —— 从最后一轮分叉恰好就是整条，
+ * 中间轮因此是禁用而不是撒谎）、整个不能分（对话还没建立或平台没有这个动作）。
+ */
+const forkLabelOf = (isFinal: boolean, onFork: (() => void) | undefined): string => {
+  if (onFork !== undefined) {
+    return '分叉对话'
+  }
+
+  return isFinal ? '分叉对话（不可用）' : '暂不支持从此轮分叉'
+}
+
+function Actions({ isFinal, onFork, text }: ReplyActionsProps) {
   const { copied, copy } = useCopy(text)
   const CopyStateIcon = copied ? Check : Copy
 
@@ -109,9 +128,11 @@ function Actions({ text }: ReplyActionsProps) {
       </button>
 
       <button
-        aria-label="分叉对话（即将推出）"
+        aria-label={forkLabelOf(isFinal, onFork)}
         className="timeline-reply-actions__button"
-        disabled
+        disabled={onFork === undefined}
+        onClick={onFork}
+        title={forkLabelOf(isFinal, onFork)}
         type="button"
       >
         <Split aria-hidden="true" className="timeline-reply-actions__split-icon" />

@@ -166,8 +166,11 @@ export interface ThreadPort {
    * 从一条对话分叉出一条新对话（ACP session/fork）。历史归 agent 所有，
    * 所以这是协议动作：agent 带着完整上下文开出新会话，本地只复制一行索
    * 引，源对话原样不动。交回新对话的记录 —— 打开它走 open 那条已有的路。
+   *
+   * title 是分叉出的对话叫什么，由调用方按命名规则算好（thread-title 的
+   * forkNameOf）交进来，落库按用户起的名（manual）对待。
    */
-  readonly fork?: (threadId: ThreadId) => Promise<ThreadRecord>
+  readonly fork?: (threadId: ThreadId, title: string) => Promise<ThreadRecord>
   /** Archives or restores a conversation without deleting its history. */
   readonly archive?: (threadId: ThreadId, archived: boolean) => Promise<void>
   readonly setPinned?: (threadId: ThreadId, pinned: boolean) => Promise<void>

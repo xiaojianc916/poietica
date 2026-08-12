@@ -1,34 +1,38 @@
-# 19. 会话分叉是一个协议动作
+# 19. 分叉是协议动作，入口在每轮回复的操作区
 
-日期：2026-08-12
+日期：2026-08-12（修订）
 
 ## 状态
 
-已接受
+已接受。本修订取代初版的入口设计：初版把入口放在侧栏行菜单，而这个界面
+预留的位置一直是每轮回复下的操作区（reply-actions 的第二颗按钮）。
 
 ## 背景
 
-对话内容归 agent 所有，本地库只是索引。「带着完整上下文另起一条对话」因此无法
-在本地实现：本地没有历史可复制。ACP 为这件事提供了 UNSTABLE 的 session/fork
-（RFD session-fork）：请求与 session/load 同参，答复与 session/new 同形，能力
-由 agent 在 initialize 的 sessionCapabilities.fork 里声明。Kimi Code 的
-acp-server 已实现并声明该能力；Codex 以 codex fork / /fork 提供同语义的用户
-功能：分出新对话，源对话原样不动，人落在新分支里。
+历史归 agent 所有（本程序不存对话内容），所以分叉只能是协议动作：ACP 的
+session/fork 由 agent 带着完整上下文开出新会话，本地只复制一行索引。
+
+上游的边界要说清楚：Kimi 引擎内部支持按轮分叉（ForkSessionPayload.turnIndex，
+"Zero-based index of the user-visible turn to retain through. When omitted,
+the complete session is copied"），但那条能力只通向它自家 VS Code 扩展的私有
+桥；它的 ACP 门面调用 session.fork() 时不带任何参数，ACP 的 session/fork 请求
+里也没有分叉点字段。经 ACP，分叉今天只有一种：整条。
 
 ## 决定
 
-- 分叉走 ACP session/fork，能力经握手协商（Handshake.can_fork_session），与
-  装载、删除同一扇门。schema 的 unstable_session_fork 特性门在工作区依赖上
-  打开；类型不存在与协议不支持都在编译期或握手期暴露，不做运行时猜测。
-- 源会话必须原样变活（必要时 session/load，号不变），变不活就失败；分叉绝不
-  改写源对话的持有关系，也绝不静默降级成新建空会话 —— 这正是
-  addressing::session_for 的兜底对分叉不适用的原因。
-- 新行由一条 INSERT … SELECT … RETURNING 落库：标题、来历、目录、轮数随行
-  复制，号与主人成对（迁移 0012 的触发器），源不存在当场报错。
-- 分叉答复不携带历史；打开分叉出的对话走 agent_open_thread → session/load
-  重放。取历史只有一条管线。
+1. 入口只有一个：每轮回复下的操作区，复制按钮右边那颗。侧栏菜单不再有它。
+2. 每轮都画按钮，只亮最后一轮：从最后一轮分叉恰好等于整条分叉，是今天经
+   ACP 唯一成立的语义；中间轮禁用并写明「暂不支持从此轮分叉」。不在 IPC 上
+   铺没有消费者的 turn 字段 —— 上游门面把分叉点带上那天，从 ReplyActionHost
+   到 AgentForkThreadRequest 一条线加一个字段即可翻开。
+3. 名字规则一处（thread-title.ts 的 forkNameOf）：源显示名加下一个序号，序号
+   排在截断之后（'122345…(2)'），按 manual 落库 —— record_prompt 只在
+   fallback 时改名，分叉行不会被下一句话重新命名。
+4. 截断按显示宽度不按码元：Intl.Segmenter 分字素，UAX #11 宽字符记 2 列，上
+   限 48 列（纯中文行为不变，英文容量翻倍）。像素级省略号仍归 CSS；侧栏行把
+   结尾 (n) 钉在可见端。
 
 ## 后果
 
-侧栏行菜单获得「分叉对话」，点击后新对话自动打开。agent 未声明能力或对话没有
-可分叉的会话时，动作明确失败，不做本地模拟。
+- agent 忙碌时分叉会被上游拒绝，失败落在会话列表的失败横幅上。
+- 序号递增只对结尾是半角 (n) 的名字成立；其余名字一律从 (2) 起。

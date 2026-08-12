@@ -38,11 +38,17 @@ export interface TranscriptViewProps {
   /** 已经被输入框接管的那一道题：它不再进流，否则同一道题长在两个地方。 */
   readonly excluded?: PermissionItem | undefined
   readonly renderRow: (row: FeedRow) => ReactNode
+  /**
+   * 分叉这条对话（整条带走）。ACP 的 session/fork 没有分叉点，所以它只交给
+   * 最后一轮 —— 从最后一轮分叉恰好就是整条。缺席 = 平台没有这个动作。
+   */
+  readonly onFork?: (() => void) | undefined
 }
 
 export function TranscriptView({
   excluded,
   isRestoring,
+  onFork,
   renderRow,
   sessionKey,
 }: TranscriptViewProps) {
@@ -106,6 +112,9 @@ export function TranscriptView({
    * 缓存的所有权只能有一个，而它在派生里。
    */
   const feed = foldFeed(visibleRows, timeline.spans, opened)
+
+  /* 此刻的最后一轮：帧流按时间排，最后一行属于谁，谁就是最后一轮。 */
+  const lastTurn = visibleRows[visibleRows.length - 1]?.item.turn
 
   /*
    * 聚合排在折叠之后，两条通道各过一遍同一个函数。
@@ -191,7 +200,13 @@ export function TranscriptView({
         replyAction === undefined ? (
           rendered
         ) : (
-          <ReplyActionHost text={replyAction.text}>{rendered}</ReplyActionHost>
+          <ReplyActionHost
+            isFinal={row.item.turn === lastTurn}
+            onFork={row.item.turn === lastTurn ? onFork : undefined}
+            text={replyAction.text}
+          >
+            {rendered}
+          </ReplyActionHost>
         )
 
       /*
@@ -221,7 +236,7 @@ export function TranscriptView({
         </>
       )
     },
-    [feed.replyActions, feed.seals, grouped.groups, renderRow, sealOf],
+    [feed.replyActions, feed.seals, grouped.groups, lastTurn, onFork, renderRow, sealOf],
   )
 
   /*
