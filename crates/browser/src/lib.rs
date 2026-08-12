@@ -134,7 +134,7 @@ impl Tabs {
         }
 
         if let Some(tab) = self.entries.iter_mut().find(|tab| tab.id == id) {
-            tab.title = title.to_owned();
+            title.clone_into(&mut tab.title);
         }
     }
 
@@ -163,7 +163,6 @@ impl Tabs {
         &self.entries
     }
 
-    #[must_use]
     pub fn recently_closed(&self) -> impl Iterator<Item = &ClosedTab> {
         self.recently_closed.iter()
     }
@@ -193,9 +192,7 @@ pub fn normalize_address(input: &str) -> Option<String> {
 
     let parsed = url::Url::parse(&candidate).ok()?;
 
-    if parsed.host().is_none() {
-        return None;
-    }
+    parsed.host()?;
 
     Some(parsed.into())
 }
@@ -221,9 +218,12 @@ mod tests {
         let second = tabs.open(Some("https://example.com/".to_owned()));
 
         assert_eq!(tabs.entries().len(), 2);
-        assert_eq!(tabs.entries()[0].id, first);
+        assert_eq!(tabs.entries().first().map(|tab| tab.id), Some(first),);
         assert_eq!(tabs.active_id(), Some(second));
-        assert_eq!(tabs.entries()[1].title, "example.com");
+        assert_eq!(
+            tabs.entries().get(1).map(|tab| tab.title.as_str()),
+            Some("example.com"),
+        );
     }
 
     #[test]
@@ -265,11 +265,8 @@ mod tests {
         assert_eq!(tabs.recently_closed().count(), 0);
     }
 
-    #[test]
     fn ring_url(index: usize) -> String {
-        let mut url = String::from("https://");
-        url.push_str(&format!("site-{index}.example/"));
-        url
+        format!("https://site-{index}.example/")
     }
 
     #[test]
@@ -320,7 +317,10 @@ mod tests {
 
         tabs.note_title(id, "Example Domain");
         tabs.note_title(id, "");
-        assert_eq!(tabs.entries()[0].title, "Example Domain");
+        assert_eq!(
+            tabs.entries().first().map(|tab| tab.title.as_str()),
+            Some("Example Domain"),
+        );
     }
 
     #[test]
