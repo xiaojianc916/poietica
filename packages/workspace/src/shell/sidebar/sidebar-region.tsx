@@ -46,7 +46,7 @@ export function SidebarRegion({
       inert={!isDocked}
     >
       <div className="h-full min-h-0 w-full overflow-hidden">
-        <div className="h-full min-h-0" style={{ width }}>
+        <div className="workspace-shell__sidebar-content h-full min-h-0" style={{ width }}>
           {children}
         </div>
       </div>

@@ -82,6 +82,17 @@ let unsubscribeSample: (() => void) | null = null
 function commitSettledMode(): void {
   window.removeEventListener('resize', deferSettledMode)
 
+  /*
+   * 最小化护栏。任务栏最小化会把窗口缩成图标尺寸，WebView 将其当作真实
+   * resize 透传（实测 1303 -> 144px），断点随之翻成 narrow：还原窗口的第一帧
+   * 是被收起的侧栏，然后再当着用户的面展开一遍。低于视口下限的几何不可能
+   * 出自用户缩放 —— 丢弃采样，保持上一个已提交的模式；还原后的采样与其一
+   * 致，于是什么也不发生。
+   */
+  if (window.innerWidth < WORKSPACE_LAYOUT.breakpoints.viewportFloor) {
+    return
+  }
+
   const next = getSnapshot()
 
   if (next === settledMode) {

@@ -124,3 +124,16 @@
 .workspace-shell[data-sidebar-docked="false"] .workspace-shell__sidebar {
   border-inline-end-color: transparent;
 }
+
+/*
+ * 侧栏内容是定宽的固定面，靠外层裁剪揭示，因此提升为独立合成层。不提升时
+ * 它与主区共用分块：停靠补间每帧改一次列宽，主区整幅重排重绘，重内容界面
+ * （设置、长会话）的脏区让新露出的侧栏像素来不及栅格化，合成器只能以底色
+ * 补位 —— 整段补间呈现为「先展开一块空白，结束才变成内容」。独立成层后，
+ * 内容像素不被主区脏区作废，栅格化一次，露出即成品。代价是一块侧栏面积的
+ * 显存与一个新的包含块（侧栏内的悬浮层均经 portal 挂到 body，不受影响）；
+ * 内容不随补间失效，静止时没有每帧开销。
+ */
+.workspace-shell__sidebar-content {
+  will-change: transform;
+}
