@@ -1,9 +1,9 @@
 //! The store itself.
 //!
 //! Opening the file is all this module does. What can be asked of it lives
-//! next to the thing being asked about: threads.rs extends this same type
-//! with everything a list of conversations needs, and that is now the whole
-//! of it.
+//! next to the thing being asked about: threads.rs, attachments.rs,
+//! turn_spans.rs, workbench.rs and disposals.rs each extend this same type
+//! with the questions of their own domain.
 
 use std::path::Path;
 

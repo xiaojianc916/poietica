@@ -7,7 +7,8 @@ use crate::commands::agent_setup::profile::launch_env;
 use crate::error::{Error, Result};
 use crate::paths::attachments_root;
 use poietica_agent_runtime_native::{
-    AgentClient, AgentConnection, AgentSpawn, PermissionDesk, RunSlot, SessionBook, connect,
+    AcpError, AgentClient, AgentConnection, AgentSpawn, PermissionDesk, Refusal, RunSlot,
+    SessionBook, connect,
 };
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
@@ -343,6 +344,24 @@ pub(super) async fn ensure_session(
     /* 锚会话不必在这里补记：驱动器握手时就把它归进了册子（driver.rs 的
     `first.adopt`），而这里读的正是同一本。 */
 
+    /* 锚会话生而欠一笔删除。它只属于这条连接，而连接的终点不一定轮得到这
+    一侧说话 —— 崩溃与开发模式的热重启都没有告别，此前每一次启动因此在
+    agent 的存档里多出一条永远没人再指向的会话。所以账在出生时就落下，由
+    下一次对上这个 agent 的连接冲销；本连接还在用它（agent_capabilities 与
+    入口那格的 agent_set_config_option 都发往它），冲账时按当前在役的锚跳过。
+
+    冲账挂在握手成功之后，因为送达要的三样这一刻都在手上：活着的连接、对
+    上号的 agent、声明过的能力 —— 与 thread.rs 删除时的三前提是同一张清单。 */
+    let ledger = app.clone();
+    let courier = live.client.clone();
+    let owner = live.agent_id.clone();
+    let serving = live.anchor.clone();
+    let deliverable = live.can_delete_session;
+
+    async_runtime::spawn(async move {
+        record_and_flush_disposals(&ledger, courier, owner, serving, deliverable).await;
+    });
+
     Ok(live)
 }
 
@@ -371,4 +390,87 @@ fn lock(connection: &Mutex<Option<Connection>>) -> Result<MutexGuard<'_, Option<
     connection
         .lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))
+}
+
+/// 落下当前锚会话的账，然后把这个 agent 名下过期的账逐笔冲销。
+///
+/// 处置账是「本地已经不认、agent 侧还留着」的会话清单（persistence 的
+/// disposals.rs）：离线删除、换号、上一条连接的锚、幽灵行收割都往里记，这
+/// 里是唯一的出账口。连接刚建好、还没有一轮在飞，删几条会话花的是没人等的
+/// 时间。
+///
+/// 送达即销账；agent 答了但拒绝也销 —— 拒绝只说明它自己早就不留着，重试不
+/// 会让它更认识这个号。只有连接断了（Refusal::Gone）才把余账原样留给下一次
+/// 连接。没声明删除能力的 agent 不出账，账在表里等一个声明了能力的版本。
+///
+/// 全程只写日志不报错：这是后台清账，任何一步失败都不该打断人正在做的事，
+/// 而账还在库里，下一次连接会再来。
+async fn record_and_flush_disposals(
+    app: &AppHandle,
+    client: AgentClient,
+    agent_id: String,
+    anchor: String,
+    can_delete_session: bool,
+) {
+    let index = app.state::<crate::local_index::LocalIndex>();
+
+    let noted = {
+        let owner = agent_id.clone();
+        let born = anchor.clone();
+
+        crate::local_index::on_index(&index, move |store| {
+            store
+                .record_session_disposal(&born, &owner)
+                .map_err(crate::local_index::persistence)?;
+
+            store
+                .session_disposals(&owner)
+                .map_err(crate::local_index::persistence)
+        })
+        .await
+    };
+
+    let pending = match noted {
+        Ok(pending) => pending,
+        Err(error) => {
+            log::warn!("could not read the session disposal ledger: {error}");
+            return;
+        }
+    };
+
+    if !can_delete_session {
+        return;
+    }
+
+    for session_id in pending {
+        /* 当前在役的锚不删，别的都是过期的账。 */
+        if session_id == anchor {
+            continue;
+        }
+
+        let outcome = client.delete_session(session_id.clone()).await;
+
+        if matches!(&outcome, Err(AcpError::Refused(Refusal::Gone))) {
+            /* 连接没了，这一笔不销：余账留给下一次连接。 */
+            return;
+        }
+
+        if let Err(error) = outcome {
+            log::warn!("a deferred session disposal was refused: {error}");
+        }
+
+        let delivered = session_id;
+
+        let discharged = crate::local_index::on_index(&index, move |store| {
+            store
+                .discharge_session_disposal(&delivered)
+                .map_err(crate::local_index::persistence)
+        })
+        .await;
+
+        if let Err(error) = discharged {
+            log::warn!("could not discharge a session disposal: {error}");
+            return;
+        }
+    }
 }

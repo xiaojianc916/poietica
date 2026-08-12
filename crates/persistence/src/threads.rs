@@ -294,6 +294,58 @@ impl AgentStore {
 
         Ok(found)
     }
+
+    /// 收割幽灵行：开了、没人说过一句话、也没人看得见的对话。
+    ///
+    /// agent_open_thread 先落行再开会话，而 list_threads 按标题源把还没
+    /// 开口的行滤掉 —— 于是「点开新对话又走掉」留下的是一行永远不进列表、
+    /// 也就永远没有删除按钮的账，外加 agent 侧一条真实存在的会话和一个占
+    /// 着的工作目录。行在这里删掉（走 delete_thread，附件链接与轮次计时一
+    /// 并释放），会话号进处置账，由下一次连接送达 session/delete；目录随
+    /// 后由同一次启动对账的清扫回收（bootstrap/app.rs）。
+    ///
+    /// 只在启动对账里调用：那一刻 webview 还没执行任何脚本，不存在一条正
+    /// 被人盯着的空对话。
+    ///
+    /// # Errors
+    ///
+    /// Fails when a statement is rejected.
+    pub fn harvest_ghost_threads(&self) -> Result<usize> {
+        let ghosts = {
+            let mut statement = self.connection.prepare_cached(
+                "SELECT id, session_id, agent_id FROM threads WHERE title_source = 'fallback'",
+            )?;
+
+            statement
+                .query_map([], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                    ))
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        };
+
+        let mut harvested = 0;
+
+        for (id, session_id, agent_id) in ghosts {
+            /* 库里的 id 都是本程序写下的 UUID；认不出的行宁可留着，也不误删。 */
+            let Ok(parsed) = Uuid::parse_str(&id) else {
+                continue;
+            };
+
+            /* 号与主人成对出现（迁移 0012 的触发器），成对进账。 */
+            if let (Some(session_id), Some(agent_id)) = (&session_id, &agent_id) {
+                self.record_session_disposal(session_id, agent_id)?;
+            }
+
+            self.delete_thread(parsed)?;
+            harvested += 1;
+        }
+
+        Ok(harvested)
+    }
 }
 
 /// One conversation, as a list of conversations needs it.

@@ -150,12 +150,16 @@ pub fn build() -> tauri::Builder<Wry> {
             let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
 
             /*
-             * 无项目工作目录的启动对账，与上面 tmp 被抹一遍是同一类事：删除
-             * 对话那一刻目录可能正被占着删不掉，修复之前的版本则根本不删，
-             * 孤儿只能在这里回收。快照先于名单（paths.rs 的
-             * projectless_workspaces 写着为什么），名单与删除同在一次借用里，
-             * 引用在删的全程都精确 —— 通常删的只是几个空目录，锁内多花的是
-             * 微秒。
+             * 启动对账，与上面 tmp 被抹一遍是同一类事：只有这一刻能收拾的账。
+             *
+             * 两笔，先后有讲究。幽灵行先收：开了、没人说过一句话、也不进列
+             * 表的对话行在这里删掉，它们的会话号进处置账、由下一次连接送达
+             * session/delete（threads.rs 的 harvest_ghost_threads 写着为什
+             * 么此刻收割是安全的）。目录随后回收：快照先于名单（paths.rs 的
+             * projectless_workspaces 写着为什么），收割先于名单，是因为幽灵
+             * 行占着的目录要在这一次就被认成无主，而不是等下一次启动。名单
+             * 与删除同在一次借用里，引用在删的全程都精确 —— 通常删的只是几
+             * 个空目录，锁内多花的是微秒。
              */
             let sweeper = handle.clone();
 
@@ -173,30 +177,39 @@ pub fn build() -> tauri::Builder<Wry> {
                         )
                     })??;
 
-                    if snapshot.is_empty() {
-                        return Ok(0);
-                    }
-
                     let index = sweeper.state::<crate::local_index::LocalIndex>();
 
                     crate::local_index::on_index(&index, move |store| {
+                        let harvested = store
+                            .harvest_ghost_threads()
+                            .map_err(crate::local_index::persistence)?;
+
+                        if snapshot.is_empty() {
+                            return Ok((harvested, 0));
+                        }
+
                         let referenced = store
                             .workspace_roots()
                             .map_err(crate::local_index::persistence)?;
 
-                        Ok(paths::sweep_projectless_workspaces(snapshot, &referenced))
+                        Ok((
+                            harvested,
+                            paths::sweep_projectless_workspaces(snapshot, &referenced),
+                        ))
                     })
                     .await
                 }
                 .await;
 
                 match outcome {
-                    Ok(0) => {}
-                    Ok(swept) => {
-                        log::info!("reclaimed {swept} orphaned projectless directories");
+                    Ok((0, 0)) => {}
+                    Ok((harvested, swept)) => {
+                        log::info!(
+                            "start-up reconciliation: harvested {harvested} ghost conversations, reclaimed {swept} projectless directories"
+                        );
                     }
                     Err(error) => {
-                        log::warn!("could not reclaim orphaned projectless directories: {error}");
+                        log::warn!("could not reconcile leftover conversation state: {error}");
                     }
                 }
             });

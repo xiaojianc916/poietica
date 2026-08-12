@@ -283,9 +283,10 @@ pub async fn agent_archive_thread(
 /// 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。ACP 为此
 /// 有 session/delete，而它可不可用由 agent 在握手时自己说。
 ///
-/// 三个前提缺一不可：连接还活着、这条会话确实是这个 agent 的、它声明了这
-/// 项能力。都不满足就只删本地那一份 —— 并且不为此去起一个进程：删一条对话
-/// 不该是拉起一个 agent 的理由。那种情况下 agent 那份会留到下次它自己清理。
+/// 当场送达要三个前提：连接还活着、这条会话确实是这个 agent 的、它声明了
+/// 这项能力。凑不齐就先记进处置账 —— 不为此去起一个进程：删一条对话不该
+/// 是拉起一个 agent 的理由。账由下一次对上这个 agent 的连接握手后冲销
+/// （runtime.rs 的 record_and_flush_disposals）。
 ///
 /// 无项目对话还占着一个应用替它签发的工作目录（paths.rs 的
 /// create_projectless_workspace）。库里最后一条指着它的行删掉后，目录一并
@@ -315,28 +316,33 @@ pub async fn agent_delete_thread(
 
     let live = borrow(&state)?;
 
-    /* 持有者对不上就不发：会话号活在各自 agent 的命名空间里，把 A 的号发给
-    B，删的可能是 B 的东西。空的持有者是这一列存在之前写下的行，按本次这个
-    算 —— 与 session_for 同一条规矩，不另立一套。 */
-    let held = stored.and_then(|thread| {
-        let owner = thread.agent_id;
+    /* 号与主人成对拿走：迁移 0012 的触发器保证有号必有主，所以 zip 折不掉
+    一笔真实的账。持有者对不上就不当场发 —— 会话号活在各自 agent 的命名空
+    间里，把 A 的号发给 B，删的可能是 B 的东西。 */
+    let held = stored.and_then(|thread| thread.session_id.zip(thread.agent_id));
 
-        thread.session_id.filter(|_| {
-            live.as_ref().is_some_and(|live| {
-                live.can_delete_session
-                    && owner.as_deref().is_none_or(|agent| agent == live.agent_id)
-            })
-        })
-    });
+    /* 能当场送达就当场送达：连接活着、主人对得上、能力声明过。当场没送达
+    的进处置账，由下一次对上这个 agent 的连接握手后冲销（runtime.rs 的
+    record_and_flush_disposals）——「不为删一条对话去起进程」这条规矩保留，
+    而账不再丢。 */
+    let mut owed = held;
 
-    if let (Some(live), Some(session_id)) = (live, held)
-        && let Err(error) = live.client.delete_session(session_id).await
+    if let Some(live) = &live
+        && let Some((session_id, owner)) = owed.clone()
+        && live.can_delete_session
+        && owner == live.agent_id
     {
-        /* agent 拒绝，或者它自己也早就不留着这条会话了。本地这一份仍然要删：
-        用户按的是删除，不是「如果 agent 同意就删除」。册子那一侧不归这里管 ——
-        驱动器只在 agent 真的删了之后才销号（driver.rs 的 Settled::Deleted 判
-        outcome.is_ok），此前这一侧无论它答不答应都抹掉号。 */
-        log::warn!("could not delete the session on the agent: {error}");
+        match live.client.delete_session(session_id).await {
+            Ok(()) => owed = None,
+            /* agent 拒绝，或者它自己也早就不留着这条会话了。本地这一份仍然
+            要删：用户按的是删除，不是「如果 agent 同意就删除」。账照记 ——
+            冲账那侧送达一次后无论答复如何都销账，毒不了队列。册子那一侧不
+            归这里管：驱动器只在 agent 真的删了之后才销号（driver.rs 的
+            Settled::Deleted 判 outcome.is_ok）。 */
+            Err(error) => {
+                log::warn!("could not delete the session on the agent: {error}");
+            }
+        }
     }
 
     /* 删对话正是垃圾产生的时刻，所以回收就在这里，不另立一条定时清理。
@@ -347,6 +353,13 @@ pub async fn agent_delete_thread(
     锁：两次上锁之间那道缝里，别人读到的是「对话行没了、附件账还在」——一个
     谁都不该看见的中间态。 */
     let (orphans, released) = on_index(&index, move |store| {
+        /* 欠账与删行同一次借用落库：中间没有一道「行没了、账还没记」的缝。 */
+        if let Some((session_id, owner)) = owed {
+            store
+                .record_session_disposal(&session_id, &owner)
+                .map_err(persistence)?;
+        }
+
         store.delete_thread(id).map_err(persistence)?;
 
         let orphans = store.unreferenced_attachments().map_err(persistence)?;

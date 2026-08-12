@@ -15,6 +15,7 @@
 
 mod attachments;
 mod connection;
+mod disposals;
 mod error;
 mod migrations;
 mod store;

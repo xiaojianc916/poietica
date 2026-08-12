@@ -116,6 +116,11 @@ pub(super) async fn session_for(
     /* 走到下面新开一条时，这里说得出刚才为什么没能装载回来。 */
     let mut lost: Option<AgentHistory> = None;
 
+    /* 旧号先抄一份。往下若真的换了号，库里这一行一改指新号，旧号就再没有
+    任何人引用 —— 而它在 agent 的存档里还占着一整条会话。号与主人成对（迁
+    移 0012 的触发器），所以 zip 折不掉一笔真实的账。 */
+    let stale = session_id.clone().zip(owner.clone());
+
     if let Some(session_id) = session_id {
         /* 本次连接开出来的号，agent 此刻就认得它。
         它认得，不等于屏幕上还有东西：渲染层可以在连接活着的时候整个重来
@@ -240,6 +245,42 @@ pub(super) async fn session_for(
     }
 
     /* 同样不补记：驱动器开完会话先 ledger.open，才把号交出来。 */
+
+    /* 换了号，旧号的账在这里清。判据是 lost：只有装载失败与不支持装载那几
+    条路走到这里时它才有值，而那时库里这一行已经改指新号，旧号从此没有任何
+    人引用。主人对得上、能力也在，就当场送达；其余情形（别人的号、没有能
+    力、送达被拒）进处置账，由下一次对上那个 agent 的连接冲销（runtime.rs
+    的 record_and_flush_disposals）。记账失败只写日志：打开对话是人此刻要
+    的事，一笔没记上的账最坏的结果是一个目录多活到手动清理。 */
+    if let Some((stale_id, stale_owner)) = stale
+        && lost.is_some()
+    {
+        let owed = if stale_owner == live.agent_id && live.can_delete_session {
+            match live.client.delete_session(stale_id.clone()).await {
+                Ok(()) => None,
+                Err(error) => {
+                    log::warn!("could not delete the replaced session: {error}");
+
+                    Some((stale_id, stale_owner))
+                }
+            }
+        } else {
+            Some((stale_id, stale_owner))
+        };
+
+        if let Some((debtor, holder)) = owed {
+            let recorded = on_index(index, move |store| {
+                store
+                    .record_session_disposal(&debtor, &holder)
+                    .map_err(persistence)
+            })
+            .await;
+
+            if let Err(error) = recorded {
+                log::warn!("could not record the replaced session for disposal: {error}");
+            }
+        }
+    }
 
     Ok(Held {
         thread_id,
