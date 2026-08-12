@@ -19,7 +19,7 @@ export interface SidebarRegionProps {
  * 所有者是 workspace-layout-store；呈现由布局模式在这里派生，扩回宽屏自然
  * 还原，不需要任何东西记得「刚才是不是开着」。
  *
- * 收起只有一种形态：列宽归零，内容留在原位被裁掉，子树不卸载。手动开合与
+ * 收起只有一种形态：列宽归零，内容沿列缘整体滑出窗外，子树不卸载。手动开合与
  * 跨断点开合因此走同一条呈现管线；列宽 tween 按墙钟推进，展开的第一帧若要
  * 同步重建整棵侧栏子树，丢掉的起步帧会让动画从半程上屏——呈现为顿一下再
  * 向右跳，而不是整体变慢。
@@ -45,10 +45,14 @@ export function SidebarRegion({
       className="workspace-shell__sidebar relative z-20 min-h-0 min-w-0 overflow-visible bg-sidebar"
       inert={!isDocked}
     >
-      <div className="h-full min-h-0 w-full overflow-hidden">
-        <div className="workspace-shell__sidebar-content h-full min-h-0" style={{ width }}>
-          {children}
-        </div>
+      <div
+        className="workspace-shell__sidebar-content h-full min-h-0 overflow-hidden"
+        style={{
+          width,
+          transform: `translateX(calc(var(--workspace-sidebar-column-width, 0px) - ${width}px))`,
+        }}
+      >
+        {children}
       </div>
 
       {isDocked ? (
