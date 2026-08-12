@@ -6,11 +6,8 @@ import { useState } from 'react'
 import { pluginIconFor } from './plugin-icons'
 
 /**
- * 插件、技能与 MCP 的图形标识。
- *
- * 已知条目使用随应用打包的本地 SVG；没有网络请求，也不放宽 Tauri 的 img-src。
- * marketplace 与 agent 报来的未知条目继续使用稳定的彩色首字母。即使本地资源在
- * 开发构建中损坏，img 的错误分支也会退回首字母，而不是留下碎图。
+ * 已知插件、技能与 MCP 使用随应用打包的本地 SVG。
+ * 未知条目以及损坏的本地资源继续使用稳定的彩色首字母。
  */
 
 const SIZES = {
@@ -30,10 +27,6 @@ const SIZES = {
 
 export type PluginGlyphSize = keyof typeof SIZES
 
-/*
- * 兜底色相由 id 派生，不由显示名派生：显示名会改，id 是插件目录名或能力号。
- * 图标已知时使用图标自己的背景；未知时仍保持原有的确定性配色。
- */
 export function pluginHue(id: string): number {
   let hash = 7
 
@@ -46,6 +39,7 @@ export function pluginHue(id: string): number {
 
 function initialsOf(displayName: string): string {
   const words = displayName.split(/[\s_-]+/u).filter((word) => word !== '')
+
   const initials = words
     .slice(0, 2)
     .map((word) => [...word][0] ?? '')
@@ -68,8 +62,8 @@ export function PluginGlyph({ displayName, id, size }: PluginGlyphProps) {
 
   const hue = pluginHue(id)
   const dimensions = SIZES[size]
-  const backgroundColor = renderedIcon?.background ?? 'oklch(0.94 0.045 ' + hue + ')'
-  const foregroundColor = 'oklch(0.46 0.13 ' + hue + ')'
+  const backgroundColor = renderedIcon?.background ?? `oklch(0.94 0.045 ${hue})`
+  const foregroundColor = `oklch(0.46 0.13 ${hue})`
 
   return (
     <span

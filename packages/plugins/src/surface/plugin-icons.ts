@@ -1,28 +1,46 @@
 /* Managed by root refactor.mjs. */
 
-import automationIcon from '../assets/integration-icons/automation.svg'
-import chromeDevToolsIcon from '../assets/integration-icons/chrome-devtools.svg'
-import context7Icon from '../assets/integration-icons/context7.svg'
-import deepWikiIcon from '../assets/integration-icons/deepwiki.svg'
-import docxIcon from '../assets/integration-icons/docx.svg'
-import filesystemIcon from '../assets/integration-icons/filesystem.svg'
-import githubIcon from '../assets/integration-icons/github.svg'
-import mcpIcon from '../assets/integration-icons/mcp.svg'
-import memoryIcon from '../assets/integration-icons/memory.svg'
-import pdfIcon from '../assets/integration-icons/pdf.svg'
-import playwrightIcon from '../assets/integration-icons/playwright.svg'
-import pptxIcon from '../assets/integration-icons/pptx.svg'
-import sequentialThinkingIcon from '../assets/integration-icons/sequential-thinking.svg'
-import skillCreatorIcon from '../assets/integration-icons/skill-creator.svg'
-import xlsxIcon from '../assets/integration-icons/xlsx.svg'
-
 /*
  * 图标是界面投影，不进入插件清单、安装账本或 MCP 配置。
  *
- * 上游 marketplace 与 agent 命令表都没有统一的 icon 字段；把这张映射留在 surface，
- * 可以在不制造第二份领域事实的前提下，为已知能力提供稳定的本地图形。未知条目交回
- * PluginGlyph 的首字母兜底。
+ * 每一个 URL 都是静态的相对路径，Vite 会把对应 SVG 纳入构建产物。
+ * 这里不使用 SVG 模块默认导入，因此不需要额外的 assets.d.ts。
  */
+
+const automationIcon = new URL('../assets/integration-icons/automation.svg', import.meta.url).href
+const chromeDevToolsIcon = new URL(
+  '../assets/integration-icons/chrome-devtools.svg',
+  import.meta.url,
+).href
+const context7Icon = new URL('../assets/integration-icons/context7.svg', import.meta.url).href
+const deepWikiIcon = new URL('../assets/integration-icons/deepwiki.svg', import.meta.url).href
+const docxIcon = new URL('../assets/integration-icons/docx.svg', import.meta.url).href
+const filesystemIcon = new URL('../assets/integration-icons/filesystem.svg', import.meta.url).href
+const githubIcon = new URL('../assets/integration-icons/github.svg', import.meta.url).href
+const kimiDatasourceIcon = new URL(
+  '../assets/integration-icons/kimi-datasource.svg',
+  import.meta.url,
+).href
+const kimiWebBridgeIcon = new URL('../assets/integration-icons/kimi-webbridge.svg', import.meta.url)
+  .href
+const mcpIcon = new URL('../assets/integration-icons/mcp.svg', import.meta.url).href
+const memoryIcon = new URL('../assets/integration-icons/memory.svg', import.meta.url).href
+const modernWebGuidanceIcon = new URL(
+  '../assets/integration-icons/modern-web-guidance.svg',
+  import.meta.url,
+).href
+const pdfIcon = new URL('../assets/integration-icons/pdf.svg', import.meta.url).href
+const playwrightIcon = new URL('../assets/integration-icons/playwright.svg', import.meta.url).href
+const pptxIcon = new URL('../assets/integration-icons/pptx.svg', import.meta.url).href
+const sequentialThinkingIcon = new URL(
+  '../assets/integration-icons/sequential-thinking.svg',
+  import.meta.url,
+).href
+const skillCreatorIcon = new URL('../assets/integration-icons/skill-creator.svg', import.meta.url)
+  .href
+const superpowersIcon = new URL('../assets/integration-icons/superpowers.svg', import.meta.url).href
+const vercelIcon = new URL('../assets/integration-icons/vercel.svg', import.meta.url).href
+const xlsxIcon = new URL('../assets/integration-icons/xlsx.svg', import.meta.url).href
 
 export interface PluginIconAsset {
   readonly src: string
@@ -58,6 +76,14 @@ const ICONS = {
     src: githubIcon,
     background: '#EEF0F2',
   },
+  kimiDatasource: {
+    src: kimiDatasourceIcon,
+    background: '#E6F7FB',
+  },
+  kimiWebBridge: {
+    src: kimiWebBridgeIcon,
+    background: '#EAF2FF',
+  },
   mcp: {
     src: mcpIcon,
     background: '#F1F2F4',
@@ -65,6 +91,10 @@ const ICONS = {
   memory: {
     src: memoryIcon,
     background: '#F1ECFF',
+  },
+  modernWebGuidance: {
+    src: modernWebGuidanceIcon,
+    background: '#E8F7FF',
   },
   pdf: {
     src: pdfIcon,
@@ -86,6 +116,14 @@ const ICONS = {
     src: skillCreatorIcon,
     background: '#FFF4DD',
   },
+  superpowers: {
+    src: superpowersIcon,
+    background: '#FFF8DB',
+  },
+  vercel: {
+    src: vercelIcon,
+    background: '#F1F1F1',
+  },
   xlsx: {
     src: xlsxIcon,
     background: '#EAF7EE',
@@ -99,12 +137,27 @@ interface AliasRule {
   readonly names: readonly string[]
 }
 
-/*
- * 规则按具体程度排列：mcp-builder 必须先于通用 mcp，Chrome DevTools 与
- * Playwright 必须先于 automation。这样名字里同时出现多个能力词时，仍能得到
- * 最具体的品牌或功能图形。
- */
 const ALIASES = [
+  {
+    icon: 'kimiWebBridge',
+    names: ['kimi-webbridge', 'kimi-web-bridge', 'webbridge'],
+  },
+  {
+    icon: 'kimiDatasource',
+    names: ['kimi-datasource', 'kimi-data-source', 'datasource'],
+  },
+  {
+    icon: 'superpowers',
+    names: ['superpowers'],
+  },
+  {
+    icon: 'vercel',
+    names: ['vercel-plugin', 'vercel'],
+  },
+  {
+    icon: 'modernWebGuidance',
+    names: ['modern-web-guidance'],
+  },
   {
     icon: 'context7',
     names: ['context7'],
@@ -183,9 +236,9 @@ function normalise(value: string): string {
 function containsAlias(value: string, alias: string): boolean {
   return (
     value === alias ||
-    value.startsWith(alias + '-') ||
-    value.endsWith('-' + alias) ||
-    value.includes('-' + alias + '-')
+    value.startsWith(`${alias}-`) ||
+    value.endsWith(`-${alias}`) ||
+    value.includes(`-${alias}-`)
   )
 }
 
