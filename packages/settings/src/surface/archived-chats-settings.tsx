@@ -1,7 +1,8 @@
 import { groupByWorkspace, type ThreadsStore } from '@poietica/agent'
 import { Button, Select, type SelectOption } from '@poietica/ui'
 import { ArchiveRestore, Search, Trash2 } from 'lucide-react'
-import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import type { ConfirmationPort, ConfirmationRequest } from '../confirmation'
 import { SettingRow, SettingsGroup, SettingsPage } from './settings-primitives'
 import './archived-chats-settings.css'
 
@@ -14,6 +15,7 @@ const ARCHIVED_DATE = new Intl.DateTimeFormat('zh-CN', {
 })
 
 export interface ArchivedChatsSettingsProps {
+  readonly confirmAction: ConfirmationPort
   readonly threads: ThreadsStore
 }
 
@@ -27,7 +29,7 @@ function groupTitle(name: string | null, count: number): string {
  * 页面结构沿用设置界面的页、组、面板和行，不再为归档列表另建一套卡片语言。
  * 永久删除仍然只从这里进入，避免把高风险动作放进日常会话菜单。
  */
-export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
+export function ArchivedChatsSettings({ confirmAction, threads }: ArchivedChatsSettingsProps) {
   const snapshot = useSyncExternalStore(
     threads.subscribe,
     threads.archivedSnapshot,
@@ -51,6 +53,35 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
   const [workspaceId, setWorkspaceId] = useState('all')
   const [busyThreadId, setBusyThreadId] = useState<string | null>(null)
   const [deletingAll, setDeletingAll] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const confirmationInFlight = useRef(false)
+
+  /*
+   * 原生确认框是异步的，因此用 ref 在 React 下一次渲染前就锁住第二次点击。
+   * 对话框调用失败时按“取消”处理：不可逆操作必须失败关闭，不能降级成直接删除。
+   */
+  const requestConfirmation = useCallback(
+    async (request: ConfirmationRequest): Promise<boolean> => {
+      if (confirmationInFlight.current) {
+        return false
+      }
+
+      confirmationInFlight.current = true
+      setConfirming(true)
+
+      try {
+        return await confirmAction(request)
+      } catch (cause: unknown) {
+        console.error('[Poietica] 无法显示删除确认对话框', cause)
+
+        return false
+      } finally {
+        confirmationInFlight.current = false
+        setConfirming(false)
+      }
+    },
+    [confirmAction],
+  )
 
   const normalizedQuery = query.trim().toLocaleLowerCase()
 
@@ -87,11 +118,16 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
 
   const deleteForever = useCallback(
     async (threadId: string, title: string) => {
-      if (busyThreadId !== null) {
+      if (confirming || deletingAll || busyThreadId !== null) {
         return
       }
 
-      const confirmed = window.confirm(`永久删除“${title}”？此操作无法撤销。`)
+      const confirmed = await requestConfirmation({
+        cancelLabel: '取消',
+        message: `永久删除“${title}”？此操作无法撤销。`,
+        okLabel: '永久删除',
+        title: '永久删除聊天',
+      })
 
       if (!confirmed) {
         return
@@ -105,17 +141,20 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
         setBusyThreadId(null)
       }
     },
-    [busyThreadId, threads],
+    [busyThreadId, confirming, deletingAll, requestConfirmation, threads],
   )
 
   const deleteAll = useCallback(async () => {
-    if (deletingAll || busyThreadId !== null || snapshot.items.length === 0) {
+    if (confirming || deletingAll || busyThreadId !== null || snapshot.items.length === 0) {
       return
     }
 
-    const confirmed = window.confirm(
-      `永久删除全部 ${snapshot.items.length} 个已归档聊天？此操作无法撤销。`,
-    )
+    const confirmed = await requestConfirmation({
+      cancelLabel: '取消',
+      message: `永久删除全部 ${snapshot.items.length} 个已归档聊天？此操作无法撤销。`,
+      okLabel: '全部永久删除',
+      title: '永久删除全部已归档聊天',
+    })
 
     if (!confirmed) {
       return
@@ -130,7 +169,7 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
     } finally {
       setDeletingAll(false)
     }
-  }, [busyThreadId, deletingAll, snapshot.items, threads])
+  }, [busyThreadId, confirming, deletingAll, requestConfirmation, snapshot.items, threads])
 
   return (
     <SettingsPage>
@@ -141,7 +180,9 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
         >
           <Button
             className="archived-chats__delete-all"
-            disabled={deletingAll || busyThreadId !== null || snapshot.items.length === 0}
+            disabled={
+              confirming || deletingAll || busyThreadId !== null || snapshot.items.length === 0
+            }
             onClick={() => {
               void deleteAll()
             }}
@@ -205,7 +246,7 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
         {visibleGroups.map((group) => (
           <SettingsGroup key={group.id} title={groupTitle(group.name, group.items.length)}>
             {group.items.map((item) => {
-              const busy = busyThreadId === item.id || deletingAll
+              const busy = busyThreadId === item.id || confirming || deletingAll
 
               return (
                 <div className="archived-chats__row" key={item.id}>

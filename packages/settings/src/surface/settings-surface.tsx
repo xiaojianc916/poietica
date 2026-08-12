@@ -24,6 +24,7 @@ import {
   useState,
 } from 'react'
 import type { AgentConfigStore } from '../agent-config-store'
+import type { ConfirmationPort } from '../confirmation'
 import type { KeybindingCatalog } from '../keymap/keybinding-catalog'
 import { KeymapSettings } from '../keymap/keymap-settings'
 import { ModelsSettings } from '../models/models-settings'
@@ -72,6 +73,7 @@ interface SettingsSectionContext {
   readonly settings: AppSettings
   readonly controller: SettingsController
   readonly agentConfigStore: AgentConfigStore
+  readonly confirmAction: ConfirmationPort
   readonly threads: ThreadsStore
   readonly keybindings: KeybindingCatalog
   readonly appVersion: () => Promise<string>
@@ -102,7 +104,9 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   archived: {
     label: '已归档',
     icon: Archive,
-    render: ({ threads }) => <ArchivedChatsSettings threads={threads} />,
+    render: ({ confirmAction, threads }) => (
+      <ArchivedChatsSettings confirmAction={confirmAction} threads={threads} />
+    ),
   },
   models: {
     label: '模型',
@@ -162,6 +166,7 @@ const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
 interface SettingsSurfaceContextValue {
   readonly controller: SettingsController
   readonly agentConfigStore: AgentConfigStore
+  readonly confirmAction: ConfirmationPort
   readonly threads: ThreadsStore
   readonly keybindings: KeybindingCatalog
   readonly appVersion: () => Promise<string>
@@ -187,6 +192,8 @@ export interface SettingsProviderProps {
   readonly store: SettingsStore
   readonly agentConfigStore: AgentConfigStore
   readonly threads: ThreadsStore
+  /** 高风险操作的确认口，由组合根注入；settings 包不直接依赖 Tauri。 */
+  readonly confirmAction: ConfirmationPort
   /**
    * 当前生效的快捷键，由组合根注入。
    *
@@ -217,6 +224,7 @@ export function SettingsProvider({
   store,
   agentConfigStore,
   threads,
+  confirmAction,
   keybindings,
   appVersion,
   dataDirectory,
@@ -245,6 +253,7 @@ export function SettingsProvider({
     () => ({
       controller,
       agentConfigStore,
+      confirmAction,
       threads,
       keybindings,
       appVersion,
@@ -253,7 +262,16 @@ export function SettingsProvider({
       onSelect: setSection,
       onBack: controller.requestClose,
     }),
-    [agentConfigStore, appVersion, controller, dataDirectory, keybindings, section, threads],
+    [
+      agentConfigStore,
+      appVersion,
+      confirmAction,
+      controller,
+      dataDirectory,
+      keybindings,
+      section,
+      threads,
+    ],
   )
 
   return <SettingsSurfaceContext value={value}>{children}</SettingsSurfaceContext>
@@ -278,8 +296,16 @@ export function SettingsNavigationRegion({ footer }: SettingsNavigationRegionPro
 }
 
 export function SettingsContentRegion() {
-  const { controller, agentConfigStore, appVersion, dataDirectory, keybindings, section, threads } =
-    useSettingsSurface()
+  const {
+    controller,
+    agentConfigStore,
+    appVersion,
+    confirmAction,
+    dataDirectory,
+    keybindings,
+    section,
+    threads,
+  } = useSettingsSurface()
 
   return (
     <div aria-live="polite" className="settings-content">
@@ -311,6 +337,7 @@ export function SettingsContentRegion() {
             {SECTIONS[section].render({
               agentConfigStore,
               appVersion,
+              confirmAction,
               controller,
               dataDirectory,
               keybindings,

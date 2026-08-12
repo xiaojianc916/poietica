@@ -1,4 +1,4 @@
-export type { AgentConfigStore, SettingsStore } from '@poietica/settings'
+export type { AgentConfigStore, ConfirmationPort, SettingsStore } from '@poietica/settings'
 export { createDesktopAgentConfigStore } from './agent-config-store'
 export { readAppVersion } from './app-release'
 export {
@@ -9,6 +9,7 @@ export {
 } from './app-update'
 export { type AppUpdateState, AppUpdateStore } from './app-update-store'
 export { createAttachmentIntake } from './attachments'
+export { confirmWithNativeDialog } from './confirmation'
 export { readDataDirectory } from './data-directory'
 export {
   type NativeCrashReport,
