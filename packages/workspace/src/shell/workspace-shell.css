@@ -6,6 +6,8 @@
  * 行高由布局令牌提供，两者仍然只有一个所有者。
  */
 .workspace-shell {
+  --workspace-divider-hover-delay: 50ms;
+
   grid-template-columns:
     var(--workspace-sidebar-column-width, 0px)
     minmax(0, 1fr);
@@ -54,6 +56,14 @@
 .workspace-shell:has(.workspace-sidebar-splitter:hover),
 .workspace-shell:has(.workspace-sidebar-splitter:active) {
   --workspace-divider-width: calc(var(--ui-region-divider-width) * 2);
+}
+
+.workspace-shell:has(.workspace-sidebar-splitter:hover) .workspace-shell__sidebar::after {
+  transition-delay: 0s, var(--workspace-divider-hover-delay);
+}
+
+.workspace-shell:has(.workspace-sidebar-splitter:active) .workspace-shell__sidebar::after {
+  transition-delay: 0s;
 }
 
 /*
@@ -124,5 +134,7 @@
   inset-inline-end: 0;
   width: var(--workspace-divider-width, var(--ui-region-divider-width));
   background-color: var(--workspace-divider-ink, var(--color-divider));
-  transition: background-color var(--workspace-layout-duration) ease;
+  transition:
+    background-color var(--workspace-layout-duration) ease,
+    width 0s;
 }
