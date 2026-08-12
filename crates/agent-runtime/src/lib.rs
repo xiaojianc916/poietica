@@ -20,6 +20,7 @@
 
 mod commands;
 mod config;
+mod credentials;
 mod desk;
 mod driver;
 mod error;
@@ -35,6 +36,10 @@ mod trace;
 
 pub use commands::{AgentClient, PromptImage};
 pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, controls};
+pub use credentials::{
+    alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
+    usable_default_model,
+};
 pub use desk::PermissionDesk;
 pub use driver::connect;
 pub use error::{AcpError, Refusal, Result};

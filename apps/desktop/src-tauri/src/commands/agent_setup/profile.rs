@@ -20,6 +20,10 @@
 
 use crate::error::{Error, IpcError, Result};
 use crate::paths::{agent_home, agents_store};
+use poietica_agent_runtime_native::{
+    alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
+    usable_default_model,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
@@ -28,7 +32,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, command};
 use tauri_plugin_store::StoreExt;
-use toml_edit::{DocumentMut, Item, TableLike};
+use toml_edit::DocumentMut;
 
 type AgentConfigCommandResult<T> = std::result::Result<T, IpcError>;
 
@@ -46,7 +50,7 @@ const MCP_CONFIG_FILE: &str = "mcp.json";
 
 /// 渲染层工作所依据的完整配置快照。
 ///
-/// agents 是不透明 JSON，由 TS 侧的 @poietica/agent-registry 校验；Rust 侧
+/// agents 是不透明 JSON，由 TS 侧的 @poietica/agent-catalog 校验；Rust 侧
 /// 只负责存取，不解释任何字段。
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -522,63 +526,6 @@ pub async fn agent_config_get(app: AppHandle) -> AgentConfigCommandResult<AgentC
     .map_err(IpcError::from)
 }
 
-/// 一份 config.toml 里那一家 provider 的表。
-///
-/// 三处都要它：尾号、完整密钥、闸门那道凭据判断。同一段下钻各写一遍，就是三份
-/// 迟早走样的说法。
-fn provider_table<'a>(document: &'a DocumentMut, provider_id: &str) -> Option<&'a dyn TableLike> {
-    document
-        .get("providers")
-        .and_then(Item::as_table_like)
-        .and_then(|providers| providers.get(provider_id))
-        .and_then(Item::as_table_like)
-}
-
-/// 这一家 provider 现在配着的 `api_key`；缺席、不是字符串、或者只有空白都是 None。
-fn api_key_of(document: &DocumentMut, provider_id: &str) -> Option<String> {
-    provider_table(document, provider_id)
-        .and_then(|provider| provider.get("api_key"))
-        .and_then(Item::as_str)
-        .map(str::trim)
-        .filter(|key| !key.is_empty())
-        .map(str::to_owned)
-}
-
-/// 一把钥匙露在界面上的那几个字符。
-const TAIL_CHARS: usize = 5;
-
-/// 每个 provider 的密钥尾号：provider id → 密钥最后几个字符。
-///
-/// 读的是 TOML，不是逐行扫。此前这里手写了一套扫描规则，它为自己辩护的原话是
-/// 「为五个字符引入一个 TOML 解析器不值当」——而 `toml_edit` 本来就是这个文件的依赖
-/// （见文件头的 use），那笔成本一次都没有发生过。手写换来的是三个盲区：
-/// `strip_prefix("api_key")` 把 `api_key_id` 也当成 `api_key`，单引号写的密钥一律当没配，
-/// 段头认死 `[providers.<id>]` 而认不出带引号的键名。agent 自己读这份文件用的是真
-/// 解析器，所以每一个盲区都是同一个文件上我们与 agent 各说一套。
-///
-/// 界面的行不来自这份表（产地是 provider list），读不到时那一行只显示 id，不编。
-fn tails_from_config(text: &str) -> BTreeMap<String, String> {
-    let Ok(document) = text.parse::<DocumentMut>() else {
-        return BTreeMap::new();
-    };
-
-    let Some(providers) = document.get("providers").and_then(Item::as_table_like) else {
-        return BTreeMap::new();
-    };
-
-    providers
-        .iter()
-        .filter_map(|(provider_id, _)| {
-            let key = api_key_of(&document, provider_id)?;
-            let mut tail: Vec<char> = key.chars().rev().take(TAIL_CHARS).collect();
-
-            tail.reverse();
-
-            Some((provider_id.to_owned(), tail.into_iter().collect()))
-        })
-        .collect()
-}
-
 /// 每个已配置 provider 的密钥尾号：provider id → 密钥最后 5 个字符。
 ///
 /// 尾号的事实就在 agent 自己的 config.toml 里，与「写经谁手」无关 —— 所以是读时
@@ -606,131 +553,6 @@ pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<Strin
     std::fs::read_to_string(path)
         .map(|text| tails_from_config(&text))
         .unwrap_or_default()
-}
-
-/// 这个别名在 `models` 表里声明过没有。
-///
-/// 读与写共用它。此前写入侧内联写着这三行，读回侧一行都没有 —— 同一个键的两个方向
-/// 各带一套规则，迟早对不上，而这一次它们已经对不上了。
-fn alias_is_declared(document: &DocumentMut, alias: &str) -> bool {
-    document
-        .get("models")
-        .and_then(|models| models.as_table_like())
-        .is_some_and(|models| models.contains_key(alias))
-}
-
-/// 一份 config.toml 里那个「现在真的能开会话」的默认模型。
-///
-/// 判据不是「这个键非空」，是上游 session/new 那道闸门的判据本身：别名在 `models` 表里，
-/// 且它指向的那一家握着非 OAuth 的凭据。达不到就是 None —— 对闸门而言，一个死别名和
-/// 一个空键是同一件事，读回侧没有理由把它们说成两件。
-///
-/// 这个文件里读 config.toml 只有一条路：`text.parse::<DocumentMut>()`。读一套、写一套
-/// 是两份迟早对不上的规则，而手写的那一套已经对不上过：「扫到第一个 `[` 就停」认不出
-/// 多行字符串里的方括号，`strip_prefix("api_key")` 认不出 `api_key_id` 不是 `api_key`，
-/// 单引号写的密钥它一律当没配。agent 自己读这份文件用的是真解析器。
-fn usable_default_model(text: &str) -> Option<String> {
-    let document = text.parse::<DocumentMut>().ok()?;
-
-    let alias = document
-        .get("default_model")?
-        .as_str()
-        .filter(|alias| !alias.is_empty())?
-        .to_owned();
-
-    if !alias_is_declared(&document, &alias) || !alias_has_usable_credentials(&document, &alias) {
-        return None;
-    }
-
-    Some(alias)
-}
-
-/// 上游闸门按 provider 的 `type` 决定「密钥也可以从 env 里来」时读哪个变量名。
-///
-/// 这张表是 `providerHasNonOAuthCredentials` 那个 switch 的逐字对照
-/// （packages/agent-contract-adapter/src/server.ts）。认不出的 type 返回 None，由调用方退成宽松判断。
-fn credential_env_key(provider_type: &str) -> Option<&'static str> {
-    match provider_type {
-        "anthropic" => Some("ANTHROPIC_API_KEY"),
-        "openai" | "openai_responses" => Some("OPENAI_API_KEY"),
-        "kimi" => Some("KIMI_API_KEY"),
-        "google-genai" => Some("GOOGLE_API_KEY"),
-        "vertexai" => Some("VERTEXAI_API_KEY"),
-        _ => None,
-    }
-}
-
-/// 这个别名指向的 provider 手里有没有非 OAuth 的凭据。
-///
-/// 判据不是我们定的，是上游 session/new 的闸门定的：`hasUsableConfiguredDefaultModel`
-/// 拿 `config.models[default_model]` 解析出 provider，再要求
-/// `providerHasNonOAuthCredentials` 为真，否则配置文件里的 `api_key` 整条不算数、
-/// 一律 authRequired。所以这里照抄它的三步（packages/agent-contract-adapter/src/server.ts）：
-///
-/// 1. provider 名取模型条目里的 `provider`，缺席就退到顶层 `default_provider`；
-/// 2. 那一段 `[providers.<name>]` 存在；
-/// 3. 段里没有 `oauth`（有就直接判否，哪怕同时写着 `api_key` —— 上游第一行逐字是
-///    `if (provider.oauth !== undefined) return false`），且 `api_key` 非空，或者
-///    `env` 里那个按 `type` 决定的变量非空。
-///
-/// 键名不是猜的：上游 packages/agent-core/src/config/toml.ts 用通用的 snake/camel
-/// 互转落盘，`defaultProvider` 因此写成 `default_provider`；而 `env` 走 cloneObjectValue，
-/// 表内的键原样保留，所以变量名就是 `KIMI_API_KEY` 这种全大写形式。
-///
-/// 不复刻的只有 vertexai 那条组合分支（`GOOGLE_CLOUD_PROJECT` 加 `GOOGLE_CLOUD_LOCATION`，
-/// 或从 `base_url` 的 `-aiplatform.googleapis.com` 后缀反推区域）。那是 Google 专属，我们
-/// 的界面配不出这种 provider，抄过来就是第二份迟早与上游走样的规则。对它和任何认不出的
-/// type，退成「env 表里有任何一个非空值就放行」—— 宽松只会漏拦，不会误拦一个本来能用的
-/// 模型，而漏拦的代价正好是今天的现状，不会更差。
-fn alias_has_usable_credentials(document: &DocumentMut, alias: &str) -> bool {
-    let provider_name = document
-        .get("models")
-        .and_then(|models| models.as_table_like())
-        .and_then(|models| models.get(alias))
-        .and_then(|entry| entry.as_table_like())
-        .and_then(|entry| entry.get("provider"))
-        .and_then(|value| value.as_str())
-        .map(str::to_owned)
-        .or_else(|| {
-            document
-                .get("default_provider")
-                .and_then(|value| value.as_str())
-                .map(str::to_owned)
-        });
-
-    let Some(provider_name) = provider_name else {
-        return false;
-    };
-
-    let Some(provider) = provider_table(document, &provider_name) else {
-        return false;
-    };
-
-    if provider.get("oauth").is_some() {
-        return false;
-    }
-
-    if api_key_of(document, &provider_name).is_some() {
-        return true;
-    }
-
-    let Some(env) = provider.get("env").and_then(|env| env.as_table_like()) else {
-        return false;
-    };
-
-    match provider
-        .get("type")
-        .and_then(|value| value.as_str())
-        .and_then(credential_env_key)
-    {
-        Some(key) => env
-            .get(key)
-            .and_then(|value| value.as_str())
-            .is_some_and(|value| !value.trim().is_empty()),
-        None => env
-            .iter()
-            .any(|(_, value)| value.as_str().is_some_and(|text| !text.trim().is_empty())),
-    }
 }
 
 /// 原子写回一份配置：先写同目录的临时文件，再 rename 覆盖。
@@ -896,17 +718,6 @@ pub async fn agent_set_default_model(
         write_config_atomically(&path, &document.to_string())
     })()
     .map_err(IpcError::from)
-}
-
-/// 从一份 config.toml 的文本里取出某一家 provider 的完整密钥。
-///
-/// 与尾号同一条读法（`api_key_of`）。全局 home 与受控 home 读的是同一种文件，
-/// 各写一份解析就是给同一个格式留两个迟早走样的说法 —— 此前那两份的注释里
-/// 逐字写着「扫描规则与 `tails_from_config` 逐字相同」。
-///
-/// 密钥本体不离开这条调用链：它唯一的去处是 `agent_cli_exec` 注入子进程的环境变量。
-fn secret_from_config(text: &str, provider_id: &str) -> Option<String> {
-    api_key_of(&text.parse::<DocumentMut>().ok()?, provider_id)
 }
 
 /// 从用户自己那份 home 的 config.toml 里取出一家 provider 的完整密钥。
