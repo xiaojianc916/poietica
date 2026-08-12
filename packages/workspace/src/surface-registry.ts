@@ -15,7 +15,7 @@
  * 写不出来。「搜索」是一个动作而不是一格页面，只有这个形状表达得了它。
  */
 
-export type SurfaceIconId = 'box' | 'clock' | 'message' | 'search' | 'webhook'
+export type SurfaceIconId = 'box' | 'clock' | 'message' | 'search' | 'hat-glasses'
 
 export type SurfaceActivation =
   | { readonly kind: 'surface' }
@@ -70,10 +70,10 @@ export const SURFACE_REGISTRY = {
     navigationOrder: 2,
     activation: { kind: 'surface' },
   },
-  hooks: {
-    title: 'Hook',
-    description: '在生命周期节点注入自定义行为。',
-    iconId: 'webhook',
+  personalization: {
+    title: '个性化',
+    description: '实现Agent的个性化定制。',
+    iconId: 'hat-glasses',
     navigationOrder: 3,
     activation: { kind: 'planned' },
   },
