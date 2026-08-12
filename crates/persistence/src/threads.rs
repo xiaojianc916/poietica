@@ -88,6 +88,47 @@ impl AgentStore {
         Ok(())
     }
 
+    /// 从一条对话整行分叉：同标题、同来历、同目录、同轮数，握住分叉出的新会话。
+    ///
+    /// 一条 INSERT … SELECT 完成复制与挂接：号与主人成对落下（迁移 0012 的
+    /// 触发器拒绝有号无主的行），中间不存在「行在而号不在」的一瞬。
+    ///
+    /// prompts 一并抄走：附件与轮次计时按「从末尾对齐」的尺子认领（见
+    /// record_prompt），分叉带走完整历史，尺子的起点必须一致。updated_at
+    /// 取现在 —— 分叉是此刻的活动，新对话要浮上列表。RETURNING 让「源不存
+    /// 在」当场成为错误，而不是零行的无声成功。
+    ///
+    /// # Errors
+    ///
+    /// 源对话不存在，或写入被拒时返回错误。
+    pub fn fork_thread(&self, source: Uuid, session_id: &str, agent_id: &str) -> Result<Uuid> {
+        let id = Uuid::now_v7();
+        let timestamp = now()?;
+
+        self.connection
+            .prepare_cached(
+                "INSERT INTO threads
+                    (id, title, title_source, created_at, updated_at, workspace_root, prompts,
+                     session_id, agent_id)
+                 SELECT ?2, title, title_source, ?3, ?3, workspace_root, prompts, ?4, ?5
+                   FROM threads
+                  WHERE id = ?1
+              RETURNING id",
+            )?
+            .query_row(
+                rusqlite::params![
+                    source.to_string(),
+                    id.to_string(),
+                    timestamp,
+                    session_id,
+                    agent_id
+                ],
+                |row| row.get::<_, String>(0),
+            )?;
+
+        Ok(id)
+    }
+
     /// Reads one conversation, whether or not anything has been said in it.
     ///
     /// [`Self::list_threads`] leaves out a conversation with no runs,

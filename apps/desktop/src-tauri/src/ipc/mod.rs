@@ -20,9 +20,9 @@ use crate::browser::BrowserState;
 use crate::commands::{
     agent::dto::{
         AgentArchiveThreadRequest, AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl,
-        AgentConfigPurpose, AgentPinThreadRequest, AgentPromptRequest, AgentPromptResult,
-        AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentSelectConfigRequest,
-        AgentThreadRequest,
+        AgentConfigPurpose, AgentForkThreadRequest, AgentPinThreadRequest, AgentPromptRequest,
+        AgentPromptResult, AgentRenameThreadRequest, AgentResolvePermissionRequest,
+        AgentSelectConfigRequest, AgentThreadRequest,
     },
     agent_setup::cli::{AgentCliRequest, AgentCliResult},
     agent_setup::install::{AgentInstallState, AgentInstallStatus},
@@ -68,6 +68,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent::thread::agent_archive_thread,
             crate::commands::agent::thread::agent_delete_thread,
             crate::commands::agent::thread::agent_pin_thread,
+            crate::commands::agent::thread::agent_fork_thread,
             crate::commands::asset::asset_formats,
             crate::commands::asset::asset_session_open,
             crate::commands::asset::asset_import,
@@ -154,6 +155,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentRenameThreadRequest>()
         .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()
+        .typ::<AgentForkThreadRequest>()
         .typ::<AgentPinThreadRequest>()
         .typ::<AssetFormat>()
         .typ::<AssetSessionResult>()

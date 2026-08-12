@@ -6,10 +6,10 @@ use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    CancelNotification, ContentBlock, DeleteSessionRequest, InitializeRequest, ListSessionsRequest,
-    LoadSessionRequest, McpServer, NewSessionRequest, PromptRequest, RequestPermissionOutcome,
-    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
-    SessionConfigOption, SessionId, SessionNotification, SessionUpdate,
+    CancelNotification, ContentBlock, DeleteSessionRequest, ForkSessionRequest, InitializeRequest,
+    ListSessionsRequest, LoadSessionRequest, McpServer, NewSessionRequest, PromptRequest,
+    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    SelectedPermissionOutcome, SessionConfigOption, SessionId, SessionNotification, SessionUpdate,
     SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::{AcpAgent, AcpAgentConfig, Agent, ConnectionTo, LineDirection};
@@ -317,6 +317,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     .delete
                     .is_some();
 
+                /* 分叉同理：ACP 的 session/fork（UNSTABLE，RFD session-fork），
+                能力声明在 sessionCapabilities.fork 里。 */
+                let can_fork_session = initialized
+                    .agent_capabilities
+                    .session_capabilities
+                    .fork
+                    .is_some();
+
                 /* 锚会话不挂 MCP。它存在的理由只有一个：读回这个 agent 的选择器
                 表（见桌面 seam 的 agent_capabilities）。为它把一批 MCP 服务器拉
                 起来，是为一次只读的问答付出一堆进程和握手 —— 而它们的工具这条
@@ -368,6 +376,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     session_id: primary.to_string(),
                     can_load_session,
                     can_delete_session,
+                    can_fork_session,
                 }));
 
                 /*
@@ -448,6 +457,19 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             reply,
                         })) => {
                             jobs.push(Box::pin(load_session(
+                                &connection,
+                                ledger.clone(),
+                                session_id,
+                                cwd,
+                                reply,
+                            )));
+                        }
+                        Step::Asked(Some(Command::ForkSession {
+                            session_id,
+                            cwd,
+                            reply,
+                        })) => {
+                            jobs.push(Box::pin(fork_session(
                                 &connection,
                                 ledger.clone(),
                                 session_id,
@@ -841,6 +863,53 @@ async fn load_session(
         opened: loaded,
         reply,
     }
+}
+
+/// 让 agent 从一条已有会话分叉出一条新会话（ACP session/fork）。
+///
+/// 请求与 session/load 同参，答复与 session/new 同形（RFD session-fork），
+/// 所以收尾与 open_session 同一条规矩：新号先进册子，再交出去。
+///
+/// 没有帧要收：分叉的答复不重放历史。分叉出的对话被打开时，经过走
+/// session/load 那条已有的路取回 —— 取历史只有一条管线。
+async fn fork_session(
+    connection: &ConnectionTo<Agent>,
+    ledger: SessionBook,
+    session_id: String,
+    cwd: PathBuf,
+    reply: oneshot::Sender<Result<OpenedSession>>,
+) -> Settled {
+    /* 与装载、删除同一个理由：构造函数收的是它自己拥有的字符串。 */
+    let named = SessionId::new(Arc::<str>::from(session_id.as_str()));
+
+    let forked = connection
+        .send_request(ForkSessionRequest::new(named, cwd))
+        .block_task()
+        .await;
+
+    let opened = match forked {
+        Err(error) => Err(AcpError::Protocol {
+            message: error.to_string(),
+        }),
+        Ok(session) => {
+            let name = session.session_id.to_string();
+            let offered = match session.config_options.as_deref() {
+                Some(options) => controls(options),
+                None => Vec::new(),
+            };
+
+            // The session is entered in the book before its name is handed
+            // out, so its first frame has somewhere to go.
+            ledger.open(&name).map(|_slot| Started {
+                name,
+                named: session.session_id.clone(),
+                offered,
+                events: Vec::new(),
+            })
+        }
+    };
+
+    Settled::Opened { opened, reply }
 }
 
 /// 装载一条会话，并把 agent 重放回来的那些帧收下。

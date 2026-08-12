@@ -13,6 +13,7 @@ import {
   ExternalLink,
   FolderClosed,
   FolderOpen,
+  GitFork,
   PinOff,
 } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
@@ -98,6 +99,8 @@ export interface AssistantThreadListProps {
   readonly onPin: (threadId: string, pinned: boolean) => void
   readonly onRename?: (threadId: string, title: string) => void
   readonly onArchive?: (threadId: string) => void
+  /** 从这条对话分叉出一条新对话，源对话不动。不给就没有这个菜单项。 */
+  readonly onFork?: (threadId: string) => void
   readonly onOpenInNewTab?: (threadId: string) => void
 }
 
@@ -260,6 +263,7 @@ interface ThreadRowProps {
   readonly onCommitRename: (threadId: string, title: string) => void
   readonly onCancelRename: () => void
   readonly onArchive?: ((threadId: string) => void) | undefined
+  readonly onFork?: ((threadId: string) => void) | undefined
   readonly onOpenInNewTab?: ((threadId: string) => void) | undefined
 }
 
@@ -282,6 +286,7 @@ const ThreadRow = memo(function ThreadRow({
   onCommitRename,
   onCancelRename,
   onArchive,
+  onFork,
   onOpenInNewTab,
 }: ThreadRowProps) {
   /*
@@ -398,6 +403,17 @@ const ThreadRow = memo(function ThreadRow({
                       <span>重命名</span>
                     </DropdownMenuItem>
                   ) : null}
+                  {onFork === undefined ? null : (
+                    <DropdownMenuItem
+                      className="assistant-thread-menu__item"
+                      onClick={() => {
+                        onFork(thread.id)
+                      }}
+                    >
+                      <GitFork aria-hidden="true" />
+                      <span>分叉对话</span>
+                    </DropdownMenuItem>
+                  )}
 
                   {onArchive === undefined ? null : (
                     <DropdownMenuItem
@@ -537,6 +553,7 @@ export function AssistantThreadList({
   onPin,
   onRename,
   onArchive,
+  onFork,
   onOpenInNewTab,
 }: AssistantThreadListProps) {
   /*
@@ -657,6 +674,7 @@ export function AssistantThreadList({
       onBeginRename={beginRename}
       onCancelRename={cancelRename}
       onCommitRename={commitRename}
+      onFork={onFork}
       onOpenInNewTab={onOpenInNewTab}
       onPin={onPin}
       thread={thread}
@@ -669,7 +687,7 @@ export function AssistantThreadList({
         <section className="assistant-threads__section">
           <ThreadSectionHeader
             isOpen={isPinOpen}
-            label="Pined"
+            label="Pinned"
             onToggle={() => {
               setPinOpen((open) => !open)
             }}

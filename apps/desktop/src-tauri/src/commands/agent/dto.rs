@@ -379,6 +379,21 @@ pub struct AgentThreadRequest {
     pub thread_id: String,
 }
 
+/// 要分叉的对话，以及必要时怎样启动 agent。
+///
+/// 带 launch 与 cwd，因为分叉的第一步可能要把 agent 起起来、把源会话装载成
+/// 本次连接上活的地址 —— 与打开一条对话要说清的是同一批事。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentForkThreadRequest {
+    /// 从哪条对话分叉。
+    pub thread_id: String,
+    /// 起哪个 agent。
+    pub launch: AgentLaunch,
+    /// The working directory the session is created against.
+    pub cwd: Option<String>,
+}
+
 /// A conversation being archived or restored.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]

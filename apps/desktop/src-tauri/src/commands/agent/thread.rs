@@ -6,20 +6,21 @@ use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::{agent_home, remove_projectless_workspace};
 use poietica_agent_persistence_native::TitleSource;
+use std::path::PathBuf;
 use tauri::{AppHandle, State, async_runtime};
 
 use super::addressing::{Held, Wanted, session_for};
 use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
-    AgentArchiveThreadRequest, AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest,
-    AgentRenameThreadRequest, AgentThread, AgentThreadRequest, AgentTitleSource, AgentTurnSpan,
-    FALLBACK_THREAD_TITLE, NO_THREAD,
+    AgentArchiveThreadRequest, AgentForkThreadRequest, AgentOpenThreadRequest, AgentOpenedThread,
+    AgentPinThreadRequest, AgentRenameThreadRequest, AgentThread, AgentThreadRequest,
+    AgentTitleSource, AgentTurnSpan, FALLBACK_THREAD_TITLE, NO_THREAD,
 };
 use super::failure::translate;
 use super::kimi_state::sync_kimi_archive_state;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
-use super::{AgentCommandResult, NO_ANSWER, TITLE_CHARS};
+use super::{AgentCommandResult, NO_ANSWER, NO_FORK, NOTHING_TO_FORK, TITLE_CHARS};
 
 /// Lists the stored conversations, newest first.
 ///
@@ -401,6 +402,97 @@ pub async fn agent_delete_thread(
     });
 
     Ok(())
+}
+
+/// 从一条对话分叉出一条新对话（ACP session/fork），源对话原样不动。
+///
+/// 历史归 agent 所有，本地只有索引，所以「带着完整上下文另起一条」是协议
+/// 动作，不是本地复制。Codex 的 fork 同一个语义：分出的那条从此各走各的。
+///
+/// 寻址不走 session_for：那条规则在装载不成时会新开一条空会话并改写持有
+/// 关系，对打开与提问那是正确的兜底，对分叉则是把「分叉」静默降级成「新
+/// 建」。这里的规矩相反 —— 源会话必须原样变活（还不活就 session/load，号
+/// 不变），变不活就明说失败，源对话的持有关系一个字都不改。
+///
+/// 分叉出的新号与新行在同一句 SQL 里落库（fork_thread：号与主人成对）。
+/// 打开它走 agent_open_thread 那条已有的路，历史由 session/load 重放 ——
+/// 取历史只有一条管线。
+///
+/// # Errors
+///
+/// Fails when the agent cannot be started, when it does not declare session
+/// forking, when the conversation has no session this agent holds, or when
+/// the fork or the database write is refused.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_fork_thread(
+    app: AppHandle,
+    state: State<'_, AgentRuntime>,
+    index: State<'_, LocalIndex>,
+    request: AgentForkThreadRequest,
+) -> AgentCommandResult<AgentThread> {
+    let source = conversation(&request.thread_id)?;
+    let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
+
+    if !live.can_fork_session {
+        return Err(Error::Validation(NO_FORK.to_owned()).into());
+    }
+
+    let stored = on_index(&index, move |store| store.thread(source).map_err(persistence))
+        .await?
+        .ok_or_else(|| Error::Validation(NOTHING_TO_FORK.to_owned()))?;
+
+    /* 号与主人成对（迁移 0012），对不上当前连接的 agent 就不发：会话号活
+    在各自 agent 的命名空间里。 */
+    let held = stored
+        .session_id
+        .zip(stored.agent_id)
+        .filter(|(_session, owner)| *owner == live.agent_id)
+        .map(|(session, _owner)| session)
+        .ok_or_else(|| Error::Validation(NOTHING_TO_FORK.to_owned()))?;
+
+    /* 目录是对话的属性，不是这一刻的选择 —— 与 addressing 同一条规矩。 */
+    let workspace = match stored.workspace_root {
+        Some(path) => PathBuf::from(path),
+        None => state.root.clone(),
+    };
+
+    /* 上次运行留下的号先原样装载成活地址；装载失败就失败，不换号。 */
+    let known = live.book.slot(&held).map_err(translate)?.is_some();
+
+    if !known {
+        if !live.can_load_session {
+            return Err(Error::Validation(NOTHING_TO_FORK.to_owned()).into());
+        }
+
+        live.client
+            .load_session(held.clone(), workspace.clone())
+            .await
+            .map_err(translate)?;
+    }
+
+    let forked = live
+        .client
+        .fork_session(held, workspace)
+        .await
+        .map_err(translate)?;
+
+    let attached = forked.session_id;
+    let owner = live.agent_id.clone();
+
+    let thread = on_index(&index, move |store| {
+        let id = store
+            .fork_thread(source, &attached, &owner)
+            .map_err(persistence)?;
+
+        store
+            .thread(id)
+            .map_err(persistence)?
+            .ok_or_else(|| Error::Validation(NO_THREAD.to_owned()))
+    })
+    .await?;
+
+    Ok(retitle(thread))
 }
 
 /// Holds a conversation at the top of the list, or releases it.

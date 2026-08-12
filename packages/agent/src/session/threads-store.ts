@@ -306,6 +306,33 @@ export class ThreadsStore {
     await this.#settle(act(threadId, named))
   }
 
+  /**
+   * 从一条对话分叉出一条新对话，交回新对话的 id；分叉不动源对话。
+   *
+   * 没有乐观更新可做：新行由平台产出（号与行在原生侧同一句里落库），
+   * refresh 把它带进列表。打开它由调用方走既有的打开管线 —— 这里不留
+   * 第二条。
+   */
+  fork = async (threadId: string): Promise<string | null> => {
+    const act = this.#port?.fork
+
+    if (act === undefined) {
+      return null
+    }
+
+    try {
+      const forked = await act(threadId)
+
+      await this.refresh()
+
+      return forked.threadId
+    } catch (reason) {
+      this.#commit({ failure: describeFailure(reason) })
+
+      return null
+    }
+  }
+
   remove = async (threadId: string): Promise<void> => {
     const act = this.#port?.remove
 

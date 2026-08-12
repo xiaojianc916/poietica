@@ -172,7 +172,7 @@ impl fmt::Debug for AgentConnection {
 
 /// 握手谈成之后才知道的事。
 ///
-/// 两件都只有 agent 说了算，而且都只在这一刻说一次。
+/// 每一件都只有 agent 说了算，而且都只在这一刻说一次。
 #[derive(Debug, Clone)]
 pub struct Handshake {
     /// 这条连接自带的那个会话的名字。
@@ -185,6 +185,11 @@ pub struct Handshake {
     /// 对面还在。那不是删除，是隐藏。这一件同样只有 agent 说了算，而且只在
     /// 握手这一刻说一次：它在 `sessionCapabilities.delete` 里。
     pub can_delete_session: bool,
+    /// agent 会不会从一条已有会话分叉出一条新会话（ACP session/fork，UNSTABLE）。
+    ///
+    /// 与删除同一条规矩：只有 agent 说了算，声明在 sessionCapabilities.fork
+    /// 里，只在握手这一刻说一次。
+    pub can_fork_session: bool,
 }
 
 /// A session the agent just opened, and the selectors it offers for it.

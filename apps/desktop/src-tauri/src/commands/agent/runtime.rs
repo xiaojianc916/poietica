@@ -41,6 +41,8 @@ struct Connection {
     can_load_session: bool,
     /// 这个 agent 会不会删掉一条会话。同样是握手问出来的。
     can_delete_session: bool,
+    /// 这个 agent 会不会分叉一条会话。同样是握手问出来的。
+    can_fork_session: bool,
     /// 这条连接锚会话的记录槽。
     ///
     /// 它的语义是一条会话：driver 建立连接时把它 adopt 到锚会话名下，别的会话
@@ -166,6 +168,8 @@ pub(super) struct Handle {
     pub(super) can_load_session: bool,
     /// 这个 agent 会不会删掉一条会话。删除要按它分路。
     pub(super) can_delete_session: bool,
+    /// 这个 agent 会不会分叉一条会话。分叉要按它把关。
+    pub(super) can_fork_session: bool,
     /// 这条连接的权限台。
     pub(super) desk: PermissionDesk,
     /// 这条连接的会话册子 —— 驱动器路由帧读的就是它。
@@ -319,6 +323,7 @@ pub(super) async fn ensure_session(
     let session_id = handshake.session_id;
     let can_load_session = handshake.can_load_session;
     let can_delete_session = handshake.can_delete_session;
+    let can_fork_session = handshake.can_fork_session;
 
     /* 没有第二个人可以到这里，所以也没有谁需要认输：闸还在手里，而写
     这把锁的地方整个模块只有这一处。此前这里有一条"输家把自己起的进程还
@@ -330,6 +335,7 @@ pub(super) async fn ensure_session(
         anchor: session_id.clone(),
         can_load_session,
         can_delete_session,
+        can_fork_session,
         slot: slot.clone(),
         desk: desk.clone(),
         book: book.clone(),
@@ -341,6 +347,7 @@ pub(super) async fn ensure_session(
         anchor: session_id.clone(),
         can_load_session,
         can_delete_session,
+        can_fork_session,
         desk,
         book,
     };
@@ -379,6 +386,7 @@ pub(super) fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> 
         anchor: live.anchor.clone(),
         can_load_session: live.can_load_session,
         can_delete_session: live.can_delete_session,
+        can_fork_session: live.can_fork_session,
         desk: live.desk.clone(),
         book: live.book.clone(),
     }))

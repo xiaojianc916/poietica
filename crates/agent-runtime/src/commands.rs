@@ -64,6 +64,15 @@ pub(crate) enum Command {
         cwd: PathBuf,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
+    /// 让 agent 从一条已有会话分叉出一条新会话。
+    ///
+    /// 历史归 agent 所有，本地只有索引，所以「带着完整上下文另起一条」只能
+    /// 是协议动作：ACP 的 session/fork 就是为它设的。源会话原样不动。
+    ForkSession {
+        session_id: String,
+        cwd: PathBuf,
+        reply: oneshot::Sender<Result<OpenedSession>>,
+    },
     /// 让 agent 删掉一条它自己存着的会话。
     ///
     /// 删除对话不是本地的事：agent 那侧存着同一条对话的全文。ACP 的
@@ -192,6 +201,29 @@ impl AgentClient {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::LoadSession {
+            session_id,
+            cwd,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
+    }
+
+    /// Forks a session the agent keeps into a new, independent one.
+    ///
+    /// 号原样交过去，agent 带着完整上下文开出一条新会话交回来 —— 源会话
+    /// 原样不动。只有在 agent 于握手时声明了这项能力时才该调用它。
+    ///
+    /// # Errors
+    ///
+    /// Fails when the connection is gone, or when the agent refuses to fork
+    /// that session.
+    pub async fn fork_session(&self, session_id: String, cwd: PathBuf) -> Result<OpenedSession> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::ForkSession {
             session_id,
             cwd,
             reply,

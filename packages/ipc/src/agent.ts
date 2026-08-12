@@ -416,6 +416,20 @@ export function createAgentThreadBridge({
       await throughIpc(() => commands.agentRenameThread({ threadId, title }))
     },
 
+    fork: async (threadId) => {
+      const resolvedLaunch = await launch()
+
+      /* 交回的行与 list 的行同形，原样交出去；打开分叉出的对话不在这里，
+      走 open 那条已有的路。 */
+      return throughIpc(() =>
+        commands.agentForkThread({
+          threadId,
+          launch: nativeLaunch(resolvedLaunch),
+          cwd: cwd?.() ?? null,
+        }),
+      )
+    },
+
     remove: async (threadId) => {
       await throughIpc(() => commands.agentDeleteThread({ threadId }))
     },

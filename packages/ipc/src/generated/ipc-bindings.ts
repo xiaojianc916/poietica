@@ -215,6 +215,30 @@ async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_pin_thread", { request });
 },
 /**
+ * 从一条对话分叉出一条新对话（ACP session/fork），源对话原样不动。
+ * 
+ * 历史归 agent 所有，本地只有索引，所以「带着完整上下文另起一条」是协议
+ * 动作，不是本地复制。Codex 的 fork 同一个语义：分出的那条从此各走各的。
+ * 
+ * 寻址不走 session_for：那条规则在装载不成时会新开一条空会话并改写持有
+ * 关系，对打开与提问那是正确的兜底，对分叉则是把「分叉」静默降级成「新
+ * 建」。这里的规矩相反 —— 源会话必须原样变活（还不活就 session/load，号
+ * 不变），变不活就明说失败，源对话的持有关系一个字都不改。
+ * 
+ * 分叉出的新号与新行在同一句 SQL 里落库（fork_thread：号与主人成对）。
+ * 打开它走 agent_open_thread 那条已有的路，历史由 session/load 重放 ——
+ * 取历史只有一条管线。
+ * 
+ * # Errors
+ * 
+ * Fails when the agent cannot be started, when it does not declare session
+ * forking, when the conversation has no session this agent holds, or when
+ * the fork or the database write is refused.
+ */
+async agentForkThread(request: AgentForkThreadRequest) : Promise<AgentThread> {
+    return await TAURI_INVOKE("agent_fork_thread", { request });
+},
+/**
  * 收得下的格式清单。系统文件对话框的过滤器按它来。
  * 
  * 这条命令存在的唯一理由，是扩展名那张表不该有第二份。一个进程只问一次
@@ -1149,6 +1173,25 @@ export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string;
  * agents.json 中存在但无法反序列化的内容。界面应显示出来。
  */
 issues: string[] }
+/**
+ * 要分叉的对话，以及必要时怎样启动 agent。
+ * 
+ * 带 launch 与 cwd，因为分叉的第一步可能要把 agent 起起来、把源会话装载成
+ * 本次连接上活的地址 —— 与打开一条对话要说清的是同一批事。
+ */
+export type AgentForkThreadRequest = { 
+/**
+ * 从哪条对话分叉。
+ */
+threadId: string; 
+/**
+ * 起哪个 agent。
+ */
+launch: AgentLaunch; 
+/**
+ * The working directory the session is created against.
+ */
+cwd: string | null }
 /**
  * 这一次打开，屏幕上应该出现什么。
  * 

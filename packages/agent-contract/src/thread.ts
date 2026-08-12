@@ -161,6 +161,13 @@ export interface ThreadPort {
   /** Renames one. The name becomes the user's and outlives the agent's. */
   readonly rename?: (threadId: ThreadId, title: string) => Promise<void>
   readonly remove?: (threadId: ThreadId) => Promise<void>
+
+  /**
+   * 从一条对话分叉出一条新对话（ACP session/fork）。历史归 agent 所有，
+   * 所以这是协议动作：agent 带着完整上下文开出新会话，本地只复制一行索
+   * 引，源对话原样不动。交回新对话的记录 —— 打开它走 open 那条已有的路。
+   */
+  readonly fork?: (threadId: ThreadId) => Promise<ThreadRecord>
   /** Archives or restores a conversation without deleting its history. */
   readonly archive?: (threadId: ThreadId, archived: boolean) => Promise<void>
   readonly setPinned?: (threadId: ThreadId, pinned: boolean) => Promise<void>

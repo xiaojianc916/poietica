@@ -105,3 +105,12 @@ const IMAGE_OPENER: &str = "[图片]";
 ///
 /// 这不是兜底：会话是在打开这条对话时才握上的，查不到恰好是「没有什么可停的」。
 const NOTHING_TO_STOP: &str = "that conversation is not running";
+
+/// 这个 agent 在握手时没有声明会话分叉（ACP session/fork）。
+const NO_FORK: &str = "this agent does not support forking sessions";
+
+/// 分叉要有一条真实持有、且属于当前 agent 的会话。
+///
+/// 还没人开口的对话没有会话；会话在别的 agent 手里的，号发过去只会换回
+/// UnknownSession。两种都不该被静默降级成「新建一条空对话」。
+const NOTHING_TO_FORK: &str = "that conversation has no session this agent could fork";
