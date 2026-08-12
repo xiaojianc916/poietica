@@ -4,7 +4,9 @@ import { describeInstallSource, type PluginInstallSource } from '../install-sour
 import type { InstalledPlugin } from '../installation'
 import type { MarketplaceEntry } from '../marketplace'
 import type { ResolvedMcpServer } from '../mcp-servers'
+import type { InstalledSkill } from '../skill'
 import { BUILTIN_SERVERS } from './builtin'
+import { BUILTIN_SKILLS } from './builtin-skills'
 import type { CatalogChannel } from './scope'
 
 /*
@@ -210,6 +212,34 @@ export function personalPluginRows(
         source: undefined,
       }),
     )
+}
+
+/*
+ * 内置技能名单的行。「已装」的判据：目录名与内置号相同 —— 技能用目录名当号，安装时
+ * 前言名与内置号一致（名单来源即 anthropics 官方目录名）。
+ */
+export function builtinSkillRows(
+  installed: readonly InstalledSkill[],
+  needle: string,
+): readonly CatalogRow[] {
+  const present = new Set(installed.map((skill) => skill.dirName))
+
+  return BUILTIN_SKILLS.filter((skill) =>
+    matches(needle, skill.displayName, skill.id, skill.description),
+  ).map(
+    (skill): CatalogRow => ({
+      key: `skill/${skill.id}`,
+      id: skill.id,
+      displayName: skill.displayName,
+      description: skill.description,
+      channel: 'builtin',
+      group: skill.group,
+      status: present.has(skill.id)
+        ? { kind: 'installed', installedVersion: undefined, catalogVersion: undefined }
+        : { kind: 'installable' },
+      source: skill.source,
+    }),
+  )
 }
 
 /*

@@ -100,9 +100,7 @@ function matches(title: string, url: string | null, needle: string): boolean {
     return true
   }
 
-  return (
-    title.toLowerCase().includes(needle) || (url?.toLowerCase().includes(needle) ?? false)
-  )
+  return title.toLowerCase().includes(needle) || (url?.toLowerCase().includes(needle) ?? false)
 }
 
 interface BrowserTabListProps extends BrowserTabStripProps {

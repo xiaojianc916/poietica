@@ -9,6 +9,7 @@ pub mod git;
 pub mod plugins;
 pub mod process;
 pub mod settings;
+pub mod skills;
 pub mod storage;
 pub mod table;
 pub mod updates;

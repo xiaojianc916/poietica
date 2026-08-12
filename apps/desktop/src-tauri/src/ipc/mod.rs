@@ -41,6 +41,7 @@ use crate::commands::{
         ForeignPluginLedger, ForeignPluginRecord, PluginCommitRequest, PluginFetch, PluginPayload,
         PluginStaged,
     },
+    skills::{SkillCommitRequest, SkillPayload, SkillStaged},
     settings::{AppSettings, PrivacySettings},
     updates::{UpdateProgress, UpdateRelease},
 };
@@ -91,6 +92,11 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::plugins::plugins_set_enabled,
             crate::commands::plugins::plugins_set_mcp_enabled,
             crate::commands::plugins::plugins_stage,
+            crate::commands::skills::skills_commit,
+            crate::commands::skills::skills_discard,
+            crate::commands::skills::skills_list,
+            crate::commands::skills::skills_remove,
+            crate::commands::skills::skills_stage,
             crate::commands::diagnostics::diagnostics_take_previous_crash,
             crate::commands::window::window_open_devtools,
             crate::commands::window::window_open_external_url,
@@ -165,6 +171,9 @@ pub fn surface() -> Builder<Wry> {
         .typ::<PluginStaged>()
         .typ::<PluginCommitRequest>()
         .typ::<PluginPayload>()
+        .typ::<SkillPayload>()
+        .typ::<SkillStaged>()
+        .typ::<SkillCommitRequest>()
         .typ::<NativeCrashReport>()
         .typ::<AppSettings>()
         .typ::<PrivacySettings>()

@@ -2,17 +2,22 @@ import type { AgentPalettePort, PaletteEntry } from '@poietica/agent-contract'
 import { assertUnreachable, createPreference, warn } from '@poietica/core'
 import {
   commitPlugin,
+  commitSkill,
   discardStagedPlugin,
+  discardStagedSkill,
   listForeignPlugins,
   listPlugins,
+  listSkills,
   readEnvironmentMcpConfig,
   readMcpEndpoint,
   readPluginCatalog,
   refreshPluginCatalog,
   removePlugin,
+  removeSkill,
   setPluginEnabled,
   setPluginMcpEnabled,
   stagePlugin,
+  stageSkill,
   writeEnvironmentMcpConfig,
 } from '@poietica/ipc'
 import { planFetch } from './fetch-plan'
@@ -44,6 +49,7 @@ import {
 import { type BuiltinMcpServer, type ResolvedMcpServer, resolveMcpServers } from './mcp-servers'
 import type { ManagedOrigin } from './origin'
 import { createSnapshotCache } from './registry/snapshot'
+import { decodeSkillPayload, type InstalledSkill, parseSkillFrontmatter } from './skill'
 
 /**
  * 「装了什么、开没开、市场上有什么」的唯一持有者。
@@ -92,6 +98,13 @@ export interface PluginsViewModel {
   readonly foreign: readonly ForeignPlugin[]
   readonly marketplace: MarketplaceState
   readonly install: InstallFlow
+  /**
+   * 受控 home 的 skills/ 目录里装着的技能。目录即账本，这一格是它的投影：palette 回答
+   * 「会话里能调用什么」，这一格回答「这里装了什么」，两个问题两份答案，互不替代。
+   */
+  readonly skills: readonly InstalledSkill[]
+  /** 技能安装的进行时。没有确认步：一键装完，失败原因落在这里。 */
+  readonly skillInstall: InstallFlow
   /**
    * 探测完成的时刻。空串表示屏幕上这一份还是快照，真相没到。
    *
@@ -178,6 +191,13 @@ export interface PluginStore {
   readonly confirmInstall: () => void
   readonly cancelInstall: () => void
   readonly refreshMarketplace: () => void
+  /**
+   * 装一个技能：取件、解压、按前言取名、落进 skills/<name>/。一键到底，无确认步 ——
+   * 技能是提示词文本，不带可执行面，风险档比插件低一级。
+   */
+  readonly installSkill: (source: PluginInstallSource) => void
+  /** 卸载：删掉 skills/<name>/。名单上有它的卡片会拨回「可安装」。 */
+  readonly removeInstalledSkill: (name: string) => void
 }
 
 export interface PluginStoreOptions {
@@ -294,6 +314,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     foreign: [],
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
+    skills: [],
+    skillInstall: INSTALL_IDLE,
     detectedAt: restored.detectedAt,
     loaded: false,
   }
@@ -317,6 +339,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    * 就能回答「我还是不是当前这一次」—— 不是就丢掉，而不是把确认框又拽回来。
    */
   let installEpoch = 0
+
+  /* 受控 home 的 skills/ 目录里装着的。目录即账本，这里是投影。 */
+  let installedSkills: readonly InstalledSkill[] = []
 
   /*
    * 收下 agent 报来的命令表。
@@ -396,6 +421,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       mcpServers: resolveMcpServers({ builtin: builtinServers(), environment, plugins }),
       /* 两边都装着的不算「别处装过」：那一条已经在上面的 plugins 里了。 */
       foreign: foreignRecords.filter((record) => !here.has(record.pluginId)),
+      skills: installedSkills,
       loaded: true,
     })
   }
@@ -498,6 +524,13 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     const payloads = await listPlugins()
 
     scanned = payloads.map(scan)
+  }
+
+  /* 技能装了什么，skills/ 目录说了算：一个含 SKILL.md 的子目录是一个技能。 */
+  async function rescanSkills(): Promise<void> {
+    const payloads = await listSkills()
+
+    installedSkills = payloads.map(decodeSkillPayload)
   }
 
   /*
@@ -667,12 +700,15 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
       queue = queue.then(async () => {
         /*
-         * 五趟互不依赖，一起等而不是排成五趟：每一趟都只读，写的只是各自那个模块级
-         * 变量，所以并发跑不会互相盖。首屏因此是一趟往返的时间，不是五趟。
+         * 六趟互不依赖，一起等而不是排成六趟：每一趟都只读，写的只是各自那个模块级
+         * 变量，所以并发跑不会互相盖。首屏因此是一趟往返的时间，不是六趟。
          */
         await Promise.all([
           guard('插件列表读取失败', rescan, () => {
             scanned = []
+          }),
+          guard('技能目录读不出来', rescanSkills, () => {
+            installedSkills = []
           }),
           guard('命令行上那本插件账读不出来', readForeign, () => {
             foreignRecords = []
@@ -896,6 +932,70 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           warn('暂存目录没能清掉', { scope: 'plugins', cause })
         }
       })
+    },
+
+    installSkill(source) {
+      const planning = planFetch(source)
+
+      if (planning.kind === 'unplannable') {
+        publish({ skillInstall: { kind: 'refused', reason: planning.reason } })
+
+        return
+      }
+
+      const epoch = ++installEpoch
+
+      publish({ skillInstall: { kind: 'staging', source } })
+
+      const subdirectory = planning.plan.kind === 'archive' ? planning.plan.subdirectory : null
+
+      queue = queue.then(async () => {
+        try {
+          const staged = await stageSkill(planning.plan)
+
+          if (epoch !== installEpoch) {
+            await discardStagedSkill(staged.stagingId)
+
+            return
+          }
+
+          /* 名字取自前言，缺席回落到子目录名。原生侧落盘前还会验一遍安全性。 */
+          const fallback = subdirectory?.split('/').pop() ?? 'skill'
+          const name = parseSkillFrontmatter(staged.skillMd).name || fallback
+
+          await commitSkill({ stagingId: staged.stagingId, name, subdirectory })
+
+          publish({ skillInstall: INSTALL_IDLE })
+        } catch (cause: unknown) {
+          publish({
+            skillInstall: {
+              kind: 'refused',
+              reason: cause instanceof Error ? cause.message : String(cause),
+            },
+          })
+
+          return
+        }
+
+        try {
+          await rescanSkills()
+
+          republish()
+        } catch (cause: unknown) {
+          warn('技能装好了，目录读不回来', { scope: 'plugins', cause })
+        }
+      })
+    },
+
+    removeInstalledSkill(name) {
+      commit(
+        '技能没能从目录里删掉，界面因此不动',
+        async () => {
+          await removeSkill(name)
+          await rescanSkills()
+        },
+        republish,
+      )
     },
 
     /* 目录换了背书就可能变，所以拉完要再投一次。 */

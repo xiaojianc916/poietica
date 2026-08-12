@@ -96,6 +96,16 @@ export {
   setPluginMcpEnabled,
   stagePlugin,
 } from './plugins'
+export {
+  commitSkill,
+  discardStagedSkill,
+  listSkills,
+  removeSkill,
+  type SkillCommitRequest,
+  type SkillPayload,
+  type SkillStaged,
+  stageSkill,
+} from './skills'
 export { readWorkbenchSession, writeWorkbenchSession } from './workbench'
 export {
   createProjectlessWorkspace,

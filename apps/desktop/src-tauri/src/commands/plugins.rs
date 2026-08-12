@@ -153,7 +153,7 @@ fn record_file(app: &AppHandle) -> Result<PathBuf> {
 ///
 /// 放在 plugins/ 里面而不是系统临时目录：认领那一步是一次 rename，跨卷会失败，而
 /// 系统临时目录经常在另一个卷上。
-fn staging_root(app: &AppHandle) -> Result<PathBuf> {
+pub(crate) fn staging_root(app: &AppHandle) -> Result<PathBuf> {
     let directory = store_root(app)?.join(STAGING_DIRECTORY);
 
     fs::create_dir_all(&directory)?;
@@ -248,7 +248,7 @@ fn disabled_servers(entry: &Map<String, Value>) -> Vec<String> {
     names
 }
 
-async fn download(url: &str) -> Result<Vec<u8>> {
+pub(crate) async fn download(url: &str) -> Result<Vec<u8>> {
     let mut response = reqwest::get(url).await.map_err(plugin_failure)?;
 
     if !response.status().is_success() {

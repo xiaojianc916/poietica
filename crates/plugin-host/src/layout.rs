@@ -78,6 +78,28 @@ fn unwrap_single_directory(extracted: &Path) -> PathBuf {
     }
 }
 
+/// 技能目录的判据文件。技能没有清单，SKILL.md 本身就是身份。
+pub const SKILL_FILENAME: &str = "SKILL.md";
+
+/// 解出来的那一堆东西里，技能的根在哪。
+///
+/// 与下面插件那一版同构，判据换成 SKILL.md。脱壳（单目录包一层）复用同一个探针，
+/// 不写第二份。
+pub fn locate_skill_root(extracted: &Path, subdirectory: Option<&str>) -> Result<PathBuf> {
+    let unwrapped = unwrap_single_directory(extracted);
+
+    let root = match subdirectory {
+        Some(relative) => resolve_inside(&unwrapped, relative)?,
+        None => unwrapped,
+    };
+
+    if root.join(SKILL_FILENAME).is_file() {
+        Ok(root)
+    } else {
+        Err(HostError::ManifestMissing)
+    }
+}
+
 /// 解出来的那一堆东西里，插件的根在哪。
 ///
 /// subdirectory 是仓库里的一段路径。一个仓库装多个插件是目录型市场的常态 ——

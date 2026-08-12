@@ -3,11 +3,12 @@ import { assertUnreachable } from '@poietica/core'
 import { Button, Switch } from '@poietica/ui'
 import { useState, useSyncExternalStore } from 'react'
 
-import { builtinServerRows, groupRows, matches } from '../catalog/listing'
+import { builtinServerRows, builtinSkillRows, groupRows, matches } from '../catalog/listing'
 import { latestCatalog } from '../marketplace'
 import type { ResolvedMcpServer } from '../mcp-servers'
 import { describeOrigin, type ManagedOrigin } from '../origin'
 import type { PluginStore } from '../plugin-store'
+import type { InstalledSkill } from '../skill'
 import { CatalogGrid } from './catalog-grid'
 import { ContributionList, type ContributionRow } from './contribution-list'
 import { PluginBrowser } from './plugin-browser'
@@ -186,13 +187,33 @@ function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyP
           store={store}
         />
       )
-    case 'skills':
+    case 'skills': {
+      const managed = new Set(view.skills.map((skill) => `skill:${skill.dirName}`))
+
       return (
-        <ContributionList
-          empty="还没有探测到技能。技能由 agent 在会话建立后报来，开一段对话再回来看。"
-          rows={skills.map(skillRow).filter((row) => matches(needle, row.title, row.detail))}
-        />
+        <>
+          {view.skillInstall.kind === 'staging' && (
+            <p className="pt-4 text-xs text-muted-foreground">正在安装技能…</p>
+          )}
+          {view.skillInstall.kind === 'refused' && (
+            <p className="pt-4 text-xs text-red-500">{view.skillInstall.reason}</p>
+          )}
+          <ContributionList
+            empty="还没有探测到技能。技能由 agent 在会话建立后报来，装一个内置技能也会出现在这里。"
+            rows={[
+              ...view.skills.map((skill) => installedSkillRow(skill, store)),
+              ...skills.filter((entry) => !managed.has(entry.name)).map(skillRow),
+            ].filter((row) => matches(needle, row.title, row.detail))}
+          />
+          <CatalogGrid
+            groups={groupRows(builtinSkillRows(view.skills, needle))}
+            onInstall={store.installSkill}
+            onInstallServer={undefined}
+            onOpen={undefined}
+          />
+        </>
       )
+    }
     case 'mcp':
       return (
         <>
@@ -212,6 +233,23 @@ function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyP
       )
     default:
       return assertUnreachable(tab)
+  }
+}
+
+/*
+ * 装在受控 home 里的一个技能。移除即删目录；已开着的会话不受影响，新会话不再装载。
+ */
+function installedSkillRow(skill: InstalledSkill, store: PluginStore): ContributionRow {
+  return {
+    key: `installed/${skill.dirName}`,
+    title: skill.manifest.name,
+    detail: skill.manifest.description ?? '这个技能没有写说明。装好后由新会话装载。',
+    badge: '已安装',
+    trailing: (
+      <Button onClick={() => store.removeInstalledSkill(skill.dirName)} size="xs" variant="ghost">
+        移除
+      </Button>
+    ),
   }
 }
 

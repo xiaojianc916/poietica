@@ -481,6 +481,36 @@ async pluginsStage(fetch: PluginFetch) : Promise<PluginStaged> {
     return await TAURI_INVOKE("plugins_stage", { fetch });
 },
 /**
+ * 认领：暂存里的技能根搬进 skills/<name>/。同名目录被原子换掉，重装即覆盖。
+ */
+async skillsCommit(request: SkillCommitRequest) : Promise<null> {
+    return await TAURI_INVOKE("skills_commit", { request });
+},
+/**
+ * 丢掉一份暂存（安装取消或失败后的清理）。
+ */
+async skillsDiscard(stagingId: string) : Promise<null> {
+    return await TAURI_INVOKE("skills_discard", { stagingId });
+},
+/**
+ * 扫 skills/ 目录：每个含 SKILL.md 的子目录是一个技能。
+ */
+async skillsList() : Promise<SkillPayload[]> {
+    return await TAURI_INVOKE("skills_list");
+},
+/**
+ * 卸载：删掉 skills/<name>/。目录不在视为成功，删除因此幂等。
+ */
+async skillsRemove(name: string) : Promise<null> {
+    return await TAURI_INVOKE("skills_remove", { name });
+},
+/**
+ * 取件到暂存区：与插件安装同一条管线，判据换成 SKILL.md。
+ */
+async skillsStage(fetch: PluginFetch) : Promise<SkillStaged> {
+    return await TAURI_INVOKE("skills_stage", { fetch });
+},
+/**
  * Returns and consumes the previous native process crash report.
  * 
  * The renderer receives a bounded DTO, not an arbitrary filesystem path or
@@ -1775,6 +1805,23 @@ export type ProviderProbeVerdict =
  * 超时、连不上、或其它状态码。关于密钥本身什么都不能下结论。
  */
 "unreachable"
+export type SkillCommitRequest = { stagingId: string; 
+/**
+ * 落盘的目录名。渲染层从前言里读出，这一侧只验安全性。
+ */
+name: string; subdirectory: string | null }
+/**
+ * 一个装好的技能。前言由渲染层解析，这里只交 SKILL.md 原文。
+ */
+export type SkillPayload = { 
+/**
+ * 目录名，同时是 /skill:<name> 的调用名。
+ */
+name: string; skillMd: string }
+/**
+ * 已解到暂存区、等认领的一份。
+ */
+export type SkillStaged = { stagingId: string; skillMd: string }
 export type TableExportFormat = "csv" | "markdown"
 export type TableExportRequest = { content: string; format: TableExportFormat }
 /**
