@@ -150,11 +150,14 @@ export interface PluginStore {
   /**
    * 读账本、读环境、问内置那台的地址、取市场目录，然后投一次屏幕。
    *
-   * 不返回停表函数：订阅归 subscribe 所有，start 一个也没建，所以它没有东西可停。交回
-   * 一个 listeners.clear() 会把别人的订阅一并清掉，而 React 在开发期必然会挂载—卸载—
-   * 再挂载一次。重复调用是幂等的。
+   * 交回首扫的落定：账本、mcp.json 与内置端点读完并投屏之时。MCP 名册在开会话那一刻
+   * 被采样、此后不再重挂，所以开会话的人要先等到它 —— 而市场目录是网络往返，不在这份
+   * 落定里：开一条对话不该等一次 CDN。
+   *
+   * 不返回停表函数：订阅归 subscribe 所有，start 一个也没建，所以它没有东西可停。
+   * 重复调用是幂等的，交回同一份落定。
    */
-  readonly start: () => void
+  readonly start: () => Promise<void>
   readonly setEnabled: (pluginId: string, enabled: boolean) => void
   /**
    * 拨动一台服务器。
@@ -321,8 +324,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    */
   let queue: Promise<void> = Promise.resolve()
 
-  /* 开发期的挂载—卸载—再挂载会让 start() 被调用两次。第二次什么也不做。 */
-  let started = false
+  /* 首扫的落定。开发期的挂载—卸载—再挂载会让 start() 被调用两次：交回同一份。 */
+  let ready: Promise<void> | null = null
 
   /*
    * 安装的世代号。
@@ -684,11 +687,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     start() {
-      if (started) {
-        return
+      if (ready !== null) {
+        return ready
       }
-
-      started = true
 
       queue = queue.then(async () => {
         /*
@@ -715,19 +716,30 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         ])
 
         /*
+         * 本地真相先上屏。MCP 名册与已装清单只依赖上面那六趟，而名册在开会话那一刻
+         * 被采样、此后不再重挂 —— 它的就绪不能排在一次网络往返之后。
+         */
+        republish()
+      })
+
+      ready = queue
+
+      queue = queue.then(async () => {
+        /*
          * 只有从来没取过才自动拉一次，这条判据由 shouldFetchOnOpen 一个地方说了算，
-         * 而它要等 loadCatalog 落定才问得出来。
-         *
-         * 这里必须 await：背书是拿账本里的 originalSource 回目录里查出来的，目录没到
-         * 时每一条都只能是「没有背书」，所以最后那次 republish 必须排在目录之后。
+         * 而它要等 loadCatalog 落定才问得出来。背书是拿账本里的 originalSource 回目录
+         * 里查出来的，目录到了要再投一次 —— 但开一条对话不等这一趟网络。
          */
         if (shouldFetchOnOpen(snapshot.marketplace)) {
           await fetchCatalog()
+
+          republish()
         }
 
-        republish()
         cache.write(snapshot.palette, latestCatalog(snapshot.marketplace)?.fetchedAt ?? '')
       })
+
+      return ready
     },
 
     setEnabled(pluginId, enabled) {

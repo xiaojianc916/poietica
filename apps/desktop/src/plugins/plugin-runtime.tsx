@@ -7,7 +7,7 @@ import { useEffect } from 'react'
  * 市场目录在哪。
  *
  * 官方那一个：上游 apps/kimi-code/src/constant/app.ts 里
- * KIMI_CODE_PLUGIN_MARKETPLACE_URL = \`\${KIMI_CODE_CDN_BASE}/plugins/marketplace.json\`，
+ * KIMI_CODE_PLUGIN_MARKETPLACE_URL = `${KIMI_CODE_CDN_BASE}/plugins/marketplace.json`，
  * 而 KIMI_CODE_CDN_BASE 是 https://code.kimi.com/kimi-code；官方文档
  * docs/{zh,en}/configuration/env-vars.md 把同一串逐字写在
  * KIMI_CODE_PLUGIN_MARKETPLACE_URL 一节里。
@@ -32,7 +32,7 @@ export const pluginStore = createPluginStore({
 export function PluginLoader() {
   /* start() 自己幂等，也不持有订阅，所以这个 effect 没有东西要清理。 */
   useEffect(() => {
-    pluginStore.start()
+    void pluginStore.start()
   }, [])
 
   return null
@@ -45,11 +45,14 @@ export function PluginLoader() {
  * capabilities.mcpServers.<名字>.enabled 就是 /plugins mcp disable 写的那一格），机器上
  * 那份 mcp.json 里的同理 —— 本应用再送一遍，同一台服务器会被起两次。
  *
- * 是一次求值，不是一个值：桥在启动时就建好，而内置那台的端口可能还没绑上、开关也随时
- * 会被拨 —— 捕获建桥那一刻的答案，等于把第一帧的猜测钉死一整个进程。与 launch 和 cwd
- * 同一条规矩。
+ * 先等首扫落定，再采样。名册只在开会话那一刻被送进 session/new，此后不再重挂：启动
+ * 早期抽到空名册的会话从此永远没有 MCP，重启后 session/load 恢复的也是那份空。start()
+ * 幂等且交回的正是这份落定，所以这里没有第二个就绪信号。开关此后随时会被拨，所以仍是
+ * 每次开会话求值一次，不缓存。
  */
-export function activeMcpServers(): readonly McpServerWire[] {
+export async function activeMcpServers(): Promise<readonly McpServerWire[]> {
+  await pluginStore.start()
+
   const { mcpServers } = pluginStore.getSnapshot()
 
   return mcpServers.flatMap((server) =>

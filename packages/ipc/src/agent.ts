@@ -109,9 +109,10 @@ export interface AgentBridgeOptions {
    * 所以线上形状就是契约（原生侧 driver.rs 为图片块立的是同一条规矩）。
    *
    * 与 launch 和 cwd 同一条规矩：交的是一次求值，不是一个值。插件随时会被装上
-   * 或拨掉，而桥在启动时就建好了。
+   * 或拨掉，而桥在启动时就建好了。求值允许异步 —— 名册的第一份真相要等插件库
+   * 首扫落定，与 launch 允许 Promise 是同一个理由。
    */
-  readonly mcpServers?: () => readonly JsonValue[]
+  readonly mcpServers?: () => readonly JsonValue[] | Promise<readonly JsonValue[]>
 }
 
 /**
@@ -222,7 +223,7 @@ export function createAgentCommandBridge({
           })),
           launch: nativeLaunch(resolvedLaunch),
           cwd: cwd?.() ?? null,
-          mcpServers: [...(mcpServers?.() ?? [])],
+          mcpServers: [...((await mcpServers?.()) ?? [])],
         }),
       )
 
@@ -404,7 +405,7 @@ export function createAgentThreadBridge({
           threadId: threadId ?? null,
           launch: nativeLaunch(resolvedLaunch),
           cwd: workspaceRoot ?? cwd?.() ?? null,
-          mcpServers: [...(mcpServers?.() ?? [])],
+          mcpServers: [...((await mcpServers?.()) ?? [])],
         }),
       )
 
