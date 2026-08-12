@@ -4,7 +4,7 @@ use crate::asset_protocol::AssetProtocolRegistry;
 use crate::attachments::forget_blob;
 use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
-use crate::paths::agent_home;
+use crate::paths::{agent_home, remove_projectless_workspace};
 use poietica_agent_persistence_native::TitleSource;
 use tauri::{AppHandle, State, async_runtime};
 
@@ -287,6 +287,10 @@ pub async fn agent_archive_thread(
 /// 项能力。都不满足就只删本地那一份 —— 并且不为此去起一个进程：删一条对话
 /// 不该是拉起一个 agent 的理由。那种情况下 agent 那份会留到下次它自己清理。
 ///
+/// 无项目对话还占着一个应用替它签发的工作目录（paths.rs 的
+/// create_projectless_workspace）。库里最后一条指着它的行删掉后，目录一并
+/// 回收：它与会话同寿，会话没了它就只是一个没人能再找到的空壳。
+///
 /// # Errors
 ///
 /// Fails when the identifier is not a UUID or the database rejects the
@@ -294,6 +298,7 @@ pub async fn agent_archive_thread(
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_delete_thread(
+    app: AppHandle,
     state: State<'_, AgentRuntime>,
     index: State<'_, LocalIndex>,
     request: AgentThreadRequest,
@@ -301,6 +306,12 @@ pub async fn agent_delete_thread(
     let id = conversation(&request.thread_id)?;
 
     let stored = on_index(&index, move |store| store.thread(id).map_err(persistence)).await?;
+
+    /* 无项目目录与最后一条指着它的对话同寿（paths.rs 的
+    create_projectless_workspace），回收凭的就是库里这一行字。 */
+    let recorded_root = stored
+        .as_ref()
+        .and_then(|thread| thread.workspace_root.clone());
 
     let live = borrow(&state)?;
 
@@ -335,7 +346,7 @@ pub async fn agent_delete_thread(
     删行与扫孤儿共用一次借用。拆成两趟不只是多排一次线程池、多抢一次那把库
     锁：两次上锁之间那道缝里，别人读到的是「对话行没了、附件账还在」——一个
     谁都不该看见的中间态。 */
-    let orphans = on_index(&index, move |store| {
+    let (orphans, released) = on_index(&index, move |store| {
         store.delete_thread(id).map_err(persistence)?;
 
         let orphans = store.unreferenced_attachments().map_err(persistence)?;
@@ -344,7 +355,16 @@ pub async fn agent_delete_thread(
             store.forget_attachment(hash).map_err(persistence)?;
         }
 
-        Ok(orphans)
+        /* 行删完才问引用：问的是「删掉这一行之后还有没有人指着那个目录」，
+        问早了答案里包着自己。 */
+        let released = match recorded_root {
+            Some(freed) if !store.workspace_root_in_use(&freed).map_err(persistence)? => {
+                Some(freed)
+            }
+            _held_or_absent => None,
+        };
+
+        Ok((orphans, released))
     })
     .await?;
 
@@ -356,6 +376,14 @@ pub async fn agent_delete_thread(
             if let Err(error) = forget_blob(&root, &hash) {
                 log::warn!("could not remove an unreferenced attachment: {error}");
             }
+        }
+
+        /* 无项目目录殿后：删不掉不拦附件也不拦答复，下一次启动的对账会再来
+        （bootstrap/app.rs）。 */
+        if let Some(freed) = released
+            && let Err(error) = remove_projectless_workspace(&app, &freed)
+        {
+            log::warn!("could not remove the projectless workspace: {error}");
         }
     });
 

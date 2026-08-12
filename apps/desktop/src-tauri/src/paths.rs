@@ -229,8 +229,9 @@ pub fn cache_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
 /// 单目录堆上几万个条目之后，NTFS 的枚举与创建都会明显变慢 —— git 的 objects、
 /// npm 的 cache、浏览器的 cache 用的都是这一套。
 ///
-/// 谁清理它：字节不跟着对话删。删对话只解开索引里的链接，字节留给启动时的回收，
-/// 因为同一张图可能还挂在别的对话上。
+/// 谁清理它：字节不跟着对话删。删对话只解开索引里的链接；没有人引用的字节
+/// 由删除动作顺手扫掉（thread.rs 的 unreferenced_attachments + forget_blob），
+/// 因为同一张图可能还挂在别的对话上，引用归零才轮到字节。
 ///
 /// # Errors
 ///
@@ -311,6 +312,113 @@ pub fn create_projectless_workspace<R: Runtime>(app: &AppHandle<R>) -> Result<Pa
     fs::create_dir(&directory)?;
 
     Ok(directory)
+}
+
+/// 删除对话时回收它的无项目工作目录。
+///
+/// 只认自己签发的形状：数据根下 projectless 里、名字是一个 UUID 的目录。库里
+/// 那一格什么字符串都可能装 —— 项目目录、旧默认工作区都会从这里路过，一律原样
+/// 留下：这个函数删的是应用自己造的目录，不是用户的。
+///
+/// 目录已经不在按已回收算：回收要的是「没有」，不是「这一次是我删的」。
+///
+/// # Errors
+///
+/// 数据根无法解析，或目录存在但删不掉时返回错误。
+pub fn remove_projectless_workspace<R: Runtime>(
+    app: &AppHandle<R>,
+    recorded: &str,
+) -> Result<bool> {
+    let candidate = PathBuf::from(recorded);
+
+    let housed = candidate.parent() == Some(root(app)?.join(PROJECTLESS_DIRECTORY).as_path());
+
+    if !housed || projectless_identity(&candidate).is_none() {
+        return Ok(false);
+    }
+
+    match fs::remove_dir_all(&candidate) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// 此刻存在的全部无项目工作目录。
+///
+/// 启动对账的快照那一半：先拍快照、后读引用名单（bootstrap/app.rs），快照
+/// 之后才签发的目录不在其中，「刚签出去、行还没落库」的目录因此不会被当成
+/// 孤儿。
+///
+/// # Errors
+///
+/// 数据根无法解析、或目录项读不动时返回错误。
+pub fn projectless_workspaces<R: Runtime>(app: &AppHandle<R>) -> Result<Vec<PathBuf>> {
+    let parent = root(app)?.join(PROJECTLESS_DIRECTORY);
+
+    let entries = match fs::read_dir(&parent) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error.into()),
+    };
+
+    let mut found = Vec::new();
+
+    for entry in entries {
+        let path = entry?.path();
+
+        if path.is_dir() && projectless_identity(&path).is_some() {
+            found.push(path);
+        }
+    }
+
+    Ok(found)
+}
+
+/// 快照里没有任何对话引用的目录，删掉，交回删掉的数目。
+///
+/// 单个目录删不掉只记日志不返错：一个正被占着的目录最坏多活一轮，下一次
+/// 启动再来，远好过让启动失败 —— 与 temp_directory 抹 tmp 同一条规矩。
+#[must_use]
+pub fn sweep_projectless_workspaces(snapshot: Vec<PathBuf>, referenced: &[String]) -> usize {
+    /* 名单按 UUID 比对而不是按整条路径字符串：UUID 是这些目录唯一与字符串
+    写法无关的身份，路径在库与磁盘之间多走一趟就多一种写法。 */
+    let kept: Vec<Uuid> = referenced
+        .iter()
+        .filter_map(|recorded| projectless_identity(Path::new(recorded)))
+        .collect();
+
+    let mut swept = 0_usize;
+
+    for path in snapshot {
+        let Some(identity) = projectless_identity(&path) else {
+            continue;
+        };
+
+        if kept.contains(&identity) {
+            continue;
+        }
+
+        match fs::remove_dir_all(&path) {
+            Ok(()) => swept = swept.saturating_add(1),
+            Err(error) => {
+                log::warn!("could not remove an orphaned projectless directory: {error}");
+            }
+        }
+    }
+
+    swept
+}
+
+/// 这条路径的末段是不是本应用签发的无项目目录名。
+///
+/// 判据与 packages/core/src/workspace-root.ts 的 isProjectlessWorkspaceRoot
+/// 是同一条：目录名是一个 UUID。任一侧改动时必须同步修改。
+fn projectless_identity(candidate: &Path) -> Option<Uuid> {
+    candidate
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| Uuid::parse_str(name).ok())
 }
 
 /// 内置浏览器的 WebView2 profile，创建后返回。

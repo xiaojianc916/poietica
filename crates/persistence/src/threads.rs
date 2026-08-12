@@ -257,6 +257,43 @@ impl AgentStore {
 
         Ok(())
     }
+
+    /// 是否仍有对话开在这个工作目录里。
+    ///
+    /// 删除的路上用它判断目录还有没有主人：无项目工作目录与最后一条指着它
+    /// 的对话同寿，多条对话共用一个目录时，先删的那几条不许拆别人的家。
+    ///
+    /// # Errors
+    ///
+    /// Fails when the query is rejected.
+    pub fn workspace_root_in_use(&self, workspace_root: &str) -> Result<bool> {
+        let held: i64 = self
+            .connection
+            .prepare_cached("SELECT EXISTS (SELECT 1 FROM threads WHERE workspace_root = ?1)")?
+            .query_row(rusqlite::params![workspace_root], |row| row.get(0))?;
+
+        Ok(held != 0)
+    }
+
+    /// 仍被引用的工作目录，每个一次。
+    ///
+    /// 启动对账拿它当「不许动」名单：无项目目录里不在名单上的都是没有主人
+    /// 的遗留（见 paths.rs 的 sweep_projectless_workspaces）。
+    ///
+    /// # Errors
+    ///
+    /// Fails when the query is rejected.
+    pub fn workspace_roots(&self) -> Result<Vec<String>> {
+        let mut statement = self.connection.prepare_cached(
+            "SELECT DISTINCT workspace_root FROM threads WHERE workspace_root IS NOT NULL",
+        )?;
+
+        let found = statement
+            .query_map([], |row| row.get(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(found)
+    }
 }
 
 /// One conversation, as a list of conversations needs it.

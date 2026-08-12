@@ -150,6 +150,58 @@ pub fn build() -> tauri::Builder<Wry> {
             let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
 
             /*
+             * 无项目工作目录的启动对账，与上面 tmp 被抹一遍是同一类事：删除
+             * 对话那一刻目录可能正被占着删不掉，修复之前的版本则根本不删，
+             * 孤儿只能在这里回收。快照先于名单（paths.rs 的
+             * projectless_workspaces 写着为什么），名单与删除同在一次借用里，
+             * 引用在删的全程都精确 —— 通常删的只是几个空目录，锁内多花的是
+             * 微秒。
+             */
+            let sweeper = handle.clone();
+
+            async_runtime::spawn(async move {
+                let snapshotted = sweeper.clone();
+
+                let outcome = async {
+                    let snapshot = async_runtime::spawn_blocking(move || {
+                        paths::projectless_workspaces(&snapshotted)
+                    })
+                    .await
+                    .map_err(|_dropped| {
+                        crate::error::Error::Internal(
+                            "the projectless snapshot did not finish".to_owned(),
+                        )
+                    })??;
+
+                    if snapshot.is_empty() {
+                        return Ok(0);
+                    }
+
+                    let index = sweeper.state::<crate::local_index::LocalIndex>();
+
+                    crate::local_index::on_index(&index, move |store| {
+                        let referenced = store
+                            .workspace_roots()
+                            .map_err(crate::local_index::persistence)?;
+
+                        Ok(paths::sweep_projectless_workspaces(snapshot, &referenced))
+                    })
+                    .await
+                }
+                .await;
+
+                match outcome {
+                    Ok(0) => {}
+                    Ok(swept) => {
+                        log::info!("reclaimed {swept} orphaned projectless directories");
+                    }
+                    Err(error) => {
+                        log::warn!("could not reclaim orphaned projectless directories: {error}");
+                    }
+                }
+            });
+
+            /*
              * 内置浏览器的标签宿主，进程级。webview 是懒创建的 —— 这里只放
              * 空模型，第一次导航才碰内核。
              */
