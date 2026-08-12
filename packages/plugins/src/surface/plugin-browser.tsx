@@ -1,30 +1,26 @@
-import { Button } from '@poietica/ui'
+import { Button, Switch } from '@poietica/ui'
 import { useState } from 'react'
 
-import {
-  type CatalogRow,
-  groupRows,
-  matches,
-  personalPluginRows,
-  publicPluginRows,
-} from '../catalog/listing'
+import { groupRows, matches, publicPluginRows } from '../catalog/listing'
 import { describeInstallSource, parseInstallSource } from '../install-source'
 import type { InstalledPlugin } from '../installation'
 import type { MarketplaceEntry } from '../marketplace'
 import type { ForeignPlugin, InstallFlow, PluginStore } from '../plugin-store'
 import { CatalogGrid } from './catalog-grid'
-import { PluginGlyph } from './plugin-glyph'
-import { TrustBadge } from './trust-badge'
+import { ContributionList, type ContributionRow } from './contribution-list'
+import { Section } from './section'
+import { trustLabel } from './trust-badge'
 
 /*
- * 插件那一格。一层导航，两段内容：公开名单在上，个人的在下。
+ * 插件那一格：已安装在上，发现在下，最后是命令行那本账与从地址添加。
  *
- * 此前这里嵌着第二层 tab（已安装 / 官方 / 精选 / 手动添加），与外层那三格是两套并行的导航
- * 模型，切出去再切回来内层选中项还会被重置 —— 人回到的不是他离开的那一页。
+ * 此前装在这里的插件没有一处能停用 —— store 上的 setEnabled 与账本里的 enabled 一直都在，
+ * 界面从来没有把它接出来，人只有卸载这一条路。开关因此长在已装那一行上：停用不删记录，
+ * 下一次会话不装载它，随时拨得回来。
  *
- * 公开与个人的区别不是背书，是名单归属：公开名单不归用户所有，所以卸载只把状态拨回「可安
- * 装」，卡片留在原处随时装回来；个人那张卡片本身就是用户造出来的，删掉就该一起消失。这条
- * 判据只在 catalog/scope 里说一次。
+ * 「个人」不再单列一段。装了就是装了，来源是行上那一枚标；分两段列意味着同一件事有两条
+ * 渲染路径，而人要找「我装的那个」得先想清楚它算公开还是个人。卸载之后卡片留不留仍由
+ * catalog/scope 说了算，那条判据没有变。
  */
 
 export interface PluginBrowserProps {
@@ -48,6 +44,12 @@ export function PluginBrowser({
   plugins,
   store,
 }: PluginBrowserProps) {
+  const installedRows = plugins
+    .filter((plugin) =>
+      matches(needle, plugin.manifest.displayName, plugin.pluginId, plugin.manifest.description),
+    )
+    .map((plugin) => pluginRow(plugin, onOpen, store))
+
   const publicRows = publicPluginRows({
     elsewhereIds: new Set(foreign.map((record) => record.pluginId)),
     entries,
@@ -55,10 +57,8 @@ export function PluginBrowser({
     needle,
   })
 
-  const personalRows = personalPluginRows(plugins, needle)
-
   /*
-   * 名单里有的那些不在「命令行装过」里再列一遍：那一行已经在上面，状态写着「命令行里装
+   * 名单里有的那些不在「命令行装过」里再列一遍：那一条已经在上面，状态写着「命令行里装
    * 过」。列两遍等于让人在两处读到同一句话，还得自己判断说的是不是一回事。
    */
   const catalogIds = new Set(entries.map((entry) => entry.id))
@@ -68,71 +68,68 @@ export function PluginBrowser({
   )
 
   return (
-    <div className="pb-20">
+    <div className="pb-24">
       <InstallBanner install={install} store={store} />
+      <Section count={installedRows.length} title="已安装">
+        <ContributionList
+          empty={
+            loaded
+              ? '这里还没有装插件。下面那份名单里挑一个，或者从地址添加。'
+              : '正在读 agent 的账本…'
+          }
+          rows={installedRows}
+        />
+      </Section>
       <CatalogGrid
+        action={{ kind: 'plugin', install: store.beginInstall, open: onOpen }}
         groups={groupRows(publicRows)}
-        onInstall={store.beginInstall}
-        onInstallServer={undefined}
-        onOpen={onOpen}
       />
-      <PersonalSection
-        elsewhere={elsewhere}
-        loaded={loaded}
-        onOpen={onOpen}
-        rows={personalRows}
-        store={store}
-      />
+      <ForeignList records={elsewhere} store={store} />
       <CustomSource store={store} />
     </div>
   )
 }
 
-interface PersonalSectionProps {
-  readonly rows: readonly CatalogRow[]
-  readonly elsewhere: readonly ForeignPlugin[]
-  readonly loaded: boolean
-  readonly onOpen: (id: string) => void
-  readonly store: PluginStore
-}
+/*
+ * 一行是账本里的一条记录。开关拨的是那条记录的 enabled，移除是把那条记录整个拿掉 ——
+ * 两个动作落在同一份真相上，所以它们并排放得下。
+ */
+function pluginRow(
+  plugin: InstalledPlugin,
+  onOpen: (id: string) => void,
+  store: PluginStore,
+): ContributionRow {
+  const described =
+    plugin.source === undefined
+      ? '从地址装进来的，名单上查不到它'
+      : describeInstallSource(plugin.source)
 
-function PersonalSection({ elsewhere, loaded, onOpen, rows, store }: PersonalSectionProps) {
-  if (!loaded || (rows.length === 0 && elsewhere.length === 0)) {
-    return null
+  return {
+    key: plugin.pluginId,
+    title: plugin.manifest.displayName,
+    detail: plugin.manifest.description ?? described,
+    badge: trustLabel(plugin.trust),
+    dimmed: !plugin.enabled,
+    onOpen: () => onOpen(plugin.pluginId),
+    trailing: (
+      <>
+        <Button
+          className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+          onClick={() => store.remove(plugin.pluginId)}
+          size="xs"
+          variant="ghost"
+        >
+          移除
+        </Button>
+        <Switch
+          aria-label={`启用 ${plugin.manifest.displayName}`}
+          checked={plugin.enabled}
+          onCheckedChange={(next) => store.setEnabled(plugin.pluginId, next)}
+          size="sm"
+        />
+      </>
+    ),
   }
-
-  return (
-    <section className="pt-10">
-      <h2 className="pb-1 text-sm font-medium">个人</h2>
-      <p className="pb-3 text-xs leading-5 text-muted-foreground">
-        你自己添加的。删除会连这张卡片一起消失 —— 它不在任何名单上，没有地方能把它找回来。
-      </p>
-      <ul className="divide-y divide-divider">
-        {rows.map((row) => (
-          <li className="flex items-center gap-3 py-3" key={row.key}>
-            <PluginGlyph displayName={row.displayName} id={row.id} size="sm" />
-            <button
-              className="min-w-0 flex-1 text-left"
-              onClick={() => onOpen(row.id)}
-              type="button"
-            >
-              <span className="flex items-center gap-2">
-                <span className="truncate text-sm font-medium">{row.displayName}</span>
-                <TrustBadge trust="third-party" />
-              </span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {row.description}
-              </span>
-            </button>
-            <Button onClick={() => store.remove(row.id)} size="xs" variant="ghost">
-              删除
-            </Button>
-          </li>
-        ))}
-      </ul>
-      <ForeignList records={elsewhere} store={store} />
-    </section>
-  )
 }
 
 interface ForeignListProps {
@@ -152,41 +149,35 @@ function ForeignList({ records, store }: ForeignListProps) {
   }
 
   return (
-    <div className="pt-6">
-      <h3 className="pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        命令行上装过
-      </h3>
-      <p className="pb-2 text-xs leading-5 text-muted-foreground">
-        这些插件记在 {records[0]?.location} 里。本应用开出去的会话读的是它自己那本账，所以它们
-        在这里没有装上；导入会按原来的地址重装一次。
-      </p>
-      <ul className="divide-y divide-divider">
-        {/*
-          解构不是为了短。originalSource === undefined 那道收窄只对 const 绑定穿透进闭包；
-          属性访问在 onClick 这个收窄之后才建的函数里会被重新看成 string | undefined ——
-          属性在回调真正执行时可能已经变了，这是控制流分析的既定行为。
-        */}
-        {records.map(({ originalSource, pluginId }) => (
-          <li className="flex items-center gap-3 py-3" key={pluginId}>
-            <div className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">{pluginId}</span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {originalSource ?? '那条记录没有记下当初的安装地址，导入不了'}
-              </span>
-            </div>
-            {originalSource === undefined ? null : (
+    <Section
+      count={records.length}
+      hint={`这些插件记在 ${records[0]?.location} 里。本应用开出去的会话读的是它自己那本账，所以它们在这里没有装上；导入会按原来的地址重装一次。`}
+      title="命令行上装过"
+    >
+      <ContributionList
+        empty="命令行那本账里没有别的插件。"
+        rows={records.map(({ originalSource, pluginId }) => ({
+          /*
+            解构不是为了短。originalSource === undefined 那道收窄只对 const 绑定穿透进闭包；
+            属性访问在 onClick 这个收窄之后才建的函数里会被重新看成 string | undefined ——
+            属性在回调真正执行时可能已经变了，这是控制流分析的既定行为。
+          */
+          key: `foreign/${pluginId}`,
+          title: pluginId,
+          detail: originalSource ?? '那条记录没有记下当初的安装地址，导入不了',
+          trailing:
+            originalSource === undefined ? undefined : (
               <Button
                 onClick={() => store.beginInstall(parseInstallSource(originalSource))}
                 size="xs"
-                variant="secondary"
+                variant="soft"
               >
                 导入
               </Button>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
+            ),
+        }))}
+      />
+    </Section>
   )
 }
 
@@ -204,12 +195,10 @@ function CustomSource({ store }: CustomSourceProps) {
   const [text, setText] = useState('')
 
   return (
-    <section className="pt-10">
-      <h2 className="pb-1 text-sm font-medium">从地址添加</h2>
-      <p className="pb-3 text-xs leading-5 text-muted-foreground">
-        添加进来的算个人插件。GitHub 地址要指明分支、标签或提交，例如
-        github.com/owner/repo/tree/main。
-      </p>
+    <Section
+      hint="添加进来的插件同样出现在上面的「已安装」里。GitHub 地址要指明分支、标签或提交，例如 github.com/owner/repo/tree/main。"
+      title="从地址添加"
+    >
       <form
         className="flex gap-2"
         onSubmit={(event) => {
@@ -226,16 +215,16 @@ function CustomSource({ store }: CustomSourceProps) {
         }}
       >
         <input
-          className="h-9 min-w-0 flex-1 rounded-lg border border-divider bg-background px-3 text-sm outline-none focus:border-foreground/25"
+          className="h-9 min-w-0 flex-1 rounded-lg border border-divider bg-background px-3 text-[13px] outline-none focus:border-foreground/25"
           onChange={(event) => setText(event.target.value)}
           placeholder="本地目录、.zip 直链，或 github.com/owner/repo"
           value={text}
         />
-        <Button size="sm" type="submit" variant="secondary">
+        <Button size="sm" type="submit" variant="soft">
           添加
         </Button>
       </form>
-    </section>
+    </Section>
   )
 }
 
@@ -251,7 +240,7 @@ function InstallBanner({ install, store }: InstallBannerProps) {
 
   if (install.kind === 'staging') {
     return (
-      <div className="flex items-center gap-3 pt-4">
+      <div className="mt-6 flex items-center gap-3 rounded-xl border border-divider bg-background px-4 py-3">
         <p className="flex-1 text-xs text-muted-foreground">
           正在取 {describeInstallSource(install.source)}…
         </p>
@@ -264,7 +253,7 @@ function InstallBanner({ install, store }: InstallBannerProps) {
 
   if (install.kind === 'refused') {
     return (
-      <div className="flex items-center gap-3 pt-4">
+      <div className="mt-6 flex items-center gap-3 rounded-xl border border-divider bg-background px-4 py-3">
         <p className="flex-1 text-xs text-destructive">{install.reason}</p>
         <Button onClick={() => store.cancelInstall()} size="xs" variant="ghost">
           知道了
@@ -281,7 +270,7 @@ function InstallBanner({ install, store }: InstallBannerProps) {
   const servers = install.manifest.mcpServerNames.length
 
   return (
-    <div className="mt-4 rounded-xl border border-divider bg-background p-4">
+    <div className="mt-6 rounded-xl border border-divider bg-background p-4">
       <p className="text-sm font-medium">{install.manifest.displayName}</p>
       <p className="pt-1 text-xs leading-5 text-muted-foreground">
         来自 {describeInstallSource(install.source)}。

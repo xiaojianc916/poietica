@@ -6,34 +6,45 @@ import { type CatalogRow, type RowGroup, statusText } from '../catalog/listing'
 import { describeChannel } from '../catalog/scope'
 import type { PluginInstallSource } from '../install-source'
 import { PluginGlyph } from './plugin-glyph'
+import { Section } from './section'
 
 /*
- * 分组网格。一组一个标题，组内两列，超出前四条折起来 —— 名单是几十条的量级，一次铺开
- * 人只会滚过去而不会读。折起的那几条没有被藏：标题下那个按钮写着还有几条。
+ * 「发现」那一段：一组一个抬头，组内两列，超出前六条折起来。名单是几十条的量级，
+ * 一次铺开人只会滚过去而不会读；折起的那几条没有被藏，按钮上写着还剩几条。
+ *
+ * 动作是一个判别联合，不是三个可缺席的回调。此前这里靠 onOpen / onInstallServer 是不是
+ * undefined 反推「我现在是哪一格」—— 三态藏在两个可选属性里，技能格的调用处一次传两个
+ * undefined，而加第四种用法时没有任何东西会报错。现在这一格是什么，写在类型上。
  */
 
-const VISIBLE = 4
+const VISIBLE = 6
+
+export type CatalogAction =
+  | {
+      readonly kind: 'plugin'
+      readonly install: (source: PluginInstallSource) => void
+      readonly open: (id: string) => void
+    }
+  | { readonly kind: 'skill'; readonly install: (source: PluginInstallSource) => void }
+  | {
+      readonly kind: 'server'
+      readonly install: (name: string, body: Record<string, unknown>) => void
+    }
 
 export interface CatalogGridProps {
   readonly groups: readonly RowGroup[]
-  /** 有详情页的行才给回调。内置 MCP 名单没有详情页，传 undefined。 */
-  readonly onOpen: ((id: string) => void) | undefined
-  readonly onInstall: (source: PluginInstallSource) => void
-  /** 内置 MCP 名单的一键安装：把这一台写进这个 agent 的 mcp.json。插件名单传 undefined。 */
-  readonly onInstallServer: ((name: string, body: Record<string, unknown>) => void) | undefined
+  readonly action: CatalogAction
 }
 
-export function CatalogGrid({ groups, onInstall, onInstallServer, onOpen }: CatalogGridProps) {
+export function CatalogGrid({ action, groups }: CatalogGridProps) {
+  if (groups.length === 0) {
+    return null
+  }
+
   return (
     <>
       {groups.map((group) => (
-        <CatalogSection
-          group={group}
-          key={group.title}
-          onInstall={onInstall}
-          onInstallServer={onInstallServer}
-          onOpen={onOpen}
-        />
+        <CatalogSection action={action} group={group} key={group.title} />
       ))}
     </>
   )
@@ -41,111 +52,96 @@ export function CatalogGrid({ groups, onInstall, onInstallServer, onOpen }: Cata
 
 interface CatalogSectionProps {
   readonly group: RowGroup
-  readonly onOpen: ((id: string) => void) | undefined
-  readonly onInstall: (source: PluginInstallSource) => void
-  readonly onInstallServer: ((name: string, body: Record<string, unknown>) => void) | undefined
+  readonly action: CatalogAction
 }
 
-function CatalogSection({ group, onInstall, onInstallServer, onOpen }: CatalogSectionProps) {
+function CatalogSection({ action, group }: CatalogSectionProps) {
   const [expanded, setExpanded] = useState(false)
 
   const shown = expanded ? group.rows : group.rows.slice(0, VISIBLE)
   const rest = group.rows.length - shown.length
 
   return (
-    <section className="pt-10">
-      <h2 className="pb-3 text-sm font-medium">{group.title}</h2>
-      <ul className="grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
+    <Section
+      action={
+        rest > 0 ? (
+          <Button onClick={() => setExpanded(true)} size="xs" variant="ghost">
+            展开其余 {rest} 个
+          </Button>
+        ) : undefined
+      }
+      count={group.rows.length}
+      title={group.title}
+    >
+      <ul className="grid grid-cols-1 gap-1 md:grid-cols-2">
         {shown.map((row) => (
-          <CatalogCard
-            key={row.key}
-            onInstall={onInstall}
-            onInstallServer={onInstallServer}
-            onOpen={onOpen}
-            row={row}
-          />
+          <CatalogCard action={action} key={row.key} row={row} />
         ))}
       </ul>
-      {rest > 0 ? (
-        <button
-          className="pt-3 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => setExpanded(true)}
-          type="button"
-        >
-          显示其余 {rest} 个
-        </button>
-      ) : null}
-    </section>
+    </Section>
   )
 }
 
 interface CatalogCardProps {
   readonly row: CatalogRow
-  readonly onOpen: ((id: string) => void) | undefined
-  readonly onInstall: (source: PluginInstallSource) => void
-  readonly onInstallServer: ((name: string, body: Record<string, unknown>) => void) | undefined
+  readonly action: CatalogAction
 }
 
-function CatalogCard({ onInstall, onInstallServer, onOpen, row }: CatalogCardProps) {
+function CatalogCard({ action, row }: CatalogCardProps) {
   return (
-    <li className="flex items-center gap-3 py-2">
+    <li className="group flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 transition-colors hover:border-divider hover:bg-background">
       <PluginGlyph displayName={row.displayName} id={row.id} size="sm" />
       <div className="min-w-0 flex-1">
-        {onOpen === undefined ? (
-          <span className="block truncate text-sm font-medium">{row.displayName}</span>
-        ) : (
+        {action.kind === 'plugin' ? (
           <button
-            className="block max-w-full truncate text-left text-sm font-medium"
-            onClick={() => onOpen(row.id)}
+            className="block max-w-full truncate text-left text-[13px] font-medium hover:underline"
+            onClick={() => action.open(row.id)}
             type="button"
           >
             {row.displayName}
           </button>
+        ) : (
+          <span className="block truncate text-[13px] font-medium">{row.displayName}</span>
         )}
-        <span className="block truncate text-xs text-muted-foreground">{row.description}</span>
+        <span className="block truncate pt-0.5 text-xs text-muted-foreground">
+          {row.description}
+        </span>
       </div>
-      <CardAction onInstall={onInstall} onInstallServer={onInstallServer} row={row} />
+      {row.status.kind === 'installed' ? (
+        <span className="shrink-0 text-[11px] text-muted-foreground">{statusText(row.status)}</span>
+      ) : (
+        <CardAction action={action} row={row} />
+      )}
     </li>
   )
 }
 
-interface CardActionProps {
-  readonly row: CatalogRow
-  readonly onInstall: (source: PluginInstallSource) => void
-  readonly onInstallServer: ((name: string, body: Record<string, unknown>) => void) | undefined
-}
-
 /*
  * 右边那个动作。已装的一律不给按钮，只写状态 —— 按下去什么也不发生的按钮比没有按钮坏。
- * 卸载不在卡片上：装上的那一台会出现在上方已装列表里，开关与移除都在那一行；公开名单
- * 的卡片只负责「装回来」，卸载之后它留在原处，状态拨回可安装。
+ * 卸载不在卡片上：装上的那一条会出现在上方「已安装」里，开关与移除都在那一行；公开名单
+ * 的卡片只负责装回来，卸载之后它留在原处，状态拨回可安装。
  *
- * 内置名单是真安装：把这一台写进这个 agent 的 mcp.json。要人补钥匙或路径的，那一格
- * 输入就长在卡片上 —— 装上才发现跑不起来，比多一格输入更糟。
+ * 来源那行小字悬停才浮出：它是给要判断「这是谁的东西」的人看的，不是每一行都要占的位。
  */
-function CardAction({ onInstall, onInstallServer, row }: CardActionProps) {
-  if (row.status.kind === 'installed') {
-    return (
-      <span className="shrink-0 text-[11px] text-muted-foreground">{statusText(row.status)}</span>
-    )
-  }
-
-  if (row.channel === 'builtin') {
-    return onInstallServer === undefined ? null : (
-      <InstallServer id={row.id} onInstall={onInstallServer} />
-    )
+function CardAction({ action, row }: CatalogCardProps) {
+  if (action.kind === 'server') {
+    return <InstallServer id={row.id} onInstall={action.install} />
   }
 
   const { source } = row
 
+  if (source === undefined) {
+    return null
+  }
+
   return (
     <div className="flex shrink-0 items-center gap-2">
-      <span className="text-[11px] text-muted-foreground">{describeChannel(row.channel)}</span>
-      {source === undefined ? null : (
-        <Button onClick={() => onInstall(source)} size="xs" variant="secondary">
-          安装
-        </Button>
-      )}
+      <span className="text-[11px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+        {describeChannel(row.channel)}
+      </span>
+      <Button onClick={() => action.install(source)} size="xs" variant="soft">
+        安装
+      </Button>
     </div>
   )
 }
@@ -155,6 +151,10 @@ interface InstallServerProps {
   readonly onInstall: (name: string, body: Record<string, unknown>) => void
 }
 
+/*
+ * 内置名单是真安装：把这一台写进这个 agent 的 mcp.json。要人补钥匙的，那一格输入就长在
+ * 卡片上 —— 装上才发现跑不起来，比多一格输入更糟。
+ */
 function InstallServer({ id, onInstall }: InstallServerProps) {
   const [filled, setFilled] = useState('')
 
@@ -164,7 +164,7 @@ function InstallServer({ id, onInstall }: InstallServerProps) {
     return null
   }
 
-  const missing = server.input?.required && filled.trim() === ''
+  const missing = server.input?.required === true && filled.trim() === ''
 
   return (
     <div className="flex shrink-0 items-center gap-2">
@@ -180,7 +180,7 @@ function InstallServer({ id, onInstall }: InstallServerProps) {
       ) : (
         <input
           aria-label={server.input.label}
-          className="h-7 w-40 rounded-md border border-divider bg-background px-2 text-xs outline-none focus:border-foreground/25"
+          className="h-[26px] w-40 rounded-lg border border-divider bg-background px-2.5 text-xs outline-none focus:border-foreground/25"
           onChange={(event) => setFilled(event.target.value)}
           placeholder={server.input.placeholder}
           title={server.needs}
@@ -191,7 +191,7 @@ function InstallServer({ id, onInstall }: InstallServerProps) {
         disabled={missing}
         onClick={() => onInstall(server.id, mcpServerBody(server, filled))}
         size="xs"
-        variant="secondary"
+        variant="soft"
       >
         安装
       </Button>

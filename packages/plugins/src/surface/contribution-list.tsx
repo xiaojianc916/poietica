@@ -1,20 +1,29 @@
+import { cn } from '@poietica/ui'
 import type { ReactNode } from 'react'
 
-/**
- * 技能与 MCP 两格共用的那张列表。
+import { PluginGlyph } from './plugin-glyph'
+
+/*
+ * 「已安装」那张列表，三格共用。
  *
- * 两者在信息结构上是同一件事：一个名字、一句说明、一个来源标，外加 MCP 多一个开关。
- * 写成两份几乎一样的列表，迟早在其中一份上改漏一处。
+ * 三者在信息结构上是同一件事：一个标识、一个名字、一句说明、一枚来源标，外加各自的动作。
  *
- * 标签收的是已经描述好的字符串而不是来源对象：这张列表不需要知道来源有几种，
- * 那是 origin 那一处的事。
+ * 行是卡片不是表格行。这一页回答「我有什么」，不是一张设置表；卡片有悬停态，动作因此
+ * 长在行上 —— 一键就能完成的事不该藏进「…」菜单的第二层。开关常驻、移除悬停浮出：
+ * 前者是每天要拨的，后者不可逆。
+ *
+ * 自己不带页面内边距：外层容器已经有了，两处都写就是把列表右缩一格。
  */
 
 export interface ContributionRow {
   readonly key: string
   readonly title: string
   readonly detail: string
-  readonly badge: string
+  readonly badge?: string | undefined
+  /** 有详情页的行才给。给了，名字就是一个可点的按钮。 */
+  readonly onOpen?: (() => void) | undefined
+  /** 关掉的那一行整行压暗：它还在，只是这一次不会装载。 */
+  readonly dimmed?: boolean | undefined
   readonly trailing?: ReactNode
 }
 
@@ -23,28 +32,50 @@ export interface ContributionListProps {
   readonly empty: string
 }
 
-export function ContributionList({ rows, empty }: ContributionListProps) {
+export function ContributionList({ empty, rows }: ContributionListProps) {
   if (rows.length === 0) {
-    return <p className="px-8 py-10 text-xs text-muted-foreground">{empty}</p>
+    return (
+      <p className="rounded-xl border border-dashed border-divider px-6 py-10 text-center text-xs leading-5 text-muted-foreground">
+        {empty}
+      </p>
+    )
   }
 
   return (
-    <ul className="px-8">
+    <ul className="grid gap-0.5">
       {rows.map((row) => (
         <li
-          className="flex items-center gap-4 border-b border-divider py-3 last:border-b-0"
+          className={cn(
+            'group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/60',
+            row.dimmed === true ? 'opacity-55' : '',
+          )}
           key={row.key}
         >
+          <PluginGlyph displayName={row.title} id={row.key} size="sm" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{row.title}</p>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">{row.detail}</p>
+            <div className="flex items-center gap-2">
+              {row.onOpen === undefined ? (
+                <span className="truncate text-[13px] font-medium">{row.title}</span>
+              ) : (
+                <button
+                  className="truncate text-left text-[13px] font-medium hover:underline"
+                  onClick={row.onOpen}
+                  type="button"
+                >
+                  {row.title}
+                </button>
+              )}
+              {row.badge === undefined ? null : (
+                <span className="shrink-0 rounded-md border border-divider px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                  {row.badge}
+                </span>
+              )}
+            </div>
+            <p className="truncate pt-0.5 text-xs text-muted-foreground">{row.detail}</p>
           </div>
-
-          <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            {row.badge}
-          </span>
-
-          {row.trailing}
+          {row.trailing === undefined ? null : (
+            <div className="flex shrink-0 items-center gap-1.5">{row.trailing}</div>
+          )}
         </li>
       ))}
     </ul>

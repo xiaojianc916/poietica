@@ -182,39 +182,6 @@ export function publicPluginRows(input: PluginListingInput): readonly CatalogRow
 }
 
 /*
- * 个人那一档：装在这里、但名单上查不到来源的那些。
- *
- * 它们是用户自己指路径或直链装进来的，没有任何名单为它们背书，卸载之后也没有任何名单能
- * 把卡片留住 —— 所以这一档的卡片就该跟着消失，这条由 scopeOf 说了算。
- */
-export function personalPluginRows(
-  installed: readonly InstalledPlugin[],
-  needle: string,
-): readonly CatalogRow[] {
-  return installed
-    .filter((plugin) => plugin.source === undefined)
-    .filter((plugin) =>
-      matches(needle, plugin.manifest.displayName, plugin.pluginId, plugin.manifest.description),
-    )
-    .map(
-      (plugin): CatalogRow => ({
-        key: `personal/${plugin.pluginId}`,
-        id: plugin.pluginId,
-        displayName: plugin.manifest.displayName,
-        description: plugin.manifest.description ?? '这个插件没有写说明。',
-        channel: 'personal',
-        group: '手动添加',
-        status: {
-          kind: 'installed',
-          installedVersion: plugin.manifest.version,
-          catalogVersion: undefined,
-        },
-        source: undefined,
-      }),
-    )
-}
-
-/*
  * 内置技能名单的行。「已装」的判据：目录名与内置号相同 —— 技能用目录名当号，安装时
  * 前言名与内置号一致（名单来源即 anthropics 官方目录名）。
  */

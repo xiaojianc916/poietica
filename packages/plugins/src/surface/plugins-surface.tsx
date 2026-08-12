@@ -1,24 +1,28 @@
 import type { PaletteEntry } from '@poietica/agent-contract'
 import { assertUnreachable } from '@poietica/core'
-import { Button, Switch } from '@poietica/ui'
+import { Button, cn, Switch } from '@poietica/ui'
 import { useState, useSyncExternalStore } from 'react'
 
 import { builtinServerRows, builtinSkillRows, groupRows, matches } from '../catalog/listing'
-import { latestCatalog } from '../marketplace'
+import { latestCatalog, type MarketplaceEntry } from '../marketplace'
 import type { ResolvedMcpServer } from '../mcp-servers'
 import { describeOrigin, type ManagedOrigin } from '../origin'
-import type { PluginStore } from '../plugin-store'
+import type { PluginStore, PluginsViewModel } from '../plugin-store'
 import type { InstalledSkill } from '../skill'
 import { CatalogGrid } from './catalog-grid'
 import { ContributionList, type ContributionRow } from './contribution-list'
 import { PluginBrowser } from './plugin-browser'
 import { PluginDetail } from './plugin-detail'
+import { Section } from './section'
 
 /*
- * 插件界面。三格：插件、技能、MCP。
+ * 扩展中心。三格：插件、技能、MCP。
  *
  * 技能与 MCP 不是两种插件 —— 插件是打包与分发单位，另外两样是它能带来的能力，所以那两格
  * 是投影，不是并列的第二套安装系统。
+ *
+ * 三格同构：上面「已安装」，下面「发现」。装了什么与能装什么是两个问题，混在一张列表里，
+ * 人就得靠右边那个按钮的文案反推自己有没有装过。
  *
  * 每一格自己持有搜索词。共用一个搜索词会让占位符写着「搜索技能」而值是上一格的插件关键
  * 字，技能列表因此被过滤空 —— 那是个说谎的控件。
@@ -27,18 +31,15 @@ import { PluginDetail } from './plugin-detail'
 const TABS = {
   plugins: {
     label: '插件',
-    title: '插件',
     subtitle: '完整扩展包：可以自带技能、MCP 服务器与斜杠命令。装上它，能力就出现在对话里。',
   },
   skills: {
     label: '技能',
-    title: '技能',
     subtitle:
-      '这个 agent 认得的工作流与提示模板，用 /skill: 调用。全局装的、它自带的、插件带来的都在这里，由 agent 在会话建立后报来。',
+      '工作流与提示模板，使用 /skill: 调用。插件带来的与全局装的由 agent 在会话建立后报来。',
   },
   mcp: {
     label: 'MCP',
-    title: 'MCP 服务器',
     subtitle:
       '给对话新增可调用函数的外部工具服务：本应用自带的、这台机器上配好的、插件带来的，加上我们精选的名单。',
   },
@@ -61,19 +62,27 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
   const [openedId, setOpenedId] = useState<string | undefined>(undefined)
 
   const needle = needles[tab]
-  const entries = latestCatalog(view.marketplace)?.entries ?? []
-  const skills = view.palette.filter((entry) => entry.kind === 'skill')
+  const entries: readonly MarketplaceEntry[] = latestCatalog(view.marketplace)?.entries ?? []
+
+  /*
+   * 装在这里的技能与 agent 报来的命令表会说同一件事：目录名与 /skill:<name> 同名。报来的
+   * 那一份里去掉已经在上面列出的，计数与列表因此不会把同一个技能数两遍。
+   */
+  const managed = new Set(view.skills.map((skill) => `skill:${skill.dirName}`))
+  const reported = view.palette.filter(
+    (entry) => entry.kind === 'skill' && !managed.has(entry.name),
+  )
 
   const counts: Record<TabId, number> = {
     plugins: view.plugins.length,
-    skills: skills.length,
+    skills: view.skills.length + reported.length,
     mcp: view.mcpServers.length,
   }
 
   if (openedId !== undefined) {
     return (
       <div className="h-full overflow-y-auto bg-ground">
-        <div className="mx-auto max-w-4xl px-8">
+        <div className="mx-auto w-full max-w-5xl px-10">
           <PluginDetail
             entry={entries.find((one) => one.id === openedId)}
             onBack={() => setOpenedId(undefined)}
@@ -87,56 +96,63 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
 
   return (
     <div className="h-full overflow-y-auto bg-ground">
-      <div className="sticky top-0 z-10 border-b border-divider bg-ground/85 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center gap-2 px-8 py-3">
-          {TAB_ORDER.map((one) => (
-            <button
-              aria-selected={one === tab}
-              className={
-                one === tab
-                  ? 'rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-foreground'
-                  : 'rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground'
-              }
-              key={one}
-              onClick={() => setTab(one)}
-              role="tab"
-              type="button"
+      <div className="mx-auto w-full max-w-5xl px-10">
+        <header className="pt-12 pb-5">
+          <h1 className="text-[26px] font-semibold leading-none tracking-tight">扩展</h1>
+          <p className="max-w-2xl pt-3 text-[13px] leading-6 text-muted-foreground">
+            {TABS[tab].subtitle}
+          </p>
+        </header>
+        <div className="sticky top-0 z-10 -mx-10 border-b border-divider bg-ground/90 px-10 py-3 backdrop-blur">
+          <div className="flex items-center gap-3">
+            <nav
+              aria-label="扩展分类"
+              className="flex items-center gap-1 rounded-full bg-muted/70 p-1"
             >
-              {TABS[one].label}
-              <span className="pl-1.5 tabular-nums opacity-60">{counts[one]}</span>
-            </button>
-          ))}
+              {TAB_ORDER.map((one) => (
+                <button
+                  aria-selected={one === tab}
+                  className={cn(
+                    'rounded-full px-3.5 py-1.5 text-xs transition-colors',
+                    one === tab
+                      ? 'bg-background font-medium text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  key={one}
+                  onClick={() => setTab(one)}
+                  role="tab"
+                  type="button"
+                >
+                  {TABS[one].label}
+                  <span className="pl-1.5 tabular-nums opacity-50">{counts[one]}</span>
+                </button>
+              ))}
+            </nav>
+            <input
+              aria-label={`搜索${TABS[tab].label}`}
+              className="h-9 min-w-0 flex-1 rounded-full border border-divider bg-background px-4 text-[13px] outline-none transition-colors focus:border-foreground/25"
+              onChange={(event) => setNeedles({ ...needles, [tab]: event.target.value })}
+              placeholder={`搜索${TABS[tab].label}`}
+              value={needle}
+            />
+            {/*
+              技能那一格没有刷新按钮：命令表由 agent 推过来，AgentPalettePort 上只有 read 与
+              subscribe，没有「再探一次」这个动作。画一个按下去什么都不会发生的按钮，比没有
+              按钮坏。另外两格刷的是同一份市场目录，所以它们共用这一个。
+            */}
+            {tab === 'skills' ? null : (
+              <Button onClick={() => store.refreshMarketplace()} size="sm" variant="ghost">
+                刷新名单
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="mx-auto max-w-4xl px-8 pt-10">
-        <h1 className="text-2xl font-semibold tracking-tight">{TABS[tab].title}</h1>
-        <p className="max-w-xl pt-2 text-xs leading-5 text-muted-foreground">
-          {TABS[tab].subtitle}
-        </p>
-        <div className="flex items-center gap-2 pt-6">
-          <input
-            className="h-9 min-w-0 flex-1 rounded-lg border border-divider bg-background px-3 text-sm outline-none focus:border-foreground/25"
-            onChange={(event) => setNeedles({ ...needles, [tab]: event.target.value })}
-            placeholder={`搜索${TABS[tab].label}`}
-            value={needle}
-          />
-          {/*
-            技能那一格没有刷新按钮：命令表由 agent 推过来，AgentPalettePort 上只有 read 与
-            subscribe，没有「再探一次」这个动作。画一个按下去什么都不会发生的按钮，比没有
-            按钮坏。另外两格刷的是同一份市场目录，所以它们共用这一个。
-          */}
-          {tab === 'skills' ? null : (
-            <Button onClick={() => store.refreshMarketplace()} size="sm" variant="ghost">
-              刷新名单
-            </Button>
-          )}
-        </div>
-        <p className="pt-2 text-[11px] text-muted-foreground">{detectedText(view.detectedAt)}</p>
+        <p className="pt-3 text-[11px] text-muted-foreground">{detectedText(view.detectedAt)}</p>
         <TabBody
           entries={entries}
           needle={needle}
           onOpen={setOpenedId}
-          skills={skills}
+          reported={reported}
           store={store}
           tab={tab}
           view={view}
@@ -161,18 +177,14 @@ function detectedText(detectedAt: string): string {
 interface TabBodyProps {
   readonly tab: TabId
   readonly needle: string
-  readonly skills: readonly PaletteEntry[]
-  readonly entries: ReturnType<typeof latestCatalog> extends undefined
-    ? never
-    : readonly PluginsSurfaceCatalogEntry[]
+  readonly reported: readonly PaletteEntry[]
+  readonly entries: readonly MarketplaceEntry[]
   readonly store: PluginStore
-  readonly view: ReturnType<PluginStore['getSnapshot']>
+  readonly view: PluginsViewModel
   readonly onOpen: (id: string) => void
 }
 
-type PluginsSurfaceCatalogEntry = NonNullable<ReturnType<typeof latestCatalog>>['entries'][number]
-
-function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyProps) {
+function TabBody({ entries, needle, onOpen, reported, store, tab, view }: TabBodyProps) {
   switch (tab) {
     case 'plugins':
       return (
@@ -188,49 +200,49 @@ function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyP
         />
       )
     case 'skills': {
-      const managed = new Set(view.skills.map((skill) => `skill:${skill.dirName}`))
+      const rows = [
+        ...view.skills.map((skill) => installedSkillRow(skill, store)),
+        ...reported.map(skillRow),
+      ].filter((row) => matches(needle, row.title, row.detail))
 
       return (
-        <>
-          {view.skillInstall.kind === 'staging' && (
-            <p className="pt-4 text-xs text-muted-foreground">正在安装技能…</p>
-          )}
-          {view.skillInstall.kind === 'refused' && (
-            <p className="pt-4 text-xs text-red-500">{view.skillInstall.reason}</p>
-          )}
-          <ContributionList
-            empty="还没有探测到技能。技能由 agent 在会话建立后报来，装一个内置技能也会出现在这里。"
-            rows={[
-              ...view.skills.map((skill) => installedSkillRow(skill, store)),
-              ...skills.filter((entry) => !managed.has(entry.name)).map(skillRow),
-            ].filter((row) => matches(needle, row.title, row.detail))}
-          />
+        <div className="pb-24">
+          {view.skillInstall.kind === 'staging' ? (
+            <p className="pt-6 text-xs text-muted-foreground">正在安装技能…</p>
+          ) : null}
+          {view.skillInstall.kind === 'refused' ? (
+            <p className="pt-6 text-xs text-destructive">{view.skillInstall.reason}</p>
+          ) : null}
+          <Section count={rows.length} title="已安装">
+            <ContributionList
+              empty="这里还没有技能。下面那份名单一键装，装完在新会话里用 /skill: 调用。"
+              rows={rows}
+            />
+          </Section>
           <CatalogGrid
+            action={{ kind: 'skill', install: store.installSkill }}
             groups={groupRows(builtinSkillRows(view.skills, needle))}
-            onInstall={store.installSkill}
-            onInstallServer={undefined}
-            onOpen={undefined}
           />
-        </>
+        </div>
       )
     }
-    case 'mcp':
+    case 'mcp': {
+      const rows = view.mcpServers
+        .map((server) => serverRow(server, store))
+        .filter((row) => matches(needle, row.title, row.detail, row.badge))
+
       return (
-        <>
-          <ContributionList
-            empty="这台机器上没有配置 MCP 服务器，插件也没有带来。"
-            rows={view.mcpServers
-              .map((server) => serverRow(server, store))
-              .filter((row) => matches(needle, row.title, row.detail, row.badge))}
-          />
+        <div className="pb-24">
+          <Section count={rows.length} title="已安装">
+            <ContributionList empty="这台机器上没有配置 MCP 服务器，插件也没有带来。" rows={rows} />
+          </Section>
           <CatalogGrid
+            action={{ kind: 'server', install: store.installEnvironmentServer }}
             groups={groupRows(builtinServerRows(view.mcpServers, needle))}
-            onInstall={store.beginInstall}
-            onInstallServer={store.installEnvironmentServer}
-            onOpen={undefined}
           />
-        </>
+        </div>
       )
+    }
     default:
       return assertUnreachable(tab)
   }
@@ -246,7 +258,12 @@ function installedSkillRow(skill: InstalledSkill, store: PluginStore): Contribut
     detail: skill.manifest.description ?? '这个技能没有写说明。装好后由新会话装载。',
     badge: '已安装',
     trailing: (
-      <Button onClick={() => store.removeInstalledSkill(skill.dirName)} size="xs" variant="ghost">
+      <Button
+        className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+        onClick={() => store.removeInstalledSkill(skill.dirName)}
+        size="xs"
+        variant="ghost"
+      >
         移除
       </Button>
     ),
@@ -254,16 +271,15 @@ function installedSkillRow(skill: InstalledSkill, store: PluginStore): Contribut
 }
 
 /*
- * 一行是一个技能，不是一个插件：人在这一格找的是「我能调用什么」。
- *
- * 技能行上没有开关 —— 启停不在本应用手上，它们由 agent 按自己那套目录分层装载。
+ * agent 报来的那些。它们不在这里的 skills/ 目录里 —— 全局装的、插件带来的都算，而启停不在
+ * 本应用手上：那几层目录由 agent 自己按分层装载，这里给不出一个拨得动的开关。
  */
 function skillRow(entry: PaletteEntry): ContributionRow {
   return {
     key: entry.name,
     title: entry.label,
     detail: entry.description === '' ? '这个技能没有写说明。' : entry.description,
-    badge: '技能',
+    badge: 'agent 报来',
   }
 }
 
@@ -272,36 +288,39 @@ function skillRow(entry: PaletteEntry): ContributionRow {
  * 时这一台的开关不该被悄悄拨回去，但也不能让人以为它还在跑。
  *
  * mcp.json 里那些的开关与移除落回文件本身：enabled 与 CLI 拨的是同一格（缺席即开，
- * 官方语义），两边看到的永远是同一个答案。受控 home 不生效时原生侧拒绝写入，开关会
- * 弹回 —— 拒绝的理由在日志里。
+ * 官方语义），两边看到的永远是同一个答案。
  */
 function serverRow(server: ResolvedMcpServer, store: PluginStore): ContributionRow {
   const { origin } = server
 
-  if (origin.kind === 'user') {
-    const state = server.enabled ? '会话开始时由命令行装载' : '已在配置里关闭'
+  const toggle = (
+    <Switch
+      aria-label={`启用 ${server.name}`}
+      checked={server.enabled}
+      onCheckedChange={(next) => store.setMcpServerEnabled(origin, server.name, next)}
+      size="sm"
+    />
+  )
 
+  if (origin.kind === 'user') {
     return {
       key: `${origin.location}/${server.name}`,
       title: server.name,
-      detail: `${origin.location} · ${state}`,
+      detail: `${origin.location} · ${server.enabled ? '会话开始时由命令行装载' : '已在配置里关闭'}`,
       badge: describeOrigin(origin),
+      dimmed: !server.enabled,
       trailing: (
-        <span className="flex items-center gap-2">
+        <>
           <Button
+            className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
             onClick={() => store.removeEnvironmentServer(server.name)}
             size="xs"
             variant="ghost"
           >
             移除
           </Button>
-          <Switch
-            aria-label={`启用 ${server.name}`}
-            checked={server.enabled}
-            onCheckedChange={(next) => store.setMcpServerEnabled(origin, server.name, next)}
-            size="sm"
-          />
-        </span>
+          {toggle}
+        </>
       ),
     }
   }
@@ -311,14 +330,8 @@ function serverRow(server: ResolvedMcpServer, store: PluginStore): ContributionR
     title: server.name,
     detail: detailOf(origin, server),
     badge: describeOrigin(origin),
-    trailing: (
-      <Switch
-        aria-label={`启用 ${server.name}`}
-        checked={server.enabled}
-        onCheckedChange={(next) => store.setMcpServerEnabled(origin, server.name, next)}
-        size="sm"
-      />
-    ),
+    dimmed: !server.enabled,
+    trailing: toggle,
   }
 }
 

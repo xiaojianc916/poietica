@@ -20,7 +20,6 @@ export {
   type ListingStatus,
   matches,
   type PluginListingInput,
-  personalPluginRows,
   publicPluginRows,
   type RowGroup,
   statusText,
