@@ -1,6 +1,7 @@
 import type { GitBranchPickerProps } from '@poietica/agent-ui'
 import { type GitBranches, gitBranches, gitCreateBranch, gitSwitchBranch } from '@poietica/ipc'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { reportFailure } from './failures/application-policy'
 
 /*
  * 当前工作目录的 git 分支快照，交给输入框下方那枚分支 chip。
@@ -16,12 +17,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 interface GitView {
   readonly root: string
   readonly snapshot: GitBranches | null
-  readonly failure: string | null
   readonly busy: boolean
 }
 
 export function useWorkspaceGit(root: string | null): GitBranchPickerProps | undefined {
   const [view, setView] = useState<GitView | null>(null)
+  const activeRootRef = useRef(root)
+
+  activeRootRef.current = root
 
   /* 只认属于当前 root 的更新；函数式 set 让并发回答按到达顺序收敛。 */
   const commit = useCallback((forRoot: string, change: (held: GitView) => GitView) => {
@@ -32,7 +35,7 @@ export function useWorkspaceGit(root: string | null): GitBranchPickerProps | und
     (forRoot: string) => {
       void gitBranches(forRoot).then(
         (snapshot) => {
-          commit(forRoot, (held) => ({ ...held, failure: null, snapshot }))
+          commit(forRoot, (held) => ({ ...held, snapshot }))
         },
         () => {
           /* 问不出快照就当没有仓库：chip 消失，而不是挂一枚指错路的 chip。 */
@@ -50,25 +53,38 @@ export function useWorkspaceGit(root: string | null): GitBranchPickerProps | und
       return
     }
 
-    setView({ busy: false, failure: null, root, snapshot: null })
+    setView({ busy: false, root, snapshot: null })
     refresh(root)
   }, [refresh, root])
 
-  /* 切换与创建共用一条提交路径：成功拿回的就是新快照，不做乐观更新。 */
+  /*
+   * 切换与创建共用一条提交路径：成功拿回盘面快照；失败进入应用唯一的通知与
+   * 诊断管线。目录已切走的异步失败不再污染当前工作区。
+   */
   const apply = useCallback(
-    async (forRoot: string, operation: Promise<GitBranches>): Promise<boolean> => {
-      commit(forRoot, (held) => ({ ...held, busy: true, failure: null }))
+    async (
+      forRoot: string,
+      operationName: 'create-branch' | 'switch-branch',
+      operation: Promise<GitBranches>,
+    ): Promise<boolean> => {
+      commit(forRoot, (held) => ({ ...held, busy: true }))
 
       try {
         const snapshot = await operation
 
         commit(forRoot, (held) => ({ ...held, busy: false, snapshot }))
 
-        return true
-      } catch (error) {
-        const failure = error instanceof Error ? error.message : String(error)
+        return activeRootRef.current === forRoot
+      } catch (cause: unknown) {
+        commit(forRoot, (held) => ({ ...held, busy: false }))
 
-        commit(forRoot, (held) => ({ ...held, busy: false, failure }))
+        if (activeRootRef.current === forRoot) {
+          reportFailure('GIT_BRANCH_OPERATION_FAILED', {
+            cause,
+            operation: operationName,
+            scope: 'workspace-git',
+          })
+        }
 
         return false
       }
@@ -88,12 +104,11 @@ export function useWorkspaceGit(root: string | null): GitBranchPickerProps | und
       branches: snapshot.branches,
       busy: view.busy,
       detachedAt: snapshot.detachedAt,
-      failure: view.failure,
-      onCreate: (branch: string) => apply(root, gitCreateBranch(root, branch)),
+      onCreate: (branch: string) => apply(root, 'create-branch', gitCreateBranch(root, branch)),
       onRefresh: () => {
         refresh(root)
       },
-      onSwitch: (branch: string) => apply(root, gitSwitchBranch(root, branch)),
+      onSwitch: (branch: string) => apply(root, 'switch-branch', gitSwitchBranch(root, branch)),
     }
   }, [apply, refresh, root, view])
 }

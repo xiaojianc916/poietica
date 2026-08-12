@@ -25,7 +25,7 @@ import { SearchIcon } from '../primitives/icons'
  *
  * 这一层不认识 IPC 也不持有仓库状态：快照、失败与忙碌都从 props 进来，
  * 动作从回调出去。回调交回「是否已应用」，组件唯一自有的决定是：应用了
- * 才合上弹层 —— 失败时留在原地，让拒绝理由说话。
+ * 才合上弹层；失败由应用级通知管线呈现，菜单本身不复制错误状态。
  */
 
 export interface GitBranchPickerProps {
@@ -35,8 +35,6 @@ export interface GitBranchPickerProps {
   readonly detachedAt: string | null
   /** 本地分支，按最近提交排序。 */
   readonly branches: readonly string[]
-  /** 上一次切换或创建被 git 拒绝的原因；没有就是 null。 */
-  readonly failure: string | null
   /** 有一次切换或创建还在路上。 */
   readonly busy: boolean
   readonly onSwitch: (branch: string) => Promise<boolean>
@@ -66,7 +64,6 @@ export function GitBranchPicker({
   branches,
   busy,
   detachedAt,
-  failure,
   onCreate,
   onRefresh,
   onSwitch,
@@ -175,12 +172,6 @@ export function GitBranchPicker({
           {matches.length === 0 && !creatable ? (
             <p className="git-branch-picker__none">没有匹配的分支。</p>
           ) : null}
-
-          {failure === null ? null : (
-            <p className="git-branch-picker__failure" role="alert">
-              {failure}
-            </p>
-          )}
 
           <DropdownMenuSeparator className="git-branch-picker__separator" />
 

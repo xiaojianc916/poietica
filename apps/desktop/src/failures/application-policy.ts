@@ -16,6 +16,7 @@ export const APPLICATION_FAILURE_CODES = [
   'AGENT_CONFIG_CHANGE_REJECTED',
   'SESSION_CONFIG_CHANGE_REJECTED',
   'THREAD_REOPEN_FAILED',
+  'GIT_BRANCH_OPERATION_FAILED',
   'UPDATE_DOWNLOAD_FAILED',
 ] as const
 
@@ -224,6 +225,16 @@ export const APPLICATION_FAILURE_POLICIES = {
     recovery: 'retry',
 
     scope: operationScope('reopen-thread'),
+  },
+  /*
+   * Git 的原始拒绝理由属于诊断信息，不再直接撑开菜单。用户只需要知道操作没有
+   * 生效并可以重试；具体 stderr 仍由 FailureCoordinator 记录。
+   */
+  GIT_BRANCH_OPERATION_FAILED: {
+    impact: 'recoverable',
+    userMessage: 'Git 没有完成这次分支操作，当前分支没有改变。',
+    recovery: 'retry',
+    scope: operationScope('git-branch-operation'),
   },
   /*
    * 更新没能下下来。

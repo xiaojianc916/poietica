@@ -25,6 +25,19 @@ const usedFeatureIds = new Set(
   }),
 )
 
+describe('Git branch operation failures', () => {
+  it('remain retryable without degrading the Git feature', () => {
+    const policy = APPLICATION_FAILURE_POLICIES.GIT_BRANCH_OPERATION_FAILED
+
+    expect(policy.impact).toBe('recoverable')
+    expect(policy.recovery).toBe('retry')
+    expect(policy.scope({})).toEqual({
+      kind: 'operation',
+      operation: 'git-branch-operation',
+    })
+  })
+})
+
 describe('the features this application knows how to lose', () => {
   it('has policies to lose them with', () => {
     expect(degradableCodes.length).toBeGreaterThan(0)

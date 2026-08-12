@@ -36,9 +36,9 @@ export function ToastRegion({ notices, onDismiss }: ToastRegionProps) {
         <BaseToast.Viewport
           className={cn(
             'pointer-events-none',
-            'fixed bottom-4 right-4',
+            'fixed left-1/2 top-12 -translate-x-1/2',
             'z-[var(--ui-z-toast)]',
-            'w-[min(380px,calc(100vw-32px))]',
+            'w-[min(420px,calc(100vw-32px))]',
             'outline-none',
           )}
         >
@@ -116,29 +116,33 @@ function ToastList() {
       <BaseToast.Root
         className={cn(
           'pointer-events-auto',
-          'absolute bottom-0 right-0',
-          'w-full',
+          'absolute left-0 top-0',
+          'max-h-[min(168px,calc(100vh-64px))] w-full',
+          'overflow-hidden',
           'rounded-lg border',
           'bg-background',
           'text-foreground',
-          'shadow-xl',
+          'shadow-md',
           'outline-none',
           'transition-[transform,opacity]',
           'duration-[var(--ui-duration-normal)]',
           'ease-[var(--ui-ease-standard)]',
-          'data-[starting-style]:translate-y-2',
+          'will-change-[transform,opacity]',
+          'data-[starting-style]:-translate-y-3',
+          'data-[starting-style]:scale-[0.98]',
           'data-[starting-style]:opacity-0',
-          'data-[ending-style]:translate-y-2',
+          'data-[ending-style]:-translate-y-2',
+          'data-[ending-style]:scale-[0.98]',
           'data-[ending-style]:opacity-0',
           'data-[expanded]:relative',
-          'data-[expanded]:mb-2',
+          'data-[expanded]:mt-2',
           tone === 'warning' && 'border-warning/40',
           tone === 'danger' && 'border-destructive/30',
           tone === 'info' && 'border-divider',
           tone === 'success' && 'border-primary/30',
         )}
         key={toast.id}
-        swipeDirection={['down', 'right']}
+        swipeDirection={['up', 'right']}
         toast={toast}
       >
         <BaseToast.Content className={cn('flex items-start gap-3', 'p-3 text-sm')}>
@@ -155,10 +159,12 @@ function ToastList() {
           />
 
           <div className={cn('grid min-w-0', 'flex-1 gap-1')}>
-            <BaseToast.Title className="leading-5" />
+            <BaseToast.Title className={cn('line-clamp-2', 'break-words leading-5')} />
 
             {toast.description ? (
-              <BaseToast.Description className={cn('text-xs', 'text-muted-foreground')} />
+              <BaseToast.Description
+                className={cn('line-clamp-3 break-words', 'text-xs text-muted-foreground')}
+              />
             ) : null}
           </div>
 

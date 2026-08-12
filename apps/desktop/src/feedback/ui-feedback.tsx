@@ -54,7 +54,7 @@ function toToastNotice(entry: ToastFailure): ToastNotice {
   return {
     id: incident.id,
     title: incident.userMessage,
-    description: [degraded ? '功能受限' : '操作失败', incident.code].join(' · ') + occurrenceLabel,
+    description: `${degraded ? '功能受限' : '操作失败'}${occurrenceLabel}`,
     tone: degraded ? 'warning' : 'danger',
     duration: degraded ? 9_000 : 5_500,
     priority: degraded ? 'low' : 'high',
