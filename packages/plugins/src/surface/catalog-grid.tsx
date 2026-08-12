@@ -89,7 +89,7 @@ interface CatalogCardProps {
 
 function CatalogCard({ action, row }: CatalogCardProps) {
   return (
-    <li className="group flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 transition-colors hover:border-divider hover:bg-background">
+    <li className="group flex min-w-0 items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 transition-colors hover:border-divider hover:bg-background">
       <PluginGlyph displayName={row.displayName} id={row.id} size="sm" />
       <div className="min-w-0 flex-1">
         {action.kind === 'plugin' ? (
@@ -103,7 +103,10 @@ function CatalogCard({ action, row }: CatalogCardProps) {
         ) : (
           <span className="block truncate text-[13px] font-medium">{row.displayName}</span>
         )}
-        <span className="block truncate pt-0.5 text-xs text-muted-foreground">
+        <span
+          className="block truncate pt-0.5 text-xs text-muted-foreground"
+          title={row.description}
+        >
           {row.description}
         </span>
       </div>

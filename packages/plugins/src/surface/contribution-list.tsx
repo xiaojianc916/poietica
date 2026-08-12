@@ -46,7 +46,7 @@ export function ContributionList({ empty, rows }: ContributionListProps) {
       {rows.map((row) => (
         <li
           className={cn(
-            'group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/60',
+            'group flex min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/60',
             row.dimmed === true ? 'opacity-55' : '',
           )}
           key={row.key}
@@ -71,7 +71,9 @@ export function ContributionList({ empty, rows }: ContributionListProps) {
                 </span>
               )}
             </div>
-            <p className="truncate pt-0.5 text-xs text-muted-foreground">{row.detail}</p>
+            <p className="truncate pt-0.5 text-xs text-muted-foreground" title={row.detail}>
+              {row.detail}
+            </p>
           </div>
           {row.trailing === undefined ? null : (
             <div className="flex shrink-0 items-center gap-1.5">{row.trailing}</div>

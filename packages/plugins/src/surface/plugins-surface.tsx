@@ -81,7 +81,7 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
 
   if (openedId !== undefined) {
     return (
-      <div className="h-full overflow-y-auto bg-ground">
+      <div className="h-full overflow-y-auto bg-ground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="mx-auto w-full max-w-5xl px-10">
           <PluginDetail
             entry={entries.find((one) => one.id === openedId)}
@@ -95,7 +95,7 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-ground">
+    <div className="h-full overflow-y-auto bg-ground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="mx-auto w-full max-w-5xl px-10">
         <header className="pt-12 pb-5">
           <h1 className="text-[26px] font-semibold leading-none tracking-tight">扩展</h1>
@@ -147,7 +147,6 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
             )}
           </div>
         </div>
-        <p className="pt-3 text-[11px] text-muted-foreground">{detectedText(view.detectedAt)}</p>
         <TabBody
           entries={entries}
           needle={needle}
@@ -160,18 +159,6 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
       </div>
     </div>
   )
-}
-
-/*
- * 「上次检测」这一行是快照存在的可见证据：没有它，一个从缓存里画出来的列表和一个刚探测完
- * 的列表在屏幕上一模一样，人无从判断自己看的是不是旧的。
- */
-function detectedText(detectedAt: string): string {
-  if (detectedAt === '') {
-    return '正在探测这台机器上的扩展…'
-  }
-
-  return `上次检测 ${new Date(detectedAt).toLocaleString()}，重启后直接读这一份，不重扫。`
 }
 
 interface TabBodyProps {
