@@ -49,12 +49,10 @@ function toToastNotice(entry: ToastFailure): ToastNotice {
 
   const degraded = incident.impact === 'feature-degraded'
 
-  const occurrenceLabel = entry.occurrences > 1 ? ` · ${String(entry.occurrences)} 次` : ''
-
   return {
     id: incident.id,
     title: incident.userMessage,
-    description: `${degraded ? '功能受限' : '操作失败'}${occurrenceLabel}`,
+    description: incident.technicalMessage,
     tone: degraded ? 'warning' : 'danger',
     duration: degraded ? 9_000 : 5_500,
     priority: degraded ? 'low' : 'high',

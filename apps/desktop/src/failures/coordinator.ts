@@ -40,7 +40,6 @@ export type NonTerminalFailureIncident = FailureIncident & {
 export interface PresentedFailure {
   readonly incident: NonTerminalFailureIncident
 
-  readonly occurrences: number
   readonly noticeVisible: boolean
 }
 
@@ -236,8 +235,6 @@ export class FailureCoordinator {
       (entry) => entry.incident.fingerprint === incident.fingerprint,
     )
 
-    const existing = existingIndex >= 0 ? this.operations[existingIndex] : undefined
-
     if (existingIndex >= 0) {
       this.operations.splice(existingIndex, 1)
     }
@@ -245,8 +242,6 @@ export class FailureCoordinator {
     this.operations.push(
       Object.freeze({
         incident,
-        occurrences: (existing?.occurrences ?? 0) + 1,
-
         noticeVisible: true,
       }),
     )
@@ -265,14 +260,10 @@ export class FailureCoordinator {
 
     noticeVisible: boolean,
   ): void {
-    const existing = target.get(key)
-
     target.set(
       key,
       Object.freeze({
         incident,
-        occurrences: (existing?.occurrences ?? 0) + 1,
-
         noticeVisible,
       }),
     )
