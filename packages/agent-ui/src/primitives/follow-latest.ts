@@ -1,5 +1,6 @@
 import { useReducedMotion } from 'motion/react'
 import { useCallback, useRef, useSyncExternalStore } from 'react'
+import { startGlide } from './scroll-glide'
 
 /**
  * 距末端多近算作「回到了最新」。
@@ -9,18 +10,6 @@ import { useCallback, useRef, useSyncExternalStore } from 'react'
  * 不必压到零。
  */
 const NEAR_END_PX = 48
-
-/**
- * 一段返回位移走多久。
- *
- * 固定值，与要走的距离无关，所以一段很长的对话与一段很短的对话回到末端的手感是同一个 ——
- * 这是「回到最新」这个动作该有的性质：它不是在遍历历史，是在换一个落点。
- *
- * 量级取自仓库里最近的同类数字 --cp-motion-settle（320ms）。没有直接吃那个令牌：它是 CSS
- * 自定义属性，从这里拿它要 getComputedStyle 再解析字符串，还会把这个 hook 拴到皮肤层上，
- * 而这个数字描述的是滚动位置的行为，不是外观。
- */
-const TRAVEL_MS = 360
 
 /**
  * 人主动改变一段内容高度的标准声明。
@@ -64,48 +53,6 @@ export function distanceFromEnd(geometry: ScrollGeometry): number {
 /** 这个几何算不算「视口在末端」。 */
 export function staysWithLatest(geometry: ScrollGeometry): boolean {
   return distanceFromEnd(geometry) <= NEAR_END_PX
-}
-
-/**
- * 位移的曲线：三次缓出。
- *
- * 前段快、末段慢。匀速读起来像机器在拖，而缓出读起来是「被拽了一把然后放手」—— 这是位移
- * 类过渡的通行形状，也是这个界面上其它过渡的形状（--ui-ease-standard 一族同样是减速为主）。
- */
-export function easeOut(fraction: number): number {
-  const remaining = 1 - fraction
-
-  return 1 - remaining * remaining * remaining
-}
-
-/**
- * 位移在某一时刻该落在哪；返回 null 表示这一段走完了。
- *
- * 目标每一次都从传进来的几何重算，而不是在开始时算一次记住：虚拟列表的总高是估出来的，行
- * 被真实测量后它会改，内容边写边长时它也在改。捕获一次目标的做法（平台的平滑滚动就是这么
- * 做的）会在半路把终点定死在一个已经不存在的位置上。
- *
- * 两个终止条件都不依赖运气：时间到，或者末端跑到了当前位置的后面（内容缩短时会发生）。
- *
- * 取 max 是为了单调：目标缩短会让算出的位置回到当前位置之上，而位移途中任何一次向上写入
- * 都是可见的抽动。宁可写一个没有位移的值（浏览器不会为它派发滚动），也不往上顶。
- */
-export function travelStep(
-  origin: number,
-  geometry: ScrollGeometry,
-  fraction: number,
-): number | null {
-  if (fraction >= 1) {
-    return null
-  }
-
-  const target = geometry.scrollHeight - geometry.clientHeight
-
-  if (target <= geometry.scrollTop) {
-    return null
-  }
-
-  return Math.max(origin + (target - origin) * easeOut(fraction), geometry.scrollTop)
 }
 
 /**
@@ -258,7 +205,7 @@ export interface FollowLatest {
  * 落在真末端后面一截，纸面读起来是自己在往上爬。所以 stick 写 scrollTop，瞬时。
  *
  * 人亲手要求的那一次返回必须补间：那是一段有距离的位移，闪现会把「我刚才在哪」抹掉。这一段
- * 由这里自己持有一个 rAF 循环走完，不用 scrollTo 的 smooth —— 那个原语在这个场景下三条都不
+ * 交给 scroll-glide 的位移循环走完（与转录「跳到某一轮」同一条），不用 scrollTo 的 smooth —— 那个原语在这个场景下三条都不
  * 成立：时长与曲线由 UA 定、没有接口；它在开始时捕获一次目标，而虚拟列表的目标每帧都在动；
  * 它的完成事件同样会被程序化的瞬时写入触发，于是位移的收尾会被自己的启动动作提前放行。标杆
  * 也是自己写循环并每帧重读目标（use-stick-to-bottom），理由就是内容会在途中长高。
@@ -302,7 +249,7 @@ export function useFollowLatest(): FollowLatest {
   const primed = useRef(false)
 
   const last = useRef<ScrollGeometry>({ clientHeight: 0, scrollHeight: 0, scrollTop: 0 })
-  const travelFrame = useRef<number | null>(null)
+  const stopGlide = useRef<(() => void) | null>(null)
 
   const atLatest = useRef(true)
   const listeners = useRef(new Set<() => void>())
@@ -330,10 +277,8 @@ export function useFollowLatest(): FollowLatest {
   }, [])
 
   const stopTravel = useCallback(() => {
-    if (travelFrame.current !== null) {
-      cancelAnimationFrame(travelFrame.current)
-      travelFrame.current = null
-    }
+    stopGlide.current?.()
+    stopGlide.current = null
   }, [])
 
   /*
@@ -437,35 +382,23 @@ export function useFollowLatest(): FollowLatest {
 
     state.current = TRAVELING
 
-    const origin = geometry.scrollTop
-
-    /* rAF 回调的时间戳与 performance.now() 同一个时间原点，所以这两个数可以直接相减。 */
-    const startedAt = performance.now()
-
-    const step = (time: number) => {
-      travelFrame.current = null
-
-      const box = viewport.current
-
-      /* 有人接手了滚动位置，或者盒子已经拆了：一步都不写。 */
-      if (box === null || !state.current.traveling) {
-        return
-      }
-
-      const next = travelStep(origin, seen(box), (time - startedAt) / TRAVEL_MS)
-
-      if (next === null) {
+    /*
+     * 位移交给 scroll-glide —— 与转录「跳到某一轮」同一条管线。终点每帧重读（内容
+     * 边写边长时它在动）；取消走方向判据：人一拨滚轮，nextFollow 当场收走 traveling，
+     * proceed 看见就一步都不写。
+     */
+    stopGlide.current = startGlide(element, {
+      arrive: () => {
         state.current = AT_LATEST
         settle(true)
+      },
+      proceed: () => viewport.current !== null && state.current.traveling,
+      target: () => {
+        const box = viewport.current
 
-        return
-      }
-
-      box.scrollTop = next
-      travelFrame.current = requestAnimationFrame(step)
-    }
-
-    travelFrame.current = requestAnimationFrame(step)
+        return box === null ? null : box.scrollHeight - box.clientHeight
+      },
+    })
   }, [reduced, settle, stopTravel])
 
   const watch = useCallback(

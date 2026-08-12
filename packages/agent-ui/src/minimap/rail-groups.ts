@@ -1,77 +1,55 @@
 import type { ConversationTurn } from '@poietica/agent'
 
 /*
- * 轨道的度量模型：一格多高、一格在哪、总共几格、一格装几轮。四个问题一处回答，
+ * 轨道的度量与分格模型：一格多高、一格在哪、最多几格、一格装几轮。一处回答，
  * 行为 hook 只消费，不各自重算。
  *
- * 「装得下几格」这一问已经删掉 —— 它的答案永远不是那个更小的数，理由见 railSlots。
+ * 分格是轮次的纯函数，这是导航条能用的前提：滚动条的滑块、编辑器 overview ruler
+ * 上的标记，数量与位置都只随内容变，不随视口变 —— 「第 40 轮大概在那个高度」这类
+ * 空间记忆就建立在这上面。高亮（activeRow）只挑格，不改格。
  */
 
 /**
- * 一格的行距：命中区 12px，不留间距，与 conversation-minimap.css 一致。
+ * 一格的行距：命中区 12px，不留间距，与 conversation-minimap.css 的 --cp-rail-hit
+ * 一致。
  *
  * 必须是 4 的倍数。Windows 的显示缩放是 25% 的整数倍，1 CSS px 因此等于 k/4 个
  * 设备像素；步距一旦不是 4 的倍数，每一格的小数相位就逐格漂移，同样声明的横条
- * 被栅格化成深浅不同的几种。13 在 125% 下是 16.25，四格一循环 —— 那就是这一版
- * 在修的东西。12 乘任何 k/4 都是整数。
+ * 被栅格化成深浅不同的几种。12 乘任何 k/4 都是整数。
  *
- * 写死而不是从计算样式里读回来：读回来要每次布局刷新一次,而这个数只有改
- * 样式表的人会动,让它在两处同时改是比一次同步读更小的代价。
+ * 写死而不是从计算样式里读回来：读回来要每次布局刷新一次，而这个数只有改
+ * 样式表的人会动，让它在两处同时改是比一次同步读更小的代价。
  */
 export const RAIL_PITCH_PX = 12
 
 /**
- * 第 index 格的中线,在轨道自身的坐标里。
+ * 第 index 格的中线，在轨道自身的坐标里。
  *
- * 算出来的,不是量出来的。样式表把每格声明成 block-size: var(--cp-rail-hit) 且
- * flex-shrink: 0,轨道本身没有内边距,格与格之间没有间距 —— 所以第 index 格的上沿
- * 就是 index × 步距,一个字都不必问布局。offsetTop 会给出同一个数,代价是强制
- * flush 一遍布局。
+ * 算出来的，不是量出来的。样式表把每格声明成 block-size: var(--cp-rail-hit) 且
+ * flex-shrink: 0，轨道本身没有内边距，格与格之间没有间距 —— 所以第 index 格的
+ * 上沿就是 index × 步距，一个字都不必问布局。offsetTop 会给出同一个数，代价是
+ * 强制 flush 一遍布局。
  *
- * 它在这里而不是在某个 hook 里,是因为鱼眼和预览卡都要这个数。同一个量两处各算
- * 一遍,就是两处可以各自算错。
+ * 它在这里而不是在某个 hook 里，是因为鱼眼和预览卡都要这个数。同一个量两处各算
+ * 一遍，就是两处可以各自算错。
  */
 export const railCentre = (index: number): number => index * RAIL_PITCH_PX + RAIL_PITCH_PX / 2
 
 /**
- * 轨道上该有几根杠。
+ * 轨道最多几格。
  *
- * 不是「放得下几根」—— 那两个问题此前分开算再取小,而取小这一步已经没有意义:
- * 一块 800px 高的面板放得下六十多根,可六十根竖在边上的短横不是目录,是噪声
- * (没有哪个专业软件的导航条会这么干:Xcode 的 jump bar、IDEA 的 structure 都在
- * 十几项封顶),而超出十来根之后,「一眼看见全局」这个唯一的用途本身就没了 ——
- * 再多的格子只是把眼睛的活变重。
- *
- * 于是密度这一档恒在 8–10,而「放得下几根」要到轨道矮于 100px 才会更小(8 × 12
- * 加上下两条护栏),窗口的 minHeight 是 600 —— 那个数永远取不到。量高度那条线整
- * 个删了,格数只由轮数决定:
- *
- *   常态 8 根。轮数每翻一番才准多一根,硬顶 10 根。
- *
- * 攀升是几何的,不是「多一轮就多一格」:15 轮时 8 根加并格绰绰有余,而 100 轮
- * 时多两根买回来的是一整档折叠精度。翻番这个步长与 rail-groups 的 2^k 折叠是
- * 同一套算术,不是又一个拍出来的数。
+ * 「一根杠是一轮」是这个控件对人的承诺，所以并格越晚越好；封顶来自几何而不是
+ * 品味：32 格 × 12px = 384px，窗口的 minHeight 是 600（conversation-minimap.css
+ * 同一事实），面板竖向放得下，样式表的 max-block-size 只是护栏。超过 32 轮才
+ * 并格，而并格只由轮数决定 —— 格数与格的身份都不随滚动位置变。
  */
-export const RAIL_SLOTS_MIN = 8
-export const RAIL_SLOTS_MAX = 10
-
-/** 低于这个轮数一律最少那一档;之上每翻一番 +1。 */
-const RAIL_SLOTS_BASE = 16
-
-export function railSlots(turnCount: number): number {
-  const grown =
-    turnCount < RAIL_SLOTS_BASE
-      ? RAIL_SLOTS_MIN
-      : RAIL_SLOTS_MIN + Math.floor(Math.log2(turnCount / RAIL_SLOTS_BASE))
-
-  return Math.min(grown, RAIL_SLOTS_MAX)
-}
+export const RAIL_MAX_BARS = 32
 
 /**
  * 轨道上的一格。
  *
- * 它不是轮次 —— 轮次是时间线的事实,这是把事实映射到有限像素之后的结果。两者
- * 分开命名,是为了让"一格代表多轮"成为类型上说得出口的事,而不是靠约定。
+ * 它不是轮次 —— 轮次是时间线的事实，这是把事实映射到有限像素之后的结果。两者
+ * 分开命名，是为了让「一格代表多轮」成为类型上说得出口的事，而不是靠约定。
  */
 export type RailItem =
   | {
@@ -86,37 +64,18 @@ export type RailItem =
       readonly kind: 'cluster'
       readonly id: string
       readonly rowIndex: number
-      /** 1 起的闭区间,播报用。 */
+      /** 1 起的闭区间，播报用。 */
       readonly from: number
       readonly to: number
       readonly label: string
       readonly reply?: string
     }
 
-/**
- * 焦点窗口的上下限。
- *
- * 这两个数必须跟着 RAIL_SLOTS_MIN 走,不是独立可调的口味。窗口原本是 7–24:
- * 总格数还有五六十的时候那没问题,而现在总数被钉在 8–10 —— 取 7 就意味着八
- * 个格子里七个归焦点,远近上下文一格不剩,layout() 每一档都装不下,于是每次
- * 都跌进 packEven 均匀切。focus+context 会名存实亡,而且没有任何报错。
- *
- * 一半给焦点、一半给上下文:8 根 → 4+4,10 根 → 5+5。
- */
-const MIN_FOCUS = 3
-const MAX_FOCUS = 5
-
-/** 距焦点这么多轮之内,保持最细一档。 */
-const SPREAD_TURNS = 6
-
-/** 最粗一档:2^8 = 256 轮并成一格。再粗就没有意义了。 */
-const MAX_LEVEL = 8
-
 function replyOf(turn: ConversationTurn): { readonly reply?: string } {
   return turn.reply === undefined ? {} : { reply: turn.reply }
 }
 
-/** 单格就是一轮。ordinal 是整场对话里的序号,不是段内序号。 */
+/** 单格就是一轮。ordinal 是整场对话里的序号，不是段内序号。 */
 function one(turn: ConversationTurn, index: number): RailItem {
   return {
     kind: 'turn',
@@ -131,9 +90,9 @@ function one(turn: ConversationTurn, index: number): RailItem {
 /**
  * 把 [from, to) 这一段收成一格。
  *
- * 段首代表整段:它的 rowIndex 是这一段的入口,点它落在段首而不是段中,符合
- * "跳到某一段"的意图。只有一轮时退化成单格,不套 cluster 的壳 —— 播报"第 7–7
- * 轮"是在说废话。
+ * 段首代表整段：它的 rowIndex 是这一段的入口，点它落在段首而不是段中，符合
+ * 「跳到某一段」的意图。只有一轮时退化成单格，不套 cluster 的壳 —— 播报「第
+ * 7–7 轮」是在说废话。
  */
 function fold(turns: readonly ConversationTurn[], from: number, to: number, out: RailItem[]): void {
   const head = turns[from]
@@ -160,134 +119,36 @@ function fold(turns: readonly ConversationTurn[], from: number, to: number, out:
 }
 
 /**
- * 没有焦点时的退路:均匀切。
+ * 轮次 → 格子。装得下就一轮一格；装不下就等宽切段，段长 ceil(N/格数)。
  *
- * 保留它有两个用处。一是还没有阅读位置的那一瞬间 —— 那时没有"近处"可言,再
- * 分优先级就是编的。二是网格排布在极端预算下装不下时的兜底:均匀切的格数有
- * 上界保证,网格排布没有。
- */
-function packEven(turns: readonly ConversationTurn[], slots: number, out: RailItem[]): void {
-  const size = Math.max(1, Math.ceil(turns.length / slots))
-
-  for (let index = 0; index < turns.length; index += size) {
-    fold(turns, index, Math.min(index + size, turns.length), out)
-  }
-}
-
-/**
- * 离焦点这么远的地方,一格该装多少轮。
+ * 不做 focus+context 的动态并格。上一版把滚动位置（焦点）喂进了分格，格子的数量
+ * 与身份随人上下滚动而变 —— 一轮都没多，导航条却在眼前增减横条。导航的第一性质
+ * 是稳：标记要能被记住，才谈得上「跳回去」。近处放大是预览卡与鱼眼的职责，不该
+ * 由分格再做一遍。
  *
- * 二的幂,不是任意整数 —— 这一条是整个网格能站住的原因。宽度为 2^k 的桶,起点
- * 必然是 2^k 的倍数,所以焦点挪动时桶只会在那几条固定的网格线上合并或分裂,
- * 而不会整体平移。原先按 ceil(段长 / 格数) 均匀切,焦点每挪一轮,远处每一条
- * 边界都跟着挪一点:你刚记住"第 40 轮大概在那个高度",下一帧就不作数了。
- *
- * 增长是几何的,不是线性的:近处 1 轮一格,再远 2、4、8……这才是 focus+context
- * 该有的衰减。原先"窗口内全 1、窗口外全 N"是个断崖。
- */
-function widthAt(distance: number, base: number): number {
-  if (distance <= 0) {
-    return 2 ** Math.min(base, MAX_LEVEL)
-  }
-
-  const grown = base + Math.floor(Math.log2(1 + distance / SPREAD_TURNS))
-
-  return 2 ** Math.min(grown, MAX_LEVEL)
-}
-
-/**
- * 排一次布局:焦点前、焦点窗口、焦点后。
- *
- * base 是整体粗细档位。一次排不下就整体升一档重排 —— 与其去调各段的配额,
- * 不如平移整条衰减曲线:配额法会让某一段被压得特别狠,而这里各处按同一个比例
- * 变粗,读起来仍然是一条连续的衰减。
- *
- * 边界 clamp 到 index + 1,保证每轮循环至少前进一格 —— 升档时 snap 回去的网格
- * 线可能落在 index 之前,没有这条护栏就是死循环。
- */
-function layout(
-  turns: readonly ConversationTurn[],
-  start: number,
-  stop: number,
-  base: number,
-): RailItem[] {
-  const items: RailItem[] = []
-  let index = 0
-
-  while (index < start) {
-    const width = widthAt(start - index, base)
-    const edge = Math.floor(index / width) * width + width
-    const next = Math.min(Math.max(edge, index + 1), start)
-
-    fold(turns, index, next, items)
-    index = next
-  }
-
-  for (let cursor = start; cursor < stop; cursor += 1) {
-    const turn = turns[cursor]
-
-    if (turn !== undefined) {
-      items.push(one(turn, cursor))
-    }
-  }
-
-  index = stop
-
-  while (index < turns.length) {
-    const width = widthAt(index - stop + 1, base)
-    const edge = Math.floor(index / width) * width + width
-    const next = Math.min(Math.max(edge, index + 1), turns.length)
-
-    fold(turns, index, next, items)
-    index = next
-  }
-
-  return items
-}
-
-/**
- * 装不下就并格 —— 但焦点那一轮永远不并,而且远处的地标不许动。
- *
- * rowIndex 严格递增是构造保证的:三段按先后拼接,段内也按先后。turnIndexAtRow
- * 的二分依赖这一点,不能破坏。
+ * rowIndex 严格递增是构造保证的：按先后切段、段首代表段。turnIndexAtRow 的二分
+ * 依赖这一点，不能破坏。
  */
 export function groupTurns(
   turns: readonly ConversationTurn[],
   capacity: number,
-  activeIndex = -1,
 ): readonly RailItem[] {
   if (turns.length === 0) {
     return []
   }
 
-  /* capacity 恒是 8–10 的整数(railSlots)。放得下就不并;非数不必防,没人产得出。 */
-  if (turns.length <= capacity) {
+  const slots = Math.max(1, Math.floor(capacity))
+
+  if (turns.length <= slots) {
     return turns.map((turn, index) => one(turn, index))
   }
 
-  const slots = Math.max(1, Math.floor(capacity))
-  const even: RailItem[] = []
+  const size = Math.ceil(turns.length / slots)
+  const items: RailItem[] = []
 
-  if (activeIndex < 0 || activeIndex >= turns.length) {
-    packEven(turns, slots, even)
-
-    return even
+  for (let index = 0; index < turns.length; index += size) {
+    fold(turns, index, Math.min(index + size, turns.length), items)
   }
 
-  const wanted = Math.max(MIN_FOCUS, Math.min(MAX_FOCUS, Math.floor(slots / 2)))
-  const focus = Math.min(turns.length, slots, wanted)
-  const half = Math.floor((focus - 1) / 2)
-  const start = Math.min(Math.max(0, activeIndex - half), turns.length - focus)
-
-  for (let base = 0; base <= MAX_LEVEL; base += 1) {
-    const items = layout(turns, start, start + focus, base)
-
-    if (items.length <= slots) {
-      return items
-    }
-  }
-
-  packEven(turns, slots, even)
-
-  return even
+  return items
 }

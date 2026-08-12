@@ -1,8 +1,6 @@
 import { useCallback } from 'react'
 import { railCentre } from './rail-groups'
 
-/* poietica:conversation-minimap-card@v25 */
-
 const TURN = '.conversation-minimap__turn'
 const CARD = '.conversation-minimap__card'
 const SHOWN = 'data-shown'
@@ -132,7 +130,7 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
      *
      * 卡片也是 nav 的直接子节点,所以按类名数而不是按位置数。matches 走的是选择器
      * 匹配,与这份文件上面提到的 ':hover' / ':focus-visible' 不同,不需要先把样式
-     * 解析出来。格数封顶 10,这一趟最多走十步。
+     * 解析出来。格数由 RAIL_MAX_BARS 封顶,这一趟至多三十来步。
      */
     const slotOf = (cell: HTMLElement): number => {
       let index = 0

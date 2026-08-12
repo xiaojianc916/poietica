@@ -3,7 +3,7 @@ import './conversation-minimap.css'
 import type { ConversationTurn } from '@poietica/agent'
 import { memo, useCallback } from 'react'
 import { turnIndexAtRow } from '../threads/ordered-lookup'
-import { groupTurns, railSlots } from './rail-groups'
+import { groupTurns, RAIL_MAX_BARS } from './rail-groups'
 import { useFisheye } from './use-fisheye'
 import { useFoldFlip } from './use-fold-flip'
 import { useRailCard } from './use-rail-card'
@@ -34,13 +34,16 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
   const card = useRailCard()
 
   /*
-   * 先算总共几格,再决定一格代表几轮。
+   * 分格只看轮次,不看滚动位置。
    *
-   * 不包 useMemo,理由和下面的二分一样:这是一次 O(N) 的遍历,N 是屏幕上放得
-   * 下的格子数量级,而这个组件被 memo 包着、滚动帧里根本不重渲染。
+   * 高亮(activeRow)只挑格,不改格:格子的数量与身份是轮次的纯函数,人上下滚动
+   * 时一根都不许增减 —— 「第 40 轮大概在那个高度」这类空间记忆是导航条的第一
+   * 性质,滚动条与编辑器的 overview ruler 同理。
+   *
+   * 不包 useMemo,理由和下面的二分一样:这是一次 O(N) 的遍历,而这个组件被
+   * memo 包着、滚动帧里根本不重渲染。
    */
-  const focus = turnIndexAtRow(turns, activeRow)
-  const items = groupTurns(turns, railSlots(turns.length), focus)
+  const items = groupTurns(turns, RAIL_MAX_BARS)
 
   /*
    * 有序数组上求"最后一个不晚于当前行的一格",这是二分。

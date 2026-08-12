@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  distanceFromEnd,
-  easeOut,
-  type FollowState,
-  nextFollow,
-  staysWithLatest,
-  travelStep,
-} from '../follow-latest'
+import { distanceFromEnd, type FollowState, nextFollow, staysWithLatest } from '../follow-latest'
+import { easeOut, glideStep } from '../scroll-glide'
 
 /*
  * 判据是纯的，所以它能脱离 DOM 钉住 —— 这也是把它从 hook 里分出来的理由：jsdom 的
@@ -56,35 +50,35 @@ describe('easeOut', () => {
   })
 })
 
-describe('travelStep', () => {
-  /* 目标每帧重算：行被测量、内容长高都只是挪终点,不该把这一段打断。 */
-  it('reads the target out of the geometry it is given', () => {
-    const halfway = travelStep(100, { clientHeight: 600, scrollHeight: 4000, scrollTop: 100 }, 0.5)
-
-    expect(halfway).toBe(2987.5)
+describe('glideStep', () => {
+  /* 目标每帧由调用方重算传入：行被测量、内容长高都只是挪终点,不该把这一段打断。 */
+  it('interpolates toward the target it is given', () => {
+    expect(glideStep(100, 100, 3400, 0.5)).toBe(2987.5)
   })
 
-  it('follows a target that moved while the travel was under way', () => {
-    const grown = travelStep(100, { clientHeight: 600, scrollHeight: 5000, scrollTop: 100 }, 0.5)
-
-    expect(grown).toBe(3862.5)
+  it('follows a target that moved while the glide was under way', () => {
+    expect(glideStep(100, 100, 4400, 0.5)).toBe(3862.5)
   })
 
-  it('reports the travel done when the budget runs out', () => {
-    expect(travelStep(100, { clientHeight: 600, scrollHeight: 4000, scrollTop: 900 }, 1)).toBe(null)
+  it('reports the glide done when the budget runs out', () => {
+    expect(glideStep(100, 900, 3400, 1)).toBe(null)
   })
 
-  it('reports the travel done once the end sits behind the box', () => {
-    const shrunk = { clientHeight: 600, scrollHeight: 900, scrollTop: 400 }
-
-    expect(travelStep(100, shrunk, 0.5)).toBe(null)
+  it('reports the glide done once the target sits behind the travel', () => {
+    expect(glideStep(100, 400, 300, 0.5)).toBe(null)
   })
 
-  /* 回归：位移途中任何一次向上写入都是一下可见的抽动。 */
-  it('never steps back up the page', () => {
-    const ahead = { clientHeight: 600, scrollHeight: 4000, scrollTop: 3000 }
+  /* 回归：位移途中任何一次逆行写入都是一下可见的抽动。 */
+  it('never steps back against a downward glide', () => {
+    expect(glideStep(100, 3000, 3400, 0.1)).toBe(3000)
+  })
 
-    expect(travelStep(100, ahead, 0.1)).toBe(3000)
+  it('glides upward under the same rule', () => {
+    expect(glideStep(1000, 1000, 200, 0.5)).toBe(300)
+  })
+
+  it('never steps forward against an upward glide', () => {
+    expect(glideStep(1000, 250, 200, 0.1)).toBe(250)
   })
 })
 

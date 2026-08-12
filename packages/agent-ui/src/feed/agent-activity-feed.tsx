@@ -2,9 +2,11 @@ import './agent-activity-feed.css'
 
 import type { FeedRow } from '@poietica/agent'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { useReducedMotion } from 'motion/react'
 import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useFollowLatest } from '../primitives/follow-latest'
 import { ChevronDownIcon } from '../primitives/icons'
+import { startGlide } from '../primitives/scroll-glide'
 import { useDevicePixels } from '../primitives/use-device-pixels'
 import { latestOwnMessage } from './own-message'
 import { type RowSpan, rowAtAnchor } from './reading-position'
@@ -218,6 +220,9 @@ export function AgentActivityFeed({
     settle: settleReveal,
     watch: watchReveal,
   } = useRevealIntent()
+
+  /* 与 follow-latest 同一个来源：这个界面上「要不要少一些动效」只有一个答案。 */
+  const reduced = useReducedMotion()
 
   /*
    * 末端由它拨,不由虚拟器拨。整段理由写在 follow-latest。
@@ -599,28 +604,44 @@ export function AgentActivityFeed({
   /*
    * 跳转是意图的效应,不是点击的副作用。
    *
-   * 写成点击时直接 scrollToIndex 是错的:跳转必须发生在闩锁已经立起来之后 —— 那次
-   * 滚动自己会派发 scroll,而回调里的 settleReveal 拿它去回答「到了没有」。pending
-   * 还没提交就滚,这一问会被自己的滚动提前答成「到了」。放进效应里,顺序由 React
-   * 保证,不由调用顺序碰运气。
+   * 跳转必须发生在闩锁已经立起来之后 —— 那次滚动自己会派发 scroll,而回调里的
+   * settleReveal 拿它去回答「到了没有」。pending 还没提交就滚,这一问会被自己的
+   * 滚动提前答成「到了」。放进效应里,顺序由 React 保证,不由调用顺序碰运气。
    *
-   * 而且必须是瞬移。平滑滚动在这里不是一个体验选项:行是动态测量的(下面的
-   * measureElement),平滑滚动要求目标偏移在一段动画期间保持不变 —— 途中每挂载
-   * 一行,估高就被真高替换一次,总高度与偏移随之改变,目标自己跑掉了。这也正是
-   * 虚拟化的收益所在:瞬移只挂载落点周围的十来行,与会话多长无关;平滑滚动会让
-   * 滚动位置连续经过中间每一个像素,于是中间每一行都要挂载、测量、卸载一遍 ——
-   * 那等于把整条会话读了一遍。
+   * 位移与「回到最新」是同一种运动,走同一条管线(scroll-glide):目标每帧从虚拟器
+   * 重读 —— getOffsetForIndex 正是 scrollToIndex 内部用的那次换算。途中行被真高
+   * 替换、总高改变,下一帧的目标就跟着新几何走,不会钉死在一个已经不存在的位置上;
+   * 途中每帧仍只挂载落点附近的一窗行,一段位移几十帧,代价与人快速滚一遍相同,有
+   * 界。平台的平滑滚动做不到这些:时长曲线由 UA 定、目标只在开始时捕获一次、收尾
+   * 还会被程序化写入提前放行。
    *
-   * 落点的稳定不靠动画去掩饰:跳转之前 releaseFollow 已经让开,末端不再来抢,而库默认
-   * 的锚点把视口上方的补偿仍然钉在原处。高亮的连续不靠动画去补,靠闩锁去锁。
+   * 取消不用额外接线:人一动输入设备,useRevealIntent 放弃 pending,这个效应的清理
+   * 函数当场停掉循环。跳转之前 releaseFollow 已经让开,末端不再来抢。减弱动效下退
+   * 化成瞬移,与「回到最新」同一条规则。
    */
   useLayoutEffect(() => {
     if (pending === null) {
       return
     }
 
-    virtualizer.scrollToIndex(pending, { align: 'start' })
-  }, [pending, virtualizer])
+    if (reduced === true) {
+      virtualizer.scrollToIndex(pending, { align: 'start' })
+
+      return
+    }
+
+    const viewport = viewportRef.current
+
+    if (viewport === null) {
+      return
+    }
+
+    return startGlide(viewport, {
+      arrive: () => undefined,
+      proceed: () => viewportRef.current !== null,
+      target: () => virtualizer.getOffsetForIndex(pending, 'start')?.[0] ?? null,
+    })
+  }, [pending, reduced, virtualizer])
 
   /*
    * 高亮的真源,按优先级排。
@@ -665,10 +686,10 @@ export function AgentActivityFeed({
            *   scrollToIndex 注记 —— 平滑滚动时首选「整块平移」，因为平滑滚动期间
            *     虚拟器只测量目标附近缓冲区内的条目，跳过的那些若各自定位就会错位。
            *
-           * 本组件落在前者，理由是后者的前提在这里不存在：这里没有任何一次平滑
-           * 滚动。跳转是 scrollToIndex(align 'start') 不带 behavior，跟随是一次
-           * scrollTop 赋值，都是瞬移 —— 而瞬移是刻意的，行是动态测量的，平滑滚动
-           * 要求目标偏移在动画期间保持不变，而它会自己跑掉。
+           * 本组件落在前者，理由是后者的前提在这里不存在：这里没有平台的平滑
+           * 滚动。跳转与「回到最新」是 scroll-glide 的逐帧写入 —— 对虚拟器而言
+           * 每一帧都是一次普通的瞬时落位，目标行附近照常挂载与测量；持续跟随是
+           * 一次 scrollTop 赋值。目标偏移每帧重读，所以「它会自己跑掉」不成立。
            *
            * 于是这里取一致性：每一行都坐在虚拟器算出来的 start 上，模型说它在哪
            * 它就在哪。走文档流则只有首行的位置来自虚拟器，其余来自前面各行的真实

@@ -1,7 +1,5 @@
 import { useCallback, useLayoutEffect, useRef } from 'react'
 
-/* poietica:conversation-minimap-fold@v23 */
-
 /** 一次折叠该走多久。比鱼眼慢一点:这是布局变化,不是指针跟随。 */
 const DURATION_MS = 180
 const EASING = 'cubic-bezier(0.2, 0, 0, 1)'
