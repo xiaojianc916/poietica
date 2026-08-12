@@ -105,13 +105,6 @@ export interface PluginsViewModel {
   readonly skills: readonly InstalledSkill[]
   /** 技能安装的进行时。没有确认步：一键装完，失败原因落在这里。 */
   readonly skillInstall: InstallFlow
-  /**
-   * 探测完成的时刻。空串表示屏幕上这一份还是快照，真相没到。
-   *
-   * 它必须露在界面上：一个从缓存里画出来的列表和一个刚探测完的列表长得一模一样，没有这
-   * 一格，人无从判断自己看的是不是旧的。
-   */
-  readonly detectedAt: string
   /** 首帧与「读完了确实一个都没装」不是同一件事，空态因此不会闪。 */
   readonly loaded: boolean
 }
@@ -303,7 +296,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    *
    * 它只回答「真相到达之前先画什么」，从不参与任何判定：装了什么永远由账本说了算。
    */
-  const cache = createSnapshotCache({ now: options.now })
+  const cache = createSnapshotCache()
 
   const restored = cache.read()
 
@@ -316,7 +309,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     install: INSTALL_IDLE,
     skills: [],
     skillInstall: INSTALL_IDLE,
-    detectedAt: restored.detectedAt,
     loaded: false,
   }
 
@@ -357,7 +349,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       return
     }
 
-    publish({ palette: entries, detectedAt: options.now() })
+    publish({ palette: entries })
     cache.write(entries, cache.read().catalogFetchedAt)
   }
 
@@ -733,11 +725,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           await fetchCatalog()
         }
 
-        /*
-         * 探测完成的时刻只在这里落一次，不写在 republish 里 —— 后者每拨一个开关都会走一
-         * 遍，写在那儿会让「上次检测」在拨开关时无缘无故往前跳。
-         */
-        publish({ detectedAt: options.now() })
         republish()
         cache.write(snapshot.palette, latestCatalog(snapshot.marketplace)?.fetchedAt ?? '')
       })

@@ -21,8 +21,6 @@ const SNAPSHOT_KEY = 'poietica.extensions.snapshot'
 
 export interface ExtensionSnapshot {
   readonly format: number
-  /** 探测完成的时刻。界面上「上次检测」显示的就是它。 */
-  readonly detectedAt: string
   /** 名单是什么时候取回来的。真相未到时，这一格替 marketplace 说话。 */
   readonly catalogFetchedAt: string
   readonly fingerprint: string
@@ -31,7 +29,6 @@ export interface ExtensionSnapshot {
 
 export const EMPTY_SNAPSHOT: ExtensionSnapshot = {
   format: SNAPSHOT_FORMAT,
-  detectedAt: '',
   catalogFetchedAt: '',
   fingerprint: '',
   palette: [],
@@ -40,6 +37,8 @@ export const EMPTY_SNAPSHOT: ExtensionSnapshot = {
 /*
  * 校验交给 valibot，与清单解码同一条管线。手写一遍字段检查会漏掉这份文档最危险的那一格：
  * 它是上一个版本的程序写下的，字段可以少、类型可以变，而它长得像合法 JSON。
+ *
+ * v.object 剥掉不认识的键：字段只减不改时旧文档照样解得开，所以格式号不必动。
  */
 const Entry = v.object({
   kind: v.picklist(['builtin', 'command', 'skill']),
@@ -50,13 +49,12 @@ const Entry = v.object({
 
 const Document = v.object({
   format: v.literal(SNAPSHOT_FORMAT),
-  detectedAt: v.string(),
   catalogFetchedAt: v.string(),
   fingerprint: v.string(),
   palette: v.array(Entry),
 })
 
-/* 指纹取条目的稳定投影。不含时刻 —— 含进去就等于每次都判「变了」，指纹也就不回答任何问题。 */
+/* 指纹取条目的稳定投影。 */
 function fingerprintOf(palette: readonly PaletteEntry[]): string {
   return palette.map((entry) => `${entry.kind}:${entry.name}`).join('|')
 }
@@ -66,12 +64,7 @@ export interface SnapshotCache {
   readonly write: (palette: readonly PaletteEntry[], catalogFetchedAt: string) => void
 }
 
-export interface SnapshotCacheOptions {
-  /** 领域层不摸时钟。测试因此不需要冻结全局时间。 */
-  readonly now: () => string
-}
-
-export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCache {
+export function createSnapshotCache(): SnapshotCache {
   const preference = createPreference<ExtensionSnapshot>({
     key: SNAPSHOT_KEY,
     fallback: EMPTY_SNAPSHOT,
@@ -109,7 +102,6 @@ export function createSnapshotCache(options: SnapshotCacheOptions): SnapshotCach
 
       preference.write({
         format: SNAPSHOT_FORMAT,
-        detectedAt: options.now(),
         catalogFetchedAt,
         fingerprint,
         palette: [...palette],
