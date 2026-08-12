@@ -8,6 +8,7 @@ import {
 import { readWorkbenchSession } from '@poietica/ipc'
 import { DEFAULT_APP_SETTINGS } from '@poietica/settings'
 import { applyThemePreference } from '@poietica/ui'
+import { setHostWindowProbe } from '@poietica/workspace'
 import { mountReactApplication } from './bootstrap/react-root'
 import { installContextMenuGuard } from './chrome/context-menu-guard'
 import { installExternalLinks } from './chrome/external-links'
@@ -45,6 +46,16 @@ async function bootstrapApplication(): Promise<void> {
    */
   const restored = await readWorkbenchSession()
   const mounted = mountReactApplication(getApplicationRoot(), restored)
+
+  /*
+   * 布局状态机的最小化判定问宿主窗口本身：页面侧信号（视口宽度、页面
+   * 可见性）在 WebView2 里与宿主的最小化状态脱钩，详见 use-workspace-layout
+   * 的提交护栏注释。接线在挂载后、呈现前：首次可能的提交至少在一次跨断点
+   * resize 的 settleMs 之后，这里仍在同一个引导任务里，先于任何提交。
+   */
+  setHostWindowProbe({
+    isMinimized: () => mounted.runtime.mainWindow.isMinimized(),
+  })
 
   presentWhenPainted(mounted.runtime.mainWindow)
 

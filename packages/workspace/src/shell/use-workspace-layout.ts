@@ -6,6 +6,24 @@ import { useWorkspaceLayoutState } from './workspace-layout-store'
 export type WorkspaceLayoutMode = 'wide' | 'compact' | 'narrow'
 
 /*
+ * 宿主窗口探针。「是否最小化」只有宿主窗口自己是权威：页面侧信号已被逐一
+ * 实测证伪——视口宽度会被 DevTools 停靠、页面缩放真实压小，页面可见性在
+ * 宿主最小化时不被 WebView2 翻转。桌面壳在引导时注入真实实现；无宿主环境
+ * （纯 Web、测试）保持恒 false，行为与注入前完全一致。
+ */
+export type HostWindowProbe = {
+  isMinimized: () => Promise<boolean>
+}
+
+let hostWindowProbe: HostWindowProbe = {
+  isMinimized: () => Promise.resolve(false),
+}
+
+export function setHostWindowProbe(probe: HostWindowProbe): void {
+  hostWindowProbe = probe
+}
+
+/*
  * MediaQueryList 按查询串缓存：getSnapshot 会被频繁调用，不应每次都新建
  * 一个 MediaQueryList。惰性创建同时让本模块在无 DOM 的测试环境中可导入。
  */
@@ -77,26 +95,46 @@ const settleListeners = new Set<() => void>()
 
 let settledMode: WorkspaceLayoutMode | null = null
 let settleTimer = 0
+let settleEpoch = 0
 let unsubscribeSample: (() => void) | null = null
 
-function commitSettledMode(): void {
-  window.removeEventListener('resize', deferSettledMode)
-
+async function commitSettledMode(): Promise<void> {
   /*
-   * 最小化护栏。任务栏最小化会把窗口缩成图标尺寸（实测 1303 -> 144px），
-   * 断点随之翻成 narrow，settle 定时器照常触发；此刻页面已转入 hidden，
-   * 几何不代表用户意图，直接提交会把「收起」写进已定模式，还原时就会
-   * 先看到被收起的侧栏再当面展开一遍。故挂起本次提交、下个 settle 周期
-   * 重试：恢复可见后的重试读到的是还原后的真实几何，与挂起前的已定模式
-   * 一致则自然无操作。判据用可见性而不用宽度阈值——DevTools 停靠、页面
-   * 缩放都会把视口真实地压到窗口最小宽度以下，宽度阈值会连同这些场景的
-   * 正常提交一并吞掉，让自动收起/展开整体失效。
+   * 最小化护栏。任务栏最小化会把窗口缩成图标尺寸的 resize 透传进页面
+   * （实测 1303 -> 144px），断点随之翻成 narrow，settle 定时器照常触发；
+   * 直接提交会把「收起」写进已定模式，还原时先看到收起的侧栏再当面展开。
+   *
+   * 判定只问宿主窗口本身，不再用页面侧代理去推断宿主状态。两代代理均已
+   * 实测证伪：视口宽度会被 DevTools 停靠、页面缩放真实压小，按它拦截会
+   * 吞掉一切提交（自动开合整体失效）；页面可见性在宿主最小化时不被
+   * WebView2 翻转，按它拦截则护栏从未生效（收展抽搐原样回归）。
+   *
+   * 查询是一次异步 IPC。epoch 丢弃过期回答：等待期间又有 resize 进来，
+   * 说明几何仍未静止，本轮让位于新一轮 settle；resize 监听保持在位，
+   * 直到某一轮真正走到提交。查询失败按未最小化放行——判据失灵最坏退回
+   * 旧行为，绝不升级成整个自动开合失灵。
    */
-  if (document.hidden) {
+  const epoch = settleEpoch
+
+  let minimized = false
+
+  try {
+    minimized = await hostWindowProbe.isMinimized()
+  } catch {
+    minimized = false
+  }
+
+  if (epoch !== settleEpoch || settleListeners.size === 0) {
+    return
+  }
+
+  if (minimized) {
     settleTimer = window.setTimeout(commitSettledMode, WORKSPACE_LAYOUT.breakpoints.settleMs)
 
     return
   }
+
+  window.removeEventListener('resize', deferSettledMode)
 
   const next = getSnapshot()
 
@@ -112,6 +150,8 @@ function commitSettledMode(): void {
 }
 
 function deferSettledMode(): void {
+  settleEpoch += 1
+
   window.clearTimeout(settleTimer)
 
   settleTimer = window.setTimeout(commitSettledMode, WORKSPACE_LAYOUT.breakpoints.settleMs)

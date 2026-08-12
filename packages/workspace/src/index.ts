@@ -30,6 +30,8 @@ export {
   type SurfaceHostProps,
 } from './shell/surface-host'
 export {
+  type HostWindowProbe,
+  setHostWindowProbe,
   useIsSidebarDocked,
   useWorkspaceLayoutMode,
   type WorkspaceLayoutMode,

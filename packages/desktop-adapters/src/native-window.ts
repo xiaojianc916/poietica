@@ -7,6 +7,8 @@ export interface MainWindowController {
   minimize(): Promise<void>
   toggleMaximize(): Promise<void>
   isMaximized(): Promise<boolean>
+  /** 布局状态机的最小化护栏问的就是它：页面侧信号与宿主最小化状态脱钩。 */
+  isMinimized(): Promise<boolean>
   onResized(handler: () => void): Promise<() => void>
   openDeveloperTools(): Promise<void>
   close(): Promise<void>
@@ -76,6 +78,12 @@ export function createMainWindowController(): MainWindowController {
       const window = await getMainWindow()
 
       return window.isMaximized()
+    },
+
+    async isMinimized() {
+      const window = await getMainWindow()
+
+      return window.isMinimized()
     },
 
     async onResized(handler) {
