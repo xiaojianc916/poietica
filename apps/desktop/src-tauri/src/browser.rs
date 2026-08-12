@@ -105,7 +105,9 @@ impl BrowserHost {
 
 /// 锁中毒等于同伴线程已经炸了；这里的临界区只有内存读写，继续用数据是安全的。
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    mutex
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// 每次变更后广播快照。发不出去只说明还没有订阅者，不是故障。
@@ -156,9 +158,10 @@ fn apply_layout(app: &AppHandle) {
                 log::warn!("browser webview position not applied: {error}");
             }
 
-            if let Err(error) =
-                webview.set_size(LogicalSize::new(bounds.width.max(1.0), bounds.height.max(1.0)))
-            {
+            if let Err(error) = webview.set_size(LogicalSize::new(
+                bounds.width.max(1.0),
+                bounds.height.max(1.0),
+            )) {
                 log::warn!("browser webview size not applied: {error}");
             }
 
@@ -205,15 +208,18 @@ fn drive(app: &AppHandle, id: u32, url: &Url) {
     let nav_handle = app.clone();
     let title_handle = app.clone();
 
-    let builder = WebviewBuilder::new(format!("{LABEL_PREFIX}{id}"), WebviewUrl::External(url.clone()))
-        .data_directory(profile)
-        .on_navigation(move |target| {
-            note_url(&nav_handle, id, target.as_str());
-            true
-        })
-        .on_document_title_changed(move |_webview, title| {
-            note_title(&title_handle, id, title.as_ref());
-        });
+    let builder = WebviewBuilder::new(
+        format!("{LABEL_PREFIX}{id}"),
+        WebviewUrl::External(url.clone()),
+    )
+    .data_directory(profile)
+    .on_navigation(move |target| {
+        note_url(&nav_handle, id, target.as_str());
+        true
+    })
+    .on_document_title_changed(move |_webview, title| {
+        note_title(&title_handle, id, title.as_ref());
+    });
 
     let bounds = *lock(&app.state::<BrowserHost>().bounds);
 
@@ -243,7 +249,9 @@ pub async fn browser_state(app: AppHandle) -> BrowserState {
 #[command]
 #[specta::specta]
 pub async fn browser_open_tab(app: AppHandle, url: Option<String>) {
-    let normalized = url.as_deref().and_then(poietica_browser_native::normalize_address);
+    let normalized = url
+        .as_deref()
+        .and_then(poietica_browser_native::normalize_address);
 
     let id = {
         let host = app.state::<BrowserHost>();
@@ -251,7 +259,10 @@ pub async fn browser_open_tab(app: AppHandle, url: Option<String>) {
         tabs.open(normalized.clone())
     };
 
-    if let Some(address) = normalized.as_deref().and_then(|value| Url::parse(value).ok()) {
+    if let Some(address) = normalized
+        .as_deref()
+        .and_then(|value| Url::parse(value).ok())
+    {
         drive(&app, id, &address);
     }
 
@@ -394,7 +405,12 @@ pub async fn browser_reopen_closed(app: AppHandle, index: u32) {
 pub async fn browser_set_bounds(app: AppHandle, x: f64, y: f64, width: f64, height: f64) {
     {
         let host = app.state::<BrowserHost>();
-        *lock(&host.bounds) = PanelBounds { x, y, width, height };
+        *lock(&host.bounds) = PanelBounds {
+            x,
+            y,
+            width,
+            height,
+        };
     }
 
     apply_layout(&app);

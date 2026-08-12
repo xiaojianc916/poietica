@@ -62,7 +62,7 @@ pub struct SkillCommitRequest {
 pub async fn skills_list(app: AppHandle) -> SkillsCommandResult<Vec<SkillPayload>> {
     (|| -> Result<Vec<SkillPayload>> {
         let root = skills_root(&app)?;
-                let mut found = Vec::new();
+        let mut found = Vec::new();
 
         for entry in fs::read_dir(&root)?.flatten() {
             let path = entry.path();
@@ -117,9 +117,10 @@ pub async fn skills_stage(app: AppHandle, fetch: PluginFetch) -> SkillsCommandRe
             (PluginFetch::Directory { path }, _) => {
                 (host::copy_tree(Path::new(path), staging.path()), None)
             }
-            (PluginFetch::Archive { subdirectory, .. }, Some(payload)) => {
-                (host::extract_zip(payload, staging.path()), subdirectory.as_deref())
-            }
+            (PluginFetch::Archive { subdirectory, .. }, Some(payload)) => (
+                host::extract_zip(payload, staging.path()),
+                subdirectory.as_deref(),
+            ),
             (PluginFetch::Archive { .. }, None) => {
                 unreachable!("archive bytes are downloaded above")
             }
@@ -146,7 +147,10 @@ pub async fn skills_stage(app: AppHandle, fetch: PluginFetch) -> SkillsCommandRe
             }
         };
 
-        Ok(SkillStaged { staging_id, skill_md })
+        Ok(SkillStaged {
+            staging_id,
+            skill_md,
+        })
     })()
     .map_err(IpcError::from)
 }

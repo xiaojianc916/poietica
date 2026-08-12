@@ -55,7 +55,9 @@ impl Tabs {
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
 
-        let title = url.as_deref().map_or_else(|| "新标签页".to_owned(), display_host);
+        let title = url
+            .as_deref()
+            .map_or_else(|| "新标签页".to_owned(), display_host);
 
         self.entries.push(Tab { id, url, title });
         self.active = Some(id);
@@ -73,7 +75,10 @@ impl Tabs {
                 if self.recently_closed.len() == RECENTLY_CLOSED_CAP {
                     self.recently_closed.pop_back();
                 }
-                self.recently_closed.push_front(ClosedTab { url, title: removed.title });
+                self.recently_closed.push_front(ClosedTab {
+                    url,
+                    title: removed.title,
+                });
                 true
             }
             None => false,
@@ -87,7 +92,10 @@ impl Tabs {
                 .map(|tab| tab.id);
         }
 
-        Some(CloseOutcome { remembered, next_active: self.active })
+        Some(CloseOutcome {
+            remembered,
+            next_active: self.active,
+        })
     }
 
     /// 激活一个标签。不存在的 id 返回 false，状态不变。
@@ -178,10 +186,10 @@ pub fn normalize_address(input: &str) -> Option<String> {
     } else if trimmed.contains(' ') || !trimmed.contains('.') {
         return None;
     } else {
-    let mut prefixed = String::from("https://");
-    prefixed.push_str(trimmed);
-    prefixed
-};
+        let mut prefixed = String::from("https://");
+        prefixed.push_str(trimmed);
+        prefixed
+    };
 
     let parsed = url::Url::parse(&candidate).ok()?;
 
@@ -259,28 +267,28 @@ mod tests {
 
     #[test]
     fn ring_url(index: usize) -> String {
-    let mut url = String::from("https://");
-    url.push_str(&format!("site-{index}.example/"));
-    url
-}
-
-#[test]
-fn recently_closed_is_lifo_and_capped() {
-    let mut tabs = Tabs::new();
-
-    for index in 0..=RECENTLY_CLOSED_CAP {
-        let id = tabs.open(Some(ring_url(index)));
-        tabs.close(id);
+        let mut url = String::from("https://");
+        url.push_str(&format!("site-{index}.example/"));
+        url
     }
 
-    assert_eq!(tabs.recently_closed().count(), RECENTLY_CLOSED_CAP);
+    #[test]
+    fn recently_closed_is_lifo_and_capped() {
+        let mut tabs = Tabs::new();
 
-    let newest = tabs.recently_closed().next().unwrap();
-    assert_eq!(newest.url, ring_url(RECENTLY_CLOSED_CAP));
+        for index in 0..=RECENTLY_CLOSED_CAP {
+            let id = tabs.open(Some(ring_url(index)));
+            tabs.close(id);
+        }
 
-    let oldest = tabs.recently_closed().last().unwrap();
-    assert_eq!(oldest.url, ring_url(1));
-}
+        assert_eq!(tabs.recently_closed().count(), RECENTLY_CLOSED_CAP);
+
+        let newest = tabs.recently_closed().next().unwrap();
+        assert_eq!(newest.url, ring_url(RECENTLY_CLOSED_CAP));
+
+        let oldest = tabs.recently_closed().last().unwrap();
+        assert_eq!(oldest.url, ring_url(1));
+    }
 
     #[test]
     fn reopen_takes_the_requested_entry_out_of_the_ring() {

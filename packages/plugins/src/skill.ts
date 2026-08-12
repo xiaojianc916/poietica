@@ -25,7 +25,7 @@ export interface InstalledSkill {
 
 export function parseSkillFrontmatter(md: string): SkillManifest {
   const match = md.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  const block = match === null ? '' : match[1]
+  const block = match?.[1] ?? ''
 
   return {
     name: field(block, 'name') ?? '',
@@ -37,11 +37,11 @@ export function parseSkillFrontmatter(md: string): SkillManifest {
 function field(block: string, key: string): string | undefined {
   const hit = block.match(new RegExp(`^${key}:[ \t]*(.+)$`, 'm'))
 
-  if (hit === null) {
+  const raw = hit?.[1]?.trim()
+
+  if (raw === undefined) {
     return undefined
   }
-
-  const raw = hit[1].trim()
 
   if (raw.startsWith('"') && raw.endsWith('"') && raw.length >= 2) {
     return raw.slice(1, -1).replaceAll('\\"', '"').replaceAll('\\\\', '\\')

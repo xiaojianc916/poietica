@@ -16,6 +16,7 @@ pub mod export_bindings;
 use tauri::Wry;
 use tauri_specta::{Builder, ErrorHandlingMode};
 
+use crate::browser::BrowserState;
 use crate::commands::{
     agent::dto::{
         AgentArchiveThreadRequest, AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl,
@@ -41,11 +42,10 @@ use crate::commands::{
         ForeignPluginLedger, ForeignPluginRecord, PluginCommitRequest, PluginFetch, PluginPayload,
         PluginStaged,
     },
-    skills::{SkillCommitRequest, SkillPayload, SkillStaged},
     settings::{AppSettings, PrivacySettings},
+    skills::{SkillCommitRequest, SkillPayload, SkillStaged},
     updates::{UpdateProgress, UpdateRelease},
 };
-use crate::browser::BrowserState;
 use crate::diagnostics::NativeCrashReport;
 
 /// 这个应用的全部 IPC 命令与 DTO。
@@ -137,7 +137,11 @@ pub fn surface() -> Builder<Wry> {
             crate::browser::browser_set_visible,
             crate::browser::browser_open_devtools,
         ])
-        .events(tauri_specta::collect_events![AutomationDue, BrowserState, UpdateProgress])
+        .events(tauri_specta::collect_events![
+            AutomationDue,
+            BrowserState,
+            UpdateProgress
+        ])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
         .typ::<AgentResolvePermissionRequest>()
