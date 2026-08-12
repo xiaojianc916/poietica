@@ -184,7 +184,7 @@ fn drive(app: &AppHandle, id: u32, url: &Url) {
         webviews.get(&id).cloned()
     };
 
-    if let Some(mut webview) = existing {
+    if let Some(webview) = existing {
         if let Err(error) = webview.navigate(url.clone()) {
             log::warn!("browser tab {id} refused to navigate: {error}");
         }

@@ -131,12 +131,9 @@ pub async fn skills_stage(app: AppHandle, fetch: PluginFetch) -> SkillsCommandRe
             return Err(skill_failure(cause));
         }
 
-        let root = match host::locate_skill_root(staging.path(), subdirectory) {
-            Ok(root) => root,
-            Err(_) => {
-                discard_or_warn(staging);
-                return Err(skill_failure("这个来源里没有 SKILL.md，它不是一个技能目录"));
-            }
+        let Ok(root) = host::locate_skill_root(staging.path(), subdirectory) else {
+            discard_or_warn(staging);
+            return Err(skill_failure("这个来源里没有 SKILL.md，它不是一个技能目录"));
         };
 
         let skill_md = match fs::read_to_string(root.join(host::SKILL_FILENAME)) {
