@@ -42,7 +42,7 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
         main={
           <section
             aria-label="内容区"
-            className="workspace-shell__main relative z-10 min-h-0 min-w-0 overflow-hidden bg-background"
+            className="workspace-shell__main min-h-0 min-w-0 overflow-hidden bg-background"
           >
             <main
               aria-label={parts.main.label}

@@ -33,7 +33,7 @@
  * 字面量，所以没有第二份真相，变量的含义也收窄成了「覆盖」而不是「值」。
  *
  * 它仍然是一条线而不是两条：两段读同一组表达式，对齐是算出来的 —— 两者的
- * inline-end 都取自 --workspace-sidebar-column-width，边框都朝自己盒内长，
+ * inline-end 都取自 --workspace-sidebar-column-width，粗细都朝自己盒内长，
  * x 坐标恒等。
  */
 
@@ -88,11 +88,27 @@
   border-block-end: var(--ui-region-divider-width) solid var(--color-divider);
 }
 
+/*
+ * 谁盖住谁，在这里定一次。
+ *
+ * 侧栏是底面，主区是不透明的快门：收起不是把侧栏裁掉、也不是把它推出窗外，
+ * 而是主区左缘盖过去。被遮挡的内容仍然整幅参与绘制，露出时不需要当帧补画,
+ * 这正是裁剪揭示与平移揭示做不到的事，那两种写法都会让新露出的带子先空白。
+ *
+ * 所以主区在上、侧栏在下。这两件事此前分散在两个 className 的 z-10 与 z-20
+ * 里，谁在上是两处数字的比较结果；现在是这一处的两行。
+ *
+ * 侧栏这一层只给 position，不给 z-index：分隔条要靠自己的 z-index 越过主区去
+ * 接指针，父级一旦成为层叠上下文，就把它关在里面了。
+ */
 .workspace-shell__sidebar {
+  position: relative;
   grid-area: sidebar;
 }
 
 .workspace-shell__main {
+  position: relative;
+  z-index: 1;
   grid-area: main;
 }
 
@@ -105,37 +121,25 @@
 }
 
 /*
- * 线在这里画，不在 SidebarRegion 的 className 里。
+ * 线在这里画，不在 SidebarRegion 的 className 里，也不再是侧栏自己的 border。
  *
- * 那里此前是 border-r border-divider，与本规则同特异性 (0,1,0)，谁生效取决
- * 于打包顺序 —— 已经删除，这条边现在只有这一处声明。
+ * border-inline-end 长在列的边框盒内缘，占 [列宽-1px, 列宽]；而侧栏内容是一块
+ * 与列等宽的定宽底面，停靠时它正好铺满这段 x。子元素的溢出内容绘制在父级边框
+ * 之上，线于是被自己的内容盖掉,这就是上一版分割线消失的全部原因。
  *
- * 淡出仍然由 border-color 承担：宽度在 1px 与 0 之间只能硬切，所以收起态改
- * 的是颜色而不是粗细。
+ * 现在它是列上的一条伪元素，贴 inline-end 边、压在底面之上（未定位的底面先绘，
+ * 已定位的伪元素后绘）。位置仍然只由列宽决定，所以补间每一帧都贴着主区左缘；
+ * 列宽归零时它整条落到窗口左缘之外，收起态不必再把颜色改成透明,几何自己完成
+ * 了隐藏，少一处状态。
+ *
+ * 墨色过渡、粗细即时：与此前 border-color 的行为逐字一致。
  */
-.workspace-shell__sidebar {
-  /* style 独立声明：线「存在」这件事不依赖任何变量。 */
-  border-inline-end-style: solid;
-  border-inline-end-width: var(--workspace-divider-width, var(--ui-region-divider-width));
-  border-inline-end-color: var(--workspace-divider-ink, var(--color-divider));
-  transition: border-color var(--workspace-layout-duration) ease;
-}
-
-.workspace-shell[data-sidebar-docked="false"] .workspace-shell__sidebar {
-  border-inline-end-color: transparent;
-}
-
-/*
- * 侧栏内容是一块定宽滑面：宽度恒为用户设定值，随 --workspace-sidebar-column-width
- * 沿列缘滑入滑出，收起即整体滑出窗外，窗沿代为裁剪。
- *
- * 上一版靠外层裁剪揭示，并指望提升合成层保住栅格 —— 实测无效：裁剪每帧跟着
- * 列宽走，绘制剔除贴着裁剪，新露出的条带帧帧现画现栅格化，与主区整幅重排争
- * 同一份预算，重内容界面（设置、长会话）整段补间只能露底色。滑面把这件事
- * 整个取消：裁剪随面一起走，一像素不裁，内容只画一次；transform 不触发重排
- * 也不作废栅格，补间期间侧栏一侧每帧成本为零。will-change 让它常驻独立
- * 合成层，收起闲置时像素已经备好，露出即成品。
- */
-.workspace-shell__sidebar-content {
-  will-change: transform;
+.workspace-shell__sidebar::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: var(--workspace-divider-width, var(--ui-region-divider-width));
+  background-color: var(--workspace-divider-ink, var(--color-divider));
+  transition: background-color var(--workspace-layout-duration) ease;
 }
