@@ -28,7 +28,7 @@ use crate::recorder::{Frames, RecordedEvent, Recorder};
 use crate::run_slot::{Listening, RunSlot};
 use crate::session::{
     AgentConnection, AgentSpawn, CommandReport, CommandReports, Handshake, OpenedSession,
-    SelectorReport, SelectorReports, SessionEntry,
+    SelectorReport, SelectorReports, SessionEntry, UsageReport, UsageReports,
 };
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -158,6 +158,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     let (commands, receiver) = mpsc::unbounded::<Command>();
     let (reports, selector_reports) = mpsc::unbounded::<SelectorReport>();
     let (palettes, command_reports) = mpsc::unbounded::<CommandReport>();
+    let (gauges, usage_reports) = mpsc::unbounded::<UsageReport>();
     let (ready, handshake) = oneshot::channel::<Result<Handshake>>();
 
     // One book per connection. The handlers live as long as the connection
@@ -170,6 +171,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     let waiting = desk.clone();
     let reported = commands.clone();
     let listed = commands.clone();
+    let metered = commands.clone();
 
     let driver = async move {
         let served = agent_client_protocol::Client
@@ -206,7 +208,19 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             });
                         }
 
-                        let _routed = slot.record(|listening| {
+/* 用量同理：Kimi 在答复落定之后才补报它，那一刻轮次已经
+                        结束，下面那句 record 只会把它丢掉 —— 所以它也有自己到达
+                        界面的路。载荷原样序列化：线上形状才是契约。 */
+                        if let SessionUpdate::UsageUpdate(update) = &notification.update
+                            && let Ok(usage) = serde_json::to_value(update)
+                        {
+                            let _sent = metered.unbounded_send(Command::Usage {
+                                session_id: named.clone(),
+                                usage,
+                            });
+                        }
+
+                                                let _routed = slot.record(|listening| {
                             listening.session_update(&notification);
                         });
                     }
@@ -511,6 +525,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                 commands,
                             });
                         }
+                        /* 用量与命令表同一条规矩：只过路，不留第二份。 */
+                        Step::Asked(Some(Command::Usage { session_id, usage })) => {
+                            let _sent = gauges.unbounded_send(UsageReport { session_id, usage });
+                        }
                         // 读一份列表不需要问 agent，就地答。
                         Step::Asked(Some(Command::Selectors { session_id, reply })) => {
                             let answer = match sessions.get(&session_id) {
@@ -727,6 +745,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         handshake,
         reports: SelectorReports::new(selector_reports),
         commands: CommandReports::new(command_reports),
+        usage: UsageReports::new(usage_reports),
         driver,
     })
 }

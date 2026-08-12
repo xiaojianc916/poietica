@@ -235,6 +235,14 @@ function applyAcpUpdate(draft: Draft, update: AcpSessionUpdate, seq: number, at:
          than left to the default so that ignoring it stays a decision. */
       return
     }
+
+    case 'usage_update': {
+      /* 会话的状态，不是一轮的内容：用量走原生侧的会话状态通道
+         （ai-usage-report），由 SessionControlsStore 持有唯一一份。多数时候它
+         在轮外到达、根本进不了帧流；万一 agent 在轮内也推一份，这里明说不落
+         转录 —— 与上一格同一条规矩，忽略也要是一个决定。 */
+      return
+    }
   }
 }
 

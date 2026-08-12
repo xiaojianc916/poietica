@@ -19,6 +19,7 @@ export {
   useSessionControlsActions,
   useThreadSelectorFailure,
   useThreadSelectors,
+  useThreadUsage,
 } from './session/session-controls-context'
 export { TranscriptsContext, useTranscripts } from './session/transcripts-context'
 export type {

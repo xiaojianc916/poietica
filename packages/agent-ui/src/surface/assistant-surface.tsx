@@ -1,7 +1,12 @@
 import './assistant.css'
 
 import type { FeedRow } from '@poietica/agent'
-import type { AgentSessionPort, PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
+import type {
+  AgentSessionPort,
+  PaletteEntry,
+  SessionConfigControl,
+  SessionUsage,
+} from '@poietica/agent-contract'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
@@ -71,6 +76,8 @@ export interface AssistantSurfaceProps {
   readonly git?: GitBranchPickerProps | undefined
   /** 对话里敲得出来的命令表，喂给输入框的斜杠菜单。 */
   readonly palette?: readonly PaletteEntry[] | undefined
+  /** 这条会话最近报的上下文用量。缺席（还没报、或是入口）就不画。 */
+  readonly usage?: SessionUsage | undefined
 }
 
 /*
@@ -99,6 +106,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   onUserMessage,
   palette,
   session,
+  usage,
   workspace,
 }: AssistantSurfaceProps) {
   const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
@@ -269,6 +277,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         palette={palette}
         questionDeck={questionDeck}
         status={assistant.status}
+        usage={usage}
       />
     </div>
   )

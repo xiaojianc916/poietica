@@ -57,6 +57,12 @@ pub const AGENT_SELECTOR_EVENT: &str = "ai-selector-report";
 /// agent 自己认得的技能、插件带来的，全在这一张表里，而它由 agent 算，不由本应用算。
 pub const AGENT_COMMAND_EVENT: &str = "ai-command-report";
 
+/// 会话自己报来的上下文用量走这一条。
+///
+/// 与上面两条分开，理由相同：说的不是一件事。这一条回答"这条会话的上下文
+/// 用掉了多少" —— 数字由 agent 算，不由本应用算，而且多在轮次落定之后才到。
+pub const AGENT_USAGE_EVENT: &str = "ai-usage-report";
+
 /// How much of the first message stands in as a conversation name.
 const TITLE_CHARS: usize = 60;
 

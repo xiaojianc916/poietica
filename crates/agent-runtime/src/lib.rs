@@ -53,7 +53,7 @@ pub use recorder::{FrameSink, Frames, RecordedEvent, Recorder, SeqLine, now_mill
 pub use run_slot::{Listening, RunSlot};
 pub use session::{
     AgentConnection, AgentSpawn, CommandReport, CommandReports, Handshake, OpenedSession,
-    SelectorReport, SelectorReports, SessionEntry,
+    SelectorReport, SelectorReports, SessionEntry, UsageReport, UsageReports,
 };
 pub use sessions::SessionBook;
 pub use stderr::StderrLog;

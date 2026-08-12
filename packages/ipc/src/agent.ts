@@ -5,9 +5,10 @@ import type {
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
+  SessionUsagePort,
   ThreadPort,
 } from '@poietica/agent-contract'
-import { paletteFrom } from '@poietica/agent-contract'
+import { paletteFrom, sessionUsageOf } from '@poietica/agent-contract'
 import type { AgentCommandBridge, AgentEventSource } from './acp-session'
 import { throughIpc } from './error'
 import {
@@ -40,6 +41,9 @@ export const AGENT_SELECTOR_EVENT = 'ai-selector-report'
 
 /** 会话自己报来的命令表走这一条。它同样不属于任何一轮。 */
 export const AGENT_COMMAND_EVENT = 'ai-command-report'
+
+/** 会话自己报来的上下文用量走这一条。它同样不属于任何一轮。 */
+export const AGENT_USAGE_EVENT = 'ai-usage-report'
 
 /**
  * The envelope the native side broadcasts.
@@ -309,6 +313,39 @@ export function createAgentSessionConfigBridge({
         AGENT_SELECTOR_EVENT,
         (payload) => {
           handler({ sessionId: payload.sessionId, controls: payload.selectors.map(controlOf) })
+        },
+        onListenFailure,
+      ),
+  }
+}
+
+/*
+ * 用量这一路。
+ *
+ * 原生侧原样转发 ACP 的 usage_update 载荷，读得懂它的是契约层的 sessionUsageOf：
+ * 读不成的载荷丢掉，不该覆盖别人已经拿到的那一份。这一层不留副本 —— 它的唯一
+ * 消费者是 SessionControlsStore，留第二份就是留第二个事实来源。
+ */
+interface AgentUsageEnvelope {
+  readonly sessionId: string
+  readonly usage: unknown
+}
+
+export function createAgentSessionUsageBridge({
+  onListenFailure,
+}: AgentEventSourceOptions = {}): SessionUsagePort {
+  return {
+    subscribe: (handler) =>
+      subscribeToEvent<AgentUsageEnvelope>(
+        AGENT_USAGE_EVENT,
+        (payload) => {
+          const usage = sessionUsageOf(payload.usage)
+
+          if (usage === undefined) {
+            return
+          }
+
+          handler({ sessionId: payload.sessionId, usage })
         },
         onListenFailure,
       ),

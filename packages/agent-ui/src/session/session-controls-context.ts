@@ -1,5 +1,5 @@
 import type { SessionControlsStore } from '@poietica/agent'
-import type { SessionConfigControl } from '@poietica/agent-contract'
+import type { SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
 import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
 
 /*
@@ -60,6 +60,18 @@ export function useThreadSelectorFailure(threadId: string | null): string | unde
 
   const read = useCallback(
     () => (threadId === null ? undefined : store.selectorFailureOf(threadId)),
+    [store, threadId],
+  )
+
+  return useSyncExternalStore(store.subscribe, read, read)
+}
+
+/** 这条对话背后那个会话最近报的上下文用量；还没报过是 undefined。 */
+export function useThreadUsage(threadId: string | null): SessionUsage | undefined {
+  const store = useStore()
+
+  const read = useCallback(
+    () => (threadId === null ? undefined : store.usageOf(threadId)),
     [store, threadId],
   )
 

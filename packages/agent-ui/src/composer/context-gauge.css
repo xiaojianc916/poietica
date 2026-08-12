@@ -1,0 +1,95 @@
+/*
+ * 上下文用量胶囊与它的悬浮卡。
+ *
+ * 触发器长在输入框工具条里，读 composer-metrics.css 那套 --cp-* 令牌；卡经
+ * Portal 落在 body 下，[data-assistant-skin] 罩不到它，所以卡上每一个 var 都
+ * 带兜底值，不赖任何作用域令牌。
+ */
+
+[data-assistant-skin] .context-gauge__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: var(--cp-control);
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--cp-radius-item);
+  background: transparent;
+  color: var(--cp-ink-muted);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+
+[data-assistant-skin] .context-gauge__trigger:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+[data-assistant-skin] .context-gauge__ring {
+  width: var(--cp-icon);
+  height: var(--cp-icon);
+}
+
+[data-assistant-skin] .context-gauge__ring-track {
+  stroke: currentColor;
+  opacity: 0.25;
+}
+
+[data-assistant-skin] .context-gauge__ring-fill {
+  stroke: currentColor;
+  opacity: 0.7;
+}
+
+/* 类名叠写压过 TooltipContent 自带的深底浅字（bg-foreground text-background）：
+   0-2-0 的特异度赢过 0-1-0，与样式加载顺序无关。 */
+.context-gauge__card.context-gauge__card {
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid var(--cp-menu-edge, rgb(0 0 0 / 8%));
+  border-radius: 12px;
+  background: var(--cp-menu-face, #fff);
+  box-shadow: var(--cp-lift-menu, 0 8px 24px rgb(0 0 0 / 12%));
+  color: var(--cp-ink, #1f2328);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.context-gauge__row,
+.context-gauge__cost {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.context-gauge__label {
+  color: var(--cp-ink-muted, rgb(0 0 0 / 55%));
+}
+
+.context-gauge__value {
+  font-weight: 600;
+}
+
+.context-gauge__bar {
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--cp-hairline, rgb(0 0 0 / 8%));
+  overflow: hidden;
+}
+
+.context-gauge__bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--cp-accent, #3b82f6);
+}
+
+.context-gauge__cost {
+  margin: 10px -12px -10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--cp-hairline, rgb(0 0 0 / 8%));
+  border-radius: 0 0 11px 11px;
+  background: var(--cp-menu-line, rgb(0 0 0 / 4%));
+}

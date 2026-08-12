@@ -1,20 +1,24 @@
 import './composer-actions.css'
 import './question-panel.css'
 
-import type { ChatStatus, PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
+import type {
+  ChatStatus,
+  PaletteEntry,
+  SessionConfigControl,
+  SessionUsage,
+} from '@poietica/agent-contract'
 import { memo, type Ref } from 'react'
-import { MicIcon } from '../primitives/icons'
 import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
 import type { ComposerAsset } from './attachment-intake'
 import { AttachmentTray } from './attachment-tray'
 import { ComposerActions } from './composer-actions'
+import { ContextGauge } from './context-gauge'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PermissionPicker } from './permission-picker'
 import type { PromptInputHandle } from './prompt-input'
 import {
   PromptInput,
   PromptInputBody,
-  PromptInputButton,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputToolbar,
@@ -50,6 +54,8 @@ export interface AssistantComposerProps {
   /** 读失败之后重新问一次。 */
   readonly onRetryControls?: (() => void) | undefined
   readonly onSelectControl: (controlId: string, value: string) => void
+  /** 这条会话最近报的上下文用量。缺席就不画那颗胶囊。 */
+  readonly usage?: SessionUsage | undefined
   /**
    * 待答的题组。
    *
@@ -82,7 +88,7 @@ export interface AssistantComposerProps {
  */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  'controls' | 'controlsFailure' | 'onCancel' | 'onRetryControls' | 'onSelectControl'
+  'controls' | 'controlsFailure' | 'onCancel' | 'onRetryControls' | 'onSelectControl' | 'usage'
 > & { readonly status: ChatStatus }
 
 function ComposerToolbar({
@@ -92,6 +98,7 @@ function ComposerToolbar({
   onRetryControls,
   onSelectControl,
   status,
+  usage,
 }: ComposerToolbarProps) {
   /*
    * 这一层不再问草稿任何事。
@@ -122,7 +129,7 @@ function ComposerToolbar({
       <span className="assistant-toolbar__spacer" />
 
       {/*
-        模型选择器站在右下这一簇，麦克风之前。
+        模型选择器站在右下这一簇，用量指示之前。
 
         它挨着「发」，因为它说的正是这一句将被谁回答：ChatGPT、Claude、Cursor
         都把它放在发送键这一侧。左下那一簇回答的是另一个问题——往这句话里加
@@ -135,9 +142,12 @@ function ComposerToolbar({
         onSelect={onSelectControl}
       />
 
-      <PromptInputButton aria-label="语音输入" className="assistant-control--ghost">
-        <MicIcon aria-hidden="true" />
-      </PromptInputButton>
+      {/*
+        上下文余量站在发送键旁边：它说的是这条会话还装得下多少。数字全部由
+        agent 报（ACP usage_update），这一层一个都不算 —— Codex 的 /status、
+        Claude Code 的 context 指示、Zed 的 ACP 面板都以 agent 报数为准。
+      */}
+      <ContextGauge usage={usage} />
 
       {/* 判据同源。「有没有东西可发」现在只从 PromptInput 自己那份草稿读，
           按钮与 onSubmit 看的是同一个所有者 —— 两份读法分家的那一天不需要谁

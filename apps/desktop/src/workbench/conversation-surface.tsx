@@ -6,6 +6,7 @@ import {
   useSessionControlsActions,
   useThreadSelectorFailure,
   useThreadSelectors,
+  useThreadUsage,
   type WorkspacePickerProps,
 } from '@poietica/agent-ui'
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
@@ -72,6 +73,9 @@ export function ConversationSurface({
   const offered = useThreadSelectors(threadId)
 
   const failure = useThreadSelectorFailure(threadId)
+
+  /* 用量只属于真的对话：入口那一格没有会话可报数，胶囊整个不画。 */
+  const usage = useThreadUsage(threadId)
 
   /*
    * 打开一条已有的对话，就为它开一个 ACP 会话。
@@ -196,6 +200,7 @@ export function ConversationSurface({
       onUserMessage={userMessage}
       palette={palette}
       session={session}
+      usage={usage}
       workspace={workspace}
     />
   )

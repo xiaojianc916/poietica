@@ -4,6 +4,9 @@ import type {
   SessionConfigControl,
   SessionConfigPort,
   SessionConfigReport,
+  SessionUsage,
+  SessionUsagePort,
+  SessionUsageReport,
   ThreadPort,
   ThreadRecord,
 } from '@poietica/agent-contract'
@@ -16,9 +19,10 @@ import type { TranscriptSink } from './transcript-sink'
 interface Held {
   readonly selectors: ReadonlyMap<string, readonly SessionConfigControl[]>
   readonly selectorFailure: ReadonlyMap<string, string>
+  readonly usage: ReadonlyMap<string, SessionUsage>
 }
 
-const EMPTY: Held = { selectors: new Map(), selectorFailure: new Map() }
+const EMPTY: Held = { selectors: new Map(), selectorFailure: new Map(), usage: new Map() }
 
 /**
  * 失败往哪里说一声。与 AgentCapabilityStore 的 CapabilityFailureReport 是同一条
@@ -42,6 +46,8 @@ export interface SessionControlsOptions {
   readonly posture?: PermissionPosturePort | undefined
   readonly report?: SessionControlsFailureReport | undefined
   readonly transcripts?: TranscriptSink | undefined
+  /** 用量的到达口。缺席即不画，这台 store 因此仍能裸构造单测。 */
+  readonly usage?: SessionUsagePort | undefined
 }
 
 /**
@@ -89,6 +95,8 @@ export class SessionControlsStore {
 
   readonly #report: SessionControlsFailureReport | undefined
 
+  readonly #usage: SessionUsagePort | undefined
+
   #held: Held = EMPTY
 
   /* 问过的对话不再问第二遍：重读是显式动作，不是渲染的副作用。 */
@@ -116,12 +124,13 @@ export class SessionControlsStore {
    */
   #alignedTo = new Map<string, string>()
 
-  constructor({ config, port, posture, report, transcripts }: SessionControlsOptions) {
+  constructor({ config, port, posture, report, transcripts, usage }: SessionControlsOptions) {
     this.#config = config
     this.#port = port
     this.#posture = posture
     this.#report = report
     this.#transcripts = transcripts
+    this.#usage = usage
   }
 
   snapshot = (): Held => this.#held
@@ -152,8 +161,13 @@ export class SessionControlsStore {
       this.#reported(report)
     })
 
+    const stopUsage = this.#usage?.subscribe((report) => {
+      this.#usageReported(report)
+    })
+
     return () => {
       stop?.()
+      stopUsage?.()
     }
   }
 
@@ -164,6 +178,9 @@ export class SessionControlsStore {
   /** 上一次认领或改动失败时的说法，按对话记。 */
   selectorFailureOf = (threadId: string): string | undefined =>
     this.#held.selectorFailure.get(threadId)
+
+  /** 这条对话所持有的会话最近报的上下文用量；从没报过就是 undefined。 */
+  usageOf = (threadId: string): SessionUsage | undefined => this.#held.usage.get(threadId)
 
   /**
    * 一份答复到手：新开一条、认领一条、重读一条，三条路唯一的落地处。
@@ -214,6 +231,7 @@ export class SessionControlsStore {
     this.#commit({
       selectors: withoutEntry(this.#held.selectors, threadId),
       selectorFailure: withoutEntry(this.#held.selectorFailure, threadId),
+      usage: withoutEntry(this.#held.usage, threadId),
     })
   }
 
@@ -384,6 +402,22 @@ export class SessionControlsStore {
     this.#remember(threadId, report.controls)
   }
 
+  /*
+   * agent 报来了一份用量。
+   *
+   * 与 #reported 同一条到达路径、同一张反查表；但它没有 open/select 那两条路 ——
+   * 用量是 agent 主动推的，没有任何命令能把它问回来，所以也不参与 ArrivalOrder。
+   */
+  #usageReported(report: SessionUsageReport): void {
+    const threadId = this.#sessions.get(report.sessionId)
+
+    if (threadId === undefined) {
+      return
+    }
+
+    this.#commit({ usage: withEntry(this.#held.usage, threadId, report.usage) })
+  }
+
   /* 这条对话的先后。没有就现在开一份。 */
   #orderOf(threadId: string): ArrivalOrder {
     const held = this.#order.get(threadId)
@@ -458,7 +492,8 @@ export class SessionControlsStore {
 
     if (
       next.selectors === this.#held.selectors &&
-      next.selectorFailure === this.#held.selectorFailure
+      next.selectorFailure === this.#held.selectorFailure &&
+      next.usage === this.#held.usage
     ) {
       return
     }

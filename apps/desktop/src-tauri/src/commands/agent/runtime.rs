@@ -15,9 +15,9 @@ use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 
 use super::config::restate;
-use super::dto::{AgentCommandReport, AgentLaunch, AgentSelectorReport};
+use super::dto::{AgentCommandReport, AgentLaunch, AgentSelectorReport, AgentUsageReport};
 use super::failure::translate;
-use super::{AGENT_COMMAND_EVENT, AGENT_SELECTOR_EVENT, NO_SESSION_ID, POISONED};
+use super::{AGENT_COMMAND_EVENT, AGENT_SELECTOR_EVENT, AGENT_USAGE_EVENT, NO_SESSION_ID, POISONED};
 
 /// The live connection, if one has been started.
 ///
@@ -257,6 +257,7 @@ pub(super) async fn ensure_session(
         driver,
         reports,
         commands: palette,
+        usage,
         book,
     } = connect(spawn, slot.clone(), desk.clone()).map_err(translate)?;
 
@@ -311,6 +312,26 @@ pub(super) async fn ensure_session(
 
             // 渲染层没在听不是错：下一份报告到达时它仍然是整张表。
             let _ignored = crier.emit(AGENT_COMMAND_EVENT, &payload);
+        }
+    });
+
+    // agent 报来的上下文用量，这里把它送上屏。
+    //
+    // 一条连接一个排空任务，与上面两条同一条规矩。Kimi 在轮次落定之后才补报
+    // 它，运行帧通道那时按规矩丢帧，所以这条路是它唯一的去处。
+    let teller = app.clone();
+
+    async_runtime::spawn(async move {
+        let mut usage = usage;
+
+        while let Some(report) = usage.next().await {
+            let payload = AgentUsageReport {
+                session_id: report.session_id,
+                usage: report.usage,
+            };
+
+            // 渲染层没在听不是错：下一份报告到达时它仍然是最新用量。
+            let _ignored = teller.emit(AGENT_USAGE_EVENT, &payload);
         }
     });
 

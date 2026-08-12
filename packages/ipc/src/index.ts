@@ -4,6 +4,7 @@ export {
   AGENT_COMMAND_EVENT,
   AGENT_EVENT,
   AGENT_SELECTOR_EVENT,
+  AGENT_USAGE_EVENT,
   type AgentBridgeOptions,
   type AgentEventSourceOptions,
   type AgentLaunchDescription,
@@ -12,6 +13,7 @@ export {
   createAgentEventSource,
   createAgentPaletteBridge,
   createAgentSessionConfigBridge,
+  createAgentSessionUsageBridge,
   createAgentThreadBridge,
   shutdownAgent,
 } from './agent'

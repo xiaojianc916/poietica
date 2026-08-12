@@ -14,7 +14,10 @@ import { ThreadsContext } from './threads-context'
  */
 
 export interface ThreadsProviderProps {
-  readonly agent: Pick<DesktopAgentRuntime, 'permissionPosture' | 'sessionConfig' | 'threads'>
+  readonly agent: Pick<
+    DesktopAgentRuntime,
+    'permissionPosture' | 'sessionConfig' | 'sessionUsage' | 'threads'
+  >
   readonly children: ReactNode
   /**
    * 会话那一侧的失败往哪里说一声。
@@ -50,6 +53,7 @@ export function ThreadsProvider({ agent, children, report }: ThreadsProviderProp
         posture: agent.permissionPosture,
         report,
         transcripts: transcriptStore,
+        usage: agent.sessionUsage,
       }),
       store: new ThreadsStore({ defaultWorkspaceId, port }),
       transcripts: transcriptStore,

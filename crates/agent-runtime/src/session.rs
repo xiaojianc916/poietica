@@ -122,6 +122,48 @@ impl fmt::Debug for CommandReports {
     }
 }
 
+/// agent 主动报的一份上下文用量（ACP usage_update）。
+///
+/// 与 CommandReport 同一类东西：会话的状态，不是某一轮的内容。Kimi 在答复落定
+/// 之后才异步补报它（上游 acp-server 的 session.ts：settleDriver 先 resolve，
+/// 再 emitUsageUpdate），那一刻轮次已经结束，运行帧通道按规矩丢帧 —— 所以它
+/// 只能走这条路。
+///
+/// 载荷原样是 ACP 的线上形状。这个 crate 一格都不认识它 —— 认识它的是读它的
+/// 那一层（packages/agent-contract 的 usage.ts），与命令表同一条规矩。
+#[derive(Debug, Clone)]
+pub struct UsageReport {
+    /// 报这份用量的那条会话。
+    pub session_id: String,
+    /// 那条会话此刻的上下文用量，ACP 线上形状。
+    pub usage: serde_json::Value,
+}
+
+/// 一条连接上 agent 主动报的用量，接收端。
+///
+/// 与 CommandReports 同一条规矩：通道类型包在这里，不把执行器生态的类型名
+/// 泄进公共字段。
+pub struct UsageReports(mpsc::UnboundedReceiver<UsageReport>);
+
+impl UsageReports {
+    pub(crate) const fn new(reports: mpsc::UnboundedReceiver<UsageReport>) -> Self {
+        Self(reports)
+    }
+
+    /// 收下一份报告；通道合上（连接走了）时得到 None。
+    pub async fn next(&mut self) -> Option<UsageReport> {
+        futures::StreamExt::next(&mut self.0).await
+    }
+}
+
+impl fmt::Debug for UsageReports {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("UsageReports")
+            .finish_non_exhaustive()
+    }
+}
+
 /// A connected session, before anything has been spawned onto a runtime.
 ///
 /// The crate stays runtime-agnostic on purpose: it hands back a future and the
@@ -146,6 +188,11 @@ pub struct AgentConnection {
     /// 与上面那一条分开，因为它们说的不是一件事：一个是这条会话能改什么，一个是
     /// 这条会话上敲得出什么。混成一条通道，接收方就只能靠一个字符串标签去分辨。
     pub commands: CommandReports,
+    /// agent 主动报的上下文用量，往界面去的那条路。
+    ///
+    /// 它是会话的状态而不是某一轮的内容：Kimi 在轮次落定之后才补报它，帧通道
+    /// 在轮外按规矩丢帧，所以它与选择器表、命令表同走会话状态这条路。
+    pub usage: UsageReports,
     /// 握手谈成之后才知道的那几件事，或者握手为什么没成。
     ///
     /// 此前是 `Receiver<String>`：失败只能靠把发送端丢掉来表示，于是调用者收到

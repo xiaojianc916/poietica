@@ -54,3 +54,10 @@ export type {
   ThreadTitleSource,
   TurnSpanTiming,
 } from './thread'
+export type {
+  SessionUsage,
+  SessionUsageCost,
+  SessionUsagePort,
+  SessionUsageReport,
+} from './usage'
+export { sessionUsageOf } from './usage'
