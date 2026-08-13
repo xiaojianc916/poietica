@@ -691,8 +691,12 @@
           if (!SCENES[name] || name === sceneName) { return }
           const prev = sceneName
           scene = SCENES[name]; sceneName = name
-          document.querySelectorAll('.chip[data-scene]').forEach(c =>
-            c.setAttribute('aria-pressed', String(c.dataset.scene === name)))
+          document.querySelectorAll('.chip[data-scene]').forEach((c) => {
+            c.setAttribute(
+              'aria-pressed',
+              String(c.dataset.scene === name),
+            )
+          })
           $('scene-name').textContent = scene.label
           $('scene-desc').textContent = scene.desc
           sp.turn.t = scene.turnB || 0
@@ -712,9 +716,15 @@
           nextMicro = scene.micro ? tNow + rand(scene.micro.every[0], scene.micro.every[1]) * 0.6 / 1000 : Number.POSITIVE_INFINITY
           esSoftAt = Number.POSITIVE_INFINITY
           setExpression(pick(scene.pool))
-          if (prev && !(opts?.silent)) { blink(scene.bKind === 'sleepy' ? 'soft' : 'quick') }
-          if (prev === 'loading') { flourishAt = tNow + 0.18 }
-          if (scene.enter && !RM && !(opts?.silent)) { scene.enter() }
+          runFirstMatchingBranch([
+            [() => (prev && !(opts?.silent)), () => { blink(scene.bKind === 'sleepy' ? 'soft' : 'quick') }]
+          ])
+          runFirstMatchingBranch([
+            [() => (prev === 'loading'), () => { flourishAt = tNow + 0.18 }]
+          ])
+          runFirstMatchingBranch([
+            [() => (scene.enter && !RM && !(opts?.silent)), () => { scene.enter() }]
+          ])
         }
 
         // ===== 主循环：step（逻辑）+ render（绘制）=====
@@ -727,7 +737,9 @@
           bl('nodA', scene.nod[0] * AMP); bl('nodHz', scene.nod[1])
           bl('dots', scene.dots || 0); bl('blush', scene.blush || 0)
           bl('droop', scene.droop || 1); bl('mw', scene.mw != null ? scene.mw : 0.8)
-          if (scene.tick) { scene.tick(dt) }
+          runFirstMatchingBranch([
+            [() => (scene.tick), () => { scene.tick(dt) }]
+          ])
           ph.breath += TAU * live.breathHz * dt
           ph.bob += TAU * live.bobHz * dt
           ph.sway += TAU * live.swayHz * dt
@@ -735,42 +747,70 @@
           ph.orbit += TAU * (sceneName === 'loading' ? 0.55 : 0.3) * (1 + 0.16 * Math.sin(tNow * TAU / 4.6)) * dt
 
           // 调度器
-          if (tNow > nextExpr) {
+          runFirstMatchingBranch([
+            [() => (tNow > nextExpr), () => {
             const cand = scene.pool.filter(i => i !== exprIndex)
             setExpression(cand.length ? pick(cand) : scene.pool[0])
             nextExpr = tNow + rand(scene.expr[0], scene.expr[1]) / 1000
-          }
-          if (tNow > nextBlink && !blinkAnim) {
+          }]
+          ])
+          runFirstMatchingBranch([
+            [() => (tNow > nextBlink && !blinkAnim), () => {
             blink(scene.bKind || 'quick', Math.random() < 0.28)
             nextBlink = tNow + rand(scene.blink[0], scene.blink[1]) / 1000
-          }
-          if (tNow > nextGaze) { retargetGaze() }
-          if (tNow > nextMicro && scene.micro) {
+          }]
+          ])
+          runFirstMatchingBranch([
+            [() => (tNow > nextGaze), () => { retargetGaze() }]
+          ])
+          runFirstMatchingBranch([
+            [() => (tNow > nextMicro && scene.micro), () => {
             scene.micro.run()
             nextMicro = tNow + rand(scene.micro.every[0], scene.micro.every[1]) / 1000
-          }
-          if (tNow > burstAt) { burstAt = Number.POSITIVE_INFINITY; burst(burstN, burstKind) }
-          if (tNow > hopAt) { hopAt = Number.POSITIVE_INFINITY; play(G.hop(20)) }
-          if (tNow > winkAt) { winkAt = Number.POSITIVE_INFINITY; wink() }
-          if (tNow > dblBlinkAt) { dblBlinkAt = Number.POSITIVE_INFINITY; blinkHoldUntil = 0; blink('quick', true); sp.es.t = scene.es || 1 }
-          if (tNow > esSoftAt) { esSoftAt = Number.POSITIVE_INFINITY; sp.es.t = 1.06 }
-          if (tNow > flourishAt) { flourishAt = Number.POSITIVE_INFINITY; play(G.hop(11)); sp.es.x = (scene.es || 1) * 1.14; burst(6, 'sparkle') }
-          if (tNow > tourAt) {
+          }]
+          ])
+          runFirstMatchingBranch([
+            [() => (tNow > burstAt), () => { burstAt = Number.POSITIVE_INFINITY; burst(burstN, burstKind) }]
+          ])
+          runFirstMatchingBranch([
+            [() => (tNow > hopAt), () => { hopAt = Number.POSITIVE_INFINITY; play(G.hop(20)) }]
+          ])
+          runFirstMatchingBranch([
+            [() => (tNow > winkAt), () => { winkAt = Number.POSITIVE_INFINITY; wink() }]
+          ])
+          runFirstMatchingBranch([
+            [() => (tNow > dblBlinkAt), () => { dblBlinkAt = Number.POSITIVE_INFINITY; blinkHoldUntil = 0; blink('quick', true); sp.es.t = scene.es || 1 }]
+          ])
+          runFirstMatchingBranch([
+            [() => (tNow > esSoftAt), () => { esSoftAt = Number.POSITIVE_INFINITY; sp.es.t = 1.06 }]
+          ])
+          runFirstMatchingBranch([
+            [() => (tNow > flourishAt), () => { flourishAt = Number.POSITIVE_INFINITY; play(G.hop(11)); sp.es.x = (scene.es || 1) * 1.14; burst(6, 'sparkle') }]
+          ])
+          runFirstMatchingBranch([
+            [() => (tNow > tourAt), () => {
             tourIdx = (tourIdx + 1) % TOUR.length
             setScene(TOUR[tourIdx])
             tourAt = tNow + 5.2
-          }
-          if (intro.length && tNow > intro[0][0]) { intro.shift()[1]() }
+          }]
+          ])
+          runFirstMatchingBranch([
+            [() => (intro.length && tNow > intro[0][0]), () => { intro.shift()[1]() }]
+          ])
 
           // 微颤视线（扫视时的小跳动）
           const M = scene.gaze.mode
-          if ((M === 'wander' || M === 'read') && Math.random() < dt * 0.35) {
+          runFirstMatchingBranch([
+            [() => ((M === 'wander' || M === 'read') && Math.random() < dt * 0.35), () => {
             gazeT = { x: clamp(gazeT.x + rand(-0.06, 0.06), -1, 1), y: clamp(gazeT.y + rand(-0.04, 0.04), -1, 1) }
-          }
+          }]
+          ])
 
           // 视线目标：自主 vs 指针（按场景性格混合）
           let auto = gazeT
-          if (M === 'circle') { auto = { x: Math.cos(ph.orbit) * 0.55, y: Math.sin(ph.orbit) * 0.4 - 0.08 } }
+          runFirstMatchingBranch([
+            [() => (M === 'circle'), () => { auto = { x: Math.cos(ph.orbit) * 0.55, y: Math.sin(ph.orbit) * 0.4 - 0.08 } }]
+          ])
           const recent = clamp(1 - (tNow - pointer.at) / 2.5, 0, 1)
           const w = follow ? live.mw * recent : 0
           sp.gx.t = lerp(auto.x, pointer.x, w)
@@ -794,11 +834,21 @@
             const u = (tNow - g.t0) / g.dur
             if (u >= 1) { gestures.splice(i, 1); continue }
             if (u < 0) { continue }
-            if (g.dy) { gdy += g.dy(u) }
-            if (g.rot) { grot += g.rot(u) }
-            if (g.sq) { gsq += g.sq(u) }
-            if (g.sc) { gsc += g.sc(u) }
-            if (g.turn) { gturn += g.turn(u) }
+            runFirstMatchingBranch([
+              [() => (g.dy), () => { gdy += g.dy(u) }]
+            ])
+            runFirstMatchingBranch([
+              [() => (g.rot), () => { grot += g.rot(u) }]
+            ])
+            runFirstMatchingBranch([
+              [() => (g.sq), () => { gsq += g.sq(u) }]
+            ])
+            runFirstMatchingBranch([
+              [() => (g.sc), () => { gsc += g.sc(u) }]
+            ])
+            runFirstMatchingBranch([
+              [() => (g.turn), () => { gturn += g.turn(u) }]
+            ])
           }
           // 呼吸/漂浮/摇曳/点头
           const br = Math.sin(ph.breath) * live.breathA
@@ -833,7 +883,9 @@
           const wk = 1 + clamp((Math.abs(sp.gx.v) + Math.abs(sp.gy.v)) * 0.05, 0, 0.07)
           rings.forEach((ring, i) => {
             let cx = 0, cy = 0, botY = -1e9
-            for (const p of ring) { cx += p[0]; cy += p[1]; if (p[1] > botY) { botY = p[1]  }}
+            for (const p of ring) { cx += p[0]; cy += p[1]; runFirstMatchingBranch([
+  [() => (p[1] > botY), () => { botY = p[1]  }]
+])}
             cx /= ring.length; cy /= ring.length
             const baseLong = Math.asin(clamp((cx - CX) / R, -1, 1))
             const long = baseLong + turnAll
@@ -849,9 +901,11 @@
             const dY = sSize * sLid
             const fY = ey - cy + py + sLid * (cy * (1 - sSize) - py)
             const el = eyeEls[i]
-            if (morphMoving || pathDirty) {
+            runFirstMatchingBranch([
+              [() => (morphMoving || pathDirty), () => {
               el.setAttribute('d', `M${ring.map(p => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join('L')}Z`)
-            }
+            }]
+            ])
             el.setAttribute('transform', `matrix(${sx.toFixed(4)} 0 0 ${dY.toFixed(4)} ${(ex - sx * cx).toFixed(3)} ${fY.toFixed(3)})`)
             el.style.opacity = depth > 0.02 ? '1' : '0'
             eyeInfo[i] = { x: ex, y: ey, p: persp, d: depth, bl: baseLong, ta: turnAll }
@@ -876,7 +930,8 @@
           }
 
           // 轨道星子：倾斜轨道面 + 星形头自旋 + 彗尾拖影（前/后景深）
-          if (live.dots > 0.01) {
+          runFirstMatchingBranch([
+            [() => (live.dots > 0.01), () => {
             const orx = 141 * S, ory = 44
             const ct = 0.988, st = -0.156
             orbiters.forEach((o, i) => {
@@ -898,11 +953,15 @@
               })
               o.g.style.opacity = live.dots.toFixed(3)
               const wantFront = sd > 0.04
-              if (wantFront !== (o.g.parentNode === fxFront)) { (wantFront ? fxFront : fxBack).appendChild(o.g) }
+              runFirstMatchingBranch([
+                [() => (wantFront !== (o.g.parentNode === fxFront)), () => { (wantFront ? fxFront : fxBack).appendChild(o.g) }]
+              ])
             })
-          } else {
+          }],
+            [() => true, () => {
             orbiters.forEach(o => { o.g.style.opacity = '0' })
-          }
+          }]
+          ])
         }
 
         // ===== 互动 =====
@@ -952,8 +1011,12 @@
           })
           return b
         }
-        LIFE.forEach(n => $('chips-life').appendChild(chip(n)))
-        EMOTION.forEach(n => $('chips-emotion').appendChild(chip(n)))
+        LIFE.forEach((n) => {
+          $('chips-life').appendChild(chip(n))
+        })
+        EMOTION.forEach((n) => {
+          $('chips-emotion').appendChild(chip(n))
+        })
 
         function toggleTour(on) {
           tourOn = on != null ? on : !tourOn
