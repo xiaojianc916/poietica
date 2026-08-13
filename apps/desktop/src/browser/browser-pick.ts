@@ -20,17 +20,17 @@ let watching = false
 function formatPick(picked: BrowserElementPicked): string {
   const fence = '```'
   const lines = [
-    '【网页元素】' + (picked.title === '' ? picked.url : picked.title),
-    'URL：' + picked.url,
-    '选择器：' + picked.selector,
+    `【网页元素】${picked.title === '' ? picked.url : picked.title}`,
+    `URL：${picked.url}`,
+    `选择器：${picked.selector}`,
   ]
 
   if (picked.text !== '') {
-    lines.push('文本：' + picked.text)
+    lines.push(`文本：${picked.text}`)
   }
 
   if (picked.html !== '') {
-    lines.push(fence + 'html', picked.html, fence)
+    lines.push(`${fence}html`, picked.html, fence)
   }
 
   return lines.join('\n')

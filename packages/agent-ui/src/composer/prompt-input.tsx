@@ -229,7 +229,7 @@ export function PromptInput({
       setSlashDismissed(false)
       setSlashHighlighted(0)
       setTextState((current) =>
-        current.trim().length === 0 ? incoming : current.trimEnd() + '\n\n' + incoming,
+        current.trim().length === 0 ? incoming : `${current.trimEnd()}\n\n${incoming}`,
       )
       focusTextarea()
     },
