@@ -1864,3 +1864,18 @@ svg.assistant-provider-icon {
 [data-assistant-skin] .assistant-thread__title[data-ordinal] .assistant-thread__title-ordinal {
   flex: none;
 }
+
+/*
+ * 吉祥物：一枚同源 iframe，里面是 /mascot.html（refactor.mjs 由根目录
+ * index.html 生成）的纯矢量动画 —— 任意尺寸与 DPI 下都不会发糊。
+ * color-scheme 与嵌入页一致，透明底才不会被浏览器涂成不透明。
+ */
+.assistant-masthead__mascot {
+  background: transparent;
+  border: 0;
+  color-scheme: light dark;
+  display: block;
+  height: 200px;
+  margin-inline: auto;
+  width: 200px;
+}

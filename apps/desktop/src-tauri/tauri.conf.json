@@ -28,7 +28,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: poietica-asset: http://poietica-asset.localhost https://poietica-asset.localhost; font-src 'self' data:; media-src 'self' poietica-asset: http://poietica-asset.localhost https://poietica-asset.localhost; object-src 'none'; base-uri 'self'; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost; frame-ancestors 'none';"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: poietica-asset: http://poietica-asset.localhost https://poietica-asset.localhost; font-src 'self' data:; media-src 'self' poietica-asset: http://poietica-asset.localhost https://poietica-asset.localhost; object-src 'none'; base-uri 'self'; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost; frame-src 'self'; frame-ancestors 'self';"
     }
   },
   "bundle": {

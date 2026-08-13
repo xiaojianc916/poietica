@@ -12,8 +12,6 @@ import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
-import { modelProviderOf } from '../primitives/model-provider'
-import { ProviderIcon } from '../primitives/provider-icon'
 import { useAgentDialect } from '../semantics/agent-dialect'
 import type { QuestionAnswer } from '../semantics/ask-user-question'
 import {
@@ -31,6 +29,7 @@ import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branc
 import { WorkspacePicker, type WorkspacePickerProps } from '../threads/workspace-picker'
 import { TimelineRow } from '../timeline/timeline-row'
 import { TranscriptView } from '../timeline/transcript-view'
+import { MascotBadge } from './mascot'
 export interface AssistantSurfaceProps {
   /** 这一格代表的对话。入口那一格在说话之前还不是任何一条。 */
   readonly endpoint: string | null
@@ -130,14 +129,6 @@ export const AssistantSurface = memo(function AssistantSurface({
    */
   /* 这条对话对面是谁，由组合根说了算；这一层只负责把它的方言交给判据。 */
   const dialect = useAgentDialect()
-
-  /*
-   * 开场那张脸，就是下一句话要交给谁的那张脸。
-   *
-   * 它读的是这一格已经拿在手里的 controls——和工具条那颗胶囊同一份数据，
-   * 所以两处永远说同一件事，换模型时一起换，不需要任何同步。
-   */
-  const provider = useMemo(() => modelProviderOf(controls), [controls])
 
   /* 输入框盖在转录上，所以转录要知道它有多高。理由见 dock-clearance。 */
   const dockRef = useDockClearance()
@@ -315,10 +306,7 @@ export const AssistantSurface = memo(function AssistantSurface({
       ) : (
         <div className="assistant-surface__entry">
           <header className="assistant-masthead">
-            <ProviderIcon
-              className="assistant-masthead__mark"
-              {...(provider === undefined ? {} : { provider })}
-            />
+            <MascotBadge className="assistant-masthead__mascot" />
 
             <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
           </header>

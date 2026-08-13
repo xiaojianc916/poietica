@@ -31,6 +31,7 @@ import type { AppSettings } from '../settings'
 import type { SettingsStore } from '../settings-store'
 import { UsageSettings } from '../usage/usage-settings'
 import { ArchivedChatsSettings } from './archived-chats-settings'
+import { MascotPrefsGroup } from './mascot-prefs'
 import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from './settings-primitives'
 import {
   type SettingsController,
@@ -556,6 +557,8 @@ const AppearanceSettings = memo(function AppearanceSettings({
           }}
         />
       </SettingsGroup>
+
+      <MascotPrefsGroup />
     </SettingsPage>
   )
 })
