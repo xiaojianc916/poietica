@@ -13,6 +13,7 @@ import {
 import { cx } from '../primitives/class-names'
 import { SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
+import type { ComposerMode } from './modes'
 import { SlashMenu } from './slash-menu'
 
 /*
@@ -38,7 +39,7 @@ export interface PromptInputMessage {
 }
 
 /*
- * 四条线，各订各的。
+ * 一类状态一条线，各订各的。
  *
  * 草稿每敲一个字符就变，而工具栏、加号菜单、附件区没有一个真的需要那串字：
  * 它们要么只要动作，要么只要「有没有东西可发」这一个布尔。此前四方共用一个
@@ -51,6 +52,7 @@ export interface PromptInputMessage {
  * 醒一次。
  */
 const NO_ATTACHMENTS: readonly ComposerAsset[] = []
+const NO_MODES: readonly ComposerMode[] = []
 const NO_SLASH_ENTRIES: readonly PaletteEntry[] = []
 
 /** 能不能发，就这两位。整串草稿不出现在这里，因为没有人需要它。 */
@@ -81,12 +83,15 @@ interface PromptInputActions {
   readonly openFilePicker: () => void
   readonly registerTextarea: (element: HTMLTextAreaElement | null) => void
   readonly requestSubmit: () => void
+  /** 开关一条输入姿态（目标 / 计划模式）。 */
+  readonly toggleMode: (mode: ComposerMode) => void
 }
 
 const ActionsContext = createContext<PromptInputActions | null>(null)
 const TextContext = createContext<string>('')
 const AttachmentsContext = createContext<readonly ComposerAsset[]>(NO_ATTACHMENTS)
 const DraftContext = createContext<PromptInputDraft>(NO_DRAFT)
+const ModesContext = createContext<readonly ComposerMode[]>(NO_MODES)
 
 export function usePromptInputActions(): PromptInputActions {
   const actions = useContext(ActionsContext)
@@ -108,6 +113,11 @@ export function usePromptInputAttachments(): readonly ComposerAsset[] {
 
 export function usePromptInputDraft(): PromptInputDraft {
   return useContext(DraftContext)
+}
+
+/** 生效中的输入姿态，按开启顺序。 */
+export function usePromptInputModes(): readonly ComposerMode[] {
+  return useContext(ModesContext)
 }
 
 /**
@@ -175,6 +185,7 @@ export function PromptInput({
     setTextState(next)
   }, [])
   const [attachments, setAttachments] = useState<readonly ComposerAsset[]>([])
+  const [modes, setModes] = useState<readonly ComposerMode[]>(NO_MODES)
 
   const formRef = useRef<HTMLFormElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -278,6 +289,17 @@ export function PromptInput({
     })
   }, [addAssets, intake, multiple])
 
+  /* 开着就关、关着就开；数组顺序即开启顺序，占位词取最后开启的那条。 */
+  const toggleMode = useCallback((mode: ComposerMode) => {
+    setModes((current) => {
+      if (current.some((held) => held.id === mode.id)) {
+        return current.filter((held) => held.id !== mode.id)
+      }
+
+      return [...current, mode]
+    })
+  }, [])
+
   const registerTextarea = useCallback((element: HTMLTextAreaElement | null) => {
     textareaRef.current = element
   }, [])
@@ -316,6 +338,7 @@ export function PromptInput({
       openFilePicker,
       registerTextarea,
       requestSubmit,
+      toggleMode,
     }),
     [
       addAssets,
@@ -325,6 +348,7 @@ export function PromptInput({
       removeAttachment,
       requestSubmit,
       setText,
+      toggleMode,
     ],
   )
 
@@ -485,7 +509,7 @@ export function PromptInput({
                 />
               ) : null}
 
-              {children}
+              <ModesContext value={modes}>{children}</ModesContext>
             </form>
           </DraftContext>
         </AttachmentsContext>
@@ -498,9 +522,14 @@ export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) 
   return <div className={className} data-slot="prompt-input-body" {...props} />
 }
 
-export function PromptInputTextarea({ className, ...props }: ComponentProps<'textarea'>) {
+export function PromptInputTextarea({
+  className,
+  placeholder,
+  ...props
+}: ComponentProps<'textarea'>) {
   const { registerTextarea, requestSubmit, setText } = usePromptInputActions()
   const text = usePromptInputText()
+  const modes = usePromptInputModes()
 
   /*
    * ref 只有一件事：谁持有这个元素。
@@ -532,6 +561,7 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
           requestSubmit()
         }
       }}
+      placeholder={modes[modes.length - 1]?.placeholder ?? placeholder}
       ref={registerTextarea}
       value={text}
     />

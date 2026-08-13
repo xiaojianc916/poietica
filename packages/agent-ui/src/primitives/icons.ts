@@ -39,12 +39,6 @@ export function asIcon(glyph: FunctionComponent<{ className?: string; size?: num
 }
 
 export { LightbulbIcon as ThinkingIcon } from '@poietica/ui'
-/*
- * Copy 是本轮首先迁移的通用操作图标。
- *
- * 继续保留 CopyIcon 这个应用语义别名，调用点不需要跟随图标库命名变化；
- * 字形实现已经直接来自 lucide-react。
- */
 export {
   ArrowUp as SubmitIcon,
   Check as CheckIcon,
@@ -58,6 +52,7 @@ export {
   File as FileIcon,
   FolderPlus as FolderPlusIcon,
   Globe as GlobeIcon,
+  ListTodo as PlanIcon,
   LoaderCircle as SpinnerIcon,
   Maximize as MaximizeIcon,
   MessageCircle as ThreadIcon,
@@ -72,11 +67,9 @@ export {
   Sparkles as ModelIcon,
   Square as StopIcon,
   SquareTerminal as TerminalIcon,
+  Target as GoalIcon,
   Wrench as ToolIcon,
   X as CloseIcon,
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
-} from 'lucide-react' /*
- * 思考图标仍保留当前本地字形。本轮文件夹图标已经由实际消费位置直接改用
- * lucide-react，不再经过这里的本地别名。
- */
+} from 'lucide-react'

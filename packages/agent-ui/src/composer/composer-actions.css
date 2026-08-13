@@ -80,3 +80,61 @@
   margin-inline-start: auto;
   color: var(--cp-ink);
 }
+
+/* 组标题：Codex 式的一行小字。 */
+[data-assistant-skin] .assistant-plus-menu__heading {
+  padding: 2px 8px 4px;
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+}
+
+/* 名字后面那句淡描述；hint / detail 靠右，desc 跟着名字走。 */
+[data-assistant-skin] .assistant-plus-menu__desc {
+  min-inline-size: 0;
+  overflow: hidden;
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 生效姿态的胶囊：几何与批准方式那颗同一套令牌，底色由墨色按
+ * 洗淡比例混出（与 permission-picker.css 同一条规则），悬停只加深洗淡。
+ */
+.assistant-mode-chip {
+  --chip-wash: var(--cp-pill-wash);
+
+  display: inline-flex;
+  block-size: var(--cp-pill);
+  flex: none;
+  align-items: center;
+  gap: var(--cp-pill-gap);
+  border: 0;
+  border-radius: 9999px;
+  padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
+  background: color-mix(in oklab, var(--cp-ink-muted) var(--chip-wash), var(--cp-surface));
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  line-height: 1;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.assistant-mode-chip:hover {
+  --chip-wash: calc(var(--cp-pill-wash) * 2);
+}
+
+.assistant-mode-chip > svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+}
+
+.assistant-mode-chip__label {
+  max-inline-size: var(--cp-pill-label-max);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

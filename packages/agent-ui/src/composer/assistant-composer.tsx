@@ -11,7 +11,7 @@ import { memo, type Ref } from 'react'
 import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
 import type { ComposerAsset } from './attachment-intake'
 import { AttachmentTray } from './attachment-tray'
-import { ComposerActions } from './composer-actions'
+import { ComposerActions, ComposerModeChips } from './composer-actions'
 import { ContextGauge } from './context-gauge'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PermissionPicker } from './permission-picker'
@@ -124,6 +124,9 @@ function ComposerToolbar({
           不可撤销的。它也因此同时是切换入口 —— 一颗只能"摘掉"的标记不是控件。
         */}
         <PermissionPicker controls={controls} onSelect={onSelectControl} />
+
+        {/* 生效的输入姿态：一颗一条，可当场摘掉（状态归 PromptInput）。 */}
+        <ComposerModeChips />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />
