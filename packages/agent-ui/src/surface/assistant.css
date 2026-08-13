@@ -1865,15 +1865,8 @@ svg.assistant-provider-icon {
   flex: none;
 }
 
-/*
- * 吉祥物：一枚同源 iframe，里面是 /mascot.html（refactor.mjs 由根目录
- * index.html 生成）的纯矢量动画 —— 任意尺寸与 DPI 下都不会发糊。
- * color-scheme 与嵌入页一致，透明底才不会被浏览器涂成不透明。
- */
+/* 吉祥物是内联 SVG（mascot-badge.tsx），上色归 mascot.css；这里只给盒子。 */
 .assistant-masthead__mascot {
-  background: transparent;
-  border: 0;
-  color-scheme: light dark;
   display: block;
   height: 200px;
   margin-inline: auto;

@@ -312,6 +312,31 @@ type MutableRings = MutablePoint[][]
 const cloneExpression = (expression: MascotExpression): MutableRings =>
   expression.map((ring) => ring.map((p): MutablePoint => [p[0], p[1]]))
 
+/* 环点是均匀采样，轮廓按闭合 Catmull-Rom 出三次贝塞尔：折线放大或形变会露棱角。 */
+const ringPathD = (ring: readonly MutablePoint[]): string => {
+  const n = ring.length
+  const at = (i: number): MutablePoint => {
+    const p = ring[(i + n) % n]
+    if (p === undefined) {
+      throw new Error('ringPathD 不接受空环')
+    }
+    return p
+  }
+  let d = `M${at(0)[0].toFixed(2)} ${at(0)[1].toFixed(2)}`
+  for (let i = 0; i < n; i++) {
+    const p0 = at(i - 1)
+    const p1 = at(i)
+    const p2 = at(i + 1)
+    const p3 = at(i + 2)
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6
+    d += `C${c1x.toFixed(2)} ${c1y.toFixed(2)} ${c2x.toFixed(2)} ${c2y.toFixed(2)} ${p2[0].toFixed(2)} ${p2[1].toFixed(2)}`
+  }
+  return `${d}Z`
+}
+
 type ParticleShape = 'rect' | 'circle' | 'star' | 'heart'
 type BurstKind = 'confetti' | 'sparkle' | 'heart'
 type PoolNode = { el: SVGElement; shape: ParticleShape; free: boolean }
@@ -1448,7 +1473,7 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
       const dY = sSize * sLid
       const fY = ey - cy + py + sLid * (cy * (1 - sSize) - py)
       if (morphMoving || pathDirty) {
-        setAttr(el, 'd', `M${ring.map((p) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join('L')}Z`)
+        setAttr(el, 'd', ringPathD(ring))
       }
       setAttr(
         el,

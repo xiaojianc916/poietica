@@ -67,8 +67,6 @@ export function replayRunEvents(events: readonly RunEvent[]): TimelineState {
  * discarded frame by frame as a duplicate of the first.
  */
 export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
-  const draft = draftOf(createTimelineState())
-
   /*
    * 轮数由投影自己数出来。
    *
