@@ -127,6 +127,8 @@ export function usePromptInputDraft(): PromptInputDraft {
  */
 export interface PromptInputHandle {
   readonly setText: (text: string) => void
+  /** 往草稿末尾追加一段（如浏览器拾取的元素块），不覆盖正在打的字。 */
+  readonly insertText: (text: string) => void
   readonly focus: () => void
 }
 
@@ -218,7 +220,27 @@ export function PromptInput({
     editor.setSelectionRange(editor.value.length, editor.value.length)
   }, [])
 
-  useImperativeHandle(ref, () => ({ setText, focus: focusTextarea }), [focusTextarea, setText])
+  /*
+   * 追加而不是覆盖：拾取块落进来时，正在打的半句话不能没。空草稿整段收下，
+   * 非空草稿以空行相接。菜单两态的复位与 setText 同一条理由，焦点随文本走。
+   */
+  const insertText = useCallback(
+    (incoming: string) => {
+      setSlashDismissed(false)
+      setSlashHighlighted(0)
+      setTextState((current) =>
+        current.trim().length === 0 ? incoming : current.trimEnd() + '\n\n' + incoming,
+      )
+      focusTextarea()
+    },
+    [focusTextarea],
+  )
+
+  useImperativeHandle(ref, () => ({ setText, insertText, focus: focusTextarea }), [
+    focusTextarea,
+    insertText,
+    setText,
+  ])
 
   const removeAttachment = useCallback(
     (assetToken: string) => {

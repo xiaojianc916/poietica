@@ -16,7 +16,7 @@ pub mod export_bindings;
 use tauri::Wry;
 use tauri_specta::{Builder, ErrorHandlingMode};
 
-use crate::browser::BrowserState;
+use crate::browser::{BrowserElementPicked, BrowserState};
 use crate::commands::{
     agent::dto::{
         AgentArchiveThreadRequest, AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl,
@@ -138,9 +138,11 @@ pub fn surface() -> Builder<Wry> {
             crate::browser::browser_set_visible,
             crate::browser::browser_open_devtools,
             crate::browser::browser_devtools_endpoint,
+            crate::browser::browser_pick_element,
         ])
         .events(tauri_specta::collect_events![
             AutomationDue,
+            BrowserElementPicked,
             BrowserState,
             UpdateProgress
         ])
@@ -193,4 +195,5 @@ pub fn surface() -> Builder<Wry> {
         .typ::<UpdateRelease>()
         .typ::<GitBranches>()
         .typ::<BrowserState>()
+        .typ::<BrowserElementPicked>()
 }

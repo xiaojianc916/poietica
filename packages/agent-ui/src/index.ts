@@ -2,7 +2,7 @@ export type { AssistantComposerProps } from './composer/assistant-composer'
 export { AssistantComposer } from './composer/assistant-composer'
 export type { AttachmentIntake, ComposerAsset } from './composer/attachment-intake'
 export { AttachmentIntakeContext, useAttachmentIntake } from './composer/attachment-intake'
-export type { ChatStatus, PromptInputMessage } from './composer/prompt-input'
+export type { ChatStatus, PromptInputHandle, PromptInputMessage } from './composer/prompt-input'
 export type { SessionControlsProps } from './composer/session-controls'
 export type {
   ImageLightboxProps,

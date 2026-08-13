@@ -32,6 +32,87 @@ use crate::bootstrap::app::MAIN_WINDOW;
 /// 永远是外部 origin，remote 未声明即无 IPC —— 前缀只用于归属与调试。
 const LABEL_PREFIX: &str = "browser-";
 
+/// 拾取回传的哨兵地址。`.invalid` 是 RFC 2606 保留 TLD，永不解析；载荷全在
+/// query 里 —— 即使被取消的导航仍有请求发出（WebView2 已知行为），它也到不了
+/// 任何真实服务器。
+const PICK_SENTINEL: &str = "https://pick.poietica.invalid/";
+
+/// 注入页面的拾取脚本（图二）：hover 高亮、点击定案、Esc 取消。
+/// 回传走哨兵导航 —— 标签 webview 是外部 origin，结构性无 IPC，这是唯一
+/// 不开新信道、不放宽隔离的回传口。幂等：重复注入是空操作。
+/// 已知边界：iframe 里的元素只拾取到 iframe 本身。
+const PICKER_SCRIPT: &str = r##"(() => {
+  if (window.__poieticaPicker) { return; }
+  window.__poieticaPicker = true;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;'
+    + 'z-index:2147483647;pointer-events:none;display:none;'
+    + 'background:rgba(59,130,246,0.22);outline:2px solid rgba(59,130,246,0.9);';
+  let over = null;
+  const selectorFor = (start) => {
+    const parts = [];
+    let node = start;
+    while (node && node.nodeType === 1 && parts.length < 6) {
+      if (node.id) { parts.unshift('#' + CSS.escape(node.id)); break; }
+      let part = node.tagName.toLowerCase();
+      const parent = node.parentElement;
+      if (parent) {
+        const twins = Array.prototype.filter.call(parent.children, (child) => child.tagName === node.tagName);
+        if (twins.length > 1) { part += ':nth-of-type(' + (twins.indexOf(node) + 1) + ')'; }
+      }
+      parts.unshift(part);
+      node = parent;
+    }
+    return parts.join(' > ');
+  };
+  const cleanup = () => {
+    document.removeEventListener('mousemove', onMove, true);
+    document.removeEventListener('click', onClick, true);
+    document.removeEventListener('keydown', onKey, true);
+    overlay.remove();
+    delete window.__poieticaPicker;
+  };
+  const finish = (params) => {
+    cleanup();
+    location.href = 'https://pick.poietica.invalid/?' + params.toString();
+  };
+  const onMove = (event) => {
+    const el = document.elementFromPoint(event.clientX, event.clientY);
+    if (!el || el === over) { return; }
+    over = el;
+    const rect = el.getBoundingClientRect();
+    overlay.style.display = 'block';
+    overlay.style.left = rect.left + 'px';
+    overlay.style.top = rect.top + 'px';
+    overlay.style.width = rect.width + 'px';
+    overlay.style.height = rect.height + 'px';
+  };
+  const onClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const el = over || event.target;
+    const params = new URLSearchParams();
+    params.set('url', String(location.href).slice(0, 2000));
+    params.set('title', String(document.title).slice(0, 300));
+    params.set('selector', selectorFor(el).slice(0, 300));
+    params.set('text', (el.innerText || '').trim().slice(0, 1000));
+    params.set('html', String(el.outerHTML || '').slice(0, 4000));
+    finish(params);
+  };
+  const onKey = (event) => {
+    if (event.key !== 'Escape') { return; }
+    event.preventDefault();
+    event.stopPropagation();
+    const params = new URLSearchParams();
+    params.set('cancel', '1');
+    finish(params);
+  };
+  document.body.appendChild(overlay);
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('click', onClick, true);
+  document.addEventListener('keydown', onKey, true);
+})();"##;
+
 /// 面板视口在主窗口客户区里的逻辑坐标。渲染层量 DOM，这里只收数。
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, specta::Type)]
 pub struct PanelBounds {
@@ -79,6 +160,9 @@ pub struct BrowserHost {
     /// CDP 端口。启动时抽一次，写进 WebView2 的环境参数；非 Windows 或
     /// 端口抽取失败时为 None，agent 操控面就不存在，浏览器本体不受影响。
     devtools_port: Option<u16>,
+    /// 拾取武装位：browser_pick_element 装上标签 id，该标签的下一次哨兵导航
+    /// 才被承认，用后即焚 —— 页面伪造哨兵导航时这里没武装，直接丢弃。
+    picking: Mutex<Option<u32>>,
 }
 
 impl BrowserHost {
@@ -178,14 +262,111 @@ fn note_title(app: &AppHandle, id: u32, title: &str) {
 }
 
 /// 内核报来的装载进度：Started 亮转圈，Finished 熄掉。
+///
+/// 装载开始兼作「跟随」信号：agent 经 CDP 驱动后台标签时，面板把它切成活动
+/// 标签。如实声明：内核分不清 CDP 导航与页面自刷新（都是无命令导航），后者
+/// 同样会抢活动位 —— 已写进 docs 的已知限制。
 fn note_loading(app: &AppHandle, id: u32, loading: bool) {
-    {
+    let follow = {
         let host = app.state::<BrowserHost>();
         let mut tabs = lock(&host.tabs);
         tabs.note_loading(id, loading);
+        loading && tabs.active_id() != Some(id) && tabs.select(id)
+    };
+
+    if follow {
+        apply_layout(app);
     }
 
     publish(app);
+}
+
+/// 拾取结果：喂给渲染层，落进对话草稿。tab_id 取宿主闭包里的标签号，
+/// 不信页面自报的任何身份。
+#[derive(Clone, Debug, Deserialize, Serialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserElementPicked {
+    pub tab_id: u32,
+    pub url: String,
+    pub title: String,
+    pub selector: String,
+    pub text: String,
+    pub html: String,
+}
+
+/// 字段长度的二次鉗制：拾取脚本已截过，这里不信它。按字符截，UTF-8 安全。
+fn clamp_chars(value: &str, limit: usize) -> String {
+    value.chars().take(limit).collect()
+}
+
+/// 解除一个标签的拾取武装。真实导航走这里；重复拾取由新武装覆盖。
+fn disarm_pick(app: &AppHandle, id: u32) {
+    let host = app.state::<BrowserHost>();
+    let mut picking = lock(&host.picking);
+
+    if *picking == Some(id) {
+        *picking = None;
+    }
+}
+
+/// 哨兵导航到站：验武装、拆 query、发事件。
+///
+/// 只认「browser_pick_element 之后该标签的第一次哨兵导航」，用后即焚 ——
+/// 没武装就是页面伪造，丢弃。字段经 url crate 的 query_pairs 自动百分号
+/// 解码，编解码零手搓（页面侧是浏览器原生 URLSearchParams）。
+fn finish_pick(app: &AppHandle, id: u32, target: &Url) {
+    let armed = {
+        let host = app.state::<BrowserHost>();
+        let mut picking = lock(&host.picking);
+
+        if *picking == Some(id) {
+            *picking = None;
+            true
+        } else {
+            false
+        }
+    };
+
+    if !armed {
+        log::warn!("browser tab {id} offered a pick payload while unarmed; dropped");
+        return;
+    }
+
+    let mut cancelled = false;
+    let mut url = String::new();
+    let mut title = String::new();
+    let mut selector = String::new();
+    let mut text = String::new();
+    let mut html = String::new();
+
+    for (key, value) in target.query_pairs() {
+        match key.as_ref() {
+            "cancel" => cancelled = true,
+            "url" => url = clamp_chars(&value, 2000),
+            "title" => title = clamp_chars(&value, 300),
+            "selector" => selector = clamp_chars(&value, 300),
+            "text" => text = clamp_chars(&value, 1000),
+            "html" => html = clamp_chars(&value, 4000),
+            _ => {}
+        }
+    }
+
+    if cancelled {
+        return;
+    }
+
+    let picked = BrowserElementPicked {
+        tab_id: id,
+        url,
+        title,
+        selector,
+        text,
+        html,
+    };
+
+    if let Err(error) = picked.emit(app) {
+        log::warn!("browser element pick was not delivered: {error}");
+    }
 }
 
 /// 让「哪个 webview 可见」追上「哪个标签活动」。
@@ -263,6 +444,14 @@ fn drive(app: &AppHandle, id: u32, url: &Url) {
     )
     .data_directory(profile)
     .on_navigation(move |target| {
+        /* 哨兵导航是拾取回传，不是真的要去哪：吃掉它，页面原地不动。 */
+        if target.as_str().starts_with(PICK_SENTINEL) {
+            finish_pick(&nav_handle, id, target);
+            return false;
+        }
+
+        /* 真实导航解除拾取武装：拾取脚本随旧文档一起消失了。 */
+        disarm_pick(&nav_handle, id);
         note_url(&nav_handle, id, target.as_str());
         true
     })
@@ -527,6 +716,20 @@ pub async fn browser_open_devtools(app: AppHandle, id: u32) {
 #[specta::specta]
 pub async fn browser_devtools_endpoint(app: AppHandle) -> Option<String> {
     app.state::<BrowserHost>().devtools_endpoint()
+}
+
+/// 图二「选择网页元素加入聊天」：给标签装上拾取武装并注入拾取脚本。
+///
+/// 空白页没有内核实例，run_in_page 自然是空操作，什么也不会发生。
+#[command]
+#[specta::specta]
+pub async fn browser_pick_element(app: AppHandle, id: u32) {
+    {
+        let host = app.state::<BrowserHost>();
+        *lock(&host.picking) = Some(id);
+    }
+
+    run_in_page(&app, id, PICKER_SCRIPT);
 }
 
 /// 把内核预热出来，让 CDP 端点上有页面可听。

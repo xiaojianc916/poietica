@@ -2,6 +2,7 @@ import type { AgentSessionPort } from '@poietica/agent-contract'
 import {
   AssistantSurface,
   type GitBranchPickerProps,
+  type PromptInputHandle,
   useAgentControls,
   useSessionControlsActions,
   useThreadSelectorFailure,
@@ -9,8 +10,9 @@ import {
   useThreadUsage,
   type WorkspacePickerProps,
 } from '@poietica/agent-ui'
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { useThreadsActions } from '../assistant/threads-context'
+import { adoptBrowserPickTarget } from '../browser/browser-pick'
 import { pluginStore } from '../plugins/plugin-runtime'
 
 /*
@@ -51,6 +53,16 @@ export function ConversationSurface({
   workspace,
 }: ConversationSurfaceProps) {
   const threads = useThreadsActions()
+
+  /*
+   * 浏览器面板拾取的元素块落进哪个输入框：落进屏幕上这一格的。
+   *
+   * 工作台主区同一时刻只挂一个对话表面（workspace-container 的 surface 槽），
+   * 这里的认领就是唯一的认领；卸载即注销，拾取不会写进已离屏的格子。
+   */
+  const composer = useRef<PromptInputHandle | null>(null)
+
+  useEffect(() => adoptBrowserPickTarget(composer), [])
 
   /*
    * 斜杠菜单的候选表，读插件 store 快照上的命令表。订阅顺带把命令表端口接上（store
@@ -189,6 +201,7 @@ export function ConversationSurface({
 
   return (
     <AssistantSurface
+      composer={composer}
       controls={controls}
       controlsFailure={controlsFailure}
       endpoint={threadId}

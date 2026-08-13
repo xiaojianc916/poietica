@@ -43,6 +43,8 @@ export interface BrowserHostPort {
   readonly back: (id: number) => Promise<void>
   readonly forward: (id: number) => Promise<void>
   readonly reload: (id: number) => Promise<void>
+  /** 图二的拾取。结果不走这条口回来：宿主经事件流直送对话草稿。 */
+  readonly pickElement: (id: number) => Promise<void>
   readonly reopenClosed: (index: number) => Promise<void>
   readonly setViewportBounds: (bounds: BrowserViewportRect) => Promise<void>
   readonly setVisible: (visible: boolean) => Promise<void>

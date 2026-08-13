@@ -162,7 +162,11 @@ function BrowserTabList({ host, actions, onDismiss }: BrowserTabListProps) {
               }}
               type="button"
             >
-              <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
+              {tab.loading ? (
+                <LoaderCircle aria-hidden className="size-3.5 shrink-0 animate-spin opacity-60" />
+              ) : (
+                <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
+              )}
               <span className="min-w-0 truncate text-xs">{tab.title}</span>
             </button>
             <button

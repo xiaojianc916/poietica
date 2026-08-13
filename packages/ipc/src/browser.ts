@@ -9,9 +9,14 @@ import { commands, events } from './generated/ipc-bindings'
  * 固定为先挂后拉，与 automations.ts 的 watch 同一条规矩。
  */
 
-export type { BrowserClosedTab, BrowserState, BrowserTab } from './generated/ipc-bindings'
+export type {
+  BrowserClosedTab,
+  BrowserElementPicked,
+  BrowserState,
+  BrowserTab,
+} from './generated/ipc-bindings'
 
-import type { BrowserState } from './generated/ipc-bindings'
+import type { BrowserElementPicked, BrowserState } from './generated/ipc-bindings'
 
 export interface BrowserViewportBounds {
   readonly x: number
@@ -86,4 +91,18 @@ export function openBrowserUrlExternally(url: string): Promise<void> {
 /** 内核 CDP 端点；非 Windows 或端口没抽到时为 null，mcp.json 对账用。 */
 export function browserDevtoolsEndpoint(): Promise<string | null> {
   return throughIpc(() => commands.browserDevtoolsEndpoint())
+}
+
+/** 图二的拾取：给标签注入拾取脚本并武装一次性的回传口。 */
+export function pickBrowserElement(id: number): Promise<void> {
+  return throughIpc(() => commands.browserPickElement(id))
+}
+
+/** 拾取结果流。只挂监听 —— 没有「当前值」可拉，事件只在点下那一刻存在。 */
+export function watchBrowserElementPicked(
+  onPicked: (picked: BrowserElementPicked) => void,
+): Promise<() => void> {
+  return events.browserElementPicked.listen((event) => {
+    onPicked(event.payload)
+  })
 }

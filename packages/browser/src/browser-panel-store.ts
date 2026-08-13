@@ -65,6 +65,7 @@ export interface BrowserPanelStore {
     readonly back: (id: number) => void
     readonly forward: (id: number) => void
     readonly reload: (id: number) => void
+    readonly pickElement: (id: number) => void
     readonly reopenClosed: (index: number) => void
     readonly openDevtools: (id: number) => void
     readonly openExternal: (url: string) => void
@@ -89,6 +90,9 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
   let started = false
   let ensuredFirstTab = false
   let nativeVisible: boolean | null = null
+  /* 自动展开的静音位与忙边沿。手动关过就静音，手动开恢复；内存位，不落盘。 */
+  let autoOpenMuted = false
+  let hostBusy = false
   let snapshot: BrowserPanelState = { ...intent, isResizing: false, host }
 
   /* 界面动作打不动宿主不是调用方要接的错误：记日志，界面靠快照自愈。 */
@@ -182,6 +186,18 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
             ensuredFirstTab = true
           }
 
+          /*
+           * agent 在后台驱动浏览器时把面板亮出来：看「存在非 about:blank 标签
+           * 在装载」的 0→1 边沿。about:blank 不算忙 —— 预热的空白页不该弹面板。
+           */
+          const busy = state.tabs.some((tab) => tab.loading && tab.url !== 'about:blank')
+
+          if (busy && !hostBusy && !intent.open && !autoOpenMuted) {
+            settle({ ...intent, open: true })
+          }
+
+          hostBusy = busy
+
           publish()
         })
         .catch((cause: unknown) => {
@@ -200,6 +216,9 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
     },
 
     togglePanel: (): void => {
+      /* 手动动作定静音位：手动关掉就别再自弹，手动打开恢复自弹资格。 */
+      autoOpenMuted = intent.open
+
       settle({ ...intent, open: !intent.open })
     },
 
@@ -246,6 +265,9 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
       },
       reload: (id) => {
         run('reload', () => port.reload(id))
+      },
+      pickElement: (id) => {
+        run('pick-element', () => port.pickElement(id))
       },
       reopenClosed: (index) => {
         run('reopen-closed', () => port.reopenClosed(index))

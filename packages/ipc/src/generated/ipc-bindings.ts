@@ -992,6 +992,14 @@ async browserOpenDevtools(id: number) : Promise<void> {
  */
 async browserDevtoolsEndpoint() : Promise<string | null> {
     return await TAURI_INVOKE("browser_devtools_endpoint");
+},
+/**
+ * 图二「选择网页元素加入聊天」：给标签装上拾取武装并注入拾取脚本。
+ * 
+ * 空白页没有内核实例，run_in_page 自然是空操作，什么也不会发生。
+ */
+async browserPickElement(id: number) : Promise<void> {
+    await TAURI_INVOKE("browser_pick_element", { id });
 }
 }
 
@@ -1000,10 +1008,12 @@ async browserDevtoolsEndpoint() : Promise<string | null> {
 
 export const events = __makeEvents__<{
 automationDue: AutomationDue,
+browserElementPicked: BrowserElementPicked,
 browserState: BrowserState,
 updateProgress: UpdateProgress
 }>({
 automationDue: "automation-due",
+browserElementPicked: "browser-element-picked",
 browserState: "browser-state",
 updateProgress: "update-progress"
 })
@@ -1371,7 +1381,16 @@ spans: AgentTurnSpan[];
  * 
  * 与上面那两格同一个宽度，同一个理由。
  */
-prompts: number }
+prompts: number; 
+/**
+ * 这条对话最近一次记下的上下文用量，ACP usage_update 的线上形状。
+ * 
+ * 来自本地账本，不来自这一次打开：Kimi 只在轮次落定后报一次，装载旧会
+ * 话时不补报（协议建议补报，它没做），所以重启后的第一眼只有账本答得上。
+ * 缺席就是还没报过。这一侧不认识它的字段 —— 认识它的是契约层的
+ * usage.ts，与实时那条通道同一个读者。
+ */
+usage: JsonValue | null }
 /**
  * A conversation being held at the top of the list, or released.
  */
@@ -1728,6 +1747,11 @@ export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: 
  * 最近关闭的一条，够画出下拉里的那一行。
  */
 export type BrowserClosedTab = { url: string; title: string }
+/**
+ * 拾取结果：喂给渲染层，落进对话草稿。tab_id 取宿主闭包里的标签号，
+ * 不信页面自报的任何身份。
+ */
+export type BrowserElementPicked = { tabId: number; url: string; title: string; selector: string; text: string; html: string }
 /**
  * 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，
  * 增量协议换来的只是两侧各一份需要对账的账本。

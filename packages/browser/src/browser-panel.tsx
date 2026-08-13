@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  Crosshair,
   ExternalLink,
   Globe,
   MoreHorizontal,
@@ -111,6 +112,13 @@ function BrowserToolbar({ activeTab, actions }: BrowserToolbarProps) {
 
   return (
     <div className="relative flex h-10 shrink-0 items-center gap-1 border-b border-current/10 px-2">
+      {/* 装载中的不定式进度：内核只报 Started/Finished，画不出百分比，不假装。 */}
+      {activeTab?.loading === true ? (
+        <div
+          aria-hidden
+          className="absolute inset-x-0 -bottom-px h-0.5 animate-pulse bg-current/40"
+        />
+      ) : null}
       <ToolbarButton
         disabled={!canDrive}
         label="后退"
@@ -146,6 +154,19 @@ function BrowserToolbar({ activeTab, actions }: BrowserToolbarProps) {
       </ToolbarButton>
 
       <AddressInput actions={actions} activeTab={activeTab} />
+
+      {/* 图二：拾取一个网页元素，结果落进对话草稿。空白页没得拾。 */}
+      <ToolbarButton
+        disabled={!canDrive}
+        label="选择网页元素加入聊天"
+        onClick={() => {
+          if (activeTab !== null) {
+            actions.pickElement(activeTab.id)
+          }
+        }}
+      >
+        <Crosshair aria-hidden className="size-4" />
+      </ToolbarButton>
 
       <ToolbarButton
         label="更多操作"

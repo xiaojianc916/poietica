@@ -50,6 +50,7 @@ export {
 } from './automations'
 export {
   type BrowserClosedTab,
+  type BrowserElementPicked,
   type BrowserState,
   type BrowserTab,
   type BrowserViewportBounds,
@@ -62,10 +63,12 @@ export {
   openBrowserDevtools,
   openBrowserTab,
   openBrowserUrlExternally,
+  pickBrowserElement,
   reopenClosedBrowserTab,
   selectBrowserTab,
   setBrowserViewportBounds,
   setBrowserVisible,
+  watchBrowserElementPicked,
   watchBrowserState,
 } from './browser'
 export {

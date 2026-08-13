@@ -7,10 +7,11 @@ import type {
   SessionConfigControl,
   SessionUsage,
 } from '@poietica/agent-contract'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, type Ref, useCallback, useMemo, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
+import type { PromptInputHandle } from '../composer/prompt-input'
 import { modelProviderOf } from '../primitives/model-provider'
 import { ProviderIcon } from '../primitives/provider-icon'
 import { useAgentDialect } from '../semantics/agent-dialect'
@@ -78,6 +79,11 @@ export interface AssistantSurfaceProps {
   readonly palette?: readonly PaletteEntry[] | undefined
   /** 这条会话最近报的上下文用量。缺席（还没报、或是入口）就不画。 */
   readonly usage?: SessionUsage | undefined
+  /**
+   * 往输入框草稿里写字的那条 ref 通道（浏览器拾取是第一个真实调用方）。
+   * 草稿的唯一所有者仍是 PromptInput；这一层只把通道铺过去，不碰内容。
+   */
+  readonly composer?: Ref<PromptInputHandle> | undefined
 }
 
 /*
@@ -95,6 +101,7 @@ export interface AssistantSurfaceProps {
  * 这一层仍然不量任何几何。
  */
 export const AssistantSurface = memo(function AssistantSurface({
+  composer,
   controls,
   controlsFailure,
   endpoint,
@@ -276,6 +283,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         onSubmit={submit}
         palette={palette}
         questionDeck={questionDeck}
+        ref={composer}
         status={assistant.status}
         usage={usage}
       />
