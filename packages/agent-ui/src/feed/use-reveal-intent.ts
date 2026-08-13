@@ -17,13 +17,14 @@ export interface RevealIntent {
   readonly pending: number | null
   readonly begin: (row: number) => void
   /**
-   * 报告视口顶端此刻是哪一行。到了就了结。
+   * 报告视口顶端此刻是哪一行、它的顶边贴没贴齐。两者同时成立才了结。
    *
    * 判据是顶行而不是视线行:跳转用 align 'start',它的语义就是"目标行顶边贴齐
-   * 视口顶边",所以顶行等于目标行是这次跳转完成的精确定义。用视线行去判会引入
-   * 方向性 —— 向上跳时,视线行在开跳之前就已经越过目标了。
+   * 视口顶边"。但顶行相等只说了一半 —— 向上跳时视口从目标行的下边进入它的区间,
+   * 那一刻顶行已经等于目标行,而落点还差着最多一整行;只看顶行,了结会把位移半路
+   * 掐断。贴齐与否由观察方拿同一次几何读取交来,这里不碰几何。
    */
-  readonly settle: (topRow: number) => void
+  readonly settle: (topRow: number, flush: boolean) => void
   /** 装到滚动区上,返回卸载函数。 */
   readonly watch: (viewport: HTMLElement) => () => void
 }
@@ -60,8 +61,8 @@ export function useRevealIntent(): RevealIntent {
     setPending(null)
   }, [])
 
-  const settle = useCallback((topRow: number) => {
-    setPending((current) => (current === topRow ? null : current))
+  const settle = useCallback((topRow: number, flush: boolean) => {
+    setPending((current) => (current === topRow && flush ? null : current))
   }, [])
 
   const watch = useCallback(

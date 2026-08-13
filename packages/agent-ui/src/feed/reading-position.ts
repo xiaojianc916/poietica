@@ -25,10 +25,14 @@ export interface RowSpan {
  * 先亮第一轮再跳走。锚点落在第一行之前时归第一行：视口顶部的留白不属于任何一行，
  * 但人此刻在读的显然是紧随其后的那一行。
  *
+ * 交回整个区间而不只是行号：了结一次跳转除了「顶行是谁」还要问「贴齐了没有」，
+ * 后者要用起点。答案本来就是查表查出来的那一项，掐掉起点再让调用方查第二次，
+ * 是把一次读取拆成两次。
+ *
  * 二分本身不在这里 —— 它与轮次导航用的是同一条判据，实现在 ordered-lookup。
  */
-export function rowAtAnchor(spans: readonly RowSpan[], anchor: number): number | null {
+export function rowAtAnchor(spans: readonly RowSpan[], anchor: number): RowSpan | null {
   const found = lastAtOrBefore(spans, (span) => span.start, anchor)
 
-  return spans[found < 0 ? 0 : found]?.index ?? null
+  return spans[found < 0 ? 0 : found] ?? null
 }

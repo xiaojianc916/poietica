@@ -85,6 +85,17 @@ const OVERSCAN_ROWS = 6
 const READING_ANCHOR_RATIO = 1 / 3
 
 /**
+ * 顶行顶边离视口顶边不超过这么多像素,才算"贴齐"。
+ *
+ * 了结一次跳转要同时回答两问:顶行是不是目标行、它的顶边贴没贴齐。只看前一问,
+ * 向上的位移会在进入目标行区间的那一刻被半路了结 —— 那正是"向上跳落点偏下"。
+ * 0 太苛刻:落点吸附在设备像素上(snapToDevicePixels),缩放下与几何真值差最多
+ * 半个物理像素;2 个 CSS 像素容得下这一点,又远小于任何一行的高度,不会把
+ * "还在半路"误判成"到了"。
+ */
+const REVEAL_FLUSH_PX = 2
+
+/**
  * 会话流的滚动区。
  *
  * 这个组件只画会话态:一个滚动区,一枚回到末端的按钮,加一层不随滚动移动的浮层。
@@ -282,14 +293,14 @@ export function AgentActivityFeed({
       )
 
       if (reading !== null) {
-        setReadingRow(reading)
+        setReadingRow(reading.index)
       }
 
-      /* 顶行只为一件事:回答那次跳转到了没有。 */
+      /* 顶行只为一件事:回答那次跳转到了没有。贴没贴齐由这同一次读取一并交出。 */
       const top = rowAtAnchor(spans, viewport.scrollTop)
 
       if (top !== null) {
-        settleReveal(top)
+        settleReveal(top.index, viewport.scrollTop - top.start <= REVEAL_FLUSH_PX)
       }
     },
     [settleReveal],
@@ -637,11 +648,11 @@ export function AgentActivityFeed({
     }
 
     return startGlide(viewport, {
-      arrive: () => undefined,
+      arrive: () => settleReveal(pending, true),
       proceed: () => viewportRef.current !== null,
       target: () => virtualizer.getOffsetForIndex(pending, 'start')?.[0] ?? null,
     })
-  }, [pending, reduced, virtualizer])
+  }, [pending, reduced, settleReveal, virtualizer])
 
   /*
    * 高亮的真源,按优先级排。

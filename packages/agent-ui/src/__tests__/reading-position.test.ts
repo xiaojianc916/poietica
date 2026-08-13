@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { type RowSpan, rowAtAnchor } from '../feed/reading-position'
 import { turnIndexAtRow } from '../threads/ordered-lookup'
 
-/* poietica:conversation-minimap-audit@v15 */
-
 /*
  * 只有起点。行首尾相接,所以第二行的起点就是第一行的终点 —— 终点是推得出来的,
  * 不需要声明,也就不需要在这里维护第二份。
@@ -25,23 +23,23 @@ describe('rowAtAnchor', () => {
   })
 
   it('锚点落在某一行内部时给出那一行', () => {
-    expect(rowAtAnchor(SPANS, 40)).toBe(0)
-    expect(rowAtAnchor(SPANS, 600)).toBe(1)
-    expect(rowAtAnchor(SPANS, 1230)).toBe(2)
+    expect(rowAtAnchor(SPANS, 40)).toBe(SPANS[0])
+    expect(rowAtAnchor(SPANS, 600)).toBe(SPANS[1])
+    expect(rowAtAnchor(SPANS, 1230)).toBe(SPANS[2])
   })
 
   it('边界归下一行:一行的起点属于它自己', () => {
-    expect(rowAtAnchor(SPANS, 80)).toBe(1)
-    expect(rowAtAnchor(SPANS, 79)).toBe(0)
-    expect(rowAtAnchor(SPANS, 1200)).toBe(2)
+    expect(rowAtAnchor(SPANS, 80)).toBe(SPANS[1])
+    expect(rowAtAnchor(SPANS, 79)).toBe(SPANS[0])
+    expect(rowAtAnchor(SPANS, 1200)).toBe(SPANS[2])
   })
 
   it('锚点在第一行之前时归第一行', () => {
-    expect(rowAtAnchor(SPANS, -300)).toBe(0)
+    expect(rowAtAnchor(SPANS, -300)).toBe(SPANS[0])
   })
 
   it('锚点越过最后一行时归最后一行', () => {
-    expect(rowAtAnchor(SPANS, 99999)).toBe(2)
+    expect(rowAtAnchor(SPANS, 99999)).toBe(SPANS[2])
   })
 })
 
