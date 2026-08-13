@@ -36,7 +36,12 @@ export function BrowserTabStrip({ host, actions, trailing }: BrowserTabStripProp
         <ChevronDown aria-hidden className="size-4" />
       </button>
 
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+      {/* 原生横向滚动条占布局高度，会把 24px 的标签顶出 32px 的行；内联藏掉，
+          不走类扫描与构建链。溢出导航：触控板横滑、Shift+滚轮、左端标签列表。 */}
+      <div
+        className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+        style={{ scrollbarWidth: 'none' }}
+      >
         {host.tabs.map((tab) => {
           const active = tab.id === host.activeTabId
 
