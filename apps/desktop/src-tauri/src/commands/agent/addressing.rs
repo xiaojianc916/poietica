@@ -143,11 +143,11 @@ pub(super) async fn session_for(
                 events: Vec::new(),
                 history: AgentHistory::Live,
             });
-        } else if live.can_load_session {
+        } else if let Some(loading) = live.loading {
             /* 上次运行留下的。号不变，让 agent 把它装载回来。 */
             match live
                 .client
-                .load_session(session_id.clone(), workspace.clone())
+                .load_session(loading, session_id.clone(), workspace.clone())
                 .await
             {
                 Ok(loaded) => {
@@ -255,8 +255,10 @@ pub(super) async fn session_for(
     if let Some((stale_id, stale_owner)) = stale
         && lost.is_some()
     {
-        let owed = if stale_owner == live.agent_id && live.can_delete_session {
-            match live.client.delete_session(stale_id.clone()).await {
+        let owed = if stale_owner == live.agent_id
+            && let Some(deleting) = live.deleting
+        {
+            match live.client.delete_session(deleting, stale_id.clone()).await {
                 Ok(()) => None,
                 Err(error) => {
                     log::warn!("could not delete the replaced session: {error}");

@@ -7,7 +7,9 @@ use serde_json::Value;
 use crate::config::ConfigControl;
 use crate::error::{AcpError, Refusal, Result};
 use crate::recorder::FrameSink;
-use crate::session::{OpenedSession, SessionEntry};
+use crate::session::{
+    CanDeleteSession, CanForkSession, CanLoadSession, OpenedSession, SessionEntry,
+};
 
 /// 这一轮随那句话一起送出去的一张图片。
 ///
@@ -49,8 +51,8 @@ pub(crate) enum Command {
         cwd: PathBuf,
         /// 这一条会话要挂的 MCP 服务器，ACP 的线上形状。
         ///
-        /// 命令这一层不认识它。协议那三个结构体都是 #[non_exhaustive]，构造
-        /// 不出来，所以物化推迟到驱动器里那一次反序列化。
+        /// 命令这一层不认识它。名册从渲染层原样过来，进来就是 JSON，所以物化
+        /// 是驱动器里那一次反序列化 —— 手上是打好字的字段时相反，见 blocks_of。
         mcp_servers: Vec<Value>,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
@@ -173,14 +175,19 @@ impl AgentClient {
 
     /// Reloads a session this agent opened in an earlier run.
     ///
-    /// 会话号原样交回去，agent 那侧把它重新装载起来，历史因此还在。只有在
-    /// agent 于握手时声明了这项能力时才该调用它。
+    /// 会话号原样交回去，agent 那侧把它重新装载起来，历史因此还在。凭证只从
+    /// 握手来（`Handshake::loading`），所以没声明过的连接上写不出这一句调用。
     ///
     /// # Errors
     ///
     /// Fails when the connection is gone, or when the agent no longer keeps
     /// that session.
-    pub async fn load_session(&self, session_id: String, cwd: PathBuf) -> Result<OpenedSession> {
+    pub async fn load_session(
+        &self,
+        _granted: CanLoadSession,
+        session_id: String,
+        cwd: PathBuf,
+    ) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::LoadSession {
@@ -197,13 +204,18 @@ impl AgentClient {
     /// Forks a session the agent keeps into a new, independent one.
     ///
     /// 号原样交过去，agent 带着完整上下文开出一条新会话交回来 —— 源会话
-    /// 原样不动。只有在 agent 于握手时声明了这项能力时才该调用它。
+    /// 原样不动。凭证只从握手来（`Handshake::forking`）。
     ///
     /// # Errors
     ///
     /// Fails when the connection is gone, or when the agent refuses to fork
     /// that session.
-    pub async fn fork_session(&self, session_id: String, cwd: PathBuf) -> Result<OpenedSession> {
+    pub async fn fork_session(
+        &self,
+        _granted: CanForkSession,
+        session_id: String,
+        cwd: PathBuf,
+    ) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::ForkSession {
@@ -219,14 +231,18 @@ impl AgentClient {
 
     /// Asks the agent to delete one of the sessions it keeps.
     ///
-    /// 只有在 agent 于握手时声明了这项能力时才该调用它。号删掉之后它不再
-    /// 指向任何东西：驱动器会同时把它从选择器表和会话册子里抹掉。
+    /// 凭证只从握手来（`Handshake::deleting`）。号删掉之后它不再指向任何
+    /// 东西：驱动器会同时把它从选择器表和会话册子里抹掉。
     ///
     /// # Errors
     ///
     /// Fails when the connection is gone, or when the agent refuses to
     /// delete that session.
-    pub async fn delete_session(&self, session_id: String) -> Result<()> {
+    pub async fn delete_session(
+        &self,
+        _granted: CanDeleteSession,
+        session_id: String,
+    ) -> Result<()> {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::DeleteSession { session_id, reply })?;

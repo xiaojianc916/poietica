@@ -175,14 +175,13 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let slot = RunSlot::new();
     let desk = PermissionDesk::new();
 
-    /* 选择器推送那一路不接。它的终点在桌面组合层（那里把它变成界面事件），
+    /* 会话级状态那一路不接。它的终点在桌面组合层（那里把它变成界面事件），
     而这个测试证明的是驱动器自己走得通一轮。接收端在这里被丢掉，驱动器那侧的
     发送随之失败并被忽略，这一轮不受影响。 */
     let AgentConnection {
         client,
         book: _,
-        reports: _,
-        commands: _,
+        events: _,
         handshake,
         driver,
     } = connect(spawn, slot, desk).expect("the program to be launchable");
@@ -196,11 +195,14 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         .expect(handshake, "the agent never finished the handshake")
         .expect("the handshake to succeed");
 
-    /* 两项能力只有真 agent 说得出来，所以只有在这里观察得到。它们决定了
-    「点开旧对话」和「删除对话」各自走哪条路。 */
+    /* 三张凭证只有真 agent 发得出来，所以只有在这里观察得到。它们决定了
+    「点开旧对话」「删除对话」「分叉对话」各自走哪条路。 */
     println!(
-        "session: {} (load_session: {}, delete_session: {})",
-        handshake.session_id, handshake.can_load_session, handshake.can_delete_session
+        "session: {} (load: {}, delete: {}, fork: {})",
+        handshake.session_id,
+        handshake.loading.is_some(),
+        handshake.deleting.is_some(),
+        handshake.forking.is_some()
     );
 
     let session_id = handshake.session_id;

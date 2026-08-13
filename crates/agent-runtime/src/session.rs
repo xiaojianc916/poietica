@@ -128,26 +128,63 @@ impl fmt::Debug for AgentConnection {
     }
 }
 
+/// 装载一条旧会话的凭证（ACP `session/load`）。
+///
+/// 三张凭证都只有这个 crate 铸得出来，而铸造处只有握手一个：agent 在 initialize
+/// 里声明了哪一项，`Handshake` 上就有哪一张。收凭证的是 `AgentClient` 上那三个
+/// 方法 —— 「声明过才能调用」此前是三句文档，现在是签名，拿不出凭证的调用编译
+/// 不过。
+///
+/// 与 `AgentClient::new` 收在 crate 内是同一个手法：能不能做这件事，铸造点说了
+/// 算，不由调用点自觉。
+#[derive(Clone, Copy, Debug)]
+pub struct CanLoadSession(());
+
+impl CanLoadSession {
+    pub(crate) const fn granted() -> Self {
+        Self(())
+    }
+}
+
+/// 删掉一条会话的凭证（ACP session/delete）。
+///
+/// 删除对话若只删本地那一份，agent 自己存的那一份原样留着 —— 屏幕上没了，对面
+/// 还在。那不是删除，是隐藏。声明在 `sessionCapabilities.delete` 里。
+#[derive(Clone, Copy, Debug)]
+pub struct CanDeleteSession(());
+
+impl CanDeleteSession {
+    pub(crate) const fn granted() -> Self {
+        Self(())
+    }
+}
+
+/// 分叉一条会话的凭证（ACP session/fork，UNSTABLE）。
+///
+/// 声明在 `sessionCapabilities.fork` 里。
+#[derive(Clone, Copy, Debug)]
+pub struct CanForkSession(());
+
+impl CanForkSession {
+    pub(crate) const fn granted() -> Self {
+        Self(())
+    }
+}
+
 /// 握手谈成之后才知道的事。
 ///
-/// 每一件都只有 agent 说了算，而且都只在这一刻说一次。
+/// 每一件都只有 agent 说了算，而且都只在这一刻说一次。能力不是三个布尔：有没有
+/// 这一项、谁调得动它，在类型上是同一件事。
 #[derive(Debug, Clone)]
 pub struct Handshake {
     /// 这条连接自带的那个会话的名字。
     pub session_id: String,
-    /// agent 会不会把一条它以前开过的会话重新装载起来（ACP `session/load`）。
-    pub can_load_session: bool,
-    /// agent 会不会真的删掉一条会话（ACP session/delete）。
-    ///
-    /// 删除对话若只删本地那一份，agent 自己存的那一份原样留着 —— 屏幕上没了，
-    /// 对面还在。那不是删除，是隐藏。这一件同样只有 agent 说了算，而且只在
-    /// 握手这一刻说一次：它在 `sessionCapabilities.delete` 里。
-    pub can_delete_session: bool,
-    /// agent 会不会从一条已有会话分叉出一条新会话（ACP session/fork，UNSTABLE）。
-    ///
-    /// 与删除同一条规矩：只有 agent 说了算，声明在 sessionCapabilities.fork
-    /// 里，只在握手这一刻说一次。
-    pub can_fork_session: bool,
+    /// agent 会不会把一条它以前开过的会话重新装载起来。
+    pub loading: Option<CanLoadSession>,
+    /// agent 会不会真的删掉一条会话。
+    pub deleting: Option<CanDeleteSession>,
+    /// agent 会不会从一条已有会话分叉出一条新会话。
+    pub forking: Option<CanForkSession>,
 }
 
 /// A session the agent just opened, and the selectors it offers for it.

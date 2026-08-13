@@ -27,8 +27,8 @@ use crate::program::resolve_program;
 use crate::recorder::{Frames, RecordedEvent, Recorder};
 use crate::run_slot::{Listening, RunSlot};
 use crate::session::{
-    AgentConnection, AgentSpawn, Handshake, OpenedSession, SessionEntry, SessionEvent,
-    SessionEvents,
+    AgentConnection, AgentSpawn, CanDeleteSession, CanForkSession, CanLoadSession, Handshake,
+    OpenedSession, SessionEntry, SessionEvent, SessionEvents,
 };
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -305,23 +305,30 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     }
                 };
 
-                let can_load_session = initialized.agent_capabilities.load_session;
+                /* 声明过就铸一张凭证。铸造处只有这里，收凭证的是客户端上
+                那三个方法：没声明过的能力，调用点根本写不出来。 */
+                let loading = initialized
+                    .agent_capabilities
+                    .load_session
+                    .then_some(CanLoadSession::granted());
 
                 /* 删一条会话要不要发给 agent，由 agent 自己在这里说。盲发再
                 看它报不报错，是把「它不支持」和「它出错了」混成一件事。 */
-                let can_delete_session = initialized
+                let deleting = initialized
                     .agent_capabilities
                     .session_capabilities
                     .delete
-                    .is_some();
+                    .is_some()
+                    .then_some(CanDeleteSession::granted());
 
                 /* 分叉同理：ACP 的 session/fork（UNSTABLE，RFD session-fork），
                 能力声明在 sessionCapabilities.fork 里。 */
-                let can_fork_session = initialized
+                let forking = initialized
                     .agent_capabilities
                     .session_capabilities
                     .fork
-                    .is_some();
+                    .is_some()
+                    .then_some(CanForkSession::granted());
 
                 /* 锚会话不挂 MCP。它存在的理由只有一个：读回这个 agent 的选择器
                 表（见桌面 seam 的 agent_capabilities）。为它把一批 MCP 服务器拉
@@ -372,9 +379,9 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 // not a failure of the session.
                 let _ignored = ready.send(Ok(Handshake {
                     session_id: primary.to_string(),
-                    can_load_session,
-                    can_delete_session,
-                    can_fork_session,
+                    loading,
+                    deleting,
+                    forking,
                 }));
 
                 /*
@@ -782,9 +789,9 @@ fn palette_of(update: &SessionUpdate) -> Option<Vec<Value>> {
 
 /// 线上形状变成协议的类型。
 ///
-/// 反序列化，不是构造：McpServer 与它那三个变体在 schema crate 里全标了
-/// #[non_exhaustive]，外部 crate 用结构体字面量根本编译不过。判别式由协议自己
-/// 钉死：http 与 sse 带 type，stdio 那一支是 untagged。
+/// 反序列化，不是构造：名册从渲染层原样过来，进来就是 JSON，先拆成字段再拼一
+/// 个结构体等于自己写一遍 serde。判别式由协议自己钉死：http 与 sse 带 type，
+/// stdio 那一支是 untagged。
 ///
 /// 读不成的那一台跳过并留一行日志。整批作废是更坏的选择：一台写错的服务器不该
 /// 让这条会话连开都开不起来，而静默丢弃会让它变成一个查不出原因的问题。
@@ -968,7 +975,8 @@ async fn replay(
 /// 会话。ACP 为后者准备了 session/delete —— 只删前者，屏幕上没了而对面
 /// 还留着完整的一份。
 ///
-/// 只有 agent 在握手时声明了这项能力才该走到这里。
+/// 凭证在客户端那一层收（`AgentClient::delete_session`），所以走到这里的一定
+/// 声明过。
 async fn delete_session(
     connection: &ConnectionTo<Agent>,
     session_id: String,
@@ -1140,7 +1148,7 @@ async fn run_turn(
 ///
 /// 两种块都由 SDK 的构造函数造。ImageContent 标了 #[non_exhaustive]，官方随之
 /// 给了 new(data, mime_type) —— 那就是它留的路，不是绕开它的理由。反序列化留给
-/// 真的造不出来的类型，mcp_servers_of 那一处才是。
+/// 本来就是 JSON 的输入，mcp_servers_of 那一处才是。
 ///
 /// 交回 None 只有一种由来：这句话什么都没带，而协议没有「空提问」。
 fn blocks_of(text: &str, images: Vec<PromptImage>) -> Option<Vec<ContentBlock>> {

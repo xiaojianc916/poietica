@@ -352,10 +352,10 @@ pub async fn agent_delete_thread(
 
     if let Some(live) = &live
         && let Some((session_id, owner)) = owed.clone()
-        && live.can_delete_session
+        && let Some(deleting) = live.deleting
         && owner == live.agent_id
     {
-        match live.client.delete_session(session_id).await {
+        match live.client.delete_session(deleting, session_id).await {
             Ok(()) => owed = None,
             /* agent 拒绝，或者它自己也早就不留着这条会话了。本地这一份仍然
             要删：用户按的是删除，不是「如果 agent 同意就删除」。账照记 ——
@@ -465,9 +465,9 @@ pub async fn agent_fork_thread(
 
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
-    if !live.can_fork_session {
+    let Some(forking) = live.forking else {
         return Err(Error::Validation(NO_FORK.to_owned()).into());
-    }
+    };
 
     let stored = on_index(&index, move |store| store.thread(source).map_err(persistence))
         .await?
@@ -492,19 +492,19 @@ pub async fn agent_fork_thread(
     let known = live.book.slot(&held).map_err(translate)?.is_some();
 
     if !known {
-        if !live.can_load_session {
+        let Some(loading) = live.loading else {
             return Err(Error::Validation(NOTHING_TO_FORK.to_owned()).into());
-        }
+        };
 
         live.client
-            .load_session(held.clone(), workspace.clone())
+            .load_session(loading, held.clone(), workspace.clone())
             .await
             .map_err(translate)?;
     }
 
     let forked = live
         .client
-        .fork_session(held, workspace)
+        .fork_session(forking, held, workspace)
         .await
         .map_err(translate)?;
 

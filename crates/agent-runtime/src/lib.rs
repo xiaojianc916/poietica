@@ -52,8 +52,8 @@ pub use program::resolve_program;
 pub use recorder::{FrameSink, Frames, RecordedEvent, Recorder, SeqLine, now_millis};
 pub use run_slot::{Listening, RunSlot};
 pub use session::{
-    AgentConnection, AgentSpawn, Handshake, OpenedSession, SessionEntry, SessionEvent,
-    SessionEvents,
+    AgentConnection, AgentSpawn, CanDeleteSession, CanForkSession, CanLoadSession, Handshake,
+    OpenedSession, SessionEntry, SessionEvent, SessionEvents,
 };
 pub use sessions::SessionBook;
 pub use stderr::StderrLog;
