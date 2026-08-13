@@ -117,7 +117,7 @@ fn a_thread_holding_no_session_has_no_owner() {
 
     assert_eq!(
         read.agent_id, None,
-        "空值只有一个意思：这条对话还没有握住会话（迁移 0012）"
+        "空值只有一个意思：这条对话还没有握住会话"
     );
 }
 
@@ -153,9 +153,8 @@ fn a_session_without_an_owner_is_refused_by_the_database() {
 /// 只给一份加上这一列，症状是「侧栏分组对了，而打开那条对话又跑回默认目录」，
 /// 那是最难查的一类不一致。
 ///
-/// 空不是「不知道」。迁移 0013 之前写下的行没有这一格，而那时候运行期只有一个
-/// 工作目录，它们本来就都在它里面 —— 所以空的含义是「默认那一个工作区」。这条
-/// 测试把这个含义一并钉住，否则总会有人来加一段回填。
+/// 空不是「不知道」，是「默认那一个工作区」：不带目录开出的对话就在它里面。
+/// 这条测试把这个含义钉住，否则总会有人来加一段回填。
 #[test]
 fn a_conversation_remembers_the_directory_it_was_opened_in() {
     const PROJECT: &str = "D:/com.xiaojianc/my_desktop_app";
@@ -191,6 +190,6 @@ fn a_conversation_remembers_the_directory_it_was_opened_in() {
     );
     assert!(
         listed.iter().any(|thread| thread.workspace_root.is_none()),
-        "空是迁移之前那些行的样子，它的含义是默认那一个工作区"
+        "空的含义是默认那一个工作区"
     );
 }
