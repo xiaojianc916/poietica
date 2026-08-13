@@ -39,127 +39,55 @@ pub struct AgentSpawn {
     pub env: Vec<(String, String)>,
 }
 
-/// agent 主动报的一份选择器表。
+/// agent 主动报的一件会话级状态。
 ///
-/// 事件载荷：会话号就是它的寻址（帧没有别的地址），界面按它找到那条对话。
-/// 这张表是可上屏的形状：协议枚举在帧离开原生层之前就被换成它了。
+/// 它不属于任何一轮：到达的时刻多半没有轮次在飞（导入配置、终端 CLI、热重载、
+/// 答复落定之后补报的用量），而轮外的运行帧按规矩丢弃 —— 所以它有自己的路。
+/// 会话号是它唯一带得出的地址；载荷恒为整份，到达即替换，重报无害。
+///
+/// 载荷里那些 Value 这个 crate 一格都不认识，认识它的是读它的那一层 —— 与 MCP
+/// 名册、图片块、停止原因同一条规矩：线上形状才是契约。
 #[derive(Debug, Clone)]
-pub struct SelectorReport {
-    /// 这份表属于哪条会话。
-    pub session_id: String,
-    /// agent 刚报过来的整张选择器表。
-    pub controls: Vec<ConfigControl>,
+pub enum SessionEvent {
+    /// 这条会话现在的整张选择器表。
+    Selectors {
+        session_id: String,
+        controls: Vec<ConfigControl>,
+    },
+    /// 这条会话上现在的整张命令表，ACP 线上形状。
+    Commands {
+        session_id: String,
+        commands: Vec<serde_json::Value>,
+    },
+    /// 这条会话此刻的上下文用量，ACP 线上形状。
+    Usage {
+        session_id: String,
+        usage: serde_json::Value,
+    },
 }
 
-/// 一条连接上 agent 主动报的选择器表，接收端。
+/// 一条连接上的会话级状态流，接收端。
 ///
-/// 组合根（桌面 seam）把它排干到界面事件；通道在驱动器退出时合上，那就是
-/// 排空任务自己的终点。通道类型包在这里而不是把 futures 的类型泄进公共
-/// 字段：这个 crate 对执行器不可知，接口上不该长出某一个执行器生态的类型名。
-pub struct SelectorReports(mpsc::UnboundedReceiver<SelectorReport>);
+/// 组合根把它排干到界面事件；通道在驱动器退出时合上，那就是排空任务的终点。
+/// 通道类型包在这里，不把某一个执行器生态的类型名泄进公共字段。
+pub struct SessionEvents(mpsc::UnboundedReceiver<SessionEvent>);
 
-impl SelectorReports {
-    pub(crate) const fn new(reports: mpsc::UnboundedReceiver<SelectorReport>) -> Self {
-        Self(reports)
+impl SessionEvents {
+    pub(crate) const fn new(events: mpsc::UnboundedReceiver<SessionEvent>) -> Self {
+        Self(events)
     }
 
-    /// 收下一份报告；通道合上（连接走了）时得到 None。
-    pub async fn next(&mut self) -> Option<SelectorReport> {
+    /// 收下一件；通道合上（连接走了）时得到 None。
+    pub async fn next(&mut self) -> Option<SessionEvent> {
         futures::StreamExt::next(&mut self.0).await
     }
 }
 
-/// 一个通道没有可展示的内容，但它长在一个公共结构上。
-///
-/// 本仓库要求每个公共类型都印得出来，所以这里手写一个而不是 derive：
-/// derive 会把这个要求转嫁给通道自己的类型参数，而那是一件与这里无关
-/// 的事。
-impl fmt::Debug for SelectorReports {
+/// 通道没有可展示的内容，而本仓库要求每个公共类型都印得出来。
+impl fmt::Debug for SessionEvents {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("SelectorReports")
-            .finish_non_exhaustive()
-    }
-}
-
-/// agent 主动报的一份命令表。
-///
-/// 与 [`SelectorReport`] 同一类东西：会话的状态，不是某一轮的内容。会话刚建好、
-/// 装载刚结束、技能目录被改过时它都会到达，那些时刻多半没有一轮在飞。
-///
-/// 表里每一条是 ACP 自己的线上形状。这个 crate 一格都不认识它 —— 认识它的是读它
-/// 的那一层，与 MCP 名册、图片块、停止原因同一条规矩。
-#[derive(Debug, Clone)]
-pub struct CommandReport {
-    /// 报这张表的那条会话。
-    pub session_id: String,
-    /// 那条会话上现在的整张命令表。
-    pub commands: Vec<serde_json::Value>,
-}
-
-/// 一条连接上 agent 主动报的命令表，接收端。
-///
-/// 与 [`SelectorReports`] 同一条规矩：通道类型包在这里，不把执行器生态的类型名
-/// 泄进公共字段。
-pub struct CommandReports(mpsc::UnboundedReceiver<CommandReport>);
-
-impl CommandReports {
-    pub(crate) const fn new(reports: mpsc::UnboundedReceiver<CommandReport>) -> Self {
-        Self(reports)
-    }
-
-    /// 收下一份报告；通道合上（连接走了）时得到 None。
-    pub async fn next(&mut self) -> Option<CommandReport> {
-        futures::StreamExt::next(&mut self.0).await
-    }
-}
-
-impl fmt::Debug for CommandReports {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("CommandReports")
-            .finish_non_exhaustive()
-    }
-}
-
-/// agent 主动报的一份上下文用量（ACP usage_update）。
-///
-/// 与 CommandReport 同一类东西：会话的状态，不是某一轮的内容。Kimi 在答复落定
-/// 之后才异步补报它（上游 acp-server 的 session.ts：settleDriver 先 resolve，
-/// 再 emitUsageUpdate），那一刻轮次已经结束，运行帧通道按规矩丢帧 —— 所以它
-/// 只能走这条路。
-///
-/// 载荷原样是 ACP 的线上形状。这个 crate 一格都不认识它 —— 认识它的是读它的
-/// 那一层（packages/agent-contract 的 usage.ts），与命令表同一条规矩。
-#[derive(Debug, Clone)]
-pub struct UsageReport {
-    /// 报这份用量的那条会话。
-    pub session_id: String,
-    /// 那条会话此刻的上下文用量，ACP 线上形状。
-    pub usage: serde_json::Value,
-}
-
-/// 一条连接上 agent 主动报的用量，接收端。
-///
-/// 与 CommandReports 同一条规矩：通道类型包在这里，不把执行器生态的类型名
-/// 泄进公共字段。
-pub struct UsageReports(mpsc::UnboundedReceiver<UsageReport>);
-
-impl UsageReports {
-    pub(crate) const fn new(reports: mpsc::UnboundedReceiver<UsageReport>) -> Self {
-        Self(reports)
-    }
-
-    /// 收下一份报告；通道合上（连接走了）时得到 None。
-    pub async fn next(&mut self) -> Option<UsageReport> {
-        futures::StreamExt::next(&mut self.0).await
-    }
-}
-
-impl fmt::Debug for UsageReports {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("UsageReports")
+            .debug_struct("SessionEvents")
             .finish_non_exhaustive()
     }
 }
@@ -177,32 +105,15 @@ pub struct AgentConnection {
     /// Held by the caller so a session opened later is entered in the same
     /// book the protocol handlers already read from.
     pub book: SessionBook,
-    /// agent 主动报的选择器表，往界面去的那条路。
+    /// agent 主动报的会话级状态，往界面去的那条路。
     ///
-    /// 选择器是会话的状态，不是某一轮的内容：它变化的时刻多半不在任何一轮里
-    /// （导入配置、终端 CLI、热重载），所以它有自己到达界面的路，而不搭运行
-    /// 帧的车 —— 帧过了轮次就不录，是本仓库刻意的设计，保护的是日志。
-    pub reports: SelectorReports,
-    /// agent 主动报的命令表，往界面去的那条路。
-    ///
-    /// 与上面那一条分开，因为它们说的不是一件事：一个是这条会话能改什么，一个是
-    /// 这条会话上敲得出什么。混成一条通道，接收方就只能靠一个字符串标签去分辨。
-    pub commands: CommandReports,
-    /// agent 主动报的上下文用量，往界面去的那条路。
-    ///
-    /// 它是会话的状态而不是某一轮的内容：Kimi 在轮次落定之后才补报它，帧通道
-    /// 在轮外按规矩丢帧，所以它与选择器表、命令表同走会话状态这条路。
-    pub usage: UsageReports,
+    /// 与运行帧分开：帧过了轮次就不录，而这些事多半发生在轮外。判别式在载荷
+    /// 里 —— 与六种运行帧同走一条通道是同一条规矩。
+    pub events: SessionEvents,
     /// 握手谈成之后才知道的那几件事，或者握手为什么没成。
     ///
-    /// 此前是 `Receiver<String>`：失败只能靠把发送端丢掉来表示，于是调用者收到
-    /// 的是一个没有内容的 `Canceled` —— 「agent 要求先登录」「进程崩了」「协议
-    /// 版本谈不拢」在它眼里是同一件事，屏幕上都是那句「应用操作失败」。原因在
-    /// 类型上没有地方放，就不是漏写了一行日志，是这条路少了一半。
-    ///
-    /// 里面现在不只有会话名。agent 会不会装载一条旧会话，同样是握手才谈得出来
-    /// 的事实，而它决定了「点开上次运行留下的对话」走哪条路 —— 此前这个事实在
-    /// 类型上同样没有地方放，于是那条路只有一个走法。
+    /// 失败带着原因回来：「要求先登录」「进程崩了」「版本谈不拢」是三件事，
+    /// 屏幕上不该都变成同一句「应用操作失败」。
     pub handshake: oneshot::Receiver<Result<Handshake>>,
     /// Must be spawned; the connection only lives while this future is polled.
     pub driver: BoxFuture<'static, Result<()>>,

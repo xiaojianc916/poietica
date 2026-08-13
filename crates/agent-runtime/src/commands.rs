@@ -117,31 +117,6 @@ pub(crate) enum Command {
         session_id: String,
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
     },
-    /// agent 自己报的选择器表（ACP `config_option_update`）。
-    ///
-    /// 协议里这是通知，不是答复：选择器在我们没问的时候也会变 —— 导入配置、
-    /// 终端里的 CLI、agent 自己的热重载都会推一条过来。载荷恒为整张表，
-    /// 到达即替换，所以重报无害。
-    Reported {
-        session_id: String,
-        offered: Vec<ConfigControl>,
-    },
-    /// agent 自己报的命令表（ACP `available_commands_update`）。
-    ///
-    /// 与 [`Command::Reported`] 同一类：协议里这是通知而不是答复，载荷恒为整表，
-    /// 到达即替换，所以重报无害。表里那些命令这一层不认识，原样过路。
-    Palette {
-        session_id: String,
-        commands: Vec<Value>,
-    },
-    /// agent 自己报的上下文用量（ACP usage_update）。
-    ///
-    /// 与 Command::Palette 同一类：协议里这是通知而不是答复，载荷恒为最新值，
-    /// 到达即替换。载荷这一层不认识，原样过路。
-    Usage {
-        session_id: String,
-        usage: Value,
-    },
     /// Asks the agent to change one selector on one session.
     Select {
         session_id: String,
