@@ -46,7 +46,7 @@ export interface AssistantComposerProps {
   readonly onCancel?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
   readonly ref?: Ref<PromptInputHandle> | undefined
-  /** 斜杠菜单的候选表：agent 报来的命令表。不给就没有菜单。 */
+  /** agent 报来的命令表：斜杠菜单与加号菜单的技能组共用这一张。 */
   readonly palette?: readonly PaletteEntry[] | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
@@ -88,7 +88,13 @@ export interface AssistantComposerProps {
  */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  'controls' | 'controlsFailure' | 'onCancel' | 'onRetryControls' | 'onSelectControl' | 'usage'
+  | 'controls'
+  | 'controlsFailure'
+  | 'onCancel'
+  | 'onRetryControls'
+  | 'onSelectControl'
+  | 'palette'
+  | 'usage'
 > & { readonly status: ChatStatus }
 
 function ComposerToolbar({
@@ -97,6 +103,7 @@ function ComposerToolbar({
   onCancel,
   onRetryControls,
   onSelectControl,
+  palette,
   status,
   usage,
 }: ComposerToolbarProps) {
@@ -114,7 +121,7 @@ function ComposerToolbar({
     <PromptInputToolbar>
       <PromptInputTools>
         {/* 加号那一侧只回答一个问题:往这一句里加什么。 */}
-        <ComposerActions controls={controls} onSelectControl={onSelectControl} />
+        <ComposerActions controls={controls} onSelectControl={onSelectControl} palette={palette} />
 
         {/*
           批准方式是一颗常显的胶囊,不是菜单里的一行。
@@ -237,7 +244,7 @@ export const AssistantComposer = memo(function AssistantComposer({
               <PromptInputTextarea placeholder={placeholder} />
             </PromptInputBody>
 
-            <ComposerToolbar status={status} {...toolbar} />
+            <ComposerToolbar palette={palette} status={status} {...toolbar} />
           </>
         )}
       </PromptInput>

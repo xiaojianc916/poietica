@@ -85,6 +85,8 @@ interface PromptInputActions {
   readonly requestSubmit: () => void
   /** 开关一条输入姿态（目标 / 计划模式）。 */
   readonly toggleMode: (mode: ComposerMode) => void
+  /** 在光标处插入一段调用式或片段，保住正在打的字与选区。 */
+  readonly insertSnippet: (snippet: string) => void
 }
 
 const ActionsContext = createContext<PromptInputActions | null>(null)
@@ -300,6 +302,25 @@ export function PromptInput({
     })
   }, [])
 
+  /*
+   * 在光标处插入，靠平台 API 而不是手拼下标：setRangeText 归并选区替换与
+   * 光标落点（WHATWG HTML 标准），插完把 DOM 值收回唯一真相。菜单两态
+   * 复位与 setText 同一条理由。没有输入框（问答面板期间）就没有插入点。
+   */
+  const insertSnippet = useCallback((snippet: string) => {
+    const editor = textareaRef.current
+
+    if (editor === null) {
+      return
+    }
+
+    setSlashDismissed(false)
+    setSlashHighlighted(0)
+    editor.setRangeText(snippet, editor.selectionStart, editor.selectionEnd, 'end')
+    setTextState(editor.value)
+    editor.focus()
+  }, [])
+
   const registerTextarea = useCallback((element: HTMLTextAreaElement | null) => {
     textareaRef.current = element
   }, [])
@@ -339,10 +360,12 @@ export function PromptInput({
       registerTextarea,
       requestSubmit,
       toggleMode,
+      insertSnippet,
     }),
     [
       addAssets,
       focusTextarea,
+      insertSnippet,
       openFilePicker,
       registerTextarea,
       removeAttachment,
@@ -492,7 +515,15 @@ export function PromptInput({
                   return
                 }
 
-                onSubmit({ text: trimmed, assets: attachments })
+                /* 姿态在此落成文字：指令行在前，人话在后。ACP 的一句话只有内容块
+                这一条通道，所以送出去的每个字都在气泡里看得见。 */
+                const spoken = modes.map((held) => `【${held.label}】${held.directive}`)
+
+                if (trimmed.length > 0) {
+                  spoken.push(trimmed)
+                }
+
+                onSubmit({ text: spoken.join('\n\n'), assets: attachments })
                 setText('')
 
                 /* 不 discard：这些字节现在归这条对话的交付会话（原生侧 adopt

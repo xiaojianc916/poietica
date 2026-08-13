@@ -108,10 +108,8 @@ export const SessionControls = memo(function SessionControls({
   onSelect,
 }: SessionControlsProps) {
   /*
-   * 模式不在这一格。
-   *
-   * 它归加号那一侧,并且在那里留下一颗可摘的胶囊。同一件事只许有一个所有者:
-   * 两处各画一次当前值,改一处另一处不跟,而且用户会以为那是两个东西。
+   * 模式不在这一格：agent 自报的 mode 档归加号那一侧的能力行。同一件事
+   * 只许有一个所有者，两处各画一次当前值，改一处另一处不跟。
    *
    * Sorting is stable, so the agent order survives inside each purpose.
    */

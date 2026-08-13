@@ -1,4 +1,4 @@
-import type { SessionConfigControl } from '@poietica/agent-contract'
+import type { PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +12,14 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/ui'
 import { memo, useMemo } from 'react'
-import { AttachIcon, CheckIcon, CloseIcon, PlusIcon, ToolIcon } from '../primitives/icons'
+import {
+  AttachIcon,
+  CheckIcon,
+  CloseIcon,
+  PlusIcon,
+  SkillIcon,
+  ToolIcon,
+} from '../primitives/icons'
 import { COMPOSER_MODES, type ComposerMode } from './modes'
 import { usePromptInputActions, usePromptInputModes } from './prompt-input'
 
@@ -22,11 +29,11 @@ import { usePromptInputActions, usePromptInputModes } from './prompt-input'
  * 「这一句怎么被批准执行」不在这里 —— 那是一颗常显的胶囊（permission-picker），
  * 藏进菜单意味着人必须先点开才知道自己此刻授了多大的权。
  *
- * 能力那几行不是这里编出来的：它们是 agent 报的 purpose === 'other' 的选择器。
+ * 能力那几行不是这里编出来的：它们是 agent 报的 mode / other 两类选择器。
  * agent 没报就没有那一行 —— 画一行点不动的灰字等于告诉用户"这里坏了"。
  *
- * 不来自 agent 的行有两类：「添加文件」与输入姿态（目录在 modes.tsx）。两者都归
- * 输入框：PromptInput 持有文件选择器与姿态的开关。
+ * 不来自 agent 的行只有两类：「添加文件」与输入姿态（目录在 modes.tsx），都归
+ * 输入框。技能行来自 agent 报的命令表，与斜杠菜单读同一张 palette。
  *
  * 弹层行为全部归 Base UI（设计系统的 DropdownMenu）：Portal、方向键、打字选中、
  * Esc 逐级关闭、焦点归还。这里只给皮肤与几何。
@@ -35,6 +42,8 @@ import { usePromptInputActions, usePromptInputModes } from './prompt-input'
 export interface ComposerActionsProps {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelectControl: (controlId: string, value: string) => void
+  /** agent 报的命令表；技能组由此长出，与斜杠菜单同一张。不给就没有那一组。 */
+  readonly palette?: readonly PaletteEntry[] | undefined
 }
 
 /*
@@ -44,14 +53,17 @@ export interface ComposerActionsProps {
 export const ComposerActions = memo(function ComposerActions({
   controls,
   onSelectControl,
+  palette,
 }: ComposerActionsProps) {
   /* 动作引用终身稳定：这里取文件选择器，姿态开关由各行自己取。 */
   const { openFilePicker } = usePromptInputActions()
 
   const extras = useMemo(
-    () => controls.filter((control) => control.purpose === 'other'),
+    () => controls.filter((control) => control.purpose === 'mode' || control.purpose === 'other'),
     [controls],
   )
+
+  const skills = useMemo(() => (palette ?? []).filter((entry) => entry.kind === 'skill'), [palette])
 
   return (
     <DropdownMenu>
@@ -127,6 +139,16 @@ export const ComposerActions = memo(function ComposerActions({
             </DropdownMenuSub>
           ))}
         </div>
+
+        {skills.length === 0 ? null : (
+          <div className="assistant-plus-menu__group">
+            <div className="assistant-plus-menu__heading">技能</div>
+
+            {skills.map((entry) => (
+              <SkillRow entry={entry} key={entry.name} />
+            ))}
+          </div>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -183,4 +205,26 @@ export function ComposerModeChips() {
       <span className="assistant-mode-chip__label">{mode.label}</span>
     </button>
   ))
+}
+
+/* 一行技能：图标、名字、agent 给的那句淡描述；点击把调用式插进光标处。 */
+function SkillRow({ entry }: { readonly entry: PaletteEntry }) {
+  const { insertSnippet } = usePromptInputActions()
+
+  return (
+    <DropdownMenuItem
+      className="assistant-plus-menu__item"
+      onClick={() => {
+        insertSnippet(`${entry.label} `)
+      }}
+    >
+      <SkillIcon aria-hidden="true" />
+
+      <span className="assistant-plus-menu__label">{entry.label}</span>
+
+      {entry.description === '' ? null : (
+        <span className="assistant-plus-menu__desc">{entry.description}</span>
+      )}
+    </DropdownMenuItem>
+  )
 }

@@ -61,6 +61,7 @@ export {
   Pin as PinFilledIcon,
   Pin as PinIcon,
   Plus as PlusIcon,
+  Puzzle as SkillIcon,
   RefreshCw as ResetIcon,
   Search as SearchIcon,
   Send as AgentIcon,
