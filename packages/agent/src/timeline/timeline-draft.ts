@@ -2,8 +2,8 @@
  * 转录的草稿。
  *
  * 纯是对外的性质，不是每一步都要复制：写入的那几个入口各取一份可变副本，事件
- * 逐帧写进去，最后封一次版。一次重放因此只分配一次 items，而不是每帧一次 ——
- * 那种写法在一条几千帧的对话上是 O(N²)，代价直接落在打开会话的那一刻。
+ * 逐帧写进去，最后封一次版。一次重放因此只分配一次 items —— 每帧一次在一条几千
+ * 帧的对话上是 O(N²)，代价直接落在打开会话的那一刻。
  *
  * 这里只管「怎么写」：追加、封口、按 id 定位、开一个新的段。帧里那些字是什么
  * 意思归 acp-projection；哪一趟该开草稿、什么时候开段归 timeline-reducer。
@@ -19,6 +19,24 @@ export interface Draft {
   index: Map<string, number> | null
   lastSeq: number
   runIndex: number
+  /**
+   * 那一问的来源是帧。
+   *
+   * 实时不是：人按下发送的那一刻 appendUserMessage 就把那句话记下了，它是本地
+   * 事实；随后 run_started 回报的 prompt 与 agent 回声的 user_message_chunk 都是
+   * 同一句话的第二、第三份。回放反过来 —— 本地那条路径走不到，帧是唯一的来源。
+   *
+   * 两条入口互斥，所以这不是一道去重闸门，而是「这条路上谁说话」。
+   */
+  saidFromFrames: boolean
+  /**
+   * 本段那一问已经由录下来的 prompt 落账。
+   *
+   * 随段重置（openSegment）。它一为真，agent 回声的那一份就不再另立一条：先到的
+   * 那一份是人真正敲下的字节，不夹 agent 注入的旁白。agent 装载旧会话时重放的
+   * 历史里没有 run_started，它因此恒为假 —— 那条路上回声是唯一的来源。
+   */
+  promptLanded: boolean
   /** 每一轮的两端。当轮恒是末尾那一条，见 markTurnStart。 */
   readonly spans: TurnSpan[]
 }
@@ -26,24 +44,13 @@ export interface Draft {
 /**
  * id → 下标，按转录归属。
  *
- * 这份索引此前只活一趟草稿：draftOf 写 null，freeze 把它扔掉。而一次工具调用的每
- * 一帧 tool_call_update 都要按 id 定位（acp-projection 的 upsertToolCall），上游又
- * 按屏幕的节拍攒帧、一拍开一趟草稿 —— 于是每一拍的第一次定位都要把整条转录重建
- * 一遍索引：O(条目数) 的 Map 分配，每秒六十次。一个刷屏的终端工具挂在一条几千条目
- * 的对话上，「每来一次就把整条转录扫一遍」于是原地复活，只是从「每帧一次」降成
- * 「每拍一次」。缓存本身没写错，它的寿命绑在了错的那个对象上。
+ * 索引跨趟成立，因为它是 items 的函数而 items 只追加与就地替换：push 追在末尾，
+ * sealTail 与那几处 items[position] = … 都不移动既有条目的位置。所以整条对话只
+ * 建一次索引，而不是每开一趟草稿重建一遍。
  *
- * 索引是 items 的函数，而 items 只追加与就地替换：push 追在末尾，sealTail 与那几处
- * items[position] = … 都不移动任何既有条目的位置。下标一旦记下就不再变，所以它跨趟
- * 成立 —— 整条对话只需要建一次。
- *
- * 所有权是线性的：draftOf 取走，freeze 交给新的那一份状态，旧状态因此不再持有它。
- * 一份状态被开两次草稿（回退、分叉）时第二次从零重建 —— 宁可慢一次，也不让两趟草稿
- * 往同一张表里写。弱引用是这份缓存的边界：状态被回收，索引跟着走，没有需要谁去清的
- * 东西。
- *
- * 派生按状态弱引用是这个仓库既有的立场（feed-rows 的 FEEDS、timeline-selectors 的
- * TURNS），不是这里新发明的一层缓存。
+ * 所有权是线性的：draftOf 取走，freeze 交给新的那一份状态，旧状态因此不再持有
+ * 它。一份状态被开两次草稿（回退、分叉）时第二次从零重建 —— 宁可慢一次，也不让
+ * 两趟草稿往同一张表里写。弱引用是这份缓存的边界：状态被回收，索引跟着走。
  */
 const INDEXES = new WeakMap<TimelineState, Map<string, number>>()
 
@@ -60,6 +67,9 @@ export function draftOf(state: TimelineState): Draft {
     index,
     lastSeq: state.lastSeq,
     runIndex: state.runIndex,
+    /* 实时是默认。回放那两个入口自己声明帧是来源（见 timeline-reducer）。 */
+    saidFromFrames: false,
+    promptLanded: false,
     /* 复制一层：草稿要能给末尾那一条补上终点，而交出去的那份是只读的。 */
     spans: state.spans.slice(),
   }
@@ -82,10 +92,11 @@ export function freeze(draft: Draft): TimelineState {
   return state
 }
 
-/** 新的一轮：它自己的帧从一开始编号，所以窗口跟着换。 */
+/** 新的一轮：它的帧从一开始编号，那一问也还没落账，所以两样一起换。 */
 export function openSegment(draft: Draft): void {
   draft.lastSeq = 0
   draft.runIndex += 1
+  draft.promptLanded = false
 }
 
 /**
@@ -202,8 +213,8 @@ export function markTurnStart(draft: Draft, at: number): void {
  * 给当轮收口。
  *
  * 落定过的不再改：先 run_failed、后面又补一帧 run_finished 时，屏幕上的耗时不该往后
- * 跳。一段还没开过就到了终点的日志（起点那一格是后加的）这里什么都不做 —— 没有起点
- * 就算不出耗时，不画比画一个 0s 诚实。
+ * 跳。一段还没开过就到了终点的日志这里什么都不做 —— 没有起点就算不出耗时，不画比画
+ * 一个 0s 诚实。
  */
 export function markTurnEnd(draft: Draft, at: number): void {
   const open = draft.spans.at(-1)
