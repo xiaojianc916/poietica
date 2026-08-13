@@ -22,6 +22,7 @@ mod commands;
 mod config;
 mod credentials;
 mod desk;
+pub mod dsh;
 mod driver;
 mod error;
 mod frame;
