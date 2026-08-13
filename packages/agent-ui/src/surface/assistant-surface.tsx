@@ -307,8 +307,6 @@ export const AssistantSurface = memo(function AssistantSurface({
         <div className="assistant-surface__entry">
           <header className="assistant-masthead">
             <MascotBadge className="assistant-masthead__mascot" />
-
-            <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
           </header>
         </div>
       )}
