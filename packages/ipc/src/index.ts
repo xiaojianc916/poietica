@@ -1,10 +1,6 @@
 export type { AgentCommandBridge, AgentEventSource, IpcSessionOptions } from './acp-session'
 export { createIpcSession } from './acp-session'
 export {
-  AGENT_COMMAND_EVENT,
-  AGENT_EVENT,
-  AGENT_SELECTOR_EVENT,
-  AGENT_USAGE_EVENT,
   type AgentBridgeOptions,
   type AgentEventSourceOptions,
   type AgentLaunchDescription,
