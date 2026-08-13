@@ -1158,13 +1158,19 @@
        */
       ;(() => {
         const qs = new URLSearchParams(location.search)
-        if (qs.get('embed') !== '1') return
+        if (qs.get('embed') !== '1') {
+          return
+        }
         document.documentElement.classList.add('poi-embed')
 
         const setToggle = (id, want) => {
           const btn = document.getElementById(id)
-          if (!btn || typeof want !== 'boolean') return
-          if ((btn.getAttribute('aria-pressed') === 'true') !== want) btn.click()
+          if (!btn || typeof want !== 'boolean') {
+            return
+          }
+          if ((btn.getAttribute('aria-pressed') === 'true') !== want) {
+            btn.click()
+          }
         }
 
         /* 初始偏好来自 URL，键缺省视为开。跟随立即生效；巡演等开场小动画演完再启动。 */
@@ -1178,14 +1184,20 @@
         /* 点到头像之外也算「逗它一下」；点在头像上的那次由引擎自己响应，不重复。 */
         const svg = document.getElementById('avatar')
         document.addEventListener('click', (e) => {
-          if (svg && e.target instanceof Node && svg.contains(e.target)) return
-          if (window.avatar && typeof window.avatar.react === 'function') window.avatar.react()
+          if (svg && e.target instanceof Node && svg.contains(e.target)) {
+            return
+          }
+          if (window.avatar && typeof window.avatar.react === 'function') {
+            window.avatar.react()
+          }
         })
 
         /* 宿主消息：开关偏好 + 整窗指针（0..1 比例坐标，映射成引擎的全量注视范围）。 */
         window.addEventListener('message', (e) => {
           const d = e.data
-          if (!d || typeof d !== 'object') return
+          if (!d || typeof d !== 'object') {
+            return
+          }
           if (d.type === 'poietica-mascot-prefs') {
             if (introTimer !== null) {
               clearTimeout(introTimer)

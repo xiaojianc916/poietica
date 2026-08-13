@@ -58,14 +58,6 @@
   --workspace-divider-width: calc(var(--ui-region-divider-width) * 2);
 }
 
-.workspace-shell:has(.workspace-sidebar-splitter:hover) .workspace-shell__sidebar::after {
-  transition-delay: 0s, var(--workspace-divider-hover-delay);
-}
-
-.workspace-shell:has(.workspace-sidebar-splitter:active) .workspace-shell__sidebar::after {
-  transition-delay: 0s;
-}
-
 /*
  * chrome 与内容之间那条横线。
  *
@@ -137,4 +129,12 @@
   transition:
     background-color var(--workspace-layout-duration) ease,
     width 0s;
+}
+
+.workspace-shell:has(.workspace-sidebar-splitter:hover) .workspace-shell__sidebar::after {
+  transition-delay: 0s, var(--workspace-divider-hover-delay);
+}
+
+.workspace-shell:has(.workspace-sidebar-splitter:active) .workspace-shell__sidebar::after {
+  transition-delay: 0s;
 }

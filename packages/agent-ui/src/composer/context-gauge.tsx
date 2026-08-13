@@ -31,9 +31,15 @@ const EXACT = new Intl.NumberFormat('en-US')
 /* ACP 会话用量规范给客户端的建议阈值：<75% 正常，75% 起提醒，90% 起该收，
    95% 起下一句可能塞不下。数值随规范走，不随观感调。 */
 function levelOf(fraction: number): 'ok' | 'warn' | 'high' | 'critical' {
-  if (fraction >= 0.95) return 'critical'
-  if (fraction >= 0.9) return 'high'
-  if (fraction >= 0.75) return 'warn'
+  if (fraction >= 0.95) {
+    return 'critical'
+  }
+  if (fraction >= 0.9) {
+    return 'high'
+  }
+  if (fraction >= 0.75) {
+    return 'warn'
+  }
   return 'ok'
 }
 
@@ -84,7 +90,7 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger
-          aria-label={'上下文已用 ' + percent}
+          aria-label={`上下文已用 ${percent}`}
           className="context-gauge__trigger"
           data-level={level}
           type="button"
@@ -105,7 +111,7 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
             <div
               className="context-gauge__bar-fill"
               data-level={level}
-              style={{ width: String(fraction * 100) + '%' }}
+              style={{ width: `${String(fraction * 100)}%` }}
             />
           </div>
 
