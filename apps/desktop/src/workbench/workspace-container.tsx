@@ -279,16 +279,21 @@ export function WorkspaceContainer({
         <SettingsContentRegion />
       ) : (
         /*
-         * 会话页头、对话表面、右侧浏览器 dock。页头只在对话里出现 ——
-         * 它属于对话的工作方式，不属于其他表面；浏览器开合状态活在
-         * browserPanelStore，一份，跨表面与设置往返不丢。
+         * 会话页头横贯主区整宽，其下一行再分成对话画布与浏览器 dock ——
+         * dock 开合因此不挪动页头右端的开关。页头与雾只在对话里出现，
+         * 浏览器开合状态活在 browserPanelStore，一份，跨表面与设置往返不丢。
          */
-        <div className="relative flex h-full min-h-0 min-w-0">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {workbench.activeSurface.kind === 'conversation' ? <ConversationHeader /> : null}
-            <div className="relative min-h-0 min-w-0 flex-1">{surface}</div>
+        <div className="relative flex h-full min-h-0 min-w-0 flex-col">
+          {workbench.activeSurface.kind === 'conversation' ? <ConversationHeader /> : null}
+          <div className="flex min-h-0 min-w-0 flex-1">
+            <div className="relative min-h-0 min-w-0 flex-1">
+              {workbench.activeSurface.kind === 'conversation' ? (
+                <div className="conversation-veil" data-assistant-skin />
+              ) : null}
+              {surface}
+            </div>
+            <BrowserDock surfaceActive={workbench.activeSurface.kind === 'conversation'} />
           </div>
-          <BrowserDock surfaceActive={workbench.activeSurface.kind === 'conversation'} />
         </div>
       ),
       label: isSettingsOpen ? '设置' : undefined,

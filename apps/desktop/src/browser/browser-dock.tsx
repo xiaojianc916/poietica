@@ -25,7 +25,7 @@ export function BrowserPanelToggle() {
     <button
       aria-label={label}
       aria-pressed={state.open}
-      className="flex size-7 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100"
+      className="flex size-7 shrink-0 items-center justify-center rounded-md opacity-60 aria-pressed:bg-current/10 aria-pressed:opacity-100 hover:bg-current/10 hover:opacity-100"
       onClick={browserPanelStore.togglePanel}
       title={label}
       type="button"
