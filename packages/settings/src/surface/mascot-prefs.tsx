@@ -1,3 +1,4 @@
+import { createPreference, warn } from '@poietica/core'
 import { useSyncExternalStore } from 'react'
 import { SettingsGroup, ToggleRow } from './settings-primitives'
 
@@ -5,54 +6,76 @@ import { SettingsGroup, ToggleRow } from './settings-primitives'
  * 吉祥物的两个开关（欢迎页那枚 iframe 的偏好）。
  *
  * 刻意不进 AppSettings：那张表与 src-tauri 的 AppSettings 逐字段镜像，Rust、
- * 默认值、迁移三处都要一起动，而这两项只属于渲染层的一枚 iframe。真相放在
- * localStorage —— 这里是唯一写入口，agent-ui 的 MascotBadge 只读。键名与
- * 事件名在 packages/agent-ui/src/surface/mascot.tsx 有一份逐字相同的副本，
- * 两处必须一起改。
+ * 默认值、迁移三处都要一起动，而这两项只属于渲染层的一枚 iframe。
+ *
+ * 两项设置统一通过 @poietica/core 的 createPreference 读写。写入完成后只发送
+ * 当前布尔快照，让同窗口内已经挂载的吉祥物立即采用；跨窗口变化由 Preference
+ * 自己订阅，不再复制 Web Storage 的读写与错误处理。
  */
 
 const PREF_TOUR = 'poietica.mascot.autoTour'
 const PREF_FOLLOW = 'poietica.mascot.followPointer'
 const PREFS_EVENT = 'poietica:mascot-prefs'
 
-/* 键缺席即开启：默认自动巡演、默认跟随指针。 */
-function readPref(key: string): boolean {
-  try {
-    return window.localStorage.getItem(key) !== '0'
-  } catch {
-    return true
+interface MascotPreferenceSnapshot {
+  readonly tour: boolean
+  readonly follow: boolean
+}
+
+const FAILURE_MESSAGES = {
+  read: '读不出吉祥物偏好，使用默认值',
+  write: '写不进吉祥物偏好，下次启动使用默认值',
+}
+
+function booleanPreference(key: string) {
+  return createPreference<boolean>({
+    key,
+    fallback: true,
+    decode: (raw) => raw !== '0',
+    encode: (value) => (value ? '1' : '0'),
+    onFailure: ({ stage, cause }) => {
+      warn(FAILURE_MESSAGES[stage], { scope: 'mascot-preferences', cause })
+    },
+  })
+}
+
+const tourPreference = booleanPreference(PREF_TOUR)
+const followPreference = booleanPreference(PREF_FOLLOW)
+
+function publishPreferences(): void {
+  const detail: MascotPreferenceSnapshot = {
+    tour: tourPreference.read(),
+    follow: followPreference.read(),
   }
+
+  window.dispatchEvent(
+    new CustomEvent<MascotPreferenceSnapshot>(PREFS_EVENT, {
+      detail,
+    }),
+  )
 }
 
-function writePref(key: string, value: boolean): void {
-  try {
-    window.localStorage.setItem(key, value ? '1' : '0')
-  } catch {
-    /* 写不进去只影响下次启动的初值，不值得打断设置页。 */
-  }
-
-  window.dispatchEvent(new Event(PREFS_EVENT))
+function writeTour(value: boolean): void {
+  tourPreference.write(value)
+  publishPreferences()
 }
 
-function subscribe(onStoreChange: () => void): () => void {
-  window.addEventListener(PREFS_EVENT, onStoreChange)
-
-  return () => {
-    window.removeEventListener(PREFS_EVENT, onStoreChange)
-  }
-}
-
-function readTour(): boolean {
-  return readPref(PREF_TOUR)
-}
-
-function readFollow(): boolean {
-  return readPref(PREF_FOLLOW)
+function writeFollow(value: boolean): void {
+  followPreference.write(value)
+  publishPreferences()
 }
 
 export function MascotPrefsGroup() {
-  const tour = useSyncExternalStore(subscribe, readTour)
-  const follow = useSyncExternalStore(subscribe, readFollow)
+  const tour = useSyncExternalStore(
+    tourPreference.subscribe,
+    tourPreference.read,
+    tourPreference.readFallback,
+  )
+  const follow = useSyncExternalStore(
+    followPreference.subscribe,
+    followPreference.read,
+    followPreference.readFallback,
+  )
 
   return (
     <SettingsGroup title="吉祥物">
@@ -60,18 +83,14 @@ export function MascotPrefsGroup() {
         checked={tour}
         description="欢迎页的小家伙自动在各个场景之间巡演"
         label="自动巡演"
-        onChange={(checked) => {
-          writePref(PREF_TOUR, checked)
-        }}
+        onChange={writeTour}
       />
 
       <ToggleRow
         checked={follow}
         description="小家伙的目光与身体跟随鼠标指针"
         label="跟随指针"
-        onChange={(checked) => {
-          writePref(PREF_FOLLOW, checked)
-        }}
+        onChange={writeFollow}
       />
     </SettingsGroup>
   )

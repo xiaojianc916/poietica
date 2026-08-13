@@ -7,8 +7,8 @@ import { memo } from 'react'
 /*
  * 上下文用量胶囊：圆环进度 + 百分比常显，悬浮展开明细卡。
  *
- * 数字全部来自 agent 的 ACP usage_update（used / size / cost?），这一层一个都
- * 不算。协议里没有的不画：输入/输出/缓存命中属于仍在草案的 End-Turn Token
+ * 数字全部来自 agent 的 ACP usage_update（used / size），这一层一个都不算。
+ * 协议里没有的不画：输入/输出/缓存命中属于仍在草案的 End-Turn Token
  * Usage RFD，Kimi 也不报 —— 画上去只能是编的。剩余量与百分比是规范明说客户
  * 端该自己推导的两个数（remaining = size - used），阈值配色照它建议的
  * 75% / 90% / 95% 三档。
@@ -124,18 +124,6 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
             <span className="context-gauge__label">剩余</span>
             <span className="context-gauge__value">{EXACT.format(usage.size - usage.used)}</span>
           </div>
-
-          {usage.cost === undefined ? null : (
-            <div className="context-gauge__cost">
-              <span className="context-gauge__label">总费用</span>
-              <span className="context-gauge__value">
-                {new Intl.NumberFormat('en-US', {
-                  currency: usage.cost.currency,
-                  style: 'currency',
-                }).format(usage.cost.amount)}
-              </span>
-            </div>
-          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
