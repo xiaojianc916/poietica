@@ -24,9 +24,11 @@ import { BrowserTabStrip } from './browser-tab-strip'
 
 export interface BrowserPanelProps {
   readonly store: BrowserPanelStore
+  /** 标签条行尾的角位：宿主放面板开关，几何与宿主页头对齐。 */
+  readonly trailing?: ReactNode
 }
 
-export function BrowserPanel({ store }: BrowserPanelProps) {
+export function BrowserPanel({ store, trailing }: BrowserPanelProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const host = state.host
   const activeTab = host?.tabs.find((tab) => tab.id === host.activeTabId) ?? null
@@ -40,11 +42,19 @@ export function BrowserPanel({ store }: BrowserPanelProps) {
       <ResizeHandle store={store} width={state.width} />
 
       {host === null ? (
-        /* 快照还没到（启动瞬间）或宿主没接上：如实说，不画一个假浏览器。 */
-        <p className="p-4 text-xs opacity-50">浏览器宿主没有回应。</p>
+        /*
+         * 快照还没到（启动瞬间）或宿主没接上：如实说，不画一个假浏览器。
+         * 角位照常在 —— 面板不能因为宿主哑了就收不起来。
+         */
+        <>
+          <div className="flex h-8 items-center justify-end border-b border-current/10 pr-2.5">
+            {trailing}
+          </div>
+          <p className="p-4 text-xs opacity-50">浏览器宿主没有回应。</p>
+        </>
       ) : (
         <>
-          <BrowserTabStrip actions={store.actions} host={host} />
+          <BrowserTabStrip actions={store.actions} host={host} trailing={trailing} />
           <BrowserToolbar actions={store.actions} activeTab={activeTab} />
           <Viewport showEmpty={activeTab === null || activeTab.url === null} store={store} />
         </>

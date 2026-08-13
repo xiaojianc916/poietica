@@ -1,5 +1,5 @@
 import { ChevronDown, Globe, LoaderCircle, Plus, Search, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 
 import type { BrowserPanelStore } from './browser-panel-store'
 import type { BrowserHostView } from './browser-port'
@@ -14,13 +14,16 @@ import type { BrowserHostView } from './browser-port'
 interface BrowserTabStripProps {
   readonly host: BrowserHostView
   readonly actions: BrowserPanelStore['actions']
+  /** 行尾角位：宿主放面板开关。 */
+  readonly trailing?: ReactNode
 }
 
-export function BrowserTabStrip({ host, actions }: BrowserTabStripProps) {
+export function BrowserTabStrip({ host, actions, trailing }: BrowserTabStripProps) {
   const [listOpen, setListOpen] = useState(false)
 
   return (
-    <div className="relative flex h-9 shrink-0 items-center gap-1 border-b border-current/10 px-1">
+    /* 行高与宿主页头一致（32px）：角位上的开关在开合两态间零位移。 */
+    <div className="relative flex h-8 shrink-0 items-center gap-1 border-b border-current/10 px-1">
       <button
         aria-expanded={listOpen}
         aria-label="标签页列表"
@@ -85,6 +88,9 @@ export function BrowserTabStrip({ host, actions }: BrowserTabStripProps) {
       >
         <Plus aria-hidden className="size-4" />
       </button>
+
+      {/* 行尾角位。px-1 + mr-1.5 = 右距 10px，与宿主页头的 --cp-inset 一致。 */}
+      {trailing ? <div className="mr-1.5 shrink-0">{trailing}</div> : null}
 
       {listOpen ? (
         <BrowserTabList

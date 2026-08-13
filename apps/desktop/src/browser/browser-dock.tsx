@@ -5,7 +5,8 @@ import { useEffect, useSyncExternalStore } from 'react'
 import { browserPanelStore } from './browser-runtime'
 
 /*
- * 会话页头里的浏览器开关，与右侧的浏览器 dock。
+ * 浏览器开关，与右侧的浏览器 dock。开关只有一枚，座位有两个：关着在会话
+ * 页头右角，开着在 dock 标签条的同几何角位 —— 屏幕坐标不变，不挪窝。
  *
  * 开合状态活在 browserPanelStore（一份，跨表面切换不丢）；这里只投影。
  * 原生 webview 的可见性由 store 合成（open 且 surfaceActive），组件不直接
@@ -55,5 +56,5 @@ export function BrowserDock({ surfaceActive }: { readonly surfaceActive: boolean
     return null
   }
 
-  return <BrowserPanel store={browserPanelStore} />
+  return <BrowserPanel store={browserPanelStore} trailing={<BrowserPanelToggle />} />
 }
