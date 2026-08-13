@@ -1,0 +1,44 @@
+/*
+ * 会话页头。挂 data-assistant-skin 取 AI 表面的令牌：底色必须与转录同一块
+ * 地（--cp-ground），页头才是纸的一部分而不是另一条 chrome。
+ *
+ * 与内容之间不画分割线：衔接是 ::after 的雾 —— 与 assistant.css 里 dock
+ * 那条同一范式（地色 + alpha 遮罩，同一根加权曲线），方向相反、纯渐隐不带
+ * 模糊。alpha 为 1 的那端贴着页头自己的实底，所以两端都没有折点。
+ */
+.conversation-header {
+  position: relative;
+  /* 雾要压在滚动内容上；不声明这一层，后到的定位兄弟会盖过它。 */
+  z-index: 1;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  block-size: var(--cp-row);
+  padding-inline: var(--cp-inset);
+  background: var(--cp-ground);
+}
+
+/* 溶解长度与 dock 那端同一个数；右侧让开滚动条的沟，理由同 dock。 */
+.conversation-header::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline: 0 var(--desktop-scrollbar-size, 0px);
+  block-size: var(--cp-dock-dissolve);
+  background: var(--cp-ground);
+  pointer-events: none;
+  mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 1),
+    rgb(0 0 0 / 0.96) 5%,
+    rgb(0 0 0 / 0.87) 12%,
+    rgb(0 0 0 / 0.7) 22%,
+    rgb(0 0 0 / 0.5) 33%,
+    rgb(0 0 0 / 0.32) 45%,
+    rgb(0 0 0 / 0.17) 58%,
+    rgb(0 0 0 / 0.07) 72%,
+    rgb(0 0 0 / 0.02) 86%,
+    rgb(0 0 0 / 0) 100%
+  );
+}

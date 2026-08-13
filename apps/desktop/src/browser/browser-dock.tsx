@@ -5,7 +5,7 @@ import { useEffect, useSyncExternalStore } from 'react'
 import { browserPanelStore } from './browser-runtime'
 
 /*
- * 对话表面右上角的开关，与右侧的浏览器 dock。
+ * 会话页头里的浏览器开关，与右侧的浏览器 dock。
  *
  * 开合状态活在 browserPanelStore（一份，跨表面切换不丢）；这里只投影。
  * 原生 webview 的可见性由 store 合成（open 且 surfaceActive），组件不直接
@@ -25,7 +25,7 @@ export function BrowserPanelToggle() {
     <button
       aria-label={label}
       aria-pressed={state.open}
-      className="absolute right-3 top-3 z-10 flex size-7 items-center justify-center rounded-md border border-current/15 bg-[Canvas] opacity-60 hover:opacity-100"
+      className="flex size-7 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100"
       onClick={browserPanelStore.togglePanel}
       title={label}
       type="button"
