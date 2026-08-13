@@ -220,7 +220,7 @@ function SkillRow({ entry }: { readonly entry: PaletteEntry }) {
     >
       <SkillIcon aria-hidden="true" />
 
-      <span className="assistant-plus-menu__label">{entry.label}</span>
+      <span className="assistant-plus-menu__label">{entry.title}</span>
 
       {entry.description === '' ? null : (
         <span className="assistant-plus-menu__desc">{entry.description}</span>

@@ -7,6 +7,10 @@
 
 .assistant-plus-menu[data-assistant-skin] {
   min-inline-size: var(--cp-menu-min-wide);
+  /* 有底也得有顶：文本超出靠各自的省略号，不许反过来撑开菜单；条目多到超高就滚。 */
+  max-inline-size: min(520px, calc(100vw - 24px));
+  max-block-size: min(480px, calc(100vh - 96px));
+  overflow-y: auto;
   padding: 0;
   border-color: var(--cp-menu-edge);
   background: var(--cp-menu-face);
@@ -58,6 +62,10 @@
 [data-assistant-skin] .assistant-plus-menu__hint,
 [data-assistant-skin] .assistant-plus-menu__detail {
   margin-inline-start: auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-family: inherit;
   font-size: var(--cp-font-micro);
   color: var(--cp-ink-subtle);

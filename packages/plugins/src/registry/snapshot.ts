@@ -15,7 +15,8 @@ import * as v from 'valibot'
  * 快照只回答「真相到达之前先画什么」，从不参与任何判定。
  */
 
-const SNAPSHOT_FORMAT = 1
+/* 2：条目里加了 title（屏幕名）。旧文档照下面 decode 的规矩整份作废，不迁移。 */
+const SNAPSHOT_FORMAT = 2
 
 const SNAPSHOT_KEY = 'poietica.extensions.snapshot'
 
@@ -44,6 +45,7 @@ const Entry = v.object({
   kind: v.picklist(['builtin', 'command', 'skill']),
   name: v.string(),
   label: v.string(),
+  title: v.string(),
   description: v.string(),
 })
 

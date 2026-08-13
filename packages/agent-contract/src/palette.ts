@@ -23,6 +23,8 @@ export interface PaletteEntry {
   readonly name: string
   /** 屏幕上显示的调用式。 */
   readonly label: string
+  /** 屏幕上显示的名字：技能是去掉判据前缀的裸名，其余就是原名本身。 */
+  readonly title: string
   /** agent 给的那句说明。没给就是空串。 */
   readonly description: string
 }
@@ -70,10 +72,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** 一条命令，按它的名字定出身与调用式。 */
 export function paletteEntryOf(name: string, description: string): PaletteEntry {
   if (name.startsWith(SKILL_PREFIX)) {
+    const bare = name.slice(SKILL_PREFIX.length)
+
     return {
       kind: 'skill',
       name,
-      label: `/skill:${name.slice(SKILL_PREFIX.length)}`,
+      label: `/skill:${bare}`,
+      title: bare,
       description,
     }
   }
@@ -82,6 +87,7 @@ export function paletteEntryOf(name: string, description: string): PaletteEntry 
     kind: BUILTIN_NAMES.has(name) ? 'builtin' : 'command',
     name,
     label: `/${name}`,
+    title: name,
     description,
   }
 }
