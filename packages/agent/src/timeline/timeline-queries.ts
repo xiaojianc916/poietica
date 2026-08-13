@@ -52,8 +52,8 @@ export interface PermissionScope {
  * 边界读的是条目自己的段号。此前读的是「撞见一条用户消息」，而那会漏掉一个能把整轮
  * 卡死的情形：agent 停在一个还没答复的请求上，人没点按钮，转头在输入框里又说了一句
  * —— 那句话排在请求后面，反向扫第一个就撞上它，面板当场消失，而原生侧还在等这个
- * 答复，界面上再没有任何入口。那句话没有开新的一段（开段的是 run_started），所以它
- * 与那个请求同号，扫描照常走过去。
+ * 答复，界面上再没有任何入口。那句话没有开新的一段（appendUserMessage 看见还有一轮
+ * 在跑就不开），所以它与那个请求同号，扫描照常走过去。
  */
 export function pendingPermission(scope: PermissionScope): PermissionItem | undefined {
   return waitingIn(scope).first

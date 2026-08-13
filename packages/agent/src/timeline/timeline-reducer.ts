@@ -87,7 +87,7 @@ export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
   const draft = draftOf(createTimelineState())
 
   /* 退回同样多的段起，再放一遍：段号与 id 一次铸对。 */
-  draft.runIndex = -counted.runIndex
+  draft.runIndex = 0 - counted.runIndex
 
   return freeze(fill(draft, events))
 }

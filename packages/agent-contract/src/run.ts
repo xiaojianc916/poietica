@@ -33,8 +33,8 @@ export type RunEvent =
        *
        * 今天的生产者必发：原生侧的 RunFrame::RunStarted 把它声明为 String 而
        * 不是 Option（frame.rs）。可选说的不是它，是日志 —— 这一格加进来之前
-       * 录下的帧没有它，而那些录制就在本仓库里：packages/agent-timeline 下三份录制回放
-       * 时的 run_started 都缺这一格。
+       * 录下的帧没有它，而那些录制就在这个包里：recordings 下三份录制回放时的
+       * run_started 都缺这一格。
        *
        * 日志是历史，历史改不了。同一件事这个文件里已有先例，见下面
        * permission_requested 的 toolCall 上的那句话。
