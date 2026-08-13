@@ -836,6 +836,16 @@ async updateRelaunch() : Promise<null> {
     return await TAURI_INVOKE("update_relaunch");
 },
 /**
+ * 最近 span 天的日账，由早到晚。没有账的日子不占行。
+ * 
+ * # Errors
+ * 
+ * 库读不出、或某一天的数大到这份 IPC 面装不下时返回错误。
+ */
+async usageTokenDays(span: number) : Promise<UsageDay[]> {
+    return await TAURI_INVOKE("usage_token_days", { span });
+},
+/**
  * 这台机器上，这个应用的数据根。
  * 
  * # Errors
@@ -1383,14 +1393,13 @@ spans: AgentTurnSpan[];
  */
 prompts: number; 
 /**
- * 这条对话最近一次记下的上下文用量，ACP usage_update 的线上形状。
+ * 这条对话最近一次记下的上下文用量。
  * 
  * 来自本地账本，不来自这一次打开：Kimi 只在轮次落定后报一次，装载旧会
  * 话时不补报（协议建议补报，它没做），所以重启后的第一眼只有账本答得上。
- * 缺席就是还没报过。这一侧不认识它的字段 —— 认识它的是契约层的
- * usage.ts，与实时那条通道同一个读者。
+ * 缺席就是还没报过。
  */
-usage: JsonValue | null }
+usage: AgentSessionUsage | null }
 /**
  * A conversation being held at the top of the list, or released.
  */
@@ -1515,6 +1524,21 @@ configId: string;
  * One of the values that selector offered.
  */
 value: string }
+/**
+ * 一条会话此刻占了多少上下文。
+ * 
+ * ACP 的 usage_update 报的是仪表值：到达即替换，不是增量。按它算增量的是
+ * 账本（persistence 的 usage.rs），这一格只说现在。
+ */
+export type AgentSessionUsage = { 
+/**
+ * 已占用的 token 数。
+ */
+used: number; 
+/**
+ * 上下文窗口总量，token 数。
+ */
+size: number }
 /**
  * One conversation, as a list of conversations and a tab strip need it.
  */
@@ -1934,6 +1958,18 @@ export type UpdateProgress = { percent: number | null }
  * 一个可安装的新版本。
  */
 export type UpdateRelease = { version: string; notes: string | null }
+/**
+ * 一天的账。日历日按本机时区算，键就是渲染层索引热力图的那一个。
+ */
+export type UsageDay = { 
+/**
+ * `YYYY-MM-DD`。
+ */
+day: string; 
+/**
+ * 那天累计的 token。
+ */
+tokens: number }
 
 /** tauri-specta globals **/
 

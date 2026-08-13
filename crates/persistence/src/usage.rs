@@ -46,7 +46,7 @@ impl AgentStore {
 
         let spent = match counted {
             Some(previous) if usage.used >= previous => usage.used - previous,
-            Some(_fell_back) | None => usage.used,
+            _ => usage.used,
         };
 
         transaction.execute(
