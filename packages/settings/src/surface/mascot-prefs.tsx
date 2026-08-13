@@ -3,14 +3,14 @@ import { useSyncExternalStore } from 'react'
 import { SettingsGroup, ToggleRow } from './settings-primitives'
 
 /*
- * 吉祥物的两个开关（欢迎页那枚 iframe 的偏好）。
+ * 吉祥物的两个开关。
  *
  * 刻意不进 AppSettings：那张表与 src-tauri 的 AppSettings 逐字段镜像，Rust、
- * 默认值、迁移三处都要一起动，而这两项只属于渲染层的一枚 iframe。
+ * 默认值、迁移三处都要一起动，而这两项只属于渲染层的一个组件。
  *
  * 两项设置统一通过 @poietica/core 的 createPreference 读写。写入完成后只发送
- * 当前布尔快照，让同窗口内已经挂载的吉祥物立即采用；跨窗口变化由 Preference
- * 自己订阅，不再复制 Web Storage 的读写与错误处理。
+ * 当前布尔快照，让同窗口内已经挂载的吉祥物立即采用；跳窗口变化由 Preference
+ * 自己订阅。
  */
 
 const PREF_TOUR = 'poietica.mascot.autoTour'
