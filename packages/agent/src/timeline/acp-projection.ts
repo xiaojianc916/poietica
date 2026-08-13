@@ -26,7 +26,15 @@ import type {
   UserMessageItem,
 } from './timeline-contract'
 import type { Draft } from './timeline-draft'
-import { markTurnEnd, markTurnStart, namespace, positionOf, push, sealTail } from './timeline-draft'
+import {
+  beginQuestion,
+  markTurnEnd,
+  markTurnStart,
+  namespace,
+  positionOf,
+  push,
+  sealTail,
+} from './timeline-draft'
 import { pendingPermission } from './timeline-queries'
 
 /**
@@ -537,6 +545,8 @@ function withPrompt(
     return
   }
 
+  beginQuestion(draft)
+
   push(draft, {
     type: 'user_message',
     id: `${namespace(draft)}said-${String(event.seq)}`,
@@ -637,9 +647,12 @@ function appendSaid(draft: Draft, scope: string, seq: number, at: number, chunk:
     return
   }
 
+  beginQuestion(draft)
+
   push(draft, {
     type: 'user_message',
-    id: `${scope}user-${String(seq)}`,
+    /* 段可能刚在上一句换过，所以前缀重新取一次：入口那次取的是上一段的。 */
+    id: `${namespace(draft)}user-${String(seq)}`,
     turn: draft.runIndex,
     at,
     text: chunk,

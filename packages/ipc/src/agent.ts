@@ -35,10 +35,10 @@ import {
  */
 
 /** The channel run frames are broadcast on. */
-export const AGENT_EVENT = 'ai-run-event'
+const AGENT_EVENT = 'ai-run-event'
 
 /** 会话自己报来的状态走这一条：选择器表、命令表、上下文用量。它不属于任何一轮。 */
-export const AGENT_SESSION_EVENT = 'ai-session-event'
+const AGENT_SESSION_EVENT = 'ai-session-event'
 
 /**
  * The envelope the native side broadcasts.

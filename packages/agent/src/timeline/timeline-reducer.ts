@@ -70,24 +70,32 @@ export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
   const draft = draftOf(createTimelineState())
 
   /*
-   * 段号从末端倒着编，所以它不随读取宽度变化。
+   * 轮数由投影自己数出来。
    *
-   * 身份前缀此前是「这是本次窗口里的第几段」，于是同一句话，读 40 轮时叫
-   * r5-，读 80 轮时叫 r45-：向上续读的那一刻，虚拟器手上每一行的 key 全部
-   * 作废，整表重挂载，滚动位置随之失去锚。上游注释里那句「由稳定的
-   * getItemKey 认回同一条并保持它的视觉位置」，前提就断在这里。
+   * 段号从末端倒着编：末轮恒为 r0、倒数第二轮恒为 r-1，向上续读只在负的方向上长出
+   * 新号，屏幕上已有的那些行连 id 带对象一起原样留下。而段号就铸在 id 里，所以
+   * 「一共几轮」必须在铸下第一个 id 之前知道 —— 两趟由此而来。
    *
-   * 倒着编之后，最后一轮恒为 r0、倒数第二轮恒为 r-1，续读只在负的方向上长
-   * 出新号 —— 屏幕上已有的那些行，连 id 带对象一起原样留下。这不是为滚动做
-   * 的让步：一轮在一条对话里的位置，本来就该由它距今多少轮来定，而不是由
-   * 「这次我读了多少」来定。
+   * 数轮数的那一趟就是写入的那一趟，只是起点从零算。此前它是另一份判据（数
+   * run_started 的预扫描），而 agent 装载旧会话时只以 session/update 重放（driver.rs
+   * 的 replay），那批事件里一帧 run_started 都没有：预扫描恒数出一轮，整段历史全落
+   * 进 r0，段边界只能在末尾靠一份事后补段的第三实现挽回，而它补 turn 不补 id ——
+   * 两轮里重名的工具调用与每一轮的 plan 因此撞进同一个条目。
    *
-   * N 轮之间只有 N-1 次开段：第一段是现成的 —— run_started 不会在一段还空着的
-   * 时候再开一段（见 beginRun），实时那边人先说的那句话正是这样落进它自己那一
-   * 轮的。末轮仍然恒为 r0。
+   * 代价是把这段日志走两遍，与它此前那次线性预扫描同阶。换来的是「几轮」与「哪一
+   * 轮」出自同一条判据，不存在第二份可以漂移的东西。
    */
-  draft.runIndex = 1 - Math.max(turnsIn(events), 1)
+  const counted = fill(draftOf(createTimelineState()), events)
+  const draft = draftOf(createTimelineState())
 
+  /* 退回同样多的段起，再放一遍：段号与 id 一次铸对。 */
+  draft.runIndex = -counted.runIndex
+
+  return freeze(fill(draft, events))
+}
+
+/** 把一段日志放进一份草稿。两趟共用，所以两趟看见的段边界一定相同。 */
+function fill(draft: Draft, events: readonly RunEvent[]): Draft {
   for (const event of events) {
     if (event.kind === 'run_started') {
       beginRun(draft)
@@ -104,71 +112,7 @@ export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
     draft.status = 'failed'
   }
 
-  /*
-   * 一条 span 都没有的重放，是 session/load 交回来的那一种。
-   *
-   * run_started / run_finished 是实时那一轮的客户端事实，协议不模型它们
-   *（agent-contract 的 run.ts），agent 装载旧会话时只以 session/update 重放
-   *（driver.rs 的 replay）——那批事件里这两种帧一帧都没有：段一次没开过，整段
-   * 历史全落进 r0，每一轮的两端也没记过。而封条由 spans 派生：spans 一空，重启
-   * 之后「已处理」就整条消失，尽管经过逐字都在。
-   *
-   * 段的边界从条目本身补回来：一条用户消息开一轮，与实时那侧 appendUserMessage
-   * 先开段是同一个判据。id 保持重放铸下的原样 —— 身份负责唯一，段号负责语义，
-   * 换名只会把刚建好的索引作废。
-   */
-  if (draft.spans.length === 0) {
-    retellSegments(draft)
-  }
-
-  return freeze(draft)
-}
-
-/**
- * 段，从条目本身补回来。
- *
- * 只在重放里没有 run 帧时调用（见 replayThreadEvents 末尾）。判据与实时同一条：
- * 一条用户消息开一轮。号从末端倒着编，末轮恒为 r0，与 run_started 在的时候同一
- * 种编法 —— 接着说下去时新段从 r1 开始，两边接得上。
- *
- * 只补段，不补两端。条目上的 at 是这一帧被记下来的时刻，而重放出来的帧全部记于
- * 历史被读回来的那一瞬间 —— 拿它们相减，量的是读历史花了多久，不是这一轮花了多
- * 久，「已处理 0s」就是这么来的。这一轮真正的两端只有一个来源：本机账本
- *（turn-spans 的 restampTurns）。账本没盖住的轮次就是不知道，封条为此留空。
- */
-function retellSegments(draft: Draft): void {
-  let total = 0
-
-  for (const item of draft.items) {
-    if (item.type === 'user_message') {
-      total += 1
-    }
-  }
-
-  if (total === 0) {
-    return
-  }
-
-  let seen = 0
-
-  for (const [at, item] of draft.items.entries()) {
-    /* 一问开一轮。 */
-    if (item.type === 'user_message') {
-      seen += 1
-    }
-
-    /* 第一条用户消息之前的条目归第一轮；末轮恒为 r0。 */
-    const turn = Math.max(seen, 1) - total
-
-    if (item.turn !== turn) {
-      draft.items[at] = { ...item, turn }
-    }
-  }
-
-  /* 一问一段，号与上面那一趟逐一对应。 */
-  for (let turn = 1 - total; turn <= 0; turn += 1) {
-    draft.spans.push({ turn })
-  }
+  return draft
 }
 
 /**
@@ -338,23 +282,4 @@ export function applyRunEvents(state: TimelineState, events: readonly RunEvent[]
 /** 一帧就是一批只有一帧的批。两条路径共用同一套判据，不是两份实现。 */
 export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineState {
   return applyRunEvents(state, [event])
-}
-
-/* -------------------------------------------------------------- */
-
-/**
- * 一段日志里有多少轮。
- *
- * 一次线性预扫描，与随后那次遍历同阶；换来的是一个不随读取宽度变化的段号。
- */
-function turnsIn(events: readonly RunEvent[]): number {
-  let turns = 0
-
-  for (const event of events) {
-    if (event.kind === 'run_started') {
-      turns += 1
-    }
-  }
-
-  return turns
 }

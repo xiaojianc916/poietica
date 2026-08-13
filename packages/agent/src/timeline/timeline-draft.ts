@@ -20,21 +20,13 @@ export interface Draft {
   lastSeq: number
   runIndex: number
   /**
-   * 那一问的来源是帧。
+   * 本段已经有过一问。
    *
-   * 实时不是：人按下发送的那一刻 appendUserMessage 就把那句话记下了，它是本地
-   * 事实；随后 run_started 回报的 prompt 与 agent 回声的 user_message_chunk 都是
-   * 同一句话的第二、第三份。回放反过来 —— 本地那条路径走不到，帧是唯一的来源。
+   * 随段重置（openSegment），每落一问置真（beginQuestion）。一轮从一问开始，所以
+   * 下一问到达时它就是「该换段了」—— 回放靠它一趟把段划对，不再事后倒着补。
    *
-   * 两条入口互斥，所以这不是一道去重闸门，而是「这条路上谁说话」。
-   */
-  saidFromFrames: boolean
-  /**
-   * 本段那一问已经由录下来的 prompt 落账。
-   *
-   * 随段重置（openSegment）。它一为真，agent 回声的那一份就不再另立一条：先到的
-   * 那一份是人真正敲下的字节，不夹 agent 注入的旁白。agent 装载旧会话时重放的
-   * 历史里没有 run_started，它因此恒为假 —— 那条路上回声是唯一的来源。
+   * 与 saidAtTail 问的不是同一件事：那一条问「紧挨着的上一条是不是这一问」，用来
+   * 认出同一句话的回声；这一格问「这一段有没有过问」，跨得过中间的产出。
    */
   promptLanded: boolean
   /** 每一轮的两端。当轮恒是末尾那一条，见 markTurnStart。 */
@@ -67,8 +59,6 @@ export function draftOf(state: TimelineState): Draft {
     index,
     lastSeq: state.lastSeq,
     runIndex: state.runIndex,
-    /* 实时是默认。回放那两个入口自己声明帧是来源（见 timeline-reducer）。 */
-    saidFromFrames: false,
     promptLanded: false,
     /* 复制一层：草稿要能给末尾那一条补上终点，而交出去的那份是只读的。 */
     spans: state.spans.slice(),
@@ -97,6 +87,24 @@ export function openSegment(draft: Draft): void {
   draft.lastSeq = 0
   draft.runIndex += 1
   draft.promptLanded = false
+}
+
+/**
+ * 又一问，就是又一轮。
+ *
+ * 问有三条到达路 —— 人经输入框提交的、日志里录下的 prompt、agent 回声的 chunk ——
+ * 落账之前都过这里。判据因此只有一条：本段已经有过问，这一句就属于下一轮。
+ *
+ * 实时那一侧的开段由 appendUserMessage 与 beginRun 各自的时机决定（一个知道人有
+ * 没有在等答复，一个知道 seq 窗口该不该换），这里不越过它们：它们开过之后
+ * promptLanded 恒为假，这一句只落账、不再开一段。
+ */
+export function beginQuestion(draft: Draft): void {
+  if (draft.promptLanded) {
+    openSegment(draft)
+  }
+
+  draft.promptLanded = true
 }
 
 /**
@@ -146,9 +154,26 @@ const AGENT_FRAME: ReadonlySet<TimelineItem['type']> = new Set([
 /** 追加一条：末尾那段说到这里为止，新的一条排在它后面。 */
 export function push(draft: Draft, item: TimelineItem): void {
   sealTail(draft)
+  openSpan(draft)
   draft.items.push(item)
   draft.index?.set(item.id, draft.items.length - 1)
   markFirstFrame(draft, item)
+}
+
+/**
+ * 一段收下第一条，它就存在了。
+ *
+ * 段的存在与它的两端是两件事：agent 装载旧会话时重放的历史里没有 run_started，
+ * 一轮的起止时刻因此无从谈起，但那些轮次确实发生过 —— 封条要靠 spans 才认得出
+ * 「已处理」，本机账本也要靠它把耗时贴回原处（turn-spans 的 restampTurns）。
+ * 所以这里只立一条空的：有几轮是数得出来的，几点开始的不是。
+ */
+function openSpan(draft: Draft): void {
+  if (draft.spans.at(-1)?.turn === draft.runIndex) {
+    return
+  }
+
+  draft.spans.push({ turn: draft.runIndex })
 }
 
 /**
@@ -193,20 +218,31 @@ export function sealTail(draft: Draft): void {
 }
 
 /**
- * 开一轮的计时。
+ * 记下一轮的起点。
  *
- * 当轮恒是数组末尾那一条：段号只增不减（openSegment），而调用方在段号换过之后才走
- * 到这里（applyRunEvents 里 beginRun 在 apply 之前）。所以这里不查找、不建索引 ——
- * 认当轮只看末尾那一条的段号。
+ * 当轮恒是数组末尾那一条：段号只增不减（openSegment），而这一段一收到条目就先
+ * 立好了自己那一条（openSpan）。所以这里不查找、不建索引 —— 认当轮只看末尾。
  *
- * 同一轮里第二帧 run_started 不会再开一条：一轮只有一个起点。
+ * 立没立过都要能落笔：人先说话的那些轮次，段在 appendUserMessage 那一刻就随第一
+ * 条条目立起来了，起点要补进那一条；没有经过输入框的那些轮次到这里时它还不在。
+ *
+ * 记下就不再移动。同一轮里第二帧 run_started 因此改不了它的起点：一轮只有一个
+ * 起点。
  */
 export function markTurnStart(draft: Draft, at: number): void {
-  if (draft.spans.at(-1)?.turn === draft.runIndex) {
+  const open = draft.spans.at(-1)
+
+  if (open === undefined || open.turn !== draft.runIndex) {
+    draft.spans.push({ turn: draft.runIndex, startedAt: at })
+
     return
   }
 
-  draft.spans.push({ turn: draft.runIndex, startedAt: at })
+  if (open.startedAt !== undefined) {
+    return
+  }
+
+  draft.spans[draft.spans.length - 1] = { ...open, startedAt: at }
 }
 
 /**
