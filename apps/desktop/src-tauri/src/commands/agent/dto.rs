@@ -149,39 +149,6 @@ pub struct AgentConfigControl {
     pub choices: Vec<AgentConfigChoice>,
 }
 
-/// agent 自己换了设置之后报回来的整张表。
-///
-/// 它带着 `session_id`，因为这是它唯一带得出的地址：帧里没有对话，会话号是
-/// agent 那侧的命名。反查由渲染层用「开这条会话时是哪条对话」去做。
-///
-/// 它不出现在任何命令签名里，所以不进生成绑定 —— 事件不是命令。线上的形状
-/// 由这里的 serde 属性说了算。
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentSelectorReport {
-    /// 报这张表的那条会话。
-    pub session_id: String,
-    /// 那条会话上现在的整张选择器表。
-    pub selectors: Vec<AgentConfigControl>,
-}
-
-/// agent 刚报过来的那张命令表。
-///
-/// 与 [`AgentSelectorReport`] 同一条路、同一个地址：会话号是它唯一带得出的地址，
-/// 反查由渲染层用"开这条会话时是哪条对话"去做。它不出现在任何命令签名里，所以不
-/// 进生成绑定 —— 事件不是命令。
-///
-/// 每一条原样是 ACP 的线上形状。这一侧不认识它的字段，认识它的是读它的那一层
-/// （packages/agent-contract 的 palette.ts），与 events 那一格同一个理由。
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentCommandReport {
-    /// 报这张表的那条会话。
-    pub session_id: String,
-    /// 那条会话上现在的整张命令表。
-    pub commands: Vec<Value>,
-}
-
 /// 一条会话此刻占了多少上下文。
 ///
 /// ACP 的 usage_update 报的是仪表值：到达即替换，不是增量。按它算增量的是
@@ -205,18 +172,34 @@ pub(super) fn reported_usage(value: &Value) -> Option<AgentSessionUsage> {
     Some(AgentSessionUsage { used, size })
 }
 
-/// agent 刚报过来的这条会话的上下文用量。
+/// agent 主动报来的一件会话级状态。
 ///
-/// 与 AgentCommandReport 同一条路、同一个地址：会话号是它唯一带得出的地址，
-/// 反查由渲染层用"开这条会话时是哪条对话"去做。它不出现在任何命令签名里，
-/// 所以不进生成绑定 —— 事件不是命令。
+/// 会话号是它唯一带得出的地址：帧里没有对话，反查由渲染层用「开这条会话时是
+/// 哪条对话」去做。它不出现在任何命令签名里，所以不进生成绑定 —— 事件不是命令。
+///
+/// 内部标签，所以线上是一个判别联合：`{ kind: "selectors", … }`。
 #[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentUsageReport {
-    /// 报这份用量的那条会话。
-    pub session_id: String,
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum AgentSessionEvent {
+    /// 那条会话上现在的整张选择器表。
+    #[serde(rename_all = "camelCase")]
+    Selectors {
+        session_id: String,
+        selectors: Vec<AgentConfigControl>,
+    },
+    /// 那条会话上现在的整张命令表。每一条原样是 ACP 的线上形状，这一侧不认识
+    /// 它的字段 —— 认识它的是读它的那一层（agent-contract 的 palette.ts）。
+    #[serde(rename_all = "camelCase")]
+    Commands {
+        session_id: String,
+        commands: Vec<Value>,
+    },
     /// 那条会话此刻的上下文用量。
-    pub usage: AgentSessionUsage,
+    #[serde(rename_all = "camelCase")]
+    Usage {
+        session_id: String,
+        usage: AgentSessionUsage,
+    },
 }
 
 /// A change made in the interface.

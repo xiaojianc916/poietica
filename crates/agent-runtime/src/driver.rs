@@ -27,8 +27,8 @@ use crate::program::resolve_program;
 use crate::recorder::{Frames, RecordedEvent, Recorder};
 use crate::run_slot::{Listening, RunSlot};
 use crate::session::{
-    AgentConnection, AgentSpawn, CommandReport, CommandReports, Handshake, OpenedSession,
-    SelectorReport, SelectorReports, SessionEntry, UsageReport, UsageReports,
+    AgentConnection, AgentSpawn, Handshake, OpenedSession, SessionEntry, SessionEvent,
+    SessionEvents,
 };
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -43,6 +43,8 @@ const UNSENDABLE: &str = "the prompt carried nothing the protocol could send";
 enum Step {
     /// 有人下了一条命令，或者命令流断了。
     Asked(Option<Command>),
+    /// agent 主动报了一件会话级状态，而它要落进主循环手上那张表。
+    Noticed(SessionEvent),
     /// 一件在飞的事回来了。
     Settled(Settled),
 }
@@ -156,9 +158,11 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     });
 
     let (commands, receiver) = mpsc::unbounded::<Command>();
-    let (reports, selector_reports) = mpsc::unbounded::<SelectorReport>();
-    let (palettes, command_reports) = mpsc::unbounded::<CommandReport>();
-    let (gauges, usage_reports) = mpsc::unbounded::<UsageReport>();
+    /* 出口：会话级状态一条流，直达组合根。 */
+    let (events, session_events) = mpsc::unbounded::<SessionEvent>();
+    /* 入站：选择器表要落进主循环私有的那张表，所以它经这条专用通道交给持有者。
+    命令表与用量没有持有者，从通知处理器直接进出口。命令流只承载命令。 */
+    let (notices, noticed) = mpsc::unbounded::<SessionEvent>();
     let (ready, handshake) = oneshot::channel::<Result<Handshake>>();
 
     // One book per connection. The handlers live as long as the connection
@@ -169,9 +173,9 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     let first = book.clone();
     let ledger = book.clone();
     let waiting = desk.clone();
-    let reported = commands.clone();
-    let listed = commands.clone();
-    let metered = commands.clone();
+    let reported = notices;
+    let listed = events.clone();
+    let metered = events.clone();
 
     let driver = async move {
         let served = agent_client_protocol::Client
@@ -186,35 +190,30 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     // written against whichever session happens to be open.
                     // 下面两件事共同的前提就是这一句，所以册子只问一次。
                     if let Ok(Some(slot)) = updates.slot(&named) {
-                        /* 选择器变更是一条通知，不是一次答复。它到达的时刻多半没有
-                        一轮在飞（改配置、终端 CLI、热重载），帧那一格照样录得到就
-                        录；而选择器表本身走主循环 —— 它是那张表唯一的持有者，别的
-                        地方更新它就是第二个事实来源。载荷恒为整表，重报无害。 */
+                        /* 会话级状态：到达的时刻多半没有一轮在飞，而轮外的帧
+                        会被下面那句 record 丢掉，所以它们走自己的路，不回灌命令流。
+
+                        选择器表交给主循环 —— 它是那张表唯一的持有者。命令表与
+                        用量没有持有者，直接进出口。发送失败只有一个由来：通道
+                        合上，也就是连接走了，那时已没人要看。 */
                         if let SessionUpdate::ConfigOptionUpdate(update) = &notification.update {
-                            let _sent = reported.unbounded_send(Command::Reported {
+                            let _gone = reported.unbounded_send(SessionEvent::Selectors {
                                 session_id: named.clone(),
-                                offered: controls(&update.config_options),
+                                controls: controls(&update.config_options),
                             });
                         }
 
-                        /* 命令表同理，理由同上一段：它到达的时刻多半不在任何一轮
-                        里（会话刚建好、装载刚结束、技能目录被改过），所以它也有
-                        自己到达界面的路，而不搭运行帧的车 —— 轮外到达的帧没有去
-                        处，会被下面那句 record 丢掉。 */
                         if let Some(offered) = palette_of(&notification.update) {
-                            let _sent = listed.unbounded_send(Command::Palette {
+                            let _gone = listed.unbounded_send(SessionEvent::Commands {
                                 session_id: named.clone(),
                                 commands: offered,
                             });
                         }
 
-/* 用量同理：Kimi 在答复落定之后才补报它，那一刻轮次已经
-                        结束，下面那句 record 只会把它丢掉 —— 所以它也有自己到达
-                        界面的路。载荷原样序列化：线上形状才是契约。 */
                         if let SessionUpdate::UsageUpdate(update) = &notification.update
                             && let Ok(usage) = serde_json::to_value(update)
                         {
-                            let _sent = metered.unbounded_send(Command::Usage {
+                            let _gone = metered.unbounded_send(SessionEvent::Usage {
                                 session_id: named.clone(),
                                 usage,
                             });
@@ -231,21 +230,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             )
             .on_receive_request(
                 async move |request: RequestPermissionRequest, responder, connection| {
-                    /* 等待不在这里。SDK 的派发是原子的：一个 on_* 处理器返回之前，
-                    这条连接上不再处理任何一条消息（docs/rfds/rust-sdk-v1.mdx 的
-                    Atomic handlers，以及紧接着那一节 block_task and deadlock）。
-                    此前这里就地 await 了一个人类回答 —— 于是从 agent 问出这一句
-                    到有人点下按钮为止，整条连接的入站是停摆的：这一轮的
-                    session/update 进不来，别的会话的提问进不来，连这一轮自己的
-                    答复也读不到。屏幕上就是卡死，连停止都没有反应。
-
-                    子代理必现，是因为那一路恰好只有审批会打上来：Kimi 把子代理的
-                    过程事件吞成 SubagentEvent 不发 ACP（kimi_cli/acp/session.py），
-                    却把 ApprovalRequest 原样转发给父 wire
-                    （kimi_cli/subagents/runner.py 的 _make_ui_loop_fn）。
-
-                    办法是官方给的那一个：responder 是 Send 的，把它连同等待一起
-                    移进 spawn，处理器立刻返回，派发继续跑。 */
+                    /* 不在这里等人。SDK 的派发是原子的：一个 on_* 处理器
+                    返回之前，这条连接上不再处理任何消息（docs/rfds/rust-sdk-v1.mdx
+                    的 Atomic handlers 与 block_task and deadlock）。responder 是
+                    Send 的，所以它连同等待一起移进 spawn，派发继续跑。 */
                     let mut opened = None;
                     let named = request.session_id.to_string();
 
@@ -298,15 +286,11 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             )
             .connect_with(agent, move |connection: ConnectionTo<Agent>| async move {
                 let mut receiver = receiver;
+                let mut noticed = noticed;
 
-                /* 握手为什么没成，只有这里知道。此前这两处都是 `?`：发送端
-                随闭包一起被丢掉，调用者只看到通道断了 —— 一个没有内容的信号。
-                agent 要求先登录，是这条路上最常见的一种失败，而它恰恰是用户
-                自己就能解决的那一种。 */
-                /* 答复不再被丢掉。agent 在这里声明它会不会把一条旧会话重新
-                装载起来（ACP 的 session/load），而那是「点开上次运行留下的对话」
-                唯一走得通的路 —— 此前这个 Ok 分支连变量都没绑定，于是每一条旧
-                对话都只能被换成一条空会话。 */
+                /* 握手为什么没成，只有这里知道，所以失败要带着原因回去，
+                而不是靠丢掉发送端换来一个空的 Canceled。agent 声明的装载能力
+                同样只在这一刻说一次。 */
                 let initialized = match connection
                     .send_request(InitializeRequest::new(ProtocolVersion::V1))
                     .block_task()
@@ -424,6 +408,12 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     } else {
                         futures::select! {
                             message = receiver.next() => Step::Asked(message),
+                            /* 通道合上时它自报终止，select! 不再轮询它 —— 所以
+                            这里的 None 不是一个可达的关停信号。 */
+                            notice = noticed.next() => match notice {
+                                Some(event) => Step::Noticed(event),
+                                None => Step::Settled(Settled::Done),
+                            },
                             settled = jobs.select_next_some() => Step::Settled(settled),
                         }
                     };
@@ -497,37 +487,20 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         Step::Asked(Some(Command::Sessions { reply })) => {
                             jobs.push(Box::pin(list_sessions(&connection, reply)));
                         }
-                        /* agent 推的整表：先落账（这条会话的那一份换成最新），
-                        再推进通道（桌面 seam 在那里把它变成界面事件）。通道的接收
-                        端跟着连接走，连接一断发送自然失败 —— 那时已没人要看了。 */
-                        Step::Asked(Some(Command::Reported {
-                            session_id,
-                            offered,
-                        })) => {
-                            if let Some(held) = sessions.get_mut(&session_id) {
-                                held.1.clone_from(&offered);
+                        /* 选择器表由主循环独占 —— Command::Selectors 就地
+                        应答读的就是它。所以 agent 推来的整表在这里落账，然后
+                        原样进出口：这一跳是归属，不是过路。 */
+                        Step::Noticed(event) => {
+                            if let SessionEvent::Selectors {
+                                session_id,
+                                controls,
+                            } = &event
+                                && let Some(held) = sessions.get_mut(session_id)
+                            {
+                                held.1.clone_from(controls);
                             }
 
-                            let _sent = reports.unbounded_send(SelectorReport {
-                                session_id,
-                                controls: offered,
-                            });
-                        }
-                        /* 命令表只过路。选择器要在册子里留一份，因为 Selectors
-                        命令要就地答得出来；命令表没有那样的读者 —— 它唯一的消费者
-                        是界面，留第二份就是留第二个事实来源。 */
-                        Step::Asked(Some(Command::Palette {
-                            session_id,
-                            commands,
-                        })) => {
-                            let _sent = palettes.unbounded_send(CommandReport {
-                                session_id,
-                                commands,
-                            });
-                        }
-                        /* 用量与命令表同一条规矩：只过路，不留第二份。 */
-                        Step::Asked(Some(Command::Usage { session_id, usage })) => {
-                            let _sent = gauges.unbounded_send(UsageReport { session_id, usage });
+                            let _gone = events.unbounded_send(event);
                         }
                         // 读一份列表不需要问 agent，就地答。
                         Step::Asked(Some(Command::Selectors { session_id, reply })) => {
@@ -743,9 +716,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         book,
         client: AgentClient::new(commands),
         handshake,
-        reports: SelectorReports::new(selector_reports),
-        commands: CommandReports::new(command_reports),
-        usage: UsageReports::new(usage_reports),
+        events: SessionEvents::new(session_events),
         driver,
     })
 }

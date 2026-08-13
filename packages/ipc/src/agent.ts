@@ -37,14 +37,8 @@ import {
 /** The channel run frames are broadcast on. */
 export const AGENT_EVENT = 'ai-run-event'
 
-/** 会话自己报来的选择器表走这一条。它不属于任何一轮，所以不与运行帧同流。 */
-export const AGENT_SELECTOR_EVENT = 'ai-selector-report'
-
-/** 会话自己报来的命令表走这一条。它同样不属于任何一轮。 */
-export const AGENT_COMMAND_EVENT = 'ai-command-report'
-
-/** 会话自己报来的上下文用量走这一条。它同样不属于任何一轮。 */
-export const AGENT_USAGE_EVENT = 'ai-usage-report'
+/** 会话自己报来的状态走这一条：选择器表、命令表、上下文用量。它不属于任何一轮。 */
+export const AGENT_SESSION_EVENT = 'ai-session-event'
 
 /**
  * The envelope the native side broadcasts.
@@ -152,6 +146,44 @@ function subscribeToEvent<TPayload>(
   }
 }
 
+/*
+ * 线上那条会话状态推送的形状。
+ *
+ * 原生侧的 AgentSessionEvent，camelCase 之后就是它。事件不是命令，specta 只认
+ * 命令签名，所以它不在生成绑定里 —— 但里面每一格仍取自生成绑定，形状没有第二
+ * 个定义。
+ */
+type AgentSessionEnvelope =
+  | {
+      readonly kind: 'selectors'
+      readonly sessionId: string
+      readonly selectors: AgentConfigControl[]
+    }
+  | { readonly kind: 'commands'; readonly sessionId: string; readonly commands: unknown }
+  | { readonly kind: 'usage'; readonly sessionId: string; readonly usage: AgentSessionUsage }
+
+/**
+ * 一条通道，按判别式交给它的读者。
+ *
+ * 三种会话状态同走一条事件，与六种运行帧同走 AGENT_EVENT 是同一条规矩。分派
+ * 是静态的三支，不是一张可以注册任意名字的表 —— 每一个读者仍然是一个具名端口。
+ */
+function subscribeToSessionEvent<TKind extends AgentSessionEnvelope['kind']>(
+  kind: TKind,
+  handler: (payload: Extract<AgentSessionEnvelope, { kind: TKind }>) => void,
+  onListenFailure?: (error: unknown) => void,
+): () => void {
+  return subscribeToEvent<AgentSessionEnvelope>(
+    AGENT_SESSION_EVENT,
+    (payload) => {
+      if (payload.kind === kind) {
+        handler(payload as Extract<AgentSessionEnvelope, { kind: TKind }>)
+      }
+    },
+    onListenFailure,
+  )
+}
+
 /** Subscribes to run frames. */
 export function createAgentEventSource({
   onListenFailure,
@@ -253,18 +285,6 @@ export async function shutdownAgent(): Promise<void> {
  */
 
 /*
- * 线上那条推送的形状。
- *
- * 原生侧的 AgentSelectorReport，camelCase 之后就是它。事件不是命令，specta 只
- * 认命令签名，所以它不在生成绑定里 —— 但里面那一格仍然取自生成绑定的
- * AgentConfigControl，形状没有第二个定义（这个文件开头就是这么说的）。
- */
-interface AgentSelectorEnvelope {
-  readonly sessionId: string
-  readonly selectors: AgentConfigControl[]
-}
-
-/*
  * 线上说 null 表示缺席，端口说缺席就是没有这一格 —— 在 exactOptionalPropertyTypes
  * 下这是两个类型，所以这个键要么带值、要么不出现。
  *
@@ -310,8 +330,8 @@ export function createAgentSessionConfigBridge({
 
     /* 线上叫 selectors，端口叫 controls；改名只发生在这一层。 */
     subscribe: (handler) =>
-      subscribeToEvent<AgentSelectorEnvelope>(
-        AGENT_SELECTOR_EVENT,
+      subscribeToSessionEvent(
+        'selectors',
         (payload) => {
           handler({ sessionId: payload.sessionId, controls: payload.selectors.map(controlOf) })
         },
@@ -327,18 +347,14 @@ export function createAgentSessionConfigBridge({
  * 这一层没有要校验的东西，形状也没有第二个定义。它不留副本 —— 唯一的消费者是
  * SessionControlsStore，留第二份就是留第二个事实来源。
  */
-interface AgentUsageEnvelope {
-  readonly sessionId: string
-  readonly usage: AgentSessionUsage
-}
 
 export function createAgentSessionUsageBridge({
   onListenFailure,
 }: AgentEventSourceOptions = {}): SessionUsagePort {
   return {
     subscribe: (handler) =>
-      subscribeToEvent<AgentUsageEnvelope>(
-        AGENT_USAGE_EVENT,
+      subscribeToSessionEvent(
+        'usage',
         (payload) => {
           handler({ sessionId: payload.sessionId, usage: payload.usage })
         },
@@ -388,8 +404,8 @@ export function createAgentCapabilityBridge({
 
     /* 报文里那条会话是谁，锚会话这一侧回答不了，所以只把「变了」交出去。 */
     subscribe: (handler) =>
-      subscribeToEvent<AgentSelectorEnvelope>(
-        AGENT_SELECTOR_EVENT,
+      subscribeToSessionEvent(
+        'selectors',
         () => {
           handler()
         },
@@ -505,10 +521,14 @@ export function createAgentPaletteBridge({
   const listeners = new Set<() => void>()
 
   const listen = (): (() => void) =>
-    subscribeToEvent<unknown>(
-      AGENT_COMMAND_EVENT,
+    subscribeToSessionEvent(
+      'commands',
       (payload) => {
-        const reported = paletteFrom(payload)
+        /* 交给它的与此前逐格相同：判别式是通道的事，不是这张表的事。 */
+        const reported = paletteFrom({
+          sessionId: payload.sessionId,
+          commands: payload.commands,
+        })
 
         /* 不是一张命令表就不动已经收到的那一份。 */
         if (reported === undefined) {

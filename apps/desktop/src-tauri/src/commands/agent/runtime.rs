@@ -9,18 +9,16 @@ use crate::paths::attachments_root;
 use poietica_agent_persistence_native::SessionUsage;
 use poietica_agent_runtime_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, PermissionDesk, Refusal, RunSlot,
-    SessionBook, connect,
+    SessionBook, SessionEvent, connect,
 };
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 
 use super::config::restate;
-use super::dto::{
-    AgentCommandReport, AgentLaunch, AgentSelectorReport, AgentUsageReport, reported_usage,
-};
+use super::dto::{AgentLaunch, AgentSessionEvent, reported_usage};
 use super::failure::translate;
-use super::{AGENT_COMMAND_EVENT, AGENT_SELECTOR_EVENT, AGENT_USAGE_EVENT, NO_SESSION_ID, POISONED};
+use super::{AGENT_SESSION_EVENT, NO_SESSION_ID, POISONED};
 
 /// The live connection, if one has been started.
 ///
@@ -258,9 +256,7 @@ pub(super) async fn ensure_session(
         client,
         handshake,
         driver,
-        reports,
-        commands: palette,
-        usage,
+        events,
         book,
     } = connect(spawn, slot.clone(), desk.clone()).map_err(translate)?;
 
@@ -272,99 +268,74 @@ pub(super) async fn ensure_session(
         }
     });
 
-    // agent 自己改了设置，这里把它送上屏。
+    // agent 主动报来的会话级状态，这里把它送上屏。
     //
-    // 一条连接一个排空任务：报告是 agent 主动推的，不挂在任何一次往返的答复
-    // 上，所以没有任何命令可以顺路把它带回去。通道关掉（连接没了）时循环自己
-    // 结束，任务随之退出。
+    // 一条连接一个排空任务：报告不挂在任何一次往返的答复上，所以没有命令可以
+    // 顺路把它带回去。通道关掉（连接没了）时循环自己结束，任务随之退出。
     //
-    // 发的是引用：emit 要 Serialize + Clone，而 &T 两样都满足，上面那条运行帧
-    // 通道也是这么发的。为一个只发一次的载荷去 derive Clone 是多余的。
+    // 发的是引用：emit 要 Serialize + Clone，而 &T 两样都满足。
     let herald = app.clone();
 
     async_runtime::spawn(async move {
-        let mut reports = reports;
+        let mut events = events;
 
-        while let Some(report) = reports.next().await {
-            let payload = AgentSelectorReport {
-                session_id: report.session_id,
-                selectors: report.controls.into_iter().map(restate).collect(),
+        while let Some(event) = events.next().await {
+            let payload = match event {
+                SessionEvent::Selectors {
+                    session_id,
+                    controls,
+                } => AgentSessionEvent::Selectors {
+                    session_id,
+                    selectors: controls.into_iter().map(restate).collect(),
+                },
+
+                SessionEvent::Commands {
+                    session_id,
+                    commands,
+                } => AgentSessionEvent::Commands {
+                    session_id,
+                    commands,
+                },
+
+                SessionEvent::Usage { session_id, usage } => {
+                    /* 读不成的载荷既进不了账，也不该覆盖屏幕上那一份真话。 */
+                    let Some(reported) = reported_usage(&usage) else {
+                        continue;
+                    };
+
+                    /* 先落账本，再上屏。Kimi 只在轮次落定后报一次、装载旧会话时
+                    不补报，所以重启之后这一格的唯一来源是账本 —— open 的答复从
+                    那里把它带回去。 */
+                    let counted = SessionUsage {
+                        used: i64::from(reported.used),
+                        size: i64::from(reported.size),
+                    };
+
+                    let index = herald.state::<crate::local_index::LocalIndex>();
+                    let session = session_id.clone();
+
+                    let recorded = crate::local_index::on_index(&index, move |store| {
+                        store
+                            .record_usage(&session, counted)
+                            .map_err(crate::local_index::persistence)
+                    })
+                    .await;
+
+                    /* 记不上只写日志：数字这一刻还是对的，上屏不为一次写失败
+                    让路，账本下一轮会再来。 */
+                    if let Err(error) = recorded {
+                        log::warn!("could not record the session usage: {error}");
+                    }
+
+                    AgentSessionEvent::Usage {
+                        session_id,
+                        usage: reported,
+                    }
+                }
             };
 
-            // 渲染层没在听不是错：下一次 open 这条对话仍然会拿到权威的整张表。
-            let _ignored = herald.emit(AGENT_SELECTOR_EVENT, &payload);
-        }
-    });
-
-    // agent 报来的命令表，这里把它送上屏。
-    //
-    // 一条连接一个排空任务，与上面那一条同一条规矩、同一个理由。表里那些命令是
-    // agent 自己算出来的 —— 内置的、它按自己那套目录分层认得的技能、插件带来的
-    // —— 本应用不复算，也没有第二处知道它们：界面上那份清单的唯一事实来源就是
-    // 这条通道。
-    let crier = app.clone();
-
-    async_runtime::spawn(async move {
-        let mut palette = palette;
-
-        while let Some(report) = palette.next().await {
-            let payload = AgentCommandReport {
-                session_id: report.session_id,
-                commands: report.commands,
-            };
-
-            // 渲染层没在听不是错：下一份报告到达时它仍然是整张表。
-            let _ignored = crier.emit(AGENT_COMMAND_EVENT, &payload);
-        }
-    });
-
-    // agent 报来的上下文用量，这里把它送上屏。
-    //
-    // 一条连接一个排空任务，与上面两条同一条规矩。Kimi 在轮次落定之后才补报
-    // 它，运行帧通道那时按规矩丢帧，所以这条路是它唯一的去处。
-    let teller = app.clone();
-
-    async_runtime::spawn(async move {
-        let mut usage = usage;
-
-        while let Some(report) = usage.next().await {
-            /* 读不成的载荷既进不了账，也不该覆盖屏幕上那一份真话 —— 与命令表
-            同一条规矩。 */
-            let Some(reported) = reported_usage(&report.usage) else {
-                continue;
-            };
-
-            /* 先落账本，再上屏。Kimi 只在轮次落定后报一次、装载旧会话时不补报
-            （上游 acp-server 的 emitUsageUpdate 只挂在 onTurnEnded 上），所以
-            重启后这一格的唯一来源是账本 —— open 的答复从那里把它带回去。 */
-            let index = teller.state::<crate::local_index::LocalIndex>();
-            let session = report.session_id.clone();
-
-            let counted = SessionUsage {
-                used: i64::from(reported.used),
-                size: i64::from(reported.size),
-            };
-
-            let recorded = crate::local_index::on_index(&index, move |store| {
-                store
-                    .record_usage(&session, counted)
-                    .map_err(crate::local_index::persistence)
-            })
-            .await;
-
-            /* 记不上只写日志：数字这一刻还是对的，上屏不为一次写失败让路，
-            账本下一轮会再来。 */
-            if let Err(error) = recorded {
-                log::warn!("could not record the session usage: {error}");
-            }
-
-            let payload = AgentUsageReport {
-                session_id: report.session_id,
-                usage: reported,
-            };
-
-            // 渲染层没在听不是错：下一份报告到达时它仍然是最新用量。
-            let _ignored = teller.emit(AGENT_USAGE_EVENT, &payload);
+            // 渲染层没在听不是错：下一份报告到达时它仍然是整份。
+            let _ignored = herald.emit(AGENT_SESSION_EVENT, &payload);
         }
     });
 

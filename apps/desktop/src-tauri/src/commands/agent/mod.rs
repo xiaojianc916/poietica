@@ -42,26 +42,12 @@ type AgentCommandResult<T> = Result<T, IpcError>;
 /// The event the renderer listens on to receive run frames.
 pub const AGENT_EVENT: &str = "ai-run-event";
 
-/// 会话自己报来的选择器表走这一条。
+/// 会话自己报来的状态走这一条：选择器表、命令表、上下文用量。
 ///
 /// 与 [`AGENT_EVENT`] 分开，因为它们说的不是一件事：那一条是某一轮里的一帧，
-/// 而这一条不属于任何一轮 —— agent 在 session/update 里推 `config_option_update`
-/// 时可能正在答话，也可能没有。混进同一条通道，就得让渲染层去分辨，而分辨的
-/// 依据只会是一个字符串标签。
-pub const AGENT_SELECTOR_EVENT: &str = "ai-selector-report";
-
-/// 会话自己报来的命令表走这一条。
-///
-/// 与上面那一条分开，理由与它和 [`AGENT_EVENT`] 分开完全一样：说的不是一件事。
-/// 那一条回答"这条会话能改什么"，这一条回答"这条会话上敲得出什么" —— 内置命令、
-/// agent 自己认得的技能、插件带来的，全在这一张表里，而它由 agent 算，不由本应用算。
-pub const AGENT_COMMAND_EVENT: &str = "ai-command-report";
-
-/// 会话自己报来的上下文用量走这一条。
-///
-/// 与上面两条分开，理由相同：说的不是一件事。这一条回答"这条会话的上下文
-/// 用掉了多少" —— 数字由 agent 算，不由本应用算，而且多在轮次落定之后才到。
-pub const AGENT_USAGE_EVENT: &str = "ai-usage-report";
+/// 这一条不属于任何一轮。三种同走一条、判别式在载荷里 —— 与六种运行帧同走
+/// [`AGENT_EVENT`] 是同一条规矩。
+pub const AGENT_SESSION_EVENT: &str = "ai-session-event";
 
 /// How much of the first message stands in as a conversation name.
 const TITLE_CHARS: usize = 60;
