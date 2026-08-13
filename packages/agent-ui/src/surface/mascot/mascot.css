@@ -1,0 +1,30 @@
+/*
+ * 吉祥物的皮。
+ *
+ * 几何在 expressions.ts，逐帧状态在 engine.ts，盒子尺寸归宿主；这里只管上色，
+ * 所以换主题不经过 JS，宿主样式表也不需要知道 SVG 内部长什么样。
+ *
+ * SVG 的 fill 初始值是黑：这一层缺一条规则不是"没上色"，而是"上成纯黑"。
+ */
+
+[data-mascot] [data-part="body"] {
+  fill: var(--ui-primary);
+}
+
+/*
+ * 眼睛取 primary 的前景色，不取页面底色：眼睛画在身体上，不是从身体上挖洞透出
+ * 页面。这一对令牌本就按对比度配好，浅色下近白、深色下近黑，极性自己翻。
+ */
+[data-mascot] [data-part="eye"] {
+  fill: var(--ui-primary-foreground);
+}
+
+/* 腮红是插画颜料，没有哪个界面状态该染成这个粉，所以它不进 --ui-* 令牌表。 */
+[data-mascot] [data-part="blush"] ellipse {
+  fill: #f09aab;
+}
+
+/* 投影的淡度是标记上的表现属性，随跳跃由引擎改写；样式表这里只给墨色。 */
+[data-mascot] [data-part="shadow"] {
+  fill: var(--ui-foreground);
+}
