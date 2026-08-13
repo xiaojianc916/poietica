@@ -4,7 +4,7 @@
  * 引擎不监听指针与偏好——输入只从 MascotHandle 进来，所有权在 React 壳。
  */
 
-import { EXPRESSIONS, HEART_D, STAR_D, type MascotExpression } from './expressions'
+import { EXPRESSIONS, HEART_D, type MascotExpression, STAR_D } from './expressions'
 
 const CX = 114.2705
 const CY = 114.2705
@@ -92,55 +92,146 @@ const G = {
   hop: (h = 16): Gesture => ({
     dur: 0.62,
     big: true,
-    dy: kf([[0, 0], [0.1, 2.5], [0.36, -h], [0.6, 1], [0.8, -1.5], [1, 0]]),
-    sq: kf([[0, 0], [0.1, -0.11], [0.3, 0.16], [0.5, 0.02], [0.63, -0.14], [0.82, 0.06], [1, 0]]),
+    dy: kf([
+      [0, 0],
+      [0.1, 2.5],
+      [0.36, -h],
+      [0.6, 1],
+      [0.8, -1.5],
+      [1, 0],
+    ]),
+    sq: kf([
+      [0, 0],
+      [0.1, -0.11],
+      [0.3, 0.16],
+      [0.5, 0.02],
+      [0.63, -0.14],
+      [0.82, 0.06],
+      [1, 0],
+    ]),
   }),
   spin: (dir = 1): Gesture => ({
     dur: 0.9,
     big: true,
-    turn: kf([[0, 0], [1, dir * TAU]]),
-    sq: kf([[0, 0], [0.4, 0.08], [1, 0]]),
+    turn: kf([
+      [0, 0],
+      [1, dir * TAU],
+    ]),
+    sq: kf([
+      [0, 0],
+      [0.4, 0.08],
+      [1, 0],
+    ]),
   }),
   recoil: (): Gesture => ({
     dur: 0.75,
     big: true,
-    dy: kf([[0, 0], [0.12, -13], [0.42, -8], [0.75, 1.5], [1, 0]]),
-    rot: kf([[0, 0], [0.12, -5], [0.5, -2.5], [1, 0]]),
-    sq: kf([[0, 0], [0.1, 0.15], [0.4, 0.04], [0.6, -0.07], [1, 0]]),
+    dy: kf([
+      [0, 0],
+      [0.12, -13],
+      [0.42, -8],
+      [0.75, 1.5],
+      [1, 0],
+    ]),
+    rot: kf([
+      [0, 0],
+      [0.12, -5],
+      [0.5, -2.5],
+      [1, 0],
+    ]),
+    sq: kf([
+      [0, 0],
+      [0.1, 0.15],
+      [0.4, 0.04],
+      [0.6, -0.07],
+      [1, 0],
+    ]),
   }),
   nod2: (): Gesture => ({
     dur: 0.85,
-    dy: kf([[0, 0], [0.18, 3.2], [0.36, 0], [0.56, 3.2], [0.76, 0], [1, 0]]),
+    dy: kf([
+      [0, 0],
+      [0.18, 3.2],
+      [0.36, 0],
+      [0.56, 3.2],
+      [0.76, 0],
+      [1, 0],
+    ]),
   }),
   tilt: (deg = 7): Gesture => ({
     dur: 1.15,
-    rot: kf([[0, 0], [0.28, deg], [0.72, deg], [1, 0]]),
+    rot: kf([
+      [0, 0],
+      [0.28, deg],
+      [0.72, deg],
+      [1, 0],
+    ]),
   }),
   lean: (): Gesture => ({
     dur: 1.0,
     big: true,
-    sc: kf([[0, 0], [0.3, 0.05], [0.72, 0.05], [1, 0]]),
-    dy: kf([[0, 0], [0.3, 1.6], [0.72, 1.6], [1, 0]]),
+    sc: kf([
+      [0, 0],
+      [0.3, 0.05],
+      [0.72, 0.05],
+      [1, 0],
+    ]),
+    dy: kf([
+      [0, 0],
+      [0.3, 1.6],
+      [0.72, 1.6],
+      [1, 0],
+    ]),
   }),
   sink: (): Gesture => ({
     dur: 2.4,
     big: true,
-    dy: kf([[0, 0], [0.55, 9], [0.66, 10], [0.74, -4], [0.88, 1], [1, 0]]),
-    rot: kf([[0, 0], [0.55, 4.5], [0.7, 4.5], [0.85, 0], [1, 0]]),
+    dy: kf([
+      [0, 0],
+      [0.55, 9],
+      [0.66, 10],
+      [0.74, -4],
+      [0.88, 1],
+      [1, 0],
+    ]),
+    rot: kf([
+      [0, 0],
+      [0.55, 4.5],
+      [0.7, 4.5],
+      [0.85, 0],
+      [1, 0],
+    ]),
   }),
   peekTurn: (a = -0.42): Gesture => ({
     dur: 1.8,
-    turn: kf([[0, 0], [0.25, a], [0.7, a], [1, 0]]),
+    turn: kf([
+      [0, 0],
+      [0.25, a],
+      [0.7, a],
+      [1, 0],
+    ]),
   }),
   wake: (): Gesture => ({
     dur: 1.4,
     big: true,
-    dy: kf([[0, 4], [0.3, 5], [0.55, -13], [0.75, 1], [1, 0]]),
-    sq: kf([[0, -0.1], [0.3, -0.12], [0.5, 0.15], [0.72, -0.05], [1, 0]]),
+    dy: kf([
+      [0, 4],
+      [0.3, 5],
+      [0.55, -13],
+      [0.75, 1],
+      [1, 0],
+    ]),
+    sq: kf([
+      [0, -0.1],
+      [0.3, -0.12],
+      [0.5, 0.15],
+      [0.72, -0.05],
+      [1, 0],
+    ]),
   }),
 }
 
-type SceneName =
+export type SceneName =
   | 'idle'
   | 'listening'
   | 'speaking'
@@ -188,7 +279,24 @@ type SceneSpec = {
   micro?: { every: Range; run: () => void }
 }
 
-const TOUR: readonly SceneName[] = ['idle', 'hello', 'curious', 'listening', 'thinking', 'speaking', 'loading', 'working', 'happy', 'excited', 'celebrate', 'surprised', 'confused', 'shy', 'sleepy', 'sad']
+const TOUR: readonly SceneName[] = [
+  'idle',
+  'hello',
+  'curious',
+  'listening',
+  'thinking',
+  'speaking',
+  'loading',
+  'working',
+  'happy',
+  'excited',
+  'celebrate',
+  'surprised',
+  'confused',
+  'shy',
+  'sleepy',
+  'sad',
+]
 
 const expressionAt = (index: number): MascotExpression => {
   const expression = EXPRESSIONS[index]
@@ -247,6 +355,8 @@ export type MascotOptions = {
 }
 
 export type MascotHandle = {
+  /* 外面交场景进来时,巡演必须是关着的:两个写者会互相覆盖。 */
+  setScene: (name: SceneName) => void
   setTour: (on: boolean) => void
   setFollow: (on: boolean) => void
   pointerMoved: (clientX: number, clientY: number) => void
@@ -343,139 +453,418 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
 
   const SCENES: Record<SceneName, SceneSpec> = {
     idle: {
-      pool: [0, 8], expr: [4200, 8000], blink: [2400, 5200],
+      pool: [0, 8],
+      expr: [4200, 8000],
+      blink: [2400, 5200],
       gaze: { mode: 'wander', every: [1400, 3200], ax: 0.5, ay: 0.32, oy: -0.04 },
-      mw: 0.85, tempo: 8.5, breath: [1, 0.32], bob: [1, 0.26], sway: [1, 0.19], nod: [0, 0.5],
-      micro: { every: [5200, 10500], run() { pick([
-        () => { gazeT = { x: rand(0.5, 0.8) * pick([-1, 1]), y: rand(-0.4, 0.1) }; nextGaze = tNow + rand(0.7, 1.1) },
-        () => play(G.hop(9)),
-        () => play(G.tilt(pick([-7, 7]))),
-        () => blink('quick', true),
-        () => { play(G.lean()); setExpression(pick([3, 15])) },
-      ])() } },
+      mw: 0.85,
+      tempo: 8.5,
+      breath: [1, 0.32],
+      bob: [1, 0.26],
+      sway: [1, 0.19],
+      nod: [0, 0.5],
+      micro: {
+        every: [5200, 10500],
+        run() {
+          pick([
+            () => {
+              gazeT = { x: rand(0.5, 0.8) * pick([-1, 1]), y: rand(-0.4, 0.1) }
+              nextGaze = tNow + rand(0.7, 1.1)
+            },
+            () => play(G.hop(9)),
+            () => play(G.tilt(pick([-7, 7]))),
+            () => blink('quick', true),
+            () => {
+              play(G.lean())
+              setExpression(pick([3, 15]))
+            },
+          ])()
+        },
+      },
     },
     listening: {
-      pool: [10, 1, 19], expr: [2400, 4200], blink: [2600, 5200],
+      pool: [10, 1, 19],
+      expr: [2400, 4200],
+      blink: [2600, 5200],
       gaze: { mode: 'watch', every: [900, 1800] },
-      mw: 0.95, tempo: 9, y: -3, rotB: -2, es: 1.05, phys: { hf: 4.6, hz: 0.82 },
-      breath: [0.9, 0.4], bob: [0.5, 0.3], sway: [0.35, 0.22], nod: [1, 0.6],
-      enter() { play(G.hop(8)) },
-      micro: { every: [3600, 6800], run() { play(G.nod2()) } },
+      mw: 0.95,
+      tempo: 9,
+      y: -3,
+      rotB: -2,
+      es: 1.05,
+      phys: { hf: 4.6, hz: 0.82 },
+      breath: [0.9, 0.4],
+      bob: [0.5, 0.3],
+      sway: [0.35, 0.22],
+      nod: [1, 0.6],
+      enter() {
+        play(G.hop(8))
+      },
+      micro: {
+        every: [3600, 6800],
+        run() {
+          play(G.nod2())
+        },
+      },
     },
     speaking: {
-      pool: [19, 1, 2, 10], expr: [1800, 3200], blink: [2600, 5000],
+      pool: [19, 1, 2, 10],
+      expr: [1800, 3200],
+      blink: [2600, 5000],
       gaze: { mode: 'watch', every: [1000, 2000] },
-      mw: 0.9, tempo: 9, es: 1.02, phys: { mz: 0.72, hf: 4.8, hz: 0.75, gf: 8 },
-      breath: [1, 0.42], bob: [0.7, 0.4], sway: [0.4, 0.24], nod: [0, 1.15],
+      mw: 0.9,
+      tempo: 9,
+      es: 1.02,
+      phys: { mz: 0.72, hf: 4.8, hz: 0.75, gf: 8 },
+      breath: [1, 0.42],
+      bob: [0.7, 0.4],
+      sway: [0.4, 0.24],
+      nod: [0, 1.15],
       tick(dt) {
-        const s = Math.sin(tNow * TAU / 3.6) + 0.5 * Math.sin(tNow * TAU / 1.27 + 1.7)
+        const s = Math.sin((tNow * TAU) / 3.6) + 0.5 * Math.sin((tNow * TAU) / 1.27 + 1.7)
         const env = clamp(s * 1.6 + 0.55, 0, 1)
         live.nodA += (env * 1.9 * AMP - live.nodA) * Math.min(1, 6 * dt)
       },
-      enter() { play(G.hop(7)) },
-      micro: { every: [3000, 5600], run() { pick([
-        () => play(G.nod2()),
-        () => { setExpression(2); play(G.hop(6)) },
-        () => play(G.tilt(pick([-5, 5]))),
-      ])() } },
+      enter() {
+        play(G.hop(7))
+      },
+      micro: {
+        every: [3000, 5600],
+        run() {
+          pick([
+            () => play(G.nod2()),
+            () => {
+              setExpression(2)
+              play(G.hop(6))
+            },
+            () => play(G.tilt(pick([-5, 5]))),
+          ])()
+        },
+      },
     },
     hello: {
-      pool: [2, 19, 0], expr: [2200, 3800], blink: [2400, 4600],
+      pool: [2, 19, 0],
+      expr: [2200, 3800],
+      blink: [2400, 4600],
       gaze: { mode: 'watch', every: [900, 1800] },
-      mw: 0.95, tempo: 10, es: 1.05, blush: 0.3, phys: { mz: 0.66, hf: 5, hz: 0.7 },
-      breath: [1.1, 0.4], bob: [1.1, 0.42], sway: [0.8, 0.26], nod: [0, 0.5],
-      enter() { play(G.hop(17)); winkAt = tNow + 0.55 },
-      micro: { every: [5200, 9000], run() { if (Math.random() < 0.55) { wink() } else { play(G.hop(10)) } } },
+      mw: 0.95,
+      tempo: 10,
+      es: 1.05,
+      blush: 0.3,
+      phys: { mz: 0.66, hf: 5, hz: 0.7 },
+      breath: [1.1, 0.4],
+      bob: [1.1, 0.42],
+      sway: [0.8, 0.26],
+      nod: [0, 0.5],
+      enter() {
+        play(G.hop(17))
+        winkAt = tNow + 0.55
+      },
+      micro: {
+        every: [5200, 9000],
+        run() {
+          if (Math.random() < 0.55) {
+            wink()
+          } else {
+            play(G.hop(10))
+          }
+        },
+      },
     },
     thinking: {
-      pool: [8, 16, 14, 17, 5], expr: [1700, 3000], blink: [3000, 6000],
+      pool: [8, 16, 14, 17, 5],
+      expr: [1700, 3000],
+      blink: [3000, 6000],
       gaze: { mode: 'upthink', every: [1500, 2600] },
-      mw: 0.25, tempo: 8, phys: { gf: 6 }, breath: [0.85, 0.34], bob: [0.7, 0.22], sway: [0.5, 0.15], nod: [0, 0.5],
-      micro: { every: [3400, 6200], run() { if (Math.random() < 0.5) { blink('soft') } else { play(G.tilt(thinkSide * 6)) } } },
+      mw: 0.25,
+      tempo: 8,
+      phys: { gf: 6 },
+      breath: [0.85, 0.34],
+      bob: [0.7, 0.22],
+      sway: [0.5, 0.15],
+      nod: [0, 0.5],
+      micro: {
+        every: [3400, 6200],
+        run() {
+          if (Math.random() < 0.5) {
+            blink('soft')
+          } else {
+            play(G.tilt(thinkSide * 6))
+          }
+        },
+      },
     },
     loading: {
-      pool: [0, 8], expr: [3200, 5200], blink: [4200, 7200],
+      pool: [0, 8],
+      expr: [3200, 5200],
+      blink: [4200, 7200],
       gaze: { mode: 'circle', every: [400, 400] },
-      mw: 0.15, tempo: 8, dots: 1, es: 0.97, phys: { gf: 5.5 },
-      breath: [1.5, 0.72], bob: [0.4, 0.5], sway: [0.3, 0.4], nod: [0, 0.5],
+      mw: 0.15,
+      tempo: 8,
+      dots: 1,
+      es: 0.97,
+      phys: { gf: 5.5 },
+      breath: [1.5, 0.72],
+      bob: [0.4, 0.5],
+      sway: [0.3, 0.4],
+      nod: [0, 0.5],
     },
     working: {
-      pool: [7, 16, 11, 10], expr: [1500, 2800], blink: [2200, 4500],
+      pool: [7, 16, 11, 10],
+      expr: [1500, 2800],
+      blink: [2200, 4500],
       gaze: { mode: 'read', every: [420, 950], oy: 0.34 },
-      mw: 0.3, tempo: 10, y: 1, phys: { mz: 0.75, gf: 9.5 },
-      breath: [1, 0.45], bob: [0.8, 0.55], sway: [0.2, 0.3], nod: [0.7, 0.85],
-      micro: { every: [5200, 9000], run() { gazeT = { x: 0, y: -0.05 }; nextGaze = tNow + rand(0.8, 1.2) } },
+      mw: 0.3,
+      tempo: 10,
+      y: 1,
+      phys: { mz: 0.75, gf: 9.5 },
+      breath: [1, 0.45],
+      bob: [0.8, 0.55],
+      sway: [0.2, 0.3],
+      nod: [0.7, 0.85],
+      micro: {
+        every: [5200, 9000],
+        run() {
+          gazeT = { x: 0, y: -0.05 }
+          nextGaze = tNow + rand(0.8, 1.2)
+        },
+      },
     },
     happy: {
-      pool: [2, 11, 17, 19], expr: [2000, 3600], blink: [2400, 4800],
+      pool: [2, 11, 17, 19],
+      expr: [2000, 3600],
+      blink: [2400, 4800],
       gaze: { mode: 'watch', every: [900, 1700] },
-      mw: 0.8, tempo: 10, es: 1.04, blush: 0.6, phys: { mz: 0.62, hf: 4.9, hz: 0.7 },
-      breath: [1.2, 0.45], bob: [1.4, 0.5], sway: [0.8, 0.3], nod: [0, 0.5],
-      enter() { play(G.hop(16)) },
-      micro: { every: [3600, 6600], run() { play(G.hop(rand(8, 13))); if (Math.random() < 0.22) { burst(1, 'heart') } } },
+      mw: 0.8,
+      tempo: 10,
+      es: 1.04,
+      blush: 0.6,
+      phys: { mz: 0.62, hf: 4.9, hz: 0.7 },
+      breath: [1.2, 0.45],
+      bob: [1.4, 0.5],
+      sway: [0.8, 0.3],
+      nod: [0, 0.5],
+      enter() {
+        play(G.hop(16))
+      },
+      micro: {
+        every: [3600, 6600],
+        run() {
+          play(G.hop(rand(8, 13)))
+          if (Math.random() < 0.22) {
+            burst(1, 'heart')
+          }
+        },
+      },
     },
     excited: {
-      pool: [2, 17, 21, 3, 11], expr: [900, 1700], blink: [1800, 3600],
+      pool: [2, 17, 21, 3, 11],
+      expr: [900, 1700],
+      blink: [1800, 3600],
       gaze: { mode: 'wander', every: [600, 1300], ax: 0.55, ay: 0.4 },
-      mw: 0.7, tempo: 12, es: 1.1, phys: { mz: 0.55, hf: 5.4, hz: 0.62, gf: 8.5 },
-      breath: [1.3, 0.6], bob: [2.2, 0.9], sway: [1, 0.5], nod: [0, 0.5],
-      enter() { play(G.hop(24)); burstAt = tNow + 0.12; burstKind = 'sparkle'; burstN = 9 },
-      micro: { every: [2400, 4600], run() { pick([
-        () => play(G.hop(14)),
-        () => play(G.spin(pick([-1, 1]))),
-        () => burst(8, 'sparkle'),
-      ])() } },
+      mw: 0.7,
+      tempo: 12,
+      es: 1.1,
+      phys: { mz: 0.55, hf: 5.4, hz: 0.62, gf: 8.5 },
+      breath: [1.3, 0.6],
+      bob: [2.2, 0.9],
+      sway: [1, 0.5],
+      nod: [0, 0.5],
+      enter() {
+        play(G.hop(24))
+        burstAt = tNow + 0.12
+        burstKind = 'sparkle'
+        burstN = 9
+      },
+      micro: {
+        every: [2400, 4600],
+        run() {
+          pick([
+            () => play(G.hop(14)),
+            () => play(G.spin(pick([-1, 1]))),
+            () => burst(8, 'sparkle'),
+          ])()
+        },
+      },
     },
     curious: {
-      pool: [3, 21, 0, 15], expr: [1500, 2800], blink: [2200, 4400],
+      pool: [3, 21, 0, 15],
+      expr: [1500, 2800],
+      blink: [2200, 4400],
       gaze: { mode: 'wander', every: [700, 1600], ax: 0.8, ay: 0.5 },
-      mw: 0.95, tempo: 10, rotB: 6, scale: 1.045, es: 1.08, phys: { mz: 0.68, hf: 5.2, gf: 8.5 },
-      breath: [1, 0.4], bob: [0.8, 0.3], sway: [0.4, 0.24], nod: [0, 0.5],
-      enter() { play(G.lean()) },
-      micro: { every: [2800, 5400], run() { curSide *= -1; play(G.tilt(curSide * 9)) } },
+      mw: 0.95,
+      tempo: 10,
+      rotB: 6,
+      scale: 1.045,
+      es: 1.08,
+      phys: { mz: 0.68, hf: 5.2, gf: 8.5 },
+      breath: [1, 0.4],
+      bob: [0.8, 0.3],
+      sway: [0.4, 0.24],
+      nod: [0, 0.5],
+      enter() {
+        play(G.lean())
+      },
+      micro: {
+        every: [2800, 5400],
+        run() {
+          curSide *= -1
+          play(G.tilt(curSide * 9))
+        },
+      },
     },
     surprised: {
-      pool: [3, 21], expr: [2200, 3800], blink: [1500, 2800],
+      pool: [3, 21],
+      expr: [2200, 3800],
+      blink: [1500, 2800],
       gaze: { mode: 'watch', every: [800, 1500] },
-      mw: 0.9, tempo: 11, es: 1.16, y: -2, phys: { mf: 13, mz: 0.5, hf: 6.6, hz: 0.55, gf: 10 },
-      breath: [1.4, 0.7], bob: [0.3, 0.4], sway: [0.2, 0.3], nod: [0, 0.5],
-      enter() { play(G.recoil()); sp.es.x = 1.45; blinkHoldUntil = tNow + 1.05; dblBlinkAt = tNow + 1.1; esSoftAt = tNow + 2.6 },
+      mw: 0.9,
+      tempo: 11,
+      es: 1.16,
+      y: -2,
+      phys: { mf: 13, mz: 0.5, hf: 6.6, hz: 0.55, gf: 10 },
+      breath: [1.4, 0.7],
+      bob: [0.3, 0.4],
+      sway: [0.2, 0.3],
+      nod: [0, 0.5],
+      enter() {
+        play(G.recoil())
+        sp.es.x = 1.45
+        blinkHoldUntil = tNow + 1.05
+        dblBlinkAt = tNow + 1.1
+        esSoftAt = tNow + 2.6
+      },
     },
     confused: {
-      pool: [14, 5, 8], expr: [1900, 3400], blink: [2600, 5000],
+      pool: [14, 5, 8],
+      expr: [1900, 3400],
+      blink: [2600, 5000],
       gaze: { mode: 'wander', every: [1100, 2200], ax: 0.55, ay: 0.4, oy: -0.25 },
-      mw: 0.5, tempo: 7, es: 0.98, phys: { mf: 6.5, mz: 0.98, hf: 3.4, gf: 5.5 },
-      breath: [0.9, 0.3], bob: [0.5, 0.2], sway: [2.6, 0.13], nod: [0, 0.5],
-      micro: { every: [2800, 5200], run() { if (Math.random() < 0.4) { blink('quick', true) } else { play(G.tilt(pick([-9, 9]))) } } },
+      mw: 0.5,
+      tempo: 7,
+      es: 0.98,
+      phys: { mf: 6.5, mz: 0.98, hf: 3.4, gf: 5.5 },
+      breath: [0.9, 0.3],
+      bob: [0.5, 0.2],
+      sway: [2.6, 0.13],
+      nod: [0, 0.5],
+      micro: {
+        every: [2800, 5200],
+        run() {
+          if (Math.random() < 0.4) {
+            blink('quick', true)
+          } else {
+            play(G.tilt(pick([-9, 9])))
+          }
+        },
+      },
     },
     shy: {
-      pool: [0, 24, 13], expr: [2400, 4200], blink: [2000, 4000],
+      pool: [0, 24, 13],
+      expr: [2400, 4200],
+      blink: [2000, 4000],
       gaze: { mode: 'away', every: [1600, 3000] },
-      mw: 0.3, tempo: 8, turnB: 0.5, rotB: -3, scale: 0.96, blush: 1, y: 2, phys: { mf: 7, mz: 0.82, hf: 3.6, gf: 6 },
-      breath: [0.9, 0.36], bob: [0.6, 0.24], sway: [0.5, 0.18], nod: [0, 0.5],
-      micro: { every: [2600, 4800], run() { play(G.peekTurn(-0.42)); gazeT = { x: -0.1, y: -0.05 }; nextGaze = tNow + 1.1; if (Math.random() < 0.4) { burst(2, 'heart') } } },
+      mw: 0.3,
+      tempo: 8,
+      turnB: 0.5,
+      rotB: -3,
+      scale: 0.96,
+      blush: 1,
+      y: 2,
+      phys: { mf: 7, mz: 0.82, hf: 3.6, gf: 6 },
+      breath: [0.9, 0.36],
+      bob: [0.6, 0.24],
+      sway: [0.5, 0.18],
+      nod: [0, 0.5],
+      micro: {
+        every: [2600, 4800],
+        run() {
+          play(G.peekTurn(-0.42))
+          gazeT = { x: -0.1, y: -0.05 }
+          nextGaze = tNow + 1.1
+          if (Math.random() < 0.4) {
+            burst(2, 'heart')
+          }
+        },
+      },
     },
     sleepy: {
-      pool: [4, 22, 13], expr: [3800, 6800], blink: [1800, 3800], bKind: 'sleepy',
+      pool: [4, 22, 13],
+      expr: [3800, 6800],
+      blink: [1800, 3800],
+      bKind: 'sleepy',
       gaze: { mode: 'down', every: [2200, 4200] },
-      mw: 0.15, tempo: 5, y: 7, rotB: 2.5, droop: 0.66, es: 0.97, phys: { mf: 4.2, mz: 1.15, hf: 2.5, hz: 1.05, gf: 3.6 },
-      breath: [1.6, 0.18], bob: [0.8, 0.13], sway: [0.8, 0.1], nod: [0, 0.5],
-      micro: { every: [4200, 8200], run() { play(G.sink()); dblBlinkAt = tNow + 1.9 } },
+      mw: 0.15,
+      tempo: 5,
+      y: 7,
+      rotB: 2.5,
+      droop: 0.66,
+      es: 0.97,
+      phys: { mf: 4.2, mz: 1.15, hf: 2.5, hz: 1.05, gf: 3.6 },
+      breath: [1.6, 0.18],
+      bob: [0.8, 0.13],
+      sway: [0.8, 0.1],
+      nod: [0, 0.5],
+      micro: {
+        every: [4200, 8200],
+        run() {
+          play(G.sink())
+          dblBlinkAt = tNow + 1.9
+        },
+      },
     },
     sad: {
-      pool: [4, 13, 22], expr: [3600, 6400], blink: [3400, 6400], bKind: 'soft',
+      pool: [4, 13, 22],
+      expr: [3600, 6400],
+      blink: [3400, 6400],
+      bKind: 'soft',
       gaze: { mode: 'down', every: [2600, 4600] },
-      mw: 0.25, tempo: 6, y: 6, rotB: -2, droop: 0.8, es: 0.95, phys: { mf: 5, mz: 1.05, hf: 2.9, hz: 1, gf: 4.5 },
-      breath: [1.2, 0.22], bob: [0.5, 0.16], sway: [0.3, 0.13], nod: [0, 0.5],
-      micro: { every: [5200, 9200], run() { gazeT = { x: 0, y: -0.2 }; nextGaze = tNow + rand(1, 1.4) } },
+      mw: 0.25,
+      tempo: 6,
+      y: 6,
+      rotB: -2,
+      droop: 0.8,
+      es: 0.95,
+      phys: { mf: 5, mz: 1.05, hf: 2.9, hz: 1, gf: 4.5 },
+      breath: [1.2, 0.22],
+      bob: [0.5, 0.16],
+      sway: [0.3, 0.13],
+      nod: [0, 0.5],
+      micro: {
+        every: [5200, 9200],
+        run() {
+          gazeT = { x: 0, y: -0.2 }
+          nextGaze = tNow + rand(1, 1.4)
+        },
+      },
     },
     celebrate: {
-      pool: [2, 8, 17], expr: [1100, 2000], blink: [2000, 4000],
+      pool: [2, 8, 17],
+      expr: [1100, 2000],
+      blink: [2000, 4000],
       gaze: { mode: 'wander', every: [700, 1400], ax: 0.5, ay: 0.35 },
-      mw: 0.6, tempo: 11, es: 1.08, blush: 0.5, phys: { mz: 0.58, hf: 5.1, hz: 0.64 },
-      breath: [1.2, 0.55], bob: [2, 0.95], sway: [1.2, 0.5], nod: [0, 0.5],
-      enter() { play(G.spin(1)); burstAt = tNow + 0.3; burstKind = 'confetti'; burstN = 22; hopAt = tNow + 0.75 },
-      micro: { every: [1900, 3400], run() { pick([() => burst(10, 'confetti'), () => play(G.hop(13))])() } },
+      mw: 0.6,
+      tempo: 11,
+      es: 1.08,
+      blush: 0.5,
+      phys: { mz: 0.58, hf: 5.1, hz: 0.64 },
+      breath: [1.2, 0.55],
+      bob: [2, 0.95],
+      sway: [1.2, 0.5],
+      nod: [0, 0.5],
+      enter() {
+        play(G.spin(1))
+        burstAt = tNow + 0.3
+        burstKind = 'confetti'
+        burstN = 22
+        hopAt = tNow + 0.75
+      },
+      micro: {
+        every: [1900, 3400],
+        run() {
+          pick([() => burst(10, 'confetti'), () => play(G.hop(13))])()
+        },
+      },
     },
   }
 
@@ -529,7 +918,12 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
         blinkAnim = blinkAnim.again ? { t0: tNow + 0.09, kind: k, again: false } : null
       } else if (u >= 0) {
         if (k === 'sleepy') {
-          o = u < 0.3 ? 1 - easeIO(u / 0.3) * 0.95 : u < 0.62 ? 0.05 : 0.05 + easeOut((u - 0.62) / 0.38) * 0.95
+          o =
+            u < 0.3
+              ? 1 - easeIO(u / 0.3) * 0.95
+              : u < 0.62
+                ? 0.05
+                : 0.05 + easeOut((u - 0.62) / 0.38) * 0.95
         } else {
           o = u < 0.4 ? 1 - easeIO(u / 0.4) * 0.95 : 0.05 + easeOut((u - 0.4) / 0.6) * 0.99
         }
@@ -556,7 +950,11 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     if (u < 0 || u >= 1) {
       return 1
     }
-    return u < 0.18 ? 1 - easeIO(u / 0.18) * 0.94 : u < 0.55 ? 0.06 : 0.06 + easeOut((u - 0.55) / 0.45) * 0.94
+    return u < 0.18
+      ? 1 - easeIO(u / 0.18) * 0.94
+      : u < 0.55
+        ? 0.06
+        : 0.06 + easeOut((u - 0.55) / 0.45) * 0.94
   }
 
   /* ===== 视线目标：自主漫游，与指针按场景性格混合。 ===== */
@@ -572,9 +970,10 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     const ox = g.ox ?? 0
     const oy = g.oy ?? 0
     if (g.mode === 'wander') {
-      gazeT = Math.random() < 0.14
-        ? { x: 0, y: -0.05 }
-        : { x: rand(-1, 1) * ax + ox, y: rand(-1, 1) * ay + oy }
+      gazeT =
+        Math.random() < 0.14
+          ? { x: 0, y: -0.05 }
+          : { x: rand(-1, 1) * ax + ox, y: rand(-1, 1) * ay + oy }
     } else if (g.mode === 'read') {
       readCol += rand(0.28, 0.42)
       if (readCol > 0.6) {
@@ -650,10 +1049,21 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     }
     node.el.setAttribute('fill', o.color)
     parts.push({
-      n: node, age: 0, rot: rand(0, 360),
-      x: o.x, y: o.y, vx: o.vx, vy: o.vy, life: o.life,
-      vr: o.vr ?? 0, g: o.g ?? 0, drag: o.drag ?? 0,
-      wob: o.wob ?? 0, wobF: o.wobF ?? 5, tw: o.tw ?? 0, size: o.size ?? 1,
+      n: node,
+      age: 0,
+      rot: rand(0, 360),
+      x: o.x,
+      y: o.y,
+      vx: o.vx,
+      vy: o.vy,
+      life: o.life,
+      vr: o.vr ?? 0,
+      g: o.g ?? 0,
+      drag: o.drag ?? 0,
+      wob: o.wob ?? 0,
+      wobF: o.wobF ?? 5,
+      tw: o.tw ?? 0,
+      size: o.size ?? 1,
     })
   }
 
@@ -666,28 +1076,51 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     for (let i = 0; i < count; i++) {
       if (kind === 'confetti') {
         spawn({
-          shape: i % 4 === 3 ? 'circle' : 'rect', color: pick(P_COLORS),
-          x: hx + rand(-46, 46), y: top + rand(-14, 8),
-          vx: rand(-1, 1) * 175, vy: rand(-250, -120), g: 470, drag: 1.7,
-          vr: rand(-460, 460), wob: rand(4, 13), wobF: rand(4, 8),
-          life: rand(1.05, 1.6), size: rand(0.8, 1.35),
+          shape: i % 4 === 3 ? 'circle' : 'rect',
+          color: pick(P_COLORS),
+          x: hx + rand(-46, 46),
+          y: top + rand(-14, 8),
+          vx: rand(-1, 1) * 175,
+          vy: rand(-250, -120),
+          g: 470,
+          drag: 1.7,
+          vr: rand(-460, 460),
+          wob: rand(4, 13),
+          wobF: rand(4, 8),
+          life: rand(1.05, 1.6),
+          size: rand(0.8, 1.35),
         })
       } else if (kind === 'sparkle') {
         const a = rand(0, TAU)
         spawn({
-          shape: 'star', color: pick(SPARKLE_COLORS),
-          x: hx + Math.cos(a) * rand(52, 88), y: CY + sp.hy.x - 44 + Math.sin(a) * rand(26, 56),
-          vx: rand(-38, 38), vy: rand(-54, -20), g: -14, drag: 0.6,
-          vr: rand(-140, 140), tw: rand(8, 12),
-          life: rand(0.55, 0.95), size: rand(0.7, 1.25),
+          shape: 'star',
+          color: pick(SPARKLE_COLORS),
+          x: hx + Math.cos(a) * rand(52, 88),
+          y: CY + sp.hy.x - 44 + Math.sin(a) * rand(26, 56),
+          vx: rand(-38, 38),
+          vy: rand(-54, -20),
+          g: -14,
+          drag: 0.6,
+          vr: rand(-140, 140),
+          tw: rand(8, 12),
+          life: rand(0.55, 0.95),
+          size: rand(0.7, 1.25),
         })
       } else {
         spawn({
-          shape: 'heart', color: pick(HEART_COLORS),
-          x: hx + rand(-1, 1) * 52, y: CY + sp.hy.x + rand(14, 38),
-          vx: rand(-22, 22), vy: rand(-52, -30), g: -10, drag: 0.5,
-          vr: rand(-36, 36), wob: rand(3, 6), wobF: rand(2.5, 4),
-          life: rand(0.95, 1.3), size: rand(0.85, 1.2),
+          shape: 'heart',
+          color: pick(HEART_COLORS),
+          x: hx + rand(-1, 1) * 52,
+          y: CY + sp.hy.x + rand(14, 38),
+          vx: rand(-22, 22),
+          vy: rand(-52, -30),
+          g: -10,
+          drag: 0.5,
+          vr: rand(-36, 36),
+          wob: rand(3, 6),
+          wobF: rand(2.5, 4),
+          life: rand(0.95, 1.3),
+          size: rand(0.85, 1.2),
         })
       }
     }
@@ -716,8 +1149,11 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
       const grow = easeOut(Math.min(1, p.age / 0.14))
       const fade = p.age > p.life - 0.32 ? (p.life - p.age) / 0.32 : 1
       const tw = p.tw !== 0 ? 0.78 + 0.3 * Math.sin(p.age * p.tw) : 1
-      setAttr(p.n.el, 'transform',
-        `translate(${px.toFixed(2)} ${p.y.toFixed(2)}) rotate(${(p.rot % 360).toFixed(1)}) scale(${(grow * p.size * tw).toFixed(3)})`)
+      setAttr(
+        p.n.el,
+        'transform',
+        `translate(${px.toFixed(2)} ${p.y.toFixed(2)}) rotate(${(p.rot % 360).toFixed(1)}) scale(${(grow * p.size * tw).toFixed(3)})`,
+      )
       p.n.el.style.opacity = (0.95 * fade).toFixed(3)
     }
   }
@@ -774,10 +1210,13 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     sp.hr.z = phys.hz ?? 0.8
     sp.gx.f = phys.gf ?? 7
     sp.gy.f = phys.gf ?? 7
-    nextExpr = tNow + rand(scene.expr[0], scene.expr[1]) * 0.45 / 1000
-    nextBlink = tNow + rand(scene.blink[0], scene.blink[1]) * 0.5 / 1000
+    nextExpr = tNow + (rand(scene.expr[0], scene.expr[1]) * 0.45) / 1000
+    nextBlink = tNow + (rand(scene.blink[0], scene.blink[1]) * 0.5) / 1000
     nextGaze = tNow + 0.05
-    nextMicro = scene.micro !== undefined ? tNow + rand(scene.micro.every[0], scene.micro.every[1]) * 0.6 / 1000 : Number.POSITIVE_INFINITY
+    nextMicro =
+      scene.micro !== undefined
+        ? tNow + (rand(scene.micro.every[0], scene.micro.every[1]) * 0.6) / 1000
+        : Number.POSITIVE_INFINITY
     esSoftAt = Number.POSITIVE_INFINITY
     setExpression(pick(scene.pool))
     if (prev !== null && !silent) {
@@ -813,7 +1252,8 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     ph.bob += TAU * live.bobHz * dt
     ph.sway += TAU * live.swayHz * dt
     ph.nod += TAU * live.nodHz * dt
-    ph.orbit += TAU * (sceneName === 'loading' ? 0.55 : 0.3) * (1 + 0.16 * Math.sin(tNow * TAU / 4.6)) * dt
+    ph.orbit +=
+      TAU * (sceneName === 'loading' ? 0.55 : 0.3) * (1 + 0.16 * Math.sin((tNow * TAU) / 4.6)) * dt
 
     if (tNow > nextExpr) {
       const cand = scene.pool.filter((i) => i !== exprIndex)
@@ -876,7 +1316,10 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     /* 微颤视线：扫视时的小跳动。 */
     const mode = scene.gaze.mode
     if ((mode === 'wander' || mode === 'read') && Math.random() < dt * 0.35) {
-      gazeT = { x: clamp(gazeT.x + rand(-0.06, 0.06), -1, 1), y: clamp(gazeT.y + rand(-0.04, 0.04), -1, 1) }
+      gazeT = {
+        x: clamp(gazeT.x + rand(-0.06, 0.06), -1, 1),
+        y: clamp(gazeT.y + rand(-0.04, 0.04), -1, 1),
+      }
     }
 
     let auto = gazeT
@@ -943,7 +1386,8 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
 
     /* 呼吸/漂浮/摇曳/点头。 */
     const br = Math.sin(ph.breath) * live.breathA
-    const dy = Math.sin(ph.bob) * 2.6 * live.bobA + br * 1.1 + Math.sin(ph.nod) * 1.7 * live.nodA + gdy
+    const dy =
+      Math.sin(ph.bob) * 2.6 * live.bobA + br * 1.1 + Math.sin(ph.nod) * 1.7 * live.nodA + gdy
     const rot = Math.sin(ph.sway) * 1.35 * live.swayA + sp.hr.x + grot
     const sq = gsq + sp.press.x
     const S = sp.sc.x + gsc
@@ -951,7 +1395,11 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     const syF = S * (1 + sq) * (1 + br * 0.011)
     const x = CX + sp.hx.x
     const y = CY + sp.hy.x + dy
-    setAttr(rig, 'transform', `translate(${x} ${y}) rotate(${rot}) scale(${sxF} ${syF}) translate(${-CX} ${-CY})`)
+    setAttr(
+      rig,
+      'transform',
+      `translate(${x} ${y}) rotate(${rot}) scale(${sxF} ${syF}) translate(${-CX} ${-CY})`,
+    )
 
     /* 地面阴影：跟随跳跃收缩、变淡。 */
     const lift = Math.max(0, -(sp.hy.x + dy - (scene.y ?? 0)))
@@ -1002,7 +1450,11 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
       if (morphMoving || pathDirty) {
         setAttr(el, 'd', `M${ring.map((p) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join('L')}Z`)
       }
-      setAttr(el, 'transform', `matrix(${sx.toFixed(4)} 0 0 ${dY.toFixed(4)} ${(ex - sx * cx).toFixed(3)} ${fY.toFixed(3)})`)
+      setAttr(
+        el,
+        'transform',
+        `matrix(${sx.toFixed(4)} 0 0 ${dY.toFixed(4)} ${(ex - sx * cx).toFixed(3)} ${fY.toFixed(3)})`,
+      )
       el.style.opacity = depth > 0.02 ? '1' : '0'
       eyeInfo[i] = { y: ey, bl: baseLong, ta: turnAll }
     }
@@ -1021,7 +1473,11 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
         const bd = Math.cos(bLong)
         const bp = Math.max(bd, 0.02) / Math.max(Math.cos(bBase), 0.02)
         const bx = CX + R * 0.94 * Math.sin(bLong)
-        setAttr(blush, 'transform', `translate(${bx.toFixed(2)} ${(e.y + 33).toFixed(2)}) scale(${Math.max(bp * 0.9, 0.05).toFixed(3)} 1)`)
+        setAttr(
+          blush,
+          'transform',
+          `translate(${bx.toFixed(2)} ${(e.y + 33).toFixed(2)}) scale(${Math.max(bp * 0.9, 0.05).toFixed(3)} 1)`,
+        )
         blush.style.opacity = clamp((bd - 0.1) / 0.32, 0, 1).toFixed(3)
       }
     }
@@ -1038,8 +1494,11 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
         const ex0 = Math.cos(a) * orx
         const ey0 = sd * ory
         const hs = 1.12 * (0.74 + 0.34 * sd)
-        setAttr(o.head, 'transform',
-          `translate(${(x + ex0 * ct - ey0 * st).toFixed(2)} ${(y + 26 + ex0 * st + ey0 * ct).toFixed(2)}) rotate(${((a * 86) % 360).toFixed(1)}) scale(${hs.toFixed(3)})`)
+        setAttr(
+          o.head,
+          'transform',
+          `translate(${(x + ex0 * ct - ey0 * st).toFixed(2)} ${(y + 26 + ex0 * st + ey0 * ct).toFixed(2)}) rotate(${((a * 86) % 360).toFixed(1)}) scale(${hs.toFixed(3)})`,
+        )
         o.head.style.opacity = (0.62 + 0.38 * sd).toFixed(3)
         for (const [k, tr] of o.trail.entries()) {
           const ak = a - (k + 1) * 0.1
@@ -1082,11 +1541,26 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
       return
     }
     pick([
-      () => { play(G.hop(18)); setExpression(pick([2, 17, 11])) },
+      () => {
+        play(G.hop(18))
+        setExpression(pick([2, 17, 11]))
+      },
       () => play(G.spin(pick([-1, 1]))),
-      () => { play(G.recoil()); sp.es.x = 1.35; blinkHoldUntil = tNow + 0.7; dblBlinkAt = tNow + 0.75 },
-      () => { burst(9, 'sparkle'); play(G.hop(12)) },
-      () => { burst(2, 'heart'); play(G.hop(10)); setExpression(2) },
+      () => {
+        play(G.recoil())
+        sp.es.x = 1.35
+        blinkHoldUntil = tNow + 0.7
+        dblBlinkAt = tNow + 0.75
+      },
+      () => {
+        burst(9, 'sparkle')
+        play(G.hop(12))
+      },
+      () => {
+        burst(2, 'heart')
+        play(G.hop(10))
+        setExpression(2)
+      },
     ])()
   }
 
@@ -1128,10 +1602,28 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     blinkHoldUntil = tNow + 1.3
     const t0 = tNow
     intro.push(
-      [t0 + 0.45, () => { sp.open.t = 1; play(G.wake()) }],
+      [
+        t0 + 0.45,
+        () => {
+          sp.open.t = 1
+          play(G.wake())
+        },
+      ],
       [t0 + 1.35, () => blink('quick', true)],
-      [t0 + 1.75, () => { gazeT = { x: -0.45, y: -0.12 }; nextGaze = t0 + 2.6 }],
-      [t0 + 2.35, () => { gazeT = { x: 0.42, y: -0.06 }; nextGaze = t0 + 3.2 }],
+      [
+        t0 + 1.75,
+        () => {
+          gazeT = { x: -0.45, y: -0.12 }
+          nextGaze = t0 + 2.6
+        },
+      ],
+      [
+        t0 + 2.35,
+        () => {
+          gazeT = { x: 0.42, y: -0.06 }
+          nextGaze = t0 + 3.2
+        },
+      ],
     )
   }
   /* 初始就开着巡演时，等开场小动画演完再启动（原嵌入桥的 3.2s 延迟）。 */
@@ -1154,6 +1646,7 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
   rafId = window.requestAnimationFrame(frame)
 
   return {
+    setScene,
     setTour(on: boolean) {
       if (on === tourOn) {
         return
