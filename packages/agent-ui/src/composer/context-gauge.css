@@ -27,6 +27,20 @@
   color: var(--cp-ink);
 }
 
+/* 阈值配色照 ACP 会话用量规范的建议档：75% 黄、90% 橙、95% 红。写在 hover
+   之后，同特异度靠顺序取胜：临界色不因悬浮而被冲掉。 */
+[data-assistant-skin] .context-gauge__trigger[data-level="warn"] {
+  color: #b45309;
+}
+
+[data-assistant-skin] .context-gauge__trigger[data-level="high"] {
+  color: #c2410c;
+}
+
+[data-assistant-skin] .context-gauge__trigger[data-level="critical"] {
+  color: #dc2626;
+}
+
 [data-assistant-skin] .context-gauge__ring {
   width: var(--cp-icon);
   height: var(--cp-icon);
@@ -64,6 +78,10 @@
   gap: 16px;
 }
 
+.context-gauge__row--detail {
+  margin-top: 6px;
+}
+
 .context-gauge__label {
   color: var(--cp-ink-muted, rgb(0 0 0 / 55%));
 }
@@ -75,6 +93,7 @@
 .context-gauge__bar {
   height: 4px;
   margin-top: 8px;
+  margin-bottom: 8px;
   border-radius: 999px;
   background: var(--cp-hairline, rgb(0 0 0 / 8%));
   overflow: hidden;
@@ -84,6 +103,18 @@
   height: 100%;
   border-radius: inherit;
   background: var(--cp-accent, #3b82f6);
+}
+
+.context-gauge__bar-fill[data-level="warn"] {
+  background: #d97706;
+}
+
+.context-gauge__bar-fill[data-level="high"] {
+  background: #ea580c;
+}
+
+.context-gauge__bar-fill[data-level="critical"] {
+  background: #dc2626;
 }
 
 .context-gauge__cost {

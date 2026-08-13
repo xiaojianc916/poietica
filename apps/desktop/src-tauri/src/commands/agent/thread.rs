@@ -122,12 +122,15 @@ pub async fn agent_open_thread(
     它们共用一次借用：一趟阻塞线程、一次上锁、两条 prepare_cached。拆成两趟就
     是各排一次线程池、各抢一次那把库锁，而打开一条对话正是人点一下就要等的那
     条路径 —— turn.rs 里那批附件写入用的是同一条规矩。 */
-    let (thread, prompts, spans) = on_index(&index, move |store| {
-        let thread = store
+    let (thread, usage, prompts, spans) = on_index(&index, move |store| {
+        let stored = store
             .thread(thread_id)
             .map_err(persistence)?
-            .map(retitle)
             .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?;
+
+        /* 用量在 retitle 之前取走：AgentThread 是列表的形状，不带这一格。 */
+        let usage = recorded_usage(&stored);
+        let thread = retitle(stored);
 
         let prompts = store.prompt_count(thread_id).map_err(persistence)?;
 
@@ -135,7 +138,7 @@ pub async fn agent_open_thread(
         答案，所以共用这一次借用 —— 与 prompts 同一条规矩。 */
         let spans = store.turn_spans_of(thread_id).map_err(persistence)?;
 
-        Ok((thread, prompts, spans))
+        Ok((thread, usage, prompts, spans))
     })
     .await?;
 
@@ -164,6 +167,7 @@ pub async fn agent_open_thread(
         attachments,
         spans: span_dtos,
         prompts,
+        usage,
     })
 }
 
@@ -199,6 +203,19 @@ fn retitle(thread: poietica_agent_persistence_native::ThreadSummary) -> AgentThr
         workspace_root: thread.workspace_root,
         archived: thread.archived_at.is_some(),
     }
+}
+
+/// 账本里这条对话最近记下的用量，读得回来就带上。
+///
+/// 列是 runtime.rs 排空任务原样写入的 ACP 载荷。读不成的行按缺席对待：一行
+/// 坏数据不该拦住打开对话，而缺席本来就有含义 —— 还没报过。
+fn recorded_usage(
+    thread: &poietica_agent_persistence_native::ThreadSummary,
+) -> Option<serde_json::Value> {
+    thread
+        .usage
+        .as_deref()
+        .and_then(|written| serde_json::from_str(written).ok())
 }
 
 /// Renames a conversation.

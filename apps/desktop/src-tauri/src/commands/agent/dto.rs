@@ -376,6 +376,14 @@ pub struct AgentOpenedThread {
     ///
     /// 与上面那两格同一个宽度，同一个理由。
     pub prompts: u32,
+
+    /// 这条对话最近一次记下的上下文用量，ACP usage_update 的线上形状。
+    ///
+    /// 来自本地账本，不来自这一次打开：Kimi 只在轮次落定后报一次，装载旧会
+    /// 话时不补报（协议建议补报，它没做），所以重启后的第一眼只有账本答得上。
+    /// 缺席就是还没报过。这一侧不认识它的字段 —— 认识它的是契约层的
+    /// usage.ts，与实时那条通道同一个读者。
+    pub usage: Option<Value>,
 }
 
 /// A conversation the interface is renaming.

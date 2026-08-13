@@ -434,6 +434,10 @@ export function createAgentThreadBridge({
         }),
       )
 
+      /* 账本里的那份用量。线上是原样存的 ACP 载荷，读它的与实时那条通道是
+      同一个读者（sessionUsageOf）；读不成按缺席对待，缺席本来就有含义。 */
+      const usage = sessionUsageOf(opened.usage)
+
       return {
         thread: opened.thread,
         selectors: opened.selectors.map(controlOf),
@@ -446,6 +450,7 @@ export function createAgentThreadBridge({
         attachments: opened.attachments,
         spans: opened.spans,
         prompts: opened.prompts,
+        ...(usage === undefined ? {} : { usage }),
       }
     },
 

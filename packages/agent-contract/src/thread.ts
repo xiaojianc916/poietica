@@ -1,5 +1,6 @@
 import type { ThreadId } from './address'
 import type { SessionConfigControl } from './config'
+import type { SessionUsage } from './usage'
 
 /**
  * Where a conversation name came from.
@@ -136,6 +137,14 @@ export interface OpenedThread {
    * 上面那些 turn 是照着它、并且是从末尾量起的。见 attachImages。
    */
   readonly prompts: number
+  /**
+   * 这条对话最近一次报过的上下文用量，本地账本记下的那份。
+   *
+   * 它是启动后的第一眼，不是活数据：Kimi 只在轮次落定后报一次，装载旧会话
+   * 时不补报（协议建议补报，它没做），所以刚打开时实时通道上什么都没有。
+   * 活报告一到即覆盖。缺席 = 从没报过。
+   */
+  readonly usage?: SessionUsage
 }
 
 /**

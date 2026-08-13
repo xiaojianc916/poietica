@@ -325,6 +325,26 @@ pub(super) async fn ensure_session(
         let mut usage = usage;
 
         while let Some(report) = usage.next().await {
+            /* 先落账本，再上屏。Kimi 只在轮次落定后报一次、装载旧会话时不补报
+            （上游 acp-server 的 emitUsageUpdate 只挂在 onTurnEnded 上），所以
+            重启后这一格的唯一来源是账本 —— open 的答复从那一列把它带回去。 */
+            let index = teller.state::<crate::local_index::LocalIndex>();
+            let session = report.session_id.clone();
+            let written = report.usage.to_string();
+
+            let recorded = crate::local_index::on_index(&index, move |store| {
+                store
+                    .record_usage(&session, &written)
+                    .map_err(crate::local_index::persistence)
+            })
+            .await;
+
+            /* 记不上只写日志：数字这一刻还是对的，上屏不为一次写失败让路，
+            账本下一轮会再来。 */
+            if let Err(error) = recorded {
+                log::warn!("could not record the session usage: {error}");
+            }
+
             let payload = AgentUsageReport {
                 session_id: report.session_id,
                 usage: report.usage,
