@@ -50,7 +50,7 @@ pub(crate) enum Command {
         /// 这一条会话要挂的 MCP 服务器，ACP 的线上形状。
         ///
         /// 命令这一层不认识它。协议那三个结构体都是 #[non_exhaustive]，构造
-        /// 不出来，所以物化推迟到驱动器里那一次反序列化 —— 与图片块同一条路。
+        /// 不出来，所以物化推迟到驱动器里那一次反序列化。
         mcp_servers: Vec<Value>,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },

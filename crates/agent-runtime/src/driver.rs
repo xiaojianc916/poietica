@@ -6,9 +6,9 @@ use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    CancelNotification, ContentBlock, DeleteSessionRequest, ForkSessionRequest, InitializeRequest,
-    ListSessionsRequest, LoadSessionRequest, McpServer, NewSessionRequest, PromptRequest,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    CancelNotification, ContentBlock, DeleteSessionRequest, ForkSessionRequest, ImageContent,
+    InitializeRequest, ListSessionsRequest, LoadSessionRequest, McpServer, NewSessionRequest,
+    PromptRequest, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     SelectedPermissionOutcome, SessionConfigOption, SessionId, SessionNotification, SessionUpdate,
     SetSessionConfigOptionRequest, TextContent,
 };
@@ -219,7 +219,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             });
                         }
 
-                                                let _routed = slot.record(|listening| {
+                        let _routed = slot.record(|listening| {
                             listening.session_update(&notification);
                         });
                     }
@@ -764,8 +764,8 @@ async fn open_session(
 /// agent 刚报过来的那张命令表，若这一条通知说的正是它。
 ///
 /// 每一条原样序列化。命令的形状归 ACP 所有，这个 crate 一格都不认识 —— 与
-/// `mcp_servers_of` 那一处、图片块那一处、停止原因那一处同一条规矩：线上形状
-/// 才是契约。读不成的那一条跳过，不让一条坏记录作废整张表。
+/// `mcp_servers_of` 那一处、停止原因那一处同一条规矩：线上形状才是契约。读不成
+/// 的那一条跳过，不让一条坏记录作废整张表。
 fn palette_of(update: &SessionUpdate) -> Option<Vec<Value>> {
     let SessionUpdate::AvailableCommandsUpdate(listing) = update else {
         return None;
@@ -783,9 +783,8 @@ fn palette_of(update: &SessionUpdate) -> Option<Vec<Value>> {
 /// 线上形状变成协议的类型。
 ///
 /// 反序列化，不是构造：McpServer 与它那三个变体在 schema crate 里全标了
-/// #[non_exhaustive]，外部 crate 用结构体字面量根本编译不过。官方只留了这一条
-/// 路，而这个 crate 早就在图片块与停止原因那两处立过同一条规矩 —— 线上形状才
-/// 是契约。判别式由协议自己钉死：http 与 sse 带 type，stdio 那一支是 untagged。
+/// #[non_exhaustive]，外部 crate 用结构体字面量根本编译不过。判别式由协议自己
+/// 钉死：http 与 sse 带 type，stdio 那一支是 untagged。
 ///
 /// 读不成的那一台跳过并留一行日志。整批作废是更坏的选择：一台写错的服务器不该
 /// 让这条会话连开都开不起来，而静默丢弃会让它变成一个查不出原因的问题。
@@ -1139,12 +1138,11 @@ async fn run_turn(
 
 /// 一句话与它带的图片，变成协议要的那串内容块。
 ///
-/// 图片块由线上形状反序列化出来，而不是去调 SDK 的构造函数。这个 crate 已经在
-/// 读停止原因那一处立过同一条规矩：线上形状才是契约。image content block 的线上
-/// 形状由协议钉死，就这三格。
+/// 两种块都由 SDK 的构造函数造。ImageContent 标了 #[non_exhaustive]，官方随之
+/// 给了 new(data, mime_type) —— 那就是它留的路，不是绕开它的理由。反序列化留给
+/// 真的造不出来的类型，mcp_servers_of 那一处才是。
 ///
-/// 交回 None 只有两种由来，两种都不该被当成一次空轮次发出去：这句话什么都没带，
-/// 或者其中一张图连协议自己都读不成块。
+/// 交回 None 只有一种由来：这句话什么都没带，而协议没有「空提问」。
 fn blocks_of(text: &str, images: Vec<PromptImage>) -> Option<Vec<ContentBlock>> {
     let mut blocks = Vec::with_capacity(images.len().saturating_add(1));
 
@@ -1153,16 +1151,10 @@ fn blocks_of(text: &str, images: Vec<PromptImage>) -> Option<Vec<ContentBlock>> 
     }
 
     for image in images {
-        let block = serde_json::from_value(serde_json::json!({
-            "type": "image",
-            "data": image.data,
-            "mimeType": image.mime_type,
-        }));
-
-        match block {
-            Ok(block) => blocks.push(block),
-            Err(_unreadable) => return None,
-        }
+        blocks.push(ContentBlock::Image(ImageContent::new(
+            image.data,
+            image.mime_type,
+        )));
     }
 
     (!blocks.is_empty()).then_some(blocks)
