@@ -92,6 +92,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "token_usage",
         include_str!("schema/0019_token_usage.sql"),
     ),
+    (
+        20,
+        "index_cleanup",
+        include_str!("schema/0020_index_cleanup.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.

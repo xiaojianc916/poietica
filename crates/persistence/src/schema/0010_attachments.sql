@@ -25,9 +25,8 @@ CREATE TABLE attachments (
 -- 0009),历史由 agent 经 session/load 交还,那份历史里的 id 不归我们发。能由
 -- 两侧独立数出同一个答案的,只有「这是这条对话里第几条用户消息」。
 --
--- 它的失效条件也写在这里:agent 回放时合并或丢掉了某条用户消息,序号会整体
--- 错位。认领方必须先核对「回放到的用户消息条数」与账本里的最大轮次,对不上
--- 就整批不认领 —— 宁可不显示,不许张冠李戴。
+-- 对齐规则的现行版本在 0011:计数覆盖最后 N 条用户消息,认领方从末尾对齐,
+-- 回放条数少于计数时整批放弃 —— 宁可不显示,不许张冠李戴。
 
 CREATE TABLE thread_attachments (
     thread_id TEXT    NOT NULL REFERENCES threads (id),

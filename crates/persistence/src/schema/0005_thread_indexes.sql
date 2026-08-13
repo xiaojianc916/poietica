@@ -1,8 +1,6 @@
--- 两条读路径此前都没有可用的索引。
---
--- 会话列表按 (pinned, updated_at) 取序，会话回放按 (thread_id, started_at, id)
--- 归并 run；两者都只能全表扫再建临时 B-tree 排序，而 updated_at 与 id 都是
--- TEXT，比较本身也贵。索引把排序换成顺序读。
+-- 会话列表按 (pinned, updated_at, id) 取序，会话回放按 (thread_id, started_at, id)
+-- 归并 run；索引与排序同形，排序换成顺序读。
+-- 列表索引取代 0004 的 threads_by_shelf；那份前缀索引当时漏删，由 0020 删。
 --
 -- run_events(run_id, seq) 不在此列：它已有 UNIQUE 约束，SQLite 自带索引。
 
