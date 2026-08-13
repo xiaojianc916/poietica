@@ -14,8 +14,8 @@ use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
     AgentArchiveThreadRequest, AgentForkThreadRequest, AgentOpenThreadRequest, AgentOpenedThread,
-    AgentPinThreadRequest, AgentRenameThreadRequest, AgentThread, AgentThreadRequest,
-    AgentTitleSource, AgentTurnSpan, FALLBACK_THREAD_TITLE, NO_THREAD,
+    AgentPinThreadRequest, AgentRenameThreadRequest, AgentSessionUsage, AgentThread,
+    AgentThreadRequest, AgentTitleSource, AgentTurnSpan, FALLBACK_THREAD_TITLE, NO_THREAD,
 };
 use super::failure::translate;
 use super::kimi_state::sync_kimi_archive_state;
@@ -129,7 +129,15 @@ pub async fn agent_open_thread(
             .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?;
 
         /* 用量在 retitle 之前取走：AgentThread 是列表的形状，不带这一格。 */
-        let usage = recorded_usage(&stored);
+        let usage = match stored.session_id.as_deref() {
+            Some(session) => store
+                .session_usage(session)
+                .map_err(persistence)?
+                .map(reported)
+                .transpose()?,
+            None => None,
+        };
+
         let thread = retitle(stored);
 
         let prompts = store.prompt_count(thread_id).map_err(persistence)?;
@@ -205,17 +213,14 @@ fn retitle(thread: poietica_agent_persistence_native::ThreadSummary) -> AgentThr
     }
 }
 
-/// 账本里这条对话最近记下的用量，读得回来就带上。
-///
-/// 列是 runtime.rs 排空任务原样写入的 ACP 载荷。读不成的行按缺席对待：一行
-/// 坏数据不该拦住打开对话，而缺席本来就有含义 —— 还没报过。
-fn recorded_usage(
-    thread: &poietica_agent_persistence_native::ThreadSummary,
-) -> Option<serde_json::Value> {
-    thread
-        .usage
-        .as_deref()
-        .and_then(|written| serde_json::from_str(written).ok())
+/// 账本里那份读数，收进线上那一格的宽度。
+fn reported(
+    recorded: poietica_agent_persistence_native::SessionUsage,
+) -> Result<AgentSessionUsage> {
+    Ok(AgentSessionUsage {
+        used: counted(recorded.used)?,
+        size: counted(recorded.size)?,
+    })
 }
 
 /// Renames a conversation.

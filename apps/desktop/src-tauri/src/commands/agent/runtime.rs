@@ -6,6 +6,7 @@
 use crate::commands::agent_setup::profile::launch_env;
 use crate::error::{Error, Result};
 use crate::paths::attachments_root;
+use poietica_agent_persistence_native::SessionUsage;
 use poietica_agent_runtime_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, PermissionDesk, Refusal, RunSlot,
     SessionBook, connect,
@@ -15,7 +16,9 @@ use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 
 use super::config::restate;
-use super::dto::{AgentCommandReport, AgentLaunch, AgentSelectorReport, AgentUsageReport};
+use super::dto::{
+    AgentCommandReport, AgentLaunch, AgentSelectorReport, AgentUsageReport, reported_usage,
+};
 use super::failure::translate;
 use super::{AGENT_COMMAND_EVENT, AGENT_SELECTOR_EVENT, AGENT_USAGE_EVENT, NO_SESSION_ID, POISONED};
 
@@ -325,16 +328,26 @@ pub(super) async fn ensure_session(
         let mut usage = usage;
 
         while let Some(report) = usage.next().await {
+            /* 读不成的载荷既进不了账，也不该覆盖屏幕上那一份真话 —— 与命令表
+            同一条规矩。 */
+            let Some(reported) = reported_usage(&report.usage) else {
+                continue;
+            };
+
             /* 先落账本，再上屏。Kimi 只在轮次落定后报一次、装载旧会话时不补报
             （上游 acp-server 的 emitUsageUpdate 只挂在 onTurnEnded 上），所以
-            重启后这一格的唯一来源是账本 —— open 的答复从那一列把它带回去。 */
+            重启后这一格的唯一来源是账本 —— open 的答复从那里把它带回去。 */
             let index = teller.state::<crate::local_index::LocalIndex>();
             let session = report.session_id.clone();
-            let written = report.usage.to_string();
+
+            let counted = SessionUsage {
+                used: i64::from(reported.used),
+                size: i64::from(reported.size),
+            };
 
             let recorded = crate::local_index::on_index(&index, move |store| {
                 store
-                    .record_usage(&session, &written)
+                    .record_usage(&session, counted)
                     .map_err(crate::local_index::persistence)
             })
             .await;
@@ -347,7 +360,7 @@ pub(super) async fn ensure_session(
 
             let payload = AgentUsageReport {
                 session_id: report.session_id,
-                usage: report.usage,
+                usage: reported,
             };
 
             // 渲染层没在听不是错：下一份报告到达时它仍然是最新用量。

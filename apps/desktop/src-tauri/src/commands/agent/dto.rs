@@ -182,21 +182,41 @@ pub struct AgentCommandReport {
     pub commands: Vec<Value>,
 }
 
+/// 一条会话此刻占了多少上下文。
+///
+/// ACP 的 usage_update 报的是仪表值：到达即替换，不是增量。按它算增量的是
+/// 账本（persistence 的 usage.rs），这一格只说现在。
+#[derive(Clone, Copy, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSessionUsage {
+    /// 已占用的 token 数。
+    pub used: u32,
+    /// 上下文窗口总量，token 数。
+    pub size: u32,
+}
+
+/// 读 ACP usage_update 的载荷。这份载荷全程只在这里被解释一次。
+///
+/// 缺字段、或大到这份 IPC 面装不下，都当作没报过：编一个数出来比缺席有害。
+pub(super) fn reported_usage(value: &Value) -> Option<AgentSessionUsage> {
+    let used = u32::try_from(value.get("used")?.as_u64()?).ok()?;
+    let size = u32::try_from(value.get("size")?.as_u64()?).ok()?;
+
+    Some(AgentSessionUsage { used, size })
+}
+
 /// agent 刚报过来的这条会话的上下文用量。
 ///
 /// 与 AgentCommandReport 同一条路、同一个地址：会话号是它唯一带得出的地址，
 /// 反查由渲染层用"开这条会话时是哪条对话"去做。它不出现在任何命令签名里，
 /// 所以不进生成绑定 —— 事件不是命令。
-///
-/// 载荷原样是 ACP usage_update 的线上形状。这一侧不认识它的字段，认识它的是
-/// 读它的那一层（packages/agent-contract 的 usage.ts）。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentUsageReport {
     /// 报这份用量的那条会话。
     pub session_id: String,
     /// 那条会话此刻的上下文用量。
-    pub usage: Value,
+    pub usage: AgentSessionUsage,
 }
 
 /// A change made in the interface.
@@ -377,13 +397,12 @@ pub struct AgentOpenedThread {
     /// 与上面那两格同一个宽度，同一个理由。
     pub prompts: u32,
 
-    /// 这条对话最近一次记下的上下文用量，ACP usage_update 的线上形状。
+    /// 这条对话最近一次记下的上下文用量。
     ///
     /// 来自本地账本，不来自这一次打开：Kimi 只在轮次落定后报一次，装载旧会
     /// 话时不补报（协议建议补报，它没做），所以重启后的第一眼只有账本答得上。
-    /// 缺席就是还没报过。这一侧不认识它的字段 —— 认识它的是契约层的
-    /// usage.ts，与实时那条通道同一个读者。
-    pub usage: Option<Value>,
+    /// 缺席就是还没报过。
+    pub usage: Option<AgentSessionUsage>,
 }
 
 /// A conversation the interface is renaming.

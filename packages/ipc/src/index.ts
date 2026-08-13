@@ -112,6 +112,7 @@ export {
   type SkillStaged,
   stageSkill,
 } from './skills'
+export { readTokenDays, type UsageDay } from './usage'
 export { readWorkbenchSession, writeWorkbenchSession } from './workbench'
 export {
   createProjectlessWorkspace,

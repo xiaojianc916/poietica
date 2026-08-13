@@ -1,5 +1,6 @@
 import type { ThreadsStore } from '@poietica/agent'
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { readTokenDays } from '@poietica/ipc'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { SegmentedControl, type SegmentedOption } from '../surface/segmented-control'
 import { SettingRow, SettingsGroup, SettingsPage } from '../surface/settings-primitives'
 import { ActivityHeatmap } from './activity-heatmap'
@@ -22,27 +23,23 @@ type SpanValue = (typeof SPANS)[number]['value']
 
 const HEATMAP_WEEKS = 26
 
-/** 还没有记账的那几格写它。0 的意思是「没用过」，而事实是「没记过」。 */
+/** 热力图那段日历，也是一次读回来的窗口：概览的两档都落在它里面。 */
+const LEDGER_DAYS = HEATMAP_WEEKS * 7
+
+/** 这一格还没有账可查时写它。0 的意思是「没用过」，而事实是「没记过」。 */
 const UNRECORDED = '—'
 
-/*
- * 每天的 token 账。
- *
- * 本机还没有这本账：对话记录里没有 token 列，agent 也没有在协议里报过用量。所以
- * 这里是一本空账 —— 热力图照常铺出 26 周的日历，只是每一格都是最低档。账本接上
- * 之后把这里换成真的 Map，键是 YYYY-MM-DD 的本地日历日，值是那天的 token 总数，
- * 这一页其余部分一个字都不用改。
- */
-const TOKEN_LEDGER: ReadonlyMap<string, number> = new Map()
+/** 大数要分组，而分组规则是平台的事。 */
+const TOKENS = new Intl.NumberFormat()
 
 interface UsageMetric {
   readonly label: string
   readonly value: string
 }
 
-function metricsOf(overview: ThreadActivity): readonly UsageMetric[] {
+function metricsOf(overview: ThreadActivity, tokens: number | undefined): readonly UsageMetric[] {
   return [
-    { label: 'Token 用量', value: UNRECORDED },
+    { label: 'Token 用量', value: tokens === undefined ? UNRECORDED : TOKENS.format(tokens) },
     { label: '对话数', value: String(overview.threads) },
     { label: '消息数量', value: UNRECORDED },
     { label: '活跃天数', value: String(overview.activeDays) },
@@ -53,6 +50,35 @@ function metricsOf(overview: ThreadActivity): readonly UsageMetric[] {
 
 export interface UsageSettingsProps {
   readonly threads: ThreadsStore
+}
+
+/*
+ * 账本这一侧的读：一次读满热力图那段日历，切时间范围因此不再往原生侧多跑一趟。
+ *
+ * 读不出来就不写出一个数（与「关于」页问版本号同一条规矩）：这一格宁可说
+ * 「没记过」，也不写一个编出来的 0。
+ */
+function useTokenLedger(): ReadonlyMap<string, number> | undefined {
+  const [ledger, setLedger] = useState<ReadonlyMap<string, number>>()
+
+  useEffect(() => {
+    let active = true
+
+    void readTokenDays(LEDGER_DAYS).then(
+      (days) => {
+        if (active) {
+          setLedger(new Map(days.map((day) => [day.day, day.tokens])))
+        }
+      },
+      () => undefined,
+    )
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  return ledger
 }
 
 export function UsageSettings({ threads }: UsageSettingsProps) {
@@ -76,7 +102,18 @@ export function UsageSettings({ threads }: UsageSettingsProps) {
     [active.items, archived.items, span],
   )
 
-  const heatmap = useMemo(() => spread(TOKEN_LEDGER, new Date(), HEATMAP_WEEKS * 7), [])
+  const ledger = useTokenLedger()
+
+  const heatmap = useMemo(() => spread(ledger ?? new Map(), new Date(), LEDGER_DAYS), [ledger])
+
+  /* 概览那一格与热力图读的是同一本账，只是窗口短一些 —— 不另开一条口径。 */
+  const tokens = useMemo(() => {
+    if (ledger === undefined) {
+      return undefined
+    }
+
+    return spread(ledger, new Date(), Number(span)).reduce((sum, day) => sum + day.count, 0)
+  }, [ledger, span])
 
   const failure = active.failure ?? archived.failure
 
@@ -100,7 +137,7 @@ export function UsageSettings({ threads }: UsageSettingsProps) {
         </SettingRow>
 
         <div className="settings-metrics">
-          {metricsOf(overview).map((metric) => (
+          {metricsOf(overview, tokens).map((metric) => (
             <article className="settings-metric" key={metric.label}>
               <p className="settings-metric__label">{metric.label}</p>
 

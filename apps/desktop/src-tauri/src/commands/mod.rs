@@ -13,6 +13,7 @@ pub mod skills;
 pub mod storage;
 pub mod table;
 pub mod updates;
+pub mod usage;
 pub mod window;
 pub mod workbench;
 pub mod workspace;

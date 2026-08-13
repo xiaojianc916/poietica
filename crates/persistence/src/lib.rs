@@ -21,6 +21,7 @@ mod migrations;
 mod store;
 mod threads;
 mod turn_spans;
+mod usage;
 mod workbench;
 
 pub use attachments::ThreadAttachment;
@@ -29,3 +30,4 @@ pub use error::{Result, StoreError};
 pub use store::AgentStore;
 pub use threads::{ThreadSummary, TitleSource};
 pub use turn_spans::TurnSpan;
+pub use usage::{SessionUsage, TokenDay};

@@ -41,7 +41,7 @@ impl AgentStore {
     pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned,
-                    workspace_root, archived_at, usage
+                    workspace_root, archived_at
                FROM threads
               WHERE title_source <> 'fallback'
               ORDER BY pinned DESC, updated_at DESC",
@@ -59,7 +59,6 @@ impl AgentStore {
                     pinned: row.get::<_, i64>(6)? != 0,
                     workspace_root: row.get(7)?,
                     archived_at: row.get(8)?,
-                    usage: row.get(9)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -84,21 +83,6 @@ impl AgentStore {
                 SET session_id = ?2, agent_id = ?3
               WHERE id = ?1",
             rusqlite::params![id.to_string(), session_id, agent_id],
-        )?;
-
-        Ok(())
-    }
-
-    /// 记下这条会话最近报的上下文用量，覆盖式。
-    ///
-    /// 按会话号写：报告来自连接的排空任务，那里只有会话号；号与对话的对应
-    /// 由 attach_session 落库，UPDATE 顺着它找到行。载荷是 ACP usage_update
-    /// 的 JSON 原文，这个 crate 一格都不认识 —— 读它的只有渲染侧契约层一处。
-    /// 影响零行不是错：没被任何对话握着的会话（比如连接的锚会话）报了也就报了。
-    pub fn record_usage(&self, session_id: &str, usage: &str) -> Result<()> {
-        self.write(
-            "UPDATE threads SET usage = ?2 WHERE session_id = ?1",
-            rusqlite::params![session_id, usage],
         )?;
 
         Ok(())
@@ -165,7 +149,7 @@ impl AgentStore {
     pub fn thread(&self, id: Uuid) -> Result<Option<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned,
-                    workspace_root, archived_at, usage
+                    workspace_root, archived_at
                FROM threads
               WHERE id = ?1",
         )?;
@@ -183,7 +167,6 @@ impl AgentStore {
                 pinned: row.get::<_, i64>(6)? != 0,
                 workspace_root: row.get(7)?,
                 archived_at: row.get(8)?,
-                usage: row.get(9)?,
             })),
             None => Ok(None),
         }
@@ -314,6 +297,7 @@ impl AgentStore {
          */
         self.release_attachments(id)?;
         self.release_turn_spans(id)?;
+        self.release_session_usage(id)?;
         self.write(
             "DELETE FROM threads WHERE id = ?1",
             rusqlite::params![id.to_string()],
@@ -440,12 +424,6 @@ pub struct ThreadSummary {
     pub workspace_root: Option<String>,
     /// 归档时间。空表示仍在活动列表中。
     pub archived_at: Option<String>,
-
-    /// 最近一次报过的上下文用量，ACP usage_update 的 JSON 原文。
-    ///
-    /// 空表示从没报过。字段这个 crate 不认识：与「历史由 agent 交还」同一条
-    /// 规矩，认识它的是渲染侧的契约层（usage.ts），这里只负责存与取。
-    pub usage: Option<String>,
 }
 
 /// Where a thread name came from, in the order they outrank each other.

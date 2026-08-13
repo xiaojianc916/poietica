@@ -116,6 +116,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::updates::update_check,
             crate::commands::updates::update_download,
             crate::commands::updates::update_relaunch,
+            crate::commands::usage::usage_token_days,
             crate::commands::storage::storage_data_directory,
             crate::commands::table::table_export,
             crate::commands::workbench::workbench_session_load,

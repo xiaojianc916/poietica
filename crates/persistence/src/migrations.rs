@@ -87,6 +87,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "thread_usage",
         include_str!("schema/0018_thread_usage.sql"),
     ),
+    (
+        19,
+        "token_usage",
+        include_str!("schema/0019_token_usage.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.

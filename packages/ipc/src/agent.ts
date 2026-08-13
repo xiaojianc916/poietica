@@ -8,12 +8,13 @@ import type {
   SessionUsagePort,
   ThreadPort,
 } from '@poietica/agent-contract'
-import { paletteFrom, sessionUsageOf } from '@poietica/agent-contract'
+import { paletteFrom } from '@poietica/agent-contract'
 import type { AgentCommandBridge, AgentEventSource } from './acp-session'
 import { throughIpc } from './error'
 import {
   type AgentConfigChoice,
   type AgentConfigControl,
+  type AgentSessionUsage,
   commands,
   type JsonValue,
 } from './generated/ipc-bindings'
@@ -322,13 +323,13 @@ export function createAgentSessionConfigBridge({
 /*
  * 用量这一路。
  *
- * 原生侧原样转发 ACP 的 usage_update 载荷，读得懂它的是契约层的 sessionUsageOf：
- * 读不成的载荷丢掉，不该覆盖别人已经拿到的那一份。这一层不留副本 —— 它的唯一
- * 消费者是 SessionControlsStore，留第二份就是留第二个事实来源。
+ * 载荷在原生侧就已经解成了类型（commands/agent/dto.rs 的 reported_usage），所以
+ * 这一层没有要校验的东西，形状也没有第二个定义。它不留副本 —— 唯一的消费者是
+ * SessionControlsStore，留第二份就是留第二个事实来源。
  */
 interface AgentUsageEnvelope {
   readonly sessionId: string
-  readonly usage: unknown
+  readonly usage: AgentSessionUsage
 }
 
 export function createAgentSessionUsageBridge({
@@ -339,13 +340,7 @@ export function createAgentSessionUsageBridge({
       subscribeToEvent<AgentUsageEnvelope>(
         AGENT_USAGE_EVENT,
         (payload) => {
-          const usage = sessionUsageOf(payload.usage)
-
-          if (usage === undefined) {
-            return
-          }
-
-          handler({ sessionId: payload.sessionId, usage })
+          handler({ sessionId: payload.sessionId, usage: payload.usage })
         },
         onListenFailure,
       ),
@@ -434,10 +429,6 @@ export function createAgentThreadBridge({
         }),
       )
 
-      /* 账本里的那份用量。线上是原样存的 ACP 载荷，读它的与实时那条通道是
-      同一个读者（sessionUsageOf）；读不成按缺席对待，缺席本来就有含义。 */
-      const usage = sessionUsageOf(opened.usage)
-
       return {
         thread: opened.thread,
         selectors: opened.selectors.map(controlOf),
@@ -450,7 +441,7 @@ export function createAgentThreadBridge({
         attachments: opened.attachments,
         spans: opened.spans,
         prompts: opened.prompts,
-        ...(usage === undefined ? {} : { usage }),
+        ...(opened.usage === null ? {} : { usage: opened.usage }),
       }
     },
 
