@@ -4,8 +4,23 @@
  * 几何在 expressions.ts，逐帧状态在 engine.ts，盒子尺寸归宿主；这里只管上色，
  * 所以换主题不经过 JS，宿主样式表也不需要知道 SVG 内部长什么样。
  *
- * SVG 的 fill 初始值是黑：这一层缺一条规则不是"没上色"，而是"上成纯黑"。
+ * SVG 的 fill 初始值是黑、stroke 初始值是 none：这一层缺一条规则不是"没上色"，
+ * 而是"上成纯黑"或者"直接不见"。
  */
+
+[data-mascot] {
+  /*
+   * 轨道星子：引擎按 var() 引这四个名字，值只在这里给。
+   * 星子是插画颜料，跟粒子那套走——蓝的一颗借品牌色，暖橙与绿沿用彩带
+   * 已有的两支，整张图里不多出第三种橙。
+   */
+  --mascot-star-1: var(--ui-primary);
+  --mascot-star-2: #de9255;
+  --mascot-star-3: #72bc8f;
+
+  /* 描边不是装饰，是星子与页面之间的一道缝，所以取页面底色、跟着主题翻。 */
+  --mascot-halo: var(--ui-background);
+}
 
 [data-mascot] [data-part="body"] {
   fill: var(--ui-primary);
