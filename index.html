@@ -687,8 +687,11 @@
 
         // ===== 场景切换（眨眼掩护 + 基线平滑过渡，无任何重置跳变）=====
         let tourOn = false, tourAt = Number.POSITIVE_INFINITY, tourIdx = 0
+        function shouldSkipScene(name) {
+          return !SCENES[name] || name === sceneName
+        }
         function setScene(name, opts) {
-          if (!SCENES[name] || name === sceneName) { return }
+          if (shouldSkipScene(name)) { return }
           const prev = sceneName
           scene = SCENES[name]; sceneName = name
           document.querySelectorAll('.chip[data-scene]').forEach((c) => {
@@ -826,8 +829,7 @@
           stepParts(dt)
         }
 
-        function render() {
-          // 手势采样
+        function sampleGestureOffsets() {
           let gdy = 0, grot = 0, gsq = 0, gsc = 0, gturn = 0
           for (let i = gestures.length - 1; i >= 0; i--) {
             const g = gestures[i]
@@ -850,6 +852,13 @@
               [() => (g.turn), () => { gturn += g.turn(u) }]
             ])
           }
+          return { gdy, grot, gsq, gsc, gturn }
+        }
+
+        function render() {
+          // 手势采样
+          const { gdy, grot, gsq, gsc, gturn } = sampleGestureOffsets()
+
           // 呼吸/漂浮/摇曳/点头
           const br = Math.sin(ph.breath) * live.breathA
           const dy = Math.sin(ph.bob) * 2.6 * live.bobA + br * 1.1 + Math.sin(ph.nod) * 1.7 * live.nodA + gdy
