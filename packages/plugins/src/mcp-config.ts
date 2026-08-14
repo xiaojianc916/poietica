@@ -118,7 +118,7 @@ export function mcpServerBodyInConfig(
     if (typeof document !== 'object' || document === null) {
       return undefined
     }
-    const servers: unknown = (document as Record<string, unknown>).mcpServers
+    const servers: unknown = (document as Record<string, unknown>)['mcpServers']
     if (typeof servers !== 'object' || servers === null) {
       return undefined
     }

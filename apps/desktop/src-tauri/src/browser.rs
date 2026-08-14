@@ -41,7 +41,7 @@ const PICK_SENTINEL: &str = "https://pick.poietica.invalid/";
 /// 回传走哨兵导航 —— 标签 webview 是外部 origin，结构性无 IPC，这是唯一
 /// 不开新信道、不放宽隔离的回传口。幂等：重复注入是空操作。
 /// 已知边界：iframe 里的元素只拾取到 iframe 本身。
-const PICKER_SCRIPT: &str = r##"(() => {
+const PICKER_SCRIPT: &str = r"(() => {
   if (window.__poieticaPicker) { return; }
   window.__poieticaPicker = true;
   const overlay = document.createElement('div');
@@ -111,7 +111,7 @@ const PICKER_SCRIPT: &str = r##"(() => {
   document.addEventListener('mousemove', onMove, true);
   document.addEventListener('click', onClick, true);
   document.addEventListener('keydown', onKey, true);
-})();"##;
+})();";
 
 /// 面板视口在主窗口客户区里的逻辑坐标。渲染层量 DOM，这里只收数。
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, specta::Type)]

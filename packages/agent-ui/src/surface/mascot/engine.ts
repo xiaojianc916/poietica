@@ -933,28 +933,29 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     blinkAnim = { t0: tNow, kind, again }
   }
 
-  const openness = (): number => {
-    let o = 1
-    if (blinkAnim !== null) {
-      const k = blinkAnim.kind
-      const dur = k === 'sleepy' ? 0.78 : k === 'soft' ? 0.26 : 0.16
-      const u = (tNow - blinkAnim.t0) / dur
-      if (u >= 1) {
-        blinkAnim = blinkAnim.again ? { t0: tNow + 0.09, kind: k, again: false } : null
-      } else if (u >= 0) {
-        if (k === 'sleepy') {
-          o =
-            u < 0.3
-              ? 1 - easeIO(u / 0.3) * 0.95
-              : u < 0.62
-                ? 0.05
-                : 0.05 + easeOut((u - 0.62) / 0.38) * 0.95
-        } else {
-          o = u < 0.4 ? 1 - easeIO(u / 0.4) * 0.95 : 0.05 + easeOut((u - 0.4) / 0.6) * 0.99
-        }
+  const sampleBlink = (kind: BlinkKind, u: number): number => {
+    if (kind === 'sleepy') {
+      if (u < 0.3) {
+        return 1 - easeIO(u / 0.3) * 0.95
       }
+      return u < 0.62 ? 0.05 : 0.05 + easeOut((u - 0.62) / 0.38) * 0.95
     }
-    return clamp(o, 0.03, 1.04) * clamp(sp.open.x, 0, 1.04)
+    return u < 0.4 ? 1 - easeIO(u / 0.4) * 0.95 : 0.05 + easeOut((u - 0.4) / 0.6) * 0.99
+  }
+
+  const openness = (): number => {
+    if (blinkAnim === null) {
+      return clamp(sp.open.x, 0, 1.04)
+    }
+    const { kind, again, t0 } = blinkAnim
+    const duration = kind === 'sleepy' ? 0.78 : kind === 'soft' ? 0.26 : 0.16
+    const u = (tNow - t0) / duration
+    if (u >= 1) {
+      blinkAnim = again ? { t0: tNow + 0.09, kind, again: false } : null
+      return clamp(sp.open.x, 0, 1.04)
+    }
+    const value = u < 0 ? 1 : sampleBlink(kind, u)
+    return clamp(value, 0.03, 1.04) * clamp(sp.open.x, 0, 1.04)
   }
 
   /* ===== 眨单眼。 ===== */
@@ -988,33 +989,34 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
   let scene: SceneSpec = SCENES.idle
   let sceneName: SceneName | null = null
 
-  function retargetGaze() {
-    const g = scene.gaze
-    const ax = g.ax ?? 0.5
-    const ay = g.ay ?? 0.35
-    const ox = g.ox ?? 0
-    const oy = g.oy ?? 0
-    if (g.mode === 'wander') {
-      gazeT =
-        Math.random() < 0.14
+  const gazeTargetFor = (mode: GazeMode, ax: number, ay: number, ox: number, oy: number) => {
+    switch (mode) {
+      case 'wander':
+        return Math.random() < 0.14
           ? { x: 0, y: -0.05 }
           : { x: rand(-1, 1) * ax + ox, y: rand(-1, 1) * ay + oy }
-    } else if (g.mode === 'read') {
-      readCol += rand(0.28, 0.42)
-      if (readCol > 0.6) {
-        readCol = -0.55
+      case 'read': {
+        const nextColumn = readCol + rand(0.28, 0.42)
+        readCol = nextColumn > 0.6 ? -0.55 : nextColumn
+        return { x: readCol, y: oy + rand(-0.05, 0.1) }
       }
-      gazeT = { x: readCol, y: oy + rand(-0.05, 0.1) }
-    } else if (g.mode === 'upthink') {
-      thinkSide *= -1
-      gazeT = { x: thinkSide * rand(0.35, 0.6), y: -rand(0.45, 0.75) }
-    } else if (g.mode === 'away') {
-      gazeT = { x: 0.45 + rand(0, 0.18), y: 0.28 + rand(0, 0.15) }
-    } else if (g.mode === 'down') {
-      gazeT = { x: rand(-0.15, 0.15), y: 0.5 + rand(0, 0.12) }
-    } else if (g.mode === 'watch') {
-      gazeT = { x: rand(-0.12, 0.12), y: rand(-0.1, 0.08) }
+      case 'upthink':
+        thinkSide *= -1
+        return { x: thinkSide * rand(0.35, 0.6), y: -rand(0.45, 0.75) }
+      case 'away':
+        return { x: 0.45 + rand(0, 0.18), y: 0.28 + rand(0, 0.15) }
+      case 'down':
+        return { x: rand(-0.15, 0.15), y: 0.5 + rand(0, 0.12) }
+      case 'watch':
+        return { x: rand(-0.12, 0.12), y: rand(-0.1, 0.08) }
+      case 'circle':
+        return gazeT
     }
+  }
+
+  function retargetGaze() {
+    const g = scene.gaze
+    gazeT = gazeTargetFor(g.mode, g.ax ?? 0.5, g.ay ?? 0.35, g.ox ?? 0, g.oy ?? 0)
     nextGaze = tNow + rand(g.every[0], g.every[1]) / 1000
   }
 
@@ -1213,65 +1215,76 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
   let tourAt = Number.POSITIVE_INFINITY
   let tourIdx = 0
 
+  const configureSceneSprings = () => {
+    const phys = scene.phys ?? {}
+    const headFrequency = phys.hf ?? 4.2
+    sp.turn.t = scene.turnB ?? 0
+    sp.es.t = scene.es ?? 1
+    sp.sc.t = scene.scale ?? 1
+    sp.morph.f = phys.mf ?? scene.tempo
+    sp.morph.z = phys.mz ?? 0.92
+    sp.hx.f = headFrequency
+    sp.hy.f = headFrequency
+    sp.hx.z = phys.hz ?? 0.88
+    sp.hy.z = phys.hz ?? 0.88
+    sp.hr.f = headFrequency * 1.15
+    sp.hr.z = phys.hz ?? 0.8
+    sp.gx.f = phys.gf ?? 7
+    sp.gy.f = phys.gf ?? 7
+  }
+
+  const scheduleScene = () => {
+    nextExpr = tNow + (rand(scene.expr[0], scene.expr[1]) * 0.45) / 1000
+    nextBlink = tNow + (rand(scene.blink[0], scene.blink[1]) * 0.5) / 1000
+    nextGaze = tNow + 0.05
+    nextMicro = scene.micro
+      ? tNow + (rand(scene.micro.every[0], scene.micro.every[1]) * 0.6) / 1000
+      : Number.POSITIVE_INFINITY
+    esSoftAt = Number.POSITIVE_INFINITY
+  }
+
   function setScene(name: SceneName, opts?: { silent?: boolean }) {
     if (name === sceneName) {
       return
     }
     const prev = sceneName
+    const silent = opts?.silent === true
     scene = SCENES[name]
     sceneName = name
-    const silent = opts?.silent === true
-    sp.turn.t = scene.turnB ?? 0
-    sp.es.t = scene.es ?? 1
-    sp.sc.t = scene.scale ?? 1
-    const phys = scene.phys ?? {}
-    sp.morph.f = phys.mf ?? scene.tempo
-    sp.morph.z = phys.mz ?? 0.92
-    sp.hx.f = phys.hf ?? 4.2
-    sp.hy.f = phys.hf ?? 4.2
-    sp.hx.z = phys.hz ?? 0.88
-    sp.hy.z = phys.hz ?? 0.88
-    sp.hr.f = (phys.hf ?? 4.2) * 1.15
-    sp.hr.z = phys.hz ?? 0.8
-    sp.gx.f = phys.gf ?? 7
-    sp.gy.f = phys.gf ?? 7
-    nextExpr = tNow + (rand(scene.expr[0], scene.expr[1]) * 0.45) / 1000
-    nextBlink = tNow + (rand(scene.blink[0], scene.blink[1]) * 0.5) / 1000
-    nextGaze = tNow + 0.05
-    nextMicro =
-      scene.micro !== undefined
-        ? tNow + (rand(scene.micro.every[0], scene.micro.every[1]) * 0.6) / 1000
-        : Number.POSITIVE_INFINITY
-    esSoftAt = Number.POSITIVE_INFINITY
+    configureSceneSprings()
+    scheduleScene()
     setExpression(pick(scene.pool))
     if (prev !== null && !silent) {
       blink(scene.bKind === 'sleepy' ? 'soft' : 'quick')
     }
-    if (prev === 'loading') {
-      flourishAt = tNow + 0.18
-    }
-    if (scene.enter !== undefined && !RM && !silent) {
+    flourishAt = prev === 'loading' ? tNow + 0.18 : flourishAt
+    if (scene.enter && !RM && !silent) {
       scene.enter()
     }
   }
 
   /* ===== 主循环：step 写逻辑，render 落绘制。 ===== */
-  function step(dt: number) {
-    const bl = (key: keyof typeof live, target: number) => {
+  const stepOscillators = (dt: number) => {
+    const blend = (key: keyof typeof live, target: number) => {
       live[key] += (target - live[key]) * Math.min(1, 3.2 * dt)
     }
-    bl('breathA', scene.breath[0] * AMP)
-    bl('breathHz', scene.breath[1])
-    bl('bobA', scene.bob[0] * AMP)
-    bl('bobHz', scene.bob[1])
-    bl('swayA', scene.sway[0] * AMP)
-    bl('swayHz', scene.sway[1])
-    bl('nodA', scene.nod[0] * AMP)
-    bl('nodHz', scene.nod[1])
-    bl('dots', scene.dots ?? 0)
-    bl('blush', scene.blush ?? 0)
-    bl('droop', scene.droop ?? 1)
-    bl('mw', scene.mw)
+    const targets: Array<[keyof typeof live, number]> = [
+      ['breathA', scene.breath[0] * AMP],
+      ['breathHz', scene.breath[1]],
+      ['bobA', scene.bob[0] * AMP],
+      ['bobHz', scene.bob[1]],
+      ['swayA', scene.sway[0] * AMP],
+      ['swayHz', scene.sway[1]],
+      ['nodA', scene.nod[0] * AMP],
+      ['nodHz', scene.nod[1]],
+      ['dots', scene.dots ?? 0],
+      ['blush', scene.blush ?? 0],
+      ['droop', scene.droop ?? 1],
+      ['mw', scene.mw],
+    ]
+    for (const [key, target] of targets) {
+      blend(key, target)
+    }
     scene.tick?.(dt)
     ph.breath += TAU * live.breathHz * dt
     ph.bob += TAU * live.bobHz * dt
@@ -1279,10 +1292,12 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     ph.nod += TAU * live.nodHz * dt
     ph.orbit +=
       TAU * (sceneName === 'loading' ? 0.55 : 0.3) * (1 + 0.16 * Math.sin((tNow * TAU) / 4.6)) * dt
+  }
 
+  const stepAutonomy = () => {
     if (tNow > nextExpr) {
-      const cand = scene.pool.filter((i) => i !== exprIndex)
-      setExpression(cand.length > 0 ? pick(cand) : (scene.pool[0] ?? 0))
+      const candidates = scene.pool.filter((i) => i !== exprIndex)
+      setExpression(candidates.length > 0 ? pick(candidates) : (scene.pool[0] ?? 0))
       nextExpr = tNow + rand(scene.expr[0], scene.expr[1]) / 1000
     }
     if (tNow > nextBlink && blinkAnim === null) {
@@ -1292,10 +1307,13 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
     if (tNow > nextGaze) {
       retargetGaze()
     }
-    if (tNow > nextMicro && scene.micro !== undefined) {
+    if (tNow > nextMicro && scene.micro) {
       scene.micro.run()
       nextMicro = tNow + rand(scene.micro.every[0], scene.micro.every[1]) / 1000
     }
+  }
+
+  const stepScheduledActions = () => {
     if (tNow > burstAt) {
       burstAt = Number.POSITIVE_INFINITY
       burst(burstN, burstKind)
@@ -1324,124 +1342,126 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
       sp.es.x = (scene.es ?? 1) * 1.14
       burst(6, 'sparkle')
     }
+  }
+
+  const stepSequence = () => {
     if (tNow > tourAt) {
       tourIdx = (tourIdx + 1) % TOUR.length
       const next = TOUR[tourIdx]
-      if (next !== undefined) {
+      if (next) {
         setScene(next)
       }
       tourAt = tNow + 5.2
     }
     const introStep = intro[0]
-    if (introStep !== undefined && tNow > introStep[0]) {
+    if (introStep && tNow > introStep[0]) {
       intro.shift()
       introStep[1]()
     }
+  }
 
-    /* 微颤视线：扫视时的小跳动。 */
+  const stepGaze = (dt: number) => {
     const mode = scene.gaze.mode
-    if ((mode === 'wander' || mode === 'read') && Math.random() < dt * 0.35) {
+    const canJitter = mode === 'wander' || mode === 'read'
+    if (canJitter && Math.random() < dt * 0.35) {
       gazeT = {
         x: clamp(gazeT.x + rand(-0.06, 0.06), -1, 1),
         y: clamp(gazeT.y + rand(-0.04, 0.04), -1, 1),
       }
     }
-
-    let auto = gazeT
-    if (mode === 'circle') {
-      auto = { x: Math.cos(ph.orbit) * 0.55, y: Math.sin(ph.orbit) * 0.4 - 0.08 }
-    }
+    const auto =
+      mode === 'circle'
+        ? { x: Math.cos(ph.orbit) * 0.55, y: Math.sin(ph.orbit) * 0.4 - 0.08 }
+        : gazeT
     const recent = clamp(1 - (tNow - pointer.at) / 2.5, 0, 1)
-    const w = follow ? live.mw * recent : 0
-    sp.gx.t = lerp(auto.x, pointer.x, w)
-    sp.gy.t = lerp(auto.y, pointer.y, w)
-
-    /* 眼睛先动，头部慢半拍跟随。 */
+    const weight = follow ? live.mw * recent : 0
+    sp.gx.t = lerp(auto.x, pointer.x, weight)
+    sp.gy.t = lerp(auto.y, pointer.y, weight)
     sp.hx.t = sp.gx.x * 6.2
     sp.hy.t = (scene.y ?? 0) + sp.gy.x * 3.6
     sp.hr.t = (scene.rotB ?? 0) + sp.gx.x * 3.4
     sp.turn.t = (scene.turnB ?? 0) + sp.gx.x * 0.12
+  }
 
+  function step(dt: number) {
+    stepOscillators(dt)
+    stepAutonomy()
+    stepScheduledActions()
+    stepSequence()
+    stepGaze(dt)
     for (const spring of Object.values(sp)) {
       spring.step(dt)
     }
     stepParts(dt)
   }
 
+  type GestureOffset = 'dy' | 'rot' | 'sq' | 'sc' | 'turn'
+  const sampleGesture = (gesture: Gesture, key: GestureOffset, u: number) => gesture[key]?.(u) ?? 0
+
   const sampleGestureOffsets = () => {
-    let gdy = 0
-    let grot = 0
-    let gsq = 0
-    let gsc = 0
-    let gturn = 0
+    const offsets = { dy: 0, rot: 0, sq: 0, sc: 0, turn: 0 }
+    const keys = Object.keys(offsets) as GestureOffset[]
     for (let i = gestures.length - 1; i >= 0; i--) {
-      const g = gestures[i]
-      if (g === undefined) {
+      const gesture = gestures[i]
+      if (!gesture) {
         continue
       }
-      const u = (tNow - g.t0) / g.dur
+      const u = (tNow - gesture.t0) / gesture.dur
       if (u >= 1) {
         gestures.splice(i, 1)
         continue
       }
-      if (u < 0) {
-        continue
-      }
-      if (g.dy !== undefined) {
-        gdy += g.dy(u)
-      }
-      if (g.rot !== undefined) {
-        grot += g.rot(u)
-      }
-      if (g.sq !== undefined) {
-        gsq += g.sq(u)
-      }
-      if (g.sc !== undefined) {
-        gsc += g.sc(u)
-      }
-      if (g.turn !== undefined) {
-        gturn += g.turn(u)
+      if (u >= 0) {
+        for (const key of keys) {
+          offsets[key] += sampleGesture(gesture, key, u)
+        }
       }
     }
-    return { gdy, grot, gsq, gsc, gturn }
+    return {
+      gdy: offsets.dy,
+      grot: offsets.rot,
+      gsq: offsets.sq,
+      gsc: offsets.sc,
+      gturn: offsets.turn,
+    }
   }
 
-  function render() {
-    const { gdy, grot, gsq, gsc, gturn } = sampleGestureOffsets()
+  type RenderPose = { x: number; y: number; scale: number; turn: number }
 
-    /* 呼吸/漂浮/摇曳/点头。 */
-    const br = Math.sin(ph.breath) * live.breathA
+  const renderPose = (): RenderPose => {
+    const { gdy, grot, gsq, gsc, gturn } = sampleGestureOffsets()
+    const breath = Math.sin(ph.breath) * live.breathA
     const dy =
-      Math.sin(ph.bob) * 2.6 * live.bobA + br * 1.1 + Math.sin(ph.nod) * 1.7 * live.nodA + gdy
-    const rot = Math.sin(ph.sway) * 1.35 * live.swayA + sp.hr.x + grot
-    const sq = gsq + sp.press.x
-    const S = sp.sc.x + gsc
-    const sxF = S * (1 - sq * 0.85) * (1 - br * 0.005)
-    const syF = S * (1 + sq) * (1 + br * 0.011)
+      Math.sin(ph.bob) * 2.6 * live.bobA + breath * 1.1 + Math.sin(ph.nod) * 1.7 * live.nodA + gdy
+    const rotation = Math.sin(ph.sway) * 1.35 * live.swayA + sp.hr.x + grot
+    const squash = gsq + sp.press.x
+    const scale = sp.sc.x + gsc
+    const scaleX = scale * (1 - squash * 0.85) * (1 - breath * 0.005)
+    const scaleY = scale * (1 + squash) * (1 + breath * 0.011)
     const x = CX + sp.hx.x
     const y = CY + sp.hy.x + dy
     setAttr(
       rig,
       'transform',
-      `translate(${x} ${y}) rotate(${rot}) scale(${sxF} ${syF}) translate(${-CX} ${-CY})`,
+      `translate(${x} ${y}) rotate(${rotation}) scale(${scaleX} ${scaleY}) translate(${-CX} ${-CY})`,
     )
-
-    /* 地面阴影：跟随跳跃收缩、变淡。 */
     const lift = Math.max(0, -(sp.hy.x + dy - (scene.y ?? 0)))
-    const shS = clamp(1 - lift / 140, 0.5, 1.2) * S
+    const shadowScale = clamp(1 - lift / 140, 0.5, 1.2) * scale
     setAttr(shadowEl, 'cx', CX + sp.hx.x * 0.85)
-    setAttr(shadowEl, 'rx', 74 * shS)
-    setAttr(shadowEl, 'ry', 10 * shS)
+    setAttr(shadowEl, 'rx', 74 * shadowScale)
+    setAttr(shadowEl, 'ry', 10 * shadowScale)
     setAttr(shadowEl, 'opacity', (0.16 * clamp(1 - lift / 120, 0.35, 1)).toFixed(3))
-
     setAttr(blushEl, 'opacity', (live.blush * 0.6).toFixed(3))
+    return { x, y, scale, turn: gturn }
+  }
 
+  const renderEyes = (gestureTurn: number) => {
     /* 眼睛：球面投影 + 眨眼/垂目/放大。 */
     const morphMoving = Math.abs(sp.morph.x - sp.morph.t) > 0.0008 || Math.abs(sp.morph.v) > 0.004
     const rings = currentRings()
     const eyeInfo: Array<{ y: number; bl: number; ta: number } | null> = [null, null]
     const open = openness()
-    const turnAll = sp.turn.x + gturn
+    const turnAll = sp.turn.x + gestureTurn
     const gxU = sp.gx.x * 13.2
     const gyU = sp.gy.x * 8.4
     const wk = 1 + clamp((Math.abs(sp.gx.v) + Math.abs(sp.gy.v)) * 0.05, 0, 0.07)
@@ -1484,32 +1504,43 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
       eyeInfo[i] = { y: ey, bl: baseLong, ta: turnAll }
     }
     pathDirty = morphMoving
+    return eyeInfo
+  }
 
-    /* 腮红固定在脸颊经线上，随球面转头投影，不滑出脸缘。 */
-    if (live.blush > 0.01) {
-      for (const [i, blush] of blushEls.entries()) {
-        const e = eyeInfo[i]
-        if (e === null || e === undefined) {
-          continue
-        }
-        const side = e.bl >= 0 ? 1 : -1
-        const bBase = e.bl + side * 0.16
-        const bLong = bBase + e.ta
-        const bd = Math.cos(bLong)
-        const bp = Math.max(bd, 0.02) / Math.max(Math.cos(bBase), 0.02)
-        const bx = CX + R * 0.94 * Math.sin(bLong)
-        setAttr(
-          blush,
-          'transform',
-          `translate(${bx.toFixed(2)} ${(e.y + 33).toFixed(2)}) scale(${Math.max(bp * 0.9, 0.05).toFixed(3)} 1)`,
-        )
-        blush.style.opacity = clamp((bd - 0.1) / 0.32, 0, 1).toFixed(3)
-      }
+  type EyeRenderInfo = Array<{ y: number; bl: number; ta: number } | null>
+  const renderBlush = (eyeInfo: EyeRenderInfo) => {
+    if (live.blush <= 0.01) {
+      return
     }
+    for (const [i, blush] of blushEls.entries()) {
+      const eye = eyeInfo[i]
+      if (!eye) {
+        continue
+      }
+      const side = eye.bl >= 0 ? 1 : -1
+      const base = eye.bl + side * 0.16
+      const longitude = base + eye.ta
+      const depth = Math.cos(longitude)
+      const perspective = Math.max(depth, 0.02) / Math.max(Math.cos(base), 0.02)
+      const x = CX + R * 0.94 * Math.sin(longitude)
+      setAttr(
+        blush,
+        'transform',
+        `translate(${x.toFixed(2)} ${(eye.y + 33).toFixed(2)}) scale(${Math.max(perspective * 0.9, 0.05).toFixed(3)} 1)`,
+      )
+      blush.style.opacity = clamp((depth - 0.1) / 0.32, 0, 1).toFixed(3)
+    }
+  }
 
-    /* 轨道星子：倾斜轨道面 + 星形头自旋 + 彗尾拖影（前/后景深）。 */
+  const hideOrbiters = () => {
+    for (const orbiter of orbiters) {
+      orbiter.g.style.opacity = '0'
+    }
+  }
+
+  const renderOrbiters = ({ x, y, scale }: RenderPose) => {
     if (live.dots > 0.01) {
-      const orx = 141 * S
+      const orx = 141 * scale
       const ory = 44
       const ct = 0.988
       const st = -0.156
@@ -1542,10 +1573,15 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
         }
       }
     } else {
-      for (const o of orbiters) {
-        o.g.style.opacity = '0'
-      }
+      hideOrbiters()
     }
+  }
+
+  function render() {
+    const pose = renderPose()
+    const eyeInfo = renderEyes(pose.turn)
+    renderBlush(eyeInfo)
+    renderOrbiters(pose)
   }
 
   /* ===== 互动。 ===== */

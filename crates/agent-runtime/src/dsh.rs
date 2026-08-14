@@ -160,18 +160,12 @@ pub enum Notification {
 }
 
 /// 编握手请求成一行（含行尾换行）。
-pub fn initialize_line(
-    id: &str,
-    params: &InitializeParams,
-) -> Result<String, serde_json::Error> {
+pub fn initialize_line(id: &str, params: &InitializeParams) -> Result<String, serde_json::Error> {
     request_line(id, INITIALIZE, params)
 }
 
 /// 编一轮提问成一行。
-pub fn prompt_line(
-    id: &str,
-    params: &SessionPromptParams,
-) -> Result<String, serde_json::Error> {
+pub fn prompt_line(id: &str, params: &SessionPromptParams) -> Result<String, serde_json::Error> {
     request_line(id, SESSION_PROMPT, params)
 }
 
@@ -301,7 +295,10 @@ fn notification_of(method: &str, params: Option<&Value>) -> Notification {
 mod tests {
     #![allow(clippy::expect_used, reason = "测试里的意外就该当场炸出来")]
     #![allow(clippy::panic, reason = "同上")]
-    #![allow(clippy::indexing_slicing, reason = "测试里索引缺失即 panic，正合断言之意")]
+    #![allow(
+        clippy::indexing_slicing,
+        reason = "测试里索引缺失即 panic，正合断言之意"
+    )]
 
     use serde_json::json;
 

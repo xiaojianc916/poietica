@@ -2,7 +2,16 @@ import type { RunEvent } from '@poietica/agent-contract'
 import { apply, surelyIgnored } from './acp-projection'
 import type { MessageImage, TimelineState } from './timeline-contract'
 import type { Draft } from './timeline-draft'
-import { beginRun, draftOf, freeze, namespace, openSegment, push } from './timeline-draft'
+import {
+  beginQuestion,
+  beginRun,
+  draftOf,
+  freeze,
+  namespace,
+  openSegment,
+  push,
+  pushBeforeRun,
+} from './timeline-draft'
 
 /**
  * The timeline reducer.
@@ -187,7 +196,8 @@ export function appendUserMessage(
    * 就是这样）正好满足：items 长度 1，seq 也是 1。撞出来的后果是虚拟列表拿到重复
    * key，行复用错乱。
    */
-  push(draft, {
+  beginQuestion(draft)
+  pushBeforeRun(draft, {
     type: 'user_message',
     id: `${namespace(draft)}local-said-${String(draft.items.length)}`,
     turn: draft.runIndex,

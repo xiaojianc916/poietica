@@ -63,7 +63,12 @@ impl Tabs {
 
         let loading = url.is_some();
 
-        self.entries.push(Tab { id, url, title, loading });
+        self.entries.push(Tab {
+            id,
+            url,
+            title,
+            loading,
+        });
         self.active = Some(id);
 
         id

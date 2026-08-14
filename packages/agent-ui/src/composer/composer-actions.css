@@ -134,7 +134,7 @@
   --chip-wash: calc(var(--cp-pill-wash) * 2);
 }
 
-.assistant-mode-chip > svg {
+[data-assistant-skin] .assistant-mode-chip > svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
   flex: none;

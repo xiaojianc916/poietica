@@ -113,6 +113,5 @@ export {
   EMPTY_SNAPSHOT,
   type ExtensionSnapshot,
   type SnapshotCache,
-  type SnapshotCacheOptions,
 } from './registry/snapshot'
 export { PluginsSurface, type PluginsSurfaceProps } from './surface/plugins-surface'

@@ -153,11 +153,27 @@ const AGENT_FRAME: ReadonlySet<TimelineItem['type']> = new Set([
 
 /** 追加一条：末尾那段说到这里为止，新的一条排在它后面。 */
 export function push(draft: Draft, item: TimelineItem): void {
-  sealTail(draft)
   openSpan(draft)
+  append(draft, item)
+  markFirstFrame(draft, item)
+}
+
+/**
+ * Appends a local question before its run has produced a frame.
+ *
+ * A span records a run observed in the event log. Merely committing a local
+ * question must not manufacture one: the subsequent run_started frame creates
+ * and timestamps it, while a question whose run never started remains outside
+ * the span ledger.
+ */
+export function pushBeforeRun(draft: Draft, item: TimelineItem): void {
+  append(draft, item)
+}
+
+function append(draft: Draft, item: TimelineItem): void {
+  sealTail(draft)
   draft.items.push(item)
   draft.index?.set(item.id, draft.items.length - 1)
-  markFirstFrame(draft, item)
 }
 
 /**

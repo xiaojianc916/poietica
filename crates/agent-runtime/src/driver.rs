@@ -162,7 +162,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     let (events, session_events) = mpsc::unbounded::<SessionEvent>();
     /* 入站：选择器表要落进主循环私有的那张表，所以它经这条专用通道交给持有者。
     命令表与用量没有持有者，从通知处理器直接进出口。命令流只承载命令。 */
-    let (notices, noticed) = mpsc::unbounded::<SessionEvent>();
+    let (notice_sender, notice_receiver) = mpsc::unbounded::<SessionEvent>();
     let (ready, handshake) = oneshot::channel::<Result<Handshake>>();
 
     // One book per connection. The handlers live as long as the connection
@@ -173,7 +173,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     let first = book.clone();
     let ledger = book.clone();
     let waiting = desk.clone();
-    let reported = notices;
+    let reported = notice_sender;
     let listed = events.clone();
     let metered = events.clone();
 
@@ -286,7 +286,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             )
             .connect_with(agent, move |connection: ConnectionTo<Agent>| async move {
                 let mut receiver = receiver;
-                let mut noticed = noticed;
+                let mut notice_receiver = notice_receiver;
 
                 /* 握手为什么没成，只有这里知道，所以失败要带着原因回去，
                 而不是靠丢掉发送端换来一个空的 Canceled。agent 声明的装载能力
@@ -417,7 +417,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             message = receiver.next() => Step::Asked(message),
                             /* 通道合上时它自报终止，select! 不再轮询它 —— 所以
                             这里的 None 不是一个可达的关停信号。 */
-                            notice = noticed.next() => match notice {
+                            notice = notice_receiver.next() => match notice {
                                 Some(event) => Step::Noticed(event),
                                 None => Step::Settled(Settled::Done),
                             },

@@ -541,7 +541,7 @@ function withPrompt(
   /* 缺席与空串在这里是同一件事：都表示这一帧没有带来一句要显示的话。 */
   const prompt = saidByUser(event.prompt ?? '')
 
-  if (prompt.length === 0 || saidAtTail(draft)) {
+  if (prompt.length === 0 || saidAtTail(draft) || adoptQueuedPrompt(draft, prompt)) {
     return
   }
 
@@ -561,6 +561,41 @@ function saidAtTail(draft: Draft): boolean {
   const tail = draft.items.at(-1)
 
   return tail?.type === 'user_message' && tail.turn === draft.runIndex
+}
+
+/**
+ * Claims a question queued while the preceding run was still producing output.
+ *
+ * That local message deliberately keeps the old turn until run_started opens
+ * the next sequence window. Once the frame arrives, matching the exact prompt
+ * is safe: only local messages from the immediately preceding turn are
+ * candidates, and the newest unmatched one wins.
+ */
+function adoptQueuedPrompt(draft: Draft, prompt: string): boolean {
+  for (let position = draft.items.length - 1; position >= 0; position--) {
+    const item = draft.items[position]
+
+    if (item?.type !== 'user_message' || !item.id.includes('local-said-')) {
+      continue
+    }
+    if (item.turn >= draft.runIndex || item.text !== prompt) {
+      return false
+    }
+
+    const adopted: UserMessageItem = {
+      ...item,
+      id: `${namespace(draft)}said-${String(draft.lastSeq)}`,
+      turn: draft.runIndex,
+    }
+    draft.items[position] = adopted
+    draft.index?.delete(item.id)
+    draft.index?.set(adopted.id, position)
+    beginQuestion(draft)
+
+    return true
+  }
+
+  return false
 }
 
 /**

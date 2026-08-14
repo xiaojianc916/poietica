@@ -105,7 +105,13 @@ impl AgentStore {
     /// # Errors
     ///
     /// 源对话不存在，或写入被拒时返回错误。
-    pub fn fork_thread(&self, source: Uuid, title: &str, session_id: &str, agent_id: &str) -> Result<Uuid> {
+    pub fn fork_thread(
+        &self,
+        source: Uuid,
+        title: &str,
+        session_id: &str,
+        agent_id: &str,
+    ) -> Result<Uuid> {
         let id = Uuid::now_v7();
         let timestamp = now()?;
 

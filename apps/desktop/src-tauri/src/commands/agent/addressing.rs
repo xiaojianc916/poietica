@@ -119,7 +119,7 @@ pub(super) async fn session_for(
     /* 旧号先抄一份。往下若真的换了号，库里这一行一改指新号，旧号就再没有
     任何人引用 —— 而它在 agent 的存档里还占着一整条会话。号与主人成对（迁
     移 0012 的触发器），所以 zip 折不掉一笔真实的账。 */
-    let stale = session_id.clone().zip(owner.clone());
+    let previous_session = session_id.clone().zip(owner.clone());
 
     if let Some(session_id) = session_id {
         /* 本次连接开出来的号，agent 此刻就认得它。
@@ -252,7 +252,7 @@ pub(super) async fn session_for(
     力、送达被拒）进处置账，由下一次对上那个 agent 的连接冲销（runtime.rs
     的 record_and_flush_disposals）。记账失败只写日志：打开对话是人此刻要
     的事，一笔没记上的账最坏的结果是一个目录多活到手动清理。 */
-    if let Some((stale_id, stale_owner)) = stale
+    if let Some((stale_id, stale_owner)) = previous_session
         && lost.is_some()
     {
         let owed = if stale_owner == live.agent_id

@@ -469,9 +469,11 @@ pub async fn agent_fork_thread(
         return Err(Error::Validation(NO_FORK.to_owned()).into());
     };
 
-    let stored = on_index(&index, move |store| store.thread(source).map_err(persistence))
-        .await?
-        .ok_or_else(|| Error::Validation(NOTHING_TO_FORK.to_owned()))?;
+    let stored = on_index(&index, move |store| {
+        store.thread(source).map_err(persistence)
+    })
+    .await?
+    .ok_or_else(|| Error::Validation(NOTHING_TO_FORK.to_owned()))?;
 
     /* 号与主人成对（迁移 0012），对不上当前连接的 agent 就不发：会话号活
     在各自 agent 的命名空间里。 */
