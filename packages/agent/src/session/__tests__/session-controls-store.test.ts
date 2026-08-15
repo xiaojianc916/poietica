@@ -56,8 +56,6 @@ const opened = (selectors: readonly SessionConfigControl[]): OpenedThread => ({
   selectors,
   events: [],
   history: { state: 'fresh' },
-  attachments: [],
-  prompts: 0,
 })
 
 /* 让已经兑现的那些 then 跑完。这里没有计时器，所以不需要假时钟。 */

@@ -42,9 +42,11 @@ describe('ipc session', () => {
     expect(received.at(0)?.[1]).toBe('sess_1')
   })
 
-  it('prompt 把原生侧给的会话号与图片地址原样交回，一格都不吞', async () => {
+  it('prompt 把原生侧给的会话号原样交回；图片改由 run_started 帧走', async () => {
     const session = createIpcSession({
       bridge: {
+        /* 原生侧答复里就算带着地址，这一层也不再从 handle 走：地址随这一轮的
+           run_started 帧回来（见 frame.rs 的 RunStarted），与那句话的文字同一条路。 */
         prompt: () => Promise.resolve({ sessionId: 'sess_2', images: [DELIVERED] }),
         cancel: () => Promise.resolve(),
         resolvePermission: () => Promise.resolve(),
@@ -52,11 +54,8 @@ describe('ipc session', () => {
       source: { listen: () => () => {} },
     })
 
-    /* 地址与图片一起交回。此前这一格在这一层就丢了，而屏幕上看不出来：实时
-    那条路自己拼了一条 data: URL，于是协议这条路坏了很久都没有人发现。 */
     await expect(session.prompt({ threadId: 't', text: 'hi', assets: [] })).resolves.toEqual({
       sessionId: 'sess_2',
-      images: [DELIVERED],
     })
   })
 })
