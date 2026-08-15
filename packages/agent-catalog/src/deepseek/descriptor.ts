@@ -12,7 +12,7 @@ import type { AgentDescriptor } from '../agent-descriptor'
  * 没有 install：这一家怎么问已装版本，官方没有说法，说不出就不写 —— 界面
  * 于是什么都不画，而不是画一个点了会失败的按钮。
  */
-export const deepseekHarness: AgentDescriptor = {
+export const deepseekHarness = {
   id: 'deepseek-harness',
   displayName: 'DeepSeek',
   transport: 'deepseek-harness',
@@ -20,4 +20,4 @@ export const deepseekHarness: AgentDescriptor = {
   args: [],
   configVar: 'DSH_CORDIS_CONFIG',
   optionLabels: {},
-}
+} as const satisfies AgentDescriptor

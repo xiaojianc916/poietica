@@ -9,7 +9,7 @@ import type { AgentProviderState } from './provider-state'
  * 这个接口，不认任何一家的函数名与文档格式。
  *
  * 契约与名单分开两个文件，与同包里同一件事的分法一致
- * （acp-agent-contract.ts 放形状，acp-agents.ts 放名单）：接第 N 家时要动的是名单，
+ * （agent-descriptor.ts 放形状，agents.ts 放名单）：接第 N 家时要动的是名单，
  * 契约不该跟着谁的实现走。
  *
  * 缺席是有意义的答案：表示我们说不出该怎么给这一家写目录，界面于是不画那个入口，

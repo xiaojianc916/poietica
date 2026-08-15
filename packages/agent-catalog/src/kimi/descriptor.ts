@@ -65,6 +65,7 @@ const OPTION_LABELS = {
 export const kimiCode = {
   id: 'kimi',
   displayName: 'Kimi Code',
+  transport: 'acp',
   command: 'kimi',
   /*
    * 子命令决定接的是上游哪一套 ACP 实现。0.33.0 起 acp 默认就是

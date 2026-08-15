@@ -11,7 +11,7 @@ export type AgentConfigOptionValue = string | boolean
  * 只有四格，而且每一格都真的属于用户。此前还有七格 —— displayName、command、
  * args、homeVar、registryKeyVar、ownHomeDirectory、install —— 它们描述的是「这
  * 一家 agent 是什么」，那件事由二进制里的 AgentDescriptor 说了算：名单是封闭
- * 的（见 acp-agents.ts），界面上没有、也不会有一个能自带命令的入口。
+ * 的（见 agents.ts），界面上没有、也不会有一个能自带命令的入口。
  *
  * 那七格不是没用，是从来没被用过一次：reconcileAcpAgentProfiles 每次读都拿内置
  * 值把它们逐一覆盖回去。写进磁盘只为了下一次读出来时被扔掉，中间那段路上却要
@@ -414,7 +414,7 @@ export interface AcpAgentProfileReconcile {
  * 这里没有任何字段要比 —— 只剩名单本身要对齐。
  *
  * 陌生 id 现在移除，而不是原样保留。保留是上一版为「用户自带的 agent」留的余地，
- * 而那条路不存在：acp-agents.ts 说得很清楚，名单是封闭的。留着它，设置页的下拉
+ * 而那条路不存在：agents.ts 说得很清楚，名单是封闭的。留着它，设置页的下拉
  * 就会列出一家原生侧根本查不到程序的 agent，选中之后失败在一个与选择无关的地方。
  * 丢掉一行用户手写的配置必须说出来，所以它带一条 issue 出去。
  *

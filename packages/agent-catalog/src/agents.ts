@@ -5,7 +5,9 @@ import { kimiCode } from './kimi/descriptor'
 export type { AgentDescriptor, QuestionDialect } from './agent-descriptor'
 
 /*
- * 软件支持哪几家 ACP agent。
+ * 软件支持哪几家 agent。
+ *
+ * 走哪条线是每一家自己的事，写在档案的 transport 格里；这张表只管名单。
  *
  * 名单是封闭的：用户在这几家里选，不能自带一条命令。所以这里没有解析、没有
  * 校验、没有反注入 —— 那些是给「用户可以填任意命令」准备的，而这个入口不存在。
@@ -16,7 +18,7 @@ export type { AgentDescriptor, QuestionDialect } from './agent-descriptor'
  * 类型是非空元组，不是数组：「一家都没有」在编译期就不成立。
  *
  * 地址就是 string，唯一判据是查表；「默认哪一家」是用户在这台机器上的选择，
- * 产地是档案集的 defaultProfileId（见 acp-agent-profile.ts），不是名单的顺序。
+ * 产地是档案集的 defaultProfileId（见 agent-profile.ts），不是名单的顺序。
  */
 const AGENTS = [kimiCode, deepseekHarness] as const satisfies readonly [
   AgentDescriptor,
