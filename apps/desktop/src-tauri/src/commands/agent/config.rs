@@ -5,7 +5,7 @@ use crate::local_index::LocalIndex;
 use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose};
 use tauri::{AppHandle, State};
 
-use super::addressing::{Wanted, session_for};
+use super::addressing::session_for;
 use super::dto::{
     AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentConfigPurpose,
     AgentSelectConfigRequest,
@@ -47,8 +47,7 @@ pub async fn agent_set_config_option(
      */
     let addressed = match request.thread_id.as_deref() {
         Some(named) => {
-            let held =
-                session_for(&state, &index, &live, named, Wanted::Address, Vec::new()).await?;
+            let held = session_for(&state, &index, &live, named, Vec::new()).await?;
 
             held.session_id
         }
