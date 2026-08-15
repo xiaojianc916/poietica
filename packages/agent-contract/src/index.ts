@@ -52,6 +52,5 @@ export type {
   ThreadPort,
   ThreadRecord,
   ThreadTitleSource,
-  TurnSpanTiming,
 } from './thread'
 export type { SessionUsage, SessionUsagePort, SessionUsageReport } from './usage'

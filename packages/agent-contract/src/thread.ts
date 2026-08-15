@@ -84,25 +84,12 @@ export interface ThreadAttachment {
   readonly ordinal: number
 }
 
-/**
- * 一轮的两端，epoch 毫秒墙钟：这一轮什么时候发出去、什么时候落定。
- *
- * 它不在 events 里，也不该在：那段是 agent 交还的内容，而计时是这台机器
- * 记下的事实 —— 与 attachments 同一本账、同一把从末尾对齐的尺子
- *（record_prompt 发的轮次号）。
- */
-export interface TurnSpanTiming {
-  readonly turn: number
-  readonly startedAt: number
-  readonly endedAt: number
-}
-
 /** A conversation that was just opened, and what its session offers. */
 export interface OpenedThread {
   readonly thread: ThreadRecord
   readonly selectors: readonly SessionConfigControl[]
   /**
-   * 这条对话的经过，由持有它的 agent 交回来。
+   * 这条对话的经过，由本机的帧日志重放交回来。
    *
    * unknown 是故意的：帧的形状由平台那一侧定义，这里不重新定义它，也不在这
    * 一层校验 —— 与运行帧走同一条规矩。收窄只发生在转录 store 的入口一处。
@@ -125,12 +112,6 @@ export interface OpenedThread {
    * 交还，多数 CLI 也确实不交还。两个来源，一条时间线，在这里合。
    */
   readonly attachments: readonly ThreadAttachment[]
-  /**
-   * 这条对话每一轮的两端，本地账本记下的那些。
-   *
-   * 重放的帧不带原来的时刻（协议里没有这一格），所以封条的耗时由账本回答。
-   */
-  readonly spans: readonly TurnSpanTiming[]
   /**
    * 这条对话至今问过多少句话。
    *

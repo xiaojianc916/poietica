@@ -179,10 +179,10 @@ function append(draft: Draft, item: TimelineItem): void {
 /**
  * 一段收下第一条，它就存在了。
  *
- * 段的存在与它的两端是两件事：agent 装载旧会话时重放的历史里没有 run_started，
- * 一轮的起止时刻因此无从谈起，但那些轮次确实发生过 —— 封条要靠 spans 才认得出
- * 「已处理」，本机账本也要靠它把耗时贴回原处（turn-spans 的 restampTurns）。
- * 所以这里只立一条空的：有几轮是数得出来的，几点开始的不是。
+ * 段的存在与它的两端是两件事：本机帧日志之前的旧对话没有 run_started，一轮的起止
+ * 时刻因此无从谈起，但那些轮次确实发生过 —— 封条要靠 spans 才认得出「已处理」。
+ * 所以这里只立一条空的：有几轮是数得出来的，几点开始的不是。两端由 markTurnStart
+ * 与 markTurnEnd 在 run_started 与终帧到达时盖上。
  */
 function openSpan(draft: Draft): void {
   if (draft.spans.at(-1)?.turn === draft.runIndex) {
