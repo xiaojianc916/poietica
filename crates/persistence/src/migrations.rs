@@ -12,6 +12,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "run_events_thread_key",
         include_str!("schema/0003_run_events_thread_key.sql"),
     ),
+    (
+        4,
+        "attachment_links",
+        include_str!("schema/0004_attachment_links.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.

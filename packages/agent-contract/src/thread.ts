@@ -91,20 +91,6 @@ export interface OpenedThread {
    */
   readonly history: ThreadHistory
   /**
-   * 这条对话挂着的图片。
-   *
-   * 它不在 events 里，也不该在：那一段是 agent 交还的对话，而图片是这台
-   * 机器上用户自己的文件 —— agent 收到的只是一份 base64 副本，它没有义务
-   * 交还，多数 CLI 也确实不交还。两个来源，一条时间线，在这里合。
-   */
-  readonly attachmentsRemoved: never
-  /**
-   * 这条对话至今问过多少句话。
-   *
-   * 上面那些 turn 是照着它、并且是从末尾量起的。见 attachImages。
-   */
-  readonly promptsRemoved: never
-  /**
    * 这条对话最近一次报过的上下文用量，本地账本记下的那份。
    *
    * 它是启动后的第一眼，不是活数据：Kimi 只在轮次落定后报一次，装载旧会话

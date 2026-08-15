@@ -25,7 +25,7 @@ export interface Draft {
    * 随段重置（openSegment），每落一问置真（beginQuestion）。一轮从一问开始，所以
    * 下一问到达时它就是「该换段了」—— 回放靠它一趟把段划对，不再事后倒着补。
    *
-   * 与 saidAtTail 问的不是同一件事：那一条问「紧挨着的上一条是不是这一问」，用来
+   * 与 dressTail 问的不是同一件事：那一条问「紧挨着的上一条是不是这一问」，用来
    * 认出同一句话的回声；这一格问「这一段有没有过问」，跨得过中间的产出。
    */
   promptLanded: boolean

@@ -194,13 +194,7 @@ export class SessionControlsStore {
 
     this.#hold(answer.thread)
     this.#asked.add(threadId)
-    this.#transcripts?.adopt(
-      threadId,
-      answer.events,
-      answer.history,
-      answer.attachments,
-      answer.prompts,
-    )
+    this.#transcripts?.adopt(threadId, answer.events, answer.history)
 
     /* 一整份权威答复：此前发出去的那些下发，答案都已经过期。 */
     this.#orderOf(threadId).arrive()

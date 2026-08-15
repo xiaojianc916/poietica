@@ -46,20 +46,14 @@ export interface AgentPromptRequest {
 }
 
 /**
- * 这一轮发到了哪条会话，以及这一句里的图片在哪。
+ * 这一轮发到了哪条会话。
  *
- * 两格，都是原生侧才说得出的事实。取消只需要点名一条对话，见下面的 cancel。
+ * 一格，原生侧才说得出的事实。图片地址不从这里回来：它随这一轮的 run_started
+ * 帧走，与那句话的文字同一条路（见 frame.rs 的 RunStarted）。取消只需要点名一
+ * 条对话，见下面的 cancel。
  */
 export interface AgentPromptHandle {
   readonly sessionId: AcpSessionId
-  /**
-   * 这一句里的图片在 webview 里的地址，顺序与用户挑的一致。
-   *
-   * 与重开这条对话时拿到的那些是同一种东西（见 thread.ts 的 ThreadAttachment）：
-   * 字节由原生侧持有，地址也由它发。这一层因此不认识 data: URL，也不认识
-   * object URL —— 那些是浏览器的东西，不是这条管线的东西。
-   */
-  readonly images: readonly string[]
 }
 
 export interface AgentSessionPort {

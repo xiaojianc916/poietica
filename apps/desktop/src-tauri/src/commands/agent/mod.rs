@@ -84,9 +84,6 @@ const IMAGE_TOO_LARGE: &str = "an attachment is too large";
 /// 图比失败更坏，因为屏幕上什么都不会说。
 const NO_SUCH_ASSET: &str = "an attachment is no longer available";
 
-/// 一句话里的图片多到序号装不下。实际到不了，但转换要有个说法。
-const TOO_MANY_IMAGES: &str = "too many attachments in one message";
-
 /// 一句话只有图片时，这条对话叫什么。
 ///
 /// 标题取自第一句话，而第一句话可以没有字。此前那一行直接 take 一个空串，

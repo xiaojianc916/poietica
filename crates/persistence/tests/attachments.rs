@@ -16,11 +16,9 @@ fn scratch() -> std::path::PathBuf {
     std::env::temp_dir().join(format!("poietica-attachments-{}.sqlite3", Uuid::now_v7()))
 }
 
-fn image(turn: i64, ordinal: i64, hash: &str) -> ThreadAttachment {
+fn image(hash: &str) -> ThreadAttachment {
     ThreadAttachment {
         hash: hash.to_owned(),
-        turn,
-        ordinal,
         mime: "image/png".to_owned(),
         byte_size: 4,
     }
@@ -38,7 +36,7 @@ fn an_attachment_survives_closing_the_store() {
             .expect("thread should be created");
 
         store
-            .remember_attachment(thread, &image(0, 0, &hash))
+            .remember_attachment(thread, &image(&hash))
             .expect("attachment should be recorded");
 
         thread
@@ -52,11 +50,10 @@ fn an_attachment_survives_closing_the_store() {
     assert_eq!(found.len(), 1);
     let first = found.first().expect("刚存进去的那一条");
     assert_eq!(first.hash, hash);
-    assert_eq!(first.turn, 0);
 }
 
 #[test]
-fn the_same_image_twice_is_stored_once_and_linked_twice() {
+fn the_same_image_twice_is_linked_once() {
     let path = scratch();
     let hash = "b".repeat(64);
 
@@ -66,25 +63,23 @@ fn the_same_image_twice_is_stored_once_and_linked_twice() {
         .expect("thread should be created");
 
     store
-        .remember_attachment(thread, &image(0, 0, &hash))
+        .remember_attachment(thread, &image(&hash))
         .expect("first send should be recorded");
     store
-        .remember_attachment(thread, &image(3, 0, &hash))
+        .remember_attachment(thread, &image(&hash))
         .expect("second send should be recorded");
 
     let found = store
         .attachments_of(thread)
         .expect("attachments should load");
 
-    assert_eq!(found.len(), 2);
-    let turns: Vec<_> = found.iter().map(|attachment| attachment.turn).collect();
     assert_eq!(
-        turns,
-        vec![0, 3],
-        "同一张图发两次，字节只存一份，但两轮各自留着自己的链接"
+        found.len(),
+        1,
+        "一条对话引用一段字节,这件事只有真假,没有次数"
     );
 
-    /* 一段字节,两条链接:没有人要它之前,回收不许看见它。 */
+    /* 没有人要它之前,回收不许看见它。 */
     assert!(
         store
             .unreferenced_attachments()
@@ -104,7 +99,7 @@ fn deleting_a_conversation_offers_its_bytes_to_the_sweep() {
         .expect("thread should be created");
 
     store
-        .remember_attachment(thread, &image(0, 0, &hash))
+        .remember_attachment(thread, &image(&hash))
         .expect("attachment should be recorded");
 
     store

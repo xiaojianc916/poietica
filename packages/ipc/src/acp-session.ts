@@ -33,10 +33,7 @@ export interface AgentEventSource {
 }
 
 export interface AgentCommandBridge {
-  /* 两格都由原生侧给：地址，以及这一句里那些图在 webview 上的位置。 */
-  readonly prompt: (
-    request: AgentPromptRequest,
-  ) => Promise<{ readonly sessionId: string; readonly images: readonly string[] }>
+  readonly prompt: (request: AgentPromptRequest) => Promise<{ readonly sessionId: string }>
   readonly cancel: (threadId: string) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
 }
@@ -54,9 +51,9 @@ export function createIpcSession({ bridge, source }: IpcSessionOptions): AgentSe
       }),
 
     prompt: async (request): Promise<AgentPromptHandle> => {
-      const { sessionId, images } = await bridge.prompt(request)
+      const { sessionId } = await bridge.prompt(request)
 
-      return { sessionId, images }
+      return { sessionId }
     },
 
     cancel: (threadId) => bridge.cancel(threadId),
