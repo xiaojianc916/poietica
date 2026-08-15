@@ -97,10 +97,15 @@ impl AgentStore {
     /// 一条 INSERT … SELECT 完成复制与挂接：号与主人成对落下（迁移 0012 的
     /// 触发器拒绝有号无主的行），中间不存在「行在而号不在」的一瞬。
     ///
+    /// 帧日志与附件链接随分叉复制：屏幕上那条时间线由本机日志重放（见
+    /// run_events.rs），日志不跟过去，分出来的就是一块白板。字节是内容寻址
+    /// 的，多一条链接指着它就够，不必再存一份。三张表一次事务：半份分叉不
+    /// 该存在。
+    ///
     /// prompts 一并抄走：附件按「从末尾对齐」的尺子认领（见
-    /// record_prompt），分叉带走完整历史，尺子的起点必须一致。updated_at
-    /// 取现在 —— 分叉是此刻的活动，新对话要浮上列表。RETURNING 让「源不存
-    /// 在」当场成为错误，而不是零行的无声成功。
+    /// record_prompt），尺子的起点必须一致。updated_at 取现在 —— 分叉是此刻
+    /// 的活动，新对话要浮上列表。RETURNING 让「源不存在」当场成为错误，而
+    /// 不是零行的无声成功。
     ///
     /// # Errors
     ///
@@ -115,7 +120,9 @@ impl AgentStore {
         let id = Uuid::now_v7();
         let timestamp = now()?;
 
-        self.connection
+        let transaction = self.connection.unchecked_transaction()?;
+
+        transaction
             .prepare_cached(
                 "INSERT INTO threads
                     (id, title, title_source, created_at, updated_at, workspace_root, prompts,
@@ -137,6 +144,27 @@ impl AgentStore {
                 ],
                 |row| row.get::<_, String>(0),
             )?;
+
+        transaction
+            .prepare_cached(
+                "INSERT INTO run_events (thread_id, session_id, seq, at, frame)
+                 SELECT ?2, session_id, seq, at, frame
+                   FROM run_events
+                  WHERE thread_id = ?1
+                  ORDER BY id",
+            )?
+            .execute(rusqlite::params![source.to_string(), id.to_string()])?;
+
+        transaction
+            .prepare_cached(
+                "INSERT INTO thread_attachments (thread_id, turn, ordinal, hash)
+                 SELECT ?2, turn, ordinal, hash
+                   FROM thread_attachments
+                  WHERE thread_id = ?1",
+            )?
+            .execute(rusqlite::params![source.to_string(), id.to_string()])?;
+
+        transaction.commit()?;
 
         Ok(id)
     }

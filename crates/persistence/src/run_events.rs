@@ -20,7 +20,7 @@ pub struct RecordedFrame {
 }
 
 impl AgentStore {
-    /// 追加一帧。同一条会话的同一个位置只收一次。
+    /// 追加一帧。同一条对话上，同一条会话的同一个位置只收一次。
     ///
     /// # Errors
     ///
@@ -29,7 +29,7 @@ impl AgentStore {
         self.write(
             "INSERT INTO run_events (thread_id, session_id, seq, at, frame)
              VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT (session_id, seq) DO NOTHING",
+             ON CONFLICT (thread_id, session_id, seq) DO NOTHING",
             rusqlite::params![
                 thread.to_string(),
                 frame.session_id,

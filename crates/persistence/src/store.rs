@@ -2,7 +2,7 @@
 //!
 //! Opening the file is all this module does. What can be asked of it lives
 //! next to the thing being asked about: threads.rs, attachments.rs,
-//! turn_spans.rs, workbench.rs and disposals.rs each extend this same type
+//! run_events.rs, workbench.rs and disposals.rs each extend this same type
 //! with the questions of their own domain.
 
 use std::path::Path;

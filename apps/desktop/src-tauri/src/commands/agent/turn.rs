@@ -12,7 +12,7 @@ use tokio::sync::mpsc;
 use tokio::time::{Instant, timeout_at};
 use uuid::Uuid;
 
-use super::addressing::{Wanted, session_for};
+use super::addressing::session_for;
 use super::attachment::{Kept, keep_bytes};
 use super::dto::{
     AgentCancelRequest, AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest,
@@ -68,8 +68,7 @@ pub async fn agent_prompt(
         .as_deref()
         .ok_or_else(|| Error::Validation(NO_CONVERSATION.to_owned()))?;
 
-    /* 提问不需要历史：屏幕上正看着的就是这条对话。 */
-    let held = session_for(&state, &index, &session, named, Wanted::Address, mcp).await?;
+    let held = session_for(&state, &index, &session, named, mcp).await?;
     let thread_id = held.thread_id;
     let addressed = held.session_id;
 

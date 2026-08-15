@@ -15,32 +15,14 @@ use super::dto::{AgentHistory, AgentHistoryLoss};
 use super::failure::translate;
 use super::runtime::{AgentRuntime, Handle};
 
-/// 这一次寻址，要的是什么。
-///
-/// 两个问题此前挤在一个函数里：「这条对话该发往哪个会话」每一轮提问都要问,
-/// 「把它的经过取回来」只有打开的时候才要。挤在一起就只能二选一 —— 为了不让
-/// 每一轮提问都付一次重放的代价，打开时也就拿不到经过，于是原生侧改去猜屏幕
-/// 上还有没有东西。分开问，两边都对，也没什么可猜的了。
-#[derive(Clone, Copy, Debug)]
-pub(super) enum Wanted {
-    /// 只要一个能把东西发过去的会话号。
-    Address,
-    /// 还要这条对话的经过：屏幕上现在什么都没有。
-    History,
-}
-
-/// 一条对话所持有的活会话，以及装载它时 agent 交回来的东西。
+/// 一条对话所持有的活会话。
 pub(super) struct Held {
     pub(super) thread_id: Uuid,
     pub(super) session_id: String,
     /// 只有刚开出来的会话有：agent 在同一个答复里报了它。
     pub(super) offered: Option<Vec<ConfigControl>>,
-    /// 装载一条旧会话时，agent 用 session/update 重放的那一整段。
-    ///
-    /// 与上面那格同一条规矩：只有真的开或装载了一条，才有东西可带。只要地址
-    /// 的那一路这里是空的 —— 它压根没问。
-    pub(super) events: Vec<Value>,
-    /// 上面那格为什么是它现在的样子。
+    /// agent 那侧的上下文这一次恢复成了什么样。屏幕上那条经过与它无关 ——
+    /// 那一份由本机日志重放（见 run_events.rs）。
     pub(super) history: AgentHistory,
 }
 
@@ -68,9 +50,9 @@ pub(super) struct Held {
 /// 是 UnknownSession。所以持有者跟着号一起存，对不上就根本不装载，这条对话
 /// 在新 agent 这里从一条空会话开始。
 ///
-/// 这一刻屏幕上是空的，而且只能是空的：那段历史在原来那个 agent 手里，这一侧
-/// 没有副本可拿。空本身不是问题，不作声才是 —— 所以每一条返回路径都带一个
-/// `history`，说清这一次的空是"刚建"、"本来就在"，还是"打不开，以及为什么"。
+/// 那一刻屏幕上仍是本机日志重放出来的那一份，而 agent 手里没有上下文：它接
+/// 不下去。接不下去本身不是问题，不作声才是 —— 所以每一条返回路径都带一个
+/// `history`，说清这一次是"刚建"、"本来就在"，还是"打不开，以及为什么"。
 ///
 /// 会话的工作目录由这条对话自己那一行说了算（迁移 0013 的 workspace_root）。
 /// 空的才回落到平台给的那个 home —— 那是迁移之前写下的行，那时候只有一个工作
@@ -83,7 +65,6 @@ pub(super) async fn session_for(
     index: &State<'_, LocalIndex>,
     live: &Handle,
     named: &str,
-    wanted: Wanted,
     mcp: Vec<Value>,
 ) -> Result<Held> {
     let thread_id = conversation(named)?;
@@ -122,10 +103,8 @@ pub(super) async fn session_for(
     let previous_session = session_id.clone().zip(owner.clone());
 
     if let Some(session_id) = session_id {
-        /* 本次连接开出来的号，agent 此刻就认得它。
-        它认得，不等于屏幕上还有东西：渲染层可以在连接活着的时候整个重来
-        （Ctrl+R、第二个窗口），那一刻它手里一片空白。「有没有经过可看」是
-        那一侧的事实，这一侧猜不出来，所以不猜 —— 要经过的那一路照样去装载。 */
+        /* 这个号本次连接认不认得。认得的是活地址；认不得的那一个还在 agent
+        的存档里，得请它装载回来。判一次，下面三条路都照它走。 */
         let known = live.book.slot(&session_id).map_err(translate)?.is_some();
 
         if !mine {
@@ -134,13 +113,13 @@ pub(super) async fn session_for(
                 reason: AgentHistoryLoss::OtherAgent,
                 owner,
             });
-        } else if known && matches!(wanted, Wanted::Address) {
-            /* 只要一个地址，那就是它，不必惊动 agent。 */
+        } else if known {
+            /* 活地址就是它，不必惊动 agent：上下文已经在它手里，经过在本机
+            日志里。 */
             return Ok(Held {
                 thread_id,
                 session_id,
                 offered: None,
-                events: Vec::new(),
                 history: AgentHistory::Live,
             });
         } else if let Some(loading) = live.loading {
@@ -173,7 +152,6 @@ pub(super) async fn session_for(
                     return Ok(Held {
                         thread_id,
                         session_id,
-                        events: loaded.events,
                         offered: Some(loaded.selectors),
                         history: AgentHistory::Loaded,
                     });
@@ -183,42 +161,14 @@ pub(super) async fn session_for(
                 Err(error) => {
                     log::warn!("could not reload the stored session: {error}");
 
-                    /* 号还活着，只是这一次没能把它重放出来。绝不能顺势重开一
-                    条：那会把一条正在用的会话丢掉，而人可能还在里面说话。 */
-                    if known {
-                        return Ok(Held {
-                            thread_id,
-                            session_id,
-                            offered: None,
-                            events: Vec::new(),
-                            history: AgentHistory::Unavailable {
-                                reason: AgentHistoryLoss::Forgotten,
-                                owner,
-                            },
-                        });
-                    }
-
                     lost = Some(AgentHistory::Unavailable {
                         reason: AgentHistoryLoss::Forgotten,
                         owner,
                     });
                 }
             }
-        } else if known {
-            /* 它不装载旧会话，可这一条本来就还在这条连接上：经过取不回来，会话
-            得留着。重开一条只会把它也赔进去。 */
-            return Ok(Held {
-                thread_id,
-                session_id,
-                offered: None,
-                events: Vec::new(),
-                history: AgentHistory::Unavailable {
-                    reason: AgentHistoryLoss::NotSupported,
-                    owner,
-                },
-            });
         } else {
-            /* 它握手时就说了它不做这件事。 */
+            /* 它握手时就说了它不装载旧会话。 */
             lost = Some(AgentHistory::Unavailable {
                 reason: AgentHistoryLoss::NotSupported,
                 owner,
@@ -288,7 +238,6 @@ pub(super) async fn session_for(
         thread_id,
         session_id: opened.session_id,
         offered: Some(opened.selectors),
-        events: Vec::new(),
         history: lost.unwrap_or(AgentHistory::Fresh),
     })
 }

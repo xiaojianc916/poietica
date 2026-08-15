@@ -42,9 +42,8 @@ import {
  * 知道（见 apply 开头那段注释），所以它必须留在这一层。
  *
  * 帧里那些字如何变成条目是协议的方言，归 acp-projection —— 那是唯一 import
- * @poietica/agent-contract 的地方。本机账本里的图如何挂回它那句话与协议无关，归
- * message-images：此前它也在这个文件里，而一个自称 reducer 的模块不该导出
- * 一个叫 ReplayedAttachment 的类型。
+ * @poietica/agent-contract 的地方。本机账本里的图如何挂回它那句话与协议无关，
+ * 归 message-images。
  */
 
 export function createTimelineState(): TimelineState {
@@ -82,14 +81,8 @@ export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
    * 新号，屏幕上已有的那些行连 id 带对象一起原样留下。而段号就铸在 id 里，所以
    * 「一共几轮」必须在铸下第一个 id 之前知道 —— 两趟由此而来。
    *
-   * 数轮数的那一趟就是写入的那一趟，只是起点从零算。此前它是另一份判据（数
-   * run_started 的预扫描），而 agent 装载旧会话时只以 session/update 重放（driver.rs
-   * 的 replay），那批事件里一帧 run_started 都没有：预扫描恒数出一轮，整段历史全落
-   * 进 r0，段边界只能在末尾靠一份事后补段的第三实现挽回，而它补 turn 不补 id ——
-   * 两轮里重名的工具调用与每一轮的 plan 因此撞进同一个条目。
-   *
-   * 代价是把这段日志走两遍，与它此前那次线性预扫描同阶。换来的是「几轮」与「哪一
-   * 轮」出自同一条判据，不存在第二份可以漂移的东西。
+   * 数轮数的那一趟就是写入的那一趟，只是起点从零算：「几轮」与「哪一轮」出自
+   * 同一条判据，不存在第二份可以漂移的东西。代价是把这段日志走两遍。
    */
   const counted = fill(draftOf(createTimelineState()), events)
   const draft = draftOf(createTimelineState())

@@ -5,12 +5,12 @@ use crate::attachments::forget_blob;
 use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::{agent_home, remove_projectless_workspace};
-use poietica_agent_persistence_native::{RecordedFrame, TitleSource};
+use poietica_agent_persistence_native::TitleSource;
 use serde_json::Value;
 use std::path::PathBuf;
 use tauri::{AppHandle, State, async_runtime};
 
-use super::addressing::{Held, Wanted, session_for};
+use super::addressing::{Held, session_for};
 use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
@@ -51,17 +51,11 @@ pub async fn agent_threads(index: State<'_, LocalIndex>) -> AgentCommandResult<V
 ///
 /// 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，`session_for`
 /// 认出它存着的会话号不是本次连接开的，于是请 agent 把那条会话装载回来 —— 号
-/// 不变，而 agent 在装载期间用 session/update 把这条对话重放一遍 —— 那些帧就
-/// 是历史本身，随这次答复一起交出去。只有 agent 说它不装载旧会话时才重开一条。
+/// 不变，上下文因此回到 agent 手里。只有 agent 说它不装载旧会话时才重开一条。
 ///
-/// 历史从这里回来，不从别处。屏幕上曾经显示的是本地日志里的另一份，于是同一
-/// 段对话有两个来源，而只有一个是 agent 手里那份 —— 两份一旦分叉，人看见的是
-/// 对的那份的赝品。现在只有一份，它的持有者是这条会话的主人。
-///
-/// 每一次打开都问一次经过，本次连接开的那些会话也不例外。渲染层可以在连接
-/// 还活着的时候整个重来 —— Ctrl+R 就是，开第二个窗口也是 —— 那一刻它手里什么
-/// 都没有，而这一侧只知道"会话还在"。用后者去猜前者，猜错的那次就是一块永远
-/// 填不上的白板。
+/// 经过来自本机日志（run_events），不来自 agent 的装载重放：那批帧里没有
+/// run_started，段边界会整段塌掉，而回填只发生一次 —— 塌掉的形状会永久留在
+/// 日志里。agent 装载回来的是模型的上下文，让它自己续得上，不参与投影。
 ///
 /// 三条路都在同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"。
 ///
@@ -100,9 +94,8 @@ pub async fn agent_open_thread(
         thread_id,
         session_id,
         offered,
-        events: replayed,
         history,
-    } = session_for(&state, &index, &live, &named, Wanted::History, mcp).await?;
+    } = session_for(&state, &index, &live, &named, mcp).await?;
 
     let offered = if let Some(offered) = offered {
         offered
@@ -143,14 +136,8 @@ pub async fn agent_open_thread(
 
         let prompts = store.prompt_count(thread_id).map_err(persistence)?;
 
-        /* 经过由本地日志重放。日志空着（这条会话此前没被这台机器记过）就用
-        agent 这一次交还的那一段把它填上一次，此后这里是它唯一的来源。 */
-        if store.frames_of(thread_id).map_err(persistence)?.is_empty() {
-            for frame in seeded(&replayed) {
-                store.record_frame(thread_id, &frame).map_err(persistence)?;
-            }
-        }
-
+        /* 经过由本地日志重放，而日志只由跑那一轮的那一侧写（turn.rs 的
+        logging）。空着就是空着 —— 这台机器没记过它。 */
         let frames = store.frames_of(thread_id).map_err(persistence)?;
 
         Ok((thread, usage, prompts, frames))
@@ -186,33 +173,6 @@ fn restored(logged: Vec<String>) -> Result<Vec<Value>> {
     }
 
     Ok(events)
-}
-
-/// agent 交还的那一段，变成日志里的行。
-///
-/// 位置与时刻取自帧自己那两格（见运行时 crate 的 RecordedEvent）：这里不发
-/// 新号，也不盖新戳。缺这两格的不是这条通道该有的东西，跳过它。
-fn seeded(events: &[Value]) -> Vec<RecordedFrame> {
-    let mut logged = Vec::with_capacity(events.len());
-
-    for event in events {
-        let (Some(session_id), Some(seq), Some(at)) = (
-            event.get("sessionId").and_then(Value::as_str),
-            event.get("seq").and_then(Value::as_i64),
-            event.get("at").and_then(Value::as_i64),
-        ) else {
-            continue;
-        };
-
-        logged.push(RecordedFrame {
-            session_id: session_id.to_owned(),
-            seq,
-            at,
-            frame: event.to_string(),
-        });
-    }
-
-    logged
 }
 
 /// Restates one stored conversation in the shape the bindings carry.
@@ -448,17 +408,18 @@ pub async fn agent_delete_thread(
 
 /// 从一条对话分叉出一条新对话（ACP session/fork），源对话原样不动。
 ///
-/// 历史归 agent 所有，本地只有索引，所以「带着完整上下文另起一条」是协议
-/// 动作，不是本地复制。Codex 的 fork 同一个语义：分出的那条从此各走各的。
+/// 两侧各分叉一次：agent 那侧由 session/fork 复制上下文，这一侧由 fork_thread
+/// 复制本机日志与附件链接（见 threads.rs）。屏幕上那条时间线由日志重放，日志
+/// 不跟过去，分出来的就是一块白板。分出的那条从此各走各的。
 ///
 /// 寻址不走 session_for：那条规则在装载不成时会新开一条空会话并改写持有
 /// 关系，对打开与提问那是正确的兜底，对分叉则是把「分叉」静默降级成「新
 /// 建」。这里的规矩相反 —— 源会话必须原样变活（还不活就 session/load，号
 /// 不变），变不活就明说失败，源对话的持有关系一个字都不改。
 ///
-/// 分叉出的新号与新行在同一句 SQL 里落库（fork_thread：号与主人成对）。
-/// 打开它走 agent_open_thread 那条已有的路，历史由 session/load 重放 ——
-/// 取历史只有一条管线。
+/// 新号、新行、日志与附件链接在同一次事务里落库（fork_thread：号与主人成
+/// 对）。打开它走 agent_open_thread 那条已有的路，取经过只有一条管线：本机
+/// 日志。
 ///
 /// # Errors
 ///
