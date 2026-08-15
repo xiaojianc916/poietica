@@ -27,7 +27,7 @@ use uuid::Uuid;
 use crate::commands::{AgentClient, Command};
 use crate::desk::PermissionDesk;
 use crate::dsh::{
-    INITIALIZE, Incoming, InitializeParams, InitializeResult, Notification, RequestId, SERVER_NAME,
+    Incoming, InitializeParams, InitializeResult, Notification, RequestId, SERVER_NAME,
     SessionPromptParams, SessionPromptResult, SessionStatus, decode_line, initialize_line,
     method_not_found_line, prompt_line, shutdown_line,
 };
@@ -46,9 +46,9 @@ const DEFAULT_PROVIDER: &str = "deepseek-official";
 const DEFAULT_MODEL: &str = "deepseek-v4-flash";
 
 /// 关停阶梯的三档，逐字取自官方 client.ts 的默认值。
-const SHUTDOWN_GRACE: Duration = Duration::from_millis(1000);
-const EOF_GRACE: Duration = Duration::from_millis(6000);
-const EXIT_GRACE: Duration = Duration::from_millis(3000);
+const SHUTDOWN_GRACE: Duration = Duration::from_secs(1);
+const EOF_GRACE: Duration = Duration::from_secs(6);
+const EXIT_GRACE: Duration = Duration::from_secs(3);
 
 /// 一轮的终点是回执之后那一次 idle，所以这条线上「结束」只有一种说法。
 const END_TURN: &str = "end_turn";
@@ -105,14 +105,22 @@ pub fn connect_harness(
     // 与 ACP 那条线读同一个函数：同一个程序不该有两套找法。
     let resolved = resolve_program(&program)?;
 
-    let mut child = Process::new(resolved)
+    let mut process = Process::new(resolved);
+    process
         .args(&args)
         .current_dir(&cwd)
         .envs(env)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
+        .kill_on_drop(true);
+
+    // 起子进程不弹控制台窗口。规则与 crates/git 那份同源（各自注明正本，
+    // 见 crates/git/src/lib.rs 文件头），GUI 宿主里 spawn 控制台程序必设。
+    #[cfg(windows)]
+    process.creation_flags(0x0800_0000);
+
+    let mut child = process
         .spawn()
         .map_err(|error| AcpError::Spawn {
             message: error.to_string(),
@@ -181,7 +189,7 @@ pub fn connect_harness(
         )?;
 
         if say(&mut stdin, &opening).await.is_err() {
-            let _ignored = answer(&mut ready, Err(handshake_failed(NO_STDIO, &diagnostics)));
+            answer(&mut ready, Err(handshake_failed(NO_STDIO, &diagnostics)));
 
             return Ok(());
         }
@@ -232,8 +240,8 @@ pub fn connect_harness(
                                             identify(result, &diagnostics)
                                         });
 
-                                    if settled.is_err() {
-                                        let _ignored = answer(&mut ready, settled);
+                                    if let Err(failed) = settled {
+                                        answer(&mut ready, Err(failed));
 
                                         break;
                                     }
@@ -241,12 +249,12 @@ pub fn connect_harness(
                                     /* 会话先进册子再交出名字，这样它的第一帧就有
                                     去处 —— 与 ACP 那条线同一条规矩。 */
                                     if ledger.adopt(&anchor, slot.clone()).is_err() {
-                                        let _ignored = answer(&mut ready, Err(AcpError::Poisoned));
+                                        answer(&mut ready, Err(AcpError::Poisoned));
 
                                         break;
                                     }
 
-                                    let _ignored = answer(
+                                    answer(
                                         &mut ready,
                                         Ok(Handshake {
                                             session_id: anchor.clone(),

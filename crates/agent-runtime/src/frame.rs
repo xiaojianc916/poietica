@@ -60,7 +60,7 @@ pub enum RunFrame {
     #[serde(rename_all = "camelCase")]
     HarnessEvent {
         session_id: String,
-        event: serde_json::Value,
+        event: Value,
     },
     /// 这一轮开始了，以及问的是什么。
     RunStarted {
@@ -117,6 +117,7 @@ impl RunFrame {
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
+            Self::HarnessEvent { .. } => HARNESS_EVENT,
             Self::RunStarted { .. } => RUN_STARTED,
             Self::AcpUpdate { .. } => ACP_UPDATE,
             Self::PermissionRequested { .. } => PERMISSION_REQUESTED,
@@ -182,7 +183,9 @@ pub(crate) fn normalize(value: &mut Value, update: &SessionUpdate) -> serde_json
 /// # Errors
 ///
 /// 序列化协议更新失败时报错。
-pub(crate) fn acp_update(notification: &SessionNotification) -> serde_json::Result<RunFrame> {
+///
+/// 对外的理由与帧本身相同：两条驱动线与集成测试都从这里成帧，不另造第二份。
+pub fn acp_update(notification: &SessionNotification) -> serde_json::Result<RunFrame> {
     let mut update = serde_json::to_value(&notification.update)?;
 
     normalize(&mut update, &notification.update)?;

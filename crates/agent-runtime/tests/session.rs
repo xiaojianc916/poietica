@@ -14,15 +14,17 @@ mod frame_sink;
 use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
 use poietica_agent_runtime_native::{
     ACP_UPDATE, AcpError, Frames, Listening, RUN_STARTED, Recorder, Refusal, RunFrame, RunSlot,
+    acp_update,
 };
 
 use frame_sink::{Delivered, SESSION, recording};
 
-fn announcement() -> SessionNotification {
-    SessionNotification::new(
+fn announcement() -> RunFrame {
+    acp_update(&SessionNotification::new(
         SESSION,
         SessionUpdate::ToolCall(ToolCall::new("call_001", "Read config.toml")),
-    )
+    ))
+    .expect("the update encodes")
 }
 
 #[test]
@@ -31,7 +33,7 @@ fn an_update_outside_a_turn_is_dropped() {
 
     assert!(!slot.is_listening());
     assert!(
-        !slot.record(|listening| listening.session_update(&announcement())),
+        !slot.record(|listening| listening.frame(announcement())),
         "an update between turns belongs to no run"
     );
 }
@@ -50,7 +52,7 @@ fn updates_reach_the_installed_run() {
             recorder.record_run_started("what the run was asked");
         }
     }));
-    assert!(slot.record(|listening| listening.session_update(&announcement())));
+    assert!(slot.record(|listening| listening.frame(announcement())));
 
     let seen = delivered.frames();
 
@@ -104,7 +106,7 @@ fn a_loading_session_forwards_its_replay_without_a_log() {
     .expect("an empty slot");
 
     assert!(
-        slot.record(|listening| listening.session_update(&announcement())),
+        slot.record(|listening| listening.frame(announcement())),
         "装载期间这条会话上有人在听"
     );
 
@@ -134,7 +136,7 @@ fn taking_the_run_ends_the_routing() {
 
     assert!(!slot.is_listening());
     assert!(
-        !slot.record(|listening| listening.session_update(&announcement())),
+        !slot.record(|listening| listening.frame(announcement())),
         "the turn is over, so nothing else may be attributed to it"
     );
 

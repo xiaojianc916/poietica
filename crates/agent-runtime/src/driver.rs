@@ -230,7 +230,9 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                             match acp_update(&notification) {
                                 Ok(frame) => listening.frame(frame),
-                                Err(unencodable) => listening.unencodable(unencodable),
+                                Err(unencodable) => {
+                                    listening.unencodable(AcpError::from(unencodable));
+                                }
                             }
                         });
                     }

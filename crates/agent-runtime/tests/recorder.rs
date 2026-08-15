@@ -20,13 +20,16 @@ use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionKind, RequestPermissionRequest, SessionNotification,
     SessionUpdate, ToolCall, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
-use poietica_agent_runtime_native::{Decision, Recorder};
+use poietica_agent_runtime_native::{Decision, Recorder, acp_update};
 use serde_json::Value;
 
 use frame_sink::{SESSION, recording, text_of};
 
 fn notify(recorder: &mut Recorder, update: SessionUpdate) {
-    recorder.record_session_update(&SessionNotification::new(SESSION, update));
+    recorder.note_tool_titles(&update);
+    let framed = acp_update(&SessionNotification::new(SESSION, update)).expect("the update encodes");
+
+    recorder.record_frame(framed);
 }
 
 #[test]

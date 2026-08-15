@@ -1,5 +1,4 @@
-//! The Agent Client Protocol client, over a locally spub use driver::connect as connect_acp;
-pub use dsh_driver::connect_harness;awned agent process.
+//! The Agent Client Protocol client, over a locally spawned agent process.
 //!
 //! Three rules shape this crate.
 //!
@@ -9,8 +8,7 @@ pub use dsh_driver::connect_harness;awned agent process.
 //! invite it to react to a fault that is not its own.
 //!
 //! A session outlives a turn, and a connection outlives a session. The
-//! process is started once; sessions, promod driver;
-mod dsh_driver;pts, cancellation and shutdown
+//! process is started once; sessions, prompts, cancellation and shutdown
 //! arrive afterwards as commands, and several of them may be in flight at
 //! once. One turn at a time is a rule of a session, not of a connection. Because the handlers live as long as the connection and a recorder
 //! lives only as long as one run, the two meet through a slot rather than by
@@ -20,18 +18,22 @@ mod dsh_driver;pts, cancellation and shutdown
 //! the desk for a real answer, and the fallback refusal is used only where
 //! there is nobody to ask.
 
+pub use driver::connect as connect_acp;
+pub use dsh_driver::connect_harness;
+
 mod commands;
 mod config;
 mod credentials;
 mod desk;
 mod driver;
 mod dsh;
+mod dsh_driver;
 pub use dsh::{
-    decode_line, initialize_line, prompt_line, shutdown_line, ErrorBody, Incoming,
-    InitializeParams, InitializeResult, Notification, RequestId, ServerInfo,
-    SessionEventNotification, SessionPromptParams, SessionPromptResult, SessionStatus,
-    SessionStatusNotification, SubagentFinishedNotification, SubagentStartedNotification,
-    SERVER_NAME,
+    INITIALIZE, SESSION_PROMPT, SHUTDOWN, decode_line, initialize_line, method_not_found_line,
+    prompt_line, shutdown_line, ErrorBody, Incoming, InitializeParams, InitializeResult,
+    Notification, RequestId, ServerInfo, SessionEventNotification, SessionPromptParams,
+    SessionPromptResult, SessionStatus, SessionStatusNotification, SubagentFinishedNotification,
+    SubagentStartedNotification, SERVER_NAME,
 };
 mod error;
 mod frame;
@@ -54,8 +56,8 @@ pub use desk::PermissionDesk;
 pub use driver::connect;
 pub use error::{AcpError, Refusal, Result};
 pub use frame::{
-    ACP_UPDATE, FrameNotification, PERMISSION_REQUESTED, PERMISSION_RESOLVED, RUN_FAILED,
-    RUN_FINISHED, RUN_STARTED, RunFrame,
+    ACP_UPDATE, FrameNotification, HARNESS_EVENT, PERMISSION_REQUESTED, PERMISSION_RESOLVED,
+    RUN_FAILED, RUN_FINISHED, RUN_STARTED, RunFrame, acp_update,
 };
 pub use permission::{Decision, answers, decide};
 pub use program::resolve_program;
