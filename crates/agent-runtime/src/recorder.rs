@@ -292,7 +292,6 @@ impl Recorder {
         });
     }
 
-
     fn project(&mut self, update: &SessionUpdate) {
         match update {
             SessionUpdate::ToolCall(call) => {

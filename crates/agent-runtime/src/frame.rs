@@ -58,10 +58,7 @@ pub enum RunFrame {
     ///
     /// 与 AcpUpdate 同一条规矩：载荷是协议原文，这一层不解释它。
     #[serde(rename_all = "camelCase")]
-    HarnessEvent {
-        session_id: String,
-        event: Value,
-    },
+    HarnessEvent { session_id: String, event: Value },
     /// 这一轮开始了：问的是什么，以及随它送出去的图片。
     RunStarted {
         /// 人说的那句话，按记录时的原文。

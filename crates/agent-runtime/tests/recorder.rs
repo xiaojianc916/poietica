@@ -27,7 +27,8 @@ use frame_sink::{SESSION, recording, text_of};
 
 fn notify(recorder: &mut Recorder, update: SessionUpdate) {
     recorder.note_tool_titles(&update);
-    let framed = acp_update(&SessionNotification::new(SESSION, update)).expect("the update encodes");
+    let framed =
+        acp_update(&SessionNotification::new(SESSION, update)).expect("the update encodes");
 
     recorder.record_frame(framed);
 }

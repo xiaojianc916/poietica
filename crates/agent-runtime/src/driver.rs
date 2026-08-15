@@ -583,11 +583,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             /* 记录器在这里出生：位置从这条会话的序号线上取，
                             而那条线是槽的，不是这一轮的。 */
                             /* 地址随帧记下：字节接着被 blocks_of 消费掉，而重开这条对话时，
-                                    图是从这一帧上认回来的。 */
-                                    let shown =
-                                        images.iter().map(|image| image.url.clone()).collect();
+                            图是从这一帧上认回来的。 */
+                            let shown = images.iter().map(|image| image.url.clone()).collect();
 
-                                    let recorder = Recorder::new(session_id, turn.seq(), frames);
+                            let recorder = Recorder::new(session_id, turn.seq(), frames);
 
                             if let Err(error) = turn.install(Listening::Turn(recorder)) {
                                 let _ignored = reply.send(Err(error));

@@ -69,7 +69,9 @@ enum Step {
 enum Pending {
     Handshake,
     /// 一轮的回执。等到它才开始等这条会话的 idle。
-    Receipt { session_id: String },
+    Receipt {
+        session_id: String,
+    },
     Shutdown,
 }
 
@@ -120,11 +122,9 @@ pub fn connect_harness(
     #[cfg(windows)]
     process.creation_flags(0x0800_0000);
 
-    let mut child = process
-        .spawn()
-        .map_err(|error| AcpError::Spawn {
-            message: error.to_string(),
-        })?;
+    let mut child = process.spawn().map_err(|error| AcpError::Spawn {
+        message: error.to_string(),
+    })?;
 
     let (Some(stdin), Some(stdout), Some(stderr)) =
         (child.stdin.take(), child.stdout.take(), child.stderr.take())
@@ -236,9 +236,7 @@ pub fn connect_harness(
                                         .map_err(|error| {
                                             handshake_failed(&error.message, &diagnostics)
                                         })
-                                        .and_then(|result| {
-                                            identify(result, &diagnostics)
-                                        });
+                                        .and_then(|result| identify(result, &diagnostics));
 
                                     if let Err(failed) = settled {
                                         answer(&mut ready, Err(failed));
@@ -336,16 +334,15 @@ pub fn connect_harness(
                                 && !reported.child_session_id.is_empty()
                                 && reported.parent_session_id != reported.child_session_id
                             {
-                                parents.insert(
-                                    reported.child_session_id,
-                                    reported.parent_session_id,
-                                );
+                                parents
+                                    .insert(reported.child_session_id, reported.parent_session_id);
                             }
                         }
                         Incoming::Notification(Notification::SubagentFinished(reported)) => {
                             /* 子代理收尾也是这条对话上发生的事，所以它照样成帧。
                             载荷原样：这一层不认识 SubagentStopReason 的词汇。 */
-                            if let Some(slot) = rooted(&parents, &ledger, &reported.child_session_id)
+                            if let Some(slot) =
+                                rooted(&parents, &ledger, &reported.child_session_id)
                             {
                                 let event = json!({
                                     "type": "subagent/finished",
@@ -391,13 +388,15 @@ pub fn connect_harness(
                     真的存在。 */
                     let named = Uuid::now_v7().to_string();
 
-                    let opened = ledger.open(&named).map(|_slot| crate::session::OpenedSession {
-                        session_id: named,
-                        // 这条线上没有会话级选择器：provider 与 model 定在握手上。
-                        selectors: Vec::new(),
-                        // 没有 session/load，所以没有历史可重放。
-                        events: Vec::new(),
-                    });
+                    let opened = ledger
+                        .open(&named)
+                        .map(|_slot| crate::session::OpenedSession {
+                            session_id: named,
+                            // 这条线上没有会话级选择器：provider 与 model 定在握手上。
+                            selectors: Vec::new(),
+                            // 没有 session/load，所以没有历史可重放。
+                            events: Vec::new(),
+                        });
 
                     let _ignored = reply.send(opened);
                 }
