@@ -5,7 +5,8 @@ use crate::attachments::forget_blob;
 use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::{agent_home, remove_projectless_workspace};
-use poietica_agent_persistence_native::TitleSource;
+use poietica_agent_persistence_native::{RecordedFrame, TitleSource};
+use serde_json::Value;
 use std::path::PathBuf;
 use tauri::{AppHandle, State, async_runtime};
 
@@ -15,7 +16,7 @@ use super::config::restate;
 use super::dto::{
     AgentArchiveThreadRequest, AgentForkThreadRequest, AgentOpenThreadRequest, AgentOpenedThread,
     AgentPinThreadRequest, AgentRenameThreadRequest, AgentSessionUsage, AgentThread,
-    AgentThreadRequest, AgentTitleSource, AgentTurnSpan, FALLBACK_THREAD_TITLE, NO_THREAD,
+    AgentThreadRequest, AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD,
 };
 use super::failure::translate;
 use super::kimi_state::sync_kimi_archive_state;
@@ -99,7 +100,7 @@ pub async fn agent_open_thread(
         thread_id,
         session_id,
         offered,
-        events,
+        events: replayed,
         history,
     } = session_for(&state, &index, &live, &named, Wanted::History, mcp).await?;
 
@@ -122,7 +123,7 @@ pub async fn agent_open_thread(
     它们共用一次借用：一趟阻塞线程、一次上锁、两条 prepare_cached。拆成两趟就
     是各排一次线程池、各抢一次那把库锁，而打开一条对话正是人点一下就要等的那
     条路径 —— turn.rs 里那批附件写入用的是同一条规矩。 */
-    let (thread, usage, prompts, spans) = on_index(&index, move |store| {
+    let (thread, usage, prompts, frames) = on_index(&index, move |store| {
         let stored = store
             .thread(thread_id)
             .map_err(persistence)?
@@ -142,30 +143,24 @@ pub async fn agent_open_thread(
 
         let prompts = store.prompt_count(thread_id).map_err(persistence)?;
 
-        /* 「长什么样」「问过几次」「每一轮各花了多久」是同一次打开要的三个
-        答案，所以共用这一次借用 —— 与 prompts 同一条规矩。 */
-        let spans = store.turn_spans_of(thread_id).map_err(persistence)?;
+        /* 经过由本地日志重放。日志空着（这条会话此前没被这台机器记过）就用
+        agent 这一次交还的那一段把它填上一次，此后这里是它唯一的来源。 */
+        if store.frames_of(thread_id).map_err(persistence)?.is_empty() {
+            for frame in seeded(&replayed) {
+                store.record_frame(thread_id, &frame).map_err(persistence)?;
+            }
+        }
 
-        Ok((thread, usage, prompts, spans))
+        let frames = store.frames_of(thread_id).map_err(persistence)?;
+
+        Ok((thread, usage, prompts, frames))
     })
     .await?;
 
     let attachments = deliver_attachments(&state, &index, &assets, thread_id).await?;
 
     let prompts = counted(prompts)?;
-
-    /* 账本的轮次号与时刻都是 i64，而这份 IPC 面没有 64 位整数（见 counted
-    与 AgentThreadAttachment 的 turn 上那条界线）：轮次收进 u32，时刻放进
-    f64。转换前显式验证 JavaScript 安全整数边界，避免异常数据静默丢失精度。 */
-    let mut span_dtos = Vec::with_capacity(spans.len());
-
-    for span in spans {
-        span_dtos.push(AgentTurnSpan {
-            turn: counted(span.turn)?,
-            started_at: ipc_epoch_millis(span.started_at)?,
-            ended_at: ipc_epoch_millis(span.ended_at)?,
-        });
-    }
+    let events = restored(frames)?;
 
     Ok(AgentOpenedThread {
         thread,
@@ -173,26 +168,51 @@ pub async fn agent_open_thread(
         events,
         history,
         attachments,
-        spans: span_dtos,
         prompts,
         usage,
     })
 }
 
-const MAX_SAFE_INTEGER: i64 = (1_i64 << 53) - 1;
+/// 日志里那些行，回到帧的形状。
+///
+/// 读不成的一行是本地日志坏了，不是这条对话的内容 —— 说出来，不静默跳过。
+fn restored(logged: Vec<String>) -> Result<Vec<Value>> {
+    let mut events = Vec::with_capacity(logged.len());
 
-#[allow(
-    clippy::cast_precision_loss,
-    reason = "the value is checked against the exact integer range before conversion"
-)]
-fn ipc_epoch_millis(value: i64) -> Result<f64> {
-    if !(-MAX_SAFE_INTEGER..=MAX_SAFE_INTEGER).contains(&value) {
-        return Err(Error::Internal(
-            "a stored epoch millisecond timestamp does not fit the IPC number".to_owned(),
-        ));
+    for line in logged {
+        events.push(serde_json::from_str(&line).map_err(|error| {
+            Error::Internal(format!("a recorded frame could not be read: {error}"))
+        })?);
     }
 
-    Ok(value as f64)
+    Ok(events)
+}
+
+/// agent 交还的那一段，变成日志里的行。
+///
+/// 位置与时刻取自帧自己那两格（见运行时 crate 的 RecordedEvent）：这里不发
+/// 新号，也不盖新戳。缺这两格的不是这条通道该有的东西，跳过它。
+fn seeded(events: &[Value]) -> Vec<RecordedFrame> {
+    let mut logged = Vec::with_capacity(events.len());
+
+    for event in events {
+        let (Some(session_id), Some(seq), Some(at)) = (
+            event.get("sessionId").and_then(Value::as_str),
+            event.get("seq").and_then(Value::as_i64),
+            event.get("at").and_then(Value::as_i64),
+        ) else {
+            continue;
+        };
+
+        logged.push(RecordedFrame {
+            session_id: session_id.to_owned(),
+            seq,
+            at,
+            frame: event.to_string(),
+        });
+    }
+
+    logged
 }
 
 /// Restates one stored conversation in the shape the bindings carry.

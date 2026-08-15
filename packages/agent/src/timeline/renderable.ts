@@ -31,6 +31,11 @@ export function isRenderable(item: TimelineItem): boolean {
     return item.text.length > 0
   }
 
+  /* 空的一句话是 agent 回放里被剥空的注入（saidByUser），不是人说的话。 */
+  if (item.type === 'user_message') {
+    return item.text.length > 0 || item.images.length > 0
+  }
+
   if (item.type === 'plan') {
     return item.entries.length > 0
   }

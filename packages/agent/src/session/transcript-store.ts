@@ -4,7 +4,6 @@ import type {
   RunEvent,
   ThreadAttachment,
   ThreadHistory,
-  TurnSpanTiming,
 } from '@poietica/agent-contract'
 import type { TimelineState } from '../timeline'
 import {
@@ -15,14 +14,13 @@ import {
   attachImagesTo,
   createTimelineState,
   replayThreadEvents,
-  restampTurns,
 } from '../timeline'
 import { describeFailure } from './describe-failure'
 
 /*
  * 转录归这里，不归组件。
  *
- * 转录是后端状态：它来自 agent 经 session/load 交还的重放帧，加上一条实时帧流。这里是 React 官方
+ * 转录是后端状态：它来自本地帧日志的重放，加上一条实时帧流。这里是 React 官方
  * 为这件事给出的形状（useSyncExternalStore 的对侧）：一份按对话规范化的状态、
  * 一个订阅入口、以及唯一的写入方。
  *
@@ -336,13 +334,9 @@ export class TranscriptStore {
   /**
    * 接上帧流。
    *
-   * 只剩这一件事了。这里此前还要去取一次历史，而历史现在随「打开这条对话」
-   * 一起回来 —— 打开它就是请 agent 把那条会话装载回来，装载期间它用
-   * session/update 把整条重放一遍，那些帧就是历史本身。
-   *
-   * 那次取读的是本地日志，也就是同一段对话的第二份。两份之中只有一份是 agent
-   * 手里那份；它们一旦分叉，屏幕上显示的是对的那份的赝品。所以这条取数路径
-   * 没有被优化，它被取消了。
+   * 只剩这一件事了。历史随「打开这条对话」一起回来，来源是本地帧日志（见
+   * thread.rs）—— 那正是当时交给界面的同一批帧。agent 那侧那份是模型的上下文，
+   * 由 session/load 让它自己恢复，不参与投影。
    */
   ensure = (port: AgentSessionPort): void => {
     this.#attach(port)
@@ -380,14 +374,14 @@ export class TranscriptStore {
     history: ThreadHistory,
     carried: readonly ThreadAttachment[],
     prompts: number,
-    spans: readonly TurnSpanTiming[],
   ): void => {
-    /* 经过由 agent 交还，图与每一轮的两端由本地账本交还，三者在这里合成一条
-       时间线。对齐规则只有一处：attachImages 与 restampTurns 共用那把从末尾
-       对齐的尺子，因为它是一条会算错的规则。 */
-    const restored = replayThreadEvents(events as readonly RunEvent[])
-    const restamped = restampTurns(restored, spans, prompts)
-    const replayed = attachImages(restamped, carried, prompts)
+    /* 经过由本地日志重放：段边界与每一轮的两端都在帧里（run_started 与终帧
+       各带自己的时刻），所以这里不再有第二把尺子。图仍来自本机账本。 */
+    const replayed = attachImages(
+      replayThreadEvents(events as readonly RunEvent[]),
+      carried,
+      prompts,
+    )
     const lost = lossOf(history)
 
     this.#put(threadId, {

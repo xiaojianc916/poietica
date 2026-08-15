@@ -5,11 +5,12 @@
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
-use poietica_agent_persistence_native::TurnSpan;
-use poietica_agent_runtime_native::{FrameSink, RecordedEvent, now_millis};
+use poietica_agent_persistence_native::RecordedFrame;
+use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
 use tauri::{AppHandle, Emitter, Manager, State, async_runtime};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, timeout_at};
+use uuid::Uuid;
 
 use super::addressing::{Wanted, session_for};
 use super::attachment::{Kept, keep_bytes};
@@ -124,16 +125,7 @@ pub async fn agent_prompt(
     })
     .await?;
 
-    /* 这一轮的起点：命令发出去这一刻。记录器盖在 run_started 上的戳与它是
-    同一个时钟、同一个动作的两侧 —— 中间隔着一次到驱动器的排队，差不出一
-    毫秒。之所以在这里另记一本账：agent 经 session/load 交还的历史不带任何
-    原来的时刻（协议里没有这一格），重启之后封条的耗时只能由这本账回答。 */
-    let asked_at = now_millis();
-
-    /* 落定的那一趟还要碰一次库，先把手上的 AppHandle 复制一份交过去。 */
-    let settle_app = app.clone();
-
-    let frames = batched(app);
+    let frames = logging(app, thread_id);
 
     let answer = session
         .client
@@ -142,26 +134,6 @@ pub async fn agent_prompt(
 
     async_runtime::spawn(async move {
         let outcome = answer.await;
-
-        /* 三种结局都算落定：答复、失败、对面没了 —— 这一轮的时长不因结局而
-        改写。轮次号就是 record_prompt 发的那一号，与附件同一把尺子。记不上
-        只留一行日志：封条退回没有耗时的旧样子，不是这一轮的失败。 */
-        let span = TurnSpan {
-            turn,
-            started_at: asked_at,
-            ended_at: now_millis(),
-        };
-        let index = settle_app.state::<LocalIndex>();
-        let recorded = on_index(&index, move |store| {
-            store
-                .record_turn_span(thread_id, &span)
-                .map_err(persistence)
-        })
-        .await;
-
-        if let Err(error) = recorded {
-            log::warn!("could not record the turn span: {error}");
-        }
 
         match outcome {
             // A turn that ends without a word looks, from the outside, exactly
@@ -182,7 +154,7 @@ pub async fn agent_prompt(
     })
 }
 
-/// 帧攒着走，一拍一趟。
+/// 帧攒着走：一批先落进日志，再交给界面。
 ///
 /// 一帧一次 emit，就是一个 token 一次全量序列化、一次跨进程投递、一次 webview
 /// 事件派发；而收帧的那一侧只按屏幕的节拍看一眼（transcript-store 的 `#paint`）。
@@ -199,7 +171,7 @@ pub async fn agent_prompt(
 /// 每一帧的等待有上界：一批从它的第一帧起算，满 [`FRAME_INTERVAL`] 就交货，其
 /// 间没有新帧也一样。上界是这条通道唯一的时间承诺 —— 靠「下一帧会来」推动交货
 /// 给不出上界，而一次工具调用宣告之后 agent 正是沉默着去干活的。
-fn batched(app: AppHandle) -> FrameSink {
+fn logging(app: AppHandle, thread: Uuid) -> FrameSink {
     let (arrived, mut arriving) = mpsc::unbounded_channel::<RecordedEvent>();
 
     async_runtime::spawn(async move {
@@ -214,8 +186,24 @@ fn batched(app: AppHandle) -> FrameSink {
                 held.push(next);
             }
 
-            // 渲染层没在听不是错：这条对话下次打开时，历史由持有它的 agent
-            // 随 agent_open_thread 一起交回来。
+            /* 先落库，再上屏：库里那一份就是下次打开时重放的那一份。记不上
+            只留一行日志——这一轮照旧上屏，缺的是下一次打开时的这一批。 */
+            let logged = recorded(&held);
+            let index = app.state::<LocalIndex>();
+            let written = on_index(&index, move |store| {
+                for frame in logged {
+                    store.record_frame(thread, &frame).map_err(persistence)?;
+                }
+
+                Ok(())
+            })
+            .await;
+
+            if let Err(error) = written {
+                log::warn!("could not record a batch of frames: {error}");
+            }
+
+            /* 渲染层没在听不是错：下次打开这条对话时，日志重放同一批帧。 */
             let _ignored = app.emit(AGENT_EVENT, &held);
 
             held.clear();
@@ -226,6 +214,27 @@ fn batched(app: AppHandle) -> FrameSink {
         /* 收批的那一端与这条连接同寿；它先走了，这一轮剩下的帧就没有去处。 */
         let _closed = arrived.send(event);
     })
+}
+
+/// 一批帧，按落库的形状。
+///
+/// 序列化不成的那一帧只留日志：帧的形状归 frame.rs，这里不替它兜底。
+fn recorded(events: &[RecordedEvent]) -> Vec<RecordedFrame> {
+    let mut logged = Vec::with_capacity(events.len());
+
+    for event in events {
+        match serde_json::to_string(event) {
+            Ok(frame) => logged.push(RecordedFrame {
+                session_id: event.session_id.clone(),
+                seq: event.seq,
+                at: event.at,
+                frame,
+            }),
+            Err(error) => log::warn!("could not record a frame: {error}"),
+        }
+    }
+
+    logged
 }
 
 /// Answers a permission request the agent is blocked on.

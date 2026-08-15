@@ -68,12 +68,11 @@ export function replayRunEvents(events: readonly RunEvent[]): TimelineState {
 }
 
 /**
- * Replays a whole conversation: several turns, one transcript.
+ * 一条对话的日志，重放成一份转录。
  *
- * Every run numbers its own frames from one, so a stored conversation is a
- * sequence of segments rather than one long run. A turn beginning therefore
- * opens a new segment, which is what stops the second turn from being
- * discarded frame by frame as a duplicate of the first.
+ * 日志由这台机器自己记（run_events），所以段边界就在帧里：每一轮的第一帧是
+ * run_started。末轮编号为 0、往前为负，于是重放之后接着往下走的那些轮次从 1
+ * 起，两侧的条目 id 不会撞。
  */
 export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
   /*

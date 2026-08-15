@@ -97,7 +97,7 @@ impl AgentStore {
     /// 一条 INSERT … SELECT 完成复制与挂接：号与主人成对落下（迁移 0012 的
     /// 触发器拒绝有号无主的行），中间不存在「行在而号不在」的一瞬。
     ///
-    /// prompts 一并抄走：附件与轮次计时按「从末尾对齐」的尺子认领（见
+    /// prompts 一并抄走：附件按「从末尾对齐」的尺子认领（见
     /// record_prompt），分叉带走完整历史，尺子的起点必须一致。updated_at
     /// 取现在 —— 分叉是此刻的活动，新对话要浮上列表。RETURNING 让「源不存
     /// 在」当场成为错误，而不是零行的无声成功。
@@ -268,7 +268,7 @@ impl AgentStore {
 
     /// Changes whether a conversation belongs to the active list.
     ///
-    /// 归档不是删除。标题、会话号、工作区、附件关系与轮次计时全部保留，
+    /// 归档不是删除。标题、会话号、工作区、附件与帧日志全部保留，
     /// 这里只写一枚时间戳。取消归档把时间戳清空。
     pub fn set_archived(&self, id: Uuid, archived: bool) -> Result<()> {
         let archived_at = if archived { Some(now()?) } else { None };
@@ -302,7 +302,7 @@ impl AgentStore {
          * 没人要的那些由 unreferenced_attachments 一次扫出来。
          */
         self.release_attachments(id)?;
-        self.release_turn_spans(id)?;
+        self.release_run_events(id)?;
         self.release_session_usage(id)?;
         self.write(
             "DELETE FROM threads WHERE id = ?1",

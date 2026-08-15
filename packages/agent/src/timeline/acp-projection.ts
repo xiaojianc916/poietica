@@ -682,7 +682,8 @@ function appendSaid(draft: Draft, scope: string, seq: number, at: number, chunk:
     return
   }
 
-  beginQuestion(draft)
+  /* 段由本机发出的 prompt 开启（beginRun / appendUserMessage）。
+     agent 送来的用户消息是回声或注入，不许另开一段。 */
 
   push(draft, {
     type: 'user_message',
