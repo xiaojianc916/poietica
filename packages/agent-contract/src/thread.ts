@@ -70,20 +70,6 @@ export type ThreadHistory =
       readonly owner: string | null
     }
 
-/**
- * 一张挂在这条对话上的图片，以及它属于哪一句话。
- *
- * url 由原生侧拼好（`poietica-asset://asset/{thread}/{sha256}`），这一侧不
- * 自己拼：它的形状是协议的事，多一个人知道就多一处会漂移。
- */
-export interface ThreadAttachment {
-  readonly url: string
-  /** 这是这条对话里第几条用户消息，从 0 数起，从末尾对齐。 */
-  readonly turn: number
-  /** 那条消息里的第几张，从 0 数起。 */
-  readonly ordinal: number
-}
-
 /** A conversation that was just opened, and what its session offers. */
 export interface OpenedThread {
   readonly thread: ThreadRecord
@@ -111,13 +97,13 @@ export interface OpenedThread {
    * 机器上用户自己的文件 —— agent 收到的只是一份 base64 副本，它没有义务
    * 交还，多数 CLI 也确实不交还。两个来源，一条时间线，在这里合。
    */
-  readonly attachments: readonly ThreadAttachment[]
+  readonly attachmentsRemoved: never
   /**
    * 这条对话至今问过多少句话。
    *
    * 上面那些 turn 是照着它、并且是从末尾量起的。见 attachImages。
    */
-  readonly prompts: number
+  readonly promptsRemoved: never
   /**
    * 这条对话最近一次报过的上下文用量，本地账本记下的那份。
    *

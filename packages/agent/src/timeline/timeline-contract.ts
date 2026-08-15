@@ -21,18 +21,12 @@ import type {
 export type TimelineItemId = string
 
 /**
- * 一张随这句话发出去的图片，已经可以直接画。
+ * 一张挂在某条用户消息上的图片。
  *
- * 存的是能进 \`<img src>\` 的东西，不是字节：条目是给读模型看的，而读模型只想
- * 知道往哪儿指。地址由原生侧交回，实时与重放两条路拿到的是同一条。
- *
- * 历史里这一格不再是空的。日志里确实没有图片帧 —— 图不来自 agent，它是这台
- * 机器上的文件，由本地账本按「第几句话、第几张」挂回来（重放走 attachImages，
- * 刚发出去的那一句走 attachImagesTo）。
- * URL 的形状是协议的事，由原生侧拼好交出来，这一层不认识 scheme，也不拼。
+ * 地址由原生侧拼好（`poietica-asset://asset/{thread}/{sha256}`），它随这一轮的
+ * run_started 帧一起到达，所以这一侧不拼、也不必知道它属于第几句话。
  */
 export interface MessageImage {
-  /** 一条资产协议地址，由原生侧按平台拼好，这一层不认识它的 scheme。 */
   readonly url: string
 }
 

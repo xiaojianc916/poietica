@@ -2,7 +2,6 @@ import type {
   AgentSessionPort,
   PromptAsset,
   RunEvent,
-  ThreadAttachment,
   ThreadHistory,
 } from '@poietica/agent-contract'
 import type { TimelineState } from '../timeline'
@@ -10,8 +9,6 @@ import {
   appendLocalError,
   appendUserMessage,
   applyRunEvents,
-  attachImages,
-  attachImagesTo,
   createTimelineState,
   replayThreadEvents,
 } from '../timeline'
@@ -368,20 +365,10 @@ export class TranscriptStore {
    * 通道，和「权限答复送不出去」同一条——它同样发生在任何持久化之外，日志里没有
    * 对应的帧。endsTurn 为假：这不是某一轮失败了，这是这段历史没回来。
    */
-  adopt = (
-    threadId: string,
-    events: readonly unknown[],
-    history: ThreadHistory,
-    carried: readonly ThreadAttachment[],
-    prompts: number,
-  ): void => {
+  adopt = (threadId: string, events: readonly unknown[], history: ThreadHistory): void => {
     /* 经过由本地日志重放：段边界与每一轮的两端都在帧里（run_started 与终帧
        各带自己的时刻），所以这里不再有第二把尺子。图仍来自本机账本。 */
-    const replayed = attachImages(
-      replayThreadEvents(events as readonly RunEvent[]),
-      carried,
-      prompts,
-    )
+    const replayed = replayThreadEvents(events as readonly RunEvent[])
     const lost = lossOf(history)
 
     this.#put(threadId, {
@@ -410,12 +397,9 @@ export class TranscriptStore {
     const current = this.#now(key)
 
     /* 人说的那句话先上屏，再去问 agent。失败的一轮丢掉的是答案，不是问题。
-       字节不在这一层变成能画的东西：地址只有一种，由持有字节的那一侧发（见
-       agent_prompt 的答复），实时那条路与重开对话那条路指的因此是同一样东西。 */
-    const opened = appendUserMessage(current.timeline, text, at, [], assets.length)
-    /* 这一句在转录里的身份。地址还在路上，到了以后按它挂回去 —— 期间这条
-       对话又追加了多少帧都不影响。 */
-    const said = opened.items.at(-1)?.id
+       图这一刻还没有地址：字节要先落盘。它随这一轮的 run_started 帧回来，所以
+       实时那条路与重开对话那条路走的是同一条（见 acp-projection 的 withPrompt）。 */
+    const opened = appendUserMessage(current.timeline, text, at, assets.length)
 
     this.#put(key, { ...current, timeline: opened })
 
@@ -466,36 +450,12 @@ export class TranscriptStore {
            * 号可登记。它是幂等的，不是补救。
            */
           this.route(handle.sessionId, threadId)
-          this.#carry(threadId, said, handle.images)
         })
       })
       .catch((cause: unknown) => {
         /* 没有"当前那一轮"要收拾了：这一轮从来没拿到过地址，也就从来没占过谁。 */
         this.#fail(key, cause)
       })
-  }
-
-  /**
-   * 刚发出去的那些图，挂到刚说的那句话上。
-   *
-   * 一次写入，只在这一句真的带了图时发生：没带图的那些轮次一帧都不多画。
-   * 走的是 #put，所以它与其它任何一次写入一样会被攒到下一拍再叫醒订阅者。
-   */
-  #carry(key: string, id: string | undefined, urls: readonly string[]): void {
-    if (id === undefined || urls.length === 0) {
-      return
-    }
-
-    const current = this.#now(key)
-
-    this.#put(key, {
-      ...current,
-      timeline: attachImagesTo(
-        current.timeline,
-        id,
-        urls.map((url) => ({ url })),
-      ),
-    })
   }
 
   /**

@@ -1,4 +1,4 @@
-//! 附件的账:哪条对话的哪一轮挂着哪几段字节。
+//! 附件的账:哪条对话引用着哪几段字节。
 //!
 //! 字节本身不在这个 crate 里,也不在这个库文件里 —— 它们按摘要落在磁盘上,
 //! 由桌面层的资产协议交付(asset_protocol.rs)。这里只回答两个问题:某条对话
@@ -14,15 +14,13 @@ use uuid::Uuid;
 use crate::error::Result;
 use crate::store::{AgentStore, now};
 
-/// 一张挂在某一轮上的附件,界面需要的全部。
+/// 一段被某条对话引用着的字节,交付它需要的全部。
+///
+/// 它不说这张图属于哪一句话 —— 那件事写在帧上(run_started 的 images)。
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ThreadAttachment {
     /// 小写十六进制 SHA-256。它同时是资产协议里的 asset token。
     pub hash: String,
-    /// 这是这条对话里第几条用户消息,从 0 数起。
-    pub turn: i64,
-    /// 这条消息里的第几张,从 0 数起。顺序是用户挑选的顺序。
-    pub ordinal: i64,
     pub mime: String,
     pub byte_size: i64,
 }
@@ -60,15 +58,10 @@ impl AgentStore {
         )?;
 
         transaction.execute(
-            "INSERT INTO thread_attachments (thread_id, turn, ordinal, hash)
-             VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT (thread_id, turn, ordinal) DO UPDATE SET hash = excluded.hash",
-            rusqlite::params![
-                thread.to_string(),
-                attachment.turn,
-                attachment.ordinal,
-                &attachment.hash
-            ],
+            "INSERT INTO thread_attachments (thread_id, hash)
+             VALUES (?1, ?2)
+             ON CONFLICT (thread_id, hash) DO NOTHING",
+            rusqlite::params![thread.to_string(), &attachment.hash],
         )?;
 
         transaction.commit()?;
@@ -86,46 +79,22 @@ impl AgentStore {
     /// 查询被拒时返回错误。
     pub fn attachments_of(&self, thread: Uuid) -> Result<Vec<ThreadAttachment>> {
         let mut statement = self.connection.prepare_cached(
-            "SELECT link.hash, link.turn, link.ordinal, blob.mime, blob.byte_size
+            "SELECT link.hash, blob.mime, blob.byte_size
                FROM thread_attachments AS link
                JOIN attachments        AS blob ON blob.hash = link.hash
               WHERE link.thread_id = ?1
-              ORDER BY link.turn, link.ordinal",
+              ORDER BY link.hash",
         )?;
 
         let found = statement
             .query_map(rusqlite::params![thread.to_string()], |row| {
                 Ok(ThreadAttachment {
                     hash: row.get(0)?,
-                    turn: row.get(1)?,
-                    ordinal: row.get(2)?,
-                    mime: row.get(3)?,
-                    byte_size: row.get(4)?,
+                    mime: row.get(1)?,
+                    byte_size: row.get(2)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
-
-        Ok(found)
-    }
-
-    /// 这条对话至今问过多少句话 —— 轮次号是照着它量出来的。
-    ///
-    /// 轮次号从末尾对齐:计数为 N,就表示它盖住的是最后 N 条用户消息
-    /// (见迁移 0011)。0011 之前写下的那些行计数是 0,它们的旧历史因此
-    /// 一张图都不认领 —— 这正是对的,那时候根本没有人记过。
-    ///
-    /// 认领方要的是这个计数,不是 `max(turn) + 1`:最后几句话可以一张图都
-    /// 没带,那时两者不相等,而差多少就会把每一张图挪多少格。
-    ///
-    /// # Errors
-    ///
-    /// 查询被拒、或这条对话不存在时返回错误。
-    pub fn prompt_count(&self, thread: Uuid) -> Result<i64> {
-        let mut statement = self
-            .connection
-            .prepare_cached("SELECT prompts FROM threads WHERE id = ?1")?;
-
-        let found = statement.query_row(rusqlite::params![thread.to_string()], |row| row.get(0))?;
 
         Ok(found)
     }

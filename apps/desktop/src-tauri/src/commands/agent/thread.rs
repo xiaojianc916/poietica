@@ -112,11 +112,11 @@ pub async fn agent_open_thread(
     /* 列表故意漏掉还没有人开口的对话，而刚建的这一行正是那种，所以它只能
     单独读回来。判据现在是标题源，见 threads.rs 的 list_threads。
 
-    「这条对话长什么样」与「它一共问过多少次」是同一次打开要的两个答案，所以
+    「这条对话长什么样」与「它的经过」是同一次打开要的两个答案，所以
     它们共用一次借用：一趟阻塞线程、一次上锁、两条 prepare_cached。拆成两趟就
     是各排一次线程池、各抢一次那把库锁，而打开一条对话正是人点一下就要等的那
     条路径 —— turn.rs 里那批附件写入用的是同一条规矩。 */
-    let (thread, usage, prompts, frames) = on_index(&index, move |store| {
+    let (thread, usage, frames) = on_index(&index, move |store| {
         let stored = store
             .thread(thread_id)
             .map_err(persistence)?
@@ -134,19 +134,16 @@ pub async fn agent_open_thread(
 
         let thread = retitle(stored);
 
-        let prompts = store.prompt_count(thread_id).map_err(persistence)?;
-
         /* 经过由本地日志重放，而日志只由跑那一轮的那一侧写（turn.rs 的
         logging）。空着就是空着 —— 这台机器没记过它。 */
         let frames = store.frames_of(thread_id).map_err(persistence)?;
 
-        Ok((thread, usage, prompts, frames))
+        Ok((thread, usage, frames))
     })
     .await?;
 
-    let attachments = deliver_attachments(&state, &index, &assets, thread_id).await?;
+    deliver_attachments(&state, &index, &assets, thread_id).await?;
 
-    let prompts = counted(prompts)?;
     let events = restored(frames)?;
 
     Ok(AgentOpenedThread {
@@ -154,8 +151,6 @@ pub async fn agent_open_thread(
         selectors: offered.into_iter().map(restate).collect(),
         events,
         history,
-        attachments,
-        prompts,
         usage,
     })
 }

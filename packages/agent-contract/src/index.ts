@@ -46,7 +46,6 @@ export type {
 } from './session'
 export type {
   OpenedThread,
-  ThreadAttachment,
   ThreadHistory,
   ThreadHistoryLoss,
   ThreadPort,

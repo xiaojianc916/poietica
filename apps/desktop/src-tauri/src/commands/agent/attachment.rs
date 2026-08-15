@@ -8,7 +8,7 @@ use crate::asset_protocol::{
 };
 use crate::attachments::{blob_path, store_bytes};
 use crate::error::{Error, Result};
-use crate::local_index::{LocalIndex, counted, on_index, persistence};
+use crate::local_index::{LocalIndex, on_index, persistence};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use poietica_agent_persistence_native::ThreadAttachment;
@@ -19,23 +19,20 @@ use std::sync::Arc;
 use tauri::{State, async_runtime};
 use uuid::Uuid;
 
-use super::dto::{AgentPromptAsset, AgentThreadAttachment};
+use super::dto::AgentPromptAsset;
 use super::runtime::AgentRuntime;
-use super::{IMAGE_TOO_LARGE, NO_READ, NO_SUCH_ASSET, TOO_MANY_IMAGES};
+use super::{IMAGE_TOO_LARGE, NO_READ, NO_SUCH_ASSET};
 
-/// 一句话里的图片落定之后的三份东西。
+/// 一句话里的图片落定之后的两份东西。
 ///
-/// 同一批字节，三个去处，一次解码：协议要 base64 那一份，账本要摘要与位置，
-/// 屏幕要一条取得回它的地址。第三份此前不存在，于是渲染层自己拼了一条 data:
-/// URL —— 同一张图在这个程序里因此有两种写法，重启前后各一种，而只有其中
-/// 一种走过协议。
+/// 同一批字节，两个去处，一次解码：协议要 base64 与地址那一份，账本只要摘要。
+/// 地址此前另立一个平行的 Vec，靠下标与前两者对齐 —— 三条平行序列，谁错位都
+/// 不会有人报错。现在它长在 PromptImage 上，一项一张图。
 pub(super) struct Kept {
-    /// 原样交给协议的那一份。
+    /// 原样交给协议的那一份，每一项带着它自己的地址。
     pub(super) carried: Vec<PromptImage>,
     /// 记进账本的那些行。
     pub(super) ledger: Vec<ThreadAttachment>,
-    /// 屏幕上指向它们的地址，顺序与用户挑的一致。
-    pub(super) urls: Vec<String>,
 }
 
 /// 这条对话的交付会话，没有就开一个。
@@ -70,13 +67,11 @@ pub(super) async fn keep_bytes(
     assets: AssetProtocolRegistry,
     session: String,
     attached: Vec<AgentPromptAsset>,
-    turn: i64,
 ) -> Result<Kept> {
     if attached.is_empty() {
         return Ok(Kept {
             carried: Vec::new(),
             ledger: Vec::new(),
-            urls: Vec::new(),
         });
     }
 
@@ -85,9 +80,7 @@ pub(super) async fn keep_bytes(
 
         let mut carried = Vec::with_capacity(attached.len());
         let mut ledger = Vec::with_capacity(attached.len());
-        let mut urls = Vec::with_capacity(attached.len());
-
-        for (ordinal, reference) in attached.into_iter().enumerate() {
+        for reference in attached {
             /* 取不到就不发。这一句带的图已经不在了，而静默少发一张比失败更坏：
             对面收到一句没有附件的话，屏幕上什么都不会说。 */
             let (mime, bytes) = assets
@@ -99,13 +92,11 @@ pub(super) async fn keep_bytes(
 
             let data = BASE64.encode(bytes.as_slice());
 
-            urls.push(asset_protocol_url(&session, &blob.hash).map_err(asset)?);
+            /* 地址先算：下一句把摘要交给账本，它就不再属于这里。 */
+            let url = asset_protocol_url(&session, &blob.hash).map_err(asset)?;
 
             ledger.push(ThreadAttachment {
                 hash: blob.hash,
-                turn,
-                ordinal: i64::try_from(ordinal)
-                    .map_err(|_overflow| Error::Internal(TOO_MANY_IMAGES.to_owned()))?,
                 mime: mime.clone(),
                 byte_size: i64::try_from(blob.byte_size)
                     .map_err(|_overflow| Error::Validation(IMAGE_TOO_LARGE.to_owned()))?,
@@ -114,14 +105,11 @@ pub(super) async fn keep_bytes(
             carried.push(PromptImage {
                 data,
                 mime_type: mime,
+                url,
             });
         }
 
-        Ok(Kept {
-            carried,
-            ledger,
-            urls,
-        })
+        Ok(Kept { carried, ledger })
     })
     .await
     .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?
@@ -140,7 +128,7 @@ pub(super) async fn deliver_attachments(
     index: &State<'_, LocalIndex>,
     assets: &State<'_, AssetProtocolRegistry>,
     thread_id: Uuid,
-) -> Result<Vec<AgentThreadAttachment>> {
+) -> Result<()> {
     let ledger = on_index(index, move |store| {
         store.attachments_of(thread_id).map_err(persistence)
     })
@@ -205,29 +193,16 @@ pub(super) async fn deliver_attachments(
 
     /* 真正铺进去的那些。缺字节的那几张不在里面，所以也不该出现在答复里 ——
     交出一条取不到东西的 URL，屏幕上就是一个破图标。 */
-    let delivered = entries
-        .iter()
-        .map(|entry| entry.content_hash().to_owned())
-        .collect::<HashSet<_>>();
-
     /* 撤旧与铺新在注册表的同一次写锁里完成。此前是"函数开头 remove_session、
     函数末尾 restore_session"，中间隔着一次库读和一整趟磁盘读：那段时间这条
     会话在注册表里不存在，而这条命令的重入是常态（Ctrl+R、第二个窗口）。旧
     页面上还挂着的 <img> 在那一瞬取到 404，协议这一侧没有重试，破图标就留下
     来了。 */
+    /* 缺字节的那几张不在 entries 里：它们的地址仍留在帧上，取不到东西，屏幕上
+    就是一个破图标。那是诚实的 —— 那张图真的没了，而这条对话其余部分照旧打开。 */
     assets.replace_session(&session, entries).map_err(asset)?;
 
-    ledger
-        .into_iter()
-        .filter(|attachment| delivered.contains(&attachment.hash))
-        .map(|attachment| {
-            Ok(AgentThreadAttachment {
-                url: asset_protocol_url(&session, &attachment.hash).map_err(asset)?,
-                turn: counted(attachment.turn)?,
-                ordinal: counted(attachment.ordinal)?,
-            })
-        })
-        .collect()
+    Ok(())
 }
 
 /// 交付失败，说给屏幕听的那一句。

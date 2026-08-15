@@ -1,6 +1,6 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { apply, surelyIgnored } from './acp-projection'
-import type { MessageImage, TimelineState } from './timeline-contract'
+import type { TimelineState } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import {
   beginQuestion,
@@ -42,8 +42,7 @@ import {
  * 知道（见 apply 开头那段注释），所以它必须留在这一层。
  *
  * 帧里那些字如何变成条目是协议的方言，归 acp-projection —— 那是唯一 import
- * @poietica/agent-contract 的地方。本机账本里的图如何挂回它那句话与协议无关，
- * 归 message-images。
+ * @poietica/agent-contract 的地方。图也在那一帧上，所以它没有第二个去处。
  */
 
 export function createTimelineState(): TimelineState {
@@ -129,18 +128,14 @@ export function appendUserMessage(
   state: TimelineState,
   text: string,
   at: number,
-  images: readonly MessageImage[] = [],
   /**
    * 这一句一共带了几张图。
    *
-   * 与 images 分开，因为这两件事知道的时刻不同：「带了几张」在人按下发送的
-   * 那一刻就知道，「它们在哪」要等原生侧把字节落盘之后才发得出地址（见
-   * transcript-store 的 send 与 #carry）。按 images 的长度判空，一句纯图片
-   * 的话就会在等地址的那一小段里整条消失 —— 而它恰恰是最该立刻出现的那条。
-   *
-   * 缺省等于 images.length，所以既有的调用方一个字都不用改。
+   * 只要个数，不要地址：地址要等原生侧把字节落盘之后才发得出，而它随这一轮的
+   * run_started 帧回来（见 acp-projection 的 withPrompt）。所以这一刻能知道的
+   * 只有「带了几张」，而一句纯图片的话正是靠它才站得住。
    */
-  carrying: number = images.length,
+  carrying = 0,
 ): TimelineState {
   const said = text.trim()
 
@@ -195,8 +190,6 @@ export function appendUserMessage(
     turn: draft.runIndex,
     at,
     text: said,
-    /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
-    ...(images.length === 0 ? {} : { images }),
   })
 
   return freeze(draft)

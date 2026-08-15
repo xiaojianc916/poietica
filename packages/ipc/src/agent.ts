@@ -258,8 +258,7 @@ export function createAgentCommandBridge({
         }),
       )
 
-      /* 两格都原样交出去：形状由原生侧定义，与端口逐格相同。 */
-      return { sessionId: result.sessionId, images: result.images }
+      return { sessionId: result.sessionId }
     },
 
     cancel: async (threadId) => {
@@ -454,8 +453,6 @@ export function createAgentThreadBridge({
         形状由原生侧定义，与端口逐格相同，这一层没有要转换的东西。轮次计数
         是对齐用的尺子 —— 账本里的 turn 从某次迁移之后才开始记，所以认领方
         要从末尾往回数，而末尾在哪只有这个计数说得准。 */
-        attachments: opened.attachments,
-        prompts: opened.prompts,
         ...(opened.usage === null ? {} : { usage: opened.usage }),
       }
     },

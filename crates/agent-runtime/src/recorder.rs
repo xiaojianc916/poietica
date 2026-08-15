@@ -204,10 +204,11 @@ impl Recorder {
         self.failure.take()
     }
 
-    /// Records that the run began, and what was asked.
-    pub fn record_run_started(&mut self, prompt: &str) {
+    /// Records that the run began, what was asked, and what was shown with it.
+    pub fn record_run_started(&mut self, prompt: &str, images: Vec<String>) {
         self.append(RunFrame::RunStarted {
             prompt: prompt.to_owned(),
+            images,
         });
     }
 

@@ -14,13 +14,17 @@ use crate::session::{
 /// 这一轮随那句话一起送出去的一张图片。
 ///
 /// base64 是协议自己的形状：ACP 的 image content block 就是一个 base64 的 data
-/// 加一个 mimeType。所以这条路上没有任何一层解码或落盘 —— 字节从渲染进程直接
-/// 进请求体。
+/// 加一个 mimeType，所以这一格原样进请求体，中间不解码。
+///
+/// 一项一张图：字节给协议，地址给日志与屏幕。两件事分成两个平行的 Vec 就要靠
+/// 下标对齐，而靠下标对齐的东西没有人会在它错位时报错。
 pub struct PromptImage {
     /// base64 编码的原始字节，不带 `data:` 前缀。
     pub data: String,
     /// 例如 `image/png`。
     pub mime_type: String,
+    /// 这张图在本机的资产协议地址，随这一轮的 run_started 帧写进日志。
+    pub url: String,
 }
 
 /// 手写，因为 derive 会把整张图打出来。
@@ -37,6 +41,7 @@ impl fmt::Debug for PromptImage {
             .debug_struct("PromptImage")
             .field("mime_type", &self.mime_type)
             .field("base64_len", &self.data.len())
+            .field("url", &self.url)
             .finish()
     }
 }

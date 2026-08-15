@@ -125,9 +125,9 @@ impl AgentStore {
         transaction
             .prepare_cached(
                 "INSERT INTO threads
-                    (id, title, title_source, created_at, updated_at, workspace_root, prompts,
+                    (id, title, title_source, created_at, updated_at, workspace_root,
                      session_id, agent_id)
-                 SELECT ?2, ?6, ?7, ?3, ?3, workspace_root, prompts, ?4, ?5
+                 SELECT ?2, ?6, ?7, ?3, ?3, workspace_root, ?4, ?5
                    FROM threads
                   WHERE id = ?1
               RETURNING id",
@@ -157,8 +157,8 @@ impl AgentStore {
 
         transaction
             .prepare_cached(
-                "INSERT INTO thread_attachments (thread_id, turn, ordinal, hash)
-                 SELECT ?2, turn, ordinal, hash
+                "INSERT INTO thread_attachments (thread_id, hash)
+                 SELECT ?2, hash
                    FROM thread_attachments
                   WHERE thread_id = ?1",
             )?
@@ -237,19 +237,18 @@ impl AgentStore {
     /// # Errors
     ///
     /// 语句被拒、或这条对话不存在时返回错误。
-    pub fn record_prompt(&self, id: Uuid, title: &str) -> Result<i64> {
+    pub fn record_prompt(&self, id: Uuid, title: &str) -> Result<()> {
         let timestamp = now()?;
 
-        let turn = self
+        let _found: String = self
             .connection
             .prepare_cached(
                 "UPDATE threads
                     SET title        = CASE WHEN title_source = ?4 THEN ?2 ELSE title END,
                         title_source = CASE WHEN title_source = ?4 THEN ?5 ELSE title_source END,
-                        updated_at   = ?3,
-                        prompts      = prompts + 1
+                        updated_at   = ?3
                   WHERE id = ?1
-              RETURNING prompts - 1",
+              RETURNING id",
             )?
             .query_row(
                 rusqlite::params![
@@ -262,7 +261,7 @@ impl AgentStore {
                 |row| row.get(0),
             )?;
 
-        Ok(turn)
+        Ok(())
     }
 
     /// Names a conversation on the user's say-so.
@@ -382,7 +381,7 @@ impl AgentStore {
     /// agent_open_thread 先落行再开会话，而 list_threads 按标题源把还没
     /// 开口的行滤掉 —— 于是「点开新对话又走掉」留下的是一行永远不进列表、
     /// 也就永远没有删除按钮的账，外加 agent 侧一条真实存在的会话和一个占
-    /// 着的工作目录。行在这里删掉（走 delete_thread，附件链接与轮次计时一
+    /// 着的工作目录。行在这里删掉（走 delete_thread，附件链接与帧日志一
     /// 并释放），会话号进处置账，由下一次连接送达 session/delete；目录随
     /// 后由同一次启动对账的清扫回收（bootstrap/app.rs）。
     ///

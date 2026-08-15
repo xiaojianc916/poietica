@@ -40,6 +40,13 @@ export type RunEvent =
        * permission_requested 的 toolCall 上的那句话。
        */
       readonly prompt?: string | undefined
+      /**
+       * 随这句话送出去的图片，本机地址，顺序与用户挑的一致。
+       *
+       * 与 prompt 同一个理由可选：日志是历史，而这一格是今天才开始记的。早先
+       * 录下的帧没有它，回放它们时这一句话就是没有图 —— 那正是当时的事实。
+       */
+      readonly images?: readonly string[] | undefined
     }
   | {
       readonly kind: 'acp_update'

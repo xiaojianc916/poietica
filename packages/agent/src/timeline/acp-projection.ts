@@ -22,6 +22,7 @@ import { isRenderable } from './renderable'
 import type {
   AgentTextItem,
   AgentThoughtItem,
+  MessageImage,
   ToolCallTimelineItem,
   UserMessageItem,
 } from './timeline-contract'
@@ -527,8 +528,10 @@ export function withoutArgumentEcho(
 /**
  * 日志里录下的那一问。
  *
- * 人经输入框提交的那些轮次由 appendUserMessage 先开段先落账（它带得出图片，
- * 这一格带不出）；没经过输入框的那些轮次（自动化、重连续接）由这里落。
+ * 一问由这一帧带全：文字与图片地址都在 run_started 上（见 frame.rs 的
+ * RunStarted）。人经输入框提交的那些轮次先落一条乐观条目，图在这里补上去；没
+ * 经过输入框的那些轮次（自动化、重连续接）整条都由这里落。两条路都只从这一帧
+ * 取图，所以「哪张图属于哪一句话」在这个程序里只有一个答案。
  *
  * 判据是「本段末尾已经是一问」，不是文本相等：同一句话在两轮里说两遍是常事，
  * 而两轮不会是同一段。段边界读的是条目自己的段号，与 relink、silentTurn 同一
@@ -536,12 +539,23 @@ export function withoutArgumentEcho(
  */
 function withPrompt(
   draft: Draft,
-  event: { readonly seq: number; readonly at: number; readonly prompt?: string | undefined },
+  event: {
+    readonly seq: number
+    readonly at: number
+    readonly prompt?: string | undefined
+    readonly images?: readonly string[] | undefined
+  },
 ): void {
   /* 缺席与空串在这里是同一件事：都表示这一帧没有带来一句要显示的话。 */
   const prompt = saidByUser(event.prompt ?? '')
+  const shown: readonly MessageImage[] = (event.images ?? []).map((url) => ({ url }))
 
-  if (prompt.length === 0 || saidAtTail(draft) || adoptQueuedPrompt(draft, prompt)) {
+  /* 只挑了图、没打字，仍然是一句说过的话。 */
+  if (prompt.length === 0 && shown.length === 0) {
+    return
+  }
+
+  if (adoptQueuedPrompt(draft, prompt, shown) || dressTail(draft, shown)) {
     return
   }
 
@@ -553,14 +567,32 @@ function withPrompt(
     turn: draft.runIndex,
     at: event.at,
     text: prompt,
+    /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
+    ...(shown.length === 0 ? {} : { images: shown }),
   })
 }
 
-/** 本段末尾那一条是不是一问。O(1)，因为一问永远是它自己那一段的开头。 */
-function saidAtTail(draft: Draft): boolean {
-  const tail = draft.items.at(-1)
+/**
+ * 本段末尾那一问，补上这一帧带来的图。
+ *
+ * 那一条是人按下发送时本机落的（appendUserMessage）：那一刻字节还没落盘，也就
+ * 还没有地址。所以地址在这里补，而不是另开一条从 IPC 答复回来的路。
+ *
+ * O(1)，因为一问永远是它自己那一段的开头。
+ */
+function dressTail(draft: Draft, shown: readonly MessageImage[]): boolean {
+  const position = draft.items.length - 1
+  const tail = draft.items[position]
 
-  return tail?.type === 'user_message' && tail.turn === draft.runIndex
+  if (tail?.type !== 'user_message' || tail.turn !== draft.runIndex) {
+    return false
+  }
+
+  if (shown.length > 0) {
+    draft.items[position] = { ...tail, images: shown }
+  }
+
+  return true
 }
 
 /**
@@ -571,7 +603,7 @@ function saidAtTail(draft: Draft): boolean {
  * is safe: only local messages from the immediately preceding turn are
  * candidates, and the newest unmatched one wins.
  */
-function adoptQueuedPrompt(draft: Draft, prompt: string): boolean {
+function adoptQueuedPrompt(draft: Draft, prompt: string, shown: readonly MessageImage[]): boolean {
   for (let position = draft.items.length - 1; position >= 0; position--) {
     const item = draft.items[position]
 
@@ -586,6 +618,7 @@ function adoptQueuedPrompt(draft: Draft, prompt: string): boolean {
       ...item,
       id: `${namespace(draft)}said-${String(draft.lastSeq)}`,
       turn: draft.runIndex,
+      ...(shown.length === 0 ? {} : { images: shown }),
     }
     draft.items[position] = adopted
     draft.index?.delete(item.id)
@@ -664,8 +697,7 @@ function appendChunk(
  * 夹着 agent 注入的旁白，所以以先到的为准。
  *
  * 判据只有身份与段号，没有一次文本比较：同一句话在两轮里说两遍时，比文本会把
- * 第二条判成重复丢掉，而附件按「第几条用户消息」挂回原处、缩略导航按「问过几
- * 次」数格子，少一条会让两处一起错。
+ * 第二条判成重复丢掉，而缩略导航按「问过几次」数格子，少一条就会错位。
  */
 function appendSaid(draft: Draft, scope: string, seq: number, at: number, chunk: string): void {
   const tail = draft.items.at(-1)
@@ -714,8 +746,7 @@ function sameMessage(
  * 跨行也吃 —— 那段旁白本来就是多行的。
  *
  * 剥完为空时这条消息仍然留着，绝不能连气泡一起丢：一句纯图片的话，屏幕上正
- * 是靠这一格站住的，附件按第几条用户消息挂回来（见 attachImages）。少一格，
- * 两侧的数就不等，整批图一张都挂不上 —— 这不是假设，是这一条改动之前的现状。
+ * 是靠这一格站住的，而它带的图就在同一帧的 images 里。
  */
 const INJECTED = /<system-reminder>[\s\S]*?<\/system-reminder>/g
 

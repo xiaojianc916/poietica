@@ -74,14 +74,6 @@ pub struct AgentPromptRequest {
 pub struct AgentPromptResult {
     /// 这一轮发到了哪条会话。它的每一帧都带着同一个号。
     pub session_id: String,
-    /// 这一句里的图片在 webview 里的地址，顺序与用户挑的一致。
-    ///
-    /// 与重开这条对话时交回的那些是同一种东西（见 AgentThreadAttachment）：
-    /// 字节落盘的同一趟里就铺进了同一条交付会话，所以"刚发出去的图"和"昨天
-    /// 发过的图"在渲染层那边不再是两种写法。此前那一侧自己拼 data: URL ——
-    /// 一张十六兆的图会在 JS 堆上留下一份二十一兆的字符串，活到这条对话被
-    /// 关掉为止；而那条路不经过协议，于是协议这条路坏了很久都没人发现。
-    pub images: Vec<String>,
 }
 
 /// A user's answer to a permission request.
@@ -272,29 +264,6 @@ pub struct AgentThread {
     pub archived: bool,
 }
 
-/// 这条对话挂着的一张附件，以及它该出现在哪里。
-///
-/// URL 由这一侧拼好交出去（`asset_protocol_url`），渲染层不自己拼：它的形状
-/// 是协议的事，多一个人知道就多一处会漂移。
-///
-/// 位置由「第几条用户消息、这条消息里的第几张」两个数给出，而不是消息 id ——
-/// 这个程序不存对话内容，历史由 agent 交还，那份历史里的 id 不归我们发。
-/// 能由两侧各自数出同一个答案的，只有序号（见迁移 0010 与 0011）。
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentThreadAttachment {
-    /// `poietica-asset://asset/{thread}/{sha256}`，可以直接进 img 的 src。
-    pub url: String,
-    /// 这是这条对话里第几条用户消息，从 0 数起。
-    ///
-    /// 序号不为负，也不会大到 32 位装不下，所以线上就是 u32 —— 库里那一列
-    /// 是 i64 只因为 SQLite 的整数天生是 i64，那是存储的宽度，不是协议的。
-    /// specta 拒绝导出 i64 正是在守这条界线：JS 的 number 只精确到 2^53。
-    pub turn: u32,
-    /// 那条消息里的第几张，从 0 数起。
-    pub ordinal: u32,
-}
-
 /// 要打开的对话，以及必要时怎样启动 agent。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -341,7 +310,7 @@ pub struct AgentOpenedThread {
     /// 自己的文件：agent 收到的是一份 base64 副本，它没有义务交还，多数 CLI
     /// 也确实不交还 —— 所以这一格由本地账本回答（见 persistence 的
     /// attachments.rs）。
-    pub attachments: Vec<AgentThreadAttachment>,
+    pub attachments_removed: (),
     /// 这条对话至今问过多少句话。
     ///
     /// 上面那些附件的 turn 是照着它量的,而且是从末尾量起:计数为 N,就表示
@@ -352,7 +321,7 @@ pub struct AgentOpenedThread {
     /// 之前就存在的对话都是错的。
     ///
     /// 与上面那两格同一个宽度，同一个理由。
-    pub prompts: u32,
+    pub prompts_removed: (),
 
     /// 这条对话最近一次记下的上下文用量。
     ///

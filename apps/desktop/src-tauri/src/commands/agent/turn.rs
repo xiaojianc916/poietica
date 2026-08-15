@@ -91,23 +91,18 @@ pub async fn agent_prompt(
     //
     // 库操作只有一条路。它在阻塞线程池上，所以这一次写不会停住这个运行时上
     // 别的东西 —— 包括 ACP driver 的 future，它就在这里 spawn 的。
-    let turn = on_index(&index, move |store| {
+    on_index(&index, move |store| {
         store.record_prompt(thread_id, &opener).map_err(persistence)
     })
     .await?;
 
     /* 先落盘、铺进交付会话，再记账，最后才上路。顺序见 attachments.rs 的模块
     头：反过来会留下一条指着不存在字节的账，而那种残留不会自愈。 */
-    let Kept {
-        carried,
-        ledger,
-        urls,
-    } = keep_bytes(
+    let Kept { carried, ledger } = keep_bytes(
         state.attachments.clone(),
         assets.inner().clone(),
         thread_id.to_string(),
         attached,
-        turn,
     )
     .await?;
 
@@ -149,7 +144,6 @@ pub async fn agent_prompt(
 
     Ok(AgentPromptResult {
         session_id: addressed,
-        images: urls,
     })
 }
 
