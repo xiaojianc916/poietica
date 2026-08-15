@@ -23,10 +23,6 @@ ALTER TABLE thread_attachments_rekeyed RENAME TO thread_attachments;
 -- 回收问的是反向问题：这个摘要还有人引用吗。
 CREATE INDEX thread_attachments_by_hash ON thread_attachments (hash);
 
--- 每一轮的两端在帧上（run_started 与终帧各带自己的时刻），读它的代码在那一刻
--- 就删了。表留着就是留一份没有读者的第二真相。
-DROP TABLE turn_spans;
-
 -- 说过几句话不再是任何东西的尺子。DROP COLUMN 要 SQLite 3.35，而上面这些表用了
 -- STRICT，那要 3.37 —— 能力下界由 schema 自己证明。
 ALTER TABLE threads DROP COLUMN prompts;
