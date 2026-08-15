@@ -36,7 +36,7 @@ fn notify(recorder: &mut Recorder, update: SessionUpdate) {
 fn every_frame_carries_the_fields_the_interface_validates() {
     let (mut recorder, delivered) = recording();
 
-    recorder.record_run_started("read config.toml");
+    recorder.record_run_started("read config.toml", Vec::new());
     notify(
         &mut recorder,
         SessionUpdate::ToolCall(

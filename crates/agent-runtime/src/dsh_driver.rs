@@ -435,7 +435,9 @@ pub fn connect_harness(
 
                     let _routed = turn.record(|listening| {
                         if let Some(recorder) = listening.turn_mut() {
-                            recorder.record_run_started(&text);
+                            /* 这条线没有图片块（见下方 prompt_line 的注释），
+                            所以首帧的 images 恒为空。 */
+                            recorder.record_run_started(&text, Vec::new());
                         }
                     });
 

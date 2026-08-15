@@ -49,7 +49,7 @@ fn updates_reach_the_installed_run() {
     assert!(slot.is_listening());
     assert!(slot.record(|listening| {
         if let Some(recorder) = listening.turn_mut() {
-            recorder.record_run_started("what the run was asked");
+            recorder.record_run_started("what the run was asked", Vec::new());
         }
     }));
     assert!(slot.record(|listening| listening.frame(announcement())));
@@ -159,7 +159,7 @@ fn a_second_turn_continues_the_sequence_of_the_first() {
             .expect("an empty slot");
         assert!(slot.record(|listening| {
             if let Some(recorder) = listening.turn_mut() {
-                recorder.record_run_started("what the run was asked");
+                recorder.record_run_started("what the run was asked", Vec::new());
             }
         }));
 
