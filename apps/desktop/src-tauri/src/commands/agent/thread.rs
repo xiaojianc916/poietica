@@ -314,9 +314,9 @@ pub async fn agent_delete_thread(
 
     let live = borrow(&state)?;
 
-    /* 号与主人成对拿走：迁移 0012 的触发器保证有号必有主，所以 zip 折不掉
-    一笔真实的账。持有者对不上就不当场发 —— 会话号活在各自 agent 的命名空
-    间里，把 A 的号发给 B，删的可能是 B 的东西。 */
+    /* 号与主人成对拿走：库上的 threads_session_needs_owner 保证有号必有主，
+    所以 zip 折不掉一笔真实的账。持有者对不上就不当场发 —— 会话号活在各自
+    agent 的命名空间里，把 A 的号发给 B，删的可能是 B 的东西。 */
     let held = stored.and_then(|thread| thread.session_id.zip(thread.agent_id));
 
     /* 能当场送达就当场送达：连接活着、主人对得上、能力声明过。当场没送达
@@ -451,8 +451,8 @@ pub async fn agent_fork_thread(
     .await?
     .ok_or_else(|| Error::Validation(NOTHING_TO_FORK.to_owned()))?;
 
-    /* 号与主人成对（迁移 0012），对不上当前连接的 agent 就不发：会话号活
-    在各自 agent 的命名空间里。 */
+    /* 号与主人成对（threads_session_needs_owner），对不上当前连接的 agent
+    就不发：会话号活在各自 agent 的命名空间里。 */
     let held = stored
         .session_id
         .zip(stored.agent_id)
