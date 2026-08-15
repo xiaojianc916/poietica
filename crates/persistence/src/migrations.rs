@@ -7,7 +7,11 @@ use crate::store::now;
 const MIGRATIONS: &[(i64, &str, &str)] = &[
     (1, "initial", include_str!("schema/0001_initial.sql")),
     (2, "run_events", include_str!("schema/0002_run_events.sql")),
-    (3, "run_events_thread_key", include_str!("schema/0003_run_events_thread_key.sql")),
+    (
+        3,
+        "run_events_thread_key",
+        include_str!("schema/0003_run_events_thread_key.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.
