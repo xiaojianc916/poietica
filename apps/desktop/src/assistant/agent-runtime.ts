@@ -1,8 +1,8 @@
-import type { AcpAgentDescriptor } from '@poietica/agent-catalog'
+import type { AgentDescriptor } from '@poietica/agent-catalog'
 import {
-  acpAgentById,
-  acpAgentLaunch,
-  acpAgents,
+  agentById,
+  agentLaunch,
+  agentRoster,
   parseAgentProviderListOutput,
 } from '@poietica/agent-catalog'
 import type {
@@ -43,13 +43,13 @@ export interface DesktopAgentRuntime {
   readonly permissionPosture: PermissionPosturePort
   readonly getAgentId: () => string
   readonly subscribeAgent: (listener: () => void) => () => void
-  readonly descriptor: (agentId: string) => AcpAgentDescriptor
+  readonly descriptor: (agentId: string) => AgentDescriptor
   readonly capabilities: (agentId: string) => AgentCapabilityPort
   readonly dispose: () => Promise<void>
 }
 
-function requireAgent(agentId: string): AcpAgentDescriptor {
-  const descriptor = acpAgentById(agentId)
+function requireAgent(agentId: string): AgentDescriptor {
+  const descriptor = agentById(agentId)
 
   if (descriptor === undefined) {
     throw new Error(`Agent profile "${agentId}" is not registered.`)
@@ -69,7 +69,7 @@ function noteListenFailure(cause: unknown): void {
 export function createDesktopAgentRuntime(
   options: DesktopAgentRuntimeOptions,
 ): DesktopAgentRuntime {
-  const fallback = acpAgents()[0]
+  const fallback = agentRoster()[0]
 
   if (fallback === undefined) {
     throw new Error('At least one Agent profile must be registered.')
@@ -121,7 +121,7 @@ export function createDesktopAgentRuntime(
   reloadSelection()
   const stopConfig = options.config.subscribeConfigChanged(reloadSelection)
 
-  const selectedAgent = async (): Promise<AcpAgentDescriptor> => {
+  const selectedAgent = async (): Promise<AgentDescriptor> => {
     for (;;) {
       const observed = pending
       await observed
@@ -140,7 +140,7 @@ export function createDesktopAgentRuntime(
     return selected
   }
 
-  const launchSelected = async () => acpAgentLaunch(await selectedAgent())
+  const launchSelected = async () => agentLaunch(await selectedAgent())
 
   const posture = createPreference<string | undefined>({
     key: 'poietica.permission-posture',
@@ -189,7 +189,7 @@ export function createDesktopAgentRuntime(
       return held
     }
 
-    const currentAgent = async (): Promise<AcpAgentDescriptor> => {
+    const currentAgent = async (): Promise<AgentDescriptor> => {
       const current = await selectedAgent()
 
       if (current.id !== agentId) {
@@ -201,7 +201,7 @@ export function createDesktopAgentRuntime(
 
     const anchor = createAgentCapabilityBridge({
       cwd: options.cwd,
-      launch: async () => acpAgentLaunch(await currentAgent()),
+      launch: async () => agentLaunch(await currentAgent()),
       onListenFailure: noteListenFailure,
     })
 

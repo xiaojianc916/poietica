@@ -1,4 +1,4 @@
-import type { AcpAgentDescriptor } from '../acp-agent-contract'
+import type { AgentDescriptor } from '../agent-descriptor'
 
 /*
  * Kimi Code CLI 的档案。
@@ -91,4 +91,4 @@ export const kimiCode = {
   install: { packageName: '@moonshot-ai/kimi-code', versionArgs: ['--version'] },
   optionLabels: OPTION_LABELS,
   questionDialect: QUESTION_DIALECT,
-} as const satisfies AcpAgentDescriptor
+} as const satisfies AgentDescriptor

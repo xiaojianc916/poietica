@@ -20,6 +20,9 @@ use serde_json::Value;
 /// 一轮的第一帧。
 pub const RUN_STARTED: &str = "run_started";
 /// agent 发来的一帧会话通知。
+/// deepseek-harness 会话日志事件那一帧的判别值。
+pub const HARNESS_EVENT: &str = "harness_event";
+
 pub const ACP_UPDATE: &str = "acp_update";
 /// agent 正卡在一次授权请求上。
 pub const PERMISSION_REQUESTED: &str = "permission_requested";
@@ -51,6 +54,14 @@ pub struct FrameNotification {
     rename_all_fields = "camelCase"
 )]
 pub enum RunFrame {
+    /// harness 运行时报来的一条会话日志事件，线上形状原样。
+    ///
+    /// 与 AcpUpdate 同一条规矩：载荷是协议原文，这一层不解释它。
+    #[serde(rename_all = "camelCase")]
+    HarnessEvent {
+        session_id: String,
+        event: serde_json::Value,
+    },
     /// 这一轮开始了，以及问的是什么。
     RunStarted {
         /// 人说的那句话，按记录时的原文。

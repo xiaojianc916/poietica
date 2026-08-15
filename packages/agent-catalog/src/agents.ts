@@ -1,7 +1,8 @@
-import type { AcpAgentDescriptor } from './acp-agent-contract'
+import type { AgentDescriptor } from './agent-descriptor'
+import { deepseekHarness } from './deepseek/descriptor'
 import { kimiCode } from './kimi/descriptor'
 
-export type { AcpAgentDescriptor, AcpQuestionDialect } from './acp-agent-contract'
+export type { AgentDescriptor, QuestionDialect } from './agent-descriptor'
 
 /*
  * 软件支持哪几家 ACP agent。
@@ -17,13 +18,16 @@ export type { AcpAgentDescriptor, AcpQuestionDialect } from './acp-agent-contrac
  * 地址就是 string，唯一判据是查表；「默认哪一家」是用户在这台机器上的选择，
  * 产地是档案集的 defaultProfileId（见 acp-agent-profile.ts），不是名单的顺序。
  */
-const AGENTS = [kimiCode] as const satisfies readonly [AcpAgentDescriptor, ...AcpAgentDescriptor[]]
+const AGENTS = [kimiCode, deepseekHarness] as const satisfies readonly [
+  AgentDescriptor,
+  ...AgentDescriptor[],
+]
 
-export function acpAgents(): readonly [AcpAgentDescriptor, ...AcpAgentDescriptor[]] {
+export function agentRoster(): readonly [AgentDescriptor, ...AgentDescriptor[]] {
   return AGENTS
 }
 
 /** 按 id 取档案。名单封闭，取不到不是常态，所以由调用方决定怎么处置。 */
-export function acpAgentById(id: string): AcpAgentDescriptor | undefined {
+export function agentById(id: string): AgentDescriptor | undefined {
   return AGENTS.find((agent) => agent.id === id)
 }

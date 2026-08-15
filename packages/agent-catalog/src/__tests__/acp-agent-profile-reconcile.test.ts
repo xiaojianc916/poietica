@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  type AcpAgentProfile,
+  type AgentProfile,
   builtinAcpAgentProfiles,
   reconcileAcpAgentProfiles,
-} from '../acp-agent-profile'
-import { acpAgentById } from '../acp-agents'
+} from '../agent-profile'
+import { agentById } from '../agents'
 
 /*
  * agents.json 是名单的一份物化，不是第二个来源。
@@ -28,7 +28,7 @@ if (!first) {
 }
 
 /* 手写进配置文件的、不在名单里的一家。 */
-const homemade: AcpAgentProfile = {
+const homemade: AgentProfile = {
   id: 'homemade',
   cwd: undefined,
   env: {},
@@ -70,7 +70,7 @@ describe('内置档案的物化', () => {
      */
     expect(profile?.env).toEqual({
       EXTRA: '1',
-      ...(acpAgentById(first.id)?.launchEnv ?? {}),
+      ...(agentById(first.id)?.launchEnv ?? {}),
     })
   })
 
@@ -88,7 +88,7 @@ describe('内置档案的物化', () => {
     const profile = result.profiles[0]
 
     expect(result.changed).toBe(true)
-    expect(profile?.command).toBe(acpAgentById(first.id)?.command)
+    expect(profile?.command).toBe(agentById(first.id)?.command)
   })
 
   /*

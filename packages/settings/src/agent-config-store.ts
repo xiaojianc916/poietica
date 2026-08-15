@@ -1,4 +1,4 @@
-import type { AcpAgentProfile } from '@poietica/agent-catalog'
+import type { AgentProfile } from '@poietica/agent-catalog'
 
 /**
  * 一次受控的 agent CLI 调用。
@@ -79,7 +79,7 @@ export interface ProviderKeyProbe {
 }
 
 export interface AgentConfigSnapshot {
-  readonly agents: readonly AcpAgentProfile[]
+  readonly agents: readonly AgentProfile[]
   readonly defaultAgentId: string
   /** 配置文件里被丢弃的坏条目。界面应该显示出来，而不是假装配置是干净的。 */
   readonly issues: readonly string[]
@@ -127,7 +127,7 @@ export interface AgentInstallStatus {
 export interface AgentConfigStore {
   readonly load: () => Promise<AgentConfigSnapshot>
   readonly saveAgents: (args: {
-    readonly agents: readonly AcpAgentProfile[]
+    readonly agents: readonly AgentProfile[]
     readonly defaultAgentId: string
   }) => Promise<AgentConfigSnapshot>
   readonly execCli: (invocation: AgentCliInvocation) => Promise<AgentCliOutcome>

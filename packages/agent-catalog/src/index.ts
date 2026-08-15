@@ -5,26 +5,26 @@
  * 见 docs/architecture/README.md 的「包边界的由来」。
  */
 
-export type { AcpAgentInstall, AcpQuestionDialect } from './acp-agent-contract'
+export type { AgentInstall, QuestionDialect } from './agent-descriptor'
 export type {
   AcpAgentLaunch,
-  AcpAgentProfile,
   AcpAgentProfileParse,
   AcpAgentProfileReconcile,
   AcpAgentProfileSet,
   AcpAgentProfileSetParse,
   AgentConfigOptionValue,
-} from './acp-agent-profile'
+  AgentProfile,
+} from './agent-profile'
 export {
-  acpAgentLaunch,
+  agentLaunch,
   builtinAcpAgentProfileSet,
   builtinAcpAgentProfiles,
   parseAcpAgentProfile,
   parseAcpAgentProfileSet,
   reconcileAcpAgentProfiles,
-} from './acp-agent-profile'
-export type { AcpAgentDescriptor } from './acp-agents'
-export { acpAgentById, acpAgents } from './acp-agents'
+} from './agent-profile'
+export type { AgentDescriptor } from './agents'
+export { agentById, agentRoster } from './agents'
 export { agentCatalogCodec } from './catalog-codec'
 export type { AgentCatalogAddRequest, AgentCatalogCodec } from './catalog-contract'
 export { agentBareModelId, agentModelDisplayName } from './model-display'

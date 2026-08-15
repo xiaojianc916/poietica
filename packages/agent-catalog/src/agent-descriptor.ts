@@ -27,7 +27,7 @@
  * 各家不同的只有这两条正则；通用层拿到之后干的事一模一样：exec，取两个捕获组，
  * 一个题号一个选项号。换第二家一行代码都不用改 —— 变的只是值，所以是声明。
  */
-export interface AcpQuestionDialect {
+export interface QuestionDialect {
   /** 捕获 (题号, 选项号)。 */
   readonly option: RegExp
   /** 捕获 (题号)。 */
@@ -43,16 +43,35 @@ export interface AcpQuestionDialect {
  *
  * 缺席表示我们说不出该怎么装它：界面于是什么都不画，而不是画一个点了会失败的按钮。
  */
-export interface AcpAgentInstall {
+export interface AgentInstall {
   /** npm 包名。安装与查最新版都只认它。 */
   readonly packageName: string
   /** 问已装版本的参数。输出里第一个 semver 就是答案。 */
   readonly versionArgs: readonly string[]
 }
 
-export interface AcpAgentDescriptor {
+/** 这一家在什么线上说话。 */
+export type AgentTransport = 'acp' | 'deepseek-harness'
+
+export interface AgentDescriptor {
   readonly id: string
   readonly displayName: string
+  /**
+   * 走哪条传输。
+   *
+   * 通用层据此选驱动，不据 id 分支。两条线互不翻译：帧的共同形状在
+   * crates/agent-runtime/src/frame.rs，不在这一层。
+   */
+  readonly transport: AgentTransport
+  /**
+   * 这一家的配置文件路径该设进哪个环境变量。
+   *
+   * 与 homeVar 同一条规矩：只记名字，路径由原生侧现算。dsh 的运行时没有内置
+   * 配置，DSH_CORDIS_CONFIG 与 argv[2] 都不指向存在的文件时它直接以 1 退出。
+   *
+   * 缺席表示这一家不从环境变量取配置。
+   */
+  readonly configVar?: string | undefined
   /** 可执行文件名，不含参数。 */
   readonly command: string
   readonly args: readonly string[]
@@ -134,7 +153,7 @@ export interface AcpAgentDescriptor {
    * 需要知道「这一条不该给编辑与删除入口」。同样是值，所以是声明。
    */
   readonly syntheticProviderId?: string | undefined
-  readonly install?: AcpAgentInstall | undefined
+  readonly install?: AgentInstall | undefined
   /**
    * 权限选项按钮上写什么。
    *
@@ -146,5 +165,5 @@ export interface AcpAgentDescriptor {
    */
   readonly optionLabels: Readonly<Record<string, string>>
   /** 缺席表示这一家不用权限请求提问。 */
-  readonly questionDialect?: AcpQuestionDialect | undefined
+  readonly questionDialect?: QuestionDialect | undefined
 }

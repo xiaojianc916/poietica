@@ -1,6 +1,6 @@
 import type { SessionControlsFailureReport } from '@poietica/agent'
 import { AgentCapabilityStore } from '@poietica/agent'
-import type { AcpAgentDescriptor } from '@poietica/agent-catalog'
+import type { AgentDescriptor } from '@poietica/agent-catalog'
 import type { AgentDialect, AttachmentIntake } from '@poietica/agent-ui'
 import {
   AgentControlsContext,
@@ -51,7 +51,7 @@ const CHECKS_UPDATES = !import.meta.env.DEV
  * 所以「跟谁说话」和「它怎么说话」出自同一个答案,不会各说各的。
  * 界面包不认识名单:这一层拿到的已经是一份档案,不是一次查名单。
  */
-function dialectOf(agent: AcpAgentDescriptor): AgentDialect {
+function dialectOf(agent: AgentDescriptor): AgentDialect {
   return {
     optionLabels: agent.optionLabels,
     questions: agent.questionDialect === undefined ? [] : [agent.questionDialect],

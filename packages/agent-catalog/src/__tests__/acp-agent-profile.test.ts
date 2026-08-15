@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  acpAgentLaunch,
+  agentLaunch,
   builtinAcpAgentProfileSet,
   parseAcpAgentProfile,
   parseAcpAgentProfileSet,
-} from '../acp-agent-profile'
-import { acpAgentById, acpAgents } from '../acp-agents'
+} from '../agent-profile'
+import { agentById, agentRoster } from '../agents'
 
 /* 一份档案里现在只有用户自己的东西。 */
 const valid = {
@@ -52,7 +52,7 @@ describe('parseAcpAgentProfile', () => {
    * 对齐」）。解析这一层因此不再负责剥掉它们 —— 一个只在内存里存在半个函数调用
    * 的值，谁都读不到。
    *
-   * args 是另一回事：原生侧从不从档案读它，启动参数走 IPC 的 acpAgentLaunch。
+   * args 是另一回事：原生侧从不从档案读它，启动参数走 IPC 的 agentLaunch。
    * 它至今不是档案的一格，这一条仍然要守。
    */
   it('磁盘上遗留的 args 不进档案，归描述符的四格恒定在场', () => {
@@ -131,11 +131,11 @@ describe('parseAcpAgentProfileSet', () => {
   })
 })
 
-describe('acpAgentLaunch', () => {
+describe('agentLaunch', () => {
   it('把名单里的一家翻成 agentId 加 program 加 args', () => {
-    const agent = acpAgents()[0]
+    const agent = agentRoster()[0]
 
-    expect(acpAgentLaunch(agent)).toEqual({
+    expect(agentLaunch(agent)).toEqual({
       agentId: agent.id,
       program: agent.command,
       args: [...agent.args],
@@ -148,8 +148,8 @@ describe('acpAgentLaunch', () => {
    * 也没有反斜杠的例子，所以那趟往返看起来是无损的。
    */
   it('带空格的绝对路径与反斜杠原样保留', () => {
-    const launch = acpAgentLaunch({
-      ...acpAgents()[0],
+    const launch = agentLaunch({
+      ...agentRoster()[0],
       command: 'C:\\Program Files\\kimi\\kimi.exe',
       args: ['acp', '--cwd', 'C:\\my notes'],
     })
@@ -166,7 +166,7 @@ describe('builtinAcpAgentProfileSet', () => {
     expect(set.profiles.length).toBeGreaterThan(0)
 
     for (const profile of set.profiles) {
-      expect(acpAgentById(profile.id), profile.id).toBeDefined()
+      expect(agentById(profile.id), profile.id).toBeDefined()
     }
 
     expect(set.profiles.some((profile) => profile.id === set.defaultProfileId)).toBe(true)

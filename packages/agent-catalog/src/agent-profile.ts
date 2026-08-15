@@ -1,6 +1,6 @@
 import * as v from 'valibot'
-import type { AcpAgentDescriptor } from './acp-agent-contract'
-import { acpAgents } from './acp-agents'
+import type { AgentDescriptor } from './agent-descriptor'
+import { agentRoster } from './agents'
 
 /** 会话配置值。对应 ACP 的 ConfigOption currentValue（string | boolean）。 */
 export type AgentConfigOptionValue = string | boolean
@@ -10,7 +10,7 @@ export type AgentConfigOptionValue = string | boolean
  *
  * 只有四格，而且每一格都真的属于用户。此前还有七格 —— displayName、command、
  * args、homeVar、registryKeyVar、ownHomeDirectory、install —— 它们描述的是「这
- * 一家 agent 是什么」，那件事由二进制里的 AcpAgentDescriptor 说了算：名单是封闭
+ * 一家 agent 是什么」，那件事由二进制里的 AgentDescriptor 说了算：名单是封闭
  * 的（见 acp-agents.ts），界面上没有、也不会有一个能自带命令的入口。
  *
  * 那七格不是没用，是从来没被用过一次：reconcileAcpAgentProfiles 每次读都拿内置
@@ -24,7 +24,7 @@ export type AgentConfigOptionValue = string | boolean
  * 这里刻意没有\"收藏了哪些模型\"：那份状态只存在提供方档案里一处。也没有\"支持哪些
  * 模型\"，因为那是会话在 session/new 之后才报告的事。
  */
-export interface AcpAgentProfile {
+export interface AgentProfile {
   /** 名单里的哪一家。不在名单里的档案会在物化时被移除。 */
   readonly id: string
   readonly cwd?: string | undefined
@@ -35,13 +35,13 @@ export interface AcpAgentProfile {
    * 调用交给 agent 官方 CLI，写进 agent 自己的配置文件之后就与我们无关。我们
    * 不注入密钥环境变量，也不拼对方的配置文件格式。
    *
-   * 受控 home 那个变量名不在这里 —— 它归二进制（AcpAgentDescriptor.homeVar），
+   * 受控 home 那个变量名不在这里 —— 它归二进制（AgentDescriptor.homeVar），
    * 值由原生侧的 launch_env 现算。
    */
   readonly env: Readonly<Record<string, string>>
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
   /*
-   * 以下四格不属于用户，用户也填不出来 —— 它们是 AcpAgentDescriptor 往磁盘上的
+   * 以下四格不属于用户，用户也填不出来 —— 它们是 AgentDescriptor 往磁盘上的
    * 一次单向投影，reconcileAcpAgentProfiles 每次无条件覆盖。
    *
    * 为什么必须落盘：原生侧那五个读取点（commands/agent_setup/profile.rs 的
@@ -61,12 +61,12 @@ export interface AcpAgentProfile {
 }
 
 export interface AcpAgentProfileSet {
-  readonly profiles: readonly AcpAgentProfile[]
+  readonly profiles: readonly AgentProfile[]
   readonly defaultProfileId: string
 }
 
 export type AcpAgentProfileParse =
-  | { readonly ok: true; readonly profile: AcpAgentProfile }
+  | { readonly ok: true; readonly profile: AgentProfile }
   | { readonly ok: false; readonly issue: string }
 
 /** 容错解析的结果：坏条目被丢弃并汇报，好条目照常可用。 */
@@ -170,7 +170,7 @@ const EnvelopeSchema = v.object({
  * 缺席与 null 在磁盘上都表示\"没有这一项\"，在类型里只留 undefined 一种：
  * 让两种空值一路往下走，就是让每个下游都判两次。
  */
-function shape(parsed: v.InferOutput<typeof ProfileSchema>): AcpAgentProfile {
+function shape(parsed: v.InferOutput<typeof ProfileSchema>): AgentProfile {
   return {
     id: parsed.id,
     cwd: parsed.cwd ?? undefined,
@@ -217,7 +217,7 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
   }
 
   const issues: string[] = []
-  const profiles: AcpAgentProfile[] = []
+  const profiles: AgentProfile[] = []
 
   for (const candidate of envelope.output.profiles.slice(0, MAX_PROFILES)) {
     const parsed = parseAcpAgentProfile(candidate)
@@ -272,8 +272,8 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
 /**
  * 名单里的这一家。不在名单里返回 undefined —— 那种档案由 reconcile 移除。
  */
-function descriptorOf(agentId: string): AcpAgentDescriptor | undefined {
-  return acpAgents().find((agent) => agent.id === agentId)
+function descriptorOf(agentId: string): AgentDescriptor | undefined {
+  return agentRoster().find((agent) => agent.id === agentId)
 }
 
 /** 环境变量表逐键相等。键序不参与比较。 */
@@ -290,10 +290,7 @@ function sameEnv(
 }
 
 /** 安装声明相等。 */
-function sameInstall(
-  before: AcpAgentProfile['install'],
-  after: AcpAgentProfile['install'],
-): boolean {
+function sameInstall(before: AgentProfile['install'], after: AgentProfile['install']): boolean {
   if (before === undefined || after === undefined) {
     return before === after
   }
@@ -318,14 +315,14 @@ function sameInstall(
  * 已经一致时原样返回同一个对象。调用方靠引用是否变化判断要不要物化,复制一份
  * 会让每次启动都报「档案变了」并白写一次磁盘。
  */
-function withDescriptorFields(profile: AcpAgentProfile): AcpAgentProfile {
+function withDescriptorFields(profile: AgentProfile): AgentProfile {
   const agent = descriptorOf(profile.id)
 
   if (agent === undefined) {
     return profile
   }
 
-  const next: AcpAgentProfile = {
+  const next: AgentProfile = {
     ...profile,
     env: { ...profile.env, ...(agent.launchEnv ?? {}) },
     command: agent.command,
@@ -366,7 +363,7 @@ export interface AcpAgentLaunch {
  * 进程的 protobuf（crates/proto/proto/ai.proto）都保持结构化，整个仓库一处都
  * 没有用 shell_words。
  */
-export function acpAgentLaunch(agent: AcpAgentDescriptor): AcpAgentLaunch {
+export function agentLaunch(agent: AgentDescriptor): AcpAgentLaunch {
   return { agentId: agent.id, program: agent.command, args: [...agent.args] }
 }
 
@@ -375,8 +372,8 @@ export function acpAgentLaunch(agent: AcpAgentDescriptor): AcpAgentLaunch {
  *
  * 它不再从描述符里抄七个字段过来 —— 那些字段现在只有一个产地。
  */
-export function builtinAcpAgentProfiles(): readonly [AcpAgentProfile, ...AcpAgentProfile[]] {
-  const blank = (agent: AcpAgentDescriptor): AcpAgentProfile => ({
+export function builtinAcpAgentProfiles(): readonly [AgentProfile, ...AgentProfile[]] {
+  const blank = (agent: AgentDescriptor): AgentProfile => ({
     id: agent.id,
     cwd: undefined,
     env: { ...(agent.launchEnv ?? {}) },
@@ -386,7 +383,7 @@ export function builtinAcpAgentProfiles(): readonly [AcpAgentProfile, ...AcpAgen
     ownHomeDirectory: agent.ownHomeDirectory,
     install: agent.install,
   })
-  const [first, ...rest] = acpAgents()
+  const [first, ...rest] = agentRoster()
 
   return [blank(first), ...rest.map(blank)]
 }
@@ -403,7 +400,7 @@ export function builtinAcpAgentProfileSet(): AcpAgentProfileSet {
 
 /** 一次物化的结果。changed 为真表示磁盘上那份与名单不一致。 */
 export interface AcpAgentProfileReconcile {
-  readonly profiles: readonly AcpAgentProfile[]
+  readonly profiles: readonly AgentProfile[]
   readonly changed: boolean
   /** 为了对齐名单而丢掉了什么。界面要说出来，不能默默改用户的文件。 */
   readonly issues: readonly string[]
@@ -424,9 +421,9 @@ export interface AcpAgentProfileReconcile {
  * 名单里有、磁盘上没有的补上：接第二家 agent 时它得自己出现，而不是只对新用户出现。
  */
 export function reconcileAcpAgentProfiles(
-  profiles: readonly AcpAgentProfile[],
+  profiles: readonly AgentProfile[],
 ): AcpAgentProfileReconcile {
-  const known = new Set(acpAgents().map((agent) => agent.id))
+  const known = new Set(agentRoster().map((agent) => agent.id))
   const issues: string[] = []
 
   const kept = profiles.filter((profile) => {

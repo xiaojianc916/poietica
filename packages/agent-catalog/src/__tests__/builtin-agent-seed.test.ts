@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { builtinAcpAgentProfileSet, parseAcpAgentProfile } from '../acp-agent-profile'
-import { acpAgentById } from '../acp-agents'
+import { builtinAcpAgentProfileSet, parseAcpAgentProfile } from '../agent-profile'
+import { agentById } from '../agents'
 
 /*
  * 内置档案不再只是一个内存里的回退值：首次启动时它会被原样写进 agents.json。
@@ -29,7 +29,7 @@ describe('内置 agent 档案', () => {
 
   it('每条都能在名单里查到要起哪个程序', () => {
     for (const profile of builtinAcpAgentProfileSet().profiles) {
-      expect(acpAgentById(profile.id)?.command.length ?? 0, profile.id).toBeGreaterThan(0)
+      expect(agentById(profile.id)?.command.length ?? 0, profile.id).toBeGreaterThan(0)
     }
   })
 
@@ -63,7 +63,7 @@ describe('内置 agent 档案', () => {
    */
   it('档案里的启动身份逐字来自名单', () => {
     for (const profile of builtinAcpAgentProfileSet().profiles) {
-      const agent = acpAgentById(profile.id)
+      const agent = agentById(profile.id)
 
       expect(agent, profile.id).toBeDefined()
 

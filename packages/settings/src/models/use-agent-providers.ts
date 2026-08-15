@@ -1,6 +1,6 @@
 import {
   type AgentProviderSnapshot,
-  acpAgentById,
+  agentById,
   parseAgentProviderListOutput,
 } from '@poietica/agent-catalog'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -64,7 +64,7 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
      * 问什么、以及哪个 id 是环境变量合成的保留条目，都写在 agent 的档案里。
      * 这一层不认识任何一家 —— 与 provider-state 里那句是同一个理由。
      */
-    const descriptor = acpAgentById(agentId)
+    const descriptor = agentById(agentId)
 
     if (descriptor === undefined) {
       setLoading(false)

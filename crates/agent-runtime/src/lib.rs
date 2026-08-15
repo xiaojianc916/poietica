@@ -23,7 +23,14 @@ mod config;
 mod credentials;
 mod desk;
 mod driver;
-pub mod dsh;
+mod dsh;
+pub use dsh::{
+    decode_line, initialize_line, prompt_line, shutdown_line, ErrorBody, Incoming,
+    InitializeParams, InitializeResult, Notification, RequestId, ServerInfo,
+    SessionEventNotification, SessionPromptParams, SessionPromptResult, SessionStatus,
+    SessionStatusNotification, SubagentFinishedNotification, SubagentStartedNotification,
+    SERVER_NAME,
+};
 mod error;
 mod frame;
 mod permission;

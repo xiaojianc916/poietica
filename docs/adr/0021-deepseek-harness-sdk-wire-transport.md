@@ -1,5 +1,7 @@
 # 0021. 换轨：dsh SDK 线协议是接 DeepSeek 的唯一传输
 
+> Status: superseded by ADR 0022.
+
 ## 裁决
 
 未来形态是纯 DeepSeek agent。接入传输选 deepseek-harness 的 SDK 线协议

@@ -1,5 +1,7 @@
 # 0008. ACP is the only agent transport
 
+> Status: superseded by ADR 0022.
+
 - Status: accepted
 - Date: 2026-07-25
 ## Context

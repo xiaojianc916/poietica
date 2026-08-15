@@ -2,7 +2,7 @@ import {
   type AgentCatalogCodec,
   type AgentModelState,
   type AgentProviderSnapshot,
-  acpAgentById,
+  agentById,
   agentCatalogCodec,
   agentModelDisplayName,
   builtinAgentProviders,
@@ -157,7 +157,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
     }
 
     /* 问什么写在档案里。在这里再抄一遍，就是第二个迟早走样的说法。 */
-    const descriptor = acpAgentById(agentId)
+    const descriptor = agentById(agentId)
 
     if (descriptor === undefined) {
       setGlobalSnapshot(undefined)

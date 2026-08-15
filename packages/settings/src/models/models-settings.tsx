@@ -1,4 +1,4 @@
-import { type AcpAgentProfile, acpAgentById, acpAgents } from '@poietica/agent-catalog'
+import { type AgentProfile, agentById, agentRoster } from '@poietica/agent-catalog'
 import { Select, type SelectOption } from '@poietica/ui'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../agent-config-store'
@@ -28,7 +28,7 @@ import './models-settings.css'
  * 名单来自 @poietica/agent-registry，是封闭的 —— 用户在注册过的几家里选，不能自带一条
  * 命令。今天只注册了一家，所以下拉里只会有一项；接第二家时这里一个字都不用改。
  */
-const AGENT_OPTIONS: readonly SelectOption[] = acpAgents().map((agent) => ({
+const AGENT_OPTIONS: readonly SelectOption[] = agentRoster().map((agent) => ({
   value: agent.id,
   label: agent.displayName,
 }))
@@ -48,8 +48,8 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
    * 读回来并覆盖这里。这一格存在的唯一理由是下拉在第一帧要有个 value —— 所以它取名单
    * 第一项就够了，而注册表也不再提供"默认"这个概念去让人误用。
    */
-  const [agentId, setAgentId] = useState<string>(() => acpAgents()[0].id)
-  const [profiles, setProfiles] = useState<readonly AcpAgentProfile[]>([])
+  const [agentId, setAgentId] = useState<string>(() => agentRoster()[0].id)
+  const [profiles, setProfiles] = useState<readonly AgentProfile[]>([])
   const [agentError, setAgentError] = useState<string | null>(null)
 
   /*
@@ -58,7 +58,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
    * 不写死在这里：换第二家 agent 时变量名不一样，而这一页对两家应该是同一段代码。缺席
    * 就是缺席 —— 卡片会说「这个 agent 没有声明」，而不是替它挑一个名字试试看。
    */
-  const registryKeyVar = useMemo(() => acpAgentById(agentId)?.registryKeyVar, [agentId])
+  const registryKeyVar = useMemo(() => agentById(agentId)?.registryKeyVar, [agentId])
 
   const applySnapshot = useCallback((snapshot: AgentConfigSnapshot) => {
     setProfiles(snapshot.agents)
