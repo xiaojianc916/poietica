@@ -32,9 +32,11 @@ import type { FeedRow, TurnSpan } from '@poietica/agent'
  * timeline-draft 在写入转录时盖章。它不能在这里算：思考不上屏（renderable.ts 的
  * isRenderable 对 agent_thought 恒为假），屏幕这一侧根本看不见模型已经在推理。
  *
- * 落点有两处，规则只有一条：封条排在它那一轮的内容前面。已经有行了，落点就是那一行；一
- * 行都还没有，落点就是转录尾部 —— 等待指示器正在那里。落定的一轮不会再有东西上屏，所以
- * 它一行都没有时就是真的什么也没发生过，不给它立一块空碑。
+ * 落点有两处，规则只有一条：封条排在它那一轮的内容前面。这一轮的提问就是那条界 —— 封条
+ * 挂在提问那一行、渲染在它之后，于是收起摊开都不动它。提问不在（重连接续上的轮次）就既
+ * 不立碑也不折叠：碑没有地方挂，而折起来的过程配不上开关。一行都还没有时落点是转录尾部
+ * —— 等待指示器正在那里。落定的一轮不会再有东西上屏，所以它一行都没有时就是真的什么也
+ * 没发生过，不给它立一块空碑。
  *
  * 折到哪里为止：这一轮最后那一段连续 agent_text 的起点，不要求它落在末尾。
  *
@@ -140,7 +142,7 @@ interface TurnFold {
   readonly hidden: readonly number[]
   readonly live: readonly FeedRow[]
   readonly seal: TurnSealPlan | undefined
-  /** 封条落在哪一行的 id；undefined 表示这一轮还没有行可落。 */
+  /** 封条挂在这一轮提问那一行的 id；undefined 表示这一轮没有提问可挂。 */
   readonly sealAt: string | undefined
   readonly replyAt: string | undefined
   readonly reply: ReplyActionPlan | undefined
@@ -350,12 +352,14 @@ function foldOf(
   const running = span?.startedAt !== undefined && span.endedAt === undefined
   const answerAt = latestSpeechIn(rows, own)
   const process = span === undefined ? NO_INDEXES : processIn(rows, own, answerAt, running)
-  /* 只有人手动点开才摊开：过程先上屏、回复一到再撤掉，撤掉的那一帧就是内容整段消失又
-     出现。 */
-  const hidden = isOpen ? NO_INDEXES : process
-  const hiddenAt = new Set(hidden)
+  /* 碑要有地方挂：这一轮的提问就是它的位置，而重连接续上的轮次连开头都没有。 */
+  const saidAt = saidIn(rows, own)
   /* 可点 ⟺ 真有东西可收。什么都没收起时封条只是一行字，不给假按钮。 */
-  const seal = sealOf(turn, span, isOpen, process.length > 0)
+  const seal = saidAt === undefined ? undefined : sealOf(turn, span, isOpen, process.length > 0)
+  /* 只有人手动点开才摊开：过程先上屏、回复一到再撤掉，撤掉的那一帧就是内容整段消失又
+     出现。没有封条就一行都不折 —— 藏起来的过程配不上开关。 */
+  const hidden = seal === undefined || isOpen ? NO_INDEXES : process
+  const hiddenAt = new Set(hidden)
   const visibleOwn = hidden.length === 0 ? own : own.filter((at) => !hiddenAt.has(at))
 
   return {
@@ -367,7 +371,7 @@ function foldOf(
     hidden,
     live: running ? liveIn(rows, hidden, answerAt) : NO_FEED_ROWS,
     seal,
-    sealAt: seal === undefined ? undefined : anchorIn(rows, own, hiddenAt),
+    sealAt: seal === undefined ? undefined : saidAt,
     replyAt: replyIn(rows, visibleOwn, running)?.at,
     reply: replyIn(rows, visibleOwn, running)?.plan,
   }
@@ -446,33 +450,22 @@ function sealOf(
 }
 
 /**
- * 封条落在这一轮第一条「不是人话、且没被折掉」的行上面。
+ * 封条挂在这一轮的提问上，渲染在它之后（transcript-view 的 renderRowWithSeal）。
  *
- * 收起时那是回复的首行，摊开时那是第一条过程 —— 两种状态下它都恰在提问与内容之间。
+ * 提问是这一轮唯一开合都在的那一行：它不是过程，折不掉；也不是回复，收不走。所以落点恒
+ * 定 —— 封条那个按钮不再随开合从一行搬到另一行，两行的实测高度也不再当场作废。屏幕抽一
+ * 下、按钮闪一下、行高作废，三个症状同一个根，根在这里。
  *
- * 但「视觉位置不挪」不等于「落点不挪」，而原来这里写的是后者。落点的行 id 是随开合变的：
- * 摊开时第一条过程行没被折掉，它就先被返回；收起时它不在了，返回的是回复首行。于是开合
- * 一次，有两行的内容形状发生改变，两行的实测高度当场作废，封条那个按钮也从一行搬到另一
- * 行。抽搐与「已处理」那一闪都是从这里出发的。
+ * 视觉位置一分没挪：DOM 顺序仍是「提问、封条、内容」，只是封条从内容那一行的头上，换到
+ * 了提问那一行的脚下。
  *
- * 下游已经不再因此重建整棵子树（transcript-view 的 renderRowWithSeal 形状恒定），按钮的
- * 搬家也不再看得见（turn-seal.css 去掉了颜色补间）。要连搬家本身都消灭，得把落点换成这
- * 一轮的提问那一行 —— 它开合都在 —— 并让封条渲染在提问之后。那会把封条往上挪一个行距，
- * 是一次看得见的版式改动，所以留在这里作为下一个旋钮，不在这一批里动。
+ * 没有提问的轮次交回 undefined，于是它不立碑也不折叠 —— 藏起来的过程配不上开关。
  */
-function anchorIn(
-  rows: readonly FeedRow[],
-  own: readonly number[],
-  hiddenAt: ReadonlySet<number>,
-): string | undefined {
+function saidIn(rows: readonly FeedRow[], own: readonly number[]): string | undefined {
   for (const at of own) {
-    if (hiddenAt.has(at)) {
-      continue
-    }
-
     const item = rows[at]?.item
 
-    if (item !== undefined && item.type !== SAID) {
+    if (item?.type === SAID) {
       return item.id
     }
   }
