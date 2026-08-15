@@ -11,7 +11,7 @@ impl AgentStore {
     /// Creates a thread and returns its identifier.
     ///
     /// `workspace_root` 是这条对话开在哪个目录里。空表示默认那一个工作区 ——
-    /// 迁移 0013 之前写下的行都是空的，含义相同，所以它可空而不是必填。
+    /// 早于这一列的行都是空的，含义相同，所以它可空而不是必填。
     ///
     /// # Errors
     ///
@@ -37,7 +37,6 @@ impl AgentStore {
     // 没被说过话的对话不进列表。判据此前是「有没有 runs 行」，而本地已经
     // 不再记轮次。同一件事现在由名字回答：一条对话的名字取自它的第一句话
     // （record_prompt），所以还挂着占位名的，就是还没有人开口的那一条。
-    // 迁移 0009 在删表之前把存量对齐过，列表成员一行不差。
     pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned,
@@ -69,8 +68,8 @@ impl AgentStore {
     /// Records which agent session a thread is holding, and whose it is.
     ///
     /// 两件事一起写，因为分开写就有一瞬间是号在而人不在，而那正是这一列要
-    /// 消灭的状态。迁移 0012 起这不再只是这里的自觉：库上有触发器，把号写进
-    /// 去而不写下主人会被直接拒。
+    /// 消灭的状态。这不只是这里的自觉：库上的 threads_session_needs_owner 把
+    /// 「写了号却不写主人」的行直接拒掉。
     ///
     /// `updated_at` is left alone. Reopening a conversation from a previous
     /// run makes it take a fresh session, and a conversation last spoken in
@@ -94,8 +93,9 @@ impl AgentStore {
     /// 名字记为 manual，因为序号规则只住在界面那一处（forkNameOf）；manual 不
     /// 会被首句的派生名顶掉 —— record_prompt 只在 fallback 时改名。
     ///
-    /// 一条 INSERT … SELECT 完成复制与挂接：号与主人成对落下（迁移 0012 的
-    /// 触发器拒绝有号无主的行），中间不存在「行在而号不在」的一瞬。
+    /// 一条 INSERT … SELECT 完成复制与挂接：号与主人成对落下
+    /// （threads_session_needs_owner 拒绝有号无主的行），中间不存在「行在而号
+    /// 不在」的一瞬。
     ///
     /// 帧日志与附件链接随分叉复制：屏幕上那条时间线由本机日志重放（见
     /// run_events.rs），日志不跟过去，分出来的就是一块白板。字节是内容寻址
@@ -223,16 +223,13 @@ impl AgentStore {
     /// 命名仍然只发生一次：后一轮的开场白改不动一条已经有名字的对话，用户手
     /// 打的名字（`manual`）更不会被它顶掉。`list_threads` 用「标题源还是
     /// fallback」判断有没有人开过口，这条语句让那个判据继续成立。
-    /// 返回的是这一句话在这条对话里的序号，从 0 数起。
     ///
-    /// 附件挂在「第几条用户消息」上（见迁移 0010），而这里是这个程序里唯一
-    /// 记下一条用户消息的地方 —— 所以这个数只能由这条语句自己给出。让调用方
-    /// 去数，等于开出第二个真值来源，而两个来源迟早会分叉。
+    /// 不数第几句。附件按字节的哈希挂在对话上（见 attachments.rs）：一条对话
+    /// 引用一段字节只有真假、没有次数，所以这里没有序号可返回。
     ///
-    /// `RETURNING` 让加一与读回落在同一条语句里，中间没有别人插得进来的缝。
-    ///
-    /// 点名一条不存在的对话现在是错误，此前是无声成功：一条 `UPDATE` 影响零行
-    /// 不算失败，于是渲染层送来一个陌生的 id 时，这一轮被安静地记进了虚空。
+    /// `RETURNING` 只为一件事 —— 点名一条不存在的对话是错误，此前是无声成功：
+    /// 一条 `UPDATE` 影响零行不算失败，于是渲染层送来一个陌生的 id 时，这一轮
+    /// 被安静地记进了虚空。
     ///
     /// # Errors
     ///
@@ -320,7 +317,7 @@ impl AgentStore {
         /*
          * 链接由这里解，不指望外键。
          *
-         * SQLite 的外键约束默认是关的，要靠每条连接自己开 PRAGMA；0010 里那两个
+         * SQLite 的外键约束默认是关的，要靠每条连接自己开 PRAGMA；schema 里那些
          * REFERENCES 因此只保证得了「写进去的引用是真的」，保证不了「删掉之后没
          * 有悬空的引用」。把清理写在这里，一个删除动作一个主人，不依赖一个必须
          * 逐连接确认的开关。
@@ -416,7 +413,7 @@ impl AgentStore {
                 continue;
             };
 
-            /* 号与主人成对出现（迁移 0012 的触发器），成对进账。 */
+            /* 号与主人成对出现（threads_session_needs_owner），成对进账。 */
             if let (Some(session_id), Some(agent_id)) = (&session_id, &agent_id) {
                 self.record_session_disposal(session_id, agent_id)?;
             }
@@ -439,8 +436,8 @@ pub struct ThreadSummary {
     /// 开出那个会话的 agent。
     ///
     /// 空值只有一个意思：这条对话还没有握住会话。上一格与这一格要么都有、
-    /// 要么都没有 —— 迁移 0012 把存量里「有号无主」的行补实，并用触发器堵住
-    /// 了再造出一行的路，所以拿会话号去选连接的人不必准备一条空值分支。
+    /// 要么都没有 —— threads_session_needs_owner 堵住了造出「有号无主」的路，
+    /// 所以拿会话号去选连接的人不必准备一条空值分支。
     pub agent_id: Option<String>,
     /// The name currently shown for it.
     pub title: String,
@@ -452,7 +449,7 @@ pub struct ThreadSummary {
     pub pinned: bool,
     /// 这条对话开在哪个工作目录里。
     ///
-    /// 空是迁移 0013 之前写下的行，含义是「默认那一个工作区」，不是「不知道」：
+    /// 空是早于这一列写下的行，含义是「默认那一个工作区」，不是「不知道」：
     /// 那时候运行期只有一个工作目录，它们本来就都在它里面。
     pub workspace_root: Option<String>,
     /// 归档时间。空表示仍在活动列表中。
