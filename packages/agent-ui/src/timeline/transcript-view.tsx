@@ -139,8 +139,8 @@ export function TranscriptView({
   /*
    * 封条只在这里构造一次。
    *
-   * 它有两个落点 —— 行的上面、转录尾部 —— 但那是同一枚封条的两个位置，不是两套实现：
-   * 计划由 foldFeed 一处算出，构造也只有这一处。
+   * 计划由 foldFeed 一处算出，构造也只有这一处。它挂在这一轮的提问那一行上
+   * （renderRowWithSeal 里的 seals 查表），不占一行，也不进转录尾部。
    */
   const sealOf = useCallback(
     (plan: TurnSealPlan) => (
@@ -237,18 +237,18 @@ export function TranscriptView({
   )
 
   /*
-   * 尾部装的是属于这一轮、而不属于其中某一条的东西，三样，各说各的事实：还没有行可
-   * 落的那枚封条说「这一轮已经在跑」（span 由 run_started 开出）；瞬态区说「此刻在
-   * 做什么」；等待指示器说「屏幕上没有东西在动」。
+   * 尾部装的是属于这一轮、而不属于其中某一条的东西：瞬态区说「此刻在做什么」，等待
+   * 指示器说「屏幕上没有东西在动」。封条不在这里 —— 它挂在提问那一行上（turn-fold 的
+   * saidIn），这一轮有没有行，那一行都在。
    *
    * 瞬态区不在虚拟器的条目表内：它的内容变化只经过实测出来的 paddingEnd，碰不到任何
    * 一行的身份与实测高度。过程若走转录正文，一轮之内就必然有一次中段删除，而那次删除
    * 会改掉 count 与 getItemKey，一整屏行跟着重新落位。
    *
-   * 顺序是自上而下的时间顺序：封条排在它那一轮的内容前面，正在做的事排在下面，还没
-   * 有任何东西在动时最后那行「正在思考」在最底下。
+   * 顺序是自上而下的时间顺序：正在做的事排在下面，还没有任何东西在动时最后那行「正在
+   * 思考」在最底下。
    *
-   * 三样都没有时这里也照样交出去，而不是交 undefined。瞬态区的退场要让最后那一帧多留
+   * 两样都没有时这里也照样交出去，而不是交 undefined。瞬态区的退场要让最后那一帧多留
    * 一会儿，而「多留」只能发生在还挂着的那棵子树里 —— 按内容有无摘掉整个尾部，等于在
    * 退场开始的同一帧把宿主连根拔掉。空的片段不产生任何节点，尾部盒子照旧是 :empty，
    * 末端留白一分没变。
@@ -257,7 +257,6 @@ export function TranscriptView({
 
   const footer = (
     <>
-      {feed.tail === undefined ? null : sealOf(feed.tail)}
       <LiveProcess renderRow={renderLiveRow} rows={groupedLive.rows} />
       {waiting ? <ThinkingIndicator /> : null}
     </>

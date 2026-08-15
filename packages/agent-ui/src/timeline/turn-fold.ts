@@ -25,18 +25,16 @@ import type { FeedRow, TurnSpan } from '@poietica/agent'
  * 投影按 rows[0] 弱引用：一条对话每一帧的首行都是同一个对象，所以键天然按对话隔离，也
  * 随对话一起回收。
  *
- * 封条在不在，由两件事决定：这一轮有没有 span，以及模型有没有真的开过口。span 的起点同
- * 时是封条那只秒表的起点 —— 于是「有没有封条」与「秒表从几点算」是同一个事实，不会各说
- * 一套。但起点只证明请求出去了：额度耗尽的密钥同样有起点，光凭它立碑，「正在处理」会抢
- * 在报错前面亮一下。所以还要 span.firstFrameAt —— 收到第一帧 agent 内容的时刻，由
- * timeline-draft 在写入转录时盖章。它不能在这里算：思考不上屏（renderable.ts 的
- * isRenderable 对 agent_thought 恒为假），屏幕这一侧根本看不见模型已经在推理。
+ * 封条在不在，由两件事决定：这一轮有没有 span，以及模型有没有真的开过口。开口的判据是
+ * span.firstFrameAt —— 收到第一帧 agent 内容的时刻，由 timeline-draft 在写入转录时盖章；
+ * 它不能在这里算：思考不上屏，屏幕这一侧根本看不见模型已经在推理。落定之后补第二条：
+ * 这一轮已经有话上屏（哪怕只是一行报错）就不是空碑。起点只证明请求出去了，额度耗尽的
+ * 密钥同样有起点，光凭它立碑，「正在处理」会抢在报错前面亮一下。
  *
- * 落点有两处，规则只有一条：封条排在它那一轮的内容前面。这一轮的提问就是那条界 —— 封条
- * 挂在提问那一行、渲染在它之后，于是收起摊开都不动它。提问不在（重连接续上的轮次）就既
- * 不立碑也不折叠：碑没有地方挂，而折起来的过程配不上开关。一行都还没有时落点是转录尾部
- * —— 等待指示器正在那里。落定的一轮不会再有东西上屏，所以它一行都没有时就是真的什么也
- * 没发生过，不给它立一块空碑。
+ * 落点只有一处：封条排在它那一轮的内容前面。这一轮的提问就是那条界 —— 封条挂在提问那
+ * 一行、渲染在它之后，于是收起摊开都不动它。提问不在（重连接续上的轮次）就既不立碑也
+ * 不折叠：碑没有地方挂，而折起来的过程配不上开关。落定的一轮不会再有东西上屏，所以它
+ * 一行都没有时就是真的什么也没发生过，不给它立一块空碑。
  *
  * 折到哪里为止：这一轮最后那一段连续 agent_text 的起点，不要求它落在末尾。
  *
@@ -87,8 +85,6 @@ export type FoldedFeed = {
    * 行的实测高度。
    */
   readonly live: readonly FeedRow[]
-  /** 还没有行可落的那一枚：这一轮在跑，而它的第一样东西还没上屏。 */
-  readonly tail: TurnSealPlan | undefined
 }
 
 /* 空态一律交出同一个引用：下游按引用判等。 */
@@ -102,7 +98,6 @@ const EMPTY: FoldedFeed = {
   replyActions: NO_REPLY_ACTIONS,
   seals: NO_SEALS,
   live: NO_FEED_ROWS,
-  tail: undefined,
 }
 
 /** 旁白：不是过程也不是回复。倒扫时跨过它，也永远不折。 */
@@ -160,7 +155,6 @@ interface SealPlan {
   readonly seals: ReadonlyMap<string, TurnSealPlan>
   readonly hidden: ReadonlySet<number>
   readonly live: readonly FeedRow[]
-  readonly tail: TurnSealPlan | undefined
 }
 
 interface ReplyAnchor {
@@ -220,7 +214,6 @@ export function foldFeed(
     replyActions: repliesIn(order, folds),
     seals: sealed.seals,
     live: sealed.live,
-    tail: sealed.tail,
   }
 
   FOLDS.set(anchor, { rows, spans, opened, folds, result })
@@ -256,20 +249,20 @@ function boundsOf(rows: readonly FeedRow[]): TurnIndex {
 }
 
 /**
- * 汇总封条、要折起来的行、交给瞬态区的行，以及还没有行可落的那一枚。
+ * 汇总封条、要折起来的行、交给瞬态区的行。
  *
- * 只有有 span 的轮次进得来：没有 span 就没有封条，也就不会折掉任何一行。
+ * 只有有 span 的轮次进得来：没有 span 就没有封条，也就不会折掉任何一行。封条
+ * 挂在这一轮的提问上（fold.sealAt），所以每一枚都在那张行表里有一个落点。
  */
 function sealsIn(spans: readonly TurnSpan[], folds: ReadonlyMap<number, TurnFold>): SealPlan {
   const seals = new Map<string, TurnSealPlan>()
   const hidden = new Set<number>()
   const live: FeedRow[] = []
-  let tail: TurnSealPlan | undefined
 
   for (const span of spans) {
     const fold = folds.get(span.turn)
 
-    if (fold?.seal === undefined) {
+    if (fold?.seal === undefined || fold.sealAt === undefined) {
       continue
     }
 
@@ -281,20 +274,13 @@ function sealsIn(spans: readonly TurnSpan[], folds: ReadonlyMap<number, TurnFold
       live.push(row)
     }
 
-    if (fold.sealAt !== undefined) {
-      seals.set(fold.sealAt, fold.seal)
-    } else if (span.endedAt === undefined && span.firstFrameAt !== undefined) {
-      /* 落定的一轮一行都没有就是真的什么也没发生过；还在跑、且已经回过一帧的那一轮不
-         同 —— 它正在跑，而这恰恰是要说出来的那件事。 */
-      tail = fold.seal
-    }
+    seals.set(fold.sealAt, fold.seal)
   }
 
   return {
     seals: seals.size === 0 ? NO_SEALS : seals,
     hidden,
     live: live.length === 0 ? NO_FEED_ROWS : live,
-    tail,
   }
 }
 
@@ -352,10 +338,14 @@ function foldOf(
   const running = span?.startedAt !== undefined && span.endedAt === undefined
   const answerAt = latestSpeechIn(rows, own)
   const process = span === undefined ? NO_INDEXES : processIn(rows, own, answerAt, running)
+  /* 模型有没有真的开过口：收到过第一帧内容（firstFrameAt，思考不上屏所以这里才要它），
+     或者这一轮已经有话上屏 —— 哪怕只是一行报错，落定后就不是空碑。 */
+  const spoke = span?.firstFrameAt !== undefined || own.some((at) => rows[at]?.item.type !== SAID)
   /* 碑要有地方挂：这一轮的提问就是它的位置，而重连接续上的轮次连开头都没有。 */
   const saidAt = saidIn(rows, own)
   /* 可点 ⟺ 真有东西可收。什么都没收起时封条只是一行字，不给假按钮。 */
-  const seal = saidAt === undefined ? undefined : sealOf(turn, span, isOpen, process.length > 0)
+  const seal =
+    saidAt === undefined || !spoke ? undefined : sealOf(turn, span, isOpen, process.length > 0)
   /* 只有人手动点开才摊开：过程先上屏、回复一到再撤掉，撤掉的那一帧就是内容整段消失又
      出现。没有封条就一行都不折 —— 藏起来的过程配不上开关。 */
   const hidden = seal === undefined || isOpen ? NO_INDEXES : process

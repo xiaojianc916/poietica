@@ -44,7 +44,8 @@ describe('foldFeed', () => {
     const feed = foldFeed(rows, [running(0, 1_000)], new Set())
 
     expect(idsOf(feed.rows)).toEqual(['q', 'a'])
-    expect(feed.seals.get('a')).toEqual({
+    /* 封条挂在提问那一行，渲染在它之后 —— 收起摊开都不挪。 */
+    expect(feed.seals.get('q')).toEqual({
       turn: 0,
       startedAt: 1_000,
       /* 这一轮还在跑：没有终点，封条继续跳字。 */
@@ -52,6 +53,7 @@ describe('foldFeed', () => {
       hasProcess: true,
       isOpen: false,
     })
+    expect(feed.seals.get('a')).toBeUndefined()
   })
 
   it('routes the process of a working turn to the transient channel', () => {
@@ -62,7 +64,7 @@ describe('foldFeed', () => {
 
     expect(idsOf(feed.rows)).toEqual(['q'])
     expect(idsOf(feed.live)).toEqual(['t'])
-    expect(feed.tail?.hasProcess).toBe(true)
+    expect(feed.seals.get('q')?.hasProcess).toBe(true)
   })
 
   it('never takes a row off the transcript while the turn is still working', () => {
@@ -84,7 +86,7 @@ describe('foldFeed', () => {
 
   it('keeps the fold where it is when process resumes after a remark', () => {
     /* 说一句、再去干活：边界停在那句话上不退回去，已经收起的东西不会弹回屏幕，
-       封条也就不会从回复那一行挪走。 */
+       封条也就不会从提问那一行挪走。 */
     const rows = [
       said('q', 0, 1_000),
       thought('t0', 0, 2_000),
@@ -96,15 +98,16 @@ describe('foldFeed', () => {
     expect(idsOf(feed.rows)).toEqual(['q', 'a'])
     /* t0 已经被那句话盖过去了，它归封条；t1 是当下这一段工作，它归瞬态区。 */
     expect(idsOf(feed.live)).toEqual(['t1'])
-    expect(feed.seals.get('a')?.hasProcess).toBe(true)
+    expect(feed.seals.get('q')?.hasProcess).toBe(true)
   })
 
-  it('honours a turn the reader opened, sealing the first process row', () => {
+  it('honours a turn the reader opened', () => {
     const rows = [said('q', 0, 1_000), thought('t', 0, 2_000), spoke('a', 0, 5_000)]
     const feed = foldFeed(rows, [settled(0, 1_000, 9_000)], new Set([0]))
 
     expect(feed.rows).toBe(rows)
-    expect(feed.seals.get('t')?.isOpen).toBe(true)
+    expect(feed.seals.get('q')?.isOpen).toBe(true)
+    expect(feed.seals.get('t')).toBeUndefined()
     expect(feed.seals.get('a')).toBeUndefined()
   })
 
@@ -133,7 +136,7 @@ describe('foldFeed', () => {
     const feed = foldFeed(rows, [settled(0, 1_000, 4_500)], new Set())
 
     expect(feed.rows).toBe(rows)
-    expect(feed.seals.get('t')).toEqual({
+    expect(feed.seals.get('q')).toEqual({
       turn: 0,
       startedAt: 1_000,
       endedAt: 4_500,
@@ -148,16 +151,14 @@ describe('foldFeed', () => {
     const feed = foldFeed([said('q', 0, 1_000)], [running(0, 1_000)], new Set())
 
     expect(feed.seals.size).toBe(0)
-    expect(feed.tail).toBeUndefined()
   })
 
   it('seals a running turn that heard a frame but put nothing on screen yet', () => {
     /* 生产里的真实形态：思考不上屏（renderable.ts），所以这一轮此刻只有提问那一行 ——
-       而它确实在跑，封条归尾部。 */
+       而它确实在跑（firstFrameAt 已盖），封条挂在提问上。 */
     const feed = foldFeed([said('q', 0, 1_000)], [heard(0, 1_000, 1_200)], new Set())
 
-    expect(feed.seals.size).toBe(0)
-    expect(feed.tail).toEqual({
+    expect(feed.seals.get('q')).toEqual({
       turn: 0,
       startedAt: 1_000,
       endedAt: undefined,
@@ -166,19 +167,18 @@ describe('foldFeed', () => {
     })
   })
 
-  it('moves the seal onto the first row the turn puts on screen', () => {
+  it('keeps the seal on the question row while the turn runs', () => {
     const rows = [said('q', 0, 1_000), spoke('a', 0, 2_000)]
     const feed = foldFeed(rows, [running(0, 1_000)], new Set())
 
-    expect(feed.tail).toBeUndefined()
-    expect(feed.seals.get('a')?.endedAt).toBeUndefined()
+    expect(feed.seals.get('q')?.endedAt).toBeUndefined()
+    expect(feed.seals.get('a')).toBeUndefined()
   })
 
   it('leaves no seal for a finished turn that never reached the screen', () => {
     const feed = foldFeed([said('q', 0, 1_000)], [settled(0, 1_000, 4_000)], new Set())
 
     expect(feed.seals.size).toBe(0)
-    expect(feed.tail).toBeUndefined()
   })
 
   it('gives every turn its own seal', () => {
@@ -193,7 +193,7 @@ describe('foldFeed', () => {
     const feed = foldFeed(rows, [settled(0, 1_000, 3_500), running(1, 4_000)], new Set())
 
     expect(idsOf(feed.rows)).toEqual(['q0', 'a0', 'q1', 'a1'])
-    expect([...feed.seals.keys()]).toEqual(['a0', 'a1'])
+    expect([...feed.seals.keys()]).toEqual(['q0', 'q1'])
   })
 
   it('leaves an older conversation untouched when no span was recorded', () => {
@@ -202,14 +202,14 @@ describe('foldFeed', () => {
 
     expect(feed.rows).toBe(rows)
     expect(feed.seals.size).toBe(0)
-    expect(feed.tail).toBeUndefined()
   })
 
   it('measures a turn that produced nothing from the moment it began', () => {
+    /* 只有一行报错也算有过内容：落定后一行都没有才是空碑，这里不立。 */
     const rows = [said('q', 0, 1_000), broke('e', 0, 7_000)]
     const feed = foldFeed(rows, [settled(0, 1_000, 7_000)], new Set())
 
-    expect(feed.seals.get('e')).toEqual({
+    expect(feed.seals.get('q')).toEqual({
       turn: 0,
       startedAt: 1_000,
       endedAt: 7_000,
@@ -224,7 +224,7 @@ describe('foldFeed', () => {
     const rows = [said('q', 0, 1_000), spoke('a', 0, 2_000)]
     const feed = foldFeed(rows, [settled(0, 1_000, 31_000)], new Set())
 
-    expect(feed.seals.get('a')).toEqual({
+    expect(feed.seals.get('q')).toEqual({
       turn: 0,
       startedAt: 1_000,
       endedAt: 31_000,
