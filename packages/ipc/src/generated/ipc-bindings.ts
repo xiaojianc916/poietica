@@ -1359,28 +1359,6 @@ events: JsonValue[];
  */
 history: AgentHistory; 
 /**
- * 这条对话挂着的图片，字节已经装回交付注册表，URL 拿去就能用。
- * 
- * 它不来自 agent。上面那段经过是 agent 交还的，而图片是这台机器上用户
- * 自己的文件：agent 收到的是一份 base64 副本，它没有义务交还，多数 CLI
- * 也确实不交还 —— 所以这一格由本地账本回答（见 persistence 的
- * attachments.rs）。
- */
-attachments: AgentThreadAttachment[]; 
-/**
- * 这条对话至今问过多少句话。
- * 
- * 上面那些附件的 turn 是照着它量的,而且是从末尾量起:计数为 N,就表示
- * turn 盖住的是最后 N 条用户消息。渲染层拿它去减自己数出来的条数,得到
- * 的差就是要跳过的那一段前史(0011 之前的那些话)。
- * 
- * 少了它,认领方就只能假定「第 0 轮就是第一条消息」—— 那对每一条迁移
- * 之前就存在的对话都是错的。
- * 
- * 与上面那两格同一个宽度，同一个理由。
- */
-prompts: number; 
-/**
  * 这条对话最近一次记下的上下文用量。
  * 
  * 来自本地账本，不来自这一次打开：Kimi 只在轮次落定后报一次，装载旧会
@@ -1461,17 +1439,7 @@ export type AgentPromptResult = {
 /**
  * 这一轮发到了哪条会话。它的每一帧都带着同一个号。
  */
-sessionId: string; 
-/**
- * 这一句里的图片在 webview 里的地址，顺序与用户挑的一致。
- * 
- * 与重开这条对话时交回的那些是同一种东西（见 AgentThreadAttachment）：
- * 字节落盘的同一趟里就铺进了同一条交付会话，所以"刚发出去的图"和"昨天
- * 发过的图"在渲染层那边不再是两种写法。此前那一侧自己拼 data: URL ——
- * 一张十六兆的图会在 JS 堆上留下一份二十一兆的字符串，活到这条对话被
- * 关掉为止；而那条路不经过协议，于是协议这条路坏了很久都没人发现。
- */
-images: string[] }
+sessionId: string }
 /**
  * A conversation the interface is renaming.
  */
@@ -1564,33 +1532,6 @@ workspaceRoot: string | null;
  * 是否已经离开活动会话列表。
  */
 archived: boolean }
-/**
- * 这条对话挂着的一张附件，以及它该出现在哪里。
- * 
- * URL 由这一侧拼好交出去（`asset_protocol_url`），渲染层不自己拼：它的形状
- * 是协议的事，多一个人知道就多一处会漂移。
- * 
- * 位置由「第几条用户消息、这条消息里的第几张」两个数给出，而不是消息 id ——
- * 这个程序不存对话内容，历史由 agent 交还，那份历史里的 id 不归我们发。
- * 能由两侧各自数出同一个答案的，只有序号（见迁移 0010 与 0011）。
- */
-export type AgentThreadAttachment = { 
-/**
- * `poietica-asset://asset/{thread}/{sha256}`，可以直接进 img 的 src。
- */
-url: string; 
-/**
- * 这是这条对话里第几条用户消息，从 0 数起。
- * 
- * 序号不为负，也不会大到 32 位装不下，所以线上就是 u32 —— 库里那一列
- * 是 i64 只因为 SQLite 的整数天生是 i64，那是存储的宽度，不是协议的。
- * specta 拒绝导出 i64 正是在守这条界线：JS 的 number 只精确到 2^53。
- */
-turn: number; 
-/**
- * 那条消息里的第几张，从 0 数起。
- */
-ordinal: number }
 /**
  * A conversation an action applies to, and nothing else.
  */
