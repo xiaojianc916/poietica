@@ -22,6 +22,7 @@ use crate::commands::{AgentClient, Command, PromptImage};
 use crate::config::{ConfigControl, controls, correction};
 use crate::desk::PermissionDesk;
 use crate::error::{AcpError, Refusal, Result};
+use crate::frame::acp_update;
 use crate::permission::{Decision, decide};
 use crate::program::resolve_program;
 use crate::recorder::{Frames, RecordedEvent, Recorder};
@@ -219,8 +220,18 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             });
                         }
 
+                        /* 成帧在这里做完：往下走的是帧，不是协议的类型。
+                        工具调用的名字先记进这一轮的工作内存 —— 权限请求可以不带
+                        标题，退路就在那张表里。 */
                         let _routed = slot.record(|listening| {
-                            listening.session_update(&notification);
+                            if let Some(recorder) = listening.turn_mut() {
+                                recorder.note_tool_titles(&notification.update);
+                            }
+
+                            match acp_update(&notification) {
+                                Ok(frame) => listening.frame(frame),
+                                Err(unencodable) => listening.unencodable(unencodable),
+                            }
                         });
                     }
 

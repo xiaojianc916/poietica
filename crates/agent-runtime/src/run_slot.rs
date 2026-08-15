@@ -1,8 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use agent_client_protocol::schema::v1::SessionNotification;
-
 use crate::error::{AcpError, Refusal, Result};
+use crate::frame::RunFrame;
 use crate::recorder::{Frames, Recorder, SeqLine};
 
 /// 此刻在这条会话上听着的是谁。
@@ -22,18 +21,25 @@ pub enum Listening {
 }
 
 impl Listening {
-    /// 一帧会话通知，按此刻听着的那一位的办法处理。
+    /// 一帧，按此刻听着的那一位的办法处理。
     ///
-    /// 接收路径上只有这一个分发点。
-    pub fn session_update(&mut self, notification: &SessionNotification) {
+    /// 接收路径上只有这一个分发点，而它收的是帧 —— 两条传输各自把自己的
+    /// 协议成帧，从这里往下再没有任何一层认识协议。
+    pub fn frame(&mut self, frame: RunFrame) {
         match self {
-            Self::Turn(recorder) => recorder.record_session_update(notification),
-            /* 成形失败在实时那一侧会记成这一轮的失败；这里没有一轮可以失败，
-            所以它表现为历史里少一帧。序列化的是 SDK 自己的类型，走到这一步
-            意味着协议库自身出了问题。 */
-            Self::Replay(frames) => {
-                let _unencodable = frames.record_session_update(notification);
-            }
+            Self::Turn(recorder) => recorder.record_frame(frame),
+            Self::Replay(frames) => frames.record_frame(frame),
+        }
+    }
+
+    /// 一帧没能成形。
+    ///
+    /// 实时那一侧记成这一轮的失败；装载期没有一轮可以失败，所以它表现为
+    /// 历史里少一帧。
+    pub fn unencodable(&mut self, error: AcpError) {
+        match self {
+            Self::Turn(recorder) => recorder.note_unencodable(error),
+            Self::Replay(_frames) => {}
         }
     }
 

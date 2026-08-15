@@ -1,4 +1,5 @@
-//! The Agent Client Protocol client, over a locally spawned agent process.
+//! The Agent Client Protocol client, over a locally spub use driver::connect as connect_acp;
+pub use dsh_driver::connect_harness;awned agent process.
 //!
 //! Three rules shape this crate.
 //!
@@ -8,7 +9,8 @@
 //! invite it to react to a fault that is not its own.
 //!
 //! A session outlives a turn, and a connection outlives a session. The
-//! process is started once; sessions, prompts, cancellation and shutdown
+//! process is started once; sessions, promod driver;
+mod dsh_driver;pts, cancellation and shutdown
 //! arrive afterwards as commands, and several of them may be in flight at
 //! once. One turn at a time is a rule of a session, not of a connection. Because the handlers live as long as the connection and a recorder
 //! lives only as long as one run, the two meet through a slot rather than by

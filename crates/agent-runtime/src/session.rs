@@ -94,8 +94,10 @@ impl fmt::Debug for SessionEvents {
 
 /// A connected session, before anything has been spawned onto a runtime.
 ///
-/// The crate stays runtime-agnostic on purpose: it hands back a future and the
-/// composition root decides which executor runs it.
+/// 交回一个未来，由组合根决定谁来推进它 —— 两条传输同一个形状，所以
+/// 组合根只有一处 spawn。harness 那条线自己起进程并在 tokio 上读写它的
+/// 管子（见 dsh_driver.rs），所以这个 crate 不再对执行器无所谓：它要求
+/// 一个 tokio 运行时，而组合根给的正是那一个。
 pub struct AgentConnection {
     /// Sends prompts, cancellation and shutdown to the connection.
     pub client: AgentClient,

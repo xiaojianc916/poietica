@@ -4,14 +4,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use agent_client_protocol::schema::v1::{
-    RequestPermissionRequest, SessionNotification, SessionUpdate,
-};
+use agent_client_protocol::schema::v1::{RequestPermissionRequest, SessionUpdate};
 use serde::Serialize;
 use uuid::Uuid;
 
 use crate::error::{AcpError, Result};
-use crate::frame::{RunFrame, acp_update, prune};
+use crate::frame::{RunFrame, prune};
 use crate::permission::Decision;
 
 /// 一帧，已经成形，可以交出去了。
@@ -135,18 +133,12 @@ impl Frames {
 
     /// 装载一条旧会话时重播回来的一帧：成形，投递，不落库。
     ///
-    /// 没有日志可写，因为这一份历史的持有者是 agent 而不是这台机器。走的是
-    /// 与实时那一轮同一个 [`acp_update`]，所以两边的帧一模一样。
-    ///
-    /// # Errors
-    ///
-    /// 序列化失败时报错；此时这一帧不投递，位置也不前进。
-    pub fn record_session_update(&mut self, notification: &SessionNotification) -> Result<()> {
-        let event = self.shape(acp_update(notification)?);
+    /// 没有日志可写，因为这一份历史的持有者是 agent 而不是这台机器。收的是
+    /// 一帧成品，与实时那一轮同一个来源，所以两边的帧一模一样。
+    pub fn record_frame(&mut self, frame: RunFrame) {
+        let event = self.shape(frame);
 
         self.deliver(event);
-
-        Ok(())
     }
 }
 
@@ -219,10 +211,35 @@ impl Recorder {
         });
     }
 
-    /// Records a session notification and projects it.
-    pub fn record_session_update(&mut self, notification: &SessionNotification) {
-        let outcome = self.note_update(notification);
-        self.remember(outcome);
+    /// 记下这一轮的一帧。
+    ///
+    /// 收的是帧而不是某条协议的通知：两条传输各自成帧，此后共用这一条路。
+    /// 会话帧要计数 —— 一轮到底有没有内容，`narrate` 靠它判断。
+    pub fn record_frame(&mut self, frame: RunFrame) {
+        if matches!(
+            frame,
+            RunFrame::AcpUpdate { .. } | RunFrame::HarnessEvent { .. }
+        ) {
+            self.updates = self.updates.saturating_add(1);
+        }
+
+        self.append(frame);
+    }
+
+    /// 成帧没成，算这一轮的失败。
+    ///
+    /// 成帧在协议侧做，所以失败也在那里发生；归属仍然属于这一轮，判据不变：
+    /// 第一个失败留下，后面的不覆盖它。
+    pub fn note_unencodable(&mut self, error: AcpError) {
+        self.remember(Err(error));
+    }
+
+    /// 记下这一轮见过的工具调用叫什么。
+    ///
+    /// 只有 ACP 那条线有这件事：权限请求可以不带标题，而 harness 这条线上
+    /// 客户端根本答不了权限（见 docs/adr/0023），所以没有需要退路的标题。
+    pub fn note_tool_titles(&mut self, update: &SessionUpdate) {
+        self.project(update);
     }
 
     /// Records a permission request the agent is now blocked on.
@@ -274,14 +291,6 @@ impl Recorder {
         });
     }
 
-    fn note_update(&mut self, notification: &SessionNotification) -> Result<()> {
-        self.updates = self.updates.saturating_add(1);
-
-        self.append(acp_update(notification)?);
-        self.project(&notification.update);
-
-        Ok(())
-    }
 
     fn project(&mut self, update: &SessionUpdate) {
         match update {
