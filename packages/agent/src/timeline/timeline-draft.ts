@@ -10,7 +10,13 @@
  */
 
 import type { RunStatus } from '@poietica/agent-contract'
-import type { TimelineItem, TimelineState, TurnSpan } from './timeline-contract'
+import type {
+  AgentTextItem,
+  AgentThoughtItem,
+  TimelineItem,
+  TimelineState,
+  TurnSpan,
+} from './timeline-contract'
 
 export interface Draft {
   status: RunStatus
@@ -297,4 +303,59 @@ export function positionOf(draft: Draft, id: string): number {
   }
 
   return index.get(id) ?? -1
+}
+
+/**
+ * 把一段流式文本并进它所属的那一条消息。
+ *
+ * 边界曾经是遍历顺序的副产品：末尾那条同类型、还没封口，就接着往上贴。于是
+ * agent 背靠背发两条消息、中间什么都没插时，两条会粘成一条。
+ *
+ * 所以边界由消息身份说了算：身份变了就是另一条消息，哪怕它紧挨着上一段。身份
+ * 怎么算是方言的事 —— ACP 读 ContentChunk 的 messageId，harness 读一步的
+ * turn/step —— 而「接着写还是新起一条」是草稿的写法，只有这一份。
+ *
+ * 它只会切，不会合。中间隔着一张工具卡片的两段，即使同号也仍然是两条：时间轴
+ * 记的是发生的顺序，为了让同号的两段并拢而跨过中间那张卡片，就是在改写这个顺序。
+ *
+ * 身份缺席时退回相邻续写，逐字保持原行为：ACP 的 messageId 在 schema 里本来就
+ * 是可选的，client 必须能处理它不在的情况。
+ */
+export function appendChunk(
+  draft: Draft,
+  type: 'agent_text' | 'agent_thought',
+  chunk: {
+    readonly at: number
+    /** 新起一条时用的条目 id；接着写时用不上。 */
+    readonly id: string
+    /** 这一段属于哪一条消息；方言算出来，缺席就不表态。 */
+    readonly message?: string | undefined
+    readonly text: string
+  },
+): void {
+  const tail = draft.items.at(-1)
+
+  if (tail && tail.type === type && !tail.sealed && sameMessage(tail, chunk.message)) {
+    const grown: AgentTextItem | AgentThoughtItem = { ...tail, text: tail.text + chunk.text }
+
+    draft.items[draft.items.length - 1] = grown
+
+    return
+  }
+
+  push(draft, {
+    type,
+    id: chunk.id,
+    turn: draft.runIndex,
+    at: chunk.at,
+    text: chunk.text,
+    sealed: false,
+    /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
+    ...(chunk.message === undefined ? {} : { messageId: chunk.message }),
+  } as AgentTextItem | AgentThoughtItem)
+}
+
+/** 身份缺席时不表态，退回相邻续写；身份在，就必须是同一个。 */
+function sameMessage(tail: AgentTextItem | AgentThoughtItem, message: string | undefined): boolean {
+  return message === undefined || message === tail.messageId
 }

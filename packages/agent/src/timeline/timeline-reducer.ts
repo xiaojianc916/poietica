@@ -1,5 +1,5 @@
 import type { RunEvent } from '@poietica/agent-contract'
-import { apply, surelyIgnored } from './acp-projection'
+import { apply, surelyIgnored } from './projection'
 import type { TimelineState } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import {
@@ -41,8 +41,8 @@ import {
  * 这个文件只剩写入的入口：一趟草稿的开合，与开段的时机。段的边界只有调用方
  * 知道（见 apply 开头那段注释），所以它必须留在这一层。
  *
- * 帧里那些字如何变成条目是协议的方言，归 acp-projection —— 那是唯一 import
- * @poietica/agent-contract 的地方。图也在那一帧上，所以它没有第二个去处。
+ * 帧里那些字如何变成条目归 projection：一轮的生命周期在那一层，两条线的方言
+ * 各在自己的文件里。图也在那一帧上，所以它没有第二个去处。
  */
 
 export function createTimelineState(): TimelineState {

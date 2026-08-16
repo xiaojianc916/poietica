@@ -17,12 +17,26 @@ export type RunStatus =
 /**
  * The append-only run event log.
  *
- * 'acp_update' carries the protocol notification verbatim. Everything else is a
- * client-side fact about the run that the protocol does not model. Every event
- * carries a monotonic seq so replay is deterministic and duplicates are cheap
- * to discard.
+ * 'acp_update' 与 'harness_event' 各自原样携带一条线上的协议原文：ACP 的会话
+ * 通知，harness 的会话日志信封。其余每一格都是这台机器对这一轮的判断，协议本身
+ * 不描述它们。每一帧带一个单调 seq，所以重放确定、去重便宜。
  */
 export type RunEvent =
+  | {
+      readonly kind: 'harness_event'
+      readonly seq: number
+      readonly at: number
+      readonly sessionId: AcpSessionId
+      /**
+       * 会话日志信封，原样。
+       *
+       * 词汇归 harness 那侧（dsh-session 的 SessionEvent，四十余个 type 且可被
+       * 插件声明合并扩展，读者认不出的那些由信封上的 ignorable 兜底）。所以这里
+       * 不手抄一份：抄下来的那天就开始腐烂。原生侧同样原样成帧（frame.rs 里它是
+       * 一个 Value），解读只发生在投影层。
+       */
+      readonly event: unknown
+    }
   | {
       readonly kind: 'run_started'
       readonly seq: number

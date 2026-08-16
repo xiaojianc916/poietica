@@ -5,6 +5,10 @@
  * tool_call_update 如何合成一次 upsert、stopReason 怎么读成一个结局 —— 全部
  * 收在这个文件里，别处不该再出现一个 Acp 前缀。
  *
+ * 它只认这条线上的方言：会话通知的词汇，以及授权请求随身携带的那份
+ * ToolCallUpdate。一轮怎么开始、怎么结束归 projection —— 那两件事两条线共用，
+ * 而这个文件不许知道另一条线存在。
+ *
  * 它只往草稿上写，既不开草稿也不封版（见 timeline-draft），所以「纯、总、可
  * 重放」那三条性质与它无关：那是入口那一层的承诺。
  */
@@ -12,79 +16,23 @@
 import type {
   AcpContentBlock,
   AcpSessionUpdate,
-  AcpStopReason,
   AcpToolCallContent,
   AcpToolCallUpdate,
   RunEvent,
-  RunStatus,
 } from '@poietica/agent-contract'
-import { isRenderable } from './renderable'
-import type {
-  AgentTextItem,
-  AgentThoughtItem,
-  MessageImage,
-  ToolCallTimelineItem,
-  UserMessageItem,
-} from './timeline-contract'
+import type { ToolCallTimelineItem, UserMessageItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
-import {
-  beginQuestion,
-  markTurnEnd,
-  markTurnStart,
-  namespace,
-  positionOf,
-  push,
-  sealTail,
-} from './timeline-draft'
+import { appendChunk, namespace, positionOf, push } from './timeline-draft'
 import { pendingPermission } from './timeline-queries'
 
-/**
- * 这一帧一定会被丢掉吗。
- *
- * 这不是一道闸门，是一次保守的预判：为真时 apply 一定丢，为假时什么都不承诺。
- * 它唯一的作用是让一整批全是重复帧的输入不必开草稿 —— 引用原样交回，下游的记忆
- * 化不会被白白打掉。真正的去重只有 apply 里那一处，就在下面。
- *
- * run_started 不预判：它开的那一段窗口马上要重来（beginRun），拿上一段的窗口去
- * 判它，判出来的重复是假的。
- *
- * 它住在这里而不住在调用方，是因为它逼近的那条判据在这里 —— 一份权威，一份贴着
- * 权威写的近似，中间没有可以各自漂移的余地。
- */
-export function surelyIgnored(event: RunEvent, lastSeq: number): boolean {
-  return event.kind !== 'run_started' && event.seq <= lastSeq
-}
+/** 这条线上的方言帧。其余每一格两条线共用，归 projection。 */
+export type AcpFrame = Extract<
+  RunEvent,
+  { kind: 'acp_update' | 'permission_requested' | 'permission_resolved' }
+>
 
-export function apply(draft: Draft, event: RunEvent): void {
-  /*
-   * 段的边界不在这里判。
-   *
-   * 一帧 run_started 可能是新的一轮，也可能是同一份日志被重放了一遍，而这两者的
-   * seq、at、prompt 全都一样：apply 手上没有任何东西能把它们分开。所以由知道自己
-   * 在干什么的那一层来开段 —— 人先说话时是 appendUserMessage，没有经过输入框的那
-   * 些轮次是 beginRun，而 replayRunEvents 一轮到底、一段都不开：同一份日志放两遍
-   * 必须得到同一个状态，这是回放能被信任的前提。
-   *
-   * 去重只有下面这一处。正因为一段都不开的那条路径上没有第二张网，这里不能跟着
-   * surelyIgnored 一起给 run_started 放行 —— 放行之后紧跟着的那句赋值会把窗口拨
-   * 回到它的 seq，后面每一帧都会重新生效一遍。
-   */
-  if (event.seq <= draft.lastSeq) {
-    return
-  }
-
-  draft.lastSeq = event.seq
-
+export function applyAcpFrame(draft: Draft, event: AcpFrame): void {
   switch (event.kind) {
-    case 'run_started': {
-      draft.status = 'running'
-      /* 起点是这一帧的时刻，不是本机此刻：回放要复现同一个耗时。 */
-      markTurnStart(draft, event.at)
-      withPrompt(draft, event)
-
-      return
-    }
-
     case 'acp_update': {
       applyAcpUpdate(draft, event.notification.update, event.seq, event.at)
 
@@ -114,8 +62,7 @@ export function apply(draft: Draft, event: RunEvent): void {
     }
 
     case 'permission_resolved': {
-      /* 身份是算得出来的（见 permission_requested 那一支），所以按 id 定位。
-         此前每来一次答复就把整条转录扫一遍 —— 索引就在同一个文件里。 */
+      /* 身份是算得出来的（见 permission_requested 那一支），所以按 id 定位。 */
       const position = positionOf(draft, `${namespace(draft)}permission-${event.requestId}`)
       const asked = position < 0 ? undefined : draft.items[position]
 
@@ -126,55 +73,11 @@ export function apply(draft: Draft, event: RunEvent): void {
         }
       }
 
-      /* 答掉一个不等于不再等。并行的子代理会同时挂着几个请求（ADR 0002），
-         此前这一支开头无条件写 running —— 第一个答复一到，状态就说这一轮不在
-         等人了，而另外几个请求还挂在原生侧的桌子上，界面上再没有入口。
-         这句话必须排在上面那次落账之后：刚答掉的这一个也在扫描范围里。 */
+      /* 答掉一个不等于不再等。并行的子代理会同时挂着几个请求（ADR 0002）：
+         第一个答复一到就写 running，会让界面说这一轮不在等人了，而另外几个
+         请求还挂在原生侧的桌子上，屏幕上再没有入口。这句话必须排在上面那次
+         落账之后：刚答掉的这一个也在扫描范围里。 */
       draft.status = pendingPermission(draft) === undefined ? 'running' : 'awaiting_permission'
-
-      return
-    }
-
-    case 'run_finished': {
-      /* A turn can end on the agent terms and still be a failure: a rejected
-         provider request is reported by the agent itself, outside the
-         protocol, and the stop reason stays ordinary. When it left such an
-         account, that account is the entry, and our own wording never
-         appears at all. */
-      sealTail(draft)
-      /* 一轮的结局是一轮的事实，不是它发起的每一次调用的事实。没等到终态的
-         调用就停在它最后被报到的地方：status 装的是协议值，也就是 agent 说过
-         的话，这一层没有资格替它补一句「失败」。停住的纺锤怎么画，归读模型。 */
-      draft.status = finalStatus(event.stopReason)
-      markTurnEnd(draft, event.at)
-
-      const said = event.diagnostics?.trim() ?? ''
-      const told = said.length > 0 ? said : silentTurn(draft, event.stopReason)
-
-      if (told !== undefined) {
-        push(draft, {
-          type: 'error',
-          id: `${namespace(draft)}agent-${String(event.seq)}`,
-          turn: draft.runIndex,
-          at: event.at,
-          message: told,
-        })
-      }
-
-      return
-    }
-
-    case 'run_failed': {
-      sealTail(draft)
-      draft.status = 'failed'
-      markTurnEnd(draft, event.at)
-      push(draft, {
-        type: 'error',
-        id: `${namespace(draft)}error-${String(event.seq)}`,
-        turn: draft.runIndex,
-        at: event.at,
-        message: preferAgent(event.message, event.diagnostics),
-      })
 
       return
     }
@@ -201,13 +104,13 @@ function applyAcpUpdate(draft: Draft, update: AcpSessionUpdate, seq: number, at:
     }
 
     case 'agent_message_chunk': {
-      appendChunk(draft, 'agent_text', update, scope, seq, at)
+      appendChunk(draft, 'agent_text', chunkOf(update, `${scope}text-`, seq, at))
 
       return
     }
 
     case 'agent_thought_chunk': {
-      appendChunk(draft, 'agent_thought', update, scope, seq, at)
+      appendChunk(draft, 'agent_thought', chunkOf(update, `${scope}thought-`, seq, at))
 
       return
     }
@@ -526,163 +429,26 @@ export function withoutArgumentEcho(
 }
 
 /**
- * 日志里录下的那一问。
+ * 这条线上一段流式文本的身份。
  *
- * 一问由这一帧带全：文字与图片地址都在 run_started 上（见 frame.rs 的
- * RunStarted）。人经输入框提交的那些轮次先落一条乐观条目，图在这里补上去；没
- * 经过输入框的那些轮次（自动化、重连续接）整条都由这里落。两条路都只从这一帧
- * 取图，所以「哪张图属于哪一句话」在这个程序里只有一个答案。
- *
- * 判据是「本段末尾已经是一问」，不是文本相等：同一句话在两轮里说两遍是常事，
- * 而两轮不会是同一段。段边界读的是条目自己的段号，与 relink、silentTurn 同一
- * 条 —— 这个文件里只有这一种边界写法。
+ * 协议给了信号：ContentChunk 带 messageId，同一条消息的每一段带同一个号。号缺席
+ * 时不表态 —— 它在 schema 里本来就是可选的。协议里「没报」是 undefined、「报了个
+ * 空」是 null，对边界是同一件事，归一在这里做一次。
  */
-function withPrompt(
-  draft: Draft,
-  event: {
-    readonly seq: number
-    readonly at: number
-    readonly prompt?: string | undefined
-    readonly images?: readonly string[] | undefined
-  },
-): void {
-  /* 缺席与空串在这里是同一件事：都表示这一帧没有带来一句要显示的话。 */
-  const prompt = saidByUser(event.prompt ?? '')
-  const shown: readonly MessageImage[] = (event.images ?? []).map((url) => ({ url }))
-
-  /* 只挑了图、没打字，仍然是一句说过的话。 */
-  if (prompt.length === 0 && shown.length === 0) {
-    return
-  }
-
-  if (adoptQueuedPrompt(draft, prompt, shown) || dressTail(draft, shown)) {
-    return
-  }
-
-  beginQuestion(draft)
-
-  push(draft, {
-    type: 'user_message',
-    id: `${namespace(draft)}said-${String(event.seq)}`,
-    turn: draft.runIndex,
-    at: event.at,
-    text: prompt,
-    /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
-    ...(shown.length === 0 ? {} : { images: shown }),
-  })
-}
-
-/**
- * 本段末尾那一问，补上这一帧带来的图。
- *
- * 那一条是人按下发送时本机落的（appendUserMessage）：那一刻字节还没落盘，也就
- * 还没有地址。所以地址在这里补，而不是另开一条从 IPC 答复回来的路。
- *
- * O(1)，因为一问永远是它自己那一段的开头。
- */
-function dressTail(draft: Draft, shown: readonly MessageImage[]): boolean {
-  const position = draft.items.length - 1
-  const tail = draft.items[position]
-
-  if (tail?.type !== 'user_message' || tail.turn !== draft.runIndex) {
-    return false
-  }
-
-  if (shown.length > 0) {
-    draft.items[position] = { ...tail, images: shown }
-  }
-
-  return true
-}
-
-/**
- * Claims a question queued while the preceding run was still producing output.
- *
- * That local message deliberately keeps the old turn until run_started opens
- * the next sequence window. Once the frame arrives, matching the exact prompt
- * is safe: only local messages from the immediately preceding turn are
- * candidates, and the newest unmatched one wins.
- */
-function adoptQueuedPrompt(draft: Draft, prompt: string, shown: readonly MessageImage[]): boolean {
-  for (let position = draft.items.length - 1; position >= 0; position--) {
-    const item = draft.items[position]
-
-    if (item?.type !== 'user_message' || !item.id.includes('local-said-')) {
-      continue
-    }
-    if (item.turn >= draft.runIndex || item.text !== prompt) {
-      return false
-    }
-
-    const adopted: UserMessageItem = {
-      ...item,
-      id: `${namespace(draft)}said-${String(draft.lastSeq)}`,
-      turn: draft.runIndex,
-      ...(shown.length === 0 ? {} : { images: shown }),
-    }
-    draft.items[position] = adopted
-    draft.index?.delete(item.id)
-    draft.index?.set(adopted.id, position)
-    beginQuestion(draft)
-
-    return true
-  }
-
-  return false
-}
-
-/**
- * 把一段流式文本并进它所属的那一条消息。
- *
- * 边界此前是遍历顺序的副产品：末尾那条同类型、还没封口，就接着往上贴，而任何
- * 别的条目进来都会先给它封口。除此之外没有第二个信号 —— 所以 agent 背靠背发
- * 两条消息、中间什么都没插时，两条会粘成一条。
- *
- * 协议给了信号：ContentChunk 带 messageId，同一条消息的每一段带同一个号。
- * 号变了就是另一条消息，哪怕它紧挨着上一段。
- *
- * 它只会切，不会合。中间隔着一张工具卡片的两段，即使同号也仍然是两条：时间轴
- * 记的是发生的顺序，为了让同号的两段并拢而跨过中间那张卡片，就是在改写这个
- * 顺序。
- *
- * 号缺席时退回相邻续写，逐字保持原行为。这不是兼容层：messageId 在 schema 里
- * 本来就是可选的，client 必须能处理它不在的情况，而实现上也只是同一个条件里
- * 多一个合取项，没有第二条代码路径。
- */
-function appendChunk(
-  draft: Draft,
-  type: 'agent_text' | 'agent_thought',
+function chunkOf(
   update: AcpUpdateOf<'agent_message_chunk'> | AcpUpdateOf<'agent_thought_chunk'>,
-  scope: string,
+  prefix: string,
   seq: number,
   at: number,
-): void {
-  const chunk = textOf(update.content)
-  /* 协议里「没报」是 undefined、「报了个空」是 null，对边界是同一件事；
-     归一在这里做一次，模型里就只有「有号」和「没号」。 */
+): { readonly at: number; readonly id: string; readonly message?: string; readonly text: string } {
   const messageId = update.messageId ?? undefined
-  const tail = draft.items.at(-1)
 
-  if (tail && tail.type === type && !tail.sealed && sameMessage(tail, messageId)) {
-    const grown: AgentTextItem | AgentThoughtItem = { ...tail, text: tail.text + chunk }
-
-    draft.items[draft.items.length - 1] = grown
-
-    return
-  }
-
-  const prefix = type === 'agent_text' ? 'text-' : 'thought-'
-
-  push(draft, {
-    type,
-    id: scope + prefix + String(seq),
-    turn: draft.runIndex,
+  return {
     at,
-    text: chunk,
-    sealed: false,
-    /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
-    ...(messageId === undefined ? {} : { messageId }),
-  } as AgentTextItem | AgentThoughtItem)
+    id: prefix + String(seq),
+    text: textOf(update.content),
+    ...(messageId === undefined ? {} : { message: messageId }),
+  }
 }
 
 /**
@@ -727,14 +493,6 @@ function appendSaid(draft: Draft, scope: string, seq: number, at: number, chunk:
   })
 }
 
-/** 号缺席时不表态，退回相邻续写；号在，就必须是同一个号。 */
-function sameMessage(
-  tail: AgentTextItem | AgentThoughtItem,
-  messageId: string | undefined,
-): boolean {
-  return messageId === undefined || messageId === tail.messageId
-}
-
 /**
  * 用户这一句里，哪些字是用户自己说的。
  *
@@ -767,77 +525,4 @@ export function isTerminal(status: ToolCallTimelineItem['status']): boolean {
 
 function textOf(content: AcpContentBlock): string {
   return content.type === 'text' ? content.text : ''
-}
-
-/**
- * 两份说法，都留下。
- *
- * message 是运行时报的（连接断了、进程没了），diagnostics 是 agent 自己说的
- * （Authentication required、配额用尽）。此前有后者时就把前者丢掉 —— 而排查
- * 一次失败要的恰好是两者的关系。重复的不写两遍，不重复的一句不删。
- */
-function preferAgent(message: string, diagnostics?: string): string {
-  const said = diagnostics?.trim() ?? ''
-  const ours = message.trim()
-
-  if (said.length === 0) {
-    return message
-  }
-
-  return ours.length === 0 || said.includes(ours) ? said : `${message}\n${said}`
-}
-
-/**
- * 一轮结束，却一个字都没有。
- *
- * 这是一个事实，不是一句话：自这一轮的提问以来，转录里没有任何可看的条目。
- * 空转必须被说出来 —— 界面沉默等于把「我到底发出去了吗」丢给人自己猜。
- *
- * 但说出来的只能是协议自己的词：stopReason 的原值。此前这件事由派生层凭一个
- * 状态枚举编一句话来报，那句话里没有多一个字的事实，却占掉了唯一那一行。
- * 措辞该删，事实不该跟着一起删。
- *
- * agent 自己留下了 diagnostics 时根本走不到这里：一件事只有一个说法。
- *
- * 判据向后扫到本段边界为止，代价是一轮的长度，不是整条对话的长度；
- * isRenderable 与派生共用同一份 —— 抄第二份就会有两种「空」。
- *
- * 边界读的是条目自己的段号，不再是「撞见一条用户消息就算到头」。那个启发式
- * 在人于轮次进行中又说一句时会当场收错口；段号是 run_started 划的，它不会。
- * 提问单独跳过：它是两段之间的边界，不是这一段的产出。
- */
-function silentTurn(draft: Draft, stopReason: AcpStopReason): string | undefined {
-  for (let index = draft.items.length - 1; index >= 0; index -= 1) {
-    const item = draft.items[index]
-
-    if (item === undefined) {
-      continue
-    }
-
-    if (item.turn !== draft.runIndex) {
-      break
-    }
-
-    if (item.type === 'user_message') {
-      continue
-    }
-
-    if (isRenderable(item)) {
-      return undefined
-    }
-  }
-
-  return `stopReason: ${stopReason}`
-}
-
-function finalStatus(stopReason: AcpStopReason): RunStatus {
-  if (stopReason === 'cancelled') {
-    return 'cancelled'
-  }
-
-  if (stopReason === 'refusal') {
-    return 'failed'
-  }
-
-  return 'completed'
 }
