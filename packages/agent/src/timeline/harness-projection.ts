@@ -14,8 +14,8 @@
  * 它一格新条目类型都没有引入：一条对话在屏幕上只有一种画法，两条线共用。
  */
 
-import type { AcpToolCallContent, RunEvent } from '@poietica/agent-contract'
-import type { ToolCallTimelineItem } from './timeline-contract'
+import type { AcpPlanEntry, AcpToolCallContent, RunEvent } from '@poietica/agent-contract'
+import type { PlanItem, ToolCallTimelineItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import { appendChunk, namespace, positionOf, push } from './timeline-draft'
 
@@ -113,6 +113,26 @@ export function applyHarnessFrame(draft: Draft, event: HarnessFrame): void {
       return
     }
 
+    case 'todo/write': {
+      /* 这条线整份替换待办表，协议那边的 plan 也是整份替换（PlanEntry 的官方措辞：
+         客户端每次更新都整份替换）。同一件事只许有一条画法，所以落同一种条目、
+         同一个 id、同一条替换规矩 —— 一段里只有一份计划，后一段不改写前一段。 */
+      const id = `${scope}plan`
+      const entries = (array(at(data, 'todos')) ?? []).flatMap((todo) => entryOf(todo))
+      const plan: PlanItem = { type: 'plan', id, turn: draft.runIndex, at: event.at, entries }
+      const position = positionOf(draft, id)
+
+      if (position < 0) {
+        push(draft, plan)
+
+        return
+      }
+
+      draft.items[position] = plan
+
+      return
+    }
+
     case 'turn/end': {
       /* 一轮的结局这条线自己也报一次，而 run_finished 的 stopReason 在它上面恒为
          end_turn（原生侧读的是 session.status 的空闲沿）。所以失败的理由只在这里，
@@ -135,7 +155,7 @@ export function applyHarnessFrame(draft: Draft, event: HarnessFrame): void {
     default: {
       /* 其余每一种都是日志的事实，不是转录的内容：轮与步的边界、组装好的消息
          （它的每一个字已经由上面那些 chunk 落过账，再落一遍就是同一句话说两遍）、
-         请求头、路由、待办、压缩、钩子。忽略也要是一个决定，所以这里写出来。 */
+         请求头、路由、压缩、钩子。忽略也要是一个决定，所以这里写出来。 */
       return
     }
   }
@@ -197,6 +217,28 @@ function upsert(
   }
 
   draft.items[position] = next
+}
+
+/** 协议认的三档状态。名字不在其中就不落 —— 认不出的状态不许猜成 pending。 */
+const STATUSES: readonly AcpPlanEntry['status'][] = ['pending', 'in_progress', 'completed']
+
+/**
+ * 一条待办到一格计划条目。
+ *
+ * 三档状态的名字两边逐字相同（dsh-session 的 TodoItem 与协议的 PlanEntryStatus 都是
+ * pending / in_progress / completed），所以这里是一次转录，不是一张要维护的映射表。
+ *
+ * 优先级这条线不报，而协议那一格必填。填 medium 是「没报」的占位，不是被观察到的
+ * 轻重缓急 —— 屏幕不许拿它当事实读。
+ */
+function entryOf(todo: unknown): readonly AcpPlanEntry[] {
+  const content = string(at(todo, 'content'))
+  const said = string(at(todo, 'status'))
+  const status = STATUSES.find((known) => known === said)
+
+  return content === undefined || status === undefined
+    ? []
+    : [{ content, priority: 'medium', status }]
 }
 
 /** 一次调用产出的文字。图片这条线还没有取证过形状，所以不画。 */

@@ -117,4 +117,43 @@ describe('harness 会话日志', () => {
 
     expect(state.items.map((item) => item.type)).toEqual(['user_message', 'agent_text'])
   })
+
+  it('待办表整份替换，一段里只有一份计划', () => {
+    const state = applyRunEvents(createTimelineState(), [
+      ...turn.slice(0, 2),
+      frame(3, {
+        type: 'todo/write',
+        seq: 2,
+        time: 3,
+        data: {
+          todos: [
+            { content: '读文件', status: 'in_progress' },
+            { content: '改文件', status: 'pending' },
+          ],
+        },
+      }),
+      frame(4, {
+        type: 'todo/write',
+        seq: 3,
+        time: 4,
+        data: {
+          todos: [
+            { content: '读文件', status: 'completed' },
+            { content: '改文件', status: 'in_progress' },
+          ],
+        },
+      }),
+    ])
+
+    const plans = state.items.filter((item) => item.type === 'plan')
+
+    /* 后一份不是追加：同一段里始终只有一份计划。 */
+    expect(plans).toHaveLength(1)
+    expect(plans[0]).toMatchObject({
+      entries: [
+        { content: '读文件', status: 'completed' },
+        { content: '改文件', status: 'in_progress' },
+      ],
+    })
+  })
 })

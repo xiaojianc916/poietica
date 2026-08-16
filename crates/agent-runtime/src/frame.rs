@@ -19,10 +19,9 @@ use serde_json::Value;
 
 /// 一轮的第一帧。
 pub const RUN_STARTED: &str = "run_started";
-/// agent 发来的一帧会话通知。
 /// deepseek-harness 会话日志事件那一帧的判别值。
 pub const HARNESS_EVENT: &str = "harness_event";
-
+/// agent 发来的一帧会话通知。
 pub const ACP_UPDATE: &str = "acp_update";
 /// agent 正卡在一次授权请求上。
 pub const PERMISSION_REQUESTED: &str = "permission_requested";
@@ -43,9 +42,9 @@ pub struct FrameNotification {
     pub update: Value,
 }
 
-/// 一次运行里可能发生的六种事。
+/// 一次运行里可能发生的七种事。
 ///
-/// `acp_update` 承载协议通知原文；其余五种是协议不建模、而客户端必须记住的
+/// `acp_update` 承载协议通知原文；其余六种是协议不建模、而客户端必须记住的
 /// 事实。每一种都带 `seq` 与 `at`（见 `RecordedEvent`），所以重放是确定的。
 #[derive(Clone, Debug, Serialize)]
 #[serde(
@@ -181,7 +180,7 @@ pub(crate) fn normalize(value: &mut Value, update: &SessionUpdate) -> serde_json
 /// 实时那条路上它跑在 SDK 的通知处理器里，而那个处理器是原子的：这一趟
 /// `to_value` 加递归 `prune` 没做完，这条连接上不会再处理任何一条消息
 /// （driver.rs 的 `on_receive_request` 引的是同一节 SDK 规约）。agent 的标准输出
-/// 因此以它为节拍被读取。挪离那个处理器的前提是六种帧一起过同一道边界：只挪这
+/// 因此以它为节拍被读取。挪离那个处理器的前提是七种帧一起过同一道边界：只挪这
 /// 一种，终帧会越过还没成形的更新帧，而序号线的单调正是界面去重的依据。
 ///
 /// # Errors
