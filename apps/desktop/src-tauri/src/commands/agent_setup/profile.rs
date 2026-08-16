@@ -406,6 +406,32 @@ pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
     Ok(program.to_owned())
 }
 
+/// 这个 agent 的启动参数。
+///
+/// 与 `agent_program` 读同一份档案、同一条规矩：产地只有描述符，磁盘上那份由
+/// withDescriptorFields 每次启动无条件覆盖。
+///
+/// kimi 的 acp 子命令就在这里，它与 launchEnv 里那个实验开关是同一个决定的两半 ——
+/// 少一半，commander 的回答是 unknown command。
+///
+/// # Errors
+///
+/// 读不到档案时返回错误。档案里没有 args 一格不是错误，是空表。
+pub fn agent_args(app: &AppHandle, agent_id: &str) -> Result<Vec<String>> {
+    let profile = profile_of(app, agent_id)?;
+
+    Ok(profile
+        .get("args")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default())
+}
+
 /// 默认 agent 会去读的那份 mcp.json。
 ///
 /// 取默认 agent，而不是「当前会话那一个」：Tool 面板不挂在任何一条会话上，说不出

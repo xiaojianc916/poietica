@@ -18,20 +18,17 @@ pub enum AgentTransport {
     DeepseekHarness,
 }
 
-/// 起一个 agent 进程要说清的四件事。
+/// 起一个 agent 进程要说清的两件事。
 ///
-/// 名字与参数分开传，因为拼成一行再让 shell 词法切回来是有损的。
+/// 不带 argv：程序在哪是这台机器上的事实，由原生侧按传输解析一次（runtime.rs 的
+/// outfit）。渲染层报一个程序路径过来，参数白名单就挡不住它。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentLaunch {
     /// 要启动的 agent。它决定受控 home 落在哪里。
     pub agent_id: String,
-    /// 走哪条传输。
+    /// 走哪条传输。它同时决定驱动器和启动规格的解析方式。
     pub transport: AgentTransport,
-    /// 可执行文件名或路径，不含参数，也不经过 shell。
-    pub program: String,
-    /// 传给它的参数，原样递给进程。
-    pub args: Vec<String>,
 }
 
 /// 一张随这一句话送出去的图片，按它在交付注册表里的位置点名。

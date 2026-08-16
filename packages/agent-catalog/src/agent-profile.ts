@@ -55,6 +55,7 @@ export interface AgentProfile {
    * 校验一遍。从前那七格是「读时覆盖、落盘保留用户值」,这里是落盘即覆盖。
    */
   readonly command?: string | undefined
+  readonly args?: readonly string[] | undefined
   readonly homeVar?: string | undefined
   readonly ownHomeDirectory?: string | undefined
   readonly install?: Readonly<{ packageName: string; versionArgs: readonly string[] }> | undefined
@@ -142,6 +143,7 @@ const ProfileSchema = v.object({
     {},
   ),
   command: v.nullish(text(MAX_TEXT, '可执行文件名必须是非空字符串')),
+  args: v.nullish(v.array(text(MAX_TEXT, '启动参数必须是字符串'))),
   homeVar: v.nullish(envName('home 变量名不合法，应为大写字母、数字与下划线')),
   ownHomeDirectory: v.nullish(text(64, '配置目录名必须是非空字符串')),
   install: v.nullish(
@@ -177,6 +179,7 @@ function shape(parsed: v.InferOutput<typeof ProfileSchema>): AgentProfile {
     env: parsed.env,
     defaultConfigOptions: parsed.defaultConfigOptions,
     command: parsed.command ?? undefined,
+    args: parsed.args ?? undefined,
     homeVar: parsed.homeVar ?? undefined,
     ownHomeDirectory: parsed.ownHomeDirectory ?? undefined,
     install: parsed.install ?? undefined,
@@ -289,6 +292,14 @@ function sameEnv(
   )
 }
 
+/** 启动参数相等。缺席与空表是同一件事：都表示这一家不带参数。 */
+function sameArgs(before: AgentProfile['args'], after: AgentProfile['args']): boolean {
+  const one = before ?? []
+  const two = after ?? []
+
+  return one.length === two.length && one.every((arg, index) => arg === two[index])
+}
+
 /** 安装声明相等。 */
 function sameInstall(before: AgentProfile['install'], after: AgentProfile['install']): boolean {
   if (before === undefined || after === undefined) {
@@ -326,6 +337,7 @@ function withDescriptorFields(profile: AgentProfile): AgentProfile {
     ...profile,
     env: { ...profile.env, ...(agent.launchEnv ?? {}) },
     command: agent.command,
+    args: agent.args,
     homeVar: agent.homeVar,
     ownHomeDirectory: agent.ownHomeDirectory,
     install: agent.install,
@@ -333,6 +345,7 @@ function withDescriptorFields(profile: AgentProfile): AgentProfile {
 
   const unchanged =
     profile.command === next.command &&
+    sameArgs(profile.args, next.args) &&
     profile.homeVar === next.homeVar &&
     profile.ownHomeDirectory === next.ownHomeDirectory &&
     sameInstall(profile.install, next.install) &&
@@ -341,28 +354,25 @@ function withDescriptorFields(profile: AgentProfile): AgentProfile {
   return unchanged ? profile : next
 }
 
-/** 起一个 agent 进程要说清的四件事。 */
+/** 起一个 agent 进程要说清的两件事。 */
 export interface AgentLaunchSpec {
   readonly agentId: string
-  /** 走哪条传输。原生侧据此选驱动，不据 id 分支。 */
+  /** 走哪条传输。原生侧据此选驱动，也据它解析启动规格。 */
   readonly transport: AgentTransport
-  readonly program: string
-  readonly args: readonly string[]
 }
 
 /**
  * 把一家 agent 翻成一次启动。
  *
- * 名字与参数始终分开，一路到 spawn 都不合并成字符串：对面若按 POSIX 词法切回来，
- * Windows 路径里的反斜杠会被当成转义符吃掉，带空格的路径会被切断。Zed 的
- * AgentServerCommand 同样是 path/args/env 三元组。
+ * 不带 argv。程序在哪、要几个参数，是「这台机器上」的事实：acp 线要在搜索路径上
+ * 解析一个用户自己装的 CLI，harness 线要问已安装的运行时包。渲染进程两样都答不出，
+ * 而它此前答了 —— agent_program 的注释早就写着「它刻意不来自请求」，那句话对 CLI
+ * 那条路成立，对会话这条路一直不成立。
  */
 export function agentLaunch(agent: AgentDescriptor): AgentLaunchSpec {
   return {
     agentId: agent.id,
     transport: agent.transport,
-    program: agent.command,
-    args: [...agent.args],
   }
 }
 
@@ -378,6 +388,7 @@ export function builtinAcpAgentProfiles(): readonly [AgentProfile, ...AgentProfi
     env: { ...(agent.launchEnv ?? {}) },
     defaultConfigOptions: {},
     command: agent.command,
+    args: agent.args,
     homeVar: agent.homeVar,
     ownHomeDirectory: agent.ownHomeDirectory,
     install: agent.install,

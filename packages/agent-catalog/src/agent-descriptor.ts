@@ -63,9 +63,16 @@ export interface AgentDescriptor {
    * crates/agent-runtime/src/frame.rs，不在这一层。
    */
   readonly transport: AgentTransport
-  /** 可执行文件名，不含参数。 */
-  readonly command: string
-  readonly args: readonly string[]
+  /**
+   * 可执行文件名，不含参数。
+   *
+   * 只有 acp 线有它：那条线起的是用户自己装的一个 CLI，名字是这一家的固有事实。
+   * deepseek-harness 线没有 —— 它的 argv 由已安装的运行时包在这台机器上现算
+   * （官方 python/sdk-runtime 的 resolve_bundled_launch_args 交回的是一个 argv
+   * 元组，不是一个名字），在这里写死一个名字等于替官方承诺一份它没承诺的布局。
+   */
+  readonly command?: string | undefined
+  readonly args?: readonly string[] | undefined
   /**
    * 起这个 agent 时必须设上的环境变量。
    *

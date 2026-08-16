@@ -61,7 +61,7 @@ pub use frame::{
     RUN_FAILED, RUN_FINISHED, RUN_STARTED, RunFrame, acp_update,
 };
 pub use permission::{Decision, answers, decide};
-pub use program::resolve_program;
+pub use program::{HarnessRuntime, resolve_harness_runtime, resolve_program};
 pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine, now_millis};
 pub use run_slot::RunSlot;
 pub use session::{

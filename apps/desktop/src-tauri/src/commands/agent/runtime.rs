@@ -3,14 +3,14 @@
 //! 进程活多久 AgentRuntime 就活多久；连接比它短，换 agent 时整条换掉。会话册子
 //! 由驱动器交出来，路由帧和这里寻址读的是同一本。
 
-use crate::commands::agent_setup::profile::launch_env;
+use crate::commands::agent_setup::profile::{agent_args, agent_program, launch_env};
 use crate::error::{Error, Result};
-use crate::paths::attachments_root;
+use crate::paths::{agent_session_root, attachments_root};
 use poietica_agent_persistence_native::SessionUsage;
 use poietica_agent_runtime_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession,
     CanForkSession, CanLoadSession, Handshake, PermissionDesk, Refusal, RunSlot, SessionBook,
-    SessionEvent, connect_acp, connect_harness,
+    SessionEvent, connect_acp, connect_harness, resolve_harness_runtime,
 };
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
@@ -202,8 +202,6 @@ pub(super) async fn ensure_session(
     let AgentLaunch {
         agent_id,
         transport,
-        program,
-        args,
     } = launch;
 
     if let Some(live) = borrow(state)?
@@ -242,18 +240,7 @@ pub(super) async fn ensure_session(
     // browser_* 工具才有东西可接。没有端口或已有实例时它是空操作。
     crate::browser::ensure_live_kernel(app);
 
-    // 受控 home 在这里被解析成一个环境变量。写 provider 用的是 agent 自己的
-    // CLI，起会话用的是这条连接，两边必须指向同一个目录 —— 否则 provider 写
-    // 进了一个 home，而对话读的是另一个：界面上 provider 添加成功，一开口却
-    // 说没有可用的模型。
-    let env = launch_env(app, &agent_id)?;
-
-    let spawn = AgentSpawn {
-        program,
-        args,
-        cwd: working_directory,
-        env,
-    };
+    let spawn = outfit(app, &agent_id, transport, working_directory)?;
 
     // The book that files frames under the session that names them belongs
     // to the connection, and the driver holds its own handle to it, so
@@ -417,6 +404,64 @@ pub(super) async fn ensure_session(
     });
 
     Ok(live)
+}
+
+/// 这一家在这台机器上怎么起：argv 加环境，一处算清。
+///
+/// 按传输分路，与 `dial` 同一个判别式、同一处 —— 一条线选驱动，也选它自己的启动
+/// 规格。不据 agent id 分支（ADR 0022）。
+///
+/// acp 线的程序名与参数来自档案：那条线起的是用户自己装的 CLI。受控 home 那个变量
+/// 由 `launch_env` 现算 —— 写 provider 的 CLI 与起会话的连接必须落在同一个目录，
+/// 否则 provider 写进了一个 home、对话读的是另一个，界面上添加成功，一开口却说没有
+/// 可用的模型。
+///
+/// harness 线一个字都不来自档案。官方 python/sdk-runtime 把 argv 与那份 cordis 配置
+/// 划成了一条查询接口，所以这里问那个已安装的包。三个变量后进环境表，压过档案里
+/// 手写的同名项 —— 判据与 `launch_env_inner` 让受控 home 后进去是同一条：这一侧
+/// 算出来的路径成立，用户手写的不一定。
+///
+/// # Errors
+///
+/// 档案缺席、程序名说不出、运行时包没装，或数据目录建不出来时返回错误。
+fn outfit(
+    app: &AppHandle,
+    agent_id: &str,
+    transport: AgentTransport,
+    cwd: PathBuf,
+) -> Result<AgentSpawn> {
+    let mut env = launch_env(app, agent_id)?;
+
+    let (program, args) = match transport {
+        AgentTransport::Acp => (agent_program(app, agent_id)?, agent_args(app, agent_id)?),
+
+        AgentTransport::DeepseekHarness => {
+            let runtime = resolve_harness_runtime().map_err(translate)?;
+            let mut argv = runtime.argv.into_iter();
+
+            let program = argv.next().ok_or_else(|| {
+                Error::Internal("the harness runtime reported no executable".to_owned())
+            })?;
+
+            env.push(("DSH_CORDIS_CONFIG".to_owned(), runtime.config));
+            env.push(("DSH_CWD".to_owned(), cwd.to_string_lossy().into_owned()));
+            env.push((
+                "DSH_SESSION_ROOT".to_owned(),
+                agent_session_root(app, agent_id)?
+                    .to_string_lossy()
+                    .into_owned(),
+            ));
+
+            (program, argv.collect())
+        }
+    };
+
+    Ok(AgentSpawn {
+        program,
+        args,
+        cwd,
+        env,
+    })
 }
 
 /// 这一家在哪条线上说话，就交回那条线的入口。
