@@ -27,9 +27,15 @@ describe('内置 agent 档案', () => {
     expect(set.profiles.some((profile) => profile.id === set.defaultProfileId)).toBe(true)
   })
 
-  it('每条都能在名单里查到要起哪个程序', () => {
+  /* acp 线的档案必须写清起哪个程序；harness 线的程序由已安装的运行时包在这台
+  机器上现算，描述符里没有这一格（见 agent-descriptor.ts 的 command 说明）。 */
+  it('acp 线的每条都能在名单里查到要起哪个程序', () => {
     for (const profile of builtinAcpAgentProfileSet().profiles) {
-      expect(agentById(profile.id)?.command.length ?? 0, profile.id).toBeGreaterThan(0)
+      const descriptor = agentById(profile.id)
+
+      if (descriptor?.transport === 'acp') {
+        expect(descriptor.command?.length ?? 0, profile.id).toBeGreaterThan(0)
+      }
     }
   })
 
@@ -43,6 +49,7 @@ describe('内置 agent 档案', () => {
   it('档案里带齐原生侧要读的那几格', () => {
     for (const profile of builtinAcpAgentProfileSet().profiles) {
       expect(Object.keys(profile).sort(), profile.id).toEqual([
+        'args',
         'command',
         'cwd',
         'defaultConfigOptions',

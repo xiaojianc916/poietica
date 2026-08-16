@@ -50,7 +50,7 @@ export function importAssets(
   paths: readonly string[],
 ): Promise<readonly AssetImport[]> {
   /* readonly 的数组与生成绑定要的可变数组是两个类型，所以复制一次 ——
-  与 agent.ts 里 nativeLaunch 同一个理由，也只在这一层做。 */
+  数组复制只在这一层做。 */
   return throughIpc(() => commands.assetImport({ sessionToken, paths: [...paths] }))
 }
 

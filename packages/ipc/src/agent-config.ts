@@ -92,7 +92,7 @@ function singleFlight(
  * 受控 CLI 调用的请求。受控 home 与可执行文件都由原生侧按 agentId 现算。
  *
  * 只覆写一格：args 对调用方是只读的，而线上要一个可变数组。其余原样取自生成绑定，
- * 字段说明也在那边 —— 与 agent.ts 的 nativeLaunch 是同一手法。
+ * 字段说明也在那边 —— 与 agent.ts 的 launch 是同一手法。
  */
 export interface AgentCliRequest extends Omit<NativeAgentCliRequest, 'args'> {
   readonly args: readonly string[]

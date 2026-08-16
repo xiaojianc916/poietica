@@ -41,27 +41,30 @@ describe('parseAcpAgentProfile', () => {
   /*
    * 回归护栏：「起哪个程序」只能有一个产地 —— 但产地不是靠解析时剥掉来保证的。
    *
-   * 原生侧有五个函数从这份档案里读东西：agent_program 读 command，home_var_of 读
-   * homeVar，own_home_of 读 ownHomeDirectory，agent_install_spec 读 install，
-   * declared_env_of 读 env。上一版把前四格从档案里删了，却没有改那四个函数，于是
-   * 它们在结构上变成了死路 —— 屏幕上是「kimi 的接入档案里没有可执行文件」，而受控
-   * home 的那个变量从此再没有被设过一次。
+   * 原生侧从这份档案里读：agent_program 读 command，agent_args 读 args，
+   * home_var_of 读 homeVar，own_home_of 读 ownHomeDirectory，agent_install_spec
+   * 读 install，declared_env_of 读 env。上一版把前四格从档案里删了，却没有改
+   * 那些函数，于是它们在结构上变成了死路 —— 屏幕上是「kimi 的接入档案里没有
+   * 可执行文件」，而受控 home 的那个变量从此再没有被设过一次。
    *
-   * 所以四格回到了档案里，但它们不属于用户：reconcileAcpAgentProfiles 每次都从
-   * 描述符无条件盖回去（见下面那份 reconcile 测试的「手写的 command 活不过一次
-   * 对齐」）。解析这一层因此不再负责剥掉它们 —— 一个只在内存里存在半个函数调用
-   * 的值，谁都读不到。
-   *
-   * args 是另一回事：原生侧从不从档案读它，启动参数走 IPC 的 agentLaunch。
-   * 它至今不是档案的一格，这一条仍然要守。
+   * 所以这几格回到了档案里，但它们不属于用户：reconcileAcpAgentProfiles 每次
+   * 都从描述符无条件盖回去（见下面那份 reconcile 测试的「手写的 command 活不过
+   * 一次对齐」）。解析这一层因此不再负责剥掉它们 —— 一个只在内存里存在半个函数
+   * 调用的值，谁都读不到。args 与 command 同一条规矩：原生侧的 agent_args 读它，
+   * 磁盘上带什么就进什么。
    */
-  it('磁盘上遗留的 args 不进档案，归描述符的四格恒定在场', () => {
-    const result = parseAcpAgentProfile({ ...valid, command: 'evil', args: ['--rm-rf'] })
+  it('磁盘上的 args 与描述符那几格一起恒定在场', () => {
+    const result = parseAcpAgentProfile({
+      ...valid,
+      command: 'kimi',
+      args: ['acp', '--cwd', 'C:\\my notes'],
+    })
 
     expect(result.ok).toBe(true)
 
     if (result.ok) {
       expect(Object.keys(result.profile).sort()).toEqual([
+        'args',
         'command',
         'cwd',
         'defaultConfigOptions',
@@ -71,10 +74,7 @@ describe('parseAcpAgentProfile', () => {
         'install',
         'ownHomeDirectory',
       ])
-
-      /* 键面恒定：没写 command 的档案也有这一格，值是 undefined。原生侧读到
-      缺席与读到空串是同一个结果，所以这里要的是「结构上一定有这一格」。 */
-      expect('args' in result.profile).toBe(false)
+      expect(result.profile.args).toEqual(['acp', '--cwd', 'C:\\my notes'])
     }
   })
 })
@@ -132,14 +132,12 @@ describe('parseAcpAgentProfileSet', () => {
 })
 
 describe('agentLaunch', () => {
-  it('把名单里的一家翻成线上那四格', () => {
+  it('把名单里的一家翻成线上那两格', () => {
     const agent = agentRoster()[0]
 
     expect(agentLaunch(agent)).toEqual({
       agentId: agent.id,
       transport: agent.transport,
-      program: agent.command,
-      args: [...agent.args],
     })
   })
 
@@ -156,19 +154,23 @@ describe('agentLaunch', () => {
   })
 
   /*
-   * 回归护栏：参数必须一直是数组，永远不能退回一行字符串。这一条正是旧的
-   * 「命令行往返」测试测不出来的东西 —— 它用的是 kimi acp，一个既没有空格
-   * 也没有反斜杠的例子，所以那趟往返看起来是无损的。
+   * 回归护栏：启动规格不再携带程序与参数。
+   *
+   * 程序在哪、要几个参数，是「这台机器上」的事实：acp 线要在搜索路径上解析一个
+   * 用户自己装的 CLI，harness 线要问已安装的运行时包。渲染进程两样都答不出
+   * （agent-profile.ts 的 agentLaunch 注释），所以这一层交出的只有身份与传输，
+   * 其余由原生侧按 agentId 从档案读。
    */
-  it('带空格的绝对路径与反斜杠原样保留', () => {
+  it('程序与参数不进启动规格，那是原生侧的事', () => {
     const launch = agentLaunch({
       ...agentRoster()[0],
       command: 'C:\\Program Files\\kimi\\kimi.exe',
       args: ['acp', '--cwd', 'C:\\my notes'],
     })
 
-    expect(launch.program).toBe('C:\\Program Files\\kimi\\kimi.exe')
-    expect(launch.args).toEqual(['acp', '--cwd', 'C:\\my notes'])
+    expect(launch).toEqual({ agentId: launch.agentId, transport: launch.transport })
+    expect('program' in launch).toBe(false)
+    expect('args' in launch).toBe(false)
   })
 })
 

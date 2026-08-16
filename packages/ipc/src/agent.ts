@@ -14,8 +14,8 @@ import { throughIpc } from './error'
 import {
   type AgentConfigChoice,
   type AgentConfigControl,
+  type AgentLaunch,
   type AgentSessionUsage,
-  type AgentTransport,
   commands,
   type JsonValue,
 } from './generated/ipc-bindings'
@@ -60,18 +60,6 @@ export interface AgentEventSourceOptions {
   readonly onListenFailure?: (error: unknown) => void
 }
 
-/** 起一个 agent 进程要说清的四件事。与原生侧的 AgentLaunch 同形。 */
-export interface AgentLaunchDescription {
-  /** 要启动的 agent。原生侧靠它决定受控 home 落在哪里。 */
-  readonly agentId: string
-  /** 走哪条传输。原生侧据此选驱动。 */
-  readonly transport: AgentTransport
-  /** 可执行文件名或路径，不含参数。 */
-  readonly program: string
-  /** 传给它的参数，原样递给进程。 */
-  readonly args: readonly string[]
-}
-
 export interface AgentBridgeOptions {
   /**
    * 这一次起哪个 agent。必填 —— 一个「少了就一定失败」的字段不该长成可选的。
@@ -87,7 +75,7 @@ export interface AgentBridgeOptions {
    * 读回来才知道，之后还会被设置页改掉：捕获建桥那一刻的答案，等于把第一帧的
    * 猜测钉死一整个进程。
    */
-  readonly launch: () => AgentLaunchDescription | Promise<AgentLaunchDescription>
+  readonly launch: () => AgentLaunch | Promise<AgentLaunch>
   /**
    * 这一次在哪个工作目录里开会话。
    *
@@ -211,26 +199,6 @@ export function createAgentEventSource({
   }
 }
 
-/*
- * 线上的形状。
- *
- * readonly string[] 与生成绑定要的 string[] 是不同的类型，所以数组在这里复制
- * 一次。字段改名也只发生在这里：它是唯一认识线上写法的一层。
- */
-function nativeLaunch(launch: AgentLaunchDescription): {
-  agentId: string
-  transport: AgentTransport
-  program: string
-  args: string[]
-} {
-  return {
-    agentId: launch.agentId,
-    transport: launch.transport,
-    program: launch.program,
-    args: [...launch.args],
-  }
-}
-
 /**
  * The command half of the port.
  *
@@ -255,13 +223,13 @@ export function createAgentCommandBridge({
         commands.agentPrompt({
           text: request.text,
           threadId: request.threadId,
-          /* readonly 的数组与生成绑定要的可变数组是两个类型，所以复制一次 —— 与
-          上面 nativeLaunch 同一个理由，也只在这一层做。 */
+          /* readonly 的数组与生成绑定要的可变数组是两个类型，所以复制一次 ——
+          数组复制只在这一层做。 */
           assets: request.assets.map((asset) => ({
             sessionToken: asset.sessionToken,
             assetToken: asset.assetToken,
           })),
-          launch: nativeLaunch(resolvedLaunch),
+          launch: resolvedLaunch,
           cwd: cwd?.() ?? null,
           mcpServers: [...resolvedMcpServers],
         }),
@@ -403,7 +371,7 @@ export function createAgentCapabilityBridge({
       const resolvedLaunch = await launch()
       const offered = await throughIpc(() =>
         commands.agentCapabilities({
-          launch: nativeLaunch(resolvedLaunch),
+          launch: resolvedLaunch,
           cwd: cwd?.() ?? null,
         }),
       )
@@ -463,7 +431,7 @@ export function createAgentThreadBridge({
       const opened = await throughIpc(() =>
         commands.agentOpenThread({
           threadId: threadId ?? null,
-          launch: nativeLaunch(resolvedLaunch),
+          launch: resolvedLaunch,
           cwd: workspaceRoot ?? cwd?.() ?? null,
           mcpServers: [...resolvedMcpServers],
         }),
@@ -495,7 +463,7 @@ export function createAgentThreadBridge({
         commands.agentForkThread({
           threadId,
           title,
-          launch: nativeLaunch(resolvedLaunch),
+          launch: resolvedLaunch,
           cwd: cwd?.() ?? null,
         }),
       )

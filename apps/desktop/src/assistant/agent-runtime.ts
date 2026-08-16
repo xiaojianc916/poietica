@@ -263,39 +263,34 @@ export function createDesktopAgentRuntime(
   }
 }
 
+/**
+ * 没设过默认模型时，用这家 agent 报出的第一个可用别名补一个。
+ *
+ * 档案没声明清单查询就跳过：那一家的模型由它自己的运行时决定，问不了不是故障。
+ */
 async function seedDefaultModel(store: AgentConfigStore, agentId: string): Promise<void> {
-  if ((await store.loadDefaultModel(agentId)) !== null) {
-    return
-  }
-
-  const first = (await readModelAliases(store, agentId))[0]
-
-  if (first !== undefined) {
-    await store.saveDefaultModel(agentId, first)
-  }
-}
-
-async function readModelAliases(
-  store: AgentConfigStore,
-  agentId: string,
-): Promise<readonly string[]> {
   const descriptor = requireAgent(agentId)
   const listArgs = descriptor.providerListArgs
 
-  if (listArgs === undefined) {
-    throw new Error(`${agentId} 没有声明查询模型清单的子命令。`)
+  if (listArgs === undefined || (await store.loadDefaultModel(agentId)) !== null) {
+    return
   }
 
   const outcome = await store.execCli({ agentId, args: [...listArgs] })
 
   if (outcome.status !== 0) {
     const said = outcome.stderr.trim()
+
     throw new Error(said.length === 0 ? `agent 以 ${outcome.status} 退出。` : said)
   }
 
   const snapshot = parseAgentProviderListOutput(outcome.stdout, descriptor.syntheticProviderId)
 
-  return snapshot.providers
+  const first = snapshot.providers
     .filter((provider) => provider.configured)
-    .flatMap((provider) => provider.models.map((model) => model.alias))
+    .flatMap((provider) => provider.models.map((model) => model.alias))[0]
+
+  if (first !== undefined) {
+    await store.saveDefaultModel(agentId, first)
+  }
 }

@@ -105,7 +105,7 @@ export interface AgentConfigSnapshot {
 /**
  * 这个 agent 的运行时在这台机器上处于什么状态。
  *
- * unmanaged：档案没说怎么装（用户自带的 agent）。
+ * unmanaged：档案没声明安装方式。
  * unknown：装着，但问不到最新版（离线、镜像不通）——「不知道」不是「该更新」。
  */
 export type AgentInstallState =

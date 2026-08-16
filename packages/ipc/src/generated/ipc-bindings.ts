@@ -1282,9 +1282,10 @@ export type AgentInstallState =
 "unknown"
 export type AgentInstallStatus = { state: AgentInstallState; installedVersion: string | null; latestVersion: string | null; packageName: string | null }
 /**
- * 起一个 agent 进程要说清的四件事。
+ * 起一个 agent 进程要说清的两件事。
  * 
- * 名字与参数分开传，因为拼成一行再让 shell 词法切回来是有损的。
+ * 不带 argv：程序在哪是这台机器上的事实，由原生侧按传输解析一次（runtime.rs 的
+ * outfit）。渲染层报一个程序路径过来，参数白名单就挡不住它。
  */
 export type AgentLaunch = { 
 /**
@@ -1292,17 +1293,9 @@ export type AgentLaunch = {
  */
 agentId: string; 
 /**
- * 走哪条传输。
+ * 走哪条传输。它同时决定驱动器和启动规格的解析方式。
  */
-transport: AgentTransport; 
-/**
- * 可执行文件名或路径，不含参数，也不经过 shell。
- */
-program: string; 
-/**
- * 传给它的参数，原样递给进程。
- */
-args: string[] }
+transport: AgentTransport }
 /**
  * 要打开的对话，以及必要时怎样启动 agent。
  */

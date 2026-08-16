@@ -3,7 +3,6 @@ export { createIpcSession } from './acp-session'
 export {
   type AgentBridgeOptions,
   type AgentEventSourceOptions,
-  type AgentLaunchDescription,
   createAgentCapabilityBridge,
   createAgentCommandBridge,
   createAgentEventSource,
