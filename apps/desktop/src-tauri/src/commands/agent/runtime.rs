@@ -10,16 +10,23 @@ use poietica_agent_persistence_native::SessionUsage;
 use poietica_agent_runtime_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, CanDeleteSession, CanForkSession,
     CanLoadSession, Handshake, PermissionDesk, Refusal, RunSlot, SessionBook, SessionEvent,
-    connect,
+    connect_acp, connect_harness,
 };
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 
 use super::config::restate;
-use super::dto::{AgentLaunch, AgentSessionEvent, reported_usage};
+use super::dto::{AgentLaunch, AgentSessionEvent, AgentTransport, reported_usage};
 use super::failure::translate;
 use super::{AGENT_SESSION_EVENT, NO_SESSION_ID, POISONED};
+
+/// 建立一条连接的那个函数。两条传输共用这一个形状。
+type DialFn = fn(
+    AgentSpawn,
+    RunSlot,
+    PermissionDesk,
+) -> poietica_agent_runtime_native::Result<AgentConnection>;
 
 /// The live connection, if one has been started.
 ///
@@ -190,6 +197,7 @@ pub(super) async fn ensure_session(
     连接 —— 换了 agent 之后，这一句话照旧发给上一个进程。 */
     let AgentLaunch {
         agent_id,
+        transport,
         program,
         args,
     } = launch;
@@ -259,7 +267,7 @@ pub(super) async fn ensure_session(
         driver,
         events,
         book,
-    } = connect(spawn, slot.clone(), desk.clone()).map_err(translate)?;
+    } = dial(transport)(spawn, slot.clone(), desk.clone()).map_err(translate)?;
 
     // The crate is runtime-agnostic on purpose; this is the composition root,
     // so this is where the driver gets an executor.
@@ -402,6 +410,16 @@ pub(super) async fn ensure_session(
     });
 
     Ok(live)
+}
+
+/// 这一家在哪条线上说话，就交回那条线的入口。
+///
+/// 两条线同签名同返回，所以选择是一次查表，不是两段并行的建立流程。
+fn dial(transport: AgentTransport) -> DialFn {
+    match transport {
+        AgentTransport::Acp => connect_acp,
+        AgentTransport::DeepseekHarness => connect_harness,
+    }
 }
 
 /// Reads the session without holding the lock across an await point.

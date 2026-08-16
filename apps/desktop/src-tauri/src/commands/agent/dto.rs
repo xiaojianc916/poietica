@@ -7,12 +7,18 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 
-/// 起一个 agent 进程要说清的三件事。
+/// 这一家在什么线上说话。
 ///
-/// 三条命令都要它，所以它是一个结构而不是三份平铺字段。此前这里是一个
-/// command: Option<String>，两处都在撒谎：文档注释写着 defaults to the Kimi
-/// ACP entry point，而 `resolve_command` 里根本没有默认值；字段写着可选，而缺
-/// 了它必然报错。
+/// 值的产地是档案（@poietica/agent-catalog 的 AgentDescriptor.transport），线上
+/// 形状的产地是这里。组合根据它选驱动，不据 agent id 分支（ADR 0022）。
+#[derive(Clone, Copy, Debug, Deserialize, Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentTransport {
+    Acp,
+    DeepseekHarness,
+}
+
+/// 起一个 agent 进程要说清的四件事。
 ///
 /// 名字与参数分开传，因为拼成一行再让 shell 词法切回来是有损的。
 #[derive(Debug, Deserialize, Type)]
@@ -20,6 +26,8 @@ use specta::Type;
 pub struct AgentLaunch {
     /// 要启动的 agent。它决定受控 home 落在哪里。
     pub agent_id: String,
+    /// 走哪条传输。
+    pub transport: AgentTransport,
     /// 可执行文件名或路径，不含参数，也不经过 shell。
     pub program: String,
     /// 传给它的参数，原样递给进程。

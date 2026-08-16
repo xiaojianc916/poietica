@@ -22,7 +22,7 @@ use crate::commands::{
         AgentArchiveThreadRequest, AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl,
         AgentConfigPurpose, AgentForkThreadRequest, AgentPinThreadRequest, AgentPromptRequest,
         AgentPromptResult, AgentRenameThreadRequest, AgentResolvePermissionRequest,
-        AgentSelectConfigRequest, AgentThreadRequest,
+        AgentSelectConfigRequest, AgentThreadRequest, AgentTransport,
     },
     agent_setup::cli::{AgentCliRequest, AgentCliResult},
     agent_setup::install::{AgentInstallState, AgentInstallStatus},
@@ -148,6 +148,7 @@ pub fn surface() -> Builder<Wry> {
             UpdateProgress
         ])
         .typ::<AgentPromptRequest>()
+        .typ::<AgentTransport>()
         .typ::<AgentPromptResult>()
         .typ::<AgentResolvePermissionRequest>()
         .typ::<AgentConfigPurpose>()

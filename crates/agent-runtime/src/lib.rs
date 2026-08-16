@@ -1,4 +1,6 @@
-//! The Agent Client Protocol client, over a locally spawned agent process.
+//! 两条线上的 agent 客户端：ACP，以及 deepseek-harness 的 SDK 线。
+//!
+//! 起进程的方式相同，帧的形状相同（frame.rs），此外互不翻译（ADR 0022）。
 //!
 //! Three rules shape this crate.
 //!
@@ -53,7 +55,6 @@ pub use credentials::{
     usable_default_model,
 };
 pub use desk::PermissionDesk;
-pub use driver::connect;
 pub use error::{AcpError, Refusal, Result};
 pub use frame::{
     ACP_UPDATE, FrameNotification, HARNESS_EVENT, PERMISSION_REQUESTED, PERMISSION_RESOLVED,

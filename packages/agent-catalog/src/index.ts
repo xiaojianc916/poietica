@@ -5,14 +5,14 @@
  * 见 docs/architecture/README.md 的「包边界的由来」。
  */
 
-export type { AgentInstall, QuestionDialect } from './agent-descriptor'
+export type { AgentInstall, AgentTransport, QuestionDialect } from './agent-descriptor'
 export type {
-  AcpAgentLaunch,
   AcpAgentProfileParse,
   AcpAgentProfileReconcile,
   AcpAgentProfileSet,
   AcpAgentProfileSetParse,
   AgentConfigOptionValue,
+  AgentLaunchSpec,
   AgentProfile,
 } from './agent-profile'
 export {

@@ -63,15 +63,6 @@ export interface AgentDescriptor {
    * crates/agent-runtime/src/frame.rs，不在这一层。
    */
   readonly transport: AgentTransport
-  /**
-   * 这一家的配置文件路径该设进哪个环境变量。
-   *
-   * 与 homeVar 同一条规矩：只记名字，路径由原生侧现算。dsh 的运行时没有内置
-   * 配置，DSH_CORDIS_CONFIG 与 argv[2] 都不指向存在的文件时它直接以 1 退出。
-   *
-   * 缺席表示这一家不从环境变量取配置。
-   */
-  readonly configVar?: string | undefined
   /** 可执行文件名，不含参数。 */
   readonly command: string
   readonly args: readonly string[]

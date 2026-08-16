@@ -15,6 +15,7 @@ import {
   type AgentConfigChoice,
   type AgentConfigControl,
   type AgentSessionUsage,
+  type AgentTransport,
   commands,
   type JsonValue,
 } from './generated/ipc-bindings'
@@ -59,10 +60,12 @@ export interface AgentEventSourceOptions {
   readonly onListenFailure?: (error: unknown) => void
 }
 
-/** 起一个 agent 进程要说清的三件事。与原生侧的 AgentLaunch 同形。 */
+/** 起一个 agent 进程要说清的四件事。与原生侧的 AgentLaunch 同形。 */
 export interface AgentLaunchDescription {
   /** 要启动的 agent。原生侧靠它决定受控 home 落在哪里。 */
   readonly agentId: string
+  /** 走哪条传输。原生侧据此选驱动。 */
+  readonly transport: AgentTransport
   /** 可执行文件名或路径，不含参数。 */
   readonly program: string
   /** 传给它的参数，原样递给进程。 */
@@ -216,10 +219,16 @@ export function createAgentEventSource({
  */
 function nativeLaunch(launch: AgentLaunchDescription): {
   agentId: string
+  transport: AgentTransport
   program: string
   args: string[]
 } {
-  return { agentId: launch.agentId, program: launch.program, args: [...launch.args] }
+  return {
+    agentId: launch.agentId,
+    transport: launch.transport,
+    program: launch.program,
+    args: [...launch.args],
+  }
 }
 
 /**

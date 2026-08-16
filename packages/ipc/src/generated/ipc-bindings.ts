@@ -1282,12 +1282,7 @@ export type AgentInstallState =
 "unknown"
 export type AgentInstallStatus = { state: AgentInstallState; installedVersion: string | null; latestVersion: string | null; packageName: string | null }
 /**
- * 起一个 agent 进程要说清的三件事。
- * 
- * 三条命令都要它，所以它是一个结构而不是三份平铺字段。此前这里是一个
- * command: Option<String>，两处都在撒谎：文档注释写着 defaults to the Kimi
- * ACP entry point，而 `resolve_command` 里根本没有默认值；字段写着可选，而缺
- * 了它必然报错。
+ * 起一个 agent 进程要说清的四件事。
  * 
  * 名字与参数分开传，因为拼成一行再让 shell 词法切回来是有损的。
  */
@@ -1296,6 +1291,10 @@ export type AgentLaunch = {
  * 要启动的 agent。它决定受控 home 落在哪里。
  */
 agentId: string; 
+/**
+ * 走哪条传输。
+ */
+transport: AgentTransport; 
 /**
  * 可执行文件名或路径，不含参数，也不经过 shell。
  */
@@ -1563,6 +1562,13 @@ export type AgentTitleSource =
  * The user typed it. Nothing derived replaces it.
  */
 "manual"
+/**
+ * 这一家在什么线上说话。
+ * 
+ * 值的产地是档案（@poietica/agent-catalog 的 AgentDescriptor.transport），线上
+ * 形状的产地是这里。组合根据它选驱动，不据 agent id 分支（ADR 0022）。
+ */
+export type AgentTransport = "acp" | "deepseek-harness"
 export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; privacy: PrivacySettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 /**

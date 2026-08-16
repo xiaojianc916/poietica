@@ -1,5 +1,5 @@
 import * as v from 'valibot'
-import type { AgentDescriptor } from './agent-descriptor'
+import type { AgentDescriptor, AgentTransport } from './agent-descriptor'
 import { agentRoster } from './agents'
 
 /** 会话配置值。对应 ACP 的 ConfigOption currentValue（string | boolean）。 */
@@ -341,9 +341,11 @@ function withDescriptorFields(profile: AgentProfile): AgentProfile {
   return unchanged ? profile : next
 }
 
-/** 起一个 agent 进程要说清的三件事。 */
-export interface AcpAgentLaunch {
+/** 起一个 agent 进程要说清的四件事。 */
+export interface AgentLaunchSpec {
   readonly agentId: string
+  /** 走哪条传输。原生侧据此选驱动，不据 id 分支。 */
+  readonly transport: AgentTransport
   readonly program: string
   readonly args: readonly string[]
 }
@@ -351,20 +353,17 @@ export interface AcpAgentLaunch {
 /**
  * 把一家 agent 翻成一次启动。
  *
- * 收的是内置描述符本身。此前这里收一个 AcpAgentLaunchSource { id, command, args }，
- * 理由写着「内置描述符与用户档案都能直接传进来」—— 而用户档案里从来就没有过
- * command，全仓两个调用点送进来的也都是描述符。那是给一个不存在的调用者留的门。
- *
- * 名字与参数始终分开，从这里一路到 spawn 都不合并成字符串。合并是有损的：对面
- * 若按 POSIX 词法切回来，绝对路径 C:\\tools\\kimi.exe 的反斜杠会被当成转义符
- * 吃掉，带空格的路径会被切断。
- *
- * 业界标杆同样不合并：Zed 的 AgentServerCommand 是 path/args/env 三元组，连跨
- * 进程的 protobuf（crates/proto/proto/ai.proto）都保持结构化，整个仓库一处都
- * 没有用 shell_words。
+ * 名字与参数始终分开，一路到 spawn 都不合并成字符串：对面若按 POSIX 词法切回来，
+ * Windows 路径里的反斜杠会被当成转义符吃掉，带空格的路径会被切断。Zed 的
+ * AgentServerCommand 同样是 path/args/env 三元组。
  */
-export function agentLaunch(agent: AgentDescriptor): AcpAgentLaunch {
-  return { agentId: agent.id, program: agent.command, args: [...agent.args] }
+export function agentLaunch(agent: AgentDescriptor): AgentLaunchSpec {
+  return {
+    agentId: agent.id,
+    transport: agent.transport,
+    program: agent.command,
+    args: [...agent.args],
+  }
 }
 
 /**

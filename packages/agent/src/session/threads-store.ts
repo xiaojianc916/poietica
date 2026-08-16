@@ -184,6 +184,13 @@ export class ThreadsStore {
     }
   }
 
+  /**
+   * 新开一条对话。没有端口就是 null；开不出来则带原因抛出。
+   *
+   * 原因必须往上走：说话那条路上的调用者会把它记进这条对话的转录（见
+   * transcript-store 的 send），而在这里换成 null 只剩一句「无法开始新的对话」
+   * —— 起不来的进程、谈不拢的握手、缺失的配置全长成同一句话。
+   */
   create = async (workspaceRoot?: string): Promise<string | null> => {
     const port = this.#port
 
@@ -191,29 +198,23 @@ export class ThreadsStore {
       return null
     }
 
-    try {
-      const opened = await port.open(undefined, workspaceRoot)
-      const threadId = opened.thread.threadId
+    const opened = await port.open(undefined, workspaceRoot)
+    const threadId = opened.thread.threadId
 
-      this.#roots.set(threadId, opened.thread.workspaceRoot ?? null)
+    this.#roots.set(threadId, opened.thread.workspaceRoot ?? null)
 
-      /* 路由、经过、选择器：一份答复到手之后的一切，交给认得它们的人。 */
-      for (const listener of this.#opened) {
-        listener(opened)
-      }
-
-      /*
-       * 一条对话在有人开口之前不进列表，所以这里不添行：那会留下一串从未
-       * 发生过的对话。
-       */
-      this.#commit({ failure: null })
-
-      return threadId
-    } catch (reason) {
-      this.#commit({ failure: describeFailure(reason) })
-
-      return null
+    /* 路由、经过、选择器：一份答复到手之后的一切，交给认得它们的人。 */
+    for (const listener of this.#opened) {
+      listener(opened)
     }
+
+    /*
+     * 一条对话在有人开口之前不进列表，所以这里不添行：那会留下一串从未
+     * 发生过的对话。
+     */
+    this.#commit({ failure: null })
+
+    return threadId
   }
 
   /**
