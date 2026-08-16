@@ -20,7 +20,7 @@ import type {
   AcpToolCallUpdate,
   RunEvent,
 } from '@poietica/agent-contract'
-import type { ToolCallTimelineItem, UserMessageItem } from './timeline-contract'
+import type { PlanItem, ToolCallTimelineItem, UserMessageItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import { appendChunk, namespace, positionOf, push } from './timeline-draft'
 import { pendingPermission } from './timeline-queries'
@@ -126,7 +126,13 @@ function applyAcpUpdate(draft: Draft, update: AcpSessionUpdate, seq: number, at:
       /* The protocol replaces the whole plan; keep exactly one plan entry per
          turn, so a later turn cannot rewrite an earlier one. */
       const id = `${scope}plan`
-      const plan = { type: 'plan', id, turn: draft.runIndex, at, entries: update.entries } as const
+      /* 只取屏幕读的那两格。协议还报一个 priority，条目模型不存它 —— 没有读者的
+         事实存进共用模型，就是让另一条线也得说这句方言。 */
+      const entries = update.entries.map((entry) => ({
+        content: entry.content,
+        status: entry.status,
+      }))
+      const plan: PlanItem = { type: 'plan', id, turn: draft.runIndex, at, entries }
       const position = positionOf(draft, id)
 
       if (position < 0) {

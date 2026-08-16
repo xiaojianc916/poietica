@@ -156,4 +156,26 @@ describe('harness 会话日志', () => {
       ],
     })
   })
+
+  it('认不出的状态不落，也不拖累同一份计划里的其他步', () => {
+    const state = applyRunEvents(createTimelineState(), [
+      ...turn.slice(0, 2),
+      frame(3, {
+        type: 'todo/write',
+        seq: 2,
+        time: 3,
+        data: {
+          todos: [
+            { content: '读文件', status: 'blocked' },
+            { content: '改文件', status: 'pending' },
+          ],
+        },
+      }),
+    ])
+
+    const plans = state.items.filter((item) => item.type === 'plan')
+
+    /* 猜成 pending 就是替 agent 编一个它没说过的状态。 */
+    expect(plans[0]).toMatchObject({ entries: [{ content: '改文件', status: 'pending' }] })
+  })
 })

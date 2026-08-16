@@ -1,6 +1,5 @@
 import type {
   AcpPermissionOption,
-  AcpPlanEntry,
   AcpToolCallContent,
   AcpToolCallId,
   AcpToolCallLocation,
@@ -109,9 +108,25 @@ export interface ToolCallTimelineItem extends TimelineEntry {
   readonly endedAt?: number
 }
 
+/** 计划里的一步。 */
+export interface PlanStep {
+  readonly content: string
+  readonly status: 'pending' | 'in_progress' | 'completed'
+}
+
+/**
+ * agent 此刻照着做的那份计划。
+ *
+ * 这一格此前直接装协议的 PlanEntry，于是产品模型里多了一句协议方言：另一条线要落
+ * 一份计划，就得先替协议编一个自己根本不报的 priority。而屏幕只读两格 —— 画计划的
+ * 那一格读 content 与 status，上屏判据读长度，协议的第三样东西没有读者。
+ *
+ * 所以这里存屏幕真的读的那两格，方言各自往上映。三档状态的名字两条线逐字相同，
+ * 映射因此是一次挑字段，不是一张要跟着协议走的翻译表。
+ */
 export interface PlanItem extends TimelineEntry {
   readonly type: 'plan'
-  readonly entries: readonly AcpPlanEntry[]
+  readonly entries: readonly PlanStep[]
 }
 
 export interface PermissionItem extends TimelineEntry {

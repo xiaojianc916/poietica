@@ -14,8 +14,8 @@
  * 它一格新条目类型都没有引入：一条对话在屏幕上只有一种画法，两条线共用。
  */
 
-import type { AcpPlanEntry, AcpToolCallContent, RunEvent } from '@poietica/agent-contract'
-import type { PlanItem, ToolCallTimelineItem } from './timeline-contract'
+import type { AcpToolCallContent, RunEvent } from '@poietica/agent-contract'
+import type { PlanItem, PlanStep, ToolCallTimelineItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import { appendChunk, namespace, positionOf, push } from './timeline-draft'
 
@@ -219,26 +219,21 @@ function upsert(
   draft.items[position] = next
 }
 
-/** 协议认的三档状态。名字不在其中就不落 —— 认不出的状态不许猜成 pending。 */
-const STATUSES: readonly AcpPlanEntry['status'][] = ['pending', 'in_progress', 'completed']
+/** 认得的三档状态。名字不在其中就不落 —— 认不出的状态不许猜成 pending。 */
+const STATUSES: readonly PlanStep['status'][] = ['pending', 'in_progress', 'completed']
 
 /**
- * 一条待办到一格计划条目。
+ * 一条待办到计划里的一步。
  *
- * 三档状态的名字两边逐字相同（dsh-session 的 TodoItem 与协议的 PlanEntryStatus 都是
+ * 三档状态的名字两边逐字相同（dsh-session 的 TodoItem 与条目模型都是
  * pending / in_progress / completed），所以这里是一次转录，不是一张要维护的映射表。
- *
- * 优先级这条线不报，而协议那一格必填。填 medium 是「没报」的占位，不是被观察到的
- * 轻重缓急 —— 屏幕不许拿它当事实读。
  */
-function entryOf(todo: unknown): readonly AcpPlanEntry[] {
+function entryOf(todo: unknown): readonly PlanStep[] {
   const content = string(at(todo, 'content'))
   const said = string(at(todo, 'status'))
   const status = STATUSES.find((known) => known === said)
 
-  return content === undefined || status === undefined
-    ? []
-    : [{ content, priority: 'medium', status }]
+  return content === undefined || status === undefined ? [] : [{ content, status }]
 }
 
 /** 一次调用产出的文字。图片这条线还没有取证过形状，所以不画。 */
