@@ -119,7 +119,7 @@ impl AgentStore {
         Ok(found)
     }
 
-    /// 松开这条对话握着的那条会话的读数。删对话时与附件、轮次计时一同释放。
+    /// 松开这条对话握着的那条会话的读数。删对话时与附件、帧日志一同释放。
     pub(crate) fn release_session_usage(&self, id: Uuid) -> Result<()> {
         self.write(
             "DELETE FROM session_usage

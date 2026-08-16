@@ -8,7 +8,8 @@ use crate::config::ConfigControl;
 use crate::error::{AcpError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::session::{
-    CanDeleteSession, CanForkSession, CanLoadSession, OpenedSession, SessionEntry,
+    CanCancelSession, CanDeleteSession, CanForkSession, CanLoadSession, OpenedSession,
+    SessionEntry,
 };
 
 /// 这一轮随那句话一起送出去的一张图片。
@@ -308,7 +309,8 @@ impl AgentClient {
     /// the turn's own answer reports which of the two happened.
     ///
     /// 停哪一条必须说出来。一条连接上有多条会话，而它们可以同时在飞。
-    pub fn cancel(&self, session_id: String) -> Result<()> {
+    /// 凭证只从握手来（`Handshake::cancelling`）。
+    pub fn cancel(&self, _granted: CanCancelSession, session_id: String) -> Result<()> {
         self.send(Command::Cancel { session_id })
     }
 

@@ -28,8 +28,8 @@ use crate::program::resolve_program;
 use crate::recorder::Recorder;
 use crate::run_slot::RunSlot;
 use crate::session::{
-    AgentConnection, AgentSpawn, CanDeleteSession, CanForkSession, CanLoadSession, Handshake,
-    OpenedSession, SessionEntry, SessionEvent, SessionEvents,
+    AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
+    CanLoadSession, Handshake, OpenedSession, SessionEntry, SessionEvent, SessionEvents,
 };
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -386,6 +386,9 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     loading,
                     deleting,
                     forking,
+                    /* 取消在 ACP 里是一条通知，没有能力位可声明：每个 agent
+                    都收得下，所以这条线上它无条件成立。 */
+                    cancelling: Some(CanCancelSession::granted()),
                 }));
 
                 /*

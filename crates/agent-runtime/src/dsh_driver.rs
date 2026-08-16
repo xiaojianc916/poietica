@@ -256,13 +256,14 @@ pub fn connect_harness(
                                         &mut ready,
                                         Ok(Handshake {
                                             session_id: anchor.clone(),
-                                            /* 三张凭证一张都不铸：这条线上没有
-                                            session/load、session/delete、session/fork。
-                                            拿不出凭证的调用编译不过，所以这件事
-                                            不需要任何运行时判断。 */
+                                            /* 四张凭证一张都不铸：这条线上没有
+                                            session/load、session/delete、session/fork，
+                                            也停不了一轮（见 docs/adr/0023）。拿不出
+                                            凭证的调用编译不过。 */
                                             loading: None,
                                             deleting: None,
                                             forking: None,
+                                            cancelling: None,
                                         }),
                                     );
                                 }
@@ -275,6 +276,8 @@ pub fn connect_harness(
                                             {
                                                 settle(
                                                     &mut turns,
+                                                    &ledger,
+                                                    &diagnostics,
                                                     &session_id,
                                                     Err(AcpError::Protocol {
                                                         message: "运行时的入队回执读不出消息号"
@@ -475,11 +478,11 @@ pub fn connect_harness(
                         },
                     );
                 }
-                /* 这条线上停不了一轮。官方核心有 Agent.cancel，SDK 没把它挂上线
-                （docs/adr/0023），而唯一到得了的近亲是关掉整个运行时 —— 那会连
-                别的会话一起停。所以这里如实拒绝，由界面决定要不要请用户改用
-                关闭连接。 */
-                Step::Asked(Some(Command::Cancel { .. })) => {}
+                /* 凭证没铸，调用点写不出这一句；穷尽匹配仍要求它有个分支。
+                真的走到这里，说明凭证漏铸了。 */
+                Step::Asked(Some(Command::Cancel { .. })) => {
+                    log::error!("{NOT_ON_THIS_LINE}: cancel");
+                }
                 Step::Asked(Some(
                     Command::LoadSession { reply, .. } | Command::ForkSession { reply, .. },
                 )) => {

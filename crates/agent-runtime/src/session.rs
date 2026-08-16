@@ -173,6 +173,19 @@ impl CanForkSession {
     }
 }
 
+/// 停掉一轮的凭证（ACP session/cancel）。
+///
+/// 取消是一条通知，ACP 每个 agent 都收得下，所以那条线无条件铸；harness
+/// 线不铸（见 docs/adr/0023）。停不了的传输上，这句调用编译不出来。
+#[derive(Clone, Copy, Debug)]
+pub struct CanCancelSession(());
+
+impl CanCancelSession {
+    pub(crate) const fn granted() -> Self {
+        Self(())
+    }
+}
+
 /// 握手谈成之后才知道的事。
 ///
 /// 每一件都只有 agent 说了算，而且都只在这一刻说一次。能力不是三个布尔：有没有
@@ -187,6 +200,8 @@ pub struct Handshake {
     pub deleting: Option<CanDeleteSession>,
     /// agent 会不会从一条已有会话分叉出一条新会话。
     pub forking: Option<CanForkSession>,
+    /// 这条线停不停得了一轮。
+    pub cancelling: Option<CanCancelSession>,
 }
 
 /// A session the agent just opened, and the selectors it offers for it.

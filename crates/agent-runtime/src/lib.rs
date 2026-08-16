@@ -32,7 +32,7 @@ mod dsh;
 mod dsh_driver;
 pub use dsh::{
     ErrorBody, INITIALIZE, Incoming, InitializeParams, InitializeResult, Notification, RequestId,
-    SERVER_NAME, SESSION_PROMPT, SHUTDOWN, ServerInfo, SessionEventNotification,
+    SERVER_NAME, SESSION_PROMPT, SHUTDOWN, SdkRunStatus, ServerInfo, SessionEventNotification,
     SessionPromptParams, SessionPromptResult, SessionStatus, SessionStatusNotification,
     SubagentFinishedNotification, SubagentStartedNotification, decode_line, initialize_line,
     method_not_found_line, prompt_line, shutdown_line,
@@ -65,8 +65,8 @@ pub use program::resolve_program;
 pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine, now_millis};
 pub use run_slot::RunSlot;
 pub use session::{
-    AgentConnection, AgentSpawn, CanDeleteSession, CanForkSession, CanLoadSession, Handshake,
-    OpenedSession, SessionEntry, SessionEvent, SessionEvents,
+    AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
+    CanLoadSession, Handshake, OpenedSession, SessionEntry, SessionEvent, SessionEvents,
 };
 pub use sessions::SessionBook;
 pub use stderr::StderrLog;

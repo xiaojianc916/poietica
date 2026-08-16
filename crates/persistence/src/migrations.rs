@@ -17,6 +17,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "attachment_links",
         include_str!("schema/0004_attachment_links.sql"),
     ),
+    (
+        5,
+        "drop_turn_spans",
+        include_str!("schema/0005_drop_turn_spans.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.

@@ -11,8 +11,8 @@ use std::path::PathBuf;
 use tauri::State;
 use uuid::Uuid;
 
-use super::dto::{AgentHistory, AgentHistoryLoss};
 use super::NO_SUCH_CONVERSATION;
+use super::dto::{AgentHistory, AgentHistoryLoss};
 use super::failure::translate;
 use super::runtime::{AgentRuntime, Handle};
 
@@ -75,10 +75,7 @@ pub(super) async fn session_for(
     })
     .await?;
 
-    /* 号和持有者分开拿。此前它们被 and_then + filter 折成一个 Option，于是
-    "这条对话属于别的 agent"与"这条对话还没有会话"在类型上不可分辨 —— 那正是
-    这一路说不出话的原因：折叠丢掉的不是数据，是问句的答案。 */
-    /* 「这条对话不存在」与「它还没有会话」是两个答案。折成一个，前者就会一路
+    /* 「这条对话不存在」与「它还没有会话」是两个答案：折成一个，前者会一路
     走到 record_prompt 的 RETURNING 上，以一句「文件操作失败」收场。 */
     let Some(thread) = stored else {
         return Err(Error::NotFound(NO_SUCH_CONVERSATION.to_owned()));

@@ -8,9 +8,9 @@ use crate::error::{Error, Result};
 use crate::paths::attachments_root;
 use poietica_agent_persistence_native::SessionUsage;
 use poietica_agent_runtime_native::{
-    AcpError, AgentClient, AgentConnection, AgentSpawn, CanDeleteSession, CanForkSession,
-    CanLoadSession, Handshake, PermissionDesk, Refusal, RunSlot, SessionBook, SessionEvent,
-    connect_acp, connect_harness,
+    AcpError, AgentClient, AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession,
+    CanForkSession, CanLoadSession, Handshake, PermissionDesk, Refusal, RunSlot, SessionBook,
+    SessionEvent, connect_acp, connect_harness,
 };
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
@@ -52,6 +52,8 @@ struct Connection {
     deleting: Option<CanDeleteSession>,
     /// 分叉一条会话的凭证，同样是握手发的。
     forking: Option<CanForkSession>,
+    /// 停掉一轮的凭证，同样是握手发的。
+    cancelling: Option<CanCancelSession>,
     /// 这条连接锚会话的记录槽。
     ///
     /// 它的语义是一条会话：driver 建立连接时把它 adopt 到锚会话名下，别的会话
@@ -179,6 +181,8 @@ pub(super) struct Handle {
     pub(super) deleting: Option<CanDeleteSession>,
     /// 分叉一条会话的凭证。分叉按它把关，调用也拿它。
     pub(super) forking: Option<CanForkSession>,
+    /// 停掉一轮的凭证。停不了的传输上它是空的。
+    pub(super) cancelling: Option<CanCancelSession>,
     /// 这条连接的权限台。
     pub(super) desk: PermissionDesk,
     /// 这条连接的会话册子 —— 驱动器路由帧读的就是它。
@@ -359,6 +363,7 @@ pub(super) async fn ensure_session(
         loading,
         deleting,
         forking,
+        cancelling,
     } = handshake;
 
     /* 没有第二个人可以到这里，所以也没有谁需要认输：闸还在手里，而写
@@ -372,6 +377,7 @@ pub(super) async fn ensure_session(
         loading,
         deleting,
         forking,
+        cancelling,
         slot: slot.clone(),
         desk: desk.clone(),
         book: book.clone(),
@@ -384,6 +390,7 @@ pub(super) async fn ensure_session(
         loading,
         deleting,
         forking,
+        cancelling,
         desk,
         book,
     };
@@ -433,6 +440,7 @@ pub(super) fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> 
         loading: live.loading,
         deleting: live.deleting,
         forking: live.forking,
+        cancelling: live.cancelling,
         desk: live.desk.clone(),
         book: live.book.clone(),
     }))
