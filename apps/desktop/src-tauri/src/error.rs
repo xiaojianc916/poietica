@@ -170,9 +170,9 @@ impl Error {
             Self::NotFound(_) => Cow::Borrowed("请求的资源不存在"),
             Self::PermissionDenied(_) => Cow::Borrowed("该操作未获授权"),
 
-            Self::Io(_) | Self::Persistence(_) | Self::File(_) | Self::Store(_) => {
-                Cow::Borrowed("文件操作失败")
-            }
+            Self::Persistence(_) => Cow::Borrowed("本地索引库写入失败"),
+            Self::Store(_) => Cow::Borrowed("配置文件读写失败"),
+            Self::Io(_) | Self::File(_) => Cow::Borrowed("文件操作失败"),
 
             Self::SerdeJson(_) => Cow::Borrowed("数据格式无效"),
 

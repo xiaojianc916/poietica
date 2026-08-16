@@ -74,6 +74,9 @@ const NO_READ: &str = "the database read did not finish";
 /// `config::agent_set_config_option`）。
 const NO_CONVERSATION: &str = "no conversation was named";
 
+/// 点名的那条对话在库里没有行。
+const NO_SUCH_CONVERSATION: &str = "that conversation no longer exists";
+
 /// 一张图大到账本里那一格装不下。
 const IMAGE_TOO_LARGE: &str = "an attachment is too large";
 

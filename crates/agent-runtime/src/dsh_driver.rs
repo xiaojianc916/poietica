@@ -291,6 +291,8 @@ pub fn connect_harness(
                                         }
                                         Err(error) => settle(
                                             &mut turns,
+                                            &ledger,
+                                            &diagnostics,
                                             &session_id,
                                             Err(AcpError::Protocol {
                                                 message: error.message,
@@ -324,7 +326,13 @@ pub fn connect_harness(
                                     .get(&reported.session_id)
                                     .is_some_and(|turn| turn.receipted)
                             {
-                                settle(&mut turns, &reported.session_id, Ok(END_TURN.to_owned()));
+                                settle(
+                                    &mut turns,
+                                    &ledger,
+                                    &diagnostics,
+                                    &reported.session_id,
+                                    Ok(END_TURN.to_owned()),
+                                );
                             }
                         }
                         Incoming::Notification(Notification::SubagentStarted(reported)) => {
@@ -501,9 +509,15 @@ pub fn connect_harness(
             }
         }
 
-        /* 还在等结局的那些轮次不会再有答复了。 */
-        for (_session_id, turn) in turns.drain() {
-            let _ignored = turn.reply.send(Err(AcpError::Refused(Refusal::Gone)));
+        /* 还在等结局的那些轮次不会再有答复了：各自落一帧失败，槽一并交回。 */
+        for session_id in turns.keys().cloned().collect::<Vec<String>>() {
+            settle(
+                &mut turns,
+                &ledger,
+                &diagnostics,
+                &session_id,
+                Err(AcpError::Refused(Refusal::Gone)),
+            );
         }
 
         // 通道合上，排空任务就此结束。
@@ -617,11 +631,38 @@ fn rooted(
     }
 }
 
-/// 这一轮有了结局，告诉在等它的人。
-fn settle(turns: &mut HashMap<String, Turn>, session_id: &str, outcome: Result<String>) {
-    if let Some(turn) = turns.remove(session_id) {
-        let _ignored = turn.reply.send(outcome);
+/// 这一轮有了结局：落终帧、释放槽，然后告诉在等它的人。
+///
+/// 与 install 严格配对 —— 槽不交回去，这条会话的下一轮会撞上 Refusal::Busy。
+fn settle(
+    turns: &mut HashMap<String, Turn>,
+    book: &SessionBook,
+    diagnostics: &StderrLog,
+    session_id: &str,
+    outcome: Result<String>,
+) {
+    let Some(turn) = turns.remove(session_id) else {
+        return;
+    };
+
+    if let Ok(Some(slot)) = book.slot(session_id) {
+        let said = diagnostics.tail();
+
+        let _recorded = slot.record(|recorder| {
+            if !said.is_empty() {
+                recorder.set_diagnostics(said);
+            }
+
+            match &outcome {
+                Ok(stop_reason) => recorder.record_run_finished(stop_reason),
+                Err(error) => recorder.record_run_failed(&error.to_string()),
+            }
+        });
+
+        let _released = slot.take();
     }
+
+    let _ignored = turn.reply.send(outcome);
 }
 
 /// 握手的答复只发一次。

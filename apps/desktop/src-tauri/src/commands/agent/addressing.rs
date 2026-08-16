@@ -3,7 +3,7 @@
 //! ACP 的 sessionId 只在一条连接内有意义，库里存的号可能是上一次运行留下的。这里
 //! 把「对话」翻成「本次连接认得的会话」，认不出就重开或装载。
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
 use poietica_agent_runtime_native::ConfigControl;
 use serde_json::Value;
@@ -12,6 +12,7 @@ use tauri::State;
 use uuid::Uuid;
 
 use super::dto::{AgentHistory, AgentHistoryLoss};
+use super::NO_SUCH_CONVERSATION;
 use super::failure::translate;
 use super::runtime::{AgentRuntime, Handle};
 
@@ -77,10 +78,14 @@ pub(super) async fn session_for(
     /* 号和持有者分开拿。此前它们被 and_then + filter 折成一个 Option，于是
     "这条对话属于别的 agent"与"这条对话还没有会话"在类型上不可分辨 —— 那正是
     这一路说不出话的原因：折叠丢掉的不是数据，是问句的答案。 */
-    let (session_id, owner, recorded) = match stored {
-        Some(thread) => (thread.session_id, thread.agent_id, thread.workspace_root),
-        None => (None, None, None),
+    /* 「这条对话不存在」与「它还没有会话」是两个答案。折成一个，前者就会一路
+    走到 record_prompt 的 RETURNING 上，以一句「文件操作失败」收场。 */
+    let Some(thread) = stored else {
+        return Err(Error::NotFound(NO_SUCH_CONVERSATION.to_owned()));
     };
+
+    let (session_id, owner, recorded) =
+        (thread.session_id, thread.agent_id, thread.workspace_root);
 
     /* 目录是对话的属性，不是这一刻的选择：从项目 A 的一条旧对话里说话，不该
     跑到项目 B 的目录里去。此前这两处都写死 state.root，也就是家目录 —— 于是
