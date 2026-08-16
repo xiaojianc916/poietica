@@ -62,7 +62,7 @@ use futures::channel::oneshot;
 use futures::executor::block_on;
 use poietica_agent_runtime_native::{
     AcpError, AgentConnection, AgentSpawn, PermissionDesk, RUN_FINISHED, RUN_STARTED,
-    RecordedEvent, RunFrame, RunSlot, connect,
+    RecordedEvent, RunFrame, RunSlot, connect_acp,
 };
 use tempfile::TempDir;
 
@@ -184,7 +184,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         events: _,
         handshake,
         driver,
-    } = connect(spawn, slot, desk).expect("the program to be launchable");
+    } = connect_acp(spawn, slot, desk).expect("the program to be launchable");
 
     let mut driver = Driver::spawn(driver);
 

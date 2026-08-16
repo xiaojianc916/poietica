@@ -132,14 +132,27 @@ describe('parseAcpAgentProfileSet', () => {
 })
 
 describe('agentLaunch', () => {
-  it('把名单里的一家翻成 agentId 加 program 加 args', () => {
+  it('把名单里的一家翻成线上那四格', () => {
     const agent = agentRoster()[0]
 
     expect(agentLaunch(agent)).toEqual({
       agentId: agent.id,
+      transport: agent.transport,
       program: agent.command,
       args: [...agent.args],
     })
+  })
+
+  /*
+   * 回归护栏：传输是档案声明的，这一层原样交出。
+   *
+   * 漏掉这一条的后果已经发生过：deepseek-harness 的档案写着自己那条线，而线上
+   * 形状只有三格，于是原生侧无从选择，起的是官方 bin、说的是 ACP，握手必失败。
+   */
+  it('传输原样交出，不在这一层改写', () => {
+    for (const agent of agentRoster()) {
+      expect(agentLaunch(agent).transport, agent.id).toBe(agent.transport)
+    }
   })
 
   /*
