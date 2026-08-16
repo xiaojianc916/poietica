@@ -10,7 +10,7 @@
  */
 
 import type { AcpStopReason, RunEvent, RunStatus } from '@poietica/agent-contract'
-import { applyAcpFrame } from './acp-projection'
+import { applyAcpFrame, saidByUser } from './acp-projection'
 import { applyHarnessFrame } from './harness-projection'
 import { isRenderable } from './renderable'
 import type { MessageImage, UserMessageItem } from './timeline-contract'
@@ -152,11 +152,10 @@ function withPrompt(
   },
 ): void {
   /* 缺席与空串在这里是同一件事：都表示这一帧没有带来一句要显示的话。
-     只 trim，不剥 <system-reminder>：这一格是本机记下的原文（原生侧的
-     record_run_started 收的就是我们发出去的那一句），剥它只会吃掉用户真的
-     打过的字。而本地那条路径（appendUserMessage）也只 trim —— 两侧判据必须
-     逐字相同，因为 adoptQueuedPrompt 是按文本认领的。 */
-  const prompt = (event.prompt ?? '').trim()
+     清洗规则借的是 ACP 那条线的：这一格的内容由各自的 driver 填，而 ACP 那侧
+     填的是协议请求里的内容，agent CLI 会往里注入自己的旁白（见 saidByUser）。
+     所以它是一条方言事实，住在方言那个文件里；harness 那条线上它是空操作。 */
+  const prompt = saidByUser(event.prompt ?? '')
   const shown: readonly MessageImage[] = (event.images ?? []).map((url) => ({ url }))
 
   /* 只挑了图、没打字，仍然是一句说过的话。 */

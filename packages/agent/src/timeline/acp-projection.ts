@@ -508,7 +508,7 @@ function appendSaid(draft: Draft, scope: string, seq: number, at: number, chunk:
  */
 const INJECTED = /<system-reminder>[\s\S]*?<\/system-reminder>/g
 
-function saidByUser(text: string): string {
+export function saidByUser(text: string): string {
   return text.replace(INJECTED, '').trim()
 }
 
