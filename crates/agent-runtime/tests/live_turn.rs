@@ -212,9 +212,13 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     // exercise of the cancellation path.
     let watchdog = client.clone();
     let watched = session_id.clone();
+    let cancelling = handshake.cancelling;
     let _timer = thread::spawn(move || {
         thread::sleep(timeout);
-        let _ignored = watchdog.cancel(watched);
+        let _ignored = match cancelling {
+            Some(granted) => watchdog.cancel(granted, watched),
+            None => Ok(()),
+        };
     });
 
     let delivered = Delivered::default();

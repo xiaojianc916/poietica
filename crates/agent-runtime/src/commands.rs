@@ -8,8 +8,7 @@ use crate::config::ConfigControl;
 use crate::error::{AcpError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::session::{
-    CanCancelSession, CanDeleteSession, CanForkSession, CanLoadSession, OpenedSession,
-    SessionEntry,
+    CanCancelSession, CanDeleteSession, CanForkSession, CanLoadSession, OpenedSession, SessionEntry,
 };
 
 /// 这一轮随那句话一起送出去的一张图片。

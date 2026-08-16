@@ -81,8 +81,7 @@ pub(super) async fn session_for(
         return Err(Error::NotFound(NO_SUCH_CONVERSATION.to_owned()));
     };
 
-    let (session_id, owner, recorded) =
-        (thread.session_id, thread.agent_id, thread.workspace_root);
+    let (session_id, owner, recorded) = (thread.session_id, thread.agent_id, thread.workspace_root);
 
     /* 目录是对话的属性，不是这一刻的选择：从项目 A 的一条旧对话里说话，不该
     跑到项目 B 的目录里去。此前这两处都写死 state.root，也就是家目录 —— 于是
@@ -136,13 +135,13 @@ pub(super) async fn session_for(
                     会话的槽是本次连接新建的、从 1 开始 —— 不接上去，下一轮的
                     帧会撞上旧位置，被 run_events 的唯一键静默丢掉。 */
                     let resumed = session_id.clone();
-                    let last = on_index(index, move |store| {
+                    let last_seq = on_index(index, move |store| {
                         store.last_seq(thread_id, &resumed).map_err(persistence)
                     })
                     .await?;
 
                     if let Some(slot) = live.book.slot(&session_id).map_err(translate)? {
-                        slot.seq().resume(last);
+                        slot.seq().resume(last_seq);
                     }
 
                     /* 装载成功，这条会话确实是这个 agent 的。空的那一格在这里

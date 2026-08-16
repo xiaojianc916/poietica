@@ -53,6 +53,14 @@ pub type FrameSink = Box<dyn FnMut(RecordedEvent) + Send>;
 #[derive(Clone, Debug)]
 pub struct SeqLine(Arc<AtomicI64>);
 
+impl PartialEq for SeqLine {
+    fn eq(&self, other: &Self) -> bool {
+        self.peek() == other.peek()
+    }
+}
+
+impl Eq for SeqLine {}
+
 impl Default for SeqLine {
     fn default() -> Self {
         Self(Arc::new(AtomicI64::new(1)))

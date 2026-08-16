@@ -117,11 +117,10 @@ pub fn resolve_harness_runtime() -> Result<HarnessRuntime> {
         });
     }
 
-    let probed: Probed = serde_json::from_slice(&probe.stdout).map_err(|error| {
-        AcpError::Spawn {
+    let probed: Probed =
+        serde_json::from_slice(&probe.stdout).map_err(|error| AcpError::Spawn {
             message: format!("读不懂 DeepSeek 运行时报回来的启动规格：{error}"),
-        }
-    })?;
+        })?;
 
     if probed.argv.is_empty() {
         return Err(AcpError::Spawn {

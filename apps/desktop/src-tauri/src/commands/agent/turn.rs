@@ -312,7 +312,9 @@ pub async fn agent_cancel(
         return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
     }
 
-    live.client.cancel(cancelling, addressed).map_err(translate)?;
+    live.client
+        .cancel(cancelling, addressed)
+        .map_err(translate)?;
 
     Ok(())
 }

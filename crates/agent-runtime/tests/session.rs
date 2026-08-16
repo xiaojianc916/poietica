@@ -46,11 +46,7 @@ fn a_loading_session_drops_the_replay_without_failing() {
 
     assert!(!slot.record(|recorder| recorder.record_frame(announcement())));
     assert!(delivered.frames().is_empty());
-    assert_eq!(
-        slot.seq(),
-        slot.seq(),
-        "序号线没有被一批无人认领的帧推着走"
-    );
+    assert_eq!(slot.seq(), slot.seq(), "序号线没有被一批无人认领的帧推着走");
 }
 
 #[test]

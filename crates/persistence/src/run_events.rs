@@ -71,9 +71,11 @@ impl AgentStore {
              WHERE thread_id = ?1 AND session_id = ?2",
         )?;
 
-        Ok(statement.query_row(rusqlite::params![thread.to_string(), session], |row| {
-            row.get(0)
-        })?)
+        Ok(
+            statement.query_row(rusqlite::params![thread.to_string(), session], |row| {
+                row.get(0)
+            })?,
+        )
     }
 
     /// 忘掉这条对话的日志。删对话时调用。

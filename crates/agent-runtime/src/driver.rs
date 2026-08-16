@@ -614,14 +614,20 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         }
                         Step::Settled(Settled::Done) => {}
                         Step::Settled(Settled::Opened { opened, reply }) => {
-                            let answer = opened.map(|Started { name, named, offered }| {
-                                sessions.insert(name.clone(), (named, offered.clone()));
+                            let answer = opened.map(
+                                |Started {
+                                     name,
+                                     named,
+                                     offered,
+                                 }| {
+                                    sessions.insert(name.clone(), (named, offered.clone()));
 
-                                OpenedSession {
-                                    session_id: name,
-                                    selectors: offered,
-                                }
-                            });
+                                    OpenedSession {
+                                        session_id: name,
+                                        selectors: offered,
+                                    }
+                                },
+                            );
 
                             let _ignored = reply.send(answer);
                         }
