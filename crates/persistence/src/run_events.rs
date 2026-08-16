@@ -57,6 +57,25 @@ impl AgentStore {
         Ok(found)
     }
 
+    /// 这条对话上，这条会话已经用掉的最后一个位置；没有就是 0。
+    ///
+    /// 序号线活在内存里（agent-runtime 的 SeqLine），而这张表活过重启。会话
+    /// 装载回来时号不变、槽是新的，接不上就会撞上下面那道唯一键。
+    ///
+    /// # Errors
+    ///
+    /// 查询被拒时返回错误。
+    pub fn last_seq(&self, thread: Uuid, session: &str) -> Result<i64> {
+        let mut statement = self.connection.prepare_cached(
+            "SELECT coalesce(max(seq), 0) FROM run_events
+             WHERE thread_id = ?1 AND session_id = ?2",
+        )?;
+
+        Ok(statement.query_row(rusqlite::params![thread.to_string(), session], |row| {
+            row.get(0)
+        })?)
+    }
+
     /// 忘掉这条对话的日志。删对话时调用。
     ///
     /// # Errors

@@ -35,7 +35,7 @@ use crate::error::{AcpError, Refusal, Result};
 use crate::frame::RunFrame;
 use crate::program::resolve_program;
 use crate::recorder::Recorder;
-use crate::run_slot::{Listening, RunSlot};
+use crate::run_slot::RunSlot;
 use crate::session::{AgentConnection, AgentSpawn, Handshake, SessionEvents};
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -307,8 +307,8 @@ pub fn connect_harness(
                             祖先会话名下 —— 子代理在自己的会话号下说话，而人看的
                             是它父会话那一条对话。 */
                             if let Some(slot) = rooted(&parents, &ledger, &reported.session_id) {
-                                let _routed = slot.record(|listening| {
-                                    listening.frame(RunFrame::HarnessEvent {
+                                let _routed = slot.record(|recorder| {
+                                    recorder.record_frame(RunFrame::HarnessEvent {
                                         session_id: reported.session_id.clone(),
                                         event: reported.event.clone(),
                                     });
@@ -355,8 +355,8 @@ pub fn connect_harness(
                                     },
                                 });
 
-                                let _routed = slot.record(|listening| {
-                                    listening.frame(RunFrame::HarnessEvent {
+                                let _routed = slot.record(|recorder| {
+                                    recorder.record_frame(RunFrame::HarnessEvent {
                                         session_id: reported.child_session_id.clone(),
                                         event: event.clone(),
                                     });
@@ -394,8 +394,6 @@ pub fn connect_harness(
                             session_id: named,
                             // 这条线上没有会话级选择器：provider 与 model 定在握手上。
                             selectors: Vec::new(),
-                            // 没有 session/load，所以没有历史可重放。
-                            events: Vec::new(),
                         });
 
                     let _ignored = reply.send(opened);
@@ -423,7 +421,7 @@ pub fn connect_harness(
 
                     let recorder = Recorder::new(session_id.clone(), turn.seq(), frames);
 
-                    if let Err(error) = turn.install(Listening::Turn(recorder)) {
+                    if let Err(error) = turn.install(recorder) {
                         let _ignored = reply.send(Err(error));
 
                         continue;
@@ -432,12 +430,10 @@ pub fn connect_harness(
                     /* 错误流是整个进程的。这条线上一次只走一轮，所以它归这一轮。 */
                     diagnostics.clear();
 
-                    let _routed = turn.record(|listening| {
-                        if let Some(recorder) = listening.turn_mut() {
-                            /* 这条线没有图片块（见下方 prompt_line 的注释），
-                            所以首帧的 images 恒为空。 */
-                            recorder.record_run_started(&text, Vec::new());
-                        }
+                    let _routed = turn.record(|recorder| {
+                        /* 这条线没有图片块（见下方 prompt_line 的注释），
+                        所以首帧的 images 恒为空。 */
+                        recorder.record_run_started(&text, Vec::new());
                     });
 
                     let id = next_id();

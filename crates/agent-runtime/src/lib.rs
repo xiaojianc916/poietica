@@ -62,8 +62,8 @@ pub use frame::{
 };
 pub use permission::{Decision, answers, decide};
 pub use program::resolve_program;
-pub use recorder::{FrameSink, Frames, RecordedEvent, Recorder, SeqLine, now_millis};
-pub use run_slot::{Listening, RunSlot};
+pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine, now_millis};
+pub use run_slot::RunSlot;
 pub use session::{
     AgentConnection, AgentSpawn, CanDeleteSession, CanForkSession, CanLoadSession, Handshake,
     OpenedSession, SessionEntry, SessionEvent, SessionEvents,

@@ -45,18 +45,25 @@ pub async fn agent_set_config_option(
      * 这里被换成一个新开的，而不是把一个 agent 不认识的名字发出去。锚会话不需要
      * 这一步 —— 它是 connect() 当场交回的那个号，本进程一直握着。
      */
-    let addressed = match request.thread_id.as_deref() {
-        Some(named) => {
-            let held = session_for(&state, &index, &live, named, Vec::new()).await?;
+    let AgentSelectConfigRequest {
+        thread_id,
+        config_id,
+        value,
+        mcp_servers,
+    } = request;
 
-            held.session_id
+    let addressed = match thread_id.as_deref() {
+        Some(named) => {
+            session_for(&state, &index, &live, named, mcp_servers)
+                .await?
+                .session_id
         }
         None => live.anchor.clone(),
     };
 
     let answer = live
         .client
-        .select(addressed, request.config_id, request.value)
+        .select(addressed, config_id, value)
         .map_err(translate)?;
     let offered = answer
         .await

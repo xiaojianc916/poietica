@@ -1478,7 +1478,15 @@ configId: string;
 /**
  * One of the values that selector offered.
  */
-value: string }
+value: string; 
+/**
+ * 点名的那条对话还没有会话时，为它开的那一条要挂哪几台 MCP 服务器。
+ * 
+ * 与 `AgentPromptRequest` 那一格同一个理由：MCP 名册是 session/new 的
+ * 参数，开完就定死了。少了它，改一次设置就可能开出一条一台服务器都不挂
+ * 的会话，而这条对话此后每一轮都用它。不点名对话时发往锚会话，恒为空。
+ */
+mcpServers: JsonValue[] }
 /**
  * 一条会话此刻占了多少上下文。
  * 

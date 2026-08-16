@@ -28,8 +28,9 @@ Poietica 是本地高性能 ACP 客户端桌面应用，对标 Codex 桌面版�
 是常态而非特例。
 
 - **会话是唯一中心。** 任何能力不得绕过会话另立入口。
-- **对话内容的唯一持有者是 agent。** 本地不存对话正文，历史经 ACP 的
-  session/load 重放交还。本地只存索引：对话行、轮次封条、附件账。
+- **屏幕上那条经过由本机帧日志出。** 每一帧先落 `run_events` 再上屏，重开一条
+  对话就是重放它（唯一键 `(thread_id, session_id, seq)`）。agent 那一份是模型
+  的上下文，由 session/load 让它自己恢复，不参与投影。
 - **每一类状态有且只有一个所有者、一条写入路径。** 禁影子状态、禁兜底副本。
 - **用户主导。** AI 的改动可预览、可拒绝、可撤销；模型输出是不可信输入。
 - **本地优先。** 状态可靠落盘，行为可预测，密钥永不落我们的盘。
@@ -38,9 +39,9 @@ Poietica 是本地高性能 ACP 客户端桌面应用，对标 Codex 桌面版�
 
 帧从 `kimi acp` 子进程 stdout 进 driver（官方 ACP Rust SDK），经
 RunSlot → Recorder（会话内单调序号）→ FrameSink → 宿主 16ms 攒批 →
-Tauri event → transcript-store（按会话号路由到对话）→ timeline 投影 →
-React。反向只有三条命令路：prompt / cancel / resolvePermission。
-谁持有唯一真相：会话内容 = agent；对话索引 = threads.sqlite3（单写者）；
+run_events 落库 → Tauri event → transcript-store（按会话号路由到对话）→
+timeline 投影 → React。反向只有三条命令路：prompt / cancel / resolvePermission。
+谁持有唯一真相：屏幕经过 = run_events；模型上下文 = agent；对话索引 = threads 表（单写者）；
 帧形状 = frame.rs；配置真身 = agent 受控 home 的 config.toml（由 agent 自己
 热重载，我们只经它的官方 CLI 写入）。
 

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
@@ -25,8 +25,8 @@ use crate::error::{AcpError, Refusal, Result};
 use crate::frame::acp_update;
 use crate::permission::{Decision, decide};
 use crate::program::resolve_program;
-use crate::recorder::{Frames, RecordedEvent, Recorder};
-use crate::run_slot::{Listening, RunSlot};
+use crate::recorder::Recorder;
+use crate::run_slot::RunSlot;
 use crate::session::{
     AgentConnection, AgentSpawn, CanDeleteSession, CanForkSession, CanLoadSession, Handshake,
     OpenedSession, SessionEntry, SessionEvent, SessionEvents,
@@ -85,9 +85,6 @@ struct Started {
     name: String,
     named: SessionId,
     offered: Vec<ConfigControl>,
-    /// 装载一条旧会话时 agent 重放回来的那些帧。新开一条时是空的 —— 一条
-    /// 刚开的会话没有历史，这不是缺省值，是事实。
-    events: Vec<Value>,
 }
 
 /// 一轮是怎么结束的。
@@ -223,15 +220,13 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         /* 成帧在这里做完：往下走的是帧，不是协议的类型。
                         工具调用的名字先记进这一轮的工作内存 —— 权限请求可以不带
                         标题，退路就在那张表里。 */
-                        let _routed = slot.record(|listening| {
-                            if let Some(recorder) = listening.turn_mut() {
-                                recorder.note_tool_titles(&notification.update);
-                            }
+                        let _routed = slot.record(|recorder| {
+                            recorder.note_tool_titles(&notification.update);
 
                             match acp_update(&notification) {
-                                Ok(frame) => listening.frame(frame),
+                                Ok(frame) => recorder.record_frame(frame),
                                 Err(unencodable) => {
-                                    listening.unencodable(AcpError::from(unencodable));
+                                    recorder.note_unencodable(AcpError::from(unencodable));
                                 }
                             }
                         });
@@ -253,10 +248,8 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     // A question belongs to the session that asked it, and
                     // is recorded there or nowhere.
                     if let Ok(Some(slot)) = permissions.slot(&named) {
-                        let _routed = slot.record(|listening| {
-                            if let Some(recorder) = listening.turn_mut() {
-                                opened = Some(recorder.record_permission_requested(&request));
-                            }
+                        let _routed = slot.record(|recorder| {
+                            opened = Some(recorder.record_permission_requested(&request));
                         });
                     }
 
@@ -285,10 +278,8 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         // The answer belongs to the same session as the
                         // question, and is recorded there or nowhere.
                         if let Ok(Some(slot)) = book.slot(&named) {
-                            let _routed = slot.record(|listening| {
-                                if let Some(recorder) = listening.turn_mut() {
-                                    recorder.record_permission_resolved(&request_id, &decision);
-                                }
+                            let _routed = slot.record(|recorder| {
+                                recorder.record_permission_resolved(&request_id, &decision);
                             });
                         }
 
@@ -588,7 +579,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                             let recorder = Recorder::new(session_id, turn.seq(), frames);
 
-                            if let Err(error) = turn.install(Listening::Turn(recorder)) {
+                            if let Err(error) = turn.install(recorder) {
                                 let _ignored = reply.send(Err(error));
 
                                 continue;
@@ -603,10 +594,8 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             // The prompt is recorded before it is sent, so a turn
                             // that fails on the first request still shows what was
                             // asked.
-                            let _routed = turn.record(|listening| {
-                                if let Some(recorder) = listening.turn_mut() {
-                                    recorder.record_run_started(&text, shown);
-                                }
+                            let _routed = turn.record(|recorder| {
+                                recorder.record_run_started(&text, shown);
                             });
 
                             in_flight = in_flight.saturating_add(1);
@@ -622,22 +611,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         }
                         Step::Settled(Settled::Done) => {}
                         Step::Settled(Settled::Opened { opened, reply }) => {
-                            let answer = opened.map(
-                                |Started {
-                                     name,
-                                     named,
-                                     offered,
-                                     events,
-                                 }| {
-                                    sessions.insert(name.clone(), (named, offered.clone()));
+                            let answer = opened.map(|Started { name, named, offered }| {
+                                sessions.insert(name.clone(), (named, offered.clone()));
 
-                                    OpenedSession {
-                                        session_id: name,
-                                        selectors: offered,
-                                        events,
-                                    }
-                                },
-                            );
+                                OpenedSession {
+                                    session_id: name,
+                                    selectors: offered,
+                                }
+                            });
 
                             let _ignored = reply.send(answer);
                         }
@@ -677,7 +658,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         }) => {
                             in_flight = in_flight.saturating_sub(1);
 
-                            let Ok(Some(Listening::Turn(mut recorder))) = turn.take() else {
+                            let Ok(Some(mut recorder)) = turn.take() else {
                                 let _ignored = reply.send(Err(AcpError::Poisoned));
 
                                 continue;
@@ -777,7 +758,6 @@ async fn open_session(
                 name,
                 named: session.session_id.clone(),
                 offered,
-                events: Vec::new(),
             })
         }
     };
@@ -830,12 +810,8 @@ fn mcp_servers_of(declared: Vec<Value>) -> Vec<McpServer> {
 /// 会话号不变，所以历史留在它原来的地方 —— 这正是 `session/load` 与
 /// `session/new` 的分别，也是「点开上次运行留下的对话」唯一走得通的路。
 ///
-/// 装载期间 agent 以 `session/update` 把这条会话重放一遍，而那正是这条对话的
-/// 历史本身。那些帧走接收路径上同一个入口，所以只要这条会话上有人在听，它们
-/// 与当初实时收到的那一批逐字节相同。
-///
-/// 听的是一位重播听众（[`Listening::Replay`]）：它转发但不落库，所以这段历史
-/// 不会在本地留下第二份。
+/// 装载期这条会话上没有听众，agent 重放的帧因此被丢掉：屏幕上那条经过由本机
+/// 帧日志出（run_events），agent 交回来的是模型自己的上下文。
 async fn load_session(
     connection: &ConnectionTo<Agent>,
     ledger: SessionBook,
@@ -852,8 +828,8 @@ async fn load_session(
     此后不牵着任何人，下面那句把 `session_id` 交出去才是合法的。 */
     let named = SessionId::new(Arc::<str>::from(session_id.as_str()));
 
-    // 帧要落在这条会话名下，所以它先进册子，再开始装载。
-    /* 册子里已有的条目属于一条此刻还活着的会话（同名重装载就是），装载失败
+    /* 号先进册子：装载回来的会话此后按名字寻址，而册子是唯一的名字→槽。
+    册子里已有的条目属于一条此刻还活着的会话（同名重装载就是），装载失败
     也不能动它；只有这一次新建的条目，失败了要跟着收回 —— 否则册子与主循环
     的选择器表从这里开始各说各话，而 agent_cancel 判断「有没有东西可停」读的
     正是这本册子。 */
@@ -861,8 +837,8 @@ async fn load_session(
 
     let loaded = match ledger.open(&session_id) {
         Err(unusable) => Err(unusable),
-        Ok(slot) => {
-            let opened = replay(connection, &slot, session_id.clone(), named, cwd).await;
+        Ok(_slot) => {
+            let opened = load(connection, session_id.clone(), named, cwd).await;
 
             if opened.is_err() && fresh {
                 let _forgotten = ledger.close(&session_id);
@@ -917,7 +893,6 @@ async fn fork_session(
                 name,
                 named: session.session_id.clone(),
                 offered,
-                events: Vec::new(),
             })
         }
     };
@@ -925,54 +900,20 @@ async fn fork_session(
     Settled::Opened { opened, reply }
 }
 
-/// 装载一条会话，并把 agent 重放回来的那些帧收下。
-///
-/// 听众在请求发出之前就位。Zed 出于同一个理由在 await 装载 RPC 之前就把会话
-/// 登记进 `sessions`（`crates/agent_servers/src/acp.rs`），否则装载期到达的通知
-/// 找不到归属。
-async fn replay(
+/// 装载一条会话，交回它的名字与它此刻的选择器。
+async fn load(
     connection: &ConnectionTo<Agent>,
-    slot: &RunSlot,
     session_id: String,
     named: SessionId,
     cwd: PathBuf,
 ) -> Result<Started> {
-    let collected: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(Vec::new()));
-    let sink = Arc::clone(&collected);
-
-    /* 重播帧与实时帧同属一条会话，所以它们共用那条会话的序号线：一段历史
-    装载回来之后接着往下走，位置不会撞，也不会从头再来。 */
-    slot.install(Listening::Replay(Frames::new(
-        session_id.clone(),
-        slot.seq(),
-        Box::new(move |event: RecordedEvent| {
-            /* 重播帧在这里定形，理由只有一个：它随 OpenedSession 一起交回
-            主循环，而那一格的类型是 Value。实时那条路上一次都不做 —— 帧
-            本身就是上屏的形状。两边逐字节相同，因为定形的是同一个类型。 */
-            if let Ok(value) = serde_json::to_value(event)
-                && let Ok(mut held) = sink.lock()
-            {
-                held.push(value);
-            }
-        }),
-    )))?;
-
-    let outcome = connection
+    let session = connection
         .send_request(LoadSessionRequest::new(named.clone(), cwd))
         .block_task()
-        .await;
-
-    /* 装载结束，这条会话上不再有人听 —— 下一轮提问要装得进它自己的记录器。 */
-    let _listened = slot.take();
-
-    let session = outcome.map_err(|error| AcpError::Protocol {
-        message: error.to_string(),
-    })?;
-
-    let events = collected
-        .lock()
-        .map(|mut held| std::mem::take(&mut *held))
-        .unwrap_or_default();
+        .await
+        .map_err(|error| AcpError::Protocol {
+            message: error.to_string(),
+        })?;
 
     // 装载完了 agent 同样报一次这条会话的选择器，与新开一条对称。
     Ok(Started {
@@ -982,7 +923,6 @@ async fn replay(
             Some(options) => controls(options),
             None => Vec::new(),
         },
-        events,
     })
 }
 

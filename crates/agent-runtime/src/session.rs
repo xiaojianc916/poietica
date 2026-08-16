@@ -192,11 +192,6 @@ pub struct Handshake {
 /// A session the agent just opened, and the selectors it offers for it.
 #[derive(Debug, Clone)]
 pub struct OpenedSession {
-    /// 装载一条旧会话时，agent 重放回来的那些帧，按发生顺序。
-    ///
-    /// 新开一条会话时是空的。形状与实时广播出去的帧相同，所以一条对话重开
-    /// 之后与当时看着它发生不可能有出入 —— 它们由同一个 `acp_update` 做出来。
-    pub events: Vec<serde_json::Value>,
     /// The name every frame of this session will carry.
     pub session_id: String,
     /// What may be chosen for this session, as the agent reported it.

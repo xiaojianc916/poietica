@@ -45,11 +45,11 @@ pub type FrameSink = Box<dyn FnMut(RecordedEvent) + Send>;
 
 /// 一条会话上的序号线。
 ///
-/// 位置按会话单调，不按轮次：界面正是用「seq 单调」去重的，而同一条会话上的
-/// 两轮之间那道去重必须仍然成立。装载期重播的帧与实时帧同属一条会话，所以也
-/// 从这一条线取号。
+/// 位置按会话单调，不按轮次：界面用「seq 单调」去重，而同一条会话上的两轮之间
+/// 那道去重必须仍然成立。日志的唯一键也是它（run_events 的
+/// `UNIQUE (thread_id, session_id, seq)`），所以跨进程恢复时要 `resume`。
 ///
-/// 它的家在会话槽（见 `run_slot.rs`）：听众换人，位置接着数。
+/// 它的家在会话槽（见 `run_slot.rs`）：一轮换一轮，位置接着数。
 #[derive(Clone, Debug)]
 pub struct SeqLine(Arc<AtomicI64>);
 
@@ -75,16 +75,22 @@ impl SeqLine {
     fn used(&self, seq: i64) {
         self.0.store(seq.saturating_add(1), Ordering::Release);
     }
+
+    /// 接着日志里记下的最后一个位置往下数。
+    ///
+    /// 一条会话装载回来时号不变，而它的槽是这次连接新建的、从 1 开始。不接
+    /// 上去，新一轮的帧会撞上日志里已有的位置，被 run_events 的唯一键静默
+    /// 丢掉。只前进不后退。
+    pub fn resume(&self, last: i64) {
+        let _previous = self.0.fetch_max(last.saturating_add(1), Ordering::AcqRel);
+    }
 }
 
 /// 一次运行的帧流：成形，然后投递。
 ///
-/// 它不认识日志：`session/load` 期间 agent 把整条会话重放一遍，那些帧要上屏
-/// 但不落库（见 driver.rs 的 `replay`），而那件事必须在类型上说得出来。
-///
-/// 成形与投递分成两步，是为了让序号的语义原样保留：位置在成形时只是被算出
-/// 来，投递成功才算用掉。成形失败的那一帧不投递，序号也就不前进。
-pub struct Frames {
+/// 两步分开，是为了让序号的语义原样保留：位置在成形时只是被算出来，投递成功
+/// 才算用掉。成形失败的那一帧不投递，序号也就不前进。
+pub(crate) struct Frames {
     session_id: String,
     seq: SeqLine,
     sink: FrameSink,
@@ -104,7 +110,7 @@ impl fmt::Debug for Frames {
 impl Frames {
     /// 开始一条帧流：帧属于 `session_id`，位置从它那条序号线上取。
     #[must_use]
-    pub fn new(session_id: String, seq: SeqLine, sink: FrameSink) -> Self {
+    pub(crate) fn new(session_id: String, seq: SeqLine, sink: FrameSink) -> Self {
         Self {
             session_id,
             seq,
@@ -115,7 +121,7 @@ impl Frames {
     /// 给这一帧一个位置和一个时刻。位置此刻还没有被用掉。
     ///
     /// 它不会失败：这里不再序列化任何东西，只是给帧配上它的地址。
-    pub fn shape(&self, frame: RunFrame) -> RecordedEvent {
+    pub(crate) fn shape(&self, frame: RunFrame) -> RecordedEvent {
         RecordedEvent {
             session_id: self.session_id.clone(),
             seq: self.seq.peek(),
@@ -125,28 +131,17 @@ impl Frames {
     }
 
     /// 交出去，位置就此用掉。帧的所有权一并交出：这一层此后不再读它。
-    pub fn deliver(&mut self, event: RecordedEvent) {
+    pub(crate) fn deliver(&mut self, event: RecordedEvent) {
         self.seq.used(event.seq);
 
         (self.sink)(event);
-    }
-
-    /// 装载一条旧会话时重播回来的一帧：成形，投递，不落库。
-    ///
-    /// 没有日志可写，因为这一份历史的持有者是 agent 而不是这台机器。收的是
-    /// 一帧成品，与实时那一轮同一个来源，所以两边的帧一模一样。
-    pub fn record_frame(&mut self, frame: RunFrame) {
-        let event = self.shape(frame);
-
-        self.deliver(event);
     }
 }
 
 /// 一轮的记录者：决定此刻发生了哪一种事，然后把它做成一帧交出去。
 ///
-/// 它不写任何存储。一段对话的持有者是 agent，历史由 `session/load` 交回来
-/// （见 commands/agent.rs 的 `agent_open_thread`），所以本地再记一份，记的
-/// 就是第二份真相 —— 两份一旦分叉，屏幕上那份是对面那份的赝品。
+/// 它不写任何存储：帧交给 `FrameSink`，落库由收帧的那一侧做（桌面 seam 的
+/// commands/agent/turn.rs）。这一层因此不需要一个数据库就能测。
 ///
 /// 剩下的两张表是这一轮自己的工作内存：见过的工具调用叫什么，还有谁在等
 /// 答复。一轮结束它们跟着走，本来就不该活到下一次启动。

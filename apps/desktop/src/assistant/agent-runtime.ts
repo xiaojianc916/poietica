@@ -161,7 +161,10 @@ export function createDesktopAgentRuntime(
     write: posture.write,
   }
 
-  const sessionConfig = createAgentSessionConfigBridge({ onListenFailure: noteListenFailure })
+  const sessionConfig = createAgentSessionConfigBridge({
+    mcpServers: options.mcpServers,
+    onListenFailure: noteListenFailure,
+  })
 
   const sessionUsage = createAgentSessionUsageBridge({ onListenFailure: noteListenFailure })
 

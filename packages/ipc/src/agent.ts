@@ -325,12 +325,21 @@ function controlOf(native: AgentConfigControl): SessionConfigControl {
 }
 
 export function createAgentSessionConfigBridge({
+  mcpServers,
   onListenFailure,
-}: AgentEventSourceOptions = {}): SessionConfigPort {
+}: Pick<AgentBridgeOptions, 'mcpServers'> & AgentEventSourceOptions = {}): SessionConfigPort {
   return {
     select: async (threadId, configId, value) => {
+      /* 点名一条对话就可能要为它开会话，而 MCP 名册是 session/new 的参数：
+      少了它，从这条路开出的会话一台服务器都不挂。 */
+      const resolvedMcpServers = (await mcpServers?.()) ?? []
       const offered = await throughIpc(() =>
-        commands.agentSetConfigOption({ threadId, configId, value }),
+        commands.agentSetConfigOption({
+          threadId,
+          configId,
+          value,
+          mcpServers: [...resolvedMcpServers],
+        }),
       )
 
       return offered.map(controlOf)
@@ -403,8 +412,15 @@ export function createAgentCapabilityBridge({
     },
 
     select: async (control, value) => {
+      /* 锚会话不经 session_for，也不挂 MCP —— 理由见 driver.rs 握手处那条
+      会话的注释。 */
       const offered = await throughIpc(() =>
-        commands.agentSetConfigOption({ threadId: null, configId: control.id, value }),
+        commands.agentSetConfigOption({
+          threadId: null,
+          configId: control.id,
+          value,
+          mcpServers: [],
+        }),
       )
 
       return offered.map(controlOf)

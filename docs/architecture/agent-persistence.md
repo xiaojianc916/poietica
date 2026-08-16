@@ -1,74 +1,60 @@
-# AI persistence
+# Agent persistence
 
-The crate `poietica-agent-persistence-native` at `crates/persistence` owns everything the
-assistant keeps on disk.
+The crate `poietica-agent-persistence-native` at `crates/persistence` owns the
+local index: what this machine has seen. Schema is in `src/schema/`, and the
+migration list in `src/migrations.rs` is the only order that matters.
 
-## Encryption
+## What is stored here, and what is not
 
-The whole database is encrypted with SQLCipher, compiled in through
-`rusqlite`'s bundled feature rather than linked against whatever the host
-happens to provide, so the cipher configuration in production matches the one
-under test.
+The transcript on screen is replayed from `run_events`. The agent keeps its own
+copy, but that one is the model's context: it is restored by `session/load` so
+the agent can carry on, and it never reaches a projection. The replay frames
+carry no `run_started`, so segment boundaries would collapse if they did.
 
-The key is 32 random bytes held in the operating system credential store and
-passed as a raw key, `PRAGMA key = "x'<hex>'"`. A raw key skips key
-derivation entirely; deriving from a passphrase would cost hundreds of
-thousands of PBKDF2 rounds on every open and add nothing, because the material
-already has full entropy.
+`threads` is authoritative rather than derived. Titles, pinning, workspace root
+and ownership are decisions a person or this machine made, and no log can
+rebuild them.
 
-A wrong key is detected immediately after opening by reading
-`sqlite_master`, since SQLCipher only proves a key once a page is decrypted.
+Attachment bytes live on the filesystem. `attachments` and `thread_attachments`
+are the ledger for them, keyed by content digest.
 
-Credential storage goes through `keyring`, whose version 4 reaches the macOS
-keychain, the Windows Credential Manager and the \*nix Secret Service through
-its default `v1` feature. The per-platform features of version 3 no longer
-exist, and the entry type now lives in the `v1` module.
+## The frame log
 
-## The event log
+`run_events` is append only. It is written in one place, the batching task in
+the desktop seam (`commands/agent/turn.rs`), which records a batch before it
+emits it, and read in one place (`agent_open_thread`).
 
-`run_events` is append only and is the source of truth. The ACP client
-writes each session update to it **before** forwarding it to the interface, so
-an interrupted run stays replayable and `session/load` has something to read.
+`UNIQUE (thread_id, session_id, seq)` is the deduplication guarantee, and
+`record_frame` resolves it with `ON CONFLICT DO NOTHING`: a redelivered frame is
+refused by the database rather than by whichever caller happened to notice.
 
-`UNIQUE (run_id, seq)` is the deduplication guarantee. A redelivered update
-is refused by the database rather than by whichever caller happened to notice,
-and surfaces as `StoreError::DuplicateSeq`.
+The key is per conversation, not per session. It was `(session_id, seq)` until
+migration 3, which meant a forked conversation could not copy the log it was
+forked from.
 
-Every other table is a projection. Projections can be rebuilt from the log,
-which means a bug in one is never a loss of data.
+Because the key includes `seq`, the in-memory sequence line has to survive a
+restart. It does not on its own: a reloaded session keeps its identifier while
+its `RunSlot` is new and starts at one. `AgentStore::last_seq` reports the last
+recorded position and `SeqLine::resume` picks up after it, in `addressing.rs`,
+at the one place a stored session becomes a live address.
 
 ## Concurrency
 
-Write ahead logging lets the interface read a run while it is still being
-recorded. Writes go through one connection, because the log's ordering is what
-the rest of the system depends on and serialising them is cheaper than
-reconciling interleaved sequence numbers afterwards. Readers wait up to five
-seconds for the lock.
+Write ahead logging lets the interface read a conversation while a run is being
+recorded. `connection.rs` reads back the mode the pragma actually settled on,
+because a read-only directory or a network share silently answers `delete`.
 
-## What comes next
+Writes go through one connection (`AgentStore`, held by `LocalIndex`), because
+the log's ordering is what the rest of the system depends on. Readers wait up to
+`DEFAULT_BUSY_TIMEOUT`, five seconds, for the lock. Every call runs on a
+blocking thread: a command that waited for the lock on the main thread would
+stop the window from answering.
 
-The message, plan and attachment projections are deliberately absent. They are
-derived from ACP updates, and their shape should follow the client that
-produces them rather than be guessed ahead of it.
+## Encryption
 
-## Tool call and permission projections
-
-`tool_calls` and `permissions` are projections. They are written from the
-same code path that appends to `run_events`, never independently of it, so
-they can be dropped and rebuilt by replaying the log.
-
-Three rules follow from the fact that the source of those writes is a stream
-that may repeat itself:
-
-- An announcement that arrives twice folds into the existing row. The protocol
-  permits an agent to describe the same call more than once while its input is
-  still streaming in.
-- An update that arrives before the announcement it belongs to matches no row.
-  The write reports that instead of inventing one, because only the caller
-  knows whether that is a recoverable ordering artefact or a real fault.
-- An answer to a permission request only lands while the request is still
-  outstanding. This is what stops a late click from overwriting a
-  cancellation.
-
-The end timestamp is written by exactly one decision, `ToolCallStatus::is_terminal`,
-so completed and failed calls can never disagree about whether they finished.
+There is none. The database is opened with `rusqlite::Connection::open` and no
+key pragma, and the crate depends on neither SQLCipher nor a credential store.
+The reason is in `lib.rs`: what is kept here is an index, and seven columns of
+metadata protect nothing from anyone who can already read the agent's own
+plaintext transcript. Secrets never reach this file; they are written by the
+agent's own CLI into its managed home.
