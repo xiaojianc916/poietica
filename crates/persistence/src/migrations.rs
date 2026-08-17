@@ -22,6 +22,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "drop_turn_spans",
         include_str!("schema/0005_drop_turn_spans.sql"),
     ),
+    (
+        6,
+        "bridge_old_numbering",
+        include_str!("schema/0006_bridge_old_numbering.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.
