@@ -108,9 +108,9 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
 
       upsertToolCall(draft, toolCallId, event.at, {
         status: 'in_progress',
-        rawInput: payload.args,
+        rawInput: fieldOf(payload, 'args'),
         ...(name === undefined ? {} : { title: name }),
-        ...readDisplay(payload.display),
+        ...readDisplay(fieldOf(payload, 'display')),
       })
 
       return
@@ -120,7 +120,7 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
       /* 进度是追加，不是替换：每一帧都是产出的下一截。percent 之类的仪表在
          这张卡片上没有读者，不落。 */
       const toolCallId = stringOf(payload, 'toolCallId')
-      const update = payload.update
+      const update = fieldOf(payload, 'update')
       const text =
         typeof update === 'object' && update !== null ? Reflect.get(update, 'text') : undefined
 
@@ -144,8 +144,8 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
       }
 
       upsertToolCall(draft, toolCallId, event.at, {
-        status: payload.isError === true ? 'failed' : 'completed',
-        rawOutput: payload.output,
+        status: fieldOf(payload, 'isError') === true ? 'failed' : 'completed',
+        rawOutput: fieldOf(payload, 'output'),
       })
 
       return
@@ -206,9 +206,24 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
   }
 }
 
+/**
+ * 载荷里的一个格子。
+ *
+ * 键走变量而不是字面量，是被两条规矩夹出来的：载荷的形状是一条索引签名（契约
+ * 那一层不为它不认识的字段写名字），于是 noPropertyAccessFromIndexSignature 不
+ * 许写 payload.args，而 biome 的 useLiteralKeys 不许写 payload['args']。取一个
+ * 名字进来，两条都不再适用。
+ *
+ * 顺带把这件事说清楚了：这不是在读一个已知的属性，是在一份形状未经校验的载荷里
+ * 挑一格 —— 返回 unknown，认它是什么由调用处自己判。
+ */
+function fieldOf(payload: KapEventPayload, key: string): unknown {
+  return payload[key]
+}
+
 /** 载荷里的一个字符串格子：不是非空字符串就当它没带。 */
 function stringOf(payload: KapEventPayload, key: string): string | undefined {
-  const value = payload[key]
+  const value = fieldOf(payload, key)
 
   return typeof value === 'string' && value !== '' ? value : undefined
 }
