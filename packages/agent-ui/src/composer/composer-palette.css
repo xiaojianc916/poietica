@@ -1,0 +1,99 @@
+/* 面板贴着输入框卡片的上沿、与它同宽，向上展开。令牌全部取自 composer-metrics.css。 */
+
+.composer-palette {
+  position: relative;
+}
+
+.composer-palette__panel {
+  position: absolute;
+  right: 0;
+  bottom: 8px;
+  left: 0;
+  z-index: 20;
+  max-block-size: min(420px, calc(100vh - 96px));
+  overflow-y: auto;
+  background: var(--cp-menu-face);
+  border: var(--cp-px) solid var(--cp-menu-edge);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.composer-palette__group {
+  padding: var(--am-pad);
+}
+
+.composer-palette__group + .composer-palette__group {
+  border-block-start: var(--cp-px) solid var(--cp-menu-line);
+}
+
+.composer-palette__heading {
+  padding: 2px 8px 4px;
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+}
+
+.composer-palette__row {
+  display: flex;
+  min-block-size: 28px;
+  inline-size: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink);
+  text-align: start;
+  cursor: default;
+  background: transparent;
+  border: 0;
+  border-radius: var(--am-item);
+}
+
+.composer-palette__row:hover,
+.composer-palette__row[data-highlighted="true"] {
+  outline: none;
+  background: var(--cp-menu-hover);
+}
+
+.composer-palette__icon {
+  display: flex;
+  flex: none;
+  color: var(--cp-ink-muted);
+}
+
+.composer-palette__icon svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+.composer-palette__label {
+  white-space: nowrap;
+}
+
+.composer-palette__detail {
+  min-inline-size: 0;
+  overflow: hidden;
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-palette__hint {
+  margin-inline-start: auto;
+  font-family: inherit;
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+}
+
+.composer-palette__tick {
+  display: flex;
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--cp-ink);
+}
+
+.composer-palette__tick svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}

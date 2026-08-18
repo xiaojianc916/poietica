@@ -1,230 +1,146 @@
 import type { PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuRadioItemIndicator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@poietica/ui'
-import { memo, useMemo } from 'react'
-import {
-  AttachIcon,
-  CheckIcon,
-  CloseIcon,
-  PlusIcon,
-  SkillIcon,
-  ToolIcon,
-} from '../primitives/icons'
-import { COMPOSER_MODES, type ComposerMode } from './modes'
-import { usePromptInputActions, usePromptInputModes } from './prompt-input'
+import { CloseIcon, PlusIcon, SkillIcon, TerminalIcon, ToolIcon } from '../primitives/icons'
+import type { PaletteGroup } from './composer-palette'
+import { usePromptInputActions } from './prompt-input'
 
 /*
  * 加号那一侧：往这一句里加什么。
  *
- * 「这一句怎么被批准执行」不在这里 —— 那是一颗常显的胶囊（permission-picker），
- * 藏进菜单意味着人必须先点开才知道自己此刻授了多大的权。
+ * 面板本身归输入框 —— 它锚在卡的上沿，与斜杠触发的是同一张，键盘也因此只有一套。
+ * 这里只剩下扳机和一次投影。
  *
- * 能力那几行不是这里编出来的：它们是 agent 报的 mode / other 两类选择器。
- * agent 没报就没有那一行 —— 画一行点不动的灰字等于告诉用户"这里坏了"。
- *
- * 不来自 agent 的行只有两类：「添加文件」与输入姿态（目录在 modes.tsx），都归
- * 输入框。技能行来自 agent 报的命令表，与斜杠菜单读同一张 palette。
- *
- * 弹层行为全部归 Base UI（设计系统的 DropdownMenu）：Portal、方向键、打字选中、
- * Esc 逐级关闭、焦点归还。这里只给皮肤与几何。
+ * 档位那几组不是本文件编出来的：它们是 agent 报的 mode / other 两类选择器
+ * （ACP session config options）。agent 没报就没有那一组 —— 画一行点不动的
+ * 灰字等于告诉用户"这里坏了"。
  */
 
-export interface ComposerActionsProps {
-  readonly controls: readonly SessionConfigControl[]
-  readonly onSelectControl: (controlId: string, value: string) => void
-  /** agent 报的命令表；技能组由此长出，与斜杠菜单同一张。不给就没有那一组。 */
-  readonly palette?: readonly PaletteEntry[] | undefined
+export function ComposerActions() {
+  const { togglePalette } = usePromptInputActions()
+
+  return (
+    <button
+      aria-label="添加内容"
+      className="assistant-control--ghost"
+      onClick={togglePalette}
+      type="button"
+    >
+      <PlusIcon aria-hidden="true" />
+    </button>
+  )
 }
 
-/*
- * 记住不重建，与工具条里另外两簇同一条规矩：同一份入参、同一种分流、同样是一个
- * 菜单根加 N 个子菜单根。controls 只在 agent 报新表时换引用。
+export interface ComposerPaletteSource {
+  readonly controls: readonly SessionConfigControl[]
+  readonly onSelectControl: (controlId: string, value: string) => void
+  /** agent 报的命令表；技能与命令两组由它长出，与斜杠触发读同一张。 */
+  readonly palette: readonly PaletteEntry[]
+}
+
+/**
+ * agent 报的档位与命令，摊成面板的分组。
+ *
+ * 「添加文件」不在这里：它不来自 agent，归输入框自己那一组。
  */
-export const ComposerActions = memo(function ComposerActions({
+export function composerPaletteGroups({
   controls,
   onSelectControl,
   palette,
-}: ComposerActionsProps) {
-  /* 动作引用终身稳定：这里取文件选择器，姿态开关由各行自己取。 */
-  const { openFilePicker } = usePromptInputActions()
+}: ComposerPaletteSource): readonly PaletteGroup[] {
+  const groups: PaletteGroup[] = []
 
-  const extras = useMemo(
-    () => controls.filter((control) => control.purpose === 'mode' || control.purpose === 'other'),
-    [controls],
-  )
+  for (const control of controls) {
+    if (control.purpose !== 'mode' && control.purpose !== 'other') {
+      continue
+    }
 
-  const skills = useMemo(() => (palette ?? []).filter((entry) => entry.kind === 'skill'), [palette])
+    groups.push({
+      id: control.id,
+      heading: control.label,
+      rows: control.choices.map((choice) => ({
+        id: `${control.id}:${choice.value}`,
+        icon: <ToolIcon aria-hidden="true" />,
+        label: choice.label,
+        ...(choice.detail === undefined ? {} : { detail: choice.detail }),
+        checked: choice.value === control.current,
+        action: {
+          kind: 'run' as const,
+          run: () => {
+            if (choice.value !== control.current) {
+              onSelectControl(control.id, choice.value)
+            }
+          },
+        },
+      })),
+    })
+  }
 
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger aria-label="添加内容" className="assistant-control--ghost">
-        <PlusIcon aria-hidden="true" />
-      </DropdownMenuTrigger>
+  const skills = palette.filter((entry) => entry.kind === 'skill')
+  const commands = palette.filter((entry) => entry.kind !== 'skill')
 
-      <DropdownMenuContent
-        align="start"
-        className="assistant-plus-menu assistant-menu-surface"
-        data-assistant-skin
-        side="top"
-        sideOffset={6}
-      >
-        <div className="assistant-plus-menu__group">
-          <div className="assistant-plus-menu__heading">添加</div>
+  if (skills.length > 0) {
+    groups.push({ id: 'skills', heading: '技能', rows: skills.map((entry) => row(entry, true)) })
+  }
 
-          <DropdownMenuItem className="assistant-plus-menu__item" onClick={openFilePicker}>
-            <AttachIcon aria-hidden="true" />
+  if (commands.length > 0) {
+    groups.push({
+      id: 'commands',
+      heading: '命令',
+      rows: commands.map((entry) => row(entry, false)),
+    })
+  }
 
-            <span className="assistant-plus-menu__label">添加文件</span>
+  return groups
+}
 
-            <kbd className="assistant-plus-menu__hint">Ctrl+U</kbd>
-          </DropdownMenuItem>
-
-          {COMPOSER_MODES.map((mode) => (
-            <ModeRow key={mode.id} mode={mode} />
-          ))}
-
-          {extras.map((control) => (
-            <DropdownMenuSub key={control.id}>
-              <DropdownMenuSubTrigger className="assistant-plus-menu__item">
-                <ToolIcon aria-hidden="true" />
-
-                <span className="assistant-plus-menu__label">{control.label}</span>
-              </DropdownMenuSubTrigger>
-
-              <DropdownMenuSubContent
-                align="start"
-                className="assistant-plus-menu assistant-menu-surface"
-                data-assistant-skin
-                side="right"
-              >
-                <DropdownMenuRadioGroup
-                  className="assistant-plus-menu__group"
-                  onValueChange={(value) => {
-                    if (value === control.current) {
-                      return
-                    }
-                    onSelectControl(control.id, value)
-                  }}
-                  value={control.current}
-                >
-                  {control.choices.map((choice) => (
-                    <DropdownMenuRadioItem
-                      className="assistant-plus-menu__item"
-                      key={choice.value}
-                      value={choice.value}
-                    >
-                      <span className="assistant-plus-menu__label">{choice.label}</span>
-
-                      {choice.detail === undefined ? null : (
-                        <span className="assistant-plus-menu__detail">{choice.detail}</span>
-                      )}
-
-                      <DropdownMenuRadioItemIndicator className="assistant-plus-menu__tick">
-                        <CheckIcon aria-hidden="true" />
-                      </DropdownMenuRadioItemIndicator>
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          ))}
-        </div>
-
-        {skills.length === 0 ? null : (
-          <div className="assistant-plus-menu__group">
-            <div className="assistant-plus-menu__heading">技能</div>
-
-            {skills.map((entry) => (
-              <SkillRow entry={entry} key={entry.name} />
-            ))}
-          </div>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-})
-
-/* 一行姿态：图标、名字、一句淡描述；开着的那行最右打勾。 */
-function ModeRow({ mode }: { readonly mode: ComposerMode }) {
-  const { toggleMode } = usePromptInputActions()
-  const active = usePromptInputModes().some((held) => held.id === mode.id)
-
-  return (
-    <DropdownMenuItem
-      className="assistant-plus-menu__item"
-      onClick={() => {
-        toggleMode(mode)
-      }}
-    >
-      {mode.icon}
-
-      <span className="assistant-plus-menu__label">{mode.label}</span>
-
-      <span className="assistant-plus-menu__desc">{mode.description}</span>
-
-      {active ? (
-        <span className="assistant-plus-menu__tick">
-          <CheckIcon aria-hidden="true" />
-        </span>
-      ) : null}
-    </DropdownMenuItem>
-  )
+function row(entry: PaletteEntry, skill: boolean) {
+  return {
+    id: entry.name,
+    icon: skill ? <SkillIcon aria-hidden="true" /> : <TerminalIcon aria-hidden="true" />,
+    label: skill ? entry.title : entry.label,
+    ...(entry.description === '' ? {} : { detail: entry.description }),
+    token: entry.label,
+    action: { kind: 'insert' as const, snippet: entry.label },
+  }
 }
 
 /*
- * 生效姿态的胶囊，站在批准方式旁边：一颗一条，点它就摘掉。
- * 状态唯一所有者是 PromptInput，这里只画投影；摘除与菜单再点一次
- * 走同一条写入路径（toggleMode）。
+ * 生效档位的胶囊，站在批准方式旁边。
+ *
+ * 首档是 agent 摆在最前的常态档（ACP 规定 options 的顺序就是渲染顺序），所以
+ * 停在首档时这里什么都不画 —— 常态不需要标记。摘掉就是切回首档，与面板里点那
+ * 一行走同一条写入路径。
  */
-export function ComposerModeChips() {
-  const { toggleMode } = usePromptInputActions()
-  const modes = usePromptInputModes()
+export interface ComposerModeChipProps {
+  readonly controls: readonly SessionConfigControl[]
+  readonly onSelect: (controlId: string, value: string) => void
+}
 
-  return modes.map((mode) => (
+export function ComposerModeChip({ controls, onSelect }: ComposerModeChipProps) {
+  const mode = controls.find((control) => control.purpose === 'mode')
+
+  if (mode === undefined) {
+    return null
+  }
+
+  const [first] = mode.choices
+  const inForce = mode.choices.find((choice) => choice.value === mode.current)
+
+  if (first === undefined || inForce === undefined || mode.current === first.value) {
+    return null
+  }
+
+  return (
     <button
-      aria-label={`关闭${mode.label}`}
+      aria-label={`退出${inForce.label}`}
       className="assistant-mode-chip"
-      key={mode.id}
       onClick={() => {
-        toggleMode(mode)
+        onSelect(mode.id, first.value)
       }}
       type="button"
     >
       <CloseIcon aria-hidden="true" />
 
-      <span className="assistant-mode-chip__label">{mode.label}</span>
+      <span className="assistant-mode-chip__label">{inForce.label}</span>
     </button>
-  ))
-}
-
-/* 一行技能：图标、名字、agent 给的那句淡描述；点击把调用式插进光标处。 */
-function SkillRow({ entry }: { readonly entry: PaletteEntry }) {
-  const { insertSnippet } = usePromptInputActions()
-
-  return (
-    <DropdownMenuItem
-      className="assistant-plus-menu__item"
-      onClick={() => {
-        insertSnippet(`${entry.label} `)
-      }}
-    >
-      <SkillIcon aria-hidden="true" />
-
-      <span className="assistant-plus-menu__label">{entry.title}</span>
-
-      {entry.description === '' ? null : (
-        <span className="assistant-plus-menu__desc">{entry.description}</span>
-      )}
-    </DropdownMenuItem>
   )
 }
