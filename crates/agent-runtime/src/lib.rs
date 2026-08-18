@@ -1,6 +1,4 @@
-//! 两条线上的 agent 客户端：ACP，以及 deepseek-harness 的 SDK 线。
-//!
-//! 起进程的方式相同，帧的形状相同（frame.rs），此外互不翻译（ADR 0022）。
+//! ACP 上的 agent 客户端。
 //!
 //! Three rules shape this crate.
 //!
@@ -21,22 +19,12 @@
 //! there is nobody to ask.
 
 pub use driver::connect as connect_acp;
-pub use dsh_driver::connect_harness;
 
 mod commands;
 mod config;
 mod credentials;
 mod desk;
 mod driver;
-mod dsh;
-mod dsh_driver;
-pub use dsh::{
-    ErrorBody, INITIALIZE, Incoming, InitializeParams, InitializeResult, Notification, RequestId,
-    SERVER_NAME, SESSION_PROMPT, SHUTDOWN, SdkRunStatus, ServerInfo, SessionEventNotification,
-    SessionPromptParams, SessionPromptResult, SessionStatus, SessionStatusNotification,
-    SubagentFinishedNotification, SubagentStartedNotification, decode_line, initialize_line,
-    method_not_found_line, prompt_line, shutdown_line,
-};
 mod error;
 mod frame;
 mod permission;
@@ -57,11 +45,11 @@ pub use credentials::{
 pub use desk::PermissionDesk;
 pub use error::{AcpError, Refusal, Result};
 pub use frame::{
-    ACP_UPDATE, FrameNotification, HARNESS_EVENT, PERMISSION_REQUESTED, PERMISSION_RESOLVED,
-    RUN_FAILED, RUN_FINISHED, RUN_STARTED, RunFrame, acp_update,
+    ACP_UPDATE, FrameNotification, PERMISSION_REQUESTED, PERMISSION_RESOLVED, RUN_FAILED,
+    RUN_FINISHED, RUN_STARTED, RunFrame, acp_update,
 };
 pub use permission::{Decision, answers, decide};
-pub use program::{HarnessRuntime, resolve_harness_runtime, resolve_program};
+pub use program::resolve_program;
 pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine, now_millis};
 pub use run_slot::RunSlot;
 pub use session::{

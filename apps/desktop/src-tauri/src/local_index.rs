@@ -87,7 +87,13 @@ where
 }
 
 /// 库说不行，说给上一层听的那一句。
+///
+/// 交给界面的是脱敏的固定文案（error.rs 的 public_message），所以库自己报的原因
+/// 只能落在日志里 —— 不写，这一层就是整条链路上唯一知道原因却什么都没说的地方。
+/// 折叠即记录，与 commands/agent/failure.rs 的 translate 同一条纪律。
 pub fn persistence(error: StoreError) -> Error {
+    log::error!("the local index rejected a statement: {error}");
+
     Error::Persistence(error.to_string())
 }
 

@@ -1,5 +1,5 @@
 import * as v from 'valibot'
-import type { AgentDescriptor, AgentTransport } from './agent-descriptor'
+import type { AgentDescriptor } from './agent-descriptor'
 import { agentRoster } from './agents'
 
 /** 会话配置值。对应 ACP 的 ConfigOption currentValue（string | boolean）。 */
@@ -354,26 +354,20 @@ function withDescriptorFields(profile: AgentProfile): AgentProfile {
   return unchanged ? profile : next
 }
 
-/** 起一个 agent 进程要说清的两件事。 */
+/** 起一个 agent 进程要说清的那件事。 */
 export interface AgentLaunchSpec {
   readonly agentId: string
-  /** 走哪条传输。原生侧据此选驱动，也据它解析启动规格。 */
-  readonly transport: AgentTransport
 }
 
 /**
  * 把一家 agent 翻成一次启动。
  *
- * 不带 argv。程序在哪、要几个参数，是「这台机器上」的事实：acp 线要在搜索路径上
- * 解析一个用户自己装的 CLI，harness 线要问已安装的运行时包。渲染进程两样都答不出，
- * 而它此前答了 —— agent_program 的注释早就写着「它刻意不来自请求」，那句话对 CLI
- * 那条路成立，对会话这条路一直不成立。
+ * 不带 argv。程序在哪、要几个参数，是「这台机器上」的事实：原生侧在搜索路径上
+ * 解析用户自己装的那个 CLI。渲染进程答不出，而它此前答了 —— agent_program 的注释
+ * 早就写着「它刻意不来自请求」，那句话对 CLI 那条路成立，对会话这条路一直不成立。
  */
 export function agentLaunch(agent: AgentDescriptor): AgentLaunchSpec {
-  return {
-    agentId: agent.id,
-    transport: agent.transport,
-  }
+  return { agentId: agent.id }
 }
 
 /**

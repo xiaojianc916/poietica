@@ -1,10 +1,6 @@
 //! 把档案里写的程序名解析成一条真的能启动的路径。
 
 use std::path::PathBuf;
-use std::process::Command;
-use std::sync::OnceLock;
-
-use serde::Deserialize;
 
 use crate::error::{AcpError, Result};
 
@@ -47,93 +43,6 @@ pub fn resolve_program(program: &str) -> Result<PathBuf> {
              装好之后重新打开 Poietica 就能用了。（{error}）"
         ),
     })
-}
-
-/// bundled 运行时在这台机器上的启动规格。
-#[derive(Clone, Debug)]
-pub struct HarnessRuntime {
-    /// 第一个元素是可执行文件，其余是它的参数。
-    pub argv: Vec<String>,
-    /// 那份 cordis 配置。运行时没有它会当场退出。
-    pub config: String,
-}
-
-#[derive(Deserialize)]
-struct Probed {
-    argv: Vec<String>,
-    config: String,
-}
-
-/// 一次问清两件事：argv 与配置。分两次问，就是两次进程启动和两个可能对不上的答案。
-const PROBE: &str = "import json,deepseek_harness_runtime as r;\
-print(json.dumps({'argv':list(r.resolve_bundled_launch_args()),\
-'config':str(r.bundled_default_config_path())}))";
-
-/// 成功之后不再问。失败不缓存 —— 用户可以在应用开着的时候把包装上。
-static HARNESS: OnceLock<HarnessRuntime> = OnceLock::new();
-
-/// deepseek-harness 线在这台机器上怎么启动。
-///
-/// 不猜路径。官方 python/sdk-runtime 的 README 把这件事划成了一条查询接口
-/// （resolve_bundled_launch_args 与 bundled_default_config_path），并写明获取渠道
-/// 与查询接口是分开的，好让按需下载以后能替换掉前者而不动调用方 —— 也就是说
-/// site-packages 底下的布局不是承诺，问那两个函数才是。
-///
-/// 配置不是可选项：同一份 README 写着运行时「always demands an explicit config
-/// ($DSH_CORDIS_CONFIG …) and exits loudly without one」。
-///
-/// # Errors
-///
-/// 找不到 Python、包没装、或探测的输出读不成时返回 [`AcpError::Spawn`]。
-pub fn resolve_harness_runtime() -> Result<HarnessRuntime> {
-    if let Some(known) = HARNESS.get() {
-        return Ok(known.clone());
-    }
-
-    let interpreter = ["python3", "python"]
-        .into_iter()
-        .find_map(|name| which::which(name).ok())
-        .ok_or_else(|| AcpError::Spawn {
-            message: "这台电脑上没有找到 Python。DeepSeek 的运行时随 Python 包发行，\
-                      装好 Python 之后执行 pip install deepseek-harness-sdk 就能用了。"
-                .to_owned(),
-        })?;
-
-    let probe = Command::new(&interpreter)
-        .arg("-c")
-        .arg(PROBE)
-        .output()
-        .map_err(|error| AcpError::Spawn {
-            message: format!("启动 Python 失败：{error}"),
-        })?;
-
-    if !probe.status.success() {
-        return Err(AcpError::Spawn {
-            message: format!(
-                "这台电脑上还没有 DeepSeek 的运行时。执行 pip install deepseek-harness-sdk \
-                 装好之后重新发一次消息就能用了。（{}）",
-                String::from_utf8_lossy(&probe.stderr).trim()
-            ),
-        });
-    }
-
-    let probed: Probed =
-        serde_json::from_slice(&probe.stdout).map_err(|error| AcpError::Spawn {
-            message: format!("读不懂 DeepSeek 运行时报回来的启动规格：{error}"),
-        })?;
-
-    if probed.argv.is_empty() {
-        return Err(AcpError::Spawn {
-            message: "DeepSeek 的运行时报回了一个空的启动命令".to_owned(),
-        });
-    }
-
-    let resolved = HarnessRuntime {
-        argv: probed.argv,
-        config: probed.config,
-    };
-
-    Ok(HARNESS.get_or_init(|| resolved).clone())
 }
 
 #[cfg(test)]

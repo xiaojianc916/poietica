@@ -19,8 +19,6 @@ use serde_json::Value;
 
 /// 一轮的第一帧。
 pub const RUN_STARTED: &str = "run_started";
-/// deepseek-harness 会话日志事件那一帧的判别值。
-pub const HARNESS_EVENT: &str = "harness_event";
 /// agent 发来的一帧会话通知。
 pub const ACP_UPDATE: &str = "acp_update";
 /// agent 正卡在一次授权请求上。
@@ -42,9 +40,9 @@ pub struct FrameNotification {
     pub update: Value,
 }
 
-/// 一次运行里可能发生的七种事。
+/// 一次运行里可能发生的六种事。
 ///
-/// `acp_update` 承载协议通知原文；其余六种是协议不建模、而客户端必须记住的
+/// `acp_update` 承载协议通知原文；其余五种是协议不建模、而客户端必须记住的
 /// 事实。每一种都带 `seq` 与 `at`（见 `RecordedEvent`），所以重放是确定的。
 #[derive(Clone, Debug, Serialize)]
 #[serde(
@@ -53,11 +51,6 @@ pub struct FrameNotification {
     rename_all_fields = "camelCase"
 )]
 pub enum RunFrame {
-    /// harness 运行时报来的一条会话日志事件，线上形状原样。
-    ///
-    /// 与 AcpUpdate 同一条规矩：载荷是协议原文，这一层不解释它。
-    #[serde(rename_all = "camelCase")]
-    HarnessEvent { session_id: String, event: Value },
     /// 这一轮开始了：问的是什么，以及随它送出去的图片。
     RunStarted {
         /// 人说的那句话，按记录时的原文。
@@ -120,7 +113,6 @@ impl RunFrame {
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
-            Self::HarnessEvent { .. } => HARNESS_EVENT,
             Self::RunStarted { .. } => RUN_STARTED,
             Self::AcpUpdate { .. } => ACP_UPDATE,
             Self::PermissionRequested { .. } => PERMISSION_REQUESTED,
@@ -187,7 +179,7 @@ pub(crate) fn normalize(value: &mut Value, update: &SessionUpdate) -> serde_json
 ///
 /// 序列化协议更新失败时报错。
 ///
-/// 对外的理由与帧本身相同：两条驱动线与集成测试都从这里成帧，不另造第二份。
+/// 对外的理由与帧本身相同：驱动线与集成测试都从这里成帧，不另造第二份。
 pub fn acp_update(notification: &SessionNotification) -> serde_json::Result<RunFrame> {
     let mut update = serde_json::to_value(&notification.update)?;
 

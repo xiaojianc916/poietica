@@ -5,28 +5,21 @@
 
 use crate::commands::agent_setup::profile::{agent_args, agent_program, launch_env};
 use crate::error::{Error, Result};
-use crate::paths::{agent_session_root, attachments_root};
+use crate::paths::attachments_root;
 use poietica_agent_persistence_native::SessionUsage;
 use poietica_agent_runtime_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession,
     CanForkSession, CanLoadSession, Handshake, PermissionDesk, Refusal, RunSlot, SessionBook,
-    SessionEvent, connect_acp, connect_harness, resolve_harness_runtime,
+    SessionEvent, connect_acp,
 };
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 
 use super::config::restate;
-use super::dto::{AgentLaunch, AgentSessionEvent, AgentTransport, reported_usage};
+use super::dto::{AgentLaunch, AgentSessionEvent, reported_usage};
 use super::failure::translate;
 use super::{AGENT_SESSION_EVENT, NO_SESSION_ID, POISONED};
-
-/// 建立一条连接的那个函数。两条传输共用这一个形状。
-type DialFn = fn(
-    AgentSpawn,
-    RunSlot,
-    PermissionDesk,
-) -> poietica_agent_runtime_native::Result<AgentConnection>;
 
 /// The live connection, if one has been started.
 ///
@@ -199,10 +192,7 @@ pub(super) async fn ensure_session(
     /* 起哪个 agent 是这个函数的第一件事，因为下面每一次「连接已经在了」都要
     拿它来问。此前它在函数中段才被解构出来，于是上面那两次检查只问了有没有
     连接 —— 换了 agent 之后，这一句话照旧发给上一个进程。 */
-    let AgentLaunch {
-        agent_id,
-        transport,
-    } = launch;
+    let AgentLaunch { agent_id } = launch;
 
     if let Some(live) = borrow(state)?
         && live.agent_id == agent_id
@@ -240,7 +230,7 @@ pub(super) async fn ensure_session(
     // browser_* 工具才有东西可接。没有端口或已有实例时它是空操作。
     crate::browser::ensure_live_kernel(app);
 
-    let spawn = outfit(app, &agent_id, transport, working_directory)?;
+    let spawn = outfit(app, &agent_id, working_directory)?;
 
     // The book that files frames under the session that names them belongs
     // to the connection, and the driver holds its own handle to it, so
@@ -258,7 +248,7 @@ pub(super) async fn ensure_session(
         driver,
         events,
         book,
-    } = dial(transport)(spawn, slot.clone(), desk.clone()).map_err(translate)?;
+    } = connect_acp(spawn, slot.clone(), desk.clone()).map_err(translate)?;
 
     // The crate is runtime-agnostic on purpose; this is the composition root,
     // so this is where the driver gets an executor.

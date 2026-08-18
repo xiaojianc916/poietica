@@ -1,9 +1,8 @@
 /**
  * 帧到条目的唯一入口。
  *
- * 它拥有两条线共有的那部分：一轮怎么开始、怎么结束、结局怎么读，以及那一问怎么
- * 落账。方言只有两格 —— ACP 的会话通知与授权请求归 acp-projection，harness 的
- * 会话日志信封归 harness-projection —— 分派在这里发生，所以两条方言互不知情。
+ * 它拥有一轮的公共部分：怎么开始、怎么结束、结局怎么读，以及那一问怎么落账。
+ * ACP 的会话通知与授权请求归 acp-projection，分派在这里发生。
  *
  * 它只往草稿上写，既不开草稿也不封版（见 timeline-draft），所以「纯、总、可重放」
  * 那三条性质与它无关：那是 timeline-reducer 的承诺。
@@ -11,7 +10,6 @@
 
 import type { AcpStopReason, RunEvent, RunStatus } from '@poietica/agent-contract'
 import { applyAcpFrame, saidByUser } from './acp-projection'
-import { applyHarnessFrame } from './harness-projection'
 import { isRenderable } from './renderable'
 import type { MessageImage, UserMessageItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
@@ -75,12 +73,6 @@ export function apply(draft: Draft, event: RunEvent): void {
     case 'permission_requested':
     case 'permission_resolved': {
       applyAcpFrame(draft, event)
-
-      return
-    }
-
-    case 'harness_event': {
-      applyHarnessFrame(draft, event)
 
       return
     }
@@ -153,8 +145,7 @@ function withPrompt(
 ): void {
   /* 缺席与空串在这里是同一件事：都表示这一帧没有带来一句要显示的话。
      清洗规则借的是 ACP 那条线的：这一格的内容由各自的 driver 填，而 ACP 那侧
-     填的是协议请求里的内容，agent CLI 会往里注入自己的旁白（见 saidByUser）。
-     所以它是一条方言事实，住在方言那个文件里；harness 那条线上它是空操作。 */
+     填的是协议请求里的内容，agent CLI 会往里注入自己的旁白（见 saidByUser）。 */
   const prompt = saidByUser(event.prompt ?? '')
   const shown: readonly MessageImage[] = (event.images ?? []).map((url) => ({ url }))
 
