@@ -16,8 +16,6 @@ CREATE TABLE threads (
     pinned         INTEGER NOT NULL DEFAULT 0,
     -- 会话号只在开出它的 agent 那里认得，所以持有者跟着号一起存。
     agent_id       TEXT,
-    -- 已说过几句话。record_prompt 自增并交出序号，附件与轮次计时都挂它。
-    prompts        INTEGER NOT NULL DEFAULT 0,
     -- 归一化后的绝对路径，空 = 默认工作区。归一化只在渲染层入口做一遍。
     workspace_root TEXT,
     archived_at    TEXT,
@@ -44,33 +42,39 @@ CREATE TABLE attachments (
     created_at TEXT    NOT NULL
 ) STRICT;
 
--- 哪条对话的第几轮、第几张。键是「第几条用户消息」而不是消息 id：历史由
--- agent 交还，那份历史里的 id 不归我们发；两侧能独立数出同一个答案的只有
--- 序号。计数器 N 覆盖最后 N 条用户消息，认领方从末尾对齐，回放条数少于 N
--- 时整批放弃 —— 宁可不显示，不许张冠李戴。
+-- 这条对话引用了哪些字节，就这一个问题。图片的落点由帧自己带
+-- （run_events 里 run_started 的 images），所以这里不记第几轮第几张：
+-- 两侧各数一遍再对齐，那是同一件事有两个来源。
 CREATE TABLE thread_attachments (
-    thread_id TEXT    NOT NULL REFERENCES threads (id),
-    turn      INTEGER NOT NULL,
-    ordinal   INTEGER NOT NULL,
-    hash      TEXT    NOT NULL REFERENCES attachments (hash),
+    thread_id TEXT NOT NULL REFERENCES threads (id),
+    hash      TEXT NOT NULL REFERENCES attachments (hash),
 
-    PRIMARY KEY (thread_id, turn, ordinal)
+    PRIMARY KEY (thread_id, hash)
 ) STRICT, WITHOUT ROWID;
 
 -- 回收要问的是反向问题：这个摘要还有人引用吗。
 CREATE INDEX thread_attachments_by_hash ON thread_attachments (hash);
 
--- 每一轮的两端。内容是 agent 的，计时是这台机器的，所以记在这里；turn 与
--- 附件同一把尺子，从末尾对齐。started_at / ended_at 是 epoch 毫秒：这两格
--- 要做减法，耗时的家不是日历，是数轴。
-CREATE TABLE turn_spans (
+-- 这台机器记下的帧：屏幕上那条时间线由它重放。
+--
+-- 追加只有一处（turn.rs 的 logging），读只有一处（agent_open_thread）。
+-- agent 那侧那份是模型的上下文，由 session/load 让它自己恢复，不参与投影。
+-- 唯一键按对话去重，不按会话：分叉出的对话要抄得走源对话的日志。
+CREATE TABLE run_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
     thread_id  TEXT    NOT NULL REFERENCES threads (id),
-    turn       INTEGER NOT NULL,
-    started_at INTEGER NOT NULL,
-    ended_at   INTEGER NOT NULL,
+    session_id TEXT    NOT NULL,
+    seq        INTEGER NOT NULL,
+    at         INTEGER NOT NULL,
+    -- RecordedEvent 的线上形状，原样一行 JSON：帧的形状归 frame.rs。
+    frame      TEXT    NOT NULL,
 
-    PRIMARY KEY (thread_id, turn)
-) STRICT, WITHOUT ROWID;
+    -- 重投的一帧由库拒绝，而不是由碰巧注意到它的调用方。
+    UNIQUE (thread_id, session_id, seq)
+) STRICT;
+
+-- 重放按追加顺序读一条对话。
+CREATE INDEX run_events_by_thread ON run_events (thread_id, id);
 
 CREATE TABLE workbench_session (
     slot       INTEGER PRIMARY KEY CHECK (slot = 0),

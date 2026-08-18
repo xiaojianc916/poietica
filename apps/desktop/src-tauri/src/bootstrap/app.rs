@@ -161,6 +161,10 @@ pub fn build() -> tauri::Builder<Wry> {
              * 与删除同在一次借用里，引用在删的全程都精确 —— 通常删的只是几
              * 个空目录，锁内多花的是微秒。
              */
+            /* 收割的边界在这里签发，不在收割那一刻取。库已经打开，webview 还
+            没执行任何脚本，所以这一刻晚于每一条遗留行、早于用户开得出的第一
+            条 —— 那个前提此前只写在 harvest_ghost_threads 的注释里。 */
+            let boundary = uuid::Uuid::now_v7();
             let sweeper = handle.clone();
 
             async_runtime::spawn(async move {
@@ -181,7 +185,7 @@ pub fn build() -> tauri::Builder<Wry> {
 
                     crate::local_index::on_index(&index, move |store| {
                         let harvested = store
-                            .harvest_ghost_threads()
+                            .harvest_ghost_threads(boundary)
                             .map_err(crate::local_index::persistence)?;
 
                         if snapshot.is_empty() {

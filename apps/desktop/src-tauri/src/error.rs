@@ -8,6 +8,12 @@ pub enum Error {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// 本地索引库拒绝了一条语句。消息原样透给界面，判据与 AgentCli 同一条。
+    ///
+    /// SQLite 说的是「no such table: run_events」「UNIQUE constraint failed:
+    /// threads.session_id」这一类话：不含路径、不含用户名，而且它是唯一说得出
+    /// 到底哪一句被拒的东西。折成一句「本地索引库写入失败」之后，屏幕上、日志
+    /// 之外就再没有任何人知道发生了什么。
     #[error("Persistence error: {0}")]
     Persistence(String),
 
@@ -170,7 +176,6 @@ impl Error {
             Self::NotFound(_) => Cow::Borrowed("请求的资源不存在"),
             Self::PermissionDenied(_) => Cow::Borrowed("该操作未获授权"),
 
-            Self::Persistence(_) => Cow::Borrowed("本地索引库写入失败"),
             Self::Store(_) => Cow::Borrowed("配置文件读写失败"),
             Self::Io(_) | Self::File(_) => Cow::Borrowed("文件操作失败"),
 
@@ -180,7 +185,9 @@ impl Error {
 
             Self::Plugin(_) => Cow::Borrowed("插件操作失败"),
 
-            Self::AgentCli(reason) | Self::Git(reason) => Cow::Owned(reason.clone()),
+            Self::Persistence(reason) | Self::AgentCli(reason) | Self::Git(reason) => {
+                Cow::Owned(reason.clone())
+            }
 
             Self::Tauri(_)
             | Self::Dialog(_)

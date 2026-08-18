@@ -372,7 +372,7 @@ impl AgentStore {
         Ok(found)
     }
 
-    /// 收割幽灵行：开了、没人说过一句话、也没人看得见的对话。
+    /// 收割幽灵行：本次启动之前开的、没人说过一句话、也没人看得见的对话。
     ///
     /// agent_open_thread 先落行再开会话，而 list_threads 按标题源把还没
     /// 开口的行滤掉 —— 于是「点开新对话又走掉」留下的是一行永远不进列表、
@@ -381,20 +381,28 @@ impl AgentStore {
     /// 并释放），会话号进处置账，由下一次连接送达 session/delete；目录随
     /// 后由同一次启动对账的清扫回收（bootstrap/app.rs）。
     ///
-    /// 只在启动对账里调用：那一刻 webview 还没执行任何脚本，不存在一条正
-    /// 被人盯着的空对话。
+    /// before 是这一批的边界，由调用方在库打开之后、webview 执行任何脚
+    /// 本之前签发。少了它，「旧行」与「用户此刻正开着的新行」在库里长得一
+    /// 模一样 —— 标题源回答的是「进不进列表」，不是「还有没有人在用」。对
+    /// 账是后台任务，它跑到这一句时用户很可能已经点开了一条新对话，那一行
+    /// 会被当成幽灵删掉，随后第一句话撞上 record_prompt 的 RETURNING 零行。
+    ///
+    /// 边界是 UUIDv7 而不是时间戳：行 id 本来就是它，比较用同一把尺子，
+    /// 不引入第二种时间来源。
     ///
     /// # Errors
     ///
     /// Fails when a statement is rejected.
-    pub fn harvest_ghost_threads(&self) -> Result<usize> {
+    pub fn harvest_ghost_threads(&self, before: Uuid) -> Result<usize> {
         let ghosts = {
             let mut statement = self.connection.prepare_cached(
-                "SELECT id, session_id, agent_id FROM threads WHERE title_source = 'fallback'",
+                "SELECT id, session_id, agent_id
+                   FROM threads
+                  WHERE title_source = 'fallback' AND id < ?1",
             )?;
 
             statement
-                .query_map([], |row| {
+                .query_map(rusqlite::params![before.to_string()], |row| {
                     Ok((
                         row.get::<_, String>(0)?,
                         row.get::<_, Option<String>>(1)?,
