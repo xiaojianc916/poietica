@@ -2,9 +2,14 @@
 //!
 //! kap 传输驱动器。
 //!
-//! 进程模型：spawn "kimi web --no-open" → 轮询实例注册表直到出现本进程 pid →
-//! 读 server.token → REST 开锚会话 → WS client_hello + subscribe → 主循环收命令、
-//! 收事件。
+//! 进程模型：spawn "kimi web --no-open" → 等注册表出现本次拉起后的条目、且那个
+//! 地址认我们手里的 server.token → REST 开锚会话 → WS client_hello + subscribe
+//! → 主循环收命令、收事件。
+//!
+//! 「等」的判据是认令牌，不是文件出现：start.ts 的第一行就 register，那时 server
+//! 还没 listen，条目里的端口只是「要的那个」（DEFAULT_PORT 58627）；端口被占就
+//! +1 往上走，绑上之后才 registration.update({ port: boundPort }) 回填真端口。
+//! 文件先于监听存在，只信文件就会在这段窗口里拨到别人身上。
 //!
 //! 数据流：
 //!   命令 → Command 枚举 → REST（sessions / prompts / approvals / profile）或
@@ -65,23 +70,82 @@ struct InstanceDisk {
     started_at: i64,
 }
 
-/// 轮询 instances_dir 直到找到本进程拉起后注册的条目，返回 (host, port)。
-/// 超时则报错。
+/// 一次探针：这个地址上的 server 认不认我们手里这份令牌。
 ///
-/// 不比 pid：注册表记的是 server 自己的 pid，而 Windows 上我们拉起的直接
-/// 子进程是 .cmd Shim，两边永远对不上。
+/// /meta 走全局 bearer 鉴权（start.ts 挂的 createAuthHook），认了才回 code 0。
+/// 不能用 healthz —— 它在 defaultIsBypassed 的免鉴权名单里，谁都答得出来。
+async fn accepts_token(probe: &reqwest::Client, dial: &str, port: u16, token: &str) -> bool {
+    let url = format!("http://{dial}:{port}/api/v1/meta");
+
+    let Ok(response) = probe
+        .get(&url)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .send()
+        .await
+    else {
+        return false;
+    };
+
+    let Ok(body) = response.json::<Value>().await else {
+        return false;
+    };
+
+    envelope_data(&body).is_ok()
+}
+
+/// 等到注册表出现本次拉起之后的条目、且那个地址认我们的令牌，返回
+/// (host, port, token)。超时则报错。
+///
+/// 判据是「认令牌」而不是「文件存在」：start.ts 的第一件事就是 register，那时
+/// server 还没 listen，条目里的端口只是「要的那个」（DEFAULT_PORT 58627），端口
+/// 被占就 +1 往上走，绑上之后才回填。只信文件就会在这段窗口里拨到 58627 上的
+/// 别人身上 —— 上一次跑漏下的、或者另一个 home 起的 kimi —— 它拿 40101 顶回来。
+///
+/// 令牌也在这里读：它是判据的一部分，而且首次启动时是 server 自己把它建出来的，
+/// 早读会读空。
+///
+/// 不比 pid：注册表记的是 server 自己的 pid，而 Windows 上我们拉起的直接子进程
+/// 是 .cmd Shim，两边永远对不上。
 async fn discover_instance(
     instances_dir: &Path,
+    home_dir: &Path,
     not_before: i64,
     timeout: Duration,
-) -> Result<(String, u16)> {
+) -> Result<(String, u16, String)> {
     let deadline = std::time::Instant::now() + timeout;
+
+    let probe = reqwest::Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+        .map_err(|e| KapError::Transport {
+            message: e.to_string(),
+        })?;
+
+    let mut refused: Vec<String> = Vec::new();
+
     loop {
         if std::time::Instant::now() > deadline {
+            let tried = if refused.is_empty() {
+                "no registered instance answered".to_owned()
+            } else {
+                format!("these addresses refused it: {}", refused.join(", "))
+            };
+
             return Err(KapError::Timeout {
-                message: format!("kap server did not register in {}s", timeout.as_secs()),
+                message: format!(
+                    "no kap server under {} accepted the token at {} within {}s ({tried})",
+                    instances_dir.display(),
+                    home_dir.join("server.token").display(),
+                    timeout.as_secs()
+                ),
             });
         }
+
+        // 令牌可能比注册表条目晚落地：首次启动时是 server 自己创建它的。
+        let Some(token) = read_token(home_dir).await.ok().filter(|t| !t.is_empty()) else {
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            continue;
+        };
 
         if let Ok(mut dir) = tokio::fs::read_dir(instances_dir).await {
             while let Ok(Some(entry)) = dir.next_entry().await {
@@ -93,7 +157,16 @@ async fn discover_instance(
                     && let Ok(info) = serde_json::from_str::<InstanceDisk>(&content)
                     && info.started_at >= not_before
                 {
-                    return Ok((info.host, info.port));
+                    let dial = dialable_host(&info.host);
+
+                    if accepts_token(&probe, &dial, info.port, &token).await {
+                        return Ok((info.host, info.port, token));
+                    }
+
+                    let address = format!("{dial}:{}", info.port);
+                    if !refused.contains(&address) {
+                        refused.push(address);
+                    }
                 }
             }
         }
@@ -347,7 +420,13 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
         // 2. 等待实例注册
         let instances_dir = home_dir.join("server").join("instances");
-        let (host, port) = match discover_instance(&instances_dir, spawned_at, Duration::from_secs(30)).await
+        let (host, port, token) = match discover_instance(
+            &instances_dir,
+            &home_dir,
+            spawned_at,
+            Duration::from_secs(30),
+        )
+        .await
         {
             Ok(found) => found,
             Err(error) => {
@@ -365,16 +444,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             }
         };
 
-        // 3. 读令牌
-        let token = match read_token(&home_dir).await {
-            Ok(token) => token,
-            Err(error) => {
-                let _ = ready_tx.send(Err(KapError::Handshake {
-                    message: error.to_string(),
-                }));
-                return Err(error);
-            }
-        };
+        // 3. 令牌已经在第 2 步读到：只有「认这份令牌的地址」才算发现成功。
 
         let dial = dialable_host(&host);
         let base_url = format!("http://{dial}:{port}/api/v1");
