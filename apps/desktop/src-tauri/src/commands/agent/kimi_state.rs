@@ -1,7 +1,8 @@
 //! Kimi 专属：把归档状态写回它官方的 state.json。
 //!
-//! Kimi 的归档状态属于 Kimi 自己的会话，而 Poietica 不启动 kimi web，不能依赖
-//! 它的 HTTP PATCH 路由。官方归档路由最终写的就是 state.json 里的三格：
+//! 归档要在没有连接时也成立：为一个标记位拉起 kimi web 是本末倒置（与删除
+//! 的处置账同一条规矩 —— 不为它起进程）。官方归档路由（POST :archive）最终写的
+//! 就是 state.json 里的三格：
 //! `archived`、`auto_archive_exempt`、`archived_at`。这里写同一份文件、
 //! 同一组字段，并保留其它所有字段；找不到官方状态文件时拒绝本地归档，避免两边
 //! 显示出两个答案。行为锚点：TS 版 Kimi Code（npm @moonshot-ai/kimi-code）的

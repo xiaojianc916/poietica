@@ -1,4 +1,4 @@
-//! The desktop seam onto the ACP client.
+//! The desktop seam onto the kap client.
 //!
 //! Three rules shape this module.
 //!
@@ -98,7 +98,7 @@ const IMAGE_OPENER: &str = "[图片]";
 /// 这不是兜底：会话是在打开这条对话时才握上的，查不到恰好是「没有什么可停的」。
 const NOTHING_TO_STOP: &str = "that conversation is not running";
 
-/// 这个 agent 在握手时没有声明会话分叉（ACP session/fork）。
+/// 这个 agent 在握手时没有声明会话分叉（kap :fork）。
 const NO_FORK: &str = "this agent does not support forking sessions";
 
 /// 这条传输上停不了一轮：取消凭证在握手时没有铸出来。

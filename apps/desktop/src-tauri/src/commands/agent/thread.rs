@@ -50,8 +50,9 @@ pub async fn agent_threads(index: State<'_, LocalIndex>) -> AgentCommandResult<V
 /// 打开一条对话：把它整条要回来。
 ///
 /// 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，`session_for`
-/// 认出它存着的会话号不是本次连接开的，于是请 agent 把那条会话装载回来 —— 号
-/// 不变，上下文因此回到 agent 手里。只有 agent 说它不装载旧会话时才重开一条。
+/// 认出它存着的会话号不是本次连接开的，于是请 driver 把它订阅回来 —— 号
+/// 不变，上下文因此回到 agent 手里。只有装载不回来（号在 server 侧也没了）
+/// 时才重开一条。
 ///
 /// 经过来自本机日志（run_events），不来自 agent 的装载重放：那批帧里没有
 /// run_started，段边界会整段塌掉，而回填只发生一次 —— 塌掉的形状会永久留在
@@ -278,8 +279,8 @@ pub async fn agent_archive_thread(
 /// 本地那一份是一行索引，一句 DELETE 就没了：这张表底下已经不挂任何东西。
 ///
 /// 真正的那一份在 agent 手里。它存着这条对话的全文，此前从没有人告诉过它这条
-/// 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。ACP 为此
-/// 有 session/delete，而它可不可用由 agent 在握手时自己说。
+/// 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。kap 没有
+/// 硬删除，删除由 :archive 承接。
 ///
 /// 当场送达要三个前提：连接还活着、这条会话确实是这个 agent 的、它声明了
 /// 这项能力。凑不齐就先记进处置账 —— 不为此去起一个进程：删一条对话不该
@@ -335,8 +336,8 @@ pub async fn agent_delete_thread(
             /* agent 拒绝，或者它自己也早就不留着这条会话了。本地这一份仍然
             要删：用户按的是删除，不是「如果 agent 同意就删除」。账照记 ——
             冲账那侧送达一次后无论答复如何都销账，毒不了队列。册子那一侧不
-            归这里管：驱动器只在 agent 真的删了之后才销号（driver.rs 的
-            Settled::Deleted 判 outcome.is_ok）。 */
+            归这里管：驱动器只在 agent 真的归档之后才销号（driver.rs 的
+            archive_kap_session）。 */
             Err(error) => {
                 log::warn!("could not delete the session on the agent: {error}");
             }
@@ -401,7 +402,7 @@ pub async fn agent_delete_thread(
     Ok(())
 }
 
-/// 从一条对话分叉出一条新对话（ACP session/fork），源对话原样不动。
+/// 从一条对话分叉出一条新对话（kap :fork），源对话原样不动。
 ///
 /// 两侧各分叉一次：agent 那侧由 session/fork 复制上下文，这一侧由 fork_thread
 /// 复制本机日志与附件链接（见 threads.rs）。屏幕上那条时间线由日志重放，日志

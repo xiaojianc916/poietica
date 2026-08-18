@@ -22,10 +22,10 @@
 
 ## 1. 产品不变量
 
-Poietica 是本地高性能 ACP 客户端桌面应用，对标 Codex 桌面版。唯一接入的
-agent 是 Kimi Code（TypeScript 版，`kimi acp` 入口，见 ADR 0024/0025）：它以
+Poietica 是本地高性能 kap 客户端桌面应用，对标 Codex 桌面版。唯一接入的
+agent 是 Kimi Code（TypeScript 版，`kimi web` 入口，见 ADR 0024/0025）：它以
 `packages/agent-catalog` 的档案接入，通用层不认识任何一家的名字，再接一家接的
-是 ACP 的第二个实现而不是第二条协议。多会话并发
+是 kap 的第二个实现而不是第二条协议。多会话并发
 是常态而非特例。
 
 - **会话是唯一中心。** 任何能力不得绕过会话另立入口。
@@ -38,7 +38,7 @@ agent 是 Kimi Code（TypeScript 版，`kimi acp` 入口，见 ADR 0024/0025）�
 
 ## 2. 数据流（一句话验收）
 
-帧从 `kimi acp` 子进程 stdout 进 driver（官方 ACP Rust SDK），经
+帧从 `kimi web` 子进程的 WebSocket 进 driver（kap：REST + session_event），经
 RunSlot → Recorder（会话内单调序号）→ FrameSink → 宿主 16ms 攒批 →
 run_events 落库 → Tauri event → transcript-store（按会话号路由到对话）→
 timeline 投影 → React。反向只有三条命令路：prompt / cancel / resolvePermission。
@@ -133,9 +133,10 @@ transcript-store.ts 的 held/alias/routes 互相耦合，rename 同写三张表�
   `pnpm ipc:generate` → TS 端口层适配。TS 侧先写形状即为缺陷。
 - **加一种帧**：frame.rs 加 variant，两侧由编译器与生成绑定兜底。
 - **加一个包**：先在分层表定层，再建目录。
-- **协议升级**：ACP 稳定版是 v1；v2 是 draft，升级必须显式版本协商 + 特性开关，
-  等 SDK 稳定入口。禁手抄协议类型（判例：protocol.ts 记录的 8/13 variant 落后
-  事故）——只 re-export 官方 SDK。
+- **协议升级**：kap 的契约由 server 自述（/openapi.json 与 /asyncapi.json），
+  快照钉在 contracts/kap，`pnpm kap:spec:check` 守漂移；升级 kimi-code 后重跑
+  `pnpm kap:spec` 并审 diff。禁手抄协议类型（判例：protocol.ts 记录的 8/13
+  variant 落后事故）。
 - **加持久化**：迁移只追加，一条 shipped 的迁移永不修改。
 
 ## 8. 变更纪律

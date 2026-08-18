@@ -153,13 +153,11 @@ pub async fn agent_prompt(
 /// 事件派发；而收帧的那一侧只按屏幕的节拍看一眼（transcript-store 的 `#paint`）。
 /// 投递因此服从屏幕，不服从 agent 吐字的速度。
 ///
-/// 攒批站在自己的任务上，所以跨进程投递不在 ACP 读循环上。
+/// 攒批站在自己的任务上，所以跨进程投递不在 driver 的 WS 读循环上。
 ///
-/// 序列化仍然在。一帧 acp_update 的 JSON 是在 SDK 的通知处理器里做出来的
-/// （agent-runtime 的 frame.rs::acp_update：一次 serde_json::to_value 加一次递归
-/// prune），而那个处理器是原子的 —— 它返回之前这条连接上不再处理任何一条消息
-/// （driver.rs 的 on_receive_request 引的是同一节 SDK 规约）。这条路上最贵的两
-/// 件事，只挪走了一件。
+/// 成帧仍然在 driver 一侧：一帧 kap_event 是把 session_event 的载荷原样包进
+/// RecordedEvent（agent-runtime 的 frame.rs::kap_event）。这条路上最贵的是
+/// 跨进程投递，而它在这里挪走了。
 ///
 /// 每一帧的等待有上界：一批从它的第一帧起算，满 [`FRAME_INTERVAL`] 就交货，其
 /// 间没有新帧也一样。上界是这条通道唯一的时间承诺 —— 靠「下一帧会来」推动交货
@@ -257,7 +255,7 @@ pub fn agent_resolve_permission(
 
 /// Asks the agent to stop the turn running on one conversation.
 ///
-/// 取消点名一条对话。ACP 的取消是发给一条会话的，而一条对话持有一条会话 ——
+/// 取消点名一条对话。kap 的取消是发给一条会话的一帧 abort（ws-control.ts），而一条对话持有一条会话 ——
 /// 这条对应关系在打开这条对话时就写进了库（`attach_session`），提问走的也是它。
 ///
 /// 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `session_for` 会为一条

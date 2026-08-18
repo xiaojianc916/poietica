@@ -6,13 +6,8 @@ import type { AgentDescriptor } from '../agent-descriptor'
  * 事实来源是它自己的源码，不是观察和猜测：MoonshotAI/kimi-code。每一条下面都
  * 注明具体是哪个文件的哪个函数。
  *
- * 我们接的是 kimi acp。0.33.0（上游 #2627）起它就是 v2：acp 子命令默认跑
- * agent-core-v2 引擎，KIMI_CODE_LEGACY_FLAG=1 才回落 legacy。为什么不接 legacy，
- * 见 docs/adr/0016（一句话：那一套在事件流首行按 MAIN_AGENT_ID 过滤，子代理的
- * 审批永远到不了客户端）。
- *
- * 下面这两张表对两套都成立：审批与提问的 optionId 方言逐字相同，所以接上一个
- * 旧版本的进程也不会露出英文。
+ * 我们接的是 kap：kimi web --no-open 起的本地服务（kap-server），REST +
+ * WebSocket，协议快照钉在 contracts/kap（pnpm kap:spec）。
  */
 
 /**
@@ -36,11 +31,12 @@ const QUESTION_DIALECT = {
 /**
  * 按钮上的字。
  *
- * 键取自 approval.ts 自己的常量表：CANONICAL_OPTIONS 三条（Approve once /
- * Approve for this session / Reject），计划评审两条（Revise / Reject and Exit），
- * question.ts 追加的一条（Skip）。Allow / Allow Always / Approve 是 Python 时期
- * kimi-cli 的旧文案，上游的 permissionResponseToApprovalResponse 至今仍收它们的
- * optionId，所以旧版进程接上来时也不会露出英文。
+ * 键是上游审批按钮的规范英文：Approve once / Approve for this session /
+ * Reject（CANONICAL_OPTIONS，上游 packages/acp-adapter/src/approval.ts；kap 下
+ * 这三条由我们按协议的答复面合成，见 agent-runtime 的 permission.rs），计划评审
+ * 两条（Revise / Reject and Exit），question.ts 追加的一条（Skip）。Allow /
+ * Allow Always / Approve 是更早的文案：旧日志里记下的帧还带着那些名字，重放
+ * 时翻的仍是它们。
  *
  * 计划评审里 plan_opt_* 的 name 是策略当场给的方案标签，本来就该原样显示，
  * 因此不在表内 —— 表只负责把规范英文换成中文，不负责改写 agent 说的话。
@@ -67,12 +63,8 @@ export const kimiCode = {
   displayName: 'Kimi Code',
   command: 'kimi',
   /*
-   * 子命令决定接的是上游哪一套 ACP 实现。0.33.0 起 acp 默认就是
-   * agent-core-v2 —— 正是当初要接的那一套（子代理的审批能到达客户端，
-   * 证据见 docs/adr/0016）。acp-v2 子命令与它的实验开关 KIMI_CODE_EXPERIMENTAL_ACP_V2
-   * 在 0.33.0 一并退役（上游 cli/experimental-v2.ts 现在只有 KIMI_CODE_LEGACY_FLAG），
-   * 所以这里不再有 launchEnv：给一个不存在的环境变量留键，是把垃圾放进
-   * 每一个进程的启动环境。
+   * 本地服务模式：同一个进程挂 REST + WebSocket 与 web UI，--no-open 不起
+   * 浏览器（docs/en/reference/kimi-command.md 的 kimi web）。
    */
   args: ['web', '--no-open'],
   // apps/kimi-code/src/config/paths.ts 的 resolveKimiHome：

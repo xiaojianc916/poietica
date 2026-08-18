@@ -135,7 +135,7 @@ pub struct AgentConfigControl {
 
 /// 一条会话此刻占了多少上下文。
 ///
-/// ACP 的 usage_update 报的是仪表值：到达即替换，不是增量。按它算增量的是
+/// kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量。按它算增量的是
 /// 账本（persistence 的 usage.rs），这一格只说现在。
 #[derive(Clone, Copy, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -146,12 +146,13 @@ pub struct AgentSessionUsage {
     pub size: u32,
 }
 
-/// 读 ACP usage_update 的载荷。这份载荷全程只在这里被解释一次。
+/// 读 kap agent.status.updated 的载荷（contextTokens / maxContextTokens）。
+/// 这份载荷全程只在这里被解释一次。
 ///
 /// 缺字段、或大到这份 IPC 面装不下，都当作没报过：编一个数出来比缺席有害。
 pub(super) fn reported_usage(value: &Value) -> Option<AgentSessionUsage> {
-    let used = u32::try_from(value.get("used")?.as_u64()?).ok()?;
-    let size = u32::try_from(value.get("size")?.as_u64()?).ok()?;
+    let used = u32::try_from(value.get("contextTokens")?.as_u64()?).ok()?;
+    let size = u32::try_from(value.get("maxContextTokens")?.as_u64()?).ok()?;
 
     Some(AgentSessionUsage { used, size })
 }
@@ -171,8 +172,8 @@ pub enum AgentSessionEvent {
         session_id: String,
         selectors: Vec<AgentConfigControl>,
     },
-    /// 那条会话上现在的整张命令表。每一条原样是 ACP 的线上形状，这一侧不认识
-    /// 它的字段 —— 认识它的是读它的那一层（agent-contract 的 palette.ts）。
+    /// 那条会话上现在的整张命令表。kap 没有对应的推送，这一格暂时没有生产者；
+    /// 形状保留给读它的那一层（agent-contract 的 palette.ts）。
     #[serde(rename_all = "camelCase")]
     Commands {
         session_id: String,
