@@ -59,7 +59,6 @@ type WsSink = Arc<tokio::sync::Mutex<SplitSink<WsStream, Message>>>;
 
 #[derive(serde::Deserialize)]
 struct InstanceDisk {
-    pid: u32,
     host: String,
     port: u16,
     /// 注册时刻（epoch 毫秒，server 写文件的 Date.now()），与本机同一个钟。
@@ -330,10 +329,6 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             .map_err(|e| KapError::Spawn {
                 message: e.to_string(),
             })?;
-
-        let child_pid = child.id().ok_or(KapError::Spawn {
-            message: "child process has no pid".into(),
-        })?;
 
         // stderr 日志透传
         let diag_stderr = diagnostics.clone();
