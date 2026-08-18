@@ -312,8 +312,8 @@ export function positionOf(draft: Draft, id: string): number {
  * agent 背靠背发两条消息、中间什么都没插时，两条会粘成一条。
  *
  * 所以边界由消息身份说了算：身份变了就是另一条消息，哪怕它紧挨着上一段。身份
- * 怎么算是方言的事 —— ACP 读 ContentChunk 的 messageId，harness 读一步的
- * turn/step —— 而「接着写还是新起一条」是草稿的写法，只有这一份。
+ * 怎么算是方言的事 —— ACP 读 ContentChunk 的 messageId —— 而「接着写还是新起
+ * 一条」是草稿的写法，只有这一份。
  *
  * 它只会切，不会合。中间隔着一张工具卡片的两段，即使同号也仍然是两条：时间轴
  * 记的是发生的顺序，为了让同号的两段并拢而跨过中间那张卡片，就是在改写这个顺序。

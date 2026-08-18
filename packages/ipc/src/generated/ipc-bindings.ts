@@ -1282,20 +1282,16 @@ export type AgentInstallState =
 "unknown"
 export type AgentInstallStatus = { state: AgentInstallState; installedVersion: string | null; latestVersion: string | null; packageName: string | null }
 /**
- * 起一个 agent 进程要说清的两件事。
+ * 起一个 agent 进程要说清的那件事。
  * 
- * 不带 argv：程序在哪是这台机器上的事实，由原生侧按传输解析一次（runtime.rs 的
+ * 不带 argv：程序在哪是这台机器上的事实，由原生侧解析一次（runtime.rs 的
  * outfit）。渲染层报一个程序路径过来，参数白名单就挡不住它。
  */
 export type AgentLaunch = { 
 /**
  * 要启动的 agent。它决定受控 home 落在哪里。
  */
-agentId: string; 
-/**
- * 走哪条传输。它同时决定驱动器和启动规格的解析方式。
- */
-transport: AgentTransport }
+agentId: string }
 /**
  * 要打开的对话，以及必要时怎样启动 agent。
  */
@@ -1563,13 +1559,6 @@ export type AgentTitleSource =
  * The user typed it. Nothing derived replaces it.
  */
 "manual"
-/**
- * 这一家在什么线上说话。
- * 
- * 值的产地是档案（@poietica/agent-catalog 的 AgentDescriptor.transport），线上
- * 形状的产地是这里。组合根据它选驱动，不据 agent id 分支（ADR 0022）。
- */
-export type AgentTransport = "acp" | "deepseek-harness"
 export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; privacy: PrivacySettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 /**
