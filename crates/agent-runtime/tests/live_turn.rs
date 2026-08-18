@@ -39,6 +39,9 @@
 //! - `POIETICA_KAP_PROMPT`   what to ask (default: a one-word reply)
 //! - `POIETICA_KAP_CWD`      the session's working directory (default: a temporary one)
 //! - `POIETICA_KAP_TIMEOUT`  seconds before the turn is cancelled (default: 120)
+//! - `POIETICA_KAP_MODEL`    the model to run this turn on, named the way the
+//!   agent names it in its `model` selector, which this test prints (default:
+//!   whatever the session is bound to, i.e. this machine's default model)
 //! - `POIETICA_KAP_CAPTURE` a path to write the recorded frames to, so the
 //!   renderer's schema can be tested against frames a real agent actually sent
 //! - `POIETICA_KAP_EXPECT`  frame kinds and session update discriminators the
@@ -61,8 +64,8 @@ use std::time::{Duration, Instant};
 use futures::channel::oneshot;
 use futures::executor::block_on;
 use poietica_agent_runtime_native::{
-    AgentConnection, AgentSpawn, KapError, PermissionDesk, RUN_FINISHED, RUN_STARTED,
-    RecordedEvent, RunFrame, RunSlot, connect_kap,
+    AgentConnection, AgentSpawn, ConfigControl, KapError, PermissionDesk, RUN_FINISHED,
+    RUN_STARTED, RecordedEvent, RunFrame, RunSlot, connect_kap,
 };
 use tempfile::TempDir;
 
@@ -226,13 +229,31 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     );
 
     match offered {
-        Ok(controls) if controls.is_empty() => println!("selectors: none offered"),
-        Ok(controls) => {
-            for control in controls {
-                println!("selector: {} = {}", control.id, control.current);
-            }
-        }
+        Ok(controls) => show(&controls),
         Err(error) => println!("selectors: unreadable ({error})"),
+    }
+
+    /* 换一个模型跑。默认模型未必是要证的那一个，也未必还有额度 —— 上一次
+    实时验证就停在「账号欠费」上，而那与这一层的对错无关。没有这个开关，这个
+    测试就被机器的全局默认锁死，改它等于拿产品配置迁就一个测试。
+
+    走的是产品自己那条路（Command::Select → POST /sessions/{id}/profile），
+    所以它同时证明了界面上那个下拉菜单换得动模型。换不动就地停：接着跑，跑的
+    是旧模型，报回来的会是一条与请求无关的错误消息。 */
+    let wanted = setting("POIETICA_KAP_MODEL", "");
+
+    if !wanted.is_empty() {
+        let switched = driver.expect(
+            client
+                .select(session_id.clone(), "model".to_owned(), wanted.clone())
+                .expect("the driver to accept the change"),
+            "the model change was never answered",
+        );
+
+        match switched {
+            Ok(controls) => show(&controls),
+            Err(error) => panic!("the agent would not switch to {wanted}: {error}"),
+        }
     }
 
     // Nobody is here to answer a permission request, and an agent that asks one
@@ -342,6 +363,34 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     capture(&broadcast);
 
     println!("recorded {} frames", broadcast.len());
+}
+
+/// 这条会话此刻的选择，连同它给的候选。
+///
+/// 候选值得一并打出来：换一个模型是这个测试绕开「当前模型不能用」的唯一办法，
+/// 而名单只有 agent 说了算 —— 猜一个名字换过去，换回来的是另一条错误消息。
+///
+/// 换之前与换之后打的是同一段。两处各写一遍，出事时看到的总是没人维护的那一份。
+fn show(controls: &[ConfigControl]) {
+    if controls.is_empty() {
+        println!("selectors: none offered");
+
+        return;
+    }
+
+    for control in controls {
+        let choices = control
+            .choices
+            .iter()
+            .map(|choice| choice.value.as_str())
+            .collect::<Vec<&str>>()
+            .join(", ");
+
+        println!(
+            "selector: {} = {} (of: {choices})",
+            control.id, control.current
+        );
+    }
 }
 
 /// Everything the turn actually contained.
