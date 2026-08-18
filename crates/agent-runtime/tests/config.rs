@@ -1,46 +1,37 @@
-//! The selectors a real agent sent us, translated.
+//! The selectors a session offers, translated from kap's own answers.
 //!
-//! The sample below is the answer Kimi Code CLI 0.29.1 gave to a new
-//! session, copied from the wire.
+//! 两张事实表按线上形状手写：status 路由的 data（sessionStatusResponseSchema）
+//! 与 /models 的 data（listModelsResponseSchema）。
 
-use agent_client_protocol::schema::v1::SessionConfigOption;
-use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose, controls};
+use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose, controls, selector_patch};
+use serde_json::{Value, json};
 
-const OFFERED: &str = r#"[
-  {"type":"select","id":"model","name":"Model","category":"model",
-   "currentValue":"moonshot-cn/kimi-k2.6","options":[
-     {"value":"moonshot-cn/kimi-k2.7-code-highspeed",
-      "name":"kimi-k2.7-code-highspeed"},
-     {"value":"moonshot-cn/kimi-k2.6","name":"kimi-k2.6"},
-     {"value":"moonshot-cn/kimi-k2.7-code","name":"kimi-k2.7-code"},
-     {"value":"moonshot-cn/kimi-k2.5","name":"kimi-k2.5"},
-     {"value":"moonshot-cn/kimi-k3","name":"kimi-k3"}]},
-  {"type":"select","id":"thinking","name":"Thinking",
-   "category":"thought_level","currentValue":"on","options":[
-     {"value":"off","name":"Off"},{"value":"on","name":"On"}]},
-  {"type":"select","id":"mode","name":"Mode","category":"mode",
-   "currentValue":"default","options":[
-     {"value":"default","name":"Default",
-      "description":"Manual approvals; tools execute normally."},
-     {"value":"plan","name":"Plan",
-      "description":"Read-only planning; no tool execution."},
-     {"value":"auto","name":"Auto",
-      "description":"Fully autonomous - agent decides everything."},
-     {"value":"yolo","name":"YOLO",
-      "description":"Auto-approve tool actions, but it may still ask."}]}
-]"#;
+fn status() -> Value {
+    json!({
+        "busy": false,
+        "model": "kimi-k2.6",
+        "thinking_level": "on",
+        "permission": "manual",
+        "plan_mode": false,
+        "swarm_mode": false,
+        "context_tokens": 0,
+        "context_usage": 0
+    })
+}
 
-const GROUPED: &str = r#"[
-  {"type":"select","id":"model","name":"Model","category":"model",
-   "currentValue":"a","options":[
-     {"group":"one","name":"House","options":[
-        {"value":"a","name":"A"},{"value":"b","name":"B"}]},
-     {"group":"two","name":"Guest","options":[
-        {"value":"c","name":"C"}]}]}
-]"#;
-
-fn parse(text: &str) -> Result<Vec<SessionConfigOption>, serde_json::Error> {
-    serde_json::from_str(text)
+fn catalog() -> Value {
+    json!({
+        "items": [
+            { "provider": "moonshot-cn", "model": "kimi-k2.7-code-highspeed",
+              "display_name": "Kimi K2.7 Code Highspeed", "max_context_size": 262144 },
+            { "provider": "moonshot-cn", "model": "kimi-k2.6",
+              "display_name": "Kimi K2.6", "max_context_size": 262144,
+              "support_efforts": ["off", "on"] },
+            { "provider": "moonshot-cn", "model": "kimi-k2.7-code",
+              "display_name": "Kimi K2.7 Code", "max_context_size": 262144,
+              "support_efforts": ["off", "low", "high"] }
+        ]
+    })
 }
 
 fn named<'a>(list: &'a [ConfigControl], id: &str) -> Option<&'a ConfigControl> {
@@ -48,71 +39,120 @@ fn named<'a>(list: &'a [ConfigControl], id: &str) -> Option<&'a ConfigControl> {
 }
 
 #[test]
-fn the_agent_offers_three_selectors() -> Result<(), serde_json::Error> {
-    let offered = controls(&parse(OFFERED)?);
+fn the_session_offers_three_selectors() {
+    let offered = controls(&status(), &catalog());
     let ids: Vec<&str> = offered.iter().map(|control| control.id.as_str()).collect();
 
     assert_eq!(ids, vec!["model", "thinking", "mode"]);
-
-    Ok(())
 }
 
 #[test]
-fn each_selector_knows_what_it_is_for() -> Result<(), serde_json::Error> {
-    let offered = controls(&parse(OFFERED)?);
+fn each_selector_knows_what_it_is_for() {
+    let offered = controls(&status(), &catalog());
 
     assert!(named(&offered, "model").is_some_and(|c| c.purpose == ConfigPurpose::Model));
     assert!(named(&offered, "mode").is_some_and(|c| c.purpose == ConfigPurpose::Mode));
     assert!(named(&offered, "thinking").is_some_and(|c| c.purpose == ConfigPurpose::Thought));
-
-    Ok(())
 }
 
 #[test]
-fn the_values_in_force_are_carried_across() -> Result<(), serde_json::Error> {
-    let offered = controls(&parse(OFFERED)?);
+fn the_values_in_force_are_carried_across() {
+    let offered = controls(&status(), &catalog());
 
-    assert!(named(&offered, "model").is_some_and(|c| c.current == "moonshot-cn/kimi-k2.6"));
-    assert!(named(&offered, "mode").is_some_and(|c| c.current == "default"));
-
-    Ok(())
+    assert!(named(&offered, "model").is_some_and(|c| c.current == "kimi-k2.6"));
+    assert!(named(&offered, "mode").is_some_and(|c| c.current == "manual"));
+    assert!(named(&offered, "thinking").is_some_and(|c| c.current == "on"));
 }
 
 #[test]
-fn every_value_on_offer_is_kept() -> Result<(), serde_json::Error> {
-    let offered = controls(&parse(OFFERED)?);
+fn every_value_on_offer_is_kept() {
+    let offered = controls(&status(), &catalog());
 
-    assert!(named(&offered, "model").is_some_and(|c| c.choices.len() == 5));
+    assert!(named(&offered, "model").is_some_and(|c| c.choices.len() == 3));
     assert!(named(&offered, "thinking").is_some_and(|c| c.choices.len() == 2));
     assert!(named(&offered, "mode").is_some_and(|c| c.choices.len() == 4));
-
-    Ok(())
 }
 
 #[test]
-fn the_agent_explains_its_own_modes() -> Result<(), serde_json::Error> {
-    let offered = controls(&parse(OFFERED)?);
-    let said = Some("Read-only planning; no tool execution.");
+fn thinking_levels_come_from_the_current_models_own_catalog_entry() {
+    let mut status = status();
+    status["model"] = json!("kimi-k2.7-code");
+    status["thinking_level"] = json!("low");
 
-    assert!(named(&offered, "mode").is_some_and(|control| {
-        control
+    let offered = controls(&status, &catalog());
+
+    assert!(named(&offered, "thinking").is_some_and(|c| c.choices.len() == 3));
+}
+
+#[test]
+fn a_model_without_declared_levels_has_no_thinking_selector() {
+    let mut status = status();
+    status["model"] = json!("kimi-k2.7-code-highspeed");
+    status["thinking_level"] = json!("on");
+
+    let offered = controls(&status, &catalog());
+
+    assert!(named(&offered, "thinking").is_none());
+}
+
+#[test]
+fn a_current_value_the_catalog_does_not_know_is_kept_verbatim() {
+    let mut status = status();
+    status["model"] = json!("some-legacy-model");
+
+    let offered = controls(&status, &catalog());
+    let model = named(&offered, "model").expect("the model selector");
+
+    assert_eq!(model.current, "some-legacy-model");
+    assert!(
+        model
             .choices
             .iter()
-            .any(|choice| choice.value == "plan" && choice.detail.as_deref() == said)
-    }));
-
-    Ok(())
+            .any(|choice| choice.value == "some-legacy-model")
+    );
 }
 
 #[test]
-fn grouped_values_arrive_as_one_run() -> Result<(), serde_json::Error> {
-    let offered = controls(&parse(GROUPED)?);
-    let names: Vec<String> = offered
-        .iter()
-        .flat_map(|control| control.choices.iter().map(|choice| choice.value.clone()))
-        .collect();
+fn plan_mode_is_its_own_rung() {
+    let mut status = status();
+    status["plan_mode"] = json!(true);
 
-    assert_eq!(names, vec!["a", "b", "c"]);
+    let offered = controls(&status, &catalog());
 
-    Ok(())
+    assert!(named(&offered, "mode").is_some_and(|c| c.current == "plan"));
+}
+
+#[test]
+fn a_session_without_a_model_has_no_model_selector() {
+    let mut status = status();
+    status["model"] = json!("");
+
+    let offered = controls(&status, &catalog());
+
+    assert!(named(&offered, "model").is_none(), "不猜它此刻用什么模型");
+}
+
+#[test]
+fn a_selection_becomes_the_patch_the_server_dispatch_table_expects() {
+    // routes/sessionAgentConfig.ts：model → setModel，thinking → setThinking，
+    // permission_mode → broadcast，plan_mode → enter/exit。
+    assert_eq!(
+        selector_patch("model", "kimi-k2.7-code"),
+        Some(json!({ "model": "kimi-k2.7-code" }))
+    );
+    assert_eq!(
+        selector_patch("thinking", "high"),
+        Some(json!({ "thinking": "high" }))
+    );
+    assert_eq!(
+        selector_patch("mode", "plan"),
+        Some(json!({ "plan_mode": true }))
+    );
+    assert_eq!(
+        selector_patch("mode", "yolo"),
+        Some(json!({ "plan_mode": false, "permission_mode": "yolo" }))
+    );
+    assert_eq!(selector_patch("mode", "turbo"), None);
+    assert_eq!(selector_patch("volume", "loud"), None);
+    assert_eq!(selector_patch("model", ""), None);
 }

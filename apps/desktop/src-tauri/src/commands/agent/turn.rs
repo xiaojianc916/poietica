@@ -62,7 +62,7 @@ pub async fn agent_prompt(
     let session = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
     // 一条对话持有一个会话，这一轮就发往它。命名的对话若还没有会话，就在
-    // 这里为它开一个并记下来 —— 这是 ACP 的会话模型。
+    // 这里为它开一个并记下来 —— 这是 kap 的会话模型。
     let named = request
         .thread_id
         .as_deref()
@@ -90,7 +90,7 @@ pub async fn agent_prompt(
     // 在这一侧判「是不是第一句」：那个判据的权威在库里，而它已经在守着了。
     //
     // 库操作只有一条路。它在阻塞线程池上，所以这一次写不会停住这个运行时上
-    // 别的东西 —— 包括 ACP driver 的 future，它就在这里 spawn 的。
+    // 别的东西 —— 包括 agent driver 的 future，它就在这里 spawn 的。
     on_index(&index, move |store| {
         store.record_prompt(thread_id, &opener).map_err(persistence)
     })

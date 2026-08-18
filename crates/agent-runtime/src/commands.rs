@@ -62,11 +62,11 @@ pub(crate) enum Command {
         mcp_servers: Vec<Value>,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
-    /// 让 agent 重新装载一条它以前开过的会话。
+    /// 把一条以前开过的会话装回本次连接。
     ///
-    /// 会话号是上一次运行存下来的。ACP 的 `session/load` 就是为跨进程恢复
-    /// 而设的：装载之后这条会话仍然是它自己，历史因此还在 agent 手里 ——
-    /// 与新开一条的分别不在于省一次握手，而在于上下文还在不在。
+    /// 会话号是上一次运行存下来的。kap 的会话在 server 侧持久，装载就是
+    /// 验存在并重新订阅（load_kap_session）：装载之后这条会话仍然是它自己，
+    /// 历史因此还在 agent 手里 —— 与新开一条的分别在于上下文还在不在。
     LoadSession {
         session_id: String,
         cwd: PathBuf,
@@ -75,7 +75,7 @@ pub(crate) enum Command {
     /// 让 agent 从一条已有会话分叉出一条新会话。
     ///
     /// 历史归 agent 所有，本地只有索引，所以「带着完整上下文另起一条」只能
-    /// 是协议动作：ACP 的 session/fork 就是为它设的。源会话原样不动。
+    /// 是协议动作：kap 的 :fork 就是为它设的。源会话原样不动。
     ForkSession {
         session_id: String,
         cwd: PathBuf,
@@ -83,8 +83,8 @@ pub(crate) enum Command {
     },
     /// 让 agent 删掉一条它自己存着的会话。
     ///
-    /// 删除对话不是本地的事：agent 那侧存着同一条对话的全文。ACP 的
-    /// session/delete 就是为它设的。
+    /// 删除对话不是本地的事：agent 那侧存着同一条对话的全文。kap 没有
+    /// 硬删除，删除由 :archive 承接。
     DeleteSession {
         session_id: String,
         reply: oneshot::Sender<Result<()>>,

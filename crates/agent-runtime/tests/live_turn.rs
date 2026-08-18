@@ -34,14 +34,14 @@
 //! It is configured by the environment rather than by anything committed here,
 //! so no machine's paths end up in the repository:
 //!
-//! - `POIETICA_ACP_PROGRAM`  the agent executable (default: `kimi`)
-//! - `POIETICA_ACP_ARGS`     its arguments, space separated (default: `acp`)
-//! - `POIETICA_ACP_PROMPT`   what to ask (default: a one-word reply)
-//! - `POIETICA_ACP_CWD`      the session's working directory (default: a temporary one)
-//! - `POIETICA_ACP_TIMEOUT`  seconds before the turn is cancelled (default: 120)
-//! - `POIETICA_ACP_CAPTURE` a path to write the recorded frames to, so the
+//! - `POIETICA_KAP_PROGRAM`  the agent executable (default: `kimi`)
+//! - `POIETICA_KAP_ARGS`     its arguments, space separated (default: `web --no-open`)
+//! - `POIETICA_KAP_PROMPT`   what to ask (default: a one-word reply)
+//! - `POIETICA_KAP_CWD`      the session's working directory (default: a temporary one)
+//! - `POIETICA_KAP_TIMEOUT`  seconds before the turn is cancelled (default: 120)
+//! - `POIETICA_KAP_CAPTURE` a path to write the recorded frames to, so the
 //!   renderer's schema can be tested against frames a real agent actually sent
-//! - `POIETICA_ACP_EXPECT`  frame kinds and session update discriminators the
+//! - `POIETICA_KAP_EXPECT`  frame kinds and session update discriminators the
 //!   turn must contain, comma separated, checked before anything is captured,
 //!   and required whenever a capture is requested
 //!
@@ -61,7 +61,7 @@ use std::time::{Duration, Instant};
 use futures::channel::oneshot;
 use futures::executor::block_on;
 use poietica_agent_runtime_native::{
-    AcpError, AgentConnection, AgentSpawn, PermissionDesk, RUN_FINISHED, RUN_STARTED,
+    KapError, AgentConnection, AgentSpawn, PermissionDesk, RUN_FINISHED, RUN_STARTED,
     RecordedEvent, RunFrame, RunSlot, connect_acp,
 };
 use tempfile::TempDir;
@@ -69,7 +69,7 @@ use tempfile::TempDir;
 use frame_sink::Delivered;
 
 const DEFAULT_PROGRAM: &str = "kimi";
-const DEFAULT_ARGS: &str = "acp";
+const DEFAULT_ARGS: &str = "web --no-open";
 const DEFAULT_PROMPT: &str = "Reply with the single word: ready. Do not use any tools.";
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 
@@ -77,7 +77,7 @@ const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 const SPAWN_HINT: &str = "the agent process did not come up. check that the program runs on \
 its own in a terminal. the executable is resolved with the which crate, so a bare name is \
 enough even on Windows and kimi.cmd no longer has to be spelled out. override it with \
-POIETICA_ACP_PROGRAM rather than editing this test";
+POIETICA_KAP_PROGRAM rather than editing this test";
 
 fn setting(name: &str, fallback: &str) -> String {
     env::var(name)
@@ -91,10 +91,10 @@ fn setting(name: &str, fallback: &str) -> String {
 /// The connection owns every channel this test waits on, so when it dies the
 /// waits all fail identically and uselessly. This is where the useful answer
 /// lives.
-struct Driver(Option<JoinHandle<Result<(), AcpError>>>);
+struct Driver(Option<JoinHandle<Result<(), KapError>>>);
 
 impl Driver {
-    fn spawn(driver: impl Future<Output = Result<(), AcpError>> + Send + 'static) -> Self {
+    fn spawn(driver: impl Future<Output = Result<(), KapError>> + Send + 'static) -> Self {
         // The crate is deliberately runtime-agnostic, so the test is its own
         // composition root: the driver gets a thread, and this thread waits.
         Self(Some(thread::spawn(move || block_on(driver))))
@@ -143,14 +143,14 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
      * 这一层不写任何存储，所以这个测试也不建数据库。它要证明的是驱动器：握手、
      * 会话、通知流、取消 —— 那些没有真进程就永远走不到的路径。
      */
-    let cwd = env::var("POIETICA_ACP_CWD")
+    let cwd = env::var("POIETICA_KAP_CWD")
         .map_or_else(|_unset| directory.path().to_path_buf(), PathBuf::from);
 
     /* 程序与参数分开给，和产品代码走的是同一条路：这个测试存在的意义就是证明
     真进程起得来，如果它自己先把两者拼成一行，那它证明的就是另一条管线了。 */
     let spawn = AgentSpawn {
-        program: setting("POIETICA_ACP_PROGRAM", DEFAULT_PROGRAM),
-        args: setting("POIETICA_ACP_ARGS", DEFAULT_ARGS)
+        program: setting("POIETICA_KAP_PROGRAM", DEFAULT_PROGRAM),
+        args: setting("POIETICA_KAP_ARGS", DEFAULT_ARGS)
             .split_whitespace()
             .map(str::to_owned)
             .collect(),
@@ -160,7 +160,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     };
 
     let timeout = Duration::from_secs(
-        setting("POIETICA_ACP_TIMEOUT", "")
+        setting("POIETICA_KAP_TIMEOUT", "")
             .parse::<u64>()
             .unwrap_or(DEFAULT_TIMEOUT_SECONDS),
     );
@@ -184,7 +184,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         events: _,
         handshake,
         driver,
-    } = connect_acp(spawn, slot, desk).expect("the program to be launchable");
+    } = connect_kap(spawn, slot, desk).expect("the program to be launchable");
 
     let mut driver = Driver::spawn(driver);
 
@@ -231,7 +231,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let answer = client
         .prompt(
             session_id.clone(),
-            setting("POIETICA_ACP_PROMPT", DEFAULT_PROMPT),
+            setting("POIETICA_KAP_PROMPT", DEFAULT_PROMPT),
             Vec::new(),
             frames,
         )
@@ -328,7 +328,7 @@ fn report(events: &[RecordedEvent]) {
 /// renderer tested against frames no agent ever sent.
 fn require_expected(events: &[RecordedEvent]) {
     let present = markers(events);
-    let wanted = setting("POIETICA_ACP_EXPECT", "");
+    let wanted = setting("POIETICA_KAP_EXPECT", "");
 
     /* A capture overwrites the fixture other tests are judged against, and an
     exported variable outlives the run that needed it, so a capture path
@@ -336,8 +336,8 @@ fn require_expected(events: &[RecordedEvent]) {
     the next turn happened to be. Asking what the recording is for costs one
     line and makes that impossible. */
     assert!(
-        setting("POIETICA_ACP_CAPTURE", "").is_empty() || !wanted.is_empty(),
-        "POIETICA_ACP_CAPTURE would replace a fixture, so POIETICA_ACP_EXPECT must say what this recording is for"
+        setting("POIETICA_KAP_CAPTURE", "").is_empty() || !wanted.is_empty(),
+        "POIETICA_KAP_CAPTURE would replace a fixture, so POIETICA_KAP_EXPECT must say what this recording is for"
     );
 
     let missing = wanted
@@ -350,23 +350,21 @@ fn require_expected(events: &[RecordedEvent]) {
 
     assert!(
         missing.is_empty(),
-        "the turn never contained: {missing}. ask for something the agent cannot know without acting, such as the contents of a named file inside POIETICA_ACP_CWD"
+        "the turn never contained: {missing}. ask for something the agent cannot know without acting, such as the contents of a named file inside POIETICA_KAP_CWD"
     );
 }
 
 /// What kind of update a frame carries.
 ///
-/// A run of twenty identical `acp_update` lines says nothing. The interesting
-/// part is the protocol's own discriminator, because those are exactly the
-/// cases the timeline will have to render.
+/// A run of twenty identical kap_event lines says nothing. The interesting
+/// part is kap 自己的事件类型，因为那些正是 timeline 要渲染的东西。
 fn describe(frame: &RunFrame) -> String {
-    let RunFrame::AcpUpdate { notification } = frame else {
+    let RunFrame::KapEvent { payload } = frame else {
         return String::new();
     };
 
-    notification
-        .update
-        .get("sessionUpdate")
+    payload
+        .get("type")
         .and_then(serde_json::Value::as_str)
         .unwrap_or("")
         .to_owned()
@@ -385,7 +383,7 @@ fn describe(frame: &RunFrame) -> String {
 /// which keeps a test fixture from dragging a platform into a layer that had
 /// deliberately stayed out of one.
 fn capture(events: &[RecordedEvent]) {
-    let Ok(path) = env::var("POIETICA_ACP_CAPTURE") else {
+    let Ok(path) = env::var("POIETICA_KAP_CAPTURE") else {
         return;
     };
 
@@ -401,7 +399,7 @@ fn capture(events: &[RecordedEvent]) {
     which is a long way to travel to learn that a variable was stale. */
     assert!(
         path.extension().is_some_and(|extension| extension == "ts"),
-        "POIETICA_ACP_CAPTURE must name a .ts module; got {}",
+        "POIETICA_KAP_CAPTURE must name a .ts module; got {}",
         path.display()
     );
 

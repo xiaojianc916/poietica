@@ -1,7 +1,7 @@
 //! 把 agent 那侧的失败折进这个程序既有的错误面。
 
 use crate::error::Error;
-use poietica_agent_runtime_native::{AcpError, Refusal};
+use poietica_agent_runtime_native::{KapError, Refusal};
 
 /// 这一侧自己判定的拒绝，说的话。
 ///
@@ -26,9 +26,9 @@ const fn refusal(reason: Refusal) -> &'static str {
 /// 这一行之后再没有任何地方留下过。原来的注释说「不给 agent 加变体，多一条 arm
 /// 就是新的泄漏口」，那句话把两件事混了 —— 泄漏来自把 native detail 当成
 /// `public_message` 原样返回，不来自多一个变体。
-pub(super) fn translate(error: AcpError) -> Error {
+pub(super) fn translate(error: KapError) -> Error {
     match error {
-        AcpError::Encoding(inner) => Error::SerdeJson(inner),
+        KapError::Json(inner) => Error::SerdeJson(inner),
         AcpError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
         // The enum is non-exhaustive, so the wildcard arm is required.
         //

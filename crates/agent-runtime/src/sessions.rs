@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use crate::error::{AcpError, Result};
+use crate::error::{KapError, Result};
 use crate::run_slot::RunSlot;
 
 const POISONED: &str = "the session book lock was poisoned";
@@ -91,9 +91,7 @@ impl SessionBook {
     }
 
     fn book(&self) -> Result<MutexGuard<'_, HashMap<String, RunSlot>>> {
-        self.slots.lock().map_err(|_poisoned| AcpError::Protocol {
-            message: POISONED.to_owned(),
-        })
+        self.slots.lock().map_err(|_poisoned| KapError::Poisoned)
     }
 }
 

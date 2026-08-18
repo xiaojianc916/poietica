@@ -3,34 +3,47 @@
     clippy::unwrap_used,
     reason = "a test proves itself by panicking, so a failed step must fail the test"
 )]
-//! Recording, frame shape and projection behaviour, without an agent process.
+//! Recording and frame-shape behaviour, without an agent process.
 //!
-//! The updates here are built with the SDK's own constructors, so the shapes
-//! under test are the shapes the protocol actually delivers. The frames are
-//! defined once, by `RunFrame` in `src/frame.rs`; these assertions are what
-//! pins that definition to the shape the interface reads, so a renamed field
-//! fails here rather than emptying a conversation on screen.
+//! kap 的载荷在这里按线上形状手写（protocol/events.ts 与
+//! protocol/approval.ts；快照钉在 contracts/kap）。帧的定义只有
+//! src/frame.rs 一处，这些断言把它钉在界面读的那一份上。
 //!
-//! 断言只看帧。recorder 不写任何存储 —— 一段对话的持有者是 agent，历史由
-//! session/load 交回来，所以这里没有第二份东西可以对。
+//! 断言只看帧。recorder 不写任何存储 —— 一段对话的持有者是 agent，所以这里
+//! 没有第二份东西可以对。
 
 mod frame_sink;
 
-use agent_client_protocol::schema::v1::{
-    PermissionOption, PermissionOptionKind, RequestPermissionRequest, SessionNotification,
-    SessionUpdate, ToolCall, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
-};
-use poietica_agent_runtime_native::{Decision, Recorder, acp_update};
-use serde_json::Value;
+use poietica_agent_runtime_native::{Decision, Recorder, kap_event};
+use serde_json::{Value, json};
 
 use frame_sink::{SESSION, recording, text_of};
 
-fn notify(recorder: &mut Recorder, update: SessionUpdate) {
-    recorder.note_tool_titles(&update);
-    let framed =
-        acp_update(&SessionNotification::new(SESSION, update)).expect("the update encodes");
+fn notify(recorder: &mut Recorder, payload: Value) {
+    recorder.record_frame(kap_event(payload));
+}
 
-    recorder.record_frame(framed);
+fn tool_call_started() -> Value {
+    json!({
+        "type": "tool.call.started",
+        "turnId": 1,
+        "toolCallId": "call_001",
+        "name": "Read config.toml",
+        "args": { "path": "config.toml" }
+    })
+}
+
+fn approval() -> Value {
+    json!({
+        "approval_id": "appr_001",
+        "session_id": SESSION,
+        "tool_call_id": "call_100",
+        "tool_name": "Bash",
+        "action": "run_command",
+        "tool_input_display": { "command": "cargo test" },
+        "created_at": "2026-08-18T00:00:00.000Z",
+        "expires_at": "2026-08-19T00:00:00.000Z"
+    })
 }
 
 #[test]
@@ -38,17 +51,8 @@ fn every_frame_carries_the_fields_the_interface_validates() {
     let (mut recorder, delivered) = recording();
 
     recorder.record_run_started("read config.toml", Vec::new());
-    notify(
-        &mut recorder,
-        SessionUpdate::ToolCall(
-            ToolCall::new("call_001", "Read config.toml")
-                .kind(ToolKind::Read)
-                .status(ToolCallStatus::Pending),
-        ),
-    );
-    recorder.record_run_finished("end_turn");
-
-    assert!(recorder.take_failure().is_none());
+    notify(&mut recorder, tool_call_started());
+    recorder.record_run_finished("completed");
 
     let frames = delivered.wire();
 
@@ -72,226 +76,97 @@ fn every_frame_carries_the_fields_the_interface_validates() {
 
     let started = frames.first().expect("the first frame");
     assert_eq!(text_of(started, "kind"), "run_started");
-    assert_eq!(
-        text_of(started, "prompt"),
-        "read config.toml",
-        "the interface reads the question from the log, not from an echo"
-    );
+    assert_eq!(text_of(started, "prompt"), "read config.toml");
 
-    let update = frames.get(1).expect("the update frame");
-    assert_eq!(text_of(update, "kind"), "acp_update");
-    let notification = update.get("notification").expect("a notification");
-    assert_eq!(text_of(notification, "sessionId"), SESSION);
-    let inner = notification.get("update").expect("an update");
-    assert_eq!(text_of(inner, "sessionUpdate"), "tool_call");
-    assert_eq!(text_of(inner, "toolCallId"), "call_001");
-    assert_eq!(text_of(inner, "status"), "pending");
-    assert_eq!(text_of(inner, "kind"), "read");
+    let event = frames.get(1).expect("the event frame");
+    assert_eq!(text_of(event, "kind"), "kap_event");
+    let payload = event.get("payload").expect("the kap payload");
+    assert_eq!(text_of(payload, "type"), "tool.call.started");
+    assert_eq!(text_of(payload, "toolCallId"), "call_001");
 
     let finished = frames.last().expect("the last frame");
     assert_eq!(text_of(finished, "kind"), "run_finished");
-    assert_eq!(
-        text_of(finished, "stopReason"),
-        "end_turn",
-        "the interface only accepts the protocol's own stop reasons"
-    );
+    assert_eq!(text_of(finished, "stopReason"), "completed");
 }
 
 #[test]
-fn an_optional_protocol_field_is_absent_rather_than_null() {
+fn a_permission_request_and_its_answer_are_two_frames() {
     let (mut recorder, delivered) = recording();
 
-    notify(
-        &mut recorder,
-        SessionUpdate::ToolCall(
-            ToolCall::new("call_002", "Editing").status(ToolCallStatus::InProgress),
-        ),
-    );
-    notify(
-        &mut recorder,
-        SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-            "call_002",
-            ToolCallUpdateFields::new().title("Editing main.rs"),
-        )),
-    );
+    let request_id =
+        recorder.record_permission_requested_kap("appr_001", "call_100", "Bash", &approval());
 
-    assert!(recorder.take_failure().is_none());
+    // 请求号就是 kap 签发的审批号：答复从界面回来时，桌上认的也是它。
+    assert_eq!(request_id, "appr_001");
 
-    let frames = delivered.wire();
-    let inner = frames
-        .get(1)
-        .and_then(|frame| frame.get("notification"))
-        .and_then(|notification| notification.get("update"))
-        .expect("an update");
+    assert_eq!(recorder.outstanding_permissions().len(), 1);
 
-    assert_eq!(text_of(inner, "title"), "Editing main.rs");
-    assert!(
-        inner.get("status").is_none(),
-        "an optional field the agent did not set is absent, not null"
-    );
-}
-
-#[test]
-fn an_update_for_an_unannounced_call_is_projected_as_an_upsert() {
-    let (mut recorder, delivered) = recording();
-
-    notify(
-        &mut recorder,
-        SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-            "call_404",
-            ToolCallUpdateFields::new()
-                .title("Reading main.rs")
-                .status(ToolCallStatus::Completed),
-        )),
-    );
-
-    /* 更新先于宣告到达是协议允许的：子代理在自己的会话号下发起的调用、
-    session/load 重播回来的历史、以及 agent 把首帧合并进更新，都会这样。
-    界面侧 upsertToolCall 对未知 id 建占位卡，原生侧必须是同一种语义。 */
-    assert!(recorder.take_failure().is_none());
+    recorder.record_permission_resolved_kap(&request_id, &Decision::Allow("approve".to_owned()));
 
     let frames = delivered.wire();
 
-    assert_eq!(frames.len(), 1, "更新照常成帧交出去，不是被吞掉");
+    assert_eq!(frames.len(), 2);
 
-    let inner = frames
-        .first()
-        .and_then(|frame| frame.get("notification"))
-        .and_then(|notification| notification.get("update"))
-        .expect("an update");
-
-    assert_eq!(text_of(inner, "sessionUpdate"), "tool_call_update");
-    assert_eq!(text_of(inner, "toolCallId"), "call_404");
-    assert_eq!(text_of(inner, "status"), "completed");
-
-    // 「没有失败」是个弱断言 —— 把 project 整个删掉它也能过。占位真的建起
-    // 来了，要由一个不带标题的权限请求来证明：界面要求有标题，而这个标题
-    // 只能来自那次未宣告的更新。
-    let request = RequestPermissionRequest::new(
-        SESSION,
-        ToolCallUpdate::new("call_404", ToolCallUpdateFields::new()),
-        vec![PermissionOption::new(
-            "reject",
-            "Reject",
-            PermissionOptionKind::RejectOnce,
-        )],
-    );
-
-    let request_id = recorder.record_permission_requested(&request);
-
-    assert!(recorder.take_failure().is_none());
-
-    let frames = delivered.wire();
-    let requested = frames.get(1).expect("the request frame");
-
-    assert_eq!(text_of(requested, "kind"), "permission_requested");
-    assert_eq!(text_of(requested, "requestId"), request_id);
-    assert_eq!(
-        text_of(requested, "title"),
-        "Reading main.rs",
-        "占位卡上的名字来自那次未宣告的更新，不是回头去查日志"
-    );
-}
-
-#[test]
-fn a_permission_request_is_refused_and_recorded() {
-    let (mut recorder, delivered) = recording();
-
-    let request = RequestPermissionRequest::new(
-        SESSION,
-        ToolCallUpdate::new(
-            "call_005",
-            ToolCallUpdateFields::new().title("Run cargo test"),
-        ),
-        vec![
-            PermissionOption::new("allow", "Allow", PermissionOptionKind::AllowOnce),
-            PermissionOption::new("reject", "Reject", PermissionOptionKind::RejectOnce),
-        ],
-    );
-
-    let decision = poietica_agent_runtime_native::decide(&request);
-
-    assert!(
-        matches!(&decision, Decision::Reject(option_id) if option_id.to_string() == "reject"),
-        "an unattended client refuses, using the agent's own option"
-    );
-
-    /* 按生产路径的顺序来：driver.rs 先记下问题，再记下答复，中间隔着一次
-    等待。把两步并成一步的便利方法证明不了生产行为。 */
-    let request_id = recorder.record_permission_requested(&request);
-    recorder.record_permission_resolved(&request_id, &decision);
-
-    assert!(recorder.take_failure().is_none());
-
-    let frames = delivered.wire();
     let requested = frames.first().expect("the request frame");
-
     assert_eq!(text_of(requested, "kind"), "permission_requested");
-    assert_eq!(text_of(requested, "requestId"), request_id);
-    assert_eq!(text_of(requested, "toolCallId"), "call_005");
-    assert_eq!(
-        text_of(requested, "title"),
-        "Run cargo test",
-        "the interface requires a title even though the protocol does not"
-    );
+    assert_eq!(text_of(requested, "requestId"), "appr_001");
+    assert_eq!(text_of(requested, "toolCallId"), "call_100");
+    assert_eq!(text_of(requested, "title"), "Bash");
 
+    // 选项是这一侧按 kap 答复面合成的三条，顺序不变。
     let option = requested
         .get("options")
         .and_then(|options| options.get(0))
         .expect("the first option");
-
-    assert_eq!(text_of(option, "optionId"), "allow");
+    assert_eq!(text_of(option, "optionId"), "approve");
     assert_eq!(text_of(option, "kind"), "allow_once");
-    assert_eq!(text_of(option, "name"), "Allow");
+    assert_eq!(text_of(option, "name"), "Approve once");
+
+    // 审批项原文随帧走，null 成员不出线。
+    let tool_call = requested.get("toolCall").expect("the approval item");
+    assert_eq!(text_of(tool_call, "tool_name"), "Bash");
 
     let resolved = frames.get(1).expect("the answer frame");
-
     assert_eq!(text_of(resolved, "kind"), "permission_resolved");
-    assert_eq!(text_of(resolved, "requestId"), request_id);
-    assert_eq!(text_of(resolved, "optionId"), "reject");
-    assert_eq!(
-        text_of(resolved, "outcome"),
-        "selected",
-        "refusing by choosing a refusal option is a selection, not a cancellation"
-    );
+    assert_eq!(text_of(resolved, "requestId"), "appr_001");
+    assert_eq!(text_of(resolved, "optionId"), "approve");
+    assert_eq!(text_of(resolved, "outcome"), "selected");
 
-    assert!(
-        recorder.outstanding_permissions().is_empty(),
-        "the request was answered as it was recorded"
-    );
+    assert!(recorder.outstanding_permissions().is_empty());
 }
 
 #[test]
-fn an_announcement_carries_every_field_the_boundary_requires() {
+fn a_request_left_open_at_the_end_of_a_turn_is_settled() {
     let (mut recorder, delivered) = recording();
 
-    // Both defaults at once: pending is the default status, and this call is
-    // announced without a kind. Serialisation omits them, and the interface
-    // draws a card with no title and no icon if they stay omitted, so the
-    // recorder puts them back from the SDK's own values.
-    notify(
-        &mut recorder,
-        SessionUpdate::ToolCall(ToolCall::new("call_006", "Read config.toml")),
-    );
+    let _request_id =
+        recorder.record_permission_requested_kap("appr_002", "call_101", "Write", &approval());
 
-    assert!(recorder.take_failure().is_none());
+    recorder.record_pending_cancelled();
+
+    assert!(recorder.outstanding_permissions().is_empty());
+
+    let resolved = delivered.wire();
+    let last = resolved.last().expect("the answer frame");
+
+    assert_eq!(text_of(last, "outcome"), "cancelled");
+    assert_eq!(text_of(last, "optionId"), "");
+}
+
+#[test]
+fn an_approval_without_a_tool_name_falls_back_to_its_action() {
+    let (mut recorder, delivered) = recording();
+
+    let request_id =
+        recorder.record_permission_requested_kap("appr_003", "call_102", "", &approval());
 
     let frames = delivered.wire();
-    let inner = frames
-        .first()
-        .and_then(|frame| frame.get("notification"))
-        .and_then(|notification| notification.get("update"))
-        .expect("an update");
+    let requested = frames.first().expect("the request frame");
 
-    assert_eq!(text_of(inner, "toolCallId"), "call_006");
-    assert_eq!(text_of(inner, "title"), "Read config.toml");
+    assert_eq!(text_of(requested, "requestId"), request_id);
     assert_eq!(
-        text_of(inner, "status"),
-        "pending",
-        "a default status is still a status the interface demands"
-    );
-    assert!(
-        !text_of(inner, "kind").is_empty(),
-        "a default kind is still a kind the interface demands"
+        text_of(requested, "title"),
+        "run_command",
+        "名不在才轮到动作，都不在就报调用号"
     );
 }

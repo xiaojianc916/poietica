@@ -11,19 +11,21 @@
 
 mod frame_sink;
 
-use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
 use poietica_agent_runtime_native::{
-    AcpError, RUN_STARTED, Recorder, Refusal, RunFrame, RunSlot, acp_update,
+    KapError, RUN_STARTED, Recorder, Refusal, RunFrame, RunSlot, kap_event,
 };
+use serde_json::json;
 
 use frame_sink::{Delivered, SESSION, recording};
 
 fn announcement() -> RunFrame {
-    acp_update(&SessionNotification::new(
-        SESSION,
-        SessionUpdate::ToolCall(ToolCall::new("call_001", "Read config.toml")),
-    ))
-    .expect("the update encodes")
+    kap_event(json!({
+        "type": "tool.call.started",
+        "turnId": 1,
+        "toolCallId": "call_001",
+        "name": "Read config.toml",
+        "args": {}
+    }))
 }
 
 #[test]
@@ -70,8 +72,9 @@ fn updates_reach_the_installed_run() {
         Some(RUN_STARTED)
     );
     assert!(
-        seen.get(1)
-            .is_some_and(|event| matches!(event.frame, RunFrame::AcpUpdate { .. })),
+        seen
+            .get(1)
+            .is_some_and(|event| matches!(event.frame, RunFrame::KapEvent { .. })),
         "the update frame keeps the shape the interface validates"
     );
 }
@@ -89,9 +92,9 @@ fn a_second_run_cannot_displace_the_first() {
         .expect_err("an occupied slot refuses a second run");
 
     /* 拒绝一次并发的轮次是这台机器自己的规矩，不是 agent 那侧出的事，所以
-    它是 Refused 而不是 Protocol。 */
+    它是 Refused 而不是 Transport。 */
     assert!(
-        matches!(error, AcpError::Refused(Refusal::Busy)),
+        matches!(error, KapError::Refused(Refusal::Busy)),
         "a concurrent turn is refused, not silently interleaved"
     );
 }
@@ -144,7 +147,7 @@ fn a_second_turn_continues_the_sequence_of_the_first() {
 /// 装载回来的那条会话，序号线要接上日志里已经用掉的位置。
 ///
 /// 号不变而槽是新的，接不上就会撞上 run_events 的
-/// `UNIQUE (thread_id, session_id, seq)`，整轮被 ON CONFLICT 静默丢掉。
+/// UNIQUE (thread_id, session_id, seq)，整轮被 ON CONFLICT 静默丢掉。
 #[test]
 fn a_reloaded_session_resumes_after_the_recorded_position() {
     let delivered = Delivered::default();

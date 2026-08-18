@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::error::{AcpError, Refusal, Result};
+use crate::error::{KapError, Refusal, Result};
 use crate::recorder::{Recorder, SeqLine};
 
 /// 到达的会话更新交给谁。
@@ -39,10 +39,10 @@ impl RunSlot {
         let mut current = self
             .current
             .lock()
-            .map_err(|_poisoned| AcpError::Poisoned)?;
+            .map_err(|_poisoned| KapError::Poisoned)?;
 
         if current.is_some() {
-            return Err(AcpError::Refused(Refusal::Busy));
+            return Err(KapError::Refused(Refusal::Busy));
         }
 
         *current = Some(recorder);
@@ -59,7 +59,7 @@ impl RunSlot {
         let mut current = self
             .current
             .lock()
-            .map_err(|_poisoned| AcpError::Poisoned)?;
+            .map_err(|_poisoned| KapError::Poisoned)?;
 
         Ok(current.take())
     }

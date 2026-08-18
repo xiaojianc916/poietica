@@ -8,9 +8,9 @@ use crate::error::{Error, Result};
 use crate::paths::attachments_root;
 use poietica_agent_persistence_native::SessionUsage;
 use poietica_agent_runtime_native::{
-    AcpError, AgentClient, AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession,
-    CanForkSession, CanLoadSession, Handshake, PermissionDesk, Refusal, RunSlot, SessionBook,
-    SessionEvent, connect_acp,
+    AgentClient, AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession,
+    CanForkSession, CanLoadSession, Handshake, KapError, PermissionDesk, Refusal, RunSlot,
+    SessionBook, SessionEvent, connect_kap,
 };
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
@@ -60,8 +60,8 @@ struct Connection {
     desk: PermissionDesk,
     /// 这条连接开出来的会话，以及各自的记录槽。
     ///
-    /// ACP 的 sessionId 只在一条连接内有意义，而且活在这个 agent 自己的命名空间
-    /// 里：进程重启之后它不认识上一次的号，另一个 agent 从来不认识它。
+    /// kap 的会话在 server 侧持久（kap-server 的 resumeSessionById），号跨进程
+    /// 有效；命名空间仍然是这个 agent 自己的，另一个 agent 从来不认识它。
     ///
     /// 册子是驱动器的那一本，`connect()` 建立连接时就交了出来。此前这一侧把它
     /// 丢掉，另拿一个 HashSet 记同一件事 —— 于是「这条连接开了哪些会话」在这个
@@ -248,7 +248,7 @@ pub(super) async fn ensure_session(
         driver,
         events,
         book,
-    } = connect_acp(spawn, slot.clone(), desk.clone()).map_err(translate)?;
+    } = connect_kap(spawn, slot.clone(), desk.clone()).map_err(translate)?;
 
     // The crate is runtime-agnostic on purpose; this is the composition root,
     // so this is where the driver gets an executor.
@@ -502,7 +502,7 @@ async fn record_and_flush_disposals(
 
         let outcome = client.delete_session(deleting, session_id.clone()).await;
 
-        if matches!(&outcome, Err(AcpError::Refused(Refusal::Gone))) {
+        if matches!(&outcome, Err(KapError::Refused(Refusal::Gone))) {
             /* 连接没了，这一笔不销：余账留给下一次连接。 */
             return;
         }
