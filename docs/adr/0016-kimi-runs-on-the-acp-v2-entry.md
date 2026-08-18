@@ -1,5 +1,7 @@
 # 0016 — kimi 起的是 acp-v2 入口
 
+> Status: superseded by ADR 0025.
+
 状态：已定。取代同编号的前一版结论 —— 那一版反对切换的三条理由里，两条已被
 证据推翻（v2 自带 builtin-commands.ts 与 slash.ts；fs 反向 RPC legacy 也有）。
 

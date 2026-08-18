@@ -22,9 +22,10 @@
 
 ## 1. 产品不变量
 
-Poietica 是本地高性能 ACP 客户端桌面应用，对标 Codex 桌面版。围绕 Kimi Code
-（TypeScript 版，`kimi acp` 入口）构建，Kimi 是一等公民但不独占：agent 以
-`packages/agent-catalog` 的档案接入，通用层不认识任何一家的名字。多会话并发
+Poietica 是本地高性能 ACP 客户端桌面应用，对标 Codex 桌面版。唯一接入的
+agent 是 Kimi Code（TypeScript 版，`kimi acp` 入口，见 ADR 0024/0025）：它以
+`packages/agent-catalog` 的档案接入，通用层不认识任何一家的名字，再接一家接的
+是 ACP 的第二个实现而不是第二条协议。多会话并发
 是常态而非特例。
 
 - **会话是唯一中心。** 任何能力不得绕过会话另立入口。
@@ -162,7 +163,6 @@ allow。
 1. agent_setup/profile.rs 与 install.rs 超出薄封装（§3 判据：不需要
    AppHandle/State 就能写出的逻辑必须住进 crate 并单测）——新代码不得以
    它们为样板。
-2. 部分注释仍引用 Python 版 kimi_cli 路径，逐批替换为 TS 版锚点。
 
 ## 11. 文档地图
 
