@@ -68,9 +68,6 @@ const PROJECTLESS_DIRECTORY: &str = "projectless";
 /// 受控 home：agent 自己的 CLI 往这里写它自己的配置文件，由它自己热重载。
 const AGENT_HOME_DIRECTORY: &str = "home";
 
-/// harness 线的会话存档：那条运行时的 JSONL 持久化写在这里。
-const AGENT_SESSION_DIRECTORY: &str = "sessions";
-
 /// 内置浏览器占的一格。
 const BROWSER_DIRECTORY: &str = "browser";
 
@@ -260,26 +257,6 @@ pub fn agent_home<R: Runtime>(app: &AppHandle<R>, agent_id: &str) -> Result<Path
         .join(AGENTS_DIRECTORY)
         .join(agent_id)
         .join(AGENT_HOME_DIRECTORY);
-
-    fs::create_dir_all(&directory)?;
-
-    Ok(directory)
-}
-
-/// 这个 agent 的会话存档目录，创建后返回。
-///
-/// 与受控 home 同父不同格：home 是那家 agent 的配置，这里是它写下的会话。harness
-/// 线的运行时按 DSH_SESSION_ROOT 找它，缺席时它会自己挑一个地方 —— 那等于让这个
-/// 模块开篇那句「一个根，一个位置」对它不成立，备份与卸载都带不走。
-///
-/// # Errors
-///
-/// 根目录无法解析、或目录无法创建时返回错误。
-pub fn agent_session_root<R: Runtime>(app: &AppHandle<R>, agent_id: &str) -> Result<PathBuf> {
-    let directory = root(app)?
-        .join(AGENTS_DIRECTORY)
-        .join(agent_id)
-        .join(AGENT_SESSION_DIRECTORY);
 
     fs::create_dir_all(&directory)?;
 

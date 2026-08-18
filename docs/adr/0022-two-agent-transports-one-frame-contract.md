@@ -1,5 +1,7 @@
 # 0022. 两条 agent 传输，一份帧契约
 
+> Status: superseded by ADR 0024.
+
 Status: accepted
 Supersedes: 0008, 0021
 

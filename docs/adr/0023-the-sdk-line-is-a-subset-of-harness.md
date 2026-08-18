@@ -1,5 +1,7 @@
 # 0023. harness 的 SDK 线是它自己能力的一个子集
 
+> Status: superseded by ADR 0024.
+
 > Status: accepted
 
 ## 背景

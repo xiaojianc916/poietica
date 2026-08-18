@@ -174,7 +174,7 @@ pub(super) struct Handle {
     pub(super) deleting: Option<CanDeleteSession>,
     /// 分叉一条会话的凭证。分叉按它把关，调用也拿它。
     pub(super) forking: Option<CanForkSession>,
-    /// 停掉一轮的凭证。停不了的传输上它是空的。
+    /// 停掉一轮的凭证。握手没声明时它是空的。
     pub(super) cancelling: Option<CanCancelSession>,
     /// 这条连接的权限台。
     pub(super) desk: PermissionDesk,
@@ -398,70 +398,21 @@ pub(super) async fn ensure_session(
 
 /// 这一家在这台机器上怎么起：argv 加环境，一处算清。
 ///
-/// 按传输分路，与 `dial` 同一个判别式、同一处 —— 一条线选驱动，也选它自己的启动
-/// 规格。不据 agent id 分支（ADR 0022）。
-///
-/// acp 线的程序名与参数来自档案：那条线起的是用户自己装的 CLI。受控 home 那个变量
-/// 由 `launch_env` 现算 —— 写 provider 的 CLI 与起会话的连接必须落在同一个目录，
+/// 程序名与参数来自档案，起的是用户自己装的那个 CLI。受控 home 那个变量由
+/// `launch_env` 现算 —— 写 provider 的 CLI 与起会话的连接必须落在同一个目录，
 /// 否则 provider 写进了一个 home、对话读的是另一个，界面上添加成功，一开口却说没有
 /// 可用的模型。
 ///
-/// harness 线一个字都不来自档案。官方 python/sdk-runtime 把 argv 与那份 cordis 配置
-/// 划成了一条查询接口，所以这里问那个已安装的包。三个变量后进环境表，压过档案里
-/// 手写的同名项 —— 判据与 `launch_env_inner` 让受控 home 后进去是同一条：这一侧
-/// 算出来的路径成立，用户手写的不一定。
-///
 /// # Errors
 ///
-/// 档案缺席、程序名说不出、运行时包没装，或数据目录建不出来时返回错误。
-fn outfit(
-    app: &AppHandle,
-    agent_id: &str,
-    transport: AgentTransport,
-    cwd: PathBuf,
-) -> Result<AgentSpawn> {
-    let mut env = launch_env(app, agent_id)?;
-
-    let (program, args) = match transport {
-        AgentTransport::Acp => (agent_program(app, agent_id)?, agent_args(app, agent_id)?),
-
-        AgentTransport::DeepseekHarness => {
-            let runtime = resolve_harness_runtime().map_err(translate)?;
-            let mut argv = runtime.argv.into_iter();
-
-            let program = argv.next().ok_or_else(|| {
-                Error::Internal("the harness runtime reported no executable".to_owned())
-            })?;
-
-            env.push(("DSH_CORDIS_CONFIG".to_owned(), runtime.config));
-            env.push(("DSH_CWD".to_owned(), cwd.to_string_lossy().into_owned()));
-            env.push((
-                "DSH_SESSION_ROOT".to_owned(),
-                agent_session_root(app, agent_id)?
-                    .to_string_lossy()
-                    .into_owned(),
-            ));
-
-            (program, argv.collect())
-        }
-    };
-
+/// 档案缺席、程序名说不出，或数据目录建不出来时返回错误。
+fn outfit(app: &AppHandle, agent_id: &str, cwd: PathBuf) -> Result<AgentSpawn> {
     Ok(AgentSpawn {
-        program,
-        args,
+        program: agent_program(app, agent_id)?,
+        args: agent_args(app, agent_id)?,
         cwd,
-        env,
+        env: launch_env(app, agent_id)?,
     })
-}
-
-/// 这一家在哪条线上说话，就交回那条线的入口。
-///
-/// 两条线同签名同返回，所以选择是一次查表，不是两段并行的建立流程。
-fn dial(transport: AgentTransport) -> DialFn {
-    match transport {
-        AgentTransport::Acp => connect_acp,
-        AgentTransport::DeepseekHarness => connect_harness,
-    }
 }
 
 /// Reads the session without holding the lock across an await point.

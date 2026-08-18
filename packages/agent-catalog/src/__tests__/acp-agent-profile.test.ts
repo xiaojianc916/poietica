@@ -132,34 +132,18 @@ describe('parseAcpAgentProfileSet', () => {
 })
 
 describe('agentLaunch', () => {
-  it('把名单里的一家翻成线上那两格', () => {
+  it('把名单里的一家翻成线上那一格', () => {
     const agent = agentRoster()[0]
 
-    expect(agentLaunch(agent)).toEqual({
-      agentId: agent.id,
-      transport: agent.transport,
-    })
-  })
-
-  /*
-   * 回归护栏：传输是档案声明的，这一层原样交出。
-   *
-   * 漏掉这一条的后果已经发生过：deepseek-harness 的档案写着自己那条线，而线上
-   * 形状只有三格，于是原生侧无从选择，起的是官方 bin、说的是 ACP，握手必失败。
-   */
-  it('传输原样交出，不在这一层改写', () => {
-    for (const agent of agentRoster()) {
-      expect(agentLaunch(agent).transport, agent.id).toBe(agent.transport)
-    }
+    expect(agentLaunch(agent)).toEqual({ agentId: agent.id })
   })
 
   /*
    * 回归护栏：启动规格不再携带程序与参数。
    *
-   * 程序在哪、要几个参数，是「这台机器上」的事实：acp 线要在搜索路径上解析一个
-   * 用户自己装的 CLI，harness 线要问已安装的运行时包。渲染进程两样都答不出
-   * （agent-profile.ts 的 agentLaunch 注释），所以这一层交出的只有身份与传输，
-   * 其余由原生侧按 agentId 从档案读。
+   * 程序在哪、要几个参数，是「这台机器上」的事实：原生侧在搜索路径上解析那个
+   * 用户自己装的 CLI。渲染进程答不出（agent-profile.ts 的 agentLaunch 注释），
+   * 所以这一层交出的只有身份，其余由原生侧按 agentId 从档案读。
    */
   it('程序与参数不进启动规格，那是原生侧的事', () => {
     const launch = agentLaunch({
@@ -168,7 +152,7 @@ describe('agentLaunch', () => {
       args: ['acp', '--cwd', 'C:\\my notes'],
     })
 
-    expect(launch).toEqual({ agentId: launch.agentId, transport: launch.transport })
+    expect(launch).toEqual({ agentId: launch.agentId })
     expect('program' in launch).toBe(false)
     expect('args' in launch).toBe(false)
   })
