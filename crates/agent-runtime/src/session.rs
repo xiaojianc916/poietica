@@ -115,7 +115,9 @@ pub struct AgentConnection {
     /// 失败带着原因回来：「要求先登录」「进程崩了」「版本谈不拢」是三件事，
     /// 屏幕上不该都变成同一句「应用操作失败」。
     pub handshake: oneshot::Receiver<Result<Handshake>>,
-    /// Must be spawned; the connection only lives while this future is polled.
+    /// Must be spawned — in a tokio runtime: the driver uses tokio process/fs/
+    /// time and select!, so polling it outside a reactor panics. The connection
+    /// only lives while this future is polled.
     pub driver: BoxFuture<'static, Result<()>>,
 }
 

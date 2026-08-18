@@ -27,12 +27,10 @@ describe('kimi 的接入档案', () => {
   })
 
   /*
-   * 子命令决定接的是上游哪一套 ACP 实现。0.33.0（上游 #2627）起 acp 默认
-   * 就是 agent-core-v2 —— 那一套会把子代理的审批送到客户端，legacy 的
-   * session.ts 在事件流首行就按 MAIN_AGENT_ID 过滤掉了（见 docs/adr/0004）。
-   * 谁想退回 legacy 或已退役的 acp-v2 拼写，先过这一条。
+   * 接的是 kap 本地服务模式：web 子命令起 server，--no-open 不开浏览器。
+   * 谁想退回 acp 入口，先过这一条。
    */
-  it('起的是 v2 那套实现', () => {
-    expect(kimiCode.args).toEqual(['acp'])
+  it('起的是本地服务模式', () => {
+    expect(kimiCode.args).toEqual(['web', '--no-open'])
   })
 })

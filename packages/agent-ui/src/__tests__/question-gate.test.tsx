@@ -93,7 +93,7 @@ function record(item: PermissionItem): string {
 function dock(item: PermissionItem): string {
   return renderToStaticMarkup(
     <AgentDialectContext value={DIALECT}>
-      <PermissionDock item={item} onResolve={() => {}} waiting={1} />
+      <PermissionDock call={undefined} item={item} onResolve={() => {}} waiting={1} />
     </AgentDialectContext>,
   )
 }

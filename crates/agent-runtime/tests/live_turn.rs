@@ -95,9 +95,17 @@ struct Driver(Option<JoinHandle<Result<(), KapError>>>);
 
 impl Driver {
     fn spawn(driver: impl Future<Output = Result<(), KapError>> + Send + 'static) -> Self {
-        // The crate is deliberately runtime-agnostic, so the test is its own
-        // composition root: the driver gets a thread, and this thread waits.
-        Self(Some(thread::spawn(move || block_on(driver))))
+        // kap 的 driver 要 tokio reactor（process / fs / time / select!）。这个
+        // crate 不替它选 runtime：src-tauri 用 tauri 的 async_runtime，测试在
+        // 自己的驱动线程上起一个 current_thread runtime —— 同一条规矩。
+        Self(Some(thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("a tokio runtime");
+
+            runtime.block_on(driver)
+        })))
     }
 
     /// Why the connection is gone, in the driver's own words.
