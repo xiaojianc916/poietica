@@ -21,7 +21,7 @@
 //! 数据流：
 //!   命令 → Command 枚举 → REST（sessions / prompts / approvals / profile）或
 //!   WS 控制帧（subscribe / abort / pong）
-//!   事件 → WS session_event → frame.rs 的 kap_event() → RecordedEvent → Tauri
+//!   事件 → WS 事件帧（type 即事件类型）→ frame.rs 的 kap_event() → RecordedEvent → Tauri
 //!
 //! 协议事实来源是 MoonshotAI/kimi-code 的 packages/kap-server（routes/ 与
 //! protocol/ 两个目录），快照钉在 contracts/kap。信封约定
@@ -965,7 +965,7 @@ async fn handle_ws_message(
         return;
     }
 
-    // 所有 session_event 都成帧进录制器。
+    // 认下来的每一帧事件都成帧进录制器 —— 判据在上面，这里不再问第二遍。
     if let Ok(Some(slot)) = book.slot(session_id) {
         let frame = kap_event(payload.clone());
         slot.record(|recorder| recorder.record_frame(frame));

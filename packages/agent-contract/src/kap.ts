@@ -7,7 +7,7 @@
  * kap-projection.ts），契约这一层不为它不认识的东西写字段。
  */
 
-/** 一帧 kap_event 的载荷：session_event 信封里的事件本体。 */
+/** 一帧 kap_event 的载荷：kap 事件信封里的事件本体（信封的 type 就是它的 type）。 */
 export type KapEventPayload = {
   readonly type: string
 } & Readonly<Record<string, unknown>>

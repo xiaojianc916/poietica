@@ -58,7 +58,7 @@ export type RunEvent =
       readonly seq: number
       readonly at: number
       /**
-       * kap 的 session_event 载荷，原样进帧（frame.rs 的 RunFrame::KapEvent）。
+       * kap 的事件帧载荷，原样进帧（frame.rs 的 RunFrame::KapEvent）。
        * 这一层一个字段都不认识 —— 认识它的是投影它的那一层。
        */
       readonly payload: KapEventPayload

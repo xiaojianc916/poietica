@@ -5,7 +5,7 @@
 //! schema 在运行期抓出来的问题。
 //!
 //! 判别式与字段名由 serde 派生：kind 用 snake_case，字段用界面读的
-//! camelCase。线上形状就是契约：kap 的 session_event 载荷原样进 KapEvent，
+//! camelCase。线上形状就是契约：kap 的事件帧载荷原样进 KapEvent，
 //! 这一层一个字段都不认识，认识它的是投影它的那一层。
 
 use serde::Serialize;
@@ -49,7 +49,7 @@ pub enum RunFrame {
     },
     /// kap server 推来的一帧会话事件。
     KapEvent {
-        /// session_event 的载荷，原始 JSON。
+        /// 事件帧的载荷，原始 JSON。信封的 type 就是它自己的 type。
         payload: Value,
     },
     /// agent 正卡在一次授权请求上。
@@ -126,7 +126,7 @@ pub(crate) fn prune(value: &mut Value) {
     }
 }
 
-/// 把 kap server 推来的一条 session_event 载荷做成一帧。
+/// 把 kap server 推来的一条事件载荷做成一帧。
 ///
 /// 实时的一轮与装载期的重播都走这里，所以两边的帧一模一样 —— 一条对话重开
 /// 之后，与当时看着它发生，不可能有出入。驱动线与集成测试都从这里成帧，
