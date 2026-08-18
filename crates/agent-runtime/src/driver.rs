@@ -987,7 +987,7 @@ async fn handle_ws_message(
                 recorder.record_pending_cancelled();
 
                 match reason {
-                    "failed" | "blocked" => recorder.record_run_failed(reason),
+                    "failed" | "blocked" => recorder.record_run_failed(&failure(payload, reason)),
                     _ => recorder.record_run_finished(reason),
                 }
             }
@@ -1021,6 +1021,22 @@ async fn handle_ws_message(
         }
 
         _ => {}
+    }
+}
+
+/// 一轮失败的说法。
+///
+/// turnEnded 的载荷是 { reason, error?, interruptReason?, … }（events-zod.ts）。
+/// 只记一个 "failed" 等于把 agent 说的那句话扔掉：界面上剩下「失败了」三个字，
+/// 排查得从头再跑一遍真回合。原话原样带出来，不解释也不翻译。
+fn failure(payload: &Value, reason: &str) -> String {
+    let interrupted = payload.get("interruptReason").and_then(Value::as_str);
+
+    match (payload.get("error"), interrupted) {
+        (Some(error), Some(why)) => format!("{reason}: {error} (interrupted: {why})"),
+        (Some(error), None) => format!("{reason}: {error}"),
+        (None, Some(why)) => format!("{reason} (interrupted: {why})"),
+        (None, None) => reason.to_owned(),
     }
 }
 

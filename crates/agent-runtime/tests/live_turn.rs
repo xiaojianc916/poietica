@@ -258,19 +258,20 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     // 多给的 30 秒是收尾本身的余量。
     let deadline = started + timeout + Duration::from_secs(30);
 
-    while !delivered
-        .frames()
-        .iter()
-        .any(|event| event.frame.kind() == RUN_FINISHED)
-    {
+    /* 收尾有两种说法：agent 自己说完（run_finished），或者这一轮以失败告终
+    （run_failed）。两种都是「这一轮结束了」，等就该等到这里为止。只认前一种，
+    一个失败的回合就要把看门狗的 150 秒走完，再报一句与事实相反的「从没结束」，
+    而结束的那一帧就摆在名单的最后一行。 */
+    while !delivered.frames().iter().any(|event| {
+        matches!(
+            event.frame,
+            RunFrame::RunFinished { .. } | RunFrame::RunFailed { .. }
+        )
+    }) {
         assert!(
             Instant::now() < deadline,
-            "the turn never ended; recorded so far: {:?}",
-            delivered
-                .frames()
-                .iter()
-                .map(|event| event.frame.kind())
-                .collect::<Vec<_>>()
+            "the turn never ended; recorded so far:\n{}",
+            outline(&delivered.frames())
         );
 
         thread::sleep(Duration::from_millis(50));
@@ -278,28 +279,19 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
 
     println!("finished after {:?}", started.elapsed());
 
-    client.shutdown().expect("the session to close");
-
-    driver.finish();
-
     let broadcast = delivered.frames();
 
-    for event in &broadcast {
-        println!(
-            "  {:>3} {:<12} {}",
-            event.seq,
-            event.frame.kind(),
-            describe(&event.frame)
-        );
-    }
+    /* 先摆出这一轮，再判它对不对：断言 panic 之后什么都不会再打印，而一个失败
+    的回合最需要的恰恰是这份名单。 */
+    print!("{}", outline(&broadcast));
 
     report(&broadcast);
 
-    // Before the capture, not after: a turn that missed what it was recording
-    // must not overwrite a recording that caught it.
-    require_expected(&broadcast);
+    /* 关机排在断言之前：断言失败也要把 server 带走，否则每失败一次就在这台机器
+    上留一个 kimi。 */
+    client.shutdown().expect("the session to close");
 
-    capture(&broadcast);
+    driver.finish();
 
     let first = broadcast.first().expect("at least one frame");
     let last = broadcast.last().expect("at least one frame");
@@ -312,7 +304,8 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     assert_eq!(
         last.frame.kind(),
         RUN_FINISHED,
-        "the turn must end on the agent's terms, not in a client failure"
+        "the turn must end on the agent's terms, not in a client failure: {}",
+        detail(&last.frame)
     );
 
     // 序号必须致密：位置在投递成功时才算用掉，所以一轮里不该出现空号。
@@ -321,6 +314,12 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
 
         assert_eq!(sent.seq, expected, "sequence numbers are dense");
     }
+
+    /* 录制之前，不是之后：一轮没抓到它要抓的东西，就不能覆盖掉抓到了的那份
+    录音 —— 一轮以失败收场同样不行。 */
+    require_expected(&broadcast);
+
+    capture(&broadcast);
 
     println!("recorded {} frames", broadcast.len());
 }
@@ -403,6 +402,45 @@ fn describe(frame: &RunFrame) -> String {
         .and_then(serde_json::Value::as_str)
         .unwrap_or("")
         .to_owned()
+}
+
+/// 这一帧自己的说法。
+///
+/// describe 给的是判别式 —— 夹具与 POIETICA_KAP_EXPECT 就判在那一层，所以它
+/// 只能是判别式。人要看的是另一件事：失败的那句话、结束的那个理由、出错事件
+/// 带的码。两者分开，看一眼原因才不至于顺手把 EXPECT 的词汇表改掉。
+fn detail(frame: &RunFrame) -> String {
+    match frame {
+        RunFrame::RunStarted { prompt, .. } => prompt.clone(),
+        RunFrame::KapEvent { payload } => match describe(frame).as_str() {
+            // 增量一帧一个字，摊开来只会把名单淹掉。
+            "assistant.delta" | "thinking.delta" | "tool.call.delta" => String::new(),
+            _ => payload.to_string(),
+        },
+        RunFrame::PermissionRequested { title, .. } => title.clone(),
+        RunFrame::PermissionResolved { outcome, .. } => outcome.clone(),
+        RunFrame::RunFinished { stop_reason } => stop_reason.clone(),
+        RunFrame::RunFailed { message } => message.clone(),
+    }
+}
+
+/// 这一轮到此为止的样子，一帧一行。
+///
+/// 失败时看得到的只有这一段，所以渲染只此一处：跑通那条路打印的也是它，不另
+/// 写第二个格式 —— 否则出事时看到的永远是没人维护的那一份。
+fn outline(events: &[RecordedEvent]) -> String {
+    events
+        .iter()
+        .map(|event| {
+            format!(
+                "  {:>3} {:<12} {:<22} {}\n",
+                event.seq,
+                event.frame.kind(),
+                describe(&event.frame),
+                detail(&event.frame)
+            )
+        })
+        .collect()
 }
 
 /// Writes the turn out, when asked.
