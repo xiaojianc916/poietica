@@ -6,7 +6,6 @@
 use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
 use poietica_agent_runtime_native::ConfigControl;
-use serde_json::Value;
 use std::path::PathBuf;
 use tauri::State;
 use uuid::Uuid;
@@ -59,14 +58,11 @@ pub(super) struct Held {
 /// 空的才回落到平台给的那个 home —— 那是早于这一列写下的行，那时候只有一个工
 /// 作目录，所以回落是一条事实，不是兜底。取进程的当前目录回答的是另一个问题：
 /// 开发运行时它是 Rust 的构建目录。
-/* 名册按值收下：只有走到最下面新开一条会话那一路才用得到它。装载回来的那条
-会话不该重挂 —— 装载恢复的是它原来那一条，连同它原来那几台。 */
 pub(super) async fn session_for(
     state: &State<'_, AgentRuntime>,
     index: &State<'_, LocalIndex>,
     live: &Handle,
     named: &str,
-    mcp: Vec<Value>,
 ) -> Result<Held> {
     let thread_id = conversation(named)?;
 
@@ -125,11 +121,7 @@ pub(super) async fn session_for(
             });
         } else if let Some(loading) = live.loading {
             /* 上次运行留下的。号不变，让 agent 把它装载回来。 */
-            match live
-                .client
-                .load_session(loading, session_id.clone(), workspace.clone())
-                .await
-            {
+            match live.client.load_session(loading, session_id.clone()).await {
                 Ok(loaded) => {
                     /* 序号线接上日志。号没变，日志里那些位置照样占着，而这条
                     会话的槽是本次连接新建的、从 1 开始 —— 不接上去，下一轮的
@@ -189,7 +181,7 @@ pub(super) async fn session_for(
 
     let opened = live
         .client
-        .new_session(workspace, mcp)
+        .new_session(workspace)
         .await
         .map_err(translate)?;
 

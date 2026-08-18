@@ -2,7 +2,6 @@ use std::fmt;
 use std::path::PathBuf;
 
 use futures::channel::{mpsc, oneshot};
-use serde_json::Value;
 
 use crate::config::ConfigControl;
 use crate::error::{KapError, Refusal, Result};
@@ -55,10 +54,6 @@ pub(crate) enum Command {
     /// Open one more session on the connection that is already running.
     NewSession {
         cwd: PathBuf,
-        /// 渲染层随会话报来的 MCP 名册。kap 的会话创建不收它
-        ///（sessionCreateSchema 没有这一格）：MCP 服务器归 kimi 自己的配置管。
-        /// 这个字段还留在 IPC 上，是因为渲染层名册的清理属于另一批。
-        mcp_servers: Vec<Value>,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
     /// 把一条以前开过的会话装回本次连接。
@@ -68,7 +63,6 @@ pub(crate) enum Command {
     /// 历史因此还在 agent 手里 —— 与新开一条的分别在于上下文还在不在。
     LoadSession {
         session_id: String,
-        cwd: PathBuf,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
     /// 让 agent 从一条已有会话分叉出一条新会话。
@@ -77,7 +71,6 @@ pub(crate) enum Command {
     /// 是协议动作：kap 的 :fork 就是为它设的。源会话原样不动。
     ForkSession {
         session_id: String,
-        cwd: PathBuf,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
     /// 让 agent 删掉一条它自己存着的会话。
@@ -160,18 +153,10 @@ impl AgentClient {
     ///
     /// Fails when the connection is gone, when the agent refuses to open a
     /// session, or when the book cannot record the one it opened.
-    pub async fn new_session(
-        &self,
-        cwd: PathBuf,
-        mcp_servers: Vec<Value>,
-    ) -> Result<OpenedSession> {
+    pub async fn new_session(&self, cwd: PathBuf) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
-        self.send(Command::NewSession {
-            cwd,
-            mcp_servers,
-            reply,
-        })?;
+        self.send(Command::NewSession { cwd, reply })?;
 
         answer
             .await
@@ -191,15 +176,10 @@ impl AgentClient {
         &self,
         _granted: CanLoadSession,
         session_id: String,
-        cwd: PathBuf,
     ) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
-        self.send(Command::LoadSession {
-            session_id,
-            cwd,
-            reply,
-        })?;
+        self.send(Command::LoadSession { session_id, reply })?;
 
         answer
             .await
@@ -219,15 +199,10 @@ impl AgentClient {
         &self,
         _granted: CanForkSession,
         session_id: String,
-        cwd: PathBuf,
     ) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
-        self.send(Command::ForkSession {
-            session_id,
-            cwd,
-            reply,
-        })?;
+        self.send(Command::ForkSession { session_id, reply })?;
 
         answer
             .await

@@ -375,7 +375,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         let http = reqwest::Client::builder()
             .default_headers({
                 let mut headers = reqwest::header::HeaderMap::new();
-                headers.insert(reqwest::header::AUTHORIZATION, auth_header.clone());
+                headers.insert(AUTHORIZATION, auth_header.clone());
                 headers
             })
             .timeout(Duration::from_secs(30))
@@ -553,7 +553,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             }
                         }
 
-                        Some(Command::NewSession { cwd: new_cwd, mcp_servers: _, reply }) => {
+                        Some(Command::NewSession { cwd: new_cwd, reply }) => {
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             let book2 = book_clone.clone();
@@ -565,7 +565,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             });
                         }
 
-                        Some(Command::LoadSession { session_id: sid, cwd: _, reply }) => {
+                        Some(Command::LoadSession { session_id: sid, reply }) => {
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             let book2 = book_clone.clone();
@@ -577,7 +577,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             });
                         }
 
-                        Some(Command::ForkSession { session_id: src, cwd: _, reply }) => {
+                        Some(Command::ForkSession { session_id: src, reply }) => {
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             let book2 = book_clone.clone();

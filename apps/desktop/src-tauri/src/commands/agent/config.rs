@@ -49,15 +49,11 @@ pub async fn agent_set_config_option(
         thread_id,
         config_id,
         value,
-        mcp_servers,
+        ..
     } = request;
 
     let addressed = match thread_id.as_deref() {
-        Some(named) => {
-            session_for(&state, &index, &live, named, mcp_servers)
-                .await?
-                .session_id
-        }
+        Some(named) => session_for(&state, &index, &live, named).await?.session_id,
         None => live.anchor.clone(),
     };
 

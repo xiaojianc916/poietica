@@ -7,7 +7,6 @@ use crate::local_index::{LocalIndex, conversation, counted, on_index, persistenc
 use crate::paths::{agent_home, remove_projectless_workspace};
 use poietica_agent_persistence_native::TitleSource;
 use serde_json::Value;
-use std::path::PathBuf;
 use tauri::{AppHandle, State, async_runtime};
 
 use super::addressing::{Held, session_for};
@@ -74,7 +73,6 @@ pub async fn agent_open_thread(
     request: AgentOpenThreadRequest,
 ) -> AgentCommandResult<AgentOpenedThread> {
     let asked = request.cwd.clone();
-    let mcp = request.mcp_servers;
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
     let named = if let Some(given) = request.thread_id {
@@ -96,7 +94,7 @@ pub async fn agent_open_thread(
         session_id,
         offered,
         history,
-    } = session_for(&state, &index, &live, &named, mcp).await?;
+    } = session_for(&state, &index, &live, &named).await?;
 
     let offered = if let Some(offered) = offered {
         offered
@@ -461,12 +459,6 @@ pub async fn agent_fork_thread(
         .map(|(session, _owner)| session)
         .ok_or_else(|| Error::Validation(NOTHING_TO_FORK.to_owned()))?;
 
-    /* 目录是对话的属性，不是这一刻的选择 —— 与 addressing 同一条规矩。 */
-    let workspace = match stored.workspace_root {
-        Some(path) => PathBuf::from(path),
-        None => state.root.clone(),
-    };
-
     /* 上次运行留下的号先原样装载成活地址；装载失败就失败，不换号。 */
     let known = live.book.slot(&held).map_err(translate)?.is_some();
 
@@ -476,14 +468,14 @@ pub async fn agent_fork_thread(
         };
 
         live.client
-            .load_session(loading, held.clone(), workspace.clone())
+            .load_session(loading, held.clone())
             .await
             .map_err(translate)?;
     }
 
     let forked = live
         .client
-        .fork_session(forking, held, workspace)
+        .fork_session(forking, held)
         .await
         .map_err(translate)?;
 

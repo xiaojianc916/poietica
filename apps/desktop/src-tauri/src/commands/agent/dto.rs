@@ -53,10 +53,8 @@ pub struct AgentPromptRequest {
     pub launch: AgentLaunch,
     /// The working directory the session is created against.
     pub cwd: Option<String>,
-    /// 这条对话还没有会话时，为它开的那一条要挂哪几台 MCP 服务器。
-    ///
-    /// 已经有会话就用不上：MCP 名册是 session/new 的参数，一条已经开着的会话
-    /// 不会因为这一格而改变。
+    /// kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
+    /// 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
     pub mcp_servers: Vec<Value>,
 }
 
@@ -197,11 +195,8 @@ pub struct AgentSelectConfigRequest {
     pub config_id: String,
     /// One of the values that selector offered.
     pub value: String,
-    /// 点名的那条对话还没有会话时，为它开的那一条要挂哪几台 MCP 服务器。
-    ///
-    /// 与 `AgentPromptRequest` 那一格同一个理由：MCP 名册是 session/new 的
-    /// 参数，开完就定死了。少了它，改一次设置就可能开出一条一台服务器都不挂
-    /// 的会话，而这条对话此后每一轮都用它。不点名对话时发往锚会话，恒为空。
+    /// kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
+    /// 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
     pub mcp_servers: Vec<Value>,
 }
 
@@ -273,12 +268,8 @@ pub struct AgentOpenThreadRequest {
     pub launch: AgentLaunch,
     /// The working directory the session is created against.
     pub cwd: Option<String>,
-    /// 这一次开会话要挂哪几台 MCP 服务器，ACP 的线上形状原样带过来。
-    ///
-    /// 这一层不认识它的字段。协议那三个结构体（McpServer / McpServerHttp /
-    /// McpServerStdio）全标了 #[non_exhaustive]，这个 crate 构造不出来，只能
-    /// 反序列化 —— 所以线上形状就是契约，与 events 那一格同一个理由。翻译在
-    /// 驱动器里做，那里才是协议的家。
+    /// kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
+    /// 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
     pub mcp_servers: Vec<Value>,
 }
 

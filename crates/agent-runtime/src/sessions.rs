@@ -12,8 +12,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use crate::error::{KapError, Result};
 use crate::run_slot::RunSlot;
 
-const POISONED: &str = "the session book lock was poisoned";
-
 /// The open sessions of one agent process, keyed by protocol session id.
 ///
 /// Cheap to clone: every clone reads and writes the same book.

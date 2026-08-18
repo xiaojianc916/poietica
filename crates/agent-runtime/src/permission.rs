@@ -31,11 +31,11 @@ impl Decision {
 }
 
 /// 批准这一次。
-pub const APPROVE: &str = "approve";
+pub(crate) const APPROVE: &str = "approve";
 /// 批准，并且在这条会话上记住（kap 的 scope: "session"）。
-pub const APPROVE_SESSION: &str = "approve_session";
+pub(crate) const APPROVE_SESSION: &str = "approve_session";
 /// 拒绝。
-pub const REJECT: &str = "reject";
+pub(crate) const REJECT: &str = "reject";
 
 /// 选项上的字与上游自己的审批按钮逐字相同（上游 packages/acp-adapter
 /// /src/approval.ts 的 CANONICAL_OPTIONS：Approve once / Approve for this
