@@ -11,6 +11,13 @@
 //! +1 往上走，绑上之后才 registration.update({ port: boundPort }) 回填真端口。
 //! 文件先于监听存在，只信文件就会在这段窗口里拨到别人身上。
 //!
+//! 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …）：
+//! 信封是 { type, seq, session_id, timestamp, payload }，payload 里再带一份
+//! 同名 type、agentId 与 sessionId。没有哪一帧的 type 是 "session_event" ——
+//! 那是 ws-control.ts 操作目录里那一条的名字，那条自己的 description 写着
+//! 「frame type is the payload event type」，wsConnectionV1.ts 的
+//! isCoalescableDelta 也是拿 'assistant.delta' 去比 wire 上的 type。
+//!
 //! 数据流：
 //!   命令 → Command 枚举 → REST（sessions / prompts / approvals / profile）或
 //!   WS 控制帧（subscribe / abort / pong）
@@ -293,22 +300,35 @@ async fn send_frame(ws: &WsSink, kind: &str, payload: Value) -> Result<String> {
     Ok(id)
 }
 
-/// 等某帧的 ack。ack 信封带 code，非零就是服务器拒了这条控制帧。
-async fn wait_ack(ws_rx: &mut SplitStream<WsStream>, id: &str) -> Result<()> {
+/// 等某帧的 ack，返回它的载荷；等待期间到达的其它帧收进 stash。
+///
+/// 不能丢：ack 是 sendImmediateFrame 发的，它把整条出队队列一次冲干净
+/// （wsConnectionV1.ts flush），所以排在 ack 前面的事件帧会先到这里。
+async fn wait_ack(
+    ws_rx: &mut SplitStream<WsStream>,
+    id: &str,
+    stash: &mut Vec<Value>,
+) -> Result<Value> {
     loop {
         match ws_rx.next().await {
             Some(Ok(Message::Text(raw))) => {
-                if let Ok(v) = serde_json::from_str::<Value>(&raw)
-                    && v.get("type").and_then(Value::as_str) == Some("ack")
-                    && v.get("id").and_then(Value::as_str) == Some(id)
+                let Ok(frame) = serde_json::from_str::<Value>(&raw) else {
+                    continue;
+                };
+
+                if frame.get("type").and_then(Value::as_str) != Some("ack")
+                    || frame.get("id").and_then(Value::as_str) != Some(id)
                 {
-                    return match v.get("code").and_then(Value::as_i64) {
-                        Some(0) | None => Ok(()),
-                        Some(code) => Err(KapError::Handshake {
-                            message: format!("control frame {id} rejected with code {code}: {raw}"),
-                        }),
-                    };
+                    stash.push(frame);
+                    continue;
                 }
+
+                return match frame.get("code").and_then(Value::as_i64) {
+                    Some(0) | None => Ok(frame.get("payload").cloned().unwrap_or_default()),
+                    Some(code) => Err(KapError::Handshake {
+                        message: format!("control frame {id} rejected with code {code}: {raw}"),
+                    }),
+                };
             }
             Some(Err(error)) => {
                 return Err(KapError::Handshake {
@@ -323,6 +343,31 @@ async fn wait_ack(ws_rx: &mut SplitStream<WsStream>, id: &str) -> Result<()> {
             _ => {}
         }
     }
+}
+
+/// 订阅的 ack 永远是 code 0：成败写在载荷的 accepted / not_found 里
+/// （wsConnectionV1.ts onSubscribe、ws-control.ts subscribeAckPayloadSchema）。
+/// 只看 code 就会把「这条会话没订上」当成订上了，然后一帧不来地等到超时。
+async fn wait_subscribe_ack(
+    ws_rx: &mut SplitStream<WsStream>,
+    id: &str,
+    session_id: &str,
+    stash: &mut Vec<Value>,
+) -> Result<()> {
+    let payload = wait_ack(ws_rx, id, stash).await?;
+
+    let accepted = payload
+        .get("accepted")
+        .and_then(Value::as_array)
+        .is_some_and(|ids| ids.iter().any(|entry| entry.as_str() == Some(session_id)));
+
+    if accepted {
+        return Ok(());
+    }
+
+    Err(KapError::Handshake {
+        message: format!("the server did not subscribe {session_id}: {payload}"),
+    })
 }
 
 /// 把一条会话挂到这条连接的事件流上。不在握手内联订阅：hello 内联订阅是
@@ -525,6 +570,9 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         let (ws_sink, mut ws_rx) = ws_stream.split();
         let ws: WsSink = Arc::new(tokio::sync::Mutex::new(ws_sink));
 
+        // 等 ack 期间到达的事件帧先收着，主循环开张前补投。
+        let mut stash: Vec<Value> = Vec::new();
+
         // 等 server_hello
         loop {
             match ws_rx.next().await {
@@ -571,7 +619,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             }
         };
 
-        if let Err(error) = wait_ack(&mut ws_rx, &hello).await {
+        if let Err(error) = wait_ack(&mut ws_rx, &hello, &mut stash).await {
             let _ = ready_tx.send(Err(KapError::Handshake {
                 message: error.to_string(),
             }));
@@ -600,7 +648,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             }
         };
 
-        if let Err(error) = wait_ack(&mut ws_rx, &anchor_sub).await {
+        if let Err(error) = wait_subscribe_ack(&mut ws_rx, &anchor_sub, &session_id, &mut stash).await {
             let _ = ready_tx.send(Err(KapError::Handshake {
                 message: error.to_string(),
             }));
@@ -620,6 +668,22 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         // 8. 主循环
         let mut sessions: HashMap<String, SessionState> = HashMap::new();
         sessions.insert(session_id.clone(), SessionState::new());
+
+        // 补投握手期间收下的帧。里面可能有一帧 ping 不必答：我们刚发出去的
+        // client_hello 与 subscribe 已经刷新了服务端的 lastInboundAt，而它的
+        // 判死线是连续两个周期没有任何入站帧（wsConnectionV1.ts onHeartbeat）。
+        for envelope in std::mem::take(&mut stash) {
+            handle_ws_message(
+                &envelope,
+                &mut sessions,
+                &book_clone,
+                &desk,
+                &events_tx,
+                &http,
+                &base_url,
+            )
+            .await;
+        }
 
         let mut commands_rx = commands_rx;
         let mut stopping = false;
@@ -852,8 +916,30 @@ async fn handle_ws_message(
     http: &reqwest::Client,
     base_url: &str,
 ) {
-    // session_event 是 agent 事件的统一入口（ws-control.ts sessionEventOperation）。
-    if envelope.get("type").and_then(Value::as_str) != Some("session_event") {
+    // 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …），
+    // 不是字符串 "session_event"：wsEventEnvelopeSchema 里 type 是 z.string()，
+    // sessionEventOperation 的 'session_event' 只是操作目录里那一条的名字。
+    //
+    // 判据：同时带 session_id、seq 和一个自带 type 的载荷，且两个 type 相等。
+    // 控制帧与系统帧就此排除 —— 系统 error 帧的载荷是 { code, msg, fatal }，
+    // 既没有 type 也没有 seq，不会被当成 agent 的 error 事件收进来。
+    let kind = envelope.get("type").and_then(Value::as_str).unwrap_or("");
+
+    // 订阅失败不写在 code 上：ack 永远回 0，落选的会话在载荷的 not_found 里。
+    // 异步订阅（新开 / 装载 / 分叉）的 ack 只到得了这里。
+    if kind == "ack"
+        && let Some(missing) = envelope
+            .get("payload")
+            .and_then(|payload| payload.get("not_found"))
+            .and_then(Value::as_array)
+        && !missing.is_empty()
+    {
+        log::warn!("kap refused to subscribe: {missing:?}");
+        return;
+    }
+
+    if kind == "resync_required" {
+        log::warn!("kap asked for a resync: {envelope}");
         return;
     }
 
@@ -861,11 +947,19 @@ async fn handle_ws_message(
         return;
     };
 
+    if envelope.get("seq").and_then(Value::as_i64).is_none() {
+        return;
+    }
+
     let Some(payload) = envelope.get("payload") else {
         return;
     };
 
     let event_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
+
+    if event_type != kind {
+        return;
+    }
 
     // 所有 session_event 都成帧进录制器。
     if let Ok(Some(slot)) = book.slot(session_id) {
