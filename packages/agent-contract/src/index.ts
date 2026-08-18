@@ -15,25 +15,21 @@ export type {
   SessionConfigPurpose,
   SessionConfigReport,
 } from './config'
-export type { KapEventPayload, KapStopReason } from './kap'
+export type {
+  KapEventPayload,
+  KapPermissionOption,
+  KapSessionId,
+  KapStopReason,
+  KapToolCallContent,
+  KapToolCallId,
+  KapToolCallLocation,
+  KapToolCallStatus,
+  KapToolCallUpdate,
+  KapToolKind,
+} from './kap'
 export type { AgentPalettePort, PaletteEntry, PaletteKind } from './palette'
 export { paletteEntryOf, paletteFrom } from './palette'
 export type { PermissionPosturePort } from './permission'
-export type {
-  AcpAvailableCommand,
-  AcpEmbeddedResource,
-  AcpPermissionOption,
-  AcpPlanEntry,
-  AcpPlanEntryPriority,
-  AcpPlanEntryStatus,
-  AcpSessionId,
-  AcpToolCallContent,
-  AcpToolCallId,
-  AcpToolCallLocation,
-  AcpToolCallStatus,
-  AcpToolCallUpdate,
-  AcpToolKind,
-} from './protocol'
 export type { ChatStatus, RunEvent, RunStatus } from './run'
 export type {
   AgentPromptHandle,

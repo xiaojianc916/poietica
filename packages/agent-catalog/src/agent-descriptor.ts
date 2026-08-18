@@ -68,8 +68,8 @@ export interface AgentDescriptor {
    * 因为它们是这家二进制的固有事实，不是用户的选择。
    *
    * 为什么需要它：args 有时只是一个决定的一半。kimi 的 acp-v2 子命令是条件注册
-   * 的 —— 上游 apps/kimi-code/src/cli/commands.ts 用 isAcpV2Enabled 决定要不要
-   * registerAcpV2Command，判据在 cli/experimental-v2.ts 里逐字是
+   * 的 —— 上游 apps/kimi-code/src/cli/commands.ts 用 isKapV2Enabled 决定要不要
+   * registerKapV2Command，判据在 cli/experimental-v2.ts 里逐字是
    * KIMI_CODE_EXPERIMENTAL_ACP_V2 属于 {'1','true','yes','on'}。开关没开时，
    * commander 对这个名字的回答是 unknown command，而不是「功能没启用」。
    *

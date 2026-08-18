@@ -1,5 +1,5 @@
 import type { ThreadId } from './address'
-import type { AcpSessionId } from './protocol'
+import type { KapSessionId } from './kap'
 import type { RunEvent } from './run'
 
 /**
@@ -53,7 +53,7 @@ export interface AgentPromptRequest {
  * 条对话，见下面的 cancel。
  */
 export interface AgentPromptHandle {
-  readonly sessionId: AcpSessionId
+  readonly sessionId: KapSessionId
 }
 
 export interface AgentSessionPort {
@@ -74,7 +74,7 @@ export interface AgentSessionPort {
    * seq 按会话单调，所以按 seq 去重在两轮之间仍然成立。
    */
   readonly subscribe: (
-    listener: (events: readonly RunEvent[], sessionId: AcpSessionId) => void,
+    listener: (events: readonly RunEvent[], sessionId: KapSessionId) => void,
   ) => () => void
   readonly prompt: (request: AgentPromptRequest) => Promise<AgentPromptHandle>
   /**

@@ -77,7 +77,7 @@ pub struct AgentCliRequest {
     #[serde(default)]
     pub secret_from_global_provider: Option<String>,
     // 受控 home 不在这里，也不该在：它由原生侧的 launch_env 用 paths::agent_home
-    // 现算，与 ACP 会话同源。让渲染层报一个路径过来，等于给了两条管线各算出不同
+    // 现算，与 kap 会话同源。让渲染层报一个路径过来，等于给了两条管线各算出不同
     // 目录的自由。
 }
 
@@ -238,7 +238,7 @@ pub async fn agent_cli_exec(
     validate(&request).map_err(IpcError::from)?;
 
     // 程序与环境来自同一份档案。CLI 用哪个程序、往哪个 home 写 provider，
-    // 都得与 ACP 会话起来的那个进程一致 —— 两处各算一次，迟早算出两个。
+    // 都得与 kap 会话起来的那个进程一致 —— 两处各算一次，迟早算出两个。
     let program = agent_program(&app, &request.agent_id).map_err(IpcError::from)?;
     validate_program(&program).map_err(IpcError::from)?;
 
@@ -251,7 +251,7 @@ pub async fn agent_cli_exec(
 
     // 裸名字不是一条可启动的路径：Windows 上包管理器装出来的是 kimi.CMD，
     // CreateProcess 只补 .exe、不读 PATHEXT，于是 Command::new("kimi") 直接
-    // NotFound —— 明明装了，界面却报找不到。ACP 会话那条路径一直是解析过的，
+    // NotFound —— 明明装了，界面却报找不到。kap 会话那条路径一直是解析过的，
     // 这条没有，同一个程序两条管线一条找得到一条找不到。
     //
     // 这也是「路径不能写死」的答案：解析用的是运行这台机器的 PATH 与

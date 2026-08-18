@@ -1,5 +1,3 @@
-export type { AgentCommandBridge, AgentEventSource, IpcSessionOptions } from './acp-session'
-export { createIpcSession } from './acp-session'
 export {
   type AgentBridgeOptions,
   type AgentEventSourceOptions,
@@ -78,6 +76,8 @@ export {
   throughIpc,
 } from './error'
 export { type GitBranches, gitBranches, gitCreateBranch, gitSwitchBranch } from './git'
+export type { AgentCommandBridge, AgentEventSource, IpcSessionOptions } from './kap-session'
+export { createIpcSession } from './kap-session'
 export { type McpEndpoint, readMcpEndpoint } from './mcp'
 export {
   commitPlugin,

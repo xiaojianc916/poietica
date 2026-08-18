@@ -1,4 +1,4 @@
-//! 把一个 ACP agent 接进这台机器：装它、认它、给它凭据、验它的密钥。
+//! 把一个 kap agent 接进这台机器：装它、认它、给它凭据、验它的密钥。
 //!
 //! 与 `super::agent` 的分界是「这件事什么时候发生」：这里全是落盘的事实 ——
 //! agents.json 里的接入档案、agent 自己 config.toml 里的 provider 与默认模型、

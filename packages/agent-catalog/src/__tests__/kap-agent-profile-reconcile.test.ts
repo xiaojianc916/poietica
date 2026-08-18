@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   type AgentProfile,
-  builtinAcpAgentProfiles,
-  reconcileAcpAgentProfiles,
+  builtinKapAgentProfiles,
+  reconcileKapAgentProfiles,
 } from '../agent-profile'
 import { agentById } from '../agents'
 
@@ -20,7 +20,7 @@ import { agentById } from '../agents'
  * 每次读都盖一遍。手改 agents.json 换掉 command，活不过下一次启动。
  */
 
-const builtins = builtinAcpAgentProfiles()
+const builtins = builtinKapAgentProfiles()
 const first = builtins[0]
 
 if (!first) {
@@ -37,7 +37,7 @@ const homemade: AgentProfile = {
 
 describe('内置档案的物化', () => {
   it('磁盘为空时给出全部内置档案', () => {
-    const result = reconcileAcpAgentProfiles([])
+    const result = reconcileKapAgentProfiles([])
 
     expect(result.changed).toBe(true)
     expect(result.issues).toEqual([])
@@ -45,7 +45,7 @@ describe('内置档案的物化', () => {
   })
 
   it('与名单一致时不报改动', () => {
-    const result = reconcileAcpAgentProfiles(builtins)
+    const result = reconcileKapAgentProfiles(builtins)
 
     expect(result.changed).toBe(false)
     expect(result.issues).toEqual([])
@@ -55,7 +55,7 @@ describe('内置档案的物化', () => {
   it('用户自己那三格原样保留', () => {
     const mine = { ...first, cwd: '/work', env: { EXTRA: '1' }, defaultConfigOptions: { a: true } }
 
-    const result = reconcileAcpAgentProfiles([mine])
+    const result = reconcileKapAgentProfiles([mine])
     const profile = result.profiles[0]
 
     expect(profile?.cwd).toBe('/work')
@@ -84,7 +84,7 @@ describe('内置档案的物化', () => {
    * validate_program 仍然独立把关。
    */
   it('手写的 command 活不过一次对齐', () => {
-    const result = reconcileAcpAgentProfiles([{ ...first, command: 'evil' }])
+    const result = reconcileKapAgentProfiles([{ ...first, command: 'evil' }])
     const profile = result.profiles[0]
 
     expect(result.changed).toBe(true)
@@ -96,7 +96,7 @@ describe('内置档案的物化', () => {
    * 程序。留着它只会让下拉里多一家选中就失败的 agent。丢掉必须说出来。
    */
   it('移除不在名单里的档案，并说明原因', () => {
-    const result = reconcileAcpAgentProfiles([homemade])
+    const result = reconcileKapAgentProfiles([homemade])
 
     expect(result.changed).toBe(true)
     expect(result.profiles.some((profile) => profile.id === 'homemade')).toBe(false)
@@ -105,7 +105,7 @@ describe('内置档案的物化', () => {
   })
 
   it('移除之后名单里的那几家仍然补齐', () => {
-    const result = reconcileAcpAgentProfiles([homemade])
+    const result = reconcileKapAgentProfiles([homemade])
 
     expect(result.profiles.map((profile) => profile.id)).toEqual(builtins.map((one) => one.id))
   })

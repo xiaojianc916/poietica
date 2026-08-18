@@ -1,5 +1,10 @@
-import type { KapEventPayload, KapStopReason } from './kap'
-import type { AcpPermissionOption, AcpSessionId, AcpToolCallUpdate } from './protocol'
+import type {
+  KapEventPayload,
+  KapPermissionOption,
+  KapSessionId,
+  KapStopReason,
+  KapToolCallUpdate,
+} from './kap'
 
 export type RunStatus =
   | 'idle'
@@ -20,7 +25,7 @@ export type RunEvent =
       readonly kind: 'run_started'
       readonly seq: number
       readonly at: number
-      readonly sessionId: AcpSessionId
+      readonly sessionId: KapSessionId
       /**
        * 人说的那句话，按记录时的原文。
        *
@@ -53,8 +58,8 @@ export type RunEvent =
        * Write，写哪个文件，替换掉什么。可选说的是日志：这一格加进来之前录下的
        * 帧没有它。
        */
-      readonly toolCall?: AcpToolCallUpdate
-      readonly options: readonly AcpPermissionOption[]
+      readonly toolCall?: KapToolCallUpdate
+      readonly options: readonly KapPermissionOption[]
     }
   | {
       readonly kind: 'permission_resolved'

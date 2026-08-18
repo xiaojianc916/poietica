@@ -1,4 +1,4 @@
-import type { AcpToolCallContent } from '@poietica/agent-contract'
+import type { KapToolCallContent } from '@poietica/agent-contract'
 import { diffLines } from 'diff'
 
 /**
@@ -35,7 +35,7 @@ const OPAQUE_LABELS: Record<string, string> = {
 }
 
 export function toToolContentParts(
-  content: readonly AcpToolCallContent[] | null | undefined,
+  content: readonly KapToolCallContent[] | null | undefined,
 ): readonly ToolContentPart[] {
   if (content === undefined || content === null) {
     return []
@@ -131,7 +131,7 @@ export interface ToolCallView {
 /** 没有调用就没有内容。常量，免得每次问都造一个新对象。 */
 const EMPTY_VIEW: ToolCallView = { diffStat: null, parts: [] }
 
-const VIEWS = new WeakMap<readonly AcpToolCallContent[], ToolCallView>()
+const VIEWS = new WeakMap<readonly KapToolCallContent[], ToolCallView>()
 
 /**
  * 上面那两步，按 content 记一次。
@@ -167,7 +167,7 @@ const VIEWS = new WeakMap<readonly AcpToolCallContent[], ToolCallView>()
  * 个不再发生的场景辩护，下一个人无从判断它还该不该在。
  */
 export function toToolCallView(
-  content: readonly AcpToolCallContent[] | null | undefined,
+  content: readonly KapToolCallContent[] | null | undefined,
 ): ToolCallView {
   if (content === null || content === undefined) {
     return EMPTY_VIEW

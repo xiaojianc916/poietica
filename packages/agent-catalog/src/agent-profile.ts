@@ -13,7 +13,7 @@ export type AgentConfigOptionValue = string | boolean
  * 一家 agent 是什么」，那件事由二进制里的 AgentDescriptor 说了算：名单是封闭
  * 的（见 agents.ts），界面上没有、也不会有一个能自带命令的入口。
  *
- * 那七格不是没用，是从来没被用过一次：reconcileAcpAgentProfiles 每次读都拿内置
+ * 那七格不是没用，是从来没被用过一次：reconcileKapAgentProfiles 每次读都拿内置
  * 值把它们逐一覆盖回去。写进磁盘只为了下一次读出来时被扔掉，中间那段路上却要
  * 一整套针对不可信输入的校验陪着走 —— 反 shell 注入、npm 包名、目录名不许带分
  * 隔符。防的是一个不存在的输入源。
@@ -42,7 +42,7 @@ export interface AgentProfile {
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
   /*
    * 以下四格不属于用户，用户也填不出来 —— 它们是 AgentDescriptor 往磁盘上的
-   * 一次单向投影，reconcileAcpAgentProfiles 每次无条件覆盖。
+   * 一次单向投影，reconcileKapAgentProfiles 每次无条件覆盖。
    *
    * 为什么必须落盘：原生侧那五个读取点（commands/agent_setup/profile.rs 的
    * agent_program、home_var_of、own_home_of、agent_install_spec、
@@ -61,18 +61,18 @@ export interface AgentProfile {
   readonly install?: Readonly<{ packageName: string; versionArgs: readonly string[] }> | undefined
 }
 
-export interface AcpAgentProfileSet {
+export interface KapAgentProfileSet {
   readonly profiles: readonly AgentProfile[]
   readonly defaultProfileId: string
 }
 
-export type AcpAgentProfileParse =
+export type KapAgentProfileParse =
   | { readonly ok: true; readonly profile: AgentProfile }
   | { readonly ok: false; readonly issue: string }
 
 /** 容错解析的结果：坏条目被丢弃并汇报，好条目照常可用。 */
-export interface AcpAgentProfileSetParse {
-  readonly value: AcpAgentProfileSet
+export interface KapAgentProfileSetParse {
+  readonly value: KapAgentProfileSet
   readonly issues: readonly string[]
   /**
    * value 不是从输入里解析出来的，是内置档案顶上去的。
@@ -192,7 +192,7 @@ function shape(parsed: v.InferOutput<typeof ProfileSchema>): AgentProfile {
  * agents.json 可以被手改，所以它不可信 —— 但界面填不出档案：agent 名单是封闭的，
  * 用户在注册过的几家里选，选择本身只是一个 id。校验因此只面对磁盘这一个来源。
  */
-export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
+export function parseKapAgentProfile(input: unknown): KapAgentProfileParse {
   const parsed = v.safeParse(ProfileSchema, input, { abortPipeEarly: true })
 
   if (!parsed.success) {
@@ -208,12 +208,12 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
  * 单个坏档案只会被丢弃并记一条 issue，不会让整份 agents.json 解析失败——
  * 否则用户手滑一个字符就会丢掉全部 agent。这是 Zed 设置层的处理方式。
  */
-export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse {
+export function parseKapAgentProfileSet(input: unknown): KapAgentProfileSetParse {
   const envelope = v.safeParse(EnvelopeSchema, input)
 
   if (!envelope.success) {
     return {
-      value: builtinAcpAgentProfileSet(),
+      value: builtinKapAgentProfileSet(),
       issues: ['agent 配置无法解析，已回退到内置档案'],
       fallback: true,
     }
@@ -223,7 +223,7 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
   const profiles: AgentProfile[] = []
 
   for (const candidate of envelope.output.profiles.slice(0, MAX_PROFILES)) {
-    const parsed = parseAcpAgentProfile(candidate)
+    const parsed = parseKapAgentProfile(candidate)
 
     if (!parsed.ok) {
       issues.push(parsed.issue)
@@ -253,7 +253,7 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
     const nothingOnDisk = envelope.output.profiles.length === 0
 
     return {
-      value: builtinAcpAgentProfileSet(),
+      value: builtinKapAgentProfileSet(),
       issues: nothingOnDisk
         ? issues
         : [...issues, '配置里的 agent 档案都无法使用，已回退到内置档案'],
@@ -375,7 +375,7 @@ export function agentLaunch(agent: AgentDescriptor): AgentLaunchSpec {
  *
  * 它不再从描述符里抄七个字段过来 —— 那些字段现在只有一个产地。
  */
-export function builtinAcpAgentProfiles(): readonly [AgentProfile, ...AgentProfile[]] {
+export function builtinKapAgentProfiles(): readonly [AgentProfile, ...AgentProfile[]] {
   const blank = (agent: AgentDescriptor): AgentProfile => ({
     id: agent.id,
     cwd: undefined,
@@ -396,14 +396,14 @@ export function builtinAcpAgentProfiles(): readonly [AgentProfile, ...AgentProfi
  * 内置档案集。默认 id 由这一份档案自己的第一条推出 —— 此前它再去查一次名单，
  * 于是「默认哪一家」同时被名单顺序和档案集定义，两个产地。
  */
-export function builtinAcpAgentProfileSet(): AcpAgentProfileSet {
-  const profiles = builtinAcpAgentProfiles()
+export function builtinKapAgentProfileSet(): KapAgentProfileSet {
+  const profiles = builtinKapAgentProfiles()
 
   return { profiles, defaultProfileId: profiles[0].id }
 }
 
 /** 一次物化的结果。changed 为真表示磁盘上那份与名单不一致。 */
-export interface AcpAgentProfileReconcile {
+export interface KapAgentProfileReconcile {
   readonly profiles: readonly AgentProfile[]
   readonly changed: boolean
   /** 为了对齐名单而丢掉了什么。界面要说出来，不能默默改用户的文件。 */
@@ -424,9 +424,9 @@ export interface AcpAgentProfileReconcile {
  *
  * 名单里有、磁盘上没有的补上：接第二家 agent 时它得自己出现，而不是只对新用户出现。
  */
-export function reconcileAcpAgentProfiles(
+export function reconcileKapAgentProfiles(
   profiles: readonly AgentProfile[],
-): AcpAgentProfileReconcile {
+): KapAgentProfileReconcile {
   const known = new Set(agentRoster().map((agent) => agent.id))
   const issues: string[] = []
 
@@ -457,7 +457,7 @@ export function reconcileAcpAgentProfiles(
   const aligned = kept.map(withDescriptorFields)
   const drifted = aligned.some((profile, index) => profile !== kept[index])
 
-  const missing = builtinAcpAgentProfiles().filter(
+  const missing = builtinKapAgentProfiles().filter(
     (builtin) => !aligned.some((one) => one.id === builtin.id),
   )
 

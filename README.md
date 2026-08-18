@@ -120,14 +120,14 @@ The project is intentionally building reliability before broadening the product 
 
 | Interface | Agent transport | Desktop runtime | Tooling | Validation |
 | :---: | :---: | :---: | :---: | :---: |
-| React + TypeScript | ACP | Tauri + Rust | pnpm + Turborepo + Vite | Biome + Vitest + Valibot |
+| React + TypeScript | kap | Tauri + Rust | pnpm + Turborepo + Vite | Biome + Vitest + Valibot |
 
 </div>
 
 <br>
 
 - **React + TypeScript** — product interaction and interface composition.
-- **ACP (Agent Client Protocol)** — the single transport between the desktop client and coding agents.
+- **kap** — the single transport between the desktop client and coding agents.
 - **Tauri + Rust** — desktop integration, encrypted local state, system capabilities, security boundaries.
 - **pnpm + Turborepo** — workspace management and task orchestration.
 - **Biome** — formatting and static analysis.

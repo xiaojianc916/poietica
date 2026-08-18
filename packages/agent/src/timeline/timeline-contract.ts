@@ -1,11 +1,11 @@
 import type {
-  AcpPermissionOption,
-  AcpToolCallContent,
-  AcpToolCallId,
-  AcpToolCallLocation,
-  AcpToolCallStatus,
-  AcpToolCallUpdate,
-  AcpToolKind,
+  KapPermissionOption,
+  KapToolCallContent,
+  KapToolCallId,
+  KapToolCallLocation,
+  KapToolCallStatus,
+  KapToolCallUpdate,
+  KapToolKind,
   RunStatus,
 } from '@poietica/agent-contract'
 
@@ -35,7 +35,7 @@ export interface MessageImage {
  * turn 此前不在这里 —— 它只以字符串前缀的形式编在 id 里（r0-said-1），而没有
  * 任何一个地方解析它回来。于是「这一条属于第几轮」这个已经存在的事实读不出来，
  * 派生层只好反推：反向扫到最后一条 user_message，把它当作本轮的起点。同一个
- * 启发式在 feed-rows、timeline-queries、acp-projection 里各手抄了一遍。
+ * 启发式在 feed-rows、timeline-queries、kap-projection 里各手抄了一遍。
  *
  * 而权威答案一直在状态里放着：runIndex。段由 run_started 划定，号由 openSegment
  * 发。把语义编进身份、再另起一套启发式去猜，本来就不是建模 —— 身份负责唯一，
@@ -96,12 +96,12 @@ export interface AgentThoughtItem extends TimelineEntry {
 
 export interface ToolCallTimelineItem extends TimelineEntry {
   readonly type: 'tool_call'
-  readonly toolCallId: AcpToolCallId
+  readonly toolCallId: KapToolCallId
   readonly title: string
-  readonly kind: AcpToolKind
-  readonly status: AcpToolCallStatus
-  readonly content: readonly AcpToolCallContent[]
-  readonly locations: readonly AcpToolCallLocation[]
+  readonly kind: KapToolKind
+  readonly status: KapToolCallStatus
+  readonly content: readonly KapToolCallContent[]
+  readonly locations: readonly KapToolCallLocation[]
   readonly rawInput?: unknown
   readonly rawOutput?: unknown
   readonly startedAt: number
@@ -143,8 +143,8 @@ export interface PermissionItem extends TimelineEntry {
   readonly type: 'permission'
   readonly requestId: string
   readonly title: string
-  readonly toolCall?: AcpToolCallUpdate
-  readonly options: readonly AcpPermissionOption[]
+  readonly toolCall?: KapToolCallUpdate
+  readonly options: readonly KapPermissionOption[]
   readonly resolution?: { readonly optionId: string; readonly outcome: 'selected' | 'cancelled' }
 }
 

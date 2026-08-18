@@ -1,4 +1,4 @@
-import type { AcpToolCallContent } from '@poietica/agent-contract'
+import type { KapToolCallContent } from '@poietica/agent-contract'
 
 import { readSubAgent, type SubAgentBrief } from './sub-agent'
 import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call-content'
@@ -29,7 +29,7 @@ import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call
 
 /** 画这两个面需要的全部原料；ToolCallTimelineItem 天然满足它。 */
 export interface ToolCallFacetSource {
-  readonly content: readonly AcpToolCallContent[]
+  readonly content: readonly KapToolCallContent[]
   /** ACP 的工具类别枚举。edit 那一支决定要不要为它合成写入的内容。 */
   readonly kind?: string
   /** 这次调用要碰的文件。只取 path —— 行号是标题栏与编辑器的事。 */
@@ -354,11 +354,11 @@ function outputOf(value: unknown): string | null {
  * 这次写进去的是什么。
  *
  * 「Wrote 127 bytes to …」是一句确认，不是这次调用的结果 —— 结果是那份内容。协议本来
- * 有位置放它（AcpToolCallContent 的 diff 分支），只是不少服务端不填。所以这里自己从
+ * 有位置放它（KapToolCallContent 的 diff 分支），只是不少服务端不填。所以这里自己从
  * 入参合成，与 Cursor / Cline / Claude Code 在同一格的做法一致。
  *
  * 三条判据都来自协议或形状，一条都不认工具名：
- *   kind === 'edit'        —— ACP 的 AcpToolKind 枚举，卡片的图标分流用的也是它；
+ *   kind === 'edit'        —— ACP 的 KapToolKind 枚举，卡片的图标分流用的也是它；
  *   产出里没有 diff        —— 服务端已经给了就不必代劳，那份才是权威；
  *   入参里最长的字符串     —— 一次写入的入参只有路径和内容两样，路径已被排除。
  *

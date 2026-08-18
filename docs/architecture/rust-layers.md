@@ -7,7 +7,7 @@
 拥有 agent 进程的驱动：会话生命周期、运行槽、权限请求、帧编解码、
 事件记录与 stderr 归集。
 
-- 依赖 `agent-client-protocol`、`futures`、`serde`、`serde_json`、
+- 依赖 `reqwest`、`tokio-tungstenite`、`futures`、`serde`、`serde_json`、
   `thiserror`、`uuid`、`which`。
 - **不依赖 `tauri`**，可用普通 `cargo test` 单独测试。
 

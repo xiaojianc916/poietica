@@ -1,8 +1,8 @@
 import type {
-  AcpSessionId,
   AgentPromptHandle,
   AgentPromptRequest,
   AgentSessionPort,
+  KapSessionId,
   RunEvent,
 } from '@poietica/agent-contract'
 
@@ -28,7 +28,7 @@ import type {
 export interface AgentEventSource {
   /** Hands out one batch of frames and the session they all belong to. */
   readonly listen: (
-    handler: (payload: readonly unknown[], sessionId: AcpSessionId) => void,
+    handler: (payload: readonly unknown[], sessionId: KapSessionId) => void,
   ) => () => void
 }
 

@@ -4,7 +4,7 @@
 //! `@poietica/agent-providers` 的 provider-state.ts 里的
 //! configured = credentialKind != 'none'，也就是
 //! 「那一格不是空的」。填错一个字符照样保存成功、照样点亮模型选择器，真相要等到
-//! 几分钟后发第一条消息时，从一条来自完全另一条管线（ACP 会话）的 401 里反推。
+//! 几分钟后发第一条消息时，从一条来自完全另一条管线（kap 会话）的 401 里反推。
 //!
 //! 业界标杆都在保存那一刻验：Zed 的 `ApiKeyConfiguration` 保存时调
 //! `authenticate()` 并回退卡片；VS Code Copilot 与 Continue 打 /models；

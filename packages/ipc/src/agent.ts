@@ -9,7 +9,6 @@ import type {
   ThreadPort,
 } from '@poietica/agent-contract'
 import { paletteFrom } from '@poietica/agent-contract'
-import type { AgentCommandBridge, AgentEventSource } from './acp-session'
 import { throughIpc } from './error'
 import {
   type AgentConfigChoice,
@@ -19,6 +18,7 @@ import {
   commands,
   type JsonValue,
 } from './generated/ipc-bindings'
+import type { AgentCommandBridge, AgentEventSource } from './kap-session'
 
 /**
  * The desktop implementation of the ports the feature layer declares.

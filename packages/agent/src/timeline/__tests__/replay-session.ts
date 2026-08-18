@@ -1,8 +1,8 @@
 import type {
-  AcpSessionId,
   AgentPromptHandle,
   AgentPromptRequest,
   AgentSessionPort,
+  KapSessionId,
   RunEvent,
 } from '@poietica/agent-contract'
 
@@ -27,14 +27,14 @@ const defaultScheduler: ReplayScheduler = (callback, delayMs) => {
 }
 
 /* 录像里只有一条会话：假的端口也按真的契约说话，而契约上的地址是会话号。 */
-const SESSION: AcpSessionId = 'sess_replay'
+const SESSION: KapSessionId = 'sess_replay'
 
 export function createReplaySession(options: ReplaySessionOptions): AgentSessionPort {
   const events = options.events
   const stepMs = options.stepMs ?? 40
   const scheduler = options.scheduler ?? defaultScheduler
 
-  const listeners = new Set<(events: readonly RunEvent[], sessionId: AcpSessionId) => void>()
+  const listeners = new Set<(events: readonly RunEvent[], sessionId: KapSessionId) => void>()
   let pending: Array<() => void> = []
 
   const clearPending = () => {

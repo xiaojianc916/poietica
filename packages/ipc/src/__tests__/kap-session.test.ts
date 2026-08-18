@@ -1,6 +1,6 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
-import { createIpcSession } from '../acp-session'
+import { createIpcSession } from '../kap-session'
 
 /* 原生侧交回来的那一种地址，原样照抄，不在这里重新拼一遍它的形状。 */
 const DELIVERED = 'poietica-asset://asset/t/0000'
@@ -8,7 +8,7 @@ const DELIVERED = 'poietica-asset://asset/t/0000'
 /*
  * 这一层只做转发。
  *
- * 帧的形状由原生侧的 RunFrame enum 保证，地址由信封给出（见 acp-session.ts
+ * 帧的形状由原生侧的 RunFrame enum 保证，地址由信封给出（见 kap-session.ts
  * 开头的说明）。适配器不认识帧里的任何一格，所以这里用一个哨兵对象：要断言的
  * 是「原样交出去」，不是某一版协议长什么样。用 timeline 的真录像反而会给一个
  * 不需要它的包挂上一条依赖。

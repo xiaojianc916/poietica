@@ -128,7 +128,7 @@ function ToolCallDiffStat({ diffStat }: { readonly diffStat: ToolCallFacets['dif
 /**
  * 这一行：一枚图标，一句话，指到才出现的箭头 —— 还在跑的时候，那句话上有一道光扫过。
  *
- * 子代理不是一种 ACP 工具类别（AcpToolKind 里没有它），所以图标那一格的分流在
+ * 子代理不是一种 ACP 工具类别（KapToolKind 里没有它），所以图标那一格的分流在
  * 这一层，不在 ToolKindIcon 的 switch 里：那个 switch 认的是协议枚举。
  */
 function ToolCallHeader({

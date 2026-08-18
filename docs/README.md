@@ -2,7 +2,7 @@
 
 ```
 docs/
-├── architecture/   # 分层、依赖方向、原生边界、ACP 客户端与数据布局
+├── architecture/   # 分层、依赖方向、原生边界、kap 客户端与数据布局
 ├── adr/            # 架构决策记录
 ├── rfcs/           # 提案（ADR 之前）
 ├── runbooks/       # 运维与发布流程

@@ -7,21 +7,21 @@
 
 export type { AgentInstall, QuestionDialect } from './agent-descriptor'
 export type {
-  AcpAgentProfileParse,
-  AcpAgentProfileReconcile,
-  AcpAgentProfileSet,
-  AcpAgentProfileSetParse,
   AgentConfigOptionValue,
   AgentLaunchSpec,
   AgentProfile,
+  KapAgentProfileParse,
+  KapAgentProfileReconcile,
+  KapAgentProfileSet,
+  KapAgentProfileSetParse,
 } from './agent-profile'
 export {
   agentLaunch,
-  builtinAcpAgentProfileSet,
-  builtinAcpAgentProfiles,
-  parseAcpAgentProfile,
-  parseAcpAgentProfileSet,
-  reconcileAcpAgentProfiles,
+  builtinKapAgentProfileSet,
+  builtinKapAgentProfiles,
+  parseKapAgentProfile,
+  parseKapAgentProfileSet,
+  reconcileKapAgentProfiles,
 } from './agent-profile'
 export type { AgentDescriptor } from './agents'
 export { agentById, agentRoster } from './agents'

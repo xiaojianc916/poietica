@@ -1,4 +1,4 @@
-//! Agent 配置：ACP agent 接入档案，以及按 agent 隔离的凭据。
+//! Agent 配置：kap agent 接入档案，以及按 agent 隔离的凭据。
 //!
 //! 模式 B（受控 home）下，模型与 provider 的真身在各 agent 自己的配置文件里
 //! （Kimi Code 是 `KIMI_CODE_HOME` 下的 config.toml），由 agent 自己 watch 并热
@@ -264,7 +264,7 @@ fn declared_env_of(agent: &Value) -> BTreeMap<String, String> {
 /// 档案不存在不再当作「没有变量要设」。
 ///
 /// 那样 homeVar 就不会被设上，agent 会安静地改用用户全局的 ~/.kimi-code，而受控
-/// home 是模式 B 的地基：provider 写到哪个 config.toml、CLI 与 ACP 会话看不看得见
+/// home 是模式 B 的地基：provider 写到哪个 config.toml、CLI 与 kap 会话看不看得见
 /// 同一份配置，全靠它。从安装那天起它一直是这么静默降级的，因为在此之前没有任何
 /// 代码路径往 agents.json 里写过东西。
 pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String)>> {
@@ -384,7 +384,7 @@ fn is_npm_package_name(name: &str) -> bool {
 /// 这个 agent 的可执行文件。
 ///
 /// 与 `launch_env` 读同一份档案。CLI 用哪个程序、往哪个 home 写 provider，
-/// 必须与 ACP 会话起来的那个进程一致；两处各算一次，迟早算出两个。
+/// 必须与 kap 会话起来的那个进程一致；两处各算一次，迟早算出两个。
 ///
 /// 它刻意不来自请求。渲染层报一个程序路径过来，而 `is_allowed` 只校验参数，
 /// 于是白名单挡不住 `{ command: 任意程序, args: ["provider", "list"] }`。档案

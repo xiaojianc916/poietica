@@ -306,7 +306,7 @@ fn compute(app: &AppHandle, agent_id: &str, force: bool) -> Result<AgentInstallS
 
     let program = agent_program(app, agent_id)?;
 
-    /* 解析处只有一个：ACP 会话与 provider CLI 起的也是它解析出的那份。 */
+    /* 解析处只有一个：kap 会话与 provider CLI 起的也是它解析出的那份。 */
     let Ok(resolved) = poietica_agent_runtime_native::resolve_program(&program) else {
         return Ok(AgentInstallStatus {
             state: AgentInstallState::Missing,
