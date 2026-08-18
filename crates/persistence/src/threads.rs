@@ -315,12 +315,11 @@ impl AgentStore {
     /// Fails when the delete is rejected.
     pub fn delete_thread(&self, id: Uuid) -> Result<()> {
         /*
-         * 链接由这里解，不指望外键。
+         * 链接由这里解。
          *
-         * SQLite 的外键约束默认是关的，要靠每条连接自己开 PRAGMA；schema 里那些
-         * REFERENCES 因此只保证得了「写进去的引用是真的」，保证不了「删掉之后没
-         * 有悬空的引用」。把清理写在这里，一个删除动作一个主人，不依赖一个必须
-         * 逐连接确认的开关。
+         * 外键是开着的（connection.rs 的 pragma_update），但 schema 里那些
+         * REFERENCES 没有声明 ON DELETE，所以库只拦得住「指向不存在的行」，
+         * 不会替谁删子行。一个删除动作一个主人，清理写在这里。
          *
          * 字节不在这一步删：它可能还挂在别的对话上，这正是内容寻址的意义。
          * 没人要的那些由 unreferenced_attachments 一次扫出来。
