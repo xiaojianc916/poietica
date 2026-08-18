@@ -2,9 +2,9 @@ import './permission-dock.css'
 
 import type { PermissionItem, ToolCallTimelineItem } from '@poietica/agent'
 import type { AcpPermissionOption } from '@poietica/agent-contract'
-import { clampToLine, memo, useState } from 'react'
+import { memo, useState } from 'react'
 import { useAgentDialect } from '../semantics/agent-dialect'
-import { readToolIntent } from '../semantics/tool-intent'
+import { clampToLine, readToolIntent } from '../semantics/tool-intent'
 
 /**
  * 要批准的那一件事，就在下一句话的正上方。

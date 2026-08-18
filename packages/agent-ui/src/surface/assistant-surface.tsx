@@ -7,32 +7,31 @@ import type {
   SessionConfigControl,
   SessionUsage,
 } from '@poietica/agent-contract'
-import {
-  isQuestionRequest,
-  memo,
-  type Ref,
-  readQuestionPrompt,
-  useAssistantPending,
-  useAssistantPendingCall,
-  useAssistantPendingCount,
-  useAssistantSession,
-  useCallback,
-  useMemo,
-  useState,
-} from 'react'
+import { memo, type Ref, useCallback, useMemo, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
 import { useAgentDialect } from '../semantics/agent-dialect'
 import type { QuestionAnswer } from '../semantics/ask-user-question'
-import { buildQuestionDeck } from '../semantics/ask-user-question'
+import {
+  buildQuestionDeck,
+  isQuestionRequest,
+  readQuestionPrompt,
+} from '../semantics/ask-user-question'
 import type { AssistantSubmission } from '../session/use-assistant-session'
+import {
+  useAssistantPending,
+  useAssistantPendingCall,
+  useAssistantPendingCount,
+  useAssistantSession,
+} from '../session/use-assistant-session'
 import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branch-picker'
 import { WorkspacePicker, type WorkspacePickerProps } from '../threads/workspace-picker'
 import { TimelineRow } from '../timeline/timeline-row'
 import { TranscriptView } from '../timeline/transcript-view'
 import { MascotBadge } from './mascot/mascot-badge'
+
 export interface AssistantSurfaceProps {
   /** 这一格代表的对话。入口那一格在说话之前还不是任何一条。 */
   readonly endpoint: string | null
