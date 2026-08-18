@@ -550,6 +550,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             return Err(handshake);
         };
 
+        // 5.5 绑模型。放在订阅之前：这是开会话的收尾，不是回合的一部分，
+        //     它引发的那几帧不该记进第一轮。
+        ensure_model(&http, &base_url, &session_id).await;
+
         // 6. WebSocket 握手：server_hello 先到；client_hello 只需 client_id，
         //    订阅走独立的 subscribe 帧。
         let ws_url = format!("ws://{dial}:{port}/api/v1/ws");
@@ -1040,6 +1044,74 @@ fn failure(payload: &Value, reason: &str) -> String {
     }
 }
 
+/// 给这条会话绑上模型。
+///
+/// 新开的会话没有模型：POST /sessions 的 body 里就没有这一格
+/// （createSessionRequestSchema 只收 title / metadata / workspace_id），服务器建完
+/// 会话回的 agent_config.model 是写死的空串（routes/sessions.ts 的 toWireSession）。
+/// 而 agent 走第一步就要模型，没有就是 [model.not_configured] Model not set —— 一句
+/// 话都答不出来，回合以 turn.ended reason=failed 收场。
+///
+/// 全局默认模型是 config 域的一个值（GET /config 的 default_model），会话不继承它：
+/// 绑上去是开会话这一方的活，kap 只给了 POST /sessions/{id}/profile 这一个入口
+/// （applySessionAgentConfig → IAgentProfileService.setModel，空串会被它跳过）。
+///
+/// 判据全部来自服务器：生效值问 status，默认值问 /config。本 crate 另有一条读
+/// config.toml 的路（credentials.rs），那是 ACP 时代闸门的本地对照，不是这里的
+/// 依据 —— 同一件事有两个说法，迟早对不上。
+///
+/// 已经有模型的会话原样不动：装载与分叉带回来的选择是用户的，不是我们的。
+///
+/// 绑不上不在这里判死。握手一失败，界面连让用户改模型的地方都没有了；原因写进
+/// 日志，真回合会带着 agent 自己的原话失败（run_failed 的 message）。
+async fn ensure_model(http: &reqwest::Client, base_url: &str, session_id: &str) {
+    let status = match get(http, &format!("{base_url}/sessions/{session_id}/status")).await {
+        Ok(status) => status,
+        Err(error) => {
+            log::warn!("could not read the session's model: {error}");
+            return;
+        }
+    };
+
+    if status
+        .get("model")
+        .and_then(Value::as_str)
+        .is_some_and(|model| !model.is_empty())
+    {
+        return;
+    }
+
+    let config = match get(http, &format!("{base_url}/config")).await {
+        Ok(config) => config,
+        Err(error) => {
+            log::warn!("could not read the default model: {error}");
+            return;
+        }
+    };
+
+    let Some(default_model) = config
+        .get("default_model")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|alias| !alias.is_empty())
+    else {
+        log::warn!(
+            "this kimi has no default model configured, so the session stays without one and every turn ends in model.not_configured"
+        );
+        return;
+    };
+
+    if let Err(error) = post(
+        http,
+        &format!("{base_url}/sessions/{session_id}/profile"),
+        &json!({ "agent_config": { "model": default_model } }),
+    )
+    .await
+    {
+        log::warn!("could not set the session's model to {default_model}: {error}");
+    }
+}
+
 /// agent 报它卡在审批上时，把这条会话挂着的审批逐个请上桌。
 ///
 /// status=pending 是必填 query（rest-approval.ts 的
@@ -1209,6 +1281,8 @@ async fn open_kap_session(
     book.open(&id)?;
     subscribe(ws, &id).await?;
 
+    ensure_model(http, base_url, &id).await;
+
     let selectors = best_effort_selectors(http, base_url, &id).await;
 
     Ok(OpenedSession {
@@ -1231,6 +1305,8 @@ async fn load_kap_session(
 
     book.open(session_id)?;
     subscribe(ws, session_id).await?;
+
+    ensure_model(http, base_url, session_id).await;
 
     let selectors = best_effort_selectors(http, base_url, session_id).await;
 
@@ -1265,6 +1341,8 @@ async fn fork_kap_session(
 
     book.open(&id)?;
     subscribe(ws, &id).await?;
+
+    ensure_model(http, base_url, &id).await;
 
     let selectors = best_effort_selectors(http, base_url, &id).await;
 

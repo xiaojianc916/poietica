@@ -215,6 +215,26 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
 
     let session_id = handshake.session_id;
 
+    /* 这一轮跑在什么配置上。模型不是背景信息：kap 的新会话天生没有模型，绑上
+    它是开会话这一方的活，绑没绑上决定了这一轮能不能开口。选择器读不出来不
+    终止这个测试 —— 那是另一件事，让它自己在名单上说。 */
+    let offered = driver.expect(
+        client
+            .selectors(session_id.clone())
+            .expect("the driver to accept the question"),
+        "the selectors were never answered",
+    );
+
+    match offered {
+        Ok(controls) if controls.is_empty() => println!("selectors: none offered"),
+        Ok(controls) => {
+            for control in controls {
+                println!("selector: {} = {}", control.id, control.current);
+            }
+        }
+        Err(error) => println!("selectors: unreadable ({error})"),
+    }
+
     // Nobody is here to answer a permission request, and an agent that asks one
     // would otherwise wait forever. Cancelling is both the escape and a free
     // exercise of the cancellation path.
