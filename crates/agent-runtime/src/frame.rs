@@ -13,14 +13,13 @@
 //! 同义，后者会让一个 tool call 的首帧缺标题。两者都是第三方序列化的产物，
 //! 所以在帧离开这一层之前就抹平。
 
-use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
 use serde::Serialize;
 use serde_json::Value;
 
 /// 一轮的第一帧。
 pub const RUN_STARTED: &str = "run_started";
 /// agent 发来的一帧会话通知。
-pub const ACP_UPDATE: &str = "acp_update";
+pub const KAP_EVENT: &str = "kap_event";
 /// agent 正卡在一次授权请求上。
 pub const PERMISSION_REQUESTED: &str = "permission_requested";
 /// 那次授权请求得到的答复。
@@ -64,9 +63,9 @@ pub enum RunFrame {
         images: Vec<String>,
     },
     /// agent 发来的一帧会话通知。
-    AcpUpdate {
-        /// 通知本体。
-        notification: FrameNotification,
+    KapEvent {
+        /// kap server 推来的 session_event payload，原始 JSON。
+        payload: serde_json::Value,
     },
     /// agent 正卡在一次授权请求上。
     PermissionRequested {
@@ -114,7 +113,7 @@ impl RunFrame {
     pub const fn kind(&self) -> &'static str {
         match self {
             Self::RunStarted { .. } => RUN_STARTED,
-            Self::AcpUpdate { .. } => ACP_UPDATE,
+            Self::KapEvent { .. } => KAP_EVENT,
             Self::PermissionRequested { .. } => PERMISSION_REQUESTED,
             Self::PermissionResolved { .. } => PERMISSION_RESOLVED,
             Self::RunFinished { .. } => RUN_FINISHED,
@@ -180,17 +179,9 @@ pub(crate) fn normalize(value: &mut Value, update: &SessionUpdate) -> serde_json
 /// 序列化协议更新失败时报错。
 ///
 /// 对外的理由与帧本身相同：驱动线与集成测试都从这里成帧，不另造第二份。
-pub fn acp_update(notification: &SessionNotification) -> serde_json::Result<RunFrame> {
-    let mut update = serde_json::to_value(&notification.update)?;
-
-    normalize(&mut update, &notification.update)?;
-
-    Ok(RunFrame::AcpUpdate {
-        notification: FrameNotification {
-            session_id: notification.session_id.to_string(),
-            update,
-        },
-    })
+/// kap server 推来的 session_event payload 直接包成帧，不再经过 SDK 类型。
+pub fn kap_event(payload: serde_json::Value) -> RunFrame {
+    RunFrame::KapEvent { payload }
 }
 
 fn restore_tool_call(value: &mut Value, call: &ToolCall) -> serde_json::Result<()> {
@@ -219,3 +210,6 @@ fn restore(
 
     Ok(())
 }
+
+/// 向后兼容别名，调用侧逐步迁移后删除。
+pub const ACP_UPDATE: &str = KAP_EVENT;

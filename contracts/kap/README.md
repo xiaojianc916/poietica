@@ -1,9 +1,6 @@
-# kap 契约快照
+# kap 契约
 
-`openapi.json` 与 `asyncapi.json` 由运行中的 `kimi web` 导出并入库。
-Rust 客户端类型从这里生成，不得手写。
+服务接口由 kap-server 通过 `GET /openapi.json` 和 `GET /asyncapi.json` 自述。
 
-    pnpm kap:spec         # 刷新快照
-    pnpm kap:spec:check   # 漂移检测，CI 用
-
-快照变动必须与生成代码在同一个提交里。
+运行 `pnpm kap:spec` 将当前契约快照到本目录（需要 `kimi web` 处于运行状态）。
+快照后提交 `openapi.json` 与 `asyncapi.json`，作为 Rust 客户端类型生成的来源。

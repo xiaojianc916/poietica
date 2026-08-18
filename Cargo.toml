@@ -181,7 +181,8 @@ rusqlite = { version = "0.40.1", features = [
 # 留着 —— 它们是 prerelease，rc 号错配会让 IPC 绑定生成不出来。
 # fork（session/fork）是 UNSTABLE 面，schema 把它锁在 unstable_session_fork 门后：
 # 不开门，ForkSessionRequest 这个类型就不存在。门是加性的，不改变 v1 稳定面。
-agent-client-protocol = { version = "2", features = ["unstable_session_fork"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }
+uuid             = { version = "1",    features = ["v4"] }
 
 # 让一个裸名字变成一条可启动的路径。手写 PATH × PATHEXT 遍历是这个 crate 的
 # 既有职责：Zed 的 11 个 crate 全部依赖它，其中

@@ -74,7 +74,7 @@ export const kimiCode = {
    * 所以这里不再有 launchEnv：给一个不存在的环境变量留键，是把垃圾放进
    * 每一个进程的启动环境。
    */
-  args: ['acp'],
+  args: ['web', '--no-open'],
   // apps/kimi-code/src/config/paths.ts 的 resolveKimiHome：
   // homeDir ?? process.env['KIMI_CODE_HOME'] ?? join(homedir(), '.kimi-code')。
   homeVar: 'KIMI_CODE_HOME',
