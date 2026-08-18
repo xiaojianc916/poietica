@@ -245,11 +245,30 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         )
         .expect("the driver to accept the prompt");
 
-    let stop_reason = driver
-        .expect(answer, "the turn ended without an answer")
-        .expect("the turn to end without a client failure");
+    /* kap 的 prompt 是「受理即返回」：拿到的是 server 给的 prompt_id，回合
+     * 此刻才刚开始跑。等它自己收尾 —— 广播里出现 run_finished —— 再关机，
+     * 否则关掉的正是这个测试要观察的那一轮。 */
+    let prompt_id = driver
+        .expect(answer, "the prompt was never answered")
+        .expect("the server to accept the prompt");
 
-    println!("stopped: {stop_reason} after {:?}", started.elapsed());
+    println!("prompt: {prompt_id} after {:?}", started.elapsed());
+
+    // 看门狗到点会取消这一轮，所以超过 timeout 还没收尾就是 driver 卡死了；
+    // 多给的 30 秒是收尾本身的余量。
+    let deadline = started + timeout + Duration::from_secs(30);
+
+    while !delivered
+        .frames()
+        .iter()
+        .any(|event| event.frame.kind() == RUN_FINISHED)
+    {
+        assert!(Instant::now() < deadline, "the turn never ended");
+
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    println!("finished after {:?}", started.elapsed());
 
     client.shutdown().expect("the session to close");
 
