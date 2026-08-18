@@ -2,7 +2,7 @@
 
 The feed is a projection, never a source of truth.
 
-    ACP session/update  ->  run event log  ->  reducer  ->  timeline  ->  selectors  ->  feed rows
+    kap_event  ->  run event log  ->  reducer  ->  timeline  ->  selectors  ->  feed rows
 
 Rules that hold at every step:
 

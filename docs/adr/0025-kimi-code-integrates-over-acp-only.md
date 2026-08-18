@@ -1,5 +1,7 @@
 # 0025. Kimi Code 只经 ACP 接入
 
+> 已被 [ADR 0026](0026-kap-is-the-only-agent-transport.md) 取代：传输是 kap，不再有 ACP。
+
 Status: superseded by 0026-kap-is-the-only-agent-transport.md
 Supersedes: 0016
 

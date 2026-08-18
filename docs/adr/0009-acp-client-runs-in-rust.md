@@ -1,5 +1,7 @@
 # 0009. The ACP client runs in Rust, never in the WebView
 
+> 已被 [ADR 0026](0026-kap-is-the-only-agent-transport.md) 取代：传输是 kap，不再有 ACP。
+
 > 传输选型部分已由 ADR 0025 取代。
 
 - Status: accepted
