@@ -7,11 +7,11 @@ import type {
   SessionConfigControl,
   SessionUsage,
 } from '@poietica/agent-contract'
-import { memo, type Ref } from 'react'
+import { memo, type Ref, useMemo } from 'react'
 import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
 import type { ComposerAsset } from './attachment-intake'
 import { AttachmentTray } from './attachment-tray'
-import { ComposerActions, ComposerModeChips } from './composer-actions'
+import { ComposerActions, ComposerModeChip, composerPaletteGroups } from './composer-actions'
 import { ContextGauge } from './context-gauge'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PermissionPicker } from './permission-picker'
@@ -46,7 +46,7 @@ export interface AssistantComposerProps {
   readonly onCancel?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
   readonly ref?: Ref<PromptInputHandle> | undefined
-  /** agent 报来的命令表：斜杠菜单与加号菜单的技能组共用这一张。 */
+  /** agent 报来的命令表：面板里技能与命令两组由它长出。 */
   readonly palette?: readonly PaletteEntry[] | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
@@ -81,20 +81,13 @@ export interface AssistantComposerProps {
 /*
  * 只声明这一层真的兑现的那几项。
  *
- * 此前是 Omit<…, 'onSubmit' | 'placeholder'>:题组、答复出口、以及输入框的 ref 都在
- * 类型里,而这一层一个都不转发。同一条规矩已经在 PromptInputProps 上写过 —— 类型邀请
- * 调用方传,实现静默丢掉。ref 成为普通 prop 之后这件事更硬:一个声明了 ref 却不转发的
- * 函数组件会把调用方的 ref 悄悄吃掉。
+ * 同一条规矩已经在 PromptInputProps 上写过 —— 类型邀请调用方传，实现静默丢掉。
+ * ref 成为普通 prop 之后这件事更硬：一个声明了 ref 却不转发的函数组件会把调用方
+ * 的 ref 悄悄吃掉。
  */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  | 'controls'
-  | 'controlsFailure'
-  | 'onCancel'
-  | 'onRetryControls'
-  | 'onSelectControl'
-  | 'palette'
-  | 'usage'
+  'controls' | 'controlsFailure' | 'onCancel' | 'onRetryControls' | 'onSelectControl' | 'usage'
 > & { readonly status: ChatStatus }
 
 function ComposerToolbar({
@@ -103,7 +96,6 @@ function ComposerToolbar({
   onCancel,
   onRetryControls,
   onSelectControl,
-  palette,
   status,
   usage,
 }: ComposerToolbarProps) {
@@ -111,17 +103,14 @@ function ComposerToolbar({
    * 这一层不再问草稿任何事。
    *
    * 「有没有东西可发」由 PromptInputSubmit 自己订 —— 它是唯一用到那两个布尔的
-   * 节点。订在这里，翻转一次就要重渲整条工具栏，连同 ComposerActions 与
-   * SessionControls 两个菜单根。收窄 context 的粒度只减少了触发次数，把消费点
-   * 放对了层才真正把范围关住。
-   *
-   * 于是这一层无状态、无 hook、无副作用：纯粹是一次声明。
+   * 节点。订在这里，翻转一次就要重渲整条工具栏。于是这一层无状态、无 hook、
+   * 无副作用：纯粹是一次声明。
    */
   return (
     <PromptInputToolbar>
       <PromptInputTools>
-        {/* 加号那一侧只回答一个问题:往这一句里加什么。 */}
-        <ComposerActions controls={controls} onSelectControl={onSelectControl} palette={palette} />
+        {/* 加号那一侧只回答一个问题:往这一句里加什么。面板归输入框。 */}
+        <ComposerActions />
 
         {/*
           批准方式是一颗常显的胶囊,不是菜单里的一行。
@@ -132,8 +121,8 @@ function ComposerToolbar({
         */}
         <PermissionPicker controls={controls} onSelect={onSelectControl} />
 
-        {/* 生效的输入姿态：一颗一条，可当场摘掉（状态归 PromptInput）。 */}
-        <ComposerModeChips />
+        {/* 生效的档位：一颗，摘掉就是切回首档。真相在 agent 那边。 */}
+        <ComposerModeChip controls={controls} onSelect={onSelectControl} />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />
@@ -160,8 +149,7 @@ function ComposerToolbar({
       <ContextGauge usage={usage} />
 
       {/* 判据同源。「有没有东西可发」现在只从 PromptInput 自己那份草稿读，
-          按钮与 onSubmit 看的是同一个所有者 —— 两份读法分家的那一天不需要谁
-          犯错：拖进来的图片曾经鼠标发不出去、回车发得出去。 */}
+          按钮与 onSubmit 看的是同一个所有者。 */}
       <PromptInputSubmit onCancel={onCancel} status={status} />
     </PromptInputToolbar>
   )
@@ -170,10 +158,8 @@ function ComposerToolbar({
 /*
  * 记住不重建。
  *
- * 它此前长在 AssistantSurface 的渲染体里，而那一层订着整条转录：模型每吐一个
- * 字，PromptInput 连同草稿、附件、模型选择器与发送键整棵树 reconcile 一次 ——
- * 一棵与转录内容毫无关系的树。上游的订阅粒度已经收窄，入参也全部引用稳定，
- * 这一层浅比较因此几乎总是命中：一轮对话里它至多重渲两次。
+ * 上游的订阅粒度已经收窄，入参也全部引用稳定，这一层浅比较因此几乎总是命中：
+ * 一轮对话里它至多重渲两次。
  */
 export const AssistantComposer = memo(function AssistantComposer({
   approval,
@@ -196,16 +182,22 @@ export const AssistantComposer = memo(function AssistantComposer({
    * textarea 和工具栏一并让位。提问期间没有自由输入这回事：agent 那头等的是
    * 一个 optionId，不是一段话，留个能打字的框只会让人以为打了有用。
    *
-   * 分支在孩子身上，不在壳身上。此前是两个 return，各写一次 <PromptInput> —— 于是
-   * 「打了一半的字和已经拖进来的图能熬过一次提问」全靠两处调用点恰好写成同一个组件、
-   * 恰好排在同一个位置来维持。那是对的行为，但它当时是巧合而不是保证，而巧合已经不
-   * 成立过一次：两处的 props 并不相同，提问那一支漏了 multiple。multiple 一旦转假，
-   * addAssets 的第一件事就是把已经攒着的整批丢掉（next = multiple ? [...current] : []），
-   * 而丢掉的那几张没有经过 removeAttachment —— 原生注册表里那几份字节也就没人放。
-   *
-   * 一个所有者、一处配置，identity 由结构保证。
+   * 分支在孩子身上，不在壳身上：一个所有者、一处配置，identity 由结构保证。
+   * 两个 return 各写一次 <PromptInput> 的时候，提问那一支漏了 multiple，而
+   * multiple 一旦转假，addAssets 的第一件事就是把已经攒着的整批丢掉。
    */
   const asking = questionDeck != null && questionDeck.cards.length > 0
+
+  /* agent 报的档位与命令，摊平一次交给输入框。引用稳定，面板才不会每敲一字重建。 */
+  const groups = useMemo(
+    () =>
+      composerPaletteGroups({
+        controls: toolbar.controls,
+        onSelectControl: toolbar.onSelectControl,
+        palette: palette ?? [],
+      }),
+    [palette, toolbar.controls, toolbar.onSelectControl],
+  )
 
   return (
     <>
@@ -213,8 +205,7 @@ export const AssistantComposer = memo(function AssistantComposer({
         审批那一格咬在卡的上沿，不在卡里。
 
         它自己画上半张脸，下沿多出一个圆角的量、被卡整个盖住（见
-        permission-dock.css）。输入框那张卡因此一个像素都不改：仍然是它自己那四
-        个圆角、自己那圈边、自己那层投影。
+        permission-dock.css）。输入框那张卡因此一个像素都不改。
 
         它与题面板互斥 —— 两者同源于唯一那个待答请求（见 AssistantSurface 的
         blocked），所以这里不需要再判一次谁压过谁。
@@ -223,9 +214,9 @@ export const AssistantComposer = memo(function AssistantComposer({
 
       <PromptInput
         className={asking ? 'assistant-prompt-input--question' : undefined}
+        groups={groups}
         multiple
         onSubmit={onSubmit}
-        palette={palette}
         ref={ref}
       >
         {asking ? (
@@ -244,7 +235,7 @@ export const AssistantComposer = memo(function AssistantComposer({
               <PromptInputTextarea placeholder={placeholder} />
             </PromptInputBody>
 
-            <ComposerToolbar palette={palette} status={status} {...toolbar} />
+            <ComposerToolbar status={status} {...toolbar} />
           </>
         )}
       </PromptInput>

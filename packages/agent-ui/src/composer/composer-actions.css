@@ -1,113 +1,38 @@
 /*
- * 加号那一侧的皮肤：菜单的两级边界。
+ * 加号那一侧的皮肤。
  *
- * 定位、焦点与键盘归 Base UI；这里只有几何与颜色，颜色一律是
- * composer-metrics.css 里命名过的令牌。
+ * 面板自己的几何在 composer-palette.css —— 它是输入框的一部分，不再是一张浮层。
+ * 这里只剩下扳机和胶囊，颜色一律是 composer-metrics.css 里命名过的令牌。
  */
 
-.assistant-plus-menu[data-assistant-skin] {
-  min-inline-size: var(--cp-menu-min-wide);
-  /* 有底也得有顶：文本超出靠各自的省略号，不许反过来撑开菜单；条目多到超高就滚。 */
-  max-inline-size: min(520px, calc(100vw - 24px));
-  max-block-size: min(480px, calc(100vh - 96px));
-  overflow-y: auto;
-  padding: 0;
-  border-color: var(--cp-menu-edge);
-  background: var(--cp-menu-face);
-}
-
-/* 内边距归组，组与组之间只有一条线 —— 比外框低一档对比度。 */
-[data-assistant-skin] .assistant-plus-menu__group {
-  padding: var(--am-pad);
-}
-
-[data-assistant-skin] .assistant-plus-menu__group + .assistant-plus-menu__group {
-  border-block-start: var(--cp-px) solid var(--cp-menu-line);
-}
-
-[data-assistant-skin] .assistant-plus-menu__item {
-  display: flex;
-  min-block-size: 28px;
+.assistant-plus {
+  display: inline-flex;
+  block-size: var(--cp-pill);
+  inline-size: var(--cp-pill);
+  flex: none;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   border: 0;
-  border-radius: var(--am-item);
-  padding: 0 8px;
+  border-radius: 9999px;
+  padding: 0;
   background: transparent;
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink);
-  text-align: start;
-  cursor: default;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
 }
 
-[data-assistant-skin] .assistant-plus-menu__item svg {
+.assistant-plus:hover {
+  background: var(--cp-menu-hover);
+  color: var(--cp-ink);
+}
+
+[data-assistant-skin] .assistant-plus > svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
   flex: none;
-  color: var(--cp-ink-muted);
-}
-
-[data-assistant-skin] .assistant-plus-menu__item:hover,
-[data-assistant-skin] .assistant-plus-menu__item[data-highlighted],
-[data-assistant-skin] .assistant-plus-menu__item[data-popup-open] {
-  outline: none;
-  background: var(--cp-menu-hover);
-}
-
-[data-assistant-skin] .assistant-plus-menu__label {
-  white-space: nowrap;
-}
-
-[data-assistant-skin] .assistant-plus-menu__hint,
-[data-assistant-skin] .assistant-plus-menu__detail {
-  margin-inline-start: auto;
-  min-inline-size: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-family: inherit;
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
 }
 
 /*
- * 勾就是图标库里那一枚，不在这里用边框拼一个。
- *
- * 原先是 4×8 的盒子加两条边框再转 45°。它画出来的东西与 CheckIcon 是同一个
- * 图形，于是同一个勾在仓库里有两份互不相干的实现，改一处不会同步另一处 ——
- * 注释里那句「与会话设置里那一枚同形」说的就是这件事，它是缺陷的自述而不是
- * 设计意图。
- *
- * 这里只留一个槽位：尺寸由上面 .assistant-plus-menu__item svg 那条统一给
- * (--cp-icon)，形状归字形，墨色归令牌。
- */
-[data-assistant-skin] .assistant-plus-menu__tick {
-  display: flex;
-  flex: none;
-  margin-inline-start: auto;
-  color: var(--cp-ink);
-}
-
-/* 组标题：Codex 式的一行小字。 */
-[data-assistant-skin] .assistant-plus-menu__heading {
-  padding: 2px 8px 4px;
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-}
-
-/* 名字后面那句淡描述；hint / detail 靠右，desc 跟着名字走。 */
-[data-assistant-skin] .assistant-plus-menu__desc {
-  min-inline-size: 0;
-  overflow: hidden;
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/*
- * 生效姿态的胶囊：几何与批准方式那颗同一套令牌，底色由墨色按
+ * 生效档位的胶囊：几何与批准方式那颗同一套令牌，底色由墨色按
  * 洗淡比例混出（与 permission-picker.css 同一条规则），悬停只加深洗淡。
  */
 .assistant-mode-chip {
