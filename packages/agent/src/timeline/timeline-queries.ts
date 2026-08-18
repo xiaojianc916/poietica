@@ -1,4 +1,9 @@
-import type { PermissionItem, TimelineItem, TimelineState } from './timeline-contract'
+import type {
+  PermissionItem,
+  TimelineItem,
+  TimelineState,
+  ToolCallTimelineItem,
+} from './timeline-contract'
 
 /**
  * 转录的即时问句。
@@ -69,6 +74,30 @@ export function pendingPermission(scope: PermissionScope): PermissionItem | unde
  */
 export function pendingPermissionCount(scope: PermissionScope): number {
   return waitingIn(scope).count
+}
+
+/**
+ * 待答的那个请求指向的调用。
+ *
+ * 请求帧只带一个号：这次调用在做什么由它自己的条目说，那是唯一的事实来源。
+ * 号还没落成条目（请求先于宣告到达）就交回 undefined。
+ */
+export function pendingPermissionCall(scope: PermissionScope): ToolCallTimelineItem | undefined {
+  const toolCallId = waitingIn(scope).first?.toolCall?.toolCallId
+
+  if (toolCallId === undefined) {
+    return undefined
+  }
+
+  for (let index = scope.items.length - 1; index >= 0; index -= 1) {
+    const item = scope.items[index]
+
+    if (item?.type === 'tool_call' && item.toolCallId === toolCallId) {
+      return item
+    }
+  }
+
+  return undefined
 }
 
 /*

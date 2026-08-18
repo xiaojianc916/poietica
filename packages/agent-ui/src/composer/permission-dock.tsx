@@ -1,8 +1,8 @@
 import './permission-dock.css'
 
-import type { PermissionItem } from '@poietica/agent'
+import type { PermissionItem, ToolCallTimelineItem } from '@poietica/agent'
 import type { AcpPermissionOption } from '@poietica/agent-contract'
-import { memo, useState } from 'react'
+import { clampToLine, memo, useState } from 'react'
 import { useAgentDialect } from '../semantics/agent-dialect'
 import { readToolIntent } from '../semantics/tool-intent'
 
@@ -71,7 +71,7 @@ function rawArgs(rawInput: unknown): string | null {
   try {
     const text = typeof rawInput === 'string' ? rawInput : JSON.stringify(rawInput)
 
-    return text === undefined || text.trim() === '' ? null : text
+    return text === undefined ? null : clampToLine(text)
   } catch {
     /* 认不出就不认，宁可只剩一个工具名，也不能印一句我们编的话。 */
     return null
@@ -80,12 +80,15 @@ function rawArgs(rawInput: unknown): string | null {
 
 export interface PermissionDockProps {
   readonly item: PermissionItem
+  /** 请求指向的那次调用；带子印的字来自它。 */
+  readonly call: ToolCallTimelineItem | undefined
   /** 本段里还在等的一共几个。1 表示只有这一个，序号因此不出现。 */
   readonly waiting: number
   readonly onResolve: (requestId: string, optionId: string) => void
 }
 
 export const PermissionDock = memo(function PermissionDock({
+  call,
   item,
   onResolve,
   waiting,
@@ -124,27 +127,12 @@ export const PermissionDock = memo(function PermissionDock({
   /*
    * 要批准的那件事本身。
    *
-   * title 只是一个工具名：上游在 ACP 边界上把 command / search / url_fetch 三类
-   * displayBlock 一律丢掉（convert.ts 的 displayBlockToAcpContent），送到这里的
-   * 就只剩一个 "Bash"。而「要不要允许 Bash」不是一个能回答的问题。
-   *
-   * 入参是完整的，请求随身带着（PermissionItem.toolCall），所以意图没有真的丢。
-   * 重建它的那份判据仓里已经有了，工具卡片正在用 —— 这里读同一个函数，不抄第二份：
-   * 两份「这次调用要做什么」漂开的那天，带子和卡片会各说一套。
+   * 工具名回答不了「要不要允许 Bash」。判据与工具卡片同一个函数，两处不会各说
+   * 一套；意图说不出来退到入参原文，再退才是工具名 —— 那时 agent 确实没说。
    */
-  const call = item.toolCall
-  const intent =
-    call === undefined
-      ? null
-      : readToolIntent({
-          content: call.content ?? [],
-          kind: call.kind ?? 'other',
-          locations: call.locations ?? [],
-          rawInput: call.rawInput,
-        })
+  const intent = call === undefined ? null : readToolIntent(call)
 
-  /* 意图说不出来时退到入参原文。两档都空，才只剩一个工具名。 */
-  const said = intent?.full ?? rawArgs(call?.rawInput)
+  const said = intent?.text ?? rawArgs(call?.rawInput) ?? item.title
 
   const lead = leadOf(item.options)
 
@@ -156,22 +144,8 @@ export const PermissionDock = memo(function PermissionDock({
       <div aria-busy={isSubmitting} className="assistant-approval__bar" key={item.requestId}>
         {waiting > 1 ? <span className="assistant-approval__count">1/{waiting}</span> : null}
 
-        {/*
-          题面是 agent 送来的那一句，原样。这里不加前缀、不翻译、不改写：
-          写成「需要批准 · 执行终端命令：…」是在用一句我们编的话，去复述一句
-          agent 已经说清楚了的话。
-        */}
-        <span className="assistant-approval__title">{item.title}</span>
-
-        {/*
-          要签字的那份原文占主位：一屏的 Bash、Read、Glob 之间没有区别，把这一次和
-          那一次分开的是它要做什么。
-
-          印的是 full 而不是 text：text 是给卡片那一行准备的 160 字截断，而人正照着
-          这里决定放不放行 —— 看不全就批，等于没批。多长由 CSS 收（三行），不在这里
-          切字符：切掉的那一段没有人能再要回来。
-        */}
-        {said === null ? null : <span className="assistant-approval__intent">{said}</span>}
+        {/* 原样：不加前缀、不翻译、不改写。 */}
+        <span className="assistant-approval__intent">{said}</span>
 
         <div className="assistant-approval__options">
           {item.options.map((option) => (

@@ -7,24 +7,27 @@ import type {
   SessionConfigControl,
   SessionUsage,
 } from '@poietica/agent-contract'
-import { memo, type Ref, useCallback, useMemo, useState } from 'react'
+import {
+  isQuestionRequest,
+  memo,
+  type Ref,
+  readQuestionPrompt,
+  useAssistantPending,
+  useAssistantPendingCall,
+  useAssistantPendingCount,
+  useAssistantSession,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
 import { useAgentDialect } from '../semantics/agent-dialect'
 import type { QuestionAnswer } from '../semantics/ask-user-question'
-import {
-  buildQuestionDeck,
-  isQuestionRequest,
-  readQuestionPrompt,
-} from '../semantics/ask-user-question'
-import {
-  type AssistantSubmission,
-  useAssistantPending,
-  useAssistantPendingCount,
-  useAssistantSession,
-} from '../session/use-assistant-session'
+import { buildQuestionDeck } from '../semantics/ask-user-question'
+import type { AssistantSubmission } from '../session/use-assistant-session'
 import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branch-picker'
 import { WorkspacePicker, type WorkspacePickerProps } from '../threads/workspace-picker'
 import { TimelineRow } from '../timeline/timeline-row'
@@ -149,6 +152,9 @@ export const AssistantSurface = memo(function AssistantSurface({
   /* 还在等的一共几个。审批带恒显示最早那一个，所以变的只有分母。 */
   const waiting = useAssistantPendingCount(assistant.key)
 
+  /* 要批准的那件事本身，取自请求指向的那次调用。 */
+  const call = useAssistantPendingCall(assistant.key)
+
   const asking = blocked !== undefined && isQuestionRequest(blocked, dialect.questions)
 
   const pending = asking ? blocked : undefined
@@ -169,8 +175,8 @@ export const AssistantSurface = memo(function AssistantSurface({
       return null
     }
 
-    return { item: blocked, onResolve: assistant.resolvePermission, waiting }
-  }, [asking, assistant.resolvePermission, blocked, waiting])
+    return { call, item: blocked, onResolve: assistant.resolvePermission, waiting }
+  }, [asking, assistant.resolvePermission, blocked, call, waiting])
 
   const questionDeck = useMemo(() => {
     if (pending === undefined) {

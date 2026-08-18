@@ -1,4 +1,4 @@
-import type { PermissionItem } from '@poietica/agent'
+import type { PermissionItem, ToolCallTimelineItem } from '@poietica/agent'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { PermissionDock } from '../composer/permission-dock'
@@ -39,10 +39,34 @@ function permission(overrides: Partial<PermissionItem> = {}): PermissionItem {
   }
 }
 
+/* 运行时由 pendingPermissionCall 按号取回条目；这里照同一形状造一条。 */
+function callOf(item: PermissionItem): ToolCallTimelineItem | undefined {
+  const asked = item.toolCall
+
+  if (asked === undefined) {
+    return undefined
+  }
+
+  return {
+    type: 'tool_call',
+    id: `tool-${asked.toolCallId}`,
+    turn: 1,
+    at: 0,
+    toolCallId: asked.toolCallId,
+    title: item.title,
+    kind: asked.kind ?? 'other',
+    status: asked.status ?? 'pending',
+    content: asked.content ?? [],
+    locations: asked.locations ?? [],
+    startedAt: 0,
+    ...(asked.rawInput === undefined ? {} : { rawInput: asked.rawInput }),
+  }
+}
+
 function render(item: PermissionItem, waiting = 1): string {
   return renderToStaticMarkup(
     <AgentDialectContext value={DIALECT}>
-      <PermissionDock item={item} onResolve={() => {}} waiting={waiting} />
+      <PermissionDock call={callOf(item)} item={item} onResolve={() => {}} waiting={waiting} />
     </AgentDialectContext>,
   )
 }
@@ -56,7 +80,9 @@ describe('审批带', () => {
      * typecheck 拦住；咬散文的话，一次改名会经由一个字符串把这条断言打红。
      */
     expect(() =>
-      renderToStaticMarkup(<PermissionDock item={permission()} onResolve={() => {}} waiting={1} />),
+      renderToStaticMarkup(
+        <PermissionDock call={undefined} item={permission()} onResolve={() => {}} waiting={1} />,
+      ),
     ).toThrow(/没有 AgentDialectContext/)
   })
 

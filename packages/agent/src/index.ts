@@ -23,34 +23,33 @@ export type {
 } from './session'
 export {
   AgentCapabilityStore,
+  AgentThoughtItem,
+  ConversationTurn,
   DEFAULT_WORKSPACE_ID,
+  ErrorItem,
+  FeedRow,
   groupByWorkspace,
+  MessageImage,
+  PermissionItem,
+  PlanItem,
+  pendingPermissionCall,
   permissionControlOf,
   permissionPostureOf,
   permissionPosturesOf,
   SessionControlsStore,
   shorten,
   ThreadsStore,
-  TranscriptStore,
-  workspaceIdOf,
-  workspaceNameOf,
-} from './session'
-export type {
-  AgentTextItem,
-  AgentThoughtItem,
-  ConversationTurn,
-  ErrorItem,
-  FeedRow,
-  MessageImage,
-  PermissionItem,
-  PlanItem,
   TimelineItem,
   TimelineItemId,
   TimelineState,
   ToolCallTimelineItem,
+  TranscriptStore,
   TurnSpan,
   UserMessageItem,
-} from './timeline'
+  workspaceIdOf,
+  workspaceNameOf,
+} from './session'
+export type { AgentTextItem } from './timeline'
 export {
   appendLocalError,
   appendUserMessage,

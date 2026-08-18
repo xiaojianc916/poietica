@@ -85,48 +85,22 @@
 }
 
 /*
- * 工具名是一个称呼，不是那件事。
+ * 要签字的那件事，一行。
  *
- * 一屏的 Bash、Read、Glob 之间没有区别，所以它退成一枚小字前缀，宽度封顶、超出
- * 截断 —— 「要不要允许 Bash」不是一个能回答的问题，右边那段原文才是。
- */
-.assistant-approval__title {
-  flex: none;
-  max-inline-size: 12ch;
-  overflow: hidden;
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/*
- * 要签字的那份原文，最多三行。
- *
- * 此前是一行截断，理由写的是「这条带子是一个控件，不是一段内容」。那条理由在这
- * 里不成立：人要放行的就是这段内容，看不全就批等于盲批。Claude Code、Zed 的 ACP
- * 审批、Cursor 的 run 确认都把命令完整摆出来，没有一家只给工具名。
- *
- * 三行是上限不是高度：一行的命令仍然只占一行，输入框不会平白被推下去。
- *
- * 等宽 + 保留空白：它是一条命令、一个路径、一个 glob，不是一句话。比例字体会把
- * l 与 1、连续空格画成读不准的样子，而人正要照着它决定放不放行。可选中，因为要
- * 核对一条命令，最可靠的做法是把它复制出去。
+ * 等宽且可选中：它是一条命令、一个路径、一个 glob，比例字体会把 l 与 1、连续
+ * 空格画得读不准，而核对命令最可靠的做法是复制出去。截断在 tool-intent 里做完
+ * （首行 + 160 字），这里只收残余的溢出 —— 带子恒高一行，输入框不会被推走。
  */
 .assistant-approval__intent {
-  display: -webkit-box;
   min-inline-size: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
   font-family: var(--cp-font-mono);
   font-size: var(--cp-font-caption);
   line-height: 1.45;
   color: var(--cp-ink);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   user-select: text;
 }
 

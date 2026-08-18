@@ -63,17 +63,21 @@ function firstLine(text: string): string {
   return (cut === -1 ? text : text.slice(0, cut)).trim()
 }
 
-function intentOf(full: string): ToolIntent | null {
+/** 一段原文收成一行：取首行，过长截断。截断判据全仓只有这一处。 */
+export function clampToLine(full: string): string | null {
   const said = firstLine(full)
 
   if (said === '') {
     return null
   }
 
-  return {
-    text: said.length > CLAMP ? `${said.slice(0, CLAMP)}…` : said,
-    full,
-  }
+  return said.length > CLAMP ? `${said.slice(0, CLAMP)}…` : said
+}
+
+function intentOf(full: string): ToolIntent | null {
+  const text = clampToLine(full)
+
+  return text === null ? null : { text, full }
 }
 
 /** 入参里的一格，只认非空字符串。 */

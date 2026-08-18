@@ -1,5 +1,10 @@
-import type { PermissionItem, TimelineState, Transcript } from '@poietica/agent'
-import { pendingPermission, pendingPermissionCount } from '@poietica/agent'
+import type {
+  PermissionItem,
+  TimelineState,
+  ToolCallTimelineItem,
+  Transcript,
+} from '@poietica/agent'
+import { pendingPermission, pendingPermissionCall, pendingPermissionCount } from '@poietica/agent'
 import type { AgentSessionPort, ChatStatus, PromptAsset } from '@poietica/agent-contract'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { useTranscripts } from './transcripts-context'
@@ -211,4 +216,13 @@ export function useAssistantPending(key: string): PermissionItem | undefined {
  */
 export function useAssistantPendingCount(key: string): number {
   return useSlice(key, readPendingCount)
+}
+
+/* 请求只带一个号，要签字的原文在那条调用上。 */
+const readPendingCall = (transcript: Transcript): ToolCallTimelineItem | undefined =>
+  pendingPermissionCall(transcript.timeline)
+
+/** 待答请求指向的那次调用；审批带照着它印字。 */
+export function useAssistantPendingCall(key: string): ToolCallTimelineItem | undefined {
+  return useSlice(key, readPendingCall)
 }

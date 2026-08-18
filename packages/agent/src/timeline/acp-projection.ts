@@ -17,7 +17,6 @@ import type {
   AcpContentBlock,
   AcpSessionUpdate,
   AcpToolCallContent,
-  AcpToolCallUpdate,
   RunEvent,
 } from '@poietica/agent-contract'
 import type { PlanItem, ToolCallTimelineItem, UserMessageItem } from './timeline-contract'
@@ -42,9 +41,6 @@ export function applyAcpFrame(draft: Draft, event: AcpFrame): void {
     case 'permission_requested': {
       draft.status = 'awaiting_permission'
 
-      /* 请求随身带的那一份多半只有一个 toolCallId，入参在宣告那一帧里。 */
-      const asked = askedAbout(draft, event.toolCallId, event.toolCall)
-
       push(draft, {
         type: 'permission',
         id: `${namespace(draft)}permission-${event.requestId}`,
@@ -54,7 +50,7 @@ export function applyAcpFrame(draft: Draft, event: AcpFrame): void {
         title: event.title,
         /* 缺席和"值为 undefined"在 exactOptionalPropertyTypes 下不是一回事，
            所以没带就整个键不写。 */
-        ...(asked === undefined ? {} : { toolCall: asked }),
+        ...(event.toolCall === undefined ? {} : { toolCall: event.toolCall }),
         options: event.options,
       })
 
@@ -216,9 +212,6 @@ function upsertToolCall(
   } else {
     draft.items[position] = next
   }
-
-  /* 宣告晚于请求时，把入参补回那条还在等的请求。 */
-  relink(draft, next)
 }
 
 /**
@@ -256,82 +249,6 @@ function mergedFacts(
   return { content, endedAt, rawInput, rawOutput, status }
 }
 
-/**
- * 被征求同意的那次调用，补上它没带的入参。
- *
- * 协议把一次调用与一次授权请求分成两帧：宣告那一帧（session/update 的 tool_call）
- * 带完整的 rawInput，请求那一帧（session/request_permission）带的 ToolCallUpdate
- * 除 toolCallId 之外全部可选，而多数 agent 在这里只带一个号 —— 原生侧为此专门养了
- * 一张标题退路表（recorder.rs 的 permission_title），那就是这件事的现场证词。
- *
- * 两帧说的是同一次调用，协议本来就是按号寻址的，所以按号把它们合起来 —— 与
- * upsertToolCall 合并 tool_call 与 tool_call_update 是同一件事，不是发明语义。
- *
- * 只补 rawInput。它是「要批准的到底是哪一条命令」的唯一载体，也是唯一能原样转交、
- * 不必重新构造任何协议类型的那一格：content 与 locations 在条目上是只读的。
- *
- * 请求自己带了入参时以它为准：人要签字的是真正发出去的那一份。
- */
-function askedAbout(
-  draft: Draft,
-  toolCallId: string | undefined,
-  carried: AcpToolCallUpdate | undefined,
-): AcpToolCallUpdate | undefined {
-  if (carried === undefined || carried.rawInput !== undefined || toolCallId === undefined) {
-    return carried
-  }
-
-  const position = positionOf(draft, `${namespace(draft)}tool-${toolCallId}`)
-  const found = position < 0 ? undefined : draft.items[position]
-  const rawInput = found?.type === 'tool_call' ? found.rawInput : undefined
-
-  return rawInput === undefined ? carried : { ...carried, rawInput }
-}
-
-/**
- * 宣告晚于请求的那一半。
- *
- * 反过来的顺序协议同样允许：agent 可以先问「许不许」，再把这次调用报上来。那时
- * 上面那次合并手上还没有东西，所以入参真的到达时在这里补回去 —— 一件事两个到达
- * 顺序，只补一头等于只有一半的人能看见那条命令。
- *
- * 只在真的有人在等的时候扫。状态由帧逐帧维护（timeline-queries 里是同一条判据），
- * 所以流式期间这一句就是一次相等比较，倒扫挂不到热路径上。
- */
-function relink(draft: Draft, call: ToolCallTimelineItem): void {
-  if (draft.status !== 'awaiting_permission' || call.rawInput === undefined) {
-    return
-  }
-
-  for (let index = draft.items.length - 1; index >= 0; index -= 1) {
-    const item = draft.items[index]
-
-    if (item === undefined) {
-      continue
-    }
-
-    /* 段边界收手：别的段里那些请求早就不在原生侧的桌子上了。 */
-    if (item.turn !== draft.runIndex) {
-      return
-    }
-
-    if (item.type !== 'permission' || item.resolution !== undefined) {
-      continue
-    }
-
-    const carried = item.toolCall
-
-    if (
-      carried === undefined ||
-      carried.toolCallId !== call.toolCallId ||
-      carried.rawInput !== undefined
-    ) {
-      continue
-    }
-
-    draft.items[index] = { ...item, toolCall: { ...carried, rawInput: call.rawInput } }
-  }
-}
 /*
  * 一份入参只被字符串化一次。
  *
