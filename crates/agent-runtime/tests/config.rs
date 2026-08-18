@@ -23,12 +23,12 @@ fn catalog() -> Value {
     json!({
         "items": [
             { "provider": "moonshot-cn", "model": "kimi-k2.7-code-highspeed",
-              "display_name": "Kimi K2.7 Code Highspeed", "max_context_size": 262144 },
+              "display_name": "Kimi K2.7 Code Highspeed", "max_context_size": 262_144 },
             { "provider": "moonshot-cn", "model": "kimi-k2.6",
-              "display_name": "Kimi K2.6", "max_context_size": 262144,
+              "display_name": "Kimi K2.6", "max_context_size": 262_144,
               "support_efforts": ["off", "on"] },
             { "provider": "moonshot-cn", "model": "kimi-k2.7-code",
-              "display_name": "Kimi K2.7 Code", "max_context_size": 262144,
+              "display_name": "Kimi K2.7 Code", "max_context_size": 262_144,
               "support_efforts": ["off", "low", "high"] }
         ]
     })
