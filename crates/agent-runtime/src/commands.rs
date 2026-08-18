@@ -55,11 +55,10 @@ pub(crate) enum Command {
     /// Open one more session on the connection that is already running.
     NewSession {
         cwd: PathBuf,
-        /// 这一条会话要挂的 MCP 服务器，ACP 的线上形状。
-        ///
-        /// 命令这一层不认识它。名册从渲染层原样过来，进来就是 JSON，所以物化
-        /// 是驱动器里那一次反序列化 —— 手上是打好字的字段时相反，见 blocks_of。
-        mcp_servers: Vec<Value>,
+        /// 渲染层随会话报来的 MCP 名册。kap 的会话创建不收它
+    ///（sessionCreateSchema 没有这一格）：MCP 服务器归 kimi 自己的配置管。
+    /// 这个字段还留在 IPC 上，是因为渲染层名册的清理属于另一批。
+    mcp_servers: Vec<Value>,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
     /// 把一条以前开过的会话装回本次连接。

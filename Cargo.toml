@@ -99,9 +99,9 @@ ed25519-dalek = { version = "2.1.1", features = [
 # HTTP 栈加一套 TLS 的方案。
 #
 # rustls-tls 与 updater 的选择一致，feature 在这里统一，不会多出第二套 TLS。
-# 不开 json：探测只读一段文本，用已有的 serde_json 自己解，少一个 feature。
+# json 为 kap driver 的 REST 调用而开（probe 仍只读一段文本）。
 reqwest = { version = "0.12", default-features = false, features = [
-  "rustls-tls",
+  "rustls-tls", "json",
 ] }
 
 # Tauri composition root
