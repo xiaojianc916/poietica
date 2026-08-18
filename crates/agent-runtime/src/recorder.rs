@@ -217,13 +217,10 @@ impl Recorder {
 
     /// 记下这一轮的一帧。
     ///
-    /// 收的是帧而不是某条协议的通知：两条传输各自成帧，此后共用这一条路。
+    /// 收的是帧而不是某条协议的通知：成帧在协议侧做，此后共用这一条路。
     /// 会话帧要计数 —— 一轮到底有没有内容，`narrate` 靠它判断。
     pub fn record_frame(&mut self, frame: RunFrame) {
-        if matches!(
-            frame,
-            RunFrame::AcpUpdate { .. } | RunFrame::HarnessEvent { .. }
-        ) {
+        if matches!(frame, RunFrame::AcpUpdate { .. }) {
             self.updates = self.updates.saturating_add(1);
         }
 
@@ -240,8 +237,7 @@ impl Recorder {
 
     /// 记下这一轮见过的工具调用叫什么。
     ///
-    /// 只有 ACP 那条线有这件事：权限请求可以不带标题，而 harness 这条线上
-    /// 客户端根本答不了权限（见 docs/adr/0023），所以没有需要退路的标题。
+    /// 权限请求可以不带标题，而界面要求有一个：退路是这一轮见过的那些名字。
     pub fn note_tool_titles(&mut self, update: &SessionUpdate) {
         self.project(update);
     }

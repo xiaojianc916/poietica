@@ -94,10 +94,8 @@ impl fmt::Debug for SessionEvents {
 
 /// A connected session, before anything has been spawned onto a runtime.
 ///
-/// 交回一个未来，由组合根决定谁来推进它 —— 两条传输同一个形状，所以
-/// 组合根只有一处 spawn。harness 那条线自己起进程并在 tokio 上读写它的
-/// 管子（见 dsh_driver.rs），所以这个 crate 不再对执行器无所谓：它要求
-/// 一个 tokio 运行时，而组合根给的正是那一个。
+/// 交回一个未来，这个 crate 自己不推进它：谁来 spawn 由组合根决定，所以整个
+/// 程序里只有一处 spawn（commands/agent/runtime.rs）。
 pub struct AgentConnection {
     /// Sends prompts, cancellation and shutdown to the connection.
     pub client: AgentClient,
@@ -175,8 +173,7 @@ impl CanForkSession {
 
 /// 停掉一轮的凭证（ACP session/cancel）。
 ///
-/// 取消是一条通知，ACP 每个 agent 都收得下，所以那条线无条件铸；harness
-/// 线不铸（见 docs/adr/0023）。停不了的传输上，这句调用编译不出来。
+/// 取消是一条通知，ACP 每个 agent 都收得下，所以握手无条件铸它。
 #[derive(Clone, Copy, Debug)]
 pub struct CanCancelSession(());
 
