@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::frame::{RunFrame, prune};
 use crate::permission::{Decision, kap_options};
@@ -202,13 +202,23 @@ impl Recorder {
     ) -> String {
         self.pending.push(approval_id.to_owned());
 
-        let mut tool_call = item.clone();
+        let title = approval_title(tool_name, item, tool_call_id);
+
+        // 帧是我们自己的契约，不是审批项的原文：界面要的三格在这里归一成
+        // camelCase —— toolCallId 是 pendingPermissionCall 反查工具卡片的键，
+        // rawInput 装审批项的显示提示（approvalRequestSchema 的
+        // tool_input_display）。其余格子是传输层的事，帧不留。
+        let mut tool_call = json!({
+            "toolCallId": tool_call_id,
+            "title": title,
+            "rawInput": item.get("tool_input_display").cloned().unwrap_or(Value::Null),
+        });
         prune(&mut tool_call);
 
         self.append(RunFrame::PermissionRequested {
             request_id: approval_id.to_owned(),
             tool_call_id: tool_call_id.to_owned(),
-            title: approval_title(tool_name, item, tool_call_id),
+            title,
             tool_call,
             options: kap_options(),
         });

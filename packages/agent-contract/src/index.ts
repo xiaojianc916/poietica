@@ -15,6 +15,7 @@ export type {
   SessionConfigPurpose,
   SessionConfigReport,
 } from './config'
+export type { KapEventPayload, KapStopReason } from './kap'
 export type { AgentPalettePort, PaletteEntry, PaletteKind } from './palette'
 export { paletteEntryOf, paletteFrom } from './palette'
 export type { PermissionPosturePort } from './permission'

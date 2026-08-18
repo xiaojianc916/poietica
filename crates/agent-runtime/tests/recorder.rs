@@ -122,9 +122,13 @@ fn a_permission_request_and_its_answer_are_two_frames() {
     assert_eq!(text_of(option, "kind"), "allow_once");
     assert_eq!(text_of(option, "name"), "Approve once");
 
-    // 审批项原文随帧走，null 成员不出线。
+    // 帧里的 tool_call 是归一化后的三格，不是审批项原文；null 成员不出线。
     let tool_call = requested.get("toolCall").expect("the approval item");
-    assert_eq!(text_of(tool_call, "tool_name"), "Bash");
+    assert_eq!(text_of(tool_call, "toolCallId"), "call_100");
+    assert_eq!(text_of(tool_call, "title"), "Bash");
+
+    let raw_input = tool_call.get("rawInput").expect("the display hint");
+    assert_eq!(text_of(raw_input, "command"), "cargo test");
 
     let resolved = frames.get(1).expect("the answer frame");
     assert_eq!(text_of(resolved, "kind"), "permission_resolved");

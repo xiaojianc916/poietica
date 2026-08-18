@@ -1,3 +1,4 @@
+import type { KapEventPayload, KapStopReason } from './kap'
 import type {
   AcpPermissionOption,
   AcpSessionId,
@@ -53,6 +54,16 @@ export type RunEvent =
       readonly notification: AcpSessionNotification
     }
   | {
+      readonly kind: 'kap_event'
+      readonly seq: number
+      readonly at: number
+      /**
+       * kap 的 session_event 载荷，原样进帧（frame.rs 的 RunFrame::KapEvent）。
+       * 这一层一个字段都不认识 —— 认识它的是投影它的那一层。
+       */
+      readonly payload: KapEventPayload
+    }
+  | {
       readonly kind: 'permission_requested'
       readonly seq: number
       readonly at: number
@@ -82,7 +93,11 @@ export type RunEvent =
       readonly kind: 'run_finished'
       readonly seq: number
       readonly at: number
-      readonly stopReason: AcpStopReason
+      /**
+       * 新日志记 kap 的轮终原因（completed / cancelled）；旧日志记 ACP 的
+       * StopReason —— 历史改不了，两代之词都在这一格里。
+       */
+      readonly stopReason: AcpStopReason | KapStopReason
       /**
        * What the agent said for itself while the protocol said nothing.
        *

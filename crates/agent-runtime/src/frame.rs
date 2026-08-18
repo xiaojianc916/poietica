@@ -60,7 +60,9 @@ pub enum RunFrame {
         tool_call_id: String,
         /// 界面必须显示的标题。
         title: String,
-        /// 被征求同意的那次操作，按 kap 送来的形状（approvals 列表项原文）。
+        /// 被征求同意的那次操作，归一成界面读的三格：toolCallId、title、
+        /// rawInput（审批项的 tool_input_display）。审批项的其余格子是传输
+        /// 层的事，帧不留。
         tool_call: Value,
         /// 这一侧按 kap 的答复词汇表合成的选项（见 permission.rs）。
         options: Value,

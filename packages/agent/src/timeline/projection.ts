@@ -2,14 +2,17 @@
  * 帧到条目的唯一入口。
  *
  * 它拥有一轮的公共部分：怎么开始、怎么结束、结局怎么读，以及那一问怎么落账。
- * ACP 的会话通知与授权请求归 acp-projection，分派在这里发生。
+ * ACP 的会话通知归 acp-projection，kap 的会话事件归 kap-projection，分派在
+ * 这里发生。审批帧读的是客户端自己合成的词汇（requestId / options /
+ * resolution），两条线同形，共用同一支。
  *
  * 它只往草稿上写，既不开草稿也不封版（见 timeline-draft），所以「纯、总、可重放」
  * 那三条性质与它无关：那是 timeline-reducer 的承诺。
  */
 
-import type { AcpStopReason, RunEvent, RunStatus } from '@poietica/agent-contract'
+import type { AcpStopReason, KapStopReason, RunEvent, RunStatus } from '@poietica/agent-contract'
 import { applyAcpFrame, saidByUser } from './acp-projection'
+import { applyKapFrame } from './kap-projection'
 import { isRenderable } from './renderable'
 import type { MessageImage, UserMessageItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
@@ -73,6 +76,12 @@ export function apply(draft: Draft, event: RunEvent): void {
     case 'permission_requested':
     case 'permission_resolved': {
       applyAcpFrame(draft, event)
+
+      return
+    }
+
+    case 'kap_event': {
+      applyKapFrame(draft, event)
 
       return
     }
@@ -262,7 +271,7 @@ function preferAgent(message: string, diagnostics?: string): string {
  * isRenderable 与派生共用同一份 —— 抄第二份就会有两种「空」。提问单独跳过：
  * 它是两段之间的边界，不是这一段的产出。
  */
-function silentTurn(draft: Draft, stopReason: AcpStopReason): string | undefined {
+function silentTurn(draft: Draft, stopReason: AcpStopReason | KapStopReason): string | undefined {
   for (let index = draft.items.length - 1; index >= 0; index -= 1) {
     const item = draft.items[index]
 
@@ -286,7 +295,7 @@ function silentTurn(draft: Draft, stopReason: AcpStopReason): string | undefined
   return `stopReason: ${stopReason}`
 }
 
-function finalStatus(stopReason: AcpStopReason): RunStatus {
+function finalStatus(stopReason: AcpStopReason | KapStopReason): RunStatus {
   if (stopReason === 'cancelled') {
     return 'cancelled'
   }

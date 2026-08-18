@@ -263,7 +263,15 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         .iter()
         .any(|event| event.frame.kind() == RUN_FINISHED)
     {
-        assert!(Instant::now() < deadline, "the turn never ended");
+        assert!(
+            Instant::now() < deadline,
+            "the turn never ended; recorded so far: {:?}",
+            delivered
+                .frames()
+                .iter()
+                .map(|event| event.frame.kind())
+                .collect::<Vec<_>>()
+        );
 
         thread::sleep(Duration::from_millis(50));
     }
