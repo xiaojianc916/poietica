@@ -283,7 +283,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
 
     /* 先摆出这一轮，再判它对不对：断言 panic 之后什么都不会再打印，而一个失败
     的回合最需要的恰恰是这份名单。 */
-    print!("{}", outline(&broadcast));
+    println!("{}", outline(&broadcast));
 
     report(&broadcast);
 
@@ -433,14 +433,15 @@ fn outline(events: &[RecordedEvent]) -> String {
         .iter()
         .map(|event| {
             format!(
-                "  {:>3} {:<12} {:<22} {}\n",
+                "  {:>3} {:<12} {:<22} {}",
                 event.seq,
                 event.frame.kind(),
                 describe(&event.frame),
                 detail(&event.frame)
             )
         })
-        .collect()
+        .collect::<Vec<String>>()
+        .join("\n")
 }
 
 /// Writes the turn out, when asked.
