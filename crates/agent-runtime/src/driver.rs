@@ -37,7 +37,7 @@ use crate::error::{KapError, Refusal, Result};
 use crate::frame::kap_event;
 use crate::permission::kap_response;
 use crate::program::resolve_program;
-use crate::recorder::Recorder;
+use crate::recorder::{Recorder, now_millis};
 use crate::run_slot::RunSlot;
 use crate::session::{
     AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
@@ -62,23 +62,25 @@ struct InstanceDisk {
     pid: u32,
     host: String,
     port: u16,
+    /// 注册时刻（epoch 毫秒，server 写文件的 Date.now()），与本机同一个钟。
+    started_at: i64,
 }
 
-/// 轮询 instances_dir 直到找到 pid 匹配的条目，返回 (host, port)。
+/// 轮询 instances_dir 直到找到本进程拉起后注册的条目，返回 (host, port)。
 /// 超时则报错。
+///
+/// 不比 pid：注册表记的是 server 自己的 pid，而 Windows 上我们拉起的直接
+/// 子进程是 .cmd Shim，两边永远对不上。
 async fn discover_instance(
     instances_dir: &Path,
-    child_pid: u32,
+    not_before: i64,
     timeout: Duration,
 ) -> Result<(String, u16)> {
     let deadline = std::time::Instant::now() + timeout;
     loop {
         if std::time::Instant::now() > deadline {
             return Err(KapError::Timeout {
-                message: format!(
-                    "kap server (pid {child_pid}) did not register in {}s",
-                    timeout.as_secs()
-                ),
+                message: format!("kap server did not register in {}s", timeout.as_secs()),
             });
         }
 
@@ -90,7 +92,7 @@ async fn discover_instance(
                 }
                 if let Ok(content) = tokio::fs::read_to_string(&path).await
                     && let Ok(info) = serde_json::from_str::<InstanceDisk>(&content)
-                    && info.pid == child_pid
+                    && info.started_at >= not_before
                 {
                     return Ok((info.host, info.port));
                 }
@@ -125,6 +127,24 @@ async fn read_token(home_dir: &Path) -> Result<String> {
         .map_err(|e| KapError::Spawn {
             message: format!("cannot read server.token at {}: {e}", path.display()),
         })
+}
+
+/// 关掉整棵进程树，不只是 Shim 那一层：kimi 在 Windows 上是 .cmd，我们拉起的
+/// 直接子进程是 cmd.exe，server 是它再拉起来的；单杀 Shim 会把 server 漏在这台
+/// 机器上。unix 的 Shim 是 exec 的脚本，pid 就是 server 自己，kill 就够。
+async fn kill_tree(child: &mut tokio::process::Child) {
+    if cfg!(windows)
+        && let Some(pid) = child.id()
+    {
+        let pid_text = pid.to_string();
+
+        let _tree = tokio::process::Command::new("taskkill")
+            .args(["/PID", pid_text.as_str(), "/T", "/F"])
+            .output()
+            .await;
+    }
+
+    child.kill().await.ok();
 }
 
 // ── REST ───────────────────────────────────────────────────────────────────
@@ -297,6 +317,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
     let driver = async move {
         // 1. 启动 kimi web --no-open
+        let spawned_at = now_millis();
         let mut child = tokio::process::Command::new(&resolved)
             .args(&args)
             .current_dir(&cwd)
@@ -331,14 +352,21 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
         // 2. 等待实例注册
         let instances_dir = home_dir.join("server").join("instances");
-        let (host, port) = match discover_instance(&instances_dir, child_pid, Duration::from_secs(30)).await
+        let (host, port) = match discover_instance(&instances_dir, spawned_at, Duration::from_secs(30)).await
         {
             Ok(found) => found,
             Err(error) => {
+                // 收尸再报：超时的根因多半写在 server 自己的 stderr 上（端口、
+                // 配置、崩溃），不带回来就只剩一句"没注册"。
+                kill_tree(&mut child).await;
+
+                let message = format!("{error}; server stderr: {}", diagnostics.tail());
+
                 let _ = ready_tx.send(Err(KapError::Handshake {
-                    message: error.to_string(),
+                    message: message.clone(),
                 }));
-                return Err(error);
+
+                return Err(KapError::Handshake { message });
             }
         };
 
@@ -537,7 +565,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     match cmd {
                         None | Some(Command::Shutdown) => {
                             stopping = true;
-                            child.kill().await.ok();
+                            kill_tree(&mut child).await;
                         }
 
                         Some(Command::Cancel { session_id: sid }) => {
