@@ -44,7 +44,9 @@
     "typecheck": "turbo run typecheck --continue",
     "verify:channel": "node scripts/release/verify-channel.mjs",
     "verify:release": "pnpm check:versions && pnpm check && pnpm ipc:check && pnpm audit && pnpm audit:rust && pnpm build:release",
-    "version:set": "node scripts/release/set-version.mjs"
+    "version:set": "node scripts/release/set-version.mjs",
+    "kap:spec": "node tools/kap/spec-sync.mjs",
+    "kap:spec:check": "node tools/kap/spec-sync.mjs --check"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

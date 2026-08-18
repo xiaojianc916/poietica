@@ -1,5 +1,7 @@
 # 0008. ACP is the only agent transport
 
+> 传输选型部分已由 ADR 0025 取代。
+
 > Status: superseded by ADR 0022.
 
 - Status: accepted

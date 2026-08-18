@@ -1,5 +1,7 @@
 # 0024. 一家 agent，一条传输
 
+> 传输选型部分已由 ADR 0025 取代。
+
 Status: accepted
 Supersedes: 0021, 0022, 0023
 

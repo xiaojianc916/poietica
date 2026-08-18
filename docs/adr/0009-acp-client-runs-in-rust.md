@@ -1,5 +1,7 @@
 # 0009. The ACP client runs in Rust, never in the WebView
 
+> 传输选型部分已由 ADR 0025 取代。
+
 - Status: accepted
 - Date: 2026-07-25
 - Note (2026-08-11): the encrypted event log described below was removed by
