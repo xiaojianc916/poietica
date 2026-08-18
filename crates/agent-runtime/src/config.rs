@@ -57,10 +57,22 @@ pub struct ConfigControl {
 /// permission_mode 本身（promptPermissionModeSchema：manual / yolo / auto）。
 /// 文案是界面自己的字。
 const MODES: [(&str, &str, &str); 4] = [
-    ("manual", "Default", "Manual approvals; tools execute normally."),
+    (
+        "manual",
+        "Default",
+        "Manual approvals; tools execute normally.",
+    ),
     ("plan", "Plan", "Read-only planning; no tool execution."),
-    ("auto", "Auto", "Fully autonomous - agent decides everything."),
-    ("yolo", "YOLO", "Auto-approve tool actions, but it may still ask."),
+    (
+        "auto",
+        "Auto",
+        "Fully autonomous - agent decides everything.",
+    ),
+    (
+        "yolo",
+        "YOLO",
+        "Auto-approve tool actions, but it may still ask.",
+    ),
 ];
 
 /// Builds the selector table from the two kap answers.
@@ -73,14 +85,20 @@ pub fn controls(status: &Value, catalog: &Value) -> Vec<ConfigControl> {
     let mut offered = Vec::new();
 
     let current_model = status.get("model").and_then(Value::as_str).unwrap_or("");
-    let items = catalog.get("items").and_then(Value::as_array).map(Vec::as_slice);
+    let items = catalog
+        .get("items")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice);
 
     if let Some(model) = model_control(current_model, items) {
         offered.push(model);
     }
 
     if let Some(thinking) = thinking_control(
-        status.get("thinking_level").and_then(Value::as_str).unwrap_or(""),
+        status
+            .get("thinking_level")
+            .and_then(Value::as_str)
+            .unwrap_or(""),
         current_model,
         items,
     ) {
@@ -155,11 +173,7 @@ fn model_control(current: &str, items: Option<&[Value]>) -> Option<ConfigControl
 
 /// 思考档的候选是当前那个模型的 support_efforts。目录没给就不出这张表：
 /// 画一个拨不动的开关比不画更糟。
-fn thinking_control(
-    current: &str,
-    model: &str,
-    items: Option<&[Value]>,
-) -> Option<ConfigControl> {
+fn thinking_control(current: &str, model: &str, items: Option<&[Value]>) -> Option<ConfigControl> {
     if current.is_empty() {
         return None;
     }
@@ -210,7 +224,10 @@ fn mode_control(status: &Value) -> ConfigControl {
         })
         .collect();
 
-    let permission = status.get("permission").and_then(Value::as_str).unwrap_or("");
+    let permission = status
+        .get("permission")
+        .and_then(Value::as_str)
+        .unwrap_or("");
 
     if current_not_offered(&choices, permission) {
         // 协议枚举之外的模式原样占一席：显示成别的才是撒谎。

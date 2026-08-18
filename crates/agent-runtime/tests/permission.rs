@@ -14,6 +14,7 @@ use futures::executor::block_on;
 use poietica_agent_runtime_native::{
     Decision, PermissionDesk, kap_answers, kap_options, kap_response,
 };
+use serde_json::Value;
 
 #[test]
 fn an_answer_reaches_the_waiting_handler() {
@@ -85,7 +86,10 @@ fn the_offered_options_and_the_accepted_answers_are_one_vocabulary() {
     assert_eq!(options.len(), 3);
 
     for option in options {
-        let id = option["optionId"].as_str().expect("every option has an id");
+        let id = option
+            .get("optionId")
+            .and_then(Value::as_str)
+            .expect("every option has an id");
 
         assert!(
             accepted.contains_key(id),

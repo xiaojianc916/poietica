@@ -75,7 +75,10 @@ fn every_value_on_offer_is_kept() {
 
 #[test]
 fn thinking_levels_come_from_the_current_models_own_catalog_entry() {
-    let offered = controls(&status("kimi-k2.7-code", "low", "manual", false), &catalog());
+    let offered = controls(
+        &status("kimi-k2.7-code", "low", "manual", false),
+        &catalog(),
+    );
 
     assert!(named(&offered, "thinking").is_some_and(|c| c.choices.len() == 3));
     assert!(named(&offered, "thinking").is_some_and(|c| c.current == "low"));
@@ -93,7 +96,10 @@ fn a_model_without_declared_levels_has_no_thinking_selector() {
 
 #[test]
 fn a_current_value_the_catalog_does_not_know_is_kept_verbatim() {
-    let offered = controls(&status("some-legacy-model", "on", "manual", false), &catalog());
+    let offered = controls(
+        &status("some-legacy-model", "on", "manual", false),
+        &catalog(),
+    );
     let model = named(&offered, "model").expect("the model selector");
 
     assert_eq!(model.current, "some-legacy-model");

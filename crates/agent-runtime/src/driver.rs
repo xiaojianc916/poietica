@@ -26,11 +26,7 @@ use futures::{FutureExt, SinkExt, StreamExt};
 use serde_json::{Value, json};
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{
-        Message,
-        client::IntoClientRequest,
-        http::header::AUTHORIZATION,
-    },
+    tungstenite::{Message, client::IntoClientRequest, http::header::AUTHORIZATION},
 };
 use uuid::Uuid;
 
@@ -52,9 +48,8 @@ use crate::stderr::StderrLog;
 use crate::trace::{open_trace, trace};
 
 /// 本进程与 kap server 之间的 WebSocket。
-type WsStream = tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
->;
+type WsStream =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 /// 发控制帧的那一头。主循环与「刚开出来的会话要订阅」的任务共用同一个写端，
 /// 而 SplitSink 不是 Clone，所以它在锁后面。
@@ -279,17 +274,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
     // 受控 home 由组合层给（agent-catalog 的 homeVar）；没有它才回落到 agent
     // 自己的 home —— 实例注册表与令牌都在那下面。
-    let home_dir: PathBuf = env
-        .iter()
-        .find(|(k, _)| k == "KIMI_CODE_HOME")
-        .map_or_else(
-            || {
-                dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join(".kimi-code")
-            },
-            |(_, v)| PathBuf::from(v),
-        );
+    let home_dir: PathBuf = env.iter().find(|(k, _)| k == "KIMI_CODE_HOME").map_or_else(
+        || {
+            dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".kimi-code")
+        },
+        |(_, v)| PathBuf::from(v),
+    );
 
     let resolved = resolve_program(&program)?;
 
@@ -791,7 +783,10 @@ async fn handle_ws_message(
     match event_type {
         // 轮次结束：收掉这一轮的记录器，没答的审批作废，终帧殿后。
         "turn.ended" => {
-            let reason = payload.get("reason").and_then(Value::as_str).unwrap_or("completed");
+            let reason = payload
+                .get("reason")
+                .and_then(Value::as_str)
+                .unwrap_or("completed");
 
             let state = sessions
                 .entry(session_id.to_owned())
@@ -889,7 +884,9 @@ async fn fetch_and_record_approvals(
             slot.record(|recorder| {
                 recorder.record_permission_requested_kap(
                     &approval_id,
-                    item.get("tool_call_id").and_then(Value::as_str).unwrap_or(""),
+                    item.get("tool_call_id")
+                        .and_then(Value::as_str)
+                        .unwrap_or(""),
                     item.get("tool_name").and_then(Value::as_str).unwrap_or(""),
                     &item,
                 );
@@ -1092,10 +1089,7 @@ async fn archive_kap_session(
     Ok(())
 }
 
-async fn list_kap_sessions(
-    http: &reqwest::Client,
-    base_url: &str,
-) -> Result<Vec<SessionEntry>> {
+async fn list_kap_sessions(http: &reqwest::Client, base_url: &str) -> Result<Vec<SessionEntry>> {
     let data = get(http, &format!("{base_url}/sessions")).await?;
 
     let items = data
@@ -1109,7 +1103,10 @@ async fn list_kap_sessions(
         .filter_map(|item| {
             let id = item.get("id").and_then(Value::as_str)?.to_owned();
             let title = item.get("title").and_then(Value::as_str).map(str::to_owned);
-            let updated_at = item.get("updated_at").and_then(Value::as_str).map(str::to_owned);
+            let updated_at = item
+                .get("updated_at")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
             Some(SessionEntry {
                 session_id: id,
                 title,
