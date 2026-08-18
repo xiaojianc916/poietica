@@ -6,13 +6,13 @@
 use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose, controls, selector_patch};
 use serde_json::{Value, json};
 
-fn status() -> Value {
+fn status(model: &str, thinking_level: &str, permission: &str, plan_mode: bool) -> Value {
     json!({
         "busy": false,
-        "model": "kimi-k2.6",
-        "thinking_level": "on",
-        "permission": "manual",
-        "plan_mode": false,
+        "model": model,
+        "thinking_level": thinking_level,
+        "permission": permission,
+        "plan_mode": plan_mode,
         "swarm_mode": false,
         "context_tokens": 0,
         "context_usage": 0
@@ -40,7 +40,7 @@ fn named<'a>(list: &'a [ConfigControl], id: &str) -> Option<&'a ConfigControl> {
 
 #[test]
 fn the_session_offers_three_selectors() {
-    let offered = controls(&status(), &catalog());
+    let offered = controls(&status("kimi-k2.6", "on", "manual", false), &catalog());
     let ids: Vec<&str> = offered.iter().map(|control| control.id.as_str()).collect();
 
     assert_eq!(ids, vec!["model", "thinking", "mode"]);
@@ -48,7 +48,7 @@ fn the_session_offers_three_selectors() {
 
 #[test]
 fn each_selector_knows_what_it_is_for() {
-    let offered = controls(&status(), &catalog());
+    let offered = controls(&status("kimi-k2.6", "on", "manual", false), &catalog());
 
     assert!(named(&offered, "model").is_some_and(|c| c.purpose == ConfigPurpose::Model));
     assert!(named(&offered, "mode").is_some_and(|c| c.purpose == ConfigPurpose::Mode));
@@ -57,7 +57,7 @@ fn each_selector_knows_what_it_is_for() {
 
 #[test]
 fn the_values_in_force_are_carried_across() {
-    let offered = controls(&status(), &catalog());
+    let offered = controls(&status("kimi-k2.6", "on", "manual", false), &catalog());
 
     assert!(named(&offered, "model").is_some_and(|c| c.current == "kimi-k2.6"));
     assert!(named(&offered, "mode").is_some_and(|c| c.current == "manual"));
@@ -66,7 +66,7 @@ fn the_values_in_force_are_carried_across() {
 
 #[test]
 fn every_value_on_offer_is_kept() {
-    let offered = controls(&status(), &catalog());
+    let offered = controls(&status("kimi-k2.6", "on", "manual", false), &catalog());
 
     assert!(named(&offered, "model").is_some_and(|c| c.choices.len() == 3));
     assert!(named(&offered, "thinking").is_some_and(|c| c.choices.len() == 2));
@@ -75,32 +75,25 @@ fn every_value_on_offer_is_kept() {
 
 #[test]
 fn thinking_levels_come_from_the_current_models_own_catalog_entry() {
-    let mut status = status();
-    status["model"] = json!("kimi-k2.7-code");
-    status["thinking_level"] = json!("low");
-
-    let offered = controls(&status, &catalog());
+    let offered = controls(&status("kimi-k2.7-code", "low", "manual", false), &catalog());
 
     assert!(named(&offered, "thinking").is_some_and(|c| c.choices.len() == 3));
+    assert!(named(&offered, "thinking").is_some_and(|c| c.current == "low"));
 }
 
 #[test]
 fn a_model_without_declared_levels_has_no_thinking_selector() {
-    let mut status = status();
-    status["model"] = json!("kimi-k2.7-code-highspeed");
-    status["thinking_level"] = json!("on");
-
-    let offered = controls(&status, &catalog());
+    let offered = controls(
+        &status("kimi-k2.7-code-highspeed", "on", "manual", false),
+        &catalog(),
+    );
 
     assert!(named(&offered, "thinking").is_none());
 }
 
 #[test]
 fn a_current_value_the_catalog_does_not_know_is_kept_verbatim() {
-    let mut status = status();
-    status["model"] = json!("some-legacy-model");
-
-    let offered = controls(&status, &catalog());
+    let offered = controls(&status("some-legacy-model", "on", "manual", false), &catalog());
     let model = named(&offered, "model").expect("the model selector");
 
     assert_eq!(model.current, "some-legacy-model");
@@ -114,20 +107,14 @@ fn a_current_value_the_catalog_does_not_know_is_kept_verbatim() {
 
 #[test]
 fn plan_mode_is_its_own_rung() {
-    let mut status = status();
-    status["plan_mode"] = json!(true);
-
-    let offered = controls(&status, &catalog());
+    let offered = controls(&status("kimi-k2.6", "on", "manual", true), &catalog());
 
     assert!(named(&offered, "mode").is_some_and(|c| c.current == "plan"));
 }
 
 #[test]
 fn a_session_without_a_model_has_no_model_selector() {
-    let mut status = status();
-    status["model"] = json!("");
-
-    let offered = controls(&status, &catalog());
+    let offered = controls(&status("", "on", "manual", false), &catalog());
 
     assert!(named(&offered, "model").is_none(), "不猜它此刻用什么模型");
 }

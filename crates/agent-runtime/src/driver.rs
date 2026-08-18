@@ -26,7 +26,11 @@ use futures::{FutureExt, SinkExt, StreamExt};
 use serde_json::{Value, json};
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{Message, client::IntoClientRequest, http::header::AUTHORIZATION},
+    tungstenite::{
+        Message,
+        client::IntoClientRequest,
+        http::header::AUTHORIZATION,
+    },
 };
 use uuid::Uuid;
 
@@ -48,8 +52,9 @@ use crate::stderr::StderrLog;
 use crate::trace::{open_trace, trace};
 
 /// 本进程与 kap server 之间的 WebSocket。
-type WsStream =
-    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+type WsStream = tokio_tungstenite::WebSocketStream<
+    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+>;
 
 /// 发控制帧的那一头。主循环与「刚开出来的会话要订阅」的任务共用同一个写端，
 /// 而 SplitSink 不是 Clone，所以它在锁后面。
@@ -88,12 +93,11 @@ async fn discover_instance(
                 if path.extension().and_then(|e| e.to_str()) != Some("json") {
                     continue;
                 }
-                if let Ok(content) = tokio::fs::read_to_string(&path).await {
-                    if let Ok(info) = serde_json::from_str::<InstanceDisk>(&content) {
-                        if info.pid == child_pid {
-                            return Ok((info.host, info.port));
-                        }
-                    }
+                if let Ok(content) = tokio::fs::read_to_string(&path).await
+                    && let Ok(info) = serde_json::from_str::<InstanceDisk>(&content)
+                    && info.pid == child_pid
+                {
+                    return Ok((info.host, info.port));
                 }
             }
         }
@@ -131,17 +135,19 @@ async fn read_token(home_dir: &Path) -> Result<String> {
 // ── REST ───────────────────────────────────────────────────────────────────
 
 /// 取信封里的 data。业务成败在 code 里（0 为成功），HTTP 状态只管传输层
-/// （kap-server/AGENTS.md 的信封约定）。
+/// （kap-server/AGENTS.md 的信封约定）。字段一律 .get()：Value 的索引写法在
+/// clippy 的 indexing_slicing 下是硬错误，而这个仓把它开着。
 fn envelope_data(body: &Value) -> Result<Value> {
-    if body["code"].as_i64() == Some(0) {
-        return Ok(body["data"].clone());
+    let code = body.get("code").and_then(Value::as_i64).unwrap_or(-1);
+
+    if code == 0 {
+        return Ok(body.get("data").cloned().unwrap_or_default());
     }
 
     Err(KapError::Transport {
         message: format!(
-            "kap answered code {}: {}",
-            body["code"],
-            body["msg"].as_str().unwrap_or("")
+            "kap answered code {code}: {msg}",
+            msg = body.get("msg").and_then(Value::as_str).unwrap_or("")
         ),
     })
 }
@@ -206,10 +212,10 @@ async fn wait_ack(ws_rx: &mut SplitStream<WsStream>, id: &str) -> Result<()> {
         match ws_rx.next().await {
             Some(Ok(Message::Text(raw))) => {
                 if let Ok(v) = serde_json::from_str::<Value>(&raw)
-                    && v["type"] == "ack"
-                    && v["id"] == id
+                    && v.get("type").and_then(Value::as_str) == Some("ack")
+                    && v.get("id").and_then(Value::as_str) == Some(id)
                 {
-                    return match v["code"].as_i64() {
+                    return match v.get("code").and_then(Value::as_i64) {
                         Some(0) | None => Ok(()),
                         Some(code) => Err(KapError::Handshake {
                             message: format!("control frame {id} rejected with code {code}: {raw}"),
@@ -276,12 +282,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     let home_dir: PathBuf = env
         .iter()
         .find(|(k, _)| k == "KIMI_CODE_HOME")
-        .map(|(_, v)| PathBuf::from(v))
-        .unwrap_or_else(|| {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".kimi-code")
-        });
+        .map_or_else(
+            || {
+                dirs::home_dir()
+                    .unwrap_or_else(|| PathBuf::from("."))
+                    .join(".kimi-code")
+            },
+            |(_, v)| PathBuf::from(v),
+        );
 
     let resolved = resolve_program(&program)?;
 
@@ -402,7 +410,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             }
         };
 
-        let Some(session_id) = session["id"].as_str().map(str::to_owned) else {
+        let Some(session_id) = session.get("id").and_then(Value::as_str).map(str::to_owned) else {
             let handshake = KapError::Handshake {
                 message: format!("no session id in POST /sessions response: {session}"),
             };
@@ -437,7 +445,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             match ws_rx.next().await {
                 Some(Ok(Message::Text(raw))) => {
                     if let Ok(v) = serde_json::from_str::<Value>(&raw)
-                        && v["type"] == "server_hello"
+                        && v.get("type").and_then(Value::as_str) == Some("server_hello")
                     {
                         break;
                     }
@@ -557,7 +565,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             let book2 = book_clone.clone();
-                            let ws2 = ws.clone();
+                            let ws2 = Arc::clone(&ws);
                             tokio::spawn(async move {
                                 let result =
                                     open_kap_session(&http2, &base2, &new_cwd, &book2, &ws2).await;
@@ -569,7 +577,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             let book2 = book_clone.clone();
-                            let ws2 = ws.clone();
+                            let ws2 = Arc::clone(&ws);
                             tokio::spawn(async move {
                                 let result =
                                     load_kap_session(&http2, &base2, &sid, &book2, &ws2).await;
@@ -581,7 +589,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             let book2 = book_clone.clone();
-                            let ws2 = ws.clone();
+                            let ws2 = Arc::clone(&ws);
                             tokio::spawn(async move {
                                 let result =
                                     fork_kap_session(&http2, &base2, &src, &book2, &ws2).await;
@@ -693,11 +701,15 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                         Some(Ok(Message::Text(raw))) => {
                             if let Ok(v) = serde_json::from_str::<Value>(&raw) {
-                                if v["type"] == "ping" {
+                                if v.get("type").and_then(Value::as_str) == Some("ping") {
                                     // kap 的心跳是应用层帧（ws-control.ts 的
                                     // ping/pong），与 tungstenite 的协议层
                                     // Ping 是两回事 —— 两个都要答。
-                                    let nonce = v["payload"]["nonce"].clone();
+                                    let nonce = v
+                                        .get("payload")
+                                        .and_then(|payload| payload.get("nonce"))
+                                        .cloned()
+                                        .unwrap_or_default();
                                     send_frame(&ws, "pong", json!({ "nonce": nonce }))
                                         .await
                                         .ok();
@@ -756,16 +768,19 @@ async fn handle_ws_message(
     base_url: &str,
 ) {
     // session_event 是 agent 事件的统一入口（ws-control.ts sessionEventOperation）。
-    if envelope["type"].as_str().unwrap_or("") != "session_event" {
+    if envelope.get("type").and_then(Value::as_str) != Some("session_event") {
         return;
     }
 
-    let Some(session_id) = envelope["session_id"].as_str() else {
+    let Some(session_id) = envelope.get("session_id").and_then(Value::as_str) else {
         return;
     };
 
-    let payload = &envelope["payload"];
-    let event_type = payload["type"].as_str().unwrap_or("");
+    let Some(payload) = envelope.get("payload") else {
+        return;
+    };
+
+    let event_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
 
     // 所有 session_event 都成帧进录制器。
     if let Ok(Some(slot)) = book.slot(session_id) {
@@ -776,7 +791,7 @@ async fn handle_ws_message(
     match event_type {
         // 轮次结束：收掉这一轮的记录器，没答的审批作废，终帧殿后。
         "turn.ended" => {
-            let reason = payload["reason"].as_str().unwrap_or("completed");
+            let reason = payload.get("reason").and_then(Value::as_str).unwrap_or("completed");
 
             let state = sessions
                 .entry(session_id.to_owned())
@@ -801,8 +816,8 @@ async fn handle_ws_message(
         "agent.status.updated" => {
             // 仪表值是 volatile 信号（不进帧日志）：到达即替换。
             if let (Some(used), Some(size)) = (
-                payload["contextTokens"].as_u64(),
-                payload["maxContextTokens"].as_u64(),
+                payload.get("contextTokens").and_then(Value::as_u64),
+                payload.get("maxContextTokens").and_then(Value::as_u64),
             ) {
                 let _sent = events_tx.unbounded_send(SessionEvent::Usage {
                     session_id: session_id.to_owned(),
@@ -812,7 +827,11 @@ async fn handle_ws_message(
 
             // 卡在审批上：审批清单不随事件来（phase 里那格 approval 是
             // unknown），权威在 REST。
-            if payload["phase"]["kind"].as_str() == Some("awaiting_approval")
+            if payload
+                .get("phase")
+                .and_then(|phase| phase.get("kind"))
+                .and_then(Value::as_str)
+                == Some("awaiting_approval")
                 && let Some(state) = sessions.get_mut(session_id)
             {
                 fetch_and_record_approvals(http, base_url, session_id, state, book, desk).await;
@@ -845,10 +864,18 @@ async fn fetch_and_record_approvals(
         }
     };
 
-    let items = data["items"].as_array().cloned().unwrap_or_default();
+    let items = data
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
 
     for item in items {
-        let Some(approval_id) = item["approval_id"].as_str().map(str::to_owned) else {
+        let Some(approval_id) = item
+            .get("approval_id")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
             continue;
         };
 
@@ -862,8 +889,8 @@ async fn fetch_and_record_approvals(
             slot.record(|recorder| {
                 recorder.record_permission_requested_kap(
                     &approval_id,
-                    item["tool_call_id"].as_str().unwrap_or(""),
-                    item["tool_name"].as_str().unwrap_or(""),
+                    item.get("tool_call_id").and_then(Value::as_str).unwrap_or(""),
+                    item.get("tool_name").and_then(Value::as_str).unwrap_or(""),
                     &item,
                 );
             });
@@ -889,11 +916,10 @@ async fn fetch_and_record_approvals(
 
             let (decision_on_wire, scope) = kap_response(&decision);
 
-            let mut answer = json!({ "decision": decision_on_wire });
-
-            if let Some(scope) = scope {
-                answer["scope"] = json!(scope);
-            }
+            let answer = match scope {
+                Some(scope) => json!({ "decision": decision_on_wire, "scope": scope }),
+                None => json!({ "decision": decision_on_wire }),
+            };
 
             let url = format!("{base2}/sessions/{sid}/approvals/{approval_id}");
 
@@ -951,7 +977,11 @@ async fn submit_kap_prompt(
     )
     .await?;
 
-    Ok(data["prompt_id"].as_str().unwrap_or(prompt_id).to_owned())
+    Ok(data
+        .get("prompt_id")
+        .and_then(Value::as_str)
+        .unwrap_or(prompt_id)
+        .to_owned())
 }
 
 async fn open_kap_session(
@@ -968,8 +998,9 @@ async fn open_kap_session(
     )
     .await?;
 
-    let id = data["id"]
-        .as_str()
+    let id = data
+        .get("id")
+        .and_then(Value::as_str)
         .ok_or_else(|| KapError::Transport {
             message: format!("no session id in POST /sessions response: {data}"),
         })?
@@ -1024,8 +1055,9 @@ async fn fork_kap_session(
     )
     .await?;
 
-    let id = data["id"]
-        .as_str()
+    let id = data
+        .get("id")
+        .and_then(Value::as_str)
         .ok_or_else(|| KapError::Transport {
             message: format!("no session id in fork response: {data}"),
         })?
@@ -1060,17 +1092,24 @@ async fn archive_kap_session(
     Ok(())
 }
 
-async fn list_kap_sessions(http: &reqwest::Client, base_url: &str) -> Result<Vec<SessionEntry>> {
+async fn list_kap_sessions(
+    http: &reqwest::Client,
+    base_url: &str,
+) -> Result<Vec<SessionEntry>> {
     let data = get(http, &format!("{base_url}/sessions")).await?;
 
-    let items = data["items"].as_array().cloned().unwrap_or_default();
+    let items = data
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
 
     Ok(items
         .iter()
         .filter_map(|item| {
-            let id = item["id"].as_str()?.to_owned();
-            let title = item["title"].as_str().map(str::to_owned);
-            let updated_at = item["updated_at"].as_str().map(str::to_owned);
+            let id = item.get("id").and_then(Value::as_str)?.to_owned();
+            let title = item.get("title").and_then(Value::as_str).map(str::to_owned);
+            let updated_at = item.get("updated_at").and_then(Value::as_str).map(str::to_owned);
             Some(SessionEntry {
                 session_id: id,
                 title,

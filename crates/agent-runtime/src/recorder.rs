@@ -286,11 +286,7 @@ fn approval_title(tool_name: &str, item: &Value, tool_call_id: &str) -> String {
         return tool_name.to_owned();
     }
 
-    item["action"]
-        .as_str()
-        .filter(|action| !action.is_empty())
-        .unwrap_or(tool_call_id)
-        .to_owned()
+    item.get("action").and_then(Value::as_str).filter(|action| !action.is_empty()).unwrap_or(tool_call_id).to_owned()
 }
 
 /// 现在，毫秒。

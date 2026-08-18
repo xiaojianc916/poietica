@@ -7,6 +7,8 @@
 //!
 //! 这里只认 JSON：kap 的线上形状就是契约（快照钉在 contracts/kap）。把协议
 //! 类型引进来，等于让本 crate 依赖服务器的实现细节。
+//!
+//! 字段一律 .get()：Value 的索引写法在 clippy 的 indexing_slicing 下是硬错误。
 
 use serde_json::{Value, json};
 
@@ -55,22 +57,10 @@ pub struct ConfigControl {
 /// permission_mode 本身（promptPermissionModeSchema：manual / yolo / auto）。
 /// 文案是界面自己的字。
 const MODES: [(&str, &str, &str); 4] = [
-    (
-        "manual",
-        "Default",
-        "Manual approvals; tools execute normally.",
-    ),
+    ("manual", "Default", "Manual approvals; tools execute normally."),
     ("plan", "Plan", "Read-only planning; no tool execution."),
-    (
-        "auto",
-        "Auto",
-        "Fully autonomous - agent decides everything.",
-    ),
-    (
-        "yolo",
-        "YOLO",
-        "Auto-approve tool actions, but it may still ask.",
-    ),
+    ("auto", "Auto", "Fully autonomous - agent decides everything."),
+    ("yolo", "YOLO", "Auto-approve tool actions, but it may still ask."),
 ];
 
 /// Builds the selector table from the two kap answers.
@@ -82,15 +72,15 @@ const MODES: [(&str, &str, &str); 4] = [
 pub fn controls(status: &Value, catalog: &Value) -> Vec<ConfigControl> {
     let mut offered = Vec::new();
 
-    let current_model = status["model"].as_str().unwrap_or("");
-    let items = catalog["items"].as_array().map(Vec::as_slice);
+    let current_model = status.get("model").and_then(Value::as_str).unwrap_or("");
+    let items = catalog.get("items").and_then(Value::as_array).map(Vec::as_slice);
 
     if let Some(model) = model_control(current_model, items) {
         offered.push(model);
     }
 
     if let Some(thinking) = thinking_control(
-        status["thinking_level"].as_str().unwrap_or(""),
+        status.get("thinking_level").and_then(Value::as_str).unwrap_or(""),
         current_model,
         items,
     ) {
@@ -129,11 +119,15 @@ fn model_control(current: &str, items: Option<&[Value]>) -> Option<ConfigControl
         .into_iter()
         .flatten()
         .filter_map(|item| {
-            let model = item["model"].as_str()?;
+            let model = item.get("model").and_then(Value::as_str)?;
 
             Some(ConfigChoice {
                 value: model.to_owned(),
-                label: item["display_name"].as_str().unwrap_or(model).to_owned(),
+                label: item
+                    .get("display_name")
+                    .and_then(Value::as_str)
+                    .unwrap_or(model)
+                    .to_owned(),
                 detail: None,
             })
         })
@@ -161,15 +155,20 @@ fn model_control(current: &str, items: Option<&[Value]>) -> Option<ConfigControl
 
 /// 思考档的候选是当前那个模型的 support_efforts。目录没给就不出这张表：
 /// 画一个拨不动的开关比不画更糟。
-fn thinking_control(current: &str, model: &str, items: Option<&[Value]>) -> Option<ConfigControl> {
+fn thinking_control(
+    current: &str,
+    model: &str,
+    items: Option<&[Value]>,
+) -> Option<ConfigControl> {
     if current.is_empty() {
         return None;
     }
 
     let efforts = items?
         .iter()
-        .find(|item| item["model"].as_str() == Some(model))?["support_efforts"]
-        .as_array()?;
+        .find(|item| item.get("model").and_then(Value::as_str) == Some(model))
+        .and_then(|item| item.get("support_efforts"))
+        .and_then(Value::as_array)?;
 
     let mut choices: Vec<ConfigChoice> = efforts
         .iter()
@@ -211,7 +210,7 @@ fn mode_control(status: &Value) -> ConfigControl {
         })
         .collect();
 
-    let permission = status["permission"].as_str().unwrap_or("");
+    let permission = status.get("permission").and_then(Value::as_str).unwrap_or("");
 
     if current_not_offered(&choices, permission) {
         // 协议枚举之外的模式原样占一席：显示成别的才是撒谎。
@@ -222,7 +221,7 @@ fn mode_control(status: &Value) -> ConfigControl {
         });
     }
 
-    let reported = if status["plan_mode"].as_bool() == Some(true) {
+    let reported = if status.get("plan_mode").and_then(Value::as_bool) == Some(true) {
         "plan"
     } else {
         permission
