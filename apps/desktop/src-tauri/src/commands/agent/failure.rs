@@ -29,7 +29,7 @@ const fn refusal(reason: Refusal) -> &'static str {
 pub(super) fn translate(error: KapError) -> Error {
     match error {
         KapError::Json(inner) => Error::SerdeJson(inner),
-        AcpError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
+        KapError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
         // The enum is non-exhaustive, so the wildcard arm is required.
         //
         // 原样上屏，不换一句好听的。这是一个桌面单机程序：屏幕前的人就是跑这个

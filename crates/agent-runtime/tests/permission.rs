@@ -20,7 +20,8 @@ fn an_answer_reaches_the_waiting_handler() {
     let desk = PermissionDesk::new();
     let waiting = desk.wait_kap("appr_1").expect("a fresh desk");
 
-    desk.answer("appr_1", "approve").expect("the answer to land");
+    desk.answer("appr_1", "approve")
+        .expect("the answer to land");
 
     assert_eq!(
         block_on(waiting).expect("an answer"),

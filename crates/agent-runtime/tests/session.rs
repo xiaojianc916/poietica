@@ -72,8 +72,7 @@ fn updates_reach_the_installed_run() {
         Some(RUN_STARTED)
     );
     assert!(
-        seen
-            .get(1)
+        seen.get(1)
             .is_some_and(|event| matches!(event.frame, RunFrame::KapEvent { .. })),
         "the update frame keeps the shape the interface validates"
     );

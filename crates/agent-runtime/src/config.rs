@@ -55,10 +55,22 @@ pub struct ConfigControl {
 /// permission_mode 本身（promptPermissionModeSchema：manual / yolo / auto）。
 /// 文案是界面自己的字。
 const MODES: [(&str, &str, &str); 4] = [
-    ("manual", "Default", "Manual approvals; tools execute normally."),
+    (
+        "manual",
+        "Default",
+        "Manual approvals; tools execute normally.",
+    ),
     ("plan", "Plan", "Read-only planning; no tool execution."),
-    ("auto", "Auto", "Fully autonomous - agent decides everything."),
-    ("yolo", "YOLO", "Auto-approve tool actions, but it may still ask."),
+    (
+        "auto",
+        "Auto",
+        "Fully autonomous - agent decides everything.",
+    ),
+    (
+        "yolo",
+        "YOLO",
+        "Auto-approve tool actions, but it may still ask.",
+    ),
 ];
 
 /// Builds the selector table from the two kap answers.
@@ -149,11 +161,7 @@ fn model_control(current: &str, items: Option<&[Value]>) -> Option<ConfigControl
 
 /// 思考档的候选是当前那个模型的 support_efforts。目录没给就不出这张表：
 /// 画一个拨不动的开关比不画更糟。
-fn thinking_control(
-    current: &str,
-    model: &str,
-    items: Option<&[Value]>,
-) -> Option<ConfigControl> {
+fn thinking_control(current: &str, model: &str, items: Option<&[Value]>) -> Option<ConfigControl> {
     if current.is_empty() {
         return None;
     }

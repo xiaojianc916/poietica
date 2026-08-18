@@ -9,8 +9,7 @@ use crate::store::now;
 ///
 /// 只有一条：这个程序还没有发布过，磁盘上没有一个需要被照顾的旧形状。
 /// 一条 schema 说清库长什么样，比五条历史加起来更能回答那个问题。
-const MIGRATIONS: &[(i64, &str, &str)] =
-    &[(1, "initial", include_str!("schema/0001_initial.sql"))];
+const MIGRATIONS: &[(i64, &str, &str)] = &[(1, "initial", include_str!("schema/0001_initial.sql"))];
 
 /// Brings the database up to the current schema version.
 ///

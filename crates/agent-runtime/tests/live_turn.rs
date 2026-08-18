@@ -61,7 +61,7 @@ use std::time::{Duration, Instant};
 use futures::channel::oneshot;
 use futures::executor::block_on;
 use poietica_agent_runtime_native::{
-    KapError, AgentConnection, AgentSpawn, PermissionDesk, RUN_FINISHED, RUN_STARTED,
+    AgentConnection, AgentSpawn, KapError, PermissionDesk, RUN_FINISHED, RUN_STARTED,
     RecordedEvent, RunFrame, RunSlot, connect_kap,
 };
 use tempfile::TempDir;

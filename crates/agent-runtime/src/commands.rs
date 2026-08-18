@@ -56,9 +56,9 @@ pub(crate) enum Command {
     NewSession {
         cwd: PathBuf,
         /// 渲染层随会话报来的 MCP 名册。kap 的会话创建不收它
-    ///（sessionCreateSchema 没有这一格）：MCP 服务器归 kimi 自己的配置管。
-    /// 这个字段还留在 IPC 上，是因为渲染层名册的清理属于另一批。
-    mcp_servers: Vec<Value>,
+        ///（sessionCreateSchema 没有这一格）：MCP 服务器归 kimi 自己的配置管。
+        /// 这个字段还留在 IPC 上，是因为渲染层名册的清理属于另一批。
+        mcp_servers: Vec<Value>,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
     /// 把一条以前开过的会话装回本次连接。

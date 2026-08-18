@@ -26,11 +26,7 @@ use futures::{FutureExt, SinkExt, StreamExt};
 use serde_json::{Value, json};
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{
-        Message,
-        client::IntoClientRequest,
-        http::header::AUTHORIZATION,
-    },
+    tungstenite::{Message, client::IntoClientRequest, http::header::AUTHORIZATION},
 };
 use uuid::Uuid;
 
@@ -52,9 +48,8 @@ use crate::stderr::StderrLog;
 use crate::trace::{open_trace, trace};
 
 /// 本进程与 kap server 之间的 WebSocket。
-type WsStream = tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
->;
+type WsStream =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 /// 发控制帧的那一头。主循环与「刚开出来的会话要订阅」的任务共用同一个写端，
 /// 而 SplitSink 不是 Clone，所以它在锁后面。
@@ -956,10 +951,7 @@ async fn submit_kap_prompt(
     )
     .await?;
 
-    Ok(data["prompt_id"]
-        .as_str()
-        .unwrap_or(prompt_id)
-        .to_owned())
+    Ok(data["prompt_id"].as_str().unwrap_or(prompt_id).to_owned())
 }
 
 async fn open_kap_session(
@@ -1068,10 +1060,7 @@ async fn archive_kap_session(
     Ok(())
 }
 
-async fn list_kap_sessions(
-    http: &reqwest::Client,
-    base_url: &str,
-) -> Result<Vec<SessionEntry>> {
+async fn list_kap_sessions(http: &reqwest::Client, base_url: &str) -> Result<Vec<SessionEntry>> {
     let data = get(http, &format!("{base_url}/sessions")).await?;
 
     let items = data["items"].as_array().cloned().unwrap_or_default();

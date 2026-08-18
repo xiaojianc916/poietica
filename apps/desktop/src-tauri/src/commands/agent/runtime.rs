@@ -8,9 +8,9 @@ use crate::error::{Error, Result};
 use crate::paths::attachments_root;
 use poietica_agent_persistence_native::SessionUsage;
 use poietica_agent_runtime_native::{
-    AgentClient, AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession,
-    CanForkSession, CanLoadSession, Handshake, KapError, PermissionDesk, Refusal, RunSlot,
-    SessionBook, SessionEvent, connect_kap,
+    AgentClient, AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
+    CanLoadSession, Handshake, KapError, PermissionDesk, Refusal, RunSlot, SessionBook,
+    SessionEvent, connect_kap,
 };
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
