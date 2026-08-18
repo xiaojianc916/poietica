@@ -19,8 +19,8 @@ use crate::sessions::SessionBook;
 pub struct AgentSpawn {
     /// 可执行文件名或路径，不含参数，也不经过 shell。
     ///
-    /// 进程本身就是传输层：协议在它的标准输入输出上说 JSON-RPC，所以这里没有
-    /// 任何东西打开套接字。
+    /// 进程只是宿主：协议在 loopback 的 HTTP + WebSocket 上说，它的标准错误流
+    /// 只用于日志。
     ///
     /// 名字与参数分开存，因为拼成一行再切回来是有损的：POSIX 词法会把 Windows
     /// 路径里的反斜杠当成转义符吃掉，带空格的路径会被切断。Zed 的
@@ -54,12 +54,12 @@ pub enum SessionEvent {
         session_id: String,
         controls: Vec<ConfigControl>,
     },
-    /// 这条会话上现在的整张命令表，ACP 线上形状。
+    /// 这条会话上现在的整张命令表。kap 没有对应的推送，这一格暂时没有生产者。
     Commands {
         session_id: String,
         commands: Vec<serde_json::Value>,
     },
-    /// 这条会话此刻的上下文用量，ACP 线上形状。
+    /// 这条会话此刻的上下文用量，由 driver 从 agent.status.updated 折过来。
     Usage {
         session_id: String,
         usage: serde_json::Value,
@@ -128,12 +128,12 @@ impl fmt::Debug for AgentConnection {
     }
 }
 
-/// 装载一条旧会话的凭证（ACP `session/load`）。
+/// 装载一条旧会话的凭证（kap：装载就是验存在并重新订阅，见 driver 的
+/// load_kap_session）。
 ///
-/// 三张凭证都只有这个 crate 铸得出来，而铸造处只有握手一个：agent 在 initialize
-/// 里声明了哪一项，`Handshake` 上就有哪一张。收凭证的是 `AgentClient` 上那三个
-/// 方法 —— 「声明过才能调用」此前是三句文档，现在是签名，拿不出凭证的调用编译
-/// 不过。
+/// 凭证只有这个 crate 铸得出来，铸造处只有握手一个。kap-server 的路由面自带
+/// 这四件事，所以握手无条件铸齐。收凭证的是 AgentClient 上的方法 —— 拿不出
+/// 凭证的调用编译不过。
 ///
 /// 与 `AgentClient::new` 收在 crate 内是同一个手法：能不能做这件事，铸造点说了
 /// 算，不由调用点自觉。
@@ -146,10 +146,10 @@ impl CanLoadSession {
     }
 }
 
-/// 删掉一条会话的凭证（ACP session/delete）。
+/// 删掉一条会话的凭证（kap 没有硬删除，删除由 :archive 承接）。
 ///
 /// 删除对话若只删本地那一份，agent 自己存的那一份原样留着 —— 屏幕上没了，对面
-/// 还在。那不是删除，是隐藏。声明在 `sessionCapabilities.delete` 里。
+/// 还在。那不是删除，是隐藏。
 #[derive(Clone, Copy, Debug)]
 pub struct CanDeleteSession(());
 
@@ -159,9 +159,7 @@ impl CanDeleteSession {
     }
 }
 
-/// 分叉一条会话的凭证（ACP session/fork，UNSTABLE）。
-///
-/// 声明在 `sessionCapabilities.fork` 里。
+/// 分叉一条会话的凭证（kap :fork，见 kap-server 的 routes/action-suffix.ts）。
 #[derive(Clone, Copy, Debug)]
 pub struct CanForkSession(());
 
@@ -171,9 +169,9 @@ impl CanForkSession {
     }
 }
 
-/// 停掉一轮的凭证（ACP session/cancel）。
+/// 停掉一轮的凭证（kap 的 abort 控制帧，见 ws-control.ts）。
 ///
-/// 取消是一条通知，ACP 每个 agent 都收得下，所以握手无条件铸它。
+/// kap-server 的每个会话都收得下 abort，所以握手无条件铸它。
 #[derive(Clone, Copy, Debug)]
 pub struct CanCancelSession(());
 

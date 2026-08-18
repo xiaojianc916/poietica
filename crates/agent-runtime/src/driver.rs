@@ -306,7 +306,9 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             .args(&args)
             .current_dir(&cwd)
             .envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
-            .stdout(std::process::Stdio::piped())
+            // 不读就放空：pino 的日志走 stdout，管道不接走，写满缓冲
+            // 会把 server 自己噎住。
+            .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())
             .spawn()
             .map_err(|e| KapError::Spawn {

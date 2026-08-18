@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 ///
 /// Absent or blank means no trace at all. A trace holds whatever the agent
 /// said, so it is asked for deliberately and never left on by default.
-const TRACE: &str = "POIETICA_ACP_TRACE";
+const TRACE: &str = "POIETICA_KAP_TRACE";
 
 /// Where traced lines are appended.
 pub(crate) type TraceSink = Arc<Mutex<BufWriter<File>>>;

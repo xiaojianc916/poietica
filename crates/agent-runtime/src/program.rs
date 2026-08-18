@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use crate::error::{AcpError, Result};
+use crate::error::{KapError, Result};
 
 /// 在这台机器上找出该启动哪个文件。
 ///
@@ -15,7 +15,7 @@ use crate::error::{AcpError, Result};
 /// 运行的那台机器上，换机器、换包管理器都不需要改配置；`agents.json` 里直接
 /// 写绝对路径同样成立，which 会原样交还它。
 ///
-/// 这个函数是唯一的解析处。ACP 会话与 provider CLI 起的是同一个程序，两处
+/// 这个函数是唯一的解析处。kap 会话与 provider CLI 起的是同一个程序，两处
 /// 各解析一次，迟早解析出两个结果 —— 上一版就是这么坏的：会话那条会解析，
 /// CLI 那条不会。
 ///
@@ -35,9 +35,9 @@ use crate::error::{AcpError, Result};
 ///
 /// # Errors
 ///
-/// 在这台机器的搜索路径上找不到这个程序时返回 [`AcpError::Spawn`]。
+/// 在这台机器的搜索路径上找不到这个程序时返回 [`KapError::Spawn`]。
 pub fn resolve_program(program: &str) -> Result<PathBuf> {
-    which::which(program).map_err(|error| AcpError::Spawn {
+    which::which(program).map_err(|error| KapError::Spawn {
         message: format!(
             "这台电脑上没有找到 {program}。它是一个需要单独安装的命令行程序，\
              装好之后重新打开 Poietica 就能用了。（{error}）"
