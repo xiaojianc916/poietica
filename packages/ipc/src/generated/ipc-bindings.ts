@@ -23,7 +23,7 @@ async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
 /**
  * Asks the agent to stop the turn running on one conversation.
  * 
- * 取消点名一条对话。ACP 的取消是发给一条会话的，而一条对话持有一条会话 ——
+ * 取消点名一条对话。kap 的取消是发给一条会话的一帧 abort（ws-control.ts），而一条对话持有一条会话 ——
  * 这条对应关系在打开这条对话时就写进了库（`attach_session`），提问走的也是它。
  * 
  * 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `session_for` 会为一条
@@ -133,8 +133,9 @@ async agentThreads() : Promise<AgentThread[]> {
  * 打开一条对话：把它整条要回来。
  * 
  * 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，`session_for`
- * 认出它存着的会话号不是本次连接开的，于是请 agent 把那条会话装载回来 —— 号
- * 不变，上下文因此回到 agent 手里。只有 agent 说它不装载旧会话时才重开一条。
+ * 认出它存着的会话号不是本次连接开的，于是请 driver 把它订阅回来 —— 号
+ * 不变，上下文因此回到 agent 手里。只有装载不回来（号在 server 侧也没了）
+ * 时才重开一条。
  * 
  * 经过来自本机日志（run_events），不来自 agent 的装载重放：那批帧里没有
  * run_started，段边界会整段塌掉，而回填只发生一次 —— 塌掉的形状会永久留在
@@ -177,8 +178,8 @@ async agentArchiveThread(request: AgentArchiveThreadRequest) : Promise<null> {
  * 本地那一份是一行索引，一句 DELETE 就没了：这张表底下已经不挂任何东西。
  * 
  * 真正的那一份在 agent 手里。它存着这条对话的全文，此前从没有人告诉过它这条
- * 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。ACP 为此
- * 有 session/delete，而它可不可用由 agent 在握手时自己说。
+ * 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。kap 没有
+ * 硬删除，删除由 :archive 承接。
  * 
  * 当场送达要三个前提：连接还活着、这条会话确实是这个 agent 的、它声明了
  * 这项能力。凑不齐就先记进处置账 —— 不为此去起一个进程：删一条对话不该
@@ -209,7 +210,7 @@ async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_pin_thread", { request });
 },
 /**
- * 从一条对话分叉出一条新对话（ACP session/fork），源对话原样不动。
+ * 从一条对话分叉出一条新对话（kap :fork），源对话原样不动。
  * 
  * 两侧各分叉一次：agent 那侧由 session/fork 复制上下文，这一侧由 fork_thread
  * 复制本机日志与附件链接（见 threads.rs）。屏幕上那条时间线由日志重放，日志
@@ -1309,12 +1310,8 @@ launch: AgentLaunch;
  */
 cwd: string | null; 
 /**
- * 这一次开会话要挂哪几台 MCP 服务器，ACP 的线上形状原样带过来。
- * 
- * 这一层不认识它的字段。协议那三个结构体（McpServer / McpServerHttp /
- * McpServerStdio）全标了 #[non_exhaustive]，这个 crate 构造不出来，只能
- * 反序列化 —— 所以线上形状就是契约，与 events 那一格同一个理由。翻译在
- * 驱动器里做，那里才是协议的家。
+ * kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
+ * 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
  */
 mcpServers: JsonValue[] }
 /**
@@ -1414,10 +1411,8 @@ launch: AgentLaunch;
  */
 cwd: string | null; 
 /**
- * 这条对话还没有会话时，为它开的那一条要挂哪几台 MCP 服务器。
- * 
- * 已经有会话就用不上：MCP 名册是 session/new 的参数，一条已经开着的会话
- * 不会因为这一格而改变。
+ * kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
+ * 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
  */
 mcpServers: JsonValue[] }
 /**
@@ -1469,17 +1464,14 @@ configId: string;
  */
 value: string; 
 /**
- * 点名的那条对话还没有会话时，为它开的那一条要挂哪几台 MCP 服务器。
- * 
- * 与 `AgentPromptRequest` 那一格同一个理由：MCP 名册是 session/new 的
- * 参数，开完就定死了。少了它，改一次设置就可能开出一条一台服务器都不挂
- * 的会话，而这条对话此后每一轮都用它。不点名对话时发往锚会话，恒为空。
+ * kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
+ * 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
  */
 mcpServers: JsonValue[] }
 /**
  * 一条会话此刻占了多少上下文。
  * 
- * ACP 的 usage_update 报的是仪表值：到达即替换，不是增量。按它算增量的是
+ * kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量。按它算增量的是
  * 账本（persistence 的 usage.rs），这一格只说现在。
  */
 export type AgentSessionUsage = { 
