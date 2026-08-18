@@ -11,7 +11,6 @@ describe('timeline reducer', () => {
     expect(state.items.map((item) => item.type)).toEqual([
       'user_message',
       'agent_thought',
-      'plan',
       'tool_call',
       'agent_text',
     ])
@@ -26,15 +25,14 @@ describe('timeline reducer', () => {
     expect(tool && tool.type === 'tool_call' && tool.endedAt).toBe(1_090)
   })
 
-  it('keeps tool output inside the protocol envelope', () => {
+  it('leaves the result where the frame put it', () => {
     const state = replayRunEvents(SAMPLE_RUN_EVENTS)
     const tool = state.items.find((item) => item.type === 'tool_call')
 
-    /* A bare content block here would mean either the boundary reshaped the
-       frame or the sample drifted away from what an agent actually sends. */
-    expect(tool && tool.type === 'tool_call' && tool.content).toEqual([
-      { type: 'content', content: { type: 'text', text: '# Poietica ...' } },
-    ])
+    /* tool.result 送的是 output，落在 rawOutput。把它搬进 content 就是这一层
+       替帧决定屏幕上显示什么。 */
+    expect(tool && tool.type === 'tool_call' && tool.rawOutput).toBe('# Poietica ...')
+    expect(tool && tool.type === 'tool_call' && tool.content).toEqual([])
   })
 
   it('is idempotent under duplicated events', () => {
@@ -45,15 +43,12 @@ describe('timeline reducer', () => {
     expect(twice.status).toBe(once.status)
   })
 
-  it('keeps a tool_call_update that arrives before its tool_call', () => {
+  it('keeps a result that arrives before the call was announced', () => {
     const orphan: RunEvent = {
-      kind: 'acp_update',
+      kind: 'kap_event',
       seq: 1,
       at: 10,
-      notification: {
-        sessionId: 's',
-        update: { sessionUpdate: 'tool_call_update', toolCallId: 'call_x', status: 'completed' },
-      },
+      payload: { type: 'tool.result', toolCallId: 'call_x', output: 'ok' },
     }
 
     const state = applyRunEvent(createTimelineState(), orphan)
@@ -61,28 +56,5 @@ describe('timeline reducer', () => {
 
     expect(tool && tool.type === 'tool_call' && tool.toolCallId).toBe('call_x')
     expect(tool && tool.type === 'tool_call' && tool.status).toBe('completed')
-  })
-
-  it('replaces the plan wholesale instead of merging entries', () => {
-    const plan = (seq: number, content: string): RunEvent => ({
-      kind: 'acp_update',
-      seq,
-      at: seq,
-      notification: {
-        sessionId: 's',
-        update: {
-          sessionUpdate: 'plan',
-          entries: [{ content, status: 'pending', priority: 'low' }],
-        },
-      },
-    })
-
-    const state = replayRunEvents([plan(1, 'first'), plan(2, 'second')])
-    const plans = state.items.filter((item) => item.type === 'plan')
-
-    expect(plans).toHaveLength(1)
-    expect(plans.at(0)?.type === 'plan' && plans.at(0)).toMatchObject({
-      entries: [{ content: 'second' }],
-    })
   })
 })

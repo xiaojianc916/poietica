@@ -28,7 +28,7 @@ export interface PermissionScope {
    * 这一轮此刻的状态。
    *
    * 它是「有没有人在等」的权威：permission_requested 写下 awaiting_permission，
-   * permission_resolved 又拿这里的答案把它算回 running（见 acp-projection）。
+   * permission_resolved 又拿这里的答案把它算回 running（见 projection.ts）。
    * 收下它，倒扫就只发生在真的有人在等的时候。
    */
   readonly status: TimelineState['status']

@@ -1,44 +1,26 @@
-import { replayRunEvents, type ToolCallTimelineItem } from '@poietica/agent'
-import { asRunEvents, toolTurn } from '@poietica/agent-contract/recordings'
 import { describe, expect, it } from 'vitest'
 import { toToolContentParts } from '../semantics/tool-call-content'
 
 /**
- * The tool card, fed by the turn that actually happened.
+ * 工具卡片画什么。
  *
- * The text case is driven by the recording, because that is the case a hand
- * written sample got wrong once already. The diff and terminal cases below only
- * illustrate our own mapping; they prove nothing about the protocol.
+ * 这里测的只是这一层自己的映射：一个内容块进去，一张卡片画得出的片段出来。
+ * 「线上真的送来什么」由投影层的用例守着，不在这里再断言一遍 —— 这一层看不见帧。
  */
 
-const events = asRunEvents(toolTurn)
-
-const state = replayRunEvents(events)
-
-const toolItems = state.items.filter(
-  (item): item is ToolCallTimelineItem => item.type === 'tool_call',
-)
-
-describe('what a recorded tool call has to show', () => {
-  it('was recorded for a tool call that produced output', () => {
-    expect(toolItems).toHaveLength(1)
-    expect(toolItems.at(0)?.content.length).toBeGreaterThan(0)
-  })
-
-  it('turns the protocol envelope into text a card can draw', () => {
-    const parts = toToolContentParts(toolItems.at(0)?.content)
-
-    expect(parts.length).toBeGreaterThan(0)
-    expect(parts.every((part) => part.type === 'text')).toBe(true)
-    expect(parts.map((part) => (part.type === 'text' ? part.text : '')).join('')).toContain(
-      'Poietica',
-    )
-  })
-
+describe('what a tool call has to show', () => {
   it('drops the empty bubble a tool call opens with', () => {
     const parts = toToolContentParts([{ type: 'content', content: { type: 'text', text: '' } }])
 
     expect(parts).toEqual([])
+  })
+
+  it('keeps text a card can draw', () => {
+    const parts = toToolContentParts([
+      { type: 'content', content: { type: 'text', text: 'Poietica' } },
+    ])
+
+    expect(parts).toEqual([{ type: 'text', text: 'Poietica' }])
   })
 
   it('keeps a diff whole, and says when there was nothing before it', () => {

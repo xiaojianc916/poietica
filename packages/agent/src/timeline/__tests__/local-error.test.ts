@@ -8,13 +8,10 @@ import {
 } from '../timeline-reducer'
 
 const chunk = (seq: number, text: string): RunEvent => ({
-  kind: 'acp_update',
+  kind: 'kap_event',
   seq,
   at: seq,
-  notification: {
-    sessionId: 's',
-    update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } },
-  },
+  payload: { type: 'assistant.delta', delta: text },
 })
 
 describe('a local failure is not a frame', () => {

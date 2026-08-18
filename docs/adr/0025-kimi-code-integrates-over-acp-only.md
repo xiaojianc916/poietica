@@ -1,8 +1,6 @@
 # 0025. Kimi Code 只经 ACP 接入
 
-Status: Superseded by 0025-kap-is-the-only-agent-transport.md
-
-Status: accepted
+Status: superseded by 0026-kap-is-the-only-agent-transport.md
 Supersedes: 0016
 
 ## 背景

@@ -9,9 +9,8 @@ import type { TimelineItem } from './timeline-contract'
  *
  * 思考不上屏。
  *
- * 两条通道照旧全收：agent_thought_chunk 与 agent_message_chunk 分别落成 agent_thought
- * 与 agent_text（acp-projection.ts），上游 kimi-code 的 acp-adapter 也是这么分的
- * （thinking.delta / assistant.delta 各映一种 sessionUpdate）。但「收下」与「摊开」是
+ * 两条通道照旧全收：thinking.delta 与 assistant.delta 分别落成 agent_thought 与
+ * agent_text（kap-projection.ts）。但「收下」与「摊开」是
  * 两件事：推理是模型写给自己的草稿，逐字摊在读者眼前会把结论挤出屏幕，也会让人把
  * 草稿当结论读。标杆都不摊——Codex 的原始推理关在 show_raw_agent_reasoning 后面
  * （core/state/service.rs 持有它，protocol/legacy_events.rs 按它决定发不发，TUI 只在

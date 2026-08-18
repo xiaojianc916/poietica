@@ -15,39 +15,26 @@ import {
  *
  * 缩略导航按「人问过几次」数格子（conversation-turns 的 stageTurns），所以转录里
  * 多一条用户消息，轨道上就多一根杠。这里守的是「同一句话只落一次账」这条不变式，
- * 一句话的三条到达路径各来一遍。
+ * 一句话的每一条到达路径各来一遍。
  */
 
-function started(seq: number, prompt: string): RunEvent {
-  return { kind: 'run_started', seq, at: seq, sessionId: 'sess', prompt }
-}
-
-function echoed(seq: number, text: string): RunEvent {
+function started(seq: number, prompt: string, images?: readonly string[]): RunEvent {
   return {
-    kind: 'acp_update',
+    kind: 'run_started',
     seq,
     at: seq,
-    notification: {
-      sessionId: 'sess',
-      update: { sessionUpdate: 'user_message_chunk', content: { type: 'text', text } },
-    },
+    sessionId: 'sess',
+    prompt,
+    ...(images === undefined ? {} : { images }),
   }
 }
 
 function spoke(seq: number, text: string): RunEvent {
-  return {
-    kind: 'acp_update',
-    seq,
-    at: seq,
-    notification: {
-      sessionId: 'sess',
-      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } },
-    },
-  }
+  return { kind: 'kap_event', seq, at: seq, payload: { type: 'assistant.delta', delta: text } }
 }
 
 function finished(seq: number): RunEvent {
-  return { kind: 'run_finished', seq, at: seq, stopReason: 'end_turn' }
+  return { kind: 'run_finished', seq, at: seq, stopReason: 'completed' }
 }
 
 function said(state: TimelineState): readonly string[] {
@@ -59,13 +46,10 @@ function rails(state: TimelineState): number {
 }
 
 describe('one question, one rail stop', () => {
-  it('takes the recorded prompt and the agent echo as the same question', () => {
-    const state = replayThreadEvents([
-      started(1, '读取 README'),
-      echoed(2, '读取 README'),
-      spoke(3, '好的，我看一下。'),
-      finished(4),
-    ])
+  it('takes the local message and the recorded prompt as the same question', () => {
+    const asked = appendUserMessage(createTimelineState(), '读取 README', 1)
+    const running = applyRunEvent(asked, started(1, '读取 README'))
+    const state = applyRunEvent(running, spoke(2, '好的，我看一下。'))
 
     expect(said(state)).toEqual(['读取 README'])
     expect(rails(state)).toBe(1)
@@ -93,10 +77,9 @@ describe('one question, one rail stop', () => {
       started(1, '第一个问题'),
       spoke(2, '好。'),
       finished(3),
-      started(1, ''),
-      echoed(2, ''),
-      spoke(3, '看到了。'),
-      finished(4),
+      started(1, '', ['poietica-asset://asset/t/abc']),
+      spoke(2, '看到了。'),
+      finished(3),
     ])
 
     expect(said(state)).toEqual(['第一个问题', ''])

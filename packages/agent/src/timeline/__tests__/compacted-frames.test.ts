@@ -4,112 +4,55 @@ import { SAMPLE_RUN_EVENTS } from '../__fixtures__/sample-run'
 import { replayRunEvents } from '../timeline-reducer'
 
 /**
- * The same run, with its two adjacent thought fragments already joined.
+ * 同一轮，两段相邻的思考已经并好。
  *
- * Written out by hand on purpose. Deriving it from the sample would mean
- * shipping a second implementation of the fold, and then this file would be
- * testing that the two agreed rather than that the reducer cannot tell the
- * difference — which is the only thing worth asserting here.
+ * 手写而不是从样例折出来：折一遍就是第二份实现，那时测的是两份实现是否一致，
+ * 而这里唯一值得断言的是 reducer 分不分得出这两者。
  */
 const COMPACTED_RUN_EVENTS: readonly RunEvent[] = [
-  { kind: 'run_started', seq: 1, at: 1_000, sessionId: 'sess_demo' },
   {
-    kind: 'acp_update',
+    kind: 'run_started',
+    seq: 1,
+    at: 1_000,
+    sessionId: 'sess_demo',
+    prompt: '把 README 里的构建命令核对一遍',
+  },
+  {
+    kind: 'kap_event',
     seq: 2,
     at: 1_010,
-    notification: {
-      sessionId: 'sess_demo',
-      update: {
-        sessionUpdate: 'user_message_chunk',
-        content: { type: 'text', text: '把 README 里的构建命令核对一遍' },
-      },
-    },
+    payload: { type: 'thinking.delta', delta: '先读取 README，再与 package.json 对照。' },
   },
   {
-    kind: 'acp_update',
-    seq: 3,
-    at: 1_020,
-    notification: {
-      sessionId: 'sess_demo',
-      update: {
-        sessionUpdate: 'agent_thought_chunk',
-        content: { type: 'text', text: '先读取 README，再与 package.json 对照。' },
-      },
-    },
-  },
-  {
-    kind: 'acp_update',
-    seq: 5,
-    at: 1_040,
-    notification: {
-      sessionId: 'sess_demo',
-      update: {
-        sessionUpdate: 'plan',
-        entries: [
-          { content: '读取 README', status: 'in_progress', priority: 'high' },
-          { content: '对照 package.json scripts', status: 'pending', priority: 'medium' },
-        ],
-      },
-    },
-  },
-  {
-    kind: 'acp_update',
-    seq: 6,
+    kind: 'kap_event',
+    seq: 4,
     at: 1_050,
-    notification: {
-      sessionId: 'sess_demo',
-      update: {
-        sessionUpdate: 'tool_call',
-        toolCallId: 'call_1',
-        title: 'Read README.md',
-        kind: 'read',
-        status: 'pending',
-        locations: [{ path: 'README.md' }],
-      },
+    payload: {
+      type: 'tool.call.started',
+      toolCallId: 'call_1',
+      name: 'Read README.md',
+      args: { path: 'README.md' },
+      display: { kind: 'file_io', operation: 'read', path: 'README.md' },
     },
   },
   {
-    kind: 'acp_update',
-    seq: 7,
-    at: 1_060,
-    notification: {
-      sessionId: 'sess_demo',
-      update: { sessionUpdate: 'tool_call_update', toolCallId: 'call_1', status: 'in_progress' },
-    },
-  },
-  {
-    kind: 'acp_update',
-    seq: 8,
+    kind: 'kap_event',
+    seq: 5,
     at: 1_090,
-    notification: {
-      sessionId: 'sess_demo',
-      update: {
-        sessionUpdate: 'tool_call_update',
-        toolCallId: 'call_1',
-        status: 'completed',
-        content: [{ type: 'content', content: { type: 'text', text: '# Poietica ...' } }],
-      },
-    },
+    payload: { type: 'tool.result', toolCallId: 'call_1', output: '# Poietica ...' },
   },
   {
-    kind: 'acp_update',
-    seq: 9,
+    kind: 'kap_event',
+    seq: 6,
     at: 1_100,
-    notification: {
-      sessionId: 'sess_demo',
-      update: {
-        sessionUpdate: 'agent_message_chunk',
-        content: { type: 'text', text: '构建命令与 scripts 一致。' },
-      },
-    },
+    payload: { type: 'assistant.delta', delta: '构建命令与 scripts 一致。' },
   },
-  { kind: 'run_finished', seq: 10, at: 1_110, stopReason: 'end_turn' },
+  { kind: 'run_finished', seq: 7, at: 1_110, stopReason: 'completed' },
 ]
 
 describe('compacted frames', () => {
-  /* This is the property the stored snapshot rests on. If it ever stops
-     holding, a conversation reopened would differ from having watched it, and
-     the compaction has to go rather than the assertion. */
+  /* 存档快照赖以成立的性质：不成立，就是「重开一条对话」与「当时看着它发生」
+     不同，那时该走的是压缩，不是这条断言。 */
   it('replays to exactly what the unfolded frames replay to', () => {
     const fromLog = replayRunEvents(SAMPLE_RUN_EVENTS)
     const fromSnapshot = replayRunEvents(COMPACTED_RUN_EVENTS)
@@ -119,28 +62,11 @@ describe('compacted frames', () => {
   })
 
   it('would not survive joining two different sorts of fragment', () => {
-    /* Why the fold stops between a thought and a message: they are two items,
-       and merging them would silently make the stored run say something the
-       live one never did. */
+    /* 并到思考与回答之间就停：它们是两条条目，并起来会让存档说出实时那一轮
+       从没说过的话。 */
     const across: readonly RunEvent[] = [
-      {
-        kind: 'acp_update',
-        seq: 1,
-        at: 1,
-        notification: {
-          sessionId: 's',
-          update: { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: '想' } },
-        },
-      },
-      {
-        kind: 'acp_update',
-        seq: 2,
-        at: 2,
-        notification: {
-          sessionId: 's',
-          update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '说' } },
-        },
-      },
+      { kind: 'kap_event', seq: 1, at: 1, payload: { type: 'thinking.delta', delta: '想' } },
+      { kind: 'kap_event', seq: 2, at: 2, payload: { type: 'assistant.delta', delta: '说' } },
     ]
 
     expect(replayRunEvents(across).items.map((item) => item.type)).toEqual([

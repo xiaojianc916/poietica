@@ -25,7 +25,7 @@ const finished = (seq: number, at: number): RunEvent => ({
   kind: 'run_finished',
   seq,
   at,
-  stopReason: 'end_turn',
+  stopReason: 'completed',
 })
 
 const crashed = (seq: number, at: number): RunEvent => ({

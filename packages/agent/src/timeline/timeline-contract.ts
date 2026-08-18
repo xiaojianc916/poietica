@@ -108,6 +108,16 @@ export interface ToolCallTimelineItem extends TimelineEntry {
   readonly endedAt?: number
 }
 
+/**
+ * 这次调用已经有结局了吗。
+ *
+ * 四档 status 里只有 completed 与 failed 是终态。endedAt 记不记、纺锤转不转，
+ * 读的必须是同一份判据，所以它和状态词汇住在一起。
+ */
+export function isTerminal(status: ToolCallTimelineItem['status']): boolean {
+  return status === 'completed' || status === 'failed'
+}
+
 /** 计划里的一步。 */
 export interface PlanStep {
   readonly content: string

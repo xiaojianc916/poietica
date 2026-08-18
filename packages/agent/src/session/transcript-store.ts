@@ -354,8 +354,8 @@ export class TranscriptStore {
    * agent 把这条对话交回来了。
    *
    * events 在这里从 unknown 收窄成帧，全程只有这一处。断言而不是逐帧校验，
-   * 与运行帧那条通道同一个判据：形状由平台那一侧定义，两条通道上的帧由同一个
-   * acp_update 做出来 —— 重放的帧与实时的帧是同一批东西，走同一条重放函数。
+   * 与运行帧那条通道同一个判据：形状由 frame.rs 定义，重放的帧与实时的帧是同
+   * 一批东西，走同一条重放函数。
    *
    * 收窄发生在明处，而不是藏在某个端口声明的返回类型里：声明成 RunEvent 而
    * 实际交出 unknown，那是一次没人看得见的断言。这里看得见。
@@ -398,7 +398,7 @@ export class TranscriptStore {
 
     /* 人说的那句话先上屏，再去问 agent。失败的一轮丢掉的是答案，不是问题。
        图这一刻还没有地址：字节要先落盘。它随这一轮的 run_started 帧回来，所以
-       实时那条路与重开对话那条路走的是同一条（见 acp-projection 的 withPrompt）。 */
+       实时那条路与重开对话那条路走的是同一条（见 projection.ts 的 withPrompt）。 */
     const opened = appendUserMessage(current.timeline, text, at, assets.length)
 
     this.#put(key, { ...current, timeline: opened })

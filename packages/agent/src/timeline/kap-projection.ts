@@ -1,10 +1,9 @@
 /**
  * kap 方言到条目的投影。
  *
- * 唯一认识 kap 的地方：事件载荷里哪个字段叫什么、文本增量往哪条
- * 消息上拼、一次工具调用的四个生命周期事件怎么合成一次 upsert —— 全收在这
- * 一个文件里，别处不该再出现对 kap 字段名的引用。acp-projection.ts 是它的
- * 对偶：两条线共用 projection.ts 的一轮起止与审批帧，互不知道对方存在。
+ * 唯一认识 kap 的地方：事件载荷里哪个字段叫什么、文本增量往哪条消息上拼、
+ * 一次工具调用的四个生命周期事件怎么合成一次 upsert —— 全收在这一个文件里，
+ * 别处不该再出现对 kap 字段名的引用。一轮的起止与审批归 projection.ts。
  *
  * 载荷形状的唯一权威是上游 kap-server 的 protocol/events-zod.ts（快照钉在
  * contracts/kap）。这里读的每一个字段都应该能在那份文件里找到。
@@ -18,8 +17,7 @@ import type {
   KapEventPayload,
   RunEvent,
 } from '@poietica/agent-contract'
-import { isTerminal } from './acp-projection'
-import type { ToolCallTimelineItem } from './timeline-contract'
+import { isTerminal, type ToolCallTimelineItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import { appendChunk, namespace, positionOf, push } from './timeline-draft'
 
@@ -235,9 +233,8 @@ function stringOf(payload: KapEventPayload, key: string): string | undefined {
  * toolCallId 寻址：没见过就建（终帧先于宣告到达的日志存在），见过就按这
  * 一帧真的带了的格子合并 —— 一个 upsert，不是四份实现。
  *
- * endedAt 与 acp 那侧同一条规矩：终态才记，记下就不再移动。终态的判据借
- * acp-projection 的 isTerminal —— 状态词汇是产品模型的（timeline-contract
- * 的 status 类型），不是哪一条线的方言，它今天的家在那里。
+ * endedAt：终态才记，记下就不再移动。终态的判据归 timeline-contract —— 状态
+ * 词汇是产品模型的，不是方言。
  */
 function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: ToolCallPatch): void {
   const id = `${namespace(draft)}tool-${toolCallId}`
@@ -249,8 +246,7 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
   const endedAt = isTerminal(status) ? (held?.endedAt ?? at) : held?.endedAt
   const base = patch.content ?? held?.content ?? []
   const content = patch.appendContent === undefined ? base : [...base, patch.appendContent]
-  /* 'rawInput' in patch 读的是「这一帧提没提」，与 acp 那侧同一个判据：
-     null 是清空，缺席是沿用。 */
+  /* 'rawInput' in patch 读的是「这一帧提没提」：null 是清空，缺席是沿用。 */
   const rawInput = 'rawInput' in patch ? patch.rawInput : held?.rawInput
   const rawOutput = 'rawOutput' in patch ? patch.rawOutput : held?.rawOutput
 

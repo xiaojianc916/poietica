@@ -18,37 +18,20 @@ function started(seq: number, prompt: string): RunEvent {
 }
 
 function spoke(seq: number, text: string): RunEvent {
-  return {
-    kind: 'acp_update',
-    seq,
-    at: seq,
-    notification: {
-      sessionId: 'sess',
-      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } },
-    },
-  }
+  return { kind: 'kap_event', seq, at: seq, payload: { type: 'assistant.delta', delta: text } }
 }
 
 function called(seq: number, toolCallId: string): RunEvent {
   return {
-    kind: 'acp_update',
+    kind: 'kap_event',
     seq,
     at: seq,
-    notification: {
-      sessionId: 'sess',
-      update: {
-        sessionUpdate: 'tool_call',
-        toolCallId,
-        title: 'Read',
-        kind: 'read',
-        status: 'completed',
-      },
-    },
+    payload: { type: 'tool.call.started', toolCallId, name: 'Read' },
   }
 }
 
 function finished(seq: number): RunEvent {
-  return { kind: 'run_finished', seq, at: seq, stopReason: 'end_turn' }
+  return { kind: 'run_finished', seq, at: seq, stopReason: 'completed' }
 }
 
 function turn(state: TimelineState, prompt: string, events: readonly RunEvent[]): TimelineState {

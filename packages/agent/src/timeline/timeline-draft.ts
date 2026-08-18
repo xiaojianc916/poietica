@@ -6,7 +6,7 @@
  * 帧的对话上是 O(N²)，代价直接落在打开会话的那一刻。
  *
  * 这里只管「怎么写」：追加、封口、按 id 定位、开一个新的段。帧里那些字是什么
- * 意思归 acp-projection；哪一趟该开草稿、什么时候开段归 timeline-reducer。
+ * 意思归 kap-projection；哪一趟该开草稿、什么时候开段归 timeline-reducer。
  */
 
 import type { RunStatus } from '@poietica/agent-contract'

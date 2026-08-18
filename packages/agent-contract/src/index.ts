@@ -21,16 +21,12 @@ export { paletteEntryOf, paletteFrom } from './palette'
 export type { PermissionPosturePort } from './permission'
 export type {
   AcpAvailableCommand,
-  AcpContentBlock,
   AcpEmbeddedResource,
   AcpPermissionOption,
   AcpPlanEntry,
   AcpPlanEntryPriority,
   AcpPlanEntryStatus,
   AcpSessionId,
-  AcpSessionNotification,
-  AcpSessionUpdate,
-  AcpStopReason,
   AcpToolCallContent,
   AcpToolCallId,
   AcpToolCallLocation,

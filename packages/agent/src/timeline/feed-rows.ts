@@ -1,6 +1,5 @@
-import { isTerminal } from './acp-projection'
 import { isRenderable } from './renderable'
-import type { TimelineItem, TimelineState } from './timeline-contract'
+import { isTerminal, type TimelineItem, type TimelineState } from './timeline-contract'
 import { selectIsBusy } from './timeline-queries'
 
 /**
@@ -12,15 +11,8 @@ import { selectIsBusy } from './timeline-queries'
  * = …），两者都是追加或就地替换，所以相邻两帧的 items 共享一段前缀，且共享的
  * 那一段里每一项都是同一个对象。派生因此只需要从第一处引用不同的地方往后重算。
  *
- * 此前这里是反过来的：buildFeedRows 每帧 filter + map 整条 items，buildTurns
- * 每帧重建全部轮次，然后由六张 WeakMap 与一个 stable() 在事后判断「其实没变」。
- * 那些表挡住的是下游的重渲染，挡不住上游的重算 —— 而重算是 O(N)/帧，N 是这条
- * 对话的长度，帧率是模型吐字的速度。文件里三处注释互相解释「这一层盖不住那一
- * 层」，那是补丁叠补丁的自证，不是设计。
- *
- * 换成变更驱动之后，剩下两张身份表（ROWS、TURN_OF）与两张投影表。投影按
- * items[0] / rows[0] 弱引用：一条对话每一帧的首项都是同一个对象，所以键天然
- * 按对话隔离，也随对话一起回收。
+ * 身份表 ROWS 与投影表 FEEDS 按 items[0] 弱引用：一条对话每一帧的首项都是同一
+ * 个对象，所以键天然按对话隔离，也随对话一起回收。
  */
 
 export interface FeedRow {
@@ -30,9 +22,8 @@ export interface FeedRow {
   /**
    * 这一条属于此刻还在跑的那一轮。
    *
-   * 工具卡片据此决定纺锤转不转。status 装的是协议值，也就是 agent 说过的话，
-   * 而 ACP 只有 pending/in_progress/completed/failed 四档 ——「这次调用还在不
-   * 在跑」它根本表达不了，那是这一层从轮次状态推出来的。
+   * 工具卡片据此决定纺锤转不转。status 装的是 agent 说过的话，只有四档 ——
+   *「这次调用还在不在跑」它表达不了，那是这一层从轮次状态推出来的。
    *
    * 按轮次划，不是按整条对话划：上一轮留下的没有结局的调用，不会因为下一轮
    * 开始跑而重新转起来。
@@ -144,20 +135,15 @@ function projectRows(
 /**
  * 这一条此刻还在飞吗。
  *
- * 只有工具调用回答得了这个问题，也只有它在读这一格。别的条目一律 false ——
- * 上一版把当前轮次的每一行都标了，于是一轮结束时那一轮所有行的身份一起翻新，
- * 而其中绝大多数根本不看这一格。行的身份是 TimelineRow 的 memo 判据，那等于
- * 白重渲染一整轮。turn-identity.test.ts 当场把它抓了出来。
+ * 只有工具调用回答得了这个问题，也只有它在读这一格：行的身份是 TimelineRow 的
+ * memo 判据，多标一行就多白渲染一行。turn-identity.test.ts 守着这条。
  *
- * 类型判断同时消掉了另一处错：index >= turnStart 是闭区间，而 turnStart 正是
- * 提问那一条自己的下标 —— 一个用户消息「还在飞」本来就不成立。
+ * index >= turnStart 是闭区间，而 turnStart 正是提问那一条自己的下标 —— 一个用户
+ * 消息「还在飞」本来就不成立，所以先判类型。
  */
 function inFlightAt(item: TimelineItem, index: number, turnStart: number): boolean {
-  /* 终态不在飞。此前这一格里没有 status，于是本轮内已经 completed 或 failed 的
-     卡片只要还落在当前段内就一直转纺锤 —— 一轮里先跑几个短工具、再挂一个长时间
-     的 Agent 子代理时，屏幕上是一整轮集体转圈，人分不出哪一个还在跑。
-     判据不在这里重写一遍：isTerminal 是 acp-projection 里那一份，endedAt 记不记
-     也是照它。同一个概念两处判断，迟早会各自漂移。 */
+  /* 终态不在飞。判据不在这里重写一遍：isTerminal 归 timeline-contract，endedAt
+     记不记也照它 —— 同一个概念两处判断，迟早会各自漂移。 */
   return item.type === 'tool_call' && index >= turnStart && !isTerminal(item.status)
 }
 
@@ -175,7 +161,6 @@ function growTail(rows: FeedRow[], live: boolean): void {
  * 这一帧的内容与上一帧逐字相同吗。
  *
  * 常数时间：共享前缀覆盖了全部条目、行数又相同，那么唯一可能换过的就是尾行。
- * 此前这件事的做法是「先全量重建，再逐项比较，命中就把刚建的整份丢掉」。
  */
 function isSettled(
   held: FeedProjection,
@@ -202,13 +187,8 @@ function isSettled(
  * 判据是条目自己的段号：反着走，走出本段就到头了。代价是这一轮的长度，不是整条
  * 对话的长度。
  *
- * 此前这里找的是「人说的最后一句话」—— 一个反推，而且在人于轮次进行中又说一句
- * 时会当场跳到新那句：上一轮还在跑的调用全部被判成不在飞，纺锤停转；更贵的是
- * boundary 跟着回退，整轮重投影、整轮的行身份翻新，而行身份正是 TimelineRow 的
- * memo 判据。段号由 run_started 划定，它不会因为有人插话而移动。
- *
- * 提问那一条记的是上一段的号（它先于 run_started 到达），所以起点落在它之后 ——
- * 本来就该如此：一条用户消息不会「在飞」。
+ * 段号由 run_started 划定，不会因为有人插话而移动。提问那一条记的是上一段的号
+ * （它先于 run_started 到达），所以起点落在它之后 —— 一条用户消息不会「在飞」。
  */
 function turnStartOf(items: readonly TimelineItem[], turn: number): number {
   for (let index = items.length - 1; index >= 0; index -= 1) {
@@ -244,8 +224,7 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
    * 一旦写下就不再改（reducer 的就地替换整份沿用 turn）。所以段号没变时，它恒是
    * 上一帧那个数。
    *
-   * 此前每一帧都从末端倒扫一遍整段去求它 —— 代价是这一轮的长度乘以帧率，而答案
-   * 每一帧都相同。倒扫现在只发生在换段的那一帧，那时段里只有一条。
+   * 倒扫只发生在换段的那一帧，那时段里只有一条。
    */
   const turnStart = !live
     ? items.length

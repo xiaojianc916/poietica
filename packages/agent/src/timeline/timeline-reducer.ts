@@ -41,8 +41,8 @@ import {
  * 这个文件只剩写入的入口：一趟草稿的开合，与开段的时机。段的边界只有调用方
  * 知道（见 apply 开头那段注释），所以它必须留在这一层。
  *
- * 帧里那些字如何变成条目归 projection：一轮的生命周期在那一层，两条线的方言
- * 各在自己的文件里。图也在那一帧上，所以它没有第二个去处。
+ * 帧里那些字如何变成条目归 projection：一轮的生命周期在那一层，方言在
+ * kap-projection。图也在那一帧上，所以它没有第二个去处。
  */
 
 export function createTimelineState(): TimelineState {
@@ -132,7 +132,7 @@ export function appendUserMessage(
    * 这一句一共带了几张图。
    *
    * 只要个数，不要地址：地址要等原生侧把字节落盘之后才发得出，而它随这一轮的
-   * run_started 帧回来（见 acp-projection 的 withPrompt）。所以这一刻能知道的
+   * run_started 帧回来（见 projection.ts 的 withPrompt）。所以这一刻能知道的
    * 只有「带了几张」，而一句纯图片的话正是靠它才站得住。
    */
   carrying = 0,

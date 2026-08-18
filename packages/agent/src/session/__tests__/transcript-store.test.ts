@@ -36,15 +36,7 @@ function started(seq: number, sessionId: string): RunEvent {
 
 /* 一段流式文本。 */
 function chunk(seq: number, text: string): RunEvent {
-  return {
-    kind: 'acp_update',
-    seq,
-    at: seq,
-    notification: {
-      sessionId: 'sess_a',
-      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } },
-    },
-  }
+  return { kind: 'kap_event', seq, at: seq, payload: { type: 'assistant.delta', delta: text } }
 }
 
 /* 屏幕的节拍归用例掌握：攒下的通知什么时候发出去，由它说了算。 */
@@ -136,7 +128,7 @@ describe('transcript store', () => {
     store.route('sess_a', 'thread_a')
 
     emit([started(1, 'sess_a')], 'sess_a')
-    emit([{ kind: 'run_finished', seq: 2, at: 2, stopReason: 'end_turn' }], 'sess_a')
+    emit([{ kind: 'run_finished', seq: 2, at: 2, stopReason: 'completed' }], 'sess_a')
     paint()
 
     const ended = store.read('thread_a')

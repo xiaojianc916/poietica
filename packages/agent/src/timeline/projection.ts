@@ -1,17 +1,15 @@
 /**
  * 帧到条目的唯一入口。
  *
- * 它拥有一轮的公共部分：怎么开始、怎么结束、结局怎么读，以及那一问怎么落账。
- * ACP 的会话通知归 acp-projection，kap 的会话事件归 kap-projection，分派在
- * 这里发生。审批帧读的是客户端自己合成的词汇（requestId / options /
- * resolution），两条线同形，共用同一支。
+ * 它拥有一轮的公共部分：怎么开始、怎么结束、结局怎么读、那一问怎么落账，以及
+ * 审批 —— 审批帧读的是客户端自己合成的词汇（requestId / options / resolution），
+ * 与传输无关。方言只有一种，归 kap-projection。
  *
  * 它只往草稿上写，既不开草稿也不封版（见 timeline-draft），所以「纯、总、可重放」
  * 那三条性质与它无关：那是 timeline-reducer 的承诺。
  */
 
-import type { AcpStopReason, KapStopReason, RunEvent, RunStatus } from '@poietica/agent-contract'
-import { applyAcpFrame, saidByUser } from './acp-projection'
+import type { KapStopReason, RunEvent, RunStatus } from '@poietica/agent-contract'
 import { applyKapFrame } from './kap-projection'
 import { isRenderable } from './renderable'
 import type { MessageImage, UserMessageItem } from './timeline-contract'
@@ -21,9 +19,11 @@ import {
   markTurnEnd,
   markTurnStart,
   namespace,
+  positionOf,
   push,
   sealTail,
 } from './timeline-draft'
+import { pendingPermission } from './timeline-queries'
 
 /**
  * 这一帧一定会被丢掉吗。
@@ -72,10 +72,40 @@ export function apply(draft: Draft, event: RunEvent): void {
       return
     }
 
-    case 'acp_update':
-    case 'permission_requested':
+    case 'permission_requested': {
+      draft.status = 'awaiting_permission'
+
+      push(draft, {
+        type: 'permission',
+        id: `${namespace(draft)}permission-${event.requestId}`,
+        turn: draft.runIndex,
+        at: event.at,
+        requestId: event.requestId,
+        title: event.title,
+        /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
+        ...(event.toolCall === undefined ? {} : { toolCall: event.toolCall }),
+        options: event.options,
+      })
+
+      return
+    }
+
     case 'permission_resolved': {
-      applyAcpFrame(draft, event)
+      /* 身份是算得出来的（见上一支），所以按 id 定位。 */
+      const position = positionOf(draft, `${namespace(draft)}permission-${event.requestId}`)
+      const asked = position < 0 ? undefined : draft.items[position]
+
+      if (asked?.type === 'permission') {
+        draft.items[position] = {
+          ...asked,
+          resolution: { optionId: event.optionId, outcome: event.outcome },
+        }
+      }
+
+      /* 答掉一个不等于不再等：并行的子代理会同时挂着几个请求。第一个答复一到
+         就写 running，界面会说这一轮不在等人了，而另外几个请求还挂在原生侧的
+         桌子上。这句话必须排在上面那次落账之后：刚答掉的这一个也在扫描范围里。 */
+      draft.status = pendingPermission(draft) === undefined ? 'running' : 'awaiting_permission'
 
       return
     }
@@ -153,8 +183,7 @@ function withPrompt(
   },
 ): void {
   /* 缺席与空串在这里是同一件事：都表示这一帧没有带来一句要显示的话。
-     清洗规则借的是 ACP 那条线的：这一格的内容由各自的 driver 填，而 ACP 那侧
-     填的是协议请求里的内容，agent CLI 会往里注入自己的旁白（见 saidByUser）。 */
+     旁白要剥掉：这一格由 driver 填，agent CLI 会往里注入自己的话（见 saidByUser）。 */
   const prompt = saidByUser(event.prompt ?? '')
   const shown: readonly MessageImage[] = (event.images ?? []).map((url) => ({ url }))
 
@@ -271,7 +300,7 @@ function preferAgent(message: string, diagnostics?: string): string {
  * isRenderable 与派生共用同一份 —— 抄第二份就会有两种「空」。提问单独跳过：
  * 它是两段之间的边界，不是这一段的产出。
  */
-function silentTurn(draft: Draft, stopReason: AcpStopReason | KapStopReason): string | undefined {
+function silentTurn(draft: Draft, stopReason: KapStopReason): string | undefined {
   for (let index = draft.items.length - 1; index >= 0; index -= 1) {
     const item = draft.items[index]
 
@@ -295,14 +324,22 @@ function silentTurn(draft: Draft, stopReason: AcpStopReason | KapStopReason): st
   return `stopReason: ${stopReason}`
 }
 
-function finalStatus(stopReason: AcpStopReason | KapStopReason): RunStatus {
-  if (stopReason === 'cancelled') {
-    return 'cancelled'
-  }
+function finalStatus(stopReason: KapStopReason): RunStatus {
+  return stopReason === 'cancelled' ? 'cancelled' : 'completed'
+}
 
-  if (stopReason === 'refusal') {
-    return 'failed'
-  }
+/**
+ * 用户这一句里，哪些字是用户自己说的。
+ *
+ * agent CLI 会往这一轮的用户消息里注入自己的旁白 —— 观察到的一例：只发了一张
+ * 图，回放出来却是「一张图 + 一段 <system-reminder>，告诉模型这张图被压过、原图
+ * 在哪个路径」。那段字不是人说的，把它当成人说的话显示出来，转录就在撒谎。
+ *
+ * 剥的是标记之间的整块，不按关键词猜；跨行也吃 —— 那段旁白本来就是多行的。剥完
+ * 为空时这条消息仍然留着：一句纯图片的话，屏幕上正是靠这一格站住的。
+ */
+const INJECTED = /<system-reminder>[\s\S]*?<\/system-reminder>/g
 
-  return 'completed'
+function saidByUser(text: string): string {
+  return text.replace(INJECTED, '').trim()
 }
