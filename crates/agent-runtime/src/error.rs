@@ -19,7 +19,7 @@ pub enum KapError {
     /// kap server 没能在规定时间内注册到实例目录。
     #[error("kap server did not start in time: {message}")]
     Timeout { message: String },
-    /// REST 或 WebSocket 层报了错。
+    /// REST 或 WebSocket 层报了错，或对端回了一个非零 code 的信封。
     #[error("kap transport error: {message}")]
     Transport { message: String },
     /// 握手没能走完，一条会话都没开出来。
@@ -28,16 +28,16 @@ pub enum KapError {
     /// 这一侧拒绝了请求，它还没有被发出去。
     #[error("the request was refused before it was sent: {0:?}")]
     Refused(Refusal),
-    /// A task panicked while holding the run slot.
-    #[error("the run slot was left locked by a panicking task")]
+    /// 答复与桌上的问题对不上：没问过、没这个选项、或问的那一侧已经走了。
+    #[error("the permission answer was refused: {message}")]
+    Permission { message: String },
+    /// A task panicked while holding one of this crate's locks.
+    #[error("a lock was left held by a panicking task")]
     Poisoned,
     /// JSON 编解码失败。
     #[error("json error: {0}")]
     Json(#[from] serde_json::Error),
 }
-
-// 公共 API 别名，调用侧不感知底层变化。
-pub type AcpError = KapError;
 
 /// The result type used throughout this crate.
 pub type Result<T> = core::result::Result<T, KapError>;

@@ -7,13 +7,15 @@ license.workspace = true
 publish = false
 
 [dependencies]
-agent-client-protocol.workspace = true
+dirs.workspace = true
 futures.workspace = true
 log.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-tungstenite.workspace = true
 toml_edit.workspace = true
 uuid.workspace = true
 which.workspace = true

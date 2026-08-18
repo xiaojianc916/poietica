@@ -5,7 +5,7 @@ use futures::channel::{mpsc, oneshot};
 use serde_json::Value;
 
 use crate::config::ConfigControl;
-use crate::error::{AcpError, Refusal, Result};
+use crate::error::{KapError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::session::{
     CanCancelSession, CanDeleteSession, CanForkSession, CanLoadSession, OpenedSession, SessionEntry,
@@ -13,8 +13,9 @@ use crate::session::{
 
 /// 这一轮随那句话一起送出去的一张图片。
 ///
-/// base64 是协议自己的形状：ACP 的 image content block 就是一个 base64 的 data
-/// 加一个 mimeType，所以这一格原样进请求体，中间不解码。
+/// base64 是协议自己的形状：kap 的 image content block 就是 media_type 加
+/// base64 的 data（protocol/message.ts 的 imageContentSchema），所以这一格
+/// 原样进请求体，中间不解码。
 ///
 /// 一项一张图：字节给协议，地址给日志与屏幕。两件事分成两个平行的 Vec 就要靠
 /// 下标对齐，而靠下标对齐的东西没有人会在它错位时报错。
@@ -175,7 +176,7 @@ impl AgentClient {
 
         answer
             .await
-            .map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
     /// Reloads a session this agent opened in an earlier run.
@@ -203,7 +204,7 @@ impl AgentClient {
 
         answer
             .await
-            .map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
     /// Forks a session the agent keeps into a new, independent one.
@@ -231,7 +232,7 @@ impl AgentClient {
 
         answer
             .await
-            .map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
     /// Asks the agent to delete one of the sessions it keeps.
@@ -254,7 +255,7 @@ impl AgentClient {
 
         answer
             .await
-            .map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
     /// Asks the agent which sessions it keeps, and what it calls them.
@@ -272,7 +273,7 @@ impl AgentClient {
 
         answer
             .await
-            .map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
     /// Starts a turn, delivering every frame of it to the sink handed in.
@@ -359,6 +360,6 @@ impl AgentClient {
     fn send(&self, command: Command) -> Result<()> {
         self.commands
             .unbounded_send(command)
-            .map_err(|_disconnected| AcpError::Refused(Refusal::Gone))
+            .map_err(|_disconnected| KapError::Refused(Refusal::Gone))
     }
 }

@@ -1,17 +1,19 @@
 use std::collections::HashMap;
 
-use agent_client_protocol::schema::v1::{
-    PermissionOption, PermissionOptionId, PermissionOptionKind, RequestPermissionRequest,
-};
+use serde_json::{Value, json};
 
 /// What the client will answer a permission request with.
+///
+/// kap 的审批不带选项清单（approvalRequestSchema 只有 tool_name / action /
+/// tool_input_display），所以答复的词汇表由这一侧按协议的答复面合成 ——
+/// 三个选项正好盖住 approvalResponseSchema 的 decision × scope。
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Decision {
-    /// Approve, by selecting one of the agent's own approval options.
-    Allow(PermissionOptionId),
-    /// Refuse, by selecting one of the agent's own refusal options.
-    Reject(PermissionOptionId),
+    /// Approve, by selecting one of the approval options.
+    Allow(String),
+    /// Refuse, by selecting the rejection option.
+    Reject(String),
     /// Refuse without selecting an option, which the protocol reserves for a
     /// turn that ended before anyone answered.
     Cancel,
@@ -20,7 +22,7 @@ pub enum Decision {
 impl Decision {
     /// The option that was chosen, when one was.
     #[must_use]
-    pub const fn option_id(&self) -> Option<&PermissionOptionId> {
+    pub fn option_id(&self) -> Option<&str> {
         match self {
             Self::Allow(option_id) | Self::Reject(option_id) => Some(option_id),
             Self::Cancel => None,
@@ -28,53 +30,50 @@ impl Decision {
     }
 }
 
-/// Answers a permission request without asking anyone.
-///
-/// This is the fallback for the cases where nobody can be asked: a request
-/// that arrives outside a turn, or a desk that is unusable. An unattended
-/// client that approves file writes and shell commands is a worse failure than
-/// one that declines them, and expressing the refusal with the agent's own
-/// option lets the agent tell it apart from an abandoned turn.
-#[must_use]
-pub fn decide(request: &RequestPermissionRequest) -> Decision {
-    let rejection = pick(&request.options, PermissionOptionKind::RejectOnce)
-        .or_else(|| pick(&request.options, PermissionOptionKind::RejectAlways));
+/// 批准这一次。
+pub const APPROVE: &str = "approve";
+/// 批准，并且在这条会话上记住（kap 的 scope: "session"）。
+pub const APPROVE_SESSION: &str = "approve_session";
+/// 拒绝。
+pub const REJECT: &str = "reject";
 
-    match rejection {
-        Some(option_id) => Decision::Reject(option_id),
-        None => Decision::Cancel,
-    }
+/// 选项上的字与上游自己的审批按钮逐字相同（上游 packages/acp-adapter
+/// /src/approval.ts 的 CANONICAL_OPTIONS：Approve once / Approve for this
+/// session / Reject），桌面的选项文案表（agent-catalog 的 OPTION_LABELS）
+/// 翻的正是这三条。kind 沿用界面权限卡片既有的风格词汇表。
+pub fn kap_options() -> Value {
+    json!([
+        { "optionId": APPROVE, "name": "Approve once", "kind": "allow_once" },
+        { "optionId": APPROVE_SESSION, "name": "Approve for this session", "kind": "allow_always" },
+        { "optionId": REJECT, "name": "Reject", "kind": "reject_once" },
+    ])
 }
 
 /// The answers the user is allowed to give, keyed by option identifier.
 ///
-/// Whether an option approves or refuses is the agent's classification, not
-/// ours. An identifier absent from this map was never offered, which is how an
-/// answer arriving from the interface is checked before it is acted on.
+/// 选项集是固定的三条，所以合法答复表也是固定的：一个不在表里的选项号
+/// 就是没人提供过的选项 —— 这正是界面来的答案先过桌子再上线的判据。
+pub fn kap_answers() -> HashMap<String, Decision> {
+    HashMap::from([
+        (APPROVE.to_owned(), Decision::Allow(APPROVE.to_owned())),
+        (
+            APPROVE_SESSION.to_owned(),
+            Decision::Allow(APPROVE_SESSION.to_owned()),
+        ),
+        (REJECT.to_owned(), Decision::Reject(REJECT.to_owned())),
+    ])
+}
+
+/// 一个答复在 kap 线上的形状（approvalResponseSchema：decision 必填，
+/// scope 只在「这条会话上记住」时出现）。
 #[must_use]
-pub fn answers(request: &RequestPermissionRequest) -> HashMap<String, Decision> {
-    request
-        .options
-        .iter()
-        .map(|option| (option.option_id.to_string(), classify(option)))
-        .collect()
-}
-
-/// The kind enum grows with the protocol, and a kind this build does not know
-/// is treated as a refusal: the safe reading of an unknown option is not to
-/// take it for consent.
-fn classify(option: &PermissionOption) -> Decision {
-    match option.kind {
-        PermissionOptionKind::AllowOnce | PermissionOptionKind::AllowAlways => {
-            Decision::Allow(option.option_id.clone())
+pub fn kap_response(decision: &Decision) -> (&'static str, Option<&'static str>) {
+    match decision {
+        Decision::Allow(option_id) if option_id.as_str() == APPROVE_SESSION => {
+            ("approved", Some("session"))
         }
-        _ => Decision::Reject(option.option_id.clone()),
+        Decision::Allow(_) => ("approved", None),
+        Decision::Reject(_) => ("rejected", None),
+        Decision::Cancel => ("cancelled", None),
     }
-}
-
-fn pick(options: &[PermissionOption], wanted: PermissionOptionKind) -> Option<PermissionOptionId> {
-    options
-        .iter()
-        .find(|option| option.kind == wanted)
-        .map(|option| option.option_id.clone())
 }

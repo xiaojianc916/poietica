@@ -1,21 +1,19 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use agent_client_protocol::schema::v1::RequestPermissionRequest;
 use futures::channel::oneshot;
 
-use crate::error::{AcpError, Result};
-use crate::permission::{Decision, answers};
+use crate::error::{KapError, Result};
+use crate::permission::{Decision, kap_answers};
 
 const UNKNOWN_REQUEST: &str = "that permission request is not outstanding";
 const UNKNOWN_OPTION: &str = "that option was never offered for this permission request";
 const HANDLER_GONE: &str = "the agent stopped waiting for that permission request";
-const POISONED: &str = "the permission desk was left locked by a panicking task";
 
 /// One request the agent is blocked on.
 #[derive(Debug)]
 struct Waiting {
-    /// The answers the agent offered, by identifier.
+    /// The answers the user is allowed to give, by option identifier.
     allowed: HashMap<String, Decision>,
     /// Where the answer is delivered.
     answer: oneshot::Sender<Decision>,
@@ -39,22 +37,21 @@ impl PermissionDesk {
         Self::default()
     }
 
-    /// Registers a request and hands back the answer to await.
+    /// Registers a kap approval and hands back the answer to await.
+    ///
+    /// kap 的审批请求不带选项，合法答复集是固定的三条（见 permission.rs），
+    /// 所以等一个审批只要它的 approval_id。
     ///
     /// # Errors
     ///
     /// Fails when the desk was left locked by a panicking task.
-    pub fn wait(
-        &self,
-        request_id: &str,
-        request: &RequestPermissionRequest,
-    ) -> Result<oneshot::Receiver<Decision>> {
+    pub fn wait_kap(&self, approval_id: &str) -> Result<oneshot::Receiver<Decision>> {
         let (answer, waiting) = oneshot::channel();
 
         let _replaced = self.lock()?.insert(
-            request_id.to_owned(),
+            approval_id.to_owned(),
             Waiting {
-                allowed: answers(request),
+                allowed: kap_answers(),
                 answer,
             },
         );
@@ -76,27 +73,27 @@ impl PermissionDesk {
         let mut outstanding = self.lock()?;
 
         let Some(waiting) = outstanding.get(request_id) else {
-            return Err(protocol(UNKNOWN_REQUEST));
+            return Err(refused(UNKNOWN_REQUEST));
         };
 
         let Some(decision) = waiting.allowed.get(option_id).cloned() else {
-            return Err(protocol(UNKNOWN_OPTION));
+            return Err(refused(UNKNOWN_OPTION));
         };
 
         let Some(waiting) = outstanding.remove(request_id) else {
-            return Err(protocol(UNKNOWN_REQUEST));
+            return Err(refused(UNKNOWN_REQUEST));
         };
 
         waiting
             .answer
             .send(decision)
-            .map_err(|_gone| protocol(HANDLER_GONE))
+            .map_err(|_gone| refused(HANDLER_GONE))
     }
 
     /// Abandons the requests these identifiers name.
     ///
     /// 一轮结束时要放掉的正是它自己开着的那些，而且只有那些。整张桌子清空
-    /// 是"一条连接只可能有一轮"时代的写法：几轮同时在飞时，它会替别的会话
+    /// 是「一条连接只可能有一轮」时代的写法：几轮同时在飞时，它会替别的会话
     /// 把它正等着人回答的问题也一并取消掉。
     pub fn abandon(&self, request_ids: &[String]) {
         if let Ok(mut outstanding) = self.outstanding.lock() {
@@ -109,10 +106,6 @@ impl PermissionDesk {
     /// Abandons every outstanding request.
     ///
     /// 整条连接要走了才用得上：那时确实没有人会再来回答任何一个问题。
-    ///
-    /// Each waiting handler observes the dropped sender and answers with the
-    /// protocol's cancellation, which is exactly what an unanswered request at
-    /// the end of a turn means.
     pub fn clear(&self) {
         if let Ok(mut outstanding) = self.outstanding.lock() {
             outstanding.clear();
@@ -130,12 +123,12 @@ impl PermissionDesk {
     fn lock(&self) -> Result<MutexGuard<'_, HashMap<String, Waiting>>> {
         self.outstanding
             .lock()
-            .map_err(|_poisoned| protocol(POISONED))
+            .map_err(|_poisoned| KapError::Poisoned)
     }
 }
 
-fn protocol(message: &str) -> AcpError {
-    AcpError::Protocol {
+fn refused(message: &str) -> KapError {
+    KapError::Permission {
         message: message.to_owned(),
     }
 }

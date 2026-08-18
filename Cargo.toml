@@ -65,7 +65,7 @@ url = { version = "2.5.4", features = ["serde"] }
 time = { version = "0.3.41", features = [
   "formatting", "macros", "parsing", "serde",
 ] }
-uuid = { version = "1.16.0", features = ["serde", "v7"] }
+uuid = { version = "1.16.0", features = ["serde", "v4", "v7"] }
 
 # File, archive and content-addressed storage
 blake3 = "1.8.2"
@@ -170,19 +170,8 @@ rusqlite = { version = "0.40.1", features = [
   "bundled",
 ] }
 
-# ACP SDK。2.0 把 agent 的启动配置从 MCP 的 wire schema（McpServer）换成了 SDK
-# 自己的 AcpAgentConfig —— 一个 ACP agent 子进程不是一台 MCP 服务器，它的本地
-# 启动参数没有理由绑在 v1 协议 schema 上。
-#
-# 稳定的协议面仍然是 v1：schema::v1 在 2.0 里原样保留且没有 feature 门；协议 v2
-# 是 unstable_protocol_v2 门后的草案，不启用。
-#
-# 不写等号：1.3.0 上那个 `=` 是本文件里唯一没有理由的锁。三个 specta 的等号要
-# 留着 —— 它们是 prerelease，rc 号错配会让 IPC 绑定生成不出来。
-# fork（session/fork）是 UNSTABLE 面，schema 把它锁在 unstable_session_fork 门后：
-# 不开门，ForkSessionRequest 这个类型就不存在。门是加性的，不改变 v1 稳定面。
+# kap 的 WebSocket 通道：driver 经 /api/v1/ws 收事件、发控制帧。
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }
-uuid             = { version = "1",    features = ["v4"] }
 
 # 让一个裸名字变成一条可启动的路径。手写 PATH × PATHEXT 遍历是这个 crate 的
 # 既有职责：Zed 的 11 个 crate 全部依赖它，其中
@@ -192,6 +181,10 @@ which = "8"
 # 包管理器 view 与 agent --version 输出里的版本号判读。判据交给 semver 官方
 # 实现 —— 与 cargo 自己用的是同一个 crate，不手搓字符串比大小。
 semver = "1"
+
+# 没有受控 home 时定位 agent 自己的 home（实例注册表与令牌都在那下面）：
+# 平台家目录解析是平台 API，手搓 %USERPROFILE%/$HOME 分支必然漏边界，交给 dirs。
+dirs = "6"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
