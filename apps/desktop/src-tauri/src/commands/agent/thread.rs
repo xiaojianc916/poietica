@@ -187,13 +187,16 @@ fn retitle(thread: poietica_agent_persistence_native::ThreadSummary) -> AgentThr
     }
 }
 
-/// 账本里那份读数，收进线上那一格的宽度。
+/// 账本里那份读数与计数，收进线上那一格的宽度。
 fn reported(
     recorded: poietica_agent_persistence_native::SessionUsage,
 ) -> Result<AgentSessionUsage> {
     Ok(AgentSessionUsage {
         used: counted(recorded.used)?,
         size: counted(recorded.size)?,
+        input_other: counted(recorded.input_other)?,
+        input_cache_read: counted(recorded.input_cache_read)?,
+        input_cache_creation: counted(recorded.input_cache_creation)?,
     })
 }
 

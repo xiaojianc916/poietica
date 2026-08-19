@@ -46,14 +46,7 @@ pub async fn select_config(
     )?;
     let controls = receive(answer).await?;
 
-    settle(
-        client,
-        &session_id,
-        &thinking_id,
-        &thinking_value,
-        controls,
-    )
-    .await
+    settle(client, &session_id, &thinking_id, &thinking_value, controls).await
 }
 
 async fn settle(
@@ -101,12 +94,7 @@ mod tests {
     use crate::commands::Command;
     use crate::config::ConfigChoice;
 
-    fn control(
-        id: &str,
-        purpose: ConfigPurpose,
-        current: &str,
-        choices: &[&str],
-    ) -> ConfigControl {
+    fn control(id: &str, purpose: ConfigPurpose, current: &str, choices: &[&str]) -> ConfigControl {
         ConfigControl {
             id: id.to_owned(),
             label: id.to_owned(),
@@ -132,12 +120,7 @@ mod tests {
                 "deepseek",
                 &["k3", "deepseek"],
             ),
-            control(
-                "thinking",
-                ConfigPurpose::Thought,
-                "high",
-                &["high", "max"],
-            ),
+            control("thinking", ConfigPurpose::Thought, "high", &["high", "max"]),
         ]
     }
 

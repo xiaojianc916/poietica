@@ -27,7 +27,7 @@
   color: var(--cp-ink);
 }
 
-/* 阈值配色照 ACP 会话用量规范的建议档：75% 黄、90% 橙、95% 红。写在 hover
+/* 阈值配色沿用 ACP 会话用量规范的建议档：75% 黄、90% 橙、95% 红。写在 hover
    之后，同特异度靠顺序取胜：临界色不因悬浮而被冲掉。 */
 [data-assistant-skin] .context-gauge__trigger[data-level="warn"] {
   color: #b45309;
@@ -70,8 +70,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.context-gauge__row,
-.context-gauge__cost {
+.context-gauge__row {
   display: flex;
   align-items: center;
   justify-content: space-between;

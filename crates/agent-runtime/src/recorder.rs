@@ -299,7 +299,11 @@ impl Recorder {
             QuestionOutcome::Dismissed => (
                 Value::Array(Vec::new()),
                 String::new(),
-                if delivered { "dismissed" } else { "undelivered" },
+                if delivered {
+                    "dismissed"
+                } else {
+                    "undelivered"
+                },
             ),
         };
 

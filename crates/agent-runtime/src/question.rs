@@ -92,7 +92,11 @@ pub struct QuestionGroup {
 ///
 /// 判别式在线上叫 kind。
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 pub enum QuestionAnswer {
     /// 选了一个。
     Single { option_id: String },

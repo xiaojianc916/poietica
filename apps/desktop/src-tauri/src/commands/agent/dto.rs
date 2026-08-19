@@ -134,10 +134,11 @@ pub struct AgentConfigControl {
     pub choices: Vec<AgentConfigChoice>,
 }
 
-/// 一条会话此刻占了多少上下文。
+/// 一条会话此刻占了多少上下文，以及它累计的输入构成。
 ///
-/// kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量。按它算增量的是
-/// 账本（persistence 的 usage.rs），这一格只说现在。
+/// kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量 —— 三格累计
+/// 计数同帧到达，恒为最新整份（usage.total）。按读数算增量的是账本
+/// （persistence 的 usage.rs），这一格只说现在。
 #[derive(Clone, Copy, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSessionUsage {
@@ -145,17 +146,38 @@ pub struct AgentSessionUsage {
     pub used: u32,
     /// 上下文窗口总量，token 数。
     pub size: u32,
+    /// 累计输入里未命中缓存的 token（kap usage.total.inputOther）。
+    pub input_other: u32,
+    /// 累计输入里命中缓存的 token（kap usage.total.inputCacheRead）。
+    pub input_cache_read: u32,
+    /// 累计输入里写入缓存的 token（kap usage.total.inputCacheCreation）。
+    pub input_cache_creation: u32,
 }
 
-/// 读 kap agent.status.updated 的载荷（contextTokens / maxContextTokens）。
+/// 读 kap agent.status.updated 的载荷（contextTokens / maxContextTokens，以及
+/// usage.total 的三格累计输入计数 —— driver 已把它们与读数摊平进同一份载荷）。
 /// 这份载荷全程只在这里被解释一次。
 ///
 /// 缺字段、或大到这份 IPC 面装不下，都当作没报过：编一个数出来比缺席有害。
+/// 三格计数是后到的协议能力：老 server 不带它们时是 0，不是读不成。
 pub(super) fn reported_usage(value: &Value) -> Option<AgentSessionUsage> {
     let used = u32::try_from(value.get("contextTokens")?.as_u64()?).ok()?;
     let size = u32::try_from(value.get("maxContextTokens")?.as_u64()?).ok()?;
 
-    Some(AgentSessionUsage { used, size })
+    let counter = |key: &str| -> Option<u32> {
+        match value.get(key).and_then(Value::as_u64) {
+            None => Some(0),
+            Some(v) => u32::try_from(v).ok(),
+        }
+    };
+
+    Some(AgentSessionUsage {
+        used,
+        size,
+        input_other: counter("inputOther")?,
+        input_cache_read: counter("inputCacheRead")?,
+        input_cache_creation: counter("inputCacheCreation")?,
+    })
 }
 
 /// agent 主动报来的一件会话级状态。
@@ -297,11 +319,10 @@ pub struct AgentOpenedThread {
     /// 空数组自己说不出区别：刚建的对话与一条打不开的旧对话长得一样。界面
     /// 要据此决定是画入口提示，还是画一句"这段历史在某某手里"。
     pub history: AgentHistory,
-    /// 这条对话最近一次记下的上下文用量。
+    /// 这条对话最近一次记下的上下文用量与累计输入构成。
     ///
-    /// 来自本地账本，不来自这一次打开：Kimi 只在轮次落定后报一次，装载旧会
-    /// 话时不补报（协议建议补报，它没做），所以重启后的第一眼只有账本答得上。
-    /// 缺席就是还没报过。
+    /// 来自本地账本，不来自这一次打开：用量是 volatile 推送（kap 不回放），
+    /// 装载旧会话也不补报，所以重启后的第一眼只有账本答得上。缺席就是还没报过。
     pub usage: Option<AgentSessionUsage>,
 }
 

@@ -302,12 +302,15 @@ pub(super) async fn ensure_session(
                         continue;
                     };
 
-                    /* 先落账本，再上屏。Kimi 只在轮次落定后报一次、装载旧会话时
-                    不补报，所以重启之后这一格的唯一来源是账本 —— open 的答复从
-                    那里把它带回去。 */
+                    /* 先落账本，再上屏。用量是 volatile 推送（kap 不回放它），
+                    装载旧会话也不补报，所以重启之后这一格的唯一来源是账本 ——
+                    open 的答复从那里把它带回去。 */
                     let counted = SessionUsage {
                         used: i64::from(reported.used),
                         size: i64::from(reported.size),
+                        input_other: i64::from(reported.input_other),
+                        input_cache_read: i64::from(reported.input_cache_read),
+                        input_cache_creation: i64::from(reported.input_cache_creation),
                     };
 
                     let index = herald.state::<crate::local_index::LocalIndex>();

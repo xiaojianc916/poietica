@@ -1015,14 +1015,30 @@ async fn handle_ws_message(
         }
 
         "agent.status.updated" => {
-            // 仪表值是 volatile 信号（不进帧日志）：到达即替换。
+            // 仪表值是 volatile 信号（不进帧日志）：到达即替换。同一帧还挂着这条
+            // 会话累计的输入构成（usage.total，kap events-zod.ts），三格计数与读数
+            // 在同一次取走 —— 这条协议知识全程只有这一处。
             if let (Some(used), Some(size)) = (
                 payload.get("contextTokens").and_then(Value::as_u64),
                 payload.get("maxContextTokens").and_then(Value::as_u64),
             ) {
+                let total = payload.get("usage").and_then(|usage| usage.get("total"));
+                let counter = |key: &str| {
+                    total
+                        .and_then(|t| t.get(key))
+                        .and_then(Value::as_u64)
+                        .unwrap_or(0)
+                };
+
                 let _sent = events_tx.unbounded_send(SessionEvent::Usage {
                     session_id: session_id.to_owned(),
-                    usage: json!({ "contextTokens": used, "maxContextTokens": size }),
+                    usage: json!({
+                        "contextTokens": used,
+                        "maxContextTokens": size,
+                        "inputOther": counter("inputOther"),
+                        "inputCacheRead": counter("inputCacheRead"),
+                        "inputCacheCreation": counter("inputCacheCreation"),
+                    }),
                 });
             }
 

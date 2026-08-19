@@ -7,11 +7,11 @@ import { memo } from 'react'
 /*
  * 上下文用量胶囊：圆环进度 + 百分比常显，悬浮展开明细卡。
  *
- * 数字全部来自 agent 的 ACP usage_update（used / size），这一层一个都不算。
- * 协议里没有的不画：输入/输出/缓存命中属于仍在草案的 End-Turn Token
- * Usage RFD，Kimi 也不报 —— 画上去只能是编的。剩余量与百分比是规范明说客户
- * 端该自己推导的两个数（remaining = size - used），阈值配色照它建议的
- * 75% / 90% / 95% 三档。
+ * 数字全部来自 kap 的 agent.status.updated：此刻的上下文占用（used / size）
+ * 与会话累计的三格输入计数（usage.total，协议形状见 contracts/kap 钉住的
+ * events-zod 快照）。这一层只做除法：百分比、进度条与缓存命中率都是报数的
+ * 推导。协议里没有真值的不画 —— 成本在 kap 的 schema 里只有字段名，没有
+ * 生产者（恒为 0），所以卡片上没有它。
  *
  * 圆环几何借自 vercel/ai-elements 的 Context 组件源码（r=10、24 视窗、描边 2、
  * 背景环 25% 透明、前景环自顶点起画），只抄做法不引包：那是 shadcn 式源码分发。
@@ -28,8 +28,8 @@ const PERCENT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, style
 /* 明细行用精确数：卡片就是为看清楚数而存在的，头行才用紧凑格式。 */
 const EXACT = new Intl.NumberFormat('en-US')
 
-/* ACP 会话用量规范给客户端的建议阈值：<75% 正常，75% 起提醒，90% 起该收，
-   95% 起下一句可能塞不下。数值随规范走，不随观感调。 */
+/* 三档阈值：<75% 正常，75% 起提醒，90% 起该收，95% 起下一句可能塞不下。
+   沿用 ACP 会话用量规范的建议档 —— 它是这套数字的来历，不是运行时依赖。 */
 function levelOf(fraction: number): 'ok' | 'warn' | 'high' | 'critical' {
   if (fraction >= 0.95) {
     return 'critical'
@@ -86,6 +86,11 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
   const percent = PERCENT.format(fraction)
   const level = levelOf(fraction)
 
+  /* 命中率是派生数：三格输入计数都由 agent 报，这里只做一次除法 —— 与百分比
+     同一条规矩。还没报过输入时是「—」，不画一个假的 0%。 */
+  const inputTotal = usage.inputOther + usage.inputCacheRead + usage.inputCacheCreation
+  const hitRate = inputTotal === 0 ? '—' : PERCENT.format(usage.inputCacheRead / inputTotal)
+
   return (
     <TooltipProvider>
       <Tooltip>
@@ -116,13 +121,8 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
           </div>
 
           <div className="context-gauge__row context-gauge__row--detail">
-            <span className="context-gauge__label">已用</span>
-            <span className="context-gauge__value">{EXACT.format(usage.used)}</span>
-          </div>
-
-          <div className="context-gauge__row context-gauge__row--detail">
-            <span className="context-gauge__label">剩余</span>
-            <span className="context-gauge__value">{EXACT.format(usage.size - usage.used)}</span>
+            <span className="context-gauge__label">缓存命中率</span>
+            <span className="context-gauge__value">{hitRate}</span>
           </div>
         </TooltipContent>
       </Tooltip>

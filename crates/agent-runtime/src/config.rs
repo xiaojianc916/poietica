@@ -192,11 +192,7 @@ fn thinking_control(reported: &str, model: &str, items: Option<&[Value]>) -> Opt
     })
 }
 
-fn thinking_offer(
-    model: &str,
-    reported: Option<&str>,
-    items: &[Value],
-) -> Option<ThinkingOffer> {
+fn thinking_offer(model: &str, reported: Option<&str>, items: &[Value]) -> Option<ThinkingOffer> {
     let item = items
         .iter()
         .find(|item| item.get("model").and_then(Value::as_str) == Some(model))?;
@@ -204,9 +200,9 @@ fn thinking_offer(
         .get("capabilities")
         .and_then(Value::as_array)
         .map_or(&[][..], Vec::as_slice);
-    let supports_thinking = capabilities.iter().any(|capability| {
-        matches!(capability.as_str(), Some("thinking" | "always_thinking"))
-    });
+    let supports_thinking = capabilities
+        .iter()
+        .any(|capability| matches!(capability.as_str(), Some("thinking" | "always_thinking")));
     let always_thinking = capabilities
         .iter()
         .any(|capability| capability.as_str() == Some("always_thinking"));

@@ -149,8 +149,8 @@ function ComposerToolbar({
 
       {/*
         上下文余量站在发送键旁边：它说的是这条会话还装得下多少。数字全部由
-        agent 报（ACP usage_update），这一层一个都不算 —— Codex 的 /status、
-        Claude Code 的 context 指示、Zed 的 ACP 面板都以 agent 报数为准。
+        agent 报（kap 的 agent.status.updated），组件只做除法 —— Codex 的
+        /status、Claude Code 的 context 指示都以 agent 报数为准。
       */}
       <ContextGauge usage={usage} />
 
