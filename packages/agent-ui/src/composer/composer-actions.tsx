@@ -1,3 +1,4 @@
+import { permissionPostureOf } from '@poietica/agent'
 import type { PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
 import { CloseIcon, PlusIcon, SkillIcon, TerminalIcon, ToolIcon } from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
@@ -9,9 +10,8 @@ import { usePromptInputActions } from './prompt-input'
  * 面板本身归输入框 —— 它锚在卡的上沿，与斜杠触发的是同一张，键盘也因此只有一套。
  * 这里只剩下扳机和一次投影。
  *
- * 档位那几组不是本文件编出来的：它们是 agent 报的 mode / other 两类选择器
- * （ACP session config options）。agent 没报就没有那一组 —— 画一行点不动的灰字
- * 等于告诉用户"这里坏了"。
+ * 面板只承载不属于批准方式的 mode（目前是 Plan）与 other 选择器。批准方式
+ * 由 PermissionPicker 独占，不能再把 Auto / YOLO 作为第二套入口重复显示。
  */
 
 export function ComposerActions() {
@@ -48,10 +48,19 @@ export function composerPaletteGroups({
       continue
     }
 
+    const choices =
+      control.purpose === 'mode'
+        ? control.choices.filter((choice) => permissionPostureOf(choice.value) === undefined)
+        : control.choices
+
+    if (choices.length === 0) {
+      continue
+    }
+
     groups.push({
       id: control.id,
       heading: control.label,
-      rows: control.choices.map(
+      rows: choices.map(
         (choice): PaletteRow => ({
           id: `${control.id}:${choice.value}`,
           icon: <ToolIcon aria-hidden="true" />,
@@ -105,11 +114,10 @@ function callable(entry: PaletteEntry, skill: boolean): PaletteRow {
 }
 
 /*
- * 生效档位的胶囊，站在批准方式旁边。
+ * 批准方式之外的生效模式。
  *
- * 首档是 agent 摆在最前的常态档（ACP 规定 options 的顺序就是渲染顺序），所以停在
- * 首档时这里什么都不画 —— 常态不需要标记。摘掉就是切回首档，与面板里点那一行走
- * 同一条写入路径。
+ * manual / yolo / auto 由 PermissionPicker 唯一显示；这里只显示 Plan 等额外模式。
+ * 摘掉就是切回首档，与面板里点那一行走同一条写入路径。
  */
 export interface ComposerModeChipProps {
   readonly controls: readonly SessionConfigControl[]
@@ -119,7 +127,7 @@ export interface ComposerModeChipProps {
 export function ComposerModeChip({ controls, onSelect }: ComposerModeChipProps) {
   const mode = controls.find((control) => control.purpose === 'mode')
 
-  if (mode === undefined) {
+  if (mode === undefined || permissionPostureOf(mode.current) !== undefined) {
     return null
   }
 
