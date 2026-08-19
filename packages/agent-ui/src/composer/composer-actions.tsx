@@ -10,8 +10,9 @@ import { usePromptInputActions } from './prompt-input'
  * 面板本身归输入框 —— 它锚在卡的上沿，与斜杠触发的是同一张，键盘也因此只有一套。
  * 这里只剩下扳机和一次投影。
  *
- * 面板只承载不属于批准方式的 mode（目前是 Plan）与 other 选择器。批准方式
- * 由 PermissionPicker 独占，不能再把 Auto / YOLO 作为第二套入口重复显示。
+ * 「添加」组里跟在「添加文件」后面的行（生效模式，目前是 Plan）由这里投影；
+ * other 选择器仍各立一组。批准方式由 PermissionPicker 独占，不能再把
+ * Auto / YOLO 作为第二套入口重复显示。
  */
 
 export function ComposerActions() {
@@ -31,8 +32,59 @@ export interface ComposerPaletteSource {
   readonly palette: readonly PaletteEntry[]
 }
 
+/* 选择器里的一行：生效的一档打勾，点下去写回 agent。mode 与 other 共用这一条。 */
+function controlRow(
+  control: SessionConfigControl,
+  choice: SessionConfigControl['choices'][number],
+  onSelectControl: (controlId: string, value: string) => void,
+): PaletteRow {
+  return {
+    id: `${control.id}:${choice.value}`,
+    icon: <ToolIcon aria-hidden="true" />,
+    label: choice.label,
+    ...(choice.detail === undefined ? {} : { detail: choice.detail }),
+    checked: choice.value === control.current,
+    action: {
+      kind: 'run',
+      run: () => {
+        if (choice.value !== control.current) {
+          onSelectControl(control.id, choice.value)
+        }
+      },
+    },
+  }
+}
+
 /**
- * agent 报的档位与命令，摊成面板的分组。
+ * 生效模式（目前是 Plan）摊成行，并进输入框「添加」组，跟在「添加文件」后面。
+ *
+ * 行而不是组：Mode 不单立分类。批准方式由 PermissionPicker 独占，这里仍然滤掉。
+ */
+export function composerModeRows({
+  controls,
+  onSelectControl,
+}: Pick<ComposerPaletteSource, 'controls' | 'onSelectControl'>): readonly PaletteRow[] {
+  const rows: PaletteRow[] = []
+
+  for (const control of controls) {
+    if (control.purpose !== 'mode') {
+      continue
+    }
+
+    for (const choice of control.choices) {
+      if (permissionPostureOf(choice.value) !== undefined) {
+        continue
+      }
+
+      rows.push(controlRow(control, choice, onSelectControl))
+    }
+  }
+
+  return rows
+}
+
+/**
+ * agent 报的 other 选择器与命令，摊成面板的分组。
  *
  * 「添加文件」不在这里：它不来自 agent，归输入框自己那一组。
  */
@@ -44,39 +96,14 @@ export function composerPaletteGroups({
   const groups: PaletteGroup[] = []
 
   for (const control of controls) {
-    if (control.purpose !== 'mode' && control.purpose !== 'other') {
-      continue
-    }
-
-    const choices =
-      control.purpose === 'mode'
-        ? control.choices.filter((choice) => permissionPostureOf(choice.value) === undefined)
-        : control.choices
-
-    if (choices.length === 0) {
+    if (control.purpose !== 'other' || control.choices.length === 0) {
       continue
     }
 
     groups.push({
       id: control.id,
       heading: control.label,
-      rows: choices.map(
-        (choice): PaletteRow => ({
-          id: `${control.id}:${choice.value}`,
-          icon: <ToolIcon aria-hidden="true" />,
-          label: choice.label,
-          ...(choice.detail === undefined ? {} : { detail: choice.detail }),
-          checked: choice.value === control.current,
-          action: {
-            kind: 'run',
-            run: () => {
-              if (choice.value !== control.current) {
-                onSelectControl(control.id, choice.value)
-              }
-            },
-          },
-        }),
-      ),
+      rows: control.choices.map((choice) => controlRow(control, choice, onSelectControl)),
     })
   }
 

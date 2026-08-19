@@ -49,6 +49,7 @@ export interface PromptInputMessage {
  */
 const NO_ATTACHMENTS: readonly ComposerAsset[] = []
 const NO_GROUPS: readonly PaletteGroup[] = []
+const NO_ROWS: readonly PaletteRow[] = []
 
 /** 能不能发，就这两位。整串草稿不出现在这里，因为没有人需要它。 */
 export interface PromptInputDraft {
@@ -138,14 +139,17 @@ export interface PromptInputProps {
   readonly ref?: Ref<PromptInputHandle> | undefined
   readonly multiple?: boolean
   readonly maxFiles?: number
-  /** 面板里 agent 那几组（档位、技能、命令）。「添加文件」由这个框自己补。 */
+  /** 面板里 agent 那几组（other 选择器、技能、命令）。「添加」组由这个框自己起头。 */
   readonly groups?: readonly PaletteGroup[] | undefined
+  /** 「添加」组里跟在「添加文件」后面的行：生效模式（目前是 Plan）与其他自成一行的入口。 */
+  readonly composeRows?: readonly PaletteRow[] | undefined
   readonly onSubmit: (message: PromptInputMessage) => void
 }
 
 export function PromptInput({
   children,
   className,
+  composeRows,
   groups,
   maxFiles,
   multiple = false,
@@ -366,10 +370,10 @@ export function PromptInput({
   const draft = useMemo<PromptInputDraft>(() => ({ hasText, hasFiles }), [hasFiles, hasText])
 
   /*
-   * 面板的行：第一组是这个框自己的，其余是 agent 报的。
+   * 面板的行：第一组由这个框起头，其余是 agent 报的。
    *
    * 「添加文件」不来自 agent，也不该等 agent 连上才出现 —— 它是这个框自己的能力，
-   * 所以由这里补，而不是混进上游那份投影里。
+   * 所以由这里补；跟在后面的 composeRows 由上游投影，这里不解释。
    */
   const allGroups = useMemo<readonly PaletteGroup[]>(
     () => [
@@ -384,11 +388,12 @@ export function PromptInput({
             hint: 'Ctrl+U',
             action: { kind: 'run' as const, run: openFilePicker },
           },
+          ...(composeRows ?? NO_ROWS),
         ],
       },
       ...(groups ?? NO_GROUPS),
     ],
-    [groups, openFilePicker],
+    [composeRows, groups, openFilePicker],
   )
 
   /*

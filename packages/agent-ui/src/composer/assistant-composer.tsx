@@ -11,7 +11,12 @@ import { memo, type Ref, useMemo } from 'react'
 import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
 import type { ComposerAsset } from './attachment-intake'
 import { AttachmentTray } from './attachment-tray'
-import { ComposerActions, ComposerModeChip, composerPaletteGroups } from './composer-actions'
+import {
+  ComposerActions,
+  ComposerModeChip,
+  composerModeRows,
+  composerPaletteGroups,
+} from './composer-actions'
 import { ContextGauge } from './context-gauge'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PermissionPicker } from './permission-picker'
@@ -188,7 +193,7 @@ export const AssistantComposer = memo(function AssistantComposer({
    */
   const asking = questionDeck != null && questionDeck.cards.length > 0
 
-  /* agent 报的档位与命令，摊平一次交给输入框。引用稳定，面板才不会每敲一字重建。 */
+  /* agent 报的选择器与命令，摊平一次交给输入框。引用稳定，面板才不会每敲一字重建。 */
   const groups = useMemo(
     () =>
       composerPaletteGroups({
@@ -197,6 +202,16 @@ export const AssistantComposer = memo(function AssistantComposer({
         palette: palette ?? [],
       }),
     [palette, toolbar.controls, toolbar.onSelectControl],
+  )
+
+  /* 「添加」组里跟在「添加文件」后面的行：生效模式（目前是 Plan）。 */
+  const composeRows = useMemo(
+    () =>
+      composerModeRows({
+        controls: toolbar.controls,
+        onSelectControl: toolbar.onSelectControl,
+      }),
+    [toolbar.controls, toolbar.onSelectControl],
   )
 
   return (
@@ -214,6 +229,7 @@ export const AssistantComposer = memo(function AssistantComposer({
 
       <PromptInput
         className={asking ? 'assistant-prompt-input--question' : undefined}
+        composeRows={composeRows}
         groups={groups}
         multiple
         onSubmit={onSubmit}

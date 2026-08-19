@@ -228,11 +228,11 @@
    *
    * 外框比内部分隔线重一档:卡片有边界,内部只有节奏。两者不是两个色号,是同一
    * 层墨的两个浓度 —— 写死 #dfdfdf / #efefef 的那种写法在深色主题下是两条看不
-   * 见的线。浅色下这四条式子解出的正是设计给的 #dfdfdf / #efefef / #fcfcfc /
+   * 见的线。浅色下这四条式子解出的正是设计给的 #ededed / #efefef / #fcfcfc /
    * #eeeeee。
    */
   --cp-menu-face: color-mix(in srgb, var(--ui-foreground) 1.2%, var(--ui-surface));
-  --cp-menu-edge: color-mix(in srgb, var(--ui-foreground) 12.5%, var(--ui-surface));
+  --cp-menu-edge: color-mix(in srgb, var(--ui-foreground) 9%, var(--ui-surface));
   --cp-menu-line: color-mix(in srgb, var(--ui-foreground) 6.3%, var(--ui-surface));
   --cp-menu-hover: color-mix(in srgb, var(--ui-foreground) 6.7%, var(--cp-menu-face));
 
