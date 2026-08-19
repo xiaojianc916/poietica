@@ -23,7 +23,7 @@ export interface PermissionPosture {
 
 const POSTURES: readonly PermissionPosture[] = [
   {
-    value: 'default',
+    value: 'manual',
     title: '请求批准',
     detail: '编辑外部文件和使用互联网时始终询问',
     pill: '请求批准',

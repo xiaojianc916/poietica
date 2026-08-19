@@ -34,11 +34,11 @@ import { CheckIcon } from '../primitives/icons'
  * 权限切换从这里开始迁移到 Lucide，其他界面仍可继续使用原有图标库。
  *
  * 当前档位在菜单中的顺序是：
- * default（请求批准）、yolo（帮我批准）、auto（完全访问权限）。
+ * manual（请求批准）、yolo（帮我批准）、auto（完全访问权限）。
  */
 const GLYPH: Readonly<Record<string, LucideIcon>> = {
   auto: ShieldAlert,
-  default: Hand,
+  manual: Hand,
   yolo: ShieldCheck,
 }
 
@@ -72,18 +72,13 @@ export const PermissionPicker = memo(function PermissionPicker({
   }
 
   const current = permissionPostureOf(control.current)
-  const Mark = glyphOf(control.current)
 
-  /*
-   * 认不得的档位显示 agent 自己的说法。
-   *
-   * 宁可露出一个英文名，也不能拿一个我们编的中文名去盖住一个我们没定义过的档位
-   * —— 与 permission-dock 的 labelFor 同一条规矩。
-   */
-  const label =
-    current?.pill ??
-    control.choices.find((choice) => choice.value === control.current)?.label ??
-    control.current
+  /* Plan 等非批准模式归 ComposerModeChip；两者互斥，工具条只显示一个当前模式。 */
+  if (current === undefined) {
+    return null
+  }
+
+  const Mark = glyphOf(control.current)
 
   return (
     <DropdownMenu
@@ -95,11 +90,11 @@ export const PermissionPicker = memo(function PermissionPicker({
       <DropdownMenuTrigger
         aria-label="批准方式"
         className="assistant-posture"
-        data-alert={current?.alerts === true ? 'true' : undefined}
+        data-alert={current.alerts ? 'true' : undefined}
       >
         <Mark aria-hidden="true" />
 
-        <span className="assistant-posture__label">{label}</span>
+        <span className="assistant-posture__label">{current.pill}</span>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
