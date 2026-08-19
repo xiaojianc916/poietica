@@ -35,6 +35,7 @@ mod program;
 mod question;
 mod recorder;
 mod run_slot;
+mod selection;
 mod session;
 mod sessions;
 mod stderr;
@@ -53,13 +54,14 @@ pub use frame::{
     RUN_FAILED, RUN_FINISHED, RUN_STARTED, RunFrame, kap_event,
 };
 pub use permission::{Decision, kap_answers, kap_options, kap_response};
+pub use program::resolve_program;
 pub use question::{
     AnswerMethod, QuestionAnswer, QuestionGroup, QuestionItem, QuestionOption, QuestionOutcome,
     QuestionResponse,
 };
-pub use program::resolve_program;
 pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine, now_millis};
 pub use run_slot::RunSlot;
+pub use selection::select_config;
 pub use session::{
     AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
     CanLoadSession, Handshake, OpenedSession, SessionEntry, SessionEvent, SessionEvents,

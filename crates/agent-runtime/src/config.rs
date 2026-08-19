@@ -2,8 +2,8 @@
 //!
 //! kap 没有选择器枚举：生效值由 GET /sessions/{id}/status 报（model /
 //! thinking_level / permission / plan_mode），模型与思考档的候选由
-//! GET /models 的目录报（support_efforts），运行模式是协议写死的三档加
-//! 计划开关。这张表在这里拼出来，只此一处。
+//! GET /models 的目录报（support_efforts / default_effort / capabilities），运行模式是
+//! 协议写死的三档加计划开关。这张表在这里拼出来，只此一处。
 //!
 //! 这里只认 JSON：kap 的线上形状就是契约（快照钉在 contracts/kap）。把协议
 //! 类型引进来，等于让本 crate 依赖服务器的实现细节。
@@ -75,11 +75,17 @@ const MODES: [(&str, &str, &str); 4] = [
     ),
 ];
 
+#[derive(Debug)]
+struct ThinkingOffer {
+    current: String,
+    choices: Vec<ConfigChoice>,
+}
+
 /// Builds the selector table from the two kap answers.
 ///
-/// status 是 status 路由的 data，catalog 是 /models 的 data。生效值永远在
-/// 候选里：目录没收录的当前值按原文补进去 —— 它是这条会话此刻的真相，
-/// 不能因为目录不认识就显示成别的。
+/// status 是 status 路由的 data，catalog 是 /models 的 data。模型的当前值可在目录
+/// 外，因为运行中的自定义模型仍是真相；Thinking 不同，它的有效域属于当前精确模型，
+/// 必须在这里按目录收敛，不能把上一模型的档位补进新模型。
 #[must_use]
 pub fn controls(status: &Value, catalog: &Value) -> Vec<ConfigControl> {
     let mut offered = Vec::new();
@@ -171,47 +177,86 @@ fn model_control(current: &str, items: Option<&[Value]>) -> Option<ConfigControl
     })
 }
 
-/// 思考档的候选是当前那个模型的 support_efforts。目录没给就不出这张表：
-/// 画一个拨不动的开关比不画更糟。
-fn thinking_control(current: &str, model: &str, items: Option<&[Value]>) -> Option<ConfigControl> {
-    if current.is_empty() {
-        return None;
-    }
-
-    let efforts = items?
-        .iter()
-        .find(|item| item.get("model").and_then(Value::as_str) == Some(model))
-        .and_then(|item| item.get("support_efforts"))
-        .and_then(Value::as_array)?;
-
-    let mut choices: Vec<ConfigChoice> = efforts
-        .iter()
-        .filter_map(|effort| effort.as_str())
-        .map(|effort| ConfigChoice {
-            value: effort.to_owned(),
-            label: effort.to_owned(),
-            detail: None,
-        })
-        .collect();
-
-    if current_not_offered(&choices, current) {
-        choices.push(ConfigChoice {
-            value: current.to_owned(),
-            label: current.to_owned(),
-            detail: None,
-        });
-    }
-
-    let current = in_force(&choices, current)?;
+/// Thinking 的有效域只来自当前模型：有 efforts 就严格使用该列表；有 Thinking
+/// capability 而无 efforts 时才是布尔 on/off；无 capability 时不生成可提交控件。
+fn thinking_control(reported: &str, model: &str, items: Option<&[Value]>) -> Option<ConfigControl> {
+    let offer = thinking_offer(model, non_empty(reported), items?)?;
 
     Some(ConfigControl {
         id: "thinking".to_owned(),
         label: "Thinking".to_owned(),
         detail: None,
         purpose: ConfigPurpose::Thought,
-        current,
-        choices,
+        current: offer.current,
+        choices: offer.choices,
     })
+}
+
+fn thinking_offer(
+    model: &str,
+    reported: Option<&str>,
+    items: &[Value],
+) -> Option<ThinkingOffer> {
+    let item = items
+        .iter()
+        .find(|item| item.get("model").and_then(Value::as_str) == Some(model))?;
+    let capabilities = item
+        .get("capabilities")
+        .and_then(Value::as_array)
+        .map_or(&[][..], Vec::as_slice);
+    let supports_thinking = capabilities.iter().any(|capability| {
+        matches!(capability.as_str(), Some("thinking" | "always_thinking"))
+    });
+    let always_thinking = capabilities
+        .iter()
+        .any(|capability| capability.as_str() == Some("always_thinking"));
+    let mut choices = Vec::new();
+
+    if let Some(efforts) = item.get("support_efforts").and_then(Value::as_array) {
+        for effort in efforts {
+            let Some(value) = effort.as_str().and_then(non_empty) else {
+                continue;
+            };
+            push_unique(&mut choices, choice(value));
+        }
+    }
+
+    if !choices.is_empty() {
+        let current = reported
+            .filter(|value| contains(&choices, value))
+            .or_else(|| {
+                item.get("default_effort")
+                    .and_then(Value::as_str)
+                    .and_then(non_empty)
+                    .filter(|value| contains(&choices, value))
+            })
+            .or_else(|| {
+                choices
+                    .get(choices.len() / 2)
+                    .map(|choice| choice.value.as_str())
+            })?;
+
+        return Some(ThinkingOffer {
+            current: current.to_owned(),
+            choices,
+        });
+    }
+
+    if !supports_thinking {
+        return None;
+    }
+
+    choices.push(choice("on"));
+    if !always_thinking {
+        choices.push(choice("off"));
+    }
+
+    let current = reported
+        .filter(|value| contains(&choices, value))
+        .unwrap_or("on")
+        .to_owned();
+
+    Some(ThinkingOffer { current, choices })
 }
 
 fn mode_control(status: &Value) -> ConfigControl {
@@ -268,4 +313,149 @@ fn in_force(choices: &[ConfigChoice], reported: &str) -> Option<String> {
 
 fn current_not_offered(choices: &[ConfigChoice], current: &str) -> bool {
     !current.is_empty() && !choices.iter().any(|choice| choice.value == current)
+}
+
+fn choice(value: &str) -> ConfigChoice {
+    ConfigChoice {
+        value: value.to_owned(),
+        label: value.to_owned(),
+        detail: None,
+    }
+}
+
+fn push_unique(choices: &mut Vec<ConfigChoice>, candidate: ConfigChoice) {
+    if !contains(choices, &candidate.value) {
+        choices.push(candidate);
+    }
+}
+
+fn contains(choices: &[ConfigChoice], value: &str) -> bool {
+    choices.iter().any(|choice| choice.value == value)
+}
+
+fn non_empty(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    (!trimmed.is_empty()).then_some(trimmed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn status(model: &str, thinking: &str) -> Value {
+        json!({
+            "model": model,
+            "thinking_level": thinking,
+            "permission": "manual",
+            "plan_mode": false
+        })
+    }
+
+    #[test]
+    fn stale_effort_falls_back_to_declared_default() {
+        let catalog = json!({ "items": [{
+            "model": "deepseek",
+            "capabilities": ["thinking"],
+            "support_efforts": ["high", "max"],
+            "default_effort": "high"
+        }] });
+
+        let thought = controls(&status("deepseek", "low"), &catalog)
+            .into_iter()
+            .find(|control| control.purpose == ConfigPurpose::Thought)
+            .expect("Thinking control");
+
+        assert_eq!(thought.current, "high");
+        assert_eq!(
+            thought
+                .choices
+                .iter()
+                .map(|choice| choice.value.as_str())
+                .collect::<Vec<_>>(),
+            ["high", "max"]
+        );
+    }
+
+    #[test]
+    fn invalid_default_uses_middle_declared_effort() {
+        let catalog = json!({ "items": [{
+            "model": "target",
+            "capabilities": ["thinking"],
+            "support_efforts": ["low", "high", "max"],
+            "default_effort": "invalid"
+        }] });
+
+        let thought = controls(&status("target", "legacy"), &catalog)
+            .into_iter()
+            .find(|control| control.purpose == ConfigPurpose::Thought)
+            .expect("Thinking control");
+
+        assert_eq!(thought.current, "high");
+    }
+
+    #[test]
+    fn supported_effort_is_preserved() {
+        let catalog = json!({ "items": [{
+            "model": "target",
+            "capabilities": ["thinking"],
+            "support_efforts": ["high", "max"],
+            "default_effort": "high"
+        }] });
+
+        let thought = controls(&status("target", "max"), &catalog)
+            .into_iter()
+            .find(|control| control.purpose == ConfigPurpose::Thought)
+            .expect("Thinking control");
+
+        assert_eq!(thought.current, "max");
+    }
+
+    #[test]
+    fn boolean_and_unavailable_thinking_are_distinct() {
+        let boolean = json!({ "items": [{
+            "model": "boolean",
+            "capabilities": ["thinking"]
+        }] });
+        let unavailable = json!({ "items": [{
+            "model": "plain",
+            "capabilities": []
+        }] });
+
+        let thought = controls(&status("boolean", "low"), &boolean)
+            .into_iter()
+            .find(|control| control.purpose == ConfigPurpose::Thought)
+            .expect("boolean Thinking control");
+
+        assert_eq!(thought.current, "on");
+        assert_eq!(
+            thought
+                .choices
+                .iter()
+                .map(|choice| choice.value.as_str())
+                .collect::<Vec<_>>(),
+            ["on", "off"]
+        );
+        assert!(
+            controls(&status("plain", "low"), &unavailable)
+                .into_iter()
+                .all(|control| control.purpose != ConfigPurpose::Thought)
+        );
+    }
+
+    #[test]
+    fn always_thinking_never_offers_off() {
+        let catalog = json!({ "items": [{
+            "model": "always",
+            "capabilities": ["always_thinking"]
+        }] });
+
+        let thought = controls(&status("always", "off"), &catalog)
+            .into_iter()
+            .find(|control| control.purpose == ConfigPurpose::Thought)
+            .expect("always-on Thinking control");
+
+        assert_eq!(thought.current, "on");
+        assert_eq!(thought.choices.len(), 1);
+        assert_eq!(thought.choices[0].value, "on");
+    }
 }
