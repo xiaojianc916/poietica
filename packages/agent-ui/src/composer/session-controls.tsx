@@ -6,27 +6,30 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuRadioItemIndicator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import { Fragment, memo, useMemo } from 'react'
+import { ChevronRight } from 'lucide-react'
+import { Fragment, memo, useMemo, useState } from 'react'
 
 /*
  * Everything the session lets us change, in one control.
  *
- * 一级列 purpose、二级列取值。一级菜单的行数等于可调维度数，与取值总数解耦，
- * 新增模型不会把菜单撑到屏幕外；当前值在一级行右侧直接可读，不必逐段扫描勾选。
+ * 单层弹窗、面板内换页：根页是每个可调维度一行（标签 + 当前值 + ›），点行把同一张
+ * 弹层整页切换成该维度的取值列表 —— 与 deepseek-harness ModelSelect 的 root / model
+ * / effort 同一个范式，不再使用悬停展开的级联子菜单。
  *
- * 子菜单用设计系统导出的 Base UI Menu.SubmenuRoot：悬停延迟、安全三角、方向键
- * 进出、Escape 逐级关闭、焦点归还都是标准的职责。Portal 由 DropdownMenuSubContent
- * 自己带，与 DropdownMenuContent 对称，调用处不需要知道它存在；portal 之后皮肤属性
- * 必须挂在弹层自身，后代选择器够不到 body 下的节点——这正是此前菜单是裸默认皮肤的
- * 原因。
+ * 弹层始终只有一张：面板的尺寸、边框、圆角、阴影与定位沿用既有类名与参数，换页
+ * 不换壳。根行用 closeOnClick=false，因为那一行的职责是换页而不是提交；取值行保持
+ * RadioItem 的默认行为 —— 点选即提交并关闭。Escape 在取值页先退回根页，再按一次
+ * 才关闭；菜单关闭时页签复位，下次打开永远从根页开始。
+ *
+ * Portal 与皮肤属性的职责不变：DropdownMenuContent 自带 portal，data-assistant-skin
+ * 挂在弹层自身。
  */
 
 const UNAVAILABLE = '没连上 agent，点击重试'
+
+const ROOT = 'root'
 
 const ORDER: readonly string[] = ['model', 'thought', 'other']
 
@@ -41,7 +44,7 @@ function labelOf(
   control: SessionConfigControl,
   choice: SessionConfigControl['choices'][number],
 ): string {
-  const prefix = `${control.label} `
+  const prefix = control.label + ' '
   const stripped = choice.label.startsWith(prefix) ? choice.label.slice(prefix.length) : ''
 
   return stripped.length > 0 ? stripped : choice.label
@@ -73,7 +76,7 @@ export interface SessionControlsProps {
   readonly onRetry?: (() => void) | undefined
 }
 
-/** 入参只有 controls 会变，而这下面是一个菜单根加 N 个子菜单根。 */
+/** 入参只有 controls 会变，而这下面只有一张弹层加一个页签状态。 */
 export const SessionControls = memo(function SessionControls({
   controls,
   failure,
@@ -90,6 +93,8 @@ export const SessionControls = memo(function SessionControls({
 
   const model = useMemo(() => controls.find((control) => control.purpose === 'model'), [controls])
   const showUnavailableThinking = hasUnavailableThinking(rows)
+  const [pane, setPane] = useState<string>(ROOT)
+  const drilled = rows.find((control) => control.id === pane)
   const [firstRow] = rows
 
   if (firstRow === undefined) {
@@ -113,7 +118,13 @@ export const SessionControls = memo(function SessionControls({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (!open) {
+          setPane(ROOT)
+        }
+      }}
+    >
       <DropdownMenuTrigger aria-label="会话设置" className="assistant-model-select__button">
         <span className="assistant-model-select__label">{chosen(model ?? firstRow)}</span>
       </DropdownMenuTrigger>
@@ -122,63 +133,70 @@ export const SessionControls = memo(function SessionControls({
         align="end"
         className="assistant-config-menu__panel assistant-menu-surface"
         data-assistant-skin
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && drilled !== undefined) {
+            /* 取值页的 Escape 是退回根页，不是关闭；根页的 Escape 仍归 Base UI。 */
+            event.preventDefault()
+            event.stopPropagation()
+            setPane(ROOT)
+          }
+        }}
         side="top"
         sideOffset={6}
       >
-        {rows.map((control) => (
-          <Fragment key={control.id}>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="assistant-config-menu__row">
+        {drilled === undefined ? (
+          rows.map((control) => (
+            <Fragment key={control.id}>
+              <DropdownMenuItem
+                className="assistant-config-menu__row"
+                closeOnClick={false}
+                onClick={() => {
+                  setPane(control.id)
+                }}
+              >
                 <span className="assistant-config-menu__row-label">{control.label}</span>
 
                 <span className="assistant-config-menu__row-value">{chosen(control)}</span>
-              </DropdownMenuSubTrigger>
 
-              <DropdownMenuSubContent
-                align="start"
-                className="assistant-config-menu__submenu assistant-menu-surface"
-                data-assistant-skin
-                side="left"
-              >
-                <DropdownMenuRadioGroup
-                  onValueChange={(value) => {
-                    if (value === control.current) {
-                      return
-                    }
-
-                    onSelect(control.id, value)
-                  }}
-                  value={control.current}
-                >
-                  {control.choices.map((choice) => (
-                    <DropdownMenuRadioItem
-                      className="assistant-config-option"
-                      key={choice.value}
-                      value={choice.value}
-                    >
-                      <span className="assistant-config-option__label">
-                        {labelOf(control, choice)}
-                      </span>
-
-                      {choice.detail === undefined ? null : (
-                        <span className="assistant-config-option__detail">{choice.detail}</span>
-                      )}
-
-                      <DropdownMenuRadioItemIndicator className="assistant-config-option__indicator" />
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-
-            {showUnavailableThinking && control.purpose === 'model' ? (
-              <DropdownMenuItem className="assistant-config-menu__row" disabled>
-                <span className="assistant-config-menu__row-label">Thinking</span>
-                <span className="assistant-config-menu__row-value">no</span>
+                <ChevronRight aria-hidden="true" className="ml-auto size-4 text-muted-foreground" />
               </DropdownMenuItem>
-            ) : null}
-          </Fragment>
-        ))}
+
+              {showUnavailableThinking && control.purpose === 'model' ? (
+                <DropdownMenuItem className="assistant-config-menu__row" disabled>
+                  <span className="assistant-config-menu__row-label">Thinking</span>
+                  <span className="assistant-config-menu__row-value">no</span>
+                </DropdownMenuItem>
+              ) : null}
+            </Fragment>
+          ))
+        ) : (
+          <DropdownMenuRadioGroup
+            onValueChange={(value) => {
+              if (value === drilled.current) {
+                return
+              }
+
+              onSelect(drilled.id, value)
+            }}
+            value={drilled.current}
+          >
+            {drilled.choices.map((choice) => (
+              <DropdownMenuRadioItem
+                className="assistant-config-option"
+                key={choice.value}
+                value={choice.value}
+              >
+                <span className="assistant-config-option__label">{labelOf(drilled, choice)}</span>
+
+                {choice.detail === undefined ? null : (
+                  <span className="assistant-config-option__detail">{choice.detail}</span>
+                )}
+
+                <DropdownMenuRadioItemIndicator className="assistant-config-option__indicator" />
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
