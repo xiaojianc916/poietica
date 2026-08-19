@@ -24,6 +24,7 @@ pub mod ipc;
 pub mod local_index;
 pub mod mcp;
 pub mod paths;
+pub mod window_geometry;
 
 pub use bootstrap::app;
 pub use error::{Error, Result};

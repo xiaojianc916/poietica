@@ -1,4 +1,4 @@
-import { commands } from '@poietica/ipc/generated/ipc-bindings'
+import { commands, events, type WindowGeometry } from '@poietica/ipc/generated/ipc-bindings'
 import type { Window } from '@tauri-apps/api/window'
 
 export interface MainWindowController {
@@ -7,9 +7,10 @@ export interface MainWindowController {
   minimize(): Promise<void>
   toggleMaximize(): Promise<void>
   isMaximized(): Promise<boolean>
-  /** 布局状态机的最小化护栏问的就是它：页面侧信号与宿主最小化状态脱钩。 */
-  isMinimized(): Promise<boolean>
   onResized(handler: () => void): Promise<() => void>
+  /** 宿主推来的可见几何。最小化那段几何在原生侧已被丢弃。 */
+  geometry(): Promise<WindowGeometry | null>
+  observeGeometry(handler: (geometry: WindowGeometry) => void): Promise<() => void>
   openDeveloperTools(): Promise<void>
   close(): Promise<void>
   forceClose(): void
@@ -80,12 +81,6 @@ export function createMainWindowController(): MainWindowController {
       return window.isMaximized()
     },
 
-    async isMinimized() {
-      const window = await getMainWindow()
-
-      return window.isMinimized()
-    },
-
     async onResized(handler) {
       const window = await getMainWindow()
 
@@ -93,6 +88,13 @@ export function createMainWindowController(): MainWindowController {
         handler()
       })
     },
+
+    geometry: () => commands.windowGeometry(MAIN_WINDOW_LABEL),
+
+    observeGeometry: (handler) =>
+      events.windowGeometry.listen((event) => {
+        handler(event.payload)
+      }),
 
     async close() {
       const window = await getMainWindow()

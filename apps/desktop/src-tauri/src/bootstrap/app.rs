@@ -243,6 +243,8 @@ pub fn build() -> tauri::Builder<Wry> {
             main_window.restore_state(WINDOW_STATE_FLAGS)?;
             constrain_to_visible_area(&main_window);
 
+            crate::window_geometry::observe(&main_window);
+
             /*
              * 呈现权归渲染层：窗口在 React 首帧提交后由前端 present()。
              *

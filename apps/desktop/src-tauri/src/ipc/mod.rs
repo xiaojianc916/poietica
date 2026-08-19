@@ -57,6 +57,7 @@ pub fn surface() -> Builder<Wry> {
     Builder::<Wry>::new()
         .error_handling(ErrorHandlingMode::Throw)
         .commands(tauri_specta::collect_commands![
+            crate::window_geometry::window_geometry,
             crate::commands::agent::turn::agent_prompt,
             crate::commands::agent::turn::agent_cancel,
             crate::commands::agent::turn::agent_resolve_permission,
@@ -145,6 +146,7 @@ pub fn surface() -> Builder<Wry> {
             crate::browser::browser_pick_element,
         ])
         .events(tauri_specta::collect_events![
+            crate::window_geometry::WindowGeometry,
             AutomationDue,
             BrowserElementPicked,
             BrowserState,

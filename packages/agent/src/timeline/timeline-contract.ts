@@ -189,6 +189,25 @@ export interface QuestionTimelineItem extends TimelineEntry {
   }
 }
 
+/**
+ * 一组待答的题。
+ *
+ * 它是协议自己的通道（kap 的 questions），不借权限请求：没有 optionId 方言，
+ * 题面、选项、多选与自选都由 QuestionItem 自己带。resolution 缺席表示还在等答；
+ * 在场时 outcome 说怎么结的，answers 逐题记下答复，note 是整组的备注。
+ */
+export interface QuestionTimelineItem extends TimelineEntry {
+  readonly type: 'question'
+  readonly questionId: string
+  readonly toolCallId?: string
+  readonly questions: readonly QuestionItem[]
+  readonly resolution?: {
+    readonly outcome: QuestionOutcome
+    readonly answers: Readonly<Record<string, QuestionChoice>>
+    readonly note: string
+  }
+}
+
 export interface ErrorItem extends TimelineEntry {
   readonly type: 'error'
   readonly message: string
