@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 
 use crate::frame::{RunFrame, prune};
 use crate::permission::{Decision, kap_options};
+use crate::question::{QuestionGroup, QuestionOutcome};
 
 /// 一帧，已经成形，可以交出去了。
 ///
@@ -151,7 +152,12 @@ pub struct Recorder {
     frames: Frames,
     /// 还没有人答复的审批，按到达顺序。kap 的审批自带唯一号（approval_id），
     /// 请求号就是它。
-    pending: Vec<String>,
+    approvals: Vec<String>,
+    /// 还没有人答复的题组，按到达顺序。号是 kap 签发的 question_id。
+    ///
+    /// 与审批分两份记：轮终要放掉的是两类东西，而一张混着两类号的表说不清哪一个
+    /// 该按哪一种方式作废。
+    questions: Vec<String>,
 }
 
 impl fmt::Debug for Recorder {
@@ -169,7 +175,8 @@ impl Recorder {
     pub fn new(session_id: String, seq: SeqLine, sink: FrameSink) -> Self {
         Self {
             frames: Frames::new(session_id, seq, sink),
-            pending: Vec::new(),
+            approvals: Vec::new(),
+            questions: Vec::new(),
         }
     }
 
@@ -200,7 +207,7 @@ impl Recorder {
         tool_name: &str,
         item: &Value,
     ) -> String {
-        self.pending.push(approval_id.to_owned());
+        self.approvals.push(approval_id.to_owned());
 
         let title = approval_title(tool_name, item, tool_call_id);
 
@@ -235,16 +242,78 @@ impl Recorder {
     ///
     /// 一轮结束时要从权限桌上放掉的就是这些。
     pub fn outstanding_permissions(&self) -> &[String] {
-        &self.pending
+        &self.approvals
     }
 
-    /// Settles every request still outstanding when the turn ended.
+    /// Settles every ask still outstanding when the turn ended.
+    ///
+    /// 两类都要放掉，各按自己的方式：一个没答的审批以取消收场，一组没答的题以
+    /// cancelled 收场 —— 它不是「被撤下」，撤下是人做的事。
     pub fn record_pending_cancelled(&mut self) {
         // 先取走再逐个记：每一次记录都会把它自己从清单里划掉，边遍历边改
         // 同一个 Vec 是借用检查器本来就不允许的事。
-        for approval_id in std::mem::take(&mut self.pending) {
+        for approval_id in std::mem::take(&mut self.approvals) {
             self.record_permission_resolved_kap(&approval_id, &Decision::Cancel);
         }
+
+        for question_id in std::mem::take(&mut self.questions) {
+            self.append(RunFrame::QuestionsResolved {
+                question_id,
+                outcome: "cancelled".to_owned(),
+                answers: Value::Array(Vec::new()),
+                note: String::new(),
+            });
+        }
+    }
+
+    /// Records the group of questions the agent is now blocked on.
+    pub fn record_questions_asked(&mut self, group: &QuestionGroup) {
+        self.questions.push(group.question_id.clone());
+
+        self.append(RunFrame::QuestionsAsked {
+            question_id: group.question_id.clone(),
+            tool_call_id: group.tool_call_id.clone().unwrap_or_default(),
+            questions: group.on_frame(),
+        });
+    }
+
+    /// Records how one group of questions was settled.
+    ///
+    /// undelivered 是这一侧的收场：人答了，但答案没送到 agent 手上。它必须与
+    /// answered 分开 —— 否则时间线会说「已回答」而 agent 还在等。
+    pub fn record_questions_resolved(
+        &mut self,
+        group: &QuestionGroup,
+        outcome: &QuestionOutcome,
+        delivered: bool,
+    ) {
+        self.questions
+            .retain(|waiting| waiting != &group.question_id);
+
+        let (answers, note, settled) = match outcome {
+            QuestionOutcome::Answered(response) => (
+                response.on_frame(group),
+                response.note.clone().unwrap_or_default(),
+                if delivered { "answered" } else { "undelivered" },
+            ),
+            QuestionOutcome::Dismissed => (
+                Value::Array(Vec::new()),
+                String::new(),
+                if delivered { "dismissed" } else { "undelivered" },
+            ),
+        };
+
+        self.append(RunFrame::QuestionsResolved {
+            question_id: group.question_id.clone(),
+            outcome: settled.to_owned(),
+            answers,
+            note,
+        });
+    }
+
+    /// The question groups this run is still waiting on.
+    pub fn outstanding_questions(&self) -> &[String] {
+        &self.questions
     }
 
     /// Records that the run ended on the agent's terms.
@@ -271,7 +340,7 @@ impl Recorder {
             Decision::Cancel => (String::new(), "cancelled"),
         };
 
-        self.pending.retain(|waiting| waiting != request_id);
+        self.approvals.retain(|waiting| waiting != request_id);
 
         self.append(RunFrame::PermissionResolved {
             request_id: request_id.to_owned(),

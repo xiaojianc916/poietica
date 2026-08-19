@@ -19,10 +19,11 @@ use tauri_specta::{Builder, ErrorHandlingMode};
 use crate::browser::{BrowserElementPicked, BrowserState};
 use crate::commands::{
     agent::dto::{
-        AgentArchiveThreadRequest, AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl,
-        AgentConfigPurpose, AgentForkThreadRequest, AgentPinThreadRequest, AgentPromptRequest,
-        AgentPromptResult, AgentRenameThreadRequest, AgentResolvePermissionRequest,
-        AgentSelectConfigRequest, AgentThreadRequest,
+        AgentAnswerQuestionsRequest, AgentArchiveThreadRequest, AgentCapabilitiesRequest,
+        AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentDismissQuestionsRequest,
+        AgentForkThreadRequest, AgentPinThreadRequest, AgentPromptRequest, AgentPromptResult,
+        AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod, AgentRenameThreadRequest,
+        AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentThreadRequest,
     },
     agent_setup::cli::{AgentCliRequest, AgentCliResult},
     agent_setup::install::{AgentInstallState, AgentInstallStatus},
@@ -59,6 +60,8 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent::turn::agent_prompt,
             crate::commands::agent::turn::agent_cancel,
             crate::commands::agent::turn::agent_resolve_permission,
+            crate::commands::agent::turn::agent_answer_questions,
+            crate::commands::agent::turn::agent_dismiss_questions,
             crate::commands::agent::turn::agent_shutdown,
             crate::commands::agent::config::agent_set_config_option,
             crate::commands::agent::config::agent_capabilities,
@@ -150,6 +153,11 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
         .typ::<AgentResolvePermissionRequest>()
+        .typ::<AgentQuestionMethod>()
+        .typ::<AgentQuestionChoice>()
+        .typ::<AgentQuestionAnswer>()
+        .typ::<AgentAnswerQuestionsRequest>()
+        .typ::<AgentDismissQuestionsRequest>()
         .typ::<AgentConfigPurpose>()
         .typ::<AgentConfigChoice>()
         .typ::<AgentConfigControl>()

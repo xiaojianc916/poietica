@@ -56,6 +56,39 @@ async agentResolvePermission(request: AgentResolvePermissionRequest) : Promise<n
     return await TAURI_INVOKE("agent_resolve_permission", { request });
 },
 /**
+ * Answers one group of questions the agent is blocked on.
+ * 
+ * 一组一次答齐。kap 的一组最多四题，问是一起问的，答也一起答 —— 逐题各发一次，
+ * agent 会在中间那些时刻看到一组只答了一半的题。
+ * 
+ * 合不合这一组题由桌子判：被问的那一组题在它手上，不在这一侧。
+ * 
+ * # Errors
+ * 
+ * Fails when there is no live connection, when that group is not outstanding,
+ * when an answer names a question or an option that was never asked, when a
+ * single-choice question is answered with several options, or when the agent
+ * has already stopped waiting.
+ */
+async agentAnswerQuestions(request: AgentAnswerQuestionsRequest) : Promise<null> {
+    return await TAURI_INVOKE("agent_answer_questions", { request });
+},
+/**
+ * Takes one group of questions off the desk without answering it.
+ * 
+ * 与「每一题都选跳过」不是一件事：跳过是五种答复之一，agent 收到的仍是一组答案；
+ * 撤下是这一组作罢，走 kap 自己的 :dismiss 后缀。两件事对 agent 的意义不同，所以
+ * 它们不共用一条命令。
+ * 
+ * # Errors
+ * 
+ * Fails when there is no live connection, when that group is not outstanding,
+ * or when the agent has already stopped waiting.
+ */
+async agentDismissQuestions(request: AgentDismissQuestionsRequest) : Promise<null> {
+    return await TAURI_INVOKE("agent_dismiss_questions", { request });
+},
+/**
  * Ends the session and lets the agent process exit.
  * 
  * # Errors
@@ -1031,6 +1064,30 @@ updateProgress: "update-progress"
 /** user-defined types **/
 
 /**
+ * 一整组题的答复。
+ */
+export type AgentAnswerQuestionsRequest = { 
+/**
+ * 被回答的那一组。
+ */
+questionId: string; 
+/**
+ * 逐题一条，一次交齐 —— 一组最多四题，问是一起问的。
+ */
+answers: AgentQuestionAnswer[]; 
+/**
+ * 人怎么答的，界面知道就报。
+ */
+method: AgentQuestionMethod | null; 
+/**
+ * 整组的备注。
+ * 
+ * wire 上它是合法的一格，但官方 server 收下之后不读它（routes/questions.ts
+ * 的 toInProcessResponse 只把 answers 与 method 交出去）。送它是因为契约里有
+ * 它，不是因为它今天有效果。
+ */
+note: string | null }
+/**
  * A conversation being archived or restored.
  */
 export type AgentArchiveThreadRequest = { 
@@ -1189,6 +1246,14 @@ export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string;
  * agents.json 中存在但无法反序列化的内容。界面应显示出来。
  */
 issues: string[] }
+/**
+ * 要撤下的那一组题。
+ */
+export type AgentDismissQuestionsRequest = { 
+/**
+ * 被撤下的那一组。
+ */
+questionId: string }
 /**
  * 要分叉的对话，以及必要时怎样启动 agent。
  * 
@@ -1423,6 +1488,53 @@ export type AgentPromptResult = {
  * 这一轮发到了哪条会话。它的每一帧都带着同一个号。
  */
 sessionId: string }
+/**
+ * 一题一条答复，按题号点名。
+ */
+export type AgentQuestionAnswer = { 
+/**
+ * 题号，就是 kap 在这一组里现编的那个。
+ */
+questionId: string; 
+/**
+ * 这一题答的是什么。
+ */
+answer: AgentQuestionChoice }
+/**
+ * 一题答的是什么。
+ * 
+ * 判别联合，五支，与 kap 的 questionAnswerSchema 逐一对应，判别式与分支名逐字
+ * 相同。摊平成「一个 kind 加几个可选格」会让「多选却没有选项」这种答复在类型上
+ * 就合法。
+ */
+export type AgentQuestionChoice = 
+/**
+ * 选了一个。
+ */
+{ kind: "single"; optionId: string } | 
+/**
+ * 选了几个。
+ */
+{ kind: "multi"; optionIds: string[] } | 
+/**
+ * 自己写了一句。
+ */
+{ kind: "other"; text: string } | 
+/**
+ * 选了几个，还自己写了一句。
+ */
+{ kind: "multi_with_other"; optionIds: string[]; otherText: string } | 
+/**
+ * 这一题跳过。
+ */
+{ kind: "skipped" }
+/**
+ * 人是怎么答的这一组题。
+ * 
+ * 四个值就是 kap 的 questionAnswerMethodSchema。如实上报：官方把 click 丢掉，
+ * 但改报成别的就是撒谎。
+ */
+export type AgentQuestionMethod = "enter" | "space" | "number_key" | "click"
 /**
  * A conversation the interface is renaming.
  */

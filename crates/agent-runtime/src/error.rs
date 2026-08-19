@@ -31,6 +31,11 @@ pub enum KapError {
     /// 答复与桌上的问题对不上：没问过、没这个选项、或问的那一侧已经走了。
     #[error("the permission answer was refused: {message}")]
     Permission { message: String },
+
+    /// 一组答复与桌上的题对不上：题号不在这一组、有题没答、选项没提供过、多选
+    /// 答给了单选题，或问的那一侧已经走了。
+    #[error("the question answer was refused: {message}")]
+    Question { message: String },
     /// A task panicked while holding one of this crate's locks.
     #[error("a lock was left held by a panicking task")]
     Poisoned,

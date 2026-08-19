@@ -3,6 +3,9 @@
 //! 每一个都带 specta 标注，绑定由它们生成。形状只为界面服务：库里的行、协议
 //! 里的帧都不是这个样子，翻译在各自的模块里做。
 
+use std::collections::HashMap;
+
+use poietica_agent_runtime_native::{AnswerMethod, QuestionAnswer, QuestionResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
@@ -407,4 +410,126 @@ pub enum AgentHistory {
         /// 持有这条对话的那个 agent；这一列存在之前写下的行没有。
         owner: Option<String>,
     },
+}
+
+/// 人是怎么答的这一组题。
+///
+/// 四个值就是 kap 的 questionAnswerMethodSchema。如实上报：官方把 click 丢掉，
+/// 但改报成别的就是撒谎。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentQuestionMethod {
+    Enter,
+    Space,
+    NumberKey,
+    Click,
+}
+
+/// 一题答的是什么。
+///
+/// 判别联合，五支，与 kap 的 questionAnswerSchema 逐一对应，判别式与分支名逐字
+/// 相同。摊平成「一个 kind 加几个可选格」会让「多选却没有选项」这种答复在类型上
+/// 就合法。
+#[derive(Debug, Deserialize, Type)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AgentQuestionChoice {
+    /// 选了一个。
+    #[serde(rename_all = "camelCase")]
+    Single { option_id: String },
+    /// 选了几个。
+    #[serde(rename_all = "camelCase")]
+    Multi { option_ids: Vec<String> },
+    /// 自己写了一句。
+    Other { text: String },
+    /// 选了几个，还自己写了一句。
+    #[serde(rename_all = "camelCase")]
+    MultiWithOther {
+        option_ids: Vec<String>,
+        other_text: String,
+    },
+    /// 这一题跳过。
+    Skipped,
+}
+
+/// 一题一条答复，按题号点名。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentQuestionAnswer {
+    /// 题号，就是 kap 在这一组里现编的那个。
+    pub question_id: String,
+    /// 这一题答的是什么。
+    pub answer: AgentQuestionChoice,
+}
+
+/// 一整组题的答复。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentAnswerQuestionsRequest {
+    /// 被回答的那一组。
+    pub question_id: String,
+    /// 逐题一条，一次交齐 —— 一组最多四题，问是一起问的。
+    pub answers: Vec<AgentQuestionAnswer>,
+    /// 人怎么答的，界面知道就报。
+    pub method: Option<AgentQuestionMethod>,
+    /// 整组的备注。
+    ///
+    /// wire 上它是合法的一格，但官方 server 收下之后不读它（routes/questions.ts
+    /// 的 toInProcessResponse 只把 answers 与 method 交出去）。送它是因为契约里有
+    /// 它，不是因为它今天有效果。
+    pub note: Option<String>,
+}
+
+/// 要撤下的那一组题。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDismissQuestionsRequest {
+    /// 被撤下的那一组。
+    pub question_id: String,
+}
+
+/// 把界面报来的一组答复翻成运行时的域类型。
+///
+/// 号原样搬：题号与选项号都是 kap 现编的，这一层不解析也不校验 —— 合不合这一组
+/// 题，由桌子对着它自己留下的那一组题判（agent-runtime 的 QuestionDesk::answer）。
+pub(super) fn answered(request: AgentAnswerQuestionsRequest) -> QuestionResponse {
+    let mut answers = HashMap::new();
+
+    for AgentQuestionAnswer {
+        question_id,
+        answer,
+    } in request.answers
+    {
+        let _replaced = answers.insert(question_id, chosen(answer));
+    }
+
+    QuestionResponse {
+        answers,
+        method: request.method.map(measured),
+        note: request.note,
+    }
+}
+
+fn chosen(answer: AgentQuestionChoice) -> QuestionAnswer {
+    match answer {
+        AgentQuestionChoice::Single { option_id } => QuestionAnswer::Single { option_id },
+        AgentQuestionChoice::Multi { option_ids } => QuestionAnswer::Multi { option_ids },
+        AgentQuestionChoice::Other { text } => QuestionAnswer::Other { text },
+        AgentQuestionChoice::MultiWithOther {
+            option_ids,
+            other_text,
+        } => QuestionAnswer::MultiWithOther {
+            option_ids,
+            other_text,
+        },
+        AgentQuestionChoice::Skipped => QuestionAnswer::Skipped,
+    }
+}
+
+const fn measured(method: AgentQuestionMethod) -> AnswerMethod {
+    match method {
+        AgentQuestionMethod::Enter => AnswerMethod::Enter,
+        AgentQuestionMethod::Space => AnswerMethod::Space,
+        AgentQuestionMethod::NumberKey => AnswerMethod::NumberKey,
+        AgentQuestionMethod::Click => AnswerMethod::Click,
+    }
 }

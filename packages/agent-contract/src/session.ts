@@ -1,5 +1,6 @@
 import type { ThreadId } from './address'
 import type { KapSessionId } from './kap'
+import type { QuestionResponse } from './question'
 import type { RunEvent } from './run'
 
 /**
@@ -86,4 +87,18 @@ export interface AgentSessionPort {
    */
   readonly cancel: (threadId: ThreadId) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
+  /**
+   * 一组题一次答齐。
+   *
+   * kap 的一组最多四题，问是一起问的，答也一起答：逐题各发一次，agent 会在中间
+   * 那些时刻看到一组只答了一半的题。
+   */
+  readonly answerQuestions: (response: QuestionResponse) => Promise<void>
+  /**
+   * 把一组题撤下，一题都不答。
+   *
+   * 与「每一题都选跳过」不是一件事：跳过是五种答复之一，agent 收到的仍是一组
+   * 答案；撤下是这一组作罢，走 kap 自己的 :dismiss 后缀。
+   */
+  readonly dismissQuestions: (questionId: string) => Promise<void>
 }

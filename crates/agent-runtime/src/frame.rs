@@ -24,6 +24,12 @@ pub const RUN_FINISHED: &str = "run_finished";
 /// 这一轮以失败结束。
 pub const RUN_FAILED: &str = "run_failed";
 
+/// 这一组题问出去了，agent 正卡在它上面。
+pub const QUESTIONS_ASKED: &str = "questions_asked";
+
+/// 那一组题结清了。
+pub const QUESTIONS_RESOLVED: &str = "questions_resolved";
+
 /// 一次运行里可能发生的六种事。
 ///
 /// KapEvent 承载 kap 的事件原文；其余五种是协议不建模、而客户端必须记住的
@@ -76,6 +82,26 @@ pub enum RunFrame {
         /// selected 或 cancelled。
         outcome: String,
     },
+    /// agent 正卡在一组提问上。
+    QuestionsAsked {
+        /// kap 签发的号。答复与撤下都认它。
+        question_id: String,
+        /// 引出这一组题的那次工具调用；kap 说它可以缺席，缺席时是空串。
+        tool_call_id: String,
+        /// 这一组题，原样。题号与选项号是 server 现编的，答的时候原样交回去。
+        questions: Value,
+    },
+    /// 那一组提问结清了。
+    QuestionsResolved {
+        /// 被结清的那一组。
+        question_id: String,
+        /// answered、dismissed、cancelled 或 undelivered。
+        outcome: String,
+        /// 逐题的答复，按问的顺序；只有 answered 时非空。
+        answers: Value,
+        /// 整组的备注；人没写就是空串。
+        note: String,
+    },
     /// 这一轮按 agent 自己的说法结束了。
     RunFinished {
         /// agent 报的停止原因。
@@ -97,6 +123,8 @@ impl RunFrame {
             Self::KapEvent { .. } => KAP_EVENT,
             Self::PermissionRequested { .. } => PERMISSION_REQUESTED,
             Self::PermissionResolved { .. } => PERMISSION_RESOLVED,
+            Self::QuestionsAsked { .. } => QUESTIONS_ASKED,
+            Self::QuestionsResolved { .. } => QUESTIONS_RESOLVED,
             Self::RunFinished { .. } => RUN_FINISHED,
             Self::RunFailed { .. } => RUN_FAILED,
         }

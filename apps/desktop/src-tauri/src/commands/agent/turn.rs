@@ -15,7 +15,8 @@ use uuid::Uuid;
 use super::addressing::session_for;
 use super::attachment::{Kept, keep_bytes};
 use super::dto::{
-    AgentCancelRequest, AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest,
+    AgentAnswerQuestionsRequest, AgentCancelRequest, AgentDismissQuestionsRequest,
+    AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest, answered,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
@@ -247,6 +248,63 @@ pub fn agent_resolve_permission(
     // longer applies to anything. The detail stays on this side of the wire.
     live.desk
         .answer(&request.request_id, &request.option_id)
+        .map_err(|error| Error::NotFound(error.to_string()))?;
+
+    Ok(())
+}
+
+/// Answers one group of questions the agent is blocked on.
+///
+/// 一组一次答齐。kap 的一组最多四题，问是一起问的，答也一起答 —— 逐题各发一次，
+/// agent 会在中间那些时刻看到一组只答了一半的题。
+///
+/// 合不合这一组题由桌子判：被问的那一组题在它手上，不在这一侧。
+///
+/// # Errors
+///
+/// Fails when there is no live connection, when that group is not outstanding,
+/// when an answer names a question or an option that was never asked, when a
+/// single-choice question is answered with several options, or when the agent
+/// has already stopped waiting.
+#[tauri::command]
+#[specta::specta]
+pub fn agent_answer_questions(
+    state: State<'_, AgentRuntime>,
+    request: AgentAnswerQuestionsRequest,
+) -> AgentCommandResult<()> {
+    /* 桌子归连接，与回答审批同一条规矩：question_id 活在 agent 自己的命名空间
+    里，没有连接就没有题可答。 */
+    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+
+    let question_id = request.question_id.clone();
+
+    live.questions
+        .answer(&question_id, answered(request))
+        .map_err(|error| Error::NotFound(error.to_string()))?;
+
+    Ok(())
+}
+
+/// Takes one group of questions off the desk without answering it.
+///
+/// 与「每一题都选跳过」不是一件事：跳过是五种答复之一，agent 收到的仍是一组答案；
+/// 撤下是这一组作罢，走 kap 自己的 :dismiss 后缀。两件事对 agent 的意义不同，所以
+/// 它们不共用一条命令。
+///
+/// # Errors
+///
+/// Fails when there is no live connection, when that group is not outstanding,
+/// or when the agent has already stopped waiting.
+#[tauri::command]
+#[specta::specta]
+pub fn agent_dismiss_questions(
+    state: State<'_, AgentRuntime>,
+    request: AgentDismissQuestionsRequest,
+) -> AgentCommandResult<()> {
+    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+
+    live.questions
+        .dismiss(&request.question_id)
         .map_err(|error| Error::NotFound(error.to_string()))?;
 
     Ok(())

@@ -9,8 +9,8 @@ use crate::paths::attachments_root;
 use poietica_agent_persistence_native::SessionUsage;
 use poietica_agent_runtime_native::{
     AgentClient, AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
-    CanLoadSession, Handshake, KapError, PermissionDesk, Refusal, RunSlot, SessionBook,
-    SessionEvent, connect_kap,
+    CanLoadSession, Handshake, KapError, PermissionDesk, QuestionDesk, Refusal, RunSlot,
+    SessionBook, SessionEvent, connect_kap,
 };
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
@@ -58,6 +58,11 @@ struct Connection {
     /// request_id 由 agent 自己发，两个 agent 的号不可通约：共用一张桌子，一个
     /// 答案就可能落到另一个 agent 的问题上。
     desk: PermissionDesk,
+    /// 这条连接的提问台。
+    ///
+    /// 与权限台分开的理由在 agent-runtime 的 desk.rs：两种「问」对什么算合法答复
+    /// 的判据不同。号的归属与上面同理。
+    questions: QuestionDesk,
     /// 这条连接开出来的会话，以及各自的记录槽。
     ///
     /// kap 的会话在 server 侧持久（kap-server 的 resumeSessionById），号跨进程
@@ -155,6 +160,7 @@ fn retire(taken: Option<Connection>) {
     let _abandoned = gone.slot.take();
 
     gone.desk.clear();
+    gone.questions.clear();
 }
 
 /// What a command needs to know about the running session.
@@ -178,6 +184,8 @@ pub(super) struct Handle {
     pub(super) cancelling: Option<CanCancelSession>,
     /// 这条连接的权限台。
     pub(super) desk: PermissionDesk,
+    /// 这条连接的提问台。
+    pub(super) questions: QuestionDesk,
     /// 这条连接的会话册子 —— 驱动器路由帧读的就是它。
     pub(super) book: SessionBook,
 }
@@ -241,6 +249,7 @@ pub(super) async fn ensure_session(
     一条会话、一条连接、一条连接。 */
     let slot = RunSlot::new();
     let desk = PermissionDesk::new();
+    let questions = QuestionDesk::new();
 
     let AgentConnection {
         client,
@@ -248,7 +257,7 @@ pub(super) async fn ensure_session(
         driver,
         events,
         book,
-    } = connect_kap(spawn, slot.clone(), desk.clone()).map_err(translate)?;
+    } = connect_kap(spawn, slot.clone(), desk.clone(), questions.clone()).map_err(translate)?;
 
     // The crate is runtime-agnostic on purpose; this is the composition root,
     // so this is where the driver gets an executor.
@@ -357,6 +366,7 @@ pub(super) async fn ensure_session(
         cancelling,
         slot: slot.clone(),
         desk: desk.clone(),
+        questions: questions.clone(),
         book: book.clone(),
     });
 
@@ -369,6 +379,7 @@ pub(super) async fn ensure_session(
         forking,
         cancelling,
         desk,
+        questions,
         book,
     };
 
@@ -428,6 +439,7 @@ pub(super) fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> 
         forking: live.forking,
         cancelling: live.cancelling,
         desk: live.desk.clone(),
+        questions: live.questions.clone(),
         book: live.book.clone(),
     }))
 }

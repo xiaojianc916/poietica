@@ -44,11 +44,12 @@ use uuid::Uuid;
 
 use crate::commands::{AgentClient, Command, PromptImage};
 use crate::config::{ConfigControl, controls, selector_patch};
-use crate::desk::PermissionDesk;
+use crate::desk::{PermissionDesk, QuestionDesk};
 use crate::error::{KapError, Refusal, Result};
 use crate::frame::kap_event;
 use crate::permission::kap_response;
 use crate::program::resolve_program;
+use crate::question::{QuestionGroup, QuestionOutcome};
 use crate::recorder::{Recorder, now_millis};
 use crate::run_slot::RunSlot;
 use crate::session::{
@@ -386,6 +387,8 @@ struct SessionState {
     active_prompt_id: Option<String>,
     /// 这一轮已请上桌的审批：既是去重的判据，也是轮终要放掉的清单。
     pending_approvals: Vec<String>,
+    /// 这一轮已请上桌的题组，同上。
+    pending_questions: Vec<String>,
 }
 
 impl SessionState {
@@ -393,6 +396,7 @@ impl SessionState {
         Self {
             active_prompt_id: None,
             pending_approvals: Vec::new(),
+            pending_questions: Vec::new(),
         }
     }
 }
@@ -401,7 +405,12 @@ impl SessionState {
 
 /// Spawns kimi web --no-open, waits for it to register, connects via WS,
 /// and returns an AgentConnection ready to accept commands.
-pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result<AgentConnection> {
+pub fn connect(
+    spawn: AgentSpawn,
+    slot: RunSlot,
+    desk: PermissionDesk,
+    questions: QuestionDesk,
+) -> Result<AgentConnection> {
     let AgentSpawn {
         program,
         args,
@@ -682,6 +691,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 &mut sessions,
                 &book_clone,
                 &desk,
+                &questions,
                 &events_tx,
                 &http,
                 &base_url,
@@ -872,6 +882,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                         &mut sessions,
                                         &book_clone,
                                         &desk,
+                                        &questions,
                                         &events_tx,
                                         &http,
                                         &base_url,
@@ -896,6 +907,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         }
 
         desk.clear();
+        questions.clear();
         Ok(())
     }
     .boxed();
@@ -916,6 +928,7 @@ async fn handle_ws_message(
     sessions: &mut HashMap<String, SessionState>,
     book: &SessionBook,
     desk: &PermissionDesk,
+    questions: &QuestionDesk,
     events_tx: &mpsc::UnboundedSender<SessionEvent>,
     http: &reqwest::Client,
     base_url: &str,
@@ -972,7 +985,7 @@ async fn handle_ws_message(
     }
 
     match event_type {
-        // 轮次结束：收掉这一轮的记录器，没答的审批作废，终帧殿后。
+        // 轮次结束：收掉这一轮的记录器，没答的审批与没答的题都作废，终帧殿后。
         "turn.ended" => {
             let reason = payload
                 .get("reason")
@@ -984,6 +997,7 @@ async fn handle_ws_message(
                 .or_insert_with(SessionState::new);
             state.active_prompt_id = None;
             let outstanding = std::mem::take(&mut state.pending_approvals);
+            let unanswered = std::mem::take(&mut state.pending_questions);
 
             if let Ok(Some(slot)) = book.slot(session_id)
                 && let Ok(Some(mut recorder)) = slot.take()
@@ -997,6 +1011,7 @@ async fn handle_ws_message(
             }
 
             desk.abandon(&outstanding);
+            questions.abandon(&unanswered);
         }
 
         "agent.status.updated" => {
@@ -1011,16 +1026,26 @@ async fn handle_ws_message(
                 });
             }
 
-            // 卡在审批上：审批清单不随事件来（phase 里那格 approval 是
-            // unknown），权威在 REST。
-            if payload
+            // 卡在人这一侧：审批清单与提问清单都不随事件来（phase 里那格
+            // approval 是 unknown），权威在 REST。
+            //
+            // 两个态都拉两张表。phase 是派生值，而它的优先级里审批高于提问
+            // （agent-core-v2 的 rw-model-design.md：先看有没有 approval，再看有
+            // 没有 question）。只在 awaiting_question 时去拉题，一旦同一条会话上
+            // 还挂着一个没答的审批，phase 就永远报 awaiting_approval —— 那组题
+            // 永远拉不到，agent 死等到轮次超时。反向同理。
+            let phase = payload
                 .get("phase")
                 .and_then(|phase| phase.get("kind"))
                 .and_then(Value::as_str)
-                == Some("awaiting_approval")
+                .unwrap_or("");
+
+            if matches!(phase, "awaiting_approval" | "awaiting_question")
                 && let Some(state) = sessions.get_mut(session_id)
             {
                 fetch_and_record_approvals(http, base_url, session_id, state, book, desk).await;
+                fetch_and_record_questions(http, base_url, session_id, state, book, questions)
+                    .await;
             }
         }
 
@@ -1057,8 +1082,8 @@ fn failure(payload: &Value, reason: &str) -> String {
 /// （applySessionAgentConfig → IAgentProfileService.setModel，空串会被它跳过）。
 ///
 /// 判据全部来自服务器：生效值问 status，默认值问 /config。本 crate 另有一条读
-/// config.toml 的路（credentials.rs），那是 ACP 时代闸门的本地对照，不是这里的
-/// 依据 —— 同一件事有两个说法，迟早对不上。
+/// config.toml 的路（credentials.rs），那是装配阶段判断「这个别名有没有可用凭据」
+/// 的本地对照，不是这里的依据 —— 同一件事有两个说法，迟早对不上。
 ///
 /// 已经有模型的会话原样不动：装载与分叉带回来的选择是用户的，不是我们的。
 ///
@@ -1202,6 +1227,141 @@ async fn fetch_and_record_approvals(
             if let Ok(Some(slot)) = book2.slot(&sid) {
                 slot.record(|recorder| {
                     recorder.record_permission_resolved_kap(&approval_id, &decision);
+                });
+            }
+        });
+    }
+}
+
+/// 撤下成功时信封里的 code。
+///
+/// 官方用一个非零码宣告成功：撤下这一路回的是
+/// { code: QUESTION_DISMISSED, data: { dismissed: true, dismissed_at } }
+/// （routes/questions.ts 的 dismiss 分支；error-codes.ts 里它是 40909）。只走
+/// envelope_data 那条通路，会把每一次成功的撤下都记成一次传输失败。
+const QUESTION_DISMISSED: i64 = 40909;
+
+/// 把一组题的收场送回 kap。
+///
+/// 两个动作同一条路由，靠动作后缀分路：POST …/questions/{id} 是回答，
+/// POST …/questions/{id}:dismiss 是撤下（routes/questions.ts 的 parseActionSuffix：
+/// allowedActions 只有 dismiss，默认 resolve）。
+///
+/// 错误不带 KapError 出来 —— 这里只有一个调用者，它要的就是一句能写进日志与帧
+/// 的话。
+async fn settle_question(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+    question_id: &str,
+    outcome: &QuestionOutcome,
+) -> core::result::Result<(), String> {
+    let (url, body) = match outcome {
+        QuestionOutcome::Answered(response) => (
+            format!("{base_url}/sessions/{session_id}/questions/{question_id}"),
+            response.on_wire(),
+        ),
+        QuestionOutcome::Dismissed => (
+            format!("{base_url}/sessions/{session_id}/questions/{question_id}:dismiss"),
+            json!({}),
+        ),
+    };
+
+    let envelope: Value = http
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?
+        .json()
+        .await
+        .map_err(|error| error.to_string())?;
+
+    if matches!(outcome, QuestionOutcome::Dismissed)
+        && envelope.get("code").and_then(Value::as_i64) == Some(QUESTION_DISMISSED)
+    {
+        return Ok(());
+    }
+
+    envelope_data(&envelope)
+        .map(|_accepted| ())
+        .map_err(|error| error.to_string())
+}
+
+/// agent 报它卡在人这一侧时，把这条会话挂着的题组逐个请上桌。
+///
+/// status=pending 是必填 query（rest-question.ts 的
+/// listPendingQuestionsQuerySchema），不带它服务器回 40001。
+async fn fetch_and_record_questions(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+    state: &mut SessionState,
+    book: &SessionBook,
+    desk: &QuestionDesk,
+) {
+    let url = format!("{base_url}/sessions/{session_id}/questions?status=pending");
+
+    let data = match get(http, &url).await {
+        Ok(data) => data,
+        Err(error) => {
+            log::warn!("could not list the pending questions: {error}");
+            return;
+        }
+    };
+
+    let items = data
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    for item in items {
+        let Some(group) = QuestionGroup::from_wire(&item) else {
+            log::warn!("a pending question group could not be read: {item}");
+            continue;
+        };
+
+        // 同一组题会随每一份 agent.status.updated 再报一次：桌上已经有了的不记
+        // 第二帧、不等第二份答案。
+        if state.pending_questions.contains(&group.question_id) {
+            continue;
+        }
+
+        if let Ok(Some(slot)) = book.slot(session_id) {
+            slot.record(|recorder| recorder.record_questions_asked(&group));
+        }
+
+        let Ok(answer_rx) = desk.wait(group.clone()) else {
+            continue;
+        };
+
+        state.pending_questions.push(group.question_id.clone());
+
+        let http2 = http.clone();
+        let base2 = base_url.to_owned();
+        let sid = session_id.to_owned();
+        let book2 = book.clone();
+
+        tokio::spawn(async move {
+            // 发送端被丢掉只有一种情形：这一轮已经结束了（turn.ended 把它从桌上
+            // 放掉了）。那时这不再是我们该回答的问题 —— 什么都不发。
+            let Ok(outcome) = answer_rx.await else {
+                return;
+            };
+
+            let delivered =
+                match settle_question(&http2, &base2, &sid, &group.question_id, &outcome).await {
+                    Ok(()) => true,
+                    Err(error) => {
+                        log::warn!("could not deliver the question answer: {error}");
+                        false
+                    }
+                };
+
+            if let Ok(Some(slot)) = book2.slot(&sid) {
+                slot.record(|recorder| {
+                    recorder.record_questions_resolved(&group, &outcome, delivered);
                 });
             }
         });

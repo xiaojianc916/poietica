@@ -15,9 +15,11 @@
 //! only as long as one run, the two meet through a slot rather than by
 //! ownership.
 //!
-//! A permission request is a question, not a formality. The handler waits at
-//! the desk for a real answer, and the fallback refusal is used only where
-//! there is nobody to ask.
+//! Asking a human is not a formality, and it is not one kind of ask. An
+//! approval takes one of three fixed answers; a question group takes whatever
+//! its own multi_select and allow_other allow. They therefore wait at two
+//! desks, and a handler blocks on its own desk until a real answer arrives
+//! rather than inventing one.
 
 pub use driver::connect as connect_kap;
 
@@ -30,6 +32,7 @@ mod error;
 mod frame;
 mod permission;
 mod program;
+mod question;
 mod recorder;
 mod run_slot;
 mod session;
@@ -43,13 +46,17 @@ pub use credentials::{
     alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
     usable_default_model,
 };
-pub use desk::PermissionDesk;
+pub use desk::{PermissionDesk, QuestionDesk};
 pub use error::{KapError, Refusal, Result};
 pub use frame::{
-    KAP_EVENT, PERMISSION_REQUESTED, PERMISSION_RESOLVED, RUN_FAILED, RUN_FINISHED, RUN_STARTED,
-    RunFrame, kap_event,
+    KAP_EVENT, PERMISSION_REQUESTED, PERMISSION_RESOLVED, QUESTIONS_ASKED, QUESTIONS_RESOLVED,
+    RUN_FAILED, RUN_FINISHED, RUN_STARTED, RunFrame, kap_event,
 };
 pub use permission::{Decision, kap_answers, kap_options, kap_response};
+pub use question::{
+    AnswerMethod, QuestionAnswer, QuestionGroup, QuestionItem, QuestionOption, QuestionOutcome,
+    QuestionResponse,
+};
 pub use program::resolve_program;
 pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine, now_millis};
 pub use run_slot::RunSlot;

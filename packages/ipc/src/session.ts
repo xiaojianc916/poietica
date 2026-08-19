@@ -3,6 +3,7 @@ import type {
   AgentPromptRequest,
   AgentSessionPort,
   KapSessionId,
+  QuestionResponse,
   RunEvent,
 } from '@poietica/agent-contract'
 
@@ -36,6 +37,8 @@ export interface AgentCommandBridge {
   readonly prompt: (request: AgentPromptRequest) => Promise<{ readonly sessionId: string }>
   readonly cancel: (threadId: string) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
+  readonly answerQuestions: (response: QuestionResponse) => Promise<void>
+  readonly dismissQuestions: (questionId: string) => Promise<void>
 }
 
 export interface IpcSessionOptions {
@@ -59,5 +62,9 @@ export function createIpcSession({ bridge, source }: IpcSessionOptions): AgentSe
     cancel: (threadId) => bridge.cancel(threadId),
 
     resolvePermission: (requestId, optionId) => bridge.resolvePermission(requestId, optionId),
+
+    answerQuestions: (response) => bridge.answerQuestions(response),
+
+    dismissQuestions: (questionId) => bridge.dismissQuestions(questionId),
   }
 }

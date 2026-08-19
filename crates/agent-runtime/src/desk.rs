@@ -5,6 +5,7 @@ use futures::channel::oneshot;
 
 use crate::error::{KapError, Result};
 use crate::permission::{Decision, kap_answers};
+use crate::question::{QuestionGroup, QuestionOutcome, QuestionResponse};
 
 const UNKNOWN_REQUEST: &str = "that permission request is not outstanding";
 const UNKNOWN_OPTION: &str = "that option was never offered for this permission request";
@@ -130,5 +131,122 @@ impl PermissionDesk {
 fn refused(message: &str) -> KapError {
     KapError::Permission {
         message: message.to_owned(),
+    }
+}
+
+const UNKNOWN_GROUP: &str = "that question group is not outstanding";
+const ASKER_GONE: &str = "the agent stopped waiting for that question group";
+
+/// 桌上还没有人回答的那些题组。
+///
+/// 与 PermissionDesk 分开一张桌子，因为「什么算一个合法答复」的判据不同：审批的
+/// 合法答复是固定的三条（permission.rs 的 kap_answers），而一组题的合法答复要按
+/// 每一题自己的 multi_select 与 allow_other 现算。两套规则挤进一张桌子，校验就只
+/// 能退化成运行期的分支 —— 同一件事的两条代码路径。
+#[derive(Clone, Debug, Default)]
+pub struct QuestionDesk {
+    outstanding: Arc<Mutex<HashMap<String, Asked>>>,
+}
+
+/// 一组题，连它自己的判据一起放在桌上。
+///
+/// 题面留着不是为了显示 —— 显示那一份已经进帧了 —— 而是为了校验：一个答复合不
+/// 合法，只有对着它被问的那一组题才回答得了。
+#[derive(Debug)]
+struct Asked {
+    group: QuestionGroup,
+    answer: oneshot::Sender<QuestionOutcome>,
+}
+
+impl QuestionDesk {
+    /// An empty desk.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Puts one group of questions on the desk and hands back the wait for it.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the desk's lock is poisoned.
+    pub fn wait(&self, group: QuestionGroup) -> Result<oneshot::Receiver<QuestionOutcome>> {
+        let (answer, waiting) = oneshot::channel();
+        let question_id = group.question_id.clone();
+
+        let _replaced = self.lock()?.insert(question_id, Asked { group, answer });
+
+        Ok(waiting)
+    }
+
+    /// Answers one group of questions on the desk.
+    ///
+    /// # Errors
+    ///
+    /// Fails when that group is not outstanding, when the answers do not fit the
+    /// questions that were asked, or when the agent stopped waiting.
+    pub fn answer(&self, question_id: &str, response: QuestionResponse) -> Result<()> {
+        let mut outstanding = self.lock()?;
+
+        let Some(asked) = outstanding.get(question_id) else {
+            return Err(crate::question::refused(UNKNOWN_GROUP));
+        };
+
+        // 先验再取：一个说不通的答复不该把一组还在正当等着人回答的题毁掉。与
+        // PermissionDesk::answer 同一条规矩。
+        response.checked_against(&asked.group)?;
+
+        let Some(asked) = outstanding.remove(question_id) else {
+            return Err(crate::question::refused(UNKNOWN_GROUP));
+        };
+
+        asked
+            .answer
+            .send(QuestionOutcome::Answered(response))
+            .map_err(|_gone| crate::question::refused(ASKER_GONE))
+    }
+
+    /// Takes one group off the desk without answering it.
+    ///
+    /// 与「每一题都选跳过」不是一件事：跳过是五种答复之一，agent 收到的仍是一组
+    /// 答案；撤下是这一组作罢，走 kap 自己的 :dismiss 后缀。
+    ///
+    /// # Errors
+    ///
+    /// Fails when that group is not outstanding, or when the agent stopped
+    /// waiting.
+    pub fn dismiss(&self, question_id: &str) -> Result<()> {
+        let Some(asked) = self.lock()?.remove(question_id) else {
+            return Err(crate::question::refused(UNKNOWN_GROUP));
+        };
+
+        asked
+            .answer
+            .send(QuestionOutcome::Dismissed)
+            .map_err(|_gone| crate::question::refused(ASKER_GONE))
+    }
+
+    /// Drops the groups nobody will answer any more.
+    pub fn abandon(&self, question_ids: &[String]) {
+        let Ok(mut outstanding) = self.lock() else {
+            return;
+        };
+
+        for question_id in question_ids {
+            let _dropped = outstanding.remove(question_id);
+        }
+    }
+
+    /// Clears the desk.
+    pub fn clear(&self) {
+        if let Ok(mut outstanding) = self.lock() {
+            outstanding.clear();
+        }
+    }
+
+    fn lock(&self) -> Result<MutexGuard<'_, HashMap<String, Asked>>> {
+        self.outstanding
+            .lock()
+            .map_err(|_poisoned| KapError::Poisoned)
     }
 }
