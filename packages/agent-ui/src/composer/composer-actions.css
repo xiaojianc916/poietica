@@ -84,7 +84,7 @@
   inline-size: var(--cp-icon);
 }
 
-.assistant-mode-chip__remove {
+[data-assistant-skin] .assistant-mode-chip__remove {
   display: grid;
   place-items: center;
   border-radius: 9999px;

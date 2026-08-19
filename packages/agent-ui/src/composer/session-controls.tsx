@@ -185,9 +185,7 @@ export const SessionControls = memo(function SessionControls({
                 key={choice.value}
                 value={choice.value}
               >
-                <span className="assistant-config-option__label">
-                  {labelOf(drilled, choice)}
-                </span>
+                <span className="assistant-config-option__label">{labelOf(drilled, choice)}</span>
 
                 {choice.detail === undefined ? null : (
                   <span className="assistant-config-option__detail">{choice.detail}</span>
