@@ -8,20 +8,20 @@ import {
   DropdownMenuRadioItemIndicator,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import { ChevronRight } from 'lucide-react'
 import { Fragment, memo, useMemo, useState } from 'react'
 
 /*
  * Everything the session lets us change, in one control.
  *
- * 单层弹窗、面板内换页：根页是每个可调维度一行（标签 + 当前值 + ›），点行把同一张
+ * 单层弹窗、面板内换页：根页是每个可调维度一行（标签 + 当前值），点行把同一张
  * 弹层整页切换成该维度的取值列表 —— 与 deepseek-harness ModelSelect 的 root / model
  * / effort 同一个范式，不再使用悬停展开的级联子菜单。
  *
  * 弹层始终只有一张：面板的尺寸、边框、圆角、阴影与定位沿用既有类名与参数，换页
- * 不换壳。根行用 closeOnClick=false，因为那一行的职责是换页而不是提交；取值行保持
- * RadioItem 的默认行为 —— 点选即提交并关闭。Escape 在取值页先退回根页，再按一次
- * 才关闭；菜单关闭时页签复位，下次打开永远从根页开始。
+ * 不换壳。根行用 closeOnClick=false，因为那一行的职责是换页而不是提交；取值行显式
+ * closeOnClick —— 点选即提交，提交即关闭，一次选择就是一个完成的任务。（Base UI
+ * 的 Menu.RadioItem 默认 closeOnClick=false，不显式写出来弹层不会关。）Escape 在
+ * 取值页先退回根页，再按一次才关闭；菜单关闭时页签复位，下次打开永远从根页开始。
  *
  * Portal 与皮肤属性的职责不变：DropdownMenuContent 自带 portal，data-assistant-skin
  * 挂在弹层自身。
@@ -157,8 +157,6 @@ export const SessionControls = memo(function SessionControls({
                 <span className="assistant-config-menu__row-label">{control.label}</span>
 
                 <span className="assistant-config-menu__row-value">{chosen(control)}</span>
-
-                <ChevronRight aria-hidden="true" className="ml-auto size-4 text-muted-foreground" />
               </DropdownMenuItem>
 
               {showUnavailableThinking && control.purpose === 'model' ? (
@@ -183,10 +181,13 @@ export const SessionControls = memo(function SessionControls({
             {drilled.choices.map((choice) => (
               <DropdownMenuRadioItem
                 className="assistant-config-option"
+                closeOnClick
                 key={choice.value}
                 value={choice.value}
               >
-                <span className="assistant-config-option__label">{labelOf(drilled, choice)}</span>
+                <span className="assistant-config-option__label">
+                  {labelOf(drilled, choice)}
+                </span>
 
                 {choice.detail === undefined ? null : (
                   <span className="assistant-config-option__detail">{choice.detail}</span>
