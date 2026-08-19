@@ -56,7 +56,8 @@
   border-radius: var(--am-item);
 }
 
-.composer-palette__row:hover:not(:disabled),
+/* 悬停色只认 data-highlighted：指针进入会把它挪过来（见 tsx 的 onMouseEnter），
+   :hover 再来一份就是两行同时亮 —— 高亮只留一个来源。 */
 .composer-palette__row[data-highlighted="true"] {
   outline: none;
   background: var(--cp-menu-hover);

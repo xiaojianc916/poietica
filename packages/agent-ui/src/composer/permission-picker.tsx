@@ -13,6 +13,7 @@ import {
 import { Hand, type LucideIcon, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { memo, useState } from 'react'
 import { CheckIcon } from '../primitives/icons'
+import { usePostureMemory } from './posture-memory'
 
 /*
  * 批准方式那颗胶囊，以及它打开的那一张。
@@ -20,6 +21,10 @@ import { CheckIcon } from '../primitives/icons'
  * 屏幕上的值只有一个来源：agent 报的那张控件表（control.current）。这里没有第二
  * 份状态，也没有「显示值」与「实际值」两格 —— 点一下就是往 agent 发一次改动，值
  * 由它的答复换掉。持久意图归 PermissionPosturePort，与这一层无关。
+ *
+ * 唯一例外：plan 期间控制值是 'plan'，批准方式被协议覆写丢失，胶囊显示的是挂起
+ * 的那一档（posture-memory.ts 从同一条控制流记下的最后值）。它不是第二份可写
+ * 状态，只是「退出 plan 后要还回去的那个值」的只读记忆。
  *
  * 档位是产品的封闭取值域与 control.choices 的交集，所以 agent 多报的档位不会漏
  * 到屏幕上 —— 这是结构上排除，不是渲染时过滤。
@@ -59,6 +64,7 @@ export const PermissionPicker = memo(function PermissionPicker({
   onSelect,
 }: PermissionPickerProps) {
   const [open, setOpen] = useState(false)
+  const rememberedPosture = usePostureMemory(controls)
   const control = permissionControlOf(controls)
 
   if (control === undefined) {
@@ -71,14 +77,16 @@ export const PermissionPicker = memo(function PermissionPicker({
     return null
   }
 
-  const current = permissionPostureOf(control.current)
+  /* Plan 期间批准方式只是被挂起：胶囊继续显示挂起的那一档，菜单里改选另一档即
+     退出 plan。互斥隐藏会让人看不见自己此刻授了多大的权 —— 这颗胶囊必须常显。 */
+  const currentPosture = rememberedPosture ?? control.current
+  const current = permissionPostureOf(currentPosture)
 
-  /* Plan 等非批准模式归 ComposerModeChip；两者互斥，工具条只显示一个当前模式。 */
   if (current === undefined) {
     return null
   }
 
-  const Mark = glyphOf(control.current)
+  const Mark = glyphOf(currentPosture)
 
   return (
     <DropdownMenu
@@ -106,13 +114,13 @@ export const PermissionPicker = memo(function PermissionPicker({
       >
         <DropdownMenuRadioGroup
           onValueChange={(value) => {
-            if (value === control.current) {
+            if (value === currentPosture) {
               return
             }
             onSelect(control.id, value)
             setOpen(false)
           }}
-          value={control.current}
+          value={currentPosture}
         >
           {rows.map((posture) => {
             const Row = glyphOf(posture.value)

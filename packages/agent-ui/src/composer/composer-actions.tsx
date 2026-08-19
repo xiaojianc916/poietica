@@ -4,12 +4,14 @@ import {
   CloseIcon,
   GoalIcon,
   PlusIcon,
+  SirenIcon,
   SkillIcon,
   SwarmIcon,
   TerminalIcon,
   ToolIcon,
 } from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
+import { usePostureMemory } from './posture-memory'
 import { usePromptInputActions } from './prompt-input'
 
 /*
@@ -40,15 +42,16 @@ export interface ComposerPaletteSource {
   readonly palette: readonly PaletteEntry[]
 }
 
-/* 选择器里的一行：生效的一档打勾，点下去写回 agent。mode 与 other 共用这一条。 */
+/* 选择器里的一行：生效的一档打勾，点下去写回 agent。图标由调用方按用途给。 */
 function controlRow(
   control: SessionConfigControl,
   choice: SessionConfigControl['choices'][number],
   onSelectControl: (controlId: string, value: string) => void,
+  icon: PaletteRow['icon'],
 ): PaletteRow {
   return {
     id: `${control.id}:${choice.value}`,
-    icon: <ToolIcon aria-hidden="true" />,
+    icon,
     label: choice.label,
     ...(choice.detail === undefined ? {} : { detail: choice.detail }),
     checked: choice.value === control.current,
@@ -84,7 +87,7 @@ export function composerModeRows({
         continue
       }
 
-      rows.push(controlRow(control, choice, onSelectControl))
+      rows.push(controlRow(control, choice, onSelectControl, <SirenIcon aria-hidden="true" />))
     }
   }
 
@@ -131,7 +134,9 @@ export function composerPaletteGroups({
     groups.push({
       id: control.id,
       heading: control.label,
-      rows: control.choices.map((choice) => controlRow(control, choice, onSelectControl)),
+      rows: control.choices.map((choice) =>
+        controlRow(control, choice, onSelectControl, <ToolIcon aria-hidden="true" />),
+      ),
     })
   }
 
@@ -171,8 +176,9 @@ function callable(entry: PaletteEntry, skill: boolean): PaletteRow {
 /*
  * 批准方式之外的生效模式。
  *
- * manual / yolo / auto 由 PermissionPicker 唯一显示；这里只显示 Plan 等额外模式。
- * 摘掉就是切回首档，与面板里点那一行走同一条写入路径。
+ * manual / yolo / auto 由 PermissionPicker 常显（plan 期间显示挂起的那一档）；
+ * 这里只显示 Plan 等额外模式。mode 与批准方式共用同一个控制值：进 plan 会把批准
+ * 方式覆写掉，摘掉时把挂起前那一档还回去（记忆归 posture-memory.ts），不是退回首档。
  */
 export interface ComposerModeChipProps {
   readonly controls: readonly SessionConfigControl[]
@@ -181,6 +187,7 @@ export interface ComposerModeChipProps {
 
 export function ComposerModeChip({ controls, onSelect }: ComposerModeChipProps) {
   const mode = controls.find((control) => control.purpose === 'mode')
+  const rememberedPosture = usePostureMemory(controls)
 
   if (mode === undefined || permissionPostureOf(mode.current) !== undefined) {
     return null
@@ -193,18 +200,33 @@ export function ComposerModeChip({ controls, onSelect }: ComposerModeChipProps) 
     return null
   }
 
-  return (
-    <button
-      aria-label={`退出${inForce.label}`}
-      className="assistant-mode-chip"
-      onClick={() => {
-        onSelect(mode.id, first.value)
-      }}
-      type="button"
-    >
-      <CloseIcon aria-hidden="true" />
+  /* 没有记忆（会话一进来就是 plan）才落回首档批准方式。 */
+  const firstPosture = mode.choices.find(
+    (choice) => permissionPostureOf(choice.value) !== undefined,
+  )
 
-      <span className="assistant-mode-chip__label">{inForce.label}</span>
-    </button>
+  return (
+    <>
+      <span aria-hidden="true" className="assistant-mode-chip__divider" />
+
+      <button
+        aria-label={`退出${inForce.label}`}
+        className="assistant-mode-chip"
+        onClick={() => {
+          onSelect(mode.id, rememberedPosture ?? firstPosture?.value ?? first.value)
+        }}
+        type="button"
+      >
+        <span aria-hidden="true" className="assistant-mode-chip__icon">
+          <SirenIcon className="assistant-mode-chip__glyph" />
+
+          <span className="assistant-mode-chip__remove">
+            <CloseIcon />
+          </span>
+        </span>
+
+        <span className="assistant-mode-chip__label">{inForce.label}</span>
+      </button>
+    </>
   )
 }

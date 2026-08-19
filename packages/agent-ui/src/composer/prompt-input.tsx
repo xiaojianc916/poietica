@@ -598,7 +598,12 @@ export function PromptInput({
               ref={formRef}
             >
               {paletteOpen ? (
-                <ComposerPalette groups={visible} highlighted={highlighted} onPick={pickRow} />
+                <ComposerPalette
+                  groups={visible}
+                  highlighted={highlighted}
+                  onHighlight={setHighlighted}
+                  onPick={pickRow}
+                />
               ) : null}
 
               {children}

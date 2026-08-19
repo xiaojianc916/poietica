@@ -34,12 +34,11 @@
 }
 
 /*
- * 生效档位的胶囊：几何与批准方式那颗同一套令牌，底色由墨色按
- * 洗淡比例混出（与 permission-picker.css 同一条规则），悬停只加深洗淡。
+ * 生效档位的胶囊：静息无底色（左图标右文字），悬停才上底色并把图标换成「移除」
+ * 圆钮。悬停底色与批准方式胶囊同值（正本：permission-picker.css 的 --pp-hover）；
+ * 三个字面量色值是设计指定值，深色主题要调时入 composer-metrics.css 令牌表。
  */
 .assistant-mode-chip {
-  --chip-wash: var(--cp-pill-wash);
-
   display: inline-flex;
   block-size: var(--cp-pill);
   flex: none;
@@ -48,7 +47,7 @@
   border: 0;
   border-radius: 9999px;
   padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
-  background: color-mix(in oklab, var(--cp-ink-muted) var(--chip-wash), var(--cp-surface));
+  background: transparent;
   font: inherit;
   font-size: var(--cp-font-caption);
   line-height: 1;
@@ -58,13 +57,53 @@
 }
 
 .assistant-mode-chip:hover {
-  --chip-wash: calc(var(--cp-pill-wash) * 2);
+  background: #f2f2f3;
 }
 
-[data-assistant-skin] .assistant-mode-chip > svg {
+/* 与批准方式胶囊之间的分隔线：它是这枚胶囊组合的一部分，同生同灭。 */
+.assistant-mode-chip__divider {
+  inline-size: var(--cp-px);
+  block-size: var(--cp-icon);
+  flex: none;
+  align-self: center;
+  background: var(--cp-hairline);
+}
+
+/* 图标位：静息是模式字形，悬停换成移除圆钮。两者同格叠放，切换不挪字。 */
+.assistant-mode-chip__icon {
+  display: grid;
+  flex: none;
+}
+
+.assistant-mode-chip__icon > * {
+  grid-area: 1 / 1;
+}
+
+.assistant-mode-chip__icon svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
-  flex: none;
+}
+
+.assistant-mode-chip__remove {
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  background: #87888a;
+  color: #fff;
+  visibility: hidden;
+}
+
+.assistant-mode-chip__remove svg {
+  block-size: calc(var(--cp-icon) - 6px);
+  inline-size: calc(var(--cp-icon) - 6px);
+}
+
+.assistant-mode-chip:hover .assistant-mode-chip__glyph {
+  visibility: hidden;
+}
+
+.assistant-mode-chip:hover .assistant-mode-chip__remove {
+  visibility: visible;
 }
 
 .assistant-mode-chip__label {

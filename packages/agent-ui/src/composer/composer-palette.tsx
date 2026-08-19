@@ -43,10 +43,17 @@ export interface ComposerPaletteProps {
   readonly groups: readonly PaletteGroup[]
   /** 在摊平后的行序列里的下标。 */
   readonly highlighted: number
+  /** 指针进入某一行时把高亮挪过去：任何时刻只有一行有悬停色。 */
+  readonly onHighlight: (index: number) => void
   readonly onPick: (row: PaletteRow) => void
 }
 
-export function ComposerPalette({ groups, highlighted, onPick }: ComposerPaletteProps) {
+export function ComposerPalette({
+  groups,
+  highlighted,
+  onHighlight,
+  onPick,
+}: ComposerPaletteProps) {
   const flat = groups.flatMap((group) => group.rows)
 
   return (
@@ -70,6 +77,11 @@ export function ComposerPalette({ groups, highlighted, onPick }: ComposerPalette
                   onMouseDown={(event) => {
                     event.preventDefault()
                     onPick(row)
+                  }}
+                  onMouseEnter={() => {
+                    if (row.disabled !== true) {
+                      onHighlight(at)
+                    }
                   }}
                   role="option"
                   type="button"
