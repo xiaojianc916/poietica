@@ -112,7 +112,7 @@ export interface ThreadPort {
    * 打开一条对话：不点名就新开一条，点名就让那一条握住一个会话。
    *
    * 点开一条上次运行留下的对话也走这里。它存着的会话号在新的 agent 进程里不是
-   * 活的，但那条会话仍在 agent 那侧：原生侧因此走 ACP 的 session/load 把它装载
+   * 活的，但那条会话仍在 agent 那侧：原生侧因此走 kap 的会话 load 动作把它装载
    * 回来，号不变，上下文因此还在。此前这里写的是"开一个新的并改写持有关系" ——
    * 那不是设计，那是一个把上下文丢掉、并且顺手覆盖掉旧号的 bug。
    *
@@ -125,7 +125,7 @@ export interface ThreadPort {
   readonly remove?: (threadId: ThreadId) => Promise<void>
 
   /**
-   * 从一条对话分叉出一条新对话（ACP session/fork）。历史归 agent 所有，
+   * 从一条对话分叉出一条新对话（kap 的会话 fork 动作）。历史归 agent 所有，
    * 所以这是协议动作：agent 带着完整上下文开出新会话，本地只复制一行索
    * 引，源对话原样不动。交回新对话的记录 —— 打开它走 open 那条已有的路。
    *

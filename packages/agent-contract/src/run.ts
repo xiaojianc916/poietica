@@ -1,10 +1,6 @@
-import type {
-  KapEventPayload,
-  KapSessionId,
-  KapStopReason,
-  PermissionOption,
-  ToolCallUpdate,
-} from './kap'
+import type { KapEventPayload, KapSessionId, KapStopReason } from './kap'
+import type { PermissionOption } from './permission'
+import type { ToolCallUpdate } from './tool-call'
 
 export type RunStatus =
   | 'idle'

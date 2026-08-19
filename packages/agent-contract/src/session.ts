@@ -5,7 +5,7 @@ import type { RunEvent } from './run'
 /**
  * The agent session port.
  *
- * The implementation is Rust behind typed IPC: it owns the ACP client, the agent
+ * The implementation is Rust behind typed IPC: it owns the kap client, the agent
  * subprocess and every credential. This interface is the entire surface the UI
  * is allowed to know about.
  *
@@ -65,7 +65,7 @@ export interface AgentSessionPort {
    * 只属于一条会话：批随每一轮 prompt 新造，Frames::new 在造它的那一刻就把会话
    * 号钉死了。所以地址对整批说一次就够，不必逐帧再说一遍。
    *
-   * 地址是会话号，和 ACP 的 session/update 同一个主语。它由原生侧写在信封上
+   * 地址是会话号，和 kap 事件信封上的 session_id 同一个主语。它由原生侧写在信封上
    * （frame.rs 的 Envelope.session_id），六种帧无一例外，所以订阅者不必猜。
    *
    * 它先于帧存在：一条对话在打开的那一刻就握住了会话号（ThreadRecord.sessionId），
@@ -80,7 +80,7 @@ export interface AgentSessionPort {
   /**
    * 停掉这条对话上正在跑的那一轮。
    *
-   * 点名一条对话，不是一轮。ACP 的取消发给一条会话，而一条对话持有一条会话，
+   * 点名一条对话，不是一轮。kap 的取消打给一条会话，而一条对话持有一条会话，
    * 这条对应关系在打开这条对话时就已经写下 —— 取消因此不需要在它之外再记住
    * 任何东西，也就没有什么会过期。
    */
