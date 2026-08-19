@@ -46,7 +46,7 @@ X-Frame-Options/frame-ancestors 会把大多数站点挡在 iframe 外面。
 reconcileBrowserMcpServer 把受控 home 里 mcp.json 的 poietica-browser 条目对
 齐到当前端点（端口每次启动都变，所以每次启动都对账），条目正文是一台
 playwright-mcp，用 --cdp-endpoint 直连现成端点。kimi CLI 读到条目后自己拉起
-这台 stdio 服务器（ACP 线上 kimi 只报 http/sse 能力，stdio 归 CLI 亲手
+这台 stdio 服务器（kap 的提交面不传 MCP 服务器，stdio 归 CLI 亲手
 spawn，所以车道只能是受控 home 的 mcp.json），agent 的 browser_* 工具经 CDP
 驱动面板里的标签。唯一真相不变：标签模型在 crates/browser 的 Tabs 里，CDP
 只是伸进内核的手。

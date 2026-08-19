@@ -64,17 +64,6 @@ tools/architecture/README.md 各存一份手抄表，四份互相矛盾（本文
 `model-catalog` 则自己去拉 models.dev，而 agent 内部拉的是同一份、写入又必须过它的
 CLI 校验 —— 两份可能不同步的副本里只有一份说得上话。候选模型问 agent 的
 provider catalog list。
-它此前叫 `agents`：复数名词声明的是「这里面有不止一个」，不是这个包负责什么，而同层
-另一个包也在处理 agent。
-
-这个包里没有 model catalog，也没有 provider profile —— 这是结论，不是遗漏。
-`model-provider-profile` 描述的是「启动 agent 时把 base URL、密钥、默认模型注入环境
-变量」：kimi-code 的 providers.md 写明它取凭据时不回落 shell 环境变量，那条路本来就
-不通；那份实现还把 provider 方言枚举成两种、把模型 id 硬编码，而上游的
-`ProviderTypeSchema` 是 `z.string()`，刻意不在解析期枚举 vendor 身份。
-`model-catalog` 则自己去拉 models.dev，而 agent 内部拉的是同一份、写入又必须过它的
-CLI 校验 —— 两份可能不同步的副本里只有一份说得上话。候选模型问 agent 的
-provider catalog list。
 
 ## 强制约束
 

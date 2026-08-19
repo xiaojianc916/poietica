@@ -2,11 +2,11 @@ import * as v from 'valibot'
 import type { AgentDescriptor } from './agent-descriptor'
 import { agentRoster } from './agents'
 
-/** 会话配置值。对应 ACP 的 ConfigOption currentValue（string | boolean）。 */
+/** 会话配置值。对应 kap 会话选择器的取值（string | boolean）。 */
 export type AgentConfigOptionValue = string | boolean
 
 /**
- * 一个 ACP agent 的接入档案：这台机器上，用户为这一家 agent 做的选择。
+ * 一个 agent 的接入档案：这台机器上，用户为这一家 agent 做的选择。
  *
  * 只有四格，而且每一格都真的属于用户。此前还有七格 —— displayName、command、
  * args、homeVar、registryKeyVar、ownHomeDirectory、install —— 它们描述的是「这
@@ -321,7 +321,7 @@ function sameInstall(before: AgentProfile['install'], after: AgentProfile['insta
  * declared_env_of,因为「用户在 env 里手写的可能根本不成立」。
  *
  * env 是唯一例外,它同时装着用户自己的变量:用户的键保留,描述符声明的键压过
- * 同名项。把 acp-v2 的开关关掉,agent 直接起不来。
+ * 同名项 —— 它是这家二进制的固有事实,用户写反了它,agent 直接起不来。
  *
  * 已经一致时原样返回同一个对象。调用方靠引用是否变化判断要不要物化,复制一份
  * 会让每次启动都报「档案变了」并白写一次磁盘。

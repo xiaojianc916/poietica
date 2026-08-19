@@ -71,23 +71,34 @@ from `static.rust-lang.org`, which no cargo registry mirror covers. The real
 lower bound is `rust-version` under `[workspace.package]` in the root
 `Cargo.toml`; Cargo enforces it natively and reports a readable error.
 
-## Running the live ACP turn
+## Running the live kap turn
 
 `cargo test -p poietica-agent-runtime-native --test live_turn -- --ignored` starts a
-real agent, so it needs one on the machine. It is not part of `cargo test` and
-nothing else in the repository depends on it.
+real Kimi Code kap server, so it needs one on the machine. It is not part of
+`cargo test` and nothing else in the repository depends on it.
 
-Two prerequisites, in order:
+Three prerequisites, in order:
 
-1. The agent has to be executable by name. The client spawns a program, not a
+1. `kimi` has to be executable by name. The client spawns a program, not a
    shell, so a launcher installed as a script must be named in full on Windows.
-   Check with `where.exe kimi` and override with `POIETICA_ACP_COMMAND` if the
-   resolved name differs from `kimi`.
-2. The agent has to be logged in. Kimi CLI requires `/login` to be completed in
-   an interactive session before it will serve ACP; without it the process
-   starts and then refuses to create a session, which looks like a protocol
-   failure but is not one.
+   Check with `where.exe kimi` and override with `POIETICA_KAP_PROGRAM` if the
+   resolved name differs.
+2. Kimi Code has to be logged in. Without it the server starts and then refuses
+   to create a session, which looks like a transport failure but is not one.
+3. Loopback REST and WebSocket connections have to be allowed on this machine.
 
-Neither is worked around in code. A client that silently rewrites the command it
-was given, or that treats a login failure as a transport error, hides exactly the
-information the person running it needs.
+The overrides the test reads are declared in
+`crates/agent-runtime/tests/live_turn.rs`:
+
+- `POIETICA_KAP_PROGRAM`
+- `POIETICA_KAP_ARGS`
+- `POIETICA_KAP_PROMPT`
+- `POIETICA_KAP_CWD`
+- `POIETICA_KAP_TIMEOUT`
+- `POIETICA_KAP_MODEL`
+- `POIETICA_KAP_CAPTURE`
+- `POIETICA_KAP_EXPECT`
+
+None of these prerequisites is worked around in code. A client that silently
+rewrites the command it was given, or that treats a login failure as a transport
+error, hides exactly the information the person running it needs.

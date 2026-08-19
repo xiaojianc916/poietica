@@ -131,11 +131,9 @@ function importDocument(provider: AgentProviderState): string {
 /*
  * 这一家该拿哪个模型当 default_model。
  *
- * 为什么它是必填而不是偏好：ACP 的鉴权闸门第一条判的就是它 ——
- * packages/agent-contract-adapter/src/server.ts 的 hasUsableConfiguredDefaultModel 逐字
- * `if (config.defaultModel === undefined) return false`。顶层没有这一行，
- * 配置文件里的 api_key 那条路整条不算数，session/new 一律 authRequired。
- * 它与 api_key 同级。
+ * 为什么它是必填而不是偏好：官方 catalog add 把它当硬校验 ——
+ * handleCatalogAdd 的 models.some((m) => m.id === opts.defaultModel) 落空就 exit 1，
+ * 于是一次导入要么带着一个真实存在的 default_model，要么整条不算数。
  *
  * 候选只在「进得了导入文档」的那几条里挑：--default-model 的校验名单是对方从目录
  * 里解析出来的模型（handleCatalogAdd 的 models.some(m => m.id === opts.defaultModel)），

@@ -1,5 +1,7 @@
 # 0021. 换轨：dsh SDK 线协议是接 DeepSeek 的唯一传输
 
+> 传输前提已被 [ADR 0026](0026-kap-is-the-only-agent-transport.md) 取代；本文仅作为历史记录保留。
+
 > Status: superseded by ADR 0022.
 
 ## 裁决

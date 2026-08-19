@@ -1,5 +1,7 @@
 # 0012 · ACP 模型与 Agent 配置
 
+> 传输前提已被 [ADR 0026](0026-kap-is-the-only-agent-transport.md) 取代；本文仅作为历史记录保留。
+
 - 状态：已接受（第 1 步：TypeScript 契约与界面）
 - 日期：2026-07-28
 

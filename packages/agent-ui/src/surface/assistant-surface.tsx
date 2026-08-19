@@ -53,8 +53,8 @@ export interface AssistantSurfaceProps {
    */
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
   /**
-   * 分叉这条对话（整条带走）。只在最后一轮的操作区亮起：ACP 的 session/fork
-   * 没有分叉点参数，从最后一轮分叉恰好就是整条。缺席 = 平台没有这个动作。
+   * 分叉这条对话（整条带走）。只在最后一轮的操作区亮起：分叉整条带走，
+   * 不选分叉点，所以从最后一轮分叉恰好就是整条。缺席 = 平台没有这个动作。
    */
   readonly onFork?: (() => void) | undefined
   /**
