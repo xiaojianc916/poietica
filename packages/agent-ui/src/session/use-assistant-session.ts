@@ -1,11 +1,24 @@
 import type {
   PermissionItem,
+  QuestionTimelineItem,
   TimelineState,
   ToolCallTimelineItem,
   Transcript,
 } from '@poietica/agent'
-import { pendingPermission, pendingPermissionCall, pendingPermissionCount } from '@poietica/agent'
-import type { AgentSessionPort, ChatStatus, PromptAsset } from '@poietica/agent-contract'
+import {
+  describeFailure,
+  pendingPermission,
+  pendingPermissionCall,
+  pendingPermissionCount,
+  pendingQuestion,
+  pendingQuestionCount,
+} from '@poietica/agent'
+import type {
+  AgentSessionPort,
+  ChatStatus,
+  PromptAsset,
+  QuestionResponse,
+} from '@poietica/agent-contract'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { useTranscripts } from './transcripts-context'
 
@@ -71,6 +84,10 @@ export interface AssistantSession {
   readonly send: (submission: AssistantSubmission) => void
   readonly cancel: () => void
   readonly resolvePermission: (requestId: string, optionId: string) => void
+  /** 答掉一整组题。答复形状就是协议自己的 QuestionResponse，不经权限请求。 */
+  readonly answerQuestions: (response: QuestionResponse) => void
+  /** 撤下一整组题。 */
+  readonly dismissQuestions: (questionId: string) => void
   /** True while a conversation is still being fetched. */
   readonly isRestoring: boolean
 }
@@ -90,11 +107,15 @@ function useSlice<TValue>(key: string, project: (transcript: Transcript) => TVal
   )
 }
 
+/* 没有会话可送时记进转录的那句话。入口那一格本来就没有会话，而题组不会出现在那里。 */
+const NO_SESSION = '这个界面还没有接上助手会话，答复没有送出去。'
+
 /* 纯 switch，返回字符串字面量：依赖数组的分配与比较比它本身贵。 */
 function toChatStatus(status: TimelineState['status']): ChatStatus {
   switch (status) {
     case 'running':
     case 'awaiting_permission':
+    case 'awaiting_question':
       return 'streaming'
     case 'failed':
       return 'error'
@@ -121,6 +142,13 @@ const readPending = (transcript: Transcript): PermissionItem | undefined =>
 /* 同一趟扫描的另一格。交出的是数字，所以它比条目引用还稳。 */
 const readPendingCount = (transcript: Transcript): number =>
   pendingPermissionCount(transcript.timeline)
+
+/* 待答的那一组题：与待答的审批同一趟倒扫、同一条引用稳定纪律（pendingQuestion）。 */
+const readQuestion = (transcript: Transcript): QuestionTimelineItem | undefined =>
+  pendingQuestion(transcript.timeline)
+
+const readQuestionCount = (transcript: Transcript): number =>
+  pendingQuestionCount(transcript.timeline)
 
 export function useAssistantSession({
   endpoint,
@@ -184,7 +212,59 @@ export function useAssistantSession({
     [key, transcripts],
   )
 
-  return { key, status, send, cancel, resolvePermission, isRestoring }
+  /*
+   * 答复与撤下直走会话端口，不经过 store。
+   *
+   * 权限答复走 store，是因为它要在转录里就地落一条记录；提问的落账由帧完成 ——
+   * questions_resolved 一到，条目自己就结清了，客户端没有第二笔要记的。这里唯一
+   * 要兜的是送不出去：失败就地记进转录，与本地事故同一处写法（appendLocalError）。
+   */
+  const answerQuestions = useCallback(
+    (response: QuestionResponse) => {
+      if (session === undefined) {
+        transcripts.note(key, NO_SESSION)
+        return
+      }
+
+      try {
+        void Promise.resolve(session.answerQuestions(response)).catch((cause: unknown) => {
+          transcripts.note(key, describeFailure(cause))
+        })
+      } catch (cause) {
+        transcripts.note(key, describeFailure(cause))
+      }
+    },
+    [key, session, transcripts],
+  )
+
+  const dismissQuestions = useCallback(
+    (questionId: string) => {
+      if (session === undefined) {
+        transcripts.note(key, NO_SESSION)
+        return
+      }
+
+      try {
+        void Promise.resolve(session.dismissQuestions(questionId)).catch((cause: unknown) => {
+          transcripts.note(key, describeFailure(cause))
+        })
+      } catch (cause) {
+        transcripts.note(key, describeFailure(cause))
+      }
+    },
+    [key, session, transcripts],
+  )
+
+  return {
+    key,
+    status,
+    send,
+    cancel,
+    resolvePermission,
+    answerQuestions,
+    dismissQuestions,
+    isRestoring,
+  }
 }
 
 /**
@@ -201,8 +281,8 @@ export function useAssistantTimeline(key: string): TimelineState {
  * 这一轮此刻卡在哪一道权限请求上，没有就是 undefined。
  *
  * 交回条目本身：它的身份由 reducer 维护（答复到达时才就地替换那一条），所以
- * 订阅它不会被流式追加打扰。是不是一道「提问」由界面层按方言判，这一层只回答
- * 「有没有人在等」。
+ * 订阅它不会被流式追加打扰。提问不在这条通道上 —— 它有自己的条目与选择器
+ * （useAssistantQuestion）。
  */
 export function useAssistantPending(key: string): PermissionItem | undefined {
   return useSlice(key, readPending)
@@ -216,6 +296,21 @@ export function useAssistantPending(key: string): PermissionItem | undefined {
  */
 export function useAssistantPendingCount(key: string): number {
   return useSlice(key, readPendingCount)
+}
+
+/**
+ * 这一轮此刻挂在哪一组题上，没有就是 undefined。
+ *
+ * 与 useAssistantPending 同一条引用稳定纪律：交回的是转录里那个条目本身，
+ * 结清（resolution 落账）时才换引用，流式追加叫不醒订阅者。
+ */
+export function useAssistantQuestion(key: string): QuestionTimelineItem | undefined {
+  return useSlice(key, readQuestion)
+}
+
+/** 这一轮此刻一共有几组题在等。 */
+export function useAssistantQuestionCount(key: string): number {
+  return useSlice(key, readQuestionCount)
 }
 
 /* 请求只带一个号，要签字的原文在那条调用上。 */

@@ -1,211 +1,303 @@
+import type { QuestionTimelineItem } from '@poietica/agent'
+import type { QuestionAnswerMethod, QuestionResponse } from '@poietica/agent-contract'
 import { ChevronLeft, ChevronRight, Circle, CircleCheck, X } from 'lucide-react'
-import { useState } from 'react'
-
-import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
-
-/*
- * 输入框长出来的问答面板。
- *
- * 它不是浮层，也不是时间线里的卡片：composer 在有待答题组时整个换成它，答完再
- * 换回去。所以这里刻意不画外壳边框——外壳仍是 composer 自己那一层。
- *
- * 三层结构是为了那个「长」字：外层是单行 grid，行高从 0fr 撑到 1fr，中层裁掉
- * 溢出，内层才是内容。高度因此是被撑开的，不是先占好位再淡入——后者看起来是
- * 「浮现」，不是「长出来」。翻页时内层换 key，只淡入内容，外壳纹丝不动。
- *
- * 推进语义：点选项只落一个选中态，翻页要点"下一题"；箭头可回退改答；最后一题
- * 的按钮是"发送"，这时才把整组答案一次交出去。中途不回任何东西，因为 ACP 的
- * request_permission 一旦答了就收不回来，而用户要能改。
- *
- * 不 import 设计系统与 primitives：这一层要能在目录重排后原样存活。标准操作字形直接
- * 来自 lucide-react，与应用其余界面共享同一套几何和描边。
- */
-
-function MarkIcon({ selected }: { readonly selected: boolean }) {
-  const Mark = selected ? CircleCheck : Circle
-
-  return <Mark aria-hidden="true" size={16} strokeWidth={1.5} />
-}
+import { useEffect, useState } from 'react'
+import { answerOf, EMPTY_DRAFT, type QuestionDraft, responseOf } from './question-answer'
 
 /*
- * 整组跳过时，每题回它自己的 skipOptionId；没有 skip 的题不出现在结果里。
+ * 一整组题的面板。
  *
- * 它此前是一个 useMemo。官方对 useMemo 的口径是「只有计算明显昂贵时才划算」，而这里是
- * 个位数张卡片的一次 flatMap —— memo 的净收益是负的：换来的是每次渲染一次依赖比较加
- * 一个闭包分配。而且它只在点「跳过全部」的那一刻才被读，压根不必每次渲染都算好等着。
+ * 一组题至多四道（协议上限），一次画一道：1/N 翻题。答复在凑齐之前不交出去 ——
+ * 中途翻页不回任何东西，回出去的答复收不回来。
  *
- * 同文件里的 collect() 是同构的派生，本来就是一个普通函数：一处 memo 一处不 memo，是
- * 同一条管线上的两种写法。
+ * 键盘：数字键挑选项（单选即挑、多选即勾），空格勾当前那一枚，回车等于底下那颗
+ * 主按钮。method 如实上报：每一次挑选手势都盖过上一次，随答复送出去的是最近那次
+ * 手势的通道 —— 官方今天不转发 'click'，那是上游的取舍，不是我们少记的理由。
+ * 打字不算手势：method 的四档里没有它。
+ *
+ * 状态只有页码、草稿、备注与游标，全部跟着 key 走：换了题组，composer 换 key，
+ * 整副面板重新挂载 —— 没有需要复位的 effect。
  */
-function skipsOf(deck: QuestionDeck): readonly QuestionAnswer[] {
-  return deck.cards.flatMap((entry) =>
-    entry.skipOptionId === undefined
-      ? []
-      : [{ requestId: entry.requestId, optionId: entry.skipOptionId }],
-  )
-}
+
+/* 数字键到选项的下标。协议上限是四个选项，多出的键只是用不上。 */
+const HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
 
 export interface QuestionPanelProps {
-  readonly deck: QuestionDeck
-  /**
-   * 整组答案交出去。逐题一条，顺序与题组一致。
-   *
-   * 「发送」与「✕ 整组跳过」是同一个出口：两者的差别已经写在答案里 —— 跳过那一次
-   * 每题回的是它自己的 skipOptionId，没有 skip 的题干脆不出现在结果里。此前这里是
-   * 两个 prop，而调用点给它们的是同一个函数，外加两个内联箭头。
-   */
-  readonly onAnswer?: ((answers: readonly QuestionAnswer[]) => void) | undefined
+  readonly item: QuestionTimelineItem
+  readonly onAnswer?: ((response: QuestionResponse) => void) | undefined
+  readonly onDismiss?: ((questionId: string) => void) | undefined
 }
 
-export function QuestionPanel({ deck, onAnswer }: QuestionPanelProps) {
-  const [index, setIndex] = useState(0)
-  const [picked, setPicked] = useState<Readonly<Record<string, string>>>({})
-
-  /*
-   * 交出去之后不能再交第二次。
-   *
-   * ACP 的 request_permission 一答就收不回来，同一个 requestId 回两次是协议错误；
-   * 而「发送」是个普通按钮，双击一下就是两次。此前挡这件事的是一个叫 busy 的 prop，
-   * 写着「提交中：按钮转不可点，避免重复回包」—— 没有任何调用点传过它，那道闸从落地
-   * 起就是敞开的。一个没人传、且缺席即缺陷的 prop，比没有更坏。
-   *
-   * 闸设在面板自己身上：它是唯一确切知道「我已经交出去了」的人，那一刻就是它调用
-   * onAnswer 的那一刻，不必等上游把题组撤掉的那次往返。换了题组就是换了一个面板
-   * （调用点按 toolCallId 给 key），这个闩跟着新实例从头开始。
-   */
+export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps) {
+  const [page, setPage] = useState(0)
+  const [drafts, setDrafts] = useState<Record<string, QuestionDraft>>({})
+  const [note, setNote] = useState('')
+  const [cursor, setCursor] = useState(0)
+  const [method, setMethod] = useState<QuestionAnswerMethod | undefined>(undefined)
   const [sent, setSent] = useState(false)
 
-  const total = deck.cards.length
-  const card = deck.cards[Math.min(index, total - 1)]
+  const questions = item.questions
+  const total = questions.length
+  const current = questions[page] ?? questions[0]
 
-  if (card === undefined) {
-    return null
+  /* 协议保证至少一题；一份空载荷是上游的错，与方言无关，当场现形。 */
+  if (current === undefined) {
+    throw new Error('提问面板收到一组空题。')
   }
 
-  const chosen = picked[card.requestId]
-  const isLast = index === total - 1
+  const draft = drafts[current.id] ?? EMPTY_DRAFT
+  const lastPage = page >= total - 1
+  const ready = questions.every(
+    (question) => answerOf(question, drafts[question.id] ?? EMPTY_DRAFT) !== undefined,
+  )
 
-  const answer = (answers: readonly QuestionAnswer[]) => {
-    if (sent) {
+  const edit = (next: QuestionDraft) => {
+    setDrafts((held) => ({ ...held, [current.id]: next }))
+  }
+
+  /* 单选与自选互斥：勾了选项就清掉写下的字。多选不互斥，两样并立。 */
+  const pick = (optionId: string, at: number, via: QuestionAnswerMethod) => {
+    setCursor(at)
+    setMethod(via)
+
+    if (current.multiSelect === true) {
+      edit({
+        ...draft,
+        skipped: false,
+        picked: draft.picked.includes(optionId)
+          ? draft.picked.filter((held) => held !== optionId)
+          : [...draft.picked, optionId],
+      })
       return
     }
 
-    setSent(true)
-    onAnswer?.(answers)
+    edit({
+      ...draft,
+      skipped: false,
+      written: '',
+      picked: draft.picked.includes(optionId) ? [] : [optionId],
+    })
   }
 
-  /* 没选的题按跳过算，"下一题"不会把用户卡死在某一题上。 */
-  const collect = (): readonly QuestionAnswer[] =>
-    deck.cards.flatMap((entry) => {
-      const optionId = picked[entry.requestId] ?? entry.skipOptionId
-
-      return optionId === undefined ? [] : [{ requestId: entry.requestId, optionId }]
+  const write = (text: string) => {
+    edit({
+      ...draft,
+      skipped: false,
+      written: text,
+      ...(current.multiSelect === true ? {} : { picked: [] }),
     })
+  }
+
+  const send = (via: QuestionAnswerMethod) => {
+    const response = responseOf(item, drafts, method ?? via, note)
+
+    if (response === undefined) {
+      return
+    }
+
+    /* 先记下「交出去了」：questions_resolved 帧到达之前，所有控件都不该再点得动。 */
+    setSent(true)
+    onAnswer?.(response)
+  }
+
+  /* 主按钮：不是最后一页就翻页；最后一页凑齐了才是「交出答复」。 */
+  const advance = (via: QuestionAnswerMethod) => {
+    if (lastPage) {
+      if (ready) {
+        send(via)
+      }
+      return
+    }
+
+    setPage(page + 1)
+    setCursor(0)
+  }
+
+  const turn = (delta: number) => {
+    setPage((held) => Math.min(Math.max(held + delta, 0), total - 1))
+    setCursor(0)
+  }
+
+  /*
+   * 键盘挂在窗口上，不挂在某个输入框上：提问期间 textarea 不在场，全局监听不会
+   * 打劫任何人的输入；两个文本格（自选、备注）聚焦时按键归它们，这里一律放行。
+   * 每次渲染重挂一次，换来永远读到最新的闭包 —— 一副面板的生命以秒计。
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (sent) {
+        return
+      }
+
+      const target = event.target
+
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        advance('enter')
+        return
+      }
+
+      if (event.key === ' ') {
+        const option = current.options[cursor]
+
+        if (option !== undefined) {
+          event.preventDefault()
+          pick(option.id, cursor, 'space')
+        }
+        return
+      }
+
+      const at = HOTKEYS.indexOf(event.key)
+      const option = at < 0 ? undefined : current.options[at]
+
+      if (option !== undefined) {
+        event.preventDefault()
+        pick(option.id, at, 'number_key')
+      }
+    }
+
+    window.addEventListener('keydown', onKey)
+
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   return (
-    <section
-      aria-label="来自助手的问题"
-      className="assistant-question-panel"
-      data-slot="question-panel"
-    >
+    <div className="assistant-question-panel">
       <div className="assistant-question-panel__inner">
-        <div className="assistant-question-panel__page" key={index}>
-          <header className="assistant-question-panel__head">
-            {card.header === '' ? null : (
-              <span className="assistant-question-panel__tag">{card.header}</span>
-            )}
+        <div className="assistant-question-panel__page" key={current.id}>
+          <div className="assistant-question-panel__head">
+            <span className="assistant-question-panel__tag">{current.header ?? '提问'}</span>
+            <span className="assistant-question-panel__count">
+              {page + 1}/{total}
+            </span>
+            <button
+              aria-label="撤下这组题"
+              className="assistant-question-panel__dismiss"
+              disabled={sent}
+              onClick={() => onDismiss?.(item.questionId)}
+              type="button"
+            >
+              <X size={14} />
+            </button>
+          </div>
 
-            <p className="assistant-question-panel__prompt">{card.prompt}</p>
+          <p className="assistant-question-panel__prompt">{current.question}</p>
 
-            <div className="assistant-question-panel__nav">
-              <button
-                aria-label="上一题"
-                className="assistant-question-panel__arrow"
-                disabled={index === 0}
-                onClick={() => {
-                  setIndex((current) => Math.max(0, current - 1))
-                }}
-                type="button"
-              >
-                <ChevronLeft aria-hidden="true" size={14} strokeWidth={1.5} />
-              </button>
+          {current.body === undefined ? null : (
+            <p className="assistant-question-panel__body">{current.body}</p>
+          )}
 
-              <span className="assistant-question-panel__count">
-                {index + 1}/{total}
-              </span>
+          <div
+            className="assistant-question-panel__options"
+            data-skipped={draft.skipped ? 'true' : undefined}
+          >
+            {current.options.map((option, at) => {
+              const selected = draft.picked.includes(option.id)
+              const Mark = selected ? CircleCheck : Circle
 
-              <button
-                aria-label="下一题"
-                className="assistant-question-panel__arrow"
-                disabled={isLast}
-                onClick={() => {
-                  setIndex((current) => Math.min(total - 1, current + 1))
-                }}
-                type="button"
-              >
-                <ChevronRight aria-hidden="true" size={14} strokeWidth={1.5} />
-              </button>
-
-              <button
-                aria-label="跳过全部问题"
-                className="assistant-question-panel__dismiss"
-                disabled={sent}
-                onClick={() => {
-                  answer(skipsOf(deck))
-                }}
-                type="button"
-              >
-                <X aria-hidden="true" size={12} strokeWidth={1.5} />
-              </button>
-            </div>
-          </header>
-
-          <ul className="assistant-question-panel__options">
-            {card.choices.map((choice) => (
-              <li key={choice.optionId}>
+              return (
                 <button
-                  aria-pressed={chosen === choice.optionId}
+                  aria-pressed={selected}
                   className="assistant-question-panel__option"
-                  data-selected={chosen === choice.optionId ? 'true' : undefined}
+                  data-cursor={at === cursor ? 'true' : undefined}
+                  data-selected={selected ? 'true' : undefined}
                   disabled={sent}
-                  onClick={() => {
-                    setPicked((current) => ({ ...current, [card.requestId]: choice.optionId }))
-                  }}
+                  key={option.id}
+                  onClick={() => pick(option.id, at, 'click')}
+                  title={option.description}
                   type="button"
                 >
+                  <span className="assistant-question-panel__key">{at + 1}</span>
                   <span className="assistant-question-panel__mark">
-                    <MarkIcon selected={chosen === choice.optionId} />
+                    <Mark size={16} />
                   </span>
-
-                  <span className="assistant-question-panel__label">{choice.label}</span>
+                  <span className="assistant-question-panel__label">{option.label}</span>
                 </button>
-              </li>
-            ))}
-          </ul>
+              )
+            })}
+          </div>
 
-          <footer className="assistant-question-panel__foot">
-            <span className="assistant-question-panel__hint">
-              {chosen === undefined ? '未选择时按跳过处理' : ''}
-            </span>
+          {current.allowOther === true ? (
+            <input
+              aria-label={current.otherLabel ?? '自己写一句'}
+              className="assistant-question-panel__other"
+              disabled={sent || draft.skipped}
+              onChange={(event) => write(event.target.value)}
+              placeholder={current.otherLabel ?? '其他…'}
+              value={draft.written}
+            />
+          ) : null}
 
+          {current.multiSelect === true ? (
+            <p className="assistant-question-panel__hint-inline">可多选</p>
+          ) : null}
+        </div>
+
+        <input
+          aria-label="整组题的备注"
+          className="assistant-question-panel__note"
+          disabled={sent}
+          onChange={(event) => setNote(event.target.value)}
+          placeholder="备注（可选，随这组题一起送出）"
+          value={note}
+        />
+
+        <div className="assistant-question-panel__foot">
+          <div className="assistant-question-panel__nav">
             <button
-              className={`assistant-question-panel__advance${chosen === undefined ? ' is-idle' : ''}`}
+              aria-label="上一题"
+              className="assistant-question-panel__arrow"
+              disabled={sent || page === 0}
+              onClick={() => turn(-1)}
+              type="button"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              aria-label="下一题"
+              className="assistant-question-panel__arrow"
+              disabled={sent || lastPage}
+              onClick={() => turn(1)}
+              type="button"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          <span className="assistant-question-panel__hint">数字键选择，空格勾选，回车继续</span>
+
+          <div className="assistant-question-panel__acts">
+            <button
+              className="assistant-question-panel__skip"
               disabled={sent}
               onClick={() => {
-                if (isLast) {
-                  answer(collect())
-                  return
-                }
-
-                setIndex((current) => Math.min(total - 1, current + 1))
+                setMethod('click')
+                edit({ ...draft, skipped: !draft.skipped })
               }}
               type="button"
             >
-              {isLast ? '发送' : '下一题'}
+              {draft.skipped ? '答这题' : '跳过这题'}
             </button>
-          </footer>
+
+            <button
+              className={
+                lastPage && !ready
+                  ? 'assistant-question-panel__advance is-idle'
+                  : 'assistant-question-panel__advance'
+              }
+              disabled={sent || (lastPage && !ready)}
+              onClick={() => advance('click')}
+              type="button"
+            >
+              {lastPage ? '交出答复' : '下一题'}
+            </button>
+          </div>
         </div>
       </div>
-    </section>
+    </div>
   )
 }

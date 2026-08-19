@@ -106,7 +106,11 @@ function fill(draft: Draft, events: readonly RunEvent[]): Draft {
      crash), and that is a fact about the run, not about the calls it made.
      Whatever a tool call was doing when the process died is what the log says
      it was doing; how a stalled call is drawn is the read model's business. */
-  if (draft.status === 'running' || draft.status === 'awaiting_permission') {
+  if (
+    draft.status === 'running' ||
+    draft.status === 'awaiting_permission' ||
+    draft.status === 'awaiting_question'
+  ) {
     draft.status = 'failed'
   }
 
@@ -156,7 +160,7 @@ export function appendUserMessage(
    * 共享字段，是这条缺陷的形状：全包七处 status 赋值里，只有这一处不是帧驱动的。
    *
    * 一轮的状态由帧说了算。本地这条路径唯一有资格宣告的是「有一轮在跑」，而
-   * awaiting_permission 本来就是在跑的一种，它比 running 多带一个事实，覆盖它
+   * 两种 awaiting 本来就是在跑的一种，它比 running 多带一个事实，覆盖它
    * 只会丢信息。
    *
    * 「有没有一轮在跑」同时回答了另一个问题：这一句话开不开一段。没在跑，它就是
@@ -164,7 +168,10 @@ export function appendUserMessage(
    * seq 窗口带 id 前缀一起换掉，在飞的工具调用会认不回自己那张卡。两件事同一个
    * 判据，所以只判一次。
    */
-  const busy = draft.status === 'running' || draft.status === 'awaiting_permission'
+  const busy =
+    draft.status === 'running' ||
+    draft.status === 'awaiting_permission' ||
+    draft.status === 'awaiting_question'
 
   if (!busy) {
     openSegment(draft)

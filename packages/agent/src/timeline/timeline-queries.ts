@@ -1,5 +1,6 @@
 import type {
   PermissionItem,
+  QuestionTimelineItem,
   TimelineItem,
   TimelineState,
   ToolCallTimelineItem,
@@ -13,23 +14,23 @@ import type {
  * 本身比重算贵。
  *
  * 它们此前与两条增量管线同住一屋，于是 selectFeedRows 里出现了一份手抄的
- * status === 'running' || status === 'awaiting_permission' —— 同一个文件里已经
+ * status === 'running' || status === 'awaiting_permission' || status === 'awaiting_question' —— 同一个文件里已经
  * 有一个导出的选择器在回答这个问题，却没有人调用它。现在它是行投影的输入。
  */
 
 /* 没人在等时交出同一个对象：这条路径每帧都要走，而它什么都不必分配。 */
 const NOBODY_WAITING = { first: undefined, count: 0 } as const
 
-/** 这个问题只需要转录的三格，所以只收这三格。草稿和已封版的状态都喂得进来。 */
-export interface PermissionScope {
+/** 这两个问题只需要转录的三格，所以只收这三格。草稿和已封版的状态都喂得进来。 */
+export interface WaitingScope {
   readonly items: readonly TimelineItem[]
   readonly runIndex: number
   /**
    * 这一轮此刻的状态。
    *
-   * 它是「有没有人在等」的权威：permission_requested 写下 awaiting_permission，
-   * permission_resolved 又拿这里的答案把它算回 running（见 projection.ts）。
-   * 收下它，倒扫就只发生在真的有人在等的时候。
+   * 它是「有没有人在等」的权威：permission_requested 与 questions_asked 各写下
+   * 自己的等待，答复帧又拿这里的答案把它算回去（见 projection.ts 的 stillWaiting）。
+   * 两条队列同时在等时它装的是审批 —— 审批压过提问，与上游 phase 的派生优先级一致。
    */
   readonly status: TimelineState['status']
 }
@@ -60,7 +61,7 @@ export interface PermissionScope {
  * 答复，界面上再没有任何入口。那句话没有开新的一段（appendUserMessage 看见还有一轮
  * 在跑就不开），所以它与那个请求同号，扫描照常走过去。
  */
-export function pendingPermission(scope: PermissionScope): PermissionItem | undefined {
+export function pendingPermission(scope: WaitingScope): PermissionItem | undefined {
   return waitingIn(scope).first
 }
 
@@ -72,7 +73,7 @@ export function pendingPermission(scope: PermissionScope): PermissionItem | unde
  * 它和 pendingPermission 共用同一趟扫描，因为它们问的是同一件事的两面：
  * 抄第二个循环，边界条件就会有两份，而漂移的那一天不需要谁犯错。
  */
-export function pendingPermissionCount(scope: PermissionScope): number {
+export function pendingPermissionCount(scope: WaitingScope): number {
   return waitingIn(scope).count
 }
 
@@ -82,7 +83,7 @@ export function pendingPermissionCount(scope: PermissionScope): number {
  * 请求帧只带一个号：这次调用在做什么由它自己的条目说，那是唯一的事实来源。
  * 号还没落成条目（请求先于宣告到达）就交回 undefined。
  */
-export function pendingPermissionCall(scope: PermissionScope): ToolCallTimelineItem | undefined {
+export function pendingPermissionCall(scope: WaitingScope): ToolCallTimelineItem | undefined {
   const toolCallId = waitingIn(scope).first?.toolCall?.toolCallId
 
   if (toolCallId === undefined) {
@@ -106,7 +107,7 @@ export function pendingPermissionCall(scope: PermissionScope): ToolCallTimelineI
  * 交出的对象是过路的：两个导出各取一格，一个是转录里那个条目本身（引用稳定），
  * 一个是数字。订阅它们的界面因此不会被流式追加叫醒。
  */
-function waitingIn(scope: PermissionScope): {
+function waitingIn(scope: WaitingScope): {
   readonly first: PermissionItem | undefined
   readonly count: number
 } {
@@ -150,6 +151,63 @@ function waitingIn(scope: PermissionScope): {
   return { first, count }
 }
 
+/* 没人在等题时交出同一个对象，与 NOBODY_WAITING 同一条规矩。 */
+const NOBODY_ASKED = { first: undefined, count: 0 } as const
+
+/*
+ * 本段那趟倒扫的提问版。
+ *
+ * 与 waitingIn 互为镜像，只有一处不同：提前返回的判据不能只看 awaiting_question。
+ * status 只有一个词，两条队列同时在等时它装的是审批（见 projection.ts 的
+ * stillWaiting）—— 那时这一趟照样要扫，否则被压在底下的那组题永远查不出来，
+ * 面板上再也没有它的入口。
+ */
+function askingIn(scope: WaitingScope): {
+  readonly first: QuestionTimelineItem | undefined
+  readonly count: number
+} {
+  if (scope.status !== 'awaiting_permission' && scope.status !== 'awaiting_question') {
+    return NOBODY_ASKED
+  }
+
+  const items = scope.items
+  let first: QuestionTimelineItem | undefined
+  let count = 0
+
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index]
+
+    if (item === undefined) {
+      continue
+    }
+
+    if (item.turn !== scope.runIndex) {
+      return { first, count }
+    }
+
+    if (item.type === 'question' && item.resolution === undefined) {
+      first = item
+      count += 1
+    }
+  }
+
+  return { first, count }
+}
+
+/** 本段里最早那组还没结清的题。与 pendingPermission 同一条规矩、同一趟扫描纪律。 */
+export function pendingQuestion(scope: WaitingScope): QuestionTimelineItem | undefined {
+  return askingIn(scope).first
+}
+
+/** 本段里还没结清的题组一共几个。 */
+export function pendingQuestionCount(scope: WaitingScope): number {
+  return askingIn(scope).count
+}
+
 export function selectIsBusy(state: TimelineState): boolean {
-  return state.status === 'running' || state.status === 'awaiting_permission'
+  return (
+    state.status === 'running' ||
+    state.status === 'awaiting_permission' ||
+    state.status === 'awaiting_question'
+  )
 }

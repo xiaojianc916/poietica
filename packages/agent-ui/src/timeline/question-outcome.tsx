@@ -1,78 +1,57 @@
-import type { PermissionItem } from '@poietica/agent'
-import { memo } from 'react'
-import { useAgentDialect } from '../semantics/agent-dialect'
-import { parseQuestionOptionId, readQuestionPrompt } from '../semantics/ask-user-question'
+import type { QuestionTimelineItem } from '@poietica/agent'
+import { describeAnswer } from '../composer/question-answer'
 import { OutcomeCard } from './outcome-card'
 
-/**
- * 答完之后留在流里的那张卡片。
- *
- * 上面是问题，下面是那一个答案，落选的选项不再露面：回看一条消息流要读的是
- * 决定，不是当时的备选清单；把没被选的东西也摆出来，等于每次回看都把选择过程
- * 重演一遍。层级由字号和墨色给 —— 题面小而淡，答案大半档、重一点。
- *
- * 题面取自 readQuestionPrompt，不是 item.title：title 在 wire 上被 adapter 写死
- * 成 'AskUserQuestion'，真正的问题在 toolCall.content 里。一张写着工具名的卡片
- * 复述不了任何事。
- *
- * skip 不算选项。它是 ACP 通道为了表达"不回答"而追加的一枚 optionId，属于传输
- * 细节；把它摆进列表，用户会以为自己当初有第五个选择。真跳过了就在底下说一句。
- *
- * 卡片本身归 OutcomeCard 所有：一道答完的提问和一次答复过的权限请求在流里是同
- * 一类记录，它们的形状因此只有一处定义。这里只回答「哪一句是题、哪一句是答」。
- */
-
-export interface QuestionOutcomeProps {
-  readonly item: PermissionItem
-}
-
-/** 卡片底下那句话：没答、跳过了，或者什么也不必说。 */
-function noteFor(
-  item: PermissionItem,
-  picked: string | undefined,
-  skipped: boolean,
-): string | null {
-  if (item.resolution === undefined) {
-    return '等待回答…'
-  }
-
-  if (picked === undefined) {
-    return '已跳过，未回答'
-  }
-
-  return skipped ? '已跳过，未回答' : null
-}
-
 /*
- * memo 与 TimelineRow 同一策略：行的身份由 selector 保持，滚动与流式输出
- * 不该让一张内容没变的记录卡每帧重渲。
+ * 一组题落定之后的留影：逐题一张卡。
+ *
+ * 题面、答复、附注三个槽都是 OutcomeCard 的，这里只负责把协议的 answers 读成
+ * 人看的一句。没答成的由来（撤下、随轮取消、没送达）写成附注，不装成答案。
+ * 整组的备注挂在最后一张卡上 —— 它是给这组题的，不是给其中某一道的。
  */
-export const QuestionOutcome = memo(function QuestionOutcome({ item }: QuestionOutcomeProps) {
-  const dialect = useAgentDialect()
 
+/* outcome 的三种「没答成」，各自的说明。 */
+const UNANSWERED = {
+  dismissed: '这组题被撤下了。',
+  cancelled: '这一轮被取消，这组题没有等到答复。',
+  undelivered: '答复没能送到 agent 手里。',
+} as const
+
+export function QuestionOutcome({ item }: { readonly item: QuestionTimelineItem }) {
   const resolution = item.resolution
 
-  const picked =
-    resolution === undefined || resolution.outcome === 'cancelled' ? undefined : resolution.optionId
+  /* 还在等的题不上屏：它正长在输入框那张卡里（renderable 是同一处判据）。 */
+  if (resolution === undefined) {
+    return null
+  }
 
-  /* 哪一枚 optionId 表示「跳过」，由方言说了算，不由这里自带一条正则。 */
-  const skipped =
-    picked !== undefined && parseQuestionOptionId(picked, dialect.questions)?.kind === 'skip'
-
-  const note = noteFor(item, picked, skipped)
-
-  /* 只取被选中的那一个；取不到就什么也不画，底下那句话负责交代。 */
-  const answer =
-    picked === undefined || skipped
-      ? undefined
-      : item.options.find((option) => option.optionId === picked)?.name
+  const last = item.questions.length - 1
 
   return (
-    <OutcomeCard
-      answer={answer}
-      answered={picked !== undefined}
-      note={note ?? undefined}
-      prompt={readQuestionPrompt(item)}
-    />
+    <>
+      {item.questions.map((question, index) => {
+        const answer = resolution.answers[question.id]
+        const reason =
+          resolution.outcome === 'answered' ? undefined : UNANSWERED[resolution.outcome]
+        const note =
+          index === last && resolution.note.length > 0
+            ? reason === undefined
+              ? resolution.note
+              : reason + ' ' + resolution.note
+            : reason
+
+        return (
+          <OutcomeCard
+            answer={answer === undefined ? undefined : describeAnswer(question, answer)}
+            answered={
+              resolution.outcome === 'answered' && answer !== undefined && answer.kind !== 'skipped'
+            }
+            key={question.id}
+            note={note}
+            prompt={question.question}
+          />
+        )
+      })}
+    </>
   )
-})
+}

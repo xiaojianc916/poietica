@@ -9,6 +9,7 @@ export type {
   MessageImage,
   PermissionItem,
   PlanItem,
+  QuestionTimelineItem,
   TimelineItem,
   TimelineItemId,
   TimelineState,
@@ -20,6 +21,8 @@ export {
   pendingPermission,
   pendingPermissionCall,
   pendingPermissionCount,
+  pendingQuestion,
+  pendingQuestionCount,
   selectIsBusy,
 } from './timeline-queries'
 export {

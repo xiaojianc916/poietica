@@ -4,6 +4,7 @@ export type {
   CapabilityFailureReport,
 } from './agent-capability-store'
 export { AgentCapabilityStore } from './agent-capability-store'
+export { describeFailure } from './describe-failure'
 export type { PermissionPosture } from './permission-posture'
 export {
   permissionControlOf,

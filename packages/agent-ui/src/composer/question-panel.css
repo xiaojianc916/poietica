@@ -230,3 +230,80 @@
   opacity: 0.4;
   cursor: default;
 }
+
+/* 整组题面板新长出来的几格：题面正文、序号、自选、备注、动作排。 */
+
+.assistant-question-panel__body {
+  margin: 4px 0 0;
+  font-size: var(--cp-font-caption);
+  line-height: var(--ui-prose-line-height);
+  color: var(--cp-ink-subtle);
+}
+
+.assistant-question-panel__key {
+  flex: none;
+  font-size: var(--cp-font-micro);
+  line-height: var(--ui-line-height-normal);
+  color: var(--cp-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.assistant-question-panel__option[data-cursor="true"] {
+  outline: 1px solid var(--cp-accent);
+  outline-offset: 1px;
+}
+
+.assistant-question-panel__options[data-skipped="true"] {
+  opacity: 0.45;
+}
+
+.assistant-question-panel__other,
+.assistant-question-panel__note {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: var(--cp-font-label);
+  line-height: var(--ui-line-height-normal);
+  color: var(--ui-foreground);
+  background: transparent;
+  border: 1px solid var(--cp-hover);
+  border-radius: var(--cp-radius-item);
+}
+
+.assistant-question-panel__other {
+  margin-top: 6px;
+}
+
+.assistant-question-panel__note {
+  margin-top: 8px;
+  font-size: var(--cp-font-micro);
+}
+
+.assistant-question-panel__other:focus,
+.assistant-question-panel__note:focus {
+  outline: 1px solid var(--cp-accent);
+}
+
+.assistant-question-panel__acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.assistant-question-panel__skip {
+  padding: 2px 4px;
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.assistant-question-panel__skip:hover {
+  color: var(--ui-foreground);
+}
+
+.assistant-question-panel__hint-inline {
+  margin: 6px 0 0;
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+}

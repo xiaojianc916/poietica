@@ -28,7 +28,7 @@ export type {
   QuestionOption,
   QuestionResponse,
 } from './question'
-export type { ChatStatus, RunEvent, RunStatus } from './run'
+export type { ChatStatus, QuestionOutcome, RunEvent, RunStatus } from './run'
 export type {
   AgentPromptHandle,
   AgentPromptRequest,

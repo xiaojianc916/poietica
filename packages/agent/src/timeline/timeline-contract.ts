@@ -1,6 +1,9 @@
 import type {
   KapToolCallId,
   PermissionOption,
+  QuestionChoice,
+  QuestionItem,
+  QuestionOutcome,
   RunStatus,
   ToolCallContent,
   ToolCallLocation,
@@ -73,7 +76,7 @@ export interface AgentTextItem extends TimelineEntry {
   readonly type: 'agent_text'
   readonly text: string
   /**
-   * 这些字属于哪一条消息，由 agent 自己说（ContentChunk.messageId）。
+   * 这些字属于哪一条消息，由 agent 自己说（delta 帧里的 messageId）。
    *
    * 与 sealed 是两件事，此前由 sealed 一个人兼着：sealed 说的是「还会不会再
    * 来字」，那是生命周期，喂的是流式动画；这里说的是「这些字属于谁」，那是
@@ -148,6 +151,25 @@ export interface PermissionItem extends TimelineEntry {
   readonly resolution?: { readonly optionId: string; readonly outcome: 'selected' | 'cancelled' }
 }
 
+/**
+ * 一组待答的题。
+ *
+ * 它是协议自己的通道（kap 的 questions），不借权限请求：没有 optionId 方言，
+ * 题面、选项、多选与自选都由 QuestionItem 自己带。resolution 缺席表示还在等答；
+ * 在场时 outcome 说怎么结的，answers 逐题记下答复，note 是整组的备注。
+ */
+export interface QuestionTimelineItem extends TimelineEntry {
+  readonly type: 'question'
+  readonly questionId: string
+  readonly toolCallId?: string
+  readonly questions: readonly QuestionItem[]
+  readonly resolution?: {
+    readonly outcome: QuestionOutcome
+    readonly answers: Readonly<Record<string, QuestionChoice>>
+    readonly note: string
+  }
+}
+
 export interface ErrorItem extends TimelineEntry {
   readonly type: 'error'
   readonly message: string
@@ -160,6 +182,7 @@ export type TimelineItem =
   | ToolCallTimelineItem
   | PlanItem
   | PermissionItem
+  | QuestionTimelineItem
   | ErrorItem
 
 /**

@@ -1,14 +1,15 @@
 import './composer-actions.css'
 import './question-panel.css'
 
+import type { QuestionTimelineItem } from '@poietica/agent'
 import type {
   ChatStatus,
   PaletteEntry,
+  QuestionResponse,
   SessionConfigControl,
   SessionUsage,
 } from '@poietica/agent-contract'
 import { memo, type Ref, useMemo } from 'react'
-import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
 import type { ComposerAsset } from './attachment-intake'
 import { AttachmentTray } from './attachment-tray'
 import {
@@ -63,14 +64,16 @@ export interface AssistantComposerProps {
   /** 这条会话最近报的上下文用量。缺席就不画那颗胶囊。 */
   readonly usage?: SessionUsage | undefined
   /**
-   * 待答的题组。
+   * 待答的那一组题。
    *
    * 非空时输入框不再是输入框：它自己长成问答面板。空着就是平常那个 composer，
    * 所以这条 prop 不给也一切照旧。
    */
-  readonly questionDeck?: QuestionDeck | null | undefined
-  /** 面板交出整组答案时走这里 —— 发送与整组跳过是同一个出口，差别写在答案里。 */
-  readonly onAnswerQuestions?: ((answers: readonly QuestionAnswer[]) => void) | undefined
+  readonly question?: QuestionTimelineItem | null | undefined
+  /** 面板交出整组答复时走这里。 */
+  readonly onAnswerQuestions?: ((response: QuestionResponse) => void) | undefined
+  /** 人撤下整组题时走这里。 */
+  readonly onDismissQuestions?: ((questionId: string) => void) | undefined
   /**
    * 待答的那一次审批。
    *
@@ -170,9 +173,10 @@ function ComposerToolbar({
 export const AssistantComposer = memo(function AssistantComposer({
   approval,
   onAnswerQuestions,
+  onDismissQuestions,
   palette,
   placeholder = '问我任何问题…',
-  questionDeck,
+  question,
   ref,
   status = 'ready',
   onSubmit,
@@ -186,13 +190,13 @@ export const AssistantComposer = memo(function AssistantComposer({
    * 它上面——后者会在滚动、聚焦和 Esc 上处处露馅。
    *
    * textarea 和工具栏一并让位。提问期间没有自由输入这回事：agent 那头等的是
-   * 一个 optionId，不是一段话，留个能打字的框只会让人以为打了有用。
+   * 整组题的答复，不是一段话，留个能打字的框只会让人以为打了有用。
    *
    * 分支在孩子身上，不在壳身上：一个所有者、一处配置，identity 由结构保证。
    * 两个 return 各写一次 <PromptInput> 的时候，提问那一支漏了 multiple，而
    * multiple 一旦转假，addAssets 的第一件事就是把已经攒着的整批丢掉。
    */
-  const asking = questionDeck != null && questionDeck.cards.length > 0
+  const asking = question != null
 
   /* agent 报的选择器与命令，摊平一次交给输入框。引用稳定，面板才不会每敲一字重建。 */
   const groups = useMemo(
@@ -225,8 +229,8 @@ export const AssistantComposer = memo(function AssistantComposer({
         它自己画上半张脸，下沿多出一个圆角的量、被卡整个盖住（见
         permission-dock.css）。输入框那张卡因此一个像素都不改。
 
-        它与题面板互斥 —— 两者同源于唯一那个待答请求（见 AssistantSurface 的
-        blocked），所以这里不需要再判一次谁压过谁。
+        它与题面板可以同时在场：审批与提问是两条各自的队列（见
+        timeline-queries），各画各的，谁也不压谁。
       */}
       {approval == null ? null : <PermissionDock {...approval} />}
 
@@ -239,12 +243,13 @@ export const AssistantComposer = memo(function AssistantComposer({
         ref={ref}
       >
         {asking ? (
-          /* 一副题组一个面板：换了题组就该从第一题、空答案、未交出重新开始，而这
-             正是 key 的用处，不是再加一个 effect 去复位三个 state。 */
+          /* 一组题一个面板：换了题组就该从第一题、空草稿、未交出重新开始，而这
+             正是 key 的用处，不是再加一个 effect 去复位几个 state。 */
           <QuestionPanel
-            deck={questionDeck}
-            key={questionDeck.toolCallId}
+            item={question}
+            key={question.questionId}
             onAnswer={onAnswerQuestions}
+            onDismiss={onDismissQuestions}
           />
         ) : (
           <>

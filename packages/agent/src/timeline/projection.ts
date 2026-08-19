@@ -23,7 +23,7 @@ import {
   push,
   sealTail,
 } from './timeline-draft'
-import { pendingPermission } from './timeline-queries'
+import { pendingPermission, pendingQuestion } from './timeline-queries'
 
 /**
  * 这一帧一定会被丢掉吗。
@@ -105,7 +105,46 @@ export function apply(draft: Draft, event: RunEvent): void {
       /* 答掉一个不等于不再等：并行的子代理会同时挂着几个请求。第一个答复一到
          就写 running，界面会说这一轮不在等人了，而另外几个请求还挂在原生侧的
          桌子上。这句话必须排在上面那次落账之后：刚答掉的这一个也在扫描范围里。 */
-      draft.status = pendingPermission(draft) === undefined ? 'running' : 'awaiting_permission'
+      draft.status = stillWaiting(draft)
+
+      return
+    }
+
+    case 'questions_asked': {
+      push(draft, {
+        type: 'question',
+        id: `${namespace(draft)}question-${event.questionId}`,
+        turn: draft.runIndex,
+        at: event.at,
+        questionId: event.questionId,
+        /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
+        ...(event.toolCallId === undefined ? {} : { toolCallId: event.toolCallId }),
+        questions: event.questions,
+      })
+
+      /* 与审批同一条规矩：先落账，再问还有谁在等 —— 刚到的这一组也在扫描范围里。 */
+      draft.status = stillWaiting(draft)
+
+      return
+    }
+
+    case 'questions_resolved': {
+      /* 身份是算得出来的（见上一支），所以按 id 定位。 */
+      const position = positionOf(draft, `${namespace(draft)}question-${event.questionId}`)
+      const asked = position < 0 ? undefined : draft.items[position]
+
+      if (asked?.type === 'question') {
+        draft.items[position] = {
+          ...asked,
+          resolution: {
+            outcome: event.outcome,
+            answers: event.answers,
+            note: event.note,
+          },
+        }
+      }
+
+      draft.status = stillWaiting(draft)
 
       return
     }
@@ -322,6 +361,21 @@ function silentTurn(draft: Draft, stopReason: KapStopReason): string | undefined
   }
 
   return `stopReason: ${stopReason}`
+}
+
+/**
+ * 这一轮还在等谁。
+ *
+ * 两条队列一张嘴：审批与提问可以同时挂着，而 status 只有一个词。审批压过提问
+ * （与上游 phase 的派生优先级一致），都不在等才是 running。判据只有这一份 ——
+ * 请求到达与答复到达的两支都读它，抄成两份就会有两种「还在等」。
+ */
+function stillWaiting(draft: Draft): RunStatus {
+  if (pendingPermission(draft) !== undefined) {
+    return 'awaiting_permission'
+  }
+
+  return pendingQuestion(draft) === undefined ? 'running' : 'awaiting_question'
 }
 
 function finalStatus(stopReason: KapStopReason): RunStatus {

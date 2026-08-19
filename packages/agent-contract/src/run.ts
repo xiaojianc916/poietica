@@ -1,14 +1,19 @@
 import type { KapEventPayload, KapSessionId, KapStopReason } from './kap'
 import type { PermissionOption } from './permission'
+import type { QuestionChoice, QuestionItem } from './question'
 import type { ToolCallUpdate } from './tool-call'
 
 export type RunStatus =
   | 'idle'
   | 'running'
   | 'awaiting_permission'
+  | 'awaiting_question'
   | 'completed'
   | 'cancelled'
   | 'failed'
+
+/** 一组题怎么结的：答了、撤了、随这一轮取消了、或是答复没能送达。 */
+export type QuestionOutcome = 'answered' | 'dismissed' | 'cancelled' | 'undelivered'
 
 /**
  * The append-only run event log.
@@ -66,6 +71,25 @@ export type RunEvent =
       readonly outcome: 'selected' | 'cancelled'
     }
   | {
+      readonly kind: 'questions_asked'
+      readonly seq: number
+      readonly at: number
+      readonly questionId: string
+      readonly toolCallId?: string
+      readonly questions: readonly QuestionItem[]
+    }
+  | {
+      readonly kind: 'questions_resolved'
+      readonly seq: number
+      readonly at: number
+      readonly questionId: string
+      readonly outcome: QuestionOutcome
+      /** 题号到答复。跳过的题也在 —— 跳过一次也是答复。 */
+      readonly answers: Readonly<Record<string, QuestionChoice>>
+      /** 整组题的可选备注；没写就是空串。 */
+      readonly note: string
+    }
+  | {
       readonly kind: 'run_finished'
       readonly seq: number
       readonly at: number
@@ -92,7 +116,7 @@ export type RunEvent =
 /*
  * What the composer shows about a run.
  *
- * RunStatus above is the truth about the run itself: six states
+ * RunStatus above is the truth about the run itself: seven states
  * the agent and the client can genuinely be in. ChatStatus is coarser on
  * purpose — it is the four states a send button can render, and nothing more.
  *

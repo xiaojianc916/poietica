@@ -48,7 +48,7 @@ import type { FeedRow, TurnSpan } from '@poietica/agent'
  * 瞬态区的范围不由一个上限数字给出，由同一个边界给出：只收「最后一段回复之后」的帧。模
  * 型说完一句话，之前那段工作就已经归封条了，它不该还留在「现在正在做」里。
  *
- * 协议认不出最终回复 —— ACP 的 SessionUpdate 里没有终局位，一句开场白与一句结论在报文里
+ * 协议认不出最终回复 —— kap 的更新帧里没有终局位，一句开场白与一句结论在报文里
  * 逐字同形。既然认不出来就不认：每一次开口都把它之前的过程收进封条，最后一次开口自然就
  * 是最终回复。判据因此是单调的 —— 新的一段话只把边界往后推，随后的工具调用推不回去，流
  * 式追加也推不动它（追加改的是同一条 item，行下标不变）。
@@ -101,7 +101,7 @@ const EMPTY: FoldedFeed = {
 }
 
 /** 旁白：不是过程也不是回复。倒扫时跨过它，也永远不折。 */
-const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set(['error', 'permission'])
+const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set(['error', 'permission', 'question'])
 
 const SAID: FeedRow['item']['type'] = 'user_message'
 
