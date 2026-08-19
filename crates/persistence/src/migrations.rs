@@ -7,9 +7,16 @@ use crate::store::now;
 
 /// Ordered migrations. Never edit one that has shipped; add the next.
 ///
-/// 只有一条：这个程序还没有发布过，磁盘上没有一个需要被照顾的旧形状。
-/// 一条 schema 说清库长什么样，比五条历史加起来更能回答那个问题。
-const MIGRATIONS: &[(i64, &str, &str)] = &[(1, "initial", include_str!("schema/0001_initial.sql"))];
+/// 「没发布过」不等于没有库在跑：开发机上的库早已按 0001 落盘，原地改它
+/// 它们永远追不上 —— 新形状从 0002 起一律追加。
+const MIGRATIONS: &[(i64, &str, &str)] = &[
+    (1, "initial", include_str!("schema/0001_initial.sql")),
+    (
+        2,
+        "session_usage_inputs",
+        include_str!("schema/0002_session_usage_inputs.sql"),
+    ),
+];
 
 /// Brings the database up to the current schema version.
 ///

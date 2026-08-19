@@ -88,15 +88,12 @@ CREATE TABLE session_disposals (
     noted_at   TEXT NOT NULL
 ) STRICT;
 
--- 用量：agent 报的是仪表值（此刻占多少）与会话累计的输入构成，账要的是流量
--- （今天花多少），所以读数、计数与日账在同一次事务里写。
+-- 用量：agent 报的是仪表值（此刻占多少），账要的是流量（今天花多少），
+-- 所以读数与日账在同一次事务里写。
 CREATE TABLE session_usage (
-    session_id           TEXT    PRIMARY KEY,
-    used                 INTEGER NOT NULL,
-    size                 INTEGER NOT NULL,
-    input_other          INTEGER NOT NULL,
-    input_cache_read     INTEGER NOT NULL,
-    input_cache_creation INTEGER NOT NULL
+    session_id TEXT    PRIMARY KEY,
+    used       INTEGER NOT NULL,
+    size       INTEGER NOT NULL
 ) STRICT;
 
 CREATE TABLE token_days (
