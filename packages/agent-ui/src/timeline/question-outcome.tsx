@@ -37,7 +37,7 @@ export function QuestionOutcome({ item }: { readonly item: QuestionTimelineItem 
           index === last && resolution.note.length > 0
             ? reason === undefined
               ? resolution.note
-              : reason + ' ' + resolution.note
+              : '${reason} ${resolution.note}'
             : reason
 
         return (
