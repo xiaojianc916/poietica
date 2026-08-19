@@ -280,6 +280,12 @@ export function PromptInput({
     setPaletteOpened((open) => !open)
   }, [])
 
+  /* 收面板的唯一出口：Esc、落定一行、点到卡外，都是这两步。 */
+  const closePalette = useCallback(() => {
+    setPaletteOpened(false)
+    setPaletteDismissed(true)
+  }, [])
+
   /*
    * 在光标处插入，靠平台 API 而不是手拼下标：setRangeText 归并选区替换与光标落点
    * （WHATWG HTML 标准），插完把 DOM 值收回唯一真相。没有输入框（问答面板期间）
@@ -418,8 +424,7 @@ export function PromptInput({
 
   const pickRow = useCallback(
     (row: PaletteRow) => {
-      setPaletteOpened(false)
-      setPaletteDismissed(true)
+      closePalette()
 
       if (row.action.kind === 'run') {
         row.action.run()
@@ -438,7 +443,7 @@ export function PromptInput({
 
       insertSnippet(`${row.action.snippet} `)
     },
-    [focusTextarea, insertSnippet, slashing],
+    [closePalette, focusTextarea, insertSnippet, slashing],
   )
 
   /*
@@ -446,6 +451,27 @@ export function PromptInput({
    * textarea 的 Enter 提交挂在目标相，捕获相先到，stopPropagation 一停它就不会跑 ——
    * textarea 不需要知道面板的存在。输入法组词中的键一律不碰。
    */
+  /* 点到卡外就收面板。捕获相 pointerdown 而不是 blur：Chromium/WebKit 点不可聚焦区域不移走焦点。 */
+  useEffect(() => {
+    if (!paletteOpen) {
+      return undefined
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && formRef.current?.contains(event.target) === true) {
+        return
+      }
+
+      closePalette()
+    }
+
+    document.addEventListener('pointerdown', onPointerDown, true)
+
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+    }
+  }, [closePalette, paletteOpen])
+
   const onPaletteKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
     if (!paletteOpen || event.nativeEvent.isComposing) {
       return
@@ -478,8 +504,7 @@ export function PromptInput({
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
-      setPaletteOpened(false)
-      setPaletteDismissed(true)
+      closePalette()
     }
   }
 

@@ -20,7 +20,9 @@
   cursor: pointer;
 }
 
-.assistant-plus:hover {
+/* 面板翻开期间保持按下态：面板与扳机同在这张卡里，:has 读的就是输入框那份开合态。 */
+.assistant-plus:hover,
+.assistant-prompt-input:has(.composer-palette) .assistant-plus {
   background: var(--cp-menu-hover);
   color: var(--cp-ink);
 }
