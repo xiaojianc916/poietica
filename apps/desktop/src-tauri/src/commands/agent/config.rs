@@ -2,7 +2,7 @@
 
 use crate::error::Error;
 use crate::local_index::LocalIndex;
-use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose};
+use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose, select_config};
 use tauri::{AppHandle, State};
 
 use super::addressing::session_for;
@@ -38,13 +38,6 @@ pub async fn agent_set_config_option(
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
     let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
-    /*
-     * 发往谁：点名的那条对话，或者连接自带的锚会话。
-     *
-     * 点名时与提问走同一条 session_for：它认不得的会话号（上一次运行留下的）会在
-     * 这里被换成一个新开的，而不是把一个 agent 不认识的名字发出去。锚会话不需要
-     * 这一步 —— 它是 connect() 当场交回的那个号，本进程一直握着。
-     */
     let AgentSelectConfigRequest {
         thread_id,
         config_id,
@@ -57,13 +50,8 @@ pub async fn agent_set_config_option(
         None => live.anchor.clone(),
     };
 
-    let answer = live
-        .client
-        .select(addressed, config_id, value)
-        .map_err(translate)?;
-    let offered = answer
+    let offered = select_config(&live.client, addressed, config_id, value)
         .await
-        .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
         .map_err(translate)?;
 
     Ok(offered.into_iter().map(restate).collect())
