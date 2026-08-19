@@ -26,6 +26,8 @@ export interface PaletteRow {
   readonly hint?: string | undefined
   /** 打勾：这一行是此刻生效的那一档。 */
   readonly checked?: boolean | undefined
+  /** 置灰不可点：尚未上线的占位行。 */
+  readonly disabled?: boolean | undefined
   /** 斜杠过滤时拿来匹配的调用式。没有就不参与斜杠过滤。 */
   readonly token?: string | undefined
   readonly action: PaletteAction
@@ -63,6 +65,7 @@ export function ComposerPalette({ groups, highlighted, onPick }: ComposerPalette
                   aria-selected={at === highlighted}
                   className="composer-palette__row"
                   data-highlighted={at === highlighted ? 'true' : undefined}
+                  disabled={row.disabled}
                   key={row.id}
                   onMouseDown={(event) => {
                     event.preventDefault()

@@ -56,6 +56,7 @@ export {
   LoaderCircle as SpinnerIcon,
   Maximize as MaximizeIcon,
   MessageCircle as ThreadIcon,
+  Network as SwarmIcon,
   Paperclip as AttachIcon,
   Pencil as PencilIcon,
   Pin as PinFilledIcon,

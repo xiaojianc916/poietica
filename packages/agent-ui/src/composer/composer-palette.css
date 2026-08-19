@@ -56,10 +56,15 @@
   border-radius: var(--am-item);
 }
 
-.composer-palette__row:hover,
+.composer-palette__row:hover:not(:disabled),
 .composer-palette__row[data-highlighted="true"] {
   outline: none;
   background: var(--cp-menu-hover);
+}
+
+/* 禁用行：尚未上线的占位。0.55 与问答面板的禁用档同数。 */
+.composer-palette__row:disabled {
+  opacity: 0.55;
 }
 
 .composer-palette__icon {

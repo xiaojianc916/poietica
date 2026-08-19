@@ -1,6 +1,14 @@
 import { permissionPostureOf } from '@poietica/agent'
 import type { PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
-import { CloseIcon, PlusIcon, SkillIcon, TerminalIcon, ToolIcon } from '../primitives/icons'
+import {
+  CloseIcon,
+  GoalIcon,
+  PlusIcon,
+  SkillIcon,
+  SwarmIcon,
+  TerminalIcon,
+  ToolIcon,
+} from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
 import { usePromptInputActions } from './prompt-input'
 
@@ -82,6 +90,26 @@ export function composerModeRows({
 
   return rows
 }
+
+/* 目标与蜂群模式尚未上线：禁用行先定版式。 */
+export const UPCOMING_COMPOSE_ROWS: readonly PaletteRow[] = [
+  {
+    id: 'upcoming:goal',
+    icon: <GoalIcon aria-hidden="true" />,
+    label: '目标',
+    detail: '设置要持续追求的目标',
+    disabled: true,
+    action: { kind: 'run', run: () => undefined },
+  },
+  {
+    id: 'upcoming:swarm',
+    icon: <SwarmIcon aria-hidden="true" />,
+    label: '蜂群模式',
+    detail: '多个子代理并行协作',
+    disabled: true,
+    action: { kind: 'run', run: () => undefined },
+  },
+]
 
 /**
  * agent 报的 other 选择器与命令，摊成面板的分组。

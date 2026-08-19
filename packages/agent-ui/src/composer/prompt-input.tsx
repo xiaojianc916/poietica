@@ -429,6 +429,11 @@ export function PromptInput({
 
   const pickRow = useCallback(
     (row: PaletteRow) => {
+      /* 禁用按钮在 WebKit 仍会派发指针事件（Blink/Gecko 不会），统一在这里拦死。 */
+      if (row.disabled === true) {
+        return
+      }
+
       closePalette()
 
       if (row.action.kind === 'run') {
@@ -488,7 +493,16 @@ export function PromptInput({
 
       const step = event.key === 'ArrowDown' ? 1 : -1
 
-      setHighlighted((current) => (current + step + rows.length) % rows.length)
+      /* 禁用行不入高亮：与 Base UI 菜单的方向键行为一致。 */
+      setHighlighted((current) => {
+        let next = current
+
+        do {
+          next = (next + step + rows.length) % rows.length
+        } while (rows[next]?.disabled === true && next !== current)
+
+        return next
+      })
 
       return
     }

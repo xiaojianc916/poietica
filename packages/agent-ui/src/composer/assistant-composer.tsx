@@ -16,6 +16,7 @@ import {
   ComposerModeChip,
   composerModeRows,
   composerPaletteGroups,
+  UPCOMING_COMPOSE_ROWS,
 } from './composer-actions'
 import { ContextGauge } from './context-gauge'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
@@ -204,13 +205,15 @@ export const AssistantComposer = memo(function AssistantComposer({
     [palette, toolbar.controls, toolbar.onSelectControl],
   )
 
-  /* 「添加」组里跟在「添加文件」后面的行：生效模式（目前是 Plan）。 */
+  /* 「添加」组里跟在「添加文件」后面的行：生效模式（目前是 Plan），以及未上线的占位行。 */
   const composeRows = useMemo(
-    () =>
-      composerModeRows({
+    () => [
+      ...composerModeRows({
         controls: toolbar.controls,
         onSelectControl: toolbar.onSelectControl,
       }),
+      ...UPCOMING_COMPOSE_ROWS,
+    ],
     [toolbar.controls, toolbar.onSelectControl],
   )
 
