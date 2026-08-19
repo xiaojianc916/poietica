@@ -31,8 +31,6 @@ export type {
 export type {
   ChatStatus,
   QuestionOutcome,
-  QuestionOutcome,
-  QuestionOutcome,
   RunEvent,
   RunStatus,
 } from './run'
