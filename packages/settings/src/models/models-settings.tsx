@@ -160,7 +160,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
                 className="models-select-trigger"
                 data={AGENT_OPTIONS}
                 onValueChange={selectAgent}
-                type="ACP Agent"
+                type="Agent"
                 value={agentId}
               />
             </div>

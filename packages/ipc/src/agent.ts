@@ -18,7 +18,7 @@ import {
   commands,
   type JsonValue,
 } from './generated/ipc-bindings'
-import type { AgentCommandBridge, AgentEventSource } from './kap-session'
+import type { AgentCommandBridge, AgentEventSource } from './session'
 
 /**
  * The desktop implementation of the ports the feature layer declares.

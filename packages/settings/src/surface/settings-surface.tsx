@@ -682,7 +682,7 @@ const AboutSettings = memo(function AboutSettings({
       </div>
 
       <div className="settings-principles">
-        <ArchitecturePrinciple description="统一各类Agent交互规范" index="01" title="ACP集成" />
+        <ArchitecturePrinciple description="统一各类Agent交互规范" index="01" title="Agent 集成" />
 
         <ArchitecturePrinciple
           description="文档和设置优先安全保存在当前设备"

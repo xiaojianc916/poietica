@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   agentLaunch,
-  builtinKapAgentProfileSet,
-  parseKapAgentProfile,
-  parseKapAgentProfileSet,
+  builtinAgentProfileSet,
+  parseAgentProfile,
+  parseAgentProfileSet,
 } from '../agent-profile'
 import { agentById, agentRoster } from '../agents'
 
@@ -14,9 +14,9 @@ const valid = {
   defaultConfigOptions: { model: 'kimi-k2-turbo-preview', brave_mode: false },
 }
 
-describe('parseKapAgentProfile', () => {
+describe('parseAgentProfile', () => {
   it('接受一个完整档案', () => {
-    const result = parseKapAgentProfile(valid)
+    const result = parseAgentProfile(valid)
 
     expect(result.ok).toBe(true)
 
@@ -27,15 +27,15 @@ describe('parseKapAgentProfile', () => {
   })
 
   it('拒绝不合法的 agent 标识', () => {
-    expect(parseKapAgentProfile({ ...valid, id: 'NOT AN ID' }).ok).toBe(false)
+    expect(parseAgentProfile({ ...valid, id: 'NOT AN ID' }).ok).toBe(false)
   })
 
   it('拒绝不合法的环境变量名', () => {
-    expect(parseKapAgentProfile({ ...valid, env: { 'not-an-env': '1' } }).ok).toBe(false)
+    expect(parseAgentProfile({ ...valid, env: { 'not-an-env': '1' } }).ok).toBe(false)
   })
 
   it('拒绝非字符串非布尔的会话配置值', () => {
-    expect(parseKapAgentProfile({ ...valid, defaultConfigOptions: { model: 3 } }).ok).toBe(false)
+    expect(parseAgentProfile({ ...valid, defaultConfigOptions: { model: 3 } }).ok).toBe(false)
   })
 
   /*
@@ -47,17 +47,17 @@ describe('parseKapAgentProfile', () => {
    * 那些函数，于是它们在结构上变成了死路 —— 屏幕上是「kimi 的接入档案里没有
    * 可执行文件」，而受控 home 的那个变量从此再没有被设过一次。
    *
-   * 所以这几格回到了档案里，但它们不属于用户：reconcileKapAgentProfiles 每次
+   * 所以这几格回到了档案里，但它们不属于用户：reconcileAgentProfiles 每次
    * 都从描述符无条件盖回去（见下面那份 reconcile 测试的「手写的 command 活不过
    * 一次对齐」）。解析这一层因此不再负责剥掉它们 —— 一个只在内存里存在半个函数
    * 调用的值，谁都读不到。args 与 command 同一条规矩：原生侧的 agent_args 读它，
    * 磁盘上带什么就进什么。
    */
   it('磁盘上的 args 与描述符那几格一起恒定在场', () => {
-    const result = parseKapAgentProfile({
+    const result = parseAgentProfile({
       ...valid,
       command: 'kimi',
-      args: ['acp', '--cwd', 'C:\\my notes'],
+      args: ['web', '--cwd', 'C:\\my notes'],
     })
 
     expect(result.ok).toBe(true)
@@ -74,14 +74,14 @@ describe('parseKapAgentProfile', () => {
         'install',
         'ownHomeDirectory',
       ])
-      expect(result.profile.args).toEqual(['acp', '--cwd', 'C:\\my notes'])
+      expect(result.profile.args).toEqual(['web', '--cwd', 'C:\\my notes'])
     }
   })
 })
 
-describe('parseKapAgentProfileSet', () => {
+describe('parseAgentProfileSet', () => {
   it('丢弃坏条目但保留好条目', () => {
-    const result = parseKapAgentProfileSet({
+    const result = parseAgentProfileSet({
       profiles: [valid, { id: 'BROKEN' }],
       defaultProfileId: 'kimi',
     })
@@ -91,16 +91,16 @@ describe('parseKapAgentProfileSet', () => {
   })
 
   it('默认 agent 指向不存在的档案时回落到第一个', () => {
-    const result = parseKapAgentProfileSet({ profiles: [valid], defaultProfileId: 'ghost' })
+    const result = parseAgentProfileSet({ profiles: [valid], defaultProfileId: 'ghost' })
 
     expect(result.value.defaultProfileId).toBe('kimi')
     expect(result.issues).toHaveLength(1)
   })
 
   it('完全无法解析时回退到内置档案', () => {
-    const result = parseKapAgentProfileSet(null)
+    const result = parseAgentProfileSet(null)
 
-    expect(result.value.profiles).toEqual(builtinKapAgentProfileSet().profiles)
+    expect(result.value.profiles).toEqual(builtinAgentProfileSet().profiles)
     expect(result.fallback).toBe(true)
   })
 
@@ -110,22 +110,22 @@ describe('parseKapAgentProfileSet', () => {
    * 否则原生侧按 agentId 去查永远查不到。
    */
   it('磁盘为空时回退且不报问题，但要求物化', () => {
-    const result = parseKapAgentProfileSet({ profiles: [], defaultProfileId: '' })
+    const result = parseAgentProfileSet({ profiles: [], defaultProfileId: '' })
 
-    expect(result.value.profiles).toEqual(builtinKapAgentProfileSet().profiles)
+    expect(result.value.profiles).toEqual(builtinAgentProfileSet().profiles)
     expect(result.issues).toEqual([])
     expect(result.fallback).toBe(true)
   })
 
   it('档案都在但全都用不了时，照实报问题', () => {
-    const result = parseKapAgentProfileSet({ profiles: [{ id: 'BROKEN' }] })
+    const result = parseAgentProfileSet({ profiles: [{ id: 'BROKEN' }] })
 
     expect(result.fallback).toBe(true)
     expect(result.issues.length).toBeGreaterThan(0)
   })
 
   it('磁盘上有可用档案时不要求物化', () => {
-    const result = parseKapAgentProfileSet({ profiles: [valid], defaultProfileId: 'kimi' })
+    const result = parseAgentProfileSet({ profiles: [valid], defaultProfileId: 'kimi' })
 
     expect(result.fallback).toBe(false)
   })
@@ -149,7 +149,7 @@ describe('agentLaunch', () => {
     const launch = agentLaunch({
       ...agentRoster()[0],
       command: 'C:\\Program Files\\kimi\\kimi.exe',
-      args: ['acp', '--cwd', 'C:\\my notes'],
+      args: ['web', '--cwd', 'C:\\my notes'],
     })
 
     expect(launch).toEqual({ agentId: launch.agentId })
@@ -158,9 +158,9 @@ describe('agentLaunch', () => {
   })
 })
 
-describe('builtinKapAgentProfileSet', () => {
+describe('builtinAgentProfileSet', () => {
   it('每一条都指向名单里真实存在的一家', () => {
-    const set = builtinKapAgentProfileSet()
+    const set = builtinAgentProfileSet()
 
     expect(set.profiles.length).toBeGreaterThan(0)
 

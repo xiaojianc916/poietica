@@ -10,18 +10,18 @@ export type {
   AgentConfigOptionValue,
   AgentLaunchSpec,
   AgentProfile,
-  KapAgentProfileParse,
-  KapAgentProfileReconcile,
-  KapAgentProfileSet,
-  KapAgentProfileSetParse,
+  AgentProfileParse,
+  AgentProfileReconcile,
+  AgentProfileSet,
+  AgentProfileSetParse,
 } from './agent-profile'
 export {
   agentLaunch,
-  builtinKapAgentProfileSet,
-  builtinKapAgentProfiles,
-  parseKapAgentProfile,
-  parseKapAgentProfileSet,
-  reconcileKapAgentProfiles,
+  builtinAgentProfileSet,
+  builtinAgentProfiles,
+  parseAgentProfile,
+  parseAgentProfileSet,
+  reconcileAgentProfiles,
 } from './agent-profile'
 export type { AgentDescriptor } from './agents'
 export { agentById, agentRoster } from './agents'

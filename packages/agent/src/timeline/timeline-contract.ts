@@ -1,12 +1,12 @@
 import type {
-  KapPermissionOption,
-  KapToolCallContent,
   KapToolCallId,
-  KapToolCallLocation,
-  KapToolCallStatus,
-  KapToolCallUpdate,
-  KapToolKind,
+  PermissionOption,
   RunStatus,
+  ToolCallContent,
+  ToolCallLocation,
+  ToolCallStatus,
+  ToolCallUpdate,
+  ToolKind,
 } from '@poietica/agent-contract'
 
 /**
@@ -98,10 +98,10 @@ export interface ToolCallTimelineItem extends TimelineEntry {
   readonly type: 'tool_call'
   readonly toolCallId: KapToolCallId
   readonly title: string
-  readonly kind: KapToolKind
-  readonly status: KapToolCallStatus
-  readonly content: readonly KapToolCallContent[]
-  readonly locations: readonly KapToolCallLocation[]
+  readonly kind: ToolKind
+  readonly status: ToolCallStatus
+  readonly content: readonly ToolCallContent[]
+  readonly locations: readonly ToolCallLocation[]
   readonly rawInput?: unknown
   readonly rawOutput?: unknown
   readonly startedAt: number
@@ -143,8 +143,8 @@ export interface PermissionItem extends TimelineEntry {
   readonly type: 'permission'
   readonly requestId: string
   readonly title: string
-  readonly toolCall?: KapToolCallUpdate
-  readonly options: readonly KapPermissionOption[]
+  readonly toolCall?: ToolCallUpdate
+  readonly options: readonly PermissionOption[]
   readonly resolution?: { readonly optionId: string; readonly outcome: 'selected' | 'cancelled' }
 }
 

@@ -1,9 +1,9 @@
 import type {
   KapEventPayload,
-  KapPermissionOption,
   KapSessionId,
   KapStopReason,
-  KapToolCallUpdate,
+  PermissionOption,
+  ToolCallUpdate,
 } from './kap'
 
 export type RunStatus =
@@ -58,8 +58,8 @@ export type RunEvent =
        * Write，写哪个文件，替换掉什么。可选说的是日志：这一格加进来之前录下的
        * 帧没有它。
        */
-      readonly toolCall?: KapToolCallUpdate
-      readonly options: readonly KapPermissionOption[]
+      readonly toolCall?: ToolCallUpdate
+      readonly options: readonly PermissionOption[]
     }
   | {
       readonly kind: 'permission_resolved'

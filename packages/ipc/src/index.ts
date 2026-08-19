@@ -76,8 +76,6 @@ export {
   throughIpc,
 } from './error'
 export { type GitBranches, gitBranches, gitCreateBranch, gitSwitchBranch } from './git'
-export type { AgentCommandBridge, AgentEventSource, IpcSessionOptions } from './kap-session'
-export { createIpcSession } from './kap-session'
 export { type McpEndpoint, readMcpEndpoint } from './mcp'
 export {
   commitPlugin,
@@ -97,6 +95,8 @@ export {
   setPluginMcpEnabled,
   stagePlugin,
 } from './plugins'
+export type { AgentCommandBridge, AgentEventSource, IpcSessionOptions } from './session'
+export { createIpcSession } from './session'
 export {
   commitSkill,
   discardStagedSkill,

@@ -11,11 +11,11 @@
 
 import type {
   KapEventPayload,
-  KapToolCallContent,
-  KapToolCallLocation,
-  KapToolCallStatus,
-  KapToolKind,
   RunEvent,
+  ToolCallContent,
+  ToolCallLocation,
+  ToolCallStatus,
+  ToolKind,
 } from '@poietica/agent-contract'
 import { isTerminal, type ToolCallTimelineItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
@@ -27,11 +27,11 @@ export type KapFrame = Extract<RunEvent, { kind: 'kap_event' }>
 /** 一次工具调用的某一帧真的带了的格子。缺席表示这一帧没提，不是没有。 */
 interface ToolCallPatch {
   readonly title?: string
-  readonly kind?: KapToolKind
-  readonly status?: KapToolCallStatus
-  readonly content?: readonly KapToolCallContent[]
-  readonly appendContent?: KapToolCallContent
-  readonly locations?: readonly KapToolCallLocation[]
+  readonly kind?: ToolKind
+  readonly status?: ToolCallStatus
+  readonly content?: readonly ToolCallContent[]
+  readonly appendContent?: ToolCallContent
+  readonly locations?: readonly ToolCallLocation[]
   readonly rawInput?: unknown
   readonly rawOutput?: unknown
 }
@@ -283,9 +283,9 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
  * 宁可卡片上是一句原文，不肯是一句我们编的。
  */
 function readDisplay(display: unknown): {
-  readonly kind?: KapToolKind
-  readonly locations?: readonly KapToolCallLocation[]
-  readonly content?: readonly KapToolCallContent[]
+  readonly kind?: ToolKind
+  readonly locations?: readonly ToolCallLocation[]
+  readonly content?: readonly ToolCallContent[]
 } {
   if (typeof display !== 'object' || display === null) {
     return {}

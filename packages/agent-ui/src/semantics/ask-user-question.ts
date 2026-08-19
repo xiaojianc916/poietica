@@ -22,7 +22,7 @@
  *     等它放开，同一套 UI 直接生效，wire format 不变。
  */
 
-import type { KapToolCallContent } from '@poietica/agent-contract'
+import type { ToolCallContent } from '@poietica/agent-contract'
 import { toToolCallView } from './tool-call-content'
 
 export const ASK_USER_QUESTION_TOOL = 'AskUserQuestion'
@@ -118,7 +118,7 @@ export function isQuestionRequest(
    * 批准写盘。kind 是 ACP 自己的分类，比任何一家的私有命名都权威。
    *
    * kind 缺席时不否决：题组构建阶段只带着 optionId 与文案，那一层的语义
-   * 已经在上游按完整的 KapPermissionOption 判过一次了。
+   * 已经在上游按完整的 PermissionOption 判过一次了。
    */
   return request.options.every((option) => {
     const parsed = parseQuestionOptionId(option.optionId, dialects)
@@ -242,7 +242,7 @@ export interface QuestionAnswer {
 interface QuestionPromptSource {
   readonly title: string
   readonly toolCall?:
-    | { readonly content?: readonly KapToolCallContent[] | null | undefined }
+    | { readonly content?: readonly ToolCallContent[] | null | undefined }
     | undefined
 }
 

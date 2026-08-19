@@ -19,12 +19,14 @@ tools/architecture/README.md 各存一份手抄表，四份互相矛盾（本文
 
 ## 包边界的由来
 
-`agent-contract` 曾经叫 `acp`。用协议名当包名，是把「这个包是什么」答成了「它今天
-用什么协议说话」—— 而它八个文件里只有 `protocol.ts` 真的在讲 ACP，其余七个是本仓库
-自己的会话、线程、能力与运行契约。它不并进任何一侧：名单与会话两边都要依赖它，并
-进哪边都会让工作区依赖图成环，而 `workspace-graph-is-acyclic` 会当场报出来。Zed 的
-`agent-client-protocol`、codex-rs 的 `protocol`、VS Code 的 `vscode-jsonrpc` 是同一种
-摆法：契约独立成包。
+### Wire 与领域模型的边界
+
+`agent-contract` 不以 transport 命名：它表达的是本产品的会话、线程、工具调用、
+审批和运行契约。只有 `kap.ts` 保存 KAP wire 直接给出的最小词汇；产品自己投影
+出来的工具调用形状放在 `tool-call.ts`，审批按钮放在 `permission.ts`。
+
+因此只有 wire-issued 标识和事件保留 `Kap*` 前缀。本地的 `ToolKind`、
+`ToolCallUpdate` 与 `PermissionOption` 不冒充协议类型，也不提供旧名称别名。
 
 三份真实录像住在 `agent-contract/src/recordings/`，由 `./recordings` 子路径公开。它们
 证明的是「协议实际发出了什么」，不止一个包要靠它们证明自己的投影忠实 —— 所以它们跟
@@ -85,8 +87,8 @@ provider catalog list。
 
 | 文档 | 内容 |
 | --- | --- |
-| [`acp-capabilities.md`](./acp-capabilities.md) | ACP 能力通道目录 |
-| [`acp-client.md`](./acp-client.md) | The ACP client |
+| [`kap-capabilities.md`](./kap-capabilities.md) | kap 能力通道与实现状态 |
+| [`kap-client.md`](./kap-client.md) | kap 客户端、生命周期与已知缺口 |
 | [`agent-activity-feed.md`](./agent-activity-feed.md) | AI activity feed |
 | [`agent-persistence.md`](./agent-persistence.md) | AI persistence |
 | [`data-layout.md`](./data-layout.md) | 磁盘布局 |

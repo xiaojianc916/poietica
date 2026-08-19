@@ -1,4 +1,4 @@
-import { parseKapAgentProfileSet, reconcileKapAgentProfiles } from '@poietica/agent-catalog'
+import { parseAgentProfileSet, reconcileAgentProfiles } from '@poietica/agent-catalog'
 import {
   type AgentConfigSnapshot as AgentConfigSnapshotDto,
   createAgentConfigBridge,
@@ -12,7 +12,7 @@ import type { AgentConfigSnapshot, AgentConfigStore } from '@poietica/settings'
  * unknown[]，而端口说的是 AgentProfile[]。校验只能落在这里 —— agents.json
  * 可以被手改，一个被改坏的档案不应该变成一次任意命令执行。
  *
- * parseKapAgentProfileSet 是容错的：坏条目被丢弃并记一条 issue，不会让整份配置
+ * parseAgentProfileSet 是容错的：坏条目被丢弃并记一条 issue，不会让整份配置
  * 解析失败。它产生的 issues 与 Rust 侧报回的 issues 合并后一起交给界面，因为两者
  * 都是「配置里有东西没能用上」，没有理由只显示其中一半。
  */
@@ -31,11 +31,11 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
   return {
     async load() {
       const dto = await bridge.load()
-      const parsed = parseKapAgentProfileSet({
+      const parsed = parseAgentProfileSet({
         profiles: dto.agents,
         defaultProfileId: dto.defaultAgentId,
       })
-      const reconciled = reconcileKapAgentProfiles(parsed.value.profiles)
+      const reconciled = reconcileAgentProfiles(parsed.value.profiles)
 
       /*
        * 内置档案的身份由二进制拥有，agents.json 只是它的一份物化 —— 所以每次读都重新
@@ -53,7 +53,7 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
       /*
        * 光看 reconciled.changed 是不够的，而且在最要紧的那一次上恰好是错的。
        *
-       * 磁盘为空时 parseKapAgentProfileSet 已经把内置档案顶上来了，reconcile 于是
+       * 磁盘为空时 parseAgentProfileSet 已经把内置档案顶上来了，reconcile 于是
        * 拿内置跟内置比：sameLaunchIdentity 恒真、missing 为空、changed 为 false ——
        * 首次启动一个字都不写。渲染层用着内存里那份照常显示，原生层读磁盘只读到空
        * 文件，屏幕上就是「没有可用的 agent 档案」加「agents.json 里没有 kimi 的接入
@@ -127,7 +127,7 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
 }
 
 function fromDto(dto: AgentConfigSnapshotDto): AgentConfigSnapshot {
-  const parsed = parseKapAgentProfileSet({
+  const parsed = parseAgentProfileSet({
     profiles: dto.agents,
     defaultProfileId: dto.defaultAgentId,
   })

@@ -1,7 +1,7 @@
 import './permission-dock.css'
 
 import type { PermissionItem, ToolCallTimelineItem } from '@poietica/agent'
-import type { KapPermissionOption } from '@poietica/agent-contract'
+import type { PermissionOption } from '@poietica/agent-contract'
 import { memo, useState } from 'react'
 import { useAgentDialect } from '../semantics/agent-dialect'
 import { clampToLine, readToolIntent } from '../semantics/tool-intent'
@@ -39,7 +39,7 @@ import { clampToLine, readToolIntent } from '../semantics/tool-intent'
  * human-readable label。查不到就照原文显示 —— 宁可显示英文，也不能显示一个
  * 错的中文。
  */
-function labelFor(option: KapPermissionOption, labels: Readonly<Record<string, string>>): string {
+function labelFor(option: PermissionOption, labels: Readonly<Record<string, string>>): string {
   return labels[option.name] ?? option.name
 }
 
@@ -50,7 +50,7 @@ function labelFor(option: KapPermissionOption, labels: Readonly<Record<string, s
  * 本会话都批准）—— 两颗一样重，人看不出默认动作是哪一个。agent 把它想要的那个
  * 排在前面，所以第一颗放行选项就是主按钮。
  */
-function leadOf(options: readonly KapPermissionOption[]): string | undefined {
+function leadOf(options: readonly PermissionOption[]): string | undefined {
   return options.find((option) => option.kind.startsWith('allow'))?.optionId
 }
 

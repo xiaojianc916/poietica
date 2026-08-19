@@ -15,21 +15,10 @@ export type {
   SessionConfigPurpose,
   SessionConfigReport,
 } from './config'
-export type {
-  KapEventPayload,
-  KapPermissionOption,
-  KapSessionId,
-  KapStopReason,
-  KapToolCallContent,
-  KapToolCallId,
-  KapToolCallLocation,
-  KapToolCallStatus,
-  KapToolCallUpdate,
-  KapToolKind,
-} from './kap'
+export type { KapEventPayload, KapSessionId, KapStopReason, KapToolCallId } from './kap'
 export type { AgentPalettePort, PaletteEntry, PaletteKind } from './palette'
 export { paletteEntryOf, paletteFrom } from './palette'
-export type { PermissionPosturePort } from './permission'
+export type { PermissionOption, PermissionPosturePort } from './permission'
 export type { ChatStatus, RunEvent, RunStatus } from './run'
 export type {
   AgentPromptHandle,
@@ -45,4 +34,11 @@ export type {
   ThreadRecord,
   ThreadTitleSource,
 } from './thread'
+export type {
+  ToolCallContent,
+  ToolCallLocation,
+  ToolCallStatus,
+  ToolCallUpdate,
+  ToolKind,
+} from './tool-call'
 export type { SessionUsage, SessionUsagePort, SessionUsageReport } from './usage'
