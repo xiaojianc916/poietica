@@ -220,10 +220,10 @@ async agentArchiveThread(request: AgentArchiveThreadRequest) : Promise<null> {
  * 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。kap 没有
  * 硬删除，删除由 :archive 承接。
  * 
- * 当场送达要三个前提：连接还活着、这条会话确实是这个 agent 的、它声明了
- * 这项能力。凑不齐就先记进处置账 —— 不为此去起一个进程：删一条对话不该
- * 是拉起一个 agent 的理由。账由下一次对上这个 agent 的连接握手后冲销
- * （runtime.rs 的 record_and_flush_disposals）。
+ * 当场送达要两个前提：连接还活着、这条会话确实是这个 agent 的。凑不齐就先
+ * 记进处置账 —— 不为此去起一个进程：删一条对话不该是拉起一个 agent 的理由。
+ * 账由下一次对上这个 agent 的连接握手后冲销（runtime.rs 的
+ * record_and_flush_disposals）。
  * 
  * 无项目对话还占着一个应用替它签发的工作目录（paths.rs 的
  * create_projectless_workspace）。库里最后一条指着它的行删掉后，目录一并
@@ -266,9 +266,9 @@ async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
  * 
  * # Errors
  * 
- * Fails when the agent cannot be started, when it does not declare session
- * forking, when the conversation has no session this agent holds, or when
- * the fork or the database write is refused.
+ * Fails when the agent cannot be started, when the conversation has no
+ * session this agent holds, or when the fork or the database write is
+ * refused.
  */
 async agentForkThread(request: AgentForkThreadRequest) : Promise<AgentThread> {
     return await TAURI_INVOKE("agent_fork_thread", { request });
@@ -1322,8 +1322,8 @@ export type AgentHistory =
 /**
  * 一段历史打不开的时候，是因为什么。
  * 
- * 三种，都不是这一侧的故障，也都不是可以重试的：会话在对面手里，而对面
- * 要么不是同一个 agent，要么不做这件事，要么自己也不留着了。
+ * 两种，都不是这一侧的故障，也都不是可以重试的：会话在对面手里，而对面要么
+ * 不是同一个 agent，要么自己也不留着了。
  */
 export type AgentHistoryLoss = 
 /**
@@ -1333,10 +1333,6 @@ export type AgentHistoryLoss =
  * `UnknownSession` —— 所以这里根本不发。
  */
 "otherAgent" | 
-/**
- * 这个 agent 在握手时说了它不装载旧会话。
- */
-"notSupported" | 
 /**
  * 号发过去了，agent 说它这边已经没有这条会话。
  */
