@@ -34,6 +34,7 @@ interface ToolCallPatch {
   readonly subject?: string
   readonly isBackground?: true
   readonly status?: ToolCallStatus
+  readonly requestContent?: readonly ToolCallContent[]
   readonly content?: readonly ToolCallContent[]
   readonly appendContent?: ToolCallContent
   readonly replaceTail?: true
@@ -273,6 +274,7 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
     kind: patch.kind ?? held?.kind ?? 'other',
     subject: patch.subject ?? held?.subject ?? '',
     status,
+    requestContent: patch.requestContent ?? held?.requestContent ?? [],
     content: contentOf(patch, held),
     locations: patch.locations ?? held?.locations ?? [],
     startedAt: held?.startedAt ?? at,
@@ -421,6 +423,71 @@ function linkOf(part: object, key: string): ToolCallContent | null {
   return uri === '' ? null : { type: 'resource_link', uri }
 }
 
+/**
+ * 要执行的那条命令。
+ *
+ * 语言标注由 kap 给，缺席按 bash —— 与 apps/vscode 的 toLegacyDisplay 同一条判据
+ * （language: display.language ?? 'bash'）。
+ */
+function commandOf(display: object): ToolCallPatch {
+  const command = textOf(display, 'command')
+
+  if (command === '') {
+    return {}
+  }
+
+  const language = textOf(display, 'language')
+
+  return {
+    requestContent: [{ type: 'command', command, language: language === '' ? 'bash' : language }],
+  }
+}
+
+/**
+ * 技能名加它的入参。
+ *
+ * args 是一个字符串（display.ts 的 SkillCallDisplay：z.string().optional()），
+ * 上游自己的客户端把它接在技能名后面（apps/vscode 的 describeToolDisplay）。
+ */
+function skillOf(display: object): string {
+  const name = textOf(display, 'skill_name')
+  const args = textOf(display, 'args')
+
+  return args === '' ? name : `${name} ${args}`
+}
+
+/** 清单里的一项：状态只认上游那两个词，其余一律待办。 */
+function stepOf(item: object): {
+  readonly title: string
+  readonly status: 'done' | 'in_progress' | 'pending'
+} {
+  const status = Reflect.get(item, 'status')
+
+  return {
+    title: textOf(item, 'title'),
+    status: status === 'done' || status === 'in_progress' ? status : 'pending',
+  }
+}
+
+/** 那张任务清单。条目一个都认不出来就不占一格。 */
+function todoOf(display: object): ToolCallPatch {
+  const items = Reflect.get(display, 'items')
+
+  if (!Array.isArray(items)) {
+    return {}
+  }
+
+  const steps = items.flatMap((item: unknown) =>
+    typeof item === 'object' && item !== null ? [stepOf(item)] : [],
+  )
+
+  return steps.length === 0 ? {} : { requestContent: [{ type: 'todo', items: steps }] }
+}
+
+/** 一段 markdown 散文（计划正文）。 */
+function proseOf(text: string): ToolCallPatch {
+  return text === '' ? {} : { requestContent: [{ type: 'prose', text }] }
+}
 /** 这次写进去的是什么：before/after/content 三格由 kap 直接给，不从入参里猜。 */
 function writtenOf(display: object, path: string): ToolCallPatch {
   const after = Reflect.get(display, 'after')
@@ -433,7 +500,7 @@ function writtenOf(display: object, path: string): ToolCallPatch {
   const before = Reflect.get(display, 'before')
 
   return {
-    content: [
+    requestContent: [
       {
         type: 'diff',
         path,
@@ -494,7 +561,11 @@ function fromDiff(display: object): ToolCallPatch {
 
 /**
  * kap 的显示提示（events-zod.ts 的 ToolInputDisplaySchema，十三档）往产品模型的
- * 四格上映：kind、subject、locations、content。
+ * 五格上映：kind、subject、locations、requestContent、isBackground。
+ *
+ * 落 requestContent 而不是 content：这一份是我们送出去的，content 装的是交回来的。
+ * 上游自己的客户端也是从 display 画输入面的（apps/vscode 的 toLegacyDisplay），
+ * 一次都不读 args。
  *
  * 分类的权威是 display，不是工具名 —— 工具名随版本改，display 由工具自己声明
  * （agent-core-v2 的 toolContract.ts：RunnableToolExecution.display），上游自己的
@@ -519,7 +590,7 @@ function fromShape(display: unknown): ToolCallPatch {
 
   switch (Reflect.get(display, 'kind')) {
     case 'command': {
-      return { kind: 'execute', subject: textOf(display, 'command') }
+      return { kind: 'execute', subject: textOf(display, 'command'), ...commandOf(display) }
     }
 
     case 'file_io': {
@@ -547,13 +618,11 @@ function fromShape(display: unknown): ToolCallPatch {
     }
 
     case 'skill_call': {
-      /* args 是一份对象（display.ts 的 SkillCallDisplay），一行里画不下也没有读者：
-         要看的人展开抽屉，完整入参在那里。技能名就是主语。 */
-      return { kind: 'skill', subject: textOf(display, 'skill_name') }
+      return { kind: 'skill', subject: skillOf(display) }
     }
 
     case 'todo_list': {
-      return { kind: 'todo' }
+      return { kind: 'todo', ...todoOf(display) }
     }
 
     case 'task': {
@@ -565,7 +634,9 @@ function fromShape(display: unknown): ToolCallPatch {
     }
 
     case 'plan_review': {
-      return { kind: 'plan', subject: textOf(display, 'plan') }
+      const plan = textOf(display, 'plan')
+
+      return { kind: 'plan', subject: plan, ...proseOf(plan) }
     }
 
     case 'goal_start': {

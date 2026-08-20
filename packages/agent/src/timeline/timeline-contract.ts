@@ -17,7 +17,8 @@ import type {
  *
  * One flat, ordered list of typed entries. A tool call is a first-class entry
  * with its own identity and lifecycle, not a part buried inside a message:
- * tool_call_update addresses it by id, so it must be addressable by id here too.
+ * kap 按 toolCallId 寻址它的四个生命周期事件（tool.call.delta、tool.call.started、
+ * tool.progress、tool.result），所以这里也必须按 id 寻址。
  */
 
 export type TimelineItemId = string
@@ -107,6 +108,17 @@ export interface ToolCallTimelineItem extends TimelineEntry {
   /** 后台派发：它不占这一轮的前台。 */
   readonly isBackground?: true
   readonly status: ToolCallStatus
+  /**
+   * 我们送出去的那一份：要执行的命令、要写进去的正文、要照着做的清单。
+   *
+   * 与 content 分开，因为它们是两个面。此前一次写入的 diff 也落在 content 里，而
+   * 抽屉把整格 content 归给「交回来的那一面」—— 入参被画成了产出。两个面各有一格,
+   * 就没有哪一格需要靠来源去猜它该画在哪边。
+   *
+   * 唯一来源是 kap 的 display（kap-projection 的 fromDisplay）。
+   */
+  readonly requestContent: readonly ToolCallContent[]
+  /** agent 交回来的那一份：进度与产出。 */
   readonly content: readonly ToolCallContent[]
   readonly locations: readonly ToolCallLocation[]
   readonly rawInput?: unknown

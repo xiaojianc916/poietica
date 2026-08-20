@@ -307,8 +307,11 @@ describe('kap 投影', () => {
     const calls = toolCalls(state)
 
     expect(calls.map((call) => call.kind)).toStrictEqual(['write', 'search', 'delegate', 'other'])
-    /* 写进去的正文由 display 给，不从入参里挑最长的那个字符串。 */
-    expect(calls[0]?.content).toStrictEqual([{ type: 'diff', path: 'a.ts', newText: 'export {}' }])
+    /* 写进去的正文由 display 给，落在送出去那一面 —— 它是入参，不是产出。 */
+    expect(calls[0]?.requestContent).toStrictEqual([
+      { type: 'diff', path: 'a.ts', newText: 'export {}' },
+    ])
+    expect(calls[0]?.content).toStrictEqual([])
     /* 被搜的范围不是被碰的文件：locations 空着，组卡不会把它数成一次阅读。 */
     expect(calls[1]?.locations).toStrictEqual([])
     expect(calls[2]).toMatchObject({ isBackground: true, subject: '查一遍超时重试' })
@@ -332,6 +335,7 @@ describe('kap 投影', () => {
     const call = toolCalls(state)[0]
 
     expect(call).toMatchObject({ kind: 'read', subject: 'a.ts' })
+    expect(call?.requestContent).toStrictEqual([])
     expect(call?.content).toStrictEqual([])
   })
 
@@ -352,6 +356,85 @@ describe('kap 投影', () => {
     expect(toolCalls(state)[0]).toMatchObject({ kind: 'other', subject: '更新任务清单' })
   })
 
+  it('命令、清单与计划都从 display 落进送出去那一面', () => {
+    const state = replayRunEvents(
+      kapTurn([
+        {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_c',
+          name: 'Bash',
+          args: { command: 'pnpm check' },
+          display: { kind: 'command', command: 'pnpm check', language: 'bash' },
+        },
+        {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_t',
+          name: 'TodoWrite',
+          args: {},
+          display: {
+            kind: 'todo_list',
+            items: [
+              { title: '建索引', status: 'done' },
+              { title: '写投影', status: 'in_progress' },
+              { title: '补用例', status: 'whatever' },
+            ],
+          },
+        },
+        {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_pl',
+          name: 'ExitPlanMode',
+          args: {},
+          display: { kind: 'plan_review', plan: '## 步骤\n\n先读契约。' },
+        },
+      ]),
+    )
+
+    const calls = toolCalls(state)
+
+    /* 语言标注由 kap 给，不是我们猜的。 */
+    expect(calls[0]?.requestContent).toStrictEqual([
+      { type: 'command', command: 'pnpm check', language: 'bash' },
+    ])
+    /* 认不出的状态一律待办，与上游客户端同一条归一化。 */
+    expect(calls[1]?.requestContent).toStrictEqual([
+      {
+        type: 'todo',
+        items: [
+          { title: '建索引', status: 'done' },
+          { title: '写投影', status: 'in_progress' },
+          { title: '补用例', status: 'pending' },
+        ],
+      },
+    ])
+    expect(calls[2]?.requestContent).toStrictEqual([
+      { type: 'prose', text: '## 步骤\n\n先读契约。' },
+    ])
+    /* 三次都还没有产出：送出去与交回来是两格。 */
+    expect(calls.every((call) => call.content.length === 0)).toBe(true)
+  })
+
+  it('缺了语言标注的命令按 bash 画', () => {
+    const state = replayRunEvents(
+      kapTurn([
+        {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_nb',
+          name: 'Bash',
+          args: {},
+          display: { kind: 'command', command: 'ls -la' },
+        },
+      ]),
+    )
+
+    expect(toolCalls(state)[0]?.requestContent).toStrictEqual([
+      { type: 'command', command: 'ls -la', language: 'bash' },
+    ])
+  })
   it('审批帧走共用词汇：归一化的 toolCall 把请求接回工具卡片', () => {
     const events: RunEvent[] = [
       { kind: 'run_started', seq: 1, at: 1000, sessionId: SESSION, prompt: '跑一下测试' },

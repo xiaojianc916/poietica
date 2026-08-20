@@ -9,7 +9,14 @@ import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call
  * Streamdown，Shiki 上色，围栏的外壳（语言胶囊、复制按钮、内框）由样式在抽屉作用域
  * 里摘掉。这一层只负责说清楚「这一段是什么」。
  *
- * ## 两个面都是 JSON，都重排过
+ * ## 送出去的那一面按 display 画，入参是兜底
+ *
+ * kap 为每次调用带一份显示提示（ToolInputDisplay，十三档），投影层已经把它映成了
+ * requestContent —— 一条命令是一块带语言标注的围栏，一份清单是一张勾选表，一份计划
+ * 就是它自己的 markdown。上游自己的客户端也是这么画的（apps/vscode 的
+ * toLegacyDisplay），一次都不读原始入参。display 缺席时才退回入参那份 JSON 文档。
+ *
+ * ## 兜底的入参与产出都是 JSON，都重排过
  *
  * 入参是一份 JSON 文档，屏幕上就画一份 JSON 文档 —— JSON.stringify(value, null, 2)。
  * 缩进两格、每一层一对大括号、数组一行一个元素。这是 DevTools 的 Payload 面板按下
@@ -25,6 +32,9 @@ import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call
 
 /** 画这两个面需要的全部原料；ToolCallTimelineItem 天然满足它。 */
 export interface ToolCallFacetSource {
+  /** 送出去的那一份，由 kap 的 display 映来。 */
+  readonly requestContent?: readonly ToolCallContent[] | undefined
+  /** 交回来的那一份：进度与产出。 */
   readonly content: readonly ToolCallContent[]
   readonly rawInput?: unknown
   readonly rawOutput?: unknown
@@ -201,9 +211,22 @@ function isEmptyBag(value: object): boolean {
  * 这里此前还在上面单印一行受影响的路径。不印了：入参自己的 path 字段说的是同一件事，
  * 标题栏也有同一份，三处说同一件事只留一处。
  */
-function requestOf(source: ToolCallFacetSource): string | null {
-  const bag = source.rawInput
+/**
+ * 送出去的那一面。
+ *
+ * display 映出来的那几块优先：一条命令、一份清单、一段计划、一次写入的 diff 都是
+ * 我们送出去的东西，它们比一份原始入参更接近人要看的那件事。缺席才退回入参。
+ */
+function requestOf(source: ToolCallFacetSource, parts: readonly ToolContentPart[]): string | null {
+  if (parts.length > 0) {
+    return parts.map((part) => partMarkdown(part)).join('\n\n')
+  }
 
+  return bagOf(source.rawInput)
+}
+
+/** 上游没给显示提示时，这一面唯一交得出来的东西。 */
+function bagOf(bag: unknown): string | null {
   if (bag === undefined || bag === null) {
     return null
   }
@@ -245,9 +268,39 @@ function diffBody(oldText: string | null, newText: string): string {
   return oldText === null ? added : `${mark(oldText, '-')}\n${added}`
 }
 
+/**
+ * 一张勾选表。
+ *
+ * GFM 的 task list 只有两格，而状态有三档 —— 进行中那一档在标题后面点出来，少这
+ * 一句就把它读成了待办。
+ */
+function todoList(items: readonly { readonly title: string; readonly status: string }[]): string {
+  return items
+    .map((item) => {
+      const box = item.status === 'done' ? '- [x]' : '- [ ]'
+      const trail = item.status === 'in_progress' ? '（进行中）' : ''
+
+      return `${box} ${item.title}${trail}`
+    })
+    .join('\n')
+}
+
 function partMarkdown(part: ToolContentPart): string {
   if (part.type === 'text') {
     return textBlock(part.text)
+  }
+
+  if (part.type === 'command') {
+    return block(part.language, part.command)
+  }
+
+  if (part.type === 'prose') {
+    /* 计划正文本来就是 markdown：包进围栏会把标题与列表连符号一起印出来。 */
+    return clamp(part.text)
+  }
+
+  if (part.type === 'todo') {
+    return todoList(part.items)
   }
 
   if (part.type === 'diff') {
@@ -304,12 +357,31 @@ function responseOf(source: ToolCallFacetSource, parts: readonly ToolContentPart
  * 交出去的是字符串而不是一份对象树，所以这一层不需要一张 WeakMap：同样内容的字符串
  * 逐字相等，下游那几个 useMemo 的依赖比较照样命中。
  */
+/**
+ * 这次调用一共改了多少行。
+ *
+ * 一次写入的 diff 挂在送出去那一面，一份产出的 diff 挂在交回来那一面，而标题栏那个
+ * 徽章问的是整次调用 —— 所以两面都算。
+ */
+function mergeDiff(sent: DiffStat | null, back: DiffStat | null): DiffStat | null {
+  if (sent === null) {
+    return back
+  }
+
+  if (back === null) {
+    return sent
+  }
+
+  return { added: sent.added + back.added, removed: sent.removed + back.removed }
+}
+
 export function toToolCallFacets(source: ToolCallFacetSource): ToolCallFacets {
-  const { diffStat, parts } = toToolCallView(source.content)
+  const sent = toToolCallView(source.requestContent)
+  const back = toToolCallView(source.content)
 
   return {
-    diffStat,
-    request: requestOf(source),
-    response: responseOf(source, parts),
+    diffStat: mergeDiff(sent.diffStat, back.diffStat),
+    request: requestOf(source, sent.parts),
+    response: responseOf(source, back.parts),
   }
 }

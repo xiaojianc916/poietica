@@ -28,6 +28,15 @@ export type ToolContentPart =
   | { readonly type: 'terminal'; readonly terminalId: string }
   | { readonly type: 'link'; readonly uri: string; readonly name: string | null }
   | { readonly type: 'opaque'; readonly label: string }
+  | { readonly type: 'command'; readonly command: string; readonly language: string }
+  | { readonly type: 'prose'; readonly text: string }
+  | {
+      readonly type: 'todo'
+      readonly items: readonly {
+        readonly title: string
+        readonly status: 'done' | 'in_progress' | 'pending'
+      }[]
+    }
 
 /* 内层的块只有 text / image / audio 三种（agent-contract 的 ToolCallContent），
    所以这张表只为画不出来的那两种留名字。resource 与 resource_link 是外层的档，
@@ -82,6 +91,26 @@ export function toToolContentParts(
 
     if (entry.type === 'resource') {
       parts.push(resourcePart(entry.resource))
+      continue
+    }
+
+    /* 送出去那一面的三档：命令、散文、清单。它们与下面那层信封无关。 */
+    if (entry.type === 'command') {
+      parts.push({ type: 'command', command: entry.command, language: entry.language })
+      continue
+    }
+
+    if (entry.type === 'prose') {
+      if (entry.text.length > 0) {
+        parts.push({ type: 'prose', text: entry.text })
+      }
+      continue
+    }
+
+    if (entry.type === 'todo') {
+      if (entry.items.length > 0) {
+        parts.push({ type: 'todo', items: entry.items })
+      }
       continue
     }
 

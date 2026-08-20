@@ -55,5 +55,20 @@ describe('what a tool call has to show', () => {
     ])
 
     expect(parts).toEqual([{ type: 'opaque', label: '一张图片' }])
+    it('keeps what we sent drawable on its own terms', () => {
+      const parts = toToolContentParts([
+        { type: 'command', command: 'pnpm check', language: 'bash' },
+        { type: 'prose', text: '## 步骤' },
+        { type: 'todo', items: [{ title: '建索引', status: 'done' }] },
+        { type: 'prose', text: '' },
+        { type: 'todo', items: [] },
+      ])
+
+      expect(parts).toEqual([
+        { type: 'command', command: 'pnpm check', language: 'bash' },
+        { type: 'prose', text: '## 步骤' },
+        { type: 'todo', items: [{ title: '建索引', status: 'done' }] },
+      ])
+    })
   })
 })

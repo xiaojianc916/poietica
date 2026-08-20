@@ -57,6 +57,7 @@ function callOf(item: PermissionItem): ToolCallTimelineItem | undefined {
     title: item.title,
     kind: asked.kind ?? 'other',
     status: asked.status ?? 'pending',
+    requestContent: [],
     content: asked.content ?? [],
     locations: asked.locations ?? [],
     startedAt: 0,
