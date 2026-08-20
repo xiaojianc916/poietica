@@ -55,8 +55,8 @@ async agentCancel(request: AgentCancelRequest) : Promise<null> {
  * 
  * # Errors
  * 
- * Fails when the request is not outstanding, when the option was never
- * offered, or when the agent has already stopped waiting.
+ * Fails when the request is not outstanding, or when the agent has already
+ * stopped waiting.
  */
 async agentResolvePermission(request: AgentResolvePermissionRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_resolve_permission", { request });
@@ -1096,6 +1096,17 @@ method: AgentQuestionMethod | null;
  */
 note: string | null }
 /**
+ * 人能给出的答复。
+ * 
+ * 取消不在其中：那不是人答的，是没有人答时这一侧的收场（recorder 的
+ * record_pending_cancelled）。取值域由类型定死，所以别的词根本反序列化不出来。
+ */
+export type AgentApprovalDecision = "approved" | "rejected"
+/**
+ * 「这条会话都照此办理」。kap 只有这一个取值（approvalScopeSchema）。
+ */
+export type AgentApprovalScope = "session"
+/**
  * A conversation being archived or restored.
  */
 export type AgentArchiveThreadRequest = { 
@@ -1559,9 +1570,13 @@ export type AgentResolvePermissionRequest = {
  */
 requestId: string; 
 /**
- * One of the options the agent offered with that request.
+ * 放行还是拒绝。
  */
-optionId: string }
+decision: AgentApprovalDecision; 
+/**
+ * 带上它就是「这条会话都照此办理」；只此一次时缺席。
+ */
+scope: AgentApprovalScope | null }
 /**
  * A change made in the interface.
  */

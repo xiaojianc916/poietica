@@ -26,7 +26,7 @@ tools/architecture/README.md 各存一份手抄表，四份互相矛盾（本文
 出来的工具调用形状放在 `tool-call.ts`，审批按钮放在 `permission.ts`。
 
 因此只有 wire-issued 标识和事件保留 `Kap*` 前缀。本地的 `ToolKind`、
-`ToolCallUpdate` 与 `PermissionOption` 不冒充协议类型，也不提供旧名称别名。
+`ToolCallUpdate` 不冒充协议类型，也不提供旧名称别名。
 
 三份真实录像住在 `agent-contract/src/recordings/`，由 `./recordings` 子路径公开。它们
 证明的是「协议实际发出了什么」，不止一个包要靠它们证明自己的投影忠实 —— 所以它们跟

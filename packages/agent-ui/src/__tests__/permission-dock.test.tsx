@@ -34,7 +34,7 @@ function callOf(item: PermissionItem): ToolCallTimelineItem | undefined {
   return {
     type: 'tool_call',
     subject: '',
-    id: 'tool-' + asked.toolCallId,
+    id: `tool-${asked.toolCallId}`,
     turn: 1,
     at: 0,
     toolCallId: asked.toolCallId,

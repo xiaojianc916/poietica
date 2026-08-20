@@ -39,8 +39,12 @@
   plan_revise / plan_reject_and_exit / plan_opt_<i>，并继续接受 legacy 的
   approve 与 approve_for_session。与 acp-adapter 逐字相同。
 - 提问 optionId：q<n>_opt_<i> 与 q<n>_skip。我们的 QUESTION_DIALECT 是超集。
-- 选项名七个全在 OPTION_LABELS 里：Approve once、Approve for this session、
+- 选项名七个全在选项名表里：Approve once、Approve for this session、
   Reject、Approve、Revise、Reject and Exit、Skip。
+
+  注（2026-08-20）：这批选项名已随审批答复坍缩为 kap 的 decision × scope 而删除
+  （crates/agent-runtime/src/permission.rs 的 Decision 与 Scope），descriptor.ts
+  不再声明那张选项名表。
 - server.ts 的 initialize 同时声明 sessionCapabilities.close 与 .delete，
   driver.rs 读的 .delete 仍然成立 —— Rust 侧一行不动。
 - 提问卡的 content 是 q.question 本身，不再是入参 JSON。
