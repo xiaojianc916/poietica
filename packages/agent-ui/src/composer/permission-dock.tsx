@@ -4,7 +4,7 @@ import type { PermissionItem, ToolCallTimelineItem } from '@poietica/agent'
 import type { PermissionOption } from '@poietica/agent-contract'
 import { memo, useState } from 'react'
 import { useAgentDialect } from '../semantics/agent-dialect'
-import { clampToLine, readToolIntent } from '../semantics/tool-intent'
+import { clampToLine, sayToolLine } from '../semantics/tool-intent'
 
 /**
  * 要批准的那一件事，就在下一句话的正上方。
@@ -127,12 +127,13 @@ export const PermissionDock = memo(function PermissionDock({
   /*
    * 要批准的那件事本身。
    *
-   * 工具名回答不了「要不要允许 Bash」。判据与工具卡片同一个函数，两处不会各说
-   * 一套；意图说不出来退到入参原文，再退才是工具名 —— 那时 agent 确实没说。
+   * 工具名回答不了「要不要允许 Bash」。判据与工具卡片是同一条管线的两个出口
+   * （sayToolLine 说不出就交回 null），两处不会各说一套；说不出来退到入参原文，
+   * 再退才是工具名 —— 那时 agent 确实没说。
    */
-  const intent = call === undefined ? null : readToolIntent(call)
+  const spoken = call === undefined ? null : sayToolLine(call)
 
-  const said = intent?.text ?? rawArgs(call?.rawInput) ?? item.title
+  const said = spoken ?? rawArgs(call?.rawInput) ?? item.title
 
   const lead = leadOf(item.options)
 

@@ -247,8 +247,30 @@ describe('kap 投影', () => {
     expect(calls.map((call) => call.kind)).toStrictEqual(['write', 'search', 'delegate', 'other'])
     /* 写进去的正文由 display 给，不从入参里挑最长的那个字符串。 */
     expect(calls[0]?.content).toStrictEqual([{ type: 'diff', path: 'a.ts', newText: 'export {}' }])
+    /* 被搜的范围不是被碰的文件：locations 空着，组卡不会把它数成一次阅读。 */
+    expect(calls[1]?.locations).toStrictEqual([])
     expect(calls[2]).toMatchObject({ isBackground: true, subject: '查一遍超时重试' })
     expect(calls[3]?.subject).toBe('列出账单')
+  })
+
+  it('一次读不会被合成成一次写入', () => {
+    const state = replayRunEvents(
+      kapTurn([
+        {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_r',
+          name: 'Read',
+          args: { file_path: 'a.ts' },
+          display: { kind: 'file_io', operation: 'read', path: 'a.ts', content: 'export {}' },
+        },
+      ]),
+    )
+
+    const call = toolCalls(state)[0]
+
+    expect(call).toMatchObject({ kind: 'read', subject: 'a.ts' })
+    expect(call?.content).toStrictEqual([])
   })
 
   it('display 缺席时主语退回派发自己写的那一句', () => {

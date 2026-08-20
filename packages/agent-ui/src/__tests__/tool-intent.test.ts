@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { readToolLine } from '../semantics/tool-intent'
+import { readToolLine, sayToolLine } from '../semantics/tool-intent'
 
 /*
  * 卡片那一行。
@@ -50,7 +50,8 @@ describe('工具调用那一行', () => {
     expect(readToolLine({ ...CALL, kind: 'todo', title: 'TodoList' })).toBe('更新任务清单')
   })
 
-  it('什么都说不出来就退回工具名', () => {
+  it('什么都说不出来就退回工具名,审批那一层拿到的是 null', () => {
     expect(readToolLine({ ...CALL, subject: '   ' })).toBe('Bash')
+    expect(sayToolLine({ ...CALL, subject: '   ' })).toBeNull()
   })
 })

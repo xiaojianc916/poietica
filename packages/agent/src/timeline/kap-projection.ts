@@ -7,6 +7,9 @@
  *
  * 载荷形状的唯一权威是上游 kap-server 的 protocol/events-zod.ts（快照钉在
  * contracts/kap）。这里读的每一个字段都应该能在那份文件里找到。
+ *
+ * 三段各管一件事：帧分流（applyKapFrame）、帧读成补丁（toolPatch 与 fromDisplay）、
+ * 补丁合进条目（upsertToolCall）。
  */
 
 import type {
@@ -39,140 +42,25 @@ interface ToolCallPatch {
 }
 
 export function applyKapFrame(draft: Draft, event: KapFrame): void {
-  const payload = event.payload
-  const scope = namespace(draft)
-
-  switch (payload.type) {
-    case 'assistant.delta': {
-      const delta = stringOf(payload, 'delta')
-
-      if (delta === undefined) {
-        return
-      }
-
-      /* kap 的文本增量不带消息号（只有 turnId），边界退回相邻续写 ——
-         appendChunk 在身份缺席时的原行为。 */
-      appendChunk(draft, 'agent_text', {
-        at: event.at,
-        id: `${scope}text-${String(event.seq)}`,
-        text: delta,
-      })
-
-      return
-    }
-
+  switch (event.payload.type) {
+    case 'assistant.delta':
     case 'thinking.delta': {
-      const delta = stringOf(payload, 'delta')
-
-      if (delta === undefined) {
-        return
-      }
-
-      appendChunk(draft, 'agent_thought', {
-        at: event.at,
-        id: `${scope}thought-${String(event.seq)}`,
-        text: delta,
-      })
+      applyDelta(draft, event)
 
       return
     }
 
-    case 'tool.call.delta': {
-      /* 入参的流片：卡先立起来，半个 JSON 没有读者。解析好的 args 整体随
-         tool.call.started 到齐（events-zod.ts：delta 带 argumentsPart 片段，
-         started 带 args 整体）。 */
-      const toolCallId = stringOf(payload, 'toolCallId')
-
-      if (toolCallId === undefined) {
-        return
-      }
-
-      const name = stringOf(payload, 'name')
-
-      upsertToolCall(draft, toolCallId, event.at, {
-        status: 'in_progress',
-        ...(name === undefined ? {} : { title: name }),
-      })
-
-      return
-    }
-
-    case 'tool.call.started': {
-      const toolCallId = stringOf(payload, 'toolCallId')
-
-      if (toolCallId === undefined) {
-        return
-      }
-
-      const name = stringOf(payload, 'name')
-
-      const shown = fromDisplay(fieldOf(payload, 'display'))
-      const said = stringOf(payload, 'description')
-
-      upsertToolCall(draft, toolCallId, event.at, {
-        status: 'in_progress',
-        rawInput: fieldOf(payload, 'args'),
-        ...(name === undefined ? {} : { title: name }),
-        ...shown,
-        ...(shown.subject === undefined && said !== undefined ? { subject: said } : {}),
-      })
-
-      return
-    }
-
-    case 'tool.progress': {
-      /* 进度是追加，不是替换：每一帧都是产出的下一截。percent 之类的仪表在
-         这张卡片上没有读者，不落。 */
-      const toolCallId = stringOf(payload, 'toolCallId')
-      const update = fieldOf(payload, 'update')
-      const text =
-        typeof update === 'object' && update !== null ? Reflect.get(update, 'text') : undefined
-
-      if (toolCallId === undefined || typeof text !== 'string' || text === '') {
-        return
-      }
-
-      upsertToolCall(draft, toolCallId, event.at, {
-        status: 'in_progress',
-        appendContent: { type: 'content', content: { type: 'text', text } },
-      })
-
-      return
-    }
-
+    case 'tool.call.delta':
+    case 'tool.call.started':
+    case 'tool.progress':
     case 'tool.result': {
-      const toolCallId = stringOf(payload, 'toolCallId')
-
-      if (toolCallId === undefined) {
-        return
-      }
-
-      upsertToolCall(draft, toolCallId, event.at, {
-        status: fieldOf(payload, 'isError') === true ? 'failed' : 'completed',
-        rawOutput: fieldOf(payload, 'output'),
-      })
+      applyToolFrame(draft, event)
 
       return
     }
 
     case 'error': {
-      /* agent 自己的说法逐字进转录：一轮因额度或鉴权死掉时，这句话是屏幕上
-         唯一的交代。code 是它的名字，一起留。 */
-      const message = stringOf(payload, 'message')
-
-      if (message === undefined) {
-        return
-      }
-
-      const code = stringOf(payload, 'code')
-
-      push(draft, {
-        type: 'error',
-        id: `${scope}error-${String(event.seq)}`,
-        turn: draft.runIndex,
-        at: event.at,
-        message: code === undefined ? message : `${code}: ${message}`,
-      })
+      applyError(draft, event)
 
       return
     }
@@ -210,6 +98,126 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
   }
 }
 
+/* 文本增量不带消息号（只有 turnId），边界退回相邻续写 —— appendChunk 在身份缺席
+   时的原行为。两种增量同一支：分流的只有落哪一类条目。 */
+function applyDelta(draft: Draft, event: KapFrame): void {
+  const delta = stringOf(event.payload, 'delta')
+
+  if (delta === undefined) {
+    return
+  }
+
+  const thinking = event.payload.type === 'thinking.delta'
+
+  appendChunk(draft, thinking ? 'agent_thought' : 'agent_text', {
+    at: event.at,
+    id: `${namespace(draft)}${thinking ? 'thought' : 'text'}-${String(event.seq)}`,
+    text: delta,
+  })
+}
+
+/* agent 自己的说法逐字进转录：一轮因额度或鉴权死掉时，这句话是屏幕上唯一的交代。
+   code 是它的名字，一起留。 */
+function applyError(draft: Draft, event: KapFrame): void {
+  const message = stringOf(event.payload, 'message')
+
+  if (message === undefined) {
+    return
+  }
+
+  const code = stringOf(event.payload, 'code')
+
+  push(draft, {
+    type: 'error',
+    id: `${namespace(draft)}error-${String(event.seq)}`,
+    turn: draft.runIndex,
+    at: event.at,
+    message: code === undefined ? message : `${code}: ${message}`,
+  })
+}
+
+/** 四次到达认同一个 toolCallId：认不出来这一帧就不落账。 */
+function applyToolFrame(draft: Draft, event: KapFrame): void {
+  const toolCallId = stringOf(event.payload, 'toolCallId')
+
+  if (toolCallId === undefined) {
+    return
+  }
+
+  const patch = toolPatch(event.payload)
+
+  if (patch !== null) {
+    upsertToolCall(draft, toolCallId, event.at, patch)
+  }
+}
+
+/** 这一帧说了什么。null 表示这一帧没有可落账的内容。 */
+function toolPatch(payload: KapEventPayload): ToolCallPatch | null {
+  switch (payload.type) {
+    case 'tool.call.delta': {
+      /* 入参的流片：卡先立起来，半个 JSON 没有读者。解析好的 args 整体随
+         tool.call.started 到齐（events-zod.ts：delta 带 argumentsPart 片段，
+         started 带 args 整体）。 */
+      return { status: 'in_progress', ...titleOf(payload) }
+    }
+
+    case 'tool.call.started': {
+      return {
+        status: 'in_progress',
+        rawInput: fieldOf(payload, 'args'),
+        ...titleOf(payload),
+        ...fromDisplay(fieldOf(payload, 'display'), stringOf(payload, 'description')),
+      }
+    }
+
+    case 'tool.progress': {
+      /* 进度是追加，不是替换：每一帧都是产出的下一截。percent 之类的仪表在这张
+         卡片上没有读者，不落。 */
+      const text = progressOf(payload)
+
+      if (text === undefined) {
+        return null
+      }
+
+      return {
+        status: 'in_progress',
+        appendContent: { type: 'content', content: { type: 'text', text } },
+      }
+    }
+
+    case 'tool.result': {
+      return {
+        status: fieldOf(payload, 'isError') === true ? 'failed' : 'completed',
+        rawOutput: fieldOf(payload, 'output'),
+      }
+    }
+
+    default: {
+      return null
+    }
+  }
+}
+
+/** 工具名这一帧提了就更，没提就沿用 —— 缺席不是空。 */
+function titleOf(payload: KapEventPayload): ToolCallPatch {
+  const name = stringOf(payload, 'name')
+
+  return name === undefined ? {} : { title: name }
+}
+
+/** 进度那一句；update 的 kind 与 percent 没有读者。 */
+function progressOf(payload: KapEventPayload): string | undefined {
+  const update = fieldOf(payload, 'update')
+
+  if (typeof update !== 'object' || update === null) {
+    return undefined
+  }
+
+  const text = Reflect.get(update, 'text')
+
+  return typeof text === 'string' && text !== '' ? text : undefined
+}
+
 /**
  * 载荷里的一个格子。
  *
@@ -238,9 +246,6 @@ function stringOf(payload: KapEventPayload, key: string): string | undefined {
  * delta / started / progress / result 是同一次调用的四次到达，协议按
  * toolCallId 寻址：没见过就建（终帧先于宣告到达的日志存在），见过就按这
  * 一帧真的带了的格子合并 —— 一个 upsert，不是四份实现。
- *
- * endedAt：终态才记，记下就不再移动。终态的判据归 timeline-contract —— 状态
- * 词汇是产品模型的，不是方言。
  */
 function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: ToolCallPatch): void {
   const id = `${namespace(draft)}tool-${toolCallId}`
@@ -249,12 +254,6 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
   const held = found?.type === 'tool_call' ? found : undefined
 
   const status = patch.status ?? held?.status ?? 'in_progress'
-  const endedAt = isTerminal(status) ? (held?.endedAt ?? at) : held?.endedAt
-  const base = patch.content ?? held?.content ?? []
-  const content = patch.appendContent === undefined ? base : [...base, patch.appendContent]
-  /* 'rawInput' in patch 读的是「这一帧提没提」：null 是清空，缺席是沿用。 */
-  const rawInput = 'rawInput' in patch ? patch.rawInput : held?.rawInput
-  const rawOutput = 'rawOutput' in patch ? patch.rawOutput : held?.rawOutput
 
   const next: ToolCallTimelineItem = {
     type: 'tool_call',
@@ -267,19 +266,57 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
     kind: patch.kind ?? held?.kind ?? 'other',
     subject: patch.subject ?? held?.subject ?? '',
     status,
-    content,
+    content: contentOf(patch, held),
     locations: patch.locations ?? held?.locations ?? [],
     startedAt: held?.startedAt ?? at,
-    ...((patch.isBackground ?? held?.isBackground) ? { isBackground: true } : {}),
-    ...(rawInput === undefined ? {} : { rawInput }),
-    ...(rawOutput === undefined ? {} : { rawOutput }),
-    ...(endedAt === undefined ? {} : { endedAt }),
+    ...tailOf(patch, held, status, at),
   }
 
   if (held === undefined) {
     push(draft, next)
   } else {
     draft.items[position] = next
+  }
+}
+
+/** 进度是追加，整份内容是替换：这一帧带了哪一样就按哪一样合。 */
+function contentOf(
+  patch: ToolCallPatch,
+  held: ToolCallTimelineItem | undefined,
+): readonly ToolCallContent[] {
+  const base = patch.content ?? held?.content ?? []
+
+  return patch.appendContent === undefined ? base : [...base, patch.appendContent]
+}
+
+type ToolCallTail = Pick<
+  ToolCallTimelineItem,
+  'endedAt' | 'isBackground' | 'rawInput' | 'rawOutput'
+>
+
+/**
+ * 缺席的格子不落键：exactOptionalPropertyTypes 下「没有这一格」与「这一格是
+ * undefined」不是一件事。
+ *
+ * 'rawInput' in patch 读的是「这一帧提没提」：null 是清空，缺席是沿用。endedAt 终态
+ * 才记，记下就不再移动（终态的判据归 timeline-contract —— 状态词汇是产品模型的，不是
+ * 方言）。后台那一格只涨不落：一次后台派发不会中途回到前台。
+ */
+function tailOf(
+  patch: ToolCallPatch,
+  held: ToolCallTimelineItem | undefined,
+  status: ToolCallStatus,
+  at: number,
+): ToolCallTail {
+  const rawInput = 'rawInput' in patch ? patch.rawInput : held?.rawInput
+  const rawOutput = 'rawOutput' in patch ? patch.rawOutput : held?.rawOutput
+  const endedAt = isTerminal(status) ? (held?.endedAt ?? at) : held?.endedAt
+
+  return {
+    ...(rawInput === undefined ? {} : { rawInput }),
+    ...(rawOutput === undefined ? {} : { rawOutput }),
+    ...(endedAt === undefined ? {} : { endedAt }),
+    ...((patch.isBackground ?? held?.isBackground) === true ? { isBackground: true } : {}),
   }
 }
 
@@ -290,53 +327,75 @@ function textOf(display: object, key: string): string {
   return typeof value === 'string' ? value : ''
 }
 
-/** 这次写进去的是什么：before/after/content 三格由 kap 直接给。 */
-function writtenOf(display: object): { readonly content?: readonly ToolCallContent[] } {
-  const path = textOf(display, 'path')
+/** 这次写进去的是什么：before/after/content 三格由 kap 直接给，不从入参里猜。 */
+function writtenOf(display: object, path: string): ToolCallPatch {
   const after = Reflect.get(display, 'after')
-  const held = typeof after === 'string' ? after : Reflect.get(display, 'content')
-  const before = Reflect.get(display, 'before')
+  const body = typeof after === 'string' ? after : Reflect.get(display, 'content')
 
-  if (path === '' || typeof held !== 'string') {
+  if (path === '' || typeof body !== 'string') {
     return {}
   }
+
+  const before = Reflect.get(display, 'before')
 
   return {
     content: [
       {
         type: 'diff',
         path,
-        newText: held,
+        newText: body,
         ...(typeof before === 'string' ? { oldText: before } : {}),
       },
     ],
   }
 }
 
-/** file_io 的五种操作各自落哪一档；上游长出第六种时落回 other。 */
+/**
+ * file_io 的五种操作分两类：读写一份文件，和按模式找东西。
+ *
+ * 写入的正文只在 write 与 edit 上合成 —— kap 的 file_io 允许 read 也带 content，
+ * 拿它合出一份 diff 就是把一次「读」画成一次写入，diffStat 还会给它记新增行。
+ *
+ * glob / grep 的 path 是被搜的范围，不是被碰的文件，所以不进 locations：组卡那句
+ * 「阅读 N 个文件」与抽屉里围栏的语言都读它。上游长出第六种操作时落 other。
+ */
 function fromFileIo(display: object): ToolCallPatch {
   const path = textOf(display, 'path')
   const at = path === '' ? {} : { locations: [{ path }] }
-  const said = { subject: path, ...at }
 
   switch (Reflect.get(display, 'operation')) {
     case 'read': {
-      return { kind: 'read', ...said }
+      return { kind: 'read', subject: path, ...at }
     }
+
     case 'write': {
-      return { kind: 'write', ...said }
+      return { kind: 'write', subject: path, ...at, ...writtenOf(display, path) }
     }
+
     case 'edit': {
-      return { kind: 'edit', ...said }
+      return { kind: 'edit', subject: path, ...at, ...writtenOf(display, path) }
     }
+
     case 'glob':
     case 'grep': {
-      return { kind: 'search', ...said }
+      return { kind: 'search', subject: path }
     }
+
     default: {
-      return { kind: 'other', ...said }
+      return { kind: 'other', subject: path }
     }
   }
+}
+
+/** diff 档：路径缺席时它只是一次编辑，凑不出一张 diff，也不占一个空路径。 */
+function fromDiff(display: object): ToolCallPatch {
+  const path = textOf(display, 'path')
+
+  if (path === '') {
+    return { kind: 'edit' }
+  }
+
+  return { kind: 'edit', subject: path, locations: [{ path }], ...writtenOf(display, path) }
 }
 
 /**
@@ -344,10 +403,22 @@ function fromFileIo(display: object): ToolCallPatch {
  * 四格上映：kind、subject、locations、content。
  *
  * 分类的权威是 display，不是工具名 —— 工具名随版本改，display 由工具自己声明
- * （agent-core-v2 的 toolContract.ts：RunnableToolExecution.display）。停止任务
- * 归到 task：读者眼里它们是同一条后台线。提示缺席时不猜，退回派发自己写的那一句。
+ * （agent-core-v2 的 toolContract.ts：RunnableToolExecution.display），上游自己的
+ * 客户端读的也是它。停止任务归到 task：读者眼里它们是同一条后台线。
  */
-function fromDisplay(display: unknown): ToolCallPatch {
+function fromDisplay(display: unknown, said: string | undefined): ToolCallPatch {
+  const patch = fromShape(display)
+
+  /* 一档都定不出来（提示缺席，或者上游长出了我们还不认识的那一档）才听派发自己写的
+     那一句。定出了档就全信 display —— 两个来源各说一句是分类混乱的起点。 */
+  if (patch.kind !== undefined || said === undefined) {
+    return patch
+  }
+
+  return { subject: said }
+}
+
+function fromShape(display: unknown): ToolCallPatch {
   if (typeof display !== 'object' || display === null) {
     return {}
   }
@@ -358,13 +429,11 @@ function fromDisplay(display: unknown): ToolCallPatch {
     }
 
     case 'file_io': {
-      return { ...fromFileIo(display), ...writtenOf(display) }
+      return fromFileIo(display)
     }
 
     case 'diff': {
-      const path = textOf(display, 'path')
-
-      return { kind: 'edit', subject: path, locations: [{ path }], ...writtenOf(display) }
+      return fromDiff(display)
     }
 
     case 'search': {
@@ -384,10 +453,9 @@ function fromDisplay(display: unknown): ToolCallPatch {
     }
 
     case 'skill_call': {
-      const name = textOf(display, 'skill_name')
-      const args = textOf(display, 'args')
-
-      return { kind: 'skill', subject: args === '' ? name : `${name} ${args}` }
+      /* args 是一份对象（display.ts 的 SkillCallDisplay），一行里画不下也没有读者：
+         要看的人展开抽屉，完整入参在那里。技能名就是主语。 */
+      return { kind: 'skill', subject: textOf(display, 'skill_name') }
     }
 
     case 'todo_list': {

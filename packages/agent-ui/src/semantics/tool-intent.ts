@@ -1,7 +1,7 @@
 import type { ToolCallTimelineItem } from '@poietica/agent'
 
 /**
- * 这次调用在做什么，一句话，画在卡片没有展开的那一行上。
+ * 这次调用在做什么，一句话：卡片没展开的那一行，和审批带子上要签字的那一句。
  *
  * 类别与主语由投影从 kap 的 display 定完（kap-projection.ts），这一层只挑动词、
  * 取文件名、按一行收口 —— 不读入参，不猜。
@@ -56,15 +56,26 @@ function basename(path: string): string {
 
 type ToolLineSource = Pick<ToolCallTimelineItem, 'kind' | 'locations' | 'subject' | 'title'>
 
-/** 有动词就配文件名，没动词就转述主语；说不出来退回工具名。 */
-export function readToolLine(item: ToolLineSource): string {
+/**
+ * 有动词就配文件名，没动词就转述主语；这一句说不出来就交回 null。
+ *
+ * 两个出口共用这一份判据，退法归各自的场景：卡片退回工具名（事后翻看，认得出是谁
+ * 就够了），审批退到入参原文（人正要为这一次调用签字，一个只写着工具名的问题不能
+ * 被回答）。
+ */
+export function sayToolLine(item: ToolLineSource): string | null {
   const verb = VERB[item.kind]
   const said = item.subject.trim()
   const tail = said === item.locations[0]?.path ? basename(said) : said
 
   if (verb === null) {
-    return clampToLine(tail) ?? item.title
+    return clampToLine(tail)
   }
 
-  return clampToLine(tail === '' ? verb : `${verb} ${tail}`) ?? item.title
+  return clampToLine(tail === '' ? verb : `${verb} ${tail}`)
+}
+
+/** 卡片那一行：说不出来退回工具名 —— 那时 agent 确实没说。 */
+export function readToolLine(item: ToolLineSource): string {
+  return sayToolLine(item) ?? item.title
 }

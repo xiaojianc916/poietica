@@ -26,10 +26,6 @@ import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call
 /** 画这两个面需要的全部原料；ToolCallTimelineItem 天然满足它。 */
 export interface ToolCallFacetSource {
   readonly content: readonly ToolCallContent[]
-  /** ACP 的工具类别枚举。edit 那一支决定要不要为它合成写入的内容。 */
-  readonly kind?: string
-  /** 这次调用要碰的文件。只取 path —— 行号是标题栏与编辑器的事。 */
-  readonly locations?: readonly { readonly path: string }[]
   readonly rawInput?: unknown
   readonly rawOutput?: unknown
 }
@@ -289,12 +285,6 @@ function responseOf(source: ToolCallFacetSource, parts: readonly ToolContentPart
     if (output !== null) {
       pieces.push(output)
     }
-  }
-
-  const written = writtenOf(source, parts)
-
-  if (written !== null) {
-    pieces.push(written)
   }
 
   return pieces.length === 0 ? null : pieces.join('\n\n')
