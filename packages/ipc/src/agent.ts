@@ -211,7 +211,8 @@ function questionChoiceOf(choice: QuestionChoice): AgentQuestionChoice {
  *
  * 收与发同住一个工厂，因为它们是同一个端口的两半：拆成「事件源 + 命令桥」再由组合
  * 层拼回去，拼出来的只是一层透传。取消点名一条对话而不是一轮，理由在端口定义处。
- * 权限与答题的合法性由原生侧校验，agent 没给过的选项会被拒掉。
+ * 审批的答复词汇由类型定死（kap 的三个 decision 与一个 scope），一组题的合法性由
+ * 原生侧对着被问的那一组判。
  */
 export function createAgentSessionPort({
   launch,
@@ -263,8 +264,11 @@ export function createAgentSessionPort({
       await throughIpc(() => commands.agentCancel({ threadId }))
     },
 
-    resolvePermission: async (requestId, optionId) => {
-      await throughIpc(() => commands.agentResolvePermission({ requestId, optionId }))
+    resolvePermission: async (requestId, decision, scope) => {
+      /* 线上「只此一次」是 null，端口那一侧是缺席 —— 转换只在这一层。 */
+      await throughIpc(() =>
+        commands.agentResolvePermission({ requestId, decision, scope: scope ?? null }),
+      )
     },
 
     answerQuestions: async (response) => {

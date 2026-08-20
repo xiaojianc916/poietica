@@ -15,10 +15,10 @@
 //! ownership.
 //!
 //! Asking a human is not a formality, and it is not one kind of ask. An
-//! approval takes one of three fixed answers; a question group takes whatever
-//! its own multi_select and allow_other allow. They therefore wait at two
-//! desks, and a handler blocks on its own desk until a real answer arrives
-//! rather than inventing one.
+//! approval is answered with one of kap's three decisions; a question group
+//! takes whatever its own multi_select and allow_other allow. They therefore
+//! wait at two desks, and a handler blocks on its own desk until a real answer
+//! arrives rather than inventing one.
 
 pub use driver::connect;
 
@@ -52,7 +52,7 @@ pub use frame::{
     KAP_EVENT, PERMISSION_REQUESTED, PERMISSION_RESOLVED, QUESTIONS_ASKED, QUESTIONS_RESOLVED,
     RUN_FAILED, RUN_FINISHED, RUN_STARTED, RunFrame, kap_event,
 };
-pub use permission::{Decision, kap_answers, kap_options, kap_response};
+pub use permission::{Decision, Scope};
 pub use program::resolve_program;
 pub use question::{
     AnswerMethod, QuestionAnswer, QuestionGroup, QuestionItem, QuestionOption, QuestionOutcome,

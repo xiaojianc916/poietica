@@ -18,7 +18,12 @@ export type {
 export type { KapEventPayload, KapSessionId, KapStopReason, KapToolCallId } from './kap'
 export type { AgentPalettePort, PaletteEntry, PaletteKind } from './palette'
 export { paletteEntryOf, paletteFrom } from './palette'
-export type { PermissionOption, PermissionPosturePort } from './permission'
+export type {
+  ApprovalAnswer,
+  ApprovalDecision,
+  ApprovalScope,
+  PermissionPosturePort,
+} from './permission'
 export type {
   QuestionAnswer,
   QuestionAnswerMethod,

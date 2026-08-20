@@ -70,17 +70,16 @@ pub enum RunFrame {
         /// rawInput（审批项的 tool_input_display）。审批项的其余格子是传输
         /// 层的事，帧不留。
         tool_call: Value,
-        /// 这一侧按 kap 的答复词汇表合成的选项（见 permission.rs）。
-        options: Value,
     },
     /// 那次授权请求是怎么结束的。
     PermissionResolved {
         /// 被结清的那个请求。
         request_id: String,
-        /// 选中的选项；取消时为空。
-        option_id: String,
-        /// selected 或 cancelled。
-        outcome: String,
+        /// kap 的 decision：approved、rejected 或 cancelled。
+        decision: String,
+        /// 「这条会话都照此办理」时是 session；只此一次就不出现。
+        #[serde(skip_serializing_if = "Option::is_none")]
+        scope: Option<String>,
     },
     /// agent 正卡在一组提问上。
     QuestionsAsked {

@@ -1,5 +1,7 @@
 import type {
   AgentSessionPort,
+  ApprovalAnswer,
+  ApprovalScope,
   PromptAsset,
   RunEvent,
   ThreadHistory,
@@ -471,14 +473,19 @@ export class TranscriptStore {
   }
 
   /* 线路只有一条（#attachedTo），答复的地址不必由调用方再交一次 —— 与 cancel 同一个入口。 */
-  resolvePermission = (key: string, requestId: string, optionId: string): void => {
+  resolvePermission = (
+    key: string,
+    requestId: string,
+    decision: ApprovalAnswer,
+    scope?: ApprovalScope,
+  ): void => {
     const port = this.#attachedTo
 
     if (port === null) {
       return
     }
 
-    port.resolvePermission(requestId, optionId).catch((cause: unknown) => {
+    port.resolvePermission(requestId, decision, scope).catch((cause: unknown) => {
       this.note(key, describeFailure(cause))
     })
   }

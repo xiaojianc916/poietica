@@ -5,7 +5,9 @@
 
 use std::collections::HashMap;
 
-use poietica_agent_runtime_native::{AnswerMethod, QuestionAnswer, QuestionResponse};
+use poietica_agent_runtime_native::{
+    AnswerMethod, Decision, QuestionAnswer, QuestionResponse, Scope,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
@@ -69,14 +71,49 @@ pub struct AgentPromptResult {
     pub session_id: String,
 }
 
+/// 人能给出的答复。
+///
+/// 取消不在其中：那不是人答的，是没有人答时这一侧的收场（recorder 的
+/// record_pending_cancelled）。取值域由类型定死，所以别的词根本反序列化不出来。
+#[derive(Clone, Copy, Debug, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentApprovalDecision {
+    Approved,
+    Rejected,
+}
+
+/// 「这条会话都照此办理」。kap 只有这一个取值（approvalScopeSchema）。
+#[derive(Clone, Copy, Debug, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentApprovalScope {
+    Session,
+}
+
 /// A user's answer to a permission request.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentResolvePermissionRequest {
     /// The request being answered.
     pub request_id: String,
-    /// One of the options the agent offered with that request.
-    pub option_id: String,
+    /// 放行还是拒绝。
+    pub decision: AgentApprovalDecision,
+    /// 带上它就是「这条会话都照此办理」；只此一次时缺席。
+    pub scope: Option<AgentApprovalScope>,
+}
+
+/// 把界面报来的答复翻成运行时的域类型。
+///
+/// 没有校验可做：不合法的词在 serde 那一步就已经被拒掉了。
+pub(super) fn decided(request: &AgentResolvePermissionRequest) -> Decision {
+    match request.decision {
+        AgentApprovalDecision::Approved => Decision::Approved {
+            scope: match request.scope {
+                Some(AgentApprovalScope::Session) => Some(Scope::Session),
+                None => None,
+            },
+        },
+        AgentApprovalDecision::Rejected => Decision::Rejected,
+    }
 }
 
 /// 要停的那条对话。

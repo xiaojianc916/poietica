@@ -14,7 +14,7 @@
 
 mod frame_sink;
 
-use poietica_agent_runtime_native::{Decision, Recorder, kap_event};
+use poietica_agent_runtime_native::{Decision, Recorder, Scope, kap_event};
 use serde_json::{Value, json};
 
 use frame_sink::{SESSION, recording, text_of};
@@ -101,7 +101,12 @@ fn a_permission_request_and_its_answer_are_two_frames() {
 
     assert_eq!(recorder.outstanding_permissions().len(), 1);
 
-    recorder.record_permission_resolved_kap(&request_id, &Decision::Allow("approve".to_owned()));
+    recorder.record_permission_resolved_kap(
+        &request_id,
+        Decision::Approved {
+            scope: Some(Scope::Session),
+        },
+    );
 
     let frames = delivered.wire();
 
@@ -113,14 +118,11 @@ fn a_permission_request_and_its_answer_are_two_frames() {
     assert_eq!(text_of(requested, "toolCallId"), "call_100");
     assert_eq!(text_of(requested, "title"), "Bash");
 
-    // 选项是这一侧按 kap 答复面合成的三条，顺序不变。
-    let option = requested
-        .get("options")
-        .and_then(|options| options.get(0))
-        .expect("the first option");
-    assert_eq!(text_of(option, "optionId"), "approve");
-    assert_eq!(text_of(option, "kind"), "allow_once");
-    assert_eq!(text_of(option, "name"), "Approve once");
+    // kap 的审批请求不带选项，帧也不合成一张：能答什么由 Decision 穷举。
+    assert!(
+        requested.get("options").is_none(),
+        "客户端不再发明一张选项表"
+    );
 
     // 帧里的 tool_call 是归一化后的三格，不是审批项原文；null 成员不出线。
     let tool_call = requested.get("toolCall").expect("the approval item");
@@ -133,8 +135,8 @@ fn a_permission_request_and_its_answer_are_two_frames() {
     let resolved = frames.get(1).expect("the answer frame");
     assert_eq!(text_of(resolved, "kind"), "permission_resolved");
     assert_eq!(text_of(resolved, "requestId"), "appr_001");
-    assert_eq!(text_of(resolved, "optionId"), "approve");
-    assert_eq!(text_of(resolved, "outcome"), "selected");
+    assert_eq!(text_of(resolved, "decision"), "approved");
+    assert_eq!(text_of(resolved, "scope"), "session");
 
     assert!(recorder.outstanding_permissions().is_empty());
 }
@@ -153,8 +155,8 @@ fn a_request_left_open_at_the_end_of_a_turn_is_settled() {
     let resolved = delivered.wire();
     let last = resolved.last().expect("the answer frame");
 
-    assert_eq!(text_of(last, "outcome"), "cancelled");
-    assert_eq!(text_of(last, "optionId"), "");
+    assert_eq!(text_of(last, "decision"), "cancelled");
+    assert!(last.get("scope").is_none(), "只此一次的答复不带 scope");
 }
 
 #[test]

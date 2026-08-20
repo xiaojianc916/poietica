@@ -14,6 +14,8 @@ import {
 } from '@poietica/agent'
 import type {
   AgentSessionPort,
+  ApprovalAnswer,
+  ApprovalScope,
   ChatStatus,
   PromptAsset,
   QuestionResponse,
@@ -82,7 +84,11 @@ export interface AssistantSession {
   readonly status: ChatStatus
   readonly send: (submission: AssistantSubmission) => void
   readonly cancel: () => void
-  readonly resolvePermission: (requestId: string, optionId: string) => void
+  readonly resolvePermission: (
+    requestId: string,
+    decision: ApprovalAnswer,
+    scope?: ApprovalScope,
+  ) => void
   /** 答掉一整组题。答复形状就是协议自己的 QuestionResponse，不经权限请求。 */
   readonly answerQuestions: (response: QuestionResponse) => void
   /** 撤下一整组题。 */
@@ -202,8 +208,8 @@ export function useAssistantSession({
   }, [key, transcripts])
 
   const resolvePermission = useCallback(
-    (requestId: string, optionId: string) => {
-      transcripts.resolvePermission(key, requestId, optionId)
+    (requestId: string, decision: ApprovalAnswer, scope?: ApprovalScope) => {
+      transcripts.resolvePermission(key, requestId, decision, scope)
     },
     [key, transcripts],
   )

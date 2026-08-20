@@ -2,8 +2,8 @@
  * 帧到条目的唯一入口。
  *
  * 它拥有一轮的公共部分：怎么开始、怎么结束、结局怎么读、那一问怎么落账，以及
- * 审批 —— 审批帧读的是客户端自己合成的词汇（requestId / options / resolution），
- * 与传输无关。方言只有一种，归 kap-projection。
+ * 审批 —— 审批帧读的是 kap 自己的答复词汇（requestId / decision / scope）。
+ * 方言只有一种，归 kap-projection。
  *
  * 它只往草稿上写，既不开草稿也不封版（见 timeline-draft），所以「纯、总、可重放」
  * 那三条性质与它无关：那是 timeline-reducer 的承诺。
@@ -84,7 +84,6 @@ export function apply(draft: Draft, event: RunEvent): void {
         title: event.title,
         /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
         ...(event.toolCall === undefined ? {} : { toolCall: event.toolCall }),
-        options: event.options,
       })
 
       return
@@ -98,7 +97,10 @@ export function apply(draft: Draft, event: RunEvent): void {
       if (asked?.type === 'permission') {
         draft.items[position] = {
           ...asked,
-          resolution: { optionId: event.optionId, outcome: event.outcome },
+          resolution: {
+            decision: event.decision,
+            ...(event.scope === undefined ? {} : { scope: event.scope }),
+          },
         }
       }
 

@@ -4,18 +4,15 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use futures::channel::oneshot;
 
 use crate::error::{KapError, Result};
-use crate::permission::{Decision, kap_answers};
+use crate::permission::Decision;
 use crate::question::{QuestionGroup, QuestionOutcome, QuestionResponse};
 
 const UNKNOWN_REQUEST: &str = "that permission request is not outstanding";
-const UNKNOWN_OPTION: &str = "that option was never offered for this permission request";
 const HANDLER_GONE: &str = "the agent stopped waiting for that permission request";
 
 /// One request the agent is blocked on.
 #[derive(Debug)]
 struct Waiting {
-    /// The answers the user is allowed to give, by option identifier.
-    allowed: HashMap<String, Decision>,
     /// Where the answer is delivered.
     answer: oneshot::Sender<Decision>,
 }
@@ -40,8 +37,8 @@ impl PermissionDesk {
 
     /// Registers a kap approval and hands back the answer to await.
     ///
-    /// kap 的审批请求不带选项，合法答复集是固定的三条（见 permission.rs），
-    /// 所以等一个审批只要它的 approval_id。
+    /// 等一个审批只要它的 approval_id：能答什么由 Decision 穷举，桌上不留
+    /// 第二份词汇表。
     ///
     /// # Errors
     ///
@@ -49,39 +46,25 @@ impl PermissionDesk {
     pub fn wait_kap(&self, approval_id: &str) -> Result<oneshot::Receiver<Decision>> {
         let (answer, waiting) = oneshot::channel();
 
-        let _replaced = self.lock()?.insert(
-            approval_id.to_owned(),
-            Waiting {
-                allowed: kap_answers(),
-                answer,
-            },
-        );
+        let _replaced = self
+            .lock()?
+            .insert(approval_id.to_owned(), Waiting { answer });
 
         Ok(waiting)
     }
 
     /// Answers an outstanding request on the user's behalf.
     ///
-    /// The answer is checked before the request is taken off the desk, so a
-    /// nonsensical answer cannot destroy a request that is still legitimately
-    /// waiting for a real one.
+    /// 答复是一个 Decision，不是一个要对着表查的字符串：说不通的答复到不了
+    /// 这里 —— serde 在入站边界就挡下了（dto.rs 的 AgentApprovalDecision），
+    /// 所以桌上只剩「这个请求还在不在」。
     ///
     /// # Errors
     ///
-    /// Fails when the request is not outstanding, when the option was never
-    /// offered, or when the agent has already stopped waiting.
-    pub fn answer(&self, request_id: &str, option_id: &str) -> Result<()> {
-        let mut outstanding = self.lock()?;
-
-        let Some(waiting) = outstanding.get(request_id) else {
-            return Err(refused(UNKNOWN_REQUEST));
-        };
-
-        let Some(decision) = waiting.allowed.get(option_id).cloned() else {
-            return Err(refused(UNKNOWN_OPTION));
-        };
-
-        let Some(waiting) = outstanding.remove(request_id) else {
+    /// Fails when the request is not outstanding, or when the agent has already
+    /// stopped waiting.
+    pub fn answer(&self, request_id: &str, decision: Decision) -> Result<()> {
+        let Some(waiting) = self.lock()?.remove(request_id) else {
             return Err(refused(UNKNOWN_REQUEST));
         };
 
@@ -140,9 +123,9 @@ const ASKER_GONE: &str = "the agent stopped waiting for that question group";
 /// 桌上还没有人回答的那些题组。
 ///
 /// 与 PermissionDesk 分开一张桌子，因为「什么算一个合法答复」的判据不同：审批的
-/// 合法答复是固定的三条（permission.rs 的 kap_answers），而一组题的合法答复要按
-/// 每一题自己的 multi_select 与 allow_other 现算。两套规则挤进一张桌子，校验就只
-/// 能退化成运行期的分支 —— 同一件事的两条代码路径。
+/// 答复由 Decision 穷举，而一组题的合法答复要按每一题自己的 multi_select 与
+/// allow_other 现算。两套规则挤进一张桌子，校验就只能退化成运行期的分支 ——
+/// 同一件事的两条代码路径。
 #[derive(Clone, Debug, Default)]
 pub struct QuestionDesk {
     outstanding: Arc<Mutex<HashMap<String, Asked>>>,
@@ -192,8 +175,7 @@ impl QuestionDesk {
             return Err(crate::question::refused(UNKNOWN_GROUP));
         };
 
-        // 先验再取：一个说不通的答复不该把一组还在正当等着人回答的题毁掉。与
-        // PermissionDesk::answer 同一条规矩。
+        // 先验再取：一个说不通的答复不该把一组还在正当等着人回答的题毁掉。
         response.checked_against(&asked.group)?;
 
         let Some(asked) = outstanding.remove(question_id) else {

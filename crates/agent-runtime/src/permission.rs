@@ -1,79 +1,55 @@
-use std::collections::HashMap;
+//! 审批的答复。
+//!
+//! 取值域是封闭的，而且是协议定的：decision 三个词，scope 一个词
+//! （protocol/approval.ts 的 approvalResponseSchema 与 approvalScopeSchema）。
+//! 所以这里是两个枚举，不是一张由这一侧合成、再由这一侧自己校验的选项表 ——
+//! kap 的审批请求里根本没有选项这个对象。
 
-use serde_json::{Value, json};
-
-/// What the client will answer a permission request with.
-///
-/// kap 的审批不带选项清单（approvalRequestSchema 只有 tool_name / action /
-/// tool_input_display），所以答复的词汇表由这一侧按协议的答复面合成 ——
-/// 三个选项正好盖住 approvalResponseSchema 的 decision × scope。
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum Decision {
-    /// Approve, by selecting one of the approval options.
-    Allow(String),
-    /// Refuse, by selecting the rejection option.
-    Reject(String),
-    /// Refuse without selecting an option, which the protocol reserves for a
-    /// turn that ended before anyone answered.
-    Cancel,
+/// 「记住这个答复」的范围。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Scope {
+    /// 这条会话余下的同类请求都照此办理。
+    Session,
 }
 
-impl Decision {
-    /// The option that was chosen, when one was.
+impl Scope {
+    /// 线上那个词。
     #[must_use]
-    pub fn option_id(&self) -> Option<&str> {
+    pub const fn on_wire(self) -> &'static str {
         match self {
-            Self::Allow(option_id) | Self::Reject(option_id) => Some(option_id),
-            Self::Cancel => None,
+            Self::Session => "session",
         }
     }
 }
 
-/// 批准这一次。
-pub(crate) const APPROVE: &str = "approve";
-/// 批准，并且在这条会话上记住（kap 的 scope: "session"）。
-pub(crate) const APPROVE_SESSION: &str = "approve_session";
-/// 拒绝。
-pub(crate) const REJECT: &str = "reject";
-
-/// 选项上的字与上游自己的审批按钮逐字相同（上游 packages/acp-adapter
-/// /src/approval.ts 的 CANONICAL_OPTIONS：Approve once / Approve for this
-/// session / Reject），桌面的选项文案表（agent-catalog 的 OPTION_LABELS）
-/// 翻的正是这三条。kind 沿用界面权限卡片既有的风格词汇表。
-pub fn kap_options() -> Value {
-    json!([
-        { "optionId": APPROVE, "name": "Approve once", "kind": "allow_once" },
-        { "optionId": APPROVE_SESSION, "name": "Approve for this session", "kind": "allow_always" },
-        { "optionId": REJECT, "name": "Reject", "kind": "reject_once" },
-    ])
+/// 一次审批是怎么结的。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Decision {
+    /// 放行。带上 scope 就是「这条会话都放行」。
+    Approved { scope: Option<Scope> },
+    /// 不放行。
+    Rejected,
+    /// 没有人答，这一轮先结束了。
+    Cancelled,
 }
 
-/// The answers the user is allowed to give, keyed by option identifier.
-///
-/// 选项集是固定的三条，所以合法答复表也是固定的：一个不在表里的选项号
-/// 就是没人提供过的选项 —— 这正是界面来的答案先过桌子再上线的判据。
-pub fn kap_answers() -> HashMap<String, Decision> {
-    HashMap::from([
-        (APPROVE.to_owned(), Decision::Allow(APPROVE.to_owned())),
-        (
-            APPROVE_SESSION.to_owned(),
-            Decision::Allow(APPROVE_SESSION.to_owned()),
-        ),
-        (REJECT.to_owned(), Decision::Reject(REJECT.to_owned())),
-    ])
-}
-
-/// 一个答复在 kap 线上的形状（approvalResponseSchema：decision 必填，
-/// scope 只在「这条会话上记住」时出现）。
-#[must_use]
-pub fn kap_response(decision: &Decision) -> (&'static str, Option<&'static str>) {
-    match decision {
-        Decision::Allow(option_id) if option_id.as_str() == APPROVE_SESSION => {
-            ("approved", Some("session"))
+impl Decision {
+    /// 线上那个 decision 词。
+    #[must_use]
+    pub const fn on_wire(self) -> &'static str {
+        match self {
+            Self::Approved { .. } => "approved",
+            Self::Rejected => "rejected",
+            Self::Cancelled => "cancelled",
         }
-        Decision::Allow(_) => ("approved", None),
-        Decision::Reject(_) => ("rejected", None),
-        Decision::Cancel => ("cancelled", None),
+    }
+
+    /// 随它一起发出去的范围；缺席就是只此一次。
+    #[must_use]
+    pub const fn scope(self) -> Option<Scope> {
+        match self {
+            Self::Approved { scope } => scope,
+            Self::Rejected | Self::Cancelled => None,
+        }
     }
 }

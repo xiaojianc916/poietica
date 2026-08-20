@@ -1,6 +1,7 @@
 import type {
+  ApprovalDecision,
+  ApprovalScope,
   KapToolCallId,
-  PermissionOption,
   QuestionChoice,
   QuestionItem,
   QuestionOutcome,
@@ -163,15 +164,18 @@ export interface PermissionItem extends TimelineEntry {
   readonly requestId: string
   readonly title: string
   readonly toolCall?: ToolCallUpdate
-  readonly options: readonly PermissionOption[]
-  readonly resolution?: { readonly optionId: string; readonly outcome: 'selected' | 'cancelled' }
+  /** 缺席表示还在等人答；在场时就是 kap 记下的那个答复。 */
+  readonly resolution?: {
+    readonly decision: ApprovalDecision
+    readonly scope?: ApprovalScope
+  }
 }
 
 /**
  * 一组待答的题。
  *
- * 它是协议自己的通道（kap 的 questions），不借权限请求：没有 optionId 方言，
- * 题面、选项、多选与自选都由 QuestionItem 自己带。resolution 缺席表示还在等答；
+ * 它是协议自己的通道（kap 的 questions），不借权限请求：题面、选项、多选与自选
+ * 都由 QuestionItem 自己带。resolution 缺席表示还在等答；
  * 在场时 outcome 说怎么结的，answers 逐题记下答复，note 是整组的备注。
  */
 export interface QuestionTimelineItem extends TimelineEntry {

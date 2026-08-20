@@ -1,5 +1,5 @@
 import type { KapEventPayload, KapSessionId, KapStopReason } from './kap'
-import type { PermissionOption } from './permission'
+import type { ApprovalDecision, ApprovalScope } from './permission'
 import type { QuestionChoice, QuestionItem } from './question'
 import type { ToolCallUpdate } from './tool-call'
 
@@ -60,15 +60,16 @@ export type RunEvent =
        * 帧没有它。
        */
       readonly toolCall?: ToolCallUpdate
-      readonly options: readonly PermissionOption[]
     }
   | {
       readonly kind: 'permission_resolved'
       readonly seq: number
       readonly at: number
       readonly requestId: string
-      readonly optionId: string
-      readonly outcome: 'selected' | 'cancelled'
+      /** 这次审批按 kap 的话是怎么结的（frame.rs 的 PermissionResolved）。 */
+      readonly decision: ApprovalDecision
+      /** 「这条会话都照此办理」时在场。 */
+      readonly scope?: ApprovalScope
     }
   | {
       readonly kind: 'questions_asked'

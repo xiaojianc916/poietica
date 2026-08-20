@@ -10,9 +10,9 @@
 //! 重放的帧随 `agent_open_thread` 一起交出去。这一侧不再留第二份记录：本地
 //! 库现在只是一张索引，记着有哪些对话、叫什么、各自握着谁的哪个会话。
 //!
-//! An answer arriving from the renderer is untrusted. The desk checks it
-//! against the options the agent actually offered before anything is recorded
-//! or sent.
+//! An answer arriving from the renderer is untrusted, so its vocabulary is a
+//! type: kap allows three decisions and one scope, and serde refuses anything
+//! else at this boundary before a desk or the wire ever sees it.
 
 use crate::error::IpcError;
 use std::time::Duration;

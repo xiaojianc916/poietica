@@ -7,7 +7,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::frame::{RunFrame, prune};
-use crate::permission::{Decision, kap_options};
+use crate::permission::Decision;
 use crate::question::{QuestionGroup, QuestionOutcome};
 
 /// 一帧，已经成形，可以交出去了。
@@ -227,14 +227,13 @@ impl Recorder {
             tool_call_id: tool_call_id.to_owned(),
             title,
             tool_call,
-            options: kap_options(),
         });
 
         approval_id.to_owned()
     }
 
     /// Records the answer a kap approval was settled with.
-    pub fn record_permission_resolved_kap(&mut self, approval_id: &str, decision: &Decision) {
+    pub fn record_permission_resolved_kap(&mut self, approval_id: &str, decision: Decision) {
         self.note_resolution(approval_id, decision);
     }
 
@@ -253,7 +252,7 @@ impl Recorder {
         // 先取走再逐个记：每一次记录都会把它自己从清单里划掉，边遍历边改
         // 同一个 Vec 是借用检查器本来就不允许的事。
         for approval_id in std::mem::take(&mut self.approvals) {
-            self.record_permission_resolved_kap(&approval_id, &Decision::Cancel);
+            self.record_permission_resolved_kap(&approval_id, Decision::Cancelled);
         }
 
         for question_id in std::mem::take(&mut self.questions) {
@@ -334,22 +333,13 @@ impl Recorder {
         });
     }
 
-    fn note_resolution(&mut self, request_id: &str, decision: &Decision) {
-        // Refusing by choosing the rejection option is still a selection as far
-        // as the protocol is concerned. Only an unanswered request is cancelled.
-        let (option_id, outcome) = match decision {
-            Decision::Allow(option_id) | Decision::Reject(option_id) => {
-                (option_id.clone(), "selected")
-            }
-            Decision::Cancel => (String::new(), "cancelled"),
-        };
-
+    fn note_resolution(&mut self, request_id: &str, decision: Decision) {
         self.approvals.retain(|waiting| waiting != request_id);
 
         self.append(RunFrame::PermissionResolved {
             request_id: request_id.to_owned(),
-            option_id,
-            outcome: outcome.to_owned(),
+            decision: decision.on_wire().to_owned(),
+            scope: decision.scope().map(|scope| scope.on_wire().to_owned()),
         });
     }
 

@@ -17,7 +17,7 @@ use super::addressing::session_for;
 use super::attachment::{Kept, keep_bytes};
 use super::dto::{
     AgentAnswerQuestionsRequest, AgentCancelRequest, AgentDismissQuestionsRequest,
-    AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest, answered,
+    AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest, answered, decided,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
@@ -233,8 +233,8 @@ fn recorded(events: impl ExactSizeIterator<Item = RecordedEvent>) -> Vec<Recorde
 ///
 /// # Errors
 ///
-/// Fails when the request is not outstanding, when the option was never
-/// offered, or when the agent has already stopped waiting.
+/// Fails when the request is not outstanding, or when the agent has already
+/// stopped waiting.
 #[tauri::command]
 #[specta::specta]
 pub fn agent_resolve_permission(
@@ -248,7 +248,7 @@ pub fn agent_resolve_permission(
     // Every failure here means the same thing to the interface: that answer no
     // longer applies to anything. The detail stays on this side of the wire.
     live.desk
-        .answer(&request.request_id, &request.option_id)
+        .answer(&request.request_id, decided(&request))
         .map_err(|error| Error::NotFound(error.to_string()))?;
 
     Ok(())

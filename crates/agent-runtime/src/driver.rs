@@ -45,7 +45,6 @@ use crate::config::{ConfigControl, controls, selector_patch};
 use crate::desk::{PermissionDesk, QuestionDesk};
 use crate::error::{KapError, Refusal, Result};
 use crate::frame::kap_event;
-use crate::permission::kap_response;
 use crate::program::resolve_program;
 use crate::question::{QuestionGroup, QuestionOutcome};
 use crate::recorder::{Recorder, now_millis};
@@ -1293,11 +1292,11 @@ async fn fetch_and_record_approvals(
                 return;
             };
 
-            let (decision_on_wire, scope) = kap_response(&decision);
-
-            let answer = match scope {
-                Some(scope) => json!({ "decision": decision_on_wire, "scope": scope }),
-                None => json!({ "decision": decision_on_wire }),
+            let answer = match decision.scope() {
+                Some(scope) => {
+                    json!({ "decision": decision.on_wire(), "scope": scope.on_wire() })
+                }
+                None => json!({ "decision": decision.on_wire() }),
             };
 
             let url = format!("{base2}/sessions/{sid}/approvals/{approval_id}");
@@ -1308,7 +1307,7 @@ async fn fetch_and_record_approvals(
 
             if let Ok(Some(slot)) = book2.slot(&sid) {
                 slot.record(|recorder| {
-                    recorder.record_permission_resolved_kap(&approval_id, &decision);
+                    recorder.record_permission_resolved_kap(&approval_id, decision);
                 });
             }
         });
