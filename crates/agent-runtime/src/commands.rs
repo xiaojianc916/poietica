@@ -7,7 +7,8 @@ use crate::config::ConfigControl;
 use crate::error::{KapError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::session::{
-    CanCancelSession, CanDeleteSession, CanForkSession, CanLoadSession, OpenedSession, SessionEntry,
+    CanCancelSession, CanDeleteSession, CanForkSession, CanLoadSession, Cursor, OpenedSession,
+    SessionEntry,
 };
 
 /// 这一轮随那句话一起送出去的一张图片。
@@ -63,6 +64,8 @@ pub(crate) enum Command {
     /// 历史因此还在 agent 手里 —— 与新开一条的分别在于上下文还在不在。
     LoadSession {
         session_id: String,
+        /// 上一次这条会话的事件流读到哪儿了；没读过就是空。
+        from: Option<Cursor>,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
     /// 让 agent 从一条已有会话分叉出一条新会话。
@@ -168,6 +171,8 @@ impl AgentClient {
     /// 会话号原样交回去，agent 那侧把它重新装载起来，历史因此还在。凭证只从
     /// 握手来（`Handshake::loading`），所以没声明过的连接上写不出这一句调用。
     ///
+    /// 读点一起交回去：订阅时报得出上一次读到哪儿，server 才从那一帧之后接着发。
+    ///
     /// # Errors
     ///
     /// Fails when the connection is gone, or when the agent no longer keeps
@@ -176,10 +181,15 @@ impl AgentClient {
         &self,
         _granted: CanLoadSession,
         session_id: String,
+        from: Option<Cursor>,
     ) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
-        self.send(Command::LoadSession { session_id, reply })?;
+        self.send(Command::LoadSession {
+            session_id,
+            from,
+            reply,
+        })?;
 
         answer
             .await

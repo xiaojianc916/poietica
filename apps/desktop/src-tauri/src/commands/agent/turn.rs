@@ -189,8 +189,14 @@ fn logging(app: AppHandle, thread: Uuid) -> FrameSink {
             })
             .await;
 
-            if let Err(error) = written {
-                log::warn!("could not record a batch of frames: {error}");
+            match written {
+                /* 库挡掉了几帧：那条会话的序号线接错了，缺的是下一次打开这条
+                对话时的这几帧。 */
+                Ok(refused) if refused > 0 => {
+                    log::warn!("{refused} frame(s) of this batch were already in the log");
+                }
+                Ok(_recorded) => {}
+                Err(error) => log::warn!("could not record a batch of frames: {error}"),
             }
         }
     });

@@ -63,7 +63,7 @@ pub use run_slot::RunSlot;
 pub use selection::select_config;
 pub use session::{
     AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
-    CanLoadSession, Handshake, OpenedSession, SessionEntry, SessionEvent, SessionEvents,
+    CanLoadSession, Cursor, Handshake, OpenedSession, SessionEntry, SessionEvent, SessionEvents,
 };
 pub use sessions::SessionBook;
 pub use stderr::StderrLog;

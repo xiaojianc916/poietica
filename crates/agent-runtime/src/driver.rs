@@ -52,7 +52,7 @@ use crate::recorder::{Recorder, now_millis};
 use crate::run_slot::RunSlot;
 use crate::session::{
     AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
-    CanLoadSession, Handshake, OpenedSession, SessionEntry, SessionEvent, SessionEvents,
+    CanLoadSession, Cursor, Handshake, OpenedSession, SessionEntry, SessionEvent, SessionEvents,
 };
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -373,8 +373,27 @@ async fn wait_subscribe_ack(
 
 /// 把一条会话挂到这条连接的事件流上，返回那一帧的 id。不在握手内联订阅：hello
 /// 内联订阅是官方标了 deprecated 的旧式写法（ws-control.ts clientHelloPayloadSchema）。
-async fn subscribe(ws: &WsSink, session_id: &str) -> Result<String> {
-    send_frame(ws, "subscribe", json!({ "session_ids": [session_id] })).await
+///
+/// 带着读点订阅，server 就从那一帧之后接着发（subscribePayloadSchema 的 cursors、
+/// sessionCursorSchema）；接不下去时它回 resync_required，而不是默默从头来。新开
+/// 与分叉出来的会话没有读点：它们的流从这一刻才开始。
+async fn subscribe(ws: &WsSink, session_id: &str, from: Option<&Cursor>) -> Result<String> {
+    let payload = match from {
+        Some(Cursor {
+            seq,
+            epoch: Some(epoch),
+        }) => json!({
+            "session_ids": [session_id],
+            "cursors": { session_id: { "seq": seq, "epoch": epoch } },
+        }),
+        Some(Cursor { seq, epoch: None }) => json!({
+            "session_ids": [session_id],
+            "cursors": { session_id: { "seq": seq } },
+        }),
+        None => json!({ "session_ids": [session_id] }),
+    };
+
+    send_frame(ws, "subscribe", payload).await
 }
 
 // ── 会话状态 ───────────────────────────────────────────────────────────────
@@ -645,7 +664,7 @@ pub fn connect(
             return Ok(());
         }
 
-        let anchor_sub = match subscribe(&ws, &session_id).await {
+        let anchor_sub = match subscribe(&ws, &session_id, None).await {
             Ok(id) => id,
             Err(error) => {
                 let _ = ready_tx.send(Err(KapError::Handshake {
@@ -733,14 +752,15 @@ pub fn connect(
                             });
                         }
 
-                        Some(Command::LoadSession { session_id: sid, reply }) => {
+                        Some(Command::LoadSession { session_id: sid, from, reply }) => {
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             let book2 = book_clone.clone();
                             let ws2 = Arc::clone(&ws);
                             tokio::spawn(async move {
                                 let result =
-                                    load_session(&http2, &base2, &sid, &book2, &ws2).await;
+                                    load_session(&http2, &base2, &sid, from.as_ref(), &book2, &ws2)
+                                        .await;
                                 let _ = reply.send(result);
                             });
                         }
@@ -969,6 +989,12 @@ async fn handle_ws_message(
             .and_then(Value::as_str)
             .unwrap_or("unknown");
 
+        /* 读点从这一段流上接不下去了，所以它作废：留着它，下一次订阅只会再换
+        回一句 resync_required。 */
+        let _sent = events_tx.unbounded_send(SessionEvent::CursorLost {
+            session_id: cut.to_owned(),
+        });
+
         if let Some(state) = sessions.get_mut(cut) {
             state.active_prompt_id = None;
             let outstanding = std::mem::take(&mut state.pending_approvals);
@@ -994,9 +1020,11 @@ async fn handle_ws_message(
         return;
     };
 
-    if envelope.get("seq").and_then(Value::as_i64).is_none() {
+    // 位置由 kap 签发（信封上的 seq，跨守护进程重启有效）。此前它只被用来判一下
+    // 「这是不是一帧事件」随后丢掉，于是重新订阅时说不出从哪儿接着发。
+    let Some(seq) = envelope.get("seq").and_then(Value::as_i64) else {
         return;
-    }
+    };
 
     let Some(payload) = envelope.get("payload") else {
         return;
@@ -1042,6 +1070,20 @@ async fn handle_ws_message(
 
             desk.abandon(&outstanding);
             questions.abandon(&unanswered);
+
+            /* 读点与轮次同拍：一轮之内那些位置没有人会拿去续订，而一帧写一次库
+            正是持久层禁掉的事（record_frames）。轮终这一帧的位置，就是下一次重新
+            订阅要接上的地方。 */
+            let _sent = events_tx.unbounded_send(SessionEvent::Cursor {
+                session_id: session_id.to_owned(),
+                cursor: Cursor {
+                    seq,
+                    epoch: envelope
+                        .get("epoch")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
+                },
+            });
         }
 
         "agent.status.updated" => {
@@ -1485,7 +1527,7 @@ async fn open_session(
         .to_owned();
 
     book.open(&id)?;
-    subscribe(ws, &id).await?;
+    subscribe(ws, &id, None).await?;
 
     ensure_model(http, base_url, &id).await;
 
@@ -1504,13 +1546,14 @@ async fn load_session(
     http: &reqwest::Client,
     base_url: &str,
     session_id: &str,
+    from: Option<&Cursor>,
     book: &SessionBook,
     ws: &WsSink,
 ) -> Result<OpenedSession> {
     get(http, &format!("{base_url}/sessions/{session_id}")).await?;
 
     book.open(session_id)?;
-    subscribe(ws, session_id).await?;
+    subscribe(ws, session_id, from).await?;
 
     ensure_model(http, base_url, session_id).await;
 
@@ -1546,7 +1589,7 @@ async fn fork_session(
         .to_owned();
 
     book.open(&id)?;
-    subscribe(ws, &id).await?;
+    subscribe(ws, &id, None).await?;
 
     ensure_model(http, base_url, &id).await;
 

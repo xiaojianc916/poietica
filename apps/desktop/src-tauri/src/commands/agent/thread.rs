@@ -9,7 +9,7 @@ use poietica_agent_persistence_native::TitleSource;
 use serde_json::Value;
 use tauri::{AppHandle, State, async_runtime};
 
-use super::addressing::{Held, session_for};
+use super::addressing::{Held, read_point, session_for};
 use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
@@ -470,8 +470,10 @@ pub async fn agent_fork_thread(
             return Err(Error::Validation(NOTHING_TO_FORK.to_owned()).into());
         };
 
+        let from = read_point(&index, &held).await?;
+
         live.client
-            .load_session(loading, held.clone())
+            .load_session(loading, held.clone(), from)
             .await
             .map_err(translate)?;
     }

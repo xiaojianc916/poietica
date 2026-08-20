@@ -20,18 +20,23 @@ pub struct RecordedFrame {
 }
 
 impl AgentStore {
-    /// 追加一批帧，一次提交。同一条对话上，同一条会话的同一个位置只收一次。
+    /// 追加一批帧，一次提交。答的是这一批里有几帧库里已经有了。
     ///
     /// 一帧一次 execute 就是一帧一个事务：autocommit 会为每一条语句写一次 WAL
     /// 提交记录、抢放一次写锁。一批帧是同一拍到达的同一件事，所以它们共用一次
     /// 提交，语句也只 prepare 一次。
     ///
+    /// 同一个位置只收一次。撞上的那一帧被库挡掉，笔数报出来 —— 它的意思是这条
+    /// 会话的序号线接错了（recorder.rs 的 SeqLine::resume），而咽下去的话，要到
+    /// 下一次打开这条对话才看得出少了帧。一帧撞车不牵连同一批的其余帧。
+    ///
     /// # Errors
     ///
     /// 语句被拒时返回错误。
-    pub fn record_frames(&mut self, thread: Uuid, frames: &[RecordedFrame]) -> Result<()> {
+    pub fn record_frames(&mut self, thread: Uuid, frames: &[RecordedFrame]) -> Result<usize> {
         let thread = thread.to_string();
         let batch = self.connection.transaction()?;
+        let mut refused = 0_usize;
 
         {
             let mut statement = batch.prepare_cached(
@@ -41,19 +46,23 @@ impl AgentStore {
             )?;
 
             for frame in frames {
-                statement.execute(rusqlite::params![
+                let written = statement.execute(rusqlite::params![
                     thread,
                     frame.session_id,
                     frame.seq,
                     frame.at,
                     frame.frame
                 ])?;
+
+                if written == 0 {
+                    refused = refused.saturating_add(1);
+                }
             }
         }
 
         batch.commit()?;
 
-        Ok(())
+        Ok(refused)
     }
 
     /// 这条对话记下的每一帧，按追加顺序。顺序由 SQL 给。

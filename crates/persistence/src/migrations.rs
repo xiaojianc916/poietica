@@ -16,6 +16,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "session_usage_inputs",
         include_str!("schema/0002_session_usage_inputs.sql"),
     ),
+    (
+        3,
+        "session_cursors",
+        include_str!("schema/0003_session_cursors.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.

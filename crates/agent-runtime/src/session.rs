@@ -59,6 +59,27 @@ pub enum SessionEvent {
         session_id: String,
         usage: serde_json::Value,
     },
+    /// 这条会话的事件流读到哪儿了。轮终报一次：一轮之内那些位置没有人会拿去
+    /// 续订，而一帧写一次库正是持久层禁掉的事（persistence 的 record_frames）。
+    Cursor {
+        session_id: String,
+        cursor: Cursor,
+    },
+    /// 这条会话的读点作废了：kap 说那一段流断了（resync_required），接不下去。
+    CursorLost { session_id: String },
+}
+
+/// kap 的事件流上，一条会话已经被读到的位置。
+///
+/// 位置由 server 签发（信封上的 seq，跨守护进程重启有效），纪元说明它属于哪一段
+/// 流：重新订阅时把这两样原样报回去，server 才知道从哪一帧接着发（ws-control.ts
+/// 的 sessionCursorSchema）。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Cursor {
+    /// 信封上的 seq。
+    pub seq: i64,
+    /// 那一段流的纪元；server 没报就是空。
+    pub epoch: Option<String>,
 }
 
 /// 一条连接上的会话级状态流，接收端。

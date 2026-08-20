@@ -6,7 +6,7 @@
 use crate::commands::agent_setup::profile::{agent_args, agent_program, launch_env};
 use crate::error::{Error, Result};
 use crate::paths::attachments_root;
-use poietica_agent_persistence_native::SessionUsage;
+use poietica_agent_persistence_native::{SessionCursor, SessionUsage};
 use poietica_agent_runtime_native::{
     AgentClient, AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
     CanLoadSession, Handshake, KapError, PermissionDesk, QuestionDesk, Refusal, RunSlot,
@@ -325,6 +325,48 @@ pub(super) async fn ensure_session(
                         session_id,
                         usage: reported,
                     }
+                }
+
+                /* 读点是本机的账，屏幕上没有一格画它：落库，不上屏。订阅时由
+                addressing.rs 把它报回给 kap。 */
+                SessionEvent::Cursor { session_id, cursor } => {
+                    let read = SessionCursor {
+                        seq: cursor.seq,
+                        epoch: cursor.epoch,
+                    };
+
+                    let index = herald.state::<crate::local_index::LocalIndex>();
+
+                    let recorded = crate::local_index::on_index(&index, move |store| {
+                        store
+                            .remember_cursor(&session_id, &read)
+                            .map_err(crate::local_index::persistence)
+                    })
+                    .await;
+
+                    if let Err(error) = recorded {
+                        log::warn!("could not record where the event stream was read to: {error}");
+                    }
+
+                    continue;
+                }
+
+                /* 那一段流断了，读点从它接不下去。 */
+                SessionEvent::CursorLost { session_id } => {
+                    let index = herald.state::<crate::local_index::LocalIndex>();
+
+                    let dropped = crate::local_index::on_index(&index, move |store| {
+                        store
+                            .forget_cursor(&session_id)
+                            .map_err(crate::local_index::persistence)
+                    })
+                    .await;
+
+                    if let Err(error) = dropped {
+                        log::warn!("could not drop a cursor that no longer resumes: {error}");
+                    }
+
+                    continue;
                 }
             };
 

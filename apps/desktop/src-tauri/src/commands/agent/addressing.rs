@@ -5,7 +5,7 @@
 
 use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
-use poietica_agent_runtime_native::ConfigControl;
+use poietica_agent_runtime_native::{ConfigControl, Cursor};
 use std::path::PathBuf;
 use tauri::State;
 use uuid::Uuid;
@@ -24,6 +24,27 @@ pub(super) struct Held {
     /// agent 那侧的上下文这一次恢复成了什么样。屏幕上那条经过与它无关 ——
     /// 那一份由本机日志重放（见 run_events.rs）。
     pub(super) history: AgentHistory,
+}
+
+/// 这条会话的事件流，这台机器上一次读到哪儿了。
+///
+/// 订阅时报回去，kap 才知道从哪一帧接着发。读点由轮终写下（runtime.rs 排空那件
+/// `SessionEvent::Cursor`），所以这里读到的是上一轮结束时的位置。
+pub(super) async fn read_point(
+    index: &State<'_, LocalIndex>,
+    session_id: &str,
+) -> Result<Option<Cursor>> {
+    let asked = session_id.to_owned();
+
+    let stored = on_index(index, move |store| {
+        store.cursor_of(&asked).map_err(persistence)
+    })
+    .await?;
+
+    Ok(stored.map(|read| Cursor {
+        seq: read.seq,
+        epoch: read.epoch,
+    }))
 }
 
 /// 这条对话所持有的、本次连接认得的会话。
@@ -120,8 +141,15 @@ pub(super) async fn session_for(
                 history: AgentHistory::Live,
             });
         } else if let Some(loading) = live.loading {
-            /* 上次运行留下的。号不变，让 agent 把它装载回来。 */
-            match live.client.load_session(loading, session_id.clone()).await {
+            /* 上次运行留下的。号不变，让 agent 把它装载回来，并报出上一次读到
+            哪儿：位置由 kap 签发，报回去它才知道从哪一帧接着发。 */
+            let from = read_point(index, &session_id).await?;
+
+            match live
+                .client
+                .load_session(loading, session_id.clone(), from)
+                .await
+            {
                 Ok(loaded) => {
                     /* 序号线接上日志。号没变，日志里那些位置照样占着，而这条
                     会话的槽是本次连接新建的、从 1 开始 —— 不接上去，下一轮的
