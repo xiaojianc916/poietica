@@ -19,9 +19,13 @@ pub enum KapError {
     /// kap server 没能在规定时间内注册到实例目录。
     #[error("kap server did not start in time: {message}")]
     Timeout { message: String },
-    /// REST 或 WebSocket 层报了错，或对端回了一个非零 code 的信封。
+    /// REST 或 WebSocket 层报了错。
     #[error("kap transport error: {message}")]
     Transport { message: String },
+    /// 对端回了一个非零 code 的信封。码是 kap 的（protocol/error-codes.ts），
+    /// 原样带出来 —— 压成一句话之后没有人再判得动它。
+    #[error("kap answered code {code}: {message}")]
+    Envelope { code: i64, message: String },
     /// 握手没能走完，一条会话都没开出来。
     #[error("kap handshake failed: {message}")]
     Handshake { message: String },

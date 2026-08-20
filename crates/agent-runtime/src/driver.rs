@@ -237,11 +237,13 @@ fn envelope_data(body: &Value) -> Result<Value> {
         return Ok(body.get("data").cloned().unwrap_or_default());
     }
 
-    Err(KapError::Transport {
-        message: format!(
-            "kap answered code {code}: {msg}",
-            msg = body.get("msg").and_then(Value::as_str).unwrap_or("")
-        ),
+    Err(KapError::Envelope {
+        code,
+        message: body
+            .get("msg")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned(),
     })
 }
 
@@ -369,12 +371,10 @@ async fn wait_subscribe_ack(
     })
 }
 
-/// 把一条会话挂到这条连接的事件流上。不在握手内联订阅：hello 内联订阅是
-/// 官方标了 deprecated 的旧式写法（ws-control.ts clientHelloPayloadSchema）。
-async fn subscribe(ws: &WsSink, session_id: &str) -> Result<()> {
-    send_frame(ws, "subscribe", json!({ "session_ids": [session_id] })).await?;
-
-    Ok(())
+/// 把一条会话挂到这条连接的事件流上，返回那一帧的 id。不在握手内联订阅：hello
+/// 内联订阅是官方标了 deprecated 的旧式写法（ws-control.ts clientHelloPayloadSchema）。
+async fn subscribe(ws: &WsSink, session_id: &str) -> Result<String> {
+    send_frame(ws, "subscribe", json!({ "session_ids": [session_id] })).await
 }
 
 // ── 会话状态 ───────────────────────────────────────────────────────────────
@@ -645,11 +645,7 @@ pub fn connect(
             return Ok(());
         }
 
-        let anchor_sub = match send_frame(&ws, "subscribe", json!({
-            "session_ids": [&session_id],
-        }))
-        .await
-        {
+        let anchor_sub = match subscribe(&ws, &session_id).await {
             Ok(id) => id,
             Err(error) => {
                 let _ = ready_tx.send(Err(KapError::Handshake {
@@ -956,8 +952,41 @@ async fn handle_ws_message(
         return;
     }
 
+    // kap 说这条会话的事件流断了（buffer_overflow / session_recreated /
+    // epoch_changed，见 ws-control.ts 的 resyncRequiredPayloadSchema）：断点之后的
+    // 帧不会再来，这一轮的经过补不齐。判死它 —— 补不回来的东西不该装作还在路上。
     if kind == "resync_required" {
-        log::warn!("kap asked for a resync: {envelope}");
+        let cut = envelope
+            .get("payload")
+            .and_then(|payload| payload.get("session_id"))
+            .or_else(|| envelope.get("session_id"))
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+
+        let reason = envelope
+            .get("payload")
+            .and_then(|payload| payload.get("reason"))
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+
+        if let Some(state) = sessions.get_mut(cut) {
+            state.active_prompt_id = None;
+            let outstanding = std::mem::take(&mut state.pending_approvals);
+            let unanswered = std::mem::take(&mut state.pending_questions);
+
+            if let Ok(Some(slot)) = book.slot(cut)
+                && let Ok(Some(mut recorder)) = slot.take()
+            {
+                recorder.record_pending_cancelled();
+                recorder.record_run_failed(&format!("the event stream was cut: {reason}"));
+            }
+
+            desk.abandon(&outstanding);
+            questions.abandon(&unanswered);
+        } else {
+            log::warn!("kap asked for a resync of a session we never opened: {envelope}");
+        }
+
         return;
     }
 
@@ -1254,8 +1283,8 @@ async fn fetch_and_record_approvals(
 ///
 /// 官方用一个非零码宣告成功：撤下这一路回的是
 /// { code: QUESTION_DISMISSED, data: { dismissed: true, dismissed_at } }
-/// （routes/questions.ts 的 dismiss 分支；error-codes.ts 里它是 40909）。只走
-/// envelope_data 那条通路，会把每一次成功的撤下都记成一次传输失败。
+/// （routes/questions.ts 的 dismiss 分支；error-codes.ts 里它是 40909）。不按码
+/// 判，每一次成功的撤下都会被记成一次失败。
 const QUESTION_DISMISSED: i64 = 40909;
 
 /// 把一组题的收场送回 kap。
@@ -1294,15 +1323,15 @@ async fn settle_question(
         .await
         .map_err(|error| error.to_string())?;
 
-    if matches!(outcome, QuestionOutcome::Dismissed)
-        && envelope.get("code").and_then(Value::as_i64) == Some(QUESTION_DISMISSED)
-    {
-        return Ok(());
+    match envelope_data(&envelope) {
+        Ok(_accepted) => Ok(()),
+        Err(KapError::Envelope { code, .. })
+            if code == QUESTION_DISMISSED && matches!(outcome, QuestionOutcome::Dismissed) =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(error.to_string()),
     }
-
-    envelope_data(&envelope)
-        .map(|_accepted| ())
-        .map_err(|error| error.to_string())
 }
 
 /// agent 报它卡在人这一侧时，把这条会话挂着的题组逐个请上桌。
