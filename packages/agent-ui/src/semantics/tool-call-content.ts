@@ -26,12 +26,27 @@ export type ToolContentPart =
       readonly newText: string
     }
   | { readonly type: 'terminal'; readonly terminalId: string }
+  | { readonly type: 'link'; readonly uri: string; readonly name: string | null }
   | { readonly type: 'opaque'; readonly label: string }
 
+/* 内层的块只有 text / image / audio 三种（agent-contract 的 ToolCallContent），
+   所以这张表只为画不出来的那两种留名字。resource 与 resource_link 是外层的档，
+   此前挂在这里的两个键一次都取不到。 */
 const OPAQUE_LABELS: Record<string, string> = {
+  audio: '一段音频',
   image: '一张图片',
-  resource: '一段嵌入资源',
-  resource_link: '一个资源链接',
+}
+
+/** 一份嵌入资源：带正文就当正文画，只有字节时才退回链接。 */
+function resourcePart(resource: {
+  readonly uri: string
+  readonly text?: string | undefined
+}): ToolContentPart {
+  const text = resource.text
+
+  return text === undefined || text === ''
+    ? { type: 'link', uri: resource.uri, name: null }
+    : { type: 'text', text }
 }
 
 export function toToolContentParts(
@@ -56,6 +71,17 @@ export function toToolContentParts(
 
     if (entry.type === 'terminal') {
       parts.push({ type: 'terminal', terminalId: entry.terminalId })
+      continue
+    }
+
+    /* 这两档没有 content 那一格，此前一路落到下面那行去读它。 */
+    if (entry.type === 'resource_link') {
+      parts.push({ type: 'link', uri: entry.uri, name: entry.name ?? null })
+      continue
+    }
+
+    if (entry.type === 'resource') {
+      parts.push(resourcePart(entry.resource))
       continue
     }
 

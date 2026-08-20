@@ -36,6 +36,7 @@ interface ToolCallPatch {
   readonly status?: ToolCallStatus
   readonly content?: readonly ToolCallContent[]
   readonly appendContent?: ToolCallContent
+  readonly replaceTail?: true
   readonly locations?: readonly ToolCallLocation[]
   readonly rawInput?: unknown
   readonly rawOutput?: unknown
@@ -171,24 +172,16 @@ function toolPatch(payload: KapEventPayload): ToolCallPatch | null {
     }
 
     case 'tool.progress': {
-      /* 进度是追加，不是替换：每一帧都是产出的下一截。percent 之类的仪表在这张
-         卡片上没有读者，不落。 */
-      const text = progressOf(payload)
-
-      if (text === undefined) {
-        return null
-      }
-
-      return {
-        status: 'in_progress',
-        appendContent: { type: 'content', content: { type: 'text', text } },
-      }
+      return progressOf(payload)
     }
 
     case 'tool.result': {
+      const output = fieldOf(payload, 'output')
+
       return {
         status: fieldOf(payload, 'isError') === true ? 'failed' : 'completed',
-        rawOutput: fieldOf(payload, 'output'),
+        rawOutput: output,
+        ...fromOutput(output),
       }
     }
 
@@ -205,17 +198,31 @@ function titleOf(payload: KapEventPayload): ToolCallPatch {
   return name === undefined ? {} : { title: name }
 }
 
-/** 进度那一句；update 的 kind 与 percent 没有读者。 */
-function progressOf(payload: KapEventPayload): string | undefined {
+/**
+ * 进度那一句。
+ *
+ * 默认是产出的下一截，所以追加；上游说了 replace 就盖掉上一截（events-zod.ts 的
+ * toolUpdateSchema.replace —— 一条状态行原地刷新，「下载 40%」变成「下载 80%」，
+ * 不是两行）。kind 与 percent 在这张卡片上没有读者。
+ */
+function progressOf(payload: KapEventPayload): ToolCallPatch | null {
   const update = fieldOf(payload, 'update')
 
   if (typeof update !== 'object' || update === null) {
-    return undefined
+    return null
   }
 
   const text = Reflect.get(update, 'text')
 
-  return typeof text === 'string' && text !== '' ? text : undefined
+  if (typeof text !== 'string' || text === '') {
+    return null
+  }
+
+  return {
+    status: 'in_progress',
+    appendContent: { type: 'content', content: { type: 'text', text } },
+    ...(Reflect.get(update, 'replace') === true ? { replaceTail: true } : {}),
+  }
 }
 
 /**
@@ -279,14 +286,26 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
   }
 }
 
-/** 进度是追加，整份内容是替换：这一帧带了哪一样就按哪一样合。 */
+/**
+ * 整份内容是替换，一截进度是追加，说了 replace 的那一截盖掉上一截。
+ *
+ * 只盖得掉尾巴上的一段文本：一次刷新不该吃掉前面那张 diff。
+ */
 function contentOf(
   patch: ToolCallPatch,
   held: ToolCallTimelineItem | undefined,
 ): readonly ToolCallContent[] {
   const base = patch.content ?? held?.content ?? []
 
-  return patch.appendContent === undefined ? base : [...base, patch.appendContent]
+  if (patch.appendContent === undefined) {
+    return base
+  }
+
+  const tail = base.at(-1)
+  const dropTail =
+    patch.replaceTail === true && tail?.type === 'content' && tail.content.type === 'text'
+
+  return [...(dropTail ? base.slice(0, -1) : base), patch.appendContent]
 }
 
 type ToolCallTail = Pick<
@@ -325,6 +344,81 @@ function textOf(display: object, key: string): string {
   const value = Reflect.get(display, key)
 
   return typeof value === 'string' ? value : ''
+}
+
+/**
+ * 交回来的那一份产出。
+ *
+ * 上游给的是 string | ContentPart[]（toolContract.ts 的 ExecutableToolOutput）。
+ * 字符串那一半 rawOutput 那一面画得动；一组部件不行 —— 印成 JSON 源码就是把正文
+ * 压成一行、每个引号都挂上反斜杠。所以按部件摊成内容块。
+ *
+ * 认不出一档就整份退回：翻译一半会静默丢掉另一半，原样的 JSON 至少诊断得动。
+ */
+function fromOutput(output: unknown): ToolCallPatch {
+  if (!Array.isArray(output)) {
+    return {}
+  }
+
+  const content: ToolCallContent[] = []
+
+  for (const part of output) {
+    const block = partOf(part)
+
+    if (block === null) {
+      return {}
+    }
+
+    content.push(block)
+  }
+
+  return content.length === 0 ? {} : { content }
+}
+
+/** kosong 的一个内容部件（contract/message.ts 的 ContentPart，五档）。 */
+function partOf(part: unknown): ToolCallContent | null {
+  if (typeof part !== 'object' || part === null) {
+    return null
+  }
+
+  switch (Reflect.get(part, 'type')) {
+    case 'text': {
+      return { type: 'content', content: { type: 'text', text: textOf(part, 'text') } }
+    }
+
+    case 'think': {
+      return { type: 'content', content: { type: 'text', text: textOf(part, 'think') } }
+    }
+
+    case 'image_url': {
+      return linkOf(part, 'imageUrl')
+    }
+
+    case 'audio_url': {
+      return linkOf(part, 'audioUrl')
+    }
+
+    case 'video_url': {
+      return linkOf(part, 'videoUrl')
+    }
+
+    default: {
+      return null
+    }
+  }
+}
+
+/** 三种媒体部件都是一个 { url } 信封：手上只有地址，没有字节，所以落链接。 */
+function linkOf(part: object, key: string): ToolCallContent | null {
+  const envelope = Reflect.get(part, key)
+
+  if (typeof envelope !== 'object' || envelope === null) {
+    return null
+  }
+
+  const uri = textOf(envelope, 'url')
+
+  return uri === '' ? null : { type: 'resource_link', uri }
 }
 
 /** 这次写进去的是什么：before/after/content 三格由 kap 直接给，不从入参里猜。 */

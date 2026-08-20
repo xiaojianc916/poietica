@@ -118,8 +118,70 @@ describe('kap 投影', () => {
       rawOutput: 'ok',
     })
     expect(calls[0]?.endedAt).toBeDefined()
-    /* 进度追加成一段文本内容，不是替换掉什么。 */
+    /* 一句进度落成一段文本内容；产出是字符串，那一面由 rawOutput 画。 */
     expect(calls[0]?.content).toHaveLength(1)
+  })
+
+  it('说了 replace 的进度盖掉上一截，不堆成两行', () => {
+    const state = replayRunEvents(
+      kapTurn([
+        { type: 'tool.call.started', turnId: 1, toolCallId: 'call_p', name: 'Fetch', args: {} },
+        {
+          type: 'tool.progress',
+          turnId: 1,
+          toolCallId: 'call_p',
+          update: { kind: 'status', text: '下载 40%', replace: true },
+        },
+        {
+          type: 'tool.progress',
+          turnId: 1,
+          toolCallId: 'call_p',
+          update: { kind: 'status', text: '下载 80%', replace: true },
+        },
+      ]),
+    )
+
+    expect(toolCalls(state)[0]?.content).toStrictEqual([
+      { type: 'content', content: { type: 'text', text: '下载 80%' } },
+    ])
+  })
+
+  it('一组内容部件的产出摊成内容块，不印成一坨 JSON', () => {
+    const state = replayRunEvents(
+      kapTurn([
+        { type: 'tool.call.started', turnId: 1, toolCallId: 'call_o', name: 'Shot', args: {} },
+        {
+          type: 'tool.result',
+          turnId: 1,
+          toolCallId: 'call_o',
+          output: [
+            { type: 'text', text: '截好了' },
+            { type: 'image_url', imageUrl: { url: 'https://x/y.png' } },
+          ],
+          isError: false,
+        },
+      ]),
+    )
+
+    expect(toolCalls(state)[0]?.content).toStrictEqual([
+      { type: 'content', content: { type: 'text', text: '截好了' } },
+      { type: 'resource_link', uri: 'https://x/y.png' },
+    ])
+  })
+
+  it('认不出的部件整份退回原样，不翻译一半', () => {
+    const output = [{ type: 'text', text: '一半' }, { type: 'brand_new_part' }]
+    const state = replayRunEvents(
+      kapTurn([
+        { type: 'tool.call.started', turnId: 1, toolCallId: 'call_u', name: 'Odd', args: {} },
+        { type: 'tool.result', turnId: 1, toolCallId: 'call_u', output, isError: false },
+      ]),
+    )
+
+    const call = toolCalls(state)[0]
+
+    expect(call?.content).toStrictEqual([])
+    expect(call?.rawOutput).toStrictEqual(output)
   })
 
   it('失败的调用按失败收', () => {

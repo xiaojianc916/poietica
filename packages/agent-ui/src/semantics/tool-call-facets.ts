@@ -260,6 +260,14 @@ function partMarkdown(part: ToolContentPart): string {
     return `终端 ${inlineCode(part.terminalId)}`
   }
 
+  if (part.type === 'link') {
+    /* 行内代码而不是 markdown 链接：抽屉里这一面是给人读和复制的，一个点不开的
+       锚点不如一串看得清的地址。 */
+    const uri = inlineCode(part.uri)
+
+    return part.name === null ? uri : `${part.name} ${uri}`
+  }
+
   return part.label
 }
 

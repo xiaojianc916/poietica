@@ -35,6 +35,20 @@ describe('what a tool call has to show', () => {
     ])
   })
 
+  it('keeps a linked resource reachable instead of naming it away', () => {
+    const parts = toToolContentParts([
+      { type: 'resource_link', uri: 'https://x/y.png', name: 'shot' },
+      { type: 'resource', resource: { uri: 'file:///a.txt', text: 'inline' } },
+      { type: 'resource', resource: { uri: 'file:///b.bin', blob: 'AA==' } },
+    ])
+
+    expect(parts).toEqual([
+      { type: 'link', uri: 'https://x/y.png', name: 'shot' },
+      { type: 'text', text: 'inline' },
+      { type: 'link', uri: 'file:///b.bin', name: null },
+    ])
+  })
+
   it('names a block it cannot draw instead of inventing one', () => {
     const parts = toToolContentParts([
       { type: 'content', content: { type: 'image', data: 'x', mimeType: 'image/png' } },
