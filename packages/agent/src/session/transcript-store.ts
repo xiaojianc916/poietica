@@ -236,7 +236,7 @@ export class TranscriptStore {
   /**
    * 收到了、还没折进转录的帧，按对话攒着。
    *
-   * 每折一帧要复制一遍整条 items（见 timeline-reducer 的 draftOf）。所以帧先攒，
+   * 每折一帧要复制一遍整条 items（见 timeline-draft 的 draftOf）。所以帧先攒，
    * 折叠推迟到真的有人要看的那一刻：下一拍，或者任何一次同步读。
    */
   #pending = new Map<string, RunEvent[]>()

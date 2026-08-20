@@ -20,24 +20,40 @@ pub struct RecordedFrame {
 }
 
 impl AgentStore {
-    /// 追加一帧。同一条对话上，同一条会话的同一个位置只收一次。
+    /// 追加一批帧，一次提交。同一条对话上，同一条会话的同一个位置只收一次。
+    ///
+    /// 一帧一次 execute 就是一帧一个事务：autocommit 会为每一条语句写一次 WAL
+    /// 提交记录、抢放一次写锁。一批帧是同一拍到达的同一件事，所以它们共用一次
+    /// 提交，语句也只 prepare 一次。
     ///
     /// # Errors
     ///
     /// 语句被拒时返回错误。
-    pub fn record_frame(&self, thread: Uuid, frame: &RecordedFrame) -> Result<()> {
-        self.write(
-            "INSERT INTO run_events (thread_id, session_id, seq, at, frame)
-             VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT (thread_id, session_id, seq) DO NOTHING",
-            rusqlite::params![
-                thread.to_string(),
-                frame.session_id,
-                frame.seq,
-                frame.at,
-                frame.frame
-            ],
-        )
+    pub fn record_frames(&mut self, thread: Uuid, frames: &[RecordedFrame]) -> Result<()> {
+        let thread = thread.to_string();
+        let batch = self.connection.transaction()?;
+
+        {
+            let mut statement = batch.prepare_cached(
+                "INSERT INTO run_events (thread_id, session_id, seq, at, frame)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT (thread_id, session_id, seq) DO NOTHING",
+            )?;
+
+            for frame in frames {
+                statement.execute(rusqlite::params![
+                    thread,
+                    frame.session_id,
+                    frame.seq,
+                    frame.at,
+                    frame.frame
+                ])?;
+            }
+        }
+
+        batch.commit()?;
+
+        Ok(())
     }
 
     /// 这条对话记下的每一帧，按追加顺序。顺序由 SQL 给。

@@ -147,17 +147,13 @@ pub async fn agent_prompt(
     })
 }
 
-/// 帧攒着走：一批先落进日志，再交给界面。
+/// 帧攒着走：一批先上屏，再落进日志。
 ///
 /// 一帧一次 emit，就是一个 token 一次全量序列化、一次跨进程投递、一次 webview
 /// 事件派发；而收帧的那一侧只按屏幕的节拍看一眼（transcript-store 的 `#paint`）。
 /// 投递因此服从屏幕，不服从 agent 吐字的速度。
 ///
 /// 攒批站在自己的任务上，所以跨进程投递不在 driver 的 WS 读循环上。
-///
-/// 成帧仍然在 driver 一侧：一帧 kap_event 是把 session_event 的载荷原样包进
-/// RecordedEvent（agent-runtime 的 frame.rs::kap_event）。这条路上最贵的是
-/// 跨进程投递，而它在这里挪走了。
 ///
 /// 每一帧的等待有上界：一批从它的第一帧起算，满 [`FRAME_INTERVAL`] 就交货，其
 /// 间没有新帧也一样。上界是这条通道唯一的时间承诺 —— 靠「下一帧会来」推动交货
@@ -177,27 +173,25 @@ fn logging(app: AppHandle, thread: Uuid) -> FrameSink {
                 held.push(next);
             }
 
-            /* 先落库，再上屏：库里那一份就是下次打开时重放的那一份。记不上
-            只留一行日志——这一轮照旧上屏，缺的是下一次打开时的这一批。 */
+            /* 先上屏，再落库。落库要排一次阻塞线程池、抢一次库锁，而屏幕上
+            这一批与库里那一批是同一份字节：让它等在锁后面，等来的只是延迟。
+            渲染层没在听不是错——下次打开这条对话时，日志重放同一批帧。 */
+            let _ignored = app.emit(AGENT_EVENT, &held);
+
             let logged = recorded(&held);
+
+            held.clear();
+
+            /* 记不上只留一行日志：缺的是下一次打开时的这一批。 */
             let index = app.state::<LocalIndex>();
             let written = on_index(&index, move |store| {
-                for frame in logged {
-                    store.record_frame(thread, &frame).map_err(persistence)?;
-                }
-
-                Ok(())
+                store.record_frames(thread, &logged).map_err(persistence)
             })
             .await;
 
             if let Err(error) = written {
                 log::warn!("could not record a batch of frames: {error}");
             }
-
-            /* 渲染层没在听不是错：下次打开这条对话时，日志重放同一批帧。 */
-            let _ignored = app.emit(AGENT_EVENT, &held);
-
-            held.clear();
         }
     });
 

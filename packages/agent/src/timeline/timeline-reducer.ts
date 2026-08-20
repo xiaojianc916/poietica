@@ -25,10 +25,9 @@ import {
  * frames of that turn fill it in. Nothing is ever cleared, because a transcript
  * that forgets the previous turn is not a transcript.
  *
- * Sequence numbers restart at one for every run, so a seq identifies a frame
- * only inside its own segment, and entry identities are namespaced by segment.
- * Without that, a second turn writes over the first one: the agent is free to
- * reuse a tool call id, and the deduplicator would discard every frame of it.
+ * Sequence numbers are monotonic per session (recorder.rs SeqLine), and entry
+ * identities are namespaced by segment: the agent is free to reuse a tool call
+ * id, so without that namespace a second turn would write over the first.
  *
  * Tolerances are deliberate, because a transport can misbehave:
  *   - a duplicated seq inside a segment is discarded;
@@ -73,23 +72,9 @@ export function replayRunEvents(events: readonly RunEvent[]): TimelineState {
  * 起，两侧的条目 id 不会撞。
  */
 export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
-  /*
-   * 轮数由投影自己数出来。
-   *
-   * 段号从末端倒着编：末轮恒为 r0、倒数第二轮恒为 r-1，向上续读只在负的方向上长出
-   * 新号，屏幕上已有的那些行连 id 带对象一起原样留下。而段号就铸在 id 里，所以
-   * 「一共几轮」必须在铸下第一个 id 之前知道 —— 两趟由此而来。
-   *
-   * 数轮数的那一趟就是写入的那一趟，只是起点从零算：「几轮」与「哪一轮」出自
-   * 同一条判据，不存在第二份可以漂移的东西。代价是把这段日志走两遍。
-   */
-  const counted = fill(draftOf(createTimelineState()), events)
-  const draft = draftOf(createTimelineState())
-
-  /* 退回同样多的段起，再放一遍：段号与 id 一次铸对。 */
-  draft.runIndex = 0 - counted.runIndex
-
-  return freeze(fill(draft, events))
+  /* 段号从头正着数：首轮 r0，此后每一轮加一。重放停在最后一轮，接着说下去的
+     轮次从它之后继续（openSegment 只加不减），两侧的条目 id 因此不会撞。一趟。 */
+  return freeze(fill(draftOf(createTimelineState()), events))
 }
 
 /** 把一段日志放进一份草稿。两趟共用，所以两趟看见的段边界一定相同。 */
@@ -208,7 +193,7 @@ export function appendUserMessage(
  * 起不来的 agent、送不出去的权限答复、读不回来的历史 —— 它们发生在任何一帧
  * 之前或之外，日志里没有对应的帧。此前调用方伪造一帧 run_failed 交给
  * applyRunEvent，序号取 lastSeq 加一；而序号是原生那侧发的（recorder.rs 的
- * next_seq，每轮从一起编），客户端自己发一个就是替对面占了一个号：真的那一帧
+ * SeqLine，按会话单调），客户端自己发一个就是替对面占了一个号：真的那一帧
  * 带着同一个号到达时，会被上面那道去重判成重复而永久丢弃。
  *
  * 所以本地的事故以本地的形式进来：一条 error 条目，不占序号、不动 lastSeq 窗口、

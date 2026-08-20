@@ -7,7 +7,7 @@ import { selectIsBusy } from './timeline-queries'
  *
  * 派生是增量的，不是每帧重算的。
  *
- * reducer 只有两个写入点（timeline-reducer.ts 的 push 与 draft.items[position]
+ * reducer 只有两个写入点（timeline-draft.ts 的 push 与 draft.items[position]
  * = …），两者都是追加或就地替换，所以相邻两帧的 items 共享一段前缀，且共享的
  * 那一段里每一项都是同一个对象。派生因此只需要从第一处引用不同的地方往后重算。
  *

@@ -49,8 +49,8 @@ describe('turn spans', () => {
       [100_000, 248_000],
     ])
 
-    /* 段号从末端倒着编，所以末轮恒为 0（见 replayThreadEvents 里那段注释）。 */
-    expect(state.spans.map((span) => span.turn)).toEqual([-1, 0])
+    /* 段号从头正着数，所以首轮恒为 0（见 replayThreadEvents）。 */
+    expect(state.spans.map((span) => span.turn)).toEqual([0, 1])
   })
 
   it('seals a turn that crashed', () => {
