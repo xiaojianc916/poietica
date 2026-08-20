@@ -8,9 +8,8 @@ use crate::error::{Error, Result};
 use crate::paths::attachments_root;
 use poietica_agent_persistence_native::{SessionCursor, SessionUsage};
 use poietica_agent_runtime_native::{
-    AgentClient, AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
-    CanLoadSession, Handshake, KapError, PermissionDesk, QuestionDesk, Refusal, RunSlot,
-    SessionBook, SessionEvent, connect,
+    AgentClient, AgentConnection, AgentSpawn, KapError, PermissionDesk, QuestionDesk, Refusal,
+    RunSlot, SessionBook, SessionEvent, connect,
 };
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
@@ -39,14 +38,6 @@ struct Connection {
     /// agent 提供什么的时候，总得有一个会话可以问，而那个问题与任何一条对话都
     /// 无关。所以它是锚，不是对话的会话。
     anchor: String,
-    /// 装载一条旧会话的凭证，握手发的。没有就是这个 agent 不做这件事。
-    loading: Option<CanLoadSession>,
-    /// 删掉一条会话的凭证，同样是握手发的。
-    deleting: Option<CanDeleteSession>,
-    /// 分叉一条会话的凭证，同样是握手发的。
-    forking: Option<CanForkSession>,
-    /// 停掉一轮的凭证，同样是握手发的。
-    cancelling: Option<CanCancelSession>,
     /// 这条连接锚会话的记录槽。
     ///
     /// 它的语义是一条会话：driver 建立连接时把它 adopt 到锚会话名下，别的会话
@@ -174,14 +165,6 @@ pub(super) struct Handle {
     pub(super) agent_id: String,
     /// 这条连接的锚会话。问 agent 能力时发往它。
     pub(super) anchor: String,
-    /// 装载一条旧会话的凭证。寻址按它分路，调用也拿它。
-    pub(super) loading: Option<CanLoadSession>,
-    /// 删掉一条会话的凭证。删除按它分路，调用也拿它。
-    pub(super) deleting: Option<CanDeleteSession>,
-    /// 分叉一条会话的凭证。分叉按它把关，调用也拿它。
-    pub(super) forking: Option<CanForkSession>,
-    /// 停掉一轮的凭证。握手没声明时它是空的。
-    pub(super) cancelling: Option<CanCancelSession>,
     /// 这条连接的权限台。
     pub(super) desk: PermissionDesk,
     /// 这条连接的提问台。
@@ -381,13 +364,7 @@ pub(super) async fn ensure_session(
         .map_err(|_dropped| Error::Internal(NO_SESSION_ID.to_owned()))?
         .map_err(translate)?;
 
-    let Handshake {
-        session_id,
-        loading,
-        deleting,
-        forking,
-        cancelling,
-    } = handshake;
+    let session_id = handshake.session_id;
 
     /* 没有第二个人可以到这里，所以也没有谁需要认输：闸还在手里，而写
     这把锁的地方整个模块只有这一处。此前这里有一条"输家把自己起的进程还
@@ -397,10 +374,6 @@ pub(super) async fn ensure_session(
         client: client.clone(),
         agent_id: agent_id.clone(),
         anchor: session_id.clone(),
-        loading,
-        deleting,
-        forking,
-        cancelling,
         slot: slot.clone(),
         desk: desk.clone(),
         questions: questions.clone(),
@@ -411,10 +384,6 @@ pub(super) async fn ensure_session(
         client,
         agent_id,
         anchor: session_id.clone(),
-        loading,
-        deleting,
-        forking,
-        cancelling,
         desk,
         questions,
         book,
@@ -429,16 +398,15 @@ pub(super) async fn ensure_session(
     下一次对上这个 agent 的连接冲销；本连接还在用它（agent_capabilities 与
     入口那格的 agent_set_config_option 都发往它），冲账时按当前在役的锚跳过。
 
-    冲账挂在握手成功之后，因为送达要的三样这一刻都在手上：活着的连接、对
-    上号的 agent、声明过的能力 —— 与 thread.rs 删除时的三前提是同一张清单。 */
+    冲账挂在握手成功之后，因为送达要的两样这一刻都在手上：活着的连接、对
+    上号的 agent —— 与 thread.rs 删除时的两个前提是同一张清单。 */
     let ledger = app.clone();
     let courier = live.client.clone();
     let owner = live.agent_id.clone();
     let serving = live.anchor.clone();
-    let deliverable = live.deleting;
 
     async_runtime::spawn(async move {
-        record_and_flush_disposals(&ledger, courier, owner, serving, deliverable).await;
+        record_and_flush_disposals(&ledger, courier, owner, serving).await;
     });
 
     Ok(live)
@@ -471,10 +439,6 @@ pub(super) fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> 
         client: live.client.clone(),
         agent_id: live.agent_id.clone(),
         anchor: live.anchor.clone(),
-        loading: live.loading,
-        deleting: live.deleting,
-        forking: live.forking,
-        cancelling: live.cancelling,
         desk: live.desk.clone(),
         questions: live.questions.clone(),
         book: live.book.clone(),
@@ -502,7 +466,7 @@ fn lock(connection: &Mutex<Option<Connection>>) -> Result<MutexGuard<'_, Option<
 ///
 /// 送达即销账；agent 答了但拒绝也销 —— 拒绝只说明它自己早就不留着，重试不
 /// 会让它更认识这个号。只有连接断了（Refusal::Gone）才把余账原样留给下一次
-/// 连接。没声明删除能力的 agent 不出账，账在表里等一个声明了能力的版本。
+/// 连接。
 ///
 /// 全程只写日志不报错：这是后台清账，任何一步失败都不该打断人正在做的事，
 /// 而账还在库里，下一次连接会再来。
@@ -511,7 +475,6 @@ async fn record_and_flush_disposals(
     client: AgentClient,
     agent_id: String,
     anchor: String,
-    deleting: Option<CanDeleteSession>,
 ) {
     let index = app.state::<crate::local_index::LocalIndex>();
 
@@ -539,17 +502,13 @@ async fn record_and_flush_disposals(
         }
     };
 
-    let Some(deleting) = deleting else {
-        return;
-    };
-
     for session_id in pending {
         /* 当前在役的锚不删，别的都是过期的账。 */
         if session_id == anchor {
             continue;
         }
 
-        let outcome = client.delete_session(deleting, session_id.clone()).await;
+        let outcome = client.delete_session(session_id.clone()).await;
 
         if matches!(&outcome, Err(KapError::Refused(Refusal::Gone))) {
             /* 连接没了，这一笔不销：余账留给下一次连接。 */

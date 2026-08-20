@@ -45,10 +45,10 @@ export interface ThreadRecord {
 /**
  * 一段经过要不回来时，是哪一种要不回来。
  *
- * 三种，原生侧报不出第四种：这条对话的会话在别的 agent 手里、当前 agent 根本
- * 不装载旧会话、以及 agent 那侧已经不认得这个会话号了。
+ * 两种，原生侧报不出第三种：这条对话的会话在别的 agent 手里，或者 agent 那侧
+ * 已经不认得这个会话号了。
  */
-export type ThreadHistoryLoss = 'otherAgent' | 'notSupported' | 'forgotten'
+export type ThreadHistoryLoss = 'otherAgent' | 'forgotten'
 
 /**
  * 打开一条对话之后，它的经过处在什么状态。
@@ -80,13 +80,13 @@ export interface OpenedThread {
    * unknown 是故意的：帧的形状由平台那一侧定义，这里不重新定义它，也不在这
    * 一层校验 —— 与运行帧走同一条规矩。收窄只发生在转录 store 的入口一处。
    *
-   * 空不代表什么都没发生过。空有六种由来，下面那一格说的就是哪一种。
+   * 空不代表什么都没发生过。空有五种由来，下面那一格说的就是哪一种。
    */
   readonly events: readonly unknown[]
   /**
    * 这段经过为什么是现在这个样子。
    *
-   * events 为空时，它是唯一能说清缘由的东西。此前六种情况在这一层全部长得
+   * events 为空时，它是唯一能说清缘由的东西。此前五种情况在这一层全部长得
    * 一模一样——一个空数组——于是界面除了画一片空白之外无话可说。
    */
   readonly history: ThreadHistory
@@ -116,8 +116,8 @@ export interface ThreadPort {
    * 回来，号不变，上下文因此还在。此前这里写的是"开一个新的并改写持有关系" ——
    * 那不是设计，那是一个把上下文丢掉、并且顺手覆盖掉旧号的 bug。
    *
-   * 只有 agent 在握手时声明它不装载旧会话，才会真的新开一条。三种情况都在同
-   * 一次答复里带回整张选择器表。
+   * 只有装载不回来（号在 server 侧也没了）才真的新开一条。三条路都在同一次
+   * 答复里带回整张选择器表。
    */
   readonly open: (threadId?: ThreadId, workspaceRoot?: string | null) => Promise<OpenedThread>
   /** Renames one. The name becomes the user's and outlives the agent's. */

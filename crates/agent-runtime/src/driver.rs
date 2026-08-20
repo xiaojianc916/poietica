@@ -51,8 +51,8 @@ use crate::question::{QuestionGroup, QuestionOutcome};
 use crate::recorder::{Recorder, now_millis};
 use crate::run_slot::RunSlot;
 use crate::session::{
-    AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
-    CanLoadSession, Cursor, Handshake, OpenedSession, SessionEntry, SessionEvent, SessionEvents,
+    AgentConnection, AgentSpawn, Cursor, Handshake, OpenedSession, SessionEntry, SessionEvent,
+    SessionEvents,
 };
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -683,12 +683,6 @@ pub fn connect(
 
         let _ = ready_tx.send(Ok(Handshake {
             session_id: session_id.clone(),
-            // kap 的会话在 server 侧持久，装载 / 归档 / 分叉 / 中止都有对应路由
-            // （load_session、:archive、:fork、abort 控制帧）。
-            loading: Some(CanLoadSession::granted()),
-            deleting: Some(CanDeleteSession::granted()),
-            forking: Some(CanForkSession::granted()),
-            cancelling: Some(CanCancelSession::granted()),
         }));
 
         // 8. 主循环

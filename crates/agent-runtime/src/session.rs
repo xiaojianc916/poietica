@@ -146,75 +146,15 @@ impl fmt::Debug for AgentConnection {
     }
 }
 
-/// 装载一条旧会话的凭证（kap：装载就是验存在并重新订阅，见 driver 的
-/// load_session）。
-///
-/// 凭证只有这个 crate 铸得出来，铸造处只有握手一个。kap-server 的路由面自带
-/// 这四件事，所以握手无条件铸齐。收凭证的是 AgentClient 上的方法 —— 拿不出
-/// 凭证的调用编译不过。
-///
-/// 与 `AgentClient::new` 收在 crate 内是同一个手法：能不能做这件事，铸造点说了
-/// 算，不由调用点自觉。
-#[derive(Clone, Copy, Debug)]
-pub struct CanLoadSession(());
-
-impl CanLoadSession {
-    pub(crate) const fn granted() -> Self {
-        Self(())
-    }
-}
-
-/// 删掉一条会话的凭证（kap 没有硬删除，删除由 :archive 承接）。
-///
-/// 删除对话若只删本地那一份，agent 自己存的那一份原样留着 —— 屏幕上没了，对面
-/// 还在。那不是删除，是隐藏。
-#[derive(Clone, Copy, Debug)]
-pub struct CanDeleteSession(());
-
-impl CanDeleteSession {
-    pub(crate) const fn granted() -> Self {
-        Self(())
-    }
-}
-
-/// 分叉一条会话的凭证（kap :fork，见 kap-server 的 routes/action-suffix.ts）。
-#[derive(Clone, Copy, Debug)]
-pub struct CanForkSession(());
-
-impl CanForkSession {
-    pub(crate) const fn granted() -> Self {
-        Self(())
-    }
-}
-
-/// 停掉一轮的凭证（kap 的 abort 控制帧，见 ws-control.ts）。
-///
-/// kap-server 的每个会话都收得下 abort，所以握手无条件铸它。
-#[derive(Clone, Copy, Debug)]
-pub struct CanCancelSession(());
-
-impl CanCancelSession {
-    pub(crate) const fn granted() -> Self {
-        Self(())
-    }
-}
-
 /// 握手谈成之后才知道的事。
 ///
-/// 每一件都只有 agent 说了算，而且都只在这一刻说一次。能力不是三个布尔：有没有
-/// 这一项、谁调得动它，在类型上是同一件事。
+/// kap 不谈 per-session 能力：协议能力只在 server_hello.capabilities，而装载、
+/// 归档、分叉、中止是 kap-server 路由面自带的，每条会话一律收得下。所以这一刻
+/// 只有一件事要报 —— 这条连接自带的那个会话叫什么。
 #[derive(Debug, Clone)]
 pub struct Handshake {
     /// 这条连接自带的那个会话的名字。
     pub session_id: String,
-    /// agent 会不会把一条它以前开过的会话重新装载起来。
-    pub loading: Option<CanLoadSession>,
-    /// agent 会不会真的删掉一条会话。
-    pub deleting: Option<CanDeleteSession>,
-    /// agent 会不会从一条已有会话分叉出一条新会话。
-    pub forking: Option<CanForkSession>,
-    /// 这条线停不停得了一轮。
-    pub cancelling: Option<CanCancelSession>,
 }
 
 /// A session the agent just opened, and the selectors it offers for it.

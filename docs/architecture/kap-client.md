@@ -41,9 +41,12 @@
 事件信封带 `type`、`seq`、可选 `epoch`、`session_id`、`timestamp` 与 `payload`。
 服务端 `ping` 必须由客户端回 `pong`。
 
-当前实现只对锚会话等 subscribe ack；open / load / fork 三条路径尚未统一到同一
-所有权模型，也没有持久化服务端 `{ seq, epoch }` cursor、没有处理
-`resync_required`。这些是缺口，不是已完成能力。
+订阅带上本机存下的 `{ seq, epoch }`（persistence 的 `session_cursors`，轮终写一
+次），`resync_required` 到达即判死那一轮并作废读点。
+
+仍是缺口的：只有锚会话等 subscribe ack，open / load / fork 三条路径的 ack 只在
+`not_found` 时留一行日志；从不发 `unsubscribe`；不校验
+`server_hello.protocol_version`。
 
 ## 本地事件管线
 
@@ -62,4 +65,4 @@ Approvals 走独立 REST 资源，客户端只在产品边界合成三个按钮�
 它有自己的帧（questions_asked / questions_resolved）、自己的桌子（QuestionDesk），
 回答与撤下分走 `POST …/questions/{id}` 与 `:dismiss`。
 
-prompt queue、steer、cursor 恢复与 resync 同样未完成。
+prompt queue 与 steer 同样未完成。

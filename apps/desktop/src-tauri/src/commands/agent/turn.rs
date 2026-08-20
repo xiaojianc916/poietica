@@ -22,8 +22,8 @@ use super::dto::{
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
 use super::{
-    AGENT_EVENT, AgentCommandResult, FRAME_INTERVAL, IMAGE_OPENER, NO_CANCEL, NO_CONVERSATION,
-    NO_SESSION, NOTHING_TO_STOP, TITLE_CHARS,
+    AGENT_EVENT, AgentCommandResult, FRAME_INTERVAL, IMAGE_OPENER, NO_CONVERSATION, NO_SESSION,
+    NOTHING_TO_STOP, TITLE_CHARS,
 };
 
 /// Starts a turn and returns as soon as it is under way.
@@ -339,12 +339,6 @@ pub async fn agent_cancel(
 ) -> AgentCommandResult<()> {
     let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
-    /* 停得了吗，握手时就有答案。此前这条线上取消是一个空动作：命令发出去，
-    驱动器什么都不做，界面等一个永远不来的停止。 */
-    let Some(cancelling) = live.cancelling else {
-        return Err(Error::Validation(NO_CANCEL.to_owned()).into());
-    };
-
     let id = conversation(&request.thread_id)?;
     let stored = on_index(&index, move |store| store.thread(id).map_err(persistence)).await?;
 
@@ -368,9 +362,7 @@ pub async fn agent_cancel(
         return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
     }
 
-    live.client
-        .cancel(cancelling, addressed)
-        .map_err(translate)?;
+    live.client.cancel(addressed).map_err(translate)?;
 
     Ok(())
 }

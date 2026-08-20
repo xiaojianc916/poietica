@@ -49,10 +49,8 @@ const IMAGE_OPENER = '[图片]'
 const NO_SESSION = '这个界面还没有接上助手会话，消息没有发送出去。'
 const NO_THREAD = '无法开始新的对话，消息没有发送出去。'
 
-/* 经过要不回来的三种说法。它们写进转录，因为人是在转录里找这段经过的。 */
+/* 经过要不回来的两种说法。它们写进转录，因为人是在转录里找这段经过的。 */
 const OTHER_AGENT = '这段对话由另一个 agent 保管，当前这个打不开它。'
-
-const NOT_SUPPORTED = '当前 agent 不支持装载旧会话，这段对话的经过取不回来。'
 
 const FORGOTTEN = 'agent 那侧已经没有这段会话，经过取不回来了。'
 
@@ -112,8 +110,8 @@ function noteOn(timeline: TimelineState, cause: unknown, endsTurn: boolean): Tim
  * 空白得说明来由。
  *
  * 一段取不回来的经过，和一条本来就没说过话的对话，在屏幕上是同一片空白——而它们
- * 不是同一件事。此前这一层分辨不出来，因为原生侧交过来的只是一个空数组：六种
- * 情况一个形状。现在它会说清是哪一种（见 AgentHistory），这里只负责把三种坏
+ * 不是同一件事。此前这一层分辨不出来，因为原生侧交过来的只是一个空数组：五种
+ * 情况一个形状。现在它会说清是哪一种（见 AgentHistory），这里只负责把两种坏
  * 消息翻成一句人话；其余三种没有损失，什么都不加。
  */
 function lossOf(history: ThreadHistory): string | null {
@@ -121,16 +119,13 @@ function lossOf(history: ThreadHistory): string | null {
     return null
   }
 
-  switch (history.reason) {
-    case 'otherAgent':
-      return history.owner === null
-        ? OTHER_AGENT
-        : `这段对话由 ${history.owner} 保管，当前 agent 打不开它。`
-    case 'notSupported':
-      return NOT_SUPPORTED
-    default:
-      return FORGOTTEN
+  if (history.reason === 'otherAgent') {
+    return history.owner === null
+      ? OTHER_AGENT
+      : `这段对话由 ${history.owner} 保管，当前 agent 打不开它。`
   }
+
+  return FORGOTTEN
 }
 
 /**
@@ -360,10 +355,10 @@ export class TranscriptStore {
    * 收窄发生在明处，而不是藏在某个端口声明的返回类型里：声明成 RunEvent 而
    * 实际交出 unknown，那是一次没人看得见的断言。这里看得见。
    *
-   * 交回来的可能是空的，而空有六种由来（history）。其中三种是损失：换了 agent、
-   * 这个 agent 不装载旧会话、agent 那侧已经不记得它。损失走的是本地事故那条既有
-   * 通道，和「权限答复送不出去」同一条——它同样发生在任何持久化之外，日志里没有
-   * 对应的帧。endsTurn 为假：这不是某一轮失败了，这是这段历史没回来。
+   * 交回来的可能是空的，而空有五种由来（history）。其中两种是损失：换了 agent、
+   * agent 那侧已经不记得它。损失走的是本地事故那条既有通道，和「权限答复送不出
+   * 去」同一条——它同样发生在任何持久化之外，日志里没有对应的帧。endsTurn 为假：
+   * 这不是某一轮失败了，这是这段历史没回来。
    */
   adopt = (threadId: string, events: readonly unknown[], history: ThreadHistory): void => {
     /* 经过由本地日志重放：段边界与每一轮的两端都在帧里（run_started 与终帧

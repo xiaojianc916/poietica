@@ -61,8 +61,8 @@ use std::time::{Duration, Instant};
 use futures::channel::oneshot;
 use futures::executor::block_on;
 use poietica_agent_runtime_native::{
-    AgentConnection, AgentSpawn, ConfigControl, KapError, PermissionDesk, RUN_FINISHED,
-    RUN_STARTED, RecordedEvent, RunFrame, RunSlot, connect,
+    AgentConnection, AgentSpawn, ConfigControl, KapError, PermissionDesk, QuestionDesk,
+    RUN_FINISHED, RUN_STARTED, RecordedEvent, RunFrame, RunSlot, connect,
 };
 use tempfile::TempDir;
 
@@ -182,6 +182,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
 
     let slot = RunSlot::new();
     let desk = PermissionDesk::new();
+    let questions = QuestionDesk::new();
 
     /* 会话级状态那一路不接。它的终点在桌面组合层（那里把它变成界面事件），
     而这个测试证明的是驱动器自己走得通一轮。接收端在这里被丢掉，驱动器那侧的
@@ -192,7 +193,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         events: _,
         handshake,
         driver,
-    } = connect(spawn, slot, desk).expect("the program to be launchable");
+    } = connect(spawn, slot, desk, questions).expect("the program to be launchable");
 
     let mut driver = Driver::spawn(driver);
 
@@ -203,17 +204,9 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         .expect(handshake, "the agent never finished the handshake")
         .expect("the handshake to succeed");
 
-    /* 三张凭证只有真 agent 发得出来，所以只有在这里观察得到。它们决定了
-    「点开旧对话」「删除对话」「分叉对话」各自走哪条路。 */
-    println!(
-        "session: {} (load: {}, delete: {}, fork: {})",
-        handshake.session_id,
-        handshake.loading.is_some(),
-        handshake.deleting.is_some(),
-        handshake.forking.is_some()
-    );
-
     let session_id = handshake.session_id;
+
+    println!("session: {session_id}");
 
     /* 这一轮跑在什么配置上。模型不是背景信息：kap 的新会话天生没有模型，绑上
     它是开会话这一方的活，绑没绑上决定了这一轮能不能开口。选择器读不出来不
@@ -258,13 +251,9 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     // exercise of the cancellation path.
     let watchdog = client.clone();
     let watched = session_id.clone();
-    let cancelling = handshake.cancelling;
     let _timer = thread::spawn(move || {
         thread::sleep(timeout);
-        let _ignored = match cancelling {
-            Some(granted) => watchdog.cancel(granted, watched),
-            None => Ok(()),
-        };
+        let _ignored = watchdog.cancel(watched);
     });
 
     let delivered = Delivered::default();

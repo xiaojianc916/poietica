@@ -62,8 +62,8 @@ pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine, now_millis};
 pub use run_slot::RunSlot;
 pub use selection::select_config;
 pub use session::{
-    AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
-    CanLoadSession, Cursor, Handshake, OpenedSession, SessionEntry, SessionEvent, SessionEvents,
+    AgentConnection, AgentSpawn, Cursor, Handshake, OpenedSession, SessionEntry, SessionEvent,
+    SessionEvents,
 };
 pub use sessions::SessionBook;
 pub use stderr::StderrLog;

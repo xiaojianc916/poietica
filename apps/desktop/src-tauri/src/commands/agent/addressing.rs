@@ -140,16 +140,12 @@ pub(super) async fn session_for(
                 offered: None,
                 history: AgentHistory::Live,
             });
-        } else if let Some(loading) = live.loading {
+        } else {
             /* 上次运行留下的。号不变，让 agent 把它装载回来，并报出上一次读到
             哪儿：位置由 kap 签发，报回去它才知道从哪一帧接着发。 */
             let from = read_point(index, &session_id).await?;
 
-            match live
-                .client
-                .load_session(loading, session_id.clone(), from)
-                .await
-            {
+            match live.client.load_session(session_id.clone(), from).await {
                 Ok(loaded) => {
                     /* 序号线接上日志。号没变，日志里那些位置照样占着，而这条
                     会话的槽是本次连接新建的、从 1 开始 —— 不接上去，下一轮的
@@ -198,12 +194,6 @@ pub(super) async fn session_for(
                     });
                 }
             }
-        } else {
-            /* 它握手时就说了它不装载旧会话。 */
-            lost = Some(AgentHistory::Unavailable {
-                reason: AgentHistoryLoss::NotSupported,
-                owner,
-            });
         }
     }
 
@@ -227,19 +217,17 @@ pub(super) async fn session_for(
 
     /* 同样不补记：驱动器开完会话先 ledger.open，才把号交出来。 */
 
-    /* 换了号，旧号的账在这里清。判据是 lost：只有装载失败与不支持装载那几
-    条路走到这里时它才有值，而那时库里这一行已经改指新号，旧号从此没有任何
-    人引用。主人对得上、能力也在，就当场送达；其余情形（别人的号、没有能
-    力、送达被拒）进处置账，由下一次对上那个 agent 的连接冲销（runtime.rs
-    的 record_and_flush_disposals）。记账失败只写日志：打开对话是人此刻要
-    的事，一笔没记上的账最坏的结果是一个目录多活到手动清理。 */
+    /* 换了号，旧号的账在这里清。判据是 lost：只有别人的号与装载失败那两条
+    路走到这里时它才有值，而那时库里这一行已经改指新号，旧号从此没有任何人
+    引用。主人对得上就当场送达；其余情形（别人的号、送达被拒）进处置账，由
+    下一次对上那个 agent 的连接冲销（runtime.rs 的
+    record_and_flush_disposals）。记账失败只写日志：打开对话是人此刻要的事，
+    一笔没记上的账最坏的结果是一个目录多活到手动清理。 */
     if let Some((stale_id, stale_owner)) = previous_session
         && lost.is_some()
     {
-        let owed = if stale_owner == live.agent_id
-            && let Some(deleting) = live.deleting
-        {
-            match live.client.delete_session(deleting, stale_id.clone()).await {
+        let owed = if stale_owner == live.agent_id {
+            match live.client.delete_session(stale_id.clone()).await {
                 Ok(()) => None,
                 Err(error) => {
                     log::warn!("could not delete the replaced session: {error}");

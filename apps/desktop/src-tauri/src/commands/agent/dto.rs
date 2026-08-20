@@ -379,8 +379,8 @@ pub struct AgentPinThreadRequest {
 
 /// 一段历史打不开的时候，是因为什么。
 ///
-/// 三种，都不是这一侧的故障，也都不是可以重试的：会话在对面手里，而对面
-/// 要么不是同一个 agent，要么不做这件事，要么自己也不留着了。
+/// 两种，都不是这一侧的故障，也都不是可以重试的：会话在对面手里，而对面要么
+/// 不是同一个 agent，要么自己也不留着了。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentHistoryLoss {
@@ -389,8 +389,6 @@ pub enum AgentHistoryLoss {
     /// sessionId 活在各自 agent 的命名空间里，把 A 的号发给 B 只会换回一句
     /// `UnknownSession` —— 所以这里根本不发。
     OtherAgent,
-    /// 这个 agent 在握手时说了它不装载旧会话。
-    NotSupported,
     /// 号发过去了，agent 说它这边已经没有这条会话。
     Forgotten,
 }

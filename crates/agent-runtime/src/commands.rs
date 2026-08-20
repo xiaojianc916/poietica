@@ -6,10 +6,7 @@ use futures::channel::{mpsc, oneshot};
 use crate::config::ConfigControl;
 use crate::error::{KapError, Refusal, Result};
 use crate::recorder::FrameSink;
-use crate::session::{
-    CanCancelSession, CanDeleteSession, CanForkSession, CanLoadSession, Cursor, OpenedSession,
-    SessionEntry,
-};
+use crate::session::{Cursor, OpenedSession, SessionEntry};
 
 /// 这一轮随那句话一起送出去的一张图片。
 ///
@@ -168,8 +165,7 @@ impl AgentClient {
 
     /// Reloads a session this agent opened in an earlier run.
     ///
-    /// 会话号原样交回去，agent 那侧把它重新装载起来，历史因此还在。凭证只从
-    /// 握手来（`Handshake::loading`），所以没声明过的连接上写不出这一句调用。
+    /// 会话号原样交回去，agent 那侧把它重新装载起来，历史因此还在。
     ///
     /// 读点一起交回去：订阅时报得出上一次读到哪儿，server 才从那一帧之后接着发。
     ///
@@ -179,7 +175,6 @@ impl AgentClient {
     /// that session.
     pub async fn load_session(
         &self,
-        _granted: CanLoadSession,
         session_id: String,
         from: Option<Cursor>,
     ) -> Result<OpenedSession> {
@@ -198,18 +193,13 @@ impl AgentClient {
 
     /// Forks a session the agent keeps into a new, independent one.
     ///
-    /// 号原样交过去，agent 带着完整上下文开出一条新会话交回来 —— 源会话
-    /// 原样不动。凭证只从握手来（`Handshake::forking`）。
+    /// 号原样交过去，agent 带着完整上下文开出一条新会话交回来 —— 源会话原样不动。
     ///
     /// # Errors
     ///
     /// Fails when the connection is gone, or when the agent refuses to fork
     /// that session.
-    pub async fn fork_session(
-        &self,
-        _granted: CanForkSession,
-        session_id: String,
-    ) -> Result<OpenedSession> {
+    pub async fn fork_session(&self, session_id: String) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::ForkSession { session_id, reply })?;
@@ -221,18 +211,13 @@ impl AgentClient {
 
     /// Asks the agent to delete one of the sessions it keeps.
     ///
-    /// 凭证只从握手来（`Handshake::deleting`）。号删掉之后它不再指向任何
-    /// 东西：驱动器会同时把它从选择器表和会话册子里抹掉。
+    /// 号删掉之后它不再指向任何东西：驱动器会同时把它从选择器表和会话册子里抹掉。
     ///
     /// # Errors
     ///
     /// Fails when the connection is gone, or when the agent refuses to
     /// delete that session.
-    pub async fn delete_session(
-        &self,
-        _granted: CanDeleteSession,
-        session_id: String,
-    ) -> Result<()> {
+    pub async fn delete_session(&self, session_id: String) -> Result<()> {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::DeleteSession { session_id, reply })?;
@@ -293,8 +278,7 @@ impl AgentClient {
     /// the turn's own answer reports which of the two happened.
     ///
     /// 停哪一条必须说出来。一条连接上有多条会话，而它们可以同时在飞。
-    /// 凭证只从握手来（`Handshake::cancelling`）。
-    pub fn cancel(&self, _granted: CanCancelSession, session_id: String) -> Result<()> {
+    pub fn cancel(&self, session_id: String) -> Result<()> {
         self.send(Command::Cancel { session_id })
     }
 

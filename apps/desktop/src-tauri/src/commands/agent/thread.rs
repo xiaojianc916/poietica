@@ -20,7 +20,7 @@ use super::dto::{
 use super::failure::translate;
 use super::kimi_state::sync_kimi_archive_state;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
-use super::{AgentCommandResult, NO_ANSWER, NO_FORK, NOTHING_TO_FORK, TITLE_CHARS};
+use super::{AgentCommandResult, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS};
 
 /// Lists the stored conversations, newest first.
 ///
@@ -283,10 +283,10 @@ pub async fn agent_archive_thread(
 /// 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。kap 没有
 /// 硬删除，删除由 :archive 承接。
 ///
-/// 当场送达要三个前提：连接还活着、这条会话确实是这个 agent 的、它声明了
-/// 这项能力。凑不齐就先记进处置账 —— 不为此去起一个进程：删一条对话不该
-/// 是拉起一个 agent 的理由。账由下一次对上这个 agent 的连接握手后冲销
-/// （runtime.rs 的 record_and_flush_disposals）。
+/// 当场送达要两个前提：连接还活着、这条会话确实是这个 agent 的。凑不齐就先
+/// 记进处置账 —— 不为此去起一个进程：删一条对话不该是拉起一个 agent 的理由。
+/// 账由下一次对上这个 agent 的连接握手后冲销（runtime.rs 的
+/// record_and_flush_disposals）。
 ///
 /// 无项目对话还占着一个应用替它签发的工作目录（paths.rs 的
 /// create_projectless_workspace）。库里最后一条指着它的行删掉后，目录一并
@@ -321,18 +321,17 @@ pub async fn agent_delete_thread(
     agent 的命名空间里，把 A 的号发给 B，删的可能是 B 的东西。 */
     let held = stored.and_then(|thread| thread.session_id.zip(thread.agent_id));
 
-    /* 能当场送达就当场送达：连接活着、主人对得上、能力声明过。当场没送达
-    的进处置账，由下一次对上这个 agent 的连接握手后冲销（runtime.rs 的
+    /* 能当场送达就当场送达：连接活着、主人对得上。当场没送达的进处置账，由
+    下一次对上这个 agent 的连接握手后冲销（runtime.rs 的
     record_and_flush_disposals）——「不为删一条对话去起进程」这条规矩保留，
     而账不再丢。 */
     let mut owed = held;
 
     if let Some(live) = &live
         && let Some((session_id, owner)) = owed.clone()
-        && let Some(deleting) = live.deleting
         && owner == live.agent_id
     {
-        match live.client.delete_session(deleting, session_id).await {
+        match live.client.delete_session(session_id).await {
             Ok(()) => owed = None,
             /* agent 拒绝，或者它自己也早就不留着这条会话了。本地这一份仍然
             要删：用户按的是删除，不是「如果 agent 同意就删除」。账照记 ——
@@ -420,9 +419,9 @@ pub async fn agent_delete_thread(
 ///
 /// # Errors
 ///
-/// Fails when the agent cannot be started, when it does not declare session
-/// forking, when the conversation has no session this agent holds, or when
-/// the fork or the database write is refused.
+/// Fails when the agent cannot be started, when the conversation has no
+/// session this agent holds, or when the fork or the database write is
+/// refused.
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_fork_thread(
@@ -443,10 +442,6 @@ pub async fn agent_fork_thread(
 
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
-    let Some(forking) = live.forking else {
-        return Err(Error::Validation(NO_FORK.to_owned()).into());
-    };
-
     let stored = on_index(&index, move |store| {
         store.thread(source).map_err(persistence)
     })
@@ -466,23 +461,15 @@ pub async fn agent_fork_thread(
     let known = live.book.slot(&held).map_err(translate)?.is_some();
 
     if !known {
-        let Some(loading) = live.loading else {
-            return Err(Error::Validation(NOTHING_TO_FORK.to_owned()).into());
-        };
-
         let from = read_point(&index, &held).await?;
 
         live.client
-            .load_session(loading, held.clone(), from)
+            .load_session(held.clone(), from)
             .await
             .map_err(translate)?;
     }
 
-    let forked = live
-        .client
-        .fork_session(forking, held)
-        .await
-        .map_err(translate)?;
+    let forked = live.client.fork_session(held).await.map_err(translate)?;
 
     let attached = forked.session_id;
     let owner = live.agent_id.clone();
