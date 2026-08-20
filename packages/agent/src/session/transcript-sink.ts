@@ -1,4 +1,4 @@
-import type { ThreadHistory } from '@poietica/agent-contract'
+import type { FramePage, ThreadHistory } from '@poietica/agent-contract'
 
 /**
  * 转录那一侧，会话这一侧要用到的全部。
@@ -9,7 +9,7 @@ import type { ThreadHistory } from '@poietica/agent-contract'
  */
 export interface TranscriptSink {
   readonly opening: (threadId: string) => void
-  readonly adopt: (threadId: string, events: readonly unknown[], history: ThreadHistory) => void
+  readonly adopt: (threadId: string, page: FramePage, history: ThreadHistory) => void
   readonly failed: (threadId: string, cause: unknown) => void
   /** 运行帧按会话号到达，而这一侧的一切按对话记：这是两者之间唯一的那张表。 */
   readonly route: (sessionId: string, threadId: string) => void

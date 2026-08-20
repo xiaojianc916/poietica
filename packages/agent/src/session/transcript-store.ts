@@ -18,6 +18,7 @@ import {
   replayThreadEvents,
 } from '../timeline'
 import { describeFailure } from './describe-failure'
+import type { TranscriptSink } from './transcript-sink'
 
 /*
  * 转录归这里，不归组件。
@@ -33,8 +34,8 @@ import { describeFailure } from './describe-failure'
  *
  * 路由是一次查表，键是会话号：线路上每一帧都带着它（见 recorder.rs 的
  * RecordedEvent，每一种帧无一例外），而「这条会话属于哪条对话」在打开这条对话时
- * 就登记好了（见 route，由 ThreadsStore 在拿到 ThreadRecord.sessionId 的那一刻
- * 交过来）。地址因此先于帧存在，「无主的帧」不是一种正常状态 —— 这一层没有排队、
+ * 就登记好了（见 route，由 SessionControlsStore 在打开的答复里拿到会话号时交过
+ * 来）。地址因此先于帧存在，「无主的帧」不是一种正常状态 —— 这一层没有排队、
  * 没有补投、也没有上限。
  */
 
@@ -130,10 +131,9 @@ function noteOn(timeline: TimelineState, cause: unknown, endsTurn: boolean): Tim
 /*
  * 空白得说明来由。
  *
- * 一段取不回来的经过，和一条本来就没说过话的对话，在屏幕上是同一片空白——而它们
- * 不是同一件事。此前这一层分辨不出来，因为原生侧交过来的只是一个空数组：五种
- * 情况一个形状。现在它会说清是哪一种（见 AgentHistory），这里只负责把两种坏
- * 消息翻成一句人话；其余三种没有损失，什么都不加。
+ * 一段取不回来的经过，和一条本来就没说过话的对话，在屏幕上是同一片空白，而它们
+ * 不是同一件事：history 说清是哪一种，这里只把两种损失翻成一句人话，其余状态什
+ * 么都不加。
  */
 function lossOf(history: ThreadHistory): string | null {
   if (history.state !== 'unavailable') {
@@ -203,7 +203,7 @@ const onNextPaint: Paint = (flush) => {
   queueMicrotask(flush)
 }
 
-export class TranscriptStore {
+export class TranscriptStore implements TranscriptSink {
   readonly #paint: Paint
 
   /** 这一拍里变过的对话。同一条变一百次也只叫醒一次。 */
@@ -221,8 +221,8 @@ export class TranscriptStore {
   /**
    * 对话 → 它的转录。这张表没有上限，也不需要有。
    *
-   * 转录的生命周期就是对话的生命周期。回收因此只有一个出口：forget，由
-   * ThreadsStore.remove 在这条对话真的不存在时调用。
+   * 转录的生命周期就是对话的生命周期。回收因此只有一个出口：forget，由组合根在
+   * 这条对话真的不存在时调用。
    */
   #held = new Map<string, Transcript>()
 
@@ -309,8 +309,8 @@ export class TranscriptStore {
   /**
    * 这条会话属于这条对话。
    *
-   * 由握着这个事实的那一方交过来（ThreadsStore 在打开的答复里拿到它），所以
-   * 这里不猜也不问。同一条会话重复登记是幂等的。
+   * 由握着这个事实的那一方交过来（SessionControlsStore 在打开的答复里拿到
+   * 它），所以这里不猜也不问。同一条会话重复登记是幂等的。
    */
   route = (sessionId: string, key: string): void => {
     this.#routes.set(sessionId, key)
@@ -380,19 +380,13 @@ export class TranscriptStore {
   }
 
   /**
-   * agent 把这条对话交回来了。
+   * 最新那一页经过到了。
    *
-   * events 在这里从 unknown 收窄成帧，全程只有这一处。断言而不是逐帧校验，
-   * 与运行帧那条通道同一个判据：形状由 frame.rs 定义，重放的帧与实时的帧是同
-   * 一批东西，走同一条重放函数。
+   * 帧在这里从 unknown 收窄成 RunEvent，全程只有这一处，而且在明处：形状由
+   * frame.rs 定义，重放的帧与实时的帧走同一条重放函数。
    *
-   * 收窄发生在明处，而不是藏在某个端口声明的返回类型里：声明成 RunEvent 而
-   * 实际交出 unknown，那是一次没人看得见的断言。这里看得见。
-   *
-   * 交回来的可能是空的，而空有五种由来（history）。其中两种是损失：换了 agent、
-   * agent 那侧已经不记得它。损失走的是本地事故那条既有通道，和「权限答复送不出
-   * 去」同一条——它同样发生在任何持久化之外，日志里没有对应的帧。endsTurn 为假：
-   * 这不是某一轮失败了，这是这段历史没回来。
+   * 一页可以是空的，为什么空由 history 说明。两种损失走本地事故那条既有通道，
+   * endsTurn 为假 —— 不是某一轮失败了，是这段经过没回来。
    */
   adopt = (threadId: string, page: FramePage, history: ThreadHistory): void => {
     /* 经过由本地日志重放：段边界与每一轮的两端都在帧里（run_started 与终帧
@@ -664,8 +658,7 @@ export class TranscriptStore {
   /*
    * 变了就记下，一拍发一次。
    *
-   * 写入是同步的，叫醒不是。此前这两件事焊在一起，于是「agent 多说了一个字」
-   * 与「该重画一屏了」成了同一件事 —— 一次回答两千次投影加布局，换六十张画面。
+   * 写入是同步的，叫醒不是：帧以毫秒计到达，而屏幕只按帧率重画。
    */
   #notify(real: string): void {
     this.#dirty.add(real)
@@ -813,7 +806,7 @@ export class TranscriptStore {
     this.#queue(owner, events)
   }
 
-  /* 一个 store 订着一条线路。此前这道守卫是进程级的。 */
+  /* 一个 store 订着一条线路。 */
   #attach(port: AgentSessionPort): void {
     if (this.#attachedTo === port) {
       return

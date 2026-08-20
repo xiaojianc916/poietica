@@ -8,12 +8,6 @@ import type { SessionUsage } from './usage'
  * Three, and the platform can report no other: the name the user typed, one
  * taken from the opening message, and the placeholder shown before there was
  * anything to take a name from.
- *
- * A fourth used to sit above all of them — the title the agent wrote in its
- * own store when it created the session. It is written once and never
- * revised, so ranking it above what the user actually said is what turned
- * this list into a column of the words New Session. It is gone from the
- * platform, and the ranking below no longer mentions it.
  */
 export type ThreadTitleSource = 'manual' | 'message' | 'fallback'
 
@@ -98,12 +92,7 @@ export interface OpenedThread {
    * 一页，不是全量：更早的按 `before` 向 `earlierFrames` 续读。
    */
   readonly frames: FramePage
-  /**
-   * 这段经过为什么是现在这个样子。
-   *
-   * events 为空时，它是唯一能说清缘由的东西。此前五种情况在这一层全部长得
-   * 一模一样——一个空数组——于是界面除了画一片空白之外无话可说。
-   */
+  /** 这一页为空时，它是唯一能说清缘由的东西。 */
   readonly history: ThreadHistory
   /**
    * 这条对话最近一次报过的上下文用量，本地账本记下的那份。

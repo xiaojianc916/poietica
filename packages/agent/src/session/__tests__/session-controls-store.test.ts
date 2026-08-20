@@ -54,7 +54,7 @@ const opened = (selectors: readonly SessionConfigControl[]): OpenedThread => ({
     updatedAt: '2026-01-01T00:00:00.000Z',
   },
   selectors,
-  events: [],
+  frames: { events: [], before: null },
   history: { state: 'fresh' },
 })
 
