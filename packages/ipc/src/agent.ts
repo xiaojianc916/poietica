@@ -162,7 +162,7 @@ type AgentSessionEnvelope =
 /**
  * 一条通道，按判别式交给它的读者。
  *
- * 三种会话状态同走一条事件，与六种运行帧同走 AGENT_EVENT 是同一条规矩。分派
+ * 三种会话状态同走一条事件，与运行帧同走 AGENT_EVENT 是同一条规矩。分派
  * 是静态的三支，不是一张可以注册任意名字的表 —— 每一个读者仍然是一个具名端口。
  */
 function subscribeToSessionEvent<TKind extends AgentSessionEnvelope['kind']>(
@@ -482,18 +482,18 @@ export function createAgentThreadBridge({
         }),
       )
 
+      /* 一页帧与它的读取位置原样交出去：形状由原生侧定义，与端口逐格相同。 */
       return {
         thread: opened.thread,
         selectors: opened.selectors.map(controlOf),
-        events: opened.events,
+        frames: opened.frames,
         history: opened.history,
-        /* 这条对话存下过的图片，以及它一共问过多少次。两格都原样交出去：
-        形状由原生侧定义，与端口逐格相同，这一层没有要转换的东西。轮次计数
-        是对齐用的尺子 —— 账本里的 turn 从某次迁移之后才开始记，所以认领方
-        要从末尾往回数，而末尾在哪只有这个计数说得准。 */
         ...(opened.usage === null ? {} : { usage: opened.usage }),
       }
     },
+
+    earlierFrames: (threadId, before) =>
+      throughIpc(() => commands.agentEarlierFrames({ threadId, before })),
 
     rename: async (threadId, title) => {
       await throughIpc(() => commands.agentRenameThread({ threadId, title }))

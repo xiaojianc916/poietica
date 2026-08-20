@@ -28,7 +28,7 @@ pub use attachments::ThreadAttachment;
 pub use connection::DEFAULT_BUSY_TIMEOUT;
 pub use cursors::SessionCursor;
 pub use error::{Result, StoreError};
-pub use run_events::RecordedFrame;
+pub use run_events::{FrameCursor, FramePage, RecordedFrame};
 pub use store::AgentStore;
 pub use threads::{ThreadSummary, TitleSource};
 pub use usage::{SessionUsage, TokenDay};

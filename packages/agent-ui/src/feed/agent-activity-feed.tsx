@@ -148,6 +148,13 @@ export interface AgentActivityFeedProps {
   readonly footer?: ReactNode
   /** 画在滚动区之上,位于一切会滚的东西之外。 */
   readonly overlay?: (port: FeedPort) => ReactNode
+  /**
+   * 顶行到了。
+   *
+   * 这个组件唯一上报的一件事。它不知道前面还有没有内容、也不知道读一页要读
+   * 几趟 —— 缺席就是没有更早的，那时它连报都不报。
+   */
+  readonly onReachTop?: (() => void) | undefined
 }
 
 export function AgentActivityFeed({
@@ -156,6 +163,7 @@ export function AgentActivityFeed({
   renderRow,
   isBusy,
   footer,
+  onReachTop,
   overlay,
 }: AgentActivityFeedProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
@@ -285,14 +293,19 @@ export function AgentActivityFeed({
         setReadingRow(reading.index)
       }
 
-      /* 顶行只为一件事:回答那次跳转到了没有。贴没贴齐由这同一次读取一并交出。 */
+      /* 顶行答两件事:那次跳转到了没有、以及顶到头了没有。同一次读取一并交出
+         —— 不为第二个问题再量一次几何。 */
       const top = rowAtAnchor(spans, viewport.scrollTop)
 
       if (top !== null) {
         settleReveal(top.index, viewport.scrollTop - top.start <= REVEAL_FLUSH_PX)
+
+        if (top.index === 0) {
+          onReachTop?.()
+        }
       }
     },
-    [settleReveal],
+    [onReachTop, settleReveal],
   )
 
   /*
@@ -642,6 +655,35 @@ export function AgentActivityFeed({
       target: () => virtualizer.getOffsetForIndex(pending, 'start')?.[0] ?? null,
     })
   }, [pending, reduced, settleReveal, virtualizer])
+
+  /*
+   * 往前补了几轮,阅读位置不动。
+   *
+   * 前插只改下标,不改身份:每一行的 id 原样保留,所以实测高度与下游的记忆化都
+   * 不失效,而原来那一行搬到了下标 k。把它送回视口顶端就是「位置没变」——
+   * 走 scrollToIndex,不新增第三个 scrollTop 写入者。
+   *
+   * 判据是首行换了身份而旧首行仍在表里:追加发生在末尾,首行不动,所以这个效应
+   * 在流式输出时一次都不跑。
+   */
+  const anchored = useRef<string | null>(null)
+
+  useLayoutEffect(() => {
+    const before = anchored.current
+    const first = rows[0]?.item.id ?? null
+
+    anchored.current = first
+
+    if (before === null || first === null || before === first) {
+      return
+    }
+
+    const moved = rows.findIndex((row) => row.item.id === before)
+
+    if (moved > 0) {
+      virtualizer.scrollToIndex(moved, { align: 'start' })
+    }
+  }, [rows, virtualizer])
 
   /*
    * 高亮的真源,按优先级排。

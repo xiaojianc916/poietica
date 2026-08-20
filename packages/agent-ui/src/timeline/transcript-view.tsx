@@ -8,7 +8,7 @@ import {
 import { type ReactNode, useCallback, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
-import { useAssistantTimeline } from '../session/use-assistant-session'
+import { useAssistantEarlier, useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { LiveProcess } from './live-process'
 import { ReplyActionHost } from './reply-actions'
@@ -49,6 +49,9 @@ export function TranscriptView({
   sessionKey,
 }: TranscriptViewProps) {
   const timeline = useAssistantTimeline(sessionKey)
+
+  /* 缺席就是前面没有了：滚动区据此连报都不报。 */
+  const onReachTop = useAssistantEarlier(sessionKey)
 
   /*
    * 不包 useMemo。
@@ -263,6 +266,7 @@ export function TranscriptView({
         conversation={sessionKey}
         footer={footer}
         isBusy={selectIsBusy(timeline)}
+        onReachTop={onReachTop}
         overlay={overlay}
         renderRow={renderRowWithSeal}
         rows={grouped.rows}

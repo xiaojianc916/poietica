@@ -11,6 +11,7 @@ export type {
   AgentCapabilityOptions,
   AgentControls,
   CapabilityFailureReport,
+  EarlierFrames,
   PermissionPosture,
   SessionControlsFailureReport,
   ThreadListItem,
@@ -20,6 +21,7 @@ export type {
   ThreadWorkspaceList,
   Transcript,
   TranscriptSink,
+  TranscriptStoreOptions,
 } from './session'
 export {
   AgentCapabilityStore,
@@ -63,6 +65,7 @@ export {
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
+  prependThreadEvents,
   replayRunEvents,
   replayThreadEvents,
   selectFeedRows,

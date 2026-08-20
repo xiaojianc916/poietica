@@ -169,7 +169,7 @@ async agentThreads() : Promise<AgentThread[]> {
     return await TAURI_INVOKE("agent_threads");
 },
 /**
- * 打开一条对话：把它整条要回来。
+ * 打开一条对话：把最新那一页经过要回来。
  * 
  * 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，`session_for`
  * 认出它存着的会话号不是本次连接开的，于是请 driver 把它订阅回来 —— 号
@@ -189,6 +189,20 @@ async agentThreads() : Promise<AgentThread[]> {
  */
 async agentOpenThread(request: AgentOpenThreadRequest) : Promise<AgentOpenedThread> {
     return await TAURI_INVOKE("agent_open_thread", { request });
+},
+/**
+ * 这条对话更早的一页经过。
+ * 
+ * 一次读，别的都不做：位置由上一页交回来，轮次的对齐归渲染层 —— 一帧是不是
+ * 一轮的开头，只有认识帧的那一侧答得上（frame.rs），而库里那一列是 opaque
+ * JSON。
+ * 
+ * # Errors
+ * 
+ * 标识不是 UUID，或库拒绝这次读取时失败。
+ */
+async agentEarlierFrames(request: AgentEarlierFramesRequest) : Promise<AgentFramePage> {
+    return await TAURI_INVOKE("agent_earlier_frames", { request });
 },
 /**
  * Renames a conversation.
@@ -1274,6 +1288,18 @@ export type AgentDismissQuestionsRequest = {
  */
 questionId: string }
 /**
+ * 要往前读的那条对话，以及从哪儿接着读。
+ */
+export type AgentEarlierFramesRequest = { 
+/**
+ * 往前读哪条对话。
+ */
+threadId: string; 
+/**
+ * 上一页交回的读取位置。
+ */
+before: AgentFrameCursor }
+/**
  * 要分叉的对话，以及必要时怎样启动 agent。
  * 
  * 带 launch 与 cwd，因为分叉的第一步可能要把 agent 起起来、把源会话装载成
@@ -1300,12 +1326,35 @@ launch: AgentLaunch;
  */
 cwd: string | null }
 /**
+ * 一页帧从哪儿往前读。渲染层原样回传，不解释：它是库上那把唯一键。
+ */
+export type AgentFrameCursor = { 
+/**
+ * 位置属于哪条会话。
+ */
+sessionId: string; 
+/**
+ * 它在那条会话上的位置。
+ */
+seq: number }
+/**
+ * 一页帧，以及更早那一页从哪儿接着读。
+ */
+export type AgentFramePage = { 
+/**
+ * 这一页的帧，按追加顺序。
+ */
+events: JsonValue[]; 
+/**
+ * 更早那一页的读取位置；缺席就是前面没有了。
+ */
+before: AgentFrameCursor | null }
+/**
  * 这一次打开，屏幕上应该出现什么。
  * 
- * 加这一格是因为四种截然不同的处境此前长得一模一样：`events` 都是空数组。
- * 刚建的对话是空的，理所应当；而一条聊过两小时的对话在换了 agent 之后也是
- * 空的 —— 界面分不出来，就只能默不作声地给一块白板。那不是"没有历史"，那
- * 是"有历史但拿不到"，两件事对人的意义完全不同。
+ * 空的经过说不出区别：刚建的对话是空的，理所应当；而一条聊过两小时的对话在
+ * 换了 agent 之后也是空的。那不是"没有历史"，那是"有历史但拿不到"，两件事对
+ * 人的意义完全不同。
  * 
  * 内部标签，所以线上是一个判别联合：`{ state: "live" }`、
  * `{ state: "unavailable", reason: …, owner: … }`。
@@ -1407,15 +1456,14 @@ thread: AgentThread;
  */
 selectors: AgentConfigControl[]; 
 /**
- * 这条对话的经过，由本地日志交回来。
+ * 这条对话最新的那一页经过，由本地日志交回来。
  * 
  * 库里记下的就是当时交给界面的那一批（见 turn.rs 的 logging），所以重开
  * 一条对话与看着它发生不可能对不上。
  * 
- * 空只有一种理由是理所应当的：这条对话刚建。其余的空都是"有经过但拿不
- * 到"，由下面那一格说清是为什么。
+ * 一页，不是全量：更早的按页里那个位置向 `agent_earlier_frames` 续读。
  */
-events: JsonValue[]; 
+frames: AgentFramePage; 
 /**
  * 上面那格为什么是它现在的样子。
  * 

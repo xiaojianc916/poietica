@@ -2,6 +2,8 @@ import type {
   AgentSessionPort,
   ApprovalAnswer,
   ApprovalScope,
+  FrameCursor,
+  FramePage,
   PromptAsset,
   RunEvent,
   ThreadHistory,
@@ -12,6 +14,7 @@ import {
   appendUserMessage,
   applyRunEvents,
   createTimelineState,
+  prependThreadEvents,
   replayThreadEvents,
 } from '../timeline'
 import { describeFailure } from './describe-failure'
@@ -29,7 +32,7 @@ import { describeFailure } from './describe-failure'
  * 互相耦合（rename 同时写三张，forget 同时删三张），它们是一个对象的内部字段。
  *
  * 路由是一次查表，键是会话号：线路上每一帧都带着它（见 recorder.rs 的
- * RecordedEvent，六种帧无一例外），而「这条会话属于哪条对话」在打开这条对话时
+ * RecordedEvent，每一种帧无一例外），而「这条会话属于哪条对话」在打开这条对话时
  * 就登记好了（见 route，由 ThreadsStore 在拿到 ThreadRecord.sessionId 的那一刻
  * 交过来）。地址因此先于帧存在，「无主的帧」不是一种正常状态 —— 这一层没有排队、
  * 没有补投、也没有上限。
@@ -64,6 +67,20 @@ export interface Transcript {
   readonly loaded: boolean
   /** 这条对话是这个进程刚开出来的：没有它这里没有的东西，不必去取。 */
   readonly owned: boolean
+  /** 更早那一页从哪儿接着读；null 就是前面没有了。 */
+  readonly earlier: FrameCursor | null
+  /** 正在往前读。 */
+  readonly reading: boolean
+}
+
+/** 更早那一页从哪儿读回来。由组合根注入，所以这台 store 脱离进程可测。 */
+export type EarlierFrames = (threadId: string, before: FrameCursor) => Promise<FramePage>
+
+export interface TranscriptStoreOptions {
+  /** 什么时候把「变了」告诉界面。 */
+  readonly paint?: Paint
+  /** 缺席就没有向上续读这条路：这台 store 不去猜谁能给它。 */
+  readonly earlier?: EarlierFrames
 }
 
 export interface SendOptions {
@@ -90,6 +107,8 @@ const EMPTY: Transcript = {
   restoring: false,
   loaded: false,
   owned: false,
+  earlier: null,
+  reading: false,
 }
 
 /*
@@ -192,8 +211,11 @@ export class TranscriptStore {
 
   #waiting = false
 
-  constructor(paint: Paint = onNextPaint) {
+  readonly #earlier: EarlierFrames | undefined
+
+  constructor({ earlier, paint = onNextPaint }: TranscriptStoreOptions = {}) {
     this.#paint = paint
+    this.#earlier = earlier
   }
 
   /**
@@ -237,6 +259,15 @@ export class TranscriptStore {
    * 折叠推迟到真的有人要看的那一刻：下一拍，或者任何一次同步读。
    */
   #pending = new Map<string, RunEvent[]>()
+
+  /**
+   * 读回来了、还对不齐一轮起点的那些帧，按对话攒着。
+   *
+   * 页按帧数切，而轮次的边界在帧里（run_started）。一页的开头因此常常是半截
+   * 轮次：它的提问在更早那一页。攒着不投影，等更早那一页的起点到达再一起折
+   * 进去 —— 与 #pending 同性质：未投影的输入，不是第二份真相。
+   */
+  #unaligned = new Map<string, RunEvent[]>()
 
   #attachedTo: AgentSessionPort | null = null
 
@@ -302,6 +333,7 @@ export class TranscriptStore {
 
     this.#held.delete(real)
     this.#pending.delete(real)
+    this.#unaligned.delete(real)
     this.#aliased.delete(real)
     this.#dirty.delete(real)
 
@@ -362,10 +394,10 @@ export class TranscriptStore {
    * 去」同一条——它同样发生在任何持久化之外，日志里没有对应的帧。endsTurn 为假：
    * 这不是某一轮失败了，这是这段历史没回来。
    */
-  adopt = (threadId: string, events: readonly unknown[], history: ThreadHistory): void => {
+  adopt = (threadId: string, page: FramePage, history: ThreadHistory): void => {
     /* 经过由本地日志重放：段边界与每一轮的两端都在帧里（run_started 与终帧
        各带自己的时刻），所以这里不再有第二把尺子。图仍来自本机账本。 */
-    const replayed = replayThreadEvents(events as readonly RunEvent[])
+    const replayed = replayThreadEvents(page.events as readonly RunEvent[])
     const lost = lossOf(history)
 
     this.#put(threadId, {
@@ -373,6 +405,8 @@ export class TranscriptStore {
       restoring: false,
       loaded: true,
       owned: false,
+      earlier: page.before,
+      reading: false,
     })
   }
 
@@ -384,6 +418,88 @@ export class TranscriptStore {
       ...latest,
       restoring: false,
       timeline: noteOn(latest.timeline, cause, false),
+    })
+  }
+
+  /**
+   * 人滚到了顶。
+   *
+   * 滚动区只上报这一件事：它不知道有没有更早的、也不该知道读一页要读几趟。
+   * 反复上报是幂等的 —— 正在读、或者前面没有了，都当场返回。
+   */
+  reachedTop = (key: string): void => {
+    void this.#readEarlier(this.#resolveKey(key))
+  }
+
+  /* ================= 内部 ================= */
+
+  /**
+   * 往前读，一次读到一个轮次起点为止。
+   *
+   * 一页读回来可能整页都没有 run_started（一轮长过一页），那就接着往前读；
+   * 攒下的半截帧留在 #unaligned，等起点到达再一起折进去。游标为 null 时前面
+   * 没有了，攒下的那一批就是最早那一轮，整批折进去。
+   */
+  async #readEarlier(real: string): Promise<void> {
+    const read = this.#earlier
+    const current = this.#now(real)
+
+    if (read === undefined || current.reading || current.earlier === null) {
+      return
+    }
+
+    this.#put(real, { ...current, reading: true })
+
+    let cursor: FrameCursor | null = current.earlier
+
+    try {
+      while (cursor !== null) {
+        const page: FramePage = await read(real, cursor)
+        const merged = [
+          ...(page.events as readonly RunEvent[]),
+          ...(this.#unaligned.get(real) ?? []),
+        ]
+        const at = merged.findIndex((event) => event.kind === 'run_started')
+
+        cursor = page.before
+
+        if (cursor === null) {
+          this.#unaligned.delete(real)
+          this.#prepend(real, merged, null)
+
+          return
+        }
+
+        if (at < 0) {
+          this.#unaligned.set(real, merged)
+          continue
+        }
+
+        this.#unaligned.set(real, merged.slice(0, at))
+        this.#prepend(real, merged.slice(at), cursor)
+
+        return
+      }
+    } catch (cause: unknown) {
+      const latest = this.#now(real)
+
+      this.#put(real, {
+        ...latest,
+        reading: false,
+        timeline: noteOn(latest.timeline, cause, false),
+      })
+    }
+  }
+
+  /** 一批对齐好的更早帧，一次折进去。 */
+  #prepend(real: string, events: readonly RunEvent[], earlier: FrameCursor | null): void {
+    const latest = this.#now(real)
+
+    this.#put(real, {
+      ...latest,
+      timeline: prependThreadEvents(latest.timeline, events),
+      earlier,
+      reading: false,
     })
   }
 

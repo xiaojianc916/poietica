@@ -70,19 +70,34 @@ export type ThreadHistory =
       readonly owner: string | null
     }
 
+/** 一页帧从哪儿往前读。平台发的位置，原样回传。 */
+export interface FrameCursor {
+  readonly sessionId: string
+  readonly seq: number
+}
+
+/** 一页帧，以及更早那一页从哪儿接着读；`before` 为 null 就是前面没有了。 */
+export interface FramePage {
+  /**
+   * 这一页的帧，按追加顺序。
+   *
+   * unknown 是故意的：帧的形状由平台那一侧定义，这里不重新定义它，也不在这
+   * 一层校验 —— 与运行帧走同一条规矩。收窄只发生在转录 store 的入口一处。
+   */
+  readonly events: readonly unknown[]
+  readonly before: FrameCursor | null
+}
+
 /** A conversation that was just opened, and what its session offers. */
 export interface OpenedThread {
   readonly thread: ThreadRecord
   readonly selectors: readonly SessionConfigControl[]
   /**
-   * 这条对话的经过，由本机的帧日志重放交回来。
+   * 这条对话最新的那一页经过，由本机的帧日志重放交回来。
    *
-   * unknown 是故意的：帧的形状由平台那一侧定义，这里不重新定义它，也不在这
-   * 一层校验 —— 与运行帧走同一条规矩。收窄只发生在转录 store 的入口一处。
-   *
-   * 空不代表什么都没发生过。空有五种由来，下面那一格说的就是哪一种。
+   * 一页，不是全量：更早的按 `before` 向 `earlierFrames` 续读。
    */
-  readonly events: readonly unknown[]
+  readonly frames: FramePage
   /**
    * 这段经过为什么是现在这个样子。
    *
@@ -120,6 +135,13 @@ export interface ThreadPort {
    * 答复里带回整张选择器表。
    */
   readonly open: (threadId?: ThreadId, workspaceRoot?: string | null) => Promise<OpenedThread>
+  /**
+   * 这条对话更早的一页经过，从 `before` 那一帧往前数。
+   *
+   * 位置原样回传，这一层不解释它：它是平台那侧库上的键。轮次的对齐归转录
+   * store —— 页按帧数切，轮次的边界在帧里。
+   */
+  readonly earlierFrames: (threadId: ThreadId, before: FrameCursor) => Promise<FramePage>
   /** Renames one. The name becomes the user's and outlives the agent's. */
   readonly rename?: (threadId: ThreadId, title: string) => Promise<void>
   readonly remove?: (threadId: ThreadId) => Promise<void>

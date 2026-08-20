@@ -46,6 +46,8 @@ export type {
   PromptAsset,
 } from './session'
 export type {
+  FrameCursor,
+  FramePage,
   OpenedThread,
   ThreadHistory,
   ThreadHistoryLoss,

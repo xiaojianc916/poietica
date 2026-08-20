@@ -58,6 +58,12 @@ const TITLE_CHARS: usize = 60;
 /// 节拍醒来的（见 transcript-store.ts 的 `#paint`）。
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 
+/// 一页帧有多宽。
+///
+/// 打开一条对话要画的是最后几轮，所以读一页就够。四百帧远多于常见的一轮，
+/// 因此打开时看到的是完整的若干轮；更早的按游标续读。
+const FRAME_PAGE: i64 = 400;
+
 const NO_SESSION: &str = "no agent session is running";
 const POISONED: &str = "the agent session lock was left locked by a panicking task";
 const NO_SESSION_ID: &str = "the agent closed the connection before creating a session";

@@ -30,6 +30,7 @@ export {
   applyRunEvent,
   applyRunEvents,
   createTimelineState,
+  prependThreadEvents,
   replayRunEvents,
   replayThreadEvents,
 } from './timeline-reducer'

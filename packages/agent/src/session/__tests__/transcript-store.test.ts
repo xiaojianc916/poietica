@@ -18,7 +18,7 @@ function fakePort(): {
           listeners.delete(listener)
         }
       },
-      prompt: () => Promise.resolve({ sessionId: 'sess_a', images: [] }),
+      prompt: () => Promise.resolve({ sessionId: 'sess_a' }),
       cancel: () => Promise.resolve(),
       resolvePermission: () => Promise.resolve(),
       answerQuestions: () => Promise.resolve(),
@@ -46,8 +46,10 @@ function painted(): { readonly store: TranscriptStore; readonly paint: () => voi
   const waiting: Array<() => void> = []
 
   return {
-    store: new TranscriptStore((flush) => {
-      waiting.push(flush)
+    store: new TranscriptStore({
+      paint: (flush) => {
+        waiting.push(flush)
+      },
     }),
     paint: () => {
       for (const flush of waiting.splice(0)) {

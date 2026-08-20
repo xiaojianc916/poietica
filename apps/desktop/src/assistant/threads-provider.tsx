@@ -43,8 +43,10 @@ export function ThreadsProvider({ agent, children, report }: ThreadsProviderProp
    * 手里的对话经过凭空消失。
    */
   const [{ controls, store, transcripts }] = useState(() => {
-    const transcriptStore = new TranscriptStore()
     const port = agent.threads
+
+    /* 向上续读的那条路由组合根接上：store 不去摸任何端口，也就脱离进程可测。 */
+    const transcriptStore = new TranscriptStore({ earlier: port.earlierFrames })
 
     return {
       controls: new SessionControlsStore({

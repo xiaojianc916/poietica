@@ -19,6 +19,24 @@ pub struct RecordedFrame {
     pub frame: Box<RawValue>,
 }
 
+/// 一页帧从哪儿往前读：表上那把唯一键 `(session_id, seq)`。
+#[derive(Clone, Debug)]
+pub struct FrameCursor {
+    /// 位置属于哪条会话。
+    pub session_id: String,
+    /// 它在那条会话上的位置。
+    pub seq: i64,
+}
+
+/// 一页帧，按追加顺序；`before` 缺席就是前面没有了。
+#[derive(Debug)]
+pub struct FramePage {
+    /// 这一页的帧，各是 `RecordedEvent` 成形好的那一行 JSON。
+    pub frames: Vec<String>,
+    /// 更早那一页从哪儿接着读。
+    pub before: Option<FrameCursor>,
+}
+
 impl AgentStore {
     /// 追加一批帧，一次提交。答的是这一批里有几帧库里已经有了。
     ///
@@ -65,21 +83,75 @@ impl AgentStore {
         Ok(refused)
     }
 
-    /// 这条对话记下的每一帧，按追加顺序。顺序由 SQL 给。
+    /// 这条对话的一页帧，从 `before` 那一帧往前数，按追加顺序交回。
+    ///
+    /// 反向按 `id` 扫（索引 `run_events_by_thread`），代价因此是这一页，与这条
+    /// 对话有多长无关。`before` 缺席就是最新那一页。
     ///
     /// # Errors
     ///
-    /// 查询被拒时返回错误。
-    pub fn frames_of(&self, thread: Uuid) -> Result<Vec<String>> {
-        let mut statement = self
-            .connection
-            .prepare_cached("SELECT frame FROM run_events WHERE thread_id = ?1 ORDER BY id")?;
+    /// 查询被拒，或 `before` 在这条对话上指不到行时返回错误。
+    pub fn frames_before(
+        &self,
+        thread: Uuid,
+        before: Option<&FrameCursor>,
+        limit: i64,
+    ) -> Result<FramePage> {
+        let ceiling = match before {
+            Some(cursor) => self.frame_row(thread, cursor)?,
+            None => i64::MAX,
+        };
 
-        let found = statement
-            .query_map(rusqlite::params![thread.to_string()], |row| row.get(0))?
+        let mut statement = self.connection.prepare_cached(
+            "SELECT session_id, seq, frame FROM run_events
+             WHERE thread_id = ?1 AND id < ?2
+             ORDER BY id DESC
+             LIMIT ?3",
+        )?;
+
+        let mut read = statement
+            .query_map(
+                rusqlite::params![thread.to_string(), ceiling, limit],
+                |row| {
+                    Ok((
+                        FrameCursor {
+                            session_id: row.get(0)?,
+                            seq: row.get(1)?,
+                        },
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        Ok(found)
+        /* 没读满就是前面没有了；读满时这一页最早那一帧就是下一次的读取位置。 */
+        let full = usize::try_from(limit).is_ok_and(|page| read.len() >= page);
+
+        read.reverse();
+
+        let before = if full {
+            read.first().map(|(cursor, _frame)| cursor.clone())
+        } else {
+            None
+        };
+
+        Ok(FramePage {
+            frames: read.into_iter().map(|(_cursor, frame)| frame).collect(),
+            before,
+        })
+    }
+
+    /// 游标那一行在表上的编号。内部编号不出这个 crate，翻译只在这里。
+    fn frame_row(&self, thread: Uuid, cursor: &FrameCursor) -> Result<i64> {
+        let mut statement = self.connection.prepare_cached(
+            "SELECT id FROM run_events
+             WHERE thread_id = ?1 AND session_id = ?2 AND seq = ?3",
+        )?;
+
+        Ok(statement.query_row(
+            rusqlite::params![thread.to_string(), cursor.session_id, cursor.seq],
+            |row| row.get(0),
+        )?)
     }
 
     /// 这条对话上，这条会话已经用掉的最后一个位置；没有就是 0。

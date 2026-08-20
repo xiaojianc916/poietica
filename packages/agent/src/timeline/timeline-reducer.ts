@@ -65,16 +65,54 @@ export function replayRunEvents(events: readonly RunEvent[]): TimelineState {
 }
 
 /**
- * 一条对话的日志，重放成一份转录。
+ * 最新那一页日志，重放成一份转录。
  *
- * 日志由这台机器自己记（run_events），所以段边界就在帧里：每一轮的第一帧是
- * run_started。末轮编号为 0、往前为负，于是重放之后接着往下走的那些轮次从 1
- * 起，两侧的条目 id 不会撞。
+ * 段号从首轮的 r0 正着数，接着说下去的轮次从它之后继续（openSegment 只加不
+ * 减），两侧的条目 id 因此不会撞。更早的页由 prependThreadEvents 接在前面。
  */
 export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
-  /* 段号从头正着数：首轮 r0，此后每一轮加一。重放停在最后一轮，接着说下去的
-     轮次从它之后继续（openSegment 只加不减），两侧的条目 id 因此不会撞。一趟。 */
   return freeze(fill(draftOf(createTimelineState()), events))
+}
+
+/**
+ * 更早的一页日志，接在这份转录的前面。
+ *
+ * 这一批的段号一律小于现有最小段号，所以既有条目的 id 一个字都不改 —— 虚拟
+ * 列表的 key、实测高度与下游三处记忆化因此都不失效。段号不连续无害：全仓对
+ * turn 只做比较，不做算术。
+ *
+ * 下界可证：apply 每帧至多开一段（run_started 走 beginRun，openSegment 把
+ * promptLanded 置假，随后的 beginQuestion 开不出第二段），所以帧数就是段数
+ * 的上界。
+ *
+ * status、lastSeq 与 runIndex 说的都是最新那一轮，而它在已加载的那一页里，
+ * 所以这里一格都不动 —— 一批更早的帧没有资格宣告当前那一轮的状态。
+ */
+export function prependThreadEvents(
+  state: TimelineState,
+  events: readonly RunEvent[],
+): TimelineState {
+  if (events.length === 0) {
+    return state
+  }
+
+  const earlier = fill(
+    draftOf({ ...createTimelineState(), runIndex: floorTurn(state) - events.length }),
+    events,
+  )
+
+  return {
+    status: state.status,
+    items: [...earlier.items, ...state.items],
+    lastSeq: state.lastSeq,
+    runIndex: state.runIndex,
+    spans: [...earlier.spans, ...state.spans],
+  }
+}
+
+/** 现有条目里最小的那个段号；一条都没有时就是它自己的起点。 */
+function floorTurn(state: TimelineState): number {
+  return state.items.reduce((least, item) => Math.min(least, item.turn), state.runIndex)
 }
 
 /** 把一段日志放进一份草稿。两趟共用，所以两趟看见的段边界一定相同。 */

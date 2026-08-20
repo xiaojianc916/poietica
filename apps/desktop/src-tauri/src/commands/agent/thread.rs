@@ -5,7 +5,7 @@ use crate::attachments::forget_blob;
 use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::{agent_home, remove_projectless_workspace};
-use poietica_agent_persistence_native::TitleSource;
+use poietica_agent_persistence_native::{FrameCursor, FramePage, TitleSource};
 use serde_json::Value;
 use tauri::{AppHandle, State, async_runtime};
 
@@ -13,14 +13,15 @@ use super::addressing::{Held, read_point, session_for};
 use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
-    AgentArchiveThreadRequest, AgentForkThreadRequest, AgentOpenThreadRequest, AgentOpenedThread,
-    AgentPinThreadRequest, AgentRenameThreadRequest, AgentSessionUsage, AgentThread,
-    AgentThreadRequest, AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD,
+    AgentArchiveThreadRequest, AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFrameCursor,
+    AgentFramePage, AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest,
+    AgentRenameThreadRequest, AgentSessionUsage, AgentThread, AgentThreadRequest, AgentTitleSource,
+    FALLBACK_THREAD_TITLE, NO_THREAD,
 };
 use super::failure::translate;
 use super::kimi_state::sync_kimi_archive_state;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
-use super::{AgentCommandResult, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS};
+use super::{AgentCommandResult, FRAME_PAGE, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS};
 
 /// Lists the stored conversations, newest first.
 ///
@@ -46,7 +47,7 @@ pub async fn agent_threads(index: State<'_, LocalIndex>) -> AgentCommandResult<V
     Ok(stored.into_iter().map(retitle).collect())
 }
 
-/// 打开一条对话：把它整条要回来。
+/// 打开一条对话：把最新那一页经过要回来。
 ///
 /// 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，`session_for`
 /// 认出它存着的会话号不是本次连接开的，于是请 driver 把它订阅回来 —— 号
@@ -134,8 +135,10 @@ pub async fn agent_open_thread(
         let thread = retitle(stored);
 
         /* 经过由本地日志重放，而日志只由跑那一轮的那一侧写（turn.rs 的
-        logging）。空着就是空着 —— 这台机器没记过它。 */
-        let frames = store.frames_of(thread_id).map_err(persistence)?;
+        logging）。这里只取最新那一页，更早的走 agent_earlier_frames。 */
+        let frames = store
+            .frames_before(thread_id, None, FRAME_PAGE)
+            .map_err(persistence)?;
 
         Ok((thread, usage, frames))
     })
@@ -143,30 +146,75 @@ pub async fn agent_open_thread(
 
     deliver_attachments(&state, &index, &assets, thread_id).await?;
 
-    let events = restored(frames)?;
-
     Ok(AgentOpenedThread {
         thread,
         selectors: offered.into_iter().map(restate).collect(),
-        events,
+        frames: paged(frames)?,
         history,
         usage,
     })
 }
 
-/// 日志里那些行，回到帧的形状。
+/// 这条对话更早的一页经过。
+///
+/// 一次读，别的都不做：位置由上一页交回来，轮次的对齐归渲染层 —— 一帧是不是
+/// 一轮的开头，只有认识帧的那一侧答得上（frame.rs），而库里那一列是 opaque
+/// JSON。
+///
+/// # Errors
+///
+/// 标识不是 UUID，或库拒绝这次读取时失败。
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_earlier_frames(
+    index: State<'_, LocalIndex>,
+    request: AgentEarlierFramesRequest,
+) -> AgentCommandResult<AgentFramePage> {
+    let id = conversation(&request.thread_id)?;
+    let before = located(&request.before);
+
+    let frames = on_index(&index, move |store| {
+        store
+            .frames_before(id, Some(&before), FRAME_PAGE)
+            .map_err(persistence)
+    })
+    .await?;
+
+    Ok(paged(frames)?)
+}
+
+/// 一页日志行，回到帧的形状。
 ///
 /// 读不成的一行是本地日志坏了，不是这条对话的内容 —— 说出来，不静默跳过。
-fn restored(logged: Vec<String>) -> Result<Vec<Value>> {
-    let mut events = Vec::with_capacity(logged.len());
+fn paged(page: FramePage) -> Result<AgentFramePage> {
+    let mut events = Vec::with_capacity(page.frames.len());
 
-    for line in logged {
+    for line in page.frames {
         events.push(serde_json::from_str(&line).map_err(|error| {
             Error::Internal(format!("a recorded frame could not be read: {error}"))
         })?);
     }
 
-    Ok(events)
+    Ok(AgentFramePage {
+        events,
+        before: page.before.map(cursored).transpose()?,
+    })
+}
+
+/// 库上那个位置，收进线上那一格的宽度。
+fn cursored(cursor: FrameCursor) -> Result<AgentFrameCursor> {
+    Ok(AgentFrameCursor {
+        session_id: cursor.session_id,
+        seq: counted(cursor.seq)?,
+    })
+}
+
+/// 渲染层回传的那个位置，回到库上的形状。
+fn located(cursor: &AgentFrameCursor) -> FrameCursor {
+    FrameCursor {
+        session_id: cursor.session_id.clone(),
+        seq: i64::from(cursor.seq),
+    }
 }
 
 /// Restates one stored conversation in the shape the bindings carry.

@@ -313,6 +313,36 @@ pub struct AgentThread {
     pub archived: bool,
 }
 
+/// 一页帧从哪儿往前读。渲染层原样回传，不解释：它是库上那把唯一键。
+#[derive(Debug, Deserialize, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentFrameCursor {
+    /// 位置属于哪条会话。
+    pub session_id: String,
+    /// 它在那条会话上的位置。
+    pub seq: u32,
+}
+
+/// 一页帧，以及更早那一页从哪儿接着读。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentFramePage {
+    /// 这一页的帧，按追加顺序。
+    pub events: Vec<Value>,
+    /// 更早那一页的读取位置；缺席就是前面没有了。
+    pub before: Option<AgentFrameCursor>,
+}
+
+/// 要往前读的那条对话，以及从哪儿接着读。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentEarlierFramesRequest {
+    /// 往前读哪条对话。
+    pub thread_id: String,
+    /// 上一页交回的读取位置。
+    pub before: AgentFrameCursor,
+}
+
 /// 要打开的对话，以及必要时怎样启动 agent。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -336,14 +366,13 @@ pub struct AgentOpenedThread {
     pub thread: AgentThread,
     /// What may be chosen for this session, as the agent reported it.
     pub selectors: Vec<AgentConfigControl>,
-    /// 这条对话的经过，由本地日志交回来。
+    /// 这条对话最新的那一页经过，由本地日志交回来。
     ///
     /// 库里记下的就是当时交给界面的那一批（见 turn.rs 的 logging），所以重开
     /// 一条对话与看着它发生不可能对不上。
     ///
-    /// 空只有一种理由是理所应当的：这条对话刚建。其余的空都是"有经过但拿不
-    /// 到"，由下面那一格说清是为什么。
-    pub events: Vec<Value>,
+    /// 一页，不是全量：更早的按页里那个位置向 `agent_earlier_frames` 续读。
+    pub frames: AgentFramePage,
     /// 上面那格为什么是它现在的样子。
     ///
     /// 空数组自己说不出区别：刚建的对话与一条打不开的旧对话长得一样。界面
@@ -432,10 +461,9 @@ pub enum AgentHistoryLoss {
 
 /// 这一次打开，屏幕上应该出现什么。
 ///
-/// 加这一格是因为四种截然不同的处境此前长得一模一样：`events` 都是空数组。
-/// 刚建的对话是空的，理所应当；而一条聊过两小时的对话在换了 agent 之后也是
-/// 空的 —— 界面分不出来，就只能默不作声地给一块白板。那不是"没有历史"，那
-/// 是"有历史但拿不到"，两件事对人的意义完全不同。
+/// 空的经过说不出区别：刚建的对话是空的，理所应当；而一条聊过两小时的对话在
+/// 换了 agent 之后也是空的。那不是"没有历史"，那是"有历史但拿不到"，两件事对
+/// 人的意义完全不同。
 ///
 /// 内部标签，所以线上是一个判别联合：`{ state: "live" }`、
 /// `{ state: "unavailable", reason: …, owner: … }`。
