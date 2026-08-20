@@ -19,7 +19,7 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
   const { sidebarOpen, sidebarWidth, splitter } = useWorkspaceLayoutState()
   const { setSidebarOpen, setSidebarWidth } = workspaceLayoutStore
 
-  /* 判据在 useIsSidebarDocked 里，标题栏那截竖线读的是同一个。 */
+  /* 停靠是呈现判据：列宽与分隔线的可见性都由它派生。 */
   const dockSidebar = useIsSidebarDocked()
   const activeTabDomId = encodeWorkbenchTabDomId(model.activeTabId)
 

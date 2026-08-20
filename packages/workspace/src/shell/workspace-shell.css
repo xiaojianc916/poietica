@@ -6,8 +6,6 @@
  * 行高由布局令牌提供，两者仍然只有一个所有者。
  */
 .workspace-shell {
-  --workspace-divider-hover-delay: 50ms;
-
   grid-template-columns:
     var(--workspace-sidebar-column-width, 0px)
     minmax(0, 1fr);
@@ -18,31 +16,52 @@
 }
 
 /*
- * 侧边栏与内容之间那条线。
+ * 区域分隔线：整窗一条，唯一的画者。
  *
- * 静止态直接读令牌，不经中转；--workspace-divider-* 只在强调态被声明，消费端写成
- * var(--workspace-divider-*, 令牌)，兜底就是那个令牌本身，所以没有第二份真相。
+ * 它是栅格里的一个格位——第一列、跨所有行、贴列的 inline-end 边，位置就是列边界
+ * 本身，没有第二份坐标，chrome 行与侧栏行不可能对不齐。静态定位的栅格项同样认
+ * z-index（CSS Grid Layout「Z-axis Ordering」），所以压过主区不必脱离文档流。
  *
- * chrome 行内那一小截与侧栏那一长段读同一组表达式：inline-end 都取自
- * --workspace-sidebar-column-width，粗细都朝自己盒内长，对齐是算出来的。
+ * 厚度画在 border 上而不是 1px 宽的背景盒上：Chromium 把边框吸附到设备像素边界
+ * （见 packages/ui/src/styles/tokens/controls.css），非整数显示缩放下只有这一种
+ * 画法的设备像素数是确定的。
+ *
+ * 强调态读根节点的 data-splitter，不读 :hover / :active：拖拽走 setPointerCapture，
+ * 捕获期间的 hover 按 Pointer Events L3 记在捕获元素上，松手不保证当帧纠正。
+ * 键盘焦点只加深墨色，不加粗。
  */
+.workspace-shell__divider {
+  --workspace-divider-hover-delay: 50ms;
 
-/*
- * 强调态读根节点的 data-splitter，不读 :hover / :active。
- *
- * 拖拽走 setPointerCapture，捕获期间浏览器的 hover 按规范被覆盖到捕获元素上
- * （Pointer Events L3），松手后不保证当帧纠正 —— 粗细挂在它上面就会卡住。
- * 键盘焦点仍由浏览器拥有（blur 即清），只加深墨色，不加粗。
- */
-.workspace-shell[data-splitter="hover"],
-.workspace-shell[data-splitter="drag"],
-.workspace-shell:has(.workspace-sidebar-splitter:focus-visible) {
-  --workspace-divider-ink: color-mix(in oklab, var(--color-foreground) 3%, var(--color-divider));
+  z-index: 2;
+  grid-area: 1 / 1 / -1 / 2;
+  justify-self: end;
+  inline-size: 0;
+  border-inline-end: var(--ui-region-divider-width) solid var(--color-divider);
+  pointer-events: none;
+  transition:
+    border-inline-end-color var(--workspace-layout-duration) ease,
+    opacity var(--workspace-layout-duration) ease,
+    border-inline-end-width 0s;
 }
 
-.workspace-shell[data-splitter="hover"],
-.workspace-shell[data-splitter="drag"] {
-  --workspace-divider-width: calc(var(--ui-region-divider-width) * 2);
+.workspace-shell[data-sidebar-docked="false"] .workspace-shell__divider {
+  opacity: 0;
+}
+
+.workspace-shell[data-splitter="hover"] .workspace-shell__divider,
+.workspace-shell[data-splitter="drag"] .workspace-shell__divider,
+.workspace-shell:has(.workspace-sidebar-splitter:focus-visible) .workspace-shell__divider {
+  border-inline-end-color: color-mix(in oklab, var(--color-foreground) 3%, var(--color-divider));
+}
+
+.workspace-shell[data-splitter="hover"] .workspace-shell__divider,
+.workspace-shell[data-splitter="drag"] .workspace-shell__divider {
+  border-inline-end-width: calc(var(--ui-region-divider-width) * 2);
+}
+
+.workspace-shell[data-splitter="hover"] .workspace-shell__divider {
+  transition-delay: 0s, 0s, var(--workspace-divider-hover-delay);
 }
 
 /*
@@ -90,32 +109,4 @@
  */
 .workspace-shell[data-sidebar-docked="false"] .workspace-shell__sidebar {
   pointer-events: none;
-}
-
-/*
- * 线是列上的伪元素，不是侧栏的 border：border 长在列的边框盒内缘，而侧栏内容是
- * 与列等宽的定宽底面，子元素绘制在父级边框之上，线会被自己的内容吃掉。
- *
- * 伪元素贴 inline-end 边、压在底面之上，位置只由列宽决定，所以补间每一帧都贴着
- * 主区左缘；列宽归零时它整条落到窗口左缘之外，收起态因此不必再改颜色。
- * 墨色过渡，粗细即时。
- */
-.workspace-shell__sidebar::after {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-end: 0;
-  width: var(--workspace-divider-width, var(--ui-region-divider-width));
-  background-color: var(--workspace-divider-ink, var(--color-divider));
-  transition:
-    background-color var(--workspace-layout-duration) ease,
-    width 0s;
-}
-
-.workspace-shell[data-splitter="hover"] .workspace-shell__sidebar::after {
-  transition-delay: 0s, var(--workspace-divider-hover-delay);
-}
-
-.workspace-shell[data-splitter="drag"] .workspace-shell__sidebar::after {
-  transition-delay: 0s;
 }

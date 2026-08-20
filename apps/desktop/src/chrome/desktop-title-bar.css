@@ -6,10 +6,7 @@
  * 本文件不写它的兜底值：兜底值就是第二份真相，上游改数它不跟，而且永远不报错。
  *
  * 开合按钮的盒子居中压在这条中线上，所以前导留白 = 中线 − 控件高 / 2；区宽的下限
- * = 前导 × 2 + 控件高，右侧留白因此与前导恒等——对称是算出来的，不是填一个数再在
- * 注释里追述它对称。此前 workspace-layout.ts 写死 44px，而按同一条中线对称应得
- * 48px（前导 8 + 按钮 32 + 右侧 8）；那份契约的测试只断言它是正整数，所以这处
- * 不对称从来没有被任何断言拦住过。
+ * = 前导 × 2 + 控件高，右侧留白因此与前导恒等——对称是算出来的。
  *
  * 前导夹到 0 不是装饰：控件高是 rem，根字号放大到控件高 > 2 × 中线时前导本该为负，
  * 而负 padding 会被静默夹成 0；区宽若仍按负值算就会小于内容，收起态的按钮会溢出到
@@ -26,7 +23,6 @@
     calc(var(--ui-row-icon-center) - var(--ui-control-height-sm) / 2)
   );
 
-  position: relative;
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -35,62 +31,6 @@
     var(--workspace-sidebar-column-width, 0px),
     calc(var(--titlebar-toggle-lead) * 2 + var(--ui-control-height-sm))
   );
-}
-
-/*
- * 竖线是独立元素而不是容器的 border-inline-end：border 宽度在 1px 与 0 之间只能
- * 硬切，而这条线要跟着面板一起淡出。它贴在容器右边界上，位置仍由上面那个
- * inline-size 唯一决定，没有第二份坐标。
- */
-.desktop-title-bar__edge {
-  position: absolute;
-  inset-block-start: 0;
-  /*
-   * 向下多走一个 divider 的厚度，穿过 chrome 行那条横线。
-   *
-   * 本元素的包含块是 toggle-zone，它在 header 的 content box 里，而横线是
-   * header 的 border-block-end，画在 content box 之外。所以 inset-block-end: 0
-   * 会让竖线在离 header 底部还有一个 divider 的地方停住，那一格正好被横线占
-   * 着 —— 看起来就是横线把竖线封了口，交叉处是一个 T 而不是一条线。拖拽态把
-   * 竖线加粗加深之后，这个断口就藏不住了。
-   *
-   * 负的这一格让它止于 header 的 border-box 底，也就是侧栏那一长段的起点：
-   * 不重叠、不留缝。绝对定位的后代天然画在祖先的 border 之上，所以谁压谁不
-   * 需要 z-index 来仲裁 —— 正在被拖动的那条线压过静态的区域分隔，这也是它
-   * 应该有的次序。
-   */
-  inset-block-end: calc(var(--ui-region-divider-width) * -1);
-  inset-inline-end: 0;
-  /*
-   * 与 chrome 行以下那一长段是同一组表达式 —— 这两段本来就是一条线，此前
-   * 只是各画各的。
-   *
-   * 三行长手而不是一条简写：简写里任一 var() 解不出来会让整条声明降级为
-   * unset，border-style 回到 none，这条线就会整条消失。长手各自独立降级，
-   * 而 style 根本不读变量。
-   *
-   * var() 的兜底不是本文件开头禁止的那种兜底值：它写的是同一个令牌，不是
-   * 另抄一个字面量，所以真相仍然只有一份。--workspace-divider-* 只在拖拽态
-   * 存在，静止态本就该落回令牌。
-   */
-  border-inline-end-style: solid;
-  border-inline-end-width: var(--workspace-divider-width, var(--ui-region-divider-width));
-  border-inline-end-color: var(--workspace-divider-ink, var(--color-divider));
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity var(--workspace-layout-duration) ease,
-    border-color var(--workspace-layout-duration) ease;
-}
-
-.desktop-title-bar__edge[data-visible="true"] {
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .desktop-title-bar__edge {
-    transition: none;
-  }
 }
 
 /*

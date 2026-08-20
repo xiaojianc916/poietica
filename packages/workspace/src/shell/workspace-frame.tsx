@@ -18,7 +18,7 @@ const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
 
   /*
    * 布局动画时长同时给 motion 的 transition 和 CSS 侧的过渡使用，两边共用
-   * 一条时间轴：否则标题栏的竖线渐隐会和面板滑动各跑各的节奏。
+   * 一条时间轴：否则分隔线的渐隐会和面板滑动各跑各的节奏。
    */
   '--workspace-layout-duration': `${WORKSPACE_LAYOUT.motion.layoutDurationSeconds}s`,
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
@@ -37,8 +37,9 @@ export interface WorkspaceFrameProps {
 /**
  * 外壳栅格的动画所有者。
  *
- * 行与列的模板、命名区域、竖线与空列的指针穿透都在 workspace-shell.css 里，
- * 这里只把停靠状态位挂到根元素上。
+ * 行与列的模板、命名区域、分隔线与空列的指针穿透都在 workspace-shell.css 里。
+ * 这里把停靠状态位挂到根元素上，并渲染分隔线本身——它是栅格家具，归栅格的
+ * 所有者持有，不归任何一侧的区域。
  */
 export function WorkspaceFrame({
   rootRef,
@@ -75,15 +76,13 @@ export function WorkspaceFrame({
       data-ui-rows=""
       initial={false}
       ref={rootRef}
-      style={{
-        ...WORKSPACE_LAYOUT_STYLE,
-        willChange: isDragging ? 'auto' : 'grid-template-columns',
-      }}
+      style={WORKSPACE_LAYOUT_STYLE}
       transition={transition}
     >
       {chrome}
       {sidebar}
       {main}
+      <div aria-hidden="true" className="workspace-shell__divider" />
     </motion.div>
   )
 }

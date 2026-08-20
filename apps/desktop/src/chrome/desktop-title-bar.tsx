@@ -1,6 +1,5 @@
 import { Button } from '@poietica/ui'
 import {
-  useIsSidebarDocked,
   useWorkspaceLayoutMode,
   useWorkspaceLayoutState,
   workspaceLayoutStore,
@@ -61,9 +60,8 @@ export interface DesktopTitleBarProps {
  * 标签条，整窗随之不可拖——归属错了，不是漏标。这里是两段：左侧开合区、中间
  * 填充区；右侧全被窗口控制键占满，没有可标注的空白。
  *
- * 这里不画 chrome 与内容之间的横线。那条线是外壳栅格 chrome 行的边界，由
- * WorkspaceShell 的 header 统一持有；标题栏内部再画一截，就会随内部结构
- * 变化而断续。
+ * 这里不画任何区域分隔线：横线是 chrome 行的边界，竖线是侧栏列的边界，两条都
+ * 由外壳栅格持有。标题栏内部再画一截，就会随内部结构变化而断续。
  *
  * 这里没有容器级 ARIA 角色。原先整条标注 role="toolbar"，而 toolbar 的契约是
  * roving tabindex，本组件从未实现；它的子元素里还有一整条 role="tablist"，也
@@ -92,15 +90,6 @@ export function DesktopTitleBar({
    */
   const layoutMode = useWorkspaceLayoutMode()
 
-  /*
-   * 竖线在不在，与侧栏那一长段同一个判据。
-   *
-   * 此前这里读的是 sidebarOpen —— 那是用户意图，拖窄窗口自动收起时它不变（也
-   * 不该变，否则拉宽回来侧栏就回不去了）。于是那一长段的墨色已经透明，chrome
-   * 行这一截还亮着：一条线断成了两种状态。
-   */
-  const isSidebarDocked = useIsSidebarDocked()
-
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 items-stretch bg-chrome">
       {/*
@@ -118,8 +107,7 @@ export function DesktopTitleBar({
        * 跟着面板同一条时间轴、到下限自然刹停，不需要另写一套动画。
        *
        * 下限不是填出来的数：它在 desktop-title-bar.css 里由中线与控件高算出，右侧
-       * 留白因此与左侧恒等。此前 workspace-layout.ts 写死 44px，而按同一条中线对称
-       * 应得 48px——那段注释在追述一个不成立的推导。
+       * 留白因此与左侧恒等。
        */}
       <div className="desktop-title-bar__toggle-zone desktop-title-bar__drag-region">
         <Button
@@ -169,12 +157,6 @@ export function DesktopTitleBar({
             </Button>
           </div>
         ) : null}
-
-        <span
-          aria-hidden="true"
-          className="desktop-title-bar__edge"
-          data-visible={isSidebarDocked}
-        />
       </div>
 
       <div className="desktop-title-bar__drag-region flex min-w-0 flex-1 items-stretch">
