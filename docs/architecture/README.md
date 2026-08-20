@@ -76,7 +76,6 @@ provider catalog list。
 
 | 文档 | 内容 |
 | --- | --- |
-| [`kap-capabilities.md`](./kap-capabilities.md) | kap 能力通道与实现状态 |
 | [`kap-client.md`](./kap-client.md) | kap 客户端、生命周期与已知缺口 |
 | [`agent-activity-feed.md`](./agent-activity-feed.md) | AI activity feed |
 | [`agent-persistence.md`](./agent-persistence.md) | AI persistence |

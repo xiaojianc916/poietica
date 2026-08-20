@@ -30,9 +30,9 @@ pub const QUESTIONS_ASKED: &str = "questions_asked";
 /// 那一组题结清了。
 pub const QUESTIONS_RESOLVED: &str = "questions_resolved";
 
-/// 一次运行里可能发生的六种事。
+/// 一次运行里可能发生的事。
 ///
-/// KapEvent 承载 kap 的事件原文；其余五种是协议不建模、而客户端必须记住的
+/// KapEvent 承载 kap 的事件原文；其余变体是协议不建模、而客户端必须记住的
 /// 事实。每一种都带 seq 与 at（见 RecordedEvent），所以重放是确定的。
 #[derive(Clone, Debug, Serialize)]
 #[serde(

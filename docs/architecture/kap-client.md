@@ -59,7 +59,7 @@ Approvals 走独立 REST 资源，客户端只在产品边界合成三个按钮�
 批准、拒绝。
 
 官方 Questions 是另一套独立资源：一次 1–4 题、单选或多选、可自由输入、可跳过。
-仓库里仍有一条把题目编码成权限选项的遗留 UI 路径，而 Rust 侧根本没有接
-Questions。它是待删除的阻塞项，不是兼容策略。
+它有自己的帧（questions_asked / questions_resolved）、自己的桌子（QuestionDesk），
+回答与撤下分走 `POST …/questions/{id}` 与 `:dismiss`。
 
 prompt queue、steer、cursor 恢复与 resync 同样未完成。

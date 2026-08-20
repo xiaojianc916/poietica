@@ -10,7 +10,7 @@ use poietica_agent_persistence_native::SessionUsage;
 use poietica_agent_runtime_native::{
     AgentClient, AgentConnection, AgentSpawn, CanCancelSession, CanDeleteSession, CanForkSession,
     CanLoadSession, Handshake, KapError, PermissionDesk, QuestionDesk, Refusal, RunSlot,
-    SessionBook, SessionEvent, connect_kap,
+    SessionBook, SessionEvent, connect,
 };
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
@@ -257,7 +257,7 @@ pub(super) async fn ensure_session(
         driver,
         events,
         book,
-    } = connect_kap(spawn, slot.clone(), desk.clone(), questions.clone()).map_err(translate)?;
+    } = connect(spawn, slot.clone(), desk.clone(), questions.clone()).map_err(translate)?;
 
     // The crate is runtime-agnostic on purpose; this is the composition root,
     // so this is where the driver gets an executor.
@@ -286,14 +286,6 @@ pub(super) async fn ensure_session(
                 } => AgentSessionEvent::Selectors {
                     session_id,
                     selectors: controls.into_iter().map(restate).collect(),
-                },
-
-                SessionEvent::Commands {
-                    session_id,
-                    commands,
-                } => AgentSessionEvent::Commands {
-                    session_id,
-                    commands,
                 },
 
                 SessionEvent::Usage { session_id, usage } => {

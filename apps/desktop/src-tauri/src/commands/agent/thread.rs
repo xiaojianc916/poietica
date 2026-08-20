@@ -338,7 +338,7 @@ pub async fn agent_delete_thread(
             要删：用户按的是删除，不是「如果 agent 同意就删除」。账照记 ——
             冲账那侧送达一次后无论答复如何都销账，毒不了队列。册子那一侧不
             归这里管：驱动器只在 agent 真的归档之后才销号（driver.rs 的
-            archive_kap_session）。 */
+            archive_session）。 */
             Err(error) => {
                 log::warn!("could not delete the session on the agent: {error}");
             }

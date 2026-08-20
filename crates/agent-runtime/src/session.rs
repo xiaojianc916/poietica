@@ -54,11 +54,6 @@ pub enum SessionEvent {
         session_id: String,
         controls: Vec<ConfigControl>,
     },
-    /// 这条会话上现在的整张命令表。kap 没有对应的推送，这一格暂时没有生产者。
-    Commands {
-        session_id: String,
-        commands: Vec<serde_json::Value>,
-    },
     /// 这条会话此刻的上下文用量，由 driver 从 agent.status.updated 折过来。
     Usage {
         session_id: String,
@@ -131,7 +126,7 @@ impl fmt::Debug for AgentConnection {
 }
 
 /// 装载一条旧会话的凭证（kap：装载就是验存在并重新订阅，见 driver 的
-/// load_kap_session）。
+/// load_session）。
 ///
 /// 凭证只有这个 crate 铸得出来，铸造处只有握手一个。kap-server 的路由面自带
 /// 这四件事，所以握手无条件铸齐。收凭证的是 AgentClient 上的方法 —— 拿不出

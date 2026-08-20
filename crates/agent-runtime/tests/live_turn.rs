@@ -65,7 +65,7 @@ use futures::channel::oneshot;
 use futures::executor::block_on;
 use poietica_agent_runtime_native::{
     AgentConnection, AgentSpawn, ConfigControl, KapError, PermissionDesk, RUN_FINISHED,
-    RUN_STARTED, RecordedEvent, RunFrame, RunSlot, connect_kap,
+    RUN_STARTED, RecordedEvent, RunFrame, RunSlot, connect,
 };
 use tempfile::TempDir;
 
@@ -195,7 +195,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         events: _,
         handshake,
         driver,
-    } = connect_kap(spawn, slot, desk).expect("the program to be launchable");
+    } = connect(spawn, slot, desk).expect("the program to be launchable");
 
     let mut driver = Driver::spawn(driver);
 

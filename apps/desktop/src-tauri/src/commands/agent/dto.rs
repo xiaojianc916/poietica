@@ -195,13 +195,6 @@ pub enum AgentSessionEvent {
         session_id: String,
         selectors: Vec<AgentConfigControl>,
     },
-    /// 那条会话上现在的整张命令表。kap 没有对应的推送，这一格暂时没有生产者；
-    /// 形状保留给读它的那一层（agent-contract 的 palette.ts）。
-    #[serde(rename_all = "camelCase")]
-    Commands {
-        session_id: String,
-        commands: Vec<Value>,
-    },
     /// 那条会话此刻的上下文用量。
     #[serde(rename_all = "camelCase")]
     Usage {

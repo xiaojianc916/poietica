@@ -1,5 +1,3 @@
-// kap-transport-v1
-//!
 //! kap 传输驱动器。
 //!
 //! 进程模型：spawn "kimi web --no-open" → 等注册表出现本次拉起后的条目、且那个
@@ -671,7 +669,7 @@ pub fn connect(
         let _ = ready_tx.send(Ok(Handshake {
             session_id: session_id.clone(),
             // kap 的会话在 server 侧持久，装载 / 归档 / 分叉 / 中止都有对应路由
-            // （load_kap_session、:archive、:fork、abort 控制帧）。
+            // （load_session、:archive、:fork、abort 控制帧）。
             loading: Some(CanLoadSession::granted()),
             deleting: Some(CanDeleteSession::granted()),
             forking: Some(CanForkSession::granted()),
@@ -715,12 +713,15 @@ pub fn connect(
                             if let Some(state) = sessions.get(&sid)
                                 && let Some(prompt_id) = &state.active_prompt_id
                             {
-                                send_frame(&ws, "abort", json!({
+                                let aborted = send_frame(&ws, "abort", json!({
                                     "session_id": sid,
                                     "prompt_id": prompt_id,
                                 }))
-                                .await
-                                .ok();
+                                .await;
+
+                                if let Err(error) = aborted {
+                                    log::warn!("the abort for {sid} never left: {error}");
+                                }
                             }
                         }
 
@@ -731,7 +732,7 @@ pub fn connect(
                             let ws2 = Arc::clone(&ws);
                             tokio::spawn(async move {
                                 let result =
-                                    open_kap_session(&http2, &base2, &new_cwd, &book2, &ws2).await;
+                                    open_session(&http2, &base2, &new_cwd, &book2, &ws2).await;
                                 let _ = reply.send(result);
                             });
                         }
@@ -743,7 +744,7 @@ pub fn connect(
                             let ws2 = Arc::clone(&ws);
                             tokio::spawn(async move {
                                 let result =
-                                    load_kap_session(&http2, &base2, &sid, &book2, &ws2).await;
+                                    load_session(&http2, &base2, &sid, &book2, &ws2).await;
                                 let _ = reply.send(result);
                             });
                         }
@@ -755,7 +756,7 @@ pub fn connect(
                             let ws2 = Arc::clone(&ws);
                             tokio::spawn(async move {
                                 let result =
-                                    fork_kap_session(&http2, &base2, &src, &book2, &ws2).await;
+                                    fork_session(&http2, &base2, &src, &book2, &ws2).await;
                                 let _ = reply.send(result);
                             });
                         }
@@ -766,7 +767,7 @@ pub fn connect(
                             let base2 = base_url.clone();
                             let book2 = book_clone.clone();
                             tokio::spawn(async move {
-                                let result = archive_kap_session(&http2, &base2, &sid, &book2).await;
+                                let result = archive_session(&http2, &base2, &sid, &book2).await;
                                 let _ = reply.send(result);
                             });
                         }
@@ -775,7 +776,7 @@ pub fn connect(
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             tokio::spawn(async move {
-                                let result = list_kap_sessions(&http2, &base2).await;
+                                let result = list_sessions(&http2, &base2).await;
                                 let _ = reply.send(result);
                             });
                         }
@@ -808,7 +809,7 @@ pub fn connect(
                                     let book2 = book_clone.clone();
                                     let sid2 = sid.clone();
                                     tokio::spawn(async move {
-                                        let result = submit_kap_prompt(
+                                        let result = submit_prompt(
                                             &http2, &base2, &sid2, &text, &images, &prompt_id,
                                         )
                                         .await;
@@ -835,7 +836,7 @@ pub fn connect(
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             tokio::spawn(async move {
-                                let result = get_kap_selectors(&http2, &base2, &sid).await;
+                                let result = get_selectors(&http2, &base2, &sid).await;
                                 let _ = reply.send(result);
                             });
                         }
@@ -845,7 +846,7 @@ pub fn connect(
                             let base2 = base_url.clone();
                             tokio::spawn(async move {
                                 let result =
-                                    set_kap_selector(&http2, &base2, &sid, &config_id, &value)
+                                    set_selector(&http2, &base2, &sid, &config_id, &value)
                                         .await;
                                 let _ = reply.send(result);
                             });
@@ -1386,7 +1387,7 @@ async fn fetch_and_record_questions(
 
 // ── 会话的 REST 辅助 ───────────────────────────────────────────────────────
 
-async fn submit_kap_prompt(
+async fn submit_prompt(
     http: &reqwest::Client,
     base_url: &str,
     session_id: &str,
@@ -1432,7 +1433,7 @@ async fn submit_kap_prompt(
         .to_owned())
 }
 
-async fn open_kap_session(
+async fn open_session(
     http: &reqwest::Client,
     base_url: &str,
     cwd: &Path,
@@ -1470,7 +1471,7 @@ async fn open_kap_session(
 /// kap 的会话在 server 侧持久：装载 = 验存在 + 重新订阅。号在 server 侧也没了
 /// 时，GET 的信封带非零 code，在这里变成 Err —— 调用侧据此走 Forgotten 路径
 /// （桌面 seam 的 addressing.rs）。
-async fn load_kap_session(
+async fn load_session(
     http: &reqwest::Client,
     base_url: &str,
     session_id: &str,
@@ -1492,7 +1493,7 @@ async fn load_kap_session(
     })
 }
 
-async fn fork_kap_session(
+async fn fork_session(
     http: &reqwest::Client,
     base_url: &str,
     source_id: &str,
@@ -1528,7 +1529,7 @@ async fn fork_kap_session(
     })
 }
 
-async fn archive_kap_session(
+async fn archive_session(
     http: &reqwest::Client,
     base_url: &str,
     session_id: &str,
@@ -1546,7 +1547,7 @@ async fn archive_kap_session(
     Ok(())
 }
 
-async fn list_kap_sessions(http: &reqwest::Client, base_url: &str) -> Result<Vec<SessionEntry>> {
+async fn list_sessions(http: &reqwest::Client, base_url: &str) -> Result<Vec<SessionEntry>> {
     let data = get(http, &format!("{base_url}/sessions")).await?;
 
     let items = data
@@ -1581,7 +1582,7 @@ async fn best_effort_selectors(
     base_url: &str,
     session_id: &str,
 ) -> Vec<ConfigControl> {
-    match get_kap_selectors(http, base_url, session_id).await {
+    match get_selectors(http, base_url, session_id).await {
         Ok(offered) => offered,
         Err(error) => {
             log::warn!("could not read the session's selectors: {error}");
@@ -1590,7 +1591,7 @@ async fn best_effort_selectors(
     }
 }
 
-async fn get_kap_selectors(
+async fn get_selectors(
     http: &reqwest::Client,
     base_url: &str,
     session_id: &str,
@@ -1601,7 +1602,7 @@ async fn get_kap_selectors(
     Ok(controls(&status, &catalog))
 }
 
-async fn set_kap_selector(
+async fn set_selector(
     http: &reqwest::Client,
     base_url: &str,
     session_id: &str,
@@ -1619,5 +1620,5 @@ async fn set_kap_selector(
     )
     .await?;
 
-    get_kap_selectors(http, base_url, session_id).await
+    get_selectors(http, base_url, session_id).await
 }

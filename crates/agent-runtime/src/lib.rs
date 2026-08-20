@@ -1,4 +1,3 @@
-// kap-exports
 //! kap（Kimi Code 本地服务）的客户端运行时：起 kimi web、走 REST +
 //! WebSocket、把一次运行记成帧。
 //!
@@ -21,7 +20,7 @@
 //! desks, and a handler blocks on its own desk until a real answer arrives
 //! rather than inventing one.
 
-pub use driver::connect as connect_kap;
+pub use driver::connect;
 
 mod commands;
 mod config;

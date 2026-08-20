@@ -59,7 +59,7 @@ pub(crate) enum Command {
     /// 把一条以前开过的会话装回本次连接。
     ///
     /// 会话号是上一次运行存下来的。kap 的会话在 server 侧持久，装载就是
-    /// 验存在并重新订阅（load_kap_session）：装载之后这条会话仍然是它自己，
+    /// 验存在并重新订阅（load_session）：装载之后这条会话仍然是它自己，
     /// 历史因此还在 agent 手里 —— 与新开一条的分别在于上下文还在不在。
     LoadSession {
         session_id: String,
