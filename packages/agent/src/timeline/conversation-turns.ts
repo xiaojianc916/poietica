@@ -123,7 +123,8 @@ export function selectTurns(rows: readonly FeedRow[]): readonly ConversationTurn
  * 报错是讣告,不是目的地:断网、鉴权失败、额度耗尽、reducer 记下的空转,跨度里
  * 都只有一条 error,人接着又问了一遍 —— 屏幕上那是挤在一起的两个气泡,轨道上
  * 不该是两站。permission 本来就不渲染。空字符串的 agent_text 渲染出来什么都
- * 没有,同理不算。
+ * 没有,同理不算。没结清的题长在输入框那张卡里,同理不算;结清的题在转录里留卡,
+ * 算一站。
  */
 function leavesAMark(item: TimelineItem): boolean {
   switch (item.type) {
@@ -134,6 +135,8 @@ function leavesAMark(item: TimelineItem): boolean {
       return true
     case 'plan':
       return item.entries.length > 0
+    case 'question':
+      return item.resolution !== undefined
     case 'error':
     case 'permission':
     case 'user_message':

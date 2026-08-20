@@ -54,6 +54,10 @@ export const TimelineRow = memo(function TimelineRow({ row }: TimelineRowProps) 
     case 'question':
       return <QuestionRecord item={item} />
 
+    /* 审批从不成行（renderable 把它挡在 feed 外）；这一支只为穷尽联合而存在。 */
+    case 'permission':
+      return null
+
     default:
       return unhandled(item)
   }

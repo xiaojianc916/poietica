@@ -13,8 +13,8 @@ import { diffLines } from 'diff'
  * these get drawn when a recording contains one.
  *
  * 它住在 domain。这里没有一行 React，做的是「协议信封 → 可显示的片段」这一次投影，
- * 与 ask-user-question 同类。此前它住在 timeline/，于是 domain 想读一段 content 就
- * 得反着依赖表现层 —— 题面那份手搓的 unknown 收窄正是这么长出来的。
+ * 与 composer/question-answer 同类。此前它住在 timeline/，于是 domain 想读一段
+ * content 就得反着依赖表现层 —— 手搓的 unknown 收窄正是这么长出来的。
  */
 
 export type ToolContentPart =

@@ -21,6 +21,8 @@ function fakePort(): {
       prompt: () => Promise.resolve({ sessionId: 'sess_a', images: [] }),
       cancel: () => Promise.resolve(),
       resolvePermission: () => Promise.resolve(),
+      answerQuestions: () => Promise.resolve(),
+      dismissQuestions: () => Promise.resolve(),
     },
     emit: (events, sessionId) => {
       for (const listener of listeners) {

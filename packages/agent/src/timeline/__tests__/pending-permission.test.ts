@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PermissionItem, TimelineItem } from '../timeline-contract'
-import { type PermissionScope, pendingPermission } from '../timeline-queries'
+import { pendingPermission, type WaitingScope } from '../timeline-queries'
 
 /*
  * 并行子代理会让一轮里同时挂着几个请求（ADR 0002）。
@@ -44,7 +44,7 @@ function answered(requestId: string, turn: number): PermissionItem {
  * 常态（原生侧的桌子随轮次收走了），那时把它交出去，摊在输入框上方的就是一条
  * 按下去没有任何效果的审批带。
  */
-function waiting(items: readonly TimelineItem[]): PermissionScope {
+function waiting(items: readonly TimelineItem[]): WaitingScope {
   return { items, runIndex: 1, status: 'awaiting_permission' }
 }
 

@@ -19,7 +19,6 @@ const DIALECT: AgentDialect = {
     'Approve for this session': '本次会话都批准',
     Reject: '拒绝',
   },
-  questions: [],
 }
 
 function permission(overrides: Partial<PermissionItem> = {}): PermissionItem {

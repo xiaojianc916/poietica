@@ -44,7 +44,7 @@ function labelOf(
   control: SessionConfigControl,
   choice: SessionConfigControl['choices'][number],
 ): string {
-  const prefix = '${control.label}'
+  const prefix = `${control.label}`
   const stripped = choice.label.startsWith(prefix) ? choice.label.slice(prefix.length) : ''
 
   return stripped.length > 0 ? stripped : choice.label

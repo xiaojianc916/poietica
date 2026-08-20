@@ -77,5 +77,9 @@ export function createReplaySession(options: ReplaySessionOptions): AgentSession
     },
 
     resolvePermission: () => Promise.resolve(),
+
+    answerQuestions: () => Promise.resolve(),
+
+    dismissQuestions: () => Promise.resolve(),
   }
 }

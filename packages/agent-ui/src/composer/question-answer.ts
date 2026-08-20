@@ -1,4 +1,5 @@
 import type {
+  QuestionAnswer,
   QuestionAnswerMethod,
   QuestionChoice,
   QuestionItem,
@@ -73,7 +74,7 @@ export function responseOf(
   method: QuestionAnswerMethod | undefined,
   note: string,
 ): QuestionResponse | undefined {
-  const answers: Record<string, QuestionChoice> = {}
+  const answers: QuestionAnswer[] = []
 
   for (const item of group.questions) {
     const answer = answerOf(item, drafts[item.id] ?? EMPTY_DRAFT)
@@ -82,7 +83,7 @@ export function responseOf(
       return undefined
     }
 
-    answers[item.id] = answer
+    answers.push({ questionId: item.id, answer })
   }
 
   const trimmed = note.trim()

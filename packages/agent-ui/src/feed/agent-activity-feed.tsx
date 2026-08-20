@@ -41,6 +41,8 @@ const ESTIMATED_ROW_PX: Record<FeedRow['item']['type'], number> = {
   plan: 200,
   /* 一组落定的题：题面一行、答复一行，取真高的下界。 */
   question: 96,
+  /* 审批从不成行（renderable 挡在 feed 外），这一格只为表对齐而存在。 */
+  permission: 0,
   error: 96,
 }
 
