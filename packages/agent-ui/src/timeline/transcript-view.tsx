@@ -1,12 +1,11 @@
 import {
   type FeedRow,
-  type PermissionItem,
   selectFeedRows,
   selectIsBusy,
   selectIsWaiting,
   selectTurns,
 } from '@poietica/agent'
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useAssistantTimeline } from '../session/use-assistant-session'
@@ -35,8 +34,6 @@ const NOTHING_OPENED: ReadonlySet<number> = new Set()
 export interface TranscriptViewProps {
   readonly sessionKey: string
   readonly isRestoring: boolean
-  /** 已经被输入框接管的那一道题：它不再进流，否则同一道题长在两个地方。 */
-  readonly excluded?: PermissionItem | undefined
   readonly renderRow: (row: FeedRow) => ReactNode
   /**
    * 分叉这条对话（整条带走）。ACP 的 session/fork 没有分叉点，所以它只交给
@@ -46,7 +43,6 @@ export interface TranscriptViewProps {
 }
 
 export function TranscriptView({
-  excluded,
   isRestoring,
   onFork,
   renderRow,
@@ -63,21 +59,6 @@ export function TranscriptView({
    * 有一个，而它在选择器里：那里是跨组件共享的位置，这里不是。
    */
   const rows = selectFeedRows(timeline)
-
-  /*
-   * 摘掉那一行是一次分配，所以它要有记性。
-   *
-   * 此前是渲染期直接 filter。而 selectTurns 的复用判据是 held.rows === rows —— 只要
-   * 有一道题在等答复，visibleRows 每次渲染都是一个新数组，那张弱表就在最需要它的那
-   * 段时间里恒不命中，轮次每帧重建。选择器的增量派生没有错，是上游把它的前提拆了。
-   *
-   * 这一层不该有第二份缓存所有权：这里 memo 的只是「摘掉一行」这次分配本身，投影
-   * 仍然归选择器。
-   */
-  const visibleRows = useMemo(
-    () => (excluded === undefined ? rows : rows.filter((row) => row.item !== excluded)),
-    [excluded, rows],
-  )
 
   /*
    * 哪几轮被人点开了。
@@ -108,13 +89,13 @@ export function TranscriptView({
    *
    * 不包 useMemo，理由与上面那三个选择器同一条：foldFeed 自带按轮记账的投影缓存
    * （turn-fold 的 FOLDS 弱表，三个入参都没换时交还同一个对象），而这里的依赖里有每帧
-   * 换引用的 visibleRows —— 再包一层永远不命中，只是每帧多一次依赖数组的分配与比较。
+   * 换引用的 rows —— 再包一层永远不命中，只是每帧多一次依赖数组的分配与比较。
    * 缓存的所有权只能有一个，而它在派生里。
    */
-  const feed = foldFeed(visibleRows, timeline.spans, opened)
+  const feed = foldFeed(rows, timeline.spans, opened)
 
   /* 此刻的最后一轮：帧流按时间排，最后一行属于谁，谁就是最后一轮。 */
-  const lastTurn = visibleRows[visibleRows.length - 1]?.item.turn
+  const lastTurn = rows[rows.length - 1]?.item.turn
 
   /*
    * 聚合排在折叠之后，两条通道各过一遍同一个函数。

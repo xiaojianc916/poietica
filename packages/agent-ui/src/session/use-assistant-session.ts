@@ -11,7 +11,6 @@ import {
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
-  pendingQuestionCount,
 } from '@poietica/agent'
 import type {
   AgentSessionPort,
@@ -146,9 +145,6 @@ const readPendingCount = (transcript: Transcript): number =>
 /* 待答的那一组题：与待答的审批同一趟倒扫、同一条引用稳定纪律（pendingQuestion）。 */
 const readQuestion = (transcript: Transcript): QuestionTimelineItem | undefined =>
   pendingQuestion(transcript.timeline)
-
-const readQuestionCount = (transcript: Transcript): number =>
-  pendingQuestionCount(transcript.timeline)
 
 export function useAssistantSession({
   endpoint,
@@ -306,11 +302,6 @@ export function useAssistantPendingCount(key: string): number {
  */
 export function useAssistantQuestion(key: string): QuestionTimelineItem | undefined {
   return useSlice(key, readQuestion)
-}
-
-/** 这一轮此刻一共有几组题在等。 */
-export function useAssistantQuestionCount(key: string): number {
-  return useSlice(key, readQuestionCount)
 }
 
 /* 请求只带一个号，要签字的原文在那条调用上。 */

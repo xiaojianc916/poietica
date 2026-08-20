@@ -22,7 +22,6 @@ export {
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
-  pendingQuestionCount,
   selectIsBusy,
 } from './timeline-queries'
 export {

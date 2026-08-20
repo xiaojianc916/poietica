@@ -17,7 +17,7 @@ import type { TimelineItem } from './timeline-contract'
  * --oss 下置真）；kimi-code 的 VS Code 界面在 showThinkingContent 为假时只画一个
  * 「Thinking」标签加一个转圈（ThinkingBlock.tsx），正文一个字不出。
  *
- * 所以转录里只有人说的话、回答、工具调用、计划与报错。这个决定只在这里做一次：
+ * 所以转录里只有人说的话、回答、工具调用、计划、落定的题与报错。这个决定只在这里做一次：
  * ReasoningPanel 仍挂在 TimelineRow 那个穷尽 switch 上，由类型系统看着——条目联合里
  * 还有 agent_thought，那个分支就删不掉；要让思考重新上屏，也只改这一行。
  */
@@ -42,6 +42,11 @@ export function isRenderable(item: TimelineItem): boolean {
   /* 还没结清的题不进转录 —— 它正长在输入框那张卡里。结清了才留下记录。 */
   if (item.type === 'question') {
     return item.resolution !== undefined
+  }
+
+  /* 审批不上屏：待答的那一道摊在输入框上方，答过的是操作痕迹，痕迹归事件日志。 */
+  if (item.type === 'permission') {
+    return false
   }
 
   return true

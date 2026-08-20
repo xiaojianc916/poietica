@@ -63,7 +63,6 @@ export {
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
-  pendingQuestionCount,
   replayRunEvents,
   replayThreadEvents,
   selectFeedRows,

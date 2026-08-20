@@ -12,18 +12,12 @@ import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
-import { useAgentDialect } from '../semantics/agent-dialect'
-import type { QuestionAnswer } from '../semantics/ask-user-question'
-import {
-  buildQuestionDeck,
-  isQuestionRequest,
-  readQuestionPrompt,
-} from '../semantics/ask-user-question'
 import type { AssistantSubmission } from '../session/use-assistant-session'
 import {
   useAssistantPending,
   useAssistantPendingCall,
   useAssistantPendingCount,
+  useAssistantQuestion,
   useAssistantSession,
 } from '../session/use-assistant-session'
 import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branch-picker'
@@ -129,9 +123,6 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 这里此前还有一个 effect 把 controlsFailure 抄进转录，那是同一件事的第二次
    * 写入：一个可撤销的状态被写成了不可撤销的记录，重试成功之后那条线还在。
    */
-  /* 这条对话对面是谁，由组合根说了算；这一层只负责把它的方言交给判据。 */
-  const dialect = useAgentDialect()
-
   /* 输入框盖在转录上，所以转录要知道它有多高。理由见 dock-clearance。 */
   const dockRef = useDockClearance()
 
@@ -143,8 +134,7 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 而 rows 每帧都是新的，于是每个 token 都把本轮走一遍去找一个不动的东西。
    *
    * 现在它是一条订阅，交回的是转录里那个条目本身：在被答复之前恒是同一个
-   * 引用，所以流式追加动不了这一层。是不是一道「提问」仍由 domain 判 ——
-   * 看 optionId 的形状而不是工具名；普通权限请求不在此列，仍然内联在流里答。
+   * 引用，所以流式追加动不了这一层。提问不在这条通道上：它有自己的条目类型。
    */
   const blocked = useAssistantPending(assistant.key)
 
@@ -154,49 +144,23 @@ export const AssistantSurface = memo(function AssistantSurface({
   /* 要批准的那件事本身，取自请求指向的那次调用。 */
   const call = useAssistantPendingCall(assistant.key)
 
-  const asking = blocked !== undefined && isQuestionRequest(blocked, dialect.questions)
-
-  const pending = asking ? blocked : undefined
+  /* 待答的那一组题。协议自己的通道，答复与撤下直走会话端口，不经权限请求。 */
+  const question = useAssistantQuestion(assistant.key)
 
   /*
-   * 待答的权限请求里，不是提问的那一类。
+   * 待答的那一次审批。
    *
-   * 两者借同一条通道，去处却相反：提问让输入框自己长成面板（答案是对话的一部分），
-   * 审批在同一张卡的顶上加一格（它是一道闸）。判据仍然只有一处 —— domain 的
-   * isQuestionRequest，认方言而不是认工具名。
-   *
-   * 交出去的是那一格自己的整副入参，不是三个各走各的 prop：这一层不再摆它，只是
+   * 交出去的是那一格自己的整副入参，不是三个各走各的 prop：这一层不摆它，只是
    * 把它交给持有那张卡的人。引用只随「换了一个请求」或「分母变了」而变，所以流式
    * 追加动不了被 memo 过的 composer。
    */
   const approval = useMemo<PermissionDockProps | null>(() => {
-    if (blocked === undefined || asking) {
+    if (blocked === undefined) {
       return null
     }
 
     return { call, item: blocked, onResolve: assistant.resolvePermission, waiting }
-  }, [asking, assistant.resolvePermission, blocked, call, waiting])
-
-  const questionDeck = useMemo(() => {
-    if (pending === undefined) {
-      return null
-    }
-
-    return buildQuestionDeck(
-      pending.requestId,
-      [
-        {
-          requestId: pending.requestId,
-          prompt: readQuestionPrompt(pending),
-          options: pending.options.map((option) => ({
-            optionId: option.optionId,
-            label: option.name,
-          })),
-        },
-      ],
-      dialect.questions,
-    )
-  }, [dialect.questions, pending])
+  }, [assistant.resolvePermission, blocked, call, waiting])
 
   const [phase, setPhase] = useState<'entry' | 'live'>(() => (endpoint === null ? 'entry' : 'live'))
 
@@ -220,28 +184,10 @@ export const AssistantSurface = memo(function AssistantSurface({
   /*
    * 行怎么画，这一层不判。
    *
-   * 「这是不是一道提问」的判据只有一处，在 PermissionRequest 自己身上 —— 单测与
-   * fixtures 都直接渲染那个组件，闸设在路由上必然被绕过去。此前这里还照着它写了
-   * 第二遍，两份判据各自演化的那一天不需要谁犯错。
-   *
-   * 现在它连答复都不交了：审批在输入框上方那条带子里完成，转录里的权限那一支
-   * 只留「答完的提问」。于是 renderRow 没有依赖，恒是同一个引用 —— 那是虚拟
-   * 列表的 prop，每帧换身份就等于每帧重渲全部可见行。
+   * renderRow 没有依赖，恒是同一个引用 —— 那是虚拟列表的 prop，每帧换身份就
+   * 等于每帧重渲全部可见行。
    */
   const renderRow = useCallback((row: FeedRow) => <TimelineRow row={row} />, [])
-
-  /*
-   * 一道题一个 permission 请求，所以整组答案就是一串 resolvePermission。
-   * 面板在最后一题才交出来，中途翻页不回任何东西——回出去的答案收不回来。
-   */
-  const answerQuestions = useCallback(
-    (answers: readonly QuestionAnswer[]) => {
-      for (const answer of answers) {
-        assistant.resolvePermission(answer.requestId, answer.optionId)
-      }
-    },
-    [assistant.resolvePermission],
-  )
 
   /*
    * 发言就是那次转场。
@@ -272,13 +218,14 @@ export const AssistantSurface = memo(function AssistantSurface({
         approval={approval}
         controls={controls}
         controlsFailure={controlsFailure}
-        onAnswerQuestions={answerQuestions}
+        onAnswerQuestions={assistant.answerQuestions}
         onCancel={assistant.cancel}
+        onDismissQuestions={assistant.dismissQuestions}
         onRetryControls={onRetryControls}
         onSelectControl={onSelectControl}
         onSubmit={submit}
         palette={palette}
-        questionDeck={questionDeck}
+        question={question}
         ref={composer}
         status={assistant.status}
         usage={usage}
@@ -302,7 +249,6 @@ export const AssistantSurface = memo(function AssistantSurface({
     >
       {live ? (
         <TranscriptView
-          excluded={blocked}
           isRestoring={assistant.isRestoring}
           onFork={onFork}
           renderRow={renderRow}

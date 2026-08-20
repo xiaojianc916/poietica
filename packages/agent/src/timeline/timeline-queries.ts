@@ -151,28 +151,21 @@ function waitingIn(scope: WaitingScope): {
   return { first, count }
 }
 
-/* 没人在等题时交出同一个对象，与 NOBODY_WAITING 同一条规矩。 */
-const NOBODY_ASKED = { first: undefined, count: 0 } as const
-
-/*
- * 本段那趟倒扫的提问版。
+/**
+ * 本段里最早那组还没结清的题。
  *
- * 与 waitingIn 互为镜像，只有一处不同：提前返回的判据不能只看 awaiting_question。
- * status 只有一个词，两条队列同时在等时它装的是审批（见 projection.ts 的
- * stillWaiting）—— 那时这一趟照样要扫，否则被压在底下的那组题永远查不出来，
- * 面板上再也没有它的入口。
+ * 与 pendingPermission 同一条扫描纪律，只有一处不同：提前返回的判据不能只看
+ * awaiting_question。status 只有一个词，两条队列同时在等时它装的是审批（见
+ * projection.ts 的 stillWaiting）—— 那时这一趟照样要扫，否则被压在底下的那组题
+ * 永远查不出来，面板上再也没有它的入口。
  */
-function askingIn(scope: WaitingScope): {
-  readonly first: QuestionTimelineItem | undefined
-  readonly count: number
-} {
+export function pendingQuestion(scope: WaitingScope): QuestionTimelineItem | undefined {
   if (scope.status !== 'awaiting_permission' && scope.status !== 'awaiting_question') {
-    return NOBODY_ASKED
+    return undefined
   }
 
   const items = scope.items
   let first: QuestionTimelineItem | undefined
-  let count = 0
 
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index]
@@ -182,26 +175,15 @@ function askingIn(scope: WaitingScope): {
     }
 
     if (item.turn !== scope.runIndex) {
-      return { first, count }
+      return first
     }
 
     if (item.type === 'question' && item.resolution === undefined) {
       first = item
-      count += 1
     }
   }
 
-  return { first, count }
-}
-
-/** 本段里最早那组还没结清的题。与 pendingPermission 同一条规矩、同一趟扫描纪律。 */
-export function pendingQuestion(scope: WaitingScope): QuestionTimelineItem | undefined {
-  return askingIn(scope).first
-}
-
-/** 本段里还没结清的题组一共几个。 */
-export function pendingQuestionCount(scope: WaitingScope): number {
-  return askingIn(scope).count
+  return first
 }
 
 export function selectIsBusy(state: TimelineState): boolean {

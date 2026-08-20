@@ -1,12 +1,11 @@
 import { createContext, useContext } from 'react'
-import type { QuestionDialect } from './ask-user-question'
 
 /*
  * 这条对话对面那家 agent 的方言。
  *
- * ACP 规定协议，不规定协议之上的写法：一道题的 optionId 长什么样、批准按钮上
- * 该写什么字，每家不同。这些是「值」不是「算法」——通用层对所有 agent 是同一
- * 段代码，只是查的表不一样——所以它们由外面交进来，而不是写死在组件里。
+ * 协议规定报文，不规定报文之上的写法：批准按钮上该写什么字，每家不同。这是
+ *「值」不是「算法」——通用层对所有 agent 是同一段代码，只是查的表不一样——
+ * 所以它由外面交进来，而不是写死在组件里。
  *
  * 为什么是 context 不是 prop：从组合根到用得上它的那两个组件隔着五层，中间三
  * 层跟 agent 方言毫无关系，让它们签收一个自己不看的包裹只会把无关的东西绑在
@@ -31,8 +30,6 @@ import type { QuestionDialect } from './ask-user-question'
 export interface AgentDialect {
   /** 权限选项 name → 显示文案。查不到就照 agent 原文显示。 */
   readonly optionLabels: Readonly<Record<string, string>>
-  /** 认得出「这是一道题」的 optionId 形状。空表示这家不用权限请求提问。 */
-  readonly questions: readonly QuestionDialect[]
 }
 
 export const AgentDialectContext = createContext<AgentDialect | null>(null)

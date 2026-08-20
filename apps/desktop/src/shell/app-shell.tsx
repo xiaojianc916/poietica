@@ -52,10 +52,7 @@ const CHECKS_UPDATES = !import.meta.env.DEV
  * 界面包不认识名单:这一层拿到的已经是一份档案,不是一次查名单。
  */
 function dialectOf(agent: AgentDescriptor): AgentDialect {
-  return {
-    optionLabels: agent.optionLabels,
-    questions: agent.questionDialect === undefined ? [] : [agent.questionDialect],
-  }
+  return { optionLabels: agent.optionLabels }
 }
 
 export interface AppShellRuntime {
