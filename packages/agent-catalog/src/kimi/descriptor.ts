@@ -28,31 +28,6 @@ const QUESTION_DIALECT = {
   skip: /^q(\d+)_skip$/,
 }
 
-/**
- * 按钮上的字。
- *
- * 键是上游审批按钮的规范英文：Approve once / Approve for this session /
- * Reject（CANONICAL_OPTIONS，上游 packages/acp-adapter/src/approval.ts；kap 下
- * 这三条由我们按协议的答复面合成，见 agent-runtime 的 permission.rs），计划评审
- * 两条（Revise / Reject and Exit），question.ts 追加的一条（Skip）。Allow /
- * Allow Always / Approve 是更早的文案：旧日志里记下的帧还带着那些名字，重放
- * 时翻的仍是它们。
- *
- * 计划评审里 plan_opt_* 的 name 是策略当场给的方案标签，本来就该原样显示，
- * 因此不在表内 —— 表只负责把规范英文换成中文，不负责改写 agent 说的话。
- */
-const OPTION_LABELS = {
-  Allow: '批准',
-  'Allow Always': '始终批准',
-  Approve: '批准',
-  'Approve for this session': '始终批准',
-  'Approve once': '批准',
-  Reject: '拒绝',
-  'Reject and Exit': '拒绝并退出',
-  Revise: '修改方案',
-  Skip: '跳过',
-} as const
-
 /*
  * 启动是一个可执行名加一串参数，不是一行待解析的命令行：拼成字符串再拆回来是
  * 有损的 —— Windows 路径里的反斜杠会被 POSIX 词法当成转义符吃掉，带空格的路径
@@ -81,6 +56,5 @@ export const kimiCode = {
   // 上游用一个固定 id 把 KIMI_MODEL_API_KEY 之类的变量合成成一个 provider，落盘时剥掉。
   syntheticProviderId: '__kimi_env__',
   install: { packageName: '@moonshot-ai/kimi-code', versionArgs: ['--version'] },
-  optionLabels: OPTION_LABELS,
   questionDialect: QUESTION_DIALECT,
 } as const satisfies AgentDescriptor

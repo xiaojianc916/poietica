@@ -3,7 +3,7 @@ import type { SessionConfigControl } from '@poietica/agent-contract'
 /*
  * 批准方式：这个产品对「agent 能自己动手到什么程度」的取值域。
  *
- * 取值是发给 agent 的那个值（ACP 的 session/set_config_option），说法是产品自己
+ * 取值是发给 agent 的那个值（kap 的 POST /sessions/{id}/profile），说法是产品自己
  * 的 —— agent 报回来的 label 是它的开发词汇，把开发词汇画在输入框旁边等于让人去
  * 背别人的实现细节。
  *

@@ -2,7 +2,6 @@ import type { PermissionItem, ToolCallTimelineItem } from '@poietica/agent'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { PermissionDock } from '../composer/permission-dock'
-import { type AgentDialect, AgentDialectContext } from '../semantics/agent-dialect'
 
 /*
  * 审批带是唯一会把 agent 卡住、非等用户点一下不可的界面，因此它显示错字的代价
@@ -12,15 +11,6 @@ import { type AgentDialect, AgentDialectContext } from '../semantics/agent-diale
  * 不需要 DOM，也就不需要为此往这个包里添三个依赖和一套环境配置。
  */
 
-/** 一家 agent 的说法。刻意让两枚选项同 kind、不同 name。 */
-const DIALECT: AgentDialect = {
-  optionLabels: {
-    'Approve once': '批准一次',
-    'Approve for this session': '本次会话都批准',
-    Reject: '拒绝',
-  },
-}
-
 function permission(overrides: Partial<PermissionItem> = {}): PermissionItem {
   return {
     type: 'permission',
@@ -29,11 +19,6 @@ function permission(overrides: Partial<PermissionItem> = {}): PermissionItem {
     turn: 0,
     requestId: 'request-1',
     title: 'write',
-    options: [
-      { optionId: 'approve_once', name: 'Approve once', kind: 'allow_once' },
-      { optionId: 'approve_always', name: 'Approve for this session', kind: 'allow_once' },
-      { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
-    ],
     ...overrides,
   }
 }
@@ -49,7 +34,7 @@ function callOf(item: PermissionItem): ToolCallTimelineItem | undefined {
   return {
     type: 'tool_call',
     subject: '',
-    id: `tool-${asked.toolCallId}`,
+    id: 'tool-' + asked.toolCallId,
     turn: 1,
     at: 0,
     toolCallId: asked.toolCallId,
@@ -66,45 +51,18 @@ function callOf(item: PermissionItem): ToolCallTimelineItem | undefined {
 
 function render(item: PermissionItem, waiting = 1): string {
   return renderToStaticMarkup(
-    <AgentDialectContext value={DIALECT}>
-      <PermissionDock call={callOf(item)} item={item} onResolve={() => {}} waiting={waiting} />
-    </AgentDialectContext>,
+    <PermissionDock call={callOf(item)} item={item} onResolve={() => {}} waiting={waiting} />,
   )
 }
 
 describe('审批带', () => {
-  it('没有 context 就当场抛，不带着错文案画出来', () => {
-    /*
-     * 缺表时宁可炸在测试里，也不能悄悄套用另一家 agent 的说法。
-     *
-     * 咬 context 的名字而不是消息里那句话：名字是真实符号，下一次改名先由
-     * typecheck 拦住；咬散文的话，一次改名会经由一个字符串把这条断言打红。
-     */
-    expect(() =>
-      renderToStaticMarkup(
-        <PermissionDock call={undefined} item={permission()} onResolve={() => {}} waiting={1} />,
-      ),
-    ).toThrow(/没有 AgentDialectContext/)
-  })
-
-  it('同一个 kind 的两枚选项，显示的是各自的字', () => {
-    /* 按 kind 查表时这两枚都是 allow_once，会写着同一个词。按 name 才分得开。 */
+  it('三颗按钮就是 kap 的三种答复', () => {
+    /* decision × scope 是协议的取值域，不是 agent 报来的选项表。 */
     const markup = render(permission())
 
-    expect(markup).toContain('批准一次')
+    expect(markup).toContain('批准')
     expect(markup).toContain('本次会话都批准')
     expect(markup).toContain('拒绝')
-  })
-
-  it('表里没有的说法，照 agent 原文显示', () => {
-    /* 宁可显示英文，也不能显示一个错的中文。 */
-    const markup = render(
-      permission({
-        options: [{ optionId: 'plan_revise', name: 'Revise', kind: 'reject_once' }],
-      }),
-    )
-
-    expect(markup).toContain('Revise')
   })
 
   it('题面是 agent 送来的那一句，一个字不加', () => {
@@ -125,10 +83,7 @@ describe('审批带', () => {
   })
 
   it('放行只涂一颗', () => {
-    /*
-     * kimi 一次送来两颗 allow_once。两颗都涂，人看不出默认动作是哪一个 ——
-     * agent 把它想要的那个排在前面。
-     */
+    /* 两颗放行（一次、整条会话）都涂，人看不出默认动作是哪一个。 */
     const markup = render(permission())
 
     expect(markup.match(/data-lead="true"/g)).toHaveLength(1)
@@ -136,8 +91,8 @@ describe('审批带', () => {
 
   it('说得出要批准的那件事，不是只有一个工具名', () => {
     /*
-     * 上游在 ACP 边界上把 command 类的 displayBlock 一律丢掉（见 tool-intent），
-     * 送到这里的 title 只剩 "Bash"。人要放行的是那条命令，不是那两个字。
+     * kap 的审批项只带 tool_name 与 tool_input_display（rest-approval.ts 的
+     * toWireApproval），送到这里的 title 只剩 "Bash"。人要放行的是那条命令。
      */
     const markup = render(
       permission({

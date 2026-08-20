@@ -10,8 +10,6 @@ export type {
   PreviewableImage,
 } from './media/image-lightbox'
 export { ImageLightbox, ImageThumbnailGrid } from './media/image-lightbox'
-export type { AgentDialect } from './semantics/agent-dialect'
-export { AgentDialectContext } from './semantics/agent-dialect'
 export type { AgentControlsView } from './session/agent-controls-context'
 export { AgentControlsContext, useAgentControls } from './session/agent-controls-context'
 export {

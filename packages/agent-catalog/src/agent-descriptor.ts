@@ -1,9 +1,9 @@
 /*
- * 一个 ACP agent 的档案长什么样。
+ * 一个 agent 的档案长什么样。
  *
- * ACP 只规定协议本身。协议之上每一家仍有自己的写法：用什么命令启动、把一道
- * 题塞进 session/request_permission 时 optionId 长什么样、终局帧到达后屏幕上
- * 该剩下什么。这些不是协议的漏洞，是协议留给实现的自由。
+ * kap 只规定协议本身。协议之上每一家仍有自己的写法：用什么命令启动、受控 home
+ * 认在哪个环境变量上、问模型清单用哪一串子命令。这些不是协议的漏洞，是协议留给
+ * 实现的自由。
  *
  * 档案就是把这份自由收成一张表。收法只有两种，判据只有一条：
  *
@@ -139,16 +139,6 @@ export interface AgentDescriptor {
    */
   readonly syntheticProviderId?: string | undefined
   readonly install?: AgentInstall | undefined
-  /**
-   * 权限选项按钮上写什么。
-   *
-   * 键是这一家送来的 name（协议里的 human-readable label），不是 kind：kind 是
-   * 分类，一次请求里会重复，拿它当标签会让几个不同的选项显示成同一个词。
-   * 查不到的一律照原文显示，所以这张表只需要列出想改口的那几条。
-   *
-   * 各家不同的只是这张表，通用层查表那一行对谁都一样 —— 变的是值，所以是声明。
-   */
-  readonly optionLabels: Readonly<Record<string, string>>
   /** 缺席表示这一家不用权限请求提问。 */
   readonly questionDialect?: QuestionDialect | undefined
 }

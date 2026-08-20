@@ -90,7 +90,7 @@ export function ConversationSurface({
   const usage = useThreadUsage(threadId)
 
   /*
-   * 打开一条已有的对话，就为它开一个 ACP 会话。
+   * 打开一条已有的对话，就为它开一个 kap 会话。
    *
    * 入口那一格没有身份可以"预先准备"。它此前会在指针移入或聚焦时调用 onIdentify,
    * 也就是拿一次鼠标经过去认领一条真的对话：于是用户什么都还没说，这一格就已经有
@@ -126,7 +126,7 @@ export function ConversationSurface({
    *
    * 入口那一格既没有对话也没有会话，它画的是这一家 agent 的表 —— 能力属于 agent,
    * 人想用哪个模型更是他自己的事，两者都不需要一条对话存在。进了对话之后画的是那条
-   * 会话自己的表（见 @poietica/agent 的 SessionControlsStore）：ACP 的配置是会话级的,
+   * 会话自己的表（见 @poietica/agent 的 SessionControlsStore）：kap 的配置是会话级的,
    * 一条会话选了什么说明不了另一条选了什么。
    *
    * 所以读、写、重试三样都按同一个 threadId === null 分岔。少分一样就够了：写恒发往
