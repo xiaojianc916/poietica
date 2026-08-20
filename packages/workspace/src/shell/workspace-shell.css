@@ -18,43 +18,30 @@
 }
 
 /*
- * 侧边栏与内容之间那条线：静止态没有变量，只有拖拽态有。
+ * 侧边栏与内容之间那条线。
  *
- * 上一版把静止态的墨色与粗细也做成了自定义属性，再用一条简写去读它们：
+ * 静止态直接读令牌，不经中转；--workspace-divider-* 只在强调态被声明，消费端写成
+ * var(--workspace-divider-*, 令牌)，兜底就是那个令牌本身，所以没有第二份真相。
  *
- *     border-inline-end: var(--…-width) solid var(--…-ink);
- *
- * 这是一个会整条消失的写法。简写里只要有一个 var() 解不出来，按规范整条
- * 声明降级为 unset（invalid at computed-value time），三个子属性一起回到
- * 初始值 —— border-style 于是回到 none。结果不是线变细或变淡，是线连同
- * chrome 行那一小段一起不见。一条必须存在的发丝线不能挂在这种失效模式上。
- *
- * 所以分成两层。静止态直接读令牌，不经任何中转，也就没有可解不出来的东西；
- * --workspace-divider-* 只在悬停 / 聚焦 / 拖拽时才被声明，消费端写成
- * var(--workspace-divider-*, 令牌) —— 兜底就是那个令牌本身，不是另抄一个
- * 字面量，所以没有第二份真相，变量的含义也收窄成了「覆盖」而不是「值」。
- *
- * 它仍然是一条线而不是两条：两段读同一组表达式，对齐是算出来的 —— 两者的
- * inline-end 都取自 --workspace-sidebar-column-width，粗细都朝自己盒内长，
- * x 坐标恒等。
+ * chrome 行内那一小截与侧栏那一长段读同一组表达式：inline-end 都取自
+ * --workspace-sidebar-column-width，粗细都朝自己盒内长，对齐是算出来的。
  */
 
 /*
- * 粗细只由浏览器拥有的悬停与按下状态控制。
+ * 强调态读根节点的 data-splitter，不读 :hover / :active。
  *
- * 焦点和应用拖拽状态只维持原有墨色：即使 pointerup 后焦点仍在，或应用状态
- * 收尾延迟，也不会把分隔线卡在粗线。指针仍在线上时保留 hover 加粗，离开后
- * 立即恢复发丝宽。
+ * 拖拽走 setPointerCapture，捕获期间浏览器的 hover 按规范被覆盖到捕获元素上
+ * （Pointer Events L3），松手后不保证当帧纠正 —— 粗细挂在它上面就会卡住。
+ * 键盘焦点仍由浏览器拥有（blur 即清），只加深墨色，不加粗。
  */
-.workspace-shell:has(.workspace-sidebar-splitter:hover),
-.workspace-shell:has(.workspace-sidebar-splitter:focus-visible),
-.workspace-shell:has(.workspace-sidebar-splitter:active),
-.workspace-shell:has(.workspace-sidebar-splitter[data-resizing="true"]) {
+.workspace-shell[data-splitter="hover"],
+.workspace-shell[data-splitter="drag"],
+.workspace-shell:has(.workspace-sidebar-splitter:focus-visible) {
   --workspace-divider-ink: color-mix(in oklab, var(--color-foreground) 3%, var(--color-divider));
 }
 
-.workspace-shell:has(.workspace-sidebar-splitter:hover),
-.workspace-shell:has(.workspace-sidebar-splitter:active) {
+.workspace-shell[data-splitter="hover"],
+.workspace-shell[data-splitter="drag"] {
   --workspace-divider-width: calc(var(--ui-region-divider-width) * 2);
 }
 
@@ -106,18 +93,12 @@
 }
 
 /*
- * 线在这里画，不在 SidebarRegion 的 className 里，也不再是侧栏自己的 border。
+ * 线是列上的伪元素，不是侧栏的 border：border 长在列的边框盒内缘，而侧栏内容是
+ * 与列等宽的定宽底面，子元素绘制在父级边框之上，线会被自己的内容吃掉。
  *
- * border-inline-end 长在列的边框盒内缘，占 [列宽-1px, 列宽]；而侧栏内容是一块
- * 与列等宽的定宽底面，停靠时它正好铺满这段 x。子元素的溢出内容绘制在父级边框
- * 之上，线于是被自己的内容盖掉,这就是上一版分割线消失的全部原因。
- *
- * 现在它是列上的一条伪元素，贴 inline-end 边、压在底面之上（未定位的底面先绘，
- * 已定位的伪元素后绘）。位置仍然只由列宽决定，所以补间每一帧都贴着主区左缘；
- * 列宽归零时它整条落到窗口左缘之外，收起态不必再把颜色改成透明,几何自己完成
- * 了隐藏，少一处状态。
- *
- * 墨色过渡、粗细即时：与此前 border-color 的行为逐字一致。
+ * 伪元素贴 inline-end 边、压在底面之上，位置只由列宽决定，所以补间每一帧都贴着
+ * 主区左缘；列宽归零时它整条落到窗口左缘之外，收起态因此不必再改颜色。
+ * 墨色过渡，粗细即时。
  */
 .workspace-shell__sidebar::after {
   content: "";
@@ -131,10 +112,10 @@
     width 0s;
 }
 
-.workspace-shell:has(.workspace-sidebar-splitter:hover) .workspace-shell__sidebar::after {
+.workspace-shell[data-splitter="hover"] .workspace-shell__sidebar::after {
   transition-delay: 0s, var(--workspace-divider-hover-delay);
 }
 
-.workspace-shell:has(.workspace-sidebar-splitter:active) .workspace-shell__sidebar::after {
+.workspace-shell[data-splitter="drag"] .workspace-shell__sidebar::after {
   transition-delay: 0s;
 }

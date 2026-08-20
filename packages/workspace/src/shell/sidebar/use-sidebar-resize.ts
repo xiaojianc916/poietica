@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type MouseEvent, type PointerEvent, useRef } from 'react'
+import { type KeyboardEvent, type MouseEvent, type PointerEvent, useEffect, useRef } from 'react'
 
 import { workspaceLayoutStore } from '../workspace-layout-store'
 
@@ -15,6 +15,20 @@ interface SidebarDragSession {
   readonly element: HTMLHRElement
   readonly startX: number
   readonly startWidth: number
+  /* 最后已知的指针位置：收尾时用它判定指针是否还在条上。 */
+  point: { readonly x: number; readonly y: number }
+}
+
+/*
+ * 指针是否还在条上，按几何自己算。捕获期间浏览器的 :hover 按规范被覆盖到捕获
+ * 元素上（Pointer Events L3 setPointerCapture），所以收尾态不能问浏览器。
+ */
+function isPointerOver(element: HTMLHRElement, point: { x: number; y: number }): boolean {
+  const rect = element.getBoundingClientRect()
+
+  return (
+    point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
+  )
 }
 
 export interface SidebarResizeBindings {
@@ -23,6 +37,8 @@ export interface SidebarResizeBindings {
   readonly onLostPointerCapture: (event: PointerEvent<HTMLHRElement>) => void
   readonly onPointerCancel: (event: PointerEvent<HTMLHRElement>) => void
   readonly onPointerDown: (event: PointerEvent<HTMLHRElement>) => void
+  readonly onPointerEnter: () => void
+  readonly onPointerLeave: () => void
   readonly onPointerMove: (event: PointerEvent<HTMLHRElement>) => void
   readonly onPointerUp: (event: PointerEvent<HTMLHRElement>) => void
 }
@@ -33,8 +49,8 @@ export interface SidebarResizeBindings {
  * 指针捕获交给平台：一次 setPointerCapture 之后，move / up / cancel 都会派发到
  * 分隔条本身，即使指针越过主区或离开窗口，所以不需要 document 上的全局监听。
  *
- * 拖拽态写进 workspaceLayoutStore，不再由本 hook 自持一份 useState 再通过
- * onResizeStart / onResizeEnd 回调向上同步——那让同一个布尔量有了两个所有者。
+ * 交互态是 workspaceLayoutStore.splitter，本 hook 是它唯一的写入方：hover 由指针
+ * 进出改写，drag 由按下改写，收尾按几何回到 hover 或 idle，卸载一律收回 idle。
  */
 export function useSidebarResize({
   width,
@@ -56,7 +72,9 @@ export function useSidebarResize({
     }
 
     onResize(finalWidth)
-    workspaceLayoutStore.setResizing(false)
+    workspaceLayoutStore.setSplitterActivity(
+      isPointerOver(session.element, session.point) ? 'hover' : 'idle',
+    )
   }
 
   const handlePointerDown = (event: PointerEvent<HTMLHRElement>): void => {
@@ -74,9 +92,10 @@ export function useSidebarResize({
       element,
       startX: event.clientX,
       startWidth: width,
+      point: { x: event.clientX, y: event.clientY },
     }
 
-    workspaceLayoutStore.setResizing(true)
+    workspaceLayoutStore.setSplitterActivity('drag')
     element.setPointerCapture(event.pointerId)
 
     /* 取得焦点后，拖拽中的 Esc 与拖拽后的方向键微调才能落到分隔条上。 */
@@ -90,6 +109,8 @@ export function useSidebarResize({
       return
     }
 
+    session.point = { x: event.clientX, y: event.clientY }
+
     onResize(clamp(session.startWidth + event.clientX - session.startX))
   }
 
@@ -102,6 +123,27 @@ export function useSidebarResize({
 
     settle(session, clamp(session.startWidth + event.clientX - session.startX))
   }
+
+  /* 悬停只在没有会话时由指针进出改写；拖拽中的进出由 settle 统一收尾。 */
+  const handlePointerEnter = (): void => {
+    if (sessionRef.current === null) {
+      workspaceLayoutStore.setSplitterActivity('hover')
+    }
+  }
+
+  const handlePointerLeave = (): void => {
+    if (sessionRef.current === null) {
+      workspaceLayoutStore.setSplitterActivity('idle')
+    }
+  }
+
+  /* 条随侧栏收起而卸载：谁写的状态谁收回，否则再展开时线是粗的。 */
+  useEffect(
+    () => () => {
+      workspaceLayoutStore.setSplitterActivity('idle')
+    },
+    [],
+  )
 
   const handleKeyDown = (event: KeyboardEvent<HTMLHRElement>): void => {
     const session = sessionRef.current
@@ -154,6 +196,8 @@ export function useSidebarResize({
     onLostPointerCapture: handlePointerEnd,
     onPointerCancel: handlePointerEnd,
     onPointerDown: handlePointerDown,
+    onPointerEnter: handlePointerEnter,
+    onPointerLeave: handlePointerLeave,
     onPointerMove: handlePointerMove,
     onPointerUp: handlePointerEnd,
   }

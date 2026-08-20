@@ -59,4 +59,16 @@ describe('workspaceLayoutStore', () => {
 
     workspaceLayoutStore.setSidebarWidth(WORKSPACE_LAYOUT.sidebar.defaultWidth)
   })
+
+  /* drag 不是吸收态：卡在粗线的那类回归就是从这里开始的。 */
+  it('分隔条交互态可以从拖拽回到静止', () => {
+    workspaceLayoutStore.setSplitterActivity('hover')
+    workspaceLayoutStore.setSplitterActivity('drag')
+
+    expect(workspaceLayoutStore.getSnapshot().splitter).toBe('drag')
+
+    workspaceLayoutStore.setSplitterActivity('idle')
+
+    expect(workspaceLayoutStore.getSnapshot().splitter).toBe('idle')
+  })
 })

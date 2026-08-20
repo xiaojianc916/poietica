@@ -4,16 +4,19 @@ import * as v from 'valibot'
 
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 
+/** 分隔条的交互态。写入方只有分隔条的指针处理器。 */
+export type SplitterActivity = 'idle' | 'hover' | 'drag'
+
 /**
  * 工作区布局状态的唯一所有者。
  *
- * 可见性与宽度是跨会话保留的产品状态，isResizing 是单次拖拽内的瞬时状态。
- * 两者都在这里：拖拽态一旦散进组件本地态就成了两份真相，而不是一份加一个通道。
+ * 可见性与宽度跨会话保留；splitter 是本次交互内的瞬时态。它不能交给浏览器的
+ * :hover —— 指针捕获期间那份 hover 按规范指向捕获元素，松手后不保证当帧纠正。
  */
 export interface WorkspaceLayoutState {
   readonly sidebarOpen: boolean
   readonly sidebarWidth: number
-  readonly isResizing: boolean
+  readonly splitter: SplitterActivity
 }
 
 /** 落盘的只有意图，不含瞬时的拖拽态。 */
@@ -63,16 +66,16 @@ const persisted = createPreference<LayoutIntent>({
  * 从布局模式派生。意图一旦被环境覆盖就再也还原不回来。
  */
 let intent = persisted.read()
-let resizing = false
-let snapshot: WorkspaceLayoutState = { ...intent, isResizing: false }
+let splitter: SplitterActivity = 'idle'
+let snapshot: WorkspaceLayoutState = { ...intent, splitter }
 
 function publish(): void {
-  const next: WorkspaceLayoutState = { ...intent, isResizing: resizing }
+  const next: WorkspaceLayoutState = { ...intent, splitter }
 
   if (
     next.sidebarOpen === snapshot.sidebarOpen &&
     next.sidebarWidth === snapshot.sidebarWidth &&
-    next.isResizing === snapshot.isResizing
+    next.splitter === snapshot.splitter
   ) {
     return
   }
@@ -93,9 +96,8 @@ const store = createExternalStore<WorkspaceLayoutState>({
 })
 
 /*
- * 只在离散的用户意图落定时写盘。拖拽期间每一帧都会提交宽度，但松手那一次由
- * setResizing 收尾，最终宽度随之落盘 —— 因此不需要 requestAnimationFrame
- * 合并，也不需要定时器。
+ * 只在离散的用户意图落定时写盘。拖拽期间每帧只改内存，离开 drag 的那一次收尾
+ * 落盘，因此不需要 requestAnimationFrame 合并，也不需要定时器。
  */
 function settle(next: LayoutIntent): void {
   if (next.sidebarOpen === intent.sidebarOpen && next.sidebarWidth === intent.sidebarWidth) {
@@ -105,7 +107,7 @@ function settle(next: LayoutIntent): void {
   intent = next
   publish()
 
-  if (!resizing) {
+  if (splitter !== 'drag') {
     persisted.write(next)
   }
 }
@@ -122,16 +124,18 @@ export const workspaceLayoutStore = {
   setSidebarWidth: (width: number): void => {
     settle({ ...intent, sidebarWidth: clampSidebarWidth(width) })
   },
-  setResizing: (value: boolean): void => {
-    if (value === resizing) {
+  setSplitterActivity: (next: SplitterActivity): void => {
+    if (next === splitter) {
       return
     }
 
-    resizing = value
+    const wasDragging = splitter === 'drag'
+
+    splitter = next
     publish()
 
-    /* 松手那一刻，把拖拽期间累积的宽度一次落盘。 */
-    if (!value) {
+    /* 离开拖拽的那一刻，把期间累积的宽度一次落盘。 */
+    if (wasDragging) {
       persisted.write(intent)
     }
   },

@@ -1,6 +1,7 @@
 import { type MotionStyle, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
+import type { SplitterActivity } from './workspace-layout-store'
 
 import './workspace-shell.css'
 
@@ -30,7 +31,7 @@ export interface WorkspaceFrameProps {
   readonly main: ReactNode
   readonly sidebarColumnWidth: number
   readonly isSidebarDocked: boolean
-  readonly disableLayoutAnimation?: boolean
+  readonly splitter: SplitterActivity
 }
 
 /**
@@ -46,13 +47,16 @@ export function WorkspaceFrame({
   main,
   sidebarColumnWidth,
   isSidebarDocked,
-  disableLayoutAnimation = false,
+  splitter,
 }: WorkspaceFrameProps) {
   const shouldReduceMotion = useReducedMotion()
 
+  /* 拖拽中不补间：宽度每帧都在变，补间只会让线追不上指针。 */
+  const isDragging = splitter === 'drag'
+
   /* 侧边栏停靠动画与 CSS 侧的竖线过渡共用一条时间轴。 */
   const transition =
-    disableLayoutAnimation || shouldReduceMotion
+    isDragging || shouldReduceMotion
       ? { duration: 0 }
       : {
           type: 'tween' as const,
@@ -67,12 +71,13 @@ export function WorkspaceFrame({
       }}
       className="workspace-shell relative grid h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground"
       data-sidebar-docked={isSidebarDocked ? 'true' : 'false'}
+      data-splitter={splitter}
       data-ui-rows=""
       initial={false}
       ref={rootRef}
       style={{
         ...WORKSPACE_LAYOUT_STYLE,
-        willChange: disableLayoutAnimation ? 'auto' : 'grid-template-columns',
+        willChange: isDragging ? 'auto' : 'grid-template-columns',
       }}
       transition={transition}
     >

@@ -16,7 +16,7 @@ import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layou
  */
 export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
   const mode = useWorkspaceLayoutMode()
-  const { sidebarOpen, sidebarWidth, isResizing } = useWorkspaceLayoutState()
+  const { sidebarOpen, sidebarWidth, splitter } = useWorkspaceLayoutState()
   const { setSidebarOpen, setSidebarWidth } = workspaceLayoutStore
 
   /* 判据在 useIsSidebarDocked 里，标题栏那截竖线读的是同一个。 */
@@ -37,7 +37,6 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
             {parts.chrome.content}
           </header>
         }
-        disableLayoutAnimation={isResizing}
         isSidebarDocked={dockSidebar}
         main={
           <section
@@ -69,6 +68,7 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
           </SidebarRegion>
         }
         sidebarColumnWidth={dockSidebar ? sidebarWidth : 0}
+        splitter={splitter}
       />
     </TooltipProvider>
   )
