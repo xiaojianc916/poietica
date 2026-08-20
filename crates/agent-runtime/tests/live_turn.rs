@@ -42,11 +42,8 @@
 //! - `POIETICA_KAP_MODEL`    the model to run this turn on, named the way the
 //!   agent names it in its `model` selector, which this test prints (default:
 //!   whatever the session is bound to, i.e. this machine's default model)
-//! - `POIETICA_KAP_CAPTURE` a path to write the recorded frames to, so the
-//!   renderer's schema can be tested against frames a real agent actually sent
 //! - `POIETICA_KAP_EXPECT`  frame kinds and session update discriminators the
-//!   turn must contain, comma separated, checked before anything is captured,
-//!   and required whenever a capture is requested
+//!   turn must contain, comma separated
 //!
 //! Every wait in here is two-sided. The channels the client hands back are
 //! cancelled when the connection dies, and a cancelled channel says nothing
@@ -356,11 +353,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         assert_eq!(sent.seq, expected, "sequence numbers are dense");
     }
 
-    /* 录制之前，不是之后：一轮没抓到它要抓的东西，就不能覆盖掉抓到了的那份
-    录音 —— 一轮以失败收场同样不行。 */
     require_expected(&broadcast);
-
-    capture(&broadcast);
 
     println!("recorded {} frames", broadcast.len());
 }
@@ -396,8 +389,8 @@ fn show(controls: &[ConfigControl]) {
 /// Everything the turn actually contained.
 ///
 /// A frame counts under its log kind, and a session update counts under its
-/// protocol discriminator as well, because that is the level the timeline
-/// renders at and therefore the level a fixture is judged at.
+/// protocol discriminator as well, because that is the level
+/// POIETICA_KAP_EXPECT names them at.
 fn markers(events: &[RecordedEvent]) -> BTreeMap<String, usize> {
     let mut counted: BTreeMap<String, usize> = BTreeMap::new();
 
@@ -414,7 +407,7 @@ fn markers(events: &[RecordedEvent]) -> BTreeMap<String, usize> {
     counted
 }
 
-/// What this turn is worth as a fixture.
+/// What this turn contained, for choosing POIETICA_KAP_EXPECT markers.
 fn report(events: &[RecordedEvent]) {
     println!("contains:");
 
@@ -423,25 +416,14 @@ fn report(events: &[RecordedEvent]) {
     }
 }
 
-/// Fails when the turn is missing something it was recorded to capture.
+/// Fails when the turn is missing a marker POIETICA_KAP_EXPECT asked for.
 ///
 /// The agent decides what to do, so a prompt that merely invites a tool call
-/// is often answered from memory. Without this the run still passes, the
-/// capture is still written, and the gap only surfaces much later as a
-/// renderer tested against frames no agent ever sent.
+/// is often answered from memory, and the run would otherwise pass while
+/// proving nothing about the path it was told to exercise.
 fn require_expected(events: &[RecordedEvent]) {
     let present = markers(events);
     let wanted = setting("POIETICA_KAP_EXPECT", "");
-
-    /* A capture overwrites the fixture other tests are judged against, and an
-    exported variable outlives the run that needed it, so a capture path
-    left in the shell is enough to replace a good recording with whatever
-    the next turn happened to be. Asking what the recording is for costs one
-    line and makes that impossible. */
-    assert!(
-        setting("POIETICA_KAP_CAPTURE", "").is_empty() || !wanted.is_empty(),
-        "POIETICA_KAP_CAPTURE would replace a fixture, so POIETICA_KAP_EXPECT must say what this recording is for"
-    );
 
     let missing = wanted
         .split(',')
@@ -511,67 +493,4 @@ fn outline(events: &[RecordedEvent]) -> String {
         })
         .collect::<Vec<String>>()
         .join("\n")
-}
-
-/// Writes the turn out, when asked.
-///
-/// The renderer validates every frame before it reaches the timeline, and that
-/// validator has only ever been tested against frames written by hand. A
-/// recording of a real turn is the only honest input for it, so this makes one
-/// on request rather than inventing one.
-///
-/// It is written as a TypeScript module rather than as data, because the
-/// package that reads it is a browser package with no filesystem and no Node
-/// types. A module is imported by the same rules as any other source file,
-/// which keeps a test fixture from dragging a platform into a layer that had
-/// deliberately stayed out of one.
-fn capture(events: &[RecordedEvent]) {
-    let Ok(path) = env::var("POIETICA_KAP_CAPTURE") else {
-        return;
-    };
-
-    if path.trim().is_empty() {
-        return;
-    }
-
-    let path = PathBuf::from(path);
-
-    /* The recording is source code, so it has to be named like source code. A
-    path with any other extension would be written all the same, and the test
-    that imports the module would go on reporting that it does not exist,
-    which is a long way to travel to learn that a variable was stale. */
-    assert!(
-        path.extension().is_some_and(|extension| extension == "ts"),
-        "POIETICA_KAP_CAPTURE must name a .ts module; got {}",
-        path.display()
-    );
-
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).expect("the capture directory");
-    }
-
-    let body = serde_json::to_string_pretty(events).expect("the frames to serialise");
-
-    let module = format!(
-        "// Generated by crates/agent-runtime/tests/live_turn.rs. Do not edit.\n\
-         //\n\
-         // One real turn, recorded verbatim. If a frame here fails validation the\n\
-         // validator is wrong, not the recording. Regenerate with:\n\
-         //\n\
-         //   cargo test -p poietica-agent-runtime-native --test live_turn -- --ignored\n\
-         \n\
-         export interface RecordedFrame {{\n\
-         \u{20}\u{20}readonly sessionId: string\n\
-         \u{20}\u{20}readonly seq: number\n\
-         \u{20}\u{20}readonly at: number\n\
-         \u{20}\u{20}readonly kind: string\n\
-         \u{20}\u{20}readonly [field: string]: unknown\n\
-         }}\n\
-         \n\
-         export const recordedTurn: readonly RecordedFrame[] = {body}\n"
-    );
-
-    std::fs::write(&path, module).expect("the capture to be written");
-
-    println!("captured {} frames to {}", events.len(), path.display());
 }

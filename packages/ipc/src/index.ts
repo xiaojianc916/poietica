@@ -2,10 +2,9 @@ export {
   type AgentBridgeOptions,
   type AgentEventSourceOptions,
   createAgentCapabilityBridge,
-  createAgentCommandBridge,
-  createAgentEventSource,
   createAgentPaletteBridge,
   createAgentSessionConfigBridge,
+  createAgentSessionPort,
   createAgentSessionUsageBridge,
   createAgentThreadBridge,
   shutdownAgent,
@@ -95,8 +94,6 @@ export {
   setPluginMcpEnabled,
   stagePlugin,
 } from './plugins'
-export type { AgentCommandBridge, AgentEventSource, IpcSessionOptions } from './session'
-export { createIpcSession } from './session'
 export {
   commitSkill,
   discardStagedSkill,

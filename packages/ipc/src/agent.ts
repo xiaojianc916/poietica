@@ -1,8 +1,10 @@
 import type {
   AgentCapabilityPort,
   AgentPalettePort,
+  AgentSessionPort,
   PaletteEntry,
   QuestionChoice,
+  RunEvent,
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
@@ -20,7 +22,6 @@ import {
   commands,
   type JsonValue,
 } from './generated/ipc-bindings'
-import type { AgentCommandBridge, AgentEventSource } from './session'
 
 /**
  * The desktop implementation of the ports the feature layer declares.
@@ -32,9 +33,10 @@ import type { AgentCommandBridge, AgentEventSource } from './session'
  * 端口不在这一层重新声明一遍。ThreadPort / SessionConfigPort / AgentCapabilityPort
  * 就是下面几个工厂的返回类型，所以「桥」与「端口」是同一个名字下的同一样东西。
  *
- * Frame shapes are never redefined here. Command payloads come from the
- * generated bindings, and the frames themselves are handed onwards as unknown
- * because the feature package validates every one of them before use.
+ * Frame shapes are never redefined here: command payloads come from the
+ * generated bindings, and frames are handed on exactly as recorded. Their
+ * shape is fixed by frame.rs at compile time, so a schema on this side would
+ * only add a third description of the protocol to keep in sync.
  */
 
 /** The channel run frames are broadcast on. */
@@ -179,47 +181,11 @@ function subscribeToSessionEvent<TKind extends AgentSessionEnvelope['kind']>(
   )
 }
 
-/** Subscribes to run frames. */
-export function createAgentEventSource({
-  onListenFailure,
-}: AgentEventSourceOptions = {}): AgentEventSource {
-  return {
-    listen: (handler) =>
-      subscribeToEvent<readonly AgentEventEnvelope[]>(
-        AGENT_EVENT,
-        (payload) => {
-          /* 一拍的帧一起到，也一起交出去：一批只属于一条会话（见 recorder.rs
-          的 Frames::new），所以地址从头一帧上取一次就对整批成立。 */
-          const first = payload.at(0)
-
-          if (first === undefined) {
-            return
-          }
-
-          handler(payload, first.sessionId)
-        },
-        onListenFailure,
-      ),
-  }
-}
-
-/**
- * The command half of the port.
- *
- * Cancellation names the conversation it stops. 地址要区分的从来不是同一条
- * 会话上的两轮，而是同一条连接上的两条会话：在 A 里按停止，不该停掉此刻在飞
- * 的 B。这一层因此点名对话，原生侧按它查出握着哪条会话 —— 那条对应关系在打开
- * 对话时就写下了，此前那个轮次号是为同一件事另造的第二个地址。
- *
- * Answering a permission request is checked natively: an answer naming an
- * option the agent never offered is refused rather than acted on.
- */
 /*
  * 一题的答复，从端口的形状搬到生成绑定的形状。
  *
  * 只有一件事真的在发生：readonly 的选项数组要复制成可变的。判别式与每一格的名字
- * 两侧逐字相同 —— 它们都取自 kap 的 questionAnswerSchema，所以这里没有翻译表，也
- * 就没有一张会与协议分叉的对照表。
+ * 两侧逐字相同 —— 它们都取自 kap 的 questionAnswerSchema，所以这里没有翻译表。
  */
 function questionChoiceOf(choice: QuestionChoice): AgentQuestionChoice {
   switch (choice.kind) {
@@ -240,16 +206,41 @@ function questionChoiceOf(choice: QuestionChoice): AgentQuestionChoice {
   }
 }
 
-export function createAgentCommandBridge({
+/**
+ * 会话这一路：一条订阅收帧，五条命令回话。
+ *
+ * 收与发同住一个工厂，因为它们是同一个端口的两半：拆成「事件源 + 命令桥」再由组合
+ * 层拼回去，拼出来的只是一层透传。取消点名一条对话而不是一轮，理由在端口定义处。
+ * 权限与答题的合法性由原生侧校验，agent 没给过的选项会被拒掉。
+ */
+export function createAgentSessionPort({
   launch,
   cwd,
   mcpServers,
-}: AgentBridgeOptions): AgentCommandBridge {
+  onListenFailure,
+}: AgentBridgeOptions & AgentEventSourceOptions): AgentSessionPort {
   return {
+    /* 帧原样交出去，不在这里再校验一遍：形状由 frame.rs 的 enum 在编译期定下，
+    这一侧再写一份运行期 schema 只会多出一个「协议新增字段即整轮判废」的故障模式。 */
+    subscribe: (listener) =>
+      subscribeToEvent<readonly AgentEventEnvelope[]>(
+        AGENT_EVENT,
+        (payload) => {
+          /* 一拍的帧一起到，也一起交出去：一批只属于一条会话（见 recorder.rs
+          的 Frames::new），所以地址从头一帧上取一次就对整批成立。 */
+          const first = payload.at(0)
+
+          if (first !== undefined) {
+            listener(payload as readonly RunEvent[], first.sessionId)
+          }
+        },
+        onListenFailure,
+      ),
+
     prompt: async (request) => {
       const resolvedLaunch = await launch()
       const resolvedMcpServers = (await mcpServers?.()) ?? []
-      const result = await throughIpc(() =>
+      const started = await throughIpc(() =>
         commands.agentPrompt({
           text: request.text,
           threadId: request.threadId,
@@ -265,7 +256,7 @@ export function createAgentCommandBridge({
         }),
       )
 
-      return { sessionId: result.sessionId }
+      return { sessionId: started.sessionId }
     },
 
     cancel: async (threadId) => {
@@ -280,8 +271,7 @@ export function createAgentCommandBridge({
       await throughIpc(() =>
         commands.agentAnswerQuestions({
           questionId: response.questionId,
-          /* readonly 的数组与生成绑定要的可变数组是两个类型，所以复制一次 ——
-          与上面 assets 同一条规矩，数组复制只在这一层做。 */
+          /* 同上：readonly 的数组要复制成可变的。 */
           answers: response.answers.map((answered) => ({
             questionId: answered.questionId,
             answer: questionChoiceOf(answered.answer),

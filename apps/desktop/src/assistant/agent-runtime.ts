@@ -17,12 +17,10 @@ import { createExternalStore, createPreference, error as reportError } from '@po
 import {
   type AgentBridgeOptions,
   createAgentCapabilityBridge,
-  createAgentCommandBridge,
-  createAgentEventSource,
   createAgentSessionConfigBridge,
+  createAgentSessionPort,
   createAgentSessionUsageBridge,
   createAgentThreadBridge,
-  createIpcSession,
   shutdownAgent,
 } from '@poietica/ipc'
 import type { AgentConfigStore } from '@poietica/settings'
@@ -174,13 +172,11 @@ export function createDesktopAgentRuntime(
     mcpServers: options.mcpServers,
   })
 
-  const session = createIpcSession({
-    bridge: createAgentCommandBridge({
-      cwd: options.cwd,
-      launch: launchSelected,
-      mcpServers: options.mcpServers,
-    }),
-    source: createAgentEventSource({ onListenFailure: noteListenFailure }),
+  const session = createAgentSessionPort({
+    cwd: options.cwd,
+    launch: launchSelected,
+    mcpServers: options.mcpServers,
+    onListenFailure: noteListenFailure,
   })
 
   const capabilityPorts = new Map<string, AgentCapabilityPort>()
