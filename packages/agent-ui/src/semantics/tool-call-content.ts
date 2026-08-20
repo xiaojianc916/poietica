@@ -58,6 +58,70 @@ function resourcePart(resource: {
     : { type: 'text', text }
 }
 
+/** 协议信封里那层内块：text / image / audio 三种，只有 text 画得出来。 */
+function blockPart(block: {
+  readonly type: string
+  readonly text?: string
+}): ToolContentPart | null {
+  if (block.type === 'text') {
+    /* A tool call opens with an empty string and fills in as arguments
+       stream. An empty bubble is noise, not information. */
+    return block.text === undefined || block.text.length === 0
+      ? null
+      : { type: 'text', text: block.text }
+  }
+
+  return { type: 'opaque', label: OPAQUE_LABELS[block.type] ?? '一段内容' }
+}
+
+/**
+ * 一枚内容块画成什么。一档一个 return，唯一的判别式主干。
+ *
+ * 送出去那一面的三档（command / prose / todo）也在这里：它们与信封无关，
+ * 是投影层照 kap 的 display 映来的。空的散文与清单不出格。
+ */
+function partOf(entry: ToolCallContent): ToolContentPart | null {
+  switch (entry.type) {
+    case 'command': {
+      return { type: 'command', command: entry.command, language: entry.language }
+    }
+
+    case 'prose': {
+      return entry.text.length === 0 ? null : { type: 'prose', text: entry.text }
+    }
+
+    case 'todo': {
+      return entry.items.length === 0 ? null : { type: 'todo', items: entry.items }
+    }
+
+    case 'diff': {
+      return {
+        type: 'diff',
+        path: entry.path,
+        oldText: entry.oldText ?? null,
+        newText: entry.newText,
+      }
+    }
+
+    case 'terminal': {
+      return { type: 'terminal', terminalId: entry.terminalId }
+    }
+
+    /* 这两档没有 content 那一格，此前一路落到下面那行去读它。 */
+    case 'resource_link': {
+      return { type: 'link', uri: entry.uri, name: entry.name ?? null }
+    }
+
+    case 'resource': {
+      return resourcePart(entry.resource)
+    }
+
+    case 'content': {
+      return blockPart(entry.content)
+    }
+  }
+}
+
 export function toToolContentParts(
   content: readonly ToolCallContent[] | null | undefined,
 ): readonly ToolContentPart[] {
@@ -68,64 +132,11 @@ export function toToolContentParts(
   const parts: ToolContentPart[] = []
 
   for (const entry of content) {
-    if (entry.type === 'diff') {
-      parts.push({
-        type: 'diff',
-        path: entry.path,
-        oldText: entry.oldText ?? null,
-        newText: entry.newText,
-      })
-      continue
+    const part = partOf(entry)
+
+    if (part !== null) {
+      parts.push(part)
     }
-
-    if (entry.type === 'terminal') {
-      parts.push({ type: 'terminal', terminalId: entry.terminalId })
-      continue
-    }
-
-    /* 这两档没有 content 那一格，此前一路落到下面那行去读它。 */
-    if (entry.type === 'resource_link') {
-      parts.push({ type: 'link', uri: entry.uri, name: entry.name ?? null })
-      continue
-    }
-
-    if (entry.type === 'resource') {
-      parts.push(resourcePart(entry.resource))
-      continue
-    }
-
-    /* 送出去那一面的三档：命令、散文、清单。它们与下面那层信封无关。 */
-    if (entry.type === 'command') {
-      parts.push({ type: 'command', command: entry.command, language: entry.language })
-      continue
-    }
-
-    if (entry.type === 'prose') {
-      if (entry.text.length > 0) {
-        parts.push({ type: 'prose', text: entry.text })
-      }
-      continue
-    }
-
-    if (entry.type === 'todo') {
-      if (entry.items.length > 0) {
-        parts.push({ type: 'todo', items: entry.items })
-      }
-      continue
-    }
-
-    const block = entry.content
-
-    if (block.type === 'text') {
-      /* A tool call opens with an empty string and fills in as arguments
-         stream. An empty bubble is noise, not information. */
-      if (block.text.length > 0) {
-        parts.push({ type: 'text', text: block.text })
-      }
-      continue
-    }
-
-    parts.push({ type: 'opaque', label: OPAQUE_LABELS[block.type] ?? '一段内容' })
   }
 
   return parts
