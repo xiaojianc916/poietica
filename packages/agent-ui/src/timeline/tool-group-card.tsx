@@ -4,7 +4,7 @@ import type { FeedRow, ToolCallTimelineItem } from '@poietica/agent'
 import type { ReactNode } from 'react'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import { ChevronDownIcon } from '../primitives/icons'
-import { readToolIntent } from '../semantics/tool-intent'
+import { readToolLine } from '../semantics/tool-intent'
 import { GroupTicker } from './group-ticker'
 import { ToolKindIcon } from './tool-call-card'
 import { liveMemberOf, type ToolGroupKind, type ToolGroupPlan } from './tool-group'
@@ -71,7 +71,7 @@ function sayingOf(row: FeedRow): string | undefined {
     return undefined
   }
 
-  const said = readToolIntent(item)?.text ?? item.title
+  const said = readToolLine(item)
 
   return said === '' ? undefined : said
 }

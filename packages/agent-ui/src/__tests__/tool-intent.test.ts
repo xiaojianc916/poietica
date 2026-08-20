@@ -1,111 +1,56 @@
 import { describe, expect, it } from 'vitest'
 
-import { readToolIntent } from '../semantics/tool-intent'
+import { readToolLine } from '../semantics/tool-intent'
 
 /*
- * 意图的读法。
+ * 卡片那一行。
  *
- * 形状照 kimi-code 的 tool/toolInputDisplay.ts 抄 —— command / file_io / search /
- * url_fetch 那几种。键名是方言且未经逐字验证，所以「取不到就交回 null」这一条
- * 必须被钉住：它是猜错时的兜底。
+ * 类别与主语由投影定完，这里只钉三条：动词配文件名、没动词就转述主语、
+ * 说不出来退回工具名。
  */
 
-const NOWHERE = { content: [], kind: 'execute', locations: [] } as const
+const CALL = { kind: 'execute', locations: [], subject: '', title: 'Bash' } as const
 
-describe('工具调用的意图', () => {
-  it('命令就是意图', () => {
-    const intent = readToolIntent({ ...NOWHERE, rawInput: { command: 'pnpm typecheck' } })
-
-    expect(intent?.text).toBe('pnpm typecheck')
+describe('工具调用那一行', () => {
+  it('没有动词的类别直接转述主语', () => {
+    expect(readToolLine({ ...CALL, subject: 'pnpm typecheck' })).toBe('pnpm typecheck')
   })
 
   it('只取第一行:多行命令在一行里画不下', () => {
-    const intent = readToolIntent({ ...NOWHERE, rawInput: { command: 'cd packages\nls -la' } })
-
-    expect(intent?.text).toBe('cd packages')
-    expect(intent?.full).toBe('cd packages\nls -la')
+    expect(readToolLine({ ...CALL, subject: 'cd packages\nls -la' })).toBe('cd packages')
   })
 
-  it('太长的截断,全文留给悬浮提示', () => {
-    const long = 'a'.repeat(400)
-    const intent = readToolIntent({ ...NOWHERE, rawInput: { command: long } })
+  it('太长的截断', () => {
+    const line = readToolLine({ ...CALL, subject: 'a'.repeat(400) })
 
-    expect(intent?.text.endsWith('…')).toBe(true)
-    expect(intent?.text.length).toBe(161)
-    expect(intent?.full).toBe(long)
+    expect(line.endsWith('…')).toBe(true)
+    expect(line).toHaveLength(161)
   })
 
-  it('按键名的可靠度排序,命令压过路径', () => {
-    const intent = readToolIntent({
-      ...NOWHERE,
-      rawInput: { command: 'rg todo', file_path: 'src/app.ts' },
-    })
-
-    expect(intent?.text).toBe('rg todo')
+  it('文件类是动词加文件名,两种分隔符都切', () => {
+    expect(
+      readToolLine({
+        kind: 'read',
+        locations: [{ path: 'src/app.ts' }],
+        subject: 'src/app.ts',
+        title: 'Read',
+      }),
+    ).toBe('阅读 app.ts')
+    expect(
+      readToolLine({
+        kind: 'write',
+        locations: [{ path: 'C:\\repo\\a.ts' }],
+        subject: 'C:\\repo\\a.ts',
+        title: 'Write',
+      }),
+    ).toBe('写入 a.ts')
   })
 
-  it('入参里没有,就退回协议原生的 locations', () => {
-    const intent = readToolIntent({
-      content: [],
-      kind: 'execute',
-      locations: [{ line: 42, path: 'src/app.ts' }],
-      rawInput: { unknown_key: 'x' },
-    })
-
-    expect(intent?.text).toBe('src/app.ts:42')
+  it('主语空着时动词自己成一句', () => {
+    expect(readToolLine({ ...CALL, kind: 'todo', title: 'TodoList' })).toBe('更新任务清单')
   })
 
-  it('多处就报个数,剩下的抽屉里已经列过', () => {
-    const intent = readToolIntent({
-      content: [],
-      kind: 'execute',
-      locations: [{ path: 'a.ts' }, { path: 'b.ts' }],
-      rawInput: {},
-    })
-
-    expect(intent?.text).toBe('a.ts 等 2 处')
-  })
-
-  it('一个键都对不上就说不出来,标题栏退回只有工具名', () => {
-    expect(readToolIntent({ ...NOWHERE, rawInput: { verbose: true } })).toBeNull()
-    expect(readToolIntent({ ...NOWHERE, rawInput: undefined })).toBeNull()
-    expect(readToolIntent({ ...NOWHERE, rawInput: 'not an object' })).toBeNull()
-  })
-
-  it('空串和纯空白不算意图', () => {
-    expect(readToolIntent({ ...NOWHERE, rawInput: { command: '   ' } })).toBeNull()
-  })
-
-  it('文件类派发是动词加文件名', () => {
-    const intent = readToolIntent({
-      content: [],
-      kind: 'read',
-      locations: [],
-      rawInput: { file_path: 'src/app.ts' },
-    })
-
-    expect(intent?.text).toBe('阅读 app.ts')
-  })
-
-  it('diff 里 oldText 缺席的那次 edit 是新建', () => {
-    const intent = readToolIntent({
-      content: [{ newText: 'x', oldText: null, path: 'src/app.ts', type: 'diff' }],
-      kind: 'edit',
-      locations: [],
-      rawInput: { file_path: 'src/app.ts' },
-    })
-
-    expect(intent?.text).toBe('新建 app.ts')
-  })
-
-  it('派发自己写的那一句排在所有线索前面', () => {
-    const intent = readToolIntent({
-      content: [],
-      kind: 'read',
-      locations: [],
-      rawInput: { command: 'pnpm test', description: '更新构建配置' },
-    })
-
-    expect(intent?.text).toBe('更新构建配置')
+  it('什么都说不出来就退回工具名', () => {
+    expect(readToolLine({ ...CALL, subject: '   ' })).toBe('Bash')
   })
 })

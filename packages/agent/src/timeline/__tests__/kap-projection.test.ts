@@ -199,6 +199,75 @@ describe('kap 投影', () => {
     expect(notAsked[0]).toMatchObject({ type: 'error', message: 'stopReason: completed' })
   })
 
+  it('分类与主语来自 display，一档一映', () => {
+    const state = replayRunEvents(
+      kapTurn([
+        {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_w',
+          name: 'Write',
+          args: { file_path: 'a.ts', content: 'export {}' },
+          display: { kind: 'file_io', operation: 'write', path: 'a.ts', content: 'export {}' },
+        },
+        {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_g',
+          name: 'Grep',
+          args: { pattern: 'todo' },
+          display: { kind: 'file_io', operation: 'grep', path: 'src' },
+        },
+        {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_s',
+          name: 'Agent',
+          args: { subagent_type: 'coder', prompt: '查一遍超时重试' },
+          display: {
+            kind: 'agent_call',
+            agent_name: 'coder',
+            prompt: '查一遍超时重试',
+            background: true,
+          },
+        },
+        {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_m',
+          name: 'mcp__ramp__list_bills',
+          args: {},
+          display: { kind: 'generic', summary: '列出账单' },
+        },
+      ]),
+    )
+
+    const calls = toolCalls(state)
+
+    expect(calls.map((call) => call.kind)).toStrictEqual(['write', 'search', 'delegate', 'other'])
+    /* 写进去的正文由 display 给，不从入参里挑最长的那个字符串。 */
+    expect(calls[0]?.content).toStrictEqual([{ type: 'diff', path: 'a.ts', newText: 'export {}' }])
+    expect(calls[2]).toMatchObject({ isBackground: true, subject: '查一遍超时重试' })
+    expect(calls[3]?.subject).toBe('列出账单')
+  })
+
+  it('display 缺席时主语退回派发自己写的那一句', () => {
+    const state = replayRunEvents(
+      kapTurn([
+        {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_d',
+          name: 'TodoList',
+          args: {},
+          description: '更新任务清单',
+        },
+      ]),
+    )
+
+    expect(toolCalls(state)[0]).toMatchObject({ kind: 'other', subject: '更新任务清单' })
+  })
+
   it('审批帧走共用词汇：归一化的 toolCall 把请求接回工具卡片', () => {
     const events: RunEvent[] = [
       { kind: 'run_started', seq: 1, at: 1000, sessionId: SESSION, prompt: '跑一下测试' },

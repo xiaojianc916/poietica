@@ -28,6 +28,8 @@ export type KapFrame = Extract<RunEvent, { kind: 'kap_event' }>
 interface ToolCallPatch {
   readonly title?: string
   readonly kind?: ToolKind
+  readonly subject?: string
+  readonly isBackground?: true
   readonly status?: ToolCallStatus
   readonly content?: readonly ToolCallContent[]
   readonly appendContent?: ToolCallContent
@@ -104,11 +106,15 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
 
       const name = stringOf(payload, 'name')
 
+      const shown = fromDisplay(fieldOf(payload, 'display'))
+      const said = stringOf(payload, 'description')
+
       upsertToolCall(draft, toolCallId, event.at, {
         status: 'in_progress',
         rawInput: fieldOf(payload, 'args'),
         ...(name === undefined ? {} : { title: name }),
-        ...readDisplay(fieldOf(payload, 'display')),
+        ...shown,
+        ...(shown.subject === undefined && said !== undefined ? { subject: said } : {}),
       })
 
       return
@@ -259,10 +265,12 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
     toolCallId,
     title: patch.title ?? held?.title ?? toolCallId,
     kind: patch.kind ?? held?.kind ?? 'other',
+    subject: patch.subject ?? held?.subject ?? '',
     status,
     content,
     locations: patch.locations ?? held?.locations ?? [],
     startedAt: held?.startedAt ?? at,
+    ...((patch.isBackground ?? held?.isBackground) ? { isBackground: true } : {}),
     ...(rawInput === undefined ? {} : { rawInput }),
     ...(rawOutput === undefined ? {} : { rawOutput }),
     ...(endedAt === undefined ? {} : { endedAt }),
@@ -275,68 +283,135 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
   }
 }
 
+/** display 里的一个字符串格子。 */
+function textOf(display: object, key: string): string {
+  const value = Reflect.get(display, key)
+
+  return typeof value === 'string' ? value : ''
+}
+
+/** 这次写进去的是什么：before/after/content 三格由 kap 直接给。 */
+function writtenOf(display: object): { readonly content?: readonly ToolCallContent[] } {
+  const path = textOf(display, 'path')
+  const after = Reflect.get(display, 'after')
+  const held = typeof after === 'string' ? after : Reflect.get(display, 'content')
+  const before = Reflect.get(display, 'before')
+
+  if (path === '' || typeof held !== 'string') {
+    return {}
+  }
+
+  return {
+    content: [
+      {
+        type: 'diff',
+        path,
+        newText: held,
+        ...(typeof before === 'string' ? { oldText: before } : {}),
+      },
+    ],
+  }
+}
+
+/** file_io 的五种操作各自落哪一档；上游长出第六种时落回 other。 */
+function fromFileIo(display: object): ToolCallPatch {
+  const path = textOf(display, 'path')
+  const at = path === '' ? {} : { locations: [{ path }] }
+  const said = { subject: path, ...at }
+
+  switch (Reflect.get(display, 'operation')) {
+    case 'read': {
+      return { kind: 'read', ...said }
+    }
+    case 'write': {
+      return { kind: 'write', ...said }
+    }
+    case 'edit': {
+      return { kind: 'edit', ...said }
+    }
+    case 'glob':
+    case 'grep': {
+      return { kind: 'search', ...said }
+    }
+    default: {
+      return { kind: 'other', ...said }
+    }
+  }
+}
+
 /**
- * server 自己给的显示提示（events-zod.ts 的 ToolInputDisplaySchema）往产品
- * 模型的三格上映：kind、locations、content。
+ * kap 的显示提示（events-zod.ts 的 ToolInputDisplaySchema，十三档）往产品模型的
+ * 四格上映：kind、subject、locations、content。
  *
- * 提示缺席时不猜：一张工具名到语种的翻译表是另一份要跟着上游漂移的清单，
- * 宁可卡片上是一句原文，不肯是一句我们编的。
+ * 分类的权威是 display，不是工具名 —— 工具名随版本改，display 由工具自己声明
+ * （agent-core-v2 的 toolContract.ts：RunnableToolExecution.display）。停止任务
+ * 归到 task：读者眼里它们是同一条后台线。提示缺席时不猜，退回派发自己写的那一句。
  */
-function readDisplay(display: unknown): {
-  readonly kind?: ToolKind
-  readonly locations?: readonly ToolCallLocation[]
-  readonly content?: readonly ToolCallContent[]
-} {
+function fromDisplay(display: unknown): ToolCallPatch {
   if (typeof display !== 'object' || display === null) {
     return {}
   }
 
   switch (Reflect.get(display, 'kind')) {
     case 'command': {
-      return { kind: 'execute' }
-    }
-
-    case 'search': {
-      return { kind: 'search' }
-    }
-
-    case 'url_fetch': {
-      return { kind: 'fetch' }
+      return { kind: 'execute', subject: textOf(display, 'command') }
     }
 
     case 'file_io': {
-      const path = Reflect.get(display, 'path')
-      const withPath = typeof path === 'string' && path !== '' ? { locations: [{ path }] } : {}
-
-      switch (Reflect.get(display, 'operation')) {
-        case 'read': {
-          return { kind: 'read', ...withPath }
-        }
-        case 'write':
-        case 'edit': {
-          return { kind: 'edit', ...withPath }
-        }
-        default: {
-          return { kind: 'search', ...withPath }
-        }
-      }
+      return { ...fromFileIo(display), ...writtenOf(display) }
     }
 
     case 'diff': {
-      const path = Reflect.get(display, 'path')
-      const before = Reflect.get(display, 'before')
-      const after = Reflect.get(display, 'after')
+      const path = textOf(display, 'path')
 
-      /* 三格缺一都不成一张 diff 卡：那时它就是一次普通的编辑。 */
-      if (typeof path !== 'string' || typeof before !== 'string' || typeof after !== 'string') {
-        return { kind: 'edit' }
-      }
+      return { kind: 'edit', subject: path, locations: [{ path }], ...writtenOf(display) }
+    }
 
+    case 'search': {
+      return { kind: 'search', subject: textOf(display, 'query') }
+    }
+
+    case 'url_fetch': {
+      return { kind: 'fetch', subject: textOf(display, 'url') }
+    }
+
+    case 'agent_call': {
       return {
-        kind: 'edit',
-        locations: [{ path }],
-        content: [{ type: 'diff', path, oldText: before, newText: after }],
+        kind: 'delegate',
+        subject: textOf(display, 'prompt'),
+        ...(Reflect.get(display, 'background') === true ? { isBackground: true } : {}),
       }
+    }
+
+    case 'skill_call': {
+      const name = textOf(display, 'skill_name')
+      const args = textOf(display, 'args')
+
+      return { kind: 'skill', subject: args === '' ? name : `${name} ${args}` }
+    }
+
+    case 'todo_list': {
+      return { kind: 'todo' }
+    }
+
+    case 'task': {
+      return { kind: 'task', subject: textOf(display, 'description') }
+    }
+
+    case 'task_stop': {
+      return { kind: 'task', subject: textOf(display, 'task_description') }
+    }
+
+    case 'plan_review': {
+      return { kind: 'plan', subject: textOf(display, 'plan') }
+    }
+
+    case 'goal_start': {
+      return { kind: 'goal', subject: textOf(display, 'objective') }
+    }
+
+    case 'generic': {
+      return { kind: 'other', subject: textOf(display, 'summary') }
     }
 
     default: {

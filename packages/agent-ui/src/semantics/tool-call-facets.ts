@@ -1,6 +1,5 @@
 import type { ToolCallContent } from '@poietica/agent-contract'
 
-import { readSubAgent, type SubAgentBrief } from './sub-agent'
 import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call-content'
 
 /**
@@ -20,9 +19,6 @@ import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call
  * 产出走同一条判据：解析得动就按同样的两格重排，解析不动就原样。重排动的只有空白 ——
  * JSON 的空白不承载语义（RFC 8259 §2），所以这不改数据，只改可读性。
  *
- * 一处例外，写在 writtenOf 上：为一次写入合成的那份文件正文，按文件自己的语言上色。
- * 那是要落到磁盘上的字节，不是一份待展示的 JSON 文档。
- *
  * 这一层不认识 React，也不认识时间线的条目类型：入参按形状收，与 tool-call-content
  * 只依赖 @poietica/agent-contract 是同一条边界。
  */
@@ -39,8 +35,6 @@ export interface ToolCallFacetSource {
 }
 
 export interface ToolCallFacets {
-  /** 这次派发的任务书概要；不是子代理派发就是 null。 */
-  readonly brief: SubAgentBrief | null
   readonly diffStat: DiffStat | null
   /** 送出去的那一面，一段 markdown；上游没送入参就是 null。 */
   readonly request: string | null
@@ -154,70 +148,6 @@ function inlineCode(value: string): string {
   const pad = value.startsWith('`') || value.endsWith('`') || value.trim() !== value ? ' ' : ''
 
   return `${rail}${pad}${value}${pad}${rail}`
-}
-
-/*
- * Shiki 注册的语言别名里本来就有这些扩展名，所以准入表里放的是扩展名本身，不做翻译。
- * 自己维护一张 ext → lang 的映射，就是在上游那张表旁边再放一张会过期的。认不得的一律
- * text：Shiki 对未注册的 info string 会整块降级，那比猜错语言更安全。
- */
-const SHIKI_ALIASES: ReadonlySet<string> = new Set([
-  'astro',
-  'bash',
-  'c',
-  'cpp',
-  'cs',
-  'css',
-  'diff',
-  'go',
-  'graphql',
-  'hs',
-  'html',
-  'ini',
-  'java',
-  'js',
-  'json',
-  'json5',
-  'jsonc',
-  'jsx',
-  'kt',
-  'less',
-  'lua',
-  'md',
-  'mdx',
-  'php',
-  'ps1',
-  'py',
-  'rb',
-  'rs',
-  'sass',
-  'scss',
-  'sh',
-  'sql',
-  'svelte',
-  'swift',
-  'toml',
-  'ts',
-  'tsx',
-  'vue',
-  'xml',
-  'yaml',
-  'yml',
-  'zsh',
-])
-
-/** 这次调用碰的是什么文件，就按什么语言上色。协议给的信息，不是猜的。 */
-function langOf(locations: ToolCallFacetSource['locations']): string {
-  const path = locations?.[0]?.path
-
-  if (path === undefined) {
-    return 'text'
-  }
-
-  const dot = path.lastIndexOf('.')
-  const ext = dot < 0 ? '' : path.slice(dot + 1).toLowerCase()
-
-  return SHIKI_ALIASES.has(ext) ? ext : 'text'
 }
 
 /**
@@ -350,54 +280,6 @@ function outputOf(value: unknown): string | null {
   return jsonBlock(value)
 }
 
-/**
- * 这次写进去的是什么。
- *
- * 「Wrote 127 bytes to …」是一句确认，不是这次调用的结果 —— 结果是那份内容。协议本来
- * 有位置放它（ToolCallContent 的 diff 分支），只是不少服务端不填。所以这里自己从
- * 入参合成，与 Cursor / Cline / Claude Code 在同一格的做法一致。
- *
- * 三条判据都来自协议或形状，一条都不认工具名：
- *   kind === 'edit'        —— ACP 的 ToolKind 枚举，卡片的图标分流用的也是它；
- *   产出里没有 diff        —— 服务端已经给了就不必代劳，那份才是权威；
- *   入参里最长的字符串     —— 一次写入的入参只有路径和内容两样，路径已被排除。
- *
- * 这一块按文件自己的语言上色：它是要落到磁盘上的那份字节，不是一份待展示的 JSON。
- * 内容本身恰好是 JSON 时仍然重排一次 —— 那只动空白。
- */
-function writtenOf(source: ToolCallFacetSource, parts: readonly ToolContentPart[]): string | null {
-  if (source.kind !== 'edit') {
-    return null
-  }
-
-  for (const part of parts) {
-    if (part.type === 'diff') {
-      return null
-    }
-  }
-
-  const bag = source.rawInput
-
-  if (typeof bag !== 'object' || bag === null || Array.isArray(bag)) {
-    return null
-  }
-
-  const path = source.locations?.[0]?.path
-  let body: string | null = null
-
-  for (const value of Object.values(bag)) {
-    if (typeof value !== 'string' || value === path || value === '') {
-      continue
-    }
-
-    if (body === null || value.length > body.length) {
-      body = value
-    }
-  }
-
-  return body === null ? null : block(langOf(source.locations), prettyJson(body) ?? body)
-}
-
 function responseOf(source: ToolCallFacetSource, parts: readonly ToolContentPart[]): string | null {
   const pieces: string[] = parts.map((part) => partMarkdown(part))
 
@@ -428,7 +310,6 @@ export function toToolCallFacets(source: ToolCallFacetSource): ToolCallFacets {
   const { diffStat, parts } = toToolCallView(source.content)
 
   return {
-    brief: readSubAgent(source.rawInput),
     diffStat,
     request: requestOf(source),
     response: responseOf(source, parts),

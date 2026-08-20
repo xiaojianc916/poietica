@@ -1,5 +1,4 @@
 import type { FeedRow, ToolCallTimelineItem } from '@poietica/agent'
-import { readToolKind } from '../semantics/tool-kind'
 
 /*
  * 连续的同类工具调用合成一组。
@@ -20,18 +19,9 @@ import { readToolKind } from '../semantics/tool-kind'
  * 于是「第二条到达就无缝并成组」是免费的：首行的身份从头到尾没有换过，虚拟器的
  * getItemKey 与瞬态区 AnimatePresence 的 key 都不动，不闪。
  *
- * 白名单认的是 ACP 的 kind，不是工具名。工具名是某一家 agent 的私有词汇（见
- * semantics/tool-intent.ts 顶上那段：接第二家 agent 时那些键要搬进 AgentDialect），
- * 而 kind 是协议的（agent-contract/protocol.ts 从上游 SDK 直接 re-export）。认工具名的
- * 白名单会在接第二家 agent 那天静默失效。
- *
- * 查表之前先过一道 readToolKind（semantics/tool-kind.ts）：上游漏填 kind 的调用在那里
- * 按入参形状认一次，认得出来的照常并组，认不出来的仍然是 other。查的仍然是 kind。
- *
- * 表里没有的 kind 一律不并：other 是协议的默认档，MCP 与 skill 都落在那里 —— 把语义
- * 未知的几条并成「其他 3 项」是纯粹的信息损失，读者反而要多点一次。think 不上屏
- * （renderable.ts）。协议将来长出新档时也落在这里，退化成单卡，而不是落进一个不存在的
- * 分支。
+ * 白名单认的是产品的 kind（由 kap 的 display 在 kap-projection.ts 一次判完），不是
+ * 工具名 —— 工具名随上游版本改。表外的 kind 不并：把语义未知的几条并成「其他 3 项」
+ * 是纯粹的信息损失，读者反而要多点一次。
  */
 
 export type ToolGroupKind = 'read' | 'search' | 'fetch' | 'execute' | 'write'
@@ -42,10 +32,9 @@ const GROUPED = new Map<ToolCallTimelineItem['kind'], ToolGroupKind>([
   ['search', 'search'],
   ['fetch', 'fetch'],
   ['execute', 'execute'],
-  /* 三档并作一类：改内容、删掉、改名，读者眼里都是「动了文件」。 */
+  /* 两档并作一类：新写与改写，读者眼里都是「动了文件」。 */
+  ['write', 'write'],
   ['edit', 'write'],
-  ['delete', 'write'],
-  ['move', 'write'],
 ])
 
 /** 少于这个数不成组：一条调用就是一条普通行，不套组壳。 */
@@ -79,7 +68,7 @@ function kindOf(row: FeedRow | undefined): ToolGroupKind | undefined {
     return undefined
   }
 
-  return GROUPED.get(readToolKind(row.item))
+  return GROUPED.get(row.item.kind)
 }
 
 /**

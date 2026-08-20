@@ -8,83 +8,68 @@ import {
   ChevronDownIcon,
   FileIcon,
   GlobeIcon,
+  GoalIcon,
   ModelIcon,
   PencilIcon,
+  PlanIcon,
+  PreviewIcon,
   SearchIcon,
+  SkillIcon,
+  SwarmIcon,
   TerminalIcon,
   ToolIcon,
 } from '../primitives/icons'
 import { type ToolCallFacets, toToolCallFacets } from '../semantics/tool-call-facets'
-import { readToolIntent } from '../semantics/tool-intent'
-import { readToolKind } from '../semantics/tool-kind'
+import { readToolLine } from '../semantics/tool-intent'
 import { ToolCallPanels } from './tool-call-panels'
 
 /*
- * 协议那九档各自的字形。
+ * 十三档各自的字形。扳手只剩一个确切的意思：kap 没给 display。
  *
- * default 从此只接住 other 一档 —— 九档里其余八档都在上面点了名。所以扳手不再是
- * 「兜底」，它是一个确切的意思：这次调用没有报类别，而且入参的形状也认不出它在做
- * 什么（semantics/tool-kind.ts），而不是这里少写了一个 case。
- *
- * 这件事有实际用处：不报 kind 的调用不参与聚合（见 tool-group.ts 的白名单），于是
- * 「几条同类调用没有并起来」与「它们戴着扳手」是同一个原因的两个面，看一眼就够了。
+ * 末尾那道 never：协议长出新档时这里是编译错误，不是一枚沉默的扳手。
  */
 export function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
   const className = 'timeline-tool__icon'
 
   switch (kind) {
+    case 'read':
+      return <FileIcon aria-hidden="true" className={className} />
+    case 'write':
     case 'edit':
       return <PencilIcon aria-hidden="true" className={className} />
-    case 'delete':
-    case 'move':
-      return <FileIcon aria-hidden="true" className={className} />
-    case 'read':
     case 'search':
       return <SearchIcon aria-hidden="true" className={className} />
     case 'fetch':
       return <GlobeIcon aria-hidden="true" className={className} />
     case 'execute':
       return <TerminalIcon aria-hidden="true" className={className} />
-    case 'think':
+    case 'delegate':
       return <ModelIcon aria-hidden="true" className={className} />
-    default:
+    case 'skill':
+      return <SkillIcon aria-hidden="true" className={className} />
+    case 'todo':
+      return <PlanIcon aria-hidden="true" className={className} />
+    case 'plan':
+      return <PreviewIcon aria-hidden="true" className={className} />
+    case 'task':
+      return <SwarmIcon aria-hidden="true" className={className} />
+    case 'goal':
+      return <GoalIcon aria-hidden="true" className={className} />
+    case 'other':
       return <ToolIcon aria-hidden="true" className={className} />
+    default:
+      return unreachable(kind)
   }
 }
 
-/** 这一行印出来的那句话。完整调用信息仍然位于可展开的详情中。 */
-interface ToolCallLine {
-  readonly text: string
+function unreachable(_kind: never): null {
+  return null
 }
 
 interface ToolCallCardView {
   readonly facets: ToolCallFacets
-  readonly line: ToolCallLine
+  readonly line: string
   readonly isRunning: boolean
-}
-
-/*
- * 一个槽位只有一句话，所以这里交出的是一句话，而不是「三种来源里挑一个」。
- *
- * 上游有几路与这一行长什么样无关：投影层给了简报就用简报，否则从入参里读意图，
- * 两者都没有时印 agent 自己的话。派生在这一层收口，渲染层因此只认一个类名 ——
- * 否则同一个槽位会按来源分出两套排版，一屏里像两种控件。
- */
-function readToolCallLine(
-  item: ToolCallTimelineItem,
-  brief: ToolCallFacets['brief'],
-): ToolCallLine {
-  if (brief !== null) {
-    return { text: brief.label }
-  }
-
-  const intent = readToolIntent(item)
-
-  if (intent !== null) {
-    return { text: intent.text }
-  }
-
-  return { text: item.title }
 }
 
 /*
@@ -103,7 +88,7 @@ function describeToolCall(item: ToolCallTimelineItem, isInFlight: boolean): Tool
   return {
     facets,
     isRunning: isInFlight && (item.status === 'pending' || item.status === 'in_progress'),
-    line: readToolCallLine(item, facets.brief),
+    line: readToolLine(item),
   }
 }
 
@@ -125,12 +110,7 @@ function ToolCallDiffStat({ diffStat }: { readonly diffStat: ToolCallFacets['dif
   )
 }
 
-/**
- * 这一行：一枚图标，一句话，指到才出现的箭头 —— 还在跑的时候，那句话上有一道光扫过。
- *
- * 子代理不是一种 ACP 工具类别（ToolKind 里没有它），所以图标那一格的分流在
- * 这一层，不在 ToolKindIcon 的 switch 里：那个 switch 认的是协议枚举。
- */
+/** 这一行：一枚图标，一句话，指到才出现的箭头 —— 还在跑的时候，那句话上有一道光扫过。 */
 function ToolCallHeader({
   isOpen,
   item,
@@ -143,7 +123,7 @@ function ToolCallHeader({
   readonly view: ToolCallCardView
 }) {
   const { facets, isRunning, line } = view
-  const { brief, diffStat } = facets
+  const { diffStat } = facets
 
   return (
     <button
@@ -152,19 +132,11 @@ function ToolCallHeader({
       onClick={onToggle}
       type="button"
     >
-      {brief === null ? (
-        <ToolKindIcon kind={readToolKind(item)} />
-      ) : (
-        <ModelIcon aria-hidden="true" className="timeline-tool__icon" />
-      )}
+      <ToolKindIcon kind={item.kind} />
 
-      <span className={cx('timeline-tool__label', isRunning && 'timeline-shimmer')}>
-        {line.text}
-      </span>
+      <span className={cx('timeline-tool__label', isRunning && 'timeline-shimmer')}>{line}</span>
 
-      {brief?.isBackground === true ? (
-        <span className="timeline-tool__background">后台</span>
-      ) : null}
+      {item.isBackground === true ? <span className="timeline-tool__background">后台</span> : null}
 
       <ToolCallDiffStat diffStat={diffStat} />
 
@@ -200,7 +172,7 @@ export function ToolCallCard({
       <ToolCallHeader isOpen={isOpen} item={item} onToggle={toggle} view={view} />
 
       <DisclosureBody isOpen={isOpen}>
-        <ToolCallPanels facets={view.facets} isRunning={view.isRunning} />
+        <ToolCallPanels facets={view.facets} isRunning={view.isRunning} kind={item.kind} />
       </DisclosureBody>
     </section>
   )

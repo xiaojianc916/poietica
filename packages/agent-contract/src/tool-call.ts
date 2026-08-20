@@ -1,6 +1,20 @@
 import type { KapToolCallId } from './kap'
 
-export type ToolKind = 'edit' | 'execute' | 'fetch' | 'other' | 'read' | 'search'
+/** 产品的工具类别：kap 的 display.kind 一档一映（packages/agent 的 kap-projection.ts）。 */
+export type ToolKind =
+  | 'delegate'
+  | 'edit'
+  | 'execute'
+  | 'fetch'
+  | 'goal'
+  | 'other'
+  | 'plan'
+  | 'read'
+  | 'search'
+  | 'skill'
+  | 'task'
+  | 'todo'
+  | 'write'
 
 export type ToolCallStatus = 'completed' | 'failed' | 'in_progress' | 'pending'
 

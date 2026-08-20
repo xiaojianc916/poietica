@@ -1,7 +1,7 @@
+import type { ToolCallTimelineItem } from '@poietica/agent'
 import { useId, useRef, useState } from 'react'
 
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
-import type { SubAgentBrief } from '../semantics/sub-agent'
 import type { ToolCallFacets } from '../semantics/tool-call-facets'
 import { VirtualProse } from './virtual-prose'
 
@@ -33,12 +33,12 @@ const FACETS: readonly TabOption[] = [
  * 「没有返回内容」对一个还在跑的调用是假的：它不是没返回，是还没返回。子代理这一路
  * 更进一步 —— 它整段运行期都是空的，而且空得有原因：上游不回传子代理的过程。
  */
-function emptyNoteOf(brief: SubAgentBrief | null, isRunning: boolean): string {
+function emptyNoteOf(kind: ToolCallTimelineItem['kind'], isRunning: boolean): string {
   if (!isRunning) {
     return '这次调用没有返回内容。'
   }
 
-  return brief === null ? '还在运行，暂时没有输出。' : '子代理在自己那边干活，上游不回传它的过程。'
+  return kind === 'delegate' ? '子代理在自己那边干活，这里只记结果。' : '还在运行，暂时没有输出。'
 }
 
 /**
@@ -51,11 +51,13 @@ function emptyNoteOf(brief: SubAgentBrief | null, isRunning: boolean): string {
 export function ToolCallPanels({
   facets,
   isRunning,
+  kind,
 }: {
   readonly facets: ToolCallFacets
   readonly isRunning: boolean
+  readonly kind: ToolCallTimelineItem['kind']
 }) {
-  const { brief, request, response } = facets
+  const { request, response } = facets
   const baseId = useId()
   const [chosen, setChosen] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -69,7 +71,7 @@ export function ToolCallPanels({
     request === null ? RESPONSE : (chosen ?? (response === null ? REQUEST : RESPONSE))
 
   const text =
-    activeId === REQUEST && request !== null ? request : (response ?? emptyNoteOf(brief, isRunning))
+    activeId === REQUEST && request !== null ? request : (response ?? emptyNoteOf(kind, isRunning))
 
   const face = (
     <VirtualProse
