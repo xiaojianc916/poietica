@@ -10,17 +10,20 @@ export const BROWSER_PANEL = {
   defaultWidth: 420,
 } as const
 
+/** 分隔条的交互态。写入方只有分隔条的指针处理器，形制与工作区侧栏同款。 */
+export type SplitterActivity = 'idle' | 'hover' | 'drag'
+
 /**
  * 浏览器面板状态的唯一所有者（渲染层这一侧）。
  *
  * 开合与宽度是跨会话保留的用户意图，走 createPreference 那一条管线；
- * isResizing 是单次拖拽内的瞬时状态；host 是宿主广播来的快照 —— 三者
+ * splitter 是单次拖拽内的瞬时状态；host 是宿主广播来的快照 —— 三者
  * 都在这里，组件本地不许再记一份。
  */
 export interface BrowserPanelState {
   readonly open: boolean
   readonly width: number
-  readonly isResizing: boolean
+  readonly splitter: SplitterActivity
   readonly host: BrowserHostView | null
 }
 
@@ -55,7 +58,7 @@ export interface BrowserPanelStore {
   readonly setSurfaceActive: (active: boolean) => void
   readonly togglePanel: () => void
   readonly setPanelWidth: (width: number) => void
-  readonly setResizing: (resizing: boolean) => void
+  readonly setSplitterActivity: (next: SplitterActivity) => void
   readonly reportViewport: (rect: BrowserViewportRect) => void
   readonly actions: {
     readonly openTab: (url: string | null) => void
@@ -84,7 +87,7 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
   })
 
   let intent = persisted.read()
-  let resizing = false
+  let splitter: SplitterActivity = 'idle'
   let host: BrowserHostView | null = null
   let surfaceActive = false
   let started = false
@@ -93,7 +96,7 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
   /* 自动展开的静音位与忙边沿。手动关过就静音，手动开恢复；内存位，不落盘。 */
   let autoOpenMuted = false
   let hostBusy = false
-  let snapshot: BrowserPanelState = { ...intent, isResizing: false, host }
+  let snapshot: BrowserPanelState = { ...intent, splitter, host }
 
   /* 界面动作打不动宿主不是调用方要接的错误：记日志，界面靠快照自愈。 */
   function run(operation: string, task: () => Promise<void>): void {
@@ -103,12 +106,12 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
   }
 
   function publish(): void {
-    const next: BrowserPanelState = { ...intent, isResizing: resizing, host }
+    const next: BrowserPanelState = { ...intent, splitter, host }
 
     if (
       next.open === snapshot.open &&
       next.width === snapshot.width &&
-      next.isResizing === snapshot.isResizing &&
+      next.splitter === snapshot.splitter &&
       next.host === snapshot.host
     ) {
       return
@@ -153,7 +156,7 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
     intent = next
     publish()
 
-    if (!resizing) {
+    if (splitter !== 'drag') {
       persisted.write(next)
     }
 
@@ -226,16 +229,18 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
       settle({ ...intent, width: clampWidth(width) })
     },
 
-    setResizing: (value: boolean): void => {
-      if (value === resizing) {
+    setSplitterActivity: (next: SplitterActivity): void => {
+      if (next === splitter) {
         return
       }
 
-      resizing = value
+      const wasDragging = splitter === 'drag'
+
+      splitter = next
       publish()
 
-      /* 松手那一刻，把拖拽期间累积的宽度一次落盘。 */
-      if (!value) {
+      /* 离开拖拽的那一刻，把期间累积的宽度一次落盘。 */
+      if (wasDragging) {
         persisted.write(intent)
       }
     },

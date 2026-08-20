@@ -5,6 +5,7 @@ export {
   type BrowserPanelState,
   type BrowserPanelStore,
   createBrowserPanelStore,
+  type SplitterActivity,
 } from './browser-panel-store'
 export type {
   BrowserClosedTabView,

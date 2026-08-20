@@ -8,7 +8,14 @@ import {
   RotateCw,
   Wrench,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  type PointerEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 
 import { BROWSER_PANEL, type BrowserPanelStore } from './browser-panel-store'
 import type { BrowserTabView } from './browser-port'
@@ -63,11 +70,73 @@ export function BrowserPanel({ store, trailing }: BrowserPanelProps) {
   )
 }
 
-function ResizeHandle({ store, width }: { store: BrowserPanelStore; width: number }) {
-  const drag = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
+/*
+ * 指针是否还在条上，按几何自己算。捕获期间浏览器的 :hover 按规范被覆盖到捕获
+ * 元素上（Pointer Events L3 setPointerCapture），所以收尾态不能问浏览器。
+ * 与 packages/workspace/src/shell/sidebar/use-sidebar-resize.ts 同款。
+ */
+function isPointerOver(element: HTMLHRElement, point: { x: number; y: number }): boolean {
+  const rect = element.getBoundingClientRect()
 
   return (
-    /* 拖拽宽度。松手那一次由 setResizing(false) 收尾落盘，与侧栏同款。 */
+    point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
+  )
+}
+
+function ResizeHandle({ store, width }: { store: BrowserPanelStore; width: number }) {
+  const drag = useRef<{
+    readonly pointerId: number
+    readonly element: HTMLHRElement
+    readonly startX: number
+    readonly startWidth: number
+    /* 最后已知的指针位置：收尾时用它判定指针是否还在条上。 */
+    point: { readonly x: number; readonly y: number }
+  } | null>(null)
+
+  const settle = (session: NonNullable<typeof drag.current>): void => {
+    drag.current = null
+
+    /* lostpointercapture 时捕获已释放，此时 release 会抛 NotFoundError。 */
+    if (session.element.hasPointerCapture(session.pointerId)) {
+      session.element.releasePointerCapture(session.pointerId)
+    }
+
+    store.setSplitterActivity(isPointerOver(session.element, session.point) ? 'hover' : 'idle')
+  }
+
+  const handlePointerEnd = (event: PointerEvent<HTMLHRElement>): void => {
+    const session = drag.current
+
+    if (session?.pointerId !== event.pointerId) {
+      return
+    }
+
+    settle(session)
+  }
+
+  /* 悬停只在没有会话时由指针进出改写；拖拽中的进出由 settle 统一收尾。 */
+  const handlePointerEnter = (): void => {
+    if (drag.current === null) {
+      store.setSplitterActivity('hover')
+    }
+  }
+
+  const handlePointerLeave = (): void => {
+    if (drag.current === null) {
+      store.setSplitterActivity('idle')
+    }
+  }
+
+  /* 条随面板收起而卸载：谁写的状态谁收回，否则再展开时拖拽态还挂着。 */
+  useEffect(
+    () => () => {
+      store.setSplitterActivity('idle')
+    },
+    [store],
+  )
+
+  return (
+    /* 拖拽宽度。交互态写进 store，离开 drag 的那一次收尾落盘，与侧栏同款。 */
     <hr
       aria-label="调整浏览器面板宽度"
       aria-orientation="vertical"
@@ -84,11 +153,31 @@ function ResizeHandle({ store, width }: { store: BrowserPanelStore; width: numbe
           store.setPanelWidth(width - 10)
         }
       }}
+      onLostPointerCapture={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
       onPointerDown={(event) => {
-        drag.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width }
-        event.currentTarget.setPointerCapture(event.pointerId)
-        store.setResizing(true)
+        if (event.button !== 0 || drag.current !== null) {
+          return
+        }
+
+        event.preventDefault()
+        event.stopPropagation()
+
+        const element = event.currentTarget
+
+        drag.current = {
+          pointerId: event.pointerId,
+          element,
+          startX: event.clientX,
+          startWidth: width,
+          point: { x: event.clientX, y: event.clientY },
+        }
+
+        store.setSplitterActivity('drag')
+        element.setPointerCapture(event.pointerId)
       }}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
       onPointerMove={(event) => {
         const current = drag.current
 
@@ -96,16 +185,11 @@ function ResizeHandle({ store, width }: { store: BrowserPanelStore; width: numbe
           return
         }
 
+        current.point = { x: event.clientX, y: event.clientY }
+
         store.setPanelWidth(current.startWidth + (current.startX - event.clientX))
       }}
-      onPointerUp={(event) => {
-        if (drag.current?.pointerId !== event.pointerId) {
-          return
-        }
-
-        drag.current = null
-        store.setResizing(false)
-      }}
+      onPointerUp={handlePointerEnd}
       tabIndex={0}
     />
   )
