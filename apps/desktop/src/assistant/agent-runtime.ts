@@ -28,7 +28,6 @@ import type { AgentConfigStore } from '@poietica/settings'
 export interface DesktopAgentRuntimeOptions {
   readonly config: AgentConfigStore
   readonly cwd: NonNullable<AgentBridgeOptions['cwd']>
-  readonly mcpServers: NonNullable<AgentBridgeOptions['mcpServers']>
   readonly onSelectionFailure: (cause: unknown) => void
   readonly onSelectionReady: () => void
 }
@@ -160,7 +159,6 @@ export function createDesktopAgentRuntime(
   }
 
   const sessionConfig = createAgentSessionConfigBridge({
-    mcpServers: options.mcpServers,
     onListenFailure: noteListenFailure,
   })
 
@@ -169,13 +167,11 @@ export function createDesktopAgentRuntime(
   const threads = createAgentThreadBridge({
     cwd: options.cwd,
     launch: launchSelected,
-    mcpServers: options.mcpServers,
   })
 
   const session = createAgentSessionPort({
     cwd: options.cwd,
     launch: launchSelected,
-    mcpServers: options.mcpServers,
     onListenFailure: noteListenFailure,
   })
 

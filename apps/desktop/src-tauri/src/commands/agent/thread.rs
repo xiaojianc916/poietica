@@ -6,7 +6,6 @@ use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::{agent_home, remove_projectless_workspace};
 use poietica_agent_persistence_native::{FrameCursor, FramePage, TitleSource};
-use serde_json::Value;
 use tauri::{AppHandle, State, async_runtime};
 
 use super::addressing::{Held, read_point, session_for};
@@ -25,16 +24,8 @@ use super::{AgentCommandResult, FRAME_PAGE, NO_ANSWER, NOTHING_TO_FORK, TITLE_CH
 
 /// Lists the stored conversations, newest first.
 ///
-/// A read, and nothing but a read. It used to open with a round trip to the
-/// agent for its session list and write those names in, which is where every
-/// conversation in this list got the name New Session: that title is what
-/// the agent called the session in its own store, it is never revised, and
-/// it was ranked above the first thing the user actually said.
-///
-/// Dropping it takes a subprocess round trip and a write transaction off the
-/// path that draws the sidebar, and takes the whole read off the main thread.
-/// The names shown are now decided in one place, by the ranking in
-/// `TitleSource.`
+/// A read, and nothing but a read: the names come from the ranking in
+/// [`TitleSource`], not from the agent's own session list.
 ///
 /// # Errors
 ///
@@ -183,20 +174,12 @@ pub async fn agent_earlier_frames(
     Ok(paged(frames)?)
 }
 
-/// 一页日志行，回到帧的形状。
+/// 一页帧与它的读取位置，收进线上那一格的宽度。
 ///
-/// 读不成的一行是本地日志坏了，不是这条对话的内容 —— 说出来，不静默跳过。
+/// 帧不解析：库里那一段字节原样交给绑定，读不成的一行在读库处就已经说过了。
 fn paged(page: FramePage) -> Result<AgentFramePage> {
-    let mut events = Vec::with_capacity(page.frames.len());
-
-    for line in page.frames {
-        events.push(serde_json::from_str(&line).map_err(|error| {
-            Error::Internal(format!("a recorded frame could not be read: {error}"))
-        })?);
-    }
-
     Ok(AgentFramePage {
-        events,
+        events: page.frames,
         before: page.before.map(cursored).transpose()?,
     })
 }

@@ -83,7 +83,6 @@ export {
   type BuiltinMcpServer,
   type McpServerInput,
   type McpServerLaunchedBy,
-  type McpServerWire,
   type ResolvedMcpServer,
   resolveMcpServers,
 } from './mcp-servers'

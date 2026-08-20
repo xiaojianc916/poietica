@@ -22,7 +22,6 @@ import {
 import { createDesktopAgentRuntime, type DesktopAgentRuntime } from '../assistant/agent-runtime'
 import { reportFailure } from '../failures/application-policy'
 import { failureCoordinator } from '../failures/coordinator'
-import { activeMcpServers } from '../plugins/plugin-runtime'
 import { activeWorkspaceRoot } from '../workspace-root'
 
 export interface ApplicationRuntime {
@@ -65,7 +64,6 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   const agent = createDesktopAgentRuntime({
     config: agentConfig,
     cwd: activeWorkspaceRoot,
-    mcpServers: activeMcpServers,
     onSelectionFailure: (cause) => {
       reportFailure('AGENT_SELECTION_UNAVAILABLE', {
         scope: 'application-runtime',

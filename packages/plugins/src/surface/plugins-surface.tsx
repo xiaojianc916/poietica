@@ -333,7 +333,7 @@ function detailOf(origin: ManagedOrigin, server: ResolvedMcpServer): string {
 
   switch (server.launchedBy) {
     case 'client':
-      return '会话开始时由本应用装载'
+      return '本应用自己在跑，尚未接进会话'
     case 'agent':
       return '会话开始时由命令行装载'
     case 'none':

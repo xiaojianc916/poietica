@@ -67,7 +67,7 @@ describe('resolveMcpServers', () => {
     ])
   })
 
-  it('只有内置那一台是本应用亲手送进会话的', () => {
+  it('内置那台由本应用自己起着，其余的由命令行起', () => {
     const resolved = resolveMcpServers({
       builtin: [RUNNING],
       environment: [declared('from-config', true)],
@@ -75,12 +75,6 @@ describe('resolveMcpServers', () => {
     })
 
     expect(resolved.map((server) => server.launchedBy)).toEqual(['client', 'agent', 'agent'])
-    expect(resolved.filter((server) => server.wire !== undefined)).toHaveLength(1)
-    expect(resolved[0]?.wire).toEqual({
-      type: 'http',
-      name: 'poietica-automations',
-      url: RUNNING.url,
-    })
   })
 
   it('端口没绑上时那一行还在，只是没有人会起它', () => {
@@ -91,11 +85,10 @@ describe('resolveMcpServers', () => {
     })
 
     expect(resolved).toHaveLength(1)
-    expect(resolved[0]?.wire).toBeUndefined()
     expect(resolved[0]?.launchedBy).toBe('none')
   })
 
-  it('内置那台关掉之后开关还在，只是不再送进会话', () => {
+  it('内置那台关掉之后开关还在，只是没有人会起它', () => {
     const resolved = resolveMcpServers({
       builtin: [{ ...RUNNING, enabled: false }],
       environment: [],

@@ -9,7 +9,7 @@ use poietica_agent_runtime_native::{
     AnswerMethod, Decision, QuestionAnswer, QuestionResponse, Scope,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, value::RawValue};
 use specta::Type;
 
 /// 起一个 agent 进程要说清的那件事。
@@ -28,10 +28,6 @@ pub struct AgentLaunch {
 /// 字节不再跨 IPC。它们在用户把文件放进输入框的那一刻就已经在原生侧了
 /// （见 commands/asset.rs 的 asset_import 与 asset_upload），这里交回来的
 /// 只是取得它的两个令牌 —— 一次提问因此不再搬运任何字节，无论那张图多大。
-///
-/// 手写的 Debug 也随之没有了：这个结构现在一共两个短字符串，一整个请求打
-/// 进日志也就是两行令牌。此前它必须手写，因为默认的 Debug 会把十六兆的
-/// base64 原样吐进日志文件。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptAsset {
@@ -58,9 +54,6 @@ pub struct AgentPromptRequest {
     pub launch: AgentLaunch,
     /// The working directory the session is created against.
     pub cwd: Option<String>,
-    /// kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
-    /// 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
-    pub mcp_servers: Vec<Value>,
 }
 
 /// What the interface needs to follow the turn it just started.
@@ -250,9 +243,6 @@ pub struct AgentSelectConfigRequest {
     pub config_id: String,
     /// One of the values that selector offered.
     pub value: String,
-    /// kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
-    /// 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
-    pub mcp_servers: Vec<Value>,
 }
 
 /// 问这个 agent 提供什么，不点名任何一条对话。
@@ -274,11 +264,7 @@ pub(super) const NO_THREAD: &str = "the conversation was created but could not b
 /// Where a conversation's name came from.
 ///
 /// A closed set of three, and the interface ranks on it: a name the user
-/// typed is never replaced by one derived from the text. Carried across as a
-/// free string, that ranking had to be re-asserted at every call site, and
-/// the list written down in the generated bindings had already drifted — it
-/// still named an `official` source, which [`TitleSource`] removed when this
-/// program stopped taking conversation names from the agent.
+/// typed is never replaced by one derived from the text.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentTitleSource {
@@ -327,8 +313,12 @@ pub struct AgentFrameCursor {
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentFramePage {
-    /// 这一页的帧，按追加顺序。
-    pub events: Vec<Value>,
+    /// 这一页的帧，按追加顺序。库里那一段字节，未解析。
+    ///
+    /// specta 没有 `RawValue` 的 `Type`，线上形状因此由 `type` 明写 ——
+    /// 与 `Vec<Value>` 生成的绑定逐字相同。
+    #[specta(type = Vec<Value>)]
+    pub events: Vec<Box<RawValue>>,
     /// 更早那一页的读取位置；缺席就是前面没有了。
     pub before: Option<AgentFrameCursor>,
 }
@@ -353,9 +343,6 @@ pub struct AgentOpenThreadRequest {
     pub launch: AgentLaunch,
     /// The working directory the session is created against.
     pub cwd: Option<String>,
-    /// kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
-    /// 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
-    pub mcp_servers: Vec<Value>,
 }
 
 /// A conversation that was just opened, and what its session offers.

@@ -12,31 +12,17 @@ import type { BuiltinOrigin, ContributionOrigin } from './origin'
  * 是 { "command": "node", "args": ["./bin/kimi-datasource.mjs"], "cwd": "./" }，少了 cwd
  * 那条相对路径必然找不到文件。该谁起谁起，本应用只投影。
  *
- * 唯一由本应用亲手送进会话的是内置那一台：它不在任何配置文件里，进程起来它才存在，
- * 端口由内核分配，所以只有本应用说得出它的地址。
+ * 内置那一台由本应用自己的进程起着，端口由内核分配；但没有任何一条路把它挂进会话 ——
+ * kap 的 session/new 不收名册。列出来时如实说这一点。
  *
  * 关掉的照样列出来。拨到关就消失、再也开不回来，那不是开关，是删除。
  */
 
 /**
- * ACP 认得的那个对象。
- *
- * 只有 http 这一支。判别式由协议钉死（schema 那一侧是
- * #[serde(tag = "type", rename_all = "snake_case")]），而本应用送得出去的只有内置那一台
- * 本机 http 端点。子进程那一支不在这里出现 —— 起子进程的是 CLI，形状也归它。
- *
- * 写成类型别名而不是 interface，是因为桥那一层把它当不透明 JSON 送过去（原生侧只能把
- * ACP 的结构体反序列化出来，它们全是 #[non_exhaustive]，构造不出来），而 TypeScript 只
- * 给对象类型别名隐式索引签名，不给 interface —— interface 可以在别处被声明合并追加字段，
- * 属性集合不封闭。改回 interface 会当场编译不过；加索引签名或强转都是把约束扔掉换编译过。
+ * 谁在起它。client 是本应用自己的进程（内置那一台，端口绑上才算），agent 是命令行
+ * 按配置起。none 是没有人起，不是起不来。client 不等于「挂进了会话」——
+ * kap 的 session/new 不收名册，那条路今天不存在。
  */
-export type McpServerWire = {
-  readonly type: 'http'
-  readonly name: string
-  readonly url: string
-}
-
-/** 这一次谁会起它。none 是「这一次没有人会起它」，不是「起不来」。 */
 export type McpServerLaunchedBy = 'agent' | 'client' | 'none'
 
 export interface ResolvedMcpServer {
@@ -45,8 +31,6 @@ export interface ResolvedMcpServer {
   /** 这一台自己的开关。界面上那个 Switch 显示的就是它。 */
   readonly enabled: boolean
   readonly launchedBy: McpServerLaunchedBy
-  /** 本应用亲手送进会话的那一台才有形状。其余的我们不构造。 */
-  readonly wire: McpServerWire | undefined
 }
 
 /**
@@ -78,15 +62,11 @@ export function resolveMcpServers(input: McpServerInput): readonly ResolvedMcpSe
   const resolved: ResolvedMcpServer[] = []
 
   for (const server of input.builtin) {
-    const wire: McpServerWire | undefined =
-      server.url === undefined ? undefined : { type: 'http', name: server.name, url: server.url }
-
     resolved.push({
       origin: BUILTIN_ORIGIN,
       name: server.name,
       enabled: server.enabled,
-      launchedBy: server.enabled && wire !== undefined ? 'client' : 'none',
-      wire,
+      launchedBy: server.enabled && server.url !== undefined ? 'client' : 'none',
     })
   }
 
@@ -100,7 +80,6 @@ export function resolveMcpServers(input: McpServerInput): readonly ResolvedMcpSe
       name: server.name,
       enabled: server.enabledInConfig,
       launchedBy: server.enabledInConfig ? 'agent' : 'none',
-      wire: undefined,
     })
   }
 
@@ -116,7 +95,6 @@ export function resolveMcpServers(input: McpServerInput): readonly ResolvedMcpSe
         name,
         enabled,
         launchedBy: plugin.enabled && enabled ? 'agent' : 'none',
-        wire: undefined,
       })
     }
   }

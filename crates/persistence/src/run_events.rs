@@ -32,7 +32,7 @@ pub struct FrameCursor {
 #[derive(Debug)]
 pub struct FramePage {
     /// 这一页的帧，各是 `RecordedEvent` 成形好的那一行 JSON。
-    pub frames: Vec<String>,
+    pub frames: Vec<Box<RawValue>>,
     /// 更早那一页从哪儿接着读。
     pub before: Option<FrameCursor>,
 }
@@ -135,8 +135,12 @@ impl AgentStore {
             None
         };
 
+        /* 读不成的一行是日志坏了，不是这条对话的内容 —— 说出来，不静默跳过。 */
         Ok(FramePage {
-            frames: read.into_iter().map(|(_cursor, frame)| frame).collect(),
+            frames: read
+                .into_iter()
+                .map(|(_cursor, frame)| RawValue::from_string(frame))
+                .collect::<serde_json::Result<Vec<_>>>()?,
             before,
         })
     }

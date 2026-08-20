@@ -150,16 +150,8 @@ async agentCapabilities(request: AgentCapabilitiesRequest) : Promise<AgentConfig
 /**
  * Lists the stored conversations, newest first.
  * 
- * A read, and nothing but a read. It used to open with a round trip to the
- * agent for its session list and write those names in, which is where every
- * conversation in this list got the name New Session: that title is what
- * the agent called the session in its own store, it is never revised, and
- * it was ranked above the first thing the user actually said.
- * 
- * Dropping it takes a subprocess round trip and a write transaction off the
- * path that draws the sidebar, and takes the whole read off the main thread.
- * The names shown are now decided in one place, by the ranking in
- * `TitleSource.`
+ * A read, and nothing but a read: the names come from the ranking in
+ * [`TitleSource`], not from the agent's own session list.
  * 
  * # Errors
  * 
@@ -1342,7 +1334,10 @@ seq: number }
  */
 export type AgentFramePage = { 
 /**
- * 这一页的帧，按追加顺序。
+ * 这一页的帧，按追加顺序。库里那一段字节，未解析。
+ * 
+ * specta 没有 `RawValue` 的 `Type`，线上形状因此由 `type` 明写 ——
+ * 与 `Vec<Value>` 生成的绑定逐字相同。
  */
 events: JsonValue[]; 
 /**
@@ -1437,12 +1432,7 @@ launch: AgentLaunch;
 /**
  * The working directory the session is created against.
  */
-cwd: string | null; 
-/**
- * kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
- * 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
- */
-mcpServers: JsonValue[] }
+cwd: string | null }
 /**
  * A conversation that was just opened, and what its session offers.
  */
@@ -1496,10 +1486,6 @@ pinned: boolean }
  * 字节不再跨 IPC。它们在用户把文件放进输入框的那一刻就已经在原生侧了
  * （见 commands/asset.rs 的 asset_import 与 asset_upload），这里交回来的
  * 只是取得它的两个令牌 —— 一次提问因此不再搬运任何字节，无论那张图多大。
- * 
- * 手写的 Debug 也随之没有了：这个结构现在一共两个短字符串，一整个请求打
- * 进日志也就是两行令牌。此前它必须手写，因为默认的 Debug 会把十六兆的
- * base64 原样吐进日志文件。
  */
 export type AgentPromptAsset = { 
 /**
@@ -1536,12 +1522,7 @@ launch: AgentLaunch;
 /**
  * The working directory the session is created against.
  */
-cwd: string | null; 
-/**
- * kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
- * 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
- */
-mcpServers: JsonValue[] }
+cwd: string | null }
 /**
  * What the interface needs to follow the turn it just started.
  */
@@ -1640,12 +1621,7 @@ configId: string;
 /**
  * One of the values that selector offered.
  */
-value: string; 
-/**
- * kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格）：服务器
- * 归 kimi 自己的配置管。这一格暂留在 IPC 上 —— 渲染层名册的清理是另一批。
- */
-mcpServers: JsonValue[] }
+value: string }
 /**
  * 一条会话此刻占了多少上下文，以及它累计的输入构成。
  * 
@@ -1723,11 +1699,7 @@ threadId: string }
  * Where a conversation's name came from.
  * 
  * A closed set of three, and the interface ranks on it: a name the user
- * typed is never replaced by one derived from the text. Carried across as a
- * free string, that ranking had to be re-asserted at every call site, and
- * the list written down in the generated bindings had already drifted — it
- * still named an `official` source, which [`TitleSource`] removed when this
- * program stopped taking conversation names from the agent.
+ * typed is never replaced by one derived from the text.
  */
 export type AgentTitleSource = 
 /**

@@ -20,7 +20,6 @@ import {
   type AgentQuestionChoice,
   type AgentSessionUsage,
   commands,
-  type JsonValue,
 } from './generated/ipc-bindings'
 
 /**
@@ -88,20 +87,6 @@ export interface AgentBridgeOptions {
    * 进程 —— 此前这一格是个值，而组合层连那个值都没有传。
    */
   readonly cwd?: () => string | null
-  /**
-   * 这一次开会话时要挂哪几台 MCP 服务器。
-   *
-   * 载荷原样送过去，这一层一格都不认识。
-   *
-   * kap 的会话创建不收 MCP 名册（sessionCreateSchema 没有这一格：服务器归 kimi
-   * 自己的配置管），所以这一格今天在原生侧就停住了（commands/agent/dto.rs 的
-   * mcp_servers）。它留在这条路上，是因为渲染层名册的清理还没做。
-   *
-   * 与 launch 和 cwd 同一条规矩：交的是一次求值，不是一个值。插件随时会被装上
-   * 或拨掉，而桥在启动时就建好了。求值允许异步 —— 名册的第一份真相要等插件库
-   * 首扫落定，与 launch 允许 Promise 是同一个理由。
-   */
-  readonly mcpServers?: () => readonly JsonValue[] | Promise<readonly JsonValue[]>
 }
 
 /**
@@ -217,7 +202,6 @@ function questionChoiceOf(choice: QuestionChoice): AgentQuestionChoice {
 export function createAgentSessionPort({
   launch,
   cwd,
-  mcpServers,
   onListenFailure,
 }: AgentBridgeOptions & AgentEventSourceOptions): AgentSessionPort {
   return {
@@ -240,7 +224,6 @@ export function createAgentSessionPort({
 
     prompt: async (request) => {
       const resolvedLaunch = await launch()
-      const resolvedMcpServers = (await mcpServers?.()) ?? []
       const started = await throughIpc(() =>
         commands.agentPrompt({
           text: request.text,
@@ -253,7 +236,6 @@ export function createAgentSessionPort({
           })),
           launch: resolvedLaunch,
           cwd: cwd?.() ?? null,
-          mcpServers: [...resolvedMcpServers],
         }),
       )
 
@@ -337,20 +319,15 @@ function controlOf(native: AgentConfigControl): SessionConfigControl {
 }
 
 export function createAgentSessionConfigBridge({
-  mcpServers,
   onListenFailure,
-}: Pick<AgentBridgeOptions, 'mcpServers'> & AgentEventSourceOptions = {}): SessionConfigPort {
+}: AgentEventSourceOptions = {}): SessionConfigPort {
   return {
     select: async (threadId, configId, value) => {
-      /* 点名一条对话就可能要为它开会话，而 MCP 名册是 session/new 的参数：
-      少了它，从这条路开出的会话一台服务器都不挂。 */
-      const resolvedMcpServers = (await mcpServers?.()) ?? []
       const offered = await throughIpc(() =>
         commands.agentSetConfigOption({
           threadId,
           configId,
           value,
-          mcpServers: [...resolvedMcpServers],
         }),
       )
 
@@ -425,14 +402,11 @@ export function createAgentCapabilityBridge({
     },
 
     select: async (control, value) => {
-      /* 锚会话不经 session_for，也不挂 MCP —— 理由见 driver.rs 握手处那条
-      会话的注释。 */
       const offered = await throughIpc(() =>
         commands.agentSetConfigOption({
           threadId: null,
           configId: control.id,
           value,
-          mcpServers: [],
         }),
       )
 
@@ -462,23 +436,17 @@ export function createAgentCapabilityBridge({
  * （ThreadRecord 与 ThreadHistory）。生成绑定的 AgentThread 与 AgentHistory
  * 逐格与它们相同，所以这里原样交出去，不复制、不改名、也不再抄一份说明。
  */
-export function createAgentThreadBridge({
-  launch,
-  cwd,
-  mcpServers,
-}: AgentBridgeOptions): ThreadPort {
+export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): ThreadPort {
   return {
     list: () => throughIpc(() => commands.agentThreads()),
 
     open: async (threadId, workspaceRoot) => {
       const resolvedLaunch = await launch()
-      const resolvedMcpServers = (await mcpServers?.()) ?? []
       const opened = await throughIpc(() =>
         commands.agentOpenThread({
           threadId: threadId ?? null,
           launch: resolvedLaunch,
           cwd: workspaceRoot ?? cwd?.() ?? null,
-          mcpServers: [...resolvedMcpServers],
         }),
       )
 
