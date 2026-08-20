@@ -134,7 +134,7 @@ export function beginRun(draft: Draft): void {
 /**
  * The identity prefix of the turn currently being written.
  *
- * 回放出来的段号是零或负数（最后一轮为 r0），接着说下去开出来的段号为正。
+ * 段号从首轮的 r0 起只增不减（openSegment），回放与接着说下去共用这一条数法。
  *
  * 段由先到的那一方开：人先说话，段在 appendUserMessage 那一刻就开了；没有经过
  * 输入框的那些轮次（重连续接、重试）由 run_started 开。两边不会各开一次 —— 帧

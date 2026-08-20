@@ -1,13 +1,13 @@
 //! 这台机器记下的帧。一条对话的时间线由它重放。
 
-use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
 use uuid::Uuid;
 
 use crate::error::Result;
 use crate::store::AgentStore;
 
 /// 日志里的一帧，按它记下时的线上形状。
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Debug)]
 pub struct RecordedFrame {
     /// 帧属于哪条会话。
     pub session_id: String,
@@ -15,8 +15,8 @@ pub struct RecordedFrame {
     pub seq: i64,
     /// 记下它的时刻，epoch 毫秒。
     pub at: i64,
-    /// `RecordedEvent` 的 JSON 原文。
-    pub frame: String,
+    /// `RecordedEvent` 成形好的那一段 JSON：这一列存它，屏幕上也是它。
+    pub frame: Box<RawValue>,
 }
 
 impl AgentStore {
@@ -51,7 +51,7 @@ impl AgentStore {
                     frame.session_id,
                     frame.seq,
                     frame.at,
-                    frame.frame
+                    frame.frame.get()
                 ])?;
 
                 if written == 0 {

@@ -7,6 +7,7 @@ use crate::error::Error;
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
 use poietica_agent_persistence_native::RecordedFrame;
 use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
+use serde_json::value::{RawValue, to_raw_value};
 use tauri::{AppHandle, Emitter, Manager, State, async_runtime};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, timeout_at};
@@ -173,14 +174,14 @@ fn logging(app: AppHandle, thread: Uuid) -> FrameSink {
                 held.push(next);
             }
 
+            let logged = recorded(held.drain(..));
+
             /* 先上屏，再落库。落库要排一次阻塞线程池、抢一次库锁，而屏幕上
-            这一批与库里那一批是同一份字节：让它等在锁后面，等来的只是延迟。
+            这一批与库里那一批是同一段字节：让它等在锁后面，等来的只是延迟。
             渲染层没在听不是错——下次打开这条对话时，日志重放同一批帧。 */
-            let _ignored = app.emit(AGENT_EVENT, &held);
+            let shown: Vec<&RawValue> = logged.iter().map(|frame| frame.frame.as_ref()).collect();
 
-            let logged = recorded(&held);
-
-            held.clear();
+            let _ignored = app.emit(AGENT_EVENT, &shown);
 
             /* 记不上只留一行日志：缺的是下一次打开时的这一批。 */
             let index = app.state::<LocalIndex>();
@@ -207,16 +208,16 @@ fn logging(app: AppHandle, thread: Uuid) -> FrameSink {
     })
 }
 
-/// 一批帧，按落库的形状。
+/// 一批帧，成形一次：落库与上屏共用这一段字节。
 ///
 /// 序列化不成的那一帧只留日志：帧的形状归 frame.rs，这里不替它兜底。
-fn recorded(events: &[RecordedEvent]) -> Vec<RecordedFrame> {
+fn recorded(events: impl ExactSizeIterator<Item = RecordedEvent>) -> Vec<RecordedFrame> {
     let mut logged = Vec::with_capacity(events.len());
 
     for event in events {
-        match serde_json::to_string(event) {
+        match to_raw_value(&event) {
             Ok(frame) => logged.push(RecordedFrame {
-                session_id: event.session_id.clone(),
+                session_id: event.session_id,
                 seq: event.seq,
                 at: event.at,
                 frame,

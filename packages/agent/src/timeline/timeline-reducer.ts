@@ -110,8 +110,9 @@ function fill(draft: Draft, events: readonly RunEvent[]): Draft {
  * failure must be able to take the answer away without taking the question with
  * it, which is why nothing here waits for a frame.
  *
- * Opening a segment also resets the sequence window, because the run about to
- * start numbers its own frames from one.
+ * Opening a segment also resets the sequence window: sequence numbers are per
+ * session (recorder.rs SeqLine), so a run opening on a fresh session starts
+ * over at one.
  */
 export function appendUserMessage(
   state: TimelineState,
@@ -250,10 +251,11 @@ export function applyRunEvents(state: TimelineState, events: readonly RunEvent[]
 
     draft ??= draftOf(state)
 
-    /* 实时流不会把旧帧再送一遍，所以这里的 run_started 一定是新的一轮。
-       它从 1 开始编自己的号，窗口必须跟着换，否则整轮会被上一轮的 seq
-       判成重复——没有经过输入框的那些轮次（重连续接、重试）就是这么消失的。
-       人先说话的那些轮次里段已经开过了，beginRun 认得出来，不会再开一段。 */
+    /* 实时流不会把旧帧再送一遍，所以这里的 run_started 一定是新的一轮。号按
+       会话编（recorder.rs 的 SeqLine），重连之后是另一条会话、从一起编，窗口
+       必须跟着换，否则整轮会被上一轮的 seq 判成重复——没有经过输入框的那些轮次
+       （重连续接、重试）就是这么消失的。人先说话的那些轮次里段已经开过了，
+       beginRun 认得出来，不会再开一段。 */
     if (event.kind === 'run_started') {
       beginRun(draft)
     }
