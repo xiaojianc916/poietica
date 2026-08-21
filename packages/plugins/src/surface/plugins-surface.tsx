@@ -6,7 +6,7 @@ import { useState, useSyncExternalStore } from 'react'
 import { builtinServerRows, builtinSkillRows, groupRows, matches } from '../catalog/listing'
 import { latestCatalog, type MarketplaceEntry } from '../marketplace'
 import type { ResolvedMcpServer } from '../mcp-servers'
-import { describeOrigin, type ManagedOrigin } from '../origin'
+import { type ContributionOrigin, describeOrigin } from '../origin'
 import type { PluginStore, PluginsViewModel } from '../plugin-store'
 import type { InstalledSkill } from '../skill'
 import { CatalogGrid } from './catalog-grid'
@@ -195,7 +195,12 @@ function TabBody({ entries, needle, onOpen, reported, store, tab, view }: TabBod
       return (
         <div className="pb-24">
           {view.skillInstall.kind === 'staging' ? (
-            <p className="pt-6 text-xs text-muted-foreground">正在安装技能…</p>
+            <div className="flex items-center gap-2 pt-6">
+              <p className="text-xs text-muted-foreground">正在安装技能…</p>
+              <Button onClick={store.cancelSkillInstall} size="xs" variant="ghost">
+                取消
+              </Button>
+            </div>
           ) : null}
           {view.skillInstall.kind === 'refused' ? (
             <p className="pt-6 text-xs text-destructive">{view.skillInstall.reason}</p>
@@ -326,7 +331,7 @@ function serverRow(server: ResolvedMcpServer, store: PluginStore): ContributionR
  * 开着却不会装载，两种原因完全不同：内置那台是端口没绑上，插件那台是插件整体被关掉。合并
  * 成一句「不会启动」，人就无从下手。
  */
-function detailOf(origin: ManagedOrigin, server: ResolvedMcpServer): string {
+function detailOf(origin: ContributionOrigin, server: ResolvedMcpServer): string {
   if (!server.enabled) {
     return '已关闭'
   }

@@ -1,13 +1,14 @@
+import { parse } from 'yaml'
+
 /*
- * 已装技能的领域模型，以及 SKILL.md 前言的最小解析。
+ * 已装技能的领域模型，以及 SKILL.md 前言的解析。
  *
  * 技能没有账本：装载判据是 skills/<name>/SKILL.md 在不在盘上，所以「装了什么」的唯一
  * 真相是目录本身。原生侧扫目录时把 SKILL.md 原文一并交来，前言在这里解析一次，没有
  * 第二趟原生读取。
  *
- * 前言是 YAML 的一个受限子集：只认各占一行的 name/description/license 三个键，值裸写
- * 或用双引号包（引号串里只解 \" 与 \\ 两种转义）。anthropics/skills 的前言全部落在这个
- * 子集里；解不出的字段按缺席处理，不阻塞安装。
+ * 前言是 YAML，所以交给 YAML 解析器：引号、折叠标量、转义、注释这些边界情况已经被解决
+ * 过一遍。解不开或解出来不是一张映射，都按「没有前言」处理，不阻塞安装。
  */
 
 export interface SkillManifest {
@@ -25,7 +26,7 @@ export interface InstalledSkill {
 
 export function parseSkillFrontmatter(md: string): SkillManifest {
   const match = md.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  const block = match?.[1] ?? ''
+  const block = frontmatter(match?.[1])
 
   return {
     name: field(block, 'name') ?? '',
@@ -34,20 +35,27 @@ export function parseSkillFrontmatter(md: string): SkillManifest {
   }
 }
 
-function field(block: string, key: string): string | undefined {
-  const hit = block.match(new RegExp(`^${key}:[ \t]*(.+)$`, 'm'))
-
-  const raw = hit?.[1]?.trim()
-
-  if (raw === undefined) {
-    return undefined
+function frontmatter(source: string | undefined): Record<string, unknown> {
+  if (source === undefined) {
+    return {}
   }
 
-  if (raw.startsWith('"') && raw.endsWith('"') && raw.length >= 2) {
-    return raw.slice(1, -1).replaceAll('\\"', '"').replaceAll('\\\\', '\\')
-  }
+  try {
+    const parsed: unknown = parse(source)
 
-  return raw
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+/* 只认非空字符串标量：数字、布尔、列表出现在这三格里都是写错了，按缺席处理。 */
+function field(block: Record<string, unknown>, key: string): string | undefined {
+  const value = block[key]
+
+  return typeof value === 'string' && value !== '' ? value : undefined
 }
 
 export function decodeSkillPayload(payload: { name: string; skillMd: string }): InstalledSkill {

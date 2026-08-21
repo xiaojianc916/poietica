@@ -20,7 +20,7 @@ import {
   stageSkill,
   writeEnvironmentMcpConfig,
 } from '@poietica/ipc'
-import { planFetch } from './fetch-plan'
+import { type PluginFetchPlan, planFetch } from './fetch-plan'
 import {
   describeInstallSource,
   type PluginInstallSource,
@@ -42,12 +42,13 @@ import {
 import {
   type DeclaredMcpServer,
   decodeMcpConfig,
+  mcpServerBodyInConfig,
   removeMcpServer,
   setMcpServerEnabledInConfig,
   upsertMcpServer,
 } from './mcp-config'
 import { type BuiltinMcpServer, type ResolvedMcpServer, resolveMcpServers } from './mcp-servers'
-import type { ManagedOrigin } from './origin'
+import type { ContributionOrigin } from './origin'
 import { createSnapshotCache } from './registry/snapshot'
 import { decodeSkillPayload, type InstalledSkill, parseSkillFrontmatter } from './skill'
 
@@ -144,6 +145,9 @@ export type InstallFlow = IdleInstall | RefusedInstall | StagedInstall | Staging
 
 export const INSTALL_IDLE: InstallFlow = { kind: 'idle' }
 
+/* 视图模型里两格安装状态的键。两条流程按它分账世代号，也按它发布状态。 */
+type InstallFlowKey = 'install' | 'skillInstall'
+
 export interface PluginStore {
   readonly getSnapshot: () => PluginsViewModel
   readonly subscribe: (listener: () => void) => () => void
@@ -167,7 +171,11 @@ export interface PluginStore {
    * 说了算：内置在偏好里，插件在账本里，mcp.json 里那些落回文件本身的 enabled 那
    * 一格 —— 与 CLI 拨的是同一格。
    */
-  readonly setMcpServerEnabled: (target: ManagedOrigin, server: string, enabled: boolean) => void
+  readonly setMcpServerEnabled: (
+    target: ContributionOrigin,
+    server: string,
+    enabled: boolean,
+  ) => void
   /**
    * 把一台服务器写进这个 agent 的 mcp.json —— 内置名单的一键安装。条目正文由调用方
    * 给：名单知道每台的形状与钥匙落在哪一格，这里只管读—改—写那一趟。同名条目会被
@@ -176,6 +184,13 @@ export interface PluginStore {
   readonly installEnvironmentServer: (name: string, body: Record<string, unknown>) => void
   /** 从 mcp.json 里删掉一台。名单上有它的卡片会拨回「可安装」，随时装得回来。 */
   readonly removeEnvironmentServer: (name: string) => void
+  /**
+   * 本进程托管的那台服务器在 mcp.json 里的条目，对齐到当前地址；body 缺席就拆掉条目。
+   *
+   * 端口每次启动由内核分配，所以这一趟每次启动都要跑。它与界面上的增删改走同一条队列、
+   * 同一条读—改—写：mcp.json 只有一个写者，两边因此不会互相抹掉。
+   */
+  readonly reconcileHostedServer: (name: string, body: Record<string, unknown> | null) => void
   readonly remove: (pluginId: string) => void
   /**
    * 开始一次安装：下载、解压到暂存区。
@@ -186,6 +201,8 @@ export interface PluginStore {
   readonly beginInstall: (source: PluginInstallSource) => void
   readonly confirmInstall: () => void
   readonly cancelInstall: () => void
+  /** 放弃在途的技能安装。技能没有确认步，所以这里只有「不要了」一个语义。 */
+  readonly cancelSkillInstall: () => void
   readonly refreshMarketplace: () => void
   /**
    * 装一个技能：取件、解压、按前言取名、落进 skills/<name>/。一键到底，无确认步 ——
@@ -328,12 +345,13 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   let ready: Promise<void> | null = null
 
   /*
-   * 安装的世代号。
+   * 两条安装流程各自的世代号。
    *
    * 取消只改得了屏幕上的状态，改不了已经飞出去的那一趟取件。带上世代号，落定的结果自己
-   * 就能回答「我还是不是当前这一次」—— 不是就丢掉，而不是把确认框又拽回来。
+   * 就能回答「我还是不是当前这一次」。号按流程分账：共用一个计数器时，开始装一个技能会
+   * 让在途的插件安装在落定时判定自己已过期，而它那一格再没有人拨回去。
    */
-  let installEpoch = 0
+  const epochs = { install: 0, skillInstall: 0 }
 
   /* 受控 home 的 skills/ 目录里装着的。目录即账本，这里是投影。 */
   let installedSkills: readonly InstalledSkill[] = []
@@ -657,6 +675,81 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     }
   }
 
+  function publishFlow(flow: InstallFlowKey, state: InstallFlow): void {
+    publish(flow === 'install' ? { install: state } : { skillInstall: state })
+  }
+
+  function refuse(flow: InstallFlowKey, cause: unknown): void {
+    publishFlow(flow, {
+      kind: 'refused',
+      reason: cause instanceof Error ? cause.message : String(cause),
+    })
+  }
+
+  /*
+   * 取件—暂存—认领这一趟，两条流程同一条代码路径。
+   *
+   * 差别只有三样：状态落在哪一格、怎么暂存、暂存件到手之后做什么。它们是参数，不是第二
+   * 份实现 —— 此前各写一遍，于是「过期就丢掉」那一支在技能那边漏了一半。
+   *
+   * 过期分支不发布：每一次世代号推进都有主人，取消那一路自己发过空闲，被顶掉的那一路
+   * 由顶掉它的那一次发过 staging。这里再发一次只会把新的那一格抹掉。
+   */
+  function beginStagedInstall<TStaged extends { readonly stagingId: string }>(
+    flow: InstallFlowKey,
+    source: PluginInstallSource,
+    stage: (plan: PluginFetchPlan) => Promise<TStaged>,
+    discard: (stagingId: string) => Promise<void>,
+    accept: (staged: TStaged, subdirectory: string | null) => Promise<void>,
+  ): void {
+    const planning = planFetch(source)
+
+    if (planning.kind === 'unplannable') {
+      publishFlow(flow, { kind: 'refused', reason: planning.reason })
+
+      return
+    }
+
+    const epoch = (epochs[flow] += 1)
+    const { plan } = planning
+    const subdirectory = plan.kind === 'archive' ? plan.subdirectory : null
+
+    publishFlow(flow, { kind: 'staging', source })
+
+    queue = queue.then(async () => {
+      let staged: TStaged
+
+      try {
+        staged = await stage(plan)
+      } catch (cause: unknown) {
+        refuse(flow, cause)
+
+        return
+      }
+
+      if (epoch !== epochs[flow]) {
+        await discard(staged.stagingId).catch((cause: unknown) => {
+          warn('暂存目录没能清掉', { scope: 'plugins', cause })
+        })
+
+        return
+      }
+
+      try {
+        await accept(staged, subdirectory)
+      } catch (cause: unknown) {
+        refuse(flow, cause)
+      }
+    })
+  }
+
+  /* 取消一条流程：往前一格，在途的那一趟落定时自行丢弃。 */
+  function abandonInstall(flow: InstallFlowKey): void {
+    epochs[flow] += 1
+
+    publishFlow(flow, INSTALL_IDLE)
+  }
+
   return {
     getSnapshot: () => snapshot,
 
@@ -813,6 +906,32 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       )
     },
 
+    reconcileHostedServer(name, body) {
+      commit(
+        '托管的那台 MCP 服务器的条目没能对上账',
+        async () => {
+          const file = await readEnvironmentMcpConfig()
+
+          /* 保留人手写在这一条上的其余键：对账只负责地址那几格。 */
+          const next =
+            body === null
+              ? removeMcpServer(file.contents, name)
+              : upsertMcpServer(file.contents, name, {
+                  ...mcpServerBodyInConfig(file.contents, name),
+                  ...body,
+                })
+
+          if (next === file.contents) {
+            return
+          }
+
+          await writeEnvironmentMcpConfig(file.contents, next)
+          await readEnvironment()
+        },
+        republish,
+      )
+    },
+
     /*
      * 卸载 = 账本里那一条没了。
      *
@@ -831,43 +950,20 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     beginInstall(source) {
-      const planning = planFetch(source)
-
-      if (planning.kind === 'unplannable') {
-        publish({ install: { kind: 'refused', reason: planning.reason } })
-
-        return
-      }
-
-      const epoch = ++installEpoch
-
-      publish({ install: { kind: 'staging', source } })
-
-      const subdirectory = planning.plan.kind === 'archive' ? planning.plan.subdirectory : null
-
-      queue = queue.then(async () => {
-        try {
-          const staged = await stagePlugin(planning.plan)
-
-          /*
-           * 取件途中人按了取消、或者又发起了下一次：这一趟的结果已经没人要了。丢掉它并把
-           * 暂存目录清掉 —— 不看世代号就直接发布，确认框会在人取消之后自己弹回来。
-           */
-          if (epoch !== installEpoch) {
-            await discardStagedPlugin(staged.stagingId)
-
-            return
-          }
-
-          const decoded = decodeManifestJson('', staged.manifestJson)
+      beginStagedInstall(
+        'install',
+        source,
+        stagePlugin,
+        discardStagedPlugin,
+        async (staged, subdirectory) => {
+          /* 诊断带上暂存号：插件号这一刻还不知道，而空串溯不回任何东西。 */
+          const decoded = decodeManifestJson(staged.stagingId, staged.manifestJson)
 
           if (decoded.kind === 'rejected') {
             await discardStagedPlugin(staged.stagingId)
-            publish({
-              install: {
-                kind: 'refused',
-                reason: decoded.diagnostics.map((entry) => entry.detail).join('; '),
-              },
+            publishFlow('install', {
+              kind: 'refused',
+              reason: decoded.diagnostics.map((entry) => entry.detail).join('; '),
             })
 
             return
@@ -875,31 +971,22 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
           const trust = trustOf(source)
 
-          publish({
-            install: {
-              kind: 'staged',
-              stagingId: staged.stagingId,
-              source,
-              subdirectory,
-              manifest: decoded.manifest,
-              diagnostics: decoded.diagnostics,
-              trust,
-            },
+          publishFlow('install', {
+            kind: 'staged',
+            stagingId: staged.stagingId,
+            source,
+            subdirectory,
+            manifest: decoded.manifest,
+            diagnostics: decoded.diagnostics,
+            trust,
           })
 
           /* 官方来源不拦；其余一律等人点头，这条判据只有 install-source 说了算。 */
           if (!requiresInstallConfirmation(trust)) {
             adopt(staged.stagingId, decoded.manifest.name, source, subdirectory)
           }
-        } catch (cause: unknown) {
-          publish({
-            install: {
-              kind: 'refused',
-              reason: cause instanceof Error ? cause.message : String(cause),
-            },
-          })
-        }
-      })
+        },
+      )
     },
 
     confirmInstall() {
@@ -912,13 +999,14 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       adopt(install.stagingId, install.manifest.name, install.source, install.subdirectory)
     },
 
+    cancelSkillInstall() {
+      abandonInstall('skillInstall')
+    },
+
     cancelInstall() {
       const { install } = snapshot
 
-      /* 往前一格：还在路上的那一趟落定时会看见自己已经过期，于是自行丢弃。 */
-      installEpoch += 1
-
-      publish({ install: INSTALL_IDLE })
+      abandonInstall('install')
 
       if (install.kind !== 'staged') {
         return
@@ -934,56 +1022,29 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     installSkill(source) {
-      const planning = planFetch(source)
-
-      if (planning.kind === 'unplannable') {
-        publish({ skillInstall: { kind: 'refused', reason: planning.reason } })
-
-        return
-      }
-
-      const epoch = ++installEpoch
-
-      publish({ skillInstall: { kind: 'staging', source } })
-
-      const subdirectory = planning.plan.kind === 'archive' ? planning.plan.subdirectory : null
-
-      queue = queue.then(async () => {
-        try {
-          const staged = await stageSkill(planning.plan)
-
-          if (epoch !== installEpoch) {
-            await discardStagedSkill(staged.stagingId)
-
-            return
-          }
-
+      beginStagedInstall(
+        'skillInstall',
+        source,
+        stageSkill,
+        discardStagedSkill,
+        async (staged, subdirectory) => {
           /* 名字取自前言，缺席回落到子目录名。原生侧落盘前还会验一遍安全性。 */
           const fallback = subdirectory?.split('/').pop() ?? 'skill'
           const name = parseSkillFrontmatter(staged.skillMd).name || fallback
 
           await commitSkill({ stagingId: staged.stagingId, name, subdirectory })
 
-          publish({ skillInstall: INSTALL_IDLE })
-        } catch (cause: unknown) {
-          publish({
-            skillInstall: {
-              kind: 'refused',
-              reason: cause instanceof Error ? cause.message : String(cause),
-            },
-          })
+          publishFlow('skillInstall', INSTALL_IDLE)
 
-          return
-        }
+          try {
+            await rescanSkills()
 
-        try {
-          await rescanSkills()
-
-          republish()
-        } catch (cause: unknown) {
-          warn('技能装好了，目录读不回来', { scope: 'plugins', cause })
-        }
-      })
+            republish()
+          } catch (cause: unknown) {
+            warn('技能装好了，目录读不回来', { scope: 'plugins', cause })
+          }
+        },
+      )
     },
 
     removeInstalledSkill(name) {

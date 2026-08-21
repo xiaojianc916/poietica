@@ -71,14 +71,8 @@ export type {
   MarketplaceEntry,
   MarketplaceState,
 } from './marketplace'
-export {
-  type DeclaredMcpServer,
-  decodeMcpConfig,
-  type McpConfigDecoding,
-  mcpServerBodyInConfig,
-  removeMcpServer,
-  upsertMcpServer,
-} from './mcp-config'
+/* 改写 mcp.json 的那三个函数不出包：这份文件只有一个写者，就是 plugin-store。 */
+export { type DeclaredMcpServer, decodeMcpConfig, type McpConfigDecoding } from './mcp-config'
 export {
   type BuiltinMcpServer,
   type McpServerInput,
@@ -90,7 +84,6 @@ export {
   type BuiltinOrigin,
   type ContributionOrigin,
   describeOrigin,
-  type ManagedOrigin,
   type PluginOrigin,
   type UserOrigin,
 } from './origin'

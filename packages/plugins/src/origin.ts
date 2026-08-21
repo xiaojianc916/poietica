@@ -41,17 +41,11 @@ export interface UserOrigin {
   readonly location: string
 }
 
-export type ContributionOrigin = BuiltinOrigin | PluginOrigin | UserOrigin
-
-/**
- * 本应用拨得动的那些 —— 如今三种全是。
- *
- * mcp.json 那一档从前被排除在外，理由是「那份文件不归本应用所有」。这句话把两个家
- * 混成了一个：受控 home 生效时，会话读的那份 mcp.json 就住在本应用的数据根之下
- * （paths.rs 的 agent_home），终端里的 CLI 读的是用户自己的家 —— 前者本来就归本应用
- * 写，后者由原生侧的写入命令一律拒绝。归属判断在原生侧一处，不在这里。
+/*
+ * 三种来源本应用都拨得动，所以「谁带来的」与「拨得动哪些」是同一个集合，不写成两个
+ * 名字：ManagedOrigin 曾经与它逐字相同，两个别名并存时没有任何东西说得清该用哪一个。
  */
-export type ManagedOrigin = BuiltinOrigin | PluginOrigin | UserOrigin
+export type ContributionOrigin = BuiltinOrigin | PluginOrigin | UserOrigin
 
 /** 列表右边那个标签。 */
 export function describeOrigin(origin: ContributionOrigin): string {

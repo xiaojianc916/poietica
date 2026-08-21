@@ -48,7 +48,7 @@ export function PluginLoader() {
 
     // 内核的 CDP 端口每次启动随机抽，mcp.json 里的端点因此每次启动都要
     // 重新对账；对账自己消化失败，不影响插件运行时起步。
-    void reconcileBrowserMcpServer()
+    void reconcileBrowserMcpServer(pluginStore)
   }, [])
 
   return null
