@@ -31,6 +31,7 @@ export {
   useAssistantSession,
   useAssistantTimeline,
 } from './session/use-assistant-session'
+export { useRunningThreads } from './session/use-running-threads'
 export type { AssistantSurfaceProps } from './surface/assistant-surface'
 export { AssistantSurface } from './surface/assistant-surface'
 export type {

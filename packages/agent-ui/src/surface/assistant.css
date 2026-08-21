@@ -483,6 +483,22 @@
 }
 
 /*
+ * 运行中那一格。
+ *
+ * 行首的位置本来就由 .assistant-thread 的 padding-inline-start 留着（lead +
+ * 图标 + gap），所以指示器绝对定位进那一格：它出现与消失时标题不移动。
+ */
+.assistant-thread__running {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: var(--ui-row-lead);
+  block-size: var(--ui-row-icon-size);
+  inline-size: var(--ui-row-icon-size);
+  color: var(--cp-ink);
+  transform: translateY(-50%);
+}
+
+/*
  * 行尾只有一格。
  *
  * 时间是静息态，两个图标是悬停态，它们放在同一个网格单元里彼此叠放，由

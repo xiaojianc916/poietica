@@ -1,4 +1,5 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
+import { useRunningThreads } from '@poietica/agent-ui'
 import type { AgentConfigStore, KeybindingCatalog, SettingsStore } from '@poietica/settings'
 import {
   SettingsContentRegion,
@@ -98,6 +99,9 @@ export function WorkspaceContainer({
   )
 
   const threads = useThreadsActions()
+
+  /* 「哪条对话在跑」只订一次：标签条与侧栏读同一份。 */
+  const runningThreadIds = useRunningThreads()
 
   /*
    * 一条对话被删除时，开着它的那一格跟着消失。
@@ -234,6 +238,7 @@ export function WorkspaceContainer({
               onClose={actions.closeTab}
               onCreate={openAssistantEntry}
               onMove={actions.moveTab}
+              runningThreadIds={runningThreadIds}
               tabs={workbench.tabs}
             />
           )}
@@ -268,6 +273,7 @@ export function WorkspaceContainer({
               onCreate={openAssistantEntry}
               onOpen={startConversation}
               onOpenInNewTab={openConversationInNewTab}
+              runningThreadIds={runningThreadIds}
             />
           }
         />

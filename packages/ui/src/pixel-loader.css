@@ -1,0 +1,62 @@
+/*
+ * 运行态的像素方阵。
+ *
+ * 波前从左向右推：延迟 =（列 + |行 − 1|）× step，周期短于整趟扫描，所以屏幕上
+ * 总有两道波前在飞。尺寸与节奏是这枚指示器自己的量，声明在自己的类上 —— 它们
+ * 不属于全局动效标尺（--ui-duration-* 是过渡时长，不是循环周期）。
+ *
+ * 减少动效由 tokens/accessibility.css 的全局策略接管，这里不写第二份：关键帧
+ * 首尾同为暗态，被压成一次迭代之后方阵就是静止的。
+ */
+
+.ui-pixel-loader {
+  --ui-pixel-loader-cell: 4px;
+  --ui-pixel-loader-gap: 1.5px;
+  --ui-pixel-loader-radius: 1px;
+  --ui-pixel-loader-dim: 0.15;
+  --ui-pixel-loader-cycle: 650ms;
+  --ui-pixel-loader-step: 90ms;
+
+  display: grid;
+  grid-template-columns: repeat(3, var(--ui-pixel-loader-cell));
+  gap: var(--ui-pixel-loader-gap);
+  place-content: center;
+}
+
+.ui-pixel-loader__cell {
+  block-size: var(--ui-pixel-loader-cell);
+  inline-size: var(--ui-pixel-loader-cell);
+  border-radius: var(--ui-pixel-loader-radius);
+  background: currentcolor;
+  opacity: var(--ui-pixel-loader-dim);
+  animation: ui-pixel-loader-on var(--ui-pixel-loader-cycle) ease-in-out infinite;
+}
+
+/* 中列首行延迟为 0，就是初始值，所以没有它自己的规则。 */
+.ui-pixel-loader__cell:nth-child(1),
+.ui-pixel-loader__cell:nth-child(5),
+.ui-pixel-loader__cell:nth-child(7) {
+  animation-delay: var(--ui-pixel-loader-step);
+}
+
+.ui-pixel-loader__cell:nth-child(2),
+.ui-pixel-loader__cell:nth-child(6),
+.ui-pixel-loader__cell:nth-child(8) {
+  animation-delay: calc(var(--ui-pixel-loader-step) * 2);
+}
+
+.ui-pixel-loader__cell:nth-child(3),
+.ui-pixel-loader__cell:nth-child(9) {
+  animation-delay: calc(var(--ui-pixel-loader-step) * 3);
+}
+
+@keyframes ui-pixel-loader-on {
+  0%,
+  100% {
+    opacity: var(--ui-pixel-loader-dim);
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

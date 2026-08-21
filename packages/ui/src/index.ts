@@ -31,6 +31,7 @@ export {
   PlayIcon,
   WebhookIcon,
 } from './local-glyphs'
+export { PixelLoader } from './pixel-loader'
 export { Select, type SelectOption } from './select'
 export { Switch } from './switch'
 export { applyThemePreference } from './theme-controller'

@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react'
 import { useCallback, useMemo, useRef } from 'react'
-import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../workbench'
+import type { ConversationId, WorkbenchTabId, WorkbenchTabViewModel } from '../../workbench'
 import { useWorkbenchTabsBaselineGap } from './use-workbench-tabs-baseline-gap'
 import { useWorkbenchTabsInteractions } from './use-workbench-tabs-interactions'
 import { useWorkbenchTabsViewport } from './use-workbench-tabs-viewport'
@@ -18,9 +18,19 @@ export interface WorkbenchTabsProps {
   readonly onMove: (tabId: WorkbenchTabId, targetIndex: number) => void
 
   readonly onCreate: () => void
+
+  /** 正在跑的那些对话。标签图标由它决定画哪一枚。 */
+  readonly runningThreadIds: ReadonlySet<ConversationId>
 }
 
-export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: WorkbenchTabsProps) {
+export function WorkbenchTabs({
+  tabs,
+  onActivate,
+  onClose,
+  onMove,
+  onCreate,
+  runningThreadIds,
+}: WorkbenchTabsProps) {
   const newTabRef = useRef<HTMLButtonElement | null>(null)
 
   const activeTabId = tabs.find((tab) => tab.isActive)?.id
@@ -80,6 +90,7 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
         {tabs.map((tab, index) => (
           <WorkbenchTab
             isDragging={interactions.draggingTabId === tab.id}
+            isRunning={tab.kind === 'conversation' && runningThreadIds.has(tab.threadId)}
             key={tab.id}
             model={tab}
             onActivate={onActivate}

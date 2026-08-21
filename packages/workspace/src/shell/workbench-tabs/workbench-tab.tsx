@@ -1,7 +1,8 @@
+import { PixelLoader } from '@poietica/ui'
 import { X } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../workbench'
-import { type SurfaceIcon, surfaceIcon } from '../surface-icons'
+import { surfaceIcon } from '../surface-icons'
 import type { WorkbenchTabReorderBindings } from './use-workbench-tabs-interactions'
 import { encodeWorkbenchTabDomId } from './workbench-tabs-model'
 
@@ -13,6 +14,8 @@ interface WorkbenchTabProps {
   readonly reorder: WorkbenchTabReorderBindings
 
   readonly isDragging: boolean
+
+  readonly isRunning: boolean
 
   readonly onActivate: (tabId: WorkbenchTabId) => void
 
@@ -28,13 +31,12 @@ export function WorkbenchTab({
   targetIndex,
   reorder,
   isDragging,
+  isRunning,
   onActivate,
   onRequestClose,
   onKeyDown,
   registerTab,
 }: WorkbenchTabProps) {
-  const Icon = resolveTabIcon(model)
-
   const encodedId = encodeWorkbenchTabDomId(model.id)
 
   /*
@@ -86,6 +88,7 @@ export function WorkbenchTab({
 
       <div className="chrome-workbench-tab__content">
         <button
+          aria-busy={isRunning}
           aria-selected={model.isActive}
           className="chrome-workbench-tab__activation"
           id={`workbench-tab-${encodedId}`}
@@ -103,7 +106,7 @@ export function WorkbenchTab({
           title={model.title}
           type="button"
         >
-          <Icon aria-hidden="true" className="chrome-workbench-tab__icon" />
+          <TabIcon isRunning={isRunning} model={model} />
 
           <span className="chrome-workbench-tab__title">{model.title}</span>
         </button>
@@ -171,21 +174,27 @@ function ActiveTabCap({ side }: { readonly side: 'left' | 'right' }) {
 }
 
 /*
- * 标签条上的对话，用的就是对话那一枚。
+ * 标签条上那一枚：跑着的时候是运行态点阵，否则是这个表面的脸。
  *
- * 这里此前写死一枚 Planet，理由写着「对话在标签条上有自己的一枚字形」——
- * 但那不是一条设计规则，是一处分叉：同一个表面在侧边栏是气泡、在标签条是
- * 地球，而注册表里存的又是第三枚。一个表面只该有一张脸，那张脸在注册表里。
- *
- * 剩下的分支不是例外，是取值来源不同：kind === 'conversation' 的标签是一条
- * 具体的对话，它没有 surfaceId 可查，所以直接点名 'ai'；surfaceId === 'ai'
- * 是那张还没开口的入口页。两者在标签条上是同一种东西，只认其中一条会让两张
- * 标签长得不一样。
+ * 一个表面只有一张脸，那张脸在注册表里。conversation 标签是一条具体对话，
+ * 没有 surfaceId 可查，所以点名 'ai' —— 与那张还没开口的入口标签同一枚。
  */
-function resolveTabIcon(model: WorkbenchTabViewModel): SurfaceIcon {
-  if (model.kind === 'conversation' || model.surfaceId === 'ai') {
-    return surfaceIcon('ai')
+function TabIcon({
+  isRunning,
+  model,
+}: {
+  readonly isRunning: boolean
+
+  readonly model: WorkbenchTabViewModel
+}) {
+  if (isRunning) {
+    return <PixelLoader className="chrome-workbench-tab__icon" />
   }
 
-  return surfaceIcon(model.surfaceId)
+  const Glyph =
+    model.kind === 'conversation' || model.surfaceId === 'ai'
+      ? surfaceIcon('ai')
+      : surfaceIcon(model.surfaceId)
+
+  return <Glyph aria-hidden="true" className="chrome-workbench-tab__icon" />
 }

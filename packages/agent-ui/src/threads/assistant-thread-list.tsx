@@ -6,6 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  PixelLoader,
 } from '@poietica/ui'
 import {
   Archive,
@@ -90,6 +91,8 @@ export interface AssistantThreadListProps {
    */
   readonly failure?: string | null
   readonly activeThreadId: string | null
+  /** 正在跑的那些对话。行首那一格由它决定画不画。 */
+  readonly runningThreadIds: ReadonlySet<string>
   /** 收起来的工作区，以及收起／展开它的动作。两者都要活过重启，所以住在宿主。 */
   readonly collapsedWorkspaces: ReadonlySet<string>
   readonly onToggleWorkspace: (workspaceId: string) => void
@@ -276,6 +279,7 @@ interface ThreadRowProps {
   /** 同一时刻的准确说法，给悬停与读屏。 */
   readonly absolute: string | null
   readonly isActive: boolean
+  readonly isRunning: boolean
   readonly isRenaming: boolean
   /** 上层给不给重命名这个能力。给不了就不画那一项 —— 画一个点了没反应的菜单项，
    * 比不画更糟：重命名那一项还会让人先敲完字，再把它静默丢掉。 */
@@ -300,6 +304,7 @@ const ThreadRow = memo(function ThreadRow({
   elapsed,
   absolute,
   isActive,
+  isRunning,
   isRenaming,
   canRename,
   onActivate,
@@ -338,6 +343,8 @@ const ThreadRow = memo(function ThreadRow({
       data-muted={thread.isMuted === true ? 'true' : undefined}
       data-renaming={isRenaming ? 'true' : undefined}
     >
+      {isRunning ? <PixelLoader className="assistant-thread__running" /> : null}
+
       {isRenaming ? (
         <RenameField
           initial={thread.title}
@@ -349,6 +356,7 @@ const ThreadRow = memo(function ThreadRow({
       ) : (
         <>
           <button
+            aria-busy={isRunning}
             className="assistant-thread__open"
             onClick={() => {
               onActivate(thread.id)
@@ -556,6 +564,7 @@ export function AssistantThreadList({
   isLoading,
   failure,
   activeThreadId,
+  runningThreadIds,
   collapsedWorkspaces,
   onToggleWorkspace,
   onActivate,
@@ -677,6 +686,7 @@ export function AssistantThreadList({
       elapsed={elapsed}
       isActive={thread.id === activeThreadId}
       isRenaming={thread.id === renamingId}
+      isRunning={runningThreadIds.has(thread.id)}
       key={thread.id}
       onActivate={onActivate}
       onArchive={onArchive}

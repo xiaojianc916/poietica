@@ -35,6 +35,7 @@ export interface AssistantSidebarPanelProps {
   readonly onCreate: () => void
   readonly onOpen: (threadId: string, title: string) => void
   readonly onOpenInNewTab: (threadId: string, title: string) => void
+  readonly runningThreadIds: ReadonlySet<string>
 }
 
 /*
@@ -59,6 +60,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   onCreate,
   onOpen,
   onOpenInNewTab,
+  runningThreadIds,
 }: AssistantSidebarPanelProps) {
   const threads = useThreadsActions()
   const { failure, groups, isLoading } = useThreadsList()
@@ -135,6 +137,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
         onRename={rename}
         onToggleWorkspace={toggleWorkspace}
         projectlessWorkspaces={projectlessWorkspaces}
+        runningThreadIds={runningThreadIds}
       />
     </div>
   )

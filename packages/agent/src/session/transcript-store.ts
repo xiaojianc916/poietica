@@ -17,6 +17,7 @@ import {
   opensTurn,
   prependThreadEvents,
   replayThreadEvents,
+  selectIsBusy,
 } from '../timeline'
 import { describeFailure } from './describe-failure'
 import type { ModeMemory } from './mode-memory'
@@ -192,8 +193,16 @@ const onNextPaint: Paint = (flush) => {
   })
 }
 
+/* 谁都没在跑。引用固定，useSyncExternalStore 才判得出「没变」。 */
+const NO_RUNNING: ReadonlySet<string> = new Set()
+
 export class TranscriptStore implements TranscriptSink {
   readonly #paint: Paint
+
+  /** 正在跑的那些对话。派生视图，唯一输入是每条转录的 timeline.status。 */
+  #running: ReadonlySet<string> = NO_RUNNING
+
+  #runningListeners = new Set<() => void>()
 
   /** 这一拍里变过的对话。同一条变一百次也只叫醒一次。 */
   #dirty = new Set<string>()
@@ -299,6 +308,22 @@ export class TranscriptStore implements TranscriptSink {
   }
 
   /**
+   * 正在跑的那些对话。侧栏与标签条读的是同一份。
+   *
+   * 判据只有 selectIsBusy 一处，输入只有转录本身 —— 没有第二份「谁在跑」的
+   * 状态，也就没有可以和真相脱节的缓存。
+   */
+  runningSnapshot = (): ReadonlySet<string> => this.#running
+
+  subscribeRunning = (listener: () => void): (() => void) => {
+    this.#runningListeners.add(listener)
+
+    return () => {
+      this.#runningListeners.delete(listener)
+    }
+  }
+
+  /**
    * 这条会话属于这条对话。
    *
    * 由握着这个事实的那一方交过来（SessionControlsStore 在打开的答复里拿到
@@ -346,6 +371,8 @@ export class TranscriptStore implements TranscriptSink {
     if (draft !== undefined) {
       this.#fire(draft)
     }
+
+    this.#republish()
   }
 
   /* ================= 一段历史送到 ================= */
@@ -675,6 +702,36 @@ export class TranscriptStore implements TranscriptSink {
   }
 
   /*
+   * 「谁在跑」变了就换一份，没变连引用都不换。
+   *
+   * 两个出口在这里汇合：折叠落定（#flush）与对话作废（forget）。整表重扫而不
+   * 增量维护 —— 规模等于这个进程打开过几条对话，而增量要在改名与作废两处各记
+   * 一笔，那两笔正是会漏的地方。草稿键不是对话 id，不进这张表。
+   */
+  #republish(): void {
+    const running = new Set<string>()
+
+    for (const [key, transcript] of this.#held) {
+      if (!key.startsWith(DRAFT) && selectIsBusy(transcript.timeline)) {
+        running.add(key)
+      }
+    }
+
+    if (
+      running.size === this.#running.size &&
+      [...running].every((key) => this.#running.has(key))
+    ) {
+      return
+    }
+
+    this.#running = running
+
+    for (const listener of this.#runningListeners) {
+      listener()
+    }
+  }
+
+  /*
    * 变了就记下，一拍发一次。
    *
    * 写入是同步的，叫醒不是：帧以毫秒计到达，而屏幕只按帧率重画。
@@ -712,6 +769,8 @@ export class TranscriptStore implements TranscriptSink {
         this.#fire(draft)
       }
     }
+
+    this.#republish()
   }
 
   #put(key: string, next: Transcript): void {
