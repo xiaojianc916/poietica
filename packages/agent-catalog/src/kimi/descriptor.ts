@@ -23,7 +23,7 @@ import type { AgentDescriptor } from '../agent-descriptor'
  * 注意上游的回包解析 outcomeToQuestionAnswer 目前写死 /^q0_opt_(\\d+)$/，只认
  * 0 号题。我们收的是超集，方向上是安全的。
  */
-const QUESTION_DIALECT = {
+const _QUESTION_DIALECT = {
   option: /^q(\d+)_opt_(\d+)$/,
   skip: /^q(\d+)_skip$/,
 }
@@ -56,5 +56,4 @@ export const kimiCode = {
   // 上游用一个固定 id 把 KIMI_MODEL_API_KEY 之类的变量合成成一个 provider，落盘时剥掉。
   syntheticProviderId: '__kimi_env__',
   install: { packageName: '@moonshot-ai/kimi-code', versionArgs: ['--version'] },
-  questionDialect: QUESTION_DIALECT,
 } as const satisfies AgentDescriptor

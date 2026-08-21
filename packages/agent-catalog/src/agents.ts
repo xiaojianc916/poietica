@@ -1,7 +1,7 @@
 import type { AgentDescriptor } from './agent-descriptor'
 import { kimiCode } from './kimi/descriptor'
 
-export type { AgentDescriptor, QuestionDialect } from './agent-descriptor'
+export type { AgentDescriptor } from './agent-descriptor'
 
 /*
  * 软件支持哪几家 agent。

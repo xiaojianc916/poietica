@@ -1,10 +1,10 @@
 /*
  * 对话里敲得出来的那些斜杠命令。
  *
- * 表由 agent 算，不由本应用算。ACP 只有一条路说这件事：session/update 里的
- * available_commands_update，载荷恒为整表。agent 在会话建好之后、装载结束之后
- * 各报一次，此后每次那张表变了再报 —— 所以"有哪些技能"这个问题的答案只在这条
- * 通知里。
+ * 表由 agent 算，不由本应用算，而且只能等它自己说：没有任何一条命令可以把这张
+ * 表问回来。它到达的地方只有一处 —— 会话事件里 commands 那一支（这一侧的落点是
+ * ipc 的 createAgentPaletteBridge），一次到达就是一整张表，所以那边的处理是整表
+ * 替换，没有合并逻辑，也就没有一份会与 agent 分叉的累积状态。
  *
  * 本应用因此不扫盘，也不认识任何一层技能目录。上游把内置命令、它自己认得的技能
  * （$KIMI_CODE_HOME/skills、~/.agents/skills、.kimi-code/skills、.agents/skills，

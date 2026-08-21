@@ -40,7 +40,6 @@ export interface DesktopAgentRuntime {
   readonly permissionPosture: PermissionPosturePort
   readonly getAgentId: () => string
   readonly subscribeAgent: (listener: () => void) => () => void
-  readonly descriptor: (agentId: string) => AgentDescriptor
   readonly capabilities: (agentId: string) => AgentCapabilityPort
   readonly dispose: () => Promise<void>
 }
@@ -230,7 +229,6 @@ export function createDesktopAgentRuntime(
     permissionPosture,
     getAgentId: selection.read,
     subscribeAgent: selection.subscribe,
-    descriptor: requireAgent,
     capabilities,
     async dispose() {
       if (disposed) {

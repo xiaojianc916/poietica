@@ -5,7 +5,7 @@
  * 见 docs/architecture/README.md 的「包边界的由来」。
  */
 
-export type { AgentInstall, QuestionDialect } from './agent-descriptor'
+export type { AgentInstall } from './agent-descriptor'
 export type {
   AgentConfigOptionValue,
   AgentLaunchSpec,

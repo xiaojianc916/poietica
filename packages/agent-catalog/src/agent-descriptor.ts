@@ -19,22 +19,6 @@
  */
 
 /**
- * 「向用户提问」在这一家的写法。
- *
- * 提问不是 ACP 的概念，协议只有 session/request_permission。哪一家用什么形状的
- * optionId 把一道题塞进权限请求，是那一家的方言。
- *
- * 各家不同的只有这两条正则；通用层拿到之后干的事一模一样：exec，取两个捕获组，
- * 一个题号一个选项号。换第二家一行代码都不用改 —— 变的只是值，所以是声明。
- */
-export interface QuestionDialect {
-  /** 捕获 (题号, 选项号)。 */
-  readonly option: RegExp
-  /** 捕获 (题号)。 */
-  readonly skip: RegExp
-}
-
-/**
  * 这个 agent 的运行时怎么装。
  *
  * 它是一个用户要自己装的外部 CLI，安装包里既没有 externalBin 也没有 resources。
@@ -139,6 +123,4 @@ export interface AgentDescriptor {
    */
   readonly syntheticProviderId?: string | undefined
   readonly install?: AgentInstall | undefined
-  /** 缺席表示这一家不用权限请求提问。 */
-  readonly questionDialect?: QuestionDialect | undefined
 }
