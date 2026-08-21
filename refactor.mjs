@@ -138,8 +138,8 @@ async function assertForbiddenAbsent() {
     'assistant-mode-chip--state',
     'usePostureMemory',
     "heading: '命令'",
-    '/skill:',
-    '/mcp',
+    '/skill: ',
+    '/mcp ',
   ]
   const paths = [
     ...(await filesBelow('apps')),
@@ -815,7 +815,7 @@ export class ChipNode extends DecoratorNode<ReactNode> {
   }
 
   override getTextContent(): string {
-    return this.#value.kind === 'mcp' ? \@\mcp:\${this.#value.name}\ : ''
+    return this.#value.kind === 'mcp' ? \`@mcp:\${this.#value.name}\` : ''
   }
 
   override decorate(): ReactNode {
@@ -826,14 +826,14 @@ export class ChipNode extends DecoratorNode<ReactNode> {
 function PromptChipView({ nodeKey, value }: { readonly nodeKey: NodeKey; readonly value: PromptChipValue }) {
   const [editor] = useLexicalComposerContext()
   const Icon = value.kind === 'skill' ? SkillIcon : ToolIcon
-  const label = value.kind === 'skill' ? value.name : \@\\${value.name}\
+  const label = value.kind === 'skill' ? value.name : \`@\${value.name}\`
 
   return (
     <span className="assistant-prompt-chip__body" contentEditable={false}>
       <Icon aria-hidden="true" />
       <span>{label}</span>
       <button
-        aria-label={\移除\${label}\}
+        aria-label={\`移除 \${label}\`}
         className="assistant-prompt-chip__remove"
         onMouseDown={(event) => {
           event.preventDefault()
@@ -968,7 +968,8 @@ function choiceRow(
   onSelect: ComposerPaletteSource['onSelectControl'],
 ): PaletteRow {
   return {
-    id: \\${control.id}:\${choice.value}\,
+    id: \`\${control.id}:\${choice.value}\`,
+
     icon: <ToolIcon aria-hidden="true" />,
     label: choice.label,
     ...(choice.detail === undefined ? {} : { detail: choice.detail }),
@@ -1028,7 +1029,7 @@ export function composerPaletteGroups({
         insertRow(
           \mcp:\${server.id}\,
           server.name,
-          \\${server.transport} · \${String(server.toolCount)} 个工具\,
+          \`\${server.transport} \${String(server.toolCount)} 个工具\`,
           <ToolIcon aria-hidden="true" />,
           { kind: 'mcp', id: server.id, name: server.name },
         ),
@@ -1585,7 +1586,7 @@ async function apply() {
     'packages/agent-ui/src/composer/assistant-composer.tsx',
     `  goal,\n`,
     ``,
-    2,
+    1,
   )
   await replaceOnce(
     'packages/agent-ui/src/composer/assistant-composer.tsx',
@@ -1630,14 +1631,13 @@ async function apply() {
   )
   const assistantSession = await load('packages/agent-ui/src/session/use-assistant-session.ts')
   const goalHookStart = assistantSession.indexOf(`const readGoal =`)
-  const swarmHookStart = assistantSession.indexOf(`const readSwarm =`, goalHookStart)
-  const goalExportEnd = assistantSession.indexOf(`/** 此刻还在跑的子代理数。 */`, swarmHookStart)
-  if (goalHookStart < 0 || swarmHookStart < 0 || goalExportEnd < 0) {
+  const goalExportEnd = assistantSession.indexOf(`/** 此刻还在跑的子代理数。 */`)
+  if (goalHookStart < 0 || goalExportEnd < 0) {
     fail('use-assistant-session.ts: goal projection anchors missing')
   }
   staged.set(
     'packages/agent-ui/src/session/use-assistant-session.ts',
-    `${assistantSession.slice(0, goalHookStart)}${assistantSession.slice(swarmHookStart, goalExportEnd)}${assistantSession.slice(goalExportEnd)}`,
+    `${assistantSession.slice(0, goalHookStart)}${assistantSession.slice(goalExportEnd)}`,
   )
 
   await replaceOnce(
@@ -1853,13 +1853,8 @@ async function apply() {
   )
   await replaceOnce(
     'packages/ipc/src/agent.ts',
-    `          value,\n        }),`,
-    `          value,\n          input: input ?? null,\n        }),`,
-  )
-  await replaceOnce(
-    'packages/ipc/src/agent.ts',
-    `          value,\n        }),\n      )\n\n      return offered.map(controlOf)\n    },\n\n    /* 报文里那条会话是谁`,
-    `          value,\n          input: null,\n        }),\n      )\n\n      return offered.map(controlOf)\n    },\n\n    /* 报文里那条会话是谁`,
+    `          threadId: null,\n          configId: control.id,\n          value,\n        }),`,
+    `          threadId: null,\n          configId: control.id,\n          value,\n          input: input ?? null,\n        }),`,
   )
   let ipcAgent = await load('packages/ipc/src/agent.ts')
   const oldBridgeStart = ipcAgent.indexOf(`export function createAgentSkillBridge(): AgentSkillPort {`)
