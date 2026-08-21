@@ -97,7 +97,7 @@ interrupted run can always resume.
 Your work belongs to you. Poietica is designed around predictable local behavior:
 
 - runs are persisted before they are rendered;
-- local state is encrypted at rest;
+- application-owned state is persisted locally;
 - network and AI requests happen only through explicit product flows;
 - external AI services receive only the context intentionally selected for them.
 
@@ -109,7 +109,7 @@ Where each file lands on disk — and what a backup has to carry — is document
 ## ⚑ Current status
 
 > **Active development**  
-> The current focus is the reliable agent foundation: typed IPC, encrypted local run
+> The current focus is the reliable agent foundation: typed IPC, durable local run
 > persistence, tool and MCP execution, and bounded AI workflows.
 
 The project is intentionally building reliability before broadening the product surface.
@@ -128,7 +128,7 @@ The project is intentionally building reliability before broadening the product 
 
 - **React + TypeScript** — product interaction and interface composition.
 - **kap** — the single transport between the desktop client and coding agents.
-- **Tauri + Rust** — desktop integration, encrypted local state, system capabilities, security boundaries.
+- **Tauri + Rust** — desktop integration, durable local state, system capabilities, security boundaries.
 - **pnpm + Turborepo** — workspace management and task orchestration.
 - **Biome** — formatting and static analysis.
 - **Vitest** — unit and integration tests across the workspace.
@@ -161,7 +161,7 @@ pnpm dev
 | Command | Purpose |
 | --- | --- |
 | `pnpm dev` | Run the desktop application in development. |
-| `pnpm check` | Everything CI runs: Biome, architecture rules, types, tests, and the Rust side. |
+| `pnpm check` | Repository checks: Biome, architecture rules, types, tests, Rust, and generated IPC. |
 
 Run `pnpm run` to list every script. This file deliberately does not mirror that list — a command table copied out
 of `package.json` rots silently, and this one already had an entry that no longer existed.

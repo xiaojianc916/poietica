@@ -25,14 +25,7 @@ const repositoryRoot = path.resolve(checkDirectory, '../..')
 
 const toPosix = (value) => value.replaceAll(path.sep, '/')
 
-/*
- * 一次遍历，两个视图。
- *
- * pattern 规则只看 sourceRoots 下的 .ts/.tsx；check 规则要看 crates 里的 .rs、
- * 目录名和工作区 manifest。上一版让后者住在 rules.config.mjs 的加载期，各走一套遍历、
- * 各带一份忽略名单，而且一 throw 就把 pattern 规则的全部结果掩掉 —— 与本文件
- * 开头那句 "Never short-circuits." 直接冲突。现在遍历一次、汇报一次。
- */
+/* 所有规则共享一次文件系统遍历，确保忽略策略与汇总语义一致。 */
 async function collectInventory() {
   const directories = []
   const files = []
@@ -123,10 +116,7 @@ for (const file of inventory.files.filter(isPatternTarget)) {
   }
 }
 
-/*
- * check 规则拿到的是同一次遍历的产物，报出来的也进同一个 violations 列表。
- * 判据看的是目录名或清单文件时，正则匹配不出位置，行列记 1。
- */
+/* 非源码位置的结构缺陷统一定位到 1:1。 */
 for (const rule of rules) {
   if (rule.check === undefined) {
     continue
@@ -143,11 +133,7 @@ for (const rule of rules) {
   }
 }
 
-/*
- * Task-scoped guards are the failure mode this runner exists to prevent: they
- * encode one migration as a text snapshot, outlive it, and rot without failing.
- * Rules belong in rules.config.mjs.
- */
+/* Architecture invariants have one executable owner. */
 for (const entry of await readdir(checkDirectory)) {
   if (!entry.startsWith('check-') || !entry.endsWith('.mjs')) {
     continue

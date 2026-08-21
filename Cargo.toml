@@ -161,12 +161,8 @@ rstest = "0.25.0"
 
 # Local storage
 #
-# SQLite is compiled in rather than linked against a system library, so every
-# platform runs the same build the tests do.
-#
-# 不再是 SQLCipher：这个库里只剩一张 threads 表七列元数据，而整段对话以明文
-# 躺在 agent 自己的存储里 —— 同一块盘同一个账户。加密这七列挡不住任何能读到
-# 那份明文的人，却换来「钥匙串不可用就打不开对话列表」这一类纯亏的失败。
+# SQLite is bundled for consistent behavior across supported platforms.
+# The application database is not encrypted at the SQLite layer.
 rusqlite = { version = "0.40.1", features = [
   "bundled",
 ] }

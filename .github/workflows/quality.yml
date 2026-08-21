@@ -19,7 +19,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # 纯 JS 检查没有任何 Windows 依赖，Linux runner 更快且计费单价是 Windows 的一半。
+  # 纯 JS 检查放在 Linux；Windows 专用于原生桌面验证。
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -28,6 +28,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup JS toolchain
         uses: ./.github/actions/setup-js
@@ -54,6 +56,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install Rust
         run: rustup show # honours rust-toolchain.toml
@@ -64,7 +68,7 @@ jobs:
       - name: Format
         run: cargo fmt --check
 
-      # clippy-driver 就是一次完整编译，之前额外的 cargo check 是纯重复工作。
+      # Clippy 已覆盖编译，无需另跑 cargo check。
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
@@ -87,6 +91,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup JS toolchain
         uses: ./.github/actions/setup-js

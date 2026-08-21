@@ -156,7 +156,7 @@ pnpm check
 
 一条命令串起 Biome、架构规则、全工作区 typecheck/test、rustfmt、Clippy、
 cargo test 与 IPC 绑定一致性。涉 AI 的改动另验：取消、超时、异常模型输出、
-过期结果、密钥不泄漏。测试内的 expect/unwrap 由根 clippy.toml 放行，不再逐处
+过期结果、密钥不泄漏。测试内的 expect/unwrap 必须在测试作用域逐处写明带理由的
 allow。
 
 ## 10. 已知偏差登记（禁止模仿，按批次收敛中）
