@@ -36,10 +36,7 @@ export class Migration {
     if (before === after) return
     const source = this.read(path)
     const count = occurrences(source, before)
-    if (count === 0) {
-      if (after === '' || occurrences(source, after) === 1) return
-      this.fail(`anchor not found in ${path}: ${JSON.stringify(before.slice(0, 100))}`)
-    }
+    if (count === 0) this.fail(`anchor not found in ${path}: ${JSON.stringify(before.slice(0, 100))}`)
     if (count !== 1) this.fail(`anchor is not unique in ${path}`)
     if (after !== '' && source.includes(after)) this.fail(`old and target forms coexist in ${path}`)
     this.staged.set(path, source.replace(before, after))
@@ -48,21 +45,15 @@ export class Migration {
   replaceAll(path, before, after, expectedCount) {
     const source = this.read(path)
     const count = occurrences(source, before)
-    if (count === 0) {
-      if (after === '' || source.includes(after)) return
-      this.fail(`anchor not found in ${path}: ${JSON.stringify(before.slice(0, 100))}`)
-    }
+    if (count === 0) this.fail(`anchor not found in ${path}: ${JSON.stringify(before.slice(0, 100))}`)
     if (count !== expectedCount) this.fail(`expected ${expectedCount} anchors in ${path}, found ${count}`)
     this.staged.set(path, source.split(before).join(after))
   }
 
-  section(path, start, end, replacement, doneMarker = replacement) {
+  section(path, start, end, replacement) {
     const source = this.read(path)
     const starts = occurrences(source, start)
-    if (starts === 0) {
-      if (occurrences(source, doneMarker) === 1) return
-      this.fail(`section start not found in ${path}: ${JSON.stringify(start)}`)
-    }
+    if (starts === 0) this.fail(`section start not found in ${path}: ${JSON.stringify(start)}`)
     if (starts !== 1) this.fail(`section start is not unique in ${path}`)
     const from = source.indexOf(start)
     const to = source.indexOf(end, from + start.length)
@@ -83,7 +74,7 @@ export class Migration {
   }
 
   remove(path, expectedMarker) {
-    if (!existsSync(this.path(path))) return
+    if (!existsSync(this.path(path))) this.fail(`missing required removal: ${path}`)
     const source = readFileSync(this.path(path), 'utf8')
     if (!source.includes(expectedMarker)) this.fail(`refusing to remove unexpected file: ${path}`)
     this.removals.set(path, expectedMarker)
@@ -99,7 +90,6 @@ export class Migration {
 
   commit() {
     for (const path of this.removals.keys()) {
-      if (!existsSync(this.path(path))) continue
       const source = readFileSync(this.path(path), 'utf8')
       if (!source.includes(this.removals.get(path))) this.fail(`removal changed during migration: ${path}`)
     }
