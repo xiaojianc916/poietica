@@ -5,6 +5,7 @@ import { migrateEntrySkills } from './scripts/refactor/entry-skills.mjs'
 import { Migration } from './scripts/refactor/lib.mjs'
 import { migrateSessionCreation } from './scripts/refactor/session-creation.mjs'
 import { migrateSessionProfile } from './scripts/refactor/session-profile.mjs'
+import { migrateSessionProjection } from './scripts/refactor/session-projection.mjs'
 import { migrateSkills } from './scripts/refactor/skill.mjs'
 import { migrateTypedSubmission } from './scripts/refactor/typed-submission.mjs'
 
@@ -19,6 +20,7 @@ try {
   migrateSkills(migration)
   migrateEntrySkills(migration)
   migrateTypedSubmission(migration)
+  migrateSessionProjection(migration)
   migration.assertAbsent('SessionCommandsPort', ['packages/agent-contract/src/index.ts', 'packages/ipc/src/agent.ts', 'apps/desktop/src/assistant/agent-runtime.ts', 'packages/agent/src/session/session-controls-store.ts'])
   migration.assertAbsent("name: 'write-goal'", ['packages/agent-ui/src/composer/composer-actions.tsx'])
   migration.assertAbsent("name: 'tasks'", ['packages/agent-ui/src/composer/composer-actions.tsx'])
