@@ -40,6 +40,7 @@ export class Migration {
   }
 
   replace(path, before, after) {
+    if (before === after) return
     const source = this.read(path)
     const beforeCount = occurrences(source, before)
     if (beforeCount === 0) {
@@ -63,7 +64,7 @@ export class Migration {
     const to = source.indexOf(end, from + start.length)
     if (to < 0) this.fail(`section end not found in ${path}: ${JSON.stringify(end)}`)
     if (source.indexOf(end, to + end.length) >= 0) this.fail(`section end is not unique in ${path}`)
-    this.staged.set(path, source.slice(0, from) + replacement + source.slice(to))
+    this.staged.set(path, source.slice(0, from) + replacement + source.slice(to + end.length))
   }
 
   write(path, content, expectedExistingMarker) {
@@ -98,7 +99,6 @@ export class Migration {
       const source = readFileSync(this.path(path), 'utf8')
       if (!source.includes(this.removals.get(path))) this.fail(`removal changed during migration: ${path}`)
     }
-
     for (const [path, content] of this.staged) {
       const absolute = this.path(path)
       mkdirSync(dirname(absolute), { recursive: true })
