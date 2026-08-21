@@ -978,7 +978,7 @@ async browserState() : Promise<BrowserState> {
     return await TAURI_INVOKE("browser_state");
 },
 /**
- * 开标签。不带地址就是空白页（图一的 about:blank 形态）。
+ * 开标签。不带地址就是空白页。
  */
 async browserOpenTab(url: string | null) : Promise<void> {
     await TAURI_INVOKE("browser_open_tab", { url });
@@ -1027,7 +1027,7 @@ async browserSetVisible(visible: boolean) : Promise<void> {
     await TAURI_INVOKE("browser_set_visible", { visible });
 },
 /**
- * 图三「打开调试工具」：WebView2 的 DevTools 独立窗口。
+ * 「打开调试工具」：WebView2 的 DevTools 独立窗口。
  */
 async browserOpenDevtools(id: number) : Promise<void> {
     await TAURI_INVOKE("browser_open_devtools", { id });
@@ -1039,7 +1039,7 @@ async browserDevtoolsEndpoint() : Promise<string | null> {
     return await TAURI_INVOKE("browser_devtools_endpoint");
 },
 /**
- * 图二「选择网页元素加入聊天」：给标签装上拾取武装并注入拾取脚本。
+ * 「选择网页元素加入聊天」：给标签装上拾取武装并注入拾取脚本。
  * 
  * 空白页没有内核实例，run_in_page 自然是空操作，什么也不会发生。
  */
