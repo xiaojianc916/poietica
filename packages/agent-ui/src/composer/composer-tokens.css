@@ -1,0 +1,66 @@
+/*
+ * 指令胶囊：左图标右文字，摆在正文上方。
+ *
+ * 强调色是设计指定值；几何一律取输入框那套令牌（composer-metrics.css）。
+ */
+
+.composer-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cp-pill-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.composer-token {
+  display: inline-flex;
+  max-inline-size: 100%;
+  block-size: var(--cp-pill);
+  align-items: center;
+  gap: var(--cp-pill-gap);
+  border-radius: 9999px;
+  padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
+  background: color-mix(in srgb, #2e82d2 10%, transparent);
+  font-size: var(--cp-font-caption);
+  line-height: 1;
+  color: #2e82d2;
+}
+
+.composer-token__icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.composer-token__icon svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+.composer-token__label {
+  max-inline-size: var(--cp-pill-label-max);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+[data-assistant-skin] .composer-token__drop {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.composer-token__drop:hover {
+  opacity: 1;
+}
+
+.composer-token__drop svg {
+  block-size: calc(var(--cp-icon) - 4px);
+  inline-size: calc(var(--cp-icon) - 4px);
+}

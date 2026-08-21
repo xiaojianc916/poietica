@@ -11,6 +11,13 @@ export {
   permissionPostureOf,
   permissionPosturesOf,
 } from './permission-posture'
+export type { PromptDirectives, SkillCall } from './prompt-directives'
+export {
+  composePrompt,
+  hasDirectives,
+  NO_DIRECTIVES,
+  retainedDirectives,
+} from './prompt-directives'
 export type { SessionControlsFailureReport } from './session-controls-store'
 export { SessionControlsStore } from './session-controls-store'
 export type {

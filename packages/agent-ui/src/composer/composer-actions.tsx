@@ -2,11 +2,9 @@ import { permissionPostureOf } from '@poietica/agent'
 import type { PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
 import {
   CloseIcon,
-  GoalIcon,
   PlusIcon,
   SirenIcon,
   SkillIcon,
-  SwarmIcon,
   TerminalIcon,
   ToolIcon,
 } from '../primitives/icons'
@@ -94,26 +92,6 @@ export function composerModeRows({
   return rows
 }
 
-/* 目标与蜂群模式尚未上线：禁用行先定版式。 */
-export const UPCOMING_COMPOSE_ROWS: readonly PaletteRow[] = [
-  {
-    id: 'upcoming:goal',
-    icon: <GoalIcon aria-hidden="true" />,
-    label: '目标',
-    detail: '设置要持续追求的目标',
-    disabled: true,
-    action: { kind: 'run', run: () => undefined },
-  },
-  {
-    id: 'upcoming:swarm',
-    icon: <SwarmIcon aria-hidden="true" />,
-    label: '蜂群模式',
-    detail: '多个子代理并行协作',
-    disabled: true,
-    action: { kind: 'run', run: () => undefined },
-  },
-]
-
 /**
  * agent 报的 other 选择器与命令，摊成面板的分组。
  *
@@ -169,7 +147,10 @@ function callable(entry: PaletteEntry, skill: boolean): PaletteRow {
     label: skill ? entry.title : entry.label,
     ...(entry.description === '' ? {} : { detail: entry.description }),
     token: entry.label,
-    action: { kind: 'insert', snippet: entry.label },
+    /* 技能是这一句的调用式，交给输入框成为一枚胶囊；命令仍是插进正文的一段字。 */
+    action: skill
+      ? { kind: 'skill', skill: { call: entry.label, title: entry.title } }
+      : { kind: 'insert', snippet: entry.label },
   }
 }
 

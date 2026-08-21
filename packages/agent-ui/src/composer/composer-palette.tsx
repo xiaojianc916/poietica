@@ -1,5 +1,6 @@
 import './composer-palette.css'
 
+import type { SkillCall } from '@poietica/agent'
 import type { ReactNode } from 'react'
 import { CheckIcon } from '../primitives/icons'
 
@@ -11,10 +12,18 @@ import { CheckIcon } from '../primitives/icons'
  * agent、不认识技能、也不认识文件选择器。
  */
 
-/** 选中一行之后做什么。插入归输入框执行，因为只有它拿得到光标。 */
+/*
+ * 选中一行之后做什么。
+ *
+ * 要动草稿的一律只声明意图，由持有草稿的 PromptInput 执行 —— 面板算不出光标，
+ * 也不该拿到写草稿的权力。
+ */
 export type PaletteAction =
   | { readonly kind: 'insert'; readonly snippet: string }
   | { readonly kind: 'run'; readonly run: () => void }
+  | { readonly kind: 'skill'; readonly skill: SkillCall }
+  | { readonly kind: 'goal' }
+  | { readonly kind: 'swarm' }
 
 export interface PaletteRow {
   readonly id: string
@@ -26,7 +35,7 @@ export interface PaletteRow {
   readonly hint?: string | undefined
   /** 打勾：这一行是此刻生效的那一档。 */
   readonly checked?: boolean | undefined
-  /** 置灰不可点：尚未上线的占位行。 */
+  /** 置灰不可点：此刻的条件还不成立（如没有可设为目标的正文）。 */
   readonly disabled?: boolean | undefined
   /** 斜杠过滤时拿来匹配的调用式。没有就不参与斜杠过滤。 */
   readonly token?: string | undefined

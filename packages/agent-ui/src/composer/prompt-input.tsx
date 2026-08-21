@@ -1,3 +1,10 @@
+import {
+  composePrompt,
+  hasDirectives,
+  NO_DIRECTIVES,
+  type PromptDirectives,
+  retainedDirectives,
+} from '@poietica/agent'
 import type { ChatStatus } from '@poietica/agent-contract'
 import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 import {
@@ -11,18 +18,25 @@ import {
   useState,
 } from 'react'
 import { cx } from '../primitives/class-names'
-import { AttachIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
+import {
+  AttachIcon,
+  GoalIcon,
+  SpinnerIcon,
+  StopIcon,
+  SubmitIcon,
+  SwarmIcon,
+} from '../primitives/icons'
 import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
 import { ComposerPalette, type PaletteGroup, type PaletteRow } from './composer-palette'
 
 /*
  * The composer input.
  *
- * One owner for everything the box holds. The draft text and the attachments
- * live here and nowhere else: the form reads them at submit time, the toolbar
- * reads them to decide what it may offer, and the surface reaches them through
- * the context rather than through the document. Nothing in this file, and
- * nothing built on it, looks an element up by id.
+ * One owner for everything the box holds. The draft text, the directives it
+ * carries and the attachments live here and nowhere else: the form reads them
+ * at submit time, the toolbar reads them to decide what it may offer, and the
+ * surface reaches them through the context rather than through the document.
+ * Nothing in this file, and nothing built on it, looks an element up by id.
  *
  * 面板也归这里。加号翻开的与斜杠触发的是同一张，锚在这张卡的上沿；开合、高亮与
  * 落定都跟着草稿走 —— 键盘事件落在 textarea 上，面板自己听不见，所以它的状态必须
@@ -51,13 +65,15 @@ const NO_ATTACHMENTS: readonly ComposerAsset[] = []
 const NO_GROUPS: readonly PaletteGroup[] = []
 const NO_ROWS: readonly PaletteRow[] = []
 
-/** 能不能发，就这两位。整串草稿不出现在这里，因为没有人需要它。 */
+/** 这一格此刻攒着的可发内容。整串草稿不出现在这里，因为没有人需要它。 */
 export interface PromptInputDraft {
   readonly hasText: boolean
   readonly hasFiles: boolean
+  /** 这一句带着的指令：技能、目标、蜂群。 */
+  readonly directives: PromptDirectives
 }
 
-const NO_DRAFT: PromptInputDraft = { hasText: false, hasFiles: false }
+const NO_DRAFT: PromptInputDraft = { hasText: false, hasFiles: false, directives: NO_DIRECTIVES }
 
 /*
  * 收什么，不在这一层判。
@@ -79,6 +95,12 @@ interface PromptInputActions {
   readonly togglePalette: () => void
   /** 在光标处插入一段调用式或片段，保住正在打的字与选区。 */
   readonly insertSnippet: (snippet: string) => void
+  /** 撤下这一句带着的技能。 */
+  readonly dropSkill: () => void
+  /** 目标回到草稿里改写，胶囊随之撤下。 */
+  readonly reviseGoal: () => void
+  /** 退出蜂群模式。 */
+  readonly dropSwarm: () => void
 }
 
 const ActionsContext = createContext<PromptInputActions | null>(null)
@@ -158,6 +180,7 @@ export function PromptInput({
 }: PromptInputProps) {
   const intake = useAttachmentIntake()
   const [text, setTextState] = useState('')
+  const [directives, setDirectives] = useState<PromptDirectives>(NO_DIRECTIVES)
   const [paletteDismissed, setPaletteDismissed] = useState(false)
   const [paletteOpened, setPaletteOpened] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
@@ -310,6 +333,27 @@ export function PromptInput({
     editor.focus()
   }, [])
 
+  const dropSkill = useCallback(() => {
+    setDirectives((held) => (held.skill === null ? held : { ...held, skill: null }))
+  }, [])
+
+  /* 改写就是把它还回草稿：胶囊里的字没有第二处可编辑，撤下不该把它丢掉。 */
+  const reviseGoal = useCallback(() => {
+    const goal = directives.goal
+
+    if (goal === null) {
+      return
+    }
+
+    setTextState((draft) => (draft.trim().length === 0 ? goal : draft))
+    setDirectives((held) => ({ ...held, goal: null }))
+    focusTextarea()
+  }, [directives.goal, focusTextarea])
+
+  const dropSwarm = useCallback(() => {
+    setDirectives((held) => (held.swarm ? { ...held, swarm: false } : held))
+  }, [])
+
   const registerTextarea = useCallback((element: HTMLTextAreaElement | null) => {
     textareaRef.current = element
   }, [])
@@ -333,7 +377,7 @@ export function PromptInput({
     return intake.watchDrop(addAssets)
   }, [addAssets, intake])
 
-  /* 全是 useCallback 或 setState，所以这个对象建一次就到卸载。 */
+  /* 引用只随「目标变了」换一次（reviseGoal 要把它还回草稿），敲字动不了它。 */
   const actions = useMemo<PromptInputActions>(
     () => ({
       setText,
@@ -345,15 +389,21 @@ export function PromptInput({
       requestSubmit,
       togglePalette,
       insertSnippet,
+      dropSkill,
+      reviseGoal,
+      dropSwarm,
     }),
     [
       addAssets,
+      dropSkill,
+      dropSwarm,
       focusTextarea,
       insertSnippet,
       openFilePicker,
       registerTextarea,
       removeAttachment,
       requestSubmit,
+      reviseGoal,
       setText,
       togglePalette,
     ],
@@ -367,7 +417,10 @@ export function PromptInput({
    */
   const hasText = text.trim().length > 0
   const hasFiles = attachments.length > 0
-  const draft = useMemo<PromptInputDraft>(() => ({ hasText, hasFiles }), [hasFiles, hasText])
+  const draft = useMemo<PromptInputDraft>(
+    () => ({ hasText, hasFiles, directives }),
+    [directives, hasFiles, hasText],
+  )
 
   /*
    * 面板的行：第一组由这个框起头，其余是 agent 报的。
@@ -389,11 +442,27 @@ export function PromptInput({
             action: { kind: 'run' as const, run: openFilePicker },
           },
           ...(composeRows ?? NO_ROWS),
+          {
+            id: 'compose:goal',
+            icon: <GoalIcon aria-hidden="true" />,
+            label: '目标',
+            detail: '把这句话设为要持续追求的目标',
+            disabled: !hasText,
+            action: { kind: 'goal' as const },
+          },
+          {
+            id: 'compose:swarm',
+            icon: <SwarmIcon aria-hidden="true" />,
+            label: '蜂群模式',
+            detail: '多个子代理并行协作',
+            checked: directives.swarm,
+            action: { kind: 'swarm' as const },
+          },
         ],
       },
       ...(groups ?? NO_GROUPS),
     ],
-    [composeRows, groups, openFilePicker],
+    [composeRows, directives.swarm, groups, hasText, openFilePicker],
   )
 
   /*
@@ -436,24 +505,64 @@ export function PromptInput({
 
       closePalette()
 
-      if (row.action.kind === 'run') {
-        row.action.run()
-        focusTextarea()
+      const { action } = row
 
-        return
+      switch (action.kind) {
+        case 'run': {
+          action.run()
+          focusTextarea()
+
+          return
+        }
+
+        /* 技能成为这一句的一枚胶囊：斜杠敲出来的那半个调用式随之作废。 */
+        case 'skill': {
+          setDirectives((held) => ({ ...held, skill: action.skill }))
+
+          if (slashing) {
+            setTextState('')
+          }
+
+          focusTextarea()
+
+          return
+        }
+
+        /* 目标就是此刻这句话：它从草稿搬进胶囊，此后每一轮随那句话重述一次。 */
+        case 'goal': {
+          const goal = text.trim()
+
+          if (goal.length > 0) {
+            setDirectives((held) => ({ ...held, goal }))
+            setTextState('')
+          }
+
+          focusTextarea()
+
+          return
+        }
+
+        case 'swarm': {
+          setDirectives((held) => ({ ...held, swarm: !held.swarm }))
+          focusTextarea()
+
+          return
+        }
+
+        /* 斜杠态下整条草稿就是那个调用式，落定即替换；加号翻开时它插在光标处。 */
+        case 'insert': {
+          if (slashing) {
+            setTextState(`${action.snippet} `)
+            focusTextarea()
+
+            return
+          }
+
+          insertSnippet(`${action.snippet} `)
+        }
       }
-
-      /* 斜杠态下整条草稿就是那个调用式，落定即替换；加号翻开时它插在光标处。 */
-      if (slashing) {
-        setTextState(`${row.action.snippet} `)
-        focusTextarea()
-
-        return
-      }
-
-      insertSnippet(`${row.action.snippet} `)
     },
-    [closePalette, focusTextarea, insertSnippet, slashing],
+    [closePalette, focusTextarea, insertSnippet, slashing, text],
   )
 
   /*
@@ -580,16 +689,18 @@ export function PromptInput({
               onSubmit={(event) => {
                 event.preventDefault()
 
-                const trimmed = text.trim()
+                const message = composePrompt(directives, text)
 
-                if (trimmed.length === 0 && attachments.length === 0) {
+                if (message.length === 0 && attachments.length === 0) {
                   return
                 }
 
-                /* 送出去的就是人打的那句话。档位不在这里落成文字 —— 它是 agent
-                自己的状态（ACP session config option），由那一侧生效。 */
-                onSubmit({ text: trimmed, assets: attachments })
+                /* 屏幕上那一句与送出去的那一句是同一段字节：指令只在 composePrompt
+                这一处落成文字。批准方式与运行模式仍不落文字 —— 它们是 agent 自己
+                的状态，由那一侧生效。 */
+                onSubmit({ text: message, assets: attachments })
                 setText('')
+                setDirectives(retainedDirectives)
 
                 /* 不 discard：这些字节现在归这条对话的交付会话（原生侧 adopt
                 会把引用加一），输入框只是不再拿着它们。 */
@@ -699,7 +810,7 @@ export function PromptInputSubmit({
    * 整条工具栏，而它与草稿空不空无关。disabled 仍可由外部显式压过 —— 这是
    * 「补充」，不是第二个判据。
    */
-  const { hasFiles, hasText } = usePromptInputDraft()
+  const { directives, hasFiles, hasText } = usePromptInputDraft()
   const isStreaming = status === 'streaming'
   const Icon = isStreaming ? StopIcon : status === 'submitted' ? SpinnerIcon : SubmitIcon
 
@@ -710,7 +821,7 @@ export function PromptInputSubmit({
       className={className}
       data-slot="prompt-input-submit"
       data-status={status}
-      disabled={disabled ?? (!isStreaming && !hasText && !hasFiles)}
+      disabled={disabled ?? (!isStreaming && !hasText && !hasFiles && !hasDirectives(directives))}
       onClick={isStreaming ? onCancel : undefined}
       type={isStreaming ? 'button' : 'submit'}
     >
