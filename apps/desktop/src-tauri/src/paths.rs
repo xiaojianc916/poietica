@@ -4,11 +4,6 @@
 //! 附件字节、各 agent 的受控 home、日志与崩溃报告、临时中转与缓存，全都在它下面。用户要备份、
 //! 要搬机器、要把这个应用从磁盘上抹干净，需要知道的路径只有一条。
 //!
-//! 此前是三个根：三份 store 在 `app_config_dir`（Windows 上的漫游 %APPDATA%），
-//! 线程库与附件在 `app_local_data_dir`，日志在 `app_log_dir`。三处都由平台目录
-//! 各自解析，谁也不知道另外两处在哪 —— 这个模块的存在意义正是回答「卸载时该清
-//! 哪些目录」，而它当时答不上来。
-//!
 //! 安装版的根就是可执行文件所在的那个目录。用户在安装器的目录页只做一次选择，
 //! 那一次选择同时回答「程序装到哪」和「数据存到哪」，不需要第二个页面、第二个
 //! 开关，也不需要记住第二条路径。
@@ -28,6 +23,7 @@
 //! `app_local_data_dir()` 返回的就是本地数据目录拼上 identifier，identifier 归
 //! 配置管，在这里再写一份常量等于同一件事有两个真相。
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -269,30 +265,10 @@ pub fn agent_home<R: Runtime>(app: &AppHandle<R>, agent_id: &str) -> Result<Path
 
 /// 上一次拉到的市场目录。拉过一次就不再自动拉，刷新是用户的动作。
 ///
-/// 它挂在应用自己的数据根下，不在 agent 的家里：这是我们的界面缓存，agent 从不读它。
-/// 装了什么则相反 —— 那份账本是 agent 的，位置由 agent_home_directory 说了算。
-///
-/// 它落在 cache 里，不在数据根上。判据是 cache_directory 写着的那一条 ——
-/// 丢了还能重新取回来 —— 而这个函数第一行自己就说了，刷新是用户的动作：
-/// 抹掉它，用户点一次刷新就全回来了。
-///
-/// 此前它躺在根上，那个位置两头都不占：它不是用户数据，却又不在任何一个可以
-/// 整个丢掉的目录里。cache_directory 说「每一项都该能被独立丢掉」，那句话要
-/// 成立，这一项就得在那个目录里。
-///
-/// 那行删除是搬家的收尾，不是数据迁移：抹得掉才抹，与 temp_directory 同一条
-/// 规矩。搬完之后它每次都白跑一趟，而调用点只有两个，都由用户点出来。
-///
-/// 代价照实说：装过旧版本的人搬完家第一次打开市场是空的，要自己刷新一次。
-///
 /// # Errors
 ///
 /// 数据根无法解析、或 cache 目录无法创建时返回错误。
 pub fn marketplace_catalog<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
-    let stale = root(app)?.join(MARKETPLACE_CATALOG_FILE);
-
-    let _swept = fs::remove_file(stale);
-
     Ok(cache_directory(app)?.join(MARKETPLACE_CATALOG_FILE))
 }
 
@@ -387,7 +363,7 @@ pub fn projectless_workspaces<R: Runtime>(app: &AppHandle<R>) -> Result<Vec<Path
 pub fn sweep_projectless_workspaces(snapshot: Vec<PathBuf>, referenced: &[String]) -> usize {
     /* 名单按 UUID 比对而不是按整条路径字符串：UUID 是这些目录唯一与字符串
     写法无关的身份，路径在库与磁盘之间多走一趟就多一种写法。 */
-    let kept: Vec<Uuid> = referenced
+    let kept: HashSet<Uuid> = referenced
         .iter()
         .filter_map(|recorded| projectless_identity(Path::new(recorded)))
         .collect();

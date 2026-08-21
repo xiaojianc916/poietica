@@ -1,7 +1,6 @@
 export abstract class DomainError extends Error {
   abstract readonly code: string
   abstract readonly userMessage: string
-  abstract readonly httpStatus: number
   readonly timestamp: string
   readonly context: Record<string, unknown> | undefined
 
@@ -12,13 +11,12 @@ export abstract class DomainError extends Error {
     this.context = context
   }
 
-  toJSON() {
+  toJSON(): ErrorDescriptor {
     return {
       name: this.name,
       code: this.code,
       message: this.message,
       userMessage: this.userMessage,
-      httpStatus: this.httpStatus,
       timestamp: this.timestamp,
       context: this.context,
     }
@@ -28,7 +26,6 @@ export abstract class DomainError extends Error {
 export class ValidationError extends DomainError {
   readonly code = 'VALIDATION_ERROR'
   readonly userMessage = '输入数据验证失败，请检查后重试'
-  readonly httpStatus = 400
   readonly violations: ValidationViolation[]
 
   constructor(violations: ValidationViolation[], context?: Record<string, unknown>) {
@@ -47,7 +44,6 @@ export interface ValidationViolation {
 export class InternalInvariantError extends DomainError {
   readonly code = 'INTERNAL_INVARIANT'
   readonly userMessage = '内部错误，请重试或联系支持'
-  readonly httpStatus = 500
   readonly invariant: string
 
   constructor(invariant: string, context?: Record<string, unknown>) {

@@ -710,7 +710,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       return
     }
 
-    const epoch = (epochs[flow] += 1)
+    epochs[flow] += 1
+    const epoch = epochs[flow]
     const { plan } = planning
     const subdirectory = plan.kind === 'archive' ? plan.subdirectory : null
 

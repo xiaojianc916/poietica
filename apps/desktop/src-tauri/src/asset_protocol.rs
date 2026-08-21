@@ -701,7 +701,6 @@ fn materialise(
 /// 协议挂在 `http://<scheme>.localhost` 上，官方的 convertFileSrc 生成的正是
 /// 这一条；macOS 与 Linux 用真正的 scheme。
 ///
-/// 此前两个平台都发 `poietica-asset://`。resolve_request 一直认得
 /// `poietica-asset.localhost` 这个 host，tauri.conf.json 的 CSP 也一直放行着
 /// 它 —— 而全仓没有一处生成过它。于是 Windows 上每一条附件 URL 都指向一个取
 /// 不到东西的地址，重启之后整条对话的图片全是破图标；实时那条路当时看起来
@@ -1136,9 +1135,7 @@ mod tests {
         let asset = insert(&registry, "session-1", "image/png", &[1, 2, 3]);
         let url = asset_protocol_url("session-1", &asset).expect("url should build");
 
-        /* 逐字比，不比前缀：上一版这里是 starts_with，而生成器把 format! 的
-        大括号转义写错时吐出的是 "{http://poietica-asset}.localhost/..." ——
-        一个畸形 URL，前缀断言在非 Windows 宿主上根本不会跑到。 */
+        /* 逐字比，不比前缀：畸形 URL 的前缀断言在非 Windows 宿主上跑不到。 */
         let expected = if cfg!(windows) {
             format!("http://poietica-asset.localhost/asset/session-1/{asset}")
         } else {

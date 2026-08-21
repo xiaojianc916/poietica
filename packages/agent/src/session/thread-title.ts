@@ -28,8 +28,9 @@ const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
  * CJK 标点），emoji 用 Extended_Pictographic 判。与 string-width 一类库同一做法；
  * 上限差一列没有可见后果，所以不为它引依赖。
  */
+// 匹配：汉字、韩文、日文假名 + 全角符号 + Emoji
 const WIDE =
-  /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]|\p{Extended_Pictographic}/u
+  /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]|\u{20000}-\u{2FFFD}|\u{30000}-\u{3FFFD}|\p{Extended_Pictographic}/u
 
 /** Cuts a stand in title down to something a tab can show. */
 export const shorten = (text: string): string => {

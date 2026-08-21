@@ -82,7 +82,7 @@ export function withCancellation<T>(signal: AbortSignal, promise: Promise<T>): P
       },
       (error: unknown) => {
         detach()
-        reject(error instanceof Error ? error : new Error(String(error)))
+        reject(error)
       },
     )
   })

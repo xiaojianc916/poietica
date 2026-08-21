@@ -92,21 +92,12 @@ pub enum IpcErrorCode {
     Platform,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Type)]
-#[serde(rename_all = "kebab-case")]
-pub enum IpcOperation {
-    File,
-    Plugin,
-    Asset,
-    Platform,
-}
 
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IpcError {
     pub code: IpcErrorCode,
     pub message: String,
-    pub operation: IpcOperation,
     pub recoverable: bool,
 }
 
@@ -115,7 +106,6 @@ impl Error {
         IpcError {
             code: self.code(),
             message: self.public_message().into_owned(),
-            operation: self.operation(),
             recoverable: self.recoverable(),
         }
     }
@@ -133,14 +123,6 @@ impl Error {
         }
     }
 
-    fn operation(&self) -> IpcOperation {
-        match self {
-            Self::Persistence(_) | Self::File(_) | Self::Io(_) => IpcOperation::File,
-            Self::Plugin(_) => IpcOperation::Plugin,
-            Self::Asset(_) => IpcOperation::Asset,
-            _ => IpcOperation::Platform,
-        }
-    }
 
     fn recoverable(&self) -> bool {
         matches!(
@@ -228,14 +210,13 @@ mod tests {
         reason = "tests operate on known-good fixtures; a broken assumption must fail the test loudly"
     )]
 
-    use super::{Error, IpcErrorCode, IpcOperation};
+    use super::{Error, IpcErrorCode};
 
     #[test]
     fn validation_error_has_validation_ipc_mapping() {
         let error = Error::Validation("invalid input".to_owned());
 
         assert!(matches!(error.code(), IpcErrorCode::Validation));
-        assert!(matches!(error.operation(), IpcOperation::Platform));
         assert!(!error.recoverable());
     }
 
@@ -247,7 +228,6 @@ mod tests {
         ));
 
         assert!(matches!(error.code(), IpcErrorCode::Persistence));
-        assert!(matches!(error.operation(), IpcOperation::File));
         assert!(error.recoverable());
     }
 
@@ -257,7 +237,6 @@ mod tests {
             .expect("error should serialize");
 
         assert_eq!(value["code"], "validation");
-        assert_eq!(value["operation"], "platform");
         assert_eq!(value["message"], "请求参数无效");
         assert_eq!(value["recoverable"], false);
     }
