@@ -45,8 +45,15 @@ export interface PaletteGroup {
   readonly rows: readonly PaletteRow[]
 }
 
+/** 面板与输入框共用这一条 id 规则：活动项由 aria-activedescendant 指过来。 */
+export function paletteOptionId(listboxId: string, rowId: string): string {
+  return `${listboxId}-${rowId}`
+}
+
 export interface ComposerPaletteProps {
   readonly groups: readonly PaletteGroup[]
+  /** listbox 自己的 id：输入框拿它填 aria-controls。 */
+  readonly listboxId: string
   /** 在摊平后的行序列里的下标。 */
   readonly highlighted: number
   /** 指针进入某一行时把高亮挪过去：任何时刻只有一行有悬停色。 */
@@ -57,6 +64,7 @@ export interface ComposerPaletteProps {
 export function ComposerPalette({
   groups,
   highlighted,
+  listboxId,
   onHighlight,
   onPick,
 }: ComposerPaletteProps) {
@@ -64,7 +72,7 @@ export function ComposerPalette({
 
   return (
     <div className="composer-palette">
-      <div className="composer-palette__panel" role="listbox">
+      <div className="composer-palette__panel" id={listboxId} role="listbox">
         {groups.map((group) => (
           <div className="composer-palette__group" key={group.id}>
             <div className="composer-palette__heading">{group.heading}</div>
@@ -78,6 +86,7 @@ export function ComposerPalette({
                   aria-selected={at === highlighted}
                   className="composer-palette__row"
                   data-highlighted={at === highlighted ? 'true' : undefined}
+                  id={paletteOptionId(listboxId, row.id)}
                   key={row.id}
                   onMouseDown={(event) => {
                     event.preventDefault()

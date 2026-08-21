@@ -22,6 +22,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -30,7 +31,12 @@ import {
 import { cx } from '../primitives/class-names'
 import { AttachIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
-import { ComposerPalette, type PaletteGroup, type PaletteRow } from './composer-palette'
+import {
+  ComposerPalette,
+  type PaletteGroup,
+  type PaletteRow,
+  paletteOptionId,
+} from './composer-palette'
 import { $createSkillNode, SkillNode } from './skill-node'
 
 /*
@@ -77,6 +83,19 @@ interface PromptInputActions {
 const ActionsContext = createContext<PromptInputActions | null>(null)
 const AttachmentsContext = createContext<readonly ComposerAsset[]>(NO_ATTACHMENTS)
 const DraftContext = createContext<PromptInputDraft | null>(null)
+
+/*
+ * 输入框那一格的 combobox 语义（WAI-ARIA APG：带 listbox 弹层的可编辑 combobox）。
+ * 焦点始终在编辑器上，活动项靠 aria-activedescendant 指过去，而只有壳知道弹层开没开、
+ * 指着哪一行 —— 所以它从这里往下交，不在编辑器里再算一遍。
+ */
+interface PaletteAria {
+  readonly listboxId: string
+  readonly expanded: boolean
+  readonly activeId: string | undefined
+}
+
+const PaletteAriaContext = createContext<PaletteAria | null>(null)
 
 export function usePromptInputActions(): PromptInputActions {
   const actions = useContext(ActionsContext)
@@ -235,6 +254,7 @@ function PromptInputShell({
   const [paletteOpened, setPaletteOpened] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
 
+  const listboxId = useId()
   const formRef = useRef<HTMLFormElement>(null)
 
   const focusEditor = useCallback(() => {
@@ -482,6 +502,16 @@ function PromptInputShell({
 
   const rows = useMemo(() => visible.flatMap((group) => group.rows), [visible])
   const paletteOpen = (paletteOpened || (slashing && !paletteDismissed)) && rows.length > 0
+  const active = paletteOpen ? rows[highlighted] : undefined
+
+  const paletteAria = useMemo<PaletteAria>(
+    () => ({
+      listboxId,
+      expanded: paletteOpen,
+      activeId: active === undefined ? undefined : paletteOptionId(listboxId, active.id),
+    }),
+    [active, listboxId, paletteOpen],
+  )
 
   const pickRow = useCallback(
     (row: PaletteRow) => {
@@ -661,12 +691,13 @@ function PromptInputShell({
               <ComposerPalette
                 groups={visible}
                 highlighted={highlighted}
+                listboxId={listboxId}
                 onHighlight={setHighlighted}
                 onPick={pickRow}
               />
             ) : null}
 
-            {children}
+            <PaletteAriaContext value={paletteAria}>{children}</PaletteAriaContext>
           </form>
         </DraftContext>
       </AttachmentsContext>
@@ -685,14 +716,21 @@ export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) 
  * 这里只声明壳与占位字。
  */
 export function PromptInputEditor({ placeholder }: { readonly placeholder: string }) {
+  const palette = useContext(PaletteAriaContext)
+
   return (
     <div className="assistant-prompt-editor">
       <PlainTextPlugin
         contentEditable={
           <ContentEditable
+            aria-activedescendant={palette?.activeId}
+            aria-autocomplete="list"
+            aria-controls={palette?.listboxId}
+            aria-expanded={palette?.expanded}
             aria-label="消息"
             className="assistant-prompt-editor__input"
             data-slot="prompt-input-editor"
+            role={palette === null ? undefined : 'combobox'}
           />
         }
         ErrorBoundary={LexicalErrorBoundary}

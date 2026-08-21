@@ -14,6 +14,7 @@ import {
   appendUserMessage,
   applyRunEvents,
   createTimelineState,
+  opensTurn,
   prependThreadEvents,
   replayThreadEvents,
 } from '../timeline'
@@ -465,7 +466,7 @@ export class TranscriptStore implements TranscriptSink {
           ...(page.events as readonly RunEvent[]),
           ...(this.#unaligned.get(real) ?? []),
         ]
-        const at = merged.findIndex((event) => event.kind === 'run_started')
+        const at = merged.findIndex(opensTurn)
 
         cursor = page.before
 

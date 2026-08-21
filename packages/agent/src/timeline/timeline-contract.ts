@@ -5,6 +5,7 @@ import type {
   QuestionChoice,
   QuestionItem,
   QuestionOutcome,
+  RunEvent,
   RunStatus,
   ToolCallContent,
   ToolCallLocation,
@@ -136,6 +137,11 @@ export interface ToolCallTimelineItem extends TimelineEntry {
  */
 export function isTerminal(status: ToolCallTimelineItem['status']): boolean {
   return status === 'completed' || status === 'failed'
+}
+
+/** 这一帧是否开一个新段。段由它划定，所以判据只住在这里。 */
+export function opensTurn(event: RunEvent): boolean {
+  return event.kind === 'run_started'
 }
 
 /** 计划里的一步。 */

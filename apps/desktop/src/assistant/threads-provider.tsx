@@ -55,7 +55,7 @@ export function ThreadsProvider({ agent, children, report }: ThreadsProviderProp
     const transcriptStore = new TranscriptStore({
       earlier: port.earlierFrames,
       modes: createModeMemory((failure) => {
-        reportFailure('THREAD_GOAL_NOT_KEPT', {
+        reportFailure('THREAD_MODES_NOT_KEPT', {
           cause: failure.cause,
           operation: failure.stage,
           scope: 'assistant',

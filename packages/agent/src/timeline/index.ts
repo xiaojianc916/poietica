@@ -17,6 +17,7 @@ export type {
   TurnSpan,
   UserMessageItem,
 } from './timeline-contract'
+export { opensTurn } from './timeline-contract'
 export {
   pendingPermission,
   pendingPermissionCall,
