@@ -25,15 +25,11 @@ export {
   type SidebarFooterProps,
 } from './shell/sidebar/sidebar-footer'
 export { WorkspaceSidebar } from './shell/sidebar/workspace-sidebar'
+export { useCanDockSidebar, useIsSidebarDocked } from './shell/sidebar-docking'
 export {
   SurfaceHost,
   type SurfaceHostProps,
 } from './shell/surface-host'
-export {
-  useIsSidebarDocked,
-  useWorkspaceLayoutMode,
-  type WorkspaceLayoutMode,
-} from './shell/use-workspace-layout'
 export {
   WorkbenchTabs,
   type WorkbenchTabsProps,

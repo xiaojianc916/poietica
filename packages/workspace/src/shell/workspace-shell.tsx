@@ -2,7 +2,7 @@ import { TooltipProvider } from '@poietica/ui'
 
 import type { WorkspaceShellProps } from '../shell-contract'
 import { SidebarRegion } from './sidebar/sidebar-region'
-import { useIsSidebarDocked, useWorkspaceLayoutMode } from './use-workspace-layout'
+import { useIsSidebarDocked } from './sidebar-docking'
 import { encodeWorkbenchTabDomId } from './workbench-tabs/workbench-tabs-model'
 import { WorkspaceFrame } from './workspace-frame'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layout-store'
@@ -15,8 +15,7 @@ import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layou
  * 拖拽态属于 workspaceLayoutStore。
  */
 export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
-  const mode = useWorkspaceLayoutMode()
-  const { sidebarOpen, sidebarWidth, splitter } = useWorkspaceLayoutState()
+  const { sidebarWidth, splitter } = useWorkspaceLayoutState()
   const { setSidebarOpen, setSidebarWidth } = workspaceLayoutStore
 
   /* 停靠是呈现判据：列宽与分隔线的可见性都由它派生。 */
@@ -56,8 +55,7 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
         }
         sidebar={
           <SidebarRegion
-            isOpen={sidebarOpen}
-            mode={mode}
+            isDocked={dockSidebar}
             onClose={() => {
               setSidebarOpen(false)
             }}

@@ -1,11 +1,9 @@
 import type { ReactNode } from 'react'
-import type { WorkspaceLayoutMode } from '../use-workspace-layout'
 import { WORKSPACE_LAYOUT } from '../workspace-layout'
 import { SidebarSplitter } from './sidebar-splitter'
 
 export interface SidebarRegionProps {
-  readonly mode: WorkspaceLayoutMode
-  readonly isOpen: boolean
+  readonly isDocked: boolean
   readonly width: number
   readonly onClose: () => void
   readonly onResize: (width: number) => void
@@ -37,15 +35,12 @@ export interface SidebarRegionProps {
  * 栅格格位与空列的指针穿透由 workspace-shell.css 拥有，这里不再内联坐标。
  */
 export function SidebarRegion({
-  mode,
-  isOpen,
+  isDocked,
   width,
   onClose,
   onResize,
   children,
 }: SidebarRegionProps) {
-  const isDocked = mode !== 'narrow' && isOpen
-
   return (
     <div
       className="workspace-shell__sidebar min-h-0 min-w-0 overflow-visible bg-sidebar"

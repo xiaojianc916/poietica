@@ -23,8 +23,7 @@ export const WORKSPACE_LAYOUT = {
 
   /* 断点是逻辑像素宽度：宿主推来的窗口宽度按它们分档。 */
   breakpoints: {
-    compact: 900,
-    wide: 1280,
+    dockable: 900,
 
     /*
      * 跨断点的切换等几何静止这么久才提交：这是页面内唯一可用的「拖拽结束」
