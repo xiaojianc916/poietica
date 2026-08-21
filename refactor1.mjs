@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
@@ -14,24 +14,21 @@ function fail(message) {
 }
 
 function countOccurrences(content, needle) {
-  let count = 0
-  let offset = 0
-
-  while (true) {
-    const found = content.indexOf(needle, offset)
-    if (found < 0) return count
-    count += 1
-    offset = found + needle.length
-  }
+  return content.split(needle).length - 1
 }
 
 function applyEdit(content, { name, before, after }) {
   const beforeCount = countOccurrences(content, before)
   const afterCount = countOccurrences(content, after)
 
-  if (beforeCount === 0 && afterCount === 1) return content
+  if (beforeCount === 0 && afterCount === 1) {
+    return content
+  }
   if (beforeCount !== 1 || afterCount !== 0) {
-    fail(`${name}: expected one old anchor or one applied anchor; found old=${beforeCount}, applied=${afterCount}`)
+    fail(
+      `${name}: expected one old anchor or one applied anchor; ` +
+        `found old=${beforeCount}, applied=${afterCount}`,
+    )
   }
 
   return content.replace(before, after)
@@ -115,7 +112,9 @@ const EDITS = [
 
 async function main() {
   const manifest = JSON.parse(await readFile(MANIFEST, 'utf8'))
-  if (manifest.name !== 'poietica') fail('run this script from the poietica repository root')
+  if (manifest.name !== 'poietica') {
+    fail('run this script from the poietica repository root')
+  }
 
   const original = await readFile(TARGET, 'utf8')
   const metadata = await stat(TARGET)
@@ -124,12 +123,16 @@ async function main() {
 
   for (const edit of EDITS) {
     const next = applyEdit(repaired, edit)
-    if (next !== repaired) applied.push(edit.name)
+    if (next !== repaired) {
+      applied.push(edit.name)
+    }
     repaired = next
   }
 
   const changed = repaired !== original
-  if (changed) await atomicWrite(TARGET, repaired, metadata.mode & 0o777)
+  if (changed) {
+    await atomicWrite(TARGET, repaired, metadata.mode & 0o777)
+  }
 
   const checked = spawnSync(process.execPath, ['--check', TARGET], {
     cwd: ROOT,
@@ -138,8 +141,10 @@ async function main() {
   })
 
   if (checked.error || checked.status !== 0) {
-    if (changed) await atomicWrite(TARGET, original, metadata.mode & 0o777)
-    const diagnostic = checked.error?.message ?? checked.stderr.trim() ?? 'unknown syntax error'
+    if (changed) {
+      await atomicWrite(TARGET, original, metadata.mode & 0o777)
+    }
+    const diagnostic = checked.error?.message ?? checked.stderr?.trim() ?? 'unknown syntax error'
     fail(`refactor.mjs failed node --check and was restored: ${diagnostic}`)
   }
 
