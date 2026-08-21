@@ -1,18 +1,17 @@
 import type {
   AgentCapabilityPort,
-  AgentPalettePort,
   AgentSessionPort,
   AgentSkillPort,
-  PaletteEntry,
   QuestionChoice,
   RunEvent,
+  SessionCommand,
+  SessionCommandsPort,
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
   SessionUsagePort,
   ThreadPort,
 } from '@poietica/agent-contract'
-import { paletteFrom } from '@poietica/agent-contract'
 import { throughIpc } from './error'
 import {
   type AgentConfigChoice,
@@ -504,68 +503,52 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
 }
 
 /*
- * 命令表这一路。
+ * 命令表这一路。与用量同一条规矩：不留副本，唯一的消费者是 SessionControlsStore。
  *
- * 它自己留一份，因为表是 agent 主动推的：没有任何命令可以顺路把它问回来，而界面
- * 打开插件页时那张表早就报过了。这一份不是缓存 —— 它就是那条推送在这一侧的落点，
- * 唯一的一处。
- *
- * 到达即整表替换。协议规定载荷恒为整表，所以这里没有合并逻辑，也就没有一份会与
- * agent 分叉的累积状态。
- *
- * 通道按订阅者引用计数：第一个订阅者来时接上，最后一个走时收掉。没有人看的时候
- * 不必留着一个监听器，而这一层也不该有一个只能装不能卸的全局副作用。
+ * 载荷恒为整表，所以这里只解形状，不合并。认不出形状的条目丢掉，不整表判废。
  */
-export function createAgentPaletteBridge({
+function commandsOf(payload: unknown): readonly SessionCommand[] {
+  if (!Array.isArray(payload)) {
+    return []
+  }
+
+  const commands: SessionCommand[] = []
+
+  for (const offered of payload) {
+    if (typeof offered !== 'object' || offered === null) {
+      continue
+    }
+
+    const held = offered as Record<string, unknown>
+    const name = held['name']
+    const said = held['description']
+
+    if (typeof name !== 'string') {
+      continue
+    }
+
+    commands.push({
+      name,
+      label: `/${name}`,
+      description: typeof said === 'string' ? said : '',
+    })
+  }
+
+  return commands
+}
+
+export function createAgentSessionCommandsBridge({
   onListenFailure,
-}: AgentEventSourceOptions = {}): AgentPalettePort {
-  let entries: readonly PaletteEntry[] = []
-  let stop: (() => void) | null = null
-
-  const listeners = new Set<() => void>()
-
-  const listen = (): (() => void) =>
-    subscribeToSessionEvent(
-      'commands',
-      (payload) => {
-        /* 交给它的与此前逐格相同：判别式是通道的事，不是这张表的事。 */
-        const reported = paletteFrom({
-          sessionId: payload.sessionId,
-          commands: payload.commands,
-        })
-
-        /* 不是一张命令表就不动已经收到的那一份。 */
-        if (reported === undefined) {
-          return
-        }
-
-        entries = reported
-
-        for (const listener of listeners) {
-          listener()
-        }
-      },
-      onListenFailure,
-    )
-
+}: AgentEventSourceOptions = {}): SessionCommandsPort {
   return {
-    read: () => entries,
-
-    subscribe: (listener) => {
-      listeners.add(listener)
-      stop ??= listen()
-
-      return () => {
-        listeners.delete(listener)
-
-        if (listeners.size > 0) {
-          return
-        }
-
-        stop?.()
-        stop = null
-      }
-    },
+    subscribe: (handler) =>
+      subscribeToSessionEvent(
+        'commands',
+        (payload) => {
+          handler({ sessionId: payload.sessionId, commands: commandsOf(payload.commands) })
+        },
+        onListenFailure,
+      ),
   }
 }
 

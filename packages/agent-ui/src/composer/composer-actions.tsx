@@ -1,5 +1,5 @@
 import { permissionPostureOf } from '@poietica/agent'
-import type { AgentSkill, PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
+import type { AgentSkill, SessionCommand, SessionConfigControl } from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
 import {
   CloseIcon,
@@ -36,13 +36,27 @@ export function ComposerActions() {
 export interface ComposerPaletteSource {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelectControl: (controlId: string, value: string) => void
-  /** agent 报的命令表。 */
-  readonly palette: readonly PaletteEntry[]
+  /** 这条会话报来的命令表。 */
+  readonly commands: readonly SessionCommand[]
   /** 这条会话能用的技能，由 kap 报。 */
   readonly skills: readonly AgentSkill[]
-  /** 激活一条技能：一次协议动作，不往草稿里落字。 */
-  readonly onActivateSkill: (name: string) => void
+  /** 激活一条技能：一次协议动作，args 由斜杠那一行给。 */
+  readonly onActivateSkill: (name: string, args: string) => void
 }
+
+/*
+ * 目标与蜂群：kap 没有为它们设选择器（config.rs 的 MODES 只有 manual/plan/auto/yolo），
+ * 它们是 agent 自己的命令。这里只给它们模式组里的位置与图标 —— 名字对不上就不出现，
+ * 所以面板上不会有一行按下去什么都不发生。
+ */
+const INTENTS: readonly {
+  readonly name: string
+  readonly label: string
+  readonly icon: ReactNode
+}[] = [
+  { name: 'write-goal', label: '目标', icon: <GoalIcon aria-hidden="true" /> },
+  { name: 'tasks', label: '蜂群', icon: <SwarmIcon aria-hidden="true" /> },
+]
 
 /* 选择器里的一行：生效的一档打勾，点下去写回 agent。图标由调用方按用途给。 */
 function controlRow(
@@ -74,10 +88,10 @@ function controlRow(
  * 「添加文件」不在这里：它不来自 agent，归输入框自己那一组。
  */
 export function composerPaletteGroups({
+  commands,
   controls,
   onActivateSkill,
   onSelectControl,
-  palette,
   skills,
 }: ComposerPaletteSource): readonly PaletteGroup[] {
   const groups: PaletteGroup[] = []
@@ -93,6 +107,21 @@ export function composerPaletteGroups({
       if (permissionPostureOf(choice.value) === undefined) {
         modes.push(controlRow(control, choice, onSelectControl, <SirenIcon aria-hidden="true" />))
       }
+    }
+  }
+
+  for (const intent of INTENTS) {
+    const offered = commands.find((entry) => entry.name === intent.name)
+
+    if (offered !== undefined) {
+      modes.push({
+        id: `intent:${offered.name}`,
+        icon: intent.icon,
+        label: intent.label,
+        ...(offered.description === '' ? {} : { detail: offered.description }),
+        token: offered.label,
+        action: { kind: 'insert', snippet: offered.label },
+      })
     }
   }
 
@@ -126,19 +155,25 @@ export function composerPaletteGroups({
         token: `/skill:${skill.name}`,
         action: {
           kind: 'run' as const,
-          run: () => {
-            onActivateSkill(skill.name)
+          run: (args: string) => {
+            onActivateSkill(skill.name, args)
           },
         },
       })),
     })
   }
 
-  if (palette.length > 0) {
+  /* 技能归技能那一组，目标与蜂群归模式组：同一张表不在两处出现第二次。 */
+  const slashCommands = commands.filter(
+    (entry) =>
+      !entry.name.startsWith('skill:') && !INTENTS.some((intent) => intent.name === entry.name),
+  )
+
+  if (slashCommands.length > 0) {
     groups.push({
       id: 'commands',
       heading: '命令',
-      rows: palette.map((entry) => ({
+      rows: slashCommands.map((entry) => ({
         id: entry.name,
         icon: <TerminalIcon aria-hidden="true" />,
         label: entry.label,

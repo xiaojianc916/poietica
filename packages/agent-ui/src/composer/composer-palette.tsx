@@ -19,7 +19,7 @@ import { CheckIcon } from '../primitives/icons'
  */
 export type PaletteAction =
   | { readonly kind: 'insert'; readonly snippet: string }
-  | { readonly kind: 'run'; readonly run: () => void }
+  | { readonly kind: 'run'; readonly run: (args: string) => void }
 
 export interface PaletteRow {
   readonly id: string

@@ -1,5 +1,3 @@
-import { error as reportError } from '@poietica/core'
-import { createAgentPaletteBridge } from '@poietica/ipc'
 import { createPluginStore } from '@poietica/plugins'
 import { useEffect } from 'react'
 import { reconcileAutomationsMcpServer } from '../automations/automations-mcp'
@@ -27,19 +25,6 @@ const MARKETPLACE_URL = 'https://code.kimi.com/kimi-code/plugins/marketplace.jso
 export const pluginStore = createPluginStore({
   marketplaceUrl: MARKETPLACE_URL,
   now: () => new Date().toISOString(),
-  /* 命令表这条端口在这里接上：领域层声明它，平台层实现它，两者只在组合根相见。 */
-  palette: createAgentPaletteBridge({
-    /* 接不上就说出来。这条通道没接上时插件页那张命令表永远是空的，而空表与
-    「这个 agent 一条命令都没有」在屏幕上长得一模一样 —— 与另外五座桥同一条
-    规矩（assistant/agent-runtime.ts 的 noteListenFailure）。 */
-    onListenFailure: (cause: unknown) => {
-      reportError('agent command palette subscription failed', {
-        scope: 'plugin-runtime',
-        operation: 'listen',
-        cause,
-      })
-    },
-  }),
 })
 
 export function PluginLoader() {
@@ -53,7 +38,7 @@ export function PluginLoader() {
     void reconcileAutomationsMcpServer(pluginStore)
     void reconcileBrowserMcpServer(pluginStore)
 
-    /* start() 接上了命令表的订阅，所以这个 effect 有东西要收。 */
+    /* 谁 start 谁 stop：下一次装载重新首扫。 */
     return () => {
       pluginStore.stop()
     }

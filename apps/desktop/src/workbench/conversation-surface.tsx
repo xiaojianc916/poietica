@@ -211,7 +211,6 @@ export function ConversationSurface({
       onRetryControls={retryControls}
       onSelectControl={chooseControl}
       onUserMessage={userMessage}
-      palette={palette}
       session={session}
       usage={usage}
       workspace={workspace}

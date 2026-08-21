@@ -36,6 +36,7 @@ import {
   type PaletteRow,
   paletteOptionId,
 } from './composer-palette'
+import { $createChipNode, ChipNode } from './prompt-chip'
 
 /*
  * The composer input.
@@ -44,7 +45,7 @@ import {
  * 插入符前那一段字（斜杠过滤用）。附件与面板开合归这里，因为它们是这张卡的一
  * 部分。
  *
- * 面板里的行有两种动作：命令往草稿落字，技能与模式是一次协议动作，不落字。
+ * 面板里的行有两种动作：命令落成一枚 chip，技能与模式是一次协议动作。
  */
 
 export type { ChatStatus }
@@ -130,11 +131,11 @@ export interface PromptInputHandle {
 
 interface DraftProjection {
   readonly text: string
-  /** 插入符前那一段还没断开的字。斜杠过滤只看它，所以技能调用式不会把面板重新炸开。 */
-  readonly typed: string
+  /** 插入符所在那一行到插入符为止的字：调用式与它的参数都在里面。 */
+  readonly line: string
 }
 
-const EMPTY_PROJECTION: DraftProjection = { text: '', typed: '' }
+const EMPTY_PROJECTION: DraftProjection = { text: '', line: '' }
 
 /* 纯读：进 editorState.read，不许有副作用。 */
 function readDraft(): DraftProjection {
@@ -146,13 +147,13 @@ function readDraft(): DraftProjection {
     !selection.isCollapsed() ||
     selection.anchor.type !== 'text'
   ) {
-    return { text, typed: '' }
+    return { text, line: '' }
   }
 
-  const said = selection.anchor.getNode().getTextContent().slice(0, selection.anchor.offset)
-  const at = said.lastIndexOf(' ')
-
-  return { text, typed: at < 0 ? said : said.slice(at + 1) }
+  return {
+    text,
+    line: selection.anchor.getNode().getTextContent().slice(0, selection.anchor.offset),
+  }
 }
 
 function clearDraft(editor: LexicalEditor): void {
@@ -176,7 +177,7 @@ function replaceDraft(editor: LexicalEditor, text: string): void {
   })
 }
 
-/** 吃掉插入符前那一段已经打出来的字（斜杠落定时用）。 */
+/** 吃掉插入符前那一段字（斜杠落定时用）。 */
 function dropTyped(length: number): void {
   if (length === 0) {
     return
@@ -219,6 +220,24 @@ function matchesToken(row: PaletteRow, needle: string): boolean {
   )
 }
 
+/*
+ * 这一行上的斜杠调用：调用式、它的参数，以及落定时要吃掉的那一整段。
+ *
+ * 参数是 kap 给技能激活留的那一格（Command::ActivateSkill 的 args），所以敲一个空格
+ * 不该关掉面板 —— 面板只按调用式过滤。
+ */
+function slashOf(line: string): { line: string; token: string; args: string } | undefined {
+  if (!line.startsWith('/')) {
+    return undefined
+  }
+
+  const at = line.indexOf(' ')
+
+  return at < 0
+    ? { line, token: line, args: '' }
+    : { line, token: line.slice(0, at), args: line.slice(at + 1) }
+}
+
 export interface PromptInputProps {
   readonly children?: ReactNode
   readonly className?: string | undefined
@@ -234,6 +253,7 @@ export function PromptInput(props: PromptInputProps) {
   const initialConfig = useMemo(
     () => ({
       namespace: 'assistant-composer',
+      nodes: [ChipNode],
       onError: (error: Error) => {
         throw error
       },
@@ -484,23 +504,24 @@ function PromptInputShell({
     [groups, openFilePicker],
   )
 
-  /* 斜杠只是给同一张面板加一道过滤：插入符前那一段以 / 开头、还没敲出空白。 */
-  const slashing = /^\/\S*$/.test(draftText.typed)
+  /* 斜杠给同一张面板加一道过滤：调用式过滤行，它后面那一截是这一行的参数。 */
+  const slash = useMemo(() => slashOf(draftText.line), [draftText.line])
 
   const visible = useMemo<readonly PaletteGroup[]>(() => {
-    if (!slashing) {
+    if (slash === undefined) {
       return allGroups
     }
 
-    const needle = draftText.typed.toLowerCase()
+    const needle = slash.token.toLowerCase()
 
     return allGroups
       .map((group) => ({ ...group, rows: group.rows.filter((row) => matchesToken(row, needle)) }))
       .filter((group) => group.rows.length > 0)
-  }, [allGroups, draftText.typed, slashing])
+  }, [allGroups, slash])
 
   const rows = useMemo(() => visible.flatMap((group) => group.rows), [visible])
-  const paletteOpen = (paletteOpened || (slashing && !paletteDismissed)) && rows.length > 0
+  const paletteOpen =
+    (paletteOpened || (slash !== undefined && !paletteDismissed)) && rows.length > 0
   const active = paletteOpen ? rows[highlighted] : undefined
 
   const paletteAria = useMemo<PaletteAria>(
@@ -517,11 +538,15 @@ function PromptInputShell({
       closePalette()
 
       const { action } = row
-      const typed = slashing ? draftText.typed.length : 0
+      const typed = slash?.line.length ?? 0
 
       switch (action.kind) {
         case 'run': {
-          action.run()
+          /* 参数就是调用式后面那一截；敲出来的那一行随动作一起消费掉。 */
+          editor.update(() => {
+            dropTyped(typed)
+          })
+          action.run(slash?.args ?? '')
           focusEditor()
 
           return
@@ -536,13 +561,15 @@ function PromptInputShell({
             }
 
             dropTyped(typed)
-            selection.insertText(`${action.snippet}`)
+
+            /* 调用式落成一枚 chip：它自报文本，提交那一路一个字都不改。 */
+            selection.insertNodes([$createChipNode(action.snippet), $createTextNode(' ')])
           })
           focusEditor()
         }
       }
     },
-    [closePalette, draftText.typed.length, editor, focusEditor, slashing],
+    [closePalette, editor, focusEditor, slash],
   )
 
   /* 点到卡外就收面板：捕获相 pointerdown，因为点不可聚焦区域不移走焦点。 */

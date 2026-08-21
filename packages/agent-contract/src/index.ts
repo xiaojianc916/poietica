@@ -8,6 +8,7 @@
 
 export type { ThreadId } from './address'
 export type { AgentCapabilityPort } from './capability'
+export type { SessionCommand, SessionCommandReport, SessionCommandsPort } from './commands'
 export type {
   SessionConfigChoice,
   SessionConfigControl,
@@ -16,8 +17,6 @@ export type {
   SessionConfigReport,
 } from './config'
 export type { KapEventPayload, KapSessionId, KapStopReason, KapToolCallId } from './kap'
-export type { AgentPalettePort, PaletteEntry } from './palette'
-export { paletteFrom } from './palette'
 export type {
   ApprovalAnswer,
   ApprovalDecision,

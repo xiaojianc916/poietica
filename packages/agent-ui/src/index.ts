@@ -16,6 +16,7 @@ export {
   SessionControlsContext,
   useSessionControlsActions,
   useSkillActivation,
+  useThreadCommands,
   useThreadSelectorFailure,
   useThreadSelectors,
   useThreadSkills,

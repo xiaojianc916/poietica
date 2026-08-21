@@ -5,8 +5,8 @@ import type { QuestionTimelineItem } from '@poietica/agent'
 import type {
   AgentSkill,
   ChatStatus,
-  PaletteEntry,
   QuestionResponse,
+  SessionCommand,
   SessionConfigControl,
   SessionUsage,
 } from '@poietica/agent-contract'
@@ -48,12 +48,12 @@ export interface AssistantComposerProps {
   readonly onCancel?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
   readonly ref?: Ref<PromptInputHandle> | undefined
-  /** agent 报的命令表：面板里命令那一组由它长出。 */
-  readonly palette?: readonly PaletteEntry[] | undefined
+  /** 这条会话报来的命令表：面板里命令那一组由它长出。 */
+  readonly commands?: readonly SessionCommand[] | undefined
   /** 这条会话能用的技能，由 kap 报。 */
   readonly skills?: readonly AgentSkill[] | undefined
-  /** 激活一条技能。 */
-  readonly onActivateSkill: (name: string) => void
+  /** 激活一条技能，args 由斜杠那一行给。 */
+  readonly onActivateSkill: (name: string, args: string) => void
   /** 这一段在进行的那个目标，真相在转录。 */
   readonly goal?: string | undefined
   /** 此刻还在跑的子代理数，真相在转录。 */
@@ -186,8 +186,8 @@ export const AssistantComposer = memo(function AssistantComposer({
   approval,
   onAnswerQuestions,
   onDismissQuestions,
+  commands,
   onActivateSkill,
-  palette,
   skills,
   placeholder = '问我任何问题…',
   question,
@@ -216,13 +216,13 @@ export const AssistantComposer = memo(function AssistantComposer({
   const groups = useMemo(
     () =>
       composerPaletteGroups({
+        commands: commands ?? [],
         controls: toolbar.controls,
         onActivateSkill,
         onSelectControl: toolbar.onSelectControl,
-        palette: palette ?? [],
         skills: skills ?? [],
       }),
-    [onActivateSkill, palette, skills, toolbar.controls, toolbar.onSelectControl],
+    [commands, onActivateSkill, skills, toolbar.controls, toolbar.onSelectControl],
   )
 
   return (

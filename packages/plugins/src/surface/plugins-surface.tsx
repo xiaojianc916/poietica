@@ -1,4 +1,3 @@
-import type { PaletteEntry } from '@poietica/agent-contract'
 import { assertUnreachable } from '@poietica/core'
 import { Button, cn, Switch } from '@poietica/ui'
 import { useState, useSyncExternalStore } from 'react'
@@ -131,9 +130,8 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
               value={needle}
             />
             {/*
-              技能那一格没有刷新按钮：命令表由 agent 推过来，AgentPalettePort 上只有 read 与
-              subscribe，没有「再探一次」这个动作。画一个按下去什么都不会发生的按钮，比没有
-              按钮坏。另外两格刷的是同一份市场目录，所以它们共用这一个。
+              技能那一格没有刷新按钮：装了什么由 skills/ 目录说了算，一趟本地读就回来了。
+              另外两格刷的是同一份市场目录，所以它们共用这一个。
             */}
             {tab === 'skills' ? null : (
               <Button onClick={() => store.refreshMarketplace()} size="sm" variant="ghost">
@@ -251,19 +249,6 @@ function installedSkillRow(skill: InstalledSkill, store: PluginStore): Contribut
         移除
       </Button>
     ),
-  }
-}
-
-/*
- * agent 报来的那些。它们不在这里的 skills/ 目录里 —— 全局装的、插件带来的都算，而启停不在
- * 本应用手上：那几层目录由 agent 自己按分层装载，这里给不出一个拨得动的开关。
- */
-function _skillRow(entry: PaletteEntry): ContributionRow {
-  return {
-    key: entry.name,
-    title: entry.label,
-    detail: entry.description === '' ? '这个技能没有写说明。' : entry.description,
-    badge: 'agent 报来',
   }
 }
 

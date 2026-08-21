@@ -2,7 +2,7 @@ export {
   type AgentBridgeOptions,
   type AgentEventSourceOptions,
   createAgentCapabilityBridge,
-  createAgentPaletteBridge,
+  createAgentSessionCommandsBridge,
   createAgentSessionConfigBridge,
   createAgentSessionPort,
   createAgentSessionUsageBridge,

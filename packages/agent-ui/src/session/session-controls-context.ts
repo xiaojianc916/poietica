@@ -1,5 +1,10 @@
 import type { SessionControlsStore } from '@poietica/agent'
-import type { AgentSkill, SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
+import type {
+  AgentSkill,
+  SessionCommand,
+  SessionConfigControl,
+  SessionUsage,
+} from '@poietica/agent-contract'
 import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
 
 /*
@@ -86,18 +91,30 @@ export function useThreadSkills(threadId: string | null): readonly AgentSkill[] 
   return useSyncExternalStore(store?.subscribe ?? NO_SUBSCRIPTION, read, read)
 }
 
-/** 激活这条对话上的一条技能。 */
-export function useSkillActivation(threadId: string | null): (name: string) => void {
+/** 激活这条对话上的一条技能，args 就是调用式后面那一截。 */
+export function useSkillActivation(threadId: string | null): (name: string, args: string) => void {
   const store = useContext(SessionControlsContext)
 
   return useCallback(
-    (name: string) => {
+    (name: string, args: string) => {
       if (store !== null && threadId !== null) {
-        store.activateSkill(threadId, name)
+        store.activateSkill(threadId, name, args)
       }
     },
     [store, threadId],
   )
+}
+
+/** 这条对话敲得出来的命令表；还没报过是 undefined。与技能同一条缺席规矩。 */
+export function useThreadCommands(threadId: string | null): readonly SessionCommand[] | undefined {
+  const store = useContext(SessionControlsContext)
+
+  const read = useCallback(
+    () => (store === null || threadId === null ? undefined : store.commandsOf(threadId)),
+    [store, threadId],
+  )
+
+  return useSyncExternalStore(store?.subscribe ?? NO_SUBSCRIPTION, read, read)
 }
 
 /** 这条对话背后那个会话最近报的上下文用量；还没报过是 undefined。 */

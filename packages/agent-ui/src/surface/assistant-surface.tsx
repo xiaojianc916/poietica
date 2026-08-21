@@ -1,18 +1,17 @@
 import './assistant.css'
 
 import type { FeedRow } from '@poietica/agent'
-import type {
-  AgentSessionPort,
-  PaletteEntry,
-  SessionConfigControl,
-  SessionUsage,
-} from '@poietica/agent-contract'
+import type { AgentSessionPort, SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
 import { memo, type Ref, useCallback, useMemo, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
-import { useSkillActivation, useThreadSkills } from '../session/session-controls-context'
+import {
+  useSkillActivation,
+  useThreadCommands,
+  useThreadSkills,
+} from '../session/session-controls-context'
 import type { AssistantSubmission } from '../session/use-assistant-session'
 import {
   useAssistantGoal,
@@ -73,8 +72,6 @@ export interface AssistantSurfaceProps {
   readonly workspace?: Omit<WorkspacePickerProps, 'placement'> | undefined
   /** 工作目录的 git 分支上下文。不是仓库就是 undefined，整枚 chip 不渲染。 */
   readonly git?: GitBranchPickerProps | undefined
-  /** 对话里敲得出来的命令表，喂给输入框的斜杠菜单。 */
-  readonly palette?: readonly PaletteEntry[] | undefined
   /** 这条会话最近报的上下文用量。缺席（还没报、或是入口）就不画。 */
   readonly usage?: SessionUsage | undefined
   /**
@@ -109,15 +106,15 @@ export const AssistantSurface = memo(function AssistantSurface({
   onRetryControls,
   onSelectControl,
   onUserMessage,
-  palette,
   session,
   usage,
   workspace,
 }: AssistantSurfaceProps) {
   const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
 
-  /* 技能属于这条对话背后那个会话：目录与激活都归 SessionControlsStore。 */
+  /* 技能与命令都属于这条对话背后那个会话：两张表都归 SessionControlsStore。 */
   const skills = useThreadSkills(endpoint)
+  const commands = useThreadCommands(endpoint)
   const activateSkill = useSkillActivation(endpoint)
 
   /*
@@ -227,6 +224,7 @@ export const AssistantSurface = memo(function AssistantSurface({
     <div className="assistant-surface__composer">
       <AssistantComposer
         approval={approval}
+        commands={commands}
         controls={controls}
         controlsFailure={controlsFailure}
         goal={goal}
@@ -237,7 +235,6 @@ export const AssistantSurface = memo(function AssistantSurface({
         onRetryControls={onRetryControls}
         onSelectControl={onSelectControl}
         onSubmit={submit}
-        palette={palette}
         question={question}
         ref={composer}
         skills={skills}

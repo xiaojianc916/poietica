@@ -1,4 +1,4 @@
-import type { AgentPalettePort, PaletteEntry } from '@poietica/agent-contract'
+import type { SessionCommand } from '@poietica/agent-contract'
 import { assertUnreachable, warn } from '@poietica/core'
 import {
   commitPlugin,
@@ -27,6 +27,18 @@ import {
   requiresInstallConfirmation,
   UNLISTED_TRUST,
 } from './install-source'
+
+/**
+ * 全局命令面板端口：提供不依赖会话的斜杠命令表。
+ *
+ * 与 SessionCommandsPort（按会话）不同，这一路在会话建立前就可用，
+ * 用于新建对话入口的输入框斜杠菜单。
+ */
+export interface AgentPalettePort {
+  readonly read: () => readonly SessionCommand[]
+  readonly subscribe: (listener: () => void) => () => void
+}
+
 import type { InstalledPlugin } from './installation'
 import { decodePluginManifest, type PluginDiagnostic, type PluginManifest } from './manifest'
 import {
@@ -82,14 +94,6 @@ export interface PluginsViewModel {
   /* 屏幕上那张 MCP 列表：内置的、这台机器上配好的、插件带来的，同一张表。 */
   readonly mcpServers: readonly ResolvedMcpServer[]
   /**
-   * 对话里敲得出来的那些命令，agent 报来的整张表。
-   *
-   * 技能那一格读的就是它。技能只有 agent 说得出来 —— 全局装的、它自己带的、插件带来
-   * 的都算，而这三样只有装载它们的那一侧看得见。本应用不扫盘：扫出来的那份永远只是
-   * 其中一部分，两份清单并存就一定有一天对不上。
-   */
-  readonly palette: readonly PaletteEntry[]
-  /**
    * 命令行上装过、这里没有的那些。
    *
    * 它们不在 plugins 里，因为它们确实没有装在这里。这一格不参与任何状态计算：装了
@@ -99,14 +103,16 @@ export interface PluginsViewModel {
   readonly marketplace: MarketplaceState
   readonly install: InstallFlow
   /**
-   * 受控 home 的 skills/ 目录里装着的技能。目录即账本，这一格是它的投影：palette 回答
-   * 「会话里能调用什么」，这一格回答「这里装了什么」，两个问题两份答案，互不替代。
+   * 受控 home 的 skills/ 目录里装着的技能。目录即账本，这一格是它的投影：会话里能
+   * 调用什么由 agent 报给那条会话，这一格只回答「这里装了什么」。
    */
   readonly skills: readonly InstalledSkill[]
   /** 技能安装的进行时。没有确认步：一键装完，失败原因落在这里。 */
   readonly skillInstall: InstallFlow
   /** 首帧与「读完了确实一个都没装」不是同一件事，空态因此不会闪。 */
   readonly loaded: boolean
+  /** 斜杠菜单的候选表：不依赖会话的全局命令列表。 */
+  readonly palette: readonly SessionCommand[]
 }
 
 export interface IdleInstall {
@@ -157,11 +163,10 @@ export interface PluginStore {
    * 被采样、此后不再重挂，所以开会话的人要先等到它 —— 而市场目录是网络往返，不在这份
    * 落定里：开一条对话不该等一次 CDN。
    *
-   * 命令表的订阅也在这里接上：它的寿命是这个 store 的寿命，由 stop() 收。重复调用是
-   * 幂等的，交回同一份落定。
+   * 重复调用是幂等的，交回同一份落定。
    */
   readonly start: () => Promise<void>
-  /** 收掉命令表的订阅，并让下一次 start() 重新首扫。谁 start 谁 stop。 */
+  /** 让下一次 start() 重新首扫。谁 start 谁 stop。 */
   readonly stop: () => void
   readonly setEnabled: (pluginId: string, enabled: boolean) => void
   /**
@@ -226,15 +231,10 @@ export interface PluginStoreOptions {
    * 第二处配一遍。
    */
   readonly marketplaceUrl: string
-  /**
-   * 命令表从哪来。
-   *
-   * 领域层不认识 IPC，也不该认识：这条端口由组合根交进来，所以这个 store 在
-   * Node 里可以脱离进程与界面单独测。
-   */
-  readonly palette: AgentPalettePort
   /** 领域层不摸时钟，时钟从这里交进去。测试因此不需要冻结全局时间。 */
   readonly now: () => string
+  /** 全局命令面板：斜杠菜单的候选表。可选，缺席时斜杠菜单为空。 */
+  readonly palette?: AgentPalettePort | undefined
 }
 
 /*
@@ -279,29 +279,19 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   let environment: readonly DeclaredMcpServer[] = []
   /* 另一本账里的那些。读不出来就是空 —— 那只意味着这句话说不出来，不意味着装了什么。 */
   let foreignRecords: readonly ForeignPlugin[] = []
-  /*
-   * 上一次探测落在盘上的那一份。
-   *
-   * 只存命令表：账本与 mcp.json 一趟本地读就回来了，把它们也塞进快照等于造第二份降级的
-   * 真相；真正会长时间为空的是命令表 —— 它由 agent 在会话建立后报来，会话没建之前那一格
-   * 恒空，人看到的是「我的技能全没了」。
-   *
-   * 它只回答「真相到达之前先画什么」，从不参与任何判定：装了什么永远由账本说了算。
-   */
+  /* 名单是什么时候取回来的，落在盘上：它替 marketplace 回答「算不算从来没取过」。 */
   const cache = createSnapshotCache()
-
-  const restored = cache.read()
 
   let snapshot: PluginsViewModel = {
     plugins: [],
     mcpServers: [],
-    palette: restored.palette,
     foreign: [],
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
     skills: [],
     skillInstall: INSTALL_IDLE,
     loaded: false,
+    palette: [],
   }
 
   /*
@@ -336,7 +326,13 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    * 开。取保守的那一侧 —— 让上一次的结果留着，好过让人看见技能全没了。
    */
   function adoptPalette(): void {
-    const entries = options.palette.read()
+    const palette = options.palette
+
+    if (palette === undefined) {
+      return
+    }
+
+    const entries = palette.read()
 
     if (entries.length === 0) {
       return
@@ -408,6 +404,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       foreign: foreignRecords.filter((record) => !here.has(record.pluginId)),
       skills: installedSkills,
       loaded: true,
+      palette: snapshot.palette,
     })
   }
 
@@ -719,10 +716,12 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         return ready
       }
 
-      stopPalette = options.palette.subscribe(adoptPalette)
+      if (options.palette !== undefined) {
+        stopPalette = options.palette.subscribe(adoptPalette)
 
-      /* 接上之前 agent 可能已经报过一份：会话可能比这一趟启动更早建好。 */
-      adoptPalette()
+        /* 接上之前 agent 可能已经报过一份：会话可能比这一趟启动更早建好。 */
+        adoptPalette()
+      }
 
       queue = queue.then(async () => {
         /*
@@ -766,16 +765,15 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           republish()
         }
 
-        cache.write(snapshot.palette, latestCatalog(snapshot.marketplace)?.fetchedAt ?? '')
+        cache.write(latestCatalog(snapshot.marketplace)?.fetchedAt ?? '')
       })
 
       return ready
     },
 
     stop() {
-      stopPalette?.()
-      stopPalette = null
       ready = null
+      stopPalette?.()
     },
 
     setEnabled(pluginId, enabled) {

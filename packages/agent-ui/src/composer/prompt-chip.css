@@ -1,0 +1,9 @@
+.assistant-prompt-chip {
+  display: inline-flex;
+  align-items: baseline;
+  border-radius: 6px;
+  padding: 0 4px;
+  background: color-mix(in oklab, var(--assistant-chip-accent, #2563eb) 14%, transparent);
+  color: var(--assistant-chip-accent, #2563eb);
+  white-space: nowrap;
+}
