@@ -454,7 +454,7 @@ mod tests {
         assert_eq!(thought.choices.len(), 1);
         let choice = thought
             .choices
-            .get(0)
+            .first()
             .expect("choices must not empty for test");
         assert_eq!(choice.value, "on");
     }

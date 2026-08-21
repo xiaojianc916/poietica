@@ -458,7 +458,13 @@ fn detail(frame: &RunFrame) -> String {
             _ => payload.to_string(),
         },
         RunFrame::PermissionRequested { title, .. } => title.clone(),
-        RunFrame::PermissionResolved { result, .. } => result.clone(),
+        RunFrame::PermissionResolved {
+            request_id: _,
+            decision: _,
+            scope: _,
+        } => {
+            panic!("PermissionResolved carries no payload, unreachable test branch")
+        }
         RunFrame::RunFinished { stop_reason } => stop_reason.clone(),
         RunFrame::RunFailed { message } => message.clone(),
     }
