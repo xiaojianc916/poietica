@@ -154,6 +154,18 @@ pub struct Handshake {
     pub session_id: String,
 }
 
+/// kap 报的一条技能（protocol/skill.ts 的 skillDescriptorSchema）。
+///
+/// 可否激活不在这里判：官方在服务端用 isUserActivatableSkillType 拦，拒绝理由
+/// 由它回。多一格本地判据就是多一份会分叉的事实。
+#[derive(Debug, Clone)]
+pub struct Skill {
+    pub name: String,
+    pub description: String,
+    /// project / user / extra / builtin。
+    pub source: String,
+}
+
 /// A session the agent just opened, and the selectors it offers for it.
 #[derive(Debug, Clone)]
 pub struct OpenedSession {

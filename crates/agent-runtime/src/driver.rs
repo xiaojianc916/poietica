@@ -51,7 +51,7 @@ use crate::recorder::{Recorder, now_millis};
 use crate::run_slot::RunSlot;
 use crate::session::{
     AgentConnection, AgentSpawn, Cursor, Handshake, OpenedSession, SessionEntry, SessionEvent,
-    SessionEvents,
+    SessionEvents, Skill,
 };
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -844,6 +844,30 @@ pub fn connect(
                             } else {
                                 let _ = reply.send(Err(KapError::Refused(Refusal::UnknownSession)));
                             }
+                        }
+
+                        Some(Command::Skills { session_id: sid, reply }) => {
+                            let http2 = http.clone();
+                            let base2 = base_url.clone();
+                            tokio::spawn(async move {
+                                let result = list_skills(&http2, &base2, &sid).await;
+                                let _ = reply.send(result);
+                            });
+                        }
+
+                        Some(Command::ActivateSkill {
+                            session_id: sid,
+                            name,
+                            args,
+                            reply,
+                        }) => {
+                            let http2 = http.clone();
+                            let base2 = base_url.clone();
+                            tokio::spawn(async move {
+                                let result =
+                                    activate_skill(&http2, &base2, &sid, &name, &args).await;
+                                let _ = reply.send(result);
+                            });
                         }
 
                         Some(Command::Selectors { session_id: sid, reply }) => {
@@ -1659,6 +1683,67 @@ async fn best_effort_selectors(
             Vec::new()
         }
     }
+}
+
+/// 这条会话能用的技能（rest-skill.ts 的 listSkillsResponseSchema）。
+async fn list_skills(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+) -> Result<Vec<Skill>> {
+    let data = get(http, &format!("{base_url}/sessions/{session_id}/skills")).await?;
+
+    let listed = data
+        .get("skills")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    Ok(listed
+        .iter()
+        .filter_map(|item| {
+            Some(Skill {
+                name: item.get("name").and_then(Value::as_str)?.to_owned(),
+                description: item
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_owned(),
+                source: item
+                    .get("source")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_owned(),
+            })
+        })
+        .collect())
+}
+
+/// 激活一条技能。动作后缀路由：POST /sessions/{id}/skills/{name}:activate。
+///
+/// 空 args 不写进请求体：activateSkillRequestSchema 里它是可选的，送一个空串等于
+/// 声称人给了一段空参数。
+async fn activate_skill(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+    name: &str,
+    args: &str,
+) -> Result<()> {
+    let body = if args.is_empty() {
+        json!({})
+    } else {
+        json!({ "args": args })
+    };
+
+    post(
+        http,
+        &format!("{base_url}/sessions/{session_id}/skills/{name}:activate"),
+        &body,
+    )
+    .await?;
+
+    Ok(())
 }
 
 async fn get_selectors(

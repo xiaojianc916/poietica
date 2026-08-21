@@ -58,7 +58,7 @@ const Document = v.object({
 
 /* 指纹取条目的稳定投影。 */
 function fingerprintOf(palette: readonly PaletteEntry[]): string {
-  return palette.map((entry) => `${entry.kind}:${entry.name}`).join('|')
+  return palette.map((entry) => entry.name).join('|')
 }
 
 export interface SnapshotCache {

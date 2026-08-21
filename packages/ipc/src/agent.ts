@@ -2,6 +2,7 @@ import type {
   AgentCapabilityPort,
   AgentPalettePort,
   AgentSessionPort,
+  AgentSkillPort,
   PaletteEntry,
   QuestionChoice,
   RunEvent,
@@ -19,6 +20,7 @@ import {
   type AgentLaunch,
   type AgentQuestionChoice,
   type AgentSessionUsage,
+  type AgentSkill,
   commands,
 } from './generated/ipc-bindings'
 
@@ -563,6 +565,28 @@ export function createAgentPaletteBridge({
         stop?.()
         stop = null
       }
+    },
+  }
+}
+
+/*
+ * 技能这一路：列表与激活，按会话。
+ *
+ * 目录不在这里缓存 —— 它随会话事件到达，这一侧只是把 IPC 命令封装成端口。
+ * 激活是一次性动作，不留副本。
+ */
+export function createAgentSkillBridge(
+  sessionId: string,
+  _options: AgentEventSourceOptions = {},
+): AgentSkillPort {
+  return {
+    list: async () => {
+      const result = await throughIpc(() => commands.agentSkills({ sessionId }))
+      return result as readonly AgentSkill[]
+    },
+
+    activate: async (name, args) => {
+      await throughIpc(() => commands.agentActivateSkill({ sessionId, name, args }))
     },
   }
 }

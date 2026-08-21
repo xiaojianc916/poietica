@@ -282,6 +282,9 @@ importers:
       '@poietica/core':
         specifier: workspace:*
         version: link:../core
+      '@poietica/ipc':
+        specifier: workspace:*
+        version: link:../ipc
       '@poietica/ui':
         specifier: workspace:*
         version: link:../ui

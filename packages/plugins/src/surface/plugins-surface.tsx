@@ -65,17 +65,12 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
   const entries: readonly MarketplaceEntry[] = latestCatalog(view.marketplace)?.entries ?? []
 
   /*
-   * 装在这里的技能与 agent 报来的命令表会说同一件事：目录名与 /skill:<name> 同名。报来的
-   * 那一份里去掉已经在上面列出的，计数与列表因此不会把同一个技能数两遍。
+   * 技能现在由 AgentSkillPort 单独管理，不在 palette 里。
+   * palette 只包含斜杠命令。
    */
-  const managed = new Set(view.skills.map((skill) => `skill:${skill.dirName}`))
-  const reported = view.palette.filter(
-    (entry) => entry.kind === 'skill' && !managed.has(entry.name),
-  )
-
   const counts: Record<TabId, number> = {
     plugins: view.plugins.length,
-    skills: view.skills.length + reported.length,
+    skills: view.skills.length,
     mcp: view.mcpServers.length,
   }
 
@@ -151,7 +146,6 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
           entries={entries}
           needle={needle}
           onOpen={setOpenedId}
-          reported={reported}
           store={store}
           tab={tab}
           view={view}
@@ -164,14 +158,13 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
 interface TabBodyProps {
   readonly tab: TabId
   readonly needle: string
-  readonly reported: readonly PaletteEntry[]
   readonly entries: readonly MarketplaceEntry[]
   readonly store: PluginStore
   readonly view: PluginsViewModel
   readonly onOpen: (id: string) => void
 }
 
-function TabBody({ entries, needle, onOpen, reported, store, tab, view }: TabBodyProps) {
+function TabBody({ entries, needle, onOpen, store, tab, view }: TabBodyProps) {
   switch (tab) {
     case 'plugins':
       return (
@@ -187,10 +180,9 @@ function TabBody({ entries, needle, onOpen, reported, store, tab, view }: TabBod
         />
       )
     case 'skills': {
-      const rows = [
-        ...view.skills.map((skill) => installedSkillRow(skill, store)),
-        ...reported.map(skillRow),
-      ].filter((row) => matches(needle, row.title, row.detail))
+      const rows = view.skills
+        .map((skill) => installedSkillRow(skill, store))
+        .filter((row) => matches(needle, row.title, row.detail))
 
       return (
         <div className="pb-24">
@@ -266,7 +258,7 @@ function installedSkillRow(skill: InstalledSkill, store: PluginStore): Contribut
  * agent 报来的那些。它们不在这里的 skills/ 目录里 —— 全局装的、插件带来的都算，而启停不在
  * 本应用手上：那几层目录由 agent 自己按分层装载，这里给不出一个拨得动的开关。
  */
-function skillRow(entry: PaletteEntry): ContributionRow {
+function _skillRow(entry: PaletteEntry): ContributionRow {
   return {
     key: entry.name,
     title: entry.label,

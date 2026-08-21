@@ -6,6 +6,7 @@ export {
   createAgentSessionConfigBridge,
   createAgentSessionPort,
   createAgentSessionUsageBridge,
+  createAgentSkillBridge,
   createAgentThreadBridge,
   shutdownAgent,
 } from './agent'

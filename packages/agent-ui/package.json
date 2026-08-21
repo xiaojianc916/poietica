@@ -17,6 +17,7 @@
     "@poietica/agent": "workspace:*",
     "@poietica/agent-contract": "workspace:*",
     "@poietica/core": "workspace:*",
+    "@poietica/ipc": "workspace:*",
     "@lexical/react": "catalog:",
     "@poietica/ui": "workspace:*",
     "@streamdown/cjk": "catalog:",

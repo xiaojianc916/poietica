@@ -6,7 +6,7 @@ use futures::channel::{mpsc, oneshot};
 use crate::config::ConfigControl;
 use crate::error::{KapError, Refusal, Result};
 use crate::recorder::FrameSink;
-use crate::session::{Cursor, OpenedSession, SessionEntry};
+use crate::session::{Cursor, OpenedSession, SessionEntry, Skill};
 
 /// 这一轮随那句话一起送出去的一张图片。
 ///
@@ -84,6 +84,19 @@ pub(crate) enum Command {
     /// Ask the agent which sessions it keeps, and what it calls them.
     Sessions {
         reply: oneshot::Sender<Result<Vec<SessionEntry>>>,
+    },
+    /// 这条会话能用的技能。
+    Skills {
+        session_id: String,
+        reply: oneshot::Sender<Result<Vec<Skill>>>,
+    },
+    /// 在这条会话上激活一条技能。
+    ActivateSkill {
+        session_id: String,
+        name: String,
+        /// 技能名后面那段自由文本；没有就是空串。
+        args: String,
+        reply: oneshot::Sender<Result<()>>,
     },
     Prompt {
         /// The session this turn belongs to.
@@ -323,6 +336,51 @@ impl AgentClient {
         })?;
 
         Ok(answer)
+    }
+
+    /// Asks which skills that session can use.
+    ///
+    /// 本地不扫盘：四层技能目录的合并与覆盖规则归上游。
+    ///
+    /// # Errors
+    ///
+    /// Fails when the connection is gone, or when the agent refuses to list.
+    pub async fn skills(&self, session_id: String) -> Result<Vec<Skill>> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Skills { session_id, reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
+    }
+
+    /// Activates one skill on one session.
+    ///
+    /// 激活是一次协议动作，不是一句话：kap 为它设了 :activate 后缀，所以"没有
+    /// 这条技能"与"这一类不许人激活"回得出来。
+    ///
+    /// # Errors
+    ///
+    /// Fails when the connection is gone, or when the agent refuses it.
+    pub async fn activate_skill(
+        &self,
+        session_id: String,
+        name: String,
+        args: String,
+    ) -> Result<()> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::ActivateSkill {
+            session_id,
+            name,
+            args,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
     fn send(&self, command: Command) -> Result<()> {

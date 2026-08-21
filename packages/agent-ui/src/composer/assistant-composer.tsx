@@ -3,6 +3,7 @@ import './question-panel.css'
 
 import type { QuestionTimelineItem, RunMode, RunModeName } from '@poietica/agent'
 import type {
+  AgentSkill,
   ChatStatus,
   PaletteEntry,
   QuestionResponse,
@@ -52,8 +53,12 @@ export interface AssistantComposerProps {
   readonly onCancel?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
   readonly ref?: Ref<PromptInputHandle> | undefined
-  /** agent 报来的命令表：面板里技能与命令两组由它长出。 */
+  /** agent 报的命令表：面板里命令那一组由它长出。 */
   readonly palette?: readonly PaletteEntry[] | undefined
+  /** 这条会话能用的技能，由 kap 报。 */
+  readonly skills?: readonly AgentSkill[] | undefined
+  /** 激活一条技能。 */
+  readonly onActivateSkill: (name: string) => void
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
   readonly controlsFailure?: string | undefined
@@ -191,8 +196,10 @@ export const AssistantComposer = memo(function AssistantComposer({
   onAnswerQuestions,
   onDismissQuestions,
   modes,
+  onActivateSkill,
   onToggleMode,
   palette,
+  skills,
   placeholder = '问我任何问题…',
   question,
   ref,
@@ -221,10 +228,12 @@ export const AssistantComposer = memo(function AssistantComposer({
     () =>
       composerPaletteGroups({
         controls: toolbar.controls,
+        onActivateSkill,
         onSelectControl: toolbar.onSelectControl,
         palette: palette ?? [],
+        skills: skills ?? [],
       }),
-    [palette, toolbar.controls, toolbar.onSelectControl],
+    [onActivateSkill, palette, skills, toolbar.controls, toolbar.onSelectControl],
   )
 
   /* 「添加」组里跟在「添加文件」后面的行：生效模式，agent 报的那几档与这条对话自己的两档。 */

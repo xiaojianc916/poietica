@@ -1,30 +1,17 @@
 /*
  * 对话里敲得出来的那些斜杠命令。
  *
- * 表由 agent 算，不由本应用算，而且只能等它自己说：没有任何一条命令可以把这张
- * 表问回来。它到达的地方只有一处 —— 会话事件里 commands 那一支（这一侧的落点是
- * ipc 的 createAgentPaletteBridge），一次到达就是一整张表，所以那边的处理是整表
- * 替换，没有合并逻辑，也就没有一份会与 agent 分叉的累积状态。
- *
- * 本应用因此不扫盘，也不认识任何一层技能目录。上游把内置命令、它自己认得的技能
- * （$KIMI_CODE_HOME/skills、~/.agents/skills、.kimi-code/skills、.agents/skills，
- * 按 Project > User > Extra > Built-in 覆盖）与插件带来的合成一张表再报过来。在
- * 这一侧复算一遍，就是给同一件事造第二个事实来源，而它注定与上游的分层规则漂开。
+ * 表由 agent 算：它随会话事件里 commands 那一支整表到达，所以处理是整表替换，
+ * 没有会与 agent 分叉的累积状态。技能不在这张表里 —— 它有自己的目录与激活动作
+ * （AgentSkillPort）。
  */
-
-/** 一条命令的出身。 */
-export type PaletteKind = 'builtin' | 'command' | 'skill'
 
 /** 表里的一条。 */
 export interface PaletteEntry {
-  /** 它是哪一类。 */
-  readonly kind: PaletteKind
   /** agent 认的那个名字，也就是斜杠后面敲的东西。 */
   readonly name: string
   /** 屏幕上显示的调用式。 */
   readonly label: string
-  /** 屏幕上显示的名字：技能是去掉判据前缀的裸名，其余就是原名本身。 */
-  readonly title: string
   /** agent 给的那句说明。没给就是空串。 */
   readonly description: string
 }
@@ -32,8 +19,7 @@ export interface PaletteEntry {
 /**
  * 命令表这一路。
  *
- * 与 AgentCapabilityPort 同一个形状：读一次，或者听它自己改主意。没有 select ——
- * 命令不是可调项，敲它才是使用它。
+ * 读一次，或者听它自己改主意。没有 select —— 命令不是可调项，敲它才是使用它。
  */
 export interface AgentPalettePort {
   /** 此刻这张表。还没收到过任何一份时是空的。 */
@@ -42,61 +28,15 @@ export interface AgentPalettePort {
   readonly subscribe: (listener: () => void) => () => void
 }
 
-/*
- * 技能在表里的写法。
- *
- * 上游把技能注册成 `skill:<name>`，斜杠菜单里两种敲法都认（它的 slash 解析先按
- * 原名查，再按这个前缀查）。所以前缀是判据，不是显示内容。
- */
-const SKILL_PREFIX = 'skill:'
-
-/*
- * agent 自带的那几条。
- *
- * 它们既不是技能也不是插件命令，混进去会让"技能"那一格凭空多出六条。名单取自上游
- * 的内置斜杠命令名单。
- */
-const BUILTIN_NAMES: ReadonlySet<string> = new Set([
-  'compact',
-  'help',
-  'mcp',
-  'status',
-  'tasks',
-  'usage',
-])
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
-}
-
-/** 一条命令，按它的名字定出身与调用式。 */
-export function paletteEntryOf(name: string, description: string): PaletteEntry {
-  if (name.startsWith(SKILL_PREFIX)) {
-    const bare = name.slice(SKILL_PREFIX.length)
-
-    return {
-      kind: 'skill',
-      name,
-      label: `/skill:${bare}`,
-      title: bare,
-      description,
-    }
-  }
-
-  return {
-    kind: BUILTIN_NAMES.has(name) ? 'builtin' : 'command',
-    name,
-    label: `/${name}`,
-    title: name,
-    description,
-  }
 }
 
 /**
  * 一份线上载荷里的那张表，如果它确实是一张表。
  *
- * 交回 undefined 表示"这一条不是命令表"，空数组表示"表是空的"。两者必须分得开：
- * 前者不该覆盖已经收到的那一份，后者该。
+ * 交回 undefined 表示"这一条不是命令表"，空数组表示"表是空的"：前者不该覆盖
+ * 已经收到的那一份，后者该。
  */
 export function paletteFrom(payload: unknown): readonly PaletteEntry[] | undefined {
   if (!isRecord(payload) || !Array.isArray(payload['commands'])) {
@@ -112,7 +52,11 @@ export function paletteFrom(payload: unknown): readonly PaletteEntry[] | undefin
 
     const said = offered['description']
 
-    entries.push(paletteEntryOf(offered['name'], typeof said === 'string' ? said : ''))
+    entries.push({
+      name: offered['name'],
+      label: `/${offered['name']}`,
+      description: typeof said === 'string' ? said : '',
+    })
   }
 
   return entries

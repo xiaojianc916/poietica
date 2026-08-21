@@ -142,6 +142,27 @@ async agentCapabilities(request: AgentCapabilitiesRequest) : Promise<AgentConfig
     return await TAURI_INVOKE("agent_capabilities", { request });
 },
 /**
+ * 这条会话此刻能用的技能。
+ * 
+ * # Errors
+ * 
+ * Fails when no session is live, or when kap refuses the listing.
+ */
+async agentSkills(request: AgentSkillsRequest) : Promise<AgentSkill[]> {
+    return await TAURI_INVOKE("agent_skills", { request });
+},
+/**
+ * 激活一条技能。
+ * 
+ * # Errors
+ * 
+ * Fails when no session is live, or when kap refuses the activation: no such
+ * skill, or a type the user may not activate.
+ */
+async agentActivateSkill(request: AgentActivateSkillRequest) : Promise<null> {
+    return await TAURI_INVOKE("agent_activate_skill", { request });
+},
+/**
  * Lists the stored conversations, newest first.
  * 
  * A read, and nothing but a read: the names come from the ranking in
@@ -1069,6 +1090,11 @@ updateProgress: "update-progress"
 
 /** user-defined types **/
 
+export type AgentActivateSkillRequest = { sessionId: string; name: string; 
+/**
+ * 技能名后面那段自由文本；没有就是空串。
+ */
+args: string }
 /**
  * 一整组题的答复。
  */
@@ -1642,6 +1668,15 @@ inputCacheRead: number;
  * 累计输入里写入缓存的 token（kap usage.total.inputCacheCreation）。
  */
 inputCacheCreation: number }
+/**
+ * 一条可激活的技能。
+ */
+export type AgentSkill = { name: string; description: string; 
+/**
+ * project / user / extra / builtin，由 kap 判定。
+ */
+source: string }
+export type AgentSkillsRequest = { sessionId: string }
 /**
  * One conversation, as a list of conversations and a tab strip need it.
  */

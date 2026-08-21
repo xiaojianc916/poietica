@@ -16,8 +16,8 @@ export type {
   SessionConfigReport,
 } from './config'
 export type { KapEventPayload, KapSessionId, KapStopReason, KapToolCallId } from './kap'
-export type { AgentPalettePort, PaletteEntry, PaletteKind } from './palette'
-export { paletteEntryOf, paletteFrom } from './palette'
+export type { AgentPalettePort, PaletteEntry } from './palette'
+export { paletteFrom } from './palette'
 export type {
   ApprovalAnswer,
   ApprovalDecision,
@@ -45,6 +45,7 @@ export type {
   AgentSessionPort,
   PromptAsset,
 } from './session'
+export type { AgentSkill, AgentSkillPort } from './skill'
 export type {
   FrameCursor,
   FramePage,

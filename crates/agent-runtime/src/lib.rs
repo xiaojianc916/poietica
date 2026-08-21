@@ -63,7 +63,7 @@ pub use run_slot::RunSlot;
 pub use selection::select_config;
 pub use session::{
     AgentConnection, AgentSpawn, Cursor, Handshake, OpenedSession, SessionEntry, SessionEvent,
-    SessionEvents,
+    SessionEvents, Skill,
 };
 pub use sessions::SessionBook;
 pub use stderr::StderrLog;

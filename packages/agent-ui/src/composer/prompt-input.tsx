@@ -37,16 +37,15 @@ import {
   type PaletteRow,
   paletteOptionId,
 } from './composer-palette'
-import { $createSkillNode, SkillNode } from './skill-node'
 
 /*
  * The composer input.
  *
- * 草稿的唯一真相是编辑器状态：正文与技能调用同处一个文档，技能是其中一个原子
- * 节点（skill-node）。React 这一侧只留两个投影 —— 整串正文（提交用）与插入符前
- * 那一段字（斜杠过滤用）。附件与面板开合归这里，因为它们是这张卡的一部分。
+ * 草稿的唯一真相是编辑器状态。React 这一侧只留两个投影 —— 整串正文（提交用）与
+ * 插入符前那一段字（斜杠过滤用）。附件与面板开合归这里，因为它们是这张卡的一
+ * 部分。
  *
- * 模式（目标、蜂群）不在这里：它们属于对话，真相在 TranscriptStore，由上层交进来。
+ * 技能不在这里：激活它是一次协议动作，不往草稿里落字。
  */
 
 export type { ChatStatus }
@@ -213,13 +212,10 @@ export interface PromptInputProps {
   readonly onSubmit: (message: PromptInputMessage) => void
 }
 
-const EDITOR_NODES = [SkillNode]
-
 export function PromptInput(props: PromptInputProps) {
   const initialConfig = useMemo(
     () => ({
       namespace: 'assistant-composer',
-      nodes: EDITOR_NODES,
       onError: (error: Error) => {
         throw error
       },
@@ -523,24 +519,6 @@ function PromptInputShell({
       switch (action.kind) {
         case 'run': {
           action.run()
-          focusEditor()
-
-          return
-        }
-
-        /* 技能成为文档里的一个字：斜杠敲出来的那半个调用式当场让位。 */
-        case 'skill': {
-          editor.update(() => {
-            const selection = $getSelection()
-
-            if (!$isRangeSelection(selection)) {
-              return
-            }
-
-            dropTyped(typed)
-            selection.insertNodes([$createSkillNode(action.skill.label, action.skill.title)])
-            selection.insertText(' ')
-          })
           focusEditor()
 
           return

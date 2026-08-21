@@ -1,6 +1,6 @@
 import type { RunMode, RunModeName } from '@poietica/agent'
 import { permissionPostureOf } from '@poietica/agent'
-import type { PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
+import type { AgentSkill, PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
 import {
   CloseIcon,
@@ -61,8 +61,12 @@ const LOCAL_MODES: readonly {
 export interface ComposerPaletteSource {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelectControl: (controlId: string, value: string) => void
-  /** agent 报的命令表；技能与命令两组由它长出，与斜杠触发读同一张。 */
+  /** agent 报的命令表。 */
   readonly palette: readonly PaletteEntry[]
+  /** 这条会话能用的技能，由 kap 报。 */
+  readonly skills: readonly AgentSkill[]
+  /** 激活一条技能：一次协议动作，不往草稿里落字。 */
+  readonly onActivateSkill: (name: string) => void
 }
 
 /* 选择器里的一行：生效的一档打勾，点下去写回 agent。图标由调用方按用途给。 */
@@ -146,8 +150,10 @@ export function composerModeRows({
  */
 export function composerPaletteGroups({
   controls,
+  onActivateSkill,
   onSelectControl,
   palette,
+  skills,
 }: ComposerPaletteSource): readonly PaletteGroup[] {
   const groups: PaletteGroup[] = []
 
@@ -165,38 +171,42 @@ export function composerPaletteGroups({
     })
   }
 
-  const skills = palette.filter((entry) => entry.kind === 'skill')
-  const commands = palette.filter((entry) => entry.kind !== 'skill')
-
   if (skills.length > 0) {
     groups.push({
       id: 'skills',
       heading: '技能',
-      rows: skills.map((entry) => callable(entry, true)),
+      rows: skills.map((skill) => ({
+        id: `skill:${skill.name}`,
+        icon: <SkillIcon aria-hidden="true" />,
+        label: skill.name,
+        ...(skill.description === '' ? {} : { detail: skill.description }),
+        token: `/${skill.name}`,
+        action: {
+          kind: 'run' as const,
+          run: () => {
+            onActivateSkill(skill.name)
+          },
+        },
+      })),
     })
   }
 
-  if (commands.length > 0) {
+  if (palette.length > 0) {
     groups.push({
       id: 'commands',
       heading: '命令',
-      rows: commands.map((entry) => callable(entry, false)),
+      rows: palette.map((entry) => ({
+        id: entry.name,
+        icon: <TerminalIcon aria-hidden="true" />,
+        label: entry.label,
+        ...(entry.description === '' ? {} : { detail: entry.description }),
+        token: entry.label,
+        action: { kind: 'insert' as const, snippet: entry.label },
+      })),
     })
   }
 
   return groups
-}
-
-function callable(entry: PaletteEntry, skill: boolean): PaletteRow {
-  return {
-    id: entry.name,
-    icon: skill ? <SkillIcon aria-hidden="true" /> : <TerminalIcon aria-hidden="true" />,
-    label: skill ? entry.title : entry.label,
-    ...(entry.description === '' ? {} : { detail: entry.description }),
-    token: entry.label,
-    /* 技能是文档里的一个原子节点；命令仍是插进正文的一段字。 */
-    action: skill ? { kind: 'skill', skill: entry } : { kind: 'insert', snippet: entry.label },
-  }
 }
 
 /*
