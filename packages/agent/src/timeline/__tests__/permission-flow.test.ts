@@ -3,18 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { pendingPermission, selectIsBusy } from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'
 
-const OPTIONS = [
-  { optionId: 'allow', name: '允许一次', kind: 'allow_once' },
-  { optionId: 'reject', name: '拒绝', kind: 'reject_once' },
-] as const
-
 const REQUESTED: RunEvent = {
   kind: 'permission_requested',
   seq: 1,
   at: 1_000,
   requestId: 'req-1',
   title: '允许读取 D:/poietica/README.md ?',
-  options: OPTIONS,
 }
 
 const RESOLVED: RunEvent = {
@@ -22,8 +16,8 @@ const RESOLVED: RunEvent = {
   seq: 2,
   at: 1_100,
   requestId: 'req-1',
-  optionId: 'allow',
-  outcome: 'selected',
+  decision: 'approved',
+  scope: 'session',
 }
 
 describe('permission flow', () => {
@@ -34,9 +28,9 @@ describe('permission flow', () => {
     expect(state.status).toBe('awaiting_permission')
     expect(selectIsBusy(state)).toBe(true)
 
-    /* The read model must expose what an answer needs, without re-narrowing. */
+    /* 答一次需要的只有号：kap 的审批请求不带选项表，按钮上的字由产品定。 */
     expect(pending?.requestId).toBe('req-1')
-    expect(pending?.options).toHaveLength(2)
+    expect(pending?.resolution).toBeUndefined()
   })
 
   it('stops pending once the answer is recorded', () => {

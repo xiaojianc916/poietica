@@ -10,12 +10,8 @@ import { pendingPermission, type WaitingScope } from '../timeline-queries'
  */
 
 /*
- * 两个构造函数，不是一个带开关的。
- *
- * exactOptionalPropertyTypes 下「可选属性缺席」与「值为 undefined」不是一回事，
- * 而条件展开产出的正是后者。分成两个之后，两边都是完整的对象字面量，一个断言
- * 都不需要 —— 上一版在这里用 as 把两个数字掰成 resolution，那不是让类型通过，
- * 那是让类型闭嘴。
+ * 两个构造函数，不是一个带开关的：exactOptionalPropertyTypes 下「缺席」与
+ * 「值为 undefined」不是一回事，而条件展开产出的正是后者。
  */
 function asked(requestId: string, turn: number): PermissionItem {
   return {
@@ -25,14 +21,13 @@ function asked(requestId: string, turn: number): PermissionItem {
     at: 0,
     requestId,
     title: requestId,
-    options: [],
   }
 }
 
 function answered(requestId: string, turn: number): PermissionItem {
   return {
     ...asked(requestId, turn),
-    resolution: { optionId: 'approve_once', outcome: 'selected' },
+    resolution: { decision: 'approved' },
   }
 }
 

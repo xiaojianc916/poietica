@@ -22,6 +22,45 @@ import { answerOf, EMPTY_DRAFT, type QuestionDraft, responseOf } from './questio
 /* 数字键到选项的下标。协议上限是四个选项，多出的键只是用不上。 */
 const HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
 
+type QuestionOption = QuestionTimelineItem['questions'][number]['options'][number]
+
+/** 一次按键要做的事。映射与副作用分开，判据因此不依赖 DOM。 */
+type KeyIntent =
+  | { readonly kind: 'advance' }
+  | {
+      readonly kind: 'pick'
+      readonly at: number
+      readonly option: QuestionOption
+      readonly via: QuestionAnswerMethod
+    }
+
+/** 两个文本格聚焦时按键归它们；没有归属的键没有意图，也就不拦默认行为。 */
+function keyIntentOf(
+  event: KeyboardEvent,
+  options: readonly QuestionOption[],
+  cursor: number,
+): KeyIntent | undefined {
+  const target = event.target
+
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+    return undefined
+  }
+
+  if (event.key === 'Enter') {
+    return { kind: 'advance' }
+  }
+
+  const space = event.key === ' '
+  const at = space ? cursor : HOTKEYS.indexOf(event.key)
+  const option = at < 0 ? undefined : options[at]
+
+  if (option === undefined) {
+    return undefined
+  }
+
+  return { kind: 'pick', at, option, via: space ? 'space' : 'number_key' }
+}
+
 export interface QuestionPanelProps {
   readonly item: QuestionTimelineItem
   readonly onAnswer?: ((response: QuestionResponse) => void) | undefined
@@ -119,45 +158,26 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
   }
 
   /*
-   * 键盘挂在窗口上，不挂在某个输入框上：提问期间 textarea 不在场，全局监听不会
-   * 打劫任何人的输入；两个文本格（自选、备注）聚焦时按键归它们，这里一律放行。
+   * 键盘挂在窗口上：提问期间 textarea 不在场，全局监听不打劫任何人的输入。
    * 每次渲染重挂一次，换来永远读到最新的闭包 —— 一副面板的生命以秒计。
    */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (sent) {
+      const intent = sent ? undefined : keyIntentOf(event, current.options, cursor)
+
+      if (intent === undefined) {
         return
       }
 
-      const target = event.target
+      event.preventDefault()
 
-      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
-        return
-      }
-
-      if (event.key === 'Enter') {
-        event.preventDefault()
+      if (intent.kind === 'advance') {
         advance('enter')
+
         return
       }
 
-      if (event.key === ' ') {
-        const option = current.options[cursor]
-
-        if (option !== undefined) {
-          event.preventDefault()
-          pick(option.id, cursor, 'space')
-        }
-        return
-      }
-
-      const at = HOTKEYS.indexOf(event.key)
-      const option = at < 0 ? undefined : current.options[at]
-
-      if (option !== undefined) {
-        event.preventDefault()
-        pick(option.id, at, 'number_key')
-      }
+      pick(intent.option.id, intent.at, intent.via)
     }
 
     window.addEventListener('keydown', onKey)

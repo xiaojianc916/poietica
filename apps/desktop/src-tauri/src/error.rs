@@ -92,7 +92,6 @@ pub enum IpcErrorCode {
     Platform,
 }
 
-
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IpcError {
@@ -122,7 +121,6 @@ impl Error {
             _ => IpcErrorCode::Platform,
         }
     }
-
 
     fn recoverable(&self) -> bool {
         matches!(

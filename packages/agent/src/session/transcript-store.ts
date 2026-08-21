@@ -348,7 +348,7 @@ export class TranscriptStore implements TranscriptSink {
     const real = this.#resolveKey(key)
     const draft = this.#aliased.get(real)
 
-    this.#remember(real, null)
+    this.#remember(real, NO_MODES)
     this.#held.delete(real)
     this.#pending.delete(real)
     this.#unaligned.delete(real)

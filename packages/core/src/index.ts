@@ -24,13 +24,7 @@ export {
   trace,
   warn,
 } from './diagnostics/log'
-export {
-  assertInvariant,
-  assertUnreachable,
-  DomainError,
-  InternalInvariantError,
-  ValidationError,
-} from './errors'
+export { assertInvariant, assertUnreachable } from './errors'
 export {
   createExternalStore,
   type ExternalStore,

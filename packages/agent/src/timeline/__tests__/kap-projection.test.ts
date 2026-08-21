@@ -462,11 +462,6 @@ describe('kap 投影', () => {
           title: 'Bash',
           rawInput: { kind: 'command', command: 'cargo test' },
         },
-        options: [
-          { optionId: 'approve', name: 'Approve once', kind: 'allow_once' },
-          { optionId: 'approve_session', name: 'Approve for this session', kind: 'allow_always' },
-          { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
-        ],
       },
     ]
 

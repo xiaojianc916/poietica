@@ -143,7 +143,7 @@ export function createFailureScopeKey(scope: FailureScope): string {
 
 /**
  * 违反这些规则的不是用户，是调用它的代码 —— 所以抛的是不变量错误，
- * 而不是同包 errors.ts 里为输入校验准备的 ValidationError，
+ * 而不是同包 errors.ts 里为输入校验准备的校验错误，
  * 更不是之前那种没有 code、没有 context、无法被上层分类的裸 Error。
  */
 export function validateFailurePolicy(input: ClassifiedFailureInput): void {

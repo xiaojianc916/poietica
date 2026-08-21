@@ -521,8 +521,7 @@ pub fn connect(
 
         // 4. HTTP 客户端：令牌走 Authorization 头（kap 的全局 bearer 鉴权，
         //    kap-server/src/middleware/auth.ts）。
-        let auth_header = match reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))
-        {
+        let auth_header = match reqwest::header::HeaderValue::from_str(&format!("Bearer {token}")) {
             Ok(value) => value,
             Err(error) => {
                 let handshake = KapError::Handshake {
@@ -634,9 +633,13 @@ pub fn connect(
             }
         }
 
-        let hello = match send_frame(&ws, "client_hello", json!({
-            "client_id": Uuid::new_v4().to_string(),
-        }))
+        let hello = match send_frame(
+            &ws,
+            "client_hello",
+            json!({
+                "client_id": Uuid::new_v4().to_string(),
+            }),
+        )
         .await
         {
             Ok(id) => id,
@@ -673,7 +676,9 @@ pub fn connect(
             }
         };
 
-        if let Err(error) = wait_subscribe_ack(&mut ws_rx, &anchor_sub, &session_id, &mut stash).await {
+        if let Err(error) =
+            wait_subscribe_ack(&mut ws_rx, &anchor_sub, &session_id, &mut stash).await
+        {
             let _ = ready_tx.send(Err(KapError::Handshake {
                 message: error.to_string(),
             }));

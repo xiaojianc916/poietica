@@ -59,10 +59,7 @@ fn a_turn_that_ends_first_cancels_the_wait() {
 fn a_decision_speaks_kap_on_the_wire() {
     // approvalResponseSchema：decision ∈ approved / rejected / cancelled，
     // scope 只在「这条会话上记住」时是 session。
-    assert_eq!(
-        Decision::Approved { scope: None }.on_wire(),
-        "approved"
-    );
+    assert_eq!(Decision::Approved { scope: None }.on_wire(), "approved");
     assert!(Decision::Approved { scope: None }.scope().is_none());
     assert_eq!(
         Decision::Approved {

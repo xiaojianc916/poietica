@@ -1,3 +1,4 @@
+import { NO_MODES } from '@poietica/agent'
 import type { SessionConfigControl } from '@poietica/agent-contract'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -24,16 +25,23 @@ describe('批准方式的单一入口', () => {
   it('加号面板不再重复显示 Default、Auto 与 YOLO', () => {
     const rows = composerModeRows({
       controls: [MODE],
+      modes: NO_MODES,
       onSelectControl: () => undefined,
+      onToggleMode: () => undefined,
     })
 
-    expect(rows.map((row) => row.label)).toEqual(['Plan'])
+    expect(rows.map((row) => row.label)).toEqual(['Plan', '目标', '蜂群模式'])
   })
 
   it('额外模式胶囊不再重复显示 Auto 与 YOLO', () => {
     const render = (current: string) =>
       renderToStaticMarkup(
-        <ComposerModeChip controls={[withCurrent(current)]} onSelect={() => undefined} />,
+        <ComposerModeChip
+          controls={[withCurrent(current)]}
+          modes={NO_MODES}
+          onSelect={() => undefined}
+          onToggleMode={() => undefined}
+        />,
       )
 
     expect(render('manual')).toBe('')

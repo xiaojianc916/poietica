@@ -79,7 +79,7 @@
   grid-area: 1 / 1;
 }
 
-.assistant-mode-chip__icon svg {
+[data-assistant-skin] .assistant-mode-chip__icon svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
 }
@@ -93,7 +93,7 @@
   visibility: hidden;
 }
 
-.assistant-mode-chip__remove svg {
+[data-assistant-skin] .assistant-mode-chip__remove svg {
   block-size: calc(var(--cp-icon) - 6px);
   inline-size: calc(var(--cp-icon) - 6px);
 }

@@ -12,7 +12,12 @@
 import type { KapStopReason, RunEvent, RunStatus } from '@poietica/agent-contract'
 import { applyKapFrame } from './kap-projection'
 import { isRenderable } from './renderable'
-import type { MessageImage, UserMessageItem } from './timeline-contract'
+import type {
+  MessageImage,
+  PermissionItem,
+  QuestionTimelineItem,
+  UserMessageItem,
+} from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import {
   beginQuestion,
@@ -90,19 +95,10 @@ export function apply(draft: Draft, event: RunEvent): void {
     }
 
     case 'permission_resolved': {
-      /* 身份是算得出来的（见上一支），所以按 id 定位。 */
-      const position = positionOf(draft, `${namespace(draft)}permission-${event.requestId}`)
-      const asked = position < 0 ? undefined : draft.items[position]
-
-      if (asked?.type === 'permission') {
-        draft.items[position] = {
-          ...asked,
-          resolution: {
-            decision: event.decision,
-            ...(event.scope === undefined ? {} : { scope: event.scope }),
-          },
-        }
-      }
+      settlePermission(draft, `${namespace(draft)}permission-${event.requestId}`, {
+        decision: event.decision,
+        ...(event.scope === undefined ? {} : { scope: event.scope }),
+      })
 
       /* 答掉一个不等于不再等：并行的子代理会同时挂着几个请求。第一个答复一到
          就写 running，界面会说这一轮不在等人了，而另外几个请求还挂在原生侧的
@@ -131,20 +127,11 @@ export function apply(draft: Draft, event: RunEvent): void {
     }
 
     case 'questions_resolved': {
-      /* 身份是算得出来的（见上一支），所以按 id 定位。 */
-      const position = positionOf(draft, `${namespace(draft)}question-${event.questionId}`)
-      const asked = position < 0 ? undefined : draft.items[position]
-
-      if (asked?.type === 'question') {
-        draft.items[position] = {
-          ...asked,
-          resolution: {
-            outcome: event.outcome,
-            answers: event.answers,
-            note: event.note,
-          },
-        }
-      }
+      settleQuestion(draft, `${namespace(draft)}question-${event.questionId}`, {
+        outcome: event.outcome,
+        answers: event.answers,
+        note: event.note,
+      })
 
       draft.status = stillWaiting(draft)
 
@@ -363,6 +350,38 @@ function silentTurn(draft: Draft, stopReason: KapStopReason): string | undefined
   }
 
   return `stopReason: ${stopReason}`
+}
+
+/**
+ * 落一次答复：请求的身份算得出来，所以按 id 定位，只补 resolution。
+ *
+ * 两支各自成形，因为答复的形状不同：审批记 kap 的 decision 与 scope，提问记
+ * outcome、answers 与 note。定位那一步共用 positionOf。
+ */
+function settlePermission(
+  draft: Draft,
+  id: string,
+  resolution: NonNullable<PermissionItem['resolution']>,
+): void {
+  const position = positionOf(draft, id)
+  const asked = position < 0 ? undefined : draft.items[position]
+
+  if (asked?.type === 'permission') {
+    draft.items[position] = { ...asked, resolution }
+  }
+}
+
+function settleQuestion(
+  draft: Draft,
+  id: string,
+  resolution: NonNullable<QuestionTimelineItem['resolution']>,
+): void {
+  const position = positionOf(draft, id)
+  const asked = position < 0 ? undefined : draft.items[position]
+
+  if (asked?.type === 'question') {
+    draft.items[position] = { ...asked, resolution }
+  }
 }
 
 /**

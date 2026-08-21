@@ -31,7 +31,6 @@ describe('isRenderable', () => {
       type: 'permission',
       requestId: 'req-1',
       title: 'write',
-      options: [{ optionId: 'allow', name: '允许', kind: 'allow_once' }],
     })
 
     expect(isRenderable(item)).toBe(false)
