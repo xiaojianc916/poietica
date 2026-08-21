@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { migrateCommandSurface } from './scripts/refactor/command-surface.mjs'
 import { Migration } from './scripts/refactor/lib.mjs'
-import { migratePromptIntent } from './scripts/refactor/prompt-intent.mjs'
 import { migrateSessionProfile } from './scripts/refactor/session-profile.mjs'
 import { migrateSkills } from './scripts/refactor/skill.mjs'
+import { migrateSubmissionIntent } from './scripts/refactor/submission-intent.mjs'
 
 const migration = new Migration()
 
@@ -16,7 +16,7 @@ try {
   migrateSessionProfile(migration)
   migrateCommandSurface(migration)
   migrateSkills(migration)
-  migratePromptIntent(migration)
+  migrateSubmissionIntent(migration)
 
   migration.assertAbsent('SessionCommandsPort', [
     'packages/agent-contract/src/index.ts',
