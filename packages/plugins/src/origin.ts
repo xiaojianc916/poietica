@@ -8,19 +8,9 @@ import { assertUnreachable } from '@poietica/core'
  * 「也可以」在清单里声明 MCP 服务器。插件是来源之一，不是这两样的定义。
  *
  * 所以这一位是联合而不是一个插件号。写成 pluginId: string 就等于在类型上断言「每一条
- * 能力必然属于某个插件」，而这句话是假的：本应用自带的那一台和 agent 自己配好的那些
- * 都无处安放。删掉其中任何一支，编译器会在全部引用点报错 —— 那正是它该有的行为。
+ * 能力必然属于某个插件」，而这句话是假的：mcp.json 里那些无处安放。删掉其中任何一支，
+ * 编译器会在全部引用点报错 —— 那正是它该有的行为。
  */
-
-/**
- * 本应用自己在进程里起的那一台。
- *
- * 它不来自任何文件，也不属于任何插件：进程起来它就在，进程停了它就没了。因此这一支
- * 不需要第二个标识位 —— 全仓只有 contribution 一处产出它，名字归 plugin-store 定。
- */
-export interface BuiltinOrigin {
-  readonly kind: 'builtin'
-}
 
 export interface PluginOrigin {
   readonly kind: 'plugin'
@@ -41,17 +31,12 @@ export interface UserOrigin {
   readonly location: string
 }
 
-/*
- * 三种来源本应用都拨得动，所以「谁带来的」与「拨得动哪些」是同一个集合，不写成两个
- * 名字：ManagedOrigin 曾经与它逐字相同，两个别名并存时没有任何东西说得清该用哪一个。
- */
-export type ContributionOrigin = BuiltinOrigin | PluginOrigin | UserOrigin
+/* 两种来源本应用都拨得动，所以「谁带来的」与「拨得动哪些」是同一个集合，不写成两个名字。 */
+export type ContributionOrigin = PluginOrigin | UserOrigin
 
 /** 列表右边那个标签。 */
 export function describeOrigin(origin: ContributionOrigin): string {
   switch (origin.kind) {
-    case 'builtin':
-      return '内置'
     case 'plugin':
       return origin.pluginId
     case 'user':

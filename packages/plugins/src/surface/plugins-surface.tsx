@@ -328,24 +328,16 @@ function serverRow(server: ResolvedMcpServer, store: PluginStore): ContributionR
 }
 
 /*
- * 开着却不会装载，两种原因完全不同：内置那台是端口没绑上，插件那台是插件整体被关掉。合并
- * 成一句「不会启动」，人就无从下手。
+ * 开着却不会装载只有一个原因：带来它的插件整体被关掉了。说出来，人才知道该去拨哪个开关。
  */
 function detailOf(origin: ContributionOrigin, server: ResolvedMcpServer): string {
   if (!server.enabled) {
     return '已关闭'
   }
 
-  switch (server.launchedBy) {
-    case 'client':
-      return '本应用自己在跑，尚未接进会话'
-    case 'agent':
-      return '会话开始时由命令行装载'
-    case 'none':
-      return origin.kind === 'builtin'
-        ? '本机端口没能绑上，这一台不会装载'
-        : '插件已关闭，这一台不会装载'
-    default:
-      return assertUnreachable(server.launchedBy)
+  if (server.launchedBy === 'agent') {
+    return '会话开始时由命令行装载'
   }
+
+  return origin.kind === 'plugin' ? '插件已关闭，这一台不会装载' : 'mcp.json 里这一条被关掉了'
 }

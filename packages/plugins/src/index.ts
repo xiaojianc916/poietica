@@ -74,14 +74,12 @@ export type {
 /* 改写 mcp.json 的那三个函数不出包：这份文件只有一个写者，就是 plugin-store。 */
 export { type DeclaredMcpServer, decodeMcpConfig, type McpConfigDecoding } from './mcp-config'
 export {
-  type BuiltinMcpServer,
   type McpServerInput,
   type McpServerLaunchedBy,
   type ResolvedMcpServer,
   resolveMcpServers,
 } from './mcp-servers'
 export {
-  type BuiltinOrigin,
   type ContributionOrigin,
   describeOrigin,
   type PluginOrigin,

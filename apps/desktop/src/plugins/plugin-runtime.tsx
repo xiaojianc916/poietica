@@ -2,6 +2,7 @@ import { error as reportError } from '@poietica/core'
 import { createAgentPaletteBridge } from '@poietica/ipc'
 import { createPluginStore } from '@poietica/plugins'
 import { useEffect } from 'react'
+import { reconcileAutomationsMcpServer } from '../automations/automations-mcp'
 import { reconcileBrowserMcpServer } from '../browser/browser-mcp'
 
 /*
@@ -42,13 +43,20 @@ export const pluginStore = createPluginStore({
 })
 
 export function PluginLoader() {
-  /* start() 自己幂等，也不持有订阅，所以这个 effect 没有东西要清理。 */
   useEffect(() => {
     void pluginStore.start()
 
-    // 内核的 CDP 端口每次启动随机抽，mcp.json 里的端点因此每次启动都要
-    // 重新对账；对账自己消化失败，不影响插件运行时起步。
+    /*
+     * 内核的 CDP 端口与本进程那台 MCP 服务器的端口都是每次启动随机抽，mcp.json 里的
+     * 条目因此每次启动都要重新对账；对账自己消化失败，不影响插件运行时起步。
+     */
+    void reconcileAutomationsMcpServer(pluginStore)
     void reconcileBrowserMcpServer(pluginStore)
+
+    /* start() 接上了命令表的订阅，所以这个 effect 有东西要收。 */
+    return () => {
+      pluginStore.stop()
+    }
   }, [])
 
   return null

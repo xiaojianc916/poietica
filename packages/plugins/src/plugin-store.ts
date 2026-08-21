@@ -1,5 +1,5 @@
 import type { AgentPalettePort, PaletteEntry } from '@poietica/agent-contract'
-import { assertUnreachable, createPreference, warn } from '@poietica/core'
+import { assertUnreachable, warn } from '@poietica/core'
 import {
   commitPlugin,
   commitSkill,
@@ -9,7 +9,6 @@ import {
   listPlugins,
   listSkills,
   readEnvironmentMcpConfig,
-  readMcpEndpoint,
   readPluginCatalog,
   refreshPluginCatalog,
   removePlugin,
@@ -47,7 +46,7 @@ import {
   setMcpServerEnabledInConfig,
   upsertMcpServer,
 } from './mcp-config'
-import { type BuiltinMcpServer, type ResolvedMcpServer, resolveMcpServers } from './mcp-servers'
+import { type ResolvedMcpServer, resolveMcpServers } from './mcp-servers'
 import type { ContributionOrigin } from './origin'
 import { createSnapshotCache } from './registry/snapshot'
 import { decodeSkillPayload, type InstalledSkill, parseSkillFrontmatter } from './skill'
@@ -152,24 +151,26 @@ export interface PluginStore {
   readonly getSnapshot: () => PluginsViewModel
   readonly subscribe: (listener: () => void) => () => void
   /**
-   * 读账本、读环境、问内置那台的地址、取市场目录，然后投一次屏幕。
+   * 读账本、读技能目录、读环境、取市场目录，然后投一次屏幕。
    *
-   * 交回首扫的落定：账本、mcp.json 与内置端点读完并投屏之时。MCP 名册在开会话那一刻
+   * 交回首扫的落定：账本、技能目录与 mcp.json 读完并投屏之时。MCP 名册在开会话那一刻
    * 被采样、此后不再重挂，所以开会话的人要先等到它 —— 而市场目录是网络往返，不在这份
    * 落定里：开一条对话不该等一次 CDN。
    *
-   * 不返回停表函数：订阅归 subscribe 所有，start 一个也没建，所以它没有东西可停。
-   * 重复调用是幂等的，交回同一份落定。
+   * 命令表的订阅也在这里接上：它的寿命是这个 store 的寿命，由 stop() 收。重复调用是
+   * 幂等的，交回同一份落定。
    */
   readonly start: () => Promise<void>
+  /** 收掉命令表的订阅，并让下一次 start() 重新首扫。谁 start 谁 stop。 */
+  readonly stop: () => void
   readonly setEnabled: (pluginId: string, enabled: boolean) => void
   /**
    * 拨动一台服务器。
    *
-   * 收的是来源而不是插件号：内置那台不属于任何插件，硬塞进账本就得给它编一个假的
-   * 插件号，而那个号会出现在 agent 的 installed.json 里。开关落在哪份真相里由来源
-   * 说了算：内置在偏好里，插件在账本里，mcp.json 里那些落回文件本身的 enabled 那
-   * 一格 —— 与 CLI 拨的是同一格。
+   * 收的是来源而不是插件号：mcp.json 里那些不属于任何插件，硬塞进账本就得给它们编一个
+   * 假的插件号，而那个号会出现在 agent 的 installed.json 里。开关落在哪份真相里由来源
+   * 说了算：插件在账本里，mcp.json 里那些落回文件本身的 enabled 那一格 —— 与 CLI 拨的
+   * 是同一格。
    */
   readonly setMcpServerEnabled: (
     target: ContributionOrigin,
@@ -256,14 +257,6 @@ interface ScannedPlugin {
   readonly disabledMcpServers: readonly string[]
 }
 
-/*
- * 本进程自带的那台服务器叫什么。
- *
- * 名字要稳定且与界面语言无关：它会作为工具名的前缀出现在会话里，跟着界面语言变，
- * 同一段对话历史里的工具名就会前后对不上。
- */
-const BUILTIN_SERVER_NAME = 'poietica-automations'
-
 /* 官方 InstalledRecord.source 的三个取值。取用方式一一对应，不另立名目。 */
 function sourceKindOf(source: PluginInstallSource): string {
   switch (source.kind) {
@@ -281,32 +274,11 @@ function sourceKindOf(source: PluginInstallSource): string {
 export function createPluginStore(options: PluginStoreOptions): PluginStore {
   const listeners = new Set<() => void>()
 
-  /*
-   * 内置那台的开关。
-   *
-   * 它不进 agent 的账本：那份文件的形状是「按插件号索引的一张表」，塞一个不存在的
-   * 插件进去，对方的卸载与重载会开始处理一个永远不会被卸载的东西。
-   *
-   * 走 createPreference 是因为它必须在第一帧就有答案 —— 异步的设置管线会让这一行
-   * 先画成关的再跳成开的。默认开着，所以只有「关掉」需要落盘。
-   */
-  const builtinEnabled = createPreference<boolean>({
-    key: 'poietica.mcp.builtin.enabled',
-    fallback: true,
-    decode: (raw) => raw !== 'false',
-    encode: (value) => (value ? null : 'false'),
-    onFailure: (failure) => {
-      warn('内置 MCP 服务器的开关没能存下来', { scope: 'plugins', ...failure })
-    },
-  })
-
   let scanned: readonly ScannedPlugin[] = []
   /* 这个 agent 自己那份 mcp.json 里的服务器。读不出来就是空。 */
   let environment: readonly DeclaredMcpServer[] = []
   /* 另一本账里的那些。读不出来就是空 —— 那只意味着这句话说不出来，不意味着装了什么。 */
   let foreignRecords: readonly ForeignPlugin[] = []
-  /* 原生侧登记的那个地址。绑不上端口时缺席，那一行照样显示并说明原因。 */
-  let builtinUrl: string | undefined
   /*
    * 上一次探测落在盘上的那一份。
    *
@@ -375,10 +347,10 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 命令表的订阅。
+   * 命令表的订阅。寿命是这个 store 的寿命，不是屏幕上有没有人在看。
    *
-   * 它不挂在 start() 上：那个方法幂等、也不交回停表函数（见它自己的文档），挂上去
-   * 就没有地方收。归 subscribe 所有，与 listeners 同一个寿命。
+   * agent 推来的表问不回来（AgentPalettePort 只有 read 与 subscribe）。挂在订阅者计数
+   * 上，没打开扩展页时那一次推送就落在地上，之后打开只剩缓存里那份旧表。
    */
   let stopPalette: (() => void) | null = null
 
@@ -431,7 +403,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
     publish({
       plugins,
-      mcpServers: resolveMcpServers({ builtin: builtinServers(), environment, plugins }),
+      mcpServers: resolveMcpServers({ environment, plugins }),
       /* 两边都装着的不算「别处装过」：那一条已经在上面的 plugins 里了。 */
       foreign: foreignRecords.filter((record) => !here.has(record.pluginId)),
       skills: installedSkills,
@@ -510,26 +482,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     }
 
     environment = decoded.servers
-  }
-
-  /*
-   * 原生侧那台服务器的地址。
-   *
-   * 它在应用启动时就绑好了（apps/desktop/src-tauri/src/mcp.rs 的 serve），这里只问
-   * 一次 —— 端口由内核分配，两边都不需要事先约定一个数字。绑不上时交回 null。
-   */
-  async function readBuiltinEndpoint(): Promise<void> {
-    builtinUrl = (await readMcpEndpoint())?.url
-  }
-
-  /*
-   * 内置那台永远在列表里，哪怕地址没问到。
-   *
-   * 起不来就不显示，人看到的是「它凭空消失了」；显示出来并写明原因，人才知道该去看
-   * 端口还是去看日志。与「关掉的插件照样列出来」同一条理由。
-   */
-  function builtinServers(): readonly BuiltinMcpServer[] {
-    return [{ name: BUILTIN_SERVER_NAME, url: builtinUrl, enabled: builtinEnabled.read() }]
   }
 
   /* 装了什么，agent 的账本说了算。开关与清单在同一条记录里，一次读齐。 */
@@ -757,26 +709,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     subscribe(listener) {
       listeners.add(listener)
 
-      /*
-       * 第一个订阅者来时接上命令表，最后一个走时收掉。这条通道有一个真的要收的
-       * 东西，所以它的家在这里而不是 start() 里 —— 后者收不了。
-       */
-      if (stopPalette === null) {
-        stopPalette = options.palette.subscribe(adoptPalette)
-
-        /* 接上之前 agent 可能已经报过一份：会话在插件页打开之前就建好了。 */
-        adoptPalette()
-      }
-
       return () => {
         listeners.delete(listener)
-
-        if (listeners.size > 0) {
-          return
-        }
-
-        stopPalette?.()
-        stopPalette = null
       }
     },
 
@@ -785,10 +719,15 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         return ready
       }
 
+      stopPalette = options.palette.subscribe(adoptPalette)
+
+      /* 接上之前 agent 可能已经报过一份：会话可能比这一趟启动更早建好。 */
+      adoptPalette()
+
       queue = queue.then(async () => {
         /*
-         * 六趟互不依赖，一起等而不是排成六趟：每一趟都只读，写的只是各自那个模块级
-         * 变量，所以并发跑不会互相盖。首屏因此是一趟往返的时间，不是六趟。
+         * 五趟互不依赖，一起等而不是排成五趟：每一趟都只读，写的只是各自那个模块级
+         * 变量，所以并发跑不会互相盖。首屏因此是一趟往返的时间，不是五趟。
          */
         await Promise.all([
           guard('插件列表读取失败', rescan, () => {
@@ -802,9 +741,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           }),
           guard('这个 agent 的 mcp.json 读不出来', readEnvironment, () => {
             environment = []
-          }),
-          guard('内置 MCP 服务器的地址问不出来', readBuiltinEndpoint, () => {
-            builtinUrl = undefined
           }),
           loadCatalog(),
         ])
@@ -836,6 +772,12 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       return ready
     },
 
+    stop() {
+      stopPalette?.()
+      stopPalette = null
+      ready = null
+    },
+
     setEnabled(pluginId, enabled) {
       commit(
         '插件开关没能写进 agent 的账本，屏幕上仍是账本里那一份',
@@ -852,19 +794,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     setMcpServerEnabled(target, server, enabled) {
-      if (target.kind === 'builtin') {
-        /*
-         * 内置那一台的开关落在偏好里，插件那一台落在账本里，可它们在屏幕上是同一个控件。
-         * 两条写入必须走同一条队列，否则连拨两下的落点顺序由调度决定。
-         */
-        queue = queue.then(() => {
-          builtinEnabled.write(enabled)
-          republish()
-        })
-
-        return
-      }
-
       if (target.kind === 'user') {
         rewriteEnvironment('MCP 服务器的开关没能写进 mcp.json，屏幕上仍是文件里那一份', (raw) =>
           setMcpServerEnabledInConfig(raw, server, enabled),
