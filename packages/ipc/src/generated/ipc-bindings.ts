@@ -6,12 +6,6 @@
 
 export const commands = {
 /**
- * 首帧要用的那一次快照，此后全部走事件。
- */
-async windowGeometry(label: string) : Promise<WindowGeometry | null> {
-    return await TAURI_INVOKE("window_geometry", { label });
-},
-/**
  * Starts a turn and returns as soon as it is under way.
  * 
  * The answer to the prompt is not awaited here. Frames arrive on
@@ -1061,14 +1055,12 @@ export const events = __makeEvents__<{
 automationDue: AutomationDue,
 browserElementPicked: BrowserElementPicked,
 browserState: BrowserState,
-updateProgress: UpdateProgress,
-windowGeometry: WindowGeometry
+updateProgress: UpdateProgress
 }>({
 automationDue: "automation-due",
 browserElementPicked: "browser-element-picked",
 browserState: "browser-state",
-updateProgress: "update-progress",
-windowGeometry: "window-geometry"
+updateProgress: "update-progress"
 })
 
 /** user-defined constants **/
@@ -2025,10 +2017,6 @@ day: string;
  * 那天累计的 token。
  */
 tokens: number }
-/**
- * 逻辑像素宽度，与 CSS 断点同一坐标系。
- */
-export type WindowGeometry = { width: number }
 
 /** tauri-specta globals **/
 

@@ -6,67 +6,48 @@ import { useWorkspaceLayoutState } from './workspace-layout-store'
 
 export type WorkspaceLayoutMode = 'wide' | 'compact' | 'narrow'
 
-/** 宿主推来的可见几何。宿主是唯一写入方。 */
-export interface WindowGeometry {
-  readonly width: number
-}
+/*
+ * 布局模式的唯一真相是视口自己：断点与 CSS 同一个坐标系，问宿主要一次就等于多一份会
+ * 过期的副本。最小化因此不需要特例 —— CSS 视口不会缩到图标尺寸。
+ */
+const wideViewport = window.matchMedia(`(min-width: ${WORKSPACE_LAYOUT.breakpoints.wide}px)`)
+const compactViewport = window.matchMedia(`(min-width: ${WORKSPACE_LAYOUT.breakpoints.compact}px)`)
 
-function modeOf(width: number): WorkspaceLayoutMode {
-  const { compact, wide } = WORKSPACE_LAYOUT.breakpoints
-
-  if (width >= wide) {
+function currentMode(): WorkspaceLayoutMode {
+  if (wideViewport.matches) {
     return 'wide'
   }
 
-  return width >= compact ? 'compact' : 'narrow'
+  return compactViewport.matches ? 'compact' : 'narrow'
 }
 
 /*
- * 提交后的模式放在模块级而非各消费组件里：外壳栅格与标题栏必须在同一次提交
- * 中看到同一个模式，各自计时会让竖线、开合按钮与栅格错开一帧。
+ * 越界只发生在窗口正被拖拽的当口，一越界就通知会让主内容区左缘与指针手里的窗口边缘
+ * 互相拉扯，所以等静止再通知；同一次提交里的消费者读到的是同一个模式。
  */
-let mode: WorkspaceLayoutMode = 'wide'
-let established = false
 let settleTimer = 0
 
-const store = createExternalStore<WorkspaceLayoutMode>({ read: () => mode })
+const store = createExternalStore<WorkspaceLayoutMode>({
+  read: currentMode,
+  activate: () => {
+    const settle = (): void => {
+      window.clearTimeout(settleTimer)
 
-function commit(next: WorkspaceLayoutMode): void {
-  if (next === mode) {
-    return
-  }
+      settleTimer = window.setTimeout(() => {
+        store.notify()
+      }, WORKSPACE_LAYOUT.breakpoints.settleMs)
+    }
 
-  mode = next
-  store.notify()
-}
+    wideViewport.addEventListener('change', settle)
+    compactViewport.addEventListener('change', settle)
 
-/**
- * 宿主几何的唯一入口，由桌面壳在引导时接到原生事件上。
- *
- * 首份几何在窗口呈现之前到达，直接落定；此后的变化等静止再提交——越界只发生在
- * 窗口正被拖拽的当口，一越界就提交会让主内容区左缘与指针手里的窗口边缘互相拉扯。
- * 来回快速越界因此被合并成至多一次提交。
- */
-export function observeWindowGeometry({ width }: WindowGeometry): void {
-  const next = modeOf(width)
-
-  window.clearTimeout(settleTimer)
-
-  if (!established) {
-    established = true
-    commit(next)
-
-    return
-  }
-
-  if (next === mode) {
-    return
-  }
-
-  settleTimer = window.setTimeout(() => {
-    commit(next)
-  }, WORKSPACE_LAYOUT.breakpoints.settleMs)
-}
+    return () => {
+      window.clearTimeout(settleTimer)
+      wideViewport.removeEventListener('change', settle)
+      compactViewport.removeEventListener('change', settle)
+    }
+  },
+})
 
 export function useWorkspaceLayoutMode(): WorkspaceLayoutMode {
   return useSyncExternalStore(store.subscribe, store.read)

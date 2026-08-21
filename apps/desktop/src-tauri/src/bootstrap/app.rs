@@ -25,14 +25,15 @@ pub const WINDOW_STATE_FLAGS: StateFlags = StateFlags::SIZE
     .union(StateFlags::MAXIMIZED)
     .union(StateFlags::FULLSCREEN);
 
+/// 渲染层没能呈现时的兜底期限。
+const PRESENT_WATCHDOG: std::time::Duration = std::time::Duration::from_secs(8);
+
 pub fn build() -> tauri::Builder<Wry> {
+    let started = std::time::Instant::now();
     let asset_protocol = AssetProtocolRegistry::default();
     let protocol_registry = asset_protocol.clone();
 
-    /*
-     * 命令清单不在这个文件里。它在 crate::ipc::surface，与导出 TypeScript 绑定的
-     * 是同一份 —— 此前这里手抄了第二份，五条命令因此从未进过生成绑定。
-     */
+    /* 命令清单在 crate::ipc::surface，与导出 TypeScript 绑定的是同一份。 */
     let ipc = crate::ipc::surface();
 
     tauri::Builder::<Wry>::default()
@@ -98,31 +99,12 @@ pub fn build() -> tauri::Builder<Wry> {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(ipc.invoke_handler())
         .setup(move |app| {
-            /*
-             * 生成的事件面必须在这里挂一次，否则 collect_events! 产出的类型化
-             * 通道在运行期不存在。命令面走上面的 invoke_handler，两者同源。
-             */
-            /*
-             * 日志比其余一切都早，因为出事时它是唯一的目击者。它没能更早
-             * 的原因只有一个：落点要先算出来。
-             */
+            /* 日志比其余一切都早：出事时它是唯一的目击者，它只需要落点先算出来。 */
             let handle = app.handle();
 
             handle.plugin(logging::plugin(paths::log_directory(handle)?).build())?;
 
-            /*
-             * tmp 与 cache 跟日志同一批建出来。
-             *
-             * 它们各自的使用者调 paths 时也会 create_dir_all，所以这两句不是为了让
-             * 它们能用 —— 是为了让它们一直在。少了这两句，数据目录的布局会随这一次
-             * 运行恰好用到过什么而变：打开目录的人每次看见的东西都不一样，而这个模块
-             * 存在的理由正是「一个根，一个位置」。
-             *
-             * tmp 顺带在这里被抹一次，那是它与 cache 唯一的区别所在。
-             */
-            let _tmp = paths::temp_directory(handle)?;
-            let _cache = paths::cache_directory(handle)?;
-
+            /* 生成的事件面挂一次；命令面走 invoke_handler，两者同源。 */
             ipc.mount_events(app);
 
             app.store(paths::settings_store(handle)?)?;
@@ -150,20 +132,11 @@ pub fn build() -> tauri::Builder<Wry> {
             let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
 
             /*
-             * 启动对账，与上面 tmp 被抹一遍是同一类事：只有这一刻能收拾的账。
-             *
-             * 两笔，先后有讲究。幽灵行先收：开了、没人说过一句话、也不进列
-             * 表的对话行在这里删掉，它们的会话号进处置账、由下一次连接送达
-             * session/delete（threads.rs 的 harvest_ghost_threads 写着为什
-             * 么此刻收割是安全的）。目录随后回收：快照先于名单（paths.rs 的
-             * projectless_workspaces 写着为什么），收割先于名单，是因为幽灵
-             * 行占着的目录要在这一次就被认成无主，而不是等下一次启动。名单
-             * 与删除同在一次借用里，引用在删的全程都精确 —— 通常删的只是几
-             * 个空目录，锁内多花的是微秒。
+             * 启动杂务，一条路径：抹 tmp、备好 cache、拍无主目录快照、收幽灵行、回收无主目录。
+             * 顺序即不变量：快照先于名单、收割先于名单，否则幽灵行占着的目录要等下一次启动。
+             * 边界在此签发 —— 库已开、webview 还没执行脚本，它晚于每条遗留行、早于用户开出的第一条。
+             * 抹 tmp 也在这里：命令要等事件循环，而事件循环在 setup 返回之后才转。
              */
-            /* 收割的边界在这里签发，不在收割那一刻取。库已经打开，webview 还
-            没执行任何脚本，所以这一刻晚于每一条遗留行、早于用户开得出的第一
-            条 —— 那个前提此前只写在 harvest_ghost_threads 的注释里。 */
             let boundary = uuid::Uuid::now_v7();
             let sweeper = handle.clone();
 
@@ -172,12 +145,15 @@ pub fn build() -> tauri::Builder<Wry> {
 
                 let outcome = async {
                     let snapshot = async_runtime::spawn_blocking(move || {
+                        paths::reset_temp_directory(&snapshotted)?;
+                        paths::cache_directory(&snapshotted)?;
+
                         paths::projectless_workspaces(&snapshotted)
                     })
                     .await
                     .map_err(|_dropped| {
                         crate::error::Error::Internal(
-                            "the projectless snapshot did not finish".to_owned(),
+                            "the start-up housekeeping did not finish".to_owned(),
                         )
                     })??;
 
@@ -243,36 +219,30 @@ pub fn build() -> tauri::Builder<Wry> {
             main_window.restore_state(WINDOW_STATE_FLAGS)?;
             constrain_to_visible_area(&main_window);
 
-            crate::window_geometry::observe(&main_window);
-
             /*
-             * 呈现权归渲染层：窗口在 React 首帧提交后由前端 present()。
-             *
-             * 此前 show() 就在这里。setup 早于 webview 执行任何脚本，所以用户先
-             * 看到的是一个空的 #f3f3f3 窗口，一直持续到首帧。visible: false 换来
-             * 的只是"位置不跳"，白屏并没有被解决。
-             *
-             * 下面是唯一的兜底：webview 若根本没跑起来（脚本 404、CSP 拦截、渲染
-             * 进程启动失败），没有它窗口会永远不可见，进程只存在于任务管理器里。
+             * 呈现权归渲染层：窗口在 React 首帧提交后由前端 present()。这里是唯一兜底 ——
+             * webview 若根本没跑起来（脚本 404、CSP 拦截、渲染进程启动失败），没有它窗口
+             * 会永远不可见，进程只存在于任务管理器里。
              */
             let watchdog = main_window.clone();
 
-            /*
-             * 一个 8 秒定时器不值得一整条 OS 线程。这个进程里已经有 Tauri 的
-             * async runtime，等待交给它，兜底逻辑本身一行没变。
-             */
             async_runtime::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_secs(8)).await;
+                tokio::time::sleep(PRESENT_WATCHDOG).await;
 
                 if watchdog.is_visible().unwrap_or(false) {
                     return;
                 }
 
-                log::warn!("frontend did not present within 8s; showing the window anyway");
+                log::warn!("frontend did not present within {PRESENT_WATCHDOG:?}; showing the window anyway");
 
                 let _shown = watchdog.show();
                 let _focused = watchdog.set_focus();
             });
+
+            log::info!(
+                "native setup finished {} ms after build start",
+                started.elapsed().as_millis()
+            );
 
             Ok(())
         })

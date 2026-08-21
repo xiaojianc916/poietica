@@ -181,15 +181,7 @@ pub fn crash_report<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     Ok(log_directory(app)?.join(CRASH_REPORT_FILE))
 }
 
-/// 临时目录，清空后返回。
-///
-/// tmp 与 cache 的区别不在内容，在寿命，而寿命只有靠「谁在什么时候清它」才立得住：
-/// 这里的东西活不过一次运行，所以每次启动抹一遍；cache 里的东西跨运行有效，所以没
-/// 人自动动它。两个目录若都只是建出来不管，那它们就只是两个名字不同的空壳。
-///
-/// 抹得掉才抹：清不干净不该让应用起不来。一个正被别的进程占着的临时文件，最坏的结
-/// 果是它多活一轮，那远好过启动失败。单实例插件保证同时只有一个我们自己的进程，所
-/// 以这里不会抹掉另一个自己正在用的东西。
+/// 临时目录，创建后返回。清空的时机见 `reset_temp_directory`。
 ///
 /// # Errors
 ///
@@ -197,11 +189,23 @@ pub fn crash_report<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
 pub fn temp_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     let directory = root(app)?.join(TEMP_DIRECTORY);
 
-    let _swept = fs::remove_dir_all(&directory);
-
     fs::create_dir_all(&directory)?;
 
     Ok(directory)
+}
+
+/// 抹掉上一次运行留下的中转文件，重建后返回。启动杂务调用一次。
+///
+/// 抹得掉才抹：被别的进程占着的临时文件最坏多活一轮，那远好过启动失败。单实例插件
+/// 保证同时只有一个我们自己的进程，所以这里不会抹掉另一个自己正在用的东西。
+///
+/// # Errors
+///
+/// 根目录无法解析、或临时目录无法创建时返回错误。
+pub fn reset_temp_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    let _swept = fs::remove_dir_all(root(app)?.join(TEMP_DIRECTORY));
+
+    temp_directory(app)
 }
 
 /// 缓存目录，创建后返回。

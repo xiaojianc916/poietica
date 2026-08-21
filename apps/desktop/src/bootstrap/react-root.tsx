@@ -1,4 +1,5 @@
 import { StrictMode } from 'react'
+import { flushSync } from 'react-dom'
 import type { Root } from 'react-dom/client'
 import { createRoot } from 'react-dom/client'
 import { FatalErrorHost } from '../failures/host'
@@ -101,13 +102,16 @@ export function mountReactApplication(
 
   markReactFatalHostMounted()
 
-  root.render(
-    <StrictMode>
-      <FatalErrorHost>
-        <AppShell runtime={runtime} />
-      </FatalErrorHost>
-    </StrictMode>,
-  )
+  /* 首帧同步提交：窗口以 visible: false 创建，呈现要等这一帧的 DOM 在位。 */
+  flushSync(() => {
+    root.render(
+      <StrictMode>
+        <FatalErrorHost>
+          <AppShell runtime={runtime} />
+        </FatalErrorHost>
+      </StrictMode>,
+    )
+  })
 
   return {
     runtime,

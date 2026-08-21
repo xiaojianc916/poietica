@@ -163,52 +163,33 @@ function lossOf(history: ThreadHistory): string | null {
 export type Paint = (flush: () => void) => void
 
 /**
- * 没有画面时的节拍。
+ * 一拍最多等多久。
  *
- * 它只需要粗到不浪费、细到让队列有界：一轮回答的帧以毫秒计到达，四分之一秒一折，
- * 攒下的量与前台时同阶。
+ * 可见时 rAF 约一帧就到；隐藏之后它整个停摆，队列的上界由这个数持有。
  */
-const HIDDEN_TEMPO_MS = 250
+const FLUSH_CEILING_MS = 250
 
 /*
- * 默认按屏幕的节拍。
+ * 默认时基是画面，没有画面的地方（测试、SSR）退回微任务。
  *
- * 一次回答是几千帧，屏幕一秒画六十次。把每一帧都当成一次「该重画了」，是
- * 拿几千趟投影、比对与布局去换六十张画面 —— 多出来的那些趟，画面上没有任何
- * 一个像素因它们而不同。
- *
- * 推迟的只有「去看一眼」这个动作：状态本身仍然是同步写进去的，read 任何时刻
- * 交出的都是当前那一份。useSyncExternalStore 的契约要的正是这个 —— 快照必须
- * 准，通知只要不漏，它从来没有要求「立刻」。
- *
- * 没有屏幕的地方（测试、SSR）退回微任务：同一句语义（下一个空档），换一个时基。
+ * rAF 在 document 隐藏时整个停摆（HTML 规范），而隐藏可以发生在这一拍约好之后 ——
+ * 只挂 rAF，#pending 就会跟着一整轮回答无界增长。所以计时器与 rAF 赛跑，谁先到谁
+ * 折，上界因此无条件成立；这与 main.tsx 呈现窗口用的是同一条赛跑。#flush 会把脏
+ * 对话取空，后到的那个是空操作。
  */
 const onNextPaint: Paint = (flush) => {
-  /*
-   * 隐藏的窗口不画帧。
-   *
-   * requestAnimationFrame 在 document 隐藏时整个停摆（HTML 规范），于是 #pending
-   * 会跟着一整轮回答无界增长 —— 帧只进不出，回到前台的那一刻一次全折进去。
-   *
-   * 折叠是状态的事，画面只是它的默认时基，不是它的前提。所以没有帧可等的时候按
-   * 一个粗节拍折：同一句语义（下一个空档），换一个时基 —— 与下面那条微任务退路
-   * 同一个道理。
-   */
-  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-    setTimeout(flush, HIDDEN_TEMPO_MS)
+  if (typeof requestAnimationFrame !== 'function') {
+    queueMicrotask(flush)
 
     return
   }
 
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => {
-      flush()
-    })
+  const ceiling = setTimeout(flush, FLUSH_CEILING_MS)
 
-    return
-  }
-
-  queueMicrotask(flush)
+  requestAnimationFrame(() => {
+    clearTimeout(ceiling)
+    flush()
+  })
 }
 
 export class TranscriptStore implements TranscriptSink {

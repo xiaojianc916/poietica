@@ -17,7 +17,7 @@ pub const DEFAULT_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 pub(crate) fn open(path: &Path) -> Result<Connection> {
     let connection = Connection::open(path)?;
 
-    // Write ahead logging lets the UI read while a run is being recorded.
+    // WAL keeps commits append-only; synchronous = NORMAL drops the per-commit fsync.
     //
     // 这一句交回来的是生效之后的模式，不是「有没有报错」。只读目录、网络盘、
     // 或者正被另一个进程按回滚日志开着的文件，都会让它安静地交回 delete。此前

@@ -1,4 +1,4 @@
-import { commands, events, type WindowGeometry } from '@poietica/ipc/generated/ipc-bindings'
+import { commands } from '@poietica/ipc/generated/ipc-bindings'
 import type { Window } from '@tauri-apps/api/window'
 
 export interface MainWindowController {
@@ -8,9 +8,6 @@ export interface MainWindowController {
   toggleMaximize(): Promise<void>
   isMaximized(): Promise<boolean>
   onResized(handler: () => void): Promise<() => void>
-  /** 宿主推来的可见几何。最小化那段几何在原生侧已被丢弃。 */
-  geometry(): Promise<WindowGeometry | null>
-  observeGeometry(handler: (geometry: WindowGeometry) => void): Promise<() => void>
   openDeveloperTools(): Promise<void>
   close(): Promise<void>
   forceClose(): void
@@ -27,13 +24,7 @@ const TERMINATION_REQUESTED_EVENT = 'poietica://termination-requested'
 
 let mainWindow: Promise<Window> | undefined
 
-/*
- * 一次动态 import，整个进程复用。
- *
- * Tauri 的窗口模块在 webview 之外不可用，所以它必须留在静态依赖图之外；但此前
- * 每一个方法各自 await import 一次，把一组同步能力全部变成了 per-call 的解析
- * 往返——use-window-chrome.ts 里那套请求版本号就是为此存在的。
- */
+/* Tauri 的窗口模块在 webview 之外不可用，所以它留在静态依赖图之外；解析一次，整个进程复用。 */
 function getMainWindow(): Promise<Window> {
   mainWindow ??= import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
     const current = getCurrentWindow()
@@ -88,13 +79,6 @@ export function createMainWindowController(): MainWindowController {
         handler()
       })
     },
-
-    geometry: () => commands.windowGeometry(MAIN_WINDOW_LABEL),
-
-    observeGeometry: (handler) =>
-      events.windowGeometry.listen((event) => {
-        handler(event.payload)
-      }),
 
     async close() {
       const window = await getMainWindow()

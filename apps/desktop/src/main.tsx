@@ -1,20 +1,14 @@
 import './app.css'
 
-import {
-  type MainWindowController,
-  type NativeCrashReport,
-  takePreviousNativeCrashReport,
-} from '@poietica/desktop-adapters'
+import { type NativeCrashReport, takePreviousNativeCrashReport } from '@poietica/desktop-adapters'
 import { readWorkbenchSession } from '@poietica/ipc'
 import { DEFAULT_APP_SETTINGS } from '@poietica/settings'
 import { applyThemePreference } from '@poietica/ui'
-import { observeWindowGeometry } from '@poietica/workspace'
 import { mountReactApplication } from './bootstrap/react-root'
 import { installContextMenuGuard } from './chrome/context-menu-guard'
 import { installExternalLinks } from './chrome/external-links'
 import { installScrollbarSize } from './chrome/scrollbar-size'
 import { installTableDownloads } from './chrome/table-downloads'
-import { reportFailure } from './failures/application-policy'
 import { reportFatalIncident } from './failures/terminal-policy'
 
 async function bootstrapApplication(): Promise<void> {
@@ -37,87 +31,19 @@ async function bootstrapApplication(): Promise<void> {
    */
   applyThemePreference(DEFAULT_APP_SETTINGS.theme)
 
-  /*
-   * 工作台恢复是首帧的输入，必须在 React 挂载前读回；否则会先画默认标签，
-   * 再切换到上次状态。原生侧已经在窗口出现前完成数据库迁移，这里只等待
-   * 一条 SELECT。
-   *
-   * 上一次崩溃的报告仍不阻塞挂载：React 就绪后再读取，读到了交给已经在跑
-   * 的致命管线（reportFatalIncident → FatalErrorHost）。
-   */
+  /* 工作台恢复是首帧的输入：先读回再挂载，否则会先画默认标签再跳到上次状态。 */
   const restored = await readWorkbenchSession()
+
+  /* 挂载在 react-root 里同步提交，返回时首帧的 DOM 已在位，所以呈现就在下一句。 */
   const mounted = mountReactApplication(getApplicationRoot(), restored)
 
-  await adoptWindowGeometry(mounted.runtime.mainWindow)
+  performance.mark('poietica:first-commit')
 
-  presentWhenPainted(mounted.runtime.mainWindow)
-
-  void reportPreviousNativeCrash()
-}
-
-/*
- * 窗口以 visible: false 创建，几何已在原生 setup 中恢复，呈现的时机在这里。
- *
- * 两帧：第一帧提交 DOM，第二帧之前浏览器完成绘制。此前 show() 在 Rust 的 setup
- * 里调用，那早于 webview 执行任何脚本，用户先看到的是一个空的背景色窗口。
- *
- * 若这里因为任何原因没能执行，原生侧的看门狗会在 8 秒后兜底呈现，不会留下一个
- * 永远不可见的进程。
- */
-const PRESENT_DEADLINE_MS = 100
-
-function presentWhenPainted(mainWindow: MainWindowController): void {
-  let presented = false
-
-  const present = (): void => {
-    if (presented) {
-      return
-    }
-
-    presented = true
-
-    void mainWindow.present().catch((cause: unknown) => {
-      console.error('[Poietica] Failed to present the main window', cause)
-    })
-  }
-
-  /*
-   * 两帧是理想路径：第一帧提交 DOM，第二帧之前浏览器完成绘制。
-   *
-   * 但窗口是 visible: false 创建的，而 requestAnimationFrame 在文档不可见时
-   * 会被节流、甚至完全不触发 —— 那是规范行为，不是缺陷。只挂在 rAF 上，
-   * 这条正常路径就没有保证，冷启动会落到原生侧那个 8 秒看门狗上，用户看到
-   * 的是八秒的空窗。
-   *
-   * 所以两个信号赛跑，谁先到谁呈现：绘制完成，或者这个期限到了。
-   */
-  requestAnimationFrame(() => {
-    requestAnimationFrame(present)
+  void mounted.runtime.mainWindow.present().catch((cause: unknown) => {
+    console.error('[Poietica] Failed to present the main window', cause)
   })
 
-  setTimeout(present, PRESENT_DEADLINE_MS)
-}
-
-/*
- * 布局模式的唯一输入。先接事件再取快照，中间没有会被漏掉的几何；这一步在
- * 呈现之前完成，于是首帧就是最终形态。
- */
-async function adoptWindowGeometry(mainWindow: MainWindowController): Promise<void> {
-  try {
-    await mainWindow.observeGeometry(observeWindowGeometry)
-
-    const initial = await mainWindow.geometry()
-
-    if (initial !== null) {
-      observeWindowGeometry(initial)
-    }
-  } catch (cause: unknown) {
-    reportFailure('WINDOW_STATE_QUERY_UNAVAILABLE', {
-      scope: 'window-chrome',
-      operation: 'observe-window-geometry',
-      cause,
-    })
-  }
+  void reportPreviousNativeCrash()
 }
 
 async function readPreviousNativeCrashReport(): Promise<NativeCrashReport | null> {
@@ -179,16 +105,4 @@ function getApplicationRoot(): HTMLElement {
   return root
 }
 
-/*
- * 引导调用留在模块末尾，不要往上挪。
- *
- * 函数声明在求值任何语句之前就完成初始化，const 不会 —— 它直到自己那条语句被
- * 求值之前一直处在暂时性死区，读它抛 ReferenceError。调用一旦放到声明之上，
- * presentWhenPainted 就会在 PRESENT_DEADLINE_MS 初始化之前读它；而这条类型检查
- * 与 lint 都看不见：从函数体里引用后面声明的模块级 const 在编译期完全合法，要
- * 判定它是否过早得做调用图可达性分析。
- *
- * 挪到末尾不花时间：整个模块体是同一次同步求值，调用在第几行都在同一个任务里
- * 跑完，早于任何一次绘制。
- */
 void bootstrapApplication()
