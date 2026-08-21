@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, join, relative, resolve } from 'node:path'
 
 function occurrences(source, needle) {
+  if (needle.length === 0) return 0
   let count = 0
   let offset = 0
   while (true) {
@@ -18,17 +19,9 @@ export class Migration {
   staged = new Map()
   removals = new Map()
 
-  fail(message) {
-    throw new Error(`[refactor] ${message}`)
-  }
-
-  path(path) {
-    return join(this.root, path)
-  }
-
-  exists(path) {
-    return existsSync(this.path(path)) && !this.removals.has(path)
-  }
+  fail(message) { throw new Error(`[refactor] ${message}`) }
+  path(path) { return join(this.root, path) }
+  exists(path) { return existsSync(this.path(path)) && !this.removals.has(path) }
 
   read(path) {
     if (this.removals.has(path)) this.fail(`attempted to read staged removal: ${path}`)
@@ -42,14 +35,25 @@ export class Migration {
   replace(path, before, after) {
     if (before === after) return
     const source = this.read(path)
-    const beforeCount = occurrences(source, before)
-    if (beforeCount === 0) {
-      if (occurrences(source, after) === 1) return
+    const count = occurrences(source, before)
+    if (count === 0) {
+      if (after === '' || occurrences(source, after) === 1) return
       this.fail(`anchor not found in ${path}: ${JSON.stringify(before.slice(0, 100))}`)
     }
-    if (beforeCount !== 1) this.fail(`anchor is not unique in ${path}`)
-    if (source.includes(after)) this.fail(`old and target forms coexist in ${path}`)
+    if (count !== 1) this.fail(`anchor is not unique in ${path}`)
+    if (after !== '' && source.includes(after)) this.fail(`old and target forms coexist in ${path}`)
     this.staged.set(path, source.replace(before, after))
+  }
+
+  replaceAll(path, before, after, expectedCount) {
+    const source = this.read(path)
+    const count = occurrences(source, before)
+    if (count === 0) {
+      if (after === '' || source.includes(after)) return
+      this.fail(`anchor not found in ${path}: ${JSON.stringify(before.slice(0, 100))}`)
+    }
+    if (count !== expectedCount) this.fail(`expected ${expectedCount} anchors in ${path}, found ${count}`)
+    this.staged.set(path, source.split(before).join(after))
   }
 
   section(path, start, end, replacement, doneMarker = replacement) {
