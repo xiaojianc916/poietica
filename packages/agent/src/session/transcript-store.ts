@@ -18,6 +18,7 @@ import {
   replayThreadEvents,
 } from '../timeline'
 import { describeFailure } from './describe-failure'
+import { composePrompt, NO_MODES, type RunMode } from './run-mode'
 import type { TranscriptSink } from './transcript-sink'
 
 /*
@@ -62,6 +63,8 @@ const FORGOTTEN = 'agent 那侧已经没有这段会话，经过取不回来了�
 
 export interface Transcript {
   readonly timeline: TimelineState
+  /** 这条对话现在处于哪些模式。它们只在 send 那一处落成文字。 */
+  readonly modes: RunMode
   /** 还在把这条对话取回来。 */
   readonly restoring: boolean
   /** 取回来过。 */
@@ -105,6 +108,7 @@ export interface SendOptions {
  */
 const EMPTY: Transcript = {
   timeline: createTimelineState(),
+  modes: NO_MODES,
   restoring: false,
   loaded: false,
   owned: false,
@@ -396,6 +400,7 @@ export class TranscriptStore implements TranscriptSink {
 
     this.#put(threadId, {
       timeline: lost === null ? replayed : noteOn(replayed, lost, false),
+      modes: this.#now(threadId).modes,
       restoring: false,
       loaded: true,
       owned: false,
@@ -543,16 +548,18 @@ export class TranscriptStore implements TranscriptSink {
          */
         onUserMessage?.(threadId, text.trim() === '' && assets.length > 0 ? IMAGE_OPENER : text)
 
-        return port.prompt({ threadId, text, assets }).then((handle) => {
-          /*
-           * 地址早就在表里了：这条对话打开的那一刻就登记过（route）。
-           *
-           * 这里再写一次是同一个事实写进同一张表 —— 答复里的会话号是原生侧
-           * 此刻真正在用的那一条，而一条刚建出来的对话在开口之前还没有会话
-           * 号可登记。它是幂等的，不是补救。
-           */
-          this.route(handle.sessionId, threadId)
-        })
+        return port
+          .prompt({ threadId, text: composePrompt(current.modes, text), assets })
+          .then((handle) => {
+            /*
+             * 地址早就在表里了：这条对话打开的那一刻就登记过（route）。
+             *
+             * 这里再写一次是同一个事实写进同一张表 —— 答复里的会话号是原生侧
+             * 此刻真正在用的那一条，而一条刚建出来的对话在开口之前还没有会话
+             * 号可登记。它是幂等的，不是补救。
+             */
+            this.route(handle.sessionId, threadId)
+          })
       })
       .catch((cause: unknown) => {
         /* 没有"当前那一轮"要收拾了：这一轮从来没拿到过地址，也就从来没占过谁。 */
@@ -567,6 +574,28 @@ export class TranscriptStore implements TranscriptSink {
    *
    * 入口那一格在开口之前还不是任何一条对话。它没有轮次在飞，也没有会话可发。
    */
+  /*
+   * 模式归这条对话，不归输入框。
+   *
+   * 它们跨轮持续，并且只在 send 那一处落成文字 —— 所以屏幕上记的是人说的原话，
+   * 送出去的那一句才带模式序言。
+   */
+  setGoal = (key: string, goal: string | null): void => {
+    const current = this.#now(key)
+    const said = goal?.trim() ?? ''
+
+    this.#put(key, {
+      ...current,
+      modes: { ...current.modes, goal: said.length === 0 ? null : said },
+    })
+  }
+
+  toggleSwarm = (key: string): void => {
+    const current = this.#now(key)
+
+    this.#put(key, { ...current, modes: { ...current.modes, swarm: !current.modes.swarm } })
+  }
+
   cancel = (key: string): void => {
     const threadId = this.#resolveKey(key)
 

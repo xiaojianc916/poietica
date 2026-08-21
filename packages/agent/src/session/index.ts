@@ -11,13 +11,8 @@ export {
   permissionPostureOf,
   permissionPosturesOf,
 } from './permission-posture'
-export type { PromptDirectives, SkillCall } from './prompt-directives'
-export {
-  composePrompt,
-  hasDirectives,
-  NO_DIRECTIVES,
-  retainedDirectives,
-} from './prompt-directives'
+export type { RunMode } from './run-mode'
+export { composePrompt, hasModes, NO_MODES } from './run-mode'
 export type { SessionControlsFailureReport } from './session-controls-store'
 export { SessionControlsStore } from './session-controls-store'
 export type {

@@ -1,10 +1,14 @@
+import type { RunMode } from '@poietica/agent'
 import { permissionPostureOf } from '@poietica/agent'
 import type { PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
+import type { ReactNode } from 'react'
 import {
   CloseIcon,
+  GoalIcon,
   PlusIcon,
   SirenIcon,
   SkillIcon,
+  SwarmIcon,
   TerminalIcon,
   ToolIcon,
 } from '../primitives/icons'
@@ -147,7 +151,7 @@ function callable(entry: PaletteEntry, skill: boolean): PaletteRow {
     label: skill ? entry.title : entry.label,
     ...(entry.description === '' ? {} : { detail: entry.description }),
     token: entry.label,
-    /* 技能是这一句的调用式，交给输入框成为一枚胶囊；命令仍是插进正文的一段字。 */
+    /* 技能是文档里的一个原子节点；命令仍是插进正文的一段字。 */
     action: skill
       ? { kind: 'skill', skill: { call: entry.label, title: entry.title } }
       : { kind: 'insert', snippet: entry.label },
@@ -164,50 +168,91 @@ function callable(entry: PaletteEntry, skill: boolean): PaletteRow {
 export interface ComposerModeChipProps {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelect: (controlId: string, value: string) => void
+  /** 这条对话自己的模式。真相在 TranscriptStore。 */
+  readonly modes: RunMode
+  readonly onSetGoal: (goal: string | null) => void
+  readonly onToggleSwarm: () => void
 }
 
-export function ComposerModeChip({ controls, onSelect }: ComposerModeChipProps) {
+/** 一枚生效档位：静息左图标右文字，悬停换成移除圆钮。三种模式共用这一处。 */
+function chip(id: string, glyph: ReactNode, label: string, exit: () => void): ReactNode {
+  return (
+    <button
+      aria-label={`退出${label}`}
+      className="assistant-mode-chip"
+      key={id}
+      onClick={exit}
+      type="button"
+    >
+      <span aria-hidden="true" className="assistant-mode-chip__icon">
+        <span className="assistant-mode-chip__glyph">{glyph}</span>
+
+        <span className="assistant-mode-chip__remove">
+          <CloseIcon />
+        </span>
+      </span>
+
+      <span className="assistant-mode-chip__label">{label}</span>
+    </button>
+  )
+}
+
+/*
+ * 生效中的模式，一排胶囊。
+ *
+ * agent 报的那一档（Plan）真相在 agent，摘掉时把挂起前的批准方式还回去（记忆归
+ * posture-memory.ts）；目标与蜂群真相在这条对话（TranscriptStore.modes）。两种
+ * 归属，一套画法与一套交互 —— 屏幕上它们是同一种东西，所以只有这一处代码。
+ */
+export function ComposerModeChip({
+  controls,
+  modes,
+  onSelect,
+  onSetGoal,
+  onToggleSwarm,
+}: ComposerModeChipProps) {
   const mode = controls.find((control) => control.purpose === 'mode')
   const rememberedPosture = usePostureMemory(controls)
+  const chips: ReactNode[] = []
 
-  if (mode === undefined || permissionPostureOf(mode.current) !== undefined) {
-    return null
+  if (mode !== undefined && permissionPostureOf(mode.current) === undefined) {
+    const [first] = mode.choices
+    const inForce = mode.choices.find((choice) => choice.value === mode.current)
+
+    if (first !== undefined && inForce !== undefined && mode.current !== first.value) {
+      const firstPosture = mode.choices.find(
+        (choice) => permissionPostureOf(choice.value) !== undefined,
+      )
+
+      chips.push(
+        chip(mode.id, <SirenIcon />, inForce.label, () => {
+          onSelect(mode.id, rememberedPosture ?? firstPosture?.value ?? first.value)
+        }),
+      )
+    }
   }
 
-  const [first] = mode.choices
-  const inForce = mode.choices.find((choice) => choice.value === mode.current)
-
-  if (first === undefined || inForce === undefined || mode.current === first.value) {
-    return null
+  if (modes.goal !== null) {
+    chips.push(
+      chip('goal', <GoalIcon />, '目标', () => {
+        onSetGoal(null)
+      }),
+    )
   }
 
-  /* 没有记忆（会话一进来就是 plan）才落回首档批准方式。 */
-  const firstPosture = mode.choices.find(
-    (choice) => permissionPostureOf(choice.value) !== undefined,
-  )
+  if (modes.swarm) {
+    chips.push(chip('swarm', <SwarmIcon />, '蜂群模式', onToggleSwarm))
+  }
+
+  if (chips.length === 0) {
+    return null
+  }
 
   return (
     <>
       <span aria-hidden="true" className="assistant-mode-chip__divider" />
 
-      <button
-        aria-label={`退出${inForce.label}`}
-        className="assistant-mode-chip"
-        onClick={() => {
-          onSelect(mode.id, rememberedPosture ?? firstPosture?.value ?? first.value)
-        }}
-        type="button"
-      >
-        <span aria-hidden="true" className="assistant-mode-chip__icon">
-          <SirenIcon className="assistant-mode-chip__glyph" />
-
-          <span className="assistant-mode-chip__remove">
-            <CloseIcon />
-          </span>
-        </span>
-
-        <span className="assistant-mode-chip__label">{inForce.label}</span>
-      </button>
+      {chips}
     </>
   )
 }

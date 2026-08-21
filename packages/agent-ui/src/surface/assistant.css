@@ -75,50 +75,21 @@
   flex-direction: column;
 }
 
-[data-slot="prompt-input-textarea"],
-[data-slot="prompt-input-textarea"]:hover,
-[data-slot="prompt-input-textarea"]:focus,
-[data-slot="prompt-input-textarea"]:focus-visible,
-[data-slot="prompt-input-textarea"]:active {
-  border: 0;
-  border-radius: 0;
-  outline: none;
-  background: transparent;
-  box-shadow: none;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
 /*
- * 高度归浏览器。
+ * 正文那一面。
  *
- * field-sizing: content 让表单控件按内容定尺寸，min-/max-block-size 仍然钳制
- * 上下限，超出上限交给 overflow-y: auto —— 这四行就是整套「跟着内容长高」，
- * 没有任何脚本参与。静息高度仍是 --cp-editor-idle，与此前钳制的下限同一个令牌，
- * 所以这次改动在版式上零像素差。
- *
- * 此前这里有一段注释说它「已经删掉，因为不接线：行内像素值恒胜出」。那个行内
- * 像素值是 composer/use-autosize.ts 自己写的 —— 它把自己造成的因当成了删掉官方
- * 能力的理由。那条路要读 getComputedStyle 取上下限、把 block-size 归零、读
- * scrollHeight、再写回像素值：一次写后读，也就是每敲一个字符一次强制同步重排，
- * 外加一个观察自身高度的 ResizeObserver（它会把这个 hook 写下的高度报回来，
- * 于是还要一个 last width 去滤掉自己造出的回声）。全部由这一条声明取代。
- *
- * 交付面只有 Windows：src-tauri/tauri.conf.json 的 bundle.targets 是 ["nsis"]，
- * 且只配了 bundle.windows，webviewInstallMode 装的是 WebView2 Evergreen，也就是
- * 随系统更新的 Chromium。field-sizing 自 Chromium 123 起 ship，因此这是平台已经
- * 提供的能力，不是一次押注。
- *
- * 不给长高上补间，这是有意的，也是这一类输入框的通行做法（VS Code 的 chat 输入、
- * Zed 的 message editor、GitHub 的评论框都是即时换行）：那段位移恰好是一行行高，
- * 而人此刻正盯着插入符 —— 补间会让插入符与它真正的落点分开一百多毫秒，输入法的
- * 候选窗还得追着动画跑。所以 --cp-motion-grow 不会回来。
+ * 高度由 contenteditable 按内容自然长，上下限仍由令牌钳制，超出上限交给
+ * overflow-y: auto。几何取值与此前的 textarea 逐字相同，所以版式零像素差。
  */
-[data-slot="prompt-input-textarea"] {
+.assistant-prompt-editor {
+  position: relative;
   display: block;
-  field-sizing: content;
   inline-size: 100%;
   min-inline-size: 0;
+}
+
+[data-slot="prompt-input-editor"] {
+  display: block;
   min-block-size: var(--cp-editor-idle);
   max-block-size: var(--cp-editor-max);
   overflow-y: auto;
@@ -127,26 +98,41 @@
   font-size: var(--cp-font);
   line-height: var(--cp-line-ratio);
   color: var(--cp-ink);
-  /*
-   * 这里不声明 caret-color。
-   *
-   * 此前是 var(--cp-accent) —— 那是发送键的品牌色（见本文件
-   * [data-slot="prompt-input-submit"] 的 background，同一个令牌）。光标不是强调
-   * 件：它标的是下一个字形要落在哪里，所以它的颜色就是那个字形的颜色。
-   *
-   * caret-color 的初始值是 auto，解析为 currentColor，也就是上一行的 --cp-ink。
-   * 因此「默认颜色」由删掉声明得到，而不是补一条 caret-color: auto —— 那是用一
-   * 条声明去表达「没有声明」，下一个人还得再判断它盖掉了什么。
-   *
-   * 全仓其余输入框（会话行的 __rename-field、设置页那几个）从来没有声明过它，
-   * 所以这一条删掉之后，输入光标在整个应用里只有一种颜色，公共层不需要兜底。
-   */
-  resize: none;
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   box-sizing: border-box;
 }
 
-[data-slot="prompt-input-textarea"]::placeholder {
+/* 占位字压在第一行上：contenteditable 没有 ::placeholder。 */
+.assistant-prompt-editor__placeholder {
+  position: absolute;
+  inset-block-start: var(--cp-pad-top);
+  inset-inline-start: var(--cp-pad-x);
   color: var(--cp-placeholder);
+  pointer-events: none;
+  user-select: none;
+}
+
+/*
+ * 一次技能调用，就在这句话里。
+ *
+ * 左图标右文字，字号随正文，没有底色也没有叉叉 —— 它是文档里的一个字，不是一枚
+ * 附件。原子性归编辑器：整枚选中、整枚删除。
+ */
+.composer-skill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  color: #2e82d2;
+  vertical-align: baseline;
+  user-select: none;
+}
+
+.composer-skill svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
 }
 
 [data-slot="prompt-input-toolbar"] {

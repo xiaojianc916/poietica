@@ -1,11 +1,21 @@
-import {
-  composePrompt,
-  hasDirectives,
-  NO_DIRECTIVES,
-  type PromptDirectives,
-  retainedDirectives,
-} from '@poietica/agent'
+import { LexicalComposer } from '@lexical/react/LexicalComposer'
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
+import { ContentEditable } from '@lexical/react/LexicalContentEditable'
+import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
+import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
+import { hasModes, type RunMode } from '@poietica/agent'
 import type { ChatStatus } from '@poietica/agent-contract'
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  $getSelection,
+  $isRangeSelection,
+  COMMAND_PRIORITY_HIGH,
+  type EditorState,
+  KEY_ENTER_COMMAND,
+  type LexicalEditor,
+} from 'lexical'
 import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 import {
   createContext,
@@ -28,19 +38,16 @@ import {
 } from '../primitives/icons'
 import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
 import { ComposerPalette, type PaletteGroup, type PaletteRow } from './composer-palette'
+import { $createSkillNode, SkillNode } from './skill-node'
 
 /*
  * The composer input.
  *
- * One owner for everything the box holds. The draft text, the directives it
- * carries and the attachments live here and nowhere else: the form reads them
- * at submit time, the toolbar reads them to decide what it may offer, and the
- * surface reaches them through the context rather than through the document.
- * Nothing in this file, and nothing built on it, looks an element up by id.
+ * 草稿的唯一真相是编辑器状态：正文与技能调用同处一个文档，技能是其中一个原子
+ * 节点（skill-node）。React 这一侧只留两个投影 —— 整串正文（提交用）与插入符前
+ * 那一段字（斜杠过滤用）。附件与面板开合归这里，因为它们是这张卡的一部分。
  *
- * 面板也归这里。加号翻开的与斜杠触发的是同一张，锚在这张卡的上沿；开合、高亮与
- * 落定都跟着草稿走 —— 键盘事件落在 textarea 上，面板自己听不见，所以它的状态必须
- * 与草稿同一个所有者。
+ * 模式（目标、蜂群）不在这里：它们属于对话，真相在 TranscriptStore，由上层交进来。
  */
 
 export type { ChatStatus }
@@ -50,17 +57,6 @@ export interface PromptInputMessage {
   readonly assets: readonly ComposerAsset[]
 }
 
-/*
- * 一类状态一条线，各订各的。
- *
- * 草稿每敲一个字符就变，而工具栏、加号、附件区没有一个真的需要那串字：它们要么
- * 只要动作，要么只要「有没有东西可发」这一个布尔。四方共用一个把 text 收进依赖的
- * useMemo，就意味着每一次按键都换掉同一个引用，整棵 composer 子树跟着 reconcile。
- *
- * 拆开之后：动作恒定，文本只有 textarea 订，附件只有附件区订，而 hasText /
- * hasFiles 只在空与非空之间翻转时换引用。从第一个字符敲到第五百个，工具栏一共
- * 醒一次。
- */
 const NO_ATTACHMENTS: readonly ComposerAsset[] = []
 const NO_GROUPS: readonly PaletteGroup[] = []
 const NO_ROWS: readonly PaletteRow[] = []
@@ -69,44 +65,25 @@ const NO_ROWS: readonly PaletteRow[] = []
 export interface PromptInputDraft {
   readonly hasText: boolean
   readonly hasFiles: boolean
-  /** 这一句带着的指令：技能、目标、蜂群。 */
-  readonly directives: PromptDirectives
+  readonly modes: RunMode
 }
-
-const NO_DRAFT: PromptInputDraft = { hasText: false, hasFiles: false, directives: NO_DIRECTIVES }
-
-/*
- * 收什么，不在这一层判。
- *
- * 判据在原生：内容类型由文件头嗅出来（commands/asset.rs 的 sniff），认不出来的
- * 格式在入库那一步就停住，压根变不出一个 ComposerAsset。所以这里没有 accept ——
- * 从扩展名猜出来的 File.type 骗得过：把 .svg 改名成 .png 就行。
- */
 
 interface PromptInputActions {
   readonly setText: (text: string) => void
-  readonly focusTextarea: () => void
+  readonly focusEditor: () => void
   readonly addAssets: (assets: readonly ComposerAsset[]) => void
   readonly removeAttachment: (assetToken: string) => void
   readonly openFilePicker: () => void
-  readonly registerTextarea: (element: HTMLTextAreaElement | null) => void
   readonly requestSubmit: () => void
   /** 翻开或合上加号那张面板。 */
   readonly togglePalette: () => void
-  /** 在光标处插入一段调用式或片段，保住正在打的字与选区。 */
+  /** 在插入符处插入一段调用式或片段。 */
   readonly insertSnippet: (snippet: string) => void
-  /** 撤下这一句带着的技能。 */
-  readonly dropSkill: () => void
-  /** 目标回到草稿里改写，胶囊随之撤下。 */
-  readonly reviseGoal: () => void
-  /** 退出蜂群模式。 */
-  readonly dropSwarm: () => void
 }
 
 const ActionsContext = createContext<PromptInputActions | null>(null)
-const TextContext = createContext<string>('')
 const AttachmentsContext = createContext<readonly ComposerAsset[]>(NO_ATTACHMENTS)
-const DraftContext = createContext<PromptInputDraft>(NO_DRAFT)
+const DraftContext = createContext<PromptInputDraft | null>(null)
 
 export function usePromptInputActions(): PromptInputActions {
   const actions = useContext(ActionsContext)
@@ -118,43 +95,97 @@ export function usePromptInputActions(): PromptInputActions {
   return actions
 }
 
-export function usePromptInputText(): string {
-  return useContext(TextContext)
-}
-
 export function usePromptInputAttachments(): readonly ComposerAsset[] {
   return useContext(AttachmentsContext)
 }
 
 export function usePromptInputDraft(): PromptInputDraft {
-  return useContext(DraftContext)
+  const draft = useContext(DraftContext)
+
+  if (!draft) {
+    throw new Error('PromptInput sub-components must be rendered inside <PromptInput>.')
+  }
+
+  return draft
 }
 
 /**
  * What the composer may be asked from outside it.
  *
- * The draft is owned here, so writing a starter into it has to come in through
- * the element rather than through a second copy of the state held above it;
- * focus travels with the text, because a phrase the user is meant to finish is
- * useless in an unfocused field.
- *
- * 它就是 ref。React 19 起，函数组件的 ref 是一个普通 prop，useImperativeHandle
- * 收下它并交出这张卡 —— 不需要 forwardRef，也不需要另起一个名字。
+ * 草稿归这张卡，所以外面写进来只能经过这条通道；焦点随文字走。
  */
 export interface PromptInputHandle {
   readonly setText: (text: string) => void
-  /** 往草稿末尾追加一段（如浏览器拾取的元素块），不覆盖正在打的字。 */
   readonly insertText: (text: string) => void
   readonly focus: () => void
 }
 
-/*
- * 只声明这张卡真的兑现的那几项。
- *
- * extends Omit<ComponentProps<'form'>, …> 会让 onKeyDown / onMouseDown / onPaste
- * 出现在类型里而被实现静默丢掉：编译通过、运行无错、行为消失。类型收窄之后这条
- * 陷阱不存在。
- */
+interface DraftProjection {
+  readonly text: string
+  /** 插入符前那一段还没断开的字。斜杠过滤只看它，所以技能调用式不会把面板重新炸开。 */
+  readonly typed: string
+}
+
+const EMPTY_PROJECTION: DraftProjection = { text: '', typed: '' }
+
+/* 纯读：进 editorState.read，不许有副作用。 */
+function readDraft(): DraftProjection {
+  const selection = $getSelection()
+  const text = $getRoot().getTextContent()
+
+  if (
+    !$isRangeSelection(selection) ||
+    !selection.isCollapsed() ||
+    selection.anchor.type !== 'text'
+  ) {
+    return { text, typed: '' }
+  }
+
+  const said = selection.anchor.getNode().getTextContent().slice(0, selection.anchor.offset)
+  const at = said.lastIndexOf(' ')
+
+  return { text, typed: at < 0 ? said : said.slice(at + 1) }
+}
+
+function clearDraft(editor: LexicalEditor): void {
+  editor.update(() => {
+    const root = $getRoot()
+
+    root.clear()
+    root.append($createParagraphNode())
+  })
+}
+
+function replaceDraft(editor: LexicalEditor, text: string): void {
+  editor.update(() => {
+    const root = $getRoot()
+    const paragraph = $createParagraphNode()
+
+    root.clear()
+    paragraph.append($createTextNode(text))
+    root.append(paragraph)
+    paragraph.selectEnd()
+  })
+}
+
+/** 吃掉插入符前那一段已经打出来的字（斜杠落定时用）。 */
+function dropTyped(length: number): void {
+  if (length === 0) {
+    return
+  }
+
+  const selection = $getSelection()
+
+  if (!$isRangeSelection(selection) || selection.anchor.type !== 'text') {
+    return
+  }
+
+  const node = selection.anchor.getNode()
+  const offset = selection.anchor.offset
+
+  node.spliceText(offset - length, length, '', true)
+}
+
 export interface PromptInputProps {
   readonly children?: ReactNode
   readonly className?: string | undefined
@@ -163,43 +194,130 @@ export interface PromptInputProps {
   readonly maxFiles?: number
   /** 面板里 agent 那几组（other 选择器、技能、命令）。「添加」组由这个框自己起头。 */
   readonly groups?: readonly PaletteGroup[] | undefined
-  /** 「添加」组里跟在「添加文件」后面的行：生效模式（目前是 Plan）与其他自成一行的入口。 */
+  /** 「添加」组里跟在「添加文件」后面的行：agent 报的生效模式。 */
   readonly composeRows?: readonly PaletteRow[] | undefined
+  /** 这条对话此刻的模式。真相在 TranscriptStore。 */
+  readonly modes: RunMode
+  readonly onSetGoal: (goal: string | null) => void
+  readonly onToggleSwarm: () => void
   readonly onSubmit: (message: PromptInputMessage) => void
 }
 
-export function PromptInput({
+const EDITOR_NODES = [SkillNode]
+
+export function PromptInput(props: PromptInputProps) {
+  const initialConfig = useMemo(
+    () => ({
+      namespace: 'assistant-composer',
+      nodes: EDITOR_NODES,
+      onError: (error: Error) => {
+        throw error
+      },
+      theme: {},
+    }),
+    [],
+  )
+
+  return (
+    <LexicalComposer initialConfig={initialConfig}>
+      <PromptInputShell {...props} />
+    </LexicalComposer>
+  )
+}
+
+function PromptInputShell({
   children,
   className,
   composeRows,
   groups,
   maxFiles,
+  modes,
   multiple = false,
+  onSetGoal,
   onSubmit,
+  onToggleSwarm,
   ref,
 }: PromptInputProps) {
+  const [editor] = useLexicalComposerContext()
   const intake = useAttachmentIntake()
-  const [text, setTextState] = useState('')
-  const [directives, setDirectives] = useState<PromptDirectives>(NO_DIRECTIVES)
+  const [draftText, setDraftText] = useState(EMPTY_PROJECTION)
+  const [attachments, setAttachments] = useState<readonly ComposerAsset[]>([])
   const [paletteDismissed, setPaletteDismissed] = useState(false)
   const [paletteOpened, setPaletteOpened] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
 
-  /*
-   * 草稿一变，面板的三样状态就回到起点：Esc 压住的只是当前这份草稿的面板，接着敲字
-   * 就该重新看见它；候选换了一批之后，高亮也不该停在旧下标上；而加号翻开的那一张在
-   * 人开始打字时就该让位。
-   */
-  const setText = useCallback((next: string) => {
+  const formRef = useRef<HTMLFormElement>(null)
+
+  const focusEditor = useCallback(() => {
+    editor.focus()
+  }, [editor])
+
+  /* 草稿一变，面板三态回到起点：Esc 压住的只是这一份草稿。 */
+  const rewindPalette = useCallback(() => {
     setPaletteDismissed(false)
     setPaletteOpened(false)
     setHighlighted(0)
-    setTextState(next)
   }, [])
-  const [attachments, setAttachments] = useState<readonly ComposerAsset[]>([])
 
-  const formRef = useRef<HTMLFormElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  useEffect(
+    () =>
+      editor.registerUpdateListener(({ editorState }: { editorState: EditorState }) => {
+        setDraftText(editorState.read(readDraft))
+      }),
+    [editor],
+  )
+
+  /* Enter 发送，Shift+Enter 换行。组词期间一律不碰 —— 那是输入法在说话。 */
+  useEffect(
+    () =>
+      editor.registerCommand<KeyboardEvent<HTMLElement> | null>(
+        KEY_ENTER_COMMAND,
+        (event) => {
+          if (event === null || event.shiftKey || editor.isComposing()) {
+            return false
+          }
+
+          event.preventDefault()
+          formRef.current?.requestSubmit()
+
+          return true
+        },
+        COMMAND_PRIORITY_HIGH,
+      ),
+    [editor],
+  )
+
+  const setText = useCallback(
+    (next: string) => {
+      rewindPalette()
+      replaceDraft(editor, next)
+    },
+    [editor, rewindPalette],
+  )
+
+  const insertText = useCallback(
+    (incoming: string) => {
+      rewindPalette()
+      editor.update(() => {
+        const selection = $getSelection()
+        const said = $getRoot().getTextContent()
+
+        if (!$isRangeSelection(selection)) {
+          return
+        }
+
+        selection.insertText(said.trim().length === 0 ? incoming : `\n\n${incoming}`)
+      })
+      focusEditor()
+    },
+    [editor, focusEditor, rewindPalette],
+  )
+
+  useImperativeHandle(ref, () => ({ setText, insertText, focus: focusEditor }), [
+    focusEditor,
+    insertText,
+    setText,
+  ])
 
   const addAssets = useCallback(
     (incoming: readonly ComposerAsset[]) => {
@@ -211,9 +329,7 @@ export function PromptInput({
             break
           }
 
-          /* 身份是内容摘要，所以同一张图挑两次就是同一张图。这不是"去重"，
-          这是内容寻址本来的意思 —— 两张卡片指着同一个令牌，移掉其中一张会
-          把另一张的字节也放掉。 */
+          /* 身份是内容摘要：同一张图挑两次就是同一张图。 */
           if (next.some((held) => held.assetToken === asset.assetToken)) {
             continue
           }
@@ -231,47 +347,12 @@ export function PromptInput({
     [maxFiles, multiple],
   )
 
-  const focusTextarea = useCallback(() => {
-    const editor = textareaRef.current
-
-    if (!editor) {
-      return
-    }
-
-    editor.focus()
-    editor.setSelectionRange(editor.value.length, editor.value.length)
-  }, [])
-
-  /*
-   * 追加而不是覆盖：拾取块落进来时，正在打的半句话不能没。空草稿整段收下，
-   * 非空草稿以空行相接。面板状态的复位与 setText 同一条理由，焦点随文本走。
-   */
-  const insertText = useCallback(
-    (incoming: string) => {
-      setPaletteDismissed(false)
-      setPaletteOpened(false)
-      setHighlighted(0)
-      setTextState((current) =>
-        current.trim().length === 0 ? incoming : `${current.trimEnd()}\n\n${incoming}`,
-      )
-      focusTextarea()
-    },
-    [focusTextarea],
-  )
-
-  useImperativeHandle(ref, () => ({ setText, insertText, focus: focusTextarea }), [
-    focusTextarea,
-    insertText,
-    setText,
-  ])
-
   const removeAttachment = useCallback(
     (assetToken: string) => {
       setAttachments((current) => {
         const going = current.find((attachment) => attachment.assetToken === assetToken)
 
-        /* 移掉一张卡片就是放掉那一份字节。不放，注册表会一直替一个已经不在
-      屏幕上的东西占着预算，而那笔预算是整个进程共用的（MAX_REGISTRY_BYTES）。 */
+        /* 移掉一张卡片就是放掉那一份字节：注册表的预算是整个进程共用的。 */
         if (going !== undefined) {
           intake?.discard(going)
         }
@@ -282,92 +363,50 @@ export function PromptInput({
     [intake],
   )
 
-  /*
-   * 加号：系统文件对话框，不是一个藏起来的 <input type="file">。
-   *
-   * 它交回的是路径，而路径正是原生入库要的东西（asset_import）—— 那个隐藏的
-   * input 交回的是 File，于是字节必须先被读进 webview 才能过去。
-   */
+  /* 加号走系统文件对话框：它交回路径，而路径正是原生入库要的东西。 */
   const openFilePicker = useCallback(() => {
     if (intake === null) {
       return
     }
 
     void intake.pick(multiple).then(addAssets, () => {
-      /* 用户取消，或者这一批一个都收不下。两种都不该在屏幕上炸出一句报错：
-      收不下的原因（格式不对）由原生说，而它说的话属于这一句消息的转录，
-      不属于输入框 —— 输入框只是没有多出一张卡片。 */
+      /* 取消，或这一批一个都收不下：原因归转录，输入框只是没多出一张卡片。 */
     })
   }, [addAssets, intake, multiple])
 
-  /* 加号：开着就合上，合上就翻开。高亮回到第一行，因为看见的是一批新行。 */
   const togglePalette = useCallback(() => {
     setPaletteDismissed(false)
     setHighlighted(0)
     setPaletteOpened((open) => !open)
   }, [])
 
-  /* 收面板的唯一出口：Esc、落定一行、点到卡外，都是这两步。 */
   const closePalette = useCallback(() => {
     setPaletteOpened(false)
     setPaletteDismissed(true)
   }, [])
 
-  /*
-   * 在光标处插入，靠平台 API 而不是手拼下标：setRangeText 归并选区替换与光标落点
-   * （WHATWG HTML 标准），插完把 DOM 值收回唯一真相。没有输入框（问答面板期间）
-   * 就没有插入点。
-   */
-  const insertSnippet = useCallback((snippet: string) => {
-    const editor = textareaRef.current
+  const insertSnippet = useCallback(
+    (snippet: string) => {
+      rewindPalette()
+      editor.update(() => {
+        const selection = $getSelection()
 
-    if (editor === null) {
-      return
-    }
-
-    setPaletteDismissed(false)
-    setPaletteOpened(false)
-    setHighlighted(0)
-    editor.setRangeText(snippet, editor.selectionStart, editor.selectionEnd, 'end')
-    setTextState(editor.value)
-    editor.focus()
-  }, [])
-
-  const dropSkill = useCallback(() => {
-    setDirectives((held) => (held.skill === null ? held : { ...held, skill: null }))
-  }, [])
-
-  /* 改写就是把它还回草稿：胶囊里的字没有第二处可编辑，撤下不该把它丢掉。 */
-  const reviseGoal = useCallback(() => {
-    const goal = directives.goal
-
-    if (goal === null) {
-      return
-    }
-
-    setTextState((draft) => (draft.trim().length === 0 ? goal : draft))
-    setDirectives((held) => ({ ...held, goal: null }))
-    focusTextarea()
-  }, [directives.goal, focusTextarea])
-
-  const dropSwarm = useCallback(() => {
-    setDirectives((held) => (held.swarm ? { ...held, swarm: false } : held))
-  }, [])
-
-  const registerTextarea = useCallback((element: HTMLTextAreaElement | null) => {
-    textareaRef.current = element
-  }, [])
+        if ($isRangeSelection(selection)) {
+          selection.insertText(snippet)
+        }
+      })
+      focusEditor()
+    },
+    [editor, focusEditor, rewindPalette],
+  )
 
   const requestSubmit = useCallback(() => {
     formRef.current?.requestSubmit()
   }, [])
 
   /*
-   * 往窗口里拖文件。
-   *
-   * Tauri 的 dragDropEnabled 默认为真，原生拖放接管了整个 webview，HTML5 的那一套
-   * 在 Windows 上收不到事件（官方文档：Disabling it is required to use HTML5 drag
-   * and drop on the frontend on Windows）。所以听原生这一条：它给的是路径。
+   * 往窗口里拖文件走原生那一条：Tauri 的 dragDropEnabled 默认接管整个 webview，
+   * Windows 上 HTML5 拖放收不到事件（官方文档）。
    */
   useEffect(() => {
     if (intake === null) {
@@ -377,57 +416,36 @@ export function PromptInput({
     return intake.watchDrop(addAssets)
   }, [addAssets, intake])
 
-  /* 引用只随「目标变了」换一次（reviseGoal 要把它还回草稿），敲字动不了它。 */
   const actions = useMemo<PromptInputActions>(
     () => ({
       setText,
-      focusTextarea,
+      focusEditor,
       addAssets,
       removeAttachment,
       openFilePicker,
-      registerTextarea,
       requestSubmit,
       togglePalette,
       insertSnippet,
-      dropSkill,
-      reviseGoal,
-      dropSwarm,
     }),
     [
       addAssets,
-      dropSkill,
-      dropSwarm,
-      focusTextarea,
+      focusEditor,
       insertSnippet,
       openFilePicker,
-      registerTextarea,
       removeAttachment,
       requestSubmit,
-      reviseGoal,
       setText,
       togglePalette,
     ],
   )
 
-  /*
-   * 两个布尔，不是一串字。
-   *
-   * 依赖是布尔本身，所以第 2 到第 500 个字符全部落在同一个引用上 —— 订这条线
-   * 的工具栏因此不会因为多敲一个字而重渲。
-   */
-  const hasText = text.trim().length > 0
+  const hasText = draftText.text.trim().length > 0
   const hasFiles = attachments.length > 0
   const draft = useMemo<PromptInputDraft>(
-    () => ({ hasText, hasFiles, directives }),
-    [directives, hasFiles, hasText],
+    () => ({ hasText, hasFiles, modes }),
+    [hasFiles, hasText, modes],
   )
 
-  /*
-   * 面板的行：第一组由这个框起头，其余是 agent 报的。
-   *
-   * 「添加文件」不来自 agent，也不该等 agent 连上才出现 —— 它是这个框自己的能力，
-   * 所以由这里补；跟在后面的 composeRows 由上游投影，这里不解释。
-   */
   const allGroups = useMemo<readonly PaletteGroup[]>(
     () => [
       {
@@ -447,7 +465,8 @@ export function PromptInput({
             icon: <GoalIcon aria-hidden="true" />,
             label: '目标',
             detail: '把这句话设为要持续追求的目标',
-            disabled: !hasText,
+            checked: modes.goal !== null,
+            disabled: !hasText && modes.goal === null,
             action: { kind: 'goal' as const },
           },
           {
@@ -455,29 +474,25 @@ export function PromptInput({
             icon: <SwarmIcon aria-hidden="true" />,
             label: '蜂群模式',
             detail: '多个子代理并行协作',
-            checked: directives.swarm,
+            checked: modes.swarm,
             action: { kind: 'swarm' as const },
           },
         ],
       },
       ...(groups ?? NO_GROUPS),
     ],
-    [composeRows, directives.swarm, groups, hasText, openFilePicker],
+    [composeRows, groups, hasText, modes.goal, modes.swarm, openFilePicker],
   )
 
-  /*
-   * 斜杠不是第二张菜单，只是给同一张面板加一道过滤：正文以 / 开头、还没敲出空白。
-   * 空格落下的那一刻它自然停 —— 命令敲完了，后面是参数。只有带调用式的行参与匹配，
-   * 所以档位与「添加文件」不会在敲 /c 的时候跳出来。
-   */
-  const slashing = /^\/\S*$/.test(text)
+  /* 斜杠只是给同一张面板加一道过滤：插入符前那一段以 / 开头、还没敲出空白。 */
+  const slashing = /^\/\S*$/.test(draftText.typed)
 
   const visible = useMemo<readonly PaletteGroup[]>(() => {
     if (!slashing) {
       return allGroups
     }
 
-    const needle = text.toLowerCase()
+    const needle = draftText.typed.toLowerCase()
 
     return allGroups
       .map((group) => ({
@@ -491,14 +506,14 @@ export function PromptInput({
         }),
       }))
       .filter((group) => group.rows.length > 0)
-  }, [allGroups, slashing, text])
+  }, [allGroups, draftText.typed, slashing])
 
   const rows = useMemo(() => visible.flatMap((group) => group.rows), [visible])
   const paletteOpen = (paletteOpened || (slashing && !paletteDismissed)) && rows.length > 0
 
   const pickRow = useCallback(
     (row: PaletteRow) => {
-      /* 禁用按钮在 WebKit 仍会派发指针事件（Blink/Gecko 不会），统一在这里拦死。 */
+      /* 禁用按钮在 WebKit 仍会派发指针事件，统一在这里拦死。 */
       if (row.disabled === true) {
         return
       }
@@ -506,71 +521,91 @@ export function PromptInput({
       closePalette()
 
       const { action } = row
+      const typed = slashing ? draftText.typed.length : 0
 
       switch (action.kind) {
         case 'run': {
           action.run()
-          focusTextarea()
+          focusEditor()
 
           return
         }
 
-        /* 技能成为这一句的一枚胶囊：斜杠敲出来的那半个调用式随之作废。 */
+        /* 技能成为文档里的一个字：斜杠敲出来的那半个调用式当场让位。 */
         case 'skill': {
-          setDirectives((held) => ({ ...held, skill: action.skill }))
+          editor.update(() => {
+            const selection = $getSelection()
 
-          if (slashing) {
-            setTextState('')
+            if (!$isRangeSelection(selection)) {
+              return
+            }
+
+            dropTyped(typed)
+            selection.insertNodes([$createSkillNode(action.skill.call, action.skill.title)])
+            selection.insertText(' ')
+          })
+          focusEditor()
+
+          return
+        }
+
+        /* 目标就是此刻这句话：它从草稿搬进模式，此后每一轮随那句话重述一次。 */
+        case 'goal': {
+          if (modes.goal !== null) {
+            onSetGoal(null)
+            focusEditor()
+
+            return
           }
 
-          focusTextarea()
-
-          return
-        }
-
-        /* 目标就是此刻这句话：它从草稿搬进胶囊，此后每一轮随那句话重述一次。 */
-        case 'goal': {
-          const goal = text.trim()
+          const goal = draftText.text.trim()
 
           if (goal.length > 0) {
-            setDirectives((held) => ({ ...held, goal }))
-            setTextState('')
+            onSetGoal(goal)
+            clearDraft(editor)
           }
 
-          focusTextarea()
+          focusEditor()
 
           return
         }
 
         case 'swarm': {
-          setDirectives((held) => ({ ...held, swarm: !held.swarm }))
-          focusTextarea()
+          onToggleSwarm()
+          focusEditor()
 
           return
         }
 
-        /* 斜杠态下整条草稿就是那个调用式，落定即替换；加号翻开时它插在光标处。 */
         case 'insert': {
-          if (slashing) {
-            setTextState(`${action.snippet} `)
-            focusTextarea()
+          editor.update(() => {
+            const selection = $getSelection()
 
-            return
-          }
+            if (!$isRangeSelection(selection)) {
+              return
+            }
 
-          insertSnippet(`${action.snippet} `)
+            dropTyped(typed)
+            selection.insertText(action.snippet + ' ')
+          })
+          focusEditor()
         }
       }
     },
-    [closePalette, focusTextarea, insertSnippet, slashing, text],
+    [
+      closePalette,
+      draftText.text,
+      draftText.typed.length,
+      editor,
+      focusEditor,
+      modes.goal,
+      onSetGoal,
+      onToggleSwarm,
+      slashing,
+    ],
   )
 
-  /*
-   * 面板开着时这几个键归面板：方向键走高亮，Enter/Tab 落定，Esc 压住。挂在捕获相：
-   * textarea 的 Enter 提交挂在目标相，捕获相先到，stopPropagation 一停它就不会跑 ——
-   * textarea 不需要知道面板的存在。输入法组词中的键一律不碰。
-   */
-  /* 点到卡外就收面板。捕获相 pointerdown 而不是 blur：Chromium/WebKit 点不可聚焦区域不移走焦点。 */
+  /* 点到卡外就收面板：捕获相 pointerdown，因为点不可聚焦区域不移走焦点。 */
   useEffect(() => {
     if (!paletteOpen) {
       return undefined
@@ -591,6 +626,7 @@ export function PromptInput({
     }
   }, [closePalette, paletteOpen])
 
+  /* 面板开着时这几个键归面板。捕获相先到，编辑器因此不需要知道面板存在。 */
   const onPaletteKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
     if (!paletteOpen || event.nativeEvent.isComposing) {
       return
@@ -602,7 +638,6 @@ export function PromptInput({
 
       const step = event.key === 'ArrowDown' ? 1 : -1
 
-      /* 禁用行不入高亮：与 Base UI 菜单的方向键行为一致。 */
       setHighlighted((current) => {
         let next = current
 
@@ -636,7 +671,6 @@ export function PromptInput({
     }
   }
 
-  /* Scoped to the composer, so it cannot outrank the workbench command table. */
   const onFormKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'u') {
       event.preventDefault()
@@ -644,84 +678,77 @@ export function PromptInput({
     }
   }
 
-  /* Clicking the card is clicking the field, unless something else was hit. */
+  /* 点这张卡就是点这个框，除非点在别的控件上。 */
   const onFormMouseDown = (event: MouseEvent<HTMLFormElement>) => {
-    if ((event.target as HTMLElement).closest('button, a, input, textarea, [role]')) {
+    if ((event.target as HTMLElement).closest('button, a, input, [role]')) {
       return
     }
 
     event.preventDefault()
-    focusTextarea()
+    focusEditor()
   }
 
   return (
     <ActionsContext value={actions}>
-      <TextContext value={text}>
-        <AttachmentsContext value={attachments}>
-          <DraftContext value={draft}>
-            <form
-              className={cx('assistant-prompt-input', className)}
-              data-slot="prompt-input"
-              onKeyDown={onFormKeyDown}
-              onKeyDownCapture={onPaletteKeyDown}
-              onMouseDown={onFormMouseDown}
-              onPaste={(event) => {
-                /* 三条路里唯一还经过字节的一条：剪贴板里的截图没有路径，
-                系统给不出，所以它走不了按路径入库那一条。粘贴文字不该被
-                这一层碰到，所以先看有没有文件。 */
-                const [pasted] = Array.from(event.clipboardData.files)
+      <AttachmentsContext value={attachments}>
+        <DraftContext value={draft}>
+          <form
+            className={cx('assistant-prompt-input', className)}
+            data-slot="prompt-input"
+            onKeyDown={onFormKeyDown}
+            onKeyDownCapture={onPaletteKeyDown}
+            onMouseDown={onFormMouseDown}
+            onPaste={(event) => {
+              /* 剪贴板里的截图没有路径，所以它是唯一还经过字节的一条。 */
+              const [pasted] = Array.from(event.clipboardData.files)
 
-                if (intake === null || pasted === undefined) {
-                  return
-                }
+              if (intake === null || pasted === undefined) {
+                return
+              }
 
-                event.preventDefault()
+              event.preventDefault()
 
-                void intake.paste(pasted).then(
-                  (asset) => {
-                    addAssets([asset])
-                  },
-                  () => {
-                    /* 与加号同一条规矩：收不下就是没多出一张卡片。 */
-                  },
-                )
-              }}
-              onSubmit={(event) => {
-                event.preventDefault()
+              void intake.paste(pasted).then(
+                (asset) => {
+                  addAssets([asset])
+                },
+                () => {
+                  /* 收不下就是没多出一张卡片。 */
+                },
+              )
+            }}
+            onSubmit={(event) => {
+              event.preventDefault()
 
-                const message = composePrompt(directives, text)
+              const said = draftText.text.trim()
 
-                if (message.length === 0 && attachments.length === 0) {
-                  return
-                }
+              if (said.length === 0 && attachments.length === 0 && !hasModes(modes)) {
+                return
+              }
 
-                /* 屏幕上那一句与送出去的那一句是同一段字节：指令只在 composePrompt
-                这一处落成文字。批准方式与运行模式仍不落文字 —— 它们是 agent 自己
-                的状态，由那一侧生效。 */
-                onSubmit({ text: message, assets: attachments })
-                setText('')
-                setDirectives(retainedDirectives)
+              /* 模式不落进这段字节：它们由 TranscriptStore 在送出那一处落成文字。 */
+              onSubmit({ text: said, assets: attachments })
+              clearDraft(editor)
+              rewindPalette()
 
-                /* 不 discard：这些字节现在归这条对话的交付会话（原生侧 adopt
-                会把引用加一），输入框只是不再拿着它们。 */
-                setAttachments([])
-              }}
-              ref={formRef}
-            >
-              {paletteOpen ? (
-                <ComposerPalette
-                  groups={visible}
-                  highlighted={highlighted}
-                  onHighlight={setHighlighted}
-                  onPick={pickRow}
-                />
-              ) : null}
+              /* 不 discard：这些字节现在归这条对话的交付会话。 */
+              setAttachments([])
+            }}
+            ref={formRef}
+          >
+            {paletteOpen ? (
+              <ComposerPalette
+                groups={visible}
+                highlighted={highlighted}
+                onHighlight={setHighlighted}
+                onPick={pickRow}
+              />
+            ) : null}
 
-              {children}
-            </form>
-          </DraftContext>
-        </AttachmentsContext>
-      </TextContext>
+            {children}
+          </form>
+        </DraftContext>
+      </AttachmentsContext>
     </ActionsContext>
   )
 }
@@ -730,47 +757,27 @@ export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) 
   return <div className={className} data-slot="prompt-input-body" {...props} />
 }
 
-export function PromptInputTextarea({
-  className,
-  placeholder,
-  ...props
-}: ComponentProps<'textarea'>) {
-  const { registerTextarea, requestSubmit, setText } = usePromptInputActions()
-  const text = usePromptInputText()
-
-  /*
-   * ref 只有一件事：谁持有这个元素。
-   *
-   * 高度归样式表（field-sizing: content），所以不再需要一层把「持有」与「量高」
-   * 缝在一起的回调。registerTextarea 本身是零依赖的 useCallback，终身同一个函数，
-   * React 在卸载时会用 null 再调它一次。
-   */
-
+/**
+ * 正文那一面。
+ *
+ * contenteditable 归 Lexical：选区、输入法组词、撤销栈与粘贴规范化都在内核里，
+ * 这里只声明壳与占位字。
+ */
+export function PromptInputEditor({ placeholder }: { readonly placeholder: string }) {
   return (
-    <textarea
-      /*
-       * 展开排在受控三件套之前。
-       *
-       * 与同文件 <form> 上那条规矩一致：调用方补充 props，但不静默顶掉这个框
-       * 自己的行为。value / onChange / ref 任意一个被顶掉，草稿就有了第二个
-       * 所有者，而这个文件的全部前提是「一个所有者」。
-       */
-      {...props}
-      className={className}
-      data-slot="prompt-input-textarea"
-      onChange={(event) => {
-        setText(event.currentTarget.value)
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-          event.preventDefault()
-          requestSubmit()
+    <div className="assistant-prompt-editor">
+      <PlainTextPlugin
+        contentEditable={
+          <ContentEditable
+            aria-label="消息"
+            className="assistant-prompt-editor__input"
+            data-slot="prompt-input-editor"
+          />
         }
-      }}
-      placeholder={placeholder}
-      ref={registerTextarea}
-      value={text}
-    />
+        ErrorBoundary={LexicalErrorBoundary}
+        placeholder={<div className="assistant-prompt-editor__placeholder">{placeholder}</div>}
+      />
+    </div>
   )
 }
 
@@ -803,14 +810,8 @@ export function PromptInputSubmit({
   readonly status?: ChatStatus
   readonly onCancel?: (() => void) | undefined
 }) {
-  /*
-   * 能不能发，由持有草稿的这一侧自己答。
-   *
-   * 消费点下沉到真正用它的叶子：订在工具栏那一层，「空↔非空」翻转一次就要重渲
-   * 整条工具栏，而它与草稿空不空无关。disabled 仍可由外部显式压过 —— 这是
-   * 「补充」，不是第二个判据。
-   */
-  const { directives, hasFiles, hasText } = usePromptInputDraft()
+  /* 能不能发，由持有草稿的这一侧自己答。 */
+  const { hasFiles, hasText, modes } = usePromptInputDraft()
   const isStreaming = status === 'streaming'
   const Icon = isStreaming ? StopIcon : status === 'submitted' ? SpinnerIcon : SubmitIcon
 
@@ -821,7 +822,7 @@ export function PromptInputSubmit({
       className={className}
       data-slot="prompt-input-submit"
       data-status={status}
-      disabled={disabled ?? (!isStreaming && !hasText && !hasFiles && !hasDirectives(directives))}
+      disabled={disabled ?? (!isStreaming && !hasText && !hasFiles && !hasModes(modes))}
       onClick={isStreaming ? onCancel : undefined}
       type={isStreaming ? 'button' : 'submit'}
     >

@@ -27,6 +27,8 @@ catalog:
   "clsx": "2.1.1"
   diff: 9.0.0
   katex: 0.18.4
+  "@lexical/react": "0.21.0"
+  lexical: 0.21.0
   lucide-react: 1.32.0
   "motion": "13.1.0"
   "react": "^19.2.8"

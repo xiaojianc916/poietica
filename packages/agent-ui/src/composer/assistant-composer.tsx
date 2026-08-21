@@ -1,7 +1,7 @@
 import './composer-actions.css'
 import './question-panel.css'
 
-import type { QuestionTimelineItem } from '@poietica/agent'
+import type { QuestionTimelineItem, RunMode } from '@poietica/agent'
 import type {
   ChatStatus,
   PaletteEntry,
@@ -18,7 +18,6 @@ import {
   composerModeRows,
   composerPaletteGroups,
 } from './composer-actions'
-import { ComposerTokens } from './composer-tokens'
 import { ContextGauge } from './context-gauge'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PermissionPicker } from './permission-picker'
@@ -26,8 +25,8 @@ import type { PromptInputHandle } from './prompt-input'
 import {
   PromptInput,
   PromptInputBody,
+  PromptInputEditor,
   PromptInputSubmit,
-  PromptInputTextarea,
   PromptInputToolbar,
   PromptInputTools,
 } from './prompt-input'
@@ -61,6 +60,10 @@ export interface AssistantComposerProps {
   /** 读失败之后重新问一次。 */
   readonly onRetryControls?: (() => void) | undefined
   readonly onSelectControl: (controlId: string, value: string) => void
+  /** 这条对话此刻的模式，与写回它的两条通道。真相在 TranscriptStore。 */
+  readonly modes: RunMode
+  readonly onSetGoal: (goal: string | null) => void
+  readonly onToggleSwarm: () => void
   /** 这条会话最近报的上下文用量。缺席就不画那颗胶囊。 */
   readonly usage?: SessionUsage | undefined
   /**
@@ -96,15 +99,26 @@ export interface AssistantComposerProps {
  */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  'controls' | 'controlsFailure' | 'onCancel' | 'onRetryControls' | 'onSelectControl' | 'usage'
+  | 'controls'
+  | 'controlsFailure'
+  | 'modes'
+  | 'onCancel'
+  | 'onRetryControls'
+  | 'onSelectControl'
+  | 'onSetGoal'
+  | 'onToggleSwarm'
+  | 'usage'
 > & { readonly status: ChatStatus }
 
 function ComposerToolbar({
   controls,
   controlsFailure,
+  modes,
   onCancel,
   onRetryControls,
   onSelectControl,
+  onSetGoal,
+  onToggleSwarm,
   status,
   usage,
 }: ComposerToolbarProps) {
@@ -130,8 +144,14 @@ function ComposerToolbar({
         */}
         <PermissionPicker controls={controls} onSelect={onSelectControl} />
 
-        {/* 生效的档位：一颗，摘掉就是切回首档。真相在 agent 那边。 */}
-        <ComposerModeChip controls={controls} onSelect={onSelectControl} />
+        {/* 生效中的模式：agent 报的那一档与这条对话自己的两档，一套画法。 */}
+        <ComposerModeChip
+          controls={controls}
+          modes={modes}
+          onSelect={onSelectControl}
+          onSetGoal={onSetGoal}
+          onToggleSwarm={onToggleSwarm}
+        />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />
@@ -174,6 +194,9 @@ export const AssistantComposer = memo(function AssistantComposer({
   approval,
   onAnswerQuestions,
   onDismissQuestions,
+  modes,
+  onSetGoal,
+  onToggleSwarm,
   palette,
   placeholder = '问我任何问题…',
   question,
@@ -236,8 +259,11 @@ export const AssistantComposer = memo(function AssistantComposer({
         className={asking ? 'assistant-prompt-input--question' : undefined}
         composeRows={composeRows}
         groups={groups}
+        modes={modes}
         multiple
+        onSetGoal={onSetGoal}
         onSubmit={onSubmit}
+        onToggleSwarm={onToggleSwarm}
         ref={ref}
       >
         {asking ? (
@@ -254,12 +280,16 @@ export const AssistantComposer = memo(function AssistantComposer({
             <PromptInputBody>
               <AttachmentTray />
 
-              <ComposerTokens />
-
-              <PromptInputTextarea placeholder={placeholder} />
+              <PromptInputEditor placeholder={placeholder} />
             </PromptInputBody>
 
-            <ComposerToolbar status={status} {...toolbar} />
+            <ComposerToolbar
+              modes={modes}
+              onSetGoal={onSetGoal}
+              onToggleSwarm={onToggleSwarm}
+              status={status}
+              {...toolbar}
+            />
           </>
         )}
       </PromptInput>
