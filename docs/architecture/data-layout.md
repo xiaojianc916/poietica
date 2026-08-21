@@ -18,7 +18,7 @@
 
 开发构建不适用这条：exe 在 `target/debug` 下，往那里写用户数据会被 cargo clean
 抹掉。开发落点固定在平台目录，identifier 由 `tauri.dev.conf.json` 覆盖成带
-`.dev` 后缀的形式，叠加那份配置的是 `scripts/tauri.mjs`，只对 dev 子命令生效。
+`.dev` 后缀的形式。
 开发与安装版因此不会同时打开同一个 WAL 库，也不会互相覆盖各自的 settings.json
 与 agent 凭据。
 

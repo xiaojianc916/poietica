@@ -46,20 +46,17 @@ async function bootstrapApplication(): Promise<void> {
   void reportPreviousNativeCrash()
 }
 
-async function readPreviousNativeCrashReport(): Promise<NativeCrashReport | null> {
+async function reportPreviousNativeCrash(): Promise<void> {
+  let report: NativeCrashReport | null
+
   try {
-    return await takePreviousNativeCrashReport()
+    report = await takePreviousNativeCrashReport()
   } catch (error: unknown) {
-    // Failure to inspect an old crash report must not prevent a healthy
-    // application startup. The current failure remains visible in native logs.
+    /* 旧崩溃报告读不出来不能拦住一次健康启动；当前失败在原生日志里仍有记录。 */
     console.error('[Poietica] Failed to inspect previous native crash report', error)
 
-    return null
+    return
   }
-}
-
-async function reportPreviousNativeCrash(): Promise<void> {
-  const report = await readPreviousNativeCrashReport()
 
   if (report === null) {
     return

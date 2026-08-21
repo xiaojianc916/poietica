@@ -4,7 +4,8 @@ import { isReactFatalHostMounted } from './failures/terminal-policy'
 import type { TerminalFailureViewModel } from './failures/terminal-view-model'
 import { createTerminalFailureViewModel } from './failures/terminal-view-model'
 
-const errorRobotIllustrationUrl = new URL('./failures/assets/error-robot.svg', import.meta.url).href
+/* 骨架在 index.html 里；只有插图地址必须由构建期解析，所以它留在这里。 */
+const illustrationUrl = new URL('./failures/assets/error-robot.svg', import.meta.url).href
 
 installFatalCollectors()
 
@@ -19,184 +20,153 @@ failureCoordinator.subscribe(() => {
     return
   }
 
-  const model = createTerminalFailureViewModel(terminal.incident, terminal.additionalIncidentCount)
-
-  renderPreReactFatalScreen(model)
+  render(createTerminalFailureViewModel(terminal.incident, terminal.additionalIncidentCount))
 })
 
-function renderPreReactFatalScreen(model: TerminalFailureViewModel): void {
+function render(model: TerminalFailureViewModel): void {
   const root = document.getElementById('root')
+  const screen = instantiate('fatal-screen')
 
-  if (!root) {
-    try {
-      console.error('[Poietica] Root element unavailable', model.summary)
-    } catch {
-      // No further safe fallback.
-    }
+  if (!root || !screen) {
+    console.error('[Poietica] 致命屏模板缺失', model.summary)
 
     return
   }
 
-  root.replaceChildren(createFatalSurface(model))
+  fill(screen, '.fatal-title', model.title)
+  fill(screen, '.fatal-description', model.description)
+  fill(screen, '.fatal-summary', model.summary)
+  fill(screen, '.fatal-details summary', model.detailsLabel)
+  fill(screen, '.fatal-diagnostic', model.diagnostic)
 
-  presentWindow()
-}
+  const illustration = screen.querySelector('img')
 
-/*
- * 窗口以 visible: false 创建，正常路径由 React 首帧之后呈现。这条路径上 React
- * 永远不会挂载，所以崩溃屏必须自己把窗口叫出来。
- */
-function presentWindow(): void {
-  void import('@poietica/desktop-adapters')
-    .then(({ createMainWindowController }) => createMainWindowController().present())
-    .catch(() => {
-      // 窗口无法呈现时没有可用的补救界面；原生日志里仍然留有记录。
-    })
-}
-
-function createFatalSurface(model: TerminalFailureViewModel): HTMLElement {
-  const main = createElement('main', 'fatal-surface')
-
-  main.setAttribute('role', 'alert')
-  main.setAttribute('aria-live', 'assertive')
-
-  const content = createElement('section', 'fatal-content')
-
-  const illustration = createElement('img', 'fatal-illustration')
-
-  illustration.src = errorRobotIllustrationUrl
-  illustration.alt = ''
-  illustration.setAttribute('aria-hidden', 'true')
-
-  const title = createTextElement('h1', 'fatal-title', model.title)
-  const description = createTextElement('p', 'fatal-description', model.description)
-  const summary = createTextElement('p', 'fatal-summary', model.summary)
-
-  const details = createElement('details', 'fatal-details')
-  const detailsSummary = createTextElement('summary', undefined, model.detailsLabel)
-  const diagnostic = createTextElement('pre', 'fatal-diagnostic', model.diagnostic)
-
-  details.append(detailsSummary, diagnostic)
-
-  const actions = createElement('div', 'fatal-actions')
-
-  actions.setAttribute('aria-label', '错误处理操作')
-  actions.setAttribute('role', 'group')
-
-  const primaryAction = model.primaryAction
-
-  if (primaryAction) {
-    const reloadButton = createIconButton(
-      'fatal-icon-button',
-      primaryAction.label,
-      createReloadIcon(),
-    )
-
-    reloadButton.onclick = () => {
-      executePrimaryAction(primaryAction)
-    }
-
-    actions.append(reloadButton)
+  if (illustration) {
+    illustration.src = illustrationUrl
   }
 
-  const copyButton = createIconButton('fatal-icon-button', model.copyActionLabel, createCopyIcon())
+  const secondary = screen.querySelector<HTMLElement>('.fatal-secondary')
 
-  let copyResetTimer: number | undefined
+  if (secondary && model.additionalIncidentMessage) {
+    secondary.textContent = model.additionalIncidentMessage
+    secondary.hidden = false
+  }
 
-  copyButton.onclick = async () => {
+  const primaryAction = model.primaryAction
+  const reload = action(screen, 'reload')
+
+  if (reload && primaryAction) {
+    label(reload, primaryAction.label, 'reload')
+
+    reload.hidden = false
+
+    reload.onclick = () => {
+      window.location.reload()
+    }
+  }
+
+  const close = action(screen, 'close')
+
+  if (close) {
+    label(close, model.closeActionLabel, 'close')
+
+    close.onclick = () => {
+      /* forceClose 而不是 close：应答 CloseRequested 的确认流程在崩溃屏上不存在。 */
+      void import('@poietica/desktop-adapters')
+        .then(({ createMainWindowController }) => {
+          createMainWindowController().forceClose()
+        })
+        .catch(reportWindowFailure)
+    }
+  }
+
+  const copy = action(screen, 'copy')
+
+  if (copy) {
+    wireCopy(copy, screen.querySelector('details'), model)
+  }
+
+  root.replaceChildren(screen)
+
+  /* 窗口以 visible: false 创建，正常路径由 React 首帧呈现 —— 这条路径上没有 React。 */
+  void import('@poietica/desktop-adapters')
+    .then(({ createMainWindowController }) => createMainWindowController().present())
+    .catch(reportWindowFailure)
+}
+
+function wireCopy(
+  copy: HTMLButtonElement,
+  details: HTMLDetailsElement | null,
+  model: TerminalFailureViewModel,
+): void {
+  let resetTimer: number | undefined
+
+  label(copy, model.copyActionLabel, 'copy')
+
+  copy.onclick = async () => {
+    window.clearTimeout(resetTimer)
+
     try {
       await navigator.clipboard.writeText(model.diagnostic)
 
-      setCopyButtonState(copyButton, model.copySuccessLabel, createCheckIcon())
-
-      if (copyResetTimer !== undefined) {
-        window.clearTimeout(copyResetTimer)
-      }
-
-      copyResetTimer = window.setTimeout(() => {
-        setCopyButtonState(copyButton, model.copyActionLabel, createCopyIcon())
-
-        copyResetTimer = undefined
-      }, 2200)
+      label(copy, model.copySuccessLabel, 'copied')
     } catch {
-      setCopyButtonState(copyButton, model.copyActionLabel, createCopyIcon())
+      label(copy, model.copyFailureLabel, 'copy')
 
-      details.open = true
+      /* 复制不成时诊断文本必须自己露出来，否则用户没有第二条路。 */
+      if (details) {
+        details.open = true
+      }
     }
-  }
 
-  actions.append(copyButton)
-
-  content.append(illustration, title, description, summary)
-
-  if (model.additionalIncidentMessage) {
-    content.append(createTextElement('p', 'fatal-secondary', model.additionalIncidentMessage))
-  }
-
-  content.append(actions, details)
-
-  main.append(content)
-
-  return main
-}
-
-function executePrimaryAction(action: { readonly kind: 'reload' }): void {
-  switch (action.kind) {
-    case 'reload':
-      window.location.reload()
+    resetTimer = window.setTimeout(() => {
+      label(copy, model.copyActionLabel, 'copy')
+    }, model.copyResetDelayMs)
   }
 }
 
-function createElement<TagName extends keyof HTMLElementTagNameMap>(
-  tagName: TagName,
-  className?: string,
-): HTMLElementTagNameMap[TagName] {
-  const element = document.createElement(tagName)
+/** 克隆 index.html 里的骨架。 */
+function instantiate(id: string): HTMLElement | null {
+  const template = document.getElementById(id)
 
-  if (className) {
-    element.className = className
+  if (!(template instanceof HTMLTemplateElement)) {
+    return null
   }
 
-  return element
+  const fragment = template.content.cloneNode(true) as DocumentFragment
+
+  return fragment.firstElementChild instanceof HTMLElement ? fragment.firstElementChild : null
 }
 
-function createTextElement<TagName extends keyof HTMLElementTagNameMap>(
-  tagName: TagName,
-  className: string | undefined,
-  text: string,
-): HTMLElementTagNameMap[TagName] {
-  const element = createElement(tagName, className)
+function fill(screen: HTMLElement, selector: string, text: string): void {
+  const target = screen.querySelector(selector)
 
-  element.textContent = text
-
-  return element
+  if (target) {
+    target.textContent = text
+  }
 }
 
-function createIconButton(className: string, label: string, icon: string): HTMLButtonElement {
-  const button = createElement('button', className)
-
-  button.setAttribute('type', 'button')
-  button.setAttribute('aria-label', label)
-
-  button.innerHTML = icon
-
-  return button
+function action(screen: HTMLElement, name: string): HTMLButtonElement | null {
+  return screen.querySelector<HTMLButtonElement>(`button[data-action="${name}"]`)
 }
 
-function setCopyButtonState(button: HTMLButtonElement, label: string, icon: string): void {
-  button.setAttribute('aria-label', label)
+/** 文案来自 view model，图标来自模板：这个文件两样都不定义。 */
+function label(target: HTMLButtonElement, text: string, icon: string): void {
+  target.setAttribute('aria-label', text)
 
-  button.innerHTML = icon
+  const icons = document.getElementById('fatal-icons')
+
+  if (!(icons instanceof HTMLTemplateElement)) {
+    return
+  }
+
+  const glyph = icons.content.querySelector(`[data-icon="${icon}"]`)
+
+  if (glyph) {
+    target.replaceChildren(glyph.cloneNode(true))
+  }
 }
 
-function createReloadIcon(): string {
-  return '<svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></svg>'
-}
-
-function createCopyIcon(): string {
-  return '<svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>'
-}
-
-function createCheckIcon(): string {
-  return '<svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg>'
+function reportWindowFailure(cause: unknown): void {
+  console.error('[Poietica] 致命屏无法操作主窗口', cause)
 }

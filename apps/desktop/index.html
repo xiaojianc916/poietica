@@ -60,21 +60,6 @@
         width: min(100%, 620px);
       }
 
-      .fatal-icon {
-        display: grid;
-        width: 44px;
-        height: 44px;
-        place-items: center;
-        color: var(--fatal-danger);
-        background: var(--fatal-danger-surface);
-        border-radius: 50%;
-      }
-
-      .fatal-icon svg {
-        width: 32px;
-        height: 32px;
-      }
-
       .fatal-title {
         margin: 22px 0 0;
         font-size: 20px;
@@ -117,49 +102,9 @@
         margin-top: 24px;
       }
 
-      .fatal-button {
-        display: inline-flex;
-        min-height: 36px;
-        align-items: center;
-        justify-content: center;
-        gap: 7px;
-        padding: 0 13px;
-        color: var(--fatal-foreground);
-        font: inherit;
-        font-size: 13px;
-        font-weight: 600;
-        background: transparent;
-        border: 1px solid var(--fatal-border);
-        border-radius: 8px;
-        cursor: pointer;
-        transition:
-          background-color 120ms ease,
-          border-color 120ms ease;
-      }
-
-      .fatal-button:hover {
-        background: var(--fatal-hover);
-      }
-
-      .fatal-button:focus-visible,
       .fatal-details summary:focus-visible {
         outline: 2px solid rgb(24 24 27 / 35%);
         outline-offset: 2px;
-      }
-
-      .fatal-button-primary {
-        color: #ffffff;
-        background: var(--fatal-foreground);
-        border-color: var(--fatal-foreground);
-      }
-
-      .fatal-button-primary:hover {
-        background: #27272a;
-      }
-
-      .fatal-button-icon {
-        width: 16px;
-        height: 16px;
       }
 
       .fatal-details {
@@ -206,16 +151,6 @@
           --fatal-danger-surface: rgb(240 68 56 / 14%);
         }
 
-        .fatal-button-primary {
-          color: #18181b;
-          background: #f4f4f5;
-          border-color: #f4f4f5;
-        }
-
-        .fatal-button-primary:hover {
-          background: #e4e4e7;
-        }
-
         .fatal-diagnostic {
           color: #d4d4d8;
         }
@@ -229,7 +164,7 @@
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .fatal-button {
+        .fatal-icon-button {
           transition: none;
         }
       }
@@ -317,6 +252,40 @@
 
   <body>
     <div id="root"></div>
+
+    <!--
+      Fatal startup screen skeleton and icons. The pre-React entry only writes
+      text and swaps icons; it never builds markup.
+    -->
+    <template id="fatal-screen">
+      <main aria-live="assertive" class="fatal-surface" role="alert">
+        <section class="fatal-content">
+          <img alt="" aria-hidden="true" class="fatal-illustration" />
+          <h1 class="fatal-title"></h1>
+          <p class="fatal-description"></p>
+          <p class="fatal-summary"></p>
+          <p class="fatal-secondary" hidden></p>
+
+          <div aria-label="错误处理操作" class="fatal-actions" role="group">
+            <button class="fatal-icon-button" data-action="reload" hidden type="button"></button>
+            <button class="fatal-icon-button" data-action="copy" type="button"></button>
+            <button class="fatal-icon-button" data-action="close" type="button"></button>
+          </div>
+
+          <details class="fatal-details">
+            <summary></summary>
+            <pre class="fatal-diagnostic"></pre>
+          </details>
+        </section>
+      </main>
+    </template>
+
+    <template id="fatal-icons">
+      <svg aria-hidden="true" data-icon="reload" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></svg>
+      <svg aria-hidden="true" data-icon="copy" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><rect height="14" rx="2" ry="2" width="14" x="8" y="8" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+      <svg aria-hidden="true" data-icon="copied" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg>
+      <svg aria-hidden="true" data-icon="close" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+    </template>
 
     <!--
       This module installs the browser failure collectors before the React

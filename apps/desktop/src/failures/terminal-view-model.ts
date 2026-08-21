@@ -2,6 +2,9 @@ import { optionalProperty } from '@poietica/core'
 import type { TerminalFailureIncident } from './coordinator'
 import { formatFailureDiagnostic } from './diagnostic'
 
+/* 复制反馈回到初态的时长。两个渲染器同读这一个数。 */
+const COPY_RESET_DELAY_MS = 2200
+
 export interface TerminalFailurePrimaryAction {
   readonly kind: 'reload'
   readonly label: string
@@ -19,6 +22,8 @@ export interface TerminalFailureViewModel {
   readonly copyActionLabel: string
   readonly copySuccessLabel: string
   readonly copyFailureLabel: string
+  readonly copyResetDelayMs: number
+  readonly closeActionLabel: string
   readonly detailsLabel: string
   readonly diagnostic: string
 }
@@ -47,6 +52,10 @@ export function createTerminalFailureViewModel(
     copySuccessLabel: '已复制',
 
     copyFailureLabel: '复制失败，请手动选择',
+
+    copyResetDelayMs: COPY_RESET_DELAY_MS,
+
+    closeActionLabel: '关闭窗口',
 
     detailsLabel: '查看诊断信息',
 

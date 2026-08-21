@@ -1,6 +1,6 @@
 import { createMainWindowController } from '@poietica/desktop-adapters'
 import { CircleCheck as CheckCircle, Copy, RefreshCw as Refresh } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useWindowChrome } from '../chrome/use-window-chrome'
 import { WindowControls } from '../chrome/window-controls'
 import errorRobotIllustration from './assets/error-robot.svg'
@@ -14,7 +14,9 @@ export interface FatalErrorScreenProps {
 }
 
 export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: FatalErrorScreenProps) {
-  const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+
+  const details = useRef<HTMLDetailsElement>(null)
 
   /*
    * 崩溃屏自己建 controller，不从 runtime 取：native-crash 那条启动路径上
@@ -40,27 +42,37 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
 
   const primaryAction = model.primaryAction
 
+  const copyLabels = {
+    idle: model.copyActionLabel,
+    copied: model.copySuccessLabel,
+    failed: model.copyFailureLabel,
+  }
+
   useEffect(() => {
-    if (copyState !== 'copied') {
+    if (copyState === 'idle') {
       return
     }
 
     const resetTimer = window.setTimeout(() => {
       setCopyState('idle')
-    }, 2200)
+    }, model.copyResetDelayMs)
 
     return () => {
       window.clearTimeout(resetTimer)
     }
-  }, [copyState])
+  }, [copyState, model.copyResetDelayMs])
 
   const copyDiagnostic = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(model.diagnostic)
       setCopyState('copied')
     } catch {
-      // Keep the copy icon available so the user can retry immediately.
-      setCopyState('idle')
+      setCopyState('failed')
+
+      /* 复制不成时诊断文本必须自己露出来，否则用户没有第二条路。 */
+      if (details.current) {
+        details.current.open = true
+      }
     }
   }
 
@@ -119,7 +131,7 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
             ) : null}
 
             <button
-              aria-label={copyState === 'copied' ? model.copySuccessLabel : model.copyActionLabel}
+              aria-label={copyLabels[copyState]}
               className="fatal-icon-button"
               onClick={() => {
                 void copyDiagnostic()
@@ -134,7 +146,7 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
             </button>
           </div>
 
-          <details className="fatal-details">
+          <details className="fatal-details" ref={details}>
             <summary>{model.detailsLabel}</summary>
 
             <pre className="fatal-diagnostic">{model.diagnostic}</pre>

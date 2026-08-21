@@ -171,11 +171,8 @@ body {
 }
 
 /*
- * 与 index.html 里那份预 React 副本同尺寸。
- *
- * 那份副本写死 16px：致命屏必须在设计系统样式表加载之前就能画对。两份规则本来
- * 就该同值，此前靠 --ui-icon-size-md 在 dpr 1.5 下解出 16px 才碰巧一致 —— 现在
- * 尺寸不再随 dpr 漂移，md 是 20px，所以这里明确改指 sm。
+ * 与 index.html 里那份预 React 副本同尺寸：那份写死像素，因为致命屏必须在设计
+ * 系统样式表加载之前就能画对。所以这里指 sm，不跟着 md 走。
  */
 .fatal-icon-button svg {
   display: block;
@@ -186,15 +183,6 @@ body {
 .fatal-details,
 .fatal-diagnostic {
   background: var(--window-backing-surface);
-}
-
-/* fatal-error-illustration */
-.fatal-illustration {
-  display: block;
-  width: 132px;
-  height: 132px;
-  margin: 0 0 20px;
-  object-fit: contain;
 }
 
 /*
