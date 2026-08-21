@@ -40,7 +40,7 @@ mod sessions;
 mod stderr;
 mod trace;
 
-pub use commands::{AgentClient, PromptImage};
+pub use commands::{AgentClient, PromptImage, PromptSkill};
 pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, controls, selector_patch};
 pub use credentials::{
     alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
@@ -62,8 +62,8 @@ pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine, now_millis};
 pub use run_slot::RunSlot;
 pub use selection::select_config;
 pub use session::{
-    AgentConnection, AgentSpawn, Cursor, Handshake, OpenedSession, SessionEntry, SessionEvent,
-    SessionEvents, Skill,
+    AgentConnection, AgentSpawn, Cursor, Handshake, McpServer, McpStatus, McpTransport,
+    OpenedSession, SessionEntry, SessionEvent, SessionEvents, Skill,
 };
 pub use sessions::SessionBook;
 pub use stderr::StderrLog;

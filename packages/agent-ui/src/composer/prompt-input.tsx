@@ -3,13 +3,14 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
-import type { ChatStatus } from '@poietica/agent-contract'
+import type { ChatStatus, PromptSkill } from '@poietica/agent-contract'
 import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
   $getSelection,
   $isRangeSelection,
+  $nodesOfType,
   COMMAND_PRIORITY_HIGH,
   type EditorState,
   KEY_ENTER_COMMAND,
@@ -36,7 +37,7 @@ import {
   type PaletteRow,
   paletteOptionId,
 } from './composer-palette'
-import { $createChipNode, ChipNode } from './prompt-chip'
+import { $createChipNode, ChipNode, samePromptChip } from './prompt-chip'
 
 /*
  * The composer input.
@@ -53,6 +54,7 @@ export type { ChatStatus }
 export interface PromptInputMessage {
   readonly text: string
   readonly assets: readonly ComposerAsset[]
+  readonly skills: readonly PromptSkill[]
 }
 
 const NO_ATTACHMENTS: readonly ComposerAsset[] = []
@@ -73,8 +75,6 @@ interface PromptInputActions {
   readonly requestSubmit: () => void
   /** 翻开或合上加号那张面板。 */
   readonly togglePalette: () => void
-  /** 在插入符处插入一段调用式或片段。 */
-  readonly insertSnippet: (snippet: string) => void
 }
 
 const ActionsContext = createContext<PromptInputActions | null>(null)
@@ -131,29 +131,24 @@ export interface PromptInputHandle {
 
 interface DraftProjection {
   readonly text: string
-  /** 插入符所在那一行到插入符为止的字：调用式与它的参数都在里面。 */
-  readonly line: string
+  readonly skills: readonly PromptSkill[]
 }
 
-const EMPTY_PROJECTION: DraftProjection = { text: '', line: '' }
+const EMPTY_PROJECTION: DraftProjection = { text: '', skills: [] }
 
 /* 纯读：进 editorState.read，不许有副作用。 */
 function readDraft(): DraftProjection {
-  const selection = $getSelection()
-  const text = $getRoot().getTextContent()
-
-  if (
-    !$isRangeSelection(selection) ||
-    !selection.isCollapsed() ||
-    selection.anchor.type !== 'text'
-  ) {
-    return { text, line: '' }
+  const skills = new Map<string, PromptSkill>()
+  for (const node of $nodesOfType(ChipNode)) {
+    const value = node.value()
+    if (value.kind === 'skill') {
+      skills.set(value.name, {
+        name: value.name,
+        ...(value.args === undefined ? {} : { args: value.args }),
+      })
+    }
   }
-
-  return {
-    text,
-    line: selection.anchor.getNode().getTextContent().slice(0, selection.anchor.offset),
-  }
+  return { text: $getRoot().getTextContent(), skills: [...skills.values()] }
 }
 
 function clearDraft(editor: LexicalEditor): void {
@@ -175,67 +170,6 @@ function replaceDraft(editor: LexicalEditor, text: string): void {
     root.append(paragraph)
     paragraph.selectEnd()
   })
-}
-
-/** 吃掉插入符前那一段字（斜杠落定时用）。 */
-function dropTyped(length: number): void {
-  if (length === 0) {
-    return
-  }
-
-  const selection = $getSelection()
-
-  if (!$isRangeSelection(selection) || selection.anchor.type !== 'text') {
-    return
-  }
-
-  const node = selection.anchor.getNode()
-  const offset = selection.anchor.offset
-
-  node.spliceText(offset - length, length, '', true)
-}
-
-/*
- * 斜杠命中：命名空间先对上，名字再模糊。
- *
- * 命令的 token 是 /名字，技能的是 /skill:名字。敲 /skill 只该看见技能，而敲一个
- * 名字应该在两类里都找得到 —— 所以模糊匹配只在最后一个 : 之后的名字段上做，不跨
- * 命名空间。行没有 token 就不参与斜杠过滤。
- */
-function matchesToken(row: PaletteRow, needle: string): boolean {
-  const token = row.token?.toLowerCase()
-
-  if (token === undefined) {
-    return false
-  }
-
-  if (token.startsWith(needle)) {
-    return true
-  }
-
-  const said = needle.slice(1)
-
-  return (
-    said.length > 0 && !said.includes(':') && token.slice(token.lastIndexOf(':') + 1).includes(said)
-  )
-}
-
-/*
- * 这一行上的斜杠调用：调用式、它的参数，以及落定时要吃掉的那一整段。
- *
- * 参数是 kap 给技能激活留的那一格（Command::ActivateSkill 的 args），所以敲一个空格
- * 不该关掉面板 —— 面板只按调用式过滤。
- */
-function slashOf(line: string): { line: string; token: string; args: string } | undefined {
-  if (!line.startsWith('/')) {
-    return undefined
-  }
-
-  const at = line.indexOf(' ')
-
-  return at < 0
-    ? { line, token: line, args: '' }
-    : { line, token: line.slice(0, at), args: line.slice(at + 1) }
 }
 
 export interface PromptInputProps {
@@ -282,7 +216,6 @@ function PromptInputShell({
   const intake = useAttachmentIntake()
   const [draftText, setDraftText] = useState(EMPTY_PROJECTION)
   const [attachments, setAttachments] = useState<readonly ComposerAsset[]>([])
-  const [paletteDismissed, setPaletteDismissed] = useState(false)
   const [paletteOpened, setPaletteOpened] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
 
@@ -295,7 +228,6 @@ function PromptInputShell({
 
   /* 草稿一变，面板三态回到起点：Esc 压住的只是这一份草稿。 */
   const rewindPalette = useCallback(() => {
-    setPaletteDismissed(false)
     setPaletteOpened(false)
     setHighlighted(0)
   }, [])
@@ -416,30 +348,13 @@ function PromptInputShell({
   }, [addAssets, intake, multiple])
 
   const togglePalette = useCallback(() => {
-    setPaletteDismissed(false)
     setHighlighted(0)
     setPaletteOpened((open) => !open)
   }, [])
 
   const closePalette = useCallback(() => {
     setPaletteOpened(false)
-    setPaletteDismissed(true)
   }, [])
-
-  const insertSnippet = useCallback(
-    (snippet: string) => {
-      rewindPalette()
-      editor.update(() => {
-        const selection = $getSelection()
-
-        if ($isRangeSelection(selection)) {
-          selection.insertText(snippet)
-        }
-      })
-      focusEditor()
-    },
-    [editor, focusEditor, rewindPalette],
-  )
 
   const requestSubmit = useCallback(() => {
     formRef.current?.requestSubmit()
@@ -466,12 +381,10 @@ function PromptInputShell({
       openFilePicker,
       requestSubmit,
       togglePalette,
-      insertSnippet,
     }),
     [
       addAssets,
       focusEditor,
-      insertSnippet,
       openFilePicker,
       removeAttachment,
       requestSubmit,
@@ -504,24 +417,9 @@ function PromptInputShell({
     [groups, openFilePicker],
   )
 
-  /* 斜杠给同一张面板加一道过滤：调用式过滤行，它后面那一截是这一行的参数。 */
-  const slash = useMemo(() => slashOf(draftText.line), [draftText.line])
-
-  const visible = useMemo<readonly PaletteGroup[]>(() => {
-    if (slash === undefined) {
-      return allGroups
-    }
-
-    const needle = slash.token.toLowerCase()
-
-    return allGroups
-      .map((group) => ({ ...group, rows: group.rows.filter((row) => matchesToken(row, needle)) }))
-      .filter((group) => group.rows.length > 0)
-  }, [allGroups, slash])
-
+  const visible = allGroups
   const rows = useMemo(() => visible.flatMap((group) => group.rows), [visible])
-  const paletteOpen =
-    (paletteOpened || (slash !== undefined && !paletteDismissed)) && rows.length > 0
+  const paletteOpen = paletteOpened && rows.length > 0
   const active = paletteOpen ? rows[highlighted] : undefined
 
   const paletteAria = useMemo<PaletteAria>(
@@ -536,40 +434,27 @@ function PromptInputShell({
   const pickRow = useCallback(
     (row: PaletteRow) => {
       closePalette()
-
-      const { action } = row
-      const typed = slash?.line.length ?? 0
-
-      switch (action.kind) {
-        case 'run': {
-          /* 参数就是调用式后面那一截；敲出来的那一行随动作一起消费掉。 */
-          editor.update(() => {
-            dropTyped(typed)
-          })
-          action.run(slash?.args ?? '')
-          focusEditor()
-
-          return
-        }
-
-        case 'insert': {
-          editor.update(() => {
-            const selection = $getSelection()
-
-            if (!$isRangeSelection(selection)) {
-              return
-            }
-
-            dropTyped(typed)
-
-            /* 调用式落成一枚 chip：它自报文本，提交那一路一个字都不改。 */
-            selection.insertNodes([$createChipNode(action.snippet), $createTextNode(' ')])
-          })
-          focusEditor()
-        }
+      if (row.action.kind === 'run') {
+        row.action.run(draftText.text)
+        focusEditor()
+        return
       }
+      editor.update(() => {
+        const selection = $getSelection()
+        if (!$isRangeSelection(selection)) return
+        const duplicate = $nodesOfType(ChipNode).some((node) =>
+          samePromptChip(
+            node.value(),
+            row.action.kind === 'insert' ? row.action.chip : { kind: 'skill', name: '' },
+          ),
+        )
+        if (!duplicate && row.action.kind === 'insert') {
+          selection.insertNodes([$createChipNode(row.action.chip), $createTextNode(' ')])
+        }
+      })
+      focusEditor()
     },
-    [closePalette, editor, focusEditor, slash],
+    [closePalette, draftText.text, editor, focusEditor],
   )
 
   /* 点到卡外就收面板：捕获相 pointerdown，因为点不可聚焦区域不移走焦点。 */
@@ -685,7 +570,7 @@ function PromptInputShell({
                 return
               }
 
-              onSubmit({ text: said, assets: attachments })
+              onSubmit({ text: said, assets: attachments, skills: draftText.skills })
               clearDraft(editor)
               rewindPalette()
 

@@ -34,8 +34,7 @@ const TABS = {
   },
   skills: {
     label: '技能',
-    subtitle:
-      '工作流与提示模板，使用 /skill: 调用。插件带来的与全局装的由 agent 在会话建立后报来。',
+    subtitle: '工作流与提示模板，使用 /skill调用。插件带来的与全局装的由 agent 在会话建立后报来。',
   },
   mcp: {
     label: 'MCP',
@@ -197,7 +196,7 @@ function TabBody({ entries, needle, onOpen, store, tab, view }: TabBodyProps) {
           ) : null}
           <Section count={rows.length} title="已安装">
             <ContributionList
-              empty="这里还没有技能。下面那份名单一键装，装完在新会话里用 /skill: 调用。"
+              empty="这里还没有技能。下面那份名单一键装，装完在新会话里用 /skill调用。"
               rows={rows}
             />
           </Section>

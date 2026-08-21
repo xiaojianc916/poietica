@@ -2,6 +2,7 @@ export {
   type AgentBridgeOptions,
   type AgentEventSourceOptions,
   createAgentCapabilityBridge,
+  createAgentMcpBridge,
   createAgentSessionConfigBridge,
   createAgentSessionPort,
   createAgentSessionUsageBridge,

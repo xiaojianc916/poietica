@@ -1,5 +1,6 @@
 import type {
   AgentCapabilityPort,
+  AgentMcpPort,
   AgentSessionPort,
   AgentSkillPort,
   QuestionChoice,
@@ -15,6 +16,7 @@ import {
   type AgentConfigChoice,
   type AgentConfigControl,
   type AgentLaunch,
+  type AgentMcpServer,
   type AgentQuestionChoice,
   type AgentSessionUsage,
   type AgentSkill,
@@ -228,6 +230,10 @@ export function createAgentSessionPort({
           threadId: request.threadId,
           /* readonly 的数组与生成绑定要的可变数组是两个类型，所以复制一次 ——
           数组复制只在这一层做。 */
+          skills: request.skills.map((skill) => ({
+            name: skill.name,
+            args: skill.args ?? null,
+          })),
           assets: request.assets.map((asset) => ({
             sessionToken: asset.sessionToken,
             assetToken: asset.assetToken,
@@ -320,12 +326,13 @@ export function createAgentSessionConfigBridge({
   onListenFailure,
 }: AgentEventSourceOptions = {}): SessionConfigPort {
   return {
-    select: async (threadId, configId, value) => {
+    select: async (threadId, configId, value, input) => {
       const offered = await throughIpc(() =>
         commands.agentSetConfigOption({
           threadId,
           configId,
           value,
+          input: input ?? null,
         }),
       )
 
@@ -405,6 +412,7 @@ export function createAgentCapabilityBridge({
           threadId: null,
           configId: control.id,
           value,
+          input: null,
         }),
       )
 
@@ -508,12 +516,25 @@ export function createAgentSkillBridge(): AgentSkillPort {
   return {
     list: async (sessionId) => {
       const listed = await throughIpc(() => commands.agentSkills({ sessionId }))
-
       return listed as readonly AgentSkill[]
     },
+  }
+}
 
-    activate: async (sessionId, name, args) => {
-      await throughIpc(() => commands.agentActivateSkill({ sessionId, name, args }))
+export function createAgentMcpBridge({ launch, cwd }: AgentBridgeOptions): AgentMcpPort {
+  return {
+    list: async () => {
+      const listed = await throughIpc(() =>
+        commands.agentMcpServers({ launch: await launch(), cwd: cwd?.() ?? null }),
+      )
+      return listed.map((server: AgentMcpServer) => ({
+        id: server.id,
+        name: server.name,
+        transport: server.transport,
+        status: server.status,
+        toolCount: server.toolCount,
+        ...(server.lastError === null ? {} : { lastError: server.lastError }),
+      }))
     },
   }
 }

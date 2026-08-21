@@ -3,8 +3,10 @@ import './question-panel.css'
 
 import type { QuestionTimelineItem } from '@poietica/agent'
 import type {
+  AgentMcpServer,
   AgentSkill,
   ChatStatus,
+  PromptSkill,
   QuestionResponse,
   SessionConfigControl,
   SessionUsage,
@@ -43,16 +45,15 @@ export interface AssistantComposerProps {
   readonly onSubmit: (input: {
     readonly text: string
     readonly assets: readonly ComposerAsset[]
+    readonly skills: readonly PromptSkill[]
   }) => void
   readonly onCancel?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
   readonly ref?: Ref<PromptInputHandle> | undefined
   /** 这条会话能用的技能，由 kap 报。 */
   readonly skills?: readonly AgentSkill[] | undefined
-  /** 激活一条技能，args 由斜杠那一行给。 */
-  readonly onActivateSkill: (name: string, args: string) => void
-  /** 这一段在进行的那个目标，真相在转录。 */
-  readonly goal?: string | undefined
+  /** Kimi 检测到的 MCP server。 */
+  readonly mcpServers?: readonly AgentMcpServer[] | undefined
   /** 此刻还在跑的子代理数，真相在转录。 */
   readonly swarm?: number | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
@@ -60,7 +61,7 @@ export interface AssistantComposerProps {
   readonly controlsFailure?: string | undefined
   /** 读失败之后重新问一次。 */
   readonly onRetryControls?: (() => void) | undefined
-  readonly onSelectControl: (controlId: string, value: string) => void
+  readonly onSelectControl: (controlId: string, value: string, input?: string) => void
   /** 这条会话最近报的上下文用量。缺席就不画那颗胶囊。 */
   readonly usage?: SessionUsage | undefined
   /**
@@ -98,7 +99,6 @@ type ComposerToolbarProps = Pick<
   AssistantComposerProps,
   | 'controls'
   | 'controlsFailure'
-  | 'goal'
   | 'onCancel'
   | 'onRetryControls'
   | 'onSelectControl'
@@ -109,7 +109,6 @@ type ComposerToolbarProps = Pick<
 function ComposerToolbar({
   controls,
   controlsFailure,
-  goal,
   onCancel,
   onRetryControls,
   onSelectControl,
@@ -140,7 +139,7 @@ function ComposerToolbar({
         <PermissionPicker controls={controls} onSelect={onSelectControl} />
 
         {/* 这一句的处境：模式归 agent，目标与蜂群归转录。 */}
-        <ComposerChips controls={controls} goal={goal} onSelect={onSelectControl} swarm={swarm} />
+        <ComposerChips controls={controls} onSelect={onSelectControl} swarm={swarm} />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />
@@ -183,7 +182,7 @@ export const AssistantComposer = memo(function AssistantComposer({
   approval,
   onAnswerQuestions,
   onDismissQuestions,
-  onActivateSkill,
+  mcpServers,
   skills,
   placeholder = '问我任何问题…',
   question,
@@ -213,11 +212,11 @@ export const AssistantComposer = memo(function AssistantComposer({
     () =>
       composerPaletteGroups({
         controls: toolbar.controls,
-        onActivateSkill,
+        mcpServers: mcpServers ?? [],
         onSelectControl: toolbar.onSelectControl,
         skills: skills ?? [],
       }),
-    [onActivateSkill, skills, toolbar.controls, toolbar.onSelectControl],
+    [mcpServers, skills, toolbar.controls, toolbar.onSelectControl],
   )
 
   return (

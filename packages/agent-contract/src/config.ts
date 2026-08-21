@@ -10,7 +10,7 @@ import type { ThreadId } from './address'
  */
 
 /** Where a selector belongs on screen. Mirrors the categories the protocol defines. */
-export type SessionConfigPurpose = 'model' | 'thought' | 'mode' | 'other'
+export type SessionConfigPurpose = 'model' | 'thought' | 'permission' | 'mode' | 'other'
 
 /** One value a selector will accept. */
 export interface SessionConfigChoice {
@@ -64,6 +64,7 @@ export interface SessionConfigPort {
     threadId: ThreadId,
     configId: string,
     value: string,
+    input?: string,
   ) => Promise<readonly SessionConfigControl[]>
   /**
    * agent 自己改了设置时报过来的那一路。

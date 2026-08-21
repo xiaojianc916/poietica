@@ -16,6 +16,7 @@ export type {
   SessionConfigReport,
 } from './config'
 export type { KapEventPayload, KapSessionId, KapStopReason, KapToolCallId } from './kap'
+export type { AgentMcpPort, AgentMcpServer, AgentMcpStatus, AgentMcpTransport } from './mcp'
 export type {
   ApprovalAnswer,
   ApprovalDecision,
@@ -42,6 +43,7 @@ export type {
   AgentPromptRequest,
   AgentSessionPort,
   PromptAsset,
+  PromptSkill,
 } from './session'
 export type { AgentSkill, AgentSkillPort } from './skill'
 export type {

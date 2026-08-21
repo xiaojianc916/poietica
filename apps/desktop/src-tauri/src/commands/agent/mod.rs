@@ -34,6 +34,7 @@ pub mod dto;
 mod failure;
 mod kimi_state;
 pub mod runtime;
+pub mod mcp;
 pub mod skill;
 pub mod thread;
 pub mod turn;

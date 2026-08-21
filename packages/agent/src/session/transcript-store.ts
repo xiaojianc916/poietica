@@ -5,6 +5,7 @@ import type {
   FrameCursor,
   FramePage,
   PromptAsset,
+  PromptSkill,
   RunEvent,
   ThreadHistory,
 } from '@poietica/agent-contract'
@@ -95,6 +96,7 @@ export interface SendOptions {
   readonly text: string
   /** 这一句带的图片，按它们在原生交付注册表里的位置点名。 */
   readonly assets: readonly PromptAsset[]
+  readonly skills: readonly PromptSkill[]
   readonly identify?: (() => Promise<string | null>) | undefined
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
 }
@@ -508,7 +510,16 @@ export class TranscriptStore implements TranscriptSink {
 
   /* ================= 说一句话 ================= */
 
-  send = ({ assets, endpoint, identify, key, onUserMessage, port, text }: SendOptions): void => {
+  send = ({
+    assets,
+    endpoint,
+    identify,
+    key,
+    onUserMessage,
+    port,
+    skills,
+    text,
+  }: SendOptions): void => {
     const at = Date.now()
     const current = this.#now(key)
 
@@ -552,7 +563,7 @@ export class TranscriptStore implements TranscriptSink {
          */
         onUserMessage?.(threadId, text.trim() === '' && assets.length > 0 ? IMAGE_OPENER : text)
 
-        return port.prompt({ threadId, text, assets }).then((handle) => {
+        return port.prompt({ threadId, text, assets, skills }).then((handle) => {
           /*
            * 地址早就在表里了：这条对话打开的那一刻就登记过（route）。
            *

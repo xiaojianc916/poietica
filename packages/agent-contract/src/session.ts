@@ -34,6 +34,11 @@ export interface PromptAsset {
   readonly assetToken: string
 }
 
+export interface PromptSkill {
+  readonly name: string
+  readonly args?: string | undefined
+}
+
 export interface AgentPromptRequest {
   readonly threadId: ThreadId
   readonly text: string
@@ -45,6 +50,7 @@ export interface AgentPromptRequest {
    * 判一次空。
    */
   readonly assets: readonly PromptAsset[]
+  readonly skills: readonly PromptSkill[]
 }
 
 /**

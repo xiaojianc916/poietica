@@ -1,4 +1,6 @@
 import type {
+  AgentMcpPort,
+  AgentMcpServer,
   AgentSkill,
   AgentSkillPort,
   OpenedThread,
@@ -22,6 +24,7 @@ interface Held {
   readonly selectors: ReadonlyMap<string, readonly SessionConfigControl[]>
   readonly selectorFailure: ReadonlyMap<string, string>
   readonly skills: ReadonlyMap<string, readonly AgentSkill[]>
+  readonly mcpServers: readonly AgentMcpServer[] | undefined
   readonly usage: ReadonlyMap<string, SessionUsage>
 }
 
@@ -29,6 +32,7 @@ const EMPTY: Held = {
   selectors: new Map(),
   selectorFailure: new Map(),
   skills: new Map(),
+  mcpServers: undefined,
   usage: new Map(),
 }
 
@@ -55,6 +59,7 @@ export interface SessionControlsOptions {
   readonly report?: SessionControlsFailureReport | undefined
   /** 这条会话能用的技能。缺席即不列，这台 store 因此仍能裸构造单测。 */
   readonly skills?: AgentSkillPort | undefined
+  readonly mcp?: AgentMcpPort | undefined
   readonly transcripts?: TranscriptSink | undefined
   /** 用量的到达口。缺席即不画，这台 store 因此仍能裸构造单测。 */
   readonly usage?: SessionUsagePort | undefined
@@ -109,6 +114,10 @@ export class SessionControlsStore {
 
   readonly #skills: AgentSkillPort | undefined
 
+  readonly #mcp: AgentMcpPort | undefined
+
+  #mcpAsked = false
+
   #held: Held = EMPTY
 
   /* 问过的对话不再问第二遍：重读是显式动作，不是渲染的副作用。 */
@@ -145,6 +154,7 @@ export class SessionControlsStore {
     posture,
     report,
     skills,
+    mcp,
     transcripts,
     usage,
   }: SessionControlsOptions) {
@@ -153,6 +163,7 @@ export class SessionControlsStore {
     this.#posture = posture
     this.#report = report
     this.#skills = skills
+    this.#mcp = mcp
     this.#transcripts = transcripts
     this.#usage = usage
   }
@@ -210,22 +221,20 @@ export class SessionControlsStore {
   skillsOf = (threadId: string): readonly AgentSkill[] | undefined =>
     this.#held.skills.get(threadId)
 
-  /**
-   * 激活一条技能。一次协议动作，这一侧不留副本 —— 结果由帧流自己说。
-   *
-   * 被拒的原因与一次被拒的会话改动同走 changeFailed：同一类事实一套规则。
-   */
-  activateSkill = (threadId: string, name: string, args: string): void => {
-    const port = this.#skills
-    const sessionId = this.#sessionOf.get(threadId)
+  mcpServers = (): readonly AgentMcpServer[] | undefined => this.#held.mcpServers
 
-    if (port === undefined || sessionId === undefined) {
-      return
-    }
-
-    void port.activate(sessionId, name, args).catch((reason: unknown) => {
-      this.#report?.changeFailed(reason)
-    })
+  loadMcpServers = (): void => {
+    if (this.#mcpAsked || this.#mcp === undefined) return
+    this.#mcpAsked = true
+    void this.#mcp
+      .list()
+      .then((servers) => {
+        this.#commit({ mcpServers: servers })
+      })
+      .catch((reason: unknown) => {
+        this.#mcpAsked = false
+        this.#report?.changeFailed(reason)
+      })
   }
 
   /**
@@ -330,15 +339,15 @@ export class SessionControlsStore {
    * 落成持久意图。写在发出之前，与 default_model 同一条顺序（见 apps/desktop 的
    * agent-session.ts）：失手时盘上那份仍是用户上一次真的按下的那一颗。
    */
-  selectControl = (threadId: string, controlId: string, value: string): void => {
+  selectControl = (threadId: string, controlId: string, value: string, input?: string): void => {
     const control = this.#held.selectors.get(threadId)?.find((offered) => offered.id === controlId)
 
-    if (control?.purpose === 'mode') {
+    if (control?.purpose === 'permission' && permissionPostureOf(value) !== undefined) {
       this.#posture?.write(value)
       this.#alignedTo.set(threadId, value)
     }
 
-    this.#dispatch(threadId, controlId, value)
+    this.#dispatch(threadId, controlId, value, input)
   }
 
   /*
@@ -353,7 +362,7 @@ export class SessionControlsStore {
    * 一次改动失败不是那件事。这里向 agent 重问一次权威表，UI 因此回到真正生效的值，
    * 是权威回滚，不是本地猜一个旧值填回去。
    */
-  #dispatch(threadId: string, controlId: string, value: string): void {
+  #dispatch(threadId: string, controlId: string, value: string, input?: string): void {
     const config = this.#config
 
     if (config === undefined) {
@@ -367,7 +376,7 @@ export class SessionControlsStore {
       const ticket = order.issue()
 
       try {
-        const offered = await config.select(threadId, controlId, value)
+        const offered = await config.select(threadId, controlId, value, input)
 
         /* 号过期了，说明这一趟在飞的时候 agent 已经自己说过话，那张表更新。 */
         if (order.isLatest(ticket)) {
@@ -560,6 +569,7 @@ export class SessionControlsStore {
       next.selectors === this.#held.selectors &&
       next.selectorFailure === this.#held.selectorFailure &&
       next.skills === this.#held.skills &&
+      next.mcpServers === this.#held.mcpServers &&
       next.usage === this.#held.usage
     ) {
       return

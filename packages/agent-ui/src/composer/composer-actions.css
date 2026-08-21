@@ -112,16 +112,3 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-
-/* 只读的那两枚：协议没有关掉目标与蜂群的动作，所以它们不当控件画。 */
-.assistant-mode-chip--state {
-  cursor: default;
-}
-
-.assistant-mode-chip--state:hover {
-  background: transparent;
-}
-
-.assistant-mode-chip--state:hover .assistant-mode-chip__glyph {
-  visibility: visible;
-}

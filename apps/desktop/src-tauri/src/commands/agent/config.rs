@@ -42,6 +42,7 @@ pub async fn agent_set_config_option(
         thread_id,
         config_id,
         value,
+        input,
     } = request;
 
     let addressed = match thread_id.as_deref() {
@@ -49,7 +50,7 @@ pub async fn agent_set_config_option(
         None => live.anchor.clone(),
     };
 
-    let offered = select_config(&live.client, addressed, config_id, value)
+    let offered = select_config(&live.client, addressed, config_id, value, input)
         .await
         .map_err(translate)?;
 
@@ -100,6 +101,7 @@ pub(super) fn restate(control: ConfigControl) -> AgentConfigControl {
         label: control.label,
         detail: control.detail,
         purpose: match control.purpose {
+            ConfigPurpose::Permission => AgentConfigPurpose::Permission,
             ConfigPurpose::Mode => AgentConfigPurpose::Mode,
             ConfigPurpose::Model => AgentConfigPurpose::Model,
             ConfigPurpose::Thought => AgentConfigPurpose::Thought,

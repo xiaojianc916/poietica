@@ -2,6 +2,7 @@ export type { AssistantComposerProps } from './composer/assistant-composer'
 export { AssistantComposer } from './composer/assistant-composer'
 export type { AttachmentIntake, ComposerAsset } from './composer/attachment-intake'
 export { AttachmentIntakeContext, useAttachmentIntake } from './composer/attachment-intake'
+export type { PromptChipValue } from './composer/prompt-chip'
 export type { ChatStatus, PromptInputHandle, PromptInputMessage } from './composer/prompt-input'
 export type { SessionControlsProps } from './composer/session-controls'
 export type {
@@ -14,8 +15,8 @@ export type { AgentControlsView } from './session/agent-controls-context'
 export { AgentControlsContext, useAgentControls } from './session/agent-controls-context'
 export {
   SessionControlsContext,
+  useMcpServers,
   useSessionControlsActions,
-  useSkillActivation,
   useThreadSelectorFailure,
   useThreadSelectors,
   useThreadSkills,

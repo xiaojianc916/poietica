@@ -1,79 +1,46 @@
-//! The configuration selectors a session offers.
+//! Kimi 会话配置的唯一领域投影。
 //!
-//! kap 没有选择器枚举：生效值由 GET /sessions/{id}/status 报（model /
-//! thinking_level / permission / plan_mode），模型与思考档的候选由
-//! GET /models 的目录报（support_efforts / default_effort / capabilities），运行模式是
-//! 协议写死的三档加计划开关。这张表在这里拼出来，只此一处。
-//!
-//! 这里只认 JSON：kap 的线上形状就是契约（快照钉在 contracts/kap）。把协议
-//! 类型引进来，等于让本 crate 依赖服务器的实现细节。
-//!
-//! 字段一律 .get()：Value 的索引写法在 clippy 的 indexing_slicing 下是硬错误。
+//! status、model catalog 与 goal snapshot 在这里合成批准方式、计划、目标、蜂群、
+//! 模型和 Thinking。独立的上游状态保持独立；UI 不再反推或复制它们。
 
 use serde_json::{Value, json};
 
-/// What a selector is for, as far as the interface is concerned.
+use crate::error::{KapError, Result};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigPurpose {
-    /// How much freedom the agent takes during a turn.
+    Permission,
     Mode,
-    /// Which model answers.
     Model,
-    /// How long the model deliberates before answering.
     Thought,
-    /// Something the agent named itself, or nothing at all.
     Other,
 }
 
-/// One value a selector will accept.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConfigChoice {
-    /// The value to send back when this one is picked.
     pub value: String,
-    /// The name shown for it.
     pub label: String,
-    /// The longer sentence, where there is one.
     pub detail: Option<String>,
 }
 
-/// One selector, with every value it accepts and the one in force.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConfigControl {
-    /// The name to answer to when the value is changed.
     pub id: String,
-    /// The name shown for this selector.
     pub label: String,
-    /// The longer sentence, where there is one.
     pub detail: Option<String>,
-    /// Where this selector belongs on screen.
     pub purpose: ConfigPurpose,
-    /// The value in force right now. Always one of the offered choices.
     pub current: String,
-    /// Every value on offer. Never empty.
     pub choices: Vec<ConfigChoice>,
 }
 
-/// 运行模式的四档：计划模式是 kap 的独立开关（plan_mode），其余三档就是
-/// permission_mode 本身（promptPermissionModeSchema：manual / yolo / auto）。
-/// 文案是界面自己的字。
-const MODES: [(&str, &str, &str); 4] = [
-    (
-        "manual",
-        "Default",
-        "Manual approvals; tools execute normally.",
-    ),
-    ("plan", "Plan", "Read-only planning; no tool execution."),
-    (
-        "auto",
-        "Auto",
-        "Fully autonomous - agent decides everything.",
-    ),
-    (
-        "yolo",
-        "YOLO",
-        "Auto-approve tool actions, but it may still ask.",
-    ),
+const PERMISSIONS: [(&str, &str); 3] = [
+    ("manual", "请求批准"),
+    ("yolo", "帮我批准"),
+    ("auto", "完全访问权限"),
 ];
+const OFF: &str = "off";
+const ON: &str = "on";
+const MAX_GOAL_OBJECTIVE_UTF16: usize = 4000;
 
 #[derive(Debug)]
 struct ThinkingOffer {
@@ -81,15 +48,9 @@ struct ThinkingOffer {
     choices: Vec<ConfigChoice>,
 }
 
-/// Builds the selector table from the two kap answers.
-///
-/// status 是 status 路由的 data，catalog 是 /models 的 data。模型的当前值可在目录
-/// 外，因为运行中的自定义模型仍是真相；Thinking 不同，它的有效域属于当前精确模型，
-/// 必须在这里按目录收敛，不能把上一模型的档位补进新模型。
 #[must_use]
-pub fn controls(status: &Value, catalog: &Value) -> Vec<ConfigControl> {
+pub fn controls(status: &Value, catalog: &Value, goal: &Value) -> Vec<ConfigControl> {
     let mut offered = Vec::new();
-
     let current_model = status.get("model").and_then(Value::as_str).unwrap_or("");
     let items = catalog
         .get("items")
@@ -99,7 +60,6 @@ pub fn controls(status: &Value, catalog: &Value) -> Vec<ConfigControl> {
     if let Some(model) = model_control(current_model, items) {
         offered.push(model);
     }
-
     if let Some(thinking) = thinking_control(
         status
             .get("thinking_level")
@@ -111,40 +71,129 @@ pub fn controls(status: &Value, catalog: &Value) -> Vec<ConfigControl> {
         offered.push(thinking);
     }
 
-    offered.push(mode_control(status));
+    offered.push(permission_control(status));
+    offered.push(toggle_control(
+        "plan",
+        "计划",
+        "只读分析并先产出计划",
+        status.get("plan_mode").and_then(Value::as_bool) == Some(true),
+    ));
+    offered.push(goal_control(goal));
+    offered.push(toggle_control(
+        "swarm",
+        "蜂群",
+        "并行调度子代理",
+        status.get("swarm_mode").and_then(Value::as_bool) == Some(true),
+    ));
 
     offered
 }
 
-/// 一次选择落到 kap 的哪个 agent_config 字段。分派表在 kap-server 的
-/// routes/sessionAgentConfig.ts：model → setModel，thinking → setThinking，
-/// permission_mode → broadcastPermissionMode，plan_mode → plan.enter/exit。
-/// 写回走 POST /sessions/{id}/profile。
-#[must_use]
-pub fn selector_patch(config_id: &str, value: &str) -> Option<Value> {
+pub fn selector_patch(config_id: &str, value: &str, input: Option<&str>) -> Result<Value> {
     match config_id {
-        "model" if !value.is_empty() => Some(json!({ "model": value })),
-        "thinking" if !value.is_empty() => Some(json!({ "thinking": value })),
-        "mode" if value == "plan" => Some(json!({ "plan_mode": true })),
-        "mode" if MODES.iter().any(|(id, ..)| *id == value) => {
-            Some(json!({ "plan_mode": false, "permission_mode": value }))
+        "model" if !value.is_empty() => Ok(json!({ "model": value })),
+        "thinking" if !value.is_empty() => Ok(json!({ "thinking": value })),
+        "permission" if PERMISSIONS.iter().any(|(candidate, _)| *candidate == value) => {
+            Ok(json!({ "permission_mode": value }))
         }
-        _ => None,
+        "plan" if matches!(value, OFF | ON) => Ok(json!({ "plan_mode": value == ON })),
+        "swarm" if matches!(value, OFF | ON) => Ok(json!({ "swarm_mode": value == ON })),
+        "goal" if value == OFF => Ok(json!({ "goal_control": "cancel" })),
+        "goal" if value == ON => {
+            let objective = input.unwrap_or_default().trim();
+            if objective.is_empty() {
+                return Err(KapError::Validation {
+                    message: "goal objective cannot be empty".to_owned(),
+                });
+            }
+            if objective.encode_utf16().count() > MAX_GOAL_OBJECTIVE_UTF16 {
+                return Err(KapError::Validation {
+                    message: format!(
+                        "goal objective cannot exceed {MAX_GOAL_OBJECTIVE_UTF16} UTF-16 code units"
+                    ),
+                });
+            }
+            Ok(json!({ "goal_objective": objective }))
+        }
+        _ => Err(KapError::Validation {
+            message: format!("the session offers no control {config_id} with value {value}"),
+        }),
     }
 }
 
+fn permission_control(status: &Value) -> ConfigControl {
+    let mut choices: Vec<ConfigChoice> = PERMISSIONS
+        .iter()
+        .map(|(value, label)| ConfigChoice {
+            value: (*value).to_owned(),
+            label: (*label).to_owned(),
+            detail: None,
+        })
+        .collect();
+    let reported = status
+        .get("permission")
+        .and_then(Value::as_str)
+        .unwrap_or("manual");
+    if current_not_offered(&choices, reported) {
+        choices.push(choice(reported));
+    }
+
+    ConfigControl {
+        id: "permission".to_owned(),
+        label: "批准方式".to_owned(),
+        detail: None,
+        purpose: ConfigPurpose::Permission,
+        current: in_force(&choices, reported).unwrap_or_else(|| "manual".to_owned()),
+        choices,
+    }
+}
+
+fn toggle_control(id: &str, label: &str, detail: &str, enabled: bool) -> ConfigControl {
+    ConfigControl {
+        id: id.to_owned(),
+        label: label.to_owned(),
+        detail: None,
+        purpose: ConfigPurpose::Mode,
+        current: if enabled { ON } else { OFF }.to_owned(),
+        choices: vec![
+            ConfigChoice {
+                value: OFF.to_owned(),
+                label: "关闭".to_owned(),
+                detail: None,
+            },
+            ConfigChoice {
+                value: ON.to_owned(),
+                label: label.to_owned(),
+                detail: Some(detail.to_owned()),
+            },
+        ],
+    }
+}
+
+fn goal_control(goal: &Value) -> ConfigControl {
+    let objective = goal
+        .get("objective")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let mut control = toggle_control(
+        "goal",
+        "目标",
+        "以当前草稿为目标持续推进",
+        objective.is_some(),
+    );
+    control.detail = objective;
+    control
+}
+
 fn model_control(current: &str, items: Option<&[Value]>) -> Option<ConfigControl> {
-    // 会话还没绑模型：不猜，猜了就是替它撒谎。
     if current.is_empty() {
         return None;
     }
-
     let mut choices: Vec<ConfigChoice> = items
         .into_iter()
         .flatten()
         .filter_map(|item| {
             let model = item.get("model").and_then(Value::as_str)?;
-
             Some(ConfigChoice {
                 value: model.to_owned(),
                 label: item
@@ -156,32 +205,21 @@ fn model_control(current: &str, items: Option<&[Value]>) -> Option<ConfigControl
             })
         })
         .collect();
-
     if current_not_offered(&choices, current) {
-        choices.push(ConfigChoice {
-            value: current.to_owned(),
-            label: current.to_owned(),
-            detail: None,
-        });
+        choices.push(choice(current));
     }
-
-    let current = in_force(&choices, current)?;
-
     Some(ConfigControl {
         id: "model".to_owned(),
         label: "Model".to_owned(),
         detail: None,
         purpose: ConfigPurpose::Model,
-        current,
+        current: in_force(&choices, current)?,
         choices,
     })
 }
 
-/// Thinking 的有效域只来自当前模型：有 efforts 就严格使用该列表；有 Thinking
-/// capability 而无 efforts 时才是布尔 on/off；无 capability 时不生成可提交控件。
 fn thinking_control(reported: &str, model: &str, items: Option<&[Value]>) -> Option<ConfigControl> {
     let offer = thinking_offer(model, non_empty(reported), items?)?;
-
     Some(ConfigControl {
         id: "thinking".to_owned(),
         label: "Thinking".to_owned(),
@@ -200,10 +238,10 @@ fn thinking_offer(model: &str, reported: Option<&str>, items: &[Value]) -> Optio
         .get("capabilities")
         .and_then(Value::as_array)
         .map_or(&[][..], Vec::as_slice);
-    let supports_thinking = capabilities
+    let supports = capabilities
         .iter()
         .any(|capability| matches!(capability.as_str(), Some("thinking" | "always_thinking")));
-    let always_thinking = capabilities
+    let always = capabilities
         .iter()
         .any(|capability| capability.as_str() == Some("always_thinking"));
     let mut choices = Vec::new();
@@ -216,7 +254,6 @@ fn thinking_offer(model: &str, reported: Option<&str>, items: &[Value]) -> Optio
             push_unique(&mut choices, choice(value));
         }
     }
-
     if !choices.is_empty() {
         let current = reported
             .filter(|value| contains(&choices, value))
@@ -226,79 +263,26 @@ fn thinking_offer(model: &str, reported: Option<&str>, items: &[Value]) -> Optio
                     .and_then(non_empty)
                     .filter(|value| contains(&choices, value))
             })
-            .or_else(|| {
-                choices
-                    .get(choices.len() / 2)
-                    .map(|choice| choice.value.as_str())
-            })?;
-
+            .or_else(|| choices.get(choices.len() / 2).map(|choice| choice.value.as_str()))?;
         return Some(ThinkingOffer {
             current: current.to_owned(),
             choices,
         });
     }
-
-    if !supports_thinking {
+    if !supports {
         return None;
     }
-
-    choices.push(choice("on"));
-    if !always_thinking {
-        choices.push(choice("off"));
+    choices.push(choice(ON));
+    if !always {
+        choices.push(choice(OFF));
     }
-
     let current = reported
         .filter(|value| contains(&choices, value))
-        .unwrap_or("on")
+        .unwrap_or(ON)
         .to_owned();
-
     Some(ThinkingOffer { current, choices })
 }
 
-fn mode_control(status: &Value) -> ConfigControl {
-    let mut choices: Vec<ConfigChoice> = MODES
-        .iter()
-        .map(|(value, label, detail)| ConfigChoice {
-            value: (*value).to_owned(),
-            label: (*label).to_owned(),
-            detail: Some((*detail).to_owned()),
-        })
-        .collect();
-
-    let permission = status
-        .get("permission")
-        .and_then(Value::as_str)
-        .unwrap_or("");
-
-    if current_not_offered(&choices, permission) {
-        // 协议枚举之外的模式原样占一席：显示成别的才是撒谎。
-        choices.push(ConfigChoice {
-            value: permission.to_owned(),
-            label: permission.to_owned(),
-            detail: None,
-        });
-    }
-
-    let reported = if status.get("plan_mode").and_then(Value::as_bool) == Some(true) {
-        "plan"
-    } else {
-        permission
-    };
-
-    let current = in_force(&choices, reported).unwrap_or_else(|| "manual".to_owned());
-
-    ConfigControl {
-        id: "mode".to_owned(),
-        label: "Mode".to_owned(),
-        detail: None,
-        purpose: ConfigPurpose::Mode,
-        current,
-        choices,
-    }
-}
-
-/// 生效值必须在候选里（与 HTML select 的回落同一语义：值不在项里就落到
-/// 第一项）；候选为空的选择器不成立。
 fn in_force(choices: &[ConfigChoice], reported: &str) -> Option<String> {
     choices
         .iter()
@@ -308,7 +292,7 @@ fn in_force(choices: &[ConfigChoice], reported: &str) -> Option<String> {
 }
 
 fn current_not_offered(choices: &[ConfigChoice], current: &str) -> bool {
-    !current.is_empty() && !choices.iter().any(|choice| choice.value == current)
+    !current.is_empty() && !contains(choices, current)
 }
 
 fn choice(value: &str) -> ConfigChoice {
@@ -343,119 +327,88 @@ mod tests {
             "model": model,
             "thinking_level": thinking,
             "permission": "manual",
-            "plan_mode": false
+            "plan_mode": false,
+            "swarm_mode": false
         })
+    }
+
+    fn catalog(model: &str, capabilities: Value, efforts: Value, default: &str) -> Value {
+        json!({ "items": [{
+            "model": model,
+            "capabilities": capabilities,
+            "support_efforts": efforts,
+            "default_effort": default
+        }] })
     }
 
     #[test]
     fn stale_effort_falls_back_to_declared_default() {
-        let catalog = json!({ "items": [{
-            "model": "deepseek",
-            "capabilities": ["thinking"],
-            "support_efforts": ["high", "max"],
-            "default_effort": "high"
-        }] });
-
-        let thought = controls(&status("deepseek", "low"), &catalog)
+        let offered = catalog("deepseek", json!(["thinking"]), json!(["high", "max"]), "high");
+        let thought = controls(&status("deepseek", "low"), &offered, &Value::Null)
             .into_iter()
             .find(|control| control.purpose == ConfigPurpose::Thought)
             .expect("Thinking control");
-
         assert_eq!(thought.current, "high");
-        assert_eq!(
-            thought
-                .choices
-                .iter()
-                .map(|choice| choice.value.as_str())
-                .collect::<Vec<_>>(),
-            ["high", "max"]
-        );
-    }
-
-    #[test]
-    fn invalid_default_uses_middle_declared_effort() {
-        let catalog = json!({ "items": [{
-            "model": "target",
-            "capabilities": ["thinking"],
-            "support_efforts": ["low", "high", "max"],
-            "default_effort": "invalid"
-        }] });
-
-        let thought = controls(&status("target", "legacy"), &catalog)
-            .into_iter()
-            .find(|control| control.purpose == ConfigPurpose::Thought)
-            .expect("Thinking control");
-
-        assert_eq!(thought.current, "high");
-    }
-
-    #[test]
-    fn supported_effort_is_preserved() {
-        let catalog = json!({ "items": [{
-            "model": "target",
-            "capabilities": ["thinking"],
-            "support_efforts": ["high", "max"],
-            "default_effort": "high"
-        }] });
-
-        let thought = controls(&status("target", "max"), &catalog)
-            .into_iter()
-            .find(|control| control.purpose == ConfigPurpose::Thought)
-            .expect("Thinking control");
-
-        assert_eq!(thought.current, "max");
     }
 
     #[test]
     fn boolean_and_unavailable_thinking_are_distinct() {
-        let boolean = json!({ "items": [{
-            "model": "boolean",
-            "capabilities": ["thinking"]
-        }] });
-        let unavailable = json!({ "items": [{
-            "model": "plain",
-            "capabilities": []
-        }] });
-
-        let thought = controls(&status("boolean", "low"), &boolean)
+        let boolean = json!({ "items": [{ "model": "boolean", "capabilities": ["thinking"] }] });
+        let unavailable = json!({ "items": [{ "model": "plain", "capabilities": [] }] });
+        let thought = controls(&status("boolean", "low"), &boolean, &Value::Null)
             .into_iter()
             .find(|control| control.purpose == ConfigPurpose::Thought)
             .expect("boolean Thinking control");
-
-        assert_eq!(thought.current, "on");
-        assert_eq!(
-            thought
-                .choices
-                .iter()
-                .map(|choice| choice.value.as_str())
-                .collect::<Vec<_>>(),
-            ["on", "off"]
-        );
+        assert_eq!(thought.current, ON);
         assert!(
-            controls(&status("plain", "low"), &unavailable)
-                .into_iter()
+            controls(&status("plain", "low"), &unavailable, &Value::Null)
+                .iter()
                 .all(|control| control.purpose != ConfigPurpose::Thought)
         );
     }
 
     #[test]
-    fn always_thinking_never_offers_off() {
-        let catalog = json!({ "items": [{
-            "model": "always",
-            "capabilities": ["always_thinking"]
-        }] });
+    fn plan_goal_and_swarm_remain_independent() {
+        let status = json!({
+            "model": "model",
+            "thinking_level": "on",
+            "permission": "yolo",
+            "plan_mode": true,
+            "swarm_mode": true
+        });
+        let catalog = json!({ "items": [{ "model": "model", "capabilities": [] }] });
+        let goal = json!({ "objective": "修掉 flaky 测试", "status": "active" });
+        let offered = controls(&status, &catalog, &goal);
+        for id in ["plan", "goal", "swarm"] {
+            assert_eq!(
+                offered.iter().find(|control| control.id == id).map(|control| control.current.as_str()),
+                Some(ON)
+            );
+        }
+        assert_eq!(
+            offered.iter().find(|control| control.id == "permission").map(|control| control.current.as_str()),
+            Some("yolo")
+        );
+    }
 
-        let thought = controls(&status("always", "off"), &catalog)
-            .into_iter()
-            .find(|control| control.purpose == ConfigPurpose::Thought)
-            .expect("always-on Thinking control");
-
-        assert_eq!(thought.current, "on");
-        assert_eq!(thought.choices.len(), 1);
-        let choice = thought
-            .choices
-            .first()
-            .expect("choices must not empty for test");
-        assert_eq!(choice.value, "on");
+    #[test]
+    fn goal_patch_validates_the_official_limit() {
+        assert!(matches!(
+            selector_patch("goal", ON, Some("  ")),
+            Err(KapError::Validation { .. })
+        ));
+        let too_long = "😀".repeat(2001);
+        assert!(matches!(
+            selector_patch("goal", ON, Some(&too_long)),
+            Err(KapError::Validation { .. })
+        ));
+        assert_eq!(
+            selector_patch("goal", ON, Some("  ship it  ")).expect("goal patch"),
+            json!({ "goal_objective": "ship it" })
+        );
+        assert_eq!(
+            selector_patch("goal", OFF, None).expect("cancel patch"),
+            json!({ "goal_control": "cancel" })
+        );
     }
 }

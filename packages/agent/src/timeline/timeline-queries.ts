@@ -188,29 +188,6 @@ export function pendingQuestion(scope: WaitingScope): QuestionTimelineItem | und
 }
 
 /**
- * 这一段在哪个目标下。
- *
- * kap 把它报成 goal_start 那一档工具显示（kap-projection.ts），所以真相在转录，
- * 不在客户端。按段取最后一条：目标属于一段工作，段结束它就不再生效。交出字符串
- * 而不是条目 —— 胶囊只印它，而字符串比引用还稳。
- */
-export function activeGoal(state: TimelineState): string | undefined {
-  for (let index = state.items.length - 1; index >= 0; index -= 1) {
-    const item = state.items[index]
-
-    if (item === undefined || item.turn !== state.runIndex) {
-      continue
-    }
-
-    if (item.type === 'tool_call' && item.kind === 'goal' && item.subject !== '') {
-      return item.subject
-    }
-  }
-
-  return undefined
-}
-
-/**
  * 此刻还在跑的子代理数：kap 的 agent_call 与 task 两档。
  *
  * 不按段收口 —— 后台派出去的那些（display.background）活得比一段长。终帧到达即

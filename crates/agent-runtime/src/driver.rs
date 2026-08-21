@@ -40,7 +40,7 @@ use tokio_tungstenite::{
 };
 use uuid::Uuid;
 
-use crate::commands::{AgentClient, Command, PromptImage};
+use crate::commands::{AgentClient, Command, PromptImage, PromptSkill};
 use crate::config::{ConfigControl, controls, selector_patch};
 use crate::desk::{PermissionDesk, QuestionDesk};
 use crate::error::{KapError, Refusal, Result};
@@ -50,8 +50,8 @@ use crate::question::{QuestionGroup, QuestionOutcome};
 use crate::recorder::{Recorder, now_millis};
 use crate::run_slot::RunSlot;
 use crate::session::{
-    AgentConnection, AgentSpawn, Cursor, Handshake, OpenedSession, SessionEntry, SessionEvent,
-    SessionEvents, Skill,
+    AgentConnection, AgentSpawn, Cursor, Handshake, McpServer, McpStatus, McpTransport,
+    OpenedSession, SessionEntry, SessionEvent, SessionEvents, Skill,
 };
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -399,8 +399,6 @@ async fn subscribe(ws: &WsSink, session_id: &str, from: Option<&Cursor>) -> Resu
 
 /// 主循环里一条已知会话的运行时状态。
 struct SessionState {
-    /// 当前在飞的 prompt_id（若有）。
-    active_prompt_id: Option<String>,
     /// 这一轮已请上桌的审批：既是去重的判据，也是轮终要放掉的清单。
     pending_approvals: Vec<String>,
     /// 这一轮已请上桌的题组，同上。
@@ -410,7 +408,6 @@ struct SessionState {
 impl SessionState {
     fn new() -> Self {
         Self {
-            active_prompt_id: None,
             pending_approvals: Vec::new(),
             pending_questions: Vec::new(),
         }
@@ -711,31 +708,22 @@ pub fn connect(
         }
 
         let mut commands_rx = commands_rx;
-        let mut stopping = false;
-
         loop {
             tokio::select! {
-                cmd = commands_rx.next(), if !stopping => {
+                cmd = commands_rx.next() => {
                     match cmd {
                         None | Some(Command::Shutdown) => {
-                            stopping = true;
                             kill_tree(&mut child).await;
+                            break;
                         }
 
-                        Some(Command::Cancel { session_id: sid }) => {
-                            if let Some(state) = sessions.get(&sid)
-                                && let Some(prompt_id) = &state.active_prompt_id
-                            {
-                                let aborted = send_frame(&ws, "abort", json!({
-                                    "session_id": sid,
-                                    "prompt_id": prompt_id,
-                                }))
-                                .await;
-
-                                if let Err(error) = aborted {
-                                    log::warn!("the abort for {sid} never left: {error}");
-                                }
-                            }
+                        Some(Command::Cancel { session_id: sid, reply }) => {
+                            let http2 = http.clone();
+                            let base2 = base_url.clone();
+                            tokio::spawn(async move {
+                                let result = abort_session(&http2, &base2, &sid).await;
+                                let _ = reply.send(result);
+                            });
                         }
 
                         Some(Command::NewSession { cwd: new_cwd, reply }) => {
@@ -795,7 +783,7 @@ pub fn connect(
                             });
                         }
 
-                        Some(Command::Prompt { session_id: sid, text, images, frames, reply }) => {
+                        Some(Command::Prompt { session_id: sid, text, images, skills, frames, reply }) => {
                             // 本次连接没开过这个号，它就不是我们的话。
                             let held = book_clone.slot(&sid).ok().flatten();
 
@@ -812,19 +800,13 @@ pub fn connect(
                                 } else {
                                     slot.record(|r| r.record_run_started(&text, shown));
 
-                                    let prompt_id = Uuid::new_v4().to_string();
-                                    sessions
-                                        .entry(sid.clone())
-                                        .or_insert_with(SessionState::new)
-                                        .active_prompt_id = Some(prompt_id.clone());
-
                                     let http2 = http.clone();
                                     let base2 = base_url.clone();
                                     let book2 = book_clone.clone();
                                     let sid2 = sid.clone();
                                     tokio::spawn(async move {
                                         let result = submit_prompt(
-                                            &http2, &base2, &sid2, &text, &images, &prompt_id,
+                                            &http2, &base2, &sid2, &text, &images, &skills,
                                         )
                                         .await;
 
@@ -855,17 +837,11 @@ pub fn connect(
                             });
                         }
 
-                        Some(Command::ActivateSkill {
-                            session_id: sid,
-                            name,
-                            args,
-                            reply,
-                        }) => {
+                        Some(Command::McpServers { reply }) => {
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             tokio::spawn(async move {
-                                let result =
-                                    activate_skill(&http2, &base2, &sid, &name, &args).await;
+                                let result = list_mcp_servers(&http2, &base2).await;
                                 let _ = reply.send(result);
                             });
                         }
@@ -879,12 +855,12 @@ pub fn connect(
                             });
                         }
 
-                        Some(Command::Select { session_id: sid, config_id, value, reply }) => {
+                        Some(Command::Select { session_id: sid, config_id, value, input, reply }) => {
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             tokio::spawn(async move {
                                 let result =
-                                    set_selector(&http2, &base2, &sid, &config_id, &value)
+                                    set_selector(&http2, &base2, &sid, &config_id, &value, input.as_deref())
                                         .await;
                                 let _ = reply.send(result);
                             });
@@ -938,9 +914,6 @@ pub fn connect(
                         _ => {}
                     }
 
-                    if stopping && sessions.values().all(|s| s.active_prompt_id.is_none()) {
-                        break;
-                    }
                 }
             }
         }
@@ -1018,7 +991,6 @@ async fn handle_ws_message(
         });
 
         if let Some(state) = sessions.get_mut(cut) {
-            state.active_prompt_id = None;
             let outstanding = std::mem::take(&mut state.pending_approvals);
             let unanswered = std::mem::take(&mut state.pending_questions);
 
@@ -1075,7 +1047,6 @@ async fn handle_ws_message(
             let state = sessions
                 .entry(session_id.to_owned())
                 .or_insert_with(SessionState::new);
-            state.active_prompt_id = None;
             let outstanding = std::mem::take(&mut state.pending_approvals);
             let unanswered = std::mem::take(&mut state.pending_questions);
 
@@ -1105,6 +1076,22 @@ async fn handle_ws_message(
                         .and_then(Value::as_str)
                         .map(str::to_owned),
                 },
+            });
+
+            let http = http.clone();
+            let base_url = base_url.to_owned();
+            let session_id = session_id.to_owned();
+            let events = events_tx.clone();
+            tokio::spawn(async move {
+                match get_selectors(&http, &base_url, &session_id).await {
+                    Ok(controls) => {
+                        let _sent = events.unbounded_send(SessionEvent::Selectors {
+                            session_id,
+                            controls,
+                        });
+                    }
+                    Err(error) => log::warn!("could not refresh session controls: {error}"),
+                }
             });
         }
 
@@ -1486,16 +1473,29 @@ async fn submit_prompt(
     session_id: &str,
     text: &str,
     images: &[PromptImage],
-    prompt_id: &str,
+    skills: &[PromptSkill],
 ) -> Result<String> {
-    let mut content: Vec<Value> = vec![];
+    let body = prompt_body(text, images, skills)?;
+    let data = post(
+        http,
+        &format!("{base_url}/sessions/{session_id}/prompts"),
+        &body,
+    )
+    .await?;
+    data.get("prompt_id")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| KapError::Transport {
+            message: format!("no prompt_id in prompt response: {data}"),
+        })
+}
 
+fn prompt_body(text: &str, images: &[PromptImage], skills: &[PromptSkill]) -> Result<Value> {
+    let mut content = Vec::new();
     if !text.is_empty() {
         content.push(json!({ "type": "text", "text": text }));
     }
-
     for image in images {
-        // kap 的图像块（protocol/message.ts 的 imageContentSchema）。
         content.push(json!({
             "type": "image",
             "source": {
@@ -1505,25 +1505,21 @@ async fn submit_prompt(
             }
         }));
     }
-
     if content.is_empty() {
-        return Err(KapError::Transport {
-            message: "prompt has no content".into(),
-        });
+        return Err(KapError::Validation { message: "prompt has no content".to_owned() });
     }
-
-    let data = post(
-        http,
-        &format!("{base_url}/sessions/{session_id}/prompts"),
-        &json!({ "content": content, "prompt_id": prompt_id }),
-    )
-    .await?;
-
-    Ok(data
-        .get("prompt_id")
-        .and_then(Value::as_str)
-        .unwrap_or(prompt_id)
-        .to_owned())
+    let activations: Vec<Value> = skills
+        .iter()
+        .map(|skill| match skill.args.as_deref().filter(|args| !args.is_empty()) {
+            Some(args) => json!({ "name": skill.name, "args": args }),
+            None => json!({ "name": skill.name }),
+        })
+        .collect();
+    if activations.is_empty() {
+        Ok(json!({ "content": content }))
+    } else {
+        Ok(json!({ "content": content, "skills": activations }))
+    }
 }
 
 async fn open_session(
@@ -1719,30 +1715,54 @@ async fn list_skills(
         .collect())
 }
 
-/// 激活一条技能。动作后缀路由：POST /sessions/{id}/skills/{name}:activate。
-///
-/// 空 args 不写进请求体：activateSkillRequestSchema 里它是可选的，送一个空串等于
-/// 声称人给了一段空参数。
-async fn activate_skill(
+async fn list_mcp_servers(
     http: &reqwest::Client,
     base_url: &str,
-    session_id: &str,
-    name: &str,
-    args: &str,
-) -> Result<()> {
-    let body = if args.is_empty() {
-        json!({})
-    } else {
-        json!({ "args": args })
-    };
+) -> Result<Vec<McpServer>> {
+    let data = get(http, &format!("{base_url}/mcp/servers")).await?;
+    let listed = data.get("servers").and_then(Value::as_array).ok_or_else(|| {
+        KapError::Transport { message: "MCP response has no servers array".to_owned() }
+    })?;
+    listed.iter().map(|item| {
+        let required = |key: &str| item.get(key).and_then(Value::as_str).ok_or_else(|| {
+            KapError::Transport { message: format!("MCP server has no {key}: {item}") }
+        });
+        let transport = match required("transport")? {
+            "stdio" => McpTransport::Stdio,
+            "http" => McpTransport::Http,
+            "sse" => McpTransport::Sse,
+            other => return Err(KapError::Transport { message: format!("unknown MCP transport {other}") }),
+        };
+        let status = match required("status")? {
+            "connected" => McpStatus::Connected,
+            "connecting" => McpStatus::Connecting,
+            "disconnected" => McpStatus::Disconnected,
+            "error" => McpStatus::Error,
+            other => return Err(KapError::Transport { message: format!("unknown MCP status {other}") }),
+        };
+        let count = item.get("tool_count").and_then(Value::as_u64).ok_or_else(|| {
+            KapError::Transport { message: format!("MCP server has no tool_count: {item}") }
+        })?;
+        Ok(McpServer {
+            id: required("id")?.to_owned(),
+            name: required("name")?.to_owned(),
+            transport,
+            status,
+            tool_count: u32::try_from(count).map_err(|_| KapError::Transport {
+                message: format!("MCP tool_count is too large: {count}"),
+            })?,
+            last_error: item.get("last_error").and_then(Value::as_str).map(str::to_owned),
+        })
+    }).collect()
+}
 
+async fn abort_session(http: &reqwest::Client, base_url: &str, session_id: &str) -> Result<()> {
     post(
         http,
-        &format!("{base_url}/sessions/{session_id}/skills/{name}:activate"),
-        &body,
+        &format!("{base_url}/sessions/{session_id}:abort"),
+        &json!({}),
     )
     .await?;
-
     Ok(())
 }
 
@@ -1753,8 +1773,8 @@ async fn get_selectors(
 ) -> Result<Vec<ConfigControl>> {
     let status = get(http, &format!("{base_url}/sessions/{session_id}/status")).await?;
     let catalog = get(http, &format!("{base_url}/models")).await?;
-
-    Ok(controls(&status, &catalog))
+    let goal = get(http, &format!("{base_url}/sessions/{session_id}/goal")).await?;
+    Ok(controls(&status, &catalog, &goal))
 }
 
 async fn set_selector(
@@ -1763,17 +1783,45 @@ async fn set_selector(
     session_id: &str,
     config_id: &str,
     value: &str,
+    input: Option<&str>,
 ) -> Result<Vec<ConfigControl>> {
-    let patch = selector_patch(config_id, value).ok_or_else(|| KapError::Transport {
-        message: format!("the session offers no selector {config_id} with value {value}"),
+    let current = get_selectors(http, base_url, session_id).await?;
+    let control = current.iter().find(|control| control.id == config_id).ok_or_else(|| {
+        KapError::Validation { message: format!("the session offers no control {config_id}") }
     })?;
-
+    if control.current == value {
+        return Ok(current);
+    }
+    if !control.choices.iter().any(|choice| choice.value == value) {
+        return Err(KapError::Validation {
+            message: format!("control {config_id} does not offer {value}"),
+        });
+    }
+    let patch = selector_patch(config_id, value, input)?;
     post(
         http,
         &format!("{base_url}/sessions/{session_id}/profile"),
         &json!({ "agent_config": patch }),
     )
     .await?;
-
     get_selectors(http, base_url, session_id).await
+}
+
+
+#[cfg(test)]
+mod prompt_tests {
+    use super::*;
+
+    #[test]
+    fn bundled_skills_share_one_prompt_and_never_send_a_client_prompt_id() {
+        let body = prompt_body(
+            "review this",
+            &[],
+            &[PromptSkill { name: "research".to_owned(), args: None }],
+        )
+        .expect("prompt body");
+        assert!(body.get("prompt_id").is_none());
+        assert_eq!(body.get("skills").and_then(Value::as_array).map(Vec::len), Some(1));
+        assert_eq!(body.get("content").and_then(Value::as_array).map(Vec::len), Some(1));
+    }
 }

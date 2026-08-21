@@ -141,26 +141,11 @@ async agentSetConfigOption(request: AgentSelectConfigRequest) : Promise<AgentCon
 async agentCapabilities(request: AgentCapabilitiesRequest) : Promise<AgentConfigControl[]> {
     return await TAURI_INVOKE("agent_capabilities", { request });
 },
-/**
- * 这条会话此刻能用的技能。
- * 
- * # Errors
- * 
- * Fails when no session is live, or when kap refuses the listing.
- */
 async agentSkills(request: AgentSkillsRequest) : Promise<AgentSkill[]> {
     return await TAURI_INVOKE("agent_skills", { request });
 },
-/**
- * 激活一条技能。
- * 
- * # Errors
- * 
- * Fails when no session is live, or when kap refuses the activation: no such
- * skill, or a type the user may not activate.
- */
-async agentActivateSkill(request: AgentActivateSkillRequest) : Promise<null> {
-    return await TAURI_INVOKE("agent_activate_skill", { request });
+async agentMcpServers(request: AgentCapabilitiesRequest) : Promise<AgentMcpServer[]> {
+    return await TAURI_INVOKE("agent_mcp_servers", { request });
 },
 /**
  * Lists the stored conversations, newest first.
@@ -1090,11 +1075,6 @@ updateProgress: "update-progress"
 
 /** user-defined types **/
 
-export type AgentActivateSkillRequest = { sessionId: string; name: string; 
-/**
- * 技能名后面那段自由文本；没有就是空串。
- */
-args: string }
 /**
  * 一整组题的答复。
  */
@@ -1263,7 +1243,11 @@ choices: AgentConfigChoice[] }
  */
 export type AgentConfigPurpose = 
 /**
- * How much freedom the agent takes during a turn.
+ * How tool approvals are decided.
+ */
+"permission" | 
+/**
+ * Independent Plan, Goal and Swarm controls.
  */
 "mode" | 
 /**
@@ -1435,6 +1419,9 @@ export type AgentLaunch = {
  * 要启动的 agent。它决定受控 home 落在哪里。
  */
 agentId: string }
+export type AgentMcpServer = { id: string; name: string; transport: AgentMcpTransport; status: AgentMcpStatus; toolCount: number; lastError: string | null }
+export type AgentMcpStatus = "connected" | "connecting" | "disconnected" | "error"
+export type AgentMcpTransport = "stdio" | "http" | "sse"
 /**
  * 要打开的对话，以及必要时怎样启动 agent。
  */
@@ -1530,6 +1517,10 @@ text: string;
  */
 assets: AgentPromptAsset[]; 
 /**
+ * 与正文和附件同一次 prompt 提交的 Skill。
+ */
+skills: AgentPromptSkill[]; 
+/**
  * The conversation this turn belongs to, when the interface names one.
  */
 threadId: string | null; 
@@ -1549,6 +1540,7 @@ export type AgentPromptResult = {
  * 这一轮发到了哪条会话。它的每一帧都带着同一个号。
  */
 sessionId: string }
+export type AgentPromptSkill = { name: string; args: string | null }
 /**
  * 一题一条答复，按题号点名。
  */
@@ -1639,7 +1631,11 @@ configId: string;
 /**
  * One of the values that selector offered.
  */
-value: string }
+value: string; 
+/**
+ * Goal creation uses the current composer draft as its objective.
+ */
+input: string | null }
 /**
  * 一条会话此刻占了多少上下文，以及它累计的输入构成。
  * 
@@ -1668,14 +1664,7 @@ inputCacheRead: number;
  * 累计输入里写入缓存的 token（kap usage.total.inputCacheCreation）。
  */
 inputCacheCreation: number }
-/**
- * 一条可激活的技能。
- */
-export type AgentSkill = { name: string; description: string; 
-/**
- * project / user / extra / builtin，由 kap 判定。
- */
-source: string }
+export type AgentSkill = { name: string; description: string; source: string }
 export type AgentSkillsRequest = { sessionId: string }
 /**
  * One conversation, as a list of conversations and a tab strip need it.

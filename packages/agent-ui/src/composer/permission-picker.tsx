@@ -13,7 +13,6 @@ import {
 import { Hand, type LucideIcon, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { memo, useState } from 'react'
 import { CheckIcon } from '../primitives/icons'
-import { usePostureMemory } from './posture-memory'
 
 /*
  * 批准方式那颗胶囊，以及它打开的那一张。
@@ -64,7 +63,6 @@ export const PermissionPicker = memo(function PermissionPicker({
   onSelect,
 }: PermissionPickerProps) {
   const [open, setOpen] = useState(false)
-  const rememberedPosture = usePostureMemory(controls)
   const control = permissionControlOf(controls)
 
   if (control === undefined) {
@@ -79,7 +77,7 @@ export const PermissionPicker = memo(function PermissionPicker({
 
   /* Plan 期间批准方式只是被挂起：胶囊继续显示挂起的那一档，菜单里改选另一档即
      退出 plan。互斥隐藏会让人看不见自己此刻授了多大的权 —— 这颗胶囊必须常显。 */
-  const currentPosture = rememberedPosture ?? control.current
+  const currentPosture = control.current
   const current = permissionPostureOf(currentPosture)
 
   if (current === undefined) {

@@ -1,6 +1,11 @@
 import type { SessionControlsStore } from '@poietica/agent'
-import type { AgentSkill, SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
-import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
+import type {
+  AgentMcpServer,
+  AgentSkill,
+  SessionConfigControl,
+  SessionUsage,
+} from '@poietica/agent-contract'
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from 'react'
 
 /*
  * 一条对话背后那个会话提供哪些可调项，读在这里。
@@ -86,18 +91,16 @@ export function useThreadSkills(threadId: string | null): readonly AgentSkill[] 
   return useSyncExternalStore(store?.subscribe ?? NO_SUBSCRIPTION, read, read)
 }
 
-/** 激活这条对话上的一条技能，args 就是调用式后面那一截。 */
-export function useSkillActivation(threadId: string | null): (name: string, args: string) => void {
+/** Kimi 当前检测到的 MCP 名册；失败与尚未读取都是 undefined。 */
+export function useMcpServers(): readonly AgentMcpServer[] | undefined {
   const store = useContext(SessionControlsContext)
+  const read = useCallback(() => store?.mcpServers(), [store])
 
-  return useCallback(
-    (name: string, args: string) => {
-      if (store !== null && threadId !== null) {
-        store.activateSkill(threadId, name, args)
-      }
-    },
-    [store, threadId],
-  )
+  useEffect(() => {
+    store?.loadMcpServers()
+  }, [store])
+
+  return useSyncExternalStore(store?.subscribe ?? NO_SUBSCRIPTION, read, read)
 }
 
 /** 这条对话背后那个会话最近报的上下文用量；还没报过是 undefined。 */

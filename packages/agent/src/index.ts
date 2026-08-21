@@ -56,7 +56,6 @@ export type {
   UserMessageItem,
 } from './timeline'
 export {
-  activeGoal,
   appendLocalError,
   appendUserMessage,
   applyRunEvent,

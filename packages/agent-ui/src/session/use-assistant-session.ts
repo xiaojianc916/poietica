@@ -6,7 +6,6 @@ import type {
   Transcript,
 } from '@poietica/agent'
 import {
-  activeGoal,
   describeFailure,
   pendingPermission,
   pendingPermissionCall,
@@ -21,6 +20,7 @@ import type {
   ChatStatus,
   FrameCursor,
   PromptAsset,
+  PromptSkill,
   QuestionResponse,
 } from '@poietica/agent-contract'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
@@ -54,6 +54,7 @@ export interface AssistantSubmission {
    * 一次 base64），所以发送这条路上再没有任何要读、要编码、要等的东西。
    */
   readonly assets: readonly PromptAsset[]
+  readonly skills: readonly PromptSkill[]
 }
 
 export interface AssistantSessionOptions {
@@ -204,6 +205,7 @@ export function useAssistantSession({
         onUserMessage,
         port: session,
         text: submission.text,
+        skills: submission.skills,
       })
     },
     [endpoint, identify, key, onUserMessage, session, transcripts],
@@ -343,15 +345,6 @@ export function useAssistantPendingCall(key: string): ToolCallTimelineItem | und
 }
 
 /* 目标与蜂群各交一个原始值：字符串与数字，所以流式追加叫不醒那排胶囊。 */
-const readGoal = (transcript: Transcript): string | undefined => activeGoal(transcript.timeline)
-
-const readSwarm = (transcript: Transcript): number => runningDelegations(transcript.timeline)
-
-/** 这一段在哪个目标下，没有就是 undefined。 */
-export function useAssistantGoal(key: string): string | undefined {
-  return useSlice(key, readGoal)
-}
-
 /** 此刻还在跑的子代理数。 */
 export function useAssistantSwarm(key: string): number {
   return useSlice(key, readSwarm)

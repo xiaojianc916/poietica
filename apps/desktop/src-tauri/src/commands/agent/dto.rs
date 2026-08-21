@@ -37,6 +37,13 @@ pub struct AgentPromptAsset {
     pub asset_token: String,
 }
 
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentPromptSkill {
+    pub name: String,
+    pub args: Option<String>,
+}
+
 /// A prompt, and how to start the agent if it is not running yet.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -48,6 +55,8 @@ pub struct AgentPromptRequest {
     /// 与 text 是同一句话的两半，所以判空要一起判：只挑了图、没打字是一句
     /// 完整的话。
     pub assets: Vec<AgentPromptAsset>,
+    /// 与正文和附件同一次 prompt 提交的 Skill。
+    pub skills: Vec<AgentPromptSkill>,
     /// The conversation this turn belongs to, when the interface names one.
     pub thread_id: Option<String>,
     /// 起哪个 agent。
@@ -123,7 +132,9 @@ pub struct AgentCancelRequest {
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentConfigPurpose {
-    /// How much freedom the agent takes during a turn.
+    /// How tool approvals are decided.
+    Permission,
+    /// Independent Plan, Goal and Swarm controls.
     Mode,
     /// Which model answers.
     Model,
@@ -242,6 +253,8 @@ pub struct AgentSelectConfigRequest {
     pub config_id: String,
     /// One of the values that selector offered.
     pub value: String,
+    /// Goal creation uses the current composer draft as its objective.
+    pub input: Option<String>,
 }
 
 /// 问这个 agent 提供什么，不点名任何一条对话。

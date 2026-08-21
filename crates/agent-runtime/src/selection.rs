@@ -18,8 +18,14 @@ pub async fn select_config(
     session_id: String,
     config_id: String,
     value: String,
+    input: Option<String>,
 ) -> Result<Vec<ConfigControl>> {
-    let answer = client.select(session_id.clone(), config_id.clone(), value.clone())?;
+    let answer = client.select(
+        session_id.clone(),
+        config_id.clone(),
+        value.clone(),
+        input,
+    )?;
     let controls = receive(answer).await?;
     let controls = settle(client, &session_id, &config_id, &value, controls).await?;
 
@@ -43,6 +49,7 @@ pub async fn select_config(
         session_id.clone(),
         thinking_id.clone(),
         thinking_value.clone(),
+        None,
     )?;
     let controls = receive(answer).await?;
 
@@ -134,6 +141,7 @@ mod tests {
                 "session".to_owned(),
                 "model".to_owned(),
                 "deepseek".to_owned(),
+                None,
             )
             .await
         });
@@ -193,6 +201,7 @@ mod tests {
                 "session".to_owned(),
                 "model".to_owned(),
                 "plain".to_owned(),
+                None,
             )
             .await
         });

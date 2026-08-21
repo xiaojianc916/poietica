@@ -18,8 +18,8 @@ import { CheckIcon } from '../primitives/icons'
  * 也不该拿到写草稿的权力。
  */
 export type PaletteAction =
-  | { readonly kind: 'insert'; readonly snippet: string }
-  | { readonly kind: 'run'; readonly run: (args: string) => void }
+  | { readonly kind: 'insert'; readonly chip: import('./prompt-chip').PromptChipValue }
+  | { readonly kind: 'run'; readonly run: (draft: string) => void }
 
 export interface PaletteRow {
   readonly id: string
@@ -32,8 +32,6 @@ export interface PaletteRow {
   /** 打勾：这一行是此刻生效的那一档。 */
   readonly checked?: boolean | undefined
 
-  /** 斜杠过滤时拿来匹配的调用式。没有就不参与斜杠过滤。 */
-  readonly token?: string | undefined
   readonly action: PaletteAction
 }
 

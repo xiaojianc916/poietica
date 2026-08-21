@@ -8,11 +8,10 @@ import {
   readdir,
   rename,
   rm,
-  stat,
   writeFile,
 } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
-import { dirname, extname, relative, resolve } from 'node:path'
+import { dirname, extname, resolve } from 'node:path'
 
 const ROOT = process.cwd()
 const GENERATED = 'packages/ipc/src/generated/ipc-bindings.ts'
@@ -100,16 +99,26 @@ async function atomicWrite(path, content) {
 }
 
 function run(command, args) {
-  const executable = process.platform === 'win32' && command === 'pnpm' ? 'pnpm.cmd' : command
-  const result = spawnSync(executable, args, {
+  let executable = command
+  let safeArgs = args.filter(arg => typeof arg === 'string' && arg.trim() !== '')
+
+  if (process.platform === 'win32' && command === 'pnpm') {
+    // Windows: .cmd 文件必须走 cmd.exe /c，shell保持false
+    executable = 'cmd.exe'
+    safeArgs = ['/c', 'pnpm.cmd', ...safeArgs]
+  }
+
+  const result = spawnSync(executable, safeArgs, {
     cwd: ROOT,
     encoding: 'utf8',
     stdio: 'inherit',
     shell: false,
   })
   if (result.error) throw result.error
-  if (result.status !== 0) fail(`${command} ${args.join(' ')} exited with ${String(result.status)}`)
+  if (result.status !== 0) fail(`${command} ${safeArgs.join(' ')} exited with ${String(result.status)}`)
 }
+
+
 
 async function filesBelow(directory) {
   const found = []
@@ -1010,7 +1019,7 @@ export function composerPaletteGroups({
       heading: '技能',
       rows: skills.map((skill) =>
         insertRow(
-          \skill:\${skill.name}\,
+          \`skill:\${skill.name}\`,
           skill.name,
           skill.description,
           <SkillIcon aria-hidden="true" />,
@@ -1027,7 +1036,7 @@ export function composerPaletteGroups({
       heading: '检测到可用的 MCP',
       rows: connected.map((server) =>
         insertRow(
-          \mcp:\${server.id}\,
+          \`mcp:\${server.id}\`,
           server.name,
           \`\${server.transport} \${String(server.toolCount)} 个工具\`,
           <ToolIcon aria-hidden="true" />,
@@ -1052,9 +1061,9 @@ function glyph(controlId: string): ReactNode {
 }
 
 function label(control: SessionConfigControl, swarm: number | undefined): string {
-  if (control.id === 'goal' && control.detail) return \目标：\${control.detail}\
+  if (control.id === 'goal' && control.detail) return \`目标：\${control.detail}\`
   if (control.id === 'swarm' && swarm !== undefined && swarm > 0) {
-    return \蜂群 · \${String(swarm)}\
+    return \`蜂群 · \${String(swarm)}\`
   }
   return control.label
 }
@@ -1071,7 +1080,7 @@ export function ComposerChips({ controls, onSelect, swarm }: ComposerChipsProps)
         const text = label(control, swarm)
         return (
           <button
-            aria-label={\退出\${text}\}
+            aria-label={\`退出 \${text}\`}
             className="assistant-mode-chip"
             key={control.id}
             onClick={() => onSelect(control.id, 'off')}
@@ -1853,8 +1862,13 @@ async function apply() {
   )
   await replaceOnce(
     'packages/ipc/src/agent.ts',
+    `          threadId,\n          configId,\n          value,\n        }),`,
+    `          threadId,\n          configId,\n          value,\n          input: input ?? null,\n        }),`,
+  )
+  await replaceOnce(
+    'packages/ipc/src/agent.ts',
     `          threadId: null,\n          configId: control.id,\n          value,\n        }),`,
-    `          threadId: null,\n          configId: control.id,\n          value,\n          input: input ?? null,\n        }),`,
+    `          threadId: null,\n          configId: control.id,\n          value,\n          input: null,\n        }),`,
   )
   let ipcAgent = await load('packages/ipc/src/agent.ts')
   const oldBridgeStart = ipcAgent.indexOf(`export function createAgentSkillBridge(): AgentSkillPort {`)

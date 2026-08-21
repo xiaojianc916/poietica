@@ -154,6 +154,22 @@ pub struct Handshake {
     pub session_id: String,
 }
 
+#[derive(Debug, Clone)]
+pub enum McpTransport { Stdio, Http, Sse }
+
+#[derive(Debug, Clone)]
+pub enum McpStatus { Connected, Connecting, Disconnected, Error }
+
+#[derive(Debug, Clone)]
+pub struct McpServer {
+    pub id: String,
+    pub name: String,
+    pub transport: McpTransport,
+    pub status: McpStatus,
+    pub tool_count: u32,
+    pub last_error: Option<String>,
+}
+
 /// kap 报的一条技能（protocol/skill.ts 的 skillDescriptorSchema）。
 ///
 /// 可否激活不在这里判：官方在服务端用 isUserActivatableSkillType 拦，拒绝理由

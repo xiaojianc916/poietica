@@ -17,11 +17,12 @@ use crate::commands::{
         AgentAnswerQuestionsRequest, AgentArchiveThreadRequest, AgentCapabilitiesRequest,
         AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentDismissQuestionsRequest,
         AgentEarlierFramesRequest, AgentForkThreadRequest, AgentPinThreadRequest,
-        AgentPromptRequest, AgentPromptResult, AgentQuestionAnswer, AgentQuestionChoice,
+        AgentPromptRequest, AgentPromptResult, AgentPromptSkill, AgentQuestionAnswer, AgentQuestionChoice,
         AgentQuestionMethod, AgentRenameThreadRequest, AgentResolvePermissionRequest,
         AgentSelectConfigRequest, AgentThreadRequest,
     },
-    agent::skill::{AgentActivateSkillRequest, AgentSkill, AgentSkillsRequest},
+    agent::mcp::{AgentMcpServer, AgentMcpStatus, AgentMcpTransport},
+    agent::skill::{AgentSkill, AgentSkillsRequest},
     agent_setup::cli::{AgentCliRequest, AgentCliResult},
     agent_setup::install::{AgentInstallState, AgentInstallStatus},
     agent_setup::probe::ProviderProbeOutcome,
@@ -63,7 +64,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent::config::agent_set_config_option,
             crate::commands::agent::config::agent_capabilities,
             crate::commands::agent::skill::agent_skills,
-            crate::commands::agent::skill::agent_activate_skill,
+            crate::commands::agent::mcp::agent_mcp_servers,
             crate::commands::agent::thread::agent_threads,
             crate::commands::agent::thread::agent_open_thread,
             crate::commands::agent::thread::agent_earlier_frames,
@@ -152,6 +153,7 @@ pub fn surface() -> Builder<Wry> {
         ])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
+        .typ::<AgentPromptSkill>()
         .typ::<AgentResolvePermissionRequest>()
         .typ::<AgentQuestionMethod>()
         .typ::<AgentQuestionChoice>()
@@ -165,7 +167,9 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentSelectConfigRequest>()
         .typ::<AgentSkill>()
         .typ::<AgentSkillsRequest>()
-        .typ::<AgentActivateSkillRequest>()
+        .typ::<AgentMcpServer>()
+        .typ::<AgentMcpStatus>()
+        .typ::<AgentMcpTransport>()
         .typ::<AgentRenameThreadRequest>()
         .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()

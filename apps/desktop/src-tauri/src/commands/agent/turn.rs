@@ -6,7 +6,7 @@ use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
 use poietica_agent_persistence_native::RecordedFrame;
-use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
+use poietica_agent_runtime_native::{FrameSink, PromptSkill, RecordedEvent};
 use serde_json::value::{RawValue, to_raw_value};
 use tauri::{AppHandle, Emitter, Manager, State, async_runtime};
 use tokio::sync::mpsc;
@@ -47,6 +47,11 @@ pub async fn agent_prompt(
 ) -> AgentCommandResult<AgentPromptResult> {
     let text = request.text.trim().to_owned();
     let attached = request.assets;
+    let skills = request
+        .skills
+        .into_iter()
+        .map(|skill| PromptSkill { name: skill.name, args: skill.args })
+        .collect();
 
     /* 空的是这一句话，不是这一格。只挑了图、没打字，仍然是一句完整的话。 */
     if text.is_empty() && attached.is_empty() {
@@ -124,7 +129,7 @@ pub async fn agent_prompt(
 
     let answer = session
         .client
-        .prompt(addressed.clone(), text, carried, frames)
+        .prompt(addressed.clone(), text, carried, skills, frames)
         .map_err(translate)?;
 
     async_runtime::spawn(async move {
@@ -375,11 +380,14 @@ pub async fn agent_cancel(
 
     /* 本次连接认不得的号是上次运行留下的：那条会话上没有这一侧发起的轮次。
     判据取自驱动器路由帧用的同一本册子 —— 它认得，才有轮次可停。 */
-    if live.book.slot(&addressed).map_err(translate)?.is_none() {
+    let Some(slot) = live.book.slot(&addressed).map_err(translate)? else {
+        return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
+    };
+    if !slot.is_listening() {
         return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
     }
 
-    live.client.cancel(addressed).map_err(translate)?;
+    live.client.cancel(addressed).await.map_err(translate)?;
 
     Ok(())
 }

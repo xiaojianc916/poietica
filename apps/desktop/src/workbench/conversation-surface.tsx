@@ -149,16 +149,23 @@ export function ConversationSurface({
 
   /* 改一项，交给持有这张表的那一方：入口那格是 agent，对话里是那条会话。 */
   const chooseControl = useCallback(
-    (controlId: string, value: string) => {
-      if (threadId === null) {
-        selectControl(controlId, value)
-
+    (controlId: string, value: string, input?: string) => {
+      const control = controls.find((candidate) => candidate.id === controlId)
+      if (threadId === null && control?.purpose === 'mode') {
+        void onIdentify?.().then((identified) => {
+          if (identified !== null && identified !== undefined) {
+            sessionControls.selectControl(identified, controlId, value, input)
+          }
+        })
         return
       }
-
-      sessionControls.selectControl(threadId, controlId, value)
+      if (threadId === null) {
+        selectControl(controlId, value)
+        return
+      }
+      sessionControls.selectControl(threadId, controlId, value, input)
     },
-    [selectControl, sessionControls, threadId],
+    [controls, onIdentify, selectControl, sessionControls, threadId],
   )
 
   const userMessage = useCallback(

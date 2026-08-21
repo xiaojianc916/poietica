@@ -19,7 +19,6 @@ export type {
 } from './timeline-contract'
 export { opensTurn } from './timeline-contract'
 export {
-  activeGoal,
   pendingPermission,
   pendingPermissionCall,
   pendingPermissionCount,

@@ -1,46 +1,56 @@
 import './prompt-chip.css'
 
-import { DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
+import { $getNodeByKey, DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
 import type { ReactNode } from 'react'
+import { CloseIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 
-/*
- * 正文里的一枚调用式。
- *
- * Lexical 的自定义节点范式：DecoratorNode + initialConfig.nodes 注册。它自报文本
- * （getTextContent），所以草稿的唯一真相仍是编辑器状态，提交那一路不需要认识它。
- */
+export type PromptChipValue =
+  | { readonly kind: 'skill'; readonly name: string; readonly args?: string | undefined }
+  | { readonly kind: 'mcp'; readonly id: string; readonly name: string }
 
-type SerializedChipNode = SerializedLexicalNode & { readonly token: string }
+type SerializedChipNode = SerializedLexicalNode & { readonly value: PromptChipValue }
+
+export function samePromptChip(left: PromptChipValue, right: PromptChipValue): boolean {
+  return (
+    left.kind === right.kind &&
+    (left.kind === 'skill'
+      ? left.name === (right.kind === 'skill' ? right.name : '')
+      : left.id === (right.kind === 'mcp' ? right.id : ''))
+  )
+}
 
 export class ChipNode extends DecoratorNode<ReactNode> {
-  readonly #token: string
+  readonly #value: PromptChipValue
 
   static override getType(): string {
     return 'chip'
   }
 
   static override clone(node: ChipNode): ChipNode {
-    return new ChipNode(node.#token, node.__key)
+    return new ChipNode(node.#value, node.__key)
   }
 
   static override importJSON(serialized: SerializedChipNode): ChipNode {
-    return new ChipNode(serialized.token)
+    return new ChipNode(serialized.value)
   }
 
-  constructor(token: string, key?: NodeKey) {
+  constructor(value: PromptChipValue, key?: NodeKey) {
     super(key)
-    this.#token = token
+    this.#value = value
+  }
+
+  value(): PromptChipValue {
+    return this.#value
   }
 
   override exportJSON(): SerializedChipNode {
-    return { ...super.exportJSON(), token: this.#token }
+    return { ...super.exportJSON(), value: this.#value }
   }
 
   override createDOM(): HTMLElement {
     const span = document.createElement('span')
-
     span.className = 'assistant-prompt-chip'
-
     return span
   }
 
@@ -52,16 +62,48 @@ export class ChipNode extends DecoratorNode<ReactNode> {
     return true
   }
 
-  /* 提交读的是整串正文，所以这一枚必须说得出自己是什么。 */
   override getTextContent(): string {
-    return this.#token
+    return this.#value.kind === 'mcp' ? `@mcp:${this.#value.name}` : ''
   }
 
   override decorate(): ReactNode {
-    return this.#token
+    return <PromptChipView nodeKey={this.getKey()} value={this.#value} />
   }
 }
 
-export function $createChipNode(token: string): ChipNode {
-  return new ChipNode(token)
+function PromptChipView({
+  nodeKey,
+  value,
+}: {
+  readonly nodeKey: NodeKey
+  readonly value: PromptChipValue
+}) {
+  const [editor] = useLexicalComposerContext()
+  const Icon = value.kind === 'skill' ? SkillIcon : ToolIcon
+  const label = value.kind === 'skill' ? value.name : `@${value.name}`
+
+  return (
+    <span className="assistant-prompt-chip__body" contentEditable={false}>
+      <Icon aria-hidden="true" />
+      <span>{label}</span>
+      <button
+        aria-label={`移除 ${label}`}
+        className="assistant-prompt-chip__remove"
+        onMouseDown={(event) => {
+          event.preventDefault()
+          editor.update(() => {
+            const node = $getNodeByKey(nodeKey)
+            if (node instanceof ChipNode) node.remove()
+          })
+        }}
+        type="button"
+      >
+        <CloseIcon aria-hidden="true" />
+      </button>
+    </span>
+  )
+}
+
+export function $createChipNode(value: PromptChipValue): ChipNode {
+  return new ChipNode(value)
 }

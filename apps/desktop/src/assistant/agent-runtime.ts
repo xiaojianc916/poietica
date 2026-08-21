@@ -7,6 +7,7 @@ import {
 } from '@poietica/agent-catalog'
 import type {
   AgentCapabilityPort,
+  AgentMcpPort,
   AgentSessionPort,
   AgentSkillPort,
   PermissionPosturePort,
@@ -18,6 +19,7 @@ import { createExternalStore, createPreference, error as reportError } from '@po
 import {
   type AgentBridgeOptions,
   createAgentCapabilityBridge,
+  createAgentMcpBridge,
   createAgentSessionConfigBridge,
   createAgentSessionPort,
   createAgentSessionUsageBridge,
@@ -40,6 +42,7 @@ export interface DesktopAgentRuntime {
   readonly sessionConfig: SessionConfigPort
   readonly sessionUsage: SessionUsagePort
   readonly skills: AgentSkillPort
+  readonly mcp: AgentMcpPort
   readonly permissionPosture: PermissionPosturePort
   readonly getAgentId: () => string
   readonly subscribeAgent: (listener: () => void) => () => void
@@ -167,6 +170,7 @@ export function createDesktopAgentRuntime(
   const sessionUsage = createAgentSessionUsageBridge({ onListenFailure: noteListenFailure })
 
   const skills = createAgentSkillBridge()
+  const mcp = createAgentMcpBridge({ cwd: options.cwd, launch: launchSelected })
 
   const threads = createAgentThreadBridge({
     cwd: options.cwd,
@@ -232,6 +236,7 @@ export function createDesktopAgentRuntime(
     sessionConfig,
     sessionUsage,
     skills,
+    mcp,
     permissionPosture,
     getAgentId: selection.read,
     subscribeAgent: selection.subscribe,

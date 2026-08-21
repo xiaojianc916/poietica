@@ -32,6 +32,9 @@ pub enum KapError {
     /// 这一侧拒绝了请求，它还没有被发出去。
     #[error("the request was refused before it was sent: {0:?}")]
     Refused(Refusal),
+    /// 本地领域校验失败，请求尚未发给 Kimi。
+    #[error("invalid request: {message}")]
+    Validation { message: String },
     /// 答复与桌上的问题对不上：没问过、没这个选项、或问的那一侧已经走了。
     #[error("the permission answer was refused: {message}")]
     Permission { message: String },

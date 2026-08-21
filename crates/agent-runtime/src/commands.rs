@@ -6,7 +6,7 @@ use futures::channel::{mpsc, oneshot};
 use crate::config::ConfigControl;
 use crate::error::{KapError, Refusal, Result};
 use crate::recorder::FrameSink;
-use crate::session::{Cursor, OpenedSession, SessionEntry, Skill};
+use crate::session::{Cursor, McpServer, OpenedSession, SessionEntry, Skill};
 
 /// 这一轮随那句话一起送出去的一张图片。
 ///
@@ -42,6 +42,12 @@ impl fmt::Debug for PromptImage {
             .field("url", &self.url)
             .finish()
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct PromptSkill {
+    pub name: String,
+    pub args: Option<String>,
 }
 
 /// What the driver is asked to do next.
@@ -90,13 +96,9 @@ pub(crate) enum Command {
         session_id: String,
         reply: oneshot::Sender<Result<Vec<Skill>>>,
     },
-    /// 在这条会话上激活一条技能。
-    ActivateSkill {
-        session_id: String,
-        name: String,
-        /// 技能名后面那段自由文本；没有就是空串。
-        args: String,
-        reply: oneshot::Sender<Result<()>>,
+    /// Kimi 当前进程检测到的 MCP server。
+    McpServers {
+        reply: oneshot::Sender<Result<Vec<McpServer>>>,
     },
     Prompt {
         /// The session this turn belongs to.
@@ -110,6 +112,8 @@ pub(crate) enum Command {
         /// 与 text 是同一句话的两半：只挑了图、没打字，是一句完整的话，
         /// 而不是一句空话 —— 判空的地方在桌面 seam，那里两者一起看。
         images: Vec<PromptImage>,
+        /// 与正文、附件同一次提交的 Skill。
+        skills: Vec<PromptSkill>,
         /// 这一轮的帧交到哪里去。
         ///
         /// 记录器由驱动器造：位置要从这条会话的序号线上取，而那条线在它的
@@ -123,6 +127,7 @@ pub(crate) enum Command {
     /// 停掉的会是别人那一轮。
     Cancel {
         session_id: String,
+        reply: oneshot::Sender<Result<()>>,
     },
     Shutdown,
     /// Answers with the selectors that session is currently offering.
@@ -135,6 +140,7 @@ pub(crate) enum Command {
         session_id: String,
         config_id: String,
         value: String,
+        input: Option<String>,
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
     },
 }
@@ -270,6 +276,7 @@ impl AgentClient {
         session_id: String,
         text: String,
         images: Vec<PromptImage>,
+        skills: Vec<PromptSkill>,
         frames: FrameSink,
     ) -> Result<oneshot::Receiver<Result<String>>> {
         let (reply, answer) = oneshot::channel();
@@ -278,6 +285,7 @@ impl AgentClient {
             session_id,
             text,
             images,
+            skills,
             frames,
             reply,
         })?;
@@ -291,8 +299,12 @@ impl AgentClient {
     /// the turn's own answer reports which of the two happened.
     ///
     /// 停哪一条必须说出来。一条连接上有多条会话，而它们可以同时在飞。
-    pub fn cancel(&self, session_id: String) -> Result<()> {
-        self.send(Command::Cancel { session_id })
+    pub async fn cancel(&self, session_id: String) -> Result<()> {
+        let (reply, answer) = oneshot::channel();
+        self.send(Command::Cancel { session_id, reply })?;
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
     /// Ends every session and lets the agent process exit.
@@ -325,6 +337,7 @@ impl AgentClient {
         session_id: String,
         config_id: String,
         value: String,
+        input: Option<String>,
     ) -> Result<oneshot::Receiver<Result<Vec<ConfigControl>>>> {
         let (reply, answer) = oneshot::channel();
 
@@ -332,6 +345,7 @@ impl AgentClient {
             session_id,
             config_id,
             value,
+            input,
             reply,
         })?;
 
@@ -355,29 +369,9 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// Activates one skill on one session.
-    ///
-    /// 激活是一次协议动作，不是一句话：kap 为它设了 :activate 后缀，所以"没有
-    /// 这条技能"与"这一类不许人激活"回得出来。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the connection is gone, or when the agent refuses it.
-    pub async fn activate_skill(
-        &self,
-        session_id: String,
-        name: String,
-        args: String,
-    ) -> Result<()> {
+    pub async fn mcp_servers(&self) -> Result<Vec<McpServer>> {
         let (reply, answer) = oneshot::channel();
-
-        self.send(Command::ActivateSkill {
-            session_id,
-            name,
-            args,
-            reply,
-        })?;
-
+        self.send(Command::McpServers { reply })?;
         answer
             .await
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?

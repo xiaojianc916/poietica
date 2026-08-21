@@ -49,7 +49,7 @@ const POSTURES: readonly PermissionPosture[] = [
 export function permissionControlOf(
   controls: readonly SessionConfigControl[],
 ): SessionConfigControl | undefined {
-  return controls.find((control) => control.purpose === 'mode')
+  return controls.find((control) => control.purpose === 'permission')
 }
 
 /** 画得出来的那几档：产品认得，agent 也确实提供。 */
