@@ -546,7 +546,14 @@ export function AgentActivityFeed({
      * notifications」的成因。
      */
     const observer = new ResizeObserver((entries) => {
+      /* 偏移只由滚动区自己决定：转录框长高不动它的顶边，而流式输出时它每一帧都在长。 */
+      let moved = false
+
       for (const entry of entries) {
+        if (entry.target === viewport) {
+          moved = true
+        }
+
         /* 尾部的高度由派发它的那条通知自己带着,理由见下面观察它的那一句。 */
         if (entry.target === tailRef.current) {
           const [box] = entry.borderBoxSize
@@ -557,7 +564,10 @@ export function AgentActivityFeed({
         }
       }
 
-      measureMargin()
+      if (moved) {
+        measureMargin()
+      }
+
       scheduleSync()
       stick()
     })

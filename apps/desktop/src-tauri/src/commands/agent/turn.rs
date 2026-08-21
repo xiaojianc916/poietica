@@ -156,11 +156,18 @@ pub async fn agent_prompt(
 ///
 /// 攒批站在自己的任务上，所以跨进程投递不在 driver 的 WS 读循环上。
 ///
+/// 交货与落库是两个所有者，各站一个任务：抢库锁那段等待没有上界，串在交货的
+/// 循环里就是下一批上屏等上一批写完。落库那一侧是单消费者，所以表上的顺序仍是
+/// 交货顺序。
+///
 /// 每一帧的等待有上界：一批从它的第一帧起算，满 [`FRAME_INTERVAL`] 就交货，其
 /// 间没有新帧也一样。上界是这条通道唯一的时间承诺 —— 靠「下一帧会来」推动交货
 /// 给不出上界，而一次工具调用宣告之后 agent 正是沉默着去干活的。
 fn logging(app: AppHandle, thread: Uuid) -> FrameSink {
     let (arrived, mut arriving) = mpsc::unbounded_channel::<RecordedEvent>();
+    let (shaped, batches) = mpsc::unbounded_channel::<Vec<RecordedFrame>>();
+
+    async_runtime::spawn(recording(app.clone(), thread, batches));
 
     async_runtime::spawn(async move {
         let mut held: Vec<RecordedEvent> = Vec::new();
@@ -176,29 +183,14 @@ fn logging(app: AppHandle, thread: Uuid) -> FrameSink {
 
             let logged = recorded(held.drain(..));
 
-            /* 先上屏，再落库。落库要排一次阻塞线程池、抢一次库锁，而屏幕上
-            这一批与库里那一批是同一段字节：让它等在锁后面，等来的只是延迟。
+            /* 屏幕上这一批与库里那一批是同一段字节：成形一次，两处共用。
             渲染层没在听不是错——下次打开这条对话时，日志重放同一批帧。 */
             let shown: Vec<&RawValue> = logged.iter().map(|frame| frame.frame.as_ref()).collect();
 
             let _ignored = app.emit(AGENT_EVENT, &shown);
 
-            /* 记不上只留一行日志：缺的是下一次打开时的这一批。 */
-            let index = app.state::<LocalIndex>();
-            let written = on_index(&index, move |store| {
-                store.record_frames(thread, &logged).map_err(persistence)
-            })
-            .await;
-
-            match written {
-                /* 库挡掉了几帧：那条会话的序号线接错了，缺的是下一次打开这条
-                对话时的这几帧。 */
-                Ok(refused) if refused > 0 => {
-                    log::warn!("{refused} frame(s) of this batch were already in the log");
-                }
-                Ok(_recorded) => {}
-                Err(error) => log::warn!("could not record a batch of frames: {error}"),
-            }
+            /* 落库那一端与这条连接同寿；它先走了，缺的是下一次打开时的这一批。 */
+            let _closed = shaped.send(logged);
         }
     });
 
@@ -206,6 +198,31 @@ fn logging(app: AppHandle, thread: Uuid) -> FrameSink {
         /* 收批的那一端与这条连接同寿；它先走了，这一轮剩下的帧就没有去处。 */
         let _closed = arrived.send(event);
     })
+}
+
+/// 落库：一批一次提交，按交货顺序。单消费者，所以表上的 `id` 序就是上屏序。
+async fn recording(
+    app: AppHandle,
+    thread: Uuid,
+    mut batches: mpsc::UnboundedReceiver<Vec<RecordedFrame>>,
+) {
+    while let Some(logged) = batches.recv().await {
+        let index = app.state::<LocalIndex>();
+        let written = on_index(&index, move |store| {
+            store.record_frames(thread, &logged).map_err(persistence)
+        })
+        .await;
+
+        match written {
+            /* 库挡掉了几帧：那条会话的序号线接错了，缺的是下一次打开这条对话时
+            的这几帧。 */
+            Ok(refused) if refused > 0 => {
+                log::warn!("{refused} frame(s) of this batch were already in the log");
+            }
+            Ok(_recorded) => {}
+            Err(error) => log::warn!("could not record a batch of frames: {error}"),
+        }
+    }
 }
 
 /// 一批帧，成形一次：落库与上屏共用这一段字节。
