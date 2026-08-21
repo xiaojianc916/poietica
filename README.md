@@ -176,7 +176,7 @@ apps/desktop/src-tauri/  The single composition root: windows, commands, DTO con
 crates/                  Native Rust crates — host-agnostic, testable without Tauri
 packages/                TypeScript workspace packages, tiered, dependencies point downward
 docs/                    Architecture notes, decision records, proposals, runbooks
-scripts/                 Repository tooling: release, git hooks, clean, tauri wrapper
+scripts/                 Repository tooling: release, git hooks, clean
 tools/architecture/      The machine-executable half of the architecture
 ```
 

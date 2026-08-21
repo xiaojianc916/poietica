@@ -31,11 +31,6 @@
     "GITHUB_TOKEN"
   ],
   "tasks": {
-    "dev": {
-      "cache": false,
-      "persistent": true,
-      "interruptible": true
-    },
     "typecheck": {
       "dependsOn": ["^typecheck"],
       "outputs": []
