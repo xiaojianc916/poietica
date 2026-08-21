@@ -17,7 +17,7 @@ import type {
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
-import { permissionControlOf, postureAlignment } from './permission-posture'
+import { permissionControlOf, permissionPostureOf, postureAlignment } from './permission-posture'
 import type { TranscriptSink } from './transcript-sink'
 
 interface Held {
@@ -224,7 +224,9 @@ export class SessionControlsStore {
   mcpServers = (): readonly AgentMcpServer[] | undefined => this.#held.mcpServers
 
   loadMcpServers = (): void => {
-    if (this.#mcpAsked || this.#mcp === undefined) return
+    if (this.#mcpAsked || this.#mcp === undefined) {
+      return
+    }
     this.#mcpAsked = true
     void this.#mcp
       .list()

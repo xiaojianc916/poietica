@@ -524,7 +524,7 @@ export function createAgentSkillBridge(): AgentSkillPort {
 export function createAgentMcpBridge({ launch, cwd }: AgentBridgeOptions): AgentMcpPort {
   return {
     list: async () => {
-      const listed = await throughIpc(() =>
+      const listed = await throughIpc(async () =>
         commands.agentMcpServers({ launch: await launch(), cwd: cwd?.() ?? null }),
       )
       return listed.map((server: AgentMcpServer) => ({

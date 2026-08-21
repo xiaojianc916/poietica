@@ -82,7 +82,9 @@ function choiceRow(
     action: {
       kind: 'run',
       run: () => {
-        if (choice.value !== control.current) onSelect(control.id, choice.value)
+        if (choice.value !== control.current) {
+          onSelect(control.id, choice.value)
+        }
       },
     },
   }
@@ -98,10 +100,14 @@ export function composerPaletteGroups({
   const modes = controls
     .filter((control) => control.purpose === 'mode')
     .map((control) => toggleRow(control, onSelectControl))
-  if (modes.length > 0) groups.push({ id: 'modes', heading: '模式', rows: modes })
+  if (modes.length > 0) {
+    groups.push({ id: 'modes', heading: '模式', rows: modes })
+  }
 
   for (const control of controls) {
-    if (control.purpose !== 'other' || control.choices.length === 0) continue
+    if (control.purpose !== 'other' || control.choices.length === 0) {
+      continue
+    }
     groups.push({
       id: control.id,
       heading: control.label,
@@ -151,13 +157,19 @@ export interface ComposerChipsProps {
 }
 
 function glyph(controlId: string): ReactNode {
-  if (controlId === 'goal') return <GoalIcon />
-  if (controlId === 'swarm') return <SwarmIcon />
+  if (controlId === 'goal') {
+    return <GoalIcon />
+  }
+  if (controlId === 'swarm') {
+    return <SwarmIcon />
+  }
   return <SirenIcon />
 }
 
 function label(control: SessionConfigControl, swarm: number | undefined): string {
-  if (control.id === 'goal' && control.detail) return `目标：${control.detail}`
+  if (control.id === 'goal' && control.detail) {
+    return `目标：${control.detail}`
+  }
   if (control.id === 'swarm' && swarm !== undefined && swarm > 0) {
     return `蜂群 · ${String(swarm)}`
   }
@@ -168,7 +180,9 @@ export function ComposerChips({ controls, onSelect, swarm }: ComposerChipsProps)
   const active = controls.filter(
     (control) => control.purpose === 'mode' && control.current === 'on',
   )
-  if (active.length === 0) return null
+  if (active.length === 0) {
+    return null
+  }
   return (
     <>
       <span aria-hidden="true" className="assistant-mode-chip__divider" />

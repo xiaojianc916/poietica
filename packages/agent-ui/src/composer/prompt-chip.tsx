@@ -93,7 +93,9 @@ function PromptChipView({
           event.preventDefault()
           editor.update(() => {
             const node = $getNodeByKey(nodeKey)
-            if (node instanceof ChipNode) node.remove()
+            if (node instanceof ChipNode) {
+              node.remove()
+            }
           })
         }}
         type="button"

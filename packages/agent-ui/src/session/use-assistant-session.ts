@@ -347,5 +347,5 @@ export function useAssistantPendingCall(key: string): ToolCallTimelineItem | und
 /* 目标与蜂群各交一个原始值：字符串与数字，所以流式追加叫不醒那排胶囊。 */
 /** 此刻还在跑的子代理数。 */
 export function useAssistantSwarm(key: string): number {
-  return useSlice(key, readSwarm)
+  return useSlice(key, (t) => runningDelegations(t.timeline))
 }

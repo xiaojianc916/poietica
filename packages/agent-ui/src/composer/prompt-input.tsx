@@ -441,7 +441,9 @@ function PromptInputShell({
       }
       editor.update(() => {
         const selection = $getSelection()
-        if (!$isRangeSelection(selection)) return
+        if (!$isRangeSelection(selection)) {
+          return
+        }
         const duplicate = $nodesOfType(ChipNode).some((node) =>
           samePromptChip(
             node.value(),
