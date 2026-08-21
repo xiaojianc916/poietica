@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { migrateCommandSurface } from './scripts/refactor/command-surface.mjs'
 import { migrateComposerSurface } from './scripts/refactor/composer-surface.mjs'
+import { migrateEntrySkills } from './scripts/refactor/entry-skills.mjs'
 import { Migration } from './scripts/refactor/lib.mjs'
 import { migrateSessionCreation } from './scripts/refactor/session-creation.mjs'
 import { migrateSessionProfile } from './scripts/refactor/session-profile.mjs'
@@ -16,6 +17,7 @@ try {
   migrateComposerSurface(migration)
   migrateCommandSurface(migration)
   migrateSkills(migration)
+  migrateEntrySkills(migration)
   migrateTypedSubmission(migration)
   migration.assertAbsent('SessionCommandsPort', ['packages/agent-contract/src/index.ts', 'packages/ipc/src/agent.ts', 'apps/desktop/src/assistant/agent-runtime.ts', 'packages/agent/src/session/session-controls-store.ts'])
   migration.assertAbsent("name: 'write-goal'", ['packages/agent-ui/src/composer/composer-actions.tsx'])
