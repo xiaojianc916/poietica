@@ -45,7 +45,6 @@ export interface MascotBadgeProps {
 export const MascotBadge = memo(function MascotBadge({ className }: MascotBadgeProps) {
   const root = useRef<SVGSVGElement | null>(null)
   const clipId = useId()
-  const featherId = useId()
 
   /* 每次挂载重新读取：设置页可能在吉祥物卸载期间改过值。 */
   const [tourPreference] = useState(() => booleanPreference(PREF_TOUR))
@@ -141,15 +140,10 @@ export const MascotBadge = memo(function MascotBadge({ className }: MascotBadgeP
         <clipPath id={clipId}>
           <path d={BODY_D} />
         </clipPath>
-        {/* 亚像素羽化：高对比纯色大圆在 1px 覆盖率 AA 下两侧露台阶，压扁的眼缘同理；
-            与 SDF 管线 smoothstep 边缘同源。粒子与投影不在 rig 组内，不受影响。 */}
-        <filter id={featherId}>
-          <feGaussianBlur stdDeviation="0.3" />
-        </filter>
       </defs>
       <ellipse cx="114.27" cy="256" data-part="shadow" opacity="0.16" rx="74" ry="10" />
       <g data-part="fx-back" />
-      <g data-part="rig" filter={`url(#${featherId})`}>
+      <g data-part="rig">
         <path d={BODY_D} data-part="body" />
         <g clipPath={`url(#${clipId})`}>
           <g data-part="blush" opacity="0">

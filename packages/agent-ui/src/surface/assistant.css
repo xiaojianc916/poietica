@@ -1,9 +1,9 @@
 @import "../composer/composer-metrics.css";
 
 /*
- * Assistant skin. Every length and duration is a token or a calc() over
- * tokens. The composer card is the input itself: it owns the border, the
- * elevation and the click target, and nothing inside it draws a second frame.
+ * Assistant skin. The composer card is the input itself: it owns the border,
+ * the elevation and the click target, and nothing inside it draws a second
+ * frame.
  */
 
 /*
@@ -1867,10 +1867,12 @@ svg.assistant-provider-icon {
   flex: none;
 }
 
-/* 吉祥物是内联 SVG（mascot-badge.tsx），上色归 mascot.css；这里只给盒子。 */
+/*
+ * 吉祥物只声明高度。宽度由 viewBox 的宽高比推出，所以盒子恒等于画面，换一个
+ * 尺寸只改这一个数；水平居中由 .assistant-masthead 的 align-items 负责。
+ */
 .assistant-masthead__mascot {
   display: block;
-  height: 200px;
-  margin-inline: auto;
-  width: 200px;
+  block-size: 200px;
+  inline-size: auto;
 }
