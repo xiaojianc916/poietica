@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { migrateCommandSurface } from './scripts/refactor/command-surface.mjs'
 import { Migration } from './scripts/refactor/lib.mjs'
+import { migrateSessionCreation } from './scripts/refactor/session-creation.mjs'
 import { migrateSessionProfile } from './scripts/refactor/session-profile.mjs'
 import { migrateSkills } from './scripts/refactor/skill.mjs'
 import { migrateSubmissionIntent } from './scripts/refactor/submission-intent.mjs'
@@ -14,6 +15,7 @@ try {
   }
 
   migrateSessionProfile(migration)
+  migrateSessionCreation(migration)
   migrateCommandSurface(migration)
   migrateSkills(migration)
   migrateSubmissionIntent(migration)

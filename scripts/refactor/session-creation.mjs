@@ -1,0 +1,46 @@
+export function migrateSessionCreation(m) {
+  const driver = 'crates/agent-runtime/src/driver.rs'
+
+  m.replace(
+    driver,
+    `        // 5. 建锚会话（REST）。sessionCreateSchema：metadata.cwd 与\n        //    workspace_id 至少给一个。\n        let session = match post(\n            &http,\n            &format!(\"{base_url}/sessions\"),\n            &json!({ \"metadata\": { \"cwd\": cwd.to_string_lossy() } }),\n        )\n        .await`,
+    `        let bootstrap = bootstrap_profile(&http, &base_url).await?;\n        let session = match post(\n            &http,\n            &format!(\"{base_url}/sessions\"),\n            &json!({\n                \"metadata\": { \"cwd\": cwd.to_string_lossy() },\n                \"agent_config\": bootstrap,\n            }),\n        )\n        .await`,
+  )
+  m.replace(
+    driver,
+    `        // 5.5 绑模型。放在订阅之前：这是开会话的收尾，不是回合的一部分，\n        //     它引发的那几帧不该记进第一轮。\n        ensure_model(&http, &base_url, &session_id).await;\n\n`,
+    ``,
+  )
+
+  m.replace(
+    driver,
+    `                        Some(Command::NewSession { cwd: new_cwd, reply }) => {\n                            let http2 = http.clone();\n                            let base2 = base_url.clone();`,
+    `                        Some(Command::NewSession { cwd: new_cwd, reply }) => {\n                            let http2 = http.clone();\n                            let base2 = base_url.clone();\n                            let anchor = session_id.clone();`,
+  )
+  m.replace(
+    driver,
+    `                                let result =\n                                    open_session(&http2, &base2, &new_cwd, &book2, &ws2).await;`,
+    `                                let result = async {\n                                    let profile = session_profile(&http2, &base2, &anchor).await?;\n                                    open_session(\n                                        &http2, &base2, &new_cwd, &profile, &book2, &ws2,\n                                    )\n                                    .await\n                                }\n                                .await;`,
+  )
+
+  m.replace(
+    driver,
+    `async fn open_session(\n    http: &reqwest::Client,\n    base_url: &str,\n    cwd: &Path,\n    book: &SessionBook,`,
+    `async fn open_session(\n    http: &reqwest::Client,\n    base_url: &str,\n    cwd: &Path,\n    profile: &Value,\n    book: &SessionBook,`,
+  )
+  m.replace(
+    driver,
+    `        &json!({ \"metadata\": { \"cwd\": cwd.to_string_lossy() } }),`,
+    `        &json!({\n            \"metadata\": { \"cwd\": cwd.to_string_lossy() },\n            \"agent_config\": profile,\n        }),`,
+  )
+  m.replace(driver, `\n    ensure_model(http, base_url, &id).await;\n`, `\n`)
+  m.replace(driver, `\n    ensure_model(http, base_url, session_id).await;\n`, `\n`)
+
+  m.section(
+    driver,
+    `/// 给这条会话绑上模型。`,
+    `/// agent 报它卡在审批上时，把这条会话挂着的审批逐个请上桌。`,
+    `async fn bootstrap_profile(http: &reqwest::Client, base_url: &str) -> Result<Value> {\n    let config = get(http, &format!(\"{base_url}/config\")).await?;\n    let model = config\n        .get(\"default_model\")\n        .and_then(Value::as_str)\n        .map(str::trim)\n        .filter(|value| !value.is_empty())\n        .ok_or_else(|| KapError::Transport {\n            message: \"this Kimi installation has no default model\".to_owned(),\n        })?;\n    Ok(json!({ \"model\": model }))\n}\n\nasync fn session_profile(\n    http: &reqwest::Client,\n    base_url: &str,\n    session_id: &str,\n) -> Result<Value> {\n    let status = get(http, &format!(\"{base_url}/sessions/{session_id}/status\")).await?;\n    let mut profile = serde_json::Map::new();\n\n    for (from, to) in [\n        (\"model\", \"model\"),\n        (\"thinking_level\", \"thinking\"),\n        (\"permission\", \"permission_mode\"),\n    ] {\n        if let Some(value) = status.get(from).and_then(Value::as_str)\n            && !value.is_empty()\n        {\n            profile.insert(to.to_owned(), Value::String(value.to_owned()));\n        }\n    }\n    for field in [\"plan_mode\", \"swarm_mode\", \"tower_mode\"] {\n        if let Some(value) = status.get(field).and_then(Value::as_bool) {\n            profile.insert(field.to_owned(), Value::Bool(value));\n        }\n    }\n\n    Ok(Value::Object(profile))\n}\n\n/// agent 报它卡在审批上时，把这条会话挂着的审批逐个请上桌。`,
+    `async fn bootstrap_profile`,
+  )
+}
