@@ -100,10 +100,9 @@ pub struct AgentResolvePermissionRequest {
 pub(super) fn decided(request: &AgentResolvePermissionRequest) -> Decision {
     match request.decision {
         AgentApprovalDecision::Approved => Decision::Approved {
-            scope: match request.scope {
-                Some(AgentApprovalScope::Session) => Some(Scope::Session),
-                None => None,
-            },
+            scope: request
+                .scope
+                .map(|AgentApprovalScope::Session| Scope::Session),
         },
         AgentApprovalDecision::Rejected => Decision::Rejected,
     }

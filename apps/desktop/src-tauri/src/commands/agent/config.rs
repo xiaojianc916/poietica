@@ -42,7 +42,6 @@ pub async fn agent_set_config_option(
         thread_id,
         config_id,
         value,
-        ..
     } = request;
 
     let addressed = match thread_id.as_deref() {

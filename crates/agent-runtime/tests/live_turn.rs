@@ -458,7 +458,7 @@ fn detail(frame: &RunFrame) -> String {
             _ => payload.to_string(),
         },
         RunFrame::PermissionRequested { title, .. } => title.clone(),
-        RunFrame::PermissionResolved { outcome, .. } => outcome.clone(),
+        RunFrame::PermissionResolved { result, .. } => result.clone(),
         RunFrame::RunFinished { stop_reason } => stop_reason.clone(),
         RunFrame::RunFailed { message } => message.clone(),
     }
