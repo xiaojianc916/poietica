@@ -1,7 +1,12 @@
 import './assistant.css'
 
 import type { FeedRow } from '@poietica/agent'
-import type { AgentSessionPort, SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
+import type {
+  AgentSessionPort,
+  SessionCommand,
+  SessionConfigControl,
+  SessionUsage,
+} from '@poietica/agent-contract'
 import { memo, type Ref, useCallback, useMemo, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
@@ -75,6 +80,12 @@ export interface AssistantSurfaceProps {
   /** 这条会话最近报的上下文用量。缺席（还没报、或是入口）就不画。 */
   readonly usage?: SessionUsage | undefined
   /**
+   * 全局命令面板（插件/技能命令），不依赖会话。
+   *
+   * 入口态与会话初期，session 还没报命令时，用这份兜底。
+   */
+  readonly globalPalette?: readonly SessionCommand[] | undefined
+  /**
    * 往输入框草稿里写字的那条 ref 通道（浏览器拾取是第一个真实调用方）。
    * 草稿的唯一所有者仍是 PromptInput；这一层只把通道铺过去，不碰内容。
    */
@@ -101,6 +112,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   controlsFailure,
   endpoint,
   git,
+  globalPalette,
   identify,
   onFork,
   onRetryControls,
@@ -114,8 +126,11 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   /* 技能与命令都属于这条对话背后那个会话：两张表都归 SessionControlsStore。 */
   const skills = useThreadSkills(endpoint)
-  const commands = useThreadCommands(endpoint)
+  const sessionCommands = useThreadCommands(endpoint)
   const activateSkill = useSkillActivation(endpoint)
+
+  /* 会话命令为空时，用全局命令兜底（入口态、或会话还没报命令）。 */
+  const commands = sessionCommands?.length ? sessionCommands : (globalPalette ?? [])
 
   /*
    * 连不上 agent 这件事，不在这一层写。

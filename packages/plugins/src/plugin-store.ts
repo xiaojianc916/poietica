@@ -339,7 +339,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     }
 
     publish({ palette: entries })
-    cache.write(entries, cache.read().catalogFetchedAt)
+    cache.write(options.now())
   }
 
   /*

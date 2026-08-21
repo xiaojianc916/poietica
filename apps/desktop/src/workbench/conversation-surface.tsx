@@ -69,7 +69,7 @@ export function ConversationSurface({
    * 在第一个订阅者到来时才接 palette），所以不开插件面板，输入框也拿得到表；agent
    * 报来新表之前，先画上一次运行存下的那份。
    */
-  const palette = useSyncExternalStore(
+  const globalPalette = useSyncExternalStore(
     pluginStore.subscribe,
     () => pluginStore.getSnapshot().palette,
   )
@@ -206,6 +206,7 @@ export function ConversationSurface({
       controlsFailure={controlsFailure}
       endpoint={threadId}
       git={git}
+      globalPalette={globalPalette}
       identify={onIdentify}
       onFork={threadId === null ? undefined : fork}
       onRetryControls={retryControls}
