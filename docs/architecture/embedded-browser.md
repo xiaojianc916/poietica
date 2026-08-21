@@ -36,13 +36,13 @@ X-Frame-Options/frame-ancestors 会把大多数站点挡在 iframe 外面。
    Tauri IPC 面可拿。
 3. 主窗口 CSP 不为面板放宽 —— 页面根本不在主 webview 里渲染。
 
-## agent 操控（批次 2）
+## agent 操控
 
 数据从哪来、经过谁、到哪去：BrowserHost::new 在启动时于 127.0.0.1 上抽一个
 空闲端口，第一个标签 webview 创建时把 --remote-debugging-port 写进 WebView2
 的环境参数（环境级参数：同 profile 的所有标签共用一个 CDP 端点，各自是端点
 下的一个 target）。会话拉起时 ensure_live_kernel 先把内核预热出来（一个带地
-址的标签都没有就开一页 about:blank），端点上才有页面可听。前端启动时
+址的标签都没有就预热一页空白页），端点上才有页面可听。前端启动时
 reconcileBrowserMcpServer 把受控 home 里 mcp.json 的 poietica-browser 条目对
 齐到当前端点（端口每次启动都变，所以每次启动都对账），条目正文是一台
 playwright-mcp，用 --cdp-endpoint 直连现成端点。kimi CLI 读到条目后自己拉起
@@ -69,11 +69,7 @@ remote-debugging-port 给过同样的警告）。端口不写死、每次启动�
 profile 与主窗口隔离。要断开 agent 的手，把 mcp.json 里 poietica-browser 条
 目的 enabled 拨掉即可，面板本身不受影响。
 
-## 批次边界
-
-批次 1（人操控）、批次 2（agent 操控）、批次 3（拾取与跟随反馈）已交付。
-
-## 元素拾取（批次 3）
+## 元素拾取
 
 数据从哪来、经过谁、到哪去、谁持有唯一真相：工具栏拾取按钮武装
 BrowserHost 的 picking 并把 PICKER_SCRIPT 注入活动标签；页面里点下元素，脚
@@ -91,13 +87,13 @@ BrowserHost 的 picking 并把 PICKER_SCRIPT 注入活动标签；页面里点�
 伪造：只认 browser_pick_element 之后该标签的第一次哨兵导航（用后即焚），真
 实导航自动解除武装；Esc 取消走 cancel=1，宿主丢弃。
 
-## 自动展开、跟随与装载反馈（批次 3）
+## 自动展开与装载反馈
 
-- 自动展开：面板状态店在宿主快照上看「存在非 about:blank 标签在装载」的
+- 自动展开：面板状态店在宿主快照上看「有地址的标签在装载」的
   0→1 边沿，面板关着且未静音就打开。手动关掉记静音（本进程内不再自弹），
   手动打开清静音；静音位在内存，不落盘。
-- 跟随活动标签：装载开始落在非活动标签时，宿主把它切成活动标签并重排可见
-  性 —— agent 在后台标签里导航，人看得见它在做什么。
+- 活动标签只由用户与命令决定：后台标签装载不换活动标签，反馈走标签条的
+  转圈与面板自动展开。
 - 装载反馈：工具栏下沿的不定式脉动条；标签条与下拉列表行装载中亮转圈。
 
 ## 已知限制（如实声明）
@@ -108,8 +104,6 @@ BrowserHost 的 picking 并把 PICKER_SCRIPT 注入活动标签；页面里点�
   不可用（待验证）；agent 的路径是在现有标签里导航，页面 window.open 由宿
   主收编成新标签。
 - 标题在导航瞬间先显示主机名，装载中标签条与下拉列表行亮转圈。
-- 跟随活动标签分不清 agent 的 CDP 导航与页面自刷新（内核视角都是无命令导
-  航），后者同样会抢活动位；正在地址栏打字时被抢，回车会落到新的活动标签。
 - 导航失败页做不了：NavigationCompleted 的 IsSuccess/WebErrorStatus 未经
   tauri 暴露，等上游暴露再补；装载进度只有 Started/Finished 两拍，进度条因
   此是不定式。

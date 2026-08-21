@@ -3,13 +3,8 @@
 //! 清单只有一份，就在下面的 `surface`。它同时是两件事的产地：运行期交给 Tauri 的
 //! `invoke_handler`，以及构建期导出的 TypeScript 绑定。
 //!
-//! 此前是两份手抄的清单 —— `bootstrap/app.rs` 的 `generate_handler!` 和这里的
-//! `collect_commands!`。没有任何东西校验它们一致，于是它们不一致：
-//! `window_open_devtools`、`window_open_external_url`、`agent_default_model`、
-//! `agent_set_default_model`、`agent_key_tails` 五条命令只在前者里，从未进过生成
-//! 绑定，渲染层要用只能手写命令名字符串。漏抄不会报错，只会安静地少一条绑定。
-//!
-//! 一份清单两用，是 tauri-specta 自己的范式，也是这类漂移唯一的结构性解法。
+//! 一份清单两用是 tauri-specta 的范式：手抄第二份没有东西校验它，漏抄不报错，
+//! 只会安静地少一条绑定。
 
 pub mod export_bindings;
 

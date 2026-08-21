@@ -5,7 +5,7 @@ import type { BrowserPanelStore } from './browser-panel-store'
 import type { BrowserHostView } from './browser-port'
 
 /*
- * 标签条与标签下拉（图一顶行 + 图四）。
+ * 标签条与标签下拉。
  *
  * 这里没有状态可拥有：标签是宿主的，开合是本组件的一个布尔。行点击即切换、
  * 行内的 X 即关闭，与主流浏览器同构。

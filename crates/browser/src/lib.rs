@@ -10,6 +10,10 @@ use std::collections::VecDeque;
 /// 最近关闭的环的容量。第 11 条进来时最老的一条出去。
 pub const RECENTLY_CLOSED_CAP: usize = 10;
 
+/// 空白页在内核那一侧的地址。模型里空白页是 url 缺席，这个常量只给宿主
+/// 驱动内核用 —— 空白页的写法只有一处产地。
+pub const BLANK_PAGE: &str = "about:blank";
+
 /// 标签标识。u32 足够（一个进程开不满四十亿个标签），并且能无损过 IPC。
 pub type TabId = u32;
 
@@ -28,13 +32,6 @@ pub struct Tab {
 pub struct ClosedTab {
     pub url: String,
     pub title: String,
-}
-
-/// 关闭一个标签的结果：进了环的记录（若有），以及焦点迁去了哪。
-#[derive(Debug, PartialEq, Eq)]
-pub struct CloseOutcome {
-    pub remembered: bool,
-    pub next_active: Option<TabId>,
 }
 
 /// 标签集合。所有变更都从这里过 —— 宿主与 UI 都不得各自记一份。
@@ -75,23 +72,22 @@ impl Tabs {
     }
 
     /// 关一个标签。焦点迁移规则与主流浏览器一致：先右邻，无右邻取左邻。
-    pub fn close(&mut self, id: TabId) -> Option<CloseOutcome> {
-        let index = self.entries.iter().position(|tab| tab.id == id)?;
+    /// 返回它存在过没有；焦点落在哪，问 active_id。
+    pub fn close(&mut self, id: TabId) -> bool {
+        let Some(index) = self.entries.iter().position(|tab| tab.id == id) else {
+            return false;
+        };
         let removed = self.entries.remove(index);
 
-        let remembered = match removed.url {
-            Some(url) => {
-                if self.recently_closed.len() == RECENTLY_CLOSED_CAP {
-                    self.recently_closed.pop_back();
-                }
-                self.recently_closed.push_front(ClosedTab {
-                    url,
-                    title: removed.title,
-                });
-                true
+        if let Some(url) = removed.url {
+            if self.recently_closed.len() == RECENTLY_CLOSED_CAP {
+                self.recently_closed.pop_back();
             }
-            None => false,
-        };
+            self.recently_closed.push_front(ClosedTab {
+                url,
+                title: removed.title,
+            });
+        }
 
         if self.active == Some(id) {
             self.active = self
@@ -101,10 +97,7 @@ impl Tabs {
                 .map(|tab| tab.id);
         }
 
-        Some(CloseOutcome {
-            remembered,
-            next_active: self.active,
-        })
+        true
     }
 
     /// 激活一个标签。不存在的 id 返回 false，状态不变。
@@ -131,9 +124,14 @@ impl Tabs {
     }
 
     /// 内核报来的真实地址（重定向、页内跳转都从这里回来）。
+    /// 内核报空白页时落回缺席：空白页在这个模型里只有一种写法。
     pub fn note_url(&mut self, id: TabId, url: &str) {
         if let Some(tab) = self.entries.iter_mut().find(|tab| tab.id == id) {
-            tab.url = Some(url.to_owned());
+            tab.url = if url == BLANK_PAGE {
+                None
+            } else {
+                Some(url.to_owned())
+            };
         }
     }
 
@@ -161,13 +159,6 @@ impl Tabs {
         let id = self.open(Some(record.url.clone()));
 
         Some((id, record.url))
-    }
-
-    #[must_use]
-    pub fn active(&self) -> Option<&Tab> {
-        let id = self.active?;
-
-        self.entries.iter().find(|tab| tab.id == id)
     }
 
     #[must_use]
@@ -251,14 +242,14 @@ mod tests {
         let c = tabs.open(Some("https://c.example/".to_owned()));
 
         tabs.select(b);
-        let outcome = tabs.close(b).unwrap();
-        assert_eq!(outcome.next_active, Some(c));
+        assert!(tabs.close(b));
+        assert_eq!(tabs.active_id(), Some(c));
 
-        let outcome = tabs.close(c).unwrap();
-        assert_eq!(outcome.next_active, Some(a));
+        assert!(tabs.close(c));
+        assert_eq!(tabs.active_id(), Some(a));
 
-        let outcome = tabs.close(a).unwrap();
-        assert_eq!(outcome.next_active, None);
+        assert!(tabs.close(a));
+        assert_eq!(tabs.active_id(), None);
     }
 
     #[test]
@@ -277,8 +268,7 @@ mod tests {
         let mut tabs = Tabs::new();
         let blank = tabs.open(None);
 
-        let outcome = tabs.close(blank).unwrap();
-        assert!(!outcome.remembered);
+        assert!(tabs.close(blank));
         assert_eq!(tabs.recently_closed().count(), 0);
     }
 
@@ -351,6 +341,15 @@ mod tests {
 
         tabs.note_loading(blank, false);
         assert!(!tabs.entries().first().unwrap().loading);
+    }
+
+    #[test]
+    fn the_kernel_blank_page_stays_the_models_blank_tab() {
+        let mut tabs = Tabs::new();
+        let id = tabs.open(None);
+
+        tabs.note_url(id, BLANK_PAGE);
+        assert!(tabs.entries().first().unwrap().url.is_none());
     }
 
     #[test]

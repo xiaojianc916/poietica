@@ -190,10 +190,10 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
           }
 
           /*
-           * agent 在后台驱动浏览器时把面板亮出来：看「存在非 about:blank 标签
-           * 在装载」的 0→1 边沿。about:blank 不算忙 —— 预热的空白页不该弹面板。
+           * agent 在后台驱动浏览器时把面板亮出来：看「有地址的标签在装载」的
+           * 0→1 边沿。空白页（url 缺席）不算忙 —— 预热不该弹面板。
            */
-          const busy = state.tabs.some((tab) => tab.loading && tab.url !== 'about:blank')
+          const busy = state.tabs.some((tab) => tab.loading && tab.url !== null)
 
           if (busy && !hostBusy && !intent.open && !autoOpenMuted) {
             settle({ ...intent, open: true })

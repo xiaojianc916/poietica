@@ -37,7 +37,7 @@ const LABEL_PREFIX: &str = "browser-";
 /// 任何真实服务器。
 const PICK_SENTINEL: &str = "https://pick.poietica.invalid/";
 
-/// 注入页面的拾取脚本（图二）：hover 高亮、点击定案、Esc 取消。
+/// 注入页面的拾取脚本：hover 高亮、点击定案、Esc 取消。
 /// 回传走哨兵导航 —— 标签 webview 是外部 origin，结构性无 IPC，这是唯一
 /// 不开新信道、不放宽隔离的回传口。幂等：重复注入是空操作。
 /// 已知边界：iframe 里的元素只拾取到 iframe 本身。
@@ -263,19 +263,13 @@ fn note_title(app: &AppHandle, id: u32, title: &str) {
 
 /// 内核报来的装载进度：Started 亮转圈，Finished 熄掉。
 ///
-/// 装载开始兼作「跟随」信号：agent 经 CDP 驱动后台标签时，面板把它切成活动
-/// 标签。如实声明：内核分不清 CDP 导航与页面自刷新（都是无命令导航），后者
-/// 同样会抢活动位 —— 已写进 docs 的已知限制。
+/// 只记装载，不动活动标签：内核眼里 CDP 导航与页面自刷新都是无命令导航，
+/// 据此换活动标签就是从用户手里抢焦点。要不要跟着 agent 走是面板那一侧的
+/// 意图（browser-panel-store 的自动展开），静音位在那里。
 fn note_loading(app: &AppHandle, id: u32, loading: bool) {
-    let follow = {
+    {
         let host = app.state::<BrowserHost>();
-        let mut tabs = lock(&host.tabs);
-        tabs.note_loading(id, loading);
-        loading && tabs.active_id() != Some(id) && tabs.select(id)
-    };
-
-    if follow {
-        apply_layout(app);
+        lock(&host.tabs).note_loading(id, loading);
     }
 
     publish(app);
@@ -514,7 +508,7 @@ pub async fn browser_state(app: AppHandle) -> BrowserState {
     app.state::<BrowserHost>().snapshot()
 }
 
-/// 开标签。不带地址就是空白页（图一的 about:blank 形态）。
+/// 开标签。不带地址就是空白页。
 #[command]
 #[specta::specta]
 pub async fn browser_open_tab(app: AppHandle, url: Option<String>) {
@@ -545,7 +539,7 @@ pub async fn browser_close_tab(app: AppHandle, id: u32) {
     let closed = {
         let host = app.state::<BrowserHost>();
         let mut tabs = lock(&host.tabs);
-        tabs.close(id).is_some()
+        tabs.close(id)
     };
 
     if !closed {
@@ -697,7 +691,7 @@ pub async fn browser_set_visible(app: AppHandle, visible: bool) {
     apply_layout(&app);
 }
 
-/// 图三「打开调试工具」：WebView2 的 DevTools 独立窗口。
+/// 「打开调试工具」：WebView2 的 DevTools 独立窗口。
 #[command]
 #[specta::specta]
 pub async fn browser_open_devtools(app: AppHandle, id: u32) {
@@ -718,7 +712,7 @@ pub async fn browser_devtools_endpoint(app: AppHandle) -> Option<String> {
     app.state::<BrowserHost>().devtools_endpoint()
 }
 
-/// 图二「选择网页元素加入聊天」：给标签装上拾取武装并注入拾取脚本。
+/// 「选择网页元素加入聊天」：给标签装上拾取武装并注入拾取脚本。
 ///
 /// 空白页没有内核实例，run_in_page 自然是空操作，什么也不会发生。
 #[command]
@@ -735,7 +729,7 @@ pub async fn browser_pick_element(app: AppHandle, id: u32) {
 /// 把内核预热出来，让 CDP 端点上有页面可听。
 ///
 /// 已有活的 webview 或没有端口时是空操作。有带地址的标签就驱动第一个；
-/// 一个都没有就开一页 about:blank —— agent 拿到的是真实内核里的真实页面。
+/// 一个都没有就预热一页空白页 —— agent 拿到的是真实内核里的真实页面。
 pub fn ensure_live_kernel(app: &AppHandle) {
     {
         let host = app.state::<BrowserHost>();
@@ -767,10 +761,10 @@ pub fn ensure_live_kernel(app: &AppHandle) {
     let id = {
         let host = app.state::<BrowserHost>();
         let mut tabs = lock(&host.tabs);
-        tabs.open(Some("about:blank".to_owned()))
+        tabs.open(None)
     };
 
-    let Ok(url) = Url::parse("about:blank") else {
+    let Ok(url) = Url::parse(poietica_browser_native::BLANK_PAGE) else {
         return;
     };
 
