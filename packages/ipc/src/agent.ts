@@ -4,8 +4,6 @@ import type {
   AgentSkillPort,
   QuestionChoice,
   RunEvent,
-  SessionCommand,
-  SessionCommandsPort,
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
@@ -42,7 +40,7 @@ import {
 /** The channel run frames are broadcast on. */
 const AGENT_EVENT = 'ai-run-event'
 
-/** 会话自己报来的状态走这一条：选择器表、命令表、上下文用量。它不属于任何一轮。 */
+/** 会话自己报来的状态走这一条：选择器表与上下文用量。它不属于任何一轮。 */
 const AGENT_SESSION_EVENT = 'ai-session-event'
 
 /**
@@ -142,14 +140,13 @@ type AgentSessionEnvelope =
       readonly sessionId: string
       readonly selectors: AgentConfigControl[]
     }
-  | { readonly kind: 'commands'; readonly sessionId: string; readonly commands: unknown }
   | { readonly kind: 'usage'; readonly sessionId: string; readonly usage: AgentSessionUsage }
 
 /**
  * 一条通道，按判别式交给它的读者。
  *
- * 三种会话状态同走一条事件，与运行帧同走 AGENT_EVENT 是同一条规矩。分派
- * 是静态的三支，不是一张可以注册任意名字的表 —— 每一个读者仍然是一个具名端口。
+ * 两种会话状态同走一条事件，与运行帧同走 AGENT_EVENT 是同一条规矩。分派
+ * 是静态的两支，不是一张可以注册任意名字的表 —— 每一个读者仍然是一个具名端口。
  */
 function subscribeToSessionEvent<TKind extends AgentSessionEnvelope['kind']>(
   kind: TKind,
@@ -499,56 +496,6 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
     setPinned: async (threadId, pinned) => {
       await throughIpc(() => commands.agentPinThread({ threadId, pinned }))
     },
-  }
-}
-
-/*
- * 命令表这一路。与用量同一条规矩：不留副本，唯一的消费者是 SessionControlsStore。
- *
- * 载荷恒为整表，所以这里只解形状，不合并。认不出形状的条目丢掉，不整表判废。
- */
-function commandsOf(payload: unknown): readonly SessionCommand[] {
-  if (!Array.isArray(payload)) {
-    return []
-  }
-
-  const commands: SessionCommand[] = []
-
-  for (const offered of payload) {
-    if (typeof offered !== 'object' || offered === null) {
-      continue
-    }
-
-    const held = offered as Record<string, unknown>
-    const name = held['name']
-    const said = held['description']
-
-    if (typeof name !== 'string') {
-      continue
-    }
-
-    commands.push({
-      name,
-      label: `/${name}`,
-      description: typeof said === 'string' ? said : '',
-    })
-  }
-
-  return commands
-}
-
-export function createAgentSessionCommandsBridge({
-  onListenFailure,
-}: AgentEventSourceOptions = {}): SessionCommandsPort {
-  return {
-    subscribe: (handler) =>
-      subscribeToSessionEvent(
-        'commands',
-        (payload) => {
-          handler({ sessionId: payload.sessionId, commands: commandsOf(payload.commands) })
-        },
-        onListenFailure,
-      ),
   }
 }
 

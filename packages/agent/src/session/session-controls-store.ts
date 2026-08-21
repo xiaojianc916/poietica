@@ -3,9 +3,6 @@ import type {
   AgentSkillPort,
   OpenedThread,
   PermissionPosturePort,
-  SessionCommand,
-  SessionCommandReport,
-  SessionCommandsPort,
   SessionConfigControl,
   SessionConfigPort,
   SessionConfigReport,
@@ -22,7 +19,6 @@ import { permissionControlOf, postureAlignment } from './permission-posture'
 import type { TranscriptSink } from './transcript-sink'
 
 interface Held {
-  readonly commands: ReadonlyMap<string, readonly SessionCommand[]>
   readonly selectors: ReadonlyMap<string, readonly SessionConfigControl[]>
   readonly selectorFailure: ReadonlyMap<string, string>
   readonly skills: ReadonlyMap<string, readonly AgentSkill[]>
@@ -30,7 +26,6 @@ interface Held {
 }
 
 const EMPTY: Held = {
-  commands: new Map(),
   selectors: new Map(),
   selectorFailure: new Map(),
   skills: new Map(),
@@ -53,8 +48,6 @@ export interface SessionControlsFailureReport {
 }
 
 export interface SessionControlsOptions {
-  /** 这条会话报来的命令表。缺席即不列，这台 store 因此仍能裸构造单测。 */
-  readonly commands?: SessionCommandsPort | undefined
   readonly config?: SessionConfigPort | undefined
   readonly port?: ThreadPort | undefined
   /** 批准方式的持久意图。缺席即不对齐，这台 store 因此仍能裸构造单测。 */
@@ -102,8 +95,6 @@ export interface SessionControlsOptions {
 export class SessionControlsStore {
   readonly #port: ThreadPort | undefined
 
-  readonly #commands: SessionCommandsPort | undefined
-
   readonly #config: SessionConfigPort | undefined
 
   readonly #transcripts: TranscriptSink | undefined
@@ -149,7 +140,6 @@ export class SessionControlsStore {
   #alignedTo = new Map<string, string>()
 
   constructor({
-    commands,
     config,
     port,
     posture,
@@ -158,7 +148,6 @@ export class SessionControlsStore {
     transcripts,
     usage,
   }: SessionControlsOptions) {
-    this.#commands = commands
     this.#config = config
     this.#port = port
     this.#posture = posture
@@ -200,14 +189,9 @@ export class SessionControlsStore {
       this.#usageReported(report)
     })
 
-    const stopCommands = this.#commands?.subscribe((report) => {
-      this.#commandsReported(report)
-    })
-
     return () => {
       stop?.()
       stopUsage?.()
-      stopCommands?.()
     }
   }
 
@@ -225,10 +209,6 @@ export class SessionControlsStore {
   /** 这条对话背后那个会话能用的技能；还没问回来就是 undefined。 */
   skillsOf = (threadId: string): readonly AgentSkill[] | undefined =>
     this.#held.skills.get(threadId)
-
-  /** 这条对话背后那个会话敲得出来的命令；还没报过就是 undefined。 */
-  commandsOf = (threadId: string): readonly SessionCommand[] | undefined =>
-    this.#held.commands.get(threadId)
 
   /**
    * 激活一条技能。一次协议动作，这一侧不留副本 —— 结果由帧流自己说。
@@ -313,7 +293,6 @@ export class SessionControlsStore {
     }
 
     this.#commit({
-      commands: withoutEntry(this.#held.commands, threadId),
       selectors: withoutEntry(this.#held.selectors, threadId),
       selectorFailure: withoutEntry(this.#held.selectorFailure, threadId),
       skills: withoutEntry(this.#held.skills, threadId),
@@ -505,22 +484,6 @@ export class SessionControlsStore {
     this.#commit({ usage: withEntry(this.#held.usage, threadId, report.usage) })
   }
 
-  /*
-   * agent 报来了一张命令表。
-   *
-   * 与 #usageReported 同一条到达路径、同一张反查表：整表替换，没有合并，也不参与
-   * ArrivalOrder —— 没有任何命令能把它问回来。
-   */
-  #commandsReported(report: SessionCommandReport): void {
-    const threadId = this.#sessions.get(report.sessionId)
-
-    if (threadId === undefined) {
-      return
-    }
-
-    this.#commit({ commands: withEntry(this.#held.commands, threadId, report.commands) })
-  }
-
   /* 这条对话的先后。没有就现在开一份。 */
   #orderOf(threadId: string): ArrivalOrder {
     const held = this.#order.get(threadId)
@@ -594,7 +557,6 @@ export class SessionControlsStore {
     const next: Held = { ...this.#held, ...patch }
 
     if (
-      next.commands === this.#held.commands &&
       next.selectors === this.#held.selectors &&
       next.selectorFailure === this.#held.selectorFailure &&
       next.skills === this.#held.skills &&

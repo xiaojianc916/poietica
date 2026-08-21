@@ -6,7 +6,6 @@ import type {
   AgentSkill,
   ChatStatus,
   QuestionResponse,
-  SessionCommand,
   SessionConfigControl,
   SessionUsage,
 } from '@poietica/agent-contract'
@@ -48,8 +47,6 @@ export interface AssistantComposerProps {
   readonly onCancel?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
   readonly ref?: Ref<PromptInputHandle> | undefined
-  /** 这条会话报来的命令表：面板里命令那一组由它长出。 */
-  readonly commands?: readonly SessionCommand[] | undefined
   /** 这条会话能用的技能，由 kap 报。 */
   readonly skills?: readonly AgentSkill[] | undefined
   /** 激活一条技能，args 由斜杠那一行给。 */
@@ -186,7 +183,6 @@ export const AssistantComposer = memo(function AssistantComposer({
   approval,
   onAnswerQuestions,
   onDismissQuestions,
-  commands,
   onActivateSkill,
   skills,
   placeholder = '问我任何问题…',
@@ -212,17 +208,16 @@ export const AssistantComposer = memo(function AssistantComposer({
    */
   const asking = question != null
 
-  /* agent 报的选择器与命令，摊平一次交给输入框。引用稳定，面板才不会每敲一字重建。 */
+  /* agent 报的选择器与技能，摊平一次交给输入框。引用稳定，面板才不会每敲一字重建。 */
   const groups = useMemo(
     () =>
       composerPaletteGroups({
-        commands: commands ?? [],
         controls: toolbar.controls,
         onActivateSkill,
         onSelectControl: toolbar.onSelectControl,
         skills: skills ?? [],
       }),
-    [commands, onActivateSkill, skills, toolbar.controls, toolbar.onSelectControl],
+    [onActivateSkill, skills, toolbar.controls, toolbar.onSelectControl],
   )
 
   return (

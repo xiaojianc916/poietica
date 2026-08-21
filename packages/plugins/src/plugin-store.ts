@@ -1,4 +1,4 @@
-import type { SessionCommand } from '@poietica/agent-contract'
+import type { AgentSkill } from '@poietica/agent-contract'
 import { assertUnreachable, warn } from '@poietica/core'
 import {
   commitPlugin,
@@ -29,13 +29,12 @@ import {
 } from './install-source'
 
 /**
- * 全局命令面板端口：提供不依赖会话的斜杠命令表。
+ * 全局技能面板端口：提供不依赖会话的斜杠技能表。
  *
- * 与 SessionCommandsPort（按会话）不同，这一路在会话建立前就可用，
- * 用于新建对话入口的输入框斜杠菜单。
+ * 这一路在会话建立前就可用，用于新建对话入口的输入框斜杠菜单。
  */
 export interface AgentPalettePort {
-  readonly read: () => readonly SessionCommand[]
+  readonly read: () => readonly AgentSkill[]
   readonly subscribe: (listener: () => void) => () => void
 }
 
@@ -111,8 +110,8 @@ export interface PluginsViewModel {
   readonly skillInstall: InstallFlow
   /** 首帧与「读完了确实一个都没装」不是同一件事，空态因此不会闪。 */
   readonly loaded: boolean
-  /** 斜杠菜单的候选表：不依赖会话的全局命令列表。 */
-  readonly palette: readonly SessionCommand[]
+  /** 斜杠菜单的候选表：不依赖会话的全局技能列表。 */
+  readonly palette: readonly AgentSkill[]
 }
 
 export interface IdleInstall {

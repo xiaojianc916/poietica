@@ -10,10 +10,9 @@ import {
   useThreadUsage,
   type WorkspacePickerProps,
 } from '@poietica/agent-ui'
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useThreadsActions } from '../assistant/threads-context'
 import { adoptBrowserPickTarget } from '../browser/browser-pick'
-import { pluginStore } from '../plugins/plugin-runtime'
 
 /*
  * 一格只画一条对话。
@@ -63,16 +62,6 @@ export function ConversationSurface({
   const composer = useRef<PromptInputHandle | null>(null)
 
   useEffect(() => adoptBrowserPickTarget(composer), [])
-
-  /*
-   * 斜杠菜单的候选表，读插件 store 快照上的命令表。订阅顺带把命令表端口接上（store
-   * 在第一个订阅者到来时才接 palette），所以不开插件面板，输入框也拿得到表；agent
-   * 报来新表之前，先画上一次运行存下的那份。
-   */
-  const globalPalette = useSyncExternalStore(
-    pluginStore.subscribe,
-    () => pluginStore.getSnapshot().palette,
-  )
 
   const sessionControls = useSessionControlsActions()
 
@@ -206,7 +195,6 @@ export function ConversationSurface({
       controlsFailure={controlsFailure}
       endpoint={threadId}
       git={git}
-      globalPalette={globalPalette}
       identify={onIdentify}
       onFork={threadId === null ? undefined : fork}
       onRetryControls={retryControls}

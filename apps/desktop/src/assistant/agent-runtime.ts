@@ -10,7 +10,6 @@ import type {
   AgentSessionPort,
   AgentSkillPort,
   PermissionPosturePort,
-  SessionCommandsPort,
   SessionConfigPort,
   SessionUsagePort,
   ThreadPort,
@@ -19,7 +18,6 @@ import { createExternalStore, createPreference, error as reportError } from '@po
 import {
   type AgentBridgeOptions,
   createAgentCapabilityBridge,
-  createAgentSessionCommandsBridge,
   createAgentSessionConfigBridge,
   createAgentSessionPort,
   createAgentSessionUsageBridge,
@@ -40,7 +38,6 @@ export interface DesktopAgentRuntime {
   readonly session: AgentSessionPort
   readonly threads: ThreadPort
   readonly sessionConfig: SessionConfigPort
-  readonly sessionCommands: SessionCommandsPort
   readonly sessionUsage: SessionUsagePort
   readonly skills: AgentSkillPort
   readonly permissionPosture: PermissionPosturePort
@@ -169,8 +166,6 @@ export function createDesktopAgentRuntime(
 
   const sessionUsage = createAgentSessionUsageBridge({ onListenFailure: noteListenFailure })
 
-  const sessionCommands = createAgentSessionCommandsBridge({ onListenFailure: noteListenFailure })
-
   const skills = createAgentSkillBridge()
 
   const threads = createAgentThreadBridge({
@@ -235,7 +230,6 @@ export function createDesktopAgentRuntime(
     session,
     threads,
     sessionConfig,
-    sessionCommands,
     sessionUsage,
     skills,
     permissionPosture,

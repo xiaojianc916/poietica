@@ -8,7 +8,6 @@
 
 export type { ThreadId } from './address'
 export type { AgentCapabilityPort } from './capability'
-export type { SessionCommand, SessionCommandReport, SessionCommandsPort } from './commands'
 export type {
   SessionConfigChoice,
   SessionConfigControl,
