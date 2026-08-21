@@ -194,6 +194,31 @@ function dropTyped(length: number): void {
   node.spliceText(offset - length, length, '', true)
 }
 
+/*
+ * 斜杠命中：命名空间先对上，名字再模糊。
+ *
+ * 命令的 token 是 /名字，技能的是 /skill:名字。敲 /skill 只该看见技能，而敲一个
+ * 名字应该在两类里都找得到 —— 所以模糊匹配只在最后一个 : 之后的名字段上做，不跨
+ * 命名空间。行没有 token 就不参与斜杠过滤。
+ */
+function matchesToken(row: PaletteRow, needle: string): boolean {
+  const token = row.token?.toLowerCase()
+
+  if (token === undefined) {
+    return false
+  }
+
+  if (token.startsWith(needle)) {
+    return true
+  }
+
+  const said = needle.slice(1)
+
+  return (
+    said.length > 0 && !said.includes(':') && token.slice(token.lastIndexOf(':') + 1).includes(said)
+  )
+}
+
 export interface PromptInputProps {
   readonly children?: ReactNode
   readonly className?: string | undefined
@@ -470,16 +495,7 @@ function PromptInputShell({
     const needle = draftText.typed.toLowerCase()
 
     return allGroups
-      .map((group) => ({
-        ...group,
-        rows: group.rows.filter((row) => {
-          const token = row.token?.toLowerCase()
-
-          return (
-            token !== undefined && (token.startsWith(needle) || token.includes(needle.slice(1)))
-          )
-        }),
-      }))
+      .map((group) => ({ ...group, rows: group.rows.filter((row) => matchesToken(row, needle)) }))
       .filter((group) => group.rows.length > 0)
   }, [allGroups, draftText.typed, slashing])
 

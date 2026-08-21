@@ -3,9 +3,11 @@ import type { AgentSkill, PaletteEntry, SessionConfigControl } from '@poietica/a
 import type { ReactNode } from 'react'
 import {
   CloseIcon,
+  GoalIcon,
   PlusIcon,
   SirenIcon,
   SkillIcon,
+  SwarmIcon,
   TerminalIcon,
   ToolIcon,
 } from '../primitives/icons'
@@ -16,9 +18,9 @@ import { usePromptInputActions } from './prompt-input'
 /*
  * 加号那一侧：往这一句里加什么。
  *
- * 面板本身归输入框 —— 它锚在卡的上沿，与斜杠触发的是同一张，键盘也因此只有一套。
- * 这里只剩下扳机和一次投影：agent 报的模式、技能、命令与 other 选择器各立一组。
- * 批准方式由 PermissionPicker 独占，不能再把 Auto / YOLO 作为第二套入口重复显示。
+ * 面板归输入框（锚在卡的上沿，与斜杠触发同一张，键盘只有一套）。这里只有扳机与
+ * 一次投影：模式、技能、命令、other 选择器各立一组。批准方式由 PermissionPicker
+ * 独占，不在这张表里出现第二次。
  */
 
 export function ComposerActions() {
@@ -151,19 +153,24 @@ export function composerPaletteGroups({
 }
 
 /*
- * 批准方式之外的生效模式。
+ * 输入框上沿那排胶囊：这一句将在什么处境下被执行。
  *
- * manual / yolo / auto 由 PermissionPicker 常显（plan 期间显示挂起的那一档）；
- * 这里只显示 Plan 等额外模式。mode 与批准方式共用同一个控制值：进 plan 会把批准
- * 方式覆写掉，摘掉时把挂起前那一档还回去（记忆归 posture-memory.ts），不是退回首档。
+ * 模式的真相在 agent 的 mode 选择器，所以它可摘 —— 摘掉时把挂起前那一档批准方式
+ * 还回去（记忆归 posture-memory.ts）。目标与蜂群的真相在转录：kap 把它们报成
+ * goal_start 与 agent_call / task 三档工具显示，协议没有给客户端关掉它们的动作，
+ * 所以那两枚只读。
  */
-export interface ComposerModeChipProps {
+export interface ComposerChipsProps {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelect: (controlId: string, value: string) => void
+  /** 这一段在进行的那个目标。 */
+  readonly goal?: string | undefined
+  /** 此刻还在跑的子代理数。 */
+  readonly swarm?: number | undefined
 }
 
-/** 一枚生效档位：静息左图标右文字，悬停换成移除圆钮。 */
-function chip(id: string, glyph: ReactNode, label: string, exit: () => void): ReactNode {
+/** 可摘的那一枚：静息左图标右文字，悬停换成移除圆钮。 */
+function exitChip(id: string, glyph: ReactNode, label: string, exit: () => void): ReactNode {
   return (
     <button
       aria-label={`退出${label}`}
@@ -185,11 +192,20 @@ function chip(id: string, glyph: ReactNode, label: string, exit: () => void): Re
   )
 }
 
-/*
- * 生效中的模式，一排胶囊。真相在 agent：摘掉时把挂起前的批准方式还回去
- * （记忆归 posture-memory.ts）。
- */
-export function ComposerModeChip({ controls, onSelect }: ComposerModeChipProps) {
+/** 只读的那一枚：状态的镜子，不是控件，所以不上手型也不换字形。 */
+function stateChip(id: string, glyph: ReactNode, label: string): ReactNode {
+  return (
+    <span className="assistant-mode-chip assistant-mode-chip--state" key={id} title={label}>
+      <span aria-hidden="true" className="assistant-mode-chip__icon">
+        <span className="assistant-mode-chip__glyph">{glyph}</span>
+      </span>
+
+      <span className="assistant-mode-chip__label">{label}</span>
+    </span>
+  )
+}
+
+export function ComposerChips({ controls, goal, onSelect, swarm }: ComposerChipsProps) {
   const mode = controls.find((control) => control.purpose === 'mode')
   const rememberedPosture = usePostureMemory(controls)
   const chips: ReactNode[] = []
@@ -204,11 +220,19 @@ export function ComposerModeChip({ controls, onSelect }: ComposerModeChipProps) 
       )
 
       chips.push(
-        chip(mode.id, <SirenIcon />, inForce.label, () => {
+        exitChip(mode.id, <SirenIcon />, inForce.label, () => {
           onSelect(mode.id, rememberedPosture ?? firstPosture?.value ?? first.value)
         }),
       )
     }
+  }
+
+  if (goal !== undefined && goal !== '') {
+    chips.push(stateChip('goal', <GoalIcon />, goal))
+  }
+
+  if (swarm !== undefined && swarm > 0) {
+    chips.push(stateChip('swarm', <SwarmIcon />, `${String(swarm)} 个子代理在跑`))
   }
 
   if (chips.length === 0) {

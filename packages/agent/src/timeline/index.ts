@@ -19,10 +19,12 @@ export type {
 } from './timeline-contract'
 export { opensTurn } from './timeline-contract'
 export {
+  activeGoal,
   pendingPermission,
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
+  runningDelegations,
   selectIsBusy,
 } from './timeline-queries'
 export {

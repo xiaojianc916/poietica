@@ -56,6 +56,7 @@ export type {
   UserMessageItem,
 } from './timeline'
 export {
+  activeGoal,
   appendLocalError,
   appendUserMessage,
   applyRunEvent,
@@ -68,6 +69,7 @@ export {
   prependThreadEvents,
   replayRunEvents,
   replayThreadEvents,
+  runningDelegations,
   selectFeedRows,
   selectIsBusy,
   selectIsWaiting,

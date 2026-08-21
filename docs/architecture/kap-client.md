@@ -30,7 +30,8 @@
 - sessions：创建、读取、加载、分叉、归档；
 - prompts：提交一次用户输入；
 - profile / models / status：会话选择器与当前状态；
-- approvals：拉取待处理审批并提交 decision。
+- approvals：拉取待处理审批并提交 decision；
+- skills：读这条会话可用的技能目录，并激活其中一条。
 
 ## WebSocket
 
@@ -66,3 +67,7 @@ Approvals 走独立 REST 资源，客户端只在产品边界合成三个按钮�
 回答与撤下分走 `POST …/questions/{id}` 与 `:dismiss`。
 
 prompt queue 与 steer 同样未完成。
+
+计划是会话开关（status 的 `plan_mode`，写回走 profile）。目标与蜂群没有开关：它们
+是 agent 侧的循环，客户端能拿到的是 `goal_start` 与 `agent_call` / `task` 三档工具
+显示，输入框上沿那排胶囊就是它们的投影。

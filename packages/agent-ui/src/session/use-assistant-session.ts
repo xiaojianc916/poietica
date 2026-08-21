@@ -6,11 +6,13 @@ import type {
   Transcript,
 } from '@poietica/agent'
 import {
+  activeGoal,
   describeFailure,
   pendingPermission,
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
+  runningDelegations,
 } from '@poietica/agent'
 import type {
   AgentSessionPort,
@@ -338,4 +340,19 @@ const readPendingCall = (transcript: Transcript): ToolCallTimelineItem | undefin
 /** 待答请求指向的那次调用；审批带照着它印字。 */
 export function useAssistantPendingCall(key: string): ToolCallTimelineItem | undefined {
   return useSlice(key, readPendingCall)
+}
+
+/* 目标与蜂群各交一个原始值：字符串与数字，所以流式追加叫不醒那排胶囊。 */
+const readGoal = (transcript: Transcript): string | undefined => activeGoal(transcript.timeline)
+
+const readSwarm = (transcript: Transcript): number => runningDelegations(transcript.timeline)
+
+/** 这一段在哪个目标下，没有就是 undefined。 */
+export function useAssistantGoal(key: string): string | undefined {
+  return useSlice(key, readGoal)
+}
+
+/** 此刻还在跑的子代理数。 */
+export function useAssistantSwarm(key: string): number {
+  return useSlice(key, readSwarm)
 }

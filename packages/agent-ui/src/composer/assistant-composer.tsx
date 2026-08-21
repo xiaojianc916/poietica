@@ -13,7 +13,7 @@ import type {
 import { memo, type Ref, useMemo } from 'react'
 import type { ComposerAsset } from './attachment-intake'
 import { AttachmentTray } from './attachment-tray'
-import { ComposerActions, ComposerModeChip, composerPaletteGroups } from './composer-actions'
+import { ComposerActions, ComposerChips, composerPaletteGroups } from './composer-actions'
 import { ContextGauge } from './context-gauge'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PermissionPicker } from './permission-picker'
@@ -54,6 +54,10 @@ export interface AssistantComposerProps {
   readonly skills?: readonly AgentSkill[] | undefined
   /** 激活一条技能。 */
   readonly onActivateSkill: (name: string) => void
+  /** 这一段在进行的那个目标，真相在转录。 */
+  readonly goal?: string | undefined
+  /** 此刻还在跑的子代理数，真相在转录。 */
+  readonly swarm?: number | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
   readonly controlsFailure?: string | undefined
@@ -95,16 +99,25 @@ export interface AssistantComposerProps {
  */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  'controls' | 'controlsFailure' | 'onCancel' | 'onRetryControls' | 'onSelectControl' | 'usage'
+  | 'controls'
+  | 'controlsFailure'
+  | 'goal'
+  | 'onCancel'
+  | 'onRetryControls'
+  | 'onSelectControl'
+  | 'swarm'
+  | 'usage'
 > & { readonly status: ChatStatus }
 
 function ComposerToolbar({
   controls,
   controlsFailure,
+  goal,
   onCancel,
   onRetryControls,
   onSelectControl,
   status,
+  swarm,
   usage,
 }: ComposerToolbarProps) {
   /*
@@ -129,8 +142,8 @@ function ComposerToolbar({
         */}
         <PermissionPicker controls={controls} onSelect={onSelectControl} />
 
-        {/* 生效中的那一档模式，真相在 agent。 */}
-        <ComposerModeChip controls={controls} onSelect={onSelectControl} />
+        {/* 这一句的处境：模式归 agent，目标与蜂群归转录。 */}
+        <ComposerChips controls={controls} goal={goal} onSelect={onSelectControl} swarm={swarm} />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />

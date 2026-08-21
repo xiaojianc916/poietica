@@ -15,11 +15,13 @@ import type { PromptInputHandle } from '../composer/prompt-input'
 import { useSkillActivation, useThreadSkills } from '../session/session-controls-context'
 import type { AssistantSubmission } from '../session/use-assistant-session'
 import {
+  useAssistantGoal,
   useAssistantPending,
   useAssistantPendingCall,
   useAssistantPendingCount,
   useAssistantQuestion,
   useAssistantSession,
+  useAssistantSwarm,
 } from '../session/use-assistant-session'
 import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branch-picker'
 import { WorkspacePicker, type WorkspacePickerProps } from '../threads/workspace-picker'
@@ -152,6 +154,10 @@ export const AssistantSurface = memo(function AssistantSurface({
   /* 待答的那一组题。协议自己的通道，答复与撤下直走会话端口，不经权限请求。 */
   const question = useAssistantQuestion(assistant.key)
 
+  /* 这一段的处境：目标与在跑的子代理数，都从帧日志派生（kap 的 goal_start 与 agent_call / task）。 */
+  const goal = useAssistantGoal(assistant.key)
+  const swarm = useAssistantSwarm(assistant.key)
+
   /*
    * 待答的那一次审批。
    *
@@ -223,6 +229,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         approval={approval}
         controls={controls}
         controlsFailure={controlsFailure}
+        goal={goal}
         onActivateSkill={activateSkill}
         onAnswerQuestions={assistant.answerQuestions}
         onCancel={assistant.cancel}
@@ -235,6 +242,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         ref={composer}
         skills={skills}
         status={assistant.status}
+        swarm={swarm}
         usage={usage}
       />
     </div>
