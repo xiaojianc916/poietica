@@ -107,17 +107,23 @@ export function workspaceNameOf(id: string): string | null {
  * 与库那条 ORDER BY 同一条规则（crates/persistence/src/threads.rs 的
  * list_threads：ORDER BY pinned DESC, updated_at DESC）。
  */
+// ISO-8601 定长串按字典序即时间序，与库那条 ORDER BY 的 BINARY 排序同一规则；
+// localeCompare 走的是 ICU 区域排序，会与库分叉。
+function byIsoDescending(left: string, right: string): number {
+  return left > right ? -1 : left < right ? 1 : 0
+}
+
 export function byRecency(left: ThreadRecord, right: ThreadRecord): number {
   const pinned = Number(right.pinned === true) - Number(left.pinned === true)
 
-  return pinned === 0 ? right.updatedAt.localeCompare(left.updatedAt) : pinned
+  return pinned === 0 ? byIsoDescending(left.updatedAt, right.updatedAt) : pinned
 }
 
 /** 组内次序，作用在列表项上。规则与 byRecency 同一条。 */
 function byRecencyOfItem(left: ThreadListItem, right: ThreadListItem): number {
   const pinned = Number(right.isPinned) - Number(left.isPinned)
 
-  return pinned === 0 ? right.updatedAt.localeCompare(left.updatedAt) : pinned
+  return pinned === 0 ? byIsoDescending(left.updatedAt, right.updatedAt) : pinned
 }
 
 /**
@@ -135,7 +141,7 @@ export function groupByWorkspace(
   const held = new Map<string, ThreadListItem[]>()
 
   for (const item of [...items].sort((left, right) =>
-    right.updatedAt.localeCompare(left.updatedAt),
+    byIsoDescending(left.updatedAt, right.updatedAt),
   )) {
     const members = held.get(item.workspaceId)
 

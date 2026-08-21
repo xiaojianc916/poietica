@@ -1867,9 +1867,8 @@ export type GeneralSettings = { sendWithModifier: boolean; confirmBeforeDelete: 
  * 一个工作目录此刻的分支快照。branch 为空即 HEAD 分离，detachedAt 给出所在短号。
  */
 export type GitBranches = { branch: string | null; detachedAt: string | null; branches: string[] }
-export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
+export type IpcError = { code: IpcErrorCode; message: string; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "permission-denied" | "persistence" | "plugin" | "asset" | "platform"
-export type IpcOperation = "file" | "plugin" | "asset" | "platform"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 /**
  * 服务器的落脚地址。渲染层照着它把这台服务器登记进 MCP 那一格。
