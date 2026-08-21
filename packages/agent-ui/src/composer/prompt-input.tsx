@@ -464,7 +464,7 @@ function PromptInputShell({
             id: 'compose:goal',
             icon: <GoalIcon aria-hidden="true" />,
             label: '目标',
-            detail: '把这句话设为要持续追求的目标',
+            detail: modes.goal ?? '把这句话设为要持续追求的目标',
             checked: modes.goal !== null,
             disabled: !hasText && modes.goal === null,
             action: { kind: 'goal' as const },
@@ -541,7 +541,7 @@ function PromptInputShell({
             }
 
             dropTyped(typed)
-            selection.insertNodes([$createSkillNode(action.skill.call, action.skill.title)])
+            selection.insertNodes([$createSkillNode(action.skill.label, action.skill.title)])
             selection.insertText(' ')
           })
           focusEditor()
@@ -549,20 +549,15 @@ function PromptInputShell({
           return
         }
 
-        /* 目标就是此刻这句话：它从草稿搬进模式，此后每一轮随那句话重述一次。 */
+        /* 目标就是此刻这句话：有正文就换成它，没正文就撤掉。 */
         case 'goal': {
-          if (modes.goal !== null) {
-            onSetGoal(null)
-            focusEditor()
-
-            return
-          }
-
           const goal = draftText.text.trim()
 
           if (goal.length > 0) {
             onSetGoal(goal)
             clearDraft(editor)
+          } else if (modes.goal !== null) {
+            onSetGoal(null)
           }
 
           focusEditor()

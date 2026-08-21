@@ -1,5 +1,5 @@
 import type { RunMode } from '@poietica/agent'
-import { permissionPostureOf } from '@poietica/agent'
+import { permissionPostureOf, shorten } from '@poietica/agent'
 import type { PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
 import {
@@ -152,9 +152,7 @@ function callable(entry: PaletteEntry, skill: boolean): PaletteRow {
     ...(entry.description === '' ? {} : { detail: entry.description }),
     token: entry.label,
     /* 技能是文档里的一个原子节点；命令仍是插进正文的一段字。 */
-    action: skill
-      ? { kind: 'skill', skill: { call: entry.label, title: entry.title } }
-      : { kind: 'insert', snippet: entry.label },
+    action: skill ? { kind: 'skill', skill: entry } : { kind: 'insert', snippet: entry.label },
   }
 }
 
@@ -234,7 +232,7 @@ export function ComposerModeChip({
 
   if (modes.goal !== null) {
     chips.push(
-      chip('goal', <GoalIcon />, '目标', () => {
+      chip('goal', <GoalIcon />, `目标：${shorten(modes.goal)}`, () => {
         onSetGoal(null)
       }),
     )

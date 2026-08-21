@@ -5,6 +5,8 @@ export type {
 } from './agent-capability-store'
 export { AgentCapabilityStore } from './agent-capability-store'
 export { describeFailure } from './describe-failure'
+export type { GoalMemory } from './goal-memory'
+export { createGoalMemory } from './goal-memory'
 export type { PermissionPosture } from './permission-posture'
 export {
   permissionControlOf,

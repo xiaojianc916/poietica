@@ -16,6 +16,7 @@ export const APPLICATION_FAILURE_CODES = [
   'AGENT_CONFIG_CHANGE_REJECTED',
   'SESSION_CONFIG_CHANGE_REJECTED',
   'THREAD_REOPEN_FAILED',
+  'THREAD_GOAL_NOT_KEPT',
   'GIT_BRANCH_OPERATION_FAILED',
   'UPDATE_DOWNLOAD_FAILED',
 ] as const
@@ -225,6 +226,18 @@ export const APPLICATION_FAILURE_POLICIES = {
     recovery: 'retry',
 
     scope: operationScope('reopen-thread'),
+  },
+  /*
+   * 目标没能记住。
+   *
+   * 这一轮照常带着目标出发（真相在内存那一份），失手的只是它在下次启动时还在不在。
+   * 所以作用域是一次操作、不是一个功能：没有任何控件需要变灰。
+   */
+  THREAD_GOAL_NOT_KEPT: {
+    impact: 'recoverable',
+    userMessage: '这条对话的目标没能记住，重启后需要重新设置。',
+    recovery: 'retry',
+    scope: operationScope('keep-thread-goal'),
   },
   /*
    * Git 的拒绝理由通过统一失败管线直接进入全局 toast。菜单不持有错误副本，

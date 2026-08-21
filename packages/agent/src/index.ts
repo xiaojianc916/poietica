@@ -12,6 +12,7 @@ export type {
   AgentControls,
   CapabilityFailureReport,
   EarlierFrames,
+  GoalMemory,
   PermissionPosture,
   RunMode,
   SessionControlsFailureReport,
@@ -27,6 +28,7 @@ export type {
 export {
   AgentCapabilityStore,
   composePrompt,
+  createGoalMemory,
   DEFAULT_WORKSPACE_ID,
   describeFailure,
   groupByWorkspace,

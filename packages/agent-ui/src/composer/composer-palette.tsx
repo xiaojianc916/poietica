@@ -1,6 +1,6 @@
 import './composer-palette.css'
 
-import type { SkillCall } from '@poietica/agent'
+import type { PaletteEntry } from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
 import { CheckIcon } from '../primitives/icons'
 
@@ -21,7 +21,7 @@ import { CheckIcon } from '../primitives/icons'
 export type PaletteAction =
   | { readonly kind: 'insert'; readonly snippet: string }
   | { readonly kind: 'run'; readonly run: () => void }
-  | { readonly kind: 'skill'; readonly skill: SkillCall }
+  | { readonly kind: 'skill'; readonly skill: PaletteEntry }
   | { readonly kind: 'goal' }
   | { readonly kind: 'swarm' }
 

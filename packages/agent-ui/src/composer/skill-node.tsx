@@ -27,23 +27,23 @@ export class SkillNode extends DecoratorNode<ReactNode> {
     this.__title = title
   }
 
-  static getType(): string {
+  static override getType(): string {
     return 'skill'
   }
 
-  static clone(node: SkillNode): SkillNode {
+  static override clone(node: SkillNode): SkillNode {
     return new SkillNode(node.__call, node.__title, node.__key)
   }
 
-  static importJSON(serialized: SerializedSkillNode): SkillNode {
+  static override importJSON(serialized: SerializedSkillNode): SkillNode {
     return new SkillNode(serialized.call, serialized.title)
   }
 
-  exportJSON(): SerializedSkillNode {
+  override exportJSON(): SerializedSkillNode {
     return { type: 'skill', version: 1, call: this.__call, title: this.__title }
   }
 
-  createDOM(): HTMLElement {
+  override createDOM(): HTMLElement {
     const span = document.createElement('span')
 
     span.className = 'composer-skill'
@@ -51,11 +51,11 @@ export class SkillNode extends DecoratorNode<ReactNode> {
     return span
   }
 
-  updateDOM(): false {
+  override updateDOM(): false {
     return false
   }
 
-  exportDOM(): DOMExportOutput {
+  override exportDOM(): DOMExportOutput {
     const element = document.createElement('span')
 
     element.textContent = this.__call
@@ -63,20 +63,20 @@ export class SkillNode extends DecoratorNode<ReactNode> {
     return { element }
   }
 
-  isInline(): true {
+  override isInline(): true {
     return true
   }
 
-  isKeyboardSelectable(): true {
+  override isKeyboardSelectable(): true {
     return true
   }
 
   /** 送出去的字节。屏幕上的标题不参与。 */
-  getTextContent(): string {
+  override getTextContent(): string {
     return this.__call
   }
 
-  decorate(): ReactNode {
+  override decorate(): ReactNode {
     return (
       <>
         <SkillIcon aria-hidden="true" />
