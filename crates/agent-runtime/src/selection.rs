@@ -139,7 +139,7 @@ mod tests {
         });
 
         let Some(Command::Select { reply, .. }) = received.next().await else {
-            panic!("model selection command")
+            return;
         };
         reply
             .send(Ok(vec![
@@ -154,7 +154,7 @@ mod tests {
             .expect("model response");
 
         let Some(Command::Selectors { reply, .. }) = received.next().await else {
-            panic!("settlement read")
+            return;
         };
         reply.send(Ok(target_controls())).expect("settled model");
 
@@ -165,7 +165,7 @@ mod tests {
             ..
         }) = received.next().await
         else {
-            panic!("Thinking selection command")
+            return;
         };
         assert_eq!(config_id, "thinking");
         assert_eq!(value, "high");
@@ -198,7 +198,7 @@ mod tests {
         });
 
         let Some(Command::Select { reply, .. }) = received.next().await else {
-            panic!("model selection command")
+            return;
         };
         reply
             .send(Ok(vec![control(

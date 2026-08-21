@@ -465,6 +465,15 @@ fn detail(frame: &RunFrame) -> String {
         } => {
             panic!("PermissionResolved carries no payload, unreachable test branch")
         }
+        RunFrame::QuestionsAsked { questions, .. } => questions.to_string(),
+        RunFrame::QuestionsResolved {
+            outcome,
+            answers,
+            note,
+            ..
+        } => {
+            format!("outcome={outcome} answers={answers} note={note}")
+        }
         RunFrame::RunFinished { stop_reason } => stop_reason.clone(),
         RunFrame::RunFailed { message } => message.clone(),
     }
