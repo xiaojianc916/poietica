@@ -570,22 +570,19 @@ export function createAgentPaletteBridge({
 }
 
 /*
- * 技能这一路：列表与激活，按会话。
+ * 技能这一路：目录与激活，都按会话号寻址。
  *
- * 目录不在这里缓存 —— 它随会话事件到达，这一侧只是把 IPC 命令封装成端口。
- * 激活是一次性动作，不留副本。
+ * 这一侧不留副本 —— 目录归 SessionControlsStore，激活的结果由帧流自己说。
  */
-export function createAgentSkillBridge(
-  sessionId: string,
-  _options: AgentEventSourceOptions = {},
-): AgentSkillPort {
+export function createAgentSkillBridge(): AgentSkillPort {
   return {
-    list: async () => {
-      const result = await throughIpc(() => commands.agentSkills({ sessionId }))
-      return result as readonly AgentSkill[]
+    list: async (sessionId) => {
+      const listed = await throughIpc(() => commands.agentSkills({ sessionId }))
+
+      return listed as readonly AgentSkill[]
     },
 
-    activate: async (name, args) => {
+    activate: async (sessionId, name, args) => {
       await throughIpc(() => commands.agentActivateSkill({ sessionId, name, args }))
     },
   }

@@ -15,8 +15,10 @@ export { AgentControlsContext, useAgentControls } from './session/agent-controls
 export {
   SessionControlsContext,
   useSessionControlsActions,
+  useSkillActivation,
   useThreadSelectorFailure,
   useThreadSelectors,
+  useThreadSkills,
   useThreadUsage,
 } from './session/session-controls-context'
 export { TranscriptsContext, useTranscripts } from './session/transcripts-context'

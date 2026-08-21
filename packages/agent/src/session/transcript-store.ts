@@ -20,8 +20,6 @@ import {
   selectIsBusy,
 } from '../timeline'
 import { describeFailure } from './describe-failure'
-import type { ModeMemory } from './mode-memory'
-import { composePrompt, hasModes, NO_MODES, type RunMode, type RunModeName } from './run-mode'
 import type { TranscriptSink } from './transcript-sink'
 
 /*
@@ -66,8 +64,6 @@ const FORGOTTEN = 'agent 那侧已经没有这段会话，经过取不回来了�
 
 export interface Transcript {
   readonly timeline: TimelineState
-  /** 这条对话现在处于哪些模式。它们只在 send 那一处落成文字。 */
-  readonly modes: RunMode
   /** 还在把这条对话取回来。 */
   readonly restoring: boolean
   /** 取回来过。 */
@@ -88,8 +84,6 @@ export interface TranscriptStoreOptions {
   readonly paint?: Paint
   /** 缺席就没有向上续读这条路：这台 store 不去猜谁能给它。 */
   readonly earlier?: EarlierFrames
-  /** 模式在两次运行之间存在哪里。缺席就只活在这个进程里。 */
-  readonly modes?: ModeMemory
 }
 
 export interface SendOptions {
@@ -113,7 +107,6 @@ export interface SendOptions {
  */
 const EMPTY: Transcript = {
   timeline: createTimelineState(),
-  modes: NO_MODES,
   restoring: false,
   loaded: false,
   owned: false,
@@ -211,12 +204,9 @@ export class TranscriptStore implements TranscriptSink {
 
   readonly #earlier: EarlierFrames | undefined
 
-  readonly #modes: ModeMemory | undefined
-
-  constructor({ earlier, modes, paint = onNextPaint }: TranscriptStoreOptions = {}) {
+  constructor({ earlier, paint = onNextPaint }: TranscriptStoreOptions = {}) {
     this.#paint = paint
     this.#earlier = earlier
-    this.#modes = modes
   }
 
   /**
@@ -348,7 +338,6 @@ export class TranscriptStore implements TranscriptSink {
     const real = this.#resolveKey(key)
     const draft = this.#aliased.get(real)
 
-    this.#remember(real, NO_MODES)
     this.#held.delete(real)
     this.#pending.delete(real)
     this.#unaligned.delete(real)
@@ -416,7 +405,6 @@ export class TranscriptStore implements TranscriptSink {
 
     this.#put(threadId, {
       timeline: lost === null ? replayed : noteOn(replayed, lost, false),
-      modes: this.#recall(threadId),
       restoring: false,
       loaded: true,
       owned: false,
@@ -564,51 +552,21 @@ export class TranscriptStore implements TranscriptSink {
          */
         onUserMessage?.(threadId, text.trim() === '' && assets.length > 0 ? IMAGE_OPENER : text)
 
-        return port
-          .prompt({ threadId, text: composePrompt(current.modes, text), assets })
-          .then((handle) => {
-            /*
-             * 地址早就在表里了：这条对话打开的那一刻就登记过（route）。
-             *
-             * 这里再写一次是同一个事实写进同一张表 —— 答复里的会话号是原生侧
-             * 此刻真正在用的那一条，而一条刚建出来的对话在开口之前还没有会话
-             * 号可登记。它是幂等的，不是补救。
-             */
-            this.route(handle.sessionId, threadId)
-          })
+        return port.prompt({ threadId, text, assets }).then((handle) => {
+          /*
+           * 地址早就在表里了：这条对话打开的那一刻就登记过（route）。
+           *
+           * 这里再写一次是同一个事实写进同一张表 —— 答复里的会话号是原生侧
+           * 此刻真正在用的那一条，而一条刚建出来的对话在开口之前还没有会话
+           * 号可登记。它是幂等的，不是补救。
+           */
+          this.route(handle.sessionId, threadId)
+        })
       })
       .catch((cause: unknown) => {
         /* 没有"当前那一轮"要收拾了：这一轮从来没拿到过地址，也就从来没占过谁。 */
         this.#fail(key, cause)
       })
-  }
-
-  /*
-   * 模式归这条对话，不归输入框。
-   *
-   * 它们跨轮持续、也跨进程（#remember），并且只在 send 那一处落成文字。
-   */
-  toggleMode = (key: string, mode: RunModeName): void => {
-    const real = this.#resolveKey(key)
-    const current = this.#now(real)
-    const modes = { ...current.modes, [mode]: !current.modes[mode] }
-
-    this.#put(real, { ...current, modes })
-    this.#remember(real, modes)
-  }
-
-  /* 草稿键不是任何一条对话的名字，落盘就是留一条永远没人来认的记录。 */
-  #remember(real: string, modes: RunMode): void {
-    if (!real.startsWith(DRAFT)) {
-      this.#modes?.write(real, modes)
-    }
-  }
-
-  /* 打开这条对话时取回一次，此后归内存这一份。 */
-  #recall(threadId: string): RunMode {
-    const current = this.#now(threadId).modes
-
-    return hasModes(current) ? current : (this.#modes?.read(threadId) ?? NO_MODES)
   }
 
   /**
@@ -810,7 +768,6 @@ export class TranscriptStore implements TranscriptSink {
 
     this.#held.delete(from)
     this.#put(to, { ...drafted, owned: true })
-    this.#remember(to, drafted.modes)
   }
 
   /** 这一句问不出去，或者半路断了：这一轮到此为止。 */

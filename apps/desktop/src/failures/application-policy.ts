@@ -228,7 +228,7 @@ export const APPLICATION_FAILURE_POLICIES = {
     scope: operationScope('reopen-thread'),
   },
   /*
-   * 模式没能记住：目标与蜂群同存一格（mode-memory 的 KEY），所以说的是模式。
+   * 模式没能记住：目标与蜂群同存一格，所以说的是模式。
    *
    * 这一轮照常带着模式出发（真相在内存那一份），失手的只是它在下次启动时还在不在，
    * 所以作用域是一次操作、不是一个功能：没有任何控件需要变灰。

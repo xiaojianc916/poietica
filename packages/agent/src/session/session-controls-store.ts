@@ -1,4 +1,6 @@
 import type {
+  AgentSkill,
+  AgentSkillPort,
   OpenedThread,
   PermissionPosturePort,
   SessionConfigControl,
@@ -19,10 +21,16 @@ import type { TranscriptSink } from './transcript-sink'
 interface Held {
   readonly selectors: ReadonlyMap<string, readonly SessionConfigControl[]>
   readonly selectorFailure: ReadonlyMap<string, string>
+  readonly skills: ReadonlyMap<string, readonly AgentSkill[]>
   readonly usage: ReadonlyMap<string, SessionUsage>
 }
 
-const EMPTY: Held = { selectors: new Map(), selectorFailure: new Map(), usage: new Map() }
+const EMPTY: Held = {
+  selectors: new Map(),
+  selectorFailure: new Map(),
+  skills: new Map(),
+  usage: new Map(),
+}
 
 /**
  * 失败往哪里说一声。与 AgentCapabilityStore 的 CapabilityFailureReport 是同一条
@@ -45,6 +53,8 @@ export interface SessionControlsOptions {
   /** 批准方式的持久意图。缺席即不对齐，这台 store 因此仍能裸构造单测。 */
   readonly posture?: PermissionPosturePort | undefined
   readonly report?: SessionControlsFailureReport | undefined
+  /** 这条会话能用的技能。缺席即不列，这台 store 因此仍能裸构造单测。 */
+  readonly skills?: AgentSkillPort | undefined
   readonly transcripts?: TranscriptSink | undefined
   /** 用量的到达口。缺席即不画，这台 store 因此仍能裸构造单测。 */
   readonly usage?: SessionUsagePort | undefined
@@ -97,6 +107,8 @@ export class SessionControlsStore {
 
   readonly #usage: SessionUsagePort | undefined
 
+  readonly #skills: AgentSkillPort | undefined
+
   #held: Held = EMPTY
 
   /* 问过的对话不再问第二遍：重读是显式动作，不是渲染的副作用。 */
@@ -104,6 +116,9 @@ export class SessionControlsStore {
 
   /* 会话号 → 对话。推送只带前者，而这一侧的一切都按后者记。 */
   #sessions = new Map<string, string>()
+
+  /* 对话 → 会话号。技能按会话寻址，而这一侧的一切按对话记。 */
+  #sessionOf = new Map<string, string>()
 
   /*
    * 这条对话此刻在飞的那一次改动，同时是它的队伍。
@@ -124,11 +139,20 @@ export class SessionControlsStore {
    */
   #alignedTo = new Map<string, string>()
 
-  constructor({ config, port, posture, report, transcripts, usage }: SessionControlsOptions) {
+  constructor({
+    config,
+    port,
+    posture,
+    report,
+    skills,
+    transcripts,
+    usage,
+  }: SessionControlsOptions) {
     this.#config = config
     this.#port = port
     this.#posture = posture
     this.#report = report
+    this.#skills = skills
     this.#transcripts = transcripts
     this.#usage = usage
   }
@@ -182,6 +206,28 @@ export class SessionControlsStore {
   /** 这条对话所持有的会话最近报的上下文用量；从没报过就是 undefined。 */
   usageOf = (threadId: string): SessionUsage | undefined => this.#held.usage.get(threadId)
 
+  /** 这条对话背后那个会话能用的技能；还没问回来就是 undefined。 */
+  skillsOf = (threadId: string): readonly AgentSkill[] | undefined =>
+    this.#held.skills.get(threadId)
+
+  /**
+   * 激活一条技能。一次协议动作，这一侧不留副本 —— 结果由帧流自己说。
+   *
+   * 被拒的原因与一次被拒的会话改动同走 changeFailed：同一类事实一套规则。
+   */
+  activateSkill = (threadId: string, name: string): void => {
+    const port = this.#skills
+    const sessionId = this.#sessionOf.get(threadId)
+
+    if (port === undefined || sessionId === undefined) {
+      return
+    }
+
+    void port.activate(sessionId, name, '').catch((reason: unknown) => {
+      this.#report?.changeFailed(reason)
+    })
+  }
+
   /**
    * 一份答复到手：新开一条、认领一条、重读一条，三条路唯一的落地处。
    *
@@ -205,6 +251,24 @@ export class SessionControlsStore {
     if (answer.usage !== undefined && !this.#held.usage.has(threadId)) {
       this.#commit({ usage: withEntry(this.#held.usage, threadId, answer.usage) })
     }
+
+    void this.#listSkills(threadId)
+  }
+
+  /* 目录随打开一条对话问一次：它属于那条会话，而会话在 open 里诞生。 */
+  async #listSkills(threadId: string): Promise<void> {
+    const port = this.#skills
+    const sessionId = this.#sessionOf.get(threadId)
+
+    if (port === undefined || sessionId === undefined) {
+      return
+    }
+
+    try {
+      this.#commit({ skills: withEntry(this.#held.skills, threadId, await port.list(sessionId)) })
+    } catch (reason: unknown) {
+      this.#report?.changeFailed(reason)
+    }
   }
 
   /**
@@ -219,6 +283,7 @@ export class SessionControlsStore {
     this.#inflight.delete(threadId)
     this.#order.delete(threadId)
     this.#alignedTo.delete(threadId)
+    this.#sessionOf.delete(threadId)
 
     /* 会话号那张反查表同样按对话记。#hold 只写不删，这里是它唯一的出口。 */
     for (const [sessionId, owner] of this.#sessions) {
@@ -230,6 +295,7 @@ export class SessionControlsStore {
     this.#commit({
       selectors: withoutEntry(this.#held.selectors, threadId),
       selectorFailure: withoutEntry(this.#held.selectorFailure, threadId),
+      skills: withoutEntry(this.#held.skills, threadId),
       usage: withoutEntry(this.#held.usage, threadId),
     })
   }
@@ -377,6 +443,7 @@ export class SessionControlsStore {
     }
 
     this.#sessions.set(sessionId, thread.threadId)
+    this.#sessionOf.set(thread.threadId, sessionId)
 
     /* 同一个事实，转录那一侧也要一份：会话号到手在前，第一帧到达在后。 */
     this.#transcripts?.route(sessionId, thread.threadId)
@@ -492,6 +559,7 @@ export class SessionControlsStore {
     if (
       next.selectors === this.#held.selectors &&
       next.selectorFailure === this.#held.selectorFailure &&
+      next.skills === this.#held.skills &&
       next.usage === this.#held.usage
     ) {
       return

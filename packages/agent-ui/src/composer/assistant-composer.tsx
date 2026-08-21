@@ -1,7 +1,7 @@
 import './composer-actions.css'
 import './question-panel.css'
 
-import type { QuestionTimelineItem, RunMode, RunModeName } from '@poietica/agent'
+import type { QuestionTimelineItem } from '@poietica/agent'
 import type {
   AgentSkill,
   ChatStatus,
@@ -13,12 +13,7 @@ import type {
 import { memo, type Ref, useMemo } from 'react'
 import type { ComposerAsset } from './attachment-intake'
 import { AttachmentTray } from './attachment-tray'
-import {
-  ComposerActions,
-  ComposerModeChip,
-  composerModeRows,
-  composerPaletteGroups,
-} from './composer-actions'
+import { ComposerActions, ComposerModeChip, composerPaletteGroups } from './composer-actions'
 import { ContextGauge } from './context-gauge'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PermissionPicker } from './permission-picker'
@@ -65,9 +60,6 @@ export interface AssistantComposerProps {
   /** 读失败之后重新问一次。 */
   readonly onRetryControls?: (() => void) | undefined
   readonly onSelectControl: (controlId: string, value: string) => void
-  /** 这条对话此刻的模式，与写回它的那一条通道。真相在 TranscriptStore。 */
-  readonly modes: RunMode
-  readonly onToggleMode: (mode: RunModeName) => void
   /** 这条会话最近报的上下文用量。缺席就不画那颗胶囊。 */
   readonly usage?: SessionUsage | undefined
   /**
@@ -103,24 +95,15 @@ export interface AssistantComposerProps {
  */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  | 'controls'
-  | 'controlsFailure'
-  | 'modes'
-  | 'onCancel'
-  | 'onRetryControls'
-  | 'onSelectControl'
-  | 'onToggleMode'
-  | 'usage'
+  'controls' | 'controlsFailure' | 'onCancel' | 'onRetryControls' | 'onSelectControl' | 'usage'
 > & { readonly status: ChatStatus }
 
 function ComposerToolbar({
   controls,
   controlsFailure,
-  modes,
   onCancel,
   onRetryControls,
   onSelectControl,
-  onToggleMode,
   status,
   usage,
 }: ComposerToolbarProps) {
@@ -146,13 +129,8 @@ function ComposerToolbar({
         */}
         <PermissionPicker controls={controls} onSelect={onSelectControl} />
 
-        {/* 生效中的模式：agent 报的那一档与这条对话自己的两档，一套画法。 */}
-        <ComposerModeChip
-          controls={controls}
-          modes={modes}
-          onSelect={onSelectControl}
-          onToggleMode={onToggleMode}
-        />
+        {/* 生效中的那一档模式，真相在 agent。 */}
+        <ComposerModeChip controls={controls} onSelect={onSelectControl} />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />
@@ -195,9 +173,7 @@ export const AssistantComposer = memo(function AssistantComposer({
   approval,
   onAnswerQuestions,
   onDismissQuestions,
-  modes,
   onActivateSkill,
-  onToggleMode,
   palette,
   skills,
   placeholder = '问我任何问题…',
@@ -236,18 +212,6 @@ export const AssistantComposer = memo(function AssistantComposer({
     [onActivateSkill, palette, skills, toolbar.controls, toolbar.onSelectControl],
   )
 
-  /* 「添加」组里跟在「添加文件」后面的行：生效模式，agent 报的那几档与这条对话自己的两档。 */
-  const composeRows = useMemo(
-    () =>
-      composerModeRows({
-        controls: toolbar.controls,
-        modes,
-        onSelectControl: toolbar.onSelectControl,
-        onToggleMode,
-      }),
-    [modes, onToggleMode, toolbar.controls, toolbar.onSelectControl],
-  )
-
   return (
     <>
       {/*
@@ -263,9 +227,7 @@ export const AssistantComposer = memo(function AssistantComposer({
 
       <PromptInput
         className={asking ? 'assistant-prompt-input--question' : undefined}
-        composeRows={composeRows}
         groups={groups}
-        modes={modes}
         multiple
         onSubmit={onSubmit}
         ref={ref}
@@ -287,12 +249,7 @@ export const AssistantComposer = memo(function AssistantComposer({
               <PromptInputEditor placeholder={placeholder} />
             </PromptInputBody>
 
-            <ComposerToolbar
-              modes={modes}
-              onToggleMode={onToggleMode}
-              status={status}
-              {...toolbar}
-            />
+            <ComposerToolbar status={status} {...toolbar} />
           </>
         )}
       </PromptInput>

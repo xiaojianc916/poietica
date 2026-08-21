@@ -1,14 +1,11 @@
-import type { RunMode, RunModeName } from '@poietica/agent'
 import { permissionPostureOf } from '@poietica/agent'
 import type { AgentSkill, PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
 import {
   CloseIcon,
-  GoalIcon,
   PlusIcon,
   SirenIcon,
   SkillIcon,
-  SwarmIcon,
   TerminalIcon,
   ToolIcon,
 } from '../primitives/icons'
@@ -20,11 +17,8 @@ import { usePromptInputActions } from './prompt-input'
  * 加号那一侧：往这一句里加什么。
  *
  * 面板本身归输入框 —— 它锚在卡的上沿，与斜杠触发的是同一张，键盘也因此只有一套。
- * 这里只剩下扳机和一次投影。
- *
- * 「添加」组里跟在「添加文件」后面的行（生效模式，目前是 Plan）由这里投影；
- * other 选择器仍各立一组。批准方式由 PermissionPicker 独占，不能再把
- * Auto / YOLO 作为第二套入口重复显示。
+ * 这里只剩下扳机和一次投影：agent 报的模式、技能、命令与 other 选择器各立一组。
+ * 批准方式由 PermissionPicker 独占，不能再把 Auto / YOLO 作为第二套入口重复显示。
  */
 
 export function ComposerActions() {
@@ -36,27 +30,6 @@ export function ComposerActions() {
     </button>
   )
 }
-
-/* 这条对话自己的两档模式：一张表，摊成面板里的行与工具栏上的胶囊。 */
-const LOCAL_MODES: readonly {
-  readonly name: RunModeName
-  readonly label: string
-  readonly detail: string
-  readonly icon: ReactNode
-}[] = [
-  {
-    name: 'goal',
-    label: '目标',
-    detail: '把这一句当作要持续追求的目标',
-    icon: <GoalIcon aria-hidden="true" />,
-  },
-  {
-    name: 'swarm',
-    label: '蜂群模式',
-    detail: '多个子代理并行协作',
-    icon: <SwarmIcon aria-hidden="true" />,
-  },
-]
 
 export interface ComposerPaletteSource {
   readonly controls: readonly SessionConfigControl[]
@@ -94,57 +67,7 @@ function controlRow(
 }
 
 /**
- * 生效模式摊成行，并进输入框「添加」组，跟在「添加文件」后面。
- *
- * 行而不是组：Mode 不单立分类。agent 报的那几档在前，这条对话自己的两档在后，
- * 一种动作（run）—— 面板因此不需要认识模式。批准方式由 PermissionPicker 独占。
- */
-export function composerModeRows({
-  controls,
-  modes,
-  onSelectControl,
-  onToggleMode,
-}: Pick<ComposerPaletteSource, 'controls' | 'onSelectControl'> & {
-  readonly modes: RunMode
-  readonly onToggleMode: (mode: RunModeName) => void
-}): readonly PaletteRow[] {
-  const rows: PaletteRow[] = []
-
-  for (const control of controls) {
-    if (control.purpose !== 'mode') {
-      continue
-    }
-
-    for (const choice of control.choices) {
-      if (permissionPostureOf(choice.value) !== undefined) {
-        continue
-      }
-
-      rows.push(controlRow(control, choice, onSelectControl, <SirenIcon aria-hidden="true" />))
-    }
-  }
-
-  for (const mode of LOCAL_MODES) {
-    rows.push({
-      id: `mode:${mode.name}`,
-      icon: mode.icon,
-      label: mode.label,
-      detail: mode.detail,
-      checked: modes[mode.name],
-      action: {
-        kind: 'run',
-        run: () => {
-          onToggleMode(mode.name)
-        },
-      },
-    })
-  }
-
-  return rows
-}
-
-/**
- * agent 报的 other 选择器与命令，摊成面板的分组。
+ * agent 报的模式、技能、命令与 other 选择器，摊成面板的分组。
  *
  * 「添加文件」不在这里：它不来自 agent，归输入框自己那一组。
  */
@@ -156,6 +79,24 @@ export function composerPaletteGroups({
   skills,
 }: ComposerPaletteSource): readonly PaletteGroup[] {
   const groups: PaletteGroup[] = []
+  const modes: PaletteRow[] = []
+
+  for (const control of controls) {
+    if (control.purpose !== 'mode') {
+      continue
+    }
+
+    for (const choice of control.choices) {
+      /* 批准方式由 PermissionPicker 独占，不在这张表里出现第二次。 */
+      if (permissionPostureOf(choice.value) === undefined) {
+        modes.push(controlRow(control, choice, onSelectControl, <SirenIcon aria-hidden="true" />))
+      }
+    }
+  }
+
+  if (modes.length > 0) {
+    groups.push({ id: 'modes', heading: '模式', rows: modes })
+  }
 
   for (const control of controls) {
     if (control.purpose !== 'other' || control.choices.length === 0) {
@@ -180,7 +121,7 @@ export function composerPaletteGroups({
         icon: <SkillIcon aria-hidden="true" />,
         label: skill.name,
         ...(skill.description === '' ? {} : { detail: skill.description }),
-        token: `/${skill.name}`,
+        token: `/skill:${skill.name}`,
         action: {
           kind: 'run' as const,
           run: () => {
@@ -219,12 +160,9 @@ export function composerPaletteGroups({
 export interface ComposerModeChipProps {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelect: (controlId: string, value: string) => void
-  /** 这条对话自己的模式。真相在 TranscriptStore。 */
-  readonly modes: RunMode
-  readonly onToggleMode: (mode: RunModeName) => void
 }
 
-/** 一枚生效档位：静息左图标右文字，悬停换成移除圆钮。三种模式共用这一处。 */
+/** 一枚生效档位：静息左图标右文字，悬停换成移除圆钮。 */
 function chip(id: string, glyph: ReactNode, label: string, exit: () => void): ReactNode {
   return (
     <button
@@ -248,18 +186,10 @@ function chip(id: string, glyph: ReactNode, label: string, exit: () => void): Re
 }
 
 /*
- * 生效中的模式，一排胶囊。
- *
- * agent 报的那一档（Plan）真相在 agent，摘掉时把挂起前的批准方式还回去（记忆归
- * posture-memory.ts）；目标与蜂群真相在这条对话（TranscriptStore.modes）。两种
- * 归属，一套画法与一套交互 —— 屏幕上它们是同一种东西，所以只有这一处代码。
+ * 生效中的模式，一排胶囊。真相在 agent：摘掉时把挂起前的批准方式还回去
+ * （记忆归 posture-memory.ts）。
  */
-export function ComposerModeChip({
-  controls,
-  modes,
-  onSelect,
-  onToggleMode,
-}: ComposerModeChipProps) {
+export function ComposerModeChip({ controls, onSelect }: ComposerModeChipProps) {
   const mode = controls.find((control) => control.purpose === 'mode')
   const rememberedPosture = usePostureMemory(controls)
   const chips: ReactNode[] = []
@@ -276,16 +206,6 @@ export function ComposerModeChip({
       chips.push(
         chip(mode.id, <SirenIcon />, inForce.label, () => {
           onSelect(mode.id, rememberedPosture ?? firstPosture?.value ?? first.value)
-        }),
-      )
-    }
-  }
-
-  for (const mode of LOCAL_MODES) {
-    if (modes[mode.name]) {
-      chips.push(
-        chip(mode.name, mode.icon, mode.label, () => {
-          onToggleMode(mode.name)
         }),
       )
     }

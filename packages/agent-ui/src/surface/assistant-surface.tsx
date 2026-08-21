@@ -12,6 +12,7 @@ import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
+import { useSkillActivation, useThreadSkills } from '../session/session-controls-context'
 import type { AssistantSubmission } from '../session/use-assistant-session'
 import {
   useAssistantPending,
@@ -112,6 +113,10 @@ export const AssistantSurface = memo(function AssistantSurface({
   workspace,
 }: AssistantSurfaceProps) {
   const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
+
+  /* 技能属于这条对话背后那个会话：目录与激活都归 SessionControlsStore。 */
+  const skills = useThreadSkills(endpoint)
+  const activateSkill = useSkillActivation(endpoint)
 
   /*
    * 连不上 agent 这件事，不在这一层写。
@@ -218,17 +223,17 @@ export const AssistantSurface = memo(function AssistantSurface({
         approval={approval}
         controls={controls}
         controlsFailure={controlsFailure}
-        modes={assistant.modes}
+        onActivateSkill={activateSkill}
         onAnswerQuestions={assistant.answerQuestions}
         onCancel={assistant.cancel}
         onDismissQuestions={assistant.dismissQuestions}
         onRetryControls={onRetryControls}
         onSelectControl={onSelectControl}
         onSubmit={submit}
-        onToggleMode={assistant.toggleMode}
         palette={palette}
         question={question}
         ref={composer}
+        skills={skills}
         status={assistant.status}
         usage={usage}
       />

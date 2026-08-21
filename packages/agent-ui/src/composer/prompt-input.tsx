@@ -3,7 +3,6 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
-import { hasModes, type RunMode } from '@poietica/agent'
 import type { ChatStatus } from '@poietica/agent-contract'
 import {
   $createParagraphNode,
@@ -45,7 +44,7 @@ import {
  * 插入符前那一段字（斜杠过滤用）。附件与面板开合归这里，因为它们是这张卡的一
  * 部分。
  *
- * 技能不在这里：激活它是一次协议动作，不往草稿里落字。
+ * 面板里的行有两种动作：命令往草稿落字，技能与模式是一次协议动作，不落字。
  */
 
 export type { ChatStatus }
@@ -57,13 +56,11 @@ export interface PromptInputMessage {
 
 const NO_ATTACHMENTS: readonly ComposerAsset[] = []
 const NO_GROUPS: readonly PaletteGroup[] = []
-const NO_ROWS: readonly PaletteRow[] = []
 
 /** 这一格此刻攒着的可发内容。整串草稿不出现在这里，因为没有人需要它。 */
 export interface PromptInputDraft {
   readonly hasText: boolean
   readonly hasFiles: boolean
-  readonly modes: RunMode
 }
 
 interface PromptInputActions {
@@ -203,12 +200,8 @@ export interface PromptInputProps {
   readonly ref?: Ref<PromptInputHandle> | undefined
   readonly multiple?: boolean
   readonly maxFiles?: number
-  /** 面板里 agent 那几组（other 选择器、技能、命令）。「添加」组由这个框自己起头。 */
+  /** 面板里 agent 那几组（模式、技能、命令、other 选择器）。「添加」组由这个框自己起头。 */
   readonly groups?: readonly PaletteGroup[] | undefined
-  /** 「添加」组里跟在「添加文件」后面的行：生效模式，由拥有它们的那一层给。 */
-  readonly composeRows?: readonly PaletteRow[] | undefined
-  /** 这条对话此刻的模式。真相在 TranscriptStore；这里只用来判断发不发得出去。 */
-  readonly modes: RunMode
   readonly onSubmit: (message: PromptInputMessage) => void
 }
 
@@ -234,10 +227,8 @@ export function PromptInput(props: PromptInputProps) {
 function PromptInputShell({
   children,
   className,
-  composeRows,
   groups,
   maxFiles,
-  modes,
   multiple = false,
   onSubmit,
   ref,
@@ -446,10 +437,7 @@ function PromptInputShell({
 
   const hasText = draftText.text.trim().length > 0
   const hasFiles = attachments.length > 0
-  const draft = useMemo<PromptInputDraft>(
-    () => ({ hasText, hasFiles, modes }),
-    [hasFiles, hasText, modes],
-  )
+  const draft = useMemo<PromptInputDraft>(() => ({ hasText, hasFiles }), [hasFiles, hasText])
 
   const allGroups = useMemo<readonly PaletteGroup[]>(
     () => [
@@ -464,12 +452,11 @@ function PromptInputShell({
             hint: 'Ctrl+U',
             action: { kind: 'run' as const, run: openFilePicker },
           },
-          ...(composeRows ?? NO_ROWS),
         ],
       },
       ...(groups ?? NO_GROUPS),
     ],
-    [composeRows, groups, openFilePicker],
+    [groups, openFilePicker],
   )
 
   /* 斜杠只是给同一张面板加一道过滤：插入符前那一段以 / 开头、还没敲出空白。 */
@@ -651,11 +638,10 @@ function PromptInputShell({
 
               const said = draftText.text.trim()
 
-              if (said.length === 0 && attachments.length === 0 && !hasModes(modes)) {
+              if (said.length === 0 && attachments.length === 0) {
                 return
               }
 
-              /* 模式不落进这段字节：它们由 TranscriptStore 在送出那一处落成文字。 */
               onSubmit({ text: said, assets: attachments })
               clearDraft(editor)
               rewindPalette()
@@ -748,7 +734,7 @@ export function PromptInputSubmit({
   readonly onCancel?: (() => void) | undefined
 }) {
   /* 能不能发，由持有草稿的这一侧自己答。 */
-  const { hasFiles, hasText, modes } = usePromptInputDraft()
+  const { hasFiles, hasText } = usePromptInputDraft()
   const isStreaming = status === 'streaming'
   const Icon = isStreaming ? StopIcon : status === 'submitted' ? SpinnerIcon : SubmitIcon
 
@@ -759,7 +745,7 @@ export function PromptInputSubmit({
       className={className}
       data-slot="prompt-input-submit"
       data-status={status}
-      disabled={disabled ?? (!isStreaming && !hasText && !hasFiles && !hasModes(modes))}
+      disabled={disabled ?? (!isStreaming && !hasText && !hasFiles)}
       onClick={isStreaming ? onCancel : undefined}
       type={isStreaming ? 'button' : 'submit'}
     >

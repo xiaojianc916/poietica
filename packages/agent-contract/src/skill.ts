@@ -16,6 +16,6 @@ export interface AgentSkill {
 
 /** 读目录，或激活一条。可否激活由 kap 拒绝，这一侧不预判。 */
 export interface AgentSkillPort {
-  readonly list: () => Promise<readonly AgentSkill[]>
-  readonly activate: (name: string, args: string) => Promise<void>
+  readonly list: (sessionId: string) => Promise<readonly AgentSkill[]>
+  readonly activate: (sessionId: string, name: string, args: string) => Promise<void>
 }

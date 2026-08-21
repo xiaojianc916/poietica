@@ -8,6 +8,7 @@ import {
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
+  AgentSkillPort,
   PermissionPosturePort,
   SessionConfigPort,
   SessionUsagePort,
@@ -20,6 +21,7 @@ import {
   createAgentSessionConfigBridge,
   createAgentSessionPort,
   createAgentSessionUsageBridge,
+  createAgentSkillBridge,
   createAgentThreadBridge,
   shutdownAgent,
 } from '@poietica/ipc'
@@ -37,6 +39,7 @@ export interface DesktopAgentRuntime {
   readonly threads: ThreadPort
   readonly sessionConfig: SessionConfigPort
   readonly sessionUsage: SessionUsagePort
+  readonly skills: AgentSkillPort
   readonly permissionPosture: PermissionPosturePort
   readonly getAgentId: () => string
   readonly subscribeAgent: (listener: () => void) => () => void
@@ -163,6 +166,8 @@ export function createDesktopAgentRuntime(
 
   const sessionUsage = createAgentSessionUsageBridge({ onListenFailure: noteListenFailure })
 
+  const skills = createAgentSkillBridge()
+
   const threads = createAgentThreadBridge({
     cwd: options.cwd,
     launch: launchSelected,
@@ -226,6 +231,7 @@ export function createDesktopAgentRuntime(
     threads,
     sessionConfig,
     sessionUsage,
+    skills,
     permissionPosture,
     getAgentId: selection.read,
     subscribeAgent: selection.subscribe,

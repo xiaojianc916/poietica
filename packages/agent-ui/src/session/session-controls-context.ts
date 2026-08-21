@@ -1,5 +1,5 @@
 import type { SessionControlsStore } from '@poietica/agent'
-import type { SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
+import type { AgentSkill, SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
 import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
 
 /*
@@ -64,6 +64,40 @@ export function useThreadSelectorFailure(threadId: string | null): string | unde
   )
 
   return useSyncExternalStore(store.subscribe, read, read)
+}
+
+/* 没有 store 就没有变化可订。引用固定，useSyncExternalStore 才判得出「没变」。 */
+const NO_SUBSCRIPTION = () => () => {}
+
+/*
+ * 技能这一路：目录与激活。
+ *
+ * 缺席即不出现 —— 组件工作台不套 Provider，而技能是会话的东西。其余读法仍然
+ * 抛错：选择器与用量是那些界面的必需品。
+ */
+export function useThreadSkills(threadId: string | null): readonly AgentSkill[] | undefined {
+  const store = useContext(SessionControlsContext)
+
+  const read = useCallback(
+    () => (store === null || threadId === null ? undefined : store.skillsOf(threadId)),
+    [store, threadId],
+  )
+
+  return useSyncExternalStore(store?.subscribe ?? NO_SUBSCRIPTION, read, read)
+}
+
+/** 激活这条对话上的一条技能。 */
+export function useSkillActivation(threadId: string | null): (name: string) => void {
+  const store = useContext(SessionControlsContext)
+
+  return useCallback(
+    (name: string) => {
+      if (store !== null && threadId !== null) {
+        store.activateSkill(threadId, name)
+      }
+    },
+    [store, threadId],
+  )
 }
 
 /** 这条对话背后那个会话最近报的上下文用量；还没报过是 undefined。 */
