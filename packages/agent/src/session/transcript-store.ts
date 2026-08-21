@@ -18,8 +18,8 @@ import {
   replayThreadEvents,
 } from '../timeline'
 import { describeFailure } from './describe-failure'
-import type { GoalMemory } from './goal-memory'
-import { composePrompt, NO_MODES, type RunMode } from './run-mode'
+import type { ModeMemory } from './mode-memory'
+import { composePrompt, hasModes, NO_MODES, type RunMode, type RunModeName } from './run-mode'
 import type { TranscriptSink } from './transcript-sink'
 
 /*
@@ -86,8 +86,8 @@ export interface TranscriptStoreOptions {
   readonly paint?: Paint
   /** 缺席就没有向上续读这条路：这台 store 不去猜谁能给它。 */
   readonly earlier?: EarlierFrames
-  /** 目标在两次运行之间存在哪里。缺席就只活在这个进程里。 */
-  readonly goals?: GoalMemory
+  /** 模式在两次运行之间存在哪里。缺席就只活在这个进程里。 */
+  readonly modes?: ModeMemory
 }
 
 export interface SendOptions {
@@ -220,12 +220,12 @@ export class TranscriptStore implements TranscriptSink {
 
   readonly #earlier: EarlierFrames | undefined
 
-  readonly #goals: GoalMemory | undefined
+  readonly #modes: ModeMemory | undefined
 
-  constructor({ earlier, goals, paint = onNextPaint }: TranscriptStoreOptions = {}) {
+  constructor({ earlier, modes, paint = onNextPaint }: TranscriptStoreOptions = {}) {
     this.#paint = paint
     this.#earlier = earlier
-    this.#goals = goals
+    this.#modes = modes
   }
 
   /**
@@ -407,7 +407,7 @@ export class TranscriptStore implements TranscriptSink {
 
     this.#put(threadId, {
       timeline: lost === null ? replayed : noteOn(replayed, lost, false),
-      modes: this.#recall(threadId, this.#now(threadId).modes),
+      modes: this.#recall(threadId),
       restoring: false,
       loaded: true,
       owned: false,
@@ -577,37 +577,29 @@ export class TranscriptStore implements TranscriptSink {
   /*
    * 模式归这条对话，不归输入框。
    *
-   * 它们跨轮持续，并且只在 send 那一处落成文字 —— 所以屏幕上记的是人说的原话，
-   * 送出去的那一句才带模式序言。
+   * 它们跨轮持续、也跨进程（#remember），并且只在 send 那一处落成文字。
    */
-  setGoal = (key: string, goal: string | null): void => {
+  toggleMode = (key: string, mode: RunModeName): void => {
     const real = this.#resolveKey(key)
     const current = this.#now(real)
-    const said = goal?.trim() ?? ''
-    const kept = said.length === 0 ? null : said
+    const modes = { ...current.modes, [mode]: !current.modes[mode] }
 
-    this.#put(real, { ...current, modes: { ...current.modes, goal: kept } })
-    this.#remember(real, kept)
+    this.#put(real, { ...current, modes })
+    this.#remember(real, modes)
   }
 
   /* 草稿键不是任何一条对话的名字，落盘就是留一条永远没人来认的记录。 */
-  #remember(real: string, goal: string | null): void {
+  #remember(real: string, modes: RunMode): void {
     if (!real.startsWith(DRAFT)) {
-      this.#goals?.write(real, goal)
+      this.#modes?.write(real, modes)
     }
   }
 
-  /* 目标跨轮持续，所以也跨进程：打开这条对话时取回一次，此后归内存这一份。 */
-  #recall(threadId: string, modes: RunMode): RunMode {
-    const kept = modes.goal === null ? (this.#goals?.read(threadId) ?? null) : null
+  /* 打开这条对话时取回一次，此后归内存这一份。 */
+  #recall(threadId: string): RunMode {
+    const current = this.#now(threadId).modes
 
-    return kept === null ? modes : { ...modes, goal: kept }
-  }
-
-  toggleSwarm = (key: string): void => {
-    const current = this.#now(key)
-
-    this.#put(key, { ...current, modes: { ...current.modes, swarm: !current.modes.swarm } })
+    return hasModes(current) ? current : (this.#modes?.read(threadId) ?? NO_MODES)
   }
 
   /**
@@ -777,7 +769,7 @@ export class TranscriptStore implements TranscriptSink {
 
     this.#held.delete(from)
     this.#put(to, { ...drafted, owned: true })
-    this.#remember(to, drafted.modes.goal)
+    this.#remember(to, drafted.modes)
   }
 
   /** 这一句问不出去，或者半路断了：这一轮到此为止。 */

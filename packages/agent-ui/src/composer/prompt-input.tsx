@@ -28,14 +28,7 @@ import {
   useState,
 } from 'react'
 import { cx } from '../primitives/class-names'
-import {
-  AttachIcon,
-  GoalIcon,
-  SpinnerIcon,
-  StopIcon,
-  SubmitIcon,
-  SwarmIcon,
-} from '../primitives/icons'
+import { AttachIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
 import { ComposerPalette, type PaletteGroup, type PaletteRow } from './composer-palette'
 import { $createSkillNode, SkillNode } from './skill-node'
@@ -194,12 +187,10 @@ export interface PromptInputProps {
   readonly maxFiles?: number
   /** 面板里 agent 那几组（other 选择器、技能、命令）。「添加」组由这个框自己起头。 */
   readonly groups?: readonly PaletteGroup[] | undefined
-  /** 「添加」组里跟在「添加文件」后面的行：agent 报的生效模式。 */
+  /** 「添加」组里跟在「添加文件」后面的行：生效模式，由拥有它们的那一层给。 */
   readonly composeRows?: readonly PaletteRow[] | undefined
-  /** 这条对话此刻的模式。真相在 TranscriptStore。 */
+  /** 这条对话此刻的模式。真相在 TranscriptStore；这里只用来判断发不发得出去。 */
   readonly modes: RunMode
-  readonly onSetGoal: (goal: string | null) => void
-  readonly onToggleSwarm: () => void
   readonly onSubmit: (message: PromptInputMessage) => void
 }
 
@@ -233,9 +224,7 @@ function PromptInputShell({
   maxFiles,
   modes,
   multiple = false,
-  onSetGoal,
   onSubmit,
-  onToggleSwarm,
   ref,
 }: PromptInputProps) {
   const [editor] = useLexicalComposerContext()
@@ -460,28 +449,11 @@ function PromptInputShell({
             action: { kind: 'run' as const, run: openFilePicker },
           },
           ...(composeRows ?? NO_ROWS),
-          {
-            id: 'compose:goal',
-            icon: <GoalIcon aria-hidden="true" />,
-            label: '目标',
-            detail: modes.goal ?? '把这句话设为要持续追求的目标',
-            checked: modes.goal !== null,
-            disabled: !hasText && modes.goal === null,
-            action: { kind: 'goal' as const },
-          },
-          {
-            id: 'compose:swarm',
-            icon: <SwarmIcon aria-hidden="true" />,
-            label: '蜂群模式',
-            detail: '多个子代理并行协作',
-            checked: modes.swarm,
-            action: { kind: 'swarm' as const },
-          },
         ],
       },
       ...(groups ?? NO_GROUPS),
     ],
-    [composeRows, groups, hasText, modes.goal, modes.swarm, openFilePicker],
+    [composeRows, groups, openFilePicker],
   )
 
   /* 斜杠只是给同一张面板加一道过滤：插入符前那一段以 / 开头、还没敲出空白。 */
@@ -513,11 +485,6 @@ function PromptInputShell({
 
   const pickRow = useCallback(
     (row: PaletteRow) => {
-      /* 禁用按钮在 WebKit 仍会派发指针事件，统一在这里拦死。 */
-      if (row.disabled === true) {
-        return
-      }
-
       closePalette()
 
       const { action } = row
@@ -549,29 +516,6 @@ function PromptInputShell({
           return
         }
 
-        /* 目标就是此刻这句话：有正文就换成它，没正文就撤掉。 */
-        case 'goal': {
-          const goal = draftText.text.trim()
-
-          if (goal.length > 0) {
-            onSetGoal(goal)
-            clearDraft(editor)
-          } else if (modes.goal !== null) {
-            onSetGoal(null)
-          }
-
-          focusEditor()
-
-          return
-        }
-
-        case 'swarm': {
-          onToggleSwarm()
-          focusEditor()
-
-          return
-        }
-
         case 'insert': {
           editor.update(() => {
             const selection = $getSelection()
@@ -581,23 +525,13 @@ function PromptInputShell({
             }
 
             dropTyped(typed)
-            selection.insertText(action.snippet + ' ')
+            selection.insertText(`${action.snippet}`)
           })
           focusEditor()
         }
       }
     },
-    [
-      closePalette,
-      draftText.text,
-      draftText.typed.length,
-      editor,
-      focusEditor,
-      modes.goal,
-      onSetGoal,
-      onToggleSwarm,
-      slashing,
-    ],
+    [closePalette, draftText.typed.length, editor, focusEditor, slashing],
   )
 
   /* 点到卡外就收面板：捕获相 pointerdown，因为点不可聚焦区域不移走焦点。 */
@@ -633,15 +567,7 @@ function PromptInputShell({
 
       const step = event.key === 'ArrowDown' ? 1 : -1
 
-      setHighlighted((current) => {
-        let next = current
-
-        do {
-          next = (next + step + rows.length) % rows.length
-        } while (rows[next]?.disabled === true && next !== current)
-
-        return next
-      })
+      setHighlighted((current) => (current + step + rows.length) % rows.length)
 
       return
     }

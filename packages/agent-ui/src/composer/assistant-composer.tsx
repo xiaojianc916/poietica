@@ -1,7 +1,7 @@
 import './composer-actions.css'
 import './question-panel.css'
 
-import type { QuestionTimelineItem, RunMode } from '@poietica/agent'
+import type { QuestionTimelineItem, RunMode, RunModeName } from '@poietica/agent'
 import type {
   ChatStatus,
   PaletteEntry,
@@ -60,10 +60,9 @@ export interface AssistantComposerProps {
   /** 读失败之后重新问一次。 */
   readonly onRetryControls?: (() => void) | undefined
   readonly onSelectControl: (controlId: string, value: string) => void
-  /** 这条对话此刻的模式，与写回它的两条通道。真相在 TranscriptStore。 */
+  /** 这条对话此刻的模式，与写回它的那一条通道。真相在 TranscriptStore。 */
   readonly modes: RunMode
-  readonly onSetGoal: (goal: string | null) => void
-  readonly onToggleSwarm: () => void
+  readonly onToggleMode: (mode: RunModeName) => void
   /** 这条会话最近报的上下文用量。缺席就不画那颗胶囊。 */
   readonly usage?: SessionUsage | undefined
   /**
@@ -105,8 +104,7 @@ type ComposerToolbarProps = Pick<
   | 'onCancel'
   | 'onRetryControls'
   | 'onSelectControl'
-  | 'onSetGoal'
-  | 'onToggleSwarm'
+  | 'onToggleMode'
   | 'usage'
 > & { readonly status: ChatStatus }
 
@@ -117,8 +115,7 @@ function ComposerToolbar({
   onCancel,
   onRetryControls,
   onSelectControl,
-  onSetGoal,
-  onToggleSwarm,
+  onToggleMode,
   status,
   usage,
 }: ComposerToolbarProps) {
@@ -149,8 +146,7 @@ function ComposerToolbar({
           controls={controls}
           modes={modes}
           onSelect={onSelectControl}
-          onSetGoal={onSetGoal}
-          onToggleSwarm={onToggleSwarm}
+          onToggleMode={onToggleMode}
         />
       </PromptInputTools>
 
@@ -195,8 +191,7 @@ export const AssistantComposer = memo(function AssistantComposer({
   onAnswerQuestions,
   onDismissQuestions,
   modes,
-  onSetGoal,
-  onToggleSwarm,
+  onToggleMode,
   palette,
   placeholder = '问我任何问题…',
   question,
@@ -232,14 +227,16 @@ export const AssistantComposer = memo(function AssistantComposer({
     [palette, toolbar.controls, toolbar.onSelectControl],
   )
 
-  /* 「添加」组里跟在「添加文件」后面的行：agent 报的生效模式（目前是 Plan）。 */
+  /* 「添加」组里跟在「添加文件」后面的行：生效模式，agent 报的那几档与这条对话自己的两档。 */
   const composeRows = useMemo(
     () =>
       composerModeRows({
         controls: toolbar.controls,
+        modes,
         onSelectControl: toolbar.onSelectControl,
+        onToggleMode,
       }),
-    [toolbar.controls, toolbar.onSelectControl],
+    [modes, onToggleMode, toolbar.controls, toolbar.onSelectControl],
   )
 
   return (
@@ -261,9 +258,7 @@ export const AssistantComposer = memo(function AssistantComposer({
         groups={groups}
         modes={modes}
         multiple
-        onSetGoal={onSetGoal}
         onSubmit={onSubmit}
-        onToggleSwarm={onToggleSwarm}
         ref={ref}
       >
         {asking ? (
@@ -285,8 +280,7 @@ export const AssistantComposer = memo(function AssistantComposer({
 
             <ComposerToolbar
               modes={modes}
-              onSetGoal={onSetGoal}
-              onToggleSwarm={onToggleSwarm}
+              onToggleMode={onToggleMode}
               status={status}
               {...toolbar}
             />

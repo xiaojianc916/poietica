@@ -22,8 +22,6 @@ export type PaletteAction =
   | { readonly kind: 'insert'; readonly snippet: string }
   | { readonly kind: 'run'; readonly run: () => void }
   | { readonly kind: 'skill'; readonly skill: PaletteEntry }
-  | { readonly kind: 'goal' }
-  | { readonly kind: 'swarm' }
 
 export interface PaletteRow {
   readonly id: string
@@ -35,8 +33,7 @@ export interface PaletteRow {
   readonly hint?: string | undefined
   /** 打勾：这一行是此刻生效的那一档。 */
   readonly checked?: boolean | undefined
-  /** 置灰不可点：此刻的条件还不成立（如没有可设为目标的正文）。 */
-  readonly disabled?: boolean | undefined
+
   /** 斜杠过滤时拿来匹配的调用式。没有就不参与斜杠过滤。 */
   readonly token?: string | undefined
   readonly action: PaletteAction
@@ -81,16 +78,13 @@ export function ComposerPalette({
                   aria-selected={at === highlighted}
                   className="composer-palette__row"
                   data-highlighted={at === highlighted ? 'true' : undefined}
-                  disabled={row.disabled}
                   key={row.id}
                   onMouseDown={(event) => {
                     event.preventDefault()
                     onPick(row)
                   }}
                   onMouseEnter={() => {
-                    if (row.disabled !== true) {
-                      onHighlight(at)
-                    }
+                    onHighlight(at)
                   }}
                   role="option"
                   type="button"

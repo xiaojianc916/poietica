@@ -2,38 +2,28 @@
  * 一条对话现在处于哪些模式。
  *
  * 协议一轮只收一段文字（agent-runtime 的 Command::Prompt），所以模式必须在送出
- * 之前落成文字，而且只落一次 —— 就在这里。屏幕上记的仍是人自己说的那句话。
+ * 之前落成文字，而且只落一次 —— 就在这里。旁白包进 system-reminder，投影一侧按
+ * 同一条规则剥掉（projection.ts 的 saidByUser），所以屏幕上只有人自己说的话。
  */
 
-export interface RunMode {
-  /** 要持续追求的目标：每一轮随那句话重述一次，agent 才追得住。 */
-  readonly goal: string | null
-  /** 把可并行的部分拆给子代理并行做。 */
-  readonly swarm: boolean
+const NAMES = ['goal', 'swarm'] as const
+
+/** 这条对话自己的模式。agent 报的那几档是选择器，不在这里。 */
+export type RunModeName = (typeof NAMES)[number]
+
+export type RunMode = { readonly [name in RunModeName]: boolean }
+
+export const NO_MODES: RunMode = { goal: false, swarm: false }
+
+const NARRATION: { readonly [name in RunModeName]: string } = {
+  goal: '目标模式：把下面这句话当作要持续追求的目标，达成之前每一轮自己接着推进。',
+  swarm: '蜂群模式：把这件事里可并行的部分拆开，派多个子代理同时做，最后由你汇总结论。',
 }
 
-export const NO_MODES: RunMode = { goal: null, swarm: false }
-
-const SWARM = '蜂群模式：把这件事里可并行的部分拆开，派多个子代理同时做，最后由你汇总结论。'
-
-/**
- * 送出去的那一段文字：模式作为旁白在前，人打的字在最后。
- *
- * 旁白包进 system-reminder —— 投影那一侧按同一条规则剥掉它（projection.ts 的
- * saidByUser），所以屏幕上只有人自己说的话，实时与重放逐字相同。
- */
+/** 送出去的那一段文字：旁白在前，人打的字在最后。 */
 export function composePrompt(modes: RunMode, text: string): string {
   const said = text.trim()
-  const standing: string[] = []
-  const goal = modes.goal?.trim() ?? ''
-
-  if (goal.length > 0) {
-    standing.push(`目标（持续追求）：${goal}`)
-  }
-
-  if (modes.swarm) {
-    standing.push(SWARM)
-  }
+  const standing = NAMES.filter((name) => modes[name]).map((name) => NARRATION[name])
 
   return standing.length === 0
     ? said
@@ -42,5 +32,5 @@ export function composePrompt(modes: RunMode, text: string): string {
 
 /** 空正文也发得出去：带着模式的一句是一句完整的话。 */
 export function hasModes(modes: RunMode): boolean {
-  return (modes.goal?.trim().length ?? 0) > 0 || modes.swarm
+  return NAMES.some((name) => modes[name])
 }

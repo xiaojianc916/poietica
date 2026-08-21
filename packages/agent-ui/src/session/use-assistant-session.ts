@@ -2,6 +2,7 @@ import type {
   PermissionItem,
   QuestionTimelineItem,
   RunMode,
+  RunModeName,
   TimelineState,
   ToolCallTimelineItem,
   Transcript,
@@ -83,8 +84,7 @@ export interface AssistantSessionOptions {
 export interface AssistantSession {
   /** 这条对话此刻处于哪些模式。真相在 store，这里只是投影。 */
   readonly modes: RunMode
-  readonly setGoal: (goal: string | null) => void
-  readonly toggleSwarm: () => void
+  readonly toggleMode: (mode: RunModeName) => void
   /** 这一格现在的键：真对话 id，或入口那一格的草稿键。 */
   readonly key: string
   readonly status: ChatStatus
@@ -185,16 +185,12 @@ export function useAssistantSession({
   const isRestoring = useSlice(key, readRestoring)
   const modes = useSlice(key, readModes)
 
-  const setGoal = useCallback(
-    (goal: string | null) => {
-      transcripts.setGoal(key, goal)
+  const toggleMode = useCallback(
+    (mode: RunModeName) => {
+      transcripts.toggleMode(key, mode)
     },
     [key, transcripts],
   )
-
-  const toggleSwarm = useCallback(() => {
-    transcripts.toggleSwarm(key)
-  }, [key, transcripts])
 
   /*
    * 接上帧流。就这一件事。
@@ -283,8 +279,7 @@ export function useAssistantSession({
   return {
     key,
     modes,
-    setGoal,
-    toggleSwarm,
+    toggleMode,
     status,
     send,
     cancel,

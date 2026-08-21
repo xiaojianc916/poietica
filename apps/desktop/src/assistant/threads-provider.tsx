@@ -1,6 +1,6 @@
 import type { SessionControlsFailureReport } from '@poietica/agent'
 import {
-  createGoalMemory,
+  createModeMemory,
   SessionControlsStore,
   ThreadsStore,
   TranscriptStore,
@@ -51,10 +51,10 @@ export function ThreadsProvider({ agent, children, report }: ThreadsProviderProp
   const [{ controls, store, transcripts }] = useState(() => {
     const port = agent.threads
 
-    /* 向上续读与目标的落脚处都由组合根接上：store 不摸任何端口，也就脱离进程可测。 */
+    /* 向上续读与模式的落脚处都由组合根接上：store 不摸任何端口，也就脱离进程可测。 */
     const transcriptStore = new TranscriptStore({
       earlier: port.earlierFrames,
-      goals: createGoalMemory((failure) => {
+      modes: createModeMemory((failure) => {
         reportFailure('THREAD_GOAL_NOT_KEPT', {
           cause: failure.cause,
           operation: failure.stage,

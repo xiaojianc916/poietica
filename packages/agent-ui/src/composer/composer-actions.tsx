@@ -1,5 +1,5 @@
-import type { RunMode } from '@poietica/agent'
-import { permissionPostureOf, shorten } from '@poietica/agent'
+import type { RunMode, RunModeName } from '@poietica/agent'
+import { permissionPostureOf } from '@poietica/agent'
 import type { PaletteEntry, SessionConfigControl } from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
 import {
@@ -37,6 +37,27 @@ export function ComposerActions() {
   )
 }
 
+/* 这条对话自己的两档模式：一张表，摊成面板里的行与工具栏上的胶囊。 */
+const LOCAL_MODES: readonly {
+  readonly name: RunModeName
+  readonly label: string
+  readonly detail: string
+  readonly icon: ReactNode
+}[] = [
+  {
+    name: 'goal',
+    label: '目标',
+    detail: '把这一句当作要持续追求的目标',
+    icon: <GoalIcon aria-hidden="true" />,
+  },
+  {
+    name: 'swarm',
+    label: '蜂群模式',
+    detail: '多个子代理并行协作',
+    icon: <SwarmIcon aria-hidden="true" />,
+  },
+]
+
 export interface ComposerPaletteSource {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelectControl: (controlId: string, value: string) => void
@@ -69,14 +90,20 @@ function controlRow(
 }
 
 /**
- * 生效模式（目前是 Plan）摊成行，并进输入框「添加」组，跟在「添加文件」后面。
+ * 生效模式摊成行，并进输入框「添加」组，跟在「添加文件」后面。
  *
- * 行而不是组：Mode 不单立分类。批准方式由 PermissionPicker 独占，这里仍然滤掉。
+ * 行而不是组：Mode 不单立分类。agent 报的那几档在前，这条对话自己的两档在后，
+ * 一种动作（run）—— 面板因此不需要认识模式。批准方式由 PermissionPicker 独占。
  */
 export function composerModeRows({
   controls,
+  modes,
   onSelectControl,
-}: Pick<ComposerPaletteSource, 'controls' | 'onSelectControl'>): readonly PaletteRow[] {
+  onToggleMode,
+}: Pick<ComposerPaletteSource, 'controls' | 'onSelectControl'> & {
+  readonly modes: RunMode
+  readonly onToggleMode: (mode: RunModeName) => void
+}): readonly PaletteRow[] {
   const rows: PaletteRow[] = []
 
   for (const control of controls) {
@@ -91,6 +118,22 @@ export function composerModeRows({
 
       rows.push(controlRow(control, choice, onSelectControl, <SirenIcon aria-hidden="true" />))
     }
+  }
+
+  for (const mode of LOCAL_MODES) {
+    rows.push({
+      id: `mode:${mode.name}`,
+      icon: mode.icon,
+      label: mode.label,
+      detail: mode.detail,
+      checked: modes[mode.name],
+      action: {
+        kind: 'run',
+        run: () => {
+          onToggleMode(mode.name)
+        },
+      },
+    })
   }
 
   return rows
@@ -168,8 +211,7 @@ export interface ComposerModeChipProps {
   readonly onSelect: (controlId: string, value: string) => void
   /** 这条对话自己的模式。真相在 TranscriptStore。 */
   readonly modes: RunMode
-  readonly onSetGoal: (goal: string | null) => void
-  readonly onToggleSwarm: () => void
+  readonly onToggleMode: (mode: RunModeName) => void
 }
 
 /** 一枚生效档位：静息左图标右文字，悬停换成移除圆钮。三种模式共用这一处。 */
@@ -206,8 +248,7 @@ export function ComposerModeChip({
   controls,
   modes,
   onSelect,
-  onSetGoal,
-  onToggleSwarm,
+  onToggleMode,
 }: ComposerModeChipProps) {
   const mode = controls.find((control) => control.purpose === 'mode')
   const rememberedPosture = usePostureMemory(controls)
@@ -230,16 +271,14 @@ export function ComposerModeChip({
     }
   }
 
-  if (modes.goal !== null) {
-    chips.push(
-      chip('goal', <GoalIcon />, `目标：${shorten(modes.goal)}`, () => {
-        onSetGoal(null)
-      }),
-    )
-  }
-
-  if (modes.swarm) {
-    chips.push(chip('swarm', <SwarmIcon />, '蜂群模式', onToggleSwarm))
+  for (const mode of LOCAL_MODES) {
+    if (modes[mode.name]) {
+      chips.push(
+        chip(mode.name, mode.icon, mode.label, () => {
+          onToggleMode(mode.name)
+        }),
+      )
+    }
   }
 
   if (chips.length === 0) {

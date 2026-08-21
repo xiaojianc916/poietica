@@ -5,15 +5,15 @@ export type {
 } from './agent-capability-store'
 export { AgentCapabilityStore } from './agent-capability-store'
 export { describeFailure } from './describe-failure'
-export type { GoalMemory } from './goal-memory'
-export { createGoalMemory } from './goal-memory'
+export type { ModeMemory } from './mode-memory'
+export { createModeMemory } from './mode-memory'
 export type { PermissionPosture } from './permission-posture'
 export {
   permissionControlOf,
   permissionPostureOf,
   permissionPosturesOf,
 } from './permission-posture'
-export type { RunMode } from './run-mode'
+export type { RunMode, RunModeName } from './run-mode'
 export { composePrompt, hasModes, NO_MODES } from './run-mode'
 export type { SessionControlsFailureReport } from './session-controls-store'
 export { SessionControlsStore } from './session-controls-store'
