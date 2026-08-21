@@ -261,16 +261,18 @@
       <main aria-live="assertive" class="fatal-surface" role="alert">
         <section class="fatal-content">
           <img alt="" aria-hidden="true" class="fatal-illustration" />
-          <h1 class="fatal-title"></h1>
+          <h1 class="fatal-title">&#8203;</h1>
+
           <p class="fatal-description"></p>
           <p class="fatal-summary"></p>
           <p class="fatal-secondary" hidden></p>
 
-          <div aria-label="错误处理操作" class="fatal-actions" role="group">
-            <button class="fatal-icon-button" data-action="reload" hidden type="button"></button>
-            <button class="fatal-icon-button" data-action="copy" type="button"></button>
-            <button class="fatal-icon-button" data-action="close" type="button"></button>
-          </div>
+          <fieldset class="fatal-actions">
+  <legend class="sr-only">错误处理操作</legend>
+  <button class="fatal-icon-button" data-action="reload" hidden type="button"></button>
+  <button class="fatal-icon-button" data-action="copy" type="button"></button>
+</fieldset>
+
 
           <details class="fatal-details">
             <summary></summary>
