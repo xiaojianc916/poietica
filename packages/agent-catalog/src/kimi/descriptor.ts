@@ -10,24 +10,6 @@ import type { AgentDescriptor } from '../agent-descriptor'
  * WebSocket，协议快照钉在 contracts/kap（pnpm kap:spec）。
  */
 
-/**
- * 提问方言。
- *
- * question.ts 的 optOptionId / skipOptionId 拼出 \`q\${questionIndex}_opt_\${optionIndex}\`
- * 与 \`q\${questionIndex}_skip\`，该文件注释把权威正则写成
- * /^q(\\d+)_(opt_(\\d+)|skip)$/。选项是 kind: 'allow_once'，Skip 是 'reject_once'。
- *
- * 题号今天恒为 0（适配器把多题降级成单题），但命名空间是上游为多题预留的，
- * 所以这里按 (\\d+) 收而不写死 q0：等上游放开，这两行不用动。
- *
- * 注意上游的回包解析 outcomeToQuestionAnswer 目前写死 /^q0_opt_(\\d+)$/，只认
- * 0 号题。我们收的是超集，方向上是安全的。
- */
-const _QUESTION_DIALECT = {
-  option: /^q(\d+)_opt_(\d+)$/,
-  skip: /^q(\d+)_skip$/,
-}
-
 /*
  * 启动是一个可执行名加一串参数，不是一行待解析的命令行：拼成字符串再拆回来是
  * 有损的 —— Windows 路径里的反斜杠会被 POSIX 词法当成转义符吃掉，带空格的路径
