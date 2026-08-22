@@ -28,13 +28,14 @@ async function source(relative) {
 
 async function replaceOnce(relative, before, after, marker = after) {
   const input = await source(relative)
+  const count = occurrences(input, before)
+  const applied = marker.length > 0 && input.includes(marker)
 
-  if (input.includes(marker) && !input.includes(before)) {
+  if ((count === 0 && applied) || (applied && after.includes(before))) {
     skipped.push(relative)
     return
   }
 
-  const count = occurrences(input, before)
   if (count !== 1) {
     throw new Error(`${relative}: expected one exact anchor, found ${count}`)
   }
@@ -86,7 +87,7 @@ fn logging(app: AppHandle, thread: Uuid) -> FrameSink {
     let (arrived, arriving) = sync_channel::<RecordedEvent>(FRAME_EVENT_QUEUE_CAPACITY);
     let (shaped, batches) = mpsc::channel::<Vec<RecordedFrame>>(FRAME_BATCH_QUEUE_CAPACITY);
 
-    std::thread::spawn(move || batch_frames(arriving, shaped));
+    let _batcher = std::thread::spawn(move || batch_frames(arriving, shaped));
     async_runtime::spawn(recording(app, thread, batches));
 
     Box::new(move |event| {
@@ -145,7 +146,7 @@ async fn recording(
             }
             Ok(refused) => {
                 log::error!(
-                    "durable frame pipeline refused {refused} frames; unpublished batch retained on disk"
+                    "durable frame pipeline refused {refused} frames; batch was not published"
                 );
             }
             Err(error) => {
