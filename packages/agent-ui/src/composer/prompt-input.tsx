@@ -745,17 +745,18 @@ export function PromptInputSubmit({
 }) {
   /* 能不能发，由持有草稿的这一侧自己答。 */
   const draft = usePromptInputDraft()
+  const cancelling = status === 'cancelling'
   const canCancel = status === 'submitted' || status === 'streaming'
-  const Icon = canCancel ? StopIcon : SubmitIcon
+  const Icon = canCancel || cancelling ? StopIcon : SubmitIcon
 
   return (
     <button
       {...props}
-      aria-label={canCancel ? '停止生成' : '发送'}
+      aria-label={cancelling ? '正在停止' : canCancel ? '停止生成' : '发送'}
       className={className}
       data-slot="prompt-input-submit"
       data-status={status}
-      disabled={disabled ?? (!canCancel && !canSubmitDraft(draft))}
+      disabled={cancelling || disabled === true || (!canCancel && !canSubmitDraft(draft))}
       onClick={canCancel ? onCancel : undefined}
       type={canCancel ? 'button' : 'submit'}
     >

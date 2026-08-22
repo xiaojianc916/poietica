@@ -213,6 +213,7 @@ export function selectIsBusy(state: TimelineState): boolean {
   return (
     state.status === 'submitted' ||
     state.status === 'running' ||
+    state.status === 'cancelling' ||
     state.status === 'awaiting_permission' ||
     state.status === 'awaiting_question'
   )

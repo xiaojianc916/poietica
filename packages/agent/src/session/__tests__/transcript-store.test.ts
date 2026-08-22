@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { TranscriptStore } from '../transcript-store'
 
 /* 一条假线路：帧从哪来不重要，重要的是它带着哪条会话号。 */
-function fakePort(cancel: AgentSessionPort['cancel'] = () => Promise.resolve()): {
+function fakePort(
+  cancel: AgentSessionPort['cancel'] = () => Promise.resolve(),
+  prompt: AgentSessionPort['prompt'] = () => Promise.resolve({ sessionId: 'sess_a' }),
+): {
   readonly port: AgentSessionPort
   readonly emit: (events: readonly RunEvent[], sessionId: string) => void
 } {
@@ -18,7 +21,7 @@ function fakePort(cancel: AgentSessionPort['cancel'] = () => Promise.resolve()):
           listeners.delete(listener)
         }
       },
-      prompt: () => Promise.resolve({ sessionId: 'sess_a' }),
+      prompt,
       cancel,
       resolvePermission: () => Promise.resolve(),
       answerQuestions: () => Promise.resolve(),
@@ -150,6 +153,40 @@ describe('transcript store', () => {
     paint()
 
     expect(store.read('thread_a')).not.toBe(ended)
+  })
+
+  it('cancels before a draft can start', async () => {
+    const { store, paint } = painted()
+    let identify: ((threadId: string) => void) | undefined
+    let prompts = 0
+    const { port } = fakePort(undefined, () => {
+      prompts += 1
+
+      return Promise.resolve({ sessionId: 'sess_a' })
+    })
+    const key = store.newDraft()
+
+    store.send({
+      port,
+      key,
+      endpoint: null,
+      identify: () =>
+        new Promise<string>((resolve) => {
+          identify = resolve
+        }),
+      text: '在吗',
+      assets: [],
+      configuration: [],
+      skills: [],
+    })
+    store.cancel(key)
+    identify?.('thread_a')
+    await Promise.resolve()
+    await Promise.resolve()
+    paint()
+
+    expect(prompts).toBe(0)
+    expect(store.read(key).timeline.status).toBe('cancelled')
   })
 
   it('records a cancellation rejection instead of swallowing it', async () => {

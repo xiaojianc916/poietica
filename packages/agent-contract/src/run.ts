@@ -7,6 +7,7 @@ export type RunStatus =
   | 'idle'
   | 'submitted'
   | 'running'
+  | 'cancelling'
   | 'awaiting_permission'
   | 'awaiting_question'
   | 'completed'
@@ -127,4 +128,4 @@ export type RunEvent =
  * contract; neither may depend on the other. Collapsing RunStatus into
  * ChatStatus is an application decision and stays in useAssistantSession.
  */
-export type ChatStatus = 'ready' | 'submitted' | 'streaming' | 'error'
+export type ChatStatus = 'ready' | 'submitted' | 'streaming' | 'cancelling' | 'error'

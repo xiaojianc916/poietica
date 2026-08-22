@@ -31,8 +31,10 @@ export {
   appendUserMessage,
   applyRunEvent,
   applyRunEvents,
+  confirmRunCancellation,
   createTimelineState,
   prependThreadEvents,
   replayRunEvents,
   replayThreadEvents,
+  requestRunCancellation,
 } from './timeline-reducer'

@@ -15,10 +15,12 @@ import {
   appendLocalError,
   appendUserMessage,
   applyRunEvents,
+  confirmRunCancellation,
   createTimelineState,
   opensTurn,
   prependThreadEvents,
   replayThreadEvents,
+  requestRunCancellation,
   selectIsBusy,
 } from '../timeline'
 import { describeFailure } from './describe-failure'
@@ -102,6 +104,18 @@ export interface SendOptions {
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
 }
 
+interface PendingSubmission {
+  key: string
+  readonly port: AgentSessionPort
+  threadId: string | null
+  acknowledged: boolean
+  cancelRequested: boolean
+  settled: boolean
+  deadline: ReturnType<typeof setTimeout> | null
+}
+
+const CANCELLATION_DEADLINE_MS = 8000
+
 /*
  * 没有这条对话时给出的那一份。
  *
@@ -181,12 +195,27 @@ const onNextPaint: Paint = (flush) => {
     return
   }
 
-  const ceiling = setTimeout(flush, FLUSH_CEILING_MS)
+  let settled = false
+  let frame: number | null = null
+  let ceiling: ReturnType<typeof setTimeout>
 
-  requestAnimationFrame(() => {
+  const finish = () => {
+    if (settled) {
+      return
+    }
+
+    settled = true
     clearTimeout(ceiling)
+
+    if (frame !== null) {
+      cancelAnimationFrame(frame)
+    }
+
     flush()
-  })
+  }
+
+  ceiling = setTimeout(finish, FLUSH_CEILING_MS)
+  frame = requestAnimationFrame(finish)
 }
 
 /* 谁都没在跑。引用固定，useSyncExternalStore 才判得出「没变」。 */
@@ -256,6 +285,8 @@ export class TranscriptStore implements TranscriptSink {
 
   /** 此刻有几次 prompt 在飞。它是「帧可以跑在地址前面」这条许可的唯一依据。 */
   #opening = 0
+
+  #submissions = new Map<string, PendingSubmission>()
 
   /**
    * 收到了、还没折进转录的帧，按对话攒着。
@@ -359,6 +390,7 @@ export class TranscriptStore implements TranscriptSink {
     const real = this.#resolveKey(key)
     const draft = this.#aliased.get(real)
 
+    this.#releaseSubmission(real)
     this.#held.delete(real)
     this.#pending.delete(real)
     this.#unaligned.delete(real)
@@ -559,6 +591,21 @@ export class TranscriptStore implements TranscriptSink {
 
     this.#attach(port)
 
+    const real = this.#resolveKey(key)
+    this.#releaseSubmission(real)
+
+    const submission: PendingSubmission = {
+      key: real,
+      port,
+      threadId: endpoint,
+      acknowledged: false,
+      cancelRequested: false,
+      settled: false,
+      deadline: null,
+    }
+
+    this.#submissions.set(real, submission)
+
     const conversation =
       endpoint === null ? (identify?.() ?? Promise.resolve(null)) : Promise.resolve(endpoint)
 
@@ -567,6 +614,7 @@ export class TranscriptStore implements TranscriptSink {
     void conversation
       .then((threadId) => {
         if (threadId === null) {
+          this.#releaseSubmission(submission)
           this.#fail(key, new Error(NO_THREAD))
 
           return undefined
@@ -575,6 +623,15 @@ export class TranscriptStore implements TranscriptSink {
         /* 草稿在这一刻成为一条真对话：同一份转录，换一个名字。 */
         if (threadId !== key) {
           this.#rename(key, threadId)
+        }
+
+        submission.threadId = threadId
+
+        if (submission.cancelRequested) {
+          this.#finishCancellation(submission)
+          this.#releaseSubmission(submission)
+
+          return undefined
         }
 
         /*
@@ -587,11 +644,12 @@ export class TranscriptStore implements TranscriptSink {
         onUserMessage?.(threadId, text.trim() === '' && assets.length > 0 ? IMAGE_OPENER : text)
 
         return port.prompt({ threadId, text, assets, configuration, skills }).then((handle) => {
-          /*
-           * 这条对话的会话号只有这里知道：新建的对话在开口之前没有号可登记。
-           * 登记的同时把跑在地址前面的那批帧折进去（见 route）。
-           */
+          submission.acknowledged = true
           this.route(handle.sessionId, threadId)
+
+          if (submission.cancelRequested) {
+            this.#sendCancellation(submission)
+          }
         })
       })
       .catch((cause: unknown) => {
@@ -608,28 +666,124 @@ export class TranscriptStore implements TranscriptSink {
       })
   }
 
-  /**
-   * 停掉这条对话上正在跑的那一轮。
-   *
-   * 点名一条对话就够了，地址在端口那一侧：这一层不留任何会过期的取消凭据。
-   *
-   * 入口那一格在开口之前还不是任何一条对话。它没有轮次在飞，也没有会话可发。
-   */
   cancel = (key: string): void => {
     const threadId = this.#resolveKey(key)
     const port = this.#attachedTo
 
-    if (threadId.startsWith(DRAFT) || port === null) {
+    if (port === null) {
+      return
+    }
+
+    let submission = this.#submissions.get(threadId)
+
+    if (submission === undefined) {
+      if (threadId.startsWith(DRAFT)) {
+        return
+      }
+
+      submission = {
+        key: threadId,
+        port,
+        threadId,
+        acknowledged: true,
+        cancelRequested: false,
+        settled: false,
+        deadline: null,
+      }
+      this.#submissions.set(threadId, submission)
+    }
+
+    this.#requestCancellation(submission)
+  }
+
+  #requestCancellation(submission: PendingSubmission): void {
+    if (submission.cancelRequested) {
+      return
+    }
+
+    submission.cancelRequested = true
+    const current = this.#now(submission.key)
+
+    this.#put(submission.key, {
+      ...current,
+      timeline: requestRunCancellation(current.timeline),
+    })
+
+    if (submission.threadId === null) {
+      this.#finishCancellation(submission)
+
+      return
+    }
+
+    submission.deadline = setTimeout(() => {
+      this.#finishCancellation(submission)
+    }, CANCELLATION_DEADLINE_MS)
+
+    this.#sendCancellation(submission)
+  }
+
+  #sendCancellation(submission: PendingSubmission): void {
+    const threadId = submission.threadId
+
+    if (
+      threadId === null ||
+      !submission.cancelRequested ||
+      this.#submissions.get(submission.key) !== submission
+    ) {
       return
     }
 
     try {
-      void Promise.resolve(port.cancel(threadId)).catch((cause: unknown) => {
-        this.note(key, describeFailure(cause))
-      })
+      void Promise.resolve(submission.port.cancel(threadId)).then(
+        () => {
+          this.#finishCancellation(submission)
+        },
+        (cause: unknown) => {
+          if (!submission.acknowledged) {
+            return
+          }
+
+          this.note(submission.key, describeFailure(cause))
+          this.#finishCancellation(submission)
+        },
+      )
     } catch (cause) {
-      this.note(key, describeFailure(cause))
+      this.note(submission.key, describeFailure(cause))
+      this.#finishCancellation(submission)
     }
+  }
+
+  #finishCancellation(submission: PendingSubmission): void {
+    if (this.#submissions.get(submission.key) !== submission) {
+      return
+    }
+
+    if (submission.deadline !== null) {
+      clearTimeout(submission.deadline)
+      submission.deadline = null
+    }
+
+    submission.settled = true
+    const current = this.#now(submission.key)
+
+    this.#put(submission.key, {
+      ...current,
+      timeline: confirmRunCancellation(current.timeline, Date.now()),
+    })
+  }
+
+  #releaseSubmission(target: string | PendingSubmission): void {
+    const submission = typeof target === 'string' ? this.#submissions.get(target) : target
+
+    if (submission === undefined || this.#submissions.get(submission.key) !== submission) {
+      return
+    }
+
+    if (submission.deadline !== null) {
+      clearTimeout(submission.deadline)
+    }
+
+    this.#submissions.delete(submission.key)
   }
 
   /* 线路只有一条（#attachedTo），答复的地址不必由调用方再交一次 —— 与 cancel 同一个入口。 */
@@ -803,6 +957,15 @@ export class TranscriptStore implements TranscriptSink {
    * useSyncExternalStore 的契约要的就是这个。
    */
   #rename(from: string, to: string): void {
+    const submission = this.#submissions.get(from)
+
+    if (submission !== undefined) {
+      this.#submissions.delete(from)
+      submission.key = to
+      submission.threadId = to
+      this.#submissions.set(to, submission)
+    }
+
     this.#alias.set(from, to)
     this.#aliased.set(to, from)
 
@@ -861,7 +1024,19 @@ export class TranscriptStore implements TranscriptSink {
 
     this.#pending.delete(real)
 
-    const timeline = applyRunEvents(current.timeline, waiting)
+    const terminal = waiting.some(
+      (event) => event.kind === 'run_finished' || event.kind === 'run_failed',
+    )
+    const submission = this.#submissions.get(real)
+    let timeline = applyRunEvents(current.timeline, waiting)
+
+    if (terminal) {
+      this.#releaseSubmission(real)
+    } else if (submission?.cancelRequested === true) {
+      timeline = submission.settled
+        ? confirmRunCancellation(timeline, Date.now())
+        : requestRunCancellation(timeline)
+    }
 
     if (timeline === current.timeline) {
       return current

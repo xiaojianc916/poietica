@@ -126,6 +126,8 @@ function toChatStatus(status: TimelineState['status']): ChatStatus {
   switch (status) {
     case 'submitted':
       return 'submitted'
+    case 'cancelling':
+      return 'cancelling'
     case 'running':
     case 'awaiting_permission':
     case 'awaiting_question':

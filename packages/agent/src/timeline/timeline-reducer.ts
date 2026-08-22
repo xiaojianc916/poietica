@@ -7,10 +7,12 @@ import {
   beginRun,
   draftOf,
   freeze,
+  markTurnEnd,
   namespace,
   openSegment,
   push,
   pushBeforeRun,
+  sealTail,
 } from './timeline-draft'
 
 /**
@@ -132,6 +134,7 @@ function fill(draft: Draft, events: readonly RunEvent[]): Draft {
   if (
     draft.status === 'submitted' ||
     draft.status === 'running' ||
+    draft.status === 'cancelling' ||
     draft.status === 'awaiting_permission' ||
     draft.status === 'awaiting_question'
   ) {
@@ -263,6 +266,44 @@ export function appendLocalError(
     at: error.at,
     message: error.message,
   })
+
+  return freeze(draft)
+}
+
+function canCancel(status: TimelineState['status']): boolean {
+  return (
+    status === 'submitted' ||
+    status === 'running' ||
+    status === 'awaiting_permission' ||
+    status === 'awaiting_question'
+  )
+}
+
+/** Records user intent without pretending that the server has stopped. */
+export function requestRunCancellation(state: TimelineState): TimelineState {
+  if (!canCancel(state.status)) {
+    return state
+  }
+
+  const draft = draftOf(state)
+
+  sealTail(draft)
+  draft.status = 'cancelling'
+
+  return freeze(draft)
+}
+
+/** Closes a cancellation after KAP accepts it or the local deadline expires. */
+export function confirmRunCancellation(state: TimelineState, at: number): TimelineState {
+  if (state.status === 'cancelled' || (!canCancel(state.status) && state.status !== 'cancelling')) {
+    return state
+  }
+
+  const draft = draftOf(state)
+
+  sealTail(draft)
+  draft.status = 'cancelled'
+  markTurnEnd(draft, at)
 
   return freeze(draft)
 }

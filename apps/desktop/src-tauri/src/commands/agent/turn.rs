@@ -412,15 +412,7 @@ pub async fn agent_cancel(
         return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
     };
 
-    /* 本次连接认不得的号是上次运行留下的：那条会话上没有这一侧发起的轮次。
-    判据取自驱动器路由帧用的同一本册子 —— 它认得，才有轮次可停。 */
-    let Some(slot) = live.book.slot(&addressed).map_err(translate)? else {
-        return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
-    };
-    if !slot.is_listening() {
-        return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
-    }
-
+    // KAP owns turn activity; a local recorder cannot gate cancellation.
     live.client.cancel(addressed).await.map_err(translate)?;
 
     Ok(())
