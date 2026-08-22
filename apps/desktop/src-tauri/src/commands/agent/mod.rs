@@ -34,9 +34,8 @@ pub mod dto;
 mod failure;
 mod kimi_state;
 pub mod runtime;
-pub mod mcp;
-pub mod skill;
 pub mod thread;
+pub mod toolkit;
 pub mod turn;
 
 type AgentCommandResult<T> = Result<T, IpcError>;

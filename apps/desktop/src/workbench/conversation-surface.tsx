@@ -165,7 +165,7 @@ export function ConversationSurface({
       }
       sessionControls.selectControl(threadId, controlId, value, input)
     },
-    [selectControl, sessionControls, threadId],
+    [selectControl, sessionControls, threadId, onIdentify, controls.find],
   )
 
   const userMessage = useCallback(

@@ -7,7 +7,7 @@ import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
-import { useMcpServers, useThreadSkills } from '../session/session-controls-context'
+import { useAgentToolkit } from '../session/agent-controls-context'
 import type { AssistantSubmission } from '../session/use-assistant-session'
 import {
   useAssistantPending,
@@ -107,9 +107,8 @@ export const AssistantSurface = memo(function AssistantSurface({
 }: AssistantSurfaceProps) {
   const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
 
-  /* 技能属于这条对话背后那个会话：目录与激活都归 SessionControlsStore。 */
-  const skills = useThreadSkills(endpoint)
-  const mcpServers = useMcpServers()
+  /* 名册属于这条连接，不属于这一格：入口态也画得出来。 */
+  const { mcpServers, skills } = useAgentToolkit()
 
   /*
    * 连不上 agent 这件事，不在这一层写。
@@ -146,7 +145,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   const question = useAssistantQuestion(assistant.key)
 
   /* 这一段的处境：目标与在跑的子代理数，都从帧日志派生（kap 的 goal_start 与 agent_call / task）。 */
-  const swarm = useAssistantSwarm(assistant.key)
+  const _swarm = useAssistantSwarm(assistant.key)
 
   /*
    * 待答的那一次审批。

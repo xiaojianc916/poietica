@@ -22,8 +22,7 @@ use crate::commands::{
         AgentQuestionMethod, AgentRenameThreadRequest, AgentResolvePermissionRequest,
         AgentSelectConfigRequest, AgentThreadRequest,
     },
-    agent::mcp::{AgentMcpServer, AgentMcpStatus, AgentMcpTransport},
-    agent::skill::{AgentSkill, AgentSkillsRequest},
+    agent::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
     agent_setup::cli::{AgentCliRequest, AgentCliResult},
     agent_setup::install::{AgentInstallState, AgentInstallStatus},
     agent_setup::probe::ProviderProbeOutcome,
@@ -64,8 +63,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent::turn::agent_shutdown,
             crate::commands::agent::config::agent_set_config_option,
             crate::commands::agent::config::agent_capabilities,
-            crate::commands::agent::skill::agent_skills,
-            crate::commands::agent::mcp::agent_mcp_servers,
+            crate::commands::agent::toolkit::agent_toolkit,
             crate::commands::agent::thread::agent_threads,
             crate::commands::agent::thread::agent_open_thread,
             crate::commands::agent::thread::agent_earlier_frames,
@@ -168,10 +166,9 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentCapabilitiesRequest>()
         .typ::<AgentSelectConfigRequest>()
         .typ::<AgentSkill>()
-        .typ::<AgentSkillsRequest>()
         .typ::<AgentMcpServer>()
         .typ::<AgentMcpStatus>()
-        .typ::<AgentMcpTransport>()
+        .typ::<AgentToolkit>()
         .typ::<AgentRenameThreadRequest>()
         .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()

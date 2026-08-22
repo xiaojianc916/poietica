@@ -1,5 +1,6 @@
 import type { AgentCapabilityStore, AgentControls } from '@poietica/agent'
-import { createContext, useContext, useSyncExternalStore } from 'react'
+import type { AgentToolkit } from '@poietica/agent-contract'
+import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
 
 /*
  * 入口那一格的可调项由谁给。
@@ -38,4 +39,21 @@ export function useAgentControls(): AgentControlsView {
   const held = useSyncExternalStore(store.subscribe, store.snapshot)
 
   return { ...held, selectControl: store.selectControl, retry: store.refresh }
+}
+
+/* 两个引用都固定：没有 store 就没有变化可订，也没有名册可给。 */
+const NO_SUBSCRIPTION = () => () => {}
+const NO_TOOLKIT: AgentToolkit = { skills: [], mcpServers: [] }
+
+/**
+ * 这一家 agent 公布的技能与 MCP 名册。
+ *
+ * 缺席即空名册 —— 组件工作台不套 Provider，而那两组只是不出现；可调项不同，
+ * 它们是那些界面的必需品，所以 useAgentControls 缺席时抛错。
+ */
+export function useAgentToolkit(): AgentToolkit {
+  const store = useContext(AgentControlsContext)
+  const read = useCallback(() => store?.snapshot().toolkit ?? NO_TOOLKIT, [store])
+
+  return useSyncExternalStore(store?.subscribe ?? NO_SUBSCRIPTION, read, read)
 }

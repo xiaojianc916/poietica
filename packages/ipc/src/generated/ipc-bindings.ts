@@ -141,11 +141,8 @@ async agentSetConfigOption(request: AgentSelectConfigRequest) : Promise<AgentCon
 async agentCapabilities(request: AgentCapabilitiesRequest) : Promise<AgentConfigControl[]> {
     return await TAURI_INVOKE("agent_capabilities", { request });
 },
-async agentSkills(request: AgentSkillsRequest) : Promise<AgentSkill[]> {
-    return await TAURI_INVOKE("agent_skills", { request });
-},
-async agentMcpServers(request: AgentCapabilitiesRequest) : Promise<AgentMcpServer[]> {
-    return await TAURI_INVOKE("agent_mcp_servers", { request });
+async agentToolkit(request: AgentCapabilitiesRequest) : Promise<AgentToolkit> {
+    return await TAURI_INVOKE("agent_toolkit", { request });
 },
 /**
  * Lists the stored conversations, newest first.
@@ -1423,9 +1420,8 @@ export type AgentLaunch = {
  * 要启动的 agent。它决定受控 home 落在哪里。
  */
 agentId: string }
-export type AgentMcpServer = { id: string; name: string; transport: AgentMcpTransport; status: AgentMcpStatus; toolCount: number; lastError: string | null }
+export type AgentMcpServer = { id: string; name: string; status: AgentMcpStatus; toolCount: number; lastError: string | null }
 export type AgentMcpStatus = "connected" | "connecting" | "disconnected" | "error"
-export type AgentMcpTransport = "stdio" | "http" | "sse"
 /**
  * 要打开的对话，以及必要时怎样启动 agent。
  */
@@ -1674,7 +1670,6 @@ inputCacheRead: number;
  */
 inputCacheCreation: number }
 export type AgentSkill = { name: string; description: string; source: string }
-export type AgentSkillsRequest = { sessionId: string }
 /**
  * One conversation, as a list of conversations and a tab strip need it.
  */
@@ -1739,6 +1734,7 @@ export type AgentTitleSource =
  * The user typed it. Nothing derived replaces it.
  */
 "manual"
+export type AgentToolkit = { skills: AgentSkill[]; mcpServers: AgentMcpServer[] }
 export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; privacy: PrivacySettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 /**

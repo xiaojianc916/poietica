@@ -16,7 +16,6 @@ export type {
   SessionConfigReport,
 } from './config'
 export type { KapEventPayload, KapSessionId, KapStopReason, KapToolCallId } from './kap'
-export type { AgentMcpPort, AgentMcpServer, AgentMcpStatus, AgentMcpTransport } from './mcp'
 export type {
   ApprovalAnswer,
   ApprovalDecision,
@@ -46,7 +45,6 @@ export type {
   PromptConfiguration,
   PromptSkill,
 } from './session'
-export type { AgentSkill, AgentSkillPort } from './skill'
 export type {
   FrameCursor,
   FramePage,
@@ -64,4 +62,5 @@ export type {
   ToolCallUpdate,
   ToolKind,
 } from './tool-call'
+export type { AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit } from './toolkit'
 export type { SessionUsage, SessionUsagePort, SessionUsageReport } from './usage'

@@ -1,4 +1,5 @@
 import type { SessionConfigControl } from './config'
+import type { AgentToolkit } from './toolkit'
 
 /*
  * 这个 agent 提供哪些可调项：模型、模式、推理档位，一张表。
@@ -38,4 +39,11 @@ export interface AgentCapabilityPort {
    * 必填，与 SessionConfigPort 同例：漏实现的代价是这张表永远听不见 agent。
    */
   readonly subscribe: (handler: () => void) => () => void
+  /**
+   * 这个 agent 此刻公布的技能与 MCP 名册。
+   *
+   * 与 read 同一条会话（连接自带的锚会话）：名册是这一家 agent 的属性，跟哪条
+   * 对话正在开着无关。
+   */
+  readonly readToolkit: () => Promise<AgentToolkit>
 }

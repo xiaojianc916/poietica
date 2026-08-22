@@ -110,6 +110,20 @@ function choiceRow(
   }
 }
 
+/* 状态说人话：传输协议屏幕上没有一格画它，所以它也不进这一行。 */
+function mcpDetail(server: AgentMcpServer): string {
+  switch (server.status) {
+    case 'connected':
+      return `${String(server.toolCount)} 个工具`
+    case 'connecting':
+      return '连接中'
+    case 'disconnected':
+      return '未连接'
+    case 'error':
+      return server.lastError === undefined ? '出错' : `出错：${server.lastError}`
+  }
+}
+
 export function composerPaletteGroups({
   controls,
   mcpServers,
@@ -151,16 +165,15 @@ export function composerPaletteGroups({
     })
   }
 
-  const connected = mcpServers.filter((server) => server.status === 'connected')
-  if (connected.length > 0) {
+  if (mcpServers.length > 0) {
     groups.push({
       id: 'mcp',
-      heading: '检测到可用的 MCP',
-      rows: connected.map((server) =>
+      heading: 'MCP',
+      rows: mcpServers.map((server) =>
         insertRow(
           `mcp:${server.id}`,
           server.name,
-          `${server.transport} ${String(server.toolCount)} 个工具`,
+          mcpDetail(server),
           <ToolIcon aria-hidden="true" />,
           { kind: 'mcp', id: server.id, name: server.name },
         ),

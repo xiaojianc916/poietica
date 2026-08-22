@@ -15,11 +15,9 @@ export type { AgentControlsView } from './session/agent-controls-context'
 export { AgentControlsContext, useAgentControls } from './session/agent-controls-context'
 export {
   SessionControlsContext,
-  useMcpServers,
   useSessionControlsActions,
   useThreadSelectorFailure,
   useThreadSelectors,
-  useThreadSkills,
   useThreadUsage,
 } from './session/session-controls-context'
 export { TranscriptsContext, useTranscripts } from './session/transcripts-context'

@@ -1,9 +1,7 @@
 import './prompt-chip.css'
 
-import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { $getNodeByKey, DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
+import { DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
 import type { ReactNode } from 'react'
-import { CloseIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 
 export type PromptChipValue =
   | { readonly kind: 'skill'; readonly name: string; readonly args?: string | undefined }
@@ -20,6 +18,13 @@ export function samePromptChip(left: PromptChipValue, right: PromptChipValue): b
   )
 }
 
+/**
+ * 草稿里的一枚记号。
+ *
+ * DecoratorNode 而不是 TextNode：屏幕上写的与交给 agent 的不是同一串（技能整个
+ * 不进正文，MCP 进的是 @mcp: 前缀那一串），而 getTextContent 是官方给这件事的那
+ * 一格。它没有自己的动作 —— 删一枚就是退格，那是编辑器自己的事。
+ */
 export class ChipNode extends DecoratorNode<ReactNode> {
   readonly #value: PromptChipValue
 
@@ -67,43 +72,10 @@ export class ChipNode extends DecoratorNode<ReactNode> {
   }
 
   override decorate(): ReactNode {
-    return <PromptChipView nodeKey={this.getKey()} value={this.#value} />
+    const label = this.#value.kind === 'skill' ? this.#value.name : `@${this.#value.name}`
+
+    return <span contentEditable={false}>{label}</span>
   }
-}
-
-function PromptChipView({
-  nodeKey,
-  value,
-}: {
-  readonly nodeKey: NodeKey
-  readonly value: PromptChipValue
-}) {
-  const [editor] = useLexicalComposerContext()
-  const Icon = value.kind === 'skill' ? SkillIcon : ToolIcon
-  const label = value.kind === 'skill' ? value.name : `@${value.name}`
-
-  return (
-    <span className="assistant-prompt-chip__body" contentEditable={false}>
-      <Icon aria-hidden="true" />
-      <span>{label}</span>
-      <button
-        aria-label={`移除 ${label}`}
-        className="assistant-prompt-chip__remove"
-        onMouseDown={(event) => {
-          event.preventDefault()
-          editor.update(() => {
-            const node = $getNodeByKey(nodeKey)
-            if (node instanceof ChipNode) {
-              node.remove()
-            }
-          })
-        }}
-        type="button"
-      >
-        <CloseIcon aria-hidden="true" />
-      </button>
-    </span>
-  )
 }
 
 export function $createChipNode(value: PromptChipValue): ChipNode {

@@ -1,5 +1,6 @@
 import type {
   AgentCapabilityPort,
+  AgentToolkit,
   PermissionPosturePort,
   SessionConfigControl,
 } from '@poietica/agent-contract'
@@ -31,13 +32,22 @@ import { permissionControlOf, postureAlignment } from './permission-posture'
 
 const NO_CONTROLS: readonly SessionConfigControl[] = []
 
+/* 引用固定，#commit 才判得出「名册没变」。 */
+const NO_TOOLKIT: AgentToolkit = { skills: [], mcpServers: [] }
+
 /** 屏幕上那一格：agent 报的整张表，以及它说不出话时的理由。 */
 export interface AgentControls {
   readonly controls: readonly SessionConfigControl[]
   readonly failure: string | undefined
+  /** 这一家此刻公布的技能与 MCP 名册。与表同一台 store：两者同一个 scope。 */
+  readonly toolkit: AgentToolkit
 }
 
-const EMPTY: AgentControls = { controls: NO_CONTROLS, failure: undefined }
+const EMPTY: AgentControls = {
+  controls: NO_CONTROLS,
+  failure: undefined,
+  toolkit: NO_TOOLKIT,
+}
 
 /*
  * 读不到，和改不动，是两件事。
@@ -83,6 +93,8 @@ export class AgentCapabilityStore {
   /* 问过就不再问第二遍：重读是显式动作（refresh），不是渲染的副作用。 */
   #asked = false
 
+  #toolkitAsked = false
+
   /*
    * 这一家此刻在飞的那一次改动，同时是它的队伍。
    *
@@ -127,6 +139,7 @@ export class AgentCapabilityStore {
   start = (port: AgentCapabilityPort): (() => void) => {
     this.#source = port
     this.#asked = false
+    this.#toolkitAsked = false
     this.#alignedTo = undefined
     this.#commit(EMPTY)
 
@@ -141,6 +154,7 @@ export class AgentCapabilityStore {
     })
 
     this.#load()
+    this.#loadToolkit()
 
     return () => {
       stop()
@@ -217,7 +231,9 @@ export class AgentCapabilityStore {
   /** 显式重读一次。 */
   refresh = (): void => {
     this.#asked = false
+    this.#toolkitAsked = false
     this.#load()
+    this.#loadToolkit()
   }
 
   /* 一张表到了。端口和号都得对得上，否则它属于一个已经过去的问题。 */
@@ -226,7 +242,7 @@ export class AgentCapabilityStore {
       return
     }
 
-    this.#commit({ controls: table, failure: undefined })
+    this.#commit({ ...this.#held, controls: table, failure: undefined })
     this.#align(table)
   }
 
@@ -291,7 +307,36 @@ export class AgentCapabilityStore {
    * （见 @poietica/agent-ui 的 session-controls.tsx，空表与失败是两种不同的画法）。
    */
   #note(cause: unknown): void {
-    this.#commit({ controls: this.#held.controls, failure: describeFailure(cause) })
+    this.#commit({ ...this.#held, failure: describeFailure(cause) })
+  }
+
+  /*
+   * 名册读一次。
+   *
+   * 与那张表同一条纪律：没有端口就没有产地，问过了不再问，重读走 refresh；
+   * 失败不算问过，那一格要能被再试一次。它不写 failure —— 屏幕上那一格说的是
+   * 「可调项读没读到」，名册读不到不是那件事。
+   */
+  #loadToolkit(): void {
+    const port = this.#source
+
+    if (port === undefined || this.#toolkitAsked) {
+      return
+    }
+
+    this.#toolkitAsked = true
+
+    void port.readToolkit().then(
+      (toolkit) => {
+        if (this.#source === port) {
+          this.#commit({ ...this.#held, toolkit })
+        }
+      },
+      (cause: unknown) => {
+        this.#toolkitAsked = false
+        this.#report?.readFailed(cause)
+      },
+    )
   }
 
   /*
@@ -300,7 +345,11 @@ export class AgentCapabilityStore {
    * 没变就不叫：两格都相同意味着这次提交什么都没改，而每一声都是一次重画。
    */
   #commit(next: AgentControls): void {
-    if (next.controls === this.#held.controls && next.failure === this.#held.failure) {
+    if (
+      next.controls === this.#held.controls &&
+      next.failure === this.#held.failure &&
+      next.toolkit === this.#held.toolkit
+    ) {
       return
     }
 

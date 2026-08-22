@@ -1,8 +1,5 @@
 import type {
   AgentCapabilityPort,
-  AgentMcpPort,
-  AgentSessionPort,
-  AgentSkillPort,
   QuestionChoice,
   RunEvent,
   SessionConfigChoice,
@@ -19,7 +16,6 @@ import {
   type AgentMcpServer,
   type AgentQuestionChoice,
   type AgentSessionUsage,
-  type AgentSkill,
   commands,
 } from './generated/ipc-bindings'
 
@@ -433,6 +429,8 @@ export function createAgentCapabilityBridge({
         },
         onListenFailure,
       ),
+
+    readToolkit: createAgentToolkitReader({ cwd, launch }),
   }
 }
 
@@ -513,33 +511,31 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
 }
 
 /*
- * 技能这一路：目录与激活，都按会话号寻址。
+ * 名册这一路：技能与 MCP 一次问回，发往连接自带的锚会话。
  *
- * 这一侧不留副本 —— 目录归 SessionControlsStore，激活的结果由帧流自己说。
+ * 交出去的是能力端口上那一格读法本身，不是第二个端口对象 —— 组合层把它装进
+ * AgentCapabilityPort，名册与可调项因此同 scope、同一台 store。
+ *
+ * 这一侧不留副本；线上说 null 表示缺席，端口那一侧是没有这一格。
  */
-export function createAgentSkillBridge(): AgentSkillPort {
-  return {
-    list: async (sessionId) => {
-      const listed = await throughIpc(() => commands.agentSkills({ sessionId }))
-      return listed as readonly AgentSkill[]
-    },
-  }
-}
+export function createAgentToolkitReader({
+  launch,
+  cwd,
+}: AgentBridgeOptions): AgentCapabilityPort['readToolkit'] {
+  return async () => {
+    const listed = await throughIpc(async () =>
+      commands.agentToolkit({ launch: await launch(), cwd: cwd?.() ?? null }),
+    )
 
-export function createAgentMcpBridge({ launch, cwd }: AgentBridgeOptions): AgentMcpPort {
-  return {
-    list: async () => {
-      const listed = await throughIpc(async () =>
-        commands.agentMcpServers({ launch: await launch(), cwd: cwd?.() ?? null }),
-      )
-      return listed.map((server: AgentMcpServer) => ({
+    return {
+      skills: listed.skills,
+      mcpServers: listed.mcpServers.map((server: AgentMcpServer) => ({
         id: server.id,
         name: server.name,
-        transport: server.transport,
         status: server.status,
         toolCount: server.toolCount,
         ...(server.lastError === null ? {} : { lastError: server.lastError }),
-      }))
-    },
+      })),
+    }
   }
 }

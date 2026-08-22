@@ -16,7 +16,7 @@ import { ThreadsContext } from './threads-context'
 export interface ThreadsProviderProps {
   readonly agent: Pick<
     DesktopAgentRuntime,
-    'mcp' | 'permissionPosture' | 'sessionConfig' | 'sessionUsage' | 'skills' | 'threads'
+    'permissionPosture' | 'sessionConfig' | 'sessionUsage' | 'threads'
   >
   readonly children: ReactNode
   /**
@@ -54,8 +54,6 @@ export function ThreadsProvider({ agent, children, report }: ThreadsProviderProp
         port,
         posture: agent.permissionPosture,
         report,
-        skills: agent.skills,
-        mcp: agent.mcp,
         transcripts: transcriptStore,
         usage: agent.sessionUsage,
       }),

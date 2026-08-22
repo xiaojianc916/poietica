@@ -7,9 +7,7 @@ import {
 } from '@poietica/agent-catalog'
 import type {
   AgentCapabilityPort,
-  AgentMcpPort,
   AgentSessionPort,
-  AgentSkillPort,
   PermissionPosturePort,
   SessionConfigPort,
   SessionUsagePort,
@@ -19,12 +17,11 @@ import { createExternalStore, createPreference, error as reportError } from '@po
 import {
   type AgentBridgeOptions,
   createAgentCapabilityBridge,
-  createAgentMcpBridge,
   createAgentSessionConfigBridge,
   createAgentSessionPort,
   createAgentSessionUsageBridge,
-  createAgentSkillBridge,
   createAgentThreadBridge,
+  createAgentToolkitReader,
   shutdownAgent,
 } from '@poietica/ipc'
 import type { AgentConfigStore } from '@poietica/settings'
@@ -41,8 +38,6 @@ export interface DesktopAgentRuntime {
   readonly threads: ThreadPort
   readonly sessionConfig: SessionConfigPort
   readonly sessionUsage: SessionUsagePort
-  readonly skills: AgentSkillPort
-  readonly mcp: AgentMcpPort
   readonly permissionPosture: PermissionPosturePort
   readonly getAgentId: () => string
   readonly subscribeAgent: (listener: () => void) => () => void
@@ -169,8 +164,7 @@ export function createDesktopAgentRuntime(
 
   const sessionUsage = createAgentSessionUsageBridge({ onListenFailure: noteListenFailure })
 
-  const skills = createAgentSkillBridge()
-  const mcp = createAgentMcpBridge({ cwd: options.cwd, launch: launchSelected })
+  const readToolkit = createAgentToolkitReader({ cwd: options.cwd, launch: launchSelected })
 
   const threads = createAgentThreadBridge({
     cwd: options.cwd,
@@ -223,6 +217,10 @@ export function createDesktopAgentRuntime(
 
         return anchor.select(control, value)
       },
+      readToolkit: async () => {
+        await currentAgent()
+        return readToolkit()
+      },
       subscribe: anchor.subscribe,
     }
 
@@ -235,8 +233,6 @@ export function createDesktopAgentRuntime(
     threads,
     sessionConfig,
     sessionUsage,
-    skills,
-    mcp,
     permissionPosture,
     getAgentId: selection.read,
     subscribeAgent: selection.subscribe,
