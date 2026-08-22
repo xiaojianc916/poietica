@@ -10,16 +10,16 @@ const root = process.cwd()
 const snapshots = new Map()
 let changed = 0
 
-function countOccurrences(source, needle) {
-  let count = 0
+function count(source, needle) {
+  let matches = 0
   let cursor = source.indexOf(needle)
 
   while (cursor !== -1) {
-    count += 1
+    matches += 1
     cursor = source.indexOf(needle, cursor + needle.length)
   }
 
-  return count
+  return matches
 }
 
 async function remember(path) {
@@ -33,86 +33,81 @@ async function remember(path) {
     if (error?.code !== 'ENOENT') {
       throw error
     }
-
     snapshots.set(path, null)
   }
 }
 
-async function atomicWrite(path, content) {
+async function write(path, content) {
   const target = resolve(root, path)
   const temporary = resolve(dirname(target), `.${randomUUID()}.tmp`)
-
   await writeFile(temporary, content)
   await rename(temporary, target)
 }
 
-async function replaceOnce({ after, before, label, marker = after, path }) {
+async function replace(path, marker, before, after) {
   await remember(path)
   const source = await readFile(resolve(root, path), 'utf8')
 
   if (source.includes(marker)) {
-    console.log(`skip ${label}`)
+    console.log(`skip ${path}: ${marker.split('\n')[0]}`)
     return
   }
 
-  const count = countOccurrences(source, before)
-  if (count !== 1) {
-    throw new Error(`${label}: expected one source anchor in ${path}, found ${count}`)
+  const matches = count(source, before)
+  if (matches !== 1) {
+    throw new Error(`${path}: expected one anchor, found ${matches}`)
   }
 
-  await atomicWrite(path, source.replace(before, after))
+  await write(path, source.replace(before, after))
   changed += 1
-  console.log(`apply ${label}`)
+  console.log(`apply ${path}: ${marker.split('\n')[0]}`)
 }
 
-async function createOnce(path, label, content) {
+async function create(path, content) {
   await remember(path)
 
   try {
-    const source = await readFile(resolve(root, path), 'utf8')
-    if (source === content) {
-      console.log(`skip ${label}`)
+    const current = await readFile(resolve(root, path), 'utf8')
+    if (current === content) {
+      console.log(`skip ${path}`)
       return
     }
-
-    throw new Error(`${label}: ${path} already exists with different content`)
+    throw new Error(`${path}: existing file differs from the migration payload`)
   } catch (error) {
     if (error?.code !== 'ENOENT') {
       throw error
     }
   }
 
-  await atomicWrite(path, content)
+  await write(path, content)
   changed += 1
-  console.log(`apply ${label}`)
+  console.log(`create ${path}`)
 }
 
-async function run(command, args) {
+async function command(program, args) {
   await new Promise((resolvePromise, reject) => {
-    const child = spawn(command, args, {
+    const child = spawn(program, args, {
       cwd: root,
       env: process.env,
       stdio: 'inherit',
     })
-
     child.once('error', reject)
     child.once('exit', (code, signal) => {
       if (code === 0) {
         resolvePromise()
         return
       }
-
-      reject(new Error(`${command} ${args.join(' ')} failed (${signal ?? String(code)})`))
+      reject(new Error(`${program} ${args.join(' ')} failed (${signal ?? String(code)})`))
     })
   })
 }
 
 async function rollback() {
-  for (const [path, bytes] of [...snapshots].reverse()) {
-    if (bytes === null) {
+  for (const [path, content] of [...snapshots].reverse()) {
+    if (content === null) {
       await rm(resolve(root, path), { force: true })
     } else {
-      await atomicWrite(path, bytes)
+      await write(path, content)
     }
   }
 }
@@ -123,24 +118,22 @@ async function main() {
     throw new Error('run refactor.mjs from the poietica repository root')
   }
 
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/prompt-chip.tsx',
-    label: 'remove interactive chip chrome imports',
-    marker: "import { SkillIcon } from '../primitives/icons'",
-    before: `import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
+  const chip = 'packages/agent-ui/src/composer/prompt-chip.tsx'
+  await replace(
+    chip,
+    "import { SkillIcon } from '../primitives/icons'",
+    `import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $getNodeByKey, DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
 import type { ReactNode } from 'react'
 import { CloseIcon, SkillIcon, ToolIcon } from '../primitives/icons'`,
-    after: `import { DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
+    `import { DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
 import type { ReactNode } from 'react'
 import { SkillIcon } from '../primitives/icons'`,
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/prompt-chip.tsx',
-    label: 'render flat prompt chips',
-    marker: 'function PromptChipView({ value }: { readonly value: PromptChipValue })',
-    before: `  override decorate(): ReactNode {
+  )
+  await replace(
+    chip,
+    'function PromptChipView({ value }: { readonly value: PromptChipValue })',
+    `  override decorate(): ReactNode {
     return <PromptChipView nodeKey={this.getKey()} value={this.#value} />
   }
 }
@@ -179,7 +172,7 @@ function PromptChipView({
     </span>
   )
 }`,
-    after: `  override decorate(): ReactNode {
+    `  override decorate(): ReactNode {
     return <PromptChipView value={this.#value} />
   }
 }
@@ -194,13 +187,12 @@ function PromptChipView({ value }: { readonly value: PromptChipValue }) {
     </span>
   )
 }`,
-  })
+  )
 
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/prompt-chip.css',
-    label: 'flatten prompt chip styling',
-    marker: '  color: #2563eb;',
-    before: `.assistant-prompt-chip {
+  await replace(
+    'packages/agent-ui/src/composer/prompt-chip.css',
+    '  color: #2563eb;',
+    `.assistant-prompt-chip {
   display: inline-flex;
   vertical-align: middle;
 }
@@ -237,7 +229,7 @@ function PromptChipView({ value }: { readonly value: PromptChipValue }) {
   background: color-mix(in oklab, currentColor 14%, transparent);
 }
 `,
-    after: `.assistant-prompt-chip {
+    `.assistant-prompt-chip {
   display: inline-flex;
   vertical-align: baseline;
 }
@@ -261,36 +253,31 @@ function PromptChipView({ value }: { readonly value: PromptChipValue }) {
   inline-size: 1em;
 }
 `,
-  })
+  )
 
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/composer-actions.tsx',
-    label: 'remove the session-only skill shape',
-    marker: `import type {
+  const actions = 'packages/agent-ui/src/composer/composer-actions.tsx'
+  await replace(
+    actions,
+    `import type {
   AgentMcpServer,
   PromptConfiguration,
-  SessionConfigControl,
-} from '@poietica/agent-contract'`,
-    before: `import type {
+  SessionConfigControl,`,
+    `import type {
   AgentMcpServer,
   AgentSkill,
   PromptConfiguration,
-  SessionConfigControl,
-} from '@poietica/agent-contract'`,
-    after: `import type {
+  SessionConfigControl,`,
+    `import type {
   AgentMcpServer,
   PromptConfiguration,
-  SessionConfigControl,
-} from '@poietica/agent-contract'`,
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/composer-actions.tsx',
-    label: 'declare the composer skill projection',
-    marker: 'export interface ComposerSkill',
-    before: `export interface ComposerPaletteSource {
+  SessionConfigControl,`,
+  )
+  await replace(
+    actions,
+    'export interface ComposerSkill',
+    `export interface ComposerPaletteSource {
   readonly controls: readonly SessionConfigControl[]`,
-    after: `/** 输入面板只需要技能的调用名、显示名与说明，不接触它来自哪条协议。 */
+    `/** 输入面板只需要技能的调用名、显示名与说明，不接触它来自哪条协议。 */
 export interface ComposerSkill {
   readonly name: string
   readonly label?: string | undefined
@@ -299,34 +286,28 @@ export interface ComposerSkill {
 
 export interface ComposerPaletteSource {
   readonly controls: readonly SessionConfigControl[]`,
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/composer-actions.tsx',
-    label: 'use the composer skill projection',
-    marker: '  readonly skills: readonly ComposerSkill[]',
-    before: '  readonly skills: readonly AgentSkill[]',
-    after: '  readonly skills: readonly ComposerSkill[]',
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/composer-actions.tsx',
-    label: 'separate skill display and invocation names',
-    marker: '          skill.label ?? skill.name,',
-    before: `          \`skill:\${skill.name}\`,
+  )
+  await replace(
+    actions,
+    '  readonly skills: readonly ComposerSkill[]',
+    '  readonly skills: readonly AgentSkill[]',
+    '  readonly skills: readonly ComposerSkill[]',
+  )
+  await replace(
+    actions,
+    '          skill.label ?? skill.name,',
+    `          \`skill:\${skill.name}\`,
           skill.name,
           skill.description,`,
-    after: `          \`skill:\${skill.name}\`,
+    `          \`skill:\${skill.name}\`,
           skill.label ?? skill.name,
           skill.description,`,
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/composer-actions.tsx',
-    label: 'describe MCP runtime status',
-    marker: 'function mcpStatus(server: AgentMcpServer)',
-    before: 'export function composerPaletteGroups({',
-    after: `function mcpStatus(server: AgentMcpServer): string | undefined {
+  )
+  await replace(
+    actions,
+    'function mcpStatus(server: AgentMcpServer)',
+    'export function composerPaletteGroups({',
+    `function mcpStatus(server: AgentMcpServer): string | undefined {
   switch (server.status) {
     case 'connected':
       return undefined
@@ -340,13 +321,11 @@ export interface ComposerPaletteSource {
 }
 
 export function composerPaletteGroups({`,
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/composer-actions.tsx',
-    label: 'show every MCP server without transport jargon',
-    marker: "      heading: 'MCP',",
-    before: `  const connected = mcpServers.filter((server) => server.status === 'connected')
+  )
+  await replace(
+    actions,
+    "      heading: 'MCP',",
+    `  const connected = mcpServers.filter((server) => server.status === 'connected')
   if (connected.length > 0) {
     groups.push({
       id: 'mcp',
@@ -362,7 +341,7 @@ export function composerPaletteGroups({`,
       ),
     })
   }`,
-    after: `  if (mcpServers.length > 0) {
+    `  if (mcpServers.length > 0) {
     groups.push({
       id: 'mcp',
       heading: 'MCP',
@@ -377,71 +356,64 @@ export function composerPaletteGroups({`,
       ),
     })
   }`,
-  })
+  )
 
-  await replaceOnce({
-    path: 'packages/agent-ui/src/index.ts',
-    label: 'export the composer skill projection',
-    marker: "export type { ComposerSkill } from './composer/composer-actions'",
-    before: `export { AttachmentIntakeContext, useAttachmentIntake } from './composer/attachment-intake'
+  await replace(
+    'packages/agent-ui/src/index.ts',
+    "export type { ComposerSkill } from './composer/composer-actions'",
+    `export { AttachmentIntakeContext, useAttachmentIntake } from './composer/attachment-intake'
 export type { PromptChipValue }`,
-    after: `export { AttachmentIntakeContext, useAttachmentIntake } from './composer/attachment-intake'
+    `export { AttachmentIntakeContext, useAttachmentIntake } from './composer/attachment-intake'
 export type { ComposerSkill } from './composer/composer-actions'
 export type { PromptChipValue }`,
-  })
+  )
 
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/assistant-composer.tsx',
-    label: 'remove the session-only composer import',
-    marker: `  AgentMcpServer,
+  const composer = 'packages/agent-ui/src/composer/assistant-composer.tsx'
+  await replace(
+    composer,
+    `  AgentMcpServer,
   ChatStatus,`,
-    before: `  AgentMcpServer,
+    `  AgentMcpServer,
   AgentSkill,
   ChatStatus,`,
-    after: `  AgentMcpServer,
+    `  AgentMcpServer,
   ChatStatus,`,
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/assistant-composer.tsx',
-    label: 'import the composer skill projection',
-    marker: '  type ComposerSkill,',
-    before: `  ComposerActions,
+  )
+  await replace(
+    composer,
+    '  type ComposerSkill,',
+    `  ComposerActions,
   ComposerChips,
   composerPaletteGroups,`,
-    after: `  ComposerActions,
+    `  ComposerActions,
   ComposerChips,
   type ComposerSkill,
   composerPaletteGroups,`,
-  })
+  )
+  await replace(
+    composer,
+    'readonly skills?: readonly ComposerSkill[]',
+    'readonly skills?: readonly AgentSkill[]',
+    'readonly skills?: readonly ComposerSkill[]',
+  )
 
-  await replaceOnce({
-    path: 'packages/agent-ui/src/composer/assistant-composer.tsx',
-    label: 'accept entry or session skills',
-    marker: 'readonly skills?: readonly ComposerSkill[]',
-    before: 'readonly skills?: readonly AgentSkill[]',
-    after: 'readonly skills?: readonly ComposerSkill[]',
-  })
-
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/assistant-wiring.tsx',
-    label: 'subscribe to installed skills at the composition seam',
-    marker: "import { PluginsSurface, type PluginStore } from '@poietica/plugins'",
-    before: `import { PluginsSurface } from '@poietica/plugins'
+  const wiring = 'apps/desktop/src/workbench/assistant-wiring.tsx'
+  await replace(
+    wiring,
+    "import { PluginsSurface, type PluginStore } from '@poietica/plugins'",
+    `import { PluginsSurface } from '@poietica/plugins'
 import type { SurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'`,
-    after: `import type { ComposerSkill } from '@poietica/agent-ui'
+    `import type { ComposerSkill } from '@poietica/agent-ui'
 import { PluginsSurface, type PluginStore } from '@poietica/plugins'
 import type { SurfaceRenderers } from '@poietica/workspace'
 import { type ReactNode, useCallback, useMemo, useSyncExternalStore } from 'react'`,
-  })
-
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/assistant-wiring.tsx',
-    label: 'project installed skills once',
-    marker: 'function useInstalledSkills(store: PluginStore)',
-    before: 'export function createAssistantWiring({',
-    after: `function useInstalledSkills(store: PluginStore): readonly ComposerSkill[] {
+  )
+  await replace(
+    wiring,
+    'function useInstalledSkills(store: PluginStore)',
+    'export function createAssistantWiring({',
+    `function useInstalledSkills(store: PluginStore): readonly ComposerSkill[] {
   const read = useCallback(() => store.getSnapshot().skills, [store])
   const installed = useSyncExternalStore(store.subscribe, read, read)
 
@@ -501,205 +473,188 @@ function AssistantConversation({
 }
 
 export function createAssistantWiring({`,
-  })
-
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/assistant-wiring.tsx',
-    label: 'wire installed skills into the entry surface',
-    marker: '<AssistantEntry',
-    before: '      ai: () => <AssistantPane onConversationStarted={onConversationStarted} session={session} />,',
-    after: `      ai: () => (
+  )
+  await replace(
+    wiring,
+    '<AssistantEntry',
+    '      ai: () => <AssistantPane onConversationStarted={onConversationStarted} session={session} />,',
+    `      ai: () => (
         <AssistantEntry
           onConversationStarted={onConversationStarted}
           session={session}
           store={pluginStore}
         />
       ),`,
-  })
-
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/assistant-wiring.tsx',
-    label: 'wire installed skills into conversation surfaces',
-    marker: '<AssistantConversation',
-    before: `      <ConversationSurface
+  )
+  await replace(
+    wiring,
+    '<AssistantConversation',
+    `      <ConversationSurface
         onForked={onConversationForked}
         onStarted={onConversationStarted}
         session={session}
         threadId={threadId}
       />`,
-    after: `      <AssistantConversation
+    `      <AssistantConversation
         onConversationForked={onConversationForked}
         onConversationStarted={onConversationStarted}
         session={session}
         store={pluginStore}
         threadId={threadId}
       />`,
-  })
+  )
 
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/assistant-pane.tsx',
-    label: 'type entry skills',
-    marker: 'type { ComposerSkill, WorkspacePickerProps }',
-    before: "import type { WorkspacePickerProps } from '@poietica/agent-ui'",
-    after: "import type { ComposerSkill, WorkspacePickerProps } from '@poietica/agent-ui'",
-  })
-
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/assistant-pane.tsx',
-    label: 'accept entry skills',
-    marker: 'readonly entrySkills: readonly ComposerSkill[]',
-    before: `export interface AssistantPaneProps {
+  const pane = 'apps/desktop/src/workbench/assistant-pane.tsx'
+  await replace(
+    pane,
+    'type { ComposerSkill, WorkspacePickerProps }',
+    "import type { WorkspacePickerProps } from '@poietica/agent-ui'",
+    "import type { ComposerSkill, WorkspacePickerProps } from '@poietica/agent-ui'",
+  )
+  await replace(
+    pane,
+    'readonly entrySkills: readonly ComposerSkill[]',
+    `export interface AssistantPaneProps {
   readonly onConversationStarted:`,
-    after: `export interface AssistantPaneProps {
+    `export interface AssistantPaneProps {
   readonly entrySkills: readonly ComposerSkill[]
   readonly onConversationStarted:`,
-  })
-
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/assistant-pane.tsx',
-    label: 'read entry skills',
-    marker: 'export function AssistantPane({ entrySkills,',
-    before: 'export function AssistantPane({ onConversationStarted, session }: AssistantPaneProps)',
-    after: 'export function AssistantPane({ entrySkills, onConversationStarted, session }: AssistantPaneProps)',
-  })
-
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/assistant-pane.tsx',
-    label: 'send entry skills to the conversation surface',
-    marker: '      entrySkills={entrySkills}',
-    before: `    <ConversationSurface
+  )
+  await replace(
+    pane,
+    'export function AssistantPane({ entrySkills,',
+    'export function AssistantPane({ onConversationStarted, session }: AssistantPaneProps)',
+    'export function AssistantPane({ entrySkills, onConversationStarted, session }: AssistantPaneProps)',
+  )
+  await replace(
+    pane,
+    '      entrySkills={entrySkills}',
+    `    <ConversationSurface
       git={git}`,
-    after: `    <ConversationSurface
+    `    <ConversationSurface
       entrySkills={entrySkills}
       git={git}`,
-  })
+  )
 
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/conversation-surface.tsx',
-    label: 'type conversation entry skills',
-    marker: '  type ComposerSkill,',
-    before: `  AssistantSurface,
+  const conversation = 'apps/desktop/src/workbench/conversation-surface.tsx'
+  await replace(
+    conversation,
+    '  type ComposerSkill,',
+    `  AssistantSurface,
   type GitBranchPickerProps,`,
-    after: `  AssistantSurface,
+    `  AssistantSurface,
   type ComposerSkill,
   type GitBranchPickerProps,`,
-  })
-
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/conversation-surface.tsx',
-    label: 'accept conversation entry skills',
-    marker: 'readonly entrySkills: readonly ComposerSkill[]',
-    before: `export interface ConversationSurfaceProps {
+  )
+  await replace(
+    conversation,
+    'readonly entrySkills: readonly ComposerSkill[]',
+    `export interface ConversationSurfaceProps {
   /** 取得这一格`,
-    after: `export interface ConversationSurfaceProps {
+    `export interface ConversationSurfaceProps {
   readonly entrySkills: readonly ComposerSkill[]
   /** 取得这一格`,
-  })
-
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/conversation-surface.tsx',
-    label: 'read conversation entry skills',
-    marker: `export function ConversationSurface({
+  )
+  await replace(
+    conversation,
+    `export function ConversationSurface({
   entrySkills,`,
-    before: `export function ConversationSurface({
+    `export function ConversationSurface({
   git,`,
-    after: `export function ConversationSurface({
+    `export function ConversationSurface({
   entrySkills,
   git,`,
-  })
-
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/conversation-surface.tsx',
-    label: 'repair control callback dependencies',
-    marker: '[controls, onIdentify, selectControl, sessionControls, threadId]',
-    before: '[selectControl, sessionControls, threadId]',
-    after: '[controls, onIdentify, selectControl, sessionControls, threadId]',
-  })
-
-  await replaceOnce({
-    path: 'apps/desktop/src/workbench/conversation-surface.tsx',
-    label: 'send entry skills to the assistant surface',
-    marker: `      endpoint={threadId}
+  )
+  await replace(
+    conversation,
+    '[controls, onIdentify, selectControl, sessionControls, threadId]',
+    '[selectControl, sessionControls, threadId]',
+    '[controls, onIdentify, selectControl, sessionControls, threadId]',
+  )
+  await replace(
+    conversation,
+    `      endpoint={threadId}
       entrySkills={entrySkills}`,
-    before: `      endpoint={threadId}
+    `      endpoint={threadId}
       git={git}`,
-    after: `      endpoint={threadId}
+    `      endpoint={threadId}
       entrySkills={entrySkills}
       git={git}`,
-  })
+  )
 
-  await replaceOnce({
-    path: 'packages/agent-ui/src/surface/assistant-surface.tsx',
-    label: 'type assistant entry skills',
-    marker: "import type { ComposerSkill } from '../composer/composer-actions'",
-    before: `import { AssistantComposer } from '../composer/assistant-composer'
+  const surface = 'packages/agent-ui/src/surface/assistant-surface.tsx'
+  await replace(
+    surface,
+    "import type { ComposerSkill } from '../composer/composer-actions'",
+    `import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance }`,
-    after: `import { AssistantComposer } from '../composer/assistant-composer'
+    `import { AssistantComposer } from '../composer/assistant-composer'
 import type { ComposerSkill } from '../composer/composer-actions'
 import { useDockClearance }`,
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/surface/assistant-surface.tsx',
-    label: 'remove unused swarm subscription',
-    marker: `  useAssistantQuestion,
+  )
+  await replace(
+    surface,
+    `  useAssistantQuestion,
   useAssistantSession,
 } from '../session/use-assistant-session'`,
-    before: `  useAssistantQuestion,
+    `  useAssistantQuestion,
   useAssistantSession,
   useAssistantSwarm,
 } from '../session/use-assistant-session'`,
-    after: `  useAssistantQuestion,
+    `  useAssistantQuestion,
   useAssistantSession,
 } from '../session/use-assistant-session'`,
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/surface/assistant-surface.tsx',
-    label: 'accept assistant entry skills',
-    marker: 'readonly entrySkills: readonly ComposerSkill[]',
-    before: `export interface AssistantSurfaceProps {
+  )
+  await replace(
+    surface,
+    'readonly entrySkills: readonly ComposerSkill[]',
+    `export interface AssistantSurfaceProps {
   /** 这一格代表的对话。`,
-    after: `export interface AssistantSurfaceProps {
+    `export interface AssistantSurfaceProps {
   readonly entrySkills: readonly ComposerSkill[]
   /** 这一格代表的对话。`,
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/surface/assistant-surface.tsx',
-    label: 'read assistant entry skills',
-    marker: `  endpoint,
+  )
+  await replace(
+    surface,
+    `  endpoint,
   entrySkills,`,
-    before: `  endpoint,
+    `  endpoint,
   git,`,
-    after: `  endpoint,
+    `  endpoint,
   entrySkills,
   git,`,
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/surface/assistant-surface.tsx',
-    label: 'select the authoritative skill scope',
-    marker: '  const threadSkills = useThreadSkills(endpoint)',
-    before: `  const skills = useThreadSkills(endpoint)
+  )
+  await replace(
+    surface,
+    '  const threadSkills = useThreadSkills(endpoint)',
+    `  const skills = useThreadSkills(endpoint)
   const mcpServers = useMcpServers()`,
-    after: `  const threadSkills = useThreadSkills(endpoint)
+    `  const threadSkills = useThreadSkills(endpoint)
   const skills = endpoint === null ? entrySkills : threadSkills
   const mcpServers = useMcpServers()`,
-  })
-
-  await replaceOnce({
-    path: 'packages/agent-ui/src/surface/assistant-surface.tsx',
-    label: 'remove the stale swarm read',
-    marker: `  const question = useAssistantQuestion(assistant.key)
+  )
+  await replace(
+    surface,
+    `  const question = useAssistantQuestion(assistant.key)
 
   const approval = useMemo`,
-    before: `  /* 这一段的处境：目标与在跑的子代理数，都从帧日志派生（kap 的 goal_start 与 agent_call / task）。 */
+    `  const question = useAssistantQuestion(assistant.key)
+
+  /* 这一段的处境：目标与在跑的子代理数，都从帧日志派生（kap 的 goal_start 与 agent_call / task）。 */
   const swarm = useAssistantSwarm(assistant.key)
 
-`,
-    after: '',
-  })
+  /*
+   * 待答的那一次审批。
+   *
+   * 交出去的是那一格自己的整副入参，不是三个各走各的 prop：这一层不摆它，只是
+   * 把它交给持有那张卡的人。引用只随「换了一个请求」或「分母变了」而变，所以流式
+   * 追加动不了被 memo 过的 composer。
+   */
+  const approval = useMemo`,
+    `  const question = useAssistantQuestion(assistant.key)
+
+  const approval = useMemo`,
+  )
 
   const test = `import type { AgentMcpServer } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
@@ -753,15 +708,10 @@ describe('composer capability palette', () => {
   })
 })
 `
-
-  await createOnce(
-    'packages/agent-ui/src/__tests__/composer-palette.test.tsx',
-    'add composer capability regression coverage',
-    test,
-  )
+  await create('packages/agent-ui/src/__tests__/composer-palette.test.tsx', test)
 
   const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
-  await run(pnpm, ['check'])
+  await command(pnpm, ['check'])
   console.log(changed === 0 ? 'refactor already applied' : `refactor applied (${changed} edits)`)
 }
 
@@ -771,7 +721,6 @@ main().catch(async (error) => {
   } catch (rollbackError) {
     console.error('rollback failed', rollbackError)
   }
-
   console.error(error)
   process.exitCode = 1
 })
