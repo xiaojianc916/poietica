@@ -43,6 +43,21 @@ const MAXED: readonly SessionConfigControl[] = [
   control('thought', 'thought', 'max', ['off', 'high', 'max']),
 ]
 
+/* 批准方式一格：purpose 是 permission，不是 mode —— 写错判据的那次事故就在这里。 */
+const WITH_PERMISSION: readonly SessionConfigControl[] = [
+  control('model', 'model', 'kimi-k2', ['kimi-k2', 'kimi-k3']),
+  {
+    id: 'permission',
+    label: '批准方式',
+    purpose: 'permission',
+    current: 'manual',
+    choices: [
+      { value: 'manual', label: '请求批准' },
+      { value: 'yolo', label: '帮我批准' },
+    ],
+  },
+]
+
 /* 让已经兑现的那些 then 跑完。这里没有计时器，所以不需要假时钟。 */
 async function settled(): Promise<void> {
   for (let tick = 0; tick < 32; tick += 1) {
@@ -227,6 +242,52 @@ describe('锚会话的那张表', () => {
     expect(sent[0]).toEqual({ id: 'model', value: 'kimi-k3', from: 'kimi-k2' })
     expect(sent[1]).toEqual({ id: 'thought', value: 'max', from: 'high' })
     expect(currentOf(store.snapshot().controls, 'thought')).toBe('max')
+
+    stop()
+  })
+
+  it('批准方式的点击落成持久意图，别的格子不落', async () => {
+    const written: string[] = []
+
+    const store = new AgentCapabilityStore({
+      posture: {
+        read: () => undefined,
+        write: (value) => {
+          written.push(value)
+        },
+      },
+    })
+
+    let table = WITH_PERMISSION
+
+    const stop = store.start({
+      read: () => Promise.resolve(table),
+      select: (_control, value) => {
+        table =
+          value === 'yolo'
+            ? WITH_PERMISSION.map((entry) =>
+                entry.id === 'permission' ? { ...entry, current: 'yolo' } : entry,
+              )
+            : table
+
+        return Promise.resolve(table)
+      },
+      subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
+    })
+
+    await settled()
+
+    store.selectControl('permission', 'yolo')
+    await settled()
+
+    expect(written).toEqual(['yolo'])
+
+    /* 模型不是跨会话的决定，不进持久意图。 */
+    store.selectControl('model', 'kimi-k3')
+    await settled()
+
+    expect(written).toEqual(['yolo'])
 
     stop()
   })

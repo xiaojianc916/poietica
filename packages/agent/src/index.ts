@@ -28,6 +28,7 @@ export {
   DEFAULT_WORKSPACE_ID,
   describeFailure,
   groupByWorkspace,
+  isPermissionPostureChange,
   permissionControlOf,
   permissionPostureOf,
   permissionPosturesOf,

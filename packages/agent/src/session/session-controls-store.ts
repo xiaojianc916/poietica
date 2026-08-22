@@ -13,7 +13,11 @@ import type {
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
-import { permissionControlOf, permissionPostureOf, postureAlignment } from './permission-posture'
+import {
+  isPermissionPostureChange,
+  permissionControlOf,
+  postureAlignment,
+} from './permission-posture'
 import type { TranscriptSink } from './transcript-sink'
 
 interface Held {
@@ -271,7 +275,7 @@ export class SessionControlsStore {
   selectControl = (threadId: string, controlId: string, value: string, input?: string): void => {
     const control = this.#held.selectors.get(threadId)?.find((offered) => offered.id === controlId)
 
-    if (control?.purpose === 'permission' && permissionPostureOf(value) !== undefined) {
+    if (control !== undefined && isPermissionPostureChange(control, value)) {
       this.#posture?.write(value)
       this.#alignedTo.set(threadId, value)
     }

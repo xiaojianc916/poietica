@@ -64,6 +64,16 @@ export function permissionPostureOf(value: string): PermissionPosture | undefine
 }
 
 /*
+ * 这一次点击算不算在改批准方式。
+ *
+ * 两台 store（锚会话与单条对话）共用这一句判据：判据写错一半，持久意图就只有
+ * 一半能落盘 —— 此前锚会话那一侧按 purpose==='mode' 判，点击永远到不了存储。
+ */
+export function isPermissionPostureChange(control: SessionConfigControl, value: string): boolean {
+  return control.purpose === 'permission' && permissionPostureOf(value) !== undefined
+}
+
+/*
  * 持久意图与 agent 此刻报的值不一致时，该补发的那个值。
  *
  * 三道闸：意图存在、与现状不同、agent 确实提供它。缺一条就什么都不发 —— 发一个

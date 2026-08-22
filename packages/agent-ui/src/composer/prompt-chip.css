@@ -4,7 +4,12 @@
   white-space: nowrap;
 }
 
+/*
+ * Preflight 把裸 svg 压成 display: block，不纠它图标就自成一行；
+ * inline-block 回到行内，随基线对齐。
+ */
 .assistant-prompt-chip__icon {
+  display: inline-block;
   margin-right: 3px;
-  vertical-align: -1.5px;
+  vertical-align: -2px;
 }

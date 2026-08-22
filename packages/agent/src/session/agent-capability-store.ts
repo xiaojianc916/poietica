@@ -6,7 +6,11 @@ import type {
 } from '@poietica/agent-contract'
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
-import { permissionControlOf, postureAlignment } from './permission-posture'
+import {
+  isPermissionPostureChange,
+  permissionControlOf,
+  postureAlignment,
+} from './permission-posture'
 
 /*
  * 锚会话提供哪些可调项，以及每一项此刻生效的是什么。
@@ -200,7 +204,7 @@ export class AgentCapabilityStore {
        * 批准方式同时是一个跨会话的决定，所以这一次点击既发给锚会话，也落成持久
        * 意图。写在发出之前，与 default_model 同一条顺序。
        */
-      if (control.purpose === 'mode') {
+      if (isPermissionPostureChange(control, value)) {
         this.#posture?.write(value)
         this.#alignedTo = value
       }

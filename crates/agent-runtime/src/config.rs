@@ -84,7 +84,7 @@ pub fn controls(status: &Value, catalog: &Value, goal: &Value) -> Vec<ConfigCont
     offered.push(goal_control(goal));
     offered.push(toggle_control(
         "swarm",
-        "蜂群",
+        "Swarm",
         "并行调度子代理",
         ConfigPurpose::Other,
         false,
