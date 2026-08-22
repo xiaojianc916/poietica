@@ -715,10 +715,17 @@
   color: var(--cp-timeline-danger-text);
 }
 
+/*
+ * 摘要只占一行，装不下就以省略号收尾。
+ *
+ * 截断的只是显示：点击复制交给剪贴板的仍是完整原文（见 error-notice.tsx），
+ * 原生 tooltip 会按原文长度铺开盖住流，所以这里也不挂 title。
+ */
 .timeline-error__text {
   min-inline-size: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 复制成功后那 2.2 秒，整行亮一档 —— 反馈是状态，不是另一种颜色。 */
