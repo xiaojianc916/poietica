@@ -37,7 +37,12 @@ import { type AutomationDraft, nextRunAfter } from './automation'
  *
  * 返回这次运行开出来的那条对话；开不出来返回 null。
  */
-export type AutomationDispatch = (automation: Automation) => Promise<string | null>
+export interface AutomationDispatchResult {
+  readonly threadId: string | null
+  readonly outcome: AutomationRun['outcome']
+}
+
+export type AutomationDispatch = (automation: Automation) => Promise<AutomationDispatchResult>
 
 export interface AutomationsViewModel {
   readonly automations: readonly Automation[]
@@ -151,28 +156,21 @@ export function createAutomationStore(): AutomationStore {
     inFlight.add(automation.id)
 
     const startedAt = new Date().toISOString()
-    let threadId: string | null = null
+    let result: AutomationDispatchResult = { threadId: null, outcome: 'failed' }
 
     try {
-      threadId = await invoke(automation)
+      result = await invoke(automation)
     } catch (cause: unknown) {
       warn('自动化这次没有跑起来', { scope: 'automations', cause })
     } finally {
       inFlight.delete(automation.id)
     }
 
-    /*
-     * 先具名，再提交。标注让三元里的 'failed' | 'succeeded' 收在 AutomationRun
-     * 的联合上，而不是被拓宽成 string。
-     *
-     * 结局记的是「这次运行有没有开起来」：对话开出来、指令经唯一的发送管线提交，
-     * 就是 succeeded。指令那一轮本身的成败由那条对话自己回答 —— 运行就是一条
-     * 对话，账本不存第二份运行状态。
-     */
+    /* 运行结果只由 agent turn 的终帧决定；thread 创建不是成功。 */
     const run: AutomationRun = {
-      threadId,
+      threadId: result.threadId,
       startedAt,
-      outcome: threadId === null ? 'failed' : 'succeeded',
+      outcome: result.outcome,
     }
 
     /*

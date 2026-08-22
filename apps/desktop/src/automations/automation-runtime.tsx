@@ -37,11 +37,13 @@ export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
   const transcripts = useTranscripts()
 
   useEffect(() => {
-    const dispatch = async (automation: Automation): Promise<string | null> => {
+    const dispatch = async (
+      automation: Automation,
+    ): Promise<{ readonly threadId: string | null; readonly outcome: 'succeeded' | 'failed' }> => {
       const threadId = await threads.create()
 
       if (threadId === null) {
-        return null
+        return { threadId: null, outcome: 'failed' }
       }
 
       /*
@@ -90,7 +92,12 @@ export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
         text: automation.prompt,
       })
 
-      return threadId
+      const terminal = await transcripts.waitForTerminal(threadId)
+
+      return {
+        threadId,
+        outcome: terminal === 'completed' ? 'succeeded' : 'failed',
+      }
     }
 
     return automationStore.start(dispatch)

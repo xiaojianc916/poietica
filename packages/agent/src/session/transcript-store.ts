@@ -8,6 +8,7 @@ import type {
   PromptConfiguration,
   PromptSkill,
   RunEvent,
+  RunStatus,
   ThreadHistory,
 } from '@poietica/agent-contract'
 import type { TimelineState } from '../timeline'
@@ -353,6 +354,47 @@ export class TranscriptStore implements TranscriptSink {
     return () => {
       this.#runningListeners.delete(listener)
     }
+  }
+
+  waitForTerminal = (
+    key: string,
+    signal?: AbortSignal,
+  ): Promise<Extract<RunStatus, 'completed' | 'cancelled' | 'failed'>> => {
+    type Terminal = Extract<RunStatus, 'completed' | 'cancelled' | 'failed'>
+    const terminalOf = (status: RunStatus): Terminal | null =>
+      status === 'completed' || status === 'cancelled' || status === 'failed' ? status : null
+    const ready = terminalOf(this.read(key).timeline.status)
+
+    if (ready !== null) {
+      return Promise.resolve(ready)
+    }
+
+    return new Promise<Terminal>((resolve, reject) => {
+      let off = () => {}
+      const finish = (terminal: Terminal) => {
+        off()
+        signal?.removeEventListener('abort', abort)
+        resolve(terminal)
+      }
+      const settle = () => {
+        const terminal = terminalOf(this.read(key).timeline.status)
+        if (terminal !== null) {
+          finish(terminal)
+        }
+      }
+      const abort = () => {
+        off()
+        reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'))
+      }
+
+      off = this.subscribe(key, settle)
+      if (signal?.aborted === true) {
+        abort()
+      } else {
+        signal?.addEventListener('abort', abort, { once: true })
+      }
+      settle()
+    })
   }
 
   /**

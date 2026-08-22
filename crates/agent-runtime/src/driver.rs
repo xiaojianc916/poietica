@@ -1190,7 +1190,6 @@ fn handle_ws_message(
                         )),
                     }
                 }
-
             }
         }
 
