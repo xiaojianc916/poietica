@@ -1,4 +1,8 @@
-import type { AgentMcpServer, PromptConfiguration, SessionConfigControl } from '@poietica/agent-contract'
+import type {
+  AgentMcpServer,
+  PromptConfiguration,
+  SessionConfigControl,
+} from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
 import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
