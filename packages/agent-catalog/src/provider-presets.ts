@@ -64,6 +64,12 @@ export interface AgentProviderPreset {
  * （kosong/src/catalog.ts 的 catalogModelToCapability）。
  * 思考：同一份 Zed 源码逐字 —— Thinking {Enabled|Disabled}（可整个关掉），
  * ReasoningEffort {High, Max} 带 #[serde(rename_all = "lowercase")]（档位 high / max）。
+ * 官方 2026-08-13 更新日志把两款的档位扩成 low / high / max，此处以日志为准。
+ *
+ * deepseek-v4-flash-vision-exp：官方更新日志 2026-08-21 逐字 —— 多模态视觉理解模型，
+ *   model='deepseek-v4-flash-vision-exp'，「纯文本能力与 DeepSeek-V4-Flash 相当」。
+ *   上下文因此沿用 Flash 那一格的出处（Zed 逐字 1_000_000）；深度思考没有它的
+ *   逐字证据，一格都不声明。
  */
 const DEEPSEEK: AgentProviderPreset = {
   id: 'deepseek',
@@ -77,13 +83,18 @@ const DEEPSEEK: AgentProviderPreset = {
       id: 'deepseek-v4-pro',
       displayName: 'DeepSeek V4 Pro',
       maxContextSize: 1000000,
-      thinking: { efforts: ['high', 'max'], toggle: true },
+      thinking: { efforts: ['low', 'high', 'max'], toggle: true },
     },
     {
       id: 'deepseek-v4-flash',
       displayName: 'DeepSeek V4 Flash',
       maxContextSize: 1000000,
-      thinking: { efforts: ['high', 'max'], toggle: true },
+      thinking: { efforts: ['low', 'high', 'max'], toggle: true },
+    },
+    {
+      id: 'deepseek-v4-flash-vision-exp',
+      displayName: 'DeepSeek V4 Flash Vision Exp',
+      maxContextSize: 1000000,
     },
   ],
 }
@@ -101,6 +112,10 @@ const DEEPSEEK: AgentProviderPreset = {
  * 与 GLM-4.6 都支持；reasoning_effort 仅 GLM-5.2 及以上，取值 max（默认且推荐）/
  * xhigh / high / medium / low / minimal / none，none 或 minimal 表示放弃思考。
  * glm-4.6 没有 reasoning_effort 的证据，只声明开关。
+ *
+ * glm-4-flash：官方 GLM-4 系列文档页逐字 —— 「免费语言模型 GLM-4-Flash」，
+ *   上下文窗口 128K；调用编码取官方 SDK 示例逐字 model="glm-4-flash"。
+ *   深度思考没有它的证据，一格都不声明。
  *
  * 注：Coding Plan 套餐另有 /api/coding/paas/v4 与 /api/anthropic 两个入口。等确认你
  * 用的是哪种账号再加，现在不猜。
@@ -127,6 +142,11 @@ const ZHIPU: AgentProviderPreset = {
       displayName: 'GLM-4.6',
       maxContextSize: 200000,
       thinking: { toggle: true },
+    },
+    {
+      id: 'glm-4-flash',
+      displayName: 'GLM-4-Flash',
+      maxContextSize: 128000,
     },
   ],
 }

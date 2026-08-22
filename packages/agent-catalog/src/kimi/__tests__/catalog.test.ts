@@ -127,7 +127,7 @@ describe('kimiCatalogCodec.catalogDocument', () => {
 
     expect(models['deepseek-v4-pro']?.reasoning).toBe(true)
     expect(models['deepseek-v4-pro']?.reasoning_options).toEqual([
-      { type: 'effort', values: ['high', 'max'] },
+      { type: 'effort', values: ['low', 'high', 'max'] },
       { type: 'toggle' },
     ])
   })
