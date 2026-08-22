@@ -15,10 +15,9 @@ export type KapEventPayload = {
 /**
  * 一轮按 agent 的说法结束时的原因。
  *
- * 上游的 turnEndReason 有四个（events-zod.ts），但 failed 与 blocked 在原生侧
- * 走 run_failed，所以 run_finished 这一格里只会出现这两个。
+ * 原始 turn.ended 保留完整失败载荷；run_finished 只封存它的四种终态。
  */
-export type KapStopReason = 'completed' | 'cancelled'
+export type KapStopReason = 'completed' | 'cancelled' | 'failed' | 'blocked'
 
 /** kap 发的会话号；协议签发，本侧只搬运。 */
 export type KapSessionId = string

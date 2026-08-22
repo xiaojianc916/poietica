@@ -67,11 +67,12 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
       return
     }
 
-    case 'turn.started':
+    case 'turn.started': {
+      return
+    }
+
     case 'turn.ended': {
-      /* 轮次起止的唯一权威是 projection.ts 的 run_started / run_finished
-         （原生侧正是从这两个 kap 事件合成的它们）。这里落账就是同一件事
-         记两遍。 */
+      applyTurnEnded(draft, event)
       return
     }
 
@@ -120,6 +121,55 @@ function applyDelta(draft: Draft, event: KapFrame): void {
 
 /* agent 自己的说法逐字进转录：一轮因额度或鉴权死掉时，这句话是屏幕上唯一的交代。
    code 是它的名字，一起留。 */
+function applyTurnEnded(draft: Draft, event: KapFrame): void {
+  const payload = event.payload
+  if (stringOf(payload, 'agentId') !== 'main') {
+    return
+  }
+
+  const reason = stringOf(payload, 'reason')
+  if (reason !== 'failed' && reason !== 'blocked') {
+    return
+  }
+
+  push(draft, {
+    type: 'error',
+    id: `${namespace(draft)}error-${String(event.seq)}`,
+    turn: draft.runIndex,
+    at: event.at,
+    message: kimiErrorMessage(fieldOf(payload, 'error')),
+  })
+}
+
+function kimiErrorMessage(value: unknown): string {
+  const error = kimiObject(value)
+  if (error === undefined) {
+    return 'KAP reported a failed main turn without structured error details.'
+  }
+
+  const rawCode = Reflect.get(error, 'code')
+  const rawMessage = Reflect.get(error, 'message')
+  const rawCause = Reflect.get(error, 'cause')
+  const code = typeof rawCode === 'string' ? rawCode : ''
+  const message = typeof rawMessage === 'string' ? rawMessage : ''
+  const head = [code, message].filter((part) => part.length > 0).join(': ')
+  const cause = rawCause === undefined ? '' : kimiErrorMessage(rawCause)
+
+  if (head.length === 0) {
+    return cause.length > 0 ? cause : 'KAP returned an invalid error payload.'
+  }
+  return cause.length > 0
+    ? `${head}
+← ${cause}`
+    : head
+}
+
+function kimiObject(value: unknown): Readonly<Record<string, unknown>> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Readonly<Record<string, unknown>>)
+    : undefined
+}
+
 function applyError(draft: Draft, event: KapFrame): void {
   const message = stringOf(event.payload, 'message')
 

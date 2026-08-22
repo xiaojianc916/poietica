@@ -250,15 +250,10 @@ describe('kap 投影', () => {
     const notAsked = state.items.filter((item) => item.type !== 'user_message')
 
     /*
-     * 唯一剩下的是空转那句告白：一轮结束却没有任何可看的条目时，投影自己说出
-     * 来的话（projection 的 silentTurn）。
-     *
-     * 它在这里不是噪声，是判据本身 —— 上面那六帧但凡有一帧落了账，这一轮就不
-     * 算空转，这句话根本不会出现。所以「它出现了」与「一个条目都没产」是同一
-     * 件事，而它比数条目更严：连一个不可见的条目都不许留下。
+     * 空转完成一个条目都不产：空回复不是错误（terminal-outcome 的判例）。
+     * 失败与受阻的轮次才落账 —— turn.ended 按 agentId 过滤后写结构化错误。
      */
-    expect(notAsked).toHaveLength(1)
-    expect(notAsked[0]).toMatchObject({ type: 'error', message: 'stopReason: completed' })
+    expect(notAsked).toHaveLength(0)
   })
 
   it('分类与主语来自 display，一档一映', () => {

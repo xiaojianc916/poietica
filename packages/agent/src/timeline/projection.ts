@@ -11,7 +11,6 @@
 
 import type { KapStopReason, RunEvent, RunStatus } from '@poietica/agent-contract'
 import { applyKapFrame } from './kap-projection'
-import { isRenderable } from './renderable'
 import type {
   MessageImage,
   PermissionItem,
@@ -145,30 +144,10 @@ export function apply(draft: Draft, event: RunEvent): void {
     }
 
     case 'run_finished': {
-      /* A turn can end on the agent terms and still be a failure: a rejected
-         provider request is reported by the agent itself, outside the
-         protocol, and the stop reason stays ordinary. When it left such an
-         account, that account is the entry, and our own wording never
-         appears at all. */
       sealTail(draft)
-      /* 一轮的结局是一轮的事实，不是它发起的每一次调用的事实。没等到终态的
-         调用就停在它最后被报到的地方：status 装的是协议值，也就是 agent 说过
-         的话，这一层没有资格替它补一句「失败」。停住的纺锤怎么画，归读模型。 */
+      /* turn.ended owns user-visible output; this frame only seals status. */
       draft.status = finalStatus(event.stopReason)
       markTurnEnd(draft, event.at)
-
-      const said = event.diagnostics?.trim() ?? ''
-      const told = said.length > 0 ? said : silentTurn(draft, event.stopReason)
-
-      if (told !== undefined) {
-        push(draft, {
-          type: 'error',
-          id: `${namespace(draft)}agent-${String(event.seq)}`,
-          turn: draft.runIndex,
-          at: event.at,
-          message: told,
-        })
-      }
 
       return
     }
@@ -296,13 +275,7 @@ function adoptQueuedPrompt(draft: Draft, prompt: string, shown: readonly Message
   return false
 }
 
-/**
- * 两份说法，都留下。
- *
- * message 是运行时报的（连接断了、进程没了），diagnostics 是 agent 自己说的
- * （Authentication required、配额用尽）。此前有后者时就把前者丢掉 —— 而排查
- * 一次失败要的恰好是两者的关系。重复的不写两遍，不重复的一句不删。
- */
+/** Transport context and process diagnostics describe different layers; keep both. */
 function preferAgent(message: string, diagnostics?: string): string {
   const said = diagnostics?.trim() ?? ''
   const ours = message.trim()
@@ -312,44 +285,6 @@ function preferAgent(message: string, diagnostics?: string): string {
   }
 
   return ours.length === 0 || said.includes(ours) ? said : `${message}\n${said}`
-}
-
-/**
- * 一轮结束，却一个字都没有。
- *
- * 这是一个事实，不是一句话：自这一轮的提问以来，转录里没有任何可看的条目。
- * 空转必须被说出来 —— 界面沉默等于把「我到底发出去了吗」丢给人自己猜。
- *
- * 但说出来的只能是协议自己的词：stopReason 的原值。
- *
- * agent 自己留下了 diagnostics 时根本走不到这里：一件事只有一个说法。
- *
- * 判据向后扫到本段边界为止，代价是一轮的长度，不是整条对话的长度；
- * isRenderable 与派生共用同一份 —— 抄第二份就会有两种「空」。提问单独跳过：
- * 它是两段之间的边界，不是这一段的产出。
- */
-function silentTurn(draft: Draft, stopReason: KapStopReason): string | undefined {
-  for (let index = draft.items.length - 1; index >= 0; index -= 1) {
-    const item = draft.items[index]
-
-    if (item === undefined) {
-      continue
-    }
-
-    if (item.turn !== draft.runIndex) {
-      break
-    }
-
-    if (item.type === 'user_message') {
-      continue
-    }
-
-    if (isRenderable(item)) {
-      return undefined
-    }
-  }
-
-  return `stopReason: ${stopReason}`
 }
 
 /**
@@ -400,7 +335,15 @@ function stillWaiting(draft: Draft): RunStatus {
 }
 
 function finalStatus(stopReason: KapStopReason): RunStatus {
-  return stopReason === 'cancelled' ? 'cancelled' : 'completed'
+  switch (stopReason) {
+    case 'completed':
+      return 'completed'
+    case 'cancelled':
+      return 'cancelled'
+    case 'failed':
+    case 'blocked':
+      return 'failed'
+  }
 }
 
 /**

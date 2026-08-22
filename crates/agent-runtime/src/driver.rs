@@ -1039,34 +1039,10 @@ async fn handle_ws_message(
     match event_type {
         // 轮次结束：收掉这一轮的记录器，没答的审批与没答的题都作废，终帧殿后。
         "event.session.work_changed" => {
+            /* work_changed 是会话活动投影，不是轮终错误通道。busy=false 只说明聚合已
+            空闲；正式结果由 main agent 的 turn.ended 携带。这里仅在聚合落定后推进
+            durable cursor，让同轮稍后到达的 error 事件也包含在续订水位内。 */
             if payload.get("busy").and_then(Value::as_bool) == Some(false) {
-                let last_turn_reason = payload
-                    .get("last_turn_reason")
-                    .and_then(Value::as_str)
-                    .unwrap_or("failed");
-                let state = sessions
-                    .entry(session_id.to_owned())
-                    .or_insert_with(SessionState::new);
-                let outstanding = std::mem::take(&mut state.pending_approvals);
-                let unanswered = std::mem::take(&mut state.pending_questions);
-
-                if let Ok(Some(slot)) = book.slot(session_id)
-                    && let Ok(Some(mut recorder)) = slot.take()
-                {
-                    recorder.record_pending_cancelled();
-                    match last_turn_reason {
-                        "completed" | "cancelled" => {
-                            recorder.record_run_finished(last_turn_reason);
-                        }
-                        _ => recorder.record_run_failed(
-                            "KAP ended the work aggregate without a terminal error event; check model quota, authentication, and connectivity.",
-                        ),
-                    }
-                }
-
-                desk.abandon(&outstanding);
-                questions.abandon(&unanswered);
-
                 let _sent = events_tx.unbounded_send(SessionEvent::Cursor {
                     session_id: session_id.to_owned(),
                     cursor: Cursor {
@@ -1079,61 +1055,47 @@ async fn handle_ws_message(
                 });
             }
         }
+
         "turn.ended" => {
-            let reason = payload
-                .get("reason")
-                .and_then(Value::as_str)
-                .unwrap_or("completed");
+            let is_main_turn = payload.get("agentId").and_then(Value::as_str) == Some("main");
 
-            let state = sessions
-                .entry(session_id.to_owned())
-                .or_insert_with(SessionState::new);
-            let outstanding = std::mem::take(&mut state.pending_approvals);
-            let unanswered = std::mem::take(&mut state.pending_questions);
-
-            if let Ok(Some(slot)) = book.slot(session_id)
-                && let Ok(Some(mut recorder)) = slot.take()
-            {
-                recorder.record_pending_cancelled();
-
-                match reason {
-                    "failed" | "blocked" => recorder.record_run_failed(&failure(payload, reason)),
-                    _ => recorder.record_run_finished(reason),
+            if is_main_turn {
+                /* 原始终态先入唯一事件日志，再关闭 recorder。它携带 KimiErrorPayload；
+                先压成字符串会永久丢失 code、retryable、details 与 cause。 */
+                if let Ok(Some(slot)) = book.slot(session_id) {
+                    let frame = kap_event(payload.clone());
+                    let _recorded = slot.record(|recorder| recorder.record_frame(frame));
                 }
-            }
 
-            desk.abandon(&outstanding);
-            questions.abandon(&unanswered);
+                let reason = payload
+                    .get("reason")
+                    .and_then(Value::as_str)
+                    .unwrap_or("invalid");
+                let state = sessions
+                    .entry(session_id.to_owned())
+                    .or_insert_with(SessionState::new);
+                let outstanding = std::mem::take(&mut state.pending_approvals);
+                let unanswered = std::mem::take(&mut state.pending_questions);
 
-            /* 读点与轮次同拍：一轮之内那些位置没有人会拿去续订，而一帧写一次库
-            正是持久层禁掉的事（record_frames）。轮终这一帧的位置，就是下一次重新
-            订阅要接上的地方。 */
-            let _sent = events_tx.unbounded_send(SessionEvent::Cursor {
-                session_id: session_id.to_owned(),
-                cursor: Cursor {
-                    seq,
-                    epoch: envelope
-                        .get("epoch")
-                        .and_then(Value::as_str)
-                        .map(str::to_owned),
-                },
-            });
+                if let Ok(Some(slot)) = book.slot(session_id)
+                    && let Ok(Some(mut recorder)) = slot.take()
+                {
+                    recorder.record_pending_cancelled();
 
-            let http = http.clone();
-            let base_url = base_url.to_owned();
-            let session_id = session_id.to_owned();
-            let events = events_tx.clone();
-            tokio::spawn(async move {
-                match get_selectors(&http, &base_url, &session_id).await {
-                    Ok(controls) => {
-                        let _sent = events.unbounded_send(SessionEvent::Selectors {
-                            session_id,
-                            controls,
-                        });
+                    match reason {
+                        "completed" | "cancelled" | "failed" | "blocked" => {
+                            /* 这是状态终帧；用户可见错误来自前一帧 turn.ended.error。 */
+                            recorder.record_run_finished(reason);
+                        }
+                        unknown => recorder.record_run_failed(&format!(
+                            "KAP turn.ended carried an unknown reason: {unknown}"
+                        )),
                     }
-                    Err(error) => log::warn!("could not refresh session controls: {error}"),
                 }
-            });
+
+                desk.abandon(&outstanding);
+                questions.abandon(&unanswered);
+            }
         }
 
         "agent.status.updated" => {
@@ -1188,22 +1150,6 @@ async fn handle_ws_message(
         }
 
         _ => {}
-    }
-}
-
-/// 一轮失败的说法。
-///
-/// turnEnded 的载荷是 { reason, error?, interruptReason?, … }（events-zod.ts）。
-/// 只记一个 "failed" 等于把 agent 说的那句话扔掉：界面上剩下「失败了」三个字，
-/// 排查得从头再跑一遍真回合。原话原样带出来，不解释也不翻译。
-fn failure(payload: &Value, reason: &str) -> String {
-    let interrupted = payload.get("interruptReason").and_then(Value::as_str);
-
-    match (payload.get("error"), interrupted) {
-        (Some(error), Some(why)) => format!("{reason}: {error} (interrupted: {why})"),
-        (Some(error), None) => format!("{reason}: {error}"),
-        (None, Some(why)) => format!("{reason} (interrupted: {why})"),
-        (None, None) => reason.to_owned(),
     }
 }
 
