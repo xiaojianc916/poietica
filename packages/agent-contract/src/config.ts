@@ -26,6 +26,8 @@ export interface SessionConfigControl {
   readonly label: string
   readonly detail?: string | undefined
   readonly purpose: SessionConfigPurpose
+  /** Present only when enabling this control belongs to the next prompt transaction. */
+  readonly appliesOnSubmit?: true
   /** The value in force right now. */
   readonly current: string
   readonly choices: readonly SessionConfigChoice[]

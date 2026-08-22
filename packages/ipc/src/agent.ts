@@ -228,6 +228,10 @@ export function createAgentSessionPort({
         commands.agentPrompt({
           text: request.text,
           threadId: request.threadId,
+          configuration: request.configuration.map((selected) => ({
+            id: selected.id,
+            value: selected.value,
+          })),
           /* readonly 的数组与生成绑定要的可变数组是两个类型，所以复制一次 ——
           数组复制只在这一层做。 */
           skills: request.skills.map((skill) => ({
@@ -316,6 +320,7 @@ function controlOf(native: AgentConfigControl): SessionConfigControl {
     id: native.id,
     label: native.label,
     purpose: native.purpose,
+    ...(native.appliesOnSubmit ? { appliesOnSubmit: true as const } : {}),
     current: native.current,
     choices: native.choices.map(choiceOf),
     ...detailOf(native.detail),

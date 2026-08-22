@@ -44,12 +44,21 @@ pub struct AgentPromptSkill {
     pub args: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentPromptConfiguration {
+    pub id: String,
+    pub value: String,
+}
+
 /// A prompt, and how to start the agent if it is not running yet.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptRequest {
     /// What the user typed.
     pub text: String,
+    /// Selector values committed as part of this prompt.
+    pub configuration: Vec<AgentPromptConfiguration>,
     /// 这一句带的图片，按它们在交付注册表里的位置点名。
     ///
     /// 与 text 是同一句话的两半，所以判空要一起判：只挑了图、没打字是一句
@@ -129,7 +138,7 @@ pub struct AgentCancelRequest {
 ///
 /// These are the categories the protocol defines. A category the agent
 /// invents beyond them arrives as other and is still shown.
-#[derive(Debug, Serialize, Type)]
+#[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentConfigPurpose {
     /// How tool approvals are decided.
@@ -145,7 +154,7 @@ pub enum AgentConfigPurpose {
 }
 
 /// One value a selector will accept.
-#[derive(Debug, Serialize, Type)]
+#[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfigChoice {
     /// The value sent back when this one is picked.
@@ -157,7 +166,7 @@ pub struct AgentConfigChoice {
 }
 
 /// One selector the running session offers.
-#[derive(Debug, Serialize, Type)]
+#[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfigControl {
     /// The identifier the agent answers to when the value is changed.
@@ -168,6 +177,8 @@ pub struct AgentConfigControl {
     pub detail: Option<String>,
     /// Where this selector belongs on screen.
     pub purpose: AgentConfigPurpose,
+    /// Enabling this selector is committed with the next prompt.
+    pub applies_on_submit: bool,
     /// The value in force right now.
     pub current: String,
     /// Every value on offer.
@@ -226,7 +237,7 @@ pub(super) fn reported_usage(value: &Value) -> Option<AgentSessionUsage> {
 /// 哪条对话」去做。它不出现在任何命令签名里，所以不进生成绑定 —— 事件不是命令。
 ///
 /// 内部标签，所以线上是一个判别联合：`{ kind: "selectors", … }`。
-#[derive(Debug, Serialize, Type)]
+#[derive(Clone, Debug, Serialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AgentSessionEvent {
     /// 那条会话上现在的整张选择器表。

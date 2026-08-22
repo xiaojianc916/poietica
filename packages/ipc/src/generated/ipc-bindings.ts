@@ -1228,6 +1228,10 @@ detail: string | null;
  */
 purpose: AgentConfigPurpose; 
 /**
+ * Enabling this selector is committed with the next prompt.
+ */
+appliesOnSubmit: boolean; 
+/**
  * The value in force right now.
  */
 current: string; 
@@ -1501,6 +1505,7 @@ sessionToken: string;
  * 它在那条会话里的令牌，也就是内容摘要。
  */
 assetToken: string }
+export type AgentPromptConfiguration = { id: string; value: string }
 /**
  * A prompt, and how to start the agent if it is not running yet.
  */
@@ -1509,6 +1514,10 @@ export type AgentPromptRequest = {
  * What the user typed.
  */
 text: string; 
+/**
+ * Selector values committed as part of this prompt.
+ */
+configuration: AgentPromptConfiguration[]; 
 /**
  * 这一句带的图片，按它们在交付注册表里的位置点名。
  * 

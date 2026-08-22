@@ -6,7 +6,9 @@ use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
 use poietica_agent_persistence_native::RecordedFrame;
-use poietica_agent_runtime_native::{FrameSink, PromptSkill, RecordedEvent};
+use poietica_agent_runtime_native::{
+    ConfigSelection, FrameSink, PromptSkill, RecordedEvent, apply_configurations,
+};
 use serde_json::value::{RawValue, to_raw_value};
 use tauri::{AppHandle, Emitter, Manager, State, async_runtime};
 use tokio::sync::mpsc;
@@ -15,14 +17,17 @@ use uuid::Uuid;
 
 use super::addressing::session_for;
 use super::attachment::{Kept, keep_bytes};
+use super::config::restate;
 use super::dto::{
     AgentAnswerQuestionsRequest, AgentCancelRequest, AgentDismissQuestionsRequest,
-    AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest, answered, decided,
+    AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest, AgentSessionEvent,
+    answered, decided,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
 use super::{
-    AGENT_EVENT, AgentCommandResult, FRAME_INTERVAL, IMAGE_OPENER, NO_CONVERSATION, NO_SESSION,
+    AGENT_EVENT, AGENT_SESSION_EVENT, AgentCommandResult, FRAME_INTERVAL, IMAGE_OPENER,
+    NO_CONVERSATION, NO_SESSION,
     NOTHING_TO_STOP, TITLE_CHARS,
 };
 
@@ -46,6 +51,14 @@ pub async fn agent_prompt(
     request: AgentPromptRequest,
 ) -> AgentCommandResult<AgentPromptResult> {
     let text = request.text.trim().to_owned();
+    let configuration: Vec<ConfigSelection> = request
+        .configuration
+        .into_iter()
+        .map(|selected| ConfigSelection {
+            id: selected.id,
+            value: selected.value,
+        })
+        .collect();
     let attached = request.assets;
     let skills = request
         .skills
@@ -77,6 +90,25 @@ pub async fn agent_prompt(
     let held = session_for(&state, &index, &session, named).await?;
     let thread_id = held.thread_id;
     let addressed = held.session_id;
+
+    if !configuration.is_empty() {
+        let offered = apply_configurations(
+            &session.client,
+            addressed.clone(),
+            configuration,
+            Some(text.clone()),
+        )
+        .await
+        .map_err(translate)?;
+
+        let _ignored = app.emit(
+            AGENT_SESSION_EVENT,
+            AgentSessionEvent::Selectors {
+                session_id: addressed.clone(),
+                selectors: offered.into_iter().map(restate).collect(),
+            },
+        );
+    }
 
     // The first thing said names the conversation, which is what a
     // conversation in a list should read as. Recorded as coming from the

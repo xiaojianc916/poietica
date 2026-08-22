@@ -29,6 +29,7 @@ pub struct ConfigControl {
     pub label: String,
     pub detail: Option<String>,
     pub purpose: ConfigPurpose,
+    pub applies_on_submit: bool,
     pub current: String,
     pub choices: Vec<ConfigChoice>,
 }
@@ -76,6 +77,8 @@ pub fn controls(status: &Value, catalog: &Value, goal: &Value) -> Vec<ConfigCont
         "plan",
         "计划",
         "只读分析并先产出计划",
+        ConfigPurpose::Mode,
+        false,
         status.get("plan_mode").and_then(Value::as_bool) == Some(true),
     ));
     offered.push(goal_control(goal));
@@ -83,6 +86,8 @@ pub fn controls(status: &Value, catalog: &Value, goal: &Value) -> Vec<ConfigCont
         "swarm",
         "蜂群",
         "并行调度子代理",
+        ConfigPurpose::Other,
+        false,
         status.get("swarm_mode").and_then(Value::as_bool) == Some(true),
     ));
 
@@ -143,17 +148,26 @@ fn permission_control(status: &Value) -> ConfigControl {
         label: "批准方式".to_owned(),
         detail: None,
         purpose: ConfigPurpose::Permission,
+        applies_on_submit: false,
         current: in_force(&choices, reported).unwrap_or_else(|| "manual".to_owned()),
         choices,
     }
 }
 
-fn toggle_control(id: &str, label: &str, detail: &str, enabled: bool) -> ConfigControl {
+fn toggle_control(
+    id: &str,
+    label: &str,
+    detail: &str,
+    purpose: ConfigPurpose,
+    applies_on_submit: bool,
+    enabled: bool,
+) -> ConfigControl {
     ConfigControl {
         id: id.to_owned(),
         label: label.to_owned(),
         detail: None,
-        purpose: ConfigPurpose::Mode,
+        purpose,
+        applies_on_submit,
         current: if enabled { ON } else { OFF }.to_owned(),
         choices: vec![
             ConfigChoice {
@@ -179,6 +193,8 @@ fn goal_control(goal: &Value) -> ConfigControl {
         "goal",
         "目标",
         "以当前草稿为目标持续推进",
+        ConfigPurpose::Mode,
+        true,
         objective.is_some(),
     );
     control.detail = objective;
@@ -213,6 +229,7 @@ fn model_control(current: &str, items: Option<&[Value]>) -> Option<ConfigControl
         label: "Model".to_owned(),
         detail: None,
         purpose: ConfigPurpose::Model,
+        applies_on_submit: false,
         current: in_force(&choices, current)?,
         choices,
     })
@@ -225,6 +242,7 @@ fn thinking_control(reported: &str, model: &str, items: Option<&[Value]>) -> Opt
         label: "Thinking".to_owned(),
         detail: None,
         purpose: ConfigPurpose::Thought,
+        applies_on_submit: false,
         current: offer.current,
         choices: offer.choices,
     })

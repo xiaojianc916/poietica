@@ -39,9 +39,16 @@ export interface PromptSkill {
   readonly args?: string | undefined
 }
 
+/** A selector value committed before the prompt enters the agent. */
+export interface PromptConfiguration {
+  readonly id: string
+  readonly value: string
+}
+
 export interface AgentPromptRequest {
   readonly threadId: ThreadId
   readonly text: string
+  readonly configuration: readonly PromptConfiguration[]
   /**
    * 这一句带的图片。
    *

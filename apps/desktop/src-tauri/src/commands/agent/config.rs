@@ -107,6 +107,7 @@ pub(super) fn restate(control: ConfigControl) -> AgentConfigControl {
             ConfigPurpose::Thought => AgentConfigPurpose::Thought,
             ConfigPurpose::Other => AgentConfigPurpose::Other,
         },
+        applies_on_submit: control.applies_on_submit,
         current: control.current,
         choices: control
             .choices

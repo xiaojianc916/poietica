@@ -1,13 +1,58 @@
+use std::collections::HashSet;
 use std::time::Duration;
 
 use futures::channel::oneshot;
 
 use crate::commands::AgentClient;
-use crate::config::{ConfigControl, ConfigPurpose};
+use crate::config::{ConfigControl, ConfigPurpose, selector_patch};
 use crate::error::{KapError, Refusal, Result};
 
 const SETTLE_ATTEMPTS: usize = 20;
 const SETTLE_INTERVAL: Duration = Duration::from_millis(25);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfigSelection {
+    pub id: String,
+    pub value: String,
+}
+
+/// Validates the complete prompt configuration before writing any selector,
+/// skips values already in force, and returns the one authoritative table.
+pub async fn apply_configurations(
+    client: &AgentClient,
+    session_id: String,
+    selections: Vec<ConfigSelection>,
+    input: Option<String>,
+) -> Result<Vec<ConfigControl>> {
+    let mut ids = HashSet::new();
+    for selection in &selections {
+        if !ids.insert(selection.id.as_str()) {
+            return Err(KapError::Validation {
+                message: format!("prompt configuration repeats selector {}", selection.id),
+            });
+        }
+        let _validated = selector_patch(&selection.id, &selection.value, input.as_deref())?;
+    }
+
+    let mut controls = receive(client.selectors(session_id.clone())?).await?;
+    for selection in selections {
+        if controls
+            .iter()
+            .any(|control| control.id == selection.id && control.current == selection.value)
+        {
+            continue;
+        }
+        controls = select_config(
+            client,
+            session_id.clone(),
+            selection.id,
+            selection.value,
+            input.clone(),
+        )
+        .await?;
+    }
+    Ok(controls)
+}
 
 /// Changes one session control and waits until the agent reports that value as
 /// effective. A model change is a compound transaction: after the model has
@@ -107,6 +152,7 @@ mod tests {
             label: id.to_owned(),
             detail: None,
             purpose,
+            applies_on_submit: false,
             current: current.to_owned(),
             choices: choices
                 .iter()

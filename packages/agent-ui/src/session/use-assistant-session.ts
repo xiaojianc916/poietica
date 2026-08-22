@@ -20,6 +20,7 @@ import type {
   ChatStatus,
   FrameCursor,
   PromptAsset,
+  PromptConfiguration,
   PromptSkill,
   QuestionResponse,
 } from '@poietica/agent-contract'
@@ -54,6 +55,7 @@ export interface AssistantSubmission {
    * 一次 base64），所以发送这条路上再没有任何要读、要编码、要等的东西。
    */
   readonly assets: readonly PromptAsset[]
+  readonly configuration: readonly PromptConfiguration[]
   readonly skills: readonly PromptSkill[]
 }
 
@@ -199,6 +201,7 @@ export function useAssistantSession({
     (submission: AssistantSubmission) => {
       transcripts.send({
         assets: submission.assets,
+        configuration: submission.configuration,
         endpoint,
         identify,
         key,

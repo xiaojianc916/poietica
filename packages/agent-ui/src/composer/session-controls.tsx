@@ -7,8 +7,10 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuRadioItemIndicator,
   DropdownMenuTrigger,
+  Switch,
 } from '@poietica/ui'
 import { Fragment, memo, useMemo, useState } from 'react'
+import { isToggleControl } from './composer-actions'
 
 /*
  * Everything the session lets us change, in one control.
@@ -68,6 +70,14 @@ export function hasUnavailableThinking(controls: readonly SessionConfigControl[]
   )
 }
 
+export function sessionControlRows(
+  controls: readonly SessionConfigControl[],
+): readonly SessionConfigControl[] {
+  return [...controls]
+    .filter((control) => ['model', 'thought', 'other'].includes(control.purpose))
+    .sort((left, right) => rank(left.purpose) - rank(right.purpose))
+}
+
 export interface SessionControlsProps {
   readonly controls: readonly SessionConfigControl[]
   readonly failure?: string | undefined
@@ -83,13 +93,7 @@ export const SessionControls = memo(function SessionControls({
   onRetry,
   onSelect,
 }: SessionControlsProps) {
-  const rows = useMemo(
-    () =>
-      [...controls]
-        .filter((control) => control.purpose !== 'mode')
-        .sort((left, right) => rank(left.purpose) - rank(right.purpose)),
-    [controls],
-  )
+  const rows = useMemo(() => sessionControlRows(controls), [controls])
 
   const model = useMemo(() => controls.find((control) => control.purpose === 'model'), [controls])
   const showUnavailableThinking = hasUnavailableThinking(rows)
@@ -147,17 +151,39 @@ export const SessionControls = memo(function SessionControls({
         {drilled === undefined ? (
           rows.map((control) => (
             <Fragment key={control.id}>
-              <DropdownMenuItem
-                className="assistant-config-menu__row"
-                closeOnClick={false}
-                onClick={() => {
-                  setPane(control.id)
-                }}
-              >
-                <span className="assistant-config-menu__row-label">{control.label}</span>
+              {isToggleControl(control) ? (
+                <DropdownMenuItem
+                  aria-checked={control.current === 'on'}
+                  className="assistant-config-menu__row"
+                  closeOnClick={false}
+                  onClick={() => {
+                    onSelect(control.id, control.current === 'on' ? 'off' : 'on')
+                  }}
+                  role="menuitemcheckbox"
+                >
+                  <span className="assistant-config-menu__row-label">{control.label}</span>
 
-                <span className="assistant-config-menu__row-value">{chosen(control)}</span>
-              </DropdownMenuItem>
+                  <Switch
+                    aria-hidden="true"
+                    checked={control.current === 'on'}
+                    className="pointer-events-none ml-auto"
+                    size="sm"
+                    tabIndex={-1}
+                  />
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  className="assistant-config-menu__row"
+                  closeOnClick={false}
+                  onClick={() => {
+                    setPane(control.id)
+                  }}
+                >
+                  <span className="assistant-config-menu__row-label">{control.label}</span>
+
+                  <span className="assistant-config-menu__row-value">{chosen(control)}</span>
+                </DropdownMenuItem>
+              )}
 
               {showUnavailableThinking && control.purpose === 'model' ? (
                 <DropdownMenuItem className="assistant-config-menu__row" disabled>

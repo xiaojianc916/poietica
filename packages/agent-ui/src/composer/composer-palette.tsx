@@ -1,5 +1,6 @@
 import './composer-palette.css'
 
+import type { PromptConfiguration } from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
 import { CheckIcon } from '../primitives/icons'
 
@@ -19,6 +20,11 @@ import { CheckIcon } from '../primitives/icons'
  */
 export type PaletteAction =
   | { readonly kind: 'insert'; readonly chip: import('./prompt-chip').PromptChipValue }
+  | {
+      readonly kind: 'configure'
+      readonly configuration: PromptConfiguration
+      readonly label: string
+    }
   | { readonly kind: 'run'; readonly run: (draft: string) => void }
 
 export interface PaletteRow {

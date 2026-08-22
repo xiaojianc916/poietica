@@ -6,6 +6,7 @@ import type {
   AgentMcpServer,
   AgentSkill,
   ChatStatus,
+  PromptConfiguration,
   PromptSkill,
   QuestionResponse,
   SessionConfigControl,
@@ -14,7 +15,12 @@ import type {
 import { memo, type Ref, useMemo } from 'react'
 import type { ComposerAsset } from './attachment-intake'
 import { AttachmentTray } from './attachment-tray'
-import { ComposerActions, ComposerChips, composerPaletteGroups } from './composer-actions'
+import {
+  activePromptConfiguration,
+  ComposerActions,
+  ComposerChips,
+  composerPaletteGroups,
+} from './composer-actions'
 import { ContextGauge } from './context-gauge'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PermissionPicker } from './permission-picker'
@@ -44,6 +50,7 @@ export interface AssistantComposerProps {
   readonly status?: ChatStatus
   readonly onSubmit: (input: {
     readonly text: string
+    readonly configuration: readonly PromptConfiguration[]
     readonly assets: readonly ComposerAsset[]
     readonly skills: readonly PromptSkill[]
   }) => void
@@ -97,13 +104,7 @@ export interface AssistantComposerProps {
  */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  | 'controls'
-  | 'controlsFailure'
-  | 'onCancel'
-  | 'onRetryControls'
-  | 'onSelectControl'
-  | 'swarm'
-  | 'usage'
+  'controls' | 'controlsFailure' | 'onCancel' | 'onRetryControls' | 'onSelectControl' | 'usage'
 > & { readonly status: ChatStatus }
 
 function ComposerToolbar({
@@ -113,7 +114,6 @@ function ComposerToolbar({
   onRetryControls,
   onSelectControl,
   status,
-  swarm,
   usage,
 }: ComposerToolbarProps) {
   /*
@@ -139,7 +139,7 @@ function ComposerToolbar({
         <PermissionPicker controls={controls} onSelect={onSelectControl} />
 
         {/* 这一句的处境：模式归 agent，目标与蜂群归转录。 */}
-        <ComposerChips controls={controls} onSelect={onSelectControl} swarm={swarm} />
+        <ComposerChips controls={controls} onSelect={onSelectControl} />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />
@@ -208,6 +208,11 @@ export const AssistantComposer = memo(function AssistantComposer({
   const asking = question != null
 
   /* agent 报的选择器与技能，摊平一次交给输入框。引用稳定，面板才不会每敲一字重建。 */
+  const configuration = useMemo(
+    () => activePromptConfiguration(toolbar.controls),
+    [toolbar.controls],
+  )
+
   const groups = useMemo(
     () =>
       composerPaletteGroups({
@@ -234,6 +239,7 @@ export const AssistantComposer = memo(function AssistantComposer({
 
       <PromptInput
         className={asking ? 'assistant-prompt-input--question' : undefined}
+        configuration={configuration}
         groups={groups}
         multiple
         onSubmit={onSubmit}

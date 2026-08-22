@@ -1,17 +1,14 @@
-import type { AgentMcpServer, AgentSkill, SessionConfigControl } from '@poietica/agent-contract'
+import type {
+  AgentMcpServer,
+  AgentSkill,
+  PromptConfiguration,
+  SessionConfigControl,
+} from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
-import {
-  CloseIcon,
-  GoalIcon,
-  PlusIcon,
-  SirenIcon,
-  SkillIcon,
-  SwarmIcon,
-  ToolIcon,
-} from '../primitives/icons'
+import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
 import type { PromptChipValue } from './prompt-chip'
-import { usePromptInputActions } from './prompt-input'
+import { usePromptInputActions, usePromptInputDraft } from './prompt-input'
 
 export function ComposerActions() {
   const { togglePalette } = usePromptInputActions()
@@ -45,25 +42,48 @@ function insertRow(
   }
 }
 
+export function isToggleControl(control: SessionConfigControl): boolean {
+  const values = new Set(control.choices.map((choice) => choice.value))
+  return values.size === 2 && values.has('off') && values.has('on')
+}
+
+export function activePromptConfiguration(
+  controls: readonly SessionConfigControl[],
+): readonly PromptConfiguration[] {
+  return controls
+    .filter(
+      (control) =>
+        control.appliesOnSubmit !== true && isToggleControl(control) && control.current === 'on',
+    )
+    .map((control) => ({ id: control.id, value: control.current }))
+}
+
 function toggleRow(
   control: SessionConfigControl,
   onSelect: ComposerPaletteSource['onSelectControl'],
 ): PaletteRow {
   const enabled = control.current === 'on'
   const choice = control.choices.find((candidate) => candidate.value === 'on')
-  const Icon = control.id === 'goal' ? GoalIcon : control.id === 'swarm' ? SwarmIcon : SirenIcon
+  const Icon = control.id === 'goal' ? GoalIcon : SirenIcon
   return {
     id: control.id,
     icon: <Icon aria-hidden="true" />,
     label: control.label,
     ...(choice?.detail === undefined ? {} : { detail: choice.detail }),
     checked: enabled,
-    action: {
-      kind: 'run',
-      run: (draft) => {
-        onSelect(control.id, enabled ? 'off' : 'on', control.id === 'goal' ? draft : undefined)
-      },
-    },
+    action:
+      !enabled && control.appliesOnSubmit === true
+        ? {
+            kind: 'configure',
+            configuration: { id: control.id, value: 'on' },
+            label: control.label,
+          }
+        : {
+            kind: 'run',
+            run: () => {
+              onSelect(control.id, enabled ? 'off' : 'on')
+            },
+          },
   }
 }
 
@@ -105,7 +125,7 @@ export function composerPaletteGroups({
   }
 
   for (const control of controls) {
-    if (control.purpose !== 'other' || control.choices.length === 0) {
+    if (control.purpose !== 'other' || control.choices.length === 0 || isToggleControl(control)) {
       continue
     }
     groups.push({
@@ -153,41 +173,30 @@ export function composerPaletteGroups({
 export interface ComposerChipsProps {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelect: (controlId: string, value: string) => void
-  readonly swarm?: number | undefined
 }
 
 function glyph(controlId: string): ReactNode {
-  if (controlId === 'goal') {
-    return <GoalIcon />
-  }
-  if (controlId === 'swarm') {
-    return <SwarmIcon />
-  }
-  return <SirenIcon />
+  return controlId === 'goal' ? <GoalIcon /> : <SirenIcon />
 }
 
-function label(control: SessionConfigControl, swarm: number | undefined): string {
-  if (control.id === 'goal' && control.detail) {
-    return `目标：${control.detail}`
-  }
-  if (control.id === 'swarm' && swarm !== undefined && swarm > 0) {
-    return `蜂群 · ${String(swarm)}`
-  }
-  return control.label
+function label(control: SessionConfigControl): string {
+  return control.id === 'goal' && control.detail ? `目标：${control.detail}` : control.label
 }
 
-export function ComposerChips({ controls, onSelect, swarm }: ComposerChipsProps) {
+export function ComposerChips({ controls, onSelect }: ComposerChipsProps) {
+  const { configuration } = usePromptInputDraft()
+  const { removeConfiguration } = usePromptInputActions()
   const active = controls.filter(
     (control) => control.purpose === 'mode' && control.current === 'on',
   )
-  if (active.length === 0) {
+  if (active.length === 0 && configuration.length === 0) {
     return null
   }
   return (
     <>
       <span aria-hidden="true" className="assistant-mode-chip__divider" />
       {active.map((control) => {
-        const text = label(control, swarm)
+        const text = label(control)
         return (
           <button
             aria-label={`退出 ${text}`}
@@ -206,6 +215,23 @@ export function ComposerChips({ controls, onSelect, swarm }: ComposerChipsProps)
           </button>
         )
       })}
+      {configuration.map((selected) => (
+        <button
+          aria-label={`取消 ${selected.label}`}
+          className="assistant-mode-chip"
+          key={`pending:${selected.id}`}
+          onClick={() => removeConfiguration(selected.id)}
+          type="button"
+        >
+          <span aria-hidden="true" className="assistant-mode-chip__icon">
+            <span className="assistant-mode-chip__glyph">{glyph(selected.id)}</span>
+            <span className="assistant-mode-chip__remove">
+              <CloseIcon />
+            </span>
+          </span>
+          <span className="assistant-mode-chip__label">{selected.label}</span>
+        </button>
+      ))}
     </>
   )
 }

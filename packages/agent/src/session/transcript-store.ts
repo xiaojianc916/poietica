@@ -5,6 +5,7 @@ import type {
   FrameCursor,
   FramePage,
   PromptAsset,
+  PromptConfiguration,
   PromptSkill,
   RunEvent,
   ThreadHistory,
@@ -96,6 +97,7 @@ export interface SendOptions {
   readonly text: string
   /** 这一句带的图片，按它们在原生交付注册表里的位置点名。 */
   readonly assets: readonly PromptAsset[]
+  readonly configuration: readonly PromptConfiguration[]
   readonly skills: readonly PromptSkill[]
   readonly identify?: (() => Promise<string | null>) | undefined
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
@@ -512,6 +514,7 @@ export class TranscriptStore implements TranscriptSink {
 
   send = ({
     assets,
+    configuration,
     endpoint,
     identify,
     key,
@@ -563,7 +566,7 @@ export class TranscriptStore implements TranscriptSink {
          */
         onUserMessage?.(threadId, text.trim() === '' && assets.length > 0 ? IMAGE_OPENER : text)
 
-        return port.prompt({ threadId, text, assets, skills }).then((handle) => {
+        return port.prompt({ threadId, text, assets, configuration, skills }).then((handle) => {
           /*
            * 地址早就在表里了：这条对话打开的那一刻就登记过（route）。
            *

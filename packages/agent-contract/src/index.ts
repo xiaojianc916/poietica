@@ -43,6 +43,7 @@ export type {
   AgentPromptRequest,
   AgentSessionPort,
   PromptAsset,
+  PromptConfiguration,
   PromptSkill,
 } from './session'
 export type { AgentSkill, AgentSkillPort } from './skill'

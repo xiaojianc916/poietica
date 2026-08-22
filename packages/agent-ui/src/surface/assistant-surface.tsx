@@ -230,7 +230,6 @@ export const AssistantSurface = memo(function AssistantSurface({
         ref={composer}
         skills={skills}
         status={assistant.status}
-        swarm={swarm}
         usage={usage}
       />
     </div>

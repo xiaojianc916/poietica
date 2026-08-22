@@ -60,7 +60,7 @@ pub use question::{
 };
 pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine, now_millis};
 pub use run_slot::RunSlot;
-pub use selection::select_config;
+pub use selection::{ConfigSelection, apply_configurations, select_config};
 pub use session::{
     AgentConnection, AgentSpawn, Cursor, Handshake, McpServer, McpStatus, McpTransport,
     OpenedSession, SessionEntry, SessionEvent, SessionEvents, Skill,

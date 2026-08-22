@@ -3,7 +3,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
-import type { ChatStatus, PromptSkill } from '@poietica/agent-contract'
+import type { ChatStatus, PromptConfiguration, PromptSkill } from '@poietica/agent-contract'
 import {
   $createParagraphNode,
   $createTextNode,
@@ -53,6 +53,7 @@ export type { ChatStatus }
 
 export interface PromptInputMessage {
   readonly text: string
+  readonly configuration: readonly PromptConfiguration[]
   readonly assets: readonly ComposerAsset[]
   readonly skills: readonly PromptSkill[]
 }
@@ -60,10 +61,22 @@ export interface PromptInputMessage {
 const NO_ATTACHMENTS: readonly ComposerAsset[] = []
 const NO_GROUPS: readonly PaletteGroup[] = []
 
-/** 这一格此刻攒着的可发内容。整串草稿不出现在这里，因为没有人需要它。 */
+export interface PendingPromptConfiguration extends PromptConfiguration {
+  readonly label: string
+}
+
+/** 这一格此刻攒着的可发内容。 */
 export interface PromptInputDraft {
   readonly hasText: boolean
   readonly hasFiles: boolean
+  readonly requiresText: boolean
+  readonly configuration: readonly PendingPromptConfiguration[]
+}
+
+export function canSubmitDraft(
+  draft: Pick<PromptInputDraft, 'hasText' | 'hasFiles' | 'requiresText'>,
+): boolean {
+  return draft.requiresText ? draft.hasText : draft.hasText || draft.hasFiles
 }
 
 interface PromptInputActions {
@@ -71,6 +84,7 @@ interface PromptInputActions {
   readonly focusEditor: () => void
   readonly addAssets: (assets: readonly ComposerAsset[]) => void
   readonly removeAttachment: (assetToken: string) => void
+  readonly removeConfiguration: (id: string) => void
   readonly openFilePicker: () => void
   readonly requestSubmit: () => void
   /** 翻开或合上加号那张面板。 */
@@ -180,6 +194,7 @@ export interface PromptInputProps {
   readonly maxFiles?: number
   /** 面板里 agent 那几组（模式、技能、命令、other 选择器）。「添加」组由这个框自己起头。 */
   readonly groups?: readonly PaletteGroup[] | undefined
+  readonly configuration?: readonly PromptConfiguration[] | undefined
   readonly onSubmit: (message: PromptInputMessage) => void
 }
 
@@ -206,6 +221,7 @@ export function PromptInput(props: PromptInputProps) {
 function PromptInputShell({
   children,
   className,
+  configuration: carriedConfiguration = [],
   groups,
   maxFiles,
   multiple = false,
@@ -216,6 +232,9 @@ function PromptInputShell({
   const intake = useAttachmentIntake()
   const [draftText, setDraftText] = useState(EMPTY_PROJECTION)
   const [attachments, setAttachments] = useState<readonly ComposerAsset[]>([])
+  const [pendingConfiguration, setPendingConfiguration] = useState<
+    readonly PendingPromptConfiguration[]
+  >([])
   const [paletteOpened, setPaletteOpened] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
 
@@ -347,6 +366,18 @@ function PromptInputShell({
     })
   }, [addAssets, intake, multiple])
 
+  const removeConfiguration = useCallback((id: string) => {
+    setPendingConfiguration((current) => current.filter((selected) => selected.id !== id))
+  }, [])
+
+  const toggleConfiguration = useCallback((selected: PendingPromptConfiguration) => {
+    setPendingConfiguration((current) =>
+      current.some((candidate) => candidate.id === selected.id)
+        ? current.filter((candidate) => candidate.id !== selected.id)
+        : [...current.filter((candidate) => candidate.id !== selected.id), selected],
+    )
+  }, [])
+
   const togglePalette = useCallback(() => {
     setHighlighted(0)
     setPaletteOpened((open) => !open)
@@ -378,6 +409,7 @@ function PromptInputShell({
       focusEditor,
       addAssets,
       removeAttachment,
+      removeConfiguration,
       openFilePicker,
       requestSubmit,
       togglePalette,
@@ -387,6 +419,7 @@ function PromptInputShell({
       focusEditor,
       openFilePicker,
       removeAttachment,
+      removeConfiguration,
       requestSubmit,
       setText,
       togglePalette,
@@ -395,7 +428,15 @@ function PromptInputShell({
 
   const hasText = draftText.text.trim().length > 0
   const hasFiles = attachments.length > 0
-  const draft = useMemo<PromptInputDraft>(() => ({ hasText, hasFiles }), [hasFiles, hasText])
+  const draft = useMemo<PromptInputDraft>(
+    () => ({
+      hasText,
+      hasFiles,
+      requiresText: pendingConfiguration.length > 0,
+      configuration: pendingConfiguration,
+    }),
+    [hasFiles, hasText, pendingConfiguration],
+  )
 
   const allGroups = useMemo<readonly PaletteGroup[]>(
     () => [
@@ -417,7 +458,23 @@ function PromptInputShell({
     [groups, openFilePicker],
   )
 
-  const visible = allGroups
+  const visible = useMemo(
+    () =>
+      allGroups.map((group) => ({
+        ...group,
+        rows: group.rows.map((row) =>
+          row.action.kind === 'configure'
+            ? {
+                ...row,
+                checked: pendingConfiguration.some(
+                  (selected) => selected.id === row.action.configuration.id,
+                ),
+              }
+            : row,
+        ),
+      })),
+    [allGroups, pendingConfiguration],
+  )
   const rows = useMemo(() => visible.flatMap((group) => group.rows), [visible])
   const paletteOpen = paletteOpened && rows.length > 0
   const active = paletteOpen ? rows[highlighted] : undefined
@@ -439,6 +496,11 @@ function PromptInputShell({
         focusEditor()
         return
       }
+      if (row.action.kind === 'configure') {
+        toggleConfiguration({ ...row.action.configuration, label: row.action.label })
+        focusEditor()
+        return
+      }
       editor.update(() => {
         const selection = $getSelection()
         if (!$isRangeSelection(selection)) {
@@ -456,7 +518,7 @@ function PromptInputShell({
       })
       focusEditor()
     },
-    [closePalette, draftText.text, editor, focusEditor],
+    [closePalette, draftText.text, editor, focusEditor, toggleConfiguration],
   )
 
   /* 点到卡外就收面板：捕获相 pointerdown，因为点不可聚焦区域不移走焦点。 */
@@ -568,12 +630,27 @@ function PromptInputShell({
 
               const said = draftText.text.trim()
 
-              if (said.length === 0 && attachments.length === 0) {
+              if (
+                !canSubmitDraft({
+                  hasText: said.length > 0,
+                  hasFiles: attachments.length > 0,
+                  requiresText: pendingConfiguration.length > 0,
+                })
+              ) {
                 return
               }
 
-              onSubmit({ text: said, assets: attachments, skills: draftText.skills })
+              onSubmit({
+                text: said,
+                assets: attachments,
+                skills: draftText.skills,
+                configuration: [
+                  ...carriedConfiguration,
+                  ...pendingConfiguration.map(({ id, value }) => ({ id, value })),
+                ],
+              })
               clearDraft(editor)
+              setPendingConfiguration([])
               rewindPalette()
 
               /* 不 discard：这些字节现在归这条对话的交付会话。 */
@@ -664,7 +741,7 @@ export function PromptInputSubmit({
   readonly onCancel?: (() => void) | undefined
 }) {
   /* 能不能发，由持有草稿的这一侧自己答。 */
-  const { hasFiles, hasText } = usePromptInputDraft()
+  const draft = usePromptInputDraft()
   const isStreaming = status === 'streaming'
   const Icon = isStreaming ? StopIcon : status === 'submitted' ? SpinnerIcon : SubmitIcon
 
@@ -675,7 +752,7 @@ export function PromptInputSubmit({
       className={className}
       data-slot="prompt-input-submit"
       data-status={status}
-      disabled={disabled ?? (!isStreaming && !hasText && !hasFiles)}
+      disabled={disabled ?? (!isStreaming && !canSubmitDraft(draft))}
       onClick={isStreaming ? onCancel : undefined}
       type={isStreaming ? 'button' : 'submit'}
     >

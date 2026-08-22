@@ -17,7 +17,8 @@ use crate::commands::{
         AgentAnswerQuestionsRequest, AgentArchiveThreadRequest, AgentCapabilitiesRequest,
         AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentDismissQuestionsRequest,
         AgentEarlierFramesRequest, AgentForkThreadRequest, AgentPinThreadRequest,
-        AgentPromptRequest, AgentPromptResult, AgentPromptSkill, AgentQuestionAnswer, AgentQuestionChoice,
+        AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult, AgentPromptSkill,
+        AgentQuestionAnswer, AgentQuestionChoice,
         AgentQuestionMethod, AgentRenameThreadRequest, AgentResolvePermissionRequest,
         AgentSelectConfigRequest, AgentThreadRequest,
     },
@@ -152,6 +153,7 @@ pub fn surface() -> Builder<Wry> {
             UpdateProgress
         ])
         .typ::<AgentPromptRequest>()
+        .typ::<AgentPromptConfiguration>()
         .typ::<AgentPromptResult>()
         .typ::<AgentPromptSkill>()
         .typ::<AgentResolvePermissionRequest>()
