@@ -34,6 +34,7 @@ export {
   confirmRunCancellation,
   createTimelineState,
   prependThreadEvents,
+  rejectRunCancellation,
   replayRunEvents,
   replayThreadEvents,
   requestRunCancellation,

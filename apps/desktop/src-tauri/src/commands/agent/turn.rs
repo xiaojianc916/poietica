@@ -10,9 +10,10 @@ use poietica_agent_runtime_native::{
     ConfigSelection, FrameSink, PromptSkill, RecordedEvent, apply_configurations,
 };
 use serde_json::value::{RawValue, to_raw_value};
+use std::sync::mpsc::{Receiver as SyncReceiver, RecvTimeoutError, sync_channel};
+use std::time::Instant;
 use tauri::{AppHandle, Emitter, Manager, State, async_runtime};
 use tokio::sync::mpsc;
-use tokio::time::{Instant, timeout_at};
 use uuid::Uuid;
 
 use super::addressing::session_for;
@@ -202,64 +203,76 @@ pub async fn agent_prompt(
 /// 每一帧的等待有上界：一批从它的第一帧起算，满 [`FRAME_INTERVAL`] 就交货，其
 /// 间没有新帧也一样。上界是这条通道唯一的时间承诺 —— 靠「下一帧会来」推动交货
 /// 给不出上界，而一次工具调用宣告之后 agent 正是沉默着去干活的。
+const FRAME_EVENT_QUEUE_CAPACITY: usize = 512;
+const FRAME_BATCH_QUEUE_CAPACITY: usize = 8;
+
 fn logging(app: AppHandle, thread: Uuid) -> FrameSink {
-    let (arrived, mut arriving) = mpsc::unbounded_channel::<RecordedEvent>();
-    let (shaped, batches) = mpsc::unbounded_channel::<Vec<RecordedFrame>>();
+    let (arrived, arriving) = sync_channel::<RecordedEvent>(FRAME_EVENT_QUEUE_CAPACITY);
+    let (shaped, batches) = mpsc::channel::<Vec<RecordedFrame>>(FRAME_BATCH_QUEUE_CAPACITY);
 
-    async_runtime::spawn(recording(app.clone(), thread, batches));
+    let _batcher = std::thread::spawn(move || batch_frames(arriving, shaped));
+    async_runtime::spawn(recording(app, thread, batches));
 
-    async_runtime::spawn(async move {
-        let mut held: Vec<RecordedEvent> = Vec::new();
-
-        while let Some(first) = arriving.recv().await {
-            let deadline = Instant::now() + FRAME_INTERVAL;
-
-            held.push(first);
-
-            while let Ok(Some(next)) = timeout_at(deadline, arriving.recv()).await {
-                held.push(next);
-            }
-
-            let logged = recorded(held.drain(..));
-
-            /* 屏幕上这一批与库里那一批是同一段字节：成形一次，两处共用。
-            渲染层没在听不是错——下次打开这条对话时，日志重放同一批帧。 */
-            let shown: Vec<&RawValue> = logged.iter().map(|frame| frame.frame.as_ref()).collect();
-
-            let _ignored = app.emit(AGENT_EVENT, &shown);
-
-            /* 落库那一端与这条连接同寿；它先走了，缺的是下一次打开时的这一批。 */
-            let _closed = shaped.send(logged);
+    Box::new(move |event| {
+        if arrived.send(event).is_err() {
+            log::error!("durable frame pipeline stopped before accepting an event");
         }
-    });
-
-    Box::new(move |event: RecordedEvent| {
-        /* 收批的那一端与这条连接同寿；它先走了，这一轮剩下的帧就没有去处。 */
-        let _closed = arrived.send(event);
     })
 }
 
-/// 落库：一批一次提交，按交货顺序。单消费者，所以表上的 `id` 序就是上屏序。
-async fn recording(
-    app: AppHandle,
-    thread: Uuid,
-    mut batches: mpsc::UnboundedReceiver<Vec<RecordedFrame>>,
-) {
-    while let Some(logged) = batches.recv().await {
+fn batch_frames(arriving: SyncReceiver<RecordedEvent>, shaped: mpsc::Sender<Vec<RecordedFrame>>) {
+    while let Ok(first) = arriving.recv() {
+        let deadline = Instant::now() + FRAME_INTERVAL;
+        let mut held = vec![first];
+        let disconnected = loop {
+            let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+                break false;
+            };
+
+            match arriving.recv_timeout(remaining) {
+                Ok(event) => held.push(event),
+                Err(RecvTimeoutError::Timeout) => break false,
+                Err(RecvTimeoutError::Disconnected) => break true,
+            }
+        };
+
+        if shaped.blocking_send(recorded(held.into_iter())).is_err() {
+            return;
+        }
+
+        if disconnected {
+            return;
+        }
+    }
+}
+
+async fn recording(app: AppHandle, thread: Uuid, mut arriving: mpsc::Receiver<Vec<RecordedFrame>>) {
+    while let Some(logged) = arriving.recv().await {
         let index = app.state::<LocalIndex>();
-        let written = on_index(&index, move |store| {
-            store.record_frames(thread, &logged).map_err(persistence)
+        let persisted = on_index(&index, move |store| {
+            store
+                .record_frames(thread, &logged)
+                .map(|refused| (logged, refused))
+                .map_err(persistence)
         })
         .await;
 
-        match written {
-            /* 库挡掉了几帧：那条会话的序号线接错了，缺的是下一次打开这条对话时
-            的这几帧。 */
-            Ok(refused) if refused > 0 => {
-                log::warn!("{refused} frame(s) of this batch were already in the log");
+        match persisted {
+            Ok((logged, 0)) => {
+                let shown: Vec<&RawValue> =
+                    logged.iter().map(|frame| frame.frame.as_ref()).collect();
+                if let Err(error) = app.emit(AGENT_EVENT, &shown) {
+                    log::warn!("emit agent event failed: {error}");
+                }
             }
-            Ok(_recorded) => {}
-            Err(error) => log::warn!("could not record a batch of frames: {error}"),
+            Ok((_, refused)) => {
+                log::error!(
+                    "durable frame pipeline refused {refused} frames; batch was not published"
+                );
+            }
+            Err(error) => {
+                log::error!("persist agent event batch failed; batch was not published: {error}");
+            }
         }
     }
 }

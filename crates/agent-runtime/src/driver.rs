@@ -1038,6 +1038,47 @@ async fn handle_ws_message(
 
     match event_type {
         // 轮次结束：收掉这一轮的记录器，没答的审批与没答的题都作废，终帧殿后。
+        "event.session.work_changed" => {
+            if payload.get("busy").and_then(Value::as_bool) == Some(false) {
+                let last_turn_reason = payload
+                    .get("last_turn_reason")
+                    .and_then(Value::as_str)
+                    .unwrap_or("failed");
+                let state = sessions
+                    .entry(session_id.to_owned())
+                    .or_insert_with(SessionState::new);
+                let outstanding = std::mem::take(&mut state.pending_approvals);
+                let unanswered = std::mem::take(&mut state.pending_questions);
+
+                if let Ok(Some(slot)) = book.slot(session_id)
+                    && let Ok(Some(mut recorder)) = slot.take()
+                {
+                    recorder.record_pending_cancelled();
+                    match last_turn_reason {
+                        "completed" | "cancelled" => {
+                            recorder.record_run_finished(last_turn_reason);
+                        }
+                        _ => recorder.record_run_failed(
+                            "KAP ended the work aggregate without a terminal error event; check model quota, authentication, and connectivity.",
+                        ),
+                    }
+                }
+
+                desk.abandon(&outstanding);
+                questions.abandon(&unanswered);
+
+                let _sent = events_tx.unbounded_send(SessionEvent::Cursor {
+                    session_id: session_id.to_owned(),
+                    cursor: Cursor {
+                        seq,
+                        epoch: envelope
+                            .get("epoch")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned),
+                    },
+                });
+            }
+        }
         "turn.ended" => {
             let reason = payload
                 .get("reason")

@@ -19,6 +19,7 @@ import {
   createTimelineState,
   opensTurn,
   prependThreadEvents,
+  rejectRunCancellation,
   replayThreadEvents,
   requestRunCancellation,
   selectIsBusy,
@@ -108,13 +109,9 @@ interface PendingSubmission {
   key: string
   readonly port: AgentSessionPort
   threadId: string | null
-  acknowledged: boolean
   cancelRequested: boolean
-  settled: boolean
-  deadline: ReturnType<typeof setTimeout> | null
+  cancelSent: boolean
 }
-
-const CANCELLATION_DEADLINE_MS = 8000
 
 /*
  * 没有这条对话时给出的那一份。
@@ -598,10 +595,8 @@ export class TranscriptStore implements TranscriptSink {
       key: real,
       port,
       threadId: endpoint,
-      acknowledged: false,
       cancelRequested: false,
-      settled: false,
-      deadline: null,
+      cancelSent: false,
     }
 
     this.#submissions.set(real, submission)
@@ -628,7 +623,7 @@ export class TranscriptStore implements TranscriptSink {
         submission.threadId = threadId
 
         if (submission.cancelRequested) {
-          this.#finishCancellation(submission)
+          this.#cancelUnsubmitted(submission)
           this.#releaseSubmission(submission)
 
           return undefined
@@ -644,7 +639,6 @@ export class TranscriptStore implements TranscriptSink {
         onUserMessage?.(threadId, text.trim() === '' && assets.length > 0 ? IMAGE_OPENER : text)
 
         return port.prompt({ threadId, text, assets, configuration, skills }).then((handle) => {
-          submission.acknowledged = true
           this.route(handle.sessionId, threadId)
 
           if (submission.cancelRequested) {
@@ -685,10 +679,8 @@ export class TranscriptStore implements TranscriptSink {
         key: threadId,
         port,
         threadId,
-        acknowledged: true,
         cancelRequested: false,
-        settled: false,
-        deadline: null,
+        cancelSent: false,
       }
       this.#submissions.set(threadId, submission)
     }
@@ -710,14 +702,11 @@ export class TranscriptStore implements TranscriptSink {
     })
 
     if (submission.threadId === null) {
-      this.#finishCancellation(submission)
+      /* 没有地址可等：入口那一格的取消即刻落定。 */
+      this.#cancelUnsubmitted(submission)
 
       return
     }
-
-    submission.deadline = setTimeout(() => {
-      this.#finishCancellation(submission)
-    }, CANCELLATION_DEADLINE_MS)
 
     this.#sendCancellation(submission)
   }
@@ -725,45 +714,29 @@ export class TranscriptStore implements TranscriptSink {
   #sendCancellation(submission: PendingSubmission): void {
     const threadId = submission.threadId
 
-    if (
-      threadId === null ||
-      !submission.cancelRequested ||
-      this.#submissions.get(submission.key) !== submission
-    ) {
+    if (threadId === null || submission.cancelSent) {
       return
     }
+
+    submission.cancelSent = true
 
     try {
       void Promise.resolve(submission.port.cancel(threadId)).then(
-        () => {
-          this.#finishCancellation(submission)
-        },
+        () => {},
         (cause: unknown) => {
-          if (!submission.acknowledged) {
-            return
-          }
-
+          submission.cancelSent = false
           this.note(submission.key, describeFailure(cause))
-          this.#finishCancellation(submission)
+          this.#rejectCancellation(submission)
         },
       )
     } catch (cause) {
+      submission.cancelSent = false
       this.note(submission.key, describeFailure(cause))
-      this.#finishCancellation(submission)
+      this.#rejectCancellation(submission)
     }
   }
 
-  #finishCancellation(submission: PendingSubmission): void {
-    if (this.#submissions.get(submission.key) !== submission) {
-      return
-    }
-
-    if (submission.deadline !== null) {
-      clearTimeout(submission.deadline)
-      submission.deadline = null
-    }
-
-    submission.settled = true
+  #cancelUnsubmitted(submission: PendingSubmission): void {
     const current = this.#now(submission.key)
 
     this.#put(submission.key, {
@@ -772,15 +745,23 @@ export class TranscriptStore implements TranscriptSink {
     })
   }
 
+  #rejectCancellation(submission: PendingSubmission): void {
+    submission.cancelRequested = false
+    this.#releaseSubmission(submission)
+
+    const current = this.#now(submission.key)
+
+    this.#put(submission.key, {
+      ...current,
+      timeline: rejectRunCancellation(current.timeline),
+    })
+  }
+
   #releaseSubmission(target: string | PendingSubmission): void {
     const submission = typeof target === 'string' ? this.#submissions.get(target) : target
 
     if (submission === undefined || this.#submissions.get(submission.key) !== submission) {
       return
-    }
-
-    if (submission.deadline !== null) {
-      clearTimeout(submission.deadline)
     }
 
     this.#submissions.delete(submission.key)
@@ -1033,9 +1014,7 @@ export class TranscriptStore implements TranscriptSink {
     if (terminal) {
       this.#releaseSubmission(real)
     } else if (submission?.cancelRequested === true) {
-      timeline = submission.settled
-        ? confirmRunCancellation(timeline, Date.now())
-        : requestRunCancellation(timeline)
+      timeline = requestRunCancellation(timeline)
     }
 
     if (timeline === current.timeline) {
