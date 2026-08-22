@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { TranscriptStore } from '../transcript-store'
 
 /* 一条假线路：帧从哪来不重要，重要的是它带着哪条会话号。 */
-function fakePort(): {
+function fakePort(cancel: AgentSessionPort['cancel'] = () => Promise.resolve()): {
   readonly port: AgentSessionPort
   readonly emit: (events: readonly RunEvent[], sessionId: string) => void
 } {
@@ -19,7 +19,7 @@ function fakePort(): {
         }
       },
       prompt: () => Promise.resolve({ sessionId: 'sess_a' }),
-      cancel: () => Promise.resolve(),
+      cancel,
       resolvePermission: () => Promise.resolve(),
       answerQuestions: () => Promise.resolve(),
       dismissQuestions: () => Promise.resolve(),
@@ -150,6 +150,23 @@ describe('transcript store', () => {
     paint()
 
     expect(store.read('thread_a')).not.toBe(ended)
+  })
+
+  it('records a cancellation rejection instead of swallowing it', async () => {
+    const { store, paint } = painted()
+    const { port } = fakePort(() => Promise.reject(new Error('stop refused')))
+
+    store.ensure(port)
+    store.route('sess_a', 'thread_a')
+    store.cancel('thread_a')
+    await Promise.resolve()
+    await Promise.resolve()
+    paint()
+
+    expect(store.read('thread_a').timeline.items.at(-1)).toMatchObject({
+      type: 'error',
+      message: 'Error: stop refused',
+    })
   })
 
   it('一拍里来两百段文字，界面只被叫醒一次', () => {

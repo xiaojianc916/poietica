@@ -219,6 +219,10 @@ function markFirstFrame(draft: Draft, item: TimelineItem): void {
   }
 
   draft.spans[draft.spans.length - 1] = { ...open, firstFrameAt: item.at }
+
+  if (draft.status === 'submitted') {
+    draft.status = 'running'
+  }
 }
 
 export function sealTail(draft: Draft): void {

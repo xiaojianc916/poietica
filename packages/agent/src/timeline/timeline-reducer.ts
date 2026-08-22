@@ -130,6 +130,7 @@ function fill(draft: Draft, events: readonly RunEvent[]): Draft {
      Whatever a tool call was doing when the process died is what the log says
      it was doing; how a stalled call is drawn is the read model's business. */
   if (
+    draft.status === 'submitted' ||
     draft.status === 'running' ||
     draft.status === 'awaiting_permission' ||
     draft.status === 'awaiting_question'
@@ -193,13 +194,14 @@ export function appendUserMessage(
    * 判据，所以只判一次。
    */
   const busy =
+    draft.status === 'submitted' ||
     draft.status === 'running' ||
     draft.status === 'awaiting_permission' ||
     draft.status === 'awaiting_question'
 
   if (!busy) {
     openSegment(draft)
-    draft.status = 'running'
+    draft.status = 'submitted'
   }
 
   /*

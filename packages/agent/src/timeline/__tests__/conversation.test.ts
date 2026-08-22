@@ -51,7 +51,7 @@ describe('a conversation of several turns', () => {
     const state = appendUserMessage(createTimelineState(), '读取 README', 5)
 
     expect(saidIn(state)).toEqual(['读取 README'])
-    expect(state.status).toBe('running')
+    expect(state.status).toBe('submitted')
   })
 
   it('shows it once when the run reports the prompt back', () => {

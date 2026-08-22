@@ -12,7 +12,8 @@ use poietica_agent_runtime_native::{
     RunSlot, SessionBook, SessionEvent, connect,
 };
 use std::path::PathBuf;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 
 use super::config::restate;
@@ -27,8 +28,26 @@ use super::{AGENT_SESSION_EVENT, NO_SESSION_ID, POISONED};
 /// 回收，只能靠列表的过滤条件挡在外面 —— 用每次读列表都要付的一次判断，去遮
 /// 一次本不该发生的写入。
 #[derive(Debug)]
+struct ConnectionLease(AtomicBool);
+
+impl ConnectionLease {
+    const fn new() -> Self {
+        Self(AtomicBool::new(true))
+    }
+
+    fn close(&self) {
+        self.0.store(false, Ordering::Release);
+    }
+
+    fn is_open(&self) -> bool {
+        self.0.load(Ordering::Acquire)
+    }
+}
+
+#[derive(Debug)]
 struct Connection {
     client: AgentClient,
+    lease: Arc<ConnectionLease>,
     /// 这条连接起的是哪个 agent。寻址要拿它跟对话记下的那个比。
     agent_id: String,
     /// 这条连接自带的那个会话号。
@@ -38,12 +57,6 @@ struct Connection {
     /// agent 提供什么的时候，总得有一个会话可以问，而那个问题与任何一条对话都
     /// 无关。所以它是锚，不是对话的会话。
     anchor: String,
-    /// 这条连接锚会话的记录槽。
-    ///
-    /// 它的语义是一条会话：driver 建立连接时把它 adopt 到锚会话名下，别的会话
-    /// 由册子各开一个。此前它挂在 AgentRuntime 上，也就是说换一条连接要复用
-    /// 上一条连接的槽。
-    slot: RunSlot,
     /// 这条连接的权限台。
     ///
     /// request_id 由 agent 自己发，两个 agent 的号不可通约：共用一张桌子，一个
@@ -102,6 +115,24 @@ impl AgentRuntime {
         Ok(())
     }
 
+    fn expire(&self, lease: &Arc<ConnectionLease>) -> Result<()> {
+        let retired = {
+            let mut connection = lock(&self.connection)?;
+
+            if connection
+                .as_ref()
+                .is_some_and(|live| Arc::ptr_eq(&live.lease, lease))
+            {
+                connection.take()
+            } else {
+                None
+            }
+        };
+
+        retire(retired);
+        Ok(())
+    }
+
     /// Prepares the runtime without starting anything.
     ///
     /// Starting the agent process at boot would make every launch pay for a
@@ -142,13 +173,18 @@ fn retire(taken: Option<Connection>) {
         return;
     };
 
+    gone.lease.close();
+
     // The process is going away either way, so a driver that already
     // stopped is not an error worth reporting.
     let _ignored = gone.client.shutdown();
 
-    /* 拿出来就丢掉。RunSlot::take 的文档写的是把这一位交回去、好让它自己
-    收尾，而丢掉正是让它收尾。 */
-    let _abandoned = gone.slot.take();
+    if let Err(error) = gone
+        .book
+        .fail_active("agent 连接已断开，本轮已终止，请重试")
+    {
+        log::error!("could not terminate turns owned by a dead connection: {error}");
+    }
 
     gone.desk.clear();
     gone.questions.clear();
@@ -242,10 +278,19 @@ pub(super) async fn ensure_session(
         book,
     } = connect(spawn, slot.clone(), desk.clone(), questions.clone()).map_err(translate)?;
 
-    // The crate is runtime-agnostic on purpose; this is the composition root,
-    // so this is where the driver gets an executor.
+    // The composition root owns both the driver and the connection lease.
+    let lease = Arc::new(ConnectionLease::new());
+    let expired = Arc::clone(&lease);
+    let runtime = app.clone();
+
     async_runtime::spawn(async move {
-        if let Err(error) = driver.await {
+        let outcome = driver.await;
+
+        expired.close();
+        if let Err(error) = runtime.state::<AgentRuntime>().expire(&expired) {
+            log::error!("could not retire the ended agent connection: {error}");
+        }
+        if let Err(error) = outcome {
             log::error!("the agent session ended: {error}");
         }
     });
@@ -370,15 +415,22 @@ pub(super) async fn ensure_session(
     这把锁的地方整个模块只有这一处。此前这里有一条"输家把自己起的进程还
     回去"的分支，它记的是一笔已经花掉的账 —— 两个人各起了一个 agent 进程、
     各做了一次握手，然后杀掉一个。闸把那笔账取消了，分支随之不可达。 */
-    *lock(&state.connection)? = Some(Connection {
+    let kept = Connection {
         client: client.clone(),
+        lease: Arc::clone(&lease),
         agent_id: agent_id.clone(),
         anchor: session_id.clone(),
-        slot: slot.clone(),
         desk: desk.clone(),
         questions: questions.clone(),
         book: book.clone(),
-    });
+    };
+
+    if !lease.is_open() {
+        retire(Some(kept));
+        return Err(translate(KapError::Refused(Refusal::Gone)));
+    }
+
+    *lock(&state.connection)? = Some(kept);
 
     let live = Handle {
         client,
@@ -433,7 +485,15 @@ fn outfit(app: &AppHandle, agent_id: &str, cwd: PathBuf) -> Result<AgentSpawn> {
 
 /// Reads the session without holding the lock across an await point.
 pub(super) fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
-    let guard = lock(&state.connection)?;
+    let mut guard = lock(&state.connection)?;
+
+    if guard.as_ref().is_some_and(|live| !live.lease.is_open()) {
+        let retired = guard.take();
+        drop(guard);
+        retire(retired);
+
+        return Ok(None);
+    }
 
     Ok(guard.as_ref().map(|live| Handle {
         client: live.client.clone(),

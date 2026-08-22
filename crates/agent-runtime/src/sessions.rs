@@ -65,6 +65,22 @@ impl SessionBook {
         Ok(self.book()?.remove(session_id).is_some())
     }
 
+    /// Ends every turn still owned by this connection.
+    pub fn fail_active(&self, message: &str) -> Result<usize> {
+        let slots = self.book()?.values().cloned().collect::<Vec<RunSlot>>();
+        let mut failed = 0;
+
+        for slot in slots {
+            if let Some(mut recorder) = slot.take()? {
+                recorder.record_pending_cancelled();
+                recorder.record_run_failed(message);
+                failed += 1;
+            }
+        }
+
+        Ok(failed)
+    }
+
     /// How many sessions are open.
     pub fn open_count(&self) -> Result<usize> {
         Ok(self.book()?.len())
@@ -95,7 +111,11 @@ impl SessionBook {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
     use super::SessionBook;
+    use crate::frame::RunFrame;
+    use crate::recorder::{RecordedEvent, Recorder};
     use crate::run_slot::RunSlot;
 
     const NAME: &str = "session_33333333-3333-4333-8333-333333333333";
@@ -115,5 +135,35 @@ mod tests {
         assert!(book.open(NAME).is_ok());
         assert!(book.adopt(NAME, RunSlot::new()).is_ok());
         assert!(matches!(book.open_count(), Ok(1)));
+    }
+
+    #[test]
+    fn connection_loss_ends_the_turn_it_owned() {
+        let book = SessionBook::new();
+        let opened = book.open(NAME);
+        assert!(opened.is_ok());
+        let Some(slot) = opened.ok() else {
+            return;
+        };
+        let seen = Arc::new(Mutex::new(Vec::<RecordedEvent>::new()));
+        let delivered = Arc::clone(&seen);
+        let recorder = Recorder::new(
+            NAME.to_owned(),
+            slot.seq(),
+            Box::new(move |event| {
+                if let Ok(mut events) = delivered.lock() {
+                    events.push(event);
+                }
+            }),
+        );
+
+        assert!(slot.install(recorder).is_ok());
+        assert!(matches!(book.fail_active("agent connection lost"), Ok(1)));
+        assert!(seen.lock().is_ok_and(|events| {
+            events
+                .last()
+                .is_some_and(|event| matches!(&event.frame, RunFrame::RunFailed { .. }))
+        }));
+        assert!(!slot.is_listening());
     }
 }

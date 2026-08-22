@@ -211,6 +211,7 @@ export function runningDelegations(state: TimelineState): number {
 
 export function selectIsBusy(state: TimelineState): boolean {
   return (
+    state.status === 'submitted' ||
     state.status === 'running' ||
     state.status === 'awaiting_permission' ||
     state.status === 'awaiting_question'

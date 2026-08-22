@@ -5,6 +5,7 @@ import type { ToolCallUpdate } from './tool-call'
 
 export type RunStatus =
   | 'idle'
+  | 'submitted'
   | 'running'
   | 'awaiting_permission'
   | 'awaiting_question'
@@ -117,7 +118,7 @@ export type RunEvent =
 /*
  * What the composer shows about a run.
  *
- * RunStatus above is the truth about the run itself: seven states
+ * RunStatus above is the truth about the run itself: eight states
  * the agent and the client can genuinely be in. ChatStatus is coarser on
  * purpose — it is the four states a send button can render, and nothing more.
  *

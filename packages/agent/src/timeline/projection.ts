@@ -69,7 +69,7 @@ export function apply(draft: Draft, event: RunEvent): void {
 
   switch (event.kind) {
     case 'run_started': {
-      draft.status = 'running'
+      draft.status = 'submitted'
       /* 起点是这一帧的时刻，不是本机此刻：回放要复现同一个耗时。 */
       markTurnStart(draft, event.at)
       withPrompt(draft, event)

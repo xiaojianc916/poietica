@@ -77,22 +77,8 @@ export type FoldedFeed = {
    */
   readonly replyActions: ReadonlyMap<string, ReplyActionPlan>
   readonly seals: ReadonlyMap<string, TurnSealPlan>
-  /**
-   * 这一段还没有结论的工作，按转录顺序。
-   *
-   * 它不在 rows 里，所以列表在一轮之内只会追加。读者是转录尾部那块瞬态区 —— 那里在虚拟
-   * 器的条目表之外，改动只经过 paddingEnd，不碰 count、不碰 getItemKey，也不作废任何一
-   * 行的实测高度。
-   */
+  /** In-flight process rows rendered outside the virtualized transcript. */
   readonly live: readonly FeedRow[]
-  /**
-   * 这一轮在跑，而屏幕上没有一样东西在动。
-   *
-   * 等待指示器唯一的出现条件。判据全在这一层：轮次在跑（span 的两端）、瞬态区里
-   * 没有在飞的调用、回答也不在流式追加。问的是屏幕，答案就该由算出屏幕内容的这
-   * 一处给出。
-   */
-  readonly thinking: boolean
 }
 
 /* 空态一律交出同一个引用：下游按引用判等。 */
@@ -106,7 +92,6 @@ const EMPTY: FoldedFeed = {
   replyActions: NO_REPLY_ACTIONS,
   seals: NO_SEALS,
   live: NO_FEED_ROWS,
-  thinking: false,
 }
 
 /** 旁白：不是过程也不是回复。倒扫时跨过它，也永远不折。 */
@@ -145,7 +130,6 @@ interface TurnFold {
   readonly own: readonly number[]
   readonly hidden: readonly number[]
   readonly live: readonly FeedRow[]
-  readonly thinking: boolean
   readonly seal: TurnSealPlan | undefined
   /** 封条挂在这一轮提问那一行的 id；undefined 表示这一轮没有提问可挂。 */
   readonly sealAt: string | undefined
@@ -224,8 +208,6 @@ export function foldFeed(
     replyActions: repliesIn(order, folds),
     seals: sealed.seals,
     live: sealed.live,
-    /* 只有最后一轮可能在跑，所以「有没有在等」只问它。 */
-    thinking: (lastTurn === undefined ? undefined : folds.get(lastTurn))?.thinking === true,
   }
 
   FOLDS.set(anchor, { rows, spans, opened, folds, result })
@@ -350,14 +332,12 @@ function foldOf(
   const running = span?.startedAt !== undefined && span.endedAt === undefined
   const answerAt = latestSpeechIn(rows, own)
   const process = span === undefined ? NO_INDEXES : processIn(rows, own, answerAt, running)
-  /* 模型有没有真的开过口：收到过第一帧内容（firstFrameAt，思考不上屏所以这里才要它），
-     或者这一轮已经有话上屏 —— 哪怕只是一行报错，落定后就不是空碑。 */
-  const spoke = span?.firstFrameAt !== undefined || own.some((at) => rows[at]?.item.type !== SAID)
-  /* 碑要有地方挂：这一轮的提问就是它的位置，而重连接续上的轮次连开头都没有。 */
+  /* The seal needs both a visible anchor and observed agent activity. */
   const saidAt = saidIn(rows, own)
-  /* 可点 ⟺ 真有东西可收。什么都没收起时封条只是一行字，不给假按钮。 */
   const seal =
-    saidAt === undefined || !spoke ? undefined : sealOf(turn, span, isOpen, process.length > 0)
+    saidAt === undefined || span?.firstFrameAt === undefined
+      ? undefined
+      : sealOf(turn, span, isOpen, process.length > 0)
   /* 收进封条与摆进瞬态区是同一批过程的两种去处，所以它们是兄弟，不是父子：人点开时
      两边都空（过程回到转录正文），收起时各取一边。没有封条就一行都不折。 */
   const folded = seal === undefined ? NO_INDEXES : process
@@ -374,11 +354,6 @@ function foldOf(
     own,
     hidden,
     live,
-    /* 在飞的调用与流式追加各自就是进度，再挂一行转圈是两个人报同一件事。 */
-    thinking:
-      running &&
-      !live.some((row) => row.isInFlight) &&
-      !own.some((at) => rows[at]?.isStreamingTail === true),
     seal,
     sealAt: seal === undefined ? undefined : saidAt,
     replyAt: replyIn(rows, visibleOwn, running)?.at,
@@ -451,11 +426,11 @@ function sealOf(
   isOpen: boolean,
   hasProcess: boolean,
 ): TurnSealPlan | undefined {
-  if (span === undefined || (span.startedAt === undefined && !hasProcess)) {
+  if (span?.firstFrameAt === undefined) {
     return undefined
   }
 
-  return { turn, startedAt: span.startedAt, endedAt: span.endedAt, hasProcess, isOpen }
+  return { turn, startedAt: span.firstFrameAt, endedAt: span.endedAt, hasProcess, isOpen }
 }
 
 /**

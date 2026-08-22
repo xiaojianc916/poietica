@@ -6,7 +6,6 @@ import { useAssistantEarlier, useAssistantTimeline } from '../session/use-assist
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { LiveProcess } from './live-process'
 import { ReplyActionHost } from './reply-actions'
-import { ThinkingIndicator } from './thinking-indicator'
 import { groupTools } from './tool-group'
 import { ToolGroupCard } from './tool-group-card'
 import { foldFeed, type TurnSealPlan } from './turn-fold'
@@ -214,30 +213,8 @@ export function TranscriptView({
     [feed.replyActions, feed.seals, grouped.groups, lastTurn, onFork, renderRow, sealOf],
   )
 
-  /*
-   * 尾部装的是属于这一轮、而不属于其中某一条的东西：瞬态区说「此刻在做什么」，等待
-   * 指示器说「屏幕上没有东西在动」。封条不在这里 —— 它挂在提问那一行上（turn-fold 的
-   * saidIn），这一轮有没有行，那一行都在。
-   *
-   * 瞬态区不在虚拟器的条目表内：它的内容变化只经过实测出来的 paddingEnd，碰不到任何
-   * 一行的身份与实测高度。过程若走转录正文，一轮之内就必然有一次中段删除，而那次删除
-   * 会改掉 count 与 getItemKey，一整屏行跟着重新落位。
-   *
-   * 顺序是自上而下的时间顺序：正在做的事排在下面，还没有任何东西在动时最后那行「正在
-   * 思考」在最底下。
-   *
-   * 两样都没有时这里也照样交出去，而不是交 undefined。瞬态区的退场要让最后那一帧多留
-   * 一会儿，而「多留」只能发生在还挂着的那棵子树里 —— 按内容有无摘掉整个尾部，等于在
-   * 退场开始的同一帧把宿主连根拔掉。空的片段不产生任何节点，尾部盒子照旧是 :empty，
-   * 末端留白一分没变。
-   */
-  const footer = (
-    <>
-      <LiveProcess renderRow={renderLiveRow} rows={groupedLive.rows} />
-      {feed.thinking ? <ThinkingIndicator /> : null}
-    </>
-  )
-
+  /* Live process rows are the single execution-progress surface. */
+  const footer = <LiveProcess renderRow={renderLiveRow} rows={groupedLive.rows} />
   const overlay = useCallback(
     (port: FeedPort) =>
       turns.length === 0 ? null : (

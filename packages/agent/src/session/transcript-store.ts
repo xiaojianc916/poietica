@@ -617,12 +617,19 @@ export class TranscriptStore implements TranscriptSink {
    */
   cancel = (key: string): void => {
     const threadId = this.#resolveKey(key)
+    const port = this.#attachedTo
 
-    if (threadId.startsWith(DRAFT)) {
+    if (threadId.startsWith(DRAFT) || port === null) {
       return
     }
 
-    void this.#attachedTo?.cancel(threadId)
+    try {
+      void Promise.resolve(port.cancel(threadId)).catch((cause: unknown) => {
+        this.note(key, describeFailure(cause))
+      })
+    } catch (cause) {
+      this.note(key, describeFailure(cause))
+    }
   }
 
   /* 线路只有一条（#attachedTo），答复的地址不必由调用方再交一次 —— 与 cancel 同一个入口。 */

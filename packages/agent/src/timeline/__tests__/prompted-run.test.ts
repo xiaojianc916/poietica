@@ -22,7 +22,7 @@ describe('a run that carries its prompt', () => {
     const state = applyRunEvent(createTimelineState(), started)
     const first = state.items.at(0)
 
-    expect(state.status).toBe('running')
+    expect(state.status).toBe('submitted')
     expect(first && first.type === 'user_message' && first.text).toBe('读取 README')
   })
 

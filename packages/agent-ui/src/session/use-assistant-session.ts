@@ -124,6 +124,8 @@ const NO_SESSION = '这个界面还没有接上助手会话，答复没有送出
 /* 纯 switch，返回字符串字面量：依赖数组的分配与比较比它本身贵。 */
 function toChatStatus(status: TimelineState['status']): ChatStatus {
   switch (status) {
+    case 'submitted':
+      return 'submitted'
     case 'running':
     case 'awaiting_permission':
     case 'awaiting_question':

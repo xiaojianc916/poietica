@@ -29,7 +29,7 @@ import {
   useState,
 } from 'react'
 import { cx } from '../primitives/class-names'
-import { AttachIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
+import { AttachIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
 import {
   ComposerPalette,
@@ -745,19 +745,19 @@ export function PromptInputSubmit({
 }) {
   /* 能不能发，由持有草稿的这一侧自己答。 */
   const draft = usePromptInputDraft()
-  const isStreaming = status === 'streaming'
-  const Icon = isStreaming ? StopIcon : status === 'submitted' ? SpinnerIcon : SubmitIcon
+  const canCancel = status === 'submitted' || status === 'streaming'
+  const Icon = canCancel ? StopIcon : SubmitIcon
 
   return (
     <button
       {...props}
-      aria-label={isStreaming ? '停止生成' : '发送'}
+      aria-label={canCancel ? '停止生成' : '发送'}
       className={className}
       data-slot="prompt-input-submit"
       data-status={status}
-      disabled={disabled ?? (!isStreaming && !canSubmitDraft(draft))}
-      onClick={isStreaming ? onCancel : undefined}
-      type={isStreaming ? 'button' : 'submit'}
+      disabled={disabled ?? (!canCancel && !canSubmitDraft(draft))}
+      onClick={canCancel ? onCancel : undefined}
+      type={canCancel ? 'button' : 'submit'}
     >
       <Icon aria-hidden="true" />
     </button>

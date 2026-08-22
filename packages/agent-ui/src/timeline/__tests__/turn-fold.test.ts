@@ -22,12 +22,21 @@ function broke(id: string, turn: number, at: number): FeedRow {
   return row({ type: 'error', id, turn, at, message: '断了' })
 }
 
-function settled(turn: number, startedAt: number, endedAt: number): TurnSpan {
-  return { turn, startedAt, endedAt }
+function settled(
+  turn: number,
+  startedAt: number,
+  endedAt: number,
+  firstFrameAt = startedAt,
+): TurnSpan {
+  return { turn, startedAt, firstFrameAt, endedAt }
 }
 
-function running(turn: number, startedAt: number): TurnSpan {
-  return { turn, startedAt }
+function withoutActivity(turn: number, startedAt: number, endedAt?: number): TurnSpan {
+  return endedAt === undefined ? { turn, startedAt } : { turn, startedAt, endedAt }
+}
+
+function running(turn: number, startedAt: number, firstFrameAt = startedAt): TurnSpan {
+  return { turn, startedAt, firstFrameAt }
 }
 
 function heard(turn: number, startedAt: number, firstFrameAt: number): TurnSpan {
@@ -133,12 +142,12 @@ describe('foldFeed', () => {
 
   it('settles the clock on a turn that ended without an answer', () => {
     const rows = [said('q', 0, 1_000), thought('t', 0, 2_000)]
-    const feed = foldFeed(rows, [settled(0, 1_000, 4_500)], new Set())
+    const feed = foldFeed(rows, [settled(0, 1_000, 4_500, 2_000)], new Set())
 
     expect(feed.rows).toBe(rows)
     expect(feed.seals.get('q')).toEqual({
       turn: 0,
-      startedAt: 1_000,
+      startedAt: 2_000,
       endedAt: 4_500,
       hasProcess: false,
       isOpen: false,
@@ -148,7 +157,7 @@ describe('foldFeed', () => {
   it('holds the seal back until the turn has actually heard something', () => {
     /* 请求出去了，模型一帧都没回过（额度耗尽、端点连不上）：这时候只该有等待指示器，
        立一块「正在处理」等于替一个还没回过话的请求作证。 */
-    const feed = foldFeed([said('q', 0, 1_000)], [running(0, 1_000)], new Set())
+    const feed = foldFeed([said('q', 0, 1_000)], [withoutActivity(0, 1_000)], new Set())
 
     expect(feed.seals.size).toBe(0)
   })
@@ -160,7 +169,7 @@ describe('foldFeed', () => {
 
     expect(feed.seals.get('q')).toEqual({
       turn: 0,
-      startedAt: 1_000,
+      startedAt: 1_200,
       endedAt: undefined,
       hasProcess: false,
       isOpen: false,
@@ -176,7 +185,7 @@ describe('foldFeed', () => {
   })
 
   it('leaves no seal for a finished turn that never reached the screen', () => {
-    const feed = foldFeed([said('q', 0, 1_000)], [settled(0, 1_000, 4_000)], new Set())
+    const feed = foldFeed([said('q', 0, 1_000)], [withoutActivity(0, 1_000, 4_000)], new Set())
 
     expect(feed.seals.size).toBe(0)
   })
@@ -204,29 +213,22 @@ describe('foldFeed', () => {
     expect(feed.seals.size).toBe(0)
   })
 
-  it('measures a turn that produced nothing from the moment it began', () => {
-    /* 只有一行报错也算有过内容：落定后一行都没有才是空碑，这里不立。 */
+  it('does not create a processing seal for a direct failure', () => {
     const rows = [said('q', 0, 1_000), broke('e', 0, 7_000)]
-    const feed = foldFeed(rows, [settled(0, 1_000, 7_000)], new Set())
+    const feed = foldFeed(rows, [withoutActivity(0, 1_000, 7_000)], new Set())
 
-    expect(feed.seals.get('q')).toEqual({
-      turn: 0,
-      startedAt: 1_000,
-      endedAt: 7_000,
-      hasProcess: false,
-      isOpen: false,
-    })
+    expect(feed.seals.size).toBe(0)
   })
 
   it('measures a pure-answer turn from send to settle, never zero by construction', () => {
     /* 一轮只有一段话时，「第一帧」与「最终回复」本是同一条 —— 起点与终点曾撞在
        同一帧上，耗时恒为 0s。现在两端都取自 span。 */
     const rows = [said('q', 0, 1_000), spoke('a', 0, 2_000)]
-    const feed = foldFeed(rows, [settled(0, 1_000, 31_000)], new Set())
+    const feed = foldFeed(rows, [settled(0, 1_000, 31_000, 2_000)], new Set())
 
     expect(feed.seals.get('q')).toEqual({
       turn: 0,
-      startedAt: 1_000,
+      startedAt: 2_000,
       endedAt: 31_000,
       hasProcess: false,
       isOpen: false,
