@@ -72,6 +72,5 @@ export {
   runningDelegations,
   selectFeedRows,
   selectIsBusy,
-  selectIsWaiting,
   selectTurns,
 } from './timeline'

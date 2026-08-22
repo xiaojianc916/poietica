@@ -37,10 +37,9 @@ import type { TranscriptSink } from './transcript-sink'
  * 互相耦合（rename 同时写三张，forget 同时删三张），它们是一个对象的内部字段。
  *
  * 路由是一次查表，键是会话号：线路上每一帧都带着它（见 recorder.rs 的
- * RecordedEvent，每一种帧无一例外），而「这条会话属于哪条对话」在打开这条对话时
- * 就登记好了（见 route，由 SessionControlsStore 在打开的答复里拿到会话号时交过
- * 来）。地址因此先于帧存在，「无主的帧」不是一种正常状态 —— 这一层没有排队、
- * 没有补投、也没有上限。
+ * RecordedEvent，每一种帧无一例外）。一条刚建出来的对话在开口之前没有会话号，
+ * 它的号随 prompt 的答复回来，所以第一轮的帧一定跑在地址前面 —— 那一小段由
+ * #unrouted 接着，地址一到整批折进去。许可窗口只有一个：有一次 prompt 在飞。
  */
 
 /** 入口那一格的键前缀。它还不是一条对话，所以也没有什么可停的。 */
@@ -248,6 +247,17 @@ export class TranscriptStore implements TranscriptSink {
   #routes = new Map<string, string>()
 
   /**
+   * 地址还没到、先到了的帧，按会话攒着。
+   *
+   * 会话号由原生侧在 prompt 的答复里给出，所以一条新对话第一轮的帧必然跑在地址
+   * 前面。攒着只在有一次 prompt 在飞时成立，地址一到就整批折进去。
+   */
+  #unrouted = new Map<string, RunEvent[]>()
+
+  /** 此刻有几次 prompt 在飞。它是「帧可以跑在地址前面」这条许可的唯一依据。 */
+  #opening = 0
+
+  /**
    * 收到了、还没折进转录的帧，按对话攒着。
    *
    * 每折一帧要复制一遍整条 items（见 timeline-draft 的 draftOf）。所以帧先攒，
@@ -325,6 +335,13 @@ export class TranscriptStore implements TranscriptSink {
    */
   route = (sessionId: string, key: string): void => {
     this.#routes.set(sessionId, key)
+
+    const held = this.#unrouted.get(sessionId)
+
+    if (held !== undefined) {
+      this.#unrouted.delete(sessionId)
+      this.#queue(key, held)
+    }
   }
 
   /**
@@ -356,6 +373,7 @@ export class TranscriptStore implements TranscriptSink {
     for (const [sessionId, owner] of this.#routes) {
       if (owner === real) {
         this.#routes.delete(sessionId)
+        this.#unrouted.delete(sessionId)
       }
     }
 
@@ -544,6 +562,8 @@ export class TranscriptStore implements TranscriptSink {
     const conversation =
       endpoint === null ? (identify?.() ?? Promise.resolve(null)) : Promise.resolve(endpoint)
 
+    this.#opening += 1
+
     void conversation
       .then((threadId) => {
         if (threadId === null) {
@@ -568,11 +588,8 @@ export class TranscriptStore implements TranscriptSink {
 
         return port.prompt({ threadId, text, assets, configuration, skills }).then((handle) => {
           /*
-           * 地址早就在表里了：这条对话打开的那一刻就登记过（route）。
-           *
-           * 这里再写一次是同一个事实写进同一张表 —— 答复里的会话号是原生侧
-           * 此刻真正在用的那一条，而一条刚建出来的对话在开口之前还没有会话
-           * 号可登记。它是幂等的，不是补救。
+           * 这条对话的会话号只有这里知道：新建的对话在开口之前没有号可登记。
+           * 登记的同时把跑在地址前面的那批帧折进去（见 route）。
            */
           this.route(handle.sessionId, threadId)
         })
@@ -580,6 +597,14 @@ export class TranscriptStore implements TranscriptSink {
       .catch((cause: unknown) => {
         /* 没有"当前那一轮"要收拾了：这一轮从来没拿到过地址，也就从来没占过谁。 */
         this.#fail(key, cause)
+      })
+      .finally(() => {
+        this.#opening -= 1
+
+        /* 一次 prompt 都不在飞了：还没认领的那些帧不会再有地址。 */
+        if (this.#opening === 0) {
+          this.#unrouted.clear()
+        }
       })
   }
 
@@ -841,19 +866,36 @@ export class TranscriptStore implements TranscriptSink {
   }
 
   /*
-   * 一批帧到了，交给它们的主人。
+   * 一批帧到了，交给它们的主人。整批共一个地址（见端口的 subscribe）。
    *
-   * 整批共一个地址（见端口的 subscribe），所以这里查一次表就够。查不到主人只有
-   * 一种由来：这条会话不是这一侧登记过的。那就该整批丢掉。
+   * 地址还没到就攒着，等 route 认领：新对话第一轮的会话号随 prompt 的答复才回来，
+   * 而那一轮的帧比答复早。有一次 prompt 在飞是攒的许可；一次都没有时的无主帧是真
+   * 的无主 —— 这条会话不是这一侧开的。
    */
   #route(events: readonly RunEvent[], sessionId: string): void {
     const owner = this.#routes.get(sessionId)
 
-    if (owner === undefined) {
+    if (owner !== undefined) {
+      this.#queue(owner, events)
+
       return
     }
 
-    this.#queue(owner, events)
+    if (this.#opening === 0) {
+      return
+    }
+
+    const held = this.#unrouted.get(sessionId)
+
+    if (held === undefined) {
+      this.#unrouted.set(sessionId, [...events])
+
+      return
+    }
+
+    for (const event of events) {
+      held.push(event)
+    }
   }
 
   /* 一个 store 订着一条线路。 */

@@ -85,6 +85,14 @@ export type FoldedFeed = {
    * 行的实测高度。
    */
   readonly live: readonly FeedRow[]
+  /**
+   * 这一轮在跑，而屏幕上没有一样东西在动。
+   *
+   * 等待指示器唯一的出现条件。判据全在这一层：轮次在跑（span 的两端）、瞬态区里
+   * 没有在飞的调用、回答也不在流式追加。问的是屏幕，答案就该由算出屏幕内容的这
+   * 一处给出。
+   */
+  readonly thinking: boolean
 }
 
 /* 空态一律交出同一个引用：下游按引用判等。 */
@@ -98,6 +106,7 @@ const EMPTY: FoldedFeed = {
   replyActions: NO_REPLY_ACTIONS,
   seals: NO_SEALS,
   live: NO_FEED_ROWS,
+  thinking: false,
 }
 
 /** 旁白：不是过程也不是回复。倒扫时跨过它，也永远不折。 */
@@ -136,6 +145,7 @@ interface TurnFold {
   readonly own: readonly number[]
   readonly hidden: readonly number[]
   readonly live: readonly FeedRow[]
+  readonly thinking: boolean
   readonly seal: TurnSealPlan | undefined
   /** 封条挂在这一轮提问那一行的 id；undefined 表示这一轮没有提问可挂。 */
   readonly sealAt: string | undefined
@@ -214,6 +224,8 @@ export function foldFeed(
     replyActions: repliesIn(order, folds),
     seals: sealed.seals,
     live: sealed.live,
+    /* 只有最后一轮可能在跑，所以「有没有在等」只问它。 */
+    thinking: (lastTurn === undefined ? undefined : folds.get(lastTurn))?.thinking === true,
   }
 
   FOLDS.set(anchor, { rows, spans, opened, folds, result })
@@ -346,11 +358,13 @@ function foldOf(
   /* 可点 ⟺ 真有东西可收。什么都没收起时封条只是一行字，不给假按钮。 */
   const seal =
     saidAt === undefined || !spoke ? undefined : sealOf(turn, span, isOpen, process.length > 0)
-  /* 只有人手动点开才摊开：过程先上屏、回复一到再撤掉，撤掉的那一帧就是内容整段消失又
-     出现。没有封条就一行都不折 —— 藏起来的过程配不上开关。 */
-  const hidden = seal === undefined || isOpen ? NO_INDEXES : process
+  /* 收进封条与摆进瞬态区是同一批过程的两种去处，所以它们是兄弟，不是父子：人点开时
+     两边都空（过程回到转录正文），收起时各取一边。没有封条就一行都不折。 */
+  const folded = seal === undefined ? NO_INDEXES : process
+  const hidden = isOpen ? NO_INDEXES : folded
   const hiddenAt = new Set(hidden)
   const visibleOwn = hidden.length === 0 ? own : own.filter((at) => !hiddenAt.has(at))
+  const live = running && !isOpen ? liveIn(rows, folded, answerAt) : NO_FEED_ROWS
 
   return {
     span,
@@ -359,7 +373,12 @@ function foldOf(
     settled,
     own,
     hidden,
-    live: running ? liveIn(rows, hidden, answerAt) : NO_FEED_ROWS,
+    live,
+    /* 在飞的调用与流式追加各自就是进度，再挂一行转圈是两个人报同一件事。 */
+    thinking:
+      running &&
+      !live.some((row) => row.isInFlight) &&
+      !own.some((at) => rows[at]?.isStreamingTail === true),
     seal,
     sealAt: seal === undefined ? undefined : saidAt,
     replyAt: replyIn(rows, visibleOwn, running)?.at,

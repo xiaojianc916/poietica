@@ -1,7 +1,7 @@
 export type { ConversationTurn } from './conversation-turns'
 export { selectTurns } from './conversation-turns'
 export type { FeedRow } from './feed-rows'
-export { selectFeedRows, selectIsWaiting } from './feed-rows'
+export { selectFeedRows } from './feed-rows'
 export type {
   AgentTextItem,
   AgentThoughtItem,

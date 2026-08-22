@@ -1,10 +1,4 @@
-import {
-  type FeedRow,
-  selectFeedRows,
-  selectIsBusy,
-  selectIsWaiting,
-  selectTurns,
-} from '@poietica/agent'
+import { type FeedRow, selectFeedRows, selectIsBusy, selectTurns } from '@poietica/agent'
 import { type ReactNode, useCallback, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
@@ -237,12 +231,10 @@ export function TranscriptView({
    * 退场开始的同一帧把宿主连根拔掉。空的片段不产生任何节点，尾部盒子照旧是 :empty，
    * 末端留白一分没变。
    */
-  const waiting = selectIsWaiting(timeline)
-
   const footer = (
     <>
       <LiveProcess renderRow={renderLiveRow} rows={groupedLive.rows} />
-      {waiting ? <ThinkingIndicator /> : null}
+      {feed.thinking ? <ThinkingIndicator /> : null}
     </>
   )
 
