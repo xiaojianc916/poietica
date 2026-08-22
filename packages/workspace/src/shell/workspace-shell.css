@@ -46,50 +46,60 @@
     border-inline-end-width 0s;
 }
 
-.workspace-shell[data-sidebar-docked="false"] .workspace-shell__divider {
-  opacity: 0;
-}
-
-.workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"] .workspace-shell__divider,
-.workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"] .workspace-shell__divider,
-.workspace-shell:has(.workspace-region-splitter:focus-visible) .workspace-shell__divider {
-  border-inline-end-color: color-mix(in oklab, var(--color-foreground) 3%, var(--color-divider));
-}
-
-.workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"] .workspace-shell__divider,
-.workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"] .workspace-shell__divider {
-  border-inline-end-width: calc(var(--ui-region-divider-width) * 2);
-}
-
-.workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"] .workspace-shell__divider {
-  transition-delay: 0s, 0s, var(--workspace-divider-hover-delay);
-}
-
 /*
- * 浏览器列那一侧的同一根家具：坐标是列边界本身，与左侧对称，
- * 强调态读同一对 data 位，只是把边换到 inline-start。
+ * 浏览器侧的同一根家具，只换格位：画在主列的末像素而不是浏览器列的首像素。
+ * 列 3 的页面本体是原生子 webview（browser.rs 按视口矩形摆放），原生层永远
+ * 整幅盖在宿主 DOM 之上 —— 画进列 3 的任何像素都会被它吃掉；主列属于 DOM，
+ * 线在这里才存在。位置仍是主/浏览器列边界本身，描边、过渡与强调全部沿用
+ * 基类，此处只剩格位一处差异。线从内容行起跨，不进页头行：页头那条横线是
+ * chrome 行的家具，右侧不重复它（左侧竖线穿页头是侧栏专属形态）。
  */
 .workspace-shell__divider--browser {
-  grid-area: 1 / 3 / -1 / 4;
-  justify-self: start;
-  border-inline-end: 0;
-  border-inline-start: var(--ui-region-divider-width) solid var(--color-divider);
-  transition:
-    border-inline-start-color var(--workspace-layout-duration) ease,
-    opacity var(--workspace-layout-duration) ease,
-    border-inline-start-width 0s;
+  grid-area: 2 / 2 / -1 / 3;
 }
 
+/* 各侧的线只随自己那侧的停靠位隐没：基类共享，:not 把两侧开关圈开。 */
+.workspace-shell[data-sidebar-docked="false"]
+.workspace-shell__divider:not(.workspace-shell__divider--browser),
 .workspace-shell[data-browser-docked="false"] .workspace-shell__divider--browser {
   opacity: 0;
 }
 
+/*
+ * 强调态按侧圈定：两根线共享基类，region 限定必须配 :not，否则悬停一侧
+ * 会把另一侧也点亮。键盘焦点读分隔条自己的 data-edge，同样只亮自己那根。
+ */
+.workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
+.workspace-shell__divider:not(.workspace-shell__divider--browser),
+.workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
+  .workspace-shell__divider:not(.workspace-shell__divider--browser),
+.workspace-shell[data-splitter="hover"][data-splitter-region="browser"]
+  .workspace-shell__divider--browser,
+.workspace-shell[data-splitter="drag"][data-splitter-region="browser"]
+  .workspace-shell__divider--browser,
+.workspace-shell:has(.workspace-region-splitter[data-edge="inline-start"]:focus-visible)
+  .workspace-shell__divider:not(.workspace-shell__divider--browser),
+.workspace-shell:has(.workspace-region-splitter[data-edge="inline-end"]:focus-visible)
+  .workspace-shell__divider--browser {
+  border-inline-end-color: color-mix(in oklab, var(--color-foreground) 3%, var(--color-divider));
+}
+
+.workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
+  .workspace-shell__divider:not(.workspace-shell__divider--browser),
+.workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
+  .workspace-shell__divider:not(.workspace-shell__divider--browser),
 .workspace-shell[data-splitter="hover"][data-splitter-region="browser"]
   .workspace-shell__divider--browser,
 .workspace-shell[data-splitter="drag"][data-splitter-region="browser"]
   .workspace-shell__divider--browser {
-  border-inline-start-color: color-mix(in oklab, var(--color-foreground) 3%, var(--color-divider));
-  border-inline-start-width: calc(var(--ui-region-divider-width) * 2);
+  border-inline-end-width: calc(var(--ui-region-divider-width) * 2);
+}
+
+.workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
+  .workspace-shell__divider:not(.workspace-shell__divider--browser),
+.workspace-shell[data-splitter="hover"][data-splitter-region="browser"]
+  .workspace-shell__divider--browser {
+  transition-delay: 0s, 0s, var(--workspace-divider-hover-delay);
 }
 
 /*

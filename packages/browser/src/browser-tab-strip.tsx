@@ -24,18 +24,6 @@ export function BrowserTabStrip({ host, actions, trailing }: BrowserTabStripProp
   return (
     /* 行高与宿主页头一致（32px）：角位上的开关在开合两态间零位移。 */
     <div className="relative flex h-8 shrink-0 items-center gap-1 border-b border-current/10 px-1">
-      <button
-        aria-expanded={listOpen}
-        aria-label="标签页列表"
-        className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100"
-        onClick={() => {
-          setListOpen((open) => !open)
-        }}
-        type="button"
-      >
-        <ChevronDown aria-hidden className="size-4" />
-      </button>
-
       {/* 原生横向滚动条占布局高度，会把 24px 的标签顶出 32px 的行；内联藏掉，
           不走类扫描与构建链。溢出导航：触控板横滑、Shift+滚轮、左端标签列表。 */}
       <div
@@ -94,6 +82,18 @@ export function BrowserTabStrip({ host, actions, trailing }: BrowserTabStripProp
         <Plus aria-hidden className="size-4" />
       </button>
 
+      <button
+        aria-expanded={listOpen}
+        aria-label="标签页列表"
+        className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100"
+        onClick={() => {
+          setListOpen((open) => !open)
+        }}
+        type="button"
+      >
+        <ChevronDown aria-hidden className="size-4" />
+      </button>
+
       {/* 行尾角位。px-1 + mr-1.5 = 右距 10px，与宿主页头的 --cp-inset 一致。 */}
       {trailing ? <div className="mr-1.5 shrink-0">{trailing}</div> : null}
 
@@ -148,7 +148,7 @@ function BrowserTabList({ host, actions, onDismiss }: BrowserTabListProps) {
         onClick={onDismiss}
         type="button"
       />
-      <div className="absolute left-1 top-full z-[var(--ui-z-popover)] mt-1 w-72 rounded-lg border border-current/10 bg-[Canvas] p-1 shadow-[var(--ui-shadow-xl)]">
+      <div className="absolute right-1 top-full z-[var(--ui-z-popover)] mt-1 w-72 rounded-lg border border-current/10 bg-[Canvas] p-1 shadow-[var(--ui-shadow-xl)]">
         <div className="flex items-center gap-2 rounded-md border border-current/10 px-2 py-1.5">
           <Search aria-hidden className="size-3.5 shrink-0 opacity-50" />
           <input

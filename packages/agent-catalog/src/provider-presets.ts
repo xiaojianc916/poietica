@@ -214,7 +214,42 @@ const MOONSHOT: AgentProviderPreset = {
   ],
 }
 
-const PRESETS: readonly AgentProviderPreset[] = [DEEPSEEK, ZHIPU, MOONSHOT]
+/*
+ * OpenRouter
+ * 协议：openai。官方 Quick Start 逐字 —— 「OpenRouter's API is OpenAI-compatible —
+ *   most SDKs work by just swapping the base URL」。
+ * base URL：官方文档的统一入口 https://openrouter.ai/api/v1。
+ * 密钥：控制台 https://openrouter.ai/settings/keys。
+ *
+ * stealth/ox-alpha：模型页 openrouter.ai/stealth/ox-alpha 与
+ *   GET api/v1/models/stealth/ox-alpha/endpoints（2026-08-22 取）逐字 ——
+ *   context_length 1048576、pricing 全 0、supported_parameters 含 reasoning 与
+ *   reasoning_effort。档位取值 Low / High / Max 出自该模型设置界面的强度下拉
+ *   （用户提供截图，2026-08-22），小写写入；下拉里没有关的一档，「能否整个关掉」
+ *   无证据，toggle 不声明。
+ *
+ * 模型 id 自带一段斜杠（stealth/），别处按 provider/ 剥前缀时只剥第一段
+ * （model-display.ts 的 bareModelId），剥完仍是原 id，来回无损；命令行参数白名单
+ * （kimi/catalog-add.ts 的 ARG_PATTERN）本来就放行斜杠。
+ */
+const OPENROUTER: AgentProviderPreset = {
+  id: 'openrouter',
+  displayName: 'OpenRouter',
+  description: '填入 OpenRouter 密钥，一个账号调用挂在上面的全部模型',
+  wire: 'openai',
+  baseUrl: 'https://openrouter.ai/api/v1',
+  apiKeysUrl: 'https://openrouter.ai/settings/keys',
+  models: [
+    {
+      id: 'stealth/ox-alpha',
+      displayName: 'Ox Alpha',
+      maxContextSize: 1048576,
+      thinking: { efforts: ['low', 'high', 'max'] },
+    },
+  ],
+}
+
+const PRESETS: readonly AgentProviderPreset[] = [DEEPSEEK, ZHIPU, MOONSHOT, OPENROUTER]
 
 /** 设置界面要显示的厂商，顺序即显示顺序。 */
 export function builtinAgentProviders(): readonly AgentProviderPreset[] {

@@ -292,7 +292,7 @@ function ToolbarButton({
   return (
     <button
       aria-label={label}
-      className="flex size-7 shrink-0 items-center justify-center rounded-md opacity-70 enabled:hover:bg-current/10 enabled:hover:opacity-100 disabled:opacity-30"
+      className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 enabled:hover:bg-current/10 enabled:hover:opacity-100 disabled:opacity-30"
       disabled={disabled}
       onClick={onClick}
       title={label}

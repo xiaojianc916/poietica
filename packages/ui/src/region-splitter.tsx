@@ -147,6 +147,7 @@ export function RegionSplitter({
         'select-none border-0 bg-transparent outline-none ' +
         (edge === 'inline-start' ? '-right-1' : '-left-1')
       }
+      data-edge={edge}
       onDoubleClick={(event) => {
         event.preventDefault()
         event.stopPropagation()
