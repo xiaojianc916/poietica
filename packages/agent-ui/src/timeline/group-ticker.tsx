@@ -29,15 +29,6 @@ const AT_ONCE = { duration: 0 }
 const DRIFT_PX = 6
 
 /**
- * 散焦的程度。
- *
- * 这一层的隐喻是对焦：旧的那句散掉，新的那句收拢。它比纯淡入淡出多出来的东西，正是
- * 「有个东西在想」这件事。
- */
-const HAZE = 'blur(3px)'
-const CLEAR = 'blur(0px)'
-
-/**
  * 一句话至少停留这么久。
  *
  * 400 > 220（一次切换的总时长），所以任何一次切换都不会被下一次打断。
@@ -50,25 +41,7 @@ export interface GroupTickerProps {
   readonly text: string
 }
 
-/**
- * 汇总行那一格字，换字的时候模糊着换。
- *
- * 为什么不做纵向滚动：那是航班牌和数字的语汇，内容同构、等宽、有序。这里换的是一句一句
- * 长短不一的人话，整体上下平移会让眼睛去追位移；而且那两百毫秒里两行字处在不同高度上，
- * 视觉上就是两行，哪怕盒子只有一行高。留在原地改变清晰度，才是这类状态字的做法。
- *
- * 那道光照旧。它挂在印字的那一层上而不是整格上 —— 渐变的几何以戴它的盒子为准，量的该是
- * 这句话的宽度；理由 shimmer.css 里写着。换字期间两条都戴着，各自的透明度会替它们把重叠
- * 那一段处理干净。
- *
- * 宽度交给 motion 的 layout：字一长一短，整格跟着变宽变窄，右边那枚箭头于是被字带着平滑
- * 地滑过去，而不是跳一下。里面那一层挂 layout="position" 是必须的 —— layout 用的是 FLIP，
- * 尺寸变化靠 scaleX 呈现，不给里层反向修正的话，字会被横向拉伸，那道光的渐变也会跟着抻。
- *
- * 已知的一处将就：进场落位之后 filter 停在 blur(0px) 而不是彻底摘掉，于是这一层始终是
- * 被单独合成的，字的抗锯齿可能比周围略淡一档。摘掉它需要在动画结束时改内联样式，而那会
- * 让退场动画的起点变成 none —— 换一个更难验的风险。真觉得字虚了，旋钮在这里。
- */
+/** 汇总状态只用 opacity 与 transform，避免文字 filter 常驻合成层。 */
 export const GroupTicker = memo(function GroupTicker({ isRunning, text }: GroupTickerProps) {
   const still = useReducedMotion() === true
   const shown = useHeldValue(text, HOLD_MS)
@@ -79,15 +52,14 @@ export const GroupTicker = memo(function GroupTicker({ isRunning, text }: GroupT
           再演一遍是同一个动作做两次。 */}
       <AnimatePresence initial={false} mode="popLayout">
         <motion.span
-          animate={{ filter: CLEAR, opacity: 1, x: 0 }}
+          animate={{ opacity: 1, x: 0 }}
           className={cx('group-ticker__line', isRunning && 'timeline-shimmer')}
           exit={{
-            filter: HAZE,
             opacity: 0,
             transition: still ? AT_ONCE : LEAVE,
             x: -DRIFT_PX,
           }}
-          initial={{ filter: HAZE, opacity: 0, x: DRIFT_PX }}
+          initial={{ opacity: 0, x: DRIFT_PX }}
           key={shown}
           layout="position"
           transition={still ? AT_ONCE : ARRIVE}

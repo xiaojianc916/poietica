@@ -40,35 +40,13 @@ const PROSE_PLUGINS = {
   renderers: [DIAGRAM_RENDERER],
 }
 
-/*
- * How arriving text is revealed.
- *
- * A word at a time, not a character: for Chinese a word is already close to a
- * character, and per-character spans multiply the node count of a long answer
- * for no visible gain.
- *
- * The stagger has to be shorter than the gap between tokens from the model, or
- * the queue of waiting words grows and the reveal falls behind the text it is
- * revealing. Fading is the only property here that stays off the layout: blurIn
- * is a filter per word, and slideUp shifts each word into place, which makes a
- * paragraph twitch as it fills.
- *
- * 取 blurIn 而非 fadeIn：一次提交里涌入十几个词时，纯 opacity 会让它们同时
- * 亮起，读者看到的是"一整块跳出来"而不是"一句话写出来"。官方 Animation 文档
- * 对快模型给的正是这一条 —— 模糊到清晰能盖住批量到达，opacity 盖不住。时长随
- * 之取 240ms，落在官方建议的 200–300ms 区间内。
- *
- * keyframes 由 timeline.css 自备：这个应用不引 streamdown 的样式表，动画名指向
- * 一个不存在的 keyframes 等于没有动画 —— 那一条与这一条必须同时成立。
- *
- * The plugin skips code, pre, svg and math itself, so a fence never flickers.
- */
+/* Per-word filter work scales with the stream; opacity keeps the reveal compositor-friendly. */
 const ANIMATION: AnimateOptions = {
-  animation: 'blurIn',
-  duration: 240,
+  animation: 'fadeIn',
+  duration: 160,
   easing: 'cubic-bezier(0.2, 0, 0, 1)',
   sep: 'word',
-  stagger: 18,
+  stagger: 12,
 }
 
 /*

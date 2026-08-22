@@ -358,6 +358,7 @@ function foldOf(
   const hiddenAt = new Set(hidden)
   const visibleOwn = hidden.length === 0 ? own : own.filter((at) => !hiddenAt.has(at))
   const live = running && !isOpen ? liveIn(rows, folded, answerAt) : NO_FEED_ROWS
+  const reply = replyIn(rows, visibleOwn, running)
 
   return {
     span,
@@ -370,8 +371,8 @@ function foldOf(
     live,
     seal,
     sealAt: seal === undefined ? undefined : saidAt,
-    replyAt: replyIn(rows, visibleOwn, running)?.at,
-    reply: replyIn(rows, visibleOwn, running)?.plan,
+    replyAt: reply?.at,
+    reply: reply?.plan,
   }
 }
 

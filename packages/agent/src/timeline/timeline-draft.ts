@@ -37,7 +37,8 @@ export interface Draft {
    */
   promptLanded: boolean
   /** 每一轮的两端。当轮恒是末尾那一条，见 markTurnStart。 */
-  readonly spans: TurnSpan[]
+  spans: readonly TurnSpan[]
+  spansOwned: boolean
 }
 
 /**
@@ -67,9 +68,17 @@ export function draftOf(state: TimelineState): Draft {
     lastSeq: state.lastSeq,
     runIndex: state.runIndex,
     promptLanded: false,
-    /* 复制一层：草稿要能给末尾那一条补上终点，而交出去的那份是只读的。 */
-    spans: state.spans.slice(),
+    spans: state.spans,
+    spansOwned: false,
   }
+}
+
+function writableSpans(draft: Draft): TurnSpan[] {
+  if (!draft.spansOwned) {
+    draft.spans = draft.spans.slice()
+    draft.spansOwned = true
+  }
+  return draft.spans as TurnSpan[]
 }
 
 export function freeze(draft: Draft): TimelineState {
@@ -213,7 +222,7 @@ function openSpan(draft: Draft): void {
     return
   }
 
-  draft.spans.push({ turn: draft.runIndex })
+  writableSpans(draft).push({ turn: draft.runIndex })
 }
 
 /**
@@ -236,7 +245,8 @@ function markFirstFrame(draft: Draft, item: TimelineItem): void {
     return
   }
 
-  draft.spans[draft.spans.length - 1] = { ...open, firstFrameAt: item.at }
+  const spans = writableSpans(draft)
+  spans[spans.length - 1] = { ...open, firstFrameAt: item.at }
 
   if (draft.status === 'submitted') {
     draft.status = 'running'
@@ -277,7 +287,7 @@ export function markTurnStart(draft: Draft, at: number): void {
   const open = draft.spans.at(-1)
 
   if (open === undefined || open.turn !== draft.runIndex) {
-    draft.spans.push({ turn: draft.runIndex, startedAt: at })
+    writableSpans(draft).push({ turn: draft.runIndex, startedAt: at })
 
     return
   }
@@ -286,7 +296,8 @@ export function markTurnStart(draft: Draft, at: number): void {
     return
   }
 
-  draft.spans[draft.spans.length - 1] = { ...open, startedAt: at }
+  const spans = writableSpans(draft)
+  spans[spans.length - 1] = { ...open, startedAt: at }
 }
 
 /**
@@ -303,7 +314,8 @@ export function markTurnEnd(draft: Draft, at: number): void {
     return
   }
 
-  draft.spans[draft.spans.length - 1] = { ...open, endedAt: at }
+  const spans = writableSpans(draft)
+  spans[spans.length - 1] = { ...open, endedAt: at }
 }
 
 /**

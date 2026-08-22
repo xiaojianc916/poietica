@@ -60,7 +60,7 @@ fn updates_reach_the_installed_run() {
 
     assert!(slot.is_listening());
     assert!(slot.record(|recorder| {
-        recorder.record_run_started("what the run was asked", Vec::new());
+        recorder.record_run_started("what the run was asked", Vec::new(), Vec::new());
     }));
     assert!(slot.record(|recorder| recorder.record_frame(announcement())));
 
@@ -130,7 +130,7 @@ fn a_second_turn_continues_the_sequence_of_the_first() {
 
         slot.install(recorder).expect("an empty slot");
         assert!(slot.record(|recorder| {
-            recorder.record_run_started("what the run was asked", Vec::new());
+            recorder.record_run_started("what the run was asked", Vec::new(), Vec::new());
         }));
 
         let _ended = slot.take().expect("the slot");
@@ -158,7 +158,7 @@ fn a_reloaded_session_resumes_after_the_recorded_position() {
 
     slot.install(recorder).expect("an empty slot");
     assert!(slot.record(|recorder| {
-        recorder.record_run_started("what the run was asked", Vec::new());
+        recorder.record_run_started("what the run was asked", Vec::new(), Vec::new());
     }));
 
     assert_eq!(delivered.positions(), vec![8]);

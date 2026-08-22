@@ -27,6 +27,25 @@ const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
 #[derive(Default)]
 pub struct UpdateStaging(Mutex<Staging>);
 
+impl std::fmt::Debug for UpdateStaging {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        /* Debug 不打载荷：Staged 里是几十 MB 安装字节，只报到版本为止。 */
+        let staging = self.lock();
+
+        match &*staging {
+            Staging::Empty => f.write_str("UpdateStaging(Empty)"),
+            Staging::Downloading(version) => f
+                .debug_tuple("UpdateStaging(Downloading)")
+                .field(version)
+                .finish(),
+            Staging::Staged(staged) => f
+                .debug_tuple("UpdateStaging(Staged)")
+                .field(&staged.version)
+                .finish(),
+        }
+    }
+}
+
 #[derive(Default)]
 enum Staging {
     #[default]

@@ -50,7 +50,7 @@ fn approval() -> Value {
 fn every_frame_carries_the_fields_the_interface_validates() {
     let (mut recorder, delivered) = recording();
 
-    recorder.record_run_started("read config.toml", Vec::new());
+    recorder.record_run_started("read config.toml", Vec::new(), Vec::new());
     notify(&mut recorder, tool_call_started());
     recorder.record_run_finished("completed");
 
