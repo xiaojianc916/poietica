@@ -173,10 +173,6 @@
   padding-block-end: calc(var(--cp-dock-clearance, var(--cp-gutter)) + var(--cp-dock-dissolve));
 }
 
-.agent-activity-feed__tail:not(:empty) {
-  padding-block-start: var(--cp-feed-row-gap);
-}
-
 /*
  * 回到最新。
  *

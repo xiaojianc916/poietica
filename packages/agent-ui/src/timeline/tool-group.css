@@ -74,6 +74,11 @@
   opacity: 1;
 }
 
+.timeline-group[data-expanded="true"] > .disclosure__reveal > .disclosure__clip {
+  opacity: 1;
+  transform: none;
+}
+
 .timeline-group[data-expanded="true"] > .timeline-group__header .disclosure__chevron {
   transform: rotate(0deg);
 }

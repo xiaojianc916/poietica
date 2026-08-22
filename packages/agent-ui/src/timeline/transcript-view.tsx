@@ -1,5 +1,6 @@
 import { type FeedRow, selectFeedRows, selectIsBusy, selectTurns } from '@poietica/agent'
-import { type ReactNode, useCallback, useState } from 'react'
+import { useReducedMotion } from 'motion/react'
+import { type ReactNode, useCallback, useReducer } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useAssistantEarlier, useAssistantTimeline } from '../session/use-assistant-session'
@@ -23,6 +24,59 @@ import { TurnSeal } from './turn-seal'
 
 /* 没有一轮被点开时共用同一个空集：状态的初值不该每次渲染换一个引用。 */
 const NOTHING_OPENED: ReadonlySet<number> = new Set()
+const NO_TURN_MOTION: ReadonlyMap<number, TurnMotion> = new Map()
+
+type TurnMotion = 'opening' | 'closing'
+
+type FoldUiState = {
+  readonly opened: ReadonlySet<number>
+  readonly motion: ReadonlyMap<number, TurnMotion>
+}
+
+type FoldUiAction =
+  | { readonly type: 'toggle'; readonly turn: number; readonly animate: boolean }
+  | { readonly type: 'finish'; readonly turn: number; readonly motion: TurnMotion }
+
+const INITIAL_FOLD_UI: FoldUiState = { opened: NOTHING_OPENED, motion: NO_TURN_MOTION }
+
+function foldUiReducer(state: FoldUiState, action: FoldUiAction): FoldUiState {
+  const opened = new Set(state.opened)
+  const motion = new Map(state.motion)
+
+  if (action.type === 'finish') {
+    if (motion.get(action.turn) !== action.motion) {
+      return state
+    }
+
+    motion.delete(action.turn)
+    if (action.motion === 'closing') {
+      opened.delete(action.turn)
+    }
+
+    return { opened, motion }
+  }
+
+  const visible = opened.has(action.turn) && motion.get(action.turn) !== 'closing'
+
+  if (!action.animate) {
+    motion.delete(action.turn)
+    if (visible) {
+      opened.delete(action.turn)
+    } else {
+      opened.add(action.turn)
+    }
+    return { opened, motion }
+  }
+
+  if (visible) {
+    motion.set(action.turn, 'closing')
+  } else {
+    opened.add(action.turn)
+    motion.set(action.turn, 'opening')
+  }
+
+  return { opened, motion }
+}
 
 export interface TranscriptViewProps {
   readonly sessionKey: string
@@ -62,18 +116,18 @@ export function TranscriptView({
    * 只记被点开的那几轮，不记全体：默认是「落定就收起」，而一条长对话里被点开的
    * 永远是少数。按轮号记，不按行 id —— 行会随流式重建，轮号不会。
    */
-  const [opened, setOpened] = useState<ReadonlySet<number>>(NOTHING_OPENED)
+  const [foldUi, dispatchFoldUi] = useReducer(foldUiReducer, INITIAL_FOLD_UI)
+  const animateTurn = useReducedMotion() !== true
 
-  const toggleTurn = useCallback((turn: number) => {
-    setOpened((held) => {
-      const next = new Set(held)
+  const toggleTurn = useCallback(
+    (turn: number) => {
+      dispatchFoldUi({ type: 'toggle', turn, animate: animateTurn })
+    },
+    [animateTurn],
+  )
 
-      if (!next.delete(turn)) {
-        next.add(turn)
-      }
-
-      return next
-    })
+  const finishTurnMotion = useCallback((turn: number, motion: TurnMotion) => {
+    dispatchFoldUi({ type: 'finish', turn, motion })
   }, [])
 
   /*
@@ -88,7 +142,7 @@ export function TranscriptView({
    * 换引用的 rows —— 再包一层永远不命中，只是每帧多一次依赖数组的分配与比较。
    * 缓存的所有权只能有一个，而它在派生里。
    */
-  const feed = foldFeed(rows, timeline.spans, opened)
+  const feed = foldFeed(rows, timeline.spans, foldUi.opened)
 
   /* 此刻的最后一轮：帧流按时间排，最后一行属于谁，谁就是最后一轮。 */
   const lastTurn = rows[rows.length - 1]?.item.turn
@@ -124,13 +178,13 @@ export function TranscriptView({
       <TurnSeal
         endedAt={plan.endedAt}
         hasProcess={plan.hasProcess}
-        isOpen={plan.isOpen}
+        isOpen={foldUi.motion.get(plan.turn) === 'closing' ? false : plan.isOpen}
         onToggle={toggleTurn}
         startedAt={plan.startedAt}
         turn={plan.turn}
       />
     ),
-    [toggleTurn],
+    [foldUi.motion, toggleTurn],
   )
 
   /*
@@ -196,21 +250,43 @@ export function TranscriptView({
        * 顺序仍是「提问、封条、内容」，而落点从此不随开合改变：按钮不搬家，两行的实测
        * 高度也不再作废。
        */
-      const settled = seal === undefined || seal.endedAt !== undefined
+      const motion = feed.processRows.has(row.item.id)
+        ? foldUi.motion.get(row.item.turn)
+        : undefined
 
-      /* 淡入属于「刚刚折过」那一帧，不属于这一行本身。落定的轮次滚出视野再滚回来会被
-         虚拟器重新挂载，那不是一次折叠，不该再淡一次；没有封条的行同理，一律按落定处
-         理。包装层照留 —— min-inline-size 归它管，撤掉会改布局。 */
       return (
         <>
-          <div className="turn-seal__reveal" data-settled={settled ? 'true' : undefined}>
+          <div
+            className="turn-seal__reveal"
+            data-turn-motion={motion}
+            onAnimationEnd={
+              motion === undefined
+                ? undefined
+                : (event) => {
+                    if (event.currentTarget === event.target) {
+                      finishTurnMotion(row.item.turn, motion)
+                    }
+                  }
+            }
+          >
             {content}
           </div>
           {seal === undefined ? null : sealOf(seal)}
         </>
       )
     },
-    [feed.replyActions, feed.seals, grouped.groups, lastTurn, onFork, renderRow, sealOf],
+    [
+      feed.processRows,
+      feed.replyActions,
+      feed.seals,
+      finishTurnMotion,
+      foldUi.motion,
+      grouped.groups,
+      lastTurn,
+      onFork,
+      renderRow,
+      sealOf,
+    ],
   )
 
   /* Live process rows are the single execution-progress surface. */

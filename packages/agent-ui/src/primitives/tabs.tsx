@@ -90,8 +90,7 @@ export function TabList({
 
         return (
           <button
-            /* 只有画出来的那一块有 id，所以只有选中的这一格指得过去。 */
-            aria-controls={isActive ? panelId(baseId, option.id) : undefined}
+            aria-controls={panelId(baseId, option.id)}
             aria-selected={isActive}
             className="tabs__tab"
             id={tabId(baseId, option.id)}

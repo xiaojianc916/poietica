@@ -1,66 +1,43 @@
-/*
- * 抽屉的机制，一份。
- *
- * 这三个类此前不存在：同一套声明在 timeline.css 里以 .timeline-reasoning__* 与
- * .timeline-tool__* 各写了一遍，靠 DisclosureBody 的 block prop 拼出来。两份已经
- * 漂移过 —— 原语的文档一度在描述一个不存在的样式表状态，因为它说不出自己长什么样。
- *
- * 现在机制归这里，皮肤归调用方：箭头的尺寸仍由各自的类给（0.875rem 与 1rem 是
- * 真差异），这里只管它转不转。
- *
- * 打开态用 [data-open="true"] 后代选择器：两个组件的根节点本来就挂着这个属性。
- * 它的特异性 (0,2,0) 严格高于基础规则的 (0,1,0)，胜出靠特异性而非源顺序，所以
- * 这张表在层叠里落在哪一段都不影响结果。
- */
-
-/*
- * 高度会动，而且必须动。
- *
- * 0fr 到 1fr 是内在高度唯一不用在脚本里量就能过渡的写法：浏览器自己在两个确定的
- * 轨道之间插值，没有第二个人去读一次 scrollHeight 再写死一个像素值。
- *
- * 这些行挂着虚拟器的 measureElement，所以过渡期间每一帧都会向它报一次新高度，
- * 下面的行跟着一起下移 —— 这不是副作用，这就是要的效果。会让画面坏掉的是在虚拟器
- * 之外写滚动位置，那件事已经不做了（见 AgentActivityFeed 里那段说明）。
- */
+/* Disclosure owns interaction motion; the virtualizer owns row geometry. */
 .disclosure__reveal {
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
-  transition:
-    grid-template-rows var(--cp-motion-drawer)
-    var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1)),
-    opacity 160ms linear;
 }
 
-/* 裁剪是让一个中间高度合法的那一步，而不是溢出。 */
 .disclosure__clip {
   min-block-size: 0;
   overflow: hidden;
+  opacity: 0;
+  transform: translateY(-0.25rem);
+  transition:
+    opacity var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-/*
- * 收起时箭头指向它将要展开的东西，展开后指向它已经展开的东西。一个图标，转四分之
- * 一圈，走抽屉自己的节奏 —— 思考链与工具卡做的是同一个手势，因为那本来就是同一个
- * 手势。尺寸不在这里：那是各自的皮肤。
- */
 .disclosure__chevron {
   transform: rotate(-90deg);
   transition: transform var(--cp-motion-drawer)
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
-[data-open="true"] .disclosure__reveal {
+[data-open="true"] > .disclosure__reveal {
   grid-template-rows: 1fr;
   opacity: 1;
 }
 
-[data-open="true"] .disclosure__chevron {
+[data-open="true"] > .disclosure__reveal > .disclosure__clip {
+  opacity: 1;
+  transform: none;
+}
+
+[data-open="true"] > .disclosure__chevron,
+[data-open="true"] > :first-child .disclosure__chevron {
   transform: rotate(0deg);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .disclosure__reveal,
+  .disclosure__clip,
   .disclosure__chevron {
     transition: none;
   }

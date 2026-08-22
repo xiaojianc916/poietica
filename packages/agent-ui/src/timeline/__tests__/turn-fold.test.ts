@@ -115,6 +115,7 @@ describe('foldFeed', () => {
     const feed = foldFeed(rows, [settled(0, 1_000, 9_000)], new Set([0]))
 
     expect(feed.rows).toBe(rows)
+    expect([...feed.processRows]).toEqual(['t'])
     expect(feed.seals.get('q')?.isOpen).toBe(true)
     expect(feed.seals.get('t')).toBeUndefined()
     expect(feed.seals.get('a')).toBeUndefined()

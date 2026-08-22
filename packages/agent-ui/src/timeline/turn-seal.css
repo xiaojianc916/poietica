@@ -1,14 +1,3 @@
-/*
- * 一轮的封条。
- *
- * 字号跟正文同一档：它是这一轮的标题行，不是脚注。淡靠颜色，不靠缩小 —— 缩小会
- * 让它读起来像元信息，而它是可点的。
- *
- * 横线画在封条自己的下边缘，所以它恒在「这一轮的过程/回复」之上，收起摊开都不
- * 动。上下两侧的空隙都由封条自己的 margin 给：它挂在提问那一行的脚下，靠谁倒贴
- * 都会在开合的那一刻露出来。
- */
-
 .turn-seal-line {
   inline-size: 100%;
   margin: 1rem 0 0;
@@ -40,32 +29,15 @@
   min-block-size: 1rem;
 }
 
-/*
- * 不给颜色补间。
- *
- * 悬停要的是即时反馈，而这一档颜色差本身就轻。补间在这里只会把「指针刚离开」也拖
- * 成一段看得见的回落。
- */
 .turn-seal--toggle {
   cursor: pointer;
 }
 
-/*
- * 悬停与键盘焦点同一个落点。
- *
- * 此前只有 :hover。这个按钮是这一轮唯一的开关，用键盘走到它上面时屏幕上不会有
- * 任何变化 —— 那不是样式没写全，是一条走不通的路。用 :focus-visible 而不是
- * :focus：指针点过之后不该留下一个焦点环，这一档正是浏览器替我们区分的。
- */
 .turn-seal--toggle:hover,
 .turn-seal--toggle:focus-visible {
   color: var(--cp-ink);
 }
 
-/*
- * 收起指右，展开指下：箭头指的是「点下去内容会往哪儿长」，与文件树、折叠段落
- * 的通行读法一致。
- */
 .turn-seal__chevron {
   position: relative;
   inset-block-start: 1px;
@@ -76,48 +48,42 @@
   block-size: 1rem;
   stroke-width: var(--cp-icon-stroke);
   rotate: -90deg;
-  transition: rotate 140ms cubic-bezier(0.2, 0, 0, 1);
+  transition: rotate var(--cp-motion-swift) cubic-bezier(0.2, 0, 0, 1);
 }
 
 .turn-seal--toggle[aria-expanded="true"] .turn-seal__chevron {
   rotate: 0deg;
 }
 
-/*
- * 换进来的那一行，浮现一次。
- *
- * 只在节点新挂载时播：流式增长是同一个节点在更新，一个字都不会重播。展开那一刻
- * 第一条过程行是新挂载的，收起那一刻它们整批消失 —— 过程唰地收掉，接上的内容柔
- * 和地浮上来。封条自己不再参与：它挂在提问上，而提问开合都在。
- *
- * 只动 opacity 与 2px 位移。列表按实测高度定位每一行（agent-activity-feed 的
- * measureElement），任何参与布局的补间都会让它整轮重新量、重新排，那才是看几眼
- * 就晕的来源。
- */
-@keyframes turn-seal-reveal {
+.turn-seal__reveal {
+  min-inline-size: 0;
+}
+
+@keyframes turn-process-enter {
   from {
     opacity: 0;
-    translate: 0 -2px;
+    transform: translateY(-0.25rem);
   }
 }
 
-.turn-seal__reveal {
-  min-inline-size: 0;
-  animation: turn-seal-reveal 180ms cubic-bezier(0.2, 0, 0, 1) both;
+@keyframes turn-process-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
 }
 
-/* 落定的那一轮：这一帧不是折叠，是虚拟器把它挂回来而已。 */
-.turn-seal__reveal[data-settled] {
-  animation: none;
+.turn-seal__reveal[data-turn-motion="opening"] {
+  animation: turn-process-enter var(--cp-motion-drawer)
+    var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1)) both;
+}
+
+.turn-seal__reveal[data-turn-motion="closing"] {
+  animation: turn-process-exit var(--cp-motion-swift) var(--cp-motion-ease) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* 封条的颜色补间已经整个删掉了，这里不再需要为它写一条覆盖。 */
   .turn-seal__chevron {
     transition: none;
-  }
-
-  .turn-seal__reveal {
-    animation: none;
   }
 }

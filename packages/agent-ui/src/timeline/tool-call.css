@@ -327,3 +327,34 @@
   color: var(--cp-ink-subtle);
   white-space: nowrap;
 }
+
+/* Both local tab panels stay mounted, measured, and overlapped. */
+.timeline-tool__panels {
+  position: relative;
+  display: grid;
+  min-inline-size: 0;
+}
+
+.timeline-tool__panels > .timeline-tool__panel {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--cp-motion-swift) var(--cp-motion-ease),
+    visibility 0s linear var(--cp-motion-swift);
+}
+
+.timeline-tool__panels > .timeline-tool__panel[data-active="true"] {
+  z-index: 1;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-tool__panels > .timeline-tool__panel {
+    transition: none;
+  }
+}

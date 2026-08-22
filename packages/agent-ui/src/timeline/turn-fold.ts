@@ -77,6 +77,8 @@ export type FoldedFeed = {
    */
   readonly replyActions: ReadonlyMap<string, ReplyActionPlan>
   readonly seals: ReadonlyMap<string, TurnSealPlan>
+  /** Rows controlled by a turn seal, regardless of their current destination. */
+  readonly processRows: ReadonlySet<string>
   /** In-flight process rows rendered outside the virtualized transcript. */
   readonly live: readonly FeedRow[]
 }
@@ -86,11 +88,13 @@ const NO_FEED_ROWS: readonly FeedRow[] = []
 const NO_INDEXES: readonly number[] = []
 const NO_SEALS: ReadonlyMap<string, TurnSealPlan> = new Map()
 const NO_REPLY_ACTIONS: ReadonlyMap<string, ReplyActionPlan> = new Map()
+const NO_PROCESS_ROWS: ReadonlySet<string> = new Set()
 
 const EMPTY: FoldedFeed = {
   rows: NO_FEED_ROWS,
   replyActions: NO_REPLY_ACTIONS,
   seals: NO_SEALS,
+  processRows: NO_PROCESS_ROWS,
   live: NO_FEED_ROWS,
 }
 
@@ -129,6 +133,7 @@ interface TurnFold {
   readonly settled: boolean
   readonly own: readonly number[]
   readonly hidden: readonly number[]
+  readonly processRows: readonly FeedRow[]
   readonly live: readonly FeedRow[]
   readonly seal: TurnSealPlan | undefined
   /** 封条挂在这一轮提问那一行的 id；undefined 表示这一轮没有提问可挂。 */
@@ -148,6 +153,7 @@ interface FoldProjection {
 interface SealPlan {
   readonly seals: ReadonlyMap<string, TurnSealPlan>
   readonly hidden: ReadonlySet<number>
+  readonly processRows: ReadonlySet<string>
   readonly live: readonly FeedRow[]
 }
 
@@ -207,6 +213,7 @@ export function foldFeed(
     rows: foldRows(rows, sealed.hidden),
     replyActions: repliesIn(order, folds),
     seals: sealed.seals,
+    processRows: sealed.processRows,
     live: sealed.live,
   }
 
@@ -251,6 +258,7 @@ function boundsOf(rows: readonly FeedRow[]): TurnIndex {
 function sealsIn(spans: readonly TurnSpan[], folds: ReadonlyMap<number, TurnFold>): SealPlan {
   const seals = new Map<string, TurnSealPlan>()
   const hidden = new Set<number>()
+  const processRows = new Set<string>()
   const live: FeedRow[] = []
 
   for (const span of spans) {
@@ -264,6 +272,10 @@ function sealsIn(spans: readonly TurnSpan[], folds: ReadonlyMap<number, TurnFold
       hidden.add(at)
     }
 
+    for (const row of fold.processRows) {
+      processRows.add(row.item.id)
+    }
+
     for (const row of fold.live) {
       live.push(row)
     }
@@ -274,6 +286,7 @@ function sealsIn(spans: readonly TurnSpan[], folds: ReadonlyMap<number, TurnFold
   return {
     seals: seals.size === 0 ? NO_SEALS : seals,
     hidden,
+    processRows: processRows.size === 0 ? NO_PROCESS_ROWS : processRows,
     live: live.length === 0 ? NO_FEED_ROWS : live,
   }
 }
@@ -353,6 +366,7 @@ function foldOf(
     settled,
     own,
     hidden,
+    processRows: rowsOf(rows, process),
     live,
     seal,
     sealAt: seal === undefined ? undefined : saidAt,
@@ -462,6 +476,23 @@ function saidIn(rows: readonly FeedRow[], own: readonly number[]): string | unde
  *
  * 回复不交 —— 它是内容，归转录；被开口盖过的过程也不交 —— 它已经归封条了。
  */
+function rowsOf(rows: readonly FeedRow[], indexes: readonly number[]): readonly FeedRow[] {
+  if (indexes.length === 0) {
+    return NO_FEED_ROWS
+  }
+
+  const selected: FeedRow[] = []
+
+  for (const index of indexes) {
+    const row = rows[index]
+    if (row !== undefined) {
+      selected.push(row)
+    }
+  }
+
+  return selected
+}
+
 function liveIn(
   rows: readonly FeedRow[],
   hidden: readonly number[],
