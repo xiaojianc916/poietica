@@ -230,7 +230,21 @@ const MOONSHOT: AgentProviderPreset = {
  *
  * 模型 id 自带一段斜杠（stealth/），别处按 provider/ 剥前缀时只剥第一段
  * （model-display.ts 的 bareModelId），剥完仍是原 id，来回无损；命令行参数白名单
- * （kimi/catalog-add.ts 的 ARG_PATTERN）本来就放行斜杠。
+ * （kimi/catalog-add.ts 的 ARG_PATTERN）本来就放行斜杠与冒号。
+ *
+ * liquid/lfm-2.5-2.6b:free：GET api/v1/models/liquid/lfm-2.5-2.6b:free/endpoints
+ *   （2026-08-22 取）逐字 —— context_length 65536、pricing 全 0、supported_parameters
+ *   含 tools 与 reasoning。无后缀那条当前 endpoints 为空（没有可用的服务点），活着的
+ *   只有 :free 这条。官方描述自述「advises against using it for agentic coding」。
+ *
+ * z-ai/glm-5.2:free：GET api/v1/models/z-ai/glm-5.2:free/endpoints（2026-08-22 取）
+ *   逐字 —— context_length 256000、pricing 全 0、supported_parameters 含 tools 与
+ *   reasoning_effort。OpenRouter 未枚举档位取值，thinking 不声明；要完整档位走上面
+ *   智谱直连那张卡。
+ *
+ * nvidia/nemotron-3.5-content-safety:free：同日 endpoints 逐字 —— context_length
+ *   128000、pricing 全 0、supported_parameters 没有 tools / tool_choice（护栏分类器，
+ *   驱动不了 agent 会话）；NVIDIA 描述逐字「togglable reasoning mode」，故声明 toggle。
  */
 const OPENROUTER: AgentProviderPreset = {
   id: 'openrouter',
@@ -245,6 +259,22 @@ const OPENROUTER: AgentProviderPreset = {
       displayName: 'Ox Alpha',
       maxContextSize: 1048576,
       thinking: { efforts: ['low', 'high', 'max'] },
+    },
+    {
+      id: 'z-ai/glm-5.2:free',
+      displayName: 'GLM 5.2 (free)',
+      maxContextSize: 256000,
+    },
+    {
+      id: 'liquid/lfm-2.5-2.6b:free',
+      displayName: 'LFM2.5-2.6B (free)',
+      maxContextSize: 65536,
+    },
+    {
+      id: 'nvidia/nemotron-3.5-content-safety:free',
+      displayName: 'Nemotron 3.5 Content Safety (free)',
+      maxContextSize: 128000,
+      thinking: { toggle: true },
     },
   ],
 }
