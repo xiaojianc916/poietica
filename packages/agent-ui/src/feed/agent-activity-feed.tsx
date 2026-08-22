@@ -235,9 +235,9 @@ export function AgentActivityFeed({
   /*
    * 末端由它拨,不由虚拟器拨。整段理由写在 follow-latest。
    *
-   * 各有各的调用点:watch 装在滚动区上(与跳转闩锁同一处装卸),stick 在每次提交之后与每
-   * 次尺寸变化之后各拨一次,release 在人下跳转指令时让开,travel 在人亲手要求回到末端时把
-   * 视口送回去 —— 那有两个入口,一个是他又说了一句话,一个是那枚按钮。
+   * 各有各的调用点:watch 装在滚动区上(与跳转闩锁同一处装卸),stick 在内容长高时报一次水位
+   * 线,release 在人下跳转指令时让开,travel 在人亲手要求回到末端时把视口送回去 —— 那有两个
+   * 入口,一个是他又说了一句话,一个是那枚按钮。
    *
    * 落位有两种,各有各的入口。人亲手要求回到末端时走 travel:那是一段有距离的返回,闪现会
    * 把「我刚才在哪」抹掉。换一条对话时走 resume:那不是返回,是开场 —— 开场不该有位移,而上
@@ -484,20 +484,19 @@ export function AgentActivityFeed({
   }, [conversation, ownMessage, resume, travel])
 
   /*
-   * 每一次提交之后,拨一次末端。
+   * 内容长高了,就拨一次末端。
    *
-   * 没有依赖数组是刻意的:任何一次提交都可能改变滚动盒的高度 —— 多一行、封条开合、瞬态
-   * 区换帧、尾部因为输入框长高而变厚,而这里不需要区分是哪一种。stick 只在人还跟着最新
-   * 内容时写一次 scrollTop,写的值与当前值相同时浏览器连事件都不派发,所以「每次提交都
-   * 跑」的代价就是一次赋值。
+   * 水位线在这一层是已知数:转录框的高度由虚拟器算出,尾部的高度由观察它的那条通知带来,
+   * 两者相加就是滚动盒里的内容高度。不经过 React 的那些长高(图片解码完成、公式与图表
+   * 排版)也含在里面 —— 它们改变行的实测高度,虚拟器随之改总高。
    *
-   * 挂在布局效应而不是只挂 ResizeObserver:布局效应与这次提交同帧,末端因此在同一次绘制
-   * 里就跟上了。下面那个观察者不是它的替补,是它的补集 —— 负责不经过 React 的那些高度
-   * 变化。
+   * 于是跟随只在真的长高时读一次几何,而写者只剩这一处。
    */
+  const contentHeight = virtualizer.getTotalSize() + tailSize
+
   useLayoutEffect(() => {
-    stick()
-  })
+    stick(contentHeight)
+  }, [contentHeight, stick])
 
   /*
    * 量，然后交出去。这里一个字都不写回 DOM。
@@ -535,15 +534,14 @@ export function AgentActivityFeed({
     }
 
     /*
-     * 尺寸变了，三件事都要重做：同一个滚动位置对应到哪一行、转录相对滚动区的偏移、
-     * 以及末端。偏移必须在这里重算而不能只靠行数变化去带 —— 面板被拖窄时行数一行都
-     * 不变，而滚动区的内边距与页眉都变了。
+     * 尺寸变了，两件事都要重做：同一个滚动位置对应到哪一行、转录相对滚动区的偏移。偏移
+     * 必须在这里重算而不能只靠行数变化去带 —— 面板被拖窄时行数一行都不变，而滚动区的
+     * 内边距与页眉都变了。
      *
-     * 三个量一个都不来自转录的高度：偏移由滚动区的内边距与页眉决定，随滚动区一起变；
-     * 尾部的高度由派发它的那条通知自己带着；末端由 follow-latest 现读 DOM。这一点是
-     * 下面把转录也放进名单的前提 —— 否则「尺寸变化叫醒回调、回调改高度、高度再叫醒
-     * 回调」就闭合成一条回路，也就是「ResizeObserver loop completed with undelivered
-     * notifications」的成因。
+     * 两个量都不来自转录的高度：偏移由滚动区的内边距与页眉决定，随滚动区一起变；尾部的
+     * 高度由派发它的那条通知自己带着。这一点是下面把转录也放进名单的前提 —— 否则「尺寸
+     * 变化叫醒回调、回调改高度、高度再叫醒回调」就闭合成一条回路，也就是「ResizeObserver
+     * loop completed with undelivered notifications」的成因。
      */
     const observer = new ResizeObserver((entries) => {
       /* 偏移只由滚动区自己决定：转录框长高不动它的顶边，而流式输出时它每一帧都在长。 */
@@ -569,7 +567,6 @@ export function AgentActivityFeed({
       }
 
       scheduleSync()
-      stick()
     })
 
     observer.observe(viewport)
@@ -578,9 +575,8 @@ export function AgentActivityFeed({
      * 转录框也在观察名单上。
      *
      * 它的高度就是 getTotalSize(),流式输出时每一帧都在长,所以回路接不上这件事必须逐句
-     * 成立:回调里拨末端的那一句只写 scrollTop —— 一次赋值,不产生渲染;另外两句写 state,
-     * 但它们都在值没变时被 React 挡掉 —— 偏移不随转录框自身的高度变化,视线所在的行只在
-     * 跨行时才是新值。
+     * 成立:回调里那两句都写 state,而它们都在值没变时被 React 挡掉 —— 偏移不随转录框自身
+     * 的高度变化,视线所在的行只在跨行时才是新值。
      *
      * 要它的理由是它盖住了另外两个盖不到的东西:行内的异步排版(图片解码、公式、图表),
      * 以及瞬态区换帧引起的高度变化 —— 后者虽然也走 tailRef 那条通知,但那条通知只带来
@@ -622,7 +618,7 @@ export function AgentActivityFeed({
     return () => {
       observer.disconnect()
     }
-  }, [measureMargin, scheduleSync, stick])
+  }, [measureMargin, scheduleSync])
 
   /*
    * 跳转是意图的效应,不是点击的副作用。

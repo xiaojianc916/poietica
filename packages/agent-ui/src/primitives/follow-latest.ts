@@ -11,6 +11,9 @@ import { startGlide } from './scroll-glide'
  */
 const NEAR_END_PX = 48
 
+/** 一个任何滚动高度都到不了的值：写进 scrollTop，浏览器会夹回可滚动范围的末端。 */
+const BEYOND_END = 2 ** 30
+
 /**
  * 人主动改变一段内容高度的标准声明。
  *
@@ -170,8 +173,13 @@ export function nextFollow(
 export interface FollowLatest {
   /** 视口此刻是否在末端。几何，不是意图 —— 它只喂「回到最新」那枚按钮的存在。 */
   readonly atLatest: boolean
-  /** 若人还跟着最新内容，把视口瞬时拨到末端；无论跟不跟，都重新发布一次几何。 */
-  readonly stick: () => void
+  /**
+   * 内容的水位线又变大了：若人还跟着最新内容，把视口瞬时拨到末端。
+   *
+   * 报数的是持有内容的那一层 —— 它在渲染期就知道自己有多少内容。水位线没变大的那些
+   * 提交，这一层一次几何都不读。
+   */
+  readonly stick: (mark: number) => void
   /** 人接管了滚动位置。粘滞，由「人自己滚回末端」解除。 */
   readonly release: () => void
   /** 重新跟上，并瞬时拨到末端。给开场，以及「打开一个小盒子」这类没有距离的返回。 */
@@ -240,13 +248,8 @@ export function useFollowLatest(): FollowLatest {
    */
   const ours = useRef(false)
 
-  /*
-   * 开场那一次贴合做过没有。
-   *
-   * 只立一次，之后永远为真。settle 的长高闸拿它区分「高度从无到有」与「什么都没长」——
-   * 前者要拨，后者不该拨。此前这件事是无闸 stick 的副产品，加了闸就得把它说出来。
-   */
-  const primed = useRef(false)
+  /* 内容的水位线。-1 表示还没收到过一份内容，所以第一份必然算「长高了」。 */
+  const marked = useRef(-1)
 
   const last = useRef<ScrollGeometry>({ clientHeight: 0, scrollHeight: 0, scrollTop: 0 })
   const stopGlide = useRef<(() => void) | null>(null)
@@ -282,67 +285,56 @@ export function useFollowLatest(): FollowLatest {
   }, [])
 
   /*
-   * 拨一次末端，然后重新发布几何。
+   * 拨到末端，然后重新发布几何。
    *
-   * forced 回答的是「这一次为什么要拨」，而不是所有调用点都有内容要跟：
-   *
-   *   false —— 每一次提交、每一次尺寸变化。这两处问的是「内容也许长高了」，所以只有真
-   *     的长高了才写。没长高还写，就是把人从近末端硬拽到末端。
-   *   true —— 人亲手要求回到末端（resume 与 travel 的落位）。那时高度往往一动不动，而
-   *     拨过去正是这次调用的全部目的。
-   *
-   * 这道闸是有出处的：调用它的那个布局效应在 agent-activity-feed 里写着「写的值与当前值
-   * 相同时浏览器连事件都不派发，所以每次提交都跑的代价就是一次赋值」。那句话只在人正好
-   * 压在末端时成立。NEAR_END_PX 那一带里 follows 为真而视口不在末端，同一句赋值于是变成
-   * 一次至多 48 像素的瞬时位移 —— 人把滚动条拖到接近底部松手，就被吸了下去。
-   *
-   * 阈值本身不动：它同时回答「那枚按钮该不该在」，而按钮要的正是这份宽容。要改的是把
-   * 「下次长高时跟着走」读成「现在就贴过去」的这一层，不是那个数。
+   * CSSOM View 规定 scrollTop 的 setter 把值夹进可滚动范围，所以写一个必然越界的常量就是
+   * 「拨到末端」的全文，不必先读一次 scrollHeight。它是瞬时的，因为滚动区的
+   * scroll-behavior 是 auto —— 那句声明是承重的：改成 smooth 会让持续跟随的每一次写入都
+   * 变成动画。
    */
-  const settle = useCallback(
-    (forced: boolean) => {
-      const element = viewport.current
+  const settle = useCallback(() => {
+    const element = viewport.current
 
-      if (element === null) {
-        return
+    if (element === null) {
+      return
+    }
+
+    if (state.current.follows && !state.current.traveling) {
+      const before = element.scrollTop
+
+      element.scrollTop = BEYOND_END
+
+      if (element.scrollTop !== before) {
+        ours.current = true
       }
+    }
 
-      if (state.current.follows && !state.current.traveling) {
-        /* 开场那一次没有「上一次」可比：高度是从无到有的，不是长高。 */
-        const grew = !primed.current || element.scrollHeight > last.current.scrollHeight
+    const geometry = seen(element)
 
-        primed.current = true
+    last.current = geometry
+    publish(staysWithLatest(geometry))
+  }, [publish])
 
-        if (forced || grew) {
-          const before = element.scrollTop
+  /*
+   * 内容长高了，才有跟随可言。
+   *
+   * 「长高了没有」由持有内容的那一层报数，它在渲染期就知道自己有多少内容；这一层只能去
+   * 问 DOM，而 scrollHeight 与 scrollTop 由 CSSOM View 定义在布局盒上 —— 在布局效应里读
+   * 它们，就是把这一帧的布局提前算完，每次提交都读一遍等于拿一次强制回流去换一个上一层
+   * 本来就有的事实。没长高的那些提交（封条开合、悬停、尾部换帧）因此一次几何都不读。
+   */
+  const stick = useCallback(
+    (mark: number) => {
+      const grew = mark > marked.current
 
-          /*
-           * 写一个必然越界的值，让浏览器去夹。
-           *
-           * CSSOM View 规定 scrollTop 的 setter 把值夹进可滚动范围，所以这一句就是「拨到
-           * 末端」的全文。它是瞬时的，因为滚动区的 scroll-behavior 是 auto —— setter 用的
-           * 是那个计算值。那句声明因此是承重的：改成 smooth 会让持续跟随和位移循环的每帧
-           * 写入全都变成动画。
-           */
-          element.scrollTop = element.scrollHeight
+      marked.current = mark
 
-          if (element.scrollTop !== before) {
-            ours.current = true
-          }
-        }
+      if (grew) {
+        settle()
       }
-
-      const geometry = seen(element)
-
-      last.current = geometry
-      publish(staysWithLatest(geometry))
     },
-    [publish],
+    [settle],
   )
-
-  const stick = useCallback(() => {
-    settle(false)
-  }, [settle])
 
   const release = useCallback(() => {
     state.current = LET_GO
@@ -357,7 +349,9 @@ export function useFollowLatest(): FollowLatest {
    */
   const resume = useCallback(() => {
     state.current = AT_LATEST
-    settle(true)
+    /* 换一条对话时内容可能比上一条短：水位线跟着重来，否则长回旧高度之前都不算长高。 */
+    marked.current = -1
+    settle()
   }, [settle])
 
   const travel = useCallback(() => {
@@ -375,7 +369,7 @@ export function useFollowLatest(): FollowLatest {
     /* 没有距离可走，或者这个人要求少一些动效：直接贴合。一段看不见的动画不值得一个状态。 */
     if (reduced === true || staysWithLatest(geometry)) {
       state.current = AT_LATEST
-      settle(true)
+      settle()
 
       return
     }
@@ -390,7 +384,7 @@ export function useFollowLatest(): FollowLatest {
     stopGlide.current = startGlide(element, {
       arrive: () => {
         state.current = AT_LATEST
-        settle(true)
+        settle()
       },
       proceed: () => viewport.current !== null && state.current.traveling,
       target: () => {

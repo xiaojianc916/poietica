@@ -188,7 +188,10 @@ pub async fn agent_prompt(
     })
 }
 
-/// 帧按屏幕节拍成批：先持久化，整批成功后才发布给界面。<br>///<br>/// 有界通道把背压留在生产者侧；一批从首帧起最多等待 FRAME_INTERVAL。
+/// 帧按屏幕节拍成批，一批先交货、后落库：抢库锁那段等待没有上界，排在交货前面，
+/// 屏幕的延迟就等于那段等待。落库那一侧是单消费者，所以表上的顺序仍是交货顺序。
+///
+/// 有界通道把背压留在生产者侧；一批从首帧起最多等待 FRAME_INTERVAL。
 const FRAME_EVENT_QUEUE_CAPACITY: usize = 512;
 const FRAME_BATCH_QUEUE_CAPACITY: usize = 8;
 
@@ -233,32 +236,30 @@ fn batch_frames(arriving: SyncReceiver<RecordedEvent>, shaped: mpsc::Sender<Vec<
 }
 
 async fn recording(app: AppHandle, thread: Uuid, mut arriving: mpsc::Receiver<Vec<RecordedFrame>>) {
+    let index = app.state::<LocalIndex>();
+
     while let Some(logged) = arriving.recv().await {
-        let index = app.state::<LocalIndex>();
-        let persisted = on_index(&index, move |store| {
-            store
-                .record_frames(thread, &logged)
-                .map(|refused| (logged, refused))
-                .map_err(persistence)
+        /* 先交货：抢库锁那段等待没有上界（busy_timeout 五秒），排在前面屏幕就等它，而这
+        一批已经成形 —— 落库与上屏用的是同一段字节。 */
+        {
+            let shown: Vec<&RawValue> = logged.iter().map(|frame| frame.frame.as_ref()).collect();
+
+            if let Err(error) = app.emit(AGENT_EVENT, &shown) {
+                log::warn!("emit agent event failed: {error}");
+            }
+        }
+
+        /* 落库随后。撞上唯一键的帧只报笔数：它说的是这条会话的序号线接错了（recorder.rs
+        的 SeqLine::resume），与这一批该不该上屏无关。 */
+        let written = on_index(&index, move |store| {
+            store.record_frames(thread, &logged).map_err(persistence)
         })
         .await;
 
-        match persisted {
-            Ok((logged, 0)) => {
-                let shown: Vec<&RawValue> =
-                    logged.iter().map(|frame| frame.frame.as_ref()).collect();
-                if let Err(error) = app.emit(AGENT_EVENT, &shown) {
-                    log::warn!("emit agent event failed: {error}");
-                }
-            }
-            Ok((_, refused)) => {
-                log::error!(
-                    "durable frame pipeline refused {refused} frames; batch was not published"
-                );
-            }
-            Err(error) => {
-                log::error!("persist agent event batch failed; batch was not published: {error}");
-            }
+        match written {
+            Ok(0) => {}
+            Ok(refused) => log::error!("the frame log refused {refused} frames"),
+            Err(error) => log::error!("persist agent event batch failed: {error}"),
         }
     }
 }

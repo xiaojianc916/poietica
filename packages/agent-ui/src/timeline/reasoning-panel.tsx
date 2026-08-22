@@ -82,18 +82,14 @@ export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
   }, [chasing, release, resume])
 
   /*
-   * 每次提交之后拨一次末端。
+   * 内容长高了,就拨一次末端。
    *
-   * 这一层在 VirtualProse 之外,所以它的布局效应跑在后者提交之后 —— 新的一块已经落进
-   * DOM,盒子的高度是新的。同一帧完成,看不见中间态。
-   *
-   * 没有依赖数组是刻意的:每一次重渲染都可能改变这个盒子的高度,而这里不需要区分是哪
-   * 一种。stick 只在人还跟着最新内容时写一次 scrollTop,写的值与当前值相同时浏览器连
-   * 事件都不派发。
+   * 思考链只往后写,所以文本长度就是这个盒子的水位线 —— 它在渲染期就是已知数,不必每次
+   * 提交去读一遍 scrollHeight。
    */
   useLayoutEffect(() => {
-    stick()
-  })
+    stick(text.length)
+  }, [stick, text])
 
   return (
     <div className="timeline-reasoning" data-open={isOpen ? 'true' : undefined}>
