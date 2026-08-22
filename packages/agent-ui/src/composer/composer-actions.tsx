@@ -1,9 +1,4 @@
-import type {
-  AgentMcpServer,
-  AgentSkill,
-  PromptConfiguration,
-  SessionConfigControl,
-} from '@poietica/agent-contract'
+import type { AgentMcpServer, PromptConfiguration, SessionConfigControl } from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
 import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
@@ -19,10 +14,17 @@ export function ComposerActions() {
   )
 }
 
+/** 输入面板只需要技能的调用名、显示名与说明，不接触它来自哪条协议。 */
+export interface ComposerSkill {
+  readonly name: string
+  readonly label?: string | undefined
+  readonly description: string
+}
+
 export interface ComposerPaletteSource {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelectControl: (controlId: string, value: string, input?: string) => void
-  readonly skills: readonly AgentSkill[]
+  readonly skills: readonly ComposerSkill[]
   readonly mcpServers: readonly AgentMcpServer[]
 }
 
@@ -110,6 +112,19 @@ function choiceRow(
   }
 }
 
+function mcpStatus(server: AgentMcpServer): string | undefined {
+  switch (server.status) {
+    case 'connected':
+      return undefined
+    case 'connecting':
+      return '连接中'
+    case 'disconnected':
+      return '未连接'
+    case 'error':
+      return '连接失败'
+  }
+}
+
 export function composerPaletteGroups({
   controls,
   mcpServers,
@@ -142,7 +157,7 @@ export function composerPaletteGroups({
       rows: skills.map((skill) =>
         insertRow(
           `skill:${skill.name}`,
-          skill.name,
+          skill.label ?? skill.name,
           skill.description,
           <SkillIcon aria-hidden="true" />,
           { kind: 'skill', name: skill.name },
@@ -151,16 +166,15 @@ export function composerPaletteGroups({
     })
   }
 
-  const connected = mcpServers.filter((server) => server.status === 'connected')
-  if (connected.length > 0) {
+  if (mcpServers.length > 0) {
     groups.push({
       id: 'mcp',
-      heading: '检测到可用的 MCP',
-      rows: connected.map((server) =>
+      heading: 'MCP',
+      rows: mcpServers.map((server) =>
         insertRow(
           `mcp:${server.id}`,
           server.name,
-          `${server.transport} ${String(server.toolCount)} 个工具`,
+          mcpStatus(server),
           <ToolIcon aria-hidden="true" />,
           { kind: 'mcp', id: server.id, name: server.name },
         ),

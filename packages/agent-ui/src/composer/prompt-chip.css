@@ -1,36 +1,23 @@
 .assistant-prompt-chip {
   display: inline-flex;
-  vertical-align: middle;
+  vertical-align: baseline;
 }
 
 .assistant-prompt-chip__body {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  border-radius: 9999px;
-  padding: 1px 3px 1px 6px;
-  background: color-mix(in oklab, var(--assistant-chip-accent, #2563eb) 14%, transparent);
-  color: var(--assistant-chip-accent, #2563eb);
+  justify-content: flex-start;
+  gap: 0.25em;
+  padding: 0;
+  font: inherit;
+  line-height: inherit;
+  color: #2563eb;
   white-space: nowrap;
-}
-
-.assistant-prompt-chip__body > svg,
-.assistant-prompt-chip__remove > svg {
-  block-size: 12px;
-  inline-size: 12px;
-}
-
-.assistant-prompt-chip__remove {
-  display: inline-grid;
-  place-items: center;
-  border: 0;
-  border-radius: 9999px;
-  padding: 2px;
   background: transparent;
-  color: inherit;
-  cursor: pointer;
+  border: 0;
 }
 
-.assistant-prompt-chip__remove:hover {
-  background: color-mix(in oklab, currentColor 14%, transparent);
+.assistant-prompt-chip__body > svg {
+  block-size: 1em;
+  inline-size: 1em;
 }
