@@ -1,7 +1,6 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
-import { selectTurns } from '../conversation-turns'
-import { selectFeedRows } from '../feed-rows'
+import { selectPresentation } from '../presentation'
 import { allItems, type TimelineState } from '../timeline-contract'
 import {
   appendUserMessage,
@@ -13,10 +12,12 @@ import {
 /*
  * 一问一格。
  *
- * 缩略导航按「人问过几次」数格子（conversation-turns 的 stageTurns），所以转录里
+ * 缩略导航按「人问过几次」数格子（presentation 的轮次轨道），所以转录里
  * 多一条用户消息，轨道上就多一根杠。这里守的是「同一句话只落一次账」这条不变式，
  * 一句话的每一条到达路径各来一遍。
  */
+
+const SHUT: ReadonlySet<number> = new Set()
 
 function started(seq: number, prompt: string, images?: readonly string[]): RunEvent {
   return {
@@ -42,7 +43,7 @@ function said(state: TimelineState): readonly string[] {
 }
 
 function rails(state: TimelineState): number {
-  return selectTurns(selectFeedRows(state)).length
+  return selectPresentation(state, SHUT).turns.length
 }
 
 describe('one question, one rail stop', () => {

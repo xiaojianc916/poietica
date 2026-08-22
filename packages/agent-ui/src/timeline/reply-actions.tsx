@@ -144,7 +144,7 @@ function Actions({ isFinal, onFork, text }: ReplyActionsProps) {
 /*
  * 流式期间整块跳过。
  *
- * 宿主 renderRowWithSeal 每一帧都换身份（它闭包着 foldFeed 交出的两张表），于是屏幕上每
+ * 宿主 transcript-view 的 renderRowAt 每一帧都换身份（它闭包着逐帧重建的投影），于是屏幕上每
  * 一处轮次末端每帧都被重新调用一次。而这一层的入参只有一段已经定稿的文字：轮次落定之后
  * 它逐字不变，浅比较恒命中。同目录的 TurnSeal、Prose、TimelineRow 都是这个做法。
  */

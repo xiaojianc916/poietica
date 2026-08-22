@@ -1,6 +1,6 @@
 import './agent-activity-feed.css'
 
-import type { FeedRow } from '@poietica/agent'
+import type { FeedRow, Presentation } from '@poietica/agent'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useReducedMotion } from 'motion/react'
 import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
@@ -8,7 +8,6 @@ import { useFollowLatest } from '../primitives/follow-latest'
 import { ChevronDownIcon } from '../primitives/icons'
 import { startGlide } from '../primitives/scroll-glide'
 import { useDevicePixels } from '../primitives/use-device-pixels'
-import { latestOwnMessage } from './own-message'
 import { type RowSpan, rowAtAnchor } from './reading-position'
 import { useRevealIntent } from './use-reveal-intent'
 
@@ -129,12 +128,12 @@ export interface AgentActivityFeedProps {
    * 这些行属于哪一条对话。
    *
    * 滚动位置是这个盒子的状态，而这个盒子跨对话复用（上层不为它换 key）。「换了一条对话」
-   * 与「同一条对话里又多了一句」是两件事，而 rows 分不出它们 —— 分不出的后果就是进一条
+   * 与「同一条对话里又多了一句」是两件事，而转录内容分不出它们 —— 分不出的后果就是进一条
    * 旧对话时会看见一段本不该发生的位移。身份因此必须由持有它的那一层交下来，不从内容里猜。
    */
   readonly conversation: string
-  readonly rows: readonly FeedRow[]
-  readonly renderRow: (row: FeedRow) => ReactNode
+  readonly feed: Presentation
+  readonly renderRow: (index: number) => ReactNode
   readonly isBusy: boolean
   /**
    * 转录之后、滚动区之内。
@@ -159,7 +158,7 @@ export interface AgentActivityFeedProps {
 
 export function AgentActivityFeed({
   conversation,
-  rows,
+  feed,
   renderRow,
   isBusy,
   footer,
@@ -382,7 +381,7 @@ export function AgentActivityFeed({
    * 那之后落到别的条目上。官方点名过这一条 ——「Index keys cannot distinguish prepends
    * from appends after items shift」。
    *
-   * 依赖是 rows，不是一份在渲染期写进去的镜像。React 的规矩没有例外：渲染必须是纯的，
+   * 依赖是投影，不是一份在渲染期写进去的镜像。React 的规矩没有例外：渲染必须是纯的，
    * ref 不在渲染期读写（Referencing Values with Refs 逐字：Do not write or read
    * ref.current during rendering）。StrictMode 会把渲染跑两遍，并发渲染会丢弃渲染 ——
    * 镜像因此不是一次优化，是一次赌它不行使这个权利。
@@ -392,19 +391,19 @@ export function AgentActivityFeed({
    * 为索引的 itemSizeCache 里，不随之作废 —— 重算是纯算术，measureElement 一次都不会
    * 被重新调用。「每帧全表重测」从来没有发生过。
    */
-  const getItemKey = useCallback((index: number) => rows[index]?.item.id ?? index, [rows])
+  const getItemKey = useCallback((index: number) => feed.rowAt(index)?.item.id ?? index, [feed])
 
   const estimateSize = useCallback(
     (index: number) => {
-      const type = rows[index]?.item.type
+      const type = feed.rowAt(index)?.item.type
 
       return type === undefined ? ESTIMATED_FALLBACK_PX : ESTIMATED_ROW_PX[type]
     },
-    [rows],
+    [feed],
   )
 
   const virtualizer = useVirtualizer({
-    count: rows.length,
+    count: feed.count,
     getScrollElement: () => viewportRef.current,
     estimateSize,
     getItemKey,
@@ -458,7 +457,7 @@ export function AgentActivityFeed({
    * 末两项比较不是冗余:travel 与 resume 的身份随「减弱动态偏好」变化,效应会因此在 id 没变
    * 时重跑。
    */
-  const ownMessage = latestOwnMessage(rows)
+  const ownMessage = feed.latestOwnMessage
   const said = useRef<{ readonly conversation: string; readonly message: string | null } | null>(
     null,
   )
@@ -676,7 +675,7 @@ export function AgentActivityFeed({
 
   useLayoutEffect(() => {
     const before = anchored.current
-    const first = rows[0]?.item.id ?? null
+    const first = feed.rowAt(0)?.item.id ?? null
 
     anchored.current = first
 
@@ -684,12 +683,12 @@ export function AgentActivityFeed({
       return
     }
 
-    const moved = rows.findIndex((row) => row.item.id === before)
+    const moved = feed.indexOf(before)
 
     if (moved > 0) {
       virtualizer.scrollToIndex(moved, { align: 'start' })
     }
-  }, [rows, virtualizer])
+  }, [feed, virtualizer])
 
   /*
    * 高亮的真源,按优先级排。
@@ -698,7 +697,7 @@ export function AgentActivityFeed({
    * 只有首帧 —— 是末尾,因为上面的布局效应刚把视口送到那里。原先这里写 0,于是
    * 开场必然先亮第一轮再跳到最后一轮。
    */
-  const activeRow = pending ?? readingRow ?? Math.max(0, rows.length - 1)
+  const activeRow = pending ?? readingRow ?? Math.max(0, feed.count - 1)
 
   const scrollToRow = useCallback(
     (index: number) => {
@@ -746,7 +745,7 @@ export function AgentActivityFeed({
            * 代价是每个可见行一个内联 style 对象，约十几个每帧。
            */}
           {items.map((item) => {
-            const row = rows[item.index]
+            const row = feed.rowAt(item.index)
 
             if (row === undefined) {
               return null
@@ -764,7 +763,7 @@ export function AgentActivityFeed({
                   transform: `translateY(${String(snapToDevicePixels(item.start - scrollMargin))}px)`,
                 }}
               >
-                {renderRow(row)}
+                {renderRow(item.index)}
               </div>
             )
           })}

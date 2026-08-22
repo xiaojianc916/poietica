@@ -1,13 +1,18 @@
 import './tool-group.css'
 
-import type { FeedRow, ToolCallTimelineItem } from '@poietica/agent'
+import {
+  type FeedRow,
+  liveMemberOf,
+  type ToolCallTimelineItem,
+  type ToolGroupKind,
+  type ToolGroupPlan,
+} from '@poietica/agent'
 import type { ReactNode } from 'react'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import { ChevronDownIcon } from '../primitives/icons'
 import { readToolLine } from '../semantics/tool-intent'
 import { GroupTicker } from './group-ticker'
 import { ToolKindIcon } from './tool-call-card'
-import { liveMemberOf, type ToolGroupKind, type ToolGroupPlan } from './tool-group'
 
 /**
  * 一组连续的同类调用。
@@ -87,7 +92,7 @@ export function ToolGroupCard({ plan, renderRow }: ToolGroupCardProps) {
 
   /* 组里还有人在跑，汇总行就跟着闪 —— 收起时那道光是唯一还能说出「正在做」的东西。
      判据借 FeedRow.isInFlight：它已经把「这一轮还在飞」与「这次调用还没有终态」两件事
-     合过了（feed-rows.ts 的 inFlightAt），这里不重判一遍。 */
+     合过了（presentation.ts 的 inFlight），这里不重判一遍。 */
   const isRunning = plan.members.some((row) => row.isInFlight)
 
   /*

@@ -157,7 +157,7 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
  *
  * 滚动区每一帧都重渲染 —— 虚拟器必须如此 —— 于是浮层每帧被调用一次,产出一个新
  * 元素,React 就得逐个比对 N 个按钮和 N 张卡片。但这三个入参在构造上就是引用稳定
- * 的:turns 走时间线的弱表缓存(selectTurns 在轮次没变时交还同一个数组),activeRow
+ * 的:turns 走投影的弱表缓存(selectPresentation 在轮次没变时交还同一个数组),activeRow
  * 是数字且跨行才变,onSelect 经 scrollToRow 落到 useRevealIntent 的 begin —— 那个
  * 才是空依赖的 useCallback。所以浅比较几乎总是命中。
  *
