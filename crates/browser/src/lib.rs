@@ -190,12 +190,14 @@ pub fn normalize_address(input: &str) -> Option<String> {
 
     let candidate = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
         trimmed.to_owned()
-    } else if trimmed.contains(' ') || !trimmed.contains('.') {
+    } else if trimmed.contains(' ') {
         return None;
+    } else if is_local_authority(trimmed) {
+        format!("http://{trimmed}")
+    } else if trimmed.contains('.') {
+        format!("https://{trimmed}")
     } else {
-        let mut prefixed = String::from("https://");
-        prefixed.push_str(trimmed);
-        prefixed
+        return None;
     };
 
     let parsed = url::Url::parse(&candidate).ok()?;
@@ -203,6 +205,19 @@ pub fn normalize_address(input: &str) -> Option<String> {
     parsed.host()?;
 
     Some(parsed.into())
+}
+
+/// 本机地址：开发服务器几乎不说 TLS，公网几乎只说 TLS。
+/// 判据只看权限部分的主机名，端口交给 url crate 解析。
+fn is_local_authority(input: &str) -> bool {
+    let host = input
+        .split('/')
+        .next()
+        .unwrap_or(input)
+        .rsplit_once(':')
+        .map_or(input, |(head, _)| head);
+
+    host == "localhost" || host.parse::<std::net::IpAddr>().is_ok()
 }
 
 /// 一条 URL 在标签上的临时名字：主机名。解析不出来就原样显示。
@@ -363,7 +378,19 @@ mod tests {
             Some("http://example.com/a?b=c")
         );
         assert_eq!(normalize_address("what is rust"), None);
-        assert_eq!(normalize_address("localhost"), None);
         assert_eq!(normalize_address(""), None);
+    }
+
+    #[test]
+    fn accepts_local_development_addresses() {
+        assert_eq!(
+            normalize_address("localhost:5173").as_deref(),
+            Some("http://localhost:5173/")
+        );
+        assert_eq!(
+            normalize_address("127.0.0.1:3000/app").as_deref(),
+            Some("http://127.0.0.1:3000/app")
+        );
+        assert_eq!(normalize_address("localhost").as_deref(), Some("http://localhost/"));
     }
 }

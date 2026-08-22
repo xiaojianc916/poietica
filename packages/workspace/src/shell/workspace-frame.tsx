@@ -1,7 +1,7 @@
 import { type MotionStyle, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
-import type { SplitterActivity } from './workspace-layout-store'
+import type { SplitterActivity, SplitterRegion } from './workspace-layout-store'
 
 import './workspace-shell.css'
 
@@ -29,9 +29,13 @@ export interface WorkspaceFrameProps {
   readonly chrome: ReactNode
   readonly sidebar: ReactNode
   readonly main: ReactNode
+  readonly browser: ReactNode
   readonly sidebarColumnWidth: number
+  readonly browserColumnWidth: number
   readonly isSidebarDocked: boolean
+  readonly isBrowserDocked: boolean
   readonly splitter: SplitterActivity
+  readonly splitterRegion: SplitterRegion
 }
 
 /**
@@ -46,9 +50,13 @@ export function WorkspaceFrame({
   chrome,
   sidebar,
   main,
+  browser,
   sidebarColumnWidth,
+  browserColumnWidth,
   isSidebarDocked,
+  isBrowserDocked,
   splitter,
+  splitterRegion,
 }: WorkspaceFrameProps) {
   const shouldReduceMotion = useReducedMotion()
 
@@ -69,10 +77,13 @@ export function WorkspaceFrame({
     <motion.div
       animate={{
         '--workspace-sidebar-column-width': `${sidebarColumnWidth}px`,
+        '--workspace-browser-column-width': `${browserColumnWidth}px`,
       }}
       className="workspace-shell relative grid h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground"
+      data-browser-docked={isBrowserDocked ? 'true' : 'false'}
       data-sidebar-docked={isSidebarDocked ? 'true' : 'false'}
       data-splitter={splitter}
+      data-splitter-region={splitterRegion}
       data-ui-rows=""
       initial={false}
       ref={rootRef}
@@ -82,7 +93,12 @@ export function WorkspaceFrame({
       {chrome}
       {sidebar}
       {main}
+      {browser}
       <div aria-hidden="true" className="workspace-shell__divider" />
+      <div
+        aria-hidden="true"
+        className="workspace-shell__divider workspace-shell__divider--browser"
+      />
     </motion.div>
   )
 }

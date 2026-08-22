@@ -1,6 +1,7 @@
 import { TooltipProvider } from '@poietica/ui'
 
 import type { WorkspaceShellProps } from '../shell-contract'
+import { BrowserRegion } from './browser-region'
 import { SidebarRegion } from './sidebar/sidebar-region'
 import { useIsSidebarDocked } from './sidebar-docking'
 import { encodeWorkbenchTabDomId } from './workbench-tabs/workbench-tabs-model'
@@ -12,11 +13,12 @@ import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layou
  *
  * 职责只有一件：把布局意图翻译成停靠状态位，并把 Part 表装进 WorkspaceFrame。
  * 栅格坐标属于 workspace-shell.css，区域内部形态属于区域组件，
- * 拖拽态属于 workspaceLayoutStore。
+ * 布局意图与拖拽态属于 workspaceLayoutStore。
  */
 export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
-  const { sidebarWidth, splitter } = useWorkspaceLayoutState()
-  const { setSidebarOpen, setSidebarWidth } = workspaceLayoutStore
+  const { sidebarWidth, browserOpen, browserWidth, splitter, splitterRegion } =
+    useWorkspaceLayoutState()
+  const { setSidebarOpen, setSidebarWidth, setBrowserOpen, setBrowserWidth } = workspaceLayoutStore
 
   /* 停靠是呈现判据：列宽与分隔线的可见性都由它派生。 */
   const dockSidebar = useIsSidebarDocked()
@@ -31,11 +33,25 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
   return (
     <TooltipProvider delay={450}>
       <WorkspaceFrame
+        browser={
+          <BrowserRegion
+            isDocked={browserOpen}
+            onClose={() => {
+              setBrowserOpen(false)
+            }}
+            onResize={setBrowserWidth}
+            width={browserWidth}
+          >
+            {parts.browser.content}
+          </BrowserRegion>
+        }
+        browserColumnWidth={browserOpen ? browserWidth : 0}
         chrome={
           <header className="workspace-shell__chrome min-h-0 min-w-0 bg-chrome">
             {parts.chrome.content}
           </header>
         }
+        isBrowserDocked={browserOpen}
         isSidebarDocked={dockSidebar}
         main={
           <section
@@ -67,6 +83,7 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
         }
         sidebarColumnWidth={dockSidebar ? sidebarWidth : 0}
         splitter={splitter}
+        splitterRegion={splitterRegion}
       />
     </TooltipProvider>
   )

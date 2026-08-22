@@ -8,16 +8,9 @@ import {
   RotateCw,
   Wrench,
 } from 'lucide-react'
-import {
-  type PointerEvent,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react'
+import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
-import { BROWSER_PANEL, type BrowserPanelStore } from './browser-panel-store'
+import type { BrowserPanelStore } from './browser-panel-store'
 import type { BrowserTabView } from './browser-port'
 import { BrowserTabStrip } from './browser-tab-strip'
 
@@ -33,21 +26,17 @@ export interface BrowserPanelProps {
   readonly store: BrowserPanelStore
   /** 标签条行尾的角位：宿主放面板开关，几何与宿主页头对齐。 */
   readonly trailing?: ReactNode
+  /** 几何输入的指纹：变了就重新起跑视口对齐，内容不解读。 */
+  readonly layoutSignal: unknown
 }
 
-export function BrowserPanel({ store, trailing }: BrowserPanelProps) {
+export function BrowserPanel({ store, trailing, layoutSignal }: BrowserPanelProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const host = state.host
   const activeTab = host?.tabs.find((tab) => tab.id === host.activeTabId) ?? null
 
   return (
-    <aside
-      aria-label="浏览器"
-      className="relative flex h-full min-h-0 shrink-0 flex-col border-l border-current/10"
-      style={{ width: state.width }}
-    >
-      <ResizeHandle store={store} width={state.width} />
-
+    <aside aria-label="浏览器" className="flex h-full min-h-0 flex-col">
       {host === null ? (
         /*
          * 快照还没到（启动瞬间）或宿主没接上：如实说，不画一个假浏览器。
@@ -63,135 +52,14 @@ export function BrowserPanel({ store, trailing }: BrowserPanelProps) {
         <>
           <BrowserTabStrip actions={store.actions} host={host} trailing={trailing} />
           <BrowserToolbar actions={store.actions} activeTab={activeTab} />
-          <Viewport showEmpty={activeTab === null || activeTab.url === null} store={store} />
+          <Viewport
+            layoutSignal={layoutSignal}
+            showEmpty={activeTab === null || activeTab.url === null}
+            store={store}
+          />
         </>
       )}
     </aside>
-  )
-}
-
-/*
- * 指针是否还在条上，按几何自己算。捕获期间浏览器的 :hover 按规范被覆盖到捕获
- * 元素上（Pointer Events L3 setPointerCapture），所以收尾态不能问浏览器。
- * 与 packages/workspace/src/shell/sidebar/use-sidebar-resize.ts 同款。
- */
-function isPointerOver(element: HTMLHRElement, point: { x: number; y: number }): boolean {
-  const rect = element.getBoundingClientRect()
-
-  return (
-    point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
-  )
-}
-
-function ResizeHandle({ store, width }: { store: BrowserPanelStore; width: number }) {
-  const drag = useRef<{
-    readonly pointerId: number
-    readonly element: HTMLHRElement
-    readonly startX: number
-    readonly startWidth: number
-    /* 最后已知的指针位置：收尾时用它判定指针是否还在条上。 */
-    point: { readonly x: number; readonly y: number }
-  } | null>(null)
-
-  const settle = (session: NonNullable<typeof drag.current>): void => {
-    drag.current = null
-
-    /* lostpointercapture 时捕获已释放，此时 release 会抛 NotFoundError。 */
-    if (session.element.hasPointerCapture(session.pointerId)) {
-      session.element.releasePointerCapture(session.pointerId)
-    }
-
-    store.setSplitterActivity(isPointerOver(session.element, session.point) ? 'hover' : 'idle')
-  }
-
-  const handlePointerEnd = (event: PointerEvent<HTMLHRElement>): void => {
-    const session = drag.current
-
-    if (session?.pointerId !== event.pointerId) {
-      return
-    }
-
-    settle(session)
-  }
-
-  /* 悬停只在没有会话时由指针进出改写；拖拽中的进出由 settle 统一收尾。 */
-  const handlePointerEnter = (): void => {
-    if (drag.current === null) {
-      store.setSplitterActivity('hover')
-    }
-  }
-
-  const handlePointerLeave = (): void => {
-    if (drag.current === null) {
-      store.setSplitterActivity('idle')
-    }
-  }
-
-  /* 条随面板收起而卸载：谁写的状态谁收回，否则再展开时拖拽态还挂着。 */
-  useEffect(
-    () => () => {
-      store.setSplitterActivity('idle')
-    },
-    [store],
-  )
-
-  return (
-    /* 拖拽宽度。交互态写进 store，离开 drag 的那一次收尾落盘，与侧栏同款。 */
-    <hr
-      aria-label="调整浏览器面板宽度"
-      aria-orientation="vertical"
-      aria-valuemax={BROWSER_PANEL.maxWidth}
-      aria-valuemin={BROWSER_PANEL.minWidth}
-      aria-valuenow={width}
-      className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize border-0"
-      onKeyDown={(event) => {
-        if (event.key === 'ArrowLeft') {
-          event.preventDefault()
-          store.setPanelWidth(width + 10)
-        } else if (event.key === 'ArrowRight') {
-          event.preventDefault()
-          store.setPanelWidth(width - 10)
-        }
-      }}
-      onLostPointerCapture={handlePointerEnd}
-      onPointerCancel={handlePointerEnd}
-      onPointerDown={(event) => {
-        if (event.button !== 0 || drag.current !== null) {
-          return
-        }
-
-        event.preventDefault()
-        event.stopPropagation()
-
-        const element = event.currentTarget
-
-        drag.current = {
-          pointerId: event.pointerId,
-          element,
-          startX: event.clientX,
-          startWidth: width,
-          point: { x: event.clientX, y: event.clientY },
-        }
-
-        store.setSplitterActivity('drag')
-        element.setPointerCapture(event.pointerId)
-      }}
-      onPointerEnter={handlePointerEnter}
-      onPointerLeave={handlePointerLeave}
-      onPointerMove={(event) => {
-        const current = drag.current
-
-        if (current === null || current.pointerId !== event.pointerId) {
-          return
-        }
-
-        current.point = { x: event.clientX, y: event.clientY }
-
-        store.setPanelWidth(current.startWidth + (current.startX - event.clientX))
-      }}
-      onPointerUp={handlePointerEnd}
-      tabIndex={0}
-    />
   )
 }
 
@@ -438,11 +306,14 @@ function ToolbarButton({
 function Viewport({
   showEmpty,
   store,
+  layoutSignal,
 }: {
   readonly showEmpty: boolean
   readonly store: BrowserPanelStore
+  readonly layoutSignal: unknown
 }) {
   const region = useRef<HTMLDivElement | null>(null)
+  const restart = useRef<() => void>(() => {})
 
   useEffect(() => {
     const element = region.current
@@ -452,12 +323,12 @@ function Viewport({
     }
 
     /*
-     * 原生子 webview 不在 DOM 里，它按窗口逻辑坐标摆放。这里把视口矩形对齐
-     * 过去：rAF 循环 + 变更检测，而不是 ResizeObserver —— 矩形「位置」的
-     * 变化（侧栏开合、拖宽、窗口尺寸）不触发 RO，而这些变化必须当帧跟上，
-     * 否则页面浮在错位上。有变化才发 IPC，静止时每帧只做四次数字比较。
+     * 原生子 webview 不在 DOM 里，按窗口逻辑坐标摆放。矩形的「位置」变化不触发
+     * ResizeObserver（侧栏开合、拖宽、窗口尺寸都只改位置），所以只能逐帧量；
+     * 但只在几何还在动时量 —— 连续两帧不变就停机，静止时零帧回调。
      */
     let frame = 0
+    let still = 0
     let last = { x: -1, y: -1, width: -1, height: -1 }
 
     const align = () => {
@@ -470,23 +341,51 @@ function Viewport({
         rect.height !== last.height
       ) {
         last = { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+        still = 0
         store.reportViewport(last)
+      } else if (++still > 1) {
+        frame = 0
+
+        return
       }
 
       frame = requestAnimationFrame(align)
     }
 
-    frame = requestAnimationFrame(align)
+    const start = () => {
+      still = 0
+
+      if (frame === 0) {
+        frame = requestAnimationFrame(align)
+      }
+    }
+
+    restart.current = start
+    start()
+
+    const observer = new ResizeObserver(start)
+
+    observer.observe(element)
+    window.addEventListener('resize', start)
 
     return () => {
+      restart.current = () => {}
       cancelAnimationFrame(frame)
+      observer.disconnect()
+      window.removeEventListener('resize', start)
     }
   }, [store])
+
+  /* 开合与拖宽经指纹重新起跑：补间由 motion 在 React 之外推进，量不到重渲染。 */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 指纹不进回调是设计：删除会让面板开合后视口矩形停在旧位
+  useEffect(() => {
+    restart.current()
+  }, [layoutSignal])
 
   return (
     <div className="relative min-h-0 flex-1" ref={region}>
       {showEmpty ? (
-        /* 图一的空态。活动标签是空白页时原生侧没有 webview，这里就是画面本身。 */
+        /* 空态。活动标签是空白页时原生侧没有 webview，这里就是画面本身。 */
         <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
           <Globe aria-hidden className="size-8 opacity-30" />
           <p className="text-sm font-medium">浏览器</p>

@@ -21,6 +21,13 @@ export const WORKSPACE_LAYOUT = {
     defaultWidth: 280,
   },
 
+  /* 浏览器列贴窗口 inline-end 一侧，与侧栏同一条动画时间轴。 */
+  browser: {
+    minWidth: 320,
+    maxWidth: 800,
+    defaultWidth: 420,
+  },
+
   /* 断点是逻辑像素宽度：宿主推来的窗口宽度按它们分档。 */
   breakpoints: {
     dockable: 900,

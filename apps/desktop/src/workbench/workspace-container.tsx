@@ -294,20 +294,26 @@ export function WorkspaceContainer({
          * 雾只在对话里出现；浏览器开合状态活在 browserPanelStore，一份，
          * 跨表面与设置往返不丢。
          */
-        <div className="relative flex h-full min-h-0 min-w-0">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {workbench.activeSurface.kind === 'conversation' ? <ConversationHeader /> : null}
-            <div className="relative min-h-0 min-w-0 flex-1">
-              {workbench.activeSurface.kind === 'conversation' ? (
-                <div className="conversation-veil" data-assistant-skin />
-              ) : null}
-              {surface}
-            </div>
+        <div className="flex h-full min-h-0 min-w-0 flex-col">
+          {workbench.activeSurface.kind === 'conversation' ? <ConversationHeader /> : null}
+          <div className="relative min-h-0 min-w-0 flex-1">
+            {workbench.activeSurface.kind === 'conversation' ? (
+              <div className="conversation-veil" data-assistant-skin />
+            ) : null}
+            {surface}
           </div>
-          <BrowserDock surfaceActive={workbench.activeSurface.kind === 'conversation'} />
         </div>
       ),
       label: isSettingsOpen ? '设置' : undefined,
+    },
+
+    /* 浏览器是外壳的第三列，不是主区里的一块：开合走与侧栏同一条动画。 */
+    browser: {
+      content: (
+        <BrowserDock
+          surfaceActive={!isSettingsOpen && workbench.activeSurface.kind === 'conversation'}
+        />
+      ),
     },
   }
 

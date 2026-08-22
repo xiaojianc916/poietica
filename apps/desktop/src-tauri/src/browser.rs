@@ -114,7 +114,7 @@ const PICKER_SCRIPT: &str = r"(() => {
 })();";
 
 /// 面板视口在主窗口客户区里的逻辑坐标。渲染层量 DOM，这里只收数。
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, specta::Type)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, specta::Type)]
 pub struct PanelBounds {
     pub x: f64,
     pub y: f64,
@@ -163,7 +163,12 @@ pub struct BrowserHost {
     /// 拾取武装位：browser_pick_element 装上标签 id，该标签的下一次哨兵导航
     /// 才被承认，用后即焚 —— 页面伪造哨兵导航时这里没武装，直接丢弃。
     picking: Mutex<Option<u32>>,
+    /// 上一次真正下发给内核的摆放。相等就不再下发 —— 一次拖拽每帧都经过这里。
+    placed: Mutex<HashMap<u32, Placement>>,
 }
+
+/// 一个标签此刻该在哪：Some 是摆在这个矩形上并呈现，None 是隐藏。
+type Placement = Option<PanelBounds>;
 
 impl BrowserHost {
     /// 抽一个 127.0.0.1 上的空闲端口给 CDP 用。
@@ -369,29 +374,46 @@ fn finish_pick(app: &AppHandle, id: u32, target: &Url) {
 /// 这是唯一一处决定可见性的代码 —— 命令们只改状态，然后一律走这里。
 fn apply_layout(app: &AppHandle) {
     let host = app.state::<BrowserHost>();
-    let visible = *lock(&host.visible);
-    let bounds = *lock(&host.bounds);
-    let active = lock(&host.tabs).active_id();
-    let webviews = lock(&host.webviews);
 
-    for (id, webview) in webviews.iter() {
-        if visible && Some(*id) == active {
-            if let Err(error) = webview.set_position(LogicalPosition::new(bounds.x, bounds.y)) {
-                log::warn!("browser webview position not applied: {error}");
-            }
+    /* 一段：锁内算出计划并与上次下发对账，锁内一次都不碰内核。 */
+    let plan: Vec<(tauri::Webview, u32, Placement)> = {
+        let visible = *lock(&host.visible);
+        let bounds = *lock(&host.bounds);
+        let active = lock(&host.tabs).active_id();
+        let webviews = lock(&host.webviews);
+        let mut placed = lock(&host.placed);
 
-            if let Err(error) = webview.set_size(LogicalSize::new(
-                bounds.width.max(1.0),
-                bounds.height.max(1.0),
-            )) {
-                log::warn!("browser webview size not applied: {error}");
-            }
+        placed.retain(|id, _| webviews.contains_key(id));
 
-            if let Err(error) = webview.show() {
-                log::warn!("browser webview not shown: {error}");
-            }
-        } else if let Err(error) = webview.hide() {
-            log::warn!("browser webview not hidden: {error}");
+        webviews
+            .iter()
+            .filter_map(|(id, webview)| {
+                let wanted = (visible && Some(*id) == active).then(|| PanelBounds {
+                    width: bounds.width.max(1.0),
+                    height: bounds.height.max(1.0),
+                    ..bounds
+                });
+
+                (placed.insert(*id, wanted) != Some(wanted))
+                    .then(|| (webview.clone(), *id, wanted))
+            })
+            .collect()
+    };
+
+    /* 二段：锁外下发。内核调用在 Windows 上会泵消息，锁内下发会重入回这里。 */
+    for (webview, id, wanted) in plan {
+        let outcome = match wanted {
+            Some(rect) => webview
+                .set_position(LogicalPosition::new(rect.x, rect.y))
+                .and_then(|()| webview.set_size(LogicalSize::new(rect.width, rect.height)))
+                .and_then(|()| webview.show()),
+            None => webview.hide(),
+        };
+
+        /* 下发失败就撤销记账，下一趟重试 —— 不留一个假的「已经摆好了」。 */
+        if let Err(error) = outcome {
+            log::warn!("browser tab {id} layout was not applied: {error}");
+            lock(&host.placed).remove(&id);
         }
     }
 }

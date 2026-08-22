@@ -32,6 +32,12 @@ export {
   WebhookIcon,
 } from './local-glyphs'
 export { PixelLoader } from './pixel-loader'
+export {
+  type RegionEdge,
+  RegionSplitter,
+  type RegionSplitterProps,
+  type SplitterActivity,
+} from './region-splitter'
 export { Select, type SelectOption } from './select'
 export { Switch } from './switch'
 export { applyThemePreference } from './theme-controller'
