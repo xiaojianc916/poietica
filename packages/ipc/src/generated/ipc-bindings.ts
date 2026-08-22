@@ -862,25 +862,26 @@ async updateCheck() : Promise<UpdateRelease | null> {
     return await TAURI_INVOKE("update_check");
 },
 /**
- * 下载最新发布并留在内存里，期间以 `UpdateProgress` 事件广播进度。
+ * 把 `version` 下下来待命，期间以 `UpdateProgress` 事件广播进度。只下载，不安装。
  * 
- * 只下载，不安装：安装是 `update_relaunch` 的事，中间隔着人的一次点击。
+ * 版本是入参，不是"下的时候最新的那一个"：提示给人的和最终装上的必须同一个版本，
+ * 两次检查之间发布换了版就报错，而不是悄悄换掉人答应过的东西。
  * 
  * # Errors
  * 
- * 没有可安装的版本、下载失败或签名不匹配时返回错误。
+ * 该版本已不再是最新、下载失败、签名不匹配，或另一趟下载正在进行时返回错误。
  */
-async updateDownload() : Promise<null> {
-    return await TAURI_INVOKE("update_download");
+async updateDownload(version: string) : Promise<null> {
+    return await TAURI_INVOKE("update_download", { version });
 },
 /**
  * 安装已经下好的那一个，然后重启。
  * 
- * 这个函数正常路径上不返回：Windows 的 NSIS 安装器在 passive 模式下会接管进程。
+ * 正常路径上不返回：Windows 的 NSIS 安装器在 passive 模式下会接管进程。
  * 
  * # Errors
  * 
- * 没有下好的版本（例如中途重启过应用），或安装器启动失败。
+ * 没有下好的版本，或安装器启动失败 —— 后者意味着那份字节已被消耗，暂存态一并清空。
  */
 async updateRelaunch() : Promise<null> {
     return await TAURI_INVOKE("update_relaunch");
@@ -2026,15 +2027,9 @@ export type ThemePreference = "light" | "dark" | "system"
 /**
  * 下载进度，以百分比表达。总长未知（服务端没给 Content-Length）时为空。
  * 
- * 跨 IPC 的是这一个标量，不是两个字节数。此前这里是 `downloaded` 与 `total` 两个
- * `u32`：内部累加是 `u64`，跨 IPC 前饱和截断（specta 默认 `BigIntForbidden` 拒绝
- * 64 位整数），并为此写了六行注释论证 4 GiB 以上的安装包不存在。
- * 
- * 而渲染层拿到这两个数之后唯一做的事，是 `Math.round(downloaded / total * 100)`
- * —— 界面上从来没有出现过任何一个字节数。既然比值是唯一的消费形式，比值就该是
- * IPC 上的东西：截断连同它的论证一起不存在了，渲染层也不再重复一份算术。
- * 事件名与 payload 类型由 `collect_events!` 一并导出，渲染层不再手抄任何一个。
- * `Event` 派生要求 `Deserialize`，它只服务于这条生成通道。
+ * 跨 IPC 的是这一个标量而不是两个字节数：界面上只出现比值，比值就该是契约上的东
+ * 西。事件名与 payload 类型由 `collect_events!` 一并导出；`Event` 派生要求
+ * `Deserialize`，它只服务于这条生成通道。
  */
 export type UpdateProgress = { percent: number | null }
 /**

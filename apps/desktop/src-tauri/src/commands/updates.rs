@@ -1,68 +1,117 @@
 //! 更新能力。策略与呈现不在这里。
 //!
-//! 原生侧只回答三件事：有没有新版本、把它下下来、装上并重启。何时检查、要不要
-//! 提示、长什么样，全部归渲染层，与设置页读的是同一份设置。
+//! 原生侧只回答三件事：有没有新版本、把指定的那一个下下来、装上并重启。何时检查、
+//! 要不要提示、长什么样，全部归渲染层。
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{AppHandle, command};
+use tauri::{AppHandle, Manager, command};
 use tauri_plugin_updater::{Update, UpdaterExt};
 use tauri_specta::Event;
 
 use crate::error::{Error, IpcError};
 
-/// 命令面上的错误是 `IpcError`，不是 `crate::error::Error`。后者没有、也不该有
-/// `specta::Type`：它的变体里带着路径与系统错误串，那些东西经 `error.rs` 的
-/// `public_message` 表脱敏之后才是契约。范式同 `commands/agent_setup/probe.rs`。
+/// 命令面上的错误是 `IpcError`，不是 `crate::error::Error`：后者的变体里带着路径与
+/// 系统错误串，经 `error.rs` 那张脱敏表过一遍之后才是契约。
 type UpdateCommandResult<T> = Result<T, IpcError>;
 
-/// 只罩住检查请求。
-///
-/// 此前这个值通过 `updater_builder().timeout()` 交给底层 HTTP 客户端，于是它同时
-/// 成了**下载**的上限：检查只需几百毫秒，安装包却是几十 MB，网络稍慢下载就在第
-/// 20 秒被掐断。检查要有超时，下载不能有。
+/// 只罩住检查请求：检查是一次清单往返，下载是几十 MB，共用一个上限会把下载掐断。
 const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// 更新的暂存态，进程一份，由 `bootstrap::app` 注册进托管状态。
+///
+/// 一把锁三种取值：不存在"正在下"与"已下好"同时为真的窗口，也没有第二处副本。
+#[derive(Default)]
+pub struct UpdateStaging(Mutex<Staging>);
+
+#[derive(Default)]
+enum Staging {
+    #[default]
+    Empty,
+    Downloading(String),
+    Staged(Box<StagedUpdate>),
+}
 
 /// 已经下完、等着人点重启的那一个。
 ///
-/// 上一版的注释里写过"刻意不缓存 Update"，理由是省下的只是一次几 KB 的清单请求，
-/// 却引入了版本漂移。那个判断在当时成立——当时没有中间态，下载完就直接重装。
-///
-/// 现在中间态是需求本身：胶囊要在"下完了"和"重启吧"之间停住，等人点。而
-/// `Update::install` 要的正是 `download` 吐出的那些字节和产出它们的那个
-/// `Update`，两者必须一起活到人点下去为止。缓存不再是优化，是唯一的实现路径。
-///
-/// 代价照实说：这期间那几十 MB 待在内存里。这是这套 API 的形状决定的。
-static STAGED: Mutex<Option<StagedUpdate>> = Mutex::new(None);
+/// `Update::install` 要的正是 `download` 吐出的那些字节和产出它们的那个 `Update`，
+/// 两者必须一起活到人点下去为止。代价照实说：这期间那几十 MB 待在内存里，这是这套
+/// API 的形状决定的。
+struct StagedUpdate {
+    version: String,
+    update: Update,
+    bytes: Vec<u8>,
+}
 
-/// 同一时刻只允许一条下载。
-///
-/// 此前这里没有任何保护，而渲染层那枚胶囊挂在一个会被条件替换的插槽上：切到设置
-/// 页就是一次卸载重挂，状态归零，人只好再点一次 —— 可第一条下载还在后台跑，命令
-/// 发出去就不会因为组件消失而取消。于是两条下载并存，各自持有一份从零开始累加的
-/// `downloaded`，却往同一个事件通道上发进度，界面上的百分比就在两条曲线之间来回
-/// 跳。事件里没有任何能标识来源的字段，监听器无从分辨。
-///
-/// 根上堵住：第二次调用直接返回，不再开第二条流。于是也不需要给事件加会话号 ——
-/// 那是在给一个不该存在的情形准备字段，还要连累 IPC 契约重新生成。
-static DOWNLOADING: AtomicBool = AtomicBool::new(false);
+/// `begin` 的三种去向。
+enum Begin {
+    Start,
+    Ready,
+    Busy,
+}
 
-/// 无论从哪条路径退出，都把那面旗放下。
-struct DownloadGuard;
+impl UpdateStaging {
+    fn lock(&self) -> MutexGuard<'_, Staging> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 
-impl Drop for DownloadGuard {
-    fn drop(&mut self) {
-        DOWNLOADING.store(false, Ordering::Release);
+    fn begin(&self, version: &str) -> Begin {
+        let mut staging = self.lock();
+
+        match &*staging {
+            Staging::Staged(staged) if staged.version == version => Begin::Ready,
+            Staging::Downloading(_) => Begin::Busy,
+            _ => {
+                *staging = Staging::Downloading(version.to_owned());
+
+                Begin::Start
+            }
+        }
+    }
+
+    fn finish(&self, staged: StagedUpdate) {
+        *self.lock() = Staging::Staged(Box::new(staged));
+    }
+
+    /// 只撤自己那一趟，不碰别人后来放进去的东西。
+    fn abandon(&self, version: &str) {
+        let mut staging = self.lock();
+
+        if matches!(&*staging, Staging::Downloading(pending) if pending == version) {
+            *staging = Staging::Empty;
+        }
+    }
+
+    fn take(&self) -> Option<StagedUpdate> {
+        let mut staging = self.lock();
+
+        match std::mem::take(&mut *staging) {
+            Staging::Staged(staged) => Some(*staged),
+            other => {
+                *staging = other;
+
+                None
+            }
+        }
     }
 }
 
-struct StagedUpdate {
-    update: Update,
-    bytes: Vec<u8>,
+/// 无论从哪条路径退出，都不留下一个没人在下的 `Downloading`。
+struct DownloadGuard<'a> {
+    staging: &'a UpdateStaging,
+    version: String,
+    armed: bool,
+}
+
+impl Drop for DownloadGuard<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.staging.abandon(&self.version);
+        }
+    }
 }
 
 /// 一个可安装的新版本。
@@ -75,15 +124,9 @@ pub struct UpdateRelease {
 
 /// 下载进度，以百分比表达。总长未知（服务端没给 Content-Length）时为空。
 ///
-/// 跨 IPC 的是这一个标量，不是两个字节数。此前这里是 `downloaded` 与 `total` 两个
-/// `u32`：内部累加是 `u64`，跨 IPC 前饱和截断（specta 默认 `BigIntForbidden` 拒绝
-/// 64 位整数），并为此写了六行注释论证 4 GiB 以上的安装包不存在。
-///
-/// 而渲染层拿到这两个数之后唯一做的事，是 `Math.round(downloaded / total * 100)`
-/// —— 界面上从来没有出现过任何一个字节数。既然比值是唯一的消费形式，比值就该是
-/// IPC 上的东西：截断连同它的论证一起不存在了，渲染层也不再重复一份算术。
-/// 事件名与 payload 类型由 `collect_events!` 一并导出，渲染层不再手抄任何一个。
-/// `Event` 派生要求 `Deserialize`，它只服务于这条生成通道。
+/// 跨 IPC 的是这一个标量而不是两个字节数：界面上只出现比值，比值就该是契约上的东
+/// 西。事件名与 payload 类型由 `collect_events!` 一并导出；`Event` 派生要求
+/// `Deserialize`，它只服务于这条生成通道。
 #[derive(Clone, Copy, Debug, Deserialize, Event, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateProgress {
@@ -97,22 +140,12 @@ fn percent_of(downloaded: u64, total: Option<u64>) -> Option<u8> {
     u8::try_from((downloaded.saturating_mul(100) / total).min(100)).ok()
 }
 
-/// 更新器的失败原因不外带。
-///
-/// 它的错误串里可能有更新源地址、代理、以及安装包的本机落盘路径。界面要说的那句
-/// 话不需要它们，日志里有完整的一份。与 `error.rs` 那张脱敏表同一条纪律。
+/// 更新器的失败原因不外带：错误串里可能有更新源地址、代理与本机落盘路径，界面要说
+/// 的那句话不需要它们，日志里有完整的一份。
 fn plugin_failure(error: &tauri_plugin_updater::Error) -> IpcError {
     log::warn!("updater failed: {error}");
 
     Error::Plugin("update failed".to_owned()).into()
-}
-
-fn take_staged() -> Option<StagedUpdate> {
-    STAGED.lock().unwrap_or_else(PoisonError::into_inner).take()
-}
-
-fn put_staged(staged: StagedUpdate) {
-    *STAGED.lock().unwrap_or_else(PoisonError::into_inner) = Some(staged);
 }
 
 async fn fetch(app: &AppHandle) -> UpdateCommandResult<Option<Update>> {
@@ -138,40 +171,41 @@ pub async fn update_check(app: AppHandle) -> UpdateCommandResult<Option<UpdateRe
     }))
 }
 
-/// 下载最新发布并留在内存里，期间以 `UpdateProgress` 事件广播进度。
+/// 把 `version` 下下来待命，期间以 `UpdateProgress` 事件广播进度。只下载，不安装。
 ///
-/// 只下载，不安装：安装是 `update_relaunch` 的事，中间隔着人的一次点击。
+/// 版本是入参，不是"下的时候最新的那一个"：提示给人的和最终装上的必须同一个版本，
+/// 两次检查之间发布换了版就报错，而不是悄悄换掉人答应过的东西。
 ///
 /// # Errors
 ///
-/// 没有可安装的版本、下载失败或签名不匹配时返回错误。
+/// 该版本已不再是最新、下载失败、签名不匹配，或另一趟下载正在进行时返回错误。
 #[command]
 #[specta::specta]
-pub async fn update_download(app: AppHandle) -> UpdateCommandResult<()> {
-    /*
-     * 已经下好的那一个还在等人点重启，就什么都不做。
-     *
-     * 此前这里不看 STAGED，于是再点一次就是把同一个几十 MB 的包重下一遍，下完再把
-     * 缓存覆盖掉。这个命令应当是幂等的：它的语义是"让新版本待命"，而不是"发起一次
-     * 下载"。
-     */
-    if STAGED
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .is_some()
-    {
-        return Ok(());
+pub async fn update_download(app: AppHandle, version: String) -> UpdateCommandResult<()> {
+    let staging = app.state::<UpdateStaging>();
+
+    match staging.begin(&version) {
+        /* 语义是"让这个版本待命"，已经待命就什么都不用做。 */
+        Begin::Ready => return Ok(()),
+        Begin::Busy => {
+            return Err(Error::Plugin("an update download is in flight".to_owned()).into());
+        }
+        Begin::Start => {}
     }
 
-    if DOWNLOADING.swap(true, Ordering::AcqRel) {
-        return Ok(());
-    }
-
-    let _guard = DownloadGuard;
+    let mut guard = DownloadGuard {
+        staging: &staging,
+        version: version.clone(),
+        armed: true,
+    };
 
     let Some(update) = fetch(&app).await? else {
-        return Err(Error::NotFound("no update is available".to_owned()).into());
+        return Err(Error::NotFound(format!("release {version} is gone")).into());
     };
+
+    if update.version != version {
+        return Err(Error::NotFound(format!("release {version} is no longer the latest")).into());
+    }
 
     let emitter = app.clone();
     let mut downloaded: u64 = 0;
@@ -184,11 +218,7 @@ pub async fn update_download(app: AppHandle) -> UpdateCommandResult<()> {
 
                 let percent = percent_of(downloaded, total);
 
-                /*
-                 * 每个 chunk 一次事件，就是每个 chunk 一次 IPC 往返加一次渲染层的
-                 * 状态更新。一个 60 MB 的安装包按 8 KB 一块是七千多次，而胶囊上能
-                 * 显示的只有 101 个不同的值。没变就不发。
-                 */
+                /* 一个 chunk 一次事件是七千多次 IPC，而胶囊上只有 101 个可见值。 */
                 if percent == broadcast {
                     return;
                 }
@@ -204,22 +234,28 @@ pub async fn update_download(app: AppHandle) -> UpdateCommandResult<()> {
         .await
         .map_err(|error| plugin_failure(&error))?;
 
-    put_staged(StagedUpdate { update, bytes });
+    staging.finish(StagedUpdate {
+        version,
+        update,
+        bytes,
+    });
+
+    guard.armed = false;
 
     Ok(())
 }
 
 /// 安装已经下好的那一个，然后重启。
 ///
-/// 这个函数正常路径上不返回：Windows 的 NSIS 安装器在 passive 模式下会接管进程。
+/// 正常路径上不返回：Windows 的 NSIS 安装器在 passive 模式下会接管进程。
 ///
 /// # Errors
 ///
-/// 没有下好的版本（例如中途重启过应用），或安装器启动失败。
+/// 没有下好的版本，或安装器启动失败 —— 后者意味着那份字节已被消耗，暂存态一并清空。
 #[command]
 #[specta::specta]
 pub async fn update_relaunch(app: AppHandle) -> UpdateCommandResult<()> {
-    let Some(staged) = take_staged() else {
+    let Some(staged) = app.state::<UpdateStaging>().take() else {
         return Err(Error::NotFound("no downloaded update is waiting".to_owned()).into());
     };
 

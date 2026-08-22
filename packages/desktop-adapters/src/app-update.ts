@@ -13,8 +13,11 @@ export type {
 export interface AppUpdateController {
   /** 有没有比当前版本更新的发布。没有则为 null。 */
   readonly check: () => Promise<UpdateRelease | null>
-  /** 只下载，不安装。进度在下载期间回调，函数在下完时兑现。 */
-  readonly download: (onProgress: (progress: UpdateProgress) => void) => Promise<void>
+  /** 把指定版本下下来，不安装。进度在下载期间回调，函数在下完时兑现。 */
+  readonly download: (
+    version: string,
+    onProgress: (progress: UpdateProgress) => void,
+  ) => Promise<void>
   /** 安装已下好的那一个并重启。正常路径上进程会在兑现之前就被接管。 */
   readonly relaunch: () => Promise<void>
 }
@@ -26,10 +29,9 @@ export interface AppUpdateController {
  * passive 模式下会在下载完成的瞬间拉起安装器并杀掉当前进程，于是"下完了，等你
  * 点重启"这个状态根本不存在——用户会在进度条跑满的同一刻被强制关掉。
  *
- * 进度走生成的事件面。此前这里手抄了一份 'poietica://update-progress'，和
- * commands/updates.rs 里的常量各写一遍、靠人眼保持一致；payload 则由
- * listen<UpdateProgress>() 人肉断言，抄错不会有任何编译期反馈。现在事件名与
- * payload 类型都从 Rust 一次生成，改名即编译失败。
+ * 进度走生成的事件面：事件名与 payload 类型都从 Rust 一次生成，改名即编译失败。
+ *
+ * 版本随下载请求一起过去：由渲染层指定要哪一个，原生侧不再自己决定"最新"。
  */
 export function createAppUpdateController(): AppUpdateController {
   return {
@@ -37,13 +39,13 @@ export function createAppUpdateController(): AppUpdateController {
       return commands.updateCheck()
     },
 
-    async download(onProgress) {
+    async download(version, onProgress) {
       const stopListening = await events.updateProgress.listen((event) => {
         onProgress(event.payload)
       })
 
       try {
-        await commands.updateDownload()
+        await commands.updateDownload(version)
       } finally {
         stopListening()
       }

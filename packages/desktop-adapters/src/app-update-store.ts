@@ -1,7 +1,7 @@
 import type { SettingsStore } from '@poietica/settings'
 import type { AppUpdateController } from './app-update'
 
-/* 与原生侧此前的 CHECK_EVERY 相同，节流只有这一份。 */
+/* 检查节奏只有这一份：定时器跟着 store 活，六小时才真的是六小时。 */
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000
 
 /* 启动后不立刻检查：首屏还在装配，一个网络往返没有理由和它抢。 */
@@ -22,17 +22,12 @@ const IDLE: AppUpdateState = { phase: 'idle' }
 /**
  * 更新这件事，一个进程一份。
  *
- * 它此前活在一个 React 组件的 useState 里，而那个组件挂在 sidebarFooterSlot 上 ——
- * WorkspaceContainer 把同一个插槽渲染在两个位置（常态的侧栏，和设置态的
- * sidebarOverride）。React 按位置协调，所以打开设置就是一次卸载 + 重新挂载：进度
- * 归零、定时器重建，几十秒后又从头提示一次"更新到 x.y.z"。人只能再点一次，而第一
- * 条下载还在后台跑。
+ * 一个下载任务的寿命是进程，不是某个插槽在当前布局下的可见性。形制与 ThreadsStore
+ * / workspaceLayoutStore 一致：不可变快照、subscribe、引用没变就不通知；界面是只读
+ * 投影，卸载重挂一个字都不丢。
  *
- * 一个下载任务的寿命是进程，不是某个插槽在当前布局下的可见性。它本来就不该住在
- * React 树里。形制与 ThreadsStore / workspaceLayoutStore 一致：不可变快照、
- * subscribe、没有真的变化就不通知；界面是只读投影，卸载重挂一个字都不丢。
- *
- * 检查节流也归这里：定时器跟着 store 活，六小时才真的是六小时。
+ * 相位就是唯一的闸：这里没有第二个"正在下载"的布尔量，原生侧的暂存态是同一件事的另
+ * 一端，两边由版本号对齐。
  */
 export class AppUpdateStore {
   readonly #controller: AppUpdateController
@@ -44,9 +39,6 @@ export class AppUpdateStore {
   #state: AppUpdateState = IDLE
 
   #listeners = new Set<() => void>()
-
-  /* 一次只跑一趟：重复点击是幂等的，原生侧也另有一道同样的闸。 */
-  #downloading = false
 
   constructor(
     controller: AppUpdateController,
@@ -71,22 +63,20 @@ export class AppUpdateStore {
   /**
    * 开始按节奏检查，交回停下来的办法。
    *
-   * 订阅与退订成对交给调用方的 effect，与 ThreadsStore.start 同一条纪律：装载几次
-   * 就订阅几次、退订几次，开发模式下的双次装载不会把它弄哑。
-   */
-  /**
-   * 开始按节奏检查，交回停下来的办法。
-   *
-   * 无条件执行：要不要检查是调用方的决定。这里曾经写着 import.meta.env.DEV，而这
-   * 一层的 tsconfig 按设计就没有 vite 的类型 —— 适配层不该知道自己被谁怎么打包，
-   * 那个判断现在在 AppShell 里。副作用是它变成了一个能直接测的函数。
+   * 订阅与退订成对交给调用方的 effect：装载几次就订阅几次、退订几次，开发模式下的
+   * 双次装载不会把它弄哑。要不要检查是调用方的决定，这里无条件执行。
    */
   start = (): (() => void) => {
     let active = true
 
     const check = async (): Promise<void> => {
-      /* 已经现身、正在下载或已经下好时，不再问第二遍。 */
-      if (!active || this.#state.phase !== 'idle') {
+      const phase = this.#state.phase
+
+      /*
+       * 下载中与已下好这两个相位钉着一个具体版本，问了也不能动它。available 必须继
+       * 续问：否则提示过一次就再也不刷新，发布换了版本这枚胶囊会一直指着旧的那个。
+       */
+      if (!active || phase === 'downloading' || phase === 'ready') {
         return
       }
 
@@ -127,33 +117,30 @@ export class AppUpdateStore {
     }
   }
 
-  /** 开始下载。已经在下或已经下好时什么都不做。 */
+  /** 开始下载。相位本身就是那道闸：只有 available 能起步。 */
   download = (): void => {
     const current = this.#state
 
-    if (this.#downloading || current.phase !== 'available') {
+    if (current.phase !== 'available') {
       return
     }
 
     const version = current.version
 
-    this.#downloading = true
     this.#commit({ phase: 'downloading', version, percent: null })
 
     void this.#controller
-      .download((progress) => {
+      .download(version, (progress) => {
         this.#advance(version, progress.percent ?? null)
       })
       .then(
         () => {
-          this.#downloading = false
           this.#commit({ phase: 'ready', version })
         },
         (cause: unknown) => {
-          this.#downloading = false
           this.#onFailure('download-update', cause)
 
-          /* 退回可点状态：这枚胶囊本身就是重试入口。 */
+          /* 退回可点状态：这枚胶囊本身就是重试入口，下一轮检查会纠正版本。 */
           this.#commit({ phase: 'available', version })
         },
       )
@@ -167,16 +154,16 @@ export class AppUpdateStore {
 
     void this.#controller.relaunch().catch((cause: unknown) => {
       this.#onFailure('install-update', cause)
+
+      /*
+       * 安装失败即那份字节已经被消耗，原生侧的暂存态是空的：留在 ready 只会让下一
+       * 次点击必然失败。回到 idle，交给下一轮检查重新发现。
+       */
+      this.#commit(IDLE)
     })
   }
 
-  /*
-   * 进度只许前进。
-   *
-   * 原生侧现在保证同一时刻只有一条下载，所以理论上不会再有回退；这一道是第二重
-   * 保险，也是对"进度条"这三个字的字面承诺 —— 一根会往回缩的进度条比没有更糟。
-   * 迟到的那一帧被吃掉，代价是零；放它过去，代价是人看着数字倒退。
-   */
+  /* 进度只许前进：迟到的那一帧被吃掉代价是零，放它过去就是人看着数字倒退。 */
   #advance(version: string, percent: number | null): void {
     const current = this.#state
 
@@ -198,6 +185,11 @@ export class AppUpdateStore {
   }
 
   #commit(next: AppUpdateState): void {
+    /* 引用没变就不是变化：IDLE 是同一个对象，重复提交不该惊动订阅者。 */
+    if (next === this.#state) {
+      return
+    }
+
     this.#state = next
 
     for (const listener of this.#listeners) {
