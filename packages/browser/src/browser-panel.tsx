@@ -50,8 +50,17 @@ export function BrowserPanel({ store, trailing, layoutSignal }: BrowserPanelProp
         </>
       ) : (
         <>
-          <BrowserTabStrip actions={store.actions} host={host} trailing={trailing} />
-          <BrowserToolbar actions={store.actions} activeTab={activeTab} />
+          <BrowserTabStrip
+            actions={store.actions}
+            host={host}
+            onOverlayChange={store.setOverlayOpen}
+            trailing={trailing}
+          />
+          <BrowserToolbar
+            actions={store.actions}
+            activeTab={activeTab}
+            onOverlayChange={store.setOverlayOpen}
+          />
           <Viewport
             layoutSignal={layoutSignal}
             showEmpty={activeTab === null || activeTab.url === null}
@@ -66,11 +75,24 @@ export function BrowserPanel({ store, trailing, layoutSignal }: BrowserPanelProp
 interface BrowserToolbarProps {
   readonly activeTab: BrowserTabView | null
   readonly actions: BrowserPanelStore['actions']
+  readonly onOverlayChange: (open: boolean) => void
 }
 
-function BrowserToolbar({ activeTab, actions }: BrowserToolbarProps) {
+function BrowserToolbar({ activeTab, actions, onOverlayChange }: BrowserToolbarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const canDrive = activeTab !== null && activeTab.url !== null
+
+  /*
+   * 浮层压在原生 webview 上，开着就得让原生层让位；卸载时无条件收掉，
+   * 不留一个看不见的「隐藏」卡在合成点。
+   */
+  useEffect(() => {
+    onOverlayChange(menuOpen)
+
+    return () => {
+      onOverlayChange(false)
+    }
+  }, [menuOpen, onOverlayChange])
 
   return (
     <div className="relative flex h-10 shrink-0 items-center gap-1 border-b border-current/10 px-2">
@@ -152,7 +174,13 @@ function BrowserToolbar({ activeTab, actions }: BrowserToolbarProps) {
   )
 }
 
-function AddressInput({ activeTab, actions }: BrowserToolbarProps) {
+function AddressInput({
+  activeTab,
+  actions,
+}: {
+  readonly activeTab: BrowserTabView | null
+  readonly actions: BrowserPanelStore['actions']
+}) {
   const committed = activeTab?.url ?? ''
   const [draft, setDraft] = useState(committed)
   const editing = useRef(false)
@@ -206,7 +234,9 @@ function AddressInput({ activeTab, actions }: BrowserToolbarProps) {
   )
 }
 
-interface OverflowMenuProps extends BrowserToolbarProps {
+interface OverflowMenuProps {
+  readonly activeTab: BrowserTabView | null
+  readonly actions: BrowserPanelStore['actions']
   readonly onDismiss: () => void
 }
 

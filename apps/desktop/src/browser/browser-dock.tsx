@@ -58,8 +58,9 @@ export function BrowserDock({ surfaceActive }: { readonly surfaceActive: boolean
   }, [])
 
   useEffect(() => {
-    browserPanelStore.setVisible(layout.browserOpen && surfaceActive)
-  }, [layout.browserOpen, surfaceActive])
+    /* 浮层开着时原生 webview 让位：它是独立窗口，永远压过主窗口的 HTML 弹窗。 */
+    browserPanelStore.setVisible(layout.browserOpen && surfaceActive && !state.overlayOpen)
+  }, [layout.browserOpen, surfaceActive, state.overlayOpen])
 
   useEffect(() => {
     if (layout.browserOpen !== wasOpen.current) {

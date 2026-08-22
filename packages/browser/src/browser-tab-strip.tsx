@@ -1,5 +1,5 @@
 import { ChevronDown, Globe, LoaderCircle, Plus, Search, X } from 'lucide-react'
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 
 import type { BrowserPanelStore } from './browser-panel-store'
 import type { BrowserHostView } from './browser-port'
@@ -16,10 +16,26 @@ interface BrowserTabStripProps {
   readonly actions: BrowserPanelStore['actions']
   /** 行尾角位：宿主放面板开关。 */
   readonly trailing?: ReactNode
+  /** 下拉开合上报：原生 webview 得为浮层让位。 */
+  readonly onOverlayChange: (open: boolean) => void
 }
 
-export function BrowserTabStrip({ host, actions, trailing }: BrowserTabStripProps) {
+export function BrowserTabStrip({
+  host,
+  actions,
+  trailing,
+  onOverlayChange,
+}: BrowserTabStripProps) {
   const [listOpen, setListOpen] = useState(false)
+
+  /* 与工具栏的「更多操作」同一纪律：开着让位，卸载无条件收掉。 */
+  useEffect(() => {
+    onOverlayChange(listOpen)
+
+    return () => {
+      onOverlayChange(false)
+    }
+  }, [listOpen, onOverlayChange])
 
   return (
     /* 行高与宿主页头一致（32px）：角位上的开关在开合两态间零位移。 */
@@ -118,7 +134,9 @@ function matches(title: string, url: string | null, needle: string): boolean {
   return title.toLowerCase().includes(needle) || (url?.toLowerCase().includes(needle) ?? false)
 }
 
-interface BrowserTabListProps extends BrowserTabStripProps {
+interface BrowserTabListProps {
+  readonly host: BrowserHostView
+  readonly actions: BrowserPanelStore['actions']
   readonly onDismiss: () => void
 }
 

@@ -215,3 +215,5 @@ dist-release/
 .perf
    
 refactor.mjs
+
+.playwright-mcp

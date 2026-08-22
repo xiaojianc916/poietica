@@ -10,6 +10,11 @@ import type { BrowserHostPort, BrowserHostView, BrowserViewportRect } from './br
  */
 export interface BrowserPanelState {
   readonly host: BrowserHostView | null
+  /**
+   * 面板内是否有浮层（标签列表、「更多操作」菜单）压在视口上。
+   * 原生 webview 是独立窗口，永远盖过主窗口 HTML：浮层要见光，它必须让位。
+   */
+  readonly overlayOpen: boolean
 }
 
 export interface BrowserPanelStore {
@@ -19,6 +24,8 @@ export interface BrowserPanelStore {
   readonly start: () => void
   /** 原生 webview 该不该在屏幕上。合成在组合根，这里只去重下发。 */
   readonly setVisible: (visible: boolean) => void
+  /** 浮层开合由浮层组件上报，与可见性的合成解耦。 */
+  readonly setOverlayOpen: (open: boolean) => void
   readonly reportViewport: (rect: BrowserViewportRect) => void
   readonly actions: {
     readonly openTab: (url: string | null) => void
@@ -37,10 +44,11 @@ export interface BrowserPanelStore {
 
 export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStore {
   let host: BrowserHostView | null = null
+  let overlayOpen = false
   let started = false
   let ensuredFirstTab = false
   let nativeVisible: boolean | null = null
-  let snapshot: BrowserPanelState = { host }
+  let snapshot: BrowserPanelState = { host, overlayOpen }
 
   /* 界面动作打不动宿主不是调用方要接的错误：记日志，界面靠快照自愈。 */
   function run(operation: string, task: () => Promise<void>): void {
@@ -77,7 +85,7 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
             ensuredFirstTab = true
           }
 
-          snapshot = { host }
+          snapshot = { host, overlayOpen }
           store.notify()
         })
         .catch((cause: unknown) => {
@@ -93,6 +101,16 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
 
       nativeVisible = visible
       run('set-visible', () => port.setVisible(visible))
+    },
+
+    setOverlayOpen: (open: boolean): void => {
+      if (open === overlayOpen) {
+        return
+      }
+
+      overlayOpen = open
+      snapshot = { host, overlayOpen }
+      store.notify()
     },
 
     reportViewport: (rect: BrowserViewportRect): void => {
