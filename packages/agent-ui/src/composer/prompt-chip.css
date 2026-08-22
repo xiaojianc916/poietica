@@ -3,3 +3,8 @@
   color: #2563eb;
   white-space: nowrap;
 }
+
+.assistant-prompt-chip__icon {
+  margin-right: 3px;
+  vertical-align: -1.5px;
+}

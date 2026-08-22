@@ -281,7 +281,11 @@ fn thinking_offer(model: &str, reported: Option<&str>, items: &[Value]) -> Optio
                     .and_then(non_empty)
                     .filter(|value| contains(&choices, value))
             })
-            .or_else(|| choices.get(choices.len() / 2).map(|choice| choice.value.as_str()))?;
+            .or_else(|| {
+                choices
+                    .get(choices.len() / 2)
+                    .map(|choice| choice.value.as_str())
+            })?;
         return Some(ThinkingOffer {
             current: current.to_owned(),
             choices,
@@ -350,7 +354,7 @@ mod tests {
         })
     }
 
-    fn catalog(model: &str, capabilities: Value, efforts: Value, default: &str) -> Value {
+    fn catalog(model: &str, capabilities: &Value, efforts: &Value, default: &str) -> Value {
         json!({ "items": [{
             "model": model,
             "capabilities": capabilities,
@@ -361,7 +365,12 @@ mod tests {
 
     #[test]
     fn stale_effort_falls_back_to_declared_default() {
-        let offered = catalog("deepseek", json!(["thinking"]), json!(["high", "max"]), "high");
+        let offered = catalog(
+            "deepseek",
+            &json!(["thinking"]),
+            &json!(["high", "max"]),
+            "high",
+        );
         let thought = controls(&status("deepseek", "low"), &offered, &Value::Null)
             .into_iter()
             .find(|control| control.purpose == ConfigPurpose::Thought)
@@ -399,12 +408,18 @@ mod tests {
         let offered = controls(&status, &catalog, &goal);
         for id in ["plan", "goal", "swarm"] {
             assert_eq!(
-                offered.iter().find(|control| control.id == id).map(|control| control.current.as_str()),
+                offered
+                    .iter()
+                    .find(|control| control.id == id)
+                    .map(|control| control.current.as_str()),
                 Some(ON)
             );
         }
         assert_eq!(
-            offered.iter().find(|control| control.id == "permission").map(|control| control.current.as_str()),
+            offered
+                .iter()
+                .find(|control| control.id == "permission")
+                .map(|control| control.current.as_str()),
             Some("yolo")
         );
     }

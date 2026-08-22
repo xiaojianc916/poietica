@@ -17,6 +17,7 @@ export interface HttpTransport {
 
 export interface StdioTransport {
   readonly kind: 'stdio'
+  /** 逻辑程序名，安装时经 launcher_resolve 解析成启动式，裸名字不进 mcp.json。 */
   readonly command: string
   readonly args: readonly string[]
 }
@@ -122,9 +123,10 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
       label: '允许访问的目录',
       placeholder: '这台机器上的一个目录路径',
       required: true,
+      /* 追加到启动式后面，不整个换掉：前缀里垫着解析出的启动器参数。 */
       apply: (body, value) => ({
         ...body,
-        args: ['-y', '@modelcontextprotocol/server-filesystem', value],
+        args: [...(body['args'] as readonly string[]), value],
       }),
     },
   },
@@ -161,18 +163,33 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
 /*
  * 写进 mcp.json 的那一条正文。形状与协议侧文档同形：远端一条 url，本地一条 command
  * 加 args。钥匙或路径由条目自己的 apply 并进来 —— 这里认识的只有传输形状。
+ *
+ * stdio 的启动式由原生侧在这台机器上解析（launcher_resolve）：写盘那一刻固化成绝对
+ * 路径，.cmd/.bat 垫片由 cmd.exe /c 代起。launcher 是 null 表示这台机器上没有那个
+ * 程序 —— 条目写进去也起不来，所以整条不写。
  */
-export function mcpServerBody(server: BuiltinServer, filled: string): Record<string, unknown> {
+export interface Launcher {
+  readonly program: string
+  readonly prefixArgs: readonly string[]
+}
+
+export function mcpServerBody(
+  server: BuiltinServer,
+  filled: string,
+  launcher: Launcher | null,
+): Record<string, unknown> | null {
   const { transport } = server
 
-  const body: Record<string, unknown> =
+  const body: Record<string, unknown> | null =
     transport.kind === 'http'
       ? { url: transport.url }
-      : { command: transport.command, args: [...transport.args] }
+      : launcher === null
+        ? null
+        : { command: launcher.program, args: [...launcher.prefixArgs, ...transport.args] }
 
   const value = filled.trim()
 
-  if (server.input === undefined || value === '') {
+  if (body === null || server.input === undefined || value === '') {
     return body
   }
 

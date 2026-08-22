@@ -1,11 +1,6 @@
 import type { SessionControlsStore } from '@poietica/agent'
-import type {
-  AgentMcpServer,
-  AgentSkill,
-  SessionConfigControl,
-  SessionUsage,
-} from '@poietica/agent-contract'
-import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from 'react'
+import type { SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
+import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
 
 /*
  * 一条对话背后那个会话提供哪些可调项，读在这里。
@@ -69,38 +64,6 @@ export function useThreadSelectorFailure(threadId: string | null): string | unde
   )
 
   return useSyncExternalStore(store.subscribe, read, read)
-}
-
-/* 没有 store 就没有变化可订。引用固定，useSyncExternalStore 才判得出「没变」。 */
-const NO_SUBSCRIPTION = () => () => {}
-
-/*
- * 技能这一路：目录与激活。
- *
- * 缺席即不出现 —— 组件工作台不套 Provider，而技能是会话的东西。其余读法仍然
- * 抛错：选择器与用量是那些界面的必需品。
- */
-export function useThreadSkills(threadId: string | null): readonly AgentSkill[] | undefined {
-  const store = useContext(SessionControlsContext)
-
-  const read = useCallback(
-    () => (store === null || threadId === null ? undefined : store.skillsOf(threadId)),
-    [store, threadId],
-  )
-
-  return useSyncExternalStore(store?.subscribe ?? NO_SUBSCRIPTION, read, read)
-}
-
-/** Kimi 当前检测到的 MCP 名册；失败与尚未读取都是 undefined。 */
-export function useMcpServers(): readonly AgentMcpServer[] | undefined {
-  const store = useContext(SessionControlsContext)
-  const read = useCallback(() => store?.mcpServers(), [store])
-
-  useEffect(() => {
-    store?.loadMcpServers()
-  }, [store])
-
-  return useSyncExternalStore(store?.subscribe ?? NO_SUBSCRIPTION, read, read)
 }
 
 /** 这条对话背后那个会话最近报的上下文用量；还没报过是 undefined。 */

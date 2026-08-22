@@ -1,4 +1,4 @@
-import type { SessionConfigControl } from '@poietica/agent-contract'
+import type { AgentToolkit, SessionConfigControl } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
 
 import { AgentCapabilityStore } from '../agent-capability-store'
@@ -8,6 +8,11 @@ import { AgentCapabilityStore } from '../agent-capability-store'
  *
  * 它不认识 React、不认识进程，也不认识 IPC，所以这里不需要任何模块级的复位动作。
  */
+
+/* 名册不是这些用例的主角：给一个恒空的读法，让端口完整。 */
+const EMPTY_TOOLKIT: AgentToolkit = { skills: [], mcpServers: [] }
+
+const inert = (): (() => void) => () => undefined
 
 const control = (
   id: string,
@@ -48,8 +53,6 @@ async function settled(): Promise<void> {
 const currentOf = (table: readonly SessionConfigControl[], id: string): string | undefined =>
   table.find((offered) => offered.id === id)?.current
 
-const inert = (): (() => void) => () => undefined
-
 describe('锚会话的那张表', () => {
   it('换模型时下发的是整个控件，档位随同一次答复一起换掉', async () => {
     const store = new AgentCapabilityStore()
@@ -64,6 +67,7 @@ describe('锚会话的那张表', () => {
         return Promise.resolve(THREE_TIER)
       },
       subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
     })
 
     await settled()
@@ -101,6 +105,7 @@ describe('锚会话的那张表', () => {
           announce = undefined
         }
       },
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
     })
 
     await settled()
@@ -138,6 +143,7 @@ describe('锚会话的那张表', () => {
       },
       select: () => Promise.resolve(THREE_TIER),
       subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
     })
 
     await settled()
@@ -171,6 +177,7 @@ describe('锚会话的那张表', () => {
         return Promise.resolve(THREE_TIER)
       },
       subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
     })
 
     await settled()
@@ -202,6 +209,7 @@ describe('锚会话的那张表', () => {
         return Promise.resolve(table)
       },
       subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
     })
 
     await settled()
@@ -236,6 +244,7 @@ describe('锚会话的那张表', () => {
       },
       select: () => Promise.resolve(ON_OFF),
       subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
     })
 
     await settled()

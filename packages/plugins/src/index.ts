@@ -86,7 +86,6 @@ export {
   type UserOrigin,
 } from './origin'
 export {
-  type AgentPalettePort,
   createPluginStore,
   type ForeignPlugin,
   type IdleInstall,

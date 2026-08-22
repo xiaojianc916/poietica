@@ -27,7 +27,7 @@ import { useWindowChrome } from '../chrome/use-window-chrome'
 import { reportFailure } from '../failures/application-policy'
 import { failureCoordinator } from '../failures/coordinator'
 import { UiFeedbackRegion } from '../feedback/ui-feedback'
-import { PluginLoader } from '../plugins/plugin-runtime'
+import { PluginLoader, pluginStore } from '../plugins/plugin-runtime'
 import { UpdateCapsule } from '../updates/update-capsule'
 import { ConversationCommands } from '../workbench/conversation-commands'
 import { type AppCapabilities, WorkspaceContainer } from '../workbench/workspace-container'
@@ -314,6 +314,27 @@ export function AppShell({ runtime }: AppShellProps) {
       stop()
     }
   }, [agentControls, agentId, runtime.agent, runtime.agentConfig])
+
+  /*
+   * 技能写进 skills/ 之后，让名册重问一次：屏幕上那张技能表是 kap 名册的投影，而
+   * 写路径只改目录不改名册 —— 不重问，装卸之后屏幕就停在旧账上。
+   *
+   * 订的是快照里本机名单的引用：写失败不动名单，也就不触发重问。首扫那一次只记
+   * 基线 —— 名册自己的首读在 start() 里，不缺这一次。
+   */
+  useEffect(() => {
+    let seen: readonly string[] | undefined
+
+    return pluginStore.subscribe(() => {
+      const owned = pluginStore.getSnapshot().ownedSkills
+
+      if (seen !== undefined && owned !== seen) {
+        agentControls.refresh()
+      }
+
+      seen = owned
+    })
+  }, [agentControls])
 
   /*
    * 目录一个进程一份，理由与上面两台 store 逐字相同：useState 的初始化函数给

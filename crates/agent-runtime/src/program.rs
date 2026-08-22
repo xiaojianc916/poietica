@@ -1,6 +1,6 @@
 //! 把档案里写的程序名解析成一条真的能启动的路径。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::error::{KapError, Result};
 
@@ -45,9 +45,61 @@ pub fn resolve_program(program: &str) -> Result<PathBuf> {
     })
 }
 
+/// 一条可以直接交给子进程启动器的启动式。
+#[derive(Debug, PartialEq, Eq)]
+pub struct Launcher {
+    pub program: String,
+    pub prefix_args: Vec<String>,
+}
+
+impl Launcher {
+    /// Windows 的 .cmd/.bat 是包管理器写的批处理垫片，`CreateProcess` 与 Node 的
+    /// spawn 都拒直接起它们；cmd.exe /c 代起是 VS Code 与 Claude Desktop 的官方
+    /// Windows 文档给 stdio MCP 服务器开的同一张方子。
+    #[cfg(windows)]
+    fn wrap(path: &Path) -> Self {
+        let shim = matches!(
+            path.extension().and_then(|it| it.to_str()),
+            Some(ext) if ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat")
+        );
+
+        if shim {
+            return Self {
+                program: "cmd".to_owned(),
+                prefix_args: vec!["/c".to_owned(), path.to_string_lossy().into_owned()],
+            };
+        }
+
+        Self::plain(path)
+    }
+
+    #[cfg(not(windows))]
+    fn wrap(path: &Path) -> Self {
+        Self::plain(path)
+    }
+
+    fn plain(path: &Path) -> Self {
+        Self {
+            program: path.to_string_lossy().into_owned(),
+            prefix_args: Vec::new(),
+        }
+    }
+}
+
+/// 把一个裸名字解析成 mcp.json 的 stdio 条目能直接用的启动式；解不出就是 `None`。
+///
+/// 写盘那一刻就把这台机器的平台事实固化下来，而不是把裸名留给下游进程碰运气 ——
+/// 上面 [`resolve_program`] 那条「CreateProcess 不读 PATHEXT」对 kap 起 MCP 子进程的
+/// 那一跳同样成立。缺程序不是这次调用的故障，是那台机器的现状，所以是 `None` 不是
+/// 错误。与 [`resolve_program`] 共用 which 这一个产地，两条路不许各查一遍。
+pub fn resolve_launcher(program: &str) -> Option<Launcher> {
+    which::which(program).ok().map(|path| Launcher::wrap(&path))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::resolve_program;
+    use super::{Launcher, resolve_launcher, resolve_program};
+    use std::path::Path;
 
     #[test]
     fn a_name_on_no_search_path_is_reported_rather_than_guessed() {
@@ -60,5 +112,49 @@ mod tests {
         if let Ok(here) = std::env::current_exe() {
             assert!(resolve_program(&here.to_string_lossy()).is_ok());
         }
+    }
+
+    #[test]
+    fn an_unknown_program_resolves_to_nothing() {
+        assert!(resolve_launcher("poietica-no-such-program-4f1a").is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_batch_shim_is_wrapped_in_cmd_exe() {
+        assert_eq!(
+            Launcher::wrap(Path::new(r"C:\Users\u\AppData\Roaming\npm\npx.CMD")),
+            Launcher {
+                program: "cmd".to_owned(),
+                prefix_args: vec![
+                    "/c".to_owned(),
+                    r"C:\Users\u\AppData\Roaming\npm\npx.CMD".to_owned()
+                ],
+            }
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_plain_executable_is_passed_through() {
+        assert_eq!(
+            Launcher::wrap(Path::new(r"C:\Tools\server.exe")),
+            Launcher {
+                program: r"C:\Tools\server.exe".to_owned(),
+                prefix_args: Vec::new()
+            }
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn a_path_is_passed_through_as_is() {
+        assert_eq!(
+            Launcher::wrap(Path::new("/usr/bin/node")),
+            Launcher {
+                program: "/usr/bin/node".to_owned(),
+                prefix_args: Vec::new()
+            }
+        );
     }
 }

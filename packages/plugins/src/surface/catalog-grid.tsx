@@ -1,3 +1,4 @@
+import { resolveLauncher } from '@poietica/ipc'
 import { Button } from '@poietica/ui'
 import { useState } from 'react'
 
@@ -160,6 +161,8 @@ interface InstallServerProps {
  */
 function InstallServer({ id, onInstall }: InstallServerProps) {
   const [filled, setFilled] = useState('')
+  /* 这台机器上没有那个启动器时，安装当场把原因说出来，条目不写。 */
+  const [absent, setAbsent] = useState<string | undefined>(undefined)
 
   const server = BUILTIN_SERVERS.find((one) => one.id === id)
 
@@ -169,33 +172,60 @@ function InstallServer({ id, onInstall }: InstallServerProps) {
 
   const missing = server.input?.required === true && filled.trim() === ''
 
+  const install = (): void => {
+    void (async () => {
+      if (server.transport.kind === 'http') {
+        const body = mcpServerBody(server, filled, null)
+
+        if (body !== null) {
+          onInstall(server.id, body)
+        }
+
+        return
+      }
+
+      const launcher = await resolveLauncher(server.transport.command)
+
+      if (launcher === null) {
+        setAbsent(`这台机器上没有 ${server.transport.command}`)
+
+        return
+      }
+
+      const body = mcpServerBody(server, filled, launcher)
+
+      if (body !== null) {
+        onInstall(server.id, body)
+      }
+    })()
+  }
+
   return (
     <div className="flex shrink-0 items-center gap-2">
-      {server.input === undefined ? (
-        server.needs === undefined ? null : (
-          <span
-            className="max-w-40 truncate text-[11px] text-muted-foreground"
+      {absent === undefined ? (
+        server.input === undefined ? (
+          server.needs === undefined ? null : (
+            <span
+              className="max-w-40 truncate text-[11px] text-muted-foreground"
+              title={server.needs}
+            >
+              {server.needs}
+            </span>
+          )
+        ) : (
+          <input
+            aria-label={server.input.label}
+            className="h-7 w-40 rounded-lg bg-muted/60 px-2.5 text-xs outline-none ring-1 ring-transparent transition-[background-color,box-shadow] focus:bg-background focus:ring-foreground/10"
+            onChange={(event) => setFilled(event.target.value)}
+            placeholder={server.input.placeholder}
             title={server.needs}
-          >
-            {server.needs}
-          </span>
+            value={filled}
+          />
         )
       ) : (
-        <input
-          aria-label={server.input.label}
-          className="h-7 w-40 rounded-lg bg-muted/60 px-2.5 text-xs outline-none ring-1 ring-transparent transition-[background-color,box-shadow] focus:bg-background focus:ring-foreground/10"
-          onChange={(event) => setFilled(event.target.value)}
-          placeholder={server.input.placeholder}
-          title={server.needs}
-          value={filled}
-        />
+        <span className="max-w-40 truncate text-[11px] text-destructive">{absent}</span>
       )}
-      <Button
-        disabled={missing}
-        onClick={() => onInstall(server.id, mcpServerBody(server, filled))}
-        size="xs"
-        variant="soft"
-      >
+      <Button disabled={missing} onClick={install} size="xs" variant="soft">
         安装
       </Button>
     </div>

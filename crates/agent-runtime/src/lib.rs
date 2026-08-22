@@ -53,7 +53,7 @@ pub use frame::{
     RUN_FAILED, RUN_FINISHED, RUN_STARTED, RunFrame, kap_event,
 };
 pub use permission::{Decision, Scope};
-pub use program::resolve_program;
+pub use program::{Launcher, resolve_launcher, resolve_program};
 pub use question::{
     AnswerMethod, QuestionAnswer, QuestionGroup, QuestionItem, QuestionOption, QuestionOutcome,
     QuestionResponse,

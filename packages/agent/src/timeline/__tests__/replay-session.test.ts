@@ -23,7 +23,7 @@ describe('replay session', () => {
       addressed.add(sessionId)
     })
 
-    await session.prompt({ threadId: 't', text: 'hi', assets: [] })
+    await session.prompt({ threadId: 't', text: 'hi', assets: [], configuration: [], skills: [] })
 
     for (const step of queue) {
       step()

@@ -462,6 +462,15 @@ async environmentMcpConfigWrite(expectedContents: string | null, contents: strin
     return await TAURI_INVOKE("environment_mcp_config_write", { expectedContents, contents });
 },
 /**
+ * 解析一台 stdio MCP 服务器的启动器；这台机器上没有该程序时是 `None`。
+ * 
+ * 返回 `None` 而不是错误：缺程序是那台机器的现状，界面要把这句话说出来，而不是
+ * 弹一次错误。
+ */
+async launcherResolve(program: string) : Promise<McpLauncher | null> {
+    return await TAURI_INVOKE("launcher_resolve", { program });
+},
+/**
  * Reports where the in-process MCP server is listening.
  * 
  * Returns None while the server failed to bind: the caller then simply has no
@@ -560,9 +569,12 @@ async skillsDiscard(stagingId: string) : Promise<null> {
     return await TAURI_INVOKE("skills_discard", { stagingId });
 },
 /**
- * 扫 skills/ 目录：每个含 SKILL.md 的子目录是一个技能。
+ * 本机 skills/ 里装着哪些：目录名列表，排序后交回。
+ * 
+ * 名册 × 这份名单在渲染层合成一张表（skill.ts 的 resolveSkills）。含 SKILL.md 的
+ * 子目录才算：CLI 也只装载这些。
  */
-async skillsList() : Promise<SkillPayload[]> {
+async skillsList() : Promise<string[]> {
     return await TAURI_INVOKE("skills_list");
 },
 /**
@@ -1903,6 +1915,10 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | Partial
  * 服务器的落脚地址。渲染层照着它把这台服务器登记进 MCP 那一格。
  */
 export type McpEndpoint = { url: string }
+/**
+ * 一条能直接交给启动器的启动式：程序在哪儿，前面还要垫哪些参数。
+ */
+export type McpLauncher = { program: string; prefixArgs: string[] }
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
 export type PluginCommitRequest = { stagingId: string; 
 /**
@@ -1994,14 +2010,6 @@ export type SkillCommitRequest = { stagingId: string;
  * 落盘的目录名。渲染层从前言里读出，这一侧只验安全性。
  */
 name: string; subdirectory: string | null }
-/**
- * 一个装好的技能。前言由渲染层解析，这里只交 SKILL.md 原文。
- */
-export type SkillPayload = { 
-/**
- * 目录名，同时是 /skill:<name> 的调用名。
- */
-name: string; skillMd: string }
 /**
  * 已解到暂存区、等认领的一份。
  */

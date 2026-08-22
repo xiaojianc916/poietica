@@ -235,7 +235,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     if !wanted.is_empty() {
         let switched = driver.expect(
             client
-                .select(session_id.clone(), "model".to_owned(), wanted.clone())
+                .select(session_id.clone(), "model".to_owned(), wanted.clone(), None)
                 .expect("the driver to accept the change"),
             "the model change was never answered",
         );
@@ -267,6 +267,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         .prompt(
             session_id.clone(),
             setting("POIETICA_KAP_PROMPT", DEFAULT_PROMPT),
+            Vec::new(),
             Vec::new(),
             frames,
         )

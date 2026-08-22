@@ -1,7 +1,8 @@
 //! 技能的取用、落盘与列举。
 //!
-//! 技能没有账本：CLI 按 skills/<name>/SKILL.md 扫描装载，目录本身是唯一真相，
-//! 写进去就是装上，删掉就是卸载。这里搬字节，前言解析归渲染层。
+//! 「会话里有哪些技能」的唯一真相是 kap 名册（agent_toolkit）；本机 skills/ 目录只是
+//! 写入目标：写进去就是装上，删掉就是卸载，列举只回答「哪些是这里装的」。这里搬字节，
+//! 前言解析归渲染层（安装落盘前取目录名是唯一的一处）。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -30,15 +31,6 @@ fn skill_failure(cause: impl std::fmt::Display) -> Error {
     Error::Plugin(cause.to_string())
 }
 
-/// 一个装好的技能。前言由渲染层解析，这里只交 SKILL.md 原文。
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SkillPayload {
-    /// 目录名，同时是 /skill:<name> 的调用名。
-    pub name: String,
-    pub skill_md: String,
-}
-
 /// 已解到暂存区、等认领的一份。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -56,38 +48,29 @@ pub struct SkillCommitRequest {
     pub subdirectory: Option<String>,
 }
 
-/// 扫 skills/ 目录：每个含 SKILL.md 的子目录是一个技能。
+/// 本机 skills/ 里装着哪些：目录名列表，排序后交回。
+///
+/// 名册 × 这份名单在渲染层合成一张表（skill.ts 的 resolveSkills）。含 SKILL.md 的
+/// 子目录才算：CLI 也只装载这些。
 #[command]
 #[specta::specta]
-pub async fn skills_list(app: AppHandle) -> SkillsCommandResult<Vec<SkillPayload>> {
-    (|| -> Result<Vec<SkillPayload>> {
+pub async fn skills_list(app: AppHandle) -> SkillsCommandResult<Vec<String>> {
+    (|| -> Result<Vec<String>> {
         let root = skills_root(&app)?;
         let mut found = Vec::new();
 
         for entry in fs::read_dir(&root)?.flatten() {
             let path = entry.path();
-
-            if !path.is_dir() {
-                continue;
-            }
-
-            let manifest = path.join(host::SKILL_FILENAME);
-
-            if !manifest.is_file() {
-                continue;
-            }
-
             let Some(name) = path.file_name().and_then(|it| it.to_str()) else {
                 continue;
             };
 
-            found.push(SkillPayload {
-                name: name.to_owned(),
-                skill_md: fs::read_to_string(&manifest)?,
-            });
+            if path.join(host::SKILL_FILENAME).is_file() {
+                found.push(name.to_owned());
+            }
         }
 
-        found.sort_by(|left, right| left.name.cmp(&right.name));
+        found.sort();
 
         Ok(found)
     })()

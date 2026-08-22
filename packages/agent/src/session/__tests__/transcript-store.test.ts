@@ -77,7 +77,15 @@ describe('transcript store', () => {
       told += 1
     })
 
-    store.send({ port: undefined, key, endpoint: null, text: '在吗', assets: [] })
+    store.send({
+      port: undefined,
+      key,
+      endpoint: null,
+      text: '在吗',
+      assets: [],
+      configuration: [],
+      skills: [],
+    })
 
     /* 状态是同步的：说出去和记下事故都已经在里面了。 */
     const { timeline } = store.read(key)

@@ -462,16 +462,19 @@ function PromptInputShell({
     () =>
       allGroups.map((group) => ({
         ...group,
-        rows: group.rows.map((row) =>
-          row.action.kind === 'configure'
+        rows: group.rows.map((row) => {
+          /* 收窄要落在一个 const 上才进得了 some 的闭包。 */
+          const { action } = row
+
+          return action.kind === 'configure'
             ? {
                 ...row,
                 checked: pendingConfiguration.some(
-                  (selected) => selected.id === row.action.configuration.id,
+                  (selected) => selected.id === action.configuration.id,
                 ),
               }
-            : row,
-        ),
+            : row
+        }),
       })),
     [allGroups, pendingConfiguration],
   )

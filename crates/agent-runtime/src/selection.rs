@@ -65,12 +65,7 @@ pub async fn select_config(
     value: String,
     input: Option<String>,
 ) -> Result<Vec<ConfigControl>> {
-    let answer = client.select(
-        session_id.clone(),
-        config_id.clone(),
-        value.clone(),
-        input,
-    )?;
+    let answer = client.select(session_id.clone(), config_id.clone(), value.clone(), input)?;
     let controls = receive(answer).await?;
     let controls = settle(client, &session_id, &config_id, &value, controls).await?;
 

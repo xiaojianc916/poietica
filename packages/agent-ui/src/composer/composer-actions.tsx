@@ -110,17 +110,17 @@ function choiceRow(
   }
 }
 
-/* 状态说人话：传输协议屏幕上没有一格画它，所以它也不进这一行。 */
+/* 状态说人话：连没连上与有几个工具是两格话，不让人从数字反推状态。 */
 function mcpDetail(server: AgentMcpServer): string {
   switch (server.status) {
     case 'connected':
-      return `${String(server.toolCount)} 个工具`
+      return server.toolCount === 0 ? '已连接 · 暂无工具' : `已连接 · ${server.toolCount} 个工具`
     case 'connecting':
       return '连接中'
     case 'disconnected':
       return '未连接'
     case 'error':
-      return server.lastError === undefined ? '出错' : `出错：${server.lastError}`
+      return server.lastError === undefined ? '起不来' : `起不来：${server.lastError}`
   }
 }
 

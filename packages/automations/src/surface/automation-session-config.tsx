@@ -22,12 +22,13 @@ import { useMemo } from 'react'
 /** 闭合枚举到中文。与 describeTrigger 同一个性质：翻译，不是发明。 */
 const PURPOSE_LABELS: Record<SessionConfigPurpose, string> = {
   model: '模型',
+  permission: '批准方式',
   thought: '推理强度',
   mode: '模式',
   other: '其它',
 }
 
-const ORDER: readonly SessionConfigPurpose[] = ['model', 'thought', 'mode', 'other']
+const ORDER: readonly SessionConfigPurpose[] = ['model', 'thought', 'mode', 'permission', 'other']
 
 function rank(purpose: SessionConfigPurpose): number {
   const found = ORDER.indexOf(purpose)

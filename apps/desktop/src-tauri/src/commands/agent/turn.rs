@@ -27,8 +27,7 @@ use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
 use super::{
     AGENT_EVENT, AGENT_SESSION_EVENT, AgentCommandResult, FRAME_INTERVAL, IMAGE_OPENER,
-    NO_CONVERSATION, NO_SESSION,
-    NOTHING_TO_STOP, TITLE_CHARS,
+    NO_CONVERSATION, NO_SESSION, NOTHING_TO_STOP, TITLE_CHARS,
 };
 
 /// Starts a turn and returns as soon as it is under way.
@@ -63,7 +62,10 @@ pub async fn agent_prompt(
     let skills = request
         .skills
         .into_iter()
-        .map(|skill| PromptSkill { name: skill.name, args: skill.args })
+        .map(|skill| PromptSkill {
+            name: skill.name,
+            args: skill.args,
+        })
         .collect();
 
     /* 空的是这一句话，不是这一格。只挑了图、没打字，仍然是一句完整的话。 */

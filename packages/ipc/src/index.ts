@@ -75,6 +75,7 @@ export {
   throughIpc,
 } from './error'
 export { type GitBranches, gitBranches, gitCreateBranch, gitSwitchBranch } from './git'
+export { type McpLauncher, resolveLauncher } from './launcher'
 export { type McpEndpoint, readMcpEndpoint } from './mcp'
 export {
   commitPlugin,
@@ -100,7 +101,6 @@ export {
   listSkills,
   removeSkill,
   type SkillCommitRequest,
-  type SkillPayload,
   type SkillStaged,
   stageSkill,
 } from './skills'

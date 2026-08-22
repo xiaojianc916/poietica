@@ -1,5 +1,6 @@
 import type {
   AgentCapabilityPort,
+  AgentSessionPort,
   QuestionChoice,
   RunEvent,
   SessionConfigChoice,
@@ -430,7 +431,7 @@ export function createAgentCapabilityBridge({
         onListenFailure,
       ),
 
-    readToolkit: createAgentToolkitReader({ cwd, launch }),
+    readToolkit: createAgentToolkitReader(cwd === undefined ? { launch } : { launch, cwd }),
   }
 }
 

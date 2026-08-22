@@ -1,4 +1,3 @@
-import type { AgentSkill } from '@poietica/agent-contract'
 import { assertUnreachable, warn } from '@poietica/core'
 import {
   commitPlugin,
@@ -28,16 +27,6 @@ import {
   UNLISTED_TRUST,
 } from './install-source'
 
-/**
- * 全局技能面板端口：提供不依赖会话的斜杠技能表。
- *
- * 这一路在会话建立前就可用，用于新建对话入口的输入框斜杠菜单。
- */
-export interface AgentPalettePort {
-  readonly read: () => readonly AgentSkill[]
-  readonly subscribe: (listener: () => void) => () => void
-}
-
 import type { InstalledPlugin } from './installation'
 import { decodePluginManifest, type PluginDiagnostic, type PluginManifest } from './manifest'
 import {
@@ -60,7 +49,7 @@ import {
 import { type ResolvedMcpServer, resolveMcpServers } from './mcp-servers'
 import type { ContributionOrigin } from './origin'
 import { createSnapshotCache } from './registry/snapshot'
-import { decodeSkillPayload, type InstalledSkill, parseSkillFrontmatter } from './skill'
+import { skillFrontmatterName } from './skill'
 
 /**
  * 「装了什么、开没开、市场上有什么」的唯一持有者。
@@ -102,16 +91,15 @@ export interface PluginsViewModel {
   readonly marketplace: MarketplaceState
   readonly install: InstallFlow
   /**
-   * 受控 home 的 skills/ 目录里装着的技能。目录即账本，这一格是它的投影：会话里能
-   * 调用什么由 agent 报给那条会话，这一格只回答「这里装了什么」。
+   * 本机 skills/ 里装着的技能目录名。写入目标的那一半真相：会话里能调用的全部
+   * 技能由 kap 名册报来，两者在 skill.ts 的 resolveSkills 合成一张表 —— 这里只
+   * 回答「哪些删得掉」。
    */
-  readonly skills: readonly InstalledSkill[]
+  readonly ownedSkills: readonly string[]
   /** 技能安装的进行时。没有确认步：一键装完，失败原因落在这里。 */
   readonly skillInstall: InstallFlow
   /** 首帧与「读完了确实一个都没装」不是同一件事，空态因此不会闪。 */
   readonly loaded: boolean
-  /** 斜杠菜单的候选表：不依赖会话的全局技能列表。 */
-  readonly palette: readonly AgentSkill[]
 }
 
 export interface IdleInstall {
@@ -232,8 +220,6 @@ export interface PluginStoreOptions {
   readonly marketplaceUrl: string
   /** 领域层不摸时钟，时钟从这里交进去。测试因此不需要冻结全局时间。 */
   readonly now: () => string
-  /** 全局命令面板：斜杠菜单的候选表。可选，缺席时斜杠菜单为空。 */
-  readonly palette?: AgentPalettePort | undefined
 }
 
 /*
@@ -287,10 +273,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     foreign: [],
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
-    skills: [],
+    ownedSkills: [],
     skillInstall: INSTALL_IDLE,
     loaded: false,
-    palette: [],
   }
 
   /*
@@ -314,40 +299,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    */
   const epochs = { install: 0, skillInstall: 0 }
 
-  /* 受控 home 的 skills/ 目录里装着的。目录即账本，这里是投影。 */
-  let installedSkills: readonly InstalledSkill[] = []
-
-  /*
-   * 收下 agent 报来的命令表。
-   *
-   * 空表不写进屏幕：会话建起来之前报来的就是空表，而 AgentPalettePort 只有 read 与
-   * subscribe，没有会话存活信号，「还没建会话」与「真的一个命令都没有」在这条端口上分不
-   * 开。取保守的那一侧 —— 让上一次的结果留着，好过让人看见技能全没了。
-   */
-  function adoptPalette(): void {
-    const palette = options.palette
-
-    if (palette === undefined) {
-      return
-    }
-
-    const entries = palette.read()
-
-    if (entries.length === 0) {
-      return
-    }
-
-    publish({ palette: entries })
-    cache.write(options.now())
-  }
-
-  /*
-   * 命令表的订阅。寿命是这个 store 的寿命，不是屏幕上有没有人在看。
-   *
-   * agent 推来的表问不回来（AgentPalettePort 只有 read 与 subscribe）。挂在订阅者计数
-   * 上，没打开扩展页时那一次推送就落在地上，之后打开只剩缓存里那份旧表。
-   */
-  let stopPalette: (() => void) | null = null
+  /* 本机 skills/ 里装着的名字。目录只是写入目标，这里是它的投影。 */
+  let ownedSkills: readonly string[] = []
 
   function publish(next: Partial<PluginsViewModel>): void {
     snapshot = { ...snapshot, ...next }
@@ -401,9 +354,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       mcpServers: resolveMcpServers({ environment, plugins }),
       /* 两边都装着的不算「别处装过」：那一条已经在上面的 plugins 里了。 */
       foreign: foreignRecords.filter((record) => !here.has(record.pluginId)),
-      skills: installedSkills,
+      ownedSkills,
       loaded: true,
-      palette: snapshot.palette,
     })
   }
 
@@ -489,9 +441,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
   /* 技能装了什么，skills/ 目录说了算：一个含 SKILL.md 的子目录是一个技能。 */
   async function rescanSkills(): Promise<void> {
-    const payloads = await listSkills()
-
-    installedSkills = payloads.map(decodeSkillPayload)
+    ownedSkills = await listSkills()
   }
 
   /*
@@ -715,13 +665,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         return ready
       }
 
-      if (options.palette !== undefined) {
-        stopPalette = options.palette.subscribe(adoptPalette)
-
-        /* 接上之前 agent 可能已经报过一份：会话可能比这一趟启动更早建好。 */
-        adoptPalette()
-      }
-
       queue = queue.then(async () => {
         /*
          * 五趟互不依赖，一起等而不是排成五趟：每一趟都只读，写的只是各自那个模块级
@@ -732,7 +675,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
             scanned = []
           }),
           guard('技能目录读不出来', rescanSkills, () => {
-            installedSkills = []
+            ownedSkills = []
           }),
           guard('命令行上那本插件账读不出来', readForeign, () => {
             foreignRecords = []
@@ -744,7 +687,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         ])
 
         /*
-         * 本地真相先上屏。MCP 名册与已装清单只依赖上面那六趟，而名册在开会话那一刻
+         * 本地真相先上屏。MCP 名册与已装清单只依赖上面那几趟，而名册在开会话那一刻
          * 被采样、此后不再重挂 —— 它的就绪不能排在一次网络往返之后。
          */
         republish()
@@ -772,7 +715,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
     stop() {
       ready = null
-      stopPalette?.()
     },
 
     setEnabled(pluginId, enabled) {
@@ -957,7 +899,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         async (staged, subdirectory) => {
           /* 名字取自前言，缺席回落到子目录名。原生侧落盘前还会验一遍安全性。 */
           const fallback = subdirectory?.split('/').pop() ?? 'skill'
-          const name = parseSkillFrontmatter(staged.skillMd).name || fallback
+          const name = skillFrontmatterName(staged.skillMd) || fallback
 
           await commitSkill({ stagingId: staged.stagingId, name, subdirectory })
 

@@ -1,68 +1,79 @@
+import type { AgentSkill } from '@poietica/agent-contract'
 import { parse } from 'yaml'
 
 /*
- * 已装技能的领域模型，以及 SKILL.md 前言的解析。
+ * 技能的两半真相在这里合成一张表。
  *
- * 技能没有账本：装载判据是 skills/<name>/SKILL.md 在不在盘上，所以「装了什么」的唯一
- * 真相是目录本身。原生侧扫目录时把 SKILL.md 原文一并交来，前言在这里解析一次，没有
- * 第二趟原生读取。
+ * 「会话里有哪些技能」由 kap 名册说了算：agent 合并它自己的几层目录后报来
+ * （driver.rs 的 list_skills）。本机 skills/ 目录只是写入目标，只回答「哪些是这里
+ * 装的」。与本仓 mcp-servers.ts::resolveMcpServers 同一条范式：多来源合成一张表，
+ * 界面只画这张表。
  *
- * 前言是 YAML，所以交给 YAML 解析器：引号、折叠标量、转义、注释这些边界情况已经被解决
- * 过一遍。解不开或解出来不是一张映射，都按「没有前言」处理，不阻塞安装。
+ * 渲染层唯一还要碰 SKILL.md 前言的地方，是安装落盘前取目录名。
  */
 
-export interface SkillManifest {
-  /** 前言里的 name，缺席时由调用方回落到目录名。 */
+export interface ResolvedSkill {
   readonly name: string
+  /** 名册给的说明；名册没报就没有。 */
   readonly description: string | undefined
-  readonly license: string | undefined
+  /** 名册给的来源（哪一层带来的）；名册没报就没有。 */
+  readonly source: string | undefined
+  /** 名册报了它：这个会话真的装载了。 */
+  readonly served: boolean
+  /** 本机 skills/ 里装着：只有这一类行删得掉。 */
+  readonly owned: boolean
 }
 
-export interface InstalledSkill {
-  /** 目录名，同时是 /skill:<name> 的调用名。 */
-  readonly dirName: string
-  readonly manifest: SkillManifest
+export function resolveSkills(input: {
+  readonly roster: readonly AgentSkill[]
+  readonly owned: readonly string[]
+}): readonly ResolvedSkill[] {
+  const here = new Set(input.owned)
+
+  const reported = input.roster.map(
+    (skill): ResolvedSkill => ({
+      name: skill.name,
+      description: skill.description === '' ? undefined : skill.description,
+      source: skill.source === '' ? undefined : skill.source,
+      served: true,
+      owned: here.has(skill.name),
+    }),
+  )
+
+  /* 本机装着、名册却没报的：装了却没装载，第一次被说出来。 */
+  const served = new Set(input.roster.map((skill) => skill.name))
+  const unserved = input.owned
+    .filter((name) => !served.has(name))
+    .map(
+      (name): ResolvedSkill => ({
+        name,
+        description: undefined,
+        source: undefined,
+        served: false,
+        owned: true,
+      }),
+    )
+
+  return [...reported, ...unserved].sort((left, right) => left.name.localeCompare(right.name))
 }
 
-export function parseSkillFrontmatter(md: string): SkillManifest {
-  const match = md.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  const block = frontmatter(match?.[1])
+/** 前言里的 name；解不开或缺席时交回空串，调用方回落到目录名。 */
+export function skillFrontmatterName(md: string): string {
+  const block = md.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]
 
-  return {
-    name: field(block, 'name') ?? '',
-    description: field(block, 'description'),
-    license: field(block, 'license'),
-  }
-}
-
-function frontmatter(source: string | undefined): Record<string, unknown> {
-  if (source === undefined) {
-    return {}
+  if (block === undefined) {
+    return ''
   }
 
   try {
-    const parsed: unknown = parse(source)
+    const parsed: unknown = parse(block)
+    const name =
+      typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)['name']
+        : undefined
 
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {}
+    return typeof name === 'string' && name !== '' ? name : ''
   } catch {
-    return {}
-  }
-}
-
-/* 只认非空字符串标量：数字、布尔、列表出现在这三格里都是写错了，按缺席处理。 */
-function field(block: Record<string, unknown>, key: string): string | undefined {
-  const value = block[key]
-
-  return typeof value === 'string' && value !== '' ? value : undefined
-}
-
-export function decodeSkillPayload(payload: { name: string; skillMd: string }): InstalledSkill {
-  const manifest = parseSkillFrontmatter(payload.skillMd)
-
-  return {
-    dirName: payload.name,
-    manifest: { ...manifest, name: manifest.name === '' ? payload.name : manifest.name },
+    return ''
   }
 }

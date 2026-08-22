@@ -79,12 +79,14 @@ export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
        */
       transcripts.send({
         assets: [],
+        configuration: [],
         endpoint: threadId,
         key: threadId,
         onUserMessage: (said) => {
           threads.noteUserMessage(said, automation.title)
         },
         port: session,
+        skills: [],
         text: automation.prompt,
       })
 

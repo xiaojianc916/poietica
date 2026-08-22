@@ -1,16 +1,12 @@
 import { throughIpc } from './error'
-import type {
-  PluginFetch,
-  SkillCommitRequest,
-  SkillPayload,
-  SkillStaged,
-} from './generated/ipc-bindings'
+import type { PluginFetch, SkillCommitRequest, SkillStaged } from './generated/ipc-bindings'
 import { commands } from './generated/ipc-bindings'
 
-export type { SkillCommitRequest, SkillPayload, SkillStaged } from './generated/ipc-bindings'
+export type { SkillCommitRequest, SkillStaged } from './generated/ipc-bindings'
 
-export function listSkills(): Promise<SkillPayload[]> {
-  return throughIpc(() => commands.skillsList())
+/** 本机 skills/ 里装着哪些：目录名列表。名册那另一半在 agent_toolkit。 */
+export function listSkills(): Promise<string[]> {
+  return throughIpc(async () => commands.skillsList())
 }
 
 export function stageSkill(fetch: PluginFetch): Promise<SkillStaged> {

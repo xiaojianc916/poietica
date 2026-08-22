@@ -1,3 +1,4 @@
+import type { AgentSkill } from '@poietica/agent-contract'
 import { assertUnreachable } from '@poietica/core'
 import { Button, cn, Switch } from '@poietica/ui'
 import { useState, useSyncExternalStore } from 'react'
@@ -7,7 +8,7 @@ import { latestCatalog, type MarketplaceEntry } from '../marketplace'
 import type { ResolvedMcpServer } from '../mcp-servers'
 import { type ContributionOrigin, describeOrigin } from '../origin'
 import type { PluginStore, PluginsViewModel } from '../plugin-store'
-import type { InstalledSkill } from '../skill'
+import { type ResolvedSkill, resolveSkills } from '../skill'
 import { CatalogGrid } from './catalog-grid'
 import { ContributionList, type ContributionRow } from './contribution-list'
 import { PluginBrowser } from './plugin-browser'
@@ -34,7 +35,8 @@ const TABS = {
   },
   skills: {
     label: '技能',
-    subtitle: '工作流与提示模板，使用 /skill调用。插件带来的与全局装的由 agent 在会话建立后报来。',
+    subtitle:
+      '工作流与提示模板，用 /skill 调用。会话里能调用的全部由 agent 报来；压暗的那几行是装了、这个会话却没装载的。',
   },
   mcp: {
     label: 'MCP',
@@ -50,10 +52,15 @@ const TAB_ORDER = Object.keys(TABS) as readonly TabId[]
 const EMPTY_NEEDLES: Record<TabId, string> = { plugins: '', skills: '', mcp: '' }
 
 export interface PluginsSurfaceProps {
+  /**
+   * kap 名册里的技能表：会话里能调用的全部。名册唯一持有者是能力表 store
+   * （AgentCapabilityStore.toolkit），组合根经 Context 读它交进来，这里不复制。
+   */
+  readonly roster: readonly AgentSkill[]
   readonly store: PluginStore
 }
 
-export function PluginsSurface({ store }: PluginsSurfaceProps) {
+export function PluginsSurface({ roster, store }: PluginsSurfaceProps) {
   const view = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const [tab, setTab] = useState<TabId>('plugins')
   const [needles, setNeedles] = useState<Record<TabId, string>>(EMPTY_NEEDLES)
@@ -62,13 +69,12 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
   const needle = needles[tab]
   const entries: readonly MarketplaceEntry[] = latestCatalog(view.marketplace)?.entries ?? []
 
-  /*
-   * 技能现在由 AgentSkillPort 单独管理，不在 palette 里。
-   * palette 只包含斜杠命令。
-   */
+  /* 名册 × 本机目录，唯一一张技能表。 */
+  const skills = resolveSkills({ owned: view.ownedSkills, roster })
+
   const counts: Record<TabId, number> = {
     plugins: view.plugins.length,
-    skills: view.skills.length,
+    skills: skills.length,
     mcp: view.mcpServers.length,
   }
 
@@ -129,8 +135,8 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
               value={needle}
             />
             {/*
-              技能那一格没有刷新按钮：装了什么由 skills/ 目录说了算，一趟本地读就回来了。
-              另外两格刷的是同一份市场目录，所以它们共用这一个。
+              技能那一格没有刷新按钮：名册由 agent 推着更新，装卸落定后组合根也会让
+              它重问一轮。另外两格刷的是同一份市场目录，所以它们共用这一个。
             */}
             {tab === 'skills' ? null : (
               <Button onClick={() => store.refreshMarketplace()} size="sm" variant="ghost">
@@ -143,6 +149,7 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
           entries={entries}
           needle={needle}
           onOpen={setOpenedId}
+          skills={skills}
           store={store}
           tab={tab}
           view={view}
@@ -156,12 +163,13 @@ interface TabBodyProps {
   readonly tab: TabId
   readonly needle: string
   readonly entries: readonly MarketplaceEntry[]
+  readonly skills: readonly ResolvedSkill[]
   readonly store: PluginStore
   readonly view: PluginsViewModel
   readonly onOpen: (id: string) => void
 }
 
-function TabBody({ entries, needle, onOpen, store, tab, view }: TabBodyProps) {
+function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyProps) {
   switch (tab) {
     case 'plugins':
       return (
@@ -177,9 +185,9 @@ function TabBody({ entries, needle, onOpen, store, tab, view }: TabBodyProps) {
         />
       )
     case 'skills': {
-      const rows = view.skills
-        .map((skill) => installedSkillRow(skill, store))
-        .filter((row) => matches(needle, row.title, row.detail))
+      const rows = skills
+        .filter((skill) => matches(needle, skill.name, skill.description, skill.source))
+        .map((skill) => skillRow(skill, store))
 
       return (
         <div className="pb-24">
@@ -194,15 +202,15 @@ function TabBody({ entries, needle, onOpen, store, tab, view }: TabBodyProps) {
           {view.skillInstall.kind === 'refused' ? (
             <p className="pt-6 text-xs text-destructive">{view.skillInstall.reason}</p>
           ) : null}
-          <Section count={rows.length} title="已安装">
+          <Section count={rows.length} title="会话可用">
             <ContributionList
-              empty="这里还没有技能。下面那份名单一键装，装完在新会话里用 /skill调用。"
+              empty="这个会话还没有技能。下面那份名单一键装，装完在新会话里用 /skill 调用。"
               rows={rows}
             />
           </Section>
           <CatalogGrid
             action={{ kind: 'skill', install: store.installSkill }}
-            groups={groupRows(builtinSkillRows(view.skills, needle))}
+            groups={groupRows(builtinSkillRows(view.ownedSkills, needle))}
           />
         </div>
       )
@@ -230,24 +238,33 @@ function TabBody({ entries, needle, onOpen, store, tab, view }: TabBodyProps) {
 }
 
 /*
- * 装在受控 home 里的一个技能。移除即删目录；已开着的会话不受影响，新会话不再装载。
+ * 名册 × 本机目录合成的一行。
+ *
+ * 移除只长在本机装着的行上：对别的来源点移除只会「静默成功」而名册照旧 —— 没有
+ * 按钮好过会说谎的按钮（与 serverRow 的 origin.kind === 'user' 同一条范式）。名册
+ * 没报的那几行整行压暗：装了却没装载，第一次被说出来。
  */
-function installedSkillRow(skill: InstalledSkill, store: PluginStore): ContributionRow {
+function skillRow(skill: ResolvedSkill, store: PluginStore): ContributionRow {
   return {
-    key: `installed/${skill.dirName}`,
-    title: skill.manifest.name,
-    detail: skill.manifest.description ?? '这个技能没有写说明。装好后由新会话装载。',
-    badge: '已安装',
-    trailing: (
+    key: `skill/${skill.name}`,
+    title: skill.name,
+    detail:
+      skill.description ??
+      (skill.served
+        ? '这个技能没有写说明。'
+        : '已装在这里，但这个会话没有装载它；新开会话或让 agent 重载后再试。'),
+    ...(skill.source === undefined ? {} : { badge: skill.source }),
+    dimmed: !skill.served,
+    trailing: skill.owned ? (
       <Button
         className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
-        onClick={() => store.removeInstalledSkill(skill.dirName)}
+        onClick={() => store.removeInstalledSkill(skill.name)}
         size="xs"
         variant="ghost"
       >
         移除
       </Button>
-    ),
+    ) : undefined,
   }
 }
 

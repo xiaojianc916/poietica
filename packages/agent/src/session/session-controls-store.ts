@@ -1,6 +1,4 @@
 import type {
-  AgentMcpServer,
-  AgentSkill,
   OpenedThread,
   PermissionPosturePort,
   SessionConfigControl,
@@ -22,16 +20,12 @@ interface Held {
   readonly selectors: ReadonlyMap<string, readonly SessionConfigControl[]>
   readonly selectorFailure: ReadonlyMap<string, string>
   readonly usage: ReadonlyMap<string, SessionUsage>
-  readonly skills: ReadonlyMap<string, readonly AgentSkill[]>
-  readonly mcpServers: readonly AgentMcpServer[] | undefined
 }
 
 const EMPTY: Held = {
   selectors: new Map(),
   selectorFailure: new Map(),
   usage: new Map(),
-  skills: new Map(),
-  mcpServers: undefined,
 }
 
 /**
@@ -192,13 +186,7 @@ export class SessionControlsStore {
   /** 这条对话所持有的会话最近报的上下文用量；从没报过就是 undefined。 */
   usageOf = (threadId: string): SessionUsage | undefined => this.#held.usage.get(threadId)
 
-  /** 这条对话背后那个会话能用的技能；还没问回来就是 undefined。 */
-  skillsOf = (threadId: string): readonly AgentSkill[] | undefined =>
-    this.#held.skills.get(threadId)
-
-  mcpServers = (): readonly AgentMcpServer[] | undefined => this.#held.mcpServers
-
-  /**
+  /*
    * 一份答复到手：新开一条、认领一条、重读一条，三条路唯一的落地处。
    *
    * 会话是跟着这条对话一起开出来的，路由、经过、选择器都在同一个答复里，所以这也是
@@ -247,7 +235,6 @@ export class SessionControlsStore {
       selectors: withoutEntry(this.#held.selectors, threadId),
       selectorFailure: withoutEntry(this.#held.selectorFailure, threadId),
       usage: withoutEntry(this.#held.usage, threadId),
-      skills: withoutEntry(this.#held.skills, threadId),
     })
   }
 
@@ -509,9 +496,7 @@ export class SessionControlsStore {
     if (
       next.selectors === this.#held.selectors &&
       next.selectorFailure === this.#held.selectorFailure &&
-      next.usage === this.#held.usage &&
-      next.skills === this.#held.skills &&
-      next.mcpServers === this.#held.mcpServers
+      next.usage === this.#held.usage
     ) {
       return
     }

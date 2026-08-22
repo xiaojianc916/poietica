@@ -1,7 +1,8 @@
 //! The selectors a session offers, translated from kap's own answers.
 //!
 //! 两张事实表按线上形状手写：status 路由的 data（sessionStatusResponseSchema）
-//! 与 /models 的 data（listModelsResponseSchema）。
+//! 与 /models 的 data（listModelsResponseSchema）。目标一格来自 goal snapshot，
+//! 这里给 Null —— 它只影响 goal 自己的档位。
 
 use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose, controls, selector_patch};
 use serde_json::{Value, json};
@@ -39,38 +40,59 @@ fn named<'a>(list: &'a [ConfigControl], id: &str) -> Option<&'a ConfigControl> {
 }
 
 #[test]
-fn the_session_offers_three_selectors() {
-    let offered = controls(&status("kimi-k2.6", "on", "manual", false), &catalog());
+fn the_session_offers_its_selectors_in_order() {
+    let offered = controls(
+        &status("kimi-k2.6", "on", "manual", false),
+        &catalog(),
+        &Value::Null,
+    );
     let ids: Vec<&str> = offered.iter().map(|control| control.id.as_str()).collect();
 
-    assert_eq!(ids, vec!["model", "thinking", "mode"]);
+    assert_eq!(
+        ids,
+        vec!["model", "thinking", "permission", "plan", "goal", "swarm"]
+    );
 }
 
 #[test]
 fn each_selector_knows_what_it_is_for() {
-    let offered = controls(&status("kimi-k2.6", "on", "manual", false), &catalog());
+    let offered = controls(
+        &status("kimi-k2.6", "on", "manual", false),
+        &catalog(),
+        &Value::Null,
+    );
 
     assert!(named(&offered, "model").is_some_and(|c| c.purpose == ConfigPurpose::Model));
-    assert!(named(&offered, "mode").is_some_and(|c| c.purpose == ConfigPurpose::Mode));
+    assert!(named(&offered, "permission").is_some_and(|c| c.purpose == ConfigPurpose::Permission));
+    assert!(named(&offered, "plan").is_some_and(|c| c.purpose == ConfigPurpose::Mode));
     assert!(named(&offered, "thinking").is_some_and(|c| c.purpose == ConfigPurpose::Thought));
 }
 
 #[test]
 fn the_values_in_force_are_carried_across() {
-    let offered = controls(&status("kimi-k2.6", "on", "manual", false), &catalog());
+    let offered = controls(
+        &status("kimi-k2.6", "on", "manual", false),
+        &catalog(),
+        &Value::Null,
+    );
 
     assert!(named(&offered, "model").is_some_and(|c| c.current == "kimi-k2.6"));
-    assert!(named(&offered, "mode").is_some_and(|c| c.current == "manual"));
+    assert!(named(&offered, "permission").is_some_and(|c| c.current == "manual"));
+    assert!(named(&offered, "plan").is_some_and(|c| c.current == "off"));
     assert!(named(&offered, "thinking").is_some_and(|c| c.current == "on"));
 }
 
 #[test]
 fn every_value_on_offer_is_kept() {
-    let offered = controls(&status("kimi-k2.6", "on", "manual", false), &catalog());
+    let offered = controls(
+        &status("kimi-k2.6", "on", "manual", false),
+        &catalog(),
+        &Value::Null,
+    );
 
     assert!(named(&offered, "model").is_some_and(|c| c.choices.len() == 3));
+    assert!(named(&offered, "permission").is_some_and(|c| c.choices.len() == 3));
     assert!(named(&offered, "thinking").is_some_and(|c| c.choices.len() == 2));
-    assert!(named(&offered, "mode").is_some_and(|c| c.choices.len() == 4));
 }
 
 #[test]
@@ -78,6 +100,7 @@ fn thinking_levels_come_from_the_current_models_own_catalog_entry() {
     let offered = controls(
         &status("kimi-k2.7-code", "low", "manual", false),
         &catalog(),
+        &Value::Null,
     );
 
     assert!(named(&offered, "thinking").is_some_and(|c| c.choices.len() == 3));
@@ -89,6 +112,7 @@ fn a_model_without_declared_levels_has_no_thinking_selector() {
     let offered = controls(
         &status("kimi-k2.7-code-highspeed", "on", "manual", false),
         &catalog(),
+        &Value::Null,
     );
 
     assert!(named(&offered, "thinking").is_none());
@@ -99,6 +123,7 @@ fn a_current_value_the_catalog_does_not_know_is_kept_verbatim() {
     let offered = controls(
         &status("some-legacy-model", "on", "manual", false),
         &catalog(),
+        &Value::Null,
     );
     let model = named(&offered, "model").expect("the model selector");
 
@@ -113,14 +138,18 @@ fn a_current_value_the_catalog_does_not_know_is_kept_verbatim() {
 
 #[test]
 fn plan_mode_is_its_own_rung() {
-    let offered = controls(&status("kimi-k2.6", "on", "manual", true), &catalog());
+    let offered = controls(
+        &status("kimi-k2.6", "on", "manual", true),
+        &catalog(),
+        &Value::Null,
+    );
 
-    assert!(named(&offered, "mode").is_some_and(|c| c.current == "plan"));
+    assert!(named(&offered, "plan").is_some_and(|c| c.current == "on"));
 }
 
 #[test]
 fn a_session_without_a_model_has_no_model_selector() {
-    let offered = controls(&status("", "on", "manual", false), &catalog());
+    let offered = controls(&status("", "on", "manual", false), &catalog(), &Value::Null);
 
     assert!(named(&offered, "model").is_none(), "不猜它此刻用什么模型");
 }
@@ -128,24 +157,23 @@ fn a_session_without_a_model_has_no_model_selector() {
 #[test]
 fn a_selection_becomes_the_patch_the_server_dispatch_table_expects() {
     // routes/sessionAgentConfig.ts：model → setModel，thinking → setThinking，
-    // permission_mode → broadcast，plan_mode → enter/exit。
+    // permission_mode → broadcast，plan/swarm/goal 各走自己的路由。
     assert_eq!(
-        selector_patch("model", "kimi-k2.7-code"),
+        selector_patch("model", "kimi-k2.7-code", None).ok(),
         Some(json!({ "model": "kimi-k2.7-code" }))
     );
     assert_eq!(
-        selector_patch("thinking", "high"),
+        selector_patch("thinking", "high", None).ok(),
         Some(json!({ "thinking": "high" }))
     );
     assert_eq!(
-        selector_patch("mode", "plan"),
-        Some(json!({ "plan_mode": true }))
+        selector_patch("permission", "yolo", None).ok(),
+        Some(json!({ "permission_mode": "yolo" }))
     );
     assert_eq!(
-        selector_patch("mode", "yolo"),
-        Some(json!({ "plan_mode": false, "permission_mode": "yolo" }))
+        selector_patch("plan", "on", None).ok(),
+        Some(json!({ "plan_mode": true }))
     );
-    assert_eq!(selector_patch("mode", "turbo"), None);
-    assert_eq!(selector_patch("volume", "loud"), None);
-    assert_eq!(selector_patch("model", ""), None);
+    assert!(selector_patch("volume", "loud", None).is_err());
+    assert!(selector_patch("model", "", None).is_err());
 }

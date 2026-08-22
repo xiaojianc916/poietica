@@ -155,10 +155,19 @@ pub struct Handshake {
 }
 
 #[derive(Debug, Clone)]
-pub enum McpTransport { Stdio, Http, Sse }
+pub enum McpTransport {
+    Stdio,
+    Http,
+    Sse,
+}
 
 #[derive(Debug, Clone)]
-pub enum McpStatus { Connected, Connecting, Disconnected, Error }
+pub enum McpStatus {
+    Connected,
+    Connecting,
+    Disconnected,
+    Error,
+}
 
 #[derive(Debug, Clone)]
 pub struct McpServer {

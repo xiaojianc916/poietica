@@ -18,9 +18,8 @@ use crate::commands::{
         AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentDismissQuestionsRequest,
         AgentEarlierFramesRequest, AgentForkThreadRequest, AgentPinThreadRequest,
         AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult, AgentPromptSkill,
-        AgentQuestionAnswer, AgentQuestionChoice,
-        AgentQuestionMethod, AgentRenameThreadRequest, AgentResolvePermissionRequest,
-        AgentSelectConfigRequest, AgentThreadRequest,
+        AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod, AgentRenameThreadRequest,
+        AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentThreadRequest,
     },
     agent::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
     agent_setup::cli::{AgentCliRequest, AgentCliResult},
@@ -42,7 +41,7 @@ use crate::commands::{
         PluginStaged,
     },
     settings::{AppSettings, PrivacySettings},
-    skills::{SkillCommitRequest, SkillPayload, SkillStaged},
+    skills::{SkillCommitRequest, SkillStaged},
     updates::{UpdateProgress, UpdateRelease},
 };
 use crate::diagnostics::NativeCrashReport;
@@ -85,6 +84,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::automations::automations_sweep,
             crate::commands::environment::environment_mcp_config,
             crate::commands::environment::environment_mcp_config_write,
+            crate::commands::launcher::launcher_resolve,
             crate::mcp::mcp_endpoint,
             crate::commands::plugins::plugins_catalog_read,
             crate::commands::plugins::plugins_catalog_refresh,
@@ -189,6 +189,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AutomationReschedule>()
         .typ::<AutomationRunRecord>()
         .typ::<crate::mcp::McpEndpoint>()
+        .typ::<crate::commands::launcher::McpLauncher>()
         .typ::<EnvironmentFile>()
         .typ::<ForeignPluginLedger>()
         .typ::<ForeignPluginRecord>()
@@ -196,7 +197,6 @@ pub fn surface() -> Builder<Wry> {
         .typ::<PluginStaged>()
         .typ::<PluginCommitRequest>()
         .typ::<PluginPayload>()
-        .typ::<SkillPayload>()
         .typ::<SkillStaged>()
         .typ::<SkillCommitRequest>()
         .typ::<NativeCrashReport>()

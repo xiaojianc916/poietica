@@ -1506,14 +1506,18 @@ fn prompt_body(text: &str, images: &[PromptImage], skills: &[PromptSkill]) -> Re
         }));
     }
     if content.is_empty() {
-        return Err(KapError::Validation { message: "prompt has no content".to_owned() });
+        return Err(KapError::Validation {
+            message: "prompt has no content".to_owned(),
+        });
     }
     let activations: Vec<Value> = skills
         .iter()
-        .map(|skill| match skill.args.as_deref().filter(|args| !args.is_empty()) {
-            Some(args) => json!({ "name": skill.name, "args": args }),
-            None => json!({ "name": skill.name }),
-        })
+        .map(
+            |skill| match skill.args.as_deref().filter(|args| !args.is_empty()) {
+                Some(args) => json!({ "name": skill.name, "args": args }),
+                None => json!({ "name": skill.name }),
+            },
+        )
         .collect();
     if activations.is_empty() {
         Ok(json!({ "content": content }))
@@ -1715,45 +1719,66 @@ async fn list_skills(
         .collect())
 }
 
-async fn list_mcp_servers(
-    http: &reqwest::Client,
-    base_url: &str,
-) -> Result<Vec<McpServer>> {
+async fn list_mcp_servers(http: &reqwest::Client, base_url: &str) -> Result<Vec<McpServer>> {
     let data = get(http, &format!("{base_url}/mcp/servers")).await?;
-    let listed = data.get("servers").and_then(Value::as_array).ok_or_else(|| {
-        KapError::Transport { message: "MCP response has no servers array".to_owned() }
-    })?;
-    listed.iter().map(|item| {
-        let required = |key: &str| item.get(key).and_then(Value::as_str).ok_or_else(|| {
-            KapError::Transport { message: format!("MCP server has no {key}: {item}") }
-        });
-        let transport = match required("transport")? {
-            "stdio" => McpTransport::Stdio,
-            "http" => McpTransport::Http,
-            "sse" => McpTransport::Sse,
-            other => return Err(KapError::Transport { message: format!("unknown MCP transport {other}") }),
-        };
-        let status = match required("status")? {
-            "connected" => McpStatus::Connected,
-            "connecting" => McpStatus::Connecting,
-            "disconnected" => McpStatus::Disconnected,
-            "error" => McpStatus::Error,
-            other => return Err(KapError::Transport { message: format!("unknown MCP status {other}") }),
-        };
-        let count = item.get("tool_count").and_then(Value::as_u64).ok_or_else(|| {
-            KapError::Transport { message: format!("MCP server has no tool_count: {item}") }
+    let listed = data
+        .get("servers")
+        .and_then(Value::as_array)
+        .ok_or_else(|| KapError::Transport {
+            message: "MCP response has no servers array".to_owned(),
         })?;
-        Ok(McpServer {
-            id: required("id")?.to_owned(),
-            name: required("name")?.to_owned(),
-            transport,
-            status,
-            tool_count: u32::try_from(count).map_err(|_| KapError::Transport {
-                message: format!("MCP tool_count is too large: {count}"),
-            })?,
-            last_error: item.get("last_error").and_then(Value::as_str).map(str::to_owned),
+    listed
+        .iter()
+        .map(|item| {
+            let required = |key: &str| {
+                item.get(key)
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| KapError::Transport {
+                        message: format!("MCP server has no {key}: {item}"),
+                    })
+            };
+            let transport = match required("transport")? {
+                "stdio" => McpTransport::Stdio,
+                "http" => McpTransport::Http,
+                "sse" => McpTransport::Sse,
+                other => {
+                    return Err(KapError::Transport {
+                        message: format!("unknown MCP transport {other}"),
+                    });
+                }
+            };
+            let status = match required("status")? {
+                "connected" => McpStatus::Connected,
+                "connecting" => McpStatus::Connecting,
+                "disconnected" => McpStatus::Disconnected,
+                "error" => McpStatus::Error,
+                other => {
+                    return Err(KapError::Transport {
+                        message: format!("unknown MCP status {other}"),
+                    });
+                }
+            };
+            let count = item
+                .get("tool_count")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| KapError::Transport {
+                    message: format!("MCP server has no tool_count: {item}"),
+                })?;
+            Ok(McpServer {
+                id: required("id")?.to_owned(),
+                name: required("name")?.to_owned(),
+                transport,
+                status,
+                tool_count: u32::try_from(count).map_err(|_| KapError::Transport {
+                    message: format!("MCP tool_count is too large: {count}"),
+                })?,
+                last_error: item
+                    .get("last_error")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned),
+            })
         })
-    }).collect()
+        .collect()
 }
 
 async fn abort_session(http: &reqwest::Client, base_url: &str, session_id: &str) -> Result<()> {
@@ -1786,9 +1811,12 @@ async fn set_selector(
     input: Option<&str>,
 ) -> Result<Vec<ConfigControl>> {
     let current = get_selectors(http, base_url, session_id).await?;
-    let control = current.iter().find(|control| control.id == config_id).ok_or_else(|| {
-        KapError::Validation { message: format!("the session offers no control {config_id}") }
-    })?;
+    let control = current
+        .iter()
+        .find(|control| control.id == config_id)
+        .ok_or_else(|| KapError::Validation {
+            message: format!("the session offers no control {config_id}"),
+        })?;
     if control.current == value {
         return Ok(current);
     }
@@ -1807,7 +1835,6 @@ async fn set_selector(
     get_selectors(http, base_url, session_id).await
 }
 
-
 #[cfg(test)]
 mod prompt_tests {
     use super::*;
@@ -1817,11 +1844,20 @@ mod prompt_tests {
         let body = prompt_body(
             "review this",
             &[],
-            &[PromptSkill { name: "research".to_owned(), args: None }],
+            &[PromptSkill {
+                name: "research".to_owned(),
+                args: None,
+            }],
         )
         .expect("prompt body");
         assert!(body.get("prompt_id").is_none());
-        assert_eq!(body.get("skills").and_then(Value::as_array).map(Vec::len), Some(1));
-        assert_eq!(body.get("content").and_then(Value::as_array).map(Vec::len), Some(1));
+        assert_eq!(
+            body.get("skills").and_then(Value::as_array).map(Vec::len),
+            Some(1)
+        );
+        assert_eq!(
+            body.get("content").and_then(Value::as_array).map(Vec::len),
+            Some(1)
+        );
     }
 }

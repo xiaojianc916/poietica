@@ -4,7 +4,6 @@ import { describeInstallSource, type PluginInstallSource } from '../install-sour
 import type { InstalledPlugin } from '../installation'
 import type { MarketplaceEntry } from '../marketplace'
 import type { ResolvedMcpServer } from '../mcp-servers'
-import type { InstalledSkill } from '../skill'
 import { BUILTIN_SERVERS } from './builtin'
 import { BUILTIN_SKILLS } from './builtin-skills'
 import type { CatalogChannel } from './scope'
@@ -186,10 +185,10 @@ export function publicPluginRows(input: PluginListingInput): readonly CatalogRow
  * 前言名与内置号一致（名单来源即 anthropics 官方目录名）。
  */
 export function builtinSkillRows(
-  installed: readonly InstalledSkill[],
+  ownedNames: readonly string[],
   needle: string,
 ): readonly CatalogRow[] {
-  const present = new Set(installed.map((skill) => skill.dirName))
+  const present = new Set(ownedNames)
 
   return BUILTIN_SKILLS.filter((skill) =>
     matches(needle, skill.displayName, skill.id, skill.description),

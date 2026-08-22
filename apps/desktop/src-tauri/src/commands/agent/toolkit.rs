@@ -8,10 +8,10 @@ use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, State};
 
+use super::AgentCommandResult;
 use super::dto::AgentCapabilitiesRequest;
 use super::failure::translate;
 use super::runtime::{AgentRuntime, ensure_session};
-use super::AgentCommandResult;
 
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "snake_case")]

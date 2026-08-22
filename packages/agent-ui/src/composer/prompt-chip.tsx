@@ -2,6 +2,7 @@ import './prompt-chip.css'
 
 import { DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
 import type { ReactNode } from 'react'
+import { SkillIcon } from '../primitives/icons'
 
 export type PromptChipValue =
   | { readonly kind: 'skill'; readonly name: string; readonly args?: string | undefined }
@@ -72,9 +73,17 @@ export class ChipNode extends DecoratorNode<ReactNode> {
   }
 
   override decorate(): ReactNode {
-    const label = this.#value.kind === 'skill' ? this.#value.name : `@${this.#value.name}`
+    if (this.#value.kind === 'skill') {
+      /* 图标随文字走 currentColor（prompt-chip.css 的 #2563eb），不另立颜色。 */
+      return (
+        <span contentEditable={false}>
+          <SkillIcon aria-hidden="true" className="assistant-prompt-chip__icon" size={12} />
+          {this.#value.name}
+        </span>
+      )
+    }
 
-    return <span contentEditable={false}>{label}</span>
+    return <span contentEditable={false}>@{this.#value.name}</span>
   }
 }
 

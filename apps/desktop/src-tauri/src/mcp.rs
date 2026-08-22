@@ -3,8 +3,7 @@
 //! 为什么在进程内、而不是另起一个 stdio 子进程：账本是 tauri-plugin-store 的一个
 //! Store，带进程内缓存，只能经 AppHandle 拿到（见 commands::automations::open）。
 //! 子进程要读它就得再写一份存储格式的实现，并且和本进程的缓存赛跑 —— 那是第二份
-//! 真相。而 Kimi 报出的 mcpCapabilities 是 http 与 sse，没有 stdio，于是只剩下本机
-//! 回环上的 Streamable HTTP 这一个形状。
+//! 真相。于是只剩本机回环上的 Streamable HTTP 这一个形状。
 //!
 //! 端口取 0 由内核分配：Figma 的桌面 MCP 服务器把地址钉死在 127.0.0.1:3845，端口
 //! 被别的进程占住时那个开关就整个失效。绑定之后把真实地址交给渲染层，任何一方都不

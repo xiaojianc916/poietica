@@ -1,4 +1,5 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
+import { useAgentControls } from '@poietica/agent-ui'
 import { PluginsSurface } from '@poietica/plugins'
 import type { SurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'
@@ -44,6 +45,16 @@ export interface AssistantWiringOptions {
   readonly session: AgentSessionPort
 }
 
+/*
+ * 扩展页在这里接上名册：技能表是 kap 名册的投影（见 @poietica/plugins 的 skill.ts），
+ * 名册唯一持有者是能力表 store，经 Context 读它交进去，不复制。
+ */
+function ToolsSurface() {
+  const { toolkit } = useAgentControls()
+
+  return <PluginsSurface roster={toolkit.skills} store={pluginStore} />
+}
+
 export function createAssistantWiring({
   onConversationForked,
   onConversationStarted,
@@ -61,7 +72,7 @@ export function createAssistantWiring({
       automations: () => <AutomationsView />,
 
       /* Tool 那一格。注册表里 tools 已经是 surface，漏掉这一条是编译错误。 */
-      tools: () => <PluginsSurface store={pluginStore} />,
+      tools: () => <ToolsSurface />,
     },
 
     renderConversation: (threadId) => (
