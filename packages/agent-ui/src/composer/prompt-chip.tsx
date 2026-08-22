@@ -1,9 +1,8 @@
 import './prompt-chip.css'
 
-import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { $getNodeByKey, DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
+import { DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
 import type { ReactNode } from 'react'
-import { CloseIcon, SkillIcon, ToolIcon } from '../primitives/icons'
+import { SkillIcon } from '../primitives/icons'
 
 export type PromptChipValue =
   | { readonly kind: 'skill'; readonly name: string; readonly args?: string | undefined }
@@ -67,41 +66,17 @@ export class ChipNode extends DecoratorNode<ReactNode> {
   }
 
   override decorate(): ReactNode {
-    return <PromptChipView nodeKey={this.getKey()} value={this.#value} />
+    return <PromptChipView value={this.#value} />
   }
 }
 
-function PromptChipView({
-  nodeKey,
-  value,
-}: {
-  readonly nodeKey: NodeKey
-  readonly value: PromptChipValue
-}) {
-  const [editor] = useLexicalComposerContext()
-  const Icon = value.kind === 'skill' ? SkillIcon : ToolIcon
+function PromptChipView({ value }: { readonly value: PromptChipValue }) {
   const label = value.kind === 'skill' ? value.name : `@${value.name}`
 
   return (
     <span className="assistant-prompt-chip__body" contentEditable={false}>
-      <Icon aria-hidden="true" />
+      {value.kind === 'skill' ? <SkillIcon aria-hidden="true" /> : null}
       <span>{label}</span>
-      <button
-        aria-label={`移除 ${label}`}
-        className="assistant-prompt-chip__remove"
-        onMouseDown={(event) => {
-          event.preventDefault()
-          editor.update(() => {
-            const node = $getNodeByKey(nodeKey)
-            if (node instanceof ChipNode) {
-              node.remove()
-            }
-          })
-        }}
-        type="button"
-      >
-        <CloseIcon aria-hidden="true" />
-      </button>
     </span>
   )
 }

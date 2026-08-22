@@ -4,7 +4,6 @@ import './question-panel.css'
 import type { QuestionTimelineItem } from '@poietica/agent'
 import type {
   AgentMcpServer,
-  AgentSkill,
   ChatStatus,
   PromptConfiguration,
   PromptSkill,
@@ -19,6 +18,7 @@ import {
   activePromptConfiguration,
   ComposerActions,
   ComposerChips,
+  type ComposerSkill,
   composerPaletteGroups,
 } from './composer-actions'
 import { ContextGauge } from './context-gauge'
@@ -57,8 +57,8 @@ export interface AssistantComposerProps {
   readonly onCancel?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
   readonly ref?: Ref<PromptInputHandle> | undefined
-  /** 这条会话能用的技能，由 kap 报。 */
-  readonly skills?: readonly AgentSkill[] | undefined
+  /** 这条会话能用的技能，入口态则来自已安装目录。 */
+  readonly skills?: readonly ComposerSkill[] | undefined
   /** Kimi 检测到的 MCP server。 */
   readonly mcpServers?: readonly AgentMcpServer[] | undefined
   /** 此刻还在跑的子代理数，真相在转录。 */
