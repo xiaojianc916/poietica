@@ -11,12 +11,7 @@
 
 import type { KapStopReason, RunEvent, RunStatus } from '@poietica/agent-contract'
 import { applyKapFrame } from './kap-projection'
-import type {
-  MessageImage,
-  PermissionItem,
-  QuestionTimelineItem,
-  UserMessageItem,
-} from './timeline-contract'
+import type { MessageImage, PermissionItem, QuestionTimelineItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import {
   beginQuestion,
@@ -27,6 +22,7 @@ import {
   push,
   pushFailure,
   sealTail,
+  takeQueued,
 } from './timeline-draft'
 import { pendingPermission, pendingQuestion } from './timeline-queries'
 
@@ -252,12 +248,10 @@ function dressTail(
 }
 
 /**
- * Claims a question queued while the preceding run was still producing output.
+ * 认领上一段末尾那条排队提问。
  *
- * That local message deliberately keeps the old turn until run_started opens
- * the next sequence window. Once the frame arrives, matching the exact prompt
- * is safe: only local messages from the immediately preceding turn are
- * candidates, and the newest unmatched one wins.
+ * 文字逐字相等才认：同一句话在两轮里说两遍是常事，而两轮不会是同一段。认领之后它
+ * 落在这一段的开头，与自己的答复相邻。
  */
 function adoptQueuedPrompt(
   draft: Draft,
@@ -265,32 +259,22 @@ function adoptQueuedPrompt(
   shown: readonly MessageImage[],
   attached: readonly string[],
 ): boolean {
-  for (let position = draft.items.length - 1; position >= 0; position--) {
-    const item = draft.items[position]
+  const queued = takeQueued(draft, prompt)
 
-    if (item?.type !== 'user_message' || !item.id.includes('local-said-')) {
-      continue
-    }
-    if (item.turn >= draft.runIndex || item.text !== prompt) {
-      return false
-    }
-
-    const adopted: UserMessageItem = {
-      ...item,
-      id: `${namespace(draft)}said-${String(draft.lastSeq)}`,
-      turn: draft.runIndex,
-      ...(shown.length === 0 ? {} : { images: shown }),
-      ...(attached.length === 0 ? {} : { skills: attached }),
-    }
-    draft.items[position] = adopted
-    draft.index?.delete(item.id)
-    draft.index?.set(adopted.id, position)
-    beginQuestion(draft)
-
-    return true
+  if (queued === undefined) {
+    return false
   }
 
-  return false
+  beginQuestion(draft)
+  push(draft, {
+    ...queued,
+    id: `${namespace(draft)}said-${String(draft.lastSeq)}`,
+    turn: draft.runIndex,
+    ...(shown.length === 0 ? {} : { images: shown }),
+    ...(attached.length === 0 ? {} : { skills: attached }),
+  })
+
+  return true
 }
 
 /** Transport context and process diagnostics describe different layers; keep both. */

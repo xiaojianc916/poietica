@@ -2,8 +2,8 @@
  * 转录的草稿。
  *
  * 纯是对外的性质，不是每一步都要复制：写入的那几个入口各取一份可变副本，事件
- * 逐帧写进去，最后封一次版。一次重放因此只分配一次 items —— 每帧一次在一条几千
- * 帧的对话上是 O(N²)，代价直接落在打开会话的那一刻。
+ * 逐帧写进去，最后封一次版。复制只发生在活动段上：已封口的段跨帧按引用共享，代价
+ * 因此只与这一轮的长度相关。
  *
  * 这里只管「怎么写」：追加、封口、按 id 定位、开一个新的段。帧里那些字是什么
  * 意思归 kap-projection；哪一趟该开草稿、什么时候开段归 timeline-reducer。
@@ -16,12 +16,17 @@ import type {
   ErrorItem,
   TimelineItem,
   TimelineState,
+  TurnPage,
   TurnSpan,
+  UserMessageItem,
 } from './timeline-contract'
 
 export interface Draft {
   status: RunStatus
-  readonly items: TimelineItem[]
+  /** 已封口的段：只在换段时追加。 */
+  sealed: readonly TurnPage[]
+  /** 活动段的条目。写入只发生在这里。 */
+  items: TimelineItem[]
   /** id → 下标；没人按 id 找过、上一趟也没交下来，就还没有。 */
   index: Map<string, number> | null
   lastSeq: number
@@ -45,8 +50,8 @@ export interface Draft {
  * id → 下标，按转录归属。
  *
  * 索引跨趟成立，因为它是 items 的函数而 items 只追加与就地替换：push 追在末尾，
- * sealTail 与那几处 items[position] = … 都不移动既有条目的位置。所以整条对话只
- * 建一次索引，而不是每开一趟草稿重建一遍。
+ * sealTail 与那几处 items[position] = … 都不移动既有条目的位置。所以活动段的索引跨趟成立，
+ * 换段时随之作废。
  *
  * 所有权是线性的：draftOf 取走，freeze 交给新的那一份状态，旧状态因此不再持有
  * 它。一份状态被开两次草稿（回退、分叉）时第二次从零重建 —— 宁可慢一次，也不让
@@ -62,11 +67,12 @@ export function draftOf(state: TimelineState): Draft {
 
   return {
     status: state.status,
-    items: state.items.slice(),
-    /* items 是一份浅拷贝，下标与原来逐一对应，所以这张表直接接着用。 */
+    sealed: state.sealed,
+    items: state.active.items.slice(),
+    /* 活动段是一份浅拷贝，下标与原来逐一对应，所以这张表直接接着用。 */
     index,
     lastSeq: state.lastSeq,
-    runIndex: state.runIndex,
+    runIndex: state.active.turn,
     promptLanded: false,
     spans: state.spans,
     spansOwned: false,
@@ -84,9 +90,9 @@ function writableSpans(draft: Draft): TurnSpan[] {
 export function freeze(draft: Draft): TimelineState {
   const state: TimelineState = {
     status: draft.status,
-    items: draft.items,
+    sealed: draft.sealed,
+    active: { turn: draft.runIndex, items: draft.items },
     lastSeq: draft.lastSeq,
-    runIndex: draft.runIndex,
     spans: draft.spans,
   }
 
@@ -98,11 +104,66 @@ export function freeze(draft: Draft): TimelineState {
   return state
 }
 
-/** 新的一轮：它的帧从一开始编号，那一问也还没落账，所以两样一起换。 */
+/**
+ * 新的一轮：上一段就此封口，帧从一开始编号，那一问也还没落账。
+ *
+ * 空段不封：一轮的存在由 spans 记，没有条目的段只会在派生里占一个空位。
+ */
 export function openSegment(draft: Draft): void {
+  if (draft.items.length > 0) {
+    draft.sealed = [...draft.sealed, { turn: draft.runIndex, items: draft.items }]
+  }
+
+  draft.items = []
+  draft.index = null
   draft.lastSeq = 0
   draft.runIndex += 1
   draft.promptLanded = false
+}
+
+/**
+ * 取走上一段末尾那条还没等到 run_started 的提问。
+ *
+ * 它属于新的一段：认领之后它与自己的答复同段且相邻。活动段里的那一条不算 —— 那是
+ * 本段自己的开头。
+ */
+export function takeQueued(draft: Draft, prompt: string): UserMessageItem | undefined {
+  if (queuedAt(draft.items) >= 0) {
+    return undefined
+  }
+
+  const page = draft.sealed.at(-1)
+
+  if (page === undefined) {
+    return undefined
+  }
+
+  const at = queuedAt(page.items)
+  const queued = at < 0 ? undefined : page.items[at]
+
+  if (queued?.type !== 'user_message' || queued.text !== prompt) {
+    return undefined
+  }
+
+  const kept = page.items.slice()
+
+  kept.splice(at, 1)
+  draft.sealed = [...draft.sealed.slice(0, -1), { turn: page.turn, items: kept }]
+
+  return queued
+}
+
+/** 末尾那条本机落账、还没被认领的提问。 */
+function queuedAt(items: readonly TimelineItem[]): number {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index]
+
+    if (item?.type === 'user_message' && item.id.includes('local-said-')) {
+      return index
+    }
+  }
+
+  return -1
 }
 
 /**

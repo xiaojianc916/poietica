@@ -1,6 +1,7 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
-import { pendingPermission, selectIsBusy } from '../timeline-queries'
+import { allItems } from '../timeline-contract'
+import { activeScope, pendingPermission, selectIsBusy } from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'
 
 const REQUESTED: RunEvent = {
@@ -23,7 +24,7 @@ const RESOLVED: RunEvent = {
 describe('permission flow', () => {
   it('blocks the run on an unanswered question', () => {
     const state = replayRunEvents([REQUESTED])
-    const pending = pendingPermission(state)
+    const pending = pendingPermission(activeScope(state))
 
     expect(state.status).toBe('awaiting_permission')
     expect(selectIsBusy(state)).toBe(true)
@@ -36,16 +37,16 @@ describe('permission flow', () => {
   it('stops pending once the answer is recorded', () => {
     const state = replayRunEvents([REQUESTED, RESOLVED])
 
-    expect(pendingPermission(state)).toBeUndefined()
+    expect(pendingPermission(activeScope(state))).toBeUndefined()
     expect(state.status).toBe('running')
-    expect(state.items).toHaveLength(1)
+    expect(allItems(state)).toHaveLength(1)
   })
 
   it('ignores a replayed answer', () => {
     const once = replayRunEvents([REQUESTED, RESOLVED])
     const twice = replayRunEvents([REQUESTED, RESOLVED, RESOLVED])
 
-    expect(twice.items).toStrictEqual(once.items)
+    expect(allItems(twice)).toStrictEqual(allItems(once))
     expect(twice.lastSeq).toBe(once.lastSeq)
   })
 })

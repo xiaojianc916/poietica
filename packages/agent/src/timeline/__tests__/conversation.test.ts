@@ -1,6 +1,6 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
-import type { TimelineState } from '../timeline-contract'
+import { allItems, type TimelineState } from '../timeline-contract'
 import { appendUserMessage, applyRunEvent, createTimelineState } from '../timeline-reducer'
 
 /*
@@ -43,7 +43,7 @@ function turn(state: TimelineState, prompt: string, events: readonly RunEvent[])
 }
 
 function saidIn(state: TimelineState): readonly string[] {
-  return state.items.flatMap((item) => (item.type === 'user_message' ? [item.text] : []))
+  return allItems(state).flatMap((item) => (item.type === 'user_message' ? [item.text] : []))
 }
 
 describe('a conversation of several turns', () => {
@@ -71,7 +71,7 @@ describe('a conversation of several turns', () => {
       message: '助手无法启动',
     })
 
-    expect(failed.items.map((item) => item.type)).toEqual(['user_message', 'error'])
+    expect(allItems(failed).map((item) => item.type)).toEqual(['user_message', 'error'])
   })
 
   it('keeps the first turn when a second one begins', () => {
@@ -87,10 +87,10 @@ describe('a conversation of several turns', () => {
     ])
 
     expect(saidIn(second)).toEqual(['第一个问题', '第二个问题'])
-    expect(second.items).toHaveLength(4)
+    expect(allItems(second)).toHaveLength(4)
 
     /* The feed keys rows by id, and a virtualiser cannot survive a collision. */
-    expect(new Set(second.items.map((item) => item.id)).size).toBe(second.items.length)
+    expect(new Set(allItems(second).map((item) => item.id)).size).toBe(allItems(second).length)
   })
 
   it('gives each turn its own tool call, however the agent numbers them', () => {
@@ -105,6 +105,6 @@ describe('a conversation of several turns', () => {
       finished(3),
     ])
 
-    expect(second.items.filter((item) => item.type === 'tool_call')).toHaveLength(2)
+    expect(allItems(second).filter((item) => item.type === 'tool_call')).toHaveLength(2)
   })
 })

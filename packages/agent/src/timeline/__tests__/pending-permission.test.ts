@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { PermissionItem, TimelineItem } from '../timeline-contract'
-import { pendingPermission, type WaitingScope } from '../timeline-queries'
+import type { PermissionItem, TimelineItem, TimelineState } from '../timeline-contract'
+import { activeScope, pendingPermission, type WaitingScope } from '../timeline-queries'
 
 /*
  * 并行子代理会让一轮里同时挂着几个请求（ADR 0002）。
@@ -40,7 +40,7 @@ function answered(requestId: string, turn: number): PermissionItem {
  * 按下去没有任何效果的审批带。
  */
 function waiting(items: readonly TimelineItem[]): WaitingScope {
-  return { items, runIndex: 1, status: 'awaiting_permission' }
+  return { items, status: 'awaiting_permission' }
 }
 
 describe('pendingPermission', () => {
@@ -56,10 +56,16 @@ describe('pendingPermission', () => {
     expect(pendingPermission(waiting(items))?.requestId).toBe('b')
   })
 
-  it('不越过段边界', () => {
-    const items: readonly TimelineItem[] = [asked('old', 0), asked('now', 1)]
+  it('不越过段边界：封口段里的请求不再交出', () => {
+    const state: TimelineState = {
+      status: 'awaiting_permission',
+      sealed: [{ turn: 0, items: [asked('old', 0)] }],
+      active: { turn: 1, items: [asked('now', 1)] },
+      lastSeq: 2,
+      spans: [],
+    }
 
-    expect(pendingPermission(waiting(items))?.requestId).toBe('now')
+    expect(pendingPermission(activeScope(state))?.requestId).toBe('now')
   })
 
   it('全部答完就没有了', () => {
@@ -72,6 +78,6 @@ describe('pendingPermission', () => {
   it('没在等人就不交，哪怕转录里还挂着一条没答复的请求', () => {
     const items: readonly TimelineItem[] = [asked('a', 1)]
 
-    expect(pendingPermission({ items, runIndex: 1, status: 'running' })).toBeUndefined()
+    expect(pendingPermission({ items, status: 'running' })).toBeUndefined()
   })
 })

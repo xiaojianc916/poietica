@@ -1,5 +1,6 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
+import { allItems } from '../timeline-contract'
 import {
   appendLocalError,
   appendUserMessage,
@@ -27,7 +28,7 @@ describe('a local failure is not a frame', () => {
        它可能是一段文字，也可能是 run_finished。 */
     const answered = applyRunEvent(noted, chunk(2, '这里'))
 
-    expect(answered.items.at(-1)).toMatchObject({ type: 'agent_text', text: '这里' })
+    expect(allItems(answered).at(-1)).toMatchObject({ type: 'agent_text', text: '这里' })
   })
 
   it('only declares the turn failed when it ended it', () => {

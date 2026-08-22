@@ -93,7 +93,7 @@ describe('transcript store', () => {
     /* 状态是同步的：说出去和记下事故都已经在里面了。 */
     const { timeline } = store.read(key)
 
-    expect(timeline.items.map((item) => item.type)).toEqual(['user_message', 'error'])
+    expect(timeline.active.items.map((item) => item.type)).toEqual(['user_message', 'error'])
     expect(timeline.status).toBe('failed')
 
     /* 通知按节拍：同一拍里的两次改动，界面只需要被叫醒一次。 */
@@ -200,7 +200,7 @@ describe('transcript store', () => {
     await Promise.resolve()
     paint()
 
-    expect(store.read('thread_a').timeline.items.at(-1)).toMatchObject({
+    expect(store.read('thread_a').timeline.active.items.at(-1)).toMatchObject({
       type: 'error',
       message: 'Error: stop refused',
     })

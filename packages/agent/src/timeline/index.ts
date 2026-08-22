@@ -14,11 +14,13 @@ export type {
   TimelineItemId,
   TimelineState,
   ToolCallTimelineItem,
+  TurnPage,
   TurnSpan,
   UserMessageItem,
 } from './timeline-contract'
 export { opensTurn } from './timeline-contract'
 export {
+  activeScope,
   pendingPermission,
   pendingPermissionCall,
   pendingPermissionCount,

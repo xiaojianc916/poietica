@@ -1,5 +1,6 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
+import { allItems } from '../timeline-contract'
 import { replayRunEvents } from '../timeline-reducer'
 
 const started = (seq: number): RunEvent => ({
@@ -19,7 +20,7 @@ describe('terminal outcome projection', () => {
     ])
 
     expect(state.status).toBe('completed')
-    expect(state.items.some((item) => item.type === 'error')).toBe(false)
+    expect(allItems(state).some((item) => item.type === 'error')).toBe(false)
   })
 
   it('surfaces the structured KAP failure and keeps the failed status', () => {
@@ -44,7 +45,7 @@ describe('terminal outcome projection', () => {
     ])
 
     expect(state.status).toBe('failed')
-    expect(state.items).toContainEqual(
+    expect(allItems(state)).toContainEqual(
       expect.objectContaining({ type: 'error', message: 'MODEL_QUOTA: Insufficient balance' }),
     )
   })

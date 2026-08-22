@@ -1,6 +1,7 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/sample-run'
+import { allItems } from '../timeline-contract'
 import { replayRunEvents } from '../timeline-reducer'
 
 /**
@@ -57,7 +58,7 @@ describe('compacted frames', () => {
     const fromLog = replayRunEvents(SAMPLE_RUN_EVENTS)
     const fromSnapshot = replayRunEvents(COMPACTED_RUN_EVENTS)
 
-    expect(fromSnapshot.items).toEqual(fromLog.items)
+    expect(allItems(fromSnapshot)).toEqual(allItems(fromLog))
     expect(fromSnapshot.status).toBe(fromLog.status)
   })
 
@@ -69,7 +70,7 @@ describe('compacted frames', () => {
       { kind: 'kap_event', seq: 2, at: 2, payload: { type: 'assistant.delta', delta: '说' } },
     ]
 
-    expect(replayRunEvents(across).items.map((item) => item.type)).toEqual([
+    expect(allItems(replayRunEvents(across)).map((item) => item.type)).toEqual([
       'agent_thought',
       'agent_text',
     ])

@@ -6,6 +6,7 @@ import type {
   Transcript,
 } from '@poietica/agent'
 import {
+  activeScope,
   describeFailure,
   pendingPermission,
   pendingPermissionCall,
@@ -155,15 +156,15 @@ const readEarlier = (transcript: Transcript): FrameCursor | null => transcript.e
  * 所以在被答复之前恒是同一个引用 —— 订阅它的界面因此不会因为流式追加而醒。
  */
 const readPending = (transcript: Transcript): PermissionItem | undefined =>
-  pendingPermission(transcript.timeline)
+  pendingPermission(activeScope(transcript.timeline))
 
 /* 同一趟扫描的另一格。交出的是数字，所以它比条目引用还稳。 */
 const readPendingCount = (transcript: Transcript): number =>
-  pendingPermissionCount(transcript.timeline)
+  pendingPermissionCount(activeScope(transcript.timeline))
 
 /* 待答的那一组题：与待答的审批同一趟倒扫、同一条引用稳定纪律（pendingQuestion）。 */
 const readQuestion = (transcript: Transcript): QuestionTimelineItem | undefined =>
-  pendingQuestion(transcript.timeline)
+  pendingQuestion(activeScope(transcript.timeline))
 
 export function useAssistantSession({
   endpoint,
@@ -344,7 +345,7 @@ export function useAssistantQuestion(key: string): QuestionTimelineItem | undefi
 
 /* 请求只带一个号，要签字的原文在那条调用上。 */
 const readPendingCall = (transcript: Transcript): ToolCallTimelineItem | undefined =>
-  pendingPermissionCall(transcript.timeline)
+  pendingPermissionCall(activeScope(transcript.timeline))
 
 /** 待答请求指向的那次调用；审批带照着它印字。 */
 export function useAssistantPendingCall(key: string): ToolCallTimelineItem | undefined {

@@ -1,12 +1,13 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
-import type {
-  AgentTextItem,
-  AgentThoughtItem,
-  ErrorItem,
-  ToolCallTimelineItem,
+import {
+  type AgentTextItem,
+  type AgentThoughtItem,
+  allItems,
+  type ErrorItem,
+  type ToolCallTimelineItem,
 } from '../timeline-contract'
-import { pendingPermission, pendingPermissionCall } from '../timeline-queries'
+import { activeScope, pendingPermission, pendingPermissionCall } from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'
 
 /**
@@ -43,7 +44,7 @@ function kapTurn(
 }
 
 function toolCalls(state: ReturnType<typeof replayRunEvents>): ToolCallTimelineItem[] {
-  return state.items.filter((item): item is ToolCallTimelineItem => item.type === 'tool_call')
+  return allItems(state).filter((item): item is ToolCallTimelineItem => item.type === 'tool_call')
 }
 
 describe('kap 投影', () => {
@@ -55,7 +56,9 @@ describe('kap 投影', () => {
       ]),
     )
 
-    const texts = state.items.filter((item): item is AgentTextItem => item.type === 'agent_text')
+    const texts = allItems(state).filter(
+      (item): item is AgentTextItem => item.type === 'agent_text',
+    )
 
     expect(texts).toHaveLength(1)
     expect(texts[0]?.text).toBe('ready')
@@ -70,13 +73,13 @@ describe('kap 投影', () => {
       ]),
     )
 
-    const thoughts = state.items.filter(
+    const thoughts = allItems(state).filter(
       (item): item is AgentThoughtItem => item.type === 'agent_thought',
     )
 
     expect(thoughts).toHaveLength(1)
     expect(thoughts[0]?.text).toBe('先想')
-    expect(state.items.some((item) => item.type === 'agent_text')).toBe(true)
+    expect(allItems(state).some((item) => item.type === 'agent_text')).toBe(true)
   })
 
   it('一次工具调用的四个生命周期事件合成一张卡', () => {
@@ -228,7 +231,7 @@ describe('kap 投影', () => {
       kapTurn([{ type: 'error', code: 'provider.api_error', message: '429 insufficient balance' }]),
     )
 
-    const errors = state.items.filter((item): item is ErrorItem => item.type === 'error')
+    const errors = allItems(state).filter((item): item is ErrorItem => item.type === 'error')
 
     expect(errors).toHaveLength(1)
     expect(errors[0]).toMatchObject({ message: 'provider.api_error: 429 insufficient balance' })
@@ -247,7 +250,7 @@ describe('kap 投影', () => {
     )
 
     /* 那一问是 run_started 由 withPrompt 落的，不是 kap_event 产的。 */
-    const notAsked = state.items.filter((item) => item.type !== 'user_message')
+    const notAsked = allItems(state).filter((item) => item.type !== 'user_message')
 
     /*
      * 空转完成一个条目都不产：空回复不是错误（terminal-outcome 的判例）。
@@ -461,11 +464,11 @@ describe('kap 投影', () => {
     ]
 
     const state = replayRunEvents(events)
-    const waiting = pendingPermission(state)
+    const waiting = pendingPermission(activeScope(state))
 
     expect(waiting?.requestId).toBe('appr_9')
     /* 反查靠的是归一化后那个 camelCase 的 toolCallId。 */
     expect(waiting?.toolCall?.toolCallId).toBe('call_9')
-    expect(pendingPermissionCall(state)?.title).toBe('Bash')
+    expect(pendingPermissionCall(activeScope(state))?.title).toBe('Bash')
   })
 })

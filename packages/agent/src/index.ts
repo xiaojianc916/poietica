@@ -53,10 +53,12 @@ export type {
   TimelineItemId,
   TimelineState,
   ToolCallTimelineItem,
+  TurnPage,
   TurnSpan,
   UserMessageItem,
 } from './timeline'
 export {
+  activeScope,
   appendLocalError,
   appendUserMessage,
   applyRunEvent,

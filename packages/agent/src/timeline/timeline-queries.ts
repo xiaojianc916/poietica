@@ -22,10 +22,9 @@ import {
 /* 没人在等时交出同一个对象：这条路径每帧都要走，而它什么都不必分配。 */
 const NOBODY_WAITING = { first: undefined, count: 0 } as const
 
-/** 这两个问题只需要转录的三格，所以只收这三格。草稿和已封版的状态都喂得进来。 */
+/** 只收活动段与它的状态：草稿和已封版的状态都喂得进来。 */
 export interface WaitingScope {
   readonly items: readonly TimelineItem[]
-  readonly runIndex: number
   /**
    * 这一轮此刻的状态。
    *
@@ -34,6 +33,11 @@ export interface WaitingScope {
    * 两条队列同时在等时它装的是审批 —— 审批压过提问，与上游 phase 的派生优先级一致。
    */
   readonly status: TimelineState['status']
+}
+
+/** 活动段那一格：即时问句只问它。 */
+export function activeScope(state: TimelineState): WaitingScope {
+  return { items: state.active.items, status: state.status }
 }
 
 /**
@@ -139,10 +143,6 @@ function waitingIn(scope: WaitingScope): {
       continue
     }
 
-    if (item.turn !== scope.runIndex) {
-      return { first, count }
-    }
-
     if (item.type === 'permission' && item.resolution === undefined) {
       first = item
       count += 1
@@ -175,10 +175,6 @@ export function pendingQuestion(scope: WaitingScope): QuestionTimelineItem | und
       continue
     }
 
-    if (item.turn !== scope.runIndex) {
-      return first
-    }
-
     if (item.type === 'question' && item.resolution === undefined) {
       first = item
     }
@@ -194,9 +190,19 @@ export function pendingQuestion(scope: WaitingScope): QuestionTimelineItem | und
  * 出列，判据与工具卡片同源（isTerminal）。
  */
 export function runningDelegations(state: TimelineState): number {
+  let running = runningIn(state.active.items)
+
+  for (const page of state.sealed) {
+    running += runningIn(page.items)
+  }
+
+  return running
+}
+
+function runningIn(items: readonly TimelineItem[]): number {
   let running = 0
 
-  for (const item of state.items) {
+  for (const item of items) {
     if (
       item.type === 'tool_call' &&
       (item.kind === 'delegate' || item.kind === 'task') &&

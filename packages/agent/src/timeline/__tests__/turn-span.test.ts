@@ -1,5 +1,6 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
+import { allItems } from '../timeline-contract'
 import {
   appendUserMessage,
   applyRunEvents,
@@ -84,6 +85,6 @@ describe('turn spans', () => {
     const said = appendUserMessage(createTimelineState(), '上个月那条对话', 42_000)
 
     expect(said.spans).toEqual([])
-    expect(said.items).toHaveLength(1)
+    expect(allItems(said)).toHaveLength(1)
   })
 })

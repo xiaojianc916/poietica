@@ -38,13 +38,15 @@ export interface MessageImage {
 /**
  * 每一条转录条目共有的三个事实。
  *
+ * turn 是权威的归属，不从 id 前缀里解析回来：身份负责唯一，字段负责语义。
+ *
  * turn 此前不在这里 —— 它只以字符串前缀的形式编在 id 里（r0-said-1），而没有
  * 任何一个地方解析它回来。于是「这一条属于第几轮」这个已经存在的事实读不出来，
  * 派生层只好反推：反向扫到最后一条 user_message，把它当作本轮的起点。同一个
  * 启发式在 feed-rows、timeline-queries、kap-projection 里各手抄了一遍。
  *
- * 而权威答案一直在状态里放着：runIndex。段由 run_started 划定，号由 openSegment
- * 发。把语义编进身份、再另起一套启发式去猜，本来就不是建模 —— 身份负责唯一，
+ * 而权威答案一直在手边：段由 run_started 划定，号由 openSegment 发，草稿写条目时
+ * 顺手落账。把语义编进身份、再另起一套启发式去猜，本来就不是建模 —— 身份负责唯一，
  * 字段负责语义。补上这一格之后，那三处扫描的判据全部塌成一次相等比较。
  */
 interface TimelineEntry {
@@ -253,36 +255,51 @@ export interface TurnSpan {
 }
 
 /**
- * The conversation, as the feed reads it.
+ * 一段轮次的条目，按到达顺序。
  *
- * 它没有轮次号，因为它不是一轮：它是一条对话，由若干段组成。段号（runIndex）
- * 是从这段日志里数出来的，不是从外面交进来的 —— 它只用来给条目身份分命名
- * 空间，因为每一轮的帧都从一号开始编，光看 seq 分不出这是第几轮的第三帧。
+ * 封口之后不再改写，跨帧按引用共享 —— 派生因此只重算活动的那一段。唯一的例外是
+ * 下一轮认领它尾部那条排队提问（timeline-draft 的 takeQueued）：那一条本来就属于
+ * 下一段。
+ */
+export interface TurnPage {
+  readonly turn: number
+  readonly items: readonly TimelineItem[]
+}
+
+/**
+ * 一条对话。
  *
- * 此前这里还挂着一个 runId。它由 prompt 的答复事后补进来（transcript-store
- * 的 send），在那之前的值是字符串 'run_pending'，而从头到尾没有一个 selector
- * 或组件读过它。
+ * 段号（active.turn）只给条目身份分命名空间：每一轮的帧都从一号开始编，光看 seq
+ * 分不出这是第几轮的第三帧。
  */
 export interface TimelineState {
   readonly status: RunStatus
-  readonly items: readonly TimelineItem[]
+  /** 已封口的段，按轮次顺序。 */
+  readonly sealed: readonly TurnPage[]
+  /** 正在写的那一段：写入只发生在这里，复制的代价因此只与它的长度相关。 */
+  readonly active: TurnPage
   /**
    * 这一段里已经收到的最大序号；零表示还没有收到任何一帧。
    *
-   * 去重只需要它。序号由原生侧的 recorder 从一开始逐帧递增（recorder.rs 的
-   * next_seq / saturating_add），帧走单条有序 IPC，并且在 RunSlot 的锁下顺序
-   * 转发 —— 所以「到过」等价于「不大于它」。此前这里另挂一个 appliedSeqs 集合，
-   * 每处理一帧整份复制一次，一轮 N 帧就是 O(N²)，而它能表达的东西并不比一个
-   * 数字多。
+   * 去重只需要它：序号由 recorder.rs 逐帧递增，帧走单条有序 IPC，所以「到过」等价于
+   * 「不大于它」。
    */
   readonly lastSeq: number
-  readonly runIndex: number
   /**
    * 每一轮的两端，按轮次顺序。
    *
-   * 与 items 分开，因为它答的是另一个问题：items 说这一轮里发生了什么，spans 说这
-   * 一轮从什么时候到什么时候。把它算进条目会让「一轮的耗时」只存在于读模型里，而它
-   * 由帧决定，本来就该跟着状态一起被持久化、被重放。
+   * 与条目分开，因为它答的是另一个问题：段说这一轮里发生了什么，span 说它从什么时候
+   * 到什么时候。
    */
   readonly spans: readonly TurnSpan[]
+}
+
+/**
+ * 全部条目按序摊平：封口段在前，活动段在后。
+ *
+ * 热路径不走它 —— 摊平正是分段要省掉的那次复制；它给测试与诊断读全量用，
+ * 也是「按序遍历每一条条目」的唯一产地。
+ */
+export function allItems(state: TimelineState): readonly TimelineItem[] {
+  return [...state.sealed.flatMap((page) => page.items), ...state.active.items]
 }

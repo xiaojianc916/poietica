@@ -1,5 +1,6 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
+import { allItems } from '../timeline-contract'
 import { applyRunEvents, createTimelineState } from '../timeline-reducer'
 
 /*
@@ -40,7 +41,7 @@ describe('分批喂帧', () => {
       split = applyRunEvents(split, [event])
     }
 
-    expect(split.items).toEqual(once.items)
+    expect(allItems(split)).toEqual(allItems(once))
     expect(split.lastSeq).toBe(once.lastSeq)
     expect(split.status).toBe(once.status)
   })
@@ -49,9 +50,9 @@ describe('分批喂帧', () => {
   it('后一批的产出落回同一张卡，不另开一条', () => {
     const first = applyRunEvents(createTimelineState(), [opened(1), progressed(2, 'a')])
     const second = applyRunEvents(first, [progressed(3, 'b')])
-    const card = second.items.at(0)
+    const card = allItems(second).at(0)
 
-    expect(second.items).toHaveLength(1)
+    expect(allItems(second)).toHaveLength(1)
     expect(card?.type === 'tool_call' && card.content).toEqual([
       { type: 'content', content: { type: 'text', text: 'a' } },
       { type: 'content', content: { type: 'text', text: 'b' } },
@@ -63,11 +64,11 @@ describe('分批喂帧', () => {
     const held = applyRunEvents(createTimelineState(), [opened(1), progressed(2, 'a')])
     const left = applyRunEvents(held, [progressed(3, '左')])
     const right = applyRunEvents(held, [progressed(3, '右')])
-    const one = left.items.at(0)
-    const other = right.items.at(0)
+    const one = allItems(left).at(0)
+    const other = allItems(right).at(0)
 
-    expect(left.items).toHaveLength(1)
-    expect(right.items).toHaveLength(1)
+    expect(allItems(left)).toHaveLength(1)
+    expect(allItems(right)).toHaveLength(1)
     expect(one?.type === 'tool_call' && one.content).toHaveLength(2)
     expect(other?.type === 'tool_call' && other.content).toHaveLength(2)
   })

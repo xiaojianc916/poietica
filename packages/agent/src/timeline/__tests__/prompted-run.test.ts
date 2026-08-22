@@ -1,5 +1,6 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
+import { allItems } from '../timeline-contract'
 import { applyRunEvent, createTimelineState } from '../timeline-reducer'
 
 /*
@@ -20,7 +21,7 @@ describe('a run that carries its prompt', () => {
     }
 
     const state = applyRunEvent(createTimelineState(), started)
-    const first = state.items.at(0)
+    const first = allItems(state).at(0)
 
     expect(state.status).toBe('submitted')
     expect(first && first.type === 'user_message' && first.text).toBe('读取 README')
@@ -34,6 +35,6 @@ describe('a run that carries its prompt', () => {
       sessionId: 'sess_alpha',
     }
 
-    expect(applyRunEvent(createTimelineState(), started).items).toEqual([])
+    expect(allItems(applyRunEvent(createTimelineState(), started))).toEqual([])
   })
 })

@@ -49,9 +49,9 @@ import {
 export function createTimelineState(): TimelineState {
   return {
     status: 'idle',
-    items: [],
+    sealed: [],
+    active: { turn: 0, items: [] },
     lastSeq: 0,
-    runIndex: 0,
     spans: [],
   }
 }
@@ -98,23 +98,27 @@ export function prependThreadEvents(
     return state
   }
 
-  const earlier = fill(
-    draftOf({ ...createTimelineState(), runIndex: floorTurn(state) - events.length }),
-    events,
+  const first = floorTurn(state) - events.length
+  const earlier = freeze(
+    fill(draftOf({ ...createTimelineState(), active: { turn: first, items: [] } }), events),
   )
 
   return {
     status: state.status,
-    items: [...earlier.items, ...state.items],
+    sealed: [
+      ...earlier.sealed,
+      ...(earlier.active.items.length === 0 ? [] : [earlier.active]),
+      ...state.sealed,
+    ],
+    active: state.active,
     lastSeq: state.lastSeq,
-    runIndex: state.runIndex,
     spans: [...earlier.spans, ...state.spans],
   }
 }
 
-/** 现有条目里最小的那个段号；一条都没有时就是它自己的起点。 */
+/** 现有段里最小的那个段号。 */
 function floorTurn(state: TimelineState): number {
-  return state.items.reduce((least, item) => Math.min(least, item.turn), state.runIndex)
+  return state.sealed[0]?.turn ?? state.active.turn
 }
 
 /** 把一段日志放进一份草稿。两趟共用，所以两趟看见的段边界一定相同。 */

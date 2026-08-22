@@ -2,7 +2,7 @@ import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
 import { selectTurns } from '../conversation-turns'
 import { selectFeedRows } from '../feed-rows'
-import type { TimelineState } from '../timeline-contract'
+import { allItems, type TimelineState } from '../timeline-contract'
 import {
   appendUserMessage,
   applyRunEvent,
@@ -38,7 +38,7 @@ function finished(seq: number): RunEvent {
 }
 
 function said(state: TimelineState): readonly string[] {
-  return state.items.flatMap((item) => (item.type === 'user_message' ? [item.text] : []))
+  return allItems(state).flatMap((item) => (item.type === 'user_message' ? [item.text] : []))
 }
 
 function rails(state: TimelineState): number {
