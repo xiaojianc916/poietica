@@ -9,6 +9,8 @@ const FIRST_CHECK_DELAY_MS = 30_000
 
 export type AppUpdateState =
   | { readonly phase: 'idle' }
+  | { readonly phase: 'checking' }
+  | { readonly phase: 'latest' }
   | { readonly phase: 'available'; readonly version: string }
   | {
       readonly phase: 'downloading'
@@ -18,6 +20,11 @@ export type AppUpdateState =
   | { readonly phase: 'ready'; readonly version: string }
 
 const IDLE: AppUpdateState = { phase: 'idle' }
+const CHECKING: AppUpdateState = { phase: 'checking' }
+const LATEST: AppUpdateState = { phase: 'latest' }
+
+/* 「已是最新」是一句回话，不是一个要一直挂着的状态：说完回 idle。 */
+const LATEST_SHOWN_MS = 4_000
 
 /**
  * 更新这件事，一个进程一份。
@@ -39,6 +46,9 @@ export class AppUpdateStore {
   #state: AppUpdateState = IDLE
 
   #listeners = new Set<() => void>()
+
+  /** 「已是最新」那句回话的收场计时器。相位由 #commit 一处写，它也在那里作废。 */
+  #clearing: number | null = null
 
   constructor(
     controller: AppUpdateController,
@@ -76,7 +86,7 @@ export class AppUpdateStore {
        * 下载中与已下好这两个相位钉着一个具体版本，问了也不能动它。available 必须继
        * 续问：否则提示过一次就再也不刷新，发布换了版本这枚胶囊会一直指着旧的那个。
        */
-      if (!active || phase === 'downloading' || phase === 'ready') {
+      if (!active || phase === 'checking' || phase === 'downloading' || phase === 'ready') {
         return
       }
 
@@ -115,6 +125,47 @@ export class AppUpdateStore {
       window.clearTimeout(first)
       window.clearInterval(repeat)
     }
+  }
+
+  /**
+   * 人亲手要一次检查。
+   *
+   * 与后台那条节奏问的是同一个 controller.check()，区别只在交代方式：后台保持
+   * 安静（离线是常态），这一条必须回话 —— 没有新版本也是答案，所以它是一个相位。
+   * 隐私设置管的是「自动去问」，一次点击本身就是这一次的同意。
+   */
+  check = (): void => {
+    const phase = this.#state.phase
+
+    if (phase === 'checking' || phase === 'downloading' || phase === 'ready') {
+      return
+    }
+
+    this.#commit(CHECKING)
+
+    void this.#controller.check().then(
+      (release) => {
+        /* 这中间相位可能已经被别的事推走了：还停在 checking 这句答复才算数。 */
+        if (this.#state !== CHECKING) {
+          return
+        }
+
+        if (release === null) {
+          this.#commit(LATEST)
+          this.#clearing = window.setTimeout(() => {
+            this.#commit(IDLE)
+          }, LATEST_SHOWN_MS)
+
+          return
+        }
+
+        this.#commit({ phase: 'available', version: release.version })
+      },
+      (cause: unknown) => {
+        this.#onFailure('check-update', cause)
+        this.#commit(IDLE)
+      },
+    )
   }
 
   /** 开始下载。相位本身就是那道闸：只有 available 能起步。 */
@@ -188,6 +239,11 @@ export class AppUpdateStore {
     /* 引用没变就不是变化：IDLE 是同一个对象，重复提交不该惊动订阅者。 */
     if (next === this.#state) {
       return
+    }
+
+    if (this.#clearing !== null) {
+      window.clearTimeout(this.#clearing)
+      this.#clearing = null
     }
 
     this.#state = next

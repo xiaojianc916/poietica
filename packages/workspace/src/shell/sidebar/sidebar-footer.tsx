@@ -37,6 +37,8 @@ export interface SidebarFooterProps {
   readonly leading?: ReactNode
   readonly onSettingsOpen: () => void
   readonly onDeveloperToolsOpen: () => void
+  /** 帮助菜单里那一行「检查更新」。这一层不认识更新，只转发这一次点击。 */
+  readonly onCheckUpdates: () => void
   /**
    * 当前是否停留在设置界面。
    *
@@ -57,6 +59,7 @@ export function SidebarFooter({
   leading,
   onSettingsOpen,
   onDeveloperToolsOpen,
+  onCheckUpdates,
   settingsActive = false,
 }: SidebarFooterProps) {
   return (
@@ -65,7 +68,7 @@ export function SidebarFooter({
 
       {leading}
 
-      <HelpMenu onDeveloperToolsOpen={onDeveloperToolsOpen} />
+      <HelpMenu onCheckUpdates={onCheckUpdates} onDeveloperToolsOpen={onDeveloperToolsOpen} />
 
       <FooterButton active={settingsActive} icon={Settings} label="设置" onClick={onSettingsOpen} />
     </div>
@@ -104,7 +107,13 @@ function FooterButton({ label, icon: Icon, onClick, active = false }: FooterButt
   )
 }
 
-function HelpMenu({ onDeveloperToolsOpen }: { readonly onDeveloperToolsOpen: () => void }) {
+function HelpMenu({
+  onCheckUpdates,
+  onDeveloperToolsOpen,
+}: {
+  readonly onCheckUpdates: () => void
+  readonly onDeveloperToolsOpen: () => void
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -114,39 +123,17 @@ function HelpMenu({ onDeveloperToolsOpen }: { readonly onDeveloperToolsOpen: () 
         <CircleQuestionMark aria-hidden="true" className="size-4" />
       </DropdownMenuTrigger>
 
-      {/*
-       * 一条下限，不是一个定值。
-       *
-       * 这两件事此前被混为一谈。w-56 是 width: 224px —— 内容再长不长、再短不缩，
-       * 于是空掉将近三分之一，那种写法是错的。min-width 是下限：内容短的时候撑
-       * 住场面，长的时候让路。macOS 菜单、Fluent MenuFlyout、VS Code 的 context
-       * menu 用的都是「下限 + 内容撑开」这一组，不是定值。
-       *
-       * 为什么基元那条下限不够：尾部箭头删掉之后，一行里确定的部分只剩 popup
-       * padding 4×2 + item px 8×2 + 图标 16 + gap 8 = 48px，加最长标签「开发者
-       * 工具」约 70px 是 118px，低于 min-w-32 的 128px。而这个菜单有 4 行 × 32
-       * + 分隔 9 + padding 8 = 145px 高 —— 比高还窄。菜单是横向阅读的东西。
-       *
-       * 168px 这个数不是新发明的：composer-metrics.css 里的 --cp-menu-min 就是
-       * 168px，是应用里唯一已有的菜单下限。再取一个 192 或 200 就是第三份真相。
-       * 与 popup-surface.ts 里那句「等到主题层收口时再合并成一处声明」同一个处
-       * 置办法：先同数，收口时一起变成令牌。
-       *
-       * Tailwind v4 的间距刻度是 0.25rem，42 × 4 = 168，在刻度上，不必写
-       * min-w-[168px] 这种脱轨值。
-       *
-       * sideOffset 也删了：基元默认 6，此处此前局部覆写成 8，没有理由。
-       *
-       * 分隔线切在「离开应用 / 作用于应用」的边界上。此前它切在第 2 与第 3 行
-       * 之间，而外链箭头出现在第 1、2、3 行 —— Discord 与上面两个同类，被分隔线
-       * 拆开了，反倒和唯一的本地动作绑在一起。
-       */}
+      {/* 下限而不是定值：内容短了撑住场面，长了让路。 */}
       <DropdownMenuContent align="end" className="min-w-40" side="top">
         <DropdownMenuGroup>
-          <HelpMenuItem icon={BookOpen} label="项目文档" />
+          <HelpMenuItem
+            href={`${REPOSITORY_URL}/tree/main/docs`}
+            icon={BookOpen}
+            label="项目文档"
+          />
 
           {/* Download 而不是 RefreshAlt：这一行的动作是取回，不是重载。 */}
-          <HelpMenuItem icon={Download} label="检查更新" />
+          <HelpMenuItem icon={Download} label="检查更新" onClick={onCheckUpdates} />
 
           {/*
            * 品牌标记，不是形近的 UI 字形。此前这里是 Message（对话气泡）—— 那不

@@ -576,7 +576,13 @@ export class TranscriptStore implements TranscriptSink {
     /* 人说的那句话先上屏，再去问 agent。失败的一轮丢掉的是答案，不是问题。
        图这一刻还没有地址：字节要先落盘。它随这一轮的 run_started 帧回来，所以
        实时那条路与重开对话那条路走的是同一条（见 projection.ts 的 withPrompt）。 */
-    const opened = appendUserMessage(current.timeline, text, at, assets.length)
+    const opened = appendUserMessage(
+      current.timeline,
+      text,
+      at,
+      assets.length,
+      skills.map((skill) => skill.name),
+    )
 
     this.#put(key, { ...current, timeline: opened })
 
@@ -792,16 +798,10 @@ export class TranscriptStore implements TranscriptSink {
    * 那是第二条报错通道 —— 同一类事实按它从哪儿来决定长什么样。报错只有一种
    * 形态,就是转录里的那一条横线。
    *
-   * endsTurn 为假：这不是某一轮失败了。同一句话不重复记 —— 一次连接失败会随
-   * 渲染反复交进来。
+   * endsTurn 为假：这不是某一轮失败了。重复的同一句话由 pushFailure 挡掉。
    */
   note = (key: string, message: string): void => {
     const current = this.#now(key)
-    const tail = current.timeline.items.at(-1)
-
-    if (tail?.type === 'error' && tail.message === message) {
-      return
-    }
 
     this.#put(key, {
       ...current,

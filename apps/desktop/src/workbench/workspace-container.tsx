@@ -57,6 +57,7 @@ export interface WorkspaceContainerProps {
   readonly keybindings: KeybindingCatalog
   readonly sidebarFooterSlot: ReactNode
   readonly isWindowMaximized: boolean
+  readonly onCheckUpdates: () => void
   readonly onDeveloperToolsOpen: () => void
   readonly onSettingsOpen: () => void
   readonly onWindowMinimize: () => void
@@ -86,6 +87,7 @@ export function WorkspaceContainer({
   keybindings,
   sidebarFooterSlot,
   isWindowMaximized,
+  onCheckUpdates,
   onDeveloperToolsOpen,
   onSettingsOpen,
   onWindowMinimize,
@@ -252,6 +254,7 @@ export function WorkspaceContainer({
           footer={
             <SidebarFooter
               leading={sidebarFooterSlot}
+              onCheckUpdates={onCheckUpdates}
               onDeveloperToolsOpen={onDeveloperToolsOpen}
               onSettingsOpen={onSettingsClose}
               settingsActive
@@ -262,6 +265,7 @@ export function WorkspaceContainer({
         <WorkspaceSidebar
           activeNavigationId={activeNavigationId}
           footerLeading={sidebarFooterSlot}
+          onCheckUpdates={onCheckUpdates}
           onCommand={runCommand}
           onCreateConversation={openAssistantEntry}
           onDeveloperToolsOpen={onDeveloperToolsOpen}

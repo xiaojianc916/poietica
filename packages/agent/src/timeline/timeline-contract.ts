@@ -73,6 +73,8 @@ export interface UserMessageItem extends TimelineEntry {
    * 下两者不是一回事，而重放出来的条目本来就没有这一格。
    */
   readonly images?: readonly MessageImage[]
+  /** 这句话挂上的技能名，与图片同一条可选规矩。 */
+  readonly skills?: readonly string[]
 }
 
 export interface AgentTextItem extends TimelineEntry {

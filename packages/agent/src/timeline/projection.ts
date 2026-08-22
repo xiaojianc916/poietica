@@ -25,6 +25,7 @@ import {
   namespace,
   positionOf,
   push,
+  pushFailure,
   sealTail,
 } from './timeline-draft'
 import { pendingPermission, pendingQuestion } from './timeline-queries'
@@ -145,7 +146,7 @@ export function apply(draft: Draft, event: RunEvent): void {
 
     case 'run_finished': {
       sealTail(draft)
-      /* turn.ended owns user-visible output; this frame only seals status. */
+      /* 这一帧只收状态：用户可见的失败统一由 pushFailure 落账。 */
       draft.status = finalStatus(event.stopReason)
       markTurnEnd(draft, event.at)
 
@@ -156,7 +157,7 @@ export function apply(draft: Draft, event: RunEvent): void {
       sealTail(draft)
       draft.status = 'failed'
       markTurnEnd(draft, event.at)
-      push(draft, {
+      pushFailure(draft, {
         type: 'error',
         id: `${namespace(draft)}error-${String(event.seq)}`,
         turn: draft.runIndex,
@@ -187,19 +188,21 @@ function withPrompt(
     readonly at: number
     readonly prompt?: string | undefined
     readonly images?: readonly string[] | undefined
+    readonly skills?: readonly string[] | undefined
   },
 ): void {
   /* 缺席与空串在这里是同一件事：都表示这一帧没有带来一句要显示的话。
      旁白要剥掉：这一格由 driver 填，agent CLI 会往里注入自己的话（见 saidByUser）。 */
   const prompt = saidByUser(event.prompt ?? '')
   const shown: readonly MessageImage[] = (event.images ?? []).map((url) => ({ url }))
+  const attached: readonly string[] = event.skills ?? []
 
-  /* 只挑了图、没打字，仍然是一句说过的话。 */
-  if (prompt.length === 0 && shown.length === 0) {
+  /* 只挑了图、只挂了记号，仍然是一句说过的话。 */
+  if (prompt.length === 0 && shown.length === 0 && attached.length === 0) {
     return
   }
 
-  if (adoptQueuedPrompt(draft, prompt, shown) || dressTail(draft, shown)) {
+  if (adoptQueuedPrompt(draft, prompt, shown, attached) || dressTail(draft, shown, attached)) {
     return
   }
 
@@ -213,6 +216,7 @@ function withPrompt(
     text: prompt,
     /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
     ...(shown.length === 0 ? {} : { images: shown }),
+    ...(attached.length === 0 ? {} : { skills: attached }),
   })
 }
 
@@ -224,7 +228,11 @@ function withPrompt(
  *
  * O(1)，因为一问永远是它自己那一段的开头。
  */
-function dressTail(draft: Draft, shown: readonly MessageImage[]): boolean {
+function dressTail(
+  draft: Draft,
+  shown: readonly MessageImage[],
+  attached: readonly string[],
+): boolean {
   const position = draft.items.length - 1
   const tail = draft.items[position]
 
@@ -232,8 +240,12 @@ function dressTail(draft: Draft, shown: readonly MessageImage[]): boolean {
     return false
   }
 
-  if (shown.length > 0) {
-    draft.items[position] = { ...tail, images: shown }
+  if (shown.length > 0 || attached.length > 0) {
+    draft.items[position] = {
+      ...tail,
+      ...(shown.length === 0 ? {} : { images: shown }),
+      ...(attached.length === 0 ? {} : { skills: attached }),
+    }
   }
 
   return true
@@ -247,7 +259,12 @@ function dressTail(draft: Draft, shown: readonly MessageImage[]): boolean {
  * is safe: only local messages from the immediately preceding turn are
  * candidates, and the newest unmatched one wins.
  */
-function adoptQueuedPrompt(draft: Draft, prompt: string, shown: readonly MessageImage[]): boolean {
+function adoptQueuedPrompt(
+  draft: Draft,
+  prompt: string,
+  shown: readonly MessageImage[],
+  attached: readonly string[],
+): boolean {
   for (let position = draft.items.length - 1; position >= 0; position--) {
     const item = draft.items[position]
 
@@ -263,6 +280,7 @@ function adoptQueuedPrompt(draft: Draft, prompt: string, shown: readonly Message
       id: `${namespace(draft)}said-${String(draft.lastSeq)}`,
       turn: draft.runIndex,
       ...(shown.length === 0 ? {} : { images: shown }),
+      ...(attached.length === 0 ? {} : { skills: attached }),
     }
     draft.items[position] = adopted
     draft.index?.delete(item.id)

@@ -382,6 +382,7 @@ export function AppShell({ runtime }: AppShellProps) {
             isSettingsOpen={isSettingsOpen && capabilities.settings}
             isWindowMaximized={isWindowMaximized}
             keybindings={keybindings}
+            onCheckUpdates={updates.check}
             onDeveloperToolsOpen={openDeveloperTools}
             onSettingsClose={closeSettings}
             onSettingsOpen={openSettings}

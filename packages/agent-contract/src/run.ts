@@ -38,6 +38,8 @@ export type RunEvent =
       readonly prompt?: string | undefined
       /** 随这句话送出去的图片，本机地址，顺序与用户挑的一致。与 prompt 同一个理由可选。 */
       readonly images?: readonly string[] | undefined
+      /** 随这句话挂上的技能名，顺序与用户选的一致。与 prompt 同一个理由可选。 */
+      readonly skills?: readonly string[] | undefined
     }
   | {
       readonly kind: 'kap_event'

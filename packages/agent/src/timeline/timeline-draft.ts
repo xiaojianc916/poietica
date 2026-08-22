@@ -13,6 +13,7 @@ import type { RunStatus } from '@poietica/agent-contract'
 import type {
   AgentTextItem,
   AgentThoughtItem,
+  ErrorItem,
   TimelineItem,
   TimelineState,
   TurnSpan,
@@ -162,6 +163,23 @@ export function push(draft: Draft, item: TimelineItem): void {
   openSpan(draft)
   append(draft, item)
   markFirstFrame(draft, item)
+}
+
+/**
+ * 记下这一轮的一次失败。
+ *
+ * 同一次失败会从两条通道各说一遍：kap 的 error 事件，与 turn.ended 携带的
+ * error。落账因此只有这一处，判据是「这一轮的上一条就是同一句话」—— 重复的
+ * 交代不占第二行，两次不同的失败照旧都留下。
+ */
+export function pushFailure(draft: Draft, failure: ErrorItem): void {
+  const tail = draft.items.at(-1)
+
+  if (tail?.type === 'error' && tail.turn === failure.turn && tail.message === failure.message) {
+    return
+  }
+
+  push(draft, failure)
 }
 
 /**

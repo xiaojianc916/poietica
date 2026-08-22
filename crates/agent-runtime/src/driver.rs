@@ -798,7 +798,12 @@ pub fn connect(
                                     // 同时只走一轮。
                                     let _ = reply.send(Err(KapError::Refused(Refusal::Busy)));
                                 } else {
-                                    slot.record(|r| r.record_run_started(&text, shown));
+                                    let attached: Vec<String> =
+                                        skills.iter().map(|skill| skill.name.clone()).collect();
+
+                                    slot.record(|r| {
+                                        r.record_run_started(&text, shown, attached);
+                                    });
 
                                     let http2 = http.clone();
                                     let base2 = base_url.clone();
@@ -1060,13 +1065,6 @@ async fn handle_ws_message(
             let is_main_turn = payload.get("agentId").and_then(Value::as_str) == Some("main");
 
             if is_main_turn {
-                /* 原始终态先入唯一事件日志，再关闭 recorder。它携带 KimiErrorPayload；
-                先压成字符串会永久丢失 code、retryable、details 与 cause。 */
-                if let Ok(Some(slot)) = book.slot(session_id) {
-                    let frame = kap_event(payload.clone());
-                    let _recorded = slot.record(|recorder| recorder.record_frame(frame));
-                }
-
                 let reason = payload
                     .get("reason")
                     .and_then(Value::as_str)

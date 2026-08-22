@@ -26,6 +26,10 @@ export function UpdateCapsule({ store }: UpdateCapsuleProps) {
     return null
   }
 
+  if (state.phase === 'checking' || state.phase === 'latest') {
+    return <CheckNote phase={state.phase} />
+  }
+
   if (state.phase === 'downloading') {
     return <DownloadProgress percent={state.percent} version={state.version} />
   }
@@ -71,6 +75,38 @@ function UpdateAction({ state, store }: UpdateActionProps) {
               {ready ? <RefreshCw aria-hidden="true" /> : <ArrowDown aria-hidden="true" />}
             </span>
           </button>
+        }
+      />
+
+      <TooltipContent side="top">{hint}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+/**
+ * 按下「检查更新」之后的两句回话。
+ *
+ * 不是按钮：这两个相位没有动作可做。role="status" 让读屏在它出现时念一遍，
+ * 外形与胶囊的其余相位共用同一套类名。
+ */
+function CheckNote({ phase }: { readonly phase: 'checking' | 'latest' }) {
+  const hint = phase === 'checking' ? '正在检查更新' : '已是最新版本'
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span aria-label={hint} className="update-capsule" data-phase={phase} role="status">
+            <span className="update-capsule__text">
+              <span className="update-capsule__label">
+                {phase === 'checking' ? '检查中' : '最新'}
+              </span>
+            </span>
+
+            <span className="update-capsule__glyph">
+              <RefreshCw aria-hidden="true" />
+            </span>
+          </span>
         }
       />
 

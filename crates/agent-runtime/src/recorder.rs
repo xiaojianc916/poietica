@@ -180,11 +180,12 @@ impl Recorder {
         }
     }
 
-    /// Records that the run began, what was asked, and what was shown with it.
-    pub fn record_run_started(&mut self, prompt: &str, images: Vec<String>) {
+    /// Records that the run began, what was asked, and what went out with it.
+    pub fn record_run_started(&mut self, prompt: &str, images: Vec<String>, skills: Vec<String>) {
         self.append(RunFrame::RunStarted {
             prompt: prompt.to_owned(),
             images,
+            skills,
         });
     }
 

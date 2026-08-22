@@ -41,7 +41,7 @@ pub const QUESTIONS_RESOLVED: &str = "questions_resolved";
     rename_all_fields = "camelCase"
 )]
 pub enum RunFrame {
-    /// 这一轮开始了：问的是什么，以及随它送出去的图片。
+    /// 这一轮开始了：问的是什么，以及随它一起送出去的图片与技能。
     RunStarted {
         /// 人说的那句话，按记录时的原文。
         prompt: String,
@@ -52,6 +52,11 @@ pub enum RunFrame {
         /// agent 发来的，但它属于人说的那一句话 —— 所以它的家在这一帧里，不在
         /// 一本要靠数轮次去对齐的第二本账上。
         images: Vec<String>,
+        /// 随这句话挂上的技能名，按用户挑选的顺序。
+        ///
+        /// 与图片同一个理由住在这一帧里：它属于人说的那一句话，而那句话的
+        /// 全部事实只有这一个家。
+        skills: Vec<String>,
     },
     /// kap server 推来的一帧会话事件。
     KapEvent {

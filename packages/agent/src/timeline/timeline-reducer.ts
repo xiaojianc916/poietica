@@ -10,8 +10,8 @@ import {
   markTurnEnd,
   namespace,
   openSegment,
-  push,
   pushBeforeRun,
+  pushFailure,
   sealTail,
 } from './timeline-draft'
 
@@ -168,6 +168,8 @@ export function appendUserMessage(
    * 只有「带了几张」，而一句纯图片的话正是靠它才站得住。
    */
   carrying = 0,
+  /** 这一句挂上的技能名。真相随这一轮的 run_started 帧回来，这里先记下人选了什么。 */
+  attached: readonly string[] = [],
 ): TimelineState {
   const said = text.trim()
 
@@ -226,6 +228,7 @@ export function appendUserMessage(
     turn: draft.runIndex,
     at,
     text: said,
+    ...(attached.length === 0 ? {} : { skills: attached }),
   })
 
   return freeze(draft)
@@ -259,7 +262,7 @@ export function appendLocalError(
 
   /* 位置补进 id，前缀与另一条本地路径成对：local- 之下再分种类，才不会与帧那边
      按 seq 编号的 error- / agent- 共用同一个号段。 */
-  push(draft, {
+  pushFailure(draft, {
     type: 'error',
     id: `${namespace(draft)}local-error-${String(draft.items.length)}`,
     turn: draft.runIndex,

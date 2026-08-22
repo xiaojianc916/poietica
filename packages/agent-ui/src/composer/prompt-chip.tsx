@@ -19,6 +19,70 @@ export function samePromptChip(left: PromptChipValue, right: PromptChipValue): b
   )
 }
 
+/** 一台 MCP server 在正文里被点名的写法。写与读只有这一对。 */
+const MENTION = /@mcp:(\S+)/g
+
+function mention(name: string): string {
+  return `@mcp:${name}`
+}
+
+export type PromptSegment =
+  | { readonly kind: 'text'; readonly text: string }
+  | { readonly kind: 'mcp'; readonly name: string }
+
+/** 正文切成「话」与「记号」两种段，顺序与原文一致。 */
+export function promptSegments(text: string): readonly PromptSegment[] {
+  const segments: PromptSegment[] = []
+  let cursor = 0
+
+  for (const found of text.matchAll(MENTION)) {
+    const name = found[1]
+
+    if (name === undefined) {
+      continue
+    }
+
+    if (found.index > cursor) {
+      segments.push({ kind: 'text', text: text.slice(cursor, found.index) })
+    }
+
+    segments.push({ kind: 'mcp', name })
+    cursor = found.index + found[0].length
+  }
+
+  if (cursor < text.length) {
+    segments.push({ kind: 'text', text: text.slice(cursor) })
+  }
+
+  return segments
+}
+
+/**
+ * 一枚记号，画出来的样子。
+ *
+ * 草稿与转录共用它：一句话发出去之后，人挂的技能与点名的 MCP 仍然是同一枚
+ * 记号，两处各画一遍就会各漂一份。
+ */
+export function PromptChip({
+  kind,
+  name,
+}: {
+  readonly kind: PromptChipValue['kind']
+  readonly name: string
+}) {
+  if (kind === 'mcp') {
+    return <span className="assistant-prompt-chip">@{name}</span>
+  }
+
+  /* 图标随文字走 currentColor（prompt-chip.css），不另立颜色。 */
+  return (
+    <span className="assistant-prompt-chip">
+      <SkillIcon aria-hidden="true" className="assistant-prompt-chip__icon" size={12} />
+      {name}
+    </span>
+  )
+}
+
 /**
  * 草稿里的一枚记号。
  *
@@ -55,9 +119,8 @@ export class ChipNode extends DecoratorNode<ReactNode> {
   }
 
   override createDOM(): HTMLElement {
-    const span = document.createElement('span')
-    span.className = 'assistant-prompt-chip'
-    return span
+    /* 样子归 PromptChip：宿主只是编辑器要的那个位置。 */
+    return document.createElement('span')
   }
 
   override updateDOM(): false {
@@ -69,21 +132,15 @@ export class ChipNode extends DecoratorNode<ReactNode> {
   }
 
   override getTextContent(): string {
-    return this.#value.kind === 'mcp' ? `@mcp:${this.#value.name}` : ''
+    return this.#value.kind === 'mcp' ? mention(this.#value.name) : ''
   }
 
   override decorate(): ReactNode {
-    if (this.#value.kind === 'skill') {
-      /* 图标随文字走 currentColor（prompt-chip.css 的 #2563eb），不另立颜色。 */
-      return (
-        <span contentEditable={false}>
-          <SkillIcon aria-hidden="true" className="assistant-prompt-chip__icon" size={12} />
-          {this.#value.name}
-        </span>
-      )
-    }
-
-    return <span contentEditable={false}>@{this.#value.name}</span>
+    return (
+      <span contentEditable={false}>
+        <PromptChip kind={this.#value.kind} name={this.#value.name} />
+      </span>
+    )
   }
 }
 

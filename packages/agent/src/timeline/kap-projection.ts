@@ -22,7 +22,7 @@ import type {
 } from '@poietica/agent-contract'
 import { isTerminal, type ToolCallTimelineItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
-import { appendChunk, namespace, positionOf, push } from './timeline-draft'
+import { appendChunk, namespace, positionOf, push, pushFailure } from './timeline-draft'
 
 /** 这条线上的方言帧。其余每一格两条线共用，归 projection。 */
 export type KapFrame = Extract<RunEvent, { kind: 'kap_event' }>
@@ -132,7 +132,7 @@ function applyTurnEnded(draft: Draft, event: KapFrame): void {
     return
   }
 
-  push(draft, {
+  pushFailure(draft, {
     type: 'error',
     id: `${namespace(draft)}error-${String(event.seq)}`,
     turn: draft.runIndex,
@@ -179,7 +179,7 @@ function applyError(draft: Draft, event: KapFrame): void {
 
   const code = stringOf(event.payload, 'code')
 
-  push(draft, {
+  pushFailure(draft, {
     type: 'error',
     id: `${namespace(draft)}error-${String(event.seq)}`,
     turn: draft.runIndex,

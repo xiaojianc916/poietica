@@ -32,7 +32,7 @@ export const TimelineRow = memo(function TimelineRow({ row }: TimelineRowProps) 
 
   switch (item.type) {
     case 'user_message':
-      return <UserMessage images={item.images} text={item.text} />
+      return <UserMessage images={item.images} skills={item.skills} text={item.text} />
 
     case 'agent_text':
       return (

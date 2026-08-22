@@ -14,6 +14,7 @@ export interface WorkspaceSidebarProps {
   readonly onCommand: (commandId: string) => void
   readonly onSettingsOpen: () => void
   readonly onDeveloperToolsOpen: () => void
+  readonly onCheckUpdates: () => void
 }
 
 /**
@@ -38,6 +39,7 @@ export function WorkspaceSidebar({
   onCommand,
   onSettingsOpen,
   onDeveloperToolsOpen,
+  onCheckUpdates,
 }: WorkspaceSidebarProps) {
   return (
     <section className="workspace-sidebar flex h-full min-h-0 min-w-0 flex-col bg-sidebar">
@@ -52,6 +54,7 @@ export function WorkspaceSidebar({
 
       <SidebarFooter
         leading={footerLeading}
+        onCheckUpdates={onCheckUpdates}
         onDeveloperToolsOpen={onDeveloperToolsOpen}
         onSettingsOpen={onSettingsOpen}
       />
