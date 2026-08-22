@@ -424,8 +424,8 @@ function buildSegment(
       ? groupIn(liveIn(all, folded, answer))
       : { groups: NO_GROUPS, rows: NO_ROWS }
 
-  /* 封条挂在这一轮第一条不是本人发言的可见行上：耗时属于回答，不属于提问。 */
-  const sealAt = seal === undefined ? -1 : grouped.rows.findIndex((row) => row.item.type !== SAID)
+  /* 提问行拥有它后面的轮次边界：封条始终位于提问与 AI 内容之间。 */
+  const sealAt = seal === undefined ? -1 : grouped.rows.findIndex((row) => row.item.type === SAID)
   const streaming = grouped.rows.some((row) => row.isStreamingTail || row.isInFlight)
   const replyAt = running || streaming ? -1 : grouped.rows.length - 1
   const marks =

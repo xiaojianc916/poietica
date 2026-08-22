@@ -69,16 +69,32 @@ describe('presentation projection', () => {
 
     expect(idsOf(feed)).toEqual(['s1', 'p1', 'a1'])
     expect(feed.isProcessRow(1)).toBe(true)
-    expect(feed.sealAt(1)?.isOpen).toBe(true)
+    expect(feed.sealAt(0)?.isOpen).toBe(true)
   })
 
-  it('reads the seal clock off the span and hangs it on the answer', () => {
+  it('reads the seal clock off the span and hangs it after the question', () => {
     const feed = selectPresentation(settled, SHUT)
 
-    expect(feed.sealAt(0)).toBeUndefined()
-    expect(feed.sealAt(1)).toEqual({
+    expect(feed.sealAt(0)).toEqual({
       endedAt: 4,
       hasProcess: true,
+      isOpen: false,
+      startedAt: 2,
+      turn: 1,
+    })
+    expect(feed.sealAt(1)).toBeUndefined()
+  })
+
+  it('keeps a heard turn seal visible before the first answer row exists', () => {
+    const feed = selectPresentation(
+      stateOf([[said('s1', 1, 1)]], [{ firstFrameAt: 2, startedAt: 1, turn: 1 }]),
+      SHUT,
+    )
+
+    expect(idsOf(feed)).toEqual(['s1'])
+    expect(feed.sealAt(0)).toEqual({
+      endedAt: undefined,
+      hasProcess: false,
       isOpen: false,
       startedAt: 2,
       turn: 1,

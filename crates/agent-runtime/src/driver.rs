@@ -25,7 +25,7 @@
 //! protocol/ 两个目录），快照钉在 contracts/kap。信封约定
 //! { code, msg, data, request_id }：业务成败看 code，不看 HTTP 状态。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -397,20 +397,128 @@ async fn subscribe(ws: &WsSink, session_id: &str, from: Option<&Cursor>) -> Resu
 
 // ── 会话状态 ───────────────────────────────────────────────────────────────
 
-/// 主循环里一条已知会话的运行时状态。
-struct SessionState {
-    /// 这一轮已请上桌的审批：既是去重的判据，也是轮终要放掉的清单。
-    pending_approvals: Vec<String>,
-    /// 这一轮已请上桌的题组，同上。
-    pending_questions: Vec<String>,
+#[derive(Clone, Copy)]
+enum ReconcileMessage {
+    Poll,
+    Reset,
 }
 
-impl SessionState {
-    fn new() -> Self {
-        Self {
-            pending_approvals: Vec::new(),
-            pending_questions: Vec::new(),
+#[derive(Debug, Default, Eq, PartialEq)]
+struct ReconcileBatch {
+    poll: bool,
+    reset: bool,
+}
+
+impl ReconcileBatch {
+    fn push(&mut self, message: ReconcileMessage) {
+        match message {
+            ReconcileMessage::Poll => self.poll = true,
+            ReconcileMessage::Reset => {
+                self.reset = true;
+                self.poll = false;
+            }
         }
+    }
+}
+
+#[derive(Default)]
+struct ReconcileState {
+    pending_approvals: HashSet<String>,
+    pending_questions: HashSet<String>,
+}
+
+impl ReconcileState {
+    fn reset(&mut self, desk: &PermissionDesk, questions: &QuestionDesk) {
+        let outstanding = self.pending_approvals.drain().collect::<Vec<_>>();
+        let unanswered = self.pending_questions.drain().collect::<Vec<_>>();
+
+        desk.abandon(&outstanding);
+        questions.abandon(&unanswered);
+    }
+}
+
+/// A session owns one reconciliation task. The WebSocket loop only enqueues intent.
+struct ReconcileOwner {
+    messages: mpsc::UnboundedSender<ReconcileMessage>,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl ReconcileOwner {
+    fn spawn(
+        session_id: String,
+        http: reqwest::Client,
+        base_url: String,
+        book: SessionBook,
+        desk: PermissionDesk,
+        questions: QuestionDesk,
+    ) -> Self {
+        let (messages, mut incoming) = mpsc::unbounded();
+        let task = tokio::spawn(async move {
+            let mut state = ReconcileState::default();
+
+            while let Some(first) = incoming.next().await {
+                let mut batch = ReconcileBatch::default();
+                batch.push(first);
+
+                while let Some(Some(message)) = incoming.next().now_or_never() {
+                    batch.push(message);
+                }
+
+                if batch.reset {
+                    state.reset(&desk, &questions);
+                }
+
+                if batch.poll {
+                    let ReconcileState {
+                        pending_approvals,
+                        pending_questions,
+                    } = &mut state;
+
+                    futures::join!(
+                        fetch_and_record_approvals(
+                            &http,
+                            &base_url,
+                            &session_id,
+                            pending_approvals,
+                            &book,
+                            &desk,
+                        ),
+                        fetch_and_record_questions(
+                            &http,
+                            &base_url,
+                            &session_id,
+                            pending_questions,
+                            &book,
+                            &questions,
+                        ),
+                    );
+                }
+            }
+
+            state.reset(&desk, &questions);
+        });
+
+        Self { messages, task }
+    }
+
+    fn poll(&self) {
+        self.send(ReconcileMessage::Poll);
+    }
+
+    fn reset(&self) {
+        self.send(ReconcileMessage::Reset);
+    }
+
+    fn send(&self, message: ReconcileMessage) {
+        if self.messages.unbounded_send(message).is_err() {
+            log::warn!("session reconciliation owner stopped unexpectedly");
+        }
+    }
+}
+
+impl Drop for ReconcileOwner {
+    fn drop(&mut self) {
+        self.task.abort();
     }
 }
 
@@ -687,8 +795,7 @@ pub fn connect(
         }));
 
         // 8. 主循环
-        let mut sessions: HashMap<String, SessionState> = HashMap::new();
-        sessions.insert(session_id.clone(), SessionState::new());
+        let mut owners: HashMap<String, ReconcileOwner> = HashMap::new();
 
         // 补投握手期间收下的帧。里面可能有一帧 ping 不必答：我们刚发出去的
         // client_hello 与 subscribe 已经刷新了服务端的 lastInboundAt，而它的
@@ -696,15 +803,14 @@ pub fn connect(
         for envelope in std::mem::take(&mut stash) {
             handle_ws_message(
                 &envelope,
-                &mut sessions,
+                &mut owners,
                 &book_clone,
                 &desk,
                 &questions,
                 &events_tx,
                 &http,
                 &base_url,
-            )
-            .await;
+            );
         }
 
         let mut commands_rx = commands_rx;
@@ -899,15 +1005,14 @@ pub fn connect(
                                 } else {
                                     handle_ws_message(
                                         &v,
-                                        &mut sessions,
+                                        &mut owners,
                                         &book_clone,
                                         &desk,
                                         &questions,
                                         &events_tx,
                                         &http,
                                         &base_url,
-                                    )
-                                    .await;
+                                    );
                                 }
                             }
                         }
@@ -923,6 +1028,7 @@ pub fn connect(
             }
         }
 
+        drop(owners);
         desk.clear();
         questions.clear();
         Ok(())
@@ -940,9 +1046,9 @@ pub fn connect(
 
 // ── WS 事件路由 ────────────────────────────────────────────────────────────
 
-async fn handle_ws_message(
+fn handle_ws_message(
     envelope: &Value,
-    sessions: &mut HashMap<String, SessionState>,
+    owners: &mut HashMap<String, ReconcileOwner>,
     book: &SessionBook,
     desk: &PermissionDesk,
     questions: &QuestionDesk,
@@ -995,19 +1101,15 @@ async fn handle_ws_message(
             session_id: cut.to_owned(),
         });
 
-        if let Some(state) = sessions.get_mut(cut) {
-            let outstanding = std::mem::take(&mut state.pending_approvals);
-            let unanswered = std::mem::take(&mut state.pending_questions);
+        if let Some(owner) = owners.get(cut) {
+            owner.reset();
+        }
 
-            if let Ok(Some(slot)) = book.slot(cut)
-                && let Ok(Some(mut recorder)) = slot.take()
-            {
-                recorder.record_pending_cancelled();
-                recorder.record_run_failed(&format!("the event stream was cut: {reason}"));
-            }
-
-            desk.abandon(&outstanding);
-            questions.abandon(&unanswered);
+        if let Ok(Some(slot)) = book.slot(cut)
+            && let Ok(Some(mut recorder)) = slot.take()
+        {
+            recorder.record_pending_cancelled();
+            recorder.record_run_failed(&format!("the event stream was cut: {reason}"));
         } else {
             log::warn!("kap asked for a resync of a session we never opened: {envelope}");
         }
@@ -1069,11 +1171,9 @@ async fn handle_ws_message(
                     .get("reason")
                     .and_then(Value::as_str)
                     .unwrap_or("invalid");
-                let state = sessions
-                    .entry(session_id.to_owned())
-                    .or_insert_with(SessionState::new);
-                let outstanding = std::mem::take(&mut state.pending_approvals);
-                let unanswered = std::mem::take(&mut state.pending_questions);
+                if let Some(owner) = owners.get(session_id) {
+                    owner.reset();
+                }
 
                 if let Ok(Some(slot)) = book.slot(session_id)
                     && let Ok(Some(mut recorder)) = slot.take()
@@ -1091,8 +1191,6 @@ async fn handle_ws_message(
                     }
                 }
 
-                desk.abandon(&outstanding);
-                questions.abandon(&unanswered);
             }
         }
 
@@ -1138,12 +1236,20 @@ async fn handle_ws_message(
                 .and_then(Value::as_str)
                 .unwrap_or("");
 
-            if matches!(phase, "awaiting_approval" | "awaiting_question")
-                && let Some(state) = sessions.get_mut(session_id)
-            {
-                fetch_and_record_approvals(http, base_url, session_id, state, book, desk).await;
-                fetch_and_record_questions(http, base_url, session_id, state, book, questions)
-                    .await;
+            if matches!(phase, "awaiting_approval" | "awaiting_question") {
+                owners
+                    .entry(session_id.to_owned())
+                    .or_insert_with(|| {
+                        ReconcileOwner::spawn(
+                            session_id.to_owned(),
+                            http.clone(),
+                            base_url.to_owned(),
+                            book.clone(),
+                            desk.clone(),
+                            questions.clone(),
+                        )
+                    })
+                    .poll();
             }
         }
 
@@ -1227,7 +1333,7 @@ async fn fetch_and_record_approvals(
     http: &reqwest::Client,
     base_url: &str,
     session_id: &str,
-    state: &mut SessionState,
+    pending: &mut HashSet<String>,
     book: &SessionBook,
     desk: &PermissionDesk,
 ) {
@@ -1258,7 +1364,7 @@ async fn fetch_and_record_approvals(
 
         // 同一个审批会随每一份 agent.status.updated 再报一次：桌上已经有了的
         // 不记第二帧、不等第二份答案。
-        if state.pending_approvals.contains(&approval_id) {
+        if pending.contains(&approval_id) {
             continue;
         }
 
@@ -1279,7 +1385,7 @@ async fn fetch_and_record_approvals(
             continue;
         };
 
-        state.pending_approvals.push(approval_id.clone());
+        let _inserted = pending.insert(approval_id.clone());
 
         let http2 = http.clone();
         let base2 = base_url.to_owned();
@@ -1378,7 +1484,7 @@ async fn fetch_and_record_questions(
     http: &reqwest::Client,
     base_url: &str,
     session_id: &str,
-    state: &mut SessionState,
+    pending: &mut HashSet<String>,
     book: &SessionBook,
     desk: &QuestionDesk,
 ) {
@@ -1406,7 +1512,7 @@ async fn fetch_and_record_questions(
 
         // 同一组题会随每一份 agent.status.updated 再报一次：桌上已经有了的不记
         // 第二帧、不等第二份答案。
-        if state.pending_questions.contains(&group.question_id) {
+        if pending.contains(&group.question_id) {
             continue;
         }
 
@@ -1418,7 +1524,7 @@ async fn fetch_and_record_questions(
             continue;
         };
 
-        state.pending_questions.push(group.question_id.clone());
+        let _inserted = pending.insert(group.question_id.clone());
 
         let http2 = http.clone();
         let base2 = base_url.to_owned();
@@ -1821,7 +1927,7 @@ async fn set_selector(
 }
 
 #[cfg(test)]
-mod prompt_tests {
+mod tests {
     use super::*;
 
     #[test]
@@ -1843,6 +1949,31 @@ mod prompt_tests {
         assert_eq!(
             body.get("content").and_then(Value::as_array).map(Vec::len),
             Some(1)
+        );
+    }
+
+    #[test]
+    fn reconciliation_batch_preserves_reset_order() {
+        let mut batch = ReconcileBatch::default();
+        batch.push(ReconcileMessage::Poll);
+        batch.push(ReconcileMessage::Poll);
+        batch.push(ReconcileMessage::Reset);
+
+        assert_eq!(
+            batch,
+            ReconcileBatch {
+                poll: false,
+                reset: true
+            }
+        );
+
+        batch.push(ReconcileMessage::Poll);
+        assert_eq!(
+            batch,
+            ReconcileBatch {
+                poll: true,
+                reset: true
+            }
         );
     }
 }

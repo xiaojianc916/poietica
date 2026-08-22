@@ -151,9 +151,7 @@ export function TranscriptView({
 
   /*
    * 一行的全部装饰按下标问，不再逐张弱表查 id。
-   *
-   * 封条排在内容之后而 DOM 顺序仍是「提问、封条、内容」—— 它挂在这一轮第一条回答上，
-   * 落点开合前后恒定：按钮不搬家，两行的实测高度也不作废。
+   * 封条挂在提问行之后，因此 DOM 顺序恒为「提问、封条、AI 内容」；开合不搬家。
    */
   const renderRowAt = useCallback(
     (index: number) => {
