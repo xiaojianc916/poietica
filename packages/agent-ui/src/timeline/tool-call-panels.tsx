@@ -23,12 +23,10 @@ function emptyNoteOf(kind: ToolCallTimelineItem['kind'], isRunning: boolean): st
 
 /** 抽屉里唯一的滚动容器。内容多高它就多高，上限归 .timeline-tool__panel。 */
 function ToolPanel({
-  cacheKey,
   labelledBy,
   panel,
   text,
 }: {
-  readonly cacheKey: string
   readonly labelledBy?: string
   readonly panel?: string
   readonly text: string
@@ -40,7 +38,7 @@ function ToolPanel({
         ? {}
         : { 'aria-labelledby': labelledBy, id: panel, role: 'tabpanel' })}
     >
-      <Prose cacheKey={cacheKey} className="timeline-tool__prose" isStreaming={false} text={text} />
+      <Prose className="timeline-tool__prose" isStreaming={false} text={text} />
     </div>
   )
 }
@@ -52,12 +50,10 @@ function ToolPanel({
  * 滚动位置从头开始 —— 这两面本来就要从头读。
  */
 export function ToolCallPanels({
-  cacheKey,
   facets,
   isRunning,
   kind,
 }: {
-  readonly cacheKey: string
   readonly facets: ToolCallFacets
   readonly isRunning: boolean
   readonly kind: ToolCallTimelineItem['kind']
@@ -72,7 +68,7 @@ export function ToolCallPanels({
   if (request === null) {
     return (
       <div className="timeline-tool__body">
-        <ToolPanel cacheKey={`${cacheKey}:response`} text={responseText} />
+        <ToolPanel text={responseText} />
       </div>
     )
   }
@@ -89,7 +85,6 @@ export function ToolCallPanels({
       />
 
       <ToolPanel
-        cacheKey={activeId === REQUEST ? `${cacheKey}:request` : `${cacheKey}:response`}
         key={activeId}
         labelledBy={tabId(baseId, activeId)}
         panel={panelId(baseId, activeId)}

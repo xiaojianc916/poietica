@@ -2,7 +2,7 @@ import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
 import 'katex/dist/katex.min.css'
-import { type ComponentProps, memo, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { type ComponentProps, memo, useMemo, useState } from 'react'
 import {
   type AnimateOptions,
   type ControlsConfig,
@@ -128,52 +128,25 @@ function SegmentBody({
 }
 
 export interface ProseProps {
-  readonly cacheKey: string
   readonly text: string
   readonly isStreaming: boolean
   /** A place in the timeline, for measure and scale. Never for typography. */
   readonly className?: string
 }
 
-const MARKDOWN_MEASURE = 'poietica:markdown-render'
-const useCommitEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect
+/*
+ * 一块一个记忆边界:封口之后输入不再变,浅比较即精确比较,这一块此后一帧都不重画。跨卸载
+ * 那一层记忆在切分器里(split-stream 按文本寻址),不在这里 —— 一份 React 树只该有一个根。
+ */
+const ProseSegment = memo(SegmentBody)
 
-/* One application root owns every markdown subtree. Virtualization may unmount a row,
- * but no live React root or detached DOM tree survives outside that ownership graph. */
-const ProseSegment = memo(function ProseSegment({
-  cacheKey,
-  fence,
-  isStreaming,
-  text,
-}: {
-  readonly cacheKey: string
-  readonly fence: Fence
-  readonly isStreaming: boolean
-  readonly text: string
-}) {
-  const startedAt = performance.now()
-
-  useCommitEffect(() => {
-    performance.measure(MARKDOWN_MEASURE, {
-      start: startedAt,
-      end: performance.now(),
-      detail: { cacheKey, characters: text.length, isStreaming },
-    })
-
-    if (performance.getEntriesByName(MARKDOWN_MEASURE).length > 512) {
-      performance.clearMeasures(MARKDOWN_MEASURE)
-    }
-  }, [cacheKey, isStreaming, startedAt, text])
-
-  return <SegmentBody fence={fence} isStreaming={isStreaming} text={text} />
-})
 /**
  * 模型输出的 markdown，无论它出现在哪里。
  *
  * 回答与思考链是同一种内容，所以由同一个组件画：timeline-prose 是样式表唯一装扮的
  * 作用域，思考链里的围栏因此本来就与回答里的一样。
  */
-export const Prose = memo(function Prose({ cacheKey, className, isStreaming, text }: ProseProps) {
+export const Prose = memo(function Prose({ className, isStreaming, text }: ProseProps) {
   /* 一条流一个切分器：进度跟着这个实例走，两条流同时在长时谁都顶不掉谁。 */
   const [split] = useState(createBlockScanner)
 
@@ -191,7 +164,6 @@ export const Prose = memo(function Prose({ cacheKey, className, isStreaming, tex
     >
       {blocks.map((block, index) => (
         <ProseSegment
-          cacheKey={`${cacheKey}:${String(block.key)}`}
           fence={block.fence}
           isStreaming={isStreaming && index === blocks.length - 1}
           key={block.key}

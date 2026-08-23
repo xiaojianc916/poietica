@@ -15,13 +15,7 @@ const UNANSWERED = {
   undelivered: '答复没能送到 agent 手里。',
 } as const
 
-export function QuestionRecord({
-  cacheKey,
-  item,
-}: {
-  readonly cacheKey: string
-  readonly item: QuestionTimelineItem
-}) {
+export function QuestionRecord({ item }: { readonly item: QuestionTimelineItem }) {
   const resolution = item.resolution
 
   if (resolution === undefined) {
@@ -52,7 +46,6 @@ export function QuestionRecord({
             answered={
               resolution.outcome === 'answered' && answer !== undefined && answer.kind !== 'skipped'
             }
-            cacheKey={`${cacheKey}:${question.id}`}
             key={question.id}
             note={note.length === 0 ? undefined : note}
             prompt={question.question}

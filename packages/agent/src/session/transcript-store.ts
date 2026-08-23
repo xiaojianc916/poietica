@@ -513,13 +513,7 @@ export class TranscriptStore implements TranscriptSink {
   adopt = (threadId: string, page: FramePage, history: ThreadHistory): void => {
     /* 经过由本地日志重放：段边界与每一轮的两端都在帧里（run_started 与终帧
        各带自己的时刻），所以这里不再有第二把尺子。图仍来自本机账本。 */
-    const replayStartedAt = performance.now()
     const replayed = replayThreadEvents(page.events as readonly RunEvent[])
-    performance.measure('poietica:history-replay', {
-      start: replayStartedAt,
-      end: performance.now(),
-      detail: { threadId, events: page.events.length },
-    })
     const lost = lossOf(history)
 
     this.#put(threadId, {

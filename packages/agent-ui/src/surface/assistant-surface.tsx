@@ -183,10 +183,7 @@ export const AssistantSurface = memo(function AssistantSurface({
    * renderRow 没有依赖，恒是同一个引用 —— 那是虚拟列表的 prop，每帧换身份就
    * 等于每帧重渲全部可见行。
    */
-  const renderRow = useCallback(
-    (row: FeedRow) => <TimelineRow cacheScope={assistant.key} row={row} />,
-    [assistant.key],
-  )
+  const renderRow = useCallback((row: FeedRow) => <TimelineRow row={row} />, [])
 
   /*
    * 发言就是那次转场。

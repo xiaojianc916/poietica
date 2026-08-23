@@ -43,13 +43,12 @@ function group(overrides: Partial<QuestionTimelineItem> = {}): QuestionTimelineI
 describe('落定的题', () => {
   it('还没结清的一行都不画', () => {
     /* renderable 先把这一条挡在转录外；这里守住组件自己的防线。 */
-    expect(renderToStaticMarkup(<QuestionRecord cacheKey="test" item={group()} />)).toBe('')
+    expect(renderToStaticMarkup(<QuestionRecord item={group()} />)).toBe('')
   })
 
   it('题面是题自己带来的那句,不是工具名', () => {
     const markup = renderToStaticMarkup(
       <QuestionRecord
-        cacheKey="test"
         item={group({
           resolution: {
             outcome: 'answered',
@@ -67,7 +66,6 @@ describe('落定的题', () => {
   it('答过之后只留被选中的那一个,落选项不再露面', () => {
     const markup = renderToStaticMarkup(
       <QuestionRecord
-        cacheKey="test"
         item={group({
           resolution: {
             outcome: 'answered',
@@ -86,7 +84,6 @@ describe('落定的题', () => {
   it('跳过也算答复,但不涂成答过', () => {
     const markup = renderToStaticMarkup(
       <QuestionRecord
-        cacheKey="test"
         item={group({
           resolution: { outcome: 'answered', answers: { q0: { kind: 'skipped' } }, note: '' },
         })}
@@ -101,19 +98,16 @@ describe('落定的题', () => {
   it('没答成的,由来写成附注,不装成答案', () => {
     const dismissed = renderToStaticMarkup(
       <QuestionRecord
-        cacheKey="test"
         item={group({ resolution: { outcome: 'dismissed', answers: {}, note: '' } })}
       />,
     )
     const cancelled = renderToStaticMarkup(
       <QuestionRecord
-        cacheKey="test"
         item={group({ resolution: { outcome: 'cancelled', answers: {}, note: '' } })}
       />,
     )
     const undelivered = renderToStaticMarkup(
       <QuestionRecord
-        cacheKey="test"
         item={group({ resolution: { outcome: 'undelivered', answers: {}, note: '' } })}
       />,
     )
@@ -127,7 +121,6 @@ describe('落定的题', () => {
   it('整组的备注只挂在最后一张卡上', () => {
     const markup = renderToStaticMarkup(
       <QuestionRecord
-        cacheKey="test"
         item={group({
           questions: [
             { id: 'q0', question: '第一题？', options: [], multiSelect: false, allowOther: false },

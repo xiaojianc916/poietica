@@ -152,7 +152,7 @@ interface Scan {
  * 让它更糟，而这件事不改变任何一个字的输出，所以它只能靠读代码或者靠测试发现。
  *
  * 一条流一份进度，与转录那一层「一份投影按对话弱引用」同一个立场：谁的状态，谁
- * 持有。这个模块因此不再有任何跨流共享的可变量。
+ * 持有。模块级的那张表不是谁的进度，是纯函数的记忆 —— 见 createBlockScanner。
  */
 export type BlockScanner = (text: string) => readonly StreamBlock[]
 
@@ -315,6 +315,42 @@ function scanFrom(held: Scan | null, text: string): Scan {
   return { source: text, result, blocks, at, line, from, start, previous, open, kind }
 }
 
-export function createBlockScanner(): ReturnType<typeof scanner> {
-  return scanner()
+/*
+ * 块表按文本寻址。
+ *
+ * 虚拟窗口卸载离开预取带的行,实例里的扫描进度随之消失,滚回去就是把整篇重扫一遍 —— 而块
+ * 表只由文本决定。这份备忘因此只认文本,跨卸载存活;上限让内存有界,先删再插使 Map 的插入
+ * 序就是 LRU 序。
+ */
+const PROJECTION_CAP = 200
+
+const projected = new Map<string, readonly StreamBlock[]>()
+
+export function createBlockScanner(): BlockScanner {
+  const scan = scanner()
+
+  return (text) => {
+    const cached = projected.get(text)
+
+    if (cached !== undefined) {
+      projected.delete(text)
+      projected.set(text, cached)
+
+      return cached
+    }
+
+    const blocks = scan(text)
+
+    projected.set(text, blocks)
+
+    if (projected.size > PROJECTION_CAP) {
+      const oldest = projected.keys().next().value
+
+      if (oldest !== undefined) {
+        projected.delete(oldest)
+      }
+    }
+
+    return blocks
+  }
 }

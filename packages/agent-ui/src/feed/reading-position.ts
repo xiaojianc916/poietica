@@ -8,7 +8,8 @@ import { lastAtOrBefore } from '../threads/ordered-lookup'
  * 个判断。声明一个从不被读的必填字段，只会让实现者以为它有意义。
  *
  * 结构上与虚拟器的 VirtualItem 兼容，所以调用方直接把 getVirtualItems() 的结果
- * 传进来即可，不需要映射，也不需要跨包导入它的类型。
+ * 传进来即可，不需要映射；泛型让那一项原样交回 —— 它比这里声明的多一个身份，而
+ * 认人是调用方的事，不是这条判据的事。
  */
 export interface RowSpan {
   readonly index: number
@@ -31,7 +32,10 @@ export interface RowSpan {
  *
  * 二分本身不在这里 —— 它与轮次导航用的是同一条判据，实现在 ordered-lookup。
  */
-export function rowAtAnchor(spans: readonly RowSpan[], anchor: number): RowSpan | null {
+export function rowAtAnchor<Span extends RowSpan>(
+  spans: readonly Span[],
+  anchor: number,
+): Span | null {
   const found = lastAtOrBefore(spans, (span) => span.start, anchor)
 
   return spans[found < 0 ? 0 : found] ?? null

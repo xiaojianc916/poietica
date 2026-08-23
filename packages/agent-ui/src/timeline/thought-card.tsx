@@ -16,11 +16,9 @@ import { readThoughtLine } from './thought-line'
  * 那一行只印纯文本（thought-line），围栏与表格留到点开之后由 Prose 按 markdown 画。
  */
 export function ThoughtCard({
-  cacheKey,
   isStreaming,
   text,
 }: {
-  readonly cacheKey: string
   readonly isStreaming: boolean
   readonly text: string
 }) {
@@ -76,7 +74,7 @@ export function ThoughtCard({
       </button>
 
       <DisclosureBody isOpen={isOpen}>
-        <Prose cacheKey={cacheKey} className="timeline-thought" isStreaming={false} text={text} />
+        <Prose className="timeline-thought" isStreaming={false} text={text} />
       </DisclosureBody>
     </section>
   )

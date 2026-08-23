@@ -1,14 +1,14 @@
 import './agent-activity-feed.css'
 
 import type { Presentation } from '@poietica/agent'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { useReducedMotion } from 'motion/react'
 import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useFollowLatest } from '../primitives/follow-latest'
 import { ChevronDownIcon } from '../primitives/icons'
 import { startGlide } from '../primitives/scroll-glide'
 import { useDevicePixels } from '../primitives/use-device-pixels'
-import { type RowSpan, rowAtAnchor } from './reading-position'
+import { rowAtAnchor } from './reading-position'
 import { useRevealIntent } from './use-reveal-intent'
 
 /**
@@ -205,7 +205,7 @@ export function AgentActivityFeed({
   /*
    * 虚拟器此刻铺出来的区间表，给滚动回调里的那次二分用。
    */
-  const spansRef = useRef<readonly RowSpan[]>([])
+  const spansRef = useRef<readonly VirtualItem[]>([])
 
   /*
    * 本帧已经排好的那次几何读取。
@@ -216,7 +216,6 @@ export function AgentActivityFeed({
   const frame = useRef<number | null>(null)
   const earlierRequest = useRef<Promise<void> | null>(null)
   const prependAnchor = useRef<{ readonly id: string; readonly offset: number } | null>(null)
-  const correctionFrame = useRef<number | null>(null)
 
   /*
    * 一次读取，两个派生量。
@@ -240,17 +239,13 @@ export function AgentActivityFeed({
         setReadingRow(reading.index)
       }
 
-      /* 顶行只答一件事:那次跳转到了没有。 */
+      /* 顶行答两件事:那次跳转到了没有、前插拿谁当锚。身份取虚拟项的 key —— 它就是
+         getItemKey 交出去的那个 id,所以这次读取不必认识投影,回调因此帧帧同一个引用。 */
       const top = rowAtAnchor(spans, viewport.scrollTop)
 
       if (top !== null) {
-        const row = feed.rowAt(top.index)
-
-        if (row !== undefined) {
-          prependAnchor.current = {
-            id: row.item.id,
-            offset: top.start - viewport.scrollTop,
-          }
+        if (typeof top.key === 'string') {
+          prependAnchor.current = { id: top.key, offset: top.start - viewport.scrollTop }
         }
 
         settleReveal(top.index, viewport.scrollTop - top.start <= REVEAL_FLUSH_PX)
@@ -271,7 +266,7 @@ export function AgentActivityFeed({
         })
       }
     },
-    [feed, hasEarlier, onReachStart, settleReveal],
+    [hasEarlier, onReachStart, settleReveal],
   )
 
   /*
@@ -612,8 +607,19 @@ export function AgentActivityFeed({
     })
   }, [pending, reduced, settleReveal, virtualizer])
 
-  /* Preserve the first visible stable row, then reconcile estimates against DOM
-   * measurements until the pixel offset has settled. */
+  /*
+   * 往前补了一页,眼前那一行不动。
+   *
+   * 锚是滚动回调记下的顶行:它的身份,加上它当时离视口顶边多远。补进来那一段有多高,它现在
+   * 的位置就说明了 —— 一次写完,与前插同一次提交,中间没有让手势插进来的窗口。
+   *
+   * 不逐帧纠。逐帧纠是滚动位置的第三个写入者:人此刻正往上翻,锚行因此每帧向下走,而它每帧
+   * 把锚行按回原处 —— 滚轮走多少就被抵消多少,那就是"往上滑被拽回去"。估高与真高的残差归
+   * 虚拟器补,它是唯一知道"哪一行刚被重测"的那个写入者,而 follow-latest 把这一笔算作 lift,
+   * 不当成手势。
+   *
+   * 判据是首行换了身份:追加发生在末尾,首行不动,所以流式输出时这个效应一次都不跑。
+   */
   const firstSeen = useRef<string | null>(null)
 
   useLayoutEffect(() => {
@@ -622,65 +628,19 @@ export function AgentActivityFeed({
     firstSeen.current = first
 
     const anchor = prependAnchor.current
-    const viewport = viewportRef.current
-    const transcript = transcriptRef.current
 
     if (before === null || first === null || before === first || anchor === null) {
       return
     }
 
     const moved = feed.indexOf(anchor.id)
-    const estimated = moved < 0 ? undefined : virtualizer.getOffsetForIndex(moved, 'start')?.[0]
+    const settled = moved < 0 ? undefined : virtualizer.getOffsetForIndex(moved, 'start')?.[0]
 
-    if (viewport === null || transcript === null || estimated === undefined) {
-      return
-    }
-
-    virtualizer.scrollToOffset(estimated - anchor.offset)
-
-    let frames = 0
-    let stable = 0
-    let stopped = false
-
-    const correct = () => {
-      if (stopped || viewportRef.current !== viewport) {
-        return
-      }
-
-      frames += 1
-      const row = [...transcript.querySelectorAll<HTMLElement>('[data-row-id]')].find(
-        (element) => element.dataset['rowId'] === anchor.id,
-      )
-
-      if (row !== undefined) {
-        const delta =
-          row.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.offset
-
-        if (Math.abs(delta) <= 0.5) {
-          stable += 1
-        } else {
-          stable = 0
-          viewport.scrollTop += delta
-        }
-      }
-
-      if (stable < 3 && frames < 60) {
-        correctionFrame.current = requestAnimationFrame(correct)
-      } else {
-        correctionFrame.current = null
-      }
-    }
-
-    correctionFrame.current = requestAnimationFrame(correct)
-
-    return () => {
-      stopped = true
-      if (correctionFrame.current !== null) {
-        cancelAnimationFrame(correctionFrame.current)
-        correctionFrame.current = null
-      }
+    if (settled !== undefined) {
+      virtualizer.scrollToOffset(settled - anchor.offset)
     }
   }, [feed, virtualizer])
+
   /*
    * 高亮的真源,按优先级排。
    *
@@ -745,7 +705,6 @@ export function AgentActivityFeed({
               <div
                 className="agent-activity-feed__row"
                 data-index={item.index}
-                data-row-id={row.item.id}
                 data-streaming={row.isStreamingTail ? 'true' : undefined}
                 data-type={row.item.type}
                 key={item.key}

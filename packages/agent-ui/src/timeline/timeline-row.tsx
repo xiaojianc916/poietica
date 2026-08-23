@@ -24,11 +24,10 @@ import { UserMessage } from './user-message'
  * 的空白。
  */
 export interface TimelineRowProps {
-  readonly cacheScope: string
   readonly row: FeedRow
 }
 
-export const TimelineRow = memo(function TimelineRow({ cacheScope, row }: TimelineRowProps) {
+export const TimelineRow = memo(function TimelineRow({ row }: TimelineRowProps) {
   const { item } = row
 
   switch (item.type) {
@@ -37,32 +36,15 @@ export const TimelineRow = memo(function TimelineRow({ cacheScope, row }: Timeli
 
     case 'agent_text':
       return (
-        <Prose
-          cacheKey={`${cacheScope}:${item.id}`}
-          className="timeline-message"
-          isStreaming={row.isStreamingTail}
-          text={item.text}
-        />
+        <Prose className="timeline-message" isStreaming={row.isStreamingTail} text={item.text} />
       )
 
     /* 推理是一行现场；写完了才能点开，点开才走 markdown。 */
     case 'agent_thought':
-      return (
-        <ThoughtCard
-          cacheKey={`${cacheScope}:${item.id}`}
-          isStreaming={row.isStreamingTail}
-          text={item.text}
-        />
-      )
+      return <ThoughtCard isStreaming={row.isStreamingTail} text={item.text} />
 
     case 'tool_call':
-      return (
-        <ToolCallCard
-          cacheKey={`${cacheScope}:${item.id}`}
-          isInFlight={row.isInFlight}
-          item={item}
-        />
-      )
+      return <ToolCallCard isInFlight={row.isInFlight} item={item} />
 
     case 'plan':
       return <PlanPanel entries={item.entries} />
@@ -71,7 +53,7 @@ export const TimelineRow = memo(function TimelineRow({ cacheScope, row }: Timeli
       return <ErrorNotice message={item.message} />
 
     case 'question':
-      return <QuestionRecord cacheKey={`${cacheScope}:${item.id}`} item={item} />
+      return <QuestionRecord item={item} />
 
     /* 审批从不成行（renderable 把它挡在 feed 外）；这一支只为穷尽联合而存在。 */
     case 'permission':
