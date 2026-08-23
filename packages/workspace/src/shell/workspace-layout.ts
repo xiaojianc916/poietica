@@ -33,7 +33,7 @@ export const WORKSPACE_LAYOUT = {
     dockable: 900,
 
     /* 窗口最小内宽。正本：apps/desktop/src-tauri/tauri.conf.json → app.windows[0].minWidth。 */
-    minInnerWidth: 800,
+    minInnerWidth: 600,
 
     /*
      * 跨断点的切换等几何静止这么久才提交：这是页面内唯一可用的「拖拽结束」
