@@ -1,7 +1,7 @@
 /*
  * 活动流里一条可点的记事：一枚图标、一句话、指到才出现的箭头。
  *
- * 单次工具调用与一组同类调用共用它：同一个音量、同一套缩进，只此一份。
+ * 工具调用、一组同类调用与一段推理共用它：同一个音量、同一套缩进，只此一份。
  */
 
 .timeline-row {
@@ -93,10 +93,12 @@ button.timeline-row:focus-visible {
   text-overflow: clip;
 }
 
-/* 推理与回答同一条 markdown 管线，只在音量上分开：淡色，一道竖线。 */
+/* 点开之后的那段推理：与工具调用那张纸同一个缩进，淡色，一道竖线。 */
 .timeline-thought {
   --cp-thought-rule: color-mix(in oklab, var(--cp-timeline-quiet-text) 24%, transparent);
 
+  margin-block-start: var(--cp-control-gap);
+  margin-inline-start: var(--cp-timeline-tool-indent);
   border-inline-start: 2px solid var(--cp-thought-rule);
   padding-inline-start: var(--cp-control-gap);
   color: var(--cp-timeline-quiet-text);

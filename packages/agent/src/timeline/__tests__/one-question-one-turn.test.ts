@@ -17,7 +17,7 @@ import {
  * 一句话的每一条到达路径各来一遍。
  */
 
-const SHUT: ReadonlySet<number> = new Set()
+const NOTHING_FOLDED: ReadonlySet<number> = new Set()
 
 function started(seq: number, prompt: string, images?: readonly string[]): RunEvent {
   return {
@@ -43,7 +43,7 @@ function said(state: TimelineState): readonly string[] {
 }
 
 function rails(state: TimelineState): number {
-  return selectPresentation(state, SHUT).turns.length
+  return selectPresentation(state, NOTHING_FOLDED).turns.length
 }
 
 describe('one question, one rail stop', () => {

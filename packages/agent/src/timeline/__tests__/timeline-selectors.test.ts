@@ -5,12 +5,12 @@ import { selectPresentation } from '../presentation'
 import { selectIsBusy } from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'
 
-const SHUT: ReadonlySet<number> = new Set()
+const NOTHING_FOLDED: ReadonlySet<number> = new Set()
 
 describe('timeline selectors', () => {
   it('marks no streaming tail once the run has finished', () => {
     const state = replayRunEvents(SAMPLE_RUN_EVENTS)
-    const feed = selectPresentation(state, SHUT)
+    const feed = selectPresentation(state, NOTHING_FOLDED)
 
     expect(feed.count).toBeGreaterThan(0)
     expect(selectIsBusy(state)).toBe(false)
@@ -22,7 +22,7 @@ describe('timeline selectors', () => {
 
   it('marks the growing tail while the run is live', () => {
     const partial = SAMPLE_RUN_EVENTS.filter((event) => event.kind !== 'run_finished')
-    const feed = selectPresentation(replayRunEvents(partial), SHUT)
+    const feed = selectPresentation(replayRunEvents(partial), NOTHING_FOLDED)
 
     expect(feed.rowAt(feed.count - 1)?.isStreamingTail).toBe(true)
   })

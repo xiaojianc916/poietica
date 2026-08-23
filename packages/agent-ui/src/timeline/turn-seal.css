@@ -53,33 +53,6 @@
   rotate: 0deg;
 }
 
-.turn-seal__reveal {
-  min-inline-size: 0;
-}
-
-@keyframes turn-process-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-0.25rem);
-  }
-}
-
-@keyframes turn-process-exit {
-  to {
-    opacity: 0;
-    transform: translateY(-0.25rem);
-  }
-}
-
-.turn-seal__reveal[data-turn-motion="opening"] {
-  animation: turn-process-enter var(--cp-motion-drawer)
-    var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1)) both;
-}
-
-.turn-seal__reveal[data-turn-motion="closing"] {
-  animation: turn-process-exit var(--cp-motion-swift) var(--cp-motion-ease) both;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .turn-seal__chevron {
     transition: none;

@@ -38,7 +38,7 @@ const FENCE = /^\s{0,3}(?:```|~~~)/
 const MATH_FENCE = /^\s{0,3}\$\$\s*$/
 
 /** 当前落在哪一种跨行围栏里面。 */
-type Fence = 'none' | 'code' | 'math'
+export type Fence = 'none' | 'code' | 'math'
 
 /**
  * 读完这一行之后，围栏状态变成什么。
@@ -47,7 +47,7 @@ type Fence = 'none' | 'code' | 'math'
  * 的开头。这是 CommonMark 的规则，也是此前那两个布尔变量真正在表达的东西 ——
  * 它们表达得对，只是把它和「哪里可以切」缠在了同一个循环里。
  */
-function fenceAfter(line: string, open: Fence): Fence {
+export function fenceAfter(line: string, open: Fence): Fence {
   if (open === 'code') {
     return FENCE.test(line) ? 'none' : 'code'
   }

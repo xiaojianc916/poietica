@@ -40,6 +40,7 @@ export function asIcon(glyph: FunctionComponent<{ className?: string; size?: num
 
 export {
   ArrowUp as SubmitIcon,
+  Atom as ThinkingIcon,
   Check as CheckIcon,
   ChevronDown as ChevronDownIcon,
   CircleAlert as FailureIcon,

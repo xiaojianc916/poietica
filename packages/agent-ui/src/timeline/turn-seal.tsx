@@ -1,7 +1,7 @@
 import './turn-seal.css'
 
-import { ChevronDown } from 'lucide-react'
 import { memo } from 'react'
+import { ChevronDownIcon } from '../primitives/icons'
 import { useSecond } from '../primitives/tick'
 
 /*
@@ -131,7 +131,7 @@ function Seal({
         type="button"
       >
         <span className="turn-seal__label">{label}</span>
-        <ChevronDown aria-hidden="true" className="turn-seal__chevron" />
+        <ChevronDownIcon aria-hidden="true" className="turn-seal__chevron" />
       </button>
     </div>
   )

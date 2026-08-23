@@ -6,6 +6,7 @@ import { ErrorNotice } from './error-notice'
 import { PlanPanel } from './plan-panel'
 import { Prose } from './prose'
 import { QuestionRecord } from './question-record'
+import { ThoughtCard } from './thought-card'
 import { ToolCallCard } from './tool-call-card'
 import { UserMessage } from './user-message'
 
@@ -38,15 +39,9 @@ export const TimelineRow = memo(function TimelineRow({ row }: TimelineRowProps) 
         <Prose className="timeline-message" isStreaming={row.isStreamingTail} text={item.text} />
       )
 
-    /* 推理与回答同一条 markdown 管线，音量由 timeline-thought 分开。 */
+    /* 推理是一行现场；写完了才能点开，点开才走 markdown。 */
     case 'agent_thought':
-      return (
-        <Prose
-          className="timeline-message timeline-thought"
-          isStreaming={row.isStreamingTail}
-          text={item.text}
-        />
-      )
+      return <ThoughtCard isStreaming={row.isStreamingTail} text={item.text} />
 
     case 'tool_call':
       return <ToolCallCard isInFlight={row.isInFlight} item={item} />

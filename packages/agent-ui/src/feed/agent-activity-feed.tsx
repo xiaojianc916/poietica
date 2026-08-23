@@ -23,7 +23,8 @@ import { useRevealIntent } from './use-reveal-intent'
 const ESTIMATED_ROW_PX: Record<FeedRow['item']['type'], number> = {
   user_message: 72,
   agent_text: 240,
-  agent_thought: 120,
+  /* 收起时就是一行，与工具调用同形；按这张表的口径取真高的下界。 */
+  agent_thought: 40,
   /*
    * 一行安静的字，外加 __row 自己那两道行距。
    *

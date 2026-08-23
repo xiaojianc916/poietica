@@ -66,8 +66,6 @@ export interface Presentation {
   /** 画在这一行之前的封条：一轮的封条挂在它第一行可见内容的前面。 */
   readonly sealAt: (index: number) => TurnSealPlan | undefined
   readonly replyAt: (index: number) => ReplyActionPlan | undefined
-  /** 这一行被哪一轮的封条折着；没被折就是 undefined。 */
-  readonly processOf: (index: number) => number | undefined
   readonly indexOf: (id: string) => number
 }
 
@@ -85,7 +83,6 @@ const NO_TURNS: readonly ConversationTurn[] = []
 const NO_GROUPS: ReadonlyMap<string, ToolGroupPlan> = new Map()
 const NO_SEALS: ReadonlyMap<number, TurnSealPlan> = new Map()
 const NO_REPLIES: ReadonlyMap<number, ReplyActionPlan> = new Map()
-const NO_MARKS: ReadonlyMap<string, number> = new Map()
 
 const ROWS = new WeakMap<TimelineItem, FeedRow>()
 const SEGMENTS = new WeakMap<TurnPage, Segment>()
@@ -120,7 +117,6 @@ interface Segment {
   readonly groups: ReadonlyMap<string, ToolGroupPlan>
   readonly seals: ReadonlyMap<number, TurnSealPlan>
   readonly replies: ReadonlyMap<number, ReplyActionPlan>
-  readonly marks: ReadonlyMap<string, number>
   readonly staged: readonly Staged[]
   /** 首个提问之前那一段留下了什么：上一段末尾那一问要连着它一起算。 */
   readonly leading: Scan
@@ -131,7 +127,7 @@ interface Held {
   readonly sealed: readonly TurnPage[]
   readonly active: TurnPage
   readonly spans: readonly TurnSpan[]
-  readonly opened: ReadonlySet<number>
+  readonly folded: ReadonlySet<number>
   readonly live: boolean
   readonly turns: readonly ConversationTurn[]
   readonly result: Presentation
@@ -210,18 +206,6 @@ function answerFrom(rows: readonly FeedRow[], from: number, until: number): numb
   }
 
   return found
-}
-
-/**
- * 封条的边界：最后那段落在屏幕上的回答之前，全是过程。
- *
- * kap 不说哪一句是最终文本，能当最终文本的只有打印出来的回答。一句都还没说的一轮
- * 没有边界，过程原样摊着 —— 逐条往里收只会让人看得见最后一步，那是遮挡，不是折叠。
- */
-function sealFrontier(rows: readonly FeedRow[]): number {
-  const answer = answerFrom(rows, 0, rows.length)
-
-  return answer === rows.length ? 0 : answer
 }
 
 /** 边界之前的过程行。人说的话与旁白永不折叠。 */
@@ -425,7 +409,8 @@ function buildSegment(
   const all = rowsOf(page, live)
   const anchor = all.findIndex((row) => row.item.type === SAID)
   const bounds = boundsIn(all)
-  const spoken = sealFrontier(all)
+  /* 一句都还没打印的一轮，整段都是过程：能不能折叠问的是有没有过程，不是说没说完。 */
+  const spoken = answerFrom(all, 0, all.length)
   /* 排队追问把一次运行切成两半：最后一问之前的过程收进封条，之后的现场保持展开。 */
   const queued = bounds.length > 1 ? (bounds[bounds.length - 1] ?? spoken) : spoken
   const process = foldFrom(all, Math.min(spoken, queued))
@@ -441,19 +426,7 @@ function buildSegment(
           startedAt: span?.startedAt,
           turn: page.turn,
         }
-  const folded = seal === undefined ? [] : process
-  const hidden = isOpen ? new Set<number>() : new Set(folded)
-  const marks = new Map<string, number>()
-
-  if (seal !== undefined) {
-    for (const one of folded) {
-      const id = all[one]?.item.id
-
-      if (id !== undefined) {
-        marks.set(id, page.turn)
-      }
-    }
-  }
+  const hidden = isOpen || seal === undefined ? new Set<number>() : new Set(process)
 
   /* 回复操作仍按提问划分；它与运行封条是两个不同的投影。 */
   const plans: Stanza[] = []
@@ -516,7 +489,6 @@ function buildSegment(
     groups: grouped.groups,
     isOpen,
     live,
-    marks: marks.size === 0 ? NO_MARKS : marks,
     ownMessage,
     replies: replies.size === 0 ? NO_REPLIES : replies,
     rows: grouped.rows,
@@ -678,9 +650,10 @@ function railOf(
   return built.length === 0 ? NO_TURNS : built
 }
 
+/** folded 是人收起来的那几轮：过程默认摊开，收起是一次显式指令。 */
 export function selectPresentation(
   state: TimelineState,
-  opened: ReadonlySet<number>,
+  folded: ReadonlySet<number>,
 ): Presentation {
   const anchor = state.sealed[0] ?? state.active
   const live = selectIsBusy(state)
@@ -691,7 +664,7 @@ export function selectPresentation(
     held.sealed === state.sealed &&
     held.active === state.active &&
     held.spans === state.spans &&
-    held.opened === opened &&
+    held.folded === folded &&
     held.live === live
   ) {
     return held.result
@@ -702,7 +675,7 @@ export function selectPresentation(
   let count = 0
 
   for (const page of state.sealed) {
-    const segment = segmentOf(page, spanOf(state.spans, page.turn), false, opened.has(page.turn))
+    const segment = segmentOf(page, spanOf(state.spans, page.turn), false, !folded.has(page.turn))
 
     segments.push(segment)
     offsets.push(count)
@@ -713,7 +686,7 @@ export function selectPresentation(
     state.active,
     spanOf(state.spans, state.active.turn),
     live,
-    opened.has(state.active.turn),
+    !folded.has(state.active.turn),
   )
 
   segments.push(tail)
@@ -788,13 +761,6 @@ export function selectPresentation(
     },
     lastTurn,
     latestOwnMessage,
-    processOf: (index) => {
-      const found = seek(index)
-
-      return found === undefined
-        ? undefined
-        : found.segment.marks.get(found.segment.rows[found.at]?.item.id ?? '')
-    },
     replyAt: (index) => {
       const found = seek(index)
 
@@ -815,8 +781,8 @@ export function selectPresentation(
 
   FEEDS.set(anchor, {
     active: state.active,
+    folded,
     live,
-    opened,
     result,
     sealed: state.sealed,
     spans: state.spans,
