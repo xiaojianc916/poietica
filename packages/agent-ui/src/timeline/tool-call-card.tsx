@@ -154,9 +154,11 @@ function ToolCallHeader({
  * 化，再包一层只是多一次比较。
  */
 export function ToolCallCard({
+  cacheKey,
   isInFlight,
   item,
 }: {
+  readonly cacheKey: string
   readonly isInFlight: boolean
   readonly item: ToolCallTimelineItem
 }) {
@@ -168,7 +170,12 @@ export function ToolCallCard({
       <ToolCallHeader isOpen={isOpen} item={item} onToggle={toggle} view={view} />
 
       <DisclosureBody isOpen={isOpen}>
-        <ToolCallPanels facets={view.facets} isRunning={view.isRunning} kind={item.kind} />
+        <ToolCallPanels
+          cacheKey={cacheKey}
+          facets={view.facets}
+          isRunning={view.isRunning}
+          kind={item.kind}
+        />
       </DisclosureBody>
     </section>
   )

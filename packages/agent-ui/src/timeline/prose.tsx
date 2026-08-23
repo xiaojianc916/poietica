@@ -2,7 +2,16 @@ import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
 import 'katex/dist/katex.min.css'
-import { type ComponentProps, memo, useMemo, useState } from 'react'
+import {
+  type ComponentProps,
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { createRoot, type Root } from 'react-dom/client'
 import {
   type AnimateOptions,
   type ControlsConfig,
@@ -26,7 +35,8 @@ import { createBlockScanner, type Fence, type StreamBlock } from './split-stream
  */
 const MATH = createMathPlugin({ singleDollarTextMath: true })
 
-type Plugins = ComponentProps<typeof Streamdown>['plugins']
+/* NonNullable：可选属性读出来带 undefined，会让 ?? 兜底后的类型仍然可空。 */
+type Plugins = NonNullable<ComponentProps<typeof Streamdown>['plugins']>
 
 /*
  * 插件按块挑，不按组件挂。
@@ -99,21 +109,15 @@ const ICONS: Partial<IconMap> = {
  */
 const LINK_SAFETY: LinkSafetyConfig = { enabled: false }
 
-export interface ProseProps {
-  readonly text: string
-  readonly isStreaming: boolean
-  /** A place in the timeline, for measure and scale. Never for typography. */
-  readonly className?: string
-}
-
 /*
- * 一块 markdown，一处配置。
- *
- * memo 的边界就是一块：封口之后输入不再变，浅比较即精确比较，这一块此后一帧都不重画。
- * 静态那一侧不切块、不修补、不预留未闭合标记的过渡，代码块走官方那条静态路径 ——
- * 一段早已写完的文字不该在每次进入视口时被再解析一遍。
+ * 服务端只出一次静态标记：没有 document 就没有可寄存的渲染根，缓存整个不成立。
+ * 测试用 react-dom/server 守渲染产物，走的就是这一支。
  */
-const ProseSegment = memo(function ProseSegment({
+const SERVER = typeof document === 'undefined'
+
+const useMountEffect = SERVER ? useEffect : useLayoutEffect
+
+function SegmentBody({
   fence,
   isStreaming,
   text,
@@ -138,6 +142,150 @@ const ProseSegment = memo(function ProseSegment({
       {text}
     </Streamdown>
   )
+}
+
+const RENDER_CACHE_CAPACITY = 200
+
+interface CachedRender {
+  readonly host: HTMLDivElement
+  readonly root: Root
+  owner: HTMLDivElement | null
+  fence: Fence | null
+  isStreaming: boolean | null
+  text: string | null
+}
+
+const RENDERS = new Map<string, CachedRender>()
+
+function touchRender(key: string, entry: CachedRender): void {
+  RENDERS.delete(key)
+  RENDERS.set(key, entry)
+}
+
+function trimRenders(): void {
+  if (RENDERS.size <= RENDER_CACHE_CAPACITY) {
+    return
+  }
+
+  for (const [key, entry] of RENDERS) {
+    if (RENDERS.size <= RENDER_CACHE_CAPACITY) {
+      return
+    }
+    if (entry.owner !== null) {
+      continue
+    }
+
+    entry.root.unmount()
+    entry.host.remove()
+    RENDERS.delete(key)
+  }
+}
+
+function drawRender(entry: CachedRender, fence: Fence, isStreaming: boolean, text: string): void {
+  if (entry.fence === fence && entry.isStreaming === isStreaming && entry.text === text) {
+    return
+  }
+
+  entry.fence = fence
+  entry.isStreaming = isStreaming
+  entry.text = text
+  entry.root.render(<SegmentBody fence={fence} isStreaming={isStreaming} text={text} />)
+}
+
+function acquireRender(
+  key: string,
+  target: HTMLDivElement,
+  fence: Fence,
+  isStreaming: boolean,
+  text: string,
+): CachedRender {
+  let entry = RENDERS.get(key)
+
+  if (entry === undefined) {
+    const host = document.createElement('div')
+    host.style.display = 'contents'
+    entry = {
+      host,
+      root: createRoot(host),
+      owner: null,
+      fence: null,
+      isStreaming: null,
+      text: null,
+    }
+    RENDERS.set(key, entry)
+  }
+
+  if (entry.owner !== null && entry.owner !== target) {
+    throw new Error(`Markdown render key mounted more than once: ${key}`)
+  }
+
+  entry.owner = target
+  drawRender(entry, fence, isStreaming, text)
+  target.replaceChildren(entry.host)
+  touchRender(key, entry)
+  trimRenders()
+  return entry
+}
+
+function releaseRender(key: string, target: HTMLDivElement, entry: CachedRender): void {
+  if (entry.owner !== target) {
+    return
+  }
+  entry.owner = null
+  entry.host.remove()
+  touchRender(key, entry)
+  trimRenders()
+}
+
+export interface ProseProps {
+  readonly cacheKey: string
+  readonly text: string
+  readonly isStreaming: boolean
+  /** A place in the timeline, for measure and scale. Never for typography. */
+  readonly className?: string
+}
+
+/*
+ * 一块 markdown，一处配置。
+ *
+ * memo 的边界就是一块：封口之后输入不再变，浅比较即精确比较，这一块此后一帧都不重画。
+ * 静态那一侧不切块、不修补、不预留未闭合标记的过渡，代码块走官方那条静态路径 ——
+ * 一段早已写完的文字不该在每次进入视口时被再解析一遍。
+ */
+const CONTENTS = { display: 'contents' } as const
+
+const ProseSegment = memo(function ProseSegment({
+  cacheKey,
+  fence,
+  isStreaming,
+  text,
+}: {
+  readonly cacheKey: string
+  readonly fence: Fence
+  readonly isStreaming: boolean
+  readonly text: string
+}) {
+  const mount = useRef<HTMLDivElement | null>(null)
+
+  useMountEffect(() => {
+    if (SERVER) {
+      return undefined
+    }
+
+    const target = mount.current
+    if (target === null) {
+      return undefined
+    }
+
+    const entry = acquireRender(cacheKey, target, fence, isStreaming, text)
+    return () => releaseRender(cacheKey, target, entry)
+  }, [cacheKey, fence, isStreaming, text])
+
+  if (SERVER) {
+    return <SegmentBody fence={fence} isStreaming={isStreaming} text={text} />
+  }
+
+  return <div ref={mount} style={CONTENTS} />
 })
 
 /**
@@ -146,7 +294,7 @@ const ProseSegment = memo(function ProseSegment({
  * 回答与思考链是同一种内容，所以由同一个组件画：timeline-prose 是样式表唯一装扮的
  * 作用域，思考链里的围栏因此本来就与回答里的一样。
  */
-export const Prose = memo(function Prose({ className, isStreaming, text }: ProseProps) {
+export const Prose = memo(function Prose({ cacheKey, className, isStreaming, text }: ProseProps) {
   /* 一条流一个切分器：进度跟着这个实例走，两条流同时在长时谁都顶不掉谁。 */
   const [split] = useState(createBlockScanner)
 
@@ -164,6 +312,7 @@ export const Prose = memo(function Prose({ className, isStreaming, text }: Prose
     >
       {blocks.map((block, index) => (
         <ProseSegment
+          cacheKey={`${cacheKey}:${String(block.key)}`}
           fence={block.fence}
           isStreaming={isStreaming && index === blocks.length - 1}
           key={block.key}

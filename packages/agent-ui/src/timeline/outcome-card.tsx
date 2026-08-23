@@ -15,13 +15,14 @@ import { Prose } from './prose'
  */
 
 export interface OutcomeCardProps {
+  readonly cacheKey: string
   readonly prompt: string
   readonly answer?: string | undefined
   readonly note?: string | undefined
   readonly answered?: boolean | undefined
 }
 
-export function OutcomeCard({ answer, answered, note, prompt }: OutcomeCardProps) {
+export function OutcomeCard({ answer, answered, cacheKey, note, prompt }: OutcomeCardProps) {
   return (
     <Surface className="assistant-outcome" data-answered={answered === true ? 'true' : undefined}>
       {/*
@@ -32,7 +33,12 @@ export function OutcomeCard({ answer, answered, note, prompt }: OutcomeCardProps
        * 流里其它任何一段 markdown 走同一个组件，而不是被塞进一个 <p> 里当作
        * 一行纯文本。结局与附注不走：它们是一个选项的名字，不是文档。
        */}
-      <Prose className="assistant-outcome__prompt" isStreaming={false} text={prompt} />
+      <Prose
+        cacheKey={cacheKey}
+        className="assistant-outcome__prompt"
+        isStreaming={false}
+        text={prompt}
+      />
 
       {answer === undefined ? null : <p className="assistant-outcome__answer">{answer}</p>}
 
