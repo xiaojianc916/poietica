@@ -787,7 +787,7 @@
  * 公式不参与「任意处断行」。
  *
  * overflow-wrap 会继承，而 .timeline-message、.timeline-user__text 与
- * .timeline-reasoning__body 都声明了 anywhere —— 那对长 URL 和长中文串是对的，
+ * .timeline-thought 都声明了 anywhere —— 那对长 URL 和长中文串是对的，
  * 对 KaTeX 是灾难：它的排版完全建立在一串精确定位的 inline 盒子上，分数线、
  * 根号的延伸、上下标的基线偏移，全靠这些 span 不被拆开。anywhere 授权浏览器
  * 在任意两个字符之间断行，于是靠近右边缘的公式被从中间劈开，分子分母错位、
