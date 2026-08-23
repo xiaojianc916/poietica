@@ -32,10 +32,10 @@ function broke(id: string, turn: number, at: number): TimelineItem {
   return { at, id, message: '炸了', turn, type: 'error' }
 }
 
-/** 跑没跑由 span 说：有起点而缺终点就是在跑。状态词不进这一层。 */
 function stateOf(
   pages: readonly (readonly TimelineItem[])[],
   spans: readonly TurnSpan[],
+  status: TimelineState['status'] = 'completed',
 ): TimelineState {
   const built = pages.map((items, index) => ({ items, turn: index + 1 }))
 
@@ -44,6 +44,7 @@ function stateOf(
     active: built.at(-1) ?? { items: [], turn: 1 },
     sealed: built.slice(0, -1),
     spans,
+    status,
   }
 }
 
@@ -79,6 +80,7 @@ describe('presentation projection', () => {
       endedAt: 4,
       hasProcess: true,
       isOpen: false,
+      isRunning: false,
       lastFrameAt: 3,
       startedAt: 1,
       turn: 1,
@@ -86,23 +88,25 @@ describe('presentation projection', () => {
     expect(feed.sealAt(1)).toBeUndefined()
   })
 
-  it('leaves a running turn open, and collapses it only when told to', () => {
+  it('keeps a running turn open and ignores a close request', () => {
     const state = stateOf(
       [[said('s1', 1, 1), planned('p1', 1, 2)]],
       [{ lastFrameAt: 2, startedAt: 1, turn: 1 }],
+      'running',
     )
     const feed = selectPresentation(state, AUTO)
 
     expect(idsOf(feed)).toEqual(['s1', 'p1'])
     expect(feed.sealAt(0)).toEqual({
       endedAt: undefined,
-      hasProcess: true,
+      hasProcess: false,
       isOpen: true,
+      isRunning: true,
       lastFrameAt: 2,
       startedAt: 1,
       turn: 1,
     })
-    expect(idsOf(selectPresentation(state, SHUT))).toEqual(['s1'])
+    expect(idsOf(selectPresentation(state, SHUT))).toEqual(['s1', 'p1'])
   })
 
   it('seals a turn it has no clock for, without inventing one', () => {
@@ -116,13 +120,14 @@ describe('presentation projection', () => {
       endedAt: undefined,
       hasProcess: true,
       isOpen: false,
+      isRunning: false,
       lastFrameAt: undefined,
       startedAt: undefined,
       turn: 1,
     })
   })
 
-  it('never folds an aside', () => {
+  it('folds every non-user row before the final text', () => {
     const feed = selectPresentation(
       stateOf(
         [[said('s1', 1, 1), broke('e1', 1, 2), planned('p1', 1, 3), spoke('a1', 1, 4)]],
@@ -131,18 +136,21 @@ describe('presentation projection', () => {
       AUTO,
     )
 
-    expect(idsOf(feed)).toEqual(['s1', 'e1', 'a1'])
+    expect(idsOf(feed)).toEqual(['s1', 'a1'])
   })
 
-  it('keeps a turn that has not spoken yet foldable while it runs', () => {
+  it('keeps no-text output outside an inert seal while the turn runs', () => {
     const state = stateOf(
       [[said('s1', 1, 1), thought('t1', 1, 2), planned('p1', 1, 3)]],
       [{ lastFrameAt: 3, startedAt: 1, turn: 1 }],
+      'running',
     )
+    const feed = selectPresentation(state, AUTO)
 
-    expect(idsOf(selectPresentation(state, AUTO))).toEqual(['s1', 't1', 'p1'])
-    expect(selectPresentation(state, AUTO).sealAt(0)?.hasProcess).toBe(true)
-    expect(idsOf(selectPresentation(state, SHUT))).toEqual(['s1'])
+    expect(idsOf(feed)).toEqual(['s1', 't1', 'p1'])
+    expect(feed.sealAt(0)?.hasProcess).toBe(false)
+    expect(feed.sealAt(0)?.isRunning).toBe(true)
+    expect(idsOf(selectPresentation(state, SHUT))).toEqual(['s1', 't1', 'p1'])
   })
 
   it('hides nothing when a run stops before it says anything', () => {
@@ -154,6 +162,29 @@ describe('presentation projection', () => {
 
     expect(idsOf(feed)).toEqual(['s1', 't1', 'p1'])
     expect(feed.sealAt(0)?.hasProcess).toBe(false)
+    expect(feed.sealAt(0)?.isRunning).toBe(false)
+  })
+
+  it('keeps an inert seal when a started run ends without output', () => {
+    const feed = selectPresentation(
+      stateOf(
+        [[said('s1', 1, 1)]],
+        [{ endedAt: 2, lastFrameAt: 1, startedAt: 1, turn: 1 }],
+        'failed',
+      ),
+      AUTO,
+    )
+
+    expect(idsOf(feed)).toEqual(['s1'])
+    expect(feed.sealAt(0)).toEqual({
+      endedAt: 2,
+      hasProcess: false,
+      isOpen: false,
+      isRunning: false,
+      lastFrameAt: 1,
+      startedAt: 1,
+      turn: 1,
+    })
   })
 
   it('treats the text a stopped run managed to print as the reply', () => {
@@ -164,6 +195,22 @@ describe('presentation projection', () => {
     )
 
     expect(idsOf(selectPresentation(state, AUTO))).toEqual(['s1', 'a1'])
+  })
+
+  it('reprojects a terminal status even when rows and spans keep their references', () => {
+    const running = stateOf(
+      [[said('s1', 1, 1), thought('t1', 1, 2), spoke('a1', 1, 3), planned('p1', 1, 4)]],
+      [{ lastFrameAt: 4, startedAt: 1, turn: 1 }],
+      'running',
+    )
+
+    expect(idsOf(selectPresentation(running, AUTO))).toEqual(['s1', 't1', 'a1', 'p1'])
+
+    const failed: TimelineState = { ...running, status: 'failed' }
+    const feed = selectPresentation(failed, AUTO)
+
+    expect(idsOf(feed)).toEqual(['s1', 'a1', 'p1'])
+    expect(feed.sealAt(0)?.isRunning).toBe(false)
   })
 
   it('folds everything before the newest printed text, not one row at a time', () => {
@@ -205,6 +252,26 @@ describe('presentation projection', () => {
     )
 
     expect(idsOf(feed)).toEqual(['s1', 'a1', 'p1'])
+  })
+
+  it('does not pull older text across an aside into the final reply', () => {
+    const feed = selectPresentation(
+      stateOf(
+        [
+          [
+            said('s1', 1, 1),
+            spoke('a1', 1, 2, '较早文本'),
+            broke('e1', 1, 3),
+            spoke('a2', 1, 4, '最终文本'),
+          ],
+        ],
+        [{ endedAt: 5, lastFrameAt: 4, startedAt: 1, turn: 1 }],
+        'failed',
+      ),
+      AUTO,
+    )
+
+    expect(idsOf(feed)).toEqual(['s1', 'a2'])
   })
 
   it('anchors the reply action on the last row of a settled turn', () => {

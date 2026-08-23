@@ -16,11 +16,12 @@ export interface TurnSealProps {
   readonly turn: number
   /** 缺席表示这台机器没有记下这一轮的两端：不报耗时，也不空转秒表。 */
   readonly startedAt: number | undefined
-  /** 日志记录到的终点。有起点而缺终点，就是这一轮还在跑。 */
+  /** 日志记录到的终点，只负责耗时。 */
   readonly endedAt: number | undefined
   /** 运行中的耗时以它为终点。缺席表示这一轮还没收到过任何一帧。 */
   readonly lastFrameAt: number | undefined
   readonly hasProcess: boolean
+  readonly isRunning: boolean
   readonly isOpen: boolean
   /** 交出人要的那个状态，不是一次翻转：默认开合由投影按运行事实给，这里不复制它。 */
   readonly onToggle: (turn: number, isOpen: boolean) => void
@@ -83,24 +84,23 @@ function Seal({
   endedAt,
   hasProcess,
   isOpen,
+  isRunning,
   lastFrameAt,
   onToggle,
   startedAt,
   turn,
 }: TurnSealProps) {
-  /* 跑没跑只有这一个判据，文案与秒表同读它：落定的那些一个都不订阅时钟。 */
-  const running = startedAt !== undefined && endedAt === undefined
-  const now = useSecond(running)
+  const now = useSecond(isRunning)
   const elapsed = elapsedOf(
     startedAt,
     endedAt,
-    running ? Math.max(now, lastFrameAt ?? 0) : lastFrameAt,
+    isRunning ? Math.max(now, lastFrameAt ?? 0) : lastFrameAt,
   )
-  const phase = running ? '正在处理' : '已处理'
+  const phase = isRunning ? '正在处理' : '已处理'
   const label = elapsed === undefined ? phase : `${phase} ${spell(elapsed)}`
 
-  /* 横线横贯整列，命中区只属于里面那枚按钮：没有过程可收时连按钮都不出。 */
-  if (!hasProcess) {
+  /* 运行中不会折叠；没有过程时也没有可操作的 disclosure。 */
+  if (isRunning || !hasProcess) {
     return (
       <div className="turn-seal-line">
         <p className="turn-seal">

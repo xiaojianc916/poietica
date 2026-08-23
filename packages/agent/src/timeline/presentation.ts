@@ -8,6 +8,7 @@ import {
   type TurnPage,
   type TurnSpan,
 } from './timeline-contract'
+import { selectIsBusy } from './timeline-queries'
 
 /**
  * 转录的唯一投影：一段一次派生，屏幕按下标取行。
@@ -38,6 +39,8 @@ export interface TurnSealPlan {
   /** 运行中的耗时以它为终点，所以秒表不会超过实际收帧的跨度。 */
   readonly lastFrameAt: number | undefined
   readonly hasProcess: boolean
+  /** 生命周期来自 TimelineState.status；时间戳只负责耗时。 */
+  readonly isRunning: boolean
   readonly isOpen: boolean
 }
 
@@ -66,7 +69,7 @@ export interface Presentation {
   readonly indexOf: (id: string) => number
 }
 
-/** 旁白：既不是过程也不是回答，永不折叠。 */
+/** 旁白不参与回复分段；有最终正文时仍随之前的过程一起折叠。 */
 const ASIDE: ReadonlySet<TimelineItem['type']> = new Set(['error', 'permission', 'question'])
 /* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
@@ -108,9 +111,9 @@ interface Stanza {
 /** 一次运行的全部派生。TurnPage 是缓存单位，也是封条的唯一所有者。 */
 interface Segment {
   readonly span: TurnSpan | undefined
-  /** 这一轮还在收帧：有起点而缺终点。封口的段一律为假。 */
+  /** 这一轮是否仍允许接收内容，由 TimelineState.status 唯一决定。 */
   readonly running: boolean
-  /** 人亲手定过的开合；缺席就跟着 running 走。 */
+  /** 人亲手定过的终止后开合；运行中不读取。 */
   readonly picked: boolean | undefined
   readonly rows: readonly FeedRow[]
   readonly groups: ReadonlyMap<string, ToolGroupPlan>
@@ -127,6 +130,7 @@ interface Held {
   readonly active: TurnPage
   readonly spans: readonly TurnSpan[]
   readonly chosen: ReadonlyMap<number, boolean>
+  readonly running: boolean
   readonly turns: readonly ConversationTurn[]
   readonly result: Presentation
 }
@@ -185,29 +189,26 @@ function boundsIn(rows: readonly FeedRow[]): readonly number[] {
   return out[0] === 0 ? out : [-1, ...out]
 }
 
-/**
- * 最终回复的起点；等于 until 表示这一轮一句都没说。
- *
- * 先认最后一条正文，再从它往回收拢连续的那一段。反过来（从末行往回收）会把「末尾挂着一条
- * 思考或一次收尾调用」判成「什么都没说」，于是已经写出来的回复也被收进封条 —— 那不是折叠
- * 过程，那是把答案藏了。旁白（报错、审批、提问）不打断这一段：它们既不是过程也不是回答。
- */
-function replyFrom(rows: readonly FeedRow[], from: number, until: number): number {
-  let last = -1
-
+/** 最后一段可见正文的位置；-1 表示这一轮没有正文。 */
+function finalTextIn(rows: readonly FeedRow[], from: number, until: number): number {
   for (let i = until - 1; i >= from; i -= 1) {
     if (rows[i]?.item.type === 'agent_text') {
-      last = i
-
-      break
+      return i
     }
   }
 
-  if (last < 0) {
+  return -1
+}
+
+/** 回复操作可向前合并相邻正文；封条边界不使用这条合并规则。 */
+function replyFrom(rows: readonly FeedRow[], from: number, until: number): number {
+  let first = finalTextIn(rows, from, until)
+
+  if (first < 0) {
     return until
   }
 
-  for (let i = last - 1; i >= from; i -= 1) {
+  for (let i = first - 1; i >= from; i -= 1) {
     const type = rows[i]?.item.type
 
     if (type === undefined || ASIDE.has(type)) {
@@ -218,20 +219,20 @@ function replyFrom(rows: readonly FeedRow[], from: number, until: number): numbe
       break
     }
 
-    last = i
+    first = i
   }
 
-  return last
+  return first
 }
 
-/** 边界之前的过程行。人说的话与旁白永不折叠。 */
+/** 边界之前除用户消息外的全部内容。 */
 function foldFrom(rows: readonly FeedRow[], frontier: number): readonly number[] {
   const out: number[] = []
 
   for (let i = 0; i < frontier; i += 1) {
     const type = rows[i]?.item.type
 
-    if (type === undefined || type === SAID || ASIDE.has(type)) {
+    if (type === undefined || type === SAID) {
       continue
     }
 
@@ -241,7 +242,7 @@ function foldFrom(rows: readonly FeedRow[], frontier: number): readonly number[]
   return out
 }
 
-/** 这一轮有没有正文：只有旁白的一轮不盖封条。 */
+/** 这一轮有没有正文；旁白不算正文。 */
 function bodyIn(rows: readonly FeedRow[], from: number, until: number): boolean {
   for (let i = from; i < until; i += 1) {
     const type = rows[i]?.item.type
@@ -425,23 +426,21 @@ function buildSegment(
   const all = rowsOf(page, running)
   const anchor = all.findIndex((row) => row.item.type === SAID)
   const bounds = boundsIn(all)
-  const answer = replyFrom(all, 0, all.length)
+  const frontier = finalTextIn(all, 0, all.length)
   /*
-   * 收进封条的是最终回复之前的全部过程，一次收干净。开合默认跟着 running 走：跑着摊开，
-   * 落定收起，人点过以人为准。
-   *
-   * 一句都还没说的一轮分两种：还在跑是「话没说到」，整段都是过程，人仍收得起来；已经停了
-   * （断连、取消、崩在半路）就是「屏幕上剩下什么，什么就是回复」，没有过程可收。
+   * 边界只看最后一段可见正文；没有正文就没有过程。生命周期只决定是否展示这份折叠结果。
    */
-  const isOpen = picked ?? running
-  const process = foldFrom(all, answer === all.length && !running ? 0 : answer)
+  const process = foldFrom(all, frontier)
+  const isOpen = running || (picked ?? false)
+  const hasBody = bodyIn(all, 0, all.length)
   const seal: TurnSealPlan | undefined =
-    anchor < 0 || !bodyIn(all, 0, all.length)
+    anchor < 0 || (!hasBody && span?.startedAt === undefined)
       ? undefined
       : {
           endedAt: span?.endedAt,
           hasProcess: process.length > 0,
           isOpen,
+          isRunning: running,
           lastFrameAt: span?.lastFrameAt,
           startedAt: span?.startedAt,
           turn: page.turn,
@@ -676,11 +675,7 @@ function railOf(
 }
 
 /**
- * chosen 是人亲手为某一轮定下的开合；没有他的话，开合跟着这一轮跑不跑走。
- *
- * 「跑不跑」只有一个产地：这一轮那条 span 有起点而缺终点。封口的段一律算停了 —— 封口
- * 本身就是「它过去了」。会话忙不忙是上一层的事实，这里不借；跑着摊开、落定收起、人点过
- * 以人为准，与 primitives/disclosure 给整个界面定下的形状同一条。
+ * 运行中无条件展开；终止后才读取用户选择。生命周期来自状态机，span 只装饰耗时。
  */
 export function selectPresentation(
   state: TimelineState,
@@ -688,13 +683,15 @@ export function selectPresentation(
 ): Presentation {
   const anchor = state.sealed[0] ?? state.active
   const held = FEEDS.get(anchor)
+  const running = selectIsBusy(state)
 
   if (
     held !== undefined &&
     held.sealed === state.sealed &&
     held.active === state.active &&
     held.spans === state.spans &&
-    held.chosen === chosen
+    held.chosen === chosen &&
+    held.running === running
   ) {
     return held.result
   }
@@ -711,13 +708,8 @@ export function selectPresentation(
     count += segment.rows.length
   }
 
-  const open = spanOf(state.spans, state.active.turn)
-  const tail = segmentOf(
-    state.active,
-    open,
-    open?.startedAt !== undefined && open.endedAt === undefined,
-    chosen.get(state.active.turn),
-  )
+  const activeSpan = spanOf(state.spans, state.active.turn)
+  const tail = segmentOf(state.active, activeSpan, running, chosen.get(state.active.turn))
 
   segments.push(tail)
   offsets.push(count)
@@ -813,6 +805,7 @@ export function selectPresentation(
     active: state.active,
     chosen,
     result,
+    running,
     sealed: state.sealed,
     spans: state.spans,
     turns,

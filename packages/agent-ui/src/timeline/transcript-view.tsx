@@ -78,6 +78,7 @@ export function TranscriptView({
         endedAt={plan.endedAt}
         hasProcess={plan.hasProcess}
         isOpen={plan.isOpen}
+        isRunning={plan.isRunning}
         lastFrameAt={plan.lastFrameAt}
         onToggle={chooseTurn}
         startedAt={plan.startedAt}
