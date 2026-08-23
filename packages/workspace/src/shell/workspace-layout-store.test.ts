@@ -60,6 +60,22 @@ describe('workspaceLayoutStore', () => {
     workspaceLayoutStore.setSidebarWidth(WORKSPACE_LAYOUT.sidebar.defaultWidth)
   })
 
+  it('浏览器只归一条对话，重复提交同一条不换引用', () => {
+    workspaceLayoutStore.setBrowserThread('thread-a')
+
+    const bound = workspaceLayoutStore.getSnapshot()
+
+    expect(bound.browserThread).toBe('thread-a')
+
+    workspaceLayoutStore.setBrowserThread('thread-a')
+
+    expect(workspaceLayoutStore.getSnapshot()).toBe(bound)
+
+    workspaceLayoutStore.setBrowserThread(null)
+
+    expect(workspaceLayoutStore.getSnapshot().browserThread).toBeNull()
+  })
+
   /* drag 不是吸收态：卡在粗线的那类回归就是从这里开始的。 */
   it('分隔条交互态可以从拖拽回到静止', () => {
     workspaceLayoutStore.setSplitterActivity('hover')

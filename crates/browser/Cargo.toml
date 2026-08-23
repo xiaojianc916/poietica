@@ -7,6 +7,8 @@ license.workspace = true
 publish = false
 
 [dependencies]
+# 图标字节要变成渲染层画得出的 data URL；base64 的填充与变体不手搓。
+base64.workspace = true
 url.workspace = true
 
 [lints]

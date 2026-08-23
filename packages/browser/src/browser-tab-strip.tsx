@@ -2,7 +2,7 @@ import { ChevronDown, Globe, LoaderCircle, Plus, Search, X } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 
 import type { BrowserPanelStore } from './browser-panel-store'
-import type { BrowserHostView } from './browser-port'
+import type { BrowserHostView, BrowserTabView } from './browser-port'
 
 /*
  * 标签条与标签下拉。
@@ -65,11 +65,7 @@ export function BrowserTabStrip({
                 title={tab.url ?? tab.title}
                 type="button"
               >
-                {tab.loading ? (
-                  <LoaderCircle aria-hidden className="size-3.5 shrink-0 animate-spin opacity-60" />
-                ) : (
-                  <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
-                )}
+                <TabIcon tab={tab} />
                 <span className="min-w-0 truncate text-xs">{tab.title}</span>
               </button>
               <button
@@ -124,6 +120,19 @@ export function BrowserTabStrip({
       ) : null}
     </div>
   )
+}
+
+/* 标签的脸：装载中转圈，有站点图标就画它，否则地球。三态一处，两个列表共用。 */
+function TabIcon({ tab }: { readonly tab: BrowserTabView }) {
+  if (tab.loading) {
+    return <LoaderCircle aria-hidden className="size-3.5 shrink-0 animate-spin opacity-60" />
+  }
+
+  if (tab.favicon === null) {
+    return <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
+  }
+
+  return <img alt="" className="size-3.5 shrink-0 rounded-sm" src={tab.favicon} />
 }
 
 function matches(title: string, url: string | null, needle: string): boolean {

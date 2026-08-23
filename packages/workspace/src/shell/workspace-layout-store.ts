@@ -19,7 +19,8 @@ export type SplitterRegion = 'sidebar' | 'browser'
 export interface WorkspaceLayoutState {
   readonly sidebarOpen: boolean
   readonly sidebarWidth: number
-  readonly browserOpen: boolean
+  /** 哪一条对话把浏览器开着。null = 没有对话开着它。 */
+  readonly browserThread: string | null
   readonly browserWidth: number
   readonly splitter: SplitterActivity
   readonly splitterRegion: SplitterRegion
@@ -29,7 +30,7 @@ export interface WorkspaceLayoutState {
 interface LayoutIntent {
   readonly sidebarOpen: boolean
   readonly sidebarWidth: number
-  readonly browserOpen: boolean
+  readonly browserThread: string | null
   readonly browserWidth: number
 }
 
@@ -38,7 +39,7 @@ const { sidebar, browser } = WORKSPACE_LAYOUT
 const DEFAULT_INTENT: LayoutIntent = {
   sidebarOpen: true,
   sidebarWidth: sidebar.defaultWidth,
-  browserOpen: false,
+  browserThread: null,
   browserWidth: browser.defaultWidth,
 }
 
@@ -55,7 +56,7 @@ const width = (clamp: (value: number) => number, fallback: number) =>
 const PersistedLayoutSchema = v.object({
   sidebarOpen: v.fallback(v.boolean(), DEFAULT_INTENT.sidebarOpen),
   sidebarWidth: width(clampSidebarWidth, DEFAULT_INTENT.sidebarWidth),
-  browserOpen: v.fallback(v.boolean(), DEFAULT_INTENT.browserOpen),
+  browserThread: v.fallback(v.nullable(v.string()), DEFAULT_INTENT.browserThread),
   browserWidth: width(clampBrowserWidth, DEFAULT_INTENT.browserWidth),
 })
 
@@ -89,7 +90,7 @@ function publish(): void {
   if (
     next.sidebarOpen === snapshot.sidebarOpen &&
     next.sidebarWidth === snapshot.sidebarWidth &&
-    next.browserOpen === snapshot.browserOpen &&
+    next.browserThread === snapshot.browserThread &&
     next.browserWidth === snapshot.browserWidth &&
     next.splitter === snapshot.splitter &&
     next.splitterRegion === snapshot.splitterRegion
@@ -156,11 +157,9 @@ export const workspaceLayoutStore = {
     settle({ ...intent, sidebarWidth: clampSidebarWidth(value) })
   },
 
-  setBrowserOpen: (open: boolean): void => {
-    settle({ ...intent, browserOpen: open })
-  },
-  toggleBrowser: (): void => {
-    settle({ ...intent, browserOpen: !intent.browserOpen })
+  /* 开合就是归属：浏览器归这条对话，或者不归任何人。 */
+  setBrowserThread: (threadId: string | null): void => {
+    settle({ ...intent, browserThread: threadId })
   },
   setBrowserWidth: (value: number): void => {
     settle({ ...intent, browserWidth: clampBrowserWidth(value) })

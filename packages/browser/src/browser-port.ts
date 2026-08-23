@@ -12,6 +12,8 @@ export interface BrowserTabView {
   readonly title: string
   /** 内核此刻是否在装载这一页；标签条用它把地球换成转圈。 */
   readonly loading: boolean
+  /** 站点图标的 data URL；缺席就是地球。 */
+  readonly favicon: string | null
 }
 
 export interface BrowserClosedTabView {

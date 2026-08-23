@@ -17,6 +17,7 @@ import type {
 import {
   SidebarFooter,
   SurfaceHost,
+  useWorkspaceLayoutState,
   WorkbenchTabs,
   WorkspaceShell,
   WorkspaceSidebar,
@@ -156,6 +157,14 @@ export function WorkspaceContainer({
   /* 侧栏高亮的那一行就是正在看的那一格：身份来自工作台，没有第二份状态。 */
   const activeConversationId =
     workbench.activeSurface.kind === 'conversation' ? workbench.activeSurface.threadId : null
+  const { browserThread } = useWorkspaceLayoutState()
+
+  /*
+   * 浏览器在不在场，一处判定：它归 browserThread 那条对话，而那条对话此刻得真的
+   * 在屏幕上。停靠位与原生 webview 的可见性都读这一个布尔。
+   */
+  const dockBrowser =
+    !isSettingsOpen && browserThread !== null && browserThread === activeConversationId
 
   /*
    * 高亮只有一处：看着一条对话时，亮的是列表里那一行，导航不陪着亮 ——
@@ -295,7 +304,9 @@ export function WorkspaceContainer({
          * 跨表面与设置往返不丢。
          */
         <div className="flex h-full min-h-0 min-w-0 flex-col">
-          {workbench.activeSurface.kind === 'conversation' ? <ConversationHeader /> : null}
+          {workbench.activeSurface.kind === 'conversation' ? (
+            <ConversationHeader conversationId={workbench.activeSurface.threadId} />
+          ) : null}
           <div className="relative min-h-0 min-w-0 flex-1">
             {workbench.activeSurface.kind === 'conversation' ? (
               <div className="conversation-veil" data-assistant-skin />
@@ -309,11 +320,8 @@ export function WorkspaceContainer({
 
     /* 浏览器是外壳的第三列，不是主区里的一块：开合走与侧栏同一条动画。 */
     browser: {
-      content: (
-        <BrowserDock
-          surfaceActive={!isSettingsOpen && workbench.activeSurface.kind === 'conversation'}
-        />
-      ),
+      content: <BrowserDock conversationId={activeConversationId} isDocked={dockBrowser} />,
+      isDocked: dockBrowser,
     },
   }
 

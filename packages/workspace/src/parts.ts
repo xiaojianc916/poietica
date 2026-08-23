@@ -20,9 +20,22 @@ export interface WorkspacePart {
 }
 
 /**
+ * 浏览器那一格。
+ *
+ * 它比别的格多一个事实：在不在场。浏览器归开着它的那条对话（布局意图里的
+ * browserThread），而那条对话此刻是不是在屏幕上只有组合根知道 —— 停靠与
+ * 原生 webview 的可见性因此读同一个布尔，不可能各说各话。
+ */
+export interface WorkspaceBrowserPart extends WorkspacePart {
+  readonly isDocked: boolean
+}
+
+/**
  * Part 表。
  *
  * 每个停靠位都必须有内容：可选插槽在这张表里没有位置 —— 一个没有生产者的槽
  * 永远编译得过，而它的消费方要为一个不会出现的值一直留着分支。
  */
-export type WorkspaceParts = Record<WorkspacePartId, WorkspacePart>
+export type WorkspaceParts = Record<Exclude<WorkspacePartId, 'browser'>, WorkspacePart> & {
+  readonly browser: WorkspaceBrowserPart
+}

@@ -21,16 +21,19 @@ function useLayout() {
   )
 }
 
-export function BrowserPanelToggle() {
-  const { browserOpen } = useLayout()
-  const label = browserOpen ? '收起浏览器' : '打开浏览器'
+export function BrowserPanelToggle({ conversationId }: { readonly conversationId: string }) {
+  const { browserThread } = useLayout()
+  const held = browserThread === conversationId
+  const label = held ? '收起浏览器' : '打开浏览器'
 
   return (
     <button
       aria-label={label}
-      aria-pressed={browserOpen}
+      aria-pressed={held}
       className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 aria-pressed:bg-current/10 aria-pressed:opacity-100 hover:bg-current/10 hover:opacity-100"
-      onClick={workspaceLayoutStore.toggleBrowser}
+      onClick={() => {
+        workspaceLayoutStore.setBrowserThread(held ? null : conversationId)
+      }}
       title={label}
       type="button"
     >
@@ -39,7 +42,14 @@ export function BrowserPanelToggle() {
   )
 }
 
-export function BrowserDock({ surfaceActive }: { readonly surfaceActive: boolean }) {
+export interface BrowserDockProps {
+  /** 屏幕上这一刻的那条对话；不在对话里（设置、别的表面）就是 null。 */
+  readonly conversationId: string | null
+  /** 这一格在不在场。与外壳的停靠位读同一个布尔。 */
+  readonly isDocked: boolean
+}
+
+export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
   const layout = useLayout()
   const state = useSyncExternalStore(
     browserPanelStore.subscribe,
@@ -50,7 +60,7 @@ export function BrowserDock({ surfaceActive }: { readonly surfaceActive: boolean
   /* 手动关过就静音，手动开恢复。会话内状态，不落盘。 */
   const muted = useRef(false)
   const busy = useRef(false)
-  const wasOpen = useRef(layout.browserOpen)
+  const wasHeld = useRef(layout.browserThread !== null)
 
   /* start() 幂等且不持有订阅，effect 没有东西要清理。 */
   useEffect(() => {
@@ -59,36 +69,45 @@ export function BrowserDock({ surfaceActive }: { readonly surfaceActive: boolean
 
   useEffect(() => {
     /* 浮层开着时原生 webview 让位：它是独立窗口，永远压过主窗口的 HTML 弹窗。 */
-    browserPanelStore.setVisible(layout.browserOpen && surfaceActive && !state.overlayOpen)
-  }, [layout.browserOpen, surfaceActive, state.overlayOpen])
+    browserPanelStore.setVisible(isDocked && !state.overlayOpen)
+  }, [isDocked, state.overlayOpen])
 
   useEffect(() => {
-    if (layout.browserOpen !== wasOpen.current) {
-      muted.current = wasOpen.current
-      wasOpen.current = layout.browserOpen
+    const held = layout.browserThread !== null
+
+    if (held !== wasHeld.current) {
+      muted.current = wasHeld.current
+      wasHeld.current = held
     }
-  }, [layout.browserOpen])
+  }, [layout.browserThread])
 
   /*
    * agent 在后台驱动浏览器时把面板亮出来：看「有地址的标签在装载」的 0→1 边沿。
-   * 空白页（url 缺席）不算忙 —— 预热不该弹面板。
+   * 空白页（url 缺席）不算忙 —— 预热不该弹面板。已经归属某条对话时
+   * 不抢：那条对话回到屏幕上时它自然在场，别的对话不该被弹出一个浏览器。
    */
   useEffect(() => {
     const loading = state.host?.tabs.some((tab) => tab.loading && tab.url !== null) ?? false
 
-    if (loading && !busy.current && !layout.browserOpen && !muted.current) {
-      workspaceLayoutStore.setBrowserOpen(true)
+    if (
+      loading &&
+      !busy.current &&
+      !muted.current &&
+      layout.browserThread === null &&
+      conversationId !== null
+    ) {
+      workspaceLayoutStore.setBrowserThread(conversationId)
     }
 
     busy.current = loading
-  }, [state.host, layout.browserOpen])
+  }, [state.host, layout.browserThread, conversationId])
 
   if (state.host === null) {
     /* 快照还没到或宿主没接上：如实说，不画一个假浏览器。 */
     return (
       <div className="flex h-full flex-col">
         <div className="flex h-8 items-center justify-end border-b border-current/10 pr-2.5">
-          <BrowserPanelToggle />
+          {conversationId === null ? null : <BrowserPanelToggle conversationId={conversationId} />}
         </div>
         <p className="p-4 text-xs opacity-50">浏览器宿主没有回应。</p>
       </div>
@@ -99,7 +118,9 @@ export function BrowserDock({ surfaceActive }: { readonly surfaceActive: boolean
     <BrowserPanel
       layoutSignal={layout}
       store={browserPanelStore}
-      trailing={<BrowserPanelToggle />}
+      trailing={
+        conversationId === null ? null : <BrowserPanelToggle conversationId={conversationId} />
+      }
     />
   )
 }

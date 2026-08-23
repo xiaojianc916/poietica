@@ -16,9 +16,10 @@ import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layou
  * 布局意图与拖拽态属于 workspaceLayoutStore。
  */
 export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
-  const { sidebarWidth, browserOpen, browserWidth, splitter, splitterRegion } =
-    useWorkspaceLayoutState()
-  const { setSidebarOpen, setSidebarWidth, setBrowserOpen, setBrowserWidth } = workspaceLayoutStore
+  const { sidebarWidth, browserWidth, splitter, splitterRegion } = useWorkspaceLayoutState()
+  const { setSidebarOpen, setSidebarWidth, setBrowserThread, setBrowserWidth } =
+    workspaceLayoutStore
+  const dockBrowser = parts.browser.isDocked
 
   /* 停靠是呈现判据：列宽与分隔线的可见性都由它派生。 */
   const dockSidebar = useIsSidebarDocked()
@@ -35,9 +36,9 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
       <WorkspaceFrame
         browser={
           <BrowserRegion
-            isDocked={browserOpen}
+            isDocked={dockBrowser}
             onClose={() => {
-              setBrowserOpen(false)
+              setBrowserThread(null)
             }}
             onResize={setBrowserWidth}
             width={browserWidth}
@@ -45,13 +46,13 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
             {parts.browser.content}
           </BrowserRegion>
         }
-        browserColumnWidth={browserOpen ? browserWidth : 0}
+        browserColumnWidth={dockBrowser ? browserWidth : 0}
         chrome={
           <header className="workspace-shell__chrome min-h-0 min-w-0 bg-chrome">
             {parts.chrome.content}
           </header>
         }
-        isBrowserDocked={browserOpen}
+        isBrowserDocked={dockBrowser}
         isSidebarDocked={dockSidebar}
         main={
           <section

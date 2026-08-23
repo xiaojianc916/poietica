@@ -13,8 +13,8 @@ import './conversation-header.css'
  * browserPanelStore 快照里不存在的 open 字段，条件恒假，dock 打开后
  * 这里仍画着一个开关，与角位那颗并存成两颗。
  */
-export function ConversationHeader() {
-  const { browserOpen } = useSyncExternalStore(
+export function ConversationHeader({ conversationId }: { readonly conversationId: string }) {
+  const { browserThread } = useSyncExternalStore(
     workspaceLayoutStore.subscribe,
     workspaceLayoutStore.getSnapshot,
     workspaceLayoutStore.getSnapshot,
@@ -22,7 +22,9 @@ export function ConversationHeader() {
 
   return (
     <header className="conversation-header" data-assistant-skin>
-      {browserOpen ? null : <BrowserPanelToggle />}
+      {browserThread === conversationId ? null : (
+        <BrowserPanelToggle conversationId={conversationId} />
+      )}
     </header>
   )
 }

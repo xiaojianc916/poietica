@@ -5,7 +5,9 @@
 //! 这一层出现 —— 宿主接线归 src-tauri 的 browser.rs，本 crate 必须能在
 //! 没有窗口的进程里跑完全部单测。
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
+
+use base64::Engine as _;
 
 /// 最近关闭的环的容量。第 11 条进来时最老的一条出去。
 pub const RECENTLY_CLOSED_CAP: usize = 10;
@@ -41,6 +43,8 @@ pub struct Tabs {
     active: Option<TabId>,
     recently_closed: VecDeque<ClosedTab>,
     next_id: TabId,
+    /// 站点图标按来源存一份：同源的标签共用，标签上不留副本。
+    icons: HashMap<String, String>,
 }
 
 impl Tabs {
@@ -96,6 +100,17 @@ impl Tabs {
                 .or_else(|| self.entries.get(index.wrapping_sub(1)))
                 .map(|tab| tab.id);
         }
+
+        /* 图标随最后一个用它的标签一起走：这张表的上界是开着的来源数。 */
+        let entries = &self.entries;
+
+        self.icons.retain(|origin, _| {
+            entries
+                .iter()
+                .filter_map(|tab| tab.url.as_deref())
+                .filter_map(origin_of)
+                .any(|live| live == *origin)
+        });
 
         true
     }
@@ -159,6 +174,34 @@ impl Tabs {
         let id = self.open(Some(record.url.clone()));
 
         Some((id, record.url))
+    }
+
+    /// 屏幕上该出现的那一页：活动标签，且它真的有地址。
+    /// 空白页没有画面 —— 预热出来的内核实例不该盖在新标签页上。
+    #[must_use]
+    pub fn showing(&self) -> Option<TabId> {
+        self.entries
+            .iter()
+            .find(|tab| Some(tab.id) == self.active && tab.url.is_some())
+            .map(|tab| tab.id)
+    }
+
+    #[must_use]
+    pub fn has_icon(&self, origin: &str) -> bool {
+        self.icons.contains_key(origin)
+    }
+
+    pub fn note_icon(&mut self, origin: String, icon: String) {
+        self.icons.insert(origin, icon);
+    }
+
+    /// 一个标签此刻该画的图标：由它的地址派生，不是它自己的字段。
+    #[must_use]
+    pub fn icon(&self, id: TabId) -> Option<&str> {
+        let tab = self.entries.iter().find(|tab| tab.id == id)?;
+        let origin = origin_of(tab.url.as_deref()?)?;
+
+        self.icons.get(&origin).map(String::as_str)
     }
 
     #[must_use]
@@ -226,6 +269,44 @@ fn display_host(url: &str) -> String {
         .ok()
         .and_then(|parsed| parsed.host_str().map(str::to_owned))
         .unwrap_or_else(|| url.to_owned())
+}
+
+/// 图标的归属键：方案加权限部分。没有主机的地址（about:blank）没有图标。
+fn origin_of(url: &str) -> Option<String> {
+    let parsed = url::Url::parse(url).ok()?;
+
+    matches!(parsed.scheme(), "http" | "https").then(|| parsed.origin().ascii_serialization())
+}
+
+/// 一页的图标去哪里取：来源，以及来源根上的 /favicon.ico。
+///
+/// 只认这一条众所皆知的默认位置。文档里 <link rel="icon"> 声明的路径要读 HTML
+/// 才知道，而手写 HTML 解析必漏边界；取不到时标签条画地球。
+#[must_use]
+pub fn icon_probe(page: &str) -> Option<(String, String)> {
+    let origin = origin_of(page)?;
+    let probe = url::Url::parse(&origin).ok()?.join("/favicon.ico").ok()?;
+
+    Some((origin, probe.into()))
+}
+
+/// 把取回的字节编成标签条画得出的 data URL。
+///
+/// 只收 image/*：服务器给缺失的图标回 200 加一页 HTML 是常见做法，那不是图标。
+#[must_use]
+pub fn icon_data_url(content_type: &str, bytes: &[u8]) -> Option<String> {
+    const MAX_ICON_BYTES: usize = 128 * 1024;
+
+    let mime = content_type.split(';').next()?.trim();
+
+    if !mime.starts_with("image/") || bytes.is_empty() || bytes.len() > MAX_ICON_BYTES {
+        return None;
+    }
+
+    Some(format!(
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
 }
 
 #[cfg(test)]
@@ -394,6 +475,48 @@ mod tests {
         assert_eq!(
             normalize_address("localhost").as_deref(),
             Some("http://localhost/")
+        );
+    }
+
+    #[test]
+    fn a_blank_active_tab_has_nothing_to_show() {
+        let mut tabs = Tabs::new();
+        let blank = tabs.open(None);
+
+        assert_eq!(tabs.active_id(), Some(blank));
+        assert_eq!(tabs.showing(), None);
+
+        tabs.navigate(blank, "https://example.com/");
+        assert_eq!(tabs.showing(), Some(blank));
+    }
+
+    #[test]
+    fn icons_are_shared_by_origin_and_leave_with_the_last_tab() {
+        let mut tabs = Tabs::new();
+        let first = tabs.open(Some("https://example.com/a".to_owned()));
+        let second = tabs.open(Some("https://example.com/b".to_owned()));
+
+        let (origin, probe) = icon_probe("https://example.com/a").unwrap();
+        assert_eq!(probe, "https://example.com/favicon.ico");
+
+        tabs.note_icon(origin.clone(), "data:image/gif;base64,R0lGODlh".to_owned());
+
+        assert_eq!(tabs.icon(first), tabs.icon(second));
+
+        tabs.close(first);
+        assert!(tabs.has_icon(&origin));
+
+        tabs.close(second);
+        assert!(!tabs.has_icon(&origin));
+    }
+
+    #[test]
+    fn only_image_bytes_become_an_icon() {
+        assert!(icon_data_url("text/html; charset=utf-8", b"<!doctype html>").is_none());
+        assert!(icon_data_url("image/png", b"").is_none());
+        assert_eq!(
+            icon_data_url("image/gif;charset=binary", b"GIF89a").as_deref(),
+            Some("data:image/gif;base64,R0lGODlh")
         );
     }
 }

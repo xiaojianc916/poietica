@@ -13,7 +13,7 @@
 //!     与应用 UI webview 的用户数据完全分开；
 //!   · 标签 webview 只加载外部 http(s) 地址，capabilities/main-window.json
 //!     没有 remote 声明，外站 origin 在 Tauri 里调不动任何 IPC 命令；
-//!   · 空白页不建 webview —— 没有导航就没有内核实例。
+//!   · 空白页没有画面 —— 预热出的内核实例始终隐藏，新标签页由渲染层画。
 //!
 //! 命令都不返回 Result：与 commands/window.rs 同一条规矩 —— 界面动作打不动
 //! 内核不是调用方要接的错误，记进原生日志。
@@ -130,6 +130,8 @@ pub struct BrowserTab {
     pub url: Option<String>,
     pub title: String,
     pub loading: bool,
+    /// 站点图标的 data URL。缺席时渲染层画地球。
+    pub favicon: Option<String>,
 }
 
 /// 最近关闭的一条，够画出下拉里的那一行。
@@ -214,6 +216,7 @@ impl BrowserHost {
                     url: tab.url.clone(),
                     title: tab.title.clone(),
                     loading: tab.loading,
+                    favicon: tabs.icon(tab.id).map(str::to_owned),
                 })
                 .collect(),
             active_tab_id: tabs.active_id(),
@@ -252,7 +255,72 @@ fn note_url(app: &AppHandle, id: u32, url: &str) {
         tabs.note_url(id, url);
     }
 
+    fetch_icon(app, url);
     publish(app);
+}
+
+/// 取一页的站点图标，落进模型。
+///
+/// 两个触发点对应两个事件源：我们发起的导航（drive）与页面发起的导航
+/// （note_url）；图标按来源存一份，has_icon 让重复触发与同源第二个标签免费。
+///
+/// 走 HTTP 而不是内核的图标事件：WebView2 的 FaviconChanged 只能经 COM 拿，
+/// 而根 Cargo.toml 是 unsafe_code = "deny"，那条路在这个仓库里不存在。
+/// 失败只是没有图标，不打断任何操作。
+fn fetch_icon(app: &AppHandle, page: &str) {
+    let Some((origin, probe)) = poietica_browser_native::icon_probe(page) else {
+        return;
+    };
+
+    let known = {
+        let host = app.state::<BrowserHost>();
+        lock(&host.tabs).has_icon(&origin)
+    };
+
+    if known {
+        return;
+    }
+
+    let handle = app.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let Ok(client) = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+        else {
+            return;
+        };
+
+        let Ok(response) = client.get(&probe).send().await else {
+            return;
+        };
+
+        if !response.status().is_success() {
+            return;
+        }
+
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_owned();
+
+        let Ok(bytes) = response.bytes().await else {
+            return;
+        };
+
+        let Some(icon) = poietica_browser_native::icon_data_url(&content_type, &bytes) else {
+            return;
+        };
+
+        {
+            let host = handle.state::<BrowserHost>();
+            lock(&host.tabs).note_icon(origin, icon);
+        }
+
+        publish(&handle);
+    });
 }
 
 /// 内核报来的文档标题。
@@ -370,7 +438,8 @@ fn finish_pick(app: &AppHandle, id: u32, target: &Url) {
 
 /// 让「哪个 webview 可见」追上「哪个标签活动」。
 ///
-/// 只有活动标签的 webview 呈现并占住面板视口；其余隐藏。面板收起时全部隐藏。
+/// 只有屏幕上那一页（活动且有地址）的 webview 呈现并占住面板视口；其余隐藏。
+/// 面板收起时全部隐藏。
 /// 这是唯一一处决定可见性的代码 —— 命令们只改状态，然后一律走这里。
 fn apply_layout(app: &AppHandle) {
     let host = app.state::<BrowserHost>();
@@ -379,7 +448,7 @@ fn apply_layout(app: &AppHandle) {
     let plan: Vec<(tauri::Webview, u32, Placement)> = {
         let visible = *lock(&host.visible);
         let bounds = *lock(&host.bounds);
-        let active = lock(&host.tabs).active_id();
+        let showing = lock(&host.tabs).showing();
         let webviews = lock(&host.webviews);
         let mut placed = lock(&host.placed);
 
@@ -388,7 +457,7 @@ fn apply_layout(app: &AppHandle) {
         webviews
             .iter()
             .filter_map(|(id, webview)| {
-                let wanted = (visible && Some(*id) == active).then(|| PanelBounds {
+                let wanted = (visible && Some(*id) == showing).then(|| PanelBounds {
                     width: bounds.width.max(1.0),
                     height: bounds.height.max(1.0),
                     ..bounds
@@ -421,6 +490,8 @@ fn apply_layout(app: &AppHandle) {
 ///
 /// 懒创建是刻意的：空白页没有 webview，也就没有任何加载与内存开销。
 fn drive(app: &AppHandle, id: u32, url: &Url) {
+    fetch_icon(app, url.as_str());
+
     let existing = {
         let host = app.state::<BrowserHost>();
         let webviews = lock(&host.webviews);
@@ -749,8 +820,8 @@ pub async fn browser_pick_element(app: AppHandle, id: u32) {
 
 /// 把内核预热出来，让 CDP 端点上有页面可听。
 ///
-/// 已有活的 webview 或没有端口时是空操作。有带地址的标签就驱动第一个；
-/// 一个都没有就预热一页空白页 —— agent 拿到的是真实内核里的真实页面。
+/// 已有活的 webview 或没有端口时是空操作。优先给一个带地址的标签配内核，
+/// 否则给现有的那一格空白页配 —— agent 随后导航它，屏幕上就是那一格。
 pub fn ensure_live_kernel(app: &AppHandle) {
     {
         let host = app.state::<BrowserHost>();
@@ -760,32 +831,32 @@ pub fn ensure_live_kernel(app: &AppHandle) {
         }
     }
 
-    let driven = {
+    let target = {
         let host = app.state::<BrowserHost>();
         let tabs = lock(&host.tabs);
 
-        tabs.entries().iter().find_map(|tab| {
-            tab.url
-                .as_deref()
-                .and_then(|value| Url::parse(value).ok())
-                .map(|url| (tab.id, url))
-        })
+        tabs.entries()
+            .iter()
+            .find(|tab| tab.url.is_some())
+            .or_else(|| tabs.entries().first())
+            .map(|tab| (tab.id, tab.url.clone()))
     };
 
-    if let Some((id, url)) = driven {
-        drive(app, id, &url);
-        apply_layout(app);
-        publish(app);
-        return;
-    }
-
-    let id = {
+    /* 预热不开新标签、不换活动标签：它只是给已有的那一格配一台内核。 */
+    let (id, address) = if let Some(found) = target {
+        found
+    } else {
         let host = app.state::<BrowserHost>();
         let mut tabs = lock(&host.tabs);
-        tabs.open(None)
+
+        (tabs.open(None), None)
     };
 
-    let Ok(url) = Url::parse(poietica_browser_native::BLANK_PAGE) else {
+    let Ok(url) = Url::parse(
+        address
+            .as_deref()
+            .unwrap_or(poietica_browser_native::BLANK_PAGE),
+    ) else {
         return;
     };
 

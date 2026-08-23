@@ -1873,7 +1873,11 @@ export type BrowserState = { tabs: BrowserTab[]; activeTabId: number | null; rec
 /**
  * 一个标签在渲染层眼里的样子。url 缺席 = 空白页。
  */
-export type BrowserTab = { id: number; url: string | null; title: string; loading: boolean }
+export type BrowserTab = { id: number; url: string | null; title: string; loading: boolean; 
+/**
+ * 站点图标的 data URL。缺席时渲染层画地球。
+ */
+favicon: string | null }
 /**
  * 疏密同样是闭集，理由与 `ThemePreference` 逐字相同。
  */

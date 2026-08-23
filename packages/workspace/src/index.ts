@@ -16,6 +16,7 @@ export {
 } from './commands/command-provider'
 export { formatKeybinding, useCommandKeybindings } from './commands/keybinding'
 export type {
+  WorkspaceBrowserPart,
   WorkspacePart,
   WorkspacePartId,
   WorkspaceParts,
