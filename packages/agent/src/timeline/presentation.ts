@@ -186,34 +186,21 @@ function boundsIn(rows: readonly FeedRow[]): readonly number[] {
   return out[0] === 0 ? out : [-1, ...out]
 }
 
-/** 最后一段可见正文的位置；-1 表示这一轮没有正文。 */
-function finalTextIn(rows: readonly FeedRow[], from: number, until: number): number {
+/**
+ * 最终回复的起点：末尾那串相邻正文的第一条；这一轮没说过话就没有起点。
+ *
+ * 折叠边界与回复取值同问这一处，屏幕上留下的与复制出去的因此恒等。
+ */
+function answerStart(rows: readonly FeedRow[], from: number, until: number): number | undefined {
+  let first: number | undefined
+
   for (let i = until - 1; i >= from; i -= 1) {
-    if (rows[i]?.item.type === 'agent_text') {
-      return i
-    }
-  }
+    if (rows[i]?.item.type !== 'agent_text') {
+      if (first !== undefined) {
+        break
+      }
 
-  return -1
-}
-
-/** 回复操作可向前合并相邻正文；封条边界不使用这条合并规则。 */
-function replyFrom(rows: readonly FeedRow[], from: number, until: number): number {
-  let first = finalTextIn(rows, from, until)
-
-  if (first < 0) {
-    return until
-  }
-
-  for (let i = first - 1; i >= from; i -= 1) {
-    const type = rows[i]?.item.type
-
-    if (type === undefined || ASIDE.has(type)) {
       continue
-    }
-
-    if (type !== 'agent_text') {
-      break
     }
 
     first = i
@@ -423,11 +410,8 @@ function buildSegment(
   const all = rowsOf(page, running)
   const anchor = all.findIndex((row) => row.item.type === SAID)
   const bounds = boundsIn(all)
-  const frontier = finalTextIn(all, 0, all.length)
-  /*
-   * 边界只看最后一段可见正文；没有正文就没有过程。生命周期只决定是否展示这份折叠结果。
-   */
-  const process = foldFrom(all, frontier)
+  /* 没有起点就没有过程：一句话都没说出来的一轮整段留在屏幕上，不折叠。 */
+  const process = foldFrom(all, answerStart(all, 0, all.length) ?? 0)
   const isOpen = running || (picked ?? false)
   const hasBody = bodyIn(all, 0, all.length)
   const seal: TurnSealPlan | undefined =
@@ -444,21 +428,21 @@ function buildSegment(
         }
   const hidden = isOpen || seal === undefined ? new Set<number>() : new Set(process)
 
-  /* 回复操作仍按提问划分；它与运行封条是两个不同的投影。 */
+  /* 回复操作按提问划分跨度，起点仍问 answerStart：一个判据，两个读者。 */
   const plans: Stanza[] = []
 
   for (let k = 0; k < bounds.length; k += 1) {
     const said = bounds[k] ?? -1
     const until = bounds[k + 1] ?? all.length
     const from = said + 1
-    const stanzaAnswer = replyFrom(all, from, until)
+    const stanzaAnswer = answerStart(all, from, until)
     const alive = running && k === bounds.length - 1
     const tail = all[until - 1]
-    const settled = !alive && !busyIn(all, from, until) && stanzaAnswer < until
+    const settled = !alive && !busyIn(all, from, until) && stanzaAnswer !== undefined
 
     plans.push({
       replyId: settled && tail !== undefined ? tail.item.id : undefined,
-      replyText: speechFrom(all, stanzaAnswer, until),
+      replyText: stanzaAnswer === undefined ? '' : speechFrom(all, stanzaAnswer, until),
     })
   }
 

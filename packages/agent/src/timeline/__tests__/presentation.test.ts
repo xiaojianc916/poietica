@@ -274,6 +274,44 @@ describe('presentation projection', () => {
     expect(idsOf(feed)).toEqual(['s1', 'a2'])
   })
 
+  it('keeps a reply that arrived as two messages whole, on screen and in copy', () => {
+    const state = stateOf(
+      [
+        [
+          said('s1', 1, 1),
+          planned('p1', 1, 2),
+          spoke('a1', 1, 3, '前半'),
+          spoke('a2', 1, 4, '后半'),
+        ],
+      ],
+      [{ endedAt: 5, lastFrameAt: 4, startedAt: 1, turn: 1 }],
+    )
+    const feed = selectPresentation(state, AUTO)
+
+    expect(idsOf(feed)).toEqual(['s1', 'a1', 'a2'])
+    expect(feed.replyAt(feed.indexOf('a2'))?.text).toBe('前半\n\n后半')
+  })
+
+  it('copies exactly what the seal left on screen', () => {
+    const feed = selectPresentation(
+      stateOf(
+        [
+          [
+            said('s1', 1, 1),
+            spoke('a1', 1, 2, '较早文本'),
+            broke('e1', 1, 3),
+            spoke('a2', 1, 4, '最终文本'),
+          ],
+        ],
+        [{ endedAt: 5, lastFrameAt: 4, startedAt: 1, turn: 1 }],
+        'failed',
+      ),
+      AUTO,
+    )
+
+    expect(feed.replyAt(feed.indexOf('a2'))?.text).toBe('最终文本')
+  })
+
   it('anchors the reply action on the last row of a settled turn', () => {
     const feed = selectPresentation(settled, AUTO)
 
