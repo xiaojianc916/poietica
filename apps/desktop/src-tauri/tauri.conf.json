@@ -24,7 +24,7 @@
         "transparent": false,
         "visible": false,
         "backgroundColor": "#f3f3f3",
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --enable-features=RemoveRedirectionBitmap,msWebView2EnableDraggableRegions"
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,CalculateNativeWinOcclusion --autoplay-policy=no-user-gesture-required --enable-features=RemoveRedirectionBitmap,msWebView2EnableDraggableRegions"
       }
     ],
     "security": {
