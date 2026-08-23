@@ -43,7 +43,7 @@ export function TranscriptView({
 
   /* 视口只报「顶端快见底了」，读不读、读几页归 store。 */
   const readEarlier = useCallback(() => {
-    transcripts.readEarlier(sessionKey)
+    return transcripts.readEarlier(sessionKey)
   }, [sessionKey, transcripts])
 
   /*

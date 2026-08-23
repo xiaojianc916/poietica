@@ -2,16 +2,7 @@ import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
 import 'katex/dist/katex.min.css'
-import {
-  type ComponentProps,
-  memo,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import { createRoot, type Root } from 'react-dom/client'
+import { type ComponentProps, memo, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import {
   type AnimateOptions,
   type ControlsConfig,
@@ -109,14 +100,6 @@ const ICONS: Partial<IconMap> = {
  */
 const LINK_SAFETY: LinkSafetyConfig = { enabled: false }
 
-/*
- * 服务端只出一次静态标记：没有 document 就没有可寄存的渲染根，缓存整个不成立。
- * 测试用 react-dom/server 守渲染产物，走的就是这一支。
- */
-const SERVER = typeof document === 'undefined'
-
-const useMountEffect = SERVER ? useEffect : useLayoutEffect
-
 function SegmentBody({
   fence,
   isStreaming,
@@ -144,99 +127,6 @@ function SegmentBody({
   )
 }
 
-const RENDER_CACHE_CAPACITY = 200
-
-interface CachedRender {
-  readonly host: HTMLDivElement
-  readonly root: Root
-  owner: HTMLDivElement | null
-  fence: Fence | null
-  isStreaming: boolean | null
-  text: string | null
-}
-
-const RENDERS = new Map<string, CachedRender>()
-
-function touchRender(key: string, entry: CachedRender): void {
-  RENDERS.delete(key)
-  RENDERS.set(key, entry)
-}
-
-function trimRenders(): void {
-  if (RENDERS.size <= RENDER_CACHE_CAPACITY) {
-    return
-  }
-
-  for (const [key, entry] of RENDERS) {
-    if (RENDERS.size <= RENDER_CACHE_CAPACITY) {
-      return
-    }
-    if (entry.owner !== null) {
-      continue
-    }
-
-    entry.root.unmount()
-    entry.host.remove()
-    RENDERS.delete(key)
-  }
-}
-
-function drawRender(entry: CachedRender, fence: Fence, isStreaming: boolean, text: string): void {
-  if (entry.fence === fence && entry.isStreaming === isStreaming && entry.text === text) {
-    return
-  }
-
-  entry.fence = fence
-  entry.isStreaming = isStreaming
-  entry.text = text
-  entry.root.render(<SegmentBody fence={fence} isStreaming={isStreaming} text={text} />)
-}
-
-function acquireRender(
-  key: string,
-  target: HTMLDivElement,
-  fence: Fence,
-  isStreaming: boolean,
-  text: string,
-): CachedRender {
-  let entry = RENDERS.get(key)
-
-  if (entry === undefined) {
-    const host = document.createElement('div')
-    host.style.display = 'contents'
-    entry = {
-      host,
-      root: createRoot(host),
-      owner: null,
-      fence: null,
-      isStreaming: null,
-      text: null,
-    }
-    RENDERS.set(key, entry)
-  }
-
-  if (entry.owner !== null && entry.owner !== target) {
-    throw new Error(`Markdown render key mounted more than once: ${key}`)
-  }
-
-  entry.owner = target
-  drawRender(entry, fence, isStreaming, text)
-  target.replaceChildren(entry.host)
-  touchRender(key, entry)
-  trimRenders()
-  return entry
-}
-
-function releaseRender(key: string, target: HTMLDivElement, entry: CachedRender): void {
-  if (entry.owner !== target) {
-    return
-  }
-  entry.owner = null
-  entry.host.remove()
-  touchRender(key, entry)
-  trimRenders()
-}
-
 export interface ProseProps {
   readonly cacheKey: string
   readonly text: string
@@ -245,15 +135,11 @@ export interface ProseProps {
   readonly className?: string
 }
 
-/*
- * 一块 markdown，一处配置。
- *
- * memo 的边界就是一块：封口之后输入不再变，浅比较即精确比较，这一块此后一帧都不重画。
- * 静态那一侧不切块、不修补、不预留未闭合标记的过渡，代码块走官方那条静态路径 ——
- * 一段早已写完的文字不该在每次进入视口时被再解析一遍。
- */
-const CONTENTS = { display: 'contents' } as const
+const MARKDOWN_MEASURE = 'poietica:markdown-render'
+const useCommitEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect
 
+/* One application root owns every markdown subtree. Virtualization may unmount a row,
+ * but no live React root or detached DOM tree survives outside that ownership graph. */
 const ProseSegment = memo(function ProseSegment({
   cacheKey,
   fence,
@@ -265,29 +151,22 @@ const ProseSegment = memo(function ProseSegment({
   readonly isStreaming: boolean
   readonly text: string
 }) {
-  const mount = useRef<HTMLDivElement | null>(null)
+  const startedAt = performance.now()
 
-  useMountEffect(() => {
-    if (SERVER) {
-      return undefined
+  useCommitEffect(() => {
+    performance.measure(MARKDOWN_MEASURE, {
+      start: startedAt,
+      end: performance.now(),
+      detail: { cacheKey, characters: text.length, isStreaming },
+    })
+
+    if (performance.getEntriesByName(MARKDOWN_MEASURE).length > 512) {
+      performance.clearMeasures(MARKDOWN_MEASURE)
     }
+  }, [cacheKey, isStreaming, startedAt, text])
 
-    const target = mount.current
-    if (target === null) {
-      return undefined
-    }
-
-    const entry = acquireRender(cacheKey, target, fence, isStreaming, text)
-    return () => releaseRender(cacheKey, target, entry)
-  }, [cacheKey, fence, isStreaming, text])
-
-  if (SERVER) {
-    return <SegmentBody fence={fence} isStreaming={isStreaming} text={text} />
-  }
-
-  return <div ref={mount} style={CONTENTS} />
+  return <SegmentBody fence={fence} isStreaming={isStreaming} text={text} />
 })
-
 /**
  * 模型输出的 markdown，无论它出现在哪里。
  *

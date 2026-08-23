@@ -30,6 +30,7 @@ export function ThoughtCard({
 
   /* 写到哪儿看到哪儿：一行装不下时把视窗推到末尾。effect 在绘制之后跑，读到的是已经
      排好的布局，不强制回流。 */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: text 是触发器：删了它，新词到达时视窗就停在旧末端
   useEffect(() => {
     const element = lineRef.current
 

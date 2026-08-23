@@ -315,41 +315,6 @@ function scanFrom(held: Scan | null, text: string): Scan {
   return { source: text, result, blocks, at, line, from, start, previous, open, kind }
 }
 
-/*
- * 块表按文本寻址。
- *
- * 虚拟窗口卸载离开预取带的行，实例内的扫描进度随之消失，滚回去等于重扫一遍。这份缓存只认
- * 文本本身，所以跨卸载存活；上限让内存有界，先删再插使 Map 的插入序就是 LRU 序。
- */
-const PROJECTION_CAP = 200
-
-const projected = new Map<string, ReturnType<ReturnType<typeof scanner>>>()
-
 export function createBlockScanner(): ReturnType<typeof scanner> {
-  const scan = scanner()
-
-  return (text: string) => {
-    const cached = projected.get(text)
-
-    if (cached !== undefined) {
-      projected.delete(text)
-      projected.set(text, cached)
-
-      return cached
-    }
-
-    const blocks = scan(text)
-
-    projected.set(text, blocks)
-
-    if (projected.size > PROJECTION_CAP) {
-      const oldest = projected.keys().next().value
-
-      if (oldest !== undefined) {
-        projected.delete(oldest)
-      }
-    }
-
-    return blocks
-  }
+  return scanner()
 }

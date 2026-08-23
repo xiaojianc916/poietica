@@ -100,7 +100,7 @@ export interface AgentActivityFeedProps {
   /** 上面还有没有更早的一页。 */
   readonly hasEarlier: boolean
   /** 顶端快见底了。读不读、读几页归转录那一侧。 */
-  readonly onReachStart: () => void
+  readonly onReachStart: () => Promise<void>
   /** 画在滚动区之上,位于一切会滚的东西之外。 */
   readonly overlay?: (port: FeedPort) => ReactNode
 }
@@ -214,6 +214,9 @@ export function AgentActivityFeed({
    * 读第二次不会得到新答案,只会多两次二分和三次 setState。
    */
   const frame = useRef<number | null>(null)
+  const earlierRequest = useRef<Promise<void> | null>(null)
+  const prependAnchor = useRef<{ readonly id: string; readonly offset: number } | null>(null)
+  const correctionFrame = useRef<number | null>(null)
 
   /*
    * 一次读取，两个派生量。
@@ -241,15 +244,34 @@ export function AgentActivityFeed({
       const top = rowAtAnchor(spans, viewport.scrollTop)
 
       if (top !== null) {
+        const row = feed.rowAt(top.index)
+
+        if (row !== undefined) {
+          prependAnchor.current = {
+            id: row.item.id,
+            offset: top.start - viewport.scrollTop,
+          }
+        }
+
         settleReveal(top.index, viewport.scrollTop - top.start <= REVEAL_FLUSH_PX)
       }
 
       /* 离顶端还有多远。同一次读取里问出来，所以不多一次几何访问。 */
-      if (hasEarlier && viewport.scrollTop < viewport.clientHeight * EARLIER_LEAD_SCREENS) {
-        onReachStart()
+      if (
+        hasEarlier &&
+        earlierRequest.current === null &&
+        viewport.scrollTop < viewport.clientHeight * EARLIER_LEAD_SCREENS
+      ) {
+        const request = Promise.resolve().then(onReachStart)
+        earlierRequest.current = request
+        void request.finally(() => {
+          if (earlierRequest.current === request) {
+            earlierRequest.current = null
+          }
+        })
       }
     },
-    [hasEarlier, onReachStart, settleReveal],
+    [feed, hasEarlier, onReachStart, settleReveal],
   )
 
   /*
@@ -590,43 +612,75 @@ export function AgentActivityFeed({
     })
   }, [pending, reduced, settleReveal, virtualizer])
 
-  /*
-   * 往前补了几轮,眼前的东西不动。
-   *
-   * 前插只改下标,不改身份:每一行的 id 原样保留,所以实测高度与下游的记忆化都不失效,
-   * 而原来那一行搬到了下标 k。补进来的那一段有多高,就把滚动位置往下推多少 —— 视口因此
-   * 停在原地,无论人此刻在顶、在中间、还是贴着末端。
-   *
-   * 判据是首行换了身份而旧首行仍在表里:追加发生在末尾,首行不动,所以这个效应
-   * 在流式输出时一次都不跑。
-   */
-  const anchored = useRef<string | null>(null)
+  /* Preserve the first visible stable row, then reconcile estimates against DOM
+   * measurements until the pixel offset has settled. */
+  const firstSeen = useRef<string | null>(null)
 
   useLayoutEffect(() => {
-    const before = anchored.current
+    const before = firstSeen.current
     const first = feed.rowAt(0)?.item.id ?? null
+    firstSeen.current = first
 
-    anchored.current = first
-
-    if (before === null || first === null || before === first) {
-      return
-    }
-
+    const anchor = prependAnchor.current
     const viewport = viewportRef.current
-    const moved = feed.indexOf(before)
+    const transcript = transcriptRef.current
 
-    if (viewport === null || moved <= 0) {
+    if (before === null || first === null || before === first || anchor === null) {
       return
     }
 
-    /* 旧首行此前坐在坐标原点上(scrollMargin),它现在坐在哪儿,差额就是补进来的高度。 */
-    const grown = virtualizer.getOffsetForIndex(moved, 'start')?.[0]
+    const moved = feed.indexOf(anchor.id)
+    const estimated = moved < 0 ? undefined : virtualizer.getOffsetForIndex(moved, 'start')?.[0]
 
-    if (grown !== undefined) {
-      viewport.scrollTop += grown - scrollMargin
+    if (viewport === null || transcript === null || estimated === undefined) {
+      return
     }
-  }, [feed, scrollMargin, virtualizer])
 
+    virtualizer.scrollToOffset(estimated - anchor.offset)
+
+    let frames = 0
+    let stable = 0
+    let stopped = false
+
+    const correct = () => {
+      if (stopped || viewportRef.current !== viewport) {
+        return
+      }
+
+      frames += 1
+      const row = [...transcript.querySelectorAll<HTMLElement>('[data-row-id]')].find(
+        (element) => element.dataset['rowId'] === anchor.id,
+      )
+
+      if (row !== undefined) {
+        const delta =
+          row.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.offset
+
+        if (Math.abs(delta) <= 0.5) {
+          stable += 1
+        } else {
+          stable = 0
+          viewport.scrollTop += delta
+        }
+      }
+
+      if (stable < 3 && frames < 60) {
+        correctionFrame.current = requestAnimationFrame(correct)
+      } else {
+        correctionFrame.current = null
+      }
+    }
+
+    correctionFrame.current = requestAnimationFrame(correct)
+
+    return () => {
+      stopped = true
+      if (correctionFrame.current !== null) {
+        cancelAnimationFrame(correctionFrame.current)
+        correctionFrame.current = null
+      }
+    }
+  }, [feed, virtualizer])
   /*
    * 高亮的真源,按优先级排。
    *
@@ -691,6 +745,7 @@ export function AgentActivityFeed({
               <div
                 className="agent-activity-feed__row"
                 data-index={item.index}
+                data-row-id={row.item.id}
                 data-streaming={row.isStreamingTail ? 'true' : undefined}
                 data-type={row.item.type}
                 key={item.key}

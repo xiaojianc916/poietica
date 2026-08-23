@@ -513,7 +513,13 @@ export class TranscriptStore implements TranscriptSink {
   adopt = (threadId: string, page: FramePage, history: ThreadHistory): void => {
     /* 经过由本地日志重放：段边界与每一轮的两端都在帧里（run_started 与终帧
        各带自己的时刻），所以这里不再有第二把尺子。图仍来自本机账本。 */
+    const replayStartedAt = performance.now()
     const replayed = replayThreadEvents(page.events as readonly RunEvent[])
+    performance.measure('poietica:history-replay', {
+      start: replayStartedAt,
+      end: performance.now(),
+      detail: { threadId, events: page.events.length },
+    })
     const lost = lossOf(history)
 
     this.#put(threadId, {
@@ -548,9 +554,7 @@ export class TranscriptStore implements TranscriptSink {
    *
    * 重入由这里挡：视口可以每帧问，问几次都只有一页在飞。
    */
-  readEarlier = (key: string): void => {
-    void this.#readEarlier(this.#resolveKey(key))
-  }
+  readEarlier = (key: string): Promise<void> => this.#readEarlier(this.#resolveKey(key))
 
   async #readEarlier(real: string): Promise<void> {
     const read = this.#earlier

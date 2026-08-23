@@ -452,6 +452,7 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
 
     open: async (threadId, workspaceRoot) => {
       const resolvedLaunch = await launch()
+      const openedAt = performance.now()
       const opened = await throughIpc(() =>
         commands.agentOpenThread({
           threadId: threadId ?? null,
@@ -459,6 +460,12 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
           cwd: workspaceRoot ?? cwd?.() ?? null,
         }),
       )
+
+      performance.measure('poietica:thread-open-ipc', {
+        start: openedAt,
+        end: performance.now(),
+        detail: { threadId: threadId ?? null },
+      })
 
       /* 一页帧与它的读取位置原样交出去：形状由原生侧定义，与端口逐格相同。 */
       return {
