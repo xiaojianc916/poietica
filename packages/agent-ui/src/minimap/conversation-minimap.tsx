@@ -26,10 +26,12 @@ export interface ConversationMinimapProps {
   readonly turns: readonly ConversationTurn[]
   /** 人正在读的那一行;跳转期间是人要求看的那一行。 */
   readonly activeRow: number
+  /** 更早的轮次还没读回来：那时轨道画的不是全局，总数也就无从谈起。 */
+  readonly hasEarlier: boolean
   readonly onSelect: (rowIndex: number) => void
 }
 
-function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
+function Rail({ activeRow, hasEarlier, onSelect, turns }: ConversationMinimapProps) {
   const fisheye = useFisheye()
   const card = useRailCard()
 
@@ -83,8 +85,12 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
     [card, fisheye, flip],
   )
 
-  /* 每格都要念一遍「共 N 轮」，但 N 一格一格地不会变。 */
-  const total = String(turns.length)
+  /*
+   * 每格都要念一遍「共 N 轮」，但 N 一格一格地不会变。
+   *
+   * 更早的轮次还没读回来时不报总数：报一个只涵盖已读部分的 N 是谎报位置，比不报更坏。
+   */
+  const total = hasEarlier ? null : String(turns.length)
 
   return (
     <nav aria-label="会话轮次" className="conversation-minimap" ref={setRail}>
@@ -97,10 +103,11 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
          *
          * 并格之后更要报区间:一格代表八轮却只报一个序数,是在谎报位置。
          */
-        const position =
+        const span =
           item.kind === 'cluster'
-            ? `第 ${String(item.from)}–${String(item.to)} 轮，共 ${total} 轮`
-            : `第 ${String(item.ordinal)} 轮，共 ${total} 轮`
+            ? `第 ${String(item.from)}–${String(item.to)} 轮`
+            : `第 ${String(item.ordinal)} 轮`
+        const position = total === null ? span : `${span}，共 ${total} 轮`
 
         const label = `${position}：${item.label}`
 
@@ -156,7 +163,7 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
  * 滚动帧里整棵跳过。
  *
  * 滚动区每一帧都重渲染 —— 虚拟器必须如此 —— 于是浮层每帧被调用一次,产出一个新
- * 元素,React 就得逐个比对 N 个按钮和 N 张卡片。但这三个入参在构造上就是引用稳定
+ * 元素,React 就得逐个比对 N 个按钮和 N 张卡片。但这些入参在构造上就是引用稳定
  * 的:turns 走投影的弱表缓存(selectPresentation 在轮次没变时交还同一个数组),activeRow
  * 是数字且跨行才变,onSelect 经 scrollToRow 落到 useRevealIntent 的 begin —— 那个
  * 才是空依赖的 useCallback。所以浅比较几乎总是命中。

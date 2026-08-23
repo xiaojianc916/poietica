@@ -1,4 +1,4 @@
-import { AlarmClock, HatGlasses, MessageCircle, Search, Unplug } from 'lucide-react'
+import { AlarmClock, HatGlasses, Search, SquarePen, Unplug } from 'lucide-react'
 import type { ComponentType } from 'react'
 
 import { describeSurface, type SurfaceIconId, type SurfaceId } from '../surface-registry'
@@ -22,7 +22,7 @@ export type SurfaceIcon = ComponentType<{
 const SURFACE_ICONS: Record<SurfaceIconId, SurfaceIcon> = {
   box: Unplug,
   clock: AlarmClock,
-  message: MessageCircle,
+  message: SquarePen,
   search: Search,
   'hat-glasses': HatGlasses,
 }

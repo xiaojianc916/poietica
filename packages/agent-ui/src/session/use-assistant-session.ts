@@ -145,6 +145,9 @@ const readRestoring = (transcript: Transcript): boolean => transcript.restoring
 
 const readTimeline = (transcript: Transcript): TimelineState => transcript.timeline
 
+/* 上面还有没有更早的一页。布尔，所以前插与流式追加都叫不醒订阅者。 */
+const readHasEarlier = (transcript: Transcript): boolean => transcript.earlier !== null
+
 /*
  * 待答的那一道：倒扫，走到人说的上一句话为止（pendingPermission）。
  *
@@ -289,6 +292,11 @@ export function useAssistantSession({
  */
 export function useAssistantTimeline(key: string): TimelineState {
   return useSlice(key, readTimeline)
+}
+
+/** 这条对话上面还有没有更早的一页。 */
+export function useAssistantHasEarlier(key: string): boolean {
+  return useSlice(key, readHasEarlier)
 }
 
 /**

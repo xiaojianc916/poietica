@@ -39,15 +39,6 @@ export interface MessageImage {
  * 每一条转录条目共有的三个事实。
  *
  * turn 是权威的归属，不从 id 前缀里解析回来：身份负责唯一，字段负责语义。
- *
- * turn 此前不在这里 —— 它只以字符串前缀的形式编在 id 里（r0-said-1），而没有
- * 任何一个地方解析它回来。于是「这一条属于第几轮」这个已经存在的事实读不出来，
- * 派生层只好反推：反向扫到最后一条 user_message，把它当作本轮的起点。同一个
- * 启发式在 feed-rows、timeline-queries、kap-projection 里各手抄了一遍。
- *
- * 而权威答案一直在手边：段由 run_started 划定，号由 openSegment 发，草稿写条目时
- * 顺手落账。把语义编进身份、再另起一套启发式去猜，本来就不是建模 —— 身份负责唯一，
- * 字段负责语义。补上这一格之后，那三处扫描的判据全部塌成一次相等比较。
  */
 interface TimelineEntry {
   readonly id: TimelineItemId
@@ -85,10 +76,8 @@ export interface AgentTextItem extends TimelineEntry {
   /**
    * 这些字属于哪一条消息，由 agent 自己说（delta 帧里的 messageId）。
    *
-   * 与 sealed 是两件事，此前由 sealed 一个人兼着：sealed 说的是「还会不会再
-   * 来字」，那是生命周期，喂的是流式动画；这里说的是「这些字属于谁」，那是
-   * 身份，定的是边界。一个布尔同时表达两件事，边界就只能靠「末尾那条封没封
-   * 口」去推 —— 背靠背发来的两条消息中间没有任何东西打断，于是被推成一条。
+   * 与 sealed 是两件事：sealed 说的是「还会不会再来字」，那是生命周期；这里说的是
+   * 「这些字属于谁」，那是身份，定的是边界。
    *
    * 缺席表示这个 agent 不报身份，边界退回相邻推断。
    */

@@ -177,8 +177,7 @@ export function appendUserMessage(
 ): TimelineState {
   const said = text.trim()
 
-  /* 空的是这一句话，不是这一格。只挑了图、没打字，仍然是一句说过的话 ——
-     此前这里只看文字，那条消息连转录都进不去：图发出去了，屏幕上没有它。 */
+  /* 空的是这一句话，不是这一格：只挑了图、没打字，仍然是一句说过的话。 */
   if (said.length === 0 && carrying === 0) {
     return state
   }
@@ -187,11 +186,6 @@ export function appendUserMessage(
 
   /*
    * 又问一句，不等于上一个问题消失了。
-   *
-   * 此前这里无条件写 'running'。agent 停在一个还没答复的权限请求上时，那一笔
-   * 就把「我在等你批准」抹掉了 —— 而那条请求仍然躺在 items 里、resolution 仍
-   * 然是 undefined、原生侧的 RunSlot 仍然在阻塞。状态被当成一个可以随手赋值的
-   * 共享字段，是这条缺陷的形状：全包七处 status 赋值里，只有这一处不是帧驱动的。
    *
    * 一轮的状态由帧说了算。本地这条路径唯一有资格宣告的是「有一轮在跑」，而
    * 两种 awaiting 本来就是在跑的一种，它比 running 多带一个事实，覆盖它
@@ -242,10 +236,9 @@ export function appendUserMessage(
  * 记一件本地发生的事故。
  *
  * 起不来的 agent、送不出去的权限答复、读不回来的历史 —— 它们发生在任何一帧
- * 之前或之外，日志里没有对应的帧。此前调用方伪造一帧 run_failed 交给
- * applyRunEvent，序号取 lastSeq 加一；而序号是原生那侧发的（recorder.rs 的
- * SeqLine，按会话单调），客户端自己发一个就是替对面占了一个号：真的那一帧
- * 带着同一个号到达时，会被上面那道去重判成重复而永久丢弃。
+ * 之前或之外，日志里没有对应的帧。序号由原生那侧按会话单调发放（recorder.rs 的
+ * SeqLine），客户端自己借一个号出来，真的那一帧带着同一个号到达时会被去重判成
+ * 重复而永久丢弃。
  *
  * 所以本地的事故以本地的形式进来：一条 error 条目，不占序号、不动 lastSeq 窗口、
  * 不冒充任何一帧。它因此也不参与重放 —— 一段日志放两遍仍然得到同一个状态，那是
@@ -336,7 +329,7 @@ export function confirmRunCancellation(state: TimelineState, at: number): Timeli
  *
  * 判据一个字没改，只是共用一份草稿：草稿自己带着 lastSeq，同一批里的重复帧
  * 照样被丢掉。一批全是重复帧时原样交回入参那个对象 —— 引用不变，下游的记忆化
- * 不会被白白打掉，这正是此前那道提前返回守着的东西。
+ * 不会被白白打掉。
  */
 export function applyRunEvents(state: TimelineState, events: readonly RunEvent[]): TimelineState {
   let draft: Draft | null = null

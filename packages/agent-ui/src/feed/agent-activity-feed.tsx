@@ -25,18 +25,7 @@ const ESTIMATED_ROW_PX: Record<FeedRow['item']['type'], number> = {
   agent_text: 240,
   /* 收起时就是一行，与工具调用同形；按这张表的口径取真高的下界。 */
   agent_thought: 40,
-  /*
-   * 一行安静的字，外加 __row 自己那两道行距。
-   *
-   * 曾经是 160 —— 那时工具调用是一张有底色、有内边距的卡片。它现在是一行与正文同号的淡色
-   * 文字，收起时就是一行；160 于是成了五倍的高估。而高估在这里不只是「到达前留白」：人往上
-   * 滚时每挂载一行就把估高换成真高，总高连着往下掉，末端跟随的放手判据被那一路变短压住 ——
-   * 粘在底部滚不上去，根就在这个数上。判据那一侧已经在 follow-latest 里改硬（放手不再被变短
-   * 否决），这里补的是不让它连着变短。
-   *
-   * 按这张表自己的口径 ——「估小了只是补偿一次,估大了会在到达前留白」—— 取真高的下界，与
-   * permission 那一格同一个道理。展开的工具卡片远高于此，那落在估小的那一侧，安全。
-   */
+  /* 收起时是一行与正文同号的淡色文字；按这张表的口径取真高的下界。 */
   tool_call: 40,
   plan: 200,
   /* 一组落定的题：题面一行、答复一行，取真高的下界。 */
@@ -85,14 +74,19 @@ const READING_ANCHOR_RATIO = 1 / 3
 const REVEAL_FLUSH_PX = 2
 
 /**
+ * 距顶端还有不到这么多屏，就去要更早的一页。
+ *
+ * 一屏的余量保证那一页在人真的滚到顶之前已经在路上，而不是触顶之后才开始等一次
+ * IPC —— 触顶才取，看见的就是一次停顿。
+ */
+const EARLIER_LEAD_SCREENS = 1
+
+/**
  * 会话流的滚动区。
  *
  * 这个组件只画会话态:一个滚动区,一枚回到末端的按钮,加一层不随滚动移动的浮层。
  *
- * 入口态不是它的一种姿势 —— 它此前是,靠 feed 根上两个伪元素的 flex-grow 在
- * "居中"与"落底"之间插值;开场白与输入框因此是它的两个插槽。那套东西已经删掉,
- * 理由见 assistant.css:位置不该是一个可以被补间的数字。开场白与输入框现在由
- * AssistantSurface 持有,这个组件不知道它们存在。
+ * 开场白与输入框由 AssistantSurface 持有,这个组件不知道它们存在。
  *
  * 滚动位置有两个写入者,而它们从不写同一件事:虚拟器补偿视口上方那些刚被测量的行,
  * follow-latest 拨末端。前者是唯一知道「哪一行的估高刚被真高替换」的,后者是唯一看得见
@@ -136,6 +130,10 @@ export interface AgentActivityFeedProps {
   readonly feed: Presentation
   readonly renderRow: (index: number) => ReactNode
   readonly isBusy: boolean
+  /** 上面还有没有更早的一页。 */
+  readonly hasEarlier: boolean
+  /** 顶端快见底了。读不读、读几页归转录那一侧。 */
+  readonly onReachStart: () => void
   /** 画在滚动区之上,位于一切会滚的东西之外。 */
   readonly overlay?: (port: FeedPort) => ReactNode
 }
@@ -143,9 +141,11 @@ export interface AgentActivityFeedProps {
 export function AgentActivityFeed({
   conversation,
   feed,
-  renderRow,
+  hasEarlier,
   isBusy,
+  onReachStart,
   overlay,
+  renderRow,
 }: AgentActivityFeedProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const transcriptRef = useRef<HTMLDivElement | null>(null)
@@ -166,13 +166,8 @@ export function AgentActivityFeed({
    * 转录相对滚动区的偏移:转录上面还有滚动区自己的上内边距,这段距离必须告诉
    * 虚拟器,否则它算出来的位置会整体上移那么多。
    *
-   * 它是 state 而不是 ref。曾经是 ref,理由写的是"进 state 会让开场那段 flex-grow
-   * 动画每一帧都重渲染整条对话" —— 那段动画连同两个撑开的伪元素已经不存在了,
-   * 而这个理由当时也不成立:CSS 过渡期间根本不产生 React 渲染。
-   *
-   * 而 ref 的代价是实打实的:改 ref 不触发重渲染,虚拟器在渲染期读到的 scrollMargin
-   * 会一直停在首帧的 0,于是每一行的落点都整体上移那么多,直到别的什么事情恰好引起
-   * 一次重渲染。
+   * 它是 state 而不是 ref:虚拟器在渲染期读它,而改 ref 不触发重渲染 —— 那样每一行的
+   * 落点都会整体上移这段距离,直到别的什么事情恰好引起一次重渲染。
    *
    * 滚动区是转录的 offsetParent(样式里的 position: relative),所以这是一次
    * offsetTop,不需要两次 getBoundingClientRect 再减去 scrollTop。
@@ -280,15 +275,20 @@ export function AgentActivityFeed({
       if (top !== null) {
         settleReveal(top.index, viewport.scrollTop - top.start <= REVEAL_FLUSH_PX)
       }
+
+      /* 离顶端还有多远。同一次读取里问出来，所以不多一次几何访问。 */
+      if (hasEarlier && viewport.scrollTop < viewport.clientHeight * EARLIER_LEAD_SCREENS) {
+        onReachStart()
+      }
     },
-    [settleReveal],
+    [hasEarlier, onReachStart, settleReveal],
   )
 
   /*
    * 几何读取一帧一次。
    *
    * 合并到 rAF 之后,读取次数与帧数对齐 —— 那也是浏览器唯一保证布局稳定的
-   * 时机。此前每一个 scroll 事件各读一遍,答案完全相同。
+   * 时机。
    */
   const scheduleSync = useCallback(() => {
     if (frame.current !== null) {
@@ -363,7 +363,7 @@ export function AgentActivityFeed({
    * ref.current during rendering）。StrictMode 会把渲染跑两遍，并发渲染会丢弃渲染 ——
    * 镜像因此不是一次优化，是一次赌它不行使这个权利。
    *
-   * 换掉的代价是可算的，而且比此前那段注释说的小两个量级：getItemKey 换身份只让虚拟器
+   * 换掉的代价是可算的：getItemKey 换身份只让虚拟器
    * 重算 measurements 这一层备忘（它的依赖里有 getItemKey），而实测高度存在以 item key
    * 为索引的 itemSizeCache 里，不随之作废 —— 重算是纯算术，measureElement 一次都不会
    * 被重新调用。「每帧全表重测」从来没有发生过。
@@ -480,11 +480,6 @@ export function AgentActivityFeed({
    * 偏移是交给虚拟器的一个输入，而写滚动位置是 follow-latest 的事，两件事在这里不该
    * 合流：这个回调由 ResizeObserver 叫醒，而此刻新的高度还没提交，任何在这里写下的
    * 滚动位置都会被浏览器夹掉 —— 那也正是库自己的增量补偿会丢步的地方。
-   *
-   * 「滑到底也到不了底」不是写入方式的错。判据错了：虚拟器的
-   * getVirtualDistanceFromEnd() 走 getTotalSize()，而后者减掉了 scrollMargin 却没有
-   * 加回，于是只要滚动区有上内边距，它的「底」就恒定比 DOM 的底高出那一段。换掉的是
-   * 判据，不是写入者。
    */
   const measureMargin = useCallback(() => {
     const transcript = transcriptRef.current
@@ -498,8 +493,7 @@ export function AgentActivityFeed({
    * 尺寸变了,同一个滚动位置就对应到另一行上。
    *
    * 流式输出把行撑高、面板被拖窄、抽屉展开 —— 三者都改变几何,都不产生滚动
-   * 事件。此前靠"每次渲染后重读一遍"覆盖,那是用一次强制回流去换一个通知;
-   * ResizeObserver 就是这个通知的官方形态,而且它连不经过 React 的尺寸变化
+   * 事件。ResizeObserver 是这个通知的官方形态,而且它连不经过 React 的尺寸变化
    * (图片解码完成、字体换页)也一并覆盖。
    */
   useLayoutEffect(() => {
@@ -678,8 +672,7 @@ export function AgentActivityFeed({
    * 高亮的真源,按优先级排。
    *
    * 人刚要求看的那一轮最权威;其次是视线推出来的那一行;两者都还没有的那一帧 ——
-   * 只有首帧 —— 是末尾,因为上面的布局效应刚把视口送到那里。原先这里写 0,于是
-   * 开场必然先亮第一轮再跳到最后一轮。
+   * 只有首帧 —— 是末尾,因为上面的布局效应刚把视口送到那里。
    */
   const activeRow = pending ?? readingRow ?? Math.max(0, feed.count - 1)
 

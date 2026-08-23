@@ -2,7 +2,8 @@ import { type FeedRow, selectIsBusy, selectPresentation, type TurnSealPlan } fro
 import { type ReactNode, useCallback, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
-import { useAssistantTimeline } from '../session/use-assistant-session'
+import { useTranscripts } from '../session/transcripts-context'
+import { useAssistantHasEarlier, useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { ReplyActionHost } from './reply-actions'
 import { ToolGroupCard } from './tool-group-card'
@@ -36,6 +37,13 @@ export function TranscriptView({
   sessionKey,
 }: TranscriptViewProps) {
   const timeline = useAssistantTimeline(sessionKey)
+  const hasEarlier = useAssistantHasEarlier(sessionKey)
+  const transcripts = useTranscripts()
+
+  /* 视口只报「顶端快见底了」，读不读、读几页归 store。 */
+  const readEarlier = useCallback(() => {
+    transcripts.readEarlier(sessionKey)
+  }, [sessionKey, transcripts])
 
   /*
    * 人亲手为哪几轮定过开合；身份直接使用投影交出的权威段号。
@@ -132,9 +140,14 @@ export function TranscriptView({
   const overlay = useCallback(
     (port: FeedPort) =>
       turns.length === 0 ? null : (
-        <ConversationMinimap activeRow={port.activeRow} onSelect={port.scrollToRow} turns={turns} />
+        <ConversationMinimap
+          activeRow={port.activeRow}
+          hasEarlier={hasEarlier}
+          onSelect={port.scrollToRow}
+          turns={turns}
+        />
       ),
-    [turns],
+    [hasEarlier, turns],
   )
 
   return (
@@ -147,7 +160,9 @@ export function TranscriptView({
       <AgentActivityFeed
         conversation={sessionKey}
         feed={feed}
+        hasEarlier={hasEarlier}
         isBusy={selectIsBusy(timeline)}
+        onReachStart={readEarlier}
         overlay={overlay}
         renderRow={renderRowAt}
       />

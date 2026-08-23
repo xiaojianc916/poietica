@@ -504,10 +504,6 @@ export class TranscriptStore implements TranscriptSink {
       earlier: page.before,
       reading: false,
     })
-
-    /* 剩下的经过从这一刻起自己读回来。一条对话有几轮是它自己的事实，不是滚动位置的
-       函数 —— 缩略导航按轮次画格子，它不能等人滚到顶才成立。 */
-    void this.#drain(threadId)
   }
 
   /** 要不回来。这一条记在转录里，而不是记在会话设置那一格上。 */
@@ -524,15 +520,19 @@ export class TranscriptStore implements TranscriptSink {
   /* ================= 内部 ================= */
 
   /**
-   * 把这条对话剩下的经过读完：一页一页往前，直到前面没有了。
+   * 再往前读一页。
    *
-   * 一页读回来可能整页都没有 run_started（一轮长过一页），攒下的半截帧留在
-   * #unaligned，等起点到达再一起折进去。每两页之间隔着一次 IPC 往返，屏幕照常
-   * 刷新 —— 最新那一页在第一时间就已经在屏幕上了。
+   * 一次调用只推进到最近一个轮次起点：页按帧数切而轮次边界在帧里，所以一页可能整页
+   * 都没有 run_started，那半截帧留在 #unaligned，继续读下一页。读到一半这条对话被删掉
+   * 时当场收手 —— 折进去等于把它请回屏幕上。
    *
-   * 读到一半这条对话被删掉时当场收手：折进去等于把它请回屏幕上。
+   * 重入由这里挡：视口可以每帧问，问几次都只有一页在飞。
    */
-  async #drain(real: string): Promise<void> {
+  readEarlier = (key: string): void => {
+    void this.#readEarlier(this.#resolveKey(key))
+  }
+
+  async #readEarlier(real: string): Promise<void> {
     const read = this.#earlier
     const opened = this.#now(real)
 
@@ -574,6 +574,8 @@ export class TranscriptStore implements TranscriptSink {
 
         this.#unaligned.set(real, merged.slice(0, at))
         this.#prepend(real, merged.slice(at), cursor)
+
+        return
       }
     } catch (cause: unknown) {
       const latest = this.#now(real)
@@ -834,9 +836,7 @@ export class TranscriptStore implements TranscriptSink {
   /**
    * 一件本地事故，记进这条对话的转录。
    *
-   * 它是本地事故唯一的公开入口：界面层此前把「连不上 agent」画在输入框顶上,
-   * 那是第二条报错通道 —— 同一类事实按它从哪儿来决定长什么样。报错只有一种
-   * 形态,就是转录里的那一条横线。
+   * 它是本地事故唯一的公开入口：报错只有一种形态,就是转录里的那一条横线。
    *
    * endsTurn 为假：这不是某一轮失败了。重复的同一句话由 pushFailure 挡掉。
    */

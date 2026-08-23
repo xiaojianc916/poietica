@@ -1,7 +1,6 @@
 import type { ThreadsStore } from '@poietica/agent'
 import { Button, ErrorState, LoadingState, Select, type SelectOption } from '@poietica/ui'
 import {
-  Activity,
   Archive,
   ArrowLeft,
   Settings as CogFour,
@@ -11,6 +10,7 @@ import {
   ShieldCheck,
   Sun,
   Unplug,
+  Zap,
 } from 'lucide-react'
 import {
   type ComponentType,
@@ -124,7 +124,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   },
   usage: {
     label: '用量',
-    icon: Activity,
+    icon: Zap,
     render: ({ threads }) => <UsageSettings threads={threads} />,
   },
   privacy: {
