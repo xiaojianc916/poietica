@@ -10,7 +10,6 @@ export const APPLICATION_FAILURE_CODES = [
   'SETTINGS_LOAD_FAILED',
   'WINDOW_STATE_QUERY_UNAVAILABLE',
   'WINDOW_STATE_SYNC_UNAVAILABLE',
-  'WINDOW_BACKING_COLOR_UNAVAILABLE',
   'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
   'AGENT_SELECTION_UNAVAILABLE',
   'AGENT_CAPABILITIES_UNREADABLE',
@@ -114,16 +113,6 @@ export const APPLICATION_FAILURE_POLICIES = {
   WINDOW_STATE_SYNC_UNAVAILABLE: {
     impact: 'feature-degraded',
     userMessage: '窗口状态同步暂时不可用。',
-
-    recovery: 'disable-feature',
-
-    scope: featureScope('window-state-sync'),
-  },
-
-  /* 衬底色没跟上主题：界面照常，只是拖动或缩放时边缘可能闪一下。 */
-  WINDOW_BACKING_COLOR_UNAVAILABLE: {
-    impact: 'feature-degraded',
-    userMessage: '窗口衬底色暂时无法跟随主题，拖动或缩放窗口时边缘可能闪一下。',
 
     recovery: 'disable-feature',
 

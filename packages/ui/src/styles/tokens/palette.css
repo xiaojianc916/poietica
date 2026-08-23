@@ -13,7 +13,11 @@
   --ui-palette-neutral-25: oklch(0.994 0.001 90);
   /* #f8f8f8 —— 主内容区基底色；中性灰，不带暖色偏移。 */
   --ui-palette-neutral-50: oklch(0.9792 0 0);
-  /* #f3f3f3 —— 顶部栏与左侧侧边栏底色。 */
+  /*
+   * #f3f3f3 —— 顶部栏与左侧侧边栏底色，同时是窗口衬底色。
+   * 抄件：apps/desktop/src-tauri/tauri.conf.json → app.windows[0].backgroundColor。
+   * 窗口早于 webview 存在，只能读那一份；JSON 不能写注释，所以正本记在这里。
+   */
   --ui-palette-neutral-75: oklch(0.9642 0 0);
   --ui-palette-neutral-100: oklch(0.95 0.004 90);
   --ui-palette-neutral-150: oklch(0.945 0.005 90);

@@ -9,8 +9,6 @@ export interface MainWindowController {
   isMaximized(): Promise<boolean>
   /** 最大化态的变化。窗口是唯一真相，这里只收它播报的翻转。 */
   onMaximizedChanged(handler: (isMaximized: boolean) => void): Promise<() => void>
-  /** 窗口层衬底色：拖动与缩放时新扩展出来的区域填的是它，不是 webview 内容。 */
-  setBackingColor(cssColor: string): Promise<void>
   openDeveloperTools(): Promise<void>
   close(): Promise<void>
   forceClose(): void
@@ -40,23 +38,6 @@ function getMainWindow(): Promise<Window> {
   })
 
   return mainWindow
-}
-
-/*
- * Window.setBackgroundColor 只收数字通道，而衬底色的真相是一条 CSS 颜色。
- * getComputedStyle 取到的 <color> 由 CSSOM 规定序列化成 rgb()/rgba()，所以只认
- * 这一种形状；认不出就抛 —— 静默填一个颜色等于在原生侧再造一份真相。
- */
-const CSS_RGB = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/
-
-function toNativeColor(cssColor: string): [number, number, number] {
-  const channels = CSS_RGB.exec(cssColor.trim())
-
-  if (channels === null) {
-    throw new Error('Unsupported window backing colour: ' + cssColor)
-  }
-
-  return [Number(channels[1]), Number(channels[2]), Number(channels[3])]
 }
 
 async function insideTauri(): Promise<boolean> {
@@ -96,12 +77,6 @@ export function createMainWindowController(): MainWindowController {
       return events.windowMaximized.listen((event) => {
         handler(event.payload.isMaximized)
       })
-    },
-
-    async setBackingColor(cssColor) {
-      const window = await getMainWindow()
-
-      await window.setBackgroundColor(toNativeColor(cssColor))
     },
 
     async close() {
