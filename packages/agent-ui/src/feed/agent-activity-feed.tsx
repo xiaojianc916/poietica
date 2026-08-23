@@ -8,6 +8,7 @@ import { useFollowLatest } from '../primitives/follow-latest'
 import { ChevronDownIcon } from '../primitives/icons'
 import { startGlide } from '../primitives/scroll-glide'
 import { useDevicePixels } from '../primitives/use-device-pixels'
+import { countLines } from '../timeline/split-stream'
 import { type RowSpan, rowAtAnchor } from './reading-position'
 import { useRevealIntent } from './use-reveal-intent'
 
@@ -20,19 +21,38 @@ import { useRevealIntent } from './use-reveal-intent'
  *
  * 这些数字是保守的下界:估小了只是补偿一次,估大了会在到达前留白。
  */
-const ESTIMATED_ROW_PX: Record<FeedRow['item']['type'], number> = {
-  user_message: 72,
-  agent_text: 240,
-  /* 收起时就是一行，与工具调用同形；按这张表的口径取真高的下界。 */
+const ESTIMATED_ROW_PX: Record<Exclude<FeedRow['item']['type'], 'agent_text'>, number> = {
   agent_thought: 40,
-  /* 收起时是一行与正文同号的淡色文字；按这张表的口径取真高的下界。 */
-  tool_call: 40,
-  plan: 200,
-  /* 一组落定的题：题面一行、答复一行，取真高的下界。 */
-  question: 96,
-  /* 审批从不成行（renderable 挡在 feed 外），这一格只为表对齐而存在。 */
-  permission: 0,
   error: 96,
+  permission: 0,
+  plan: 200,
+  question: 96,
+  tool_call: 40,
+  user_message: 72,
+}
+
+/*
+ * 正文行的估高按内容算。
+ *
+ * 官方文档对 estimateSize 的建议是估到舒适范围内可能的最大值：估值离真高越远，测量落地后要
+ * 修的总高与滚动位置就越多，而每一次修正又会挂载新的行去测。定值把一段两千行的回答与一句
+ * 「好的」估成同高，装载耗时就花在这个收敛循环里。
+ *
+ * 逻辑行数是下界（软换行只会让真高更大），所以每行的像素刻意取偏大的一档。
+ */
+const TEXT_BASE_PX = 28
+const TEXT_LINE_PX = 26
+
+function estimateRowPx(row: FeedRow | undefined): number {
+  const item = row?.item
+
+  if (item === undefined) {
+    return ESTIMATED_FALLBACK_PX
+  }
+
+  return item.type === 'agent_text'
+    ? TEXT_BASE_PX + countLines(item.text) * TEXT_LINE_PX
+    : ESTIMATED_ROW_PX[item.type]
 }
 
 /*
@@ -370,14 +390,7 @@ export function AgentActivityFeed({
    */
   const getItemKey = useCallback((index: number) => feed.rowAt(index)?.item.id ?? index, [feed])
 
-  const estimateSize = useCallback(
-    (index: number) => {
-      const type = feed.rowAt(index)?.item.type
-
-      return type === undefined ? ESTIMATED_FALLBACK_PX : ESTIMATED_ROW_PX[type]
-    },
-    [feed],
-  )
+  const estimateSize = useCallback((index: number) => estimateRowPx(feed.rowAt(index)), [feed])
 
   const virtualizer = useVirtualizer({
     count: feed.count,
