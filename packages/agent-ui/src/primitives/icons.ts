@@ -38,7 +38,6 @@ export function asIcon(glyph: FunctionComponent<{ className?: string; size?: num
     })
 }
 
-export { LightbulbIcon as ThinkingIcon } from '@poietica/ui'
 export {
   ArrowUp as SubmitIcon,
   Check as CheckIcon,

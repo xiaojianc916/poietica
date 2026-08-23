@@ -169,8 +169,9 @@ function rowsOf(page: TurnPage, live: boolean): readonly FeedRow[] {
   }
 
   const tail = rows.at(-1)
+  const type = tail?.item.type
 
-  if (live && tail !== undefined && tail.item.type === 'agent_text') {
+  if (live && tail !== undefined && (type === 'agent_text' || type === 'agent_thought')) {
     rows[rows.length - 1] = toRow(tail.item, true, tail.isInFlight)
   }
 
@@ -212,20 +213,22 @@ function answerFrom(rows: readonly FeedRow[], from: number, until: number): numb
 }
 
 /**
- * 这一轮要收进封条的行：最终回复之前的都是过程。
+ * 封条的边界：最后那段落在屏幕上的回答之前，全是过程。
  *
- * 没有最终回复时 —— 还在跑，或者被主动/被动停在半路 —— 最近的那一条留在原地当现场，
- * 一整轮因此不会收成一片空白。它不换父节点，所以开合封条不会让任何一行搬家。
+ * kap 不说哪一句是最终文本，能当最终文本的只有打印出来的回答。一句都还没说的一轮
+ * 没有边界，过程原样摊着 —— 逐条往里收只会让人看得见最后一步，那是遮挡，不是折叠。
  */
-function foldFrom(
-  rows: readonly FeedRow[],
-  answer: number,
-  from: number,
-  until: number,
-): readonly number[] {
+function sealFrontier(rows: readonly FeedRow[]): number {
+  const answer = answerFrom(rows, 0, rows.length)
+
+  return answer === rows.length ? 0 : answer
+}
+
+/** 边界之前的过程行。人说的话与旁白永不折叠。 */
+function foldFrom(rows: readonly FeedRow[], frontier: number): readonly number[] {
   const out: number[] = []
 
-  for (let i = from; i < answer; i += 1) {
+  for (let i = 0; i < frontier; i += 1) {
     const type = rows[i]?.item.type
 
     if (type === undefined || type === SAID || ASIDE.has(type)) {
@@ -233,10 +236,6 @@ function foldFrom(
     }
 
     out.push(i)
-  }
-
-  if (answer === until) {
-    out.pop()
   }
 
   return out
@@ -424,12 +423,12 @@ function buildSegment(
   isOpen: boolean,
 ): Segment {
   const all = rowsOf(page, live)
-  const answer = answerFrom(all, 0, all.length)
   const anchor = all.findIndex((row) => row.item.type === SAID)
   const bounds = boundsIn(all)
+  const spoken = sealFrontier(all)
   /* 排队追问把一次运行切成两半：最后一问之前的过程收进封条，之后的现场保持展开。 */
-  const frontier = bounds.length > 1 ? (bounds[bounds.length - 1] ?? answer) : answer
-  const process = foldFrom(all, Math.min(answer, frontier), 0, all.length)
+  const queued = bounds.length > 1 ? (bounds[bounds.length - 1] ?? spoken) : spoken
+  const process = foldFrom(all, Math.min(spoken, queued))
   const seal: TurnSealPlan | undefined =
     anchor < 0 || !bodyIn(all, 0, all.length)
       ? undefined

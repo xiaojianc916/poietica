@@ -1,10 +1,4 @@
-import {
-  type FeedRow,
-  selectIsBusy,
-  selectLiveThought,
-  selectPresentation,
-  type TurnSealPlan,
-} from '@poietica/agent'
+import { type FeedRow, selectIsBusy, selectPresentation, type TurnSealPlan } from '@poietica/agent'
 import { useReducedMotion } from 'motion/react'
 import { type ReactNode, useCallback, useReducer } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
@@ -12,7 +6,6 @@ import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { ReplyActionHost } from './reply-actions'
-import { ThinkingLine } from './thinking-line'
 import { ToolGroupCard } from './tool-group-card'
 import { TurnSeal } from './turn-seal'
 
@@ -123,9 +116,6 @@ export function TranscriptView({
   const feed = selectPresentation(timeline, foldUi.opened)
   const turns = feed.turns
 
-  /* 正在写的那一句思考。它不进转录（renderable），所以只能直接问状态。 */
-  const thought = selectLiveThought(timeline)
-
   const sealOf = useCallback(
     (plan: TurnSealPlan) => (
       <TurnSeal
@@ -221,11 +211,6 @@ export function TranscriptView({
         overlay={overlay}
         renderRow={renderRowAt}
       />
-
-      {/* 现场，不是转录：轮次一落定 selectLiveThought 就没有值，这一行随之卸载。
-          它长在滚动区外面 —— 那些行挂着虚拟器的 measureElement，一行每几十毫秒改一次
-          宽度会把测量一直打回重来。 */}
-      {thought === undefined ? null : <ThinkingLine text={thought} />}
     </>
   )
 }

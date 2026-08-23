@@ -34,7 +34,6 @@ export {
   pendingQuestion,
   runningDelegations,
   selectIsBusy,
-  selectLiveThought,
 } from './timeline-queries'
 export {
   appendLocalError,

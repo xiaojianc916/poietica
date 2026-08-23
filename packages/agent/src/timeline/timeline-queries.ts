@@ -224,20 +224,3 @@ export function selectIsBusy(state: TimelineState): boolean {
     state.status === 'awaiting_question'
   )
 }
-
-/**
- * 此刻正在写的那一句思考。
- *
- * 思考不进转录（renderable）：它是这一轮的现场，不是它的痕迹。判据因此只有一句 ——
- * 活动段的末尾还是一条没封口的思考。答案一开口它就不再是末尾，屏幕上那一行随即消失；
- * 轮次落定、或者重进一条对话读回终态，同样没有值。一次性是这句判据的性质，不需要清理。
- */
-export function selectLiveThought(state: TimelineState): string | undefined {
-  if (!selectIsBusy(state)) {
-    return undefined
-  }
-
-  const tail = state.active.items.at(-1)
-
-  return tail?.type === 'agent_thought' && !tail.sealed ? tail.text : undefined
-}

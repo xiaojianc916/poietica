@@ -1,8 +1,7 @@
 /*
  * 活动流里一条可点的记事：一枚图标、一句话、指到才出现的箭头。
  *
- * 思考链、单次工具调用、一组同类调用共用它。它们本来就是同一个音量、同一套缩进，
- * 此前各写一份，三份之间只能靠人去维持相等。
+ * 单次工具调用与一组同类调用共用它：同一个音量、同一套缩进，只此一份。
  */
 
 .timeline-row {
@@ -94,9 +93,11 @@ button.timeline-row:focus-visible {
   text-overflow: clip;
 }
 
-/* 现场那一行长在滚动区外面，所以自己复原那一列的宽度 —— 与行用的是同一个上限。 */
-.timeline-thinking {
-  inline-size: min(100%, var(--cp-timeline-tool-max));
-  margin-inline: auto;
-  padding-block: var(--cp-control-gap);
+/* 推理与回答同一条 markdown 管线，只在音量上分开：淡色，一道竖线。 */
+.timeline-thought {
+  --cp-thought-rule: color-mix(in oklab, var(--cp-timeline-quiet-text) 24%, transparent);
+
+  border-inline-start: 2px solid var(--cp-thought-rule);
+  padding-inline-start: var(--cp-control-gap);
+  color: var(--cp-timeline-quiet-text);
 }

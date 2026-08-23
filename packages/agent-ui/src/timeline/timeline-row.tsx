@@ -38,9 +38,15 @@ export const TimelineRow = memo(function TimelineRow({ row }: TimelineRowProps) 
         <Prose className="timeline-message" isStreaming={row.isStreamingTail} text={item.text} />
       )
 
-    /* 思考不成行（renderable 把它挡在 feed 外）；现场那一行归 ThinkingLine。 */
+    /* 推理与回答同一条 markdown 管线，音量由 timeline-thought 分开。 */
     case 'agent_thought':
-      return null
+      return (
+        <Prose
+          className="timeline-message timeline-thought"
+          isStreaming={row.isStreamingTail}
+          text={item.text}
+        />
+      )
 
     case 'tool_call':
       return <ToolCallCard isInFlight={row.isInFlight} item={item} />

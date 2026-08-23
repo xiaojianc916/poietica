@@ -19,6 +19,10 @@ function planned(id: string, turn: number, at: number): TimelineItem {
   return { at, entries: [{ content: '一步', status: 'completed' }], id, turn, type: 'plan' }
 }
 
+function thought(id: string, turn: number, at: number): TimelineItem {
+  return { at, id, sealed: true, text: '想', turn, type: 'agent_thought' }
+}
+
 function broke(id: string, turn: number, at: number): TimelineItem {
   return { at, id, message: '炸了', turn, type: 'error' }
 }
@@ -142,19 +146,41 @@ describe('presentation projection', () => {
     expect(idsOf(feed)).toEqual(['s1', 'e1', 'a1'])
   })
 
-  it('keeps the newest item of a speechless running turn in place', () => {
+  it('holds the whole process open until something has been printed', () => {
     const feed = selectPresentation(
       stateOf(
-        [[said('s1', 1, 1), spoke('a1', 1, 2), planned('p1', 1, 3)]],
+        [[said('s1', 1, 1), thought('t1', 1, 2), planned('p1', 1, 3)]],
         [{ lastFrameAt: 3, startedAt: 1, turn: 1 }],
         'running',
       ),
       SHUT,
     )
 
-    expect(idsOf(feed)).toEqual(['s1', 'p1'])
-    expect(feed.processOf(1)).toBeUndefined()
-    expect(feed.replyAt(1)).toBeUndefined()
+    expect(idsOf(feed)).toEqual(['s1', 't1', 'p1'])
+    expect(feed.sealAt(0)?.hasProcess).toBe(false)
+    expect(feed.processOf(2)).toBeUndefined()
+  })
+
+  it('seals everything before the newest printed text, not one row at a time', () => {
+    const feed = selectPresentation(
+      stateOf(
+        [
+          [
+            said('s1', 1, 1),
+            thought('t1', 1, 2),
+            planned('p1', 1, 3),
+            spoke('a1', 1, 4, '碎碎念'),
+            planned('p2', 1, 5),
+            thought('t2', 1, 6),
+            spoke('a2', 1, 7, '最终答复'),
+          ],
+        ],
+        [{ endedAt: 8, lastFrameAt: 7, startedAt: 1, turn: 1 }],
+      ),
+      SHUT,
+    )
+
+    expect(idsOf(feed)).toEqual(['s1', 'a2'])
   })
 
   it('anchors the reply action on the last visible row of a settled turn', () => {

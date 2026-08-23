@@ -41,8 +41,9 @@ describe('isRenderable', () => {
     expect(isRenderable(question(true))).toBe(true)
   })
 
-  it('推理不上屏', () => {
-    expect(isRenderable(base({ type: 'agent_thought', text: '草稿' }))).toBe(false)
+  it('推理与回答同一条判据', () => {
+    expect(isRenderable(base({ type: 'agent_thought', text: '草稿' }))).toBe(true)
+    expect(isRenderable(base({ type: 'agent_thought', text: '' }))).toBe(false)
   })
 
   it('空的一句话不是话', () => {
