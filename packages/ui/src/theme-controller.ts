@@ -4,7 +4,7 @@ const DARK_QUERY = '(prefers-color-scheme: dark)'
 
 let removeSystemListener: (() => void) | undefined
 
-export function applyThemePreference(theme: ThemePreference): void {
+export function applyThemePreference(theme: ThemePreference, onApplied?: () => void): void {
   removeSystemListener?.()
   removeSystemListener = undefined
 
@@ -20,6 +20,9 @@ export function applyThemePreference(theme: ThemePreference): void {
 
     root.setAttribute('data-theme', scheme)
     root.style.colorScheme = scheme
+
+    /* 令牌已生效，调用方可以读回计算值；system 模式下每次跟随都会再通知一次。 */
+    onApplied?.()
   }
 
   if (theme === 'light' || theme === 'dark') {

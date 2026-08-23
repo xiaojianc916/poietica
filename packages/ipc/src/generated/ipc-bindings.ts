@@ -1071,12 +1071,14 @@ export const events = __makeEvents__<{
 automationDue: AutomationDue,
 browserElementPicked: BrowserElementPicked,
 browserState: BrowserState,
-updateProgress: UpdateProgress
+updateProgress: UpdateProgress,
+windowMaximized: WindowMaximized
 }>({
 automationDue: "automation-due",
 browserElementPicked: "browser-element-picked",
 browserState: "browser-state",
-updateProgress: "update-progress"
+updateProgress: "update-progress",
+windowMaximized: "window-maximized"
 })
 
 /** user-defined constants **/
@@ -2052,6 +2054,10 @@ day: string;
  * 那天累计的 token。
  */
 tokens: number }
+/**
+ * 窗口最大化态的一次翻转。
+ */
+export type WindowMaximized = { isMaximized: boolean }
 
 /** tauri-specta globals **/
 

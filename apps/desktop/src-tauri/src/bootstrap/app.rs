@@ -221,6 +221,9 @@ pub fn build() -> tauri::Builder<Wry> {
             main_window.restore_state(WINDOW_STATE_FLAGS)?;
             constrain_to_visible_area(&main_window);
 
+            /* 最大化态由窗口自己播报，渲染层不轮询。 */
+            commands::window::watch_maximized(&main_window);
+
             /*
              * 呈现权归渲染层：窗口在 React 首帧提交后由前端 present()。这里是唯一兜底 ——
              * webview 若根本没跑起来（脚本 404、CSP 拦截、渲染进程启动失败），没有它窗口

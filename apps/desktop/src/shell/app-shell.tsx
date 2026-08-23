@@ -10,6 +10,7 @@ import type {
   KeybindingEntry,
   SettingsStore,
 } from '@poietica/settings'
+import { DEFAULT_APP_SETTINGS } from '@poietica/settings'
 import { applyThemePreference } from '@poietica/ui'
 import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
 import {
@@ -24,6 +25,7 @@ import type { DesktopAgentRuntime } from '../assistant/agent-runtime'
 import { ThreadsProvider } from '../assistant/threads-provider'
 import { AutomationDispatcher } from '../automations/automation-runtime'
 import { useWindowChrome } from '../chrome/use-window-chrome'
+import { alignWindowBackingColor } from '../chrome/window-backing'
 import { reportFailure } from '../failures/application-policy'
 import { failureCoordinator } from '../failures/coordinator'
 import { UiFeedbackRegion } from '../feedback/ui-feedback'
@@ -205,18 +207,26 @@ export function AppShell({ runtime }: AppShellProps) {
   useEffect(() => {
     let active = true
 
+    /* 主题与窗口衬底色是同一次应用的两个后果，不可能只走一半。 */
+    const align = () => {
+      alignWindowBackingColor(runtime.mainWindow)
+    }
+
     void runtime.settings.load().then(
       (settings) => {
         if (!active) {
           return
         }
 
-        applyThemePreference(settings.theme)
+        applyThemePreference(settings.theme, align)
       },
       (cause: unknown) => {
         if (!active) {
           return
         }
+
+        /* 读不到设置也要把跟随装上，否则 system 模式换主题时衬底色不动。 */
+        applyThemePreference(DEFAULT_APP_SETTINGS.theme, align)
 
         reportFailure('SETTINGS_LOAD_FAILED', {
           scope: 'app-shell',
@@ -229,7 +239,7 @@ export function AppShell({ runtime }: AppShellProps) {
     return () => {
       active = false
     }
-  }, [runtime.settings])
+  }, [runtime.mainWindow, runtime.settings])
 
   /*
    * 这一家 agent 提供哪些可调项，一个进程一份。

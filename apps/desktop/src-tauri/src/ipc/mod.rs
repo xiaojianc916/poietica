@@ -43,6 +43,7 @@ use crate::commands::{
     settings::{AppSettings, PrivacySettings},
     skills::{SkillCommitRequest, SkillStaged},
     updates::{UpdateProgress, UpdateRelease},
+    window::WindowMaximized,
 };
 use crate::diagnostics::NativeCrashReport;
 
@@ -148,7 +149,8 @@ pub fn surface() -> Builder<Wry> {
             AutomationDue,
             BrowserElementPicked,
             BrowserState,
-            UpdateProgress
+            UpdateProgress,
+            WindowMaximized
         ])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptConfiguration>()

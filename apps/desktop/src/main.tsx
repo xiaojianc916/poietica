@@ -9,6 +9,7 @@ import { installContextMenuGuard } from './chrome/context-menu-guard'
 import { installExternalLinks } from './chrome/external-links'
 import { installScrollbarSize } from './chrome/scrollbar-size'
 import { installTableDownloads } from './chrome/table-downloads'
+import { alignWindowBackingColor } from './chrome/window-backing'
 import { reportFatalIncident } from './failures/terminal-policy'
 
 async function bootstrapApplication(): Promise<void> {
@@ -38,6 +39,9 @@ async function bootstrapApplication(): Promise<void> {
   const mounted = mountReactApplication(getApplicationRoot(), restored)
 
   performance.mark('poietica:first-commit')
+
+  /* 呈现之前对齐一次：此后每一次主题变化由 app-shell 那处带回调的应用负责。 */
+  alignWindowBackingColor(mounted.runtime.mainWindow)
 
   void mounted.runtime.mainWindow.present().catch((cause: unknown) => {
     console.error('[Poietica] Failed to present the main window', cause)

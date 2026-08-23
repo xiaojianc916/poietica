@@ -40,42 +40,41 @@ export function useWindowChrome(mainWindow: MainWindowController): WindowChrome 
   return { isMaximized, minimize, toggleMaximize }
 }
 
+/*
+ * 首帧问一次快照，此后只收窗口播报的翻转。
+ *
+ * 判定留在原生侧去抖（commands/window.rs 的 watch_maximized），过边界的只有真正的
+ * 变化，所以这里没有并发的请求，也就不需要请求版本号去压竞态。
+ */
 function useMaximizedState(mainWindow: MainWindowController): boolean {
   const [isMaximized, setMaximized] = useState(false)
 
   useEffect(() => {
     let active = true
     let unsubscribe: (() => void) | undefined
-    let requestVersion = 0
 
-    function synchronizeMaximizedState() {
-      const currentVersion = ++requestVersion
+    void mainWindow.isMaximized().then(
+      (nextIsMaximized) => {
+        if (!active) {
+          return
+        }
 
-      void mainWindow.isMaximized().then(
-        (nextIsMaximized) => {
-          if (!active || currentVersion !== requestVersion) {
-            return
-          }
+        setMaximized(nextIsMaximized)
+      },
+      (cause: unknown) => {
+        if (!active) {
+          return
+        }
 
-          setMaximized(nextIsMaximized)
-        },
-        (cause: unknown) => {
-          if (!active) {
-            return
-          }
+        reportFailure('WINDOW_STATE_QUERY_UNAVAILABLE', {
+          scope: 'window-chrome',
+          operation: 'query-window-maximized',
+          cause,
+        })
+      },
+    )
 
-          reportFailure('WINDOW_STATE_QUERY_UNAVAILABLE', {
-            scope: 'window-chrome',
-            operation: 'query-window-maximized',
-            cause,
-          })
-        },
-      )
-    }
-
-    synchronizeMaximizedState()
-
-    void mainWindow.onResized(synchronizeMaximizedState).then(
+    void mainWindow.onMaximizedChanged(setMaximized).then(
       (nextUnsubscribe) => {
         if (!active) {
           nextUnsubscribe()
@@ -89,9 +88,9 @@ function useMaximizedState(mainWindow: MainWindowController): boolean {
           return
         }
 
-        reportFailure('WINDOW_RESIZE_SYNC_UNAVAILABLE', {
+        reportFailure('WINDOW_STATE_SYNC_UNAVAILABLE', {
           scope: 'window-chrome',
-          operation: 'register-window-resize-listener',
+          operation: 'watch-window-maximized',
           cause,
         })
       },
@@ -99,7 +98,6 @@ function useMaximizedState(mainWindow: MainWindowController): boolean {
 
     return () => {
       active = false
-      requestVersion += 1
       unsubscribe?.()
     }
   }, [mainWindow])

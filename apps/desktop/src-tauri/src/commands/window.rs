@@ -1,4 +1,9 @@
-use tauri::{AppHandle, Manager, command};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use serde::{Deserialize, Serialize};
+use specta::Type;
+use tauri::{AppHandle, Manager, WebviewWindow, WindowEvent, command};
+use tauri_specta::Event;
 
 /// 打开开发者工具。没有 `JavaScript` 对应物的两个窗口操作之一。
 ///
@@ -61,4 +66,39 @@ pub async fn window_open_external_url(url: String) {
     if let Err(error) = tauri_plugin_opener::open_url(url.as_str(), None::<&str>) {
         log::warn!("could not hand a link to the system browser: {error}");
     }
+}
+
+/// 窗口最大化态的一次翻转。
+#[derive(Clone, Copy, Debug, Deserialize, Event, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowMaximized {
+    pub is_maximized: bool,
+}
+
+/// 让窗口自己播报最大化态。
+///
+/// tao 只发 Resized，不发 Maximized，所以判定必须在这一侧做；去抖之后过边界的只有
+/// 真正的翻转。渲染层若改成在每次 Resized 上问一遍 is_maximized，缩放的每一帧就是
+/// 一次 IPC 往返加一次重渲 —— 而那正是拖拽期间不能抢的那条线程。
+pub fn watch_maximized(window: &WebviewWindow) {
+    let emitter = window.clone();
+    let broadcast = AtomicBool::new(window.is_maximized().unwrap_or(false));
+
+    window.on_window_event(move |event| {
+        if !matches!(event, WindowEvent::Resized(_)) {
+            return;
+        }
+
+        let Ok(is_maximized) = emitter.is_maximized() else {
+            return;
+        };
+
+        if broadcast.swap(is_maximized, Ordering::Relaxed) == is_maximized {
+            return;
+        }
+
+        if let Err(error) = (WindowMaximized { is_maximized }).emit(emitter.app_handle()) {
+            log::warn!("could not emit the window maximized state: {error}");
+        }
+    });
 }
