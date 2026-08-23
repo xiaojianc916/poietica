@@ -1,3 +1,4 @@
+import './flow-row.css'
 import './shimmer.css'
 import './tool-call.css'
 
@@ -29,7 +30,7 @@ import { ToolCallPanels } from './tool-call-panels'
  * 末尾那道 never：协议长出新档时这里是编译错误，不是一枚沉默的扳手。
  */
 export function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
-  const className = 'timeline-tool__icon'
+  const className = 'timeline-row__icon'
 
   switch (kind) {
     case 'read':
@@ -126,21 +127,16 @@ function ToolCallHeader({
   const { diffStat } = facets
 
   return (
-    <button
-      aria-expanded={isOpen}
-      className="timeline-tool__header"
-      onClick={onToggle}
-      type="button"
-    >
+    <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
       <ToolKindIcon kind={item.kind} />
 
-      <span className={cx('timeline-tool__label', isRunning && 'timeline-shimmer')}>{line}</span>
+      <span className={cx('timeline-row__label', isRunning && 'timeline-shimmer')}>{line}</span>
 
       {item.isBackground === true ? <span className="timeline-tool__background">后台</span> : null}
 
       <ToolCallDiffStat diffStat={diffStat} />
 
-      <ChevronDownIcon aria-hidden="true" className="timeline-tool__chevron disclosure__chevron" />
+      <ChevronDownIcon aria-hidden="true" className="timeline-row__chevron disclosure__chevron" />
     </button>
   )
 }

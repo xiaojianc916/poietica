@@ -11,90 +11,6 @@
 }
 
 /*
- * 整行就是那个按钮：可聚焦、可回车、由 aria-expanded 说开合 —— WAI-ARIA APG 的
- * Disclosure 模式要求这三样长在同一个 button 上，所以行内不再放第二个开关。
- *
- * 宽度由内容定并且封顶（--cp-timeline-tool-max）：铺满整列的那一版把箭头顶到了
- * 列的最右端，离它解释的那句话隔着一片空白。行只有内容那么宽，箭头就紧跟着文字。
- *
- * 不留内边距，悬停也不铺底：底色是「一块可点的面」的语言，而这一行是一句话。
- * 转录里另外两条可点的摘要 —— 思考链那一行与报错摘要 —— 同样是 padding: 0，
- * 同样只换墨色。
- *
- * 字号取正文那一档，不取次要那一档：这一行是活动流的正文，淡是它的音量而不是
- * 它的字号。淡色取 --cp-timeline-quiet-text，与思考链那一行同一个刻度。
- *
- * 行高不另写：一行正文的行盒就是这一行的高度，工具行因此与正文落在同一套竖直
- * 节奏上，换一档正文字号不必回来改这里。
- */
-.timeline-tool__header {
-  display: inline-flex;
-  justify-self: start;
-  align-items: center;
-  gap: var(--cp-control-gap);
-  max-inline-size: min(100%, var(--cp-timeline-tool-max));
-  border: 0;
-  padding: 0;
-  background: none;
-  color: var(--cp-timeline-quiet-text);
-  font: inherit;
-  font-size: var(--ui-prose-size);
-  line-height: var(--ui-prose-line-height);
-  text-align: start;
-  cursor: pointer;
-  transition: color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-/* 指到就亮一档墨色。思考链那一行与报错摘要是同一下反馈，这里不另立一套。 */
-.timeline-tool__header:hover,
-.timeline-tool__header:focus-visible {
-  color: var(--cp-ink);
-}
-
-.timeline-tool__icon,
-.timeline-tool__chevron {
-  flex: none;
-  inline-size: var(--cp-icon);
-  block-size: var(--cp-icon);
-  stroke-width: var(--cp-icon-stroke);
-}
-
-/*
- * 箭头是给鼠标的第二遍提示，读屏那一遍由 aria-expanded 说，所以它的出现与消失
- * 不是 React 的事。用 opacity 而不是 display：它一直占位，出现时这一行不重排。
- * 展开着的时候必须留着 —— 那是唯一说得清「下面那块是它撑开的」的记号。
- */
-.timeline-tool__chevron {
-  opacity: 0;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.timeline-tool__header:hover .timeline-tool__chevron,
-.timeline-tool__header:focus-visible .timeline-tool__chevron,
-.timeline-tool[data-open="true"] .timeline-tool__chevron {
-  opacity: 1;
-}
-
-/*
- * 一个槽位一句话：长了单行截断，全文进 title。
- *
- * 不长（grow 是 0 而不是 1）：会长的那一版把这一格撑满整行，箭头与右侧那两个记
- * 号于是被顶到列的最右端。会缩再加 min-inline-size: 0 才有省略号 —— 弹性子项的
- * 默认最小尺寸是 auto，不解到 0 就不会截断。
- *
- * 这一格不声明颜色：平时随整行继承，还在跑的时候由 shimmer.css 那个类接管。那道光是
- * 裁进字形里的，所以它戴在这一格上而不是整行上 —— 渐变的几何以戴它的盒子为准，量的
- * 该是这句话的宽度，不是这句话加上两枚图标。
- */
-.timeline-tool__label {
-  flex: 0 1 auto;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/*
  * 展开之后的那张纸：一个实色块。
  *
  * 没有边框也没有投影 —— 它不是浮起来的一张卡，是这一行摊开之后的内容。必须是
@@ -165,11 +81,6 @@
   max-block-size: var(--cp-timeline-output-max);
   padding: 0.625rem 0.75rem;
   overflow: auto;
-  /*
-   * 锚定只能有一个所有者：末端锚定与增量补偿归虚拟器，浏览器原生的滚动锚定若同时
-   * 生效，同一次尺寸变化会被两个纠正者各补一次。思考盒那一层同一条。
-   */
-  overflow-anchor: none;
   scrollbar-width: thin;
   scrollbar-color: var(--cp-timeline-drawer-thumb) var(--cp-timeline-drawer-surface);
 }
@@ -214,9 +125,14 @@
   align-items: center;
   gap: 0.375rem;
   font-family: var(--cp-font-mono);
-  font-size: var(--ui-prose-size-meta);
+  /*
+   * 等宽字体的升降部与界面字体不是同一套：照抄行头的 24px 行盒，数字会在盒内
+   * 偏高，与左侧那句话对不齐。行高收成 1，盒子贴着字走，居中交给
+   * .timeline-row 的 align-items；字号比正文小一档，它是注脚不是台词。
+   */
+  font-size: calc(var(--ui-prose-size) - 2px);
   font-variant-numeric: tabular-nums;
-  line-height: var(--ui-prose-line-height);
+  line-height: 1;
 }
 
 .timeline-tool__diffstat-added {
@@ -238,8 +154,6 @@
  * 虚拟块的包含块，以及它比回答小一档。
  */
 .timeline-prose.timeline-tool__prose {
-  /* 虚拟块的包含块。高度由虚拟器给出，是行内样式 —— 这里不声明第二个来源。 */
-  position: relative;
   font-size: var(--ui-prose-size-aux);
 }
 
@@ -295,10 +209,6 @@
  * 出口在面板上，不在这里：这个盒子 overflow 是 visible，长行照直伸出去，由面板那唯一
  * 一个滚动容器接住。横条因此钉在面板底边，不随内容上下跑 —— 滚动条是滚动容器的边，不
  * 是内容的边。
- *
- * 「照直伸出去」之后还能被滚到，靠的是含围栏的那些虚拟块把自己撑到最长那一行的宽度：
- * 绝对定位的盒子只以 border box 计入可滚区，撑宽是唯一的来源。理由写在
- * .timeline-prose__block 上。
  */
 .timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
   white-space: pre;
@@ -323,7 +233,8 @@
  */
 .timeline-tool__background {
   flex: none;
-  font: var(--cp-font-micro);
+  font-size: var(--cp-font-micro);
+  line-height: inherit;
   color: var(--cp-ink-subtle);
   white-space: nowrap;
 }

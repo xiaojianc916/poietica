@@ -179,16 +179,13 @@ export interface ProseProps {
  * 一块它就换一次字符串，于是前面所有块连同它们的 Shiki 高亮与 KaTeX 一起重新解析
  * 一遍，n 块合计 n(n+1)/2 次。切成块之后每块正好解析一次。
  *
- * 它同时是思考盒虚拟化的那个渲染单元，所以从这里导出：一块 markdown 由谁画、按哪
- * 一份配置画，只有这一个答案 —— 变的只是谁来决定哪些块此刻在屏幕上。
- *
  * 在写的那一块每帧都换字，memo 不命中，也不需要命中。
  *
  * 静态那一侧不切块、不修补、不预留未闭合标记的过渡，代码块走官方那条优化过的
  * 静态路径，也不带 animated：一段早已写完的文字不需要被再写一遍，而逐词的
  * filter 动画是这个界面里唯一会按词数提层的东西。
  */
-export const ProseSegment = memo(function ProseSegment({
+const ProseSegment = memo(function ProseSegment({
   isStreaming,
   text,
 }: {

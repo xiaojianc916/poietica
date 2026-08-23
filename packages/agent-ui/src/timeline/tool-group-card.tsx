@@ -1,3 +1,4 @@
+import './flow-row.css'
 import './tool-group.css'
 
 import {
@@ -114,7 +115,7 @@ export function ToolGroupCard({ plan, renderRow }: ToolGroupCardProps) {
    * disclosure.css 的打开态是 [data-open="true"] .disclosure__reveal —— 后代选择器，
    * 而成员就长在组的抽屉里。属性一挂，组内每一个成员的抽屉会被同一条规则一起撑开，
    * 可它们各自的 isOpen 仍是 false，reveal 上还挂着 inert：盒子看着开着，里面的
-   * VirtualProse 从没收到过「我有高度了」，滚也滚不动。开着的空盒子，正是这么来的。
+   * 内容却点不到、滚不动。开着的空盒子，正是这么来的。
    *
    * 所以开合的判据换个名字，由 tool-group.css 用子选择器自己接管 —— 那条路径够不到
    * 成员。原语一个字不动：它说的「调用方要覆盖外观照旧加自己的类」，指的就是这个。
@@ -128,7 +129,7 @@ export function ToolGroupCard({ plan, renderRow }: ToolGroupCardProps) {
       <button
         aria-expanded={isOpen}
         aria-label={summary}
-        className="timeline-group__header"
+        className="timeline-row"
         onClick={toggle}
         type="button"
       >
@@ -136,10 +137,7 @@ export function ToolGroupCard({ plan, renderRow }: ToolGroupCardProps) {
 
         <GroupTicker isRunning={isRunning} text={saying ?? summary} />
 
-        <ChevronDownIcon
-          aria-hidden="true"
-          className="timeline-group__chevron disclosure__chevron"
-        />
+        <ChevronDownIcon aria-hidden="true" className="timeline-row__chevron disclosure__chevron" />
       </button>
 
       <DisclosureBody isOpen={isOpen}>

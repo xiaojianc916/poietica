@@ -10,53 +10,6 @@
   display: grid;
 }
 
-/*
- * 排版整段照 .timeline-tool__header，理由是它们本来就该长得一样。
- *
- * 这不是复制粘贴的托词：两处若哪天要一起改，编译器帮不上忙。但把它抽成共享类需要
- * 先给「活动流里一条可点的记事」起一个跨组件的名字，而现在只有两处 —— 第三处出现
- * 之前，一个名字的成本高于一份重复。
- */
-.timeline-group__header {
-  display: inline-flex;
-  justify-self: start;
-  align-items: center;
-  gap: var(--cp-control-gap);
-  max-inline-size: min(100%, var(--cp-timeline-tool-max));
-  border: 0;
-  padding: 0;
-  background: none;
-  color: var(--cp-timeline-quiet-text);
-  font: inherit;
-  font-size: var(--ui-prose-size);
-  line-height: var(--ui-prose-line-height);
-  text-align: start;
-  cursor: pointer;
-  transition: color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.timeline-group__header:hover,
-.timeline-group__header:focus-visible {
-  color: var(--cp-ink);
-}
-
-/* 与 .timeline-tool__chevron 同一个尺寸，同上一段的理由。图标那一枚不必再写：
-   ToolKindIcon 内部戴的 .timeline-tool__icon 是无作用域的类，在这里照样生效。 */
-.timeline-group__chevron {
-  flex: none;
-  inline-size: var(--cp-icon);
-  block-size: var(--cp-icon);
-  stroke-width: var(--cp-icon-stroke);
-  opacity: 0;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.timeline-group__header:hover .timeline-group__chevron,
-.timeline-group__header:focus-visible .timeline-group__chevron,
-.timeline-group[data-expanded="true"] .timeline-group__chevron {
-  opacity: 1;
-}
-
 /* 那一格现在是 GroupTicker，几何搬去了 group-ticker.css：会缩的那两条归外面那一格，
    省略号归里面印字的那一层 —— 换字期间外面那一格里有两句话，截断只能落在单句上。 */
 
@@ -79,7 +32,7 @@
   transform: none;
 }
 
-.timeline-group[data-expanded="true"] > .timeline-group__header .disclosure__chevron {
+.timeline-group[data-expanded="true"] > .timeline-row .disclosure__chevron {
   transform: rotate(0deg);
 }
 

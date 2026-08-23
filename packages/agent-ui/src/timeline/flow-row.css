@@ -1,0 +1,89 @@
+/*
+ * 活动流里一条可点的记事：一枚图标、一句话、指到才出现的箭头。
+ *
+ * 思考链、单次工具调用、一组同类调用共用它。它们本来就是同一个音量、同一套缩进，
+ * 此前各写一份，三份之间只能靠人去维持相等。
+ */
+
+.timeline-row {
+  /*
+   * 行盒取 24px：(24 − 16) / 2 = 4，居中偏移落在整数 CSS 像素上 —— 这正是
+   * composer-metrics.css 给"壳高减图标尺寸"立的那条硬约束。1.65 的比例行高在
+   * 14px 上解出 23.1px，偏移 3.55px，图标于是停在半个设备像素上。
+   */
+  --cp-row-line: var(--cp-control-sm);
+
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  max-inline-size: min(100%, var(--cp-timeline-tool-max));
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--cp-timeline-quiet-text);
+  font: inherit;
+  font-size: var(--ui-prose-size);
+  line-height: var(--cp-row-line);
+  text-align: start;
+  cursor: pointer;
+  transition: color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.timeline-row:hover,
+.timeline-row:focus-visible {
+  color: var(--cp-ink);
+}
+
+.timeline-row__icon,
+.timeline-row__chevron {
+  flex: none;
+  align-self: center;
+  inline-size: var(--cp-icon);
+  block-size: var(--cp-icon);
+  stroke-width: var(--cp-icon-stroke);
+}
+
+/* 箭头是给鼠标的第二遍提示，读屏那一遍由 aria-expanded 说。一直占位，出现时不重排。 */
+.timeline-row__chevron {
+  opacity: 0;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.timeline-row:hover .timeline-row__chevron,
+.timeline-row:focus-visible .timeline-row__chevron,
+[data-open="true"] > .timeline-row .timeline-row__chevron,
+[data-expanded="true"] > .timeline-row .timeline-row__chevron {
+  opacity: 1;
+}
+
+/* 固定的那个名不参与截断：会变的是它后面那一格。 */
+.timeline-row__name {
+  flex: none;
+}
+
+/* 名与内容之间的那个点。 */
+.timeline-row__dot {
+  flex: none;
+  inline-size: 2px;
+  block-size: 2px;
+  border-radius: 1px;
+  background: currentcolor;
+}
+
+/*
+ * 会变的那一格：一行，不长、会缩，长了收省略号。
+ *
+ * 跟着末尾走的时候不要省略号 —— 那时右端是刚写出来的字，不是被省掉的字。
+ */
+.timeline-row__label {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-row__label[data-follow-end] {
+  text-overflow: clip;
+}
