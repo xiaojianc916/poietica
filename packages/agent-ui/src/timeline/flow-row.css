@@ -93,13 +93,26 @@ button.timeline-row:focus-visible {
   text-overflow: clip;
 }
 
-/* 点开之后的那段推理：与工具调用那张纸同一个缩进，淡色，一道竖线。 */
+/*
+ * 点开之后的那段推理：与工具调用那张纸同一个缩进、同一个右边缘，淡色，一道竖线。
+ *
+ * 上限与 .timeline-tool__body 逐字同式 —— 那张纸是这一行摊开的样子，两者不同宽就是两个
+ * 东西。少了它，这段推理是这条流里唯一没有量度的块：它铺满整列（--cp-grid 768px），一行
+ * 字长到要横着扫。
+ *
+ * overflow-wrap 不是顺手加的换行。格子按 auto 定尺，下限是内容的 min-content，而推理里
+ * 满是不含空格的标识符 —— 它们的 min-content 就是全长，格子于是被撑破，字跑到列外。
+ * anywhere 参与内在尺寸计算，break-word 不参与，所以只有前者管得住。回答那一侧
+ * （.timeline-message）本来就是这一条。
+ */
 .timeline-thought {
   --cp-thought-rule: color-mix(in oklab, var(--cp-timeline-quiet-text) 24%, transparent);
 
+  max-inline-size: min(100%, var(--cp-timeline-tool-max) - var(--cp-timeline-tool-indent));
   margin-block-start: var(--cp-control-gap);
   margin-inline-start: var(--cp-timeline-tool-indent);
   border-inline-start: 2px solid var(--cp-thought-rule);
   padding-inline-start: var(--cp-control-gap);
   color: var(--cp-timeline-quiet-text);
+  overflow-wrap: anywhere;
 }

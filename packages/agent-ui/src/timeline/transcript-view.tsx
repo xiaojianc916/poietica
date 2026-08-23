@@ -15,8 +15,8 @@ import { TurnSeal } from './turn-seal'
  * 这里不量任何几何，也不持有领域态：滚动归虚拟器，投影归 selectPresentation。
  */
 
-/* 一轮都没收起时共用同一个空集：状态的初值不该每次渲染换一个引用。 */
-const NOTHING_FOLDED: ReadonlySet<number> = new Set()
+/* 一轮都没被亲手指定时共用同一张空表：状态的初值不该每次渲染换一个引用。 */
+const NOTHING_CHOSEN: ReadonlyMap<number, boolean> = new Map()
 
 export interface TranscriptViewProps {
   readonly sessionKey: string
@@ -38,23 +38,17 @@ export function TranscriptView({
   const timeline = useAssistantTimeline(sessionKey)
 
   /*
-   * 人收起了哪几轮；身份直接使用投影交出的权威段号。
+   * 人亲手为哪几轮定过开合；身份直接使用投影交出的权威段号。
    *
-   * 过程默认摊开，收起是一次显式指令 —— 折叠因此是一次状态跳变，不等任何动画事件
-   * 来收尾：过程行归虚拟器管，屏幕外的那些根本没有 DOM，事件永远不会到。
+   * 这里只记「人说了什么」，不记「现在开着还是关着」—— 后者由投影按这一轮跑不跑算出来，
+   * 存第二份就会有两个真相：运行结束该自己收起的那一刻，本地那份还停在上一次的答案。
+   * 折叠仍是一次状态跳变，不等任何动画事件来收尾：过程行归虚拟器管，屏幕外的那些根本
+   * 没有 DOM，事件永远不会到。
    */
-  const [folded, setFolded] = useState<ReadonlySet<number>>(NOTHING_FOLDED)
+  const [chosen, setChosen] = useState<ReadonlyMap<number, boolean>>(NOTHING_CHOSEN)
 
-  const toggleTurn = useCallback((turn: number) => {
-    setFolded((current) => {
-      const next = new Set(current)
-
-      if (!next.delete(turn)) {
-        next.add(turn)
-      }
-
-      return next
-    })
+  const chooseTurn = useCallback((turn: number, isOpen: boolean) => {
+    setChosen((current) => new Map(current).set(turn, isOpen))
   }, [])
 
   /*
@@ -63,7 +57,7 @@ export function TranscriptView({
    * 不包 useMemo：缓存的所有权在投影里 —— 那里按段记账、跨组件共享，这里的依赖每帧
    * 换引用，包了也永远不命中。
    */
-  const feed = selectPresentation(timeline, folded)
+  const feed = selectPresentation(timeline, chosen)
   const turns = feed.turns
 
   const sealOf = useCallback(
@@ -74,12 +68,12 @@ export function TranscriptView({
         isLive={plan.isLive}
         isOpen={plan.isOpen}
         lastFrameAt={plan.lastFrameAt}
-        onToggle={toggleTurn}
+        onToggle={chooseTurn}
         startedAt={plan.startedAt}
         turn={plan.turn}
       />
     ),
-    [toggleTurn],
+    [chooseTurn],
   )
 
   /*

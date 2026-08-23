@@ -5,7 +5,7 @@ import { selectPresentation } from '../presentation'
 import { selectIsBusy } from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'
 
-const NOTHING_FOLDED: ReadonlySet<number> = new Set()
+const NOTHING_FOLDED: ReadonlyMap<number, boolean> = new Map()
 
 describe('timeline selectors', () => {
   it('marks no streaming tail once the run has finished', () => {

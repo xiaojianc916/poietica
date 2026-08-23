@@ -17,7 +17,7 @@ import {
  * 一句话的每一条到达路径各来一遍。
  */
 
-const NOTHING_FOLDED: ReadonlySet<number> = new Set()
+const NOTHING_FOLDED: ReadonlyMap<number, boolean> = new Map()
 
 function started(seq: number, prompt: string, images?: readonly string[]): RunEvent {
   return {

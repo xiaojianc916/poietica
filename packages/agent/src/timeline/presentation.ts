@@ -127,7 +127,7 @@ interface Held {
   readonly sealed: readonly TurnPage[]
   readonly active: TurnPage
   readonly spans: readonly TurnSpan[]
-  readonly folded: ReadonlySet<number>
+  readonly chosen: ReadonlyMap<number, boolean>
   readonly live: boolean
   readonly turns: readonly ConversationTurn[]
   readonly result: Presentation
@@ -187,11 +187,29 @@ function boundsIn(rows: readonly FeedRow[]): readonly number[] {
   return out[0] === 0 ? out : [-1, ...out]
 }
 
-/** 末尾那段连续回答的起点；等于 until 表示这一轮还没开口。 */
-function answerFrom(rows: readonly FeedRow[], from: number, until: number): number {
-  let found = until
+/**
+ * 最终回复的起点；等于 until 表示这一轮一句都没说。
+ *
+ * 先认最后一条正文，再从它往回收拢连续的那一段。反过来（从末行往回收）会把「末尾挂着一条
+ * 思考或一次收尾调用」判成「什么都没说」，于是已经写出来的回复也被收进封条 —— 那不是折叠
+ * 过程，那是把答案藏了。旁白（报错、审批、提问）不打断这一段：它们既不是过程也不是回答。
+ */
+function replyFrom(rows: readonly FeedRow[], from: number, until: number): number {
+  let last = -1
 
   for (let i = until - 1; i >= from; i -= 1) {
+    if (rows[i]?.item.type === 'agent_text') {
+      last = i
+
+      break
+    }
+  }
+
+  if (last < 0) {
+    return until
+  }
+
+  for (let i = last - 1; i >= from; i -= 1) {
     const type = rows[i]?.item.type
 
     if (type === undefined || ASIDE.has(type)) {
@@ -202,10 +220,10 @@ function answerFrom(rows: readonly FeedRow[], from: number, until: number): numb
       break
     }
 
-    found = i
+    last = i
   }
 
-  return found
+  return last
 }
 
 /** 边界之前的过程行。人说的话与旁白永不折叠。 */
@@ -409,11 +427,19 @@ function buildSegment(
   const all = rowsOf(page, live)
   const anchor = all.findIndex((row) => row.item.type === SAID)
   const bounds = boundsIn(all)
-  /* 一句都还没打印的一轮，整段都是过程：能不能折叠问的是有没有过程，不是说没说完。 */
-  const spoken = answerFrom(all, 0, all.length)
-  /* 排队追问把一次运行切成两半：最后一问之前的过程收进封条，之后的现场保持展开。 */
-  const queued = bounds.length > 1 ? (bounds[bounds.length - 1] ?? spoken) : spoken
-  const process = foldFrom(all, Math.min(spoken, queued))
+  const answer = replyFrom(all, 0, all.length)
+  /*
+   * 收进封条的是最终回复之前的全部过程，一次收干净。
+   *
+   * 此前这里还按「最后一问」再切一刀，于是一次运行里插过话就只有前半段进得去 —— 屏幕上
+   * 是收了一半的封条。谁在等着回答由问题轨道自己算（下面那段 plans），运行边界不该跟它
+   * 借判据。
+   *
+   * 一句都还没说的一轮分两种，判据是它还在不在跑：还在跑就是「话没说到」，整段都是过程，
+   * 人因此仍收得起来；已经停了（断连、取消、崩在半路）就是「这些就是它交出来的东西」，
+   * 那就没有过程可收 —— 屏幕上剩下什么，什么就是回复。
+   */
+  const process = foldFrom(all, answer === all.length && !live ? 0 : answer)
   const seal: TurnSealPlan | undefined =
     anchor < 0 || !bodyIn(all, 0, all.length)
       ? undefined
@@ -435,7 +461,7 @@ function buildSegment(
     const said = bounds[k] ?? -1
     const until = bounds[k + 1] ?? all.length
     const from = said + 1
-    const stanzaAnswer = answerFrom(all, from, until)
+    const stanzaAnswer = replyFrom(all, from, until)
     const alive = live && k === bounds.length - 1
     const tail = all[until - 1]
     const settled = !alive && !busyIn(all, from, until) && stanzaAnswer < until
@@ -650,10 +676,17 @@ function railOf(
   return built.length === 0 ? NO_TURNS : built
 }
 
-/** folded 是人收起来的那几轮：过程默认摊开，收起是一次显式指令。 */
+/**
+ * chosen 是人亲手为某一轮定下的开合；没有他的话，开合跟着这一轮跑不跑走。
+ *
+ * 跑着摊开 —— 过程正在发生，收起它就没有可看的东西了；停了收起 —— 这一轮交出了回复，
+ * 过程于是降为脚注。这正是 primitives/disclosure 给整个界面定下的形状（运行中展开、落定
+ * 收起、人点过以人为准），封条此前是全仓唯一一个例外：它永远默认摊开，于是「执行完自动
+ * 折叠」从来没有发生过。
+ */
 export function selectPresentation(
   state: TimelineState,
-  folded: ReadonlySet<number>,
+  chosen: ReadonlyMap<number, boolean>,
 ): Presentation {
   const anchor = state.sealed[0] ?? state.active
   const live = selectIsBusy(state)
@@ -664,7 +697,7 @@ export function selectPresentation(
     held.sealed === state.sealed &&
     held.active === state.active &&
     held.spans === state.spans &&
-    held.folded === folded &&
+    held.chosen === chosen &&
     held.live === live
   ) {
     return held.result
@@ -675,7 +708,12 @@ export function selectPresentation(
   let count = 0
 
   for (const page of state.sealed) {
-    const segment = segmentOf(page, spanOf(state.spans, page.turn), false, !folded.has(page.turn))
+    const segment = segmentOf(
+      page,
+      spanOf(state.spans, page.turn),
+      false,
+      chosen.get(page.turn) ?? false,
+    )
 
     segments.push(segment)
     offsets.push(count)
@@ -686,7 +724,7 @@ export function selectPresentation(
     state.active,
     spanOf(state.spans, state.active.turn),
     live,
-    !folded.has(state.active.turn),
+    chosen.get(state.active.turn) ?? live,
   )
 
   segments.push(tail)
@@ -781,7 +819,7 @@ export function selectPresentation(
 
   FEEDS.set(anchor, {
     active: state.active,
-    folded,
+    chosen,
     live,
     result,
     sealed: state.sealed,

@@ -5,9 +5,12 @@ import { selectPresentation } from '../presentation'
 import type { TimelineItem, TimelineState, TurnSpan } from '../timeline-contract'
 import { createTimelineState, replayRunEvents } from '../timeline-reducer'
 
-/** 过程默认摊开：空集就是「一轮都没收起」。 */
-const OPEN: ReadonlySet<number> = new Set()
-const FOLDED: ReadonlySet<number> = new Set([1])
+/** 没人亲手定过开合：跑着摊开，停了收起，全由投影按运行事实算。 */
+const AUTO: ReadonlyMap<number, boolean> = new Map()
+/** 人亲手摊开了第一轮。 */
+const OPENED: ReadonlyMap<number, boolean> = new Map([[1, true]])
+/** 人亲手收起了第一轮。 */
+const SHUT: ReadonlyMap<number, boolean> = new Map([[1, false]])
 
 function said(id: string, turn: number, at: number, text = '问'): TimelineItem {
   return { at, id, text, turn, type: 'user_message' }
@@ -65,19 +68,19 @@ describe('presentation projection', () => {
     [{ endedAt: 4, lastFrameAt: 3, startedAt: 1, turn: 1 }],
   )
 
-  it('keeps the process in place until the turn is folded', () => {
-    expect(idsOf(selectPresentation(settled, OPEN))).toEqual(['s1', 'p1', 'a1'])
-    expect(idsOf(selectPresentation(settled, FOLDED))).toEqual(['s1', 'a1'])
+  it('folds the process the moment the turn settles, and reopens on demand', () => {
+    expect(idsOf(selectPresentation(settled, AUTO))).toEqual(['s1', 'a1'])
+    expect(idsOf(selectPresentation(settled, OPENED))).toEqual(['s1', 'p1', 'a1'])
   })
 
   it('reads the seal clock off the span and hangs it after the question', () => {
-    const feed = selectPresentation(settled, OPEN)
+    const feed = selectPresentation(settled, AUTO)
 
     expect(feed.sealAt(0)).toEqual({
       endedAt: 4,
       hasProcess: true,
       isLive: false,
-      isOpen: true,
+      isOpen: false,
       lastFrameAt: 3,
       startedAt: 1,
       turn: 1,
@@ -85,13 +88,13 @@ describe('presentation projection', () => {
     expect(feed.sealAt(1)).toBeUndefined()
   })
 
-  it('hangs a foldable seal on a running turn before it speaks', () => {
+  it('leaves a running turn open, and collapses it only when told to', () => {
     const state = stateOf(
       [[said('s1', 1, 1), planned('p1', 1, 2)]],
       [{ lastFrameAt: 2, startedAt: 1, turn: 1 }],
       'running',
     )
-    const feed = selectPresentation(state, OPEN)
+    const feed = selectPresentation(state, AUTO)
 
     expect(idsOf(feed)).toEqual(['s1', 'p1'])
     expect(feed.sealAt(0)).toEqual({
@@ -103,13 +106,13 @@ describe('presentation projection', () => {
       startedAt: 1,
       turn: 1,
     })
-    expect(idsOf(selectPresentation(state, FOLDED))).toEqual(['s1'])
+    expect(idsOf(selectPresentation(state, SHUT))).toEqual(['s1'])
   })
 
   it('seals a turn it has no clock for, without inventing one', () => {
     const feed = selectPresentation(
       stateOf([[said('s1', 1, 1), planned('p1', 1, 2), spoke('a1', 1, 3)]], []),
-      FOLDED,
+      AUTO,
     )
 
     expect(idsOf(feed)).toEqual(['s1', 'a1'])
@@ -130,22 +133,44 @@ describe('presentation projection', () => {
         [[said('s1', 1, 1), broke('e1', 1, 2), planned('p1', 1, 3), spoke('a1', 1, 4)]],
         [{ endedAt: 5, lastFrameAt: 4, startedAt: 1, turn: 1 }],
       ),
-      FOLDED,
+      AUTO,
     )
 
     expect(idsOf(feed)).toEqual(['s1', 'e1', 'a1'])
   })
 
-  it('folds a turn that has not printed anything yet', () => {
+  it('keeps a turn that has not spoken yet foldable while it runs', () => {
     const state = stateOf(
       [[said('s1', 1, 1), thought('t1', 1, 2), planned('p1', 1, 3)]],
       [{ lastFrameAt: 3, startedAt: 1, turn: 1 }],
       'running',
     )
 
-    expect(idsOf(selectPresentation(state, OPEN))).toEqual(['s1', 't1', 'p1'])
-    expect(selectPresentation(state, OPEN).sealAt(0)?.hasProcess).toBe(true)
-    expect(idsOf(selectPresentation(state, FOLDED))).toEqual(['s1'])
+    expect(idsOf(selectPresentation(state, AUTO))).toEqual(['s1', 't1', 'p1'])
+    expect(selectPresentation(state, AUTO).sealAt(0)?.hasProcess).toBe(true)
+    expect(idsOf(selectPresentation(state, SHUT))).toEqual(['s1'])
+  })
+
+  it('hides nothing when a run stops before it says anything', () => {
+    const state = stateOf(
+      [[said('s1', 1, 1), thought('t1', 1, 2), planned('p1', 1, 3)]],
+      [{ endedAt: 4, lastFrameAt: 3, startedAt: 1, turn: 1 }],
+      'failed',
+    )
+    const feed = selectPresentation(state, AUTO)
+
+    expect(idsOf(feed)).toEqual(['s1', 't1', 'p1'])
+    expect(feed.sealAt(0)?.hasProcess).toBe(false)
+  })
+
+  it('treats the text a stopped run managed to print as the reply', () => {
+    const state = stateOf(
+      [[said('s1', 1, 1), thought('t1', 1, 2), planned('p1', 1, 3), spoke('a1', 1, 4, '半句')]],
+      [{ endedAt: 5, lastFrameAt: 4, startedAt: 1, turn: 1 }],
+      'failed',
+    )
+
+    expect(idsOf(selectPresentation(state, AUTO))).toEqual(['s1', 'a1'])
   })
 
   it('folds everything before the newest printed text, not one row at a time', () => {
@@ -164,14 +189,33 @@ describe('presentation projection', () => {
         ],
         [{ endedAt: 8, lastFrameAt: 7, startedAt: 1, turn: 1 }],
       ),
-      FOLDED,
+      AUTO,
     )
 
     expect(idsOf(feed)).toEqual(['s1', 'a2'])
   })
 
+  it('keeps the reply out of the seal when the run ends on one more call', () => {
+    const feed = selectPresentation(
+      stateOf(
+        [
+          [
+            said('s1', 1, 1),
+            thought('t1', 1, 2),
+            spoke('a1', 1, 3, '最终答复'),
+            planned('p1', 1, 4),
+          ],
+        ],
+        [{ endedAt: 5, lastFrameAt: 4, startedAt: 1, turn: 1 }],
+      ),
+      AUTO,
+    )
+
+    expect(idsOf(feed)).toEqual(['s1', 'a1', 'p1'])
+  })
+
   it('anchors the reply action on the last row of a settled turn', () => {
-    const feed = selectPresentation(settled, OPEN)
+    const feed = selectPresentation(settled, AUTO)
 
     expect(feed.replyAt(0)).toBeUndefined()
     expect(feed.replyAt(feed.indexOf('a1'))?.text).toBe('答')
@@ -186,7 +230,7 @@ describe('presentation projection', () => {
           { endedAt: 4, startedAt: 2, turn: 2 },
         ],
       ),
-      OPEN,
+      AUTO,
     )
 
     expect(feed.turns).toHaveLength(1)
@@ -195,7 +239,7 @@ describe('presentation projection', () => {
   })
 
   it('addresses rows by index both ways', () => {
-    const feed = selectPresentation(settled, FOLDED)
+    const feed = selectPresentation(settled, AUTO)
 
     expect(feed.count).toBe(2)
     expect(feed.indexOf('a1')).toBe(1)
@@ -205,19 +249,19 @@ describe('presentation projection', () => {
   })
 
   it('hands back the same rows and the same rail when nothing changed', () => {
-    const first = selectPresentation(settled, OPEN)
+    const first = selectPresentation(settled, AUTO)
 
-    expect(selectPresentation(settled, OPEN)).toBe(first)
+    expect(selectPresentation(settled, AUTO)).toBe(first)
 
-    /* folded 按引用比较：换一个实例就重算，但行与轮次走弱表缓存，引用不换。 */
-    const again = selectPresentation(settled, new Set())
+    /* 开合表按引用比较：换一个实例就重算，但行与轮次走弱表缓存，引用不换。 */
+    const again = selectPresentation(settled, new Map())
 
     expect(again).not.toBe(first)
     expect(again.turns).toBe(first.turns)
     expect(again.rowAt(0)).toBe(first.rowAt(0))
   })
 
-  it('keeps one stable run seal when a second question is queued mid-run', () => {
+  it('folds every stretch of process, including the one behind a queued follow-up', () => {
     const state = stateOf(
       [
         [
@@ -230,10 +274,10 @@ describe('presentation projection', () => {
       ],
       [{ endedAt: 6, lastFrameAt: 5, startedAt: 1, turn: 1 }],
     )
-    const shut = selectPresentation(state, FOLDED)
-    const open = selectPresentation(state, OPEN)
+    const shut = selectPresentation(state, AUTO)
+    const open = selectPresentation(state, OPENED)
 
-    expect(idsOf(shut)).toEqual(['s1', 's2', 'p2', 'a1'])
+    expect(idsOf(shut)).toEqual(['s1', 's2', 'a1'])
     expect(idsOf(open)).toEqual(['s1', 'p1', 's2', 'p2', 'a1'])
     expect(shut.sealAt(shut.indexOf('s1'))?.turn).toBe(1)
     expect(open.sealAt(open.indexOf('s1'))?.turn).toBe(1)
@@ -242,7 +286,7 @@ describe('presentation projection', () => {
   })
 
   it('reads one turn out of the sample conversation', () => {
-    const feed = selectPresentation(replayRunEvents(SAMPLE_RUN_EVENTS), OPEN)
+    const feed = selectPresentation(replayRunEvents(SAMPLE_RUN_EVENTS), AUTO)
 
     expect(feed.turns).toHaveLength(1)
     expect(feed.turns[0]?.rowIndex).toBe(0)

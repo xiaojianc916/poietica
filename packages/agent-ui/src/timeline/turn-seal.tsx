@@ -24,7 +24,8 @@ export interface TurnSealProps {
   /** 这一轮此刻正在本进程里收帧：只有它为真，秒表才走。 */
   readonly isLive: boolean
   readonly isOpen: boolean
-  readonly onToggle: (turn: number) => void
+  /** 交出人要的那个状态，不是一次翻转：默认开合由投影按运行事实给，这里不复制它。 */
+  readonly onToggle: (turn: number, isOpen: boolean) => void
 }
 
 const SECOND_MS = 1_000
@@ -126,7 +127,7 @@ function Seal({
         aria-expanded={isOpen}
         className="turn-seal turn-seal--toggle"
         onClick={() => {
-          onToggle(turn)
+          onToggle(turn, !isOpen)
         }}
         type="button"
       >
