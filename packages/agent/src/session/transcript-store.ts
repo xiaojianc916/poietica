@@ -219,6 +219,14 @@ const onNextPaint: Paint = (flush) => {
 /* 谁都没在跑。引用固定，useSyncExternalStore 才判得出「没变」。 */
 const NO_RUNNING: ReadonlySet<string> = new Set()
 
+/**
+ * 常驻转录的上限。
+ *
+ * 转录可由 adopt 从帧日志重建，所以没人在看、没在跑的那些留着换不到东西 ——
+ * 而 #republish 每一拍要走一遍这张表，表越长每一帧越贵。
+ */
+const HELD_CEILING = 64
+
 export class TranscriptStore implements TranscriptSink {
   readonly #paint: Paint
 
@@ -240,10 +248,10 @@ export class TranscriptStore implements TranscriptSink {
   }
 
   /**
-   * 对话 → 它的转录。这张表没有上限，也不需要有。
+   * 对话 → 它的转录。插入序即 LRU 序，上限由 #trim 持有。
    *
-   * 转录的生命周期就是对话的生命周期。回收因此只有一个出口：forget，由组合根在
-   * 这条对话真的不存在时调用。
+   * 回收只有一条路径（#evict）：组合根说这条对话不存在了，或者它排到了表头而
+   * 没有人在看。
    */
   #held = new Map<string, Transcript>()
 
@@ -427,6 +435,24 @@ export class TranscriptStore implements TranscriptSink {
    */
   forget = (key: string): void => {
     const real = this.#resolveKey(key)
+    const draft = this.#evict(real)
+
+    this.#fire(real)
+
+    if (draft !== undefined) {
+      this.#fire(draft)
+    }
+
+    this.#republish()
+  }
+
+  /**
+   * 一条对话的全部驻留物一次清干净，交回它的草稿键。
+   *
+   * 攒着还没折进去的帧也在这里作废：漏掉它们，下一次 read 会把那批帧折进一个空
+   * 转录再写回 #held，删掉的东西就这么回到屏幕上。
+   */
+  #evict(real: string): string | undefined {
     const draft = this.#aliased.get(real)
 
     this.#releaseSubmission(real)
@@ -448,13 +474,7 @@ export class TranscriptStore implements TranscriptSink {
       }
     }
 
-    this.#fire(real)
-
-    if (draft !== undefined) {
-      this.#fire(draft)
-    }
-
-    this.#republish()
+    return draft
   }
 
   /* ================= 一段历史送到 ================= */
@@ -968,7 +988,33 @@ export class TranscriptStore implements TranscriptSink {
    * 折进去」这个动作本身也会再约一拍，而那一拍没有任何新东西可看。
    */
   #write(real: string, next: Transcript): void {
+    /* 先删再插：Map 的插入序因此就是 LRU 序，最旧的恒在表头。 */
+    this.#held.delete(real)
     this.#held.set(real, next)
+    this.#trim(real)
+  }
+
+  /* 重建不出来的那些：有人在看、在跑、有在飞的提交、或还有没折进去的帧。 */
+  #pinned(key: string): boolean {
+    return (
+      key.startsWith(DRAFT) ||
+      this.#listeners.has(key) ||
+      this.#submissions.has(key) ||
+      this.#pending.has(key) ||
+      this.#running.has(key)
+    )
+  }
+
+  #trim(exempt: string): void {
+    for (const key of this.#held.keys()) {
+      if (this.#held.size <= HELD_CEILING) {
+        return
+      }
+
+      if (key !== exempt && !this.#pinned(key)) {
+        this.#evict(key)
+      }
+    }
   }
 
   /*

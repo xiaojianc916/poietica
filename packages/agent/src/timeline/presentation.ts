@@ -88,7 +88,7 @@ const ROWS = new WeakMap<TimelineItem, FeedRow>()
 const SEGMENTS = new WeakMap<TurnPage, Segment>()
 const SPANS = new WeakMap<readonly TurnSpan[], ReadonlyMap<number, TurnSpan>>()
 const TURN_OF = new WeakMap<FeedRow, ConversationTurn>()
-const FEEDS = new WeakMap<TurnPage, Held>()
+const FEEDS = new WeakMap<TimelineState, Held>()
 
 interface Scan {
   readonly answered: boolean
@@ -125,12 +125,9 @@ interface Segment {
   readonly ownMessage: string | null
 }
 
+/** 一份状态的投影。state 相同则段、轮、生命周期全都相同，只剩人选的开合要比。 */
 interface Held {
-  readonly sealed: readonly TurnPage[]
-  readonly active: TurnPage
-  readonly spans: readonly TurnSpan[]
   readonly chosen: ReadonlyMap<number, boolean>
-  readonly running: boolean
   readonly turns: readonly ConversationTurn[]
   readonly result: Presentation
 }
@@ -681,18 +678,10 @@ export function selectPresentation(
   state: TimelineState,
   chosen: ReadonlyMap<number, boolean>,
 ): Presentation {
-  const anchor = state.sealed[0] ?? state.active
-  const held = FEEDS.get(anchor)
+  const held = FEEDS.get(state)
   const running = selectIsBusy(state)
 
-  if (
-    held !== undefined &&
-    held.sealed === state.sealed &&
-    held.active === state.active &&
-    held.spans === state.spans &&
-    held.chosen === chosen &&
-    held.running === running
-  ) {
+  if (held !== undefined && held.chosen === chosen) {
     return held.result
   }
 
@@ -739,6 +728,30 @@ export function selectPresentation(
     return segment === undefined || start === undefined ? undefined : { at: index - start, segment }
   }
 
+  let places: Map<string, number> | undefined
+
+  /* 行号表按需建一次：只有跳转与前插锚定问它，流式追加从不问。 */
+  const placeOf = (id: string): number => {
+    if (places === undefined) {
+      places = new Map<string, number>()
+
+      for (let s = 0; s < segments.length; s += 1) {
+        const rows = segments[s]?.rows ?? NO_ROWS
+        const start = offsets[s] ?? 0
+
+        for (let i = 0; i < rows.length; i += 1) {
+          const rowId = rows[i]?.item.id
+
+          if (rowId !== undefined) {
+            places.set(rowId, start + i)
+          }
+        }
+      }
+    }
+
+    return places.get(id) ?? -1
+  }
+
   let latestOwnMessage: string | null = null
   let lastTurn: number | undefined
 
@@ -767,20 +780,7 @@ export function selectPresentation(
         ? undefined
         : found.segment.groups.get(found.segment.rows[found.at]?.item.id ?? '')
     },
-    indexOf: (id) => {
-      for (let s = 0; s < segments.length; s += 1) {
-        const rows = segments[s]?.rows ?? NO_ROWS
-        const start = offsets[s] ?? 0
-
-        for (let i = 0; i < rows.length; i += 1) {
-          if (rows[i]?.item.id === id) {
-            return start + i
-          }
-        }
-      }
-
-      return -1
-    },
+    indexOf: placeOf,
     lastTurn,
     latestOwnMessage,
     replyAt: (index) => {
@@ -801,15 +801,7 @@ export function selectPresentation(
     turns,
   }
 
-  FEEDS.set(anchor, {
-    active: state.active,
-    chosen,
-    result,
-    running,
-    sealed: state.sealed,
-    spans: state.spans,
-    turns,
-  })
+  FEEDS.set(state, { chosen, result, turns })
 
   return result
 }
