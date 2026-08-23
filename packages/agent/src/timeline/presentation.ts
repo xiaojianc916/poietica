@@ -8,7 +8,6 @@ import {
   type TurnPage,
   type TurnSpan,
 } from './timeline-contract'
-import { selectIsBusy } from './timeline-queries'
 
 /**
  * 转录的唯一投影：一段一次派生，屏幕按下标取行。
@@ -40,8 +39,6 @@ export interface TurnSealPlan {
   readonly lastFrameAt: number | undefined
   readonly hasProcess: boolean
   readonly isOpen: boolean
-  /** 这一轮此刻正在本进程里收帧。只有它为真，秒表才读本机时钟。 */
-  readonly isLive: boolean
 }
 
 export interface ReplyActionPlan {
@@ -111,8 +108,10 @@ interface Stanza {
 /** 一次运行的全部派生。TurnPage 是缓存单位，也是封条的唯一所有者。 */
 interface Segment {
   readonly span: TurnSpan | undefined
-  readonly live: boolean
-  readonly isOpen: boolean
+  /** 这一轮还在收帧：有起点而缺终点。封口的段一律为假。 */
+  readonly running: boolean
+  /** 人亲手定过的开合；缺席就跟着 running 走。 */
+  readonly picked: boolean | undefined
   readonly rows: readonly FeedRow[]
   readonly groups: ReadonlyMap<string, ToolGroupPlan>
   readonly seals: ReadonlyMap<number, TurnSealPlan>
@@ -128,7 +127,6 @@ interface Held {
   readonly active: TurnPage
   readonly spans: readonly TurnSpan[]
   readonly chosen: ReadonlyMap<number, boolean>
-  readonly live: boolean
   readonly turns: readonly ConversationTurn[]
   readonly result: Presentation
 }
@@ -421,32 +419,28 @@ function stageIn(rows: readonly FeedRow[]): {
 function buildSegment(
   page: TurnPage,
   span: TurnSpan | undefined,
-  live: boolean,
-  isOpen: boolean,
+  running: boolean,
+  picked: boolean | undefined,
 ): Segment {
-  const all = rowsOf(page, live)
+  const all = rowsOf(page, running)
   const anchor = all.findIndex((row) => row.item.type === SAID)
   const bounds = boundsIn(all)
   const answer = replyFrom(all, 0, all.length)
   /*
-   * 收进封条的是最终回复之前的全部过程，一次收干净。
+   * 收进封条的是最终回复之前的全部过程，一次收干净。开合默认跟着 running 走：跑着摊开，
+   * 落定收起，人点过以人为准。
    *
-   * 此前这里还按「最后一问」再切一刀，于是一次运行里插过话就只有前半段进得去 —— 屏幕上
-   * 是收了一半的封条。谁在等着回答由问题轨道自己算（下面那段 plans），运行边界不该跟它
-   * 借判据。
-   *
-   * 一句都还没说的一轮分两种，判据是它还在不在跑：还在跑就是「话没说到」，整段都是过程，
-   * 人因此仍收得起来；已经停了（断连、取消、崩在半路）就是「这些就是它交出来的东西」，
-   * 那就没有过程可收 —— 屏幕上剩下什么，什么就是回复。
+   * 一句都还没说的一轮分两种：还在跑是「话没说到」，整段都是过程，人仍收得起来；已经停了
+   * （断连、取消、崩在半路）就是「屏幕上剩下什么，什么就是回复」，没有过程可收。
    */
-  const process = foldFrom(all, answer === all.length && !live ? 0 : answer)
+  const isOpen = picked ?? running
+  const process = foldFrom(all, answer === all.length && !running ? 0 : answer)
   const seal: TurnSealPlan | undefined =
     anchor < 0 || !bodyIn(all, 0, all.length)
       ? undefined
       : {
           endedAt: span?.endedAt,
           hasProcess: process.length > 0,
-          isLive: live,
           isOpen,
           lastFrameAt: span?.lastFrameAt,
           startedAt: span?.startedAt,
@@ -462,7 +456,7 @@ function buildSegment(
     const until = bounds[k + 1] ?? all.length
     const from = said + 1
     const stanzaAnswer = replyFrom(all, from, until)
-    const alive = live && k === bounds.length - 1
+    const alive = running && k === bounds.length - 1
     const tail = all[until - 1]
     const settled = !alive && !busyIn(all, from, until) && stanzaAnswer < until
 
@@ -513,11 +507,11 @@ function buildSegment(
   return {
     ...stageIn(grouped.rows),
     groups: grouped.groups,
-    isOpen,
-    live,
     ownMessage,
+    picked,
     replies: replies.size === 0 ? NO_REPLIES : replies,
     rows: grouped.rows,
+    running,
     seals: seals.size === 0 ? NO_SEALS : seals,
     span,
   }
@@ -526,16 +520,21 @@ function buildSegment(
 function segmentOf(
   page: TurnPage,
   span: TurnSpan | undefined,
-  live: boolean,
-  isOpen: boolean,
+  running: boolean,
+  picked: boolean | undefined,
 ): Segment {
   const held = SEGMENTS.get(page)
 
-  if (held !== undefined && held.span === span && held.live === live && held.isOpen === isOpen) {
+  if (
+    held !== undefined &&
+    held.span === span &&
+    held.running === running &&
+    held.picked === picked
+  ) {
     return held
   }
 
-  const built = buildSegment(page, span, live, isOpen)
+  const built = buildSegment(page, span, running, picked)
 
   SEGMENTS.set(page, built)
 
@@ -679,17 +678,15 @@ function railOf(
 /**
  * chosen 是人亲手为某一轮定下的开合；没有他的话，开合跟着这一轮跑不跑走。
  *
- * 跑着摊开 —— 过程正在发生，收起它就没有可看的东西了；停了收起 —— 这一轮交出了回复，
- * 过程于是降为脚注。这正是 primitives/disclosure 给整个界面定下的形状（运行中展开、落定
- * 收起、人点过以人为准），封条此前是全仓唯一一个例外：它永远默认摊开，于是「执行完自动
- * 折叠」从来没有发生过。
+ * 「跑不跑」只有一个产地：这一轮那条 span 有起点而缺终点。封口的段一律算停了 —— 封口
+ * 本身就是「它过去了」。会话忙不忙是上一层的事实，这里不借；跑着摊开、落定收起、人点过
+ * 以人为准，与 primitives/disclosure 给整个界面定下的形状同一条。
  */
 export function selectPresentation(
   state: TimelineState,
   chosen: ReadonlyMap<number, boolean>,
 ): Presentation {
   const anchor = state.sealed[0] ?? state.active
-  const live = selectIsBusy(state)
   const held = FEEDS.get(anchor)
 
   if (
@@ -697,8 +694,7 @@ export function selectPresentation(
     held.sealed === state.sealed &&
     held.active === state.active &&
     held.spans === state.spans &&
-    held.chosen === chosen &&
-    held.live === live
+    held.chosen === chosen
   ) {
     return held.result
   }
@@ -708,23 +704,19 @@ export function selectPresentation(
   let count = 0
 
   for (const page of state.sealed) {
-    const segment = segmentOf(
-      page,
-      spanOf(state.spans, page.turn),
-      false,
-      chosen.get(page.turn) ?? false,
-    )
+    const segment = segmentOf(page, spanOf(state.spans, page.turn), false, chosen.get(page.turn))
 
     segments.push(segment)
     offsets.push(count)
     count += segment.rows.length
   }
 
+  const open = spanOf(state.spans, state.active.turn)
   const tail = segmentOf(
     state.active,
-    spanOf(state.spans, state.active.turn),
-    live,
-    chosen.get(state.active.turn) ?? live,
+    open,
+    open?.startedAt !== undefined && open.endedAt === undefined,
+    chosen.get(state.active.turn),
   )
 
   segments.push(tail)
@@ -820,7 +812,6 @@ export function selectPresentation(
   FEEDS.set(anchor, {
     active: state.active,
     chosen,
-    live,
     result,
     sealed: state.sealed,
     spans: state.spans,

@@ -47,6 +47,18 @@ export function TranscriptView({
    */
   const [chosen, setChosen] = useState<ReadonlyMap<number, boolean>>(NOTHING_CHOSEN)
 
+  /*
+   * 段号是每条对话各自从头编的，所以换一条对话必须清空 —— 否则 A 的第一轮点过的开合会
+   * 落到 B 的第一轮头上。渲染期复位是 React 给「props 变了要复位 state」的写法，与
+   * assistant-surface 的相位复位同一条；不用 key，那会连滚动位置与实测行高一起丢掉。
+   */
+  const [seen, setSeen] = useState(sessionKey)
+
+  if (seen !== sessionKey) {
+    setSeen(sessionKey)
+    setChosen(NOTHING_CHOSEN)
+  }
+
   const chooseTurn = useCallback((turn: number, isOpen: boolean) => {
     setChosen((current) => new Map(current).set(turn, isOpen))
   }, [])
@@ -65,7 +77,6 @@ export function TranscriptView({
       <TurnSeal
         endedAt={plan.endedAt}
         hasProcess={plan.hasProcess}
-        isLive={plan.isLive}
         isOpen={plan.isOpen}
         lastFrameAt={plan.lastFrameAt}
         onToggle={chooseTurn}

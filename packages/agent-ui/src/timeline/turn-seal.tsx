@@ -16,13 +16,11 @@ export interface TurnSealProps {
   readonly turn: number
   /** 缺席表示这台机器没有记下这一轮的两端：不报耗时，也不空转秒表。 */
   readonly startedAt: number | undefined
-  /** 日志记录到的终点；是否仍在运行只读 isLive。 */
+  /** 日志记录到的终点。有起点而缺终点，就是这一轮还在跑。 */
   readonly endedAt: number | undefined
   /** 运行中的耗时以它为终点。缺席表示这一轮还没收到过任何一帧。 */
   readonly lastFrameAt: number | undefined
   readonly hasProcess: boolean
-  /** 这一轮此刻正在本进程里收帧：只有它为真，秒表才走。 */
-  readonly isLive: boolean
   readonly isOpen: boolean
   /** 交出人要的那个状态，不是一次翻转：默认开合由投影按运行事实给，这里不复制它。 */
   readonly onToggle: (turn: number, isOpen: boolean) => void
@@ -34,9 +32,8 @@ const SECOND_MS = 1_000
  * 耗时的两端同在日志域：起点是 run_started 的 at，终点是这一轮最后一帧的 at，两者都由
  * 原生侧 recorder.rs 的 now_millis 写下。
  *
- * 本机时钟只有一个入口：这一轮此刻正在本进程里收帧（isLive）。那时它与日志同轴 ——
- * 同一台机器、同一个 epoch 毫秒。装载回来的、被停掉的、跨过一次休眠才回来的那些轮次
- * 一律只读日志，所以「几分钟读成十几个小时」进不来。
+ * 本机时钟只有一个入口：这一轮还在跑。那时它与日志同轴 —— 同一台机器、同一个 epoch
+ * 毫秒。装载回来的、被停掉的那些轮次一律只读日志。
  */
 function elapsedOf(
   startedAt: number | undefined,
@@ -85,32 +82,24 @@ function spell(ms: number): string {
 function Seal({
   endedAt,
   hasProcess,
-  isLive,
   isOpen,
   lastFrameAt,
   onToggle,
   startedAt,
   turn,
 }: TurnSealProps) {
-  /* 走着的秒表只属于活着的那一轮：落定的那些一个都不订阅，也就一帧都不重渲染。 */
-  const ticking = isLive && endedAt === undefined && startedAt !== undefined
-  const now = useSecond(ticking)
+  /* 跑没跑只有这一个判据，文案与秒表同读它：落定的那些一个都不订阅时钟。 */
+  const running = startedAt !== undefined && endedAt === undefined
+  const now = useSecond(running)
   const elapsed = elapsedOf(
     startedAt,
     endedAt,
-    ticking ? Math.max(now, lastFrameAt ?? 0) : lastFrameAt,
+    running ? Math.max(now, lastFrameAt ?? 0) : lastFrameAt,
   )
-
-  /* 状态来自运行事实，耗时只是可选附注；缺时钟也不退化成第二种“过程”封条。 */
-  const phase = isLive && endedAt === undefined ? '正在处理' : '已处理'
+  const phase = running ? '正在处理' : '已处理'
   const label = elapsed === undefined ? phase : `${phase} ${spell(elapsed)}`
 
-  /*
-   * 横线与交互控件分开。
-   *
-   * 横线仍然横贯整列，但 hover 和点击命中区只属于里面真正可操作的按钮，
-   * 不再因为鼠标经过这一整行而变色。
-   */
+  /* 横线横贯整列，命中区只属于里面那枚按钮：没有过程可收时连按钮都不出。 */
   if (!hasProcess) {
     return (
       <div className="turn-seal-line">

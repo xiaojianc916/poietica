@@ -32,10 +32,10 @@ function broke(id: string, turn: number, at: number): TimelineItem {
   return { at, id, message: '炸了', turn, type: 'error' }
 }
 
+/** 跑没跑由 span 说：有起点而缺终点就是在跑。状态词不进这一层。 */
 function stateOf(
   pages: readonly (readonly TimelineItem[])[],
   spans: readonly TurnSpan[],
-  status?: TimelineState['status'],
 ): TimelineState {
   const built = pages.map((items, index) => ({ items, turn: index + 1 }))
 
@@ -43,7 +43,6 @@ function stateOf(
     ...createTimelineState(),
     active: built.at(-1) ?? { items: [], turn: 1 },
     sealed: built.slice(0, -1),
-    ...(status === undefined ? null : { status }),
     spans,
   }
 }
@@ -79,7 +78,6 @@ describe('presentation projection', () => {
     expect(feed.sealAt(0)).toEqual({
       endedAt: 4,
       hasProcess: true,
-      isLive: false,
       isOpen: false,
       lastFrameAt: 3,
       startedAt: 1,
@@ -92,7 +90,6 @@ describe('presentation projection', () => {
     const state = stateOf(
       [[said('s1', 1, 1), planned('p1', 1, 2)]],
       [{ lastFrameAt: 2, startedAt: 1, turn: 1 }],
-      'running',
     )
     const feed = selectPresentation(state, AUTO)
 
@@ -100,7 +97,6 @@ describe('presentation projection', () => {
     expect(feed.sealAt(0)).toEqual({
       endedAt: undefined,
       hasProcess: true,
-      isLive: true,
       isOpen: true,
       lastFrameAt: 2,
       startedAt: 1,
@@ -119,7 +115,6 @@ describe('presentation projection', () => {
     expect(feed.sealAt(0)).toEqual({
       endedAt: undefined,
       hasProcess: true,
-      isLive: false,
       isOpen: false,
       lastFrameAt: undefined,
       startedAt: undefined,
@@ -143,7 +138,6 @@ describe('presentation projection', () => {
     const state = stateOf(
       [[said('s1', 1, 1), thought('t1', 1, 2), planned('p1', 1, 3)]],
       [{ lastFrameAt: 3, startedAt: 1, turn: 1 }],
-      'running',
     )
 
     expect(idsOf(selectPresentation(state, AUTO))).toEqual(['s1', 't1', 'p1'])
@@ -155,7 +149,6 @@ describe('presentation projection', () => {
     const state = stateOf(
       [[said('s1', 1, 1), thought('t1', 1, 2), planned('p1', 1, 3)]],
       [{ endedAt: 4, lastFrameAt: 3, startedAt: 1, turn: 1 }],
-      'failed',
     )
     const feed = selectPresentation(state, AUTO)
 
