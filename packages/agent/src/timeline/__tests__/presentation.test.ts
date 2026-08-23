@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/sample-run'
 import { selectPresentation } from '../presentation'
-import type { TimelineItem, TimelineItemId, TimelineState, TurnSpan } from '../timeline-contract'
+import type { TimelineItem, TimelineState, TurnSpan } from '../timeline-contract'
 import { createTimelineState, replayRunEvents } from '../timeline-reducer'
 
-const SHUT: ReadonlySet<TimelineItemId> = new Set()
+const SHUT: ReadonlySet<number> = new Set()
 
 function said(id: string, turn: number, at: number, text = '问'): TimelineItem {
   return { at, id, text, turn, type: 'user_message' }
@@ -66,11 +66,11 @@ describe('presentation projection', () => {
   })
 
   it('opens the same turn back to full length', () => {
-    const feed = selectPresentation(settled, new Set<TimelineItemId>(['s1']))
+    const feed = selectPresentation(settled, new Set<number>([1]))
 
     expect(idsOf(feed)).toEqual(['s1', 'p1', 'a1'])
     expect(feed.processOf(0)).toBeUndefined()
-    expect(feed.processOf(1)).toBe('s1')
+    expect(feed.processOf(1)).toBe(1)
     expect(feed.sealAt(0)?.isOpen).toBe(true)
   })
 
@@ -80,10 +80,11 @@ describe('presentation projection', () => {
     expect(feed.sealAt(0)).toEqual({
       endedAt: 4,
       hasProcess: true,
-      id: 's1',
+      isLive: false,
       isOpen: false,
       lastFrameAt: 3,
       startedAt: 1,
+      turn: 1,
     })
     expect(feed.sealAt(1)).toBeUndefined()
   })
@@ -102,10 +103,11 @@ describe('presentation projection', () => {
     expect(feed.sealAt(0)).toEqual({
       endedAt: undefined,
       hasProcess: false,
-      id: 's1',
+      isLive: true,
       isOpen: false,
       lastFrameAt: 2,
       startedAt: 1,
+      turn: 1,
     })
     expect(feed.sealAt(1)).toBeUndefined()
   })
@@ -120,10 +122,11 @@ describe('presentation projection', () => {
     expect(feed.sealAt(0)).toEqual({
       endedAt: undefined,
       hasProcess: true,
-      id: 's1',
+      isLive: false,
       isOpen: false,
       lastFrameAt: undefined,
       startedAt: undefined,
+      turn: 1,
     })
   })
 
@@ -199,6 +202,30 @@ describe('presentation projection', () => {
     expect(again).not.toBe(first)
     expect(again.turns).toBe(first.turns)
     expect(again.rowAt(0)).toBe(first.rowAt(0))
+  })
+
+  it('keeps one stable run seal when a second question is queued mid-run', () => {
+    const state = stateOf(
+      [
+        [
+          said('s1', 1, 1, '第一问'),
+          planned('p1', 1, 2),
+          said('s2', 1, 3, '追问'),
+          planned('p2', 1, 4),
+          spoke('a1', 1, 5, '最终答复'),
+        ],
+      ],
+      [{ endedAt: 6, lastFrameAt: 5, startedAt: 1, turn: 1 }],
+    )
+    const shut = selectPresentation(state, SHUT)
+    const open = selectPresentation(state, new Set<number>([1]))
+
+    expect(idsOf(shut)).toEqual(['s1', 's2', 'p2', 'a1'])
+    expect(idsOf(open)).toEqual(['s1', 'p1', 's2', 'p2', 'a1'])
+    expect(shut.sealAt(shut.indexOf('s1'))?.turn).toBe(1)
+    expect(open.sealAt(open.indexOf('s1'))?.turn).toBe(1)
+    expect(shut.sealAt(shut.indexOf('s2'))).toBeUndefined()
+    expect(open.sealAt(open.indexOf('p1'))).toBeUndefined()
   })
 
   it('reads one turn out of the sample conversation', () => {

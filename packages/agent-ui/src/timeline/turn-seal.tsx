@@ -1,6 +1,5 @@
 import './turn-seal.css'
 
-import type { TimelineItemId } from '@poietica/agent'
 import { ChevronDown } from 'lucide-react'
 import { memo } from 'react'
 import { useSecond } from '../primitives/tick'
@@ -14,11 +13,10 @@ import { useSecond } from '../primitives/tick'
  */
 
 export interface TurnSealProps {
-  /** 折叠状态的键：开启这一轮的那条提问。 */
-  readonly id: TimelineItemId
+  readonly turn: number
   /** 缺席表示这台机器没有记下这一轮的两端：不报耗时，也不空转秒表。 */
   readonly startedAt: number | undefined
-  /** 有起点而缺终点，就是这一轮还在跑。 */
+  /** 日志记录到的终点；是否仍在运行只读 isLive。 */
   readonly endedAt: number | undefined
   /** 运行中的耗时以它为终点。缺席表示这一轮还没收到过任何一帧。 */
   readonly lastFrameAt: number | undefined
@@ -26,7 +24,7 @@ export interface TurnSealProps {
   /** 这一轮此刻正在本进程里收帧：只有它为真，秒表才走。 */
   readonly isLive: boolean
   readonly isOpen: boolean
-  readonly onToggle: (id: TimelineItemId) => void
+  readonly onToggle: (turn: number) => void
 }
 
 const SECOND_MS = 1_000
@@ -86,12 +84,12 @@ function spell(ms: number): string {
 function Seal({
   endedAt,
   hasProcess,
-  id,
   isLive,
   isOpen,
   lastFrameAt,
   onToggle,
   startedAt,
+  turn,
 }: TurnSealProps) {
   /* 走着的秒表只属于活着的那一轮：落定的那些一个都不订阅，也就一帧都不重渲染。 */
   const ticking = isLive && endedAt === undefined && startedAt !== undefined
@@ -102,11 +100,9 @@ function Seal({
     ticking ? Math.max(now, lastFrameAt ?? 0) : lastFrameAt,
   )
 
-  /* 算不出的耗时不编一个出来：缺了就只说这里收着过程。 */
-  const label =
-    elapsed === undefined
-      ? '过程'
-      : `${endedAt === undefined ? '正在处理' : '已处理'} ${spell(elapsed)}`
+  /* 状态来自运行事实，耗时只是可选附注；缺时钟也不退化成第二种“过程”封条。 */
+  const phase = isLive && endedAt === undefined ? '正在处理' : '已处理'
+  const label = elapsed === undefined ? phase : `${phase} ${spell(elapsed)}`
 
   /*
    * 横线与交互控件分开。
@@ -130,7 +126,7 @@ function Seal({
         aria-expanded={isOpen}
         className="turn-seal turn-seal--toggle"
         onClick={() => {
-          onToggle(id)
+          onToggle(turn)
         }}
         type="button"
       >

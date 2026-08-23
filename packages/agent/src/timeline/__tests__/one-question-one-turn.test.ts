@@ -17,7 +17,7 @@ import {
  * 一句话的每一条到达路径各来一遍。
  */
 
-const SHUT: ReadonlySet<string> = new Set()
+const SHUT: ReadonlySet<number> = new Set()
 
 function started(seq: number, prompt: string, images?: readonly string[]): RunEvent {
   return {

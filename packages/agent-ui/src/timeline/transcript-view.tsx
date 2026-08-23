@@ -3,7 +3,6 @@ import {
   selectIsBusy,
   selectLiveThought,
   selectPresentation,
-  type TimelineItemId,
   type TurnSealPlan,
 } from '@poietica/agent'
 import { useReducedMotion } from 'motion/react'
@@ -25,19 +24,19 @@ import { TurnSeal } from './turn-seal'
  */
 
 /* 一个都没点开时共用同一个空集：状态的初值不该每次渲染换一个引用。 */
-const NOTHING_OPENED: ReadonlySet<TimelineItemId> = new Set()
-const NO_TURN_MOTION: ReadonlyMap<TimelineItemId, TurnMotion> = new Map()
+const NOTHING_OPENED: ReadonlySet<number> = new Set()
+const NO_TURN_MOTION: ReadonlyMap<number, TurnMotion> = new Map()
 
 type TurnMotion = 'opening' | 'closing'
 
 type FoldUiState = {
-  readonly opened: ReadonlySet<TimelineItemId>
-  readonly motion: ReadonlyMap<TimelineItemId, TurnMotion>
+  readonly opened: ReadonlySet<number>
+  readonly motion: ReadonlyMap<number, TurnMotion>
 }
 
 type FoldUiAction =
-  | { readonly type: 'toggle'; readonly seal: TimelineItemId; readonly animate: boolean }
-  | { readonly type: 'finish'; readonly seal: TimelineItemId; readonly motion: TurnMotion }
+  | { readonly type: 'toggle'; readonly turn: number; readonly animate: boolean }
+  | { readonly type: 'finish'; readonly turn: number; readonly motion: TurnMotion }
 
 const INITIAL_FOLD_UI: FoldUiState = { motion: NO_TURN_MOTION, opened: NOTHING_OPENED }
 
@@ -46,36 +45,36 @@ function foldUiReducer(state: FoldUiState, action: FoldUiAction): FoldUiState {
   const motion = new Map(state.motion)
 
   if (action.type === 'finish') {
-    if (motion.get(action.seal) !== action.motion) {
+    if (motion.get(action.turn) !== action.motion) {
       return state
     }
 
-    motion.delete(action.seal)
+    motion.delete(action.turn)
     if (action.motion === 'closing') {
-      opened.delete(action.seal)
+      opened.delete(action.turn)
     }
 
     return { motion, opened }
   }
 
-  const visible = opened.has(action.seal) && motion.get(action.seal) !== 'closing'
+  const visible = opened.has(action.turn) && motion.get(action.turn) !== 'closing'
 
   if (!action.animate) {
-    motion.delete(action.seal)
+    motion.delete(action.turn)
     if (visible) {
-      opened.delete(action.seal)
+      opened.delete(action.turn)
     } else {
-      opened.add(action.seal)
+      opened.add(action.turn)
     }
 
     return { motion, opened }
   }
 
   if (visible) {
-    motion.set(action.seal, 'closing')
+    motion.set(action.turn, 'closing')
   } else {
-    opened.add(action.seal)
-    motion.set(action.seal, 'opening')
+    opened.add(action.turn)
+    motion.set(action.turn, 'opening')
   }
 
   return { motion, opened }
@@ -100,19 +99,19 @@ export function TranscriptView({
 }: TranscriptViewProps) {
   const timeline = useAssistantTimeline(sessionKey)
 
-  /* 哪几轮被人点开了。键是那一轮的提问 id —— 一段里可以有好几轮（插话）。 */
+  /* 哪些运行被点开了；身份直接使用投影交出的权威段号。 */
   const [foldUi, dispatchFoldUi] = useReducer(foldUiReducer, INITIAL_FOLD_UI)
   const animateTurn = useReducedMotion() !== true
 
   const toggleTurn = useCallback(
-    (seal: TimelineItemId) => {
-      dispatchFoldUi({ animate: animateTurn, seal, type: 'toggle' })
+    (turn: number) => {
+      dispatchFoldUi({ animate: animateTurn, turn, type: 'toggle' })
     },
     [animateTurn],
   )
 
-  const finishTurnMotion = useCallback((seal: TimelineItemId, motion: TurnMotion) => {
-    dispatchFoldUi({ motion, seal, type: 'finish' })
+  const finishTurnMotion = useCallback((turn: number, motion: TurnMotion) => {
+    dispatchFoldUi({ motion, turn, type: 'finish' })
   }, [])
 
   /*
@@ -132,21 +131,20 @@ export function TranscriptView({
       <TurnSeal
         endedAt={plan.endedAt}
         hasProcess={plan.hasProcess}
-        id={plan.id}
         isLive={plan.isLive}
-        isOpen={foldUi.motion.get(plan.id) === 'closing' ? false : plan.isOpen}
+        isOpen={foldUi.motion.get(plan.turn) === 'closing' ? false : plan.isOpen}
         lastFrameAt={plan.lastFrameAt}
         onToggle={toggleTurn}
         startedAt={plan.startedAt}
+        turn={plan.turn}
       />
     ),
     [foldUi.motion, toggleTurn],
   )
 
   /*
-   * 一行的全部装饰按下标问。
-   * 封条画在这一轮第一行可见内容之前，因此 DOM 顺序恒为「提问、封条、AI 内容」；
-   * 开合不搬家。
+   * 一行的全部装饰按下标问。封条始终挂在该运行第一条用户消息之后；过程行的显隐
+   * 不会更换它的虚拟行 key、估高类别或行内边距。
    */
   const renderRowAt = useCallback(
     (index: number) => {
@@ -179,7 +177,6 @@ export function TranscriptView({
 
       return (
         <>
-          {seal === undefined ? null : sealOf(seal)}
           <div
             className="turn-seal__reveal"
             data-turn-motion={motion}
@@ -195,6 +192,7 @@ export function TranscriptView({
           >
             {content}
           </div>
+          {seal === undefined ? null : sealOf(seal)}
         </>
       )
     },
