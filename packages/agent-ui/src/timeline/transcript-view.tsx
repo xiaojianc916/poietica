@@ -6,6 +6,7 @@ import { useTranscripts } from '../session/transcripts-context'
 import { useAssistantHasEarlier, useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { ReplyActionHost } from './reply-actions'
+import { estimateRowPx } from './row-estimate'
 import { ToolGroupCard } from './tool-group-card'
 import { TurnSeal } from './turn-seal'
 
@@ -137,6 +138,9 @@ export function TranscriptView({
     [feed, onFork, renderRow, sealOf],
   )
 
+  /* 估高与渲染同源：类别知识都在这一层，滚动窗口只收两个按下标问的函数。 */
+  const estimateRowAt = useCallback((index: number) => estimateRowPx(feed.rowAt(index)), [feed])
+
   const overlay = useCallback(
     (port: FeedPort) =>
       turns.length === 0 ? null : (
@@ -159,6 +163,7 @@ export function TranscriptView({
 
       <AgentActivityFeed
         conversation={sessionKey}
+        estimateRow={estimateRowAt}
         feed={feed}
         hasEarlier={hasEarlier}
         isBusy={selectIsBusy(timeline)}

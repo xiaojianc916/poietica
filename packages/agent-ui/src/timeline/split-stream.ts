@@ -85,12 +85,12 @@ function separates(previous: string, next: string): boolean {
  * 虚拟化那一层认人的依据 —— 正在写的那一块封口时起始行号不变，于是它已经测到的
  * 高度不会因为「它现在算封口的了」而作废。
  *
- * lines 是逻辑行数，扫描的时候顺手就有。它只服务估高，而估高要的是下界：一行换行
- * 之后只会更高，不会更矮。
+ * fence 是这一块里出现过的围栏种类，扫描的时候顺手就有。渲染那一侧按它挑插件：
+ * 一段纯文字不必陪着代码高亮与图表渲染器走一遍。
  */
 export interface StreamBlock {
+  readonly fence: Fence
   readonly key: number
-  readonly lines: number
   readonly text: string
 }
 
@@ -137,6 +137,8 @@ interface Scan {
   readonly previous: string
   /** 停点处落在哪一种围栏里。 */
   readonly open: Fence
+  /** 正在写的那一块里已经出现过的围栏种类。 */
+  readonly kind: Fence
 }
 
 /**
@@ -188,6 +190,7 @@ function startFrom(held: Scan | null, text: string): Scan {
     start: 0,
     previous: '',
     open: 'none',
+    kind: 'none',
   }
 }
 
@@ -202,6 +205,36 @@ function startFrom(held: Scan | null, text: string): Scan {
  */
 function contentRow(row: string, before: Fence, after: Fence): boolean {
   return before !== 'none' || after !== 'none' || row.trim() !== ''
+}
+
+/**
+ * 尾块的围栏种类：连停点之后那至多两行一起算。
+ *
+ * 停点要求「下一行也已完整」，围栏的起始行因此常常落在停点之外。只按停点回答，
+ * 一个正在被写出来的代码块要等两行才拿到高亮插件。
+ */
+function fenceFrom(text: string, at: number, kind: Fence, open: Fence): Fence {
+  let state = open
+  let seen = kind
+  let cursor = at
+
+  while (cursor < text.length) {
+    const end = text.indexOf('\n', cursor)
+
+    state = fenceAfter(end < 0 ? text.slice(cursor) : text.slice(cursor, end), state)
+
+    if (seen === 'none' && state !== 'none') {
+      seen = state
+    }
+
+    if (end < 0) {
+      break
+    }
+
+    cursor = end + 1
+  }
+
+  return seen
 }
 
 /**
@@ -230,6 +263,7 @@ function scanFrom(held: Scan | null, text: string): Scan {
   let start = resumed.start
   let previous = resumed.previous
   let open: Fence = resumed.open
+  let kind: Fence = resumed.kind
 
   for (;;) {
     const end = text.indexOf('\n', at)
@@ -251,11 +285,16 @@ function scanFrom(held: Scan | null, text: string): Scan {
 
     open = fenceAfter(row, open)
 
+    if (kind === 'none' && open !== 'none') {
+      kind = open
+    }
+
     if (contentRow(row, before, open)) {
       previous = row
     } else if (separates(previous, text.slice(end + 1, after))) {
       /* 切点那一行不属于任何一块：块止于它前面那个换行。 */
-      blocks.push({ key: start, lines: line - start, text: text.slice(from, at - 1) })
+      blocks.push({ fence: kind, key: start, text: text.slice(from, at - 1) })
+      kind = 'none'
       start = line + 1
       from = end + 1
     }
@@ -270,10 +309,10 @@ function scanFrom(held: Scan | null, text: string): Scan {
    * 出来的代码块，前面那些已经写完的段落没有理由陪着它一起重新解析。
    */
   const tailText = text.slice(from)
-  const last: StreamBlock = { key: start, lines: countLines(tailText), text: tailText }
+  const last: StreamBlock = { fence: fenceFrom(text, at, kind, open), key: start, text: tailText }
   const result = blocks.length === 0 ? [last] : [...blocks, last]
 
-  return { source: text, result, blocks, at, line, from, start, previous, open }
+  return { source: text, result, blocks, at, line, from, start, previous, open, kind }
 }
 
 /*

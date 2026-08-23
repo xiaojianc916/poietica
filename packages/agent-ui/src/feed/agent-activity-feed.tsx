@@ -1,6 +1,6 @@
 import './agent-activity-feed.css'
 
-import type { FeedRow, Presentation } from '@poietica/agent'
+import type { Presentation } from '@poietica/agent'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useReducedMotion } from 'motion/react'
 import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
@@ -8,63 +8,8 @@ import { useFollowLatest } from '../primitives/follow-latest'
 import { ChevronDownIcon } from '../primitives/icons'
 import { startGlide } from '../primitives/scroll-glide'
 import { useDevicePixels } from '../primitives/use-device-pixels'
-import { countLines } from '../timeline/split-stream'
 import { type RowSpan, rowAtAnchor } from './reading-position'
 import { useRevealIntent } from './use-reveal-intent'
-
-/**
- * 各类条目的首屏估高。
- *
- * 估值只在一行被真正测量之前使用,但它决定了测量那一刻的落差:落差越大,虚拟器
- * 要补偿的滚动增量越大,也就越容易被人眼看见。条目类型是现成的,用一个常量去估
- * 所有类型是白白放弃这份信息。
- *
- * 这些数字是保守的下界:估小了只是补偿一次,估大了会在到达前留白。
- */
-const ESTIMATED_ROW_PX: Record<Exclude<FeedRow['item']['type'], 'agent_text'>, number> = {
-  agent_thought: 40,
-  error: 96,
-  permission: 0,
-  plan: 200,
-  question: 96,
-  tool_call: 40,
-  user_message: 72,
-}
-
-/*
- * 正文行的估高按内容算。
- *
- * 官方文档对 estimateSize 的建议是估到舒适范围内可能的最大值：估值离真高越远，测量落地后要
- * 修的总高与滚动位置就越多，而每一次修正又会挂载新的行去测。定值把一段两千行的回答与一句
- * 「好的」估成同高，装载耗时就花在这个收敛循环里。
- *
- * 逻辑行数是下界（软换行只会让真高更大），所以每行的像素刻意取偏大的一档。
- */
-const TEXT_BASE_PX = 28
-const TEXT_LINE_PX = 26
-
-function estimateRowPx(row: FeedRow | undefined): number {
-  const item = row?.item
-
-  if (item === undefined) {
-    return ESTIMATED_FALLBACK_PX
-  }
-
-  return item.type === 'agent_text'
-    ? TEXT_BASE_PX + countLines(item.text) * TEXT_LINE_PX
-    : ESTIMATED_ROW_PX[item.type]
-}
-
-/*
- * 下标越界时的兜底。
- *
- * 表的键收窄到条目类型的联合之后,它对每一个类型都有值 —— 这不是约定,是
- * TimelineRow 末尾那个 unhandled(_item: never) 已经证过的事：那个 switch 穷尽,
- * 这张表就与它对齐,以后新增一个条目类型会在这两处同时编译失败。
- *
- * 所以这个常量不再是「未知类型」的估高,它只剩一件事：这一行根本不存在。
- */
-const ESTIMATED_FALLBACK_PX = 120
 
 /**
  * 视口之外预留的行数。
@@ -123,8 +68,8 @@ const EARLIER_LEAD_SCREENS = 1
  * 事件。通知走 ResizeObserver,不是「每一次布局之后重读一遍」:后者是拿一次强制回流,
  * 去换一个本来就有的通知。
  *
- * 它不认识条目类型 —— 除了估高。条目从渲染插槽进来,所以思考链与工具卡片的演化
- * 不触碰滚动。
+ * 它不认识条目类型:内容从渲染插槽进来,估高从估高插槽进来 —— 思考链与工具卡片的
+ * 演化不触碰滚动。
  */
 
 /**
@@ -148,6 +93,8 @@ export interface AgentActivityFeedProps {
    */
   readonly conversation: string
   readonly feed: Presentation
+  /** 一行还没被测量时有多高。类别知识归转录那一侧，这里只用它给出的数。 */
+  readonly estimateRow: (index: number) => number
   readonly renderRow: (index: number) => ReactNode
   readonly isBusy: boolean
   /** 上面还有没有更早的一页。 */
@@ -160,6 +107,7 @@ export interface AgentActivityFeedProps {
 
 export function AgentActivityFeed({
   conversation,
+  estimateRow,
   feed,
   hasEarlier,
   isBusy,
@@ -372,7 +320,7 @@ export function AgentActivityFeed({
   )
 
   /*
-   * 条目的身份函数与估高，依赖如实声明。
+   * 条目的身份函数，依赖如实声明。
    *
    * 身份是 id 不是序号：恢复会话与回填历史都会让每一条换序号，用序号当身份，锚点会在
    * 那之后落到别的条目上。官方点名过这一条 ——「Index keys cannot distinguish prepends
@@ -390,12 +338,10 @@ export function AgentActivityFeed({
    */
   const getItemKey = useCallback((index: number) => feed.rowAt(index)?.item.id ?? index, [feed])
 
-  const estimateSize = useCallback((index: number) => estimateRowPx(feed.rowAt(index)), [feed])
-
   const virtualizer = useVirtualizer({
     count: feed.count,
     getScrollElement: () => viewportRef.current,
-    estimateSize,
+    estimateSize: estimateRow,
     getItemKey,
     scrollMargin,
     paddingEnd: tailSize,
