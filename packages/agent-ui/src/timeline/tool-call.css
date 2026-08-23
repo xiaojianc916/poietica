@@ -162,7 +162,6 @@
  * 用标准属性而不是 ::-webkit-scrollbar：两者互斥，标准的那条才被推荐。
  */
 .timeline-tool__panel {
-  position: relative;
   max-block-size: var(--cp-timeline-output-max);
   padding: 0.625rem 0.75rem;
   overflow: auto;
@@ -212,11 +211,12 @@
 .timeline-tool__diffstat {
   display: inline-flex;
   flex: 0 0 auto;
+  align-items: center;
   gap: 0.375rem;
   font-family: var(--cp-font-mono);
   font-size: var(--ui-prose-size-meta);
   font-variant-numeric: tabular-nums;
-  line-height: 1;
+  line-height: var(--ui-prose-line-height);
 }
 
 .timeline-tool__diffstat-added {
@@ -328,33 +328,4 @@
   white-space: nowrap;
 }
 
-/* Both local tab panels stay mounted, measured, and overlapped. */
-.timeline-tool__panels {
-  position: relative;
-  display: grid;
-  min-inline-size: 0;
-}
-
-.timeline-tool__panels > .timeline-tool__panel {
-  grid-area: 1 / 1;
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity var(--cp-motion-swift) var(--cp-motion-ease),
-    visibility 0s linear var(--cp-motion-swift);
-}
-
-.timeline-tool__panels > .timeline-tool__panel[data-active="true"] {
-  z-index: 1;
-  visibility: visible;
-  opacity: 1;
-  pointer-events: auto;
-  transition-delay: 0s;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .timeline-tool__panels > .timeline-tool__panel {
-    transition: none;
-  }
-}
+/* 抽屉里只挂当前那一面，高度因此就是它自己的高度。 */

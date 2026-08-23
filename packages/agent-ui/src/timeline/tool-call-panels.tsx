@@ -21,47 +21,25 @@ function emptyNoteOf(kind: ToolCallTimelineItem['kind'], isRunning: boolean): st
   return kind === 'delegate' ? '子代理在自己那边干活，这里只记结果。' : '还在运行，暂时没有输出。'
 }
 
+/** 抽屉里唯一的滚动容器。高度由它自己的内容定 —— 没有第二面在旁边顶着。 */
 function ToolPanel({
-  active,
   labelledBy,
   panel,
   text,
 }: {
-  readonly active: boolean
   readonly labelledBy?: string
   readonly panel?: string
   readonly text: string
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
-  if (panel === undefined) {
-    return (
-      <div
-        className="timeline-tool__panel"
-        data-active={active ? 'true' : undefined}
-        inert={!active}
-        ref={scrollRef}
-      >
-        <VirtualProse
-          bodyClassName="timeline-tool__prose"
-          isStreaming={false}
-          scrollRef={scrollRef}
-          text={text}
-        />
-      </div>
-    )
-  }
-
   return (
     <div
-      aria-hidden={active ? undefined : true}
-      aria-labelledby={labelledBy}
       className="timeline-tool__panel"
-      data-active={active ? 'true' : undefined}
-      id={panel}
-      inert={!active}
       ref={scrollRef}
-      role="tabpanel"
+      {...(panel === undefined
+        ? {}
+        : { 'aria-labelledby': labelledBy, id: panel, role: 'tabpanel' })}
     >
       <VirtualProse
         bodyClassName="timeline-tool__prose"
@@ -73,7 +51,13 @@ function ToolPanel({
   )
 }
 
-/** Each tab owns its renderer, measurement cache, and scroll position. */
+/**
+ * 一次调用的两个面。
+ *
+ * 只挂当前那一面：APG 的 Tabs Pattern 允许未选中的面板不进 DOM，而两面同时在场就意味
+ * 着高度取两者的最大值、隐藏那一面的虚拟器照样在量。换面时 key 变，滚动位置从头开始 ——
+ * 这两面本来就要从头读。
+ */
 export function ToolCallPanels({
   facets,
   isRunning,
@@ -93,7 +77,7 @@ export function ToolCallPanels({
   if (request === null) {
     return (
       <div className="timeline-tool__body">
-        <ToolPanel active text={responseText} />
+        <ToolPanel text={responseText} />
       </div>
     )
   }
@@ -109,20 +93,12 @@ export function ToolCallPanels({
         options={FACETS}
       />
 
-      <div className="timeline-tool__panels">
-        <ToolPanel
-          active={activeId === REQUEST}
-          labelledBy={tabId(baseId, REQUEST)}
-          panel={panelId(baseId, REQUEST)}
-          text={request}
-        />
-        <ToolPanel
-          active={activeId === RESPONSE}
-          labelledBy={tabId(baseId, RESPONSE)}
-          panel={panelId(baseId, RESPONSE)}
-          text={responseText}
-        />
-      </div>
+      <ToolPanel
+        key={activeId}
+        labelledBy={tabId(baseId, activeId)}
+        panel={panelId(baseId, activeId)}
+        text={activeId === REQUEST ? request : responseText}
+      />
     </div>
   )
 }

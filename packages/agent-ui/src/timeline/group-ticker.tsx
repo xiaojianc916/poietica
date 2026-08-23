@@ -6,10 +6,10 @@ import { memo } from 'react'
 import { cx } from '../primitives/class-names'
 import { useHeldValue } from '../primitives/use-held-value'
 
-/** 曲线与 live-process、抽屉那一条同一条（0.2, 0, 0, 1）。 */
+/** 曲线与抽屉那一条同一条（primitives/disclosure.css）：0.2, 0, 0, 1。 */
 const EASE: [number, number, number, number] = [0.2, 0, 0, 1]
 
-/** 时长也照 live-process 那两个数，不另发明一套。 */
+/** 时长各自定：进场比退场短，退场里透明度最先收尾。 */
 const ARRIVE = { duration: 0.18, ease: EASE }
 const LEAVE = { duration: 0.22, ease: EASE, opacity: { duration: 0.12 } }
 

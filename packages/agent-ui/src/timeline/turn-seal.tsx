@@ -1,5 +1,6 @@
 import './turn-seal.css'
 
+import type { TimelineItemId } from '@poietica/agent'
 import { ChevronDown } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 
@@ -7,19 +8,20 @@ import { memo, useEffect, useState } from 'react'
  * 一轮的封条：这一轮花了多久，以及它的过程收在哪里。
  *
  * 它不是一条时间线条目 —— 它不来自任何一帧，它是「这一轮」本身的标签，所以它长在行的
- * 外面（见 transcript-view 的 renderRowWithSeal）。横线是它自己的下边框：过程不是它的
+ * 外面（transcript-view 的 renderRowAt）。横线是它自己的下边框：过程不是它的
  * 孩子，摊开多少行都不会把这条线推走。
  */
 
 export interface TurnSealProps {
-  readonly turn: number
+  /** 折叠状态的键：开启这一轮的那条提问。 */
+  readonly id: TimelineItemId
   /** 缺席表示这台机器没有记下这一轮的两端：不报耗时，也不空转秒表。 */
   readonly startedAt: number | undefined
   /** 有起点而缺终点，就是这一轮还在跑。 */
   readonly endedAt: number | undefined
   readonly hasProcess: boolean
   readonly isOpen: boolean
-  readonly onToggle: (turn: number) => void
+  readonly onToggle: (id: TimelineItemId) => void
 }
 
 const SECOND_MS = 1_000
@@ -89,7 +91,7 @@ function spell(ms: number): string {
  * 没有 failed 这个变体。所以这里没有可靠依据说「失败」，说了就是编。出错这件事由这一轮
  * 里那条 error 条目自己讲，它就在下面几行。
  */
-function Seal({ endedAt, hasProcess, isOpen, onToggle, startedAt, turn }: TurnSealProps) {
+function Seal({ endedAt, hasProcess, id, isOpen, onToggle, startedAt }: TurnSealProps) {
   const elapsed = useElapsed(startedAt, endedAt)
 
   /*
@@ -126,7 +128,7 @@ function Seal({ endedAt, hasProcess, isOpen, onToggle, startedAt, turn }: TurnSe
         aria-expanded={isOpen}
         className="turn-seal turn-seal--toggle"
         onClick={() => {
-          onToggle(turn)
+          onToggle(id)
         }}
         type="button"
       >

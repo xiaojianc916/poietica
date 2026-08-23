@@ -1,11 +1,16 @@
-import { type FeedRow, selectIsBusy, selectPresentation, type TurnSealPlan } from '@poietica/agent'
+import {
+  type FeedRow,
+  selectIsBusy,
+  selectPresentation,
+  type TimelineItemId,
+  type TurnSealPlan,
+} from '@poietica/agent'
 import { useReducedMotion } from 'motion/react'
 import { type ReactNode, useCallback, useReducer } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useAssistantEarlier, useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
-import { LiveProcess } from './live-process'
 import { ReplyActionHost } from './reply-actions'
 import { ToolGroupCard } from './tool-group-card'
 import { TurnSeal } from './turn-seal'
@@ -17,60 +22,61 @@ import { TurnSeal } from './turn-seal'
  * 这里不量任何几何，也不持有领域态：滚动归虚拟器，投影归 selectPresentation。
  */
 
-/* 没有一轮被点开时共用同一个空集：状态的初值不该每次渲染换一个引用。 */
-const NOTHING_OPENED: ReadonlySet<number> = new Set()
-const NO_TURN_MOTION: ReadonlyMap<number, TurnMotion> = new Map()
+/* 一个都没点开时共用同一个空集：状态的初值不该每次渲染换一个引用。 */
+const NOTHING_OPENED: ReadonlySet<TimelineItemId> = new Set()
+const NO_TURN_MOTION: ReadonlyMap<TimelineItemId, TurnMotion> = new Map()
 
 type TurnMotion = 'opening' | 'closing'
 
 type FoldUiState = {
-  readonly opened: ReadonlySet<number>
-  readonly motion: ReadonlyMap<number, TurnMotion>
+  readonly opened: ReadonlySet<TimelineItemId>
+  readonly motion: ReadonlyMap<TimelineItemId, TurnMotion>
 }
 
 type FoldUiAction =
-  | { readonly type: 'toggle'; readonly turn: number; readonly animate: boolean }
-  | { readonly type: 'finish'; readonly turn: number; readonly motion: TurnMotion }
+  | { readonly type: 'toggle'; readonly seal: TimelineItemId; readonly animate: boolean }
+  | { readonly type: 'finish'; readonly seal: TimelineItemId; readonly motion: TurnMotion }
 
-const INITIAL_FOLD_UI: FoldUiState = { opened: NOTHING_OPENED, motion: NO_TURN_MOTION }
+const INITIAL_FOLD_UI: FoldUiState = { motion: NO_TURN_MOTION, opened: NOTHING_OPENED }
 
 function foldUiReducer(state: FoldUiState, action: FoldUiAction): FoldUiState {
   const opened = new Set(state.opened)
   const motion = new Map(state.motion)
 
   if (action.type === 'finish') {
-    if (motion.get(action.turn) !== action.motion) {
+    if (motion.get(action.seal) !== action.motion) {
       return state
     }
 
-    motion.delete(action.turn)
+    motion.delete(action.seal)
     if (action.motion === 'closing') {
-      opened.delete(action.turn)
+      opened.delete(action.seal)
     }
 
-    return { opened, motion }
+    return { motion, opened }
   }
 
-  const visible = opened.has(action.turn) && motion.get(action.turn) !== 'closing'
+  const visible = opened.has(action.seal) && motion.get(action.seal) !== 'closing'
 
   if (!action.animate) {
-    motion.delete(action.turn)
+    motion.delete(action.seal)
     if (visible) {
-      opened.delete(action.turn)
+      opened.delete(action.seal)
     } else {
-      opened.add(action.turn)
+      opened.add(action.seal)
     }
-    return { opened, motion }
+
+    return { motion, opened }
   }
 
   if (visible) {
-    motion.set(action.turn, 'closing')
+    motion.set(action.seal, 'closing')
   } else {
-    opened.add(action.turn)
-    motion.set(action.turn, 'opening')
+    opened.add(action.seal)
+    motion.set(action.seal, 'opening')
   }
 
-  return { opened, motion }
+  return { motion, opened }
 }
 
 export interface TranscriptViewProps {
@@ -95,21 +101,19 @@ export function TranscriptView({
   /* 缺席就是前面没有了：滚动区据此连报都不报。 */
   const onReachTop = useAssistantEarlier(sessionKey)
 
-  /*
-   * 哪几轮被人点开了。按轮号记，不按行 id —— 行会随流式重建，轮号不会。
-   */
+  /* 哪几轮被人点开了。键是那一轮的提问 id —— 一段里可以有好几轮（插话）。 */
   const [foldUi, dispatchFoldUi] = useReducer(foldUiReducer, INITIAL_FOLD_UI)
   const animateTurn = useReducedMotion() !== true
 
   const toggleTurn = useCallback(
-    (turn: number) => {
-      dispatchFoldUi({ type: 'toggle', turn, animate: animateTurn })
+    (seal: TimelineItemId) => {
+      dispatchFoldUi({ animate: animateTurn, seal, type: 'toggle' })
     },
     [animateTurn],
   )
 
-  const finishTurnMotion = useCallback((turn: number, motion: TurnMotion) => {
-    dispatchFoldUi({ type: 'finish', turn, motion })
+  const finishTurnMotion = useCallback((seal: TimelineItemId, motion: TurnMotion) => {
+    dispatchFoldUi({ motion, seal, type: 'finish' })
   }, [])
 
   /*
@@ -126,31 +130,17 @@ export function TranscriptView({
       <TurnSeal
         endedAt={plan.endedAt}
         hasProcess={plan.hasProcess}
-        isOpen={foldUi.motion.get(plan.turn) === 'closing' ? false : plan.isOpen}
+        id={plan.id}
+        isOpen={foldUi.motion.get(plan.id) === 'closing' ? false : plan.isOpen}
         onToggle={toggleTurn}
         startedAt={plan.startedAt}
-        turn={plan.turn}
       />
     ),
     [foldUi.motion, toggleTurn],
   )
 
-  /* 组挂在行外面（key 是组内第一条的 id）：查得到画组，查不到照旧画这一行。 */
-  const renderLiveRow = useCallback(
-    (row: FeedRow) => {
-      const plan = feed.liveGroupOf(row.item.id)
-
-      return plan === undefined ? (
-        renderRow(row)
-      ) : (
-        <ToolGroupCard plan={plan} renderRow={renderRow} />
-      )
-    },
-    [feed, renderRow],
-  )
-
   /*
-   * 一行的全部装饰按下标问，不再逐张弱表查 id。
+   * 一行的全部装饰按下标问。
    * 封条挂在提问行之后，因此 DOM 顺序恒为「提问、封条、AI 内容」；开合不搬家。
    */
   const renderRowAt = useCallback(
@@ -179,7 +169,8 @@ export function TranscriptView({
             {rendered}
           </ReplyActionHost>
         )
-      const motion = feed.isProcessRow(index) ? foldUi.motion.get(row.item.turn) : undefined
+      const owner = feed.processOf(index)
+      const motion = owner === undefined ? undefined : foldUi.motion.get(owner)
 
       return (
         <>
@@ -187,11 +178,11 @@ export function TranscriptView({
             className="turn-seal__reveal"
             data-turn-motion={motion}
             onAnimationEnd={
-              motion === undefined
+              owner === undefined || motion === undefined
                 ? undefined
                 : (event) => {
                     if (event.currentTarget === event.target) {
-                      finishTurnMotion(row.item.turn, motion)
+                      finishTurnMotion(owner, motion)
                     }
                   }
             }
@@ -205,7 +196,6 @@ export function TranscriptView({
     [feed, finishTurnMotion, foldUi.motion, onFork, renderRow, sealOf],
   )
 
-  const footer = <LiveProcess renderRow={renderLiveRow} rows={feed.live} />
   const overlay = useCallback(
     (port: FeedPort) =>
       turns.length === 0 ? null : (
@@ -224,7 +214,6 @@ export function TranscriptView({
       <AgentActivityFeed
         conversation={sessionKey}
         feed={feed}
-        footer={footer}
         isBusy={selectIsBusy(timeline)}
         onReachTop={onReachTop}
         overlay={overlay}

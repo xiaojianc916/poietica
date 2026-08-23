@@ -225,8 +225,8 @@ export interface FollowLatest {
  *
  * 两种方式共存的代价是 traveling 这一位：位移进行时贴合整段让路，一次瞬时写入会当场把它掐掉。
  *
- * 减弱动态偏好下位移退化成瞬时贴合，问的是 motion 的 useReducedMotion —— 与 live-process
- * 同一个来源，这个界面上「要不要少一些动效」只有一个答案。
+ * 减弱动态偏好下位移退化成瞬时贴合，问的是 motion 的 useReducedMotion ——
+ * 这个界面上「要不要少一些动效」只有一个答案。
  *
  * 状态各自只有一个存储位置：意图与位移（FollowState）、上一次读到的几何、几何（在不在末端）。
  * 前两者不参与渲染，所以是 ref；末一个要画那枚按钮，所以它经 useSyncExternalStore 发布 ——

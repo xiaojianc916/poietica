@@ -391,6 +391,9 @@ mod tests {
             normalize_address("127.0.0.1:3000/app").as_deref(),
             Some("http://127.0.0.1:3000/app")
         );
-        assert_eq!(normalize_address("localhost").as_deref(), Some("http://localhost/"));
+        assert_eq!(
+            normalize_address("localhost").as_deref(),
+            Some("http://localhost/")
+        );
     }
 }

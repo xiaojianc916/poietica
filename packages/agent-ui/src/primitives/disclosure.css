@@ -1,18 +1,12 @@
-/* Disclosure owns interaction motion; the virtualizer owns row geometry. */
+/* 抽屉只管开合，几何归虚拟器：高度一次跳变，内容不做第二段补间。 */
 .disclosure__reveal {
   display: grid;
   grid-template-rows: 0fr;
-  opacity: 0;
 }
 
 .disclosure__clip {
   min-block-size: 0;
   overflow: hidden;
-  opacity: 0;
-  transform: translateY(-0.25rem);
-  transition:
-    opacity var(--cp-motion-swift) var(--cp-motion-ease),
-    transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .disclosure__chevron {
@@ -23,12 +17,6 @@
 
 [data-open="true"] > .disclosure__reveal {
   grid-template-rows: 1fr;
-  opacity: 1;
-}
-
-[data-open="true"] > .disclosure__reveal > .disclosure__clip {
-  opacity: 1;
-  transform: none;
 }
 
 [data-open="true"] > .disclosure__chevron,
@@ -37,7 +25,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .disclosure__clip,
   .disclosure__chevron {
     transition: none;
   }

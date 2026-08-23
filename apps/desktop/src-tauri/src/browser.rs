@@ -394,8 +394,7 @@ fn apply_layout(app: &AppHandle) {
                     ..bounds
                 });
 
-                (placed.insert(*id, wanted) != Some(wanted))
-                    .then(|| (webview.clone(), *id, wanted))
+                (placed.insert(*id, wanted) != Some(wanted)).then(|| (webview.clone(), *id, wanted))
             })
             .collect()
     };

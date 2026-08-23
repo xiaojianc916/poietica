@@ -135,16 +135,6 @@ export interface AgentActivityFeedProps {
   readonly feed: Presentation
   readonly renderRow: (index: number) => ReactNode
   readonly isBusy: boolean
-  /**
-   * 转录之后、滚动区之内。
-   *
-   * 用于属于这一轮而不属于其中某一条的东西，例如等待。缺席就是缺席：undefined，
-   * 不是 null。
-   *
-   * 它落在转录末端由 paddingEnd 预留出的那块空间里，因此仍然跟着一起滚，而虚拟器
-   * 知道它占了多少 —— 「转录之后」与「滚动区之内」不再是两个互相不知道的事实。
-   */
-  readonly footer?: ReactNode
   /** 画在滚动区之上,位于一切会滚的东西之外。 */
   readonly overlay?: (port: FeedPort) => ReactNode
   /**
@@ -161,7 +151,6 @@ export function AgentActivityFeed({
   feed,
   renderRow,
   isBusy,
-  footer,
   onReachTop,
   overlay,
 }: AgentActivityFeedProps) {
@@ -578,8 +567,7 @@ export function AgentActivityFeed({
      * 的高度变化,视线所在的行只在跨行时才是新值。
      *
      * 要它的理由是它盖住了另外两个盖不到的东西:行内的异步排版(图片解码、公式、图表),
-     * 以及瞬态区换帧引起的高度变化 —— 后者虽然也走 tailRef 那条通知,但那条通知只带来
-     * paddingEnd 的新值,盒子的新高度要等下一次提交。
+     * 以及抽屉展开引起的高度变化。
      */
     if (transcriptRef.current !== null) {
       observer.observe(transcriptRef.current)
@@ -767,16 +755,8 @@ export function AgentActivityFeed({
               </div>
             )
           })}
-          {/*
-           * 尾部坐在 paddingEnd 预留出来的那块空间里。
-           *
-           * 它此前是转录的兄弟，也就是「虚拟器看不见的地方」—— 滚动盒因此比虚拟
-           * 器以为的更长。恒定挂载：末端的清空距离与等待指示器在不在无关，而一个
-           * 会时有时无的元素会让末端的位置也时有时无。
-           */}
-          <div className="agent-activity-feed__tail" ref={tailRef}>
-            {footer}
-          </div>
+          {/* 末端的清空距离，坐在 paddingEnd 预留出来的那块空间里；实测高度反过来就是它。 */}
+          <div className="agent-activity-feed__tail" ref={tailRef} />
         </div>
       </div>
 

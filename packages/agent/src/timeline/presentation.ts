@@ -13,11 +13,9 @@ import { selectIsBusy } from './timeline-queries'
 /**
  * 转录的唯一投影：一段一次派生，屏幕按下标取行。
  *
- * 段（TurnPage）封口之后不再改写，所以一帧只重算活动的那一段，代价与对话长度无关。
- * 行不拼成一个大数组 —— 虚拟器本来就按下标问（count / getItemKey / estimateSize
- * 都是下标函数），拼出来的那一份只会被它按下标读回去。
- *
- * 折叠、并组、封条、回复操作、轮次索引都在这里算完：同一件事一条路径。
+ * 段（TurnPage）是 seq 与 id 的命名空间，不是屏幕上的一轮 —— 上一轮还在跑时插进来的
+ * 那一句留在同一段里（timeline-draft 的 appendUserMessage）。屏幕上的一轮是「一条提问
+ * 到下一条提问」，封条、折叠、并组、回复操作、轮次索引全部按它算。
  */
 
 export interface FeedRow {
@@ -34,8 +32,9 @@ export interface ToolGroupPlan {
   readonly members: readonly FeedRow[]
 }
 
+/** 封条属于一轮，键就是开启这一轮的那条提问。 */
 export interface TurnSealPlan {
-  readonly turn: number
+  readonly id: TimelineItemId
   readonly startedAt: number | undefined
   readonly endedAt: number | undefined
   readonly hasProcess: boolean
@@ -57,22 +56,20 @@ export interface ConversationTurn {
 export interface Presentation {
   readonly count: number
   readonly turns: readonly ConversationTurn[]
-  /** 瞬态区：还在跑的那一轮里被折走的过程，随轮次一起收走。 */
-  readonly live: readonly FeedRow[]
   readonly latestOwnMessage: string | null
   readonly lastTurn: number | undefined
   readonly rowAt: (index: number) => FeedRow | undefined
   readonly groupAt: (index: number) => ToolGroupPlan | undefined
   readonly sealAt: (index: number) => TurnSealPlan | undefined
   readonly replyAt: (index: number) => ReplyActionPlan | undefined
-  readonly isProcessRow: (index: number) => boolean
+  /** 这一行被哪一轮的封条折着；没被折就是 undefined。 */
+  readonly processOf: (index: number) => TimelineItemId | undefined
   readonly indexOf: (id: string) => number
-  readonly liveGroupOf: (id: string) => ToolGroupPlan | undefined
 }
 
-/** 旁白：既不是过程也不是回答，倒扫时跨过，永不折叠。 */
+/** 旁白：既不是过程也不是回答，永不折叠。 */
 const ASIDE: ReadonlySet<TimelineItem['type']> = new Set(['error', 'permission', 'question'])
-/* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄，判别就白做了。 */
+/* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
 const PREVIEW = 300
 
@@ -88,8 +85,11 @@ const LEAST = 2
 
 const NO_ROWS: readonly FeedRow[] = []
 const NO_TURNS: readonly ConversationTurn[] = []
+const NO_IDS: readonly TimelineItemId[] = []
 const NO_GROUPS: ReadonlyMap<string, ToolGroupPlan> = new Map()
-const NO_MARKS: ReadonlySet<string> = new Set()
+const NO_SEALS: ReadonlyMap<number, TurnSealPlan> = new Map()
+const NO_REPLIES: ReadonlyMap<number, ReplyActionPlan> = new Map()
+const NO_MARKS: ReadonlyMap<string, TimelineItemId> = new Map()
 
 const ROWS = new WeakMap<TimelineItem, FeedRow>()
 const SEGMENTS = new WeakMap<TurnPage, Segment>()
@@ -109,20 +109,24 @@ interface Staged {
   readonly reply: string | undefined
 }
 
+/** 一轮的派生结果。 */
+interface Stanza {
+  readonly seal: TurnSealPlan | undefined
+  readonly replyId: TimelineItemId | undefined
+  readonly replyText: string
+}
+
 /** 一段的全部派生。段是缓存单位，也是重算单位。 */
 interface Segment {
   readonly span: TurnSpan | undefined
   readonly live: boolean
-  readonly isOpen: boolean
+  readonly sealIds: readonly TimelineItemId[]
+  readonly openedHere: ReadonlySet<TimelineItemId>
   readonly rows: readonly FeedRow[]
   readonly groups: ReadonlyMap<string, ToolGroupPlan>
-  readonly sealAt: number
-  readonly seal: TurnSealPlan | undefined
-  readonly replyAt: number
-  readonly reply: ReplyActionPlan | undefined
-  readonly marks: ReadonlySet<string>
-  readonly liveRows: readonly FeedRow[]
-  readonly liveGroups: ReadonlyMap<string, ToolGroupPlan>
+  readonly seals: ReadonlyMap<number, TurnSealPlan>
+  readonly replies: ReadonlyMap<number, ReplyActionPlan>
+  readonly marks: ReadonlyMap<string, TimelineItemId>
   readonly staged: readonly Staged[]
   /** 首个提问之前那一段留下了什么：上一段末尾那一问要连着它一起算。 */
   readonly leading: Scan
@@ -133,7 +137,7 @@ interface Held {
   readonly sealed: readonly TurnPage[]
   readonly active: TurnPage
   readonly spans: readonly TurnSpan[]
-  readonly opened: ReadonlySet<number>
+  readonly opened: ReadonlySet<TimelineItemId>
   readonly live: boolean
   readonly turns: readonly ConversationTurn[]
   readonly result: Presentation
@@ -179,71 +183,102 @@ function rowsOf(page: TurnPage, live: boolean): readonly FeedRow[] {
   return rows
 }
 
-/** 最后一段连续回答的起点；-1 表示这一轮还没开口。 */
-function answerAt(rows: readonly FeedRow[]): number {
-  let found = -1
+/** 每一轮的起点。段自己那一问在 0；插进来的那些各自成轮；-1 是无主的开头。 */
+function boundsIn(rows: readonly FeedRow[]): readonly number[] {
+  const out: number[] = []
 
-  for (let i = rows.length - 1; i >= 0; i -= 1) {
-    const row = rows[i]
+  for (let i = 0; i < rows.length; i += 1) {
+    if (rows[i]?.item.type === SAID) {
+      out.push(i)
+    }
+  }
 
-    if (row === undefined || ASIDE.has(row.item.type)) {
+  return out[0] === 0 ? out : [-1, ...out]
+}
+
+/** 末尾那段连续回答的起点；等于 until 表示这一轮还没开口。 */
+function answerFrom(rows: readonly FeedRow[], from: number, until: number): number {
+  let found = until
+
+  for (let i = until - 1; i >= from; i -= 1) {
+    const type = rows[i]?.item.type
+
+    if (type === undefined || ASIDE.has(type)) {
       continue
     }
 
-    if (row.item.type === 'agent_text') {
-      found = i
-
-      continue
-    }
-
-    if (found >= 0) {
+    if (type !== 'agent_text') {
       break
     }
+
+    found = i
   }
 
   return found
 }
 
-function processIn(rows: readonly FeedRow[], answer: number, running: boolean): readonly number[] {
+/**
+ * 这一轮要收进封条的行：回答之前的都是过程。
+ *
+ * 还在跑且这一轮尚未开口时，最近的那一条留在原地当现场 —— 它不换父节点，所以开合封条
+ * 不会让任何一行搬家。
+ */
+function foldFrom(
+  rows: readonly FeedRow[],
+  answer: number,
+  from: number,
+  until: number,
+  alive: boolean,
+): readonly number[] {
   const out: number[] = []
 
-  for (let i = 0; i < rows.length; i += 1) {
-    const row = rows[i]
+  for (let i = from; i < answer; i += 1) {
+    const type = rows[i]?.item.type
 
-    if (row === undefined || row.item.type === SAID || ASIDE.has(row.item.type)) {
+    if (type === undefined || type === SAID || ASIDE.has(type)) {
       continue
     }
 
-    if (i < answer || (running && row.item.type !== 'agent_text')) {
-      out.push(i)
-    }
+    out.push(i)
+  }
+
+  if (alive && answer === until) {
+    out.pop()
   }
 
   return out
 }
 
-function liveIn(
-  rows: readonly FeedRow[],
-  folded: readonly number[],
-  answer: number,
-): readonly FeedRow[] {
-  const out: FeedRow[] = []
+/** 这一轮有没有正文：只有旁白的一轮不盖封条。 */
+function bodyIn(rows: readonly FeedRow[], from: number, until: number): boolean {
+  for (let i = from; i < until; i += 1) {
+    const type = rows[i]?.item.type
 
-  for (const one of folded) {
-    const row = rows[one]
-
-    if (row !== undefined && one > answer && row.item.type !== 'agent_text') {
-      out.push(row)
+    if (type !== undefined && type !== SAID && !ASIDE.has(type)) {
+      return true
     }
   }
 
-  return out.length === 0 ? NO_ROWS : out
+  return false
 }
 
-function speechFrom(rows: readonly FeedRow[], answer: number): string {
+/** 这一轮还有没有东西在动：有就先不给回复操作。 */
+function busyIn(rows: readonly FeedRow[], from: number, until: number): boolean {
+  for (let i = from; i < until; i += 1) {
+    const row = rows[i]
+
+    if (row !== undefined && (row.isStreamingTail || row.isInFlight)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function speechFrom(rows: readonly FeedRow[], from: number, until: number): string {
   const said: string[] = []
 
-  for (let i = Math.max(answer, 0); i < rows.length; i += 1) {
+  for (let i = Math.max(from, 0); i < until; i += 1) {
     const item = rows[i]?.item
 
     if (item?.type === 'agent_text') {
@@ -397,43 +432,98 @@ function buildSegment(
   page: TurnPage,
   span: TurnSpan | undefined,
   live: boolean,
-  isOpen: boolean,
+  opened: ReadonlySet<TimelineItemId>,
 ): Segment {
   const all = rowsOf(page, live)
-  const answer = answerAt(all)
   const running = span?.startedAt !== undefined && span.endedAt === undefined
-  const process = span === undefined ? [] : processIn(all, answer, running)
-  const said = all.some((row) => row.item.type === SAID)
-  const seal: TurnSealPlan | undefined =
-    !said || span?.firstFrameAt === undefined
-      ? undefined
-      : {
-          endedAt: span.endedAt,
-          hasProcess: process.length > 0,
-          isOpen,
-          startedAt: span.firstFrameAt,
-          turn: page.turn,
+  const bounds = boundsIn(all)
+  const plans: Stanza[] = []
+  const sealIds: TimelineItemId[] = []
+  const openedHere = new Set<TimelineItemId>()
+  const hidden = new Set<number>()
+  const marks = new Map<string, TimelineItemId>()
+
+  for (let k = 0; k < bounds.length; k += 1) {
+    const said = bounds[k] ?? -1
+    const until = bounds[k + 1] ?? all.length
+    const from = said + 1
+    const alive = running && k === bounds.length - 1
+    const answer = answerFrom(all, from, until)
+    const folded = foldFrom(all, answer, from, until, alive)
+    const head = said < 0 ? undefined : all[said]?.item
+    /* 段自己那一问的起点由 run_started 记在 span 上；插进来的那一问只有它自己的时刻。 */
+    const startedAt = head === undefined ? undefined : said === 0 ? span?.firstFrameAt : head.at
+    const seal: TurnSealPlan | undefined =
+      head === undefined || startedAt === undefined || !bodyIn(all, from, until)
+        ? undefined
+        : {
+            endedAt: until < all.length ? all[until]?.item.at : span?.endedAt,
+            hasProcess: folded.length > 0,
+            id: head.id,
+            isOpen: opened.has(head.id),
+            startedAt,
+          }
+
+    if (seal !== undefined) {
+      sealIds.push(seal.id)
+
+      if (seal.isOpen) {
+        openedHere.add(seal.id)
+      }
+
+      for (const one of folded) {
+        const id = all[one]?.item.id
+
+        if (id === undefined) {
+          continue
         }
 
-  const folded = seal === undefined ? [] : process
-  const hidden = isOpen ? new Set<number>() : new Set(folded)
+        marks.set(id, seal.id)
+
+        if (!seal.isOpen) {
+          hidden.add(one)
+        }
+      }
+    }
+
+    const tail = all[until - 1]
+    const settled = !alive && !busyIn(all, from, until) && answer < until
+
+    plans.push({
+      replyId: settled && tail !== undefined ? tail.item.id : undefined,
+      replyText: speechFrom(all, answer, until),
+      seal,
+    })
+  }
+
   const visible = hidden.size === 0 ? all : all.filter((_, one) => !hidden.has(one))
   const grouped = groupIn(visible)
-  const transient =
-    seal !== undefined && running && !isOpen
-      ? groupIn(liveIn(all, folded, answer))
-      : { groups: NO_GROUPS, rows: NO_ROWS }
+  const where = new Map<string, number>()
 
-  /* 提问行拥有它后面的轮次边界：封条始终位于提问与 AI 内容之间。 */
-  const sealAt = seal === undefined ? -1 : grouped.rows.findIndex((row) => row.item.type === SAID)
-  const streaming = grouped.rows.some((row) => row.isStreamingTail || row.isInFlight)
-  const replyAt = running || streaming ? -1 : grouped.rows.length - 1
-  const marks =
-    seal === undefined
-      ? NO_MARKS
-      : new Set(
-          process.map((one) => all[one]?.item.id).filter((id): id is string => id !== undefined),
-        )
+  for (let i = 0; i < grouped.rows.length; i += 1) {
+    const id = grouped.rows[i]?.item.id
+
+    if (id !== undefined) {
+      where.set(id, i)
+    }
+  }
+
+  const seals = new Map<number, TurnSealPlan>()
+  const replies = new Map<number, ReplyActionPlan>()
+
+  for (const one of plans) {
+    const sealAt = one.seal === undefined ? undefined : where.get(one.seal.id)
+
+    if (one.seal !== undefined && sealAt !== undefined) {
+      seals.set(sealAt, one.seal)
+    }
+
+    const replyAt = one.replyId === undefined ? undefined : where.get(one.replyId)
+
+    if (replyAt !== undefined) {
+      replies.set(replyAt, { text: one.replyText })
+    }
+  }
 
   let ownMessage: string | null = null
 
@@ -446,34 +536,42 @@ function buildSegment(
   return {
     ...stageIn(grouped.rows),
     groups: grouped.groups,
-    isOpen,
     live,
-    liveGroups: transient.groups,
-    liveRows: transient.rows,
-    marks,
+    marks: marks.size === 0 ? NO_MARKS : marks,
+    openedHere,
     ownMessage,
-    reply: replyAt < 0 ? undefined : { text: speechFrom(grouped.rows, answerAt(grouped.rows)) },
-    replyAt,
+    replies: replies.size === 0 ? NO_REPLIES : replies,
     rows: grouped.rows,
-    seal: sealAt < 0 ? undefined : seal,
-    sealAt,
+    sealIds: sealIds.length === 0 ? NO_IDS : sealIds,
+    seals: seals.size === 0 ? NO_SEALS : seals,
     span,
   }
+}
+
+/** 这一段的封条开合有没有变：只问它自己那几枚，别处点开与它无关。 */
+function sameOpen(held: Segment, opened: ReadonlySet<TimelineItemId>): boolean {
+  for (const id of held.sealIds) {
+    if (opened.has(id) !== held.openedHere.has(id)) {
+      return false
+    }
+  }
+
+  return true
 }
 
 function segmentOf(
   page: TurnPage,
   span: TurnSpan | undefined,
   live: boolean,
-  isOpen: boolean,
+  opened: ReadonlySet<TimelineItemId>,
 ): Segment {
   const held = SEGMENTS.get(page)
 
-  if (held !== undefined && held.span === span && held.live === live && held.isOpen === isOpen) {
+  if (held !== undefined && held.span === span && held.live === live && sameOpen(held, opened)) {
     return held
   }
 
-  const built = buildSegment(page, span, live, isOpen)
+  const built = buildSegment(page, span, live, opened)
 
   SEGMENTS.set(page, built)
 
@@ -538,7 +636,6 @@ function carriedScan(segments: readonly Segment[], from: number): Scan | undefin
   return answered || reply !== undefined ? { answered, reply } : undefined
 }
 
-/** 各段的提问摊平成一条线；段尾那一问的应答可能落在后面的段里，顺路接上。 */
 function flatStaged(segments: readonly Segment[], offsets: readonly number[]): readonly Staged[] {
   const flat: Staged[] = []
 
@@ -617,7 +714,7 @@ function railOf(
 
 export function selectPresentation(
   state: TimelineState,
-  opened: ReadonlySet<number>,
+  opened: ReadonlySet<TimelineItemId>,
 ): Presentation {
   const anchor = state.sealed[0] ?? state.active
   const live = selectIsBusy(state)
@@ -639,19 +736,14 @@ export function selectPresentation(
   let count = 0
 
   for (const page of state.sealed) {
-    const segment = segmentOf(page, spanOf(state.spans, page.turn), false, opened.has(page.turn))
+    const segment = segmentOf(page, spanOf(state.spans, page.turn), false, opened)
 
     segments.push(segment)
     offsets.push(count)
     count += segment.rows.length
   }
 
-  const tail = segmentOf(
-    state.active,
-    spanOf(state.spans, state.active.turn),
-    live,
-    opened.has(state.active.turn),
-  )
+  const tail = segmentOf(state.active, spanOf(state.spans, state.active.turn), live, opened)
 
   segments.push(tail)
   offsets.push(count)
@@ -723,27 +815,29 @@ export function selectPresentation(
 
       return -1
     },
-    isProcessRow: (index) => {
+    lastTurn,
+    latestOwnMessage,
+    processOf: (index) => {
       const found = seek(index)
 
       return found === undefined
-        ? false
-        : found.segment.marks.has(found.segment.rows[found.at]?.item.id ?? '')
+        ? undefined
+        : found.segment.marks.get(found.segment.rows[found.at]?.item.id ?? '')
     },
-    lastTurn,
-    latestOwnMessage,
-    live: tail.liveRows,
-    liveGroupOf: (id) => tail.liveGroups.get(id),
     replyAt: (index) => {
       const found = seek(index)
 
-      return found?.at === found?.segment.replyAt ? found?.segment.reply : undefined
+      return found === undefined ? undefined : found.segment.replies.get(found.at)
     },
-    rowAt: (index) => seek(index)?.segment.rows[seek(index)?.at ?? -1],
+    rowAt: (index) => {
+      const found = seek(index)
+
+      return found === undefined ? undefined : found.segment.rows[found.at]
+    },
     sealAt: (index) => {
       const found = seek(index)
 
-      return found?.at === found?.segment.sealAt ? found?.segment.seal : undefined
+      return found === undefined ? undefined : found.segment.seals.get(found.at)
     },
     turns,
   }
