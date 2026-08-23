@@ -1,13 +1,7 @@
 import './flow-row.css'
 import './tool-group.css'
 
-import {
-  type FeedRow,
-  liveMemberOf,
-  type ToolCallTimelineItem,
-  type ToolGroupKind,
-  type ToolGroupPlan,
-} from '@poietica/agent'
+import { type FeedRow, liveMemberOf, type ToolGroupPlan } from '@poietica/agent'
 import type { ReactNode } from 'react'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import { ChevronDownIcon } from '../primitives/icons'
@@ -25,20 +19,10 @@ import { ToolKindIcon } from './tool-call-card'
  * 戴它的是需要人回答的东西。
  */
 
-/** 组头那枚图标：借这一类里最有代表性的那一档，图标的实现仍只有一处。 */
-const ICON_OF: Record<ToolGroupKind, ToolCallTimelineItem['kind']> = {
-  execute: 'execute',
-  fetch: 'fetch',
-  read: 'read',
-  search: 'search',
-  write: 'edit',
-}
-
 /**
  * 汇总那一句。
  *
- * 量词跟着这一类真正在数的东西走：读与写数文件，搜索与执行数次数，抓取数网页。
- * 中文不变复数，所以这里只有一套写法，没有单复数分支。
+ * 一类一句，量词跟着这一类真正在数的东西走。中文不变复数，所以没有单复数分支。
  */
 function describeToolGroup(plan: ToolGroupPlan): string {
   const count = plan.members.length
@@ -46,20 +30,36 @@ function describeToolGroup(plan: ToolGroupPlan): string {
   switch (plan.kind) {
     case 'read':
       return `阅读 ${count} 个文件`
+    case 'edit':
+      return `编辑 ${count} 处`
+    case 'write':
+      return `写入 ${count} 个文件`
     case 'search':
       return `搜索 ${count} 次`
     case 'fetch':
       return `抓取 ${count} 个网页`
     case 'execute':
       return `执行 ${count} 条命令`
-    case 'write':
-      return `编辑 ${count} 个文件`
+    case 'delegate':
+      return `派出 ${count} 个子代理`
+    case 'skill':
+      return `动用 ${count} 个技能`
+    case 'task':
+      return `推进 ${count} 项任务`
+    case 'todo':
+      return `更新 ${count} 次任务清单`
+    case 'plan':
+      return `修订 ${count} 次计划`
+    case 'goal':
+      return `立下 ${count} 个目标`
+    case 'other':
+      return `调用 ${count} 次外部工具`
     default:
       return unhandled(plan.kind)
   }
 }
 
-/* 白名单长出新的一类时这里是编译错误，不是一行空白。 */
+/* ToolKind 长出新的一档时这里是编译错误，不是一行空白。 */
 function unhandled(_kind: never): string {
   return ''
 }
@@ -133,7 +133,7 @@ export function ToolGroupCard({ plan, renderRow }: ToolGroupCardProps) {
         onClick={toggle}
         type="button"
       >
-        <ToolKindIcon kind={ICON_OF[plan.kind]} />
+        <ToolKindIcon kind={plan.kind} />
 
         <GroupTicker isRunning={isRunning} text={saying ?? summary} />
 

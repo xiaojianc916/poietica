@@ -137,13 +137,6 @@ export interface AgentActivityFeedProps {
   readonly isBusy: boolean
   /** 画在滚动区之上,位于一切会滚的东西之外。 */
   readonly overlay?: (port: FeedPort) => ReactNode
-  /**
-   * 顶行到了。
-   *
-   * 这个组件唯一上报的一件事。它不知道前面还有没有内容、也不知道读一页要读
-   * 几趟 —— 缺席就是没有更早的，那时它连报都不报。
-   */
-  readonly onReachTop?: (() => void) | undefined
 }
 
 export function AgentActivityFeed({
@@ -151,7 +144,6 @@ export function AgentActivityFeed({
   feed,
   renderRow,
   isBusy,
-  onReachTop,
   overlay,
 }: AgentActivityFeedProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
@@ -281,19 +273,14 @@ export function AgentActivityFeed({
         setReadingRow(reading.index)
       }
 
-      /* 顶行答两件事:那次跳转到了没有、以及顶到头了没有。同一次读取一并交出
-         —— 不为第二个问题再量一次几何。 */
+      /* 顶行只答一件事:那次跳转到了没有。 */
       const top = rowAtAnchor(spans, viewport.scrollTop)
 
       if (top !== null) {
         settleReveal(top.index, viewport.scrollTop - top.start <= REVEAL_FLUSH_PX)
-
-        if (top.index === 0) {
-          onReachTop?.()
-        }
       }
     },
-    [onReachTop, settleReveal],
+    [settleReveal],
   )
 
   /*
@@ -650,11 +637,11 @@ export function AgentActivityFeed({
   }, [pending, reduced, settleReveal, virtualizer])
 
   /*
-   * 往前补了几轮,阅读位置不动。
+   * 往前补了几轮,眼前的东西不动。
    *
-   * 前插只改下标,不改身份:每一行的 id 原样保留,所以实测高度与下游的记忆化都
-   * 不失效,而原来那一行搬到了下标 k。把它送回视口顶端就是「位置没变」——
-   * 走 scrollToIndex,不新增第三个 scrollTop 写入者。
+   * 前插只改下标,不改身份:每一行的 id 原样保留,所以实测高度与下游的记忆化都不失效,
+   * 而原来那一行搬到了下标 k。补进来的那一段有多高,就把滚动位置往下推多少 —— 视口因此
+   * 停在原地,无论人此刻在顶、在中间、还是贴着末端。
    *
    * 判据是首行换了身份而旧首行仍在表里:追加发生在末尾,首行不动,所以这个效应
    * 在流式输出时一次都不跑。
@@ -671,12 +658,20 @@ export function AgentActivityFeed({
       return
     }
 
+    const viewport = viewportRef.current
     const moved = feed.indexOf(before)
 
-    if (moved > 0) {
-      virtualizer.scrollToIndex(moved, { align: 'start' })
+    if (viewport === null || moved <= 0) {
+      return
     }
-  }, [feed, virtualizer])
+
+    /* 旧首行此前坐在坐标原点上(scrollMargin),它现在坐在哪儿,差额就是补进来的高度。 */
+    const grown = virtualizer.getOffsetForIndex(moved, 'start')?.[0]
+
+    if (grown !== undefined) {
+      viewport.scrollTop += grown - scrollMargin
+    }
+  }, [feed, scrollMargin, virtualizer])
 
   /*
    * 高亮的真源,按优先级排。

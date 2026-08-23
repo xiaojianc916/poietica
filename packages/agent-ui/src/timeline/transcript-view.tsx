@@ -10,7 +10,7 @@ import { useReducedMotion } from 'motion/react'
 import { type ReactNode, useCallback, useReducer } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
-import { useAssistantEarlier, useAssistantTimeline } from '../session/use-assistant-session'
+import { useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { ReplyActionHost } from './reply-actions'
 import { ThinkingLine } from './thinking-line'
@@ -100,9 +100,6 @@ export function TranscriptView({
 }: TranscriptViewProps) {
   const timeline = useAssistantTimeline(sessionKey)
 
-  /* 缺席就是前面没有了：滚动区据此连报都不报。 */
-  const onReachTop = useAssistantEarlier(sessionKey)
-
   /* 哪几轮被人点开了。键是那一轮的提问 id —— 一段里可以有好几轮（插话）。 */
   const [foldUi, dispatchFoldUi] = useReducer(foldUiReducer, INITIAL_FOLD_UI)
   const animateTurn = useReducedMotion() !== true
@@ -136,6 +133,7 @@ export function TranscriptView({
         endedAt={plan.endedAt}
         hasProcess={plan.hasProcess}
         id={plan.id}
+        isLive={plan.isLive}
         isOpen={foldUi.motion.get(plan.id) === 'closing' ? false : plan.isOpen}
         lastFrameAt={plan.lastFrameAt}
         onToggle={toggleTurn}
@@ -147,7 +145,8 @@ export function TranscriptView({
 
   /*
    * 一行的全部装饰按下标问。
-   * 封条挂在提问行之后，因此 DOM 顺序恒为「提问、封条、AI 内容」；开合不搬家。
+   * 封条画在这一轮第一行可见内容之前，因此 DOM 顺序恒为「提问、封条、AI 内容」；
+   * 开合不搬家。
    */
   const renderRowAt = useCallback(
     (index: number) => {
@@ -180,6 +179,7 @@ export function TranscriptView({
 
       return (
         <>
+          {seal === undefined ? null : sealOf(seal)}
           <div
             className="turn-seal__reveal"
             data-turn-motion={motion}
@@ -195,7 +195,6 @@ export function TranscriptView({
           >
             {content}
           </div>
-          {seal === undefined ? null : sealOf(seal)}
         </>
       )
     },
@@ -221,7 +220,6 @@ export function TranscriptView({
         conversation={sessionKey}
         feed={feed}
         isBusy={selectIsBusy(timeline)}
-        onReachTop={onReachTop}
         overlay={overlay}
         renderRow={renderRowAt}
       />

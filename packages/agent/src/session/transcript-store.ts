@@ -504,6 +504,10 @@ export class TranscriptStore implements TranscriptSink {
       earlier: page.before,
       reading: false,
     })
+
+    /* 剩下的经过从这一刻起自己读回来。一条对话有几轮是它自己的事实，不是滚动位置的
+       函数 —— 缩略导航按轮次画格子，它不能等人滚到顶才成立。 */
+    void this.#drain(threadId)
   }
 
   /** 要不回来。这一条记在转录里，而不是记在会话设置那一格上。 */
@@ -517,40 +521,37 @@ export class TranscriptStore implements TranscriptSink {
     })
   }
 
-  /**
-   * 人滚到了顶。
-   *
-   * 滚动区只上报这一件事：它不知道有没有更早的、也不该知道读一页要读几趟。
-   * 反复上报是幂等的 —— 正在读、或者前面没有了，都当场返回。
-   */
-  reachedTop = (key: string): void => {
-    void this.#readEarlier(this.#resolveKey(key))
-  }
-
   /* ================= 内部 ================= */
 
   /**
-   * 往前读，一次读到一个轮次起点为止。
+   * 把这条对话剩下的经过读完：一页一页往前，直到前面没有了。
    *
-   * 一页读回来可能整页都没有 run_started（一轮长过一页），那就接着往前读；
-   * 攒下的半截帧留在 #unaligned，等起点到达再一起折进去。游标为 null 时前面
-   * 没有了，攒下的那一批就是最早那一轮，整批折进去。
+   * 一页读回来可能整页都没有 run_started（一轮长过一页），攒下的半截帧留在
+   * #unaligned，等起点到达再一起折进去。每两页之间隔着一次 IPC 往返，屏幕照常
+   * 刷新 —— 最新那一页在第一时间就已经在屏幕上了。
+   *
+   * 读到一半这条对话被删掉时当场收手：折进去等于把它请回屏幕上。
    */
-  async #readEarlier(real: string): Promise<void> {
+  async #drain(real: string): Promise<void> {
     const read = this.#earlier
-    const current = this.#now(real)
+    const opened = this.#now(real)
 
-    if (read === undefined || current.reading || current.earlier === null) {
+    if (read === undefined || opened.reading || opened.earlier === null) {
       return
     }
 
-    this.#put(real, { ...current, reading: true })
+    this.#put(real, { ...opened, reading: true })
 
-    let cursor: FrameCursor | null = current.earlier
+    let cursor: FrameCursor | null = opened.earlier
 
     try {
       while (cursor !== null) {
         const page: FramePage = await read(real, cursor)
+
+        if (!this.#held.has(real)) {
+          return
+        }
+
         const merged = [
           ...(page.events as readonly RunEvent[]),
           ...(this.#unaligned.get(real) ?? []),
@@ -573,17 +574,15 @@ export class TranscriptStore implements TranscriptSink {
 
         this.#unaligned.set(real, merged.slice(0, at))
         this.#prepend(real, merged.slice(at), cursor)
-
-        return
       }
     } catch (cause: unknown) {
       const latest = this.#now(real)
 
-      this.#put(real, {
-        ...latest,
-        reading: false,
-        timeline: noteOn(latest.timeline, cause, false),
-      })
+      this.#put(real, { ...latest, timeline: noteOn(latest.timeline, cause, false) })
+    } finally {
+      if (this.#held.has(real)) {
+        this.#put(real, { ...this.#now(real), reading: false })
+      }
     }
   }
 
@@ -595,7 +594,6 @@ export class TranscriptStore implements TranscriptSink {
       ...latest,
       timeline: prependThreadEvents(latest.timeline, events),
       earlier,
-      reading: false,
     })
   }
 

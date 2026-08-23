@@ -24,7 +24,7 @@ export interface FeedRow {
   readonly isInFlight: boolean
 }
 
-export type ToolGroupKind = 'read' | 'search' | 'fetch' | 'execute' | 'write'
+export type ToolGroupKind = ToolCallTimelineItem['kind']
 
 export interface ToolGroupPlan {
   readonly kind: ToolGroupKind
@@ -32,7 +32,7 @@ export interface ToolGroupPlan {
   readonly members: readonly FeedRow[]
 }
 
-/** 封条属于一轮，键就是开启这一轮的那条提问。 */
+/** 封条属于一轮，键就是这一轮的第一条条目。 */
 export interface TurnSealPlan {
   readonly id: TimelineItemId
   readonly startedAt: number | undefined
@@ -41,6 +41,8 @@ export interface TurnSealPlan {
   readonly lastFrameAt: number | undefined
   readonly hasProcess: boolean
   readonly isOpen: boolean
+  /** 这一轮此刻正在本进程里收帧。只有它为真，秒表才读本机时钟。 */
+  readonly isLive: boolean
 }
 
 export interface ReplyActionPlan {
@@ -62,6 +64,7 @@ export interface Presentation {
   readonly lastTurn: number | undefined
   readonly rowAt: (index: number) => FeedRow | undefined
   readonly groupAt: (index: number) => ToolGroupPlan | undefined
+  /** 画在这一行之前的封条：一轮的封条挂在它第一行可见内容的前面。 */
   readonly sealAt: (index: number) => TurnSealPlan | undefined
   readonly replyAt: (index: number) => ReplyActionPlan | undefined
   /** 这一行被哪一轮的封条折着；没被折就是 undefined。 */
@@ -75,14 +78,7 @@ const ASIDE: ReadonlySet<TimelineItem['type']> = new Set(['error', 'permission',
 const SAID = 'user_message'
 const PREVIEW = 300
 
-/** 白名单之外不并组：语义未知的几条并成一堆是信息损失。 */
-const GROUPED = new Map<ToolCallTimelineItem['kind'], ToolGroupKind>([
-  ['read', 'read'],
-  ['edit', 'write'],
-  ['search', 'search'],
-  ['fetch', 'fetch'],
-  ['execute', 'execute'],
-])
+/** 同类相邻才并组。类别表就是 ToolKind，这里不抄第二份。 */
 const LEAST = 2
 
 const NO_ROWS: readonly FeedRow[] = []
@@ -114,6 +110,8 @@ interface Staged {
 /** 一轮的派生结果。 */
 interface Stanza {
   readonly seal: TurnSealPlan | undefined
+  /** 封条画在它前面：这一轮第一行看得见的内容。-1 表示这一轮没有可见内容。 */
+  readonly anchor: number
   readonly replyId: TimelineItemId | undefined
   readonly replyText: string
 }
@@ -220,17 +218,16 @@ function answerFrom(rows: readonly FeedRow[], from: number, until: number): numb
 }
 
 /**
- * 这一轮要收进封条的行：回答之前的都是过程。
+ * 这一轮要收进封条的行：最终回复之前的都是过程。
  *
- * 还在跑且这一轮尚未开口时，最近的那一条留在原地当现场 —— 它不换父节点，所以开合封条
- * 不会让任何一行搬家。
+ * 没有最终回复时 —— 还在跑，或者被主动/被动停在半路 —— 最近的那一条留在原地当现场，
+ * 一整轮因此不会收成一片空白。它不换父节点，所以开合封条不会让任何一行搬家。
  */
 function foldFrom(
   rows: readonly FeedRow[],
   answer: number,
   from: number,
   until: number,
-  alive: boolean,
 ): readonly number[] {
   const out: number[] = []
 
@@ -244,7 +241,7 @@ function foldFrom(
     out.push(i)
   }
 
-  if (alive && answer === until) {
+  if (answer === until) {
     out.pop()
   }
 
@@ -353,7 +350,7 @@ function groupIn(rows: readonly FeedRow[]): {
       continue
     }
 
-    const kind = row.item.type === 'tool_call' ? GROUPED.get(row.item.kind) : undefined
+    const kind = row.item.type === 'tool_call' ? row.item.kind : undefined
 
     if (kind === undefined) {
       kept?.push(row)
@@ -367,11 +364,7 @@ function groupIn(rows: readonly FeedRow[]): {
     while (end < rows.length) {
       const next = rows[end]?.item
 
-      if (
-        next?.type !== 'tool_call' ||
-        next.turn !== row.item.turn ||
-        GROUPED.get(next.kind) !== kind
-      ) {
+      if (next?.type !== 'tool_call' || next.turn !== row.item.turn || next.kind !== kind) {
         break
       }
 
@@ -451,11 +444,13 @@ function buildSegment(
     /* 「这一轮还在跑」只有一个产地：会话的状态（selectIsBusy），它由帧驱动。 */
     const alive = live && k === bounds.length - 1
     const answer = answerFrom(all, from, until)
-    const folded = foldFrom(all, answer, from, until, alive)
-    const head = said < 0 ? undefined : all[said]?.item
+    const folded = foldFrom(all, answer, from, until)
+    /* 封条的身份取这一轮的第一条：提问不在本段时（续跑的轮次、页边界）没有那一条，
+       而一轮的过程不该因此整段留在封条外面。 */
+    const head = (said < 0 ? all[from] : all[said])?.item
     /* 耗时属于一次运行，不属于一条消息：插进来的那一问没有开新的一轮
        （appendUserMessage 在忙碌时不换段），它没有自己的两端，所以只收过程、不报耗时。 */
-    const own = said === 0 ? span : undefined
+    const own = said <= 0 ? span : undefined
     const seal: TurnSealPlan | undefined =
       head === undefined || !bodyIn(all, from, until)
         ? undefined
@@ -463,6 +458,7 @@ function buildSegment(
             endedAt: own?.endedAt,
             hasProcess: folded.length > 0,
             id: head.id,
+            isLive: alive,
             isOpen: opened.has(head.id),
             lastFrameAt: own?.lastFrameAt,
             startedAt: own?.startedAt,
@@ -492,8 +488,16 @@ function buildSegment(
 
     const tail = all[until - 1]
     const settled = !alive && !busyIn(all, from, until) && answer < until
+    let anchor = -1
+
+    for (let i = from; i < until && anchor < 0; i += 1) {
+      if (!hidden.has(i)) {
+        anchor = i
+      }
+    }
 
     plans.push({
+      anchor,
       replyId: settled && tail !== undefined ? tail.item.id : undefined,
       replyText: speechFrom(all, answer, until),
       seal,
@@ -516,7 +520,8 @@ function buildSegment(
   const replies = new Map<number, ReplyActionPlan>()
 
   for (const one of plans) {
-    const sealAt = one.seal === undefined ? undefined : where.get(one.seal.id)
+    const anchored = one.anchor < 0 ? undefined : all[one.anchor]?.item.id
+    const sealAt = anchored === undefined ? undefined : where.get(anchored)
 
     if (one.seal !== undefined && sealAt !== undefined) {
       seals.set(sealAt, one.seal)

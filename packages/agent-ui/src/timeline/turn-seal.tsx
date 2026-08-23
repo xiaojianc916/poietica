@@ -3,6 +3,7 @@ import './turn-seal.css'
 import type { TimelineItemId } from '@poietica/agent'
 import { ChevronDown } from 'lucide-react'
 import { memo } from 'react'
+import { useSecond } from '../primitives/tick'
 
 /*
  * 一轮的封条：这一轮花了多久，以及它的过程收在哪里。
@@ -22,6 +23,8 @@ export interface TurnSealProps {
   /** 运行中的耗时以它为终点。缺席表示这一轮还没收到过任何一帧。 */
   readonly lastFrameAt: number | undefined
   readonly hasProcess: boolean
+  /** 这一轮此刻正在本进程里收帧：只有它为真，秒表才走。 */
+  readonly isLive: boolean
   readonly isOpen: boolean
   readonly onToggle: (id: TimelineItemId) => void
 }
@@ -32,10 +35,9 @@ const SECOND_MS = 1_000
  * 耗时的两端同在日志域：起点是 run_started 的 at，终点是这一轮最后一帧的 at，两者都由
  * 原生侧 recorder.rs 的 now_millis 写下。
  *
- * 不读本机时钟。Date.now() 与日志不在同一条数轴上，中间还夹着系统休眠 —— 拿它去减一个
- * 日志时刻，几分钟的运行会读成十几个小时。
- *
- * 也因此没有秒表：不再收帧的运行本来就不该继续计数，停住正是「卡住了」这件事本身。
+ * 本机时钟只有一个入口：这一轮此刻正在本进程里收帧（isLive）。那时它与日志同轴 ——
+ * 同一台机器、同一个 epoch 毫秒。装载回来的、被停掉的、跨过一次休眠才回来的那些轮次
+ * 一律只读日志，所以「几分钟读成十几个小时」进不来。
  */
 function elapsedOf(
   startedAt: number | undefined,
@@ -85,12 +87,20 @@ function Seal({
   endedAt,
   hasProcess,
   id,
+  isLive,
   isOpen,
   lastFrameAt,
   onToggle,
   startedAt,
 }: TurnSealProps) {
-  const elapsed = elapsedOf(startedAt, endedAt, lastFrameAt)
+  /* 走着的秒表只属于活着的那一轮：落定的那些一个都不订阅，也就一帧都不重渲染。 */
+  const ticking = isLive && endedAt === undefined && startedAt !== undefined
+  const now = useSecond(ticking)
+  const elapsed = elapsedOf(
+    startedAt,
+    endedAt,
+    ticking ? Math.max(now, lastFrameAt ?? 0) : lastFrameAt,
+  )
 
   /* 算不出的耗时不编一个出来：缺了就只说这里收着过程。 */
   const label =

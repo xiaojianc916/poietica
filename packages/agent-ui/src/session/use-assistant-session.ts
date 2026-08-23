@@ -19,7 +19,6 @@ import type {
   ApprovalAnswer,
   ApprovalScope,
   ChatStatus,
-  FrameCursor,
   PromptAsset,
   PromptConfiguration,
   PromptSkill,
@@ -145,9 +144,6 @@ const readStatus = (transcript: Transcript): ChatStatus => toChatStatus(transcri
 const readRestoring = (transcript: Transcript): boolean => transcript.restoring
 
 const readTimeline = (transcript: Transcript): TimelineState => transcript.timeline
-
-/* 交出游标本身：它只在读回一页时才换引用，流式追加叫不醒订阅者。 */
-const readEarlier = (transcript: Transcript): FrameCursor | null => transcript.earlier
 
 /*
  * 待答的那一道：倒扫，走到人说的上一句话为止（pendingPermission）。
@@ -283,23 +279,6 @@ export function useAssistantSession({
     dismissQuestions,
     isRestoring,
   }
-}
-
-/**
- * 顶部到了要不要往前读。
- *
- * 交回 undefined 就是前面没有了 —— 滚动区因此连报都不报，顶部不空转。读一页
- * 要读几趟归 store，这一层只把「到顶了」这句话接上去。
- */
-export function useAssistantEarlier(key: string): (() => void) | undefined {
-  const transcripts = useTranscripts()
-  const earlier = useSlice(key, readEarlier)
-
-  const reachedTop = useCallback(() => {
-    transcripts.reachedTop(key)
-  }, [key, transcripts])
-
-  return earlier === null ? undefined : reachedTop
 }
 
 /**
