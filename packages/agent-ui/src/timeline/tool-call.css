@@ -125,14 +125,9 @@
   align-items: center;
   gap: 0.375rem;
   font-family: var(--cp-font-mono);
-  /*
-   * 等宽字体的升降部与界面字体不是同一套：照抄行头的 24px 行盒，数字会在盒内
-   * 偏高，与左侧那句话对不齐。行高收成 1，盒子贴着字走，居中交给
-   * .timeline-row 的 align-items；字号比正文小一档，它是注脚不是台词。
-   */
+  /* 行高跟着行走：一行里只有一个行高，两侧才落在同一条基线上。字号小一档，它是注脚。 */
   font-size: calc(var(--ui-prose-size) - 2px);
   font-variant-numeric: tabular-nums;
-  line-height: 1;
 }
 
 .timeline-tool__diffstat-added {
@@ -234,7 +229,6 @@
 .timeline-tool__background {
   flex: none;
   font-size: var(--cp-font-micro);
-  line-height: inherit;
   color: var(--cp-ink-subtle);
   white-space: nowrap;
 }

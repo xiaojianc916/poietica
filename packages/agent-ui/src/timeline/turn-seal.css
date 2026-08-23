@@ -38,14 +38,12 @@
   color: var(--cp-ink);
 }
 
+/* 图标盒与文字盒等高，所以不需要那 1px 的手工偏移。 */
 .turn-seal__chevron {
-  position: relative;
-  inset-block-start: 1px;
   display: block;
   flex: none;
-  align-self: center;
   inline-size: 1rem;
-  block-size: 1rem;
+  block-size: 1lh;
   stroke-width: var(--cp-icon-stroke);
   rotate: -90deg;
   transition: rotate var(--cp-motion-swift) cubic-bezier(0.2, 0, 0, 1);

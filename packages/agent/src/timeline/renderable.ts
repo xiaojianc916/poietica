@@ -18,8 +18,8 @@ import type { TimelineItem } from './timeline-contract'
  * 「Thinking」标签加一个转圈（ThinkingBlock.tsx），正文一个字不出。
  *
  * 所以转录里只有人说的话、回答、工具调用、计划、落定的题与报错。这个决定只在这里做一次：
- * ReasoningPanel 仍挂在 TimelineRow 那个穷尽 switch 上，由类型系统看着——条目联合里
- * 还有 agent_thought，那个分支就删不掉；要让思考重新上屏，也只改这一行。
+ * TimelineRow 那个穷尽 switch 由类型系统看着——条目联合里还有 agent_thought，那个分支就
+ * 删不掉（它返回 null，现场那一行归 ThinkingLine）；要让思考重新上屏，也只改这一行。
  */
 export function isRenderable(item: TimelineItem): boolean {
   if (item.type === 'agent_thought') {

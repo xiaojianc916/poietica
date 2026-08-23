@@ -87,7 +87,20 @@ function writableSpans(draft: Draft): TurnSpan[] {
   return draft.spans as TurnSpan[]
 }
 
+/** 落定的三种结局。 */
+const SETTLED: ReadonlySet<RunStatus> = new Set(['cancelled', 'completed', 'failed'])
+
 export function freeze(draft: Draft): TimelineState {
+  /* 轮次的终点由状态说了算，不由某一帧说了算：终帧没到过的运行（进程被杀、连接断）
+     同样要收口，否则封条会永远停在「正在处理」。 */
+  if (SETTLED.has(draft.status)) {
+    const open = draft.spans.at(-1)
+
+    if (open?.lastFrameAt !== undefined) {
+      markTurnEnd(draft, open.lastFrameAt)
+    }
+  }
+
   const state: TimelineState = {
     status: draft.status,
     sealed: draft.sealed,
@@ -232,7 +245,7 @@ const AGENT_FRAME: ReadonlySet<TimelineItem['type']> = new Set([
 export function push(draft: Draft, item: TimelineItem): void {
   openSpan(draft)
   append(draft, item)
-  markFirstFrame(draft, item)
+  markAgentActive(draft, item)
 }
 
 /**
@@ -287,31 +300,35 @@ function openSpan(draft: Draft): void {
 }
 
 /**
- * 记下这一轮收到第一帧的时刻。
+ * 模型开口了。
  *
- * 只认末尾那一条 span，与 markTurnStart 同一条规矩：段号只增不减，当轮恒在末尾，
- * 所以这里不查找也不建索引。
- *
- * 报错与授权不算。额度耗尽的密钥也会立刻回一条错，它证明的是请求到过服务端，不是
- * 模型在干活 —— 而屏幕正是靠这一格决定要不要立那块「正在处理」的碑。
+ * 报错与授权不算：额度耗尽的密钥也会立刻回一条错，它证明的只是请求到过服务端。
  */
-function markFirstFrame(draft: Draft, item: TimelineItem): void {
-  const open = draft.spans.at(-1)
-
-  if (open === undefined || open.turn !== item.turn || open.firstFrameAt !== undefined) {
+function markAgentActive(draft: Draft, item: TimelineItem): void {
+  if (draft.status !== 'submitted' || !AGENT_FRAME.has(item.type)) {
     return
   }
 
-  if (!AGENT_FRAME.has(item.type)) {
-    return
-  }
+  draft.status = 'running'
+}
+
+/**
+ * 这一轮又活了一下。
+ *
+ * 运行中的耗时以它为终点，所以两端同在日志域。每一帧都盖 —— 一段正在写的回答同样是
+ * 活着的证据，计时不该在它写字的时候停住。
+ */
+export function markFrame(draft: Draft, at: number): void {
+  openSpan(draft)
 
   const spans = writableSpans(draft)
-  spans[spans.length - 1] = { ...open, firstFrameAt: item.at }
+  const open = spans[spans.length - 1]
 
-  if (draft.status === 'submitted') {
-    draft.status = 'running'
+  if (open === undefined) {
+    return
   }
+
+  spans[spans.length - 1] = { ...open, lastFrameAt: at }
 }
 
 export function sealTail(draft: Draft): void {

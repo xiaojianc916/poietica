@@ -79,5 +79,6 @@ export {
   replayThreadEvents,
   runningDelegations,
   selectIsBusy,
+  selectLiveThought,
   selectPresentation,
 } from './timeline'

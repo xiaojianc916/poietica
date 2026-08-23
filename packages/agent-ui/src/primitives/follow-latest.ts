@@ -192,8 +192,8 @@ export interface FollowLatest {
 /**
  * 滚动位置在末端这一侧的唯一所有者。
  *
- * 滚动位置归盒子的主人。这条规则没有例外：会话流的滚动区归 AgentActivityFeed，思考链那个
- * 有上限的盒子归 ReasoningPanel，工具载荷那个 tabpanel 归 ToolCallPanels —— 谁挂的元素，谁
+ * 滚动位置归盒子的主人。这条规则没有例外：会话流的滚动区归 AgentActivityFeed，
+ * 工具载荷那个 tabpanel 归 ToolCallPanels —— 谁挂的元素，谁
  * 决定它跟不跟最新内容走。铺内容的那一层（虚拟窗口）因此一个 scrollTop 都不写：它不知道
  * 自己被装在什么盒子里，也就没有资格替那个盒子做这个决定。
  *

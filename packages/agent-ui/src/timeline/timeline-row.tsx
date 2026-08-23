@@ -6,7 +6,6 @@ import { ErrorNotice } from './error-notice'
 import { PlanPanel } from './plan-panel'
 import { Prose } from './prose'
 import { QuestionRecord } from './question-record'
-import { ReasoningPanel } from './reasoning-panel'
 import { ToolCallCard } from './tool-call-card'
 import { UserMessage } from './user-message'
 
@@ -39,8 +38,9 @@ export const TimelineRow = memo(function TimelineRow({ row }: TimelineRowProps) 
         <Prose className="timeline-message" isStreaming={row.isStreamingTail} text={item.text} />
       )
 
+    /* 思考不成行（renderable 把它挡在 feed 外）；现场那一行归 ThinkingLine。 */
     case 'agent_thought':
-      return <ReasoningPanel isStreaming={row.isStreamingTail} text={item.text} />
+      return null
 
     case 'tool_call':
       return <ToolCallCard isInFlight={row.isInFlight} item={item} />

@@ -226,9 +226,7 @@ export const Prose = memo(function Prose({ className, isStreaming, text }: Prose
    * 此前这里按 isStreaming 分岔：在写的时候切块，封口之后整篇一块。于是每一轮回答
    * 说完的那一刻，块表从 n 块塌成 1 块 —— key 全变，n 个 ProseSegment 一起卸载、
    * 一个新实例挂载，整篇文本连同它全部的代码高亮、KaTeX 与 mermaid 在这一帧里被
-   * 重新解析一次。那正是「回答刚说完界面顿一下」的来处，而它每一轮都发生。思考盒
-   * 从来不分岔（ReasoningPanel 恒走切分），所以它没有这一下 —— 正确的做法本来就在
-   * 同一个文件里。
+   * 重新解析一次。那正是「回答刚说完界面顿一下」的来处，而它每一轮都发生。
    *
    * 一条管线：切点只由文本决定，isStreaming 只决定最后一块要不要走流式渲染。于是
    * 流停下的那一帧块表逐字不变，只有最后一块换一个 prop。

@@ -6,14 +6,11 @@
  */
 
 .timeline-row {
-  /*
-   * 行盒取 24px：(24 − 16) / 2 = 4，居中偏移落在整数 CSS 像素上 —— 这正是
-   * composer-metrics.css 给"壳高减图标尺寸"立的那条硬约束。1.65 的比例行高在
-   * 14px 上解出 23.1px，偏移 3.55px，图标于是停在半个设备像素上。
-   */
+  /* 行盒是显式的：高度由它定，不由最高的那个孩子撑出来，居中才有确定的参照。 */
   --cp-row-line: var(--cp-control-sm);
 
   display: inline-flex;
+  min-block-size: var(--cp-row-line);
   justify-self: start;
   align-items: center;
   gap: var(--cp-control-gap);
@@ -26,21 +23,30 @@
   font-size: var(--ui-prose-size);
   line-height: var(--cp-row-line);
   text-align: start;
-  cursor: pointer;
   transition: color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.timeline-row:hover,
-.timeline-row:focus-visible {
+/* 可点的那几处才有指针与悬停反馈：现场那一行是状态，不是控件。 */
+button.timeline-row {
+  cursor: pointer;
+}
+
+button.timeline-row:hover,
+button.timeline-row:focus-visible {
   color: var(--cp-ink);
 }
 
+/*
+ * 图标盒与文字盒等高，居中于是从「凑」变成恒等 —— 不需要任何逐处的像素微调。
+ *
+ * 字形不会被拉伸：SVG 的 preserveAspectRatio 默认 xMidYMid meet，viewBox 在视口里等比
+ * 缩放并居中，所以一个 16 宽、1lh 高的视口画出来仍是 16×16，只是垂直居中了。
+ */
 .timeline-row__icon,
 .timeline-row__chevron {
   flex: none;
-  align-self: center;
   inline-size: var(--cp-icon);
-  block-size: var(--cp-icon);
+  block-size: 1lh;
   stroke-width: var(--cp-icon-stroke);
 }
 
@@ -86,4 +92,11 @@
 
 .timeline-row__label[data-follow-end] {
   text-overflow: clip;
+}
+
+/* 现场那一行长在滚动区外面，所以自己复原那一列的宽度 —— 与行用的是同一个上限。 */
+.timeline-thinking {
+  inline-size: min(100%, var(--cp-timeline-tool-max));
+  margin-inline: auto;
+  padding-block: var(--cp-control-gap);
 }

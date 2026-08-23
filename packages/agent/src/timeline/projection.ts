@@ -15,6 +15,7 @@ import type { MessageImage, PermissionItem, QuestionTimelineItem } from './timel
 import type { Draft } from './timeline-draft'
 import {
   beginQuestion,
+  markFrame,
   markTurnEnd,
   markTurnStart,
   namespace,
@@ -62,6 +63,8 @@ export function apply(draft: Draft, event: RunEvent): void {
   }
 
   draft.lastSeq = event.seq
+  /* 这一轮的存活证据。耗时的终点取它，两端因此同在日志域。 */
+  markFrame(draft, event.at)
 
   switch (event.kind) {
     case 'run_started': {

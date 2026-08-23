@@ -37,6 +37,8 @@ export interface TurnSealPlan {
   readonly id: TimelineItemId
   readonly startedAt: number | undefined
   readonly endedAt: number | undefined
+  /** 运行中的耗时以它为终点，所以秒表不会超过实际收帧的跨度。 */
+  readonly lastFrameAt: number | undefined
   readonly hasProcess: boolean
   readonly isOpen: boolean
 }
@@ -435,7 +437,6 @@ function buildSegment(
   opened: ReadonlySet<TimelineItemId>,
 ): Segment {
   const all = rowsOf(page, live)
-  const running = span?.startedAt !== undefined && span.endedAt === undefined
   const bounds = boundsIn(all)
   const plans: Stanza[] = []
   const sealIds: TimelineItemId[] = []
@@ -447,21 +448,24 @@ function buildSegment(
     const said = bounds[k] ?? -1
     const until = bounds[k + 1] ?? all.length
     const from = said + 1
-    const alive = running && k === bounds.length - 1
+    /* 「这一轮还在跑」只有一个产地：会话的状态（selectIsBusy），它由帧驱动。 */
+    const alive = live && k === bounds.length - 1
     const answer = answerFrom(all, from, until)
     const folded = foldFrom(all, answer, from, until, alive)
     const head = said < 0 ? undefined : all[said]?.item
-    /* 段自己那一问的起点由 run_started 记在 span 上；插进来的那一问只有它自己的时刻。 */
-    const startedAt = head === undefined ? undefined : said === 0 ? span?.firstFrameAt : head.at
+    /* 耗时属于一次运行，不属于一条消息：插进来的那一问没有开新的一轮
+       （appendUserMessage 在忙碌时不换段），它没有自己的两端，所以只收过程、不报耗时。 */
+    const own = said === 0 ? span : undefined
     const seal: TurnSealPlan | undefined =
-      head === undefined || startedAt === undefined || !bodyIn(all, from, until)
+      head === undefined || !bodyIn(all, from, until)
         ? undefined
         : {
-            endedAt: until < all.length ? all[until]?.item.at : span?.endedAt,
+            endedAt: own?.endedAt,
             hasProcess: folded.length > 0,
             id: head.id,
             isOpen: opened.has(head.id),
-            startedAt,
+            lastFrameAt: own?.lastFrameAt,
+            startedAt: own?.startedAt,
           }
 
     if (seal !== undefined) {

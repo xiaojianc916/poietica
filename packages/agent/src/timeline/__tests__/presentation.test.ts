@@ -26,6 +26,7 @@ function broke(id: string, turn: number, at: number): TimelineItem {
 function stateOf(
   pages: readonly (readonly TimelineItem[])[],
   spans: readonly TurnSpan[],
+  status?: TimelineState['status'],
 ): TimelineState {
   const built = pages.map((items, index) => ({ items, turn: index + 1 }))
 
@@ -33,6 +34,7 @@ function stateOf(
     ...createTimelineState(),
     active: built.at(-1) ?? { items: [], turn: 1 },
     sealed: built.slice(0, -1),
+    ...(status === undefined ? null : { status }),
     spans,
   }
 }
@@ -54,7 +56,7 @@ function idsOf(feed: ReturnType<typeof selectPresentation>): readonly string[] {
 describe('presentation projection', () => {
   const settled = stateOf(
     [[said('s1', 1, 1), planned('p1', 1, 2), spoke('a1', 1, 3)]],
-    [{ endedAt: 4, firstFrameAt: 2, startedAt: 1, turn: 1 }],
+    [{ endedAt: 4, lastFrameAt: 3, startedAt: 1, turn: 1 }],
   )
 
   it('folds the process of a settled turn and keeps the answer', () => {
@@ -80,7 +82,8 @@ describe('presentation projection', () => {
       hasProcess: true,
       id: 's1',
       isOpen: false,
-      startedAt: 2,
+      lastFrameAt: 3,
+      startedAt: 1,
     })
     expect(feed.sealAt(1)).toBeUndefined()
   })
@@ -89,7 +92,8 @@ describe('presentation projection', () => {
     const feed = selectPresentation(
       stateOf(
         [[said('s1', 1, 1), planned('p1', 1, 2)]],
-        [{ firstFrameAt: 2, startedAt: 1, turn: 1 }],
+        [{ lastFrameAt: 2, startedAt: 1, turn: 1 }],
+        'running',
       ),
       SHUT,
     )
@@ -100,29 +104,34 @@ describe('presentation projection', () => {
       hasProcess: false,
       id: 's1',
       isOpen: false,
-      startedAt: 2,
+      lastFrameAt: 2,
+      startedAt: 1,
     })
     expect(feed.sealAt(1)).toBeUndefined()
   })
 
-  it('has no seal and folds nothing without a first frame', () => {
+  it('seals a turn it has no clock for, without inventing one', () => {
     const feed = selectPresentation(
-      stateOf(
-        [[said('s1', 1, 1), planned('p1', 1, 2), spoke('a1', 1, 3)]],
-        [{ endedAt: 4, startedAt: 1, turn: 1 }],
-      ),
+      stateOf([[said('s1', 1, 1), planned('p1', 1, 2), spoke('a1', 1, 3)]], []),
       SHUT,
     )
 
-    expect(idsOf(feed)).toEqual(['s1', 'p1', 'a1'])
-    expect(feed.sealAt(1)).toBeUndefined()
+    expect(idsOf(feed)).toEqual(['s1', 'a1'])
+    expect(feed.sealAt(0)).toEqual({
+      endedAt: undefined,
+      hasProcess: true,
+      id: 's1',
+      isOpen: false,
+      lastFrameAt: undefined,
+      startedAt: undefined,
+    })
   })
 
   it('never folds an aside', () => {
     const feed = selectPresentation(
       stateOf(
         [[said('s1', 1, 1), broke('e1', 1, 2), planned('p1', 1, 3), spoke('a1', 1, 4)]],
-        [{ endedAt: 5, firstFrameAt: 2, startedAt: 1, turn: 1 }],
+        [{ endedAt: 5, lastFrameAt: 4, startedAt: 1, turn: 1 }],
       ),
       SHUT,
     )
@@ -134,7 +143,8 @@ describe('presentation projection', () => {
     const feed = selectPresentation(
       stateOf(
         [[said('s1', 1, 1), spoke('a1', 1, 2), planned('p1', 1, 3)]],
-        [{ firstFrameAt: 2, startedAt: 1, turn: 1 }],
+        [{ lastFrameAt: 3, startedAt: 1, turn: 1 }],
+        'running',
       ),
       SHUT,
     )
