@@ -6,7 +6,6 @@ import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState
 import { ChevronDownIcon } from '../primitives/icons'
 import { useDevicePixels } from '../primitives/use-device-pixels'
 import { rowAtAnchor } from './reading-position'
-import { reuseRowKeys } from './row-keys'
 import { type RowGeometry, useScrollAuthority } from './scroll-authority'
 
 /** 视口之外预留的行数。会话行远高于表格行：少了快滚露白，多了白测量。 */
@@ -94,32 +93,33 @@ export function AgentActivityFeed({
   /** 视线落在哪一行。null 是「还没读到过」，不是第 0 行。 */
   const [readingRow, setReadingRow] = useState<number | null>(null)
 
-  const { atLatest, revealing, reveal, resume, settle, travel, watch } = useScrollAuthority()
+  const {
+    atLatest,
+    follow,
+    following,
+    mark,
+    pin,
+    resume,
+    reveal,
+    revealing,
+    track,
+    travel,
+    watch,
+  } = useScrollAuthority()
 
   /** 虚拟器此刻铺出来的区间表，给那两次二分用。提交之后镜像一次。 */
   const spansRef = useRef<readonly VirtualItem[]>([])
   const earlierRequest = useRef<Promise<void> | null>(null)
 
-  /**
-   * 行身份表。序列没变就是同一个引用，于是 getItemKey 的身份也不变 —— 虚拟器的
-   * measurements 备忘把它算进依赖，换一次就整表从 0 重建。
-   *
-   * 用渲染期比对而不是一份 ref 镜像：这是官方给「从上一次渲染带一点信息过来」的形状，
-   * 纯函数、StrictMode 下跑两遍答案相同。
-   */
-  const [keyed, setKeyed] = useState<{
-    readonly feed: Presentation
-    readonly keys: readonly string[]
-  }>(() => ({ feed, keys: reuseRowKeys(undefined, feed) }))
+  /* 向上续读的最新入参。滚动区一处装卸，所以这两个 prop 不进监听器的依赖。 */
+  const earlier = useRef({ hasEarlier, onReachStart })
 
-  const rowKeys = keyed.feed === feed ? keyed.keys : reuseRowKeys(keyed.keys, feed)
+  useLayoutEffect(() => {
+    earlier.current = { hasEarlier, onReachStart }
+  }, [hasEarlier, onReachStart])
 
-  if (keyed.feed !== feed) {
-    setKeyed({ feed, keys: rowKeys })
-  }
-
-  /* 身份是 id 不是序号：回填历史会让每一条换序号，用序号当身份锚点就落到别的条目上。 */
-  const getItemKey = useCallback((index: number) => rowKeys[index] ?? index, [rowKeys])
+  /* 身份是 id 不是序号：回填历史会让每一条换序号，用序号当锚点就落到别的条目上。 */
+  const getItemKey = useCallback((index: number) => feed.rowAt(index)?.item.id ?? index, [feed])
 
   const virtualizer = useVirtualizer({
     count: feed.count,
@@ -140,7 +140,7 @@ export function AgentActivityFeed({
     spansRef.current = items
   }, [items])
 
-  /** 行几何。行号进、像素出：持有位置的那一层因此不认识虚拟器。 */
+  /* 行几何。身份与行号进、像素出：持有位置的那一层因此不认识虚拟器。 */
   const rows = useMemo<RowGeometry>(
     () => ({
       offsetOf: (key) => {
@@ -149,51 +149,57 @@ export function AgentActivityFeed({
         return index < 0 ? null : (virtualizer.getOffsetForIndex(index, 'start')?.[0] ?? null)
       },
       offsetOfRow: (row) => virtualizer.getOffsetForIndex(row, 'start')?.[0] ?? null,
-      top: () => {
-        if (viewport === null) {
-          return null
-        }
-
-        const found = rowAtAnchor(spansRef.current, viewport.scrollTop)
-
-        return found === null || typeof found.key !== 'string'
-          ? null
-          : { key: found.key, offset: found.start - viewport.scrollTop }
-      },
     }),
-    [feed, viewport, virtualizer],
+    [feed, virtualizer],
   )
 
+  /* 几何交出去，一个 scrollTop 都不写：位置的写入全部由 scroll-authority 在转变时做。 */
+  useLayoutEffect(() => {
+    track(rows)
+  }, [rows, track])
+
   /*
-   * 每次提交把几何交出去一次，位置的写入全部发生在那一层。
+   * 内容长高了，就拨一次末端。
    *
-   * 这里不判「内容长高了没有」：水位线分不出「末尾追加」与「向上补了一页」，而后者
-   * 恰恰不该把视口带走 —— 那正是往上滑被拽回末端的成因。
+   * 水位线在这一层是已知数：转录框的高度由虚拟器算出，尾部的高度由观察它的那条通知带
+   * 来。于是跟随只在真的长高时读一次几何 —— 每次提交都拨，写下的是上一次采样时的位置，
+   * 而人的手势在两次采样之间还在走。
+   */
+  const contentHeight = virtualizer.getTotalSize() + tailSize
+
+  useLayoutEffect(() => {
+    follow(contentHeight)
+  }, [contentHeight, follow])
+
+  /*
+   * 估高误差归虚拟器补：它是唯一知道哪一行刚被重测的。
    *
-   * 更早那一页在同一处要：虚拟窗口每次变化都是一次提交，所以这一问的时机与滚动对齐，
-   * 而先导量仍是一屏。
+   * 判据换掉库的默认值：默认对「首次测量且顶边在折线之上」的行一律补偿，而流式输出时跨
+   * 着折线那一行每帧都在长高，补偿会把视口一路往下拽。只补完全在窗口之上的行；跟着末端
+   * 时一概不补 —— 那一侧归 follow，两个写者不许同时存在。
    */
   useLayoutEffect(() => {
-    settle(rows)
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) =>
+      !following() && item.index < (virtualizer.range?.startIndex ?? 0)
+  }, [following, virtualizer])
 
-    if (
-      viewport === null ||
-      !hasEarlier ||
-      earlierRequest.current !== null ||
-      viewport.scrollTop >= viewport.clientHeight * EARLIER_LEAD_SCREENS
-    ) {
-      return
+  /*
+   * 往前补了一页，眼前那一行不动。
+   *
+   * 判据是首行换了身份：追加发生在末尾，首行不动，所以流式输出时这一处一次都不跑。
+   */
+  const firstRow = useRef<string | null>(null)
+
+  useLayoutEffect(() => {
+    const before = firstRow.current
+    const first = feed.rowAt(0)?.item.id ?? null
+
+    firstRow.current = first
+
+    if (before !== null && first !== null && before !== first) {
+      pin()
     }
-
-    const request = Promise.resolve().then(onReachStart)
-
-    earlierRequest.current = request
-    void request.finally(() => {
-      if (earlierRequest.current === request) {
-        earlierRequest.current = null
-      }
-    })
-  })
+  }, [feed, pin])
 
   /*
    * 一个滚动区，一处装卸：监听、意图、尺寸通知同寿。
@@ -219,13 +225,39 @@ export function AgentActivityFeed({
       frame = requestAnimationFrame(() => {
         frame = null
 
+        const spans = spansRef.current
         const reading = rowAtAnchor(
-          spansRef.current,
+          spans,
           viewport.scrollTop + viewport.clientHeight * READING_ANCHOR_RATIO,
         )
 
         if (reading !== null) {
           setReadingRow(reading.index)
+        }
+
+        /* 顶行是前插要按回原处的那一行。与视线同一次读取，所以不多问一次几何。 */
+        const top = rowAtAnchor(spans, viewport.scrollTop)
+
+        mark(
+          top === null || typeof top.key !== 'string'
+            ? null
+            : { key: top.key, offset: top.start - viewport.scrollTop },
+        )
+
+        /* 离顶端还有多远，同一次读取里问出来。 */
+        if (
+          earlier.current.hasEarlier &&
+          earlierRequest.current === null &&
+          viewport.scrollTop < viewport.clientHeight * EARLIER_LEAD_SCREENS
+        ) {
+          const request = Promise.resolve().then(earlier.current.onReachStart)
+
+          earlierRequest.current = request
+          void request.finally(() => {
+            if (earlierRequest.current === request) {
+              earlierRequest.current = null
+            }
+          })
         }
       })
     }
@@ -279,7 +311,7 @@ export function AgentActivityFeed({
       observer.disconnect()
       unwatch()
     }
-  }, [viewport, watch])
+  }, [mark, viewport, watch])
 
   /*
    * 自己说的话把视线带回末端：那是答复将要出现的地方。

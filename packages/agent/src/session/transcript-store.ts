@@ -514,15 +514,19 @@ export class TranscriptStore implements TranscriptSink {
     const current = this.#now(threadId)
     const lost = lossOf(history)
 
-    /* 已经持有这条对话：最新那一页由帧流维持着，重放它会连带丢掉向上读回来的那些页
-       与 earlier 游标。与 opening 同一条判据 —— 缓存有效期的定义只能有一个。 */
+    /* 已经持有这条对话：帧流维持着最新那一页，重放它会丢掉向上读回来的那些页。但游标
+       必须收下 —— 它是「上面还有没有」的唯一答案，丢了它这条对话再也翻不到更早。 */
     if (current.owned || current.loaded) {
-      if (lost === null && !current.restoring) {
+      const earlier = current.earlier ?? page.before
+
+      if (lost === null && !current.restoring && current.loaded && current.earlier === earlier) {
         return
       }
 
       this.#put(threadId, {
         ...current,
+        earlier,
+        loaded: true,
         restoring: false,
         timeline: lost === null ? current.timeline : noteOn(current.timeline, lost, false),
       })
