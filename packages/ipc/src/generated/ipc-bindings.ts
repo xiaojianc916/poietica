@@ -1436,7 +1436,7 @@ export type AgentInstallState =
  */
 "unmanaged" | "missing" | "outdated" | "current" | 
 /**
- * 装着，但不是 pnpm 也不是 npm 装的。我们不碰别人的安装。
+ * 装着，但不是 bun、pnpm、npm 装的。我们不碰别人的安装。
  */
 "external" | 
 /**

@@ -7,7 +7,7 @@ import type { AgentDescriptor } from '../agent-descriptor'
  * 注明具体是哪个文件的哪个函数。
  *
  * 我们接的是 kap：kimi web --no-open 起的本地服务（kap-server），REST +
- * WebSocket，协议快照钉在 contracts/kap（pnpm kap:spec）。
+ * WebSocket，协议快照钉在 contracts/kap（bun run kap:spec）。
  */
 
 /*

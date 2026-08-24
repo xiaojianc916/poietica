@@ -12,7 +12,7 @@
  * 的短数组会被撑成多行，于是 release.mjs 不得不在后面补跑一次 biome format 擦屁
  * 股。一套文件两种写法，兜底就是这么长出来的。统一之后，那道兜底已被删除。
  *
- *   pnpm version:set 0.2.0
+ *   bun run version:set 0.2.0
  */
 
 import { readFile, writeFile } from 'node:fs/promises'
@@ -23,7 +23,7 @@ import { SEMVER } from './version.mjs'
 const version = process.argv[2]
 
 if (!SEMVER.test(version ?? '')) {
-  console.error('usage: pnpm version:set <semver>   e.g. pnpm version:set 0.2.0')
+  console.error('usage: bun run version:set <semver>   e.g. bun run version:set 0.2.0')
   process.exit(2)
 }
 
@@ -51,5 +51,5 @@ for (const [file, pattern] of TARGETS) {
 }
 
 console.log(
-  `version set to ${version} in ${TARGETS.length} files; run pnpm check:versions to confirm`,
+  `version set to ${version} in ${TARGETS.length} files; run bun run check:versions to confirm`,
 )

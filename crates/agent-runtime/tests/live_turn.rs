@@ -26,8 +26,8 @@
 //! cargo test -p poietica-agent-runtime-native --test live_turn -- --ignored --nocapture
 //! ```
 //!
-//! `#[ignore]` 说的是不跑，不是不编。这个文件照样由 `pnpm clippy`
-//! （`--all-targets`）和 `pnpm test:rust` 编译，而它是产品代码之外唯一调用
+//! `#[ignore]` 说的是不跑，不是不编。这个文件照样由 `bun run clippy`
+//! （`--all-targets`）和 `bun run test:rust` 编译，而它是产品代码之外唯一调用
 //! `AgentClient::prompt` 的地方 —— 改那个签名就必须改到这里，改漏了在提交前
 //! 就会被拦住。
 //!

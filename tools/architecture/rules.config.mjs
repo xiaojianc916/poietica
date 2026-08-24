@@ -349,7 +349,7 @@ const nativeCratesStayHostAgnostic = async (inventory) => {
  *
  * tests/package.json 不在 inventoryRoots 里，manifest 那几条够不着它 —— 洞就是洞。
  */
-const ORCHESTRATED_TOOLS = ['tsc', 'vitest', 'biome']
+const ORCHESTRATED_TOOLS = ['tsc', 'biome']
 
 const WILDCARD_MODULE = /declare\s+module\s+['"](\*\.[\w.]+)['"]/g
 

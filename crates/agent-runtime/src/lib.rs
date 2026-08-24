@@ -42,7 +42,10 @@ mod stderr;
 mod trace;
 
 pub use commands::{AgentClient, PromptImage, PromptSkill};
-pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, GoalSnapshot, controls, goal_snapshot, selector_patch};
+pub use config::{
+    ConfigChoice, ConfigControl, ConfigPurpose, GoalSnapshot, controls, goal_snapshot,
+    selector_patch,
+};
 pub use credentials::{
     alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
     usable_default_model,

@@ -1,4 +1,6 @@
 [install]
-# 架构规则的前提是「没声明的包 import 不到」。Bun 对既有工程默认 hoisted，这里必须显式声明。
+# 架构规则的前提是「没声明的包 import 不到」。isolated 只做到一半：Bun 默认还会建
+# node_modules/.bun/node_modules 兜底目录，未声明的依赖从那里照样解析得到，所以 hoist 必须关。
 linker = "isolated"
+hoist = false
 exact = true

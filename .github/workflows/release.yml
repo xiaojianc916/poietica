@@ -55,7 +55,7 @@ jobs:
           # 收到任何信号。在构建之前拦下。
           $conf = Get-Content "apps/desktop/src-tauri/tauri.conf.json" -Raw
           if ($conf -match "REPLACE_WITH_TAURI_SIGNER_PUBKEY") {
-            throw "updater pubkey is still the placeholder. Run: pnpm tauri signer generate -w ~/.tauri/poietica.key"
+            throw "updater pubkey is still the placeholder. Run: cd apps/desktop && bun run tauri signer generate -w ~/.tauri/poietica.key"
           }
 
           # 没有私钥就没有 .sig，没有 .sig 就没有 latest.json，通道发不出去。
@@ -66,11 +66,11 @@ jobs:
 
       # tag 也是版本的一处声明：tag 与包内版本不符，客户端会陷入无限更新提示。
       - name: Verify version consistency
-        run: pnpm check:versions ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+        run: bun run check:versions ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
 
       # 发布必须来自绿灯提交。
       - name: Quality gate
-        run: pnpm check
+        run: bun run check
 
       - name: Dependency policy
         uses: EmbarkStudios/cargo-deny-action@v2
@@ -79,7 +79,7 @@ jobs:
           arguments: --all-features # advisories included: a release must not ship known-vulnerable deps
 
       - name: Build installer
-        run: pnpm build:release
+        run: bun run build:release
         env:
           # updater 产物签名（Tauri 官方 minisign 密钥对）。
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -104,7 +104,7 @@ jobs:
 
       - name: Generate updater manifest
         if: startsWith(github.ref, 'refs/tags/v')
-        run: node scripts/release/latest-json.mjs "${{ env.BUNDLE_DIR }}" dist-release "${{ github.ref_name }}"
+        run: bun scripts/release/latest-json.mjs "${{ env.BUNDLE_DIR }}" dist-release "${{ github.ref_name }}"
 
       - name: Checksums
         shell: pwsh
@@ -173,4 +173,4 @@ jobs:
       # 发布之后，用客户端那条 URL 亲自验证一遍。
       - name: Verify update channel
         if: startsWith(github.ref, 'refs/tags/v')
-        run: node scripts/release/verify-channel.mjs "${{ github.ref_name }}"
+        run: bun scripts/release/verify-channel.mjs "${{ github.ref_name }}"

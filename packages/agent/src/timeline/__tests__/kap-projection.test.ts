@@ -403,8 +403,8 @@ describe('kap 投影', () => {
           turnId: 1,
           toolCallId: 'call_c',
           name: 'Bash',
-          args: { command: 'pnpm check' },
-          display: { kind: 'command', command: 'pnpm check', language: 'bash' },
+          args: { command: 'bun run check' },
+          display: { kind: 'command', command: 'bun run check', language: 'bash' },
         },
         {
           type: 'tool.call.started',
@@ -436,7 +436,7 @@ describe('kap 投影', () => {
 
     /* 语言标注由 kap 给，不是我们猜的。 */
     expect(calls[0]?.requestContent).toStrictEqual([
-      { type: 'command', command: 'pnpm check', language: 'bash' },
+      { type: 'command', command: 'bun run check', language: 'bash' },
     ])
     /* 认不出的状态一律待办，与上游客户端同一条归一化。 */
     expect(calls[1]?.requestContent).toStrictEqual([

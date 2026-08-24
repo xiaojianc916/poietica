@@ -5,7 +5,7 @@
  * 仓库地址不在这里重复声明：它从 tauri.conf.json 的 updater 端点反推 —— 那正是
  * 客户端真正会去拉的地址，两边不可能再各写各的。
  *
- *   node scripts/release/latest-json.mjs <bundleDir> <outDir> <tag>
+ *   bun scripts/release/latest-json.mjs <bundleDir> <outDir> <tag>
  */
 
 import { readdir, readFile, writeFile } from 'node:fs/promises'
@@ -23,7 +23,7 @@ function fail(message) {
 const [bundleDir, outDir, tag] = process.argv.slice(2)
 
 if (!bundleDir || !outDir || !tag) {
-  console.error('usage: node scripts/release/latest-json.mjs <bundleDir> <outDir> <tag>')
+  console.error('usage: bun scripts/release/latest-json.mjs <bundleDir> <outDir> <tag>')
   process.exit(2)
 }
 
@@ -48,7 +48,7 @@ if (!installer) {
 
 const signature = await readFile(path.join(bundleDir, `${installer}.sig`), 'utf8').catch(() =>
   fail(
-    `Missing ${installer}.sig. Build with pnpm build:release and TAURI_SIGNING_PRIVATE_KEY set.`,
+    `Missing ${installer}.sig. Build with bun run build:release and TAURI_SIGNING_PRIVATE_KEY set.`,
   ),
 )
 

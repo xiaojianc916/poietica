@@ -219,7 +219,7 @@ wildcard_dependencies = "deny"
 #
 # 这段此前写的是「#[cfg(test)] 模块内层统一放开」。没有任何配置实现过那句话，
 # 而它足以让人以为内联的 mod tests 不必自己写 —— src/recorder.rs 漏掉的那一句
-# 就是这么漏的，并且一直没被发现：pnpm clippy 之外的手跑命令都不带 --workspace，
+# 就是这么漏的，并且一直没被发现：bun run clippy 之外的手跑命令都不带 --workspace，
 # 而 default-members 只有 apps/desktop/src-tauri。
 expect_used = "warn"
 get_unwrap = "warn"

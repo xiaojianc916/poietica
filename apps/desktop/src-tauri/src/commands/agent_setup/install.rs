@@ -3,7 +3,7 @@
 //! 这不是 `agent_cli_exec` 的放宽版，也永远不该并进去。那条管线的白名单说的是
 //! 「provider 子命令」；把一次全局安装塞进那张表，等于把一个受控入口改成通用执行
 //! 入口。这里是第二条同样封闭的管线：包名由 agents.json 的档案声明，程序只可能是
-//! pnpm 或 npm 两者之一，渲染层能说的只有「装哪个 agent」。
+//! bun、pnpm、npm 三者之一，渲染层能说的只有「装哪个 agent」。
 //!
 //! ## 用哪个包管理器，不是猜出来的，是查出来的
 //!
@@ -13,11 +13,11 @@
 //! 一声不吭。所以归属从已解析出的那个文件反查 —— 它的目录落在谁的全局 bin 里，
 //! 它就归谁。
 //!
-//! 两边都不是（官方安装脚本、Homebrew、bun、手工放的）就是 External：装了，但不归
+//! 三家都不是（官方安装脚本、Homebrew、手工放的）就是 External：装了，但不归
 //! 我们管。这种情况下一个按钮都不画 —— 替用户装第二份是比不作为更坏的结果。
 //!
-//! 还没装时才需要挑一个，顺序是 pnpm 优先。npm 随 Node.js 必然存在，把它当默认
-//! 等于对每一个用 pnpm 的人都装错地方。
+//! 还没装时才需要挑一个，顺序是 bun、pnpm、npm。npm 随 Node.js 必然存在，把它当
+//! 默认等于对每一个刻意装过别家的人都装错地方。
 //!
 //! ## 检测频率
 //!
@@ -51,16 +51,18 @@ const FETCH_TIMEOUT: &str = "--fetch-timeout=8000";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PackageManager {
+    Bun,
     Pnpm,
     Npm,
 }
 
 impl PackageManager {
     /// 顺序即优先级，只在「还没装」时用得上。理由见模块头。
-    const ALL: [Self; 2] = [Self::Pnpm, Self::Npm];
+    const ALL: [Self; 3] = [Self::Bun, Self::Pnpm, Self::Npm];
 
     fn program(self) -> &'static str {
         match self {
+            Self::Bun => "bun",
             Self::Pnpm => "pnpm",
             Self::Npm => "npm",
         }
@@ -83,7 +85,7 @@ impl PackageManager {
         };
 
         match self {
-            Self::Pnpm => vec!["add".to_owned(), "--global".to_owned(), target],
+            Self::Bun | Self::Pnpm => vec!["add".to_owned(), "--global".to_owned(), target],
             Self::Npm => vec![
                 "install".to_owned(),
                 "--global".to_owned(),
@@ -95,14 +97,20 @@ impl PackageManager {
     }
 
     fn view_args(self, package: &str) -> Vec<String> {
+        /* 动词各家不同：bun 是 info，pnpm 与 npm 是 view。 */
+        let verb = match self {
+            Self::Bun => "info",
+            Self::Pnpm | Self::Npm => "view",
+        };
+
         let mut args = vec![
-            "view".to_owned(),
+            verb.to_owned(),
             package.to_owned(),
             "version".to_owned(),
             "--json".to_owned(),
         ];
 
-        /* --fetch-timeout 是 npm 的旗标，pnpm 的超时在它自己的配置里。 */
+        /* --fetch-timeout 是 npm 的旗标，另外两家的超时在各自的配置里。 */
         if self == Self::Npm {
             args.push(FETCH_TIMEOUT.to_owned());
         }
@@ -115,6 +123,7 @@ impl PackageManager {
         let program = self.resolved()?;
 
         let query = match self {
+            Self::Bun => vec!["pm".to_owned(), "bin".to_owned(), "-g".to_owned()],
             Self::Pnpm => vec!["bin".to_owned(), "--global".to_owned()],
             /* npm bin -g 在 npm 9 里被删了。prefix 是它现在还答得上的那个问题。 */
             Self::Npm => vec!["prefix".to_owned(), "--global".to_owned()],
@@ -129,7 +138,7 @@ impl PackageManager {
         let root = PathBuf::from(line);
 
         Some(match self {
-            Self::Pnpm => root,
+            Self::Bun | Self::Pnpm => root,
             /* Unix 上 npm 的可执行文件在 prefix/bin，Windows 上就在 prefix 里。 */
             Self::Npm if cfg!(windows) => root,
             Self::Npm => root.join("bin"),
@@ -180,7 +189,7 @@ pub enum AgentInstallState {
     Missing,
     Outdated,
     Current,
-    /// 装着，但不是 pnpm 也不是 npm 装的。我们不碰别人的安装。
+    /// 装着，但不是 bun、pnpm、npm 装的。我们不碰别人的安装。
     External,
     /// 装着，但问不到最新版（离线、镜像不通），或者它的 --version 读不懂。
     Unknown,
@@ -393,13 +402,13 @@ fn install(app: &AppHandle, agent_id: &str) -> Result<AgentInstallStatus> {
         && poietica_agent_runtime_native::resolve_program(&program).is_ok()
     {
         return Err(Error::AgentCli(
-            "这份运行时不是 pnpm 或 npm 装的，请用你当初安装它的方式更新。".to_owned(),
+            "这份运行时不是 bun、pnpm、npm 装的，请用你当初安装它的方式更新。".to_owned(),
         ));
     }
 
     let manager = owner.or_else(preferred_manager).ok_or_else(|| {
         Error::AgentCli(
-            "这台电脑上没有找到 pnpm 或 npm。它们随 Node.js 一起安装，装好之后重新打开 Poietica。"
+            "这台电脑上没有找到 bun、pnpm 或 npm。装好其中任意一个之后重新打开 Poietica。"
                 .to_owned(),
         )
     })?;
@@ -518,6 +527,20 @@ mod tests {
             PackageManager::Npm
                 .install_args("pkg", None)
                 .contains(&"pkg@latest".to_owned())
+        );
+    }
+
+    #[test]
+    fn each_manager_asks_the_registry_in_its_own_words() {
+        assert!(
+            PackageManager::Bun
+                .view_args("pkg")
+                .contains(&"info".to_owned())
+        );
+        assert!(
+            PackageManager::Pnpm
+                .view_args("pkg")
+                .contains(&"view".to_owned())
         );
     }
 }

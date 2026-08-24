@@ -5,7 +5,7 @@
  * 少了 tag 这一条，v0.1.2 的 tag 可以发出一个内部版本号还是 0.1.1 的安装包：
  * 客户端装完之后仍然认为 latest.json 比自己新，于是无限提示更新。
  *
- *   node scripts/release/check-versions.mjs [tag]
+ *   bun scripts/release/check-versions.mjs [tag]
  */
 
 import { readFile } from 'node:fs/promises'

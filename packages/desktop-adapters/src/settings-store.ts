@@ -8,7 +8,7 @@ import type { SettingsStore } from '@poietica/settings'
  * 三条命令接上端口。此前那处唯一的翻译是为 Rust 的 HashMap 服务的 —— 那张只写
  * 不读的 shortcuts 表已经删掉，翻译跟着它一起走，而不是留一个逐字段抄写的壳。
  *
- * 契约由 pnpm ipc:generate 从 Rust 单向生成：两侧对不上是 typecheck 阶段的错误，
+ * 契约由 bun run ipc:generate 从 Rust 单向生成：两侧对不上是 typecheck 阶段的错误，
  * 不是运行期的惊喜。
  */
 export function createDesktopSettingsStore(): SettingsStore {

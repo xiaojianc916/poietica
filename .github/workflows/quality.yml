@@ -34,19 +34,13 @@ jobs:
       - name: Setup JS toolchain
         uses: ./.github/actions/setup-js
 
-      # biome ci 一次覆盖 format + lint + import sorting，并输出 GitHub
-      # annotation，红灯会直接标在 PR diff 的具体行上。
-      - name: Biome
-        run: pnpm exec biome ci .
-
-      - name: Architecture
-        run: pnpm test:architecture
-
-      - name: Typecheck and tests
-        run: pnpm exec turbo run typecheck test --continue
+      # 一条命令覆盖 biome ci（带 GitHub annotation）、架构规则、typecheck 与 bun test。
+      # CI 不维护第二份命令表：package.json 的 check:web 是唯一那一份。
+      - name: Web checks
+        run: bun run check:web
 
       - name: Build web assets
-        run: pnpm build:web
+        run: bun run build:web
 
   rust:
     name: Rust
@@ -103,11 +97,10 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
 
-      # 这是唯一同时具备 Node 与 Rust 的 job，所以 IPC 校验放这里，
-      # 直接复用 pnpm ipc:check，不再维护第二份 PowerShell 实现。
+      # 唯一同时具备 Bun 与 Rust 的 job，IPC 校验因此放这里，不写第二份 PowerShell。
       - name: Verify generated IPC bindings
-        run: pnpm ipc:check
+        run: bun run ipc:check
 
       # turbo.json 中 build.dependsOn 已包含 typecheck，无需单独再跑一遍。
       - name: Build Windows desktop binary
-        run: pnpm build:debug
+        run: bun run build:debug

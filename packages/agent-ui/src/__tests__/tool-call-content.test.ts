@@ -59,7 +59,7 @@ describe('what a tool call has to show', () => {
 
   it('keeps what we sent drawable on its own terms', () => {
     const parts = toToolContentParts([
-      { type: 'command', command: 'pnpm check', language: 'bash' },
+      { type: 'command', command: 'bun run check', language: 'bash' },
       { type: 'prose', text: '## 步骤' },
       { type: 'todo', items: [{ title: '建索引', status: 'done' }] },
       { type: 'prose', text: '' },
@@ -67,7 +67,7 @@ describe('what a tool call has to show', () => {
     ])
 
     expect(parts).toEqual([
-      { type: 'command', command: 'pnpm check', language: 'bash' },
+      { type: 'command', command: 'bun run check', language: 'bash' },
       { type: 'prose', text: '## 步骤' },
       { type: 'todo', items: [{ title: '建索引', status: 'done' }] },
     ])

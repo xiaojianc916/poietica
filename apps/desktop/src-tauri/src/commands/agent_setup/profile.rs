@@ -312,7 +312,7 @@ pub struct AgentInstallSpec {
 /// 读出这个 agent 的安装声明。
 ///
 /// 校验在渲染层的 valibot 模式里已经做过一次，但 agents.json 可以被手改，而这一格
-/// 会被交给 npm install —— 所以包名的字符集在这里再判一次，判据与那边同一条。
+/// 会被交给全局安装 —— 所以包名的字符集在这里再判一次，判据与那边同一条。
 ///
 /// # Errors
 ///
@@ -358,14 +358,14 @@ fn is_npm_name_glyph(glyph: char) -> bool {
 /// 包名的一段（scope 或名字本体）：非空、不以 `.`/`_`/`-` 开头、字符集之内。
 ///
 /// 开头字符的禁令有两个出处：npm 的命名规则不许以 `.` 或 `_` 起头；以 `-` 起头的
-/// token 会被 npm/pnpm 的选项解析器读成旗标而不是包名 —— 这一格要拦的正是它。
+/// token 会被包管理器的选项解析器读成旗标而不是包名 —— 这一格要拦的正是它。
 fn is_npm_package_segment(segment: &str) -> bool {
     !segment.is_empty()
         && !segment.starts_with(['.', '_', '-'])
         && segment.chars().all(is_npm_name_glyph)
 }
 
-/// 会被交给 `pnpm add --global` / `npm install --global` 的那个包名。
+/// 会被交给包管理器全局安装的那个包名。
 ///
 /// 形状取自 npm 的命名规则：`name` 或 `@scope/name`，长度上限 214。此前只判字符集，
 /// 于是 `--registry` 这种整串合法字符的旗标形态 token 也放行 —— 字符集判不住选项，

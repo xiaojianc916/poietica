@@ -140,7 +140,6 @@ The project is intentionally building reliability before broadening the product 
 
 | Tool | Required version |
 | --- | --- |
-| Bun | See `engines.bun` in [`package.json`](./package.json) |
 | Bun | See `packageManager` in [`package.json`](./package.json) |
 | Rust | See [`rust-toolchain.toml`](./rust-toolchain.toml) |
 | Tauri prerequisites | [Platform setup guide](https://v2.tauri.app/start/prerequisites/) |
@@ -151,7 +150,6 @@ The project is intentionally building reliability before broadening the product 
 git clone https://github.com/xiaojianc916/poietica.git
 cd poietica
 
-corepack enable
 bun install
 bun run dev
 ```
@@ -163,7 +161,7 @@ bun run dev
 | `bun run dev` | Run the desktop application in development. |
 | `bun run check` | Repository checks: Biome, architecture rules, types, tests, Rust, and generated IPC. |
 
-Run `Bun run` to list every script. This file deliberately does not mirror that list — a command table copied out
+Run `bun run` to list every script. This file deliberately does not mirror that list — a command table copied out
 of `package.json` rots silently, and this one already had an entry that no longer existed.
 
 ## Architecture

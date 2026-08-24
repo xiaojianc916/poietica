@@ -198,7 +198,6 @@ dev-output.txt
 # One-off repository migration scripts
 refactor.mjs
 
-
 # local env files hold licence keys and secrets
 *.env.local
 .env.local
@@ -208,7 +207,5 @@ dist-release/
 
 # performance profiles
 .perf
-   
-refactor.mjs
 
 .playwright-mcp

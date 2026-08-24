@@ -13,7 +13,7 @@ const CALL = { kind: 'execute', locations: [], subject: '', title: 'Bash' } as c
 
 describe('工具调用那一行', () => {
   it('没有动词的类别直接转述主语', () => {
-    expect(readToolLine({ ...CALL, subject: 'pnpm typecheck' })).toBe('pnpm typecheck')
+    expect(readToolLine({ ...CALL, subject: 'bun run typecheck' })).toBe('bun run typecheck')
   })
 
   it('只取第一行:多行命令在一行里画不下', () => {

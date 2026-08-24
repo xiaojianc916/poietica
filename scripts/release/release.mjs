@@ -477,7 +477,7 @@ async function buildAndStage(target, tag) {
     await copyFile(path.join(BUNDLE_DIR, name), path.join(STAGE_DIR, name))
   }
 
-  run(process.execPath, 'scripts/release/latest-json.mjs', BUNDLE_DIR, STAGE_DIR, tag)
+  run('bun', 'scripts/release/latest-json.mjs', BUNDLE_DIR, STAGE_DIR, tag)
 
   /*
    * 四个资产全部入账，不只安装包。
@@ -568,7 +568,7 @@ async function publish({ branch, tag, installer }) {
     step('验证更新通道：用客户端真正会去访问的那条地址，确认它现在返回新版本')
     note('资产没传上、release 不是 latest、版本对不上——这三种失败都是静默的，只能这样验。')
 
-    run(process.execPath, 'scripts/release/verify-channel.mjs', tag)
+    run('bun', 'scripts/release/verify-channel.mjs', tag)
   } catch (error) {
     await unwind({ branch, tag, state, error })
     throw new Abort('发布未完成。')

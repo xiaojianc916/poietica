@@ -5,13 +5,11 @@ import { join } from 'node:path'
 /*
  * A package may only import what it declares.
  *
- * pnpm puts every package in the workspace into one shared store, so an
- * undeclared import resolves for as long as some other manifest happens to
- * ask for the same package. Nothing in the build enforces the difference,
- * which is why apps/desktop imported @poietica/agent for as long as
- * it did without ever asking for it: the graph was wrong and the resolution
- * was accidentally right. Renaming the packages ended the accident and the
- * application stopped starting.
+ * bunfig.toml sets linker = "isolated" with hoist = false, so an undeclared
+ * package no longer resolves — with one exception Bun documents: workspace
+ * packages are symlinked into the root node_modules and stay reachable from
+ * anywhere. Every specifier checked here is a workspace package, so the
+ * linker cannot enforce this and the test has to.
  *
  * This recomputes the comparison instead of listing the answer, so it keeps
  * holding as packages are added.
@@ -30,16 +28,8 @@ const SPECIFIERS = [
 ]
 
 function workspaceDirs(): string[] {
-  const yaml = readFileSync(join(ROOT, 'pnpm-workspace.yaml'), 'utf8')
-  const globs: string[] = []
-
-  for (const line of yaml.split('\n')) {
-    const entry = line.match(/^\s+-\s+"?([^"\s]+)"?\s*$/)
-
-    if (entry?.[1] !== undefined && (entry[1].includes('/') || entry[1] === 'tests')) {
-      globs.push(entry[1])
-    }
-  }
+  const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+  const globs: string[] = manifest.workspaces.packages
 
   const dirs: string[] = []
 

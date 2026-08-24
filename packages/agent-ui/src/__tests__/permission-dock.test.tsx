@@ -97,11 +97,11 @@ describe('审批带', () => {
     const markup = render(
       permission({
         title: 'Bash',
-        toolCall: { toolCallId: 'call-1', rawInput: { command: 'pnpm check' } },
+        toolCall: { toolCallId: 'call-1', rawInput: { command: 'bun run check' } },
       }),
     )
 
-    expect(markup).toContain('pnpm check')
+    expect(markup).toContain('bun run check')
   })
 
   it('认不出的入参形状，也要把原文端上来', () => {

@@ -636,9 +636,7 @@ pub struct AgentGoal {
 
 /// 领域快照 -> 线上形状。数值按绑定能表达的宽度收窄，溢出即封顶。
 #[must_use]
-pub fn reported_goal(
-    goal: poietica_agent_runtime_native::GoalSnapshot,
-) -> AgentGoal {
+pub fn reported_goal(goal: poietica_agent_runtime_native::GoalSnapshot) -> AgentGoal {
     let narrow = |value: u64| u32::try_from(value).unwrap_or(u32::MAX);
 
     AgentGoal {
