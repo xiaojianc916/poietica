@@ -29,6 +29,7 @@ export {
   describeFailure,
   groupByWorkspace,
   isPermissionPostureChange,
+  linkNotice,
   permissionControlOf,
   permissionPostureOf,
   permissionPosturesOf,

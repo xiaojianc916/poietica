@@ -6,6 +6,7 @@ import type {
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
+  SessionLink,
   SessionLinkPort,
   SessionUsagePort,
   ThreadPort,
@@ -141,7 +142,7 @@ type AgentSessionEnvelope =
       readonly selectors: AgentConfigControl[]
     }
   | { readonly kind: 'usage'; readonly sessionId: string; readonly usage: AgentSessionUsage }
-  | { readonly kind: 'link'; readonly attempt: number | null; readonly of: number }
+  | { readonly kind: 'link'; readonly link: SessionLink }
 
 /**
  * 一条通道，按判别式交给它的读者。
@@ -544,7 +545,7 @@ export function createAgentToolkitReader({
 }
 
 /*
- * 重连进度这一路。
+ * 链路态这一路。
  *
  * 与用量同一条通道、同一种静态分派。链路态没有命令能把它问回来，所以只有订阅；
  * 这一侧不留副本 —— 唯一的消费者是 SessionControlsStore。
@@ -557,7 +558,7 @@ export function createAgentSessionLinkBridge({
       subscribeToSessionEvent(
         'link',
         (payload) => {
-          handler({ attempt: payload.attempt, of: payload.of })
+          handler(payload.link)
         },
         onListenFailure,
       ),

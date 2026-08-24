@@ -45,6 +45,7 @@ use crate::config::{ConfigControl, controls, selector_patch};
 use crate::desk::{PermissionDesk, QuestionDesk};
 use crate::error::{KapError, Refusal, Result};
 use crate::frame::kap_event;
+use crate::link::{Link, LinkState, TRIES, backoff, retryable, retrying};
 use crate::program::resolve_program;
 use crate::question::{QuestionGroup, QuestionOutcome};
 use crate::recorder::{Recorder, now_millis};
@@ -71,13 +72,6 @@ type WsSink = Arc<tokio::sync::Mutex<SplitSink<WsStream, Message>>>;
 /// AgentClient::cancel）。屏幕上那条经过由帧日志出，没有终帧就没有终态 ——
 /// 所以到期由本机把这一轮收摊，而不是让它永远停在"正在取消"。
 const CANCEL_GRACE: Duration = Duration::from_secs(10);
-
-/// 链路断了之后重连几次。到顶仍连不上，这条连接才退场。
-const RELINK_TRIES: u32 = 5;
-
-/// 第一次重连前等多久；之后翻倍，到 RELINK_DELAY_CAP 封顶。
-const RELINK_DELAY: Duration = Duration::from_millis(500);
-const RELINK_DELAY_CAP: Duration = Duration::from_secs(8);
 
 /// 拨一条 WS。令牌走 Authorization 头，与 REST 同一条鉴权。
 async fn dial_ws(ws_url: &str, auth: &reqwest::header::HeaderValue) -> Result<WsStream> {
@@ -169,8 +163,9 @@ async fn redial(
 
 /// 把断了的链路接回来，并把进度报上去。
 ///
-/// 有界重试 + 指数退避。进度走 SessionEvent::Link：它是链路态，不占 seq，
-/// 因此也不进帧日志。交回 Some 是接上了（里面是重连期间到达的帧），None 是到顶了。
+/// 有界重试 + 指数退避，判据与退避都在 link.rs。交回 Some 是接上了（里面是
+/// 重连期间到达的帧），None 是到顶了 —— 那时这一轮的结局由调用者按帧记下，
+/// 链路态不替它说。
 async fn relink(
     ws: &WsSink,
     ws_rx: &mut SplitStream<WsStream>,
@@ -178,36 +173,65 @@ async fn relink(
     auth: &reqwest::header::HeaderValue,
     book: &SessionBook,
     cursors: &HashMap<String, Cursor>,
+    link: &mut Link,
     events_tx: &mpsc::UnboundedSender<SessionEvent>,
+    severed: &str,
 ) -> Option<Vec<Value>> {
-    let mut waited = RELINK_DELAY;
-    let mut replay = None;
+    let mut reason = severed.to_owned();
 
-    for attempt in 1..=RELINK_TRIES {
-        let _sent = events_tx.unbounded_send(SessionEvent::Link {
-            attempt: Some(attempt),
-            of: RELINK_TRIES,
-        });
+    for attempt in 1..=TRIES {
+        let wait = backoff(attempt);
 
-        tokio::time::sleep(waited).await;
-        waited = (waited * 2).min(RELINK_DELAY_CAP);
+        let _sent = events_tx.unbounded_send(SessionEvent::Link(retrying(attempt, wait, &reason)));
+
+        tokio::time::sleep(wait).await;
 
         match redial(ws, ws_rx, ws_url, auth, book, cursors).await {
             Ok(stash) => {
-                replay = Some(stash);
-                break;
+                /* 接上了是一句宣告：谁把那一格弄脏，谁宣告一次。 */
+                let _sent = events_tx.unbounded_send(SessionEvent::Link(LinkState::Linked));
+                let _resumed = link.seen();
+
+                return Some(stash);
             }
-            Err(error) => log::warn!("kap WS relink {attempt}/{RELINK_TRIES} failed: {error}"),
+            Err(error) => {
+                log::warn!("kap WS relink {attempt}/{TRIES} failed: {error}");
+                reason = error.to_string();
+            }
         }
     }
 
-    /* 接上还是放弃，屏幕上那行字都该消失。 */
-    let _sent = events_tx.unbounded_send(SessionEvent::Link {
-        attempt: None,
-        of: RELINK_TRIES,
-    });
+    None
+}
 
-    replay
+/// 这条会话此刻在飞一轮吗。
+fn listening(book: &SessionBook, session_id: &str) -> bool {
+    book.slot(session_id)
+        .ok()
+        .flatten()
+        .is_some_and(|slot| slot.is_listening())
+}
+
+/// 有没有哪一条会话在飞一轮。静默只对着在飞的那一轮说话。
+fn in_flight(book: &SessionBook) -> bool {
+    book.ids()
+        .is_ok_and(|ids| ids.iter().any(|id| listening(book, id)))
+}
+
+/// 链路接不回来了：在飞的每一轮按帧判死，屏幕上那个纺锤才停得下来。
+fn fail_in_flight(book: &SessionBook, reason: &str) {
+    let Ok(ids) = book.ids() else {
+        log::error!("the session book is poisoned, so no turn could be closed");
+        return;
+    };
+
+    let message = format!("the link went down and could not be brought back: {reason}");
+
+    for id in ids {
+        if let Err(error) = book.fail_turn(&id, &message) {
+            log::error!("could not close the turn of a severed session: {error}");
+        }
+    }
 }
 
 // ── 实例注册表 ─────────────────────────────────────────────────────────────
@@ -909,11 +933,12 @@ pub fn connect(
         }
 
         let mut commands_rx = commands_rx;
-        let mut severed = false;
+        let mut link = Link::new();
+        let mut severed: Option<String> = None;
 
         loop {
-            /* 链路断了：先接回来再往下读。到顶了才让这条连接退场。 */
-            if severed {
+            /* 链路断了：先接回来再往下读。到顶了这一轮判死，连接退场。 */
+            if let Some(reason) = severed.take() {
                 let Some(replay) = relink(
                     &ws,
                     &mut ws_rx,
@@ -921,14 +946,15 @@ pub fn connect(
                     &auth_header,
                     &book_clone,
                     &cursors,
+                    &mut link,
                     &events_tx,
+                    &reason,
                 )
                 .await
                 else {
+                    fail_in_flight(&book_clone, &reason);
                     break;
                 };
-
-                severed = false;
 
                 for envelope in replay {
                     handle_ws_message(
@@ -1061,13 +1087,21 @@ pub fn connect(
                                         r.record_run_started(&text, shown, attached);
                                     });
 
+                                    /* 这一轮的静默从此刻起算。 */
+                                    if let Some(state) = link.seen() {
+                                        let _sent =
+                                            events_tx.unbounded_send(SessionEvent::Link(state));
+                                    }
+
                                     let http2 = http.clone();
                                     let base2 = base_url.clone();
                                     let book2 = book_clone.clone();
                                     let sid2 = sid.clone();
+                                    let events2 = events_tx.clone();
                                     tokio::spawn(async move {
                                         let result = submit_prompt(
                                             &http2, &base2, &sid2, &text, &images, &skills,
+                                            &book2, &events2,
                                         )
                                         .await;
 
@@ -1131,11 +1165,11 @@ pub fn connect(
 
                 msg = ws_rx.next() => {
                     match msg {
-                        None => severed = true,
+                        None => severed = Some("the kap websocket closed".to_owned()),
 
                         Some(Err(error)) => {
                             log::warn!("kap WS error: {error}");
-                            severed = true;
+                            severed = Some(error.to_string());
                         }
 
                         Some(Ok(Message::Text(raw))) => {
@@ -1164,6 +1198,11 @@ pub fn connect(
                                         &base_url,
                                         &mut cursors,
                                     );
+
+                                    if let Some(state) = link.seen() {
+                                        let _sent =
+                                            events_tx.unbounded_send(SessionEvent::Link(state));
+                                    }
                                 }
                             }
                         }
@@ -1175,6 +1214,14 @@ pub fn connect(
                         _ => {}
                     }
 
+                }
+
+                /* 应用层心跳答得上、帧一个不来：那是「模型还没回话」，不是
+                链路断了。所以判据是帧的静默，不是套接字的死活。 */
+                () = tokio::time::sleep_until(link.quiet_at()),
+                    if link.awaits_quiet() && in_flight(&book_clone) =>
+                {
+                    let _sent = events_tx.unbounded_send(SessionEvent::Link(link.quieted()));
                 }
             }
         }
@@ -1263,7 +1310,9 @@ fn handle_ws_message(
         match book.fail_turn(cut, &format!("the event stream was cut: {reason}")) {
             Ok(true) => {}
             Ok(false) => {
-                log::warn!("kap asked for a resync of a session with no turn in flight: {envelope}");
+                log::warn!(
+                    "kap asked for a resync of a session with no turn in flight: {envelope}"
+                );
             }
             Err(error) => log::error!("could not close a turn whose stream was cut: {error}"),
         }
@@ -1723,6 +1772,10 @@ async fn fetch_and_record_questions(
 
 // ── 会话的 REST 辅助 ───────────────────────────────────────────────────────
 
+/// 把这句话交给 kap；可重试的传输错误按同一套退避再试。
+///
+/// 一次抖动就判死这一轮，是把「路上掉了一个包」说成「模型答不出来」。这一轮
+/// 已经不在飞了就不再试：取消要传得进来。
 async fn submit_prompt(
     http: &reqwest::Client,
     base_url: &str,
@@ -1730,20 +1783,46 @@ async fn submit_prompt(
     text: &str,
     images: &[PromptImage],
     skills: &[PromptSkill],
+    book: &SessionBook,
+    events_tx: &mpsc::UnboundedSender<SessionEvent>,
 ) -> Result<String> {
     let body = prompt_body(text, images, skills)?;
-    let data = post(
-        http,
-        &format!("{base_url}/sessions/{session_id}/prompts"),
-        &body,
-    )
-    .await?;
-    data.get("prompt_id")
-        .and_then(Value::as_str)
-        .map(str::to_owned)
-        .ok_or_else(|| KapError::Transport {
-            message: format!("no prompt_id in prompt response: {data}"),
-        })
+    let url = format!("{base_url}/sessions/{session_id}/prompts");
+    let mut attempt: u32 = 1;
+
+    loop {
+        match post(http, &url, &body).await {
+            Ok(data) => {
+                if attempt > 1 {
+                    let _sent = events_tx.unbounded_send(SessionEvent::Link(LinkState::Linked));
+                }
+
+                return data
+                    .get("prompt_id")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+                    .ok_or_else(|| KapError::Transport {
+                        message: format!("no prompt_id in prompt response: {data}"),
+                    });
+            }
+            Err(error) => {
+                if attempt >= TRIES || !retryable(&error) || !listening(book, session_id) {
+                    return Err(error);
+                }
+
+                let wait = backoff(attempt);
+
+                let _sent = events_tx.unbounded_send(SessionEvent::Link(retrying(
+                    attempt,
+                    wait,
+                    &error.to_string(),
+                )));
+
+                tokio::time::sleep(wait).await;
+                attempt = attempt.saturating_add(1);
+            }
+        }
+    }
 }
 
 fn prompt_body(text: &str, images: &[PromptImage], skills: &[PromptSkill]) -> Result<Value> {

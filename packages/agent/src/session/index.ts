@@ -5,6 +5,7 @@ export type {
 } from './agent-capability-store'
 export { AgentCapabilityStore } from './agent-capability-store'
 export { describeFailure } from './describe-failure'
+export { linkNotice } from './link-notice'
 export type { PermissionPosture } from './permission-posture'
 export {
   isPermissionPostureChange,

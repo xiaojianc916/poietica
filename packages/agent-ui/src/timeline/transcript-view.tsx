@@ -41,7 +41,7 @@ export function TranscriptView({
   const timeline = useAssistantTimeline(sessionKey)
   const hasEarlier = useAssistantHasEarlier(sessionKey)
   const transcripts = useTranscripts()
-  const relink = useSessionLink()
+  const link = useSessionLink()
 
   /* 视口只报「顶端快见底了」，读不读、读几页归 store。 */
   const readEarlier = useCallback(() => {
@@ -91,13 +91,13 @@ export function TranscriptView({
         isOpen={plan.isOpen}
         isRunning={plan.isRunning}
         lastFrameAt={plan.lastFrameAt}
+        link={plan.isRunning ? link : null}
         onToggle={chooseTurn}
-        relink={plan.isRunning ? relink : null}
         startedAt={plan.startedAt}
         turn={plan.turn}
       />
     ),
-    [chooseTurn, relink],
+    [chooseTurn, link],
   )
 
   /*

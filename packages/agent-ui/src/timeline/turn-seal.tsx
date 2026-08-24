@@ -1,3 +1,4 @@
+import { linkNotice } from '@poietica/agent'
 import type { SessionLink } from '@poietica/agent-contract'
 import './turn-seal.css'
 
@@ -14,8 +15,8 @@ import { useSecond } from '../primitives/tick'
  */
 
 export interface TurnSealProps {
-  /** 这条连接此刻的重连进度。链路态，只画在跑着的那一轮旁边；没在重连是 null。 */
-  readonly relink: SessionLink | null
+  /** 这条连接此刻的链路态。只画在跑着的那一轮旁边；接着的时候是 null。 */
+  readonly link: SessionLink | null
   readonly turn: number
   /** 缺席表示这台机器没有记下这一轮的两端：不报耗时，也不空转秒表。 */
   readonly startedAt: number | undefined
@@ -84,12 +85,12 @@ function spell(ms: number): string {
  * 里那条 error 条目自己讲，它就在下面几行。
  */
 function Seal({
-  relink,
   endedAt,
   hasProcess,
   isOpen,
   isRunning,
   lastFrameAt,
+  link,
   onToggle,
   startedAt,
   turn,
@@ -103,17 +104,16 @@ function Seal({
   const phase = isRunning ? '正在处理' : '已处理'
   const label = elapsed === undefined ? phase : `${phase} ${spell(elapsed)}`
 
+  /* 链路态成句在 @poietica/agent 的 linkNotice 里：这里只把那句话画出来。 */
+  const notice = link === null ? null : linkNotice(link, now)
+
   /* 运行中不会折叠；没有过程时也没有可操作的 disclosure。 */
   if (isRunning || !hasProcess) {
     return (
       <div className="turn-seal-line">
         <p className="turn-seal">
           <span className="turn-seal__label">{label}</span>
-          {relink === null ? null : (
-            <span className="turn-seal__relink">
-              正在重新连接 {relink.attempt}/{relink.of}
-            </span>
-          )}
+          {notice === null ? null : <span className="turn-seal__link">{notice}</span>}
         </p>
       </div>
     )

@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use poietica_agent_runtime_native::{
-    AnswerMethod, Decision, QuestionAnswer, QuestionResponse, Scope,
+    AnswerMethod, Decision, LinkState, QuestionAnswer, QuestionResponse, Scope,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, value::RawValue};
@@ -236,6 +236,47 @@ pub(super) fn reported_usage(value: &Value) -> Option<AgentSessionUsage> {
 /// 会话号是它唯一带得出的地址：帧里没有对话，反查由渲染层用「开这条会话时是
 /// 哪条对话」去做。它不出现在任何命令签名里，所以不进生成绑定 —— 事件不是命令。
 ///
+/// 这条连接此刻的链路态。
+///
+/// 正本在 crates/agent-runtime/src/link.rs 的 LinkState；serde 属性必须与它
+/// 逐字对齐，线上字节才一致。改判别式先改正本。
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(
+    tag = "state",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+pub enum AgentLinkState {
+    Linked,
+    Waiting { since: i64 },
+    Retrying {
+        attempt: u32,
+        of: u32,
+        retry_at: i64,
+        reason: String,
+    },
+}
+
+impl From<LinkState> for AgentLinkState {
+    fn from(state: LinkState) -> Self {
+        match state {
+            LinkState::Linked => Self::Linked,
+            LinkState::Waiting { since } => Self::Waiting { since },
+            LinkState::Retrying {
+                attempt,
+                of,
+                retry_at,
+                reason,
+            } => Self::Retrying {
+                attempt,
+                of,
+                retry_at,
+                reason,
+            },
+        }
+    }
+}
+
 /// 内部标签，所以线上是一个判别联合：`{ kind: "selectors", … }`。
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -253,8 +294,10 @@ pub enum AgentSessionEvent {
         usage: AgentSessionUsage,
     },
 
-    /// 这条连接的重连进度。attempt 缺席即已接上。
-    Link { attempt: Option<u32>, of: u32 },
+    /// 这条连接此刻的链路态。
+    Link {
+        link: AgentLinkState,
+    },
 }
 
 /// A change made in the interface.

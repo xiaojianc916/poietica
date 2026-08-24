@@ -184,8 +184,8 @@ export class SessionControlsStore {
     })
 
     const stopLink = this.#link?.subscribe((link) => {
-      /* attempt 缺席即已接上：那一刻这一格就该消失，不留"重连完成"的残影。 */
-      this.#commit({ link: link.attempt === null ? null : link })
+      /* 接上了就没有话要说：那一刻这一格消失，不留残影。 */
+      this.#commit({ link: link.state === 'linked' ? null : link })
     })
 
     return () => {
