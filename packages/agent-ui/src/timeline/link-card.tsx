@@ -4,7 +4,7 @@ import './tool-call.css'
 
 import type { LinkTimelineItem } from '@poietica/agent'
 import { cx } from '../primitives/class-names'
-import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
+import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon, LinkIcon } from '../primitives/icons'
 import { useSecond } from '../primitives/tick'
 
@@ -43,15 +43,22 @@ function say(link: LinkTimelineItem['link'], now: number): { line: string; detai
   }
 }
 
-export function LinkCard({ item }: { readonly item: LinkTimelineItem }) {
+export function LinkCard({
+  isOpen,
+  item,
+  onToggle,
+}: {
+  readonly isOpen: boolean
+  readonly item: LinkTimelineItem
+  readonly onToggle: () => void
+}) {
   const isLive = item.link.state !== 'linked'
   const now = useSecond(isLive)
   const { detail, line } = say(item.link, now)
-  const { isOpen, toggle } = useDisclosure(false)
 
   return (
     <section className="timeline-tool" data-open={isOpen ? 'true' : undefined}>
-      <button aria-expanded={isOpen} className="timeline-row" onClick={toggle} type="button">
+      <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
         <LinkIcon aria-hidden="true" className="timeline-row__icon" />
 
         <span className={cx('timeline-row__label', isLive && 'timeline-shimmer')}>{line}</span>

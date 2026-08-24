@@ -46,7 +46,16 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
 
     /* 推理是一行现场；写完了才能点开，点开才走 markdown。 */
     case 'agent_thought':
-      return <ThoughtCard isStreaming={row.isStreamingTail} text={item.text} />
+      return (
+        <ThoughtCard
+          isOpen={isOpen}
+          isStreaming={row.isStreamingTail}
+          onToggle={() => {
+            onToggle(item.id)
+          }}
+          text={item.text}
+        />
+      )
 
     case 'tool_call':
       return (
@@ -68,7 +77,15 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
 
     /* 断线与工具调用同一个形制：它同样是「这一轮里发生的一件事」。 */
     case 'link':
-      return <LinkCard item={item} />
+      return (
+        <LinkCard
+          isOpen={isOpen}
+          item={item}
+          onToggle={() => {
+            onToggle(item.id)
+          }}
+        />
+      )
 
     case 'question':
       return <QuestionRecord item={item} />

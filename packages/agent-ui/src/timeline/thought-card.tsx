@@ -3,7 +3,7 @@ import './shimmer.css'
 import './tool-call.css'
 
 import { useEffect, useRef } from 'react'
-import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
+import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon, ThinkingIcon } from '../primitives/icons'
 import { Prose } from './prose'
 import { readThoughtLine } from './thought-line'
@@ -16,13 +16,16 @@ import { readThoughtLine } from './thought-line'
  * 那一行只印纯文本（thought-line），围栏与表格留到点开之后由 Prose 按 markdown 画。
  */
 export function ThoughtCard({
+  isOpen,
   isStreaming,
+  onToggle,
   text,
 }: {
+  readonly isOpen: boolean
   readonly isStreaming: boolean
+  readonly onToggle: () => void
   readonly text: string
 }) {
-  const { isOpen, toggle } = useDisclosure(false)
   const lineRef = useRef<HTMLSpanElement | null>(null)
   const line = readThoughtLine(text, isStreaming ? 'tail' : 'head')
 
@@ -61,7 +64,7 @@ export function ThoughtCard({
 
   return (
     <section className="timeline-tool" data-open={isOpen ? 'true' : undefined}>
-      <button aria-expanded={isOpen} className="timeline-row" onClick={toggle} type="button">
+      <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
         <ThinkingIcon aria-hidden="true" className="timeline-row__icon" />
 
         <span className="timeline-row__name">思考完毕</span>
