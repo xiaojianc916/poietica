@@ -308,13 +308,13 @@ export class ThreadsStore {
   }
 
   /**
-   * 从一条对话分叉出一条新对话，交回新对话的 id；分叉不动源对话。
+   * 从某一轮分叉出一条新对话，交回新对话的 id；分叉不动源对话。
    *
-   * 没有乐观更新可做：新行由平台产出（号与行在原生侧同一句里落库），
-   * refresh 把它带进列表。打开它由调用方走既有的打开管线 —— 这里不留
-   * 第二条。
+   * dropTurns 是分叉点之后还有几轮，由转录投影算出（presentation 的
+   * ReplyActionPlan）。没有乐观更新可做：新行由平台产出，refresh 把它带进
+   * 列表；打开它由调用方走既有的打开管线。
    */
-  fork = async (threadId: string): Promise<string | null> => {
+  fork = async (threadId: string, dropTurns: number): Promise<string | null> => {
     const act = this.#port?.fork
 
     if (act === undefined) {
@@ -323,7 +323,7 @@ export class ThreadsStore {
 
     try {
       /* 名字此刻起：源的显示名加下一个序号，规则只有 thread-title 一处。 */
-      const forked = await act(threadId, forkNameOf(this.titleOf(threadId)))
+      const forked = await act(threadId, forkNameOf(this.titleOf(threadId)), dropTurns)
 
       await this.refresh()
 

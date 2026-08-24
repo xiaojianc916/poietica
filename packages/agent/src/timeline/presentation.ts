@@ -46,6 +46,8 @@ export interface TurnSealPlan {
 
 export interface ReplyActionPlan {
   readonly text: string
+  /** 这一问之后整条对话还有几问。分叉点就是它：0 是最后一轮。 */
+  readonly dropTurns: number
 }
 
 export interface ConversationTurn {
@@ -85,7 +87,7 @@ const LEAST = 2
 const NO_TURNS: readonly ConversationTurn[] = []
 const NO_GROUPS: ReadonlyMap<string, ToolGroupPlan> = new Map()
 const NO_SEALS: ReadonlyMap<number, TurnSealPlan> = new Map()
-const NO_REPLIES: ReadonlyMap<number, ReplyActionPlan> = new Map()
+const NO_REPLIES: ReadonlyMap<number, Reply> = new Map()
 
 const ROWS = new WeakMap<TimelineItem, FeedRow>()
 const SEGMENTS = new WeakMap<TurnPage, Segment>()
@@ -109,6 +111,14 @@ interface Staged {
 interface Stanza {
   readonly replyId: TimelineItemId | undefined
   readonly replyText: string
+  /** 段内这一问之后还有几问；跨段那一半由 selectPresentation 补齐。 */
+  readonly after: number
+}
+
+/** 段内的一份回复操作。绝对分叉点要跨段才算得出，这里只存段内那一半。 */
+interface Reply {
+  readonly text: string
+  readonly after: number
 }
 
 /** 一次运行的全部派生。TurnPage 是缓存单位，也是封条的唯一所有者。 */
@@ -121,7 +131,9 @@ interface Segment {
   readonly rows: readonly FeedRow[]
   readonly groups: ReadonlyMap<string, ToolGroupPlan>
   readonly seals: ReadonlyMap<number, TurnSealPlan>
-  readonly replies: ReadonlyMap<number, ReplyActionPlan>
+  readonly replies: ReadonlyMap<number, Reply>
+  /** 这一段里有几问。分叉点的跨段偏移按它累加。 */
+  readonly prompts: number
   readonly staged: readonly Staged[]
   /** 首个提问之前那一段留下了什么：上一段末尾那一问要连着它一起算。 */
   readonly leading: Scan
@@ -420,6 +432,7 @@ function stanzasIn(rows: readonly FeedRow[], running: boolean): readonly Stanza[
     const settled = !alive && !busyIn(rows, from, until) && answer !== undefined
 
     plans.push({
+      after: bounds.length - 1 - k,
       replyId: settled && tail !== undefined ? tail.item.id : undefined,
       replyText: answer === undefined ? '' : speechFrom(rows, answer, until),
     })
@@ -447,14 +460,14 @@ function placesIn(rows: readonly FeedRow[]): ReadonlyMap<string, number> {
 function repliesIn(
   plans: readonly Stanza[],
   where: ReadonlyMap<string, number>,
-): ReadonlyMap<number, ReplyActionPlan> {
-  const replies = new Map<number, ReplyActionPlan>()
+): ReadonlyMap<number, Reply> {
+  const replies = new Map<number, Reply>()
 
   for (const plan of plans) {
     const at = plan.replyId === undefined ? undefined : where.get(plan.replyId)
 
     if (at !== undefined) {
-      replies.set(at, { text: plan.replyText })
+      replies.set(at, { after: plan.after, text: plan.replyText })
     }
   }
 
@@ -522,6 +535,7 @@ function buildSegment(
     groups: grouped.groups,
     ownMessage,
     picked,
+    prompts: all.reduce((n, row) => (row.item.type === SAID ? n + 1 : n), 0),
     replies: repliesIn(plans, where),
     rows: grouped.rows,
     running,
@@ -721,7 +735,14 @@ export function selectPresentation(
   offsets.push(count)
   count += tail.rows.length
 
-  const seek = (index: number): { segment: Segment; at: number } | undefined => {
+  /* 这一段之后整条对话还有几问。分叉点是倒数，而段自己只知道段内那一半。 */
+  const trailing: number[] = new Array<number>(segments.length).fill(0)
+
+  for (let s = segments.length - 2; s >= 0; s -= 1) {
+    trailing[s] = (trailing[s + 1] ?? 0) + (segments[s + 1]?.prompts ?? 0)
+  }
+
+  const seek = (index: number): { segment: Segment; at: number; trailing: number } | undefined => {
     if (index < 0 || index >= count) {
       return undefined
     }
@@ -742,7 +763,9 @@ export function selectPresentation(
     const segment = segments[low]
     const start = offsets[low]
 
-    return segment === undefined || start === undefined ? undefined : { at: index - start, segment }
+    return segment === undefined || start === undefined
+      ? undefined
+      : { at: index - start, segment, trailing: trailing[low] ?? 0 }
   }
 
   let latestOwnMessage: string | null = null
@@ -777,8 +800,11 @@ export function selectPresentation(
     latestOwnMessage,
     replyAt: (index) => {
       const found = seek(index)
+      const reply = found?.segment.replies.get(found.at)
 
-      return found === undefined ? undefined : found.segment.replies.get(found.at)
+      return found === undefined || reply === undefined
+        ? undefined
+        : { dropTurns: reply.after + found.trailing, text: reply.text }
     },
     rowAt: (index) => {
       const found = seek(index)

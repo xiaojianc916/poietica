@@ -233,15 +233,14 @@ fn goal_control(goal: &Value) -> ConfigControl {
         .get("objective")
         .and_then(Value::as_str)
         .map(str::to_owned);
-    let control = toggle_control(
+    toggle_control(
         "goal",
         "目标",
         "以当前草稿为目标持续推进",
         ConfigPurpose::Mode,
         true,
         objective.is_some(),
-    );
-    control
+    )
 }
 
 fn model_control(current: &str, items: Option<&[Value]>) -> Option<ConfigControl> {

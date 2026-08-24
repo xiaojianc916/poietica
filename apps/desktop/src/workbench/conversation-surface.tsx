@@ -177,23 +177,26 @@ export function ConversationSurface({
   )
 
   /*
-   * 分叉整条对话，然后去分叉出的那一条。
+   * 从某一轮分叉，然后去分叉出的那一条。
    *
    * 名字与行由 ThreadsStore.fork 落定（命名规则在 thread-title.ts 一处）；这里
    * 只把动作接进转录的操作区，并把分出的对话交给工作台打开。失败已由 store
    * 记进列表那条失败横幅，这里不再说第二遍。
    */
-  const fork = useCallback(() => {
-    if (threadId === null) {
-      return
-    }
-
-    void threads.fork(threadId).then((forked) => {
-      if (forked !== null) {
-        onForked?.(forked, threads.titleOf(forked))
+  const fork = useCallback(
+    (dropTurns: number) => {
+      if (threadId === null) {
+        return
       }
-    })
-  }, [onForked, threadId, threads])
+
+      void threads.fork(threadId, dropTurns).then((forked) => {
+        if (forked !== null) {
+          onForked?.(forked, threads.titleOf(forked))
+        }
+      })
+    },
+    [onForked, threadId, threads],
+  )
 
   return (
     <AssistantSurface

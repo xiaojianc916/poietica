@@ -97,10 +97,10 @@ impl AgentStore {
     /// （threads_session_needs_owner 拒绝有号无主的行），中间不存在「行在而号
     /// 不在」的一瞬。
     ///
-    /// 帧日志与附件链接随分叉复制：屏幕上那条时间线由本机日志重放（见
-    /// run_events.rs），日志不跟过去，分出来的就是一块白板。字节是内容寻址
-    /// 的，多一条链接指着它就够，不必再存一份。三张表一次事务：半份分叉不
-    /// 该存在。
+    /// 帧日志随分叉复制，并按 drop_turns 截到分叉那一轮为止：屏幕上那条时间
+    /// 线由本机日志重放（见 run_events.rs），而上下文由 agent 按同一个数回退，
+    /// 两者因此止于同一处。附件链接一并复制 —— 字节是内容寻址的，多一条链接
+    /// 指着它就够。三张表一次事务：半份分叉不该存在。
     ///
     /// prompts 一并抄走：附件按「从末尾对齐」的尺子认领（见
     /// record_prompt），尺子的起点必须一致。updated_at 取现在 —— 分叉是此刻
@@ -116,9 +116,12 @@ impl AgentStore {
         title: &str,
         session_id: &str,
         agent_id: &str,
+        drop_turns: u32,
+        turn_start: &str,
     ) -> Result<Uuid> {
         let id = Uuid::now_v7();
         let timestamp = now()?;
+        let ceiling = self.turn_cut(source, drop_turns, turn_start)?;
 
         let transaction = self.connection.unchecked_transaction()?;
 
@@ -150,10 +153,14 @@ impl AgentStore {
                 "INSERT INTO run_events (thread_id, session_id, seq, at, frame)
                  SELECT ?2, session_id, seq, at, frame
                    FROM run_events
-                  WHERE thread_id = ?1
+                  WHERE thread_id = ?1 AND id < ?3
                   ORDER BY id",
             )?
-            .execute(rusqlite::params![source.to_string(), id.to_string()])?;
+            .execute(rusqlite::params![
+                source.to_string(),
+                id.to_string(),
+                ceiling
+            ])?;
 
         transaction
             .prepare_cached(

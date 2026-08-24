@@ -1033,14 +1033,15 @@ pub fn connect(
                             });
                         }
 
-                        Some(Command::ForkSession { session_id: src, reply }) => {
+                        Some(Command::ForkSession { session_id: src, drop_turns, reply }) => {
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             let book2 = book_clone.clone();
                             let ws2 = Arc::clone(&ws);
                             tokio::spawn(async move {
                                 let result =
-                                    fork_session(&http2, &base2, &src, &book2, &ws2).await;
+                                    fork_session(&http2, &base2, &src, drop_turns, &book2, &ws2)
+                                        .await;
                                 let _ = reply.send(result);
                             });
                         }
@@ -1952,6 +1953,7 @@ async fn fork_session(
     http: &reqwest::Client,
     base_url: &str,
     source_id: &str,
+    drop_turns: u32,
     book: &SessionBook,
     ws: &WsSink,
 ) -> Result<OpenedSession> {
@@ -1970,6 +1972,19 @@ async fn fork_session(
             message: format!("no session id in fork response: {data}"),
         })?
         .to_owned();
+
+    // 分叉点。:fork 的请求体只有 title 与 metadata（kap-server 的
+    // sessionForkSchema），没有分叉点这一格；能回退上下文的只有 :undo，它按用户
+    // 轮次数收（undoSessionRequestSchema 的 count）。回退落在复制件上，源会话
+    // 一个字不动。
+    if drop_turns > 0 {
+        post(
+            http,
+            &format!("{base_url}/sessions/{id}:undo"),
+            &json!({ "count": drop_turns }),
+        )
+        .await?;
+    }
 
     book.open(&id)?;
     subscribe(ws, &id, None).await?;

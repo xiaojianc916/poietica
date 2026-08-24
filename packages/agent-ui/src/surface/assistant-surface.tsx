@@ -40,11 +40,8 @@ export interface AssistantSurfaceProps {
    * and the surface does not own the list, so it reports it outwards.
    */
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
-  /**
-   * 分叉这条对话（整条带走）。只在最后一轮的操作区亮起：分叉整条带走，
-   * 不选分叉点，所以从最后一轮分叉恰好就是整条。缺席 = 平台没有这个动作。
-   */
-  readonly onFork?: (() => void) | undefined
+  /** 从某一轮分叉；dropTurns 是这一轮之后还有几轮。缺席 = 平台没有这个动作。 */
+  readonly onFork?: ((dropTurns: number) => void) | undefined
   /**
    * 这条对话所持有的会话给出的选择器。
    *

@@ -1,5 +1,6 @@
 //! 这台机器记下的帧。一条对话的时间线由它重放。
 
+use rusqlite::OptionalExtension;
 use serde_json::value::RawValue;
 use uuid::Uuid;
 
@@ -177,6 +178,37 @@ impl AgentStore {
                 row.get(0)
             })?,
         )
+    }
+
+    /// 倒数第 drop_turns 轮起点那一行的编号；分叉复制以它为上界（不含）。
+    ///
+    /// drop_turns 为 0、或这条对话没有那么多轮时交回 i64::MAX —— 整条都在分叉
+    /// 点之前。「哪一帧开一轮」由认识帧的那一侧回答（agent-runtime 的 frame.rs），
+    /// 判别式因此由调用方交进来：这一层只认 JSON 里那一格。
+    ///
+    /// # Errors
+    ///
+    /// 查询被拒时返回错误。
+    pub fn turn_cut(&self, thread: Uuid, drop_turns: u32, turn_start: &str) -> Result<i64> {
+        if drop_turns == 0 {
+            return Ok(i64::MAX);
+        }
+
+        let mut statement = self.connection.prepare_cached(
+            "SELECT id FROM run_events
+             WHERE thread_id = ?1 AND json_extract(frame, '$.kind') = ?2
+             ORDER BY id DESC
+             LIMIT 1 OFFSET ?3",
+        )?;
+
+        let found = statement
+            .query_row(
+                rusqlite::params![thread.to_string(), turn_start, drop_turns - 1],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?;
+
+        Ok(found.unwrap_or(i64::MAX))
     }
 
     /// 忘掉这条对话的日志。删对话时调用。

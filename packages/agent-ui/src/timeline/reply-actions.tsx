@@ -15,10 +15,10 @@ const REPLY_ACTION_HIDE_GRACE_MS = 500
 
 export interface ReplyActionHostProps {
   readonly children: ReactNode
-  /** 这一轮是不是此刻的最后一轮。分叉只在最后一轮是真的（ACP 无分叉点）。 */
-  readonly isFinal: boolean
-  /** 分叉整条对话。缺席 = 动作不可用，按钮禁用而不是点了没反应。 */
-  readonly onFork: (() => void) | undefined
+  /** 这一轮之后还有几轮。分叉点就是它。 */
+  readonly dropTurns: number
+  /** 从这一轮分叉。缺席 = 动作不可用，按钮禁用而不是点了没反应。 */
+  readonly onFork: ((dropTurns: number) => void) | undefined
   readonly text: string
 }
 
@@ -28,7 +28,7 @@ export interface ReplyActionHostProps {
  * 显示立即发生，隐藏延后发生。重新进入、移动到工具栏内部或取得键盘
  * 焦点都会取消隐藏。计时器归这个宿主所有，卸载时一定清除。
  */
-export function ReplyActionHost({ children, isFinal, onFork, text }: ReplyActionHostProps) {
+export function ReplyActionHost({ children, dropTurns, onFork, text }: ReplyActionHostProps) {
   const [visible, setVisible] = useState(false)
   const hideTimer = useRef<number | undefined>(undefined)
 
@@ -75,14 +75,14 @@ export function ReplyActionHost({ children, isFinal, onFork, text }: ReplyAction
       onPointerLeave={scheduleHide}
     >
       {children}
-      <ReplyActions isFinal={isFinal} onFork={onFork} text={text} />
+      <ReplyActions dropTurns={dropTurns} onFork={onFork} text={text} />
     </div>
   )
 }
 
 export interface ReplyActionsProps {
-  readonly isFinal: boolean
-  readonly onFork: (() => void) | undefined
+  readonly dropTurns: number
+  readonly onFork: ((dropTurns: number) => void) | undefined
   readonly text: string
 }
 
@@ -98,20 +98,11 @@ export interface ReplyActionsProps {
  * reply-actions.css 里的 :disabled 与 :hover:not(:disabled) 一起改。宁可不声明，也不声明
  * 一个自己不履行的角色。
  */
-/*
- * 分叉按钮的三种说法：能分（最后一轮、动作在）、这一轮不能分（ACP 的
- * session/fork 没有分叉点参数，只能整条带走 —— 从最后一轮分叉恰好就是整条，
- * 中间轮因此是禁用而不是撒谎）、整个不能分（对话还没建立或平台没有这个动作）。
- */
-const forkLabelOf = (isFinal: boolean, onFork: (() => void) | undefined): string => {
-  if (onFork !== undefined) {
-    return '分叉对话'
-  }
+/* 每一轮都能分：kap 的 :fork 复制整条，:undo 把复制件收到这一轮为止。 */
+const FORK = '从这一轮分叉'
+const FORK_OFF = '从这一轮分叉（不可用）'
 
-  return isFinal ? '分叉对话（不可用）' : '暂不支持从此轮分叉'
-}
-
-function Actions({ isFinal, onFork, text }: ReplyActionsProps) {
+function Actions({ dropTurns, onFork, text }: ReplyActionsProps) {
   const { copied, copy } = useCopy(text)
   const CopyStateIcon = copied ? Check : Copy
 
@@ -128,11 +119,13 @@ function Actions({ isFinal, onFork, text }: ReplyActionsProps) {
       </button>
 
       <button
-        aria-label={forkLabelOf(isFinal, onFork)}
+        aria-label={onFork === undefined ? FORK_OFF : FORK}
         className="timeline-reply-actions__button"
         disabled={onFork === undefined}
-        onClick={onFork}
-        title={forkLabelOf(isFinal, onFork)}
+        onClick={() => {
+          onFork?.(dropTurns)
+        }}
+        title={onFork === undefined ? FORK_OFF : FORK}
         type="button"
       >
         <Split aria-hidden="true" className="timeline-reply-actions__split-icon" />
@@ -145,7 +138,7 @@ function Actions({ isFinal, onFork, text }: ReplyActionsProps) {
  * 流式期间整块跳过。
  *
  * 宿主 transcript-view 的 renderRowAt 每一帧都换身份（它闭包着逐帧重建的投影），于是屏幕上每
- * 一处轮次末端每帧都被重新调用一次。而这一层的入参只有一段已经定稿的文字：轮次落定之后
- * 它逐字不变，浅比较恒命中。同目录的 TurnSeal、Prose、TimelineRow 都是这个做法。
+ * 一处轮次末端每帧都被重新调用一次。而这一层的入参在轮次落定之后逐字不变，浅比较恒命中。
+ * 同目录的 TurnSeal、Prose、TimelineRow 都是这个做法。
  */
 export const ReplyActions = memo(Actions)

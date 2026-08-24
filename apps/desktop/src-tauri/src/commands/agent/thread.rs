@@ -6,6 +6,7 @@ use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::{agent_home, remove_projectless_workspace};
 use poietica_agent_persistence_native::{FrameCursor, FramePage, TitleSource};
+use poietica_agent_runtime_native::RUN_STARTED;
 use tauri::{AppHandle, State, async_runtime};
 
 use super::addressing::{Held, read_point, session_for};
@@ -433,11 +434,11 @@ pub async fn agent_delete_thread(
     Ok(())
 }
 
-/// 从一条对话分叉出一条新对话（kap :fork），源对话原样不动。
+/// 从一条对话的某一轮分叉出一条新对话，源对话原样不动。
 ///
-/// 两侧各分叉一次：agent 那侧由 session/fork 复制上下文，这一侧由 fork_thread
-/// 复制本机日志与附件链接（见 threads.rs）。屏幕上那条时间线由日志重放，日志
-/// 不跟过去，分出来的就是一块白板。分出的那条从此各走各的。
+/// 两侧按同一个 drop_turns 各切一刀：agent 那侧 :fork 复制、:undo 回退，这一侧
+/// fork_thread 把本机日志与附件链接复制到那一轮为止（见 threads.rs）。屏幕由日志
+/// 重放、上下文由 agent 持有，一个数决定两者，因此不会各说各话。
 ///
 /// 寻址不走 session_for：那条规则在装载不成时会新开一条空会话并改写持有
 /// 关系，对打开与提问那是正确的兜底，对分叉则是把「分叉」静默降级成「新
@@ -500,14 +501,20 @@ pub async fn agent_fork_thread(
             .map_err(translate)?;
     }
 
-    let forked = live.client.fork_session(held).await.map_err(translate)?;
+    let drop_turns = request.drop_turns;
+
+    let forked = live
+        .client
+        .fork_session(held, drop_turns)
+        .await
+        .map_err(translate)?;
 
     let attached = forked.session_id;
     let owner = live.agent_id.clone();
 
     let thread = on_index(&index, move |store| {
         let id = store
-            .fork_thread(source, &title, &attached, &owner)
+            .fork_thread(source, &title, &attached, &owner, drop_turns, RUN_STARTED)
             .map_err(persistence)?;
 
         store

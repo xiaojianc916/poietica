@@ -136,14 +136,14 @@ export interface ThreadPort {
   readonly remove?: (threadId: ThreadId) => Promise<void>
 
   /**
-   * 从一条对话分叉出一条新对话（kap 的会话 fork 动作）。历史归 agent 所有，
-   * 所以这是协议动作：agent 带着完整上下文开出新会话，本地只复制一行索
-   * 引，源对话原样不动。交回新对话的记录 —— 打开它走 open 那条已有的路。
+   * 从某一轮分叉出一条新对话。历史归 agent 所有，所以这是协议动作：agent
+   * 复制上下文再回退到分叉点，本机日志按同一个数截断，源对话原样不动。
+   * 交回新对话的记录 —— 打开它走 open 那条已有的路。
    *
-   * title 是分叉出的对话叫什么，由调用方按命名规则算好（thread-title 的
-   * forkNameOf）交进来，落库按用户起的名（manual）对待。
+   * title 由调用方按命名规则算好（thread-title 的 forkNameOf）交进来，落库
+   * 按用户起的名（manual）对待。dropTurns 是分叉点之后还有几轮，0 是最后一轮。
    */
-  readonly fork?: (threadId: ThreadId, title: string) => Promise<ThreadRecord>
+  readonly fork?: (threadId: ThreadId, title: string, dropTurns: number) => Promise<ThreadRecord>
   /** Archives or restores a conversation without deleting its history. */
   readonly archive?: (threadId: ThreadId, archived: boolean) => Promise<void>
   readonly setPinned?: (threadId: ThreadId, pinned: boolean) => Promise<void>

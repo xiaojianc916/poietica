@@ -71,12 +71,14 @@ pub(crate) enum Command {
         from: Option<Cursor>,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
-    /// 让 agent 从一条已有会话分叉出一条新会话。
+    /// 让 agent 从一条已有会话的某一轮分叉出一条新会话。
     ///
-    /// 历史归 agent 所有，本地只有索引，所以「带着完整上下文另起一条」只能
-    /// 是协议动作：kap 的 :fork 就是为它设的。源会话原样不动。
+    /// 历史归 agent 所有，本地只有索引，所以这只能是协议动作：kap 的 :fork
+    /// 复制整条，:undo 把复制件收到分叉点。源会话原样不动。
     ForkSession {
         session_id: String,
+        /// 复制件上再回退几轮；0 就是整条带走。
+        drop_turns: u32,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
     /// 让 agent 删掉一条它自己存着的会话。
@@ -217,16 +219,25 @@ impl AgentClient {
 
     /// Forks a session the agent keeps into a new, independent one.
     ///
-    /// 号原样交过去，agent 带着完整上下文开出一条新会话交回来 —— 源会话原样不动。
+    /// 号与分叉点一起交过去：agent 复制整条再回退 drop_turns 轮，交回新会话
+    /// —— 源会话原样不动。
     ///
     /// # Errors
     ///
     /// Fails when the connection is gone, or when the agent refuses to fork
     /// that session.
-    pub async fn fork_session(&self, session_id: String) -> Result<OpenedSession> {
+    pub async fn fork_session(
+        &self,
+        session_id: String,
+        drop_turns: u32,
+    ) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
-        self.send(Command::ForkSession { session_id, reply })?;
+        self.send(Command::ForkSession {
+            session_id,
+            drop_turns,
+            reply,
+        })?;
 
         answer
             .await

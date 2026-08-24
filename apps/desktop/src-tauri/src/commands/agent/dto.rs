@@ -428,6 +428,11 @@ pub struct AgentForkThreadRequest {
     /// 名字由界面按命名规则算好（thread-title.ts 的 forkNameOf）：源名加下一
     /// 个序号。这一侧照改名那条防线收：去空白、按上限截断、拒绝空名。
     pub title: String,
+    /// 分叉点：这一轮之后还有几轮。0 就是从最后一轮分叉。
+    ///
+    /// agent 那侧按它回退上下文，本机日志按同一个数截断 —— 屏幕与上下文
+    /// 因此止于同一处。
+    pub drop_turns: u32,
     /// 起哪个 agent。
     pub launch: AgentLaunch,
     /// The working directory the session is created against.

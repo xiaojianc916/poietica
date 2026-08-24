@@ -27,11 +27,8 @@ const NOTHING_OPENED: ReadonlySet<string> = new Set()
 export interface TranscriptViewProps {
   readonly sessionKey: string
   readonly isRestoring: boolean
-  /**
-   * 分叉这条对话（整条带走）。没有分叉点可选，所以它只交给最后一轮 —— 从最后一轮
-   * 分叉恰好就是整条。缺席 = 平台没有这个动作。
-   */
-  readonly onFork?: (() => void) | undefined
+  /** 从某一轮分叉；dropTurns 是这一轮之后还有几轮。缺席 = 平台没有这个动作。 */
+  readonly onFork?: ((dropTurns: number) => void) | undefined
 }
 
 export function TranscriptView({ isRestoring, onFork, sessionKey }: TranscriptViewProps) {
@@ -138,7 +135,6 @@ export function TranscriptView({ isRestoring, onFork, sessionKey }: TranscriptVi
       const plan = feed.groupAt(index)
       const replyAction = feed.replyAt(index)
       const seal = feed.sealAt(index)
-      const isFinal = row.item.turn === feed.lastTurn
       const rendered =
         plan === undefined ? (
           rowOf(row)
@@ -157,8 +153,8 @@ export function TranscriptView({ isRestoring, onFork, sessionKey }: TranscriptVi
           rendered
         ) : (
           <ReplyActionHost
-            isFinal={isFinal}
-            onFork={isFinal ? onFork : undefined}
+            dropTurns={replyAction.dropTurns}
+            onFork={onFork}
             text={replyAction.text}
           >
             {rendered}
