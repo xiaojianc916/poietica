@@ -4,7 +4,7 @@
  *
  * 删除带重试：Windows 上刚退出的进程仍会短暂持有文件，fs.rm 的 maxRetries 与
  * retryDelay 正是为此而设（force 只忽略"不存在"）。失败逐个隔离汇报，不把人停
- * 在"依赖已经没了、产物还在"的半坏状态里。Rust 那一层不碰，它有 cargo clean。
+ * 在"依赖已经没了、产物还在"的半坏状态里。--all 连 target 一起删。
  */
 
 import { existsSync } from 'node:fs'
@@ -136,5 +136,5 @@ if (failures.length > 0) {
 }
 
 if (scope.has('node_modules') && failures.length === 0) {
-  console.log('\nDependencies are gone — run "pnpm install" before anything else.')
+  console.log('\nDependencies are gone — run "bun install" before anything else.')
 }

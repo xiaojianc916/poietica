@@ -9,11 +9,10 @@ import { turnIndexAtRow } from '../threads/ordered-lookup'
  * 第 1 行故意做得比视口还高:那是带代码块的长回答,也是估高与真高落差最大的
  * 地方,越界判断必须在它内部任意位置都稳定。
  */
-const SPANS: readonly RowSpan[] = [
-  { index: 0, start: 0 },
-  { index: 1, start: 80 },
-  { index: 2, start: 1200 },
-]
+const FIRST: RowSpan = { index: 0, start: 0 }
+const SECOND: RowSpan = { index: 1, start: 80 }
+const THIRD: RowSpan = { index: 2, start: 1200 }
+const SPANS: readonly RowSpan[] = [FIRST, SECOND, THIRD]
 
 const TURNS = [{ rowIndex: 0 }, { rowIndex: 4 }, { rowIndex: 9 }, { rowIndex: 30 }]
 
@@ -23,23 +22,23 @@ describe('rowAtAnchor', () => {
   })
 
   it('锚点落在某一行内部时给出那一行', () => {
-    expect(rowAtAnchor(SPANS, 40)).toBe(SPANS[0])
-    expect(rowAtAnchor(SPANS, 600)).toBe(SPANS[1])
-    expect(rowAtAnchor(SPANS, 1230)).toBe(SPANS[2])
+    expect(rowAtAnchor(SPANS, 40)).toBe(FIRST)
+    expect(rowAtAnchor(SPANS, 600)).toBe(SECOND)
+    expect(rowAtAnchor(SPANS, 1230)).toBe(THIRD)
   })
 
   it('边界归下一行:一行的起点属于它自己', () => {
-    expect(rowAtAnchor(SPANS, 80)).toBe(SPANS[1])
-    expect(rowAtAnchor(SPANS, 79)).toBe(SPANS[0])
-    expect(rowAtAnchor(SPANS, 1200)).toBe(SPANS[2])
+    expect(rowAtAnchor(SPANS, 80)).toBe(SECOND)
+    expect(rowAtAnchor(SPANS, 79)).toBe(FIRST)
+    expect(rowAtAnchor(SPANS, 1200)).toBe(THIRD)
   })
 
   it('锚点在第一行之前时归第一行', () => {
-    expect(rowAtAnchor(SPANS, -300)).toBe(SPANS[0])
+    expect(rowAtAnchor(SPANS, -300)).toBe(FIRST)
   })
 
   it('锚点越过最后一行时归最后一行', () => {
-    expect(rowAtAnchor(SPANS, 99999)).toBe(SPANS[2])
+    expect(rowAtAnchor(SPANS, 99999)).toBe(THIRD)
   })
 })
 

@@ -22,6 +22,7 @@ describe('parseInstallSource', () => {
       owner: 'MoonshotAI',
       repo: 'kimi-code',
       ref: { kind: 'default-branch' },
+      subdirectory: undefined,
     })
   })
 
@@ -31,6 +32,7 @@ describe('parseInstallSource', () => {
       owner: 'a',
       repo: 'b',
       ref: { kind: 'tree', ref: 'release/1.x' },
+      subdirectory: undefined,
     })
   })
 
@@ -40,6 +42,7 @@ describe('parseInstallSource', () => {
       owner: 'a',
       repo: 'b',
       ref: { kind: 'release-tag', tag: 'v1.2.3' },
+      subdirectory: undefined,
     })
   })
 
@@ -49,6 +52,7 @@ describe('parseInstallSource', () => {
       owner: 'a',
       repo: 'b',
       ref: { kind: 'commit', sha: 'deadbeef' },
+      subdirectory: undefined,
     })
   })
 
@@ -58,6 +62,7 @@ describe('parseInstallSource', () => {
       owner: 'a',
       repo: 'b',
       ref: { kind: 'default-branch' },
+      subdirectory: undefined,
     })
   })
 

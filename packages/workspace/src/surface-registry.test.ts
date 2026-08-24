@@ -8,13 +8,13 @@ import { describeSurface, SURFACE_NAVIGATION_ORDER, SURFACE_REGISTRY } from './s
  * 所以这里只测领域层自己说得清的三件事。
  */
 describe('工作区表面注册表', () => {
-  it('导航顺序由 navigationOrder 派生，凡进导航的表面一个不落', () => {
-    const expected = Object.entries(SURFACE_REGISTRY)
-      .filter(([, descriptor]) => descriptor.navigationOrder !== null)
-      .sort((a, b) => (a[1].navigationOrder ?? 0) - (b[1].navigationOrder ?? 0))
-      .map(([id]) => id)
-
-    expect([...SURFACE_NAVIGATION_ORDER]).toEqual(expected)
+  it('导航顺序钉在这一行：进导航的表面增减或重排，这里必须跟着改', () => {
+    expect([...SURFACE_NAVIGATION_ORDER]).toEqual([
+      'search',
+      'tools',
+      'automations',
+      'personalization',
+    ])
 
     /* 新建对话是动作而非导航目标，由导航条单独渲染。 */
     expect(SURFACE_NAVIGATION_ORDER).not.toContain('ai')

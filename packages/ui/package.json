@@ -11,6 +11,7 @@
     "./styles.css": "./src/styles/index.css"
   },
   "scripts": {
+    "test": "bun test src",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {

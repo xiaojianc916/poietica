@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "bun test unit",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "devDependencies": {

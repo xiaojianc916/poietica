@@ -74,6 +74,7 @@ describe('decodeMarketplaceCatalog', () => {
       owner: 'obra',
       repo: 'superpowers',
       ref: { kind: 'default-branch' },
+      subdirectory: undefined,
     })
   })
 

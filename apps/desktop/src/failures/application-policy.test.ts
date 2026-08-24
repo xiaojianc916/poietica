@@ -44,16 +44,8 @@ describe('the features this application knows how to lose', () => {
     expect(DEGRADABLE_FEATURE_IDS.length).toBeGreaterThan(0)
   })
 
-  it('degrades nothing it has not declared', () => {
-    for (const featureId of usedFeatureIds) {
-      expect(DEGRADABLE_FEATURE_IDS).toContain(featureId)
-    }
-  })
-
-  it('declares nothing it never degrades', () => {
-    for (const featureId of DEGRADABLE_FEATURE_IDS) {
-      expect([...usedFeatureIds]).toContain(featureId)
-    }
+  it('declares exactly the features it degrades', () => {
+    expect([...usedFeatureIds].sort()).toEqual([...DEGRADABLE_FEATURE_IDS].sort())
   })
 
   it('gives every disable-feature policy a feature to disable', () => {

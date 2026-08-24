@@ -586,7 +586,7 @@ const documentedScriptsExist = async (inventory) => {
   return defects
 }
 /*
- * manifest 里写的 node <file> 必须真的存在。
+ * manifest 里写的 bun <file> 必须真的存在。
  *
  * documented-scripts-exist 只管「文档 → manifest」这一个方向。反方向没有闸门，
  * 于是根 package.json 的 "release": "node release.mjs" 指着一个磁盘上不存在的
@@ -594,7 +594,7 @@ const documentedScriptsExist = async (inventory) => {
  *
  * 判据只依赖单个文件能证明的形状：脚本正文里的路径，与它在不在磁盘上。
  */
-const SCRIPT_ENTRYPOINT = /(?:^|\s)bun\s+([\w./-]+\.mjs)/g
+const SCRIPT_ENTRYPOINT = /(?:^|\s)bun\s+([\w./-]+\.(?:mjs|ts))/g
 
 const manifestScriptsResolve = async (inventory) => {
   const defects = []

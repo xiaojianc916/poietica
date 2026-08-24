@@ -36,7 +36,7 @@ const TABS = {
   skills: {
     label: '技能',
     subtitle:
-      '这个 agent 认得的技能，用 /skill 调用。装在本机 skills/ 的可以在这里开关或移除（开关就是磁盘上改名）；压暗的那几行这个会话不会装载。',
+      '这个 agent 认得的技能，用 /skill 调用。装在本机 skills/ 的可以在这里开关或移除（开关就是磁盘上改名）。',
   },
   mcp: {
     label: 'MCP',

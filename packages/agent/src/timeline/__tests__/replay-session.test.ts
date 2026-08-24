@@ -31,7 +31,7 @@ describe('replay session', () => {
 
     const received = batches.flat()
 
-    expect(received).toEqual(SAMPLE_RUN_EVENTS)
+    expect(received).toEqual([...SAMPLE_RUN_EVENTS])
     expect(batches).toHaveLength(SAMPLE_RUN_EVENTS.length)
     expect([...addressed]).toEqual(['sess_replay'])
     expect(replayRunEvents(received).status).toBe('completed')

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "bun test src",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",

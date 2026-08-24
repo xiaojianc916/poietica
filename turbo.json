@@ -51,6 +51,9 @@
       "inputs": ["vite.config.ts", "vite-plugins/**", "tsconfig.node.json"],
       "outputs": []
     },
+    "test": {
+      "outputs": []
+    },
     "build": {
       "dependsOn": ["^build", "typecheck"],
       "inputs": [

@@ -85,12 +85,10 @@ describe('groupTurns', () => {
       expect(spans[index]?.[0]).toBe((spans[index - 1]?.[1] ?? Number.NaN) + 1)
     }
 
-    for (const [index, item] of items.entries()) {
-      const head = turns[(spans[index]?.[0] ?? Number.NaN) - 1]
+    const heads = spans.map(([from]) => turn(from))
 
-      expect(item.id).toBe(head?.id)
-      expect(item.rowIndex).toBe(head?.rowIndex)
-    }
+    expect(items.map((item) => item.id)).toEqual(heads.map((head) => head.id))
+    expect(items.map((item) => item.rowIndex)).toEqual(heads.map((head) => head.rowIndex))
   })
 
   it('rowIndex 严格递增，二分的前提成立', () => {
