@@ -39,9 +39,6 @@ export interface DiffFile {
 /** 上下文行数：git diff 的默认值。 */
 const CONTEXT = 3
 
-/** 一张 diff 铺多少行封顶。抽屉是虚拟化列表里的一格，它自己不虚拟化。 */
-const ROWS = 400
-
 /*
  * 路径印成正斜杠。Win32 的文件 API 与 Node 的 path 都把它当合法分隔符，所以复制出去照样
  * 能用。只认盘符与 UNC 开头的绝对路径 —— 别的字符串里反斜杠带语义。
@@ -87,7 +84,6 @@ function fileOf(part: Extract<ToolContentPart, { type: 'diff' }>): DiffFile {
   const rows: DiffRow[] = []
   let added = 0
   let removed = 0
-  const clamped = false
 
   for (const hunk of patch.hunks) {
     let oldLine = hunk.oldStart

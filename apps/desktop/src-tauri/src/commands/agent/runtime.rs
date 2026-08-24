@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 
 use super::config::restate;
-use super::dto::{AgentLaunch, AgentSessionEvent, reported_usage};
+use super::dto::{AgentLaunch, AgentSessionEvent, reported_goal, reported_usage};
 use super::failure::translate;
 use super::{AGENT_SESSION_EVENT, NO_SESSION_ID, POISONED};
 
@@ -312,9 +312,11 @@ pub(super) async fn ensure_session(
                 SessionEvent::Selectors {
                     session_id,
                     controls,
+                    goal,
                 } => AgentSessionEvent::Selectors {
                     session_id,
                     selectors: controls.into_iter().map(restate).collect(),
+                    goal: goal.map(reported_goal),
                 },
 
                 SessionEvent::Usage { session_id, usage } => {

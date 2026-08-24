@@ -4,6 +4,7 @@ import type {
   SessionConfigControl,
   SessionConfigPort,
   SessionConfigReport,
+  SessionGoal,
   SessionUsage,
   SessionUsagePort,
   SessionUsageReport,
@@ -24,12 +25,15 @@ interface Held {
   readonly selectors: ReadonlyMap<string, readonly SessionConfigControl[]>
   readonly selectorFailure: ReadonlyMap<string, string>
   readonly usage: ReadonlyMap<string, SessionUsage>
+  /** 目标模式此刻的事实，按对话。没有目标在跑的对话不在表里。 */
+  readonly goal: ReadonlyMap<string, SessionGoal>
 }
 
 const EMPTY: Held = {
   selectors: new Map(),
   selectorFailure: new Map(),
   usage: new Map(),
+  goal: new Map(),
 }
 
 /**
@@ -187,6 +191,9 @@ export class SessionControlsStore {
   selectorFailureOf = (threadId: string): string | undefined =>
     this.#held.selectorFailure.get(threadId)
 
+  /** 这条对话此刻的目标；没有目标在跑是 undefined。 */
+  goalOf = (threadId: string): SessionGoal | undefined => this.#held.goal.get(threadId)
+
   /** 这条对话所持有的会话最近报的上下文用量；从没报过就是 undefined。 */
   usageOf = (threadId: string): SessionUsage | undefined => this.#held.usage.get(threadId)
 
@@ -239,6 +246,7 @@ export class SessionControlsStore {
       selectors: withoutEntry(this.#held.selectors, threadId),
       selectorFailure: withoutEntry(this.#held.selectorFailure, threadId),
       usage: withoutEntry(this.#held.usage, threadId),
+      goal: withoutEntry(this.#held.goal, threadId),
     })
   }
 
@@ -406,7 +414,7 @@ export class SessionControlsStore {
     }
 
     this.#orderOf(threadId).arrive()
-    this.#remember(threadId, report.controls)
+    this.#remember(threadId, report.controls, report.goal)
   }
 
   /*
@@ -446,10 +454,22 @@ export class SessionControlsStore {
    * 原样存下来。屏幕上写的就是 agent 说的那一句，中间没有第二个人插话 —— 这条会话
    * 此刻在用什么，只有它自己有资格回答。
    */
-  #remember(threadId: string, offered: readonly SessionConfigControl[]): void {
+  #remember(
+    threadId: string,
+    offered: readonly SessionConfigControl[],
+    goal?: SessionGoal | null,
+  ): void {
     this.#commit({
       selectors: withEntry(this.#held.selectors, threadId, offered),
       selectorFailure: withoutEntry(this.#held.selectorFailure, threadId),
+      ...(goal === undefined
+        ? {}
+        : {
+            goal:
+              goal === null
+                ? withoutEntry(this.#held.goal, threadId)
+                : withEntry(this.#held.goal, threadId, goal),
+          }),
     })
 
     this.#align(threadId, offered)
@@ -500,7 +520,8 @@ export class SessionControlsStore {
     if (
       next.selectors === this.#held.selectors &&
       next.selectorFailure === this.#held.selectorFailure &&
-      next.usage === this.#held.usage
+      next.usage === this.#held.usage &&
+      next.goal === this.#held.goal
     ) {
       return
     }

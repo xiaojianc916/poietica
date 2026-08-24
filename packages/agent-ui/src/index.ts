@@ -5,6 +5,8 @@ export { AttachmentIntakeContext, useAttachmentIntake } from './composer/attachm
 export type { PromptChipValue } from './composer/prompt-chip'
 export type { ChatStatus, PromptInputHandle, PromptInputMessage } from './composer/prompt-input'
 export type { SessionControlsProps } from './composer/session-controls'
+export type { GoalIslandProps } from './goal/goal-island'
+export { GoalIsland } from './goal/goal-island'
 export type {
   ImageLightboxProps,
   ImageThumbnailGridProps,

@@ -1,4 +1,5 @@
 import type { ThreadId } from './address'
+import type { SessionGoal } from './goal'
 
 /*
  * What the running session lets us change.
@@ -59,6 +60,8 @@ export interface SessionConfigControl {
 export interface SessionConfigReport {
   readonly sessionId: string
   readonly controls: readonly SessionConfigControl[]
+  /** 目标模式此刻的事实；没有目标在跑时为 null。 */
+  readonly goal: SessionGoal | null
 }
 
 export interface SessionConfigPort {

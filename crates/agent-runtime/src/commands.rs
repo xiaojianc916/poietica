@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use futures::channel::{mpsc, oneshot};
 
-use crate::config::ConfigControl;
+use crate::config::{ConfigControl, GoalSnapshot};
 use crate::error::{KapError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::session::{Cursor, McpServer, OpenedSession, SessionEntry, Skill};
@@ -143,6 +143,11 @@ pub(crate) enum Command {
         input: Option<String>,
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
     },
+    /// 这条会话此刻的目标；没有目标在跑交 None。
+    Goal {
+        session_id: String,
+        reply: oneshot::Sender<Option<GoalSnapshot>>,
+    },
 }
 
 /// A handle onto a live connection. Cheap to clone, safe to hold anywhere.
@@ -262,6 +267,16 @@ impl AgentClient {
         answer
             .await
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
+    }
+
+    /// 这条会话此刻的目标。连接不在了也答 None —— 这一格的读者是屏幕上
+    /// 一枚岛，缺席即不画，不值得为此造一个错误面。
+    pub async fn goal(&self, session_id: String) -> Option<GoalSnapshot> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Goal { session_id, reply }).ok()?;
+
+        answer.await.ok()?
     }
 
     /// Starts a turn, delivering every frame of it to the sink handed in.

@@ -139,7 +139,7 @@ function ComposerToolbar({
         <PermissionPicker controls={controls} onSelect={onSelectControl} />
 
         {/* 这一句的处境：模式归 agent，目标与蜂群归转录。 */}
-        <ComposerChips controls={controls} onSelect={onSelectControl} />
+        <ComposerChips controls={controls} />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />

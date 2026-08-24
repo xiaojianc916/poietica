@@ -245,6 +245,7 @@ pub enum AgentSessionEvent {
     Selectors {
         session_id: String,
         selectors: Vec<AgentConfigControl>,
+        goal: Option<AgentGoal>,
     },
     /// 那条会话此刻的上下文用量。
     #[serde(rename_all = "camelCase")]
@@ -618,5 +619,34 @@ const fn measured(method: AgentQuestionMethod) -> AnswerMethod {
         AgentQuestionMethod::Space => AnswerMethod::Space,
         AgentQuestionMethod::NumberKey => AnswerMethod::NumberKey,
         AgentQuestionMethod::Click => AnswerMethod::Click,
+    }
+}
+
+/// 目标模式此刻的事实，线上形状。
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentGoal {
+    pub objective: String,
+    pub completion_criterion: Option<String>,
+    pub status: String,
+    pub turns_used: u32,
+    pub tokens_used: u32,
+    pub wall_clock_ms: u32,
+}
+
+/// 领域快照 -> 线上形状。数值按绑定能表达的宽度收窄，溢出即封顶。
+#[must_use]
+pub fn reported_goal(
+    goal: poietica_agent_runtime_native::GoalSnapshot,
+) -> AgentGoal {
+    let narrow = |value: u64| u32::try_from(value).unwrap_or(u32::MAX);
+
+    AgentGoal {
+        objective: goal.objective,
+        completion_criterion: goal.completion_criterion,
+        status: goal.status,
+        turns_used: narrow(goal.turns_used),
+        tokens_used: narrow(goal.tokens_used),
+        wall_clock_ms: narrow(goal.wall_clock_ms),
     }
 }

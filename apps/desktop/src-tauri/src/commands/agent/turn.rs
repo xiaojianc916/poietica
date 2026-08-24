@@ -22,7 +22,7 @@ use super::config::restate;
 use super::dto::{
     AgentAnswerQuestionsRequest, AgentCancelRequest, AgentDismissQuestionsRequest,
     AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest, AgentSessionEvent,
-    answered, decided,
+    answered, decided, reported_goal,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
@@ -104,11 +104,19 @@ pub async fn agent_prompt(
         .await
         .map_err(translate)?;
 
+        /* 提交的配置可能改了目标本身：这里问一次真的，不猜。 */
+        let goal = session
+            .client
+            .goal(addressed.clone())
+            .await
+            .map(reported_goal);
+
         let _ignored = app.emit(
             AGENT_SESSION_EVENT,
             AgentSessionEvent::Selectors {
                 session_id: addressed.clone(),
                 selectors: offered.into_iter().map(restate).collect(),
+                goal,
             },
         );
     }

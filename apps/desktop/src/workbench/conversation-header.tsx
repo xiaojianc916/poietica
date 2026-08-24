@@ -1,3 +1,4 @@
+import { GoalIsland } from '@poietica/agent-ui'
 import { workspaceLayoutStore } from '@poietica/workspace'
 import { useSyncExternalStore } from 'react'
 
@@ -22,6 +23,7 @@ export function ConversationHeader({ conversationId }: { readonly conversationId
 
   return (
     <header className="conversation-header" data-assistant-skin>
+      <GoalIsland threadId={conversationId} />
       {browserThread === conversationId ? null : (
         <BrowserPanelToggle conversationId={conversationId} />
       )}

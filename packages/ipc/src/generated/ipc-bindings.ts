@@ -1379,6 +1379,10 @@ events: JsonValue[];
  */
 before: AgentFrameCursor | null }
 /**
+ * 目标模式此刻的事实，线上形状。
+ */
+export type AgentGoal = { objective: string; completionCriterion: string | null; status: string; turnsUsed: number; tokensUsed: number; wallClockMs: number }
+/**
  * 这一次打开，屏幕上应该出现什么。
  * 
  * 空的经过说不出区别：刚建的对话是空的，理所应当；而一条聊过两小时的对话在

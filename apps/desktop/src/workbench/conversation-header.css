@@ -4,7 +4,9 @@
  * 28px 方钮上下各余 2px —— 要矮。行高与右距和浏览器 dock 标签条一致
  * （那边是 h-8 与 px-1 + mr-1.5 的字面量）：开关交接座位时坐标不变。
  */
+/* 灵动岛在表头里居中绝对定位，所以表头是它的定位上下文。 */
 .conversation-header {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;

@@ -41,7 +41,7 @@ use tokio_tungstenite::{
 use uuid::Uuid;
 
 use crate::commands::{AgentClient, Command, PromptImage, PromptSkill};
-use crate::config::{ConfigControl, controls, selector_patch};
+use crate::config::{ConfigControl, GoalSnapshot, controls, goal_snapshot, selector_patch};
 use crate::desk::{PermissionDesk, QuestionDesk};
 use crate::error::{KapError, Refusal, Result};
 use crate::frame::kap_event;
@@ -1150,6 +1150,14 @@ pub fn connect(
                             });
                         }
 
+                        Some(Command::Goal { session_id: sid, reply }) => {
+                            let http2 = http.clone();
+                            let base2 = base_url.clone();
+                            tokio::spawn(async move {
+                                let _ = reply.send(fetch_goal(&http2, &base2, &sid).await);
+                            });
+                        }
+
                         Some(Command::Select { session_id: sid, config_id, value, input, reply }) => {
                             let http2 = http.clone();
                             let base2 = base_url.clone();
@@ -1405,6 +1413,24 @@ fn handle_ws_message(
                 if let Err(error) = ended {
                     log::error!("could not close the turn kap just ended: {error}");
                 }
+
+                /* 一轮落定，目标的轮数、用量与时长都变了：整表推一次。 */
+                let http2 = http.clone();
+                let base2 = base_url.to_owned();
+                let sid = session_id.to_owned();
+                let events2 = events_tx.clone();
+
+                tokio::spawn(async move {
+                    let Ok(offered) = get_selectors(&http2, &base2, &sid).await else {
+                        return;
+                    };
+
+                    let _sent = events2.unbounded_send(SessionEvent::Selectors {
+                        session_id: sid.clone(),
+                        controls: offered,
+                        goal: fetch_goal(&http2, &base2, &sid).await,
+                    });
+                });
             }
         }
 
@@ -2126,6 +2152,19 @@ async fn abort_session(http: &reqwest::Client, base_url: &str, session_id: &str)
     Ok(())
 }
 
+/// 目标此刻的事实。读不到就是没有目标 —— 这一格不该让整条推送失败。
+async fn fetch_goal(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+) -> Option<GoalSnapshot> {
+    let goal = get(http, &format!("{base_url}/sessions/{session_id}/goal"))
+        .await
+        .ok()?;
+
+    goal_snapshot(&goal)
+}
+
 async fn get_selectors(
     http: &reqwest::Client,
     base_url: &str,
@@ -2152,7 +2191,7 @@ async fn set_selector(
         .ok_or_else(|| KapError::Validation {
             message: format!("the session offers no control {config_id}"),
         })?;
-    if control.current == value {
+    if control.current == value && input.is_none() {
         return Ok(current);
     }
     if !control.choices.iter().any(|choice| choice.value == value) {

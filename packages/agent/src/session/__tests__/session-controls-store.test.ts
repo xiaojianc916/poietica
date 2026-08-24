@@ -98,7 +98,7 @@ describe('一条对话的那张表', () => {
     await settled()
 
     /* agent 自己收敛了一次，推的是新模型真在用的那张表。 */
-    announce?.({ sessionId: SESSION, controls: WITHOUT_LOW })
+    announce?.({ sessionId: SESSION, controls: WITHOUT_LOW, goal: null })
 
     /* 这一趟答复是在那声推送之前发出的，它带的档位属于上一个模型。 */
     release?.(UNCONVERGED)

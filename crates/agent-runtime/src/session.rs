@@ -10,7 +10,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 
 use crate::commands::AgentClient;
-use crate::config::ConfigControl;
+use crate::config::{ConfigControl, GoalSnapshot};
 use crate::error::Result;
 use crate::sessions::SessionBook;
 
@@ -49,10 +49,11 @@ pub struct AgentSpawn {
 /// 名册、图片块、停止原因同一条规矩：线上形状才是契约。
 #[derive(Debug, Clone)]
 pub enum SessionEvent {
-    /// 这条会话现在的整张选择器表。
+    /// 这条会话现在的整张选择器表，以及目标模式此刻的事实。
     Selectors {
         session_id: String,
         controls: Vec<ConfigControl>,
+        goal: Option<GoalSnapshot>,
     },
     /// 这条会话此刻的上下文用量，由 driver 从 agent.status.updated 折过来。
     Usage {

@@ -194,18 +194,13 @@ export function composerPaletteGroups({
 
 export interface ComposerChipsProps {
   readonly controls: readonly SessionConfigControl[]
-  readonly onSelect: (controlId: string, value: string) => void
 }
 
 function glyph(controlId: string): ReactNode {
   return controlId === 'goal' ? <GoalIcon /> : <SirenIcon />
 }
 
-function label(control: SessionConfigControl): string {
-  return control.id === 'goal' && control.detail ? `目标：${control.detail}` : control.label
-}
-
-export function ComposerChips({ controls, onSelect }: ComposerChipsProps) {
+export function ComposerChips({ controls }: ComposerChipsProps) {
   const { configuration } = usePromptInputDraft()
   const { removeConfiguration } = usePromptInputActions()
   const active = controls.filter(
@@ -217,26 +212,15 @@ export function ComposerChips({ controls, onSelect }: ComposerChipsProps) {
   return (
     <>
       <span aria-hidden="true" className="assistant-mode-chip__divider" />
-      {active.map((control) => {
-        const text = label(control)
-        return (
-          <button
-            aria-label={`退出 ${text}`}
-            className="assistant-mode-chip"
-            key={control.id}
-            onClick={() => onSelect(control.id, 'off')}
-            type="button"
-          >
-            <span aria-hidden="true" className="assistant-mode-chip__icon">
-              <span className="assistant-mode-chip__glyph">{glyph(control.id)}</span>
-              <span className="assistant-mode-chip__remove">
-                <CloseIcon />
-              </span>
-            </span>
-            <span className="assistant-mode-chip__label">{text}</span>
-          </button>
-        )
-      })}
+      {/* 模式标记只说明处在哪个模式，不是它的退出键：退出走灵动岛。 */}
+      {active.map((control) => (
+        <span className="assistant-mode-chip" key={control.id}>
+          <span aria-hidden="true" className="assistant-mode-chip__icon">
+            <span className="assistant-mode-chip__glyph">{glyph(control.id)}</span>
+          </span>
+          <span className="assistant-mode-chip__label">{control.label}</span>
+        </span>
+      ))}
       {configuration.map((selected) => (
         <button
           aria-label={`取消 ${selected.label}`}

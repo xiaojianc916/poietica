@@ -16,7 +16,7 @@ use crate::commands::{
     agent::dto::{
         AgentAnswerQuestionsRequest, AgentArchiveThreadRequest, AgentCapabilitiesRequest,
         AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentDismissQuestionsRequest,
-        AgentEarlierFramesRequest, AgentForkThreadRequest, AgentPinThreadRequest,
+        AgentEarlierFramesRequest, AgentForkThreadRequest, AgentGoal, AgentPinThreadRequest,
         AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult, AgentPromptSkill,
         AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod, AgentRenameThreadRequest,
         AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentThreadRequest,
@@ -168,6 +168,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentConfigPurpose>()
         .typ::<AgentConfigChoice>()
         .typ::<AgentConfigControl>()
+        .typ::<AgentGoal>()
         .typ::<AgentCapabilitiesRequest>()
         .typ::<AgentSelectConfigRequest>()
         .typ::<AgentSkill>()

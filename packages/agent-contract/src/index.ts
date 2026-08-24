@@ -15,6 +15,7 @@ export type {
   SessionConfigPurpose,
   SessionConfigReport,
 } from './config'
+export type { SessionGoal, SessionGoalStatus } from './goal'
 export type { KapEventPayload, KapSessionId, KapStopReason, KapToolCallId } from './kap'
 export type { SessionLink } from './link'
 export type {

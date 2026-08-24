@@ -184,12 +184,56 @@ fn toggle_control(
     }
 }
 
+/// 目标模式此刻的全部事实，由 kap 的 `/sessions/{id}/goal` 投影而来。
+///
+/// 它不进 `ConfigControl`：那张表说的是「可以选什么」，而这些是「正在发生
+/// 什么」。两者同寿但不同义，塞进 `detail` 会让展示字段承担领域状态。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GoalSnapshot {
+    pub objective: String,
+    pub completion_criterion: Option<String>,
+    /// active / paused / blocked / complete，按 agent 的原话。
+    pub status: String,
+    pub turns_used: u64,
+    pub tokens_used: u64,
+    /// agent 累计的运行时长；本机不另起第二个累加器。
+    pub wall_clock_ms: u64,
+}
+
+/// 没有目标在跑时返回 None —— 缺席即关闭，不造一个空目标。
+#[must_use]
+pub fn goal_snapshot(goal: &Value) -> Option<GoalSnapshot> {
+    let objective = goal
+        .get("objective")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())?;
+
+    let counter = |key: &str| goal.get(key).and_then(Value::as_u64).unwrap_or(0);
+
+    Some(GoalSnapshot {
+        objective: objective.to_owned(),
+        completion_criterion: goal
+            .get("completionCriterion")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        status: goal
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("active")
+            .to_owned(),
+        turns_used: counter("turnsUsed"),
+        tokens_used: counter("tokensUsed"),
+        wall_clock_ms: counter("wallClockMs"),
+    })
+}
+
 fn goal_control(goal: &Value) -> ConfigControl {
     let objective = goal
         .get("objective")
         .and_then(Value::as_str)
         .map(str::to_owned);
-    let mut control = toggle_control(
+    let control = toggle_control(
         "goal",
         "目标",
         "以当前草稿为目标持续推进",
@@ -197,7 +241,6 @@ fn goal_control(goal: &Value) -> ConfigControl {
         true,
         objective.is_some(),
     );
-    control.detail = objective;
     control
 }
 

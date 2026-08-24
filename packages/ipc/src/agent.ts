@@ -6,6 +6,8 @@ import type {
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
+  SessionGoal,
+  SessionGoalStatus,
   SessionUsagePort,
   ThreadPort,
 } from '@poietica/agent-contract'
@@ -13,6 +15,7 @@ import { throughIpc } from './error'
 import {
   type AgentConfigChoice,
   type AgentConfigControl,
+  type AgentGoal,
   type AgentLaunch,
   type AgentMcpServer,
   type AgentQuestionChoice,
@@ -138,6 +141,7 @@ type AgentSessionEnvelope =
       readonly kind: 'selectors'
       readonly sessionId: string
       readonly selectors: AgentConfigControl[]
+      readonly goal: AgentGoal | null
     }
   | { readonly kind: 'usage'; readonly sessionId: string; readonly usage: AgentSessionUsage }
 
@@ -324,6 +328,23 @@ function controlOf(native: AgentConfigControl): SessionConfigControl {
   }
 }
 
+/** 线上目标 -> 契约。到达时刻在这里打戳：它是本机事实，越靠边界越准。 */
+function goalOf(reported: AgentGoal | null): SessionGoal | null {
+  if (reported === null) {
+    return null
+  }
+
+  return {
+    objective: reported.objective,
+    completionCriterion: reported.completionCriterion,
+    status: reported.status as SessionGoalStatus,
+    turnsUsed: reported.turnsUsed,
+    tokensUsed: reported.tokensUsed,
+    wallClockMs: reported.wallClockMs,
+    receivedAt: Date.now(),
+  }
+}
+
 export function createAgentSessionConfigBridge({
   onListenFailure,
 }: AgentEventSourceOptions = {}): SessionConfigPort {
@@ -346,7 +367,11 @@ export function createAgentSessionConfigBridge({
       subscribeToSessionEvent(
         'selectors',
         (payload) => {
-          handler({ sessionId: payload.sessionId, controls: payload.selectors.map(controlOf) })
+          handler({
+            sessionId: payload.sessionId,
+            controls: payload.selectors.map(controlOf),
+            goal: goalOf(payload.goal),
+          })
         },
         onListenFailure,
       ),

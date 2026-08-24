@@ -1,0 +1,165 @@
+/*
+ * 灵动岛的量度。数字一律从 composer-metrics 那张表推，本文件不新挑像素。
+ */
+
+.goal-island {
+  position: absolute;
+  inset-block-start: calc(var(--cp-control) / 4);
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  max-inline-size: min(340px, calc(100% - var(--cp-inset) * 2));
+  overflow: hidden;
+  border-radius: var(--cp-radius);
+  background: var(--cp-ink);
+  color: var(--ui-background);
+  box-shadow: var(--cp-lift-menu);
+}
+
+.goal-island__pill {
+  display: flex;
+  align-items: center;
+  gap: var(--cp-pill-gap);
+  min-block-size: var(--cp-pill);
+  padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: var(--cp-font-caption);
+  cursor: pointer;
+}
+
+.goal-island__beacon {
+  flex: none;
+  inline-size: var(--cp-dot);
+  block-size: var(--cp-dot);
+  border-radius: 50%;
+  background: var(--ui-success);
+}
+
+.goal-island[data-status="paused"] .goal-island__beacon {
+  background: var(--cp-ink-subtle);
+}
+
+.goal-island[data-status="blocked"] .goal-island__beacon {
+  background: var(--ui-destructive);
+}
+
+.goal-island[data-status="complete"] .goal-island__beacon {
+  background: var(--cp-accent);
+}
+
+/* 推进中才呼吸：静止的状态不该有动效在喊话。 */
+.goal-island[data-status="active"] .goal-island__beacon {
+  animation: goal-island-breathe 2s ease-in-out infinite;
+}
+
+@keyframes goal-island-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.goal-island__objective {
+  overflow: hidden;
+  max-inline-size: var(--cp-pill-label-max);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.goal-island[data-expanded="true"] .goal-island__objective {
+  max-inline-size: none;
+}
+
+.goal-island__clock {
+  flex: none;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-island__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cp-pad-mid);
+  padding: var(--cp-pad-mid) var(--cp-pill-trail) var(--cp-pill-trail);
+}
+
+.goal-island__full {
+  margin: 0;
+  font-size: var(--cp-font-label);
+  line-height: var(--cp-line-ratio);
+}
+
+.goal-island__criterion {
+  margin: 0;
+  opacity: 0.65;
+  font-size: var(--cp-font-caption);
+}
+
+.goal-island__facts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--cp-pad-mid);
+  margin: 0;
+}
+
+.goal-island__facts dt {
+  opacity: 0.55;
+  font-size: var(--cp-font-micro);
+}
+
+.goal-island__facts dd {
+  margin: 0;
+  font-size: var(--cp-font-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-island__row {
+  display: flex;
+  gap: var(--cp-control-gap);
+}
+
+.goal-island__action {
+  flex: 1;
+  min-block-size: var(--cp-control-sm);
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  background: color-mix(in srgb, var(--ui-background) 14%, transparent);
+  color: inherit;
+  font-size: var(--cp-font-caption);
+  cursor: pointer;
+}
+
+.goal-island__action:hover {
+  background: color-mix(in srgb, var(--ui-background) 22%, transparent);
+}
+
+.goal-island__action--accent {
+  background: var(--cp-accent);
+  color: var(--cp-accent-foreground);
+}
+
+.goal-island__action--danger {
+  background: color-mix(in srgb, var(--ui-destructive) 82%, transparent);
+  color: var(--ui-background);
+}
+
+.goal-island__input {
+  inline-size: 100%;
+  padding: var(--cp-pad-mid);
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  background: color-mix(in srgb, var(--ui-background) 14%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  resize: none;
+}
+
+.goal-island__edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cp-pad-mid);
+}

@@ -1,5 +1,5 @@
 import type { SessionControlsStore } from '@poietica/agent'
-import type { SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
+import type { SessionConfigControl, SessionGoal, SessionUsage } from '@poietica/agent-contract'
 import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
 
 /*
@@ -72,6 +72,18 @@ export function useThreadUsage(threadId: string | null): SessionUsage | undefine
 
   const read = useCallback(
     () => (threadId === null ? undefined : store.usageOf(threadId)),
+    [store, threadId],
+  )
+
+  return useSyncExternalStore(store.subscribe, read, read)
+}
+
+/** 这条对话此刻的目标；没有目标在跑是 undefined。 */
+export function useThreadGoal(threadId: string | null): SessionGoal | undefined {
+  const store = useStore()
+
+  const read = useCallback(
+    () => (threadId === null ? undefined : store.goalOf(threadId)),
     [store, threadId],
   )
 
