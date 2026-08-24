@@ -2,8 +2,17 @@ import type { ToolCallTimelineItem } from '@poietica/agent'
 import { useId, useState } from 'react'
 
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
+import type { DiffFile } from '../semantics/file-diff'
 import type { ToolCallFacets } from '../semantics/tool-call-facets'
 import { Prose } from './prose'
+
+/**
+ * 抽屉里的那张纸。
+ *
+ * 一处改动没有两个面：那次调用就是这处改动，所以切换条的位置印路径，下面是带行号的统一
+ * diff —— opencode 的分享页、GitHub 与 VS Code 的行内 diff 都是这个排布。其余调用照旧
+ * 分送出去与交回来两面。
+ */
 
 const REQUEST = 'request'
 const RESPONSE = 'response'
@@ -21,7 +30,6 @@ function emptyNoteOf(kind: ToolCallTimelineItem['kind'], isRunning: boolean): st
   return kind === 'delegate' ? '子代理在自己那边干活，这里只记结果。' : '还在运行，暂时没有输出。'
 }
 
-/** 抽屉里唯一的滚动容器。它自己滚，wheel 先归它，所以戴 data-scrollable。 */
 function ToolPanel({
   labelledBy,
   panel,
@@ -44,12 +52,31 @@ function ToolPanel({
   )
 }
 
-/**
- * 一次调用的两个面。
- *
- * 只挂当前那一面：APG 的 Tabs Pattern 允许未选中的面板不进 DOM。换面时 key 变，
- * 滚动位置从头开始 —— 这两面本来就要从头读。
- */
+/** 一处改动：路径一行，下面是它的行。行的分类与行号归 semantics/file-diff。 */
+function FileDiff({ file }: { readonly file: DiffFile }) {
+  return (
+    <div className="timeline-tool__file">
+      <div className="timeline-tool__path" title={file.path}>
+        {file.dir === '' ? null : <span className="timeline-tool__path-dir">{file.dir}</span>}
+        <span className="timeline-tool__path-name">{file.name}</span>
+      </div>
+
+      <div className="timeline-tool__diff" data-scrollable="">
+        {file.rows.map((row) => (
+          <div className="timeline-tool__diff-row" data-kind={row.kind} key={row.at}>
+            <span className="timeline-tool__diff-line">{row.number ?? '⋯'}</span>
+            <code className="timeline-tool__diff-code">{row.text}</code>
+          </div>
+        ))}
+
+        {file.clamped ? (
+          <p className="timeline-tool__diff-note">…（改动过长，上面只是开头）</p>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 export function ToolCallPanels({
   facets,
   isRunning,
@@ -59,9 +86,23 @@ export function ToolCallPanels({
   readonly isRunning: boolean
   readonly kind: ToolCallTimelineItem['kind']
 }) {
-  const { request, response } = facets
+  const { diffs, request, response } = facets
   const baseId = useId()
   const [chosen, setChosen] = useState<string | null>(null)
+
+  /* 改动那一支不给页签：路径就是标题，diff 就是内容；交回来的那句话仍在它下面。 */
+  if (diffs.length > 0) {
+    return (
+      <div className="timeline-tool__body">
+        {diffs.map((file) => (
+          <FileDiff file={file} key={file.path} />
+        ))}
+
+        {response === null ? null : <ToolPanel text={response} />}
+      </div>
+    )
+  }
+
   const activeId =
     request === null ? RESPONSE : (chosen ?? (response === null ? REQUEST : RESPONSE))
   const responseText = response ?? emptyNoteOf(kind, isRunning)

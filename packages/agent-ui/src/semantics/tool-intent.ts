@@ -1,5 +1,7 @@
 import type { ToolCallTimelineItem } from '@poietica/agent'
 
+import { basename } from './file-diff'
+
 /**
  * 这次调用在做什么，一句话：卡片没展开的那一行，和审批带子上要签字的那一句。
  *
@@ -39,19 +41,6 @@ export function clampToLine(full: string): string | null {
   }
 
   return said.length > CLAMP ? `${said.slice(0, CLAMP)}…` : said
-}
-
-/**
- * 路径的最后一段。
- *
- * 两个分隔符都切：这个应用只出 Windows，而 agent 交回来的路径两种写法都有。
- * 末尾就是分隔符时切出空串，那时候原文比空白有用。
- */
-function basename(path: string): string {
-  const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-  const tail = cut === -1 ? path : path.slice(cut + 1)
-
-  return tail === '' ? path : tail
 }
 
 type ToolLineSource = Pick<ToolCallTimelineItem, 'kind' | 'locations' | 'subject' | 'title'>

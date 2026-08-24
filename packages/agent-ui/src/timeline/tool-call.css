@@ -228,3 +228,98 @@
 }
 
 /* 抽屉里只挂当前那一面，高度因此就是它自己的高度。 */
+
+/*
+ * 一处改动摊开的样子：路径一行，下面是带行号的统一 diff。
+ *
+ * 底还是 __body 那张纸，diff 只是画在它上面 —— 增删两行各自兑一层色，左沿一道记号。
+ */
+.timeline-tool__file {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* 切换条腾出来的那一格。目录退一档，文件名留住墨色 —— 编辑器的面包屑就是这么分的。 */
+.timeline-tool__path {
+  display: flex;
+  align-items: baseline;
+  padding: 0.375rem 0.75rem;
+  font-family: var(--cp-font-mono);
+  font-size: var(--cp-font-micro);
+  line-height: 1.6;
+}
+
+.timeline-tool__path-dir {
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--cp-timeline-quiet-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.timeline-tool__path-name {
+  flex: none;
+  color: var(--cp-ink);
+}
+
+/*
+ * 两列一张网格：行号，正文。行用 subgrid 挂进来，所以行号列在所有行上对齐，而底色仍归
+ * 每一行自己 —— 这是 CSS Grid Level 2 给的，不必挑一个 ch 宽度去凑。
+ *
+ * 正文列的下界是 max-content：长行因此撑得开、横向滚得动，短文件的底色也铺满整行。
+ */
+.timeline-tool__diff {
+  display: grid;
+  grid-template-columns: auto minmax(max-content, 1fr);
+  align-content: start;
+  max-block-size: var(--cp-timeline-output-max);
+  overflow: auto;
+  font-family: var(--cp-font-mono);
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-line-height-normal);
+  tab-size: 2;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cp-timeline-drawer-thumb) var(--cp-timeline-drawer-surface);
+}
+
+.timeline-tool__diff-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.timeline-tool__diff-row[data-kind="added"] {
+  background: var(--cp-timeline-diff-new);
+  box-shadow: inset 0.125rem 0 0 var(--cp-diff-added-text);
+}
+
+.timeline-tool__diff-row[data-kind="removed"] {
+  background: var(--cp-timeline-diff-old);
+  box-shadow: inset 0.125rem 0 0 var(--cp-diff-removed-text);
+}
+
+/* 断点：一根发丝线说明这里不连续。 */
+.timeline-tool__diff-row[data-kind="gap"] {
+  border-block: 1px solid var(--cp-hairline);
+}
+
+.timeline-tool__diff-line {
+  padding-inline: 0.75rem 0.5rem;
+  color: var(--cp-timeline-quiet-text);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  user-select: none;
+}
+
+.timeline-tool__diff-code {
+  padding-inline-end: 0.75rem;
+  white-space: pre;
+}
+
+.timeline-tool__diff-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.25rem 0.75rem;
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--cp-font-micro);
+}
