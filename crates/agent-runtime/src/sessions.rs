@@ -65,15 +65,29 @@ impl SessionBook {
         Ok(self.book()?.remove(session_id).is_some())
     }
 
+    /// Ends one turn on the agent's own terms, reporting whether one was open.
+    pub fn finish_turn(&self, session_id: &str, stop_reason: &str) -> Result<bool> {
+        match self.slot(session_id)? {
+            Some(slot) => close(&slot, Ending::Finished(stop_reason)),
+            None => Ok(false),
+        }
+    }
+
+    /// Ends one turn this machine has judged dead, reporting whether one was open.
+    pub fn fail_turn(&self, session_id: &str, message: &str) -> Result<bool> {
+        match self.slot(session_id)? {
+            Some(slot) => close(&slot, Ending::Failed(message)),
+            None => Ok(false),
+        }
+    }
+
     /// Ends every turn still owned by this connection.
     pub fn fail_active(&self, message: &str) -> Result<usize> {
         let slots = self.book()?.values().cloned().collect::<Vec<RunSlot>>();
         let mut failed = 0;
 
         for slot in slots {
-            if let Some(mut recorder) = slot.take()? {
-                recorder.record_pending_cancelled();
-                recorder.record_run_failed(message);
+            if close(&slot, Ending::Failed(message))? {
                 failed += 1;
             }
         }
@@ -107,6 +121,31 @@ impl SessionBook {
     fn book(&self) -> Result<MutexGuard<'_, HashMap<String, RunSlot>>> {
         self.slots.lock().map_err(|_poisoned| KapError::Poisoned)
     }
+}
+
+/// 一轮为什么结束。帧契约只有两种终帧，所以收场也只有两种。
+#[derive(Clone, Copy, Debug)]
+enum Ending<'a> {
+    /// agent 自己报的停止原因。
+    Finished(&'a str),
+    /// 本机判定的失败，带一句给人看的话。
+    Failed(&'a str),
+}
+
+/// 收摊：没答的作废，终帧殿后。槽已经被取走时是空操作，所以重复调用无害。
+fn close(slot: &RunSlot, ending: Ending<'_>) -> Result<bool> {
+    let Some(mut recorder) = slot.take()? else {
+        return Ok(false);
+    };
+
+    recorder.record_pending_cancelled();
+
+    match ending {
+        Ending::Finished(stop_reason) => recorder.record_run_finished(stop_reason),
+        Ending::Failed(message) => recorder.record_run_failed(message),
+    }
+
+    Ok(true)
 }
 
 #[cfg(test)]
@@ -165,5 +204,23 @@ mod tests {
                 .is_some_and(|event| matches!(&event.frame, RunFrame::RunFailed { .. }))
         }));
         assert!(!slot.is_listening());
+    }
+
+    /// 取消的截止期与 agent 自己的终帧会同时到，两者都走 close：先到的那一个
+    /// 收摊，后到的必须是空操作，否则一轮会记下两道终帧。
+    #[test]
+    fn a_turn_is_only_ended_once() {
+        let book = SessionBook::new();
+        let opened = book.open(NAME);
+        assert!(opened.is_ok());
+        let Some(slot) = opened.ok() else {
+            return;
+        };
+        let recorder = Recorder::new(NAME.to_owned(), slot.seq(), Box::new(|_event| {}));
+
+        assert!(slot.install(recorder).is_ok());
+        assert!(matches!(book.finish_turn(NAME, "cancelled"), Ok(true)));
+        assert!(matches!(book.finish_turn(NAME, "cancelled"), Ok(false)));
+        assert!(matches!(book.fail_turn(NAME, "too late"), Ok(false)));
     }
 }

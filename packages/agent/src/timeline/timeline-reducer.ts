@@ -293,7 +293,7 @@ export function requestRunCancellation(state: TimelineState): TimelineState {
   return freeze(draft)
 }
 
-/** Closes a cancellation after KAP accepts it or the local deadline expires. */
+/** Puts a run back to running when the cancel request itself could not be sent. */
 export function rejectRunCancellation(state: TimelineState): TimelineState {
   if (state.status !== 'cancelling') {
     return state

@@ -65,6 +65,13 @@ type WsStream =
 /// 而 SplitSink 不是 Clone，所以它在锁后面。
 type WsSink = Arc<tokio::sync::Mutex<SplitSink<WsStream, Message>>>;
 
+/// 取消被 kap 收下之后，等 turn.ended 的宽限期。
+///
+/// kap 的 :abort 是协作式的，不保证终帧一定回来（commands.rs 的
+/// AgentClient::cancel）。屏幕上那条经过由帧日志出，没有终帧就没有终态 ——
+/// 所以到期由本机把这一轮收摊，而不是让它永远停在"正在取消"。
+const CANCEL_GRACE: Duration = Duration::from_secs(10);
+
 // ── 实例注册表 ─────────────────────────────────────────────────────────────
 
 #[derive(serde::Deserialize)]
@@ -826,9 +833,29 @@ pub fn connect(
                         Some(Command::Cancel { session_id: sid, reply }) => {
                             let http2 = http.clone();
                             let base2 = base_url.clone();
+                            let book2 = book_clone.clone();
                             tokio::spawn(async move {
                                 let result = abort_session(&http2, &base2, &sid).await;
+                                let accepted = result.is_ok();
                                 let _ = reply.send(result);
+
+                                /* 请求本身没送出去时这一轮还在 agent 手上，
+                                轮终仍由 turn.ended 说话。 */
+                                if !accepted {
+                                    return;
+                                }
+
+                                tokio::time::sleep(CANCEL_GRACE).await;
+
+                                match book2.finish_turn(&sid, "cancelled") {
+                                    Ok(true) => log::warn!(
+                                        "kap took the abort of {sid} but never ended the turn; closed locally"
+                                    ),
+                                    Ok(false) => {}
+                                    Err(error) => {
+                                        log::error!("could not close an aborted turn: {error}");
+                                    }
+                                }
                             });
                         }
 
@@ -921,14 +948,14 @@ pub fn connect(
                                         )
                                         .await;
 
-                                        if let Err(error) = &result {
-                                            // 提问根本没上路：这一轮就此判死，
-                                            // 槽收掉，下一句还能来。
-                                            if let Ok(Some(slot)) = book2.slot(&sid2)
-                                                && let Ok(Some(mut recorder)) = slot.take()
-                                            {
-                                                recorder.record_run_failed(&error.to_string());
-                                            }
+                                        // 提问根本没上路：这一轮就此判死，槽收掉，下一句还能来。
+                                        if let Err(error) = &result
+                                            && let Err(closing) =
+                                                book2.fail_turn(&sid2, &error.to_string())
+                                        {
+                                            log::error!(
+                                                "could not close a turn whose prompt never left: {closing}"
+                                            );
                                         }
 
                                         let _ = reply.send(result);
@@ -1105,13 +1132,12 @@ fn handle_ws_message(
             owner.reset();
         }
 
-        if let Ok(Some(slot)) = book.slot(cut)
-            && let Ok(Some(mut recorder)) = slot.take()
-        {
-            recorder.record_pending_cancelled();
-            recorder.record_run_failed(&format!("the event stream was cut: {reason}"));
-        } else {
-            log::warn!("kap asked for a resync of a session we never opened: {envelope}");
+        match book.fail_turn(cut, &format!("the event stream was cut: {reason}")) {
+            Ok(true) => {}
+            Ok(false) => {
+                log::warn!("kap asked for a resync of a session with no turn in flight: {envelope}");
+            }
+            Err(error) => log::error!("could not close a turn whose stream was cut: {error}"),
         }
 
         return;
@@ -1175,20 +1201,19 @@ fn handle_ws_message(
                     owner.reset();
                 }
 
-                if let Ok(Some(slot)) = book.slot(session_id)
-                    && let Ok(Some(mut recorder)) = slot.take()
-                {
-                    recorder.record_pending_cancelled();
-
-                    match reason {
-                        "completed" | "cancelled" | "failed" | "blocked" => {
-                            /* 这是状态终帧；用户可见错误来自前一帧 turn.ended.error。 */
-                            recorder.record_run_finished(reason);
-                        }
-                        unknown => recorder.record_run_failed(&format!(
-                            "KAP turn.ended carried an unknown reason: {unknown}"
-                        )),
+                let ended = match reason {
+                    /* 这是状态终帧；用户可见错误来自前一帧 turn.ended.error。 */
+                    "completed" | "cancelled" | "failed" | "blocked" => {
+                        book.finish_turn(session_id, reason)
                     }
+                    unknown => book.fail_turn(
+                        session_id,
+                        &format!("KAP turn.ended carried an unknown reason: {unknown}"),
+                    ),
+                };
+
+                if let Err(error) = ended {
+                    log::error!("could not close the turn kap just ended: {error}");
                 }
             }
         }
