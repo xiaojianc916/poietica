@@ -28,7 +28,7 @@ export const WORKSPACE_LAYOUT = {
     defaultWidth: 420,
   },
 
-  /* 侧栏能停靠的最小视口宽度，与 CSS 媒体查询同一个坐标系。 */
+  /* 侧栏能停靠的最小视口内宽，逻辑像素。判据在 shell/sidebar-docking.ts。 */
   breakpoints: {
     dockable: 900,
   },

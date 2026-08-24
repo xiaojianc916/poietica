@@ -1,5 +1,5 @@
 import { type MotionStyle, motion, useReducedMotion } from 'motion/react'
-import type { ReactNode, Ref } from 'react'
+import type { ReactNode } from 'react'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 import type { SplitterActivity, SplitterRegion } from './workspace-layout-store'
 
@@ -25,7 +25,6 @@ const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
 }
 
 export interface WorkspaceFrameProps {
-  readonly rootRef?: Ref<HTMLDivElement>
   readonly chrome: ReactNode
   readonly sidebar: ReactNode
   readonly main: ReactNode
@@ -46,7 +45,6 @@ export interface WorkspaceFrameProps {
  * 所有者持有，不归任何一侧的区域。
  */
 export function WorkspaceFrame({
-  rootRef,
   chrome,
   sidebar,
   main,
@@ -86,7 +84,6 @@ export function WorkspaceFrame({
       data-splitter-region={splitterRegion}
       data-ui-rows=""
       initial={false}
-      ref={rootRef}
       style={WORKSPACE_LAYOUT_STYLE}
       transition={transition}
     >

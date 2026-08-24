@@ -5,71 +5,74 @@ import { useWorkspaceLayoutState } from './workspace-layout-store'
 
 /** 视口读数只从这里进来，于是下面那条规则可以脱离 DOM 单测。 */
 export interface ViewportProbe {
-  /** 窗口容得下一列停靠的侧边栏。 */
-  readonly hasRoom: () => boolean
-  /** 窗口没在呈现（最小化、整幅遮挡）：此刻的几何读数不作数。 */
-  readonly isHidden: () => boolean
-  /** 几何或呈现状态可能变了就叫一声，不判断变没变。 */
-  readonly watch: (notify: () => void) => () => void
+  /** 当前视口内宽，逻辑像素。 */
+  readonly measure: () => number
+  /** 宽度变了报一次。回调必须在帧内、布局之后绘制之前送达。 */
+  readonly observe: (report: (width: number) => void) => () => void
 }
 
-/**
- * 停靠判据：每次通知都当场重算，不缓存派生事实。
+/*
+ * 判据只有这一条：容得下一列侧边栏就停靠。
  *
- * 唯一需要记住的是最小化期间维持上一次可信答案 —— 还原时那次通知会重新问，
- * 所以跨越断点不会被丢掉。丢一次就是永久丢一次：媒体查询在同一个方向上不会
- * 再响第二次。
+ * 宽 0 是「没有布局视口」（窗口最小化时客户区 0×0），此刻问题不成立，维持上一次
+ * 的答案：改了它，还原窗口时就要再改回来，而那一次改回来会被列宽补间演成一次
+ * 可见的收起再展开。
  */
+function decide(width: number, previous: boolean): boolean {
+  return width === 0 ? previous : width >= WORKSPACE_LAYOUT.breakpoints.dockable
+}
+
 export function createDockingStore(probe: ViewportProbe) {
-  let docked = probe.isHidden() ? true : probe.hasRoom()
+  let docked = decide(probe.measure(), true)
 
   return createExternalStore<boolean>({
     read: () => docked,
 
     activate: (notify) =>
-      probe.watch(() => {
-        if (probe.isHidden() || probe.hasRoom() === docked) {
+      probe.observe((width) => {
+        const next = decide(width, docked)
+
+        if (next === docked) {
           return
         }
 
-        docked = probe.hasRoom()
+        docked = next
         notify()
       }),
   })
 }
 
-/* 断点与 CSS 同一个坐标系：宽度由视口自己回答，不向宿主要第二份副本。 */
-function browserProbe(): ViewportProbe {
-  const query = window.matchMedia(`(min-width: ${WORKSPACE_LAYOUT.breakpoints.dockable}px)`)
+/*
+ * 视口内宽只有一个产地：documentElement.clientWidth（CSSOM View 对视口宽度的
+ * 定义）。用 ResizeObserver 而不是 resize / matchMedia change：观测在 update the
+ * rendering 里、布局之后绘制之前送达，读到的宽度因此属于将要绘制的那一帧；后两者
+ * 是普通任务，与布局无关，残留读数会被提交进一帧真实几何的画面。
+ */
+function viewportProbe(): ViewportProbe {
+  const root = document.documentElement
 
   return {
-    hasRoom: () => query.matches,
-    isHidden: () => document.hidden,
+    measure: () => root.clientWidth,
 
-    /*
-     * change 只在跨越那一刻响一次，而呈现状态与几何可以在页面收不到 change 时
-     * 变化，所以 resize 与 visibilitychange 一并订上。多问几次的代价是一次布尔
-     * 比较；少问一次的代价是自动收起时好时坏。
-     */
-    watch: (notify) => {
-      query.addEventListener('change', notify)
-      window.addEventListener('resize', notify)
-      document.addEventListener('visibilitychange', notify)
+    observe: (report) => {
+      const observer = new ResizeObserver(() => {
+        report(root.clientWidth)
+      })
+
+      observer.observe(root)
 
       return () => {
-        query.removeEventListener('change', notify)
-        window.removeEventListener('resize', notify)
-        document.removeEventListener('visibilitychange', notify)
+        observer.disconnect()
       }
     },
   }
 }
 
-/* 一个进程一份，首次用到时才建：导入本模块不碰 window。 */
+/* 一个进程一份，首次用到时才建：导入本模块不碰 document。 */
 let store: ReturnType<typeof createDockingStore> | undefined
 
 function dockingStore() {
-  store ??= createDockingStore(browserProbe())
+  store ??= createDockingStore(viewportProbe())
 
   return store
 }

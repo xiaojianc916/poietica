@@ -1,75 +1,54 @@
 import { describe, expect, it } from 'vitest'
 import { createDockingStore, type ViewportProbe } from './sidebar-docking'
 
-function fakeHost(initial: { room: boolean; hidden?: boolean }) {
-  let room = initial.room
-  let hidden = initial.hidden ?? false
-  const listeners = new Set<() => void>()
+function fakeViewport(initial: number) {
+  let width = initial
+  const reports = new Set<(width: number) => void>()
 
   const probe: ViewportProbe = {
-    hasRoom: () => room,
-    isHidden: () => hidden,
-    watch: (notify) => {
-      listeners.add(notify)
+    measure: () => width,
+    observe: (report) => {
+      reports.add(report)
 
       return () => {
-        listeners.delete(notify)
+        reports.delete(report)
       }
     },
   }
 
-  /* 宿主先改几何或呈现状态，再广播一次 —— 与真实探针的顺序一致。 */
-  const emit = (next: { room?: boolean; hidden?: boolean }): void => {
-    room = next.room ?? room
-    hidden = next.hidden ?? hidden
+  /* 先改几何再报数 —— 与 ResizeObserver 的顺序一致。 */
+  const resize = (next: number): void => {
+    width = next
 
-    for (const notify of listeners) {
-      notify()
+    for (const report of reports) {
+      report(next)
     }
   }
 
-  return { emit, probe }
+  return { probe, resize }
 }
 
 describe('createDockingStore', () => {
-  it('窄到放不下就当场收起，宽回来当场还原', () => {
-    const host = fakeHost({ room: true })
+  it('窄到放不下就收起，宽回来还原', () => {
+    const host = fakeViewport(1400)
     const store = createDockingStore(host.probe)
 
     store.subscribe(() => {})
 
     expect(store.read()).toBe(true)
 
-    host.emit({ room: false })
+    host.resize(880)
 
     expect(store.read()).toBe(false)
 
-    host.emit({ room: true })
+    host.resize(1400)
 
     expect(store.read()).toBe(true)
   })
 
-  /*
-   * 关键回归：最小化期间的读数不作数，但那次跨越不能被丢掉 —— 还原时的通知
-   * 必须把答案纠正过来。丢一次就是永久丢一次，自动收起因此时好时坏。
-   */
-  it('最小化期间不改答案，还原后补上那次跨越', () => {
-    const host = fakeHost({ room: true })
-    const store = createDockingStore(host.probe)
-
-    store.subscribe(() => {})
-
-    host.emit({ hidden: true, room: false })
-
-    expect(store.read()).toBe(true)
-
-    host.emit({ hidden: false })
-
-    expect(store.read()).toBe(false)
-  })
-
-  it('答案没变就不通知：useSyncExternalStore 靠这条免于重渲', () => {
-    const host = fakeHost({ room: true })
+  /* 关键回归：最小化的 0 宽不算一次跨越，还原时因此没有状态变化可以补间。 */
+  it('视口宽 0 不改答案', () => {
+    const host = fakeViewport(1400)
     const store = createDockingStore(host.probe)
     let notified = 0
 
@@ -77,11 +56,31 @@ describe('createDockingStore', () => {
       notified += 1
     })
 
-    host.emit({ room: true })
+    host.resize(0)
+
+    expect(store.read()).toBe(true)
+    expect(notified).toBe(0)
+
+    host.resize(1400)
+
+    expect(store.read()).toBe(true)
+    expect(notified).toBe(0)
+  })
+
+  it('答案没变就不通知：useSyncExternalStore 靠这条免于重渲', () => {
+    const host = fakeViewport(1400)
+    const store = createDockingStore(host.probe)
+    let notified = 0
+
+    store.subscribe(() => {
+      notified += 1
+    })
+
+    host.resize(1200)
 
     expect(notified).toBe(0)
 
-    host.emit({ room: false })
+    host.resize(880)
 
     expect(notified).toBe(1)
   })
