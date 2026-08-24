@@ -157,12 +157,18 @@ export function AgentActivityFeed({
     useScrollendEvent: true,
   })
 
-  /* 位置的写入权在虚拟器，所以意图那一层只透过这三件事说话。 */
+  /*
+   * 位置的写入权在虚拟器，所以意图那一层只透过这三件事说话。
+   *
+   * 一律瞬时。平滑期间虚拟器只测目标附近的行，末端跟随与估高补偿都停摆，而且目标一
+   * 漂移它就接着写位置，把人中途接手的手势压回去（virtual-core 的 reconcileScroll
+   * 与 shouldMeasureDuringScroll）。
+   */
   const commands = useMemo<ScrollCommands>(
     () => ({
       isAtEnd: () => virtualizer.isAtEnd(),
-      toEnd: () => virtualizer.scrollToEnd({ behavior: 'smooth' }),
-      toRow: (row) => virtualizer.scrollToIndex(row, { align: 'start', behavior: 'smooth' }),
+      toEnd: () => virtualizer.scrollToEnd(),
+      toRow: (row) => virtualizer.scrollToIndex(row, { align: 'start' }),
     }),
     [virtualizer],
   )

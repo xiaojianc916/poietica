@@ -289,7 +289,7 @@ describe('presentation projection', () => {
     const feed = selectPresentation(state, AUTO)
 
     expect(idsOf(feed)).toEqual(['s1', 'a1', 'a2'])
-    expect(feed.replyAt(feed.indexOf('a2'))?.text).toBe('前半\n\n后半')
+    expect(feed.replyAt(feed.count - 1)?.text).toBe('前半\n\n后半')
   })
 
   it('copies exactly what the seal left on screen', () => {
@@ -309,14 +309,14 @@ describe('presentation projection', () => {
       AUTO,
     )
 
-    expect(feed.replyAt(feed.indexOf('a2'))?.text).toBe('最终文本')
+    expect(feed.replyAt(feed.count - 1)?.text).toBe('最终文本')
   })
 
   it('anchors the reply action on the last row of a settled turn', () => {
     const feed = selectPresentation(settled, AUTO)
 
     expect(feed.replyAt(0)).toBeUndefined()
-    expect(feed.replyAt(feed.indexOf('a1'))?.text).toBe('答')
+    expect(feed.replyAt(1)?.text).toBe('答')
   })
 
   it('carries an unanswered question into the next rail entry', () => {
@@ -336,12 +336,10 @@ describe('presentation projection', () => {
     expect(feed.turns[0]?.rowIndex).toBe(0)
   })
 
-  it('addresses rows by index both ways', () => {
+  it('reports the row count and the tail of the conversation', () => {
     const feed = selectPresentation(settled, AUTO)
 
     expect(feed.count).toBe(2)
-    expect(feed.indexOf('a1')).toBe(1)
-    expect(feed.indexOf('p1')).toBe(-1)
     expect(feed.latestOwnMessage).toBe('s1')
     expect(feed.lastTurn).toBe(1)
   })
@@ -377,10 +375,10 @@ describe('presentation projection', () => {
 
     expect(idsOf(shut)).toEqual(['s1', 's2', 'a1'])
     expect(idsOf(open)).toEqual(['s1', 'p1', 's2', 'p2', 'a1'])
-    expect(shut.sealAt(shut.indexOf('s1'))?.turn).toBe(1)
-    expect(open.sealAt(open.indexOf('s1'))?.turn).toBe(1)
-    expect(shut.sealAt(shut.indexOf('s2'))).toBeUndefined()
-    expect(open.sealAt(open.indexOf('p1'))).toBeUndefined()
+    expect(shut.sealAt(0)?.turn).toBe(1)
+    expect(open.sealAt(0)?.turn).toBe(1)
+    expect(shut.sealAt(1)).toBeUndefined()
+    expect(open.sealAt(1)).toBeUndefined()
   })
 
   it('reads one turn out of the sample conversation', () => {

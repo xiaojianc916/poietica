@@ -34,8 +34,8 @@ export interface ScrollAuthority {
 /**
  * 会话流的滚动意图。
  *
- * 只回答两件事：末端是不是还有没看见的内容，人此刻要求看哪一行。一次跳转在半路被
- * 人的手势接手，请求当场作废；位置本身从头到尾归虚拟器写。
+ * 只回答两件事：末端是不是还有没看见的内容，人此刻要求看哪一行。跳转是瞬时的，所以
+ * 手势接手时只需要撤掉这个标记；位置本身从头到尾归虚拟器写。
  */
 export function useScrollAuthority(commands: ScrollCommands): ScrollAuthority {
   const [atLatest, setAtLatest] = useState(true)

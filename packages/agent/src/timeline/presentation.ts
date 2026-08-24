@@ -66,7 +66,6 @@ export interface Presentation {
   /** 画在这一行之前的封条：一轮的封条挂在它第一行可见内容的前面。 */
   readonly sealAt: (index: number) => TurnSealPlan | undefined
   readonly replyAt: (index: number) => ReplyActionPlan | undefined
-  readonly indexOf: (id: string) => number
 }
 
 /** 旁白不参与回复分段；有最终正文时仍随之前的过程一起折叠。 */
@@ -78,7 +77,6 @@ const PREVIEW = 300
 /** 同类相邻才并组。类别表就是 ToolKind，这里不抄第二份。 */
 const LEAST = 2
 
-const NO_ROWS: readonly FeedRow[] = []
 const NO_TURNS: readonly ConversationTurn[] = []
 const NO_GROUPS: ReadonlyMap<string, ToolGroupPlan> = new Map()
 const NO_SEALS: ReadonlyMap<number, TurnSealPlan> = new Map()
@@ -712,30 +710,6 @@ export function selectPresentation(
     return segment === undefined || start === undefined ? undefined : { at: index - start, segment }
   }
 
-  let places: Map<string, number> | undefined
-
-  /* 行号表按需建一次：只有跳转与前插锚定问它，流式追加从不问。 */
-  const placeOf = (id: string): number => {
-    if (places === undefined) {
-      places = new Map<string, number>()
-
-      for (let s = 0; s < segments.length; s += 1) {
-        const rows = segments[s]?.rows ?? NO_ROWS
-        const start = offsets[s] ?? 0
-
-        for (let i = 0; i < rows.length; i += 1) {
-          const rowId = rows[i]?.item.id
-
-          if (rowId !== undefined) {
-            places.set(rowId, start + i)
-          }
-        }
-      }
-    }
-
-    return places.get(id) ?? -1
-  }
-
   let latestOwnMessage: string | null = null
   let lastTurn: number | undefined
 
@@ -764,7 +738,6 @@ export function selectPresentation(
         ? undefined
         : found.segment.groups.get(found.segment.rows[found.at]?.item.id ?? '')
     },
-    indexOf: placeOf,
     lastTurn,
     latestOwnMessage,
     replyAt: (index) => {

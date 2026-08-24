@@ -66,8 +66,7 @@ function Rail({ activeRow, hasEarlier, onSelect, turns }: ConversationMinimapPro
    *
    * 一套协议,三个参与者:每一路都收下节点、都交回一个清理函数,合并之后仍然只是
    * 一个清理函数 —— React 19 在卸载时调用它,而返回了清理函数的 ref 回调不会再被
-   * 以 null 调用一次。此前 flip 是唯一的例外:它不返回清理,靠的正是那次 null 调用
-   * 撒手,而合并把那次调用吃掉了。
+   * 以 null 调用一次。
    *
    * 依赖都是引用稳定的(useCallback 空依赖),所以这个回调不会每帧换身份,节点也就
    * 不会每帧被反复解绑重绑。

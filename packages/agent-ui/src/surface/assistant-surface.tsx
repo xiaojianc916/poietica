@@ -115,9 +115,6 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 它在发生的地方写一次：threads-store 打开这条对话失败时，同一个 catch 里
    * 既记下控件那一格，也把经过交给转录（#transcripts?.failed）—— 于是它和帧流
    * 里的失败长同一个样子，都是那条横线。
-   *
-   * 这里此前还有一个 effect 把 controlsFailure 抄进转录，那是同一件事的第二次
-   * 写入：一个可撤销的状态被写成了不可撤销的记录，重试成功之后那条线还在。
    */
   /* 输入框盖在转录上，所以转录要知道它有多高。理由见 dock-clearance。 */
   const dockRef = useDockClearance()
@@ -126,10 +123,7 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 待答的那道题。
    *
    * 「还在等的那一道必在本轮末尾」这条不变式的实现只有一处：选择器里的
-   * pendingPermission。此前这里手抄了一份逐字相同的倒扫，依赖 rows ——
-   * 而 rows 每帧都是新的，于是每个 token 都把本轮走一遍去找一个不动的东西。
-   *
-   * 现在它是一条订阅，交回的是转录里那个条目本身：在被答复之前恒是同一个
+   * pendingPermission。这一层订阅它交回的那个条目本身：在被答复之前恒是同一个
    * 引用，所以流式追加动不了这一层。提问不在这条通道上：它有自己的条目类型。
    */
   const blocked = useAssistantPending(assistant.key)

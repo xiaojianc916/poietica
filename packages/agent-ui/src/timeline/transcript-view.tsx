@@ -25,8 +25,8 @@ export interface TranscriptViewProps {
   readonly isRestoring: boolean
   readonly renderRow: (row: FeedRow) => ReactNode
   /**
-   * 分叉这条对话（整条带走）。ACP 的 session/fork 没有分叉点，所以它只交给
-   * 最后一轮 —— 从最后一轮分叉恰好就是整条。缺席 = 平台没有这个动作。
+   * 分叉这条对话（整条带走）。没有分叉点可选，所以它只交给最后一轮 —— 从最后一轮
+   * 分叉恰好就是整条。缺席 = 平台没有这个动作。
    */
   readonly onFork?: (() => void) | undefined
 }
