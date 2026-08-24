@@ -118,18 +118,21 @@
 }
 
 /*
- * 谁盖住谁，在这里定一次。
+ * 收起 = 内容被自己那一列裁掉，不是靠邻居盖住。
  *
- * 侧栏是底面，主区是不透明的快门：收起不是把侧栏裁掉、也不是把它推出窗外，
- * 而是主区左缘盖过去。被遮挡的内容仍然整幅参与绘制，露出时不需要当帧补画,
- * 这正是裁剪揭示与平移揭示做不到的事，那两种写法都会让新露出的带子先空白。
+ * 定宽底面挂在列外、靠不透明主区遮住，只在「主区宽 ≥ 被收起的列宽」时成立；
+ * 窗口一窄这个算式就不成立，露出的那条带子正好落到另一侧的区域上。裁剪只改
+ * 绘制不改布局，子树因此不重排、不卸载。
  *
- * 所以主区在上、侧栏在下。这两件事此前分散在两个 className 的 z-10 与 z-20
- * 里，谁在上是两处数字的比较结果；现在是这一处的两行。
- *
- * 侧栏这一层只给 position，不给 z-index：分隔条要靠自己的 z-index 越过主区去
- * 接指针，父级一旦成为层叠上下文，就把它关在里面了。
+ * 两侧区域都只给 position，不给 z-index：分隔条要靠自己的 z-index 越过主区去
+ * 接指针，父级一旦成为层叠上下文就把它关在里面了。
  */
+.workspace-shell__region-clip {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+}
+
 .workspace-shell__sidebar {
   position: relative;
   grid-area: sidebar;
@@ -137,7 +140,6 @@
 
 .workspace-shell__main {
   position: relative;
-  z-index: 1;
   grid-area: main;
 }
 
@@ -149,10 +151,7 @@
   pointer-events: none;
 }
 
-/*
- * 浏览器列与侧栏同一套揭示法：底面定宽、贴列的 inline-end 一侧，收起时
- * 由不透明的主区盖过来。被遮挡的内容仍整幅参与绘制，展开不需要当帧补画。
- */
+/* 浏览器列与侧栏同一套：定宽底面贴列的 inline-end 一侧，由自己那一列裁剪。 */
 .workspace-shell__browser {
   position: relative;
   grid-area: browser;

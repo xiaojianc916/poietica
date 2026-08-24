@@ -13,7 +13,7 @@ export interface BrowserRegionProps {
 
 /**
  * 浏览器区域。与 SidebarRegion 镜像：定宽底面贴列的 inline-end 一侧，收起时列宽
- * 归零、主区盖过来，子树不卸载 —— 原生子 webview 因此不必随开合销毁重建。
+ * 归零、内容被自己那一列裁掉，子树不卸载 —— 原生子 webview 不随开合销毁重建。
  */
 export function BrowserRegion({
   isDocked,
@@ -24,8 +24,10 @@ export function BrowserRegion({
 }: BrowserRegionProps) {
   return (
     <div className="workspace-shell__browser min-h-0 min-w-0 bg-background" inert={!isDocked}>
-      <div className="workspace-shell__browser-content min-h-0 overflow-hidden" style={{ width }}>
-        {children}
+      <div className="workspace-shell__region-clip">
+        <div className="workspace-shell__browser-content min-h-0 overflow-hidden" style={{ width }}>
+          {children}
+        </div>
       </div>
 
       {isDocked ? (
