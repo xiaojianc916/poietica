@@ -23,7 +23,7 @@ export interface DiffRow {
   readonly kind: DiffRowKind
   /** 行号槽里印的数：删掉的行报旧文件的号，其余报新文件的；断点没有号。 */
   readonly number: number | null
-  /** 原样的 diff 行，前缀留在里面 —— 复制出去仍是一份统一 diff。 */
+  /** 这一行的内容，不带 +/- 前缀：增删归色带与左沿记号说，字符列因此和编辑器里对齐。 */
   readonly text: string
 }
 
@@ -33,8 +33,6 @@ export interface DiffFile {
   readonly dir: string
   readonly name: string
   readonly rows: readonly DiffRow[]
-  /** 行数到顶截断过。 */
-  readonly clamped: boolean
   readonly stat: DiffStat
 }
 
@@ -89,14 +87,14 @@ function fileOf(part: Extract<ToolContentPart, { type: 'diff' }>): DiffFile {
   const rows: DiffRow[] = []
   let added = 0
   let removed = 0
-  let clamped = false
+  const clamped = false
 
   for (const hunk of patch.hunks) {
     let oldLine = hunk.oldStart
     let newLine = hunk.newStart
 
     /* 这一段前面有没显示的行：屏幕上要有个断点，否则两段读成连着的。 */
-    if (rows.length < ROWS && (rows.length > 0 || hunk.newStart > 1)) {
+    if (rows.length > 0 || hunk.newStart > 1) {
       rows.push({ at: rows.length, kind: 'gap', number: null, text: '' })
     }
 
@@ -115,13 +113,9 @@ function fileOf(part: Extract<ToolContentPart, { type: 'diff' }>): DiffFile {
         removed += 1
       }
 
-      if (rows.length < ROWS) {
-        const number = kind === 'removed' ? oldLine : newLine
+      const number = kind === 'removed' ? oldLine : newLine
 
-        rows.push({ at: rows.length, kind, number, text: line })
-      } else {
-        clamped = true
-      }
+      rows.push({ at: rows.length, kind, number, text: line.slice(1) })
 
       if (kind !== 'added') {
         oldLine += 1
@@ -138,7 +132,6 @@ function fileOf(part: Extract<ToolContentPart, { type: 'diff' }>): DiffFile {
     dir: cut < 0 ? '' : path.slice(0, cut + 1),
     name: basename(path),
     rows,
-    clamped,
     stat: { added, removed },
   }
 }

@@ -1,8 +1,8 @@
 import type { ToolCallTimelineItem } from '@poietica/agent'
-import { useId, useState } from 'react'
+import { type CSSProperties, useId, useState } from 'react'
 
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
-import type { DiffFile } from '../semantics/file-diff'
+import type { DiffFile, DiffRow, DiffRowKind } from '../semantics/file-diff'
 import type { ToolCallFacets } from '../semantics/tool-call-facets'
 import { Prose } from './prose'
 
@@ -52,8 +52,49 @@ function ToolPanel({
   )
 }
 
+const TINT: Readonly<Record<DiffRowKind, string>> = {
+  added: 'var(--cp-timeline-diff-new)',
+  context: 'transparent',
+  gap: 'transparent',
+  removed: 'var(--cp-timeline-diff-old)',
+}
+
+/*
+ * 增删的底色折成一条竖直渐变，交给滚动容器去铺 —— 理由在 tool-call.css 的 __diff 一节。
+ * 一行 diff 恰好一个行盒，所以第 n 行的上沿就是 n lh，不必量像素。
+ */
+function fieldOf(rows: readonly DiffRow[]): string {
+  const stops: string[] = []
+  let kind: DiffRowKind | null = null
+  let from = 0
+
+  for (const row of rows) {
+    if (row.kind === kind) {
+      continue
+    }
+
+    if (kind !== null) {
+      stops.push(`${TINT[kind]} ${from}lh ${row.at}lh`)
+    }
+
+    kind = row.kind
+    from = row.at
+  }
+
+  if (kind !== null) {
+    stops.push(`${TINT[kind]} ${from}lh ${rows.length}lh`)
+  }
+
+  return `linear-gradient(${stops.join(',')})`
+}
+
 /** 一处改动：路径一行，下面是它的行。行的分类与行号归 semantics/file-diff。 */
 function FileDiff({ file }: { readonly file: DiffFile }) {
+  const field = {
+    '--cp-timeline-diff-field': fieldOf(file.rows),
+    '--cp-timeline-diff-rows': String(file.rows.length),
+  } as CSSProperties
+
   return (
     <div className="timeline-tool__file">
       <div className="timeline-tool__path" title={file.path}>
@@ -61,17 +102,13 @@ function FileDiff({ file }: { readonly file: DiffFile }) {
         <span className="timeline-tool__path-name">{file.name}</span>
       </div>
 
-      <div className="timeline-tool__diff" data-scrollable="">
+      <div className="timeline-tool__diff" data-scrollable="" style={field}>
         {file.rows.map((row) => (
           <div className="timeline-tool__diff-row" data-kind={row.kind} key={row.at}>
             <span className="timeline-tool__diff-line">{row.number ?? '⋯'}</span>
             <code className="timeline-tool__diff-code">{row.text}</code>
           </div>
         ))}
-
-        {file.clamped ? (
-          <p className="timeline-tool__diff-note">…（改动过长，上面只是开头）</p>
-        ) : null}
       </div>
     </div>
   )
@@ -90,15 +127,13 @@ export function ToolCallPanels({
   const baseId = useId()
   const [chosen, setChosen] = useState<string | null>(null)
 
-  /* 改动那一支不给页签：路径就是标题，diff 就是内容；交回来的那句话仍在它下面。 */
+  /* 改动那一支不给页签：路径就是标题，diff 就是内容 —— 再印一句「写了多少字节」是同一件事说两遍。 */
   if (diffs.length > 0) {
     return (
       <div className="timeline-tool__body">
         {diffs.map((file) => (
           <FileDiff file={file} key={file.path} />
         ))}
-
-        {response === null ? null : <ToolPanel text={response} />}
       </div>
     )
   }

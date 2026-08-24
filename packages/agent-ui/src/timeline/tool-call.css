@@ -65,9 +65,8 @@
  *
  * 滚动条取 thin：这个面板两个轴都可滚，两根 auto 各占一条约 17px 的车道。
  *
- * 轨道显式给成抽屉的纸色。scrollbar-color 是两个值 —— 只写滑块时，轨道由平台自己
- * 画，而它并不知道下面铺了什么，于是在一张浅灰的纸上画出两条白带。滑块是半透明墨，
- * 压在纸上跟着纸走。
+ * 轨道给 transparent，不写死一个纸色：写死的那个只在一种底上成立，透明则让容器自己的
+ * 背景透上来 —— 背景默认剪到边框盒，滚动条那条车道也在里面。滑块是半透明墨。
  *
  * 用标准属性而不是 ::-webkit-scrollbar：两者互斥，标准的那条才被推荐。
  */
@@ -76,7 +75,7 @@
   padding: 0.625rem 0.75rem;
   overflow: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--cp-timeline-drawer-thumb) var(--cp-timeline-drawer-surface);
+  scrollbar-color: var(--cp-timeline-drawer-thumb) transparent;
 }
 
 /*
@@ -263,10 +262,15 @@
 }
 
 /*
- * 两列一张网格：行号，正文。行用 subgrid 挂进来，所以行号列在所有行上对齐，而底色仍归
- * 每一行自己 —— 这是 CSS Grid Level 2 给的，不必挑一个 ch 宽度去凑。
+ * 两列一张网格：行号，正文。行用 subgrid 挂进来，所以行号列在所有行上对齐 —— 这是
+ * CSS Grid Level 2 给的，不必挑一个 ch 宽度去凑。
  *
- * 正文列的下界是 max-content：长行因此撑得开、横向滚得动，短文件的底色也铺满整行。
+ * 正文列的下界是 max-content：长行因此撑得开、横向滚得动。
+ *
+ * 增删的底色是这一层的一张背景图，不是每一行自己的 background：网格项只画到内容盒，
+ * 而滚动条的车道在内容盒之外 —— 底色画在行上，车道就永远是另一种颜色。背景默认剪到
+ * 边框盒，车道在里面；attachment: local 再把它钉在内容上，色带于是跟着内容一起滚，
+ * 滚到哪一行，车道就是哪一行的颜色。刻度用 lh：一行 diff 恰好一个行盒。
  */
 .timeline-tool__diff {
   display: grid;
@@ -278,8 +282,12 @@
   font-size: var(--ui-prose-size-aux);
   line-height: var(--ui-line-height-normal);
   tab-size: 2;
+  background-image: var(--cp-timeline-diff-field);
+  background-attachment: local;
+  background-repeat: repeat no-repeat;
+  background-size: 100% calc(var(--cp-timeline-diff-rows) * 1lh);
   scrollbar-width: thin;
-  scrollbar-color: var(--cp-timeline-drawer-thumb) var(--cp-timeline-drawer-surface);
+  scrollbar-color: var(--cp-timeline-drawer-thumb) transparent;
 }
 
 .timeline-tool__diff-row {
@@ -289,18 +297,18 @@
 }
 
 .timeline-tool__diff-row[data-kind="added"] {
-  background: var(--cp-timeline-diff-new);
   box-shadow: inset 0.125rem 0 0 var(--cp-diff-added-text);
 }
 
 .timeline-tool__diff-row[data-kind="removed"] {
-  background: var(--cp-timeline-diff-old);
   box-shadow: inset 0.125rem 0 0 var(--cp-diff-removed-text);
 }
 
-/* 断点：一根发丝线说明这里不连续。 */
+/* 断点：一根发丝线说明这里不连续。用内阴影不用边框 —— 边框会撑高行，色带的 lh 刻度就对不上了。 */
 .timeline-tool__diff-row[data-kind="gap"] {
-  border-block: 1px solid var(--cp-hairline);
+  box-shadow:
+    inset 0 1px 0 var(--cp-hairline),
+    inset 0 -1px 0 var(--cp-hairline);
 }
 
 .timeline-tool__diff-line {
