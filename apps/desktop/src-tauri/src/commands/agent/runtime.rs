@@ -357,6 +357,9 @@ pub(super) async fn ensure_session(
 
                 /* 读点是本机的账，屏幕上没有一格画它：落库，不上屏。订阅时由
                 addressing.rs 把它报回给 kap。 */
+                /* 链路态：不落库，只上屏。「我第几次重连」重放时毫无意义。 */
+                SessionEvent::Link { attempt, of } => AgentSessionEvent::Link { attempt, of },
+
                 SessionEvent::Cursor { session_id, cursor } => {
                     let read = SessionCursor {
                         seq: cursor.seq,

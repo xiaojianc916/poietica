@@ -1,5 +1,5 @@
 import type { SessionControlsStore } from '@poietica/agent'
-import type { SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
+import type { SessionConfigControl, SessionLink, SessionUsage } from '@poietica/agent-contract'
 import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
 
 /*
@@ -76,4 +76,11 @@ export function useThreadUsage(threadId: string | null): SessionUsage | undefine
   )
 
   return useSyncExternalStore(store.subscribe, read, read)
+}
+
+/** 这条连接此刻的重连进度；没在重连是 null。链路是整条连接的，所以不点名对话。 */
+export function useSessionLink(): SessionLink | null {
+  const store = useStore()
+
+  return useSyncExternalStore(store.subscribe, store.linkOf, store.linkOf)
 }

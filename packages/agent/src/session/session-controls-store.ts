@@ -4,6 +4,8 @@ import type {
   SessionConfigControl,
   SessionConfigPort,
   SessionConfigReport,
+  SessionLink,
+  SessionLinkPort,
   SessionUsage,
   SessionUsagePort,
   SessionUsageReport,
@@ -24,12 +26,15 @@ interface Held {
   readonly selectors: ReadonlyMap<string, readonly SessionConfigControl[]>
   readonly selectorFailure: ReadonlyMap<string, string>
   readonly usage: ReadonlyMap<string, SessionUsage>
+  /* 链路是整条连接的，不按对话记：那条 WS 断了，每条对话都停在同一件事上。 */
+  readonly link: SessionLink | null
 }
 
 const EMPTY: Held = {
   selectors: new Map(),
   selectorFailure: new Map(),
   usage: new Map(),
+  link: null,
 }
 
 /**
@@ -49,6 +54,8 @@ export interface SessionControlsFailureReport {
 
 export interface SessionControlsOptions {
   readonly config?: SessionConfigPort | undefined
+  /** 重连进度的到达口。缺席即不画，这台 store 因此仍能裸构造单测。 */
+  readonly link?: SessionLinkPort | undefined
   readonly port?: ThreadPort | undefined
   /** 批准方式的持久意图。缺席即不对齐，这台 store 因此仍能裸构造单测。 */
   readonly posture?: PermissionPosturePort | undefined
@@ -103,6 +110,8 @@ export class SessionControlsStore {
 
   readonly #report: SessionControlsFailureReport | undefined
 
+  readonly #link: SessionLinkPort | undefined
+
   readonly #usage: SessionUsagePort | undefined
 
   #held: Held = EMPTY
@@ -132,8 +141,9 @@ export class SessionControlsStore {
    */
   #alignedTo = new Map<string, string>()
 
-  constructor({ config, port, posture, report, transcripts, usage }: SessionControlsOptions) {
+  constructor({ config, link, port, posture, report, transcripts, usage }: SessionControlsOptions) {
     this.#config = config
+    this.#link = link
     this.#port = port
     this.#posture = posture
     this.#report = report
@@ -173,9 +183,15 @@ export class SessionControlsStore {
       this.#usageReported(report)
     })
 
+    const stopLink = this.#link?.subscribe((link) => {
+      /* attempt 缺席即已接上：那一刻这一格就该消失，不留"重连完成"的残影。 */
+      this.#commit({ link: link.attempt === null ? null : link })
+    })
+
     return () => {
       stop?.()
       stopUsage?.()
+      stopLink?.()
     }
   }
 
@@ -189,6 +205,9 @@ export class SessionControlsStore {
 
   /** 这条对话所持有的会话最近报的上下文用量；从没报过就是 undefined。 */
   usageOf = (threadId: string): SessionUsage | undefined => this.#held.usage.get(threadId)
+
+  /** 这条连接此刻的重连进度；没在重连就是 null。 */
+  linkOf = (): SessionLink | null => this.#held.link
 
   /*
    * 一份答复到手：新开一条、认领一条、重读一条，三条路唯一的落地处。
@@ -500,7 +519,8 @@ export class SessionControlsStore {
     if (
       next.selectors === this.#held.selectors &&
       next.selectorFailure === this.#held.selectorFailure &&
-      next.usage === this.#held.usage
+      next.usage === this.#held.usage &&
+      next.link === this.#held.link
     ) {
       return
     }

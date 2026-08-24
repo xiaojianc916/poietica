@@ -72,6 +72,144 @@ type WsSink = Arc<tokio::sync::Mutex<SplitSink<WsStream, Message>>>;
 /// 所以到期由本机把这一轮收摊，而不是让它永远停在"正在取消"。
 const CANCEL_GRACE: Duration = Duration::from_secs(10);
 
+/// 链路断了之后重连几次。到顶仍连不上，这条连接才退场。
+const RELINK_TRIES: u32 = 5;
+
+/// 第一次重连前等多久；之后翻倍，到 RELINK_DELAY_CAP 封顶。
+const RELINK_DELAY: Duration = Duration::from_millis(500);
+const RELINK_DELAY_CAP: Duration = Duration::from_secs(8);
+
+/// 拨一条 WS。令牌走 Authorization 头，与 REST 同一条鉴权。
+async fn dial_ws(ws_url: &str, auth: &reqwest::header::HeaderValue) -> Result<WsStream> {
+    let mut request = ws_url
+        .into_client_request()
+        .map_err(|e| KapError::Transport {
+            message: e.to_string(),
+        })?;
+
+    request.headers_mut().insert(AUTHORIZATION, auth.clone());
+
+    let (stream, _response) = connect_async(request)
+        .await
+        .map_err(|e| KapError::Handshake {
+            message: e.to_string(),
+        })?;
+
+    Ok(stream)
+}
+
+/// server_hello → client_hello → ack。首连与重连共用这一条。
+async fn shake_hands(
+    ws: &WsSink,
+    ws_rx: &mut SplitStream<WsStream>,
+    stash: &mut Vec<Value>,
+) -> Result<()> {
+    loop {
+        match ws_rx.next().await {
+            Some(Ok(Message::Text(raw))) => {
+                if let Ok(frame) = serde_json::from_str::<Value>(&raw)
+                    && frame.get("type").and_then(Value::as_str) == Some("server_hello")
+                {
+                    break;
+                }
+            }
+            Some(Err(error)) => {
+                return Err(KapError::Handshake {
+                    message: error.to_string(),
+                });
+            }
+            None => {
+                return Err(KapError::Handshake {
+                    message: "WS closed before server_hello".to_owned(),
+                });
+            }
+            _ => {}
+        }
+    }
+
+    let hello = send_frame(
+        ws,
+        "client_hello",
+        json!({ "client_id": Uuid::new_v4().to_string() }),
+    )
+    .await?;
+
+    let _accepted = wait_ack(ws_rx, &hello, stash).await?;
+
+    Ok(())
+}
+
+/// 一次重连：拨、握手、把册子上每条会话按它读到的位置挂回去。
+async fn redial(
+    ws: &WsSink,
+    ws_rx: &mut SplitStream<WsStream>,
+    ws_url: &str,
+    auth: &reqwest::header::HeaderValue,
+    book: &SessionBook,
+    cursors: &HashMap<String, Cursor>,
+) -> Result<Vec<Value>> {
+    let (sink, rx) = dial_ws(ws_url, auth).await?.split();
+
+    /* 写端在锁后面，换的是锁里那一个：已经拿着 Arc 的那些任务不必知道链路换过。 */
+    *ws.lock().await = sink;
+    *ws_rx = rx;
+
+    let mut stash: Vec<Value> = Vec::new();
+
+    shake_hands(ws, ws_rx, &mut stash).await?;
+
+    for session_id in book.ids()? {
+        let again = subscribe(ws, &session_id, cursors.get(&session_id)).await?;
+
+        wait_subscribe_ack(ws_rx, &again, &session_id, &mut stash).await?;
+    }
+
+    Ok(stash)
+}
+
+/// 把断了的链路接回来，并把进度报上去。
+///
+/// 有界重试 + 指数退避。进度走 SessionEvent::Link：它是链路态，不占 seq，
+/// 因此也不进帧日志。交回 Some 是接上了（里面是重连期间到达的帧），None 是到顶了。
+async fn relink(
+    ws: &WsSink,
+    ws_rx: &mut SplitStream<WsStream>,
+    ws_url: &str,
+    auth: &reqwest::header::HeaderValue,
+    book: &SessionBook,
+    cursors: &HashMap<String, Cursor>,
+    events_tx: &mpsc::UnboundedSender<SessionEvent>,
+) -> Option<Vec<Value>> {
+    let mut waited = RELINK_DELAY;
+    let mut replay = None;
+
+    for attempt in 1..=RELINK_TRIES {
+        let _sent = events_tx.unbounded_send(SessionEvent::Link {
+            attempt: Some(attempt),
+            of: RELINK_TRIES,
+        });
+
+        tokio::time::sleep(waited).await;
+        waited = (waited * 2).min(RELINK_DELAY_CAP);
+
+        match redial(ws, ws_rx, ws_url, auth, book, cursors).await {
+            Ok(stash) => {
+                replay = Some(stash);
+                break;
+            }
+            Err(error) => log::warn!("kap WS relink {attempt}/{RELINK_TRIES} failed: {error}"),
+        }
+    }
+
+    /* 接上还是放弃，屏幕上那行字都该消失。 */
+    let _sent = events_tx.unbounded_send(SessionEvent::Link {
+        attempt: None,
+        of: RELINK_TRIES,
+    });
+
+    replay
+}
+
 // ── 实例注册表 ─────────────────────────────────────────────────────────────
 
 #[derive(serde::Deserialize)]
@@ -690,71 +828,11 @@ pub fn connect(
         //     它引发的那几帧不该记进第一轮。
         ensure_model(&http, &base_url, &session_id).await;
 
-        // 6. WebSocket 握手：server_hello 先到；client_hello 只需 client_id，
-        //    订阅走独立的 subscribe 帧。
+        // 6. WebSocket 握手。首连与重连走同一个 dial_ws / shake_hands。
         let ws_url = format!("ws://{dial}:{port}/api/v1/ws");
-        let mut ws_req = ws_url
-            .into_client_request()
-            .map_err(|e| KapError::Transport {
-                message: e.to_string(),
-            })?;
 
-        ws_req.headers_mut().insert(AUTHORIZATION, auth_header);
-
-        let (ws_stream, _) = connect_async(ws_req)
-            .await
-            .map_err(|e| KapError::Handshake {
-                message: e.to_string(),
-            })?;
-
-        let (ws_sink, mut ws_rx) = ws_stream.split();
-        let ws: WsSink = Arc::new(tokio::sync::Mutex::new(ws_sink));
-
-        // 等 ack 期间到达的事件帧先收着，主循环开张前补投。
-        let mut stash: Vec<Value> = Vec::new();
-
-        // 等 server_hello
-        loop {
-            match ws_rx.next().await {
-                Some(Ok(Message::Text(raw))) => {
-                    if let Ok(v) = serde_json::from_str::<Value>(&raw)
-                        && v.get("type").and_then(Value::as_str) == Some("server_hello")
-                    {
-                        break;
-                    }
-                }
-                Some(Err(error)) => {
-                    let handshake = KapError::Handshake {
-                        message: error.to_string(),
-                    };
-                    let _ = ready_tx.send(Err(KapError::Handshake {
-                        message: handshake.to_string(),
-                    }));
-                    return Err(handshake);
-                }
-                None => {
-                    let handshake = KapError::Handshake {
-                        message: "WS closed before server_hello".to_owned(),
-                    };
-                    let _ = ready_tx.send(Err(KapError::Handshake {
-                        message: handshake.to_string(),
-                    }));
-                    return Err(handshake);
-                }
-                _ => {}
-            }
-        }
-
-        let hello = match send_frame(
-            &ws,
-            "client_hello",
-            json!({
-                "client_id": Uuid::new_v4().to_string(),
-            }),
-        )
-        .await
-        {
-            Ok(id) => id,
+        let ws_stream = match dial_ws(&ws_url, &auth_header).await {
+            Ok(stream) => stream,
             Err(error) => {
                 let _ = ready_tx.send(Err(KapError::Handshake {
                     message: error.to_string(),
@@ -763,7 +841,13 @@ pub fn connect(
             }
         };
 
-        if let Err(error) = wait_ack(&mut ws_rx, &hello, &mut stash).await {
+        let (ws_sink, mut ws_rx) = ws_stream.split();
+        let ws: WsSink = Arc::new(tokio::sync::Mutex::new(ws_sink));
+
+        // 等 ack 期间到达的事件帧先收着，主循环开张前补投。
+        let mut stash: Vec<Value> = Vec::new();
+
+        if let Err(error) = shake_hands(&ws, &mut ws_rx, &mut stash).await {
             let _ = ready_tx.send(Err(KapError::Handshake {
                 message: error.to_string(),
             }));
@@ -804,6 +888,9 @@ pub fn connect(
         // 8. 主循环
         let mut owners: HashMap<String, ReconcileOwner> = HashMap::new();
 
+        /* 每条会话最后读到的位置。重连按它续订：帧不重发，也不缺号。 */
+        let mut cursors: HashMap<String, Cursor> = HashMap::new();
+
         // 补投握手期间收下的帧。里面可能有一帧 ping 不必答：我们刚发出去的
         // client_hello 与 subscribe 已经刷新了服务端的 lastInboundAt，而它的
         // 判死线是连续两个周期没有任何入站帧（wsConnectionV1.ts onHeartbeat）。
@@ -817,11 +904,47 @@ pub fn connect(
                 &events_tx,
                 &http,
                 &base_url,
+                &mut cursors,
             );
         }
 
         let mut commands_rx = commands_rx;
+        let mut severed = false;
+
         loop {
+            /* 链路断了：先接回来再往下读。到顶了才让这条连接退场。 */
+            if severed {
+                let Some(replay) = relink(
+                    &ws,
+                    &mut ws_rx,
+                    &ws_url,
+                    &auth_header,
+                    &book_clone,
+                    &cursors,
+                    &events_tx,
+                )
+                .await
+                else {
+                    break;
+                };
+
+                severed = false;
+
+                for envelope in replay {
+                    handle_ws_message(
+                        &envelope,
+                        &mut owners,
+                        &book_clone,
+                        &desk,
+                        &questions,
+                        &events_tx,
+                        &http,
+                        &base_url,
+                        &mut cursors,
+                    );
+                }
+            }
+
             tokio::select! {
                 cmd = commands_rx.next() => {
                     match cmd {
@@ -1008,11 +1131,11 @@ pub fn connect(
 
                 msg = ws_rx.next() => {
                     match msg {
-                        None => break,
+                        None => severed = true,
 
                         Some(Err(error)) => {
                             log::warn!("kap WS error: {error}");
-                            break;
+                            severed = true;
                         }
 
                         Some(Ok(Message::Text(raw))) => {
@@ -1039,6 +1162,7 @@ pub fn connect(
                                         &events_tx,
                                         &http,
                                         &base_url,
+                                        &mut cursors,
                                     );
                                 }
                             }
@@ -1082,6 +1206,7 @@ fn handle_ws_message(
     events_tx: &mpsc::UnboundedSender<SessionEvent>,
     http: &reqwest::Client,
     base_url: &str,
+    cursors: &mut HashMap<String, Cursor>,
 ) {
     // 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …），
     // 不是字符串 "session_event"：wsEventEnvelopeSchema 里 type 是 z.string()，
@@ -1128,6 +1253,9 @@ fn handle_ws_message(
             session_id: cut.to_owned(),
         });
 
+        /* 这一段流接不下去了，链路上那个位置同样作废。 */
+        let _dropped = cursors.remove(cut);
+
         if let Some(owner) = owners.get(cut) {
             owner.reset();
         }
@@ -1162,6 +1290,19 @@ fn handle_ws_message(
     if event_type != kind {
         return;
     }
+
+    /* 链路读到哪儿了，按帧记。它必须是「真的消费过的最后一帧」：拿轮终那个落库
+    读点去续订，会让 kap 重发本轮已经记下的帧。 */
+    let _moved = cursors.insert(
+        session_id.to_owned(),
+        Cursor {
+            seq,
+            epoch: envelope
+                .get("epoch")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+        },
+    );
 
     // 认下来的每一帧事件都成帧进录制器 —— 判据在上面，这里不再问第二遍。
     if let Ok(Some(slot)) = book.slot(session_id) {

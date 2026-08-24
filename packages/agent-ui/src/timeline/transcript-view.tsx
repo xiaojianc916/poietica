@@ -2,6 +2,7 @@ import { type FeedRow, selectIsBusy, selectPresentation, type TurnSealPlan } fro
 import { type ReactNode, useCallback, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
+import { useSessionLink } from '../session/session-controls-context'
 import { useTranscripts } from '../session/transcripts-context'
 import { useAssistantHasEarlier, useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
@@ -40,6 +41,7 @@ export function TranscriptView({
   const timeline = useAssistantTimeline(sessionKey)
   const hasEarlier = useAssistantHasEarlier(sessionKey)
   const transcripts = useTranscripts()
+  const relink = useSessionLink()
 
   /* 视口只报「顶端快见底了」，读不读、读几页归 store。 */
   const readEarlier = useCallback(() => {
@@ -90,11 +92,12 @@ export function TranscriptView({
         isRunning={plan.isRunning}
         lastFrameAt={plan.lastFrameAt}
         onToggle={chooseTurn}
+        relink={plan.isRunning ? relink : null}
         startedAt={plan.startedAt}
         turn={plan.turn}
       />
     ),
-    [chooseTurn],
+    [chooseTurn, relink],
   )
 
   /*

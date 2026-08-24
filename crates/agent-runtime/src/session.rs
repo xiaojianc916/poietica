@@ -64,6 +64,9 @@ pub enum SessionEvent {
     Cursor { session_id: String, cursor: Cursor },
     /// 这条会话的读点作废了：kap 说那一段流断了（resync_required），接不下去。
     CursorLost { session_id: String },
+
+    /// 这条连接的重连进度。attempt 缺席即已接上。
+    Link { attempt: Option<u32>, of: u32 },
 }
 
 /// kap 的事件流上，一条会话已经被读到的位置。

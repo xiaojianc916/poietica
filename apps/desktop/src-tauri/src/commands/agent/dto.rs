@@ -252,6 +252,9 @@ pub enum AgentSessionEvent {
         session_id: String,
         usage: AgentSessionUsage,
     },
+
+    /// 这条连接的重连进度。attempt 缺席即已接上。
+    Link { attempt: Option<u32>, of: u32 },
 }
 
 /// A change made in the interface.

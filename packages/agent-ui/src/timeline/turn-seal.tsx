@@ -1,3 +1,4 @@
+import type { SessionLink } from '@poietica/agent-contract'
 import './turn-seal.css'
 
 import { memo } from 'react'
@@ -13,6 +14,8 @@ import { useSecond } from '../primitives/tick'
  */
 
 export interface TurnSealProps {
+  /** 这条连接此刻的重连进度。链路态，只画在跑着的那一轮旁边；没在重连是 null。 */
+  readonly relink: SessionLink | null
   readonly turn: number
   /** 缺席表示这台机器没有记下这一轮的两端：不报耗时，也不空转秒表。 */
   readonly startedAt: number | undefined
@@ -81,6 +84,7 @@ function spell(ms: number): string {
  * 里那条 error 条目自己讲，它就在下面几行。
  */
 function Seal({
+  relink,
   endedAt,
   hasProcess,
   isOpen,
@@ -105,6 +109,11 @@ function Seal({
       <div className="turn-seal-line">
         <p className="turn-seal">
           <span className="turn-seal__label">{label}</span>
+          {relink === null ? null : (
+            <span className="turn-seal__relink">
+              正在重新连接 {relink.attempt}/{relink.of}
+            </span>
+          )}
         </p>
       </div>
     )

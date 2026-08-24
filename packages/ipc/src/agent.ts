@@ -6,6 +6,7 @@ import type {
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
+  SessionLinkPort,
   SessionUsagePort,
   ThreadPort,
 } from '@poietica/agent-contract'
@@ -39,7 +40,7 @@ import {
 /** The channel run frames are broadcast on. */
 const AGENT_EVENT = 'ai-run-event'
 
-/** 会话自己报来的状态走这一条：选择器表与上下文用量。它不属于任何一轮。 */
+/** 会话与链路自己报来的状态走这一条：选择器表、用量、重连进度。它不属于任何一轮。 */
 const AGENT_SESSION_EVENT = 'ai-session-event'
 
 /**
@@ -140,12 +141,13 @@ type AgentSessionEnvelope =
       readonly selectors: AgentConfigControl[]
     }
   | { readonly kind: 'usage'; readonly sessionId: string; readonly usage: AgentSessionUsage }
+  | { readonly kind: 'link'; readonly attempt: number | null; readonly of: number }
 
 /**
  * 一条通道，按判别式交给它的读者。
  *
- * 两种会话状态同走一条事件，与运行帧同走 AGENT_EVENT 是同一条规矩。分派
- * 是静态的两支，不是一张可以注册任意名字的表 —— 每一个读者仍然是一个具名端口。
+ * 会话状态同走一条事件，与运行帧同走 AGENT_EVENT 是同一条规矩。
+ * 分派按判别式静态展开，不是一张可以注册任意名字的表 —— 每一个读者仍是一个具名端口。
  */
 function subscribeToSessionEvent<TKind extends AgentSessionEnvelope['kind']>(
   kind: TKind,
@@ -538,5 +540,26 @@ export function createAgentToolkitReader({
         ...(server.lastError === null ? {} : { lastError: server.lastError }),
       })),
     }
+  }
+}
+
+/*
+ * 重连进度这一路。
+ *
+ * 与用量同一条通道、同一种静态分派。链路态没有命令能把它问回来，所以只有订阅；
+ * 这一侧不留副本 —— 唯一的消费者是 SessionControlsStore。
+ */
+export function createAgentSessionLinkBridge({
+  onListenFailure,
+}: AgentEventSourceOptions = {}): SessionLinkPort {
+  return {
+    subscribe: (handler) =>
+      subscribeToSessionEvent(
+        'link',
+        (payload) => {
+          handler({ attempt: payload.attempt, of: payload.of })
+        },
+        onListenFailure,
+      ),
   }
 }
