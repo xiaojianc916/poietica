@@ -155,6 +155,26 @@ describe('transcript store', () => {
     expect(store.read('thread_a')).not.toBe(ended)
   })
 
+  it('页头那半截轮次不投影：等更早那一页的起点', () => {
+    const { store } = painted()
+
+    /* 页按帧数切，所以最新那一页的头是上一轮的尾巴。 */
+    store.adopt(
+      'thread_a',
+      {
+        events: [chunk(5, '尾'), started(6, 'sess_a'), chunk(7, '新')],
+        before: { sessionId: 'sess_a', seq: 5 },
+      },
+      { state: 'loaded' },
+    )
+
+    const { timeline } = store.read('thread_a')
+
+    /* 每一段都从人说的那句话开始 —— 封条认的就是它。 */
+    expect(timeline.sealed).toHaveLength(0)
+    expect(timeline.active.items.map((item) => item.type)).toEqual(['user_message', 'agent_text'])
+  })
+
   it('cancels before a draft can start', async () => {
     const { store, paint } = painted()
     let identify: ((threadId: string) => void) | undefined

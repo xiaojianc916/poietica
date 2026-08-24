@@ -52,12 +52,17 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
       return
     }
 
-    case 'tool.call.delta':
     case 'tool.call.started':
     case 'tool.progress':
     case 'tool.result': {
       applyToolFrame(draft, event)
 
+      return
+    }
+
+    case 'tool.call.delta': {
+      /* 入参的流片：这一帧不带 display，而分类与主语的权威是 display。拿它建卡就是
+         先画一张兜底图标加工具名的卡，再被 tool.call.started 换掉。 */
       return
     }
 
@@ -188,7 +193,7 @@ function applyError(draft: Draft, event: KapFrame): void {
   })
 }
 
-/** 四次到达认同一个 toolCallId：认不出来这一帧就不落账。 */
+/** 三次到达认同一个 toolCallId：认不出来这一帧就不落账。 */
 function applyToolFrame(draft: Draft, event: KapFrame): void {
   const toolCallId = stringOf(event.payload, 'toolCallId')
 
@@ -206,13 +211,6 @@ function applyToolFrame(draft: Draft, event: KapFrame): void {
 /** 这一帧说了什么。null 表示这一帧没有可落账的内容。 */
 function toolPatch(payload: KapEventPayload): ToolCallPatch | null {
   switch (payload.type) {
-    case 'tool.call.delta': {
-      /* 入参的流片：卡先立起来，半个 JSON 没有读者。解析好的 args 整体随
-         tool.call.started 到齐（events-zod.ts：delta 带 argumentsPart 片段，
-         started 带 args 整体）。 */
-      return { status: 'in_progress', ...titleOf(payload) }
-    }
-
     case 'tool.call.started': {
       return {
         status: 'in_progress',
@@ -301,9 +299,9 @@ function stringOf(payload: KapEventPayload, key: string): string | undefined {
 /**
  * 一次工具调用的投影，只有这一条路径。
  *
- * delta / started / progress / result 是同一次调用的四次到达，协议按
- * toolCallId 寻址：没见过就建（终帧先于宣告到达的日志存在），见过就按这
- * 一帧真的带了的格子合并 —— 一个 upsert，不是四份实现。
+ * started / progress / result 是同一次调用的三次到达，协议按 toolCallId
+ * 寻址：没见过就建（终帧先于宣告到达的日志存在），见过就按这一帧真的带了
+ * 的格子合并 —— 一个 upsert，不是三份实现。
  */
 function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: ToolCallPatch): void {
   const id = `${namespace(draft)}tool-${toolCallId}`

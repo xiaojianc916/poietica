@@ -125,6 +125,47 @@ describe('kap 投影', () => {
     expect(calls[0]?.content).toHaveLength(1)
   })
 
+  it('入参流片不先立一张兜底卡：卡出现时分类与主语已经就位', () => {
+    const streaming: RunEvent[] = [
+      { kind: 'run_started', seq: 1, at: 1000, sessionId: SESSION, prompt: '跑一下测试' },
+      {
+        kind: 'kap_event',
+        seq: 2,
+        at: 1010,
+        payload: {
+          type: 'tool.call.delta',
+          turnId: 1,
+          toolCallId: 'call_f',
+          name: 'Bash',
+          argumentsPart: '{"command"',
+        },
+      },
+    ]
+
+    /* 半个 JSON 说不出这次调用是什么：没有 display 就没有卡，也就没有兜底的一帧。 */
+    expect(toolCalls(replayRunEvents(streaming))).toHaveLength(0)
+
+    const announced = replayRunEvents([
+      ...streaming,
+      {
+        kind: 'kap_event',
+        seq: 3,
+        at: 1020,
+        payload: {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_f',
+          name: 'Bash',
+          args: { command: 'cargo test' },
+          display: { kind: 'command', command: 'cargo test' },
+        },
+      },
+    ])
+
+    expect(toolCalls(announced)).toHaveLength(1)
+    expect(toolCalls(announced)[0]).toMatchObject({ kind: 'execute', subject: 'cargo test' })
+  })
+
   it('说了 replace 的进度盖掉上一截，不堆成两行', () => {
     const state = replayRunEvents(
       kapTurn([
