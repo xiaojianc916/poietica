@@ -252,11 +252,11 @@ async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_pin_thread", { request });
 },
 /**
- * 从一条对话分叉出一条新对话（kap :fork），源对话原样不动。
+ * 从一条对话的某一轮分叉出一条新对话，源对话原样不动。
  * 
- * 两侧各分叉一次：agent 那侧由 session/fork 复制上下文，这一侧由 fork_thread
- * 复制本机日志与附件链接（见 threads.rs）。屏幕上那条时间线由日志重放，日志
- * 不跟过去，分出来的就是一块白板。分出的那条从此各走各的。
+ * 两侧按同一个 drop_turns 各切一刀：agent 那侧 :fork 复制、:undo 回退，这一侧
+ * fork_thread 把本机日志与附件链接复制到那一轮为止（见 threads.rs）。屏幕由日志
+ * 重放、上下文由 agent 持有，一个数决定两者，因此不会各说各话。
  * 
  * 寻址不走 session_for：那条规则在装载不成时会新开一条空会话并改写持有
  * 关系，对打开与提问那是正确的兜底，对分叉则是把「分叉」静默降级成「新
@@ -1343,6 +1343,13 @@ threadId: string;
  * 个序号。这一侧照改名那条防线收：去空白、按上限截断、拒绝空名。
  */
 title: string; 
+/**
+ * 分叉点：这一轮之后还有几轮。0 就是从最后一轮分叉。
+ * 
+ * agent 那侧按它回退上下文，本机日志按同一个数截断 —— 屏幕与上下文
+ * 因此止于同一处。
+ */
+dropTurns: number; 
 /**
  * 起哪个 agent。
  */
