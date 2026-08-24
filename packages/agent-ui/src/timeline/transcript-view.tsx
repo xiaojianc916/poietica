@@ -59,7 +59,7 @@ export function TranscriptView({
   /*
    * 段号是每条对话各自从头编的，所以换一条对话必须清空 —— 否则 A 的第一轮点过的开合会
    * 落到 B 的第一轮头上。渲染期复位是 React 给「props 变了要复位 state」的写法，与
-   * assistant-surface 的相位复位同一条；不用 key，那会连滚动位置与实测行高一起丢掉。
+   * assistant-surface 的相位复位同一条。
    */
   const [seen, setSeen] = useState(sessionKey)
 
@@ -167,6 +167,7 @@ export function TranscriptView({
         feed={feed}
         hasEarlier={hasEarlier}
         isBusy={selectIsBusy(timeline)}
+        key={sessionKey}
         onReachStart={readEarlier}
         overlay={overlay}
         renderRow={renderRowAt}

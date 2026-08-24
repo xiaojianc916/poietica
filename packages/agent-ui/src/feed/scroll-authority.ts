@@ -1,6 +1,7 @@
 import { useReducedMotion } from 'motion/react'
 import { useCallback, useRef, useSyncExternalStore } from 'react'
 import { startGlide } from '../primitives/scroll-glide'
+import { scrolledToEdge, scrollTargetOf } from './nested-scroll'
 
 /** 距末端多近算「在末端」。约一格滚轮，所以人滚回底部附近就重新接管。 */
 const NEAR_END_PX = 48
@@ -9,12 +10,13 @@ const NEAR_END_PX = 48
 const BEYOND_END = 2 ** 30
 
 /**
- * 只可能由人产生的事件。
+ * 只可能由人产生的、没有方向的那几种。
  *
  * scroll 不在此列：程序化写入同样派发它，而滚动事件一帧只发一次 —— 同一帧里自己那一笔
- * 与人那一拨合并成一个事件，事后分辨不出。
+ * 与人那一拨合并成一个事件，事后分辨不出。wheel 也不在此列：它有方向，而且会从行内自己
+ * 滚的盒子里冒上来，得先问那个盒子还能不能滚。
  */
-const HUMAN_EVENTS: readonly string[] = ['wheel', 'touchstart', 'keydown', 'pointerdown']
+const HUMAN_EVENTS: readonly string[] = ['touchstart', 'keydown', 'pointerdown']
 
 /** 人主动展开或收起一段内容的标准声明（WAI-ARIA）。 */
 const DISCLOSURE = '[aria-expanded]'
@@ -376,10 +378,22 @@ export function useScrollAuthority(): ScrollAuthority {
         }
       }
 
+      /* 行内自己滚的盒子先吃这一笔；它滚不动了，这一笔才算把视口带离末端。 */
+      const onWheel = (event: WheelEvent) => {
+        const target = scrollTargetOf(box, event.target)
+
+        if (target !== box && !scrolledToEdge(target, event.deltaY)) {
+          return
+        }
+
+        onHuman()
+      }
+
       for (const name of HUMAN_EVENTS) {
         box.addEventListener(name, onHuman, { passive: true })
       }
 
+      box.addEventListener('wheel', onWheel, { passive: true })
       box.addEventListener('click', onToggle)
       box.addEventListener('scroll', onScroll, { passive: true })
       box.addEventListener('scrollend', onScrollEnd)
@@ -391,6 +405,7 @@ export function useScrollAuthority(): ScrollAuthority {
           box.removeEventListener(name, onHuman)
         }
 
+        box.removeEventListener('wheel', onWheel)
         box.removeEventListener('click', onToggle)
         box.removeEventListener('scroll', onScroll)
         box.removeEventListener('scrollend', onScrollEnd)

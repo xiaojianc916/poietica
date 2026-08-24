@@ -21,7 +21,7 @@ function emptyNoteOf(kind: ToolCallTimelineItem['kind'], isRunning: boolean): st
   return kind === 'delegate' ? '子代理在自己那边干活，这里只记结果。' : '还在运行，暂时没有输出。'
 }
 
-/** 抽屉里唯一的滚动容器。内容多高它就多高，上限归 .timeline-tool__panel。 */
+/** 抽屉里唯一的滚动容器。它自己滚，wheel 先归它，所以戴 data-scrollable。 */
 function ToolPanel({
   labelledBy,
   panel,
@@ -34,6 +34,7 @@ function ToolPanel({
   return (
     <div
       className="timeline-tool__panel"
+      data-scrollable=""
       {...(panel === undefined
         ? {}
         : { 'aria-labelledby': labelledBy, id: panel, role: 'tabpanel' })}

@@ -1,15 +1,22 @@
 import './agent-activity-feed.css'
 
 import type { Presentation } from '@poietica/agent'
-import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
+import { defaultRangeExtractor, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDownIcon } from '../primitives/icons'
 import { useDevicePixels } from '../primitives/use-device-pixels'
 import { rowAtAnchor } from './reading-position'
+import { keepMeasurements, measurementsOf } from './row-measurements'
 import { type RowGeometry, useScrollAuthority } from './scroll-authority'
 
-/** 视口之外预留的行数。会话行远高于表格行：少了快滚露白，多了白测量。 */
-const OVERSCAN_ROWS = 6
+/*
+ * 视口之外预留的行数。
+ *
+ * 首帧只铺一屏多一点：那时行高多半还是估的，铺得越多越是白测。两帧之后几何已经稳了，
+ * 抬到能盖住一次快滚的量。少了快滚露白，多了白测量，所以是两级而不是一个折中值。
+ */
+const OVERSCAN_COLD = 6
+const OVERSCAN_SETTLED = 20
 
 /**
  * 视线在视口里的位置，自上而下的比例。
@@ -34,8 +41,7 @@ export interface AgentActivityFeedProps {
   /**
    * 这些行属于哪一条对话。
    *
-   * 滚动位置是这个盒子的状态，而盒子跨对话复用。「换了一条对话」与「同一条里又多一句」
-   * 是两件事，转录内容分不出它们，所以身份由持有它的那一层交下来。
+   * 盒子按它取 key，所以一条对话一个盒子；它同时是这条对话行高量表的名字。
    */
   readonly conversation: string
   readonly feed: Presentation
@@ -121,24 +127,96 @@ export function AgentActivityFeed({
   /* 身份是 id 不是序号：回填历史会让每一条换序号，用序号当锚点就落到别的条目上。 */
   const getItemKey = useCallback((index: number) => feed.rowAt(index)?.item.id ?? index, [feed])
 
+  /* 量表只在挂载那一次被收走，所以只取一次。 */
+  const [restored] = useState(() => measurementsOf(conversation))
+
+  const [overscan, setOverscan] = useState(OVERSCAN_COLD)
+
+  /* 视口高度，随视线一并采样：钉行的判据要拿它比，而渲染期不该再问一次布局。 */
+  const viewHeight = useRef(0)
+
+  /* 这一帧要额外钉住的行。跳变发生的那一帧有值，下一帧自然清空。 */
+  const pinned = useRef<readonly number[]>([])
+
+  /* 上一帧的总高。跳变就是它与这一帧的差。 */
+  const measured = useRef(0)
+
   const virtualizer = useVirtualizer({
     count: feed.count,
     getScrollElement: () => viewport,
     estimateSize: estimateRow,
     getItemKey,
+    /* 上次量到的行高。冷启不必从头量一遍，首帧的总高就是对的。 */
+    initialMeasurementsCache: restored,
     scrollMargin,
     paddingEnd: tailSize,
-    overscan: OVERSCAN_ROWS,
+    overscan,
+    /* 钉住的行照铺，别让一次几何跳变把人正在看的行挤出区间。 */
+    rangeExtractor: (range) => {
+      const rows = defaultRangeExtractor(range)
+      const held = pinned.current
+
+      return held.length === 0
+        ? rows
+        : [...new Set([...rows, ...held])].filter((row) => row < range.count).sort((a, b) => a - b)
+    },
     /* 滚动停没停问浏览器：库那条 isScrollingResetDelay 的退路是为跨浏览器差异准备的，
        而这里的渲染器只有 Chromium，原生 scrollend 早已可用。 */
     useScrollendEvent: true,
   })
+
+  /*
+   * 一行长高超过一屏，就把上一帧铺着的行钉住这一帧。
+   *
+   * 必须在算区间之前定下来：区间是紧接着这一次算的，晚一帧钉等于让人先看见那一下露白。
+   * 上一帧铺着的行就是人此刻正在看的行。下一帧不再跳变，判据自己不成立，钉子跟着松开 ——
+   * 所以不需要定时器去撤，也不会有钉住不放的状态。
+   */
+  const total = virtualizer.getTotalSize()
+  const before = measured.current
+
+  measured.current = total
+
+  pinned.current =
+    before !== 0 && viewHeight.current > 0 && Math.abs(total - before) > viewHeight.current
+      ? spansRef.current.map((span) => span.index)
+      : []
 
   const items = virtualizer.getVirtualItems()
 
   useLayoutEffect(() => {
     spansRef.current = items
   }, [items])
+
+  /* 走的时候把量表留下：下次打开这条对话，首帧的总高就是这一份。 */
+  useLayoutEffect(
+    () => () => {
+      keepMeasurements(conversation, virtualizer.takeSnapshot())
+    },
+    [conversation, virtualizer],
+  )
+
+  /* 两帧之后几何稳了，把预留抬到能盖住一次快滚的量。 */
+  useLayoutEffect(() => {
+    const view = viewport?.ownerDocument.defaultView ?? null
+
+    if (view === null) {
+      return
+    }
+
+    let second = 0
+
+    const first = view.requestAnimationFrame(() => {
+      second = view.requestAnimationFrame(() => {
+        setOverscan(OVERSCAN_SETTLED)
+      })
+    })
+
+    return () => {
+      view.cancelAnimationFrame(first)
+      view.cancelAnimationFrame(second)
+    }
+  }, [viewport])
 
   /* 行几何。身份与行号进、像素出：持有位置的那一层因此不认识虚拟器。 */
   const rows = useMemo<RowGeometry>(
@@ -224,6 +302,8 @@ export function AgentActivityFeed({
 
       frame = requestAnimationFrame(() => {
         frame = null
+
+        viewHeight.current = viewport.clientHeight
 
         const spans = spansRef.current
         const reading = rowAtAnchor(
@@ -316,31 +396,29 @@ export function AgentActivityFeed({
   /*
    * 自己说的话把视线带回末端：那是答复将要出现的地方。
    *
-   * 触发者是数据 —— 最后一条我说的话换了 id。判据必须带上对话身份，否则换一条对话时
-   * 「最后一条我说的话」也换了 id，会被判成「我又说了一句」而走一段带缓动的位移。
+   * 触发者是数据 —— 最后一条我说的话换了 id。一条对话一个盒子，所以换对话走的是挂载
+   * 那一路（resume），不会被当成「我又说了一句」。
    */
   const ownMessage = feed.latestOwnMessage
-  const said = useRef<{ readonly conversation: string; readonly message: string | null } | null>(
-    null,
-  )
+  const said = useRef<{ readonly message: string | null } | null>(null)
 
   useLayoutEffect(() => {
-    const before = said.current
+    const spoken = said.current
 
-    said.current = { conversation, message: ownMessage }
+    said.current = { message: ownMessage }
 
-    if (before === null || before.conversation !== conversation) {
+    if (spoken === null) {
       resume()
 
       return
     }
 
-    if (before.message === null || ownMessage === null || before.message === ownMessage) {
+    if (spoken.message === null || ownMessage === null || spoken.message === ownMessage) {
       return
     }
 
     travel()
-  }, [conversation, ownMessage, resume, travel])
+  }, [ownMessage, resume, travel])
 
   /* 人刚要求看的那一轮最权威；其次是视线推出来的那一行；首帧两者都还没有，那时在末尾。 */
   const activeRow = revealing ?? readingRow ?? Math.max(0, feed.count - 1)
