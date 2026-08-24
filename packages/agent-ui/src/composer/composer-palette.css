@@ -14,6 +14,8 @@
   bottom: 8px;
   left: 0;
   z-index: 20;
+  /* 它从输入框上沿长出来，缩放的支点因此在下沿。 */
+  transform-origin: bottom;
   max-block-size: min(290px, calc(100vh - 96px));
   overflow-y: auto;
   padding: 0;
@@ -68,11 +70,10 @@
   color: var(--cp-ink-muted);
 }
 
-/* 描边字形与位图标记同一格尺寸。 */
-.composer-palette__icon :is(img, svg) {
+/* 一行一枚描边字形，同一格尺寸。 */
+.composer-palette__icon svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
-  object-fit: contain;
 }
 
 .composer-palette__label {

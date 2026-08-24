@@ -8,7 +8,7 @@
  * Preflight 把裸 svg 压成 display: block，不纠它图标就自成一行；
  * inline-block 回到行内，随基线对齐。
  *
- * 尺寸写在这里而不是各个调用点：技能的描边字形与 MCP 的位图标记同一副几何。
+ * 尺寸写在这里而不是各个调用点：两枚记号同一副几何。
  */
 .assistant-prompt-chip__icon {
   display: inline-block;
@@ -16,5 +16,4 @@
   block-size: 12px;
   margin-right: 3px;
   vertical-align: -2px;
-  object-fit: contain;
 }

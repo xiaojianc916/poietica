@@ -1,8 +1,8 @@
 /*
- * 集成标记：插件、技能与 MCP server 在屏幕上的那枚图标。
+ * 集成标记：插件目录里那枚品牌图标。
  *
- * 界面投影，不进入插件清单、安装账本或 MCP 配置。插件面与输入框都要用它，
- * 所以它住在设计系统里 —— 标记不该有两份。
+ * 界面投影，不进入插件清单、安装账本或 MCP 配置；认不出交回 undefined，
+ * 兜底归调用点。
  *
  * 相对 URL 由 Vite 纳入构建产物，因此不需要 SVG 模块声明。
  */
@@ -248,6 +248,3 @@ export function integrationMarkFor(...names: readonly string[]): IntegrationMark
 
   return undefined
 }
-
-/** 认不出名字时的中性答案：Model Context Protocol 自己的标记。 */
-export const MCP_MARK: IntegrationMark = ICONS.mcp

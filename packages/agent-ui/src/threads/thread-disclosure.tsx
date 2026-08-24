@@ -2,6 +2,7 @@ import './thread-disclosure.css'
 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
+import { ENTER_EASE, ENTER_SECONDS, EXIT_EASE, EXIT_SECONDS } from '../primitives/motion'
 
 /*
  * 一段会收起的侧栏内容。
@@ -24,15 +25,6 @@ import type { ReactNode } from 'react'
  * 再卸载"这一段，纯 CSS 做不到。timeline 那套不动它，那边的行挂着虚拟器的
  * measureElement，换实现是另一件事。
  */
-
-/** 展开：减速。与 --cp-motion-drawer-ease 同一条曲线。 */
-const ENTER_EASE: [number, number, number, number] = [0.2, 0, 0, 1]
-
-/** 收起：加速。 */
-const EXIT_EASE: [number, number, number, number] = [0.4, 0, 1, 1]
-
-const ENTER_SECONDS = 0.2
-const EXIT_SECONDS = 0.14
 
 export interface ThreadDisclosureProps {
   readonly children: ReactNode

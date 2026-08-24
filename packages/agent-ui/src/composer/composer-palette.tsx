@@ -1,8 +1,10 @@
 import './composer-palette.css'
 
 import type { PromptConfiguration } from '@poietica/agent-contract'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
 import { CheckIcon } from '../primitives/icons'
+import { ENTER_EASE, ENTER_SECONDS, EXIT_EASE, EXIT_SECONDS, RISE_PX } from '../primitives/motion'
 
 /*
  * 输入框上沿那张面板，加号翻开。
@@ -54,6 +56,8 @@ export function paletteOptionId(listboxId: string, rowId: string): string {
 
 export interface ComposerPaletteProps {
   readonly groups: readonly PaletteGroup[]
+  /** 开合的真相在 PromptInput，这里只负责把它播出来。 */
+  readonly isOpen: boolean
   /** listbox 自己的 id：输入框拿它填 aria-controls。 */
   readonly listboxId: string
   /** 在摊平后的行序列里的下标。 */
@@ -66,63 +70,94 @@ export interface ComposerPaletteProps {
 export function ComposerPalette({
   groups,
   highlighted,
+  isOpen,
   listboxId,
   onHighlight,
   onPick,
 }: ComposerPaletteProps) {
   const flat = groups.flatMap((group) => group.rows)
 
+  /* 关掉动画是系统级偏好，不是这一处的开关。 */
+  const reduced = useReducedMotion() === true
+  const enter = reduced ? 0 : ENTER_SECONDS
+  const exit = reduced ? 0 : EXIT_SECONDS
+
   return (
     <div className="composer-palette">
-      <div className="composer-palette__panel" id={listboxId} role="listbox">
-        {groups.map((group) => (
-          <div className="composer-palette__group" key={group.id}>
-            <div className="composer-palette__heading">{group.heading}</div>
+      {/* initial={false}：开窗那一帧不该播一遍，那不是一次交互。 */}
+      <AnimatePresence initial={false}>
+        {isOpen ? (
+          <motion.div
+            animate={{
+              opacity: 1,
+              scale: 1,
+              transition: { duration: enter, ease: ENTER_EASE },
+              y: 0,
+            }}
+            className="composer-palette__panel"
+            exit={{
+              opacity: 0,
+              /* 退场那几十毫秒里它还在，别让一次误点落在正在消失的行上。 */
+              pointerEvents: 'none',
+              scale: 0.98,
+              transition: { duration: exit, ease: EXIT_EASE },
+              y: RISE_PX,
+            }}
+            id={listboxId}
+            initial={{ opacity: 0, scale: 0.98, y: RISE_PX }}
+            key="composer-palette"
+            role="listbox"
+          >
+            {groups.map((group) => (
+              <div className="composer-palette__group" key={group.id}>
+                <div className="composer-palette__heading">{group.heading}</div>
 
-            {group.rows.map((row) => {
-              const at = flat.indexOf(row)
+                {group.rows.map((row) => {
+                  const at = flat.indexOf(row)
 
-              return (
-                /* mousedown 而不是 click：preventDefault 拦住焦点转移，落点由 onPick 决定。 */
-                <button
-                  aria-selected={at === highlighted}
-                  className="composer-palette__row"
-                  data-highlighted={at === highlighted ? 'true' : undefined}
-                  id={paletteOptionId(listboxId, row.id)}
-                  key={row.id}
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    onPick(row)
-                  }}
-                  onMouseEnter={() => {
-                    onHighlight(at)
-                  }}
-                  role="option"
-                  type="button"
-                >
-                  <span className="composer-palette__icon">{row.icon}</span>
+                  return (
+                    /* mousedown 而不是 click：preventDefault 拦住焦点转移，落点由 onPick 决定。 */
+                    <button
+                      aria-selected={at === highlighted}
+                      className="composer-palette__row"
+                      data-highlighted={at === highlighted ? 'true' : undefined}
+                      id={paletteOptionId(listboxId, row.id)}
+                      key={row.id}
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        onPick(row)
+                      }}
+                      onMouseEnter={() => {
+                        onHighlight(at)
+                      }}
+                      role="option"
+                      type="button"
+                    >
+                      <span className="composer-palette__icon">{row.icon}</span>
 
-                  <span className="composer-palette__label">{row.label}</span>
+                      <span className="composer-palette__label">{row.label}</span>
 
-                  {row.detail === undefined ? null : (
-                    <span className="composer-palette__detail">{row.detail}</span>
-                  )}
+                      {row.detail === undefined ? null : (
+                        <span className="composer-palette__detail">{row.detail}</span>
+                      )}
 
-                  {row.hint === undefined ? null : (
-                    <kbd className="composer-palette__hint">{row.hint}</kbd>
-                  )}
+                      {row.hint === undefined ? null : (
+                        <kbd className="composer-palette__hint">{row.hint}</kbd>
+                      )}
 
-                  {row.checked === true ? (
-                    <span className="composer-palette__tick">
-                      <CheckIcon aria-hidden="true" />
-                    </span>
-                  ) : null}
-                </button>
-              )
-            })}
-          </div>
-        ))}
-      </div>
+                      {row.checked === true ? (
+                        <span className="composer-palette__tick">
+                          <CheckIcon aria-hidden="true" />
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   )
 }

@@ -660,15 +660,14 @@ function PromptInputShell({
             }}
             ref={formRef}
           >
-            {paletteOpen ? (
-              <ComposerPalette
-                groups={visible}
-                highlighted={highlighted}
-                listboxId={listboxId}
-                onHighlight={setHighlighted}
-                onPick={pickRow}
-              />
-            ) : null}
+            <ComposerPalette
+              groups={visible}
+              highlighted={highlighted}
+              isOpen={paletteOpen}
+              listboxId={listboxId}
+              onHighlight={setHighlighted}
+              onPick={pickRow}
+            />
 
             <PaletteAriaContext value={paletteAria}>{children}</PaletteAriaContext>
           </form>

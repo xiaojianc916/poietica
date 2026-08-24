@@ -1,9 +1,8 @@
 import './prompt-chip.css'
 
-import { integrationMarkFor, MCP_MARK } from '@poietica/ui'
 import { DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
 import type { ReactNode } from 'react'
-import { SkillIcon } from '../primitives/icons'
+import { SkillIcon, ToolIcon } from '../primitives/icons'
 
 export type PromptChipValue =
   | { readonly kind: 'skill'; readonly name: string; readonly args?: string | undefined }
@@ -71,28 +70,13 @@ export function PromptChip({
   readonly kind: PromptChipValue['kind']
   readonly name: string
 }) {
-  if (kind === 'mcp') {
-    /* 那台服务器自己的标记；认不出就是 MCP 通用标记，不退回一个 @。 */
-    const mark = integrationMarkFor(name) ?? MCP_MARK
-
-    return (
-      <span className="assistant-prompt-chip">
-        <img
-          alt=""
-          className="assistant-prompt-chip__icon"
-          decoding="async"
-          draggable={false}
-          src={mark.src}
-        />
-        {name}
-      </span>
-    )
-  }
+  /* MCP 是一类东西，不是一堆牌子：与工具调用行同一枚字形。 */
+  const Glyph = kind === 'mcp' ? ToolIcon : SkillIcon
 
   /* 描边字形随文字走 currentColor；两枚记号的几何同归 prompt-chip.css。 */
   return (
     <span className="assistant-prompt-chip">
-      <SkillIcon aria-hidden="true" className="assistant-prompt-chip__icon" />
+      <Glyph aria-hidden="true" className="assistant-prompt-chip__icon" />
       {name}
     </span>
   )
