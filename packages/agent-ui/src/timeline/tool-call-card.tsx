@@ -4,7 +4,7 @@ import './tool-call.css'
 
 import type { ToolCallTimelineItem } from '@poietica/agent'
 import { cx } from '../primitives/class-names'
-import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
+import { DisclosureBody } from '../primitives/disclosure'
 import {
   ChevronDownIcon,
   FileIcon,
@@ -81,7 +81,7 @@ interface ToolCallCardView {
  * 它有两个去处：抽屉里那句空态文案（还在跑，所以还没有返回），以及这一行的字上扫过
  * 的那道光。除此之外标题栏不画状态 —— 失败与耗时不在这一行上说。
  *
- * 开合不属于这份投影：默认收起，此后只响应用户点击。
+ * 开合不属于这份投影：它归转录那一层，按条目 id 记账。
  */
 function describeToolCall(item: ToolCallTimelineItem, isInFlight: boolean): ToolCallCardView {
   const facets = toToolCallFacets(item)
@@ -155,17 +155,20 @@ function ToolCallHeader({
  */
 export function ToolCallCard({
   isInFlight,
+  isOpen,
   item,
+  onToggle,
 }: {
   readonly isInFlight: boolean
+  readonly isOpen: boolean
   readonly item: ToolCallTimelineItem
+  readonly onToggle: () => void
 }) {
   const view = describeToolCall(item, isInFlight)
-  const { isOpen, toggle } = useDisclosure(false)
 
   return (
     <section className="timeline-tool" data-open={isOpen ? 'true' : undefined}>
-      <ToolCallHeader isOpen={isOpen} item={item} onToggle={toggle} view={view} />
+      <ToolCallHeader isOpen={isOpen} item={item} onToggle={onToggle} view={view} />
 
       <DisclosureBody isOpen={isOpen}>
         <ToolCallPanels facets={view.facets} isRunning={view.isRunning} kind={item.kind} />

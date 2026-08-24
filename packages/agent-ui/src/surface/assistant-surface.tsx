@@ -1,6 +1,5 @@
 import './assistant.css'
 
-import type { FeedRow } from '@poietica/agent'
 import type { AgentSessionPort, SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
 import { memo, type Ref, useCallback, useMemo, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
@@ -18,7 +17,6 @@ import {
 } from '../session/use-assistant-session'
 import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branch-picker'
 import { WorkspacePicker, type WorkspacePickerProps } from '../threads/workspace-picker'
-import { TimelineRow } from '../timeline/timeline-row'
 import { TranscriptView } from '../timeline/transcript-view'
 import { MascotBadge } from './mascot/mascot-badge'
 
@@ -172,14 +170,6 @@ export const AssistantSurface = memo(function AssistantSurface({
   const live = phase === 'live'
 
   /*
-   * 行怎么画，这一层不判。
-   *
-   * renderRow 没有依赖，恒是同一个引用 —— 那是虚拟列表的 prop，每帧换身份就
-   * 等于每帧重渲全部可见行。
-   */
-  const renderRow = useCallback((row: FeedRow) => <TimelineRow row={row} />, [])
-
-  /*
    * 发言就是那次转场。
    *
    * 它先于 send：这一刻起这一格是一段对话，不再是入口，而这件事不该等任何
@@ -242,7 +232,6 @@ export const AssistantSurface = memo(function AssistantSurface({
         <TranscriptView
           isRestoring={assistant.isRestoring}
           onFork={onFork}
-          renderRow={renderRow}
           sessionKey={assistant.key}
         />
       ) : (

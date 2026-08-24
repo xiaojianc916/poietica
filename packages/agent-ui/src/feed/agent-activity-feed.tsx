@@ -1,7 +1,7 @@
 import './agent-activity-feed.css'
 
 import type { Presentation } from '@poietica/agent'
-import { defaultRangeExtractor, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
+import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDownIcon } from '../primitives/icons'
 import { useDevicePixels } from '../primitives/use-device-pixels'
@@ -48,6 +48,14 @@ export interface AgentActivityFeedProps {
    */
   readonly conversation: string
   readonly feed: Presentation
+  /**
+   * 抽屉的开合表。这一层只认它的身份：换一个身份 = 这一帧的高度变化是人点出来的。
+   *
+   * virtual-core 的 resizeItem 在 anchorTo 为 end 且人本来就在末端时，把长高的量补进
+   * scrollTop 去钉住底边。模型吐字时这正是「跟着流走」；人点开面板时同一个补偿就是整屏
+   * 往上蹿一段。区别只在这次高度变化是谁引起的。
+   */
+  readonly disclosed: object
   /** 一行还没被测量时有多高。类别知识归转录那一侧。 */
   readonly estimateRow: (index: number) => number
   readonly renderRow: (index: number) => ReactNode
@@ -69,6 +77,7 @@ export interface AgentActivityFeedProps {
  */
 export function AgentActivityFeed({
   conversation,
+  disclosed,
   estimateRow,
   feed,
   hasEarlier,
@@ -120,14 +129,14 @@ export function AgentActivityFeed({
 
   const [overscan, setOverscan] = useState(OVERSCAN_COLD)
 
-  /* 视口高度，随视线一并采样：钉行的判据要拿它比，而渲染期不该再问一次布局。 */
-  const viewHeight = useRef(0)
-
-  /* 这一帧要额外钉住的行。跳变发生的那一帧有值，下一帧自然清空。 */
-  const pinned = useRef<readonly number[]>([])
-
-  /* 上一帧的总高。跳变就是它与这一帧的差。 */
-  const measured = useRef(0)
+  /*
+   * 人点开抽屉的那一帧，末端锚定让位给起始锚定：那时要钉的是被点的那一行。
+   *
+   * 归位的判据是总高变了，不是提交完了 —— 行的测量由 ResizeObserver 异步送达。
+   */
+  const [held, setHeld] = useState(disclosed)
+  const holding = held !== disclosed
+  const measuredTotal = useRef(0)
 
   const virtualizer = useVirtualizer({
     count: feed.count,
@@ -140,18 +149,9 @@ export function AgentActivityFeed({
     paddingEnd: tailSize,
     overscan,
     /* 尾部锚定：前插不动眼前那一行，末端跟随只在人本来就在末端时发生。 */
-    anchorTo: 'end',
-    followOnAppend: true,
+    anchorTo: holding ? 'start' : 'end',
+    followOnAppend: !holding,
     scrollEndThreshold: END_THRESHOLD_PX,
-    /* 钉住的行照铺，别让一次几何跳变把人正在看的行挤出区间。 */
-    rangeExtractor: (range) => {
-      const rows = defaultRangeExtractor(range)
-      const held = pinned.current
-
-      return held.length === 0
-        ? rows
-        : [...new Set([...rows, ...held])].filter((row) => row < range.count).sort((a, b) => a - b)
-    },
     /* 滚动停没停问浏览器：库那条 isScrollingResetDelay 的退路是为跨浏览器差异准备的，
        而这里的渲染器只有 Chromium，原生 scrollend 早已可用。 */
     useScrollendEvent: true,
@@ -182,22 +182,17 @@ export function AgentActivityFeed({
     }
   }, [viewport, virtualizer])
 
-  /*
-   * 一行长高超过一屏，就把上一帧铺着的行钉住这一帧。
-   *
-   * 必须在算区间之前定下来：区间是紧接着这一次算的，晚一帧钉等于让人先看见那一下露白。
-   * 上一帧铺着的行就是人此刻正在看的行。下一帧不再跳变，判据自己不成立，钉子跟着松开 ——
-   * 所以不需要定时器去撤，也不会有钉住不放的状态。
-   */
   const total = virtualizer.getTotalSize()
-  const before = measured.current
 
-  measured.current = total
+  /* 那一次长高量到了，锚定当场归位：让位只覆盖人点出来的那一次测量。 */
+  useLayoutEffect(() => {
+    if (holding && total === measuredTotal.current) {
+      return
+    }
 
-  pinned.current =
-    before !== 0 && viewHeight.current > 0 && Math.abs(total - before) > viewHeight.current
-      ? spansRef.current.map((span) => span.index)
-      : []
+    measuredTotal.current = total
+    setHeld(disclosed)
+  }, [disclosed, holding, total])
 
   const items = virtualizer.getVirtualItems()
 
@@ -258,8 +253,6 @@ export function AgentActivityFeed({
 
       frame = requestAnimationFrame(() => {
         frame = null
-
-        viewHeight.current = viewport.clientHeight
 
         const spans = spansRef.current
         const reading = rowAtAnchor(
@@ -377,7 +370,7 @@ export function AgentActivityFeed({
           className="agent-activity-feed__transcript"
           ref={transcriptRef}
           role="log"
-          style={{ height: virtualizer.getTotalSize() }}
+          style={{ height: total }}
         >
           {/* 每行坐在虚拟器算出来的 start 上：模型说它在哪它就在哪，位置只有一个来源。 */}
           {items.map((item) => {

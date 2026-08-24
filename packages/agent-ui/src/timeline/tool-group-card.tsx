@@ -3,7 +3,7 @@ import './tool-group.css'
 
 import { type FeedRow, liveMemberOf, type ToolGroupPlan } from '@poietica/agent'
 import type { ReactNode } from 'react'
-import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
+import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon } from '../primitives/icons'
 import { readToolLine } from '../semantics/tool-intent'
 import { GroupTicker } from './group-ticker'
@@ -83,14 +83,15 @@ function sayingOf(row: FeedRow): string | undefined {
 }
 
 export interface ToolGroupCardProps {
+  /** 开合归转录那一层，按组头那一条的 id 记账。 */
+  readonly isOpen: boolean
+  readonly onToggle: () => void
   readonly plan: ToolGroupPlan
   /** 成员照转录那一份画，两条通道因此长同一个样子。 */
   readonly renderRow: (row: FeedRow) => ReactNode
 }
 
-export function ToolGroupCard({ plan, renderRow }: ToolGroupCardProps) {
-  const { isOpen, toggle } = useDisclosure(false)
-
+export function ToolGroupCard({ isOpen, onToggle, plan, renderRow }: ToolGroupCardProps) {
   /* 组里还有人在跑，汇总行就跟着闪 —— 收起时那道光是唯一还能说出「正在做」的东西。
      判据借 FeedRow.isInFlight：它已经把「这一轮还在飞」与「这次调用还没有终态」两件事
      合过了（presentation.ts 的 inFlight），这里不重判一遍。 */
@@ -130,7 +131,7 @@ export function ToolGroupCard({ plan, renderRow }: ToolGroupCardProps) {
         aria-expanded={isOpen}
         aria-label={summary}
         className="timeline-row"
-        onClick={toggle}
+        onClick={onToggle}
         type="button"
       >
         <ToolKindIcon kind={plan.kind} />

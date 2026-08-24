@@ -1,5 +1,5 @@
 import { type FeedRow, selectIsBusy, selectPresentation, type TurnSealPlan } from '@poietica/agent'
-import { type ReactNode, useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useTranscripts } from '../session/transcripts-context'
@@ -7,6 +7,7 @@ import { useAssistantHasEarlier, useAssistantTimeline } from '../session/use-ass
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { ReplyActionHost } from './reply-actions'
 import { estimateRowPx } from './row-estimate'
+import { TimelineRow } from './timeline-row'
 import { ToolGroupCard } from './tool-group-card'
 import { TurnSeal } from './turn-seal'
 
@@ -20,10 +21,12 @@ import { TurnSeal } from './turn-seal'
 /* 一轮都没被亲手指定时共用同一张空表：状态的初值不该每次渲染换一个引用。 */
 const NOTHING_CHOSEN: ReadonlyMap<number, boolean> = new Map()
 
+/* 一个抽屉都没被点开时共用同一张空表，理由同上。 */
+const NOTHING_OPENED: ReadonlySet<string> = new Set()
+
 export interface TranscriptViewProps {
   readonly sessionKey: string
   readonly isRestoring: boolean
-  readonly renderRow: (row: FeedRow) => ReactNode
   /**
    * 分叉这条对话（整条带走）。没有分叉点可选，所以它只交给最后一轮 —— 从最后一轮
    * 分叉恰好就是整条。缺席 = 平台没有这个动作。
@@ -31,12 +34,7 @@ export interface TranscriptViewProps {
   readonly onFork?: (() => void) | undefined
 }
 
-export function TranscriptView({
-  isRestoring,
-  onFork,
-  renderRow,
-  sessionKey,
-}: TranscriptViewProps) {
+export function TranscriptView({ isRestoring, onFork, sessionKey }: TranscriptViewProps) {
   const timeline = useAssistantTimeline(sessionKey)
   const hasEarlier = useAssistantHasEarlier(sessionKey)
   const transcripts = useTranscripts()
@@ -73,6 +71,26 @@ export function TranscriptView({
   }, [])
 
   /*
+   * 哪些抽屉开着。它必须长在行的外面：行归虚拟器铺，滚出视口就卸载，state 放在行里等于
+   * 让人一滚就丢 —— 而行高量表按 id 记，它那时还留着展开时那一测。
+   *
+   * 身份是条目 id，全局唯一，所以换对话不清空（量表也没清）。段号才需要跟着对话复位。
+   */
+  const [opened, setOpened] = useState<ReadonlySet<string>>(NOTHING_OPENED)
+
+  const toggleOpen = useCallback((id: string) => {
+    setOpened((current) => {
+      const next = new Set(current)
+
+      if (!next.delete(id)) {
+        next.add(id)
+      }
+
+      return next
+    })
+  }, [])
+
+  /*
    * 转录的唯一投影：折叠、并组、封条、回复操作、轮次索引一次算出，按段增量。
    *
    * 不包 useMemo：缓存的所有权在投影里 —— 那里按段记账、跨组件共享，这里的依赖每帧
@@ -97,6 +115,14 @@ export function TranscriptView({
     [chooseTurn],
   )
 
+  /* 行怎么画归这一层：它已经持有开合，交出去就是把一份真相拆成两处。 */
+  const rowOf = useCallback(
+    (row: FeedRow) => (
+      <TimelineRow isOpen={opened.has(row.item.id)} onToggle={toggleOpen} row={row} />
+    ),
+    [opened, toggleOpen],
+  )
+
   /*
    * 一行的全部装饰按下标问。封条始终挂在该运行第一条用户消息之后；过程行的显隐
    * 不会更换它的虚拟行 key、估高类别或行内边距。
@@ -114,7 +140,18 @@ export function TranscriptView({
       const seal = feed.sealAt(index)
       const isFinal = row.item.turn === feed.lastTurn
       const rendered =
-        plan === undefined ? renderRow(row) : <ToolGroupCard plan={plan} renderRow={renderRow} />
+        plan === undefined ? (
+          rowOf(row)
+        ) : (
+          <ToolGroupCard
+            isOpen={opened.has(row.item.id)}
+            onToggle={() => {
+              toggleOpen(row.item.id)
+            }}
+            plan={plan}
+            renderRow={rowOf}
+          />
+        )
       const content =
         replyAction === undefined ? (
           rendered
@@ -135,7 +172,7 @@ export function TranscriptView({
         </>
       )
     },
-    [feed, onFork, renderRow, sealOf],
+    [feed, onFork, opened, rowOf, sealOf, toggleOpen],
   )
 
   /* 估高与渲染同源：类别知识都在这一层，滚动窗口只收两个按下标问的函数。 */
@@ -163,6 +200,7 @@ export function TranscriptView({
 
       <AgentActivityFeed
         conversation={sessionKey}
+        disclosed={opened}
         estimateRow={estimateRowAt}
         feed={feed}
         hasEarlier={hasEarlier}

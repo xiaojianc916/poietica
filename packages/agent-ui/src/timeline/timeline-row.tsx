@@ -26,9 +26,13 @@ import { UserMessage } from './user-message'
  */
 export interface TimelineRowProps {
   readonly row: FeedRow
+  /** 抽屉开着没有。开合归转录那一层，按条目 id 记账，滚出视口也不丢。 */
+  readonly isOpen: boolean
+  /** 收下 id 而不是一个闭包：这一支是 memo 过的，每帧换身份就等于每帧重渲。 */
+  readonly onToggle: (id: string) => void
 }
 
-export const TimelineRow = memo(function TimelineRow({ row }: TimelineRowProps) {
+export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: TimelineRowProps) {
   const { item } = row
 
   switch (item.type) {
@@ -45,7 +49,16 @@ export const TimelineRow = memo(function TimelineRow({ row }: TimelineRowProps) 
       return <ThoughtCard isStreaming={row.isStreamingTail} text={item.text} />
 
     case 'tool_call':
-      return <ToolCallCard isInFlight={row.isInFlight} item={item} />
+      return (
+        <ToolCallCard
+          isInFlight={row.isInFlight}
+          isOpen={isOpen}
+          item={item}
+          onToggle={() => {
+            onToggle(item.id)
+          }}
+        />
+      )
 
     case 'plan':
       return <PlanPanel entries={item.entries} />
