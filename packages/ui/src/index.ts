@@ -21,6 +21,7 @@ export {
   DropdownMenuTrigger,
 } from './dropdown-menu'
 export { ErrorState, InlineSpinner, LoadingState } from './feedback'
+export { type IntegrationMark, integrationMarkFor, MCP_MARK } from './integration-mark'
 export {
   ArrowLeftIcon,
   ClockTenIcon,

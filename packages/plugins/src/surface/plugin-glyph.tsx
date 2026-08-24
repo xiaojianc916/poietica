@@ -1,14 +1,7 @@
-/* Managed by root refactor.mjs. */
-
-import { cn } from '@poietica/ui'
+import { cn, integrationMarkFor } from '@poietica/ui'
 import { useState } from 'react'
 
-import { pluginIconFor } from './plugin-icons'
-
-/**
- * 已知插件、技能与 MCP 使用随应用打包的本地 SVG。
- * 未知条目以及损坏的本地资源继续使用稳定的彩色首字母。
- */
+/* 认不出的条目与坏掉的资源退回彩色首字母：一个稳定的名字比一个空盒子好认。 */
 
 const SIZES = {
   sm: {
@@ -57,7 +50,7 @@ export interface PluginGlyphProps {
 
 export function PluginGlyph({ displayName, id, size }: PluginGlyphProps) {
   const [failedSource, setFailedSource] = useState<string | undefined>()
-  const icon = pluginIconFor(id, displayName)
+  const icon = integrationMarkFor(id, displayName)
   const renderedIcon = icon !== undefined && icon.src !== failedSource ? icon : undefined
 
   const hue = pluginHue(id)

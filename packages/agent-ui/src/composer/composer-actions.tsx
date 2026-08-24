@@ -4,6 +4,7 @@ import type {
   PromptConfiguration,
   SessionConfigControl,
 } from '@poietica/agent-contract'
+import { integrationMarkFor, MCP_MARK } from '@poietica/ui'
 import type { ReactNode } from 'react'
 import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
@@ -174,7 +175,7 @@ export function composerPaletteGroups({
           `mcp:${server.id}`,
           server.name,
           mcpDetail(server),
-          <ToolIcon aria-hidden="true" />,
+          <img alt="" src={(integrationMarkFor(server.name) ?? MCP_MARK).src} />,
           { kind: 'mcp', id: server.id, name: server.name },
         ),
       ),

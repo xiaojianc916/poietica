@@ -1,5 +1,6 @@
 import './prompt-chip.css'
 
+import { integrationMarkFor, MCP_MARK } from '@poietica/ui'
 import { DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
 import type { ReactNode } from 'react'
 import { SkillIcon } from '../primitives/icons'
@@ -71,13 +72,27 @@ export function PromptChip({
   readonly name: string
 }) {
   if (kind === 'mcp') {
-    return <span className="assistant-prompt-chip">@{name}</span>
+    /* 那台服务器自己的标记；认不出就是 MCP 通用标记，不退回一个 @。 */
+    const mark = integrationMarkFor(name) ?? MCP_MARK
+
+    return (
+      <span className="assistant-prompt-chip">
+        <img
+          alt=""
+          className="assistant-prompt-chip__icon"
+          decoding="async"
+          draggable={false}
+          src={mark.src}
+        />
+        {name}
+      </span>
+    )
   }
 
-  /* 图标随文字走 currentColor（prompt-chip.css），不另立颜色。 */
+  /* 描边字形随文字走 currentColor；两枚记号的几何同归 prompt-chip.css。 */
   return (
     <span className="assistant-prompt-chip">
-      <SkillIcon aria-hidden="true" className="assistant-prompt-chip__icon" size={12} />
+      <SkillIcon aria-hidden="true" className="assistant-prompt-chip__icon" />
       {name}
     </span>
   )
@@ -102,7 +117,8 @@ export class ChipNode extends DecoratorNode<ReactNode> {
   }
 
   static override importJSON(serialized: SerializedChipNode): ChipNode {
-    return new ChipNode(serialized.value)
+    /* 基类那半份 JSON 由 updateFromJSON 落地，官方节点文档的写法。 */
+    return new ChipNode(serialized.value).updateFromJSON(serialized)
   }
 
   constructor(value: PromptChipValue, key?: NodeKey) {

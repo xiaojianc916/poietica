@@ -15,6 +15,7 @@ import {
   type EditorState,
   KEY_ENTER_COMMAND,
   type LexicalEditor,
+  type RangeSelection,
 } from 'lexical'
 import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 import {
@@ -165,6 +166,13 @@ function readDraft(): DraftProjection {
   return { text: $getRoot().getTextContent(), skills: [...skills.values()] }
 }
 
+/* 插入点。编辑器还没被聚焦过时选区是 null（官方 Selection 文档的第四种），当场落在正文末尾。 */
+function $caret(): RangeSelection {
+  const selection = $getSelection()
+
+  return $isRangeSelection(selection) ? selection : $getRoot().selectEnd()
+}
+
 function clearDraft(editor: LexicalEditor): void {
   editor.update(() => {
     const root = $getRoot()
@@ -291,14 +299,9 @@ function PromptInputShell({
     (incoming: string) => {
       rewindPalette()
       editor.update(() => {
-        const selection = $getSelection()
         const said = $getRoot().getTextContent()
 
-        if (!$isRangeSelection(selection)) {
-          return
-        }
-
-        selection.insertText(said.trim().length === 0 ? incoming : `\n\n${incoming}`)
+        $caret().insertText(said.trim().length === 0 ? incoming : `\n\n${incoming}`)
       })
       focusEditor()
     },
@@ -493,32 +496,28 @@ function PromptInputShell({
 
   const pickRow = useCallback(
     (row: PaletteRow) => {
+      /* 收窄落在一个 const 上才进得了闭包，闭包里也就不必再问一次 kind。 */
+      const { action } = row
+
       closePalette()
-      if (row.action.kind === 'run') {
-        row.action.run(draftText.text)
-        focusEditor()
-        return
+
+      if (action.kind === 'run') {
+        action.run(draftText.text)
+      } else if (action.kind === 'configure') {
+        toggleConfiguration({ ...action.configuration, label: action.label })
+      } else {
+        editor.update(() => {
+          const duplicate = $nodesOfType(ChipNode).some((node) =>
+            samePromptChip(node.value(), action.chip),
+          )
+
+          if (!duplicate) {
+            $caret().insertNodes([$createChipNode(action.chip), $createTextNode(' ')])
+          }
+        })
       }
-      if (row.action.kind === 'configure') {
-        toggleConfiguration({ ...row.action.configuration, label: row.action.label })
-        focusEditor()
-        return
-      }
-      editor.update(() => {
-        const selection = $getSelection()
-        if (!$isRangeSelection(selection)) {
-          return
-        }
-        const duplicate = $nodesOfType(ChipNode).some((node) =>
-          samePromptChip(
-            node.value(),
-            row.action.kind === 'insert' ? row.action.chip : { kind: 'skill', name: '' },
-          ),
-        )
-        if (!duplicate && row.action.kind === 'insert') {
-          selection.insertNodes([$createChipNode(row.action.chip), $createTextNode(' ')])
-        }
-      })
+
+      /* 三条路都以焦点回到编辑器收尾：选完接着打字。 */
       focusEditor()
     },
     [closePalette, draftText.text, editor, focusEditor, toggleConfiguration],

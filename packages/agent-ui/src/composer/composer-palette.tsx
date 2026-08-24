@@ -5,11 +5,11 @@ import type { ReactNode } from 'react'
 import { CheckIcon } from '../primitives/icons'
 
 /*
- * 输入框上沿那张面板：加号翻开的和斜杠触发的是同一张。
+ * 输入框上沿那张面板，加号翻开。
  *
  * 纯视图。开不开、高亮哪一行、键盘怎么走，全归持有草稿的 PromptInput —— 键盘
- * 事件落在 textarea 上，面板自己听不见。行由调用方摊平后交进来，所以这里不认识
- * agent、不认识技能、也不认识文件选择器。
+ * 事件落在 contenteditable 上，面板自己听不见。行由调用方摊平后交进来，所以这里
+ * 不认识 agent、不认识技能、也不认识文件选择器。
  */
 
 /*
@@ -83,7 +83,7 @@ export function ComposerPalette({
               const at = flat.indexOf(row)
 
               return (
-                /* mousedown 而不是 click：preventDefault 留住 textarea 的焦点，选完接着打字。 */
+                /* mousedown 而不是 click：preventDefault 拦住焦点转移，落点由 onPick 决定。 */
                 <button
                   aria-selected={at === highlighted}
                   className="composer-palette__row"

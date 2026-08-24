@@ -1,8 +1,7 @@
 /*
  * 面板的皮肤：贴着输入框卡片的上沿、与它同宽，向上展开。
  *
- * 令牌全部取自 composer-metrics.css，与旧那张弹层同一套 —— 换掉的是定位与
- * 所有权，不是配色。
+ * 令牌全部取自 composer-metrics.css。
  */
 
 .composer-palette {
@@ -63,20 +62,17 @@
   background: var(--cp-menu-hover);
 }
 
-/* 禁用行：尚未上线的占位。0.55 与问答面板的禁用档同数。 */
-.composer-palette__row:disabled {
-  opacity: 0.55;
-}
-
 .composer-palette__icon {
   display: flex;
   flex: none;
   color: var(--cp-ink-muted);
 }
 
-.composer-palette__icon svg {
+/* 描边字形与位图标记同一格尺寸。 */
+.composer-palette__icon :is(img, svg) {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
+  object-fit: contain;
 }
 
 .composer-palette__label {
