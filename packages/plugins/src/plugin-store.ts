@@ -14,6 +14,7 @@ import {
   removeSkill,
   setPluginEnabled,
   setPluginMcpEnabled,
+  setSkillEnabled,
   stagePlugin,
   stageSkill,
   writeEnvironmentMcpConfig,
@@ -49,7 +50,7 @@ import {
 import { type ResolvedMcpServer, resolveMcpServers } from './mcp-servers'
 import type { ContributionOrigin } from './origin'
 import { createSnapshotCache } from './registry/snapshot'
-import { skillFrontmatterName } from './skill'
+import { type InstalledSkill, readSkills, skillFrontmatter } from './skill'
 
 /**
  * 「装了什么、开没开、市场上有什么」的唯一持有者。
@@ -90,12 +91,8 @@ export interface PluginsViewModel {
   readonly foreign: readonly ForeignPlugin[]
   readonly marketplace: MarketplaceState
   readonly install: InstallFlow
-  /**
-   * 本机 skills/ 里装着的技能目录名。写入目标的那一半真相：会话里能调用的全部
-   * 技能由 kap 名册报来，两者在 skill.ts 的 resolveSkills 合成一张表 —— 这里只
-   * 回答「哪些删得掉」。
-   */
-  readonly ownedSkills: readonly string[]
+  /** 本机 skills/ 里装着的技能：装了哪些、开没开，这一格说了算。 */
+  readonly ownedSkills: readonly InstalledSkill[]
   /** 技能安装的进行时。没有确认步：一键装完，失败原因落在这里。 */
   readonly skillInstall: InstallFlow
   /** 首帧与「读完了确实一个都没装」不是同一件事，空态因此不会闪。 */
@@ -202,6 +199,11 @@ export interface PluginStore {
    * 技能是提示词文本，不带可执行面，风险档比插件低一级。
    */
   readonly installSkill: (source: PluginInstallSource) => void
+  /**
+   * 停用或启用一个技能：原生侧改 SKILL.md 的名字，与 CLI 认的是同一个判据。
+   * 正文留在盘上，所以停用不是删除。
+   */
+  readonly setSkillEnabled: (name: string, enabled: boolean) => void
   /** 卸载：删掉 skills/<name>/。名单上有它的卡片会拨回「可安装」。 */
   readonly removeInstalledSkill: (name: string) => void
 }
@@ -299,8 +301,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    */
   const epochs = { install: 0, skillInstall: 0 }
 
-  /* 本机 skills/ 里装着的名字。目录只是写入目标，这里是它的投影。 */
-  let ownedSkills: readonly string[] = []
+  /* 盘上那些目录的投影。 */
+  let ownedSkills: readonly InstalledSkill[] = []
 
   function publish(next: Partial<PluginsViewModel>): void {
     snapshot = { ...snapshot, ...next }
@@ -439,9 +441,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     scanned = payloads.map(scan)
   }
 
-  /* 技能装了什么，skills/ 目录说了算：一个含 SKILL.md 的子目录是一个技能。 */
+  /* 技能装了什么，skills/ 目录说了算。前言在 skill.ts 解一次。 */
   async function rescanSkills(): Promise<void> {
-    ownedSkills = await listSkills()
+    ownedSkills = readSkills(await listSkills())
   }
 
   /*
@@ -899,7 +901,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         async (staged, subdirectory) => {
           /* 名字取自前言，缺席回落到子目录名。原生侧落盘前还会验一遍安全性。 */
           const fallback = subdirectory?.split('/').pop() ?? 'skill'
-          const name = skillFrontmatterName(staged.skillMd) || fallback
+          const name = skillFrontmatter(staged.skillMd).name || fallback
 
           await commitSkill({ stagingId: staged.stagingId, name, subdirectory })
 
@@ -913,6 +915,17 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
             warn('技能装好了，目录读不回来', { scope: 'plugins', cause })
           }
         },
+      )
+    },
+
+    setSkillEnabled(name, enabled) {
+      commit(
+        '技能的开关没能落到磁盘上，界面因此不动',
+        async () => {
+          await setSkillEnabled(name, enabled)
+          await rescanSkills()
+        },
+        republish,
       )
     },
 

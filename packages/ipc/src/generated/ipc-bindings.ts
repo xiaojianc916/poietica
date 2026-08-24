@@ -366,6 +366,17 @@ async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_session_close", { request });
 },
 /**
+ * Creates one automation and returns the catalog as written.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the clock cannot be formatted, when the store cannot be
+ * opened, or when the write does not reach disk.
+ */
+async automationsCreate(creation: AutomationCreation) : Promise<AutomationCatalog> {
+    return await TAURI_INVOKE("automations_create", { creation });
+},
+/**
  * Reads the persisted automations.
  * 
  * # Errors
@@ -569,12 +580,9 @@ async skillsDiscard(stagingId: string) : Promise<null> {
     return await TAURI_INVOKE("skills_discard", { stagingId });
 },
 /**
- * 本机 skills/ 里装着哪些：目录名列表，排序后交回。
- * 
- * 名册 × 这份名单在渲染层合成一张表（skill.ts 的 resolveSkills）。含 SKILL.md 的
- * 子目录才算：CLI 也只装载这些。
+ * 本机 skills/ 里装着哪些。启用状态与 SKILL.md 原文一并交回，界面不必再问第二遍。
  */
-async skillsList() : Promise<string[]> {
+async skillsList() : Promise<SkillRecord[]> {
     return await TAURI_INVOKE("skills_list");
 },
 /**
@@ -582,6 +590,12 @@ async skillsList() : Promise<string[]> {
  */
 async skillsRemove(name: string) : Promise<null> {
     return await TAURI_INVOKE("skills_remove", { name });
+},
+/**
+ * 停用与启用：SKILL.md 与 SKILL.md.disabled 之间改名，正文不动。
+ */
+async skillsSetEnabled(name: string, enabled: boolean) : Promise<null> {
+    return await TAURI_INVOKE("skills_set_enabled", { name, enabled });
 },
 /**
  * 取件到暂存区：与插件安装同一条管线，判据换成 SKILL.md。
@@ -1068,12 +1082,14 @@ async browserPickElement(id: number) : Promise<void> {
 
 
 export const events = __makeEvents__<{
+automationCatalogChanged: AutomationCatalogChanged,
 automationDue: AutomationDue,
 browserElementPicked: BrowserElementPicked,
 browserState: BrowserState,
 updateProgress: UpdateProgress,
 windowMaximized: WindowMaximized
 }>({
+automationCatalogChanged: "automation-catalog-changed",
 automationDue: "automation-due",
 browserElementPicked: "browser-element-picked",
 browserState: "browser-state",
@@ -1819,6 +1835,17 @@ sessionConfig?: Partial<{ [key in string]: string }>;
 runs: AutomationRun[] }
 export type AutomationCatalog = { version: number; automations: Automation[] }
 /**
+ * 账本变了。写路径只有一处宣布，所以 MCP 那一侧的改动同样到得了屏幕。
+ */
+export type AutomationCatalogChanged = { catalog: AutomationCatalog }
+/**
+ * 一条还没有身份的自动化。id、created_at 与运行账本由这一侧铸。
+ * 
+ * next_run_at 由日历的持有方给（packages/automations 用 croner 求值）；缺席表示
+ * 还没排，它会在下一次宣布之后被补上。
+ */
+export type AutomationCreation = { title: string; prompt: string; schedule: string | null; sessionConfig?: Partial<{ [key in string]: string }>; nextRunAt: string | null }
+/**
  * 一条自动化到期了。原生侧敲的那一下钟。
  * 
  * 递过去的是整行，不是一个 id：到期与否由这一侧判定，被判定的那一行也该由这
@@ -2017,6 +2044,18 @@ export type SkillCommitRequest = { stagingId: string;
  * 落盘的目录名。渲染层从前言里读出，这一侧只验安全性。
  */
 name: string; subdirectory: string | null }
+/**
+ * 本机 skills/ 里的一个技能目录。
+ */
+export type SkillRecord = { 
+/**
+ * 目录名。停用、启用、卸载都按它寻址。
+ */
+name: string; enabled: boolean; 
+/**
+ * SKILL.md 原文。前言解析在渲染层只有一处。
+ */
+document: string }
 /**
  * 已解到暂存区、等认领的一份。
  */

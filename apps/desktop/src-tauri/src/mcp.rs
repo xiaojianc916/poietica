@@ -12,6 +12,7 @@
 //! 不自带鉴权：rmcp 的 Streamable HTTP 服务器默认只接受回环 Host（用于挡住针对本机
 //! 服务的 DNS 重绑定），加上内核分配的端口，暴露面与 Figma 的本地服务器同级。
 
+use std::collections::BTreeMap;
 use std::io;
 use std::net::TcpListener as StdTcpListener;
 use std::sync::Arc;
@@ -28,7 +29,9 @@ use specta::Type;
 use tauri::{AppHandle, Manager, async_runtime, command};
 use tokio::net::TcpListener;
 
-use crate::commands::automations::{Automation, mutate, open, read_catalog};
+use crate::commands::automations::{
+    Automation, AutomationCreation, create, mutate, open, read_catalog,
+};
 
 /// 服务器的落脚地址。渲染层照着它把这台服务器登记进 MCP 那一格。
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
@@ -90,6 +93,37 @@ struct ListOutput {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct CreateInput {
+    /// 列表里的名字，也是这条自动化开出来的那条对话的标题。
+    title: String,
+    /// 到期时发给 agent 的那句话。
+    prompt: String,
+    /// crontab 表达式；缺席表示只在人手动触发时跑。
+    schedule: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct UpdateInput {
+    /// 要改的那条的 id，取自 automation_list。
+    id: String,
+    title: String,
+    prompt: String,
+    /// crontab 表达式；null 表示改成只在手动触发时跑。
+    schedule: Option<String>,
+    enabled: bool,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct WriteOutput {
+    /// 写完之后那一行。日程刚被改动时 nextRunAt 暂缺，由应用排上。
+    automation: Option<AutomationView>,
+    failure: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 struct DeleteInput {
     /// 要删掉的那条自动化的 id，取自 automation_list。
     id: String,
@@ -119,6 +153,95 @@ impl Ledger {
             Err(cause) => Json(ListOutput {
                 automations: Vec::new(),
                 failure: Some(cause),
+            }),
+        }
+    }
+
+    #[tool(
+        name = "automation_create",
+        description = "Create one scheduled automation. schedule is a crontab expression; omit it for a manual-only automation."
+    )]
+    fn create(
+        &self,
+        Parameters(CreateInput {
+            title,
+            prompt,
+            schedule,
+        }): Parameters<CreateInput>,
+    ) -> Json<WriteOutput> {
+        let creation = AutomationCreation {
+            title,
+            prompt,
+            schedule,
+            session_config: BTreeMap::new(),
+            next_run_at: None,
+        };
+
+        match create(&self.app, creation) {
+            Ok(catalog) => Json(WriteOutput {
+                automation: catalog
+                    .automations
+                    .first()
+                    .cloned()
+                    .map(AutomationView::from),
+                failure: None,
+            }),
+            Err(cause) => Json(WriteOutput {
+                automation: None,
+                failure: Some(cause.to_string()),
+            }),
+        }
+    }
+
+    #[tool(
+        name = "automation_update",
+        description = "Replace the title, prompt, schedule and enabled state of one automation. Run history is preserved."
+    )]
+    fn update(
+        &self,
+        Parameters(UpdateInput {
+            id,
+            title,
+            prompt,
+            schedule,
+            enabled,
+        }): Parameters<UpdateInput>,
+    ) -> Json<WriteOutput> {
+        let mut written = None;
+
+        let outcome = mutate(&self.app, |automations| {
+            let Some(existing) = automations.iter_mut().find(|candidate| candidate.id == id) else {
+                return;
+            };
+
+            /*
+             * 日程动过、刚被启用、或者被停用，下一次到期就作废：重排是日历的事，
+             * 而日历在 packages/automations。留 None，持有方看到之后排上。
+             */
+            if existing.schedule != schedule || enabled != existing.enabled {
+                existing.next_run_at = None;
+            }
+
+            existing.title = title;
+            existing.prompt = prompt;
+            existing.schedule = schedule;
+            existing.enabled = enabled;
+
+            written = Some(existing.clone());
+        });
+
+        match outcome {
+            Ok(_) if written.is_none() => Json(WriteOutput {
+                automation: None,
+                failure: Some("没有这条自动化".to_owned()),
+            }),
+            Ok(_) => Json(WriteOutput {
+                automation: written.map(AutomationView::from),
+                failure: None,
+            }),
+            Err(cause) => Json(WriteOutput {
+                automation: None,
+                failure: Some(cause.to_string()),
             }),
         }
     }

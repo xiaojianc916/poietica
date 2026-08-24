@@ -1,4 +1,4 @@
-import { createAutomationId, warn } from '@poietica/core'
+import { warn } from '@poietica/core'
 import type {
   Automation,
   AutomationCatalog,
@@ -6,10 +6,12 @@ import type {
   AutomationRun,
 } from '@poietica/ipc'
 import {
+  createAutomation,
   loadAutomations,
   recordAutomationRun,
   removeAutomation,
   upsertAutomation,
+  watchAutomationCatalog,
   watchAutomations,
 } from '@poietica/ipc'
 
@@ -129,6 +131,25 @@ export function createAutomationStore(): AutomationStore {
     return snapshot.automations.find((candidate) => candidate.id === id)
   }
 
+  /*
+   * 排上还没排的那些。
+   *
+   * 日历只有一处 —— croner 在这一层求值。账本的其他写者（MCP 工具）只写日程本身，
+   * 下一次到期留空，由这里补上再写回。到期与否仍然只看盘上那个时间戳。
+   */
+  function scheduleMissing(automations: readonly Automation[]): void {
+    for (const automation of automations) {
+      if (automation.enabled && automation.schedule !== null && automation.nextRunAt === null) {
+        command(() =>
+          upsertAutomation({
+            ...automation,
+            nextRunAt: nextRunAfter(automation.schedule, Date.now()),
+          }),
+        )
+      }
+    }
+  }
+
   /**
    * 点一次火。origin 分清是谁点的：日程到点（'schedule'），还是人按了试运行
    * （'manual'）。手动运行不碰日程 —— cron、Temporal 与 Kubernetes 的手动
@@ -205,19 +226,13 @@ export function createAutomationStore(): AutomationStore {
     },
 
     create(draft) {
-      const now = Date.now()
-
       command(() =>
-        upsertAutomation({
-          id: createAutomationId(),
+        createAutomation({
           title: draft.title,
           prompt: draft.prompt,
           schedule: draft.schedule,
           sessionConfig: { ...draft.sessionConfig },
-          enabled: draft.schedule !== null,
-          createdAt: new Date(now).toISOString(),
-          nextRunAt: nextRunAfter(draft.schedule, now),
-          runs: [],
+          nextRunAt: nextRunAfter(draft.schedule, Date.now()),
         }),
       )
     },
@@ -295,33 +310,55 @@ export function createAutomationStore(): AutomationStore {
       void loadAutomations()
         .then((catalog) => {
           settle(catalog.automations)
+          scheduleMissing(catalog.automations)
         })
         .catch((cause: unknown) => {
           warn('自动化列表读取失败', { scope: 'automations', cause })
           settle([])
         })
 
-      let stop: (() => void) | null = null
+      const offs: Array<() => void> = []
       let stopped = false
+
+      /* 兑现可能落在清理之后：就地摘表，别留一个悬空的监听。 */
+      const hold = (off: () => void): void => {
+        if (stopped) {
+          off()
+
+          return
+        }
+
+        offs.push(off)
+      }
 
       void watchAutomations((automation) => {
         void fire(automation, 'schedule')
       })
-        .then((off) => {
-          stop = off
-
-          /* 兑现可能落在清理之后：就地摘表，别留一个悬空的监听。 */
-          if (stopped) {
-            off()
-          }
-        })
+        .then(hold)
         .catch((cause: unknown) => {
           warn('自动化调度没能启动', { scope: 'automations', cause })
         })
 
+      /* 账本的写者不只有这里：原生侧写完就宣布，屏幕与日历跟着走。 */
+      void watchAutomationCatalog((catalog) => {
+        const settled = ticket()
+
+        settled(catalog.automations)
+        scheduleMissing(catalog.automations)
+      })
+        .then(hold)
+        .catch((cause: unknown) => {
+          warn('自动化账本的变更没能盯上', { scope: 'automations', cause })
+        })
+
       return () => {
         stopped = true
-        stop?.()
+
+        for (const off of offs) {
+          off()
+        }
+
+        offs.length = 0
         dispatch = null
       }
     },

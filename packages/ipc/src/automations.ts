@@ -18,19 +18,30 @@ import { commands, events } from './generated/ipc-bindings'
 export type {
   Automation,
   AutomationCatalog,
+  AutomationCreation,
   AutomationReschedule,
   AutomationRun,
   AutomationRunOutcome,
   AutomationRunRecord,
 } from './generated/ipc-bindings'
 
-import type { Automation, AutomationCatalog, AutomationRunRecord } from './generated/ipc-bindings'
+import type {
+  Automation,
+  AutomationCatalog,
+  AutomationCreation,
+  AutomationRunRecord,
+} from './generated/ipc-bindings'
 
 export function loadAutomations(): Promise<AutomationCatalog> {
   return throughIpc(() => commands.automationsLoad())
 }
 
-/** 新建或改写一条。账本归原生侧保管，这里送的是定义。 */
+/** 铸一条新的：id 与 created_at 归账本，这里送的是定义加排好的下一次。 */
+export function createAutomation(creation: AutomationCreation): Promise<AutomationCatalog> {
+  return throughIpc(() => commands.automationsCreate(creation))
+}
+
+/** 改写一条已有的。账本归原生侧保管，这里送的是定义。 */
 export function upsertAutomation(automation: Automation): Promise<AutomationCatalog> {
   return throughIpc(() => commands.automationsUpsert(automation))
 }
@@ -54,6 +65,17 @@ export function recordAutomationRun(record: AutomationRunRecord): Promise<Automa
  *
  * 返回摘表函数。表本身不停：它在原生侧，与进程同寿。
  */
+/**
+ * 盯着账本：写者不只有这里，MCP 那一侧改完由原生侧宣布。返回摘表函数。
+ */
+export function watchAutomationCatalog(
+  onChanged: (catalog: AutomationCatalog) => void,
+): Promise<() => void> {
+  return events.automationCatalogChanged.listen((event) => {
+    onChanged(event.payload.catalog)
+  })
+}
+
 export async function watchAutomations(
   onDue: (automation: Automation) => void,
 ): Promise<() => void> {

@@ -1,8 +1,7 @@
-//! 技能的取用、落盘与列举。
+//! 技能的取用、落盘、列举与停用。
 //!
-//! 「会话里有哪些技能」的唯一真相是 kap 名册（agent_toolkit）；本机 skills/ 目录只是
-//! 写入目标：写进去就是装上，删掉就是卸载，列举只回答「哪些是这里装的」。这里搬字节，
-//! 前言解析归渲染层（安装落盘前取目录名是唯一的一处）。
+//! 「装了哪些技能」的唯一真相是本机 skills/ 目录：含 SKILL.md 的子目录是一个技能，
+//! 改名成 SKILL.md.disabled 就是停用。这里搬字节、报事实，前言解析归渲染层。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -39,6 +38,17 @@ pub struct SkillStaged {
     pub skill_md: String,
 }
 
+/// 本机 skills/ 里的一个技能目录。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillRecord {
+    /// 目录名。停用、启用、卸载都按它寻址。
+    pub name: String,
+    pub enabled: bool,
+    /// SKILL.md 原文。前言解析在渲染层只有一处。
+    pub document: String,
+}
+
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillCommitRequest {
@@ -48,31 +58,20 @@ pub struct SkillCommitRequest {
     pub subdirectory: Option<String>,
 }
 
-/// 本机 skills/ 里装着哪些：目录名列表，排序后交回。
-///
-/// 名册 × 这份名单在渲染层合成一张表（skill.ts 的 resolveSkills）。含 SKILL.md 的
-/// 子目录才算：CLI 也只装载这些。
+/// 本机 skills/ 里装着哪些。启用状态与 SKILL.md 原文一并交回，界面不必再问第二遍。
 #[command]
 #[specta::specta]
-pub async fn skills_list(app: AppHandle) -> SkillsCommandResult<Vec<String>> {
-    (|| -> Result<Vec<String>> {
-        let root = skills_root(&app)?;
-        let mut found = Vec::new();
-
-        for entry in fs::read_dir(&root)?.flatten() {
-            let path = entry.path();
-            let Some(name) = path.file_name().and_then(|it| it.to_str()) else {
-                continue;
-            };
-
-            if path.join(host::SKILL_FILENAME).is_file() {
-                found.push(name.to_owned());
-            }
-        }
-
-        found.sort();
-
-        Ok(found)
+pub async fn skills_list(app: AppHandle) -> SkillsCommandResult<Vec<SkillRecord>> {
+    (|| -> Result<Vec<SkillRecord>> {
+        Ok(host::scan_skills(&skills_root(&app)?)
+            .map_err(skill_failure)?
+            .into_iter()
+            .map(|skill| SkillRecord {
+                name: skill.name,
+                enabled: skill.enabled,
+                document: skill.document,
+            })
+            .collect())
     })()
     .map_err(IpcError::from)
 }
@@ -181,6 +180,24 @@ pub async fn skills_remove(app: AppHandle, name: String) -> SkillsCommandResult<
         }
 
         host::remove_skill(&skills_root(&app)?, &name).map_err(skill_failure)
+    })()
+    .map_err(IpcError::from)
+}
+
+/// 停用与启用：SKILL.md 与 SKILL.md.disabled 之间改名，正文不动。
+#[command]
+#[specta::specta]
+pub async fn skills_set_enabled(
+    app: AppHandle,
+    name: String,
+    enabled: bool,
+) -> SkillsCommandResult<()> {
+    (|| -> Result<()> {
+        if !host::is_safe_segment(&name) {
+            return Err(skill_failure(format!("技能名不合法：{name}")));
+        }
+
+        host::set_skill_enabled(&skills_root(&app)?, &name, enabled).map_err(skill_failure)
     })()
     .map_err(IpcError::from)
 }

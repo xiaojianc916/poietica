@@ -4,6 +4,7 @@ import type { AttachmentIntake } from '@poietica/agent-ui'
 import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/agent-ui'
 import type { AppUpdateController, MainWindowController } from '@poietica/desktop-adapters'
 import { AppUpdateStore } from '@poietica/desktop-adapters'
+import type { PluginsViewModel } from '@poietica/plugins'
 import type {
   AgentConfigStore,
   KeybindingCatalog,
@@ -316,14 +317,14 @@ export function AppShell({ runtime }: AppShellProps) {
   }, [agentControls, agentId, runtime.agent, runtime.agentConfig])
 
   /*
-   * 技能写进 skills/ 之后，让名册重问一次：屏幕上那张技能表是 kap 名册的投影，而
-   * 写路径只改目录不改名册 —— 不重问，装卸之后屏幕就停在旧账上。
+   * 技能写进 skills/ 之后（装、卸、开关），让名册重问一次：名册只回答这个会话装载了
+   * 没有，而写路径只改目录不改名册 —— 不重问，能力表就停在旧账上。
    *
    * 订的是快照里本机名单的引用：写失败不动名单，也就不触发重问。首扫那一次只记
    * 基线 —— 名册自己的首读在 start() 里，不缺这一次。
    */
   useEffect(() => {
-    let seen: readonly string[] | undefined
+    let seen: PluginsViewModel['ownedSkills'] | undefined
 
     return pluginStore.subscribe(() => {
       const owned = pluginStore.getSnapshot().ownedSkills

@@ -30,14 +30,17 @@ export {
 export {
   type Automation,
   type AutomationCatalog,
+  type AutomationCreation,
   type AutomationReschedule,
   type AutomationRun,
   type AutomationRunOutcome,
   type AutomationRunRecord,
+  createAutomation,
   loadAutomations,
   recordAutomationRun,
   removeAutomation,
   upsertAutomation,
+  watchAutomationCatalog,
   watchAutomations,
 } from './automations'
 export {
@@ -101,7 +104,9 @@ export {
   listSkills,
   removeSkill,
   type SkillCommitRequest,
+  type SkillRecord,
   type SkillStaged,
+  setSkillEnabled,
   stageSkill,
 } from './skills'
 export { readTokenDays, type UsageDay } from './usage'

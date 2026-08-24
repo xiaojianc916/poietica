@@ -16,7 +16,7 @@ pub use layout::{
     MANIFEST_FILENAMES, SKILL_FILENAME, is_safe_segment, list_files, locate_root,
     locate_skill_root, manifest_in, resolve_inside,
 };
-pub use skills::{install_skill, remove_skill};
+pub use skills::{ScannedSkill, install_skill, remove_skill, scan_skills, set_skill_enabled};
 pub use source::{copy_tree, extract_zip};
 pub use staging::Staging;
 pub use text_file::{read_optional, write_atomic};

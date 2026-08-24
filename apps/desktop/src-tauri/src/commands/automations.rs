@@ -1,4 +1,4 @@
-use crate::error::{IpcError, Result};
+use crate::error::{Error, IpcError, Result};
 use crate::paths::automations_store;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -10,6 +10,7 @@ use tauri_plugin_store::{Store, StoreExt};
 use tauri_specta::Event;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio::time::{Instant, MissedTickBehavior, interval_at};
+use uuid::Uuid;
 
 type AutomationsCommandResult<T> = std::result::Result<T, IpcError>;
 
@@ -144,6 +145,28 @@ pub struct AutomationRunRecord {
     pub reschedule: AutomationReschedule,
 }
 
+/// 账本变了。写路径只有一处宣布，所以 MCP 那一侧的改动同样到得了屏幕。
+#[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationCatalogChanged {
+    pub catalog: AutomationCatalog,
+}
+
+/// 一条还没有身份的自动化。id、created_at 与运行账本由这一侧铸。
+///
+/// next_run_at 由日历的持有方给（packages/automations 用 croner 求值）；缺席表示
+/// 还没排，它会在下一次宣布之后被补上。
+#[derive(Debug, Deserialize, Serialize, Type, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationCreation {
+    pub title: String,
+    pub prompt: String,
+    pub schedule: Option<String>,
+    #[serde(default)]
+    pub session_config: BTreeMap<String, String>,
+    pub next_run_at: Option<String>,
+}
+
 pub(crate) fn open(app: &AppHandle) -> Result<Arc<Store<Wry>>> {
     Ok(app.store(automations_store(app)?)?)
 }
@@ -189,7 +212,53 @@ pub(crate) fn mutate(
     store.set("automations", serde_json::to_value(&catalog)?);
     store.save()?;
 
+    if let Err(cause) = (AutomationCatalogChanged {
+        catalog: catalog.clone(),
+    })
+    .emit(app)
+    {
+        log::warn!("could not announce the automation catalog: {cause}");
+    }
+
     Ok(catalog)
+}
+
+/// 铸一条新的：id 与 created_at 归账本，日程与日历归领域层。
+pub(crate) fn create(app: &AppHandle, creation: AutomationCreation) -> Result<AutomationCatalog> {
+    let created_at = OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .map_err(|cause| Error::Internal(cause.to_string()))?;
+
+    let automation = Automation {
+        id: Uuid::new_v4().to_string(),
+        title: creation.title,
+        prompt: creation.prompt,
+        enabled: creation.schedule.is_some(),
+        schedule: creation.schedule,
+        created_at,
+        next_run_at: creation.next_run_at,
+        session_config: creation.session_config,
+        runs: Vec::new(),
+    };
+
+    mutate(app, move |automations| {
+        automations.insert(0, automation);
+    })
+}
+
+/// Creates one automation and returns the catalog as written.
+///
+/// # Errors
+///
+/// Returns an error when the clock cannot be formatted, when the store cannot be
+/// opened, or when the write does not reach disk.
+#[command]
+#[specta::specta]
+pub async fn automations_create(
+    app: AppHandle,
+    creation: AutomationCreation,
+) -> AutomationsCommandResult<AutomationCatalog> {
+    create(&app, creation).map_err(IpcError::from)
 }
 
 /// Reads the persisted automations.

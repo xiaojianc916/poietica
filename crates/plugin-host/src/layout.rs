@@ -81,6 +81,9 @@ fn unwrap_single_directory(extracted: &Path) -> PathBuf {
 /// 技能目录的判据文件。技能没有清单，SKILL.md 本身就是身份。
 pub const SKILL_FILENAME: &str = "SKILL.md";
 
+/// 停用的写法：改名，不删文件。CLI 只装载 SKILL.md，改回来即恢复。
+pub(crate) const DISABLED_SKILL_FILENAME: &str = "SKILL.md.disabled";
+
 /// 解出来的那一堆东西里，技能的根在哪。
 ///
 /// 与下面插件那一版同构，判据换成 SKILL.md。脱壳（单目录包一层）复用同一个探针，

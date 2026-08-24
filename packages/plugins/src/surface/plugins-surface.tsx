@@ -8,7 +8,7 @@ import { latestCatalog, type MarketplaceEntry } from '../marketplace'
 import type { ResolvedMcpServer } from '../mcp-servers'
 import { type ContributionOrigin, describeOrigin } from '../origin'
 import type { PluginStore, PluginsViewModel } from '../plugin-store'
-import { type ResolvedSkill, resolveSkills } from '../skill'
+import { type InstalledSkill, loadedNames } from '../skill'
 import { CatalogGrid } from './catalog-grid'
 import { ContributionList, type ContributionRow } from './contribution-list'
 import { PluginBrowser } from './plugin-browser'
@@ -36,7 +36,7 @@ const TABS = {
   skills: {
     label: '技能',
     subtitle:
-      '工作流与提示模板，用 /skill 调用。会话里能调用的全部由 agent 报来；压暗的那几行是装了、这个会话却没装载的。',
+      '装在本机 skills/ 里的工作流与提示模板，用 /skill 调用。开关是磁盘上的改名；压暗的那几行这个会话还没装载。',
   },
   mcp: {
     label: 'MCP',
@@ -53,8 +53,8 @@ const EMPTY_NEEDLES: Record<TabId, string> = { plugins: '', skills: '', mcp: '' 
 
 export interface PluginsSurfaceProps {
   /**
-   * kap 名册里的技能表：会话里能调用的全部。名册唯一持有者是能力表 store
-   * （AgentCapabilityStore.toolkit），组合根经 Context 读它交进来，这里不复制。
+   * kap 名册里的技能表。这里只用它回答「这个会话装载了哪些」—— 装了哪些由
+   * 磁盘说了算。名册唯一持有者是能力表 store（AgentCapabilityStore.toolkit）。
    */
   readonly roster: readonly AgentSkill[]
   readonly store: PluginStore
@@ -69,8 +69,9 @@ export function PluginsSurface({ roster, store }: PluginsSurfaceProps) {
   const needle = needles[tab]
   const entries: readonly MarketplaceEntry[] = latestCatalog(view.marketplace)?.entries ?? []
 
-  /* 名册 × 本机目录，唯一一张技能表。 */
-  const skills = resolveSkills({ owned: view.ownedSkills, roster })
+  /* 装了哪些由磁盘说了算；名册只回答这个会话装载了没有。 */
+  const skills = view.ownedSkills
+  const loaded = loadedNames(roster)
 
   const counts: Record<TabId, number> = {
     plugins: view.plugins.length,
@@ -147,6 +148,7 @@ export function PluginsSurface({ roster, store }: PluginsSurfaceProps) {
         </div>
         <TabBody
           entries={entries}
+          loaded={loaded}
           needle={needle}
           onOpen={setOpenedId}
           skills={skills}
@@ -163,13 +165,15 @@ interface TabBodyProps {
   readonly tab: TabId
   readonly needle: string
   readonly entries: readonly MarketplaceEntry[]
-  readonly skills: readonly ResolvedSkill[]
+  readonly skills: readonly InstalledSkill[]
+  /** 这个会话装载了哪些技能名。 */
+  readonly loaded: ReadonlySet<string>
   readonly store: PluginStore
   readonly view: PluginsViewModel
   readonly onOpen: (id: string) => void
 }
 
-function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyProps) {
+function TabBody({ entries, loaded, needle, onOpen, skills, store, tab, view }: TabBodyProps) {
   switch (tab) {
     case 'plugins':
       return (
@@ -186,8 +190,8 @@ function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyP
       )
     case 'skills': {
       const rows = skills
-        .filter((skill) => matches(needle, skill.name, skill.description, skill.source))
-        .map((skill) => skillRow(skill, store))
+        .filter((skill) => matches(needle, skill.name, skill.description, skill.directory))
+        .map((skill) => skillRow(skill, loaded.has(skill.name), store))
 
       return (
         <div className="pb-24">
@@ -202,15 +206,20 @@ function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyP
           {view.skillInstall.kind === 'refused' ? (
             <p className="pt-6 text-xs text-destructive">{view.skillInstall.reason}</p>
           ) : null}
-          <Section count={rows.length} title="会话可用">
+          <Section count={rows.length} title="已安装">
             <ContributionList
-              empty="这个会话还没有技能。下面那份名单一键装，装完在新会话里用 /skill 调用。"
+              empty="这里还没有装技能。下面那份名单一键装，装完在新会话里用 /skill 调用。"
               rows={rows}
             />
           </Section>
           <CatalogGrid
             action={{ kind: 'skill', install: store.installSkill }}
-            groups={groupRows(builtinSkillRows(view.ownedSkills, needle))}
+            groups={groupRows(
+              builtinSkillRows(
+                skills.map((one) => one.directory),
+                needle,
+              ),
+            )}
           />
         </div>
       )
@@ -238,34 +247,45 @@ function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyP
 }
 
 /*
- * 名册 × 本机目录合成的一行。
+ * 本机 skills/ 里的一行。
  *
- * 移除只长在本机装着的行上：对别的来源点移除只会「静默成功」而名册照旧 —— 没有
- * 按钮好过会说谎的按钮（与 serverRow 的 origin.kind === 'user' 同一条范式）。名册
- * 没报的那几行整行压暗：装了却没装载，第一次被说出来。
+ * 开关落在磁盘上：SKILL.md 与 SKILL.md.disabled 之间改名，正文一个字节不动 ——
+ * 与 CLI 认的是同一个判据。压暗表示这个会话不会装载它。
  */
-function skillRow(skill: ResolvedSkill, store: PluginStore): ContributionRow {
+function skillRow(skill: InstalledSkill, loaded: boolean, store: PluginStore): ContributionRow {
   return {
-    key: `skill/${skill.name}`,
+    key: `skill/${skill.directory}`,
     title: skill.name,
-    detail:
-      skill.description ??
-      (skill.served
-        ? '这个技能没有写说明。'
-        : '已装在这里，但这个会话没有装载它；新开会话或让 agent 重载后再试。'),
-    ...(skill.source === undefined ? {} : { badge: skill.source }),
-    dimmed: !skill.served,
-    trailing: skill.owned ? (
-      <Button
-        className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
-        onClick={() => store.removeInstalledSkill(skill.name)}
-        size="xs"
-        variant="ghost"
-      >
-        移除
-      </Button>
-    ) : undefined,
+    detail: skill.description ?? skillDetail(skill.enabled, loaded),
+    dimmed: !skill.enabled || !loaded,
+    trailing: (
+      <>
+        <Button
+          className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+          onClick={() => store.removeInstalledSkill(skill.directory)}
+          size="xs"
+          variant="ghost"
+        >
+          移除
+        </Button>
+        <Switch
+          aria-label={`启用 ${skill.name}`}
+          checked={skill.enabled}
+          onCheckedChange={(next) => store.setSkillEnabled(skill.directory, next)}
+          size="sm"
+        />
+      </>
+    ),
   }
+}
+
+/* 这一行为什么是灰的：停用了，还是这个会话还没装载。 */
+function skillDetail(enabled: boolean, loaded: boolean): string {
+  if (!enabled) {
+    return '已停用：SKILL.md 已改名，会话不会装载它。'
+  }
+
+  return loaded ? '这个技能没有写说明。' : '已装在这里，新开会话后可用。'
 }
 
 /*

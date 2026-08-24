@@ -31,8 +31,8 @@ use crate::commands::{
         AssetSessionResult, AssetUploadRequest, AssetUploadResult,
     },
     automations::{
-        Automation, AutomationCatalog, AutomationDue, AutomationReschedule, AutomationRun,
-        AutomationRunRecord,
+        Automation, AutomationCatalog, AutomationCatalogChanged, AutomationCreation, AutomationDue,
+        AutomationReschedule, AutomationRun, AutomationRunRecord,
     },
     environment::EnvironmentFile,
     git::GitBranches,
@@ -41,7 +41,7 @@ use crate::commands::{
         PluginStaged,
     },
     settings::{AppSettings, PrivacySettings},
-    skills::{SkillCommitRequest, SkillStaged},
+    skills::{SkillCommitRequest, SkillRecord, SkillStaged},
     updates::{UpdateProgress, UpdateRelease},
     window::WindowMaximized,
 };
@@ -78,6 +78,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::asset::asset_upload,
             crate::commands::asset::asset_remove,
             crate::commands::asset::asset_session_close,
+            crate::commands::automations::automations_create,
             crate::commands::automations::automations_load,
             crate::commands::automations::automations_upsert,
             crate::commands::automations::automations_remove,
@@ -101,6 +102,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::skills::skills_discard,
             crate::commands::skills::skills_list,
             crate::commands::skills::skills_remove,
+            crate::commands::skills::skills_set_enabled,
             crate::commands::skills::skills_stage,
             crate::commands::diagnostics::diagnostics_take_previous_crash,
             crate::commands::window::window_open_devtools,
@@ -146,6 +148,7 @@ pub fn surface() -> Builder<Wry> {
             crate::browser::browser_pick_element,
         ])
         .events(tauri_specta::collect_events![
+            AutomationCatalogChanged,
             AutomationDue,
             BrowserElementPicked,
             BrowserState,
@@ -184,6 +187,8 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AssetUploadResult>()
         .typ::<AssetRemoveRequest>()
         .typ::<AssetSessionCloseRequest>()
+        .typ::<AutomationCatalogChanged>()
+        .typ::<AutomationCreation>()
         .typ::<AutomationDue>()
         .typ::<AutomationRun>()
         .typ::<Automation>()
@@ -199,6 +204,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<PluginStaged>()
         .typ::<PluginCommitRequest>()
         .typ::<PluginPayload>()
+        .typ::<SkillRecord>()
         .typ::<SkillStaged>()
         .typ::<SkillCommitRequest>()
         .typ::<NativeCrashReport>()
