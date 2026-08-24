@@ -2,18 +2,45 @@
  * 工作区外壳栅格的唯一真相。
  *
  * 坐标只在这里出现一次：区域组件只声明自己属于哪个命名区域，不再各自内联
- * gridColumn / gridRow。列宽由 WorkspaceFrame 的 motion 驱动的自定义属性提供，
- * 行高由布局令牌提供，两者仍然只有一个所有者。
+ * gridColumn / gridRow。列宽由 WorkspaceFrame 在提交时写成内联自定义属性；
+ * 注册成 <length> 才能被 CSS 过渡插值（CSS Properties and Values API L1），
+ * 插值因此归样式引擎、与样式解析同帧，不存在动画引擎迟一帧的中间态。
  */
+@property --workspace-sidebar-column-width {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --workspace-browser-column-width {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 .workspace-shell {
   grid-template-columns:
-    var(--workspace-sidebar-column-width, 0px)
+    var(--workspace-sidebar-column-width)
     minmax(0, 1fr)
-    var(--workspace-browser-column-width, 0px);
+    var(--workspace-browser-column-width);
   grid-template-rows: var(--chrome-height) minmax(0, 1fr);
   grid-template-areas:
     "chrome chrome chrome"
     "sidebar main browser";
+  transition:
+    --workspace-sidebar-column-width var(--workspace-layout-duration) var(--workspace-layout-ease),
+    --workspace-browser-column-width var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+/* 拖拽中不插值：宽度每帧都在变，补间只会让列追不上指针。 */
+.workspace-shell[data-splitter="drag"] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shell {
+    transition: none;
+  }
 }
 
 /*

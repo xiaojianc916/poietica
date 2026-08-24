@@ -28,21 +28,10 @@ export const WORKSPACE_LAYOUT = {
     defaultWidth: 420,
   },
 
-  /* 侧栏能停靠的最小视口内宽，逻辑像素。判据在 shell/sidebar-docking.ts。 */
-  breakpoints: {
-    dockable: 900,
-  },
-
   chrome: {
     height: 36,
   },
-  /*
-   * Runtime layout animation contract.
-   *
-   * Motion uses seconds and numeric cubic-bezier tuples,
-   * so these values intentionally remain TypeScript
-   * product tokens instead of CSS duration strings.
-   */
+  /* 布局过渡的时间轴：秒与三次贝塞尔控制点，由 WorkspaceFrame 折成 CSS 值。 */
   motion: {
     layoutDurationSeconds: 0.22,
     layoutEase: [0.2, 0, 0, 1],

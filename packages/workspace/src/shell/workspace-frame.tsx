@@ -1,13 +1,14 @@
-import { type MotionStyle, motion, useReducedMotion } from 'motion/react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 import type { SplitterActivity, SplitterRegion } from './workspace-layout-store'
 
 import './workspace-shell.css'
 
-type WorkspaceMotionStyle = MotionStyle & Record<`--${string}`, string | number>
+type WorkspaceStyle = CSSProperties & Record<`--${string}`, string | number>
 
-const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
+const [easeX1, easeY1, easeX2, easeY2] = WORKSPACE_LAYOUT.motion.layoutEase
+
+const WORKSPACE_LAYOUT_STYLE: WorkspaceStyle = {
   /*
    * 行几何的产品输入。设计系统据此算出行的前导内缩，而那道公式声明在
    * [data-ui-rows] 上 —— 自定义属性的 var() 在声明所在元素上求值，公式与
@@ -16,11 +17,10 @@ const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
    */
   '--ui-row-icon-center': `${WORKSPACE_LAYOUT.sidebar.navIconCenter}px`,
 
-  /*
-   * 布局动画时长同时给 motion 的 transition 和 CSS 侧的过渡使用，两边共用
-   * 一条时间轴：否则分隔线的渐隐会和面板滑动各跑各的节奏。
-   */
+  /* 列宽过渡与分隔线渐隐共用一条时间轴：两边读同一份时长与同一条曲线。 */
   '--workspace-layout-duration': `${WORKSPACE_LAYOUT.motion.layoutDurationSeconds}s`,
+  '--workspace-layout-ease': `cubic-bezier(${easeX1}, ${easeY1}, ${easeX2}, ${easeY2})`,
+
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
 }
 
@@ -38,7 +38,11 @@ export interface WorkspaceFrameProps {
 }
 
 /**
- * 外壳栅格的动画所有者。
+ * 外壳栅格的所有者。
+ *
+ * 两列列宽在 React 提交时就写进内联自定义属性：栅格模板每一帧都能从 DOM 读到真
+ * 值，插值归 CSS 引擎、与样式解析同帧。没有一帧的几何取决于"动画引擎有没有来得
+ * 及写值"，窗口显示与还原因此不会先画出收起态。
  *
  * 行与列的模板、命名区域、分隔线与空列的指针穿透都在 workspace-shell.css 里。
  * 这里把停靠状态位挂到根元素上，并渲染分隔线本身——它是栅格家具，归栅格的
@@ -56,36 +60,21 @@ export function WorkspaceFrame({
   splitter,
   splitterRegion,
 }: WorkspaceFrameProps) {
-  const shouldReduceMotion = useReducedMotion()
-
-  /* 拖拽中不补间：宽度每帧都在变，补间只会让线追不上指针。 */
-  const isDragging = splitter === 'drag'
-
-  /* 侧边栏停靠动画与 CSS 侧的竖线过渡共用一条时间轴。 */
-  const transition =
-    isDragging || shouldReduceMotion
-      ? { duration: 0 }
-      : {
-          type: 'tween' as const,
-          duration: WORKSPACE_LAYOUT.motion.layoutDurationSeconds,
-          ease: WORKSPACE_LAYOUT.motion.layoutEase,
-        }
+  const style: WorkspaceStyle = {
+    ...WORKSPACE_LAYOUT_STYLE,
+    '--workspace-sidebar-column-width': `${sidebarColumnWidth}px`,
+    '--workspace-browser-column-width': `${browserColumnWidth}px`,
+  }
 
   return (
-    <motion.div
-      animate={{
-        '--workspace-sidebar-column-width': `${sidebarColumnWidth}px`,
-        '--workspace-browser-column-width': `${browserColumnWidth}px`,
-      }}
+    <div
       className="workspace-shell relative grid h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground"
       data-browser-docked={isBrowserDocked ? 'true' : 'false'}
       data-sidebar-docked={isSidebarDocked ? 'true' : 'false'}
       data-splitter={splitter}
       data-splitter-region={splitterRegion}
       data-ui-rows=""
-      initial={false}
-      style={WORKSPACE_LAYOUT_STYLE}
-      transition={transition}
+      style={style}
     >
       {chrome}
       {sidebar}
@@ -96,6 +85,6 @@ export function WorkspaceFrame({
         aria-hidden="true"
         className="workspace-shell__divider workspace-shell__divider--browser"
       />
-    </motion.div>
+    </div>
   )
 }

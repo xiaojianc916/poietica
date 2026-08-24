@@ -14,8 +14,7 @@ export interface SidebarRegionProps {
 /**
  * 侧边栏区域。
  *
- * 可见性是用户意图，唯一所有者是 workspace-layout-store；呈现由布局模式在这里
- * 派生，扩回宽屏自然还原。
+ * 可见性是用户意图，唯一所有者是 workspace-layout-store。
  *
  * 收起只有一种形态：列宽归零，定宽底面被自己那一列裁掉，子树不卸载也不位移。
  *

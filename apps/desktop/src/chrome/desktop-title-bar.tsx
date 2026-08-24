@@ -1,9 +1,5 @@
 import { Button } from '@poietica/ui'
-import {
-  useCanDockSidebar,
-  useWorkspaceLayoutState,
-  workspaceLayoutStore,
-} from '@poietica/workspace'
+import { useWorkspaceLayoutState, workspaceLayoutStore } from '@poietica/workspace'
 import { ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { WindowControls } from './window-controls'
@@ -83,9 +79,6 @@ export function DesktopTitleBar({
    */
   const { sidebarOpen } = useWorkspaceLayoutState()
 
-  /* 窗口容不下停靠列时没有可开合的东西：可点也只会改一份看不见的状态。 */
-  const canDockSidebar = useCanDockSidebar()
-
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 items-stretch bg-chrome">
       {/*
@@ -99,8 +92,8 @@ export function DesktopTitleBar({
        * 标签条的地盘，被标签条的层叠上下文和不透明底色盖住——按钮还在、只是
        * 点不到，这是上一版的故障。
        *
-       * 宽度直接读 motion 正在驱动的 --workspace-sidebar-column-width，收缩过程
-       * 跟着面板同一条时间轴、到下限自然刹停，不需要另写一套动画。
+       * 宽度直接读外壳的 --workspace-sidebar-column-width，收缩过程跟着面板
+       * 同一条时间轴、到下限自然刹停，不需要另写一套动画。
        *
        * 下限不是填出来的数：它在 desktop-title-bar.css 里由中线与控件高算出，右侧
        * 留白因此与左侧恒等。
@@ -109,7 +102,6 @@ export function DesktopTitleBar({
         <Button
           aria-label={sidebarOpen ? '收起侧边栏' : '展开侧边栏'}
           className={CHROME_BUTTON_CLASS}
-          disabled={!canDockSidebar}
           onClick={workspaceLayoutStore.toggleSidebar}
           size="icon"
           type="button"

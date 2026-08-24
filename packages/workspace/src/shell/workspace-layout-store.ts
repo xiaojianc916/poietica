@@ -75,10 +75,7 @@ const persisted = createPreference<LayoutIntent>({
   },
 })
 
-/*
- * 本模块只拥有用户意图，不拥有视口：窄视口改用抽屉属于呈现降级，由渲染层
- * 从布局模式派生。意图一旦被环境覆盖就再也还原不回来。
- */
+/* 本模块只拥有用户意图，不拥有视口：意图一旦被环境覆盖就再也还原不回来。 */
 let intent = persisted.read()
 let splitter: SplitterActivity = 'idle'
 let splitterRegion: SplitterRegion = 'sidebar'

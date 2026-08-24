@@ -26,7 +26,6 @@ export {
   type SidebarFooterProps,
 } from './shell/sidebar/sidebar-footer'
 export { WorkspaceSidebar } from './shell/sidebar/workspace-sidebar'
-export { useCanDockSidebar, useIsSidebarDocked } from './shell/sidebar-docking'
 export {
   SurfaceHost,
   type SurfaceHostProps,
