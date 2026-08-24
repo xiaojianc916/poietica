@@ -7,7 +7,7 @@ import { ChevronDownIcon } from '../primitives/icons'
 import { useDevicePixels } from '../primitives/use-device-pixels'
 import { rowAtAnchor } from './reading-position'
 import { keepMeasurements, measurementsOf } from './row-measurements'
-import { type RowGeometry, useScrollAuthority } from './scroll-authority'
+import { type ScrollCommands, useScrollAuthority } from './scroll-authority'
 
 /*
  * 视口之外预留的行数。
@@ -27,6 +27,9 @@ const READING_ANCHOR_RATIO = 1 / 3
 
 /** 距顶端不足这么多屏就去要更早的一页：触顶才取，看见的就是一次停顿。 */
 const EARLIER_LEAD_SCREENS = 1
+
+/** 距末端不足这么多像素算在末端：一格滚轮的量。虚拟器据此决定跟不跟随。 */
+const END_THRESHOLD_PX = 48
 
 /**
  * 浮层可以向滚动区要什么。行号，不是像素。
@@ -60,8 +63,7 @@ export interface AgentActivityFeedProps {
 /**
  * 会话流的滚动区。
  *
- * 它铺内容、量几何，一个 scrollTop 都不写：位置归 scroll-authority。虚拟器只算位置，
- * 浏览器原生的滚动锚定在样式里关掉，于是「谁决定视口在哪」全仓只有一个答案。
+ * 它铺内容、量几何，一个 scrollTop 都不写：位置归虚拟器，意图归 scroll-authority。
  *
  * 它不认识条目类型：内容与估高都从插槽进来。
  */
@@ -98,20 +100,6 @@ export function AgentActivityFeed({
 
   /** 视线落在哪一行。null 是「还没读到过」，不是第 0 行。 */
   const [readingRow, setReadingRow] = useState<number | null>(null)
-
-  const {
-    atLatest,
-    follow,
-    following,
-    mark,
-    pin,
-    resume,
-    reveal,
-    revealing,
-    track,
-    travel,
-    watch,
-  } = useScrollAuthority()
 
   /** 虚拟器此刻铺出来的区间表，给那两次二分用。提交之后镜像一次。 */
   const spansRef = useRef<readonly VirtualItem[]>([])
@@ -151,6 +139,10 @@ export function AgentActivityFeed({
     scrollMargin,
     paddingEnd: tailSize,
     overscan,
+    /* 尾部锚定：前插不动眼前那一行，末端跟随只在人本来就在末端时发生。 */
+    anchorTo: 'end',
+    followOnAppend: true,
+    scrollEndThreshold: END_THRESHOLD_PX,
     /* 钉住的行照铺，别让一次几何跳变把人正在看的行挤出区间。 */
     rangeExtractor: (range) => {
       const rows = defaultRangeExtractor(range)
@@ -164,6 +156,25 @@ export function AgentActivityFeed({
        而这里的渲染器只有 Chromium，原生 scrollend 早已可用。 */
     useScrollendEvent: true,
   })
+
+  /* 位置的写入权在虚拟器，所以意图那一层只透过这三件事说话。 */
+  const commands = useMemo<ScrollCommands>(
+    () => ({
+      isAtEnd: () => virtualizer.isAtEnd(),
+      toEnd: () => virtualizer.scrollToEnd({ behavior: 'smooth' }),
+      toRow: (row) => virtualizer.scrollToIndex(row, { align: 'start', behavior: 'smooth' }),
+    }),
+    [virtualizer],
+  )
+
+  const { atLatest, reveal, revealing, sample, travel, watch } = useScrollAuthority(commands)
+
+  /* 打开一条对话就落在最新那一端：一条对话一个盒子，所以挂载那一次就是那一次。 */
+  useLayoutEffect(() => {
+    if (viewport !== null) {
+      virtualizer.scrollToEnd()
+    }
+  }, [viewport, virtualizer])
 
   /*
    * 一行长高超过一屏，就把上一帧铺着的行钉住这一帧。
@@ -218,67 +229,6 @@ export function AgentActivityFeed({
     }
   }, [viewport])
 
-  /* 行几何。身份与行号进、像素出：持有位置的那一层因此不认识虚拟器。 */
-  const rows = useMemo<RowGeometry>(
-    () => ({
-      offsetOf: (key) => {
-        const index = feed.indexOf(key)
-
-        return index < 0 ? null : (virtualizer.getOffsetForIndex(index, 'start')?.[0] ?? null)
-      },
-      offsetOfRow: (row) => virtualizer.getOffsetForIndex(row, 'start')?.[0] ?? null,
-    }),
-    [feed, virtualizer],
-  )
-
-  /* 几何交出去，一个 scrollTop 都不写：位置的写入全部由 scroll-authority 在转变时做。 */
-  useLayoutEffect(() => {
-    track(rows)
-  }, [rows, track])
-
-  /*
-   * 内容长高了，就拨一次末端。
-   *
-   * 水位线在这一层是已知数：转录框的高度由虚拟器算出，尾部的高度由观察它的那条通知带
-   * 来。于是跟随只在真的长高时读一次几何 —— 每次提交都拨，写下的是上一次采样时的位置，
-   * 而人的手势在两次采样之间还在走。
-   */
-  const contentHeight = virtualizer.getTotalSize() + tailSize
-
-  useLayoutEffect(() => {
-    follow(contentHeight)
-  }, [contentHeight, follow])
-
-  /*
-   * 估高误差归虚拟器补：它是唯一知道哪一行刚被重测的。
-   *
-   * 判据换掉库的默认值：默认对「首次测量且顶边在折线之上」的行一律补偿，而流式输出时跨
-   * 着折线那一行每帧都在长高，补偿会把视口一路往下拽。只补完全在窗口之上的行；跟着末端
-   * 时一概不补 —— 那一侧归 follow，两个写者不许同时存在。
-   */
-  useLayoutEffect(() => {
-    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) =>
-      !following() && item.index < (virtualizer.range?.startIndex ?? 0)
-  }, [following, virtualizer])
-
-  /*
-   * 往前补了一页，眼前那一行不动。
-   *
-   * 判据是首行换了身份：追加发生在末尾，首行不动，所以流式输出时这一处一次都不跑。
-   */
-  const firstRow = useRef<string | null>(null)
-
-  useLayoutEffect(() => {
-    const before = firstRow.current
-    const first = feed.rowAt(0)?.item.id ?? null
-
-    firstRow.current = first
-
-    if (before !== null && first !== null && before !== first) {
-      pin()
-    }
-  }, [feed, pin])
-
   /*
    * 一个滚动区，一处装卸：监听、意图、尺寸通知同寿。
    *
@@ -315,14 +265,8 @@ export function AgentActivityFeed({
           setReadingRow(reading.index)
         }
 
-        /* 顶行是前插要按回原处的那一行。与视线同一次读取，所以不多问一次几何。 */
-        const top = rowAtAnchor(spans, viewport.scrollTop)
-
-        mark(
-          top === null || typeof top.key !== 'string'
-            ? null
-            : { key: top.key, offset: top.start - viewport.scrollTop },
-        )
+        /* 末端判据归虚拟器，这里只在同一次布局读取里采样。 */
+        sample()
 
         /* 离顶端还有多远，同一次读取里问出来。 */
         if (
@@ -343,7 +287,7 @@ export function AgentActivityFeed({
     }
 
     /*
-     * 转录也在名单上：它盖住行内的异步排版与抽屉展开。回路接不上，因为回调里两句都写
+     * 转录也在名单上：它盖住行内的异步排版与抽屉展开。回路接不上，因为回调写的都是
      * state，而 React 在值没变时挡掉 —— 偏移不随转录自身的高度变化，视线所在的行只在
      * 跨行时才是新值。
      *
@@ -391,13 +335,13 @@ export function AgentActivityFeed({
       observer.disconnect()
       unwatch()
     }
-  }, [mark, viewport, watch])
+  }, [sample, viewport, watch])
 
   /*
    * 自己说的话把视线带回末端：那是答复将要出现的地方。
    *
-   * 触发者是数据 —— 最后一条我说的话换了 id。一条对话一个盒子，所以换对话走的是挂载
-   * 那一路（resume），不会被当成「我又说了一句」。
+   * 触发者是数据 —— 最后一条我说的话换了 id。一条对话一个盒子，所以换对话走挂载那一路，
+   * 不会被当成「我又说了一句」。
    */
   const ownMessage = feed.latestOwnMessage
   const said = useRef<{ readonly message: string | null } | null>(null)
@@ -407,18 +351,14 @@ export function AgentActivityFeed({
 
     said.current = { message: ownMessage }
 
-    if (spoken === null) {
-      resume()
-
+    if (spoken === null || spoken.message === null || ownMessage === null) {
       return
     }
 
-    if (spoken.message === null || ownMessage === null || spoken.message === ownMessage) {
-      return
+    if (spoken.message !== ownMessage) {
+      travel()
     }
-
-    travel()
-  }, [ownMessage, resume, travel])
+  }, [ownMessage, travel])
 
   /* 人刚要求看的那一轮最权威；其次是视线推出来的那一行；首帧两者都还没有，那时在末尾。 */
   const activeRow = revealing ?? readingRow ?? Math.max(0, feed.count - 1)
