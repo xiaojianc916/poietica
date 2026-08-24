@@ -1,8 +1,7 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.cache/typescript/tests.tsbuildinfo",
-    "types": ["bun"]
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/tests.tsbuildinfo"
   },
   "include": ["unit/**/*.ts"],
   "exclude": ["node_modules", "coverage", "dist"]

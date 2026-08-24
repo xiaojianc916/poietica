@@ -19,6 +19,7 @@
     "@types/react-dom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "@types/bun": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {

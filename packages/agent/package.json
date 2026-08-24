@@ -16,6 +16,7 @@
     "valibot": "catalog:"
   },
   "devDependencies": {
+    "@types/bun": "catalog:",
     "typescript": "catalog:"
   }
 }

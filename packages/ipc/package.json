@@ -15,6 +15,7 @@
     "@tauri-apps/api": "catalog:tauri"
   },
   "devDependencies": {
+    "@types/bun": "catalog:",
     "typescript": "catalog:"
   }
 }

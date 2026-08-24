@@ -74,6 +74,51 @@ function kindOf(line: string): DiffRowKind | null {
   return line.startsWith('\\') ? null : 'context'
 }
 
+type Hunk = ReturnType<typeof structuredPatch>['hunks'][number]
+
+/** 摊平一段 hunk：行按屏幕顺序进 rows，返回这一段改了多少行。 */
+function spread(hunk: Hunk, rows: DiffRow[]): DiffStat {
+  let oldLine = hunk.oldStart
+  let newLine = hunk.newStart
+  let added = 0
+  let removed = 0
+
+  /* 这一段前面有没显示的行：屏幕上要有个断点，否则两段读成连着的。 */
+  if (rows.length > 0 || hunk.newStart > 1) {
+    rows.push({ at: rows.length, kind: 'gap', number: null, text: '' })
+  }
+
+  for (const line of hunk.lines) {
+    const kind = kindOf(line)
+
+    if (kind === null) {
+      continue
+    }
+
+    if (kind === 'added') {
+      added += 1
+      rows.push({ at: rows.length, kind, number: newLine, text: line.slice(1) })
+      newLine += 1
+
+      continue
+    }
+
+    if (kind === 'removed') {
+      removed += 1
+      rows.push({ at: rows.length, kind, number: oldLine, text: line.slice(1) })
+      oldLine += 1
+
+      continue
+    }
+
+    rows.push({ at: rows.length, kind, number: newLine, text: line.slice(1) })
+    oldLine += 1
+    newLine += 1
+  }
+
+  return { added, removed }
+}
+
 function fileOf(part: Extract<ToolContentPart, { type: 'diff' }>): DiffFile {
   const path = toDisplayPath(part.path)
   const cut = cutOf(path)
@@ -86,41 +131,10 @@ function fileOf(part: Extract<ToolContentPart, { type: 'diff' }>): DiffFile {
   let removed = 0
 
   for (const hunk of patch.hunks) {
-    let oldLine = hunk.oldStart
-    let newLine = hunk.newStart
+    const stat = spread(hunk, rows)
 
-    /* 这一段前面有没显示的行：屏幕上要有个断点，否则两段读成连着的。 */
-    if (rows.length > 0 || hunk.newStart > 1) {
-      rows.push({ at: rows.length, kind: 'gap', number: null, text: '' })
-    }
-
-    for (const line of hunk.lines) {
-      const kind = kindOf(line)
-
-      if (kind === null) {
-        continue
-      }
-
-      if (kind === 'added') {
-        added += 1
-      }
-
-      if (kind === 'removed') {
-        removed += 1
-      }
-
-      const number = kind === 'removed' ? oldLine : newLine
-
-      rows.push({ at: rows.length, kind, number, text: line.slice(1) })
-
-      if (kind !== 'added') {
-        oldLine += 1
-      }
-
-      if (kind !== 'removed') {
-        newLine += 1
-      }
-    }
+    added += stat.added
+    removed += stat.removed
   }
 
   return {

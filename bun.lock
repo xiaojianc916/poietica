@@ -56,6 +56,7 @@
         "valibot": "catalog:",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -67,6 +68,7 @@
         "valibot": "catalog:",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -74,6 +76,7 @@
       "name": "@poietica/agent-contract",
       "version": "0.1.0",
       "devDependencies": {
+        "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -125,6 +128,7 @@
         "croner": "10.0.1",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "react": "catalog:",
@@ -145,6 +149,7 @@
         "valibot": "catalog:",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "react": "catalog:",
@@ -163,6 +168,7 @@
         "uuid": "catalog:",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -178,6 +184,7 @@
         "@tauri-apps/plugin-dialog": "catalog:tauri",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -189,6 +196,7 @@
         "@tauri-apps/api": "catalog:tauri",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -204,6 +212,7 @@
         "yaml": "catalog:",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "react": "catalog:",
@@ -228,6 +237,7 @@
         "valibot": "catalog:",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "react": "catalog:",
@@ -276,6 +286,7 @@
         "valibot": "catalog:",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "react": "catalog:",

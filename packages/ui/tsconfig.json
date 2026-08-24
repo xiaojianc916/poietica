@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.cache/typescript/ui.tsbuildinfo",
-    "types": ["node", "react", "react-dom"]
+    "types": ["bun", "react", "react-dom"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

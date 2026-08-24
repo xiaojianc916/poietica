@@ -405,6 +405,88 @@ function stageIn(rows: readonly FeedRow[]): {
   return { leading: scan(rows, 0, marks[0] ?? rows.length), staged }
 }
 
+/** 每一问的回复操作。起点仍问 answerStart：一个判据，两个读者。 */
+function stanzasIn(rows: readonly FeedRow[], running: boolean): readonly Stanza[] {
+  const bounds = boundsIn(rows)
+  const plans: Stanza[] = []
+
+  for (let k = 0; k < bounds.length; k += 1) {
+    const said = bounds[k] ?? -1
+    const until = bounds[k + 1] ?? rows.length
+    const from = said + 1
+    const answer = answerStart(rows, from, until)
+    const alive = running && k === bounds.length - 1
+    const tail = rows[until - 1]
+    const settled = !alive && !busyIn(rows, from, until) && answer !== undefined
+
+    plans.push({
+      replyId: settled && tail !== undefined ? tail.item.id : undefined,
+      replyText: answer === undefined ? '' : speechFrom(rows, answer, until),
+    })
+  }
+
+  return plans
+}
+
+/** 可见行的行号索引：封条与回复操作都按它落位。 */
+function placesIn(rows: readonly FeedRow[]): ReadonlyMap<string, number> {
+  const where = new Map<string, number>()
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const id = rows[i]?.item.id
+
+    if (id !== undefined) {
+      where.set(id, i)
+    }
+  }
+
+  return where
+}
+
+/** 回复操作只落在留在屏幕上的那一行；被折叠掉的不出操作。 */
+function repliesIn(
+  plans: readonly Stanza[],
+  where: ReadonlyMap<string, number>,
+): ReadonlyMap<number, ReplyActionPlan> {
+  const replies = new Map<number, ReplyActionPlan>()
+
+  for (const plan of plans) {
+    const at = plan.replyId === undefined ? undefined : where.get(plan.replyId)
+
+    if (at !== undefined) {
+      replies.set(at, { text: plan.replyText })
+    }
+  }
+
+  return replies.size === 0 ? NO_REPLIES : replies
+}
+
+/** 这一轮的封条：没有提问，或既无正文也无起点的一轮不出封条。 */
+function sealOf(
+  page: TurnPage,
+  span: TurnSpan | undefined,
+  rows: readonly FeedRow[],
+  running: boolean,
+  isOpen: boolean,
+  hasProcess: boolean,
+): TurnSealPlan | undefined {
+  const asked = rows.some((row) => row.item.type === SAID)
+
+  if (!asked || (!bodyIn(rows, 0, rows.length) && span?.startedAt === undefined)) {
+    return undefined
+  }
+
+  return {
+    endedAt: span?.endedAt,
+    hasProcess,
+    isOpen,
+    isRunning: running,
+    lastFrameAt: span?.lastFrameAt,
+    startedAt: span?.startedAt,
+    turn: page.turn,
+  }
+}
+
 function buildSegment(
   page: TurnPage,
   span: TurnSpan | undefined,
@@ -412,73 +494,20 @@ function buildSegment(
   picked: boolean | undefined,
 ): Segment {
   const all = rowsOf(page, running)
-  const anchor = all.findIndex((row) => row.item.type === SAID)
-  const bounds = boundsIn(all)
+  const isOpen = running || (picked ?? false)
   /* 没有起点就没有过程：一句话都没说出来的一轮整段留在屏幕上，不折叠。 */
   const process = foldFrom(all, answerStart(all, 0, all.length) ?? 0)
-  const isOpen = running || (picked ?? false)
-  const hasBody = bodyIn(all, 0, all.length)
-  const seal: TurnSealPlan | undefined =
-    anchor < 0 || (!hasBody && span?.startedAt === undefined)
-      ? undefined
-      : {
-          endedAt: span?.endedAt,
-          hasProcess: process.length > 0,
-          isOpen,
-          isRunning: running,
-          lastFrameAt: span?.lastFrameAt,
-          startedAt: span?.startedAt,
-          turn: page.turn,
-        }
+  const seal = sealOf(page, span, all, running, isOpen, process.length > 0)
   const hidden = isOpen || seal === undefined ? new Set<number>() : new Set(process)
-
-  /* 回复操作按提问划分跨度，起点仍问 answerStart：一个判据，两个读者。 */
-  const plans: Stanza[] = []
-
-  for (let k = 0; k < bounds.length; k += 1) {
-    const said = bounds[k] ?? -1
-    const until = bounds[k + 1] ?? all.length
-    const from = said + 1
-    const stanzaAnswer = answerStart(all, from, until)
-    const alive = running && k === bounds.length - 1
-    const tail = all[until - 1]
-    const settled = !alive && !busyIn(all, from, until) && stanzaAnswer !== undefined
-
-    plans.push({
-      replyId: settled && tail !== undefined ? tail.item.id : undefined,
-      replyText: stanzaAnswer === undefined ? '' : speechFrom(all, stanzaAnswer, until),
-    })
-  }
-
-  const visible = hidden.size === 0 ? all : all.filter((_, one) => !hidden.has(one))
-  const grouped = groupIn(visible)
-  const where = new Map<string, number>()
-
-  for (let i = 0; i < grouped.rows.length; i += 1) {
-    const id = grouped.rows[i]?.item.id
-
-    if (id !== undefined) {
-      where.set(id, i)
-    }
-  }
-
-  const seals = new Map<number, TurnSealPlan>()
-  const anchorId = anchor < 0 ? undefined : all[anchor]?.item.id
-  const sealAt = anchorId === undefined ? undefined : where.get(anchorId)
-
-  if (seal !== undefined && sealAt !== undefined) {
-    seals.set(sealAt, seal)
-  }
-
-  const replies = new Map<number, ReplyActionPlan>()
-
-  for (const plan of plans) {
-    const replyAt = plan.replyId === undefined ? undefined : where.get(plan.replyId)
-
-    if (replyAt !== undefined) {
-      replies.set(replyAt, { text: plan.replyText })
-    }
-  }
+  const plans = stanzasIn(all, running)
+  const grouped = groupIn(hidden.size === 0 ? all : all.filter((_, one) => !hidden.has(one)))
+  const where = placesIn(grouped.rows)
+  const asked = all.find((row) => row.item.type === SAID)
+  const sealAt = asked === undefined ? undefined : where.get(asked.item.id)
+  const seals =
+    seal === undefined || sealAt === undefined
+      ? NO_SEALS
+      : new Map<number, TurnSealPlan>([[sealAt, seal]])
 
   let ownMessage: string | null = null
 
@@ -493,10 +522,10 @@ function buildSegment(
     groups: grouped.groups,
     ownMessage,
     picked,
-    replies: replies.size === 0 ? NO_REPLIES : replies,
+    replies: repliesIn(plans, where),
     rows: grouped.rows,
     running,
-    seals: seals.size === 0 ? NO_SEALS : seals,
+    seals,
     span,
   }
 }

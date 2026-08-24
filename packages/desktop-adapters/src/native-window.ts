@@ -73,11 +73,10 @@ export function createMainWindowController(): MainWindowController {
       return window.isMaximized()
     },
 
-    async onMaximizedChanged(handler) {
-      return events.windowMaximized.listen((event) => {
+    onMaximizedChanged: (handler) =>
+      events.windowMaximized.listen((event) => {
         handler(event.payload.isMaximized)
-      })
-    },
+      }),
 
     async close() {
       const window = await getMainWindow()
