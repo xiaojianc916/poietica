@@ -1,4 +1,5 @@
 import { optionalProperty } from '@poietica/core'
+import { reportFailure } from './application-policy'
 import { isBenignWindowError } from './benign-window-errors'
 import type { FailurePhase, TerminalFailureInput } from './terminal-policy'
 import { isReactFatalHostMounted, reportFatalIncident } from './terminal-policy'
@@ -63,46 +64,73 @@ function handleWindowError(event: Event): void {
     return
   }
 
-  const reactMounted = isReactFatalHostMounted()
-
   const capturedError = event.error ?? event.message ?? 'Unhandled window error'
 
-  const input: TerminalFailureInput = {
-    impact: 'application-fatal',
-    error: capturedError,
-    kind: reactMounted ? 'async' : 'bootstrap',
-    phase: currentPhase(),
-    code: reactMounted ? 'FATAL_UNHANDLED_WINDOW_ERROR' : 'FATAL_BOOTSTRAP_WINDOW_ERROR',
+  const location = {
     ...optionalProperty('source', nonEmptyString(event.filename)),
     ...optionalProperty('line', positiveNumber(event.lineno)),
     ...optionalProperty('column', positiveNumber(event.colno)),
+  }
+
+  /* 界面已经挂载：这是一次操作失手，不是这个进程不能继续。 */
+  if (isReactFatalHostMounted()) {
+    reportFailure('UNHANDLED_WINDOW_ERROR', {
+      cause: capturedError,
+      collector: 'window-error',
+      eventType: event.type,
+      ...location,
+    })
+
+    return
+  }
+
+  const incident = reportFatalIncident({
+    impact: 'application-fatal',
+    error: capturedError,
+    kind: 'bootstrap',
+    phase: currentPhase(),
+    code: 'FATAL_BOOTSTRAP_WINDOW_ERROR',
+    ...location,
     context: {
       collector: 'window-error',
       eventType: event.type,
     },
-  }
-
-  const incident = reportFatalIncident(input)
+  })
 
   emergencyLogIncident(incident)
 }
 
 function handleUnhandledRejection(event: PromiseRejectionEvent): void {
-  const reactMounted = isReactFatalHostMounted()
+  /*
+   * 取消不是故障：AbortController.abort() 按 DOM 标准以 AbortError
+   * DOMException 拒绝，卸载时中止一次 fetch 走的就是这条路。
+   */
+  if (event.reason instanceof DOMException && event.reason.name === 'AbortError') {
+    event.preventDefault()
+    return
+  }
 
-  const input: TerminalFailureInput = {
+  if (isReactFatalHostMounted()) {
+    reportFailure('UNHANDLED_PROMISE_REJECTION', {
+      cause: event.reason,
+      collector: 'unhandled-rejection',
+      eventType: event.type,
+    })
+
+    return
+  }
+
+  const incident = reportFatalIncident({
     impact: 'application-fatal',
     error: event.reason,
-    kind: reactMounted ? 'async' : 'bootstrap',
+    kind: 'bootstrap',
     phase: currentPhase(),
-    code: reactMounted ? 'FATAL_UNHANDLED_PROMISE_REJECTION' : 'FATAL_BOOTSTRAP_PROMISE_REJECTION',
+    code: 'FATAL_BOOTSTRAP_PROMISE_REJECTION',
     context: {
       collector: 'unhandled-rejection',
       eventType: event.type,
     },
-  }
-
-  const incident = reportFatalIncident(input)
+  })
 
   emergencyLogIncident(incident)
 }

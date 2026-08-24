@@ -19,6 +19,8 @@ export const APPLICATION_FAILURE_CODES = [
   'THREAD_MODES_NOT_KEPT',
   'GIT_BRANCH_OPERATION_FAILED',
   'UPDATE_DOWNLOAD_FAILED',
+  'UNHANDLED_WINDOW_ERROR',
+  'UNHANDLED_PROMISE_REJECTION',
 ] as const
 
 export type ApplicationFailureCode = (typeof APPLICATION_FAILURE_CODES)[number]
@@ -267,6 +269,28 @@ export const APPLICATION_FAILURE_POLICIES = {
     recovery: 'retry',
 
     scope: operationScope('download-update'),
+  },
+
+  /*
+   * 运行期漏出来的异常与没人接的 rejection。
+   *
+   * 界面还在、状态还在，缺的只是某条路径上一个 catch。升成
+   * application-fatal 会用一块无法退出的错误屏换掉一棵完好的树 —— 那不是
+   * 失败的严重程度，是失败处置的错误。诊断照旧进日志，人看到的是一条
+   * 可关闭的通知。作用域是一次操作：没有任何控件需要变灰。
+   */
+  UNHANDLED_WINDOW_ERROR: {
+    impact: 'recoverable',
+    userMessage: '有一处操作出错了，界面仍在正常运行。',
+    recovery: 'dismiss',
+    scope: operationScope('window-error'),
+  },
+
+  UNHANDLED_PROMISE_REJECTION: {
+    impact: 'recoverable',
+    userMessage: '有一处后台任务出错了，界面仍在正常运行。',
+    recovery: 'dismiss',
+    scope: operationScope('unhandled-rejection'),
   },
 } as const satisfies Readonly<Record<ApplicationFailureCode, ApplicationFailurePolicy>>
 

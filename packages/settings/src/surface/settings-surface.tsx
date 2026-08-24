@@ -211,6 +211,8 @@ export interface SettingsProviderProps {
   readonly appVersion: () => Promise<string>
   /** 离开设置。控制器会先把尚未落盘的草稿刷完再回调，所以退出不会丢改动。 */
   readonly onDismiss: () => void
+  /** 设置是否在场。会话只在打开时启动 —— 挂载不是开合信号。 */
+  readonly isOpen: boolean
   readonly children: ReactNode
 }
 
@@ -222,6 +224,7 @@ export function SettingsProvider({
   appVersion,
   dataDirectory,
   onDismiss,
+  isOpen,
   children,
 }: SettingsProviderProps) {
   const [section, setSection] = useState<SettingsSection>('general')
@@ -235,9 +238,8 @@ export function SettingsProvider({
     [onDismiss],
   )
 
-  // open 恒为 true：Provider 只在设置打开时挂载，开合由外壳决定。
   const controller = useSettingsController({
-    open: true,
+    open: isOpen,
     store,
     onOpenChange: handleOpenChange,
   })

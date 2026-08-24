@@ -325,24 +325,22 @@ export function WorkspaceContainer({
     },
   }
 
-  const shell = <WorkspaceShell model={workbench} parts={parts} />
-
-  if (!isSettingsOpen) {
-    return shell
-  }
-
-  /* 设置不是浮层：Provider 只提供状态，界面本身就是外壳栅格里的两个格子。 */
+  /*
+   * 树形不随设置开合改变：返回值的根元素类型一变，React 就重置整棵子树，
+   * 那是一次全窗重画。设置态只换 parts 里 sidebar 与 main 两格的内容。
+   */
   return (
     <SettingsProvider
       agentConfigStore={agentConfigStore}
       appVersion={appVersion}
       dataDirectory={dataDirectory}
+      isOpen={isSettingsOpen}
       keybindings={keybindings}
       onDismiss={onSettingsClose}
       store={settingsStore}
       threads={threads}
     >
-      {shell}
+      <WorkspaceShell model={workbench} parts={parts} />
     </SettingsProvider>
   )
 }
