@@ -20,9 +20,9 @@
   cursor: pointer;
 }
 
-/* 面板翻开期间保持按下态：面板与扳机同在这张卡里，:has 读的就是输入框那份开合态。 */
+/* 面板翻开期间保持按下态：读扳机自己报的 aria-expanded。 */
 .assistant-plus:hover,
-.assistant-prompt-input:has(.composer-palette) .assistant-plus {
+.assistant-plus[aria-expanded="true"] {
   background: var(--cp-menu-hover);
   color: var(--cp-ink);
 }

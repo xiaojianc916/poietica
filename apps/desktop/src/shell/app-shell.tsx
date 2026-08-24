@@ -29,7 +29,7 @@ import { reportFailure } from '../failures/application-policy'
 import { failureCoordinator } from '../failures/coordinator'
 import { UiFeedbackRegion } from '../feedback/ui-feedback'
 import { PluginLoader, pluginStore } from '../plugins/plugin-runtime'
-import { UpdateCapsule } from '../updates/update-capsule'
+import { UpdateRow } from '../updates/update-row'
 import { ConversationCommands } from '../workbench/conversation-commands'
 import { type AppCapabilities, WorkspaceContainer } from '../workbench/workspace-container'
 
@@ -105,11 +105,8 @@ export function AppShell({ runtime }: AppShellProps) {
   )
 
   /*
-   * 更新状态在这里落地，一个进程一份。
-   *
-   * 它必须比那枚胶囊活得久：胶囊挂在 sidebarFooterSlot 上，而那个插槽在设置态会被
-   * sidebarOverride 顶替，React 按位置协调，等于一次卸载重挂。状态放在这一层，切设
-   * 置页就只是换个地方把同一份状态再画一遍。
+   * 更新状态在这里落地，一个进程一份：菜单里那一行只是投影，菜单每次开合都是一次
+   * 卸载重挂，状态不能待在它身上。
    */
   /*
    * 用 useState 的初始化函数，不是 useMemo。
@@ -237,7 +234,7 @@ export function AppShell({ runtime }: AppShellProps) {
    *
    * useState 的初始化函数，不是 useMemo：useMemo 是性能优化，React 允许丢弃缓存
    * 重算，而这台 store 有身份（start() 返回退订），丢一次缓存就多一个实例、多一份
-   * 订阅。理由与上面那枚更新胶囊逐字相同。
+   * 订阅。理由与上面那台更新 store 逐字相同。
    *
    * 读不到和改不动分开报：一次被拒的改动顶着「没能读到可用的模型，去看看密钥填了
    * 没有」上屏，唯一的效果是让人去检查一把本来就是对的钥匙。这两个回调是给日志与
@@ -383,7 +380,6 @@ export function AppShell({ runtime }: AppShellProps) {
             isSettingsOpen={isSettingsOpen && capabilities.settings}
             isWindowMaximized={isWindowMaximized}
             keybindings={keybindings}
-            onCheckUpdates={updates.check}
             onDeveloperToolsOpen={openDeveloperTools}
             onSettingsClose={closeSettings}
             onSettingsOpen={openSettings}
@@ -391,7 +387,7 @@ export function AppShell({ runtime }: AppShellProps) {
             onWindowMaximize={maximizeWindow}
             onWindowMinimize={minimizeWindow}
             settingsStore={runtime.settings}
-            sidebarFooterSlot={<UpdateCapsule store={updates} />}
+            updateRow={<UpdateRow store={updates} />}
             workspace={runtime.workspace}
           />
 

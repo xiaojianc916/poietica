@@ -101,13 +101,18 @@ const DraftContext = createContext<PromptInputDraft | null>(null)
  * 焦点始终在编辑器上，活动项靠 aria-activedescendant 指过去，而只有壳知道弹层开没开、
  * 指着哪一行 —— 所以它从这里往下交，不在编辑器里再算一遍。
  */
-interface PaletteAria {
+export interface PaletteAria {
   readonly listboxId: string
   readonly expanded: boolean
   readonly activeId: string | undefined
 }
 
 const PaletteAriaContext = createContext<PaletteAria | null>(null)
+
+/** 面板此刻开没开，以及它是哪一张 listbox。只有壳知道，所以只从这里读。 */
+export function usePromptInputPalette(): PaletteAria | null {
+  return useContext(PaletteAriaContext)
+}
 
 export function usePromptInputActions(): PromptInputActions {
   const actions = useContext(ActionsContext)
@@ -688,7 +693,7 @@ export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) 
  * 这里只声明壳与占位字。
  */
 export function PromptInputEditor({ placeholder }: { readonly placeholder: string }) {
-  const palette = useContext(PaletteAriaContext)
+  const palette = usePromptInputPalette()
 
   return (
     <div className="assistant-prompt-editor">

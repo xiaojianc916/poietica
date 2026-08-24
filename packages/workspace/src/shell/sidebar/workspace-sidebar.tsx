@@ -6,7 +6,7 @@ import { SidebarFooter } from './sidebar-footer'
 import { SidebarNav } from './sidebar-nav'
 
 export interface WorkspaceSidebarProps {
-  readonly footerLeading?: ReactNode
+  readonly updateRow?: ReactNode
   readonly activeNavigationId: SurfaceId | null
   readonly panel: ReactNode
   readonly onSurfaceActivate: (surfaceId: SurfaceId) => void
@@ -14,7 +14,6 @@ export interface WorkspaceSidebarProps {
   readonly onCommand: (commandId: string) => void
   readonly onSettingsOpen: () => void
   readonly onDeveloperToolsOpen: () => void
-  readonly onCheckUpdates: () => void
 }
 
 /**
@@ -32,14 +31,13 @@ export interface WorkspaceSidebarProps {
  */
 export function WorkspaceSidebar({
   activeNavigationId,
-  footerLeading,
   panel,
+  updateRow,
   onSurfaceActivate,
   onCreateConversation,
   onCommand,
   onSettingsOpen,
   onDeveloperToolsOpen,
-  onCheckUpdates,
 }: WorkspaceSidebarProps) {
   return (
     <section className="workspace-sidebar flex h-full min-h-0 min-w-0 flex-col bg-sidebar">
@@ -53,10 +51,9 @@ export function WorkspaceSidebar({
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">{panel}</div>
 
       <SidebarFooter
-        leading={footerLeading}
-        onCheckUpdates={onCheckUpdates}
         onDeveloperToolsOpen={onDeveloperToolsOpen}
         onSettingsOpen={onSettingsOpen}
+        updateRow={updateRow}
       />
     </section>
   )

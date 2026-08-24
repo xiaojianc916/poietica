@@ -56,9 +56,8 @@ export interface WorkspaceContainerProps {
   readonly settingsStore: SettingsStore
   readonly agentConfigStore: AgentConfigStore
   readonly keybindings: KeybindingCatalog
-  readonly sidebarFooterSlot: ReactNode
+  readonly updateRow: ReactNode
   readonly isWindowMaximized: boolean
-  readonly onCheckUpdates: () => void
   readonly onDeveloperToolsOpen: () => void
   readonly onSettingsOpen: () => void
   readonly onWindowMinimize: () => void
@@ -86,9 +85,8 @@ export function WorkspaceContainer({
   settingsStore,
   agentConfigStore,
   keybindings,
-  sidebarFooterSlot,
+  updateRow,
   isWindowMaximized,
-  onCheckUpdates,
   onDeveloperToolsOpen,
   onSettingsOpen,
   onWindowMinimize,
@@ -262,19 +260,16 @@ export function WorkspaceContainer({
         <SettingsNavigationRegion
           footer={
             <SidebarFooter
-              leading={sidebarFooterSlot}
-              onCheckUpdates={onCheckUpdates}
               onDeveloperToolsOpen={onDeveloperToolsOpen}
               onSettingsOpen={onSettingsClose}
               settingsActive
+              updateRow={updateRow}
             />
           }
         />
       ) : (
         <WorkspaceSidebar
           activeNavigationId={activeNavigationId}
-          footerLeading={sidebarFooterSlot}
-          onCheckUpdates={onCheckUpdates}
           onCommand={runCommand}
           onCreateConversation={openAssistantEntry}
           onDeveloperToolsOpen={onDeveloperToolsOpen}
@@ -289,6 +284,7 @@ export function WorkspaceContainer({
               runningThreadIds={runningThreadIds}
             />
           }
+          updateRow={updateRow}
         />
       ),
     },

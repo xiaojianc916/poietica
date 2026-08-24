@@ -1,14 +1,10 @@
 use std::collections::HashSet;
-use std::time::Duration;
 
 use futures::channel::oneshot;
 
 use crate::commands::AgentClient;
-use crate::config::{ConfigControl, ConfigPurpose, selector_patch};
+use crate::config::{ConfigControl, selector_patch};
 use crate::error::{KapError, Refusal, Result};
-
-const SETTLE_ATTEMPTS: usize = 20;
-const SETTLE_INTERVAL: Duration = Duration::from_millis(25);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConfigSelection {
@@ -16,8 +12,11 @@ pub struct ConfigSelection {
     pub value: String,
 }
 
-/// Validates the complete prompt configuration before writing any selector,
-/// skips values already in force, and returns the one authoritative table.
+/// Writes the selections a prompt carries that are not already in force, and
+/// returns the one authoritative table.
+///
+/// 校验只落在真的要写的那一项上：一项已经生效就没有请求，也就没有可校验的请求
+/// —— 目标开着的时候提交一句话，不该被目标自己的入参规则拒掉。
 pub async fn apply_configurations(
     client: &AgentClient,
     session_id: String,
@@ -31,7 +30,6 @@ pub async fn apply_configurations(
                 message: format!("prompt configuration repeats selector {}", selection.id),
             });
         }
-        let _validated = selector_patch(&selection.id, &selection.value, input.as_deref())?;
     }
 
     let mut controls = receive(client.selectors(session_id.clone())?).await?;
@@ -42,6 +40,7 @@ pub async fn apply_configurations(
         {
             continue;
         }
+        let _validated = selector_patch(&selection.id, &selection.value, input.as_deref())?;
         controls = select_config(
             client,
             session_id.clone(),
@@ -54,10 +53,13 @@ pub async fn apply_configurations(
     Ok(controls)
 }
 
-/// Changes one session control and waits until the agent reports that value as
-/// effective. A model change is a compound transaction: after the model has
-/// settled, the target model's resolved Thinking value is explicitly applied.
-/// This keeps model, Thinking and the selector table on one authoritative line.
+/// Changes one session control. The answer is the table the agent reports for
+/// that write.
+///
+/// 收敛不由这一侧轮询判定：改一项可能增删另一项，而「改完之后是什么样」只有 agent
+/// 说得算 —— 它会把收敛后的那张表自己推过来（配置更新推送，见 packages/agent-contract
+/// 的 config.ts）。本地再立一个截止时间，等于给同一个事实设第二个权威，而那个权威
+/// 只会更早、更容易说错。
 pub async fn select_config(
     client: &AgentClient,
     session_id: String,
@@ -65,64 +67,7 @@ pub async fn select_config(
     value: String,
     input: Option<String>,
 ) -> Result<Vec<ConfigControl>> {
-    let answer = client.select(session_id.clone(), config_id.clone(), value.clone(), input)?;
-    let controls = receive(answer).await?;
-    let controls = settle(client, &session_id, &config_id, &value, controls).await?;
-
-    let changed_model = controls
-        .iter()
-        .any(|control| control.id == config_id && control.purpose == ConfigPurpose::Model);
-
-    if !changed_model {
-        return Ok(controls);
-    }
-
-    let Some((thinking_id, thinking_value)) = controls
-        .iter()
-        .find(|control| control.purpose == ConfigPurpose::Thought)
-        .map(|control| (control.id.clone(), control.current.clone()))
-    else {
-        return Ok(controls);
-    };
-
-    let answer = client.select(
-        session_id.clone(),
-        thinking_id.clone(),
-        thinking_value.clone(),
-        None,
-    )?;
-    let controls = receive(answer).await?;
-
-    settle(client, &session_id, &thinking_id, &thinking_value, controls).await
-}
-
-async fn settle(
-    client: &AgentClient,
-    session_id: &str,
-    config_id: &str,
-    value: &str,
-    mut controls: Vec<ConfigControl>,
-) -> Result<Vec<ConfigControl>> {
-    for attempt in 0..SETTLE_ATTEMPTS {
-        if controls
-            .iter()
-            .any(|control| control.id == config_id && control.current == value)
-        {
-            return Ok(controls);
-        }
-
-        if attempt + 1 == SETTLE_ATTEMPTS {
-            break;
-        }
-
-        tokio::time::sleep(SETTLE_INTERVAL).await;
-        let answer = client.selectors(session_id.to_owned())?;
-        controls = receive(answer).await?;
-    }
-
-    Err(KapError::Timeout {
-        message: format!("session {session_id} did not settle selector {config_id} on {value}"),
-    })
+    receive(client.select(session_id, config_id, value, input)?).await
 }
 
 async fn receive(
@@ -139,9 +84,9 @@ mod tests {
 
     use super::*;
     use crate::commands::Command;
-    use crate::config::ConfigChoice;
+    use crate::config::{ConfigChoice, ConfigPurpose};
 
-    fn control(id: &str, purpose: ConfigPurpose, current: &str, choices: &[&str]) -> ConfigControl {
+    fn control(id: &str, purpose: ConfigPurpose, current: &str) -> ConfigControl {
         ConfigControl {
             id: id.to_owned(),
             label: id.to_owned(),
@@ -149,121 +94,43 @@ mod tests {
             purpose,
             applies_on_submit: false,
             current: current.to_owned(),
-            choices: choices
-                .iter()
-                .map(|value| ConfigChoice {
-                    value: (*value).to_owned(),
-                    label: (*value).to_owned(),
-                    detail: None,
-                })
-                .collect(),
+            choices: vec![ConfigChoice {
+                value: current.to_owned(),
+                label: current.to_owned(),
+                detail: None,
+            }],
         }
     }
 
-    fn target_controls() -> Vec<ConfigControl> {
-        vec![
-            control(
-                "model",
-                ConfigPurpose::Model,
-                "deepseek",
-                &["k3", "deepseek"],
-            ),
-            control("thinking", ConfigPurpose::Thought, "high", &["high", "max"]),
-        ]
-    }
-
+    /// 已经生效的那一项一个字都不写，也就不校验：目标开着的时候提交一句话，不该
+    /// 被目标自己的入参规则拒掉。
     #[tokio::test]
-    async fn model_selection_settles_then_applies_target_thinking() {
+    async fn a_selection_already_in_force_is_never_written() {
         let (commands, mut received) = futures::channel::mpsc::unbounded();
         let client = AgentClient::new(commands);
-        let selecting = tokio::spawn(async move {
-            select_config(
+        let applying = tokio::spawn(async move {
+            apply_configurations(
                 &client,
                 "session".to_owned(),
-                "model".to_owned(),
-                "deepseek".to_owned(),
+                vec![ConfigSelection {
+                    id: "goal".to_owned(),
+                    value: "on".to_owned(),
+                }],
                 None,
             )
             .await
         });
-
-        let Some(Command::Select { reply, .. }) = received.next().await else {
-            return;
-        };
-        reply
-            .send(Ok(vec![
-                control("model", ConfigPurpose::Model, "k3", &["k3", "deepseek"]),
-                control(
-                    "thinking",
-                    ConfigPurpose::Thought,
-                    "low",
-                    &["low", "high", "max"],
-                ),
-            ]))
-            .expect("model response");
 
         let Some(Command::Selectors { reply, .. }) = received.next().await else {
             return;
         };
-        reply.send(Ok(target_controls())).expect("settled model");
-
-        let Some(Command::Select {
-            config_id,
-            value,
-            reply,
-            ..
-        }) = received.next().await
-        else {
-            return;
-        };
-        assert_eq!(config_id, "thinking");
-        assert_eq!(value, "high");
         reply
-            .send(Ok(target_controls()))
-            .expect("Thinking response");
+            .send(Ok(vec![control("goal", ConfigPurpose::Mode, "on")]))
+            .expect("selector table");
 
-        let result = selecting.await.expect("selection task").expect("selection");
-        let thought = result
-            .iter()
-            .find(|control| control.purpose == ConfigPurpose::Thought)
-            .expect("Thinking control");
+        let applied = applying.await.expect("apply task").expect("apply");
 
-        assert_eq!(thought.current, "high");
-        assert!(thought.choices.iter().all(|choice| choice.value != "low"));
-    }
-
-    #[tokio::test]
-    async fn model_without_thinking_finishes_without_second_write() {
-        let (commands, mut received) = futures::channel::mpsc::unbounded();
-        let client = AgentClient::new(commands);
-        let selecting = tokio::spawn(async move {
-            select_config(
-                &client,
-                "session".to_owned(),
-                "model".to_owned(),
-                "plain".to_owned(),
-                None,
-            )
-            .await
-        });
-
-        let Some(Command::Select { reply, .. }) = received.next().await else {
-            return;
-        };
-        reply
-            .send(Ok(vec![control(
-                "model",
-                ConfigPurpose::Model,
-                "plain",
-                &["plain"],
-            )]))
-            .expect("model response");
-
-        let result = selecting.await.expect("selection task").expect("selection");
-        assert!(
-            result
-                .iter()
-                .all(|control| control.purpose != ConfigPurpose::Thought)
-        );
+        assert_eq!(applied.len(), 1);
+        assert!(received.next().await.is_none());
     }
 }

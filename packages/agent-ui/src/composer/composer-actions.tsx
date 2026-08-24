@@ -8,12 +8,21 @@ import type { ReactNode } from 'react'
 import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
 import type { PromptChipValue } from './prompt-chip'
-import { usePromptInputActions, usePromptInputDraft } from './prompt-input'
+import { usePromptInputActions, usePromptInputDraft, usePromptInputPalette } from './prompt-input'
 
+/* 扳机自报开合（WAI-ARIA disclosure），皮肤读的就是这一格：真相只有输入框那一份。 */
 export function ComposerActions() {
   const { togglePalette } = usePromptInputActions()
+  const palette = usePromptInputPalette()
   return (
-    <button aria-label="添加内容" className="assistant-plus" onClick={togglePalette} type="button">
+    <button
+      aria-controls={palette?.listboxId}
+      aria-expanded={palette?.expanded ?? false}
+      aria-label="添加内容"
+      className="assistant-plus"
+      onClick={togglePalette}
+      type="button"
+    >
       <PlusIcon aria-hidden="true" />
     </button>
   )

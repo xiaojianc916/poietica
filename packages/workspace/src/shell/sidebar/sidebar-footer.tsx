@@ -11,7 +11,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@poietica/ui'
-import { BookOpen, CircleQuestionMark, Code, Download, Settings } from 'lucide-react'
+import { BookOpen, CircleQuestionMark, Code, Settings } from 'lucide-react'
 
 import type { ReactNode } from 'react'
 
@@ -29,16 +29,14 @@ const REPOSITORY_URL = 'https://github.com/xiaojianc916/poietica'
 
 export interface SidebarFooterProps {
   /**
-   * 底部行左端的插槽，排在帮助按钮之前。
+   * 帮助菜单里「检查更新」那一行。
    *
-   * 是插槽而不是一个具体控件：这一层不认识"更新"这件事，正如它不认识助手面板。
-   * 具体节点由 apps 组合根注入 —— 外壳只摆放已经接好线的 Part。
+   * 是插槽而不是一个回调：这一层不认识"更新"这件事，而那一行要自己回话，点击与回话
+   * 因此归同一个节点。具体节点由 apps 组合根注入 —— 外壳只摆放已经接好线的 Part。
    */
-  readonly leading?: ReactNode
+  readonly updateRow?: ReactNode
   readonly onSettingsOpen: () => void
   readonly onDeveloperToolsOpen: () => void
-  /** 帮助菜单里那一行「检查更新」。这一层不认识更新，只转发这一次点击。 */
-  readonly onCheckUpdates: () => void
   /**
    * 当前是否停留在设置界面。
    *
@@ -56,19 +54,16 @@ export interface SidebarFooterProps {
  * 底部，rail 移除后由这里承接，入口数量不变。
  */
 export function SidebarFooter({
-  leading,
+  updateRow,
   onSettingsOpen,
   onDeveloperToolsOpen,
-  onCheckUpdates,
   settingsActive = false,
 }: SidebarFooterProps) {
   return (
     <div className="flex shrink-0 items-center gap-1 px-2 py-1.5">
       <div aria-hidden="true" className="flex-1" />
 
-      {leading}
-
-      <HelpMenu onCheckUpdates={onCheckUpdates} onDeveloperToolsOpen={onDeveloperToolsOpen} />
+      <HelpMenu onDeveloperToolsOpen={onDeveloperToolsOpen} updateRow={updateRow} />
 
       <FooterButton active={settingsActive} icon={Settings} label="设置" onClick={onSettingsOpen} />
     </div>
@@ -108,11 +103,11 @@ function FooterButton({ label, icon: Icon, onClick, active = false }: FooterButt
 }
 
 function HelpMenu({
-  onCheckUpdates,
   onDeveloperToolsOpen,
+  updateRow,
 }: {
-  readonly onCheckUpdates: () => void
   readonly onDeveloperToolsOpen: () => void
+  readonly updateRow: ReactNode
 }) {
   return (
     <DropdownMenu>
@@ -132,8 +127,7 @@ function HelpMenu({
             label="项目文档"
           />
 
-          {/* Download 而不是 RefreshAlt：这一行的动作是取回，不是重载。 */}
-          <HelpMenuItem icon={Download} label="检查更新" onClick={onCheckUpdates} />
+          {updateRow}
 
           {/*
            * 品牌标记，不是形近的 UI 字形。此前这里是 Message（对话气泡）—— 那不
