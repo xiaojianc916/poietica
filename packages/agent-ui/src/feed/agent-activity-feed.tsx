@@ -146,8 +146,8 @@ export function AgentActivityFeed({
     getScrollElement: () => viewport,
     estimateSize: estimateRow,
     getItemKey,
-    /* 上次量到的行高。冷启不必从头量一遍，首帧的总高就是对的。 */
-    initialMeasurementsCache: restored,
+    /* 上次量到的行高。冷启不必从头量一遍，首帧的总高就是对的。空表与库默认等价。 */
+    initialMeasurementsCache: restored ?? [],
     scrollMargin,
     paddingEnd: tailSize,
     overscan,

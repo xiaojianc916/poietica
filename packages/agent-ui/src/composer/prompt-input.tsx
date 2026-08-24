@@ -262,7 +262,7 @@ function PromptInputShell({
   /* Enter 发送，Shift+Enter 换行。组词期间一律不碰 —— 那是输入法在说话。 */
   useEffect(
     () =>
-      editor.registerCommand<KeyboardEvent<HTMLElement> | null>(
+      editor.registerCommand(
         KEY_ENTER_COMMAND,
         (event) => {
           if (event === null || event.shiftKey || editor.isComposing()) {
