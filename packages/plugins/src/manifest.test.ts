@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { DEFAULT_AGENT_ROOT, DEFAULT_SKILL_ROOT, decodePluginManifest } from './manifest'
 
 function accept(raw: Record<string, unknown>) {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { builtinAgentProviderById, builtinAgentProviders } from '../../provider-presets'
 import type { AgentProviderState } from '../../provider-state'
 import { kimiCatalogCodec } from '../catalog'

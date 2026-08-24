@@ -1,5 +1,5 @@
+import { describe, expect, it } from 'bun:test'
 import type { RunEvent } from '@poietica/agent-contract'
-import { describe, expect, it } from 'vitest'
 import { allItems } from '../timeline-contract'
 import { applyRunEvent, createTimelineState } from '../timeline-reducer'
 

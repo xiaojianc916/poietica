@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * 由已构建的 NSIS 产物生成 updater 清单。
  *

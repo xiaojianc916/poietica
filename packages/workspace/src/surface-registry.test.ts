@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 
 import { describeSurface, SURFACE_NAVIGATION_ORDER, SURFACE_REGISTRY } from './surface-registry'
 

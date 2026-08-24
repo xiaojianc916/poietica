@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { type AppSettings, DEFAULT_APP_SETTINGS } from '../settings'
 import { createSettingsSession } from '../settings-session'
 import type { SettingsStore } from '../settings-store'

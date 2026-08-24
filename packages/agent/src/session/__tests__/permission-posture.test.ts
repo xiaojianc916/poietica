@@ -1,5 +1,5 @@
+import { describe, expect, it } from 'bun:test'
 import type { SessionConfigControl } from '@poietica/agent-contract'
-import { describe, expect, it } from 'vitest'
 import { permissionPostureOf, permissionPosturesOf } from '../permission-posture'
 
 const MODE: SessionConfigControl = {

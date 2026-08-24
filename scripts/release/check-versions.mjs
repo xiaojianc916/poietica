@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * 版本的单一真相是 Cargo workspace。传入 tag 时，tag 也算一处声明。
  *

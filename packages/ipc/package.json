@@ -8,15 +8,13 @@
     "./generated/ipc-bindings": "./src/generated/ipc-bindings.ts"
   },
   "scripts": {
-    "typecheck": "tsc --project tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
     "@poietica/agent-contract": "workspace:*",
     "@tauri-apps/api": "catalog:tauri"
   },
   "devDependencies": {
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "catalog:"
   }
 }

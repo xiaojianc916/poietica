@@ -10,7 +10,9 @@
     "tauri": "tauri",
     "typecheck:browser": "tsc --project tsconfig.json --noEmit",
     "typecheck:node": "tsc --project tsconfig.node.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "tauri:build:debug": "tauri build --target x86_64-pc-windows-msvc --debug --no-bundle",
+    "tauri:build:release": "tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.release.conf.json"
   },
   "dependencies": {
     "@poietica/agent": "workspace:*",
@@ -34,13 +36,12 @@
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
     "@tauri-apps/cli": "catalog:tauri",
-    "@types/node": "catalog:",
+    "@types/bun": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:",
-    "vitest": "catalog:"
+    "vite": "catalog:"
   }
 }

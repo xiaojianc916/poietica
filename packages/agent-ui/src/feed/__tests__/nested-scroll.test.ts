@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { scrolledToEdge } from '../nested-scroll'
 
 /* 行内自己滚的盒子什么时候把这一笔交给视口 —— 判据是纯的，不需要 DOM。 */

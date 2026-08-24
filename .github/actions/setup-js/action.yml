@@ -1,18 +1,12 @@
 name: Setup JS toolchain
-description: Install pnpm and Node from the versions pinned in package.json, then install workspace dependencies.
+description: Install Bun from the version pinned in package.json, then install workspace dependencies.
 
 runs:
   using: composite
   steps:
-    - name: Install pnpm
-      uses: pnpm/action-setup@v4
-
-    - name: Install Node
-      uses: actions/setup-node@v4
-      with:
-        node-version-file: package.json
-        cache: pnpm
+    - name: Install Bun
+      uses: oven-sh/setup-bun@v2
 
     - name: Install dependencies
       shell: bash
-      run: pnpm install --frozen-lockfile
+      run: bun install --frozen-lockfile

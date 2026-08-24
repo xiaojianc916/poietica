@@ -1,13 +1,13 @@
 # Architecture Overview
 
 分层与依赖方向的唯一事实来源是 `tools/architecture/rules.config.mjs`，
-由 `pnpm test:architecture` 在每次 CI 与提交前执行。本文只做解释，
+由 `bun run test:architecture` 在每次 CI 与提交前执行。本文只做解释，
 与配置不一致时以配置为准。
 
 ## TypeScript 包分层
 
 分层表、依赖方向、原生宿主白名单与目录命名的**唯一事实来源**是
-`tools/architecture/rules.config.mjs`，由 `pnpm test:architecture` 执行。
+`tools/architecture/rules.config.mjs`，由 `bun run test:architecture` 执行。
 
 这里不再重抄一份 —— 此前 README.md、AGENTS.md、本文件与
 tools/architecture/README.md 各存一份手抄表，四份互相矛盾（本文件曾把磁盘上

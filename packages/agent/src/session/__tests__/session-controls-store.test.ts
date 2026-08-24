@@ -1,10 +1,10 @@
+import { describe, expect, it } from 'bun:test'
 import type {
   OpenedThread,
   SessionConfigControl,
   SessionConfigPort,
   SessionConfigReport,
 } from '@poietica/agent-contract'
-import { describe, expect, it } from 'vitest'
 
 import { SessionControlsStore } from '../session-controls-store'
 

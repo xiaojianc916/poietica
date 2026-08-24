@@ -62,7 +62,7 @@ const alternation = (values) => values.map(escapeForRegExp).join('|')
 /*
  * 依赖方向。
  *
- * 边不在这里声明。各包 package.json 的 dependencies 已经声明过一遍，而 pnpm 的
+ * 边不在这里声明。各包 package.json 的 dependencies 已经声明过一遍，而 bun 的
  * 隔离式 node_modules 又决定了没写进去的包在源码里根本解析不到 —— 工作区 manifest
  * 就是这个仓库唯一真实存在的依赖图，turbo 的 ^task 读的也是它。在这里再抄一份
  * 「谁可以依赖谁」，抄出来的是第二个真相。
@@ -97,7 +97,7 @@ const sameLayerDependencies = [
   { from: 'agent', to: 'agent-catalog', reason: '线程按 agentId 定址，名单与线程状态同层同域' },
 ]
 
-/* 只有这三个包可以直连原生宿主。判据落在 manifest：没声明的包在 pnpm 下解析不到。 */
+/* 只有这三个包可以直连原生宿主。判据落在 manifest：没声明的包在 bun 下解析不到。 */
 const nativeAllowed = new Set(['desktop', 'desktop-adapters', 'ipc'])
 
 /*
@@ -165,7 +165,7 @@ for (const [pkg, directory] of layeredPackages) {
 }
 
 /*
- * 分层之外的工作区成员。pnpm-workspace.yaml 把 tests 列为成员，而分层只覆盖
+ * 分层之外的工作区成员。package.json 把 tests 列为成员，而分层只覆盖
  * sourceRoots，所以上面那条「新增包必须先定层」抓不到它。洞就是洞 —— 显式豁免
  * 比隐式遗漏可信。下面这段保证这份名单与磁盘一致。
  */
@@ -173,7 +173,7 @@ const UNLAYERED_PACKAGES = ['tests']
 
 for (const directory of UNLAYERED_PACKAGES) {
   if (!existsSync(path.join(repositoryRoot, directory, 'package.json'))) {
-    mismatches.push(`${directory}/package.json 不存在 —— 豁免名单必须与 pnpm-workspace.yaml 一致`)
+    mismatches.push(`${directory}/package.json 不存在 —— 豁免名单必须与 package.json 一致`)
   }
 }
 
@@ -418,7 +418,7 @@ const manifestOrchestrationDefects = (file, scripts) =>
     }))
   })
 
-/* pnpm-workspace.yaml 声明了 saveExact，版本只能来自 catalog: 或精确号。 */
+/* bunfig.toml 声明了 install.exact，版本只能来自 catalog: 或精确号。 */
 const manifestVersionDefects = (file, manifest) =>
   DEPENDENCY_BLOCKS.flatMap((block) =>
     Object.entries(manifest[block] ?? {})
@@ -509,20 +509,20 @@ const wildcardModuleDeclarations = async (inventory) => {
 const toPosixPath = (value) => value.split(path.sep).join('/')
 
 /*
- * 文档里写的 pnpm 脚本必须真的存在。
+ * 文档里写的 bun 脚本必须真的存在。
  *
- * README 曾经列过 pnpm format:check —— 根 package.json 里只有 format，照着敲直接失败。
+ * README 曾经列过 bun format:check —— 根 package.json 里只有 format，照着敲直接失败。
  * 命令表是最容易腐烂的一类文档：它抄的是别处的可执行事实，而没有任何东西在它腐烂时
  * 喊一声。
  *
- * 判据收缩到单个文件就能证明的形状：只认带冒号的调用。pnpm 的内置命令没有一个带冒号，
- * 所以带冒号的一定是仓库脚本 —— 不需要穷举 pnpm 的命令表，那是个会变的开放集合，
+ * 判据收缩到单个文件就能证明的形状：只认带冒号的调用。bun 的内置命令没有一个带冒号，
+ * 所以带冒号的一定是仓库脚本 —— 不需要穷举 bun 的命令表，那是个会变的开放集合，
  * 此前两次栽在穷举开放集合上。不带冒号的调用漏过去，零误报优先于全覆盖。
  *
  * 根 README 与 AGENTS.md 不在 inventoryRoots 下，这里自己读 —— 不为一条规则改变
  * 所有规则的扫描面。
  */
-const DOCUMENTED_SCRIPT = /(?<=\bpnpm\s(?:run\s)?)[a-z][\w-]*:[\w:-]+/g
+const DOCUMENTED_SCRIPT = /(?<=\bbun\s(?:run\s)?)[a-z][\w-]*:[\w:-]+/g
 
 const documentationFiles = () => {
   const found = ['AGENTS.md', 'README.md'].filter((file) =>
@@ -577,7 +577,7 @@ const documentedScriptsExist = async (inventory) => {
       if (!declared.has(match[0])) {
         defects.push({
           file,
-          message: `文档写着 pnpm ${match[0]}，但没有任何 manifest 声明这个脚本`,
+          message: `文档写着 bun ${match[0]}，但没有任何 manifest 声明这个脚本`,
         })
       }
     }
@@ -590,11 +590,11 @@ const documentedScriptsExist = async (inventory) => {
  *
  * documented-scripts-exist 只管「文档 → manifest」这一个方向。反方向没有闸门，
  * 于是根 package.json 的 "release": "node release.mjs" 指着一个磁盘上不存在的
- * 文件一直躺着 —— 照着敲直接失败，而 pnpm 与 turbo 都不校验脚本入口。
+ * 文件一直躺着 —— 照着敲直接失败，而 bun 与 turbo 都不校验脚本入口。
  *
  * 判据只依赖单个文件能证明的形状：脚本正文里的路径，与它在不在磁盘上。
  */
-const SCRIPT_ENTRYPOINT = /(?:^|\s)node\s+([\w./-]+\.mjs)/g
+const SCRIPT_ENTRYPOINT = /(?:^|\s)bun\s+([\w./-]+\.mjs)/g
 
 const manifestScriptsResolve = async (inventory) => {
   const defects = []
@@ -625,7 +625,7 @@ const manifestScriptsResolve = async (inventory) => {
 /*
  * 一个 manifest 上算数的依赖块，全仓一份 —— 依赖图与版本判据读的是同一张表。
  *
- * dependencies 与 devDependencies 都算 —— pnpm 与 turbo 都把两者当工作区边，
+ * dependencies 与 devDependencies 都算 —— bun 与 turbo 都把两者当工作区边，
  * 一条 devDependency 造出来的环同样会卡死 turbo 的 task 图。peerDependencies
  * 同样算：它声明的是宿主必须装上的东西，写成范围就绕开了 saveExact。
  */
@@ -787,7 +787,7 @@ const everyPackageIsReachable = async (inventory) => {
 }
 
 /*
- * 原生宿主访问。判据落在 manifest 上：pnpm 的隔离式 node_modules 决定了没声明的
+ * 原生宿主访问。判据落在 manifest 上：bun 的隔离式 node_modules 决定了没声明的
  * 包 import 不到，「声明了」与「碰得到」在这个仓库里是同一件事。
  */
 const nativeHostAccessIsDeclared = async (inventory) => {
@@ -905,7 +905,7 @@ const COMPOSITION_ROOT = 'apps/desktop/src/shell/app-shell.tsx'
  * domain 层不认识 React。
  *
  * 这一层是投影、状态与不变式：它必须能在 Node 里直接单测，也必须能在渲染器之外被
- * 构造。判据不能只靠 manifest —— 依赖表里没有 react 时 pnpm 的隔离式 node_modules
+ * 构造。判据不能只靠 manifest —— 依赖表里没有 react 时 bun 的隔离式 node_modules
  * 确实解析不到，但那张表随时可以被加上一行，而方向判据只认 @poietica/* 的边（见
  * LOCAL_PACKAGE），react 不在其中：hooks 与 Context 搬进 domain 时整条规则一声不响。
  *

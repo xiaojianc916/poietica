@@ -1,5 +1,5 @@
+import { describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vitest'
 
 /*
  * 表格行线读的是哪一档。

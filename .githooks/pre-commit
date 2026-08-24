@@ -3,7 +3,7 @@
 set -eu
 
 # Format and fix only what is being committed. Biome owns the rules.
-pnpm exec biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true
+bunx biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true
 
 # Refresh index entries that already exist there. Never stage anything new:
 # "git add -u" would sweep unrelated working-tree changes into this commit.

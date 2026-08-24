@@ -1,5 +1,5 @@
+import { describe, expect, it } from 'bun:test'
 import type { AgentToolkit, SessionConfigControl } from '@poietica/agent-contract'
-import { describe, expect, it } from 'vitest'
 
 import { AgentCapabilityStore } from '../agent-capability-store'
 

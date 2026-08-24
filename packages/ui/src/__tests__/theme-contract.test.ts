@@ -1,7 +1,7 @@
+import { describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
 
 /*
  * 一、主题契约完整性。起因：一次用正则替换注释的改动把 --ui-card /

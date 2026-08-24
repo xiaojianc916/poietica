@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 
 import { DEFAULT_BRANCH_UNPLANNABLE, planFetch } from './fetch-plan'
 import { parseInstallSource } from './install-source'

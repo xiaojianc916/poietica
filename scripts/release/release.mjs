@@ -1,8 +1,8 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * 在本机完成一次发布。
  *
- *   pnpm release
+ *   bun run release
  *
  * 构建、签名、上传、验通道全部在本地用 gh 完成，不经过 GitHub Actions。
  *
@@ -108,35 +108,15 @@ function note(text) {
   console.log(dim(`    ${text}`))
 }
 
-/*
- * 命令一律按 argv 数组传，拼 shell 字符串这件事只在这里发生一次。
- *
- * 上一版每个调用点自己拼，引号靠人记得加 —— 而这条流水线上恰恰全是危险路径：
- * NSIS 安装包名带版本号，密钥住在 C:\Users\陈小建 这种非 ASCII 目录下。漏一处
- * 就是一次半截的发布。pnpm 与 gh 在 Windows 上是 .cmd，Node 20 起不走 shell 根本
- * spawn 不到，所以 shell 保留（这是运行时的硬限制），但引号收归此处。
- *
- * 不用 JSON.stringify 加引号：它会把 Windows 路径里的 \ 转义成 \\，cmd.exe 会把
- * 那两个反斜杠原样传下去。这里只做双引号包裹，遇到无法安全传递的字符就拒绝执行。
- */
-function quote(part) {
-  const text = String(part)
-
-  if (/["`$\n]/.test(text)) {
-    throw new Abort(`命令参数含有无法安全传给 shell 的字符：${text}`)
-  }
-
-  return /^[\w./:@=-]+$/.test(text) ? text : `"${text}"`
-}
-
-const line = (argv) => argv.map(quote).join(' ')
+/* bun、git、gh 在 Windows 上都是真正的可执行文件，argv 直接交给 spawnSync，不经 shell。 */
+const line = (argv) => argv.join(' ')
 
 /** 执行一条命令，输出直通终端。失败即抛。 */
 function run(...argv) {
   const command = line(argv)
   console.log(dim(`    $ ${command}`))
 
-  const result = spawnSync(command, { shell: true, stdio: 'inherit' })
+  const result = spawnSync(argv[0], argv.slice(1), { stdio: 'inherit' })
 
   if (result.status !== 0) {
     throw new Abort(`命令失败（退出码 ${result.status}）：${command}`)
@@ -145,25 +125,17 @@ function run(...argv) {
 
 /** 执行一条命令并拿回它的输出。失败返回 null，用于探测。 */
 function capture(...argv) {
-  const result = spawnSync(line(argv), { shell: true, encoding: 'utf8' })
+  const result = spawnSync(argv[0], argv.slice(1), { encoding: 'utf8' })
 
   return result.status === 0 ? result.stdout.trim() : null
 }
 
 /** 回滚路径上用的命令：它自己失败了也不能再抛，否则会盖掉真正的错误。 */
 function tryRun(...argv) {
-  let command
-
-  try {
-    command = line(argv)
-  } catch (error) {
-    console.log(yellow(`    无法构造回滚命令，请手动处理：${error.message}`))
-    return
-  }
-
+  const command = line(argv)
   console.log(dim(`    $ ${command}`))
 
-  const result = spawnSync(command, { shell: true, stdio: 'inherit' })
+  const result = spawnSync(argv[0], argv.slice(1), { stdio: 'inherit' })
 
   if (result.status !== 0) {
     console.log(yellow(`    回滚命令失败，请手动处理：${command}`))
@@ -218,7 +190,7 @@ async function loadSigningKey() {
           '',
           '如果这是一台新机器，把旧机器上的这个文件拷过来；',
           '如果密钥从未生成过（注意：换密钥意味着所有老客户端都收不到更新了）：',
-          '  pnpm tauri signer generate -w ~/.tauri/poietica.key',
+          '  cd apps/desktop && bun run tauri signer generate -w ~/.tauri/poietica.key',
         ].join('\n'),
       )
     }
@@ -324,7 +296,7 @@ async function preflight() {
       [
         'updater 公钥还是占位符。',
         '发出去的后果是所有已安装客户端永远更新失败，而且不会有任何报错。',
-        '生成密钥对：pnpm tauri signer generate -w ~/.tauri/poietica.key',
+        '生成密钥对：cd apps/desktop && bun run tauri signer generate -w ~/.tauri/poietica.key',
       ].join('\n'),
     )
   }
@@ -419,8 +391,8 @@ async function gate() {
     return
   }
 
-  run('pnpm', 'check')
-  run('pnpm', 'ipc:check')
+  run('bun', 'run', 'check')
+  run('bun', 'run', 'ipc:check')
 }
 
 /* ── [4] 写版本号 ──────────────────────────────────────────── */
@@ -437,9 +409,9 @@ function applyVersion(target) {
   step('写版本号：把它同时写进 Cargo.toml 与三个 package/conf 文件')
   note('四处版本号不一致会让客户端陷入无限更新提示，所以写完立刻校验一遍。')
 
-  run('pnpm', 'version:set', target)
+  run('bun', 'run', 'version:set', target)
   versionFilesDirty = true
-  run('pnpm', 'check:versions')
+  run('bun', 'run', 'check:versions')
 }
 
 function restoreVersionFiles() {
@@ -468,7 +440,7 @@ async function buildAndStage(target, tag) {
   step('构建安装包：编译并用你的私钥签名（这一步最久，十几分钟起）')
   note('可以去干别的了，跑完会响一声。')
 
-  run('pnpm', 'build:release')
+  run('bun', 'run', 'build:release')
 
   /* 十几分钟没人会一直盯着终端。跑完敲一下铃，把人叫回来做后面的确认。 */
   process.stdout.write('\u0007')

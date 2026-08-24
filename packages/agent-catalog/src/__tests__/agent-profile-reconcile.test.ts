@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { type AgentProfile, builtinAgentProfiles, reconcileAgentProfiles } from '../agent-profile'
 import { agentById } from '../agents'
 

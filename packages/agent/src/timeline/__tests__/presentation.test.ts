@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/sample-run'
 import { selectPresentation } from '../presentation'

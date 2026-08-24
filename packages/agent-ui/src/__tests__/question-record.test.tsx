@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'bun:test'
 import type { QuestionTimelineItem } from '@poietica/agent'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
 import { QuestionRecord } from '../timeline/question-record'
 
 /*

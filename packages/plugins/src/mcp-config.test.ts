@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 
 import { decodeMcpConfig } from './mcp-config'
 import type { ContributionOrigin } from './origin'

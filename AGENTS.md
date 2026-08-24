@@ -10,10 +10,10 @@
 
 | 事实 | 定义在 | 由谁执行 |
 | --- | --- | --- |
-| 包分层与依赖方向 | `tools/architecture/rules.config.mjs` | `pnpm test:architecture` |
+| 包分层与依赖方向 | `tools/architecture/rules.config.mjs` | `bun run test:architecture` |
 | 包内目录命名禁用清单 | 同上 `forbiddenDirectoryNames` | 同上 |
-| 依赖版本 | `pnpm-workspace.yaml` 的 catalog | pnpm |
-| IPC 契约 | Rust 类型，生成到 `packages/ipc/src/generated/` | `pnpm ipc:check` |
+| 依赖版本 | `package.json` 的 catalog | Bun |
+| IPC 契约 | Rust 类型，生成到 `packages/ipc/src/generated/` | `bun run ipc:check` |
 | IPC 命令清单 | `apps/desktop/src-tauri/src/ipc/mod.rs` 的 surface()，唯一一份 | 同上 |
 | 磁盘布局 | `apps/desktop/src-tauri/src/paths.rs` | 运行时 |
 | 帧的形状 | `crates/agent-runtime/src/frame.rs` | serde + 测试 |
@@ -130,12 +130,12 @@ transcript-store.ts 的 held/alias/routes 互相耦合，rename 同写三张表�
 - **加一家 agent**：agent-catalog 加档案（program/args/homeVar/ownHomeDirectory/
   installSpec/方言）。验收：通用层零改动。专属行为走档案能力开关 + 专属模块。
 - **加一条 IPC 命令**：Rust 定类型与命令 → 挂进 ipc/mod.rs 的 surface() →
-  `pnpm ipc:generate` → TS 端口层适配。TS 侧先写形状即为缺陷。
+  `bun run ipc:generate` → TS 端口层适配。TS 侧先写形状即为缺陷。
 - **加一种帧**：frame.rs 加 variant，两侧由编译器与生成绑定兜底。
 - **加一个包**：先在分层表定层，再建目录。
 - **协议升级**：kap 的契约由 server 自述（/openapi.json 与 /asyncapi.json），
-  快照钉在 contracts/kap，`pnpm kap:spec:check` 守漂移；升级 kimi-code 后重跑
-  `pnpm kap:spec` 并审 diff。禁手抄协议类型（判例：protocol.ts 记录的 8/13
+  快照钉在 contracts/kap，`bun run kap:spec:check` 守漂移；升级 kimi-code 后重跑
+  `bun run kap:spec` 并审 diff。禁手抄协议类型（判例：protocol.ts 记录的 8/13
   variant 落后事故）。
 - **加持久化**：迁移只追加，一条 shipped 的迁移永不修改。
 
@@ -151,7 +151,7 @@ transcript-store.ts 的 held/alias/routes 互相耦合，rename 同写三张表�
 ## 9. 验证
 
 ```bash
-pnpm check
+bun run check
 ```
 
 一条命令串起 Biome、架构规则、全工作区 typecheck/test、rustfmt、Clippy、

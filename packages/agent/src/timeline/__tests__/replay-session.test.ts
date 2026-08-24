@@ -1,5 +1,5 @@
+import { describe, expect, it } from 'bun:test'
 import type { RunEvent } from '@poietica/agent-contract'
-import { describe, expect, it } from 'vitest'
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/sample-run'
 import { replayRunEvents } from '../index'
 import { createReplaySession } from './replay-session'

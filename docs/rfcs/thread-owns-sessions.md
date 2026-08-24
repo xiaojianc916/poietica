@@ -165,7 +165,7 @@ pending 的权限请求	请求的对象已经不在了
 在 `Frames` 的 sink 上挂持久化。 这是本期最省的一点：`FrameSink = Box<dyn FnMut(RecordedEvent) + Send>` 已经是注入的,`RecordedEvent` 逐字段就是那一行。加落库是加一个闭包,不动 `Frames`、不动 `Recorder`、不动 `driver`。
 读回来投影成 `RecordedEvent[]`,喂给现有的 `replayThreadEvents`。界面一行不改。
 断掉 `session/load` 的显示路径(见 §8)。
-验证：`pnpm check`,加一条「杀进程重开,转录完整」的测试。
+验证：`bun run check`,加一条「杀进程重开,转录完整」的测试。
 第二期：多 agent 常驻(不碰历史)
 目标：不同对话用不同 agent,两个 agent 进程同时活着。这本身就是能发布的能力。
 `AgentRuntime` 的 `ensure_session` / `borrow` 从单个 `live: Handle` 换成 `HashMap<AgentId, Handle>` + 一个 `active` 指针。
@@ -202,9 +202,9 @@ seq 命名空间再套一层。界面按 seq 去重,两个分段之后会撞号�
 Kimi 不发 `availableModes`	全树搜不到,`set_mode` 从未被调用。模型切换靠改 `~/.kimi-code/config.toml` 再重建 session。这意味着换模型和换 agent 走同一条水合路径——第一期做完就顺带修好了换模型丢历史的问题	已确认,是利好
 日志体量	thought 帧占压倒多数,payload 是 JSON 文本。`0006` 当初存在就是因为原始帧直读长对话慢。所以第一期第 2 步不可省	已计入计划
 `runtime.rs` 未通读	`ensure_session` / `borrow` 的确切语义、`Handle` 的生命周期,第二期开工前需读完	待办
-新包分层	若第三期要新增包,先在 `tools/architecture/rules.config.mjs` 定层,否则 `pnpm test:architecture` 直接失败。目录名黑名单同样适用	记住
+新包分层	若第三期要新增包,先在 `tools/architecture/rules.config.mjs` 定层,否则 `bun run test:architecture` 直接失败。目录名黑名单同样适用	记住
 11. 验收
-每期各自跑通 `pnpm check`。涉及 Rust 类型变化的期(一、三)必须 `pnpm ipc:generate` 后 `pnpm ipc:check` 无漂移。
+每期各自跑通 `bun run check`。涉及 Rust 类型变化的期(一、三)必须 `bun run ipc:generate` 后 `bun run ipc:check` 无漂移。
 行为级验收：
 [ ]  一期：杀进程重开,转录完整;`session/load` 不再参与显示
 [ ]  二期：两个 agent 同时常驻,帧不串台;空主人兜底 bug 消失

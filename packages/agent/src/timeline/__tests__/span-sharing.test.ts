@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { appendChunk, draftOf, freeze, markTurnEnd, push } from '../timeline-draft'
 import { createTimelineState } from '../timeline-reducer'
 

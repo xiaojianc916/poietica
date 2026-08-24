@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import type { InstalledPlugin } from './installation'
 import type { DeclaredMcpServer } from './mcp-config'
 import { resolveMcpServers } from './mcp-servers'

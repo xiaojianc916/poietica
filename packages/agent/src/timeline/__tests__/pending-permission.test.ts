@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import type { PermissionItem, TimelineItem, TimelineState } from '../timeline-contract'
 import { activeScope, pendingPermission, type WaitingScope } from '../timeline-queries'
 

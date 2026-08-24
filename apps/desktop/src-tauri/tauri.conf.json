@@ -4,9 +4,9 @@
   "version": "0.1.8",
   "identifier": "com.poietica.Poietica",
   "build": {
-    "beforeDevCommand": "pnpm --filter @poietica/desktop dev",
+    "beforeDevCommand": "bun run --filter @poietica/desktop dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm --filter @poietica/desktop build",
+    "beforeBuildCommand": "bun run --filter @poietica/desktop build",
     "frontendDist": "../dist"
   },
   "app": {

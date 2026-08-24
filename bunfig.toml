@@ -1,0 +1,4 @@
+[install]
+# 架构规则的前提是「没声明的包 import 不到」。Bun 对既有工程默认 hoisted，这里必须显式声明。
+linker = "isolated"
+exact = true

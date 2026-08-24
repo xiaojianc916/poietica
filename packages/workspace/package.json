@@ -10,8 +10,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --project tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
     "@poietica/agent": "workspace:*",
@@ -27,8 +26,7 @@
     "@types/react-dom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "catalog:"
   },
   "peerDependencies": {
     "react": "catalog:",

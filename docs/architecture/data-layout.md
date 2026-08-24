@@ -7,7 +7,7 @@
 | 怎么跑起来 | 数据根 | 谁决定的 |
 | --- | --- | --- |
 | 安装版 | 安装时在目录页选定的那个目录，程序本体也在里面 | 用户 |
-| `pnpm tauri dev` | `%LOCALAPPDATA%\\com.poietica.Poietica.dev` | `tauri.dev.conf.json` 里的 identifier |
+| `cd apps/desktop && bun run tauri dev` | `%LOCALAPPDATA%\\com.poietica.Poietica.dev` | `tauri.dev.conf.json` 里的 identifier |
 
 唯一的声明处是 `apps/desktop/src-tauri/src/paths.rs`。没有第二个地方算路径，
 渲染层也不算 —— 关于页面显示的那一行来自 `storage_data_directory`。

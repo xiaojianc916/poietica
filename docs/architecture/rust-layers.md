@@ -56,7 +56,7 @@
 `agent_setup/install.rs` 远超"薄封装"的规模，业务分支尚未下沉到 native crate。
 这些偏差没有机器执行的闸门，只靠评审。
 
-上面「规则」一节的四条，目前有三条由 `pnpm test:architecture` 的
+上面「规则」一节的四条，目前有三条由 `bun run test:architecture` 的
 `native-crates-stay-host-agnostic` 执行：不依赖 `tauri`、互不依赖、必须写
 `[lints] workspace = true`。第四条「领域实体定义在 native crate，不在
 `src-tauri`」**没有机器执行** —— 它需要语义分析，不是正则或清单判得出来的，

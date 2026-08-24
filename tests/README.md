@@ -28,8 +28,8 @@
 ## 运行
 
 ```bash
-pnpm test                     # 全部工作区的 test 任务
-pnpm test:architecture        # 正则架构规则
-pnpm --filter @poietica/ui test
-pnpm --filter @poietica/tests test
+bun run test                     # 全部工作区的 test 任务
+bun run test:architecture        # 正则架构规则
+bun run --filter @poietica/ui test
+bun run --filter @poietica/tests test
 ```

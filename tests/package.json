@@ -4,12 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --project tsconfig.json --noEmit",
-    "test": "vitest run unit"
+    "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
   }
 }

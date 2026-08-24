@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * 发布之后，用客户端那条端点验证更新通道确实通了。
  *

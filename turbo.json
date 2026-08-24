@@ -3,8 +3,8 @@
   "ui": "tui",
   "globalDependencies": [
     "package.json",
-    "pnpm-lock.yaml",
-    "pnpm-workspace.yaml",
+    "bun.lock",
+    "bunfig.toml",
     "tsconfig.base.json",
     "biome.json",
     "turbo.json",
@@ -61,11 +61,6 @@
         "!**/fixtures/**"
       ],
       "outputs": ["dist/**", "dist-ssr/**", "build/**", ".vite/**"]
-    },
-    "test": {
-      "dependsOn": ["typecheck"],
-      "inputs": ["$TURBO_DEFAULT$", "vitest.config.*"],
-      "outputs": ["coverage/**"]
     }
   }
 }

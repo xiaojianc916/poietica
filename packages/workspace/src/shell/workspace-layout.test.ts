@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 
 /*

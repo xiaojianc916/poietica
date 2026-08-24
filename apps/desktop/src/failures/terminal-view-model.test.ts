@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { FailureCoordinator, type TerminalFailureIncident } from './coordinator'
 import { createTerminalFailureViewModel } from './terminal-view-model'
 

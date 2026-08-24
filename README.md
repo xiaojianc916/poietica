@@ -120,7 +120,7 @@ The project is intentionally building reliability before broadening the product 
 
 | Interface | Agent transport | Desktop runtime | Tooling | Validation |
 | :---: | :---: | :---: | :---: | :---: |
-| React + TypeScript | kap | Tauri + Rust | pnpm + Turborepo + Vite | Biome + Vitest + Valibot |
+| React + TypeScript | kap | Tauri + Rust | Bun + Turborepo + Vite | Biome + bun test + Valibot |
 
 </div>
 
@@ -129,9 +129,9 @@ The project is intentionally building reliability before broadening the product 
 - **React + TypeScript** — product interaction and interface composition.
 - **kap** — the single transport between the desktop client and coding agents.
 - **Tauri + Rust** — desktop integration, durable local state, system capabilities, security boundaries.
-- **pnpm + Turborepo** — workspace management and task orchestration.
+- **Bun + Turborepo** — workspace management and task orchestration.
 - **Biome** — formatting and static analysis.
-- **Vitest** — unit and integration tests across the workspace.
+- **bun test** — unit and integration tests across the workspace.
 - **Valibot** — runtime validation at file, IPC, AI, and application boundaries.
 
 ## Get started
@@ -140,8 +140,8 @@ The project is intentionally building reliability before broadening the product 
 
 | Tool | Required version |
 | --- | --- |
-| Node.js | See `engines.node` in [`package.json`](./package.json) |
-| pnpm | See `packageManager` in [`package.json`](./package.json) |
+| Bun | See `engines.bun` in [`package.json`](./package.json) |
+| Bun | See `packageManager` in [`package.json`](./package.json) |
 | Rust | See [`rust-toolchain.toml`](./rust-toolchain.toml) |
 | Tauri prerequisites | [Platform setup guide](https://v2.tauri.app/start/prerequisites/) |
 
@@ -152,18 +152,18 @@ git clone https://github.com/xiaojianc916/poietica.git
 cd poietica
 
 corepack enable
-pnpm install
-pnpm dev
+bun install
+bun run dev
 ```
 
 ### The only two commands you need
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm dev` | Run the desktop application in development. |
-| `pnpm check` | Repository checks: Biome, architecture rules, types, tests, Rust, and generated IPC. |
+| `bun run dev` | Run the desktop application in development. |
+| `bun run check` | Repository checks: Biome, architecture rules, types, tests, Rust, and generated IPC. |
 
-Run `pnpm run` to list every script. This file deliberately does not mirror that list — a command table copied out
+Run `Bun run` to list every script. This file deliberately does not mirror that list — a command table copied out
 of `package.json` rots silently, and this one already had an entry that no longer existed.
 
 ## Architecture
@@ -218,7 +218,7 @@ Contributions should preserve the guarantees that make Poietica trustworthy:
 Before opening a pull request:
 
 ```bash
-pnpm check
+bun run check
 ```
 
 ## License

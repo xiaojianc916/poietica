@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /* biome-ignore-all lint/suspicious/noConsole: this CLI reports architecture violations. */
 
 /**

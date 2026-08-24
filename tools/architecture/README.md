@@ -1,6 +1,6 @@
 # Architecture checks
 
-`node tools/architecture/run.mjs` is the only entry point. It walks the source
+`bun tools/architecture/run.mjs` is the only entry point. It walks the source
 roots once, applies every rule declared in `rules.config.mjs`, and reports all
 violations as `file:line:column`.
 
@@ -30,7 +30,7 @@ file restates neither.
 - `workspace-manifest-conventions` — one public surface per manifest: `exports` without
   `main`/`types`, bare string targets, subpath names derived from the target, exact versions.
 - `manifest-scripts-resolve` — a `node <file>.mjs` named in a script exists on disk.
-- `documented-scripts-exist` — a colon-scoped `pnpm` script named in documentation exists in a
+- `documented-scripts-exist` — a colon-scoped `Bun` script named in documentation exists in a
   manifest.
 - `documented-packages-exist` — a `@poietica/*` package named in documentation exists in the
   workspace.

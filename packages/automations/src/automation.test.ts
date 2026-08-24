@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 
 import { describeSchedule, nextRunAfter, scheduleProblem } from './automation'
 

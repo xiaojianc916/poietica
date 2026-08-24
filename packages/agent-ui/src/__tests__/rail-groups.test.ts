@@ -1,5 +1,5 @@
+import { describe, expect, it } from 'bun:test'
 import type { ConversationTurn } from '@poietica/agent'
-import { describe, expect, it } from 'vitest'
 import { groupTurns, RAIL_MAX_BARS, railCentre } from '../minimap/rail-groups'
 import { turnIndexAtRow } from '../threads/ordered-lookup'
 

@@ -1,5 +1,5 @@
+import { describe, expect, it } from 'bun:test'
 import type { SessionConfigControl } from '@poietica/agent-contract'
-import { describe, expect, it } from 'vitest'
 import { hasUnavailableThinking } from '../composer/session-controls'
 
 const MODEL: SessionConfigControl = {

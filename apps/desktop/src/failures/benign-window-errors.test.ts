@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { isBenignWindowError } from './benign-window-errors'
 
 describe('window error policy', () => {

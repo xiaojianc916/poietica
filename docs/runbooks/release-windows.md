@@ -1,13 +1,13 @@
 # Runbook — Windows 发行
 
-面向的是"装到别人电脑上的 Poietica"，不是开发机上的 `pnpm dev`。
+面向的是"装到别人电脑上的 Poietica"，不是开发机上的 `bun run dev`。
 
 ## 一次性设置
 
 ### 1. 更新签名密钥（必做）
 
 ```bash
-pnpm tauri signer generate -w $HOME/.tauri/poietica.key
+cd apps/desktop && bun run tauri signer generate -w $HOME/.tauri/poietica.key
 ```
 
 - 公钥填进 `apps/desktop/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`，替换
@@ -35,15 +35,15 @@ pnpm tauri signer generate -w $HOME/.tauri/poietica.key
 ## 发一个版本
 
 ```bash
-pnpm version:set 0.2.0
-pnpm check:versions
+bun run version:set 0.2.0
+bun run check:versions
 git commit -am "release: 0.2.0"
 git tag v0.2.0
 git push origin main --tags
 ```
 
-Release workflow 会：preflight（拦占位公钥）→ 版本一致性 → `pnpm check` 绿灯闸门 →
-依赖策略 → `pnpm build:release` → 收集 `.exe` / `.sig` → 生成 `latest.json` →
+Release workflow 会：preflight（拦占位公钥）→ 版本一致性 → `bun run check` 绿灯闸门 →
+依赖策略 → `bun run build:release` → 收集 `.exe` / `.sig` → 生成 `latest.json` →
 SHA256SUMS → 静默安装冒烟 + PE 子系统回归检查 → 建草稿 release。
 
 确认产物后手动 Publish。`latest.json` 通过
@@ -52,7 +52,7 @@ SHA256SUMS → 静默安装冒烟 + PE 子系统回归检查 → 建草稿 relea
 ## 本地出一个安装包
 
 ```bash
-pnpm build:release          # target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
+bun run build:release          # target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
 ```
 
 不带 updater 产物，也不需要签名密钥。

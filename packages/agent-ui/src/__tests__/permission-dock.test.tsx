@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'bun:test'
 import type { PermissionItem, ToolCallTimelineItem } from '@poietica/agent'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
 import { PermissionDock } from '../composer/permission-dock'
 
 /*

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { type RowSpan, rowAtAnchor } from '../feed/reading-position'
 import { turnIndexAtRow } from '../threads/ordered-lookup'
 
