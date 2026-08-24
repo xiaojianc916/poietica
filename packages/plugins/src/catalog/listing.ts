@@ -181,8 +181,8 @@ export function publicPluginRows(input: PluginListingInput): readonly CatalogRow
 }
 
 /*
- * 内置技能名单的行。「已装」的判据：目录名与内置号相同 —— 技能用目录名当号，安装时
- * 前言名与内置号一致（名单来源即 anthropics 官方目录名）。
+ * 内置技能名单的行。「已装」的判据：技能名与内置号相同 —— 名单里的号就是 anthropics 那份
+ * 官方目录名，而安装时前言名与它一致。
  */
 export function builtinSkillRows(
   ownedNames: readonly string[],

@@ -8,7 +8,7 @@ import { latestCatalog, type MarketplaceEntry } from '../marketplace'
 import type { ResolvedMcpServer } from '../mcp-servers'
 import { type ContributionOrigin, describeOrigin } from '../origin'
 import type { PluginStore, PluginsViewModel } from '../plugin-store'
-import { type InstalledSkill, loadedNames } from '../skill'
+import { type SkillRow, skillRows } from '../skill'
 import { CatalogGrid } from './catalog-grid'
 import { ContributionList, type ContributionRow } from './contribution-list'
 import { PluginBrowser } from './plugin-browser'
@@ -36,7 +36,7 @@ const TABS = {
   skills: {
     label: '技能',
     subtitle:
-      '装在本机 skills/ 里的工作流与提示模板，用 /skill 调用。开关是磁盘上的改名；压暗的那几行这个会话还没装载。',
+      '这个 agent 认得的技能，用 /skill 调用。装在本机 skills/ 的可以在这里开关或移除（开关就是磁盘上改名）；压暗的那几行这个会话不会装载。',
   },
   mcp: {
     label: 'MCP',
@@ -53,8 +53,8 @@ const EMPTY_NEEDLES: Record<TabId, string> = { plugins: '', skills: '', mcp: '' 
 
 export interface PluginsSurfaceProps {
   /**
-   * kap 名册里的技能表。这里只用它回答「这个会话装载了哪些」—— 装了哪些由
-   * 磁盘说了算。名册唯一持有者是能力表 store（AgentCapabilityStore.toolkit）。
+   * kap 名册里的技能表：有哪些技能由它说了算，agent 自带那一层在它的持有者处已经滤掉
+   * （AgentCapabilityStore.toolkit）。本机 skills/ 是其中我们写得动的那一层。
    */
   readonly roster: readonly AgentSkill[]
   readonly store: PluginStore
@@ -69,9 +69,8 @@ export function PluginsSurface({ roster, store }: PluginsSurfaceProps) {
   const needle = needles[tab]
   const entries: readonly MarketplaceEntry[] = latestCatalog(view.marketplace)?.entries ?? []
 
-  /* 装了哪些由磁盘说了算；名册只回答这个会话装载了没有。 */
-  const skills = view.ownedSkills
-  const loaded = loadedNames(roster)
+  /* 名册说有哪些，磁盘说我们这一层有哪些，并成一张表。 */
+  const skills = skillRows(view.ownedSkills, roster)
 
   const counts: Record<TabId, number> = {
     plugins: view.plugins.length,
@@ -148,7 +147,6 @@ export function PluginsSurface({ roster, store }: PluginsSurfaceProps) {
         </div>
         <TabBody
           entries={entries}
-          loaded={loaded}
           needle={needle}
           onOpen={setOpenedId}
           skills={skills}
@@ -165,15 +163,13 @@ interface TabBodyProps {
   readonly tab: TabId
   readonly needle: string
   readonly entries: readonly MarketplaceEntry[]
-  readonly skills: readonly InstalledSkill[]
-  /** 这个会话装载了哪些技能名。 */
-  readonly loaded: ReadonlySet<string>
+  readonly skills: readonly SkillRow[]
   readonly store: PluginStore
   readonly view: PluginsViewModel
   readonly onOpen: (id: string) => void
 }
 
-function TabBody({ entries, loaded, needle, onOpen, skills, store, tab, view }: TabBodyProps) {
+function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyProps) {
   switch (tab) {
     case 'plugins':
       return (
@@ -191,7 +187,7 @@ function TabBody({ entries, loaded, needle, onOpen, skills, store, tab, view }: 
     case 'skills': {
       const rows = skills
         .filter((skill) => matches(needle, skill.name, skill.description, skill.directory))
-        .map((skill) => skillRow(skill, loaded.has(skill.name), store))
+        .map((skill) => skillRow(skill, store))
 
       return (
         <div className="pb-24">
@@ -216,7 +212,7 @@ function TabBody({ entries, loaded, needle, onOpen, skills, store, tab, view }: 
             action={{ kind: 'skill', install: store.installSkill }}
             groups={groupRows(
               builtinSkillRows(
-                skills.map((one) => one.directory),
+                skills.map((one) => one.name),
                 needle,
               ),
             )}
@@ -247,45 +243,71 @@ function TabBody({ entries, loaded, needle, onOpen, skills, store, tab, view }: 
 }
 
 /*
- * 本机 skills/ 里的一行。
+ * 一行技能。
  *
- * 开关落在磁盘上：SKILL.md 与 SKILL.md.disabled 之间改名，正文一个字节不动 ——
- * 与 CLI 认的是同一个判据。压暗表示这个会话不会装载它。
+ * 开关与移除只给本机 skills/ 里那些：SKILL.md 与 SKILL.md.disabled 之间改名，正文一个字节
+ * 不动 —— 与 CLI 认的是同一个判据。别的层来的没有目录，也就没有这两个动作：那些文件不归
+ * 我们改。压暗表示这个会话不会装载它。
  */
-function skillRow(skill: InstalledSkill, loaded: boolean, store: PluginStore): ContributionRow {
+function skillRow(skill: SkillRow, store: PluginStore): ContributionRow {
+  const { directory } = skill
+
   return {
-    key: `skill/${skill.directory}`,
+    key: `skill/${directory ?? skill.name}`,
     title: skill.name,
-    detail: skill.description ?? skillDetail(skill.enabled, loaded),
-    dimmed: !skill.enabled || !loaded,
-    trailing: (
-      <>
-        <Button
-          className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
-          onClick={() => store.removeInstalledSkill(skill.directory)}
-          size="xs"
-          variant="ghost"
-        >
-          移除
-        </Button>
-        <Switch
-          aria-label={`启用 ${skill.name}`}
-          checked={skill.enabled}
-          onCheckedChange={(next) => store.setSkillEnabled(skill.directory, next)}
-          size="sm"
-        />
-      </>
-    ),
+    detail: skill.description ?? skillDetail(skill),
+    ...(skill.source === undefined ? {} : { badge: describeSkillSource(skill.source) }),
+    dimmed: !skill.enabled || !skill.loaded,
+    ...(directory === undefined
+      ? {}
+      : {
+          trailing: (
+            <>
+              <Button
+                className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                onClick={() => store.removeInstalledSkill(directory)}
+                size="xs"
+                variant="ghost"
+              >
+                移除
+              </Button>
+              <Switch
+                aria-label={`启用 ${skill.name}`}
+                checked={skill.enabled}
+                onCheckedChange={(next) => store.setSkillEnabled(directory, next)}
+                size="sm"
+              />
+            </>
+          ),
+        }),
   }
 }
 
-/* 这一行为什么是灰的：停用了，还是这个会话还没装载。 */
-function skillDetail(enabled: boolean, loaded: boolean): string {
-  if (!enabled) {
+/* 这一行为什么是灰的，或者它凭什么在这里。 */
+function skillDetail(skill: SkillRow): string {
+  if (!skill.enabled) {
     return '已停用：SKILL.md 已改名，会话不会装载它。'
   }
 
-  return loaded ? '这个技能没有写说明。' : '已装在这里，新开会话后可用。'
+  if (skill.directory === undefined) {
+    return 'agent 自己装载的，这里只列出来。'
+  }
+
+  return skill.loaded ? '这个技能没有写说明。' : '已装在这里，新开会话后可用。'
+}
+
+/* 名册报的来源层。未知取值原样报出来，不猜。 */
+function describeSkillSource(source: string): string {
+  switch (source) {
+    case 'project':
+      return '工作目录'
+    case 'user':
+      return '这台机器'
+    case 'extra':
+      return '额外目录'
+    default:
+      return source
+  }
 }
 
 /*

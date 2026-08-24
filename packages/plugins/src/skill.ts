@@ -3,8 +3,11 @@ import type { SkillRecord } from '@poietica/ipc'
 import { parse } from 'yaml'
 
 /*
- * 「装了哪些技能」的唯一真相是本机 skills/ 目录：原生侧扫出目录名、启用状态与
- * SKILL.md 原文，前言在这里解一次。名册只回答一件事 —— 这个会话装载了没有。
+ * 「有哪些技能」的唯一真相是 agent 的名册，几层技能目录的合并归它。
+ *
+ * 本机 skills/ 是其中我们写得动的那一层：原生侧扫出目录名、启用状态与 SKILL.md 原文，前言
+ * 在这里解一次，开关与移除按目录名寻址。停用即改名，改名之后 agent 不再报它 —— 所以两边并
+ * 成一张表，才既列得全又开得动。
  */
 
 export interface InstalledSkill {
@@ -64,7 +67,57 @@ export function readSkills(records: readonly SkillRecord[]): readonly InstalledS
     .sort((left, right) => left.name.localeCompare(right.name))
 }
 
-/** 这个会话装载了哪些。名册按名字报，装载与否只在这里回答。 */
-export function loadedNames(roster: readonly AgentSkill[]): ReadonlySet<string> {
-  return new Set(roster.map((skill) => skill.name))
+/** 屏幕上那一行：一个名字一行。 */
+export interface SkillRow {
+  readonly name: string
+  readonly description: string | undefined
+  /** 本机 skills/ 里的目录名；开关与移除按它寻址。别处来的没有这一格。 */
+  readonly directory: string | undefined
+  /** SKILL.md 没被改名。别处来的恒为真：那些文件不归我们改。 */
+  readonly enabled: boolean
+  /** 这个会话装载了它。 */
+  readonly loaded: boolean
+  /** 别处来的那一层由 agent 报（project / user / extra）；我们这一层没有这一格。 */
+  readonly source: string | undefined
+}
+
+/*
+ * 名册与本机那一层并成一张表。
+ *
+ * 缺哪一边都会说谎：只看磁盘，别的层里的技能一行都不显示；只看名册，停用的那些连开关都找
+ * 不回来（改名之后 agent 不报它）。名字是两边共同的号，与提交时那一格（PromptSkill.name）
+ * 同一个。
+ */
+export function skillRows(
+  installed: readonly InstalledSkill[],
+  roster: readonly AgentSkill[],
+): readonly SkillRow[] {
+  const reported = new Map(roster.map((skill) => [skill.name, skill] as const))
+  const ours = new Set(installed.map((skill) => skill.name))
+
+  const rows: SkillRow[] = installed.map((skill) => ({
+    name: skill.name,
+    description: skill.description ?? text(reported.get(skill.name)?.description),
+    directory: skill.directory,
+    enabled: skill.enabled,
+    loaded: reported.has(skill.name),
+    source: undefined,
+  }))
+
+  for (const skill of roster) {
+    if (ours.has(skill.name)) {
+      continue
+    }
+
+    rows.push({
+      name: skill.name,
+      description: text(skill.description),
+      directory: undefined,
+      enabled: true,
+      loaded: true,
+      source: skill.source,
+    })
+  }
+
+  return rows.sort((left, right) => left.name.localeCompare(right.name))
 }
