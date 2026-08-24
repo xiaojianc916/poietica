@@ -511,10 +511,27 @@ export class TranscriptStore implements TranscriptSink {
    * endsTurn 为假 —— 不是某一轮失败了，是这段经过没回来。
    */
   adopt = (threadId: string, page: FramePage, history: ThreadHistory): void => {
-    /* 经过由本地日志重放：段边界与每一轮的两端都在帧里（run_started 与终帧
-       各带自己的时刻），所以这里不再有第二把尺子。图仍来自本机账本。 */
-    const replayed = replayThreadEvents(page.events as readonly RunEvent[])
+    const current = this.#now(threadId)
     const lost = lossOf(history)
+
+    /* 已经持有这条对话：最新那一页由帧流维持着，重放它会连带丢掉向上读回来的那些页
+       与 earlier 游标。与 opening 同一条判据 —— 缓存有效期的定义只能有一个。 */
+    if (current.owned || current.loaded) {
+      if (lost === null && !current.restoring) {
+        return
+      }
+
+      this.#put(threadId, {
+        ...current,
+        restoring: false,
+        timeline: lost === null ? current.timeline : noteOn(current.timeline, lost, false),
+      })
+
+      return
+    }
+
+    /* 经过由本地日志重放：段边界与每一轮的两端都在帧里，这里不再有第二把尺子。 */
+    const replayed = replayThreadEvents(page.events as readonly RunEvent[])
 
     this.#put(threadId, {
       timeline: lost === null ? replayed : noteOn(replayed, lost, false),
