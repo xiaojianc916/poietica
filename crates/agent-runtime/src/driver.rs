@@ -1074,12 +1074,12 @@ pub fn connect(
                                 let shown: Vec<String> =
                                     images.iter().map(|i| i.url.clone()).collect();
 
-                                let recorder = Recorder::new(sid.clone(), slot.seq(), frames);
-
-                                if slot.install(recorder).is_err() {
-                                    // 上一轮还没收摊（turn.ended 没到）：一条会话
-                                    // 同时只走一轮。
-                                    let _ = reply.send(Err(KapError::Refused(Refusal::Busy)));
+                                if slot
+                                    .attach(|| Recorder::new(sid.clone(), slot.seq(), frames))
+                                    .is_err()
+                                {
+                                    // 锁坏了：这条会话的记录器不可用，这一轮无处落账。
+                                    let _ = reply.send(Err(KapError::Poisoned));
                                 } else {
                                     let attached: Vec<String> =
                                         skills.iter().map(|skill| skill.name.clone()).collect();

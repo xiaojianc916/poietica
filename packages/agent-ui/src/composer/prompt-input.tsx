@@ -749,7 +749,10 @@ export function PromptInputSubmit({
   /* 能不能发，由持有草稿的这一侧自己答。 */
   const draft = usePromptInputDraft()
   const cancelling = status === 'cancelling'
-  const canCancel = status === 'submitted' || status === 'streaming'
+  const running = status === 'submitted' || status === 'streaming'
+  const drafted = canSubmitDraft(draft)
+  // 运行中照旧收字：有草稿就是发送（kap 排队），空草稿才是停止。
+  const canCancel = running && !drafted
   const Icon = canCancel || cancelling ? StopIcon : SubmitIcon
 
   return (

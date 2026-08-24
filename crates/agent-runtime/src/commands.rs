@@ -116,11 +116,9 @@ pub(crate) enum Command {
         images: Vec<PromptImage>,
         /// 与正文、附件同一次提交的 Skill。
         skills: Vec<PromptSkill>,
-        /// 这一轮的帧交到哪里去。
-        ///
-        /// 记录器由驱动器造：位置要从这条会话的序号线上取，而那条线在它的
-        /// 槽里 —— 组合根手上没有它，也不该有。
+        /// 这条会话的帧交到哪里去。记录器由驱动器造：序号线在它的槽里。
         frames: FrameSink,
+        /// kap 收下这句话时给的 prompt id。
         reply: oneshot::Sender<Result<String>>,
     },
     /// 停掉这条会话上正在飞的那一轮，只停它。
@@ -226,11 +224,7 @@ impl AgentClient {
     ///
     /// Fails when the connection is gone, or when the agent refuses to fork
     /// that session.
-    pub async fn fork_session(
-        &self,
-        session_id: String,
-        drop_turns: u32,
-    ) -> Result<OpenedSession> {
+    pub async fn fork_session(&self, session_id: String, drop_turns: u32) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::ForkSession {
@@ -292,11 +286,8 @@ impl AgentClient {
 
     /// Starts a turn, delivering every frame of it to the sink handed in.
     ///
-    /// The answer resolves to the stop reason the agent reported once the turn
-    /// is over. Every frame of the turn reaches the caller through the
-    /// sink long before that, which is what the interface consumes.
-    ///
-    /// 一条会话同时只走一轮，那是它的记录槽的规矩；别的会话不受影响。
+    /// 答复是 kap 收下这句话时给的 prompt id，不是这一轮的停止原因：提交一到
+    /// 手就回，帧走 sink。运行中再提交一句由 kap 排队，本机不拦。
     pub fn prompt(
         &self,
         session_id: String,

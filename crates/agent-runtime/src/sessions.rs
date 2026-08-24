@@ -69,7 +69,7 @@ impl SessionBook {
     /// Ends one turn on the agent's own terms, reporting whether one was open.
     pub fn finish_turn(&self, session_id: &str, stop_reason: &str) -> Result<bool> {
         match self.slot(session_id)? {
-            Some(slot) => close(&slot, Ending::Finished(stop_reason)),
+            Some(slot) => Ok(close(&slot, Ending::Finished(stop_reason))),
             None => Ok(false),
         }
     }
@@ -77,7 +77,7 @@ impl SessionBook {
     /// Ends one turn this machine has judged dead, reporting whether one was open.
     pub fn fail_turn(&self, session_id: &str, message: &str) -> Result<bool> {
         match self.slot(session_id)? {
-            Some(slot) => close(&slot, Ending::Failed(message)),
+            Some(slot) => Ok(close(&slot, Ending::Failed(message))),
             None => Ok(false),
         }
     }
@@ -88,7 +88,7 @@ impl SessionBook {
         let mut failed = 0;
 
         for slot in slots {
-            if close(&slot, Ending::Failed(message))? {
+            if close(&slot, Ending::Failed(message)) {
                 failed += 1;
             }
         }
@@ -149,20 +149,26 @@ enum Ending<'a> {
     Failed(&'a str),
 }
 
-/// 收摊：没答的作废，终帧殿后。槽已经被取走时是空操作，所以重复调用无害。
-fn close(slot: &RunSlot, ending: Ending<'_>) -> Result<bool> {
-    let Some(mut recorder) = slot.take()? else {
-        return Ok(false);
-    };
+/// 收摊：没答的作废，终帧殿后。不在飞的那一轮不收第二次。
+fn close(slot: &RunSlot, ending: Ending<'_>) -> bool {
+    let mut ended = false;
 
-    recorder.record_pending_cancelled();
+    slot.record(|recorder| {
+        if !recorder.is_running() {
+            return;
+        }
 
-    match ending {
-        Ending::Finished(stop_reason) => recorder.record_run_finished(stop_reason),
-        Ending::Failed(message) => recorder.record_run_failed(message),
-    }
+        recorder.record_pending_cancelled();
 
-    Ok(true)
+        match ending {
+            Ending::Finished(stop_reason) => recorder.record_run_finished(stop_reason),
+            Ending::Failed(message) => recorder.record_run_failed(message),
+        }
+
+        ended = true;
+    });
+
+    ended
 }
 
 #[cfg(test)]
@@ -213,7 +219,10 @@ mod tests {
             }),
         );
 
-        assert!(slot.install(recorder).is_ok());
+        assert!(slot.attach(|| recorder).is_ok());
+        slot.record(|frames| {
+            frames.record_run_started("hi", Vec::new(), Vec::new());
+        });
         assert!(matches!(book.fail_active("agent connection lost"), Ok(1)));
         assert!(seen.lock().is_ok_and(|events| {
             events
@@ -235,7 +244,10 @@ mod tests {
         };
         let recorder = Recorder::new(NAME.to_owned(), slot.seq(), Box::new(|_event| {}));
 
-        assert!(slot.install(recorder).is_ok());
+        assert!(slot.attach(|| recorder).is_ok());
+        slot.record(|frames| {
+            frames.record_run_started("hi", Vec::new(), Vec::new());
+        });
         assert!(matches!(book.finish_turn(NAME, "cancelled"), Ok(true)));
         assert!(matches!(book.finish_turn(NAME, "cancelled"), Ok(false)));
         assert!(matches!(book.fail_turn(NAME, "too late"), Ok(false)));

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::error::{KapError, Refusal, Result};
+use crate::error::{KapError, Result};
 use crate::recorder::{Recorder, SeqLine};
 
 /// 到达的会话更新交给谁。
@@ -30,38 +30,25 @@ impl RunSlot {
         self.seq.clone()
     }
 
-    /// 让这一轮来收接下来的更新。
+    /// 这条会话的记录器，缺席时用工厂造一个。
     ///
-    /// # Errors
-    ///
-    /// 已经有一轮在飞时报错 —— 一条会话上的第二轮就是这么被拒的；锁坏了也报错。
-    pub fn install(&self, recorder: Recorder) -> Result<()> {
-        let mut current = self
-            .current
-            .lock()
-            .map_err(|_poisoned| KapError::Poisoned)?;
-
-        if current.is_some() {
-            return Err(KapError::Refused(Refusal::Busy));
-        }
-
-        *current = Some(recorder);
-
-        Ok(())
-    }
-
-    /// 这一轮结束，把记录器交回去，好让它自己收尾。
+    /// 幂等：排队归 kap，一条会话上可以有下一句在等，记录器只装一次，
+    /// 帧因此始终落在同一条序号线上。
     ///
     /// # Errors
     ///
     /// 锁坏了时报错。
-    pub fn take(&self) -> Result<Option<Recorder>> {
+    pub fn attach(&self, make: impl FnOnce() -> Recorder) -> Result<()> {
         let mut current = self
             .current
             .lock()
             .map_err(|_poisoned| KapError::Poisoned)?;
 
-        Ok(current.take())
+        if current.is_none() {
+            *current = Some(make());
+        }
+
+        Ok(())
     }
 
     /// 对此刻在飞的那一轮做一件事，并交代有没有这么一轮。
@@ -83,6 +70,12 @@ impl RunSlot {
 
     /// 此刻有没有一轮在飞。
     pub fn is_listening(&self) -> bool {
-        self.current.lock().is_ok_and(|current| current.is_some())
+        let mut flying = false;
+
+        self.record(|recorder| {
+            flying = recorder.is_running();
+        });
+
+        flying
     }
 }

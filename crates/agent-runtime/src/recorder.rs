@@ -159,6 +159,8 @@ pub struct Recorder {
     /// 与审批分两份记：轮终要放掉的是两类东西，而一张混着两类号的表说不清哪一个
     /// 该按哪一种方式作废。
     questions: Vec<String>,
+    /// 这条会话此刻有没有一轮在飞。
+    running: bool,
 }
 
 impl fmt::Debug for Recorder {
@@ -175,6 +177,7 @@ impl Recorder {
     #[must_use]
     pub fn new(session_id: String, seq: SeqLine, sink: FrameSink) -> Self {
         Self {
+            running: false,
             frames: Frames::new(session_id, seq, sink),
             approvals: Vec::new(),
             questions: Vec::new(),
@@ -188,6 +191,7 @@ impl Recorder {
             images,
             skills,
         });
+        self.running = true;
     }
 
     /// 记下这一轮的一帧。
@@ -331,6 +335,7 @@ impl Recorder {
         self.append(RunFrame::RunFinished {
             stop_reason: stop_reason.to_owned(),
         });
+        self.running = false;
     }
 
     /// Records that the run ended in a failure.
@@ -338,6 +343,7 @@ impl Recorder {
         self.append(RunFrame::RunFailed {
             message: message.to_owned(),
         });
+        self.running = false;
     }
 
     fn note_resolution(&mut self, request_id: &str, decision: Decision) {
@@ -355,6 +361,11 @@ impl Recorder {
         let event = self.frames.shape(frame);
 
         self.frames.deliver(event);
+    }
+
+    /// 这条会话此刻有没有一轮在飞。终帧只在飞的那一轮上落一次。
+    pub const fn is_running(&self) -> bool {
+        self.running
     }
 }
 

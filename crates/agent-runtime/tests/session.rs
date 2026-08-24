@@ -11,9 +11,7 @@
 
 mod frame_sink;
 
-use poietica_agent_runtime_native::{
-    KapError, RUN_STARTED, Recorder, Refusal, RunFrame, RunSlot, kap_event,
-};
+use poietica_agent_runtime_native::{RUN_STARTED, Recorder, RunFrame, RunSlot, kap_event};
 use serde_json::json;
 
 use frame_sink::{Delivered, SESSION, recording};
@@ -52,16 +50,16 @@ fn a_loading_session_drops_the_replay_without_failing() {
 }
 
 #[test]
-fn updates_reach_the_installed_run() {
+fn updates_reach_the_attached_run() {
     let (recorder, delivered) = recording();
     let slot = RunSlot::new();
 
-    slot.install(recorder).expect("an empty slot");
+    slot.attach(|| recorder).expect("an unpoisoned lock");
 
-    assert!(slot.is_listening());
     assert!(slot.record(|recorder| {
         recorder.record_run_started("what the run was asked", Vec::new(), Vec::new());
     }));
+    assert!(slot.is_listening());
     assert!(slot.record(|recorder| recorder.record_frame(announcement())));
 
     let seen = delivered.frames();
@@ -78,42 +76,23 @@ fn updates_reach_the_installed_run() {
     );
 }
 
+/// 轮终由记录器自己的 running 标志收摊：终帧落下的那一刻，槽就不再在听。
 #[test]
-fn a_second_run_cannot_displace_the_first() {
-    let (first, _first_frames) = recording();
-    let (second, _second_frames) = recording();
-    let slot = RunSlot::new();
-
-    slot.install(first).expect("an empty slot");
-
-    let error = slot
-        .install(second)
-        .expect_err("an occupied slot refuses a second run");
-
-    /* 拒绝一次并发的轮次是这台机器自己的规矩，不是 agent 那侧出的事，所以
-    它是 Refused 而不是 Transport。 */
-    assert!(
-        matches!(error, KapError::Refused(Refusal::Busy)),
-        "a concurrent turn is refused, not silently interleaved"
-    );
-}
-
-#[test]
-fn taking_the_run_ends_the_routing() {
+fn the_slot_stops_listening_when_the_turn_ends() {
     let (recorder, _frames) = recording();
     let slot = RunSlot::new();
 
-    slot.install(recorder).expect("an empty slot");
+    slot.attach(|| recorder).expect("an unpoisoned lock");
+    assert!(slot.record(|recorder| {
+        recorder.record_run_started("what the run was asked", Vec::new(), Vec::new());
+    }));
 
-    let taken = slot.take().expect("the slot").expect("a run to close out");
+    assert!(slot.record(|recorder| recorder.record_run_finished("done")));
 
-    assert!(!slot.is_listening());
     assert!(
-        !slot.record(|recorder| recorder.record_frame(announcement())),
-        "the turn is over, so nothing else may be attributed to it"
+        !slot.is_listening(),
+        "the turn is over, so the slot stops listening"
     );
-
-    drop(taken);
 }
 
 /// 一条会话上的第二轮接着第一轮数，而不是从头再来。
@@ -125,20 +104,19 @@ fn a_second_turn_continues_the_sequence_of_the_first() {
     let delivered = Delivered::default();
     let slot = RunSlot::new();
 
-    for _turn in 0..2 {
-        let recorder = Recorder::new(SESSION.to_owned(), slot.seq(), delivered.sink());
+    slot.attach(|| Recorder::new(SESSION.to_owned(), slot.seq(), delivered.sink()))
+        .expect("an unpoisoned lock");
 
-        slot.install(recorder).expect("an empty slot");
+    for _turn in 0..2 {
         assert!(slot.record(|recorder| {
             recorder.record_run_started("what the run was asked", Vec::new(), Vec::new());
         }));
-
-        let _ended = slot.take().expect("the slot");
+        assert!(slot.record(|recorder| recorder.record_run_finished("done")));
     }
 
     assert_eq!(
         delivered.positions(),
-        vec![1, 2],
+        vec![1, 2, 3, 4],
         "同一条会话上的两轮共用一条序号线"
     );
 }
@@ -154,9 +132,8 @@ fn a_reloaded_session_resumes_after_the_recorded_position() {
 
     slot.seq().resume(7);
 
-    let recorder = Recorder::new(SESSION.to_owned(), slot.seq(), delivered.sink());
-
-    slot.install(recorder).expect("an empty slot");
+    slot.attach(|| Recorder::new(SESSION.to_owned(), slot.seq(), delivered.sink()))
+        .expect("an unpoisoned lock");
     assert!(slot.record(|recorder| {
         recorder.record_run_started("what the run was asked", Vec::new(), Vec::new());
     }));
