@@ -14,6 +14,7 @@ import { countLines } from './split-stream'
 const ROW_PX: Record<Exclude<FeedRow['item']['type'], 'agent_text'>, number> = {
   agent_thought: 40,
   error: 96,
+  link: 40,
   permission: 0,
   plan: 200,
   question: 96,

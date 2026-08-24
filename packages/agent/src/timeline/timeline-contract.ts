@@ -7,6 +7,7 @@ import type {
   QuestionOutcome,
   RunEvent,
   RunStatus,
+  SessionLink,
   ToolCallContent,
   ToolCallLocation,
   ToolCallStatus,
@@ -189,6 +190,17 @@ export interface QuestionTimelineItem extends TimelineEntry {
   }
 }
 
+/**
+ * 这条连接在这一轮里的处境。
+ *
+ * 形状的正本是帧的载荷（crates/agent-runtime/src/link.rs 的 LinkState），所以这
+ * 一格原样存它：一次断线因此与它耽误的那一轮同生共死，重开对话是重放它。
+ */
+export interface LinkTimelineItem extends TimelineEntry {
+  readonly type: 'link'
+  readonly link: SessionLink
+}
+
 export interface ErrorItem extends TimelineEntry {
   readonly type: 'error'
   readonly message: string
@@ -202,6 +214,7 @@ export type TimelineItem =
   | PlanItem
   | PermissionItem
   | QuestionTimelineItem
+  | LinkTimelineItem
   | ErrorItem
 
 /**

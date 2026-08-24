@@ -1,7 +1,7 @@
 /**
  * 这条连接此刻的链路态。
  *
- * 链路态不是回合的一部分：它不占帧的序号、不进帧日志，所以重放一条对话不会
+ * 它是一帧的载荷（frame.rs 的 RunFrame::LinkChanged），所以重放一条对话会原样
  * 再演一遍。判别式与字段名与原生侧的 LinkState 逐字相同
  * （crates/agent-runtime/src/link.rs）。
  */
@@ -20,8 +20,3 @@ export type SessionLink =
       readonly retryAt: number
       readonly reason: string
     }
-
-/** 链路态的到达口。只有订阅：没有哪个命令能把它问回来。 */
-export interface SessionLinkPort {
-  readonly subscribe: (handler: (link: SessionLink) => void) => () => void
-}

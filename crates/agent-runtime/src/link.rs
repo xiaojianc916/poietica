@@ -17,18 +17,17 @@ use crate::recorder::now_millis;
 /// 与 codex 的 stream_idle_timeout_ms 同一个判据（codex-rs/model-provider-info
 /// 的 "Idle timeout ... before treating the connection as lost"）。差别是这里
 /// 不判死只说话：kap 的一轮可能真的在等一个很慢的模型。
-pub const STALL_AFTER: Duration = Duration::from_secs(20);
+pub(crate) const STALL_AFTER: Duration = Duration::from_secs(20);
 
 /// 断了之后重连几次，以及可重试的传输错误再试几次。
-pub const TRIES: u32 = 5;
+pub(crate) const TRIES: u32 = 5;
 
 /// 第一次等多久；之后翻倍，到 DELAY_CAP 封顶。
 const DELAY: Duration = Duration::from_millis(500);
 const DELAY_CAP: Duration = Duration::from_secs(8);
 
-/// 屏幕上那一格链路态。判别式与字段名就是线上形状；IPC 面上的镜像住在
-/// apps/desktop/src-tauri/src/commands/agent/dto.rs 的 AgentLinkState，serde
-/// 属性与这里逐字对齐。改判别式先改这里。
+/// 屏幕上那一格链路态。判别式与字段名就是线上形状；它作为 RunFrame::LinkChanged
+/// 的载荷落库（frame.rs），重放一条对话就原样再演一遍。改判别式先改这里。
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(
     tag = "state",
@@ -51,10 +50,9 @@ pub enum LinkState {
 
 /// 第 attempt 次之前等多久。指数退避，封顶。
 ///
-/// 不加抖动：对端是本机的 kap server，只有一个客户端，没有要错开的惊群 ——
-/// opencode 与 kimi 的 25% 抖动防的是多客户端同时撞一个云端。
+/// 不加抖动：对端是本机的 kap server，只有一个客户端，没有要错开的惊群。
 #[must_use]
-pub fn backoff(attempt: u32) -> Duration {
+pub(crate) fn backoff(attempt: u32) -> Duration {
     let steps = attempt.saturating_sub(1).min(u32::BITS - 1);
 
     DELAY.saturating_mul(1u32 << steps).min(DELAY_CAP)
@@ -66,7 +64,7 @@ pub fn backoff(attempt: u32) -> Duration {
 /// error-codes.ts 里），同一份请求重发只会换回同一个判决；Validation 与
 /// Refused 是本机自己拒的。
 #[must_use]
-pub fn retryable(error: &KapError) -> bool {
+pub(crate) fn retryable(error: &KapError) -> bool {
     matches!(
         error,
         KapError::Transport { .. } | KapError::Handshake { .. } | KapError::Timeout { .. }
@@ -75,7 +73,7 @@ pub fn retryable(error: &KapError) -> bool {
 
 /// 「正在接回来」这一句，全仓只在这里成形。
 #[must_use]
-pub fn retrying(attempt: u32, wait: Duration, reason: &str) -> LinkState {
+pub(crate) fn retrying(attempt: u32, wait: Duration, reason: &str) -> LinkState {
     let waited = i64::try_from(wait.as_millis()).unwrap_or(i64::MAX);
 
     LinkState::Retrying {
@@ -87,7 +85,7 @@ pub fn retrying(attempt: u32, wait: Duration, reason: &str) -> LinkState {
 }
 
 /// 静默判据的持有者。两个钟各管一件事：单调钟定时，墙钟上屏。
-pub struct Link {
+pub(crate) struct Link {
     quiet_at: Instant,
     seen_at: i64,
     /// 已经说过一句了。说过就不再说第二遍。
@@ -96,7 +94,7 @@ pub struct Link {
 
 impl Link {
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             quiet_at: Instant::now() + STALL_AFTER,
             seen_at: now_millis(),
@@ -106,18 +104,18 @@ impl Link {
 
     /// 该说「它安静了」的时刻。
     #[must_use]
-    pub fn quiet_at(&self) -> Instant {
+    pub(crate) fn quiet_at(&self) -> Instant {
         self.quiet_at
     }
 
     /// 还等着那个时刻吗。
     #[must_use]
-    pub fn awaits_quiet(&self) -> bool {
+    pub(crate) fn awaits_quiet(&self) -> bool {
         !self.noticed
     }
 
     /// 一帧到了。从安静里回来才有话要报。
-    pub fn seen(&mut self) -> Option<LinkState> {
+    pub(crate) fn seen(&mut self) -> Option<LinkState> {
         self.seen_at = now_millis();
         self.quiet_at = Instant::now() + STALL_AFTER;
 
@@ -131,7 +129,7 @@ impl Link {
     }
 
     /// 静默到期。
-    pub fn quieted(&mut self) -> LinkState {
+    pub(crate) fn quieted(&mut self) -> LinkState {
         self.noticed = true;
 
         LinkState::Waiting {

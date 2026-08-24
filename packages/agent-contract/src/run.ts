@@ -1,4 +1,5 @@
 import type { KapEventPayload, KapSessionId, KapStopReason } from './kap'
+import type { SessionLink } from './link'
 import type { ApprovalDecision, ApprovalScope } from './permission'
 import type { QuestionChoice, QuestionItem } from './question'
 import type { ToolCallUpdate } from './tool-call'
@@ -93,6 +94,13 @@ export type RunEvent =
       readonly answers: Readonly<Record<string, QuestionChoice>>
       /** 整组题的可选备注；没写就是空串。 */
       readonly note: string
+    }
+  | {
+      readonly kind: 'link_changed'
+      readonly seq: number
+      readonly at: number
+      /** 这条连接此刻的链路态（frame.rs 的 RunFrame::LinkChanged）。 */
+      readonly link: SessionLink
     }
   | {
       readonly kind: 'run_finished'

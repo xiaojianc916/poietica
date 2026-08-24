@@ -71,6 +71,7 @@ export {
   SquareTerminal as TerminalIcon,
   Target as GoalIcon,
   Users as SwarmIcon,
+  Wifi as LinkIcon,
   X as CloseIcon,
   Zap as SkillIcon,
   ZoomIn as ZoomInIcon,

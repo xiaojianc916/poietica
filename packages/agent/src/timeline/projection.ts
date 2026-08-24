@@ -11,7 +11,12 @@
 
 import type { KapStopReason, RunEvent, RunStatus } from '@poietica/agent-contract'
 import { applyKapFrame } from './kap-projection'
-import type { MessageImage, PermissionItem, QuestionTimelineItem } from './timeline-contract'
+import type {
+  LinkTimelineItem,
+  MessageImage,
+  PermissionItem,
+  QuestionTimelineItem,
+} from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import {
   beginQuestion,
@@ -139,6 +144,28 @@ export function apply(draft: Draft, event: RunEvent): void {
 
     case 'kap_event': {
       applyKapFrame(draft, event)
+
+      return
+    }
+
+    /* 一次断线在屏幕上只占一行：它就地改写，所以那一行留在它第一次出现的位置。 */
+    case 'link_changed': {
+      const id = `${namespace(draft)}link`
+      const position = positionOf(draft, id)
+      const held = position < 0 ? undefined : draft.items[position]
+      const shown: LinkTimelineItem = {
+        type: 'link',
+        id,
+        turn: draft.runIndex,
+        at: event.at,
+        link: event.link,
+      }
+
+      if (held?.type === 'link') {
+        draft.items[position] = shown
+      } else {
+        push(draft, shown)
+      }
 
       return
     }

@@ -13,6 +13,7 @@ export type {
   AgentTextItem,
   AgentThoughtItem,
   ErrorItem,
+  LinkTimelineItem,
   MessageImage,
   PermissionItem,
   PlanItem,

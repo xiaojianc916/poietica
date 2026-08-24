@@ -477,6 +477,7 @@ fn detail(frame: &RunFrame) -> String {
         }
         RunFrame::RunFinished { stop_reason } => stop_reason.clone(),
         RunFrame::RunFailed { message } => message.clone(),
+        RunFrame::LinkChanged { link } => serde_json::to_string(link).expect("link serializes"),
     }
 }
 

@@ -11,6 +11,8 @@
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::link::LinkState;
+
 /// 一轮的第一帧。
 pub const RUN_STARTED: &str = "run_started";
 /// kap server 推来的一帧会话事件。
@@ -23,6 +25,9 @@ pub const PERMISSION_RESOLVED: &str = "permission_resolved";
 pub const RUN_FINISHED: &str = "run_finished";
 /// 这一轮以失败结束。
 pub const RUN_FAILED: &str = "run_failed";
+
+/// 这条连接的链路态变了。
+pub const LINK_CHANGED: &str = "link_changed";
 
 /// 这一组题问出去了，agent 正卡在它上面。
 pub const QUESTIONS_ASKED: &str = "questions_asked";
@@ -106,6 +111,8 @@ pub enum RunFrame {
         /// 整组的备注；人没写就是空串。
         note: String,
     },
+    /// 这条连接此刻的链路态。它耽误的是这一轮，所以它进这一轮的账。
+    LinkChanged { link: LinkState },
     /// 这一轮按 agent 自己的说法结束了。
     RunFinished {
         /// agent 报的停止原因。
@@ -129,6 +136,7 @@ impl RunFrame {
             Self::PermissionResolved { .. } => PERMISSION_RESOLVED,
             Self::QuestionsAsked { .. } => QUESTIONS_ASKED,
             Self::QuestionsResolved { .. } => QUESTIONS_RESOLVED,
+            Self::LinkChanged { .. } => LINK_CHANGED,
             Self::RunFinished { .. } => RUN_FINISHED,
             Self::RunFailed { .. } => RUN_FAILED,
         }

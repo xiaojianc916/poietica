@@ -7,6 +7,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::frame::{RunFrame, prune};
+use crate::link::LinkState;
 use crate::permission::Decision;
 use crate::question::{QuestionGroup, QuestionOutcome};
 
@@ -195,6 +196,11 @@ impl Recorder {
     /// 此后共用这一条路。
     pub fn record_frame(&mut self, frame: RunFrame) {
         self.append(frame);
+    }
+
+    /// 记下这条连接此刻的链路态。它进这一轮的账，重开这条对话仍然看得见。
+    pub fn record_link(&mut self, link: &LinkState) {
+        self.append(RunFrame::LinkChanged { link: link.clone() });
     }
 
     /// Records a kap approval the agent is now blocked on.

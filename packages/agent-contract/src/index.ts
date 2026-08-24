@@ -16,7 +16,7 @@ export type {
   SessionConfigReport,
 } from './config'
 export type { KapEventPayload, KapSessionId, KapStopReason, KapToolCallId } from './kap'
-export type { SessionLink, SessionLinkPort } from './link'
+export type { SessionLink } from './link'
 export type {
   ApprovalAnswer,
   ApprovalDecision,

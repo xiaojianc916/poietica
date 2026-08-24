@@ -6,8 +6,6 @@ import type {
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
-  SessionLink,
-  SessionLinkPort,
   SessionUsagePort,
   ThreadPort,
 } from '@poietica/agent-contract'
@@ -41,7 +39,7 @@ import {
 /** The channel run frames are broadcast on. */
 const AGENT_EVENT = 'ai-run-event'
 
-/** 会话与链路自己报来的状态走这一条：选择器表、用量、重连进度。它不属于任何一轮。 */
+/** 会话自己报来的状态走这一条：选择器表与用量。它不属于任何一轮。 */
 const AGENT_SESSION_EVENT = 'ai-session-event'
 
 /**
@@ -142,7 +140,6 @@ type AgentSessionEnvelope =
       readonly selectors: AgentConfigControl[]
     }
   | { readonly kind: 'usage'; readonly sessionId: string; readonly usage: AgentSessionUsage }
-  | { readonly kind: 'link'; readonly link: SessionLink }
 
 /**
  * 一条通道，按判别式交给它的读者。
@@ -541,26 +538,5 @@ export function createAgentToolkitReader({
         ...(server.lastError === null ? {} : { lastError: server.lastError }),
       })),
     }
-  }
-}
-
-/*
- * 链路态这一路。
- *
- * 与用量同一条通道、同一种静态分派。链路态没有命令能把它问回来，所以只有订阅；
- * 这一侧不留副本 —— 唯一的消费者是 SessionControlsStore。
- */
-export function createAgentSessionLinkBridge({
-  onListenFailure,
-}: AgentEventSourceOptions = {}): SessionLinkPort {
-  return {
-    subscribe: (handler) =>
-      subscribeToSessionEvent(
-        'link',
-        (payload) => {
-          handler(payload.link)
-        },
-        onListenFailure,
-      ),
   }
 }

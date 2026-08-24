@@ -10,7 +10,6 @@ import type {
   AgentSessionPort,
   PermissionPosturePort,
   SessionConfigPort,
-  SessionLinkPort,
   SessionUsagePort,
   ThreadPort,
 } from '@poietica/agent-contract'
@@ -19,7 +18,6 @@ import {
   type AgentBridgeOptions,
   createAgentCapabilityBridge,
   createAgentSessionConfigBridge,
-  createAgentSessionLinkBridge,
   createAgentSessionPort,
   createAgentSessionUsageBridge,
   createAgentThreadBridge,
@@ -39,7 +37,6 @@ export interface DesktopAgentRuntime {
   readonly session: AgentSessionPort
   readonly threads: ThreadPort
   readonly sessionConfig: SessionConfigPort
-  readonly sessionLink: SessionLinkPort
   readonly sessionUsage: SessionUsagePort
   readonly permissionPosture: PermissionPosturePort
   readonly getAgentId: () => string
@@ -165,8 +162,6 @@ export function createDesktopAgentRuntime(
     onListenFailure: noteListenFailure,
   })
 
-  const sessionLink = createAgentSessionLinkBridge({ onListenFailure: noteListenFailure })
-
   const sessionUsage = createAgentSessionUsageBridge({ onListenFailure: noteListenFailure })
 
   const readToolkit = createAgentToolkitReader({ cwd: options.cwd, launch: launchSelected })
@@ -237,7 +232,6 @@ export function createDesktopAgentRuntime(
     session,
     threads,
     sessionConfig,
-    sessionLink,
     sessionUsage,
     permissionPosture,
     getAgentId: selection.read,

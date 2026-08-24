@@ -69,7 +69,12 @@ export interface Presentation {
 }
 
 /** 旁白不参与回复分段；有最终正文时仍随之前的过程一起折叠。 */
-const ASIDE: ReadonlySet<TimelineItem['type']> = new Set(['error', 'permission', 'question'])
+const ASIDE: ReadonlySet<TimelineItem['type']> = new Set([
+  'error',
+  'link',
+  'permission',
+  'question',
+])
 /* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
 const PREVIEW = 300
@@ -283,6 +288,7 @@ function leavesAMark(item: TimelineItem): boolean {
     case 'question':
       return item.resolution !== undefined
     case 'error':
+    case 'link':
     case 'permission':
     case 'user_message':
       return false

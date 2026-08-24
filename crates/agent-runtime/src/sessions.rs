@@ -10,6 +10,7 @@ use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::error::{KapError, Result};
+use crate::link::LinkState;
 use crate::run_slot::RunSlot;
 
 /// The open sessions of one agent process, keyed by protocol session id.
@@ -93,6 +94,22 @@ impl SessionBook {
         }
 
         Ok(failed)
+    }
+
+    /// 把链路态记进每一轮在飞的账，交代记了几笔。
+    ///
+    /// 没有一轮在飞就一笔不记：链路的事只在它耽误了某一轮的时候才是那一轮的事。
+    pub fn note_link(&self, link: &LinkState) -> Result<usize> {
+        let slots = self.book()?.values().cloned().collect::<Vec<RunSlot>>();
+        let mut noted = 0;
+
+        for slot in slots {
+            if slot.record(|recorder| recorder.record_link(link)) {
+                noted += 1;
+            }
+        }
+
+        Ok(noted)
     }
 
     /// How many sessions are open.

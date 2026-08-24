@@ -302,6 +302,7 @@ pub(super) async fn ensure_session(
     //
     // 发的是引用：emit 要 Serialize + Clone，而 &T 两样都满足。
     let herald = app.clone();
+    let linked = book.clone();
 
     async_runtime::spawn(async move {
         let mut events = events;
@@ -355,11 +356,17 @@ pub(super) async fn ensure_session(
                     }
                 }
 
+                /* 链路态进这一轮的账：屏幕上那一行由帧出，所以重启之后它还在。 */
+                SessionEvent::Link(link) => {
+                    if let Err(error) = linked.note_link(&link) {
+                        log::warn!("could not record the link state: {error}");
+                    }
+
+                    continue;
+                }
+
                 /* 读点是本机的账，屏幕上没有一格画它：落库，不上屏。订阅时由
                 addressing.rs 把它报回给 kap。 */
-                /* 链路态：不落库，只上屏。链路的事不属于任何一轮。 */
-                SessionEvent::Link(link) => AgentSessionEvent::Link { link: link.into() },
-
                 SessionEvent::Cursor { session_id, cursor } => {
                     let read = SessionCursor {
                         seq: cursor.seq,

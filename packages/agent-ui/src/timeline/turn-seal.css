@@ -22,14 +22,6 @@
   text-align: start;
   vertical-align: top;
 }
-
-.turn-seal__link {
-  margin-inline-start: 0.75ch;
-  color: var(--cp-timeline-quiet-text);
-  /* 等宽数字：1/5 换成 2/5 时那一行不该跳。 */
-  font-variant-numeric: tabular-nums;
-}
-
 .turn-seal__label {
   display: inline-flex;
   align-items: center;

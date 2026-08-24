@@ -3,6 +3,7 @@ import './timeline.css'
 import type { FeedRow } from '@poietica/agent'
 import { memo } from 'react'
 import { ErrorNotice } from './error-notice'
+import { LinkCard } from './link-card'
 import { PlanPanel } from './plan-panel'
 import { Prose } from './prose'
 import { QuestionRecord } from './question-record'
@@ -51,6 +52,10 @@ export const TimelineRow = memo(function TimelineRow({ row }: TimelineRowProps) 
 
     case 'error':
       return <ErrorNotice message={item.message} />
+
+    /* 断线与工具调用同一个形制：它同样是「这一轮里发生的一件事」。 */
+    case 'link':
+      return <LinkCard item={item} />
 
     case 'question':
       return <QuestionRecord item={item} />
