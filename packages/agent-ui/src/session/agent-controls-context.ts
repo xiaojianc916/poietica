@@ -19,8 +19,10 @@ import { createContext, useCallback, useContext, useSyncExternalStore } from 're
  */
 export const AgentControlsContext = createContext<AgentCapabilityStore | null>(null)
 
-/** 屏幕上那一格要的四样：表、失败的理由、改一项、再试一次。 */
+/** 屏幕上那一格要的：表、失败的理由、名册的地址、改一项、再试一次。 */
 export interface AgentControlsView extends AgentControls {
+  /** 名册要按哪条会话读。入口那一格是 null。 */
+  readonly adoptToolkit: (threadId: string | null) => void
   readonly selectControl: (controlId: string, value: string) => void
   readonly retry: () => void
 }
@@ -38,7 +40,12 @@ export function useAgentControls(): AgentControlsView {
    */
   const held = useSyncExternalStore(store.subscribe, store.snapshot)
 
-  return { ...held, selectControl: store.selectControl, retry: store.refresh }
+  return {
+    ...held,
+    adoptToolkit: store.adoptToolkit,
+    selectControl: store.selectControl,
+    retry: store.refresh,
+  }
 }
 
 /* 两个引用都固定：没有 store 就没有变化可订，也没有名册可给。 */

@@ -177,10 +177,14 @@ export interface PluginStore {
   /**
    * 本进程托管的那台服务器在 mcp.json 里的条目，对齐到当前地址；body 缺席就拆掉条目。
    *
-   * 端口每次启动由内核分配，所以这一趟每次启动都要跑。它与界面上的增删改走同一条队列、
-   * 同一条读—改—写：mcp.json 只有一个写者，两边因此不会互相抹掉。
+   * 端口每次启动由内核分配，所以这一趟每次启动都要跑，而且要在 agent 进程起来之前跑完 ——
+   * kap 在那一刻读 mcp.json。交回的落定就是「写完了」，拉起 agent 的人等它。界面上的增删改
+   * 同队列、同一条读—改—写：mcp.json 只有一个写者。
    */
-  readonly reconcileHostedServer: (name: string, body: Record<string, unknown> | null) => void
+  readonly reconcileHostedServer: (
+    name: string,
+    body: Record<string, unknown> | null,
+  ) => Promise<void>
   readonly remove: (pluginId: string) => void
   /**
    * 开始一次安装：下载、解压到暂存区。
@@ -473,7 +477,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    *
    * 每一次改动都是「先写 agent 会读的那个文件，再改屏幕」，没有第三种顺序。
    */
-  function commit(what: string, write: () => Promise<void>, after: () => void): void {
+  function commit(what: string, write: () => Promise<void>, after: () => void): Promise<void> {
     queue = queue.then(async () => {
       try {
         await write()
@@ -485,6 +489,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
       after()
     })
+
+    return queue
   }
 
   /*
@@ -778,7 +784,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     reconcileHostedServer(name, body) {
-      commit(
+      return commit(
         '托管的那台 MCP 服务器的条目没能对上账',
         async () => {
           const file = await readEnvironmentMcpConfig()

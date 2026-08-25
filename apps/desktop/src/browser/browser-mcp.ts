@@ -23,7 +23,7 @@ export async function reconcileBrowserMcpServer(store: PluginStore): Promise<voi
       resolveLauncher('npx'),
     ])
 
-    store.reconcileHostedServer(
+    await store.reconcileHostedServer(
       SERVER_NAME,
       endpoint === null || launcher === null
         ? null

@@ -25,6 +25,7 @@ import {
   shutdownAgent,
 } from '@poietica/ipc'
 import type { AgentConfigStore } from '@poietica/settings'
+import { hostedMcpServersReady } from '../plugins/plugin-runtime'
 
 export interface DesktopAgentRuntimeOptions {
   readonly config: AgentConfigStore
@@ -137,7 +138,15 @@ export function createDesktopAgentRuntime(
     return selected
   }
 
-  const launchSelected = async () => agentLaunch(await selectedAgent())
+  /*
+   * 拉起 agent 之前先等 mcp.json 对齐到本次启动的端口：kap 在进程起来那一刻读它。
+   * 所有会走到 ensure_session 的桥都经过这里，所以这一处就是全部。
+   */
+  const launchSelected = async () => {
+    await hostedMcpServersReady
+
+    return agentLaunch(await selectedAgent())
+  }
 
   const posture = createPreference<string | undefined>({
     key: 'poietica.permission-posture',
@@ -198,7 +207,11 @@ export function createDesktopAgentRuntime(
 
     const anchor = createAgentCapabilityBridge({
       cwd: options.cwd,
-      launch: async () => agentLaunch(await currentAgent()),
+      launch: async () => {
+        await hostedMcpServersReady
+
+        return agentLaunch(await currentAgent())
+      },
       onListenFailure: noteListenFailure,
     })
 
@@ -217,9 +230,9 @@ export function createDesktopAgentRuntime(
 
         return anchor.select(control, value)
       },
-      readToolkit: async () => {
+      readToolkit: async (threadId) => {
         await currentAgent()
-        return readToolkit()
+        return readToolkit(threadId)
       },
       subscribe: anchor.subscribe,
     }

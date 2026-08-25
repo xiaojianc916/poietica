@@ -125,11 +125,22 @@ export function ConversationSurface({
    * 已有对话在自己的表到达之前先画 agent 那张：那是一份已知的真话，比一个空工具条
    * 再长出来好。
    */
-  const { controls: known, failure: knownFailure, retry, selectControl } = useAgentControls()
+  const {
+    adoptToolkit,
+    controls: known,
+    failure: knownFailure,
+    retry,
+    selectControl,
+  } = useAgentControls()
 
   const controls = threadId === null ? known : (offered ?? known)
 
   const controlsFailure = threadId === null ? knownFailure : failure
+
+  /* 名册按会话回答，所以它跟着这一格走：入口是锚会话，进了对话就是那条会话。 */
+  useEffect(() => {
+    adoptToolkit(threadId)
+  }, [adoptToolkit, threadId])
 
   /*
    * 交下去的每一个回调都钉住标识。

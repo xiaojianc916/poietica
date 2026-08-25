@@ -111,7 +111,10 @@ export class AgentCapabilityStore {
   /* 问过就不再问第二遍：重读是显式动作（refresh），不是渲染的副作用。 */
   #asked = false
 
-  #toolkitAsked = false
+  /* 名册按会话回答，所以它连地址一起记：地址变了就重读，没变就不再问。 */
+  #toolkitAt: string | null = null
+
+  #toolkitAsked: string | null | undefined
 
   /*
    * 这一家此刻在飞的那一次改动，同时是它的队伍。
@@ -157,7 +160,8 @@ export class AgentCapabilityStore {
   start = (port: AgentCapabilityPort): (() => void) => {
     this.#source = port
     this.#asked = false
-    this.#toolkitAsked = false
+    this.#toolkitAt = null
+    this.#toolkitAsked = undefined
     this.#alignedTo = undefined
     this.#commit(EMPTY)
 
@@ -246,10 +250,26 @@ export class AgentCapabilityStore {
     })
   }
 
+  /**
+   * 名册跟着这一格的会话走：入口那一格是 null（锚会话），进了对话就是那条对话。
+   *
+   * kap 按会话回答名册，而技能分层按工作目录。问锚会话、把技能发往对话的会话，
+   * 屏幕上就会有一条它自己也调不动的技能。
+   */
+  adoptToolkit = (threadId: string | null): void => {
+    if (this.#toolkitAt === threadId) {
+      return
+    }
+
+    this.#toolkitAt = threadId
+    this.#toolkitAsked = undefined
+    this.#loadToolkit()
+  }
+
   /** 显式重读一次。 */
   refresh = (): void => {
     this.#asked = false
-    this.#toolkitAsked = false
+    this.#toolkitAsked = undefined
     this.#load()
     this.#loadToolkit()
   }
@@ -337,21 +357,25 @@ export class AgentCapabilityStore {
    */
   #loadToolkit(): void {
     const port = this.#source
+    const at = this.#toolkitAt
 
-    if (port === undefined || this.#toolkitAsked) {
+    if (port === undefined || this.#toolkitAsked === at) {
       return
     }
 
-    this.#toolkitAsked = true
+    this.#toolkitAsked = at
 
-    void port.readToolkit().then(
+    void port.readToolkit(at).then(
       (toolkit) => {
-        if (this.#source === port) {
+        if (this.#source === port && this.#toolkitAt === at) {
           this.#commit({ ...this.#held, toolkit: roster(toolkit) })
         }
       },
       (cause: unknown) => {
-        this.#toolkitAsked = false
+        if (this.#toolkitAsked === at) {
+          this.#toolkitAsked = undefined
+        }
+
         this.#report?.readFailed(cause)
       },
     )

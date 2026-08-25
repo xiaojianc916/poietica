@@ -40,10 +40,11 @@ export interface AgentCapabilityPort {
    */
   readonly subscribe: (handler: () => void) => () => void
   /**
-   * 这个 agent 此刻公布的技能与 MCP 名册。
+   * 这条会话此刻公布的技能与 MCP 名册。
    *
-   * 与 read 同一条会话（连接自带的锚会话）：名册是这一家 agent 的属性，跟哪条
-   * 对话正在开着无关。
+   * 必须点名对话：kap 按会话回答名册（Command::Skills 带 session_id），而技能分层
+   * 按工作目录（Skill.source 的 project/user/extra）。问锚会话、把技能发往对话的
+   * 会话，屏幕上就会出现一条那条会话根本没有的技能。null 只用于入口那一格。
    */
-  readonly readToolkit: () => Promise<AgentToolkit>
+  readonly readToolkit: (threadId: string | null) => Promise<AgentToolkit>
 }

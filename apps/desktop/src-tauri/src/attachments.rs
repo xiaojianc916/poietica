@@ -170,15 +170,12 @@ mod tests {
     ///
     /// 这里此前手写了二十行的 Scratch，理由写着「不引 tempfile：这个 crate 的
     /// 测试目前没有它」。那句话是假的：tempfile 一直在 Cargo.toml 的
-    /// dependencies 段里，commands/agent/thread.rs 用它替换 Kimi 的
-    /// state.json，而普通依赖对同一个 crate 的测试本来就可见 —— 一个 dev 依赖
+    /// dependencies 段里，普通依赖对同一个 crate 的测试本来就可见 —— 一个 dev 依赖
     /// 都不需要。作者以为它不在，它却就在，于是那二十行把 TempDir 已经做好的
     /// 事重写了一遍：开一个没人用过的目录，drop 时抹掉。
     ///
     /// 前缀是留着的：TempDir 默认叫 .tmpXXXXXX，谁都认不出那是谁掉的。测试进程
     /// 被硬杀时 drop 不跑，残留得能一眼归到我们头上。
-    ///
-    /// 全限定写法跟着 thread.rs 走，那边也没有为 tempfile 立一行 use。
     fn scratch() -> tempfile::TempDir {
         tempfile::Builder::new()
             .prefix("poietica-attachments-")

@@ -166,7 +166,7 @@ async agentSetConfigOption(request: AgentSelectConfigRequest) : Promise<AgentCon
 async agentCapabilities(request: AgentCapabilitiesRequest) : Promise<AgentConfigControl[]> {
     return await TAURI_INVOKE("agent_capabilities", { request });
 },
-async agentToolkit(request: AgentCapabilitiesRequest) : Promise<AgentToolkit> {
+async agentToolkit(request: AgentToolkitRequest) : Promise<AgentToolkit> {
     return await TAURI_INVOKE("agent_toolkit", { request });
 },
 /**
@@ -1818,6 +1818,14 @@ export type AgentTitleSource =
  */
 "manual"
 export type AgentToolkit = { skills: AgentSkill[]; mcpServers: AgentMcpServer[] }
+/**
+ * 名册的请求：跟着一条对话走。
+ */
+export type AgentToolkitRequest = { launch: AgentLaunch; cwd: string | null; 
+/**
+ * 缺席才问连接自带的锚会话 —— 入口那一格还没有对话。
+ */
+threadId: string | null }
 export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; privacy: PrivacySettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 /**

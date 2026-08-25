@@ -27,16 +27,20 @@ export const pluginStore = createPluginStore({
   now: () => new Date().toISOString(),
 })
 
+/*
+ * 托管的那两台服务器在 mcp.json 里的条目，对齐到本次启动的端口。
+ *
+ * 在模块求值时出发，不等任何 effect：kap 在进程起来那一刻读 mcp.json，读到上一次启动
+ * 的端口就是「closed unexpectedly」。谁要拉起 agent，先等这份落定。
+ */
+export const hostedMcpServersReady: Promise<void> = Promise.all([
+  reconcileAutomationsMcpServer(pluginStore),
+  reconcileBrowserMcpServer(pluginStore),
+]).then(() => undefined)
+
 export function PluginLoader() {
   useEffect(() => {
     void pluginStore.start()
-
-    /*
-     * 内核的 CDP 端口与本进程那台 MCP 服务器的端口都是每次启动随机抽，mcp.json 里的
-     * 条目因此每次启动都要重新对账；对账自己消化失败，不影响插件运行时起步。
-     */
-    void reconcileAutomationsMcpServer(pluginStore)
-    void reconcileBrowserMcpServer(pluginStore)
 
     /* 谁 start 谁 stop：下一次装载重新首扫。 */
     return () => {

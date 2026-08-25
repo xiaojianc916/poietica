@@ -548,7 +548,7 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
 }
 
 /*
- * 名册这一路：技能与 MCP 一次问回，发往连接自带的锚会话。
+ * 名册这一路：技能与 MCP 一次问回，发往点名的那条对话自己的会话。
  *
  * 交出去的是能力端口上那一格读法本身，不是第二个端口对象 —— 组合层把它装进
  * AgentCapabilityPort，名册与可调项因此同 scope、同一台 store。
@@ -559,9 +559,9 @@ export function createAgentToolkitReader({
   launch,
   cwd,
 }: AgentBridgeOptions): AgentCapabilityPort['readToolkit'] {
-  return async () => {
+  return async (threadId) => {
     const listed = await throughIpc(async () =>
-      commands.agentToolkit({ launch: await launch(), cwd: cwd?.() ?? null }),
+      commands.agentToolkit({ launch: await launch(), cwd: cwd?.() ?? null, threadId }),
     )
 
     return {

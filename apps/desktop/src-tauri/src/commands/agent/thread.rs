@@ -4,7 +4,7 @@ use crate::asset_protocol::AssetProtocolRegistry;
 use crate::attachments::forget_blob;
 use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
-use crate::paths::{agent_home, remove_projectless_workspace};
+use crate::paths::remove_projectless_workspace;
 use poietica_agent_persistence_native::{FrameCursor, FramePage, TitleSource};
 use poietica_agent_runtime_native::RUN_STARTED;
 use tauri::{AppHandle, State, async_runtime};
@@ -19,7 +19,6 @@ use super::dto::{
     FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
 };
 use super::failure::translate;
-use super::kimi_state::sync_kimi_archive_state;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
 use super::{AgentCommandResult, FRAME_PAGE, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS};
 
@@ -275,36 +274,20 @@ pub async fn agent_rename_thread(
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_archive_thread(
-    app: AppHandle,
     index: State<'_, LocalIndex>,
     request: AgentArchiveThreadRequest,
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
     let archived = request.archived;
 
-    let stored = on_index(&index, move |store| {
+    on_index(&index, move |store| {
         store
             .thread(id)
             .map_err(persistence)?
             .ok_or_else(|| Error::Validation("the conversation does not exist".to_owned()))
+            .map(|_| ())
     })
     .await?;
-
-    /* 分发点留在通用层，Kimi 知识不留：怎么写它官方的 state.json、为什么写，
-    都收在 kimi_state.rs。 */
-    if stored.agent_id.as_deref() == Some("kimi")
-        && let Some(session_id) = stored.session_id
-    {
-        let home = agent_home(&app, "kimi")?;
-
-        async_runtime::spawn_blocking(move || {
-            sync_kimi_archive_state(&home, &session_id, archived)
-        })
-        .await
-        .map_err(|_dropped| {
-            Error::Internal("the Kimi archive write did not finish".to_owned())
-        })??;
-    }
 
     on_index(&index, move |store| {
         store.set_archived(id, archived).map_err(persistence)

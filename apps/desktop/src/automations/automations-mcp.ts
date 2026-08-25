@@ -21,7 +21,7 @@ export async function reconcileAutomationsMcpServer(store: PluginStore): Promise
   try {
     const url = (await readMcpEndpoint())?.url
 
-    store.reconcileHostedServer(SERVER_NAME, url === undefined ? null : { url })
+    await store.reconcileHostedServer(SERVER_NAME, url === undefined ? null : { url })
   } catch (cause) {
     warn('自动化 MCP 服务器的地址问不出来', { scope: 'automations-mcp', cause })
   }
