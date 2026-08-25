@@ -64,22 +64,26 @@ export class InterjectionOutbox {
     this.#drain()
   }
 
-  /** 拖到第 toIndex 位。 */
-  reorder(id: string, toIndex: number): void {
-    const from = this.#state.queue.findIndex((held) => held.id === id)
+  /** 整条顺序由界面交回，只认 id：拖动期间队首被放行也不会挪错人。 */
+  arrange(order: readonly string[]): void {
+    const held = new Map(this.#state.queue.map((item) => [item.id, item] as const))
+    const moved: Interjection[] = []
 
-    if (from < 0 || from === toIndex) {
+    for (const id of order) {
+      const item = held.get(id)
+
+      if (item !== undefined) {
+        held.delete(id)
+        moved.push(item)
+      }
+    }
+
+    const queue = [...moved, ...held.values()]
+
+    if (queue.every((item, index) => item === this.#state.queue[index])) {
       return
     }
 
-    const queue = [...this.#state.queue]
-    const [moved] = queue.splice(from, 1)
-
-    if (moved === undefined) {
-      return
-    }
-
-    queue.splice(Math.max(0, Math.min(toIndex, queue.length)), 0, moved)
     this.#write({ queue })
   }
 
@@ -118,7 +122,7 @@ export class InterjectionOutbox {
 
   /** 提交：插到队首并立刻放出去，不等 agent 收口。 */
   urge(id: string): void {
-    this.reorder(id, 0)
+    this.arrange([id])
     this.#release(0)
   }
 

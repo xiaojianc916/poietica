@@ -1,8 +1,10 @@
 import './prompt-queue.css'
 
 import type { Interjection, InterjectionOutbox } from '@poietica/agent'
-import { memo, useCallback, useState, useSyncExternalStore } from 'react'
-import { CloseIcon } from '../primitives/icons'
+import { Reorder, useDragControls } from 'motion/react'
+import { memo, useCallback, useSyncExternalStore } from 'react'
+import { CloseIcon, DragHandleIcon, ForwardIcon } from '../primitives/icons'
+import { DRAG_SPRING } from '../primitives/motion'
 
 export interface PromptQueueProps {
   /** 队列的真相。这一层只画它、只按它给的顺序画。 */
@@ -11,78 +13,34 @@ export interface PromptQueueProps {
   readonly onEdit: (text: string) => void
 }
 
-interface QueueRowProps {
-  readonly index: number
+interface RowProps {
   readonly item: Interjection
-  readonly lifted: boolean
-  readonly over: boolean
-  readonly onArm: (index: number | null) => void
   readonly onEdit: (id: string) => void
-  readonly onLand: (index: number) => void
-  readonly onLift: (index: number) => void
   readonly onNudge: (id: string, by: number) => void
-  readonly onOver: (index: number | null) => void
   readonly onRemove: (id: string) => void
   readonly onUrge: (id: string) => void
-  readonly armed: boolean
 }
-
-const rowClass = (editing: boolean, lifted: boolean, over: boolean): string =>
-  [
-    'prompt-queue__row',
-    editing ? 'prompt-queue__row--editing' : '',
-    lifted ? 'prompt-queue__row--lifted' : '',
-    over ? 'prompt-queue__row--over' : '',
-  ]
-    .filter((name) => name !== '')
-    .join(' ')
 
 /*
  * 一行。
  *
- * 拖拽走 HTML5 Drag and Drop：dataTransfer 必须被写过一次，否则 Firefox 不认这次
- * 拖动。把手只在悬浮时显形，按下它才把这一行变成可拖的 —— 否则整行都能被拖走，
- * 选文字都做不到。键盘用 Alt 加上下方向键走同一条 reorder。
+ * 拖拽走 Reorder.Item：指针事件，触控与笔一并支持，落位由 layout 补间。
+ * dragListener 关掉，起手权归把手，正文因此仍能点选；键盘走 Alt 加上下方向键。
  */
-const QueueRow = memo(function QueueRow({
-  armed,
-  index,
-  item,
-  lifted,
-  onArm,
-  onEdit,
-  onLand,
-  onLift,
-  onNudge,
-  onOver,
-  onRemove,
-  onUrge,
-  over,
-}: QueueRowProps) {
+const QueueRow = memo(function QueueRow({ item, onEdit, onNudge, onRemove, onUrge }: RowProps) {
+  const drag = useDragControls()
   const editing = item.state === 'editing'
 
   return (
-    <li
-      className={rowClass(editing, lifted, over)}
-      draggable={armed}
-      onDragEnd={() => {
-        onArm(null)
-        onOver(null)
-      }}
-      onDragOver={(event) => {
-        event.preventDefault()
-        event.dataTransfer.dropEffect = 'move'
-        onOver(index)
-      }}
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = 'move'
-        event.dataTransfer.setData('text/plain', item.id)
-        onLift(index)
-      }}
-      onDrop={(event) => {
-        event.preventDefault()
-        onLand(index)
-      }}
+    <Reorder.Item
+      className="prompt-queue__row"
+      data-editing={editing ? 'true' : undefined}
+      dragControls={drag}
+      dragElastic={0.04}
+      dragListener={false}
+      transition={DRAG_SPRING}
+      value={item}
+      whileDrag={{ scale: 1.01 }}
     >
       <button
         aria-label="按住拖动改顺序，或按 Alt 加上下方向键"
@@ -100,20 +58,13 @@ const QueueRow = memo(function QueueRow({
             onNudge(item.id, 1)
           }
         }}
-        onPointerDown={() => {
-          onArm(index)
-        }}
-        onPointerUp={() => {
-          onArm(null)
+        onPointerDown={(event) => {
+          drag.start(event)
         }}
         type="button"
       >
-        {'\u283F'}
+        <DragHandleIcon aria-hidden size={14} />
       </button>
-
-      <span aria-hidden className="prompt-queue__ordinal">
-        {index + 1}
-      </span>
 
       <button
         className="prompt-queue__said"
@@ -127,7 +78,7 @@ const QueueRow = memo(function QueueRow({
       </button>
 
       <button
-        className="prompt-queue__act prompt-queue__act--urge"
+        className="prompt-queue__act"
         disabled={editing}
         onClick={() => {
           onUrge(item.id)
@@ -135,12 +86,13 @@ const QueueRow = memo(function QueueRow({
         title="立刻发给 AI，不等它做完手上这件事"
         type="button"
       >
-        {'\u21B3 提交'}
+        <ForwardIcon aria-hidden size={14} />
+        提交
       </button>
 
       <button
         aria-label="不发这一句"
-        className="prompt-queue__act"
+        className="prompt-queue__act prompt-queue__act--glyph"
         onClick={() => {
           onRemove(item.id)
         }}
@@ -149,48 +101,40 @@ const QueueRow = memo(function QueueRow({
       >
         <CloseIcon aria-hidden size={14} />
       </button>
-    </li>
+    </Reorder.Item>
   )
 })
 
 /*
  * 输入框上方那条队列。
  *
- * 顺序、正文与编辑占位都在出账簿里，这一层只订它；拖到哪一行、按下了哪个把手
- * 是指针的临时状态，不进领域态。空队列时整层不渲染。
+ * 顺序、正文与编辑占位都在出账簿里：这一层只订它，并把新顺序整条交回 —— 交 id 不交
+ * 下标，所以拖动期间队首被放行也不会挪错人。最上面就是最先发送的那一句。
  */
 export const PromptQueue = memo(function PromptQueue({ onEdit, outbox }: PromptQueueProps) {
   const state = useSyncExternalStore(outbox.subscribe, outbox.read)
-  const [armed, setArmed] = useState<number | null>(null)
-  const [lifted, setLifted] = useState<number | null>(null)
-  const [over, setOver] = useState<number | null>(null)
 
-  const lift = useCallback((index: number) => {
-    setLifted(index)
-  }, [])
-
-  const land = useCallback(
-    (index: number) => {
-      const held = lifted === null ? undefined : state.queue[lifted]
-
-      setLifted(null)
-      setOver(null)
-      setArmed(null)
-
-      if (held !== undefined) {
-        outbox.reorder(held.id, index)
-      }
+  const arrange = useCallback(
+    (order: Interjection[]) => {
+      outbox.arrange(order.map((held) => held.id))
     },
-    [lifted, outbox, state.queue],
+    [outbox],
   )
 
+  /* 键盘挪一格：与拖拽同一个写入口。 */
   const nudge = useCallback(
     (id: string, by: number) => {
-      const from = state.queue.findIndex((held) => held.id === id)
+      const order = state.queue.map((held) => held.id)
+      const from = order.indexOf(id)
+      const to = from + by
 
-      if (from >= 0) {
-        outbox.reorder(id, from + by)
+      if (from < 0 || to < 0 || to >= order.length) {
+        return
       }
+
+      order.splice(from, 1)
+      order.splice(to, 0, id)
+      outbox.arrange(order)
     },
     [outbox, state.queue],
   )
@@ -225,25 +169,23 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, outbox }: PromptQ
   }
 
   return (
-    <ul aria-label="排队等发的话" className="prompt-queue">
-      {state.queue.map((item, index) => (
+    <Reorder.Group
+      aria-label="排队等发的话"
+      axis="y"
+      className="prompt-queue"
+      onReorder={arrange}
+      values={[...state.queue]}
+    >
+      {state.queue.map((item) => (
         <QueueRow
-          armed={armed === index}
-          index={index}
           item={item}
           key={item.id}
-          lifted={lifted === index}
-          onArm={setArmed}
           onEdit={edit}
-          onLand={land}
-          onLift={lift}
           onNudge={nudge}
-          onOver={setOver}
           onRemove={remove}
           onUrge={urge}
-          over={over === index && lifted !== index}
         />
       ))}
-    </ul>
+    </Reorder.Group>
   )
 })

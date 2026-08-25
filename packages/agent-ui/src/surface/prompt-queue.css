@@ -1,95 +1,74 @@
-/* 输入框上方那条队列。行数由内容决定，所以它自己不定高。 */
+/*
+ * 输入框上方那条队列：一张卡，行长在卡里。
+ *
+ * 颜色与尺寸只取 composer-metrics.css 的令牌，所以它跟着主题走，不自己挑灰度。
+ */
 .prompt-queue {
-  --queue-ease: cubic-bezier(0.32, 0.72, 0, 1);
-  --queue-quick: 140ms;
-
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  margin: 0 0 6px;
-  padding: 0;
+  inline-size: calc(100% - var(--cp-queue-inset) * 2);
+  margin: 0 auto var(--cp-pad-mid);
+  padding: var(--cp-queue-pad);
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: var(--cp-radius);
+  background: var(--cp-surface);
+  box-shadow: var(--cp-lift);
   list-style: none;
 }
 
 .prompt-queue__row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 5px 8px 5px 3px;
-  border-radius: 10px;
-  background: rgb(128 128 128 / 10%);
-  font-size: 13px;
-  line-height: 1.4;
-  transition:
-    background-color var(--queue-quick) var(--queue-ease),
-    opacity var(--queue-quick) var(--queue-ease),
-    transform var(--queue-quick) var(--queue-ease);
-}
-
-.prompt-queue__row:hover {
-  background: rgb(128 128 128 / 15%);
+  gap: var(--cp-control-gap);
+  min-block-size: var(--cp-control);
+  min-inline-size: 0;
+  padding-inline: 0 var(--cp-queue-pad);
+  border-radius: var(--cp-queue-row-radius);
+  color: var(--cp-ink);
+  font-size: var(--cp-font-caption);
+  transition: box-shadow var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 /* 正文此刻在输入框里：位置留着，但它不是一句待发的话。 */
-.prompt-queue__row--editing {
-  opacity: 0.55;
+.prompt-queue__row[data-editing] {
+  color: var(--cp-ink-muted);
 }
 
-/* 被拎起来的那一行留一个淡影，手上跟着走的是浏览器画的拖影。 */
-.prompt-queue__row--lifted {
-  opacity: 0.4;
+/* 把手被按住的那一刻正是可拖的那一刻：这一行自己浮起来。 */
+.prompt-queue__row:has(.prompt-queue__grip:active) {
+  background: var(--cp-surface);
+  box-shadow: var(--cp-lift);
+  cursor: grabbing;
+  z-index: 1;
 }
 
-/* 会落在这一行之前。 */
-.prompt-queue__row--over {
-  background: rgb(128 128 128 / 22%);
-  transform: translateY(1px);
-}
-
-/* 把手悬浮才显形：不悬浮时它不该在一行话里抢注意力。 */
+/* 把手常显：它是这一行的抓点，藏起来等于没有。 */
 .prompt-queue__grip {
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 20px;
+  inline-size: var(--cp-target-min);
+  block-size: var(--cp-target-min);
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--cp-radius-item);
   background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 12px;
-  line-height: 1;
-  opacity: 0;
+  color: var(--cp-ink-muted);
   cursor: grab;
-  transition: opacity var(--queue-quick) var(--queue-ease);
+  touch-action: none;
+  transition: color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.prompt-queue__row:hover .prompt-queue__grip,
+.prompt-queue__grip:hover,
 .prompt-queue__grip:focus-visible {
-  opacity: 0.5;
-}
-
-.prompt-queue__grip:active {
-  opacity: 0.9;
-  cursor: grabbing;
-}
-
-.prompt-queue__ordinal {
-  flex: none;
-  min-width: 12px;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  opacity: 0.4;
+  color: var(--cp-ink);
 }
 
 .prompt-queue__said {
   flex: 1 1 auto;
-  min-width: 0;
+  min-inline-size: 0;
   overflow: hidden;
   padding: 0;
   border: 0;
@@ -97,56 +76,53 @@
   color: inherit;
   font: inherit;
   white-space: nowrap;
-  text-align: left;
+  text-align: start;
   text-overflow: ellipsis;
-  opacity: 0.85;
   cursor: text;
-}
-
-.prompt-queue__said:hover,
-.prompt-queue__said:focus-visible {
-  opacity: 1;
 }
 
 .prompt-queue__act {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
+  gap: var(--cp-control-gap);
+  min-block-size: var(--cp-target-min);
+  padding-inline: var(--cp-control-gap);
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--cp-radius-item);
   background: transparent;
-  color: inherit;
+  color: var(--cp-ink-muted);
   font: inherit;
-  font-size: 12px;
-  opacity: 0.6;
+  white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color var(--queue-quick) var(--queue-ease),
-    opacity var(--queue-quick) var(--queue-ease);
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.prompt-queue__act--urge {
-  white-space: nowrap;
+/* 只有一枚字形的那一颗：命中区仍是 WCAG 2.2 SC 2.5.8 的下限。 */
+.prompt-queue__act--glyph {
+  justify-content: center;
+  inline-size: var(--cp-target-min);
+  padding-inline: 0;
 }
 
 .prompt-queue__act:hover,
 .prompt-queue__act:focus-visible {
-  background: rgb(128 128 128 / 16%);
-  opacity: 1;
+  background: var(--cp-overlay-hover);
+  color: var(--cp-ink);
 }
 
 .prompt-queue__act:disabled {
-  opacity: 0.25;
+  background: transparent;
+  color: var(--cp-placeholder);
   cursor: default;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .prompt-queue__act,
   .prompt-queue__grip,
-  .prompt-queue__row,
-  .prompt-queue__said {
+  .prompt-queue__row {
     transition-duration: 1ms;
   }
 }

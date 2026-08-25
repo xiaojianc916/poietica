@@ -13,3 +13,6 @@ export const EXIT_SECONDS = 0.14
 
 /** 浮层起落的位移，与 --cp-motion-rise 同值。 */
 export const RISE_PX = 4
+
+/** 拖动落位：跟手，不过冲。 */
+export const DRAG_SPRING = { damping: 38, mass: 0.6, stiffness: 520, type: 'spring' } as const

@@ -143,6 +143,11 @@
   --cp-radius-menu: 12px;
   --cp-radius-item: 8px;
 
+  /* 队列那张卡：比输入框窄一档；行圆角 = 卡圆角 − 内边距，两层同心。 */
+  --cp-queue-inset: var(--cp-stack);
+  --cp-queue-pad: 6px;
+  --cp-queue-row-radius: calc(var(--cp-radius) - var(--cp-queue-pad));
+
   /*
    * 模式胶囊。
    *
