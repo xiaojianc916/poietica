@@ -4,7 +4,7 @@ import { type CSSProperties, useId, useState } from 'react'
 import { FileTypeMark } from '../primitives/file-type-mark'
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
 import type { DiffFile, DiffRow, DiffRowKind } from '../semantics/file-diff'
-import type { ToolCallFacets } from '../semantics/tool-call-facets'
+import { toToolCallFacets } from '../semantics/tool-call-facets'
 import { Prose } from './prose'
 
 /**
@@ -116,15 +116,14 @@ function FileDiff({ file }: { readonly file: DiffFile }) {
 }
 
 export function ToolCallPanels({
-  facets,
   isRunning,
-  kind,
+  item,
 }: {
-  readonly facets: ToolCallFacets
   readonly isRunning: boolean
-  readonly kind: ToolCallTimelineItem['kind']
+  readonly item: ToolCallTimelineItem
 }) {
-  const { diffs, request, response } = facets
+  /* 载荷在这里解析：这个组件只在抽屉开着的时候挂载。 */
+  const { diffs, request, response } = toToolCallFacets(item)
   const baseId = useId()
   const [chosen, setChosen] = useState<string | null>(null)
 
@@ -141,7 +140,7 @@ export function ToolCallPanels({
 
   const activeId =
     request === null ? RESPONSE : (chosen ?? (response === null ? REQUEST : RESPONSE))
-  const responseText = response ?? emptyNoteOf(kind, isRunning)
+  const responseText = response ?? emptyNoteOf(item.kind, isRunning)
 
   if (request === null) {
     return (

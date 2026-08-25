@@ -21,7 +21,8 @@ import {
   TerminalIcon,
   ToolIcon,
 } from '../primitives/icons'
-import { type ToolCallFacets, toToolCallFacets } from '../semantics/tool-call-facets'
+import { type DiffStat, diffStatOf } from '../semantics/file-diff'
+import { toDiffFilesOf } from '../semantics/tool-call-facets'
 import { readToolLine } from '../semantics/tool-intent'
 import { useDelegateChannel } from './delegate-channel-context'
 import { ToolCallPanels } from './tool-call-panels'
@@ -70,7 +71,7 @@ function unreachable(_kind: never): null {
 }
 
 interface ToolCallCardView {
-  readonly facets: ToolCallFacets
+  readonly diffStat: DiffStat | null
   readonly line: string
   readonly isRunning: boolean
 }
@@ -86,17 +87,16 @@ interface ToolCallCardView {
  * 开合不属于这份投影：它归转录那一层，按条目 id 记账。
  */
 function describeToolCall(item: ToolCallTimelineItem, isInFlight: boolean): ToolCallCardView {
-  const facets = toToolCallFacets(item)
-
   return {
-    facets,
+    /* 只有徽章要它，而它记在 WeakMap 里；两个面的 markdown 归抽屉自己算。 */
+    diffStat: diffStatOf(toDiffFilesOf(item)),
     isRunning: isInFlight && (item.status === 'pending' || item.status === 'in_progress'),
     line: readToolLine(item),
   }
 }
 
 /** 加减了多少行。两边都是零就不占位。 */
-export function ToolCallDiffStat({ diffStat }: { readonly diffStat: ToolCallFacets['diffStat'] }) {
+export function ToolCallDiffStat({ diffStat }: { readonly diffStat: DiffStat | null }) {
   if (diffStat === null || diffStat.added + diffStat.removed === 0) {
     return null
   }
@@ -127,8 +127,7 @@ function ToolCallHeader({
   readonly onToggle: () => void
   readonly view: ToolCallCardView
 }) {
-  const { facets, isRunning, line } = view
-  const { diffStat } = facets
+  const { diffStat, isRunning, line } = view
 
   return (
     <button
@@ -159,8 +158,7 @@ function ToolCallHeader({
  * 不是一张卡：外框、圆角与投影归 [data-surface]，戴它的是需要人回答的东西。这
  * 一行是活动流里的一条记事，和思考链那一行同一个音量。
  *
- * 抽屉：内容常驻挂载，0fr 与 1fr 之间一次跳变，收起时 inert。不补间 —— 这一行
- * 挂着虚拟器的 measureElement，补间高度就是每帧让它下面所有行重排一次。
+ * 抽屉：收起就不挂载，所以两个面的 markdown 只在点开的那一份上解析。
  *
  * 一次投影、两个渲染器。不包 memo —— 唯一的调用点 TimelineRow 已经按 row 记忆
  * 化，再包一层只是多一次比较。
@@ -209,7 +207,7 @@ export function ToolCallCard({
       />
 
       <DisclosureBody isOpen={isOpen}>
-        <ToolCallPanels facets={view.facets} isRunning={view.isRunning} kind={item.kind} />
+        <ToolCallPanels isRunning={view.isRunning} item={item} />
       </DisclosureBody>
     </section>
   )

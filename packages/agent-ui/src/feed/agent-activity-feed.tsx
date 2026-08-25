@@ -49,7 +49,8 @@ export interface AgentActivityFeedProps {
   readonly conversation: string
   readonly feed: Presentation
   /**
-   * 抽屉的开合表。这一层只认它的身份：换一个身份 = 这一帧的高度变化是人点出来的。
+   * 开合表：封条与抽屉，人亲手改的那一份。这一层只认它的身份 —— 换一个身份 = 这一
+   * 帧的高度变化是人点出来的。
    *
    * virtual-core 的 resizeItem 在 anchorTo 为 end 且人本来就在末端时，把长高的量补进
    * scrollTop 去钉住底边。模型吐字时这正是「跟着流走」；人点开面板时同一个补偿就是整屏
@@ -177,16 +178,30 @@ export function AgentActivityFeed({
     [virtualizer],
   )
 
-  const { atLatest, reveal, revealing, sample, travel, watch } = useScrollAuthority(commands)
-
-  /* 打开一条对话就落在最新那一端：一条对话一个盒子，所以挂载那一次就是那一次。 */
-  useLayoutEffect(() => {
-    if (viewport !== null) {
-      virtualizer.scrollToEnd()
-    }
-  }, [viewport, virtualizer])
+  const { atLatest, pinned, reveal, revealing, sample, travel, watch } =
+    useScrollAuthority(commands)
 
   const total = virtualizer.getTotalSize()
+
+  /*
+   * 末端的坐标：偏移加总高（总高含尾部那段清空距离）。两段都是分帧到的 —— 偏移与尾部
+   * 各等一次 ResizeObserver，行高等实测 —— 所以落到末端只能是一份持续意图，坐标一动
+   * 就重钉一次。挂载那一次命令钉的是「还没量到这两段」的假末端，真值到达后就停在离底
+   * 一段的地方，而那一段正是尾部清空距离。
+   *
+   * 行高变化的补偿归虚拟器（anchorTo/followOnAppend）；坐标没动就不写。
+   */
+  const end = scrollMargin + total
+  const pinnedTo = useRef(-1)
+
+  useLayoutEffect(() => {
+    if (viewport === null || !pinned || pinnedTo.current === end) {
+      return
+    }
+
+    pinnedTo.current = end
+    virtualizer.scrollToEnd()
+  }, [end, pinned, viewport, virtualizer])
 
   /* 那一次长高量到了，锚定当场归位：让位只覆盖人点出来的那一次测量。 */
   useLayoutEffect(() => {

@@ -18,11 +18,22 @@ import { TurnSeal } from './turn-seal'
  * 这里不量任何几何，也不持有领域态：滚动归虚拟器，投影归 selectPresentation。
  */
 
-/* 一轮都没被亲手指定时共用同一张空表：状态的初值不该每次渲染换一个引用。 */
-const NOTHING_CHOSEN: ReadonlyMap<number, boolean> = new Map()
+/**
+ * 人亲手改过的开合，一份。
+ *
+ * 合成一份不是为了少一个 useState：滚动区认的是这份东西的身份 —— 换一个身份 = 这一帧
+ * 的高度变化是人点出来的（AgentActivityFeedProps.disclosed）。分成两份时封条那一次改
+ * 的是另一份，滚动区看不见，于是它被当成了模型在吐字，末端锚定把整屏往上拽。
+ */
+interface Disclosure {
+  /** 哪些抽屉开着；键是条目 id。 */
+  readonly items: ReadonlySet<string>
+  /** 人亲手为哪几轮定过封条；键是投影交出的权威段号。 */
+  readonly seals: ReadonlyMap<number, boolean>
+}
 
-/* 一个抽屉都没被点开时共用同一张空表，理由同上。 */
-const NOTHING_OPENED: ReadonlySet<string> = new Set()
+/* 谁都没点过时共用同一份：状态的初值不该每次渲染换一个引用。 */
+const NOTHING: Disclosure = { items: new Set(), seals: new Map() }
 
 export interface TranscriptViewProps {
   readonly sessionKey: string
@@ -44,50 +55,49 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
   }, [sessionKey, transcripts])
 
   /*
-   * 人亲手为哪几轮定过开合；身份直接使用投影交出的权威段号。
+   * 人亲手改过的开合。抽屉那一半必须长在行的外面 —— 行归虚拟器铺，滚出视口就卸载，
+   * state 放在行里等于让人一滚就丢，而行高量表按 id 记，它那时还留着展开时那一测。
    *
    * 这里只记「人说了什么」，不记「现在开着还是关着」—— 后者由投影按这一轮跑不跑算出来，
    * 存第二份就会有两个真相：运行结束该自己收起的那一刻，本地那份还停在上一次的答案。
    * 折叠仍是一次状态跳变，不等任何动画事件来收尾：过程行归虚拟器管，屏幕外的那些根本
    * 没有 DOM，事件永远不会到。
    */
-  const [chosen, setChosen] = useState<ReadonlyMap<number, boolean>>(NOTHING_CHOSEN)
+  const [disclosure, setDisclosure] = useState<Disclosure>(NOTHING)
 
   /*
    * 段号是每条对话各自从头编的，所以换一条对话必须清空 —— 否则 A 的第一轮点过的开合会
-   * 落到 B 的第一轮头上。渲染期复位是 React 给「props 变了要复位 state」的写法，与
-   * assistant-surface 的相位复位同一条。
+   * 落到 B 的第一轮头上。条目 id 全局唯一，那一半不清，行高量表也没清。渲染期复位是
+   * React 给「props 变了要复位 state」的写法，与 assistant-surface 的相位复位同一条。
    */
   const [seen, setSeen] = useState(sessionKey)
 
   if (seen !== sessionKey) {
     setSeen(sessionKey)
-    setChosen(NOTHING_CHOSEN)
+    setDisclosure((current) => ({ items: current.items, seals: NOTHING.seals }))
   }
 
   const chooseTurn = useCallback((turn: number, isOpen: boolean) => {
-    setChosen((current) => new Map(current).set(turn, isOpen))
+    setDisclosure((current) => ({
+      items: current.items,
+      seals: new Map(current.seals).set(turn, isOpen),
+    }))
   }, [])
-
-  /*
-   * 哪些抽屉开着。它必须长在行的外面：行归虚拟器铺，滚出视口就卸载，state 放在行里等于
-   * 让人一滚就丢 —— 而行高量表按 id 记，它那时还留着展开时那一测。
-   *
-   * 身份是条目 id，全局唯一，所以换对话不清空（量表也没清）。段号才需要跟着对话复位。
-   */
-  const [opened, setOpened] = useState<ReadonlySet<string>>(NOTHING_OPENED)
 
   const toggleOpen = useCallback((id: string) => {
-    setOpened((current) => {
-      const next = new Set(current)
+    setDisclosure((current) => {
+      const items = new Set(current.items)
 
-      if (!next.delete(id)) {
-        next.add(id)
+      if (!items.delete(id)) {
+        items.add(id)
       }
 
-      return next
+      return { items, seals: current.seals }
     })
   }, [])
+
+  /* 封条那一半进投影，抽屉那一半进行；整份的身份就是滚动区认的那个凭据。 */
+  const { items, seals } = disclosure
 
   /*
    * 转录的唯一投影：折叠、并组、封条、回复操作、轮次索引一次算出，按段增量。
@@ -95,7 +105,7 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
    * 不包 useMemo：缓存的所有权在投影里 —— 那里按段记账、跨组件共享，这里的依赖每帧
    * 换引用，包了也永远不命中。
    */
-  const feed = selectPresentation(timeline, chosen)
+  const feed = selectPresentation(timeline, seals)
   const turns = feed.turns
 
   const sealOf = useCallback(
@@ -117,9 +127,9 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
   /* 行怎么画归这一层：它已经持有开合，交出去就是把一份真相拆成两处。 */
   const rowOf = useCallback(
     (row: FeedRow) => (
-      <TimelineRow isOpen={opened.has(row.item.id)} onToggle={toggleOpen} row={row} />
+      <TimelineRow isOpen={items.has(row.item.id)} onToggle={toggleOpen} row={row} />
     ),
-    [opened, toggleOpen],
+    [items, toggleOpen],
   )
 
   /*
@@ -142,7 +152,7 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
           rowOf(row)
         ) : (
           <ToolGroupCard
-            isOpen={opened.has(plan.id)}
+            isOpen={items.has(plan.id)}
             onToggle={() => {
               toggleOpen(plan.id)
             }}
@@ -170,7 +180,7 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
         </>
       )
     },
-    [feed, onFork, opened, rowOf, sealOf, toggleOpen],
+    [feed, items, onFork, rowOf, sealOf, toggleOpen],
   )
 
   /* 估高与渲染同源：类别知识都在这一层，滚动窗口只收两个按下标问的函数。 */
@@ -198,7 +208,7 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
 
       <AgentActivityFeed
         conversation={sessionKey}
-        disclosed={opened}
+        disclosed={disclosure}
         estimateRow={estimateRowAt}
         feed={feed}
         hasEarlier={hasEarlier}

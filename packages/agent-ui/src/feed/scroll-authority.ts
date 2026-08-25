@@ -19,6 +19,11 @@ export interface ScrollCommands {
 export interface ScrollAuthority {
   /** 末端还有没有没看见的内容。判据在虚拟器，这里只是它的一次采样。 */
   readonly atLatest: boolean
+  /**
+   * 要不要跟着末端走。这是意图，不是采样：末端的坐标分帧才凑齐（偏移与尾部各等一次
+   * ResizeObserver，行高等实测），采样在中途会说「不在末端」，而人并没有接手。
+   */
+  readonly pinned: boolean
   /** 人要求看的那一行；落定或被人接手后回到 null。 */
   readonly revealing: number | null
   /** 采一次末端判据。调用方在它每帧那一次布局读取里唤起，不额外问一次几何。 */
@@ -34,11 +39,12 @@ export interface ScrollAuthority {
 /**
  * 会话流的滚动意图。
  *
- * 只回答两件事：末端是不是还有没看见的内容，人此刻要求看哪一行。跳转是瞬时的，所以
- * 手势接手时只需要撤掉这个标记；位置本身从头到尾归虚拟器写。
+ * 只回答三件事：末端是不是还有没看见的内容，要不要跟着末端走，人此刻要求看哪一行。
+ * 位置本身从头到尾归虚拟器写。
  */
 export function useScrollAuthority(commands: ScrollCommands): ScrollAuthority {
   const [atLatest, setAtLatest] = useState(true)
+  const [pinned, setPinned] = useState(true)
   const [revealing, setRevealing] = useState<number | null>(null)
 
   const sample = useCallback(() => {
@@ -47,12 +53,14 @@ export function useScrollAuthority(commands: ScrollCommands): ScrollAuthority {
 
   const travel = useCallback(() => {
     setRevealing(null)
+    setPinned(true)
     commands.toEnd()
   }, [commands])
 
   const reveal = useCallback(
     (row: number) => {
       setRevealing(row)
+      setPinned(false)
       commands.toRow(row)
     },
     [commands],
@@ -68,10 +76,14 @@ export function useScrollAuthority(commands: ScrollCommands): ScrollAuthority {
           return
         }
 
+        setPinned(false)
         setRevealing(null)
       }
 
       const human = (event: Event) => {
+        /* 手一落在视口上就不再跟随，开合也算：那一刻人看的是被点开的东西。 */
+        setPinned(false)
+
         if (event.target instanceof Element && event.target.closest(DISCLOSURE) !== null) {
           return
         }
@@ -81,8 +93,11 @@ export function useScrollAuthority(commands: ScrollCommands): ScrollAuthority {
 
       /* 滚动停了就是请求落定了：不再有第二套「到达」判据。 */
       const settle = () => {
+        const end = commands.isAtEnd()
+
+        setAtLatest(end)
+        setPinned(end)
         setRevealing(null)
-        setAtLatest(commands.isAtEnd())
       }
 
       viewport.addEventListener('wheel', wheel, { passive: true })
@@ -104,5 +119,5 @@ export function useScrollAuthority(commands: ScrollCommands): ScrollAuthority {
     [commands],
   )
 
-  return { atLatest, reveal, revealing, sample, travel, watch }
+  return { atLatest, pinned, reveal, revealing, sample, travel, watch }
 }

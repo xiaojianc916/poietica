@@ -5,8 +5,9 @@ import type { ReactNode } from 'react'
 /**
  * The travelling part of a disclosure.
  *
- * 内容常驻挂载，开合是轨道在 0fr 与 1fr 之间的一次跳变，不补间（disclosure.css）。
- * 收起时整块 inert：键盘与读屏都到不了它。
+ * 收起就不在 DOM 里：抽屉里装的是整份载荷（markdown、diff），留着它等于每次挂载、
+ * 每次重排、每次重绘都替看不见的内容付一遍钱。开合不补间 —— 这一行挂着虚拟器的
+ * measureElement。
  */
 export function DisclosureBody({
   children,
@@ -15,9 +16,5 @@ export function DisclosureBody({
   readonly children: ReactNode
   readonly isOpen: boolean
 }) {
-  return (
-    <div className="disclosure__reveal" data-open={isOpen ? 'true' : undefined} inert={!isOpen}>
-      <div className="disclosure__clip">{children}</div>
-    </div>
-  )
+  return isOpen ? children : null
 }

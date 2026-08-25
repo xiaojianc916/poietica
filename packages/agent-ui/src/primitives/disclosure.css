@@ -1,22 +1,8 @@
-/* 抽屉只管开合，几何归虚拟器：高度一次跳变，内容不做第二段补间。 */
-.disclosure__reveal {
-  display: grid;
-  grid-template-rows: 0fr;
-}
-
-.disclosure__clip {
-  min-block-size: 0;
-  overflow: hidden;
-}
-
+/* 抽屉只管开合：收起就不挂载（disclosure.tsx），所以这里只剩那一枚箭头。 */
 .disclosure__chevron {
   transform: rotate(-90deg);
   transition: transform var(--cp-motion-drawer)
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));
-}
-
-.disclosure__reveal[data-open="true"] {
-  grid-template-rows: 1fr;
 }
 
 [aria-expanded="true"] .disclosure__chevron {
