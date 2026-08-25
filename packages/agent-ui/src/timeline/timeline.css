@@ -58,6 +58,11 @@
   font: inherit;
   font-size: var(--ui-prose-size-aux);
   cursor: pointer;
+  transition: color 120ms var(--cp-motion-ease);
+}
+
+.timeline-user__more:hover {
+  color: var(--cp-ink);
 }
 
 .timeline-message {

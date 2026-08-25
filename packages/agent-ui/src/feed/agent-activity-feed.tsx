@@ -348,7 +348,11 @@ export function AgentActivityFeed({
     }
 
     if (tailRef.current !== null) {
-      observer.observe(tailRef.current, { box: 'border-box' })
+      const tail = tailRef.current
+
+      /* ResizeObserver 的首次通知可能晚于首帧；挂载时先同步读一次，避免假零值上屏。 */
+      setTailSize(tail.offsetHeight)
+      observer.observe(tail, { box: 'border-box' })
     }
 
     viewport.addEventListener('scroll', sync, { passive: true })

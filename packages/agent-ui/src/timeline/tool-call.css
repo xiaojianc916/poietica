@@ -254,26 +254,21 @@
   text-overflow: ellipsis;
 }
 
-/*
- * 两列一张网格：行号，正文。行用 subgrid 挂进来，所以行号列在所有行上对齐 —— 这是
- * CSS Grid Level 2 给的，不必挑一个 ch 宽度去凑。
- *
- * 正文列的下界是 max-content：长行因此撑得开、横向滚得动。
- *
- * 增删的底色是这一层的一张背景图，不是每一行自己的 background：网格项只画到内容盒，
- * 而 attachment: local 把它钉在内容上，色带因此跟着内容一起滚。刻度用 lh：一行 diff
- * 恰好一个行盒。
- */
+/* diff 的 scrollTop/scrollLeft 是唯一真相；range 只把它投影成覆盖式滑块。 */
+.timeline-tool__diff-frame {
+  position: relative;
+  min-inline-size: 0;
+  max-block-size: var(--cp-timeline-output-max);
+  overflow: hidden;
+}
+
 .timeline-tool__diff {
-  /* 两条车道收到发丝宽：轨道透明，露出来的就是 diff 自己的纸，滑块只是一枚墨条。
-     量走全局滚动条那两个令牌，机制仍是 scrollbar.css 那一套。 */
-  --ui-scrollbar-size: 6px;
-  --ui-scrollbar-inset: 2px;
   display: grid;
   grid-template-columns: auto minmax(max-content, 1fr);
   align-content: start;
-  max-block-size: var(--cp-timeline-output-max);
+  max-block-size: inherit;
   overflow: auto;
+  scrollbar-width: none;
   font-family: var(--cp-font-mono);
   font-size: var(--ui-prose-size-aux);
   line-height: var(--ui-line-height-normal);
@@ -284,6 +279,71 @@
   background-size: 100% calc(var(--cp-timeline-diff-rows) * 1lh);
 }
 
+.timeline-tool__diff::-webkit-scrollbar {
+  display: none;
+}
+
+.timeline-tool__diff-scrollbar {
+  --timeline-tool-thumb: 24px;
+  position: absolute;
+  z-index: 1;
+  margin: 0;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.timeline-tool__diff-scrollbar--x {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 6px;
+}
+
+.timeline-tool__diff-scrollbar--y {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  height: 100%;
+  writing-mode: vertical-lr;
+  direction: ltr;
+}
+
+.timeline-tool__diff-scrollbar::-webkit-slider-runnable-track {
+  border: 0;
+  background: transparent;
+}
+
+.timeline-tool__diff-scrollbar::-webkit-slider-thumb {
+  appearance: none;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--ui-scrollbar-thumb);
+  background-clip: content-box;
+}
+
+.timeline-tool__diff-scrollbar--x::-webkit-slider-thumb {
+  width: var(--timeline-tool-thumb);
+  height: 6px;
+}
+
+.timeline-tool__diff-scrollbar--y::-webkit-slider-thumb {
+  width: 6px;
+  height: var(--timeline-tool-thumb);
+}
+
+.timeline-tool__diff-scrollbar::-webkit-slider-thumb:hover {
+  background-color: var(--ui-scrollbar-thumb-hover);
+}
+
+.timeline-tool__diff-scrollbar:focus-visible {
+  outline: var(--cp-px) solid var(--cp-accent);
+  outline-offset: calc(-1 * var(--cp-px));
+}
 .timeline-tool__diff-row {
   display: grid;
   grid-column: 1 / -1;

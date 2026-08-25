@@ -1,5 +1,13 @@
 import type { ToolCallTimelineItem } from '@poietica/agent'
-import { type CSSProperties, useId, useState } from 'react'
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 
 import { FileTypeMark } from '../primitives/file-type-mark'
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
@@ -89,6 +97,115 @@ function fieldOf(rows: readonly DiffRow[]): string {
   return `linear-gradient(${stops.join(',')})`
 }
 
+const MIN_THUMB_PX = 24
+
+function syncAxis(
+  control: HTMLInputElement,
+  client: number,
+  total: number,
+  position: number,
+): void {
+  const max = Math.max(0, total - client)
+
+  control.hidden = max === 0
+  control.max = String(max)
+  control.value = String(Math.min(max, Math.max(0, position)))
+
+  const thumb =
+    client === 0 ? 0 : Math.min(client, Math.max(MIN_THUMB_PX, (client * client) / total))
+
+  control.style.setProperty('--timeline-tool-thumb', `${String(thumb)}px`)
+}
+
+function DiffViewport({
+  children,
+  field,
+}: {
+  readonly children: ReactNode
+  readonly field: CSSProperties
+}) {
+  const viewport = useRef<HTMLDivElement>(null)
+  const horizontal = useRef<HTMLInputElement>(null)
+  const vertical = useRef<HTMLInputElement>(null)
+  const viewportId = useId()
+
+  const sync = useCallback(() => {
+    const view = viewport.current
+    const x = horizontal.current
+    const y = vertical.current
+
+    if (view === null || x === null || y === null) {
+      return
+    }
+
+    syncAxis(x, view.clientWidth, view.scrollWidth, view.scrollLeft)
+    syncAxis(y, view.clientHeight, view.scrollHeight, view.scrollTop)
+  }, [])
+
+  useLayoutEffect(sync)
+
+  useLayoutEffect(() => {
+    const view = viewport.current
+
+    if (view === null) {
+      return
+    }
+
+    const observer = new ResizeObserver(sync)
+    observer.observe(view)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [sync])
+
+  return (
+    <div className="timeline-tool__diff-frame">
+      {/* 键盘路径是下面两颗带名的滑杆；Chromium 本就把可滚动区纳入焦点链。 */}
+      <section
+        aria-label="文件差异"
+        className="timeline-tool__diff"
+        data-scrollable=""
+        id={viewportId}
+        onScroll={sync}
+        ref={viewport}
+        style={field}
+      >
+        {children}
+      </section>
+
+      <input
+        aria-controls={viewportId}
+        aria-label="横向滚动文件差异"
+        className="timeline-tool__diff-scrollbar timeline-tool__diff-scrollbar--x"
+        defaultValue={0}
+        min={0}
+        onInput={(event) => {
+          if (viewport.current !== null) {
+            viewport.current.scrollLeft = event.currentTarget.valueAsNumber
+          }
+        }}
+        ref={horizontal}
+        type="range"
+      />
+
+      <input
+        aria-controls={viewportId}
+        aria-label="纵向滚动文件差异"
+        className="timeline-tool__diff-scrollbar timeline-tool__diff-scrollbar--y"
+        defaultValue={0}
+        min={0}
+        onInput={(event) => {
+          if (viewport.current !== null) {
+            viewport.current.scrollTop = event.currentTarget.valueAsNumber
+          }
+        }}
+        ref={vertical}
+        type="range"
+      />
+    </div>
+  )
+}
 /** 一处改动：文件名一行，下面是它的行。行的分类与行号归 semantics/file-diff。 */
 function FileDiff({ file }: { readonly file: DiffFile }) {
   const field = {
@@ -103,14 +220,14 @@ function FileDiff({ file }: { readonly file: DiffFile }) {
         <span className="timeline-tool__path-name">{file.name}</span>
       </div>
 
-      <div className="timeline-tool__diff" data-scrollable="" style={field}>
+      <DiffViewport field={field}>
         {file.rows.map((row) => (
           <div className="timeline-tool__diff-row" data-kind={row.kind} key={row.at}>
             <span className="timeline-tool__diff-line">{row.number ?? '⋯'}</span>
             <code className="timeline-tool__diff-code">{row.text}</code>
           </div>
         ))}
-      </div>
+      </DiffViewport>
     </div>
   )
 }
@@ -127,7 +244,14 @@ export function ToolCallPanels({
   const baseId = useId()
   const [chosen, setChosen] = useState<string | null>(null)
 
-  /* 改动那一支不给页签：路径就是标题，diff 就是内容 —— 再印一句「写了多少字节」是同一件事说两遍。 */
+  if (item.kind === 'plan') {
+    return (
+      <div className="timeline-tool__body">
+        <ToolPanel text={request ?? emptyNoteOf(item.kind, isRunning)} />
+      </div>
+    )
+  }
+
   if (diffs.length > 0) {
     return (
       <div className="timeline-tool__body">
