@@ -40,6 +40,9 @@ export interface FeedPort {
   readonly scrollToRow: (index: number) => void
 }
 
+/** 一行按哪一档节奏排：左图标右文字的一条记事，或一段正文。行距因此只有两个数。 */
+export type RowRhythm = 'glyph' | 'prose'
+
 export interface AgentActivityFeedProps {
   /**
    * 这些行属于哪一条对话。
@@ -59,6 +62,8 @@ export interface AgentActivityFeedProps {
   readonly disclosed: object
   /** 一行还没被测量时有多高。类别知识归转录那一侧。 */
   readonly estimateRow: (index: number) => number
+  /** 这一行按哪一档节奏排。同上，类别知识归转录那一侧。 */
+  readonly rowRhythm: (index: number) => RowRhythm
   readonly renderRow: (index: number) => ReactNode
   readonly isBusy: boolean
   /** 上面还有没有更早的一页。 */
@@ -89,6 +94,7 @@ export function AgentActivityFeed({
   onReachStart,
   overlay,
   renderRow,
+  rowRhythm,
 }: AgentActivityFeedProps) {
   /** 滚动区的生命周期归这一个 state：装卸不再随任何 prop 变化而重做。 */
   const [viewport, setViewport] = useState<HTMLDivElement | null>(null)
@@ -414,8 +420,8 @@ export function AgentActivityFeed({
               <div
                 className="agent-activity-feed__row"
                 data-index={item.index}
+                data-rhythm={rowRhythm(item.index)}
                 data-streaming={row.isStreamingTail ? 'true' : undefined}
-                data-type={row.item.type}
                 key={item.key}
                 ref={virtualizer.measureElement}
                 style={{

@@ -11,15 +11,15 @@ import type { FeedRow } from '@poietica/agent'
  * 证过那个 switch 穷尽，新增一个类型会在这两处同时编译失败。
  */
 const ROW_PX: Record<Exclude<FeedRow['item']['type'], 'agent_text'>, number> = {
-  agent_thought: 40,
+  agent_thought: 32,
   error: 96,
   /* 与 permission 同理：它从不成行，估不到。 */
   inflight_prompt: 0,
-  link: 40,
+  link: 32,
   permission: 0,
   plan: 200,
   question: 96,
-  tool_call: 40,
+  tool_call: 32,
   user_message: 72,
 }
 

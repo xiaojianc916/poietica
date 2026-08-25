@@ -114,24 +114,18 @@
   inset-block-start: 0;
   inset-inline: 0;
   contain: style;
-  padding-block: var(--cp-feed-row-gap);
+  padding-block: var(--cp-feed-prose-row-gap);
 }
 
 /*
- * 工具调用连着来的时候排得紧一点。
+ * 行距是每行自己的上下内边距，不是容器的 gap：行绝对定位、高度由 measureElement 量回，
+ * 而虚拟窗口只挂载看得见的那几行 —— 容器 gap 与相邻兄弟选择器都无从成立。
  *
- * 行距是每行自己的上下内边距，不是容器的 gap —— 于是「紧」这件事可以只对一类行成立：
- * 两条工具行之间是两道小的，而工具行与正文之间仍是一道小的加一道常规的。连续调用因此
- * 收成一簇，簇与正文之间的呼吸一个像素都不动。这正是这里要的效果，容器 gap 做不到。
- *
- * 判据用行上已有的 data-type，不新加任何标记：那个属性本来就由 AgentActivityFeed 写在
- * 每一行上，这里只是第一个读它的人。
- *
- * 旋钮就是下面这个回退值。令牌名先留着，等它归位到 metrics 那一份里；在那之前，改这一个
- * 数字就是改工具调用的行距，别处一律不受影响。
+ * 于是一行只出自己那半格，两行之间的距离是两半之和：三种距离由两个令牌解出。这一层不
+ * 认识条目类型，节奏由转录那一侧按下标给（rowRhythm）。
  */
-.agent-activity-feed__row[data-type="tool_call"] {
-  padding-block: var(--cp-feed-tool-row-gap, 4px);
+.agent-activity-feed__row[data-rhythm="glyph"] {
+  padding-block: var(--cp-feed-glyph-row-gap);
 }
 
 /*

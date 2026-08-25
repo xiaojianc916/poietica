@@ -7,6 +7,7 @@ import { useAssistantHasEarlier, useAssistantTimeline } from '../session/use-ass
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { ReplyActionHost } from './reply-actions'
 import { estimateRowPx } from './row-estimate'
+import { rowRhythmOf } from './row-rhythm'
 import { TimelineRow } from './timeline-row'
 import { ToolGroupCard } from './tool-group-card'
 import { TurnSeal } from './turn-seal'
@@ -183,8 +184,9 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
     [feed, items, onFork, rowOf, sealOf, toggleOpen],
   )
 
-  /* 估高与渲染同源：类别知识都在这一层，滚动窗口只收两个按下标问的函数。 */
+  /* 估高、节奏与渲染同源：类别知识都在这一层，滚动窗口只收三个按下标问的函数。 */
   const estimateRowAt = useCallback((index: number) => estimateRowPx(feed.rowAt(index)), [feed])
+  const rowRhythmAt = useCallback((index: number) => rowRhythmOf(feed.rowAt(index)), [feed])
 
   const overlay = useCallback(
     (port: FeedPort) =>
@@ -218,6 +220,7 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
         onReachStart={readEarlier}
         overlay={overlay}
         renderRow={renderRowAt}
+        rowRhythm={rowRhythmAt}
       />
     </>
   )

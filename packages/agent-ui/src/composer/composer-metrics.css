@@ -19,8 +19,15 @@
   --cp-stack: 20px;
 
   /* the transcript, and the band the transcript stops above */
-  /* 轮次间距是半行正文，所以它从正文行高推出，而不是另写一个像素值。 */
-  --cp-feed-row-gap: calc(var(--ui-prose-size) * var(--ui-prose-line-height) / 2);
+  /*
+   * 行距：一行只出自己那半格，两行之间的距离是两半之和。正文半格是半行正文，记事行
+   * （左图标右文字的那一族）收得更紧 —— 图标↔图标、图标↔正文、正文↔正文三种距离由这
+   * 两个数解出，不需要第三个。
+   */
+  --cp-feed-prose-row-gap: calc(var(--ui-prose-size) * var(--ui-prose-line-height) / 2);
+  --cp-feed-glyph-row-gap: 4px;
+  /* 一组连续调用摊开之后，成员之间的行距。 */
+  --cp-timeline-group-gap: 2px;
   --cp-dock-gap: var(--cp-stack);
   /* 溶解距离按行给:一行半正文(39px)。三行是过量,那段渐变自己变成了色带。 */
   /* 对话下沿化开的距离:一行半正文。涂色的那一版没有了,这是遮罩的长度。 */

@@ -22,11 +22,9 @@
  *
  * 行距比转录级窄：展开之后这几行是同一件事的几个部分，松成转录的间距会让「它们属于
  * 上面那一行」读不出来。
- *
- * 令牌带兜底值：--cp-timeline-group-gap 还没归位到 metrics，那仍是下一批的账。
  */
 .timeline-group__members {
   display: grid;
-  gap: var(--cp-timeline-group-gap, 2px);
-  padding-block-start: var(--cp-timeline-group-gap, 2px);
+  gap: var(--cp-timeline-group-gap);
+  padding-block-start: var(--cp-timeline-group-gap);
 }
