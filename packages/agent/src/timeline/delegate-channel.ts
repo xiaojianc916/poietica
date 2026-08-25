@@ -1,45 +1,93 @@
-import type { ToolCallContent } from '@poietica/agent-contract'
+import type { RunEvent } from '@poietica/agent-contract'
 
-import {
-  isTerminal,
-  type TimelineItem,
-  type TimelineState,
-  type ToolCallTimelineItem,
-} from './timeline-contract'
+import type { TimelineItem, TimelineState, ToolCallTimelineItem } from './timeline-contract'
 
 /**
- * 一次派发的通信通道。
+ * 派发通道的寻址。
  *
- * 子代理的帧不进主转录（kap-projection 的 agentId 闸门），它的账目属于派发它的
- * 那次工具调用 —— kap 按 toolCallId 寻址这次调用的进度与产出，所以那条条目就是
- * 这条通道的唯一事实来源。这里只投影，不存第二份。
+ * 子代理的帧与主代理的帧同走一条会话、同一条 seq 线，区别只在帧上的 agentId。所以
+ * 这里只做一件事：按号把一批帧分开，让每条流各进自己的转录 —— 投影、归并与渲染
+ * 全部沿用主转录那一条管线，屏幕上因此没有第二种画法。
  */
 
-/** 通道里的一句话。 */
-export interface DelegateMessage {
-  readonly id: string
-  readonly author: 'main' | 'delegate'
-  readonly text: string
+/** 主代理的号。kap 给每一帧盖章，不报号的帧只可能来自它。 */
+const MAIN_AGENT = 'main'
+
+/** 通道键的分隔符：对话号在前，子代理号在后。 */
+const CHANNEL_MARK = '#'
+
+/** 载荷是索引签名，键只能走变量（见 kap-projection 的 fieldOf）。 */
+const AGENT_KEY = 'agentId'
+
+const NO_CHANNELS: ReadonlyMap<string, readonly RunEvent[]> = new Map()
+
+/** 这条通道的转录键。子代理挂在派发它的那条对话下面。 */
+export function delegateKey(conversation: string, agentId: string): string {
+  return conversation + CHANNEL_MARK + agentId
 }
 
-export interface DelegateChannelView {
-  readonly toolCallId: string
-  readonly title: string
-  readonly isRunning: boolean
-  readonly messages: readonly DelegateMessage[]
+/** 这个键是一条通道，不是一条对话。与 delegateKey 同住一处。 */
+export function isDelegateKey(key: string): boolean {
+  return key.includes(CHANNEL_MARK)
 }
 
-/** 有独立通道的两档：派一个子代理，或派一条后台任务。 */
+function agentOf(event: RunEvent): string {
+  if (event.kind !== 'kap_event') {
+    return MAIN_AGENT
+  }
+
+  const stamped = event.payload[AGENT_KEY]
+
+  return typeof stamped === 'string' && stamped !== '' ? stamped : MAIN_AGENT
+}
+
+/**
+ * 一批帧按号分流。
+ *
+ * 一批全是主代理的帧时原样交回入参那个数组：那是绝大多数情形，引用不变，下游的
+ * 记忆化不被白白打掉。
+ */
+export function partitionByAgent(events: readonly RunEvent[]): {
+  readonly main: readonly RunEvent[]
+  readonly channels: ReadonlyMap<string, readonly RunEvent[]>
+} {
+  let main: RunEvent[] | undefined
+  let channels: Map<string, RunEvent[]> | undefined
+
+  for (const [index, event] of events.entries()) {
+    const agentId = agentOf(event)
+
+    if (agentId === MAIN_AGENT) {
+      main?.push(event)
+
+      continue
+    }
+
+    main ??= events.slice(0, index)
+    channels ??= new Map()
+
+    const held = channels.get(agentId)
+
+    if (held === undefined) {
+      channels.set(agentId, [event])
+    } else {
+      held.push(event)
+    }
+  }
+
+  return main === undefined || channels === undefined
+    ? { channels: NO_CHANNELS, main: events }
+    : { channels, main }
+}
+
+/** 开出过通道的调用就是一次派发。 */
 export function isDelegation(item: ToolCallTimelineItem): boolean {
-  return item.kind === 'delegate' || item.kind === 'task'
+  return item.channels.length > 0
 }
 
-function findIn(
-  items: readonly TimelineItem[],
-  toolCallId: string,
-): ToolCallTimelineItem | undefined {
+function findIn(items: readonly TimelineItem[], agentId: string): ToolCallTimelineItem | undefined {
   for (const item of items) {
-    if (item.type === 'tool_call' && item.toolCallId === toolCallId && isDelegation(item)) {
+    if (item.type === 'tool_call' && item.channels.some((one) => one.agentId === agentId)) {
       return item
     }
   }
@@ -47,12 +95,12 @@ function findIn(
   return undefined
 }
 
-/** 这条对话里的那一次派发；找不到就是它不属于这条对话。活动段先找。 */
+/** 派出这个子代理的那次调用；找不到就是它不属于这条对话。活动段先找。 */
 export function delegationOf(
   state: TimelineState,
-  toolCallId: string,
+  agentId: string,
 ): ToolCallTimelineItem | undefined {
-  const live = findIn(state.active.items, toolCallId)
+  const live = findIn(state.active.items, agentId)
 
   if (live !== undefined) {
     return live
@@ -60,7 +108,7 @@ export function delegationOf(
 
   for (let index = state.sealed.length - 1; index >= 0; index -= 1) {
     const page = state.sealed[index]
-    const hit = page === undefined ? undefined : findIn(page.items, toolCallId)
+    const hit = page === undefined ? undefined : findIn(page.items, agentId)
 
     if (hit !== undefined) {
       return hit
@@ -70,43 +118,10 @@ export function delegationOf(
   return undefined
 }
 
-/** 一段产出里的文字；空白与非文字都没有可读的一句。 */
-function textOf(part: ToolCallContent): string | null {
-  if (part.type !== 'content' || part.content.type !== 'text') {
-    return null
-  }
-
-  return part.content.text.trim() === '' ? null : part.content.text
-}
-
-/** 交回来的那一份：逐段进度各算一句；只有整份产出时它自己算一句。 */
-function repliesOf(item: ToolCallTimelineItem): DelegateMessage[] {
-  const said: DelegateMessage[] = []
-
-  for (let index = 0; index < item.content.length; index += 1) {
-    const part = item.content[index]
-    const text = part === undefined ? null : textOf(part)
-
-    if (text !== null) {
-      said.push({ id: `${item.toolCallId}:d${String(index)}`, author: 'delegate', text })
-    }
-  }
-
-  if (said.length === 0 && typeof item.rawOutput === 'string' && item.rawOutput.trim() !== '') {
-    said.push({ id: `${item.toolCallId}:d0`, author: 'delegate', text: item.rawOutput })
-  }
-
-  return said
-}
-
-/** 这次派发在屏幕上是一段对话：先是我说的那一句，然后是它交回来的。 */
-export function delegateChannel(item: ToolCallTimelineItem): DelegateChannelView {
-  const asked = item.subject.trim() === '' ? item.title : item.subject
-
-  return {
-    toolCallId: item.toolCallId,
-    title: item.title,
-    isRunning: !isTerminal(item.status),
-    messages: [{ id: `${item.toolCallId}:m`, author: 'main', text: asked }, ...repliesOf(item)],
-  }
+/** 这条通道的名字。 */
+export function channelNameOf(
+  call: ToolCallTimelineItem | undefined,
+  agentId: string,
+): string | undefined {
+  return call?.channels.find((one) => one.agentId === agentId)?.name
 }

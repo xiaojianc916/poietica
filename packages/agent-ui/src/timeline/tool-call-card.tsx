@@ -188,7 +188,9 @@ export function ToolCallCard({
           isOpen={false}
           item={item}
           onToggle={() => {
-            openChannel(item.toolCallId)
+            for (const channel of item.channels) {
+              openChannel(channel.agentId)
+            }
           }}
           view={view}
         />

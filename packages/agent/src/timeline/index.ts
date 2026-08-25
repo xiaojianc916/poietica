@@ -1,9 +1,10 @@
 export {
-  type DelegateChannelView,
-  type DelegateMessage,
-  delegateChannel,
+  channelNameOf,
+  delegateKey,
   delegationOf,
+  isDelegateKey,
   isDelegation,
+  partitionByAgent,
 } from './delegate-channel'
 export {
   type ConversationTurn,
@@ -19,6 +20,7 @@ export {
 export type {
   AgentTextItem,
   AgentThoughtItem,
+  DelegateChannel,
   ErrorItem,
   InflightPromptItem,
   LinkTimelineItem,

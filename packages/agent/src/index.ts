@@ -73,10 +73,16 @@ export {
   appendUserMessage,
   applyRunEvent,
   applyRunEvents,
+  channelNameOf,
   completedUnits,
   createTimelineState,
+  delegateKey,
+  delegationOf,
   inflightPromptId,
+  isDelegateKey,
+  isDelegation,
   liveMemberOf,
+  partitionByAgent,
   pendingPermission,
   pendingPermissionCall,
   pendingPermissionCount,
@@ -88,10 +94,3 @@ export {
   selectIsBusy,
   selectPresentation,
 } from './timeline'
-export {
-  type DelegateChannelView,
-  type DelegateMessage,
-  delegateChannel,
-  delegationOf,
-  isDelegation,
-} from './timeline/delegate-channel'

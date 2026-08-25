@@ -231,8 +231,8 @@ export function WorkspaceContainer({
    */
   /* 派发通道只有这一个入口：点开那一行，右侧那一格亮起来并停在这条通道上。 */
   const openDelegateChannel = useCallback(
-    (toolCallId: string) => {
-      browserPanelStore.openPane(toolCallId)
+    (agentId: string) => {
+      browserPanelStore.openPane(agentId)
 
       if (activeConversationId !== null) {
         workspaceLayoutStore.setBrowserThread(activeConversationId)

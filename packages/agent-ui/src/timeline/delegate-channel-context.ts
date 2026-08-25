@@ -6,9 +6,9 @@ import { createContext, useContext } from 'react'
  * 与 transcripts-context 同一形制：导出 context 本体与读它的 hook，provider 就是
  * context。拿不到就是接线漏了，当场说出来。
  */
-export const DelegateChannelContext = createContext<((toolCallId: string) => void) | null>(null)
+export const DelegateChannelContext = createContext<((agentId: string) => void) | null>(null)
 
-export function useDelegateChannel(): (toolCallId: string) => void {
+export function useDelegateChannel(): (agentId: string) => void {
   const open = useContext(DelegateChannelContext)
 
   if (open === null) {

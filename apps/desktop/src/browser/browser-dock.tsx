@@ -109,11 +109,11 @@ export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
     () => ({
       tab: (id) =>
         conversationId === null ? null : (
-          <DelegateChannelTab conversationId={conversationId} toolCallId={id} />
+          <DelegateChannelTab agentId={id} conversationId={conversationId} />
         ),
       body: (id) =>
         conversationId === null ? null : (
-          <DelegateChannelPane conversationId={conversationId} toolCallId={id} />
+          <DelegateChannelPane agentId={id} conversationId={conversationId} />
         ),
     }),
     [conversationId],

@@ -20,9 +20,18 @@ import type {
   ToolCallStatus,
   ToolKind,
 } from '@poietica/agent-contract'
-import { isTerminal, type ToolCallTimelineItem } from './timeline-contract'
+import { type DelegateChannel, isTerminal, type ToolCallTimelineItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
-import { appendChunk, namespace, positionOf, push, pushFailure } from './timeline-draft'
+import {
+  appendChunk,
+  markTurnEnd,
+  markTurnStart,
+  namespace,
+  positionOf,
+  push,
+  pushFailure,
+  sealTail,
+} from './timeline-draft'
 
 /** 这条线上的方言帧。其余每一格两条线共用，归 projection。 */
 export type KapFrame = Extract<RunEvent, { kind: 'kap_event' }>
@@ -39,20 +48,12 @@ interface ToolCallPatch {
   readonly appendContent?: ToolCallContent
   readonly replaceTail?: true
   readonly locations?: readonly ToolCallLocation[]
+  readonly channel?: DelegateChannel
   readonly rawInput?: unknown
   readonly rawOutput?: unknown
 }
 
-/** 主代理的号。kap 给每一帧盖章，子代理盖的是它自己的。 */
-const MAIN_AGENT = 'main'
-
 export function applyKapFrame(draft: Draft, event: KapFrame): void {
-  /* 主转录只收主代理的帧：子代理的账目归派发它的那次调用（delegate-channel.ts）。
-     不报号的帧只可能来自主代理，所以缺席按主代理。 */
-  if ((stringOf(event.payload, 'agentId') ?? MAIN_AGENT) !== MAIN_AGENT) {
-    return
-  }
-
   switch (event.payload.type) {
     case 'assistant.delta':
     case 'thinking.delta': {
@@ -75,6 +76,12 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
       return
     }
 
+    case 'subagent.spawned': {
+      spawnChannel(draft, event)
+
+      return
+    }
+
     case 'error': {
       applyError(draft, event)
 
@@ -82,6 +89,8 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
     }
 
     case 'turn.started': {
+      applyTurnStarted(draft, event)
+
       return
     }
 
@@ -145,11 +154,52 @@ function applyDelta(draft: Draft, event: KapFrame): void {
   })
 }
 
+/**
+ * 一个子代理被派出来了。
+ *
+ * 号与名字只在这一帧上（上游 kap-server 的 subagentRosterTracker 读的是同几格）。
+ * 它落在派发它的那次调用上：一次群派在同一个 parentToolCallId 上开出好几条，所以
+ * 是一张列表而不是一格。
+ */
+function spawnChannel(draft: Draft, event: KapFrame): void {
+  const payload = event.payload
+  const parent = stringOf(payload, 'parentToolCallId')
+  const agentId = stringOf(payload, 'subagentId')
+
+  if (parent === undefined || agentId === undefined) {
+    return
+  }
+
+  upsertToolCall(draft, parent, event.at, {
+    channel: { agentId, name: stringOf(payload, 'subagentName') ?? agentId },
+  })
+}
+
+/*
+ * 轮次的忙闲由这两帧给，而且只给没有自己那一问的流 —— 也就是子代理那条。主转录的
+ * 运行状态归 run_started / run_finished，原生帧只为主运行发出。
+ */
+function applyTurnStarted(draft: Draft, event: KapFrame): void {
+  if (draft.promptLanded) {
+    return
+  }
+
+  markTurnStart(draft, event.at)
+  draft.status = 'running'
+}
+
 /* agent 自己的说法逐字进转录：一轮因额度或鉴权死掉时，这句话是屏幕上唯一的交代。
    code 是它的名字，一起留。 */
 function applyTurnEnded(draft: Draft, event: KapFrame): void {
   const payload = event.payload
   const reason = stringOf(payload, 'reason')
+
+  if (!draft.promptLanded) {
+    sealTail(draft)
+    markTurnEnd(draft, event.at)
+    draft.status = 'idle'
+  }
+
   if (reason !== 'failed' && reason !== 'blocked') {
     return
   }
@@ -342,6 +392,7 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
     requestContent: patch.requestContent ?? held?.requestContent ?? [],
     content: contentOf(patch, held),
     locations: patch.locations ?? held?.locations ?? [],
+    channels: channelsOf(patch, held),
     startedAt: held?.startedAt ?? at,
     ...tailOf(patch, held, status, at),
   }
@@ -351,6 +402,21 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
   } else {
     draft.items[position] = next
   }
+}
+
+/** 同一个号只占一格：一帧重放两遍不会开出两条通道。 */
+function channelsOf(
+  patch: ToolCallPatch,
+  held: ToolCallTimelineItem | undefined,
+): readonly DelegateChannel[] {
+  const base = held?.channels ?? []
+  const opened = patch.channel
+
+  if (opened === undefined || base.some((one) => one.agentId === opened.agentId)) {
+    return base
+  }
+
+  return [...base, opened]
 }
 
 /**

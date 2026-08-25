@@ -94,6 +94,12 @@ export interface AgentThoughtItem extends TimelineEntry {
   readonly sealed: boolean
 }
 
+/** 这次派发开出的一条通道：号与名字由 kap 的 subagent.spawned 给。 */
+export interface DelegateChannel {
+  readonly agentId: string
+  readonly name: string
+}
+
 export interface ToolCallTimelineItem extends TimelineEntry {
   readonly type: 'tool_call'
   readonly toolCallId: KapToolCallId
@@ -117,6 +123,8 @@ export interface ToolCallTimelineItem extends TimelineEntry {
   /** agent 交回来的那一份：进度与产出。 */
   readonly content: readonly ToolCallContent[]
   readonly locations: readonly ToolCallLocation[]
+  /** 这次调用开出的子代理通道，按 spawn 顺序。空表示它不是一次派发。 */
+  readonly channels: readonly DelegateChannel[]
   readonly rawInput?: unknown
   readonly rawOutput?: unknown
   readonly startedAt: number

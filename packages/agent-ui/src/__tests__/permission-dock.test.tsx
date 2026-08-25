@@ -44,6 +44,7 @@ function callOf(item: PermissionItem): ToolCallTimelineItem | undefined {
     requestContent: [],
     content: asked.content ?? [],
     locations: asked.locations ?? [],
+    channels: [],
     startedAt: 0,
     ...(asked.rawInput === undefined ? {} : { rawInput: asked.rawInput }),
   }

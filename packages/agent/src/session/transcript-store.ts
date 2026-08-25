@@ -18,9 +18,13 @@ import {
   applyRunEvents,
   confirmRunCancellation,
   createTimelineState,
+  delegateKey,
+  isDelegateKey,
   opensTurn,
+  partitionByAgent,
   prependThreadEvents,
   rejectRunCancellation,
+  replayRunEvents,
   replayThreadEvents,
   requestRunCancellation,
   selectIsBusy,
@@ -477,6 +481,18 @@ export class TranscriptStore implements TranscriptSink {
       this.#alias.delete(draft)
     }
 
+    /* 通道挂在这条对话下面：对话没了，它们也没了。 */
+    const prefix = delegateKey(real, '')
+
+    for (const key of this.#held.keys()) {
+      if (key.startsWith(prefix)) {
+        this.#held.delete(key)
+        this.#pending.delete(key)
+        this.#dirty.delete(key)
+        this.#fire(key)
+      }
+    }
+
     /* 会话号那张表也是按对话记的：留着它，死会话的帧仍会找到主人。 */
     for (const [sessionId, owner] of this.#routes) {
       if (owner === real) {
@@ -547,8 +563,18 @@ export class TranscriptStore implements TranscriptSink {
 
     /* 经过由本地日志重放：段边界与每一轮的两端都在帧里，这里不再有第二把尺子。
        半截的那一轮不投影 —— 没有起点的一轮投出来是一段没有封条、也收不起来的散行。 */
-    const events = page.events as readonly RunEvent[]
+    const split = partitionByAgent(page.events as readonly RunEvent[])
+    const events = split.main
     const at = turnStart(events, page.before)
+
+    /* 子代理的帧回放进它自己那条通道转录：主转录只收主代理的帧。 */
+    for (const [agentId, channel] of split.channels) {
+      const key = delegateKey(threadId, agentId)
+
+      if (!this.#held.has(key)) {
+        this.#put(key, { ...EMPTY, timeline: replayRunEvents(channel), loaded: true })
+      }
+    }
     const ahead = at < 0 && this.#earlier !== undefined
     const replayed = replayThreadEvents(at < 0 ? [] : events.slice(at))
 
@@ -658,10 +684,18 @@ export class TranscriptStore implements TranscriptSink {
   /** 一批对齐好的更早帧，一次折进去：第一批到达，这条对话就算取回来了。 */
   #prepend(real: string, events: readonly RunEvent[], earlier: FrameCursor | null): void {
     const latest = this.#now(real)
+    const split = partitionByAgent(events)
+
+    for (const [agentId, channel] of split.channels) {
+      const key = delegateKey(real, agentId)
+      const held = this.#now(key)
+
+      this.#put(key, { ...held, timeline: prependThreadEvents(held.timeline, channel) })
+    }
 
     this.#put(real, {
       ...latest,
-      timeline: prependThreadEvents(latest.timeline, events),
+      timeline: prependThreadEvents(latest.timeline, split.main),
       earlier,
       restoring: false,
     })
@@ -959,7 +993,7 @@ export class TranscriptStore implements TranscriptSink {
     const running = new Set<string>()
 
     for (const [key, transcript] of this.#held) {
-      if (!key.startsWith(DRAFT) && selectIsBusy(transcript.timeline)) {
+      if (!key.startsWith(DRAFT) && !isDelegateKey(key) && selectIsBusy(transcript.timeline)) {
         running.add(key)
       }
     }
@@ -1110,6 +1144,19 @@ export class TranscriptStore implements TranscriptSink {
    */
   #queue(owner: string, events: readonly RunEvent[]): void {
     const real = this.#resolveKey(owner)
+    const split = partitionByAgent(events)
+
+    for (const [agentId, channel] of split.channels) {
+      this.#absorb(delegateKey(real, agentId), channel)
+    }
+
+    if (split.main.length > 0) {
+      this.#absorb(real, split.main)
+    }
+  }
+
+  /** 一批帧攒进一条转录，并说一声它变了。 */
+  #absorb(real: string, events: readonly RunEvent[]): void {
     const waiting = this.#pending.get(real)
 
     if (waiting === undefined) {

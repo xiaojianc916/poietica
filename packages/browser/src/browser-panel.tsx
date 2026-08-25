@@ -83,7 +83,7 @@ export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPa
             </>
           ) : (
             /* 通道是只读的：没有地址栏，也没有输入框。 */
-            <div className="min-h-0 flex-1 overflow-y-auto">{panes.body(state.activePaneId)}</div>
+            <div className="min-h-0 flex-1 overflow-hidden">{panes.body(state.activePaneId)}</div>
           )}
         </>
       )}

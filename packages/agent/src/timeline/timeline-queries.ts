@@ -1,3 +1,4 @@
+import { isDelegation } from './delegate-channel'
 import {
   isTerminal,
   type PermissionItem,
@@ -184,7 +185,7 @@ export function pendingQuestion(scope: WaitingScope): QuestionTimelineItem | und
 }
 
 /**
- * 此刻还在跑的子代理数：kap 的 agent_call 与 task 两档。
+ * 此刻还在跑的子代理数：开出过通道的那些调用。
  *
  * 不按段收口 —— 后台派出去的那些（display.background）活得比一段长。终帧到达即
  * 出列，判据与工具卡片同源（isTerminal）。
@@ -203,11 +204,7 @@ function runningIn(items: readonly TimelineItem[]): number {
   let running = 0
 
   for (const item of items) {
-    if (
-      item.type === 'tool_call' &&
-      (item.kind === 'delegate' || item.kind === 'task') &&
-      !isTerminal(item.status)
-    ) {
+    if (item.type === 'tool_call' && isDelegation(item) && !isTerminal(item.status)) {
       running += 1
     }
   }
