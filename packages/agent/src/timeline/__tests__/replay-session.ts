@@ -81,5 +81,9 @@ export function createReplaySession(options: ReplaySessionOptions): AgentSession
     answerQuestions: () => Promise.resolve(),
 
     dismissQuestions: () => Promise.resolve(),
+
+    steer: () => Promise.resolve(),
+
+    abortPrompt: () => Promise.resolve(),
   }
 }

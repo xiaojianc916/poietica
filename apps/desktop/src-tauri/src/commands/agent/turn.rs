@@ -20,8 +20,9 @@ use super::addressing::session_for;
 use super::attachment::{Kept, keep_bytes};
 use super::config::announce;
 use super::dto::{
-    AgentAnswerQuestionsRequest, AgentCancelRequest, AgentDismissQuestionsRequest,
-    AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest, answered, decided,
+    AgentAbortPromptRequest, AgentAnswerQuestionsRequest, AgentCancelRequest,
+    AgentDismissQuestionsRequest, AgentPromptRequest, AgentPromptResult,
+    AgentResolvePermissionRequest, AgentSteerRequest, answered, decided,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
@@ -390,35 +391,91 @@ pub fn agent_dismiss_questions(
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_cancel(
-    app: AppHandle,
     state: State<'_, AgentRuntime>,
     index: State<'_, LocalIndex>,
     request: AgentCancelRequest,
 ) -> AgentCommandResult<()> {
     let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
-
-    let id = conversation(&request.thread_id)?;
-    let stored = on_index(&index, move |store| store.thread(id).map_err(persistence)).await?;
-
-    /* 持有者对不上就不发：会话号活在各自 agent 的命名空间里，把 A 的号发给 B
-    停的可能是 B 的东西。与 session_for 和 agent_delete_thread 同一条规矩。 */
-    let held = stored.and_then(|thread| {
-        let owner = thread.agent_id;
-
-        thread
-            .session_id
-            .filter(|_| owner.as_deref().is_none_or(|agent| agent == live.agent_id))
-    });
-
-    let Some(addressed) = held else {
-        return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
-    };
+    let addressed =
+        held_session(&index, &request.thread_id, &live.agent_id, NOTHING_TO_STOP).await?;
 
     // KAP owns turn activity; a local recorder cannot gate cancellation.
-    live.client.cancel(addressed.clone()).await.map_err(translate)?;
+    live.client.cancel(addressed).await.map_err(translate)?;
 
-    /* 停下改的是目标账目：由 agent 报一次，屏幕不自己推算。 */
-    announce(&app, &live.client, addressed).await;
+    Ok(())
+}
+
+/// 这条对话此刻握着的会话号。
+///
+/// 持有者对不上就不给：会话号活在各自 agent 的命名空间里，把 A 的号发给 B，
+/// 动的可能是 B 的东西。与 session_for 和 agent_delete_thread 同一条规矩。
+async fn held_session(
+    index: &State<'_, LocalIndex>,
+    thread_id: &str,
+    agent_id: &str,
+    missing: &str,
+) -> AgentCommandResult<String> {
+    let id = conversation(thread_id)?;
+    let stored = on_index(index, move |store| store.thread(id).map_err(persistence)).await?;
+
+    stored
+        .and_then(|thread| {
+            let owner = thread.agent_id;
+
+            thread
+                .session_id
+                .filter(|_| owner.as_deref().is_none_or(|agent| agent == agent_id))
+        })
+        .ok_or_else(|| Error::NotFound(missing.to_owned()).into())
+}
+
+/// Merges queued prompts into the turn already running on one conversation.
+///
+/// 队列归 kap，号由 prompt.queued 带来，本机不留副本。与取消不同：这不中断在跑
+/// 的那一轮，只把这几句话并进它的上下文。
+///
+/// # Errors
+///
+/// Fails when that conversation holds no live session, or when kap says those
+/// prompts are no longer queued.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_steer(
+    state: State<'_, AgentRuntime>,
+    index: State<'_, LocalIndex>,
+    request: AgentSteerRequest,
+) -> AgentCommandResult<()> {
+    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let addressed = held_session(&index, &request.thread_id, &live.agent_id, NO_SESSION).await?;
+
+    live.client
+        .steer(addressed, request.prompt_ids)
+        .await
+        .map_err(translate)?;
+
+    Ok(())
+}
+
+/// Drops one queued prompt without touching the running turn.
+///
+/// # Errors
+///
+/// Fails when that conversation holds no live session, or when kap no longer has
+/// that prompt.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_abort_prompt(
+    state: State<'_, AgentRuntime>,
+    index: State<'_, LocalIndex>,
+    request: AgentAbortPromptRequest,
+) -> AgentCommandResult<()> {
+    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let addressed = held_session(&index, &request.thread_id, &live.agent_id, NO_SESSION).await?;
+
+    live.client
+        .abort_prompt(addressed, request.prompt_id)
+        .await
+        .map_err(translate)?;
 
     Ok(())
 }

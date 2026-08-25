@@ -26,6 +26,8 @@ function fakePort(
       resolvePermission: () => Promise.resolve(),
       answerQuestions: () => Promise.resolve(),
       dismissQuestions: () => Promise.resolve(),
+      steer: () => Promise.resolve(),
+      abortPrompt: () => Promise.resolve(),
     },
     emit: (events, sessionId) => {
       for (const listener of listeners) {

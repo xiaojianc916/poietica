@@ -19,6 +19,7 @@ import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branc
 import { WorkspacePicker, type WorkspacePickerProps } from '../threads/workspace-picker'
 import { TranscriptView } from '../timeline/transcript-view'
 import { MascotBadge } from './mascot/mascot-badge'
+import { PromptQueue } from './prompt-queue'
 
 export interface AssistantSurfaceProps {
   /** 这一格代表的对话。入口那一格在说话之前还不是任何一条。 */
@@ -191,6 +192,12 @@ export const AssistantSurface = memo(function AssistantSurface({
    */
   const dock = (
     <div className="assistant-surface__composer">
+      <PromptQueue
+        onDrop={assistant.dropQueued}
+        onSteer={assistant.steer}
+        sessionKey={assistant.key}
+      />
+
       <AssistantComposer
         approval={approval}
         controls={controls}

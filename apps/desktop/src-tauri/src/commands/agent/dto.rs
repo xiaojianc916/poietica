@@ -126,6 +126,23 @@ pub(super) fn decided(request: &AgentResolvePermissionRequest) -> Decision {
     }
 }
 
+/// 要并进这一轮的那几条排队提问。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSteerRequest {
+    pub thread_id: String,
+    /// 号由 kap 签发（prompt.queued 的 promptId）：队列不在这一侧，所以收号不收话。
+    pub prompt_ids: Vec<String>,
+}
+
+/// 要撤掉的那条排队提问。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentAbortPromptRequest {
+    pub thread_id: String,
+    pub prompt_id: String,
+}
+
 /// 要停的那条对话。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]

@@ -18,6 +18,7 @@ export type {
   PermissionItem,
   PlanItem,
   QuestionTimelineItem,
+  QueuedPromptItem,
   TimelineItem,
   TimelineItemId,
   TimelineState,
@@ -33,6 +34,8 @@ export {
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
+  queuedPromptCount,
+  queuedPrompts,
   runningDelegations,
   selectIsBusy,
 } from './timeline-queries'

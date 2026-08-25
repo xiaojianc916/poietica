@@ -1,0 +1,61 @@
+/* 输入框上方那条队列。行数由内容决定，所以它自己不定高。 */
+.prompt-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.prompt-queue__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgb(128 128 128 / 10%);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.prompt-queue__mark {
+  flex: none;
+  opacity: 0.5;
+}
+
+.prompt-queue__said {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+
+.prompt-queue__act {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.prompt-queue__act--steer {
+  white-space: nowrap;
+}
+
+.prompt-queue__act:hover,
+.prompt-queue__act:focus-visible {
+  background: rgb(128 128 128 / 16%);
+  opacity: 1;
+}

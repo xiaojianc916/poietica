@@ -193,7 +193,7 @@ function questionChoiceOf(choice: QuestionChoice): AgentQuestionChoice {
 }
 
 /**
- * 会话这一路：一条订阅收帧，五条命令回话。
+ * 会话这一路：一条订阅收帧，七条命令回话。
  *
  * 收与发同住一个工厂，因为它们是同一个端口的两半：拆成「事件源 + 命令桥」再由组合
  * 层拼回去，拼出来的只是一层透传。取消点名一条对话而不是一轮，理由在端口定义处。
@@ -253,6 +253,15 @@ export function createAgentSessionPort({
 
     cancel: async (threadId) => {
       await throughIpc(() => commands.agentCancel({ threadId }))
+    },
+
+    steer: async (threadId, promptIds) => {
+      /* readonly 数组与生成绑定要的可变数组是两个类型，所以复制一次。 */
+      await throughIpc(() => commands.agentSteer({ threadId, promptIds: [...promptIds] }))
+    },
+
+    abortPrompt: async (threadId, promptId) => {
+      await throughIpc(() => commands.agentAbortPrompt({ threadId, promptId }))
     },
 
     resolvePermission: async (requestId, decision, scope) => {

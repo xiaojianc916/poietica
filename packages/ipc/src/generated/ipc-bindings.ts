@@ -45,6 +45,31 @@ async agentCancel(request: AgentCancelRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_cancel", { request });
 },
 /**
+ * Merges queued prompts into the turn already running on one conversation.
+ * 
+ * 队列归 kap，号由 prompt.queued 带来，本机不留副本。与取消不同：这不中断在跑
+ * 的那一轮，只把这几句话并进它的上下文。
+ * 
+ * # Errors
+ * 
+ * Fails when that conversation holds no live session, or when kap says those
+ * prompts are no longer queued.
+ */
+async agentSteer(request: AgentSteerRequest) : Promise<null> {
+    return await TAURI_INVOKE("agent_steer", { request });
+},
+/**
+ * Drops one queued prompt without touching the running turn.
+ * 
+ * # Errors
+ * 
+ * Fails when that conversation holds no live session, or when kap no longer has
+ * that prompt.
+ */
+async agentAbortPrompt(request: AgentAbortPromptRequest) : Promise<null> {
+    return await TAURI_INVOKE("agent_abort_prompt", { request });
+},
+/**
  * Answers a permission request the agent is blocked on.
  * 
  * # Errors
@@ -1104,6 +1129,10 @@ windowMaximized: "window-maximized"
 /** user-defined types **/
 
 /**
+ * 要撤掉的那条排队提问。
+ */
+export type AgentAbortPromptRequest = { threadId: string; promptId: string }
+/**
  * 一整组题的答复。
  */
 export type AgentAnswerQuestionsRequest = { 
@@ -1716,6 +1745,14 @@ inputCacheRead: number;
  */
 inputCacheCreation: number }
 export type AgentSkill = { name: string; description: string; source: string }
+/**
+ * 要并进这一轮的那几条排队提问。
+ */
+export type AgentSteerRequest = { threadId: string; 
+/**
+ * 号由 kap 签发（prompt.queued 的 promptId）：队列不在这一侧，所以收号不收话。
+ */
+promptIds: string[] }
 /**
  * One conversation, as a list of conversations and a tab strip need it.
  */

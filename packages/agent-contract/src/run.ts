@@ -127,15 +127,15 @@ export type RunEvent =
     }
 
 /*
- * What the composer shows about a run.
+ * What the composer shows.
  *
- * RunStatus above is the truth about the run itself: eight states
- * the agent and the client can genuinely be in. ChatStatus is coarser on
- * purpose — it is the four states a send button can render, and nothing more.
+ * RunStatus above is the truth about the run. ChatStatus is coarser on purpose:
+ * it is what a send button can render. 'queued' is not a run state —— 那一轮确实
+ * 在跑；它说的是这条对话还有话排在它后面，而这正是 RunStatus 表达不了的那一件事。
  *
  * It lives here rather than next to the button because the application layer
  * derives it and the presentation layer displays it. Both may depend on a
- * contract; neither may depend on the other. Collapsing RunStatus into
- * ChatStatus is an application decision and stays in useAssistantSession.
+ * contract; neither may depend on the other. Collapsing RunStatus and the queue
+ * into ChatStatus is an application decision and stays in useAssistantSession.
  */
-export type ChatStatus = 'ready' | 'submitted' | 'streaming' | 'cancelling' | 'error'
+export type ChatStatus = 'ready' | 'submitted' | 'streaming' | 'queued' | 'cancelling' | 'error'

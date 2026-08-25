@@ -2,6 +2,7 @@ import {
   isTerminal,
   type PermissionItem,
   type QuestionTimelineItem,
+  type QueuedPromptItem,
   type TimelineItem,
   type TimelineState,
   type ToolCallTimelineItem,
@@ -223,4 +224,62 @@ export function selectIsBusy(state: TimelineState): boolean {
     state.status === 'awaiting_permission' ||
     state.status === 'awaiting_question'
   )
+}
+
+/* 空队列交回同一个引用：不排队才是常态，这一格因此不该在流式期间叫醒任何人。 */
+const NO_QUEUE: readonly QueuedPromptItem[] = []
+
+/*
+ * 队列快照按段缓存。
+ *
+ * useSyncExternalStore 在渲染期与提交期各调一次 getSnapshot，两趟必须交回同一个
+ * 引用，否则就是无限重渲。数字与转录条目引用天生稳定，新建的数组不是 —— 所以按
+ * 段的 items 认缓存：同一段交回同一个数组，转录提交（items 换引用）才重算一次。
+ */
+const QUEUE_OF = new WeakMap<readonly TimelineItem[], readonly QueuedPromptItem[]>()
+
+/**
+ * 本段里还在排队的那几句一共几条。
+ *
+ * 交数字：发送键读它，而它不该随转录换引用。与 pendingPermissionCount 同一条纪律。
+ */
+export function queuedPromptCount(scope: WaitingScope): number {
+  let queued = 0
+
+  for (const item of scope.items) {
+    if (item.type === 'queued_prompt' && item.settled === undefined) {
+      queued += 1
+    }
+  }
+
+  return queued
+}
+
+/**
+ * 还在排队的那几句，入队顺序。
+ *
+ * 只有队列条订它：条目本身在离队之前恒是同一个引用，所以每一行都能按 promptId 认
+ * 领自己，被 memo 挡在流式之外；不排队时交回 NO_QUEUE，那一层连醒都不醒。
+ */
+export function queuedPrompts(scope: WaitingScope): readonly QueuedPromptItem[] {
+  const cached = QUEUE_OF.get(scope.items)
+
+  if (cached !== undefined) {
+    return cached
+  }
+
+  let queued: QueuedPromptItem[] | undefined
+
+  for (const item of scope.items) {
+    if (item.type === 'queued_prompt' && item.settled === undefined) {
+      queued ??= []
+      queued.push(item)
+    }
+  }
+
+  const snapshot = queued ?? NO_QUEUE
+
+  QUEUE_OF.set(scope.items, snapshot)
+
+  return snapshot
 }

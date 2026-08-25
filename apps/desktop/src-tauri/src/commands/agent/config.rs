@@ -131,7 +131,11 @@ pub(super) async fn announce(app: &AppHandle, client: &AgentClient, session_id: 
         }
     };
 
-    let event = AgentSessionEvent::Selectors { session_id, selectors, goal };
+    let event = AgentSessionEvent::Selectors {
+        session_id,
+        selectors,
+        goal,
+    };
 
     if let Err(error) = app.emit(AGENT_SESSION_EVENT, event) {
         log::warn!("emit the session state failed: {error}");

@@ -29,6 +29,7 @@
     "@poietica/settings": "workspace:*",
     "@poietica/ui": "workspace:*",
     "@poietica/workspace": "workspace:*",
+    "@streamdown/mermaid": "catalog:",
     "@tauri-apps/api": "catalog:tauri",
     "lucide-react": "catalog:",
     "react": "catalog:",

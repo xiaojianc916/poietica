@@ -979,6 +979,45 @@ pub fn connect(
                             break;
                         }
 
+                        Some(Command::Steer {
+                            session_id: sid,
+                            prompt_ids,
+                            reply,
+                        }) => {
+                            let http = http.clone();
+                            let base = base_url.clone();
+
+                            tokio::spawn(async move {
+                                let _ = reply.send(
+                                    queue_action(
+                                        &http,
+                                        &format!("{base}/sessions/{sid}/prompts:steer"),
+                                        &json!({ "prompt_ids": prompt_ids }),
+                                    )
+                                    .await,
+                                );
+                            });
+                        }
+
+                        Some(Command::AbortPrompt {
+                            session_id: sid,
+                            prompt_id,
+                            reply,
+                        }) => {
+                            let http = http.clone();
+                            let base = base_url.clone();
+
+                            tokio::spawn(async move {
+                                let _ = reply.send(
+                                    queue_action(
+                                        &http,
+                                        &format!("{base}/sessions/{sid}/prompts/{prompt_id}:abort"),
+                                        &json!({}),
+                                    )
+                                    .await,
+                                );
+                            });
+                        }
                         Some(Command::Cancel { session_id: sid, reply }) => {
                             let http2 = http.clone();
                             let base2 = base_url.clone();
@@ -2163,6 +2202,30 @@ async fn list_mcp_servers(http: &reqwest::Client, base_url: &str) -> Result<Vec<
             })
         })
         .collect()
+}
+
+/// 队列动作：改的是「谁在等」，不是「谁在跑」。
+///
+/// 路由是 kap 的动作后缀（prompts:steer / prompts/{id}:abort）。队列的事实在
+/// agent 那一侧，所以这里不判「还在不在排队」—— 答复只用来知道它收下了，
+/// 信封仍旧只从 envelope_data 这一个闸口读。
+async fn queue_action(http: &reqwest::Client, url: &str, body: &Value) -> Result<()> {
+    let sent = http
+        .post(url)
+        .json(body)
+        .send()
+        .await
+        .map_err(|cause| KapError::Transport {
+            message: cause.to_string(),
+        })?;
+
+    let envelope: Value = sent.json().await.map_err(|cause| KapError::Transport {
+        message: cause.to_string(),
+    })?;
+
+    envelope_data(&envelope)?;
+
+    Ok(())
 }
 
 async fn abort_session(http: &reqwest::Client, base_url: &str, session_id: &str) -> Result<()> {

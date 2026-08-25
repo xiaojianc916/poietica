@@ -101,6 +101,15 @@ export interface AgentSessionPort {
    */
   readonly cancel: (threadId: ThreadId) => Promise<void>
   /**
+   * 把排队的那几句并进正在跑的那一轮。
+   *
+   * 队列归 agent，号由 prompt.queued 帧带来 —— 这一侧不留副本，所以这里收的是号，
+   * 不是话。不中断在跑的那一轮，这是它与 cancel 的分野。
+   */
+  readonly steer: (threadId: ThreadId, promptIds: readonly string[]) => Promise<void>
+  /** 撤掉一条还在排队的提问。在跑的那一轮一个字不动。 */
+  readonly abortPrompt: (threadId: ThreadId, promptId: string) => Promise<void>
+  /**
    * 答复一次审批。
    *
    * 词汇是 kap 的（approvalResponseSchema）：放行或拒绝，放行可以带上「这条

@@ -1,6 +1,7 @@
 import type {
   PermissionItem,
   QuestionTimelineItem,
+  QueuedPromptItem,
   TimelineState,
   ToolCallTimelineItem,
   Transcript,
@@ -12,6 +13,8 @@ import {
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
+  queuedPromptCount,
+  queuedPrompts,
   runningDelegations,
 } from '@poietica/agent'
 import type {
@@ -99,6 +102,10 @@ export interface AssistantSession {
   readonly answerQuestions: (response: QuestionResponse) => void
   /** 撤下一整组题。 */
   readonly dismissQuestions: (questionId: string) => void
+  /** 把排队的那一句并进正在跑的这一轮。 */
+  readonly steer: (promptId: string) => void
+  /** 撤掉一条还在排队的话。 */
+  readonly dropQueued: (promptId: string) => void
   /** True while a conversation is still being fetched. */
   readonly isRestoring: boolean
 }
@@ -139,7 +146,20 @@ function toChatStatus(status: TimelineState['status']): ChatStatus {
   }
 }
 
-const readStatus = (transcript: Transcript): ChatStatus => toChatStatus(transcript.timeline.status)
+/*
+ * 排在这一轮后面还有话，就是 queued。
+ *
+ * 它不是 RunStatus 里的一格：那一轮确实在跑。队列的事实在转录里，这里只把两者
+ * 收成发送键能画的一个字面量。
+ */
+const readStatus = (transcript: Transcript): ChatStatus =>
+  queuedPromptCount(activeScope(transcript.timeline)) > 0
+    ? 'queued'
+    : toChatStatus(transcript.timeline.status)
+
+/* 队列条订这一条。空队列恒是同一个引用，所以不排队时它不随帧醒。 */
+const readQueue = (transcript: Transcript): readonly QueuedPromptItem[] =>
+  queuedPrompts(activeScope(transcript.timeline))
 
 const readRestoring = (transcript: Transcript): boolean => transcript.restoring
 
@@ -218,6 +238,13 @@ export function useAssistantSession({
     [endpoint, identify, key, onUserMessage, session, transcripts],
   )
 
+  /* 送不出去就地记进转录，与本地事故同一处写法。 */
+  const note = useCallback(
+    (why: string) => {
+      transcripts.note(key, why)
+    },
+    [key, transcripts],
+  )
   const cancel = useCallback(() => {
     transcripts.cancel(key)
   }, [key, transcripts])
@@ -229,47 +256,32 @@ export function useAssistantSession({
     [key, transcripts],
   )
 
-  /*
-   * 答复与撤下直走会话端口，不经过 store。
-   *
-   * 权限答复走 store，是因为它要在转录里就地落一条记录；提问的落账由帧完成 ——
-   * questions_resolved 一到，条目自己就结清了，客户端没有第二笔要记的。这里唯一
-   * 要兜的是送不出去：失败就地记进转录，与本地事故同一处写法（appendLocalError）。
-   */
   const answerQuestions = useCallback(
     (response: QuestionResponse) => {
-      if (session === undefined) {
-        transcripts.note(key, NO_SESSION)
-        return
-      }
-
-      try {
-        void Promise.resolve(session.answerQuestions(response)).catch((cause: unknown) => {
-          transcripts.note(key, describeFailure(cause))
-        })
-      } catch (cause) {
-        transcripts.note(key, describeFailure(cause))
-      }
+      direct(note, () => session?.answerQuestions(response))
     },
-    [key, session, transcripts],
+    [note, session],
   )
 
   const dismissQuestions = useCallback(
     (questionId: string) => {
-      if (session === undefined) {
-        transcripts.note(key, NO_SESSION)
-        return
-      }
-
-      try {
-        void Promise.resolve(session.dismissQuestions(questionId)).catch((cause: unknown) => {
-          transcripts.note(key, describeFailure(cause))
-        })
-      } catch (cause) {
-        transcripts.note(key, describeFailure(cause))
-      }
+      direct(note, () => session?.dismissQuestions(questionId))
     },
-    [key, session, transcripts],
+    [note, session],
+  )
+
+  const steer = useCallback(
+    (promptId: string) => {
+      direct(note, () => (endpoint === null ? undefined : session?.steer(endpoint, [promptId])))
+    },
+    [endpoint, note, session],
+  )
+
+  const dropQueued = useCallback(
+    (promptId: string) => {
+      direct(note, () => (endpoint === null ? undefined : session?.abortPrompt(endpoint, promptId)))
+    },
+    [endpoint, note, session],
   )
 
   return {
@@ -280,6 +292,8 @@ export function useAssistantSession({
     resolvePermission,
     answerQuestions,
     dismissQuestions,
+    steer,
+    dropQueued,
     isRestoring,
   }
 }
@@ -330,6 +344,16 @@ export function useAssistantQuestion(key: string): QuestionTimelineItem | undefi
   return useSlice(key, readQuestion)
 }
 
+/**
+ * 排在这一轮后面的那几句。
+ *
+ * 队列在 agent 那一侧，这里读的是它在转录里的投影。不排队时选择器交回同一个空
+ * 数组，所以这条订阅在绝大多数时间里是静的。
+ */
+export function useAssistantQueue(key: string): readonly QueuedPromptItem[] {
+  return useSlice(key, readQueue)
+}
+
 /* 请求只带一个号，要签字的原文在那条调用上。 */
 const readPendingCall = (transcript: Transcript): ToolCallTimelineItem | undefined =>
   pendingPermissionCall(activeScope(transcript.timeline))
@@ -343,4 +367,29 @@ export function useAssistantPendingCall(key: string): ToolCallTimelineItem | und
 /** 此刻还在跑的子代理数。 */
 export function useAssistantSwarm(key: string): number {
   return useSlice(key, (t) => runningDelegations(t.timeline))
+}
+
+/*
+ * 直走会话端口的那几个动作。
+ *
+ * 落账由帧完成（questions_resolved / prompt.steered / prompt.aborted 一到，条目自己
+ * 就结清），所以它们不经 store。唯一要兜的是送不出去：就地记进转录。缺会话就是
+ * 没有地方可送 —— 那也是一次要记的失败，不是静默。
+ */
+const direct = (note: (why: string) => void, ask: () => Promise<void> | void): void => {
+  try {
+    const sent = ask()
+
+    if (sent === undefined) {
+      note(NO_SESSION)
+
+      return
+    }
+
+    void sent.catch((cause: unknown) => {
+      note(describeFailure(cause))
+    })
+  } catch (cause) {
+    note(describeFailure(cause))
+  }
 }

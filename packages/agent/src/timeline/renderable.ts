@@ -29,6 +29,11 @@ export function isRenderable(item: TimelineItem): boolean {
     return item.resolution !== undefined
   }
 
+  /* 还在排队的那句长在输入框上方的队列条里；并进这一轮之后这里才留下痕迹。 */
+  if (item.type === 'queued_prompt') {
+    return item.settled === true
+  }
+
   /* 审批不上屏：待答的那一道摊在输入框上方，答过的是操作痕迹，痕迹归事件日志。 */
   if (item.type === 'permission') {
     return false

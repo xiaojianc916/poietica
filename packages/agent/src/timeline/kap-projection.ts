@@ -8,8 +8,8 @@
  * 载荷形状的唯一权威是上游 kap-server 的 protocol/events-zod.ts（快照钉在
  * contracts/kap）。这里读的每一个字段都应该能在那份文件里找到。
  *
- * 三段各管一件事：帧分流（applyKapFrame）、帧读成补丁（toolPatch 与 fromDisplay）、
- * 补丁合进条目（upsertToolCall）。
+ * 四段各管一件事：帧分流（applyKapFrame）、帧读成补丁（toolPatch 与 fromDisplay）、
+ * 补丁合进条目（upsertToolCall）、排队投影（enqueuePrompt 与 settleQueued）。
  */
 
 import type {
@@ -89,6 +89,20 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
 
     case 'prompt.submitted': {
       /* 那一问由 run_started 带全（projection.ts 的 withPrompt 是唯一落账处）。 */
+      return
+    }
+
+    case 'prompt.queued': {
+      enqueuePrompt(draft, event)
+
+      return
+    }
+
+    case 'prompt.steered':
+    case 'prompt.completed':
+    case 'prompt.aborted': {
+      settleQueued(draft, event)
+
       return
     }
 
@@ -699,4 +713,80 @@ function fromShape(display: unknown): ToolCallPatch {
       return {}
     }
   }
+}
+
+/**
+ * 排队的那一句。
+ *
+ * 队列的事实在 agent 那一侧，这里只按号落一条投影：同一个号再报一次不落第二格。
+ */
+function enqueuePrompt(draft: Draft, event: KapFrame): void {
+  const promptId = stringOf(event.payload, 'promptId')
+
+  if (promptId === undefined) {
+    return
+  }
+
+  const id = `${namespace(draft)}queued-${promptId}`
+
+  if (positionOf(draft, id) >= 0) {
+    return
+  }
+
+  push(draft, {
+    type: 'queued_prompt',
+    id,
+    turn: draft.runIndex,
+    at: event.at,
+    promptId,
+    text: queuedText(fieldOf(event.payload, 'content')),
+  })
+}
+
+/**
+ * 它离队了。
+ *
+ * 三种离队方式一支：并进这一轮（steered 带 promptIds）、自己跑完（completed）、
+ * 被撤掉（aborted）。对队列而言是同一件事 —— 不再在等。就地标掉不搬条目：下标
+ * 稳定是这条管线的前提。
+ */
+function settleQueued(draft: Draft, event: KapFrame): void {
+  const listed = fieldOf(event.payload, 'promptIds')
+  const single = stringOf(event.payload, 'promptId')
+  const ids = Array.isArray(listed)
+    ? listed.filter((id): id is string => typeof id === 'string')
+    : single === undefined
+      ? []
+      : [single]
+
+  for (const promptId of ids) {
+    const position = positionOf(draft, `${namespace(draft)}queued-${promptId}`)
+    const held = position < 0 ? undefined : draft.items[position]
+
+    if (held?.type === 'queued_prompt' && held.settled === undefined) {
+      draft.items[position] = { ...held, settled: true }
+    }
+  }
+}
+
+/**
+ * 排队那一句的正文。
+ *
+ * 上游 content 是内容部件数组。队列条只有一行，所以只取文字部件：一张图在这一行上
+ * 没有位置，它会随这一句真的上路时的 run_started 落进转录。
+ */
+function queuedText(content: unknown): string {
+  if (!Array.isArray(content)) {
+    return ''
+  }
+
+  const said: string[] = []
+
+  for (const part of content) {
+    if (typeof part === 'object' && part !== null && Reflect.get(part, 'type') === 'text') {
+      said.push(textOf(part, 'text'))
+    }
+  }
+
+  return said.join('\n').trim()
 }

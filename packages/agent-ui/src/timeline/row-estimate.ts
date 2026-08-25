@@ -18,6 +18,7 @@ const ROW_PX: Record<Exclude<FeedRow['item']['type'], 'agent_text'>, number> = {
   permission: 0,
   plan: 200,
   question: 96,
+  queued_prompt: 40,
   tool_call: 40,
   user_message: 72,
 }

@@ -129,6 +129,19 @@ pub(crate) enum Command {
         session_id: String,
         reply: oneshot::Sender<Result<()>>,
     },
+    /// 把排队的那几句并进正在跑的那一轮（kap 的 prompts:steer）。
+    Steer {
+        session_id: String,
+        prompt_ids: Vec<String>,
+        reply: oneshot::Sender<Result<()>>,
+    },
+    /// 撤掉一条还在排队的提问（kap 的 prompts/{id}:abort）。
+    AbortPrompt {
+        session_id: String,
+        prompt_id: String,
+        reply: oneshot::Sender<Result<()>>,
+    },
+
     Shutdown,
     /// Answers with the selectors that session is currently offering.
     Selectors {
@@ -317,6 +330,44 @@ impl AgentClient {
     /// the turn's own answer reports which of the two happened.
     ///
     /// 停哪一条必须说出来。一条连接上有多条会话，而它们可以同时在飞。
+    /// 把排队的那几句并进正在跑的那一轮。不中断在跑的那一轮，这是它与 cancel 的分野。
+    ///
+    /// # Errors
+    ///
+    /// 驱动已退场，或 kap 说这几句不在队列里。
+    pub async fn steer(&self, session_id: String, prompt_ids: Vec<String>) -> Result<()> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Steer {
+            session_id,
+            prompt_ids,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
+    }
+
+    /// 撤掉一条还在排队的提问。在跑的那一轮一个字不动。
+    ///
+    /// # Errors
+    ///
+    /// 驱动已退场，或 kap 说没有这一条。
+    pub async fn abort_prompt(&self, session_id: String, prompt_id: String) -> Result<()> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::AbortPrompt {
+            session_id,
+            prompt_id,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
+    }
+
     pub async fn cancel(&self, session_id: String) -> Result<()> {
         let (reply, answer) = oneshot::channel();
         self.send(Command::Cancel { session_id, reply })?;

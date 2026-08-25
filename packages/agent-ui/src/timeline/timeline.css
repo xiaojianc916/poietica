@@ -45,6 +45,23 @@
 }
 
 /*
+ * 并进这一轮的排队句留下的痕迹。它不是气泡：话已经进了这一轮的账，这里只要
+ * 一行安静的出处，全文归那一轮的经过，不在这里重抄。
+ */
+.timeline-queued {
+  margin: 0;
+  margin-inline-start: auto;
+  inline-size: fit-content;
+  max-inline-size: min(100%, 32rem);
+  overflow: hidden;
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--ui-prose-size);
+  line-height: var(--ui-prose-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
  * Clipped, never scrolled: overflow is clip, so this box cannot become a
  * second scroller inside the one the transcript already has. The fade is a
  * mask rather than an overlay, so it works on any bubble colour.

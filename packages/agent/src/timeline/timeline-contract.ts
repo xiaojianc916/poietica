@@ -201,6 +201,19 @@ export interface LinkTimelineItem extends TimelineEntry {
   readonly link: SessionLink
 }
 
+/**
+ * 排在在跑的那一轮后面的一句话。
+ *
+ * kap 收下了它但还没让它成为一轮。号由协议签发，队列因此不在这一侧 —— 这条条目
+ * 就是本机对那条队列的唯一投影。settled 在场表示它已经离队。
+ */
+export interface QueuedPromptItem extends TimelineEntry {
+  readonly type: 'queued_prompt'
+  readonly promptId: string
+  readonly text: string
+  readonly settled?: true
+}
+
 export interface ErrorItem extends TimelineEntry {
   readonly type: 'error'
   readonly message: string
@@ -215,6 +228,7 @@ export type TimelineItem =
   | PermissionItem
   | QuestionTimelineItem
   | LinkTimelineItem
+  | QueuedPromptItem
   | ErrorItem
 
 /**

@@ -302,6 +302,7 @@ function leavesAMark(item: TimelineItem): boolean {
     case 'error':
     case 'link':
     case 'permission':
+    case 'queued_prompt':
     case 'user_message':
       return false
   }
