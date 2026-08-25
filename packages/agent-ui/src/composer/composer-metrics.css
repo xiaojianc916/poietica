@@ -274,7 +274,6 @@
    * 跟着纸走，才不会在换一套主题之后变成一条突兀的深线。
    */
   --cp-timeline-drawer-surface: color-mix(in srgb, var(--ui-foreground) 6.3%, var(--ui-surface));
-  --cp-timeline-drawer-thumb: color-mix(in srgb, var(--ui-foreground) 22%, transparent);
   --cp-timeline-tabs-active: color-mix(in srgb, var(--ui-foreground) 12.5%, var(--ui-surface));
 
   /*

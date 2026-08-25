@@ -199,7 +199,7 @@ export function ToolCallCard({
   }
 
   return (
-    <section className="timeline-tool" data-open={isOpen ? 'true' : undefined}>
+    <section className="timeline-tool">
       <ToolCallHeader
         isChannel={false}
         isOpen={isOpen}

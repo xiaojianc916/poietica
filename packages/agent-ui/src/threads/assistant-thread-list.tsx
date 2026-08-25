@@ -547,7 +547,6 @@ function ThreadSectionHeader({ label, isOpen, onToggle }: ThreadSectionHeaderPro
     <button
       aria-expanded={isOpen}
       className="assistant-threads__section-title"
-      data-expanded={isOpen ? 'true' : 'false'}
       onClick={onToggle}
       type="button"
     >

@@ -16,7 +16,7 @@ export function DisclosureBody({
   readonly isOpen: boolean
 }) {
   return (
-    <div className="disclosure__reveal" inert={!isOpen}>
+    <div className="disclosure__reveal" data-open={isOpen ? 'true' : undefined} inert={!isOpen}>
       <div className="disclosure__clip">{children}</div>
     </div>
   )

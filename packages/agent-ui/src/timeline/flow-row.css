@@ -57,8 +57,7 @@ button.timeline-row:focus-visible {
 
 .timeline-row:hover .timeline-row__chevron,
 .timeline-row:focus-visible .timeline-row__chevron,
-[data-open="true"] > .timeline-row .timeline-row__chevron,
-[data-expanded="true"] > .timeline-row .timeline-row__chevron {
+.timeline-row[aria-expanded="true"] .timeline-row__chevron {
   opacity: 1;
 }
 

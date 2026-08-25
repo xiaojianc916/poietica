@@ -139,12 +139,7 @@ export function WorkspacePicker({
   const activeHighlightId = preferredWorkspaceHighlight(matches, heldHighlightId, current)
 
   return (
-    <div
-      className="workspace-picker"
-      data-assistant-skin
-      data-expanded={placement === 'sidebar' ? (expanded ? 'true' : 'false') : undefined}
-      data-placement={placement}
-    >
+    <div className="workspace-picker" data-assistant-skin data-placement={placement}>
       <DropdownMenu
         modal={false}
         onOpenChange={(nextOpen) => {

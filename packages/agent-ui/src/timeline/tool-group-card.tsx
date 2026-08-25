@@ -125,19 +125,8 @@ export function ToolGroupCard({ isOpen, onToggle, plan, renderRow }: ToolGroupCa
   const saying = live === undefined ? undefined : sayingOf(live)
   const summary = describeToolGroup(plan)
 
-  /*
-   * 这里不能叫 data-open。
-   *
-   * disclosure.css 的打开态是 [data-open="true"] .disclosure__reveal —— 后代选择器，
-   * 而成员就长在组的抽屉里。属性一挂，组内每一个成员的抽屉会被同一条规则一起撑开，
-   * 可它们各自的 isOpen 仍是 false，reveal 上还挂着 inert：盒子看着开着，里面的
-   * 内容却点不到、滚不动。开着的空盒子，正是这么来的。
-   *
-   * 所以开合的判据换个名字，由 tool-group.css 用子选择器自己接管 —— 那条路径够不到
-   * 成员。原语一个字不动：它说的「调用方要覆盖外观照旧加自己的类」，指的就是这个。
-   */
   return (
-    <section className="timeline-group" data-expanded={isOpen ? 'true' : undefined}>
+    <section className="timeline-group">
       {/* 可访问名钉死成账目那一句。轮播那一格每几百毫秒换一次内容，让它同时充当按钮的
           名字，等于让读屏用户的落脚点一直在动；而这个按钮的语义本来就是「这一组的汇总」，
           账目才是它的名字。代价是运行途中可见文字与可访问名对不上，语音操控要念账目那
@@ -151,9 +140,9 @@ export function ToolGroupCard({ isOpen, onToggle, plan, renderRow }: ToolGroupCa
       >
         <ToolKindIcon kind={plan.kind} />
 
-        <ToolCallDiffStat diffStat={statOf(plan)} />
-
         <GroupTicker isRunning={isRunning} text={saying ?? summary} />
+
+        <ToolCallDiffStat diffStat={statOf(plan)} />
 
         <ChevronDownIcon aria-hidden="true" className="timeline-row__chevron disclosure__chevron" />
       </button>

@@ -44,7 +44,7 @@ export function ThoughtCard({
   }
 
   return (
-    <section className="timeline-tool" data-open={isOpen ? 'true' : undefined}>
+    <section className="timeline-tool">
       <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
         <ThinkingIcon aria-hidden="true" className="timeline-row__icon" />
 

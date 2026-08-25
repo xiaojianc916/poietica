@@ -57,7 +57,7 @@ export function LinkCard({
   const { detail, line } = say(item.link, now)
 
   return (
-    <section className="timeline-tool" data-open={isOpen ? 'true' : undefined}>
+    <section className="timeline-tool">
       <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
         <LinkIcon aria-hidden="true" className="timeline-row__icon" />
 

@@ -15,12 +15,11 @@
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
-[data-open="true"] > .disclosure__reveal {
+.disclosure__reveal[data-open="true"] {
   grid-template-rows: 1fr;
 }
 
-[data-open="true"] > .disclosure__chevron,
-[data-open="true"] > :first-child .disclosure__chevron {
+[aria-expanded="true"] .disclosure__chevron {
   transform: rotate(0deg);
 }
 

@@ -14,29 +14,6 @@
    省略号归里面印字的那一层 —— 换字期间外面那一格里有两句话，截断只能落在单句上。 */
 
 /*
- * 开合由这两条接管，判据是 data-expanded 而不是 data-open。
- *
- * 机制仍是原语那一套（0fr↔1fr 的轨道插值、箭头转四分之一圈），这里只换了触发它的
- * 那个属性，并且一律走子选择器。原因写在 tool-group-card.tsx 那段注释里：原语的
- * 打开态是后代选择器，组头一旦叫 data-open,组里每个成员的抽屉都会被顺带撑开。
- *
- * 特异性 (0,3,0) 高过基础规则的 (0,1,0)，胜负与这张表落在层叠哪一段无关。
- */
-.timeline-group[data-expanded="true"] > .disclosure__reveal {
-  grid-template-rows: 1fr;
-  opacity: 1;
-}
-
-.timeline-group[data-expanded="true"] > .disclosure__reveal > .disclosure__clip {
-  opacity: 1;
-  transform: none;
-}
-
-.timeline-group[data-expanded="true"] > .timeline-row .disclosure__chevron {
-  transform: rotate(0deg);
-}
-
-/*
  * 成员从组头那句话的同一个起点开始，不缩进。
  *
  * 上一版往右推了一枚图标的宽度，想的是「成员从属于组头」。但从属关系已经由展开这个

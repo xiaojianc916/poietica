@@ -117,7 +117,6 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
       <motion.div
         animate={{ borderRadius: expanded ? SHAPE.expanded : SHAPE.collapsed }}
         className="goal-island"
-        data-expanded={expanded}
         data-status={goal.status}
         layout
         ref={shell}

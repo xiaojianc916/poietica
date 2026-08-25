@@ -1,9 +1,9 @@
 import type { ToolCallTimelineItem } from '@poietica/agent'
 import { type CSSProperties, useId, useState } from 'react'
 
-import { fileGlyphOf } from '../primitives/file-glyph'
+import { FileTypeMark } from '../primitives/file-type-mark'
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
-import type { DiffFile, DiffRow, DiffRowKind, DiffStat } from '../semantics/file-diff'
+import type { DiffFile, DiffRow, DiffRowKind } from '../semantics/file-diff'
 import type { ToolCallFacets } from '../semantics/tool-call-facets'
 import { Prose } from './prose'
 
@@ -89,37 +89,17 @@ function fieldOf(rows: readonly DiffRow[]): string {
   return `linear-gradient(${stops.join(',')})`
 }
 
-/*
- * 车道那一条的颜色：只增是绿，只删是红，两样都有按行数配比 —— 标准属性只收颜色，
- * 逐行位置进不了滚动条（CSS Scrollbars Styling Level 1）。
- */
-function trackOf(stat: DiffStat): string {
-  if (stat.removed === 0) {
-    return 'var(--cp-timeline-diff-new)'
-  }
-
-  if (stat.added === 0) {
-    return 'var(--cp-timeline-diff-old)'
-  }
-
-  const share = Math.round((stat.added * 100) / (stat.added + stat.removed))
-
-  return `color-mix(in oklab, var(--cp-timeline-diff-new) ${share}%, var(--cp-timeline-diff-old))`
-}
-
 /** 一处改动：文件名一行，下面是它的行。行的分类与行号归 semantics/file-diff。 */
 function FileDiff({ file }: { readonly file: DiffFile }) {
-  const Glyph = fileGlyphOf(file.name)
   const field = {
     '--cp-timeline-diff-field': fieldOf(file.rows),
     '--cp-timeline-diff-rows': String(file.rows.length),
-    '--cp-timeline-diff-track': trackOf(file.stat),
   } as CSSProperties
 
   return (
     <div className="timeline-tool__file">
       <div className="timeline-tool__path" title={file.path}>
-        <Glyph className="timeline-tool__path-icon" />
+        <FileTypeMark className="timeline-tool__path-icon" name={file.name} />
         <span className="timeline-tool__path-name">{file.name}</span>
       </div>
 

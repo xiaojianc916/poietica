@@ -74,8 +74,6 @@
   max-block-size: var(--cp-timeline-output-max);
   padding: 0.625rem 0.75rem;
   overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--cp-timeline-drawer-thumb) transparent;
 }
 
 /*
@@ -253,8 +251,6 @@
   flex: none;
   inline-size: var(--cp-icon);
   block-size: 1lh;
-  color: var(--cp-timeline-quiet-text);
-  stroke-width: var(--cp-icon-stroke);
 }
 
 .timeline-tool__path-name {
@@ -274,9 +270,6 @@
  * 增删的底色是这一层的一张背景图，不是每一行自己的 background：网格项只画到内容盒，
  * 而 attachment: local 把它钉在内容上，色带因此跟着内容一起滚。刻度用 lh：一行 diff
  * 恰好一个行盒。
- *
- * 车道另给一个颜色：背景那一层进不了滚动条，而标准属性只收颜色关键字，所以它是按这处
- * 改动的增删行数配出来的一个色（--cp-timeline-diff-track，由 tool-call-panels 算）。
  */
 .timeline-tool__diff {
   display: grid;
@@ -292,8 +285,6 @@
   background-attachment: local;
   background-repeat: repeat no-repeat;
   background-size: 100% calc(var(--cp-timeline-diff-rows) * 1lh);
-  scrollbar-width: thin;
-  scrollbar-color: var(--cp-timeline-drawer-thumb) var(--cp-timeline-diff-track);
 }
 
 .timeline-tool__diff-row {

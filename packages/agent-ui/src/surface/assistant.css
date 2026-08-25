@@ -340,7 +340,7 @@
     transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.assistant-threads__section-title[data-expanded="true"] .assistant-threads__section-chevron {
+.assistant-threads__section-title[aria-expanded="true"] .assistant-threads__section-chevron {
   transform: rotate(0deg);
 }
 
@@ -1447,7 +1447,7 @@ svg.assistant-provider-icon {
     transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.workspace-picker[data-placement="sidebar"][data-expanded="true"]
+.workspace-picker__repositories-title[aria-expanded="true"]
   .workspace-picker__repositories-chevron {
   transform: rotate(0deg);
 }
@@ -1516,7 +1516,9 @@ svg.assistant-provider-icon {
  * WorkspacePicker 与 AssistantThreadList 是 assistant-panel 中的相邻兄弟。
  * 收起时只隐藏下面整张会话导航，Repositories 工具栏本身继续保留。
  */
-.workspace-picker[data-placement="sidebar"][data-expanded="false"] + .assistant-threads {
+.workspace-picker[data-placement="sidebar"]:has(
+  .workspace-picker__repositories-title[aria-expanded="false"]
+) + .assistant-threads {
   display: none;
 }
 
