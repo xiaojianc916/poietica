@@ -40,11 +40,9 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
       return <UserMessage images={item.images} skills={item.skills} text={item.text} />
 
     case 'agent_text':
-      return (
-        <Prose className="timeline-message" isStreaming={row.isStreamingTail} text={item.text} />
-      )
+      return <Prose className="timeline-message" text={item.text} />
 
-    /* 推理是一行现场；写完了才能点开，点开才走 markdown。 */
+    /* 推理是一行现场：运行中不是控件，落定之后才交出开合（thought-card）。 */
     case 'agent_thought':
       return (
         <ThoughtCard

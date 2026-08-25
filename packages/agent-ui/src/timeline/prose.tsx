@@ -4,7 +4,6 @@ import { createMathPlugin } from '@streamdown/math'
 import 'katex/dist/katex.min.css'
 import { memo } from 'react'
 import {
-  type AnimateOptions,
   type ControlsConfig,
   type IconMap,
   type LinkSafetyConfig,
@@ -34,25 +33,6 @@ const MATH = createMathPlugin({ singleDollarTextMath: true })
  * 的那一组拿到的是另一套配色。
  */
 const PLUGINS: PluginConfig = { cjk, code, math: MATH, renderers: [DIAGRAM_RENDERER] }
-
-/*
- * 揭示的节拍。
- *
- * sep 取 char：上游按 /\s/ 分词，而中文没有空格 —— 一整句话在它眼里是一个「词」，
- * 逐词揭示在中文界面上等于整段一起淡入。
- *
- * maxBacklogMs 是快流唯一的闸门：上游把已排期的揭示钳在 now + 预算 之内，超支时把
- * stagger 压到 4ms 地板。240 约等于 1.5 个 duration，于是慢流拿到完整的逐字级差，
- * 快流自动收敛成成片上屏，两头都不会攒出一条屏幕看不见的队列。
- */
-const ANIMATION: AnimateOptions = {
-  animation: 'fadeIn',
-  duration: 160,
-  easing: 'cubic-bezier(0.2, 0, 0, 1)',
-  maxBacklogMs: 240,
-  sep: 'char',
-  stagger: 10,
-}
 
 /*
  * 复制一段代码是一个动作，把它存成 file.txt 不是。表格另说：结构化输出该能进表格与
@@ -110,7 +90,6 @@ const TABLE_CAP = 0
 
 export interface ProseProps {
   readonly text: string
-  readonly isStreaming: boolean
   /** A place in the timeline, for measure and scale. Never for typography. */
   readonly className?: string
 }
@@ -119,18 +98,23 @@ export interface ProseProps {
  * 模型输出的 markdown，无论它出现在哪里。
  *
  * 回答与思考链是同一种内容，所以由同一个组件画：timeline-prose 是样式表唯一装扮的
- * 作用域。切块、补全未闭合的语法、逐块记忆与揭示排期全部归 Streamdown —— 这一层只
- * 声明这个产品对它的主张，不再自己解析 markdown。
+ * 作用域。切块、补全未闭合的语法、逐块记忆全部归 Streamdown —— 这一层只声明这个产品
+ * 对它的主张，不再自己解析 markdown。
+ *
+ * 不接 animated：那条排期器把「第几个字符」当揭示进度（streamdown lib/animate.ts 的
+ * prevContentLength），而每来一个 token markdown 就重解析一次、字符偏移会移动，已上屏
+ * 的字于是重新淡入；它的 beginPass 又把排期钳回 now + maxBacklogMs，上一批的尾字还在
+ * 等，下一批已经拿到更小的延迟 —— 屏幕上就是乱序上屏。到达即上屏是唯一单调的顺序：
+ * opencode 的 packages/web/src/components/share/content-markdown.tsx 与 deepseek-harness
+ * 的 packages/client/ui-primitives/src/markdown/MarkdownText.tsx 同样不做逐字揭示。
  */
-export const Prose = memo(function Prose({ className, isStreaming, text }: ProseProps) {
+export const Prose = memo(function Prose({ className, text }: ProseProps) {
   return (
     <Streamdown
-      animated={ANIMATION}
       className={cx('timeline-prose', className)}
       codeBlockMaxHeight={CODE_CAP}
       controls={CONTROLS}
       icons={ICONS}
-      isAnimating={isStreaming}
       lineNumbers={false}
       linkSafety={LINK_SAFETY}
       plugins={PLUGINS}

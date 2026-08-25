@@ -7,13 +7,15 @@
 .timeline-row {
   /* 行盒是显式的：高度由它定，不由最高的那个孩子撑出来，居中才有确定的参照。 */
   --cp-row-line: var(--cp-control-sm);
+  /* 量度：一条工具记事（路径、命令）收在工具那一档。 */
+  --cp-row-measure: var(--cp-timeline-tool-max);
 
   display: inline-flex;
   min-block-size: var(--cp-row-line);
   justify-self: start;
   align-items: center;
   gap: var(--cp-control-gap);
-  max-inline-size: min(100%, var(--cp-timeline-tool-max));
+  max-inline-size: min(100%, var(--cp-row-measure));
   border: 0;
   padding: 0;
   background: none;
@@ -23,6 +25,14 @@
   line-height: var(--cp-row-line);
   text-align: start;
   transition: color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/*
+ * 推理摘要是模型的原话，量度归阅读栏而不是工具那一档：收得比正文早，被省略号吃掉的正是
+ * 这句话的开头。deepseek-harness 的 ReasoningRow.module.css 里 .summary 同样不封顶。
+ */
+.timeline-row[data-measure="prose"] {
+  --cp-row-measure: 100%;
 }
 
 /* 可点的那几处才有指针与悬停反馈：现场那一行是状态，不是控件。 */

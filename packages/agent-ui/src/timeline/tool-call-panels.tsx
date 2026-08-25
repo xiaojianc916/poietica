@@ -48,7 +48,7 @@ function ToolPanel({
         ? {}
         : { 'aria-labelledby': labelledBy, id: panel, role: 'tabpanel' })}
     >
-      <Prose className="timeline-tool__prose" isStreaming={false} text={text} />
+      <Prose className="timeline-tool__prose" text={text} />
     </div>
   )
 }

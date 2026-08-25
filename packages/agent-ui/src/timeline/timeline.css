@@ -4,16 +4,11 @@
  */
 
 /*
- * 关于 --sd-* 与 --sdm-* 上的兜底不是债。
+ * --sdm-* 上的兜底不是债：它不是本仓的令牌，是 Shiki 经 Streamdown 逐 token 注入的自定义
+ * 属性（--sdm-c 前景，只有自带底色的 token 才有 --sdm-tbg）。绝大多数元素上它并不存在，
+ * 逗号后面那一半正是没被注入时该长什么样。
  *
- * 这两族不是本仓声明的令牌，是 Streamdown 在运行时逐元素注入的自定义属性：
- * Shiki 给每个 token span 写 --sdm-c，只有自带底色的 token 才写 --sdm-tbg；
- * animate 插件只给正在揭示的那些词写 --sd-animation / --sd-duration /
- * --sd-easing / --sd-delay。绝大多数元素上它们并不存在，逗号后面那一半正是
- * "没有被注入时该长什么样"——它是这套 API 的用法，不是一个忘了删的默认值。
- *
- * 本仓自己的令牌一律不带兜底：名字在 composer-metrics.css 里，取不到值应当
- * 看得见，而不是被一个凑合的默认值糊过去。
+ * 本仓自己的令牌一律不带兜底：名字在 composer-metrics.css 里，取不到值应当看得见。
  */
 
 /*
@@ -344,7 +339,7 @@
  * 没人消费，每个 token 回落到 inherit：结构还在（一行一个 span），颜色全丢。
  * 这不是上游没有高亮能力，是那份颜色停在了半路。
  *
- * 同一个坑这张表里已经踩过一次并留下了结论：[data-sd-animate] 的 --sd-* 也是
+ * 同一个坑这张表里已经踩过一次并留下了结论，这份颜色也是
  * 因为"管线是我们的，外观也就是我们的"而在这里自己花掉的。
  *
  * light-dark() 跟随文档的 color-scheme，所以两套主题共用一条声明，不必猜主题
@@ -369,36 +364,6 @@
   background: var(--cp-timeline-output-surface);
   font-family: var(--cp-font-mono);
   font-size: 0.875em;
-}
-
-/*
- * Text that is still arriving appears as it arrives.
- *
- * Streamdown's animate plugin wraps each newly seen word in a span marked
- * data-sd-animate and hands it --sd-animation, --sd-duration, --sd-easing and
- * --sd-delay; a word that was already on screen is given a duration of 0, so
- * nothing re-animates while the stream grows.
- *
- * The declaration that spends those properties belongs here rather than to the
- * package, because this app imports no stylesheet from it: the pipeline is ours
- * and so is its appearance. `both` holds the first frame until the delay has
- * passed, which is what keeps a staggered line from flashing in all at once.
- */
-.timeline-prose [data-sd-animate] {
-  animation: var(--sd-animation, sd-fadeIn) var(--sd-duration, 220ms) var(--sd-easing, ease)
-    var(--sd-delay, 0ms) both;
-}
-
-@keyframes sd-fadeIn {
-  from {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .timeline-prose [data-sd-animate] {
-    animation: none;
-  }
 }
 
 /*
@@ -724,28 +689,10 @@
   );
 }
 
-/* ── 公式与图表 ───────────────────────────────────────────────
- *
- * 三条，且都落在此前根本不存在的元素上 —— 既有的排版、代码块、表格、发丝线
- * 一个像素都没动。
- *
- * sd-blurIn：上游的三种动画写在 streamdown/styles.css 里，这个应用不引那张表，
- * 所以 sd-fadeIn 当初是在这里自备的。改用 blurIn 就必须同样自备，否则 animation
- * 指向一个不存在的 keyframes，等于把动画关掉。模糊 3px：再大字会先糊成色块，
- * 在 13px 正文上反而比 opacity 更吵。
- *
- * .katex-display：行间公式是一个不换行的盒子，一条长推导必然超出正文宽度。这条
- * 流里已经为同一类缺陷付过一次代价 —— 代码块此前没有 overflow，长行被父级裁掉
- * 且取不到。公式在这里交出的同样是滚动权，不是一个宽度上限。
- *
+/*
+ * 行间与行内公式各有自己的溢出出口：KaTeX 的盒子不换行，一条长推导必然超出正文宽度，
+ * 交出的是滚动权而不是一个宽度上限 —— 被裁掉的字符取不回来。
  */
-
-@keyframes sd-blurIn {
-  from {
-    opacity: 0;
-    filter: blur(3px);
-  }
-}
 
 .timeline-prose .katex-display {
   margin-block: var(--cp-prose-flow) 0;
