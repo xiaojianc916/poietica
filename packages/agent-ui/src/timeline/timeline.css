@@ -115,6 +115,14 @@
   text-wrap: pretty;
 }
 
+/* 流式渐进呈现是视觉增强；系统请求减少动态时，正文必须立即稳定。 */
+@media (prefers-reduced-motion: reduce) {
+  .timeline-prose [data-sd-animate],
+  .timeline-prose [data-sd-animate-marker]::marker {
+    animation: none;
+  }
+}
+
 .timeline-prose :is(p, ul, ol, blockquote, hr, h1, h2, h3, h4, h5, h6) {
   margin-block: var(--cp-prose-flow) 0;
 }
@@ -339,8 +347,8 @@
  *
  * body.tsx 给每个 token 的 inline style 只写 --sdm-c（前景）、--sdm-tbg（底色）
  * 和双主题的 --shiki-dark，真正的 color 声明在上游自己的 Tailwind 工具类
- * text-[var(--sdm-c,inherit)] 里。这个应用不引 streamdown 的任何样式表，
- * Tailwind 也不扫 node_modules，那些类在产物里并不存在 —— 于是变量照旧下发、
+ * text-[var(--sdm-c,inherit)] 里。官方 styles.css 只提供流式动画，不包含这些 Tailwind
+ * 工具类；本应用的 Tailwind 也不扫描 node_modules，于是变量照旧下发、
  * 没人消费，每个 token 回落到 inherit：结构还在（一行一个 span），颜色全丢。
  * 这不是上游没有高亮能力，是那份颜色停在了半路。
  *
@@ -923,8 +931,8 @@
  * 图片。
  *
  * 上游 image.tsx 的外观全在 Tailwind 工具类里（group relative my-4 inline-block、
- * max-w-full rounded-lg、失败时的 hidden），而这个应用不引 streamdown 的样式表、
- * Tailwind 也不扫 node_modules —— 与 --sdm-c 同一个坑：类不存在，于是宽图撑破正文列，
+ * max-w-full rounded-lg、失败时的 hidden）。官方 styles.css 只提供流式动画，不包含这些
+ * 工具类；本应用的 Tailwind 也不扫描 node_modules —— 与 --sdm-c 同一个坑：类不存在，
  * 加载失败时破图占位与兜底文案同时在屏幕上。这几条把那份外观补在自己这边。
  */
 .timeline-prose [data-streamdown="image-wrapper"] {

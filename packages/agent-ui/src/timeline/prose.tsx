@@ -11,6 +11,7 @@ import {
   Streamdown,
   type StreamdownTranslations,
 } from 'streamdown'
+import 'streamdown/styles.css'
 
 import { cx } from '../primitives/class-names'
 import { asIcon, CheckIcon, CopyIcon, DownloadIcon } from '../primitives/icons'
@@ -90,31 +91,25 @@ const TABLE_CAP = 0
 
 export interface ProseProps {
   readonly text: string
+  /** 只有仍在追加的尾项为 true；静态历史不重新播放动画。 */
+  readonly streaming?: boolean
   /** A place in the timeline, for measure and scale. Never for typography. */
   readonly className?: string
 }
 
 /**
- * 模型输出的 markdown，无论它出现在哪里。
- *
- * 回答与思考链是同一种内容，所以由同一个组件画：timeline-prose 是样式表唯一装扮的
- * 作用域。切块、补全未闭合的语法、逐块记忆全部归 Streamdown —— 这一层只声明这个产品
- * 对它的主张，不再自己解析 markdown。
- *
- * 不接 animated：那条排期器把「第几个字符」当揭示进度（streamdown lib/animate.ts 的
- * prevContentLength），而每来一个 token markdown 就重解析一次、字符偏移会移动，已上屏
- * 的字于是重新淡入；它的 beginPass 又把排期钳回 now + maxBacklogMs，上一批的尾字还在
- * 等，下一批已经拿到更小的延迟 —— 屏幕上就是乱序上屏。到达即上屏是唯一单调的顺序：
- * opencode 的 packages/web/src/components/share/content-markdown.tsx 与 deepseek-harness
- * 的 packages/client/ui-primitives/src/markdown/MarkdownText.tsx 同样不做逐字揭示。
+ * 模型输出的 markdown。文本与流式状态都来自 timeline；Streamdown 独占语法补全、分块、
+ * 逐块记忆与新词排期。这一层不复制文本、不维护揭示游标，结束时只关闭动画。
  */
-export const Prose = memo(function Prose({ className, text }: ProseProps) {
+export const Prose = memo(function Prose({ className, streaming = false, text }: ProseProps) {
   return (
     <Streamdown
+      animated
       className={cx('timeline-prose', className)}
       codeBlockMaxHeight={CODE_CAP}
       controls={CONTROLS}
       icons={ICONS}
+      isAnimating={streaming}
       lineNumbers={false}
       linkSafety={LINK_SAFETY}
       plugins={PLUGINS}
