@@ -84,11 +84,16 @@ button.timeline-row:focus-visible {
   white-space: nowrap;
 }
 
+/* 跟着末尾走的时候不收省略号：省略号正好盖住最新那几个字。 */
+.timeline-row__label[data-follow-end] {
+  text-overflow: clip;
+}
+
 /*
- * 点开之后的那段推理：与回答同一个量度，淡一档。
+ * 点开之后的那段推理：原文本身，只按行断。
  *
- * 推理与回答是同一个组件画的同一种内容，量度因此只有一个 —— 38rem 那一档与那道竖线
- * 归折叠行，不归一段散文；竖线还与 .timeline-prose blockquote 撞成同一个记号。
+ * 与回答同一个量度、淡一档；推理不过 markdown（thought-card），所以换行归 pre-wrap，
+ * 字号行高在这里自己声明，不再借 .timeline-prose 那一档。
  *
  * overflow-wrap 只能是 anywhere：推理里满是不含空格的标识符，它们的 min-content 就是
  * 全长，而 break-word 不参与内在尺寸计算，格子会被撑破。
@@ -96,5 +101,8 @@ button.timeline-row:focus-visible {
 .timeline-thought {
   margin-block-start: var(--cp-control-gap);
   color: var(--cp-timeline-quiet-text);
+  font-size: var(--ui-prose-size);
+  line-height: var(--ui-prose-line-height);
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

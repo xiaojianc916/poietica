@@ -2,25 +2,28 @@ import { describe, expect, it } from 'bun:test'
 
 import { readThoughtLine } from '../timeline/thought-line'
 
+/*
+ * 这一格印的是原文里的那一行，不是它的 markdown 语义。任何过滤都会让它在模型写围栏、
+ * 写表格的整段时间里停在一句旧话上 —— 而屏幕上看不出漏了哪一句，只有这里看得出。
+ */
 describe('readThoughtLine', () => {
   it('印的是正在写的那一行', () => {
     expect(readThoughtLine('先看契约\n再看调用点', 'tail')).toBe('再看调用点')
     expect(readThoughtLine('先看契约\n再看调用点', 'head')).toBe('先看契约')
   })
 
-  it('围栏里的代码不上这一行', () => {
-    expect(readThoughtLine('要改这里\n```ts\nconst a = 1\n', 'tail')).toBe('要改这里')
-    expect(readThoughtLine('```ts\n', 'tail')).toBe('')
+  it('原文逐字，标记不去壳', () => {
+    expect(readThoughtLine('## 结论\n| 列 | 值 |', 'tail')).toBe('| 列 | 值 |')
+    expect(readThoughtLine('## 结论\n正文', 'head')).toBe('## 结论')
   })
 
-  it('表格与标题只留字', () => {
-    expect(readThoughtLine('## 结论\n| 列 | 值 |\n| --- | --- |\n| a | 1 |', 'tail')).toBe('a 1')
-    expect(readThoughtLine('## 结论\n正文', 'head')).toBe('结论')
+  it('围栏里的那一行也要印', () => {
+    expect(readThoughtLine('推导\n$$\na + b\n', 'tail')).toBe('a + b')
   })
 
-  it('行内标记去壳，链接留字', () => {
-    expect(readThoughtLine('- 看 **这个** `foo_bar` 与 [文档](https://x)', 'tail')).toBe(
-      '看 这个 foo_bar 与 文档',
-    )
+  it('空行不算一行', () => {
+    expect(readThoughtLine('落定。\n\n\n', 'tail')).toBe('落定。')
+    expect(readThoughtLine('\n\n开头', 'head')).toBe('开头')
+    expect(readThoughtLine('', 'tail')).toBe('')
   })
 })

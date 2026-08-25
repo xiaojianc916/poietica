@@ -1,92 +1,49 @@
 /*
- * 一段推理压成一行安全的纯文本。
+ * 收起那一行印的那一句：写的时候是末尾那个非空行，落定之后是开头那个非空行。
  *
- * 那一格印的是「写到哪儿了」，不是文档：围栏、表格、标题的形要靠块级排版才立得住，
- * 塞进一行只剩一串断掉的符号。点开之后仍走 Prose 那条 markdown 管线，所以这里丢掉
- * 的只是标记，不是内容。
+ * 逐字照抄，不认 markdown —— 滤掉围栏、表格与行内标记，等于让这一格在模型写代码块的
+ * 整段时间里停在一句旧话上。两头都从边界往里扫，不分配行表：每来一个 token 问一次。
  */
 
-/** 行首的块记号：标题、引用、列表、表格竖线。 */
-const BLOCK_MARK = /^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d{1,9}[.)]\s+|\|)/
-
-/** 只有记号、没有字的一行：分隔线，以及表格的对齐行。 */
-const RULE_ROW = /^\s{0,3}(?:[-*_]\s*){3,}$|^\s{0,3}\|?[\s:|-]+\|?\s*$/
-
-/** 围栏的开合。缩进四格以上是缩进代码块，不是围栏。 */
-const FENCE = /^\s{0,3}(?:```|~~~)/
-
-/** 独占一行的 $：块级公式的开合。 */
-const MATH_FENCE = /^\s{0,3}\$\$\s*$/
-
-type Fence = 'none' | 'code' | 'math'
-
-/**
- * 读完这一行之后，围栏状态变成什么。
- *
- * 围栏里只认自己那一种收口符：一个 ``` 块内部出现的 $ 是代码文本，不是公式的开头。
- */
-function fenceAfter(row: string, open: Fence): Fence {
-  if (open === 'code') {
-    return FENCE.test(row) ? 'none' : 'code'
-  }
-
-  if (open === 'math') {
-    return MATH_FENCE.test(row) ? 'none' : 'math'
-  }
-
-  if (FENCE.test(row)) {
-    return 'code'
-  }
-
-  return MATH_FENCE.test(row) ? 'math' : 'none'
-}
-
-/** 行内标记去壳：图片整个丢掉，链接留字，其余只去记号。 */
-function unmark(line: string): string {
-  return line
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/`+/g, '')
-    .replace(/\*\*|__|~~|\*/g, '')
-    .replace(/\|/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-/** tail 是正在写的那一行，head 是收起之后当摘要的第一句。 */
+/** 从哪一头读。 */
 export type ThoughtEdge = 'head' | 'tail'
 
 export function readThoughtLine(text: string, edge: ThoughtEdge): string {
-  let fence: Fence = 'none'
-  let head = ''
-  let tail = ''
+  return edge === 'head' ? headLine(text) : tailLine(text)
+}
 
-  for (const row of text.split('\n')) {
-    const after = fenceAfter(row, fence)
+function headLine(text: string): string {
+  let from = 0
 
-    /* 围栏本身那两行也算在围栏里：开合与内容一律不上这一格。 */
-    if (after !== 'none' || fence !== 'none') {
-      fence = after
+  for (;;) {
+    const end = text.indexOf('\n', from)
+    const line = text.slice(from, end < 0 ? text.length : end).trim()
 
-      continue
+    if (line !== '') {
+      return line
     }
 
-    const line = RULE_ROW.test(row) ? '' : unmark(row.replace(BLOCK_MARK, ''))
-
-    if (line === '') {
-      continue
+    if (end < 0) {
+      return ''
     }
 
-    tail = line
+    from = end + 1
+  }
+}
 
-    if (head === '') {
-      head = line
+function tailLine(text: string): string {
+  let end = text.length
 
-      if (edge === 'head') {
-        break
-      }
+  while (end > 0) {
+    const from = text.lastIndexOf('\n', end - 1) + 1
+    const line = text.slice(from, end).trim()
+
+    if (line !== '') {
+      return line
     }
+
+    end = from - 1
   }
 
-  return edge === 'head' ? head : tail
+  return ''
 }
