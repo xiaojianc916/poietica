@@ -9,8 +9,8 @@
         "@types/bun": "catalog:",
         "@typescript/typescript6": "catalog:",
         "turbo": "catalog:",
-        "typescript": "catalog:"
-      }
+        "typescript": "catalog:",
+      },
     },
     "apps/desktop": {
       "name": "@poietica/desktop",
@@ -33,7 +33,7 @@
         "@tauri-apps/api": "catalog:tauri",
         "lucide-react": "catalog:",
         "react": "catalog:",
-        "react-dom": "catalog:"
+        "react-dom": "catalog:",
       },
       "devDependencies": {
         "@tailwindcss/vite": "catalog:",
@@ -44,8 +44,8 @@
         "@vitejs/plugin-react": "catalog:",
         "tailwindcss": "catalog:",
         "typescript": "catalog:",
-        "vite": "catalog:"
-      }
+        "vite": "catalog:",
+      },
     },
     "packages/agent": {
       "name": "@poietica/agent",
@@ -54,32 +54,32 @@
         "@poietica/agent-catalog": "workspace:*",
         "@poietica/agent-contract": "workspace:*",
         "@poietica/core": "workspace:*",
-        "valibot": "catalog:"
+        "valibot": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
-        "typescript": "catalog:"
-      }
+        "typescript": "catalog:",
+      },
     },
     "packages/agent-catalog": {
       "name": "@poietica/agent-catalog",
       "version": "0.1.0",
       "dependencies": {
         "@poietica/agent-contract": "workspace:*",
-        "valibot": "catalog:"
+        "valibot": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
-        "typescript": "catalog:"
-      }
+        "typescript": "catalog:",
+      },
     },
     "packages/agent-contract": {
       "name": "@poietica/agent-contract",
       "version": "0.1.0",
       "devDependencies": {
         "@types/bun": "catalog:",
-        "typescript": "catalog:"
-      }
+        "typescript": "catalog:",
+      },
     },
     "packages/agent-ui": {
       "name": "@poietica/agent-ui",
@@ -331,7 +331,7 @@
     "motion": "13.1.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "streamdown": "2.5.0",
+    "streamdown": "2.6.0",
     "tailwind-merge": "3.6.0",
     "tailwindcss": "4.3.3",
     "turbo": "2.10.11",
@@ -1170,7 +1170,7 @@
 
     "remark-stringify": ["remark-stringify@11.0.0", "https://registry.npmmirror.com/remark-stringify/-/remark-stringify-11.0.0.tgz", { "dependencies": { "@types/mdast": "^4.0.0", "mdast-util-to-markdown": "^2.0.0", "unified": "^11.0.0" } }, "sha512-1OSmLd3awB/t8qdoEOMazZkNsfVTeY4fTsgzcQFdXNq8ToTN4ZGwrMnlda4K6smTFKD+GRV6O48i6Z4iKgPPpw=="],
 
-    "remend": ["remend@1.3.0", "https://registry.npmmirror.com/remend/-/remend-1.3.0.tgz", {}, "sha512-iIhggPkhW3hFImKtB10w0dz4EZbs28mV/dmbcYVonWEJ6UGHHpP+bFZnTh6GNWJONg5m+U56JrL+8IxZRdgWjw=="],
+    "remend": ["remend@1.3.1", "https://registry.npmmirror.com/remend/-/remend-1.3.1.tgz", {}, "sha512-N3DiY5qbRPoa5vkxn1oDLMyXOVTeo6Hp+XOj6SIqJAYUgLS0Q587gILPMom/qm86AQ/ZrcOdwEIzCz8V3J0nxQ=="],
 
     "reselect": ["reselect@5.3.0", "https://registry.npmmirror.com/reselect/-/reselect-5.3.0.tgz", {}, "sha512-XGoLeRAVzUTcJ1qkxPQhDJyIZ5d6zzZD9nT7AEZOaaU9UbWclhycElmhO+VD5bFeLuzhPBaOV2oXC8uG35ZSpg=="],
 
@@ -1192,7 +1192,7 @@
 
     "space-separated-tokens": ["space-separated-tokens@2.0.2", "https://registry.npmmirror.com/space-separated-tokens/-/space-separated-tokens-2.0.2.tgz", {}, "sha512-PEGlAwrG8yXGXRjW32fGbg66JAlOAwbObuqVoJpv/mRgoWDQfgH1wDPvtzWyUSNAXBGSk8h755YDbbcEy3SH2Q=="],
 
-    "streamdown": ["streamdown@2.5.0", "https://registry.npmmirror.com/streamdown/-/streamdown-2.5.0.tgz", { "dependencies": { "clsx": "^2.1.1", "hast-util-to-jsx-runtime": "^2.3.6", "html-url-attributes": "^3.0.1", "marked": "^17.0.1", "mermaid": "^11.12.2", "rehype-harden": "^1.1.8", "rehype-raw": "^7.0.0", "rehype-sanitize": "^6.0.0", "remark-gfm": "^4.0.1", "remark-parse": "^11.0.0", "remark-rehype": "^11.1.2", "remend": "1.3.0", "tailwind-merge": "^3.4.0", "unified": "^11.0.5", "unist-util-visit": "^5.0.0", "unist-util-visit-parents": "^6.0.0" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "sha512-/tTnURfIOxZK/pqJAxsfCvETG/XCJHoWnk3jq9xLcuz6CSpnjjuxSRBTTL4PKGhxiZQf0lqPxGhImdpwcZ2XwA=="],
+    "streamdown": ["streamdown@2.6.0", "https://registry.npmmirror.com/streamdown/-/streamdown-2.6.0.tgz", { "dependencies": { "clsx": "^2.1.1", "hast-util-to-jsx-runtime": "^2.3.6", "html-url-attributes": "^3.0.1", "marked": "^17.0.1", "rehype-harden": "^1.1.8", "rehype-raw": "^7.0.0", "rehype-sanitize": "^6.0.0", "remark-gfm": "^4.0.1", "remark-parse": "^11.0.0", "remark-rehype": "^11.1.2", "remend": "1.3.1", "tailwind-merge": "^3.6.0", "unified": "^11.0.5", "unist-util-visit": "^5.1.0", "unist-util-visit-parents": "^6.0.2" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "sha512-nQZVUn4GvB2R5SAlDNph20iKZeW+RM4gv6G1H3ACypEnmQf8PgTHZ/1Ta2OACRwQ2coK7aW5AeIAa7Ls5zk+RA=="],
 
     "strictdom": ["strictdom@1.0.1", "https://registry.npmmirror.com/strictdom/-/strictdom-1.0.1.tgz", {}, "sha512-cEmp9QeXXRmjj/rVp9oyiqcvyocWab/HaoN4+bwFeZ7QzykJD6L3yD4v12K1x0tHpqRqVpJevN3gW7kyM39Bqg=="],
 

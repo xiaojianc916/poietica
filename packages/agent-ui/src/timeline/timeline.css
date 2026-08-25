@@ -186,17 +186,8 @@
 /*
  * Spacing goes between blocks, never before the first one: the edge above it
  * belongs to the row, and a leading margin there reads as a misaligned entry.
- *
- * 第二条选择器是给包裹层准备的（.timeline-prose__segment 是 display: contents），
- * 但它此前写的是 > *，也就是「任何一个包裹层里的第一个块」。一条流被切成封口段与
- * 在写段之后，在写段的第一块正好是它自己的第一个孩子 —— 于是切点上方那个段间距被
- * 清掉了，而消息封口、两段合一时它又回来。「切点在屏幕上不存在」这句断言在这一条
- * 上不成立，而按块切分会把这一处偏差乘以块数。
- *
- * 首块只有一个：这条流第一个包裹层里的第一个块。
  */
-.timeline-prose > :first-child,
-.timeline-prose > :first-child > :first-child {
+.timeline-prose > :first-child {
   margin-block-start: 0;
 }
 
@@ -251,8 +242,7 @@
   background: transparent;
 }
 
-.timeline-prose > [data-streamdown="code-block"]:first-child,
-.timeline-prose > :first-child > [data-streamdown="code-block"]:first-child {
+.timeline-prose > [data-streamdown="code-block"]:first-child {
   margin-block-start: 0;
 }
 
@@ -293,14 +283,11 @@
  * 简单:超出宽度的长行被父级裁掉,而且没有任何滚动出口,那些字符在界面上根本
  * 取不到。
  *
- * 所以交出去的是滚动权而不是一个高度:overflow: auto 一次管住两个轴 —— 纵向
- * 由下面的上限触发,横向由长行触发。上限取 32rem:正文行高 0.8125rem × 1.55
- * 约 20px,一屏约 25 行,与 GitHub 折叠 diff、编辑器内嵌 peek 视图同一量级。
- * 再低会把一段普通的页面骨架切成两屏,那比不封顶更难读。
+ * 交出去的是滚动权：overflow: auto 一次管住两个轴。纵向的上限归 prose.tsx 的
+ * codeBlockMaxHeight —— 只有上游拿到高度，它才给这个盒子挂流式末端锚定。
  */
 .timeline-prose [data-streamdown="code-block-body"] {
   grid-area: 2 / 1 / 3 / 3;
-  max-block-size: var(--cp-timeline-code-cap);
   overflow: auto;
   padding: 0.75rem;
   border: 0;
@@ -796,22 +783,10 @@
   vertical-align: bottom;
 }
 
-.timeline-prose > .katex-display:first-child,
-.timeline-prose > :first-child > .katex-display:first-child {
+.timeline-prose > .katex-display:first-child {
   margin-block-start: 0;
 }
 
-/*
- * 封口段与在写段是同一篇文章。
- *
- * 拆成两个渲染实例是为了不重复解析，不是为了在版面上多一层。display: contents 让
- * 这两个包裹元素在盒模型里消失，两段的块级子元素因此仍是 .timeline-prose 的直接
- * 子元素 —— 既有的选择器、相邻边距合并、首尾子元素的 :first-child / :last-child
- * 之外的一切，一个字都不用改。切点在屏幕上不存在。
- */
-.timeline-prose__segment {
-  display: contents;
-}
 /*
  * 图面板。
  *
@@ -990,4 +965,36 @@
   padding: var(--cp-diagram-pad) var(--cp-diagram-pad) 0;
   font-size: var(--ui-prose-size-meta);
   color: var(--cp-timeline-quiet-text);
+}
+
+/*
+ * 图片。
+ *
+ * 上游 image.tsx 的外观全在 Tailwind 工具类里（group relative my-4 inline-block、
+ * max-w-full rounded-lg、失败时的 hidden），而这个应用不引 streamdown 的样式表、
+ * Tailwind 也不扫 node_modules —— 与 --sdm-c 同一个坑：类不存在，于是宽图撑破正文列，
+ * 加载失败时破图占位与兜底文案同时在屏幕上。这几条把那份外观补在自己这边。
+ */
+.timeline-prose [data-streamdown="image-wrapper"] {
+  display: block;
+  margin-block: var(--cp-prose-flow) 0;
+}
+
+.timeline-prose [data-streamdown="image"] {
+  display: block;
+  max-inline-size: 100%;
+  border-radius: var(--ui-radius-md);
+}
+
+/* 兜底文案在 img 之后，所以由包裹层来判：破图不占位，只留那一句话。 */
+.timeline-prose
+  [data-streamdown="image-wrapper"]:has([data-streamdown="image-fallback"])
+  [data-streamdown="image"] {
+  display: none;
+}
+
+.timeline-prose [data-streamdown="image-fallback"] {
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--ui-prose-size-meta);
+  font-style: italic;
 }

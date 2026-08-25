@@ -1,5 +1,4 @@
 import type { FeedRow } from '@poietica/agent'
-import { countLines } from './split-stream'
 
 /*
  * 首屏估高。
@@ -38,6 +37,17 @@ const PROSE_LINE_PX = 24
 
 /* 下标越界：这一行不存在。类型联合已由上面那张表穷尽，这不是「未知类型」的估高。 */
 const MISSING_PX = 120
+
+/* 行数，不分配：估高要的是一个数，而按换行切分会为一篇长文本分配一份没人读的行表。 */
+function countLines(text: string): number {
+  let lines = 1
+
+  for (let cursor = text.indexOf('\n'); cursor >= 0; cursor = text.indexOf('\n', cursor + 1)) {
+    lines += 1
+  }
+
+  return lines
+}
 
 export function estimateRowPx(row: FeedRow | undefined): number {
   const item = row?.item

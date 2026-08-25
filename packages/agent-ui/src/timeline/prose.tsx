@@ -2,12 +2,13 @@ import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
 import 'katex/dist/katex.min.css'
-import { type ComponentProps, memo, useMemo, useState } from 'react'
+import { memo } from 'react'
 import {
   type AnimateOptions,
   type ControlsConfig,
   type IconMap,
   type LinkSafetyConfig,
+  type PluginConfig,
   Streamdown,
   type StreamdownTranslations,
 } from 'streamdown'
@@ -15,57 +16,56 @@ import {
 import { cx } from '../primitives/class-names'
 import { asIcon, CheckIcon, CopyIcon, DownloadIcon } from '../primitives/icons'
 import { DIAGRAM_RENDERER } from './diagram'
-import { createBlockScanner, type Fence, type StreamBlock } from './split-stream'
 
 /*
- * 行内公式用一个美元号：模型输出的是 LaTeX 惯例，而上游默认只认 $$…$$。
- *
- * 不认行内那一半，整段会掉回 GFM 处理 —— 下划线隔空配对成斜体、转义符被吃掉，
- * 屏幕上出现的不是「公式没渲染」，是一段被拆碎的残字。代价是成对货币可能被误认，
- * 那在编程与研究场景里罕见。
+ * 行内公式用一个美元号：模型输出的是 LaTeX 惯例，而上游默认只认 $$…$$。不认行内
+ * 那一半，整段会掉回 GFM 处理 —— 下划线隔空配对成斜体、转义符被吃掉，屏幕上出现的
+ * 不是「公式没渲染」，是一段被拆碎的残字。代价是成对货币可能被误认，那在编程与
+ * 研究场景里罕见。
  */
 const MATH = createMathPlugin({ singleDollarTextMath: true })
 
-/* NonNullable：可选属性读出来带 undefined，会让 ?? 兜底后的类型仍然可空。 */
-type Plugins = NonNullable<ComponentProps<typeof Streamdown>['plugins']>
+/*
+ * 一份插件表，整条流共用。
+ *
+ * code 与 renderers 不是解析通道，是围栏落地时才被消费的句柄（上游经 PluginContext
+ * 交给 CodeBlock）：按块摘掉它们省不下任何解析，却会让 shikiTheme 在两组插件之间
+ * 跳变 —— 它的回落链是 shikiTheme ?? plugins.code.getThemes() ?? 内置主题，缺 code
+ * 的那一组拿到的是另一套配色。
+ */
+const PLUGINS: PluginConfig = { cjk, code, math: MATH, renderers: [DIAGRAM_RENDERER] }
 
 /*
- * 插件按块挑，不按组件挂。
+ * 揭示的节拍。
  *
- * 插件就是这一块要走的解析通道：一段纯文字挂上代码高亮与图表渲染器，等于为每一段
- * 文字各跑一遍它用不到的通道。围栏种类由切分器顺手交出（split-stream）。
+ * sep 取 char：上游按 /\s/ 分词，而中文没有空格 —— 一整句话在它眼里是一个「词」，
+ * 逐词揭示在中文界面上等于整段一起淡入。
  *
- * 有围栏的那一块照旧全挂 —— 切点只落在空行处，所以一块里可以既有文字又有围栏。
- *
- * 两张表都是模块级常量：memo 靠浅比较，每次渲染新造一个插件对象等于把它关掉。
+ * maxBacklogMs 是快流唯一的闸门：上游把已排期的揭示钳在 now + 预算 之内，超支时把
+ * stagger 压到 4ms 地板。240 约等于 1.5 个 duration，于是慢流拿到完整的逐字级差，
+ * 快流自动收敛成成片上屏，两头都不会攒出一条屏幕看不见的队列。
  */
-const FENCED: Plugins = { cjk, code, math: MATH, renderers: [DIAGRAM_RENDERER] }
-const PLAIN: Plugins = { cjk, math: MATH }
-
-const PLUGINS: Record<Fence, Plugins> = { code: FENCED, math: PLAIN, none: PLAIN }
-
-/* 逐词的 filter 会随流变长而提层，透明度不会。 */
 const ANIMATION: AnimateOptions = {
   animation: 'fadeIn',
   duration: 160,
   easing: 'cubic-bezier(0.2, 0, 0, 1)',
-  sep: 'word',
-  stagger: 12,
+  maxBacklogMs: 240,
+  sep: 'char',
+  stagger: 10,
 }
 
 /*
- * 复制一段代码是一个动作，把它存成 file.txt 不是。表格另说：结构化输出该能进表格
- * 与文档。每一项都点名写出，上游默认变化时不会悄悄多出一个表格动作。
+ * 复制一段代码是一个动作，把它存成 file.txt 不是。表格另说：结构化输出该能进表格与
+ * 文档。图片的悬浮层与下载按钮一并关掉 —— 看图归 media/image-lightbox，而那套控件的
+ * 外观全在上游的 Tailwind 工具类里，这份产物里没有那些类。
  */
 const CONTROLS: ControlsConfig = {
   code: { copy: true, download: false },
+  image: false,
   table: { copy: true, download: true, fullscreen: false },
 }
 
-/*
- * 上游默认标签是英文，落在中文界面上是语言混用。translations 收 Partial，所以这里
- * 只翻译当前配置真的会显示的控件。
- */
+/* 上游默认标签是英文，落在中文界面上是语言混用。只翻当前配置真的会显示的那些。 */
 const TRANSLATIONS: Partial<StreamdownTranslations> = {
   copied: '已复制',
   copyCode: '复制代码',
@@ -76,16 +76,14 @@ const TRANSLATIONS: Partial<StreamdownTranslations> = {
   downloadTable: '下载表格',
   downloadTableAsCsv: '下载为 CSV',
   downloadTableAsMarkdown: '下载为 Markdown',
+  imageNotAvailable: '图片无法显示',
   tableFormatCsv: 'CSV',
   tableFormatMarkdown: 'Markdown',
-  imageNotAvailable: '图片无法显示',
 }
 
 /*
- * 控件里的图标也归这个应用：icons 收 Partial<IconMap>，是官方的统一覆盖点。
- *
- * 每一枚过一道 asIcon —— 图标槽收组件本身，而图标库的 props 类型不收 undefined
- *（见 primitives/icons.ts）。
+ * 控件里的图标也归这个应用：icons 收 Partial<IconMap>，是官方的统一覆盖点。每一枚过
+ * 一道 asIcon —— 图标槽收组件本身，而图标库的 props 类型不收 undefined。
  */
 const ICONS: Partial<IconMap> = {
   CheckIcon: asIcon(CheckIcon),
@@ -95,37 +93,20 @@ const ICONS: Partial<IconMap> = {
 
 /*
  * 外链不在这一层拦：apps/desktop 的 src/chrome/external-links.ts 已在 document 的
- * capture 阶段接管全部外链，链接从不在 webview 里导航。默认那个确认框因此不保护
- * 任何东西，只是在系统浏览器已经打开之后多要一次点击。
+ * capture 阶段接管全部外链，链接从不在 webview 里导航。默认那个确认框因此不保护任何
+ * 东西，只是在系统浏览器已经打开之后多要一次点击。
  */
 const LINK_SAFETY: LinkSafetyConfig = { enabled: false }
 
-function SegmentBody({
-  fence,
-  isStreaming,
-  text,
-}: {
-  readonly fence: Fence
-  readonly isStreaming: boolean
-  readonly text: string
-}) {
-  return (
-    <Streamdown
-      {...(isStreaming ? { animated: ANIMATION } : {})}
-      className="timeline-prose__segment"
-      controls={CONTROLS}
-      icons={ICONS}
-      isAnimating={isStreaming}
-      lineNumbers={false}
-      linkSafety={LINK_SAFETY}
-      mode={isStreaming ? 'streaming' : 'static'}
-      plugins={PLUGINS[fence] ?? PLAIN}
-      translations={TRANSLATIONS}
-    >
-      {text}
-    </Streamdown>
-  )
-}
+/*
+ * 围栏的高度上限交给这个 prop，不再交给样式表：只有上游解析出高度，它才给那个滚动盒
+ * 挂末端锚定（usePinnedScroll），一段正在被写出来的长代码才跟着走到底。值仍是同一个
+ * 令牌 —— prop 收字符串并原样落进 max-height。
+ */
+const CODE_CAP = 'var(--cp-timeline-code-cap)'
+
+/* 表格纵向不封顶（理由在 timeline.css），显式关掉上游 300px 的默认值。 */
+const TABLE_CAP = 0
 
 export interface ProseProps {
   readonly text: string
@@ -134,42 +115,29 @@ export interface ProseProps {
   readonly className?: string
 }
 
-/*
- * 一块一个记忆边界:封口之后输入不再变,浅比较即精确比较,这一块此后一帧都不重画。跨卸载
- * 那一层记忆在切分器里(split-stream 按文本寻址),不在这里 —— 一份 React 树只该有一个根。
- */
-const ProseSegment = memo(SegmentBody)
-
 /**
  * 模型输出的 markdown，无论它出现在哪里。
  *
  * 回答与思考链是同一种内容，所以由同一个组件画：timeline-prose 是样式表唯一装扮的
- * 作用域，思考链里的围栏因此本来就与回答里的一样。
+ * 作用域。切块、补全未闭合的语法、逐块记忆与揭示排期全部归 Streamdown —— 这一层只
+ * 声明这个产品对它的主张，不再自己解析 markdown。
  */
 export const Prose = memo(function Prose({ className, isStreaming, text }: ProseProps) {
-  /* 一条流一个切分器：进度跟着这个实例走，两条流同时在长时谁都顶不掉谁。 */
-  const [split] = useState(createBlockScanner)
-
-  /*
-   * 切块与流没流无关：切点只由文本决定，isStreaming 只决定最后一块要不要走流式渲染。
-   * 按 isStreaming 分岔会让块表在说完的那一刻从 n 块塌成 1 块，整篇连同高亮与公式在
-   * 那一帧重解析一次。
-   */
-  const blocks = useMemo((): readonly StreamBlock[] => split(text), [split, text])
-
   return (
-    <div
+    <Streamdown
+      animated={ANIMATION}
       className={cx('timeline-prose', className)}
-      data-streaming={isStreaming ? 'true' : undefined}
+      codeBlockMaxHeight={CODE_CAP}
+      controls={CONTROLS}
+      icons={ICONS}
+      isAnimating={isStreaming}
+      lineNumbers={false}
+      linkSafety={LINK_SAFETY}
+      plugins={PLUGINS}
+      tableMaxHeight={TABLE_CAP}
+      translations={TRANSLATIONS}
     >
-      {blocks.map((block, index) => (
-        <ProseSegment
-          fence={block.fence}
-          isStreaming={isStreaming && index === blocks.length - 1}
-          key={block.key}
-          text={block.text}
-        />
-      ))}
-    </div>
+      {text}
+    </Streamdown>
   )
 })

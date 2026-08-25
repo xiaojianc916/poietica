@@ -1,5 +1,3 @@
-import { type Fence, fenceAfter } from './split-stream'
-
 /*
  * 一段推理压成一行安全的纯文本。
  *
@@ -13,6 +11,35 @@ const BLOCK_MARK = /^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d{1,9}[.)]\s+|\|)/
 
 /** 只有记号、没有字的一行：分隔线，以及表格的对齐行。 */
 const RULE_ROW = /^\s{0,3}(?:[-*_]\s*){3,}$|^\s{0,3}\|?[\s:|-]+\|?\s*$/
+
+/** 围栏的开合。缩进四格以上是缩进代码块，不是围栏。 */
+const FENCE = /^\s{0,3}(?:```|~~~)/
+
+/** 独占一行的 $：块级公式的开合。 */
+const MATH_FENCE = /^\s{0,3}\$\$\s*$/
+
+type Fence = 'none' | 'code' | 'math'
+
+/**
+ * 读完这一行之后，围栏状态变成什么。
+ *
+ * 围栏里只认自己那一种收口符：一个 ``` 块内部出现的 $ 是代码文本，不是公式的开头。
+ */
+function fenceAfter(row: string, open: Fence): Fence {
+  if (open === 'code') {
+    return FENCE.test(row) ? 'none' : 'code'
+  }
+
+  if (open === 'math') {
+    return MATH_FENCE.test(row) ? 'none' : 'math'
+  }
+
+  if (FENCE.test(row)) {
+    return 'code'
+  }
+
+  return MATH_FENCE.test(row) ? 'math' : 'none'
+}
 
 /** 行内标记去壳：图片整个丢掉，链接留字，其余只去记号。 */
 function unmark(line: string): string {
