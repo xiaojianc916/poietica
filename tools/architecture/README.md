@@ -25,6 +25,8 @@ file restates neither.
   `@tauri-apps/*`.
 - `native-crates-stay-host-agnostic` — native crates set `[lints] workspace = true`, and depend
   on neither tauri nor each other.
+- `window-surface-policy` — the native window, bootstrap root and WebView2 compositor keep one
+  opaque, retained restore surface.
 - `capability-scoped-directory-names` — a directory name states a capability; DDD layer names
   and catch-all buckets are refused at any depth.
 - `workspace-manifest-conventions` — one public surface per manifest: `exports` without

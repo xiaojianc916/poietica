@@ -874,6 +874,143 @@ const ruleIdentifiersAreUnique = () => {
     }))
 }
 
+const WINDOW_SURFACE_FILES = {
+  application: 'apps/desktop/src/app.css',
+  bootstrap: 'apps/desktop/index.html',
+  config: 'apps/desktop/src-tauri/tauri.conf.json',
+}
+
+const WRY_DEFAULT_DISABLED_FEATURES = ['msWebOOUI', 'msPdfOOUI', 'msSmartScreenProtection']
+
+const featureSwitch = (browserArguments, name) => {
+  const prefix = `--${name}=`
+  const value = browserArguments.split(/\s+/).find((part) => part.startsWith(prefix))
+
+  return new Set(value?.slice(prefix.length).split(',').filter(Boolean) ?? [])
+}
+
+/* additionalBrowserArgs 是整体替换，不是追加：产品开关必须连同 wry 的默认值一起声明。 */
+const browserArgumentDefects = (browserArguments) => {
+  const file = WINDOW_SURFACE_FILES.config
+  const defects = []
+  const disabled = featureSwitch(browserArguments, 'disable-features')
+  const enabled = featureSwitch(browserArguments, 'enable-features')
+
+  for (const feature of WRY_DEFAULT_DISABLED_FEATURES) {
+    if (!disabled.has(feature)) {
+      defects.push({
+        file,
+        message: `additionalBrowserArgs 覆盖了 Wry 默认值，必须显式保留 ${feature}`,
+      })
+    }
+  }
+
+  if (!disabled.has('RemoveRedirectionBitmap') || enabled.has('RemoveRedirectionBitmap')) {
+    defects.push({
+      file,
+      message: '必须保留 DWM redirection surface：禁用 RemoveRedirectionBitmap',
+    })
+  }
+
+  if (disabled.has('CalculateNativeWinOcclusion') || enabled.has('CalculateNativeWinOcclusion')) {
+    defects.push({
+      file,
+      message: 'CalculateNativeWinOcclusion 必须交给 WebView2 运行时默认策略',
+    })
+  }
+
+  if (!enabled.has('msWebView2EnableDraggableRegions')) {
+    defects.push({
+      file,
+      message: '自绘标题栏需要 msWebView2EnableDraggableRegions',
+    })
+  }
+
+  for (const feature of enabled) {
+    if (disabled.has(feature)) {
+      defects.push({
+        file,
+        message: `${feature} 同时出现在 enable-features 与 disable-features`,
+      })
+    }
+  }
+
+  return defects
+}
+
+/* Window and WebView surfaces are one platform contract, owned by the Tauri configuration. */
+const windowSurfacePolicy = async (inventory) => {
+  const defects = []
+
+  for (const file of Object.values(WINDOW_SURFACE_FILES)) {
+    if (!inventory.files.includes(file)) {
+      defects.push({ file, message: '窗口表面契约指向的文件不存在' })
+    }
+  }
+
+  if (defects.length > 0) {
+    return defects
+  }
+
+  const config = JSON.parse(await inventory.read(WINDOW_SURFACE_FILES.config))
+  const main = config.app?.windows?.find((window) => window.label === 'main')
+
+  if (main === undefined) {
+    return [{ file: WINDOW_SURFACE_FILES.config, message: '没有声明 main 窗口' }]
+  }
+
+  if (main.transparent !== false) {
+    defects.push({
+      file: WINDOW_SURFACE_FILES.config,
+      message: 'main 窗口必须是不透明表面',
+    })
+  }
+
+  if (main.backgroundColor !== '#f3f3f3') {
+    defects.push({
+      file: WINDOW_SURFACE_FILES.config,
+      message: 'main 窗口衬底必须与启动表面的 #f3f3f3 一致',
+    })
+  }
+
+  const bootstrap = await inventory.read(WINDOW_SURFACE_FILES.bootstrap)
+  const application = await inventory.read(WINDOW_SURFACE_FILES.application)
+  const rootSurface =
+    /html,\s*body,\s*#root\s*\{[^}]*background:\s*var\(--window-backing-surface\);/s
+
+  if (!bootstrap.includes('--window-backing-surface: #f3f3f3;') || !rootSurface.test(bootstrap)) {
+    defects.push({
+      file: WINDOW_SURFACE_FILES.bootstrap,
+      message: '预 React 表面必须以 #f3f3f3 填满 html、body 与 #root',
+    })
+  }
+
+  if (
+    !application.includes('--window-backing-surface: var(--color-chrome);') ||
+    !rootSurface.test(application)
+  ) {
+    defects.push({
+      file: WINDOW_SURFACE_FILES.application,
+      message: '应用根必须以 --window-backing-surface 填满 html、body 与 #root',
+    })
+  }
+
+  const browserArguments = main.additionalBrowserArgs
+
+  if (typeof browserArguments !== 'string') {
+    defects.push({
+      file: WINDOW_SURFACE_FILES.config,
+      message: 'main 窗口缺少 WebView2 browser arguments',
+    })
+
+    return defects
+  }
+
+  defects.push(...browserArgumentDefects(browserArguments))
+
+  return defects
+}
+
 const governanceRules = [
   { id: 'rule-identifiers-are-unique', check: ruleIdentifiersAreUnique },
   { id: 'manifest-scripts-resolve', check: manifestScriptsResolve },
@@ -883,6 +1020,7 @@ const governanceRules = [
   { id: 'every-package-is-reachable', check: everyPackageIsReachable },
   { id: 'native-host-access-is-declared', check: nativeHostAccessIsDeclared },
   { id: 'native-crates-stay-host-agnostic', check: nativeCratesStayHostAgnostic },
+  { id: 'window-surface-policy', check: windowSurfacePolicy },
   { id: 'workspace-manifest-conventions', check: workspaceManifestConventions },
   { id: 'wildcard-module-declarations', check: wildcardModuleDeclarations },
   { id: 'documented-scripts-exist', check: documentedScriptsExist },

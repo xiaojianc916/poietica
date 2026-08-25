@@ -54,9 +54,8 @@ Poietica 使用 Tauri 2 承载 React 和 WebView2。
      `--window-backing-surface`。
    - 负责应用运行期的根表面。
 
-仓库必须通过
-`tools/architecture/check-window-surface.mjs`
-验证三个层级没有发生漂移。
+仓库通过 `tools/architecture/rules.config.mjs` 的 `window-surface-policy`
+验证三个层级与 WebView2 合成策略没有发生漂移。
 
 ## Explicitly rejected approaches
 
