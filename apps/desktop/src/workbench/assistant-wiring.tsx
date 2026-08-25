@@ -1,5 +1,5 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { useAgentControls } from '@poietica/agent-ui'
+import { ComposerDrafts, ComposerDraftsContext, useAgentControls } from '@poietica/agent-ui'
 import { PluginsSurface } from '@poietica/plugins'
 import type { SurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'
@@ -60,9 +60,19 @@ export function createAssistantWiring({
   onConversationStarted,
   session,
 }: AssistantWiringOptions): AssistantWiring {
+  /*
+   * 离屏草稿的册子。它活得和这份接线一样长 —— 也就是这次运行 —— 所以切标签
+   * 页不丢字，重启之后本来就该是空的。两个入口共用这一本。
+   */
+  const drafts = new ComposerDrafts()
+
   return {
     surfaces: {
-      ai: () => <AssistantPane onConversationStarted={onConversationStarted} session={session} />,
+      ai: () => (
+        <ComposerDraftsContext value={drafts}>
+          <AssistantPane onConversationStarted={onConversationStarted} session={session} />
+        </ComposerDraftsContext>
+      ),
 
       /*
        * 自动化那一格。渲染器现在是全域 Record（见 @poietica/workspace 的
@@ -76,12 +86,14 @@ export function createAssistantWiring({
     },
 
     renderConversation: (threadId) => (
-      <ConversationSurface
-        onForked={onConversationForked}
-        onStarted={onConversationStarted}
-        session={session}
-        threadId={threadId}
-      />
+      <ComposerDraftsContext value={drafts}>
+        <ConversationSurface
+          onForked={onConversationForked}
+          onStarted={onConversationStarted}
+          session={session}
+          threadId={threadId}
+        />
+      </ComposerDraftsContext>
     ),
   }
 }

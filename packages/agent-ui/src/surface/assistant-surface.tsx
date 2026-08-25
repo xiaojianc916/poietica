@@ -3,6 +3,7 @@ import './assistant.css'
 import type { AgentSessionPort, SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
 import { memo, type Ref, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
+import { ComposerDraftKeyContext } from '../composer/composer-drafts'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
@@ -167,6 +168,9 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   const live = phase === 'live'
 
+  /* 这一格的草稿归哪个键：对话是它的 id，入口那一格全局只有一个。 */
+  const draftKey = endpoint ?? 'composer:entry'
+
   /*
    * 发言就是那次转场。
    *
@@ -272,7 +276,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         的实测值（量的是整条带子），转录末端跟着让位 —— 没有第二条管线。
       */}
       <div className="assistant-surface__dock" ref={dockRef}>
-        {dock}
+        <ComposerDraftKeyContext value={draftKey}>{dock}</ComposerDraftKeyContext>
 
         {live || workspace === undefined ? null : (
           <div className="assistant-surface__context">

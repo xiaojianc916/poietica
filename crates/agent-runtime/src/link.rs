@@ -1,23 +1,15 @@
 //! 这条连接的链路态。
 //!
-//! 判据住在这里：多久没帧算安静、断了重连几次、等多久、什么错值得再试。
+//! 判据住在这里：断了重连几次、等多久、什么错值得再试。
 //! 这一套不碰 IO，所以它能脱离 Tauri 与界面单独测；驱动器只管把事实喂进来、
 //! 把交回的状态报出去。
 
 use std::time::Duration;
 
 use serde::Serialize;
-use tokio::time::Instant;
 
 use crate::error::KapError;
 use crate::recorder::now_millis;
-
-/// 一轮在飞时，多久没有一帧就算它安静了。
-///
-/// 与 codex 的 stream_idle_timeout_ms 同一个判据（codex-rs/model-provider-info
-/// 的 "Idle timeout ... before treating the connection as lost"）。差别是这里
-/// 不判死只说话：kap 的一轮可能真的在等一个很慢的模型。
-pub(crate) const STALL_AFTER: Duration = Duration::from_secs(20);
 
 /// 断了之后重连几次，以及可重试的传输错误再试几次。
 pub(crate) const TRIES: u32 = 5;
@@ -28,6 +20,9 @@ const DELAY_CAP: Duration = Duration::from_secs(8);
 
 /// 屏幕上那一格链路态。判别式与字段名就是线上形状；它作为 RunFrame::LinkChanged
 /// 的载荷落库（frame.rs），重放一条对话就原样再演一遍。改判别式先改这里。
+///
+/// 只说链路的事。「模型半天不说话」是这一轮的事，屏幕上由轮次封条的
+/// 秒表说，不从这里冒充一次断线。
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(
     tag = "state",
@@ -37,8 +32,6 @@ const DELAY_CAP: Duration = Duration::from_secs(8);
 pub enum LinkState {
     /// 接着，而且在流动。
     Linked,
-    /// 链路健在，但这一轮从这一刻起没再来过帧。
-    Waiting { since: i64 },
     /// 正在接回来：第几次、共几次、下一次什么时候、上一次为什么没成。
     Retrying {
         attempt: u32,
@@ -84,66 +77,6 @@ pub(crate) fn retrying(attempt: u32, wait: Duration, reason: &str) -> LinkState 
     }
 }
 
-/// 静默判据的持有者。两个钟各管一件事：单调钟定时，墙钟上屏。
-pub(crate) struct Link {
-    quiet_at: Instant,
-    seen_at: i64,
-    /// 已经说过一句了。说过就不再说第二遍。
-    noticed: bool,
-}
-
-impl Link {
-    #[must_use]
-    pub(crate) fn new() -> Self {
-        Self {
-            quiet_at: Instant::now() + STALL_AFTER,
-            seen_at: now_millis(),
-            noticed: false,
-        }
-    }
-
-    /// 该说「它安静了」的时刻。
-    #[must_use]
-    pub(crate) fn quiet_at(&self) -> Instant {
-        self.quiet_at
-    }
-
-    /// 还等着那个时刻吗。
-    #[must_use]
-    pub(crate) fn awaits_quiet(&self) -> bool {
-        !self.noticed
-    }
-
-    /// 一帧到了。从安静里回来才有话要报。
-    pub(crate) fn seen(&mut self) -> Option<LinkState> {
-        self.seen_at = now_millis();
-        self.quiet_at = Instant::now() + STALL_AFTER;
-
-        if !self.noticed {
-            return None;
-        }
-
-        self.noticed = false;
-
-        Some(LinkState::Linked)
-    }
-
-    /// 静默到期。
-    pub(crate) fn quieted(&mut self) -> LinkState {
-        self.noticed = true;
-
-        LinkState::Waiting {
-            since: self.seen_at,
-        }
-    }
-}
-
-impl Default for Link {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,17 +100,5 @@ mod tests {
             message: String::new()
         }));
         assert!(!retryable(&KapError::Refused(Refusal::Busy)));
-    }
-
-    #[test]
-    fn a_frame_ends_the_silence_it_reported() {
-        let mut link = Link::new();
-
-        assert!(link.awaits_quiet());
-        assert!(matches!(link.quieted(), LinkState::Waiting { .. }));
-        assert!(!link.awaits_quiet());
-        assert!(matches!(link.seen(), Some(LinkState::Linked)));
-        assert!(link.awaits_quiet());
-        assert!(link.seen().is_none());
     }
 }

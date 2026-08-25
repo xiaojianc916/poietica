@@ -8,11 +8,6 @@
 export type SessionLink =
   | { readonly state: 'linked' }
   | {
-      readonly state: 'waiting'
-      /** 最后一帧到达的时刻（epoch 毫秒）。 */
-      readonly since: number
-    }
-  | {
       readonly state: 'retrying'
       readonly attempt: number
       readonly of: number

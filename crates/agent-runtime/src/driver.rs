@@ -45,7 +45,7 @@ use crate::config::{ConfigControl, GoalSnapshot, controls, goal_snapshot, select
 use crate::desk::{PermissionDesk, QuestionDesk};
 use crate::error::{KapError, Refusal, Result};
 use crate::frame::kap_event;
-use crate::link::{Link, LinkState, TRIES, backoff, retryable, retrying};
+use crate::link::{LinkState, TRIES, backoff, retryable, retrying};
 use crate::program::resolve_program;
 use crate::question::{QuestionGroup, QuestionOutcome};
 use crate::recorder::{Recorder, now_millis};
@@ -173,7 +173,6 @@ async fn relink(
     auth: &reqwest::header::HeaderValue,
     book: &SessionBook,
     cursors: &HashMap<String, Cursor>,
-    link: &mut Link,
     events_tx: &mpsc::UnboundedSender<SessionEvent>,
     severed: &str,
 ) -> Option<Vec<Value>> {
@@ -190,7 +189,6 @@ async fn relink(
             Ok(stash) => {
                 /* 接上了是一句宣告：谁把那一格弄脏，谁宣告一次。 */
                 let _sent = events_tx.unbounded_send(SessionEvent::Link(LinkState::Linked));
-                let _resumed = link.seen();
 
                 return Some(stash);
             }
@@ -210,12 +208,6 @@ fn listening(book: &SessionBook, session_id: &str) -> bool {
         .ok()
         .flatten()
         .is_some_and(|slot| slot.is_listening())
-}
-
-/// 有没有哪一条会话在飞一轮。静默只对着在飞的那一轮说话。
-fn in_flight(book: &SessionBook) -> bool {
-    book.ids()
-        .is_ok_and(|ids| ids.iter().any(|id| listening(book, id)))
 }
 
 /// 链路接不回来了：在飞的每一轮按帧判死，屏幕上那个纺锤才停得下来。
@@ -933,7 +925,6 @@ pub fn connect(
         }
 
         let mut commands_rx = commands_rx;
-        let mut link = Link::new();
         let mut severed: Option<String> = None;
 
         loop {
@@ -946,7 +937,6 @@ pub fn connect(
                     &auth_header,
                     &book_clone,
                     &cursors,
-                    &mut link,
                     &events_tx,
                     &reason,
                 )
@@ -1127,12 +1117,6 @@ pub fn connect(
                                         r.record_run_started(&text, shown, attached);
                                     });
 
-                                    /* 这一轮的静默从此刻起算。 */
-                                    if let Some(state) = link.seen() {
-                                        let _sent =
-                                            events_tx.unbounded_send(SessionEvent::Link(state));
-                                    }
-
                                     let http2 = http.clone();
                                     let base2 = base_url.clone();
                                     let book2 = book_clone.clone();
@@ -1246,11 +1230,6 @@ pub fn connect(
                                         &base_url,
                                         &mut cursors,
                                     );
-
-                                    if let Some(state) = link.seen() {
-                                        let _sent =
-                                            events_tx.unbounded_send(SessionEvent::Link(state));
-                                    }
                                 }
                             }
                         }
@@ -1262,14 +1241,6 @@ pub fn connect(
                         _ => {}
                     }
 
-                }
-
-                /* 应用层心跳答得上、帧一个不来：那是「模型还没回话」，不是
-                链路断了。所以判据是帧的静默，不是套接字的死活。 */
-                () = tokio::time::sleep_until(link.quiet_at()),
-                    if link.awaits_quiet() && in_flight(&book_clone) =>
-                {
-                    let _sent = events_tx.unbounded_send(SessionEvent::Link(link.quieted()));
                 }
             }
         }

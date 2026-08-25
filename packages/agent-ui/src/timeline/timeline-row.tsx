@@ -79,6 +79,7 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
     case 'link':
       return (
         <LinkCard
+          isInFlight={row.isInFlight}
           isOpen={isOpen}
           item={item}
           onToggle={() => {

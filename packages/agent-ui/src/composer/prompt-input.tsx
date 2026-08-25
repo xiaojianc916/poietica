@@ -32,6 +32,7 @@ import {
 import { cx } from '../primitives/class-names'
 import { AttachIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
+import { type ComposerDraft, useComposerDraftKey, useComposerDrafts } from './composer-drafts'
 import {
   ComposerPalette,
   type PaletteGroup,
@@ -199,6 +200,24 @@ function replaceDraft(editor: LexicalEditor, text: string): void {
   })
 }
 
+/** 这一格此刻值得留住的东西；什么都没有就不留。 */
+function snapshotOf(
+  editor: LexicalEditor,
+  assets: readonly ComposerAsset[],
+  configuration: readonly PendingPromptConfiguration[],
+): ComposerDraft | undefined {
+  const state = editor.getEditorState()
+  const written = state.read(
+    () => $getRoot().getTextContent().trim().length > 0 || $nodesOfType(ChipNode).length > 0,
+  )
+
+  if (!written && assets.length === 0 && configuration.length === 0) {
+    return undefined
+  }
+
+  return { assets, configuration, editorState: state.toJSON() }
+}
+
 export interface PromptInputProps {
   readonly children?: ReactNode
   readonly className?: string | undefined
@@ -211,9 +230,22 @@ export interface PromptInputProps {
   readonly onSubmit: (message: PromptInputMessage) => void
 }
 
+interface PromptInputShellProps extends PromptInputProps {
+  /** 上一次离屏时留下的草稿。装回去只发生在挂载那一次。 */
+  readonly restored: ComposerDraft | undefined
+}
+
 export function PromptInput(props: PromptInputProps) {
+  const drafts = useComposerDrafts()
+  const draftKey = useComposerDraftKey()
+
+  /* 取回即交出所有权：从这一刻起草稿又归编辑器。 */
+  const [restored] = useState(() => drafts.take(draftKey))
+
   const initialConfig = useMemo(
     () => ({
+      /* 官方给的复原入口就是这一格（Lexical initialConfig.editorState）。 */
+      ...(restored === undefined ? {} : { editorState: JSON.stringify(restored.editorState) }),
       namespace: 'assistant-composer',
       nodes: [ChipNode],
       onError: (error: Error) => {
@@ -221,12 +253,12 @@ export function PromptInput(props: PromptInputProps) {
       },
       theme: {},
     }),
-    [],
+    [restored],
   )
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <PromptInputShell {...props} />
+      <PromptInputShell {...props} restored={restored} />
     </LexicalComposer>
   )
 }
@@ -240,14 +272,19 @@ function PromptInputShell({
   multiple = false,
   onSubmit,
   ref,
-}: PromptInputProps) {
+  restored,
+}: PromptInputShellProps) {
   const [editor] = useLexicalComposerContext()
   const intake = useAttachmentIntake()
+  const drafts = useComposerDrafts()
+  const draftKey = useComposerDraftKey()
   const [draftText, setDraftText] = useState(EMPTY_PROJECTION)
-  const [attachments, setAttachments] = useState<readonly ComposerAsset[]>([])
+  const [attachments, setAttachments] = useState<readonly ComposerAsset[]>(
+    restored?.assets ?? NO_ATTACHMENTS,
+  )
   const [pendingConfiguration, setPendingConfiguration] = useState<
     readonly PendingPromptConfiguration[]
-  >([])
+  >(restored?.configuration ?? [])
   const [paletteOpened, setPaletteOpened] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
 
@@ -270,6 +307,17 @@ function PromptInputShell({
         setDraftText(editorState.read(readDraft))
       }),
     [editor],
+  )
+
+  /*
+   * 离屏时把草稿交出去。清理函数在每次依赖变化与卸载时各跑一次，所以卸载那一
+   * 次拿到的一定是最后的值 —— 不需要第二份镜像。
+   */
+  useEffect(
+    () => () => {
+      drafts.keep(draftKey, snapshotOf(editor, attachments, pendingConfiguration))
+    },
+    [attachments, draftKey, drafts, editor, pendingConfiguration],
   )
 
   /* Enter 发送，Shift+Enter 换行。组词期间一律不碰 —— 那是输入法在说话。 */

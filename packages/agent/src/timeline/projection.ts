@@ -148,23 +148,25 @@ export function apply(draft: Draft, event: RunEvent): void {
       return
     }
 
-    /* 一次断线在屏幕上只占一行：它就地改写，所以那一行留在它第一次出现的位置。 */
+    /* 一次断线与一次工具调用同一条身份规矩：一次发生一个条目，落在它发生的位置。
+       接回来之后再断，那是下一次，不是上面那一行又活了一遍。 */
     case 'link_changed': {
-      const id = `${namespace(draft)}link`
-      const position = positionOf(draft, id)
-      const held = position < 0 ? undefined : draft.items[position]
+      const at = lastLink(draft)
+      const held = at < 0 ? undefined : draft.items[at]
+      const ongoing = held?.type === 'link' && held.link.state !== 'linked' ? held : undefined
       const shown: LinkTimelineItem = {
         type: 'link',
-        id,
+        id: ongoing?.id ?? `${namespace(draft)}link-${String(event.seq)}`,
         turn: draft.runIndex,
-        at: event.at,
+        /* 时刻是这次断线开始的时刻，不是它最近一次改口的时刻。 */
+        at: ongoing?.at ?? event.at,
         link: event.link,
       }
 
-      if (held?.type === 'link') {
-        draft.items[position] = shown
-      } else {
+      if (ongoing === undefined) {
         push(draft, shown)
+      } else {
+        draft.items[at] = shown
       }
 
       return
@@ -194,6 +196,17 @@ export function apply(draft: Draft, event: RunEvent): void {
       return
     }
   }
+}
+
+/** 本段里最后那次断线的位置。没有就是 -1。 */
+function lastLink(draft: Draft): number {
+  for (let index = draft.items.length - 1; index >= 0; index -= 1) {
+    if (draft.items[index]?.type === 'link') {
+      return index
+    }
+  }
+
+  return -1
 }
 
 /**

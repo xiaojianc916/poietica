@@ -167,7 +167,13 @@ function toRow(item: TimelineItem, isStreamingTail: boolean, isInFlight: boolean
   return row
 }
 
+/* 还在动吗。工具调用看终态，断线看接回来了没有 —— 一个判据两种条目，所以
+   一轮死掉时两者的光同时停。 */
 function inFlight(item: TimelineItem): boolean {
+  if (item.type === 'link') {
+    return item.link.state !== 'linked'
+  }
+
   return item.type === 'tool_call' && !isTerminal(item.status)
 }
 

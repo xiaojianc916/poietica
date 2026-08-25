@@ -9,12 +9,12 @@ import { ChevronDownIcon, LinkIcon } from '../primitives/icons'
 import { useSecond } from '../primitives/tick'
 
 /*
- * 一次断线，长在它耽误的那一轮里。
+ * 一次断线，长在它耽误的那一轮里，与工具调用同一行形制。
  *
- * 与工具调用同一行形制：一枚字形、一句话、指到才出现的箭头；还没接回来的时候
- * 那句话上有一道光扫过。它不戴外框 —— 外框留给需要人回答的东西。
+ * 「还断着吗」不由这张卡自己判：它与工具卡片同问 row.isInFlight（判据在
+ * presentation.ts 的 inFlight），所以一轮死掉时这里的光会停。
  *
- * 秒数由这一行自己数，所以倒计时不占任何一帧的账：帧里记的是时刻。
+ * 秒数由这一行自己数：帧里记的是时刻，倒计时不占帧的账。
  */
 
 const SECOND_MS = 1_000
@@ -27,41 +27,36 @@ function seconds(ms: number): number {
 function say(link: LinkTimelineItem['link'], now: number): { line: string; detail: string } {
   switch (link.state) {
     case 'linked':
-      return { detail: '连接已恢复。', line: '已重新连接' }
-
-    case 'waiting':
-      return {
-        detail: `最后一帧到现在 ${String(seconds(Math.max(now - link.since, 0)))}s。`,
-        line: '模型仍未响应',
-      }
+      return { detail: '连接已恢复', line: '已重新连接' }
 
     case 'retrying':
       return {
-        detail: `${String(seconds(Math.max(link.retryAt - now, 0)))}s 后重试 · ${link.reason}`,
-        line: `正在重新连接 ${String(link.attempt)}/${String(link.of)}`,
+        detail: link.reason,
+        line: `正在重新连接 ${link.attempt}/${link.of} · ${seconds(Math.max(link.retryAt - now, 0))}s 后重试`,
       }
   }
 }
 
 export function LinkCard({
+  isInFlight,
   isOpen,
   item,
   onToggle,
 }: {
+  readonly isInFlight: boolean
   readonly isOpen: boolean
   readonly item: LinkTimelineItem
   readonly onToggle: () => void
 }) {
-  const isLive = item.link.state !== 'linked'
-  const now = useSecond(isLive)
+  const now = useSecond(isInFlight)
   const { detail, line } = say(item.link, now)
 
   return (
-    <section className="timeline-tool">
+    <section className="timeline-tool" data-open={isOpen ? 'true' : undefined}>
       <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
         <LinkIcon aria-hidden="true" className="timeline-row__icon" />
 
-        <span className={cx('timeline-row__label', isLive && 'timeline-shimmer')}>{line}</span>
+        <span className={cx('timeline-row__label', isInFlight && 'timeline-shimmer')}>{line}</span>
 
         <ChevronDownIcon aria-hidden="true" className="timeline-row__chevron disclosure__chevron" />
       </button>
