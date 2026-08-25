@@ -18,17 +18,16 @@ use uuid::Uuid;
 
 use super::addressing::session_for;
 use super::attachment::{Kept, keep_bytes};
-use super::config::restate;
+use super::config::announce;
 use super::dto::{
     AgentAnswerQuestionsRequest, AgentCancelRequest, AgentDismissQuestionsRequest,
-    AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest, AgentSessionEvent,
-    answered, decided, reported_goal,
+    AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest, answered, decided,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
 use super::{
-    AGENT_EVENT, AGENT_SESSION_EVENT, AgentCommandResult, FRAME_INTERVAL, IMAGE_OPENER,
-    NO_CONVERSATION, NO_SESSION, NOTHING_TO_STOP, TITLE_CHARS,
+    AGENT_EVENT, AgentCommandResult, FRAME_INTERVAL, IMAGE_OPENER, NO_CONVERSATION, NO_SESSION,
+    NOTHING_TO_STOP, TITLE_CHARS,
 };
 
 /// Starts a turn and returns as soon as it is under way.
@@ -95,7 +94,7 @@ pub async fn agent_prompt(
     let addressed = held.session_id;
 
     if !configuration.is_empty() {
-        let offered = apply_configurations(
+        apply_configurations(
             &session.client,
             addressed.clone(),
             configuration,
@@ -104,22 +103,8 @@ pub async fn agent_prompt(
         .await
         .map_err(translate)?;
 
-        /* 提交的配置可能改了目标本身：这里问一次真的，不猜。 */
-        let goal = session
-            .client
-            .goal(addressed.clone())
-            .await
-            .map_err(translate)?
-            .map(reported_goal);
-
-        let _ignored = app.emit(
-            AGENT_SESSION_EVENT,
-            AgentSessionEvent::Selectors {
-                session_id: addressed.clone(),
-                selectors: offered.into_iter().map(restate).collect(),
-                goal,
-            },
-        );
+        /* 这一次提交可能立起了新目标：由 agent 报一次，屏幕不猜。 */
+        announce(&app, &session.client, addressed.clone()).await;
     }
 
     // The first thing said names the conversation, which is what a
@@ -169,12 +154,16 @@ pub async fn agent_prompt(
     })
     .await?;
 
+    let closing = app.clone();
     let frames = logging(app, thread_id);
 
     let answer = session
         .client
         .prompt(addressed.clone(), text, carried, skills, frames)
         .map_err(translate)?;
+
+    let client = session.client.clone();
+    let reported = addressed.clone();
 
     async_runtime::spawn(async move {
         let outcome = answer.await;
@@ -190,6 +179,9 @@ pub async fn agent_prompt(
             Ok(Err(error)) => log::error!("the agent turn failed: {error}"),
             Err(_dropped) => log::warn!("the agent turn ended without an answer"),
         }
+
+        /* 一轮收尾，目标的轮次、用量与状态都变了：问一次 agent，别停在上一轮。 */
+        announce(&closing, &client, reported).await;
     });
 
     Ok(AgentPromptResult {
@@ -398,6 +390,7 @@ pub fn agent_dismiss_questions(
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_cancel(
+    app: AppHandle,
     state: State<'_, AgentRuntime>,
     index: State<'_, LocalIndex>,
     request: AgentCancelRequest,
@@ -422,7 +415,10 @@ pub async fn agent_cancel(
     };
 
     // KAP owns turn activity; a local recorder cannot gate cancellation.
-    live.client.cancel(addressed).await.map_err(translate)?;
+    live.client.cancel(addressed.clone()).await.map_err(translate)?;
+
+    /* 停下改的是目标账目：由 agent 报一次，屏幕不自己推算。 */
+    announce(&app, &live.client, addressed).await;
 
     Ok(())
 }

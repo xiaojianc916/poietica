@@ -226,6 +226,11 @@
   color: var(--ui-destructive-foreground);
 }
 
+/* 危险动作一直是危险色：泛用 :hover 与它同权重，压住它靠的是落在后面。 */
+.goal-island__action--danger:hover {
+  background: color-mix(in srgb, var(--ui-destructive) 88%, white);
+}
+
 .goal-island__input {
   inline-size: 100%;
   min-block-size: calc(var(--cp-line) * var(--cp-goal-copy-lines) + var(--cp-pad-mid) * 2);

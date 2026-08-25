@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useSessionControlsActions, useThreadGoal } from '../session/session-controls-context'
 import './goal-island.css'
 
-const SHELL = { type: 'spring', stiffness: 300, damping: 28, mass: 1 } as const
-const CONTENT = { type: 'spring', stiffness: 360, damping: 30, mass: 0.85 } as const
+/* 一条弹簧管完整形变：阻尼比 ≈0.93，近临界，落位不回弹。 */
+const MORPH = { type: 'spring', stiffness: 260, damping: 30, mass: 1 } as const
+const FADE = { duration: 0.16, ease: 'easeOut' } as const
 const SHAPE = { collapsed: 999, expanded: 28 } as const
 
 const SECOND = 1000
@@ -98,7 +99,11 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
   const commit = () => {
     const objective = draft.trim()
 
-    if (objective.length === 0 || objective === goal.objective) {
+    if (objective.length === 0) {
+      return
+    }
+
+    if (objective === goal.objective) {
       setEditing(false)
       return
     }
@@ -108,7 +113,7 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
   }
 
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionConfig reducedMotion="user" transition={MORPH}>
       <motion.div
         animate={{ borderRadius: expanded ? SHAPE.expanded : SHAPE.collapsed }}
         className="goal-island"
@@ -116,35 +121,28 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
         data-status={goal.status}
         layout
         ref={shell}
-        transition={{ borderRadius: SHELL, layout: SHELL }}
       >
         <motion.button
           aria-expanded={expanded}
           className="goal-island__pill"
           layout="position"
           onClick={() => setExpanded((open) => !open)}
-          transition={SHELL}
           type="button"
         >
           <span aria-hidden="true" className="goal-island__beacon" />
-          <motion.span className="goal-island__objective" layout="position">
-            {expanded ? `目标 · ${statusLabel}` : goal.objective}
-          </motion.span>
-          <motion.span className="goal-island__clock" layout="position">
-            {formatElapsed(elapsed)}
-          </motion.span>
+          <span className="goal-island__objective">{goal.objective}</span>
+          <span className="goal-island__clock">{formatElapsed(elapsed)}</span>
         </motion.button>
 
         <AnimatePresence initial={false} mode="popLayout">
           {expanded ? (
             <motion.div
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              animate={{ opacity: 1, y: 0 }}
               className="goal-island__panel"
-              exit={{ opacity: 0, scale: 0.985, y: -4 }}
-              initial={{ opacity: 0, scale: 0.985, y: -4 }}
+              exit={{ opacity: 0, y: -4 }}
+              initial={{ opacity: 0, y: -4 }}
               key="panel"
-              style={{ transformOrigin: 'top center' }}
-              transition={CONTENT}
+              transition={{ opacity: FADE, y: MORPH }}
             >
               {editing ? (
                 <div className="goal-island__edit">

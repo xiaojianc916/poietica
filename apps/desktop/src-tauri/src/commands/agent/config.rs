@@ -2,17 +2,17 @@
 
 use crate::error::Error;
 use crate::local_index::LocalIndex;
-use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose, select_config};
-use tauri::{AppHandle, State};
+use poietica_agent_runtime_native::{AgentClient, ConfigControl, ConfigPurpose, select_config};
+use tauri::{AppHandle, Emitter, State};
 
 use super::addressing::session_for;
 use super::dto::{
     AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentConfigPurpose,
-    AgentSelectConfigRequest,
+    AgentSelectConfigRequest, AgentSessionEvent, reported_goal,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
-use super::{AgentCommandResult, NO_ANSWER, NO_SESSION};
+use super::{AGENT_SESSION_EVENT, AgentCommandResult, NO_ANSWER, NO_SESSION};
 
 /// Changes one selector, on one session.
 ///
@@ -32,6 +32,7 @@ use super::{AgentCommandResult, NO_ANSWER, NO_SESSION};
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_set_config_option(
+    app: AppHandle,
     state: State<'_, AgentRuntime>,
     index: State<'_, LocalIndex>,
     request: AgentSelectConfigRequest,
@@ -50,9 +51,11 @@ pub async fn agent_set_config_option(
         None => live.anchor.clone(),
     };
 
-    let offered = select_config(&live.client, addressed, config_id, value, input)
+    let offered = select_config(&live.client, addressed.clone(), config_id, value, input)
         .await
         .map_err(translate)?;
+
+    announce(&app, &live.client, addressed).await;
 
     Ok(offered.into_iter().map(restate).collect())
 }
@@ -92,6 +95,47 @@ pub async fn agent_capabilities(
         .map_err(translate)?;
 
     Ok(offered.into_iter().map(restate).collect())
+}
+
+/// 会话此刻的选择器表与目标账目，一起报给渲染层。
+///
+/// 目标归 agent，这一条是它到屏幕的唯一路径：所以每个动得了它的动作 —— 改选择器、
+/// 发起一轮、一轮收尾、取消 —— 事后都调它一次。报不出来只记日志：那个动作本身已经
+/// 做完了，这里再失败也不该把它变成失败。
+pub(super) async fn announce(app: &AppHandle, client: &AgentClient, session_id: String) {
+    let asked = match client.selectors(session_id.clone()) {
+        Ok(answer) => answer,
+        Err(error) => {
+            log::warn!("the session selectors could not be asked for: {error}");
+            return;
+        }
+    };
+
+    let selectors: Vec<AgentConfigControl> = match asked.await {
+        Ok(Ok(offered)) => offered.into_iter().map(restate).collect(),
+        Ok(Err(error)) => {
+            log::warn!("the agent refused to report its selectors: {error}");
+            return;
+        }
+        Err(_dropped) => {
+            log::warn!("the session ended before reporting its selectors");
+            return;
+        }
+    };
+
+    let goal = match client.goal(session_id.clone()).await {
+        Ok(reported) => reported.map(reported_goal),
+        Err(error) => {
+            log::warn!("the goal could not be read: {error}");
+            return;
+        }
+    };
+
+    let event = AgentSessionEvent::Selectors { session_id, selectors, goal };
+
+    if let Err(error) = app.emit(AGENT_SESSION_EVENT, event) {
+        log::warn!("emit the session state failed: {error}");
+    }
 }
 
 /// Restates one selector in the shape the generated bindings carry.
