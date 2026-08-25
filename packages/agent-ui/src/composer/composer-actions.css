@@ -39,15 +39,11 @@
   font: inherit;
   font-size: var(--cp-font-caption);
   line-height: 1;
-  cursor: default;
+  cursor: pointer;
   user-select: none;
 }
 
-button.assistant-mode-chip {
-  cursor: pointer;
-}
-
-button.assistant-mode-chip:hover {
+.assistant-mode-chip:hover {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }
@@ -60,14 +56,41 @@ button.assistant-mode-chip:hover {
   background: var(--cp-hairline);
 }
 
+/* 字形与叉同格叠放，切换不挪字。 */
 .assistant-mode-chip__icon {
   display: grid;
   flex: none;
 }
 
+.assistant-mode-chip__icon > * {
+  grid-area: 1 / 1;
+}
+
 [data-assistant-skin] .assistant-mode-chip__icon svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
+}
+
+[data-assistant-skin] .assistant-mode-chip__remove {
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  background: var(--cp-ink-subtle);
+  color: var(--cp-surface);
+  visibility: hidden;
+}
+
+[data-assistant-skin] .assistant-mode-chip__remove svg {
+  block-size: calc(var(--cp-icon) - 6px);
+  inline-size: calc(var(--cp-icon) - 6px);
+}
+
+.assistant-mode-chip:hover .assistant-mode-chip__glyph {
+  visibility: hidden;
+}
+
+.assistant-mode-chip:hover .assistant-mode-chip__remove {
+  visibility: visible;
 }
 
 .assistant-mode-chip__label {

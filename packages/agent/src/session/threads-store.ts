@@ -13,8 +13,6 @@ interface Held {
   readonly failure: string | null
 }
 
-const NO_PROVISIONAL: ReadonlyMap<string, string> = new Map()
-
 const EMPTY: Held = {
   threads: [],
   pending: [],
@@ -244,16 +242,8 @@ export class ThreadsStore {
         : this.#held.provisional
 
     if (found !== undefined) {
-      /*
-       * 说话就是活动，而列表按活动排（见 #listed）。这一格必须当场跟上：
-       * 等库那份回来要到下一次整表读取，那时人早就看着一条没浮上来的对话了。
-       */
-      this.#commit({
-        provisional,
-        threads: this.#held.threads.map((thread) =>
-          thread.threadId === threadId ? { ...thread, updatedAt: at } : thread,
-        ),
-      })
+      /* 说话就是活动，而列表按活动排：当场跟上，不等下一次整表读取。 */
+      this.#commit({ provisional, ...this.#rowPatch(threadId, { updatedAt: at }) })
 
       return
     }
@@ -296,11 +286,7 @@ export class ThreadsStore {
     }
 
     this.#commit({
-      threads: this.#held.threads.map((thread) =>
-        thread.threadId === threadId
-          ? { ...thread, title: named, titleSource: 'manual' as const }
-          : thread,
-      ),
+      ...this.#rowPatch(threadId, { title: named, titleSource: 'manual' }),
       provisional: withoutEntry(this.#held.provisional, threadId),
     })
 
@@ -388,26 +374,16 @@ export class ThreadsStore {
       return
     }
 
-    /*
-     * 先让后端落定。Kimi 官方 state.json 与本地索引都成功后，界面才移动这一行，
-     * 避免出现屏幕已经归档、磁盘实际没有归档的状态。
-     */
+    /* 先让库落定再移动这一行：屏幕上归了档而盘上没有，是不允许存在的状态。 */
     try {
       await act(threadId, archived)
     } catch (reason) {
-      this.#commit({
-        failure: describeFailure(reason),
-      })
+      this.#commit({ failure: describeFailure(reason) })
 
       return
     }
 
-    this.#commit({
-      threads: this.#held.threads.map((thread) =>
-        thread.threadId === threadId ? { ...thread, archived } : thread,
-      ),
-      failure: null,
-    })
+    this.#commit({ ...this.#rowPatch(threadId, { archived }), failure: null })
 
     /*
      * 归档后它离开活动工作区。打开的标签、选择器和转录跟着离场；
@@ -427,22 +403,7 @@ export class ThreadsStore {
       return
     }
 
-    /*
-     * 新会话在平台下一次整表读取以前住在 pending，而已经从数据库读取到的
-     * 会话住在 threads。两者是同一张活动列表的两个输入，因此固定状态必须
-     * 同时投影到两边。
-     *
-     * 此前这里只更新 threads。projectless 会话刚发出第一条消息时仍然位于
-     * pending，点击固定后数据库虽然可能已经写入，当前快照却没有任何变化，
-     * 所以它既不会出现图钉，也不会从“最新”移动到“Pin”。
-     */
-    const updatePinned = (thread: ThreadRecord): ThreadRecord =>
-      thread.threadId === threadId ? { ...thread, pinned } : thread
-
-    this.#commit({
-      threads: this.#held.threads.map(updatePinned),
-      pending: this.#held.pending.map(updatePinned),
-    })
+    this.#commit(this.#rowPatch(threadId, { pinned }))
 
     await this.#settle(act(threadId, pinned))
   }
@@ -464,6 +425,21 @@ export class ThreadsStore {
       await this.refresh()
       this.#commit({ failure: describeFailure(reason) })
     }
+  }
+
+  /*
+   * 改一行的字段。
+   *
+   * 一条对话住在 threads（平台报的）或 pending（刚开口、平台还没记下的），所以两
+   * 张表都过一遍；那一行不在的表原样交回，引用不变就不通知。
+   */
+  #rowPatch(threadId: string, patch: Partial<ThreadRecord>): Partial<Held> {
+    const applied = (rows: readonly ThreadRecord[]): readonly ThreadRecord[] =>
+      rows.some((thread) => thread.threadId === threadId)
+        ? rows.map((thread) => (thread.threadId === threadId ? { ...thread, ...patch } : thread))
+        : rows
+
+    return { threads: applied(this.#held.threads), pending: applied(this.#held.pending) }
   }
 
   #commit(patch: Partial<Held>): void {
@@ -530,22 +506,22 @@ export class ThreadsStore {
    * 它与此前那个 same 提前返回是同一个判据，只是短了。
    */
   #project(): void {
-    const activeThreads = this.#held.threads.filter((thread) => thread.archived !== true)
+    const listed = (thread: ThreadRecord): boolean => thread.archived !== true
 
-    const archivedThreads = this.#held.threads.filter((thread) => thread.archived === true)
+    const workspace = this.#defaultWorkspaceId?.() ?? undefined
 
     const active = this.#projection.of(
-      activeThreads,
-      this.#held.pending,
+      this.#held.threads.filter(listed),
+      this.#held.pending.filter(listed),
       this.#held.provisional,
-      this.#defaultWorkspaceId?.() ?? undefined,
+      workspace,
     )
 
     const archived = this.#archivedProjection.of(
-      archivedThreads,
-      [],
-      NO_PROVISIONAL,
-      this.#defaultWorkspaceId?.() ?? undefined,
+      this.#held.threads.filter((thread) => !listed(thread)),
+      this.#held.pending.filter((thread) => !listed(thread)),
+      this.#held.provisional,
+      workspace,
     )
 
     this.#byId = new Map([...active.byId, ...archived.byId])

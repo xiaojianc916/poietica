@@ -5,7 +5,7 @@ import type {
   SessionConfigControl,
 } from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
-import { GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
+import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
 import type { PromptChipValue } from './prompt-chip'
 import { usePromptInputActions, usePromptInputDraft, usePromptInputPalette } from './prompt-input'
@@ -27,6 +27,9 @@ export function ComposerActions() {
     </button>
   )
 }
+
+/* 目标模式的在场由灵动岛画（goal/goal-island.tsx），输入框不画第二遍。 */
+const GOAL = 'goal'
 
 export interface ComposerPaletteSource {
   readonly controls: readonly SessionConfigControl[]
@@ -73,7 +76,7 @@ function toggleRow(
 ): PaletteRow {
   const enabled = control.current === 'on'
   const choice = control.choices.find((candidate) => candidate.value === 'on')
-  const Icon = control.id === 'goal' ? GoalIcon : SirenIcon
+  const Icon = control.id === GOAL ? GoalIcon : SirenIcon
   return {
     id: control.id,
     icon: <Icon aria-hidden="true" />,
@@ -194,46 +197,78 @@ export function composerPaletteGroups({
 
 export interface ComposerChipsProps {
   readonly controls: readonly SessionConfigControl[]
+  readonly onSelect: (controlId: string, value: string) => void
 }
 
 function glyph(controlId: string): ReactNode {
-  return controlId === 'goal' ? <GoalIcon /> : <SirenIcon />
+  return controlId === GOAL ? <GoalIcon /> : <SirenIcon />
 }
 
-export function ComposerChips({ controls }: ComposerChipsProps) {
+/* 一枚标记就是它的摘除键：静息画模式字形，悬停换成叉。 */
+function ModeChip({
+  controlId,
+  label,
+  onRemove,
+  removeLabel,
+}: {
+  readonly controlId: string
+  readonly label: string
+  readonly onRemove: () => void
+  readonly removeLabel: string
+}) {
+  return (
+    <button
+      aria-label={removeLabel}
+      className="assistant-mode-chip"
+      onClick={onRemove}
+      type="button"
+    >
+      <span aria-hidden="true" className="assistant-mode-chip__icon">
+        <span className="assistant-mode-chip__glyph">{glyph(controlId)}</span>
+        <span className="assistant-mode-chip__remove">
+          <CloseIcon />
+        </span>
+      </span>
+      <span className="assistant-mode-chip__label">{label}</span>
+    </button>
+  )
+}
+
+export function ComposerChips({ controls, onSelect }: ComposerChipsProps) {
   const { configuration } = usePromptInputDraft()
   const { removeConfiguration } = usePromptInputActions()
+
+  /* 生效中的模式；目标进了模式就归灵动岛，这里不留它。 */
   const active = controls.filter(
-    (control) => control.purpose === 'mode' && control.current === 'on',
+    (control) => control.purpose === 'mode' && control.current === 'on' && control.id !== GOAL,
   )
+
   if (active.length === 0 && configuration.length === 0) {
     return null
   }
+
   return (
     <>
       <span aria-hidden="true" className="assistant-mode-chip__divider" />
-      {/* 模式标记只说明处在哪个模式，不是它的退出键：退出走灵动岛。 */}
+
       {active.map((control) => (
-        <span className="assistant-mode-chip" key={control.id}>
-          <span aria-hidden="true" className="assistant-mode-chip__icon">
-            <span className="assistant-mode-chip__glyph">{glyph(control.id)}</span>
-          </span>
-          <span className="assistant-mode-chip__label">{control.label}</span>
-        </span>
+        <ModeChip
+          controlId={control.id}
+          key={control.id}
+          label={control.label}
+          onRemove={() => onSelect(control.id, 'off')}
+          removeLabel={`退出${control.label}`}
+        />
       ))}
+
       {configuration.map((selected) => (
-        <button
-          aria-label={`取消 ${selected.label}`}
-          className="assistant-mode-chip"
+        <ModeChip
+          controlId={selected.id}
           key={`pending:${selected.id}`}
-          onClick={() => removeConfiguration(selected.id)}
-          type="button"
-        >
-          <span aria-hidden="true" className="assistant-mode-chip__icon">
-            <span className="assistant-mode-chip__glyph">{glyph(selected.id)}</span>
-          </span>
-          <span className="assistant-mode-chip__label">{selected.label}</span>
-        </button>
+          label={selected.label}
+          onRemove={() => removeConfiguration(selected.id)}
+          removeLabel={`取消${selected.label}`}
+        />
       ))}
     </>
   )
