@@ -45,7 +45,7 @@ use crate::config::{ConfigControl, GoalSnapshot, controls, goal_snapshot, select
 use crate::desk::{PermissionDesk, QuestionDesk};
 use crate::error::{KapError, Refusal, Result};
 use crate::frame::kap_event;
-use crate::link::{LinkState, TRIES, backoff, retryable, retrying};
+use crate::link::{RELINK_TRIES, backoff, recovered, retryable, retrying, severed};
 use crate::program::resolve_program;
 use crate::question::{QuestionGroup, QuestionOutcome};
 use crate::recorder::{Recorder, now_millis};
@@ -164,8 +164,8 @@ async fn redial(
 /// 把断了的链路接回来，并把进度报上去。
 ///
 /// 有界重试 + 指数退避，判据与退避都在 link.rs。交回 Some 是接上了（里面是
-/// 重连期间到达的帧），None 是到顶了 —— 那时这一轮的结局由调用者按帧记下，
-/// 链路态不替它说。
+/// 重连期间到达的帧），None 是到顶了 —— 那时链路态封成 Severed，这一轮的结局
+/// 仍由调用者按帧记下。
 async fn relink(
     ws: &WsSink,
     ws_rx: &mut SplitStream<WsStream>,
@@ -174,12 +174,17 @@ async fn relink(
     book: &SessionBook,
     cursors: &HashMap<String, Cursor>,
     events_tx: &mpsc::UnboundedSender<SessionEvent>,
-    severed: &str,
+    cause: &str,
 ) -> Option<Vec<Value>> {
-    let mut reason = severed.to_owned();
+    let mut reason = cause.to_owned();
 
-    for attempt in 1..=TRIES {
-        let wait = backoff(attempt);
+    for attempt in 1..=RELINK_TRIES {
+        /* 第一次立刻拨：退避是失败之间的间隔，不是第一次的入场费。 */
+        let wait = if attempt == 1 {
+            Duration::ZERO
+        } else {
+            backoff(attempt - 1)
+        };
 
         let _sent = events_tx.unbounded_send(SessionEvent::Link(retrying(attempt, wait, &reason)));
 
@@ -187,17 +192,19 @@ async fn relink(
 
         match redial(ws, ws_rx, ws_url, auth, book, cursors).await {
             Ok(stash) => {
-                /* 接上了是一句宣告：谁把那一格弄脏，谁宣告一次。 */
-                let _sent = events_tx.unbounded_send(SessionEvent::Link(LinkState::Linked));
+                let _sent = events_tx.unbounded_send(SessionEvent::Link(recovered(&reason)));
 
                 return Some(stash);
             }
             Err(error) => {
-                log::warn!("kap WS relink {attempt}/{TRIES} failed: {error}");
+                log::warn!("kap WS relink {attempt}/{RELINK_TRIES} failed: {error}");
                 reason = error.to_string();
             }
         }
     }
+
+    /* 这一轮就此封版：屏幕上那一行不再许诺下一次。 */
+    let _sent = events_tx.unbounded_send(SessionEvent::Link(severed(RELINK_TRIES, &reason)));
 
     None
 }
@@ -1121,11 +1128,10 @@ pub fn connect(
                                     let base2 = base_url.clone();
                                     let book2 = book_clone.clone();
                                     let sid2 = sid.clone();
-                                    let events2 = events_tx.clone();
                                     tokio::spawn(async move {
                                         let result = submit_prompt(
                                             &http2, &base2, &sid2, &text, &images, &skills,
-                                            &book2, &events2,
+                                            &book2,
                                         )
                                         .await;
 
@@ -1817,10 +1823,16 @@ async fn fetch_and_record_questions(
 
 // ── 会话的 REST 辅助 ───────────────────────────────────────────────────────
 
-/// 把这句话交给 kap；可重试的传输错误按同一套退避再试。
+/// 这句话交出去之前重发几次。链路没断，断的是这一次 POST。
+const POST_TRIES: u32 = 5;
+
+/// 把这句话交给 kap；可重试的传输错误退避再试。
 ///
 /// 一次抖动就判死这一轮，是把「路上掉了一个包」说成「模型答不出来」。这一轮
 /// 已经不在飞了就不再试：取消要传得进来。
+///
+/// 不报链路态：WS 还在，断的是这一个请求。全部失败时由调用方按帧判死这一轮，
+/// 屏幕上出的是错误，不是一次假的断线。
 async fn submit_prompt(
     http: &reqwest::Client,
     base_url: &str,
@@ -1829,7 +1841,6 @@ async fn submit_prompt(
     images: &[PromptImage],
     skills: &[PromptSkill],
     book: &SessionBook,
-    events_tx: &mpsc::UnboundedSender<SessionEvent>,
 ) -> Result<String> {
     let body = prompt_body(text, images, skills)?;
     let url = format!("{base_url}/sessions/{session_id}/prompts");
@@ -1838,10 +1849,6 @@ async fn submit_prompt(
     loop {
         match post(http, &url, &body).await {
             Ok(data) => {
-                if attempt > 1 {
-                    let _sent = events_tx.unbounded_send(SessionEvent::Link(LinkState::Linked));
-                }
-
                 return data
                     .get("prompt_id")
                     .and_then(Value::as_str)
@@ -1851,19 +1858,11 @@ async fn submit_prompt(
                     });
             }
             Err(error) => {
-                if attempt >= TRIES || !retryable(&error) || !listening(book, session_id) {
+                if attempt >= POST_TRIES || !retryable(&error) || !listening(book, session_id) {
                     return Err(error);
                 }
 
-                let wait = backoff(attempt);
-
-                let _sent = events_tx.unbounded_send(SessionEvent::Link(retrying(
-                    attempt,
-                    wait,
-                    &error.to_string(),
-                )));
-
-                tokio::time::sleep(wait).await;
+                tokio::time::sleep(backoff(attempt)).await;
                 attempt = attempt.saturating_add(1);
             }
         }

@@ -26,14 +26,22 @@ function seconds(ms: number): number {
 
 function say(link: LinkTimelineItem['link'], now: number): { line: string; detail: string } {
   switch (link.state) {
-    case 'linked':
-      return { detail: '连接已恢复', line: '已重新连接' }
+    case 'retrying': {
+      /* 不到一秒就没有倒计时可读：那一刻它本来就在拨号。 */
+      const left = link.retryAt - now
+      const countdown = left >= SECOND_MS ? ` · ${seconds(left)}s 后重试` : ''
 
-    case 'retrying':
       return {
         detail: link.reason,
-        line: `正在重新连接 ${link.attempt}/${link.of} · ${seconds(Math.max(link.retryAt - now, 0))}s 后重试`,
+        line: `正在重新连接 ${link.attempt}/${link.of}${countdown}`,
       }
+    }
+
+    case 'recovered':
+      return { detail: link.reason, line: '连接已恢复' }
+
+    case 'severed':
+      return { detail: link.reason, line: `连接已断开 · 已重试 ${link.attempts} 次` }
   }
 }
 

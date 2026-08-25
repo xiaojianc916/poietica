@@ -63,12 +63,7 @@
  * 上下跑。滚动条是滚动容器的边缘，不是内容的边缘：两个轴归同一个盒子，横条才钉得住。
  * 上面那两个参照物也都是这么做的。
  *
- * 滚动条取 thin：这个面板两个轴都可滚，两根 auto 各占一条约 17px 的车道。
- *
- * 轨道给 transparent，不写死一个纸色：写死的那个只在一种底上成立，透明则让容器自己的
- * 背景透上来 —— 背景默认剪到边框盒，滚动条那条车道也在里面。滑块是半透明墨。
- *
- * 用标准属性而不是 ::-webkit-scrollbar：两者互斥，标准的那条才被推荐。
+ * 滚动条的样子归 packages/ui/src/styles/scrollbar.css 一处所有，这里不再声明。
  */
 .timeline-tool__panel {
   max-block-size: var(--cp-timeline-output-max);
@@ -77,11 +72,9 @@
 }
 
 /*
- * overscroll-behavior 不写在这里。
- *
- * 上一版把它写上了，而这张表末尾那一节早就为同一件事下过结论：它按轴阻断滚动链，
- * 不问这个轴上有没有可滚的距离 —— 一个内容不满的面板会让滚轮停在卡片里出不去。
- * 「到边界先顿一下、手势松开后再滚就带走外层」本来就是 Chromium 滚动闩锁的行为。
+ * 不写 overscroll-behavior：它按轴阻断滚动链，不问这个轴上有没有可滚的距离，
+ * 内容不满的面板会把滚轮困在卡片里。到边界顿一下再带走外层，本来就是
+ * Chromium 滚动闩锁的行为。
  */
 
 /*
@@ -272,6 +265,10 @@
  * 恰好一个行盒。
  */
 .timeline-tool__diff {
+  /* 两条车道收到发丝宽：轨道透明，露出来的就是 diff 自己的纸，滑块只是一枚墨条。
+     量走全局滚动条那两个令牌，机制仍是 scrollbar.css 那一套。 */
+  --ui-scrollbar-size: 6px;
+  --ui-scrollbar-inset: 2px;
   display: grid;
   grid-template-columns: auto minmax(max-content, 1fr);
   align-content: start;

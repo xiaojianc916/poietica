@@ -9,14 +9,9 @@
  * 那三条性质与它无关：那是 timeline-reducer 的承诺。
  */
 
-import type { KapStopReason, RunEvent, RunStatus } from '@poietica/agent-contract'
+import type { KapStopReason, RunEvent, RunStatus, SessionLink } from '@poietica/agent-contract'
 import { applyKapFrame } from './kap-projection'
-import type {
-  LinkTimelineItem,
-  MessageImage,
-  PermissionItem,
-  QuestionTimelineItem,
-} from './timeline-contract'
+import type { MessageImage, PermissionItem, QuestionTimelineItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import {
   beginQuestion,
@@ -148,26 +143,44 @@ export function apply(draft: Draft, event: RunEvent): void {
       return
     }
 
-    /* 一次断线与一次工具调用同一条身份规矩：一次发生一个条目，落在它发生的位置。
-       接回来之后再断，那是下一次，不是上面那一行又活了一遍。 */
+    /* 一轮重连是一个条目：attempt 1 开张，接回来或试到头就封版，之后再断是下一轮
+       的新条目。开张只认 attempt 1 —— 没有开着的一轮时，一句「接回来了」无处可落，
+       丢掉它，屏幕上就不会冒出一行没有来由的「连接已恢复」。 */
     case 'link_changed': {
       const at = lastLink(draft)
       const held = at < 0 ? undefined : draft.items[at]
-      const ongoing = held?.type === 'link' && held.link.state !== 'linked' ? held : undefined
-      const shown: LinkTimelineItem = {
-        type: 'link',
-        id: ongoing?.id ?? `${namespace(draft)}link-${String(event.seq)}`,
-        turn: draft.runIndex,
-        /* 时刻是这次断线开始的时刻，不是它最近一次改口的时刻。 */
-        at: ongoing?.at ?? event.at,
-        link: event.link,
+      const open = held?.type === 'link' && held.link.state === 'retrying' ? held : undefined
+
+      /* 旧账（枚举改版前落库的帧）拿 linked 记「接回来了」，而现行类型已无此档：
+         换算成 recovered，理由沿用这一轮最后一次失败的那句；前面没有开着的一轮
+         就丢掉。断言说的是实情：盘上的字节比类型老。 */
+      const stated = event.link as SessionLink | { readonly state: 'linked' }
+
+      if (stated.state === 'linked') {
+        if (open !== undefined) {
+          draft.items[at] = { ...open, link: { state: 'recovered', reason: open.link.reason } }
+        }
+
+        return
       }
 
-      if (ongoing === undefined) {
-        push(draft, shown)
-      } else {
-        draft.items[at] = shown
+      if (open !== undefined) {
+        draft.items[at] = { ...open, link: event.link }
+
+        return
       }
+
+      if (event.link.state !== 'retrying' || event.link.attempt !== 1) {
+        return
+      }
+
+      push(draft, {
+        type: 'link',
+        id: `${namespace(draft)}link-${String(event.seq)}`,
+        turn: draft.runIndex,
+        at: event.at,
+        link: event.link,
+      })
 
       return
     }

@@ -11,10 +11,10 @@ use serde::Serialize;
 use crate::error::KapError;
 use crate::recorder::now_millis;
 
-/// 断了之后重连几次，以及可重试的传输错误再试几次。
-pub(crate) const TRIES: u32 = 5;
+/// 断了之后重连几次。第一次立刻拨，之后每失败一次退避一档。
+pub(crate) const RELINK_TRIES: u32 = 5;
 
-/// 第一次等多久；之后翻倍，到 DELAY_CAP 封顶。
+/// 第一次失败之后等多久；之后翻倍，到 DELAY_CAP 封顶。
 const DELAY: Duration = Duration::from_millis(500);
 const DELAY_CAP: Duration = Duration::from_secs(8);
 
@@ -30,18 +30,21 @@ const DELAY_CAP: Duration = Duration::from_secs(8);
     rename_all_fields = "camelCase"
 )]
 pub enum LinkState {
-    /// 接着，而且在流动。
-    Linked,
     /// 正在接回来：第几次、共几次、下一次什么时候、上一次为什么没成。
+    /// retry_at 等于此刻表示正在拨号，没有倒计时可读。
     Retrying {
         attempt: u32,
         of: u32,
         retry_at: i64,
         reason: String,
     },
+    /// 接回来了，以及这一轮是被什么打断的。
+    Recovered { reason: String },
+    /// 试到头了，接不回来。这一轮的结局由帧记，链路态只报自己。
+    Severed { attempts: u32, reason: String },
 }
 
-/// 第 attempt 次之前等多久。指数退避，封顶。
+/// 第 attempt 次失败之后等多久。指数退避，封顶。
 ///
 /// 不加抖动：对端是本机的 kap server，只有一个客户端，没有要错开的惊群。
 #[must_use]
@@ -71,8 +74,25 @@ pub(crate) fn retrying(attempt: u32, wait: Duration, reason: &str) -> LinkState 
 
     LinkState::Retrying {
         attempt,
-        of: TRIES,
+        of: RELINK_TRIES,
         retry_at: now_millis().saturating_add(waited),
+        reason: reason.to_owned(),
+    }
+}
+
+/// 「接回来了」这一句，全仓只在这里成形。
+#[must_use]
+pub(crate) fn recovered(reason: &str) -> LinkState {
+    LinkState::Recovered {
+        reason: reason.to_owned(),
+    }
+}
+
+/// 「接不回来了」这一句，全仓只在这里成形。
+#[must_use]
+pub(crate) fn severed(attempts: u32, reason: &str) -> LinkState {
+    LinkState::Severed {
+        attempts,
         reason: reason.to_owned(),
     }
 }
@@ -86,7 +106,7 @@ mod tests {
     fn backoff_doubles_then_stops_at_the_cap() {
         assert_eq!(backoff(1), DELAY);
         assert_eq!(backoff(2), Duration::from_secs(1));
-        assert_eq!(backoff(TRIES), DELAY_CAP);
+        assert_eq!(backoff(4), Duration::from_secs(4));
         assert_eq!(backoff(u32::MAX), DELAY_CAP);
     }
 

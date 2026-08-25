@@ -171,7 +171,7 @@ function toRow(item: TimelineItem, isStreamingTail: boolean, isInFlight: boolean
    一轮死掉时两者的光同时停。 */
 function inFlight(item: TimelineItem): boolean {
   if (item.type === 'link') {
-    return item.link.state !== 'linked'
+    return item.link.state === 'retrying'
   }
 
   return item.type === 'tool_call' && !isTerminal(item.status)

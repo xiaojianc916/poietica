@@ -6,12 +6,13 @@
  * （crates/agent-runtime/src/link.rs）。
  */
 export type SessionLink =
-  | { readonly state: 'linked' }
   | {
       readonly state: 'retrying'
       readonly attempt: number
       readonly of: number
-      /** 下一次重连的时刻（epoch 毫秒）；倒计时由读的人自己算。 */
+      /** 下一次重连的时刻（epoch 毫秒）；等于此刻表示正在拨号。 */
       readonly retryAt: number
       readonly reason: string
     }
+  | { readonly state: 'recovered'; readonly reason: string }
+  | { readonly state: 'severed'; readonly attempts: number; readonly reason: string }
