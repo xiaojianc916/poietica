@@ -1,72 +1,89 @@
-/*
- * 灵动岛的量度。数字一律从 composer-metrics 那张表推，本文件不新挑像素。
- */
-
 .goal-island {
+  --goal-status-color: var(--ui-success);
   position: absolute;
   inset-block-start: calc(var(--cp-control) / 4);
   inset-inline-start: 50%;
-  translate: -50% 0;
-  z-index: 2;
+  z-index: var(--ui-z-floating);
   display: flex;
+  inline-size: max-content;
+  max-inline-size: min(var(--cp-goal-island-width), calc(100% - var(--cp-inset) * 2));
   flex-direction: column;
-  max-inline-size: min(340px, calc(100% - var(--cp-inset) * 2));
   overflow: hidden;
-  border-radius: var(--cp-radius);
-  background: var(--cp-ink);
-  color: var(--ui-background);
+  translate: -50% 0;
+  border: var(--cp-px) solid var(--ui-inverse-border);
+  corner-shape: squircle;
+  background: var(--ui-inverse-surface);
   box-shadow: var(--cp-lift-menu);
+  color: var(--ui-inverse-foreground);
+  isolation: isolate;
+}
+
+.goal-island[data-expanded="true"] {
+  inline-size: min(var(--cp-goal-island-width), calc(100% - var(--cp-inset) * 2));
+}
+
+.goal-island[data-status="paused"] {
+  --goal-status-color: var(--ui-warning);
+}
+
+.goal-island[data-status="blocked"] {
+  --goal-status-color: var(--ui-destructive);
+}
+
+.goal-island[data-status="complete"] {
+  --goal-status-color: var(--ui-info);
 }
 
 .goal-island__pill {
   display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--cp-control);
   align-items: center;
   gap: var(--cp-pill-gap);
-  min-block-size: var(--cp-pill);
-  padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
+  padding-inline: calc(var(--cp-pill-lead) + 2px) calc(var(--cp-pill-trail) + 2px);
   border: 0;
-  background: none;
+  border-block-end: var(--cp-px) solid transparent;
+  background: transparent;
   color: inherit;
   font-size: var(--cp-font-caption);
   cursor: pointer;
 }
 
+.goal-island[data-expanded="true"] .goal-island__pill {
+  border-block-end-color: var(--ui-inverse-border);
+}
+
 .goal-island__beacon {
-  flex: none;
   inline-size: var(--cp-dot);
   block-size: var(--cp-dot);
+  flex: none;
   border-radius: 50%;
-  background: var(--ui-success);
+  background: var(--goal-status-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--goal-status-color) 18%, transparent);
 }
 
-.goal-island[data-status="paused"] .goal-island__beacon {
-  background: var(--cp-ink-subtle);
-}
-
-.goal-island[data-status="blocked"] .goal-island__beacon {
-  background: var(--ui-destructive);
-}
-
-.goal-island[data-status="complete"] .goal-island__beacon {
-  background: var(--cp-accent);
-}
-
-/* 推进中才呼吸：静止的状态不该有动效在喊话。 */
-.goal-island[data-status="active"] .goal-island__beacon {
-  animation: goal-island-breathe 2s ease-in-out infinite;
+.goal-island[data-status="active"] .goal-island__pill > .goal-island__beacon {
+  animation: goal-island-breathe 1.8s ease-in-out infinite;
 }
 
 @keyframes goal-island-breathe {
   50% {
-    opacity: 0.35;
+    opacity: 0.5;
+    scale: 0.82;
   }
 }
 
 .goal-island__objective {
+  min-inline-size: 0;
+  flex: 1;
   overflow: hidden;
   max-inline-size: var(--cp-pill-label-max);
-  white-space: nowrap;
+  color: var(--ui-inverse-foreground);
+  font-weight: 600;
+  text-align: start;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .goal-island[data-expanded="true"] .goal-island__objective {
@@ -75,45 +92,98 @@
 
 .goal-island__clock {
   flex: none;
-  opacity: 0.65;
+  color: var(--ui-inverse-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .goal-island__panel {
   display: flex;
   flex-direction: column;
-  gap: var(--cp-pad-mid);
-  padding: var(--cp-pad-mid) var(--cp-pill-trail) var(--cp-pill-trail);
+  gap: calc(var(--cp-pad-mid) + 2px);
+  padding: calc(var(--cp-pad-mid) + 2px) calc(var(--cp-pill-trail) + 2px)
+    calc(var(--cp-pill-trail) + 2px);
 }
 
 .goal-island__full {
+  max-block-size: calc(1em * var(--cp-line-ratio) * var(--cp-goal-copy-lines));
   margin: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--ui-inverse-foreground);
   font-size: var(--cp-font-label);
+  font-weight: 560;
   line-height: var(--cp-line-ratio);
+  overflow-wrap: anywhere;
+  scrollbar-width: none;
+  white-space: pre-wrap;
+}
+
+.goal-island__full::-webkit-scrollbar {
+  display: none;
+  inline-size: 0;
+  block-size: 0;
+}
+
+.goal-island__full:focus-visible,
+.goal-island__pill:focus-visible,
+.goal-island__action:focus-visible,
+.goal-island__input:focus-visible {
+  outline: var(--ui-focus-ring-width) solid var(--ui-ring);
+  outline-offset: calc(var(--ui-focus-ring-offset) * -1);
 }
 
 .goal-island__criterion {
+  display: grid;
+  gap: 2px;
+  padding-inline-start: var(--cp-pad-mid);
+  border-inline-start: 2px solid color-mix(in srgb, var(--goal-status-color) 72%, transparent);
+}
+
+.goal-island__criterion > span {
+  color: var(--ui-inverse-muted);
+  font-size: var(--cp-font-micro);
+}
+
+.goal-island__criterion > p {
   margin: 0;
-  opacity: 0.65;
+  color: var(--ui-inverse-foreground);
   font-size: var(--cp-font-caption);
+  line-height: 1.45;
 }
 
 .goal-island__facts {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--cp-pad-mid);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--cp-pad-mid) calc(var(--cp-pad-mid) * 2);
   margin: 0;
+  padding: var(--cp-pad-mid) calc(var(--cp-pad-mid) + 2px);
+  border: var(--cp-px) solid var(--ui-inverse-border);
+  border-radius: var(--cp-radius-item);
+  background: color-mix(in srgb, var(--ui-inverse-foreground) 6%, transparent);
 }
 
 .goal-island__facts dt {
-  opacity: 0.55;
+  color: var(--ui-inverse-muted);
   font-size: var(--cp-font-micro);
 }
 
 .goal-island__facts dd {
-  margin: 0;
+  margin: 1px 0 0;
+  color: var(--ui-inverse-foreground);
   font-size: var(--cp-font-caption);
   font-variant-numeric: tabular-nums;
+}
+
+.goal-island__status {
+  display: flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
+}
+
+.goal-island__status .goal-island__beacon {
+  inline-size: calc(var(--cp-dot) - 1px);
+  block-size: calc(var(--cp-dot) - 1px);
+  box-shadow: none;
 }
 
 .goal-island__row {
@@ -122,44 +192,56 @@
 }
 
 .goal-island__action {
+  min-block-size: var(--cp-control);
   flex: 1;
-  min-block-size: var(--cp-control-sm);
-  border: 0;
+  border: var(--cp-px) solid var(--ui-inverse-border);
   border-radius: var(--cp-radius-item);
-  background: color-mix(in srgb, var(--ui-background) 14%, transparent);
-  color: inherit;
+  background: color-mix(in srgb, var(--ui-inverse-foreground) 8%, transparent);
+  color: var(--ui-inverse-foreground);
   font-size: var(--cp-font-caption);
   cursor: pointer;
 }
 
 .goal-island__action:hover {
-  background: color-mix(in srgb, var(--ui-background) 22%, transparent);
+  background: color-mix(in srgb, var(--ui-inverse-foreground) 14%, transparent);
+}
+
+.goal-island__action:active {
+  scale: 0.98;
 }
 
 .goal-island__action--accent {
+  border-color: transparent;
   background: var(--cp-accent);
   color: var(--cp-accent-foreground);
 }
 
+.goal-island__action--accent:hover {
+  background: var(--cp-accent-hover);
+}
+
 .goal-island__action--danger {
-  background: color-mix(in srgb, var(--ui-destructive) 82%, transparent);
-  color: var(--ui-background);
+  border-color: transparent;
+  background: var(--ui-destructive);
+  color: var(--ui-destructive-foreground);
 }
 
 .goal-island__input {
   inline-size: 100%;
-  padding: var(--cp-pad-mid);
-  border: 0;
+  min-block-size: calc(var(--cp-line) * var(--cp-goal-copy-lines) + var(--cp-pad-mid) * 2);
+  padding: var(--cp-pad-mid) calc(var(--cp-pad-mid) + 2px);
+  border: var(--cp-px) solid var(--ui-inverse-border);
   border-radius: var(--cp-radius-item);
-  background: color-mix(in srgb, var(--ui-background) 14%, transparent);
-  color: inherit;
+  background: color-mix(in srgb, var(--ui-inverse-foreground) 8%, transparent);
+  color: var(--ui-inverse-foreground);
   font: inherit;
   font-size: var(--cp-font-caption);
+  line-height: var(--cp-line-ratio);
   resize: none;
 }
 
 .goal-island__edit {
   display: flex;
   flex-direction: column;
-  gap: var(--cp-pad-mid);
+  gap: calc(var(--cp-pad-mid) + 2px);
 }

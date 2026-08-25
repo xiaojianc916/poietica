@@ -377,6 +377,8 @@ pub struct AgentOpenedThread {
     pub thread: AgentThread,
     /// What may be chosen for this session, as the agent reported it.
     pub selectors: Vec<AgentConfigControl>,
+    /// 打开时从同一条会话读取的目标真相；缺席即未启用。
+    pub goal: Option<AgentGoal>,
     /// 这条对话最新的那一页经过，由本地日志交回来。
     ///
     /// 库里记下的就是当时交给界面的那一批（见 turn.rs 的 logging），所以重开

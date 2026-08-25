@@ -213,7 +213,7 @@ export class SessionControlsStore {
 
     /* 一整份权威答复：此前发出去的那些下发，答案都已经过期。 */
     this.#orderOf(threadId).arrive()
-    this.#remember(threadId, answer.selectors)
+    this.#remember(threadId, answer.selectors, answer.goal)
 
     /* 账本垫底，活报告优先：这一格只在该对话还一无所知时落座。答复里那份
     是上一轮落定时记的快照；本次运行若已有 agent 直报，那一份更新，不让位。 */

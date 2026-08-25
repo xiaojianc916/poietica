@@ -5,6 +5,10 @@
   --ui-background: var(--ui-palette-neutral-50);
   --ui-foreground: var(--ui-palette-neutral-850);
   --ui-surface: var(--ui-palette-white);
+  --ui-inverse-surface: #000000;
+  --ui-inverse-foreground: #f7f7f8;
+  --ui-inverse-muted: rgb(255 255 255 / 64%);
+  --ui-inverse-border: rgb(255 255 255 / 12%);
 
   /*
    * 抬起的一张卡。浅色下它比页面暗，取值沿用设置界面此前写死的那两个

@@ -16,7 +16,7 @@ use super::dto::{
     AgentArchiveThreadRequest, AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFrameCursor,
     AgentFramePage, AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest,
     AgentRenameThreadRequest, AgentSessionUsage, AgentThread, AgentThreadRequest, AgentTitleSource,
-    FALLBACK_THREAD_TITLE, NO_THREAD,
+    FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
 };
 use super::failure::translate;
 use super::kimi_state::sync_kimi_archive_state;
@@ -89,6 +89,12 @@ pub async fn agent_open_thread(
         history,
     } = session_for(&state, &index, &live, &named).await?;
 
+    let goal = live
+        .client
+        .goal(session_id.clone())
+        .await
+        .map_err(translate)?
+        .map(reported_goal);
     let offered = if let Some(offered) = offered {
         offered
     } else {
@@ -141,6 +147,7 @@ pub async fn agent_open_thread(
     Ok(AgentOpenedThread {
         thread,
         selectors: offered.into_iter().map(restate).collect(),
+        goal,
         frames: paged(frames)?,
         history,
         usage,

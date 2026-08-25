@@ -1,10 +1,3 @@
-/*
- * 加号那一侧的皮肤。
- *
- * 面板自己的几何在 composer-palette.css —— 它是输入框的一部分，不再是一张浮层。
- * 这里只剩下扳机和胶囊，颜色一律是 composer-metrics.css 里命名过的令牌。
- */
-
 .assistant-plus {
   display: inline-flex;
   block-size: var(--cp-pill);
@@ -20,7 +13,6 @@
   cursor: pointer;
 }
 
-/* 面板翻开期间保持按下态：读扳机自己报的 aria-expanded。 */
 .assistant-plus:hover,
 .assistant-plus[aria-expanded="true"] {
   background: var(--cp-menu-hover);
@@ -33,11 +25,6 @@
   flex: none;
 }
 
-/*
- * 生效档位的胶囊：静息无底色（左图标右文字），悬停才上底色并把图标换成「移除」
- * 圆钮。悬停底色与批准方式胶囊同值（正本：permission-picker.css 的 --pp-hover）；
- * 三个字面量色值是设计指定值，深色主题要调时入 composer-metrics.css 令牌表。
- */
 .assistant-mode-chip {
   display: inline-flex;
   block-size: var(--cp-pill);
@@ -48,19 +35,23 @@
   border-radius: 9999px;
   padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
   background: transparent;
+  color: var(--cp-ink-muted);
   font: inherit;
   font-size: var(--cp-font-caption);
   line-height: 1;
-  color: var(--cp-ink-muted);
-  cursor: pointer;
+  cursor: default;
   user-select: none;
 }
 
-.assistant-mode-chip:hover {
-  background: #f2f2f3;
+button.assistant-mode-chip {
+  cursor: pointer;
 }
 
-/* 与批准方式胶囊之间的分隔线：它是这枚胶囊组合的一部分，同生同灭。 */
+button.assistant-mode-chip:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
 .assistant-mode-chip__divider {
   inline-size: var(--cp-px);
   block-size: var(--cp-icon);
@@ -69,41 +60,14 @@
   background: var(--cp-hairline);
 }
 
-/* 图标位：静息是模式字形，悬停换成移除圆钮。两者同格叠放，切换不挪字。 */
 .assistant-mode-chip__icon {
   display: grid;
   flex: none;
 }
 
-.assistant-mode-chip__icon > * {
-  grid-area: 1 / 1;
-}
-
 [data-assistant-skin] .assistant-mode-chip__icon svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
-}
-
-[data-assistant-skin] .assistant-mode-chip__remove {
-  display: grid;
-  place-items: center;
-  border-radius: 9999px;
-  background: #87888a;
-  color: #fff;
-  visibility: hidden;
-}
-
-[data-assistant-skin] .assistant-mode-chip__remove svg {
-  block-size: calc(var(--cp-icon) - 6px);
-  inline-size: calc(var(--cp-icon) - 6px);
-}
-
-.assistant-mode-chip:hover .assistant-mode-chip__glyph {
-  visibility: hidden;
-}
-
-.assistant-mode-chip:hover .assistant-mode-chip__remove {
-  visibility: visible;
 }
 
 .assistant-mode-chip__label {

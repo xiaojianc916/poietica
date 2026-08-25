@@ -4,25 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useSessionControlsActions, useThreadGoal } from '../session/session-controls-context'
 import './goal-island.css'
 
-/*
- * 目标模式的灵动岛。
- *
- * 它是这条对话的东西：挂在对话表头里，换 surface 就随表头一起卸载，
- * 不会跟到别处去。它不持有目标 —— 目标的唯一真相在 agent，本机的唯一
- * 副本在 SessionControlsStore，这里只读。
- *
- * 弹簧参数照苹果灵动岛的手感：形变一条弹簧、内容一条更快的弹簧，
- * 形状由 layout 动画连续接管，不做两个盒子的淡入淡出。
- */
-
-const SHELL = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } as const
-const CONTENT = { type: 'spring', stiffness: 620, damping: 42, mass: 0.6 } as const
+const SHELL = { type: 'spring', stiffness: 300, damping: 28, mass: 1 } as const
+const CONTENT = { type: 'spring', stiffness: 360, damping: 30, mass: 0.85 } as const
+const SHAPE = { collapsed: 999, expanded: 28 } as const
 
 const SECOND = 1000
 const MINUTE = 60 * SECOND
 const HOUR = 60 * MINUTE
 
-/** 单调毫秒数的显示格式。不涉及历法与时区，所以不引依赖。 */
 function formatElapsed(total: number): string {
   const ms = Math.max(0, total)
   const hours = Math.floor(ms / HOUR)
@@ -30,19 +19,9 @@ function formatElapsed(total: number): string {
   const seconds = Math.floor((ms % MINUTE) / SECOND)
   const pad = (value: number) => String(value).padStart(2, '0')
 
-  if (hours > 0) {
-    return `${hours}:${pad(minutes)}:${pad(seconds)}`
-  }
-
-  return `${minutes}:${pad(seconds)}`
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`
 }
 
-/*
- * 走表。
- *
- * agent 累计的 wallClockMs 是真相，本机只把它推到此刻：推的依据是这份
- * 快照到达的时刻，不是另一个从零开始的计时器。目标不在跑时不推，也不醒。
- */
 function useElapsed(goal: SessionGoal): number {
   const [, retick] = useState(0)
   const running = goal.status === 'active'
@@ -53,11 +32,10 @@ function useElapsed(goal: SessionGoal): number {
     }
 
     const timer = setInterval(() => retick((count) => count + 1), SECOND)
-
     return () => clearInterval(timer)
   }, [running])
 
-  return goal.wallClockMs + (running ? Date.now() - goal.receivedAt : 0)
+  return goal.wallClockMs + (running ? performance.now() - goal.receivedAt : 0)
 }
 
 const STATUS_LABEL: Record<SessionGoal['status'], string> = {
@@ -74,11 +52,7 @@ export interface GoalIslandProps {
 export function GoalIsland({ threadId }: GoalIslandProps) {
   const goal = useThreadGoal(threadId)
 
-  if (goal === undefined) {
-    return null
-  }
-
-  return <Island goal={goal} threadId={threadId} />
+  return goal === undefined ? null : <Island goal={goal} threadId={threadId} />
 }
 
 function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threadId: string }) {
@@ -88,8 +62,8 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
   const [draft, setDraft] = useState(goal.objective)
   const shell = useRef<HTMLDivElement>(null)
   const elapsed = useElapsed(goal)
+  const statusLabel = STATUS_LABEL[goal.status]
 
-  /* 点到岛外就收起来，与灵动岛一致。 */
   useEffect(() => {
     if (!expanded) {
       return undefined
@@ -101,7 +75,6 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
         setEditing(false)
       }
     }
-
     const onEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setExpanded(false)
@@ -111,7 +84,6 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
 
     document.addEventListener('pointerdown', dismiss)
     document.addEventListener('keydown', onEscape)
-
     return () => {
       document.removeEventListener('pointerdown', dismiss)
       document.removeEventListener('keydown', onEscape)
@@ -138,13 +110,13 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
   return (
     <MotionConfig reducedMotion="user">
       <motion.div
-        animate={{ width: expanded ? 340 : 'auto' }}
+        animate={{ borderRadius: expanded ? SHAPE.expanded : SHAPE.collapsed }}
         className="goal-island"
         data-expanded={expanded}
         data-status={goal.status}
         layout
         ref={shell}
-        transition={SHELL}
+        transition={{ borderRadius: SHELL, layout: SHELL }}
       >
         <motion.button
           aria-expanded={expanded}
@@ -154,9 +126,9 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
           transition={SHELL}
           type="button"
         >
-          <motion.span className="goal-island__beacon" layout="position" />
+          <span aria-hidden="true" className="goal-island__beacon" />
           <motion.span className="goal-island__objective" layout="position">
-            {goal.objective}
+            {expanded ? `目标 · ${statusLabel}` : goal.objective}
           </motion.span>
           <motion.span className="goal-island__clock" layout="position">
             {formatElapsed(elapsed)}
@@ -166,16 +138,20 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
         <AnimatePresence initial={false} mode="popLayout">
           {expanded ? (
             <motion.div
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
               className="goal-island__panel"
-              exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
-              initial={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+              exit={{ opacity: 0, scale: 0.985, y: -4 }}
+              initial={{ opacity: 0, scale: 0.985, y: -4 }}
               key="panel"
+              style={{ transformOrigin: 'top center' }}
               transition={CONTENT}
             >
               {editing ? (
                 <div className="goal-island__edit">
                   <textarea
+                    aria-label="目标内容"
+                    // biome-ignore lint/a11y/noAutofocus: 由用户点击"编辑目标"触发，聚焦编辑框是预期行为
+                    autoFocus
                     className="goal-island__input"
                     onChange={(event) => setDraft(event.target.value)}
                     rows={3}
@@ -206,13 +182,19 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
                   <p className="goal-island__full">{goal.objective}</p>
 
                   {goal.completionCriterion === null ? null : (
-                    <p className="goal-island__criterion">{goal.completionCriterion}</p>
+                    <section aria-label="达成条件" className="goal-island__criterion">
+                      <span>达成条件</span>
+                      <p>{goal.completionCriterion}</p>
+                    </section>
                   )}
 
                   <dl className="goal-island__facts">
                     <div>
                       <dt>状态</dt>
-                      <dd>{STATUS_LABEL[goal.status]}</dd>
+                      <dd className="goal-island__status">
+                        <span aria-hidden="true" className="goal-island__beacon" />
+                        {statusLabel}
+                      </dd>
                     </div>
                     <div>
                       <dt>运行</dt>

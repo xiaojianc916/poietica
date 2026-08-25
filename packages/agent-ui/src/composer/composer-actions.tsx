@@ -5,7 +5,7 @@ import type {
   SessionConfigControl,
 } from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
-import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
+import { GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
 import type { PromptChipValue } from './prompt-chip'
 import { usePromptInputActions, usePromptInputDraft, usePromptInputPalette } from './prompt-input'
@@ -231,9 +231,6 @@ export function ComposerChips({ controls }: ComposerChipsProps) {
         >
           <span aria-hidden="true" className="assistant-mode-chip__icon">
             <span className="assistant-mode-chip__glyph">{glyph(selected.id)}</span>
-            <span className="assistant-mode-chip__remove">
-              <CloseIcon />
-            </span>
           </span>
           <span className="assistant-mode-chip__label">{selected.label}</span>
         </button>

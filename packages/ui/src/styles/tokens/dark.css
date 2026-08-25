@@ -4,6 +4,10 @@
   --ui-background: var(--ui-palette-dark-975);
   --ui-foreground: var(--ui-palette-white);
   --ui-surface: var(--ui-palette-dark-850);
+  --ui-inverse-surface: #000000;
+  --ui-inverse-foreground: #f7f7f8;
+  --ui-inverse-muted: rgb(255 255 255 / 68%);
+  --ui-inverse-border: rgb(255 255 255 / 18%);
 
   /*
    * 页面上抬起的一张卡（设置分组、关于面板）。

@@ -14,7 +14,7 @@ export interface SessionGoal {
   readonly tokensUsed: number
   /** agent 累计的运行时长。 */
   readonly wallClockMs: number
-  /** 这份快照到达本机的时刻。本地事实，用于把 wallClockMs 推到此刻。 */
+  /** 这份快照到达本机的单调时钟读数，用于把 wallClockMs 推到此刻。 */
   readonly receivedAt: number
 }
 

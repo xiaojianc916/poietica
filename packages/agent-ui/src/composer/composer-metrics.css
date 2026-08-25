@@ -166,6 +166,8 @@
   --cp-pill-trail: 10px;
   --cp-pill-gap: var(--cp-control-gap);
   --cp-pill-label-max: 14ch;
+  --cp-goal-island-width: 360px;
+  --cp-goal-copy-lines: 3;
   --cp-pill-wash: 13%;
   --cp-pill-wash-hover: 19%;
 

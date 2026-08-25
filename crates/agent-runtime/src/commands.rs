@@ -146,7 +146,7 @@ pub(crate) enum Command {
     /// 这条会话此刻的目标；没有目标在跑交 None。
     Goal {
         session_id: String,
-        reply: oneshot::Sender<Option<GoalSnapshot>>,
+        reply: oneshot::Sender<Result<Option<GoalSnapshot>>>,
     },
 }
 
@@ -274,14 +274,15 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// 这条会话此刻的目标。连接不在了也答 None —— 这一格的读者是屏幕上
-    /// 一枚岛，缺席即不画，不值得为此造一个错误面。
-    pub async fn goal(&self, session_id: String) -> Option<GoalSnapshot> {
+    /// 读取目标真相；未启用是 Ok(None)，连接故障是 Err。
+    pub async fn goal(&self, session_id: String) -> Result<Option<GoalSnapshot>> {
         let (reply, answer) = oneshot::channel();
 
-        self.send(Command::Goal { session_id, reply }).ok()?;
+        self.send(Command::Goal { session_id, reply })?;
 
-        answer.await.ok()?
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
     /// Starts a turn, delivering every frame of it to the sink handed in.

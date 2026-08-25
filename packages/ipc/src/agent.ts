@@ -341,7 +341,7 @@ function goalOf(reported: AgentGoal | null): SessionGoal | null {
     turnsUsed: reported.turnsUsed,
     tokensUsed: reported.tokensUsed,
     wallClockMs: reported.wallClockMs,
-    receivedAt: Date.now(),
+    receivedAt: performance.now(),
   }
 }
 
@@ -489,6 +489,7 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
       return {
         thread: opened.thread,
         selectors: opened.selectors.map(controlOf),
+        goal: goalOf(opened.goal),
         frames: opened.frames,
         history: opened.history,
         ...(opened.usage === null ? {} : { usage: opened.usage }),

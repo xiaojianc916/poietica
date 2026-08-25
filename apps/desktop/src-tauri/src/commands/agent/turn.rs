@@ -109,6 +109,7 @@ pub async fn agent_prompt(
             .client
             .goal(addressed.clone())
             .await
+            .map_err(translate)?
             .map(reported_goal);
 
         let _ignored = app.emit(

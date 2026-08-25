@@ -54,6 +54,7 @@ const opened = (selectors: readonly SessionConfigControl[]): OpenedThread => ({
     updatedAt: '2026-01-01T00:00:00.000Z',
   },
   selectors,
+  goal: null,
   frames: { events: [], before: null },
   history: { state: 'fresh' },
 })
@@ -148,5 +149,22 @@ describe('一条对话的那张表', () => {
 
     expect(woken).toBe(1)
     expect(store.selectorsOf(THREAD)).toBeUndefined()
+  })
+
+  it('打开答复在实时推送之前恢复 agent 的目标真相', () => {
+    const store = new SessionControlsStore({})
+    const goal = {
+      objective: '完成目标岛重构',
+      completionCriterion: null,
+      status: 'paused',
+      turnsUsed: 4,
+      tokensUsed: 3200,
+      wallClockMs: 90_000,
+      receivedAt: 42,
+    } as const
+
+    store.opened({ ...opened(WITH_LOW), goal })
+
+    expect(store.goalOf(THREAD)).toBe(goal)
   })
 })

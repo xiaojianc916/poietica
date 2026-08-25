@@ -1,5 +1,6 @@
 import type { ThreadId } from './address'
 import type { SessionConfigControl } from './config'
+import type { SessionGoal } from './goal'
 import type { SessionUsage } from './usage'
 
 /**
@@ -86,6 +87,8 @@ export interface FramePage {
 export interface OpenedThread {
   readonly thread: ThreadRecord
   readonly selectors: readonly SessionConfigControl[]
+  /** 打开时由 agent 直接读取的目标真相；没有目标时为 null。 */
+  readonly goal: SessionGoal | null
   /**
    * 这条对话最新的那一页经过，由本机的帧日志重放交回来。
    *

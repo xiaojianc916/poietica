@@ -1426,10 +1426,18 @@ fn handle_ws_message(
                         return;
                     };
 
+                    let goal = match fetch_goal(&http2, &base2, &sid).await {
+                        Ok(goal) => goal,
+                        Err(error) => {
+                            log::warn!("could not refresh the session goal: {error}");
+                            return;
+                        }
+                    };
+
                     let _sent = events2.unbounded_send(SessionEvent::Selectors {
-                        session_id: sid.clone(),
+                        session_id: sid,
                         controls: offered,
-                        goal: fetch_goal(&http2, &base2, &sid).await,
+                        goal,
                     });
                 });
             }
@@ -2167,17 +2175,15 @@ async fn abort_session(http: &reqwest::Client, base_url: &str, session_id: &str)
     Ok(())
 }
 
-/// 目标此刻的事实。读不到就是没有目标 —— 这一格不该让整条推送失败。
+/// 读取目标真相；协议缺席与传输失败不能合并。
 async fn fetch_goal(
     http: &reqwest::Client,
     base_url: &str,
     session_id: &str,
-) -> Option<GoalSnapshot> {
-    let goal = get(http, &format!("{base_url}/sessions/{session_id}/goal"))
-        .await
-        .ok()?;
+) -> Result<Option<GoalSnapshot>> {
+    let goal = get(http, &format!("{base_url}/sessions/{session_id}/goal")).await?;
 
-    goal_snapshot(&goal)
+    Ok(goal_snapshot(&goal))
 }
 
 async fn get_selectors(
