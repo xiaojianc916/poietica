@@ -74,7 +74,6 @@ export {
   applyRunEvent,
   applyRunEvents,
   channelNameOf,
-  completedUnits,
   createTimelineState,
   delegateKey,
   delegationOf,

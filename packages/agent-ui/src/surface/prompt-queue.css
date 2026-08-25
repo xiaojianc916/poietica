@@ -2,27 +2,49 @@
  * 输入框上方那条队列：一张卡，行长在卡里。
  *
  * 颜色与尺寸只取 composer-metrics.css 的令牌，所以它跟着主题走，不自己挑灰度。
+ * 高度封在五行半：那半行是唯一说明「下面还有」的东西。
  */
 .prompt-queue {
   display: flex;
   flex-direction: column;
   inline-size: calc(100% - var(--cp-queue-inset) * 2);
+  max-block-size: calc(var(--cp-queue-row) * var(--cp-queue-rows) + var(--cp-queue-pad) * 2);
   margin: 0 auto var(--cp-pad-mid);
   padding: var(--cp-queue-pad);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: var(--cp-px) solid var(--cp-edge);
   border-radius: var(--cp-radius);
   background: var(--cp-surface);
   box-shadow: var(--cp-lift);
   list-style: none;
+  scrollbar-width: none;
 }
 
+/* 轨道不占位：这张卡只有五行半，一条滚动条会把行宽切掉一截。 */
+.prompt-queue::-webkit-scrollbar {
+  display: none;
+}
+
+/* 到顶了：下沿化开半行，说明下面还有。是一层雾，所以是遮罩，不是涂色。 */
+.prompt-queue[data-more] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cp-queue-fade)), rgb(0 0 0 / 35%));
+}
+
+/* 一行：五格定宽，所以每一行的图标落在同一列；行高由令牌给，不由内容量。 */
 .prompt-queue__row {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns:
+    var(--cp-target-min)
+    minmax(0, 1fr)
+    var(--cp-target-min)
+    auto
+    var(--cp-target-min);
+  flex: none;
   align-items: center;
   gap: var(--cp-control-gap);
-  min-block-size: var(--cp-control);
-  min-inline-size: 0;
+  block-size: var(--cp-queue-row);
   padding-inline: 0 var(--cp-queue-pad);
   border-radius: var(--cp-queue-row-radius);
   color: var(--cp-ink);
@@ -46,7 +68,6 @@
 /* 把手常显：它是这一行的抓点，藏起来等于没有。 */
 .prompt-queue__grip {
   display: inline-flex;
-  flex: none;
   align-items: center;
   justify-content: center;
   inline-size: var(--cp-target-min);
@@ -66,27 +87,20 @@
   color: var(--cp-ink);
 }
 
+/* 正文只是正文：进编辑由铅笔那一颗管。 */
 .prompt-queue__said {
-  flex: 1 1 auto;
   min-inline-size: 0;
   overflow: hidden;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
   white-space: nowrap;
-  text-align: start;
   text-overflow: ellipsis;
-  cursor: text;
 }
 
 .prompt-queue__act {
   display: inline-flex;
-  flex: none;
   align-items: center;
+  justify-content: center;
   gap: var(--cp-control-gap);
-  min-block-size: var(--cp-target-min);
+  block-size: var(--cp-target-min);
   padding-inline: var(--cp-control-gap);
   border: 0;
   border-radius: var(--cp-radius-item);
@@ -100,9 +114,8 @@
     color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-/* 只有一枚字形的那一颗：命中区仍是 WCAG 2.2 SC 2.5.8 的下限。 */
+/* 只有一枚字形的那两颗：命中区仍是 WCAG 2.2 SC 2.5.8 的下限。 */
 .prompt-queue__act--glyph {
-  justify-content: center;
   inline-size: var(--cp-target-min);
   padding-inline: 0;
 }

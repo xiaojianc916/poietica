@@ -148,6 +148,11 @@
   --cp-queue-pad: 6px;
   --cp-queue-row-radius: calc(var(--cp-radius) - var(--cp-queue-pad));
 
+  /* 五行半：那半行是唯一说明「下面还有」的东西，到顶之后下沿化开同样半行。 */
+  --cp-queue-row: var(--cp-control);
+  --cp-queue-rows: 5.5;
+  --cp-queue-fade: calc(var(--cp-queue-row) / 2);
+
   /*
    * 模式胶囊。
    *

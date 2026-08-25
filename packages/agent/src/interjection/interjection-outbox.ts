@@ -15,6 +15,10 @@ interface Written {
  * enqueue / shift / splice 动过，协议没有重排操作，所以顺序的真相必须留在这一侧；
  * 代价是这一侧要守住「同时最多一条未落定」，否则两边各有一份顺序。
  *
+ * 放行只有一个判据：这一轮收口了，而且手上没有未落定的那一条 —— 轮次中途放一条
+ * 出去，会把 agent 正在写的那一段从中间劈开。人按提交是唯一的例外：那是一次明说
+ * 的插队，所以它也是唯一一条会去要求 kap 并轮的路径。
+ *
  * 纯 TS：没有 React、没有 DOM、没有传输，所以它在 Node 里直接单测。
  */
 export class InterjectionOutbox {
@@ -22,6 +26,10 @@ export class InterjectionOutbox {
   readonly #woken = new Set<() => void>()
   #state: OutboxState = EMPTY
   #serial = 0
+  /** 手上那条是插队放出去的：只有它要并进正在跑的这一轮。 */
+  #urged = false
+  /** 已经要求并轮的那个号：一个号只说一次。 */
+  #merged: string | undefined
 
   constructor(port: OutboxPort) {
     this.#port = port
@@ -120,59 +128,69 @@ export class InterjectionOutbox {
     })
   }
 
-  /** 提交：插到队首并立刻放出去，不等 agent 收口。 */
+  /** 提交：插到队首立刻放出去，并要求并进正在跑的这一轮。 */
   urge(id: string): void {
     this.arrange([id])
-    this.#release(0)
+    this.#release(true)
   }
 
-  /** agent 刚收口一件事：放一条。 */
-  beat(): void {
-    this.#release(0)
-  }
-
-  /** kap 收下了刚放出去那一条：并进这一轮，别等下一轮。 */
+  /**
+   * kap 收下了刚放出去那一条。
+   *
+   * 只有插队那一条要并轮，而且一个号只说一次：同一个号说第二遍时它已经不在 kap
+   * 的队里，那条命令必然被回绝（40402）。
+   */
   claimed(promptId: string): void {
-    if (this.#state.inflight === undefined) {
+    if (this.#state.inflight === undefined || !this.#urged || this.#merged === promptId) {
       return
     }
 
+    this.#merged = promptId
     this.#port.merge(promptId)
   }
 
-  /** 那一条落定了，下一条可以走了。 */
-  settle(): void {
-    if (this.#state.inflight === undefined) {
-      return
+  /** 这一轮收口了：手上那条落账，队里下一条可以走。 */
+  idle(): void {
+    if (this.#state.inflight !== undefined) {
+      this.#urged = false
+      this.#merged = undefined
+      this.#write({ inflight: undefined })
     }
 
-    this.#write({ inflight: undefined })
     this.#drain()
   }
 
-  /* 空闲就把队首放出去：不忙的时候没有停顿可等。 */
+  /* 空闲才放行：轮次中途的停顿不是放行的时机。 */
   #drain(): void {
     if (this.#port.isBusy()) {
       return
     }
 
-    this.#release(0)
+    this.#release(false)
   }
 
-  #release(index: number): void {
+  /**
+   * 放一条出去：队里第一句还在排的话。
+   *
+   * 跳过正在改的那一条，而不是停在它前面 —— 停下来等于有人在改队首时整队都发不出去。
+   */
+  #release(urged: boolean): void {
     if (this.#state.inflight !== undefined) {
       return
     }
 
+    const index = this.#state.queue.findIndex((held) => held.state === 'queued')
     const said = this.#state.queue[index]
 
-    if (said === undefined || said.state !== 'queued') {
+    if (said === undefined) {
       return
     }
 
     const queue = [...this.#state.queue]
 
     queue.splice(index, 1)
+    this.#urged = urged
+    this.#merged = undefined
     this.#write({ inflight: said, queue })
     this.#port.deliver(said)
   }

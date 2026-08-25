@@ -223,27 +223,6 @@ export function selectIsBusy(state: TimelineState): boolean {
 }
 
 /**
- * agent 到此为止收口过多少件事：一次终态的工具调用、一段封版的话或思考、一段封口的轮次。
- *
- * 插话等的就是这个数字变 —— 一轮结束不是唯一的停顿。交数字，所以流式追加叫不醒它。
- */
-export function completedUnits(state: TimelineState): number {
-  let units = state.sealed.length
-
-  for (const item of state.active.items) {
-    if (item.type === 'tool_call') {
-      if (isTerminal(item.status)) {
-        units += 1
-      }
-    } else if ((item.type === 'agent_text' || item.type === 'agent_thought') && item.sealed) {
-      units += 1
-    }
-  }
-
-  return units
-}
-
-/**
  * kap 手上那条还没落定的号。
  *
  * 出账簿一次只放一条出去，所以它至多一个 —— 单值，引用天生稳定，不需要缓存。

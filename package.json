@@ -86,8 +86,8 @@
       "lexical": "0.49.0",
       "lucide-react": "1.33.0",
       "motion": "13.1.1",
-      "react": "^19.2.8",
-      "react-dom": "^19.2.8",
+      "react": "19.2.8",
+      "react-dom": "19.2.8",
       "streamdown": "2.6.0",
       "tailwind-merge": "3.6.0",
       "tailwindcss": "4.3.3",
@@ -96,7 +96,7 @@
       "uuid": "14.0.2",
       "valibot": "1.4.2",
       "vite": "8.2.2",
-      "yaml": "^2.9.0",
+      "yaml": "2.9.0",
       "yet-another-react-lightbox": "3.32.2"
     },
     "catalogs": {

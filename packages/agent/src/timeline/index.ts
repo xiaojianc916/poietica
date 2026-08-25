@@ -39,7 +39,6 @@ export type {
 export { opensTurn } from './timeline-contract'
 export {
   activeScope,
-  completedUnits,
   inflightPromptId,
   pendingPermission,
   pendingPermissionCall,

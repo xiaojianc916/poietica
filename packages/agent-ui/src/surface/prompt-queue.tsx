@@ -3,8 +3,11 @@ import './prompt-queue.css'
 import type { Interjection, InterjectionOutbox } from '@poietica/agent'
 import { Reorder, useDragControls } from 'motion/react'
 import { memo, useCallback, useSyncExternalStore } from 'react'
-import { CloseIcon, DragHandleIcon, ForwardIcon } from '../primitives/icons'
+import { CloseIcon, DragHandleIcon, ForwardIcon, PencilIcon } from '../primitives/icons'
 import { DRAG_SPRING } from '../primitives/motion'
+
+/** 面板到顶的行数，与 --cp-queue-rows 同源：超过它就有东西在视野外。 */
+const VISIBLE_ROWS = 5
 
 export interface PromptQueueProps {
   /** 队列的真相。这一层只画它、只按它给的顺序画。 */
@@ -25,7 +28,11 @@ interface RowProps {
  * 一行。
  *
  * 拖拽走 Reorder.Item：指针事件，触控与笔一并支持，落位由 layout 补间。
- * dragListener 关掉，起手权归把手，正文因此仍能点选；键盘走 Alt 加上下方向键。
+ * dragListener 关掉，起手权归把手；键盘走 Alt 加上下方向键。
+ *
+ * 拖动期间不缩放：这一行里最小的东西是 14px 的字形，一次非整数缩放把它的起点推到
+ * 半个设备像素上（composer-metrics.css 的居中偏移那一条）。浮起由把手 :active 的
+ * 投影表达，那一层不动几何。
  */
 const QueueRow = memo(function QueueRow({ item, onEdit, onNudge, onRemove, onUrge }: RowProps) {
   const drag = useDragControls()
@@ -36,11 +43,9 @@ const QueueRow = memo(function QueueRow({ item, onEdit, onNudge, onRemove, onUrg
       className="prompt-queue__row"
       data-editing={editing ? 'true' : undefined}
       dragControls={drag}
-      dragElastic={0.04}
       dragListener={false}
       transition={DRAG_SPRING}
       value={item}
-      whileDrag={{ scale: 1.01 }}
     >
       <button
         aria-label="按住拖动改顺序，或按 Alt 加上下方向键"
@@ -66,15 +71,24 @@ const QueueRow = memo(function QueueRow({ item, onEdit, onNudge, onRemove, onUrg
         <DragHandleIcon aria-hidden size={14} />
       </button>
 
-      <button
+      <span
         className="prompt-queue__said"
+        title={editing ? '正文在输入框里，改完发送就回到这个位置' : item.text}
+      >
+        {editing ? '正在输入框里改…' : item.text}
+      </span>
+
+      <button
+        aria-label="改这一句"
+        className="prompt-queue__act prompt-queue__act--glyph"
+        disabled={editing}
         onClick={() => {
           onEdit(item.id)
         }}
-        title={editing ? '正文在输入框里，改完发送就回到这个位置' : item.text}
+        title="改这一句：正文回输入框，位置留着"
         type="button"
       >
-        {editing ? '正在输入框里改…' : item.text}
+        <PencilIcon aria-hidden size={14} />
       </button>
 
       <button
@@ -110,6 +124,9 @@ const QueueRow = memo(function QueueRow({ item, onEdit, onNudge, onRemove, onUrg
  *
  * 顺序、正文与编辑占位都在出账簿里：这一层只订它，并把新顺序整条交回 —— 交 id 不交
  * 下标，所以拖动期间队首被放行也不会挪错人。最上面就是最先发送的那一句。
+ *
+ * 到顶了由行数说，不靠量高度：行高由令牌给，整行等高，所以「有没有东西在视野外」
+ * 是一次比较，不是一次测量。
  */
 export const PromptQueue = memo(function PromptQueue({ onEdit, outbox }: PromptQueueProps) {
   const state = useSyncExternalStore(outbox.subscribe, outbox.read)
@@ -173,6 +190,7 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, outbox }: PromptQ
       aria-label="排队等发的话"
       axis="y"
       className="prompt-queue"
+      data-more={state.queue.length > VISIBLE_ROWS ? 'true' : undefined}
       onReorder={arrange}
       values={[...state.queue]}
     >

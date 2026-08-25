@@ -41,6 +41,7 @@ export function asIcon(glyph: FunctionComponent<{ className?: string; size?: num
 export {
   ArrowUp as SubmitIcon,
   Atom as ThinkingIcon,
+  CalendarDays as PreviewIcon,
   Check as CheckIcon,
   ChevronDown as ChevronDownIcon,
   CircleAlert as FailureIcon,
@@ -48,7 +49,6 @@ export {
   Copy as CopyIcon,
   Download as DownloadIcon,
   Ellipsis as MoreIcon,
-  Eye as PreviewIcon,
   File as FileIcon,
   FolderPlus as FolderPlusIcon,
   Forward as ForwardIcon,

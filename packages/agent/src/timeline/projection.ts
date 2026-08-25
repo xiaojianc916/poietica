@@ -147,40 +147,7 @@ export function apply(draft: Draft, event: RunEvent): void {
        的新条目。开张只认 attempt 1 —— 没有开着的一轮时，一句「接回来了」无处可落，
        丢掉它，屏幕上就不会冒出一行没有来由的「连接已恢复」。 */
     case 'link_changed': {
-      const at = lastLink(draft)
-      const held = at < 0 ? undefined : draft.items[at]
-      const open = held?.type === 'link' && held.link.state === 'retrying' ? held : undefined
-
-      /* 旧账（枚举改版前落库的帧）拿 linked 记「接回来了」，而现行类型已无此档：
-         换算成 recovered，理由沿用这一轮最后一次失败的那句；前面没有开着的一轮
-         就丢掉。断言说的是实情：盘上的字节比类型老。 */
-      const stated = event.link as SessionLink | { readonly state: 'linked' }
-
-      if (stated.state === 'linked') {
-        if (open !== undefined) {
-          draft.items[at] = { ...open, link: { state: 'recovered', reason: open.link.reason } }
-        }
-
-        return
-      }
-
-      if (open !== undefined) {
-        draft.items[at] = { ...open, link: event.link }
-
-        return
-      }
-
-      if (event.link.state !== 'retrying' || event.link.attempt !== 1) {
-        return
-      }
-
-      push(draft, {
-        type: 'link',
-        id: `${namespace(draft)}link-${String(event.seq)}`,
-        turn: draft.runIndex,
-        at: event.at,
-        link: event.link,
-      })
+      applyLink(draft, event)
 
       return
     }
@@ -209,6 +176,55 @@ export function apply(draft: Draft, event: RunEvent): void {
       return
     }
   }
+}
+
+/*
+ * 一轮重连是一个条目：attempt 1 开张，接回来或试到头就封版，之后再断是下一轮的
+ * 新条目。开张只认 attempt 1 —— 没有开着的一轮时，一句「接回来了」无处可落，
+ * 丢掉它，屏幕上就不会冒出一行没有来由的「连接已恢复」。
+ */
+function applyLink(
+  draft: Draft,
+  event: {
+    readonly seq: number
+    readonly at: number
+    readonly link: SessionLink
+  },
+): void {
+  const at = lastLink(draft)
+  const held = at < 0 ? undefined : draft.items[at]
+  const open = held?.type === 'link' && held.link.state === 'retrying' ? held : undefined
+
+  /* 旧账（枚举改版前落库的帧）拿 linked 记「接回来了」，而现行类型已无此档：
+     换算成 recovered，理由沿用这一轮最后一次失败的那句；前面没有开着的一轮
+     就丢掉。断言说的是实情：盘上的字节比类型老。 */
+  const stated = event.link as SessionLink | { readonly state: 'linked' }
+
+  if (stated.state === 'linked') {
+    if (open !== undefined) {
+      draft.items[at] = { ...open, link: { state: 'recovered', reason: open.link.reason } }
+    }
+
+    return
+  }
+
+  if (open !== undefined) {
+    draft.items[at] = { ...open, link: event.link }
+
+    return
+  }
+
+  if (event.link.state !== 'retrying' || event.link.attempt !== 1) {
+    return
+  }
+
+  push(draft, {
+    type: 'link',
+    id: `${namespace(draft)}link-${String(event.seq)}`,
+    turn: draft.runIndex,
+    at: event.at,
+    link: event.link,
+  })
 }
 
 /** 本段里最后那次断线的位置。没有就是 -1。 */

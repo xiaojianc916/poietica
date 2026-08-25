@@ -8,7 +8,6 @@ import type {
 } from '@poietica/agent'
 import {
   activeScope,
-  completedUnits,
   describeFailure,
   InterjectionOutbox,
   inflightPromptId,
@@ -147,9 +146,6 @@ function toChatStatus(status: TimelineState['status']): ChatStatus {
 
 const readStatus = (transcript: Transcript): ChatStatus => toChatStatus(transcript.timeline.status)
 
-/* agent 收口过几件事。数字，所以只在真的出现停顿时才叫醒插话那一条订阅。 */
-const readUnits = (transcript: Transcript): number => completedUnits(transcript.timeline)
-
 /* kap 手上那条还没落定的号，至多一个。 */
 const readInflight = (transcript: Transcript): string | undefined =>
   inflightPromptId(activeScope(transcript.timeline))
@@ -198,8 +194,10 @@ export function useAssistantSession({
 
   const running = useSlice(key, readStatus)
   const isRestoring = useSlice(key, readRestoring)
-  const units = useSlice(key, readUnits)
   const inflight = useSlice(key, readInflight)
+
+  /* 忙不忙只有这一个产地：放行的拍子与出账簿的 isBusy 读的是同一个字。 */
+  const busy = running !== 'ready' && running !== 'error'
 
   /*
    * 接上帧流。就这一件事。
@@ -261,7 +259,7 @@ export function useAssistantSession({
 
   useEffect(() => {
     wired.current = {
-      busy: running !== 'ready' && running !== 'error',
+      busy,
       deliver: (said) => {
         transcripts.send({
           assets: said.assets,
@@ -276,10 +274,22 @@ export function useAssistantSession({
         })
       },
       merge: (promptId) => {
-        direct(note, () => (endpoint === null ? undefined : session?.steer(endpoint, [promptId])))
+        if (endpoint === null || session === undefined) {
+          note(NO_SESSION)
+
+          return
+        }
+
+        /* 并轮是一次对账：这一轮已经收口时 kap 必然回绝（40402），而那一句要的终局
+           已经成立 —— kap 自己会把它跑掉。只有轮次还在跑时的失败才是失败。 */
+        void session.steer(endpoint, [promptId]).catch((cause: unknown) => {
+          if (wired.current.busy) {
+            note(describeFailure(cause))
+          }
+        })
       },
     }
-  }, [endpoint, identify, key, note, onUserMessage, running, session, transcripts])
+  }, [busy, endpoint, identify, key, note, onUserMessage, session, transcripts])
 
   const [outbox] = useState(
     () =>
@@ -294,17 +304,16 @@ export function useAssistantSession({
       }),
   )
 
-  /* agent 刚收口一件事：放一条出去。units 是触发器：它变了就是出现了停顿。 */
-  // biome-ignore lint/correctness/useExhaustiveDependencies: units 是触发器，删了它出账簿永远等不到放行的拍子
+  /* 这一轮收口了才放行：中途放一条出去，会把 agent 正在写的那一段从中间劈开。 */
   useEffect(() => {
-    outbox.beat()
-  }, [outbox, units])
+    if (!busy) {
+      outbox.idle()
+    }
+  }, [busy, outbox])
 
-  /* kap 收下了就并进这一轮；落定了就允许下一条。 */
+  /* 插队那一条要并进这一轮，kap 收下它之后才有号可并。 */
   useEffect(() => {
-    if (inflight === undefined) {
-      outbox.settle()
-    } else {
+    if (inflight !== undefined) {
       outbox.claimed(inflight)
     }
   }, [inflight, outbox])
