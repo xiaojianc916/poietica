@@ -29,8 +29,6 @@ export interface DiffRow {
 
 export interface DiffFile {
   readonly path: string
-  /** 路径去掉文件名的那一段，含尾分隔符。 */
-  readonly dir: string
   readonly name: string
   readonly rows: readonly DiffRow[]
   readonly stat: DiffStat
@@ -121,7 +119,6 @@ function spread(hunk: Hunk, rows: DiffRow[]): DiffStat {
 
 function fileOf(part: Extract<ToolContentPart, { type: 'diff' }>): DiffFile {
   const path = toDisplayPath(part.path)
-  const cut = cutOf(path)
   const patch = structuredPatch(path, path, part.oldText ?? '', part.newText, '', '', {
     context: CONTEXT,
   })
@@ -139,7 +136,6 @@ function fileOf(part: Extract<ToolContentPart, { type: 'diff' }>): DiffFile {
 
   return {
     path,
-    dir: cut < 0 ? '' : path.slice(0, cut + 1),
     name: basename(path),
     rows,
     stat: { added, removed },

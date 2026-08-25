@@ -292,6 +292,18 @@ function proseOf(parts: readonly ToolContentPart[]): string | null {
   return pieces.length === 0 ? null : pieces.join('\n\n')
 }
 
+/** 这次调用改动的每一处；两面各按片段数组记过账，所以这条路可以在渲染里反复走。 */
+export function toDiffFilesOf(source: ToolCallFacetSource): readonly DiffFile[] {
+  const sent = toDiffFiles(toToolContentParts(source.requestContent))
+  const back = toDiffFiles(toToolContentParts(source.content))
+
+  if (sent.length === 0) {
+    return back
+  }
+
+  return back.length === 0 ? sent : [...sent, ...back]
+}
+
 /**
  * 三格，一趟算完，渲染器只读不算。
  *
@@ -301,7 +313,7 @@ function proseOf(parts: readonly ToolContentPart[]): string | null {
 export function toToolCallFacets(source: ToolCallFacetSource): ToolCallFacets {
   const sent = toToolContentParts(source.requestContent)
   const back = toToolContentParts(source.content)
-  const diffs = [...toDiffFiles(sent), ...toDiffFiles(back)]
+  const diffs = toDiffFilesOf(source)
 
   return {
     diffs,

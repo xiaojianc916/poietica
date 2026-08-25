@@ -142,9 +142,9 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
           rowOf(row)
         ) : (
           <ToolGroupCard
-            isOpen={opened.has(row.item.id)}
+            isOpen={opened.has(plan.id)}
             onToggle={() => {
-              toggleOpen(row.item.id)
+              toggleOpen(plan.id)
             }}
             plan={plan}
             renderRow={rowOf}

@@ -96,7 +96,7 @@ function describeToolCall(item: ToolCallTimelineItem, isInFlight: boolean): Tool
 }
 
 /** 加减了多少行。两边都是零就不占位。 */
-function ToolCallDiffStat({ diffStat }: { readonly diffStat: ToolCallFacets['diffStat'] }) {
+export function ToolCallDiffStat({ diffStat }: { readonly diffStat: ToolCallFacets['diffStat'] }) {
   if (diffStat === null || diffStat.added + diffStat.removed === 0) {
     return null
   }

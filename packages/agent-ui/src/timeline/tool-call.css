@@ -238,27 +238,31 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* 切换条腾出来的那一格。目录退一档，文件名留住墨色 —— 编辑器的面包屑就是这么分的。 */
+/* 切换条腾出来的那一格：一枚文件类型字形，一个文件名。全路径挂在 title 上。 */
 .timeline-tool__path {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  gap: 0.375rem;
   padding: 0.375rem 0.75rem;
   font-family: var(--cp-font-mono);
   font-size: var(--cp-font-micro);
   line-height: 1.6;
 }
 
-.timeline-tool__path-dir {
-  min-inline-size: 0;
-  overflow: hidden;
+.timeline-tool__path-icon {
+  flex: none;
+  inline-size: var(--cp-icon);
+  block-size: 1lh;
   color: var(--cp-timeline-quiet-text);
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  stroke-width: var(--cp-icon-stroke);
 }
 
 .timeline-tool__path-name {
-  flex: none;
+  min-inline-size: 0;
+  overflow: hidden;
   color: var(--cp-ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /*
@@ -268,9 +272,11 @@
  * 正文列的下界是 max-content：长行因此撑得开、横向滚得动。
  *
  * 增删的底色是这一层的一张背景图，不是每一行自己的 background：网格项只画到内容盒，
- * 而滚动条的车道在内容盒之外 —— 底色画在行上，车道就永远是另一种颜色。背景默认剪到
- * 边框盒，车道在里面；attachment: local 再把它钉在内容上，色带于是跟着内容一起滚，
- * 滚到哪一行，车道就是哪一行的颜色。刻度用 lh：一行 diff 恰好一个行盒。
+ * 而 attachment: local 把它钉在内容上，色带因此跟着内容一起滚。刻度用 lh：一行 diff
+ * 恰好一个行盒。
+ *
+ * 车道另给一个颜色：背景那一层进不了滚动条，而标准属性只收颜色关键字，所以它是按这处
+ * 改动的增删行数配出来的一个色（--cp-timeline-diff-track，由 tool-call-panels 算）。
  */
 .timeline-tool__diff {
   display: grid;
@@ -287,7 +293,7 @@
   background-repeat: repeat no-repeat;
   background-size: 100% calc(var(--cp-timeline-diff-rows) * 1lh);
   scrollbar-width: thin;
-  scrollbar-color: var(--cp-timeline-drawer-thumb) transparent;
+  scrollbar-color: var(--cp-timeline-drawer-thumb) var(--cp-timeline-diff-track);
 }
 
 .timeline-tool__diff-row {

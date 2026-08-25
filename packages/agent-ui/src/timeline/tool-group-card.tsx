@@ -5,9 +5,11 @@ import { type FeedRow, liveMemberOf, type ToolGroupPlan } from '@poietica/agent'
 import type { ReactNode } from 'react'
 import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon } from '../primitives/icons'
+import { type DiffFile, type DiffStat, diffStatOf } from '../semantics/file-diff'
+import { toDiffFilesOf } from '../semantics/tool-call-facets'
 import { readToolLine } from '../semantics/tool-intent'
 import { GroupTicker } from './group-ticker'
-import { ToolKindIcon } from './tool-call-card'
+import { ToolCallDiffStat, ToolKindIcon } from './tool-call-card'
 
 /**
  * 一组连续的同类调用。
@@ -82,8 +84,21 @@ function sayingOf(row: FeedRow): string | undefined {
   return said === '' ? undefined : said
 }
 
+/** 组头那一对数字：成员各自算过的同一批改动，这里只做一次求和。 */
+function statOf(plan: ToolGroupPlan): DiffStat | null {
+  const files: DiffFile[] = []
+
+  for (const row of plan.members) {
+    if (row.item.type === 'tool_call') {
+      files.push(...toDiffFilesOf(row.item))
+    }
+  }
+
+  return diffStatOf(files)
+}
+
 export interface ToolGroupCardProps {
-  /** 开合归转录那一层，按组头那一条的 id 记账。 */
+  /** 开合归转录那一层，按这一组自己的 id 记账。 */
   readonly isOpen: boolean
   readonly onToggle: () => void
   readonly plan: ToolGroupPlan
@@ -135,6 +150,8 @@ export function ToolGroupCard({ isOpen, onToggle, plan, renderRow }: ToolGroupCa
         type="button"
       >
         <ToolKindIcon kind={plan.kind} />
+
+        <ToolCallDiffStat diffStat={statOf(plan)} />
 
         <GroupTicker isRunning={isRunning} text={saying ?? summary} />
 

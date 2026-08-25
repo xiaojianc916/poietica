@@ -26,6 +26,8 @@ export interface FeedRow {
 export type ToolGroupKind = ToolCallTimelineItem['kind']
 
 export interface ToolGroupPlan {
+  /** 这一组自己的开合身份：成员的 id 归成员，组不借用其中任何一个。 */
+  readonly id: string
   readonly kind: ToolGroupKind
   /** 按屏幕顺序，第一条就是挂着这一组的那一行。 */
   readonly members: readonly FeedRow[]
@@ -379,7 +381,11 @@ function groupIn(rows: readonly FeedRow[]): {
     }
 
     kept.push(row)
-    groups.set(row.item.id, { kind, members: rows.slice(cursor, end) })
+    groups.set(row.item.id, {
+      id: `group:${row.item.id}`,
+      kind,
+      members: rows.slice(cursor, end),
+    })
     cursor = end
   }
 
