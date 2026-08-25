@@ -14,6 +14,11 @@ import type { BrowserHostView, BrowserTabView } from './browser-port'
 interface BrowserTabStripProps {
   readonly host: BrowserHostView
   readonly actions: BrowserPanelStore['actions']
+  readonly paneIds: readonly string[]
+  readonly activePaneId: string | null
+  readonly renderPaneTab: (id: string) => ReactNode
+  readonly onSelectPane: (id: string | null) => void
+  readonly onClosePane: (id: string) => void
   /** 行尾角位：宿主放面板开关。 */
   readonly trailing?: ReactNode
   /** 下拉开合上报：原生 webview 得为浮层让位。 */
@@ -23,6 +28,11 @@ interface BrowserTabStripProps {
 export function BrowserTabStrip({
   host,
   actions,
+  activePaneId,
+  paneIds,
+  renderPaneTab,
+  onClosePane,
+  onSelectPane,
   trailing,
   onOverlayChange,
 }: BrowserTabStripProps) {
@@ -46,8 +56,37 @@ export function BrowserTabStrip({
         className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
         style={{ scrollbarWidth: 'none' }}
       >
+        {paneIds.map((id) => (
+          <div
+            className={
+              'group flex max-w-44 shrink-0 items-center rounded-md ' +
+              (id === activePaneId ? 'bg-current/10' : 'hover:bg-current/5')
+            }
+            key={id}
+          >
+            <button
+              className="flex min-w-0 items-center gap-1.5 py-1 pl-2 pr-1"
+              onClick={() => {
+                onSelectPane(id)
+              }}
+              type="button"
+            >
+              {renderPaneTab(id)}
+            </button>
+            <button
+              aria-label="关闭标签页"
+              className="mr-1 rounded p-0.5 opacity-0 hover:bg-current/10 group-hover:opacity-60 hover:opacity-100"
+              onClick={() => {
+                onClosePane(id)
+              }}
+              type="button"
+            >
+              <X aria-hidden className="size-3" />
+            </button>
+          </div>
+        ))}
         {host.tabs.map((tab) => {
-          const active = tab.id === host.activeTabId
+          const active = activePaneId === null && tab.id === host.activeTabId
 
           return (
             <div

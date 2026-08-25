@@ -1,7 +1,8 @@
-import { BrowserPanel } from '@poietica/browser'
+import { DelegateChannelPane, DelegateChannelTab } from '@poietica/agent-ui'
+import { BrowserPanel, type DockPaneRenderers } from '@poietica/browser'
 import { workspaceLayoutStore } from '@poietica/workspace'
 import { PanelRight } from 'lucide-react'
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 import { browserPanelStore } from './browser-runtime'
 
@@ -68,9 +69,10 @@ export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
   }, [])
 
   useEffect(() => {
-    /* 浮层开着时原生 webview 让位：它是独立窗口，永远压过主窗口的 HTML 弹窗。 */
-    browserPanelStore.setVisible(isDocked && !state.overlayOpen)
-  }, [isDocked, state.overlayOpen])
+    /* 原生 webview 是独立窗口，永远压过主窗口的 HTML：浮层开着、或屏幕上是一条
+       只读通道时，它必须让位。 */
+    browserPanelStore.setVisible(isDocked && !state.overlayOpen && state.activePaneId === null)
+  }, [isDocked, state.activePaneId, state.overlayOpen])
 
   useEffect(() => {
     const held = layout.browserThread !== null
@@ -102,21 +104,25 @@ export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
     busy.current = loading
   }, [state.host, layout.browserThread, conversationId])
 
-  if (state.host === null) {
-    /* 快照还没到或宿主没接上：如实说，不画一个假浏览器。 */
-    return (
-      <div className="flex h-full flex-col">
-        <div className="flex h-8 items-center justify-end border-b border-current/10 pr-2.5">
-          {conversationId === null ? null : <BrowserPanelToggle conversationId={conversationId} />}
-        </div>
-        <p className="p-4 text-xs opacity-50">浏览器宿主没有回应。</p>
-      </div>
-    )
-  }
+  /* 通道内容由 agent-ui 画：本格只管把它摆进 dock。宿主哑掉的空态归 BrowserPanel。 */
+  const panes = useMemo<DockPaneRenderers>(
+    () => ({
+      tab: (id) =>
+        conversationId === null ? null : (
+          <DelegateChannelTab conversationId={conversationId} toolCallId={id} />
+        ),
+      body: (id) =>
+        conversationId === null ? null : (
+          <DelegateChannelPane conversationId={conversationId} toolCallId={id} />
+        ),
+    }),
+    [conversationId],
+  )
 
   return (
     <BrowserPanel
       layoutSignal={layout}
+      panes={panes}
       store={browserPanelStore}
       trailing={
         conversationId === null ? null : <BrowserPanelToggle conversationId={conversationId} />

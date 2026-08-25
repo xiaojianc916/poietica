@@ -22,15 +22,22 @@ import { BrowserTabStrip } from './browser-tab-strip'
  * 并把视口矩形对齐给宿主。
  */
 
+/** 一格通道的两面由谁画。本包不解读 id，只把它们摆进壳里。 */
+export interface DockPaneRenderers {
+  readonly tab: (id: string) => ReactNode
+  readonly body: (id: string) => ReactNode
+}
+
 export interface BrowserPanelProps {
   readonly store: BrowserPanelStore
+  readonly panes: DockPaneRenderers
   /** 标签条行尾的角位：宿主放面板开关，几何与宿主页头对齐。 */
   readonly trailing?: ReactNode
   /** 几何输入的指纹：变了就重新起跑视口对齐，内容不解读。 */
   readonly layoutSignal: unknown
 }
 
-export function BrowserPanel({ store, trailing, layoutSignal }: BrowserPanelProps) {
+export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPanelProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const host = state.host
   const activeTab = host?.tabs.find((tab) => tab.id === host.activeTabId) ?? null
@@ -52,20 +59,32 @@ export function BrowserPanel({ store, trailing, layoutSignal }: BrowserPanelProp
         <>
           <BrowserTabStrip
             actions={store.actions}
+            activePaneId={state.activePaneId}
             host={host}
+            onClosePane={store.closePane}
             onOverlayChange={store.setOverlayOpen}
+            onSelectPane={store.selectPane}
+            paneIds={state.panes}
+            renderPaneTab={panes.tab}
             trailing={trailing}
           />
-          <BrowserToolbar
-            actions={store.actions}
-            activeTab={activeTab}
-            onOverlayChange={store.setOverlayOpen}
-          />
-          <Viewport
-            layoutSignal={layoutSignal}
-            showEmpty={activeTab === null || activeTab.url === null}
-            store={store}
-          />
+          {state.activePaneId === null ? (
+            <>
+              <BrowserToolbar
+                actions={store.actions}
+                activeTab={activeTab}
+                onOverlayChange={store.setOverlayOpen}
+              />
+              <Viewport
+                layoutSignal={layoutSignal}
+                showEmpty={activeTab === null || activeTab.url === null}
+                store={store}
+              />
+            </>
+          ) : (
+            /* 通道是只读的：没有地址栏，也没有输入框。 */
+            <div className="min-h-0 flex-1 overflow-y-auto">{panes.body(state.activePaneId)}</div>
+          )}
         </>
       )}
     </aside>

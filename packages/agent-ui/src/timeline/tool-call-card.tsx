@@ -3,6 +3,7 @@ import './shimmer.css'
 import './tool-call.css'
 
 import type { ToolCallTimelineItem } from '@poietica/agent'
+import { isDelegation } from '@poietica/agent'
 import { cx } from '../primitives/class-names'
 import { DisclosureBody } from '../primitives/disclosure'
 import {
@@ -22,6 +23,7 @@ import {
 } from '../primitives/icons'
 import { type ToolCallFacets, toToolCallFacets } from '../semantics/tool-call-facets'
 import { readToolLine } from '../semantics/tool-intent'
+import { useDelegateChannel } from './delegate-channel-context'
 import { ToolCallPanels } from './tool-call-panels'
 
 /*
@@ -113,11 +115,13 @@ function ToolCallDiffStat({ diffStat }: { readonly diffStat: ToolCallFacets['dif
 
 /** 这一行：一枚图标，一句话，指到才出现的箭头 —— 还在跑的时候，那句话上有一道光扫过。 */
 function ToolCallHeader({
+  isChannel,
   isOpen,
   item,
   onToggle,
   view,
 }: {
+  readonly isChannel: boolean
   readonly isOpen: boolean
   readonly item: ToolCallTimelineItem
   readonly onToggle: () => void
@@ -127,7 +131,13 @@ function ToolCallHeader({
   const { diffStat } = facets
 
   return (
-    <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
+    <button
+      aria-expanded={isChannel ? undefined : isOpen}
+      className="timeline-row"
+      onClick={onToggle}
+      title={isChannel ? '在右侧通道中打开' : undefined}
+      type="button"
+    >
       <ToolKindIcon kind={item.kind} />
 
       <span className={cx('timeline-row__label', isRunning && 'timeline-shimmer')}>{line}</span>
@@ -136,7 +146,9 @@ function ToolCallHeader({
 
       <ToolCallDiffStat diffStat={diffStat} />
 
-      <ChevronDownIcon aria-hidden="true" className="timeline-row__chevron disclosure__chevron" />
+      {isChannel ? null : (
+        <ChevronDownIcon aria-hidden="true" className="timeline-row__chevron disclosure__chevron" />
+      )}
     </button>
   )
 }
@@ -165,10 +177,34 @@ export function ToolCallCard({
   readonly onToggle: () => void
 }) {
   const view = describeToolCall(item, isInFlight)
+  const openChannel = useDelegateChannel()
+
+  /* 派发的账目在它自己的通道里，这一行只是入口 —— 主转录不摊开子代理说的话。 */
+  if (isDelegation(item)) {
+    return (
+      <section className="timeline-tool">
+        <ToolCallHeader
+          isChannel
+          isOpen={false}
+          item={item}
+          onToggle={() => {
+            openChannel(item.toolCallId)
+          }}
+          view={view}
+        />
+      </section>
+    )
+  }
 
   return (
     <section className="timeline-tool" data-open={isOpen ? 'true' : undefined}>
-      <ToolCallHeader isOpen={isOpen} item={item} onToggle={onToggle} view={view} />
+      <ToolCallHeader
+        isChannel={false}
+        isOpen={isOpen}
+        item={item}
+        onToggle={onToggle}
+        view={view}
+      />
 
       <DisclosureBody isOpen={isOpen}>
         <ToolCallPanels facets={view.facets} isRunning={view.isRunning} kind={item.kind} />

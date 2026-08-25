@@ -15,6 +15,10 @@ export interface BrowserPanelState {
    * 原生 webview 是独立窗口，永远盖过主窗口 HTML：浮层要见光，它必须让位。
    */
   readonly overlayOpen: boolean
+  /** 通道标签，按打开顺序。id 由上层给，本店不解读。 */
+  readonly panes: readonly string[]
+  /** 屏幕上是哪一格：某条通道，或 null 表示网页那一格。 */
+  readonly activePaneId: string | null
 }
 
 export interface BrowserPanelStore {
@@ -27,6 +31,11 @@ export interface BrowserPanelStore {
   /** 浮层开合由浮层组件上报，与可见性的合成解耦。 */
   readonly setOverlayOpen: (open: boolean) => void
   readonly reportViewport: (rect: BrowserViewportRect) => void
+  /** 开一条通道并停在它上面；已经开着的不重复入列。 */
+  readonly openPane: (id: string) => void
+  readonly closePane: (id: string) => void
+  /** null 回到网页那一格。 */
+  readonly selectPane: (id: string | null) => void
   readonly actions: {
     readonly openTab: (url: string | null) => void
     readonly closeTab: (id: number) => void
@@ -48,7 +57,9 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
   let started = false
   let ensuredFirstTab = false
   let nativeVisible: boolean | null = null
-  let snapshot: BrowserPanelState = { host, overlayOpen }
+  let panes: readonly string[] = []
+  let activePaneId: string | null = null
+  let snapshot: BrowserPanelState = { host, overlayOpen, panes, activePaneId }
 
   /* 界面动作打不动宿主不是调用方要接的错误：记日志，界面靠快照自愈。 */
   function run(operation: string, task: () => Promise<void>): void {
@@ -58,6 +69,21 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
   }
 
   const store = createExternalStore<BrowserPanelState>({ read: () => snapshot })
+
+  /* 快照只在这里成形：四格里任何一格变了都走同一条出口。 */
+  function publish(): void {
+    snapshot = { host, overlayOpen, panes, activePaneId }
+    store.notify()
+  }
+
+  function selectPane(id: string | null): void {
+    if (id === activePaneId) {
+      return
+    }
+
+    activePaneId = id
+    publish()
+  }
 
   return {
     subscribe: store.subscribe,
@@ -85,8 +111,7 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
             ensuredFirstTab = true
           }
 
-          snapshot = { host, overlayOpen }
-          store.notify()
+          publish()
         })
         .catch((cause: unknown) => {
           started = false
@@ -109,22 +134,44 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
       }
 
       overlayOpen = open
-      snapshot = { host, overlayOpen }
-      store.notify()
+      publish()
     },
 
     reportViewport: (rect: BrowserViewportRect): void => {
       run('set-bounds', () => port.setViewportBounds(rect))
     },
 
+    openPane: (id: string): void => {
+      if (!panes.includes(id)) {
+        panes = [...panes, id]
+      }
+
+      activePaneId = id
+      publish()
+    },
+
+    closePane: (id: string): void => {
+      if (!panes.includes(id)) {
+        return
+      }
+
+      panes = panes.filter((open) => open !== id)
+      activePaneId = activePaneId === id ? (panes.at(-1) ?? null) : activePaneId
+      publish()
+    },
+
+    selectPane,
+
     actions: {
       openTab: (url) => {
+        selectPane(null)
         run('open-tab', () => port.openTab(url))
       },
       closeTab: (id) => {
         run('close-tab', () => port.closeTab(id))
       },
       selectTab: (id) => {
+        selectPane(null)
         run('select-tab', () => port.selectTab(id))
       },
       navigate: (id, address) => {

@@ -85,3 +85,10 @@ export {
   selectIsBusy,
   selectPresentation,
 } from './timeline'
+export {
+  type DelegateChannelView,
+  type DelegateMessage,
+  delegateChannel,
+  delegationOf,
+  isDelegation,
+} from './timeline/delegate-channel'

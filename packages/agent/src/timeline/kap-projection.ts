@@ -43,7 +43,16 @@ interface ToolCallPatch {
   readonly rawOutput?: unknown
 }
 
+/** 主代理的号。kap 给每一帧盖章，子代理盖的是它自己的。 */
+const MAIN_AGENT = 'main'
+
 export function applyKapFrame(draft: Draft, event: KapFrame): void {
+  /* 主转录只收主代理的帧：子代理的账目归派发它的那次调用（delegate-channel.ts）。
+     不报号的帧只可能来自主代理，所以缺席按主代理。 */
+  if ((stringOf(event.payload, 'agentId') ?? MAIN_AGENT) !== MAIN_AGENT) {
+    return
+  }
+
   switch (event.payload.type) {
     case 'assistant.delta':
     case 'thinking.delta': {
@@ -112,9 +121,7 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
     }
 
     default: {
-      /* 认得的才落，是这张映射的边界：任务、子代理、压缩、技能、MCP 那几十种
-         事件默认不落账。真要显示它们的那天，在这里加一支，而不是在别处开一
-         个口子。 */
+      /* 认得的才落。要显示新的一档，在这里加一支，不在别处开口子。 */
       return
     }
   }
@@ -142,10 +149,6 @@ function applyDelta(draft: Draft, event: KapFrame): void {
    code 是它的名字，一起留。 */
 function applyTurnEnded(draft: Draft, event: KapFrame): void {
   const payload = event.payload
-  if (stringOf(payload, 'agentId') !== 'main') {
-    return
-  }
-
   const reason = stringOf(payload, 'reason')
   if (reason !== 'failed' && reason !== 'blocked') {
     return

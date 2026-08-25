@@ -1,4 +1,11 @@
 export {
+  type DelegateChannelView,
+  type DelegateMessage,
+  delegateChannel,
+  delegationOf,
+  isDelegation,
+} from './delegate-channel'
+export {
   type ConversationTurn,
   type FeedRow,
   liveMemberOf,

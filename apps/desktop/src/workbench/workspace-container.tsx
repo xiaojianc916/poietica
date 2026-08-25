@@ -1,5 +1,5 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { useRunningThreads } from '@poietica/agent-ui'
+import { DelegateChannelContext, useRunningThreads } from '@poietica/agent-ui'
 import type { AgentConfigStore, KeybindingCatalog, SettingsStore } from '@poietica/settings'
 import {
   SettingsContentRegion,
@@ -21,10 +21,12 @@ import {
   WorkbenchTabs,
   WorkspaceShell,
   WorkspaceSidebar,
+  workspaceLayoutStore,
 } from '@poietica/workspace'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useThreadsActions } from '../assistant/threads-context'
 import { BrowserDock } from '../browser/browser-dock'
+import { browserPanelStore } from '../browser/browser-runtime'
 import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/desktop-title-bar'
 import { AssistantSidebarPanel } from './assistant-sidebar-panel'
 import { createAssistantWiring } from './assistant-wiring'
@@ -227,6 +229,18 @@ export function WorkspaceContainer({
    * 设置界面没有标签：标签属于工作台，不属于设置。它接管的是主区与侧栏两格，
    * 其余部分照旧 —— 工作区留在下面不卸载，返回要回到进入设置前的那个标签页。
    */
+  /* 派发通道只有这一个入口：点开那一行，右侧那一格亮起来并停在这条通道上。 */
+  const openDelegateChannel = useCallback(
+    (toolCallId: string) => {
+      browserPanelStore.openPane(toolCallId)
+
+      if (activeConversationId !== null) {
+        workspaceLayoutStore.setBrowserThread(activeConversationId)
+      }
+    },
+    [activeConversationId],
+  )
+
   const parts: WorkspaceParts = {
     chrome: {
       content: (
@@ -336,7 +350,10 @@ export function WorkspaceContainer({
       store={settingsStore}
       threads={threads}
     >
-      <WorkspaceShell model={workbench} parts={parts} />
+      <DelegateChannelContext value={openDelegateChannel}>
+        <br /> <WorkspaceShell model={workbench} parts={parts} />
+        <br />{' '}
+      </DelegateChannelContext>
     </SettingsProvider>
   )
 }
