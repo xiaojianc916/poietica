@@ -90,11 +90,8 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
     case 'question':
       return <QuestionRecord item={item} />
 
-    /* 排队时它长在输入框上方的队列条里；并进这一轮之后，这里留一行来过的痕迹。 */
-    case 'queued_prompt':
-      return <p className="timeline-queued">{item.text}</p>
-
-    /* 审批从不成行（renderable 把它挡在 feed 外）；这一支只为穷尽联合而存在。 */
+    /* 审批与在飞的号都不成行（renderable 把它们挡在 feed 外）；这两支只为穷尽联合而存在。 */
+    case 'inflight_prompt':
     case 'permission':
       return null
 

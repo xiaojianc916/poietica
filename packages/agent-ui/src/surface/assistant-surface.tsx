@@ -1,7 +1,7 @@
 import './assistant.css'
 
 import type { AgentSessionPort, SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
-import { memo, type Ref, useCallback, useMemo, useState } from 'react'
+import { memo, type Ref, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
@@ -182,6 +182,31 @@ export const AssistantSurface = memo(function AssistantSurface({
   )
 
   /*
+   * 输入框的把手有两个读者：外面拿它写草稿（浏览器拾取），这一层拿它把队列里
+   * 那一句取回来改。所以铺一条回调 ref 分给两边，草稿的所有者仍是 PromptInput。
+   */
+  const draft = useRef<PromptInputHandle | null>(null)
+
+  const composerRef = useCallback(
+    (handle: PromptInputHandle | null) => {
+      draft.current = handle
+
+      if (typeof composer === 'function') {
+        composer(handle)
+      } else if (composer !== null && composer !== undefined) {
+        composer.current = handle
+      }
+    },
+    [composer],
+  )
+
+  /* 队列里那一句回输入框。改完再发就回原位 —— 位置在出账簿手上，不在这里。 */
+  const edit = useCallback((text: string) => {
+    draft.current?.setText(text)
+    draft.current?.focus()
+  }, [])
+
+  /*
    * 输入框只挂一处。
    *
    * 两个相位各挂各的东西,但输入框不属于任何一个相位:它是这一层的孩子,相位切换
@@ -192,11 +217,7 @@ export const AssistantSurface = memo(function AssistantSurface({
    */
   const dock = (
     <div className="assistant-surface__composer">
-      <PromptQueue
-        onDrop={assistant.dropQueued}
-        onSteer={assistant.steer}
-        sessionKey={assistant.key}
-      />
+      <PromptQueue onEdit={edit} outbox={assistant.outbox} />
 
       <AssistantComposer
         approval={approval}
@@ -210,7 +231,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         onSelectControl={onSelectControl}
         onSubmit={submit}
         question={question}
-        ref={composer}
+        ref={composerRef}
         skills={skills}
         status={assistant.status}
         usage={usage}

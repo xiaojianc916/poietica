@@ -1,8 +1,11 @@
 /* 输入框上方那条队列。行数由内容决定，所以它自己不定高。 */
 .prompt-queue {
+  --queue-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --queue-quick: 140ms;
+
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   margin: 0 0 6px;
   padding: 0;
   list-style: none;
@@ -11,27 +14,98 @@
 .prompt-queue__row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
-  padding: 5px 10px;
+  padding: 5px 8px 5px 3px;
   border-radius: 10px;
   background: rgb(128 128 128 / 10%);
   font-size: 13px;
   line-height: 1.4;
+  transition:
+    background-color var(--queue-quick) var(--queue-ease),
+    opacity var(--queue-quick) var(--queue-ease),
+    transform var(--queue-quick) var(--queue-ease);
 }
 
-.prompt-queue__mark {
+.prompt-queue__row:hover {
+  background: rgb(128 128 128 / 15%);
+}
+
+/* 正文此刻在输入框里：位置留着，但它不是一句待发的话。 */
+.prompt-queue__row--editing {
+  opacity: 0.55;
+}
+
+/* 被拎起来的那一行留一个淡影，手上跟着走的是浏览器画的拖影。 */
+.prompt-queue__row--lifted {
+  opacity: 0.4;
+}
+
+/* 会落在这一行之前。 */
+.prompt-queue__row--over {
+  background: rgb(128 128 128 / 22%);
+  transform: translateY(1px);
+}
+
+/* 把手悬浮才显形：不悬浮时它不该在一行话里抢注意力。 */
+.prompt-queue__grip {
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  cursor: grab;
+  transition: opacity var(--queue-quick) var(--queue-ease);
+}
+
+.prompt-queue__row:hover .prompt-queue__grip,
+.prompt-queue__grip:focus-visible {
   opacity: 0.5;
+}
+
+.prompt-queue__grip:active {
+  opacity: 0.9;
+  cursor: grabbing;
+}
+
+.prompt-queue__ordinal {
+  flex: none;
+  min-width: 12px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  opacity: 0.4;
 }
 
 .prompt-queue__said {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   white-space: nowrap;
+  text-align: left;
   text-overflow: ellipsis;
   opacity: 0.85;
+  cursor: text;
+}
+
+.prompt-queue__said:hover,
+.prompt-queue__said:focus-visible {
+  opacity: 1;
 }
 
 .prompt-queue__act {
@@ -48,9 +122,12 @@
   font-size: 12px;
   opacity: 0.6;
   cursor: pointer;
+  transition:
+    background-color var(--queue-quick) var(--queue-ease),
+    opacity var(--queue-quick) var(--queue-ease);
 }
 
-.prompt-queue__act--steer {
+.prompt-queue__act--urge {
   white-space: nowrap;
 }
 
@@ -58,4 +135,18 @@
 .prompt-queue__act:focus-visible {
   background: rgb(128 128 128 / 16%);
   opacity: 1;
+}
+
+.prompt-queue__act:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prompt-queue__act,
+  .prompt-queue__grip,
+  .prompt-queue__row,
+  .prompt-queue__said {
+    transition-duration: 1ms;
+  }
 }

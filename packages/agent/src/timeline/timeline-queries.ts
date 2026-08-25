@@ -2,7 +2,6 @@ import {
   isTerminal,
   type PermissionItem,
   type QuestionTimelineItem,
-  type QueuedPromptItem,
   type TimelineItem,
   type TimelineState,
   type ToolCallTimelineItem,
@@ -226,60 +225,40 @@ export function selectIsBusy(state: TimelineState): boolean {
   )
 }
 
-/* 空队列交回同一个引用：不排队才是常态，这一格因此不该在流式期间叫醒任何人。 */
-const NO_QUEUE: readonly QueuedPromptItem[] = []
-
-/*
- * 队列快照按段缓存。
- *
- * useSyncExternalStore 在渲染期与提交期各调一次 getSnapshot，两趟必须交回同一个
- * 引用，否则就是无限重渲。数字与转录条目引用天生稳定，新建的数组不是 —— 所以按
- * 段的 items 认缓存：同一段交回同一个数组，转录提交（items 换引用）才重算一次。
- */
-const QUEUE_OF = new WeakMap<readonly TimelineItem[], readonly QueuedPromptItem[]>()
-
 /**
- * 本段里还在排队的那几句一共几条。
+ * agent 到此为止收口过多少件事：一次终态的工具调用、一段封版的话或思考、一段封口的轮次。
  *
- * 交数字：发送键读它，而它不该随转录换引用。与 pendingPermissionCount 同一条纪律。
+ * 插话等的就是这个数字变 —— 一轮结束不是唯一的停顿。交数字，所以流式追加叫不醒它。
  */
-export function queuedPromptCount(scope: WaitingScope): number {
-  let queued = 0
+export function completedUnits(state: TimelineState): number {
+  let units = state.sealed.length
 
-  for (const item of scope.items) {
-    if (item.type === 'queued_prompt' && item.settled === undefined) {
-      queued += 1
+  for (const item of state.active.items) {
+    if (item.type === 'tool_call') {
+      if (isTerminal(item.status)) {
+        units += 1
+      }
+    } else if ((item.type === 'agent_text' || item.type === 'agent_thought') && item.sealed) {
+      units += 1
     }
   }
 
-  return queued
+  return units
 }
 
 /**
- * 还在排队的那几句，入队顺序。
+ * kap 手上那条还没落定的号。
  *
- * 只有队列条订它：条目本身在离队之前恒是同一个引用，所以每一行都能按 promptId 认
- * 领自己，被 memo 挡在流式之外；不排队时交回 NO_QUEUE，那一层连醒都不醒。
+ * 出账簿一次只放一条出去，所以它至多一个 —— 单值，引用天生稳定，不需要缓存。
  */
-export function queuedPrompts(scope: WaitingScope): readonly QueuedPromptItem[] {
-  const cached = QUEUE_OF.get(scope.items)
+export function inflightPromptId(scope: WaitingScope): string | undefined {
+  for (let index = scope.items.length - 1; index >= 0; index -= 1) {
+    const item = scope.items[index]
 
-  if (cached !== undefined) {
-    return cached
-  }
-
-  let queued: QueuedPromptItem[] | undefined
-
-  for (const item of scope.items) {
-    if (item.type === 'queued_prompt' && item.settled === undefined) {
-      queued ??= []
-      queued.push(item)
+    if (item?.type === 'inflight_prompt' && item.settled === undefined) {
+      return item.promptId
     }
   }
 
-  const snapshot = queued ?? NO_QUEUE
-
-  QUEUE_OF.set(scope.items, snapshot)
-
-  return snapshot
+  return undefined
 }

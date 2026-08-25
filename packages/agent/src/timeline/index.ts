@@ -20,12 +20,12 @@ export type {
   AgentTextItem,
   AgentThoughtItem,
   ErrorItem,
+  InflightPromptItem,
   LinkTimelineItem,
   MessageImage,
   PermissionItem,
   PlanItem,
   QuestionTimelineItem,
-  QueuedPromptItem,
   TimelineItem,
   TimelineItemId,
   TimelineState,
@@ -37,12 +37,12 @@ export type {
 export { opensTurn } from './timeline-contract'
 export {
   activeScope,
+  completedUnits,
+  inflightPromptId,
   pendingPermission,
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
-  queuedPromptCount,
-  queuedPrompts,
   runningDelegations,
   selectIsBusy,
 } from './timeline-queries'

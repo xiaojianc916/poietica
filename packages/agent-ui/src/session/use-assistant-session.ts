@@ -1,20 +1,21 @@
 import type {
+  Interjection,
   PermissionItem,
   QuestionTimelineItem,
-  QueuedPromptItem,
   TimelineState,
   ToolCallTimelineItem,
   Transcript,
 } from '@poietica/agent'
 import {
   activeScope,
+  completedUnits,
   describeFailure,
+  InterjectionOutbox,
+  inflightPromptId,
   pendingPermission,
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
-  queuedPromptCount,
-  queuedPrompts,
   runningDelegations,
 } from '@poietica/agent'
 import type {
@@ -27,7 +28,7 @@ import type {
   PromptSkill,
   QuestionResponse,
 } from '@poietica/agent-contract'
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranscripts } from './transcripts-context'
 
 /*
@@ -102,10 +103,8 @@ export interface AssistantSession {
   readonly answerQuestions: (response: QuestionResponse) => void
   /** 撤下一整组题。 */
   readonly dismissQuestions: (questionId: string) => void
-  /** 把排队的那一句并进正在跑的这一轮。 */
-  readonly steer: (promptId: string) => void
-  /** 撤掉一条还在排队的话。 */
-  readonly dropQueued: (promptId: string) => void
+  /** 待插话消息的出账簿：顺序、编辑与释放时机都归它。 */
+  readonly outbox: InterjectionOutbox
   /** True while a conversation is still being fetched. */
   readonly isRestoring: boolean
 }
@@ -146,20 +145,14 @@ function toChatStatus(status: TimelineState['status']): ChatStatus {
   }
 }
 
-/*
- * 排在这一轮后面还有话，就是 queued。
- *
- * 它不是 RunStatus 里的一格：那一轮确实在跑。队列的事实在转录里，这里只把两者
- * 收成发送键能画的一个字面量。
- */
-const readStatus = (transcript: Transcript): ChatStatus =>
-  queuedPromptCount(activeScope(transcript.timeline)) > 0
-    ? 'queued'
-    : toChatStatus(transcript.timeline.status)
+const readStatus = (transcript: Transcript): ChatStatus => toChatStatus(transcript.timeline.status)
 
-/* 队列条订这一条。空队列恒是同一个引用，所以不排队时它不随帧醒。 */
-const readQueue = (transcript: Transcript): readonly QueuedPromptItem[] =>
-  queuedPrompts(activeScope(transcript.timeline))
+/* agent 收口过几件事。数字，所以只在真的出现停顿时才叫醒插话那一条订阅。 */
+const readUnits = (transcript: Transcript): number => completedUnits(transcript.timeline)
+
+/* kap 手上那条还没落定的号，至多一个。 */
+const readInflight = (transcript: Transcript): string | undefined =>
+  inflightPromptId(activeScope(transcript.timeline))
 
 const readRestoring = (transcript: Transcript): boolean => transcript.restoring
 
@@ -203,8 +196,10 @@ export function useAssistantSession({
 
   const key = endpoint ?? draft
 
-  const status = useSlice(key, readStatus)
+  const running = useSlice(key, readStatus)
   const isRestoring = useSlice(key, readRestoring)
+  const units = useSlice(key, readUnits)
+  const inflight = useSlice(key, readInflight)
 
   /*
    * 接上帧流。就这一件事。
@@ -219,24 +214,6 @@ export function useAssistantSession({
 
     transcripts.ensure(session)
   }, [session, transcripts])
-
-  /* 说一句话，就是说一句话：附件进门就已经入库，这条路上没有任何要等的东西。 */
-  const send = useCallback(
-    (submission: AssistantSubmission) => {
-      transcripts.send({
-        assets: submission.assets,
-        configuration: submission.configuration,
-        endpoint,
-        identify,
-        key,
-        onUserMessage,
-        port: session,
-        text: submission.text,
-        skills: submission.skills,
-      })
-    },
-    [endpoint, identify, key, onUserMessage, session, transcripts],
-  )
 
   /* 送不出去就地记进转录，与本地事故同一处写法。 */
   const note = useCallback(
@@ -270,18 +247,79 @@ export function useAssistantSession({
     [note, session],
   )
 
-  const steer = useCallback(
-    (promptId: string) => {
-      direct(note, () => (endpoint === null ? undefined : session?.steer(endpoint, [promptId])))
-    },
-    [endpoint, note, session],
+  /*
+   * 出账簿的三样外界能力走一格 ref。
+   *
+   * 它跨渲染活着（队列不能随重渲清空），而这三样每次渲染都换闭包 —— 直接交进
+   * 构造函数就会钉住第一次的 endpoint。
+   */
+  const wired = useRef<{
+    busy: boolean
+    deliver: (said: Interjection) => void
+    merge: (promptId: string) => void
+  }>({ busy: false, deliver: () => undefined, merge: () => undefined })
+
+  useEffect(() => {
+    wired.current = {
+      busy: running !== 'ready' && running !== 'error',
+      deliver: (said) => {
+        transcripts.send({
+          assets: said.assets,
+          configuration: said.configuration,
+          endpoint,
+          identify,
+          key,
+          onUserMessage,
+          port: session,
+          text: said.text,
+          skills: said.skills,
+        })
+      },
+      merge: (promptId) => {
+        direct(note, () => (endpoint === null ? undefined : session?.steer(endpoint, [promptId])))
+      },
+    }
+  }, [endpoint, identify, key, note, onUserMessage, running, session, transcripts])
+
+  const [outbox] = useState(
+    () =>
+      new InterjectionOutbox({
+        deliver: (said) => {
+          wired.current.deliver(said)
+        },
+        isBusy: () => wired.current.busy,
+        merge: (promptId) => {
+          wired.current.merge(promptId)
+        },
+      }),
   )
 
-  const dropQueued = useCallback(
-    (promptId: string) => {
-      direct(note, () => (endpoint === null ? undefined : session?.abortPrompt(endpoint, promptId)))
+  /* agent 刚收口一件事：放一条出去。units 是触发器：它变了就是出现了停顿。 */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: units 是触发器，删了它出账簿永远等不到放行的拍子
+  useEffect(() => {
+    outbox.beat()
+  }, [outbox, units])
+
+  /* kap 收下了就并进这一轮；落定了就允许下一条。 */
+  useEffect(() => {
+    if (inflight === undefined) {
+      outbox.settle()
+    } else {
+      outbox.claimed(inflight)
+    }
+  }, [inflight, outbox])
+
+  const queued = useSyncExternalStore(outbox.subscribe, outbox.read).queue.length
+
+  /* 排着话就是 queued：那一轮确实在跑，这一格说的是「后面还有」。 */
+  const status: ChatStatus = queued > 0 ? 'queued' : running
+
+  /* 说一句话，就是说一句话：排不排队由出账簿判，这一层不判。 */
+  const send = useCallback(
+    (submission: AssistantSubmission) => {
+      outbox.say(submission)
     },
-    [endpoint, note, session],
+    [outbox],
   )
 
   return {
@@ -292,8 +330,7 @@ export function useAssistantSession({
     resolvePermission,
     answerQuestions,
     dismissQuestions,
-    steer,
-    dropQueued,
+    outbox,
     isRestoring,
   }
 }
@@ -342,16 +379,6 @@ export function useAssistantPendingCount(key: string): number {
  */
 export function useAssistantQuestion(key: string): QuestionTimelineItem | undefined {
   return useSlice(key, readQuestion)
-}
-
-/**
- * 排在这一轮后面的那几句。
- *
- * 队列在 agent 那一侧，这里读的是它在转录里的投影。不排队时选择器交回同一个空
- * 数组，所以这条订阅在绝大多数时间里是静的。
- */
-export function useAssistantQueue(key: string): readonly QueuedPromptItem[] {
-  return useSlice(key, readQueue)
 }
 
 /* 请求只带一个号，要签字的原文在那条调用上。 */

@@ -300,9 +300,9 @@ function leavesAMark(item: TimelineItem): boolean {
     case 'question':
       return item.resolution !== undefined
     case 'error':
+    case 'inflight_prompt':
     case 'link':
     case 'permission':
-    case 'queued_prompt':
     case 'user_message':
       return false
   }

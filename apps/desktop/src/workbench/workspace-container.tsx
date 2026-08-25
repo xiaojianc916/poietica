@@ -351,8 +351,7 @@ export function WorkspaceContainer({
       threads={threads}
     >
       <DelegateChannelContext value={openDelegateChannel}>
-        <br /> <WorkspaceShell model={workbench} parts={parts} />
-        <br />{' '}
+        <WorkspaceShell model={workbench} parts={parts} />
       </DelegateChannelContext>
     </SettingsProvider>
   )

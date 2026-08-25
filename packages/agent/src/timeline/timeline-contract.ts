@@ -202,15 +202,14 @@ export interface LinkTimelineItem extends TimelineEntry {
 }
 
 /**
- * 排在在跑的那一轮后面的一句话。
+ * kap 收下了、还没落定的那一句的号。
  *
- * kap 收下了它但还没让它成为一轮。号由协议签发，队列因此不在这一侧 —— 这条条目
- * 就是本机对那条队列的唯一投影。settled 在场表示它已经离队。
+ * 只有号：正文与顺序归 interjection 出账簿，那一句也已经作为用户消息落过一次。
+ * 这一格的唯一用途是给 steer 提供寻址 —— 号由协议签发，本机认不出来。
  */
-export interface QueuedPromptItem extends TimelineEntry {
-  readonly type: 'queued_prompt'
+export interface InflightPromptItem extends TimelineEntry {
+  readonly type: 'inflight_prompt'
   readonly promptId: string
-  readonly text: string
   readonly settled?: true
 }
 
@@ -228,7 +227,7 @@ export type TimelineItem =
   | PermissionItem
   | QuestionTimelineItem
   | LinkTimelineItem
-  | QueuedPromptItem
+  | InflightPromptItem
   | ErrorItem
 
 /**

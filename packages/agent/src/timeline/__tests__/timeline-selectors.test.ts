@@ -2,8 +2,8 @@ import { describe, expect, it } from 'bun:test'
 
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/sample-run'
 import { selectPresentation } from '../presentation'
-import type { QueuedPromptItem, TimelineItem } from '../timeline-contract'
-import { queuedPrompts, selectIsBusy, type WaitingScope } from '../timeline-queries'
+import type { InflightPromptItem } from '../timeline-contract'
+import { inflightPromptId, selectIsBusy, type WaitingScope } from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'
 
 const NOTHING_FOLDED: ReadonlyMap<number, boolean> = new Map()
@@ -29,26 +29,28 @@ describe('timeline selectors', () => {
   })
 
   /*
-   * 队列条经 useSyncExternalStore 订这一格：渲染期与提交期各调一次 getSnapshot，
-   * 两趟不同引用就是无限重渲。同一段必须交回同一个数组，换段才换数组。
+   * 出账簿一次只放一条出去，所以在飞的号至多一个。倒扫交出还没落定的那一个；
+   * 落定过的不再算 —— 它已经并进这一轮了。单值引用天生稳定，不再需要快照缓存。
    */
-  it('hands the same queue snapshot out while the segment stands', () => {
-    const queued: QueuedPromptItem = {
-      type: 'queued_prompt',
-      id: 't1:queued:p1',
+  it('hands out the one unsettled inflight prompt', () => {
+    const settled: InflightPromptItem = {
+      type: 'inflight_prompt',
+      id: 't1:inflight-p1',
       turn: 1,
       at: 1,
       promptId: 'p1',
-      text: '再补一句',
+      settled: true,
     }
-    const items: readonly TimelineItem[] = [queued]
-    const scope: WaitingScope = { items, status: 'running' }
+    const live: InflightPromptItem = {
+      type: 'inflight_prompt',
+      id: 't1:inflight-p2',
+      turn: 1,
+      at: 2,
+      promptId: 'p2',
+    }
+    const scope: WaitingScope = { items: [settled, live], status: 'running' }
 
-    expect(queuedPrompts(scope)).toBe(queuedPrompts(scope))
-    expect(queuedPrompts(scope)).toEqual([queued])
-
-    const settled: readonly TimelineItem[] = [{ ...queued, settled: true }]
-
-    expect(queuedPrompts({ items: settled, status: 'running' })).toEqual([])
+    expect(inflightPromptId(scope)).toBe('p2')
+    expect(inflightPromptId({ items: [settled], status: 'running' })).toBeUndefined()
   })
 })

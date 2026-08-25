@@ -2,7 +2,6 @@ import './flow-row.css'
 import './shimmer.css'
 import './tool-call.css'
 
-import { useEffect, useRef } from 'react'
 import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon, ThinkingIcon } from '../primitives/icons'
 import { Prose } from './prose'
@@ -26,19 +25,7 @@ export function ThoughtCard({
   readonly onToggle: () => void
   readonly text: string
 }) {
-  const lineRef = useRef<HTMLSpanElement | null>(null)
   const line = readThoughtLine(text, isStreaming ? 'tail' : 'head')
-
-  /* 写到哪儿看到哪儿：一行装不下时把视窗推到末尾。effect 在绘制之后跑，读到的是已经
-     排好的布局，不强制回流。 */
-  // biome-ignore lint/correctness/useExhaustiveDependencies: text 是触发器：删了它，新词到达时视窗就停在旧末端
-  useEffect(() => {
-    const element = lineRef.current
-
-    if (isStreaming && element !== null) {
-      element.scrollLeft = element.scrollWidth - element.clientWidth
-    }
-  }, [isStreaming, text])
 
   if (isStreaming) {
     return (
@@ -50,13 +37,7 @@ export function ThoughtCard({
 
           <span aria-hidden="true" className="timeline-row__dot" />
 
-          <span
-            className="timeline-row__label timeline-shimmer"
-            data-follow-end="true"
-            ref={lineRef}
-          >
-            {line}
-          </span>
+          <span className="timeline-row__label timeline-shimmer">{line}</span>
         </div>
       </section>
     )

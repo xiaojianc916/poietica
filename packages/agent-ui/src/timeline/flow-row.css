@@ -76,21 +76,13 @@ button.timeline-row:focus-visible {
   background: currentcolor;
 }
 
-/*
- * 会变的那一格：一行，不长、会缩，长了收省略号。
- *
- * 跟着末尾走的时候不要省略号 —— 那时右端是刚写出来的字，不是被省掉的字。
- */
+/* 会变的那一格：一行，不长、会缩，长了收省略号。 */
 .timeline-row__label {
   flex: 0 1 auto;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.timeline-row__label[data-follow-end] {
-  text-overflow: clip;
 }
 
 /*
