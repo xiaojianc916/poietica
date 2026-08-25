@@ -8,7 +8,6 @@ pub mod environment;
 pub mod git;
 pub mod launcher;
 pub mod plugins;
-pub mod process;
 pub mod settings;
 pub mod skills;
 pub mod storage;

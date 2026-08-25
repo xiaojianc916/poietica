@@ -46,7 +46,7 @@ use crate::desk::{PermissionDesk, QuestionDesk};
 use crate::error::{KapError, Refusal, Result};
 use crate::frame::kap_event;
 use crate::link::{RELINK_TRIES, backoff, recovered, retryable, retrying, severed};
-use crate::program::resolve_program;
+use crate::program::{hide_console, resolve_program};
 use crate::question::{QuestionGroup, QuestionOutcome};
 use crate::recorder::{Recorder, now_millis};
 use crate::run_slot::RunSlot;
@@ -383,10 +383,10 @@ async fn kill_tree(child: &mut tokio::process::Child) {
     {
         let pid_text = pid.to_string();
 
-        let _tree = tokio::process::Command::new("taskkill")
-            .args(["/PID", pid_text.as_str(), "/T", "/F"])
-            .output()
-            .await;
+        let mut command = tokio::process::Command::new("taskkill");
+        command.args(["/PID", pid_text.as_str(), "/T", "/F"]);
+        hide_console(command.as_std_mut());
+        let _tree = command.output().await;
     }
 
     child.kill().await.ok();
@@ -733,18 +733,18 @@ pub fn connect(
     let driver = async move {
         // 1. 启动 kimi web --no-open
         let spawned_at = now_millis();
-        let mut child = tokio::process::Command::new(&resolved)
+        let mut command = tokio::process::Command::new(&resolved);
+        command
             .args(&args)
             .current_dir(&cwd)
             .envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
-            // 不读就放空：pino 的日志走 stdout，管道不接走，写满缓冲
-            // 会把 server 自己噎住。
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .map_err(|e| KapError::Spawn {
-                message: e.to_string(),
-            })?;
+            .stderr(std::process::Stdio::piped());
+        hide_console(command.as_std_mut());
+
+        let mut child = command.spawn().map_err(|e| KapError::Spawn {
+            message: e.to_string(),
+        })?;
 
         // stderr 日志透传
         let diag_stderr = diagnostics.clone();

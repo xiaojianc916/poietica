@@ -468,9 +468,10 @@ pub(super) async fn ensure_session(
     let courier = live.client.clone();
     let owner = live.agent_id.clone();
     let serving = live.anchor.clone();
+    let disposal_lease = Arc::clone(&lease);
 
     async_runtime::spawn(async move {
-        record_and_flush_disposals(&ledger, courier, owner, serving).await;
+        record_and_flush_disposals(&ledger, courier, owner, serving, disposal_lease).await;
     });
 
     Ok(live)
@@ -547,6 +548,7 @@ async fn record_and_flush_disposals(
     client: AgentClient,
     agent_id: String,
     anchor: String,
+    lease: Arc<ConnectionLease>,
 ) {
     let index = app.state::<crate::local_index::LocalIndex>();
 
@@ -575,6 +577,10 @@ async fn record_and_flush_disposals(
     };
 
     for session_id in pending {
+        if !lease.is_open() {
+            return;
+        }
+
         /* 当前在役的锚不删，别的都是过期的账。 */
         if session_id == anchor {
             continue;

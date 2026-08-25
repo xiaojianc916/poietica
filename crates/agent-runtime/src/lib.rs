@@ -58,7 +58,7 @@ pub use frame::{
 };
 pub use link::LinkState;
 pub use permission::{Decision, Scope};
-pub use program::{Launcher, resolve_launcher, resolve_program};
+pub use program::{Launcher, hide_console, resolve_launcher, resolve_program};
 pub use question::{
     AnswerMethod, QuestionAnswer, QuestionGroup, QuestionItem, QuestionOption, QuestionOutcome,
     QuestionResponse,

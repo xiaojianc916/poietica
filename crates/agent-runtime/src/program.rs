@@ -1,8 +1,26 @@
 //! 把档案里写的程序名解析成一条真的能启动的路径。
 
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use crate::error::{KapError, Result};
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Applies the desktop process policy to every child command.
+pub fn hide_console(command: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = command;
+    }
+}
 
 /// 在这台机器上找出该启动哪个文件。
 ///

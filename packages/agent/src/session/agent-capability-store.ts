@@ -48,7 +48,10 @@ const AGENT_BUILTIN = 'builtin'
  * 这是名册唯一的持有者 —— agent 自己要调用它们照旧调用，我们不拦。
  */
 function roster(toolkit: AgentToolkit): AgentToolkit {
-  const skills = toolkit.skills.filter((skill) => skill.source !== AGENT_BUILTIN)
+  const names = new Set<string>()
+  const skills = toolkit.skills.filter(
+    (skill) => skill.source !== AGENT_BUILTIN && !names.has(skill.name) && names.add(skill.name),
+  )
 
   return { ...toolkit, skills }
 }

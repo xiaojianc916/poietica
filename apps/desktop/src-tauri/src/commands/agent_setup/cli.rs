@@ -309,7 +309,7 @@ pub async fn agent_cli_exec(
             command.env("no_proxy", "127.0.0.1,localhost");
         }
 
-        crate::commands::process::hide_console(&mut command);
+        poietica_agent_runtime_native::hide_console(&mut command);
 
         if !request.secret_var.is_empty() && !secret.is_empty() {
             command.env(&request.secret_var, &secret);

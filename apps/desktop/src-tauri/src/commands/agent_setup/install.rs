@@ -38,9 +38,9 @@ use specta::Type;
 use tauri::{AppHandle, async_runtime, command};
 use tauri_plugin_store::StoreExt;
 
-use crate::commands::process::hide_console;
 use crate::error::{Error, IpcError, Result};
 use crate::paths::agents_store;
+use poietica_agent_runtime_native::hide_console;
 
 use super::profile::{agent_install_spec, agent_program};
 
