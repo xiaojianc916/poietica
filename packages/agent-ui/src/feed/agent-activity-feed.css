@@ -1,14 +1,5 @@
 /*
  * 会话态的滚动区,一枚回到末端的按钮,外加一层不随滚动移动的浮层。这一层只有这三样。
- *
- * 首尾两个撑开的伪元素、两条 flex-grow 过渡、以及 data-started 的全部规则都已
- * 删除:位置不该是一个可以被补间的数字(理由写在 assistant.css)。现在这个组件
- * 只在会话态挂载,它占满剩余空间,输入框因此落在它下面 —— 而输入框已经不是它
- * 的孩子。
- *
- * 自绘滚动条的轨道挂在这一层(data-scrollbar-track)。它随之从"覆盖整块面板"
- * 变成"覆盖转录区":输入框不再在这棵子树里。要让轨道重新贯穿全高,做法是把这
- * 个属性移到 .assistant-surface 上,而那要先确认消费它的那段代码怎么找滚动元素。
  */
 .agent-activity-feed {
   position: relative;
@@ -42,7 +33,12 @@
   min-inline-size: 0;
   flex: 1 1 auto;
   flex-direction: column;
-  overflow-y: auto;
+  /*
+   * 只在纵向滚。横向留 visible 会被 CSS Overflow 3 提升成 auto,这个盒子于是悄悄
+   * 变成横向滚动容器 —— 而 contain: paint 已经把超出的部分裁掉,那条横条能滚出来的
+   * 只有空白。宽内容(表格、代码、公式)各自在块内滚。
+   */
+  overflow: clip auto;
   overflow-anchor: none;
   /*
    * 滚动位置是代码写的,所以平滑滚动在这里不是一个体验选项。
@@ -71,6 +67,11 @@
    * 自绘浮层的理由。官方给了这条沟，就不该再手搓一层去绕开它。
    */
   scrollbar-gutter: stable;
+}
+
+/* 转录之前那一块。不参与伸缩:高度就是内容,偏移由 scrollMargin 读回。 */
+.agent-activity-feed__lead {
+  flex: none;
 }
 
 /*

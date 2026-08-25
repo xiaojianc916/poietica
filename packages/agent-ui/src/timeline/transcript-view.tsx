@@ -1,5 +1,5 @@
 import { type FeedRow, selectIsBusy, selectPresentation, type TurnSealPlan } from '@poietica/agent'
-import { useCallback, useState } from 'react'
+import { type ReactNode, useCallback, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useTranscripts } from '../session/transcripts-context'
@@ -27,11 +27,13 @@ const NOTHING_OPENED: ReadonlySet<string> = new Set()
 export interface TranscriptViewProps {
   readonly sessionKey: string
   readonly isRestoring: boolean
+  /** 转录之前那一块常驻内容,交给滚动盒。 */
+  readonly lead?: ReactNode
   /** 从某一轮分叉；dropTurns 是这一轮之后还有几轮。缺席 = 平台没有这个动作。 */
   readonly onFork?: ((dropTurns: number) => void) | undefined
 }
 
-export function TranscriptView({ isRestoring, onFork, sessionKey }: TranscriptViewProps) {
+export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: TranscriptViewProps) {
   const timeline = useAssistantTimeline(sessionKey)
   const hasEarlier = useAssistantHasEarlier(sessionKey)
   const transcripts = useTranscripts()
@@ -202,6 +204,7 @@ export function TranscriptView({ isRestoring, onFork, sessionKey }: TranscriptVi
         hasEarlier={hasEarlier}
         isBusy={selectIsBusy(timeline)}
         key={sessionKey}
+        lead={lead}
         onReachStart={readEarlier}
         overlay={overlay}
         renderRow={renderRowAt}

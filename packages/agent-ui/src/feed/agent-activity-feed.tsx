@@ -64,6 +64,8 @@ export interface AgentActivityFeedProps {
   readonly hasEarlier: boolean
   /** 顶端快见底了。读不读、读几页归转录那一侧。 */
   readonly onReachStart: () => Promise<void>
+  /** 转录之前那一块常驻内容。它在滚动盒里,所以跟着滚,并与转录共用阅读栏宽。 */
+  readonly lead?: ReactNode
   /** 画在滚动区之上，位于一切会滚的东西之外。 */
   readonly overlay?: (port: FeedPort) => ReactNode
 }
@@ -82,6 +84,7 @@ export function AgentActivityFeed({
   feed,
   hasEarlier,
   isBusy,
+  lead,
   onReachStart,
   overlay,
   renderRow,
@@ -90,6 +93,7 @@ export function AgentActivityFeed({
   const [viewport, setViewport] = useState<HTMLDivElement | null>(null)
   const transcriptRef = useRef<HTMLDivElement | null>(null)
   const tailRef = useRef<HTMLDivElement | null>(null)
+  const leadRef = useRef<HTMLDivElement | null>(null)
 
   /**
    * 行的落点要踩在设备像素上：落在半个设备像素上，这一行里所有 1px 的边会被摊到两行、
@@ -295,7 +299,8 @@ export function AgentActivityFeed({
      */
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        if (entry.target === viewport && transcriptRef.current !== null) {
+        /* 首块内容长高时转录跟着下移,而它自己的盒子没变,所以除尾部之外一律重算偏移。 */
+        if (entry.target !== tailRef.current && transcriptRef.current !== null) {
           setScrollMargin(transcriptRef.current.offsetTop)
         }
 
@@ -315,6 +320,10 @@ export function AgentActivityFeed({
 
     if (transcriptRef.current !== null) {
       observer.observe(transcriptRef.current)
+    }
+
+    if (leadRef.current !== null) {
+      observer.observe(leadRef.current)
     }
 
     if (tailRef.current !== null) {
@@ -365,6 +374,12 @@ export function AgentActivityFeed({
   return (
     <div className="agent-activity-feed">
       <div className="agent-activity-feed__viewport" ref={setViewport}>
+        {lead === undefined ? null : (
+          <div className="agent-activity-feed__lead" ref={leadRef}>
+            {lead}
+          </div>
+        )}
+
         <div
           aria-busy={isBusy}
           className="agent-activity-feed__transcript"
