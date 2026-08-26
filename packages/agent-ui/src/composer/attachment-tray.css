@@ -50,6 +50,26 @@
   grid-area: 1 / 1;
 }
 
+/*
+ * 非图片那一格：字形在上、类型名在下，所以它不是叠在一格里的那三样。
+ * 覆盖掉共用的 grid-area，否则字形会压在类型名上。
+ */
+.composer-tile__file {
+  align-content: center;
+  gap: var(--cp-tile-inset);
+  grid-auto-flow: row;
+}
+
+.composer-tile__file .composer-tile__mark {
+  grid-area: auto;
+}
+
+.composer-tile__type {
+  font-size: var(--ui-prose-size);
+  color: var(--cp-ink-subtle);
+  line-height: 1;
+}
+
 .composer-tile__image {
   display: block;
   block-size: 100%;

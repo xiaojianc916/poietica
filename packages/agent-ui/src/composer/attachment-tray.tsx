@@ -19,11 +19,20 @@ import { usePromptInputActions, usePromptInputAttachments } from './prompt-input
 /* 一格画什么由它那张图说了算，所以状态住在这一格里，不在上面。 */
 type TileState = 'loading' | 'ready' | 'failed'
 
-/* 没有预览可给的那一格：非图片，以及取不出画面的图片。同一件事，同一段代码。 */
-function TileFallback() {
+/* 这格文件叫什么类型。扩展名是人认得的那个词，去掉点、大写、截短。 */
+function fileTypeLabel(filename: string): string {
+  const dot = filename.lastIndexOf('.')
+  const extension = dot > 0 ? filename.slice(dot + 1) : ''
+
+  return extension === '' ? '文件' : extension.slice(0, 4).toUpperCase()
+}
+
+/* 没有预览可给的那一格：纯色底，一个字形，一行类型名。同一件事，同一段代码。 */
+function TileFallback({ filename }: { readonly filename: string }) {
   return (
-    <span className="composer-tile__face">
+    <span className="composer-tile__face composer-tile__file">
       <FileIcon aria-hidden="true" className="composer-tile__mark" />
+      <span className="composer-tile__type">{fileTypeLabel(filename)}</span>
     </span>
   )
 }
@@ -54,7 +63,7 @@ function AttachmentThumbnail({ filename, onOpen, src }: AttachmentThumbnailProps
   }, [])
 
   if (state === 'failed') {
-    return <TileFallback />
+    return <TileFallback filename={filename} />
   }
 
   return (
@@ -130,7 +139,7 @@ export function AttachmentTray() {
           return (
             <li className="composer-tile" key={attachment.assetToken} title={attachment.filename}>
               {slide === undefined ? (
-                <TileFallback />
+                <TileFallback filename={attachment.filename} />
               ) : (
                 <AttachmentThumbnail
                   filename={attachment.filename}

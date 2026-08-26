@@ -369,7 +369,11 @@ export function AgentActivityFeed({
     observer.observe(viewport)
 
     if (transcriptRef.current !== null) {
-      observer.observe(transcriptRef.current)
+      const transcript = transcriptRef.current
+
+      /* 与尾部同一条纪律：首次通知晚于首帧，挂载时先同步读一次。 */
+      setScrollMargin(transcript.offsetTop)
+      observer.observe(transcript)
     }
 
     if (leadRef.current !== null) {

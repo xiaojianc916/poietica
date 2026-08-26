@@ -21,10 +21,6 @@
  * 估高误差,scroll-authority 按意图拨末端。浏览器原生的滚动锚定是第三个,而它不知道另外两个的
  * 存在:同一次尺寸变化被补两次,叠加出来就是那一下跳变。
  *
- * 这段距离此前是这个盒子的下内边距，也就是「转录之后」—— 而虚拟器只认转录，
- * 它算出来的末端因此比真实末端短了这么多，流式输出静止后总能再往下拨一点。
- * 现在它在 .agent-activity-feed__tail 里，由 paddingEnd 声明给虚拟器，末端
- * 于是只有一个定义。
  */
 .agent-activity-feed__viewport {
   position: relative;
@@ -127,12 +123,6 @@
 .agent-activity-feed__row[data-rhythm="glyph"] {
   padding-block: var(--cp-feed-glyph-row-gap);
 }
-
-/*
- * 这里曾经有两条"这几帧不要动画"的规则:一条给回放,一条给减弱动态偏好。它们
- * 关的都是那段 flex-grow 补间 —— 补间没有了,需要被关掉的东西也就没有了。用
- * 一个开关去抑制一段本来就不该存在的动画,是治标;让它不存在,才不需要开关。
- */
 
 /*
  * 转录的尾部。

@@ -26,6 +26,9 @@ import {
  */
 
 /** 一次转 32 KiB。String.fromCharCode 的参数个数有上限，整张图铺开会爆栈。 */
+/* 种类在屏幕上叫什么。种类本身由原生那张表定义，这里只管翻译。 */
+const KIND_LABELS: Readonly<Record<string, string>> = { image: '图片', text: '文本' }
+
 const CHUNK = 0x8000
 
 /** 同一批 paths 在这么久之内再来一次，当作重复触发。 */
@@ -100,7 +103,12 @@ export function createAttachmentIntake(): AttachmentIntake {
       const picked = await open({
         multiple,
         directory: false,
-        filters: [{ name: '图片', extensions: formats.flatMap((format) => format.extensions) }],
+        filters: [...new Set(formats.map((format) => format.kind))].map((kind) => ({
+          name: KIND_LABELS[kind] ?? kind,
+          extensions: formats
+            .filter((format) => format.kind === kind)
+            .flatMap((format) => format.extensions),
+        })),
       })
 
       if (picked === null) {

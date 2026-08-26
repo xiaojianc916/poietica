@@ -652,23 +652,11 @@ async diagnosticsTakePreviousCrash() : Promise<NativeCrashReport | null> {
  * 
  * 窗口已经不在了就什么也不做 —— 一个关掉的窗口没有开发者工具可开，那不是故障。
  * 
- * 它不返回 `Result`。此前返回的唯一理由是「这张 `invoke_handler` 上的命令共用
- * 一个返回形状」，而那张手抄的清单已经不在了；一个每条路径都 `Ok(())` 的返回值
- * 到了生成绑定里，就是一个渲染层必须接、且永远接到 null 的东西。
+ * 不返回 `Result`：每条路径都是 Ok(())，那个返回值到了生成绑定里只是一个渲染层
+ * 必须接、且永远接到 null 的东西。
  * 
- * 两种构建里行为相同。
- * 
- * 此前这里有一个 `#[cfg(debug_assertions)]`，发行构建走的是一条 `drop` —— 帮助
- * 菜单里那一项在装出来的应用里按下去静悄悄地什么也不发生。当时给出的理由是「不
- * 该让用户能翻前端、改 DOM、看 IPC 流量」，那个理由站不住：前端代码原封不动躺在
- * 安装包里，谁都能解压看，而这个仓库本身就是公开的。开发者工具不增加任何暴露，
- * 它只是一个查看器。
- * 
- * 横向看，发行版带开发者工具是桌面应用的常规做法：VS Code 的 Help ▸ Toggle
- * Developer Tools、Obsidian 的 Ctrl+Shift+I、Slack、Discord、Figma 桌面版都带。
- * 
- * 另一道闸在根 Cargo.toml：tauri 的 devtools feature 只在 debug 构建里自动开，
- * 不显式写上它，这个方法在发行构建里根本不存在。两处要一起看。
+ * 发行构建同样带开发者工具。真正的闸在根 Cargo.toml：tauri 的 devtools feature
+ * 只在 debug 构建里自动开，不显式写上它，这个方法在发行构建里根本不存在。
  */
 async windowOpenDevtools(label: string) : Promise<void> {
     await TAURI_INVOKE("window_open_devtools", { label });
@@ -1834,7 +1822,7 @@ export type AppearanceSettings = { density: Density; reduceMotion: boolean; mess
  * 只有内容类型和扩展名。判据（那个函数指针）留在这一侧：渲染层不判文件头，
  * 它拿这张表只为了给系统对话框写过滤器。
  */
-export type AssetFormat = { contentType: string; extensions: string[] }
+export type AssetFormat = { kind: string; contentType: string; extensions: string[] }
 export type AssetImportRequest = { sessionToken: string; paths: string[] }
 export type AssetRemoveRequest = { sessionToken: string; assetToken: string }
 export type AssetSessionCloseRequest = { sessionToken: string }

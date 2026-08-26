@@ -753,7 +753,8 @@ fn validate_content_hash(content_hash: &str) -> Result<(), AssetProtocolError> {
 
 /// Whether the delivery protocol may serve this content type.
 ///
-/// Allowlist of inert binary formats. Active content (SVG, HTML, JavaScript)
+/// Allowlist of inert formats. text/plain is served with nosniff, so it
+/// cannot be re-typed into markup. Active content (SVG, HTML, JavaScript)
 /// is excluded: serving it from the custom URI scheme would allow injected
 /// markup to run with the same-origin privileges as the application shell.
 /// 这个类型交付得了吗。
@@ -773,6 +774,7 @@ fn validate_content_type(content_type: &str) -> Result<(), AssetProtocolError> {
         "image/webp",
         "image/avif",
         "image/bmp",
+        "text/plain",
         "video/mp4",
         "video/webm",
         "audio/mpeg",

@@ -129,8 +129,8 @@ pub async fn asset_upload(
             .decode(base64.as_bytes())
             .map_err(|_| Error::Validation("attachment is not valid base64".into()))?;
 
-        let content_type =
-            sniff(&bytes).ok_or_else(|| Error::Validation("unsupported image format".into()))?;
+        let content_type = sniff(&bytes)
+            .ok_or_else(|| Error::Validation("unsupported attachment format".into()))?;
 
         let content_hash = hex::encode(Sha256::digest(&bytes));
 
@@ -212,7 +212,7 @@ pub async fn asset_import(
                     .map_err(|_| Error::NotFound("file could not be read".into()))?;
 
                 let content_type = sniff(&bytes)
-                    .ok_or_else(|| Error::Validation("unsupported image format".into()))?;
+                    .ok_or_else(|| Error::Validation("unsupported attachment format".into()))?;
 
                 let content_hash = hex::encode(Sha256::digest(&bytes));
 
@@ -271,6 +271,7 @@ pub async fn asset_import(
 /// 一句注释和这里保持一致。漏改哪一侧都不会报错，只会安静地坏：多在对话框那
 /// 侧，用户选得中却什么也不发生；多在这一侧，新格式等于没加。
 struct Format {
+    kind: AssetKind,
     content_type: &'static str,
     extensions: &'static [&'static str],
     matches: fn(&[u8]) -> bool,
@@ -300,41 +301,98 @@ fn is_avif(bytes: &[u8]) -> bool {
     bytes.get(4..12) == Some(b"ftypavif".as_slice())
 }
 
-/// 这个应用收得下的全部格式，按判定顺序排。
+/// 一种可附件的东西：缩略图那一类，还是纯色磁贴那一类。
 ///
-/// 加一种格式就是这里加一行 —— 判据、类型、扩展名一次写齐，没有第二处要跟着改。
-/// 白名单必须是 asset_protocol::ALLOWED 的子集：这里认得的每一种，注册表都得
-/// 收得下，否则 insert 会拒，而那时错误说的就不是真正的原因了。
+/// 渲染层据此选画法，系统对话框据此分组。这是这张表唯一的分类维度。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AssetKind {
+    Image,
+    Text,
+}
+
+impl AssetKind {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Image => "image",
+            Self::Text => "text",
+        }
+    }
+}
+
+/// 判定文本只看这么多字节。与 Kimi 的 FS_BINARY_SAMPLE_BYTES 同一个数。
+const TEXT_SAMPLE_BYTES: usize = 4 * 1024;
+
+/// 这段字节是文本吗：首 4 KiB 是合法 UTF-8 且不含 NUL。
+///
+/// UTF-8 合法性交给 std::str::from_utf8，不自己数字节。样本边界会把一个多字节
+/// 字符切断，那不是「不是文本」—— Utf8Error::error_len() 为 None 正是「还没读完」，
+/// 所以退到 valid_up_to() 再判一次。NUL 是二进制最稳的标志，Kimi 的
+/// classifyTextSample 也以它作硬判据。
+fn is_text(bytes: &[u8]) -> bool {
+    let sample = bytes.get(..TEXT_SAMPLE_BYTES).unwrap_or(bytes);
+
+    if sample.contains(&0) {
+        return false;
+    }
+
+    match std::str::from_utf8(sample) {
+        Ok(_text) => true,
+        Err(error) => error.error_len().is_none() && error.valid_up_to() > 0,
+    }
+}
+
+/// 这个应用收得下的全部格式，按判定顺序排。魔数、内容类型、扩展名、种类只在
+/// 这里出现一次；文本排在最后 —— 它的判据是「不像任何一种图」的兜底，而图的
+/// 魔数各自唯一。加一种格式就是这里加一行，没有第二处要跟着改。白名单必须是
+/// asset_protocol::ALLOWED 的子集：这里认得的每一种，注册表都得收得下，否则
+/// insert 会拒，而那时错误说的就不是真正的原因了。
 const FORMATS: &[Format] = &[
     Format {
+        kind: AssetKind::Image,
         content_type: "image/png",
         extensions: &["png"],
         matches: is_png,
     },
     Format {
+        kind: AssetKind::Image,
         content_type: "image/jpeg",
         extensions: &["jpg", "jpeg"],
         matches: is_jpeg,
     },
     Format {
+        kind: AssetKind::Image,
         content_type: "image/gif",
         extensions: &["gif"],
         matches: is_gif,
     },
     Format {
+        kind: AssetKind::Image,
         content_type: "image/bmp",
         extensions: &["bmp"],
         matches: is_bmp,
     },
     Format {
+        kind: AssetKind::Image,
         content_type: "image/webp",
         extensions: &["webp"],
         matches: is_webp,
     },
     Format {
+        kind: AssetKind::Image,
         content_type: "image/avif",
         extensions: &["avif"],
         matches: is_avif,
+    },
+    Format {
+        kind: AssetKind::Text,
+        content_type: "text/plain",
+        extensions: &[
+            "txt", "md", "markdown", "json", "jsonc", "yaml", "yml", "toml", "ini", "csv", "tsv",
+            "ts", "tsx", "js", "jsx", "mjs", "cjs", "css", "scss", "html", "xml", "sql", "rs",
+            "go", "py", "rb", "java", "kt", "swift", "c", "h", "cc", "cpp", "hpp", "cs", "php",
+            "lua", "sh", "bash", "zsh", "ps1", "diff", "patch", "log",
+        ],
+        matches: is_text,
     },
 ];
 
@@ -356,6 +414,7 @@ fn sniff(bytes: &[u8]) -> Option<&'static str> {
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetFormat {
+    kind: String,
     pub content_type: String,
     pub extensions: Vec<String>,
 }
@@ -372,6 +431,7 @@ pub fn asset_formats() -> Vec<AssetFormat> {
     FORMATS
         .iter()
         .map(|format| AssetFormat {
+            kind: format.kind.as_str().to_owned(),
             content_type: format.content_type.to_owned(),
             extensions: format
                 .extensions
