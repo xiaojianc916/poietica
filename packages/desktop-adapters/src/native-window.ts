@@ -10,12 +10,10 @@ export interface MainWindowController {
   /** 最大化态的变化。窗口是唯一真相，这里只收它播报的翻转。 */
   onMaximizedChanged(handler: (isMaximized: boolean) => void): Promise<() => void>
   openDeveloperTools(): Promise<void>
-  close(): Promise<void>
   forceClose(): void
   onCloseRequested(handler: () => void): Promise<() => void>
   /** 托盘"退出程序"。与关闭按钮汇入同一条终止管线。 */
   onTerminationRequested(handler: () => void): Promise<() => void>
-  setTitle(title: string): Promise<void>
 }
 
 const MAIN_WINDOW_LABEL = 'main'
@@ -78,12 +76,6 @@ export function createMainWindowController(): MainWindowController {
         handler(event.payload.isMaximized)
       }),
 
-    async close() {
-      const window = await getMainWindow()
-
-      await window.close()
-    },
-
     forceClose() {
       /*
        * 终止是有意的 fire-and-forget：渲染层可能在任何应答返回之前就消失了。
@@ -118,12 +110,6 @@ export function createMainWindowController(): MainWindowController {
       return listen(TERMINATION_REQUESTED_EVENT, () => {
         handler()
       })
-    },
-
-    async setTitle(title) {
-      const window = await getMainWindow()
-
-      await window.setTitle(title)
     },
 
     // devtools 是唯一没有 JavaScript 对应物的窗口操作。命令名与参数都由生成绑定给出。

@@ -4,55 +4,19 @@ export interface WindowErrorLike {
 }
 
 /**
- * Browser-defined ResizeObserver scheduling notifications.
+ * 浏览器引擎把 ResizeObserver 的投递推迟到下一帧时发出的那两句话。
  *
- * These exact messages are emitted by browser engines when
- * ResizeObserver delivery is deferred to a later frame.
- * They do not indicate that Poietica is unable to
- * continue safely.
+ * 精确白名单：不因为消息里含 ResizeObserver 就放过任意错误。
  */
-const BENIGN_RESIZE_OBSERVER_MESSAGES = new Set([
+const BENIGN_MESSAGES = new Set([
   'ResizeObserver loop completed with undelivered notifications.',
   'ResizeObserver loop limit exceeded',
 ])
 
-/**
- * Determines whether a window error is a known recoverable
- * browser scheduling notification.
- *
- * This policy deliberately uses an exact allowlist. It must
- * not ignore arbitrary errors merely because their message
- * contains the word ResizeObserver.
- */
-export function isBenignWindowError(event: WindowErrorLike): boolean {
-  const messages = [
-    normalizeMessage(event.message),
-    normalizeMessage(readErrorMessage(event.error)),
-  ]
+export function isBenignWindowError({ message, error }: WindowErrorLike): boolean {
+  const candidates = [message, error instanceof Error ? error.message : error]
 
-  return messages.some(
-    (message) => message !== undefined && BENIGN_RESIZE_OBSERVER_MESSAGES.has(message),
+  return candidates.some(
+    (candidate) => typeof candidate === 'string' && BENIGN_MESSAGES.has(candidate.trim()),
   )
-}
-
-function readErrorMessage(value: unknown): string | undefined {
-  if (value instanceof Error) {
-    return value.message
-  }
-
-  if (typeof value === 'string') {
-    return value
-  }
-
-  return undefined
-}
-
-function normalizeMessage(value: string | undefined): string | undefined {
-  if (value === undefined) {
-    return undefined
-  }
-
-  const normalized = value.trim()
-
-  return normalized.length > 0 ? normalized : undefined
 }

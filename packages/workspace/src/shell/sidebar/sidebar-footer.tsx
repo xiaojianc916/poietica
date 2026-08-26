@@ -179,8 +179,8 @@ function HelpMenuItem({ label, icon: Icon, href, onClick }: HelpMenuItemProps) {
    *
    * 试过而不成立的两条路，记在这里免得下次再试一遍：
    *
-   * 一、文档里那条 <Button render={<a … />}>Home</Button> 的豁免只覆盖「直接
-   *     作为属性值」的节点。包进一个三元表达式，锚点就深了一层，规则跟丢。
+   * 一、Biome 文档里那条「内容经 render 属性给出」的豁免只覆盖「直接作为属性值」
+   *     的节点。包进一个三元表达式，锚点就深了一层，规则跟丢。
    *
    * 二、补一个 aria-label={label} 能不能过，文档没有直说；而它会用一个重复的
    *     串盖掉真正由 children 算出来的可访问名。为了过 lint 去改可访问性语义，

@@ -5,7 +5,6 @@ export { cn } from './class-names'
 export { CommandMenu, type CommandMenuGroup, type CommandMenuItem } from './command-menu'
 export { ConfirmationDialog } from './confirmation-dialog'
 export { Dialog } from './dialog'
-export { Drawer } from './drawer'
 export {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,16 +21,7 @@ export {
 } from './dropdown-menu'
 export { ErrorState, InlineSpinner, LoadingState } from './feedback'
 export { type IntegrationMark, integrationMarkFor } from './integration-mark'
-export {
-  ArrowLeftIcon,
-  ClockTenIcon,
-  FolderClosedIcon,
-  FolderOpenIcon,
-  GithubMark,
-  LightbulbIcon,
-  PlayIcon,
-  WebhookIcon,
-} from './local-glyphs'
+export { ArrowLeftIcon, GithubMark, PlayIcon } from './local-glyphs'
 export { PixelLoader } from './pixel-loader'
 export {
   type RegionEdge,

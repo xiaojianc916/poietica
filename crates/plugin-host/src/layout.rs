@@ -84,93 +84,39 @@ pub const SKILL_FILENAME: &str = "SKILL.md";
 /// 停用的写法：改名，不删文件。CLI 只装载 SKILL.md，改回来即恢复。
 pub(crate) const DISABLED_SKILL_FILENAME: &str = "SKILL.md.disabled";
 
-/// 解出来的那一堆东西里，技能的根在哪。
+/// 解出来的那一堆东西里，根在哪。probe 说什么算根。
 ///
-/// 与下面插件那一版同构，判据换成 SKILL.md。脱壳（单目录包一层）复用同一个探针，
-/// 不写第二份。
+/// subdirectory 相对脱壳之后那一层：<repo>-<ref>/ 那层壳的名字里带着 ref，调用方
+/// 写不出来也不该知道。一个仓库装多个插件是目录型市场的常态，不指名就只能猜。
+fn locate(
+    extracted: &Path,
+    subdirectory: Option<&str>,
+    probe: impl Fn(&Path) -> bool,
+) -> Result<PathBuf> {
+    let unwrapped = unwrap_single_directory(extracted);
+
+    let root = match subdirectory {
+        Some(relative) => resolve_inside(&unwrapped, relative)?,
+        None => unwrapped,
+    };
+
+    if probe(&root) {
+        Ok(root)
+    } else {
+        Err(HostError::ManifestMissing)
+    }
+}
+
+/// 技能的根。技能没有清单，SKILL.md 本身就是身份。
 pub fn locate_skill_root(extracted: &Path, subdirectory: Option<&str>) -> Result<PathBuf> {
-    let unwrapped = unwrap_single_directory(extracted);
-
-    let root = match subdirectory {
-        Some(relative) => resolve_inside(&unwrapped, relative)?,
-        None => unwrapped,
-    };
-
-    if root.join(SKILL_FILENAME).is_file() {
-        Ok(root)
-    } else {
-        Err(HostError::ManifestMissing)
-    }
+    locate(extracted, subdirectory, |root| {
+        root.join(SKILL_FILENAME).is_file()
+    })
 }
 
-/// 解出来的那一堆东西里，插件的根在哪。
-///
-/// subdirectory 是仓库里的一段路径。一个仓库装多个插件是目录型市场的常态 ——
-/// kimi-code 的 plugins/official/ 下并排放着两个 —— 不指名就只能猜，而猜错时
-/// 装进来的是另一个插件。它相对的是脱壳之后那一层：<repo>-<ref>/ 那层壳的名字
-/// 里带着 ref，调用方写不出来也不该知道。
+/// 插件的根。判据是清单在不在。
 pub fn locate_root(extracted: &Path, subdirectory: Option<&str>) -> Result<PathBuf> {
-    let unwrapped = unwrap_single_directory(extracted);
-
-    let root = match subdirectory {
-        Some(relative) => resolve_inside(&unwrapped, relative)?,
-        None => unwrapped,
-    };
-
-    if manifest_in(&root).is_some() {
-        Ok(root)
-    } else {
-        Err(HostError::ManifestMissing)
-    }
-}
-
-/// 目录树里的文件，路径相对 root，按名字排序。
-///
-/// 不跟随符号链接：DirEntry::file_type 按标准库的定义不解引用链接，于是一个链接既
-/// 不是文件也不是目录，两条分支都接不住它。上游的安全约定是「路径解析符号链接之后
-/// 仍须留在插件根内」，而一个指向根外的链接读出来仍然「在根里」—— 不跟随是唯一不用
-/// 二次校验就成立的做法，插件的技能与命令也没有理由是链接。
-///
-/// 深度设上限，是因为向下递归没有天然终点：目录硬链接与挂载点都能造出自引用结构。
-/// 技能最深是 <root>/<name>/SKILL.md，命令也只按目录铺开，八层绰绰有余。
-pub fn list_files(root: &Path) -> std::io::Result<Vec<PathBuf>> {
-    const MAX_DEPTH: usize = 8;
-
-    let mut found = Vec::new();
-    let mut pending = vec![(PathBuf::new(), 0usize)];
-
-    while let Some((relative, depth)) = pending.pop() {
-        for entry in std::fs::read_dir(root.join(&relative))? {
-            let entry = entry?;
-            let raw = entry.file_name();
-
-            let Some(name) = raw.to_str() else {
-                continue;
-            };
-
-            // 点开头的是版本控制、编辑器与打包工具的东西，不是插件内容。
-            if name.starts_with('.') {
-                continue;
-            }
-
-            let kind = entry.file_type()?;
-            let child = relative.join(name);
-
-            #[expect(
-                clippy::filetype_is_file,
-                reason = "regular files only: !is_dir() would admit the symlinks documented above"
-            )]
-            if kind.is_file() {
-                found.push(child);
-            } else if kind.is_dir() && depth < MAX_DEPTH {
-                pending.push((child, depth + 1));
-            }
-        }
-    }
-
-    found.sort();
-
-    Ok(found)
+    locate(extracted, subdirectory, |root| manifest_in(root).is_some())
 }
 
 #[cfg(test)]
@@ -181,11 +127,10 @@ mod tests {
     )]
 
     use std::fs;
-    use std::path::PathBuf;
 
     use tempfile::TempDir;
 
-    use super::{is_safe_segment, list_files, locate_root, manifest_in, resolve_inside};
+    use super::{is_safe_segment, locate_root, manifest_in, resolve_inside};
 
     #[test]
     fn the_staging_directory_is_never_a_plugin_identifier() {
@@ -250,25 +195,6 @@ mod tests {
         );
         assert!(locate_root(root.path(), Some("plugins/official/kimi-webbridge")).is_err());
         assert!(locate_root(root.path(), Some("../escaped")).is_err());
-    }
-
-    #[test]
-    fn a_listing_walks_down_and_skips_hidden_entries() {
-        let root = TempDir::new().expect("temporary directory");
-
-        fs::create_dir_all(root.path().join("skills/writing-plans")).expect("nested directory");
-        fs::create_dir_all(root.path().join(".git")).expect("hidden directory");
-        fs::write(root.path().join("skills/writing-plans/SKILL.md"), "body").expect("skill");
-        fs::write(root.path().join("skills/flat.md"), "body").expect("flat skill");
-        fs::write(root.path().join(".git/HEAD"), "ref").expect("hidden file");
-
-        assert_eq!(
-            list_files(root.path()).expect("a listing"),
-            vec![
-                PathBuf::from("skills/flat.md"),
-                PathBuf::from("skills/writing-plans/SKILL.md"),
-            ]
-        );
     }
 
     #[test]

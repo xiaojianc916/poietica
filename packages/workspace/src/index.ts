@@ -9,11 +9,6 @@ export {
   CommandPalette,
   type CommandPaletteProps,
 } from './commands/command-palette'
-export {
-  CommandProvider,
-  type CommandProviderProps,
-  useCommands,
-} from './commands/command-provider'
 export { formatKeybinding, useCommandKeybindings } from './commands/keybinding'
 export type {
   WorkspaceBrowserPart,

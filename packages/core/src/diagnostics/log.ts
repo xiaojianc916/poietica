@@ -17,32 +17,26 @@ export type LogSink = (
 
 let sink: LogSink = defaultConsoleSink
 
+/** 控制台只收 warn 与 error。其余级别留在诊断缓冲里，导出诊断时才读。 */
 function defaultConsoleSink(
   level: LogLevel,
   message: string,
   context: LogContext,
   timestamp: string,
 ): void {
-  const prefix = context.scope ? `[${context.scope}]` : ''
+  if (level !== 'warn' && level !== 'error') {
+    return
+  }
 
+  const prefix = context.scope ? `[${context.scope}]` : ''
   const formatted = [timestamp, level.toUpperCase(), prefix, message].filter(Boolean).join(' ')
 
-  switch (level) {
-    case 'trace':
-    case 'debug':
-      return
-
-    case 'info':
-      return
-
-    case 'warn':
-      console.warn(formatted, context)
-      return
-
-    case 'error':
-      console.error(formatted, context)
-      return
+  if (level === 'warn') {
+    console.warn(formatted, context)
+    return
   }
+
+  console.error(formatted, context)
 }
 
 export function setLogSink(next: LogSink): void {
@@ -56,30 +50,10 @@ export function log(level: LogLevel, message: string, context: LogContext = {}):
 
   try {
     sink(level, message, context, timestamp)
-  } catch (error: unknown) {
-    // Logging must not recursively become a fatal application error.
-    try {
-      console.error('[Poietica Observability] Log sink failed', {
-        level,
-        message,
-        error,
-      })
-    } catch {
-      // No further fallback is safe.
-    }
+  } catch (cause: unknown) {
+    // 日志本身不许升级成致命错误。
+    console.error('[Poietica] log sink failed', { level, message, cause })
   }
-}
-
-export function trace(message: string, context?: LogContext): void {
-  log('trace', message, context)
-}
-
-export function debug(message: string, context?: LogContext): void {
-  log('debug', message, context)
-}
-
-export function info(message: string, context?: LogContext): void {
-  log('info', message, context)
 }
 
 export function warn(message: string, context?: LogContext): void {
@@ -88,18 +62,4 @@ export function warn(message: string, context?: LogContext): void {
 
 export function error(message: string, context?: LogContext): void {
   log('error', message, context)
-}
-
-export function initDiagnostics(options?: {
-  readonly appName?: string
-  readonly sink?: LogSink
-}): void {
-  if (options?.sink) {
-    setLogSink(options.sink)
-  }
-
-  info('diagnostics initialized', {
-    scope: 'diagnostics',
-    appName: options?.appName ?? 'poietica',
-  })
 }

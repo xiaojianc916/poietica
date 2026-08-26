@@ -2954,7 +2954,7 @@ dependencies = [
 
 [[package]]
 name = "poietica"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2997,7 +2997,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-agent-persistence-native"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "log",
  "rusqlite",
@@ -3011,7 +3011,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-agent-runtime-native"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "dirs",
  "futures",
@@ -3030,7 +3030,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-browser-native"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64 0.22.1",
  "url",
@@ -3038,7 +3038,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-git-native"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "tempfile",
  "thiserror 2.0.19",
@@ -3048,7 +3048,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-plugin-host-native"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "tempfile",
  "thiserror 2.0.19",

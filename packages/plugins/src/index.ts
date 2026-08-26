@@ -24,14 +24,7 @@ export {
   type RowGroup,
   statusText,
 } from './catalog/listing'
-export {
-  CATALOG_CHANNELS,
-  type CatalogChannel,
-  describeChannel,
-  type ExtensionScope,
-  scopeOf,
-  survivesUninstall,
-} from './catalog/scope'
+export { type CatalogChannel, describeChannel } from './catalog/scope'
 export {
   type ArchiveSource,
   type CommitRef,
