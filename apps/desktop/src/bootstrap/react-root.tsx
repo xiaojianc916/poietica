@@ -5,12 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { FatalErrorHost } from '../failures/host'
 import { markReactFatalHostMounted, reportFatalIncident } from '../failures/terminal-policy'
 import { AppShell } from '../shell/app-shell'
-import { createApplicationRuntime } from './application'
-
-export interface MountedReactApplication {
-  readonly runtime: ReturnType<typeof createApplicationRuntime>
-  readonly unmount: () => Promise<void>
-}
+import { type ApplicationRuntime, createApplicationRuntime } from './application'
 
 /*
  * 一次 React 错误的上报口，只有这一个。
@@ -40,7 +35,7 @@ function reportReactError(input: {
 export function mountReactApplication(
   container: HTMLElement,
   restored: string | null,
-): MountedReactApplication {
+): ApplicationRuntime {
   let runtime: ReturnType<typeof createApplicationRuntime>
 
   try {
@@ -113,12 +108,5 @@ export function mountReactApplication(
     )
   })
 
-  return {
-    runtime,
-
-    async unmount() {
-      root.unmount()
-      await runtime.dispose()
-    },
-  }
+  return runtime
 }

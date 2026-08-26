@@ -47,14 +47,6 @@ pub type FrameSink = Box<dyn FnMut(RecordedEvent) -> bool + Send>;
 #[derive(Clone, Debug)]
 pub struct SeqLine(Arc<AtomicI64>);
 
-impl PartialEq for SeqLine {
-    fn eq(&self, other: &Self) -> bool {
-        self.peek() == other.peek()
-    }
-}
-
-impl Eq for SeqLine {}
-
 impl Default for SeqLine {
     fn default() -> Self {
         Self(Arc::new(AtomicI64::new(1)))
@@ -406,7 +398,7 @@ fn approval_title(tool_name: &str, item: &Value, tool_call_id: &str) -> String {
 /// 的：帧上的时刻是给人看的排序依据，让一次记录因为系统时钟不对劲而失败，换来
 /// 的是一条对话在屏幕上断掉 —— 代价不对等。
 #[must_use]
-pub fn now_millis() -> i64 {
+pub(crate) fn now_millis() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()

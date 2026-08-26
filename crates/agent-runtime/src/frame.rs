@@ -16,24 +16,24 @@ use crate::link::LinkState;
 /// 一轮的第一帧。
 pub const PROMPT_ADMITTED: &str = "prompt_admitted";
 /// kap server 推来的一帧会话事件。
-pub const KAP_EVENT: &str = "kap_event";
+pub(crate) const KAP_EVENT: &str = "kap_event";
 /// agent 正卡在一次授权请求上。
-pub const PERMISSION_REQUESTED: &str = "permission_requested";
+pub(crate) const PERMISSION_REQUESTED: &str = "permission_requested";
 /// 那次授权请求得到的答复。
-pub const PERMISSION_RESOLVED: &str = "permission_resolved";
+pub(crate) const PERMISSION_RESOLVED: &str = "permission_resolved";
 /// 这一轮按 agent 自己的说法结束了。
 pub const RUN_FINISHED: &str = "run_finished";
 /// 这一轮以失败结束。
-pub const RUN_FAILED: &str = "run_failed";
+pub(crate) const RUN_FAILED: &str = "run_failed";
 
 /// 这条连接的链路态变了。
-pub const LINK_CHANGED: &str = "link_changed";
+pub(crate) const LINK_CHANGED: &str = "link_changed";
 
 /// 这一组题问出去了，agent 正卡在它上面。
-pub const QUESTIONS_ASKED: &str = "questions_asked";
+pub(crate) const QUESTIONS_ASKED: &str = "questions_asked";
 
 /// 那一组题结清了。
-pub const QUESTIONS_RESOLVED: &str = "questions_resolved";
+pub(crate) const QUESTIONS_RESOLVED: &str = "questions_resolved";
 
 /// 一次运行里可能发生的事。
 ///

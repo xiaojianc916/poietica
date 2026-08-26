@@ -12,14 +12,9 @@ import { readdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
-/*
- * 三档范围。cache 是日常那一档：产物、任务缓存，以及 Vite 的依赖预构建缓存 ——
- * 最后这个住在 node_modules 里，所以即便这一档不删 node_modules 也要单独伸手进
- * 去拿它，否则"改了组件却没生效"这个最常见的症状根本清不掉。
- */
+/* 两档范围。差别只有 target：Rust 构建产物重建慢，只在 --all 时删。 */
 const SCOPES = {
   all: new Set(['.turbo', 'dist', 'node_modules', 'target']),
-  cache: new Set(['.turbo', 'dist']),
   deps: new Set(['.turbo', 'dist', 'node_modules']),
 }
 
@@ -30,9 +25,6 @@ const DRY_RUN = process.argv.includes('--dry-run')
 function chosenScope() {
   if (process.argv.includes('--all')) {
     return 'all'
-  }
-  if (process.argv.includes('--cache')) {
-    return 'cache'
   }
   return 'deps'
 }

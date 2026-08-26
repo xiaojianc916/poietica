@@ -841,6 +841,11 @@ export function selectPresentation(
     if (latestOwnMessage === null) {
       latestOwnMessage = segment.ownMessage
     }
+
+    /* 两格都到手就停：后面的段不会再改这两个值。 */
+    if (lastTurn !== undefined && latestOwnMessage !== null) {
+      break
+    }
   }
 
   /* 上一帧那份轮次表按 sealed 记：state 每帧换身份，held 在流式期间恒是空的。 */

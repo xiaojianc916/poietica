@@ -850,12 +850,8 @@
 }
 
 /*
- * 子菜单开着时,发起它的那一行保持高亮。
- *
- * Base UI 的 SubTrigger 发的是布尔属性 data-popup-open,不带取值 —— 同仓的
- * dropdown-menu.tsx 自己用的就是 data-[popup-open]。此前这里按 Radix 的写法
- * 去比较字符串,一次都没命中过:指针移到子菜单上、离开父行的那一刻,父行就灭
- * 了,而它明明还是当前打开项的来源。
+ * Base UI 的 SubTrigger 发的是布尔属性 data-popup-open,不带取值。此前这里按
+ * Radix 的写法去比较字符串,一次都没命中过。
  */
 [data-assistant-skin] .assistant-config-menu__row:hover,
 [data-assistant-skin] .assistant-config-menu__row[data-popup-open] {

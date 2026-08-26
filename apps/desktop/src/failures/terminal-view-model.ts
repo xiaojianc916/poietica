@@ -5,7 +5,7 @@ import { formatFailureDiagnostic } from './diagnostic'
 /* 复制反馈回到初态的时长。两个渲染器同读这一个数。 */
 const COPY_RESET_DELAY_MS = 2200
 
-export interface TerminalFailurePrimaryAction {
+interface TerminalFailurePrimaryAction {
   readonly kind: 'reload'
   readonly label: string
 }

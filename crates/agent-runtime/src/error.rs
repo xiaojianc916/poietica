@@ -5,8 +5,6 @@ pub enum Refusal {
     UnknownSession,
     /// 驱动器已经停了，没有谁能收下这条命令。
     Gone,
-    /// 这条会话上已经有一轮在飞。
-    Busy,
 }
 
 /// Everything that can go wrong while driving a kap agent.
@@ -46,9 +44,6 @@ pub enum KapError {
     /// A task panicked while holding one of this crate's locks.
     #[error("a lock was left held by a panicking task")]
     Poisoned,
-    /// JSON 编解码失败。
-    #[error("json error: {0}")]
-    Json(#[from] serde_json::Error),
 }
 
 /// The result type used throughout this crate.

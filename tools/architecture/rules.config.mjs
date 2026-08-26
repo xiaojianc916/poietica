@@ -506,7 +506,7 @@ const wildcardModuleDeclarations = async (inventory) => {
 }
 
 /* 规则里拼出来的路径要与 run.mjs 的 inventory 同形：一律正斜杠。 */
-const toPosixPath = (value) => value.split(path.sep).join('/')
+export const toPosixPath = (value) => value.split(path.sep).join('/')
 
 /*
  * 文档里写的 bun 脚本必须真的存在。

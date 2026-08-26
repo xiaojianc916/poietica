@@ -13,11 +13,6 @@ export interface UICommand {
   readonly category?: string
 }
 
-export interface UICommandHandler {
-  readonly command: UICommand
-  execute(): void | Promise<void>
-}
-
 export interface RegisteredCommand extends UICommand {
   readonly execute: () => void | Promise<void>
 }

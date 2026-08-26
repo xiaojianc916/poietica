@@ -6,11 +6,7 @@ import type {
 } from '@poietica/agent-contract'
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
-import {
-  isPermissionPostureChange,
-  permissionControlOf,
-  postureAlignment,
-} from './permission-posture'
+import { isPermissionPostureChange, pendingPostureAlignment } from './permission-posture'
 
 /*
  * 锚会话提供哪些可调项，以及每一项此刻生效的是什么。
@@ -295,25 +291,13 @@ export class AgentCapabilityStore {
    * 仍然只有一条路。
    */
   #align(table: readonly SessionConfigControl[]): void {
-    const posture = this.#posture
+    const decision = pendingPostureAlignment(table, this.#posture?.read())
 
-    if (posture === undefined) {
+    if (decision === undefined || this.#alignedTo === decision.wanted) {
       return
     }
 
-    const control = permissionControlOf(table)
-
-    if (control === undefined) {
-      return
-    }
-
-    const wanted = postureAlignment(control, posture.read())
-
-    if (wanted === undefined || this.#alignedTo === wanted) {
-      return
-    }
-
-    this.selectControl(control.id, wanted)
+    this.selectControl(decision.control.id, decision.wanted)
   }
 
   /* 读一次整张表。没有端口就没有产地；问过了就不再问 —— 重读走 refresh。 */

@@ -2,7 +2,7 @@ import type { MainWindowController } from '@poietica/desktop-adapters'
 import { useCallback, useEffect, useState } from 'react'
 import { reportFailure } from '../failures/application-policy'
 
-export interface WindowChrome {
+interface WindowChrome {
   readonly isMaximized: boolean
   readonly minimize: () => void
   readonly toggleMaximize: () => void

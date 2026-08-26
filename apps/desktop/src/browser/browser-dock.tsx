@@ -43,7 +43,7 @@ export function BrowserPanelToggle({ conversationId }: { readonly conversationId
   )
 }
 
-export interface BrowserDockProps {
+interface BrowserDockProps {
   /** 屏幕上这一刻的那条对话；不在对话里（设置、别的表面）就是 null。 */
   readonly conversationId: string | null
   /** 这一格在不在场。与外壳的停靠位读同一个布尔。 */

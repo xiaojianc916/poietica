@@ -6,7 +6,7 @@ import type { IpcError } from './generated/ipc-bindings'
  */
 export type { IpcError }
 
-export function isIpcError(value: unknown): value is IpcError {
+function isIpcError(value: unknown): value is IpcError {
   if (typeof value !== 'object' || value === null) {
     return false
   }
@@ -18,7 +18,7 @@ export function isIpcError(value: unknown): value is IpcError {
   )
 }
 
-export class IpcInvocationError extends Error {
+class IpcInvocationError extends Error {
   readonly details: IpcError
 
   constructor(details: IpcError) {

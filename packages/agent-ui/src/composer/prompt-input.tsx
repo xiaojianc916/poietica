@@ -51,8 +51,6 @@ import { $createChipNode, ChipNode, samePromptChip } from './prompt-chip'
  * 面板里的行有两种动作：命令落成一枚 chip，技能与模式是一次协议动作。
  */
 
-export type { ChatStatus }
-
 export interface PromptInputMessage {
   readonly text: string
   readonly configuration: readonly PromptConfiguration[]

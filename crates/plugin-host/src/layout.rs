@@ -5,7 +5,7 @@ use crate::error::{HostError, Result};
 /// 清单的两个位置，前者优先 —— 与上游一致。
 ///
 /// 第二条带斜杠：Rust 的 Path 在 Windows 上同样把 '/' 当分隔符，不需要写第二份。
-pub const MANIFEST_FILENAMES: [&str; 2] = ["kimi.plugin.json", ".kimi-plugin/plugin.json"];
+pub(crate) const MANIFEST_FILENAMES: [&str; 2] = ["kimi.plugin.json", ".kimi-plugin/plugin.json"];
 
 /// Windows 的保留字符加两个分隔符。Path::join 不拒绝它们，要到创建文件那一刻
 /// 才失败，而那时暂存区已经写了一半。
@@ -32,7 +32,7 @@ pub fn is_safe_segment(value: &str) -> bool {
 ///
 /// 判据是「每一段都必须是普通名字」：".." 往上跳，而绝对路径与 Windows 盘符前缀
 /// 会让 Path::join 丢掉左边整段 —— join("C:\\x") 返回的是 C:\x。这是 std 写明的行为。
-pub fn resolve_inside(root: &Path, relative: &str) -> Result<PathBuf> {
+pub(crate) fn resolve_inside(root: &Path, relative: &str) -> Result<PathBuf> {
     let candidate = Path::new(relative);
 
     // CurDir 一并放行。清单里的路径按上游约定一律以 ./ 开头，而 Path::components 只在

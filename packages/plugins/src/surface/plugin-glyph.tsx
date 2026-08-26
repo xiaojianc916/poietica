@@ -4,10 +4,6 @@ import { useState } from 'react'
 /* 认不出的条目与坏掉的资源退回彩色首字母：一个稳定的名字比一个空盒子好认。 */
 
 const SIZES = {
-  sm: {
-    frame: 'size-8 rounded-lg text-[11px]',
-    image: 'size-[18px]',
-  },
   md: {
     frame: 'size-10 rounded-[10px] text-xs',
     image: 'size-6',

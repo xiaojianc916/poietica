@@ -7,12 +7,11 @@ use poietica_agent_runtime_native::{KapError, Refusal};
 ///
 /// 全是本仓库的字面量常量，没有一处把 agent 的回话、外部输入或系统错误拼进去
 /// —— 这正是 `Error::AgentCli` 那个变体写下来的透传判据，所以它们可以原样上屏。
-/// 而这三件恰恰是用户唯一能自己解决的事。
+/// 而这两件恰恰是用户唯一能自己解决的事。
 const fn refusal(reason: Refusal) -> &'static str {
     match reason {
         Refusal::UnknownSession => "这条对话的会话已经失效，请重新打开它",
         Refusal::Gone => "agent 已经退出，请重新发起对话",
-        Refusal::Busy => "这条对话正在回答，请等它结束再改设置",
     }
 }
 
@@ -28,7 +27,6 @@ const fn refusal(reason: Refusal) -> &'static str {
 /// `public_message` 原样返回，不来自多一个变体。
 pub(super) fn translate(error: KapError) -> Error {
     match error {
-        KapError::Json(inner) => Error::SerdeJson(inner),
         KapError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
         // The enum is non-exhaustive, so the wildcard arm is required.
         //

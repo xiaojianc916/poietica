@@ -5,11 +5,6 @@ import {
   type UpdateRelease,
 } from '@poietica/ipc/generated/ipc-bindings'
 
-export type {
-  UpdateProgress,
-  UpdateRelease,
-} from '@poietica/ipc/generated/ipc-bindings'
-
 export interface AppUpdateController {
   /** 有没有比当前版本更新的发布。没有则为 null。 */
   readonly check: () => Promise<UpdateRelease | null>

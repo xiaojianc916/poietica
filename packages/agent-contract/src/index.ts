@@ -6,7 +6,6 @@
  * 压住 noReExportAll。
  */
 
-export type { ThreadId } from './address'
 export type { AgentCapabilityPort } from './capability'
 export type {
   SessionConfigChoice,

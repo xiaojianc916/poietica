@@ -72,10 +72,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       })
     },
     onSelectionReady: () => {
-      failureCoordinator.resolveScope({
-        kind: 'operation',
-        operation: 'load-agent-selection',
-      })
+      failureCoordinator.resolveOperation('load-agent-selection')
     },
   })
 

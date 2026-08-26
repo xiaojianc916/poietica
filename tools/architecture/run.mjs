@@ -18,12 +18,11 @@ import {
   rules,
   sourceExtensions,
   sourceRoots,
+  toPosixPath,
 } from './rules.config.mjs'
 
 const checkDirectory = path.dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = path.resolve(checkDirectory, '../..')
-
-const toPosix = (value) => value.replaceAll(path.sep, '/')
 
 /* 所有规则共享一次文件系统遍历，确保忽略策略与汇总语义一致。 */
 async function collectInventory() {
@@ -48,7 +47,7 @@ async function collectInventory() {
 
     for (const entry of entries) {
       const absolute = path.join(entry.parentPath, entry.name)
-      const entryPath = toPosix(path.relative(repositoryRoot, absolute))
+      const entryPath = toPosixPath(path.relative(repositoryRoot, absolute))
 
       if (entryPath.split('/').some((segment) => ignoredDirectories.has(segment))) {
         continue

@@ -52,10 +52,7 @@ pub use credentials::{
 };
 pub use desk::{PermissionDesk, QuestionDesk};
 pub use error::{KapError, Refusal, Result};
-pub use frame::{
-    KAP_EVENT, LINK_CHANGED, PERMISSION_REQUESTED, PERMISSION_RESOLVED, PROMPT_ADMITTED,
-    QUESTIONS_ASKED, QUESTIONS_RESOLVED, RUN_FAILED, RUN_FINISHED, RunFrame, kap_event,
-};
+pub use frame::{PROMPT_ADMITTED, RUN_FINISHED, RunFrame, kap_event};
 pub use link::LinkState;
 pub use permission::{Decision, Scope};
 pub use program::{Launcher, hide_console, resolve_launcher, resolve_program};
@@ -63,7 +60,7 @@ pub use question::{
     AnswerMethod, QuestionAnswer, QuestionGroup, QuestionItem, QuestionOption, QuestionOutcome,
     QuestionResponse,
 };
-pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine, now_millis};
+pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine};
 pub use run_slot::RunSlot;
 pub use selection::{ConfigSelection, apply_configurations, select_config};
 pub use session::{
@@ -71,4 +68,3 @@ pub use session::{
     OpenedSession, SessionEntry, SessionEvent, SessionEvents, Skill,
 };
 pub use sessions::SessionBook;
-pub use stderr::StderrLog;

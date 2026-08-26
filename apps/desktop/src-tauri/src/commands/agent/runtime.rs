@@ -171,7 +171,7 @@ impl AgentRuntime {
 /// 一轮在飞时退场，driver 的 future 被丢掉，那一轮的 Settled::Turn 永远走不完，
 /// 于是 RunSlot::take 永远不会被调用。槽现在随连接一起走，所以收不干净只影响
 /// 这一条已经作废的连接 —— 此前它是全进程唯一的那一份，一次这样的退出会让
-/// 下一条连接的第一轮撞上 Refusal::Busy，而屏幕上那句话答的是另一个问题。
+/// 下一条连接的第一轮被误判为已有一轮在飞，而屏幕上那句话答的是另一个问题。
 fn retire(taken: Option<Connection>) {
     let Some(gone) = taken else {
         return;

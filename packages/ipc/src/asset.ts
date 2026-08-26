@@ -73,10 +73,3 @@ export function removeAsset(sessionToken: string, assetToken: string): Promise<v
     await commands.assetRemove({ sessionToken, assetToken })
   })
 }
-
-/** 关掉会话，它持有的字节与地址一并作废。已经不在了也算成功。 */
-export function closeAssetSession(sessionToken: string): Promise<void> {
-  return throughIpc(async () => {
-    await commands.assetSessionClose({ sessionToken })
-  })
-}

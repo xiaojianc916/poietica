@@ -92,6 +92,11 @@ fn many_sessions_record_concurrently_without_aliasing() {
         }
     });
 
+    /*
+     * 槽里那 64 个记录器各自握着一个发送端，而它们仍被账本持有着：不先放掉
+     * 账本，这条通道永远断不开，迭代到断开的收尾就等不到 None。
+     */
+    drop(book);
     drop(delivered);
     let mut positions: HashMap<String, Vec<i64>> = HashMap::new();
     for event in arriving {

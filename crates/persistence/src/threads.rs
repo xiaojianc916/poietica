@@ -1,5 +1,6 @@
 //! Conversations: their names, their sessions, and their place in the list.
 
+use rusqlite::Row;
 use rusqlite::types::{FromSql, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -51,19 +52,7 @@ impl AgentStore {
         )?;
 
         let found = statement
-            .query_map([], |row| {
-                Ok(ThreadSummary {
-                    id: row.get(0)?,
-                    session_id: row.get(1)?,
-                    agent_id: row.get(2)?,
-                    title: row.get(3)?,
-                    title_source: row.get(4)?,
-                    updated_at: row.get(5)?,
-                    pinned: row.get::<_, i64>(6)? != 0,
-                    workspace_root: row.get(7)?,
-                    archived_at: row.get(8)?,
-                })
-            })?
+            .query_map([], |row| summary(row))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(found)
@@ -202,17 +191,7 @@ impl AgentStore {
         let mut rows = statement.query(rusqlite::params![id.to_string()])?;
 
         match rows.next()? {
-            Some(row) => Ok(Some(ThreadSummary {
-                id: row.get(0)?,
-                session_id: row.get(1)?,
-                agent_id: row.get(2)?,
-                title: row.get(3)?,
-                title_source: row.get(4)?,
-                updated_at: row.get(5)?,
-                pinned: row.get::<_, i64>(6)? != 0,
-                workspace_root: row.get(7)?,
-                archived_at: row.get(8)?,
-            })),
+            Some(row) => Ok(Some(summary(&row)?)),
             None => Ok(None),
         }
     }
@@ -442,6 +421,22 @@ impl AgentStore {
 
         Ok(harvested)
     }
+}
+
+/// 把一行九列的对话查询映成 [`ThreadSummary`]。`list_threads` 与 `thread` 只差
+/// WHERE，字段映射只留这一份。
+fn summary(row: &Row<'_>) -> rusqlite::Result<ThreadSummary> {
+    Ok(ThreadSummary {
+        id: row.get(0)?,
+        session_id: row.get(1)?,
+        agent_id: row.get(2)?,
+        title: row.get(3)?,
+        title_source: row.get(4)?,
+        updated_at: row.get(5)?,
+        pinned: row.get::<_, i64>(6)? != 0,
+        workspace_root: row.get(7)?,
+        archived_at: row.get(8)?,
+    })
 }
 
 /// One conversation, as a list of conversations needs it.

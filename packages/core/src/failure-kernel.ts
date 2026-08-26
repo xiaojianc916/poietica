@@ -122,12 +122,6 @@ export function isTerminalFailureImpact(impact: FailureImpact): impact is Termin
   return impact === 'application-fatal' || impact === 'native-fatal'
 }
 
-export function isNonTerminalFailureImpact(
-  impact: FailureImpact,
-): impact is NonTerminalFailureImpact {
-  return !isTerminalFailureImpact(impact)
-}
-
 export function createFailureScopeKey(scope: FailureScope): string {
   switch (scope.kind) {
     case 'operation':

@@ -28,7 +28,6 @@
   --cp-feed-glyph-row-gap: 4px;
   /* 一组连续调用摊开之后，成员之间的行距。 */
   --cp-timeline-group-gap: 2px;
-  --cp-dock-gap: var(--cp-stack);
   /* 溶解距离按行给:一行半正文(39px)。三行是过量,那段渐变自己变成了色带。 */
   /* 对话下沿化开的距离:一行半正文。涂色的那一版没有了,这是遮罩的长度。 */
   --cp-dock-dissolve: calc(var(--cp-line) * 1.5);

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'bun:test'
 import {
   createClassifiedFailure,
   createFailureScopeKey,
-  isNonTerminalFailureImpact,
   isTerminalFailureImpact,
 } from './failure-kernel'
 
@@ -11,8 +10,6 @@ describe('application failure policy', () => {
     expect(isTerminalFailureImpact('application-fatal')).toBe(true)
 
     expect(isTerminalFailureImpact('native-fatal')).toBe(true)
-
-    expect(isNonTerminalFailureImpact('recoverable')).toBe(true)
   })
 
   it('creates stable scope keys', () => {

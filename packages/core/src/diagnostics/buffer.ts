@@ -27,7 +27,6 @@ const UNIX_USER_PATH_PATTERN = /\/(?:Users|home)\/[^/\s]+/gi
 
 const URL_CREDENTIAL_PATTERN = /([a-z][a-z0-9+.-]*:\/\/)([^:@/\s]+):([^@/\s]+)@/gi
 
-let capacity = DEFAULT_CAPACITY
 let nextSequence = 1
 let entries: DiagnosticLogEntry[] = []
 
@@ -54,8 +53,8 @@ export function recordDiagnosticLog(
     nextSequence += 1
     entries.push(entry)
 
-    if (entries.length > capacity) {
-      entries = entries.slice(entries.length - capacity)
+    if (entries.length > DEFAULT_CAPACITY) {
+      entries = entries.slice(entries.length - DEFAULT_CAPACITY)
     }
   } catch (error: unknown) {
     // Observability must never become an application failure source.
@@ -63,30 +62,14 @@ export function recordDiagnosticLog(
   }
 }
 
-export function getRecentLogEntries(limit = capacity): readonly DiagnosticLogEntry[] {
-  const normalizedLimit = Math.max(0, Math.min(Math.floor(limit), capacity))
+export function getRecentLogEntries(limit = DEFAULT_CAPACITY): readonly DiagnosticLogEntry[] {
+  const normalizedLimit = Math.max(0, Math.min(Math.floor(limit), DEFAULT_CAPACITY))
 
   return entries.slice(Math.max(0, entries.length - normalizedLimit)).map(cloneEntry)
 }
 
 export function clearDiagnosticLogs(): void {
   entries = []
-}
-
-export function configureDiagnosticBuffer(options: { readonly capacity?: number }): void {
-  if (options.capacity === undefined) {
-    return
-  }
-
-  if (!Number.isInteger(options.capacity) || options.capacity < 1 || options.capacity > 2_000) {
-    throw new RangeError('Diagnostic buffer capacity must be an integer between 1 and 2000.')
-  }
-
-  capacity = options.capacity
-
-  if (entries.length > capacity) {
-    entries = entries.slice(entries.length - capacity)
-  }
 }
 
 export function formatDiagnosticLogs(logEntries: readonly DiagnosticLogEntry[]): string {
@@ -130,21 +113,9 @@ function sanitizeContext(context: LogContext): Readonly<Record<string, string>> 
   return Object.fromEntries(sanitizedEntries)
 }
 
-function serializeUnknown(value: unknown): string {
-  if (value === undefined) {
-    return 'undefined'
-  }
-
-  if (value === null) {
-    return 'null'
-  }
-
-  if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    typeof value === 'bigint'
-  ) {
+/** bigint/symbol/function 过不了 JSON，顶层分支与 replacer 共用这一份叶子格式化。 */
+function formatLeafValue(value: unknown): string | undefined {
+  if (typeof value === 'bigint') {
     return String(value)
   }
 
@@ -154,6 +125,28 @@ function serializeUnknown(value: unknown): string {
 
   if (typeof value === 'function') {
     return `[Function ${value.name || 'anonymous'}]`
+  }
+
+  return undefined
+}
+
+function serializeUnknown(value: unknown): string {
+  if (value === undefined) {
+    return 'undefined'
+  }
+
+  if (value === null) {
+    return 'null'
+  }
+
+  const leaf = formatLeafValue(value)
+
+  if (leaf !== undefined) {
+    return leaf
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
   }
 
   const seen = new WeakSet<object>()
@@ -174,19 +167,7 @@ function serializeUnknown(value: unknown): string {
           seen.add(candidate)
         }
 
-        if (typeof candidate === 'bigint') {
-          return String(candidate)
-        }
-
-        if (typeof candidate === 'symbol') {
-          return String(candidate)
-        }
-
-        if (typeof candidate === 'function') {
-          return `[Function ${candidate.name || 'anonymous'}]`
-        }
-
-        return candidate
+        return formatLeafValue(candidate) ?? candidate
       },
       2,
     )

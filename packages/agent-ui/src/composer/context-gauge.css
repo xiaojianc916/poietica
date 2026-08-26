@@ -115,11 +115,3 @@
 .context-gauge__bar-fill[data-level="critical"] {
   background: #dc2626;
 }
-
-.context-gauge__cost {
-  margin: 10px -12px -10px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--cp-hairline, rgb(0 0 0 / 8%));
-  border-radius: 0 0 11px 11px;
-  background: var(--cp-menu-line, rgb(0 0 0 / 4%));
-}

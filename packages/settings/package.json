@@ -16,8 +16,7 @@
     "@poietica/core": "workspace:*",
     "@poietica/ipc": "workspace:*",
     "@poietica/ui": "workspace:*",
-    "lucide-react": "catalog:",
-    "valibot": "catalog:"
+    "lucide-react": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",

@@ -15,7 +15,6 @@ export interface DialogProps {
   readonly className?: string
   readonly contentClassName?: string
   readonly busy?: boolean
-  readonly closeLabel?: string
   readonly closeOnOverlayClick?: boolean
   readonly onOpenChange: (open: boolean) => void
 }
@@ -48,7 +47,6 @@ export function Dialog({
   className,
   contentClassName,
   busy = false,
-  closeLabel = '关闭',
   closeOnOverlayClick = true,
   onOpenChange,
 }: DialogProps) {
@@ -145,7 +143,7 @@ export function Dialog({
                     disabled={busy}
                     render={
                       <Button
-                        aria-label={closeLabel}
+                        aria-label="关闭"
                         ref={closeButtonRef}
                         size="icon"
                         type="button"

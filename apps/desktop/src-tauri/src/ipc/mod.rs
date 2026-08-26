@@ -221,6 +221,4 @@ pub fn surface() -> Builder<Wry> {
         .typ::<ProviderProbeOutcome>()
         .typ::<UpdateRelease>()
         .typ::<GitBranches>()
-        .typ::<BrowserState>()
-        .typ::<BrowserElementPicked>()
 }

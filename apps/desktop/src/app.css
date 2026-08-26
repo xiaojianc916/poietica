@@ -74,42 +74,6 @@ body {
   color: var(--color-foreground);
 }
 
-.bootstrap-error {
-  display: grid;
-  min-height: 100%;
-  place-content: center;
-  gap: var(--ui-space-3);
-  padding: var(--ui-space-8);
-  text-align: center;
-}
-
-.bootstrap-error h1,
-.bootstrap-error p {
-  margin: 0;
-}
-
-.bootstrap-error p {
-  max-width: 560px;
-  color: color-mix(in oklab, var(--color-foreground) 60%, transparent);
-  font-size: var(--ui-font-size-sm);
-}
-
-.bootstrap-error button {
-  justify-self: center;
-  border: var(--ui-region-divider-width) solid var(--color-divider);
-  border-radius: var(--ui-radius-md);
-  min-height: var(--ui-control-height-md);
-  padding: var(--ui-space-2) var(--ui-space-4);
-  background: var(--color-surface);
-  box-shadow: var(--ui-shadow-sm);
-  color: inherit;
-  cursor: pointer;
-  transition:
-    color var(--ui-duration-fast) var(--ui-ease-standard),
-    background-color var(--ui-duration-fast) var(--ui-ease-standard),
-    border-color var(--ui-duration-fast) var(--ui-ease-standard);
-}
-
 /*
  * 标签条不要滚动条。
  *

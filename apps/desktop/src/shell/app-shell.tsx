@@ -40,7 +40,7 @@ import { type AppCapabilities, WorkspaceContainer } from '../workbench/workspace
  */
 const CHECKS_UPDATES = !import.meta.env.DEV
 
-export interface AppShellRuntime {
+interface AppShellRuntime {
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
   readonly mainWindow: MainWindowController
@@ -53,7 +53,7 @@ export interface AppShellRuntime {
   readonly dataDirectory: () => Promise<string>
 }
 
-export interface AppShellProps {
+interface AppShellProps {
   readonly runtime: AppShellRuntime
 }
 

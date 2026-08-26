@@ -16,7 +16,6 @@ import type { RegisteredCommand } from './command-contract'
 export interface CommandRegistry {
   readonly register: (command: RegisteredCommand) => () => void
   readonly execute: (commandId: string) => Promise<boolean>
-  readonly get: (commandId: string) => RegisteredCommand | undefined
   readonly getSnapshot: () => readonly RegisteredCommand[]
   readonly subscribe: (listener: () => void) => () => void
 }
@@ -64,9 +63,6 @@ export function createCommandRegistry(): CommandRegistry {
   return {
     register,
     execute,
-    get(commandId) {
-      return commands.get(commandId)
-    },
     getSnapshot() {
       return snapshot
     },

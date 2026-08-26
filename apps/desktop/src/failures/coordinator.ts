@@ -10,7 +10,6 @@ import {
   type ClassifiedFailureInput,
   createClassifiedFailure,
   createFailureScopeKey,
-  type FailureScope,
   isTerminalFailureImpact,
   type NonTerminalFailureImpact,
   optionalProperty,
@@ -125,17 +124,12 @@ export class FailureCoordinator {
     }
   }
 
-  resolveScope(scope: FailureScope): void {
-    const scopeKey = createFailureScopeKey(scope)
-
-    if (scope.kind === 'feature') {
-      this.degradedFeatures.delete(scope.featureId)
-    }
-
+  resolveOperation(operation: string): void {
     for (let index = this.operations.length - 1; index >= 0; index -= 1) {
       const entry = this.operations[index]
+      const scope = entry?.incident.scope
 
-      if (entry && createFailureScopeKey(entry.incident.scope) === scopeKey) {
+      if (scope?.kind === 'operation' && scope.operation === operation) {
         this.operations.splice(index, 1)
       }
     }

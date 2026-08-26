@@ -1,13 +1,6 @@
 import * as v from 'valibot'
 
 /*
- * 插件清单的形状由 Kimi Code 拥有，不由我们定义：<plugin_root>/kimi.plugin.json，
- * 缺席时回落到 <plugin_root>/.kimi-plugin/plugin.json。两个都在时前者胜出，所以
- * 这张表是有序的：读取方按序取第一个命中的文件。
- */
-export const PLUGIN_MANIFEST_FILENAMES = ['kimi.plugin.json', '.kimi-plugin/plugin.json'] as const
-
-/*
  * 上游运行时已经不认这几个字段。读到只记一条诊断、不生效 —— 静默忽略会把
  * 「装上了却没反应」变成一个查不出原因的问题。
  */

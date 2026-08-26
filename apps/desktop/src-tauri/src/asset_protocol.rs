@@ -186,9 +186,8 @@ impl AssetProtocolRegistry {
          * 摘要在这里付一次，而且在拿写锁之前付。
          *
          * 这条入口此前只核对了 asset_token 与 content_hash 两个字符串相等，从未对
-         * 字节本身做过摘要 —— 身份完全由调用方声明。而 snapshot_session 用结构体
-         * 字面量直接产出 AssetSessionSnapshotEntry，绕开了 verify，于是一个谎报的
-         * 身份会原样写进保存的文档：容器索引说这段字节是 A，它其实是 B。
+         * 字节本身做过摘要 —— 身份完全由调用方声明：一个谎报的身份会原样进注册表，
+         * 容器索引说这段字节是 A，它其实是 B。
          *
          * AssetSessionSnapshotEntry 的文档说"字段私有是因为这个保证就是这个类型的
          * 全部价值"。那个保证此前在这条路径上并不成立，现在成立。
@@ -433,38 +432,6 @@ impl AssetProtocolRegistry {
         self.state.read().map_or(0, |state| state.total_bytes)
     }
 
-    pub fn snapshot_session(
-        &self,
-        session_token: &str,
-    ) -> Result<Vec<AssetSessionSnapshotEntry>, AssetProtocolError> {
-        validate_token(session_token)?;
-
-        let state = self
-            .state
-            .read()
-            .map_err(|_| AssetProtocolError::Internal)?;
-
-        let session = state
-            .sessions
-            .get(session_token)
-            .ok_or(AssetProtocolError::NotFound)?;
-
-        let mut snapshot = session
-            .iter()
-            .map(|(content_hash, asset)| AssetSessionSnapshotEntry {
-                content_hash: content_hash.clone(),
-                content_type: asset.content_type.clone(),
-                bytes: Arc::clone(&asset.bytes),
-            })
-            .collect::<Vec<_>>();
-
-        /* HashMap 的迭代顺序每次都不同，而写出去的容器要逐字节可复现。排序放在
-        这里，因为这是交接的唯一出口。 */
-        snapshot.sort_unstable_by(|left, right| left.content_hash.cmp(&right.content_hash));
-
-        Ok(snapshot)
-    }
-
     /// 把一份字节从一条会话过继到另一条，并把它交给调用方读。
     ///
     /// 输入框那条会话（用户挑图的地方）与一条对话的交付会话是两条：前者在
@@ -560,25 +527,6 @@ impl AssetProtocolRegistry {
         state.total_bytes = next_total;
 
         Ok(Some((content_type, bytes)))
-    }
-
-    pub fn contains(
-        &self,
-        session_token: &str,
-        asset_token: &str,
-    ) -> Result<bool, AssetProtocolError> {
-        validate_token(session_token)?;
-        validate_token(asset_token)?;
-
-        let state = self
-            .state
-            .read()
-            .map_err(|_| AssetProtocolError::Internal)?;
-
-        Ok(state
-            .sessions
-            .get(session_token)
-            .is_some_and(|assets| assets.contains_key(asset_token)))
     }
 
     pub fn response<B>(&self, request: &Request<B>) -> Response<Vec<u8>> {
@@ -749,21 +697,6 @@ fn validate_content_hash(content_hash: &str) -> Result<(), AssetProtocolError> {
     }
 
     Err(AssetProtocolError::InvalidContentHash)
-}
-
-/// Whether the delivery protocol may serve this content type.
-///
-/// Allowlist of inert formats. text/plain is served with nosniff, so it
-/// cannot be re-typed into markup. Active content (SVG, HTML, JavaScript)
-/// is excluded: serving it from the custom URI scheme would allow injected
-/// markup to run with the same-origin privileges as the application shell.
-/// 这个类型交付得了吗。
-///
-/// 判定留在这个文件，因为允许清单在这个文件。收件的那一侧必须在门口就问它：
-/// 一份存得下、交付不了的附件（SVG、HEIC…）会让这条对话此后再也打不开 ——
-/// deliver_attachments 里的 verify 会为它把整批交付判失败。
-pub fn is_deliverable(content_type: &str) -> bool {
-    validate_content_type(content_type).is_ok()
 }
 
 fn validate_content_type(content_type: &str) -> Result<(), AssetProtocolError> {
@@ -1205,12 +1138,8 @@ mod tests {
 
         assert_eq!(asset, duplicate);
 
-        let snapshot = registry
-            .snapshot_session("session-1")
-            .expect("snapshot should succeed");
-
-        assert_eq!(snapshot.len(), 1);
-        assert_eq!(snapshot[0].content_hash(), asset);
+        /* 同一份字节只记一次账：第二次插入只是把引用加一。 */
+        assert_eq!(registry.total_bytes(), 3);
 
         assert!(
             registry
@@ -1218,11 +1147,11 @@ mod tests {
                 .expect("first reference should be removed")
         );
 
-        assert!(
-            registry
-                .contains("session-1", &asset)
-                .expect("asset should remain")
-        );
+        let response = registry.response(&request(&format!(
+            "poietica-asset://asset/session-1/{asset}"
+        )));
+
+        assert_eq!(response.status(), StatusCode::OK);
 
         assert!(
             registry
@@ -1230,11 +1159,13 @@ mod tests {
                 .expect("final reference should be removed")
         );
 
-        assert!(
-            !registry
-                .contains("session-1", &asset)
-                .expect("asset should be gone")
-        );
+        let response = registry.response(&request(&format!(
+            "poietica-asset://asset/session-1/{asset}"
+        )));
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        assert_eq!(registry.total_bytes(), 0);
     }
 
     #[test]
@@ -1260,8 +1191,7 @@ mod tests {
     }
 
     /*
-     * 这条路径此前只比对两个字符串，字节从未被摘要过：谎报身份的插入会成功，
-     * 并经 snapshot_session 原样写进保存的文档。
+     * 这条路径此前只比对两个字符串，字节从未被摘要过：谎报身份的插入会成功。
      */
     #[test]
     fn rejects_bytes_that_do_not_match_their_declared_identity() {
@@ -1282,30 +1212,6 @@ mod tests {
         );
 
         assert_eq!(result, Err(AssetProtocolError::InvalidContentHash));
-    }
-
-    #[test]
-    fn snapshot_is_sorted_by_content_hash() {
-        let registry = AssetProtocolRegistry::default();
-
-        registry
-            .open_session("session-1")
-            .expect("session should open");
-
-        insert(&registry, "session-1", "image/png", &[3]);
-        insert(&registry, "session-1", "image/png", &[1]);
-        insert(&registry, "session-1", "image/png", &[2]);
-
-        let snapshot = registry
-            .snapshot_session("session-1")
-            .expect("snapshot should succeed");
-
-        let hashes = snapshot
-            .iter()
-            .map(AssetSessionSnapshotEntry::content_hash)
-            .collect::<Vec<_>>();
-
-        assert!(hashes.windows(2).all(|pair| { pair[0] < pair[1] }));
     }
 
     #[allow(
@@ -1338,30 +1244,6 @@ mod tests {
             )
             .expect("session should restore");
 
-        assert!(
-            registry
-                .contains("restored-session", &first_hash,)
-                .expect("first asset should resolve")
-        );
-
-        assert!(
-            registry
-                .contains("restored-session", &second_hash,)
-                .expect("second asset should resolve")
-        );
-
-        let snapshot = registry
-            .snapshot_session("restored-session")
-            .expect("restored session should snapshot");
-
-        assert_eq!(snapshot.len(), 2);
-
-        assert!(
-            snapshot
-                .windows(2)
-                .all(|pair| { pair[0].content_hash() < pair[1].content_hash() })
-        );
-
         let first_response = registry.response(&request(&format!(
             "poietica-asset://asset/restored-session/{first_hash}"
         )));
@@ -1369,6 +1251,14 @@ mod tests {
         assert_eq!(first_response.status(), StatusCode::OK,);
 
         assert_eq!(first_response.body(), first_bytes.as_ref(),);
+
+        let second_response = registry.response(&request(&format!(
+            "poietica-asset://asset/restored-session/{second_hash}"
+        )));
+
+        assert_eq!(second_response.status(), StatusCode::OK,);
+
+        assert_eq!(second_response.body(), second_bytes.as_ref(),);
     }
 
     /*
@@ -1416,10 +1306,12 @@ mod tests {
 
         assert_eq!(result, Err(AssetProtocolError::AssetTooLarge));
 
-        assert!(matches!(
-            registry.snapshot_session("failed-session"),
-            Err(AssetProtocolError::NotFound),
-        ));
+        let response = registry.response(&request(&format!(
+            "poietica-asset://asset/failed-session/{}",
+            hash(small.as_slice())
+        )));
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[test]
@@ -1433,10 +1325,12 @@ mod tests {
 
         assert_eq!(result, Err(AssetProtocolError::DuplicateAsset),);
 
-        assert!(matches!(
-            registry.snapshot_session("duplicate-session",),
-            Err(AssetProtocolError::NotFound),
-        ));
+        let response = registry.response(&request(&format!(
+            "poietica-asset://asset/duplicate-session/{}",
+            hash(bytes.as_slice())
+        )));
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     /*

@@ -25,9 +25,6 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 const COMPACT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, notation: 'compact' })
 const PERCENT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, style: 'percent' })
 
-/* 明细行用精确数：卡片就是为看清楚数而存在的，头行才用紧凑格式。 */
-const _EXACT = new Intl.NumberFormat('en-US')
-
 /* 三档阈值：<75% 正常，75% 起提醒，90% 起该收，95% 起下一句可能塞不下。
    沿用 ACP 会话用量规范的建议档 —— 它是这套数字的来历，不是运行时依赖。 */
 function levelOf(fraction: number): 'ok' | 'warn' | 'high' | 'critical' {

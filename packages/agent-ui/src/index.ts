@@ -4,16 +4,12 @@ export type { AttachmentIntake, ComposerAsset } from './composer/attachment-inta
 export { AttachmentIntakeContext, useAttachmentIntake } from './composer/attachment-intake'
 export { ComposerDrafts, ComposerDraftsContext } from './composer/composer-drafts'
 export type { PromptChipValue } from './composer/prompt-chip'
-export type { ChatStatus, PromptInputHandle, PromptInputMessage } from './composer/prompt-input'
+export type { PromptInputHandle, PromptInputMessage } from './composer/prompt-input'
 export type { SessionControlsProps } from './composer/session-controls'
 export type { GoalIslandProps } from './goal/goal-island'
 export { GoalIsland } from './goal/goal-island'
-export type {
-  ImageLightboxProps,
-  ImageThumbnailGridProps,
-  PreviewableImage,
-} from './media/image-lightbox'
-export { ImageLightbox, ImageThumbnailGrid } from './media/image-lightbox'
+export type { ImageLightboxProps, PreviewableImage } from './media/image-lightbox'
+export { ImageLightbox } from './media/image-lightbox'
 export type { AgentControlsView } from './session/agent-controls-context'
 export { AgentControlsContext, useAgentControls } from './session/agent-controls-context'
 export {

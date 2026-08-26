@@ -94,15 +94,6 @@
   background: var(--cp-menu-face);
 }
 
-/* 标题是一句问句，不是一行菜单项：它不可聚焦、不参与方向键与打字选中。 */
-[data-assistant-skin] .assistant-posture-menu__heading {
-  margin: 0;
-  padding: 4px 8px 6px;
-  font-size: var(--cp-font-caption);
-  font-weight: 600;
-  color: var(--cp-ink);
-}
-
 /*
  * 一行三件事：字形、标题、说明；勾在最右并跨两行。
  *

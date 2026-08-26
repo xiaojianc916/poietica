@@ -95,15 +95,28 @@ const APPLICATION_COMMANDS: readonly ApplicationCommand[] = [
 ]
 
 /*
- * 前一格／后一格。
+ * 活动标签的前一格与后一格。
  *
  * 「有没有邻居」和「邻居是谁」出自同一次查找，所以两者不可能不一致，两端也
- * 天然不回绕 —— 与标题栏那两个箭头（describeTabSequence）是同一条规则。
+ * 天然不回绕。标题栏的两个箭头（describeTabSequence）与命令面板的
+ * workspace.previous-tab／workspace.next-tab 都从它取值。
  */
+export function tabNeighbors<T extends { readonly id: string }>(
+  tabs: readonly T[],
+  activeTabId: string | undefined,
+): { readonly previous: T | undefined; readonly next: T | undefined } {
+  const index = activeTabId === undefined ? -1 : tabs.findIndex((tab) => tab.id === activeTabId)
+
+  return {
+    previous: index > 0 ? tabs[index - 1] : undefined,
+    next: index >= 0 && index < tabs.length - 1 ? tabs[index + 1] : undefined,
+  }
+}
+
 function stepTab(workspace: WorkbenchSessionStore, step: number): void {
   const { tabs, activeTabId } = workspace.getSnapshot()
-  const index = tabs.findIndex((tab) => tab.id === activeTabId)
-  const target = index < 0 ? undefined : tabs[index + step]
+  const { next, previous } = tabNeighbors(tabs, activeTabId)
+  const target = step < 0 ? previous : next
 
   if (target !== undefined) {
     workspace.activateTab(target.id)

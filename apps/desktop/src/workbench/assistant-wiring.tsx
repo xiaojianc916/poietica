@@ -10,7 +10,7 @@ import { AssistantPane } from './assistant-pane'
 /**
  * AI 表面只有一个渲染出口。入口与真实对话只改变 threadId，依赖与 React 身份不换轨。
  */
-export interface AssistantWiring {
+interface AssistantWiring {
   /** 工作区表面插槽：注册表里每一条 surface 都要在这里交出渲染器。 */
   readonly surfaces: SurfaceRenderers
   /** 新入口与真实对话共用这一条渲染管线。 */
@@ -24,7 +24,7 @@ export interface AssistantWiring {
  * 需要认识 agentId 或那份配置。此前它们一路当 prop 往下递，四层里有三层只是原样
  * 转手，终点那一格拿去在 effect 里接一次线 —— 而那根线本来就不该从渲染树上走。
  */
-export interface AssistantWiringOptions {
+interface AssistantWiringOptions {
   /** 分叉出的对话开出来之后，去它那里 —— 与打开一条对话同一个动作。 */
   readonly onConversationForked: (threadId: string, title: string) => void
   readonly onConversationStarted: (threadId: string, title: string) => void

@@ -1,4 +1,4 @@
-import { DEFAULT_SURFACE_ID, type SurfaceId } from './surface-registry'
+import type { SurfaceId } from './surface-registry'
 
 export type WorkbenchTabId = string
 
@@ -69,22 +69,12 @@ export interface OpenConversationRequest {
   readonly title: string
 }
 
-/**
- * 默认表面那一格的标签 id。
- *
- * 由默认表面 id 派生，不另立字面量：controller 的 entryId() 拼的是同一条规则，
- * 两处对不上就是一格永远激活不了的标签。首帧快照由 project(INITIAL_STATE) 给出，
- * 这里不再手写第二份。
- */
-export const DEFAULT_SURFACE_TAB_ID: WorkbenchTabId = `surface:${DEFAULT_SURFACE_ID}`
-
 export interface WorkbenchSessionStore {
   readonly getSnapshot: () => WorkbenchViewModel
   readonly subscribe: (listener: () => void) => () => void
   readonly openSurface: (request: OpenSurfaceRequest) => void
   readonly openConversation: (request: OpenConversationRequest) => void
   readonly openConversationInNewTab: (request: OpenConversationRequest) => void
-  readonly setConversationTitle: (threadId: ConversationId, title: string) => void
   readonly activateTab: (tabId: WorkbenchTabId) => void
   readonly closeTab: (tabId: WorkbenchTabId) => void
   readonly closeConversation: (threadId: ConversationId) => void

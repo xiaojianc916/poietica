@@ -22,14 +22,14 @@ const LINE_WIDTH: usize = 2000;
 ///
 /// Cheap to clone: every clone reads and writes the same record.
 #[derive(Clone, Debug, Default)]
-pub struct StderrLog {
+pub(crate) struct StderrLog {
     lines: Arc<Mutex<VecDeque<String>>>,
 }
 
 impl StderrLog {
     /// An empty record.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
@@ -37,7 +37,7 @@ impl StderrLog {
     ///
     /// Blank lines are skipped: they carry no account of anything and would
     /// push a real one out of the record.
-    pub fn push(&self, line: &str) {
+    pub(crate) fn push(&self, line: &str) {
         let trimmed = line.trim_end();
 
         if trimmed.trim().is_empty() {
@@ -62,16 +62,9 @@ impl StderrLog {
         lines.push_back(kept);
     }
 
-    /// Forgets everything, so a turn never inherits the previous one.
-    pub fn clear(&self) {
-        if let Ok(mut lines) = self.lines.lock() {
-            lines.clear();
-        }
-    }
-
     /// The record as one block of text, oldest line first.
     #[must_use]
-    pub fn tail(&self) -> String {
+    pub(crate) fn tail(&self) -> String {
         let Ok(lines) = self.lines.lock() else {
             return String::new();
         };

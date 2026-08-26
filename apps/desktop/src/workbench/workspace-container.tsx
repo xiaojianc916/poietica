@@ -24,6 +24,7 @@ import {
   workspaceLayoutStore,
 } from '@poietica/workspace'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { tabNeighbors } from '../app-commands'
 import { useThreadsActions } from '../assistant/threads-context'
 import { BrowserDock } from '../browser/browser-dock'
 import { browserPanelStore } from '../browser/browser-runtime'
@@ -360,19 +361,15 @@ export function WorkspaceContainer({
 }
 
 /*
- * 两个箭头指向活动标签的前后邻居：索引只在这里算一次，切换仍旧走 store 的
- * activateTab（点击标签、命令面板用的是同一个入口）。
- *
- * 可用性不是另算的布尔，而是邻居存不存在——一次查找同时给出「能不能按」和
- * 「按了去哪」，两者不可能不一致。两端因此天然不回绕。
+ * 两个箭头指向活动标签的前后邻居：查找在 tabNeighbors（app-commands），这里只
+ * 补「能不能按」与动作本身；切换仍走 store 的 activateTab，点击标签、命令面板
+ * 用的是同一个入口。
  */
 function describeTabSequence(
   tabs: readonly WorkbenchTabViewModel[],
   onActivateTab: (tabId: WorkbenchTabId) => void,
 ): ActiveTabSequence {
-  const index = tabs.findIndex((tab) => tab.isActive)
-  const previous = index > 0 ? tabs[index - 1] : undefined
-  const next = index >= 0 && index < tabs.length - 1 ? tabs[index + 1] : undefined
+  const { next, previous } = tabNeighbors(tabs, tabs.find((tab) => tab.isActive)?.id)
 
   return {
     canActivatePrevious: previous !== undefined,

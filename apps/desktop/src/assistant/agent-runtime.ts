@@ -29,7 +29,8 @@ import {
 import type { AgentConfigStore } from '@poietica/settings'
 import { hostedMcpServersReady } from '../plugins/plugin-runtime'
 import { createThinkingPreference } from './thinking-preference'
-export interface DesktopAgentRuntimeOptions {
+
+interface DesktopAgentRuntimeOptions {
   readonly config: AgentConfigStore
   readonly cwd: NonNullable<AgentBridgeOptions['cwd']>
   readonly onSelectionFailure: (cause: unknown) => void

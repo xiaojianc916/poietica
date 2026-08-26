@@ -29,7 +29,8 @@ export interface ContributionRow {
 
 export interface ContributionListProps {
   readonly rows: readonly ContributionRow[]
-  readonly empty: string
+  /** 唯一可能空的那几格才给。行数恒大于零的调用方不给。 */
+  readonly empty?: string
 }
 
 export function ContributionList({ empty, rows }: ContributionListProps) {

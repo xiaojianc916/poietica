@@ -91,3 +91,22 @@ export function postureAlignment(
     ? intent
     : undefined
 }
+
+/*
+ * 表刚落地时该补发的那个决定。锚会话与单条对话的两条表到达路径共用它；
+ * 返回 undefined 就什么都不发。
+ */
+export function pendingPostureAlignment(
+  controls: readonly SessionConfigControl[],
+  intent: string | undefined,
+): { control: SessionConfigControl; wanted: string } | undefined {
+  const control = permissionControlOf(controls)
+
+  if (control === undefined) {
+    return undefined
+  }
+
+  const wanted = postureAlignment(control, intent)
+
+  return wanted === undefined ? undefined : { control, wanted }
+}

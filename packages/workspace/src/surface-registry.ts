@@ -101,9 +101,6 @@ const DESCRIPTORS: Record<SurfaceId, SurfaceDescriptor> = SURFACE_REGISTRY
 
 export const DEFAULT_SURFACE_ID: SurfaceId = 'ai'
 
-/* 会话标签的名字就是默认表面的标题，不另抄一份字面量。 */
-export const CONVERSATION_ENTRY_TITLE: string = SURFACE_REGISTRY.ai.title
-
 export function describeSurface(id: SurfaceId): SurfaceDescriptor {
   return DESCRIPTORS[id]
 }

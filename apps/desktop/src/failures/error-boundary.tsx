@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from 'react'
 
-export interface FatalErrorBoundaryProps {
+interface FatalErrorBoundaryProps {
   readonly children: ReactNode
 }
 

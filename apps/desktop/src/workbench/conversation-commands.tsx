@@ -18,7 +18,7 @@ import { useThreadsList } from '../assistant/threads-context'
  * 次序不在这里排：groupByWorkspace 已经按「组内最近活动」排好，注册表按注册
  * 次序交出快照，面板照着画。三层用的是同一份次序。
  */
-export interface ConversationCommandsProps {
+interface ConversationCommandsProps {
   readonly registry: CommandRegistry
   readonly workspace: WorkbenchSessionStore
 }

@@ -14,9 +14,6 @@ export {
   DropdownMenuRadioItem,
   DropdownMenuRadioItemIndicator,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './dropdown-menu'
 export { ErrorState, InlineSpinner, LoadingState } from './feedback'

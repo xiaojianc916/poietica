@@ -7,117 +7,91 @@
  * 相对 URL 由 Vite 纳入构建产物，因此不需要 SVG 模块声明。
  */
 
-const automationIcon = new URL('./integration-marks/automation.svg', import.meta.url).href
-const chromeDevToolsIcon = new URL('./integration-marks/chrome-devtools.svg', import.meta.url).href
-const context7Icon = new URL('./integration-marks/context7.svg', import.meta.url).href
-const deepWikiIcon = new URL('./integration-marks/deepwiki.svg', import.meta.url).href
-const docxIcon = new URL('./integration-marks/docx.svg', import.meta.url).href
-const filesystemIcon = new URL('./integration-marks/filesystem.svg', import.meta.url).href
-const githubIcon = new URL('./integration-marks/github.svg', import.meta.url).href
-const kimiDatasourceIcon = new URL('./integration-marks/kimi-datasource.svg', import.meta.url).href
-const kimiWebBridgeIcon = new URL('./integration-marks/kimi-webbridge.svg', import.meta.url).href
-const mcpIcon = new URL('./integration-marks/mcp.svg', import.meta.url).href
-const memoryIcon = new URL('./integration-marks/memory.svg', import.meta.url).href
-const modernWebGuidanceIcon = new URL(
-  './integration-marks/modern-web-guidance.svg',
-  import.meta.url,
-).href
-const pdfIcon = new URL('./integration-marks/pdf.svg', import.meta.url).href
-const playwrightIcon = new URL('./integration-marks/playwright.svg', import.meta.url).href
-const pptxIcon = new URL('./integration-marks/pptx.svg', import.meta.url).href
-const sequentialThinkingIcon = new URL(
-  './integration-marks/sequential-thinking.svg',
-  import.meta.url,
-).href
-const skillCreatorIcon = new URL('./integration-marks/skill-creator.svg', import.meta.url).href
-const superpowersIcon = new URL('./integration-marks/superpowers.svg', import.meta.url).href
-const vercelIcon = new URL('./integration-marks/vercel.svg', import.meta.url).href
-const xlsxIcon = new URL('./integration-marks/xlsx.svg', import.meta.url).href
-
 export interface IntegrationMark {
   readonly src: string
   readonly background: string
 }
 
+/* URL 必须是字面量：Vite 的资源内联只认写死的相对路径。 */
 const ICONS = {
   automation: {
-    src: automationIcon,
+    src: new URL('./integration-marks/automation.svg', import.meta.url).href,
     background: '#FFF0E8',
   },
   chromeDevTools: {
-    src: chromeDevToolsIcon,
+    src: new URL('./integration-marks/chrome-devtools.svg', import.meta.url).href,
     background: '#E8F1FE',
   },
   context7: {
-    src: context7Icon,
+    src: new URL('./integration-marks/context7.svg', import.meta.url).href,
     background: '#F1F1F1',
   },
   deepWiki: {
-    src: deepWikiIcon,
+    src: new URL('./integration-marks/deepwiki.svg', import.meta.url).href,
     background: '#F1ECFF',
   },
   docx: {
-    src: docxIcon,
+    src: new URL('./integration-marks/docx.svg', import.meta.url).href,
     background: '#EAF2FF',
   },
   filesystem: {
-    src: filesystemIcon,
+    src: new URL('./integration-marks/filesystem.svg', import.meta.url).href,
     background: '#FFF4DD',
   },
   github: {
-    src: githubIcon,
+    src: new URL('./integration-marks/github.svg', import.meta.url).href,
     background: '#EEF0F2',
   },
   kimiDatasource: {
-    src: kimiDatasourceIcon,
+    src: new URL('./integration-marks/kimi-datasource.svg', import.meta.url).href,
     background: '#E6F7FB',
   },
   kimiWebBridge: {
-    src: kimiWebBridgeIcon,
+    src: new URL('./integration-marks/kimi-webbridge.svg', import.meta.url).href,
     background: '#EAF2FF',
   },
   mcp: {
-    src: mcpIcon,
+    src: new URL('./integration-marks/mcp.svg', import.meta.url).href,
     background: '#F1F2F4',
   },
   memory: {
-    src: memoryIcon,
+    src: new URL('./integration-marks/memory.svg', import.meta.url).href,
     background: '#F1ECFF',
   },
   modernWebGuidance: {
-    src: modernWebGuidanceIcon,
+    src: new URL('./integration-marks/modern-web-guidance.svg', import.meta.url).href,
     background: '#E8F7FF',
   },
   pdf: {
-    src: pdfIcon,
+    src: new URL('./integration-marks/pdf.svg', import.meta.url).href,
     background: '#FDEBEC',
   },
   playwright: {
-    src: playwrightIcon,
+    src: new URL('./integration-marks/playwright.svg', import.meta.url).href,
     background: '#ECF8EE',
   },
   pptx: {
-    src: pptxIcon,
+    src: new URL('./integration-marks/pptx.svg', import.meta.url).href,
     background: '#FFF0E8',
   },
   sequentialThinking: {
-    src: sequentialThinkingIcon,
+    src: new URL('./integration-marks/sequential-thinking.svg', import.meta.url).href,
     background: '#E7F3FF',
   },
   skillCreator: {
-    src: skillCreatorIcon,
+    src: new URL('./integration-marks/skill-creator.svg', import.meta.url).href,
     background: '#FFF4DD',
   },
   superpowers: {
-    src: superpowersIcon,
+    src: new URL('./integration-marks/superpowers.svg', import.meta.url).href,
     background: '#FFF8DB',
   },
   vercel: {
-    src: vercelIcon,
+    src: new URL('./integration-marks/vercel.svg', import.meta.url).href,
     background: '#F1F1F1',
   },
   xlsx: {
-    src: xlsxIcon,
+    src: new URL('./integration-marks/xlsx.svg', import.meta.url).href,
     background: '#EAF7EE',
   },
 } as const satisfies Record<string, IntegrationMark>

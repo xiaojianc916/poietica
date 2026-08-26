@@ -10,7 +10,7 @@ use std::collections::{HashMap, VecDeque};
 use base64::Engine as _;
 
 /// 最近关闭的环的容量。第 11 条进来时最老的一条出去。
-pub const RECENTLY_CLOSED_CAP: usize = 10;
+pub(crate) const RECENTLY_CLOSED_CAP: usize = 10;
 
 /// 空白页在内核那一侧的地址。模型里空白页是 url 缺席，这个常量只给宿主
 /// 驱动内核用 —— 空白页的写法只有一处产地。

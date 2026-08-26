@@ -217,27 +217,6 @@ function openConversationInNewTab(
       })
 }
 
-function setConversationTitle(
-  state: WorkbenchState,
-  threadId: ConversationId,
-  title: string,
-): WorkbenchState {
-  const index = indexOfThread(state, threadId)
-  const entry = state.entries[index]
-
-  /* 同引用返回 = 订阅者不会被唤醒。改名不该让整条标签条重渲染。 */
-  if (entry?.kind !== 'conversation' || entry.title === title) {
-    return state
-  }
-
-  return settle(
-    state.entries.map((candidate, candidateIndex) =>
-      candidateIndex === index ? { ...entry, title } : candidate,
-    ),
-    state.activeIndex,
-  )
-}
-
 /**
  * 拿掉一格并决定接下来看哪一格：右邻居优先，没有就左邻居，一格不剩回到启动态。
  *
@@ -309,9 +288,8 @@ function project(state: WorkbenchState): WorkbenchViewModel {
  * 结构，只会把「没人验」写成「看起来验过」。所以库那边存的是一列 TEXT，
  * 这份 schema 是它唯一的读者，也是它唯一的作者。
  *
- * 标题跟着存。它是 threads 表那一列的副本，而副本要有一条说得出名字的校正
- * 路径 —— setConversationTitle 就是它。不存的代价是恢复出来的第一帧全是没有
- * 名字的标签，那正是这次要消灭的「先画错的、再改对」。
+ * 标题跟着存。它是 threads 表那一列的副本，而读回路径上没有第二条来源：
+ * 不存的代价是恢复出来的第一帧全是没有名字的标签。
  */
 const DOCUMENT = v.object({
   entries: v.array(
@@ -432,9 +410,6 @@ export function createWorkbenchSessionController(
     },
     openConversationInNewTab: (request) => {
       commit(openConversationInNewTab(state, request))
-    },
-    setConversationTitle: (threadId, title) => {
-      commit(setConversationTitle(state, threadId, title))
     },
     activateTab: (tabId) => {
       const index = indexOfId(state, tabId)

@@ -34,7 +34,7 @@ const CLEARANCE = '--cp-dock-clearance'
  * 不需要每次渲染去比一次空依赖数组。装卸仍然只有一处 —— React 19 的 ref 回调可以
  * 直接交回卸载函数。
  */
-function measureDock(node: HTMLElement | null): (() => void) | undefined {
+export function measureDock(node: HTMLElement | null): (() => void) | undefined {
   const surface = node?.parentElement ?? null
 
   if (node === null || surface === null) {
@@ -61,9 +61,4 @@ function measureDock(node: HTMLElement | null): (() => void) | undefined {
     observer.disconnect()
     surface.style.removeProperty(CLEARANCE)
   }
-}
-
-/** 这条 ref 的发布点。它不再持有任何状态,所以这里一个 hook 都不调。 */
-export function useDockClearance(): (node: HTMLElement | null) => void {
-  return measureDock
 }

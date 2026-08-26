@@ -1,48 +1,5 @@
 /* Image preview surface for agent attachments. */
 
-.poietica-image-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.poietica-image-grid__item {
-  display: block;
-}
-
-.poietica-image-grid__button {
-  display: block;
-  overflow: hidden;
-  padding: 0;
-  border: 1px solid var(--poietica-hairline, rgb(255 255 255 / 12%));
-  border-radius: 8px;
-  background: transparent;
-  cursor: zoom-in;
-  transition:
-    border-color 120ms ease,
-    transform 120ms ease;
-}
-
-.poietica-image-grid__button:hover {
-  border-color: var(--poietica-hairline-strong, rgb(255 255 255 / 24%));
-}
-
-.poietica-image-grid__button:focus-visible {
-  outline: 2px solid var(--poietica-focus-ring, #6ea8fe);
-  outline-offset: 2px;
-}
-
-.poietica-image-grid__thumb {
-  display: block;
-  width: var(--poietica-thumb-size, 96px);
-  height: var(--poietica-thumb-size, 96px);
-  object-fit: cover;
-  background: var(--poietica-surface-sunken, rgb(0 0 0 / 20%));
-}
-
 /* Keep the lightbox above Tauri window chrome and app overlays. */
 .poietica-lightbox.yarl__root {
   --yarl__color_backdrop: rgb(0 0 0 / 82%);

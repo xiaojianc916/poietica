@@ -1,4 +1,4 @@
-export interface WindowErrorLike {
+interface WindowErrorLike {
   readonly message: string
   readonly error: unknown
 }

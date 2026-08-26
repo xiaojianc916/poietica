@@ -11,12 +11,10 @@
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 
+import { workspaceVersion } from './version.mjs'
+
 const sources = [
-  [
-    'Cargo.toml [workspace.package]',
-    'Cargo.toml',
-    (text) => text.split(/^\[workspace\.package\]$/m)[1]?.match(/^version\s*=\s*"([^"]+)"/m)?.[1],
-  ],
+  ['Cargo.toml [workspace.package]', 'Cargo.toml', workspaceVersion],
   ['package.json', 'package.json', (text) => JSON.parse(text).version],
   ['apps/desktop/package.json', 'apps/desktop/package.json', (text) => JSON.parse(text).version],
   ['tauri.conf.json', 'apps/desktop/src-tauri/tauri.conf.json', (text) => JSON.parse(text).version],

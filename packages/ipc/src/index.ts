@@ -1,6 +1,5 @@
 export {
   type AgentBridgeOptions,
-  type AgentEventSourceOptions,
   createAgentCapabilityBridge,
   createAgentSessionConfigBridge,
   createAgentSessionPort,
@@ -20,7 +19,6 @@ export {
 export {
   type AssetFormat,
   type AssetImport,
-  closeAssetSession,
   importAssets,
   listAssetFormats,
   openAssetSession,
@@ -71,12 +69,7 @@ export {
   readEnvironmentMcpConfig,
   writeEnvironmentMcpConfig,
 } from './environment'
-export {
-  type IpcError,
-  IpcInvocationError,
-  isIpcError,
-  throughIpc,
-} from './error'
+export { type IpcError, throughIpc } from './error'
 export { type GitBranches, gitBranches, gitCreateBranch, gitSwitchBranch } from './git'
 export { type McpLauncher, resolveLauncher } from './launcher'
 export { type McpEndpoint, readMcpEndpoint } from './mcp'

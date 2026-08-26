@@ -16,3 +16,8 @@ export function bumped(version) {
     major: [major + 1, 0, 0].join('.'),
   }
 }
+
+/** [workspace.package] 段里的 version —— 全仓库版本号的唯一真相。 */
+export function workspaceVersion(text) {
+  return text.split(/^\[workspace\.package\]$/m)[1]?.match(/^version\s*=\s*"([^"]+)"/m)?.[1]
+}

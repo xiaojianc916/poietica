@@ -6,7 +6,7 @@ use rusqlite::Connection;
 use crate::error::Result;
 
 /// How long a writer waits for the lock before giving up.
-pub const DEFAULT_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+const DEFAULT_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Opens the database and puts it into the configuration the rest of the
 /// crate assumes.

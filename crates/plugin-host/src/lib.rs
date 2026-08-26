@@ -12,10 +12,7 @@ mod staging;
 mod text_file;
 
 pub use error::{HostError, Result};
-pub use layout::{
-    MANIFEST_FILENAMES, SKILL_FILENAME, is_safe_segment, locate_root, locate_skill_root,
-    manifest_in, resolve_inside,
-};
+pub use layout::{SKILL_FILENAME, is_safe_segment, locate_root, locate_skill_root, manifest_in};
 pub use skills::{ScannedSkill, install_skill, remove_skill, scan_skills, set_skill_enabled};
 pub use source::{copy_tree, extract_zip};
 pub use staging::Staging;

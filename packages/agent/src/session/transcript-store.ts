@@ -354,7 +354,6 @@ export class TranscriptStore implements TranscriptSink {
 
   waitForTerminal = (
     key: string,
-    signal?: AbortSignal,
   ): Promise<Extract<RunStatus, 'completed' | 'cancelled' | 'failed'>> => {
     type Terminal = Extract<RunStatus, 'completed' | 'cancelled' | 'failed'>
     const terminalOf = (status: RunStatus): Terminal | null =>
@@ -365,11 +364,10 @@ export class TranscriptStore implements TranscriptSink {
       return Promise.resolve(ready)
     }
 
-    return new Promise<Terminal>((resolve, reject) => {
+    return new Promise<Terminal>((resolve) => {
       let off = () => {}
       const finish = (terminal: Terminal) => {
         off()
-        signal?.removeEventListener('abort', abort)
         resolve(terminal)
       }
       const settle = () => {
@@ -378,17 +376,8 @@ export class TranscriptStore implements TranscriptSink {
           finish(terminal)
         }
       }
-      const abort = () => {
-        off()
-        reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'))
-      }
 
       off = this.subscribe(key, settle)
-      if (signal?.aborted === true) {
-        abort()
-      } else {
-        signal?.addEventListener('abort', abort, { once: true })
-      }
       settle()
     })
   }
@@ -617,9 +606,7 @@ export class TranscriptStore implements TranscriptSink {
   }
 
   /** 还对不齐一轮起点的那些帧，攒着；一帧不剩就把这一格清掉。 */
-  #hold(key: string, events: readonly RunEvent[]): void {
-    const real = key
-
+  #hold(real: string, events: readonly RunEvent[]): void {
     if (events.length === 0) {
       this.#unaligned.delete(real)
 
@@ -952,10 +939,8 @@ export class TranscriptStore implements TranscriptSink {
     this.#republish()
   }
 
-  #put(key: string, next: Transcript): void {
+  #put(real: string, next: Transcript): void {
     /* 一次解析，一次叫醒：这里是叫醒的两个入口之一，另一个是 #queue。 */
-    const real = key
-
     this.#write(real, next)
     this.#notify(real)
   }
@@ -1010,8 +995,7 @@ export class TranscriptStore implements TranscriptSink {
    * 随帧数重复。说的是「变了」，不是「现在长这样」：状态要到有人看的那一刻
    * 才折出来。
    */
-  #queue(owner: string, events: readonly RunEvent[]): void {
-    const real = owner
+  #queue(real: string, events: readonly RunEvent[]): void {
     const split = partitionByAgent(events)
 
     for (const [agentId, channel] of split.channels) {

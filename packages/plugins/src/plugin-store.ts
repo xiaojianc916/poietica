@@ -49,7 +49,6 @@ import {
 } from './mcp-config'
 import { type ResolvedMcpServer, resolveMcpServers } from './mcp-servers'
 import type { ContributionOrigin } from './origin'
-import { createSnapshotCache } from './registry/snapshot'
 import { type InstalledSkill, readSkills, skillFrontmatter } from './skill'
 
 /**
@@ -270,8 +269,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   let environment: readonly DeclaredMcpServer[] = []
   /* 另一本账里的那些。读不出来就是空 —— 那只意味着这句话说不出来，不意味着装了什么。 */
   let foreignRecords: readonly ForeignPlugin[] = []
-  /* 名单是什么时候取回来的，落在盘上：它替 marketplace 回答「算不算从来没取过」。 */
-  const cache = createSnapshotCache()
 
   let snapshot: PluginsViewModel = {
     plugins: [],
@@ -548,7 +545,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         marketplace: completeFetch(
           snapshot.marketplace,
           JSON.parse(contents),
-          cache.read().catalogFetchedAt,
+          /* 盘上那份取回的时间没有记，界面也不再展示这一格。 */
+          '',
           options.marketplaceUrl,
         ),
       })
@@ -714,8 +712,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
           republish()
         }
-
-        cache.write(latestCatalog(snapshot.marketplace)?.fetchedAt ?? '')
       })
 
       return ready

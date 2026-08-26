@@ -14,11 +14,7 @@ import type {
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
-import {
-  isPermissionPostureChange,
-  permissionControlOf,
-  postureAlignment,
-} from './permission-posture'
+import { isPermissionPostureChange, pendingPostureAlignment } from './permission-posture'
 import type { TranscriptSink } from './transcript-sink'
 
 interface Held {
@@ -482,25 +478,13 @@ export class SessionControlsStore {
    * 所以「发出 set_config」仍然只有一条路。
    */
   #align(threadId: string, offered: readonly SessionConfigControl[]): void {
-    const posture = this.#posture
+    const decision = pendingPostureAlignment(offered, this.#posture?.read())
 
-    if (posture === undefined) {
+    if (decision === undefined || this.#alignedTo.get(threadId) === decision.wanted) {
       return
     }
 
-    const control = permissionControlOf(offered)
-
-    if (control === undefined) {
-      return
-    }
-
-    const wanted = postureAlignment(control, posture.read())
-
-    if (wanted === undefined || this.#alignedTo.get(threadId) === wanted) {
-      return
-    }
-
-    this.selectControl(threadId, control.id, wanted)
+    this.selectControl(threadId, decision.control.id, decision.wanted)
   }
 
   #noteSelectorFailure(threadId: string, reason: unknown): void {

@@ -4,12 +4,12 @@ import { createPreference, type Preference, type PreferenceFailure } from '@poie
 type ThinkingValues = Readonly<Record<string, string>>
 type ThinkingStorage = Pick<Preference<ThinkingValues>, 'read' | 'write'>
 
-export interface PreferredThinking {
+interface PreferredThinking {
   readonly control: SessionConfigControl
   readonly value: string
 }
 
-export interface ThinkingPreference {
+interface ThinkingPreference {
   readonly selection: (
     agentId: string,
     controls: readonly SessionConfigControl[],

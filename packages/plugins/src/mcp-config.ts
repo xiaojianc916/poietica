@@ -109,24 +109,12 @@ export function mcpServerBodyInConfig(
   contents: string | null,
   name: string,
 ): Record<string, unknown> | undefined {
-  if (contents === null) {
-    return undefined
-  }
-
   try {
-    const document: unknown = JSON.parse(contents)
-    if (typeof document !== 'object' || document === null) {
-      return undefined
-    }
-    const servers: unknown = (document as Record<string, unknown>)['mcpServers']
-    if (typeof servers !== 'object' || servers === null) {
-      return undefined
-    }
-    const body: unknown = (servers as Record<string, unknown>)[name]
-    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-      return undefined
-    }
-    return body as Record<string, unknown>
+    const body: unknown = parseForEdit(contents).mcpServers?.[name]
+
+    return typeof body === 'object' && body !== null && !Array.isArray(body)
+      ? (body as Record<string, unknown>)
+      : undefined
   } catch {
     return undefined
   }

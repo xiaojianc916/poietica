@@ -134,7 +134,6 @@ function ToolCallHeader({
       aria-expanded={isChannel ? undefined : isOpen}
       className="timeline-row"
       onClick={onToggle}
-      title={isChannel ? '在右侧通道中打开' : undefined}
       type="button"
     >
       <ToolKindIcon kind={item.kind} />

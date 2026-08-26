@@ -31,7 +31,8 @@ file restates neither.
   and catch-all buckets are refused at any depth.
 - `workspace-manifest-conventions` — one public surface per manifest: `exports` without
   `main`/`types`, bare string targets, subpath names derived from the target, exact versions.
-- `manifest-scripts-resolve` — a `node <file>.mjs` named in a script exists on disk.
+- `manifest-scripts-resolve` — a `bun <file>.mjs/.ts` entrypoint named in a manifest script
+  exists on disk.
 - `documented-scripts-exist` — a colon-scoped `Bun` script named in documentation exists in a
   manifest.
 - `documented-packages-exist` — a `@poietica/*` package named in documentation exists in the
@@ -40,9 +41,10 @@ file restates neither.
 - `client-preferences-single-pipeline` — Web Storage is touched in exactly one file.
 - `agent-identity-single-subscription` — the current agent id is subscribed once, at the
   composition root.
-- `agent-choices-are-injected` — domain code receives agent choices, it never imports them.
 - `agent-capabilities-wired-at-the-root` — the capability port is installed once, at the
   composition root.
+- `framework-free-domain` — domain packages never import React; hooks and Context stay in UI
+  packages, projections and state stay testable in plain Node.
 - `design-system-token-authority` — design-system components consume `--ui-*` tokens instead of
   raw utility classes.
 

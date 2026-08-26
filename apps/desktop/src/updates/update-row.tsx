@@ -3,7 +3,7 @@ import { DropdownMenuItem } from '@poietica/ui'
 import { Download, LoaderCircle } from 'lucide-react'
 import { useSyncExternalStore } from 'react'
 
-export interface UpdateRowProps {
+interface UpdateRowProps {
   readonly store: AppUpdateStore
 }
 

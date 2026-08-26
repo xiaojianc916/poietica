@@ -1,5 +1,4 @@
 import { Menu } from '@base-ui/react/menu'
-import { ChevronRight } from 'lucide-react'
 import type { ComponentProps } from 'react'
 import { cn } from './class-names'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
@@ -7,8 +6,6 @@ import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface
 export const DropdownMenu = Menu.Root
 
 export const DropdownMenuGroup = Menu.Group
-
-export const DropdownMenuSub = Menu.SubmenuRoot
 
 export const DropdownMenuRadioGroup = Menu.RadioGroup
 
@@ -146,30 +143,4 @@ export function DropdownMenuSeparator({
   ...props
 }: ComponentProps<typeof Menu.Separator>) {
   return <Menu.Separator className={cn('-mx-1 my-1 h-px', 'bg-divider', className)} {...props} />
-}
-
-export function DropdownMenuSubTrigger({
-  className,
-  children,
-  ...props
-}: ComponentProps<typeof Menu.SubmenuTrigger>) {
-  return (
-    <Menu.SubmenuTrigger
-      className={cn(itemClassName, 'data-[popup-open]:bg-accent', className)}
-      {...props}
-    >
-      {children}
-
-      <ChevronRight aria-hidden="true" className="ml-auto size-4 text-muted-foreground" />
-    </Menu.SubmenuTrigger>
-  )
-}
-
-/* 子菜单朝右展开。 */
-export function DropdownMenuSubContent({
-  side = 'right',
-  sideOffset = 4,
-  ...props
-}: DropdownMenuPopupProps) {
-  return <MenuPopup side={side} sideOffset={sideOffset} {...props} />
 }

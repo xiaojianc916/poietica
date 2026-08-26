@@ -4,7 +4,7 @@ import type { AgentSessionPort, SessionConfigControl, SessionUsage } from '@poie
 import { memo, type Ref, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { ComposerDraftKeyContext } from '../composer/composer-drafts'
-import { useDockClearance } from '../composer/dock-clearance'
+import { measureDock } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
 import { useAgentToolkit } from '../session/agent-controls-context'
@@ -117,7 +117,7 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 里的失败长同一个样子，都是那条横线。
    */
   /* 输入框盖在转录上，所以转录要知道它有多高。理由见 dock-clearance。 */
-  const dockRef = useDockClearance()
+  const dockRef = measureDock
 
   /*
    * 待答的那道题。

@@ -1,13 +1,12 @@
 export type { DiagnosticLogEntry } from './diagnostics/buffer'
 export {
   clearDiagnosticLogs,
-  configureDiagnosticBuffer,
   formatDiagnosticLogs,
   getRecentLogEntries,
 } from './diagnostics/buffer'
-export type { LogContext, LogLevel, LogSink } from './diagnostics/log'
-export { error, log, setLogSink, warn } from './diagnostics/log'
-export { assertInvariant, assertUnreachable } from './errors'
+export type { LogContext, LogLevel } from './diagnostics/log'
+export { error, log, warn } from './diagnostics/log'
+export { assertUnreachable } from './errors'
 export {
   createExternalStore,
   type ExternalStore,
@@ -18,15 +17,12 @@ export {
   type ClassifiedFailureInput,
   createClassifiedFailure,
   createFailureScopeKey,
-  FAILURE_IMPACTS,
   type FailureImpact,
   type FailureRecovery,
   type FailureScope,
-  isNonTerminalFailureImpact,
   isTerminalFailureImpact,
   type NonTerminalFailureImpact,
   type TerminalFailureImpact,
-  validateFailurePolicy,
 } from './failure-kernel'
 export { optionalProperty } from './optional-property'
 export {

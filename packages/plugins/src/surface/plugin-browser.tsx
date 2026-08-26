@@ -155,7 +155,6 @@ function ForeignList({ records, store }: ForeignListProps) {
       title="命令行上装过"
     >
       <ContributionList
-        empty="命令行那本账里没有别的插件。"
         rows={records.map(({ originalSource, pluginId }) => ({
           /*
             解构不是为了短。originalSource === undefined 那道收窄只对 const 绑定穿透进闭包；

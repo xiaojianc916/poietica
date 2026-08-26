@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import {
   clearDiagnosticLogs,
-  configureDiagnosticBuffer,
   formatDiagnosticLogs,
   getRecentLogEntries,
   recordDiagnosticLog,
@@ -10,9 +9,6 @@ import {
 describe('diagnostic buffer', () => {
   beforeEach(() => {
     clearDiagnosticLogs()
-    configureDiagnosticBuffer({
-      capacity: 200,
-    })
   })
 
   it('records structured log entries', () => {
@@ -40,17 +36,14 @@ describe('diagnostic buffer', () => {
   })
 
   it('keeps only the newest bounded entries', () => {
-    configureDiagnosticBuffer({
-      capacity: 2,
-    })
+    for (let index = 0; index < 202; index += 1) {
+      recordDiagnosticLog('info', `entry-${index}`, {}, new Date().toISOString())
+    }
 
-    recordDiagnosticLog('info', 'one', {}, new Date().toISOString())
+    const messages = getRecentLogEntries().map((entry) => entry.message)
 
-    recordDiagnosticLog('info', 'two', {}, new Date().toISOString())
-
-    recordDiagnosticLog('info', 'three', {}, new Date().toISOString())
-
-    expect(getRecentLogEntries().map((entry) => entry.message)).toEqual(['two', 'three'])
+    expect(messages).toHaveLength(200)
+    expect(messages[0]).toBe('entry-2')
   })
 
   it('redacts sensitive keys and bearer tokens', () => {

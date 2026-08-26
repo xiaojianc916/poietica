@@ -35,11 +35,11 @@ async function bootstrapApplication(): Promise<void> {
   const restored = await readWorkbenchSession()
 
   /* 挂载在 react-root 里同步提交，返回时首帧的 DOM 已在位，所以呈现就在下一句。 */
-  const mounted = mountReactApplication(getApplicationRoot(), restored)
+  const runtime = mountReactApplication(getApplicationRoot(), restored)
 
   performance.mark('poietica:first-commit')
 
-  void mounted.runtime.mainWindow.present().catch((cause: unknown) => {
+  void runtime.mainWindow.present().catch((cause: unknown) => {
     console.error('[Poietica] Failed to present the main window', cause)
   })
 
