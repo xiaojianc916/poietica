@@ -8,18 +8,8 @@ export type AgentConfigOptionValue = string | boolean
 /**
  * 一个 agent 的接入档案：这台机器上，用户为这一家 agent 做的选择。
  *
- * 只有四格，而且每一格都真的属于用户。此前还有七格 —— displayName、command、
- * args、homeVar、registryKeyVar、ownHomeDirectory、install —— 它们描述的是「这
- * 一家 agent 是什么」，那件事由二进制里的 AgentDescriptor 说了算：名单是封闭
- * 的（见 agents.ts），界面上没有、也不会有一个能自带命令的入口。
- *
- * 那七格不是没用，是从来没被用过一次：reconcileAgentProfiles 每次读都拿内置
- * 值把它们逐一覆盖回去。写进磁盘只为了下一次读出来时被扔掉，中间那段路上却要
- * 一整套针对不可信输入的校验陪着走 —— 反 shell 注入、npm 包名、目录名不许带分
- * 隔符。防的是一个不存在的输入源。
- *
- * 现在 command 在磁盘上没有产地，所以「一份被改坏的档案变成一次任意命令执行」
- * 这条路不是被正则拦住的，是结构上不存在。
+ * 归用户的三格（cwd、env、defaultConfigOptions）是他自己填的；其余几格是
+ * AgentDescriptor 往磁盘上的单向投影，产地在二进制里，磁盘上写着什么都不作数。
  *
  * 这里刻意没有\"收藏了哪些模型\"：那份状态只存在提供方档案里一处。也没有\"支持哪些
  * 模型\"，因为那是会话在 session/new 之后才报告的事。
@@ -97,18 +87,9 @@ const MAX_PROFILES = 32
 /*
  * 档案的形状就是下面这张表。
  *
- * 此前这里是一个手写的校验框架：一个 Parsed<T> 结果类型、一个 fail、两个
- * asRecord/asText 探针、七个 parseXxx 函数，最后由九段 if (!x.ok) return x 串
- * 起来 —— 240 行把\"每个字段长什么样\"这件声明式的事，写成了命令式的流程控制。
- *
- * 代价不是观感：接口手写一遍、校验再手写一遍，两份靠人对齐，给档案加一个字段
- * 而忘了补校验时编译器一声不吭，它只是静默地不再校验那一格。
- *
- * valibot 本来就在 package.json 的 catalog 里。校验来源不可信的
- * 输入正是标准能力该上场的地方：模式即文档，类型由模式推出。
- *
- * 表比从前短，不是因为放松了，是因为不该由用户拥有的字段已经不在磁盘上了。
- * 留下的两格 cwd 与 env 仍然完全来自用户，它们的规则一个字都没有动。
+ * 校验只面对磁盘这一个不可信来源：界面填不出档案，名单是封闭的，选择本身只是
+ * 一个 id。模式即文档，类型由模式推出 —— valibot 本来就在 package.json 的
+ * catalog 里。
  *
  * 每条规则都自带中文说法，因为这些话会出现在设置界面上。
  */
@@ -279,19 +260,6 @@ function descriptorOf(agentId: string): AgentDescriptor | undefined {
   return agentRoster().find((agent) => agent.id === agentId)
 }
 
-/** 环境变量表逐键相等。键序不参与比较。 */
-function sameEnv(
-  before: Readonly<Record<string, string>>,
-  after: Readonly<Record<string, string>>,
-): boolean {
-  const names = Object.keys(after)
-
-  return (
-    names.length === Object.keys(before).length &&
-    names.every((name) => before[name] === after[name])
-  )
-}
-
 /** 启动参数相等。缺席与空表是同一件事：都表示这一家不带参数。 */
 function sameArgs(before: AgentProfile['args'], after: AgentProfile['args']): boolean {
   const one = before ?? []
@@ -316,12 +284,7 @@ function sameInstall(before: AgentProfile['install'], after: AgentProfile['insta
 /**
  * 把一条落盘档案上「归二进制的那几格」对齐到描述符。
  *
- * 覆盖是无条件的,不是合并。这几格的产地只有一个,磁盘上写着什么都不作数 ——
- * 判据与原生侧那一行同源:launch_env_inner 让受控 home 后进去、压过
- * declared_env_of,因为「用户在 env 里手写的可能根本不成立」。
- *
- * env 是唯一例外,它同时装着用户自己的变量:用户的键保留,描述符声明的键压过
- * 同名项 —— 它是这家二进制的固有事实,用户写反了它,agent 直接起不来。
+ * 覆盖是无条件的,不是合并。这几格的产地只有一个,磁盘上写着什么都不作数。
  *
  * 已经一致时原样返回同一个对象。调用方靠引用是否变化判断要不要物化,复制一份
  * 会让每次启动都报「档案变了」并白写一次磁盘。
@@ -335,7 +298,6 @@ function withDescriptorFields(profile: AgentProfile): AgentProfile {
 
   const next: AgentProfile = {
     ...profile,
-    env: { ...profile.env, ...(agent.launchEnv ?? {}) },
     command: agent.command,
     args: agent.args,
     homeVar: agent.homeVar,
@@ -348,26 +310,9 @@ function withDescriptorFields(profile: AgentProfile): AgentProfile {
     sameArgs(profile.args, next.args) &&
     profile.homeVar === next.homeVar &&
     profile.ownHomeDirectory === next.ownHomeDirectory &&
-    sameInstall(profile.install, next.install) &&
-    sameEnv(profile.env, next.env)
+    sameInstall(profile.install, next.install)
 
   return unchanged ? profile : next
-}
-
-/** 起一个 agent 进程要说清的那件事。 */
-export interface AgentLaunchSpec {
-  readonly agentId: string
-}
-
-/**
- * 把一家 agent 翻成一次启动。
- *
- * 不带 argv。程序在哪、要几个参数，是「这台机器上」的事实：原生侧在搜索路径上
- * 解析用户自己装的那个 CLI。渲染进程答不出，而它此前答了 —— agent_program 的注释
- * 早就写着「它刻意不来自请求」，那句话对 CLI 那条路成立，对会话这条路一直不成立。
- */
-export function agentLaunch(agent: AgentDescriptor): AgentLaunchSpec {
-  return { agentId: agent.id }
 }
 
 /**
@@ -379,7 +324,7 @@ export function builtinAgentProfiles(): readonly [AgentProfile, ...AgentProfile[
   const blank = (agent: AgentDescriptor): AgentProfile => ({
     id: agent.id,
     cwd: undefined,
-    env: { ...(agent.launchEnv ?? {}) },
+    env: {},
     defaultConfigOptions: {},
     command: agent.command,
     args: agent.args,
@@ -413,10 +358,6 @@ export interface AgentProfileReconcile {
 /**
  * 把落盘的档案与二进制里的名单对齐。
  *
- * 此前这里要逐格比对七个字段（sameLaunchIdentity 与 sameInstall 两个函数），
- * 因为那七格既在磁盘上、又在二进制里，两份得对齐。现在它们只在二进制里，所以
- * 这里没有任何字段要比 —— 只剩名单本身要对齐。
- *
  * 陌生 id 现在移除，而不是原样保留。保留是上一版为「用户自带的 agent」留的余地，
  * 而那条路不存在：agents.ts 说得很清楚，名单是封闭的。留着它，设置页的下拉
  * 就会列出一家原生侧根本查不到程序的 agent，选中之后失败在一个与选择无关的地方。
@@ -438,20 +379,7 @@ export function reconcileAgentProfiles(profiles: readonly AgentProfile[]): Agent
     return false
   })
 
-  /*
-   * 归二进制的那几格要在这里对齐，不能只靠内置档案。
-   *
-   * 上一版这里只对齐 env 一格。那把一个通用问题当成了特例:原生侧还读 command、
-   * homeVar、ownHomeDirectory、install,四格全在磁盘上没有产地。agent_program
-   * 因此报「没有可执行文件」,home_var_of 恒为 None 让受控 home 那个变量从来没被
-   * 设过 —— 后者从安装那天起就在静默降级,只是先前没有任何代码路径写过这个文件,
-   * profile_of 更早一步就先失败了,所以谁都没看见。
-   *
-   * 已经装过这个软件的机器上，agents.json 里那条档案早就写好了（env 是一张空
-   * 表），而内置档案只在磁盘上什么都没有时才顶上去。这个函数此前的注释说得很
-   * 清楚：「现在没有任何字段要比 —— 只剩名单本身要对齐」。那句话对用户拥有的
-   * 那几格成立，对二进制声明的这一格不成立 —— 它一旦缺席，agent 起不来。
-   */
+  /* 归二进制的那几格在这里对齐：原生侧读的就是磁盘上这条档案，缺一格 agent 起不来。 */
   const aligned = kept.map(withDescriptorFields)
   const drifted = aligned.some((profile, index) => profile !== kept[index])
 

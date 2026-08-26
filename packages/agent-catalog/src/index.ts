@@ -6,7 +6,7 @@
  */
 
 export type { AgentProfile } from './agent-profile'
-export { agentLaunch, parseAgentProfileSet, reconcileAgentProfiles } from './agent-profile'
+export { parseAgentProfileSet, reconcileAgentProfiles } from './agent-profile'
 export type { AgentDescriptor } from './agents'
 export { agentById, agentRoster } from './agents'
 export { agentCatalogCodec } from './catalog-codec'

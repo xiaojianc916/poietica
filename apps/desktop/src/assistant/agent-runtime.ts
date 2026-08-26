@@ -1,10 +1,5 @@
 import type { AgentDescriptor } from '@poietica/agent-catalog'
-import {
-  agentById,
-  agentLaunch,
-  agentRoster,
-  parseAgentProviderListOutput,
-} from '@poietica/agent-catalog'
+import { agentById, agentRoster, parseAgentProviderListOutput } from '@poietica/agent-catalog'
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
@@ -148,7 +143,7 @@ export function createDesktopAgentRuntime(
   const launchSelected = async () => {
     await hostedMcpServersReady
 
-    return agentLaunch(await selectedAgent())
+    return { agentId: (await selectedAgent()).id }
   }
 
   const posture = createPreference<string | undefined>({
@@ -271,7 +266,7 @@ export function createDesktopAgentRuntime(
       launch: async () => {
         await hostedMcpServersReady
 
-        return agentLaunch(await currentAgent())
+        return { agentId: (await currentAgent()).id }
       },
       onListenFailure: noteListenFailure,
     })

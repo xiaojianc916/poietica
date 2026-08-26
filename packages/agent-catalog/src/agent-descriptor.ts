@@ -45,26 +45,6 @@ export interface AgentDescriptor {
   readonly command?: string | undefined
   readonly args?: readonly string[] | undefined
   /**
-   * 起这个 agent 时必须设上的环境变量。
-   *
-   * 与 homeVar 是两件事，方向正好相反：homeVar 记的是「它把数据根目录认在哪个
-   * 变量名上」，值由原生侧现算；这里记的是「名字和值我们都说得出来」的那种变量,
-   * 因为它们是这家二进制的固有事实，不是用户的选择。
-   *
-   * 为什么需要它：args 有时只是一个决定的一半。kimi 的 acp-v2 子命令是条件注册
-   * 的 —— 上游 apps/kimi-code/src/cli/commands.ts 用 isKapV2Enabled 决定要不要
-   * registerKapV2Command，判据在 cli/experimental-v2.ts 里逐字是
-   * KIMI_CODE_EXPERIMENTAL_ACP_V2 属于 {'1','true','yes','on'}。开关没开时，
-   * commander 对这个名字的回答是 unknown command，而不是「功能没启用」。
-   *
-   * 声明在这里而不是在用户档案里，是为了让两半同处一处：谁改了 args，会在同一屏
-   * 看见跟着要改的变量。此前它们分处两地，其中一地是空的。
-   *
-   * 各家不同的只是这张表，通用层把它并进启动环境那一步对谁都一样，所以是声明。
-   * 缺席表示这一家不需要任何固定变量。
-   */
-  readonly launchEnv?: Readonly<Record<string, string>> | undefined
-  /**
    * 受控 home 的环境变量名。
    *
    * 各家把自己的数据根目录认在哪个变量上，是那一家二进制的固有事实：

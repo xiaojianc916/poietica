@@ -30,6 +30,9 @@ const FLOOR = 250
 /** 单次等待的上限：兜住 setTimeout 的 32 位截断，也兜住休眠期间的时钟跳变。 */
 const CEILING = 86_400_000
 
+/** 秒表的一拍。 */
+const SECOND = 1_000
+
 const view = typeof document === 'undefined' ? undefined : document
 
 /** 各消费者的期限，一个时刻 —— 可比较，所以依赖数组管得住它。 */
@@ -164,4 +167,18 @@ export function useHorizon(at: number): void {
       plan()
     }
   }, [at, key])
+}
+
+/**
+ * 一秒一拍。
+ *
+ * 秒表也是墙上时间，所以它走这一口时钟：ticking 为假时不报期限，时钟不会为它
+ * 醒来；页签不可见时整口时钟停摆，回到前台补一帧再排表。
+ */
+export function useSecond(ticking: boolean): number {
+  const now = useNow()
+
+  useHorizon(ticking ? now + SECOND : Number.POSITIVE_INFINITY)
+
+  return now
 }

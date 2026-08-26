@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import {
-  agentLaunch,
-  builtinAgentProfileSet,
-  parseAgentProfile,
-  parseAgentProfileSet,
-} from '../agent-profile'
-import { agentById, agentRoster } from '../agents'
+import { builtinAgentProfileSet, parseAgentProfile, parseAgentProfileSet } from '../agent-profile'
+import { agentById } from '../agents'
 
 /* 一份档案里现在只有用户自己的东西。 */
 const valid = {
@@ -128,33 +123,6 @@ describe('parseAgentProfileSet', () => {
     const result = parseAgentProfileSet({ profiles: [valid], defaultProfileId: 'kimi' })
 
     expect(result.fallback).toBe(false)
-  })
-})
-
-describe('agentLaunch', () => {
-  it('把名单里的一家翻成线上那一格', () => {
-    const agent = agentRoster()[0]
-
-    expect(agentLaunch(agent)).toEqual({ agentId: agent.id })
-  })
-
-  /*
-   * 回归护栏：启动规格不再携带程序与参数。
-   *
-   * 程序在哪、要几个参数，是「这台机器上」的事实：原生侧在搜索路径上解析那个
-   * 用户自己装的 CLI。渲染进程答不出（agent-profile.ts 的 agentLaunch 注释），
-   * 所以这一层交出的只有身份，其余由原生侧按 agentId 从档案读。
-   */
-  it('程序与参数不进启动规格，那是原生侧的事', () => {
-    const launch = agentLaunch({
-      ...agentRoster()[0],
-      command: 'C:\\Program Files\\kimi\\kimi.exe',
-      args: ['web', '--cwd', 'C:\\my notes'],
-    })
-
-    expect(launch).toEqual({ agentId: launch.agentId })
-    expect('program' in launch).toBe(false)
-    expect('args' in launch).toBe(false)
   })
 })
 

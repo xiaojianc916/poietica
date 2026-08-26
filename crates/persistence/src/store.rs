@@ -1,9 +1,8 @@
 //! The store itself.
 //!
 //! Opening the file is all this module does. What can be asked of it lives
-//! next to the thing being asked about: threads.rs, attachments.rs,
-//! run_events.rs, workbench.rs and disposals.rs each extend this same type
-//! with the questions of their own domain.
+//! next to the thing being asked about: each domain module extends this same
+//! type with the questions of its own domain.
 
 use std::path::Path;
 
@@ -30,10 +29,6 @@ pub(crate) fn now() -> Result<String> {
 
 impl AgentStore {
     /// Opens the store.
-    ///
-    /// 一个入口。此前是两个：一个去钥匙串取密钥，另一个收调用者给的一把 ——
-    /// 后者存在的唯一理由，是让测试不必碰真的钥匙串。库不再加密，那个理由
-    /// 随之消失，两个入口塌回一个。
     ///
     /// 调用的是 `crate::connection::open` 的全名而不是 import 进来：这个类型
     /// 自己的方法也叫 open，写全了就没有人需要在脑子里做一次消歧。

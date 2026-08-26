@@ -17,8 +17,8 @@ import {
   PinOff,
 } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { useHorizon, useNow } from '../primitives/clock'
 import { ChevronDownIcon, MoreIcon, PinIcon, PlusIcon } from '../primitives/icons'
-import { useHorizon, useNow } from './clock'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
 import { ThreadDisclosure } from './thread-disclosure'
 

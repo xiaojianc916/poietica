@@ -1,7 +1,7 @@
 import type { SessionGoal } from '@poietica/agent-contract'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
-import { useSecond } from '../primitives/tick'
+import { useSecond } from '../primitives/clock'
 import { HOUR, MINUTE, SECOND } from '../semantics/duration'
 import { useSessionControlsActions, useThreadGoal } from '../session/session-controls-context'
 import { GOAL_CONTROL_ID, GOAL_DISABLED, GOAL_ENABLED } from './goal-control'

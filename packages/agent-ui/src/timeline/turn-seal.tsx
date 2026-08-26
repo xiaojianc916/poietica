@@ -1,8 +1,8 @@
 import './turn-seal.css'
 
 import { memo } from 'react'
+import { useSecond } from '../primitives/clock'
 import { ChevronDownIcon } from '../primitives/icons'
-import { useSecond } from '../primitives/tick'
 import { formatDuration } from '../semantics/duration'
 
 /*

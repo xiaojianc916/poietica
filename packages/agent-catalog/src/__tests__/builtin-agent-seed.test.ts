@@ -79,12 +79,6 @@ describe('内置 agent 档案', () => {
       expect(profile.command, profile.id).toBe(agent.command)
       expect(profile.homeVar, profile.id).toBe(agent.homeVar)
       expect(profile.ownHomeDirectory, profile.id).toBe(agent.ownHomeDirectory)
-
-      /* 声明了启动变量的，那些变量必须已经在 env 里 —— 它就是靠这一格
-      经 declared_env_of 走到子进程的。 */
-      for (const [name, value] of Object.entries(agent.launchEnv ?? {})) {
-        expect(profile.env[name], `${profile.id}:${name}`).toBe(value)
-      }
     }
   })
 })

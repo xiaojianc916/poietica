@@ -57,17 +57,8 @@ describe('内置档案的物化', () => {
     expect(profile?.cwd).toBe('/work')
     expect(profile?.defaultConfigOptions).toEqual({ a: true })
 
-    /*
-     * env 是唯一两边共用的一格：用户写的留着，名单声明的启动变量合进去。
-     * 期望值从描述符现算，不写死 —— 写死等于让这条测试认准某一家 agent。
-     *
-     * 这里不断言 changed：它取决于这一家有没有声明启动变量，而那不是这条
-     * 测试要说的事。手写值会不会被盖，由下面那条单独说。
-     */
-    expect(profile?.env).toEqual({
-      EXTRA: '1',
-      ...(agentById(first.id)?.launchEnv ?? {}),
-    })
+    /* env 整格归用户：物化不再往里合任何东西。 */
+    expect(profile?.env).toEqual({ EXTRA: '1' })
   })
 
   /*
