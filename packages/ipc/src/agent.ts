@@ -11,6 +11,7 @@ import type {
   SessionGoalStatus,
   SessionUsagePort,
   ThreadPort,
+  ThreadSnapshot,
 } from '@poietica/agent-contract'
 import { throughIpc } from './error'
 import {
@@ -485,14 +486,20 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
       thread: opened.thread,
       selectors: opened.selectors.map(controlOf),
       goal: goalOf(opened.goal),
-      frames: opened.frames,
       history: opened.history,
-      ...(opened.usage === null ? {} : { usage: opened.usage }),
     }
   }
 
   return {
     list: () => throughIpc(() => commands.agentThreads()),
+    read: async (threadId): Promise<ThreadSnapshot> => {
+      const snapshot = await throughIpc(() => commands.agentThreadSnapshot({ threadId }))
+      return {
+        thread: snapshot.thread,
+        frames: snapshot.frames,
+        ...(snapshot.usage === null ? {} : { usage: snapshot.usage }),
+      }
+    },
     create: (threadId, workspaceRoot) => openTarget({ kind: 'create', threadId }, workspaceRoot),
     open: (threadId) => openTarget({ kind: 'existing', threadId }),
     earlierFrames: (threadId, before) =>

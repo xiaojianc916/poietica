@@ -4,6 +4,8 @@ import type {
   SessionConfigControl,
   SessionConfigPort,
   SessionConfigReport,
+  ThreadPort,
+  ThreadSnapshot,
 } from '@poietica/agent-contract'
 
 import { SessionControlsStore } from '../session-controls-store'
@@ -21,6 +23,7 @@ function routeSink(): TranscriptSink {
   return {
     opening: () => undefined,
     adopt: () => undefined,
+    history: () => undefined,
     failed: () => undefined,
     route: (sessionId, threadId) => {
       owners.set(sessionId, threadId)
@@ -76,8 +79,12 @@ const opened = (selectors: readonly SessionConfigControl[]): OpenedThread => ({
   },
   selectors,
   goal: null,
-  frames: { events: [], before: null },
   history: { state: 'fresh' },
+})
+
+const snapshot = (): ThreadSnapshot => ({
+  thread: opened(WITH_LOW).thread,
+  frames: { events: [], before: null },
 })
 
 /* 让已经兑现的那些 then 跑完。这里没有计时器，所以不需要假时钟。 */
@@ -170,6 +177,38 @@ describe('一条对话的那张表', () => {
 
     expect(woken).toBe(1)
     expect(store.selectorsOf(THREAD)).toBeUndefined()
+  })
+
+  it('本地快照不等待 agent 激活即可落入转录', async () => {
+    let finishActivation: ((answer: OpenedThread) => void) | undefined
+    const adopted: string[] = []
+    const baseSink = routeSink()
+    const transcripts: TranscriptSink = {
+      ...baseSink,
+      adopt: (threadId) => adopted.push(threadId),
+    }
+    const port: ThreadPort = {
+      list: () => Promise.resolve([]),
+      read: () => Promise.resolve(snapshot()),
+      create: () => Promise.resolve(opened(WITH_LOW)),
+      open: () =>
+        new Promise((resolve) => {
+          finishActivation = resolve
+        }),
+      earlierFrames: () => Promise.resolve({ events: [], before: null }),
+    }
+    const store = new SessionControlsStore({ port, transcripts })
+
+    store.adopt(THREAD)
+    await settled()
+
+    expect(adopted).toEqual([THREAD])
+    expect(store.selectorsOf(THREAD)).toBeUndefined()
+
+    finishActivation?.(opened(WITH_LOW))
+    await settled()
+
+    expect(currentOf(store, 'model')).toBe('kimi-k3')
   })
 
   it('打开答复在实时推送之前恢复 agent 的目标真相', () => {

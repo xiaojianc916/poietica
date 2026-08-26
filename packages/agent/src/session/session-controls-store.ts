@@ -10,6 +10,7 @@ import type {
   SessionUsageReport,
   ThreadPort,
   ThreadRecord,
+  ThreadSnapshot,
 } from '@poietica/agent-contract'
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
@@ -204,17 +205,10 @@ export class SessionControlsStore {
 
     this.#hold(answer.thread)
     this.#asked.add(threadId)
-    this.#transcripts?.adopt(threadId, answer.frames, answer.history)
+    this.#transcripts?.history(threadId, answer.history)
 
-    /* 一整份权威答复：此前发出去的那些下发，答案都已经过期。 */
     this.#orderOf(threadId).arrive()
     this.#remember(threadId, answer.selectors, answer.goal)
-
-    /* 账本垫底，活报告优先：这一格只在该对话还一无所知时落座。答复里那份
-    是上一轮落定时记的快照；本次运行若已有 agent 直报，那一份更新，不让位。 */
-    if (answer.usage !== undefined && !this.#held.usage.has(threadId)) {
-      this.#commit({ usage: withEntry(this.#held.usage, threadId, answer.usage) })
-    }
   }
 
   /**
@@ -222,6 +216,15 @@ export class SessionControlsStore {
    *
    * 按对话记的每一格都在这个文件里，所以作废它们的地方也只该有这一个。
    */
+  #snapshot(answer: ThreadSnapshot): void {
+    const threadId = answer.thread.threadId
+    this.#transcripts?.adopt(threadId, answer.frames)
+
+    if (answer.usage !== undefined && !this.#held.usage.has(threadId)) {
+      this.#commit({ usage: withEntry(this.#held.usage, threadId, answer.usage) })
+    }
+  }
+
   forget = (threadId: string): void => {
     this.#asked.delete(threadId)
 
@@ -351,21 +354,35 @@ export class SessionControlsStore {
     }
 
     this.#asked.add(threadId)
-
-    /* 这一趟要回来的不只是选择器，还有这条对话的经过。 */
     this.#transcripts?.opening(threadId)
 
-    try {
-      this.opened(await port.open(threadId))
-    } catch (reason: unknown) {
-      this.#noteSelectorFailure(threadId, reason)
+    const snapshot = port.read(threadId).then(
+      (value) => ({ ok: true as const, value }),
+      (cause: unknown) => ({ ok: false as const, cause }),
+    )
+    const activation = port.open(threadId).then(
+      (value) => ({ ok: true as const, value }),
+      (cause: unknown) => ({ ok: false as const, cause }),
+    )
 
-      /* 同一次失败的两个后果：设置那一格画不出来，对话也打不开。 */
-      this.#transcripts?.failed(threadId, reason)
-
-      /* 那两处都是画给人看的。日志与降级是第三个用途，同一份原因。 */
-      this.#report?.openFailed(reason)
+    const read = await snapshot
+    if (read.ok) {
+      this.#snapshot(read.value)
+    } else {
+      this.#transcripts?.failed(threadId, read.cause)
     }
+
+    const opened = await activation
+    if (opened.ok) {
+      this.opened(opened.value)
+      return
+    }
+
+    this.#noteSelectorFailure(threadId, opened.cause)
+    if (read.ok) {
+      this.#transcripts?.failed(threadId, opened.cause)
+    }
+    this.#report?.openFailed(opened.cause)
   }
 
   /*

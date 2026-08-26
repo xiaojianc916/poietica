@@ -16,7 +16,8 @@ use super::dto::{
     AgentArchiveThreadRequest, AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFrameCursor,
     AgentFramePage, AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest,
     AgentRenameThreadRequest, AgentSessionUsage, AgentThread, AgentThreadRequest,
-    AgentThreadTarget, AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
+    AgentThreadSnapshot, AgentThreadTarget, AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD,
+    reported_goal,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
@@ -36,6 +37,42 @@ pub async fn agent_threads(index: State<'_, LocalIndex>) -> AgentCommandResult<V
     let stored = on_index(&index, |store| store.list_threads().map_err(persistence)).await?;
 
     Ok(stored.into_iter().map(retitle).collect())
+}
+
+/// Reads the bounded local transcript snapshot without starting an agent.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_thread_snapshot(
+    index: State<'_, LocalIndex>,
+    request: AgentThreadRequest,
+) -> AgentCommandResult<AgentThreadSnapshot> {
+    let thread_id = conversation(&request.thread_id)?;
+    let (thread, usage, frames) = on_index(&index, move |store| {
+        let stored = store
+            .thread(thread_id)
+            .map_err(persistence)?
+            .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?;
+        let usage = match stored.session_id.as_deref() {
+            Some(session) => store
+                .session_usage(session)
+                .map_err(persistence)?
+                .map(reported)
+                .transpose()?,
+            None => None,
+        };
+        let frames = store
+            .frames_before(thread_id, None, FRAME_PAGE)
+            .map_err(persistence)?;
+
+        Ok((retitle(stored), usage, frames))
+    })
+    .await?;
+
+    Ok(AgentThreadSnapshot {
+        thread,
+        frames: paged(frames)?,
+        usage,
+    })
 }
 
 /// 打开一条对话：把最新那一页经过要回来。
@@ -114,32 +151,12 @@ pub async fn agent_open_thread(
     它们共用一次借用：一趟阻塞线程、一次上锁、两条 prepare_cached。拆成两趟就
     是各排一次线程池、各抢一次那把库锁，而打开一条对话正是人点一下就要等的那
     条路径 —— turn.rs 里那批附件写入用的是同一条规矩。 */
-    let (thread, usage, frames) = on_index(&index, move |store| {
-        let stored = store
+    let thread = on_index(&index, move |store| {
+        store
             .thread(thread_id)
             .map_err(persistence)?
-            .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?;
-
-        /* 用量在 retitle 之前取走：AgentThread 是列表的形状，不带这一格。 */
-        let usage = match stored.session_id.as_deref() {
-            Some(session) => store
-                .session_usage(session)
-                .map_err(persistence)?
-                .map(reported)
-                .transpose()?,
-            None => None,
-        };
-
-        let thread = retitle(stored);
-
-        /* 经过由本地日志重放，而日志只由跑那一轮的那一侧写（journal.rs 的
-        FrameJournal record_frames）。这里只取最新那一页，更早的走
-        agent_earlier_frames。 */
-        let frames = store
-            .frames_before(thread_id, None, FRAME_PAGE)
-            .map_err(persistence)?;
-
-        Ok((thread, usage, frames))
+            .map(retitle)
+            .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))
     })
     .await?;
 
@@ -149,9 +166,7 @@ pub async fn agent_open_thread(
         thread,
         selectors: offered.into_iter().map(restate).collect(),
         goal,
-        frames: paged(frames)?,
         history,
-        usage,
     })
 }
 

@@ -477,16 +477,14 @@ export class TranscriptStore implements TranscriptSink {
    * 一页可以是空的，为什么空由 history 说明。两种损失走本地事故那条既有通道，
    * endsTurn 为假 —— 不是某一轮失败了，是这段经过没回来。
    */
-  adopt = (threadId: string, page: FramePage, history: ThreadHistory): void => {
+  adopt = (threadId: string, page: FramePage): void => {
     const current = this.#now(threadId)
-    const lost = lossOf(history)
-
     /* 已经持有这条对话：帧流维持着最新那一页，重放它会丢掉向上读回来的那些页。但游标
        必须收下 —— 它是「上面还有没有」的唯一答案，丢了它这条对话再也翻不到更早。 */
     if (current.owned || current.loaded) {
       const earlier = current.earlier ?? page.before
 
-      if (lost === null && !current.restoring && current.loaded && current.earlier === earlier) {
+      if (!current.restoring && current.loaded && current.earlier === earlier) {
         return
       }
 
@@ -495,7 +493,7 @@ export class TranscriptStore implements TranscriptSink {
         earlier,
         loaded: true,
         restoring: false,
-        timeline: lost === null ? current.timeline : noteOn(current.timeline, lost, false),
+        timeline: current.timeline,
       })
 
       return
@@ -521,7 +519,7 @@ export class TranscriptStore implements TranscriptSink {
     this.#hold(threadId, at < 0 ? events : events.slice(0, at))
 
     this.#put(threadId, {
-      timeline: lost === null ? replayed : noteOn(replayed, lost, false),
+      timeline: replayed,
       restoring: ahead,
       loaded: true,
       owned: false,
@@ -532,6 +530,13 @@ export class TranscriptStore implements TranscriptSink {
     /* 整页都是半截：屏幕上一行都没有，接着往前读到最近一个轮次起点。 */
     if (ahead) {
       void this.readEarlier(threadId)
+    }
+  }
+
+  history = (threadId: string, history: ThreadHistory): void => {
+    const message = lossOf(history)
+    if (message !== null) {
+      this.note(threadId, message)
     }
   }
 

@@ -130,11 +130,7 @@ export class ThreadsStore {
   }
 
   /**
-   * 刚打开一条对话，这是平台交回来的整份答复；交回取消订阅的办法。
-   *
-   * 打开是这里的动作（create 走 port.open），而那份答复里有一多半不属于这里：会话号、
-   * 选择器、经过、附件、已发轮数。发出去，由认得它们的人自己接 —— 这里不替他们转手，
-   * 也就不需要知道他们是谁。
+   * 创建完成后广播 agent 激活结果；会话控制由自己的 store 接管。
    */
   onOpened = (listener: (answer: OpenedThread) => void): (() => void) => {
     this.#opened.add(listener)

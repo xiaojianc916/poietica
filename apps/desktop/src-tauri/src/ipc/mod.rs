@@ -68,6 +68,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent::config::agent_capabilities,
             crate::commands::agent::toolkit::agent_toolkit,
             crate::commands::agent::thread::agent_threads,
+            crate::commands::agent::thread::agent_thread_snapshot,
             crate::commands::agent::thread::agent_open_thread,
             crate::commands::agent::thread::agent_earlier_frames,
             crate::commands::agent::thread::agent_rename_thread,

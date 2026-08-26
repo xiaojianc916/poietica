@@ -52,6 +52,7 @@ export type {
   ThreadHistory,
   ThreadPort,
   ThreadRecord,
+  ThreadSnapshot,
 } from './thread'
 export type {
   ToolCallContent,

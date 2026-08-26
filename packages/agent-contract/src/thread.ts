@@ -83,28 +83,19 @@ export interface FramePage {
   readonly before: FrameCursor | null
 }
 
+/** A local, bounded read-model snapshot. Reading it never starts an agent. */
+export interface ThreadSnapshot {
+  readonly thread: ThreadRecord
+  readonly frames: FramePage
+  readonly usage?: SessionUsage
+}
+
 /** A conversation that was just opened, and what its session offers. */
 export interface OpenedThread {
   readonly thread: ThreadRecord
   readonly selectors: readonly SessionConfigControl[]
-  /** 打开时由 agent 直接读取的目标真相；没有目标时为 null。 */
   readonly goal: SessionGoal | null
-  /**
-   * 这条对话最新的那一页经过，由本机的帧日志重放交回来。
-   *
-   * 一页，不是全量：更早的按 `before` 向 `earlierFrames` 续读。
-   */
-  readonly frames: FramePage
-  /** 这一页为空时，它是唯一能说清缘由的东西。 */
   readonly history: ThreadHistory
-  /**
-   * 这条对话最近一次报过的上下文用量，本地账本记下的那份。
-   *
-   * 它是启动后的第一眼，不是活数据：Kimi 只在轮次落定后报一次，装载旧会话
-   * 时不补报（协议建议补报，它没做），所以刚打开时实时通道上什么都没有。
-   * 活报告一到即覆盖。缺席 = 从没报过。
-   */
-  readonly usage?: SessionUsage
 }
 
 /**
@@ -115,6 +106,8 @@ export interface OpenedThread {
  */
 export interface ThreadPort {
   readonly list: () => Promise<readonly ThreadRecord[]>
+  /** Reads the bounded local transcript snapshot without activating an agent. */
+  readonly read: (threadId: ThreadId) => Promise<ThreadSnapshot>
   /**
    * 打开一条对话：不点名就新开一条，点名就让那一条握住一个会话。
    *

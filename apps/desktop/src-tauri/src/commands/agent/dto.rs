@@ -384,33 +384,23 @@ pub struct AgentOpenThreadRequest {
     pub cwd: Option<String>,
 }
 
-/// A conversation that was just opened, and what its session offers.
+/// A bounded local read-model snapshot. It never starts or restores an agent.
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentThreadSnapshot {
+    pub thread: AgentThread,
+    pub frames: AgentFramePage,
+    pub usage: Option<AgentSessionUsage>,
+}
+
+/// The result of activating one conversation in the agent runtime.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentOpenedThread {
-    /// The conversation itself.
     pub thread: AgentThread,
-    /// What may be chosen for this session, as the agent reported it.
     pub selectors: Vec<AgentConfigControl>,
-    /// 打开时从同一条会话读取的目标真相；缺席即未启用。
     pub goal: Option<AgentGoal>,
-    /// 这条对话最新的那一页经过，由本地日志交回来。
-    ///
-    /// 库里记下的就是当时交给界面的那一批（journal.rs 的 FrameJournal
-    /// record_frames），所以重开一条对话与看着它发生不可能对不上。
-    ///
-    /// 一页，不是全量：更早的按页里那个位置向 `agent_earlier_frames` 续读。
-    pub frames: AgentFramePage,
-    /// 上面那格为什么是它现在的样子。
-    ///
-    /// 空数组自己说不出区别：刚建的对话与一条打不开的旧对话长得一样。界面
-    /// 要据此决定是画入口提示，还是画一句"这段历史在某某手里"。
     pub history: AgentHistory,
-    /// 这条对话最近一次记下的上下文用量与累计输入构成。
-    ///
-    /// 来自本地账本，不来自这一次打开：用量是 volatile 推送（kap 不回放），
-    /// 装载旧会话也不补报，所以重启后的第一眼只有账本答得上。缺席就是还没报过。
-    pub usage: Option<AgentSessionUsage>,
 }
 
 /// A conversation the interface is renaming.

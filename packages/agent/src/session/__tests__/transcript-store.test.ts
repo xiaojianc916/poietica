@@ -169,14 +169,10 @@ describe('transcript store', () => {
     const { store } = painted()
 
     /* 页按帧数切，所以最新那一页的头是上一轮的尾巴。 */
-    store.adopt(
-      'thread_a',
-      {
-        events: [chunk(5, '尾'), started(6, 'sess_a'), chunk(7, '新')],
-        before: { sessionId: 'sess_a', seq: 5 },
-      },
-      { state: 'loaded' },
-    )
+    store.adopt('thread_a', {
+      events: [chunk(5, '尾'), started(6, 'sess_a'), chunk(7, '新')],
+      before: { sessionId: 'sess_a', seq: 5 },
+    })
 
     const { timeline } = store.read('thread_a')
 
