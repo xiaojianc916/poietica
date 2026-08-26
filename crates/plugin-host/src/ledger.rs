@@ -9,7 +9,6 @@ use serde_json::{Map, Value, json};
 use crate::error::{HostError, Result};
 use crate::text_file::{read_optional, write_atomic};
 
-const VERSION: u64 = 1;
 const PLUGINS: &str = "plugins";
 
 #[derive(Debug)]
@@ -41,7 +40,7 @@ impl PluginLedger {
     pub fn read(path: &Path) -> Result<Self> {
         let document = match read_optional(path)? {
             Some(contents) => serde_json::from_str(&contents)?,
-            None => json!({ "version": VERSION, PLUGINS: [] }),
+            None => json!({ "version": 1, "plugins": [] }),
         };
 
         Self::from_value(document)
@@ -57,11 +56,8 @@ impl PluginLedger {
         Ok(Self { document })
     }
 
-    #[must_use]
-    pub fn records(&self) -> Vec<PluginRecord> {
-        self.entries()
-            .map(|entries| entries.iter().filter_map(record_of).collect())
-            .unwrap_or_default()
+    pub fn records(&self) -> Result<Vec<PluginRecord>> {
+        Ok(self.entries()?.iter().filter_map(record_of).collect())
     }
 
     pub fn install(&mut self, installation: PluginInstallation) -> Result<()> {
@@ -82,7 +78,7 @@ impl PluginLedger {
         );
         let _source = fresh.insert("source".to_owned(), json!(source));
         let _enabled = fresh.insert("enabled".to_owned(), json!(true));
-        let _installed = fresh.insert("installedAt".to_owned(), json!(installed_at));
+        let _installed = fresh.insert("installedAt".to_owned(), json!(installed_at.clone()));
 
         if let Some(original) = original_source {
             let _original = fresh.insert("originalSource".to_owned(), json!(original));
@@ -267,8 +263,11 @@ mod tests {
         ledger.write(&path).expect("write");
 
         assert_eq!(
-            PluginLedger::read(&path).expect("written ledger").records(),
-            ledger.records()
+            PluginLedger::read(&path)
+                .expect("written ledger")
+                .records()
+                .expect("records"),
+            ledger.records().expect("records")
         );
     }
 
@@ -290,7 +289,12 @@ mod tests {
         .expect("ledger");
 
         ledger.install(installation("second")).expect("reinstall");
-        let record = ledger.records().into_iter().next().expect("record");
+        let record = ledger
+            .records()
+            .expect("records")
+            .into_iter()
+            .next()
+            .expect("record");
 
         assert_eq!(record.installed_at.as_deref(), Some("first"));
         assert_eq!(record.disabled_mcp_servers, vec!["browser"]);
@@ -320,7 +324,13 @@ mod tests {
             .expect("toggle");
 
         assert_eq!(
-            ledger.records().into_iter().next().expect("record").disabled_mcp_servers,
+            ledger
+                .records()
+                .expect("records")
+                .into_iter()
+                .next()
+                .expect("record")
+                .disabled_mcp_servers,
             vec!["browser"]
         );
     }
