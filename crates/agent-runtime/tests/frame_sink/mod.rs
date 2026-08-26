@@ -39,6 +39,7 @@ impl Delivered {
             if let Ok(mut held) = kept.lock() {
                 held.push(event);
             }
+            true
         })
     }
 

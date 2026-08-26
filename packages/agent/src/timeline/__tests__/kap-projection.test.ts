@@ -26,7 +26,14 @@ function kapTurn(
   payloads: readonly (Readonly<Record<string, unknown>> & { readonly type: string })[],
 ): RunEvent[] {
   const events: RunEvent[] = [
-    { kind: 'run_started', seq: 1, at: 1000, sessionId: SESSION, prompt: '说一句 ready' },
+    {
+      kind: 'prompt_admitted',
+      admissionId: 'adm',
+      seq: 1,
+      at: 1000,
+      sessionId: SESSION,
+      prompt: '说一句 ready',
+    },
   ]
 
   payloads.forEach((payload, index) => {
@@ -127,7 +134,14 @@ describe('kap 投影', () => {
 
   it('入参流片不先立一张兜底卡：卡出现时分类与主语已经就位', () => {
     const streaming: RunEvent[] = [
-      { kind: 'run_started', seq: 1, at: 1000, sessionId: SESSION, prompt: '跑一下测试' },
+      {
+        kind: 'prompt_admitted',
+        admissionId: 'adm',
+        seq: 1,
+        at: 1000,
+        sessionId: SESSION,
+        prompt: '跑一下测试',
+      },
       {
         kind: 'kap_event',
         seq: 2,
@@ -290,7 +304,7 @@ describe('kap 投影', () => {
       ]),
     )
 
-    /* 那一问是 run_started 由 withPrompt 落的，不是 kap_event 产的。 */
+    /* 那一问是 prompt_admitted 由 withPrompt 落的，不是 kap_event 产的。 */
     const notAsked = allItems(state).filter((item) => item.type !== 'user_message')
 
     /*
@@ -476,7 +490,14 @@ describe('kap 投影', () => {
   })
   it('审批帧走共用词汇：归一化的 toolCall 把请求接回工具卡片', () => {
     const events: RunEvent[] = [
-      { kind: 'run_started', seq: 1, at: 1000, sessionId: SESSION, prompt: '跑一下测试' },
+      {
+        kind: 'prompt_admitted',
+        admissionId: 'adm',
+        seq: 1,
+        at: 1000,
+        sessionId: SESSION,
+        prompt: '跑一下测试',
+      },
       {
         kind: 'kap_event',
         seq: 2,

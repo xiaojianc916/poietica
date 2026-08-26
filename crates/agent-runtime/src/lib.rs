@@ -53,8 +53,8 @@ pub use credentials::{
 pub use desk::{PermissionDesk, QuestionDesk};
 pub use error::{KapError, Refusal, Result};
 pub use frame::{
-    KAP_EVENT, LINK_CHANGED, PERMISSION_REQUESTED, PERMISSION_RESOLVED, QUESTIONS_ASKED,
-    QUESTIONS_RESOLVED, RUN_FAILED, RUN_FINISHED, RUN_STARTED, RunFrame, kap_event,
+    KAP_EVENT, LINK_CHANGED, PERMISSION_REQUESTED, PERMISSION_RESOLVED, PROMPT_ADMITTED,
+    QUESTIONS_ASKED, QUESTIONS_RESOLVED, RUN_FAILED, RUN_FINISHED, RunFrame, kap_event,
 };
 pub use link::LinkState;
 pub use permission::{Decision, Scope};

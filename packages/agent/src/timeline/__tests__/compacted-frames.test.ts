@@ -12,7 +12,8 @@ import { replayRunEvents } from '../timeline-reducer'
  */
 const COMPACTED_RUN_EVENTS: readonly RunEvent[] = [
   {
-    kind: 'run_started',
+    kind: 'prompt_admitted',
+    admissionId: 'adm',
     seq: 1,
     at: 1_000,
     sessionId: 'sess_demo',

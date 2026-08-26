@@ -16,7 +16,7 @@ use crate::store::{AgentStore, now};
 
 /// 一段被某条对话引用着的字节,交付它需要的全部。
 ///
-/// 它不说这张图属于哪一句话 —— 那件事写在帧上(run_started 的 images)。
+/// 它不说这张图属于哪一句话 —— 那件事写在帧上(prompt_admitted 的 images)。
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ThreadAttachment {
     /// 小写十六进制 SHA-256。它同时是资产协议里的 asset token。

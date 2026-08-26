@@ -9,7 +9,7 @@ migration list in `src/migrations.rs` is the only order that matters.
 The transcript on screen is replayed from `run_events`. The agent keeps its own
 copy, but that one is the model's context: it is restored by `session/load` so
 the agent can carry on, and it never reaches a projection. The replay frames
-carry no `run_started`, so segment boundaries would collapse if they did.
+carry no `prompt_admitted`, so segment boundaries would collapse if they did.
 
 `threads` is authoritative rather than derived. Titles, pinning, workspace root
 and ownership are decisions a person or this machine made, and no log can

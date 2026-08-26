@@ -30,7 +30,7 @@ export type TimelineItemId = string
  * 一张挂在某条用户消息上的图片。
  *
  * 地址由原生侧拼好（`poietica-asset://asset/{thread}/{sha256}`），它随这一轮的
- * run_started 帧一起到达，所以这一侧不拼、也不必知道它属于第几句话。
+ * prompt_admitted 帧一起到达，所以这一侧不拼、也不必知道它属于第几句话。
  */
 export interface MessageImage {
   readonly url: string
@@ -143,7 +143,7 @@ export function isTerminal(status: ToolCallTimelineItem['status']): boolean {
 
 /** 这一帧是否开一个新段。段由它划定，所以判据只住在这里。 */
 export function opensTurn(event: RunEvent): boolean {
-  return event.kind === 'run_started'
+  return event.kind === 'prompt_admitted'
 }
 
 /** 计划里的一步。 */
@@ -241,7 +241,7 @@ export type TimelineItem =
 /**
  * 一轮的两端。
  *
- * 起点是 run_started 那一帧的 at，终点在 run_finished / run_failed 落定时补上。有起点
+ * 起点是 prompt_admitted 那一帧的 at，终点在 run_finished / run_failed 落定时补上。有起点
  * 而缺终点，就是这一轮还在跑，所以不需要另一个布尔去说同一件事。
  *
  * 两端都取自日志里的 at（epoch 毫秒墙钟，原生侧 recorder.rs 的 now_millis 写下），

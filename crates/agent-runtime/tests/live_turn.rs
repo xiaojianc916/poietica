@@ -61,8 +61,8 @@ use std::time::{Duration, Instant};
 use futures::channel::oneshot;
 use futures::executor::block_on;
 use poietica_agent_runtime_native::{
-    AgentConnection, AgentSpawn, ConfigControl, KapError, PermissionDesk, QuestionDesk,
-    RUN_FINISHED, RUN_STARTED, RecordedEvent, RunFrame, RunSlot, connect,
+    AgentConnection, AgentSpawn, ConfigControl, KapError, PROMPT_ADMITTED, PermissionDesk,
+    QuestionDesk, RUN_FINISHED, RecordedEvent, RunFrame, RunSlot, connect,
 };
 use tempfile::TempDir;
 
@@ -326,7 +326,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
 
     assert_eq!(
         first.frame.kind(),
-        RUN_STARTED,
+        PROMPT_ADMITTED,
         "a run announces itself first"
     );
     assert_eq!(
@@ -452,7 +452,7 @@ fn describe(frame: &RunFrame) -> String {
 /// 带的码。两者分开，看一眼原因才不至于顺手把 EXPECT 的词汇表改掉。
 fn detail(frame: &RunFrame) -> String {
     match frame {
-        RunFrame::RunStarted { prompt, .. } => prompt.clone(),
+        RunFrame::PromptAdmitted { prompt, .. } => prompt.clone(),
         RunFrame::KapEvent { payload } => match describe(frame).as_str() {
             // 增量一帧一个字，摊开来只会把名单淹掉。
             "assistant.delta" | "thinking.delta" | "tool.call.delta" => String::new(),

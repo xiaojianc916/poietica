@@ -11,7 +11,7 @@
 
 mod frame_sink;
 
-use poietica_agent_runtime_native::{RUN_STARTED, Recorder, RunFrame, RunSlot, kap_event};
+use poietica_agent_runtime_native::{PROMPT_ADMITTED, Recorder, RunFrame, RunSlot, kap_event};
 use serde_json::json;
 
 use frame_sink::{Delivered, SESSION, recording};
@@ -57,7 +57,7 @@ fn updates_reach_the_attached_run() {
     slot.attach(|| recorder).expect("an unpoisoned lock");
 
     assert!(slot.record(|recorder| {
-        recorder.record_run_started("what the run was asked", Vec::new(), Vec::new());
+        recorder.record_prompt_admitted("adm", "what the run was asked", Vec::new(), Vec::new());
     }));
     assert!(slot.is_listening());
     assert!(slot.record(|recorder| recorder.record_frame(announcement())));
@@ -67,7 +67,7 @@ fn updates_reach_the_attached_run() {
     assert_eq!(seen.len(), 2);
     assert_eq!(
         seen.first().map(|event| event.frame.kind()),
-        Some(RUN_STARTED)
+        Some(PROMPT_ADMITTED)
     );
     assert!(
         seen.get(1)
@@ -84,7 +84,7 @@ fn the_slot_stops_listening_when_the_turn_ends() {
 
     slot.attach(|| recorder).expect("an unpoisoned lock");
     assert!(slot.record(|recorder| {
-        recorder.record_run_started("what the run was asked", Vec::new(), Vec::new());
+        recorder.record_prompt_admitted("adm", "what the run was asked", Vec::new(), Vec::new());
     }));
 
     assert!(slot.record(|recorder| recorder.record_run_finished("done")));
@@ -109,7 +109,12 @@ fn a_second_turn_continues_the_sequence_of_the_first() {
 
     for _turn in 0..2 {
         assert!(slot.record(|recorder| {
-            recorder.record_run_started("what the run was asked", Vec::new(), Vec::new());
+            recorder.record_prompt_admitted(
+                "adm",
+                "what the run was asked",
+                Vec::new(),
+                Vec::new(),
+            );
         }));
         assert!(slot.record(|recorder| recorder.record_run_finished("done")));
     }
@@ -135,7 +140,7 @@ fn a_reloaded_session_resumes_after_the_recorded_position() {
     slot.attach(|| Recorder::new(SESSION.to_owned(), slot.seq(), delivered.sink()))
         .expect("an unpoisoned lock");
     assert!(slot.record(|recorder| {
-        recorder.record_run_started("what the run was asked", Vec::new(), Vec::new());
+        recorder.record_prompt_admitted("adm", "what the run was asked", Vec::new(), Vec::new());
     }));
 
     assert_eq!(delivered.positions(), vec![8]);

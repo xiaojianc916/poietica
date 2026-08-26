@@ -135,7 +135,7 @@ export function openSegment(draft: Draft): void {
 }
 
 /**
- * 取走上一段末尾那条还没等到 run_started 的提问。
+ * 取走上一段末尾那条还没等到 prompt_admitted 的提问。
  *
  * 它属于新的一段：认领之后它与自己的答复同段且相邻。活动段里的那一条不算 —— 那是
  * 本段自己的开头。
@@ -221,7 +221,7 @@ export function beginRun(draft: Draft): void {
  * 段号从首轮的 r0 起只增不减（openSegment），回放与接着说下去共用这一条数法。
  *
  * 段由先到的那一方开：人先说话，段在 appendUserMessage 那一刻就开了；没有经过
- * 输入框的那些轮次（重连续接、重试）由 run_started 开。两边不会各开一次 —— 帧
+ * 输入框的那些轮次（重连续接、重试）由 prompt_admitted 开。两边不会各开一次 —— 帧
  * 那侧走 beginRun，它只在这一段已经收过帧时才开新的一段。人说的那句话因此与它
  * 的答复同号，实时与回放对同一条对话给出同一种归属。
  *
@@ -269,7 +269,7 @@ export function pushFailure(draft: Draft, failure: ErrorItem): void {
  * Appends a local question before its run has produced a frame.
  *
  * A span records a run observed in the event log. Merely committing a local
- * question must not manufacture one: the subsequent run_started frame creates
+ * question must not manufacture one: the subsequent prompt_admitted frame creates
  * and timestamps it, while a question whose run never started remains outside
  * the span ledger.
  */
@@ -286,10 +286,10 @@ function append(draft: Draft, item: TimelineItem): void {
 /**
  * 一段收下第一条，它就存在了。
  *
- * 段的存在与它的两端是两件事：本机帧日志之前的旧对话没有 run_started，一轮的起止
+ * 段的存在与它的两端是两件事：本机帧日志之前的旧对话没有 prompt_admitted，一轮的起止
  * 时刻因此无从谈起，但那些轮次确实发生过 —— 封条要靠 spans 才认得出「已处理」。
  * 所以这里只立一条空的：有几轮是数得出来的，几点开始的不是。两端由 markTurnStart
- * 与 markTurnEnd 在 run_started 与终帧到达时盖上。
+ * 与 markTurnEnd 在 prompt_admitted 与终帧到达时盖上。
  */
 function openSpan(draft: Draft): void {
   if (draft.spans.at(-1)?.turn === draft.runIndex) {
@@ -358,7 +358,7 @@ export function sealTail(draft: Draft): void {
  * 立没立过都要能落笔：人先说话的那些轮次，段在 appendUserMessage 那一刻就随第一
  * 条条目立起来了，起点要补进那一条；没有经过输入框的那些轮次到这里时它还不在。
  *
- * 记下就不再移动。同一轮里第二帧 run_started 因此改不了它的起点：一轮只有一个
+ * 记下就不再移动。同一轮里第二帧 prompt_admitted 因此改不了它的起点：一轮只有一个
  * 起点。
  */
 export function markTurnStart(draft: Draft, at: number): void {

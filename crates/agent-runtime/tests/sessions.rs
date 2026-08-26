@@ -67,9 +67,8 @@ fn many_sessions_record_concurrently_without_aliasing() {
             scope.spawn(move || {
                 let session = format!("session-{index}");
                 assert!(book.open(&session).is_ok());
-                let slot = match book.slot(&session) {
-                    Ok(Some(slot)) => slot,
-                    _ => return,
+                let Ok(Some(slot)) = book.slot(&session) else {
+                    return;
                 };
                 let recorded = session.clone();
                 assert!(
@@ -79,13 +78,14 @@ fn many_sessions_record_concurrently_without_aliasing() {
                             slot.seq(),
                             Box::new(move |event| {
                                 let _sent = delivered.send(event);
+                                true
                             }),
                         )
                     })
                     .is_ok()
                 );
                 assert!(slot.record(|recorder| {
-                    recorder.record_run_started("prompt", Vec::new(), Vec::new());
+                    recorder.record_prompt_admitted("adm", "prompt", Vec::new(), Vec::new());
                     recorder.record_run_finished("completed");
                 }));
             });

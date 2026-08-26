@@ -30,7 +30,7 @@ export interface TurnSealProps {
 const SECOND_MS = 1_000
 
 /*
- * 耗时的两端同在日志域：起点是 run_started 的 at，终点是这一轮最后一帧的 at，两者都由
+ * 耗时的两端同在日志域：起点是 prompt_admitted 的 at，终点是这一轮最后一帧的 at，两者都由
  * 原生侧 recorder.rs 的 now_millis 写下。
  *
  * 本机时钟只有一个入口：这一轮还在跑。那时它与日志同轴 —— 同一台机器、同一个 epoch

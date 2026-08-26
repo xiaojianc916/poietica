@@ -16,7 +16,8 @@ import {
  */
 
 const started = (seq: number, at: number): RunEvent => ({
-  kind: 'run_started',
+  kind: 'prompt_admitted',
+  admissionId: 'adm',
   seq,
   at,
   sessionId: 'sess_span',

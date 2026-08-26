@@ -35,7 +35,7 @@ pub struct RecordedEvent {
 /// 收的是帧本身，不是它的引用。每一个接收方都要留下这一帧 —— 攒批任务把它
 /// 推进通道，重播把它变成 JSON，测试把它存起来 —— 借来的一帧只能靠深拷贝
 /// 留下，而 RecordedEvent 里那棵 Value 是按 token 计价的。
-pub type FrameSink = Box<dyn FnMut(RecordedEvent) + Send>;
+pub type FrameSink = Box<dyn FnMut(RecordedEvent) -> bool + Send>;
 
 /// 一条会话上的序号线。
 ///
@@ -131,10 +131,13 @@ impl Frames {
     }
 
     /// 交出去，位置就此用掉。帧的所有权一并交出：这一层此后不再读它。
-    pub(crate) fn deliver(&mut self, event: RecordedEvent) {
-        self.seq.used(event.seq);
-
-        (self.sink)(event);
+    pub(crate) fn deliver(&mut self, event: RecordedEvent) -> bool {
+        let seq = event.seq;
+        if !(self.sink)(event) {
+            return false;
+        }
+        self.seq.used(seq);
+        true
     }
 }
 
@@ -159,8 +162,8 @@ pub struct Recorder {
     /// 与审批分两份记：轮终要放掉的是两类东西，而一张混着两类号的表说不清哪一个
     /// 该按哪一种方式作废。
     questions: Vec<String>,
-    /// 这条会话此刻有没有一轮在飞。
-    running: bool,
+    /// 已 durable admission、尚未收到 main turn terminal 的数量。
+    admitted: usize,
 }
 
 impl fmt::Debug for Recorder {
@@ -177,7 +180,7 @@ impl Recorder {
     #[must_use]
     pub fn new(session_id: String, seq: SeqLine, sink: FrameSink) -> Self {
         Self {
-            running: false,
+            admitted: 0,
             frames: Frames::new(session_id, seq, sink),
             approvals: Vec::new(),
             questions: Vec::new(),
@@ -185,13 +188,23 @@ impl Recorder {
     }
 
     /// Records that the run began, what was asked, and what went out with it.
-    pub fn record_run_started(&mut self, prompt: &str, images: Vec<String>, skills: Vec<String>) {
-        self.append(RunFrame::RunStarted {
+    pub fn record_prompt_admitted(
+        &mut self,
+        admission_id: &str,
+        prompt: &str,
+        images: Vec<String>,
+        skills: Vec<String>,
+    ) -> bool {
+        let accepted = self.append_checked(RunFrame::PromptAdmitted {
+            admission_id: admission_id.to_owned(),
             prompt: prompt.to_owned(),
             images,
             skills,
         });
-        self.running = true;
+        if accepted {
+            self.admitted = self.admitted.saturating_add(1);
+        }
+        accepted
     }
 
     /// 记下这一轮的一帧。
@@ -335,7 +348,7 @@ impl Recorder {
         self.append(RunFrame::RunFinished {
             stop_reason: stop_reason.to_owned(),
         });
-        self.running = false;
+        self.admitted = self.admitted.saturating_sub(1);
     }
 
     /// Records that the run ended in a failure.
@@ -343,7 +356,7 @@ impl Recorder {
         self.append(RunFrame::RunFailed {
             message: message.to_owned(),
         });
-        self.running = false;
+        self.admitted = self.admitted.saturating_sub(1);
     }
 
     fn note_resolution(&mut self, request_id: &str, decision: Decision) {
@@ -357,15 +370,18 @@ impl Recorder {
     }
 
     /// 成形，然后投递。位置在投递时才算用掉，见 Frames::shape。
-    fn append(&mut self, frame: RunFrame) {
+    fn append_checked(&mut self, frame: RunFrame) -> bool {
         let event = self.frames.shape(frame);
+        self.frames.deliver(event)
+    }
 
-        self.frames.deliver(event);
+    fn append(&mut self, frame: RunFrame) {
+        let _accepted = self.append_checked(frame);
     }
 
     /// 这条会话此刻有没有一轮在飞。终帧只在飞的那一轮上落一次。
     pub const fn is_running(&self) -> bool {
-        self.running
+        self.admitted > 0
     }
 }
 
@@ -432,6 +448,7 @@ mod tests {
                 if let Ok(mut held) = sink.lock() {
                     held.push(event.seq);
                 }
+                true
             }),
         );
 

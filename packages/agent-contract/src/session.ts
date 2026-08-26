@@ -63,8 +63,8 @@ export interface AgentPromptRequest {
 /**
  * 这一轮发到了哪条会话。
  *
- * 一格，原生侧才说得出的事实。图片地址不从这里回来：它随这一轮的 run_started
- * 帧走，与那句话的文字同一条路（见 frame.rs 的 RunStarted）。取消只需要点名一
+ * 一格，原生侧才说得出的事实。图片地址不从这里回来：它随这一轮的 prompt_admitted
+ * 帧走，与那句话的文字同一条路（见 frame.rs 的 PromptAdmitted）。取消只需要点名一
  * 条对话，见下面的 cancel。
  */
 export interface AgentPromptHandle {

@@ -14,7 +14,7 @@ use serde_json::Value;
 use crate::link::LinkState;
 
 /// 一轮的第一帧。
-pub const RUN_STARTED: &str = "run_started";
+pub const PROMPT_ADMITTED: &str = "prompt_admitted";
 /// kap server 推来的一帧会话事件。
 pub const KAP_EVENT: &str = "kap_event";
 /// agent 正卡在一次授权请求上。
@@ -47,7 +47,9 @@ pub const QUESTIONS_RESOLVED: &str = "questions_resolved";
 )]
 pub enum RunFrame {
     /// 这一轮开始了：问的是什么，以及随它一起送出去的图片与技能。
-    RunStarted {
+    PromptAdmitted {
+        /// 本机签发的 durable admission identity。
+        admission_id: String,
         /// 人说的那句话，按记录时的原文。
         prompt: String,
         /// 随这句话送出去的图片，按用户挑选的顺序，本机资产协议地址。
@@ -130,7 +132,7 @@ impl RunFrame {
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
-            Self::RunStarted { .. } => RUN_STARTED,
+            Self::PromptAdmitted { .. } => PROMPT_ADMITTED,
             Self::KapEvent { .. } => KAP_EVENT,
             Self::PermissionRequested { .. } => PERMISSION_REQUESTED,
             Self::PermissionResolved { .. } => PERMISSION_RESOLVED,

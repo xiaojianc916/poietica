@@ -34,28 +34,28 @@ import { pendingPermission, pendingQuestion } from './timeline-queries'
  * 它唯一的作用是让一整批全是重复帧的输入不必开草稿 —— 引用原样交回，下游的记忆
  * 化不会被白白打掉。真正的去重只有 apply 里那一处，就在下面。
  *
- * run_started 不预判：它开的那一段窗口马上要重来（beginRun），拿上一段的窗口去
+ * prompt_admitted 不预判：它开的那一段窗口马上要重来（beginRun），拿上一段的窗口去
  * 判它，判出来的重复是假的。
  *
  * 它住在这里而不住在调用方，是因为它逼近的那条判据在这里 —— 一份权威，一份贴着
  * 权威写的近似，中间没有可以各自漂移的余地。
  */
 export function surelyIgnored(event: RunEvent, lastSeq: number): boolean {
-  return event.kind !== 'run_started' && event.seq <= lastSeq
+  return event.kind !== 'prompt_admitted' && event.seq <= lastSeq
 }
 
 export function apply(draft: Draft, event: RunEvent): void {
   /*
    * 段的边界不在这里判。
    *
-   * 一帧 run_started 可能是新的一轮，也可能是同一份日志被重放了一遍，而这两者的
+   * 一帧 prompt_admitted 可能是新的一轮，也可能是同一份日志被重放了一遍，而这两者的
    * seq、at、prompt 全都一样：apply 手上没有任何东西能把它们分开。所以由知道自己
    * 在干什么的那一层来开段 —— 人先说话时是 appendUserMessage，没有经过输入框的那
    * 些轮次是 beginRun，而 replayRunEvents 一轮到底、一段都不开：同一份日志放两遍
    * 必须得到同一个状态，这是回放能被信任的前提。
    *
    * 去重只有下面这一处。正因为一段都不开的那条路径上没有第二张网，这里不能跟着
-   * surelyIgnored 一起给 run_started 放行 —— 放行之后紧跟着的那句赋值会把窗口拨
+   * surelyIgnored 一起给 prompt_admitted 放行 —— 放行之后紧跟着的那句赋值会把窗口拨
    * 回到它的 seq，后面每一帧都会重新生效一遍。
    */
   if (event.seq <= draft.lastSeq) {
@@ -67,7 +67,7 @@ export function apply(draft: Draft, event: RunEvent): void {
   markFrame(draft, event.at)
 
   switch (event.kind) {
-    case 'run_started': {
+    case 'prompt_admitted': {
       draft.status = 'submitted'
       /* 起点是这一帧的时刻，不是本机此刻：回放要复现同一个耗时。 */
       markTurnStart(draft, event.at)
@@ -241,8 +241,8 @@ function lastLink(draft: Draft): number {
 /**
  * 日志里录下的那一问。
  *
- * 一问由这一帧带全：文字与图片地址都在 run_started 上（见 frame.rs 的
- * RunStarted）。人经输入框提交的那些轮次先落一条乐观条目，图在这里补上去；没
+ * 一问由这一帧带全：文字与图片地址都在 prompt_admitted 上（见 frame.rs 的
+ * PromptAdmitted）。人经输入框提交的那些轮次先落一条乐观条目，图在这里补上去；没
  * 经过输入框的那些轮次（自动化、重连续接）整条都由这里落。两条路都只从这一帧
  * 取图，所以「哪张图属于哪一句话」在这个程序里只有一个答案。
  *

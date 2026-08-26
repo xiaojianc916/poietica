@@ -83,7 +83,7 @@ export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
  * 列表的 key、实测高度与下游三处记忆化因此都不失效。段号不连续无害：全仓对
  * turn 只做比较，不做算术。
  *
- * 下界可证：apply 每帧至多开一段（run_started 走 beginRun，openSegment 把
+ * 下界可证：apply 每帧至多开一段（prompt_admitted 走 beginRun，openSegment 把
  * promptLanded 置假，随后的 beginQuestion 开不出第二段），所以帧数就是段数
  * 的上界。
  *
@@ -124,7 +124,7 @@ function floorTurn(state: TimelineState): number {
 /** 把一段日志放进一份草稿。两趟共用，所以两趟看见的段边界一定相同。 */
 function fill(draft: Draft, events: readonly RunEvent[]): Draft {
   for (const event of events) {
-    if (event.kind === 'run_started') {
+    if (event.kind === 'prompt_admitted') {
       beginRun(draft)
     }
 
@@ -168,11 +168,11 @@ export function appendUserMessage(
    * 这一句一共带了几张图。
    *
    * 只要个数，不要地址：地址要等原生侧把字节落盘之后才发得出，而它随这一轮的
-   * run_started 帧回来（见 projection.ts 的 withPrompt）。所以这一刻能知道的
+   * prompt_admitted 帧回来（见 projection.ts 的 withPrompt）。所以这一刻能知道的
    * 只有「带了几张」，而一句纯图片的话正是靠它才站得住。
    */
   carrying = 0,
-  /** 这一句挂上的技能名。真相随这一轮的 run_started 帧回来，这里先记下人选了什么。 */
+  /** 这一句挂上的技能名。真相随这一轮的 prompt_admitted 帧回来，这里先记下人选了什么。 */
   attached: readonly string[] = [],
 ): TimelineState {
   const said = text.trim()
@@ -208,8 +208,8 @@ export function appendUserMessage(
   }
 
   /*
-   * 这句话开的段就是它自己那一轮：随后的 run_started 看见这一段还没收过帧，不会
-   * 再开一段。此前它落在上一段，而回放那边同一句话由 run_started 的 prompt 投影
+   * 这句话开的段就是它自己那一轮：随后的 prompt_admitted 看见这一段还没收过帧，不会
+   * 再开一段。此前它落在上一段，而回放那边同一句话由 prompt_admitted 的 prompt 投影
    * 出来、落在它自己那一轮里 —— 同一条对话读两遍给出两种归属，与这个文件开篇那条
    * 「回放逐字复现实时」相抵触。位置补进 id，同一段内问两次也不会撞。
    *
@@ -344,12 +344,12 @@ export function applyRunEvents(state: TimelineState, events: readonly RunEvent[]
 
     draft ??= draftOf(state)
 
-    /* 实时流不会把旧帧再送一遍，所以这里的 run_started 一定是新的一轮。号按
+    /* 实时流不会把旧帧再送一遍，所以这里的 prompt_admitted 一定是新的一轮。号按
        会话编（recorder.rs 的 SeqLine），重连之后是另一条会话、从一起编，窗口
        必须跟着换，否则整轮会被上一轮的 seq 判成重复——没有经过输入框的那些轮次
        （重连续接、重试）就是这么消失的。人先说话的那些轮次里段已经开过了，
        beginRun 认得出来，不会再开一段。 */
-    if (event.kind === 'run_started') {
+    if (event.kind === 'prompt_admitted') {
       beginRun(draft)
     }
 

@@ -6,7 +6,7 @@ use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::remove_projectless_workspace;
 use poietica_agent_persistence_native::{FrameCursor, FramePage, TitleSource};
-use poietica_agent_runtime_native::RUN_STARTED;
+use poietica_agent_runtime_native::PROMPT_ADMITTED;
 use tauri::{AppHandle, State, async_runtime};
 
 use super::addressing::{Held, read_point, session_for};
@@ -46,7 +46,7 @@ pub async fn agent_threads(index: State<'_, LocalIndex>) -> AgentCommandResult<V
 /// 时才重开一条。
 ///
 /// 经过来自本机日志（run_events），不来自 agent 的装载重放：那批帧里没有
-/// run_started，段边界会整段塌掉，而回填只发生一次 —— 塌掉的形状会永久留在
+/// prompt_admitted，段边界会整段塌掉，而回填只发生一次 —— 塌掉的形状会永久留在
 /// 日志里。agent 装载回来的是模型的上下文，让它自己续得上，不参与投影。
 ///
 /// 三条路都在同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"。
@@ -505,7 +505,14 @@ pub async fn agent_fork_thread(
 
     let thread = on_index(&index, move |store| {
         let id = store
-            .fork_thread(source, &title, &attached, &owner, drop_turns, RUN_STARTED)
+            .fork_thread(
+                source,
+                &title,
+                &attached,
+                &owner,
+                drop_turns,
+                PROMPT_ADMITTED,
+            )
             .map_err(persistence)?;
 
         store

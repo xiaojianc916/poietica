@@ -38,7 +38,7 @@ function fakePort(
 }
 
 function started(seq: number, sessionId: string): RunEvent {
-  return { kind: 'run_started', seq, at: seq, sessionId, prompt: '在吗' }
+  return { kind: 'prompt_admitted', admissionId: 'adm', seq, at: seq, sessionId, prompt: '在吗' }
 }
 
 /* 一段流式文本。 */
@@ -65,27 +65,35 @@ function painted(): { readonly store: TranscriptStore; readonly paint: () => voi
 }
 
 describe('transcript store', () => {
-  /* 这个用例本身就是这次重构的目的：此前拿不到干净实例，写不出它。 */
+  /* 身份由调用方铸好；两个实例对同一个 id 各持各的账，互不串线。 */
   it('keeps two stores apart', () => {
-    const one = new TranscriptStore()
-    const other = new TranscriptStore()
+    const one = new TranscriptStore({ paint: () => {} })
+    const other = new TranscriptStore({ paint: () => {} })
 
-    expect(one.newDraft()).toBe(other.newDraft())
+    one.send({
+      port: undefined,
+      threadId: 'thread_a',
+      text: '在吗',
+      assets: [],
+      configuration: [],
+      skills: [],
+    })
+
+    expect(one.read('thread_a').timeline.status).toBe('failed')
+    expect(other.read('thread_a').timeline.status).not.toBe('failed')
   })
 
   it('shows what was said even when there is nowhere to send it', () => {
     const { store, paint } = painted()
-    const key = store.newDraft()
     let told = 0
 
-    store.subscribe(key, () => {
+    store.subscribe('thread_a', () => {
       told += 1
     })
 
     store.send({
       port: undefined,
-      key,
-      endpoint: null,
+      threadId: 'thread_a',
       text: '在吗',
       assets: [],
       configuration: [],
@@ -93,7 +101,7 @@ describe('transcript store', () => {
     })
 
     /* 状态是同步的：说出去和记下事故都已经在里面了。 */
-    const { timeline } = store.read(key)
+    const { timeline } = store.read('thread_a')
 
     expect(timeline.active.items.map((item) => item.type)).toEqual(['user_message', 'error'])
     expect(timeline.status).toBe('failed')
@@ -177,38 +185,36 @@ describe('transcript store', () => {
     expect(timeline.active.items.map((item) => item.type)).toEqual(['user_message', 'agent_text'])
   })
 
-  it('cancels before a draft can start', async () => {
+  it('cancels before the thread is prepared', async () => {
     const { store, paint } = painted()
-    let identify: ((threadId: string) => void) | undefined
+    let release: ((ready: boolean) => void) | undefined
     let prompts = 0
     const { port } = fakePort(undefined, () => {
       prompts += 1
 
       return Promise.resolve({ sessionId: 'sess_a' })
     })
-    const key = store.newDraft()
 
     store.send({
       port,
-      key,
-      endpoint: null,
-      identify: () =>
-        new Promise<string>((resolve) => {
-          identify = resolve
-        }),
+      threadId: 'thread_a',
       text: '在吗',
       assets: [],
       configuration: [],
       skills: [],
+      prepare: () =>
+        new Promise<boolean>((resolve) => {
+          release = resolve
+        }),
     })
-    store.cancel(key)
-    identify?.('thread_a')
+    store.cancel('thread_a')
+    release?.(true)
     await Promise.resolve()
     await Promise.resolve()
     paint()
 
     expect(prompts).toBe(0)
-    expect(store.read(key).timeline.status).toBe('cancelled')
+    expect(store.read('thread_a').timeline.status).toBe('cancelled')
   })
 
   it('records a cancellation rejection instead of swallowing it', async () => {

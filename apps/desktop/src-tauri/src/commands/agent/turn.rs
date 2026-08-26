@@ -7,7 +7,6 @@ use crate::error::Error;
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
 use poietica_agent_runtime_native::{ConfigSelection, PromptSkill, apply_configurations};
 use tauri::{AppHandle, State, async_runtime};
-use uuid::Uuid;
 
 use super::addressing::session_for;
 use super::attachment::{Kept, keep_bytes};

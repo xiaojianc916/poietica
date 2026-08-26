@@ -6,7 +6,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, sync_channel};
 use std::time::{Duration, Instant};
 
 use poietica_agent_persistence_native::RecordedFrame;
-use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
+use poietica_agent_runtime_native::{FrameSink, PROMPT_ADMITTED, RecordedEvent};
 use serde_json::value::{RawValue, to_raw_value};
 use tauri::{AppHandle, Emitter, Manager, Runtime, async_runtime};
 use uuid::Uuid;
@@ -24,6 +24,7 @@ const PIPELINE_STOPPED: &str = "the frame journal stopped";
 struct PendingFrame {
     thread: Uuid,
     event: RecordedEvent,
+    committed: Option<SyncSender<bool>>,
 }
 
 enum JournalCommand {
@@ -35,6 +36,7 @@ struct FrameBatch {
     thread: Uuid,
     session_id: String,
     frames: Vec<RecordedFrame>,
+    committed: Vec<SyncSender<bool>>,
 }
 
 #[derive(Clone)]
@@ -69,12 +71,21 @@ impl FrameJournal {
         let sender = self.sender.clone();
 
         Box::new(move |event| {
+            let durable = event.frame.kind() == PROMPT_ADMITTED;
+            let (committed, waiting) = sync_channel(0);
+            let receipt = durable.then_some(committed);
             if sender
-                .send(JournalCommand::Frame(PendingFrame { thread, event }))
+                .send(JournalCommand::Frame(PendingFrame {
+                    thread,
+                    event,
+                    committed: receipt,
+                }))
                 .is_err()
             {
                 log::error!("{PIPELINE_STOPPED} before accepting a frame");
+                return false;
             }
+            !durable || waiting.recv().unwrap_or(false)
         })
     }
 
@@ -150,6 +161,7 @@ fn batch_index(batches: &mut Vec<FrameBatch>, thread: Uuid, session_id: &str) ->
         thread,
         session_id: session_id.to_owned(),
         frames: Vec::new(),
+        committed: Vec::new(),
     });
     batches.len().saturating_sub(1)
 }
@@ -157,7 +169,12 @@ fn batch_index(batches: &mut Vec<FrameBatch>, thread: Uuid, session_id: &str) ->
 fn flush_frames<R: Runtime>(app: &AppHandle<R>, pending: Vec<PendingFrame>) {
     let mut batches = Vec::new();
 
-    for PendingFrame { thread, event } in pending {
+    for PendingFrame {
+        thread,
+        event,
+        committed,
+    } in pending
+    {
         let frame = match to_raw_value(&event) {
             Ok(frame) => frame,
             Err(error) => {
@@ -166,7 +183,13 @@ fn flush_frames<R: Runtime>(app: &AppHandle<R>, pending: Vec<PendingFrame>) {
             }
         };
         let index = batch_index(&mut batches, thread, &event.session_id);
-        batches[index].frames.push(RecordedFrame {
+        let Some(batch) = batches.get_mut(index) else {
+            continue;
+        };
+        if let Some(receipt) = committed {
+            batch.committed.push(receipt);
+        }
+        batch.frames.push(RecordedFrame {
             session_id: event.session_id,
             seq: event.seq,
             at: event.at,
@@ -198,10 +221,17 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) {
 
         match result {
             Ok(refused) => break refused,
-            Err(error) => {
-                log::error!("persist agent event batch failed; retrying: {error}");
+            Err(error) if delay <= Duration::from_millis(400) => {
+                log::warn!("persist agent event batch failed; retrying: {error}");
                 std::thread::sleep(delay);
-                delay = delay.saturating_mul(2).min(Duration::from_secs(1));
+                delay = delay.saturating_mul(2);
+            }
+            Err(error) => {
+                log::error!("persist agent event batch failed permanently: {error}");
+                for receipt in batch.committed {
+                    let _sent = receipt.send(false);
+                }
+                return;
             }
         }
     };
@@ -211,6 +241,9 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) {
     }
 
     let shown: Vec<&RawValue> = logged.iter().map(|frame| frame.frame.as_ref()).collect();
+    for receipt in batch.committed {
+        let _sent = receipt.send(true);
+    }
     if let Err(error) = app.emit(AGENT_EVENT, &shown) {
         log::warn!("emit agent event failed after persistence: {error}");
     }

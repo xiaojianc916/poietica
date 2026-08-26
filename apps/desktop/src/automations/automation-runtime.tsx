@@ -3,6 +3,7 @@ import { useSessionControlsActions, useTranscripts } from '@poietica/agent-ui'
 import { createAutomationStore, sessionConfigOf } from '@poietica/automations'
 import type { Automation } from '@poietica/ipc'
 import { useEffect } from 'react'
+import { v7 as uuidv7 } from 'uuid'
 
 import { useThreadsActions } from '../assistant/threads-context'
 
@@ -40,9 +41,11 @@ export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
     const dispatch = async (
       automation: Automation,
     ): Promise<{ readonly threadId: string | null; readonly outcome: 'succeeded' | 'failed' }> => {
-      const threadId = await threads.create()
+      /* 对话的身份由这里铸好再交给平台；开不出来才算失败。 */
+      const threadId = uuidv7()
+      const opened = await threads.create(threadId)
 
-      if (threadId === null) {
+      if (opened === null) {
         return { threadId: null, outcome: 'failed' }
       }
 
@@ -82,14 +85,13 @@ export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
       transcripts.send({
         assets: [],
         configuration: [],
-        endpoint: threadId,
-        key: threadId,
-        onUserMessage: (said) => {
+        onUserMessage: (_threadId, said) => {
           threads.noteUserMessage(said, automation.title)
         },
         port: session,
         skills: [],
         text: automation.prompt,
+        threadId,
       })
 
       const terminal = await transcripts.waitForTerminal(threadId)

@@ -25,7 +25,7 @@
 //! protocol/ 两个目录），快照钉在 contracts/kap。信封约定
 //! { code, msg, data, request_id }：业务成败看 code，不看 HTTP 状态。
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -682,6 +682,118 @@ impl Drop for ReconcileOwner {
     }
 }
 
+struct PromptJob {
+    text: String,
+    attachments: Vec<PromptAttachment>,
+    skills: Vec<PromptSkill>,
+    reply: oneshot::Sender<Result<String>>,
+}
+
+enum PromptOwnerMessage {
+    Submit(PromptJob),
+    TurnEnded,
+}
+
+struct PromptOwner {
+    messages: mpsc::UnboundedSender<PromptOwnerMessage>,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl PromptOwner {
+    fn spawn(
+        session_id: String,
+        http: reqwest::Client,
+        base_url: String,
+        book: SessionBook,
+    ) -> Self {
+        let (messages, mut incoming) = mpsc::unbounded();
+        let task = tokio::spawn(async move {
+            let mut pending = VecDeque::<PromptJob>::new();
+            let mut active = false;
+
+            while let Some(message) = incoming.next().await {
+                match message {
+                    PromptOwnerMessage::Submit(job) => pending.push_back(job),
+                    PromptOwnerMessage::TurnEnded => active = false,
+                }
+
+                while !active {
+                    let Some(job) = pending.pop_front() else {
+                        break;
+                    };
+                    let result = submit_prompt(
+                        &http,
+                        &base_url,
+                        &session_id,
+                        &job.text,
+                        &job.attachments,
+                        &job.skills,
+                    )
+                    .await;
+                    active = result.is_ok();
+                    if let Err(error) = &result
+                        && let Err(closing) = book.fail_turn(&session_id, &error.to_string())
+                    {
+                        log::error!("could not close a rejected admission: {closing}");
+                    }
+                    let _sent = job.reply.send(result);
+                }
+            }
+        });
+        Self { messages, task }
+    }
+
+    fn send(&self, message: PromptOwnerMessage) {
+        if self.messages.unbounded_send(message).is_err() {
+            log::error!("prompt owner stopped unexpectedly");
+        }
+    }
+}
+
+impl Drop for PromptOwner {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
+}
+
+struct PromptCoordinator {
+    owners: HashMap<String, PromptOwner>,
+    http: reqwest::Client,
+    base_url: String,
+    book: SessionBook,
+}
+
+impl PromptCoordinator {
+    fn new(http: reqwest::Client, base_url: String, book: SessionBook) -> Self {
+        Self {
+            owners: HashMap::new(),
+            http,
+            base_url,
+            book,
+        }
+    }
+
+    fn submit(&mut self, session_id: &str, job: PromptJob) {
+        self.owners
+            .entry(session_id.to_owned())
+            .or_insert_with(|| {
+                PromptOwner::spawn(
+                    session_id.to_owned(),
+                    self.http.clone(),
+                    self.base_url.clone(),
+                    self.book.clone(),
+                )
+            })
+            .send(PromptOwnerMessage::Submit(job));
+    }
+
+    fn turn_ended(&self, session_id: &str) {
+        if let Some(owner) = self.owners.get(session_id) {
+            owner.send(PromptOwnerMessage::TurnEnded);
+        }
+    }
+}
+
 // ── 主入口 ─────────────────────────────────────────────────────────────────
 
 /// Spawns kimi web --no-open, waits for it to register, connects via WS,
@@ -902,6 +1014,7 @@ pub fn connect(
 
         // 8. 主循环
         let mut owners: HashMap<String, ReconcileOwner> = HashMap::new();
+        let mut prompts = PromptCoordinator::new(http.clone(), base_url.clone(), book_clone.clone());
 
         /* 每条会话最后读到的位置。重连按它续订：帧不重发，也不缺号。 */
         let mut cursors: HashMap<String, Cursor> = HashMap::new();
@@ -920,6 +1033,7 @@ pub fn connect(
                 &http,
                 &base_url,
                 &mut cursors,
+                &prompts,
             );
         }
 
@@ -956,6 +1070,7 @@ pub fn connect(
                         &http,
                         &base_url,
                         &mut cursors,
+                        &prompts,
                     );
                 }
             }
@@ -1095,52 +1210,33 @@ pub fn connect(
                         }
 
                         Some(Command::Prompt { session_id: sid, text, attachments, skills, frames, reply }) => {
-                            // 本次连接没开过这个号，它就不是我们的话。
                             let held = book_clone.slot(&sid).ok().flatten();
-
                             if let Some(slot) = held {
-                                let shown: Vec<String> =
-                                    attachments.iter().map(|item| item.url().to_owned()).collect();
-
-                                if slot
-                                    .attach(|| Recorder::new(sid.clone(), slot.seq(), frames))
-                                    .is_err()
-                                {
-                                    // 锁坏了：这条会话的记录器不可用，这一轮无处落账。
-                                    let _ = reply.send(Err(KapError::Poisoned));
-                                } else {
-                                    let attached: Vec<String> =
-                                        skills.iter().map(|skill| skill.name.clone()).collect();
-
-                                    slot.record(|r| {
-                                        r.record_run_started(&text, shown, attached);
-                                    });
-
-                                    let http2 = http.clone();
-                                    let base2 = base_url.clone();
-                                    let book2 = book_clone.clone();
-                                    let sid2 = sid.clone();
-                                    tokio::spawn(async move {
-                                        let result = submit_prompt(
-                                            &http2, &base2, &sid2, &text, &attachments, &skills,
-                                        )
-                                        .await;
-
-                                        // 提问根本没上路：这一轮就此判死，槽收掉，下一句还能来。
-                                        if let Err(error) = &result
-                                            && let Err(closing) =
-                                                book2.fail_turn(&sid2, &error.to_string())
-                                        {
-                                            log::error!(
-                                                "could not close a turn whose prompt never left: {closing}"
-                                            );
-                                        }
-
-                                        let _ = reply.send(result);
-                                    });
+                                let admission_id = Uuid::new_v4().to_string();
+                                let shown = attachments.iter().map(|item| item.url().to_owned()).collect();
+                                let attached = skills.iter().map(|skill| skill.name.clone()).collect();
+                                if slot.attach(|| Recorder::new(sid.clone(), slot.seq(), frames)).is_err() {
+                                    let _sent = reply.send(Err(KapError::Poisoned));
+                                    continue;
                                 }
+                                let mut durable = false;
+                                let recorded = slot.record(|recorder| {
+                                    durable = recorder.record_prompt_admitted(
+                                        &admission_id,
+                                        &text,
+                                        shown,
+                                        attached,
+                                    );
+                                });
+                                if !recorded || !durable {
+                                    let _sent = reply.send(Err(KapError::Transport {
+                                        message: "prompt admission was not durably recorded".to_owned(),
+                                    }));
+                                    continue;
+                                }
+                                prompts.submit(&sid, PromptJob { text, attachments, skills, reply });
                             } else {
-                                let _ = reply.send(Err(KapError::Refused(Refusal::UnknownSession)));
+                                let _sent = reply.send(Err(KapError::Refused(Refusal::UnknownSession)));
                             }
                         }
 
@@ -1226,6 +1322,7 @@ pub fn connect(
                                         &http,
                                         &base_url,
                                         &mut cursors,
+                                        &prompts,
                                     );
                                 }
                             }
@@ -1270,6 +1367,7 @@ fn handle_ws_message(
     http: &reqwest::Client,
     base_url: &str,
     cursors: &mut HashMap<String, Cursor>,
+    prompts: &PromptCoordinator,
 ) {
     // 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …），
     // 不是字符串 "session_event"：wsEventEnvelopeSchema 里 type 是 z.string()，
@@ -1418,8 +1516,9 @@ fn handle_ws_message(
                     ),
                 };
 
-                if let Err(error) = ended {
-                    log::error!("could not close the turn kap just ended: {error}");
+                match ended {
+                    Ok(_) => prompts.turn_ended(session_id),
+                    Err(error) => log::error!("could not close the turn kap just ended: {error}"),
                 }
 
                 /* 一轮落定，目标的轮数、用量与时长都变了：整表推一次。 */

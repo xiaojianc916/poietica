@@ -50,7 +50,7 @@ fn approval() -> Value {
 fn every_frame_carries_the_fields_the_interface_validates() {
     let (mut recorder, delivered) = recording();
 
-    recorder.record_run_started("read config.toml", Vec::new(), Vec::new());
+    recorder.record_prompt_admitted("adm", "read config.toml", Vec::new(), Vec::new());
     notify(&mut recorder, tool_call_started());
     recorder.record_run_finished("completed");
 
@@ -75,7 +75,7 @@ fn every_frame_carries_the_fields_the_interface_validates() {
     }
 
     let started = frames.first().expect("the first frame");
-    assert_eq!(text_of(started, "kind"), "run_started");
+    assert_eq!(text_of(started, "kind"), "prompt_admitted");
     assert_eq!(text_of(started, "prompt"), "read config.toml");
 
     let event = frames.get(1).expect("the event frame");

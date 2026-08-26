@@ -167,7 +167,7 @@ function lossOf(history: ThreadHistory): string | null {
 /**
  * 这一页从哪一帧起算得上完整的一轮。
  *
- * 页按帧数切（原生侧的 FRAME_PAGE），轮次的边界在帧里（frame.rs 的 run_started），
+ * 页按帧数切（原生侧的 FRAME_PAGE），轮次的边界在帧里（frame.rs 的 prompt_admitted），
  * 所以一页的头常常是半截轮次。-1 表示整页都是半截，那一批要等更早那一页的起点；
  * 日志的开头没有更早，它的第一帧就是第一轮的起点。
  */
@@ -300,7 +300,7 @@ export class TranscriptStore implements TranscriptSink {
   /**
    * 读回来了、还对不齐一轮起点的那些帧，按对话攒着。
    *
-   * 页按帧数切，而轮次的边界在帧里（run_started）。一页的开头因此常常是半截
+   * 页按帧数切，而轮次的边界在帧里（prompt_admitted）。一页的开头因此常常是半截
    * 轮次：它的提问在更早那一页。攒着不投影，等更早那一页的起点到达再一起折
    * 进去 —— 与 #pending 同性质：未投影的输入，不是第二份真相。
    */
@@ -560,7 +560,7 @@ export class TranscriptStore implements TranscriptSink {
    * 再往前读一页。
    *
    * 一次调用只推进到最近一个轮次起点：页按帧数切而轮次边界在帧里，所以一页可能整页
-   * 都没有 run_started，那半截帧留在 #unaligned，继续读下一页。读到一半这条对话被删掉
+   * 都没有 prompt_admitted，那半截帧留在 #unaligned，继续读下一页。读到一半这条对话被删掉
    * 时当场收手 —— 折进去等于把它请回屏幕上。
    *
    * 重入由这里挡：视口可以每帧问，问几次都只有一页在飞。

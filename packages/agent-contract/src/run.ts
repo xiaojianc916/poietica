@@ -26,14 +26,15 @@ export type QuestionOutcome = 'answered' | 'dismissed' | 'cancelled' | 'undelive
  */
 export type RunEvent =
   | {
-      readonly kind: 'run_started'
+      readonly kind: 'prompt_admitted'
       readonly seq: number
       readonly at: number
       readonly sessionId: KapSessionId
+      readonly admissionId: string
       /**
        * 人说的那句话，按记录时的原文。
        *
-       * 生产者必发（frame.rs 的 RunStarted 声明为 String）。可选说的是日志：
+       * 生产者必发（frame.rs 的 PromptAdmitted 声明为 String）。可选说的是日志：
        * 这一格加进来之前录下的帧没有它，而历史改不了。
        */
       readonly prompt?: string | undefined

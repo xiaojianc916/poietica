@@ -106,7 +106,7 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
     }
 
     case 'prompt.submitted': {
-      /* 那一问由 run_started 带全（projection.ts 的 withPrompt 是唯一落账处）。 */
+      /* 那一问由 prompt_admitted 带全（projection.ts 的 withPrompt 是唯一落账处）。 */
       return
     }
 
@@ -177,7 +177,7 @@ function spawnChannel(draft: Draft, event: KapFrame): void {
 
 /*
  * 轮次的忙闲由这两帧给，而且只给没有自己那一问的流 —— 也就是子代理那条。主转录的
- * 运行状态归 run_started / run_finished，原生帧只为主运行发出。
+ * 运行状态归 prompt_admitted / run_finished，原生帧只为主运行发出。
  */
 function applyTurnStarted(draft: Draft, event: KapFrame): void {
   if (draft.promptLanded) {

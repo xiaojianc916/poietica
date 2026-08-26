@@ -21,7 +21,8 @@ const NOTHING_FOLDED: ReadonlyMap<number, boolean> = new Map()
 
 function started(seq: number, prompt: string, images?: readonly string[]): RunEvent {
   return {
-    kind: 'run_started',
+    kind: 'prompt_admitted',
+    admissionId: 'adm',
     seq,
     at: seq,
     sessionId: 'sess',

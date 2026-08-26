@@ -4,7 +4,8 @@ import { allItems } from '../timeline-contract'
 import { replayRunEvents } from '../timeline-reducer'
 
 const started = (seq: number): RunEvent => ({
-  kind: 'run_started',
+  kind: 'prompt_admitted',
+  admissionId: 'adm',
   seq,
   at: seq,
   sessionId: 'sess',

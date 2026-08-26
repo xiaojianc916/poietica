@@ -43,7 +43,7 @@ CREATE TABLE attachments (
 ) STRICT;
 
 -- 这条对话引用了哪些字节，就这一个问题。图片的落点由帧自己带
--- （run_events 里 run_started 的 images），所以这里不记第几轮第几张：
+-- （run_events 里 prompt_admitted 的 images），所以这里不记第几轮第几张：
 -- 两侧各数一遍再对齐，那是同一件事有两个来源。
 CREATE TABLE thread_attachments (
     thread_id TEXT NOT NULL REFERENCES threads (id),

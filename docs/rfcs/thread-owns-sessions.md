@@ -85,7 +85,7 @@ CREATE TABLE session_events (
 ```
 三处与 `0001` 的 `run_events` 不同,都是往好的方向：
 主键从 `(run_id, seq)` 换成 `(session_id, seq)`。 不是设计选择,是既成事实——`recorder.rs` 早就改过来了：「一条会话上的序号线。位置按会话单调,不按轮次。」
-`runs` 表不回来。 轮次由 `RunStarted` / `RunFinished` 两帧自己界定。再建一张表就又有了两个真相。
+`runs` 表不回来。 轮次由 `PromptAdmitted` / `RunFinished` 两帧自己界定。再建一张表就又有了两个真相。
 主键仍然是 ACP 流的去重保证。 沿用 0001 那句：重复到达的 session update 由数据库拒绝,不由调用方拒绝。
 `RecordedEvent` 逐字段就是这一行,`serde` 已经会序列化它。
 4.2 分段

@@ -9,7 +9,8 @@ import type { RunEvent } from '@poietica/agent-contract'
 export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
   /* seq 从 1 起编：写 0 会被 apply 的去重当成重复帧整帧丢掉。 */
   {
-    kind: 'run_started',
+    kind: 'prompt_admitted',
+    admissionId: 'adm',
     seq: 1,
     at: 1_000,
     sessionId: 'sess_demo',

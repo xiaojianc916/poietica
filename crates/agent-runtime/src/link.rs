@@ -8,7 +8,6 @@ use std::time::Duration;
 
 use serde::Serialize;
 
-use crate::error::KapError;
 use crate::recorder::now_millis;
 
 /// 断了之后重连几次。第一次立刻拨，之后每失败一次退避一档。
@@ -54,19 +53,6 @@ pub(crate) fn backoff(attempt: u32) -> Duration {
     DELAY.saturating_mul(1u32 << steps).min(DELAY_CAP)
 }
 
-/// 这个错值得再试一次吗。
-///
-/// 只有传输层：拨号、握手、超时。Envelope 是对端的业务判决（码在 kap 的
-/// error-codes.ts 里），同一份请求重发只会换回同一个判决；Validation 与
-/// Refused 是本机自己拒的。
-#[must_use]
-pub(crate) fn retryable(error: &KapError) -> bool {
-    matches!(
-        error,
-        KapError::Transport { .. } | KapError::Handshake { .. } | KapError::Timeout { .. }
-    )
-}
-
 /// 「正在接回来」这一句，全仓只在这里成形。
 #[must_use]
 pub(crate) fn retrying(attempt: u32, wait: Duration, reason: &str) -> LinkState {
@@ -100,7 +86,6 @@ pub(crate) fn severed(attempts: u32, reason: &str) -> LinkState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::Refusal;
 
     #[test]
     fn backoff_doubles_then_stops_at_the_cap() {
@@ -108,17 +93,5 @@ mod tests {
         assert_eq!(backoff(2), Duration::from_secs(1));
         assert_eq!(backoff(4), Duration::from_secs(4));
         assert_eq!(backoff(u32::MAX), DELAY_CAP);
-    }
-
-    #[test]
-    fn only_transport_failures_are_worth_another_try() {
-        assert!(retryable(&KapError::Transport {
-            message: String::new()
-        }));
-        assert!(!retryable(&KapError::Envelope {
-            code: 40101,
-            message: String::new()
-        }));
-        assert!(!retryable(&KapError::Refused(Refusal::Busy)));
     }
 }

@@ -32,7 +32,7 @@ fn an_attachment_survives_closing_the_store() {
     let thread = {
         let mut store = AgentStore::open(&path).expect("store should open");
         let thread = store
-            .create_thread("新建对话", None)
+            .create_thread(Uuid::now_v7(), "新建对话", None)
             .expect("thread should be created");
 
         store
@@ -59,7 +59,7 @@ fn the_same_image_twice_is_linked_once() {
 
     let mut store = AgentStore::open(&path).expect("store should open");
     let thread = store
-        .create_thread("新建对话", None)
+        .create_thread(Uuid::now_v7(), "新建对话", None)
         .expect("thread should be created");
 
     store
@@ -95,7 +95,7 @@ fn deleting_a_conversation_offers_its_bytes_to_the_sweep() {
 
     let mut store = AgentStore::open(&path).expect("store should open");
     let thread = store
-        .create_thread("新建对话", None)
+        .create_thread(Uuid::now_v7(), "新建对话", None)
         .expect("thread should be created");
 
     store

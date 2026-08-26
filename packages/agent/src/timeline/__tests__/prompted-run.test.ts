@@ -13,7 +13,8 @@ import { applyRunEvent, createTimelineState } from '../timeline-reducer'
 describe('a run that carries its prompt', () => {
   it('opens the timeline with what the user said', () => {
     const started: RunEvent = {
-      kind: 'run_started',
+      kind: 'prompt_admitted',
+      admissionId: 'adm',
       seq: 1,
       at: 1_000,
       sessionId: 'sess_alpha',
@@ -29,7 +30,8 @@ describe('a run that carries its prompt', () => {
 
   it('adds nothing when an older recording carries no prompt', () => {
     const started: RunEvent = {
-      kind: 'run_started',
+      kind: 'prompt_admitted',
+      admissionId: 'adm',
       seq: 1,
       at: 1_000,
       sessionId: 'sess_alpha',

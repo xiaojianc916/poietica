@@ -216,12 +216,13 @@ mod tests {
                 if let Ok(mut events) = delivered.lock() {
                     events.push(event);
                 }
+                true
             }),
         );
 
         assert!(slot.attach(|| recorder).is_ok());
         slot.record(|frames| {
-            frames.record_run_started("hi", Vec::new(), Vec::new());
+            frames.record_prompt_admitted("adm", "hi", Vec::new(), Vec::new());
         });
         assert!(matches!(book.fail_active("agent connection lost"), Ok(1)));
         assert!(seen.lock().is_ok_and(|events| {
@@ -242,11 +243,11 @@ mod tests {
         let Some(slot) = opened.ok() else {
             return;
         };
-        let recorder = Recorder::new(NAME.to_owned(), slot.seq(), Box::new(|_event| {}));
+        let recorder = Recorder::new(NAME.to_owned(), slot.seq(), Box::new(|_event| true));
 
         assert!(slot.attach(|| recorder).is_ok());
         slot.record(|frames| {
-            frames.record_run_started("hi", Vec::new(), Vec::new());
+            frames.record_prompt_admitted("adm", "hi", Vec::new(), Vec::new());
         });
         assert!(matches!(book.finish_turn(NAME, "cancelled"), Ok(true)));
         assert!(matches!(book.finish_turn(NAME, "cancelled"), Ok(false)));

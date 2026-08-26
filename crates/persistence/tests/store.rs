@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 use poietica_agent_persistence_native::AgentStore;
 use tempfile::TempDir;
+use uuid::Uuid;
 
 fn database_path(directory: &TempDir) -> PathBuf {
     directory.path().join("ai.sqlite3")
@@ -17,8 +18,12 @@ fn a_conversation_is_listed_once_someone_has_spoken_in_it() {
     let directory = TempDir::new().expect("temporary directory");
     let store = AgentStore::open(&database_path(&directory)).expect("open");
 
-    let quiet = store.create_thread("新建对话", None).expect("thread");
-    let spoken = store.create_thread("新建对话", None).expect("thread");
+    let quiet = store
+        .create_thread(Uuid::now_v7(), "新建对话", None)
+        .expect("thread");
+    let spoken = store
+        .create_thread(Uuid::now_v7(), "新建对话", None)
+        .expect("thread");
 
     store
         .record_prompt(spoken, "帮我看看这段代码")
@@ -48,8 +53,12 @@ fn speaking_again_moves_a_conversation_up_without_renaming_it() {
     let directory = TempDir::new().expect("temporary directory");
     let store = AgentStore::open(&database_path(&directory)).expect("open");
 
-    let earlier = store.create_thread("新建对话", None).expect("thread");
-    let later = store.create_thread("新建对话", None).expect("thread");
+    let earlier = store
+        .create_thread(Uuid::now_v7(), "新建对话", None)
+        .expect("thread");
+    let later = store
+        .create_thread(Uuid::now_v7(), "新建对话", None)
+        .expect("thread");
 
     store
         .record_prompt(earlier, "第一句")
@@ -91,7 +100,9 @@ fn a_session_is_stored_with_the_agent_that_opened_it() {
     let directory = TempDir::new().expect("temporary directory");
     let store = AgentStore::open(&database_path(&directory)).expect("open");
 
-    let thread = store.create_thread("thread", None).expect("thread");
+    let thread = store
+        .create_thread(Uuid::now_v7(), "thread", None)
+        .expect("thread");
 
     store
         .attach_session(thread, "session-a", "kimi")
@@ -112,7 +123,9 @@ fn a_thread_holding_no_session_has_no_owner() {
     let directory = TempDir::new().expect("temporary directory");
     let store = AgentStore::open(&database_path(&directory)).expect("open");
 
-    let thread = store.create_thread("thread", None).expect("thread");
+    let thread = store
+        .create_thread(Uuid::now_v7(), "thread", None)
+        .expect("thread");
     let read = store.thread(thread).expect("read").expect("the thread");
 
     assert_eq!(
@@ -132,7 +145,9 @@ fn a_session_without_an_owner_is_refused_by_the_database() {
     let path = database_path(&directory);
 
     let store = AgentStore::open(&path).expect("open");
-    let thread = store.create_thread("thread", None).expect("thread");
+    let thread = store
+        .create_thread(Uuid::now_v7(), "thread", None)
+        .expect("thread");
     drop(store);
 
     let raw = rusqlite::Connection::open(&path).expect("open the same file");
@@ -163,9 +178,11 @@ fn a_conversation_remembers_the_directory_it_was_opened_in() {
     let store = AgentStore::open(&database_path(&directory)).expect("open");
 
     let here = store
-        .create_thread("新建对话", Some(PROJECT))
+        .create_thread(Uuid::now_v7(), "新建对话", Some(PROJECT))
         .expect("thread");
-    let anywhere = store.create_thread("新建对话", None).expect("thread");
+    let anywhere = store
+        .create_thread(Uuid::now_v7(), "新建对话", None)
+        .expect("thread");
 
     store.record_prompt(here, "这个项目").expect("opening line");
     store

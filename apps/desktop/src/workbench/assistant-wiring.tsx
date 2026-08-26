@@ -88,6 +88,7 @@ export function createAssistantWiring({
     renderConversation: (threadId) => (
       <ComposerDraftsContext value={drafts}>
         <ConversationSurface
+          isNew={false}
           onForked={onConversationForked}
           onStarted={onConversationStarted}
           session={session}
