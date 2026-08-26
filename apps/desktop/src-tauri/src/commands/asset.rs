@@ -329,6 +329,11 @@ const TEXT_SAMPLE_BYTES: usize = 4 * 1024;
 /// 所以退到 valid_up_to() 再判一次。NUL 是二进制最稳的标志，Kimi 的
 /// classifyTextSample 也以它作硬判据。
 fn is_text(bytes: &[u8]) -> bool {
+    /* 空文件什么都不是：没有内容就没有种类，与「认不出来就是不投递」同一条。 */
+    if bytes.is_empty() {
+        return false;
+    }
+
     let sample = bytes.get(..TEXT_SAMPLE_BYTES).unwrap_or(bytes);
 
     if sample.contains(&0) {
@@ -544,8 +549,13 @@ mod tests {
         assert_eq!(sniff(&[0xFF, 0xD8, 0xFF, 0xE0]), Some("image/jpeg"));
         assert_eq!(sniff(b"RIFF\x00\x00\x00\x00WEBPVP8 "), Some("image/webp"));
 
-        /* 改名成 .png 的 SVG。扩展名骗得过，文件头骗不过。 */
-        assert_eq!(sniff(b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>"), None);
+        /* 改名成 .png 的 SVG。扩展名骗得过，文件头骗不过 —— 字节落成
+        text/plain，而不是扩展名声称的图片。 */
+        assert_eq!(
+            sniff(b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>"),
+            Some("text/plain")
+        );
+        assert_eq!(sniff(b"plain text"), Some("text/plain"));
         assert_eq!(sniff(b""), None);
     }
 

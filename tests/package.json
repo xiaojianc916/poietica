@@ -4,10 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "perf": "bun test perf",
     "test": "bun test unit",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@poietica/agent": "workspace:*",
+    "@poietica/agent-contract": "workspace:*",
     "@types/bun": "catalog:",
     "typescript": "catalog:"
   }

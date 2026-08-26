@@ -113,10 +113,10 @@ export function AgentActivityFeed({
    *
    * 是 state 而不是 ref：虚拟器在渲染期读它。
    */
-  const [scrollMargin, setScrollMargin] = useState(0)
+  const [scrollMargin, setScrollMargin] = useState<number | null>(null)
 
   /** 转录之后那一段空间，交给 paddingEnd，于是末端只有一个定义。数值实测，不抄令牌。 */
-  const [tailSize, setTailSize] = useState(0)
+  const [tailSize, setTailSize] = useState<number | null>(null)
 
   /** 视线落在哪一行。null 是「还没读到过」，不是第 0 行。 */
   const [readingRow, setReadingRow] = useState<number | null>(null)
@@ -138,7 +138,11 @@ export function AgentActivityFeed({
   /* 几何只在挂载那一次被收走，所以只取一次。 */
   const [restored] = useState(() => geometryOf(conversation))
 
-  const [overscan, setOverscan] = useState(OVERSCAN_COLD)
+  /*
+   * 两段几何各等一次 ResizeObserver。到齐之前不写位置、也不抬预留：写在半截几何上
+   * 就是开会话时那一串可见的跳动。
+   */
+  const settled = scrollMargin !== null && tailSize !== null
 
   /*
    * 人点开抽屉的那一帧，末端锚定让位给起始锚定：那时要钉的是被点的那一行。
@@ -156,9 +160,9 @@ export function AgentActivityFeed({
     getItemKey,
     /* 交出副本：这份会被虚拟器收走当自己的初值。空表与库默认等价。 */
     initialMeasurementsCache: restored === undefined ? [] : [...restored.rows],
-    scrollMargin,
-    paddingEnd: tailSize,
-    overscan,
+    scrollMargin: scrollMargin ?? 0,
+    paddingEnd: tailSize ?? 0,
+    overscan: settled ? OVERSCAN_SETTLED : OVERSCAN_COLD,
     /* 尾部锚定：前插不动眼前那一行，末端跟随只在人本来就在末端时发生。 */
     anchorTo: holding ? 'start' : 'end',
     followOnAppend: !holding,
@@ -200,11 +204,11 @@ export function AgentActivityFeed({
    * 钉末端还是钉某一行由意图那一层说，这里只负责在坐标变化时把同一份意图重写一次。
    * 行高变化的补偿归虚拟器（anchorTo/followOnAppend）；坐标没动就不写。
    */
-  const end = scrollMargin + total
+  const end = (scrollMargin ?? 0) + total
   const wroteAt = useRef(-1)
 
   useLayoutEffect(() => {
-    if (viewport === null || wroteAt.current === end) {
+    if (viewport === null || !settled || wroteAt.current === end) {
       return
     }
 
@@ -222,7 +226,7 @@ export function AgentActivityFeed({
 
     wroteAt.current = end
     virtualizer.scrollToEnd()
-  }, [end, pinned, revealing, viewport, virtualizer])
+  }, [end, pinned, revealing, settled, viewport, virtualizer])
 
   /* 那一次长高量到了，锚定当场归位：让位只覆盖人点出来的那一次测量。 */
   useLayoutEffect(() => {
@@ -261,28 +265,6 @@ export function AgentActivityFeed({
     },
     [conversation, virtualizer],
   )
-
-  /* 两帧之后几何稳了，把预留抬到能盖住一次快滚的量。 */
-  useLayoutEffect(() => {
-    const view = viewport?.ownerDocument.defaultView ?? null
-
-    if (view === null) {
-      return
-    }
-
-    let second = 0
-
-    const first = view.requestAnimationFrame(() => {
-      second = view.requestAnimationFrame(() => {
-        setOverscan(OVERSCAN_SETTLED)
-      })
-    })
-
-    return () => {
-      view.cancelAnimationFrame(first)
-      view.cancelAnimationFrame(second)
-    }
-  }, [viewport])
 
   /*
    * 一个滚动区，一处装卸：监听、意图、尺寸通知同寿。
@@ -462,7 +444,7 @@ export function AgentActivityFeed({
                 key={item.key}
                 ref={virtualizer.measureElement}
                 style={{
-                  transform: `translateY(${String(snapToDevicePixels(item.start - scrollMargin))}px)`,
+                  transform: `translateY(${String(snapToDevicePixels(item.start - (scrollMargin ?? 0)))}px)`,
                 }}
               >
                 {renderRow(item.index)}

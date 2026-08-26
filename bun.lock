@@ -14,7 +14,7 @@
     },
     "apps/desktop": {
       "name": "@poietica/desktop",
-      "version": "0.1.8",
+      "version": "0.2.0",
       "dependencies": {
         "@poietica/agent": "workspace:*",
         "@poietica/agent-catalog": "workspace:*",
@@ -303,6 +303,8 @@
       "name": "@poietica/tests",
       "version": "0.1.0",
       "devDependencies": {
+        "@poietica/agent": "workspace:*",
+        "@poietica/agent-contract": "workspace:*",
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },

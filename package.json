@@ -36,6 +36,7 @@
     "kap:spec:check": "bun tools/kap/spec-sync.mjs --check",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
+    "perf": "bun run --filter @poietica/tests perf",
     "prepare": "bun scripts/git-hooks/install.mjs",
     "release": "bun scripts/release/release.mjs",
     "test": "turbo run test",

@@ -93,7 +93,8 @@ const NO_REPLIES: ReadonlyMap<number, Reply> = new Map()
 
 const ROWS = new WeakMap<TimelineItem, FeedRow>()
 const SEGMENTS = new WeakMap<TurnPage, Segment>()
-const SPANS = new WeakMap<readonly TurnSpan[], ReadonlyMap<number, TurnSpan>>()
+const PREFIX = new WeakMap<readonly TurnPage[], Prefix>()
+const RAILS = new WeakMap<readonly TurnPage[], readonly ConversationTurn[]>()
 const TURN_OF = new WeakMap<FeedRow, ConversationTurn>()
 const FEEDS = new WeakMap<TimelineState, Held>()
 
@@ -145,8 +146,17 @@ interface Segment {
 /** 一份状态的投影。state 相同则段、轮、生命周期全都相同，只剩人选的开合要比。 */
 interface Held {
   readonly chosen: ReadonlyMap<number, boolean>
-  readonly turns: readonly ConversationTurn[]
   readonly result: Presentation
+}
+
+/** 已封口那一段的派生。sealed 只在换段时被替换，所以它跨帧按引用共享。 */
+interface Prefix {
+  readonly chosen: ReadonlyMap<number, boolean>
+  /** 末段的 span：唯一还可能被改写的那一条，命中时按引用复核。 */
+  readonly tailSpan: TurnSpan | undefined
+  readonly segments: readonly Segment[]
+  readonly offsets: readonly number[]
+  readonly count: number
 }
 
 function toRow(item: TimelineItem, isStreamingTail: boolean, isInFlight: boolean): FeedRow {
@@ -581,21 +591,27 @@ function segmentOf(
   return built
 }
 
+/** spans 按轮次单调递增（openSpan 只追加），所以定位是二分，不建索引。 */
 function spanOf(spans: readonly TurnSpan[], turn: number): TurnSpan | undefined {
-  let index = SPANS.get(spans)
+  let low = 0
+  let high = spans.length - 1
 
-  if (index === undefined) {
-    const built = new Map<number, TurnSpan>()
+  while (low <= high) {
+    const mid = (low + high) >> 1
+    const found = spans[mid]
 
-    for (const span of spans) {
-      built.set(span.turn, span)
+    if (found === undefined || found.turn === turn) {
+      return found
     }
 
-    index = built
-    SPANS.set(spans, built)
+    if (found.turn < turn) {
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
   }
 
-  return index.get(turn)
+  return undefined
 }
 
 function toTurn(row: FeedRow, rowIndex: number, reply: string | undefined): ConversationTurn {
@@ -716,6 +732,41 @@ function railOf(
 }
 
 /**
+ * 已封口那一段的派生，一次算好跨帧用。
+ *
+ * sealed 是同一个数组直到换段（timeline-draft 的 openSegment），封口段不再改写，
+ * 它们的 span 也不再改写 —— 只有末段那一条还可能被收口，所以命中时复核它。
+ */
+function prefixOf(state: TimelineState, chosen: ReadonlyMap<number, boolean>): Prefix {
+  const sealed = state.sealed
+  const last = sealed.at(-1)
+  const tailSpan = last === undefined ? undefined : spanOf(state.spans, last.turn)
+  const kept = PREFIX.get(sealed)
+
+  if (kept !== undefined && kept.chosen === chosen && kept.tailSpan === tailSpan) {
+    return kept
+  }
+
+  const segments: Segment[] = []
+  const offsets: number[] = []
+  let count = 0
+
+  for (const page of sealed) {
+    const segment = segmentOf(page, spanOf(state.spans, page.turn), false, chosen.get(page.turn))
+
+    segments.push(segment)
+    offsets.push(count)
+    count += segment.rows.length
+  }
+
+  const built: Prefix = { chosen, count, offsets, segments, tailSpan }
+
+  PREFIX.set(sealed, built)
+
+  return built
+}
+
+/**
  * 运行中无条件展开；终止后才读取用户选择。生命周期来自状态机，span 只装饰耗时。
  */
 export function selectPresentation(
@@ -729,17 +780,10 @@ export function selectPresentation(
     return held.result
   }
 
-  const segments: Segment[] = []
-  const offsets: number[] = []
-  let count = 0
-
-  for (const page of state.sealed) {
-    const segment = segmentOf(page, spanOf(state.spans, page.turn), false, chosen.get(page.turn))
-
-    segments.push(segment)
-    offsets.push(count)
-    count += segment.rows.length
-  }
+  const prefix = prefixOf(state, chosen)
+  const segments = [...prefix.segments]
+  const offsets = [...prefix.offsets]
+  let count = prefix.count
 
   const activeSpan = spanOf(state.spans, state.active.turn)
   const tail = segmentOf(state.active, activeSpan, running, chosen.get(state.active.turn))
@@ -799,7 +843,10 @@ export function selectPresentation(
     }
   }
 
-  const turns = railOf(segments, offsets, held?.turns)
+  /* 上一帧那份轮次表按 sealed 记：state 每帧换身份，held 在流式期间恒是空的。 */
+  const turns = railOf(segments, offsets, RAILS.get(state.sealed))
+
+  RAILS.set(state.sealed, turns)
   const result: Presentation = {
     count,
     groupAt: (index) => {
@@ -832,7 +879,7 @@ export function selectPresentation(
     turns,
   }
 
-  FEEDS.set(state, { chosen, result, turns })
+  FEEDS.set(state, { chosen, result })
 
   return result
 }

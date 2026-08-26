@@ -1,16 +1,13 @@
-import { type FeedRow, selectIsBusy, selectPresentation, type TurnSealPlan } from '@poietica/agent'
+import { selectIsBusy, selectPresentation } from '@poietica/agent'
 import { type ReactNode, useCallback, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useTranscripts } from '../session/transcripts-context'
 import { useAssistantHasEarlier, useAssistantTimeline } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
-import { ReplyActionHost } from './reply-actions'
 import { estimateRowPx } from './row-estimate'
 import { rowRhythmOf } from './row-rhythm'
-import { TimelineRow } from './timeline-row'
-import { ToolGroupCard } from './tool-group-card'
-import { TurnSeal } from './turn-seal'
+import { TimelineSeat } from './timeline-seat'
 
 /*
  * 转录，以及只随转录变化的那些东西。
@@ -109,33 +106,11 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
   const feed = selectPresentation(timeline, seals)
   const turns = feed.turns
 
-  const sealOf = useCallback(
-    (plan: TurnSealPlan) => (
-      <TurnSeal
-        endedAt={plan.endedAt}
-        hasProcess={plan.hasProcess}
-        isOpen={plan.isOpen}
-        isRunning={plan.isRunning}
-        lastFrameAt={plan.lastFrameAt}
-        onToggle={chooseTurn}
-        startedAt={plan.startedAt}
-        turn={plan.turn}
-      />
-    ),
-    [chooseTurn],
-  )
-
-  /* 行怎么画归这一层：它已经持有开合，交出去就是把一份真相拆成两处。 */
-  const rowOf = useCallback(
-    (row: FeedRow) => (
-      <TimelineRow isOpen={items.has(row.item.id)} onToggle={toggleOpen} row={row} />
-    ),
-    [items, toggleOpen],
-  )
-
   /*
-   * 一行的全部装饰按下标问。封条始终挂在该运行第一条用户消息之后；过程行的显隐
-   * 不会更换它的虚拟行 key、估高类别或行内边距。
+   * 一行的全部装饰按下标问，交给记忆化的行位。
+   *
+   * 封条始终挂在该运行第一条用户消息之后；过程行的显隐不会更换它的虚拟行 key、
+   * 估高类别或行内边距。
    */
   const renderRowAt = useCallback(
     (index: number) => {
@@ -145,43 +120,23 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
         return null
       }
 
-      const plan = feed.groupAt(index)
       const replyAction = feed.replyAt(index)
-      const seal = feed.sealAt(index)
-      const rendered =
-        plan === undefined ? (
-          rowOf(row)
-        ) : (
-          <ToolGroupCard
-            isOpen={items.has(plan.id)}
-            onToggle={() => {
-              toggleOpen(plan.id)
-            }}
-            plan={plan}
-            renderRow={rowOf}
-          />
-        )
-      const content =
-        replyAction === undefined ? (
-          rendered
-        ) : (
-          <ReplyActionHost
-            dropTurns={replyAction.dropTurns}
-            onFork={onFork}
-            text={replyAction.text}
-          >
-            {rendered}
-          </ReplyActionHost>
-        )
 
       return (
-        <>
-          {content}
-          {seal === undefined ? null : sealOf(seal)}
-        </>
+        <TimelineSeat
+          group={feed.groupAt(index)}
+          onFork={onFork}
+          onSealToggle={chooseTurn}
+          onToggle={toggleOpen}
+          open={items}
+          replyDropTurns={replyAction?.dropTurns}
+          replyText={replyAction?.text}
+          row={row}
+          seal={feed.sealAt(index)}
+        />
       )
     },
-    [feed, items, onFork, rowOf, sealOf, toggleOpen],
+    [chooseTurn, feed, items, onFork, toggleOpen],
   )
 
   /* 估高、节奏与渲染同源：类别知识都在这一层，滚动窗口只收三个按下标问的函数。 */
