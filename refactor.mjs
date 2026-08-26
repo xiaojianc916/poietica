@@ -99,7 +99,7 @@ if (dirty.length > 0) {
 
 const originalHead = runGit(['rev-parse', 'HEAD']).stdout.trim()
 const missingObject = commits.some(
-  (commit) => runGit(['cat-file', '-e', `${commit}^{commit}`], [0, 1]).status !== 0,
+  (commit) => runGit(['cat-file', '-e', `${commit}^{commit}`], [0, 1, 128]).status !== 0,
 )
 if (missingObject) {
   runGit(['fetch', 'origin', sourceRef])
