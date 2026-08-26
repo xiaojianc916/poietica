@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSecond } from '../primitives/tick'
 import { HOUR, MINUTE, SECOND } from '../semantics/duration'
 import { useSessionControlsActions, useThreadGoal } from '../session/session-controls-context'
+import { GOAL_CONTROL_ID, GOAL_DISABLED, GOAL_ENABLED } from './goal-control'
 import './goal-island.css'
 
 /* 一条弹簧管完整形变：阻尼比 ≈0.93，近临界，落位不回弹。 */
@@ -82,7 +83,7 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
 
   const exit = () => {
     setExpanded(false)
-    void controls.selectControl(threadId, 'goal', 'off')
+    void controls.selectControl(threadId, GOAL_CONTROL_ID, GOAL_DISABLED)
   }
 
   const commit = () => {
@@ -98,7 +99,7 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
     }
 
     setEditing(false)
-    void controls.selectControl(threadId, 'goal', 'on', objective)
+    void controls.selectControl(threadId, GOAL_CONTROL_ID, GOAL_ENABLED, objective)
   }
 
   return (

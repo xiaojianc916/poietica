@@ -211,15 +211,5 @@ impl AgentStore {
         Ok(found.unwrap_or(i64::MAX))
     }
 
-    /// 忘掉这条对话的日志。删对话时调用。
-    ///
-    /// # Errors
-    ///
-    /// 删除被拒时返回错误。
-    pub(crate) fn release_run_events(&self, thread: Uuid) -> Result<()> {
-        self.write(
-            "DELETE FROM run_events WHERE thread_id = ?1",
-            rusqlite::params![thread.to_string()],
-        )
-    }
+    // 对话删除的多表事务由 threads.rs 单点持有。
 }

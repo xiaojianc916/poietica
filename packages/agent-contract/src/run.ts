@@ -109,22 +109,14 @@ export type RunEvent =
       readonly at: number
       /** 这一轮为什么停。 */
       readonly stopReason: KapStopReason
-      /**
-       * What the agent said for itself while the protocol said nothing.
-       *
-       * An agent may report a failure of its own and still end the turn
-       * normally, so a finished turn is not automatically a successful one.
-       * Present only when the turn produced no update of any kind.
-       */
-      readonly diagnostics?: string
+      /* Rust RunFinished 只携带 stopReason。 */
     }
   | {
       readonly kind: 'run_failed'
       readonly seq: number
       readonly at: number
       readonly message: string
-      /** What the agent said for itself, which is preferred to the above. */
-      readonly diagnostics?: string
+      /* Rust RunFailed 只携带 message。 */
     }
 
 /*

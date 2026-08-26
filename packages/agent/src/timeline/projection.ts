@@ -170,7 +170,7 @@ export function apply(draft: Draft, event: RunEvent): void {
         id: `${namespace(draft)}error-${String(event.seq)}`,
         turn: draft.runIndex,
         at: event.at,
-        message: preferAgent(event.message, event.diagnostics),
+        message: event.message,
       })
 
       return
@@ -349,17 +349,7 @@ function adoptQueuedPrompt(
   return true
 }
 
-/** Transport context and process diagnostics describe different layers; keep both. */
-function preferAgent(message: string, diagnostics?: string): string {
-  const said = diagnostics?.trim() ?? ''
-  const ours = message.trim()
-
-  if (said.length === 0) {
-    return message
-  }
-
-  return ours.length === 0 || said.includes(ours) ? said : `${message}\n${said}`
-}
+/* RunFailed.message 由 Rust 唯一生产，投影不拼接不存在的字段。 */
 
 /**
  * 落一次答复：请求的身份算得出来，所以按 id 定位，只补 resolution。

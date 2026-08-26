@@ -139,15 +139,5 @@ impl AgentStore {
         )
     }
 
-    /// 解开这条对话挂着的全部链接。字节留给回收去处理。
-    ///
-    /// # Errors
-    ///
-    /// 删除被拒时返回错误。
-    pub(crate) fn release_attachments(&self, thread: Uuid) -> Result<()> {
-        self.write(
-            "DELETE FROM thread_attachments WHERE thread_id = ?1",
-            rusqlite::params![thread.to_string()],
-        )
-    }
+    // 对话删除的多表事务由 threads.rs 单点持有。
 }

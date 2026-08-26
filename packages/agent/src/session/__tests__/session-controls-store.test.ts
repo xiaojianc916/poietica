@@ -7,6 +7,7 @@ import type {
 } from '@poietica/agent-contract'
 
 import { SessionControlsStore } from '../session-controls-store'
+import type { TranscriptSink } from '../transcript-sink'
 
 /*
  * 一条对话的那张表，只认一个端口：不认识 React、不认识进程、也不认识 IPC。
@@ -14,6 +15,26 @@ import { SessionControlsStore } from '../session-controls-store'
 
 const THREAD = 'thread-1'
 const SESSION = 'session-1'
+
+function routeSink(): TranscriptSink {
+  const owners = new Map<string, string>()
+  return {
+    opening: () => undefined,
+    adopt: () => undefined,
+    failed: () => undefined,
+    route: (sessionId, threadId) => {
+      owners.set(sessionId, threadId)
+    },
+    ownerOf: (sessionId) => owners.get(sessionId),
+    forget: (threadId) => {
+      for (const [sessionId, owner] of owners) {
+        if (owner === threadId) {
+          owners.delete(sessionId)
+        }
+      }
+    },
+  }
+}
 
 const control = (
   id: string,
@@ -88,7 +109,7 @@ describe('一条对话的那张表', () => {
       },
     }
 
-    const store = new SessionControlsStore({ config })
+    const store = new SessionControlsStore({ config, transcripts: routeSink() })
     const stop = store.start()
 
     store.opened(opened(WITH_LOW))
@@ -117,7 +138,7 @@ describe('一条对话的那张表', () => {
       subscribe: () => () => undefined,
     }
 
-    const store = new SessionControlsStore({ config })
+    const store = new SessionControlsStore({ config, transcripts: routeSink() })
     const stop = store.start()
 
     store.opened(opened(WITH_LOW))

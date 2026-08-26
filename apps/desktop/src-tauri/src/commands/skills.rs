@@ -105,10 +105,6 @@ pub async fn skills_stage(app: AppHandle, fetch: PluginFetch) -> SkillsCommandRe
 #[specta::specta]
 pub async fn skills_commit(app: AppHandle, request: SkillCommitRequest) -> SkillsCommandResult<()> {
     (|| -> Result<()> {
-        if !host::is_safe_segment(&request.name) {
-            return Err(skill_failure(format!("技能名不合法：{}", request.name)));
-        }
-
         let staging = host::Staging::open(&staging_root(&app)?, &request.staging_id)
             .map_err(skill_failure)?;
 
@@ -140,14 +136,8 @@ pub async fn skills_discard(app: AppHandle, staging_id: String) -> SkillsCommand
 #[command]
 #[specta::specta]
 pub async fn skills_remove(app: AppHandle, name: String) -> SkillsCommandResult<()> {
-    (|| -> Result<()> {
-        if !host::is_safe_segment(&name) {
-            return Err(skill_failure(format!("技能名不合法：{name}")));
-        }
-
-        host::remove_skill(&skills_root(&app)?, &name).map_err(skill_failure)
-    })()
-    .map_err(IpcError::from)
+    (|| -> Result<()> { host::remove_skill(&skills_root(&app)?, &name).map_err(skill_failure) })()
+        .map_err(IpcError::from)
 }
 
 /// 停用与启用：SKILL.md 与 SKILL.md.disabled 之间改名，正文不动。
@@ -159,10 +149,6 @@ pub async fn skills_set_enabled(
     enabled: bool,
 ) -> SkillsCommandResult<()> {
     (|| -> Result<()> {
-        if !host::is_safe_segment(&name) {
-            return Err(skill_failure(format!("技能名不合法：{name}")));
-        }
-
         host::set_skill_enabled(&skills_root(&app)?, &name, enabled).map_err(skill_failure)
     })()
     .map_err(IpcError::from)

@@ -110,8 +110,7 @@ export class SessionControlsStore {
   /* 问过的对话不再问第二遍：重读是显式动作，不是渲染的副作用。 */
   #asked = new Set<string>()
 
-  /* 会话号 → 对话。推送只带前者，而这一侧的一切都按后者记。 */
-  #sessions = new Map<string, string>()
+  /* 会话归属由 TranscriptStore 的 #routes 单点持有。 */
 
   /*
    * 这条对话此刻在飞的那一次改动，同时是它的队伍。
@@ -231,12 +230,7 @@ export class SessionControlsStore {
     this.#order.delete(threadId)
     this.#alignedTo.delete(threadId)
 
-    /* 会话号那张反查表同样按对话记。#hold 只写不删，这里是它唯一的出口。 */
-    for (const [sessionId, owner] of this.#sessions) {
-      if (owner === threadId) {
-        this.#sessions.delete(sessionId)
-      }
-    }
+    /* TranscriptStore.forget 同步回收唯一归属表。 */
 
     this.#commit({
       selectors: withoutEntry(this.#held.selectors, threadId),
@@ -384,14 +378,9 @@ export class SessionControlsStore {
   #hold(thread: ThreadRecord): void {
     const sessionId = thread.sessionId
 
-    if (sessionId === null) {
-      return
+    if (sessionId !== null) {
+      this.#transcripts?.route(sessionId, thread.threadId)
     }
-
-    this.#sessions.set(sessionId, thread.threadId)
-
-    /* 同一个事实，转录那一侧也要一份：会话号到手在前，第一帧到达在后。 */
-    this.#transcripts?.route(sessionId, thread.threadId)
   }
 
   /*
@@ -403,7 +392,7 @@ export class SessionControlsStore {
    * 认不得的会话号直接丢掉，那是别的连接或者已经不在的对话。
    */
   #reported(report: SessionConfigReport): void {
-    const threadId = this.#sessions.get(report.sessionId)
+    const threadId = this.#transcripts?.ownerOf(report.sessionId)
 
     if (threadId === undefined) {
       return
@@ -420,7 +409,7 @@ export class SessionControlsStore {
    * 用量是 agent 主动推的，没有任何命令能把它问回来，所以也不参与 ArrivalOrder。
    */
   #usageReported(report: SessionUsageReport): void {
-    const threadId = this.#sessions.get(report.sessionId)
+    const threadId = this.#transcripts?.ownerOf(report.sessionId)
 
     if (threadId === undefined) {
       return

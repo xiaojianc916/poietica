@@ -20,7 +20,7 @@ import {
   type AgentLaunch,
   type AgentMcpServer,
   type AgentQuestionChoice,
-  type AgentSessionUsage,
+  type AgentSessionEvent,
   commands,
 } from './generated/ipc-bindings'
 
@@ -129,21 +129,7 @@ function subscribeToEvent<TPayload>(
   }
 }
 
-/*
- * 线上那条会话状态推送的形状。
- *
- * 原生侧的 AgentSessionEvent，camelCase 之后就是它。事件不是命令，specta 只认
- * 命令签名，所以它不在生成绑定里 —— 但里面每一格仍取自生成绑定，形状没有第二
- * 个定义。
- */
-type AgentSessionEnvelope =
-  | {
-      readonly kind: 'selectors'
-      readonly sessionId: string
-      readonly selectors: AgentConfigControl[]
-      readonly goal: AgentGoal | null
-    }
-  | { readonly kind: 'usage'; readonly sessionId: string; readonly usage: AgentSessionUsage }
+/* 会话事件由 Rust AgentSessionEvent 生成；这里仅按判别式分派到具名端口。 */
 
 /**
  * 一条通道，按判别式交给它的读者。
@@ -151,16 +137,16 @@ type AgentSessionEnvelope =
  * 会话状态同走一条事件，与运行帧同走 AGENT_EVENT 是同一条规矩。
  * 分派按判别式静态展开，不是一张可以注册任意名字的表 —— 每一个读者仍是一个具名端口。
  */
-function subscribeToSessionEvent<TKind extends AgentSessionEnvelope['kind']>(
+function subscribeToSessionEvent<TKind extends AgentSessionEvent['kind']>(
   kind: TKind,
-  handler: (payload: Extract<AgentSessionEnvelope, { kind: TKind }>) => void,
+  handler: (payload: Extract<AgentSessionEvent, { kind: TKind }>) => void,
   onListenFailure?: (error: unknown) => void,
 ): () => void {
-  return subscribeToEvent<AgentSessionEnvelope>(
+  return subscribeToEvent<AgentSessionEvent>(
     AGENT_SESSION_EVENT,
     (payload) => {
       if (payload.kind === kind) {
-        handler(payload as Extract<AgentSessionEnvelope, { kind: TKind }>)
+        handler(payload as Extract<AgentSessionEvent, { kind: TKind }>)
       }
     },
     onListenFailure,

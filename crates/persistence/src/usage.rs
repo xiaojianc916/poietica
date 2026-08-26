@@ -1,7 +1,6 @@
 //! 用量：一条会话报到哪儿了，以及每一天用掉多少 token。
 
 use rusqlite::OptionalExtension;
-use uuid::Uuid;
 
 use crate::error::Result;
 use crate::store::AgentStore;
@@ -142,14 +141,5 @@ impl AgentStore {
         Ok(found)
     }
 
-    /// 松开这条对话握着的那条会话的读数。删对话时与附件、帧日志一同释放。
-    pub(crate) fn release_session_usage(&self, id: Uuid) -> Result<()> {
-        self.write(
-            "DELETE FROM session_usage
-              WHERE session_id IN (SELECT session_id FROM threads WHERE id = ?1)",
-            rusqlite::params![id.to_string()],
-        )?;
-
-        Ok(())
-    }
+    // 对话删除的多表事务由 threads.rs 单点持有。
 }

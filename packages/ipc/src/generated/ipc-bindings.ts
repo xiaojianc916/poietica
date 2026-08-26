@@ -1707,6 +1707,23 @@ value: string;
  */
 input: string | null }
 /**
+ * agent 主动报来的一件会话级状态。
+ * 
+ * 会话号是它唯一带得出的地址：帧里没有对话，反查由渲染层用「开这条会话时是
+ * 哪条对话」去做。它不出现在任何命令签名里，所以不进生成绑定 —— 事件不是命令。
+ * 
+ * 内部标签，所以线上是一个判别联合：`{ kind: "selectors", … }`。
+ */
+export type AgentSessionEvent = 
+/**
+ * 那条会话上现在的整张选择器表。
+ */
+{ kind: "selectors"; sessionId: string; selectors: AgentConfigControl[]; goal: AgentGoal | null } | 
+/**
+ * 那条会话此刻的上下文用量。
+ */
+{ kind: "usage"; sessionId: string; usage: AgentSessionUsage }
+/**
  * 一条会话此刻占了多少上下文，以及它累计的输入构成。
  * 
  * kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量 —— 三格累计

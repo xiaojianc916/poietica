@@ -1,13 +1,13 @@
 //! 技能目录的搬入、删除、列举与停用。
 //!
 //! 技能没有清单也没有账本：判据是 SKILL.md，落点是 skills/<name>/。这里只搬字节，
-//! 名字的合法性由调用方先验，前言的语义归渲染层。
+//! 路径段在唯一拼接点验证，前言的语义归渲染层。
 
 use std::fs;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use crate::error::Result;
+use crate::error::{HostError, Result};
 use crate::layout::{DISABLED_SKILL_FILENAME, SKILL_FILENAME, locate_skill_root};
 use crate::staging::Staging;
 
@@ -16,6 +16,14 @@ const SCAN_CAP: usize = 500;
 
 /// SKILL.md 读多少字节。前言在开头，正文由 CLI 自己读。
 const DOCUMENT_MAX_BYTES: u64 = 256 * 1024;
+
+fn skill_directory(skills_root: &Path, name: &str) -> Result<PathBuf> {
+    if !crate::layout::is_safe_segment(name) {
+        return Err(HostError::UnsafeSegment);
+    }
+
+    Ok(skills_root.join(name))
+}
 
 /// 盘上的一个技能目录。
 #[derive(Debug)]
@@ -71,7 +79,7 @@ pub fn scan_skills(skills_root: &Path) -> Result<Vec<ScannedSkill>> {
 ///
 /// 已经在目标状态上就什么也不做 —— 幂等，且两个文件都在时谁也不覆盖。
 pub fn set_skill_enabled(skills_root: &Path, name: &str, enabled: bool) -> Result<()> {
-    let directory = skills_root.join(name);
+    let directory = skill_directory(skills_root, name)?;
     let live = directory.join(SKILL_FILENAME);
     let parked = directory.join(DISABLED_SKILL_FILENAME);
     let (from, to) = if enabled {
@@ -108,14 +116,14 @@ pub fn install_skill(
     subdirectory: Option<&str>,
 ) -> Result<()> {
     let root = locate_skill_root(staging.path(), subdirectory)?;
-    let destination = skills_root.join(name);
+    let destination = skill_directory(skills_root, name)?;
 
     staging.promote(&root, &destination)
 }
 
 /// 删掉一个技能目录。不在了视为成功：删除的语义是「之后它不在」。
 pub fn remove_skill(skills_root: &Path, name: &str) -> Result<()> {
-    let target = skills_root.join(name);
+    let target = skill_directory(skills_root, name)?;
 
     if target.exists() {
         fs::remove_dir_all(&target)?;

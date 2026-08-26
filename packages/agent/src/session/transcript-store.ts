@@ -399,6 +399,8 @@ export class TranscriptStore implements TranscriptSink {
     }
   }
 
+  ownerOf = (sessionId: string): string | undefined => this.#routes.get(sessionId)
+
   /**
    * 这条对话不存在了。
    *

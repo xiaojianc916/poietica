@@ -19,7 +19,8 @@ use crate::commands::{
         AgentEarlierFramesRequest, AgentForkThreadRequest, AgentGoal, AgentPinThreadRequest,
         AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult, AgentPromptSkill,
         AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod, AgentRenameThreadRequest,
-        AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentThreadRequest,
+        AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentSessionEvent,
+        AgentThreadRequest,
     },
     agent::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
     agent_setup::cli::{AgentCliRequest, AgentCliResult},
@@ -171,6 +172,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentConfigChoice>()
         .typ::<AgentConfigControl>()
         .typ::<AgentGoal>()
+        .typ::<AgentSessionEvent>()
         .typ::<AgentCapabilitiesRequest>()
         .typ::<AgentSelectConfigRequest>()
         .typ::<AgentSkill>()

@@ -5,6 +5,7 @@ import type {
   SessionConfigControl,
 } from '@poietica/agent-contract'
 import type { ReactNode } from 'react'
+import { GOAL_CONTROL_ID } from '../goal/goal-control'
 import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
 import type { PromptChipValue } from './prompt-chip'
@@ -28,8 +29,7 @@ export function ComposerActions() {
   )
 }
 
-/* 目标模式的在场由灵动岛画（goal/goal-island.tsx），输入框不画第二遍。 */
-const GOAL = 'goal'
+/* 目标控制身份由 goal/goal-control.ts 单点定义。 */
 
 export interface ComposerPaletteSource {
   readonly controls: readonly SessionConfigControl[]
@@ -76,7 +76,7 @@ function toggleRow(
 ): PaletteRow {
   const enabled = control.current === 'on'
   const choice = control.choices.find((candidate) => candidate.value === 'on')
-  const Icon = control.id === GOAL ? GoalIcon : SirenIcon
+  const Icon = control.id === GOAL_CONTROL_ID ? GoalIcon : SirenIcon
   return {
     id: control.id,
     icon: <Icon aria-hidden="true" />,
@@ -201,7 +201,7 @@ export interface ComposerChipsProps {
 }
 
 function glyph(controlId: string): ReactNode {
-  return controlId === GOAL ? <GoalIcon /> : <SirenIcon />
+  return controlId === GOAL_CONTROL_ID ? <GoalIcon /> : <SirenIcon />
 }
 
 /* 一枚标记就是它的摘除键：静息画模式字形，悬停换成叉。 */
@@ -240,7 +240,8 @@ export function ComposerChips({ controls, onSelect }: ComposerChipsProps) {
 
   /* 生效中的模式；目标进了模式就归灵动岛，这里不留它。 */
   const active = controls.filter(
-    (control) => control.purpose === 'mode' && control.current === 'on' && control.id !== GOAL,
+    (control) =>
+      control.purpose === 'mode' && control.current === 'on' && control.id !== GOAL_CONTROL_ID,
   )
 
   if (active.length === 0 && configuration.length === 0) {

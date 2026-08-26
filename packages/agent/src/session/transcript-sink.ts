@@ -13,6 +13,8 @@ export interface TranscriptSink {
   readonly failed: (threadId: string, cause: unknown) => void
   /** 运行帧按会话号到达，而这一侧的一切按对话记：这是两者之间唯一的那张表。 */
   readonly route: (sessionId: string, threadId: string) => void
+  /** 从唯一归属表查询会话主人；调用方不得维护副本。 */
+  readonly ownerOf: (sessionId: string) => string | undefined
   /** 这条对话不存在了：转录连同指向它的路由一起作废。 */
   readonly forget: (threadId: string) => void
 }

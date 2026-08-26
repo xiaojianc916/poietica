@@ -314,13 +314,28 @@ impl AgentStore {
          * 字节不在这一步删：它可能还挂在别的对话上，这正是内容寻址的意义。
          * 没人要的那些由 unreferenced_attachments 一次扫出来。
          */
-        self.release_attachments(id)?;
-        self.release_run_events(id)?;
-        self.release_session_usage(id)?;
-        self.write(
-            "DELETE FROM threads WHERE id = ?1",
-            rusqlite::params![id.to_string()],
+        let thread = id.to_string();
+        let transaction = self.connection.unchecked_transaction()?;
+
+        transaction.execute(
+            "DELETE FROM thread_attachments WHERE thread_id = ?1",
+            rusqlite::params![&thread],
         )?;
+        transaction.execute(
+            "DELETE FROM run_events WHERE thread_id = ?1",
+            rusqlite::params![&thread],
+        )?;
+        transaction.execute(
+            "DELETE FROM session_usage
+              WHERE session_id IN (SELECT session_id FROM threads WHERE id = ?1)",
+            rusqlite::params![&thread],
+        )?;
+        transaction.execute(
+            "DELETE FROM threads WHERE id = ?1",
+            rusqlite::params![&thread],
+        )?;
+
+        transaction.commit()?;
 
         Ok(())
     }
