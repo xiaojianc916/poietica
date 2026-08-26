@@ -1,6 +1,6 @@
 import type { RunEvent } from '@poietica/agent-contract'
 import { apply, surelyIgnored } from './projection'
-import type { TimelineState } from './timeline-contract'
+import { isInFlight, isSteerable, opensTurn, type TimelineState } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import {
   beginQuestion,
@@ -124,7 +124,7 @@ function floorTurn(state: TimelineState): number {
 /** 把一段日志放进一份草稿。两趟共用，所以两趟看见的段边界一定相同。 */
 function fill(draft: Draft, events: readonly RunEvent[]): Draft {
   for (const event of events) {
-    if (event.kind === 'prompt_admitted') {
+    if (opensTurn(event)) {
       beginRun(draft)
     }
 
@@ -135,13 +135,7 @@ function fill(draft: Draft, events: readonly RunEvent[]): Draft {
      crash), and that is a fact about the run, not about the calls it made.
      Whatever a tool call was doing when the process died is what the log says
      it was doing; how a stalled call is drawn is the read model's business. */
-  if (
-    draft.status === 'submitted' ||
-    draft.status === 'running' ||
-    draft.status === 'cancelling' ||
-    draft.status === 'awaiting_permission' ||
-    draft.status === 'awaiting_question'
-  ) {
+  if (isInFlight(draft.status)) {
     draft.status = 'failed'
   }
 
@@ -196,13 +190,7 @@ export function appendUserMessage(
    * seq 窗口带 id 前缀一起换掉，在飞的工具调用会认不回自己那张卡。两件事同一个
    * 判据，所以只判一次。
    */
-  const busy =
-    draft.status === 'submitted' ||
-    draft.status === 'running' ||
-    draft.status === 'awaiting_permission' ||
-    draft.status === 'awaiting_question'
-
-  if (!busy) {
+  if (!isSteerable(draft.status)) {
     openSegment(draft)
     draft.status = 'submitted'
   }
@@ -270,18 +258,9 @@ export function appendLocalError(
   return freeze(draft)
 }
 
-function canCancel(status: TimelineState['status']): boolean {
-  return (
-    status === 'submitted' ||
-    status === 'running' ||
-    status === 'awaiting_permission' ||
-    status === 'awaiting_question'
-  )
-}
-
 /** Records user intent without pretending that the server has stopped. */
 export function requestRunCancellation(state: TimelineState): TimelineState {
-  if (!canCancel(state.status)) {
+  if (!isSteerable(state.status)) {
     return state
   }
 
@@ -307,7 +286,7 @@ export function rejectRunCancellation(state: TimelineState): TimelineState {
 }
 
 export function confirmRunCancellation(state: TimelineState, at: number): TimelineState {
-  if (state.status === 'cancelled' || (!canCancel(state.status) && state.status !== 'cancelling')) {
+  if (!isInFlight(state.status)) {
     return state
   }
 
@@ -349,7 +328,7 @@ export function applyRunEvents(state: TimelineState, events: readonly RunEvent[]
        必须跟着换，否则整轮会被上一轮的 seq 判成重复——没有经过输入框的那些轮次
        （重连续接、重试）就是这么消失的。人先说话的那些轮次里段已经开过了，
        beginRun 认得出来，不会再开一段。 */
-    if (event.kind === 'prompt_admitted') {
+    if (opensTurn(event)) {
       beginRun(draft)
     }
 

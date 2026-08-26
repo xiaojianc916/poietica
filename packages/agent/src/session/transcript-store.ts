@@ -19,6 +19,7 @@ import {
   confirmRunCancellation,
   createTimelineState,
   delegateKey,
+  endsRun,
   isDelegateKey,
   opensTurn,
   partitionByAgent,
@@ -1040,9 +1041,7 @@ export class TranscriptStore implements TranscriptSink {
 
     this.#pending.delete(real)
 
-    const terminal = waiting.some(
-      (event) => event.kind === 'run_finished' || event.kind === 'run_failed',
-    )
+    const terminal = waiting.some(endsRun)
     const submission = this.#submissions.get(real)
     let timeline = applyRunEvents(current.timeline, waiting)
 

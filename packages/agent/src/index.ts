@@ -55,7 +55,6 @@ export {
   pendingPermissionCount,
   pendingQuestion,
   replayThreadEvents,
-  runningDelegations,
   selectIsBusy,
   selectPresentation,
 } from './timeline'

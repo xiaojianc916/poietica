@@ -1,6 +1,5 @@
-import { isDelegation } from './delegate-channel'
 import {
-  isTerminal,
+  isInFlight,
   type PermissionItem,
   type QuestionTimelineItem,
   type TimelineItem,
@@ -15,9 +14,8 @@ import {
  * 本轮开头就收手 —— 代价是一轮的长度，不是整条对话的长度。给它们建表，建表
  * 本身比重算贵。
  *
- * 它们此前与行管线同住一屋，行管线里于是多出一份手抄的 status 清单 —— 而同一个
- * 文件里 selectIsBusy 已经在回答这个问题。现在忙碌判据只有这一个产地，
- * 行投影（presentation.ts）也从这里取。
+ * 忙碌判据的产地在 timeline-contract 的 isInFlight，这里只把它接到状态上；
+ * 行投影（presentation.ts）从这里取。
  */
 
 /* 没人在等时交出同一个对象：这条路径每帧都要走，而它什么都不必分配。 */
@@ -185,42 +183,8 @@ export function pendingQuestion(scope: WaitingScope): QuestionTimelineItem | und
   return first
 }
 
-/**
- * 此刻还在跑的子代理数：开出过通道的那些调用。
- *
- * 不按段收口 —— 后台派出去的那些（display.background）活得比一段长。终帧到达即
- * 出列，判据与工具卡片同源（isTerminal）。
- */
-export function runningDelegations(state: TimelineState): number {
-  let running = runningIn(state.active.items)
-
-  for (const page of state.sealed) {
-    running += runningIn(page.items)
-  }
-
-  return running
-}
-
-function runningIn(items: readonly TimelineItem[]): number {
-  let running = 0
-
-  for (const item of items) {
-    if (item.type === 'tool_call' && isDelegation(item) && !isTerminal(item.status)) {
-      running += 1
-    }
-  }
-
-  return running
-}
-
 export function selectIsBusy(state: TimelineState): boolean {
-  return (
-    state.status === 'submitted' ||
-    state.status === 'running' ||
-    state.status === 'cancelling' ||
-    state.status === 'awaiting_permission' ||
-    state.status === 'awaiting_question'
-  )
+  return isInFlight(state.status)
 }
 
 /**

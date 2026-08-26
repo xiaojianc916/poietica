@@ -146,6 +146,33 @@ export function opensTurn(event: RunEvent): boolean {
   return event.kind === 'prompt_admitted'
 }
 
+/** 这一帧是否收掉这一轮。与 opensTurn 成对：帧的形状只在这个包里认。 */
+export function endsRun(event: RunEvent): boolean {
+  return event.kind === 'run_finished' || event.kind === 'run_failed'
+}
+
+/** 这一轮还没落定：还会来帧，屏幕上还该转。 */
+export function isInFlight(status: RunStatus): boolean {
+  return (
+    status === 'submitted' ||
+    status === 'running' ||
+    status === 'cancelling' ||
+    status === 'awaiting_permission' ||
+    status === 'awaiting_question'
+  )
+}
+
+/**
+ * 这一轮还接得住新指令：插话与取消都算。
+ *
+ * 比 isInFlight 少一档 cancelling —— 取消已经在路上，再取消一次没有第二个效果，
+ * 而那一刻插进来的话属于正在收尾的这一轮。这一档差别此前没有名字，于是同一个
+ * 集合在三处各抄一遍，抄漏一项不会有任何东西报警。
+ */
+export function isSteerable(status: RunStatus): boolean {
+  return isInFlight(status) && status !== 'cancelling'
+}
+
 /** 计划里的一步。 */
 export interface PlanStep {
   readonly content: string

@@ -24,7 +24,7 @@ export type {
   TimelineState,
   ToolCallTimelineItem,
 } from './timeline-contract'
-export { opensTurn } from './timeline-contract'
+export { endsRun, opensTurn } from './timeline-contract'
 export {
   activeScope,
   inflightPromptId,
@@ -32,7 +32,6 @@ export {
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
-  runningDelegations,
   selectIsBusy,
 } from './timeline-queries'
 export {
