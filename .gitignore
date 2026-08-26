@@ -33,14 +33,6 @@ coverage/
 **/coverage/
 test-results/
 **/test-results/
-playwright-report/
-**/playwright-report/
-blob-report/
-**/blob-report/
-benchmark-results/
-**/benchmark-results/
-performance-results/
-**/performance-results/
 
 # Rust / Cargo
 target/
@@ -110,8 +102,6 @@ yarn-debug.log*
 yarn-error.log*
 
 # Temporary files
-.refactor-backup/
-**/.refactor-backup/
 tmp/
 **/tmp/
 temp/

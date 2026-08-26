@@ -38,7 +38,7 @@ const CATALOG = {
 }
 
 function decode(raw: unknown) {
-  const decoded = decodeMarketplaceCatalog(raw, '2026-01-01T00:00:00.000Z', CATALOG_URL)
+  const decoded = decodeMarketplaceCatalog(raw, CATALOG_URL)
 
   if (decoded.kind !== 'decoded') {
     throw new Error(`这份目录应当是合法的：${decoded.reason}`)
@@ -116,21 +116,21 @@ describe('decodeMarketplaceCatalog', () => {
   })
 
   it('版本号不参与准入：写什么、不写，都照读', () => {
-    expect(decodeMarketplaceCatalog({ version: '1', plugins: [] }, 'now', CATALOG_URL).kind).toBe(
+    expect(decodeMarketplaceCatalog({ version: '1', plugins: [] }, CATALOG_URL).kind).toBe(
       'decoded',
     )
-    expect(decodeMarketplaceCatalog({ version: '9', plugins: [] }, 'now', CATALOG_URL).kind).toBe(
+    expect(decodeMarketplaceCatalog({ version: '9', plugins: [] }, CATALOG_URL).kind).toBe(
       'decoded',
     )
-    expect(decodeMarketplaceCatalog({ plugins: [] }, 'now', CATALOG_URL).kind).toBe('decoded')
+    expect(decodeMarketplaceCatalog({ plugins: [] }, CATALOG_URL).kind).toBe('decoded')
   })
 
   it('没有 plugins 数组的东西不是一份目录', () => {
-    expect(decodeMarketplaceCatalog({ version: '2' }, 'now', CATALOG_URL).kind).toBe('undecodable')
+    expect(decodeMarketplaceCatalog({ version: '2' }, CATALOG_URL).kind).toBe('undecodable')
   })
 
   it('一条没有来源的条目让整份目录拒收，并且点名', () => {
-    const decoded = decodeMarketplaceCatalog({ plugins: [{ id: 'nowhere' }] }, 'now', CATALOG_URL)
+    const decoded = decodeMarketplaceCatalog({ plugins: [{ id: 'nowhere' }] }, CATALOG_URL)
 
     expect(decoded.kind).toBe('undecodable')
     expect(decoded.kind === 'undecodable' ? decoded.reason : '').toContain('nowhere')
@@ -140,13 +140,11 @@ describe('decodeMarketplaceCatalog', () => {
 describe('市场目录的取用策略', () => {
   it('只有从来没取过才自动拉', () => {
     expect(shouldFetchOnOpen(MARKETPLACE_ABSENT)).toBe(true)
-    expect(shouldFetchOnOpen(completeFetch(MARKETPLACE_ABSENT, CATALOG, 'now', CATALOG_URL))).toBe(
-      false,
-    )
+    expect(shouldFetchOnOpen(completeFetch(MARKETPLACE_ABSENT, CATALOG, CATALOG_URL))).toBe(false)
   })
 
   it('刷新失败时上一份仍然看得见', () => {
-    const ready = completeFetch(MARKETPLACE_ABSENT, CATALOG, 'now', CATALOG_URL)
+    const ready = completeFetch(MARKETPLACE_ABSENT, CATALOG, CATALOG_URL)
     const failed = failFetch(beginFetch(ready), '网络不通')
 
     expect(failed.kind).toBe('failed')
@@ -154,8 +152,8 @@ describe('市场目录的取用策略', () => {
   })
 
   it('拉回来一份解不开的目录，等同刷新失败，旧目录不清空', () => {
-    const ready = completeFetch(MARKETPLACE_ABSENT, CATALOG, 'now', CATALOG_URL)
-    const broken = completeFetch(ready, { version: '2' }, 'later', CATALOG_URL)
+    const ready = completeFetch(MARKETPLACE_ABSENT, CATALOG, CATALOG_URL)
+    const broken = completeFetch(ready, { version: '2' }, CATALOG_URL)
 
     expect(broken.kind).toBe('failed')
     expect(latestCatalog(broken)?.entries).toHaveLength(2)

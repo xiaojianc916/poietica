@@ -7,7 +7,7 @@ import type { AgentProfile } from '@poietica/agent-catalog'
  * 共用同一个产地。渲染层报一个路径过去，只会得到两条各自算出不同目录的
  * 管线，而那种错误在界面上表现为「明明配好了，模型列表却是空的」。
  */
-export interface AgentCliInvocation {
+interface AgentCliInvocation {
   readonly agentId: string
   /**
    * 完整的子命令序列，例如 ['provider', 'list', '--json']。
@@ -51,7 +51,7 @@ export interface AgentCliInvocation {
   readonly secretFromGlobalProvider?: string
 }
 
-export interface AgentCliOutcome {
+interface AgentCliOutcome {
   readonly status: number
   readonly stdout: string
   readonly stderr: string
@@ -63,19 +63,12 @@ export interface AgentCliOutcome {
  * 分成五种而不是成功/失败两种，是因为这五种里只有一种能说出「密钥不对」。把超时
  * 或 404 渲染成「你的密钥错了」，会让用户去改一把本来是对的钥匙 —— 那比不验证更糟。
  */
-export type ProviderKeyVerdict =
-  | 'accepted'
-  | 'rejected'
-  | 'forbidden'
-  | 'unsupported'
-  | 'unreachable'
+type ProviderKeyVerdict = 'accepted' | 'rejected' | 'forbidden' | 'unsupported' | 'unreachable'
 
 export interface ProviderKeyProbe {
   readonly verdict: ProviderKeyVerdict
   /** HTTP 状态码；没拿到响应时为 0。 */
   readonly status: number
-  /** 那家报回的模型 id。只有 accepted 时才可能非空。 */
-  readonly modelIds: readonly string[]
 }
 
 export interface AgentConfigSnapshot {
@@ -83,6 +76,28 @@ export interface AgentConfigSnapshot {
   readonly defaultAgentId: string
   /** 配置文件里被丢弃的坏条目。界面应该显示出来，而不是假装配置是干净的。 */
   readonly issues: readonly string[]
+}
+
+/**
+ * 这个 agent 的运行时在这台机器上处于什么状态。
+ *
+ * unmanaged：档案没声明安装方式。
+ * unknown：装着，但问不到最新版（离线、镜像不通）——「不知道」不是「该更新」。
+ */
+type AgentInstallState =
+  | 'unmanaged'
+  | 'missing'
+  | 'outdated'
+  | 'current'
+  /** 装着，但不是 bun/pnpm/npm 装的 —— 我们不碰别人的安装。 */
+  | 'external'
+  | 'unknown'
+
+export interface AgentInstallStatus {
+  readonly state: AgentInstallState
+  readonly installedVersion: string | null
+  readonly latestVersion: string | null
+  readonly packageName: string | null
 }
 
 /**
@@ -102,28 +117,6 @@ export interface AgentConfigSnapshot {
  * agent 自己的配置文件之后就与我们无关 —— 那份文件里它是明文，所以我们再存一份
  * 副本换不到安全，只换来一个要同步的第二处真相。
  */
-/**
- * 这个 agent 的运行时在这台机器上处于什么状态。
- *
- * unmanaged：档案没声明安装方式。
- * unknown：装着，但问不到最新版（离线、镜像不通）——「不知道」不是「该更新」。
- */
-export type AgentInstallState =
-  | 'unmanaged'
-  | 'missing'
-  | 'outdated'
-  | 'current'
-  /** 装着，但不是 bun/pnpm/npm 装的 —— 我们不碰别人的安装。 */
-  | 'external'
-  | 'unknown'
-
-export interface AgentInstallStatus {
-  readonly state: AgentInstallState
-  readonly installedVersion: string | null
-  readonly latestVersion: string | null
-  readonly packageName: string | null
-}
-
 export interface AgentConfigStore {
   readonly load: () => Promise<AgentConfigSnapshot>
   readonly saveAgents: (args: {
@@ -148,11 +141,10 @@ export interface AgentConfigStore {
   /*
    * 顶层的 default_model，没有就是 null。
    *
-   * 它不是偏好，是开会话的前提：ACP 的鉴权闸门第一条判的就是它在不在
-   * （packages/agent-contract-adapter/src/server.ts 的 hasUsableConfiguredDefaultModel 逐字
-   * `if (config.defaultModel === undefined) return false`）。所以界面要能说出
-   * 「现在是哪个」和「一个都没有」，而不是让用户从一次 Authentication required
-   * 里反推。
+   * 它不是偏好，是开会话的前提：闸门函数 usable_default_model 第一条判的就是它在
+   * 不在，别名还须在 models 表里、握着非 OAuth 凭据才认数
+   * （crates/agent-runtime/src/credentials.rs）。所以界面要能说出「现在是哪个」和
+   * 「一个都没有」，而不是让用户从一次 Authentication required 里反推。
    */
   readonly loadDefaultModel: (agentId: string) => Promise<string | null>
   /*

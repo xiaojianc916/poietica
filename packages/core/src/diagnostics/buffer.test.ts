@@ -37,7 +37,7 @@ describe('diagnostic buffer', () => {
 
   it('keeps only the newest bounded entries', () => {
     for (let index = 0; index < 202; index += 1) {
-      recordDiagnosticLog('info', `entry-${index}`, {}, new Date().toISOString())
+      recordDiagnosticLog('warn', `entry-${index}`, {}, new Date().toISOString())
     }
 
     const messages = getRecentLogEntries().map((entry) => entry.message)
@@ -93,7 +93,7 @@ describe('diagnostic buffer', () => {
 
   it('returns cloned immutable snapshots', () => {
     recordDiagnosticLog(
-      'info',
+      'warn',
       'snapshot',
       {
         operation: 'test',

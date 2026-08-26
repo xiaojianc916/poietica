@@ -414,9 +414,10 @@ export function createAgentSessionUsageBridge({
  * 问这个 agent 提供什么、改其中一项、听它自己改主意，都不点名任何一条对话。
  *
  * 两个动作走同一条会话：连接自带的锚会话。不新开会话、不写库、不碰任何 thread。
- * 模型、模式、推理档位同表来同表走 —— 改一项之后整张表重读一次（driver.rs 的
- * set_kap_selector：改完 profile 再问一次 status 与 /models），因为改一项可能增删
- * 另一项，所以这一层不拆表也不合表。
+ * 模型、模式、推理档位同表来同表走 —— 改一项之后整张表重读一次（crates/
+ * agent-runtime/src/driver.rs 的 set_selector：写完 profile 重跑一次
+ * get_selectors，status、/models 与 goal 一并重问），因为改一项可能增删另一项，
+ * 所以这一层不拆表也不合表。
  *
  * select 传 threadId: null，原生侧据此发往锚会话；带对话名的那条路是
  * SessionConfigPort。两者是同一个命令的两个地址，不是两套实现。

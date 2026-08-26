@@ -623,7 +623,8 @@ async skillsSetEnabled(name: string, enabled: boolean) : Promise<null> {
     return await TAURI_INVOKE("skills_set_enabled", { name, enabled });
 },
 /**
- * 取件到暂存区：与插件安装同一条管线，判据换成 SKILL.md。
+ * 取件到暂存区：与插件安装共用同一条管线（plugins.rs 的 staged_fetch），判据换成
+ * SKILL.md。
  */
 async skillsStage(fetch: PluginFetch) : Promise<SkillStaged> {
     return await TAURI_INVOKE("skills_stage", { fetch });
@@ -865,7 +866,7 @@ async agentInstallRun(agentId: string) : Promise<AgentInstallStatus> {
     return await TAURI_INVOKE("agent_install_run", { agentId });
 },
 /**
- * 用刚收到的密钥向厂商问一次模型清单。
+ * 用刚收到的密钥向厂商验一次身份。
  * 
  * 不写任何配置。调用方在写入成功之后才调它，所以无论结论如何都不影响已经落盘的
  * 那份配置 —— 这条命令只决定界面上那一行说什么。
@@ -1422,10 +1423,11 @@ export type AgentHistory =
  */
 { state: "fresh" } | 
 /**
- * 这一次只要了一个地址，没问经过。
+ * 这一次没让 agent 重放经过。
  * 
- * 提问和改设置走的就是这一路：它们不需要历史，也就不该为此让 agent 把整段
- * 对话重放一遍。所以这一格到不了界面 —— 打开一条对话永远要经过。
+ * 提问和改设置走的就是这一路：它们不需要历史。打开一条会话已在本连接上活着
+ * 的对话也走它 —— addressing.rs 的快路径直接交回这一格，经过由本机日志重放
+ * 补上，界面照常收。
  */
 { state: "live" } | 
 /**
@@ -1516,8 +1518,8 @@ goal: AgentGoal | null;
 /**
  * 这条对话最新的那一页经过，由本地日志交回来。
  * 
- * 库里记下的就是当时交给界面的那一批（见 turn.rs 的 logging），所以重开
- * 一条对话与看着它发生不可能对不上。
+ * 库里记下的就是当时交给界面的那一批（journal.rs 的 FrameJournal
+ * record_frames），所以重开一条对话与看着它发生不可能对不上。
  * 
  * 一页，不是全量：更早的按页里那个位置向 `agent_earlier_frames` 续读。
  */
@@ -2054,14 +2056,7 @@ export type ProviderProbeOutcome = { verdict: ProviderProbeVerdict;
 /**
  * HTTP 状态码。没有拿到响应时为 0。
  */
-status: number; 
-/**
- * 那家在 /models 里报回的模型 id。只有 Accepted 时才可能非空。
- * 
- * 现在没有消费方 —— 拿它去比对内置模型表是下一刀的事。放在这里是因为它就在
- * 同一个响应里，为它再打一次请求没有道理。
- */
-modelIds: string[] }
+status: number }
 /**
  * 探测的结论。
  * 

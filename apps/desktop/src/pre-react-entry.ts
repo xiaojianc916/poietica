@@ -65,21 +65,6 @@ function render(model: TerminalFailureViewModel): void {
     }
   }
 
-  const close = action(screen, 'close')
-
-  if (close) {
-    label(close, model.closeActionLabel, 'close')
-
-    close.onclick = () => {
-      /* forceClose 而不是 close：应答 CloseRequested 的确认流程在崩溃屏上不存在。 */
-      void import('@poietica/desktop-adapters')
-        .then(({ createMainWindowController }) => {
-          createMainWindowController().forceClose()
-        })
-        .catch(reportWindowFailure)
-    }
-  }
-
   const copy = action(screen, 'copy')
 
   if (copy) {

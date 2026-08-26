@@ -5,7 +5,7 @@
  * 没有这一步，"资产没上传 / release 不是 latest / 版本与 tag 不符" 三种失败全部
  * 静默：CI 全绿，而每一个已安装的客户端永远收不到更新，我们也收不到任何信号。
  *
- *   node scripts/release/verify-channel.mjs v0.1.2
+ *   bun scripts/release/verify-channel.mjs v0.1.2
  */
 
 import { readFile } from 'node:fs/promises'
@@ -19,7 +19,7 @@ const BACKOFF = 15_000
 const tag = process.argv[2]
 
 if (!tag) {
-  console.error('usage: node scripts/release/verify-channel.mjs <tag>')
+  console.error('usage: bun scripts/release/verify-channel.mjs <tag>')
   process.exit(2)
 }
 

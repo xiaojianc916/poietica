@@ -144,8 +144,6 @@ export class ThreadsStore {
     }
   }
 
-  getSnapshot = (): Held => this.#held
-
   /** 侧栏读的那一片。引用只在这一片真的变了时才更换。 */
   listSnapshot = (): ThreadsList => this.#list
 

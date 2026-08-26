@@ -9,6 +9,7 @@ import {
 } from '@poietica/ui'
 import { Check, GitBranch, Plus } from 'lucide-react'
 import { useState } from 'react'
+import { focusOnMount } from '../primitives/focus-on-mount'
 import { SearchIcon } from '../primitives/icons'
 
 /*
@@ -41,12 +42,6 @@ export interface GitBranchPickerProps {
   readonly onCreate: (branch: string) => Promise<boolean>
   /** 弹层每次打开时刷新快照：分支可能刚在终端里被人动过。 */
   readonly onRefresh: () => void
-}
-
-/* 与项目选择器同一个理由：autoFocus 是页面加载期的语义，callback ref 才是
-弹层出现那一刻的时机。模块级常量，引用稳定。 */
-function focusOnMount(node: HTMLInputElement | null): void {
-  node?.focus()
 }
 
 function matchingBranches(branches: readonly string[], query: string): readonly string[] {

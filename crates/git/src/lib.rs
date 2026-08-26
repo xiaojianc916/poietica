@@ -17,9 +17,9 @@ use thiserror::Error;
 use tokio::process::Command;
 
 /// GUI 宿主 spawn 控制台程序时，Windows 会给它开一个控制台窗口：选一次工作区
-/// 闪一排黑框。规则的第一份在 apps/desktop/src-tauri/src/commands/process.rs
-/// （agent CLI 那条管线）；那个 helper 住在组合根里，而本 crate 不认识 Tauri、
-/// 也不能反向借代码，所以各有一份 —— 正本移动时这份注释跟着改。
+/// 闪一排黑框。同一规则的另一份在 crates/agent-runtime/src/program.rs 的
+/// hide_console；crates 相互不依赖（AGENTS.md §3），不能借它的代码，所以各持
+/// 一份 —— 它移动时这份注释跟着改。
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 

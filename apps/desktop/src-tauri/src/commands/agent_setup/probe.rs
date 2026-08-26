@@ -1,7 +1,7 @@
 //! 保存密钥之后，问那家厂商一句：这把钥匙你认不认。
 //!
 //! 为什么需要它：在此之前，界面对「已配置」的全部判据是
-//! `@poietica/agent-providers` 的 provider-state.ts 里的
+//! packages/agent-catalog/src/provider-state.ts 里的
 //! configured = credentialKind != 'none'，也就是
 //! 「那一格不是空的」。填错一个字符照样保存成功、照样点亮模型选择器，真相要等到
 //! 几分钟后发第一条消息时，从一条来自完全另一条管线（kap 会话）的 401 里反推。
@@ -27,7 +27,7 @@
 //! 这条命令不写任何东西。密钥随请求进来、发完即弃，不落盘、不进日志。
 
 use crate::error::{Error, IpcError};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use specta::Type;
 use std::time::Duration;
 use tauri::command;
@@ -37,9 +37,6 @@ type ProviderProbeCommandResult<T> = Result<T, IpcError>;
 /// 一次探测最多等多久。这是一个保存动作的附属步骤，不是主线，宁可说「没能验证」
 /// 也不要让用户对着转圈等下去。
 const PROBE_TIMEOUT: Duration = Duration::from_secs(6);
-
-/// 回带的模型 id 上限。正常一家几十个，这个数只为挡住畸形响应。
-const MAX_MODEL_IDS: usize = 512;
 
 /// 允许被探测的厂商域名。只接受 https。
 const ALLOWED_HOSTS: [&str; 3] = ["api.deepseek.com", "open.bigmodel.cn", "api.moonshot.cn"];
@@ -71,25 +68,6 @@ pub struct ProviderProbeOutcome {
     pub verdict: ProviderProbeVerdict,
     /// HTTP 状态码。没有拿到响应时为 0。
     pub status: u16,
-    /// 那家在 /models 里报回的模型 id。只有 Accepted 时才可能非空。
-    ///
-    /// 现在没有消费方 —— 拿它去比对内置模型表是下一刀的事。放在这里是因为它就在
-    /// 同一个响应里，为它再打一次请求没有道理。
-    pub model_ids: Vec<String>,
-}
-
-/// `OpenAI` 规格的 /models 响应里我们唯一要的那一格。
-///
-/// 只声明 id：规格本身只保证 `id` / `created` / `owned_by`，上下文长度那类字段各家是否
-/// 提供是未知的，这里不去猜也不去依赖。
-#[derive(Deserialize)]
-struct ModelEntry {
-    id: String,
-}
-
-#[derive(Deserialize)]
-struct ModelList {
-    data: Vec<ModelEntry>,
 }
 
 /// 地址必须恰好是白名单里某个主机下的 https 地址。
@@ -104,19 +82,11 @@ fn is_allowed_base_url(base_url: &str) -> bool {
     })
 }
 
-fn outcome(
-    verdict: ProviderProbeVerdict,
-    status: u16,
-    model_ids: Vec<String>,
-) -> ProviderProbeOutcome {
-    ProviderProbeOutcome {
-        verdict,
-        status,
-        model_ids,
-    }
+fn outcome(verdict: ProviderProbeVerdict, status: u16) -> ProviderProbeOutcome {
+    ProviderProbeOutcome { verdict, status }
 }
 
-/// 用刚收到的密钥向厂商问一次模型清单。
+/// 用刚收到的密钥向厂商验一次身份。
 ///
 /// 不写任何配置。调用方在写入成功之后才调它，所以无论结论如何都不影响已经落盘的
 /// 那份配置 —— 这条命令只决定界面上那一行说什么。
@@ -136,7 +106,7 @@ pub async fn provider_probe_key(
     }
 
     if !is_allowed_base_url(&base_url) {
-        return Ok(outcome(ProviderProbeVerdict::Unsupported, 0, Vec::new()));
+        return Ok(outcome(ProviderProbeVerdict::Unsupported, 0));
     }
 
     let url = format!("{}/models", base_url.trim_end_matches('/'));
@@ -150,47 +120,24 @@ pub async fn provider_probe_key(
     // 失败的原因刻意不外带：reqwest 的错误串里可能有代理地址一类的本机信息，而
     // 界面要说的那句话不需要它。这与 error.rs 那张脱敏表是同一条纪律。
     let Ok(response) = client.get(&url).bearer_auth(&secret).send().await else {
-        return Ok(outcome(ProviderProbeVerdict::Unreachable, 0, Vec::new()));
+        return Ok(outcome(ProviderProbeVerdict::Unreachable, 0));
     };
 
     let status = response.status().as_u16();
 
     match status {
-        401 => return Ok(outcome(ProviderProbeVerdict::Rejected, status, Vec::new())),
-        403 => return Ok(outcome(ProviderProbeVerdict::Forbidden, status, Vec::new())),
-        404 => {
-            return Ok(outcome(
-                ProviderProbeVerdict::Unsupported,
-                status,
-                Vec::new(),
-            ));
-        }
+        401 => return Ok(outcome(ProviderProbeVerdict::Rejected, status)),
+        403 => return Ok(outcome(ProviderProbeVerdict::Forbidden, status)),
+        404 => return Ok(outcome(ProviderProbeVerdict::Unsupported, status)),
         _ => {}
     }
 
     if !(200..300).contains(&status) {
-        return Ok(outcome(
-            ProviderProbeVerdict::Unreachable,
-            status,
-            Vec::new(),
-        ));
+        return Ok(outcome(ProviderProbeVerdict::Unreachable, status));
     }
 
-    // 响应体读不到、或者不是我们认得的形状，都不改变结论：那家已经用 2xx 接受了
-    // 这把密钥。清单为空只是清单为空。
-    let body = response.text().await.unwrap_or_default();
-
-    let model_ids = serde_json::from_str::<ModelList>(&body)
-        .map(|list| {
-            list.data
-                .into_iter()
-                .take(MAX_MODEL_IDS)
-                .map(|entry| entry.id)
-                .collect::<Vec<String>>()
-        })
-        .unwrap_or_default();
-
-    Ok(outcome(ProviderProbeVerdict::Accepted, status, model_ids))
+    // 结论到此已经成立：那家已经用 2xx 接受了这把密钥。
+    Ok(outcome(ProviderProbeVerdict::Accepted, status))
 }
 
 #[cfg(test)]

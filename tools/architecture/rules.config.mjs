@@ -37,7 +37,6 @@ for (const root of new Set([...sourceRoots, ...inventoryRoots])) {
 
 export const ignoredDirectories = new Set([
   '.git',
-  '.refactor-backup',
   '.turbo',
   'build',
   'coverage',
@@ -93,9 +92,7 @@ const layers = [
  * 的方向再没有任何东西约束。仅有的一条列在这里并附理由；对应的 manifest 边一旦
  * 消失，这里的条目就成了过期豁免，规则会反过来把它报出来。
  */
-const sameLayerDependencies = [
-  { from: 'agent', to: 'agent-catalog', reason: '线程按 agentId 定址，名单与线程状态同层同域' },
-]
+const sameLayerDependencies = []
 
 /* 只有这三个包可以直连原生宿主。判据落在 manifest：没声明的包在 bun 下解析不到。 */
 const nativeAllowed = new Set(['desktop', 'desktop-adapters', 'ipc'])

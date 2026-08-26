@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test'
 
-import { formatDuration, HOUR, MINUTE, nextTickOf, SECOND } from '../semantics/duration'
+import { formatDuration, HOUR, MINUTE, SECOND } from '../semantics/duration'
 
 /*
  * 工具调用的耗时。
  *
- * 纯函数，不渲染：这一格的全部判断都在这两个函数里，组件只负责把它接到时钟上。
+ * 纯函数，不渲染：这一格的全部判断都在 formatDuration 里，组件只负责把它接到时钟上。
  * 文案一律拿 Intl 现算出来比，不写死中文 —— 写死就等于把语言钉在简体中文上，
  * 而这些字是平台给的。
  */
@@ -43,18 +43,6 @@ describe('调用耗时', () => {
   it('一小时以上只到分,不再报秒', () => {
     expect(formatDuration(HOUR + 23 * MINUTE + 45 * SECOND)).toBe(
       `${narrow('hour', 1)} ${narrow('minute', 23)}`,
-    )
-  })
-
-  it('期限落在文案真正改口的那一刻,不是一个猜出来的周期', () => {
-    const startedAt = 1_000_000
-
-    /* 秒档：显示到秒,所以下一次改口是它自己的下一整秒。 */
-    expect(nextTickOf(startedAt, startedAt + 4_300)).toBe(startedAt + 5 * SECOND)
-
-    /* 时档：只显示到分,每秒唤醒整屏算白醒。 */
-    expect(nextTickOf(startedAt, startedAt + HOUR + 20 * MINUTE + 30 * SECOND)).toBe(
-      startedAt + HOUR + 21 * MINUTE,
     )
   })
 })

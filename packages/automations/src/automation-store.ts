@@ -39,14 +39,14 @@ import { type AutomationDraft, nextRunAfter } from './automation'
  *
  * 返回这次运行开出来的那条对话；开不出来返回 null。
  */
-export interface AutomationDispatchResult {
+interface AutomationDispatchResult {
   readonly threadId: string | null
   readonly outcome: AutomationRun['outcome']
 }
 
 export type AutomationDispatch = (automation: Automation) => Promise<AutomationDispatchResult>
 
-export interface AutomationsViewModel {
+interface AutomationsViewModel {
   readonly automations: readonly Automation[]
   /** 首帧与「读完了但确实一条都没有」不是同一件事，空态因此不会闪。 */
   readonly loaded: boolean

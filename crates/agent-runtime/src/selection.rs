@@ -80,6 +80,13 @@ async fn receive(
 
 #[cfg(test)]
 mod tests {
+    // 与 tests/recorder.rs 顶上那一句同一条纪律、同一个理由（Cargo.toml lints
+    // 注释）：测试里的 expect 是响亮失败，豁免只写在测试作用域，不靠根配置放开。
+    #![allow(
+        clippy::expect_used,
+        reason = "a test proves itself by panicking, so a failed step must fail the test"
+    )]
+
     use futures::StreamExt;
 
     use super::*;

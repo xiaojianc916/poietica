@@ -17,13 +17,11 @@ export {
   DropdownMenuTrigger,
 } from './dropdown-menu'
 export { ErrorState, InlineSpinner, LoadingState } from './feedback'
-export { type IntegrationMark, integrationMarkFor } from './integration-mark'
+export { integrationMarkFor } from './integration-mark'
 export { ArrowLeftIcon, GithubMark, PlayIcon } from './local-glyphs'
 export { PixelLoader } from './pixel-loader'
 export {
-  type RegionEdge,
   RegionSplitter,
-  type RegionSplitterProps,
   type SplitterActivity,
 } from './region-splitter'
 export { Select, type SelectOption } from './select'

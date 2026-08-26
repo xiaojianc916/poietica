@@ -41,12 +41,19 @@ fn an_update_outside_a_turn_is_dropped() {
 /// 本机帧日志出。丢掉它们正是要的结果，而丢掉不该是一次失败。
 #[test]
 fn a_loading_session_drops_the_replay_without_failing() {
-    let delivered = Delivered::default();
+    let (recorder, delivered) = recording();
     let slot = RunSlot::new();
 
     assert!(!slot.record(|recorder| recorder.record_frame(announcement())));
     assert!(delivered.frames().is_empty());
-    assert_eq!(slot.seq(), slot.seq(), "序号线没有被一批无人认领的帧推着走");
+
+    slot.attach(|| recorder).expect("an unpoisoned lock");
+    assert!(slot.record(|recorder| recorder.record_frame(announcement())));
+    assert_eq!(
+        delivered.positions(),
+        [1],
+        "序号线没有被一批无人认领的帧推着走"
+    );
 }
 
 #[test]

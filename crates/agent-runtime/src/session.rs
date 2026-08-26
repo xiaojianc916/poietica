@@ -73,8 +73,8 @@ pub enum SessionEvent {
 /// kap 的事件流上，一条会话已经被读到的位置。
 ///
 /// 位置由 server 签发（信封上的 seq，跨守护进程重启有效），纪元说明它属于哪一段
-/// 流：重新订阅时把这两样原样报回去，server 才知道从哪一帧接着发（ws-control.ts
-/// 的 sessionCursorSchema）。
+/// 流：重新订阅时把这两样原样报回去，server 才知道从哪一帧接着发（契约快照
+/// contracts/kap/asyncapi.json 的 subscribe 载荷）。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Cursor {
     /// 信封上的 seq。

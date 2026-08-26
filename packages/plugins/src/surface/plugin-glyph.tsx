@@ -16,7 +16,7 @@ const SIZES = {
 
 export type PluginGlyphSize = keyof typeof SIZES
 
-export function pluginHue(id: string): number {
+function pluginHue(id: string): number {
   let hash = 7
 
   for (const character of id) {

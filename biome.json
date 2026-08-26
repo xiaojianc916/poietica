@@ -248,7 +248,7 @@
       }
     },
     {
-      "includes": ["apps/desktop/vite.config.ts", "**/vitest.config.ts", "**/playwright.config.ts"],
+      "includes": ["apps/desktop/vite.config.ts"],
       "linter": {
         "rules": {
           "style": {

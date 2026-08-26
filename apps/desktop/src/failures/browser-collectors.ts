@@ -1,4 +1,4 @@
-import { optionalProperty } from '@poietica/core'
+import { optionalProperty, safeStringify } from '@poietica/core'
 import { reportFailure } from './application-policy'
 import { isBenignWindowError } from './benign-window-errors'
 import type { FailurePhase, TerminalFailureInput } from './terminal-policy'
@@ -162,7 +162,7 @@ function currentPhase(): FailurePhase {
 function parseViteError(payload: unknown): ParsedViteError {
   if (!isRecord(payload)) {
     return {
-      error: createError('ViteError', stringifyUnknown(payload)),
+      error: createError('ViteError', safeStringify(payload)),
       context: {
         collector: 'vite-diagnostic',
         diagnosticSource: 'vite',
@@ -217,24 +217,6 @@ function createError(name: string, message: string, stack?: string): Error {
   }
 
   return error
-}
-
-function stringifyUnknown(value: unknown): string {
-  if (typeof value === 'string') {
-    return value
-  }
-
-  try {
-    const serialized = JSON.stringify(value)
-
-    return serialized ?? String(value)
-  } catch {
-    try {
-      return String(value)
-    } catch {
-      return '[Unserializable Vite error]'
-    }
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

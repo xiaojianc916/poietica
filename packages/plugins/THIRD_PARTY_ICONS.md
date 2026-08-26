@@ -1,8 +1,5 @@
-<!-- Managed by root refactor.mjs. -->
-
 # Third-party integration icons
 
-These SVGs are downloaded only while running the repository refactor script.
 The desktop application uses local build assets and does not hotlink upstream files.
 
 | Local file | Identification use | Upstream | License |

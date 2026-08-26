@@ -18,10 +18,9 @@
 //! 只交正文、只收正文。写入前唯一的检查是「它得是一份 JSON」—— 那是文件格式本身而
 //! 不是形状：一份写坏的文件会让 CLI 把整张服务器表判为无效。
 
-use std::fs;
-use std::io::ErrorKind;
 use std::path::Path;
 
+use poietica_plugin_host_native as host;
 use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, command};
@@ -45,10 +44,12 @@ pub struct EnvironmentFile {
 }
 
 fn read_file(path: &Path) -> Result<Option<String>> {
-    match fs::read_to_string(path) {
-        Ok(text) => Ok(Some(text)),
-        Err(cause) if cause.kind() == ErrorKind::NotFound => Ok(None),
-        Err(cause) => Err(Error::from(cause)),
+    match host::read_optional(path) {
+        Ok(contents) => Ok(contents),
+        // 折回 Error::Io 保住原来的对外文案（public_message 表里的「文件操作失败」）。
+        Err(host::HostError::Io(cause)) => Err(Error::from(cause)),
+        // read_optional 只做一次 read_to_string，其余变体到不了这里。
+        Err(other) => Err(Error::Internal(other.to_string())),
     }
 }
 

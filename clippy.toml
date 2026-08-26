@@ -1,4 +1,0 @@
-# 测试代码里的 expect/unwrap 是响亮失败，不是缺陷。
-# 依据：recorder.rs 等测试模块此前因缺这份文件而逐处 allow。
-allow-expect-in-tests = true
-allow-unwrap-in-tests = true

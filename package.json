@@ -54,12 +54,6 @@
     "turbo": "catalog:",
     "typescript": "catalog:"
   },
-  "trustedDependencies": [
-    "@parcel/watcher",
-    "blake3",
-    "esbuild",
-    "leveldown"
-  ],
   "workspaces": {
     "packages": [
       "apps/*",

@@ -206,15 +206,22 @@ function rowsOf(page: TurnPage, live: boolean): readonly FeedRow[] {
   return rows
 }
 
-/** 每一轮的起点。段自己那一问在 0；插进来的那些各自成轮；-1 是无主的开头。 */
-function boundsIn(rows: readonly FeedRow[]): readonly number[] {
-  const out: number[] = []
+/** 用户消息行的行号清单，升序。轮次边界与回复分段都从这一趟扫描取数。 */
+function saidIn(rows: readonly FeedRow[]): readonly number[] {
+  const said: number[] = []
 
   for (let i = 0; i < rows.length; i += 1) {
     if (rows[i]?.item.type === SAID) {
-      out.push(i)
+      said.push(i)
     }
   }
+
+  return said
+}
+
+/** 每一轮的起点。段自己那一问在 0；插进来的那些各自成轮；-1 是无主的开头。 */
+function boundsIn(rows: readonly FeedRow[]): readonly number[] {
+  const out = saidIn(rows)
 
   return out[0] === 0 ? out : [-1, ...out]
 }
@@ -414,13 +421,7 @@ function stageIn(rows: readonly FeedRow[]): {
   readonly staged: readonly Staged[]
   readonly leading: Scan
 } {
-  const marks: number[] = []
-
-  for (let i = 0; i < rows.length; i += 1) {
-    if (rows[i]?.item.type === SAID) {
-      marks.push(i)
-    }
-  }
+  const marks = saidIn(rows)
 
   const staged: Staged[] = []
 

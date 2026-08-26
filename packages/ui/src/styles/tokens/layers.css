@@ -15,12 +15,8 @@
  * 反过来会出现"报错提示被一个下拉框遮住"。
  */
 :root {
-  --ui-z-ground: 0;
-  --ui-z-content: 10;
-  --ui-z-chrome: 20;
   --ui-z-floating: 40;
   --ui-z-dialog: 100;
   --ui-z-popover: 110;
   --ui-z-toast: 120;
-  --ui-z-fatal: 1000;
 }

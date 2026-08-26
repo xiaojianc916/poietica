@@ -77,8 +77,8 @@ describe('WORKSPACE_LAYOUT', () => {
     const [firstX, , secondX] = ease
 
     /*
-     * CSS and Motion require the X control points
-     * to remain in the 0..1 range.
+     * CSS requires the X control points to remain
+     * in the 0..1 range.
      */
     expect(firstX).toBeGreaterThanOrEqual(0)
 

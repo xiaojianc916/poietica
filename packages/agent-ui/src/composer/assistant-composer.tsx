@@ -6,14 +6,11 @@ import type {
   AgentMcpServer,
   AgentSkill,
   ChatStatus,
-  PromptConfiguration,
-  PromptSkill,
   QuestionResponse,
   SessionConfigControl,
   SessionUsage,
 } from '@poietica/agent-contract'
 import { memo, type Ref, useMemo } from 'react'
-import type { ComposerAsset } from './attachment-intake'
 import { AttachmentTray } from './attachment-tray'
 import {
   activePromptConfiguration,
@@ -24,7 +21,7 @@ import {
 import { ContextGauge } from './context-gauge'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PermissionPicker } from './permission-picker'
-import type { PromptInputHandle } from './prompt-input'
+import type { PromptInputHandle, PromptInputMessage } from './prompt-input'
 import {
   PromptInput,
   PromptInputBody,
@@ -48,12 +45,7 @@ import { SessionControls } from './session-controls'
 export interface AssistantComposerProps {
   readonly placeholder?: string
   readonly status?: ChatStatus
-  readonly onSubmit: (input: {
-    readonly text: string
-    readonly configuration: readonly PromptConfiguration[]
-    readonly assets: readonly ComposerAsset[]
-    readonly skills: readonly PromptSkill[]
-  }) => void
+  readonly onSubmit: (input: PromptInputMessage) => void
   readonly onCancel?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
   readonly ref?: Ref<PromptInputHandle> | undefined
@@ -61,8 +53,6 @@ export interface AssistantComposerProps {
   readonly skills?: readonly AgentSkill[] | undefined
   /** Kimi 检测到的 MCP server。 */
   readonly mcpServers?: readonly AgentMcpServer[] | undefined
-  /** 此刻还在跑的子代理数，真相在转录。 */
-  readonly swarm?: number | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
   readonly controlsFailure?: string | undefined

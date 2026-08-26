@@ -14,12 +14,9 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/agent": "workspace:*",
-    "@poietica/agent-contract": "workspace:*",
     "@poietica/core": "workspace:*",
     "@poietica/ui": "workspace:*",
     "lucide-react": "catalog:",
-    "motion": "catalog:",
     "valibot": "catalog:"
   },
   "devDependencies": {

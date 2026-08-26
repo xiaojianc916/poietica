@@ -16,7 +16,7 @@ import { formatKeybinding } from './keybinding'
  * 所以次序是在 app-commands.ts 那张表里读得出来的，不藏在比较器里。
  */
 
-export interface CommandPaletteProps {
+interface CommandPaletteProps {
   readonly open: boolean
   readonly registry: CommandRegistry
   readonly onOpenChange: (open: boolean) => void

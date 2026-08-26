@@ -18,7 +18,6 @@ export type {
 } from './session'
 export {
   AgentCapabilityStore,
-  DEFAULT_WORKSPACE_ID,
   describeFailure,
   groupByWorkspace,
   permissionControlOf,
@@ -44,7 +43,6 @@ export type {
 } from './timeline'
 export {
   activeScope,
-  appendUserMessage,
   applyRunEvents,
   channelNameOf,
   delegateKey,

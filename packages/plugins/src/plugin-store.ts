@@ -131,7 +131,7 @@ export interface RefusedInstall {
 
 export type InstallFlow = IdleInstall | RefusedInstall | StagedInstall | StagingInstall
 
-export const INSTALL_IDLE: InstallFlow = { kind: 'idle' }
+const INSTALL_IDLE: InstallFlow = { kind: 'idle' }
 
 /* 视图模型里两格安装状态的键。两条流程按它分账世代号，也按它发布状态。 */
 type InstallFlowKey = 'install' | 'skillInstall'
@@ -211,7 +211,7 @@ export interface PluginStore {
   readonly removeInstalledSkill: (name: string) => void
 }
 
-export interface PluginStoreOptions {
+interface PluginStoreOptions {
   /**
    * 市场目录在哪。
    *
@@ -545,8 +545,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         marketplace: completeFetch(
           snapshot.marketplace,
           JSON.parse(contents),
-          /* 盘上那份取回的时间没有记，界面也不再展示这一格。 */
-          '',
           options.marketplaceUrl,
         ),
       })
@@ -565,7 +563,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         marketplace: completeFetch(
           snapshot.marketplace,
           JSON.parse(contents),
-          options.now(),
           options.marketplaceUrl,
         ),
       })

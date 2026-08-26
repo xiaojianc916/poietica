@@ -4,6 +4,11 @@
 //! 与 /models 的 data（listModelsResponseSchema）。目标一格来自 goal snapshot，
 //! 这里给 Null —— 它只影响 goal 自己的档位。
 
+#![allow(
+    clippy::expect_used,
+    reason = "a test proves itself by panicking, so a failed step must fail the test"
+)]
+
 use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose, controls, selector_patch};
 use serde_json::{Value, json};
 

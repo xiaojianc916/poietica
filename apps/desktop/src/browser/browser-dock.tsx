@@ -1,6 +1,6 @@
 import { DelegateChannelPane, DelegateChannelTab } from '@poietica/agent-ui'
 import { BrowserPanel, type DockPaneRenderers } from '@poietica/browser'
-import { workspaceLayoutStore } from '@poietica/workspace'
+import { useWorkspaceLayoutState, workspaceLayoutStore } from '@poietica/workspace'
 import { PanelRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
@@ -14,16 +14,8 @@ import { browserPanelStore } from './browser-runtime'
  * 「原生 webview 该不该可见」的地方 —— 否则「谁隐藏了 webview」就有两个答案。
  */
 
-function useLayout() {
-  return useSyncExternalStore(
-    workspaceLayoutStore.subscribe,
-    workspaceLayoutStore.getSnapshot,
-    workspaceLayoutStore.getSnapshot,
-  )
-}
-
 export function BrowserPanelToggle({ conversationId }: { readonly conversationId: string }) {
-  const { browserThread } = useLayout()
+  const { browserThread } = useWorkspaceLayoutState()
   const held = browserThread === conversationId
   const label = held ? '收起浏览器' : '打开浏览器'
 
@@ -51,7 +43,7 @@ interface BrowserDockProps {
 }
 
 export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
-  const layout = useLayout()
+  const layout = useWorkspaceLayoutState()
   const state = useSyncExternalStore(
     browserPanelStore.subscribe,
     browserPanelStore.getSnapshot,

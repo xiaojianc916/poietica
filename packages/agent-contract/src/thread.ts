@@ -28,9 +28,9 @@ export interface ThreadRecord {
    * 列表的一级索引就是它：对着一个工作目录干活的客户端，主线索是「在哪个项目
    * 里」，不是「什么时候说的」。
    *
-   * 缺席有确定的含义 —— 默认那一个工作区。平台今天对每一条都报缺席（桌面侧
-   * 建桥不传 cwd，IPC 送 cwd: cwd ?? null），所以存量对话本来就都在默认那一个
-   * 里，读回来一行不差。这一格开始带上路径之后，界面不需要任何改动。
+   * 缺席有确定的含义 —— 默认那一个工作区。平台今天对每一条都报缺席，所以存量
+   * 对话本来就都在默认那一个里，读回来一行不差。这一格开始带上路径之后，界面
+   * 不需要任何改动。
    */
   readonly workspaceRoot?: string | null
   /** Whether the conversation is outside the active list. */

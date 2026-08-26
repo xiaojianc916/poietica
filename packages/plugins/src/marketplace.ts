@@ -60,8 +60,6 @@ export interface MarketplaceEntry {
 
 export interface MarketplaceCatalog {
   readonly entries: readonly MarketplaceEntry[]
-  /* 这一份是什么时候取回来的：刷新按钮旁边显示的就是它。 */
-  readonly fetchedAt: string
 }
 
 /*
@@ -116,11 +114,7 @@ export type CatalogDecoding = DecodedCatalog | UndecodableCatalog
  * 目录里的 source 在解码当场就变成结构，不以字符串的形态往下传：字符串会被
  * 沿途每一处各自解释一遍，而解释不一致时没有任何东西会报错。
  */
-export function decodeMarketplaceCatalog(
-  raw: unknown,
-  fetchedAt: string,
-  catalogUrl: string,
-): CatalogDecoding {
+export function decodeMarketplaceCatalog(raw: unknown, catalogUrl: string): CatalogDecoding {
   const parsed = v.safeParse(RawCatalog, raw)
 
   if (!parsed.success) {
@@ -152,7 +146,7 @@ export function decodeMarketplaceCatalog(
     })
   }
 
-  return { kind: 'decoded', catalog: { fetchedAt, entries } }
+  return { kind: 'decoded', catalog: { entries } }
 }
 
 export interface AbsentCatalog {
@@ -216,10 +210,9 @@ export function beginFetch(state: MarketplaceState): MarketplaceState {
 export function completeFetch(
   state: MarketplaceState,
   raw: unknown,
-  fetchedAt: string,
   catalogUrl: string,
 ): MarketplaceState {
-  const decoded = decodeMarketplaceCatalog(raw, fetchedAt, catalogUrl)
+  const decoded = decodeMarketplaceCatalog(raw, catalogUrl)
 
   if (decoded.kind === 'undecodable') {
     return { kind: 'failed', previous: latestCatalog(state), reason: decoded.reason }

@@ -1,6 +1,5 @@
 import './outcome-card.css'
 
-import { Surface } from '../primitives/surface'
 import { Prose } from './prose'
 
 /**
@@ -23,7 +22,12 @@ export interface OutcomeCardProps {
 
 export function OutcomeCard({ answer, answered, note, prompt }: OutcomeCardProps) {
   return (
-    <Surface className="assistant-outcome" data-answered={answered === true ? 'true' : undefined}>
+    /* 外观归 design-system 的 [data-surface]：属性直接写在元素上，不经过包装组件。 */
+    <div
+      className="assistant-outcome"
+      data-answered={answered === true ? 'true' : undefined}
+      data-surface=""
+    >
       {/*
        * 题面可能是一整份文档。
        *
@@ -37,6 +41,6 @@ export function OutcomeCard({ answer, answered, note, prompt }: OutcomeCardProps
       {answer === undefined ? null : <p className="assistant-outcome__answer">{answer}</p>}
 
       {note === undefined ? null : <p className="assistant-outcome__note">{note}</p>}
-    </Surface>
+    </div>
   )
 }

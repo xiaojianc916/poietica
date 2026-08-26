@@ -15,7 +15,6 @@ import {
   pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
-  runningDelegations,
 } from '@poietica/agent'
 import type {
   AgentSessionPort,
@@ -379,12 +378,6 @@ const readPendingCall = (transcript: Transcript): ToolCallTimelineItem | undefin
 /** 待答请求指向的那次调用；审批带照着它印字。 */
 export function useAssistantPendingCall(key: string): ToolCallTimelineItem | undefined {
   return useSlice(key, readPendingCall)
-}
-
-/* 目标与蜂群各交一个原始值：字符串与数字，所以流式追加叫不醒那排胶囊。 */
-/** 此刻还在跑的子代理数。 */
-export function useAssistantSwarm(key: string): number {
-  return useSlice(key, (t) => runningDelegations(t.timeline))
 }
 
 /*

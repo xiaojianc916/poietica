@@ -10,7 +10,7 @@ import { useThreadsActions } from '../assistant/threads-context'
 /**
  * 自动化的进程级运行时。
  *
- * 一个进程一份，和 agent 会话、方言、对话列表同级（见 assistant/agent-session）。
+ * 一个进程一份，和 agent 会话、方言、对话列表同级（见 assistant/agent-runtime.ts）。
  */
 export const automationStore = createAutomationStore()
 

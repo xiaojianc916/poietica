@@ -1,4 +1,4 @@
-export interface UICommand {
+interface UICommand {
   readonly id: string
   readonly label: string
   /**

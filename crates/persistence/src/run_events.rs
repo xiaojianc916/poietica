@@ -189,7 +189,7 @@ impl AgentStore {
     /// # Errors
     ///
     /// 查询被拒时返回错误。
-    pub fn turn_cut(&self, thread: Uuid, drop_turns: u32, turn_start: &str) -> Result<i64> {
+    pub(crate) fn turn_cut(&self, thread: Uuid, drop_turns: u32, turn_start: &str) -> Result<i64> {
         if drop_turns == 0 {
             return Ok(i64::MAX);
         }

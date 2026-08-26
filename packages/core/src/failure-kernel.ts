@@ -2,7 +2,7 @@ import { v7 as uuidv7 } from 'uuid'
 import { assertInvariant } from './errors'
 import { optionalProperty } from './optional-property'
 
-export const FAILURE_IMPACTS = [
+const FAILURE_IMPACTS = [
   'recoverable',
   'feature-degraded',
   'application-fatal',
@@ -140,7 +140,7 @@ export function createFailureScopeKey(scope: FailureScope): string {
  * 而不是同包 errors.ts 里为输入校验准备的校验错误，
  * 更不是之前那种没有 code、没有 context、无法被上层分类的裸 Error。
  */
-export function validateFailurePolicy(input: ClassifiedFailureInput): void {
+function validateFailurePolicy(input: ClassifiedFailureInput): void {
   assertInvariant(input.code.trim().length > 0, 'Failure code must not be empty.')
 
   assertInvariant(input.userMessage.trim().length > 0, 'Failure userMessage must not be empty.')

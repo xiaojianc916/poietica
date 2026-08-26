@@ -4,22 +4,22 @@ import type { SettingsStore } from './settings-store'
 
 export type SettingsOperation = 'load' | 'save' | 'reset'
 
-export interface SettingsSessionSnapshot {
+interface SettingsSessionSnapshot {
   readonly status: 'idle' | 'loading' | 'ready' | 'saving' | 'error' | 'closed'
   readonly settings?: AppSettings
   readonly operation?: SettingsOperation
   readonly error?: string
 }
 
-export interface SettingsSessionScheduler {
+interface SettingsSessionScheduler {
   readonly schedule: (task: () => void, delayMs: number) => () => void
 }
 
-export interface SettingsSessionOptions extends SettingsSessionScheduler {
+interface SettingsSessionOptions extends SettingsSessionScheduler {
   readonly store: SettingsStore
 }
 
-export interface SettingsSession {
+interface SettingsSession {
   readonly getSnapshot: () => SettingsSessionSnapshot
   readonly subscribe: (listener: () => void) => () => void
   readonly start: () => () => void

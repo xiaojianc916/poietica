@@ -56,7 +56,7 @@ export function nextRunAfter(schedule: string | null, from: number): string | nu
   return jobOf(schedule)?.nextRun(new Date(from))?.toISOString() ?? null
 }
 
-export interface AutomationSummary {
+interface AutomationSummary {
   readonly total: number
   readonly succeeded: number
   readonly failed: number
@@ -162,8 +162,8 @@ export function describeSchedule(schedule: string | null): string {
 /**
  * 两份会话设置是不是同一份。
  *
- * 与 sameTrigger 同一个用途：编辑器判「有没有改过」。键集合取并集，不是拿
- * 一边的键去查另一边 —— 那样「删掉一项」会被判成没变，保存按钮永远是灰的。
+ * 编辑器判「有没有改过」。键集合取并集，不是拿一边的键去查另一边 —— 那样
+ * 「删掉一项」会被判成没变，保存按钮永远是灰的。
  *
  * 两边都必须是收过的形状（sessionConfigOf 的产物）。收窄入参不是洁癖：生成
  * 绑定里 sessionConfig 是 Partial<Record<..>> | undefined，直接递进来编译就

@@ -45,7 +45,7 @@ import { useAgentProviders } from './use-agent-providers'
  */
 const COLLAPSED_MODEL_LIMIT = 8
 
-/* 要显示哪几家。清单内置在 @poietica/agent-providers 的 provider-presets.ts 里。 */
+/* 要显示哪几家。清单内置在 @poietica/agent-catalog 的 provider-presets.ts 里。 */
 const BUILTIN_PROVIDERS = builtinAgentProviders()
 
 /** 一家没导进去，以及 agent 说的原因。 */
@@ -53,16 +53,6 @@ interface ImportFailure {
   readonly id: string
   readonly reason: string
 }
-
-/*
- * agent 拒绝这一次写入时说了什么。
- *
- * 上游每一条失败路径都先往 stderr 写一行再退出，所以第一行非空就是全部原因。原文直出
- * 不改写：那一行指得到地方，而一句读着体面的「导入失败」指不到任何地方。
- *
- * stderr 空就退回 stdout —— 有些失败是 commander 层打印的；两样都空时只剩退出码，那也
- * 比不说强。
- */
 
 /*
  * 导入一家 provider。

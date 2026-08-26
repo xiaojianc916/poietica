@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
  * 位置是有限且由布局决定的，因此是一个封闭联合而不是任意字符串键：
  * 新增一个位置必须同时给出它在栅格里的坐标，类型会强制这件事被想到。
  */
-export type WorkspacePartId = 'chrome' | 'sidebar' | 'main' | 'browser'
+type WorkspacePartId = 'chrome' | 'sidebar' | 'main' | 'browser'
 
 export interface WorkspacePart {
   readonly content: ReactNode

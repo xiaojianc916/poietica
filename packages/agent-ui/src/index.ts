@@ -1,16 +1,8 @@
-export type { AssistantComposerProps } from './composer/assistant-composer'
-export { AssistantComposer } from './composer/assistant-composer'
 export type { AttachmentIntake, ComposerAsset } from './composer/attachment-intake'
-export { AttachmentIntakeContext, useAttachmentIntake } from './composer/attachment-intake'
+export { AttachmentIntakeContext } from './composer/attachment-intake'
 export { ComposerDrafts, ComposerDraftsContext } from './composer/composer-drafts'
-export type { PromptChipValue } from './composer/prompt-chip'
-export type { PromptInputHandle, PromptInputMessage } from './composer/prompt-input'
-export type { SessionControlsProps } from './composer/session-controls'
-export type { GoalIslandProps } from './goal/goal-island'
+export type { PromptInputHandle } from './composer/prompt-input'
 export { GoalIsland } from './goal/goal-island'
-export type { ImageLightboxProps, PreviewableImage } from './media/image-lightbox'
-export { ImageLightbox } from './media/image-lightbox'
-export type { AgentControlsView } from './session/agent-controls-context'
 export { AgentControlsContext, useAgentControls } from './session/agent-controls-context'
 export {
   SessionControlsContext,
@@ -20,29 +12,11 @@ export {
   useThreadUsage,
 } from './session/session-controls-context'
 export { TranscriptsContext, useTranscripts } from './session/transcripts-context'
-export type {
-  AssistantSession,
-  AssistantSessionOptions,
-  AssistantSubmission,
-} from './session/use-assistant-session'
-export {
-  useAssistantPending,
-  useAssistantPendingCount,
-  useAssistantSession,
-  useAssistantTimeline,
-} from './session/use-assistant-session'
+export { useAssistantSession } from './session/use-assistant-session'
 export { useRunningThreads } from './session/use-running-threads'
-export type { AssistantSurfaceProps } from './surface/assistant-surface'
 export { AssistantSurface } from './surface/assistant-surface'
-export type {
-  AssistantThreadListProps,
-  AssistantThreadSummary,
-  AssistantThreadWorkspaceGroup,
-} from './threads/assistant-thread-list'
 export { AssistantThreadList } from './threads/assistant-thread-list'
 export type { GitBranchPickerProps } from './threads/git-branch-picker'
-export { GitBranchPicker } from './threads/git-branch-picker'
-export type { WorkspaceChoice, WorkspacePickerProps } from './threads/workspace-picker'
-export { WorkspacePicker } from './threads/workspace-picker'
+export type { WorkspacePickerProps } from './threads/workspace-picker'
 export { DelegateChannelContext, useDelegateChannel } from './timeline/delegate-channel-context'
 export { DelegateChannelPane, DelegateChannelTab } from './timeline/delegate-channel-view'

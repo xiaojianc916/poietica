@@ -19,8 +19,8 @@ import { trustLabel } from './trust-badge'
  * 下一次会话不装载它，随时拨得回来。
  *
  * 「个人」不再单列一段。装了就是装了，来源是行上那一枚标；分两段列意味着同一件事有两条
- * 渲染路径，而人要找「我装的那个」得先想清楚它算公开还是个人。卸载之后卡片留不留仍由
- * catalog/scope 说了算，那条判据没有变。
+ * 渲染路径，而人要找「我装的那个」得先想清楚它算公开还是个人。卸载之后卡片留不留，判据
+ * 写在 catalog-grid.tsx 的 CardAction 头注释里。
  */
 
 export interface PluginBrowserProps {

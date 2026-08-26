@@ -98,7 +98,7 @@ export function formatDiagnosticLogs(logEntries: readonly DiagnosticLogEntry[]):
     .join('\n')
 }
 
-function sanitizeContext(context: LogContext): Readonly<Record<string, string>> {
+export function sanitizeContext(context: LogContext): Readonly<Record<string, string>> {
   const sanitizedEntries = Object.entries(context)
     .filter(([key]) => key !== 'scope' && key !== 'correlationId')
     .slice(0, MAX_CONTEXT_ENTRIES)
@@ -107,7 +107,7 @@ function sanitizeContext(context: LogContext): Readonly<Record<string, string>> 
         return [key, REDACTED] as const
       }
 
-      return [key, normalizeText(serializeUnknown(value), MAX_CONTEXT_VALUE_LENGTH)] as const
+      return [key, normalizeText(safeStringify(value), MAX_CONTEXT_VALUE_LENGTH)] as const
     })
 
   return Object.fromEntries(sanitizedEntries)
@@ -130,7 +130,7 @@ function formatLeafValue(value: unknown): string | undefined {
   return undefined
 }
 
-function serializeUnknown(value: unknown): string {
+export function safeStringify(value: unknown): string {
   if (value === undefined) {
     return 'undefined'
   }
@@ -228,7 +228,7 @@ function normalizeOptionalText(
   return normalizeText(value, maximumLength)
 }
 
-function normalizeText(value: string, maximumLength: number): string {
+export function normalizeText(value: string, maximumLength: number): string {
   const redacted = redactText(value)
 
   if (redacted.length <= maximumLength) {
@@ -238,7 +238,7 @@ function normalizeText(value: string, maximumLength: number): string {
   return `${redacted.slice(0, maximumLength)}\n[Diagnostic value truncated]`
 }
 
-function redactText(value: string): string {
+export function redactText(value: string): string {
   return value
     .replace(BEARER_PATTERN, `Bearer ${REDACTED}`)
     .replace(WINDOWS_USER_PATH_PATTERN, `C:\\Users\\${REDACTED}`)

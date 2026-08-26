@@ -778,17 +778,6 @@ export function PromptInputTools({ className, ...props }: ComponentProps<'div'>)
   return <div className={className} data-slot="prompt-input-tools" {...props} />
 }
 
-export function PromptInputButton({ className, type, ...props }: ComponentProps<'button'>) {
-  return (
-    <button
-      {...props}
-      className={className}
-      data-slot="prompt-input-button"
-      type={type ?? 'button'}
-    />
-  )
-}
-
 export function PromptInputSubmit({
   className,
   disabled,

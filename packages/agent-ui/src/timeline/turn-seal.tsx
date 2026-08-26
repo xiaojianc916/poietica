@@ -3,6 +3,7 @@ import './turn-seal.css'
 import { memo } from 'react'
 import { ChevronDownIcon } from '../primitives/icons'
 import { useSecond } from '../primitives/tick'
+import { formatDuration } from '../semantics/duration'
 
 /*
  * 一轮的封条：这一轮花了多久，以及它的过程收在哪里。
@@ -27,8 +28,6 @@ export interface TurnSealProps {
   readonly onToggle: (turn: number, isOpen: boolean) => void
 }
 
-const SECOND_MS = 1_000
-
 /*
  * 耗时的两端同在日志域：起点是 prompt_admitted 的 at，终点是这一轮最后一帧的 at，两者都由
  * 原生侧 recorder.rs 的 now_millis 写下。
@@ -48,28 +47,6 @@ function elapsedOf(
   }
 
   return Math.max(until - startedAt, 0)
-}
-
-/*
- * 三档：一分钟以内只说秒，一小时以内说分和秒，再长只说时和分。
- *
- * 不补零 —— 读的人认的是「多少分多少秒」，不是一个时刻。
- */
-function spell(ms: number): string {
-  const total = Math.floor(ms / SECOND_MS)
-  const hours = Math.floor(total / 3_600)
-  const minutes = Math.floor(total / 60) % 60
-  const seconds = total % 60
-
-  if (hours > 0) {
-    return `${String(hours)}h ${String(minutes)}m`
-  }
-
-  if (minutes > 0) {
-    return `${String(minutes)}m ${String(seconds)}s`
-  }
-
-  return `${String(seconds)}s`
 }
 
 /*
@@ -97,7 +74,9 @@ function Seal({
     isRunning ? Math.max(now, lastFrameAt ?? 0) : lastFrameAt,
   )
   const phase = isRunning ? '正在处理' : '已处理'
-  const label = elapsed === undefined ? phase : `${phase} ${spell(elapsed)}`
+  /* 不足一秒不报（formatDuration 的判据）：那种轮次快到没有人来得及读。 */
+  const duration = elapsed === undefined ? null : formatDuration(elapsed)
+  const label = duration === null ? phase : `${phase} ${duration}`
 
   /* 运行中不会折叠；没有过程时也没有可操作的 disclosure。 */
   if (isRunning || !hasProcess) {

@@ -79,14 +79,6 @@ impl AssetSessionSnapshotEntry {
         })
     }
 
-    pub fn content_hash(&self) -> &str {
-        &self.content_hash
-    }
-
-    pub fn content_type(&self) -> &str {
-        &self.content_type
-    }
-
     #[allow(
         clippy::rc_buffer,
         reason = "the payload is produced as a Vec and shared read-only; Arc<[u8]> would force an extra copy"
@@ -314,68 +306,15 @@ impl AssetProtocolRegistry {
         Ok(true)
     }
 
-    /// Restores one complete asset session atomically.
-    ///
-    /// Every asset is materialized in private temporary state before the
-    /// registry write lock is acquired. The session becomes visible only after
-    /// the complete resource set and global byte budget have been accepted.
-    ///
-    /// Failure never publishes an empty or partially restored session.
-    ///
-    /// Content identity, content type and digest are guaranteed by the entry
-    /// type and are deliberately not rechecked. Re-hashing here would charge
-    /// every restored asset a second digest that the entry's construction
-    /// site already paid or named. Only the registry's own budgets, which the
-    /// entry knows nothing about, are enforced below.
-    pub fn restore_session(
-        &self,
-        session_token: &str,
-        assets: Vec<AssetSessionSnapshotEntry>,
-    ) -> Result<(), AssetProtocolError> {
-        validate_token(session_token)?;
-
-        let (restored_assets, restored_bytes) = materialise(assets)?;
-
-        let mut state = self
-            .state
-            .write()
-            .map_err(|_| AssetProtocolError::Internal)?;
-
-        if state.sessions.contains_key(session_token) {
-            return Err(AssetProtocolError::DuplicateAsset);
-        }
-
-        let next_total = state
-            .total_bytes
-            .checked_add(restored_bytes)
-            .ok_or(AssetProtocolError::RegistryBudgetExceeded)?;
-
-        if next_total > MAX_REGISTRY_BYTES {
-            return Err(AssetProtocolError::RegistryBudgetExceeded);
-        }
-
-        state
-            .sessions
-            .insert(session_token.to_owned(), restored_assets);
-
-        state.total_bytes = next_total;
-
-        Ok(())
-    }
-
     /// 换掉一条交付会话：撤旧与铺新在同一次写锁里完成。
     ///
-    /// 打开一条对话此前是"先 remove_session，末尾再 restore_session"（见
-    /// commands/agent/attachment.rs 的 deliver_attachments）。两次写锁之间隔着一次库读和
-    /// 一整趟磁盘读，那段时间这条会话在注册表里并不存在 —— 而这条命令的重入
-    /// 是常态：Ctrl+R 与第二个窗口都会让它重来一遍。旧页面上还挂着的 <img>
-    /// 在那一瞬取到的是 404，协议这一侧没有重试，于是它就一直是个破图标。
+    /// 打开一条对话此前是"先拆掉旧会话，末尾再铺新的"，两次写锁之间隔着一次
+    /// 库读和一整趟磁盘读，那段时间这条会话在注册表里并不存在 —— 而这条命令
+    /// 的重入是常态：Ctrl+R 与第二个窗口都会让它重来一遍。旧页面上还挂着的
+    /// <img> 在那一瞬取到的是 404，协议这一侧没有重试，于是它就一直是个破图标。
     ///
     /// 分两步做替换从来不是一个可以靠调用方"小心一点"解决的问题，所以原语
     /// 放在这里：中间态不对读者出现，因为它压根不存在。
-    ///
-    /// 与 restore_session 的差别只有一条：那一个坚持这条会话还不存在（文档
-    /// 打开那条路确实以此为前提），这一个不在乎。
     ///
     /// # Errors
     ///
@@ -599,11 +538,7 @@ impl AssetProtocolRegistry {
 /// 把一批已验身份的资源物化成一条会话的内容，以及它一共占多少字节。
 ///
 /// 单张与整批的上限都在这里算清，而且在任何人拿写锁之前算清 —— 失败因此
-/// 不可能留下半条会话，这正是 restore_session 文档里那句「Failure never
-/// publishes an empty or partially restored session」的实现处。
-///
-/// 铺一条新的（restore_session）与换掉一条旧的（replace_session）走的是同一段，
-/// 两者的区别只剩下"这条会话已经在了算不算错"这一个判断。
+/// 不可能留下半条会话，replace_session 的原子性正是在这里实现的。
 fn materialise(
     assets: Vec<AssetSessionSnapshotEntry>,
 ) -> Result<(HashMap<String, RegisteredAsset>, usize), AssetProtocolError> {
@@ -700,24 +635,9 @@ fn validate_content_hash(content_hash: &str) -> Result<(), AssetProtocolError> {
 }
 
 fn validate_content_type(content_type: &str) -> Result<(), AssetProtocolError> {
-    const ALLOWED: &[&str] = &[
-        "image/png",
-        "image/jpeg",
-        "image/gif",
-        "image/webp",
-        "image/avif",
-        "image/bmp",
-        "text/plain",
-        "video/mp4",
-        "video/webm",
-        "audio/mpeg",
-        "audio/wav",
-        "audio/ogg",
-        "audio/webm",
-        "application/pdf",
-    ];
-
-    if ALLOWED.contains(&content_type) {
+    /* 名单的正本是 crate::commands::asset 的 DELIVERABLE_CONTENT_TYPES，同一张表
+     * 不许抄两份。 */
+    if crate::commands::asset::is_deliverable_content_type(content_type) {
         return Ok(());
     }
 
@@ -1227,44 +1147,10 @@ mod tests {
         .expect("fixture entry should verify")
     }
 
-    #[test]
-    fn restores_complete_content_addressed_session() {
-        let registry = AssetProtocolRegistry::default();
-
-        let first_bytes = Arc::new(vec![1, 2, 3]);
-        let second_bytes = Arc::new(vec![4, 5, 6]);
-
-        let first_hash = hash(first_bytes.as_slice());
-        let second_hash = hash(second_bytes.as_slice());
-
-        registry
-            .restore_session(
-                "restored-session",
-                vec![entry(&second_bytes), entry(&first_bytes)],
-            )
-            .expect("session should restore");
-
-        let first_response = registry.response(&request(&format!(
-            "poietica-asset://asset/restored-session/{first_hash}"
-        )));
-
-        assert_eq!(first_response.status(), StatusCode::OK,);
-
-        assert_eq!(first_response.body(), first_bytes.as_ref(),);
-
-        let second_response = registry.response(&request(&format!(
-            "poietica-asset://asset/restored-session/{second_hash}"
-        )));
-
-        assert_eq!(second_response.status(), StatusCode::OK,);
-
-        assert_eq!(second_response.body(), second_bytes.as_ref(),);
-    }
-
     /*
      * The digest check did not disappear, it moved to the only place that can
      * establish it once. An entry claiming an identity its bytes do not have
-     * can no longer be built, so no session can be restored from one.
+     * can no longer be built, so no session can be published from one.
      */
     #[test]
     fn an_entry_cannot_claim_an_identity_its_bytes_do_not_have() {
@@ -1291,52 +1177,8 @@ mod tests {
     }
 
     /*
-     * Atomicity is a property of restore_session itself, so it is now exercised
-     * through a rejection restore_session still owns: its own byte budget.
-     */
-    #[test]
-    fn rejected_restore_does_not_publish_partial_session() {
-        let registry = AssetProtocolRegistry::default();
-
-        let small = Arc::new(vec![1, 2, 3]);
-        let oversized = Arc::new(vec![0_u8; MAX_ASSET_BYTES + 1]);
-
-        let result =
-            registry.restore_session("failed-session", vec![entry(&small), entry(&oversized)]);
-
-        assert_eq!(result, Err(AssetProtocolError::AssetTooLarge));
-
-        let response = registry.response(&request(&format!(
-            "poietica-asset://asset/failed-session/{}",
-            hash(small.as_slice())
-        )));
-
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    }
-
-    #[test]
-    fn duplicate_restore_hash_does_not_publish_session() {
-        let registry = AssetProtocolRegistry::default();
-
-        let bytes = Arc::new(vec![1, 2, 3]);
-
-        let result =
-            registry.restore_session("duplicate-session", vec![entry(&bytes), entry(&bytes)]);
-
-        assert_eq!(result, Err(AssetProtocolError::DuplicateAsset),);
-
-        let response = registry.response(&request(&format!(
-            "poietica-asset://asset/duplicate-session/{}",
-            hash(bytes.as_slice())
-        )));
-
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    }
-
-    /*
-     * 打开一条对话会反复走到这里：Ctrl+R 一次，开第二个窗口一次。
-     * restore_session 会拒绝第二次 —— 那正是调用方此前不得不先把它拆掉的原因，
-     * 而拆和铺之间那段空窗就是屏幕上的破图标。这一个不需要拆。
+     * 打开一条对话会反复走到这里：Ctrl+R 一次，开第二个窗口一次。拆和铺
+     * 分成两步的那条路上，中间那段空窗就是屏幕上的破图标；这一个不需要拆。
      */
     #[test]
     fn replacing_a_live_session_swaps_its_contents_in_one_step() {
@@ -1353,16 +1195,15 @@ mod tests {
             .replace_session("thread-1", vec![entry(&after)])
             .expect("second delivery should replace, not refuse");
 
-        assert!(
-            !registry
-                .contains("thread-1", &hash(before.as_slice()))
-                .expect("the old asset should be gone")
-        );
+        let stale = registry.response(&request(&format!(
+            "poietica-asset://asset/thread-1/{}",
+            hash(before.as_slice())
+        )));
 
-        assert!(
-            registry
-                .contains("thread-1", &hash(after.as_slice()))
-                .expect("the new asset should resolve")
+        assert_eq!(
+            stale.status(),
+            StatusCode::NOT_FOUND,
+            "the old asset should be gone"
         );
 
         /* 反复铺同一条会话不该把字节重复计入预算。分两步时这笔账由 remove
@@ -1417,43 +1258,36 @@ mod tests {
         assert_eq!(mime, "image/png");
         assert_eq!(bytes.as_ref(), &vec![1, 2, 3]);
 
-        assert!(
-            registry
-                .contains("composer", &asset)
-                .expect("source keeps it")
-        );
-        assert!(
-            registry
-                .contains("thread-1", &asset)
-                .expect("target has it")
-        );
+        /* 源与目标都还在交付：两条 URL 都必须解析。 */
+        for session in ["composer", "thread-1"] {
+            let response = registry.response(&request(&format!(
+                "poietica-asset://asset/{session}/{asset}"
+            )));
+
+            assert_eq!(response.status(), StatusCode::OK, "{session}");
+        }
 
         /*
-         * 「没有复制」就是字面意思：比 Arc 的地址。
-         *
-         * 这是这一刀的全部价值 —— 共用没做到，就是每发一句话把最多 32 MB 复制
-         * 一遍。此前这里断言的是 total_bytes()，那测的是记账，不是内存，而且
-         * 期望写错了：它按「预算只涨一份」写，见 adopt 的文档。
+         * 「没有复制」就是字面意思：比 Arc 的地址。这是这一刀的全部价值 ——
+         * 共用没做到，就是每发一句话把最多 32 MB 复制一遍。把这份字节再过继
+         * 一手，两次交出的必须是同一个 Arc。
          */
-        let held = registry
-            .snapshot_session("composer")
-            .expect("the source session should snapshot");
+        registry
+            .open_session("thread-2")
+            .expect("session should open");
 
-        assert_eq!(held.len(), 1);
+        let (_mime, chained) = registry
+            .adopt("thread-1", &asset, "thread-2")
+            .expect("re-adopting should succeed")
+            .expect("the asset is there");
+
         assert!(
-            Arc::ptr_eq(held[0].bytes(), &bytes),
+            Arc::ptr_eq(&bytes, &chained),
             "过继必须交出同一份内存，而不是它的副本"
         );
 
-        /* 账按「会话 × 资源」记，两条会话各记一份。 */
-        assert_eq!(registry.total_bytes(), once * 2);
-
-        let response = registry.response(&request(&format!(
-            "poietica-asset://asset/thread-1/{asset}"
-        )));
-
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.body(), &vec![1, 2, 3]);
+        /* 账按「会话 × 资源」记，三条会话各记一份。 */
+        assert_eq!(registry.total_bytes(), once * 3);
 
         /*
          * 加减对得上，才是这笔账唯一的硬性要求，也是它唯一会出问题的地方。
@@ -1466,11 +1300,14 @@ mod tests {
         registry
             .remove_session("thread-1")
             .expect("the target session should close");
+        registry
+            .remove_session("thread-2")
+            .expect("the last session should close");
 
         assert_eq!(
             registry.total_bytes(),
             0,
-            "两条会话都关掉之后账必须归零，否则它只会朝一个方向漂"
+            "三条会话都关掉之后账必须归零，否则它只会朝一个方向漂"
         );
     }
 

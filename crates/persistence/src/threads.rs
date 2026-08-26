@@ -52,7 +52,7 @@ impl AgentStore {
         )?;
 
         let found = statement
-            .query_map([], |row| summary(row))?
+            .query_map([], summary)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(found)
@@ -191,7 +191,7 @@ impl AgentStore {
         let mut rows = statement.query(rusqlite::params![id.to_string()])?;
 
         match rows.next()? {
-            Some(row) => Ok(Some(summary(&row)?)),
+            Some(row) => Ok(Some(summary(row)?)),
             None => Ok(None),
         }
     }

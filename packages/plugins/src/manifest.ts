@@ -4,7 +4,7 @@ import * as v from 'valibot'
  * 上游运行时已经不认这几个字段。读到只记一条诊断、不生效 —— 静默忽略会把
  * 「装上了却没反应」变成一个查不出原因的问题。
  */
-export const UNSUPPORTED_MANIFEST_FIELDS = ['apps', 'configFile', 'inject', 'tools'] as const
+const UNSUPPORTED_MANIFEST_FIELDS = ['apps', 'configFile', 'inject', 'tools'] as const
 
 /* 省略 skills 时，插件根自己就是一个技能根：根目录下那份 SKILL.md。 */
 export const DEFAULT_SKILL_ROOT = './'

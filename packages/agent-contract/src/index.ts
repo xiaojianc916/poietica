@@ -27,7 +27,6 @@ export type {
   QuestionAnswer,
   QuestionAnswerMethod,
   QuestionChoice,
-  QuestionGroup,
   QuestionItem,
   QuestionOption,
   QuestionResponse,
@@ -51,10 +50,8 @@ export type {
   FramePage,
   OpenedThread,
   ThreadHistory,
-  ThreadHistoryLoss,
   ThreadPort,
   ThreadRecord,
-  ThreadTitleSource,
 } from './thread'
 export type {
   ToolCallContent,

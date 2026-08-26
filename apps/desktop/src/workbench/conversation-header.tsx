@@ -1,6 +1,5 @@
 import { GoalIsland } from '@poietica/agent-ui'
-import { workspaceLayoutStore } from '@poietica/workspace'
-import { useSyncExternalStore } from 'react'
+import { useWorkspaceLayoutState } from '@poietica/workspace'
 
 import { BrowserPanelToggle } from '../browser/browser-dock'
 import './conversation-header.css'
@@ -15,11 +14,7 @@ import './conversation-header.css'
  * 这里仍画着一个开关，与角位那颗并存成两颗。
  */
 export function ConversationHeader({ conversationId }: { readonly conversationId: string }) {
-  const { browserThread } = useSyncExternalStore(
-    workspaceLayoutStore.subscribe,
-    workspaceLayoutStore.getSnapshot,
-    workspaceLayoutStore.getSnapshot,
-  )
+  const { browserThread } = useWorkspaceLayoutState()
 
   return (
     <header className="conversation-header" data-assistant-skin>

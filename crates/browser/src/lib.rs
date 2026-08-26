@@ -17,7 +17,7 @@ pub(crate) const RECENTLY_CLOSED_CAP: usize = 10;
 pub const BLANK_PAGE: &str = "about:blank";
 
 /// 标签标识。u32 足够（一个进程开不满四十亿个标签），并且能无损过 IPC。
-pub type TabId = u32;
+pub(crate) type TabId = u32;
 
 /// 一个标签页。url 为 None 表示空白页：还没有导航过，也没有对应的 webview。
 #[derive(Clone, Debug, PartialEq, Eq)]

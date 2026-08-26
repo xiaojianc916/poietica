@@ -1,6 +1,8 @@
 import type { SessionGoal } from '@poietica/agent-contract'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
+import { useSecond } from '../primitives/tick'
+import { HOUR, MINUTE, SECOND } from '../semantics/duration'
 import { useSessionControlsActions, useThreadGoal } from '../session/session-controls-context'
 import './goal-island.css'
 
@@ -8,10 +10,6 @@ import './goal-island.css'
 const MORPH = { type: 'spring', stiffness: 260, damping: 30, mass: 1 } as const
 const FADE = { duration: 0.16, ease: 'easeOut' } as const
 const SHAPE = { collapsed: 999, expanded: 28 } as const
-
-const SECOND = 1000
-const MINUTE = 60 * SECOND
-const HOUR = 60 * MINUTE
 
 function formatElapsed(total: number): string {
   const ms = Math.max(0, total)
@@ -24,19 +22,10 @@ function formatElapsed(total: number): string {
 }
 
 function useElapsed(goal: SessionGoal): number {
-  const [, retick] = useState(0)
   const running = goal.status === 'active'
+  const now = useSecond(running)
 
-  useEffect(() => {
-    if (!running) {
-      return undefined
-    }
-
-    const timer = setInterval(() => retick((count) => count + 1), SECOND)
-    return () => clearInterval(timer)
-  }, [running])
-
-  return goal.wallClockMs + (running ? performance.now() - goal.receivedAt : 0)
+  return goal.wallClockMs + (running ? Math.max(now - goal.receivedAt, 0) : 0)
 }
 
 const STATUS_LABEL: Record<SessionGoal['status'], string> = {

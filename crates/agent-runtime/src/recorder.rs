@@ -330,11 +330,6 @@ impl Recorder {
         });
     }
 
-    /// The question groups this run is still waiting on.
-    pub fn outstanding_questions(&self) -> &[String] {
-        &self.questions
-    }
-
     /// Records that the run ended on the agent's terms.
     pub fn record_run_finished(&mut self, stop_reason: &str) {
         self.append(RunFrame::RunFinished {
@@ -408,9 +403,8 @@ pub(crate) fn now_millis() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    // 与 tests/recorder.rs 顶上那一句同一条纪律、同一个理由：根 clippy.toml 的
-    // allow-expect-in-tests 只认 #[test] 与 #[cfg(test)] 模块，盖不住集成测试里
-    // 的辅助方法，放开只能逐处写出来。
+    // 与 tests/recorder.rs 顶上那一句同一条纪律、同一个理由（Cargo.toml lints
+    // 注释）：测试作用域逐处写明带理由的 allow，不靠根配置一刀切。
     #![allow(
         clippy::expect_used,
         reason = "a test proves itself by panicking, so a failed step must fail the test"

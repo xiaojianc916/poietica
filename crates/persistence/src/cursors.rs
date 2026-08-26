@@ -18,8 +18,9 @@ impl AgentStore {
     /// 记下这条会话读到哪儿了。
     ///
     /// 同一纪元只前进：乱序到达的一帧不该把读点拉回去。纪元一换就整格重置 ——
-    /// 新纪元的 seq 与旧纪元的 seq 不在同一条流上（ws-control.ts 的
-    /// resyncRequiredPayloadSchema：epoch_changed 是断流的三种原因之一）。
+    /// 新纪元的 seq 与旧纪元的 seq 不在同一条流上（contracts/kap/asyncapi.json
+    /// components/messages/resync_required：epoch_changed 是 reason 枚举的
+    /// 三种断流原因之一）。
     ///
     /// # Errors
     ///

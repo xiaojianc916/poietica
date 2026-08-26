@@ -408,8 +408,8 @@ pub struct AgentOpenedThread {
     pub goal: Option<AgentGoal>,
     /// 这条对话最新的那一页经过，由本地日志交回来。
     ///
-    /// 库里记下的就是当时交给界面的那一批（见 turn.rs 的 logging），所以重开
-    /// 一条对话与看着它发生不可能对不上。
+    /// 库里记下的就是当时交给界面的那一批（journal.rs 的 FrameJournal
+    /// record_frames），所以重开一条对话与看着它发生不可能对不上。
     ///
     /// 一页，不是全量：更早的按页里那个位置向 `agent_earlier_frames` 续读。
     pub frames: AgentFramePage,
@@ -517,10 +517,11 @@ pub enum AgentHistoryLoss {
 pub enum AgentHistory {
     /// 这条对话刚刚建出来，本来就没有经过。
     Fresh,
-    /// 这一次只要了一个地址，没问经过。
+    /// 这一次没让 agent 重放经过。
     ///
-    /// 提问和改设置走的就是这一路：它们不需要历史，也就不该为此让 agent 把整段
-    /// 对话重放一遍。所以这一格到不了界面 —— 打开一条对话永远要经过。
+    /// 提问和改设置走的就是这一路：它们不需要历史。打开一条会话已在本连接上活着
+    /// 的对话也走它 —— addressing.rs 的快路径直接交回这一格，经过由本机日志重放
+    /// 补上，界面照常收。
     Live,
     /// agent 把它装载回来了，`events` 就是它交出来的那一整段。
     Loaded,

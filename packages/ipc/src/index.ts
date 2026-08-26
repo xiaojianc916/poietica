@@ -9,16 +9,11 @@ export {
   shutdownAgent,
 } from './agent'
 export {
-  type AgentCliRequest,
-  type AgentCliResult,
-  type AgentConfigBridge,
   type AgentConfigSnapshot,
-  type AgentInstallStatus,
   createAgentConfigBridge,
 } from './agent-config'
 export {
   type AssetFormat,
-  type AssetImport,
   importAssets,
   listAssetFormats,
   openAssetSession,
@@ -28,11 +23,8 @@ export {
 export {
   type Automation,
   type AutomationCatalog,
-  type AutomationCreation,
   type AutomationReschedule,
   type AutomationRun,
-  type AutomationRunOutcome,
-  type AutomationRunRecord,
   createAutomation,
   loadAutomations,
   recordAutomationRun,
@@ -42,11 +34,7 @@ export {
   watchAutomations,
 } from './automations'
 export {
-  type BrowserClosedTab,
   type BrowserElementPicked,
-  type BrowserState,
-  type BrowserTab,
-  type BrowserViewportBounds,
   browserDevtoolsEndpoint,
   browserTabBack,
   browserTabForward,
@@ -65,25 +53,18 @@ export {
   watchBrowserState,
 } from './browser'
 export {
-  type EnvironmentFile,
   readEnvironmentMcpConfig,
   writeEnvironmentMcpConfig,
 } from './environment'
-export { type IpcError, throughIpc } from './error'
+export { throughIpc } from './error'
 export { type GitBranches, gitBranches, gitCreateBranch, gitSwitchBranch } from './git'
-export { type McpLauncher, resolveLauncher } from './launcher'
-export { type McpEndpoint, readMcpEndpoint } from './mcp'
+export { resolveLauncher } from './launcher'
+export { readMcpEndpoint } from './mcp'
 export {
   commitPlugin,
   discardStagedPlugin,
-  type ForeignPluginLedger,
-  type ForeignPluginRecord,
   listForeignPlugins,
   listPlugins,
-  type PluginCommitRequest,
-  type PluginFetch,
-  type PluginPayload,
-  type PluginStaged,
   readPluginCatalog,
   refreshPluginCatalog,
   removePlugin,
@@ -96,13 +77,11 @@ export {
   discardStagedSkill,
   listSkills,
   removeSkill,
-  type SkillCommitRequest,
   type SkillRecord,
-  type SkillStaged,
   setSkillEnabled,
   stageSkill,
 } from './skills'
-export { readTokenDays, type UsageDay } from './usage'
+export { readTokenDays } from './usage'
 export { readWorkbenchSession, writeWorkbenchSession } from './workbench'
 export {
   createProjectlessWorkspace,

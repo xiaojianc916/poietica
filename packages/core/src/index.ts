@@ -1,17 +1,16 @@
 export type { DiagnosticLogEntry } from './diagnostics/buffer'
 export {
-  clearDiagnosticLogs,
   formatDiagnosticLogs,
   getRecentLogEntries,
+  normalizeText,
+  redactText,
+  safeStringify,
+  sanitizeContext,
 } from './diagnostics/buffer'
 export type { LogContext, LogLevel } from './diagnostics/log'
-export { error, log, warn } from './diagnostics/log'
+export { error, warn } from './diagnostics/log'
 export { assertUnreachable } from './errors'
-export {
-  createExternalStore,
-  type ExternalStore,
-  type ExternalStoreSource,
-} from './external-store'
+export { createExternalStore } from './external-store'
 export {
   type ClassifiedFailure,
   type ClassifiedFailureInput,
@@ -29,7 +28,6 @@ export {
   createPreference,
   type Preference,
   type PreferenceFailure,
-  type PreferenceSource,
 } from './preference'
 export {
   isProjectlessWorkspaceRoot,

@@ -26,29 +26,11 @@ pub enum Error {
     #[error("Store error: {0}")]
     Store(#[from] tauri_plugin_store::Error),
 
-    #[error("Dialog error: {0}")]
-    Dialog(#[from] tauri_plugin_dialog::Error),
-
-    #[error("Notification error: {0}")]
-    Notification(#[from] tauri_plugin_notification::Error),
-
-    #[error("Window state error: {0}")]
-    WindowState(#[from] tauri_plugin_window_state::Error),
-
-    #[error("Global shortcut error: {0}")]
-    GlobalShortcut(#[from] tauri_plugin_global_shortcut::Error),
-
-    #[error("Log error: {0}")]
-    Log(#[from] tauri_plugin_log::Error),
-
     #[error("Validation error: {0}")]
     Validation(String),
 
     #[error("Not found: {0}")]
     NotFound(String),
-
-    #[error("Permission denied: {0}")]
-    PermissionDenied(String),
 
     #[error("Internal error: {0}")]
     Internal(String),
@@ -112,7 +94,6 @@ impl Error {
     fn code(&self) -> IpcErrorCode {
         match self {
             Self::NotFound(_) => IpcErrorCode::NotFound,
-            Self::PermissionDenied(_) => IpcErrorCode::PermissionDenied,
             Self::Persistence(_) | Self::File(_) | Self::Io(_) => IpcErrorCode::Persistence,
             Self::Plugin(_) => IpcErrorCode::Plugin,
             Self::Asset(_) => IpcErrorCode::Asset,
@@ -127,7 +108,6 @@ impl Error {
             self,
             Self::Io(_)
                 | Self::Persistence(_)
-                | Self::PermissionDenied(_)
                 | Self::File(_)
                 | Self::NotFound(_)
                 | Self::AgentCli(_)
@@ -154,7 +134,6 @@ impl Error {
         match self {
             Self::Validation(_) => Cow::Borrowed("请求参数无效"),
             Self::NotFound(_) => Cow::Borrowed("请求的资源不存在"),
-            Self::PermissionDenied(_) => Cow::Borrowed("该操作未获授权"),
 
             Self::Store(_) => Cow::Borrowed("配置文件读写失败"),
             Self::Io(_) | Self::File(_) => Cow::Borrowed("文件操作失败"),
@@ -169,13 +148,7 @@ impl Error {
                 Cow::Owned(reason.clone())
             }
 
-            Self::Tauri(_)
-            | Self::Dialog(_)
-            | Self::Notification(_)
-            | Self::WindowState(_)
-            | Self::GlobalShortcut(_)
-            | Self::Log(_)
-            | Self::Internal(_) => Cow::Borrowed("应用操作失败"),
+            Self::Tauri(_) | Self::Internal(_) => Cow::Borrowed("应用操作失败"),
         }
     }
 }
@@ -257,25 +230,9 @@ mod tests {
         assert!(!message.contains("permission denied"));
     }
 
-    #[test]
-    fn serialized_permission_error_does_not_leak_approved_path() {
-        let error = Error::PermissionDenied(
-            "path was not approved by a native file dialog: /tmp/private.draw".to_owned(),
-        );
-
-        let value = serde_json::to_value(error).expect("error should serialize");
-        let message = value["message"]
-            .as_str()
-            .expect("serialized error message should be a string");
-
-        assert_eq!(message, "该操作未获授权");
-        assert!(!message.contains("/tmp/"));
-        assert!(!message.contains("private.draw"));
-    }
-
     /*
-     * 与上面两条相反的一条：这个变体存在的意义就是原因要能出去。少了它，
-     * 下一个人看到「脱敏」两个字，很可能顺手把它也改回固定文案。
+     * 与上一条相反：这个变体存在的意义就是原因要能出去。少了它，下一个人
+     * 看到「脱敏」两个字，很可能顺手把它也改回固定文案。
      */
     #[test]
     fn agent_cli_error_carries_its_own_reason() {

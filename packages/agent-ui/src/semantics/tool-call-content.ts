@@ -11,9 +11,10 @@ import type { ToolCallContent } from '@poietica/agent-contract'
  * the shape of an image or a resource block is what produced the last defect;
  * these get drawn when a recording contains one.
  *
- * 它住在 domain。这里没有一行 React，做的是「协议信封 → 可显示的片段」这一次投影，
- * 与 composer/question-answer 同类。此前它住在 timeline/，于是 domain 想读一段
- * content 就得反着依赖表现层 —— 手搓的 unknown 收窄正是这么长出来的。
+ * 它住在 semantics，没有一行 React：做的是「协议信封 → 可显示的片段」这一次投影，
+ * 读方是同样不认 React 的 file-diff 与 tool-call-facets，与 composer/question-answer
+ * 同类。它不放在 timeline/，否则那些读方就得反着依赖表现层 —— 手搓的 unknown
+ * 收窄正是这么长出来的。
  */
 
 export type ToolContentPart =

@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react'
  * 值 —— 而这一格决定第一次 open 打在哪个目录里，它必须在第一帧就有答案。
  *
  * 缺席是有含义的，不是错误状态：还没有选过目录。那时候分组落在
- * DEFAULT_WORKSPACE_ID 上、界面不画组头（见 agent-session 的 workspaceNameOf）。
+ * DEFAULT_WORKSPACE_ID 上、界面不画组头（见 packages/agent/src/session/thread-order.ts 的 workspaceNameOf）。
  */
 
 const ACTIVE_FAILURE = {

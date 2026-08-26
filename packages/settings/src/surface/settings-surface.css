@@ -11,7 +11,8 @@
  * 这里没有 position: fixed / inset / z-index / border-right：设置界面是外壳
  * 栅格里的两个格子，列宽只有 workspaceLayoutStore 一个来源。
  *
- * 控件尺寸不在这一层：开关与下拉用 design-system 的 size / tone。
+ * 控件尺寸不在这一层：开关走 Switch 的 size 档位；下拉触发器的几何是 select.tsx
+ * 固定的 TRIGGER 常量，组件没有 size / tone 入口。
  */
 
 /* ---------------- 导航（栅格第 1 列） ---------------- */
@@ -232,12 +233,13 @@
 }
 
 /*
- * 触发器高度与字号来自 size="sm"，这里只限制宽度上限。
+ * 触发器高度与字号来自 select.tsx 固定的 TRIGGER 常量（h-[26px]、text-xs），这里只
+ * 限制宽度上限。
  *
  * 弹出面板一条都不写在这里，而且写了也不生效：面板经 BaseSelect.Portal 渲染在
- * body 下，本表的 --settings-* 不会级联到它。面板的圆角、内距、行高、行圆角与
- * 高亮色随 size="sm" 从 design-system 的 popup-surface / select 一处取值 ——
- * 菜单在哪里打开都是同一个菜单。使用方只有两个旋钮：size 与 align。
+ * body 下，本表的 --settings-* 不会级联到它。面板样式随 select.tsx 引用的
+ * popup-surface 一处取值 —— 菜单在哪里打开都是同一个菜单。组件只有
+ * data/type/value/align 几个入口，没有尺寸旋钮。
  */
 .settings-select-trigger {
   max-inline-size: 220px;

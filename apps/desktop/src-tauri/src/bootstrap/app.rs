@@ -94,8 +94,6 @@ pub fn build() -> tauri::Builder<Wry> {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         /* 暂存态归进程：谁创建谁负责，命令只借用，不摸全局静态。 */
         .manage(commands::updates::UpdateStaging::default())

@@ -5,7 +5,7 @@ import { normalizeWorkspaceRoot, workspaceRootName } from '@poietica/core'
  * 会话列表的次序与分组，一份规则。
  *
  * 一级索引是**工作区**，不是时间。时间桶（今天／昨天／过去 7 天）曾经长在视图
- * 组件里（agent-ui 的 threads/sections.ts），那是个人聊天机器人的信息架构：它
+ * 组件里（agent-ui 的 threads/relative-time.ts），那是个人聊天机器人的信息架构：它
  * 假设「什么时候说的」是找回一条对话的主线索。对着一个工作目录干活的 agent
  * 客户端不是那样 —— 主线索是「在哪个项目里」，时间退回行尾那一格的元数据。
  *
@@ -113,17 +113,33 @@ function byIsoDescending(left: string, right: string): number {
   return left > right ? -1 : left < right ? 1 : 0
 }
 
-export function byRecency(left: ThreadRecord, right: ThreadRecord): number {
-  const pinned = Number(right.pinned === true) - Number(left.pinned === true)
+/*
+ * 固定优先加最近活动倒序，规则只有这一份。库的记录（pinned?: boolean）与列表项
+ * （isPinned）形状不同，各用一行薄壳接上来 —— 完整规则抄成两份必然分叉。
+ */
+function byPinnedThenActivity(
+  leftPinned: boolean,
+  leftAt: string,
+  rightPinned: boolean,
+  rightAt: string,
+): number {
+  const pinned = Number(rightPinned) - Number(leftPinned)
 
-  return pinned === 0 ? byIsoDescending(left.updatedAt, right.updatedAt) : pinned
+  return pinned === 0 ? byIsoDescending(leftAt, rightAt) : pinned
 }
 
-/** 组内次序，作用在列表项上。规则与 byRecency 同一条。 */
-function byRecencyOfItem(left: ThreadListItem, right: ThreadListItem): number {
-  const pinned = Number(right.isPinned) - Number(left.isPinned)
+export function byRecency(left: ThreadRecord, right: ThreadRecord): number {
+  return byPinnedThenActivity(
+    left.pinned === true,
+    left.updatedAt,
+    right.pinned === true,
+    right.updatedAt,
+  )
+}
 
-  return pinned === 0 ? byIsoDescending(left.updatedAt, right.updatedAt) : pinned
+/** 组内次序，作用在列表项上。 */
+function byRecencyOfItem(left: ThreadListItem, right: ThreadListItem): number {
+  return byPinnedThenActivity(left.isPinned, left.updatedAt, right.isPinned, right.updatedAt)
 }
 
 /**

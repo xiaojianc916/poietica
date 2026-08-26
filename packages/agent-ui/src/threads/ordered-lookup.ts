@@ -1,10 +1,10 @@
 /**
  * 有序表上取「最后一个不晚于 x 的元素」。
  *
- * 这条判据在这个包里曾经有两份实现：feed/reading-position.ts 的 rowAtAnchor
- * 与 minimap/turn-index.ts 的 turnIndexAtRow。循环体、收敛条件、undefined 的
- * 处理逐字相同，差别只有 >> 与 >>>，以及空表时一个返回 null 一个返回 0。
- * 一条判据两个实现，就是两个可以各自改错的地方。
+ * 这条判据的两半曾各写一份：feed/reading-position.ts 的 rowAtAnchor 与本文件的
+ * turnIndexAtRow，循环体、收敛条件、undefined 的处理逐字相同，差别只有 >> 与
+ * >>>，以及空表时一个返回 null 一个返回 0。一条判据两个实现，就是两个可以各自
+ * 改错的地方 —— 循环体只在这里写一次，两半各留自己的包装。
  *
  * 升序是构造保证：虚拟器按序号交出区间表，buildTurns 按先后推入轮次。前提
  * 不成立时这里不做防御 —— 防御只会把破坏前提的调用变成一个静默的错答案。

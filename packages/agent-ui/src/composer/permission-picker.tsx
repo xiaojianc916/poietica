@@ -35,8 +35,6 @@ import { CheckIcon } from '../primitives/icons'
 /*
  * 字形按产品自己的档位取，不按 agent 的 id 取。
  *
- * 权限切换从这里开始迁移到 Lucide，其他界面仍可继续使用原有图标库。
- *
  * 当前档位在菜单中的顺序是：
  * manual（请求批准）、yolo（帮我批准）、auto（完全访问权限）。
  */

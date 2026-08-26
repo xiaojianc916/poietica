@@ -1,13 +1,13 @@
 /*
  * 时长。
  *
- * 与 threads/sections.ts 的 formatElapsed 是两种量，不是一种量的两个档：那边说
+ * 与 threads/relative-time.ts 的 formatElapsed 是两种量，不是一种量的两个档：那边说
  * 的是「多久以前」（第一档把 0–60 秒整段读作「现在」，一周以上转成日期），这里
  * 说的是「持续了多久」（工具调用绝大多数就活在那 60 秒里，而它永远不会转成日期）。
  * 两者共用一个函数才是错的。
  *
- * 真正共用的是下面这个工厂与三个常量 —— 此前 sections.ts 各写了一份。数量词、
- * 词序、语言交给 Intl：narrow 的 unit 在 zh 下是「31分钟」，在 en 下是 "31m"。
+ * 真正共用的是下面这个工厂与几个常量（relative-time.ts 与 goal-island 从这里拿）。
+ * 数量词、词序、语言交给 Intl：narrow 的 unit 在 zh 下是「31分钟」，在 en 下是 "31m"。
  */
 
 export const SECOND = 1_000
@@ -64,19 +64,4 @@ export function formatDuration(span: number): string | null {
   const minutes = Math.floor((span % HOUR) / MINUTE)
 
   return minutes === 0 ? hour.format(hours) : `${hour.format(hours)} ${minute.format(minutes)}`
-}
-
-/**
- * 这次调用的文案下一次会变的时刻 —— 与 formatDuration 同一道阶梯，反着算。
- *
- * 一小时以内显示到秒，所以每秒改口；一小时以上只显示到分，那就每分钟醒一次，
- * 不必为一个不会变的字符串每秒唤醒整屏。这是给 threads/clock 的 useHorizon 用的：
- * 它是到期唤醒，不是定周期轮询，所以「什么时候变」必须由这里说清楚。
- */
-export function nextTickOf(startedAt: number, now: number): number {
-  const span = now - startedAt
-
-  return span < HOUR
-    ? startedAt + (Math.floor(span / SECOND) + 1) * SECOND
-    : startedAt + (Math.floor(span / MINUTE) + 1) * MINUTE
 }

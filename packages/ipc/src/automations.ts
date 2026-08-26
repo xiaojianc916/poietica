@@ -57,15 +57,6 @@ export function recordAutomationRun(record: AutomationRunRecord): Promise<Automa
 }
 
 /**
- * 盯着日程：到期的那一行由原生侧递过来。
- *
- * 挂监听与「现在就看一眼」是一次操作，顺序不能反 —— Tauri 的事件不排队，先扫后挂
- * 就等于把关机期间错过的那次敲进空气里。两步合成一个函数，调用方没有把顺序写反的
- * 余地。
- *
- * 返回摘表函数。表本身不停：它在原生侧，与进程同寿。
- */
-/**
  * 盯着账本：写者不只有这里，MCP 那一侧改完由原生侧宣布。返回摘表函数。
  */
 export function watchAutomationCatalog(
@@ -76,6 +67,15 @@ export function watchAutomationCatalog(
   })
 }
 
+/**
+ * 盯着日程：到期的那一行由原生侧递过来。
+ *
+ * 挂监听与「现在就看一眼」是一次操作，顺序不能反 —— Tauri 的事件不排队，先扫后挂
+ * 就等于把关机期间错过的那次敲进空气里。两步合成一个函数，调用方没有把顺序写反的
+ * 余地。
+ *
+ * 返回摘表函数。表本身不停：它在原生侧，与进程同寿。
+ */
 export async function watchAutomations(
   onDue: (automation: Automation) => void,
 ): Promise<() => void> {

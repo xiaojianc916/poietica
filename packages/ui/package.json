@@ -18,7 +18,6 @@
     "@base-ui/react": "catalog:",
     "clsx": "catalog:",
     "lucide-react": "catalog:",
-    "motion": "catalog:",
     "tailwind-merge": "catalog:"
   },
   "devDependencies": {

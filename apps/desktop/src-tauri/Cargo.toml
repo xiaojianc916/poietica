@@ -63,9 +63,7 @@ poietica-git-native = { path = "../../../crates/git" }
 # 下去都是让 webview 自己导航走 —— 应用当场变成一个回不来的浏览器。
 tauri.workspace = true
 tauri-plugin-dialog.workspace = true
-tauri-plugin-global-shortcut.workspace = true
 tauri-plugin-log.workspace = true
-tauri-plugin-notification.workspace = true
 tauri-plugin-opener.workspace = true
 tauri-plugin-single-instance.workspace = true
 tauri-plugin-store.workspace = true
@@ -77,12 +75,11 @@ reqwest.workspace = true
 specta.workspace = true
 specta-typescript.workspace = true
 tauri-specta.workspace = true
-tempfile.workspace = true
 tokio.workspace = true
 poietica-plugin-host-native = { path = "../../../crates/plugin-host" }
 rmcp.workspace = true
 axum.workspace = true
 schemars.workspace = true
 
-[target."cfg(windows)".dependencies]
-windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem"] }
+[dev-dependencies]
+tempfile.workspace = true

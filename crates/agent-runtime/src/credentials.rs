@@ -1,7 +1,8 @@
 //! 一份 config.toml 的判读：provider 凭据与默认模型闸门。
 //!
-//! 判据不是这里定的，是上游 session/new 的闸门定的（`hasUsableConfiguredDefaultModel`，
-//! packages/agent-contract-adapter/src/server.ts）。这里是那道闸门在本地的逐字对照，
+//! 判据不是这里定的，是上游 session/new 的闸门定的（npm @moonshot-ai/kimi-code 的
+//! kap server，`hasUsableConfiguredDefaultModel`；该 server 自述的契约快照钉在本仓
+//! contracts/kap）。这里是那道闸门在本地的逐字对照，
 //! 让界面在用户动手之前就能说出「这个模型能不能开会话」「哪家 provider 配了钥匙」，
 //! 而不是等 session/new 用一句 authRequired 事后揭晓。
 //!
@@ -111,8 +112,8 @@ pub fn usable_default_model(text: &str) -> Option<String> {
 
 /// 上游闸门按 provider 的 `type` 决定「密钥也可以从 env 里来」时读哪个变量名。
 ///
-/// 这张表是 `providerHasNonOAuthCredentials` 那个 switch 的逐字对照
-/// （packages/agent-contract-adapter/src/server.ts）。认不出的 type 返回 None，由调用方退成宽松判断。
+/// 这张表是上游 `providerHasNonOAuthCredentials` 那个 switch 的逐字对照
+/// （npm @moonshot-ai/kimi-code 的 kap server）。认不出的 type 返回 None，由调用方退成宽松判断。
 fn credential_env_key(provider_type: &str) -> Option<&'static str> {
     match provider_type {
         "anthropic" => Some("ANTHROPIC_API_KEY"),
@@ -129,7 +130,7 @@ fn credential_env_key(provider_type: &str) -> Option<&'static str> {
 /// 判据不是我们定的，是上游 session/new 的闸门定的：`hasUsableConfiguredDefaultModel`
 /// 拿 `config.models[default_model]` 解析出 provider，再要求
 /// `providerHasNonOAuthCredentials` 为真，否则配置文件里的 `api_key` 整条不算数、
-/// 一律 authRequired。所以这里照抄它的三步（packages/agent-contract-adapter/src/server.ts）：
+/// 一律 authRequired。所以这里照抄它的三步（npm @moonshot-ai/kimi-code 的 kap server）：
 ///
 /// 1. provider 名取模型条目里的 `provider`，缺席就退到顶层 `default_provider`；
 /// 2. 那一段 `[providers.<name>]` 存在；
@@ -137,9 +138,9 @@ fn credential_env_key(provider_type: &str) -> Option<&'static str> {
 ///    `if (provider.oauth !== undefined) return false`），且 `api_key` 非空，或者
 ///    `env` 里那个按 `type` 决定的变量非空。
 ///
-/// 键名不是猜的：上游 packages/agent-core/src/config/toml.ts 用通用的 snake/camel
-/// 互转落盘，`defaultProvider` 因此写成 `default_provider`；而 `env` 走 cloneObjectValue，
-/// 表内的键原样保留，所以变量名就是 `KIMI_API_KEY` 这种全大写形式。
+/// 键名不是猜的：上游 Kimi Code（npm @moonshot-ai/kimi-code）落盘的 config.toml
+/// 就是这个形状 —— `defaultProvider` 写成 `default_provider`，而 `env` 表内的键原样
+/// 保留全大写，变量名就是 `KIMI_API_KEY` 这种形式。
 ///
 /// 不复刻的只有 vertexai 那条组合分支（`GOOGLE_CLOUD_PROJECT` 加 `GOOGLE_CLOUD_LOCATION`，
 /// 或从 `base_url` 的 `-aiplatform.googleapis.com` 后缀反推区域）。那是 Google 专属，我们

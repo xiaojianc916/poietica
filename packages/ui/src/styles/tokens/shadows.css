@@ -8,8 +8,6 @@
   --ui-shadow-lg: 0 12px 32px rgb(0 0 0 / 16%);
 
   --ui-shadow-xl: 0 20px 48px rgb(0 0 0 / 22%);
-
-  --ui-shadow-focus: 0 0 0 2px var(--ui-ring);
 }
 
 :root[data-theme="dark"] {

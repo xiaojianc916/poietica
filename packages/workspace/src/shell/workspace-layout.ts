@@ -37,5 +37,3 @@ export const WORKSPACE_LAYOUT = {
     layoutEase: [0.2, 0, 0, 1],
   },
 } as const
-
-export type WorkspaceLayout = typeof WORKSPACE_LAYOUT

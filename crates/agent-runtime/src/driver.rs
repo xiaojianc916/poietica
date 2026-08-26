@@ -11,10 +11,9 @@
 //!
 //! 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …）：
 //! 信封是 { type, seq, session_id, timestamp, payload }，payload 里再带一份
-//! 同名 type、agentId 与 sessionId。没有哪一帧的 type 是 "session_event" ——
-//! 那是 ws-control.ts 操作目录里那一条的名字，那条自己的 description 写着
-//! 「frame type is the payload event type」，wsConnectionV1.ts 的
-//! isCoalescableDelta 也是拿 'assistant.delta' 去比 wire 上的 type。
+//! 同名 type、agentId 与 sessionId。没有哪一帧的 type 是 "session_event"：
+//! wire 上事件帧的 type 字段就是事件自己的类型名（契约快照钉在
+//! contracts/kap/asyncapi.json）。
 //!
 //! 数据流：
 //!   命令 → Command 枚举 → REST（sessions / prompts / approvals / profile）或
@@ -444,7 +443,7 @@ async fn post(http: &reqwest::Client, url: &str, body: &Value) -> Result<Value> 
 // ── WS 控制帧 ──────────────────────────────────────────────────────────────
 
 /// 发一帧控制帧，返回它的 id。kap 的控制面（subscribe / abort / pong…）都长
-/// 一个样：{ type, id, payload }（ws-control.ts）。
+/// 一个样：{ type, id, payload }（contracts/kap/asyncapi.json 的控制面操作）。
 async fn send_frame(ws: &WsSink, kind: &str, payload: Value) -> Result<String> {
     let id = Uuid::new_v4().to_string();
     let frame = json!({ "type": kind, "id": id, "payload": payload });
@@ -506,7 +505,7 @@ async fn wait_ack(
 }
 
 /// 订阅的 ack 永远是 code 0：成败写在载荷的 accepted / not_found 里
-/// （wsConnectionV1.ts onSubscribe、ws-control.ts subscribeAckPayloadSchema）。
+/// （contracts/kap/asyncapi.json 的 subscribe_ack）。
 /// 只看 code 就会把「这条会话没订上」当成订上了，然后一帧不来地等到超时。
 async fn wait_subscribe_ack(
     ws_rx: &mut SplitStream<WsStream>,
@@ -530,8 +529,8 @@ async fn wait_subscribe_ack(
     })
 }
 
-/// 把一条会话挂到这条连接的事件流上，返回那一帧的 id。不在握手内联订阅：hello
-/// 内联订阅是官方标了 deprecated 的旧式写法（ws-control.ts clientHelloPayloadSchema）。
+/// 把一条会话挂到这条连接的事件流上，返回那一帧的 id。不在握手内联订阅：
+/// 订阅走独立的 subscribe 操作（contracts/kap/asyncapi.json 的 subscribe）。
 ///
 /// 带着读点订阅，server 就从那一帧之后接着发（subscribePayloadSchema 的 cursors、
 /// sessionCursorSchema）；接不下去时它回 resync_required，而不是默默从头来。新开
@@ -1262,7 +1261,9 @@ pub fn connect(
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             tokio::spawn(async move {
-                                let result = get_selectors(&http2, &base2, &sid).await;
+                                let result = get_selectors(&http2, &base2, &sid)
+                                    .await
+                                    .map(|(offered, _goal)| offered);
                                 let _ = reply.send(result);
                             });
                         }
@@ -1300,8 +1301,8 @@ pub fn connect(
                         Some(Ok(Message::Text(raw))) => {
                             if let Ok(v) = serde_json::from_str::<Value>(&raw) {
                                 if v.get("type").and_then(Value::as_str) == Some("ping") {
-                                    // kap 的心跳是应用层帧（ws-control.ts 的
-                                    // ping/pong），与 tungstenite 的协议层
+                                    // kap 的心跳是应用层帧（契约快照 contracts/kap/
+                                    // asyncapi.json 的 ping/pong），与 tungstenite 的协议层
                                     // Ping 是两回事 —— 两个都要答。
                                     let nonce = v
                                         .get("payload")
@@ -1391,9 +1392,9 @@ fn handle_ws_message(
         return;
     }
 
-    // kap 说这条会话的事件流断了（buffer_overflow / session_recreated /
-    // epoch_changed，见 ws-control.ts 的 resyncRequiredPayloadSchema）：断点之后的
-    // 帧不会再来，这一轮的经过补不齐。判死它 —— 补不回来的东西不该装作还在路上。
+    // kap 说这条会话的事件流断了（reason 枚举 buffer_overflow / session_recreated /
+    // epoch_changed，见 contracts/kap/asyncapi.json 的 resync_required 载荷）：断点
+    // 之后的帧不会再来，这一轮的经过补不齐。判死它 —— 补不回来的东西不该装作还在路上。
     if kind == "resync_required" {
         let cut = envelope
             .get("payload")
@@ -1528,16 +1529,8 @@ fn handle_ws_message(
                 let events2 = events_tx.clone();
 
                 tokio::spawn(async move {
-                    let Ok(offered) = get_selectors(&http2, &base2, &sid).await else {
+                    let Ok((offered, goal)) = get_selectors(&http2, &base2, &sid).await else {
                         return;
-                    };
-
-                    let goal = match fetch_goal(&http2, &base2, &sid).await {
-                        Ok(goal) => goal,
-                        Err(error) => {
-                            log::warn!("could not refresh the session goal: {error}");
-                            return;
-                        }
                     };
 
                     let _sent = events2.unbounded_send(SessionEvent::Selectors {
@@ -1810,17 +1803,7 @@ async fn settle_question(
         ),
     };
 
-    let envelope: Value = http
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|error| error.to_string())?
-        .json()
-        .await
-        .map_err(|error| error.to_string())?;
-
-    match envelope_data(&envelope) {
+    match post(http, &url, &body).await {
         Ok(_accepted) => Ok(()),
         Err(KapError::Envelope { code, .. })
             if code == QUESTION_DISMISSED && matches!(outcome, QuestionOutcome::Dismissed) =>
@@ -1985,6 +1968,26 @@ fn prompt_body(
     }
 }
 
+/// 三条会话出生路（新开 / 装载 / 分叉）共用的激活序列。
+async fn activate(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+    from: Option<&Cursor>,
+    book: &SessionBook,
+    ws: &WsSink,
+) -> Result<OpenedSession> {
+    book.open(session_id)?;
+    subscribe(ws, session_id, from).await?;
+
+    ensure_model(http, base_url, session_id).await;
+
+    Ok(OpenedSession {
+        session_id: session_id.to_owned(),
+        selectors: best_effort_selectors(http, base_url, session_id).await,
+    })
+}
+
 async fn open_session(
     http: &reqwest::Client,
     base_url: &str,
@@ -2007,17 +2010,7 @@ async fn open_session(
         })?
         .to_owned();
 
-    book.open(&id)?;
-    subscribe(ws, &id, None).await?;
-
-    ensure_model(http, base_url, &id).await;
-
-    let selectors = best_effort_selectors(http, base_url, &id).await;
-
-    Ok(OpenedSession {
-        session_id: id,
-        selectors,
-    })
+    activate(http, base_url, &id, None, book, ws).await
 }
 
 /// kap 的会话在 server 侧持久：装载 = 验存在 + 重新订阅。号在 server 侧也没了
@@ -2033,17 +2026,7 @@ async fn load_session(
 ) -> Result<OpenedSession> {
     get(http, &format!("{base_url}/sessions/{session_id}")).await?;
 
-    book.open(session_id)?;
-    subscribe(ws, session_id, from).await?;
-
-    ensure_model(http, base_url, session_id).await;
-
-    let selectors = best_effort_selectors(http, base_url, session_id).await;
-
-    Ok(OpenedSession {
-        session_id: session_id.to_owned(),
-        selectors,
-    })
+    activate(http, base_url, session_id, from, book, ws).await
 }
 
 async fn fork_session(
@@ -2083,17 +2066,7 @@ async fn fork_session(
         .await?;
     }
 
-    book.open(&id)?;
-    subscribe(ws, &id, None).await?;
-
-    ensure_model(http, base_url, &id).await;
-
-    let selectors = best_effort_selectors(http, base_url, &id).await;
-
-    Ok(OpenedSession {
-        session_id: id,
-        selectors,
-    })
+    activate(http, base_url, &id, None, book, ws).await
 }
 
 async fn archive_session(
@@ -2150,7 +2123,7 @@ async fn best_effort_selectors(
     session_id: &str,
 ) -> Vec<ConfigControl> {
     match get_selectors(http, base_url, session_id).await {
-        Ok(offered) => offered,
+        Ok((offered, _goal)) => offered,
         Err(error) => {
             log::warn!("could not read the session's selectors: {error}");
             Vec::new()
@@ -2260,20 +2233,7 @@ async fn list_mcp_servers(http: &reqwest::Client, base_url: &str) -> Result<Vec<
 /// agent 那一侧，所以这里不判「还在不在排队」—— 答复只用来知道它收下了，
 /// 信封仍旧只从 envelope_data 这一个闸口读。
 async fn queue_action(http: &reqwest::Client, url: &str, body: &Value) -> Result<()> {
-    let sent = http
-        .post(url)
-        .json(body)
-        .send()
-        .await
-        .map_err(|cause| KapError::Transport {
-            message: cause.to_string(),
-        })?;
-
-    let envelope: Value = sent.json().await.map_err(|cause| KapError::Transport {
-        message: cause.to_string(),
-    })?;
-
-    envelope_data(&envelope)?;
+    post(http, url, body).await?;
 
     Ok(())
 }
@@ -2299,15 +2259,17 @@ async fn fetch_goal(
     Ok(goal_snapshot(&goal))
 }
 
+/// 选择器表与目标快照一趟取回：turn.ended 收尾两样都要，分开打就是同一轮里
+/// 第二次 /goal。
 async fn get_selectors(
     http: &reqwest::Client,
     base_url: &str,
     session_id: &str,
-) -> Result<Vec<ConfigControl>> {
+) -> Result<(Vec<ConfigControl>, Option<GoalSnapshot>)> {
     let status = get(http, &format!("{base_url}/sessions/{session_id}/status")).await?;
     let catalog = get(http, &format!("{base_url}/models")).await?;
     let goal = get(http, &format!("{base_url}/sessions/{session_id}/goal")).await?;
-    Ok(controls(&status, &catalog, &goal))
+    Ok((controls(&status, &catalog, &goal), goal_snapshot(&goal)))
 }
 
 async fn set_selector(
@@ -2318,7 +2280,7 @@ async fn set_selector(
     value: &str,
     input: Option<&str>,
 ) -> Result<Vec<ConfigControl>> {
-    let current = get_selectors(http, base_url, session_id).await?;
+    let (current, _goal) = get_selectors(http, base_url, session_id).await?;
     let control = current
         .iter()
         .find(|control| control.id == config_id)
@@ -2340,11 +2302,19 @@ async fn set_selector(
         &json!({ "agent_config": patch }),
     )
     .await?;
-    get_selectors(http, base_url, session_id).await
+    let (selectors, _goal) = get_selectors(http, base_url, session_id).await?;
+    Ok(selectors)
 }
 
 #[cfg(test)]
 mod tests {
+    // 与 tests/recorder.rs 顶上那一句同一条纪律、同一个理由（Cargo.toml lints
+    // 注释）：测试里的 expect 是响亮失败，豁免只写在测试作用域，不靠根配置放开。
+    #![allow(
+        clippy::expect_used,
+        reason = "a test proves itself by panicking, so a failed step must fail the test"
+    )]
+
     use super::*;
 
     #[test]

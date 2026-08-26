@@ -132,8 +132,9 @@ pub async fn agent_open_thread(
 
         let thread = retitle(stored);
 
-        /* 经过由本地日志重放，而日志只由跑那一轮的那一侧写（turn.rs 的
-        logging）。这里只取最新那一页，更早的走 agent_earlier_frames。 */
+        /* 经过由本地日志重放，而日志只由跑那一轮的那一侧写（journal.rs 的
+        FrameJournal record_frames）。这里只取最新那一页，更早的走
+        agent_earlier_frames。 */
         let frames = store
             .frames_before(thread_id, None, FRAME_PAGE)
             .map_err(persistence)?;

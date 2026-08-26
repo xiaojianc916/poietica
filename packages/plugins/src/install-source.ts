@@ -4,7 +4,7 @@ import { assertUnreachable } from '@poietica/core'
  * 信任级别取自上游目录里那一列 tier。它是市场目录声明的事实，不从 URL 猜 ——
  * 猜出来的信任是最坏的一种信任。
  */
-export const PLUGIN_TRUST_TIERS = ['kimi-official', 'curated', 'third-party'] as const
+const PLUGIN_TRUST_TIERS = ['kimi-official', 'curated', 'third-party'] as const
 
 export type PluginTrustTier = (typeof PLUGIN_TRUST_TIERS)[number]
 

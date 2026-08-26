@@ -47,9 +47,10 @@ export function activeScope(state: TimelineState): WaitingScope {
  * 此前这里写着「At most one: the agent waits for an answer before asking anything
  * else」——那条不变式的成立条件不是协议，是本客户端曾经在权限处理器里就地 await：
  * 派发被堵住，agent 的第二个请求根本进不来。处理器改成 connection.spawn 之后
- *（ADR 0001），堵塞没有了，一轮里同时挂着几个请求就是常态 —— Kimi 的 Agent 工具
- * 并行派几个子代理，每一个都要审批。原生侧的桌子本来就是复数的（desk.rs 里是一张
- * HashMap），只有这里是单数的。
+ *（docs/adr/0013-permission-requests-do-not-block-the-dispatch-loop.md，
+ * 0014-concurrent-permission-requests.md），堵塞没有了，一轮里同时挂着几个请求
+ * 就是常态 —— Kimi 的 Agent 工具并行派几个子代理，每一个都要审批。原生侧的桌子
+ * 本来就是复数的（desk.rs 里是一张 HashMap），只有这里是单数的。
  *
  * 于是判据从「最后一个」改成「最早一个」。仍然反向走，因为要在段边界收手；但交出的
  * 必须是最早那一个 —— 交出最后一个，先问的那几个永远轮不到有人点按钮，它们的

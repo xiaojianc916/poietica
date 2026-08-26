@@ -14,7 +14,7 @@
     },
     "apps/desktop": {
       "name": "@poietica/desktop",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@poietica/agent": "workspace:*",
         "@poietica/agent-catalog": "workspace:*",
@@ -52,10 +52,8 @@
       "name": "@poietica/agent",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/agent-catalog": "workspace:*",
         "@poietica/agent-contract": "workspace:*",
         "@poietica/core": "workspace:*",
-        "valibot": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -66,7 +64,6 @@
       "name": "@poietica/agent-catalog",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/agent-contract": "workspace:*",
         "valibot": "catalog:",
       },
       "devDependencies": {
@@ -90,7 +87,6 @@
         "@poietica/agent": "workspace:*",
         "@poietica/agent-contract": "workspace:*",
         "@poietica/core": "workspace:*",
-        "@poietica/ipc": "workspace:*",
         "@poietica/ui": "workspace:*",
         "@streamdown/cjk": "catalog:",
         "@streamdown/code": "catalog:",
@@ -103,7 +99,6 @@
         "lucide-react": "catalog:",
         "motion": "catalog:",
         "streamdown": "catalog:",
-        "tailwind-merge": "catalog:",
         "yet-another-react-lightbox": "catalog:",
       },
       "devDependencies": {
@@ -148,7 +143,6 @@
       "dependencies": {
         "@poietica/core": "workspace:*",
         "lucide-react": "catalog:",
-        "valibot": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -180,6 +174,7 @@
       "dependencies": {
         "@poietica/agent-catalog": "workspace:*",
         "@poietica/agent-ui": "workspace:*",
+        "@poietica/core": "workspace:*",
         "@poietica/ipc": "workspace:*",
         "@poietica/settings": "workspace:*",
         "@tauri-apps/api": "catalog:tauri",
@@ -236,14 +231,11 @@
         "@poietica/ipc": "workspace:*",
         "@poietica/ui": "workspace:*",
         "lucide-react": "catalog:",
-        "valibot": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
         "@types/react": "catalog:",
-        "@types/react-dom": "catalog:",
         "react": "catalog:",
-        "react-dom": "catalog:",
         "typescript": "catalog:",
       },
       "peerDependencies": {
@@ -258,7 +250,6 @@
         "@base-ui/react": "catalog:",
         "clsx": "catalog:",
         "lucide-react": "catalog:",
-        "motion": "catalog:",
         "tailwind-merge": "catalog:",
       },
       "devDependencies": {
@@ -279,12 +270,9 @@
       "name": "@poietica/workspace",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/agent": "workspace:*",
-        "@poietica/agent-contract": "workspace:*",
         "@poietica/core": "workspace:*",
         "@poietica/ui": "workspace:*",
         "lucide-react": "catalog:",
-        "motion": "catalog:",
         "valibot": "catalog:",
       },
       "devDependencies": {

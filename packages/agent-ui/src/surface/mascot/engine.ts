@@ -380,8 +380,6 @@ export type MascotOptions = {
 }
 
 export type MascotHandle = {
-  /* 外面交场景进来时,巡演必须是关着的:两个写者会互相覆盖。 */
-  setScene: (name: SceneName) => void
   setTour: (on: boolean) => void
   setFollow: (on: boolean) => void
   pointerMoved: (clientX: number, clientY: number) => void
@@ -1707,7 +1705,6 @@ export const mountMascot = (root: SVGSVGElement, options: MascotOptions): Mascot
   rafId = window.requestAnimationFrame(frame)
 
   return {
-    setScene,
     setTour(on: boolean) {
       if (on === tourOn) {
         return

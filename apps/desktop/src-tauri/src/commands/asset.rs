@@ -305,7 +305,7 @@ fn is_avif(bytes: &[u8]) -> bool {
 ///
 /// 渲染层据此选画法，系统对话框据此分组。这是这张表唯一的分类维度。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AssetKind {
+enum AssetKind {
     Image,
     Text,
 }
@@ -348,9 +348,9 @@ fn is_text(bytes: &[u8]) -> bool {
 
 /// 这个应用收得下的全部格式，按判定顺序排。魔数、内容类型、扩展名、种类只在
 /// 这里出现一次；文本排在最后 —— 它的判据是「不像任何一种图」的兜底，而图的
-/// 魔数各自唯一。加一种格式就是这里加一行，没有第二处要跟着改。白名单必须是
-/// asset_protocol::ALLOWED 的子集：这里认得的每一种，注册表都得收得下，否则
-/// insert 会拒，而那时错误说的就不是真正的原因了。
+/// 魔数各自唯一。加一种格式就是这里加一行，没有第二处要跟着改。每一行的内容
+/// 类型必须落在下面的 DELIVERABLE_CONTENT_TYPES 里，否则注册表的 insert 会拒，
+/// 而那时错误说的就不是真正的原因了 —— 这条由测试把着，不靠约定。
 const FORMATS: &[Format] = &[
     Format {
         kind: AssetKind::Image,
@@ -400,6 +400,34 @@ const FORMATS: &[Format] = &[
         matches: is_text,
     },
 ];
+
+/// 资产协议投递侧收得下的全部内容类型 —— 正本，全仓唯一一份。
+///
+/// 用户导得进的那几种在上面 FORMATS 里，各有文件头判据；媒体与 PDF 只从 agent
+/// 产物与会话恢复路径进入注册表，没有文件头可嗅探，因此在这里只有类型没有行。
+/// 导入先经 FORMATS 嗅探、再过这张表（asset_protocol 的 validate_content_type
+/// 引用的就是它），两道门用的是同一份名单，不会一个放行一个拦下。
+const DELIVERABLE_CONTENT_TYPES: &[&str] = &[
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/avif",
+    "image/bmp",
+    "text/plain",
+    "video/mp4",
+    "video/webm",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/ogg",
+    "audio/webm",
+    "application/pdf",
+];
+
+/// 这类内容投递得出去吗。
+pub(crate) fn is_deliverable_content_type(content_type: &str) -> bool {
+    DELIVERABLE_CONTENT_TYPES.contains(&content_type)
+}
 
 /// 认文件头，不认扩展名。认不出来就是不投递。
 ///
@@ -577,6 +605,19 @@ mod tests {
             assert!(
                 sniff(b"").is_none(),
                 "an empty payload must never sniff as {}",
+                format.content_type
+            );
+        }
+    }
+
+    #[test]
+    fn every_importable_format_is_also_deliverable() {
+        /* 导入先过嗅探再过注册表的白名单；两道门对不上时，用户会看到一条
+        不说真因的错误。 */
+        for format in FORMATS {
+            assert!(
+                is_deliverable_content_type(format.content_type),
+                "{} can be imported but not delivered",
                 format.content_type
             );
         }

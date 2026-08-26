@@ -271,31 +271,73 @@ pub(crate) async fn download(url: &str) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-/// 暂存目录填好了，读出清单原文交出去。
+/// 丢弃一份失败的暂存。丢弃本身再失败也不能盖掉真正的原因，所以只进日志。
 ///
-/// 读不出来就当场丢掉暂存：留着一个永远不会被认领的目录，下次列举时它就是垃圾。
-/// 丢弃本身再失败也不能盖掉真正的原因，所以那一步只进日志。
-fn finish_staging(staging: host::Staging, subdirectory: Option<&str>) -> Result<PluginStaged> {
-    let staging_id = staging.identifier().to_owned();
+/// `discard` 拿走所有权：丢掉的那一份不该再被碰。
+pub(crate) fn discard_failed(staging: host::Staging) {
+    if let Err(cleanup) = staging.discard() {
+        log::warn!("could not discard a failed staging directory: {cleanup}");
+    }
+}
 
-    let read = host::locate_root(staging.path(), subdirectory)
-        .and_then(|root| host::manifest_in(&root).ok_or(host::HostError::ManifestMissing))
-        .map_err(plugin_failure)
-        .and_then(|manifest| fs::read_to_string(manifest).map_err(Error::from));
+/// 取件管线，装插件与装技能共用：归档先取回字节，目录原样拷贝，都填进一个新建的
+/// 暂存区。填充或 locate 失败就当场丢掉暂存 —— 留着一个永远不会被认领的目录，
+/// 下次列举时它就是垃圾。差异点只有 locate：插件认清单，技能认 SKILL.md。
+///
+/// 归档拿不到字节是显式错误，不是不可达状态：下载那一步已经把成败说清了。
+pub(crate) async fn staged_fetch<T>(
+    app: &AppHandle,
+    fetch: PluginFetch,
+    failure: impl Fn(String) -> Error,
+    locate: impl FnOnce(&host::Staging, Option<&str>) -> Result<T>,
+) -> Result<T> {
+    let bytes = match &fetch {
+        PluginFetch::Archive { url, .. } => Some(download(url).await?),
+        PluginFetch::Directory { .. } => None,
+    };
 
-    match read {
-        Ok(manifest_json) => Ok(PluginStaged {
-            staging_id,
-            manifest_json,
-        }),
+    let staging =
+        host::Staging::create(&staging_root(app)?).map_err(|cause| failure(cause.to_string()))?;
+
+    let filled = match (&fetch, bytes.as_deref()) {
+        (PluginFetch::Directory { path }, _) => host::copy_tree(Path::new(path), staging.path()),
+        (PluginFetch::Archive { .. }, Some(payload)) => host::extract_zip(payload, staging.path()),
+        (PluginFetch::Archive { url, .. }, None) => {
+            return Err(failure(format!("no bytes for {url}")));
+        }
+    };
+
+    if let Err(cause) = filled {
+        discard_failed(staging);
+        return Err(failure(cause.to_string()));
+    }
+
+    let subdirectory = match &fetch {
+        PluginFetch::Archive { subdirectory, .. } => subdirectory.as_deref(),
+        PluginFetch::Directory { .. } => None,
+    };
+
+    match locate(&staging, subdirectory) {
+        Ok(value) => Ok(value),
         Err(cause) => {
-            if let Err(cleanup) = staging.discard() {
-                log::warn!("could not discard a failed staging directory: {cleanup}");
-            }
-
+            discard_failed(staging);
             Err(cause)
         }
     }
+}
+
+/// 暂存目录填好了，读出清单原文交回去。读不出来就报错，丢弃由 staged_fetch 统一负责。
+fn finish_staging(staging: &host::Staging, subdirectory: Option<&str>) -> Result<PluginStaged> {
+    let staging_id = staging.identifier().to_owned();
+
+    host::locate_root(staging.path(), subdirectory)
+        .and_then(|root| host::manifest_in(&root).ok_or(host::HostError::ManifestMissing))
+        .map_err(plugin_failure)
+        .and_then(|manifest| fs::read_to_string(manifest).map_err(Error::from))
+        .map(|manifest_json| PluginStaged {
+            staging_id,
+            manifest_json,
+        })
 }
 
 /// 装了什么，agent 的账本说了算。
@@ -428,45 +470,9 @@ pub async fn plugins_stage(
     app: AppHandle,
     fetch: PluginFetch,
 ) -> PluginsCommandResult<PluginStaged> {
-    let bytes = match &fetch {
-        PluginFetch::Archive { url, .. } => match download(url).await {
-            Ok(payload) => Some(payload),
-            Err(cause) => return Err(cause.into()),
-        },
-        PluginFetch::Directory { .. } => None,
-    };
-
-    let subdirectory = match &fetch {
-        PluginFetch::Archive { subdirectory, .. } => subdirectory.as_deref(),
-        PluginFetch::Directory { .. } => None,
-    };
-
-    (|| -> Result<PluginStaged> {
-        let staging = host::Staging::create(&staging_root(&app)?).map_err(plugin_failure)?;
-
-        let filled = match (&fetch, bytes.as_deref()) {
-            (PluginFetch::Directory { path }, _) => {
-                host::copy_tree(Path::new(path), staging.path())
-            }
-            (PluginFetch::Archive { .. }, Some(payload)) => {
-                host::extract_zip(payload, staging.path())
-            }
-            (PluginFetch::Archive { url, .. }, None) => {
-                return Err(plugin_failure(format!("no bytes for {url}")));
-            }
-        };
-
-        if let Err(cause) = filled {
-            if let Err(cleanup) = staging.discard() {
-                log::warn!("could not discard a failed staging directory: {cleanup}");
-            }
-
-            return Err(plugin_failure(cause));
-        }
-
-        finish_staging(staging, subdirectory)
-    })()
-    .map_err(IpcError::from)
+    staged_fetch(&app, fetch, plugin_failure, finish_staging)
+        .await
+        .map_err(IpcError::from)
 }
 
 /// 认领：副本进 managed/<id>/，然后往账本里记一条。

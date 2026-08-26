@@ -1,9 +1,9 @@
 /*
  * 会话列表的时间文案与期限。
  *
- * 这个文件是 threads/sections.ts 的后身，去掉的是那张时间桶表（今天／昨天／
- * 过去 7 天／过去 30 天／更早）以及照着它分段的 sectionsOf。分段维度已经不是
- * 时间了：一级索引是工作区，时间退回它本来的位置 —— 行尾那一格的元数据。
+ * 这里没有时间桶表（今天／昨天／过去 7 天／过去 30 天／更早）：列表的一级索引是
+ * 工作区而不是时间，时间退回它本来的位置 —— 行尾那一格的元数据。判据的正文在
+ * packages/agent 的 thread-order.ts。
  *
  * 留下的两件事都不随分组变化：一段时长怎么说（formatElapsed），以及这一屏下
  * 一次会变的时刻（nextChangeIn）。文案与绝对时刻交给 Intl：数量词、词序、语言
@@ -18,7 +18,7 @@ import { DAY, HOUR, MINUTE, narrowUnit } from '../semantics/duration'
 /* 「不足一分钟」是一句话，让语言自己说，用 numeric: 'auto'。 */
 const spoken = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
 
-/* 其余各档是时长：只有数量和单位，没有方向。常量与格式器都在 domain/duration。 */
+/* 其余各档是时长：只有数量和单位，没有方向。常量与格式器都在 ../semantics/duration。 */
 const elapsed = {
   day: narrowUnit('day'),
   hour: narrowUnit('hour'),

@@ -45,7 +45,7 @@ export function useThreadsActions(): ThreadsStore {
  *
  * 分组是 items 的纯函数，所以它钉在 items 的引用上 —— store 值没变就原样交回
  * 同一个数组，这一趟因此不重跑，侧栏拿到的组也还是同一批对象。分组规则住在
- * agent-session（thread-order），不在视图里：它是次序的一部分，与库那条
+ * packages/agent/src/session/thread-order.ts，不在视图里：它是次序的一部分，与库那条
  * ORDER BY 同源。
  */
 export function useThreadsList(): ThreadWorkspaceList {

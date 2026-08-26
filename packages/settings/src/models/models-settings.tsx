@@ -25,7 +25,7 @@ import './models-settings.css'
 /*
  * 可选的 agent。
  *
- * 名单来自 @poietica/agent-registry，是封闭的 —— 用户在注册过的几家里选，不能自带一条
+ * 名单来自 @poietica/agent-catalog，是封闭的 —— 用户在注册过的几家里选，不能自带一条
  * 命令。今天只注册了一家，所以下拉里只会有一项；接第二家时这里一个字都不用改。
  */
 const AGENT_OPTIONS: readonly SelectOption[] = agentRoster().map((agent) => ({

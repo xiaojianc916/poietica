@@ -4,7 +4,7 @@
 //! 改名成 SKILL.md.disabled 就是停用。这里搬字节、报事实，前言解析归渲染层。
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use poietica_plugin_host_native as host;
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ use specta::Type;
 use tauri::{AppHandle, command};
 
 use crate::commands::agent_setup::profile::agent_home_directory;
-use crate::commands::plugins::{PluginFetch, download, staging_root};
+use crate::commands::plugins::{PluginFetch, staged_fetch, staging_root};
 use crate::error::{Error, IpcError, Result};
 
 type SkillsCommandResult<T> = std::result::Result<T, IpcError>;
@@ -76,61 +76,27 @@ pub async fn skills_list(app: AppHandle) -> SkillsCommandResult<Vec<SkillRecord>
     .map_err(IpcError::from)
 }
 
-fn discard_or_warn(staging: host::Staging) {
-    if let Err(cause) = staging.discard() {
-        log::warn!("could not discard failed skill staging: {cause}");
-    }
-}
-
-/// 取件到暂存区：与插件安装同一条管线，判据换成 SKILL.md。
+/// 取件到暂存区：与插件安装共用同一条管线（plugins.rs 的 staged_fetch），判据换成
+/// SKILL.md。
 #[command]
 #[specta::specta]
 pub async fn skills_stage(app: AppHandle, fetch: PluginFetch) -> SkillsCommandResult<SkillStaged> {
-    let bytes = match &fetch {
-        PluginFetch::Archive { url, .. } => Some(download(url).await.map_err(IpcError::from)?),
-        PluginFetch::Directory { .. } => None,
-    };
-
-    (|| -> Result<SkillStaged> {
-        let staging = host::Staging::create(&staging_root(&app)?).map_err(skill_failure)?;
+    staged_fetch(&app, fetch, skill_failure, |staging, subdirectory| {
         let staging_id = staging.identifier().to_owned();
 
-        let (filled, subdirectory) = match (&fetch, bytes.as_deref()) {
-            (PluginFetch::Directory { path }, _) => {
-                (host::copy_tree(Path::new(path), staging.path()), None)
-            }
-            (PluginFetch::Archive { subdirectory, .. }, Some(payload)) => (
-                host::extract_zip(payload, staging.path()),
-                subdirectory.as_deref(),
-            ),
-            (PluginFetch::Archive { .. }, None) => {
-                unreachable!("archive bytes are downloaded above")
-            }
-        };
-
-        if let Err(cause) = filled {
-            discard_or_warn(staging);
-            return Err(skill_failure(cause));
-        }
-
         let Ok(root) = host::locate_skill_root(staging.path(), subdirectory) else {
-            discard_or_warn(staging);
             return Err(skill_failure("这个来源里没有 SKILL.md，它不是一个技能目录"));
         };
 
-        let skill_md = match fs::read_to_string(root.join(host::SKILL_FILENAME)) {
-            Ok(text) => text,
-            Err(cause) => {
-                discard_or_warn(staging);
-                return Err(skill_failure(cause));
-            }
-        };
+        let skill_md =
+            fs::read_to_string(root.join(host::SKILL_FILENAME)).map_err(skill_failure)?;
 
         Ok(SkillStaged {
             staging_id,
             skill_md,
         })
-    })()
+    })
+    .await
     .map_err(IpcError::from)
 }
 

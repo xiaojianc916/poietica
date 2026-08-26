@@ -1,5 +1,3 @@
-import type { KapToolCallId } from './kap'
-
 /**
  * 官方 kap 的提问契约，端口这一侧。
  *
@@ -34,14 +32,6 @@ export interface QuestionItem {
   readonly otherLabel?: string
   /** 「其他」那一栏的说明。 */
   readonly otherDescription?: string
-}
-
-/** 一组题：最多四道，一起问也一起答。 */
-export interface QuestionGroup {
-  readonly questionId: string
-  /** 引出这一组题的那次工具调用；kap 说它可以缺席。 */
-  readonly toolCallId?: KapToolCallId
-  readonly questions: readonly QuestionItem[]
 }
 
 /** 一题答的是什么，五种。判别式与分支名取自 kap 的 questionAnswerSchema。 */

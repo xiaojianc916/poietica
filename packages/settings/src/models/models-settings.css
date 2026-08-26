@@ -1,14 +1,15 @@
 /*
  * 设置 · 模型样式：单层，一个选择器只定义一次。
  *
- * 主色 #efefef、分割线 2px #e7e7e7 是本次明确指定的固定值，先落在 .models-page
- * 的局部变量上；接暗色主题时只改这三行，不用翻遍整份文件。
+ * 色值不在这一层定：.models-page 上的 --models-* 全是别名，指向 settings-surface.css
+ * 的 --settings-*，后者再落到设计系统的语义令牌（--ui-card 等）—— 接暗色主题时
+ * 这里一行都不用改。
  *
  * 分割线用 ::before 画而不是 border-block-start：要求是两侧内缩不接到底，
  * 边框做不到这件事。这里的 position 只作用于自己这一行，不参与外壳栅格。
  *
- * 开关与下拉的尺寸由 design-system 的 size="sm" / tone="plain" 提供。
- * 轨道宽度与滑块行程必须成对定义，从外部只压轨道会让滑块停在轨道外面。
+ * 控件尺寸也不在这一层：开关走 Switch 的 size 档位，下拉触发器的高宽与字号是
+ * select.tsx 里固定的 TRIGGER 常量，都不经这里的 CSS 调。
  */
 
 .models-page {
@@ -254,7 +255,7 @@
   outline-offset: -2px;
 }
 
-/* 触发器高度与字号来自 size="sm"，这里只限制宽度上限。 */
+/* 触发器高度与字号来自 select.tsx 固定的 TRIGGER 常量，这里只限制宽度上限。 */
 
 .models-select-trigger {
   max-inline-size: 220px;
@@ -302,11 +303,6 @@
   gap: 18px;
   padding-block-start: 8px;
 }
-
-/* .models-field 随 Google KeyField 一起删了：它的唯一使用者已经不在。 */
-
-/* .models-button 曾在这里。行内动作按钮统一用设计系统的 Button（variant="soft"、
- * size="xs"，与通用页同一颗），这一页不再自造一份。 */
 
 /*
  * 删除是这张设置页唯一的破坏性动作：悬停时整颗按钮换成设计系统的 destructive 色，

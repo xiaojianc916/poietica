@@ -73,8 +73,9 @@ export function AutomationSessionConfig({
 
   if (rows.length === 0) {
     /*
-     * 还没有和没有，是两件事。候选是第一个订阅者出现时才去问的（见
-     * agent-capability-store 的 #loadOnce），所以启动后的头一瞬间这里必然是空的。
+     * 还没有和没有，是两件事。候选要等组合根把端口交给 agent-capability-store 才
+     * 去问（start(port) 那一趟 #load，#asked 保证只问一遍），所以启动后的头一瞬间
+     * 这里必然是空的。
      * 说一句话，比摆三个空下拉诚实。
      */
     return (

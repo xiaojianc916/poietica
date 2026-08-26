@@ -11,8 +11,7 @@
   },
   "dependencies": {
     "@poietica/core": "workspace:*",
-    "lucide-react": "catalog:",
-    "valibot": "catalog:"
+    "lucide-react": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",

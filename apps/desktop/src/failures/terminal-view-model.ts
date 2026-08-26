@@ -23,7 +23,6 @@ export interface TerminalFailureViewModel {
   readonly copySuccessLabel: string
   readonly copyFailureLabel: string
   readonly copyResetDelayMs: number
-  readonly closeActionLabel: string
   readonly detailsLabel: string
   readonly diagnostic: string
 }
@@ -54,8 +53,6 @@ export function createTerminalFailureViewModel(
     copyFailureLabel: '复制失败，请手动选择',
 
     copyResetDelayMs: COPY_RESET_DELAY_MS,
-
-    closeActionLabel: '关闭窗口',
 
     detailsLabel: '查看诊断信息',
 

@@ -1,3 +1,4 @@
+import { createExternalStore } from '@poietica/core'
 import type { SettingsStore } from '@poietica/settings'
 import type { AppUpdateController } from './app-update'
 
@@ -45,7 +46,8 @@ export class AppUpdateStore {
 
   #state: AppUpdateState = IDLE
 
-  #listeners = new Set<() => void>()
+  /* 订阅与通知的样板归 core：这里只留状态本身与唯一写点 #commit。 */
+  readonly #store = createExternalStore<AppUpdateState>({ read: () => this.#state })
 
   /** 「已是最新」那句回话的收场计时器。相位由 #commit 一处写，它也在那里作废。 */
   #clearing: number | null = null
@@ -60,15 +62,9 @@ export class AppUpdateStore {
     this.#onFailure = onFailure
   }
 
-  subscribe = (listener: () => void): (() => void) => {
-    this.#listeners.add(listener)
+  subscribe = this.#store.subscribe
 
-    return () => {
-      this.#listeners.delete(listener)
-    }
-  }
-
-  getSnapshot = (): AppUpdateState => this.#state
+  getSnapshot = (): AppUpdateState => this.#store.read()
 
   /**
    * 开始按节奏检查，交回停下来的办法。
@@ -248,8 +244,6 @@ export class AppUpdateStore {
 
     this.#state = next
 
-    for (const listener of this.#listeners) {
-      listener()
-    }
+    this.#store.notify()
   }
 }

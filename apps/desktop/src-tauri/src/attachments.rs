@@ -1,9 +1,5 @@
 //! 附件的字节住在哪里 —— 一个内容寻址的本地 blob 仓。
 //!
-//! 这一层此前根本不存在。渲染层把图片读成 base64 的 `data:` URL 直接塞进
-//! 时间线（`prompt-attachments.ts`：「不落盘，不建 URL，不经过任何注册表」），
-//! 于是重启之后账本指着的字节谁也拿不出来。
-//!
 //! 三层的分工是清楚的，各自只做一件事：
 //!
 //! - 账本（`poietica_agent_persistence_native::attachments`）：哪条对话的第几轮
@@ -167,12 +163,6 @@ mod tests {
     use std::fs;
 
     /// 一间自带清理的临时仓。
-    ///
-    /// 这里此前手写了二十行的 Scratch，理由写着「不引 tempfile：这个 crate 的
-    /// 测试目前没有它」。那句话是假的：tempfile 一直在 Cargo.toml 的
-    /// dependencies 段里，普通依赖对同一个 crate 的测试本来就可见 —— 一个 dev 依赖
-    /// 都不需要。作者以为它不在，它却就在，于是那二十行把 TempDir 已经做好的
-    /// 事重写了一遍：开一个没人用过的目录，drop 时抹掉。
     ///
     /// 前缀是留着的：TempDir 默认叫 .tmpXXXXXX，谁都认不出那是谁掉的。测试进程
     /// 被硬杀时 drop 不跑，残留得能一眼归到我们头上。

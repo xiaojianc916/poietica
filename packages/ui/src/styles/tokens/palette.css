@@ -8,9 +8,7 @@
 
 :root {
   --ui-palette-white: oklch(1 0 0);
-  --ui-palette-black: oklch(0 0 0);
 
-  --ui-palette-neutral-25: oklch(0.994 0.001 90);
   /* #f8f8f8 —— 主内容区基底色；中性灰，不带暖色偏移。 */
   --ui-palette-neutral-50: oklch(0.9792 0 0);
   /*

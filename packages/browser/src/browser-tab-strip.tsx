@@ -161,7 +161,7 @@ export function BrowserTabStrip({
   )
 }
 
-/* 标签的脸：装载中转圈，有站点图标就画它，否则地球。三态一处，两个列表共用。 */
+/* 标签的脸：装载中转圈，有站点图标就画它，否则地球。标签条行内专用。 */
 function TabIcon({ tab }: { readonly tab: BrowserTabView }) {
   if (tab.loading) {
     return <LoaderCircle aria-hidden className="size-3.5 shrink-0 animate-spin opacity-60" />
