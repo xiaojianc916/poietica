@@ -311,10 +311,13 @@ fn thinking_offer(model: &str, reported: Option<&str>, items: &[Value]) -> Optio
             let Some(value) = effort.as_str().and_then(non_empty) else {
                 continue;
             };
-            push_unique(&mut choices, choice(value));
+            push_unique(&mut choices, thinking_choice(value));
         }
     }
     if !choices.is_empty() {
+        if supports && !always {
+            choices.insert(0, thinking_choice(OFF));
+        }
         let current = reported
             .filter(|value| contains(&choices, value))
             .or_else(|| {
@@ -336,9 +339,9 @@ fn thinking_offer(model: &str, reported: Option<&str>, items: &[Value]) -> Optio
     if !supports {
         return None;
     }
-    choices.push(choice(ON));
+    choices.push(thinking_choice(ON));
     if !always {
-        choices.push(choice(OFF));
+        choices.insert(0, thinking_choice(OFF));
     }
     let current = reported
         .filter(|value| contains(&choices, value))
@@ -363,6 +366,21 @@ fn choice(value: &str) -> ConfigChoice {
     ConfigChoice {
         value: value.to_owned(),
         label: value.to_owned(),
+        detail: None,
+    }
+}
+
+fn thinking_choice(value: &str) -> ConfigChoice {
+    let mut characters = value.chars();
+    let label = characters.next().map_or_else(String::new, |first| {
+        let mut label = first.to_uppercase().collect::<String>();
+        label.push_str(characters.as_str());
+        label
+    });
+
+    ConfigChoice {
+        value: value.to_owned(),
+        label,
         detail: None,
     }
 }
@@ -418,6 +436,49 @@ mod tests {
             .find(|control| control.purpose == ConfigPurpose::Thought)
             .expect("Thinking control");
         assert_eq!(thought.current, "high");
+    }
+
+    #[test]
+    fn optional_efforts_offer_off_with_display_labels() {
+        let offered = catalog(
+            "deepseek",
+            &json!(["thinking"]),
+            &json!(["low", "high", "max"]),
+            "high",
+        );
+        let thought = controls(&status("deepseek", "high"), &offered, &Value::Null)
+            .into_iter()
+            .find(|control| control.purpose == ConfigPurpose::Thought)
+            .expect("Thinking control");
+        let values: Vec<_> = thought
+            .choices
+            .iter()
+            .map(|choice| choice.value.as_str())
+            .collect();
+        let labels: Vec<_> = thought
+            .choices
+            .iter()
+            .map(|choice| choice.label.as_str())
+            .collect();
+
+        assert_eq!(values, vec!["off", "low", "high", "max"]);
+        assert_eq!(labels, vec!["Off", "Low", "High", "Max"]);
+    }
+
+    #[test]
+    fn always_thinking_efforts_do_not_offer_off() {
+        let offered = catalog(
+            "always",
+            &json!(["always_thinking"]),
+            &json!(["low", "high", "max"]),
+            "high",
+        );
+        let thought = controls(&status("always", "high"), &offered, &Value::Null)
+            .into_iter()
+            .find(|control| control.purpose == ConfigPurpose::Thought)
+            .expect("Thinking control");
+
+        assert!(thought.choices.iter().all(|choice| choice.value != OFF));
     }
 
     #[test]

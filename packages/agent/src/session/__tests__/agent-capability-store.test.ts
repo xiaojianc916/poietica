@@ -283,7 +283,7 @@ describe('锚会话的那张表', () => {
 
     expect(written).toEqual(['yolo'])
 
-    /* 模型不是跨会话的决定，不进持久意图。 */
+    /* 模型走 agent 配置，不进批准姿态这一个持久端口。 */
     store.selectControl('model', 'kimi-k3')
     await settled()
 

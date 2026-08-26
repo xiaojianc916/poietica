@@ -217,10 +217,12 @@ export function WorkspaceContainer({
     [agentSession, startConversation],
   )
 
-  /* 两种表面形态，穷尽，没有兜底分支：一条对话，或者一个工作区表面。 */
+  /* AI 入口晋升时只换 threadId；非 AI 表面仍由工作区的统一宿主渲染。 */
   const surface =
     workbench.activeSurface.kind === 'conversation' ? (
-      assistant.renderConversation(workbench.activeSurface.threadId)
+      assistant.renderAssistant(workbench.activeSurface.threadId)
+    ) : workbench.activeSurface.surfaceId === 'ai' ? (
+      assistant.renderAssistant()
     ) : (
       <SurfaceHost renderers={assistant.surfaces} surfaceId={workbench.activeSurface.surfaceId} />
     )

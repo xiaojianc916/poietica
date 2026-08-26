@@ -24,9 +24,9 @@ import {
  * agent 发一次 set_config，屏幕上的值一律来自它的答复。
  *
  * 这张表只描述锚会话自己。别的对话各自握着自己的会话，值问它们自己的会话要（见
- * SessionControlsStore）—— ACP 的配置是会话级的，一条会话选了什么说明不了另一条
- * 选了什么。跨会话真正被继承的只有一件事：换模型时先写进 config.toml 的
- * default_model，agent 用它开下一条会话。那条继承走 agent，不走这一层。
+ * SessionControlsStore）。跨会话持久意图不复制进 store：模型默认值归 agent 配置，
+ * Thinking 按 agent + model 由桌面组合层在表交付前对齐，批准姿态走显式端口。这里
+ * 最终仍只保存 agent 答复的权威表。
  *
  * 这台 store 与 SessionControlsStore 同一个形制：依赖构造时交进来、订阅与退订成对
  * 交给 start()、写按 scope 串行、失败落进快照。两者唯一的差别是寻址 —— 那一台按

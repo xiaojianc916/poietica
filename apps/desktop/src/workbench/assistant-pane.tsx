@@ -10,31 +10,22 @@ import { setActiveWorkspaceRoot, useActiveWorkspaceRoot } from '../workspace-roo
 import { ConversationSurface } from './conversation-surface'
 
 /*
- * AI 表面：还没有指向任何一条已有对话的那一格，也就是“新建对话”。
- *
- * 它在人把手伸向输入框时才开一条对话，也才开一个 agent 会话（session/new）。
- *
- * 「开口之前就能看能改模型」这条要求是对的，Zed 的 agent panel、Copilot Chat、
- * Cursor 都是这样。但它论证不了在这一格出现的那一帧就 spawn 一个进程：指针移到
- * 输入框上，到手真的落下去改模型，中间足够握完手。挂在出现上，代价就变成了
- * 「看一眼都要启动一个 agent」，而这一格出现得比人想说话频繁得多。
- *
- * 于是也就没有「开了又走开」这回事了：没说过话的对话根本不会被建出来，不需要
- * list_threads 那个 WHERE EXISTS 去替它遮丑。
- *
- * 它仍然不预支身份：id 由平台给出，拿到了才用。此前是挂载时先用一个占位 id
- * 顶着，占位 id 会漏进名字、标签和 prompt，而它对应的对话并不存在。
- *
- * 说出第一句话之后这一格就不再是“新建对话”了：它当场变成那条对话，标签标题、
- * 侧边栏那一行的高亮都由工作台的同一次 openConversation 得出。
+ * 同一组件身份承载新对话入口与已打开的对话。入口晋升到同一个 threadId 时，
+ * ConversationSurface 不卸载；切到另一条对话时由 threadId key 重建会话局部状态。
  */
-
 export interface AssistantPaneProps {
+  readonly onConversationForked: (threadId: string, title: string) => void
   readonly onConversationStarted: (threadId: string, title: string) => void
   readonly session: AgentSessionPort
+  readonly threadId?: string | undefined
 }
 
-export function AssistantPane({ onConversationStarted, session }: AssistantPaneProps) {
+export function AssistantPane({
+  onConversationForked,
+  onConversationStarted,
+  session,
+  threadId,
+}: AssistantPaneProps) {
   /* 只要动作。这一格一个字的会话状态都不读，此前却订着整份快照。 */
   const open = useThreadsActions().create
   const { groups } = useThreadsList()
@@ -90,9 +81,21 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
     [browse, choices, clearWorkspace, current],
   )
 
-  const [threadId] = useState(() => uuidv7())
-  const [started, setStarted] = useState(false)
+  const [entry, setEntry] = useState(() => ({ threadId: uuidv7(), started: false }))
+  const [previousThreadId, setPreviousThreadId] = useState<string | undefined>(threadId)
   const creating = useRef<Promise<boolean> | null>(null)
+
+  if (threadId !== previousThreadId) {
+    setPreviousThreadId(threadId)
+
+    if (threadId === undefined && previousThreadId !== undefined) {
+      creating.current = null
+      setEntry({ threadId: uuidv7(), started: false })
+    }
+  }
+
+  const isEntry = threadId === undefined
+  const activeThreadId = threadId ?? entry.threadId
 
   const prepare = useCallback((): Promise<boolean> => {
     const pending = creating.current
@@ -102,12 +105,14 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
 
     const created = (
       activeRoot === null
-        ? createProjectlessWorkspace().then((root) => open(threadId, root))
-        : open(threadId, activeRoot)
+        ? createProjectlessWorkspace().then((root) => open(activeThreadId, root))
+        : open(activeThreadId, activeRoot)
     ).then((opened) => {
       const ready = opened !== null
       if (ready) {
-        setStarted(true)
+        setEntry((current) =>
+          current.threadId === activeThreadId ? { ...current, started: true } : current,
+        )
       }
       return ready
     })
@@ -120,17 +125,19 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
     })
 
     return created
-  }, [activeRoot, open, threadId])
+  }, [activeRoot, activeThreadId, open])
 
   return (
     <ConversationSurface
-      git={git}
-      isNew={!started}
-      onPrepare={prepare}
+      git={isEntry ? git : undefined}
+      isNew={isEntry && !entry.started}
+      key={activeThreadId}
+      onForked={isEntry ? undefined : onConversationForked}
+      onPrepare={isEntry ? prepare : undefined}
       onStarted={onConversationStarted}
       session={session}
-      threadId={threadId}
-      workspace={workspace}
+      threadId={activeThreadId}
+      workspace={isEntry ? workspace : undefined}
     />
   )
 }

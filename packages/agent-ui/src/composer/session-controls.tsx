@@ -42,14 +42,17 @@ function rank(purpose: SessionConfigControl['purpose']): number {
   return found < 0 ? ORDER.length : found
 }
 
-function labelOf(
+export function labelOf(
   control: SessionConfigControl,
   choice: SessionConfigControl['choices'][number],
 ): string {
   const prefix = `${control.label}`
-  const stripped = choice.label.startsWith(prefix) ? choice.label.slice(prefix.length) : ''
+  const stripped = choice.label.startsWith(prefix)
+    ? choice.label.slice(prefix.length).trimStart()
+    : ''
+  const label = stripped.length > 0 ? stripped : choice.label
 
-  return stripped.length > 0 ? stripped : choice.label
+  return control.purpose === 'thought' ? label.charAt(0).toUpperCase() + label.slice(1) : label
 }
 
 /* `current ∈ choices` is enforced at the native adapter boundary. */
@@ -188,7 +191,7 @@ export const SessionControls = memo(function SessionControls({
               {showUnavailableThinking && control.purpose === 'model' ? (
                 <DropdownMenuItem className="assistant-config-menu__row" disabled>
                   <span className="assistant-config-menu__row-label">Thinking</span>
-                  <span className="assistant-config-menu__row-value">no</span>
+                  <span className="assistant-config-menu__row-value">No</span>
                 </DropdownMenuItem>
               ) : null}
             </Fragment>

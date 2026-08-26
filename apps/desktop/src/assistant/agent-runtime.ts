@@ -8,7 +8,9 @@ import {
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
+  OpenedThread,
   PermissionPosturePort,
+  SessionConfigControl,
   SessionConfigPort,
   SessionUsagePort,
   ThreadPort,
@@ -26,7 +28,7 @@ import {
 } from '@poietica/ipc'
 import type { AgentConfigStore } from '@poietica/settings'
 import { hostedMcpServersReady } from '../plugins/plugin-runtime'
-
+import { createThinkingPreference } from './thinking-preference'
 export interface DesktopAgentRuntimeOptions {
   readonly config: AgentConfigStore
   readonly cwd: NonNullable<AgentBridgeOptions['cwd']>
@@ -167,18 +169,76 @@ export function createDesktopAgentRuntime(
     write: posture.write,
   }
 
-  const sessionConfig = createAgentSessionConfigBridge({
+  const thinking = createThinkingPreference((failure) => {
+    reportError('Thinking preference failed', {
+      scope: 'agent-runtime',
+      operation: failure.stage,
+      cause: failure.cause,
+    })
+  })
+
+  const sessionConfigBridge = createAgentSessionConfigBridge({
     onListenFailure: noteListenFailure,
   })
+
+  const alignThinking = async (
+    agentId: string,
+    controls: readonly SessionConfigControl[],
+    select: (
+      control: SessionConfigControl,
+      value: string,
+    ) => Promise<readonly SessionConfigControl[]>,
+  ): Promise<readonly SessionConfigControl[]> => {
+    const preferred = thinking.selection(agentId, controls)
+
+    return preferred === undefined || preferred.control.current === preferred.value
+      ? controls
+      : await select(preferred.control, preferred.value)
+  }
+
+  const sessionConfig: SessionConfigPort = {
+    subscribe: sessionConfigBridge.subscribe,
+    select: async (threadId, configId, value, input) => {
+      const agent = await selectedAgent()
+      const controls = await sessionConfigBridge.select(threadId, configId, value, input)
+      const accepted = controls.find((control) => control.id === configId)
+
+      if (accepted?.current === value) {
+        if (accepted.purpose === 'model') {
+          await options.config.saveDefaultModel(agent.id, value)
+        }
+
+        thinking.remember(agent.id, controls, configId, value)
+      }
+
+      return controls
+    },
+  }
 
   const sessionUsage = createAgentSessionUsageBridge({ onListenFailure: noteListenFailure })
 
   const readToolkit = createAgentToolkitReader({ cwd: options.cwd, launch: launchSelected })
 
-  const threads = createAgentThreadBridge({
+  const threadBridge = createAgentThreadBridge({
     cwd: options.cwd,
     launch: launchSelected,
   })
+
+  const alignOpened = async (opened: OpenedThread): Promise<OpenedThread> => {
+    const agent = await selectedAgent()
+    const selectors = await alignThinking(agent.id, opened.selectors, (control, value) =>
+      sessionConfigBridge.select(opened.thread.threadId, control.id, value),
+    )
+
+    return selectors === opened.selectors ? opened : { ...opened, selectors }
+  }
+
+  const threads: ThreadPort = {
+    ...threadBridge,
+    create: async (threadId, workspaceRoot) =>
+      alignOpened(await threadBridge.create(threadId, workspaceRoot)),
+    open: async (threadId) => alignOpened(await threadBridge.open(threadId)),
+  }
 
   const session = createAgentSessionPort({
     cwd: options.cwd,
@@ -219,16 +279,29 @@ export function createDesktopAgentRuntime(
       read: async () => {
         await currentAgent()
         await seedDefaultModel(options.config, agentId)
-        return anchor.read()
+        const controls = await anchor.read()
+
+        return alignThinking(agentId, controls, (control, value) => anchor.select(control, value))
       },
       select: async (control, value) => {
         await currentAgent()
+        let controls = await anchor.select(control, value)
+        const accepted = controls.find((candidate) => candidate.id === control.id)
 
-        if (control.purpose === 'model') {
-          await options.config.saveDefaultModel(agentId, value)
+        if (accepted?.current !== value) {
+          return controls
         }
 
-        return anchor.select(control, value)
+        if (accepted.purpose === 'model') {
+          await options.config.saveDefaultModel(agentId, value)
+          controls = await anchor.read()
+        }
+
+        thinking.remember(agentId, controls, control.id, value)
+
+        return alignThinking(agentId, controls, (candidate, preferred) =>
+          anchor.select(candidate, preferred),
+        )
       },
       readToolkit: async (threadId) => {
         await currentAgent()

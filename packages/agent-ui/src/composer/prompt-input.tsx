@@ -287,6 +287,9 @@ function PromptInputShell({
   >(restored?.configuration ?? [])
   const [paletteOpened, setPaletteOpened] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
+  const handoff = useRef({ attachments, configuration: pendingConfiguration })
+
+  handoff.current = { attachments, configuration: pendingConfiguration }
 
   const listboxId = useId()
   const formRef = useRef<HTMLFormElement>(null)
@@ -309,15 +312,15 @@ function PromptInputShell({
     [editor],
   )
 
-  /*
-   * 离屏时把草稿交出去。清理函数在每次依赖变化与卸载时各跑一次，所以卸载那一
-   * 次拿到的一定是最后的值 —— 不需要第二份镜像。
-   */
+  /* 只在卸载时转移所有权；依赖变化不能把仍在编辑器里的草稿复制到离屏册子。 */
   useEffect(
     () => () => {
-      drafts.keep(draftKey, snapshotOf(editor, attachments, pendingConfiguration))
+      drafts.keep(
+        draftKey,
+        snapshotOf(editor, handoff.current.attachments, handoff.current.configuration),
+      )
     },
-    [attachments, draftKey, drafts, editor, pendingConfiguration],
+    [draftKey, drafts, editor],
   )
 
   /* Enter 发送，Shift+Enter 换行。组词期间一律不碰 —— 那是输入法在说话。 */
@@ -695,7 +698,7 @@ function PromptInputShell({
                 return
               }
 
-              onSubmit({
+              const message: PromptInputMessage = {
                 text: said,
                 assets: attachments,
                 skills: draftText.skills,
@@ -703,13 +706,17 @@ function PromptInputShell({
                   ...carriedConfiguration,
                   ...pendingConfiguration.map(({ id, value }) => ({ id, value })),
                 ],
-              })
+              }
+
               clearDraft(editor)
+              handoff.current = { attachments: NO_ATTACHMENTS, configuration: [] }
+              drafts.keep(draftKey, undefined)
               setPendingConfiguration([])
               rewindPalette()
 
               /* 不 discard：这些字节现在归这条对话的交付会话。 */
               setAttachments([])
+              onSubmit(message)
             }}
             ref={formRef}
           >

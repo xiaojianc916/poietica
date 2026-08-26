@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import type { SessionConfigControl } from '@poietica/agent-contract'
-import { hasUnavailableThinking } from '../composer/session-controls'
+import { hasUnavailableThinking, labelOf } from '../composer/session-controls'
 
 const MODEL: SessionConfigControl = {
   id: 'model',
@@ -15,7 +15,11 @@ const THINKING: SessionConfigControl = {
   label: 'Thinking',
   purpose: 'thought',
   current: 'high',
-  choices: [{ value: 'high', label: 'high' }],
+  choices: [
+    { value: 'off', label: 'Thinking off' },
+    { value: 'high', label: 'high' },
+    { value: 'max', label: 'max' },
+  ],
 }
 
 describe('Thinking availability projection', () => {
@@ -23,5 +27,14 @@ describe('Thinking availability projection', () => {
     expect(hasUnavailableThinking([MODEL])).toBe(true)
     expect(hasUnavailableThinking([MODEL, THINKING])).toBe(false)
     expect(hasUnavailableThinking([])).toBe(false)
+  })
+
+  it('title-cases offered Thinking values without manufacturing Default', () => {
+    expect(THINKING.choices.map((choice) => labelOf(THINKING, choice))).toEqual([
+      'Off',
+      'High',
+      'Max',
+    ])
+    expect(THINKING.choices.map((choice) => labelOf(THINKING, choice))).not.toContain('Default')
   })
 })
