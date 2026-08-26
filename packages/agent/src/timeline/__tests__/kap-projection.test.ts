@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import type { RunEvent } from '@poietica/agent-contract'
+import { agentStampOf } from '../kap-projection'
 import {
   type AgentTextItem,
   type AgentThoughtItem,
@@ -532,5 +533,24 @@ describe('kap 投影', () => {
     /* 反查靠的是归一化后那个 camelCase 的 toolCallId。 */
     expect(waiting?.toolCall?.toolCallId).toBe('call_9')
     expect(pendingPermissionCall(activeScope(state))?.title).toBe('Bash')
+  })
+})
+
+describe('kap agent stamp', () => {
+  it('keeps protocol routing knowledge in kap-projection', () => {
+    const delegated: RunEvent = {
+      kind: 'kap_event',
+      seq: 1,
+      at: 1,
+      payload: { type: 'assistant.delta', agentId: 'worker-1', delta: 'hi' },
+    }
+    const main: RunEvent = {
+      kind: 'kap_event',
+      seq: 2,
+      at: 2,
+      payload: { type: 'assistant.delta', agentId: 'main', delta: 'hi' },
+    }
+    expect(agentStampOf(delegated)).toBe('worker-1')
+    expect(agentStampOf(main)).toBeUndefined()
   })
 })

@@ -1,6 +1,7 @@
 //! 用量：一条会话报到哪儿了，以及每一天用掉多少 token。
 
 use rusqlite::OptionalExtension;
+use time::{Date, Duration as TimeDuration, OffsetDateTime};
 
 use crate::error::Result;
 use crate::store::AgentStore;
@@ -29,6 +30,10 @@ pub struct TokenDay {
     pub tokens: i64,
 }
 
+fn local_day() -> Result<Date> {
+    Ok(OffsetDateTime::now_local()?.date())
+}
+
 impl AgentStore {
     /// 记下这条会话刚报的读数与三格累计计数，并把读数增量记进当天的账。
     ///
@@ -42,18 +47,19 @@ impl AgentStore {
     ///
     /// 语句被拒时返回错误。
     pub fn record_usage(&mut self, session_id: &str, usage: SessionUsage) -> Result<()> {
-        let transaction = self.connection.transaction()?;
+        self.record_usage_on(session_id, usage, local_day()?)
+    }
 
+    fn record_usage_on(&mut self, session_id: &str, usage: SessionUsage, day: Date) -> Result<()> {
+        let transaction = self.connection.transaction()?;
         let counted: Option<i64> = transaction
             .prepare_cached("SELECT used FROM session_usage WHERE session_id = ?1")?
             .query_row(rusqlite::params![session_id], |row| row.get(0))
             .optional()?;
-
         let spent = match counted {
             Some(previous) if usage.used >= previous => usage.used - previous,
             _ => usage.used,
         };
-
         transaction.execute(
             "INSERT INTO session_usage
                  (session_id, used, size, input_other, input_cache_read, input_cache_creation)
@@ -72,18 +78,14 @@ impl AgentStore {
                 usage.input_cache_creation,
             ],
         )?;
-
         if spent > 0 {
             transaction.execute(
-                "INSERT INTO token_days (day, tokens)
-                 VALUES (date('now', 'localtime'), ?1)
+                "INSERT INTO token_days (day, tokens) VALUES (?1, ?2)
                  ON CONFLICT (day) DO UPDATE SET tokens = tokens + excluded.tokens",
-                rusqlite::params![spent],
+                rusqlite::params![day.to_string(), spent],
             )?;
         }
-
         transaction.commit()?;
-
         Ok(())
     }
 
@@ -120,26 +122,67 @@ impl AgentStore {
     ///
     /// 查询被拒时返回错误。
     pub fn token_days(&self, span: i64) -> Result<Vec<TokenDay>> {
+        self.token_days_through(span, local_day()?)
+    }
+
+    fn token_days_through(&self, span: i64, today: Date) -> Result<Vec<TokenDay>> {
         let offset = span.max(1) - 1;
-
-        let mut statement = self.connection.prepare_cached(
-            "SELECT day, tokens
-               FROM token_days
-              WHERE day >= date('now', 'localtime', ?1)
-              ORDER BY day",
-        )?;
-
+        let earliest = today
+            .checked_sub(TimeDuration::days(offset))
+            .unwrap_or(Date::MIN);
+        let mut statement = self
+            .connection
+            .prepare_cached("SELECT day, tokens FROM token_days WHERE day >= ?1 ORDER BY day")?;
         let found = statement
-            .query_map(rusqlite::params![format!("-{offset} days")], |row| {
+            .query_map(rusqlite::params![earliest.to_string()], |row| {
                 Ok(TokenDay {
                     day: row.get(0)?,
                     tokens: row.get(1)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
-
         Ok(found)
     }
 
     // 对话删除的多表事务由 threads.rs 单点持有。
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used, reason = "a broken test fixture must fail loudly")]
+
+    use tempfile::TempDir;
+    use time::{Date, Month};
+
+    use super::SessionUsage;
+    use crate::AgentStore;
+
+    fn usage(used: i64) -> SessionUsage {
+        SessionUsage {
+            used,
+            size: 200,
+            input_other: 1,
+            input_cache_read: 2,
+            input_cache_creation: 3,
+        }
+    }
+
+    #[test]
+    fn usage_day_is_injected_once_and_counter_resets_are_counted() {
+        let root = TempDir::new().expect("temporary directory");
+        let mut store = AgentStore::open(&root.path().join("usage.sqlite3")).expect("store");
+        let day = Date::from_calendar_date(2026, Month::August, 27).expect("date");
+        store
+            .record_usage_on("session", usage(100), day)
+            .expect("first");
+        store
+            .record_usage_on("session", usage(150), day)
+            .expect("increase");
+        store
+            .record_usage_on("session", usage(20), day)
+            .expect("reset");
+        let days = store.token_days_through(1, day).expect("days");
+        assert_eq!(days.len(), 1);
+        assert_eq!(days.first().expect("recorded day").tokens, 170);
+    }
 }

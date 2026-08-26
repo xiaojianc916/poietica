@@ -1,27 +1,13 @@
-//! 插件的取用、落盘与账目。
+//! 插件命令的 Tauri 组合边界。
 //!
-//! 账本不是我们的。agent 自己的 CLI 按 `$KIMI_CODE_HOME/plugins/installed.json` 记着
-//! 装了哪些插件、开没开、哪台 MCP 服务器被单独关掉（官方
-//! packages/agent-core/src/plugin/store.ts 的 InstalledFile），托管副本在
-//! `plugins/managed/<id>/`，官方文档逐字「the CLI always runs from this managed copy」。
-//!
-//! 此前我们在应用数据根下另建了一套同名的目录与账本。那份账没有第二个读者：界面照着
-//! 它说「装好了」，会话里一个都不生效；反过来用户从对话里装的插件进了 agent 的家，
-//! 界面一个都看不见。同一件事有两个真相，两个都是假的。
-//!
-//! 这个模块一个字节都不解释插件清单。唯一解析器是 packages/plugins 的
-//! decodePluginManifest。账本这边只做两件事：按官方形状增删改那几格，以及原子写回。
-//!
-//! 改写走 serde_json::Value，不走一份对齐的 struct。官方记录里有 github.installedSha、
-//! updatedAt 这类我们既不产出也不理解的字段，反序列化再写回等于每拨一次开关就把它们
-//! 抹掉一次 —— 与 config.toml 那边用 toml_edit 而不是重新序列化是同一条理由。
+//! installed.json 的解释与写入由 plugin-host 独占；这里仅解析 IPC、组合路径、
+//! 推进暂存目录并把宿主类型映射成 IPC 类型。
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use poietica_plugin_host_native as host;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value, json};
 use specta::Type;
 use tauri::{AppHandle, command};
 
@@ -175,77 +161,8 @@ fn managed_directory(app: &AppHandle, plugin_id: &str) -> Result<PathBuf> {
     Ok(store_root(app)?.join(MANAGED_DIRECTORY).join(plugin_id))
 }
 
-/// 读账本。文件不在就是「一个都没装」，那是常态不是错误（官方 readInstalled 对
-/// ENOENT 同样交回空表）。
-fn read_record(app: &AppHandle) -> Result<Value> {
-    let path = record_file(app)?;
-
-    let Some(text) = host::read_optional(&path).map_err(plugin_failure)? else {
-        return Ok(json!({ "version": 1, "plugins": [] }));
-    };
-
-    let parsed: Value = serde_json::from_str(&text)?;
-
-    if parsed.get("plugins").and_then(Value::as_array).is_none() {
-        return Err(plugin_failure("installed.json 里没有 plugins 数组"));
-    }
-
-    Ok(parsed)
-}
-
-/// 写账本。缩进两格、不带尾换行 —— 与官方 writeInstalled 的
-/// `JSON.stringify(data, null, 2)` 逐字节一致，免得两边轮流写同一个文件时每次都产生
-/// 一份纯格式的差异。
-fn write_record(app: &AppHandle, document: &Value) -> Result<()> {
-    let text = serde_json::to_string_pretty(document)?;
-
-    host::write_atomic(&record_file(app)?, &text).map_err(plugin_failure)
-}
-
-fn entries_mut(document: &mut Value) -> Result<&mut Vec<Value>> {
-    document
-        .get_mut("plugins")
-        .and_then(Value::as_array_mut)
-        .ok_or_else(|| plugin_failure("installed.json 里没有 plugins 数组"))
-}
-
-fn index_of(entries: &[Value], plugin_id: &str) -> Option<usize> {
-    entries
-        .iter()
-        .position(|entry| entry.get("id").and_then(Value::as_str) == Some(plugin_id))
-}
-
-/// `at` 一律来自同一张表上的 index_of，所以越界与「不是对象」在这里是同一件事：
-/// 账本不是它该有的形状。
-fn entry_at(entries: &mut [Value], at: usize) -> Result<&mut Map<String, Value>> {
-    entries
-        .get_mut(at)
-        .and_then(Value::as_object_mut)
-        .ok_or_else(|| plugin_failure("installed.json 里的记录不是对象"))
-}
-
-/// 这条记录里被单独关掉的那几台服务器。
-///
-/// 官方存的是「每台一个 enabled」，缺席即开着；领域层要的是「关掉的有哪几台」。
-/// 转换只在这一处发生。
-fn disabled_servers(entry: &Map<String, Value>) -> Vec<String> {
-    let mut names: Vec<String> = entry
-        .get("capabilities")
-        .and_then(Value::as_object)
-        .and_then(|capabilities| capabilities.get("mcpServers"))
-        .and_then(Value::as_object)
-        .map(|servers| {
-            servers
-                .iter()
-                .filter(|(_, state)| state.get("enabled").and_then(Value::as_bool) == Some(false))
-                .map(|(name, _)| name.clone())
-                .collect()
-        })
-        .unwrap_or_default();
-
-    names.sort();
-
-    names
+fn ledger(app: &AppHandle) -> Result<host::PluginLedger> {
+    Ok(host::PluginLedger::new(record_file(app)?))
 }
 
 pub(crate) async fn download(url: &str) -> Result<Vec<u8>> {
@@ -349,60 +266,22 @@ fn finish_staging(staging: &host::Staging, subdirectory: Option<&str>) -> Result
 #[specta::specta]
 pub async fn plugins_list(app: AppHandle) -> PluginsCommandResult<Vec<PluginPayload>> {
     (|| -> Result<Vec<PluginPayload>> {
-        let document = read_record(&app)?;
-
-        let entries = document
-            .get("plugins")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-
         let mut found = Vec::new();
-
-        for entry in &entries {
-            let Some(object) = entry.as_object() else {
-                continue;
-            };
-
-            let Some(plugin_id) = object.get("id").and_then(Value::as_str) else {
-                continue;
-            };
-
-            let Some(root) = object.get("root").and_then(Value::as_str) else {
-                log::warn!("installed.json 里 {plugin_id} 没有 root");
-                continue;
-            };
-
-            let manifest_json = host::manifest_in(Path::new(root))
+        for entry in ledger(&app)?.installed().map_err(plugin_failure)? {
+            let manifest_json = host::manifest_in(&entry.root)
                 .and_then(|path| fs::read_to_string(path).ok())
                 .unwrap_or_default();
-
             found.push(PluginPayload {
-                plugin_id: plugin_id.to_owned(),
+                plugin_id: entry.plugin_id,
                 manifest_json,
-                enabled: object
-                    .get("enabled")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(true),
-                installed_at: object
-                    .get("installedAt")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned),
-                source: object
-                    .get("source")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_owned(),
-                original_source: object
-                    .get("originalSource")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned),
-                disabled_mcp_servers: disabled_servers(object),
+                enabled: entry.enabled,
+                installed_at: entry.installed_at,
+                source: entry.source,
+                original_source: entry.original_source,
+                disabled_mcp_servers: entry.disabled_mcp_servers,
             });
         }
-
         found.sort_by(|left, right| left.plugin_id.cmp(&right.plugin_id));
-
         Ok(found)
     })()
     .map_err(IpcError::from)
@@ -428,37 +307,17 @@ pub async fn plugins_foreign_list(
         let Some(home) = own_home_directory(&app)? else {
             return Ok(None);
         };
-
         let path = home.join(PLUGINS_DIRECTORY).join(RECORD_FILE);
         let location = path.to_string_lossy().into_owned();
-
-        let Some(text) = host::read_optional(&path).map_err(plugin_failure)? else {
-            return Ok(Some(ForeignPluginLedger {
-                location,
-                plugins: Vec::new(),
-            }));
-        };
-
-        let parsed: Value = serde_json::from_str(&text)?;
-
-        let plugins = parsed
-            .get("plugins")
-            .and_then(Value::as_array)
-            .ok_or_else(|| plugin_failure("installed.json 里没有 plugins 数组"))?
-            .iter()
-            .filter_map(|entry| {
-                let object = entry.as_object()?;
-
-                Some(ForeignPluginRecord {
-                    plugin_id: object.get("id").and_then(Value::as_str)?.to_owned(),
-                    original_source: object
-                        .get("originalSource")
-                        .and_then(Value::as_str)
-                        .map(str::to_owned),
-                })
+        let plugins = host::PluginLedger::new(path)
+            .references()
+            .map_err(plugin_failure)?
+            .into_iter()
+            .map(|entry| ForeignPluginRecord {
+                plugin_id: entry.plugin_id,
+                original_source: entry.original_source,
             })
             .collect();
-
         Ok(Some(ForeignPluginLedger { location, plugins }))
     })()
     .map_err(IpcError::from)
@@ -488,56 +347,21 @@ pub async fn plugins_commit(
     (|| -> Result<()> {
         let staging = host::Staging::open(&staging_root(&app)?, &request.staging_id)
             .map_err(plugin_failure)?;
-
-        // 解出来的东西可能套在 <repo>-<ref>/ 一层里，认领的是清单所在的那一层。
         let root = host::locate_root(staging.path(), request.subdirectory.as_deref())
             .map_err(plugin_failure)?;
         let destination = managed_directory(&app, &request.plugin_id)?;
-
         staging
             .promote(&root, &destination)
             .map_err(plugin_failure)?;
-
-        let mut document = read_record(&app)?;
-        let entries = entries_mut(&mut document)?;
-
-        let mut fresh = Map::new();
-
-        let _id = fresh.insert("id".to_owned(), json!(request.plugin_id));
-        let _root = fresh.insert(
-            "root".to_owned(),
-            json!(destination.to_string_lossy().into_owned()),
-        );
-        let _source = fresh.insert("source".to_owned(), json!(request.source));
-        let _enabled = fresh.insert("enabled".to_owned(), json!(true));
-        let _at = fresh.insert("installedAt".to_owned(), json!(request.installed_at));
-
-        if let Some(original) = request.original_source {
-            let _original = fresh.insert("originalSource".to_owned(), json!(original));
-        }
-
-        match index_of(entries, &request.plugin_id) {
-            Some(at) => {
-                // 重装保留原来的安装时刻与拨过的开关：解析顺序按 installedAt 排，升级一次
-                // 就把一个老插件甩到队尾，会悄悄改变它注入提示词的先后。
-                let existing = entry_at(entries, at)?;
-
-                if let Some(installed_at) = existing.get("installedAt").cloned() {
-                    let _kept = fresh.insert("installedAt".to_owned(), installed_at);
-                }
-
-                if let Some(capabilities) = existing.get("capabilities").cloned() {
-                    let _kept = fresh.insert("capabilities".to_owned(), capabilities);
-                }
-
-                let _updated = fresh.insert("updatedAt".to_owned(), json!(request.installed_at));
-
-                *existing = fresh;
-            }
-            None => entries.push(Value::Object(fresh)),
-        }
-
-        write_record(&app, &document)
+        ledger(&app)?
+            .upsert(host::PluginInstall {
+                plugin_id: request.plugin_id,
+                root: destination,
+                source: request.source,
+                original_source: request.original_source,
+                installed_at: request.installed_at,
+            })
+            .map_err(plugin_failure)
     })()
     .map_err(IpcError::from)
 }
@@ -561,21 +385,11 @@ pub async fn plugins_discard(app: AppHandle, staging_id: String) -> PluginsComma
 #[specta::specta]
 pub async fn plugins_remove(app: AppHandle, plugin_id: String) -> PluginsCommandResult<()> {
     (|| -> Result<()> {
-        let mut document = read_record(&app)?;
-        let entries = entries_mut(&mut document)?;
-
-        if let Some(at) = index_of(entries, &plugin_id) {
-            let _removed = entries.remove(at);
-        }
-
-        write_record(&app, &document)?;
-
+        ledger(&app)?.remove(&plugin_id).map_err(plugin_failure)?;
         let managed = managed_directory(&app, &plugin_id)?;
-
         if managed.exists() {
             fs::remove_dir_all(&managed)?;
         }
-
         Ok(())
     })()
     .map_err(IpcError::from)
@@ -589,19 +403,10 @@ pub async fn plugins_set_enabled(
     plugin_id: String,
     enabled: bool,
 ) -> PluginsCommandResult<()> {
-    (|| -> Result<()> {
-        let mut document = read_record(&app)?;
-        let entries = entries_mut(&mut document)?;
-
-        let at = index_of(entries, &plugin_id)
-            .ok_or_else(|| plugin_failure(format!("installed.json 里没有 {plugin_id}")))?;
-
-        let entry = entry_at(entries, at)?;
-        let _previous = entry.insert("enabled".to_owned(), json!(enabled));
-
-        write_record(&app, &document)
-    })()
-    .map_err(IpcError::from)
+    ledger(&app)?
+        .set_enabled(&plugin_id, enabled)
+        .map_err(plugin_failure)
+        .map_err(IpcError::from)
 }
 
 /// 拨动某个插件带来的一台 MCP 服务器。
@@ -616,38 +421,10 @@ pub async fn plugins_set_mcp_enabled(
     server: String,
     enabled: bool,
 ) -> PluginsCommandResult<()> {
-    (|| -> Result<()> {
-        let mut document = read_record(&app)?;
-        let entries = entries_mut(&mut document)?;
-
-        let at = index_of(entries, &plugin_id)
-            .ok_or_else(|| plugin_failure(format!("installed.json 里没有 {plugin_id}")))?;
-
-        let entry = entry_at(entries, at)?;
-
-        let capabilities = entry
-            .entry("capabilities")
-            .or_insert_with(|| json!({}))
-            .as_object_mut()
-            .ok_or_else(|| plugin_failure("capabilities 不是对象"))?;
-
-        let servers = capabilities
-            .entry("mcpServers")
-            .or_insert_with(|| json!({}))
-            .as_object_mut()
-            .ok_or_else(|| plugin_failure("mcpServers 不是对象"))?;
-
-        let state = servers
-            .entry(server)
-            .or_insert_with(|| json!({}))
-            .as_object_mut()
-            .ok_or_else(|| plugin_failure("mcpServers 里的记录不是对象"))?;
-
-        let _previous = state.insert("enabled".to_owned(), json!(enabled));
-
-        write_record(&app, &document)
-    })()
-    .map_err(IpcError::from)
+    ledger(&app)?
+        .set_mcp_enabled(&plugin_id, server, enabled)
+        .map_err(plugin_failure)
+        .map_err(IpcError::from)
 }
 
 #[command]

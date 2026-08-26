@@ -64,7 +64,7 @@ url = { version = "2.5.4", features = ["serde"] }
 
 # Stable identifiers and time
 time = { version = "0.3.41", features = [
-  "formatting", "macros", "parsing", "serde",
+  "formatting", "local-offset", "macros", "parsing", "serde",
 ] }
 uuid = { version = "1.16.0", features = ["serde", "v4", "v7"] }
 

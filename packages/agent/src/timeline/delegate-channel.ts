@@ -1,5 +1,6 @@
 import type { RunEvent } from '@poietica/agent-contract'
 
+import { agentStampOf } from './kap-projection'
 import type { TimelineItem, TimelineState, ToolCallTimelineItem } from './timeline-contract'
 
 /**
@@ -10,14 +11,8 @@ import type { TimelineItem, TimelineState, ToolCallTimelineItem } from './timeli
  * 全部沿用主转录那一条管线，屏幕上因此没有第二种画法。
  */
 
-/** 主代理的号。kap 给每一帧盖章，不报号的帧只可能来自它。 */
-const MAIN_AGENT = 'main'
-
-/** 通道键的分隔符：对话号在前，子代理号在后。 */
+/** 派发通道键的分隔符：对话号在前，子代理号在后。 */
 const CHANNEL_MARK = '#'
-
-/** 载荷是索引签名，键只能走变量（见 kap-projection 的 fieldOf）。 */
-const AGENT_KEY = 'agentId'
 
 const NO_CHANNELS: ReadonlyMap<string, readonly RunEvent[]> = new Map()
 
@@ -29,16 +24,6 @@ export function delegateKey(conversation: string, agentId: string): string {
 /** 这个键是一条通道，不是一条对话。与 delegateKey 同住一处。 */
 export function isDelegateKey(key: string): boolean {
   return key.includes(CHANNEL_MARK)
-}
-
-function agentOf(event: RunEvent): string {
-  if (event.kind !== 'kap_event') {
-    return MAIN_AGENT
-  }
-
-  const stamped = event.payload[AGENT_KEY]
-
-  return typeof stamped === 'string' && stamped !== '' ? stamped : MAIN_AGENT
 }
 
 /**
@@ -55,9 +40,9 @@ export function partitionByAgent(events: readonly RunEvent[]): {
   let channels: Map<string, RunEvent[]> | undefined
 
   for (const [index, event] of events.entries()) {
-    const agentId = agentOf(event)
+    const agentId = agentStampOf(event)
 
-    if (agentId === MAIN_AGENT) {
+    if (agentId === undefined) {
       main?.push(event)
 
       continue

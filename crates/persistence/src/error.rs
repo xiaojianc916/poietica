@@ -15,6 +15,10 @@ pub enum StoreError {
     #[error("payload error: {0}")]
     Json(#[from] serde_json::Error),
 
+    /// The operating system could not provide a local UTC offset.
+    #[error("local time offset is unavailable: {0}")]
+    LocalOffset(#[from] time::error::IndeterminateOffset),
+
     /// A timestamp could not be formatted.
     #[error("timestamp error: {0}")]
     Time(#[from] time::error::Format),

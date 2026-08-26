@@ -18,6 +18,15 @@ pub enum HostError {
     #[error("path prefix error: {0}")]
     Prefix(#[from] std::path::StripPrefixError),
 
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("invalid plugin ledger: {0}")]
+    InvalidLedger(&'static str),
+
+    #[error("plugin is absent from installed.json: {0}")]
+    MissingPlugin(String),
+
     /// 归档里有一条会写到目标目录之外的路径。
     #[error("archive entry escapes the destination")]
     UnsafeEntry,

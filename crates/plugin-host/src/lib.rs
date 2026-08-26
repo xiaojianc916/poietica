@@ -6,6 +6,7 @@
 
 mod error;
 mod layout;
+mod ledger;
 mod skills;
 mod source;
 mod staging;
@@ -13,6 +14,7 @@ mod text_file;
 
 pub use error::{HostError, Result};
 pub use layout::{SKILL_FILENAME, is_safe_segment, locate_root, locate_skill_root, manifest_in};
+pub use ledger::{InstalledPlugin, PluginInstall, PluginLedger, PluginReference};
 pub use skills::{ScannedSkill, install_skill, remove_skill, scan_skills, set_skill_enabled};
 pub use source::{copy_tree, extract_zip};
 pub use staging::Staging;

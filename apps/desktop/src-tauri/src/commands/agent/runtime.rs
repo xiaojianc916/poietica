@@ -10,8 +10,8 @@ use crate::error::{Error, Result};
 use crate::paths::attachments_root;
 use poietica_agent_persistence_native::{SessionCursor, SessionUsage};
 use poietica_agent_runtime_native::{
-    AgentClient, AgentConnection, AgentSpawn, KapError, PermissionDesk, QuestionDesk, Refusal,
-    RunSlot, SessionBook, SessionEvent, connect,
+    AgentClient, AgentConnection, AgentSpawn, KapError, LinkState, PermissionDesk, QuestionDesk,
+    Refusal, RunSlot, SessionBook, SessionEvent, connect,
 };
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -215,6 +215,121 @@ pub(super) struct Handle {
     pub(super) book: SessionBook,
 }
 
+enum SessionEventPlan {
+    Emit(AgentSessionEvent),
+    Usage {
+        session_id: String,
+        usage: SessionUsage,
+        payload: AgentSessionEvent,
+    },
+    Cursor {
+        session_id: String,
+        cursor: SessionCursor,
+    },
+    CursorLost {
+        session_id: String,
+    },
+    Link(LinkState),
+}
+
+fn plan_session_event(event: SessionEvent) -> SessionEventPlan {
+    match event {
+        SessionEvent::Selectors {
+            session_id,
+            controls,
+            goal,
+        } => SessionEventPlan::Emit(AgentSessionEvent::Selectors {
+            session_id,
+            selectors: controls.into_iter().map(restate).collect(),
+            goal: goal.map(reported_goal),
+        }),
+        SessionEvent::Usage { session_id, usage } => {
+            let reported = reported_usage(usage);
+            SessionEventPlan::Usage {
+                session_id: session_id.clone(),
+                usage: SessionUsage {
+                    used: i64::from(reported.used),
+                    size: i64::from(reported.size),
+                    input_other: i64::from(reported.input_other),
+                    input_cache_read: i64::from(reported.input_cache_read),
+                    input_cache_creation: i64::from(reported.input_cache_creation),
+                },
+                payload: AgentSessionEvent::Usage {
+                    session_id,
+                    usage: reported,
+                },
+            }
+        }
+        SessionEvent::Cursor { session_id, cursor } => SessionEventPlan::Cursor {
+            session_id,
+            cursor: SessionCursor {
+                seq: cursor.seq,
+                epoch: cursor.epoch,
+            },
+        },
+        SessionEvent::CursorLost { session_id } => SessionEventPlan::CursorLost { session_id },
+        SessionEvent::Link(link) => SessionEventPlan::Link(link),
+    }
+}
+
+async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: SessionEvent) {
+    let payload = match plan_session_event(event) {
+        SessionEventPlan::Emit(payload) => Some(payload),
+        SessionEventPlan::Usage {
+            session_id,
+            usage,
+            payload,
+        } => {
+            let index = app.state::<crate::local_index::LocalIndex>();
+            let recorded = crate::local_index::on_index(&index, move |store| {
+                store
+                    .record_usage(&session_id, usage)
+                    .map_err(crate::local_index::persistence)
+            })
+            .await;
+            if let Err(error) = recorded {
+                log::warn!("could not record the session usage: {error}");
+            }
+            Some(payload)
+        }
+        SessionEventPlan::Cursor { session_id, cursor } => {
+            let index = app.state::<crate::local_index::LocalIndex>();
+            let recorded = crate::local_index::on_index(&index, move |store| {
+                store
+                    .remember_cursor(&session_id, &cursor)
+                    .map_err(crate::local_index::persistence)
+            })
+            .await;
+            if let Err(error) = recorded {
+                log::warn!("could not record where the event stream was read to: {error}");
+            }
+            None
+        }
+        SessionEventPlan::CursorLost { session_id } => {
+            let index = app.state::<crate::local_index::LocalIndex>();
+            let dropped = crate::local_index::on_index(&index, move |store| {
+                store
+                    .forget_cursor(&session_id)
+                    .map_err(crate::local_index::persistence)
+            })
+            .await;
+            if let Err(error) = dropped {
+                log::warn!("could not drop a cursor that no longer resumes: {error}");
+            }
+            None
+        }
+        SessionEventPlan::Link(link) => {
+            if let Err(error) = book.note_link(&link) {
+                log::warn!("could not record the link state: {error}");
+            }
+            None
+        }
+    };
+    if let Some(payload) = payload {
+        let _ignored = app.emit(AGENT_SESSION_EVENT, &payload);
+    }
+}
+
 /// Returns the running session, starting one if there is none.
 pub(super) async fn ensure_session(
     app: &AppHandle,
@@ -302,120 +417,12 @@ pub(super) async fn ensure_session(
         }
     });
 
-    // agent 主动报来的会话级状态，这里把它送上屏。
-    //
-    // 一条连接一个排空任务：报告不挂在任何一次往返的答复上，所以没有命令可以
-    // 顺路把它带回去。通道关掉（连接没了）时循环自己结束，任务随之退出。
-    //
-    // 发的是引用：emit 要 Serialize + Clone，而 &T 两样都满足。
     let herald = app.clone();
     let linked = book.clone();
-
     async_runtime::spawn(async move {
         let mut events = events;
-
         while let Some(event) = events.next().await {
-            let payload = match event {
-                SessionEvent::Selectors {
-                    session_id,
-                    controls,
-                    goal,
-                } => AgentSessionEvent::Selectors {
-                    session_id,
-                    selectors: controls.into_iter().map(restate).collect(),
-                    goal: goal.map(reported_goal),
-                },
-
-                SessionEvent::Usage { session_id, usage } => {
-                    let reported = reported_usage(usage);
-
-                    /* 先落账本，再上屏。用量是 volatile 推送（kap 不回放它），
-                    装载旧会话也不补报，所以重启之后这一格的唯一来源是账本 ——
-                    open 的答复从那里把它带回去。 */
-                    let counted = SessionUsage {
-                        used: i64::from(reported.used),
-                        size: i64::from(reported.size),
-                        input_other: i64::from(reported.input_other),
-                        input_cache_read: i64::from(reported.input_cache_read),
-                        input_cache_creation: i64::from(reported.input_cache_creation),
-                    };
-
-                    let index = herald.state::<crate::local_index::LocalIndex>();
-                    let session = session_id.clone();
-
-                    let recorded = crate::local_index::on_index(&index, move |store| {
-                        store
-                            .record_usage(&session, counted)
-                            .map_err(crate::local_index::persistence)
-                    })
-                    .await;
-
-                    /* 记不上只写日志：数字这一刻还是对的，上屏不为一次写失败
-                    让路，账本下一轮会再来。 */
-                    if let Err(error) = recorded {
-                        log::warn!("could not record the session usage: {error}");
-                    }
-
-                    AgentSessionEvent::Usage {
-                        session_id,
-                        usage: reported,
-                    }
-                }
-
-                /* 链路态进这一轮的账：屏幕上那一行由帧出，所以重启之后它还在。 */
-                SessionEvent::Link(link) => {
-                    if let Err(error) = linked.note_link(&link) {
-                        log::warn!("could not record the link state: {error}");
-                    }
-
-                    continue;
-                }
-
-                /* 读点是本机的账，屏幕上没有一格画它：落库，不上屏。订阅时由
-                addressing.rs 把它报回给 kap。 */
-                SessionEvent::Cursor { session_id, cursor } => {
-                    let read = SessionCursor {
-                        seq: cursor.seq,
-                        epoch: cursor.epoch,
-                    };
-
-                    let index = herald.state::<crate::local_index::LocalIndex>();
-
-                    let recorded = crate::local_index::on_index(&index, move |store| {
-                        store
-                            .remember_cursor(&session_id, &read)
-                            .map_err(crate::local_index::persistence)
-                    })
-                    .await;
-
-                    if let Err(error) = recorded {
-                        log::warn!("could not record where the event stream was read to: {error}");
-                    }
-
-                    continue;
-                }
-
-                /* 那一段流断了，读点从它接不下去。 */
-                SessionEvent::CursorLost { session_id } => {
-                    let index = herald.state::<crate::local_index::LocalIndex>();
-
-                    let dropped = crate::local_index::on_index(&index, move |store| {
-                        store
-                            .forget_cursor(&session_id)
-                            .map_err(crate::local_index::persistence)
-                    })
-                    .await;
-
-                    if let Err(error) = dropped {
-                        log::warn!("could not drop a cursor that no longer resumes: {error}");
-                    }
-
-                    continue;
-                }
-            };
-
-            // 渲染层没在听不是错：下一份报告到达时它仍然是整份。
-            let _ignored = herald.emit(AGENT_SESSION_EVENT, &payload);
+            publish_session_event(&herald, &linked, event).await;
         }
     });
 
@@ -615,5 +622,35 @@ async fn record_and_flush_disposals(
             log::warn!("could not discharge a session disposal: {error}");
             return;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::panic,
+        reason = "a failed variant assertion must fail the test loudly"
+    )]
+
+    use super::{SessionEventPlan, plan_session_event};
+    use poietica_agent_runtime_native::{SessionEvent, SessionUsageSnapshot};
+
+    #[test]
+    fn usage_plan_is_process_independent() {
+        let planned = plan_session_event(SessionEvent::Usage {
+            session_id: "session".to_owned(),
+            usage: SessionUsageSnapshot {
+                used: 12,
+                size: 100,
+                input_other: 3,
+                input_cache_read: 4,
+                input_cache_creation: 5,
+            },
+        });
+        let SessionEventPlan::Usage { usage, .. } = planned else {
+            panic!("usage must plan a usage write");
+        };
+        assert_eq!(usage.used, 12);
+        assert_eq!(usage.input_cache_creation, 5);
     }
 }

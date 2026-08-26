@@ -234,6 +234,14 @@ struct InstanceDisk {
     started_at: i64,
 }
 
+impl InstanceDisk {
+    fn eligible(content: &str, not_before: i64) -> Option<Self> {
+        serde_json::from_str(content)
+            .ok()
+            .filter(|registration: &Self| registration.started_at >= not_before)
+    }
+}
+
 /// 一次探针：这个地址上的 server 认不认我们手里这份令牌。
 ///
 /// /meta 走全局 bearer 鉴权（start.ts 挂的 createAuthHook），认了才回 code 0。
@@ -318,8 +326,7 @@ async fn discover_instance(
                     continue;
                 }
                 if let Ok(content) = tokio::fs::read_to_string(&path).await
-                    && let Ok(info) = serde_json::from_str::<InstanceDisk>(&content)
-                    && info.started_at >= not_before
+                    && let Some(info) = InstanceDisk::eligible(&content, not_before)
                 {
                     let dial = dialable_host(&info.host);
 
@@ -1002,28 +1009,22 @@ pub fn connect(
         }));
 
         // 8. 主循环
-        let mut owners: HashMap<String, ReconcileOwner> = HashMap::new();
-        let mut prompts = PromptCoordinator::new(http.clone(), base_url.clone(), book_clone.clone());
+        let mut router = EventRouter::new(
+            book_clone.clone(),
+            desk.clone(),
+            questions.clone(),
+            events_tx.clone(),
+            http.clone(),
+            base_url.clone(),
+        );
 
         /* 每条会话最后读到的位置。重连按它续订：帧不重发，也不缺号。 */
-        let mut cursors: HashMap<String, Cursor> = HashMap::new();
 
         // 补投握手期间收下的帧。里面可能有一帧 ping 不必答：我们刚发出去的
         // client_hello 与 subscribe 已经刷新了服务端的 lastInboundAt，而它的
         // 判死线是连续两个周期没有任何入站帧（wsConnectionV1.ts onHeartbeat）。
         for envelope in std::mem::take(&mut stash) {
-            handle_ws_message(
-                &envelope,
-                &mut owners,
-                &book_clone,
-                &desk,
-                &questions,
-                &events_tx,
-                &http,
-                &base_url,
-                &mut cursors,
-                &prompts,
-            );
+            router.handle(&envelope);
         }
 
         let mut commands_rx = commands_rx;
@@ -1038,7 +1039,7 @@ pub fn connect(
                     &ws_url,
                     &auth_header,
                     &book_clone,
-                    &cursors,
+                    router.cursors(),
                     &events_tx,
                     &reason,
                 )
@@ -1049,18 +1050,7 @@ pub fn connect(
                 };
 
                 for envelope in replay {
-                    handle_ws_message(
-                        &envelope,
-                        &mut owners,
-                        &book_clone,
-                        &desk,
-                        &questions,
-                        &events_tx,
-                        &http,
-                        &base_url,
-                        &mut cursors,
-                        &prompts,
-                    );
+                    router.handle(&envelope);
                 }
             }
 
@@ -1223,7 +1213,7 @@ pub fn connect(
                                     }));
                                     continue;
                                 }
-                                prompts.submit(&sid, PromptJob { text, attachments, skills, reply });
+                                router.submit(&sid, PromptJob { text, attachments, skills, reply });
                             } else {
                                 let _sent = reply.send(Err(KapError::Refused(Refusal::UnknownSession)));
                             }
@@ -1303,18 +1293,7 @@ pub fn connect(
                                         .await
                                         .ok();
                                 } else {
-                                    handle_ws_message(
-                                        &v,
-                                        &mut owners,
-                                        &book_clone,
-                                        &desk,
-                                        &questions,
-                                        &events_tx,
-                                        &http,
-                                        &base_url,
-                                        &mut cursors,
-                                        &prompts,
-                                    );
+                                    router.handle(&v);
                                 }
                             }
                         }
@@ -1330,7 +1309,7 @@ pub fn connect(
             }
         }
 
-        drop(owners);
+        drop(router);
         desk.clear();
         questions.clear();
         Ok(())
@@ -1348,250 +1327,297 @@ pub fn connect(
 
 // ── WS 事件路由 ────────────────────────────────────────────────────────────
 
-fn handle_ws_message(
-    envelope: &Value,
-    owners: &mut HashMap<String, ReconcileOwner>,
-    book: &SessionBook,
-    desk: &PermissionDesk,
-    questions: &QuestionDesk,
-    events_tx: &mpsc::UnboundedSender<SessionEvent>,
-    http: &reqwest::Client,
-    base_url: &str,
-    cursors: &mut HashMap<String, Cursor>,
-    prompts: &PromptCoordinator,
-) {
-    // 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …），
-    // 不是字符串 "session_event"：wsEventEnvelopeSchema 里 type 是 z.string()，
-    // sessionEventOperation 的 'session_event' 只是操作目录里那一条的名字。
-    //
-    // 判据：同时带 session_id、seq 和一个自带 type 的载荷，且两个 type 相等。
-    // 控制帧与系统帧就此排除 —— 系统 error 帧的载荷是 { code, msg, fatal }，
-    // 既没有 type 也没有 seq，不会被当成 agent 的 error 事件收进来。
-    let kind = envelope.get("type").and_then(Value::as_str).unwrap_or("");
+struct EventRouter {
+    owners: HashMap<String, ReconcileOwner>,
+    book: SessionBook,
+    desk: PermissionDesk,
+    questions: QuestionDesk,
+    events_tx: mpsc::UnboundedSender<SessionEvent>,
+    http: reqwest::Client,
+    base_url: String,
+    cursors: HashMap<String, Cursor>,
+    prompts: PromptCoordinator,
+}
 
-    // 订阅失败不写在 code 上：ack 永远回 0，落选的会话在载荷的 not_found 里。
-    // 异步订阅（新开 / 装载 / 分叉）的 ack 只到得了这里。
-    if kind == "ack"
-        && let Some(missing) = envelope
-            .get("payload")
-            .and_then(|payload| payload.get("not_found"))
-            .and_then(Value::as_array)
-        && !missing.is_empty()
-    {
-        log::warn!("kap refused to subscribe: {missing:?}");
-        return;
+impl EventRouter {
+    fn new(
+        book: SessionBook,
+        desk: PermissionDesk,
+        questions: QuestionDesk,
+        events_tx: mpsc::UnboundedSender<SessionEvent>,
+        http: reqwest::Client,
+        base_url: String,
+    ) -> Self {
+        let prompts = PromptCoordinator::new(http.clone(), base_url.clone(), book.clone());
+        Self {
+            owners: HashMap::new(),
+            book,
+            desk,
+            questions,
+            events_tx,
+            http,
+            base_url,
+            cursors: HashMap::new(),
+            prompts,
+        }
     }
 
-    // kap 说这条会话的事件流断了（reason 枚举 buffer_overflow / session_recreated /
-    // epoch_changed，见 contracts/kap/asyncapi.json 的 resync_required 载荷）：断点
-    // 之后的帧不会再来，这一轮的经过补不齐。判死它 —— 补不回来的东西不该装作还在路上。
-    if kind == "resync_required" {
-        let cut = envelope
-            .get("payload")
-            .and_then(|payload| payload.get("session_id"))
-            .or_else(|| envelope.get("session_id"))
-            .and_then(Value::as_str)
-            .unwrap_or_default();
+    fn cursors(&self) -> &HashMap<String, Cursor> {
+        &self.cursors
+    }
 
-        let reason = envelope
-            .get("payload")
-            .and_then(|payload| payload.get("reason"))
-            .and_then(Value::as_str)
-            .unwrap_or("unknown");
+    fn submit(&mut self, session_id: &str, job: PromptJob) {
+        self.prompts.submit(session_id, job);
+    }
 
-        /* 读点从这一段流上接不下去了，所以它作废：留着它，下一次订阅只会再换
-        回一句 resync_required。 */
-        let _sent = events_tx.unbounded_send(SessionEvent::CursorLost {
-            session_id: cut.to_owned(),
-        });
+    fn handle(&mut self, envelope: &Value) {
+        let Self {
+            owners,
+            book,
+            desk,
+            questions,
+            events_tx,
+            http,
+            base_url,
+            cursors,
+            prompts,
+        } = self;
 
-        /* 这一段流接不下去了，链路上那个位置同样作废。 */
-        let _dropped = cursors.remove(cut);
+        // 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …），
+        // 不是字符串 "session_event"：wsEventEnvelopeSchema 里 type 是 z.string()，
+        // sessionEventOperation 的 'session_event' 只是操作目录里那一条的名字。
+        //
+        // 判据：同时带 session_id、seq 和一个自带 type 的载荷，且两个 type 相等。
+        // 控制帧与系统帧就此排除 —— 系统 error 帧的载荷是 { code, msg, fatal }，
+        // 既没有 type 也没有 seq，不会被当成 agent 的 error 事件收进来。
+        let kind = envelope.get("type").and_then(Value::as_str).unwrap_or("");
 
-        if let Some(owner) = owners.get(cut) {
-            owner.reset();
+        // 订阅失败不写在 code 上：ack 永远回 0，落选的会话在载荷的 not_found 里。
+        // 异步订阅（新开 / 装载 / 分叉）的 ack 只到得了这里。
+        if kind == "ack"
+            && let Some(missing) = envelope
+                .get("payload")
+                .and_then(|payload| payload.get("not_found"))
+                .and_then(Value::as_array)
+            && !missing.is_empty()
+        {
+            log::warn!("kap refused to subscribe: {missing:?}");
+            return;
         }
 
-        match book.fail_turn(cut, &format!("the event stream was cut: {reason}")) {
-            Ok(true) => {}
-            Ok(false) => {
-                log::warn!(
-                    "kap asked for a resync of a session with no turn in flight: {envelope}"
-                );
-            }
-            Err(error) => log::error!("could not close a turn whose stream was cut: {error}"),
-        }
-
-        return;
-    }
-
-    let Some(session_id) = envelope.get("session_id").and_then(Value::as_str) else {
-        return;
-    };
-
-    // 位置由 kap 签发（信封上的 seq，跨守护进程重启有效）。此前它只被用来判一下
-    // 「这是不是一帧事件」随后丢掉，于是重新订阅时说不出从哪儿接着发。
-    let Some(seq) = envelope.get("seq").and_then(Value::as_i64) else {
-        return;
-    };
-
-    let Some(payload) = envelope.get("payload") else {
-        return;
-    };
-
-    let event_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
-
-    if event_type != kind {
-        return;
-    }
-
-    /* 链路读到哪儿了，按帧记。它必须是「真的消费过的最后一帧」：拿轮终那个落库
-    读点去续订，会让 kap 重发本轮已经记下的帧。 */
-    let _moved = cursors.insert(
-        session_id.to_owned(),
-        Cursor {
-            seq,
-            epoch: envelope
-                .get("epoch")
+        // kap 说这条会话的事件流断了（reason 枚举 buffer_overflow / session_recreated /
+        // epoch_changed，见 contracts/kap/asyncapi.json 的 resync_required 载荷）：断点
+        // 之后的帧不会再来，这一轮的经过补不齐。判死它 —— 补不回来的东西不该装作还在路上。
+        if kind == "resync_required" {
+            let cut = envelope
+                .get("payload")
+                .and_then(|payload| payload.get("session_id"))
+                .or_else(|| envelope.get("session_id"))
                 .and_then(Value::as_str)
-                .map(str::to_owned),
-        },
-    );
+                .unwrap_or_default();
 
-    // 认下来的每一帧事件都成帧进录制器 —— 判据在上面，这里不再问第二遍。
-    if let Ok(Some(slot)) = book.slot(session_id) {
-        let frame = kap_event(payload.clone());
-        slot.record(|recorder| recorder.record_frame(frame));
-    }
+            let reason = envelope
+                .get("payload")
+                .and_then(|payload| payload.get("reason"))
+                .and_then(Value::as_str)
+                .unwrap_or("unknown");
 
-    match event_type {
-        // 轮次结束：收掉这一轮的记录器，没答的审批与没答的题都作废，终帧殿后。
-        "event.session.work_changed" => {
-            /* work_changed 是会话活动投影，不是轮终错误通道。busy=false 只说明聚合已
-            空闲；正式结果由 main agent 的 turn.ended 携带。这里仅在聚合落定后推进
-            durable cursor，让同轮稍后到达的 error 事件也包含在续订水位内。 */
-            if payload.get("busy").and_then(Value::as_bool) == Some(false) {
-                let _sent = events_tx.unbounded_send(SessionEvent::Cursor {
-                    session_id: session_id.to_owned(),
-                    cursor: Cursor {
-                        seq,
-                        epoch: envelope
-                            .get("epoch")
-                            .and_then(Value::as_str)
-                            .map(str::to_owned),
-                    },
-                });
+            /* 读点从这一段流上接不下去了，所以它作废：留着它，下一次订阅只会再换
+            回一句 resync_required。 */
+            let _sent = events_tx.unbounded_send(SessionEvent::CursorLost {
+                session_id: cut.to_owned(),
+            });
+
+            /* 这一段流接不下去了，链路上那个位置同样作废。 */
+            let _dropped = cursors.remove(cut);
+
+            if let Some(owner) = owners.get(cut) {
+                owner.reset();
             }
+
+            match book.fail_turn(cut, &format!("the event stream was cut: {reason}")) {
+                Ok(true) => {}
+                Ok(false) => {
+                    log::warn!(
+                        "kap asked for a resync of a session with no turn in flight: {envelope}"
+                    );
+                }
+                Err(error) => log::error!("could not close a turn whose stream was cut: {error}"),
+            }
+
+            return;
         }
 
-        "turn.ended" => {
-            let is_main_turn = payload.get("agentId").and_then(Value::as_str) == Some("main");
+        let Some(session_id) = envelope.get("session_id").and_then(Value::as_str) else {
+            return;
+        };
 
-            if is_main_turn {
-                let reason = payload
-                    .get("reason")
+        // 位置由 kap 签发（信封上的 seq，跨守护进程重启有效）。此前它只被用来判一下
+        // 「这是不是一帧事件」随后丢掉，于是重新订阅时说不出从哪儿接着发。
+        let Some(seq) = envelope.get("seq").and_then(Value::as_i64) else {
+            return;
+        };
+
+        let Some(payload) = envelope.get("payload") else {
+            return;
+        };
+
+        let event_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
+
+        if event_type != kind {
+            return;
+        }
+
+        /* 链路读到哪儿了，按帧记。它必须是「真的消费过的最后一帧」：拿轮终那个落库
+        读点去续订，会让 kap 重发本轮已经记下的帧。 */
+        let _moved = cursors.insert(
+            session_id.to_owned(),
+            Cursor {
+                seq,
+                epoch: envelope
+                    .get("epoch")
                     .and_then(Value::as_str)
-                    .unwrap_or("invalid");
-                if let Some(owner) = owners.get(session_id) {
-                    owner.reset();
-                }
+                    .map(str::to_owned),
+            },
+        );
 
-                let ended = match reason {
-                    /* 这是状态终帧；用户可见错误来自前一帧 turn.ended.error。 */
-                    "completed" | "cancelled" | "failed" | "blocked" => {
-                        book.finish_turn(session_id, reason)
+        // 认下来的每一帧事件都成帧进录制器 —— 判据在上面，这里不再问第二遍。
+        if let Ok(Some(slot)) = book.slot(session_id) {
+            let frame = kap_event(payload.clone());
+            slot.record(|recorder| recorder.record_frame(frame));
+        }
+
+        match event_type {
+            // 轮次结束：收掉这一轮的记录器，没答的审批与没答的题都作废，终帧殿后。
+            "event.session.work_changed" => {
+                /* work_changed 是会话活动投影，不是轮终错误通道。busy=false 只说明聚合已
+                空闲；正式结果由 main agent 的 turn.ended 携带。这里仅在聚合落定后推进
+                durable cursor，让同轮稍后到达的 error 事件也包含在续订水位内。 */
+                if payload.get("busy").and_then(Value::as_bool) == Some(false) {
+                    let _sent = events_tx.unbounded_send(SessionEvent::Cursor {
+                        session_id: session_id.to_owned(),
+                        cursor: Cursor {
+                            seq,
+                            epoch: envelope
+                                .get("epoch")
+                                .and_then(Value::as_str)
+                                .map(str::to_owned),
+                        },
+                    });
+                }
+            }
+
+            "turn.ended" => {
+                let is_main_turn = payload.get("agentId").and_then(Value::as_str) == Some("main");
+
+                if is_main_turn {
+                    let reason = payload
+                        .get("reason")
+                        .and_then(Value::as_str)
+                        .unwrap_or("invalid");
+                    if let Some(owner) = owners.get(session_id) {
+                        owner.reset();
                     }
-                    unknown => book.fail_turn(
-                        session_id,
-                        &format!("KAP turn.ended carried an unknown reason: {unknown}"),
-                    ),
-                };
 
-                match ended {
-                    Ok(_) => prompts.turn_ended(session_id),
-                    Err(error) => log::error!("could not close the turn kap just ended: {error}"),
-                }
-
-                /* 一轮落定，目标的轮数、用量与时长都变了：整表推一次。 */
-                let http2 = http.clone();
-                let base2 = base_url.to_owned();
-                let sid = session_id.to_owned();
-                let events2 = events_tx.clone();
-
-                tokio::spawn(async move {
-                    let Ok((offered, goal)) = get_selectors(&http2, &base2, &sid).await else {
-                        return;
+                    let ended = match reason {
+                        /* 这是状态终帧；用户可见错误来自前一帧 turn.ended.error。 */
+                        "completed" | "cancelled" | "failed" | "blocked" => {
+                            book.finish_turn(session_id, reason)
+                        }
+                        unknown => book.fail_turn(
+                            session_id,
+                            &format!("KAP turn.ended carried an unknown reason: {unknown}"),
+                        ),
                     };
 
-                    let _sent = events2.unbounded_send(SessionEvent::Selectors {
-                        session_id: sid,
-                        controls: offered,
-                        goal,
+                    match ended {
+                        Ok(_) => prompts.turn_ended(session_id),
+                        Err(error) => {
+                            log::error!("could not close the turn kap just ended: {error}")
+                        }
+                    }
+
+                    /* 一轮落定，目标的轮数、用量与时长都变了：整表推一次。 */
+                    let http2 = http.clone();
+                    let base2 = base_url.to_owned();
+                    let sid = session_id.to_owned();
+                    let events2 = events_tx.clone();
+
+                    tokio::spawn(async move {
+                        let Ok((offered, goal)) = get_selectors(&http2, &base2, &sid).await else {
+                            return;
+                        };
+
+                        let _sent = events2.unbounded_send(SessionEvent::Selectors {
+                            session_id: sid,
+                            controls: offered,
+                            goal,
+                        });
                     });
-                });
+                }
             }
+
+            "agent.status.updated" => {
+                // 仪表值是 volatile 信号（不进帧日志）：到达即替换。同一帧还挂着这条
+                // 会话累计的输入构成（usage.total，kap events-zod.ts），三格计数与读数
+                // 在同一次取走 —— 这条协议知识全程只有这一处。
+                if let (Some(used), Some(size)) = (
+                    payload.get("contextTokens").and_then(Value::as_u64),
+                    payload.get("maxContextTokens").and_then(Value::as_u64),
+                ) {
+                    let total = payload.get("usage").and_then(|usage| usage.get("total"));
+                    let counter = |key: &str| {
+                        total
+                            .and_then(|t| t.get(key))
+                            .and_then(Value::as_u64)
+                            .unwrap_or(0)
+                    };
+
+                    let _sent = events_tx.unbounded_send(SessionEvent::Usage {
+                        session_id: session_id.to_owned(),
+                        usage: SessionUsageSnapshot {
+                            used,
+                            size,
+                            input_other: counter("inputOther"),
+                            input_cache_read: counter("inputCacheRead"),
+                            input_cache_creation: counter("inputCacheCreation"),
+                        },
+                    });
+                }
+
+                // 卡在人这一侧：审批清单与提问清单都不随事件来（phase 里那格
+                // approval 是 unknown），权威在 REST。
+                //
+                // 两个态都拉两张表。phase 是派生值，而它的优先级里审批高于提问
+                // （agent-core-v2 的 rw-model-design.md：先看有没有 approval，再看有
+                // 没有 question）。只在 awaiting_question 时去拉题，一旦同一条会话上
+                // 还挂着一个没答的审批，phase 就永远报 awaiting_approval —— 那组题
+                // 永远拉不到，agent 死等到轮次超时。反向同理。
+                let phase = payload
+                    .get("phase")
+                    .and_then(|phase| phase.get("kind"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+
+                if matches!(phase, "awaiting_approval" | "awaiting_question") {
+                    owners
+                        .entry(session_id.to_owned())
+                        .or_insert_with(|| {
+                            ReconcileOwner::spawn(
+                                session_id.to_owned(),
+                                http.clone(),
+                                base_url.to_owned(),
+                                book.clone(),
+                                desk.clone(),
+                                questions.clone(),
+                            )
+                        })
+                        .poll();
+                }
+            }
+
+            _ => {}
         }
-
-        "agent.status.updated" => {
-            // 仪表值是 volatile 信号（不进帧日志）：到达即替换。同一帧还挂着这条
-            // 会话累计的输入构成（usage.total，kap events-zod.ts），三格计数与读数
-            // 在同一次取走 —— 这条协议知识全程只有这一处。
-            if let (Some(used), Some(size)) = (
-                payload.get("contextTokens").and_then(Value::as_u64),
-                payload.get("maxContextTokens").and_then(Value::as_u64),
-            ) {
-                let total = payload.get("usage").and_then(|usage| usage.get("total"));
-                let counter = |key: &str| {
-                    total
-                        .and_then(|t| t.get(key))
-                        .and_then(Value::as_u64)
-                        .unwrap_or(0)
-                };
-
-                let _sent = events_tx.unbounded_send(SessionEvent::Usage {
-                    session_id: session_id.to_owned(),
-                    usage: SessionUsageSnapshot {
-                        used,
-                        size,
-                        input_other: counter("inputOther"),
-                        input_cache_read: counter("inputCacheRead"),
-                        input_cache_creation: counter("inputCacheCreation"),
-                    },
-                });
-            }
-
-            // 卡在人这一侧：审批清单与提问清单都不随事件来（phase 里那格
-            // approval 是 unknown），权威在 REST。
-            //
-            // 两个态都拉两张表。phase 是派生值，而它的优先级里审批高于提问
-            // （agent-core-v2 的 rw-model-design.md：先看有没有 approval，再看有
-            // 没有 question）。只在 awaiting_question 时去拉题，一旦同一条会话上
-            // 还挂着一个没答的审批，phase 就永远报 awaiting_approval —— 那组题
-            // 永远拉不到，agent 死等到轮次超时。反向同理。
-            let phase = payload
-                .get("phase")
-                .and_then(|phase| phase.get("kind"))
-                .and_then(Value::as_str)
-                .unwrap_or("");
-
-            if matches!(phase, "awaiting_approval" | "awaiting_question") {
-                owners
-                    .entry(session_id.to_owned())
-                    .or_insert_with(|| {
-                        ReconcileOwner::spawn(
-                            session_id.to_owned(),
-                            http.clone(),
-                            base_url.to_owned(),
-                            book.clone(),
-                            desk.clone(),
-                            questions.clone(),
-                        )
-                    })
-                    .poll();
-            }
-        }
-
-        _ => {}
     }
 }
 
@@ -2352,5 +2378,79 @@ mod tests {
                 reset: true
             }
         );
+    }
+}
+
+#[cfg(test)]
+mod event_router_tests {
+    #![allow(clippy::expect_used, reason = "a broken test fixture must fail loudly")]
+
+    use futures::{FutureExt, StreamExt};
+    use serde_json::json;
+
+    use super::{EventRouter, InstanceDisk, SessionBook, SessionEvent};
+    use crate::{PermissionDesk, QuestionDesk, SessionUsageSnapshot};
+
+    #[test]
+    fn instance_registry_filters_before_network_probing() {
+        let current = r#"{"host":"0.0.0.0","port":58627,"started_at":20}"#;
+        let stale = r#"{"host":"127.0.0.1","port":58628,"started_at":9}"#;
+
+        assert!(InstanceDisk::eligible(current, 10).is_some());
+        assert!(InstanceDisk::eligible(stale, 10).is_none());
+        assert!(InstanceDisk::eligible("not json", 10).is_none());
+    }
+
+    #[tokio::test]
+    async fn ws_router_types_usage_before_crossing_the_runtime_boundary() {
+        const SESSION: &str = "session-test";
+        let book = SessionBook::new();
+
+        let (events, mut received) = futures::channel::mpsc::unbounded();
+        let mut router = EventRouter::new(
+            book,
+            PermissionDesk::new(),
+            QuestionDesk::new(),
+            events,
+            reqwest::Client::new(),
+            "http://127.0.0.1".to_owned(),
+        );
+
+        router.handle(&json!({
+            "type": "agent.status.updated",
+            "seq": 7,
+            "session_id": SESSION,
+            "payload": {
+                "type": "agent.status.updated",
+                "contextTokens": 12,
+                "maxContextTokens": 100,
+                "usage": {
+                    "total": {
+                        "inputOther": 3,
+                        "inputCacheRead": 4,
+                        "inputCacheCreation": 5
+                    }
+                }
+            }
+        }));
+
+        let event = received
+            .next()
+            .now_or_never()
+            .flatten()
+            .expect("usage event");
+        assert!(matches!(
+            event,
+            SessionEvent::Usage {
+                session_id,
+                usage: SessionUsageSnapshot {
+                    used: 12,
+                    size: 100,
+                    input_other: 3,
+                    input_cache_read: 4,
+                    input_cache_creation: 5,
+                }
+            } if session_id == SESSION
+        ));
     }
 }

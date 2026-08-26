@@ -2991,6 +2991,7 @@ dependencies = [
 name = "poietica-plugin-host-native"
 version = "0.2.1"
 dependencies = [
+ "serde_json",
  "tempfile",
  "thiserror 2.0.19",
  "uuid",

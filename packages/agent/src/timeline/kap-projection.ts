@@ -36,6 +36,20 @@ import {
 /** 这条线上的方言帧。其余每一格两条线共用，归 projection。 */
 export type KapFrame = Extract<RunEvent, { kind: 'kap_event' }>
 
+const MAIN_AGENT = 'main'
+const AGENT_KEY = 'agentId'
+
+/** 唯一读取 kap 路由章的入口；undefined 表示主代理。 */
+export function agentStampOf(event: RunEvent): string | undefined {
+  if (event.kind !== 'kap_event') {
+    return undefined
+  }
+  const stamped = fieldOf(event.payload, AGENT_KEY)
+  return typeof stamped === 'string' && stamped !== '' && stamped !== MAIN_AGENT
+    ? stamped
+    : undefined
+}
+
 /** 一次工具调用的某一帧真的带了的格子。缺席表示这一帧没提，不是没有。 */
 interface ToolCallPatch {
   readonly title?: string
