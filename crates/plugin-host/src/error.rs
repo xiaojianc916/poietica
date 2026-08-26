@@ -1,13 +1,13 @@
 use thiserror::Error;
 
-/// 插件字节从来源搬到磁盘上，这一路可能出的事。
-///
-/// 宿主层会把它们统统折成 Error::Plugin，用户看到的是一句固定文案 —— 但日志里要
-/// 分得清是归档坏了、路径想越界，还是这份来源里根本没有清单。
+/// 插件字节与官方安装账本这一路可能出的事。
 #[derive(Debug, Error)]
 pub enum HostError {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
 
     #[error("archive error: {0}")]
     Archive(#[from] zip::result::ZipError),
@@ -17,6 +17,12 @@ pub enum HostError {
 
     #[error("path prefix error: {0}")]
     Prefix(#[from] std::path::StripPrefixError),
+
+    #[error("invalid plugin ledger: {0}")]
+    InvalidLedger(String),
+
+    #[error("plugin is absent from the ledger: {0}")]
+    PluginMissing(String),
 
     /// 归档里有一条会写到目标目录之外的路径。
     #[error("archive entry escapes the destination")]
@@ -35,5 +41,4 @@ pub enum HostError {
     StagingMissing,
 }
 
-/// Convenience alias used throughout the crate.
 pub type Result<T> = std::result::Result<T, HostError>;
