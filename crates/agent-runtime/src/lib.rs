@@ -65,6 +65,6 @@ pub use run_slot::RunSlot;
 pub use selection::{ConfigSelection, apply_configurations, select_config};
 pub use session::{
     AgentConnection, AgentSpawn, Cursor, Handshake, McpServer, McpStatus, McpTransport,
-    OpenedSession, SessionEntry, SessionEvent, SessionEvents, Skill,
+    OpenedSession, SessionEntry, SessionEvent, SessionEvents, SessionUsageSnapshot, Skill,
 };
 pub use sessions::SessionBook;

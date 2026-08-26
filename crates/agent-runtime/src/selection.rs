@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use futures::channel::oneshot;
 
 use crate::commands::AgentClient;
-use crate::config::{ConfigControl, selector_patch};
+use crate::config::ConfigControl;
 use crate::error::{KapError, Refusal, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,11 +12,12 @@ pub struct ConfigSelection {
     pub value: String,
 }
 
-/// Writes the selections a prompt carries that are not already in force, and
-/// returns the one authoritative table.
+/// Writes the selections a prompt carries and returns the one authoritative
+/// table.
 ///
-/// 校验只落在真的要写的那一项上：一项已经生效就没有请求，也就没有可校验的请求
-/// —— 目标开着的时候提交一句话，不该被目标自己的入参规则拒掉。
+/// 「要不要写」不在这一层判：同一个问题 driver 的 set_selector 已经答过，而它
+/// 多认一样东西 —— 入参。目标开着时提交的那句话是新的 objective，在这里按
+/// 「值没变」挡掉，它就没了。
 pub async fn apply_configurations(
     client: &AgentClient,
     session_id: String,
@@ -34,13 +35,6 @@ pub async fn apply_configurations(
 
     let mut controls = receive(client.selectors(session_id.clone())?).await?;
     for selection in selections {
-        if controls
-            .iter()
-            .any(|control| control.id == selection.id && control.current == selection.value)
-        {
-            continue;
-        }
-        let _validated = selector_patch(&selection.id, &selection.value, input.as_deref())?;
         controls = select_config(
             client,
             session_id.clone(),
@@ -109,10 +103,10 @@ mod tests {
         }
     }
 
-    /// 已经生效的那一项一个字都不写，也就不校验：目标开着的时候提交一句话，不该
-    /// 被目标自己的入参规则拒掉。
+    /// 每一项都原样交给写入侧，入参跟着走：目标开着时提交的那句话是新的
+    /// objective，不能在这一层被「值没变」挡掉。
     #[tokio::test]
-    async fn a_selection_already_in_force_is_never_written() {
+    async fn a_selection_carries_its_input_to_the_writer() {
         let (commands, mut received) = futures::channel::mpsc::unbounded();
         let client = AgentClient::new(commands);
         let applying = tokio::spawn(async move {
@@ -123,7 +117,7 @@ mod tests {
                     id: "goal".to_owned(),
                     value: "on".to_owned(),
                 }],
-                None,
+                Some("ship the release".to_owned()),
             )
             .await
         });
@@ -135,9 +129,27 @@ mod tests {
             .send(Ok(vec![control("goal", ConfigPurpose::Mode, "on")]))
             .expect("selector table");
 
+        let Some(Command::Select {
+            config_id,
+            value,
+            input,
+            reply,
+            ..
+        }) = received.next().await
+        else {
+            return;
+        };
+
+        assert_eq!(config_id, "goal");
+        assert_eq!(value, "on");
+        assert_eq!(input.as_deref(), Some("ship the release"));
+
+        reply
+            .send(Ok(vec![control("goal", ConfigPurpose::Mode, "on")]))
+            .expect("written table");
+
         let applied = applying.await.expect("apply task").expect("apply");
 
         assert_eq!(applied.len(), 1);
-        assert!(received.next().await.is_none());
     }
 }

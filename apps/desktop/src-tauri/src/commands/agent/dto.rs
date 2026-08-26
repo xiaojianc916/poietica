@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use poietica_agent_runtime_native::{
-    AnswerMethod, Decision, QuestionAnswer, QuestionResponse, Scope,
+    AnswerMethod, Decision, QuestionAnswer, QuestionResponse, Scope, SessionUsageSnapshot,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, value::RawValue};
@@ -222,30 +222,18 @@ pub struct AgentSessionUsage {
     pub input_cache_creation: u32,
 }
 
-/// 读 kap agent.status.updated 的载荷（contextTokens / maxContextTokens，以及
-/// usage.total 的三格累计输入计数 —— driver 已把它们与读数摊平进同一份载荷）。
-/// 这份载荷全程只在这里被解释一次。
-///
-/// 缺字段、或大到这份 IPC 面装不下，都当作没报过：编一个数出来比缺席有害。
-/// 三格计数是后到的协议能力：老 server 不带它们时是 0，不是读不成。
-pub(super) fn reported_usage(value: &Value) -> Option<AgentSessionUsage> {
-    let used = u32::try_from(value.get("contextTokens")?.as_u64()?).ok()?;
-    let size = u32::try_from(value.get("maxContextTokens")?.as_u64()?).ok()?;
+/// 领域快照 -> 线上形状。数值按绑定能表达的宽度收窄，溢出即封顶 —— 与
+/// `reported_goal` 同一条规矩。
+pub(super) fn reported_usage(usage: SessionUsageSnapshot) -> AgentSessionUsage {
+    let narrow = |value: u64| u32::try_from(value).unwrap_or(u32::MAX);
 
-    let counter = |key: &str| -> Option<u32> {
-        match value.get(key).and_then(Value::as_u64) {
-            None => Some(0),
-            Some(v) => u32::try_from(v).ok(),
-        }
-    };
-
-    Some(AgentSessionUsage {
-        used,
-        size,
-        input_other: counter("inputOther")?,
-        input_cache_read: counter("inputCacheRead")?,
-        input_cache_creation: counter("inputCacheCreation")?,
-    })
+    AgentSessionUsage {
+        used: narrow(usage.used),
+        size: narrow(usage.size),
+        input_other: narrow(usage.input_other),
+        input_cache_read: narrow(usage.input_cache_read),
+        input_cache_creation: narrow(usage.input_cache_creation),
+    }
 }
 
 /// agent 主动报来的一件会话级状态。

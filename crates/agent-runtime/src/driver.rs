@@ -25,7 +25,7 @@
 //! { code, msg, data, request_id }：业务成败看 code，不看 HTTP 状态。
 
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -51,7 +51,7 @@ use crate::recorder::{Recorder, now_millis};
 use crate::run_slot::RunSlot;
 use crate::session::{
     AgentConnection, AgentSpawn, Cursor, Handshake, McpServer, McpStatus, McpTransport,
-    OpenedSession, SessionEntry, SessionEvent, SessionEvents, Skill,
+    OpenedSession, SessionEntry, SessionEvent, SessionEvents, SessionUsageSnapshot, Skill,
 };
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -808,18 +808,8 @@ pub fn connect(
         args,
         cwd,
         env,
+        home: home_dir,
     } = spawn;
-
-    // 受控 home 由组合层给（agent-catalog 的 homeVar）；没有它才回落到 agent
-    // 自己的 home —— 实例注册表与令牌都在那下面。
-    let home_dir: PathBuf = env.iter().find(|(k, _)| k == "KIMI_CODE_HOME").map_or_else(
-        || {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".kimi-code")
-        },
-        |(_, v)| PathBuf::from(v),
-    );
 
     let resolved = resolve_program(&program)?;
 
@@ -1560,13 +1550,13 @@ fn handle_ws_message(
 
                 let _sent = events_tx.unbounded_send(SessionEvent::Usage {
                     session_id: session_id.to_owned(),
-                    usage: json!({
-                        "contextTokens": used,
-                        "maxContextTokens": size,
-                        "inputOther": counter("inputOther"),
-                        "inputCacheRead": counter("inputCacheRead"),
-                        "inputCacheCreation": counter("inputCacheCreation"),
-                    }),
+                    usage: SessionUsageSnapshot {
+                        used,
+                        size,
+                        input_other: counter("inputOther"),
+                        input_cache_read: counter("inputCacheRead"),
+                        input_cache_creation: counter("inputCacheCreation"),
+                    },
                 });
             }
 

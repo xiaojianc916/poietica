@@ -3,7 +3,9 @@
 //! 进程活多久 AgentRuntime 就活多久；连接比它短，换 agent 时整条换掉。会话册子
 //! 由驱动器交出来，路由帧和这里寻址读的是同一本。
 
-use crate::commands::agent_setup::profile::{agent_args, agent_program, launch_env};
+use crate::commands::agent_setup::profile::{
+    agent_args, agent_data_home, agent_program, launch_env,
+};
 use crate::error::{Error, Result};
 use crate::paths::attachments_root;
 use poietica_agent_persistence_native::{SessionCursor, SessionUsage};
@@ -325,10 +327,7 @@ pub(super) async fn ensure_session(
                 },
 
                 SessionEvent::Usage { session_id, usage } => {
-                    /* 读不成的载荷既进不了账，也不该覆盖屏幕上那一份真话。 */
-                    let Some(reported) = reported_usage(&usage) else {
-                        continue;
-                    };
+                    let reported = reported_usage(usage);
 
                     /* 先落账本，再上屏。用量是 volatile 推送（kap 不回放它），
                     装载旧会话也不补报，所以重启之后这一格的唯一来源是账本 ——
@@ -482,7 +481,7 @@ pub(super) async fn ensure_session(
     Ok(live)
 }
 
-/// 这一家在这台机器上怎么起：argv 加环境，一处算清。
+/// 这一家在这台机器上怎么起：argv、环境、它读写的那个家，一处算清。
 ///
 /// 程序名与参数来自档案，起的是用户自己装的那个 CLI。受控 home 那个变量由
 /// `launch_env` 现算 —— 写 provider 的 CLI 与起会话的连接必须落在同一个目录，
@@ -498,6 +497,7 @@ fn outfit(app: &AppHandle, agent_id: &str, cwd: PathBuf) -> Result<AgentSpawn> {
         args: agent_args(app, agent_id)?,
         cwd,
         env: launch_env(app, agent_id)?,
+        home: agent_data_home(app, agent_id)?,
     })
 }
 

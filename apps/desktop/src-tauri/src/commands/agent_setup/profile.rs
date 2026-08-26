@@ -204,7 +204,7 @@ fn own_home(app: &AppHandle, agent_id: &str, profile: &Value) -> Result<PathBuf>
 /// # Errors
 ///
 /// 档案不存在、档案没说这家把配置放在哪、或用户 home 算不出来时返回错误。
-fn agent_data_home(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
+pub fn agent_data_home(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
     let profile = profile_of(app, agent_id)?;
 
     match controlled_home(app, agent_id, &profile)? {

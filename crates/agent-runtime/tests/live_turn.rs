@@ -38,6 +38,8 @@
 //! - `POIETICA_KAP_ARGS`     its arguments, space separated (default: `web --no-open`)
 //! - `POIETICA_KAP_PROMPT`   what to ask (default: a one-word reply)
 //! - `POIETICA_KAP_CWD`      the session's working directory (default: a temporary one)
+//! - `POIETICA_KAP_HOME`     the agent's data home, where the registry and
+//!   server.token live (default: `~/.kimi-code`)
 //! - `POIETICA_KAP_TIMEOUT`  seconds before the turn is cancelled (default: 120)
 //! - `POIETICA_KAP_MODEL`    the model to run this turn on, named the way the
 //!   agent names it in its `model` selector, which this test prints (default:
@@ -154,6 +156,17 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let cwd = env::var("POIETICA_KAP_CWD")
         .map_or_else(|_unset| directory.path().to_path_buf(), PathBuf::from);
 
+    // agent 的家：driver 在它下面找实例注册表与 server.token。默认 kimi-code
+    // 自己的默认 home（那里有登录态），可用 POIETICA_KAP_HOME 覆盖。
+    let home = env::var("POIETICA_KAP_HOME").map_or_else(
+        |_unset| {
+            dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".kimi-code")
+        },
+        PathBuf::from,
+    );
+
     /* 程序与参数分开给，和产品代码走的是同一条路：这个测试存在的意义就是证明
     真进程起得来，如果它自己先把两者拼成一行，那它证明的就是另一条管线了。 */
     let spawn = AgentSpawn {
@@ -163,8 +176,8 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
             .map(str::to_owned)
             .collect(),
         cwd,
-        // 受控 home 是桌面组合层的产品决策，这一层只起进程，不替它做决定。
         env: Vec::new(),
+        home,
     };
 
     let timeout = Duration::from_secs(

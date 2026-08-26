@@ -37,16 +37,19 @@ pub struct AgentSpawn {
     /// 下它们由 agent 自己的 CLI 写进那个 home 里的配置文件。也不走参数 ——
     /// Windows 上任何用户都读得到别的进程的完整命令行。
     pub env: Vec<(String, String)>,
+    /// 这家 agent 读写的那个家：实例注册表与 server.token 都在它下面。
+    ///
+    /// 由组合层算 —— 档案与受控 home 都归它。传输层不认识任何一家 agent 的
+    /// 环境变量名。
+    pub home: PathBuf,
 }
 
 /// agent 主动报的一件会话级状态。
 ///
 /// 它不属于任何一轮：到达的时刻多半没有轮次在飞（导入配置、终端 CLI、热重载、
 /// 答复落定之后补报的用量），而轮外的运行帧按规矩丢弃 —— 所以它有自己的路。
-/// 会话号是它唯一带得出的地址；载荷恒为整份，到达即替换，重报无害。
-///
-/// 载荷里那些 Value 这个 crate 一格都不认识，认识它的是读它的那一层 —— 与 MCP
-/// 名册、图片块、停止原因同一条规矩：线上形状才是契约。
+/// 会话号是它唯一带得出的地址；载荷恒为整份，到达即替换，重报无害。载荷的形状
+/// 由这个 enum 定死：字段名拼错是编译错误，不是界面上一格空白。
 #[derive(Debug, Clone)]
 pub enum SessionEvent {
     /// 这条会话现在的整张选择器表，以及目标模式此刻的事实。
@@ -55,10 +58,10 @@ pub enum SessionEvent {
         controls: Vec<ConfigControl>,
         goal: Option<GoalSnapshot>,
     },
-    /// 这条会话此刻的上下文用量，由 driver 从 agent.status.updated 折过来。
+    /// 这条会话此刻的上下文用量，由 driver 从 agent.status.updated 读出来。
     Usage {
         session_id: String,
-        usage: serde_json::Value,
+        usage: SessionUsageSnapshot,
     },
     /// 这条会话的事件流读到哪儿了。轮终报一次：一轮之内那些位置没有人会拿去
     /// 续订，而一帧写一次库正是持久层禁掉的事（persistence 的 record_frames）。
@@ -68,6 +71,23 @@ pub enum SessionEvent {
 
     /// 这条连接此刻的链路态。
     Link(crate::link::LinkState),
+}
+
+/// 一条会话此刻的上下文读数，与它累计的输入构成。
+///
+/// kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SessionUsageSnapshot {
+    /// 已占用的 token 数（contextTokens）。
+    pub used: u64,
+    /// 上下文窗口总量（maxContextTokens）。
+    pub size: u64,
+    /// 累计输入里未命中缓存的 token（usage.total.inputOther）。
+    pub input_other: u64,
+    /// 累计输入里命中缓存的 token（usage.total.inputCacheRead）。
+    pub input_cache_read: u64,
+    /// 累计输入里写入缓存的 token（usage.total.inputCacheCreation）。
+    pub input_cache_creation: u64,
 }
 
 /// kap 的事件流上，一条会话已经被读到的位置。

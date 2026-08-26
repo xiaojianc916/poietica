@@ -103,6 +103,10 @@ export class InterjectionOutbox {
       return undefined
     }
 
+    if (this.#state.editing === id) {
+      return said
+    }
+
     this.#write({
       editing: id,
       queue: this.#state.queue.map((held) => ({
@@ -195,8 +199,20 @@ export class InterjectionOutbox {
     this.#port.deliver(said)
   }
 
+  /* 唤醒的判据只有一条：真相真的变了。同一份状态再写一遍不唤醒 —— 订阅者读的
+  是这三格的引用，一次空唤醒就是一次谁都解释不了的重渲染。 */
   #write(written: Written): void {
-    this.#state = { ...this.#state, ...written }
+    const next = { ...this.#state, ...written }
+
+    if (
+      next.queue === this.#state.queue &&
+      next.inflight === this.#state.inflight &&
+      next.editing === this.#state.editing
+    ) {
+      return
+    }
+
+    this.#state = next
 
     for (const wake of this.#woken) {
       wake()
