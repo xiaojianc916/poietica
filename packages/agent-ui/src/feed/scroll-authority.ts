@@ -24,7 +24,7 @@ export interface ScrollAuthority {
    * ResizeObserver，行高等实测），采样在中途会说「不在末端」，而人并没有接手。
    */
   readonly pinned: boolean
-  /** 人要求看的那一行；落定或被人接手后回到 null。 */
+  /** 人要求看的那一行，或上次离开时视线所在的那一行；落定或被人接手后回到 null。 */
   readonly revealing: number | null
   /** 采一次末端判据。调用方在它每帧那一次布局读取里唤起，不额外问一次几何。 */
   readonly sample: () => void
@@ -42,10 +42,15 @@ export interface ScrollAuthority {
  * 只回答三件事：末端是不是还有没看见的内容，要不要跟着末端走，人此刻要求看哪一行。
  * 位置本身从头到尾归虚拟器写。
  */
-export function useScrollAuthority(commands: ScrollCommands): ScrollAuthority {
-  const [atLatest, setAtLatest] = useState(true)
-  const [pinned, setPinned] = useState(true)
-  const [revealing, setRevealing] = useState<number | null>(null)
+export function useScrollAuthority(
+  commands: ScrollCommands,
+  /** 上次离开这条对话时视线所在的行；null = 上次在末端。 */
+  resumeAt: number | null,
+): ScrollAuthority {
+  /* 初值就是这三样的全部来源：一条对话一个盒子，所以挂载即「打开这条对话」。 */
+  const [atLatest, setAtLatest] = useState(resumeAt === null)
+  const [pinned, setPinned] = useState(resumeAt === null)
+  const [revealing, setRevealing] = useState<number | null>(resumeAt)
 
   const sample = useCallback(() => {
     setAtLatest(commands.isAtEnd())

@@ -10,11 +10,11 @@
   flex-direction: column;
   overflow: hidden;
   translate: -50% 0;
-  border: var(--cp-px) solid var(--ui-inverse-border);
+  border: var(--cp-px) solid var(--ui-border);
   corner-shape: squircle;
-  background: var(--ui-inverse-surface);
+  background: var(--ui-popover);
   box-shadow: var(--cp-lift-menu);
-  color: var(--ui-inverse-foreground);
+  color: var(--ui-popover-foreground);
   isolation: isolate;
 }
 
@@ -51,7 +51,7 @@
 }
 
 .goal-island__pill[aria-expanded="true"] {
-  border-block-end-color: var(--ui-inverse-border);
+  border-block-end-color: var(--ui-border);
 }
 
 .goal-island__beacon {
@@ -79,7 +79,7 @@
   flex: 1;
   overflow: hidden;
   max-inline-size: var(--cp-pill-label-max);
-  color: var(--ui-inverse-foreground);
+  color: var(--ui-popover-foreground);
   font-weight: 600;
   text-align: start;
   text-overflow: ellipsis;
@@ -92,7 +92,7 @@
 
 .goal-island__clock {
   flex: none;
-  color: var(--ui-inverse-muted);
+  color: var(--ui-muted-foreground);
   font-variant-numeric: tabular-nums;
 }
 
@@ -109,7 +109,7 @@
   margin: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  color: var(--ui-inverse-foreground);
+  color: var(--ui-popover-foreground);
   font-size: var(--cp-font-label);
   font-weight: 560;
   line-height: var(--cp-line-ratio);
@@ -139,13 +139,13 @@
 }
 
 .goal-island__criterion > span {
-  color: var(--ui-inverse-muted);
+  color: var(--ui-muted-foreground);
   font-size: var(--cp-font-micro);
 }
 
 .goal-island__criterion > p {
   margin: 0;
-  color: var(--ui-inverse-foreground);
+  color: var(--ui-popover-foreground);
   font-size: var(--cp-font-caption);
   line-height: 1.45;
 }
@@ -156,19 +156,19 @@
   gap: var(--cp-pad-mid) calc(var(--cp-pad-mid) * 2);
   margin: 0;
   padding: var(--cp-pad-mid) calc(var(--cp-pad-mid) + 2px);
-  border: var(--cp-px) solid var(--ui-inverse-border);
+  border: var(--cp-px) solid var(--ui-border);
   border-radius: var(--cp-radius-item);
-  background: color-mix(in srgb, var(--ui-inverse-foreground) 6%, transparent);
+  background: color-mix(in srgb, var(--ui-popover-foreground) 6%, transparent);
 }
 
 .goal-island__facts dt {
-  color: var(--ui-inverse-muted);
+  color: var(--ui-muted-foreground);
   font-size: var(--cp-font-micro);
 }
 
 .goal-island__facts dd {
   margin: 1px 0 0;
-  color: var(--ui-inverse-foreground);
+  color: var(--ui-popover-foreground);
   font-size: var(--cp-font-caption);
   font-variant-numeric: tabular-nums;
 }
@@ -193,16 +193,16 @@
 .goal-island__action {
   min-block-size: var(--cp-control);
   flex: 1;
-  border: var(--cp-px) solid var(--ui-inverse-border);
+  border: var(--cp-px) solid var(--ui-border);
   border-radius: var(--cp-radius-item);
-  background: color-mix(in srgb, var(--ui-inverse-foreground) 8%, transparent);
-  color: var(--ui-inverse-foreground);
+  background: color-mix(in srgb, var(--ui-popover-foreground) 8%, transparent);
+  color: var(--ui-popover-foreground);
   font-size: var(--cp-font-caption);
   cursor: pointer;
 }
 
 .goal-island__action:hover {
-  background: color-mix(in srgb, var(--ui-inverse-foreground) 14%, transparent);
+  background: color-mix(in srgb, var(--ui-popover-foreground) 14%, transparent);
 }
 
 .goal-island__action:active {
@@ -219,25 +219,29 @@
   background: var(--cp-accent-hover);
 }
 
+/*
+ * 危险动作用危险色的字与描边，不用整块填充：它与主动作同处一行，一块实心色会
+ * 把视线从主动作上抢走，而它要的是「看得见」，不是「最响」。
+ */
 .goal-island__action--danger {
-  border-color: transparent;
-  background: var(--ui-destructive);
-  color: var(--ui-destructive-foreground);
+  border-color: color-mix(in srgb, var(--ui-destructive) 46%, transparent);
+  background: color-mix(in srgb, var(--ui-destructive) 12%, transparent);
+  color: var(--ui-destructive);
 }
 
-/* 危险动作一直是危险色：泛用 :hover 与它同权重，压住它靠的是落在后面。 */
+/* 泛用 :hover 与它同权重，压住它靠的是落在后面。 */
 .goal-island__action--danger:hover {
-  background: color-mix(in srgb, var(--ui-destructive) 88%, white);
+  background: color-mix(in srgb, var(--ui-destructive) 20%, transparent);
 }
 
 .goal-island__input {
   inline-size: 100%;
   min-block-size: calc(var(--cp-line) * var(--cp-goal-copy-lines) + var(--cp-pad-mid) * 2);
   padding: var(--cp-pad-mid) calc(var(--cp-pad-mid) + 2px);
-  border: var(--cp-px) solid var(--ui-inverse-border);
+  border: var(--cp-px) solid var(--ui-border);
   border-radius: var(--cp-radius-item);
-  background: color-mix(in srgb, var(--ui-inverse-foreground) 8%, transparent);
-  color: var(--ui-inverse-foreground);
+  background: color-mix(in srgb, var(--ui-popover-foreground) 8%, transparent);
+  color: var(--ui-popover-foreground);
   font: inherit;
   font-size: var(--cp-font-caption);
   line-height: var(--cp-line-ratio);

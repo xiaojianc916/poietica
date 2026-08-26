@@ -5,8 +5,8 @@ import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDownIcon } from '../primitives/icons'
 import { useDevicePixels } from '../primitives/use-device-pixels'
+import { geometryOf, keepGeometry } from './conversation-geometry'
 import { rowAtAnchor } from './reading-position'
-import { keepMeasurements, measurementsOf } from './row-measurements'
 import { type ScrollCommands, useScrollAuthority } from './scroll-authority'
 
 /*
@@ -135,8 +135,8 @@ export function AgentActivityFeed({
   /* 身份是 id 不是序号：回填历史会让每一条换序号，用序号当锚点就落到别的条目上。 */
   const getItemKey = useCallback((index: number) => feed.rowAt(index)?.item.id ?? index, [feed])
 
-  /* 量表只在挂载那一次被收走，所以只取一次。 */
-  const [restored] = useState(() => measurementsOf(conversation))
+  /* 几何只在挂载那一次被收走，所以只取一次。 */
+  const [restored] = useState(() => geometryOf(conversation))
 
   const [overscan, setOverscan] = useState(OVERSCAN_COLD)
 
@@ -154,8 +154,8 @@ export function AgentActivityFeed({
     getScrollElement: () => viewport,
     estimateSize: estimateRow,
     getItemKey,
-    /* 上次量到的行高。冷启不必从头量一遍，首帧的总高就是对的。空表与库默认等价。 */
-    initialMeasurementsCache: restored ?? [],
+    /* 交出副本：这份会被虚拟器收走当自己的初值。空表与库默认等价。 */
+    initialMeasurementsCache: restored === undefined ? [] : [...restored.rows],
     scrollMargin,
     paddingEnd: tailSize,
     overscan,
@@ -184,8 +184,10 @@ export function AgentActivityFeed({
     [virtualizer],
   )
 
-  const { atLatest, pinned, reveal, revealing, sample, travel, watch } =
-    useScrollAuthority(commands)
+  const { atLatest, pinned, reveal, revealing, sample, travel, watch } = useScrollAuthority(
+    commands,
+    restored?.reading ?? null,
+  )
 
   const total = virtualizer.getTotalSize()
 
@@ -195,19 +197,32 @@ export function AgentActivityFeed({
    * 就重钉一次。挂载那一次命令钉的是「还没量到这两段」的假末端，真值到达后就停在离底
    * 一段的地方，而那一段正是尾部清空距离。
    *
+   * 钉末端还是钉某一行由意图那一层说，这里只负责在坐标变化时把同一份意图重写一次。
    * 行高变化的补偿归虚拟器（anchorTo/followOnAppend）；坐标没动就不写。
    */
   const end = scrollMargin + total
-  const pinnedTo = useRef(-1)
+  const wroteAt = useRef(-1)
 
   useLayoutEffect(() => {
-    if (viewport === null || !pinned || pinnedTo.current === end) {
+    if (viewport === null || wroteAt.current === end) {
       return
     }
 
-    pinnedTo.current = end
+    /* 人要求看的那一行最权威：请求由 scrollend 了结，所以这一路自己会停。 */
+    if (revealing !== null) {
+      wroteAt.current = end
+      virtualizer.scrollToIndex(revealing, { align: 'start' })
+
+      return
+    }
+
+    if (!pinned) {
+      return
+    }
+
+    wroteAt.current = end
     virtualizer.scrollToEnd()
-  }, [end, pinned, viewport, virtualizer])
+  }, [end, pinned, revealing, viewport, virtualizer])
 
   /* 那一次长高量到了，锚定当场归位：让位只覆盖人点出来的那一次测量。 */
   useLayoutEffect(() => {
@@ -225,10 +240,24 @@ export function AgentActivityFeed({
     spansRef.current = items
   }, [items])
 
-  /* 走的时候把量表留下：下次打开这条对话，首帧的总高就是这一份。 */
+  /* 意图与视线的最新值。走的时候要读它们，而那一次装卸只随对话变化。 */
+  const seen = useRef<{ pinned: boolean; reading: number | null }>({
+    pinned: true,
+    reading: null,
+  })
+
+  useLayoutEffect(() => {
+    seen.current = { pinned, reading: readingRow }
+  }, [pinned, readingRow])
+
+  /* 走的时候把几何留下：下次打开这条对话，总高与视线都从这一份起。 */
   useLayoutEffect(
     () => () => {
-      keepMeasurements(conversation, virtualizer.takeSnapshot())
+      keepGeometry(conversation, {
+        rows: virtualizer.takeSnapshot(),
+        /* 在末端就不记行号：回来时继续跟随末端，而不是钉死在当时的最后一行。 */
+        reading: seen.current.pinned ? null : seen.current.reading,
+      })
     },
     [conversation, virtualizer],
   )

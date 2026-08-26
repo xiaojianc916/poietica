@@ -220,7 +220,8 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 一轮对话里它至多重渲两次(ready→streaming→ready),不是每个 token 一次。
    */
   const dock = (
-    <div className="assistant-surface__composer">
+    /* 盖住转录的正是这条带子；审批格长在这张卡里，所以它的高度也算在内。 */
+    <div className="assistant-surface__composer" ref={dockRef}>
       <PromptQueue onEdit={edit} outbox={assistant.outbox} />
 
       <AssistantComposer
@@ -271,11 +272,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         </div>
       )}
 
-      {/*
-        审批那一格现在长在输入框那张卡里，所以它的高度照样进了 useDockClearance
-        的实测值（量的是整条带子），转录末端跟着让位 —— 没有第二条管线。
-      */}
-      <div className="assistant-surface__dock" ref={dockRef}>
+      <div className="assistant-surface__dock">
         <ComposerDraftKeyContext value={draftKey}>{dock}</ComposerDraftKeyContext>
 
         {live || workspace === undefined ? null : (

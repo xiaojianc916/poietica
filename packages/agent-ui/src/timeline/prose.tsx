@@ -4,6 +4,7 @@ import { createMathPlugin } from '@streamdown/math'
 import 'katex/dist/katex.min.css'
 import { memo } from 'react'
 import {
+  type AnimateOptions,
   type ControlsConfig,
   type IconMap,
   type LinkSafetyConfig,
@@ -89,6 +90,27 @@ const CODE_CAP = 'var(--cp-timeline-code-cap)'
 /* 表格纵向不封顶（理由在 timeline.css），显式关掉上游 300px 的默认值。 */
 const TABLE_CAP = 0
 
+/*
+ * 揭示按字，不按词。
+ *
+ * 上游的分词判据是 /\s/，中文一段里没有空白：整段因此是一个单元，它的起点恒在已提交
+ * 长度之前，于是第二拍起 skipAnimation 恒真、时长归零 —— 动画等于没开，文字按帧到达
+ * 的粒度硬跳。按字切分才让每一拍新到的那几个字成为新单元。
+ *
+ * 一拍里有多个单元，也是上游那条共享挂钟能压缩的前提：模型快过 stagger 时它把这一批
+ * 压进 maxBacklogMs 的预算里，而不是把揭示排到队尾。所以这几个数说的是「慢时多平滑」
+ * 与「快时最多落后多久」，不是速度上限。
+ *
+ * 模块级常量：上游按引用比较 animated，内联对象等于每次父级渲染都重算整棵子树。
+ */
+const REVEAL: AnimateOptions = {
+  duration: 120,
+  easing: 'ease-out',
+  maxBacklogMs: 160,
+  sep: 'char',
+  stagger: 12,
+}
+
 export interface ProseProps {
   readonly text: string
   /** 只有仍在追加的尾项为 true；静态历史不重新播放动画。 */
@@ -104,7 +126,7 @@ export interface ProseProps {
 export const Prose = memo(function Prose({ className, streaming = false, text }: ProseProps) {
   return (
     <Streamdown
-      animated
+      animated={REVEAL}
       className={cx('timeline-prose', className)}
       codeBlockMaxHeight={CODE_CAP}
       controls={CONTROLS}
