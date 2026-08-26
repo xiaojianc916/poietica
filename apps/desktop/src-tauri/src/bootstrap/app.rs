@@ -240,8 +240,7 @@ pub fn build() -> tauri::Builder<Wry> {
 
                 log::warn!("frontend did not present within {PRESENT_WATCHDOG:?}; showing the window anyway");
 
-                let _shown = watchdog.show();
-                let _focused = watchdog.set_focus();
+                commands::window::activate(&watchdog);
             });
 
             log::info!(

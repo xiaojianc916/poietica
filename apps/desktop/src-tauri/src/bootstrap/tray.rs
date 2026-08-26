@@ -3,10 +3,8 @@
 //! 托盘只做三件事：显示窗口、隐藏窗口、请求退出。
 //!
 //! 它不决定应用能不能退出。未保存的工作属于应用层，所以"退出程序"发出的是一个
-//! 请求：渲染层收到后走与关闭按钮完全相同的确认流程，确认完再销毁窗口。此前这里
-//! 直接 app.exit(0)，那条路径绕开了全部确认，从托盘退出会静默丢弃未保存的工作。
-//!
-//! 关闭按钮也不再被这里拦截。拦截权归渲染层，唯一。
+//! 请求：渲染层收到后走与关闭按钮完全相同的确认流程，确认完再销毁窗口。关闭按钮
+//! 的拦截权同样归渲染层。
 
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -120,16 +118,7 @@ pub(crate) fn show_main(app: &AppHandle) {
         return;
     };
 
-    if let Err(error) = window.unminimize() {
-        log::debug!("tray: unminimize failed: {error}");
-    }
-    if let Err(error) = window.show() {
-        log::warn!("tray: show failed: {error}");
-        return;
-    }
-    if let Err(error) = window.set_focus() {
-        log::warn!("tray: focus failed: {error}");
-    }
+    crate::commands::window::activate(&window);
 }
 
 fn hide_main(app: &AppHandle) {

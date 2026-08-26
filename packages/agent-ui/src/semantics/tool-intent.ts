@@ -13,7 +13,7 @@ type ToolKind = ToolCallTimelineItem['kind']
 
 /** 动词。缺席表示主语自己已经说完了（命令、地址、摘要）。 */
 const VERB: Record<ToolKind, string | null> = {
-  delegate: '派发',
+  delegate: '派发子代理',
   edit: '编辑',
   execute: null,
   fetch: null,

@@ -25,7 +25,9 @@ surface；它增加后台资源消耗，却没有修复恢复时的合成缺口�
 
 ## Consequences
 
-- 隐藏或最小化恢复时，DWM 能立即复用上一帧；React 不参与窗口恢复。
+- 隐藏或最小化恢复时的合成缺口只被收窄，没有被消除：最小化之后窗口不再有一份活的
+  redirection surface，能否复用上一帧不由这条参数决定。恢复路径本身的收敛在
+  `commands::window::activate` —— 一次手势只发必要的原生状态变更。
 - 后台渲染恢复 WebView2 默认节流，运行中的原生 agent 不受影响。
 - Windows 11 会多保留一份 DWM redirection bitmap；稳定呈现优先于这部分显存。
 
