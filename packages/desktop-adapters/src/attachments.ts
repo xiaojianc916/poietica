@@ -7,6 +7,7 @@ import {
   removeAsset,
   uploadAsset,
 } from '@poietica/ipc'
+import { basename as pathBasename } from '@tauri-apps/api/path'
 
 /*
  * 附件收件口的原生这一半。
@@ -25,40 +26,11 @@ import {
  * 交付会话（asset_protocol 的 adopt，共用同一份内存），移掉就 removeAsset。
  */
 
-/** 一次转 32 KiB。String.fromCharCode 的参数个数有上限，整张图铺开会爆栈。 */
 /* 种类在屏幕上叫什么。种类本身由原生那张表定义，这里只管翻译。 */
 const KIND_LABELS: Readonly<Record<string, string>> = { image: '图片', text: '文本' }
 
-const CHUNK = 0x8000
-
 /** 同一批 paths 在这么久之内再来一次，当作重复触发。 */
 const REPEAT_WINDOW = 1000
-
-function base64Of(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-
-  for (let index = 0; index < bytes.length; index += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + CHUNK))
-  }
-
-  return btoa(binary)
-}
-
-/** 两种分隔符都要认：这个程序在 Windows 上跑，路径也可能来自别处。 */
-function basename(path: string): string {
-  const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-
-  return cut === -1 ? path : path.slice(cut + 1)
-}
-
-/** 剪贴板里的图没有名字，给它一个带时刻的。 */
-function stampedName(mediaType: string): string {
-  const extension = mediaType.split('/')[1] ?? 'png'
-  const stamp = new Date().toISOString().replaceAll(/[:.]/g, '-')
-
-  return `pasted-${stamp}.${extension}`
-}
 
 export function createAttachmentIntake(): AttachmentIntake {
   let opened: Promise<string> | undefined
@@ -80,13 +52,16 @@ export function createAttachmentIntake(): AttachmentIntake {
     }
 
     const sessionToken = await composerSession()
-    const stored = await importAssets(sessionToken, paths)
+    const [stored, filenames] = await Promise.all([
+      importAssets(sessionToken, paths),
+      Promise.all(paths.map((path) => pathBasename(path))),
+    ])
 
     return stored.map((asset, index) => ({
       sessionToken,
       assetToken: asset.assetToken,
       url: asset.source,
-      filename: basename(paths[index] ?? asset.assetToken),
+      filename: filenames[index] ?? asset.assetToken,
       mediaType: asset.contentType,
     }))
   }
@@ -183,13 +158,16 @@ export function createAttachmentIntake(): AttachmentIntake {
 
     async paste(file) {
       const sessionToken = await composerSession()
-      const stored = await uploadAsset(sessionToken, base64Of(await file.arrayBuffer()))
+      const stored = await uploadAsset(
+        sessionToken,
+        new Uint8Array(await file.arrayBuffer()).toBase64(),
+      )
 
       return {
         sessionToken,
         assetToken: stored.assetToken,
         url: stored.source,
-        filename: file.name.length > 0 ? file.name : stampedName(stored.contentType),
+        filename: file.name.length > 0 ? file.name : `pasted-${crypto.randomUUID()}`,
         mediaType: stored.contentType,
       }
     },

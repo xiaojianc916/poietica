@@ -126,7 +126,8 @@ export interface ThreadPort {
    * 只有装载不回来（号在 server 侧也没了）才真的新开一条。三条路都在同一次
    * 答复里带回整张选择器表。
    */
-  readonly open: (threadId?: ThreadId, workspaceRoot?: string | null) => Promise<OpenedThread>
+  readonly create: (threadId: ThreadId, workspaceRoot?: string | null) => Promise<OpenedThread>
+  readonly open: (threadId: ThreadId) => Promise<OpenedThread>
   /**
    * 这条对话更早的一页经过，从 `before` 那一帧往前数。
    *

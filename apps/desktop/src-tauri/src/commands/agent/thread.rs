@@ -15,6 +15,7 @@ use super::config::restate;
 use super::dto::{
     AgentArchiveThreadRequest, AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFrameCursor,
     AgentFramePage, AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest,
+    AgentThreadTarget,
     AgentRenameThreadRequest, AgentSessionUsage, AgentThread, AgentThreadRequest, AgentTitleSource,
     FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
 };
@@ -67,18 +68,19 @@ pub async fn agent_open_thread(
     let asked = request.cwd.clone();
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
-    let named = if let Some(given) = request.thread_id {
-        given
-    } else {
-        /* 新建的这一条属于此刻这个工作目录，而且从此属于它：之后每一次为这条
-        对话开会话都照这一行，不照「渲染层此刻选的那个」。 */
-        on_index(&index, move |store| {
-            store
-                .create_thread(FALLBACK_THREAD_TITLE, asked.as_deref())
-                .map(|id| id.to_string())
-                .map_err(persistence)
-        })
-        .await?
+    let named = match request.target {
+        AgentThreadTarget::Create { thread_id } => {
+            let id = conversation(&thread_id)?;
+            on_index(&index, move |store| {
+                store
+                    .create_thread(id, FALLBACK_THREAD_TITLE, asked.as_deref())
+                    .map(|_| ())
+                    .map_err(persistence)
+            })
+            .await?;
+            thread_id
+        }
+        AgentThreadTarget::Existing { thread_id } => thread_id,
     };
 
     let Held {

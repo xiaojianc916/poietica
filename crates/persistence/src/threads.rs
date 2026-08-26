@@ -16,8 +16,7 @@ impl AgentStore {
     /// # Errors
     ///
     /// Fails when the insert is rejected.
-    pub fn create_thread(&self, title: &str, workspace_root: Option<&str>) -> Result<Uuid> {
-        let id = Uuid::now_v7();
+    pub fn create_thread(&self, id: Uuid, title: &str, workspace_root: Option<&str>) -> Result<Uuid> {
         let timestamp = now()?;
 
         self.write(

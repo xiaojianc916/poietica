@@ -170,7 +170,6 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
         feed={feed}
         hasEarlier={hasEarlier}
         isBusy={selectIsBusy(timeline)}
-        key={sessionKey}
         lead={lead}
         onReachStart={readEarlier}
         overlay={overlay}

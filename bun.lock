@@ -34,6 +34,7 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "react-dom": "catalog:",
+        "uuid": "catalog:",
       },
       "devDependencies": {
         "@tailwindcss/vite": "catalog:",

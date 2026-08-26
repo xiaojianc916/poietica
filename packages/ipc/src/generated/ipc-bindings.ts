@@ -1486,9 +1486,9 @@ export type AgentMcpStatus = "connected" | "connecting" | "disconnected" | "erro
  */
 export type AgentOpenThreadRequest = { 
 /**
- * 已经存在的对话；不点名就新开一条。
+ * 创建与打开是两种显式操作；两者都携带稳定标识。
  */
-threadId: string | null; 
+target: AgentThreadTarget; 
 /**
  * 起哪个 agent。
  */
@@ -1786,6 +1786,10 @@ export type AgentThreadRequest = {
  * The conversation the action applies to.
  */
 threadId: string }
+/**
+ * 要打开或创建的对话。操作由判别式表达，不用可空 id 猜。
+ */
+export type AgentThreadTarget = { kind: "create"; threadId: string } | { kind: "existing"; threadId: string }
 /**
  * Where a conversation's name came from.
  * 

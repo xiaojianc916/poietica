@@ -1,6 +1,7 @@
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
+  OpenedThread,
   QuestionChoice,
   RunEvent,
   SessionConfigChoice,
@@ -481,42 +482,40 @@ export function createAgentCapabilityBridge({
  * 逐格与它们相同，所以这里原样交出去，不复制、不改名、也不再抄一份说明。
  */
 export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): ThreadPort {
+  const openTarget = async (
+    target: { readonly kind: 'create' | 'existing'; readonly threadId: string },
+    workspaceRoot?: string | null,
+  ): Promise<OpenedThread> => {
+    const resolvedLaunch = await launch()
+    const opened = await throughIpc(() =>
+      commands.agentOpenThread({
+        target,
+        launch: resolvedLaunch,
+        cwd: workspaceRoot ?? cwd?.() ?? null,
+      }),
+    )
+
+    return {
+      thread: opened.thread,
+      selectors: opened.selectors.map(controlOf),
+      goal: goalOf(opened.goal),
+      frames: opened.frames,
+      history: opened.history,
+      ...(opened.usage === null ? {} : { usage: opened.usage }),
+    }
+  }
+
   return {
     list: () => throughIpc(() => commands.agentThreads()),
-
-    open: async (threadId, workspaceRoot) => {
-      const resolvedLaunch = await launch()
-      const opened = await throughIpc(() =>
-        commands.agentOpenThread({
-          threadId: threadId ?? null,
-          launch: resolvedLaunch,
-          cwd: workspaceRoot ?? cwd?.() ?? null,
-        }),
-      )
-
-      /* 一页帧与它的读取位置原样交出去：形状由原生侧定义，与端口逐格相同。 */
-      return {
-        thread: opened.thread,
-        selectors: opened.selectors.map(controlOf),
-        goal: goalOf(opened.goal),
-        frames: opened.frames,
-        history: opened.history,
-        ...(opened.usage === null ? {} : { usage: opened.usage }),
-      }
-    },
-
+    create: (threadId, workspaceRoot) => openTarget({ kind: 'create', threadId }, workspaceRoot),
+    open: (threadId) => openTarget({ kind: 'existing', threadId }),
     earlierFrames: (threadId, before) =>
       throughIpc(() => commands.agentEarlierFrames({ threadId, before })),
-
     rename: async (threadId, title) => {
       await throughIpc(() => commands.agentRenameThread({ threadId, title }))
     },
-
     fork: async (threadId, title, dropTurns) => {
       const resolvedLaunch = await launch()
-
-      /* 交回的行与 list 的行同形，原样交出去；打开分叉出的对话不在这里，
-      走 open 那条已有的路。 */
       return throughIpc(() =>
         commands.agentForkThread({
           threadId,
@@ -527,20 +526,12 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
         }),
       )
     },
-
     remove: async (threadId) => {
       await throughIpc(() => commands.agentDeleteThread({ threadId }))
     },
-
     archive: async (threadId, archived) => {
-      await throughIpc(() =>
-        commands.agentArchiveThread({
-          threadId,
-          archived,
-        }),
-      )
+      await throughIpc(() => commands.agentArchiveThread({ threadId, archived }))
     },
-
     setPinned: async (threadId, pinned) => {
       await throughIpc(() => commands.agentPinThread({ threadId, pinned }))
     },

@@ -41,7 +41,7 @@ mod sessions;
 mod stderr;
 mod trace;
 
-pub use commands::{AgentClient, PromptImage, PromptSkill};
+pub use commands::{AgentClient, PromptAttachment, PromptSkill};
 pub use config::{
     ConfigChoice, ConfigControl, ConfigPurpose, GoalSnapshot, controls, goal_snapshot,
     selector_patch,

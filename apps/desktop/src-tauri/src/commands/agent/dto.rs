@@ -374,12 +374,22 @@ pub struct AgentEarlierFramesRequest {
     pub before: AgentFrameCursor,
 }
 
+/// 要打开或创建的对话。操作由判别式表达，不用可空 id 猜。
+#[derive(Debug, Deserialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum AgentThreadTarget {
+    #[serde(rename_all = "camelCase")]
+    Create { thread_id: String },
+    #[serde(rename_all = "camelCase")]
+    Existing { thread_id: String },
+}
+
 /// 要打开的对话，以及必要时怎样启动 agent。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentOpenThreadRequest {
-    /// 已经存在的对话；不点名就新开一条。
-    pub thread_id: Option<String>,
+    /// 创建与打开是两种显式操作；两者都携带稳定标识。
+    pub target: AgentThreadTarget,
     /// 起哪个 agent。
     pub launch: AgentLaunch,
     /// The working directory the session is created against.

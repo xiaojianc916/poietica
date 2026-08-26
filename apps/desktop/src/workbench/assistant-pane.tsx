@@ -3,6 +3,7 @@ import type { WorkspacePickerProps } from '@poietica/agent-ui'
 import { isProjectlessWorkspaceRoot, workspaceRootName } from '@poietica/core'
 import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/ipc'
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { v7 as uuidv7 } from 'uuid'
 import { useThreadsActions, useThreadsList } from '../assistant/threads-context'
 import { useWorkspaceGit } from '../workspace-git'
 import { setActiveWorkspaceRoot, useActiveWorkspaceRoot } from '../workspace-root'
@@ -89,34 +90,43 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
     [browse, choices, clearWorkspace, current],
   )
 
-  const [threadId, setThreadId] = useState<string | null>(null)
-  const opening = useRef<Promise<string | null> | null>(null)
+  const [threadId] = useState(() => uuidv7())
+  const [started, setStarted] = useState(false)
+  const creating = useRef<Promise<boolean> | null>(null)
 
-  /*
-   * 一格只开一条对话，哪怕连着说两句。
-   *
-   * 第二次问等的是第一次那个 promise，所以不会开出两条对话，也不会有两条
-   * 都自称是这一格。
-   */
-  const identify = useCallback(async (): Promise<string | null> => {
-    opening.current ??=
-      activeRoot === null
-        ? createProjectlessWorkspace().then((root) => open(root))
-        : open(activeRoot)
-
-    const opened = await opening.current
-
-    if (opened !== null) {
-      setThreadId(opened)
+  const prepare = useCallback((): Promise<boolean> => {
+    const pending = creating.current
+    if (pending !== null) {
+      return pending
     }
 
-    return opened
-  }, [activeRoot, open])
+    const created = (
+      activeRoot === null
+        ? createProjectlessWorkspace().then((root) => open(threadId, root))
+        : open(threadId, activeRoot)
+    ).then((opened) => {
+      const ready = opened !== null
+      if (ready) {
+        setStarted(true)
+      }
+      return ready
+    })
+
+    creating.current = created
+    void created.catch(() => {
+      if (creating.current === created) {
+        creating.current = null
+      }
+    })
+
+    return created
+  }, [activeRoot, open, threadId])
 
   return (
     <ConversationSurface
       git={git}
-      onIdentify={identify}
+      isNew={!started}
+      onPrepare={prepare}
       onStarted={onConversationStarted}
       session={session}
       threadId={threadId}

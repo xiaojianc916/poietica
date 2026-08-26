@@ -40,7 +40,7 @@ use tokio_tungstenite::{
 };
 use uuid::Uuid;
 
-use crate::commands::{AgentClient, Command, PromptImage, PromptSkill};
+use crate::commands::{AgentClient, Command, PromptAttachment, PromptSkill};
 use crate::config::{ConfigControl, GoalSnapshot, controls, goal_snapshot, selector_patch};
 use crate::desk::{PermissionDesk, QuestionDesk};
 use crate::error::{KapError, Refusal, Result};
@@ -1102,13 +1102,13 @@ pub fn connect(
                             });
                         }
 
-                        Some(Command::Prompt { session_id: sid, text, images, skills, frames, reply }) => {
+                        Some(Command::Prompt { session_id: sid, text, attachments, skills, frames, reply }) => {
                             // 本次连接没开过这个号，它就不是我们的话。
                             let held = book_clone.slot(&sid).ok().flatten();
 
                             if let Some(slot) = held {
                                 let shown: Vec<String> =
-                                    images.iter().map(|i| i.url.clone()).collect();
+                                    attachments.iter().map(|item| item.url().to_owned()).collect();
 
                                 if slot
                                     .attach(|| Recorder::new(sid.clone(), slot.seq(), frames))
@@ -1130,7 +1130,7 @@ pub fn connect(
                                     let sid2 = sid.clone();
                                     tokio::spawn(async move {
                                         let result = submit_prompt(
-                                            &http2, &base2, &sid2, &text, &images, &skills,
+                                            &http2, &base2, &sid2, &text, &attachments, &skills,
                                             &book2,
                                         )
                                         .await;
@@ -1838,11 +1838,11 @@ async fn submit_prompt(
     base_url: &str,
     session_id: &str,
     text: &str,
-    images: &[PromptImage],
+    attachments: &[PromptAttachment],
     skills: &[PromptSkill],
     book: &SessionBook,
 ) -> Result<String> {
-    let body = prompt_body(text, images, skills)?;
+    let body = prompt_body(text, attachments, skills)?;
     let url = format!("{base_url}/sessions/{session_id}/prompts");
     let mut attempt: u32 = 1;
 
@@ -1869,20 +1869,30 @@ async fn submit_prompt(
     }
 }
 
-fn prompt_body(text: &str, images: &[PromptImage], skills: &[PromptSkill]) -> Result<Value> {
+fn prompt_body(text: &str, attachments: &[PromptAttachment], skills: &[PromptSkill]) -> Result<Value> {
     let mut content = Vec::new();
     if !text.is_empty() {
         content.push(json!({ "type": "text", "text": text }));
     }
-    for image in images {
-        content.push(json!({
-            "type": "image",
-            "source": {
-                "kind": "base64",
-                "media_type": image.mime_type,
-                "data": image.data,
-            }
-        }));
+    for attachment in attachments {
+        content.push(match attachment {
+            PromptAttachment::Image {
+                data,
+                mime_type,
+                ..
+            } => json!({
+                "type": "image",
+                "source": {
+                    "kind": "base64",
+                    "media_type": mime_type,
+                    "data": data,
+                }
+            }),
+            PromptAttachment::Text { text, .. } => json!({
+                "type": "text",
+                "text": text,
+            }),
+        });
     }
     if content.is_empty() {
         return Err(KapError::Validation {

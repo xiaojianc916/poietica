@@ -23,10 +23,12 @@ import { MascotBadge } from './mascot/mascot-badge'
 import { PromptQueue } from './prompt-queue'
 
 export interface AssistantSurfaceProps {
-  /** 这一格代表的对话。入口那一格在说话之前还不是任何一条。 */
-  readonly endpoint: string | null
-  /** 取得这一格即将成为的那条对话，在第一句话的时候。 */
-  readonly identify?: (() => Promise<string | null>) | undefined
+  /** 这一格从出生起持有的稳定对话标识。 */
+  readonly endpoint: string
+  /** 是否尚未把这条对话写入平台。身份不参与这个生命周期判定。 */
+  readonly isNew: boolean
+  /** 第一条消息发送前，把已铸造的标识写入平台。 */
+  readonly prepare?: (() => Promise<boolean>) | undefined
   /**
    * The session this surface talks to.
    *
@@ -92,16 +94,17 @@ export const AssistantSurface = memo(function AssistantSurface({
   controlsFailure,
   endpoint,
   git,
-  identify,
+  isNew,
   onFork,
   onRetryControls,
   onSelectControl,
   onUserMessage,
+  prepare,
   session,
   usage,
   workspace,
 }: AssistantSurfaceProps) {
-  const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
+  const assistant = useAssistantSession({ endpoint, onUserMessage, prepare, session })
 
   /* 名册属于这条连接，不属于这一格：入口态也画得出来。 */
   const { mcpServers, skills } = useAgentToolkit()
@@ -149,7 +152,7 @@ export const AssistantSurface = memo(function AssistantSurface({
     return { call, item: blocked, onResolve: assistant.resolvePermission, waiting }
   }, [assistant.resolvePermission, blocked, call, waiting])
 
-  const [phase, setPhase] = useState<'entry' | 'live'>(() => (endpoint === null ? 'entry' : 'live'))
+  const [phase, setPhase] = useState<'entry' | 'live'>(() => (isNew ? 'entry' : 'live'))
 
   /*
    * 相位是派生的，不是记住的。
@@ -159,17 +162,17 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 渲染期直接改自己的 state 是 React 官方给「props 变了要复位 state」的写法，
    * 它在本次渲染内重跑，不会多出一帧闪烁，也不需要一个 effect。
    */
-  const [seen, setSeen] = useState(endpoint)
+  const [seenNew, setSeenNew] = useState(isNew)
 
-  if (seen !== endpoint) {
-    setSeen(endpoint)
-    setPhase(endpoint === null ? 'entry' : 'live')
+  if (seenNew !== isNew) {
+    setSeenNew(isNew)
+    setPhase(isNew ? 'entry' : 'live')
   }
 
   const live = phase === 'live'
 
   /* 这一格的草稿归哪个键：对话是它的 id，入口那一格全局只有一个。 */
-  const draftKey = endpoint ?? 'composer:entry'
+  const draftKey = endpoint
 
   /*
    * 发言就是那次转场。
@@ -220,8 +223,7 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 一轮对话里它至多重渲两次(ready→streaming→ready),不是每个 token 一次。
    */
   const dock = (
-    /* 盖住转录的正是这条带子；审批格长在这张卡里，所以它的高度也算在内。 */
-    <div className="assistant-surface__composer" ref={dockRef}>
+    <div className="assistant-surface__composer">
       <PromptQueue onEdit={edit} outbox={assistant.outbox} />
 
       <AssistantComposer
@@ -272,7 +274,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         </div>
       )}
 
-      <div className="assistant-surface__dock">
+      <div className="assistant-surface__dock" ref={dockRef}>
         <ComposerDraftKeyContext value={draftKey}>{dock}</ComposerDraftKeyContext>
 
         {live || workspace === undefined ? null : (

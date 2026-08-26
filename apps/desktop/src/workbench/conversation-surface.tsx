@@ -28,12 +28,13 @@ import { adoptBrowserPickTarget } from '../browser/browser-pick'
  */
 
 export interface ConversationSurfaceProps {
-  /** 取得这一格即将成为的那条对话。只有入口那一格需要它。 */
-  readonly onIdentify?: (() => Promise<string | null>) | undefined
+  readonly isNew: boolean
+  /** 第一条消息前把已铸造的标识写入平台。 */
+  readonly onPrepare?: (() => Promise<boolean>) | undefined
   /** 这条对话说出第一句话时，带上它当时的名字。 */
   readonly onStarted?: (threadId: string, title: string) => void
   readonly session: AgentSessionPort
-  readonly threadId: string | null
+  readonly threadId: string
   /** 分叉出的对话开出来之后，去它那里 —— 与打开列表里一条是同一个动作。 */
   readonly onForked?: ((threadId: string, title: string) => void) | undefined
   /** 只有新对话入口会交出这项。 */
@@ -44,8 +45,9 @@ export interface ConversationSurfaceProps {
 
 export function ConversationSurface({
   git,
+  isNew,
   onForked,
-  onIdentify,
+  onPrepare,
   onStarted,
   session,
   threadId,
@@ -71,12 +73,12 @@ export function ConversationSurface({
    * 两者在真的变化之前都是同一个引用，因此别的对话被打开、agent 报一次表、
    * 侧栏改个名，都不会走到这里。
    */
-  const offered = useThreadSelectors(threadId)
+  const offered = useThreadSelectors(isNew ? null : threadId)
 
-  const failure = useThreadSelectorFailure(threadId)
+  const failure = useThreadSelectorFailure(isNew ? null : threadId)
 
   /* 用量只属于真的对话：入口那一格没有会话可报数，胶囊整个不画。 */
-  const usage = useThreadUsage(threadId)
+  const usage = useThreadUsage(isNew ? null : threadId)
 
   /*
    * 打开一条已有的对话，就为它开一个 kap 会话。
@@ -103,12 +105,12 @@ export function ConversationSurface({
    * 打开就是装载。贵也得付，那是这条对话的内容本身。
    */
   useEffect(() => {
-    if (threadId === null) {
+    if (isNew) {
       return
     }
 
     sessionControls.adopt(threadId)
-  }, [sessionControls, threadId])
+  }, [isNew, sessionControls, threadId])
 
   /*
    * 两个 scope，一条判据。
@@ -118,7 +120,7 @@ export function ConversationSurface({
    * 会话自己的表（见 @poietica/agent 的 SessionControlsStore）：kap 的配置是会话级的,
    * 一条会话选了什么说明不了另一条选了什么。
    *
-   * 所以读、写、重试三样都按同一个 threadId === null 分岔。少分一样就够了：写恒发往
+   * 所以读、写、重试三样都按同一个 isNew 分岔。少分一样就够了：写恒发往
    * 锚会话时，屏幕上显示的是这条会话的值，改动却落在另一条会话和 config.toml 上，而
    * session-controls-store.ts 开头把「屏幕写甲、会话跑乙」列为不允许存在的状态。
    *
@@ -133,14 +135,14 @@ export function ConversationSurface({
     selectControl,
   } = useAgentControls()
 
-  const controls = threadId === null ? known : (offered ?? known)
+  const controls = isNew ? known : (offered ?? known)
 
-  const controlsFailure = threadId === null ? knownFailure : failure
+  const controlsFailure = isNew ? knownFailure : failure
 
   /* 名册按会话回答，所以它跟着这一格走：入口是锚会话，进了对话就是那条会话。 */
   useEffect(() => {
-    adoptToolkit(threadId)
-  }, [adoptToolkit, threadId])
+    adoptToolkit(isNew ? null : threadId)
+  }, [adoptToolkit, isNew, threadId])
 
   /*
    * 交下去的每一个回调都钉住标识。
@@ -149,19 +151,19 @@ export function ConversationSurface({
    * 一次也命中不了：这一格但凡重画一次，转录、虚拟列表、输入框整棵树跟着走一遍。
    */
   const retryControls = useCallback(() => {
-    if (threadId === null) {
+    if (isNew) {
       retry()
 
       return
     }
 
     sessionControls.retrySelectors(threadId)
-  }, [retry, sessionControls, threadId])
+  }, [isNew, retry, sessionControls, threadId])
 
   /* 改一项，交给持有这张表的那一方：入口那格是锚会话，对话里是那条会话。 */
   const chooseControl = useCallback(
     (controlId: string, value: string, input?: string) => {
-      if (threadId === null) {
+      if (isNew) {
         selectControl(controlId, value)
 
         return
@@ -169,7 +171,7 @@ export function ConversationSurface({
 
       sessionControls.selectControl(threadId, controlId, value, input)
     },
-    [selectControl, sessionControls, threadId],
+    [isNew, selectControl, sessionControls, threadId],
   )
 
   const userMessage = useCallback(
@@ -189,7 +191,7 @@ export function ConversationSurface({
    */
   const fork = useCallback(
     (dropTurns: number) => {
-      if (threadId === null) {
+      if (isNew) {
         return
       }
 
@@ -199,7 +201,7 @@ export function ConversationSurface({
         }
       })
     },
-    [onForked, threadId, threads],
+    [isNew, onForked, threadId, threads],
   )
 
   return (
@@ -209,11 +211,12 @@ export function ConversationSurface({
       controlsFailure={controlsFailure}
       endpoint={threadId}
       git={git}
-      identify={onIdentify}
-      onFork={threadId === null ? undefined : fork}
+      isNew={isNew}
+      onFork={isNew ? undefined : fork}
       onRetryControls={retryControls}
       onSelectControl={chooseControl}
       onUserMessage={userMessage}
+      prepare={onPrepare}
       session={session}
       usage={usage}
       workspace={workspace}

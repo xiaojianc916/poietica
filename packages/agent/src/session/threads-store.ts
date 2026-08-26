@@ -189,15 +189,18 @@ export class ThreadsStore {
    * transcript-store 的 send），而在这里换成 null 只剩一句「无法开始新的对话」
    * —— 起不来的进程、谈不拢的握手、缺失的配置全长成同一句话。
    */
-  create = async (workspaceRoot?: string): Promise<string | null> => {
+  create = async (threadId: string, workspaceRoot?: string): Promise<string | null> => {
     const port = this.#port
 
     if (port === undefined) {
       return null
     }
 
-    const opened = await port.open(undefined, workspaceRoot)
-    const threadId = opened.thread.threadId
+    const opened = await port.create(threadId, workspaceRoot)
+
+    if (opened.thread.threadId !== threadId) {
+      throw new Error('The platform returned a different conversation identity.')
+    }
 
     this.#roots.set(threadId, opened.thread.workspaceRoot ?? null)
 

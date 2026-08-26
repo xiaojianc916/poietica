@@ -50,9 +50,6 @@ import type { TranscriptSink } from './transcript-sink'
  * #unrouted 接着，地址一到整批折进去。许可窗口只有一个：有一次 prompt 在飞。
  */
 
-/** 入口那一格的键前缀。它还不是一条对话，所以也没有什么可停的。 */
-const DRAFT = 'draft:'
-
 /**
  * 一句话只有图片时，这条对话叫什么。
  *
@@ -97,23 +94,20 @@ export interface TranscriptStoreOptions {
 
 export interface SendOptions {
   readonly port: AgentSessionPort | undefined
-  /** 这一格现在的键：真对话 id，或入口那一格的草稿键。 */
-  readonly key: string
-  /** 这一格已经是哪条对话；入口那一格是 null。 */
-  readonly endpoint: string | null
+  readonly threadId: string
   readonly text: string
-  /** 这一句带的图片，按它们在原生交付注册表里的位置点名。 */
   readonly assets: readonly PromptAsset[]
   readonly configuration: readonly PromptConfiguration[]
   readonly skills: readonly PromptSkill[]
-  readonly identify?: (() => Promise<string | null>) | undefined
+  readonly prepare?: (() => Promise<boolean>) | undefined
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
 }
 
 interface PendingSubmission {
-  key: string
+  readonly key: string
   readonly port: AgentSessionPort
-  threadId: string | null
+  readonly threadId: string
+  ready: boolean
   cancelRequested: boolean
   cancelSent: boolean
 }
@@ -273,20 +267,6 @@ export class TranscriptStore implements TranscriptSink {
   #listeners = new Map<string, Set<() => void>>()
 
   /**
-   * 草稿键 → 真对话 id。
-   *
-   * 入口那一格在说话之前不是任何一条对话，可它已经有转录了（人说的那句话）。
-   * 乐观 id 对账是 store 的职责：这里给它一个别名，两个键读到同一份东西，界面
-   * 拿到真 id 的那一帧因此没有任何空档。
-   */
-  #alias = new Map<string, string>()
-
-  /** 真 id → 草稿键。alias 的反向索引：通知与淘汰都要按"谁在看"来问。 */
-  #aliased = new Map<string, string>()
-
-  #drafts = 0
-
-  /**
    * 会话号 → 对话。归属只有这一张表。
    *
    * 它在打开一条对话时就写好了（route），而帧是此后才发生的事，所以查不到主人
@@ -330,13 +310,6 @@ export class TranscriptStore implements TranscriptSink {
 
   #detach: (() => void) | null = null
 
-  /** 入口那一格的键。 */
-  newDraft = (): string => {
-    this.#drafts += 1
-
-    return `${DRAFT}${String(this.#drafts)}`
-  }
-
   /**
    * 这一格现在是什么样子。一次查表，什么都不改。
    *
@@ -346,7 +319,7 @@ export class TranscriptStore implements TranscriptSink {
    *
    * 帧进 → 折叠 → 通知 → 读，单向，不回头。
    */
-  read = (key: string): Transcript => this.#held.get(this.#resolveKey(key)) ?? EMPTY
+  read = (key: string): Transcript => this.#held.get(key) ?? EMPTY
 
   subscribe = (key: string, listener: () => void): (() => void) => {
     const set = this.#listeners.get(key) ?? new Set<() => void>()
@@ -449,59 +422,34 @@ export class TranscriptStore implements TranscriptSink {
    * 删完就通知：还挂着的界面下一帧读到的是 EMPTY，不是一份不存在的东西。
    */
   forget = (key: string): void => {
-    const real = this.#resolveKey(key)
-    const draft = this.#evict(real)
-
-    this.#fire(real)
-
-    if (draft !== undefined) {
-      this.#fire(draft)
-    }
-
+    this.#evict(key)
+    this.#fire(key)
     this.#republish()
   }
 
-  /**
-   * 一条对话的全部驻留物一次清干净，交回它的草稿键。
-   *
-   * 攒着还没折进去的帧也在这里作废：漏掉它们，下一次 read 会把那批帧折进一个空
-   * 转录再写回 #held，删掉的东西就这么回到屏幕上。
-   */
-  #evict(real: string): string | undefined {
-    const draft = this.#aliased.get(real)
+  #evict(key: string): void {
+    this.#releaseSubmission(key)
+    this.#held.delete(key)
+    this.#pending.delete(key)
+    this.#unaligned.delete(key)
+    this.#dirty.delete(key)
 
-    this.#releaseSubmission(real)
-    this.#held.delete(real)
-    this.#pending.delete(real)
-    this.#unaligned.delete(real)
-    this.#aliased.delete(real)
-    this.#dirty.delete(real)
-
-    if (draft !== undefined) {
-      this.#alias.delete(draft)
-    }
-
-    /* 通道挂在这条对话下面：对话没了，它们也没了。 */
-    const prefix = delegateKey(real, '')
-
-    for (const key of this.#held.keys()) {
-      if (key.startsWith(prefix)) {
-        this.#held.delete(key)
-        this.#pending.delete(key)
-        this.#dirty.delete(key)
-        this.#fire(key)
+    const prefix = delegateKey(key, '')
+    for (const held of this.#held.keys()) {
+      if (held.startsWith(prefix)) {
+        this.#held.delete(held)
+        this.#pending.delete(held)
+        this.#dirty.delete(held)
+        this.#fire(held)
       }
     }
 
-    /* 会话号那张表也是按对话记的：留着它，死会话的帧仍会找到主人。 */
     for (const [sessionId, owner] of this.#routes) {
-      if (owner === real) {
+      if (owner === key) {
         this.#routes.delete(sessionId)
         this.#unrouted.delete(sessionId)
       }
     }
-
-    return draft
   }
 
   /* ================= 一段历史送到 ================= */
@@ -617,7 +565,7 @@ export class TranscriptStore implements TranscriptSink {
    *
    * 重入由这里挡：视口可以每帧问，问几次都只有一页在飞。
    */
-  readEarlier = (key: string): Promise<void> => this.#readEarlier(this.#resolveKey(key))
+  readEarlier = (key: string): Promise<void> => this.#readEarlier(key)
 
   async #readEarlier(real: string): Promise<void> {
     const read = this.#earlier
@@ -670,7 +618,7 @@ export class TranscriptStore implements TranscriptSink {
 
   /** 还对不齐一轮起点的那些帧，攒着；一帧不剩就把这一格清掉。 */
   #hold(key: string, events: readonly RunEvent[]): void {
-    const real = this.#resolveKey(key)
+    const real = key
 
     if (events.length === 0) {
       this.#unaligned.delete(real)
@@ -706,104 +654,71 @@ export class TranscriptStore implements TranscriptSink {
   send = ({
     assets,
     configuration,
-    endpoint,
-    identify,
-    key,
     onUserMessage,
     port,
+    prepare,
     skills,
     text,
+    threadId,
   }: SendOptions): void => {
-    const at = Date.now()
-    const current = this.#now(key)
-
-    /* 人说的那句话先上屏，再去问 agent。失败的一轮丢掉的是答案，不是问题。
-       图这一刻还没有地址：字节要先落盘。它随这一轮的 run_started 帧回来，所以
-       实时那条路与重开对话那条路走的是同一条（见 projection.ts 的 withPrompt）。 */
+    const current = this.#now(threadId)
     const opened = appendUserMessage(
       current.timeline,
       text,
-      at,
+      Date.now(),
       assets.length,
       skills.map((skill) => skill.name),
     )
-
-    this.#put(key, { ...current, timeline: opened })
+    this.#put(threadId, { ...current, timeline: opened })
 
     if (port === undefined) {
-      this.#fail(key, new Error(NO_SESSION))
-
+      this.#fail(threadId, new Error(NO_SESSION))
       return
     }
 
     this.#attach(port)
-
-    const real = this.#resolveKey(key)
-    this.#releaseSubmission(real)
+    this.#releaseSubmission(threadId)
 
     const submission: PendingSubmission = {
-      key: real,
+      key: threadId,
       port,
-      threadId: endpoint,
+      threadId,
+      ready: prepare === undefined,
       cancelRequested: false,
       cancelSent: false,
     }
-
-    this.#submissions.set(real, submission)
-
-    const conversation =
-      endpoint === null ? (identify?.() ?? Promise.resolve(null)) : Promise.resolve(endpoint)
-
+    this.#submissions.set(threadId, submission)
     this.#opening += 1
 
-    void conversation
-      .then((threadId) => {
-        if (threadId === null) {
+    void (prepare?.() ?? Promise.resolve(true))
+      .then((prepared) => {
+        if (!prepared) {
           this.#releaseSubmission(submission)
-          this.#fail(key, new Error(NO_THREAD))
-
+          this.#fail(threadId, new Error(NO_THREAD))
           return undefined
         }
 
-        /* 草稿在这一刻成为一条真对话：同一份转录，换一个名字。 */
-        if (threadId !== key) {
-          this.#rename(key, threadId)
-        }
-
-        submission.threadId = threadId
-
+        submission.ready = true
         if (submission.cancelRequested) {
           this.#cancelUnsubmitted(submission)
           this.#releaseSubmission(submission)
-
           return undefined
         }
 
-        /*
-         * 用来命名的那句话，不一定就是发出去的那句话：一句话可以只有图片，
-         * 而库那侧对它的名字早有答案（IMAGE_OPENER）。
-         *
-         * trim 与那一侧同步：它收到的 text 是 trim 过的，空白判据必须一致，
-         * 否则一句只有空格加一张图的话会在两边得到两个名字。
-         */
         onUserMessage?.(threadId, text.trim() === '' && assets.length > 0 ? IMAGE_OPENER : text)
 
         return port.prompt({ threadId, text, assets, configuration, skills }).then((handle) => {
           this.route(handle.sessionId, threadId)
-
           if (submission.cancelRequested) {
             this.#sendCancellation(submission)
           }
         })
       })
       .catch((cause: unknown) => {
-        /* 没有"当前那一轮"要收拾了：这一轮从来没拿到过地址，也就从来没占过谁。 */
-        this.#fail(key, cause)
+        this.#fail(threadId, cause)
       })
       .finally(() => {
         this.#opening -= 1
-
-        /* 一次 prompt 都不在飞了：还没认领的那些帧不会再有地址。 */
         if (this.#opening === 0) {
           this.#unrouted.clear()
         }
@@ -811,30 +726,23 @@ export class TranscriptStore implements TranscriptSink {
   }
 
   cancel = (key: string): void => {
-    const threadId = this.#resolveKey(key)
     const port = this.#attachedTo
-
     if (port === null) {
       return
     }
 
-    let submission = this.#submissions.get(threadId)
-
+    let submission = this.#submissions.get(key)
     if (submission === undefined) {
-      if (threadId.startsWith(DRAFT)) {
-        return
-      }
-
       submission = {
-        key: threadId,
+        key,
         port,
-        threadId,
+        threadId: key,
+        ready: true,
         cancelRequested: false,
         cancelSent: false,
       }
-      this.#submissions.set(threadId, submission)
+      this.#submissions.set(key, submission)
     }
-
     this.#requestCancellation(submission)
   }
 
@@ -851,7 +759,7 @@ export class TranscriptStore implements TranscriptSink {
       timeline: requestRunCancellation(current.timeline),
     })
 
-    if (submission.threadId === null) {
+    if (!submission.ready) {
       /* 没有地址可等：入口那一格的取消即刻落定。 */
       this.#cancelUnsubmitted(submission)
 
@@ -864,7 +772,7 @@ export class TranscriptStore implements TranscriptSink {
   #sendCancellation(submission: PendingSubmission): void {
     const threadId = submission.threadId
 
-    if (threadId === null || submission.cancelSent) {
+    if (!submission.ready || submission.cancelSent) {
       return
     }
 
@@ -953,10 +861,6 @@ export class TranscriptStore implements TranscriptSink {
 
   /* ================= 内部 ================= */
 
-  #resolveKey(key: string): string {
-    return this.#alias.get(key) ?? key
-  }
-
   /*
    * 写路径要的那一份：先把攒着的帧折进去，再拿。
    *
@@ -966,7 +870,7 @@ export class TranscriptStore implements TranscriptSink {
    * 副作用。
    */
   #now(key: string): Transcript {
-    return this.#settle(this.#resolveKey(key))
+    return this.#settle(key)
   }
 
   #fire(key: string): void {
@@ -993,7 +897,7 @@ export class TranscriptStore implements TranscriptSink {
     const running = new Set<string>()
 
     for (const [key, transcript] of this.#held) {
-      if (!key.startsWith(DRAFT) && !isDelegateKey(key) && selectIsBusy(transcript.timeline)) {
+      if (!isDelegateKey(key) && selectIsBusy(transcript.timeline)) {
         running.add(key)
       }
     }
@@ -1031,7 +935,7 @@ export class TranscriptStore implements TranscriptSink {
   /*
    * 这一拍攒下的变化，一次交出去。
    *
-   * 通知走反向索引（#aliased）：按草稿键找真 id 是一次查表，不是一次线性扫描。
+   * 每条对话只有一个身份；一拍内每个脏身份只通知一次。
    */
   #flush = (): void => {
     this.#waiting = false
@@ -1043,12 +947,6 @@ export class TranscriptStore implements TranscriptSink {
     for (const real of dirty) {
       this.#settle(real)
       this.#fire(real)
-
-      const draft = this.#aliased.get(real)
-
-      if (draft !== undefined) {
-        this.#fire(draft)
-      }
     }
 
     this.#republish()
@@ -1056,7 +954,7 @@ export class TranscriptStore implements TranscriptSink {
 
   #put(key: string, next: Transcript): void {
     /* 一次解析，一次叫醒：这里是叫醒的两个入口之一，另一个是 #queue。 */
-    const real = this.#resolveKey(key)
+    const real = key
 
     this.#write(real, next)
     this.#notify(real)
@@ -1079,7 +977,6 @@ export class TranscriptStore implements TranscriptSink {
   /* 重建不出来的那些：有人在看、在跑、有在飞的提交、或还有没折进去的帧。 */
   #pinned(key: string): boolean {
     return (
-      key.startsWith(DRAFT) ||
       this.#listeners.has(key) ||
       this.#submissions.has(key) ||
       this.#pending.has(key) ||
@@ -1099,35 +996,6 @@ export class TranscriptStore implements TranscriptSink {
     }
   }
 
-  /*
-   * 草稿成为一条真对话：同一份转录，换一个名字。
-   *
-   * 走 #put，不直接写 #held：换身份也是一次写入，订阅者必须被叫醒 ——
-   * useSyncExternalStore 的契约要的就是这个。
-   */
-  #rename(from: string, to: string): void {
-    const submission = this.#submissions.get(from)
-
-    if (submission !== undefined) {
-      this.#submissions.delete(from)
-      submission.key = to
-      submission.threadId = to
-      this.#submissions.set(to, submission)
-    }
-
-    this.#alias.set(from, to)
-    this.#aliased.set(to, from)
-
-    const drafted = this.#held.get(from)
-
-    if (drafted === undefined) {
-      return
-    }
-
-    this.#held.delete(from)
-    this.#put(to, { ...drafted, owned: true })
-  }
-
   /** 这一句问不出去，或者半路断了：这一轮到此为止。 */
   #fail(key: string, cause: unknown): void {
     const current = this.#now(key)
@@ -1143,7 +1011,7 @@ export class TranscriptStore implements TranscriptSink {
    * 才折出来。
    */
   #queue(owner: string, events: readonly RunEvent[]): void {
-    const real = this.#resolveKey(owner)
+    const real = owner
     const split = partitionByAgent(events)
 
     for (const [agentId, channel] of split.channels) {

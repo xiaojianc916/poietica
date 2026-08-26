@@ -63,19 +63,10 @@ export interface AssistantSubmission {
 }
 
 export interface AssistantSessionOptions {
-  /**
-   * Thread this surface is bound to, or null before it has become one.
-   *
-   * 入口那一格还不是任何一条对话：没有可回放的记录，也没有名字。
-   */
-  readonly endpoint: string | null
-  /**
-   * Acquires the conversation this surface is about to become.
-   *
-   * 只在第一句话时问一次。要不到就没有地方可送，这一句因此失败，
-   * 而不是发往一个不存在的对话。
-   */
-  readonly identify?: (() => Promise<string | null>) | undefined
+  /** Stable conversation identity, minted before this surface mounts. */
+  readonly endpoint: string
+  /** Persists a newly minted identity before its first prompt. */
+  readonly prepare?: (() => Promise<boolean>) | undefined
   /**
    * What the user just said, before the agent is asked anything.
    *
@@ -176,21 +167,13 @@ const readQuestion = (transcript: Transcript): QuestionTimelineItem | undefined 
 
 export function useAssistantSession({
   endpoint,
-  identify,
   onUserMessage,
+  prepare,
   session,
 }: AssistantSessionOptions): AssistantSession {
   const transcripts = useTranscripts()
 
-  /*
-   * 入口那一格也需要一个键。
-   *
-   * 它还不是任何一条对话，可它已经有转录了 —— 人说的那句话。给它一个草稿键，
-   * 真 id 到达时由 store 改名，两个键读到同一份东西。
-   */
-  const [draft] = useState(transcripts.newDraft)
-
-  const key = endpoint ?? draft
+  const key = endpoint
 
   const running = useSlice(key, readStatus)
   const isRestoring = useSlice(key, readRestoring)
@@ -264,17 +247,16 @@ export function useAssistantSession({
         transcripts.send({
           assets: said.assets,
           configuration: said.configuration,
-          endpoint,
-          identify,
-          key,
           onUserMessage,
           port: session,
-          text: said.text,
+          prepare,
           skills: said.skills,
+          text: said.text,
+          threadId: endpoint,
         })
       },
       merge: (promptId) => {
-        if (endpoint === null || session === undefined) {
+        if (session === undefined) {
           note(NO_SESSION)
 
           return
@@ -289,7 +271,7 @@ export function useAssistantSession({
         })
       },
     }
-  }, [busy, endpoint, identify, key, note, onUserMessage, session, transcripts])
+  }, [busy, endpoint, note, onUserMessage, prepare, session, transcripts])
 
   const [outbox] = useState(
     () =>

@@ -12,7 +12,7 @@ use crate::local_index::{LocalIndex, on_index, persistence};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use poietica_agent_persistence_native::ThreadAttachment;
-use poietica_agent_runtime_native::PromptImage;
+use poietica_agent_runtime_native::PromptAttachment;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,10 +27,10 @@ use super::{IMAGE_TOO_LARGE, NO_READ, NO_SUCH_ASSET};
 ///
 /// 同一批字节，两个去处，一次解码：协议要 base64 与地址那一份，账本只要摘要。
 /// 地址此前另立一个平行的 Vec，靠下标与前两者对齐 —— 三条平行序列，谁错位都
-/// 不会有人报错。现在它长在 PromptImage 上，一项一张图。
+/// 不会有人报错。现在它长在 PromptAttachment 上，一项一张图。
 pub(super) struct Kept {
     /// 原样交给协议的那一份，每一项带着它自己的地址。
-    pub(super) carried: Vec<PromptImage>,
+    pub(super) carried: Vec<PromptAttachment>,
     /// 记进账本的那些行。
     pub(super) ledger: Vec<ThreadAttachment>,
 }
@@ -90,10 +90,28 @@ pub(super) async fn keep_bytes(
 
             let blob = store_bytes(&root, &bytes)?;
 
-            let data = BASE64.encode(bytes.as_slice());
-
             /* 地址先算：下一句把摘要交给账本，它就不再属于这里。 */
             let url = asset_protocol_url(&session, &blob.hash).map_err(asset)?;
+
+            let prompt = if mime.starts_with("image/") {
+                PromptAttachment::Image {
+                    data: BASE64.encode(bytes.as_slice()),
+                    mime_type: mime.clone(),
+                    url: url.clone(),
+                }
+            } else if mime == "text/plain" {
+                let text = std::str::from_utf8(bytes.as_slice())
+                    .map_err(|_| Error::Validation("text attachments must be UTF-8".to_owned()))?
+                    .to_owned();
+                PromptAttachment::Text {
+                    text,
+                    url: url.clone(),
+                }
+            } else {
+                return Err(Error::Validation(format!(
+                    "unsupported prompt attachment type: {mime}"
+                )));
+            };
 
             ledger.push(ThreadAttachment {
                 hash: blob.hash,
@@ -102,11 +120,7 @@ pub(super) async fn keep_bytes(
                     .map_err(|_overflow| Error::Validation(IMAGE_TOO_LARGE.to_owned()))?,
             });
 
-            carried.push(PromptImage {
-                data,
-                mime_type: mime,
-                url,
-            });
+            carried.push(prompt);
         }
 
         Ok(Kept { carried, ledger })

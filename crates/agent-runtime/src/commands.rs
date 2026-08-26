@@ -8,39 +8,43 @@ use crate::error::{KapError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::session::{Cursor, McpServer, OpenedSession, SessionEntry, Skill};
 
-/// 这一轮随那句话一起送出去的一张图片。
-///
-/// base64 是协议自己的形状：kap 的 image content block 就是 media_type 加
-/// base64 的 data（protocol/message.ts 的 imageContentSchema），所以这一格
-/// 原样进请求体，中间不解码。
-///
-/// 一项一张图：字节给协议，地址给日志与屏幕。两件事分成两个平行的 Vec 就要靠
-/// 下标对齐，而靠下标对齐的东西没有人会在它错位时报错。
-pub struct PromptImage {
-    /// base64 编码的原始字节，不带 `data:` 前缀。
-    pub data: String,
-    /// 例如 `image/png`。
-    pub mime_type: String,
-    /// 这张图在本机的资产协议地址，随这一轮的 run_started 帧写进日志。
-    pub url: String,
+/// 与一句话一起送出的附件。判别式决定协议内容块，文本不会伪装成图片。
+pub enum PromptAttachment {
+    Image {
+        data: String,
+        mime_type: String,
+        url: String,
+    },
+    Text {
+        text: String,
+        url: String,
+    },
 }
 
-/// 手写，因为 derive 会把整张图打出来。
-///
-/// 这一格装的是 base64，上限十六兆（见桌面 seam 的 `MAX_IMAGE_CHARS`），而它
-/// 坐在 `Command` 里 —— 一行日志或一次 panic 的回溯就足以把它整个展开。那不是
-/// 诊断信息，那是把日志冲掉；尺寸和类型才是诊断信息。
-///
-/// 与同文件里 `AgentClient` 那一份同一条规矩：Debug 说的是这东西现在什么状况，
-/// 不是它装了什么。
-impl fmt::Debug for PromptImage {
+impl PromptAttachment {
+    #[must_use]
+    pub fn url(&self) -> &str {
+        match self {
+            Self::Image { url, .. } | Self::Text { url, .. } => url,
+        }
+    }
+}
+
+impl fmt::Debug for PromptAttachment {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("PromptImage")
-            .field("mime_type", &self.mime_type)
-            .field("base64_len", &self.data.len())
-            .field("url", &self.url)
-            .finish()
+        match self {
+            Self::Image { data, mime_type, url } => formatter
+                .debug_struct("PromptAttachment::Image")
+                .field("mime_type", mime_type)
+                .field("base64_len", &data.len())
+                .field("url", url)
+                .finish(),
+            Self::Text { text, url } => formatter
+                .debug_struct("PromptAttachment::Text")
+                .field("text_len", &text.len())
+                .field("url", url)
+                .finish(),
+        }
     }
 }
 
@@ -113,7 +117,7 @@ pub(crate) enum Command {
         ///
         /// 与 text 是同一句话的两半：只挑了图、没打字，是一句完整的话，
         /// 而不是一句空话 —— 判空的地方在桌面 seam，那里两者一起看。
-        images: Vec<PromptImage>,
+        attachments: Vec<PromptAttachment>,
         /// 与正文、附件同一次提交的 Skill。
         skills: Vec<PromptSkill>,
         /// 这条会话的帧交到哪里去。记录器由驱动器造：序号线在它的槽里。
@@ -306,7 +310,7 @@ impl AgentClient {
         &self,
         session_id: String,
         text: String,
-        images: Vec<PromptImage>,
+        attachments: Vec<PromptAttachment>,
         skills: Vec<PromptSkill>,
         frames: FrameSink,
     ) -> Result<oneshot::Receiver<Result<String>>> {
@@ -315,7 +319,7 @@ impl AgentClient {
         self.send(Command::Prompt {
             session_id,
             text,
-            images,
+            attachments,
             skills,
             frames,
             reply,
