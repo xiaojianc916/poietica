@@ -4,7 +4,10 @@
 //! Every answer is asserted rather than unwrapped, because a lint-clean
 //! test may not reach for a panic to describe a failure.
 
-use poietica_agent_runtime_native::SessionBook;
+use std::collections::HashMap;
+use std::sync::mpsc;
+
+use poietica_agent_runtime_native::{Recorder, SessionBook};
 
 const FIRST: &str = "session_11111111-1111-4111-8111-111111111111";
 const SECOND: &str = "session_22222222-2222-4222-8222-222222222222";
@@ -49,4 +52,55 @@ fn two_sessions_are_both_named() {
     assert!(matches!(book.open_count(), Ok(2)));
     assert!(names.iter().any(|name| name == FIRST));
     assert!(names.iter().any(|name| name == SECOND));
+}
+
+#[test]
+fn many_sessions_record_concurrently_without_aliasing() {
+    let book = SessionBook::new();
+    let (delivered, arriving) = mpsc::channel();
+
+    std::thread::scope(|scope| {
+        for index in 0..64_u32 {
+            let book = book.clone();
+            let delivered = delivered.clone();
+
+            scope.spawn(move || {
+                let session = format!("session-{index}");
+                assert!(book.open(&session).is_ok());
+                let slot = match book.slot(&session) {
+                    Ok(Some(slot)) => slot,
+                    _ => return,
+                };
+                let recorded = session.clone();
+                assert!(
+                    slot.attach(|| {
+                        Recorder::new(
+                            recorded,
+                            slot.seq(),
+                            Box::new(move |event| {
+                                let _sent = delivered.send(event);
+                            }),
+                        )
+                    })
+                    .is_ok()
+                );
+                assert!(slot.record(|recorder| {
+                    recorder.record_run_started("prompt", Vec::new(), Vec::new());
+                    recorder.record_run_finished("completed");
+                }));
+            });
+        }
+    });
+
+    drop(delivered);
+    let mut positions: HashMap<String, Vec<i64>> = HashMap::new();
+    for event in arriving {
+        positions
+            .entry(event.session_id)
+            .or_default()
+            .push(event.seq);
+    }
+
+    assert_eq!(positions.len(), 64);
+    assert!(positions.values().all(|seq| seq == &[1, 2]));
 }

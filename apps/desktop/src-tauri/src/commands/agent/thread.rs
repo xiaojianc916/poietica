@@ -15,9 +15,8 @@ use super::config::restate;
 use super::dto::{
     AgentArchiveThreadRequest, AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFrameCursor,
     AgentFramePage, AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest,
-    AgentThreadTarget,
-    AgentRenameThreadRequest, AgentSessionUsage, AgentThread, AgentThreadRequest, AgentTitleSource,
-    FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
+    AgentRenameThreadRequest, AgentSessionUsage, AgentThread, AgentThreadRequest,
+    AgentThreadTarget, AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};

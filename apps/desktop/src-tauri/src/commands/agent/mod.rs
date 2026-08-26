@@ -15,8 +15,6 @@
 //! else at this boundary before a desk or the wire ever sees it.
 
 use crate::error::IpcError;
-use std::time::Duration;
-
 /*
  * 本模块不做 re-export：命令与 DTO 一律按定义它们的子模块引用。
  *
@@ -32,6 +30,7 @@ mod attachment;
 pub mod config;
 pub mod dto;
 mod failure;
+mod journal;
 pub mod runtime;
 pub mod thread;
 pub mod toolkit;
@@ -51,12 +50,6 @@ pub const AGENT_SESSION_EVENT: &str = "ai-session-event";
 
 /// How much of the first message stands in as a conversation name.
 const TITLE_CHARS: usize = 60;
-
-/// 一拍的宽度：帧攒到这么久，就交货一次。
-///
-/// 六十赫兹的屏幕上，比这更密的投递没有人看得见 —— 收帧的那一侧也正是按这个
-/// 节拍醒来的（见 transcript-store.ts 的 `#paint`）。
-const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 
 /// 一页帧有多宽。
 ///

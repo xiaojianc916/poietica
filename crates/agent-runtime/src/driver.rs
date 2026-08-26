@@ -45,7 +45,7 @@ use crate::config::{ConfigControl, GoalSnapshot, controls, goal_snapshot, select
 use crate::desk::{PermissionDesk, QuestionDesk};
 use crate::error::{KapError, Refusal, Result};
 use crate::frame::kap_event;
-use crate::link::{RELINK_TRIES, backoff, recovered, retryable, retrying, severed};
+use crate::link::{RELINK_TRIES, backoff, recovered, retrying, severed};
 use crate::program::{hide_console, resolve_program};
 use crate::question::{QuestionGroup, QuestionOutcome};
 use crate::recorder::{Recorder, now_millis};
@@ -207,14 +207,6 @@ async fn relink(
     let _sent = events_tx.unbounded_send(SessionEvent::Link(severed(RELINK_TRIES, &reason)));
 
     None
-}
-
-/// 这条会话此刻在飞一轮吗。
-fn listening(book: &SessionBook, session_id: &str) -> bool {
-    book.slot(session_id)
-        .ok()
-        .flatten()
-        .is_some_and(|slot| slot.is_listening())
 }
 
 /// 链路接不回来了：在飞的每一轮按帧判死，屏幕上那个纺锤才停得下来。
@@ -1131,7 +1123,6 @@ pub fn connect(
                                     tokio::spawn(async move {
                                         let result = submit_prompt(
                                             &http2, &base2, &sid2, &text, &attachments, &skills,
-                                            &book2,
                                         )
                                         .await;
 
@@ -1823,16 +1814,10 @@ async fn fetch_and_record_questions(
 
 // ── 会话的 REST 辅助 ───────────────────────────────────────────────────────
 
-/// 这句话交出去之前重发几次。链路没断，断的是这一次 POST。
-const POST_TRIES: u32 = 5;
-
-/// 把这句话交给 kap；可重试的传输错误退避再试。
+/// Prompt submission is intentionally single-attempt.
 ///
-/// 一次抖动就判死这一轮，是把「路上掉了一个包」说成「模型答不出来」。这一轮
-/// 已经不在飞了就不再试：取消要传得进来。
-///
-/// 不报链路态：WS 还在，断的是这一个请求。全部失败时由调用方按帧判死这一轮，
-/// 屏幕上出的是错误，不是一次假的断线。
+/// KAP assigns the prompt id, so this client has no idempotency key. Retrying a POST after an
+/// ambiguous transport failure could enqueue the same user action twice.
 async fn submit_prompt(
     http: &reqwest::Client,
     base_url: &str,
@@ -1840,36 +1825,24 @@ async fn submit_prompt(
     text: &str,
     attachments: &[PromptAttachment],
     skills: &[PromptSkill],
-    book: &SessionBook,
 ) -> Result<String> {
     let body = prompt_body(text, attachments, skills)?;
     let url = format!("{base_url}/sessions/{session_id}/prompts");
-    let mut attempt: u32 = 1;
+    let data = post(http, &url, &body).await?;
 
-    loop {
-        match post(http, &url, &body).await {
-            Ok(data) => {
-                return data
-                    .get("prompt_id")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned)
-                    .ok_or_else(|| KapError::Transport {
-                        message: format!("no prompt_id in prompt response: {data}"),
-                    });
-            }
-            Err(error) => {
-                if attempt >= POST_TRIES || !retryable(&error) || !listening(book, session_id) {
-                    return Err(error);
-                }
-
-                tokio::time::sleep(backoff(attempt)).await;
-                attempt = attempt.saturating_add(1);
-            }
-        }
-    }
+    data.get("prompt_id")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| KapError::Transport {
+            message: format!("no prompt_id in prompt response: {data}"),
+        })
 }
 
-fn prompt_body(text: &str, attachments: &[PromptAttachment], skills: &[PromptSkill]) -> Result<Value> {
+fn prompt_body(
+    text: &str,
+    attachments: &[PromptAttachment],
+    skills: &[PromptSkill],
+) -> Result<Value> {
     let mut content = Vec::new();
     if !text.is_empty() {
         content.push(json!({ "type": "text", "text": text }));
@@ -1877,9 +1850,7 @@ fn prompt_body(text: &str, attachments: &[PromptAttachment], skills: &[PromptSki
     for attachment in attachments {
         content.push(match attachment {
             PromptAttachment::Image {
-                data,
-                mime_type,
-                ..
+                data, mime_type, ..
             } => json!({
                 "type": "image",
                 "source": {

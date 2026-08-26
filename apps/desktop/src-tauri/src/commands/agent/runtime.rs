@@ -19,6 +19,7 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 use super::config::restate;
 use super::dto::{AgentLaunch, AgentSessionEvent, reported_goal, reported_usage};
 use super::failure::translate;
+use super::journal::FrameJournal;
 use super::{AGENT_SESSION_EVENT, NO_SESSION_ID, POISONED};
 
 /// The live connection, if one has been started.
@@ -91,6 +92,7 @@ pub struct AgentRuntime {
     /// 附件字节的根。开机时解析一次：它是布局，不是某条命令的参数。
     pub(super) attachments: PathBuf,
     pub(super) root: PathBuf,
+    pub(super) journal: FrameJournal,
     connection: Mutex<Option<Connection>>,
     /// 起一条连接这件事的排队处。
     ///
@@ -112,6 +114,7 @@ impl AgentRuntime {
     /// express intent, the runtime owns the lifecycle.
     pub(super) fn disconnect(&self) -> Result<()> {
         retire(lock(&self.connection)?.take());
+        self.journal.flush()?;
         Ok(())
     }
 
@@ -153,6 +156,7 @@ impl AgentRuntime {
         Ok(Self {
             attachments: attachments_root(handle)?,
             root,
+            journal: FrameJournal::new(handle)?,
             connection: Mutex::new(None),
             starting: tokio::sync::Mutex::new(()),
         })
@@ -242,6 +246,7 @@ pub(super) async fn ensure_session(
         下一刀的事（那要先让库里那一列的持有者补实）；而把 B 的话发给 A、并
         且记成 A 的，今天就是错的。 */
         retire(lock(&state.connection)?.take());
+        state.journal.flush()?;
     }
 
     // The agent reads and writes relative to the directory the session was

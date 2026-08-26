@@ -33,7 +33,11 @@ impl PromptAttachment {
 impl fmt::Debug for PromptAttachment {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Image { data, mime_type, url } => formatter
+            Self::Image {
+                data,
+                mime_type,
+                url,
+            } => formatter
                 .debug_struct("PromptAttachment::Image")
                 .field("mime_type", mime_type)
                 .field("base64_len", &data.len())

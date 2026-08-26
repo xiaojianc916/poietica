@@ -52,8 +52,7 @@ const AGENT_SESSION_EVENT = 'ai-session-event'
  * 信封就是帧：判别式、位置、时刻与载荷平铺在同一层，会话号也在这一层 ——
  * 每一种帧无一例外都自报它（见原生侧 recorder.rs 的 RecordedEvent）。
  *
- * 线上一次带的是一批，不是一个。原生侧按屏幕的节拍攒帧（见 commands/agent/turn.rs
- * 的 batched），所以跨进程往返的次数不再随 agent 说得多快而涨。一批只属于一条
+ * 线上一次带的是一批，不是一个。原生侧按屏幕的节拍攒帧（见 commands/agent/journal.rs），所以跨进程往返的次数不再随 agent 说得多快而涨。一批只属于一条
  * 会话，端口因此原样把整批交出去。
  */
 interface AgentEventEnvelope {

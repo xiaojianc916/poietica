@@ -5,15 +5,8 @@
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
-use poietica_agent_persistence_native::RecordedFrame;
-use poietica_agent_runtime_native::{
-    ConfigSelection, FrameSink, PromptSkill, RecordedEvent, apply_configurations,
-};
-use serde_json::value::{RawValue, to_raw_value};
-use std::sync::mpsc::{Receiver as SyncReceiver, RecvTimeoutError, sync_channel};
-use std::time::Instant;
-use tauri::{AppHandle, Emitter, Manager, State, async_runtime};
-use tokio::sync::mpsc;
+use poietica_agent_runtime_native::{ConfigSelection, PromptSkill, apply_configurations};
+use tauri::{AppHandle, State, async_runtime};
 use uuid::Uuid;
 
 use super::addressing::session_for;
@@ -27,8 +20,7 @@ use super::dto::{
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
 use super::{
-    AGENT_EVENT, AgentCommandResult, FRAME_INTERVAL, IMAGE_OPENER, NO_CONVERSATION, NO_SESSION,
-    NOTHING_TO_STOP, TITLE_CHARS,
+    AgentCommandResult, IMAGE_OPENER, NO_CONVERSATION, NO_SESSION, NOTHING_TO_STOP, TITLE_CHARS,
 };
 
 /// Starts a turn and returns as soon as it is under way.
@@ -156,7 +148,7 @@ pub async fn agent_prompt(
     .await?;
 
     let closing = app.clone();
-    let frames = logging(app, thread_id);
+    let frames = state.journal.sink(thread_id);
 
     let answer = session
         .client
@@ -188,103 +180,6 @@ pub async fn agent_prompt(
     Ok(AgentPromptResult {
         session_id: addressed,
     })
-}
-
-/// 帧按屏幕节拍成批，一批先交货、后落库：抢库锁那段等待没有上界，排在交货前面，
-/// 屏幕的延迟就等于那段等待。落库那一侧是单消费者，所以表上的顺序仍是交货顺序。
-///
-/// 有界通道把背压留在生产者侧；一批从首帧起最多等待 FRAME_INTERVAL。
-const FRAME_EVENT_QUEUE_CAPACITY: usize = 512;
-const FRAME_BATCH_QUEUE_CAPACITY: usize = 8;
-
-fn logging(app: AppHandle, thread: Uuid) -> FrameSink {
-    let (arrived, arriving) = sync_channel::<RecordedEvent>(FRAME_EVENT_QUEUE_CAPACITY);
-    let (shaped, batches) = mpsc::channel::<Vec<RecordedFrame>>(FRAME_BATCH_QUEUE_CAPACITY);
-
-    let _batcher = std::thread::spawn(move || batch_frames(arriving, shaped));
-    async_runtime::spawn(recording(app, thread, batches));
-
-    Box::new(move |event| {
-        if arrived.send(event).is_err() {
-            log::error!("durable frame pipeline stopped before accepting an event");
-        }
-    })
-}
-
-fn batch_frames(arriving: SyncReceiver<RecordedEvent>, shaped: mpsc::Sender<Vec<RecordedFrame>>) {
-    while let Ok(first) = arriving.recv() {
-        let deadline = Instant::now() + FRAME_INTERVAL;
-        let mut held = vec![first];
-        let disconnected = loop {
-            let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
-                break false;
-            };
-
-            match arriving.recv_timeout(remaining) {
-                Ok(event) => held.push(event),
-                Err(RecvTimeoutError::Timeout) => break false,
-                Err(RecvTimeoutError::Disconnected) => break true,
-            }
-        };
-
-        if shaped.blocking_send(recorded(held.into_iter())).is_err() {
-            return;
-        }
-
-        if disconnected {
-            return;
-        }
-    }
-}
-
-async fn recording(app: AppHandle, thread: Uuid, mut arriving: mpsc::Receiver<Vec<RecordedFrame>>) {
-    let index = app.state::<LocalIndex>();
-
-    while let Some(logged) = arriving.recv().await {
-        /* 先交货：抢库锁那段等待没有上界（busy_timeout 五秒），排在前面屏幕就等它，而这
-        一批已经成形 —— 落库与上屏用的是同一段字节。 */
-        {
-            let shown: Vec<&RawValue> = logged.iter().map(|frame| frame.frame.as_ref()).collect();
-
-            if let Err(error) = app.emit(AGENT_EVENT, &shown) {
-                log::warn!("emit agent event failed: {error}");
-            }
-        }
-
-        /* 落库随后。撞上唯一键的帧只报笔数：它说的是这条会话的序号线接错了（recorder.rs
-        的 SeqLine::resume），与这一批该不该上屏无关。 */
-        let written = on_index(&index, move |store| {
-            store.record_frames(thread, &logged).map_err(persistence)
-        })
-        .await;
-
-        match written {
-            Ok(0) => {}
-            Ok(refused) => log::error!("the frame log refused {refused} frames"),
-            Err(error) => log::error!("persist agent event batch failed: {error}"),
-        }
-    }
-}
-
-/// 一批帧，成形一次：落库与上屏共用这一段字节。
-///
-/// 序列化不成的那一帧只留日志：帧的形状归 frame.rs，这里不替它兜底。
-fn recorded(events: impl ExactSizeIterator<Item = RecordedEvent>) -> Vec<RecordedFrame> {
-    let mut logged = Vec::with_capacity(events.len());
-
-    for event in events {
-        match to_raw_value(&event) {
-            Ok(frame) => logged.push(RecordedFrame {
-                session_id: event.session_id,
-                seq: event.seq,
-                at: event.at,
-                frame,
-            }),
-            Err(error) => log::warn!("could not record a frame: {error}"),
-        }
-    }
-
-    logged
 }
 
 /// Answers a permission request the agent is blocked on.
