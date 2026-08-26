@@ -1,8 +1,9 @@
 //! 单一帧日志管线：有界接收、批量持久化、持久化后发布。
 
+use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, sync_channel};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::time::{Duration, Instant};
 
 use poietica_agent_persistence_native::RecordedFrame;
@@ -19,7 +20,11 @@ use super::AGENT_EVENT;
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 const FRAME_QUEUE_CAPACITY: usize = 4096;
 const FRAME_BATCH_LIMIT: usize = 256;
+const JOURNAL_SEND_TIMEOUT: Duration = Duration::from_secs(2);
+const JOURNAL_ACK_TIMEOUT: Duration = Duration::from_secs(30);
+const JOURNAL_POLL_INTERVAL: Duration = Duration::from_millis(2);
 const PIPELINE_STOPPED: &str = "the frame journal stopped";
+const PIPELINE_FAILED: &str = "the frame journal failed to persist accepted frames";
 
 struct PendingFrame {
     thread: Uuid,
@@ -29,12 +34,11 @@ struct PendingFrame {
 
 enum JournalCommand {
     Frame(PendingFrame),
-    Flush(SyncSender<()>),
+    Flush(SyncSender<bool>),
 }
 
 struct FrameBatch {
     thread: Uuid,
-    session_id: String,
     frames: Vec<RecordedFrame>,
     committed: Vec<SyncSender<bool>>,
 }
@@ -49,6 +53,28 @@ impl fmt::Debug for FrameJournal {
         formatter
             .debug_struct("FrameJournal")
             .finish_non_exhaustive()
+    }
+}
+
+fn send_before(
+    sender: &SyncSender<JournalCommand>,
+    mut command: JournalCommand,
+    timeout: Duration,
+) -> bool {
+    let deadline = Instant::now() + timeout;
+
+    loop {
+        match sender.try_send(command) {
+            Ok(()) => return true,
+            Err(TrySendError::Disconnected(_returned)) => return false,
+            Err(TrySendError::Full(returned)) => {
+                command = returned;
+                let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+                    return false;
+                };
+                std::thread::sleep(remaining.min(JOURNAL_POLL_INTERVAL));
+            }
+        }
     }
 }
 
@@ -74,34 +100,60 @@ impl FrameJournal {
             let durable = event.frame.kind() == PROMPT_ADMITTED;
             let (committed, waiting) = sync_channel(0);
             let receipt = durable.then_some(committed);
-            if sender
-                .send(JournalCommand::Frame(PendingFrame {
-                    thread,
-                    event,
-                    committed: receipt,
-                }))
-                .is_err()
-            {
+            let command = JournalCommand::Frame(PendingFrame {
+                thread,
+                event,
+                committed: receipt,
+            });
+
+            if !send_before(&sender, command, JOURNAL_SEND_TIMEOUT) {
                 log::error!("{PIPELINE_STOPPED} before accepting a frame");
                 return false;
             }
-            !durable || waiting.recv().unwrap_or(false)
+            if !durable {
+                return true;
+            }
+
+            match waiting.recv_timeout(JOURNAL_ACK_TIMEOUT) {
+                Ok(committed) => committed,
+                Err(RecvTimeoutError::Timeout) => {
+                    log::error!("durable frame acknowledgement timed out");
+                    false
+                }
+                Err(RecvTimeoutError::Disconnected) => {
+                    log::error!("{PIPELINE_STOPPED} before acknowledging a durable frame");
+                    false
+                }
+            }
         })
     }
 
     pub(super) fn flush(&self) -> Result<()> {
         let (finished, waiting) = sync_channel(0);
-        self.sender
-            .send(JournalCommand::Flush(finished))
-            .map_err(|_closed| Error::Internal(PIPELINE_STOPPED.to_owned()))?;
-        waiting
-            .recv()
-            .map_err(|_closed| Error::Internal(PIPELINE_STOPPED.to_owned()))
+        if !send_before(
+            &self.sender,
+            JournalCommand::Flush(finished),
+            JOURNAL_SEND_TIMEOUT,
+        ) {
+            return Err(Error::Internal(PIPELINE_STOPPED.to_owned()));
+        }
+
+        match waiting.recv_timeout(JOURNAL_ACK_TIMEOUT) {
+            Ok(true) => Ok(()),
+            Ok(false) => Err(Error::Internal(PIPELINE_FAILED.to_owned())),
+            Err(RecvTimeoutError::Timeout) => Err(Error::Internal(
+                "the frame journal flush timed out".to_owned(),
+            )),
+            Err(RecvTimeoutError::Disconnected) => {
+                Err(Error::Internal(PIPELINE_STOPPED.to_owned()))
+            }
+        }
     }
 }
 
 fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
     let mut deferred = None;
+    let mut healthy = true;
 
     loop {
         let command = match deferred.take() {
@@ -114,7 +166,7 @@ fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
 
         match command {
             JournalCommand::Flush(done) => {
-                let _notified = done.send(());
+                let _notified = done.send(healthy);
             }
             JournalCommand::Frame(first) => {
                 let deadline = Instant::now() + FRAME_INTERVAL;
@@ -140,7 +192,7 @@ fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
                     }
                 }
 
-                flush_frames(&app, pending);
+                healthy &= flush_frames(&app, pending);
                 if disconnected {
                     return;
                 }
@@ -149,25 +201,31 @@ fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
     }
 }
 
-fn batch_index(batches: &mut Vec<FrameBatch>, thread: Uuid, session_id: &str) -> usize {
-    if let Some(index) = batches
-        .iter()
-        .position(|batch| batch.thread == thread && batch.session_id == session_id)
-    {
-        return index;
+fn batch_index(
+    batches: &mut Vec<FrameBatch>,
+    indexes: &mut HashMap<(Uuid, String), usize>,
+    thread: Uuid,
+    session_id: &str,
+) -> usize {
+    let key = (thread, session_id.to_owned());
+    if let Some(index) = indexes.get(&key) {
+        return *index;
     }
 
+    let index = batches.len();
     batches.push(FrameBatch {
         thread,
-        session_id: session_id.to_owned(),
         frames: Vec::new(),
         committed: Vec::new(),
     });
-    batches.len().saturating_sub(1)
+    indexes.insert(key, index);
+    index
 }
 
-fn flush_frames<R: Runtime>(app: &AppHandle<R>, pending: Vec<PendingFrame>) {
+fn flush_frames<R: Runtime>(app: &AppHandle<R>, pending: Vec<PendingFrame>) -> bool {
     let mut batches = Vec::new();
+    let mut indexes = HashMap::new();
+    let mut complete = true;
 
     for PendingFrame {
         thread,
@@ -179,11 +237,19 @@ fn flush_frames<R: Runtime>(app: &AppHandle<R>, pending: Vec<PendingFrame>) {
             Ok(frame) => frame,
             Err(error) => {
                 log::error!("a recorded frame could not be serialized: {error}");
-                return;
+                if let Some(receipt) = committed {
+                    let _sent = receipt.send(false);
+                }
+                complete = false;
+                continue;
             }
         };
-        let index = batch_index(&mut batches, thread, &event.session_id);
+        let index = batch_index(&mut batches, &mut indexes, thread, &event.session_id);
         let Some(batch) = batches.get_mut(index) else {
+            if let Some(receipt) = committed {
+                let _sent = receipt.send(false);
+            }
+            complete = false;
             continue;
         };
         if let Some(receipt) = committed {
@@ -198,11 +264,13 @@ fn flush_frames<R: Runtime>(app: &AppHandle<R>, pending: Vec<PendingFrame>) {
     }
 
     for batch in batches {
-        persist_then_emit(app, batch);
+        complete &= persist_then_emit(app, batch);
     }
+
+    complete
 }
 
-fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) {
+fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) -> bool {
     let logged = Arc::new(batch.frames);
     let mut delay = Duration::from_millis(50);
 
@@ -231,13 +299,17 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) {
                 for receipt in batch.committed {
                     let _sent = receipt.send(false);
                 }
-                return;
+                return false;
             }
         }
     };
 
     if refused > 0 {
         log::error!("the frame log already contained {refused} positions");
+        for receipt in batch.committed {
+            let _sent = receipt.send(false);
+        }
+        return false;
     }
 
     let shown: Vec<&RawValue> = logged.iter().map(|frame| frame.frame.as_ref()).collect();
@@ -247,25 +319,31 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) {
     if let Err(error) = app.emit(AGENT_EVENT, &shown) {
         log::warn!("emit agent event failed after persistence: {error}");
     }
+
+    true
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::{FrameBatch, batch_index};
     use uuid::Uuid;
 
     #[test]
     fn journal_groups_many_sessions_without_aliasing() {
         let mut batches: Vec<FrameBatch> = Vec::new();
+        let mut indexes = HashMap::new();
 
         for index in 0..128_u128 {
             let thread = Uuid::from_u128(index.saturating_add(1));
             let session = format!("session-{index}");
-            let first = batch_index(&mut batches, thread, &session);
-            let second = batch_index(&mut batches, thread, &session);
+            let first = batch_index(&mut batches, &mut indexes, thread, &session);
+            let second = batch_index(&mut batches, &mut indexes, thread, &session);
             assert_eq!(first, second);
         }
 
         assert_eq!(batches.len(), 128);
+        assert_eq!(indexes.len(), 128);
     }
 }
