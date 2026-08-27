@@ -83,6 +83,20 @@ export interface FramePage {
   readonly before: FrameCursor | null
 }
 
+/**
+ * 目录里的一轮：地址、问的头一句、答的头几行。
+ *
+ * 字数由平台按预览卡看得见的行数截断，所以这一层不再截第二遍。
+ */
+export interface TurnMark {
+  /** 这一轮第一帧在库上的位置。跳转与续读都认它。 */
+  readonly at: FrameCursor
+  /** 屏幕上那条用户消息的身份，与这一格逐字相同。 */
+  readonly admissionId: string
+  readonly prompt: string
+  readonly reply: string | null
+}
+
 /** A local, bounded read-model snapshot. Reading it never starts an agent. */
 export interface ThreadSnapshot {
   readonly thread: ThreadRecord
@@ -128,6 +142,18 @@ export interface ThreadPort {
    * store。平台交回的每页都从 prompt_admitted 开始，连续文本 delta 已压成 block。
    */
   readonly earlierFrames: (threadId: ThreadId, before: FrameCursor) => Promise<FramePage>
+  /**
+   * 这条对话的整本目录，一轮一行。
+   *
+   * 定义域是平台的帧日志，不是界面此刻载入了多少：目录的长度因此不随滚动伸缩。
+   */
+  readonly outline: (threadId: ThreadId) => Promise<readonly TurnMark[]>
+  /** 目录点名的那一轮到 `before` 之间的缺口，一次读回来。 */
+  readonly framesUntil: (
+    threadId: ThreadId,
+    from: FrameCursor,
+    before: FrameCursor,
+  ) => Promise<FramePage>
   /** Renames one. The name becomes the user's and outlives the agent's. */
   readonly rename?: (threadId: ThreadId, title: string) => Promise<void>
   readonly remove?: (threadId: ThreadId) => Promise<void>

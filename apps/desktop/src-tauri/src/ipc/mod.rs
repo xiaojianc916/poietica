@@ -17,11 +17,11 @@ use crate::commands::{
     agent::dto::{
         AgentAnswerQuestionsRequest, AgentArchiveThreadRequest, AgentCapabilitiesRequest,
         AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentDismissQuestionsRequest,
-        AgentEarlierFramesRequest, AgentForkThreadRequest, AgentGoal, AgentPinThreadRequest,
-        AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult, AgentPromptSkill,
-        AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod, AgentRenameThreadRequest,
-        AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentSessionEvent,
-        AgentThreadRequest,
+        AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFramesUntilRequest, AgentGoal,
+        AgentPinThreadRequest, AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult,
+        AgentPromptSkill, AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod,
+        AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentSelectConfigRequest,
+        AgentSessionEvent, AgentThreadRequest, AgentTurnMark,
     },
     agent::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
     agent_setup::cli::{AgentCliRequest, AgentCliResult},
@@ -72,6 +72,8 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent::thread::agent_thread_snapshot,
             crate::commands::agent::thread::agent_open_thread,
             crate::commands::agent::thread::agent_earlier_frames,
+            crate::commands::agent::thread::agent_frames_until,
+            crate::commands::agent::thread::agent_thread_outline,
             crate::commands::agent::thread::agent_rename_thread,
             crate::commands::agent::thread::agent_archive_thread,
             crate::commands::agent::thread::agent_delete_thread,
@@ -190,6 +192,8 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()
         .typ::<AgentEarlierFramesRequest>()
+        .typ::<AgentFramesUntilRequest>()
+        .typ::<AgentTurnMark>()
         .typ::<AgentForkThreadRequest>()
         .typ::<AgentPinThreadRequest>()
         .typ::<AssetFormat>()

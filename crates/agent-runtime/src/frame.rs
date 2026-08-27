@@ -16,7 +16,7 @@ use crate::link::LinkState;
 /// 一轮的第一帧。
 pub const PROMPT_ADMITTED: &str = "prompt_admitted";
 /// kap server 推来的一帧会话事件。
-pub(crate) const KAP_EVENT: &str = "kap_event";
+pub const KAP_EVENT: &str = "kap_event";
 /// agent 正卡在一次授权请求上。
 pub(crate) const PERMISSION_REQUESTED: &str = "permission_requested";
 /// 那次授权请求得到的答复。

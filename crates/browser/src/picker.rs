@@ -116,7 +116,10 @@ fn clamp(value: &str, limit: usize) -> String {
 
 /// 摘要要进提示词的正文行；页面塞进来的换行不能把它变成第二条指令。
 fn one_line(value: &str, limit: usize) -> String {
-    clamp(&value.split_whitespace().collect::<Vec<_>>().join(" "), limit)
+    clamp(
+        &value.split_whitespace().collect::<Vec<_>>().join(" "),
+        limit,
+    )
 }
 
 #[must_use]

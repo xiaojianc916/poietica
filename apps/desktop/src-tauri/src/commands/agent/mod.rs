@@ -54,6 +54,11 @@ const TITLE_CHARS: usize = 60;
 /// 一页历史包含的完整轮次数。单轮内部的流片在出 IPC 前压成 block。
 const TURN_PAGE: i64 = 8;
 
+/// 目录预览截到几个字。上界是预览卡的可见量：问一行，答三行（见
+/// conversation-minimap.css 的 --cp-rail-card-line）。多存的字谁都看不见。
+pub(crate) const OUTLINE_PROMPT_CHARS: i64 = 32;
+pub(crate) const OUTLINE_REPLY_CHARS: i64 = 96;
+
 const NO_SESSION: &str = "no agent session is running";
 const POISONED: &str = "the agent session lock was left locked by a panicking task";
 const NO_SESSION_ID: &str = "the agent closed the connection before creating a session";

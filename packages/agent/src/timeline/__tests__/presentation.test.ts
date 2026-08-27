@@ -331,9 +331,13 @@ describe('presentation projection', () => {
       AUTO,
     )
 
-    expect(feed.turns.map((turn) => turn.id)).toEqual(['s1', 's2'])
-    expect(feed.turns.map((turn) => turn.rowIndex)).toEqual([0, 1])
-    expect(feed.turns.map((turn) => turn.reply)).toEqual([undefined, '答'])
+    expect(feed.rowOf('s1')).toBe(0)
+    expect(feed.rowOf('s2')).toBe(1)
+    expect(feed.turnIdAt(0)).toBe('s1')
+    expect(feed.turnIdAt(1)).toBe('s2')
+    expect(feed.turnIdAt(2)).toBe('s2')
+    expect(feed.replyAt(0)).toBeUndefined()
+    expect(feed.replyAt(2)?.text).toBe('答')
   })
 
   it('reports the row count and the tail of the conversation', () => {
@@ -344,16 +348,15 @@ describe('presentation projection', () => {
     expect(feed.lastTurn).toBe(1)
   })
 
-  it('hands back the same rows and the same rail when nothing changed', () => {
+  it('hands back the same rows when nothing changed', () => {
     const first = selectPresentation(settled, AUTO)
 
     expect(selectPresentation(settled, AUTO)).toBe(first)
 
-    /* 开合表按引用比较：换一个实例就重算，但行与轮次走弱表缓存，引用不换。 */
+    /* 开合表按引用比较：换一个实例就重算，但行走弱表缓存，引用不换。 */
     const again = selectPresentation(settled, new Map())
 
     expect(again).not.toBe(first)
-    expect(again.turns).toBe(first.turns)
     expect(again.rowAt(0)).toBe(first.rowAt(0))
   })
 
@@ -379,18 +382,33 @@ describe('presentation projection', () => {
     expect(open.sealAt(0)?.turn).toBe(1)
     expect(shut.sealAt(1)).toBeUndefined()
     expect(open.sealAt(1)).toBeUndefined()
-    expect(shut.turns.map((turn) => turn.id)).toEqual(['s1', 's2'])
-    expect(shut.turns.map((turn) => turn.rowIndex)).toEqual([0, 1])
-    expect(shut.turns.map((turn) => turn.id)).toEqual(['s1', 's2'])
-    expect(shut.turns.map((turn) => turn.rowIndex)).toEqual([0, 1])
+    expect(shut.rowOf('s1')).toBe(0)
+    expect(shut.rowOf('s2')).toBe(1)
+    expect(shut.turnIdAt(0)).toBe('s1')
+    expect(shut.turnIdAt(1)).toBe('s2')
+    expect(shut.turnIdAt(2)).toBe('s2')
   })
 
   it('reads one turn out of the sample conversation', () => {
     const feed = selectPresentation(replayRunEvents(SAMPLE_RUN_EVENTS), AUTO)
+    const question = feed.turnIdAt(0)
 
-    expect(feed.turns).toHaveLength(1)
-    expect(feed.turns[0]?.rowIndex).toBe(0)
-    expect(feed.turns[0]?.label).toBe('把 README 里的构建命令核对一遍')
-    expect(feed.turns[0]?.reply).toBe('构建命令与 scripts 一致。')
+    /* 一条对话，一问管到结尾：整段的轮次都是同一个 id。 */
+    expect(question).toBeDefined()
+    expect(feed.turnIdAt(feed.count - 1)).toBe(question)
+
+    if (question !== undefined) {
+      expect(feed.rowOf(question)).toBe(0)
+    }
+
+    const firstRow = feed.rowAt(0)
+
+    expect(firstRow?.item.type).toBe('user_message')
+
+    if (firstRow?.item.type === 'user_message') {
+      expect(firstRow.item.text).toBe('把 README 里的构建命令核对一遍')
+    }
+
+    expect(feed.replyAt(feed.count - 1)?.text).toBe('构建命令与 scripts 一致。')
   })
 })

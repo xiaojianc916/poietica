@@ -224,6 +224,29 @@ async agentEarlierFrames(request: AgentEarlierFramesRequest) : Promise<AgentFram
     return await TAURI_INVOKE("agent_earlier_frames", { request });
 },
 /**
+ * 目录点名的那一轮到已载入那一段之间的缺口，一次读回来。
+ * 
+ * # Errors
+ * 
+ * 标识不是 UUID，位置指不到行，或库拒绝这次读取时失败。
+ */
+async agentFramesUntil(request: AgentFramesUntilRequest) : Promise<AgentFramePage> {
+    return await TAURI_INVOKE("agent_frames_until", { request });
+},
+/**
+ * 这条对话的整本目录，一轮一行。
+ * 
+ * 屏幕上的经过由 run_events 重放，目录因此也只能出自它：以内存窗口为定义域的
+ * 目录会随载入量伸缩，而人要跳的那一轮往往还没载入。
+ * 
+ * # Errors
+ * 
+ * 标识不是 UUID，或库拒绝这次读取时失败。
+ */
+async agentThreadOutline(request: AgentThreadRequest) : Promise<AgentTurnMark[]> {
+    return await TAURI_INVOKE("agent_thread_outline", { request });
+},
+/**
  * Renames a conversation.
  * 
  * The name is recorded as the user's, which outranks the opening message
@@ -1418,6 +1441,18 @@ events: JsonValue[];
  */
 before: AgentFrameCursor | null }
 /**
+ * 要把哪一段缺口读回来。
+ */
+export type AgentFramesUntilRequest = { threadId: string; 
+/**
+ * 从这一轮的第一帧起。
+ */
+from: AgentFrameCursor; 
+/**
+ * 读到这一帧之前为止 —— 它是此刻窗口里最早的那一帧。
+ */
+before: AgentFrameCursor }
+/**
  * 目标模式此刻的事实，线上形状。
  */
 export type AgentGoal = { objective: string; completionCriterion: string | null; status: string; turnsUsed: number; tokensUsed: number; wallClockMs: number }
@@ -1820,6 +1855,21 @@ export type AgentToolkitRequest = { launch: AgentLaunch; cwd: string | null;
  * 缺席才问连接自带的锚会话 —— 入口那一格还没有对话。
  */
 threadId: string | null }
+/**
+ * 目录里的一轮：地址、问的头一句、答的头几行。
+ * 
+ * 两段的字数在库里就截断了（mod.rs 的 OUTLINE_*）：目录要的是预览卡上看得见的
+ * 那两行，不是整段回答。
+ */
+export type AgentTurnMark = { 
+/**
+ * 这一轮的第一帧在库上的位置。跳转与续读都认它。
+ */
+at: AgentFrameCursor; 
+/**
+ * 本机签发的 durable admission identity。
+ */
+admissionId: string; prompt: string; reply: string | null }
 export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; privacy: PrivacySettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 /**

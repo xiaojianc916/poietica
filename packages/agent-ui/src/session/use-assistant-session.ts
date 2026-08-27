@@ -25,6 +25,7 @@ import type {
   PromptConfiguration,
   PromptSkill,
   QuestionResponse,
+  TurnMark,
 } from '@poietica/agent-contract'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranscripts } from './transcripts-context'
@@ -146,6 +147,9 @@ const readTimeline = (transcript: Transcript): TimelineState => transcript.timel
 
 /* 上面还有没有更早的一页。布尔，所以前插与流式追加都叫不醒订阅者。 */
 const readHasEarlier = (transcript: Transcript): boolean => transcript.earlier !== null
+
+/* 整本目录。引用只在库里那张表变过之后才换。 */
+const readOutline = (transcript: Transcript): readonly TurnMark[] => transcript.outline
 
 /*
  * 待答的那一道：倒扫，走到人说的上一句话为止（pendingPermission）。
@@ -338,6 +342,11 @@ export function useAssistantTimeline(key: string): TimelineState {
 /** 这条对话上面还有没有更早的一页。 */
 export function useAssistantHasEarlier(key: string): boolean {
   return useSlice(key, readHasEarlier)
+}
+
+/** 这条对话的整本目录，一轮一行。 */
+export function useAssistantOutline(key: string): readonly TurnMark[] {
+  return useSlice(key, readOutline)
 }
 
 /**

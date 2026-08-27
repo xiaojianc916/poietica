@@ -7,15 +7,6 @@ const HUMAN_EVENTS = ['touchstart', 'keydown', 'pointerdown'] as const
 /** 展开与收起会改几何，但那不是人在滚。 */
 const DISCLOSURE = '[aria-expanded]'
 
-/**
- * 视口位置的写入者。实现是虚拟器 —— 所以这一层不认识 scrollTop。
- */
-export interface ScrollCommands {
-  readonly isAtEnd: () => boolean
-  readonly toEnd: () => void
-  readonly toRow: (row: number) => void
-}
-
 export interface ScrollAuthority {
   /** 末端还有没有没看见的内容。判据在虚拟器，这里只是它的一次采样。 */
   readonly atLatest: boolean
@@ -27,23 +18,22 @@ export interface ScrollAuthority {
   /** 人要求看的那一行，或上次离开时视线所在的那一行；落定或被人接手后回到 null。 */
   readonly revealing: number | null
   /** 采一次末端判据。调用方在它每帧那一次布局读取里唤起，不额外问一次几何。 */
-  readonly sample: () => void
+  readonly sample: (atEnd: boolean) => void
   /** 回到最新。 */
   readonly travel: () => void
   /** 去看某一行。 */
   readonly reveal: (row: number) => void
   /** 接管视口上的人机仲裁，交回卸载函数。 */
-  readonly watch: (viewport: HTMLElement) => () => void
+  readonly watch: (viewport: HTMLElement, atEnd: () => boolean) => () => void
 }
 
 /**
  * 会话流的滚动意图。
  *
  * 只回答三件事：末端是不是还有没看见的内容，要不要跟着末端走，人此刻要求看哪一行。
- * 位置本身从头到尾归虚拟器写。
+ * 它不认识写入者 —— 位置从头到尾归虚拟器写，而写的那一处只有一个（见滚动区的布局效应）。
  */
 export function useScrollAuthority(
-  commands: ScrollCommands,
   /** 上次离开这条对话时视线所在的行；null = 上次在末端。 */
   resumeAt: number | null,
 ): ScrollAuthority {
@@ -52,77 +42,69 @@ export function useScrollAuthority(
   const [pinned, setPinned] = useState(resumeAt === null)
   const [revealing, setRevealing] = useState<number | null>(resumeAt)
 
-  const sample = useCallback(() => {
-    setAtLatest(commands.isAtEnd())
-  }, [commands])
+  const sample = useCallback((atEnd: boolean) => {
+    setAtLatest(atEnd)
+  }, [])
 
   const travel = useCallback(() => {
     setRevealing(null)
     setPinned(true)
-    commands.toEnd()
-  }, [commands])
+  }, [])
 
-  const reveal = useCallback(
-    (row: number) => {
-      setRevealing(row)
+  const reveal = useCallback((row: number) => {
+    setRevealing(row)
+    setPinned(false)
+  }, [])
+
+  const watch = useCallback((viewport: HTMLElement, atEnd: () => boolean) => {
+    /* 行内自己滚的盒子还能滚，这一笔就不是冲着视口来的。 */
+    const wheel = (event: WheelEvent) => {
+      const box = scrollTargetOf(viewport, event.target)
+
+      if (box !== viewport && !scrolledToEdge(box, event.deltaY)) {
+        return
+      }
+
       setPinned(false)
-      commands.toRow(row)
-    },
-    [commands],
-  )
+      setRevealing(null)
+    }
 
-  const watch = useCallback(
-    (viewport: HTMLElement) => {
-      /* 行内自己滚的盒子还能滚，这一笔就不是冲着视口来的。 */
-      const wheel = (event: WheelEvent) => {
-        const box = scrollTargetOf(viewport, event.target)
+    const human = (event: Event) => {
+      /* 手一落在视口上就不再跟随，开合也算：那一刻人看的是被点开的东西。 */
+      setPinned(false)
 
-        if (box !== viewport && !scrolledToEdge(box, event.deltaY)) {
-          return
-        }
-
-        setPinned(false)
-        setRevealing(null)
+      if (event.target instanceof Element && event.target.closest(DISCLOSURE) !== null) {
+        return
       }
 
-      const human = (event: Event) => {
-        /* 手一落在视口上就不再跟随，开合也算：那一刻人看的是被点开的东西。 */
-        setPinned(false)
+      setRevealing(null)
+    }
 
-        if (event.target instanceof Element && event.target.closest(DISCLOSURE) !== null) {
-          return
-        }
+    /* 滚动停了就是请求落定了：不再有第二套「到达」判据。 */
+    const settle = () => {
+      const end = atEnd()
 
-        setRevealing(null)
-      }
+      setAtLatest(end)
+      setPinned(end)
+      setRevealing(null)
+    }
 
-      /* 滚动停了就是请求落定了：不再有第二套「到达」判据。 */
-      const settle = () => {
-        const end = commands.isAtEnd()
+    viewport.addEventListener('wheel', wheel, { passive: true })
+    viewport.addEventListener('scrollend', settle, { passive: true })
 
-        setAtLatest(end)
-        setPinned(end)
-        setRevealing(null)
-      }
+    for (const name of HUMAN_EVENTS) {
+      viewport.addEventListener(name, human, { passive: true })
+    }
 
-      viewport.addEventListener('wheel', wheel, { passive: true })
-      viewport.addEventListener('scrollend', settle, { passive: true })
+    return () => {
+      viewport.removeEventListener('wheel', wheel)
+      viewport.removeEventListener('scrollend', settle)
 
       for (const name of HUMAN_EVENTS) {
-        viewport.addEventListener(name, human, { passive: true })
+        viewport.removeEventListener(name, human)
       }
-
-      return () => {
-        viewport.removeEventListener('wheel', wheel)
-        viewport.removeEventListener('scrollend', settle)
-
-        for (const name of HUMAN_EVENTS) {
-          viewport.removeEventListener(name, human)
-        }
-      }
-    },
-    [commands],
-  )
+    }
+  }, [])
 
   return { atLatest, pinned, reveal, revealing, sample, travel, watch }
 }

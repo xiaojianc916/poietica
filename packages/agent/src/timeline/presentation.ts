@@ -52,20 +52,16 @@ export interface ReplyActionPlan {
   readonly dropTurns: number
 }
 
-export interface ConversationTurn {
-  readonly id: TimelineItemId
-  readonly rowIndex: number
-  readonly label: string
-  readonly reply?: string
-}
-
 /** 屏幕要的一切，按下标问。 */
 export interface Presentation {
   readonly count: number
-  readonly turns: readonly ConversationTurn[]
   readonly latestOwnMessage: string | null
   readonly lastTurn: number | undefined
   readonly rowAt: (index: number) => FeedRow | undefined
+  /** 这一条此刻在第几行。目录按 id 寻址，行号只在这里算。 */
+  readonly rowOf: (id: TimelineItemId) => number | undefined
+  /** 这一行属于哪一问：那条用户消息的 id。 */
+  readonly turnIdAt: (index: number) => string | undefined
   readonly groupAt: (index: number) => ToolGroupPlan | undefined
   /** 画在这一行之前的封条：一轮的封条挂在它第一行可见内容的前面。 */
   readonly sealAt: (index: number) => TurnSealPlan | undefined
@@ -81,12 +77,10 @@ const ASIDE: ReadonlySet<TimelineItem['type']> = new Set([
 ])
 /* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
-const PREVIEW = 300
 
 /** 同类相邻才并组。类别表就是 ToolKind，这里不抄第二份。 */
 const LEAST = 2
 
-const NO_TURNS: readonly ConversationTurn[] = []
 const NO_GROUPS: ReadonlyMap<string, ToolGroupPlan> = new Map()
 const NO_SEALS: ReadonlyMap<number, TurnSealPlan> = new Map()
 const NO_REPLIES: ReadonlyMap<number, Reply> = new Map()
@@ -94,19 +88,7 @@ const NO_REPLIES: ReadonlyMap<number, Reply> = new Map()
 const ROWS = new WeakMap<TimelineItem, FeedRow>()
 const SEGMENTS = new WeakMap<TurnPage, Segment>()
 const PREFIX = new WeakMap<readonly TurnPage[], Prefix>()
-const RAILS = new WeakMap<readonly TurnPage[], readonly ConversationTurn[]>()
-const TURN_OF = new WeakMap<FeedRow, ConversationTurn>()
 const FEEDS = new WeakMap<TimelineState, Held>()
-
-interface Scan {
-  readonly reply: string | undefined
-}
-
-interface Staged {
-  readonly row: FeedRow
-  readonly rowIndex: number
-  readonly reply: string | undefined
-}
 
 /** 一条提问到下一条提问之间的回复操作；它不拥有运行封条。 */
 interface Stanza {
@@ -122,6 +104,12 @@ interface Reply {
   readonly after: number
 }
 
+/** 一问的落点。行号相对本段。 */
+interface TurnAt {
+  readonly row: number
+  readonly id: string
+}
+
 /** 一次运行的全部派生。TurnPage 是缓存单位，也是封条的唯一所有者。 */
 interface Segment {
   readonly span: TurnSpan | undefined
@@ -135,9 +123,10 @@ interface Segment {
   readonly replies: ReadonlyMap<number, Reply>
   /** 这一段里有几问。分叉点的跨段偏移按它累加。 */
   readonly prompts: number
-  readonly staged: readonly Staged[]
-  /** 首个提问之前那一段留下了什么：上一段末尾那一问要连着它一起算。 */
-  readonly leading: Scan
+  /** 段内每一问的落点，升序。 */
+  readonly said: readonly TurnAt[]
+  /** 条目 id -> 段内行号。封条落位与目录寻址共用这一份。 */
+  readonly where: ReadonlyMap<string, number>
   readonly ownMessage: string | null
 }
 
@@ -304,25 +293,6 @@ function speechFrom(rows: readonly FeedRow[], from: number, until: number): stri
   return said.join('\n\n')
 }
 
-function firstLine(text: string): string {
-  const trimmed = text.trim()
-  const stop = trimmed.indexOf('\n')
-
-  return stop < 0 ? trimmed : trimmed.slice(0, stop)
-}
-
-function scan(rows: readonly FeedRow[], from: number, until: number): Scan {
-  for (let i = from; i < until; i += 1) {
-    const item = rows[i]?.item
-
-    if (item?.type === 'agent_text') {
-      return { reply: item.text.slice(0, PREVIEW) }
-    }
-  }
-
-  return { reply: undefined }
-}
-
 function groupIn(rows: readonly FeedRow[]): {
   readonly rows: readonly FeedRow[]
   readonly groups: ReadonlyMap<string, ToolGroupPlan>
@@ -387,28 +357,40 @@ function groupIn(rows: readonly FeedRow[]): {
     : { groups, rows: kept }
 }
 
-function stageIn(rows: readonly FeedRow[]): {
-  readonly staged: readonly Staged[]
-  readonly leading: Scan
-} {
-  const marks = saidIn(rows)
+/** 段内每一问的落点。升序由 saidIn 保证。 */
+function saidAt(rows: readonly FeedRow[]): readonly TurnAt[] {
+  const marks: TurnAt[] = []
 
-  const staged: Staged[] = []
+  for (const row of saidIn(rows)) {
+    const id = rows[row]?.item.id
 
-  for (let i = 0; i < marks.length; i += 1) {
-    const rowIndex = marks[i]
-    const row = rowIndex === undefined ? undefined : rows[rowIndex]
-
-    if (rowIndex === undefined || row === undefined) {
-      continue
+    if (id !== undefined) {
+      marks.push({ id, row })
     }
-
-    const found = scan(rows, rowIndex + 1, marks[i + 1] ?? rows.length)
-
-    staged.push({ reply: found.reply, row, rowIndex })
   }
 
-  return { leading: scan(rows, 0, marks[0] ?? rows.length), staged }
+  return marks
+}
+
+/** 不晚于这一行的最后一问。段内升序，所以是一次二分。 */
+function lastSaid(said: readonly TurnAt[], row: number): TurnAt | undefined {
+  let low = 0
+  let high = said.length - 1
+  let found: TurnAt | undefined
+
+  while (low <= high) {
+    const mid = (low + high) >>> 1
+    const mark = said[mid]
+
+    if (mark !== undefined && mark.row <= row) {
+      found = mark
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+
+  return found
 }
 
 /** 每一问的回复操作。起点仍问 answerStart：一个判据，两个读者。 */
@@ -525,7 +507,6 @@ function buildSegment(
   }
 
   return {
-    ...stageIn(grouped.rows),
     groups: grouped.groups,
     ownMessage,
     picked,
@@ -533,8 +514,10 @@ function buildSegment(
     replies: repliesIn(plans, where),
     rows: grouped.rows,
     running,
+    said: saidAt(grouped.rows),
     seals,
     span,
+    where,
   }
 }
 
@@ -583,100 +566,6 @@ function spanOf(spans: readonly TurnSpan[], turn: number): TurnSpan | undefined 
   }
 
   return undefined
-}
-
-function toTurn(row: FeedRow, rowIndex: number, reply: string | undefined): ConversationTurn {
-  const held = TURN_OF.get(row)
-
-  if (held !== undefined && held.rowIndex === rowIndex && held.reply === reply) {
-    return held
-  }
-
-  const label = row.item.type === SAID ? firstLine(row.item.text) : ''
-  const turn: ConversationTurn =
-    reply === undefined
-      ? { id: row.item.id, label, rowIndex }
-      : { id: row.item.id, label, reply, rowIndex }
-
-  TURN_OF.set(row, turn)
-
-  return turn
-}
-
-/** 段尾那一问的应答可能落在后面的段里：往后扫，直到撞见下一个有提问的段。 */
-function carriedScan(segments: readonly Segment[], from: number): Scan | undefined {
-  let reply: string | undefined
-
-  for (let k = from; k < segments.length; k += 1) {
-    const next = segments[k]
-
-    if (next === undefined) {
-      continue
-    }
-
-    reply = reply ?? next.leading.reply
-
-    if (next.staged.length > 0) {
-      break
-    }
-  }
-
-  return reply === undefined ? undefined : { reply }
-}
-
-function flatStaged(segments: readonly Segment[], offsets: readonly number[]): readonly Staged[] {
-  const flat: Staged[] = []
-
-  for (let s = 0; s < segments.length; s += 1) {
-    const segment = segments[s]
-    const start = offsets[s]
-
-    if (segment === undefined || start === undefined) {
-      continue
-    }
-
-    for (let i = 0; i < segment.staged.length; i += 1) {
-      const one = segment.staged[i]
-
-      if (one === undefined) {
-        continue
-      }
-
-      /* 一问的跨度到下一问为止，而下一问可能在后面的段里。 */
-      const carried = i === segment.staged.length - 1 ? carriedScan(segments, s + 1) : undefined
-
-      flat.push({
-        reply: one.reply ?? carried?.reply,
-        row: one.row,
-        rowIndex: start + one.rowIndex,
-      })
-    }
-  }
-
-  return flat
-}
-
-/** 一条用户消息就是一轮；回复缺席不会改变该轮的身份或入口。 */
-function turnsFrom(flat: readonly Staged[]): readonly ConversationTurn[] {
-  return flat.map((one) => toTurn(one.row, one.rowIndex, one.reply))
-}
-
-function railOf(
-  segments: readonly Segment[],
-  offsets: readonly number[],
-  held: readonly ConversationTurn[] | undefined,
-): readonly ConversationTurn[] {
-  const built = turnsFrom(flatStaged(segments, offsets))
-
-  if (
-    held !== undefined &&
-    held.length === built.length &&
-    built.every((one, i) => one === held[i])
-  ) {
-    return held
-  }
-
-  return built.length === 0 ? NO_TURNS : built
 }
 
 /**
@@ -747,7 +636,9 @@ export function selectPresentation(
     trailing[s] = (trailing[s + 1] ?? 0) + (segments[s + 1]?.prompts ?? 0)
   }
 
-  const seek = (index: number): { segment: Segment; at: number; trailing: number } | undefined => {
+  const seek = (
+    index: number,
+  ): { segment: Segment; at: number; place: number; trailing: number } | undefined => {
     if (index < 0 || index >= count) {
       return undefined
     }
@@ -770,7 +661,7 @@ export function selectPresentation(
 
     return segment === undefined || start === undefined
       ? undefined
-      : { at: index - start, segment, trailing: trailing[low] ?? 0 }
+      : { at: index - start, place: low, segment, trailing: trailing[low] ?? 0 }
   }
 
   let latestOwnMessage: string | null = null
@@ -796,10 +687,6 @@ export function selectPresentation(
     }
   }
 
-  /* 上一帧那份轮次表按 sealed 记：state 每帧换身份，held 在流式期间恒是空的。 */
-  const turns = railOf(segments, offsets, RAILS.get(state.sealed))
-
-  RAILS.set(state.sealed, turns)
   const result: Presentation = {
     count,
     groupAt: (index) => {
@@ -824,12 +711,43 @@ export function selectPresentation(
 
       return found === undefined ? undefined : found.segment.rows[found.at]
     },
+    rowOf: (id) => {
+      for (let s = 0; s < segments.length; s += 1) {
+        const at = segments[s]?.where.get(id)
+
+        if (at !== undefined) {
+          return (offsets[s] ?? 0) + at
+        }
+      }
+
+      return undefined
+    },
     sealAt: (index) => {
       const found = seek(index)
 
       return found === undefined ? undefined : found.segment.seals.get(found.at)
     },
-    turns,
+    turnIdAt: (index) => {
+      const found = seek(index)
+
+      if (found === undefined) {
+        return undefined
+      }
+
+      /* 这一段里没有问，就是上一段末尾那一问还在管着这几行。 */
+      for (let s = found.place; s >= 0; s -= 1) {
+        const mark = lastSaid(
+          segments[s]?.said ?? [],
+          s === found.place ? found.at : Number.MAX_SAFE_INTEGER,
+        )
+
+        if (mark !== undefined) {
+          return mark.id
+        }
+      }
+
+      return undefined
+    },
   }
 
   FEEDS.set(state, { chosen, result })

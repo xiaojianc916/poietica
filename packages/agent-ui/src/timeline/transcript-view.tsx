@@ -1,9 +1,14 @@
 import { selectIsBusy, selectPresentation } from '@poietica/agent'
+import type { TurnMark } from '@poietica/agent-contract'
 import { type ReactNode, useCallback, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useTranscripts } from '../session/transcripts-context'
-import { useAssistantHasEarlier, useAssistantTimeline } from '../session/use-assistant-session'
+import {
+  useAssistantHasEarlier,
+  useAssistantOutline,
+  useAssistantTimeline,
+} from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
 import { estimateRowPx } from './row-estimate'
 import { rowRhythmOf } from './row-rhythm'
@@ -45,6 +50,7 @@ export interface TranscriptViewProps {
 export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: TranscriptViewProps) {
   const timeline = useAssistantTimeline(sessionKey)
   const hasEarlier = useAssistantHasEarlier(sessionKey)
+  const outline = useAssistantOutline(sessionKey)
   const transcripts = useTranscripts()
 
   /* 视口只报「顶端快见底了」，读不读、读几页归 store。 */
@@ -104,7 +110,6 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
    * 换引用，包了也永远不命中。
    */
   const feed = selectPresentation(timeline, seals)
-  const turns = feed.turns
 
   /*
    * 一行的全部装饰按下标问，交给记忆化的行位。
@@ -143,17 +148,46 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
   const estimateRowAt = useCallback((index: number) => estimateRowPx(feed.rowAt(index)), [feed])
   const rowRhythmAt = useCallback((index: number) => rowRhythmOf(feed.rowAt(index)), [feed])
 
+  /*
+   * 目录点了哪一轮。
+   *
+   * 地址是 admissionId：认得就直接落点，认不得就先把缺口读回来，再问一次同一个投影。
+   * 行号只在这一步出现，而且是问出来的，不是存着的。
+   */
+  const reveal = useCallback(
+    (mark: TurnMark, toRow: (row: number) => void) => {
+      const rowOf = () =>
+        selectPresentation(transcripts.read(sessionKey).timeline, seals).rowOf(mark.admissionId)
+      const known = rowOf()
+
+      if (known !== undefined) {
+        toRow(known)
+
+        return
+      }
+
+      void transcripts.revealTurn(sessionKey, mark).then(() => {
+        const landed = rowOf()
+
+        if (landed !== undefined) {
+          toRow(landed)
+        }
+      })
+    },
+    [seals, sessionKey, transcripts],
+  )
+
   const overlay = useCallback(
-    (port: FeedPort) =>
-      turns.length === 0 ? null : (
-        <ConversationMinimap
-          activeRow={port.activeRow}
-          hasEarlier={hasEarlier}
-          onSelect={port.scrollToRow}
-          turns={turns}
-        />
-      ),
-    [hasEarlier, turns],
+    (port: FeedPort) => (
+      <ConversationMinimap
+        activeId={feed.turnIdAt(port.activeRow)}
+        marks={outline}
+        onSelect={(mark) => {
+          reveal(mark, port.scrollToRow)
+        }}
+      />
+    ),
+    [feed, outline, reveal],
   )
 
   return (

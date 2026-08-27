@@ -1,5 +1,5 @@
 import './conversation-minimap.css'
-import type { ConversationTurn } from '@poietica/agent'
+import type { TurnMark } from '@poietica/agent-contract'
 import {
   type CSSProperties,
   memo,
@@ -11,17 +11,24 @@ import {
   useRef,
   useState,
 } from 'react'
-import { turnIndexAtRow } from '../threads/ordered-lookup'
 import { RAIL_PITCH_PX, RAIL_VISIBLE_TURNS, railCentre } from './conversation-minimap-geometry'
 import { useRailPointer } from './use-rail-pointer'
 
+/*
+ * 对话目录。
+ *
+ * 一格一轮，定义域是帧日志（transcript 的 outline），不是此刻载入了多少 —— 所以
+ * 轨道长度不随滚动伸缩，第一轮从头到尾都点得到。地址是 admissionId：行号会随回填
+ * 改变，号不会。
+ */
 interface ConversationMinimapProps {
-  readonly activeRow: number
-  readonly hasEarlier: boolean
-  readonly onSelect: (row: number) => void
-  readonly turns: readonly ConversationTurn[]
+  /** 正在读的那一轮，按 id。 */
+  readonly activeId: string | undefined
+  readonly marks: readonly TurnMark[]
+  readonly onSelect: (mark: TurnMark) => void
 }
 const INDEX_ATTRIBUTE = 'data-minimap-index'
+const UNNAMED = '未命名轮次'
 /** 事件落在哪一格上；落在轨道空白处答 -1。 */
 function indexOf(target: EventTarget | null): number {
   const tick =
@@ -31,48 +38,47 @@ function indexOf(target: EventTarget | null): number {
 }
 const TickList = memo(function TickList({
   activeIndex,
-  hasEarlier,
+  marks,
   tabbable,
-  turns,
 }: {
   readonly activeIndex: number
-  readonly hasEarlier: boolean
+  readonly marks: readonly TurnMark[]
   readonly tabbable: number
-  readonly turns: readonly ConversationTurn[]
 }) {
   return (
     <>
-      {turns.map((turn, index) => {
-        const nth = `第 ${String(index + 1)} 轮`
-        const where = hasEarlier ? `已载入${nth}` : `${nth}，共 ${String(turns.length)} 轮`
-        return (
-          <li className="conversation-minimap__item" key={turn.id}>
-            <button
-              aria-current={index === activeIndex ? 'location' : undefined}
-              aria-label={`${where}：${turn.label.trim() || '未命名轮次'}`}
-              className="conversation-minimap__turn"
-              data-minimap-index={index}
-              tabIndex={index === tabbable ? 0 : -1}
-              type="button"
-            >
-              <span className="conversation-minimap__bar" />
-            </button>
-          </li>
-        )
-      })}
+      {marks.map((mark, index) => (
+        <li className="conversation-minimap__item" key={mark.admissionId}>
+          <button
+            aria-current={index === activeIndex ? 'location' : undefined}
+            aria-label={`第 ${String(index + 1)} 轮，共 ${String(marks.length)} 轮：${
+              mark.prompt.trim() || UNNAMED
+            }`}
+            className="conversation-minimap__turn"
+            data-minimap-index={index}
+            tabIndex={index === tabbable ? 0 : -1}
+            type="button"
+          >
+            <span className="conversation-minimap__bar" />
+          </button>
+        </li>
+      ))}
     </>
   )
 })
-function Rail({ activeRow, hasEarlier, onSelect, turns }: ConversationMinimapProps) {
-  const activeIndex = turnIndexAtRow(turns, activeRow)
+function Rail({ activeId, marks, onSelect }: ConversationMinimapProps) {
+  const activeIndex = Math.max(
+    0,
+    marks.findIndex((mark) => mark.admissionId === activeId),
+  )
   const [shown, setShown] = useState(-1)
   const [tabbable, setTabbable] = useState(0)
   const listRef = useRef<HTMLOListElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const setRail = useRailPointer(setShown)
   useEffect(() => {
-    setTabbable((current) => Math.min(current, Math.max(0, turns.length - 1)))
-  }, [turns.length])
+    setTabbable((current) => Math.min(current, Math.max(0, marks.length - 1)))
+  }, [marks.length])
   /* 读到哪一轮，轨道就把那一格滚到中间。 */
   useEffect(() => {
     const scroller = scrollerRef.current
@@ -92,12 +98,12 @@ function Rail({ activeRow, hasEarlier, onSelect, turns }: ConversationMinimapPro
   }, [])
   const handleClick = useCallback(
     (event: ReactMouseEvent<HTMLOListElement>) => {
-      const turn = turns[indexOf(event.target)]
-      if (turn !== undefined) {
-        onSelect(turn.rowIndex)
+      const mark = marks[indexOf(event.target)]
+      if (mark !== undefined) {
+        onSelect(mark)
       }
     },
-    [onSelect, turns],
+    [marks, onSelect],
   )
   const handleKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLOListElement>) => {
@@ -105,7 +111,7 @@ function Rail({ activeRow, hasEarlier, onSelect, turns }: ConversationMinimapPro
       if (current < 0) {
         return
       }
-      const last = turns.length - 1
+      const last = marks.length - 1
       let next = current
       if (event.key === 'ArrowDown') {
         next = Math.min(last, current + 1)
@@ -123,9 +129,9 @@ function Rail({ activeRow, hasEarlier, onSelect, turns }: ConversationMinimapPro
         ?.querySelector<HTMLButtonElement>(`[${INDEX_ATTRIBUTE}='${String(next)}']`)
         ?.focus()
     },
-    [turns.length],
+    [marks.length],
   )
-  const turn = turns[shown]
+  const mark = marks[shown]
   return (
     <nav
       aria-label="对话轮次导航"
@@ -146,21 +152,16 @@ function Rail({ activeRow, hasEarlier, onSelect, turns }: ConversationMinimapPro
           onKeyDown={handleKeyDown}
           ref={listRef}
         >
-          <TickList
-            activeIndex={activeIndex}
-            hasEarlier={hasEarlier}
-            tabbable={tabbable}
-            turns={turns}
-          />
+          <TickList activeIndex={activeIndex} marks={marks} tabbable={tabbable} />
         </ol>
       </div>
       <div
         aria-hidden="true"
         className="conversation-minimap__card"
-        data-shown={turn === undefined ? undefined : ''}
+        data-shown={mark === undefined ? undefined : ''}
       >
-        <p className="conversation-minimap__card-question">{turn?.label.trim() || '未命名轮次'}</p>
-        <p className="conversation-minimap__card-reply">{turn?.reply?.trim() || '暂无文本回复'}</p>
+        <p className="conversation-minimap__card-question">{mark?.prompt.trim() || UNNAMED}</p>
+        <p className="conversation-minimap__card-reply">{mark?.reply?.trim() || '暂无文本回复'}</p>
       </div>
     </nav>
   )
@@ -169,5 +170,5 @@ function Rail({ activeRow, hasEarlier, onSelect, turns }: ConversationMinimapPro
 export const ConversationMinimap = memo(function ConversationMinimap(
   props: ConversationMinimapProps,
 ) {
-  return props.turns.length < 2 ? null : <Rail {...props} />
+  return props.marks.length < 2 ? null : <Rail {...props} />
 })

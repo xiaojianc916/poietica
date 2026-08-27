@@ -80,13 +80,13 @@ impl BrowserPopupHost {
     }
 
     fn arm(&self, armed: bool) {
-        self.armed.store(armed, std::sync::atomic::Ordering::Release);
+        self.armed
+            .store(armed, std::sync::atomic::Ordering::Release);
     }
 
     fn armed(&self) -> bool {
         self.armed.load(std::sync::atomic::Ordering::Acquire)
     }
-
 
     fn take(&self) -> Option<BrowserPopupRequest> {
         self.lock().take()
@@ -102,9 +102,10 @@ impl BrowserPopupHost {
             BrowserPopupActionKind::SelectPane | BrowserPopupActionKind::ClosePane => {
                 action.tab_id.is_none()
                     && action.index.is_none()
-                    && action.pane_id.as_ref().is_some_and(|pane_id| {
-                        request.panes.iter().any(|pane| &pane.id == pane_id)
-                    })
+                    && action
+                        .pane_id
+                        .as_ref()
+                        .is_some_and(|pane_id| request.panes.iter().any(|pane| &pane.id == pane_id))
             }
             BrowserPopupActionKind::SelectTab | BrowserPopupActionKind::CloseTab => {
                 request.kind == BrowserPopupKind::Tabs
@@ -136,7 +137,9 @@ fn validate(request: &BrowserPopupRequest, geometry: PopupGeometry) -> Result<()
         || !(1.0..=MAX_POPUP_SIZE).contains(&geometry.width)
         || !(1.0..=MAX_POPUP_SIZE).contains(&geometry.height)
     {
-        return Err(Error::Validation("invalid browser popup geometry".to_owned()));
+        return Err(Error::Validation(
+            "invalid browser popup geometry".to_owned(),
+        ));
     }
 
     let valid_theme = !request.theme.is_empty()
@@ -146,14 +149,16 @@ fn validate(request: &BrowserPopupRequest, geometry: PopupGeometry) -> Result<()
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-');
     if !valid_theme || request.panes.len() > MAX_PANES {
-        return Err(Error::Validation("invalid browser popup request".to_owned()));
+        return Err(Error::Validation(
+            "invalid browser popup request".to_owned(),
+        ));
     }
 
-    if request.panes.iter().any(|pane| {
-        pane.id.trim().is_empty()
-            || pane.id.len() > 256
-            || pane.title.len() > 512
-    }) {
+    if request
+        .panes
+        .iter()
+        .any(|pane| pane.id.trim().is_empty() || pane.id.len() > 256 || pane.title.len() > 512)
+    {
         return Err(Error::Validation("invalid browser popup pane".to_owned()));
     }
 
@@ -166,9 +171,10 @@ fn validate(request: &BrowserPopupRequest, geometry: PopupGeometry) -> Result<()
             ))
         }
         BrowserPopupKind::Tabs
-            if request.active_pane_id.as_ref().is_some_and(|active| {
-                !request.panes.iter().any(|pane| &pane.id == active)
-            }) =>
+            if request
+                .active_pane_id
+                .as_ref()
+                .is_some_and(|active| !request.panes.iter().any(|pane| &pane.id == active)) =>
         {
             Err(Error::Validation(
                 "active popup pane is not in the pane snapshot".to_owned(),
@@ -205,22 +211,19 @@ pub async fn open_browser_popup(
         .map_err(Error::from)?
         .to_logical::<f64>(main.scale_factor().map_err(Error::from)?);
 
-    let builder = WebviewWindowBuilder::new(
-        &app,
-        POPUP_WINDOW,
-        WebviewUrl::App(POPUP_DOCUMENT.into()),
-    )
-    .decorations(false)
-    .transparent(true)
-    .shadow(false)
-    .skip_taskbar(true)
-    .resizable(false)
-    .prevent_overflow()
-    .inner_size(geometry.width, geometry.height)
-    .position(origin.x + geometry.x, origin.y + geometry.y)
-    .focused(true)
-    .parent(&main)
-    .map_err(Error::from)?;
+    let builder =
+        WebviewWindowBuilder::new(&app, POPUP_WINDOW, WebviewUrl::App(POPUP_DOCUMENT.into()))
+            .decorations(false)
+            .transparent(true)
+            .shadow(false)
+            .skip_taskbar(true)
+            .resizable(false)
+            .prevent_overflow()
+            .inner_size(geometry.width, geometry.height)
+            .position(origin.x + geometry.x, origin.y + geometry.y)
+            .focused(true)
+            .parent(&main)
+            .map_err(Error::from)?;
 
     app.state::<BrowserPopupHost>().arm(false);
     app.state::<BrowserPopupHost>().arm(false);
@@ -271,9 +274,9 @@ pub async fn browser_popup_dispatch_action(
 
     if let Err(error) = action.emit(&app) {
         log::warn!("browser popup action could not be delivered: {error}");
-        return Err(Error::Internal(
-            "browser popup action could not be delivered".to_owned(),
-        ).into());
+        return Err(
+            Error::Internal("browser popup action could not be delivered".to_owned()).into(),
+        );
     }
 
     Ok(())
@@ -303,9 +306,7 @@ fn dismiss(app: &AppHandle) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        BrowserPopupKind, BrowserPopupPane, BrowserPopupRequest, PopupGeometry, validate,
-    };
+    use super::{BrowserPopupKind, BrowserPopupPane, BrowserPopupRequest, PopupGeometry, validate};
 
     fn tabs_request() -> BrowserPopupRequest {
         BrowserPopupRequest {

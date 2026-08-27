@@ -10,6 +10,7 @@ import type {
   RunEvent,
   RunStatus,
   ThreadHistory,
+  TurnMark,
 } from '@poietica/agent-contract'
 import type { TimelineState } from '../timeline'
 import {
@@ -21,6 +22,7 @@ import {
   delegateKey,
   endsRun,
   isDelegateKey,
+  opensTurn,
   partitionByAgent,
   prependThreadEvents,
   rejectRunCancellation,
@@ -78,18 +80,24 @@ export interface Transcript {
   readonly owned: boolean
   /** 更早那一页从哪儿接着读；null 就是前面没有了。 */
   readonly earlier: FrameCursor | null
+  /** 这条对话的整本目录，一轮一行。定义域是帧日志，不是此刻载入了多少。 */
+  readonly outline: readonly TurnMark[]
   /** 正在往前读。 */
   readonly reading: boolean
 }
 
-/** 更早那一页从哪儿读回来。由组合根注入，所以这台 store 脱离进程可测。 */
-export type EarlierFrames = (threadId: string, before: FrameCursor) => Promise<FramePage>
+/** 帧日志上的三次读取。由组合根注入，所以这台 store 脱离进程可测。 */
+export interface TranscriptReads {
+  readonly earlier: (threadId: string, before: FrameCursor) => Promise<FramePage>
+  readonly until: (threadId: string, from: FrameCursor, before: FrameCursor) => Promise<FramePage>
+  readonly outline: (threadId: string) => Promise<readonly TurnMark[]>
+}
 
 export interface TranscriptStoreOptions {
   /** 什么时候把「变了」告诉界面。 */
   readonly paint?: Paint
-  /** 缺席就没有向上续读这条路：这台 store 不去猜谁能给它。 */
-  readonly earlier?: EarlierFrames
+  /** 缺席就没有向上读这条路：这台 store 不去猜谁能给它。 */
+  readonly reads?: TranscriptReads
 }
 
 export interface SendOptions {
@@ -112,6 +120,9 @@ interface PendingSubmission {
   cancelSent: boolean
 }
 
+/* 引用固定，useSyncExternalStore 才判得出「没变」。 */
+const NO_MARKS: readonly TurnMark[] = []
+
 /*
  * 没有这条对话时给出的那一份。
  *
@@ -124,6 +135,7 @@ const EMPTY: Transcript = {
   loaded: false,
   owned: false,
   earlier: null,
+  outline: NO_MARKS,
   reading: false,
 }
 
@@ -238,11 +250,11 @@ export class TranscriptStore implements TranscriptSink {
 
   #waiting = false
 
-  readonly #earlier: EarlierFrames | undefined
+  readonly #reads: TranscriptReads | undefined
 
-  constructor({ earlier, paint = onNextPaint }: TranscriptStoreOptions = {}) {
+  constructor({ reads, paint = onNextPaint }: TranscriptStoreOptions = {}) {
     this.#paint = paint
-    this.#earlier = earlier
+    this.#reads = reads
   }
 
   /**
@@ -444,6 +456,7 @@ export class TranscriptStore implements TranscriptSink {
     }
 
     this.#put(threadId, { ...current, restoring: true })
+    void this.#readOutline(threadId)
   }
 
   /**
@@ -494,6 +507,7 @@ export class TranscriptStore implements TranscriptSink {
       loaded: true,
       owned: false,
       earlier: page.before,
+      outline: this.#now(threadId).outline,
       reading: false,
     })
   }
@@ -518,21 +532,35 @@ export class TranscriptStore implements TranscriptSink {
 
   /* ================= 内部 ================= */
 
-  /** 向上读取一个已经按轮次对齐的 block 页。 */
-  readEarlier = (key: string): Promise<void> => this.#readEarlier(key)
+  /** 向上读一页。 */
+  readEarlier = (key: string): Promise<void> =>
+    this.#pull(key, (read, from) => read.earlier(key, from))
 
-  async #readEarlier(real: string): Promise<void> {
-    const read = this.#earlier
+  /**
+   * 目录点名的那一轮，读到手上。
+   *
+   * 已经载入的那些不必读 —— 判据是投影认不认得这个号，那由界面问，因为行号是它的
+   * 定义域。这里只负责把缺口一次补齐：窗口因此始终是连着尾部的一段。
+   */
+  revealTurn = (key: string, mark: TurnMark): Promise<void> =>
+    this.#pull(key, (read, from) => read.until(key, mark.at, from))
+
+  /** 往前读一段，落进转录。两条读法共用这一条路径。 */
+  async #pull(
+    real: string,
+    read: (reads: TranscriptReads, from: FrameCursor) => Promise<FramePage>,
+  ): Promise<void> {
+    const reads = this.#reads
     const opened = this.#now(real)
 
-    if (read === undefined || opened.reading || opened.earlier === null) {
+    if (reads === undefined || opened.reading || opened.earlier === null) {
       return
     }
 
     this.#put(real, { ...opened, reading: true })
 
     try {
-      const page = await read(real, opened.earlier)
+      const page = await read(reads, opened.earlier)
 
       if (!this.#held.has(real)) {
         return
@@ -546,6 +574,26 @@ export class TranscriptStore implements TranscriptSink {
       if (this.#held.has(real)) {
         this.#put(real, { ...this.#now(real), reading: false })
       }
+    }
+  }
+
+  /** 目录整本重读。它是派生视图，所以没有增量维护，也就没有可以脱节的缓存。 */
+  async #readOutline(real: string): Promise<void> {
+    const reads = this.#reads
+
+    if (reads === undefined || isDelegateKey(real)) {
+      return
+    }
+
+    try {
+      const outline = await reads.outline(real)
+
+      if (this.#held.has(real)) {
+        this.#put(real, { ...this.#now(real), outline })
+      }
+    } catch (cause: unknown) {
+      const latest = this.#now(real)
+      this.#put(real, { ...latest, timeline: noteOn(latest.timeline, cause, false) })
     }
   }
 
@@ -971,6 +1019,11 @@ export class TranscriptStore implements TranscriptSink {
 
     const terminal = waiting.some(endsRun)
     const submission = this.#submissions.get(real)
+
+    /* 一轮开张或收口，目录就多一行或多一段答：库里那一行已经落定，重读一次。 */
+    if (terminal || waiting.some(opensTurn)) {
+      void this.#readOutline(real)
+    }
     let timeline = applyRunEvents(current.timeline, waiting)
 
     if (terminal) {

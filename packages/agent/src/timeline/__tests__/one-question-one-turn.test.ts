@@ -12,8 +12,8 @@ import {
 /*
  * 一问一格。
  *
- * 缩略导航按「人问过几次」数格子（presentation 的轮次轨道），所以转录里
- * 多一条用户消息，轨道上就多一根杠。这里守的是「同一句话只落一次账」这条不变式，
+ * 屏幕上的目录按「人问过几次」数轮次，而那一格现在由库里的 outline 出；这里能守的
+ * 是投影那一半：按 id 认得出每一问 —— 「同一句话只落一次账」这条不变式，
  * 一句话的每一条到达路径各来一遍。
  */
 
@@ -44,7 +44,18 @@ function said(state: TimelineState): readonly string[] {
 }
 
 function rails(state: TimelineState): number {
-  return selectPresentation(state, NOTHING_FOLDED).turns.length
+  const feed = selectPresentation(state, NOTHING_FOLDED)
+  const questions = new Set<string>()
+
+  for (let row = 0; row < feed.count; row += 1) {
+    const id = feed.turnIdAt(row)
+
+    if (id !== undefined) {
+      questions.add(id)
+    }
+  }
+
+  return questions.size
 }
 
 describe('one question, one rail stop', () => {

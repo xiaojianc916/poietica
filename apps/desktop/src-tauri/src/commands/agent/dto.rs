@@ -661,3 +661,29 @@ pub fn reported_goal(goal: poietica_agent_runtime_native::GoalSnapshot) -> Agent
         wall_clock_ms: narrow(goal.wall_clock_ms),
     }
 }
+
+/// 目录里的一轮：地址、问的头一句、答的头几行。
+///
+/// 两段的字数在库里就截断了（mod.rs 的 OUTLINE_*）：目录要的是预览卡上看得见的
+/// 那两行，不是整段回答。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTurnMark {
+    /// 这一轮的第一帧在库上的位置。跳转与续读都认它。
+    pub at: AgentFrameCursor,
+    /// 本机签发的 durable admission identity。
+    pub admission_id: String,
+    pub prompt: String,
+    pub reply: Option<String>,
+}
+
+/// 要把哪一段缺口读回来。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentFramesUntilRequest {
+    pub thread_id: String,
+    /// 从这一轮的第一帧起。
+    pub from: AgentFrameCursor,
+    /// 读到这一帧之前为止 —— 它是此刻窗口里最早的那一帧。
+    pub before: AgentFrameCursor,
+}

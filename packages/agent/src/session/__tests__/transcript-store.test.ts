@@ -169,12 +169,16 @@ describe('transcript store', () => {
     let reads = 0
     const store = new TranscriptStore({
       paint: () => {},
-      earlier: () => {
-        reads += 1
-        return Promise.resolve({
-          events: [started(1, 'sess_a'), chunk(2, '旧')],
-          before: null,
-        })
+      reads: {
+        earlier: () => {
+          reads += 1
+          return Promise.resolve({
+            events: [started(1, 'sess_a'), chunk(2, '旧')],
+            before: null,
+          })
+        },
+        until: () => Promise.resolve({ events: [], before: null }),
+        outline: () => Promise.resolve([]),
       },
     })
 

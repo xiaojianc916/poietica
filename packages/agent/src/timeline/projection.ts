@@ -254,6 +254,7 @@ function withPrompt(
   event: {
     readonly seq: number
     readonly at: number
+    readonly admissionId: string
     readonly prompt?: string | undefined
     readonly images?: readonly string[] | undefined
     readonly skills?: readonly string[] | undefined
@@ -270,7 +271,12 @@ function withPrompt(
     return
   }
 
-  if (adoptQueuedPrompt(draft, prompt, shown, attached) || dressTail(draft, shown, attached)) {
+  const id = `${namespace(draft)}said-${event.admissionId}`
+
+  if (
+    adoptQueuedPrompt(draft, id, prompt, shown, attached) ||
+    dressTail(draft, id, shown, attached)
+  ) {
     return
   }
 
@@ -278,7 +284,7 @@ function withPrompt(
 
   push(draft, {
     type: 'user_message',
-    id: `${namespace(draft)}said-${String(event.seq)}`,
+    id,
     turn: draft.runIndex,
     at: event.at,
     text: prompt,
@@ -289,7 +295,7 @@ function withPrompt(
 }
 
 /**
- * 本段末尾那一问，补上这一帧带来的图。
+ * 本段末尾那一问，补上这一帧带来的身份与图。
  *
  * 那一条是人按下发送时本机落的（appendUserMessage）：那一刻字节还没落盘，也就
  * 还没有地址。所以地址在这里补，而不是另开一条从 IPC 答复回来的路。
@@ -298,6 +304,7 @@ function withPrompt(
  */
 function dressTail(
   draft: Draft,
+  id: string,
   shown: readonly MessageImage[],
   attached: readonly string[],
 ): boolean {
@@ -308,12 +315,12 @@ function dressTail(
     return false
   }
 
-  if (shown.length > 0 || attached.length > 0) {
-    draft.items[position] = {
-      ...tail,
-      ...(shown.length === 0 ? {} : { images: shown }),
-      ...(attached.length === 0 ? {} : { skills: attached }),
-    }
+  /* 身份也是这一帧带来的：乐观那一条落账时字节还没落盘，号是随帧回来的。 */
+  draft.items[position] = {
+    ...tail,
+    id,
+    ...(shown.length === 0 ? {} : { images: shown }),
+    ...(attached.length === 0 ? {} : { skills: attached }),
   }
 
   return true
@@ -327,6 +334,7 @@ function dressTail(
  */
 function adoptQueuedPrompt(
   draft: Draft,
+  id: string,
   prompt: string,
   shown: readonly MessageImage[],
   attached: readonly string[],
@@ -340,7 +348,7 @@ function adoptQueuedPrompt(
   beginQuestion(draft)
   push(draft, {
     ...queued,
-    id: `${namespace(draft)}said-${String(draft.lastSeq)}`,
+    id,
     turn: draft.runIndex,
     ...(shown.length === 0 ? {} : { images: shown }),
     ...(attached.length === 0 ? {} : { skills: attached }),

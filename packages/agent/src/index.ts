@@ -28,7 +28,6 @@ export {
   TranscriptStore,
 } from './session'
 export type {
-  ConversationTurn,
   FeedRow,
   LinkTimelineItem,
   MessageImage,

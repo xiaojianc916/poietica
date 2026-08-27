@@ -45,8 +45,14 @@ export function ThreadsProvider({ agent, children, report }: ThreadsProviderProp
   const [{ controls, store, transcripts }] = useState(() => {
     const port = agent.threads
 
-    /* 向上续读由组合根接上：store 不摸任何端口，也就脱离进程可测。 */
-    const transcriptStore = new TranscriptStore({ earlier: port.earlierFrames })
+    /* 帧日志那三次读取由组合根接上：store 不摸任何端口，也就脱离进程可测。 */
+    const transcriptStore = new TranscriptStore({
+      reads: {
+        earlier: port.earlierFrames,
+        outline: port.outline,
+        until: port.framesUntil,
+      },
+    })
 
     return {
       controls: new SessionControlsStore({

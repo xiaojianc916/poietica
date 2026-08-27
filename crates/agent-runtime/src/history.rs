@@ -2,6 +2,9 @@
 
 use serde_json::{Value, value::RawValue, value::to_raw_value};
 
+/// 回复正文那一格：kap 事件载荷的 type。目录的答与这里的合并读同一个判别式。
+pub const ASSISTANT_DELTA: &str = "assistant.delta";
+
 #[derive(PartialEq, Eq)]
 struct DeltaKey {
     session_id: String,
@@ -35,7 +38,7 @@ fn delta(value: &Value) -> Option<(DeltaKey, String)> {
     }
     let payload = value.get("payload")?.as_object()?;
     let event_type = payload.get("type")?.as_str()?;
-    if event_type != "assistant.delta" && event_type != "thinking.delta" {
+    if event_type != ASSISTANT_DELTA && event_type != "thinking.delta" {
         return None;
     }
 

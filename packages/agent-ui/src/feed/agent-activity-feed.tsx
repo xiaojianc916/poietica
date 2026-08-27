@@ -7,7 +7,7 @@ import { ChevronDownIcon } from '../primitives/icons'
 import { useDevicePixels } from '../primitives/use-device-pixels'
 import { geometryOf, keepGeometry } from './conversation-geometry'
 import { rowAtAnchor } from './reading-position'
-import { type ScrollCommands, useScrollAuthority } from './scroll-authority'
+import { useScrollAuthority } from './scroll-authority'
 
 /*
  * 视口之外预留的行数。
@@ -153,19 +153,32 @@ export function AgentActivityFeed({
   const holding = held !== disclosed
   const measuredTotal = useRef(0)
 
-  /* 行自带半格节奏（__row 的 padding-block），而量回来的是边框盒。数字归样式表。 */
-  const leadGap = useMemo(
-    () =>
-      viewport === null
-        ? 0
-        : Number.parseFloat(
-            getComputedStyle(viewport).getPropertyValue('--cp-feed-prose-row-gap'),
-          ) || 0,
-    [viewport],
+  const { atLatest, pinned, reveal, revealing, sample, travel, watch } = useScrollAuthority(
+    restored?.reading ?? null,
   )
+
+  /*
+   * 半格节奏在边框盒里（__row 的 padding-block），而量回来的就是边框盒，所以视口顶那条线
+   * 要按行的档位补一次。数字归样式表，两档各读一次：注册成 <length> 的自定义属性（见
+   * composer-metrics.css 的 @property）读回来才是像素。
+   */
+  const rowGap = useMemo(() => {
+    if (viewport === null) {
+      return { glyph: 0, prose: 0 }
+    }
+
+    const style = getComputedStyle(viewport)
+    const read = (token: string) => Number.parseFloat(style.getPropertyValue(token)) || 0
+
+    return { glyph: read('--cp-feed-glyph-row-gap'), prose: read('--cp-feed-prose-row-gap') }
+  }, [viewport])
+
+  /** 这一行的内容顶比盒顶低多少。落点与锚定共用这一个定义。 */
+  const leadOf = (row: number) => rowGap[rowRhythm(row)]
+
   const virtualizer = useVirtualizer({
     /* 视口顶落在内容顶：align start 的落点是 item.start - scrollPaddingStart。 */
-    scrollPaddingStart: -leadGap,
+    scrollPaddingStart: revealing === null ? 0 : -leadOf(revealing),
     count: feed.count,
     getScrollElement: () => viewport,
     estimateSize: estimateRow,
@@ -185,25 +198,11 @@ export function AgentActivityFeed({
   })
 
   /*
-   * 位置的写入权在虚拟器，所以意图那一层只透过这三件事说话。
-   *
-   * 一律瞬时。平滑期间虚拟器只测目标附近的行，末端跟随与估高补偿都停摆，而且目标一
-   * 漂移它就接着写位置，把人中途接手的手势压回去（virtual-core 的 reconcileScroll
-   * 与 shouldMeasureDuringScroll）。
+   * 长高的量只补视口之上那些行：落点行自己被量出与估高之差时，不该把落点推走。
+   * 装好的 virtual-core 里这一格是实例字段，不是选项 —— 传进选项表会被静默忽略。
    */
-  const commands = useMemo<ScrollCommands>(
-    () => ({
-      isAtEnd: () => virtualizer.isAtEnd(),
-      toEnd: () => virtualizer.scrollToEnd(),
-      toRow: (row) => virtualizer.scrollToIndex(row, { align: 'start' }),
-    }),
-    [virtualizer],
-  )
-
-  const { atLatest, pinned, reveal, revealing, sample, travel, watch } = useScrollAuthority(
-    commands,
-    restored?.reading ?? null,
-  )
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
+    item.start + leadOf(item.index) < (instance.scrollOffset ?? 0)
 
   const total = virtualizer.getTotalSize()
 
@@ -217,28 +216,39 @@ export function AgentActivityFeed({
    * 行高变化的补偿归虚拟器（anchorTo/followOnAppend）；坐标没动就不写。
    */
   const end = (scrollMargin ?? 0) + total
-  const wroteAt = useRef(-1)
+
+  /* 这一份意图落在哪个坐标上。意图或坐标变了才重写一次，两者都没变就什么都不做。 */
+  const intent =
+    revealing === null
+      ? pinned
+        ? `end:${String(end)}`
+        : null
+      : `row:${String(revealing)}:${String(end)}`
+  const wroteAt = useRef<string | null>(null)
 
   useLayoutEffect(() => {
-    if (viewport === null || !settled || wroteAt.current === end) {
+    if (intent === null) {
+      /* 意图撤了：同一行再点一次仍然要写一次位置。 */
+      wroteAt.current = null
+
+      return
+    }
+
+    if (viewport === null || !settled || wroteAt.current === intent) {
+      return
+    }
+
+    wroteAt.current = intent
+
+    if (revealing === null) {
+      virtualizer.scrollToEnd()
+
       return
     }
 
     /* 人要求看的那一行最权威：请求由 scrollend 了结，所以这一路自己会停。 */
-    if (revealing !== null) {
-      wroteAt.current = end
-      virtualizer.scrollToIndex(revealing, { align: 'start' })
-
-      return
-    }
-
-    if (!pinned) {
-      return
-    }
-
-    wroteAt.current = end
-    virtualizer.scrollToEnd()
-  }, [end, pinned, revealing, settled, viewport, virtualizer])
+    virtualizer.scrollToIndex(revealing, { align: 'start' })
+  }, [intent, revealing, settled, viewport, virtualizer])
 
   /* 那一次长高量到了，锚定当场归位：让位只覆盖人点出来的那一次测量。 */
   useLayoutEffect(() => {
@@ -313,7 +323,7 @@ export function AgentActivityFeed({
         }
 
         /* 末端判据归虚拟器，这里只在同一次布局读取里采样。 */
-        sample()
+        sample(virtualizer.isAtEnd())
 
         /* 离顶端还有多远，同一次读取里问出来。 */
         if (
@@ -384,7 +394,7 @@ export function AgentActivityFeed({
 
     viewport.addEventListener('scroll', sync, { passive: true })
 
-    const unwatch = watch(viewport)
+    const unwatch = watch(viewport, () => virtualizer.isAtEnd())
 
     return () => {
       if (frame !== null) {
@@ -395,7 +405,7 @@ export function AgentActivityFeed({
       observer.disconnect()
       unwatch()
     }
-  }, [sample, viewport, watch])
+  }, [sample, viewport, virtualizer, watch])
 
   /*
    * 自己说的话把视线带回末端：那是答复将要出现的地方。

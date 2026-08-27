@@ -21,9 +21,8 @@ interface Sample {
   readonly turns: number
   readonly openMs: number
   readonly rows: number
-  readonly railEntries: number
   readonly msPerFrame: number
-  readonly railStable: boolean
+  readonly rowsStable: boolean
 }
 
 function round(value: number): number {
@@ -39,7 +38,8 @@ function sample(turns: number): Sample {
 
   state = applyRunEvents(state, [liveTurn(LIVE_SEQ, 9_000_000)])
 
-  let rail = selectPresentation(state, CLOSED).turns
+  /* 首行对象出自投影的行缓存：流式期间引用必须不动，下游的记忆化全靠它。 */
+  let rail = selectPresentation(state, CLOSED).rowAt(0)
   let stable = true
   const streamedAt = performance.now()
 
@@ -48,9 +48,8 @@ function sample(turns: number): Sample {
       liveDelta(LIVE_SEQ + 1 + frame, 9_000_100 + frame, frame, SHAPE.width),
     ])
 
-    const next = selectPresentation(state, CLOSED).turns
+    const next = selectPresentation(state, CLOSED).rowAt(0)
 
-    /* 头两帧回复摘要还在长（PREVIEW 之内），之后它逐字不变，轮次表因此必须同引用。 */
     if (frame > 1) {
       stable = stable && Object.is(next, rail)
     }
@@ -64,9 +63,8 @@ function sample(turns: number): Sample {
     turns,
     openMs: round(openMs),
     rows: opened.count,
-    railEntries: rail.length,
     msPerFrame: round(msPerFrame),
-    railStable: stable,
+    rowsStable: stable,
   }
 }
 
@@ -92,11 +90,10 @@ test('打开超长会话并吐字，每帧代价与会话长度无关', () => {
 
   expect(small.rows).toBeGreaterThan(0)
   expect(large.rows).toBeGreaterThan(small.rows)
-  expect(large.railEntries).toBe(large.turns + 1)
 
   /* 派生结果引用稳定 —— 下游的记忆化全靠它，这一条与机器快慢无关。 */
-  expect(small.railStable).toBe(true)
-  expect(large.railStable).toBe(true)
+  expect(small.rowsStable).toBe(true)
+  expect(large.rowsStable).toBe(true)
 
   /* 每帧代价的倍率：轮次差八倍，代价不许跟着走。 */
   expect(large.msPerFrame / small.msPerFrame).toBeLessThan(4)

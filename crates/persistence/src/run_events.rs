@@ -29,6 +29,19 @@ pub struct FrameCursor {
     pub seq: i64,
 }
 
+/// 目录里的一轮：地址，加上预览卡看得见的那两段。
+#[derive(Debug)]
+pub struct TurnMark {
+    /// 这一轮第一帧所在的会话。
+    pub session_id: String,
+    /// 它在那条会话上的位置。
+    pub seq: i64,
+    /// 本机签发的 durable admission identity；屏幕上那条用户消息用同一个号。
+    pub admission_id: String,
+    pub prompt: String,
+    pub reply: Option<String>,
+}
+
 /// 一页帧，按追加顺序；`before` 缺席就是前面没有了。
 #[derive(Debug)]
 pub struct FramePage {
@@ -120,6 +133,103 @@ impl AgentStore {
                 |row| row.get::<_, i64>(0),
             )
             .optional()?;
+        self.page(&thread_id, floor, ceiling, turn_start)
+    }
+
+    /// 从这一轮的第一帧起，读到已经载入的那一帧之前为止。
+    ///
+    /// 目录点名的那一轮可能在窗口之外。缺口一次读回来，屏幕上因此仍然只有一段
+    /// 连着尾部的经过，而不是中间挖着洞的两段。
+    ///
+    /// # Errors
+    ///
+    /// 查询被拒，或两个位置在这条对话上指不到行时返回错误。
+    pub fn turns_until(
+        &self,
+        thread: Uuid,
+        from: &FrameCursor,
+        before: &FrameCursor,
+        turn_start: &str,
+    ) -> Result<FramePage> {
+        let floor = self.frame_row(thread, from)?;
+        let ceiling = self.frame_row(thread, before)?;
+
+        self.page(&thread.to_string(), Some(floor), ceiling, turn_start)
+    }
+
+    /// 这条对话的整本目录：一轮一行，按追加顺序。
+    ///
+    /// 问出自开轮那一帧，答取这一轮里第一条正文 delta；两段都在库里按预览卡看得见
+    /// 的字数截断 —— 目录要的是那张卡上的两行，不是整段回答。子代理的 delta 不算。
+    ///
+    /// 判别式由调用方交进来：这一层只认 JSON 里那一格（与 turns_before 同一条规矩）。
+    ///
+    /// # Errors
+    ///
+    /// 查询被拒时返回错误。
+    pub fn turn_marks(
+        &self,
+        thread: Uuid,
+        turn_start: &str,
+        event_kind: &str,
+        delta_type: &str,
+        prompt_chars: i64,
+        reply_chars: i64,
+    ) -> Result<Vec<TurnMark>> {
+        let mut statement = self.connection.prepare_cached(
+            "SELECT t.session_id, t.seq,
+                    coalesce(json_extract(t.frame, '$.admissionId'), ''),
+                    substr(coalesce(json_extract(t.frame, '$.prompt'), ''), 1, ?5),
+                    (SELECT substr(json_extract(r.frame, '$.payload.delta'), 1, ?6)
+                       FROM run_events r
+                      WHERE r.thread_id = ?1 AND r.id > t.id
+                        AND r.id < coalesce((SELECT min(p.id) FROM run_events p
+                                              WHERE p.thread_id = ?1 AND p.id > t.id
+                                                AND json_extract(p.frame, '$.kind') = ?2), ?7)
+                        AND json_extract(r.frame, '$.kind') = ?3
+                        AND json_extract(r.frame, '$.payload.type') = ?4
+                        AND coalesce(json_extract(r.frame, '$.payload.agentId'), '') = ''
+                      ORDER BY r.id ASC
+                      LIMIT 1)
+             FROM run_events t
+             WHERE t.thread_id = ?1 AND json_extract(t.frame, '$.kind') = ?2
+             ORDER BY t.id ASC",
+        )?;
+
+        let marks = statement
+            .query_map(
+                rusqlite::params![
+                    thread.to_string(),
+                    turn_start,
+                    event_kind,
+                    delta_type,
+                    prompt_chars,
+                    reply_chars,
+                    i64::MAX
+                ],
+                |row| {
+                    Ok(TurnMark {
+                        session_id: row.get(0)?,
+                        seq: row.get(1)?,
+                        admission_id: row.get(2)?,
+                        prompt: row.get(3)?,
+                        reply: row.get(4)?,
+                    })
+                },
+            )?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(marks)
+    }
+
+    /// 一页帧：[floor, ceiling) 之间的行，以及更早那一页从哪儿接着读。
+    fn page(
+        &self,
+        thread_id: &str,
+        floor: Option<i64>,
+        ceiling: i64,
+        turn_start: &str,
+    ) -> Result<FramePage> {
         let lower = floor.unwrap_or(0);
 
         let mut statement = self.connection.prepare_cached(

@@ -564,3 +564,75 @@ pub async fn agent_pin_thread(
 
     Ok(())
 }
+
+/// 这条对话的整本目录，一轮一行。
+///
+/// 屏幕上的经过由 run_events 重放，目录因此也只能出自它：以内存窗口为定义域的
+/// 目录会随载入量伸缩，而人要跳的那一轮往往还没载入。
+///
+/// # Errors
+///
+/// 标识不是 UUID，或库拒绝这次读取时失败。
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_thread_outline(
+    index: State<'_, LocalIndex>,
+    request: AgentThreadRequest,
+) -> AgentCommandResult<Vec<crate::commands::agent::dto::AgentTurnMark>> {
+    let id = conversation(&request.thread_id)?;
+
+    let marks = on_index(&index, move |store| {
+        store
+            .turn_marks(
+                id,
+                PROMPT_ADMITTED,
+                poietica_agent_runtime_native::KAP_EVENT,
+                poietica_agent_runtime_native::ASSISTANT_DELTA,
+                super::OUTLINE_PROMPT_CHARS,
+                super::OUTLINE_REPLY_CHARS,
+            )
+            .map_err(persistence)
+    })
+    .await?;
+
+    let mut listed = Vec::with_capacity(marks.len());
+
+    for mark in marks {
+        listed.push(crate::commands::agent::dto::AgentTurnMark {
+            at: AgentFrameCursor {
+                session_id: mark.session_id,
+                seq: counted(mark.seq)?,
+            },
+            admission_id: mark.admission_id,
+            prompt: mark.prompt,
+            reply: mark.reply,
+        });
+    }
+
+    Ok(listed)
+}
+
+/// 目录点名的那一轮到已载入那一段之间的缺口，一次读回来。
+///
+/// # Errors
+///
+/// 标识不是 UUID，位置指不到行，或库拒绝这次读取时失败。
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_frames_until(
+    index: State<'_, LocalIndex>,
+    request: crate::commands::agent::dto::AgentFramesUntilRequest,
+) -> AgentCommandResult<AgentFramePage> {
+    let id = conversation(&request.thread_id)?;
+    let from = located(&request.from);
+    let before = located(&request.before);
+
+    let frames = on_index(&index, move |store| {
+        store
+            .turns_until(id, &from, &before, PROMPT_ADMITTED)
+            .map_err(persistence)
+    })
+    .await?;
+
+    Ok(paged(frames)?)
+}

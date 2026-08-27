@@ -7,7 +7,6 @@ export {
   partitionByAgent,
 } from './delegate-channel'
 export {
-  type ConversationTurn,
   type FeedRow,
   liveMemberOf,
   type Presentation,
