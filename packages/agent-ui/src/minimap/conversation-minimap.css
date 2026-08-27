@@ -1,32 +1,62 @@
+/*
+ * 轮次轨道：会话的目录，站在面板前缘。
+ *
+ * 度量在顶上声明一次，其余全是对它们的 calc()。鱼眼是一次乘法：use-rail-pointer
+ * 逐帧写每根柱子 0..1 的权重，长度按权重在静止与增益之间插值，粗细不参与。
+ * 步距与可见轮数由 conversation-minimap-geometry.ts 注入，那里是它们的产地。
+ */
 .conversation-minimap {
-  --conversation-minimap-active: #1a1c1f;
-  --conversation-minimap-ink: #d2d3d3;
-
+  /* 一个设备像素折合多少 CSS px；只有小数缩放需要在文件底部改写。 */
+  --cp-rail-dpx: 1px;
+  /*
+   * 粗细恒为屏幕上的 3 个设备像素。3 CSS px 在 125% 下是 3.75 个设备像素，
+   * 栅格化摊成 4~5 行、首尾各带一条抗锯齿灰边，量出来就成了「5px」。
+   */
+  --cp-rail-line: calc(var(--cp-rail-dpx) * 3);
+  --cp-rail-len: calc(var(--cp-rail-dpx) * 9);
+  --cp-rail-gain: 25px;
+  --cp-rail-ink-rest: #d2d3d3;
+  --cp-rail-ink-active: #767779;
+  --cp-rail-ink-aimed: #1a1c1f;
+  /* 轨道离面板上下边缘留多少。 */
+  --cp-rail-inset: 2px;
   position: absolute;
   z-index: 3;
   inset-block: 0;
   inset-inline-start: var(--cp-optical);
-  display: flex;
-  align-items: center;
-  inline-size: var(--conversation-minimap-track);
+  inline-size: calc(var(--cp-rail-len) + var(--cp-rail-gain));
   pointer-events: none;
 }
-
+/*
+ * 可见轮数是滚动的唯一判据：装得下 --cp-rail-visible 轮就不滚，多一轮才滚。
+ * 滚动条不画 —— 这条轨道本身就是位置指示，再画一条是同一件事的第二种说法。
+ */
 .conversation-minimap__scroller {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 0;
+  translate: 0 -50%;
   overflow-x: hidden;
   overflow-y: auto;
-  max-block-size: 50%;
-  padding-block: var(--conversation-minimap-padding);
+  inline-size: 100%;
+  max-block-size: min(
+    calc(var(--cp-rail-hit) * var(--cp-rail-visible)),
+    calc(100% - var(--cp-rail-inset) * 2)
+  );
   pointer-events: auto;
-  scrollbar-color: var(--conversation-minimap-active) transparent;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
-
-.conversation-minimap__track {
-  position: relative;
-  inline-size: var(--conversation-minimap-track);
+/*
+ * 整条轨道站在设备像素的整数上：50% 相对容器高算，容器高是奇数时它落在半个
+ * 像素上，整列杠的相位随之偏半格。@supports 是护栏：round() 里放百分比需要较新
+ * 的引擎，声明无效会让定位退回 auto。
+ */
+@supports (inset-block-start: round(down, 50%, 1px)) {
+  .conversation-minimap__scroller {
+    inset-block-start: round(down, 50%, var(--cp-rail-dpx));
+    translate: 0 calc(-1 * round(down, 50%, var(--cp-rail-dpx)));
+  }
 }
-
 .conversation-minimap__list {
   display: flex;
   flex-direction: column;
@@ -34,108 +64,145 @@
   margin: 0;
   list-style: none;
 }
-
 .conversation-minimap__item {
   display: contents;
 }
-
+/*
+ * 一格的盒子，尺寸恒定。inline-size 固定，卡片的左边界因此是一条不动的竖线，
+ * 而逐帧变化的布局被关进单根横条内部。
+ */
 .conversation-minimap__turn {
+  --cp-rail-weight: 0;
   display: flex;
-  align-items: center;
-  inline-size: var(--conversation-minimap-track);
-  block-size: var(--conversation-minimap-pitch);
-  padding: 0;
+  flex-shrink: 0;
+  block-size: var(--cp-rail-hit);
+  inline-size: 100%;
+  justify-content: flex-start;
   border: 0;
-  outline: 0;
+  padding: 0;
   background: transparent;
   cursor: pointer;
 }
-
-.conversation-minimap__bar,
-.conversation-minimap__active {
-  block-size: var(--conversation-minimap-line);
-  border-radius: 999px;
-  transform-origin: left center;
+/* 键盘焦点画真环：一根 9×3 的横条换个颜色达不到 WCAG 2.4.13 的面积与对比度。 */
+.conversation-minimap__turn:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--cp-rail-ink-aimed);
+  outline-offset: 2px;
 }
-
+/* 一维答应指针，一维不动：长度随权重走，粗细恒定。 */
 .conversation-minimap__bar {
-  background: var(--conversation-minimap-ink);
+  align-self: flex-start;
+  margin-block-start: 4px;
+  block-size: var(--cp-rail-line);
+  inline-size: calc(var(--cp-rail-len) + var(--cp-rail-weight) * var(--cp-rail-gain));
+  background: var(--cp-rail-ink-rest);
   transition:
-    width 100ms ease,
-    background-color 100ms ease;
+    inline-size var(--cp-motion-swift) var(--cp-motion-ease),
+    background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
-
+/* 字面量 4px 是地板（4 × k/4 恒为整数），round() 是真值，步长取设备像素。 */
+@supports (margin-block-start: round(down, 1px, 1px)) {
+  .conversation-minimap__bar {
+    margin-block-start: round(
+      down,
+      calc((var(--cp-rail-hit) - var(--cp-rail-line)) / 2),
+      var(--cp-rail-dpx)
+    );
+  }
+}
+/* 读到哪一轮、指着哪一轮是两个问题，所以是两条规则；指着那一条压过前者。 */
+.conversation-minimap__turn[aria-current] .conversation-minimap__bar {
+  background: var(--cp-rail-ink-active);
+}
+.conversation-minimap__turn[data-aimed] .conversation-minimap__bar,
 .conversation-minimap__turn:hover .conversation-minimap__bar,
 .conversation-minimap__turn:focus-visible .conversation-minimap__bar {
-  background: var(--conversation-minimap-active);
+  background: var(--cp-rail-ink-aimed);
 }
-
-.conversation-minimap__turn:focus-visible {
-  outline: 2px solid var(--conversation-minimap-active);
-  outline-offset: 1px;
-}
-
-.conversation-minimap__active {
-  position: absolute;
-  z-index: 2;
-  inset-block-start: 0;
-  inset-inline-start: 0;
-  background: var(--conversation-minimap-active);
-  pointer-events: none;
-  transition:
-    transform 150ms ease,
-    width 100ms ease;
-}
-
+/*
+ * 预览卡。问题恒一行，超出省略号；回复至多三整行 —— max-block-size 取行高的
+ * 整数倍，裁切因此永远落在行边界上，不会露出半行。
+ *
+ * 两段延迟由 transition-delay 表达，没有定时器：进场 90ms 是「你确实想看」的门槛，
+ * 离场 60ms 是擦边划过的宽限。跨格时不透明度的目标值不变，门槛因此只翻一次。
+ */
 .conversation-minimap__card {
   position: absolute;
+  inset-block-start: 0;
   inset-inline-start: calc(100% + var(--cp-pad-mid));
-  inline-size: min(240px, calc(100vw - 80px));
-  padding: 10px 12px;
-  border: 0;
+  translate: 0 calc(var(--cp-rail-card-y, 0px) - 50%);
+  overflow: hidden;
+  inline-size: 220px;
   border-radius: var(--am-item);
-  opacity: 0;
+  padding: 6px 8px;
   background: var(--cp-surface);
   box-shadow: var(--am-shadow);
   color: var(--cp-ink);
+  font-size: var(--cp-font-micro);
+  text-align: start;
+  opacity: 0;
   pointer-events: none;
-  transform: translateY(-50%);
-  transition: opacity 120ms ease;
-  transition-delay: 100ms;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease) 60ms;
 }
-
 .conversation-minimap__card[data-shown] {
   opacity: 1;
+  transition:
+    opacity var(--cp-motion-swift) var(--cp-motion-ease) 90ms,
+    translate var(--cp-motion-settle) var(--cp-motion-settle-ease);
 }
-
-.conversation-minimap__card:not([data-shown]) {
-  transition-delay: 0ms;
-}
-
-.conversation-minimap__question,
-.conversation-minimap__reply {
-  display: -webkit-box;
+.conversation-minimap__card-question {
   overflow: hidden;
   margin: 0;
-  -webkit-box-orient: vertical;
-}
-
-.conversation-minimap__question {
   font-weight: 600;
-  -webkit-line-clamp: 2;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.conversation-minimap__reply {
-  margin-block-start: 4px;
+.conversation-minimap__card-reply {
+  --cp-rail-card-line: 1.4em;
+  overflow: hidden;
+  max-block-size: calc(var(--cp-rail-card-line) * 3);
+  margin: 4px 0 0;
   color: var(--cp-ink-subtle);
-  font-size: 0.875rem;
-  -webkit-line-clamp: 3;
+  line-height: var(--cp-rail-card-line);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
-
 @media (prefers-reduced-motion: reduce) {
   .conversation-minimap__bar,
-  .conversation-minimap__active,
-  .conversation-minimap__card {
+  .conversation-minimap__card,
+  .conversation-minimap__card[data-shown] {
     transition: none;
+  }
+}
+/* dpx 档位：只有小数缩放需要改写，整数缩放下 3 CSS px 本就是整数个设备像素。 */
+@media (resolution: 1.25dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.8px;
+  }
+}
+@media (resolution: 1.5dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.66666667px;
+  }
+}
+@media (resolution: 1.75dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.57142857px;
+  }
+}
+@media (resolution: 2.25dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.44444444px;
+  }
+}
+@media (resolution: 2.5dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.4px;
+  }
+}
+@media (resolution: 3.5dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.28571429px;
   }
 }
