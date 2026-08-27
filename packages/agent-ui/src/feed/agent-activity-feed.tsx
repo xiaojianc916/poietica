@@ -153,7 +153,19 @@ export function AgentActivityFeed({
   const holding = held !== disclosed
   const measuredTotal = useRef(0)
 
+  /* 行自带半格节奏（__row 的 padding-block），而量回来的是边框盒。数字归样式表。 */
+  const leadGap = useMemo(
+    () =>
+      viewport === null
+        ? 0
+        : Number.parseFloat(
+            getComputedStyle(viewport).getPropertyValue('--cp-feed-prose-row-gap'),
+          ) || 0,
+    [viewport],
+  )
   const virtualizer = useVirtualizer({
+    /* 视口顶落在内容顶：align start 的落点是 item.start - scrollPaddingStart。 */
+    scrollPaddingStart: -leadGap,
     count: feed.count,
     getScrollElement: () => viewport,
     estimateSize: estimateRow,

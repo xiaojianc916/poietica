@@ -11,6 +11,16 @@
  * 没有交点,深色模式下这个界面因此整片保持浅色、文字保持黑色。
  */
 
+/*
+ * 注册成 <length>：未注册的自定义属性被 getComputedStyle 读回时是声明原文，
+ * calc/var 会让 parseFloat 得 NaN。落点补偿（agent-activity-feed）要读它的像素值。
+ */
+@property --cp-feed-prose-row-gap {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 [data-assistant-skin] {
   --cp-px: var(--ui-hairline);
 
