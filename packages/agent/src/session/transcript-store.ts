@@ -21,7 +21,6 @@ import {
   delegateKey,
   endsRun,
   isDelegateKey,
-  opensTurn,
   partitionByAgent,
   prependThreadEvents,
   rejectRunCancellation,
@@ -166,17 +165,6 @@ function lossOf(history: ThreadHistory): string | null {
 }
 
 /**
- * 这一页从哪一帧起算得上完整的一轮。
- *
- * 页按帧数切（原生侧的 FRAME_PAGE），轮次的边界在帧里（frame.rs 的 prompt_admitted），
- * 所以一页的头常常是半截轮次。-1 表示整页都是半截，那一批要等更早那一页的起点；
- * 日志的开头没有更早，它的第一帧就是第一轮的起点。
- */
-function turnStart(events: readonly RunEvent[], before: FrameCursor | null): number {
-  return before === null ? 0 : events.findIndex(opensTurn)
-}
-
-/**
  * 什么时候把「变了」告诉界面。
  */
 export type Paint = (flush: () => void) => void
@@ -298,15 +286,6 @@ export class TranscriptStore implements TranscriptSink {
    */
   #pending = new Map<string, RunEvent[]>()
 
-  /**
-   * 读回来了、还对不齐一轮起点的那些帧，按对话攒着。
-   *
-   * 页按帧数切，而轮次的边界在帧里（prompt_admitted）。一页的开头因此常常是半截
-   * 轮次：它的提问在更早那一页。攒着不投影，等更早那一页的起点到达再一起折
-   * 进去 —— 与 #pending 同性质：未投影的输入，不是第二份真相。
-   */
-  #unaligned = new Map<string, RunEvent[]>()
-
   #attachedTo: AgentSessionPort | null = null
 
   #detach: (() => void) | null = null
@@ -423,7 +402,6 @@ export class TranscriptStore implements TranscriptSink {
     this.#releaseSubmission(key)
     this.#held.delete(key)
     this.#pending.delete(key)
-    this.#unaligned.delete(key)
     this.#dirty.delete(key)
 
     const prefix = delegateKey(key, '')
@@ -499,13 +477,9 @@ export class TranscriptStore implements TranscriptSink {
       return
     }
 
-    /* 经过由本地日志重放：段边界与每一轮的两端都在帧里，这里不再有第二把尺子。
-       半截的那一轮不投影 —— 没有起点的一轮投出来是一段没有封条、也收不起来的散行。 */
+    /* 后端交回的历史页已经按完整轮次对齐，并把连续 delta 压成 block。 */
     const split = partitionByAgent(page.events as readonly RunEvent[])
-    const events = split.main
-    const at = turnStart(events, page.before)
 
-    /* 子代理的帧回放进它自己那条通道转录：主转录只收主代理的帧。 */
     for (const [agentId, channel] of split.channels) {
       const key = delegateKey(threadId, agentId)
 
@@ -513,24 +487,15 @@ export class TranscriptStore implements TranscriptSink {
         this.#put(key, { ...EMPTY, timeline: replayRunEvents(channel), loaded: true })
       }
     }
-    const ahead = at < 0 && this.#earlier !== undefined
-    const replayed = replayThreadEvents(at < 0 ? [] : events.slice(at))
-
-    this.#hold(threadId, at < 0 ? events : events.slice(0, at))
 
     this.#put(threadId, {
-      timeline: replayed,
-      restoring: ahead,
+      timeline: replayThreadEvents(split.main),
+      restoring: false,
       loaded: true,
       owned: false,
       earlier: page.before,
       reading: false,
     })
-
-    /* 整页都是半截：屏幕上一行都没有，接着往前读到最近一个轮次起点。 */
-    if (ahead) {
-      void this.readEarlier(threadId)
-    }
   }
 
   history = (threadId: string, history: ThreadHistory): void => {
@@ -553,15 +518,7 @@ export class TranscriptStore implements TranscriptSink {
 
   /* ================= 内部 ================= */
 
-  /**
-   * 再往前读一页。
-   *
-   * 一次调用只推进到最近一个轮次起点：页按帧数切而轮次边界在帧里，所以一页可能整页
-   * 都没有 prompt_admitted，那半截帧留在 #unaligned，继续读下一页。读到一半这条对话被删掉
-   * 时当场收手 —— 折进去等于把它请回屏幕上。
-   *
-   * 重入由这里挡：视口可以每帧问，问几次都只有一页在飞。
-   */
+  /** 向上读取一个已经按轮次对齐的 block 页。 */
   readEarlier = (key: string): Promise<void> => this.#readEarlier(key)
 
   async #readEarlier(real: string): Promise<void> {
@@ -574,37 +531,16 @@ export class TranscriptStore implements TranscriptSink {
 
     this.#put(real, { ...opened, reading: true })
 
-    let cursor: FrameCursor | null = opened.earlier
-
     try {
-      while (cursor !== null) {
-        const page: FramePage = await read(real, cursor)
+      const page = await read(real, opened.earlier)
 
-        if (!this.#held.has(real)) {
-          return
-        }
-
-        const merged = [
-          ...(page.events as readonly RunEvent[]),
-          ...(this.#unaligned.get(real) ?? []),
-        ]
-        const at = turnStart(merged, page.before)
-
-        cursor = page.before
-
-        if (at < 0) {
-          this.#hold(real, merged)
-          continue
-        }
-
-        this.#hold(real, merged.slice(0, at))
-        this.#prepend(real, merged.slice(at), cursor)
-
+      if (!this.#held.has(real)) {
         return
       }
+
+      this.#prepend(real, page.events as readonly RunEvent[], page.before)
     } catch (cause: unknown) {
       const latest = this.#now(real)
-
       this.#put(real, { ...latest, timeline: noteOn(latest.timeline, cause, false) })
     } finally {
       if (this.#held.has(real)) {
@@ -613,18 +549,6 @@ export class TranscriptStore implements TranscriptSink {
     }
   }
 
-  /** 还对不齐一轮起点的那些帧，攒着；一帧不剩就把这一格清掉。 */
-  #hold(real: string, events: readonly RunEvent[]): void {
-    if (events.length === 0) {
-      this.#unaligned.delete(real)
-
-      return
-    }
-
-    this.#unaligned.set(real, [...events])
-  }
-
-  /** 一批对齐好的更早帧，一次折进去：第一批到达，这条对话就算取回来了。 */
   #prepend(real: string, events: readonly RunEvent[], earlier: FrameCursor | null): void {
     const latest = this.#now(real)
     const split = partitionByAgent(events)
@@ -632,7 +556,6 @@ export class TranscriptStore implements TranscriptSink {
     for (const [agentId, channel] of split.channels) {
       const key = delegateKey(real, agentId)
       const held = this.#now(key)
-
       this.#put(key, { ...held, timeline: prependThreadEvents(held.timeline, channel) })
     }
 

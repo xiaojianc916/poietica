@@ -213,9 +213,8 @@ async agentOpenThread(request: AgentOpenThreadRequest) : Promise<AgentOpenedThre
 /**
  * 这条对话更早的一页经过。
  * 
- * 一次读，别的都不做：位置由上一页交回来，轮次的对齐归渲染层 —— 一帧是不是
- * 一轮的开头，只有认识帧的那一侧答得上（frame.rs），而库里那一列是 opaque
- * JSON。
+ * 一次读回完整轮次；位置由上一页交回，连续文本流片在 IPC 前压成 block。
+ * 原始 run_events 不改写，仍是屏幕历史的唯一事实源。
  * 
  * # Errors
  * 
@@ -1393,7 +1392,7 @@ sessionId: string;
  */
 seq: number }
 /**
- * 一页帧，以及更早那一页从哪儿接着读。
+ * 一页完整轮次的 block 帧，以及更早那一页从哪儿接着读。
  */
 export type AgentFramePage = { 
 /**

@@ -22,14 +22,21 @@ fn database_path(directory: &TempDir) -> PathBuf {
     directory.path().join("ai.sqlite3")
 }
 
-fn frame(session: &str, seq: i64) -> RecordedFrame {
+fn event(session: &str, seq: i64, kind: &str) -> RecordedFrame {
     RecordedFrame {
         session_id: session.to_owned(),
         seq,
         at: seq,
-        frame: RawValue::from_string(format!(r#"{{"kind":"run_started","seq":{seq}}}"#))
-            .expect("frame"),
+        frame: RawValue::from_string(format!(r#"{{"kind":"{kind}","seq":{seq}}}"#)).expect("frame"),
     }
+}
+
+fn frame(session: &str, seq: i64) -> RecordedFrame {
+    event(session, seq, "run_started")
+}
+
+fn turn_start(session: &str, seq: i64) -> RecordedFrame {
+    event(session, seq, "prompt_admitted")
 }
 
 fn opened(directory: &TempDir) -> (AgentStore, Uuid) {
@@ -65,7 +72,9 @@ fn a_taken_position_is_refused_and_counted() {
         "唯一键挡下的那一帧必须报出来 —— 咽下去要到下次打开这条对话才看得出少了帧"
     );
 
-    let page = store.frames_before(thread, None, 10).expect("read");
+    let page = store
+        .turns_before(thread, None, "prompt_admitted", 10)
+        .expect("read");
 
     assert_eq!(page.frames.len(), 1, "撞车不许在表上留下第二行");
 }
@@ -92,9 +101,9 @@ fn a_collision_does_not_take_the_rest_of_the_batch_down() {
     );
 }
 
-/// 一页读完，下一页从这一页最早那一帧接着往前。
+/// 一页始终从完整轮次起点开始，游标继续向更早的轮次推进。
 #[test]
-fn a_page_hands_the_next_one_where_to_resume() {
+fn a_page_is_turn_aligned_and_cursor_paginated() {
     let directory = TempDir::new().expect("temporary directory");
     let (mut store, thread) = opened(&directory);
 
@@ -102,25 +111,30 @@ fn a_page_hands_the_next_one_where_to_resume() {
         .record_frames(
             thread,
             &[
-                frame("session-a", 1),
+                turn_start("session-a", 1),
                 frame("session-a", 2),
-                frame("session-a", 3),
+                turn_start("session-a", 3),
+                frame("session-a", 4),
+                turn_start("session-a", 5),
+                frame("session-a", 6),
             ],
         )
         .expect("append");
 
-    let latest = store.frames_before(thread, None, 2).expect("read");
+    let latest = store
+        .turns_before(thread, None, "prompt_admitted", 2)
+        .expect("read");
 
-    assert_eq!(latest.frames.len(), 2);
+    assert_eq!(latest.frames.len(), 4);
+    let resume = latest.before.expect("older turns remain");
+    assert_eq!(resume.seq, 3);
 
-    let resume = latest.before.expect("读满一页就必须交出接着读的位置");
+    let earlier = store
+        .turns_before(thread, Some(&resume), "prompt_admitted", 2)
+        .expect("read");
 
-    assert_eq!(resume.seq, 2, "接着读的位置是这一页最早那一帧");
-
-    let earlier = store.frames_before(thread, Some(&resume), 2).expect("read");
-
-    assert_eq!(earlier.frames.len(), 1);
-    assert!(earlier.before.is_none(), "没读满就是前面没有了");
+    assert_eq!(earlier.frames.len(), 2);
+    assert!(earlier.before.is_none());
 }
 
 /// 读点在同一纪元里只前进；纪元一换就整格重置。

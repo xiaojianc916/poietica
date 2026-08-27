@@ -51,11 +51,8 @@ pub const AGENT_SESSION_EVENT: &str = "ai-session-event";
 /// How much of the first message stands in as a conversation name.
 const TITLE_CHARS: usize = 60;
 
-/// 一页帧有多宽。
-///
-/// 打开一条对话要画的是最后几轮，所以读一页就够。四百帧远多于常见的一轮，
-/// 因此打开时看到的是完整的若干轮；更早的按游标续读。
-const FRAME_PAGE: i64 = 400;
+/// 一页历史包含的完整轮次数。单轮内部的流片在出 IPC 前压成 block。
+const TURN_PAGE: i64 = 8;
 
 const NO_SESSION: &str = "no agent session is running";
 const POISONED: &str = "the agent session lock was left locked by a panicking task";

@@ -84,63 +84,86 @@ impl AgentStore {
         Ok(refused)
     }
 
-    /// 这条对话的一页帧，从 `before` 那一帧往前数，按追加顺序交回。
+    /// 这条对话的一页完整轮次，按追加顺序交回。
     ///
-    /// 反向按 `id` 扫（索引 `run_events_by_thread`），代价因此是这一页，与这条
-    /// 对话有多长无关。`before` 缺席就是最新那一页。
+    /// 游标只负责给出右边界；页宽按轮次计算。查询先用 prompt 帧定位最早边界，
+    /// 再一次顺序读取整页，渲染层不需要反复往前追到轮次开头。
     ///
     /// # Errors
     ///
-    /// 查询被拒，或 `before` 在这条对话上指不到行时返回错误。
-    pub fn frames_before(
+    /// 查询被拒，或 before 在这条对话上指不到行时返回错误。
+    pub fn turns_before(
         &self,
         thread: Uuid,
         before: Option<&FrameCursor>,
+        turn_start: &str,
         limit: i64,
     ) -> Result<FramePage> {
         let ceiling = match before {
             Some(cursor) => self.frame_row(thread, cursor)?,
             None => i64::MAX,
         };
+        let offset = limit.max(1).saturating_sub(1);
+        let thread_id = thread.to_string();
+
+        let floor = self
+            .connection
+            .prepare_cached(
+                "SELECT id FROM run_events
+                 WHERE thread_id = ?1 AND id < ?2
+                   AND json_extract(frame, '$.kind') = ?3
+                 ORDER BY id DESC
+                 LIMIT 1 OFFSET ?4",
+            )?
+            .query_row(
+                rusqlite::params![thread_id, ceiling, turn_start, offset],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?;
+        let lower = floor.unwrap_or(0);
 
         let mut statement = self.connection.prepare_cached(
             "SELECT session_id, seq, frame FROM run_events
-             WHERE thread_id = ?1 AND id < ?2
-             ORDER BY id DESC
-             LIMIT ?3",
+             WHERE thread_id = ?1 AND id >= ?2 AND id < ?3
+             ORDER BY id ASC",
         )?;
-
-        let mut read = statement
-            .query_map(
-                rusqlite::params![thread.to_string(), ceiling, limit],
-                |row| {
-                    Ok((
-                        FrameCursor {
-                            session_id: row.get(0)?,
-                            seq: row.get(1)?,
-                        },
-                        row.get::<_, String>(2)?,
-                    ))
-                },
-            )?
+        let read = statement
+            .query_map(rusqlite::params![thread_id, lower, ceiling], |row| {
+                Ok((
+                    FrameCursor {
+                        session_id: row.get(0)?,
+                        seq: row.get(1)?,
+                    },
+                    row.get::<_, String>(2)?,
+                ))
+            })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        /* 没读满就是前面没有了；读满时这一页最早那一帧就是下一次的读取位置。 */
-        let full = usize::try_from(limit).is_ok_and(|page| read.len() >= page);
-
-        read.reverse();
-
-        let before = if full {
-            read.first().map(|(cursor, _frame)| cursor.clone())
+        let has_more = match floor {
+            Some(floor) => self
+                .connection
+                .prepare_cached(
+                    "SELECT EXISTS(
+                       SELECT 1 FROM run_events
+                       WHERE thread_id = ?1 AND id < ?2
+                         AND json_extract(frame, '$.kind') = ?3
+                     )",
+                )?
+                .query_row(rusqlite::params![thread_id, floor, turn_start], |row| {
+                    row.get::<_, bool>(0)
+                })?,
+            None => false,
+        };
+        let before = if has_more {
+            read.first().map(|(cursor, _)| cursor.clone())
         } else {
             None
         };
 
-        /* 读不成的一行是日志坏了，不是这条对话的内容 —— 说出来，不静默跳过。 */
         Ok(FramePage {
             frames: read
                 .into_iter()
-                .map(|(_cursor, frame)| RawValue::from_string(frame))
+                .map(|(_, frame)| RawValue::from_string(frame))
                 .collect::<serde_json::Result<Vec<_>>>()?,
             before,
         })

@@ -338,7 +338,7 @@ pub struct AgentFrameCursor {
     pub seq: u32,
 }
 
-/// 一页帧，以及更早那一页从哪儿接着读。
+/// 一页完整轮次的 block 帧，以及更早那一页从哪儿接着读。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentFramePage {

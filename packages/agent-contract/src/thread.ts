@@ -125,7 +125,7 @@ export interface ThreadPort {
    * 这条对话更早的一页经过，从 `before` 那一帧往前数。
    *
    * 位置原样回传，这一层不解释它：它是平台那侧库上的键。轮次的对齐归转录
-   * store —— 页按帧数切，轮次的边界在帧里。
+   * store。平台交回的每页都从 prompt_admitted 开始，连续文本 delta 已压成 block。
    */
   readonly earlierFrames: (threadId: ThreadId, before: FrameCursor) => Promise<FramePage>
   /** Renames one. The name becomes the user's and outlives the agent's. */

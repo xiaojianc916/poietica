@@ -6,7 +6,7 @@ use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::remove_projectless_workspace;
 use poietica_agent_persistence_native::{FrameCursor, FramePage, TitleSource};
-use poietica_agent_runtime_native::PROMPT_ADMITTED;
+use poietica_agent_runtime_native::{PROMPT_ADMITTED, compact_history};
 use tauri::{AppHandle, State, async_runtime};
 
 use super::addressing::{Held, read_point, session_for};
@@ -21,7 +21,7 @@ use super::dto::{
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
-use super::{AgentCommandResult, FRAME_PAGE, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS};
+use super::{AgentCommandResult, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS, TURN_PAGE};
 
 /// Lists the stored conversations, newest first.
 ///
@@ -61,7 +61,7 @@ pub async fn agent_thread_snapshot(
             None => None,
         };
         let frames = store
-            .frames_before(thread_id, None, FRAME_PAGE)
+            .turns_before(thread_id, None, PROMPT_ADMITTED, TURN_PAGE)
             .map_err(persistence)?;
 
         Ok((retitle(stored), usage, frames))
@@ -172,9 +172,8 @@ pub async fn agent_open_thread(
 
 /// 这条对话更早的一页经过。
 ///
-/// 一次读，别的都不做：位置由上一页交回来，轮次的对齐归渲染层 —— 一帧是不是
-/// 一轮的开头，只有认识帧的那一侧答得上（frame.rs），而库里那一列是 opaque
-/// JSON。
+/// 一次读回完整轮次；位置由上一页交回，连续文本流片在 IPC 前压成 block。
+/// 原始 run_events 不改写，仍是屏幕历史的唯一事实源。
 ///
 /// # Errors
 ///
@@ -190,7 +189,7 @@ pub async fn agent_earlier_frames(
 
     let frames = on_index(&index, move |store| {
         store
-            .frames_before(id, Some(&before), FRAME_PAGE)
+            .turns_before(id, Some(&before), PROMPT_ADMITTED, TURN_PAGE)
             .map_err(persistence)
     })
     .await?;
@@ -203,7 +202,9 @@ pub async fn agent_earlier_frames(
 /// 帧不解析：库里那一段字节原样交给绑定，读不成的一行在读库处就已经说过了。
 fn paged(page: FramePage) -> Result<AgentFramePage> {
     Ok(AgentFramePage {
-        events: page.frames,
+        events: compact_history(page.frames).map_err(|error| {
+            Error::Internal(format!("could not compact transcript history: {error}"))
+        })?,
         before: page.before.map(cursored).transpose()?,
     })
 }

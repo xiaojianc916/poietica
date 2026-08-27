@@ -165,20 +165,34 @@ describe('transcript store', () => {
     expect(store.read('thread_a')).not.toBe(ended)
   })
 
-  it('页头那半截轮次不投影：等更早那一页的起点', () => {
-    const { store } = painted()
-
-    /* 页按帧数切，所以最新那一页的头是上一轮的尾巴。 */
-    store.adopt('thread_a', {
-      events: [chunk(5, '尾'), started(6, 'sess_a'), chunk(7, '新')],
-      before: { sessionId: 'sess_a', seq: 5 },
+  it('向上续读每次只取一页完整轮次', async () => {
+    let reads = 0
+    const store = new TranscriptStore({
+      paint: () => {},
+      earlier: () => {
+        reads += 1
+        return Promise.resolve({
+          events: [started(1, 'sess_a'), chunk(2, '旧')],
+          before: null,
+        })
+      },
     })
 
-    const { timeline } = store.read('thread_a')
+    store.adopt('thread_a', {
+      events: [started(3, 'sess_a'), chunk(4, '新')],
+      before: { sessionId: 'sess_a', seq: 3 },
+    })
+    await store.readEarlier('thread_a')
 
-    /* 每一段都从人说的那句话开始 —— 封条认的就是它。 */
-    expect(timeline.sealed).toHaveLength(0)
-    expect(timeline.active.items.map((item) => item.type)).toEqual(['user_message', 'agent_text'])
+    const transcript = store.read('thread_a')
+    const items = [
+      ...transcript.timeline.sealed.flatMap((page) => page.items),
+      ...transcript.timeline.active.items,
+    ]
+
+    expect(reads).toBe(1)
+    expect(transcript.earlier).toBeNull()
+    expect(items.filter((item) => item.type === 'user_message')).toHaveLength(2)
   })
 
   it('cancels before the thread is prepared', async () => {

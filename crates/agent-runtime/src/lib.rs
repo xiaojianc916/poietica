@@ -29,6 +29,7 @@ mod desk;
 mod driver;
 mod error;
 mod frame;
+mod history;
 mod link;
 mod permission;
 mod program;
@@ -53,6 +54,7 @@ pub use credentials::{
 pub use desk::{PermissionDesk, QuestionDesk};
 pub use error::{KapError, Refusal, Result};
 pub use frame::{PROMPT_ADMITTED, RUN_FINISHED, RunFrame, kap_event};
+pub use history::compact_history;
 pub use link::LinkState;
 pub use permission::{Decision, Scope};
 pub use program::{Launcher, hide_console, resolve_launcher, resolve_program};
