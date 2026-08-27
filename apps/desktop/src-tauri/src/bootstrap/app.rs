@@ -94,7 +94,6 @@ pub fn build() -> tauri::Builder<Wry> {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         /* 暂存态归进程：谁创建谁负责，命令只借用，不摸全局静态。 */
         .manage(commands::updates::UpdateStaging::default())
         .invoke_handler(ipc.invoke_handler())
@@ -132,7 +131,7 @@ pub fn build() -> tauri::Builder<Wry> {
             let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
 
             /*
-             * 启动杂务，一条路径：抹 tmp、备好 cache、拍无主目录快照、收幽灵行、回收无主目录。
+             * 启动杂务，一条路径：抹 tmp、备好 cache、清换装残留、拍无主目录快照、收幽灵行、回收无主目录。
              * 顺序即不变量：快照先于名单、收割先于名单，否则幽灵行占着的目录要等下一次启动。
              * 边界在此签发 —— 库已开、webview 还没执行脚本，它晚于每条遗留行、早于用户开出的第一条。
              * 抹 tmp 也在这里：命令要等事件循环，而事件循环在 setup 返回之后才转。
@@ -147,6 +146,7 @@ pub fn build() -> tauri::Builder<Wry> {
                     let snapshot = async_runtime::spawn_blocking(move || {
                         paths::reset_temp_directory(&snapshotted)?;
                         paths::cache_directory(&snapshotted)?;
+                    commands::updates::sweep_binaries();
 
                         paths::projectless_workspaces(&snapshotted)
                     })

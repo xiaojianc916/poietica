@@ -7,6 +7,7 @@ members = [
   "crates/git",
   "crates/persistence",
   "crates/plugin-host",
+  "crates/update",
 ]
 default-members = [
   "apps/desktop/src-tauri",
@@ -85,22 +86,18 @@ notify = "8.0.0"
 
 # Plugin signature and integrity verification
 base64 = "0.22.1"
+
+# 发布签名校验：与 Tauri 更新器同一套 minisign 格式、同一份实现。
+minisign-verify = "0.2"
 ed25519-dalek = { version = "2.1.1", features = [
   "pkcs8", "rand_core", "serde",
 ] }
 
 # Observability
 
-# 保存密钥时向厂商打一次 GET /models 的探测客户端。
+# HTTP 客户端，全仓一份：厂商密钥探测、kap 的 REST 调用、更新清单与载荷下载都走它。
 #
-# 选 reqwest 而不是 ureq / attohttpc：它已经在依赖图里。tauri-plugin-updater
-# 2.3.0 就是用它下载更新包的，而那个插件本仓库已经启用（见
-# apps/desktop/src-tauri/Cargo.toml）。所以这一行不引入任何新的传递依赖、不增加
-# 编译时间，只是把一个已经被链进产物的库显式地用起来。引 ureq 才是那个多带一套
-# HTTP 栈加一套 TLS 的方案。
-#
-# rustls-tls 与 updater 的选择一致，feature 在这里统一，不会多出第二套 TLS。
-# json 为 kap driver 的 REST 调用而开（probe 仍只读一段文本）。
+# rustls-tls 不带第二套 TLS；json 为 kap driver 而开。
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls", "json",
 ] }
@@ -133,7 +130,6 @@ tauri-plugin-single-instance = "2.3.0"
 tauri-plugin-store = "2.3.0"
 tauri-plugin-global-shortcut = "2.3.0"
 tauri-plugin-notification = "2.3.0"
-tauri-plugin-updater = "2.3.0"
 tauri-plugin-window-state = "2.3.0"
 
 # IPC contract generation.

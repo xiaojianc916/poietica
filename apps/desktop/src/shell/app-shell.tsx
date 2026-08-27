@@ -30,6 +30,7 @@ import { reportFailure } from '../failures/application-policy'
 import { failureCoordinator } from '../failures/coordinator'
 import { UiFeedbackRegion } from '../feedback/ui-feedback'
 import { PluginLoader, pluginStore } from '../plugins/plugin-runtime'
+import { UpdateCapsule } from '../updates/update-capsule'
 import { UpdateRow } from '../updates/update-row'
 import { ConversationCommands } from '../workbench/conversation-commands'
 import { type AppCapabilities, WorkspaceContainer } from '../workbench/workspace-container'
@@ -399,6 +400,8 @@ export function AppShell({ runtime }: AppShellProps) {
             open={isCommandPaletteOpen}
             registry={runtime.commands}
           />
+
+          <UpdateCapsule store={updates} />
 
           <UiFeedbackRegion />
         </ThreadsProvider>

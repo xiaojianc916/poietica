@@ -1,76 +1,50 @@
 #!/usr/bin/env bun
 /**
- * 发布之后，用客户端那条端点验证更新通道确实通了。
+ * 用客户端那条 URL 亲自验一遍发布通道。
  *
- * 没有这一步，"资产没上传 / release 不是 latest / 版本与 tag 不符" 三种失败全部
- * 静默：CI 全绿，而每一个已安装的客户端永远收不到更新，我们也收不到任何信号。
- *
- *   bun scripts/release/verify-channel.mjs v0.1.2
+ *   bun scripts/release/verify-channel.mjs <tag>
  */
-
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { setTimeout as sleep } from 'node:timers/promises'
 
-const CONF = 'apps/desktop/src-tauri/tauri.conf.json'
-const ATTEMPTS = 5
-const BACKOFF = 15_000
-
-const tag = process.argv[2]
-
+const ENDPOINT_FILE = 'apps/desktop/src-tauri/updater/manifest.url'
+const [tag] = process.argv.slice(2)
 if (!tag) {
   console.error('usage: bun scripts/release/verify-channel.mjs <tag>')
   process.exit(2)
 }
-
-const conf = JSON.parse(await readFile(CONF, 'utf8'))
-const endpoint = conf.plugins?.updater?.endpoints?.[0]
-
-if (!endpoint) {
-  console.error(`${CONF}: no updater endpoint declared`)
-  process.exit(2)
+function fail(message) {
+  console.error(message)
+  process.exit(1)
 }
-
-const expected = tag.replace(/^v/, '')
-
-async function probe() {
-  const response = await fetch(endpoint, { redirect: 'follow' })
-
-  if (!response.ok) {
-    throw new Error(`${endpoint} -> ${response.status}`)
+const endpoint = (await readFile(ENDPOINT_FILE, 'utf8')).trim()
+const response = await fetch(endpoint, { redirect: 'follow' })
+if (!response.ok) {
+  fail(`${endpoint} answered ${response.status}`)
+}
+const manifest = await response.json()
+const version = tag.replace(/^v/, '')
+if (manifest.version !== version) {
+  fail(`the published manifest is ${manifest.version}, expected ${version}`)
+}
+if (typeof manifest.payloadHash !== 'string' || manifest.payloadHash.length !== 64) {
+  fail('the published manifest carries no payload hash')
+}
+const artifacts = [
+  { label: 'full', url: manifest.full?.url, signature: manifest.full?.signature },
+  ...(manifest.patches ?? []).map((patch) => ({
+    label: `patch from ${patch.fromHash}`,
+    url: patch.url,
+    signature: patch.signature,
+  })),
+]
+for (const artifact of artifacts) {
+  if (!artifact.url || !artifact.signature) {
+    fail(`${artifact.label} is incomplete`)
   }
-
-  const manifest = await response.json()
-
-  if (manifest.version !== expected) {
-    throw new Error(`manifest serves ${manifest.version}, expected ${expected}`)
-  }
-
-  const platform = manifest.platforms?.['windows-x86_64']
-
-  if (!platform?.signature || !platform.url) {
-    throw new Error('manifest has no signed windows-x86_64 artifact')
-  }
-
-  const installer = await fetch(platform.url, { method: 'HEAD', redirect: 'follow' })
-
-  if (!installer.ok) {
-    throw new Error(`${platform.url} -> ${installer.status}`)
+  const reachable = await fetch(artifact.url, { method: 'HEAD', redirect: 'follow' })
+  if (!reachable.ok) {
+    fail(`${artifact.label} answered ${reachable.status}`)
   }
 }
-
-for (let attempt = 1; ; attempt += 1) {
-  try {
-    await probe()
-    console.log(`update channel serves ${expected}`)
-    break
-  } catch (error) {
-    if (attempt === ATTEMPTS) {
-      console.error(String(error))
-      process.exit(1)
-    }
-
-    console.log(`not ready yet (${error.message}); retrying in ${BACKOFF / 1000}s`)
-    await sleep(BACKOFF)
-  }
-}
+console.log(`update channel: ${version}, ${artifacts.length - 1} incremental payload(s)`)

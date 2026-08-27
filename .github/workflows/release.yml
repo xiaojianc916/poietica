@@ -53,8 +53,8 @@ jobs:
 
           # 占位公钥发出去的后果是所有已安装客户端永远更新失败，且我们不会
           # 收到任何信号。在构建之前拦下。
-          $conf = Get-Content "apps/desktop/src-tauri/tauri.conf.json" -Raw
-          if ($conf -match "REPLACE_WITH_TAURI_SIGNER_PUBKEY") {
+          $key = Get-Content "apps/desktop/src-tauri/updater/public.key" -Raw
+          if ($key -match "REPLACE_WITH_TAURI_SIGNER_PUBKEY") {
             throw "updater pubkey is still the placeholder. Run: cd apps/desktop && bun run tauri signer generate -w ~/.tauri/poietica.key"
           }
 
@@ -80,10 +80,6 @@ jobs:
 
       - name: Build installer
         run: bun run build:release
-        env:
-          # updater 产物签名（Tauri 官方 minisign 密钥对）。
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Collect artifacts
         shell: pwsh
@@ -102,9 +98,7 @@ jobs:
             Copy-Item $file.FullName -Destination $out
           }
 
-      - name: Generate updater manifest
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: bun scripts/release/latest-json.mjs "${{ env.BUNDLE_DIR }}" dist-release "${{ github.ref_name }}"
+
 
       - name: Checksums
         shell: pwsh
@@ -145,11 +139,20 @@ jobs:
             throw "Poietica.exe is not a Windows GUI binary (subsystem = $subsystem)"
           }
 
+          # 增量的基线必须是人手里真正在跑的那份字节：载荷取自已安装的文件。
+          Copy-Item $installed.FullName -Destination "payload-source.exe"
           $uninstaller = Join-Path $installed.Directory "uninstall.exe"
           if (Test-Path $uninstaller) {
             Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait
           }
 
+      - name: Build update payloads and manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: bun scripts/release/manifest.mjs payload-source.exe dist-release "${{ github.ref_name }}"
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:

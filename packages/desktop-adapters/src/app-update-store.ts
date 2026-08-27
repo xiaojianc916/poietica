@@ -1,4 +1,5 @@
 import { createExternalStore } from '@poietica/core'
+import type { UpdateKind } from '@poietica/ipc/generated/ipc-bindings'
 import type { SettingsStore } from '@poietica/settings'
 import type { AppUpdateController } from './app-update'
 
@@ -12,7 +13,7 @@ export type AppUpdateState =
   | { readonly phase: 'idle' }
   | { readonly phase: 'checking' }
   | { readonly phase: 'latest' }
-  | { readonly phase: 'available'; readonly version: string }
+  | { readonly phase: 'available'; readonly kind: UpdateKind; readonly version: string }
   | {
       readonly phase: 'downloading'
       readonly version: string
@@ -105,7 +106,7 @@ export class AppUpdateStore {
         return
       }
 
-      this.#commit({ phase: 'available', version: release.version })
+      this.#commit({ phase: 'available', kind: release.kind, version: release.version })
     }
 
     const first = window.setTimeout(() => {
@@ -155,7 +156,7 @@ export class AppUpdateStore {
           return
         }
 
-        this.#commit({ phase: 'available', version: release.version })
+        this.#commit({ phase: 'available', kind: release.kind, version: release.version })
       },
       (cause: unknown) => {
         this.#onFailure('check-update', cause)
@@ -172,7 +173,7 @@ export class AppUpdateStore {
       return
     }
 
-    const version = current.version
+    const { kind, version } = current
 
     this.#commit({ phase: 'downloading', version, percent: null })
 
@@ -188,7 +189,7 @@ export class AppUpdateStore {
           this.#onFailure('download-update', cause)
 
           /* 退回可点状态：这枚胶囊本身就是重试入口，下一轮检查会纠正版本。 */
-          this.#commit({ phase: 'available', version })
+          this.#commit({ phase: 'available', kind, version })
         },
       )
   }

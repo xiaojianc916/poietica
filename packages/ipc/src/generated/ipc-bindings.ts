@@ -916,38 +916,12 @@ async agentInstallRun(agentId: string) : Promise<AgentInstallStatus> {
 async providerProbeKey(baseUrl: string, secret: string) : Promise<ProviderProbeOutcome> {
     return await TAURI_INVOKE("provider_probe_key", { baseUrl, secret });
 },
-/**
- * 是否存在比当前版本更新的发布。
- * 
- * # Errors
- * 
- * 更新源不可达、超时、清单无法解析或签名校验失败时返回错误。
- */
 async updateCheck() : Promise<UpdateRelease | null> {
     return await TAURI_INVOKE("update_check");
 },
-/**
- * 把 `version` 下下来待命，期间以 `UpdateProgress` 事件广播进度。只下载，不安装。
- * 
- * 版本是入参，不是"下的时候最新的那一个"：提示给人的和最终装上的必须同一个版本，
- * 两次检查之间发布换了版就报错，而不是悄悄换掉人答应过的东西。
- * 
- * # Errors
- * 
- * 该版本已不再是最新、下载失败、签名不匹配，或另一趟下载正在进行时返回错误。
- */
 async updateDownload(version: string) : Promise<null> {
     return await TAURI_INVOKE("update_download", { version });
 },
-/**
- * 安装已经下好的那一个，然后重启。
- * 
- * 正常路径上不返回：Windows 的 NSIS 安装器在 passive 模式下会接管进程。
- * 
- * # Errors
- * 
- * 没有下好的版本，或安装器启动失败 —— 后者意味着那份字节已被消耗，暂存态一并清空。
- */
 async updateRelaunch() : Promise<null> {
     return await TAURI_INVOKE("update_relaunch");
 },
@@ -2204,17 +2178,17 @@ export type TableExportRequest = { content: string; format: TableExportFormat }
  */
 export type ThemePreference = "light" | "dark" | "system"
 /**
- * 下载进度，以百分比表达。总长未知（服务端没给 Content-Length）时为空。
- * 
- * 跨 IPC 的是这一个标量而不是两个字节数：界面上只出现比值，比值就该是契约上的东
- * 西。事件名与 payload 类型由 `collect_events!` 一并导出；`Event` 派生要求
- * `Deserialize`，它只服务于这条生成通道。
+ * 契约上的投影：判定归更新域，这里只负责说给渲染层听。
+ */
+export type UpdateKind = "patch" | "full"
+/**
+ * 下载进度。percent 为 None 表示服务端没给长度。
  */
 export type UpdateProgress = { percent: number | null }
 /**
- * 一个可安装的新版本。
+ * 一个可安装的新版本，以及这一次会走哪条路。
  */
-export type UpdateRelease = { version: string; notes: string | null }
+export type UpdateRelease = { version: string; notes: string | null; kind: UpdateKind }
 /**
  * 一天的账。日历日按本机时区算，键就是渲染层索引热力图的那一个。
  */
