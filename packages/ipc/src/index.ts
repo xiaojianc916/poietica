@@ -73,6 +73,7 @@ export { throughIpc } from './error'
 export {
   type GitBranches,
   type GitFileChange,
+  gitAwaitChange,
   gitBranches,
   gitChanges,
   gitCreateBranch,

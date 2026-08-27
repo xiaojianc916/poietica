@@ -146,6 +146,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::git::git_create_branch,
             crate::commands::git::git_changes,
             crate::commands::git::git_file_patch,
+            crate::commands::git::git_await_change,
             crate::browser::browser_state,
             crate::browser::browser_open_tab,
             crate::browser::browser_close_tab,

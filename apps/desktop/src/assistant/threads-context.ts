@@ -1,5 +1,5 @@
 import { groupByWorkspace, type ThreadsStore, type ThreadWorkspaceList } from '@poietica/agent'
-import { createContext, useContext, useMemo, useSyncExternalStore } from 'react'
+import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react'
 
 /*
  * One conversation state, shared by the sidebar and the tab strip.
@@ -56,4 +56,21 @@ export function useThreadsList(): ThreadWorkspaceList {
   const groups = useMemo(() => groupByWorkspace(list.items), [list.items])
 
   return { failure: list.failure, groups, isLoading: list.isLoading }
+}
+
+/*
+ * 屏幕上这条对话开在哪个目录。
+ *
+ * 审查那一格据此问 git，不另存一份：目录是这条对话的事实（原生侧开对话时记
+ * 下），不是某个面板的本地态。
+ */
+export function useConversationWorkspaceRoot(conversationId: string | null): string | null {
+  const store = useStore()
+
+  const read = useCallback(
+    () => (conversationId === null ? null : store.rootOf(conversationId)),
+    [conversationId, store],
+  )
+
+  return useSyncExternalStore(store.subscribe, read, read)
 }

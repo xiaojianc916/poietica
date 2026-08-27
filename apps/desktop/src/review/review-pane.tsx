@@ -1,13 +1,22 @@
-import { RotateCw, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, Search } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 
-import { useActiveWorkspaceRoot } from '../workspace-root'
-import { type GitFileChange, useFilePatch, useWorkspaceChanges } from './workspace-changes'
+import { useConversationWorkspaceRoot } from '../assistant/threads-context'
+import { type FileTreeFolder, type FileTreeNode, fileTree } from './file-tree'
+import { type PatchLine, patchView } from './patch-hunks'
+import {
+  type GitFileChange,
+  useFilePatch,
+  useWorkspaceChanges,
+  type WorkspaceChanges,
+} from './workspace-changes'
 
 /*
- * 审查那一格：dock 里的只读变更清单。
+ * 审查那一格：屏幕上这条对话所在工作树的只读变更面。
  *
- * 筛选词不落盘：下次打开时一个看不见的筛选词会惄惄藏掉文件。
+ * 目录不是这一格的状态，是这条对话的事实（ThreadRecord.workspaceRoot）。清单由
+ * 原生监视推着走，所以这里没有刷新按钮 —— 一个能按的刷新意味着屏幕允许停在过期
+ * 的答案上。筛选词不落盘：下次打开时一个看不见的筛选词会静静藏掉文件。
  */
 
 const STATUS_MARKS: Readonly<Record<GitFileChange['status'], readonly [string, string]>> = {
@@ -18,64 +27,69 @@ const STATUS_MARKS: Readonly<Record<GitFileChange['status'], readonly [string, s
   conflicted: ['U', 'text-rose-500'],
 }
 
-export function ReviewPane() {
-  const root = useActiveWorkspaceRoot()
-  const { answered, changes, refresh, revision } = useWorkspaceChanges(root)
+const LINE_TONES: Readonly<Record<PatchLine['kind'], string>> = {
+  added: 'bg-emerald-500/10',
+  removed: 'bg-rose-500/10',
+  context: '',
+}
+
+const LINE_MARKS: Readonly<Record<PatchLine['kind'], string>> = {
+  added: '+',
+  removed: '-',
+  context: ' ',
+}
+
+/* 树的缩进：一层一格，行首留出与标题同宽的边距。 */
+const GUTTER = 10
+const INDENT_STEP = 12
+
+function indent(depth: number): { readonly paddingLeft: number } {
+  return { paddingLeft: GUTTER + depth * INDENT_STEP }
+}
+
+export function ReviewPane({ conversationId }: { readonly conversationId: string | null }) {
+  const root = useConversationWorkspaceRoot(conversationId)
+  const changes = useWorkspaceChanges(root)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-8 shrink-0 items-center gap-2 border-b border-current/10 px-2.5">
         <span className="text-xs font-medium">Git 变更</span>
-        {changes === null ? null : (
-          <span className="text-xs tabular-nums opacity-50">{changes.length}</span>
-        )}
-        <button
-          aria-label="刷新"
-          className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100"
-          onClick={refresh}
-          title="刷新"
-          type="button"
-        >
-          <RotateCw aria-hidden className="size-3.5" />
-        </button>
+        {changes.state === 'listed' ? (
+          <span className="text-xs tabular-nums opacity-50">{changes.changes.length}</span>
+        ) : null}
       </div>
-      <ReviewList
-        answered={answered}
-        changes={changes}
-        key={root ?? 'none'}
-        revision={revision}
-        root={root}
-      />
+      <ReviewBody changes={changes} key={root ?? 'none'} root={root} />
     </div>
   )
 }
 
-function ReviewList({
-  answered,
+function ReviewBody({
   changes,
-  revision,
   root,
 }: {
-  readonly answered: boolean
-  readonly changes: readonly GitFileChange[] | null
-  readonly revision: number
+  readonly changes: WorkspaceChanges
   readonly root: string | null
 }) {
   const [query, setQuery] = useState('')
 
   if (root === null) {
-    return <Note>没有打开的工作目录。</Note>
+    return <Note>这条对话没有工作目录。</Note>
   }
 
-  if (!answered) {
+  if (changes.state === 'asking') {
     return <Note>正在读取变更…</Note>
   }
 
-  if (changes === null) {
+  if (changes.state === 'notARepository') {
     return <Note>这个目录不是 git 仓库。</Note>
   }
 
-  if (changes.length === 0) {
+  if (changes.state === 'unreadable') {
+    return <Note>读不到 git 变更。</Note>
+  }
+
+  if (changes.changes.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 text-center">
         <p className="text-sm font-medium">尚无文件变更</p>
@@ -85,7 +99,7 @@ function ReviewList({
   }
 
   const needle = query.trim().toLowerCase()
-  const matched = changes.filter((change) => change.path.toLowerCase().includes(needle))
+  const matched = changes.changes.filter((change) => change.path.toLowerCase().includes(needle))
 
   return (
     <>
@@ -102,22 +116,94 @@ function ReviewList({
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto py-1">
-        {matched.map((change) => (
-          <FileRow change={change} key={change.path} revision={revision} root={root} />
-        ))}
-        {matched.length === 0 ? <Note>没有匹配的文件。</Note> : null}
+        {matched.length === 0 ? (
+          <Note>没有匹配的文件。</Note>
+        ) : (
+          <Branch depth={0} generation={changes.generation} nodes={fileTree(matched)} root={root} />
+        )}
       </div>
     </>
   )
 }
 
+function Branch({
+  depth,
+  generation,
+  nodes,
+  root,
+}: {
+  readonly depth: number
+  readonly generation: number
+  readonly nodes: readonly FileTreeNode[]
+  readonly root: string
+}) {
+  return (
+    <>
+      {nodes.map((node) =>
+        node.kind === 'folder' ? (
+          <Folder depth={depth} generation={generation} key={node.path} node={node} root={root} />
+        ) : (
+          <FileRow
+            change={node.change}
+            depth={depth}
+            generation={generation}
+            key={node.change.path}
+            name={node.name}
+            root={root}
+          />
+        ),
+      )}
+    </>
+  )
+}
+
+function Folder({
+  depth,
+  generation,
+  node,
+  root,
+}: {
+  readonly depth: number
+  readonly generation: number
+  readonly node: FileTreeFolder
+  readonly root: string
+}) {
+  const [open, setOpen] = useState(true)
+  const Glyph = open ? ChevronDown : ChevronRight
+
+  return (
+    <div>
+      <button
+        aria-expanded={open}
+        className="flex h-7 w-full min-w-0 items-center gap-1.5 pr-2.5 text-left hover:bg-current/5"
+        onClick={() => {
+          setOpen(!open)
+        }}
+        style={indent(depth)}
+        title={node.path}
+        type="button"
+      >
+        <Glyph aria-hidden className="size-3.5 shrink-0 opacity-50" />
+        <span className="min-w-0 flex-1 truncate text-xs opacity-70">{node.name}</span>
+      </button>
+      {open ? (
+        <Branch depth={depth + 1} generation={generation} nodes={node.children} root={root} />
+      ) : null}
+    </div>
+  )
+}
+
 function FileRow({
   change,
-  revision,
+  depth,
+  generation,
+  name,
   root,
 }: {
   readonly change: GitFileChange
-  readonly revision: number
+  readonly depth: number
+  readonly generation: number
+  readonly name: string
   readonly root: string
 }) {
   const [open, setOpen] = useState(false)
@@ -127,48 +213,33 @@ function FileRow({
     <div>
       <button
         aria-expanded={open}
-        className="flex h-8 w-full min-w-0 items-center gap-2 px-2.5 text-left hover:bg-current/5"
+        className="flex h-7 w-full min-w-0 items-center gap-2 pr-2.5 text-left hover:bg-current/5"
         onClick={() => {
           setOpen(!open)
         }}
+        style={indent(depth)}
         title={change.path}
         type="button"
       >
         <span className={`shrink-0 font-mono text-[11px] ${tone}`}>{mark}</span>
-        <span className="min-w-0 flex-1 truncate text-xs">{change.path}</span>
+        <span className="min-w-0 flex-1 truncate text-xs">{name}</span>
         {change.staged ? <span className="shrink-0 text-[11px] opacity-50">已暂存</span> : null}
       </button>
-      {open ? <RowPatch change={change} revision={revision} root={root} /> : null}
+      {open ? <Patch change={change} generation={generation} root={root} /> : null}
     </div>
   )
 }
 
-function RowPatch({
+function Patch({
   change,
-  revision,
+  generation,
   root,
 }: {
   readonly change: GitFileChange
-  readonly revision: number
+  readonly generation: number
   readonly root: string
 }) {
-  if (change.status === 'untracked') {
-    return <Note>未跟踪的文件没有对比基线。</Note>
-  }
-
-  return <TrackedPatch path={change.path} revision={revision} root={root} />
-}
-
-function TrackedPatch({
-  path,
-  revision,
-  root,
-}: {
-  readonly path: string
-  readonly revision: number
-  readonly root: string
-}) {
-  const patch = useFilePatch(root, path, revision)
+  const patch = useFilePatch(root, change.path, generation)
 
   if (patch.state === 'asking') {
     return <Note>正在读取补丁…</Note>
@@ -178,39 +249,42 @@ function TrackedPatch({
     return <Note>补丁读取失败。</Note>
   }
 
+  const view = patchView(patch.patch)
+
+  if (view.binary) {
+    return <Note>二进制文件，没有可对比的文本。</Note>
+  }
+
+  if (view.empty) {
+    return (
+      <Note>{change.status === 'untracked' ? '未跟踪的文件没有对比基线。' : '没有文本改动。'}</Note>
+    )
+  }
+
   return (
-    <pre className="max-h-64 overflow-auto px-2.5 pb-2 font-mono text-[11px] leading-5">
-      {hunkLines(patch.patch).map((line, index) => (
-        <div className={patchTone(line)} key={String(index) + line}>
-          {line}
+    <div className="max-h-72 overflow-auto font-mono text-[11px] leading-5">
+      {view.hunks.map((hunk, index) => (
+        <div key={hunk.header + String(index)}>
+          <div className="bg-current/5 px-2.5 opacity-50">{hunk.header}</div>
+          {hunk.lines.map((line, at) => (
+            <Line key={String(at)} line={line} />
+          ))}
         </div>
       ))}
-    </pre>
+    </div>
   )
 }
 
-/* 只画补丁本体：头几行（diff / index / --- / +++）说的是文件名，标题行已经说过。 */
-function hunkLines(patch: string): readonly string[] {
-  const lines = patch.split('\n')
-  const start = lines.findIndex((line) => line.startsWith('@@'))
-
-  return start === -1 ? [] : lines.slice(start)
-}
-
-function patchTone(line: string): string {
-  if (line.startsWith('+')) {
-    return 'text-emerald-500'
-  }
-
-  if (line.startsWith('-')) {
-    return 'text-rose-500'
-  }
-
-  if (line.startsWith('@@')) {
-    return 'opacity-50'
-  }
-
-  return ''
+/* 行号两列、种类一列、正文一列 —— 与 git 自己的 diff 同一读法。 */
+function Line({ line }: { readonly line: PatchLine }) {
+  return (
+    <div className={`flex gap-2 px-2.5 ${LINE_TONES[line.kind]}`}>
+      <span className="w-8 shrink-0 text-right tabular-nums opacity-40">{line.oldLine}</span>
+      <span className="w-8 shrink-0 text-right tabular-nums opacity-40">{line.newLine}</span>
+      <span className="shrink-0 opacity-60">{LINE_MARKS[line.kind]}</span>
+      <span className="whitespace-pre">{line.text}</span>
+    </div>
+  )
 }
 
 function Note({ children }: { readonly children: ReactNode }) {

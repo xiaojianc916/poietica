@@ -122,3 +122,14 @@ pub async fn git_file_patch(root: String, path: String) -> Result<String, IpcErr
         .await
         .map_err(surfaced)
 }
+
+/// 等这个工作树的下一次变化。true = 变了；false = 这一窗里没动，调用方再挂一次。
+///
+/// 监视与这一次调用同寿，谁创建谁销毁；界面因此不需要刷新按钮。
+#[command]
+#[specta::specta]
+pub async fn git_await_change(root: String) -> Result<bool, IpcError> {
+    poietica_git_native::await_change(Path::new(&root))
+        .await
+        .map_err(surfaced)
+}

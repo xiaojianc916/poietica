@@ -17,8 +17,10 @@ use thiserror::Error;
 use tokio::process::Command;
 
 mod changes;
+mod watch;
 
 pub use changes::{ChangeStatus, FileChange, changes, patch};
+pub use watch::await_change;
 
 /// GUI 宿主 spawn 控制台程序时，Windows 会给它开一个控制台窗口：选一次工作区
 /// 闪一排黑框。同一规则的另一份在 crates/agent-runtime/src/program.rs 的
@@ -37,6 +39,10 @@ pub enum GitError {
     /// git 拒绝了这次操作：stderr 原样带回，那是用户唯一拿得去修正的信息。
     #[error("{0}")]
     Refused(String),
+
+    /// 监视挂不上：平台句柄耗尽，或目录在挂之前就没了。
+    #[error("无法监视工作目录：{0}")]
+    Unwatchable(#[from] notify::Error),
 }
 
 /// 一个仓库此刻的分支快照。
@@ -50,8 +56,6 @@ pub struct BranchSnapshot {
     pub branches: Vec<String>,
 }
 
-/// 问一个目录的分支快照。不是 git 工作区、或机器上没有 git，都是 None：
-/// 这两种情况下这项能力都不存在，界面据此整个消失，不是错误。
 /// git 在不在、这个目录是不是工作区。两者缺一，这项能力在此处就不存在。
 pub(crate) async fn inside_work_tree(root: &Path) -> Result<bool, GitError> {
     let probe = match run(root, &["rev-parse", "--is-inside-work-tree"]).await {
@@ -65,6 +69,8 @@ pub(crate) async fn inside_work_tree(root: &Path) -> Result<bool, GitError> {
     Ok(probe.status.success() && line(&probe.stdout) == "true")
 }
 
+/// 问一个目录的分支快照。不是工作区、或机器没有 git，都是 None：这项能力在
+/// 那里不存在，界面据此整个消失，不是错误。
 pub async fn snapshot(root: &Path) -> Result<Option<BranchSnapshot>, GitError> {
     if !inside_work_tree(root).await? {
         return Ok(None);

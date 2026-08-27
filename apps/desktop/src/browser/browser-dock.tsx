@@ -117,7 +117,7 @@ export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
         name: paneName,
       },
       review: {
-        body: () => <ReviewPane />,
+        body: () => <ReviewPane conversationId={conversationId} />,
         icon: <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />,
         name: () => '审查',
       },

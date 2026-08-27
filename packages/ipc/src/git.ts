@@ -21,10 +21,14 @@ export function gitSwitchBranch(root: string, branch: string): Promise<GitBranch
   return throughIpc(() => commands.gitSwitchBranch(root, branch))
 }
 
-/** 创建并检出新分支，交回新快照。名字合法性由 git 判，拒绝理由原文透出。 */
 /** 问一个目录此刻的变更清单。不是 git 仓库、或机器没有 git，都是 null。 */
 export function gitChanges(root: string): Promise<GitFileChange[] | null> {
   return throughIpc(() => commands.gitChanges(root))
+}
+
+/** 挂上原生监视，等这个目录的下一次变化。false = 这一窗里没动，再挂一次。 */
+export function gitAwaitChange(root: string): Promise<boolean> {
+  return throughIpc(() => commands.gitAwaitChange(root))
 }
 
 /** 一个文件此刻相对 HEAD 的统一补丁。 */
@@ -32,6 +36,7 @@ export function gitFilePatch(root: string, path: string): Promise<string> {
   return throughIpc(() => commands.gitFilePatch(root, path))
 }
 
+/** 创建并检出新分支，交回新快照。名字合法性由 git 判，拒绝理由原文透出。 */
 export function gitCreateBranch(root: string, branch: string): Promise<GitBranches> {
   return throughIpc(() => commands.gitCreateBranch(root, branch))
 }

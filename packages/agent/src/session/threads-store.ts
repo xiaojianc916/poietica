@@ -1,4 +1,5 @@
 import type { OpenedThread, ThreadPort, ThreadRecord } from '@poietica/agent-contract'
+import { normalizeWorkspaceRoot } from '@poietica/core'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import type { ThreadsList } from './thread-order'
@@ -145,6 +146,13 @@ export class ThreadsStore {
 
   /** 设置页读的已归档列表。 */
   archivedSnapshot = (): ThreadsList => this.#archived
+
+  /** 这条对话开在哪个目录；平台没记下就是 null。归一化只发生在这一处。 */
+  rootOf = (threadId: string): string | null => {
+    const held = this.#byId.get(threadId)?.workspaceRoot ?? this.#roots.get(threadId) ?? null
+
+    return held === null || held.length === 0 ? null : normalizeWorkspaceRoot(held)
+  }
 
   /** 这条对话现在叫什么。 */
   titleOf = (threadId: string): string =>

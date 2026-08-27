@@ -1065,6 +1065,14 @@ async gitFilePatch(root: string, path: string) : Promise<string> {
     return await TAURI_INVOKE("git_file_patch", { root, path });
 },
 /**
+ * 等这个工作树的下一次变化。true = 变了；false = 这一窗里没动，调用方再挂一次。
+ * 
+ * 监视与这一次调用同寿，谁创建谁销毁；界面因此不需要刷新按钮。
+ */
+async gitAwaitChange(root: string) : Promise<boolean> {
+    return await TAURI_INVOKE("git_await_change", { root });
+},
+/**
  * 渲染层进面板时拉一次的初始快照。之后靠事件。
  */
 async browserState() : Promise<BrowserState> {
