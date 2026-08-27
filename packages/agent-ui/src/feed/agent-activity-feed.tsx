@@ -177,8 +177,8 @@ export function AgentActivityFeed({
   const leadOf = (row: number) => rowGap[rowRhythm(row)]
 
   const virtualizer = useVirtualizer({
-    /* 视口顶落在内容顶：align start 的落点是 item.start - scrollPaddingStart。 */
-    scrollPaddingStart: revealing === null ? 0 : -leadOf(revealing),
+    /* 落点 = item.start - scrollPaddingStart：被揭示的行之上留一格行距。 */
+    scrollPaddingStart: revealing === null ? 0 : leadOf(revealing),
     count: feed.count,
     getScrollElement: () => viewport,
     estimateSize: estimateRow,

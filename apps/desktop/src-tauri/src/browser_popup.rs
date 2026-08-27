@@ -12,7 +12,6 @@ use crate::error::{Error, IpcError, Result};
 const POPUP_WINDOW: &str = "browser-popup";
 const POPUP_DOCUMENT: &str = "browser-popup.html";
 const MAX_POPUP_SIZE: f64 = 1_024.0;
-const MAX_PANES: usize = 256;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
@@ -77,6 +76,7 @@ impl BrowserPopupHost {
 
     fn replace(&self, request: BrowserPopupRequest) {
         *self.lock() = Some(request);
+        self.arm(false);
     }
 
     fn arm(&self, armed: bool) {
@@ -89,37 +89,8 @@ impl BrowserPopupHost {
     }
 
     fn take(&self) -> Option<BrowserPopupRequest> {
+        self.arm(false);
         self.lock().take()
-    }
-
-    fn accepts_action(&self, action: &BrowserPopupAction) -> bool {
-        let request = self.lock();
-        let Some(request) = request.as_ref() else {
-            return false;
-        };
-
-        match action.action {
-            BrowserPopupActionKind::SelectPane | BrowserPopupActionKind::ClosePane => {
-                action.tab_id.is_none()
-                    && action.index.is_none()
-                    && action
-                        .pane_id
-                        .as_ref()
-                        .is_some_and(|pane_id| request.panes.iter().any(|pane| &pane.id == pane_id))
-            }
-            BrowserPopupActionKind::SelectTab | BrowserPopupActionKind::CloseTab => {
-                request.kind == BrowserPopupKind::Tabs
-                    && action.pane_id.is_none()
-                    && action.tab_id.is_some()
-                    && action.index.is_none()
-            }
-            BrowserPopupActionKind::ReopenClosed => {
-                request.kind == BrowserPopupKind::Tabs
-                    && action.pane_id.is_none()
-                    && action.tab_id.is_none()
-                    && action.index.is_some()
-            }
-        }
     }
 }
 
@@ -131,57 +102,20 @@ struct PopupGeometry {
     height: f64,
 }
 
-fn validate(request: &BrowserPopupRequest, geometry: PopupGeometry) -> Result<()> {
+/// 只守原生边界：窗口 API 收得下的几何。请求正文归渲染层，这一层不解释它。
+fn validate(geometry: PopupGeometry) -> Result<()> {
     let values = [geometry.x, geometry.y, geometry.width, geometry.height];
-    if !values.into_iter().all(f64::is_finite)
-        || !(1.0..=MAX_POPUP_SIZE).contains(&geometry.width)
-        || !(1.0..=MAX_POPUP_SIZE).contains(&geometry.height)
+
+    if values.into_iter().all(f64::is_finite)
+        && (1.0..=MAX_POPUP_SIZE).contains(&geometry.width)
+        && (1.0..=MAX_POPUP_SIZE).contains(&geometry.height)
     {
-        return Err(Error::Validation(
-            "invalid browser popup geometry".to_owned(),
-        ));
+        return Ok(());
     }
 
-    let valid_theme = !request.theme.is_empty()
-        && request.theme.len() <= 32
-        && request
-            .theme
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-');
-    if !valid_theme || request.panes.len() > MAX_PANES {
-        return Err(Error::Validation(
-            "invalid browser popup request".to_owned(),
-        ));
-    }
-
-    if request
-        .panes
-        .iter()
-        .any(|pane| pane.id.trim().is_empty() || pane.id.len() > 256 || pane.title.len() > 512)
-    {
-        return Err(Error::Validation("invalid browser popup pane".to_owned()));
-    }
-
-    match request.kind {
-        BrowserPopupKind::Overflow
-            if !request.panes.is_empty() || request.active_pane_id.is_some() =>
-        {
-            Err(Error::Validation(
-                "overflow popup cannot carry pane state".to_owned(),
-            ))
-        }
-        BrowserPopupKind::Tabs
-            if request
-                .active_pane_id
-                .as_ref()
-                .is_some_and(|active| !request.panes.iter().any(|pane| &pane.id == active)) =>
-        {
-            Err(Error::Validation(
-                "active popup pane is not in the pane snapshot".to_owned(),
-            ))
-        }
-        _ => Ok(()),
-    }
+    Err(Error::Validation(
+        "invalid browser popup geometry".to_owned(),
+    ))
 }
 
 #[tauri::command]
@@ -200,7 +134,7 @@ pub async fn open_browser_popup(
         width,
         height,
     };
-    validate(&request, geometry)?;
+    validate(geometry)?;
     dismiss(&app)?;
 
     let main = app
@@ -225,8 +159,6 @@ pub async fn open_browser_popup(
             .parent(&main)
             .map_err(Error::from)?;
 
-    app.state::<BrowserPopupHost>().arm(false);
-    app.state::<BrowserPopupHost>().arm(false);
     app.state::<BrowserPopupHost>().replace(request);
 
     match builder.build() {
@@ -268,10 +200,6 @@ pub async fn browser_popup_dispatch_action(
     app: AppHandle,
     action: BrowserPopupAction,
 ) -> std::result::Result<(), IpcError> {
-    if !app.state::<BrowserPopupHost>().accepts_action(&action) {
-        return Err(Error::Validation("invalid browser popup action".to_owned()).into());
-    }
-
     if let Err(error) = action.emit(&app) {
         log::warn!("browser popup action could not be delivered: {error}");
         return Err(
@@ -306,68 +234,35 @@ fn dismiss(app: &AppHandle) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BrowserPopupKind, BrowserPopupPane, BrowserPopupRequest, PopupGeometry, validate};
+    use super::{MAX_POPUP_SIZE, PopupGeometry, validate};
 
-    fn tabs_request() -> BrowserPopupRequest {
-        BrowserPopupRequest {
-            kind: BrowserPopupKind::Tabs,
-            theme: "light".to_owned(),
-            panes: vec![BrowserPopupPane {
-                id: "pane-1".to_owned(),
-                title: "Pane".to_owned(),
-            }],
-            active_pane_id: Some("pane-1".to_owned()),
+    fn geometry(width: f64, height: f64) -> PopupGeometry {
+        PopupGeometry {
+            x: 10.0,
+            y: 20.0,
+            width,
+            height,
         }
     }
 
     #[test]
-    fn valid_tabs_request_is_accepted() {
-        assert!(
-            validate(
-                &tabs_request(),
-                PopupGeometry {
-                    x: 10.0,
-                    y: 20.0,
-                    width: 352.0,
-                    height: 300.0,
-                },
-            )
-            .is_ok()
-        );
+    fn geometry_the_window_api_accepts_is_allowed() {
+        assert!(validate(geometry(352.0, 300.0)).is_ok());
     }
 
     #[test]
     fn non_finite_geometry_is_rejected() {
         assert!(
-            validate(
-                &tabs_request(),
-                PopupGeometry {
-                    x: f64::NAN,
-                    y: 20.0,
-                    width: 352.0,
-                    height: 300.0,
-                },
-            )
+            validate(PopupGeometry {
+                x: f64::NAN,
+                ..geometry(352.0, 300.0)
+            })
             .is_err()
         );
     }
 
     #[test]
-    fn overflow_request_cannot_smuggle_panes() {
-        let mut request = tabs_request();
-        request.kind = BrowserPopupKind::Overflow;
-
-        assert!(
-            validate(
-                &request,
-                PopupGeometry {
-                    x: 10.0,
-                    y: 20.0,
-                    width: 376.0,
-                    height: 153.0,
-                },
-            )
-            .is_err()
-        );
+    fn oversized_geometry_is_rejected() {
+        assert!(validate(geometry(MAX_POPUP_SIZE + 1.0, 300.0)).is_err());
     }
 }

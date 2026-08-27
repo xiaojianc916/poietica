@@ -34,10 +34,10 @@ const MENU_ROW = 32
 const MENU_DIVIDER = 9
 const MENU_WIDTH = 288
 const SURFACE_PADDING = 4
-const POPUP_MARGIN = 8
 const SEARCH_ROW = 44
 const GROUP_LABEL = 24
 const TABS_MAX_HEIGHT = 384
+const TABS_WIDTH = 352
 const GAP = 4
 
 type OverflowRow =
@@ -82,8 +82,8 @@ export function browserPopupSize(
     )
 
     return {
-      width: MENU_WIDTH + POPUP_MARGIN * 2,
-      height: content + SURFACE_PADDING * 2 + POPUP_MARGIN * 2,
+      width: MENU_WIDTH,
+      height: content + SURFACE_PADDING * 2,
     }
   }
 
@@ -93,8 +93,8 @@ export function browserPopupSize(
   const natural = SEARCH_ROW + groups * GROUP_LABEL + rows * TAB_ROW + SURFACE_PADDING * 2
 
   return {
-    width: 352 + POPUP_MARGIN * 2,
-    height: Math.min(natural, TABS_MAX_HEIGHT) + POPUP_MARGIN * 2,
+    width: TABS_WIDTH,
+    height: Math.min(natural, TABS_MAX_HEIGHT),
   }
 }
 
@@ -113,8 +113,8 @@ export function requestBrowserPopup(
       theme: document.documentElement.dataset['theme'] ?? 'light',
     },
     {
-      x: Math.max(bounds.right - size.width + POPUP_MARGIN, -POPUP_MARGIN),
-      y: Math.max(bounds.bottom + GAP - POPUP_MARGIN, -POPUP_MARGIN),
+      x: Math.max(bounds.right - size.width, 0),
+      y: bounds.bottom + GAP,
       width: size.width,
       height: size.height,
     },
