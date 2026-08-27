@@ -111,7 +111,11 @@ impl AgentRuntime {
     ///
     /// The lock and the `Connection` value never leave this module: callers
     /// express intent, the runtime owns the lifecycle.
-    pub(super) fn disconnect(&self) -> Result<()> {
+    /// # Errors
+    ///
+    /// Fails when the connection lock is poisoned, or when the frame journal
+    /// cannot be flushed.
+    pub fn disconnect(&self) -> Result<()> {
         retire(lock(&self.connection)?.take());
         self.journal.flush()?;
         Ok(())

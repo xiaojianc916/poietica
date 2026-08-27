@@ -1,9 +1,10 @@
-import { Globe, LoaderCircle, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { BrowserNewTabMenu, BrowserTabsMenu, type DockPaneOffer } from './browser-menu'
 import type { BrowserMenuKind, BrowserPanelStore } from './browser-panel-store'
-import type { BrowserState, BrowserTab } from './browser-port'
+import type { BrowserState } from './browser-port'
+import { TabIcon } from './tab-icon'
 
 /*
  * 标签条与标签下拉。
@@ -153,17 +154,4 @@ export function BrowserTabStrip({
       {trailing ? <div className="mr-1.5 shrink-0">{trailing}</div> : null}
     </div>
   )
-}
-
-/* 标签的脸：装载中转圈，有站点图标就画它，否则地球。 */
-function TabIcon({ tab }: { readonly tab: BrowserTab }) {
-  if (tab.loading) {
-    return <LoaderCircle aria-hidden className="size-3.5 shrink-0 animate-spin opacity-60" />
-  }
-
-  if (tab.favicon === null) {
-    return <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
-  }
-
-  return <img alt="" className="size-3.5 shrink-0 rounded-sm" src={tab.favicon} />
 }

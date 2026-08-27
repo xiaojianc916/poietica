@@ -44,6 +44,7 @@ pub use error::{Error, Result};
 )]
 pub fn run() {
     app::build()
-        .run(tauri::generate_context!())
-        .expect("failed to run poietica desktop");
+        .build(tauri::generate_context!())
+        .expect("failed to start poietica desktop")
+        .run(bootstrap::shutdown::on_run_event);
 }

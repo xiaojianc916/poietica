@@ -90,11 +90,12 @@ fn request_termination(app: &AppHandle) {
 }
 
 /// 不问确认，立刻结束进程。只由托盘上那条显式的菜单项发起。
+///
+/// 排空归退出屏障：托盘不自己存几何、也不自己调 exit。
 fn force_quit(app: &AppHandle) {
     log::warn!("tray: force quit requested; unsaved work is discarded");
 
-    persist_window_state(app);
-    app.exit(0);
+    super::shutdown::drain(app, 0);
 }
 
 fn toggle_main(app: &AppHandle) {

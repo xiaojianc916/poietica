@@ -5,6 +5,7 @@ import { BrowserOverflowMenu, type DockPaneOffer } from './browser-menu'
 import type { BrowserPanelStore } from './browser-panel-store'
 import type { BrowserTab } from './browser-port'
 import { BrowserTabStrip } from './browser-tab-strip'
+import { alignViewport, type ViewportAlignment } from './viewport-alignment'
 
 /*
  * 浏览器面板（图一）。
@@ -193,21 +194,7 @@ function BrowserToolbar({
         <Crosshair aria-hidden className="size-4" />
       </ToolbarButton>
 
-      <BrowserOverflowMenu
-        canDrive={canDrive}
-        onOpenChange={onMenuOpenChange}
-        onOpenExternally={() => {
-          if (activeTab?.url != null) {
-            actions.openExternally(activeTab.url)
-          }
-        }}
-        onPrint={() => {
-          if (activeTab !== null) {
-            actions.print(activeTab.id)
-          }
-        }}
-        open={menuOpen}
-      />
+      <BrowserOverflowMenu onOpenChange={onMenuOpenChange} open={menuOpen} />
     </div>
   )
 }
@@ -310,7 +297,7 @@ function Viewport({
   readonly layoutSignal: unknown
 }) {
   const region = useRef<HTMLDivElement | null>(null)
-  const restart = useRef<() => void>(() => {})
+  const alignment = useRef<ViewportAlignment | null>(null)
 
   useEffect(() => {
     const element = region.current
@@ -319,64 +306,21 @@ function Viewport({
       return undefined
     }
 
-    /*
-     * 原生子 webview 不在 DOM 里，按窗口逻辑坐标摆放。矩形的「位置」变化不触发
-     * ResizeObserver（侧栏开合、拖宽、窗口尺寸都只改位置），所以只能逐帧量；
-     * 但只在几何还在动时量 —— 连续两帧不变就停机，静止时零帧回调。
-     */
-    let frame = 0
-    let still = 0
-    let last = { x: -1, y: -1, width: -1, height: -1 }
+    const running = alignViewport(element, (bounds) => {
+      store.reportViewport(bounds)
+    })
 
-    const align = () => {
-      const rect = element.getBoundingClientRect()
-
-      if (
-        rect.x !== last.x ||
-        rect.y !== last.y ||
-        rect.width !== last.width ||
-        rect.height !== last.height
-      ) {
-        last = { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
-        still = 0
-        store.reportViewport(last)
-      } else if (++still > 1) {
-        frame = 0
-
-        return
-      }
-
-      frame = requestAnimationFrame(align)
-    }
-
-    const start = () => {
-      still = 0
-
-      if (frame === 0) {
-        frame = requestAnimationFrame(align)
-      }
-    }
-
-    restart.current = start
-    start()
-
-    const observer = new ResizeObserver(start)
-
-    observer.observe(element)
-    window.addEventListener('resize', start)
+    alignment.current = running
 
     return () => {
-      restart.current = () => {}
-      cancelAnimationFrame(frame)
-      observer.disconnect()
-      window.removeEventListener('resize', start)
+      alignment.current = null
+      running.stop()
     }
   }, [store])
 
   /* 开合与拖宽经指纹重新起跑：补间由 motion 在 React 之外推进，量不到重渲染。 */
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 指纹不进回调是设计：删除会让面板开合后视口矩形停在旧位
   useEffect(() => {
-    restart.current()
+    alignment.current?.follow(layoutSignal)
   }, [layoutSignal])
 
   return (
