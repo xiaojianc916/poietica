@@ -1,4 +1,8 @@
-import { DelegateChannelPane, DelegateChannelTab } from '@poietica/agent-ui'
+import {
+  DelegateChannelIcon,
+  DelegateChannelPane,
+  useDelegateChannelNames,
+} from '@poietica/agent-ui'
 import { BrowserPanel, type DockPaneRenderers } from '@poietica/browser'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from '@poietica/workspace'
 import { PanelRight } from 'lucide-react'
@@ -61,10 +65,9 @@ export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
   }, [])
 
   useEffect(() => {
-    /* 原生 webview 是独立窗口，永远压过主窗口的 HTML：浮层开着、或屏幕上是一条
-       只读通道时，它必须让位。 */
-    browserPanelStore.setVisible(isDocked && !state.overlayOpen && state.activePaneId === null)
-  }, [isDocked, state.activePaneId, state.overlayOpen])
+    /* 屏幕上是一条只读通道时，网页那一格不在场，原生 webview 必须让位。 */
+    browserPanelStore.setVisible(isDocked && state.activePaneId === null)
+  }, [isDocked, state.activePaneId])
 
   useEffect(() => {
     const held = layout.browserThread !== null
@@ -96,19 +99,19 @@ export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
     busy.current = loading
   }, [state.host, layout.browserThread, conversationId])
 
-  /* 通道内容由 agent-ui 画：本格只管把它摆进 dock。宿主哑掉的空态归 BrowserPanel。 */
+  /* 名字与内容都归 agent-ui：本格只管把它们摆进 dock。空态归 BrowserPanel。 */
+  const paneName = useDelegateChannelNames(conversationId)
+
   const panes = useMemo<DockPaneRenderers>(
     () => ({
-      tab: (id) =>
-        conversationId === null ? null : (
-          <DelegateChannelTab agentId={id} conversationId={conversationId} />
-        ),
       body: (id) =>
         conversationId === null ? null : (
           <DelegateChannelPane agentId={id} conversationId={conversationId} />
         ),
+      icon: <DelegateChannelIcon />,
+      name: paneName,
     }),
-    [conversationId],
+    [conversationId, paneName],
   )
 
   return (

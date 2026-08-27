@@ -22,9 +22,10 @@ import { BrowserTabStrip } from './browser-tab-strip'
  * 并把视口矩形对齐给宿主。
  */
 
-/** 一格通道的两面由谁画。本包不解读 id，只把它们摆进壳里。 */
+/** 一格通道由谁描述：字形与名字进标签行，内容进主区。本包不解读 id。 */
 export interface DockPaneRenderers {
-  readonly tab: (id: string) => ReactNode
+  readonly icon: ReactNode
+  readonly name: (id: string) => string
   readonly body: (id: string) => ReactNode
 }
 
@@ -62,10 +63,10 @@ export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPa
             activePaneId={state.activePaneId}
             host={host}
             onClosePane={store.closePane}
-            onOverlayChange={store.setOverlayOpen}
             onSelectPane={store.selectPane}
+            paneIcon={panes.icon}
             paneIds={state.panes}
-            renderPaneTab={panes.tab}
+            paneName={panes.name}
             trailing={trailing}
           />
           {state.activePaneId === null ? (
@@ -73,7 +74,6 @@ export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPa
               <BrowserToolbar
                 actions={store.actions}
                 activeTab={activeTab}
-                onOverlayChange={store.setOverlayOpen}
                 pickerActive={host.pickingTabId === activeTab?.id}
               />
               <Viewport
@@ -96,96 +96,81 @@ interface BrowserToolbarProps {
   readonly activeTab: BrowserTabView | null
   readonly actions: BrowserPanelStore['actions']
   readonly pickerActive: boolean
-  readonly onOverlayChange: (open: boolean) => void
 }
 
-function BrowserToolbar({
-  activeTab,
-  actions,
-  pickerActive,
-  onOverlayChange,
-}: BrowserToolbarProps) {
+function BrowserToolbar({ activeTab, actions, pickerActive }: BrowserToolbarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const canDrive = activeTab !== null && activeTab.url !== null
 
-  /*
-   * 浮层压在原生 webview 上，开着就得让原生层让位；卸载时无条件收掉，
-   * 不留一个看不见的「隐藏」卡在合成点。
-   */
-  useEffect(() => {
-    onOverlayChange(menuOpen)
-
-    return () => {
-      onOverlayChange(false)
-    }
-  }, [menuOpen, onOverlayChange])
-
   return (
-    <div className="relative flex h-10 shrink-0 items-center gap-1 border-b border-current/10 px-2">
-      {/* 装载中的不定式进度：内核只报 Started/Finished，画不出百分比，不假装。 */}
-      {activeTab?.loading === true ? (
-        <div
-          aria-hidden
-          className="absolute inset-x-0 -bottom-px h-0.5 animate-pulse bg-current/40"
-        />
-      ) : null}
-      <ToolbarButton
-        disabled={!canDrive}
-        label="后退"
-        onClick={() => {
-          if (activeTab !== null) {
-            actions.back(activeTab.id)
-          }
-        }}
-      >
-        <ArrowLeft aria-hidden className="size-4" />
-      </ToolbarButton>
-      <ToolbarButton
-        disabled={!canDrive}
-        label="前进"
-        onClick={() => {
-          if (activeTab !== null) {
-            actions.forward(activeTab.id)
-          }
-        }}
-      >
-        <ArrowRight aria-hidden className="size-4" />
-      </ToolbarButton>
-      <ToolbarButton
-        disabled={!canDrive}
-        label="刷新"
-        onClick={() => {
-          if (activeTab !== null) {
-            actions.reload(activeTab.id)
-          }
-        }}
-      >
-        <RotateCw aria-hidden className="size-4" />
-      </ToolbarButton>
+    <>
+      <div className="relative flex h-10 shrink-0 items-center gap-1 border-b border-current/10 px-2">
+        {/* 装载中的不定式进度：内核只报 Started/Finished，画不出百分比，不假装。 */}
+        {activeTab?.loading === true ? (
+          <div
+            aria-hidden
+            className="absolute inset-x-0 -bottom-px h-0.5 animate-pulse bg-current/40"
+          />
+        ) : null}
+        <ToolbarButton
+          disabled={!canDrive}
+          label="后退"
+          onClick={() => {
+            if (activeTab !== null) {
+              actions.back(activeTab.id)
+            }
+          }}
+        >
+          <ArrowLeft aria-hidden className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          disabled={!canDrive}
+          label="前进"
+          onClick={() => {
+            if (activeTab !== null) {
+              actions.forward(activeTab.id)
+            }
+          }}
+        >
+          <ArrowRight aria-hidden className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          disabled={!canDrive}
+          label="刷新"
+          onClick={() => {
+            if (activeTab !== null) {
+              actions.reload(activeTab.id)
+            }
+          }}
+        >
+          <RotateCw aria-hidden className="size-4" />
+        </ToolbarButton>
 
-      <AddressInput actions={actions} activeTab={activeTab} />
+        <AddressInput actions={actions} activeTab={activeTab} />
 
-      <ToolbarButton
-        disabled={!canDrive}
-        label={pickerActive ? '关闭元素选择' : '选择网页元素'}
-        onClick={() => {
-          if (activeTab !== null) {
-            actions.setElementPicker(activeTab.id, !pickerActive)
-          }
-        }}
-        pressed={pickerActive}
-      >
-        <Crosshair aria-hidden className="size-4" />
-      </ToolbarButton>
+        <ToolbarButton
+          disabled={!canDrive}
+          label={pickerActive ? '关闭元素选择' : '选择网页元素'}
+          onClick={() => {
+            if (activeTab !== null) {
+              actions.setElementPicker(activeTab.id, !pickerActive)
+            }
+          }}
+          pressed={pickerActive}
+        >
+          <Crosshair aria-hidden className="size-4" />
+        </ToolbarButton>
 
-      <ToolbarButton
-        label="更多操作"
-        onClick={() => {
-          setMenuOpen((open) => !open)
-        }}
-      >
-        <MoreHorizontal aria-hidden className="size-4" />
-      </ToolbarButton>
+        <ToolbarButton
+          label="更多操作"
+          onClick={() => {
+            setMenuOpen((open) => !open)
+          }}
+          pressed={menuOpen}
+        >
+          <MoreHorizontal aria-hidden className="size-4" />
+        </ToolbarButton>
+      </div>
 
       {menuOpen ? (
         <OverflowMenu
@@ -196,7 +181,7 @@ function BrowserToolbar({
           }}
         />
       ) : null}
-    </div>
+    </>
   )
 }
 
@@ -266,47 +251,40 @@ interface OverflowMenuProps {
   readonly onDismiss: () => void
 }
 
-/* 图三的「…」菜单：两项，禁用态跟着「有没有真的页面」走。 */
+/* 「…」菜单：两项，禁用态跟着「有没有真的页面」走。在流内展开 —— 原生子 webview
+   永远盖过主窗口 HTML，浮在它上面的东西看不见。 */
 function OverflowMenu({ activeTab, actions, onDismiss }: OverflowMenuProps) {
   const url = activeTab?.url ?? null
 
   return (
-    <>
-      <button
-        aria-label="关闭菜单"
-        className="fixed inset-0 z-[var(--ui-z-popover)] cursor-default"
-        onClick={onDismiss}
-        type="button"
-      />
-      <div className="absolute right-2 top-full z-[var(--ui-z-popover)] mt-1 w-56 rounded-lg border border-current/10 bg-[Canvas] p-1 shadow-[var(--ui-shadow-xl)]">
-        <MenuItem
-          disabled={url === null}
-          icon={<ExternalLink aria-hidden className="size-3.5" />}
-          onClick={() => {
-            if (url !== null) {
-              actions.openExternal(url)
-            }
+    <div className="shrink-0 border-b border-current/10 p-1">
+      <MenuItem
+        disabled={url === null}
+        icon={<ExternalLink aria-hidden className="size-3.5" />}
+        onClick={() => {
+          if (url !== null) {
+            actions.openExternal(url)
+          }
 
-            onDismiss()
-          }}
-        >
-          在默认浏览器中打开
-        </MenuItem>
-        <MenuItem
-          disabled={url === null}
-          icon={<Wrench aria-hidden className="size-3.5" />}
-          onClick={() => {
-            if (activeTab !== null) {
-              actions.openDevtools(activeTab.id)
-            }
+          onDismiss()
+        }}
+      >
+        在默认浏览器中打开
+      </MenuItem>
+      <MenuItem
+        disabled={url === null}
+        icon={<Wrench aria-hidden className="size-3.5" />}
+        onClick={() => {
+          if (activeTab !== null) {
+            actions.openDevtools(activeTab.id)
+          }
 
-            onDismiss()
-          }}
-        >
-          打开调试工具
-        </MenuItem>
-      </div>
-    </>
+          onDismiss()
+        }}
+      >
+        打开调试工具
+      </MenuItem>
+    </div>
   )
 }
 

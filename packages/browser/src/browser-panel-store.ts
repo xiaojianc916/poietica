@@ -10,11 +10,6 @@ import type { BrowserHostPort, BrowserHostView, BrowserViewportRect } from './br
  */
 export interface BrowserPanelState {
   readonly host: BrowserHostView | null
-  /**
-   * 面板内是否有浮层（标签列表、「更多操作」菜单）压在视口上。
-   * 原生 webview 是独立窗口，永远盖过主窗口 HTML：浮层要见光，它必须让位。
-   */
-  readonly overlayOpen: boolean
   /** 通道标签，按打开顺序。id 由上层给，本店不解读。 */
   readonly panes: readonly string[]
   /** 屏幕上是哪一格：某条通道，或 null 表示网页那一格。 */
@@ -53,13 +48,13 @@ export interface BrowserPanelStore {
 
 export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStore {
   let host: BrowserHostView | null = null
-  let overlayOpen = false
   let started = false
   let ensuredFirstTab = false
   let nativeVisible: boolean | null = null
+  let overlayOpen = false
   let panes: readonly string[] = []
   let activePaneId: string | null = null
-  let snapshot: BrowserPanelState = { host, overlayOpen, panes, activePaneId }
+  let snapshot: BrowserPanelState = { host, panes, activePaneId }
 
   /* 界面动作打不动宿主不是调用方要接的错误：记日志，界面靠快照自愈。 */
   function run(operation: string, task: () => Promise<void>): void {
@@ -70,9 +65,9 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
 
   const store = createExternalStore<BrowserPanelState>({ read: () => snapshot })
 
-  /* 快照只在这里成形：四格里任何一格变了都走同一条出口。 */
+  /* 快照只在这里成形：三格里任何一格变了都走同一条出口。 */
   function publish(): void {
-    snapshot = { host, overlayOpen, panes, activePaneId }
+    snapshot = { host, panes, activePaneId }
     store.notify()
   }
 

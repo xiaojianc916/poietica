@@ -1,6 +1,7 @@
 import '../surface/assistant.css'
 
 import { channelNameOf, delegateKey, delegationOf } from '@poietica/agent'
+import { useCallback } from 'react'
 
 import { SwarmIcon } from '../primitives/icons'
 import { useAssistantTimeline } from '../session/use-assistant-session'
@@ -22,15 +23,27 @@ interface DelegateChannelProps {
   readonly agentId: string
 }
 
-/** 标签上的那一格：一枚图标加这个子代理的名字。 */
-export function DelegateChannelTab({ agentId, conversationId }: DelegateChannelProps) {
-  const call = delegationOf(useAssistantTimeline(conversationId), agentId)
+/** 通道在标签行上的字形。行本身归标签条画：通道与宿主标签是同一种行。 */
+export function DelegateChannelIcon() {
+  return <SwarmIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
+}
 
-  return (
-    <>
-      <SwarmIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
-      <span className="min-w-0 truncate text-xs">{channelNameOf(call, agentId) ?? agentId}</span>
-    </>
+/**
+ * 一个子代理号此刻叫什么。名字住在派发它的那次调用上，所以订这条对话的转录。
+ *
+ * 没有对话可读时退回号本身 —— 那是它唯一确定的身份。
+ */
+export function useDelegateChannelNames(
+  conversationId: string | null,
+): (agentId: string) => string {
+  const timeline = useAssistantTimeline(conversationId ?? '')
+
+  return useCallback(
+    (agentId: string) =>
+      conversationId === null
+        ? agentId
+        : (channelNameOf(delegationOf(timeline, agentId), agentId) ?? agentId),
+    [conversationId, timeline],
   )
 }
 

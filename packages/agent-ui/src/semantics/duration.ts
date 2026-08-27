@@ -18,8 +18,8 @@ export const DAY = 86_400_000
 /**
  * 一个 narrow 的单位格式器。
  *
- * 小数位默认关掉：除了秒档，所有档位交进来的都是 Math.floor 过的整数，而
- * NumberFormat 默认允许三位小数 —— 那是一个只可能在将来某次改动里悄悄生效的口子。
+ * 小数位默认关掉：交进来的都是 Math.floor 过的整数，而 NumberFormat 默认允许三位
+ * 小数 —— 那是一个只可能在将来某次改动里悄悄生效的口子。
  */
 export function narrowUnit(unit: string, maximumFractionDigits = 0): Intl.NumberFormat {
   return new Intl.NumberFormat(undefined, {
@@ -30,8 +30,7 @@ export function narrowUnit(unit: string, maximumFractionDigits = 0): Intl.Number
   })
 }
 
-/* 秒档带一位小数：一次 0.2 秒的读盘与一次 0.9 秒的读盘不是同一回事。 */
-const second = narrowUnit('second', 1)
+const second = narrowUnit('second')
 const minute = narrowUnit('minute')
 const hour = narrowUnit('hour')
 
@@ -48,7 +47,7 @@ export function formatDuration(span: number): string | null {
   }
 
   if (span < MINUTE) {
-    return second.format(Math.floor(span / 100) / 10)
+    return second.format(Math.floor(span / SECOND))
   }
 
   if (span < HOUR) {

@@ -19,4 +19,8 @@ export { AssistantThreadList } from './threads/assistant-thread-list'
 export type { GitBranchPickerProps } from './threads/git-branch-picker'
 export type { WorkspacePickerProps } from './threads/workspace-picker'
 export { DelegateChannelContext, useDelegateChannel } from './timeline/delegate-channel-context'
-export { DelegateChannelPane, DelegateChannelTab } from './timeline/delegate-channel-view'
+export {
+  DelegateChannelIcon,
+  DelegateChannelPane,
+  useDelegateChannelNames,
+} from './timeline/delegate-channel-view'
