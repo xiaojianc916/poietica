@@ -80,6 +80,8 @@ pub struct GitFileChange {
     pub path: String,
     pub status: GitChangeStatus,
     pub staged: bool,
+    pub additions: u32,
+    pub deletions: u32,
 }
 
 impl From<poietica_git_native::ChangeStatus> for GitChangeStatus {
@@ -100,6 +102,8 @@ impl From<poietica_git_native::FileChange> for GitFileChange {
             path: change.path,
             status: change.status.into(),
             staged: change.staged,
+            additions: change.additions,
+            deletions: change.deletions,
         }
     }
 }

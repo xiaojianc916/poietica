@@ -4,6 +4,7 @@
 //! `-z` 让路径按 NUL 分隔，带空格与非 ASCII 的路径不需要反引号解码。
 //! `--no-renames` 让重命名照实报成一删一增 —— 审查列表一行一个路径。
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use crate::{GitError, expect_ok, inside_work_tree, run};
@@ -32,6 +33,10 @@ pub struct FileChange {
     pub status: ChangeStatus,
     /// 暂存区里也有这次改动（porcelain v2 的 X 位不是 '.'）。
     pub staged: bool,
+    /// 相对 HEAD 新增的行数。二进制、未跟踪、没有 HEAD 都数不出来，那就是 0。
+    pub additions: u32,
+    /// 相对 HEAD 删除的行数。
+    pub deletions: u32,
 }
 
 const STATUS_ARGS: &[&str] = &[
@@ -42,6 +47,16 @@ const STATUS_ARGS: &[&str] = &[
     "--no-renames",
 ];
 
+/* 与 patch() 同一条 git diff HEAD：徽章上的数字与展开后画出的行同源。 */
+const NUMSTAT_ARGS: &[&str] = &[
+    "diff",
+    "HEAD",
+    "--numstat",
+    "-z",
+    "--no-renames",
+    "--no-ext-diff",
+];
+
 /// 问一个目录此刻的变更清单。不是 git 工作区、或机器没有 git，都是 None。
 pub async fn changes(root: &Path) -> Result<Option<Vec<FileChange>>, GitError> {
     if !inside_work_tree(root).await? {
@@ -49,8 +64,17 @@ pub async fn changes(root: &Path) -> Result<Option<Vec<FileChange>>, GitError> {
     }
 
     let output = expect_ok(run(root, STATUS_ARGS).await?)?;
+    let counted = line_counts(root).await?;
+    let mut list = decode(&String::from_utf8_lossy(&output.stdout));
 
-    Ok(Some(decode(&String::from_utf8_lossy(&output.stdout))))
+    for change in &mut list {
+        if let Some(&(additions, deletions)) = counted.get(&change.path) {
+            change.additions = additions;
+            change.deletions = deletions;
+        }
+    }
+
+    Ok(Some(list))
 }
 
 /// 一个文件此刻相对 HEAD 的统一补丁。`--` 之后 git 不再把参数读成开关。
@@ -64,6 +88,32 @@ pub async fn patch(root: &Path, path: &str) -> Result<String, GitError> {
     )?;
 
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// 每个路径的加减行数。没有第一个提交时 HEAD 不存在，没有基线可数。
+async fn line_counts(root: &Path) -> Result<HashMap<String, (u32, u32)>, GitError> {
+    let head = run(root, &["rev-parse", "--verify", "--quiet", "HEAD"]).await?;
+
+    if !head.status.success() {
+        return Ok(HashMap::new());
+    }
+
+    let output = expect_ok(run(root, NUMSTAT_ARGS).await?)?;
+
+    Ok(numstat(&String::from_utf8_lossy(&output.stdout)))
+}
+
+fn numstat(records: &str) -> HashMap<String, (u32, u32)> {
+    records.split('\0').filter_map(numstat_entry).collect()
+}
+
+/* 一条记录是 <加> TAB <减> TAB <路径>；二进制文件两个数都是 - 。 */
+fn numstat_entry(record: &str) -> Option<(String, (u32, u32))> {
+    let mut fields = record.split('\t');
+    let additions = fields.next()?.parse().unwrap_or_default();
+    let deletions = fields.next()?.parse().unwrap_or_default();
+
+    Some((fields.next()?.to_owned(), (additions, deletions)))
 }
 
 fn decode(records: &str) -> Vec<FileChange> {
@@ -80,6 +130,8 @@ fn entry(record: &str) -> Option<FileChange> {
             path: rest.to_owned(),
             status: ChangeStatus::Untracked,
             staged: false,
+            additions: 0,
+            deletions: 0,
         }),
         _ => None,
     }
@@ -96,6 +148,8 @@ fn ordinary(rest: &str) -> Option<FileChange> {
         path: path.to_owned(),
         status,
         staged,
+        additions: 0,
+        deletions: 0,
     })
 }
 
@@ -108,6 +162,8 @@ fn unmerged(rest: &str) -> Option<FileChange> {
         path: fields.nth(8)?.to_owned(),
         status: ChangeStatus::Conflicted,
         staged: false,
+        additions: 0,
+        deletions: 0,
     })
 }
 
@@ -127,7 +183,7 @@ fn decode_marks(marks: &str) -> Option<(ChangeStatus, bool)> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ChangeStatus, decode};
+    use super::{ChangeStatus, decode, numstat};
 
     #[test]
     fn porcelain_v2_records_are_decoded() {
@@ -150,6 +206,16 @@ mod tests {
         assert_eq!(decoded[2].status, ChangeStatus::Untracked);
         assert_eq!(decoded[3].status, ChangeStatus::Conflicted);
         assert_eq!(decoded[3].path, "src/conflict.ts");
+    }
+
+    #[test]
+    fn numstat_records_are_decoded() {
+        let records = ["12\t3\tsrc/a b.ts", "-\t-\tlogo.png", "0\t224\tAGENTS.md"].join("\0");
+        let counted = numstat(&records);
+
+        assert_eq!(counted.get("src/a b.ts"), Some(&(12, 3)));
+        assert_eq!(counted.get("logo.png"), Some(&(0, 0)));
+        assert_eq!(counted.get("AGENTS.md"), Some(&(0, 224)));
     }
 
     #[test]

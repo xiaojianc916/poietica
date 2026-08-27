@@ -2082,7 +2082,7 @@ export type GitChangeStatus = "added" | "modified" | "deleted" | "untracked" | "
 /**
  * 工作树里一处变更。path 是仓库根的相对路径。
  */
-export type GitFileChange = { path: string; status: GitChangeStatus; staged: boolean }
+export type GitFileChange = { path: string; status: GitChangeStatus; staged: boolean; additions: number; deletions: number }
 export type IpcError = { code: IpcErrorCode; message: string; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "permission-denied" | "persistence" | "plugin" | "asset" | "platform"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>

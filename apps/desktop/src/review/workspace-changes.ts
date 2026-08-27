@@ -91,13 +91,12 @@ export type FilePatch =
   | { readonly state: 'ready'; readonly patch: string }
   | { readonly state: 'refused' }
 
-/** 一个文件此刻相对 HEAD 的补丁。清单换了号，这一份也旧了，重问。 */
-export function useFilePatch(root: string, path: string, _generation: number): FilePatch {
+/** 一个文件此刻相对 HEAD 的补丁。清单换了号，这一份也旧了，重问；重问不闪回读取中。 */
+export function useFilePatch(root: string, path: string, generation: number): FilePatch {
   const [held, setHeld] = useState<FilePatch>({ state: 'asking' })
 
   useEffect(() => {
     let live = true
-    setHeld({ state: 'asking' })
 
     void gitFilePatch(root, path).then(
       (patch) => {
@@ -116,7 +115,7 @@ export function useFilePatch(root: string, path: string, _generation: number): F
     return () => {
       live = false
     }
-  }, [path, root])
+  }, [generation, path, root])
 
   return held
 }
