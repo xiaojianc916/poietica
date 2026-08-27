@@ -26,6 +26,7 @@ mod commands;
 mod config;
 mod credentials;
 mod custom_agent;
+mod daemon;
 mod desk;
 mod driver;
 mod error;
@@ -56,6 +57,7 @@ pub use credentials::{
     alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
     usable_default_model,
 };
+pub use daemon::{Daemon, DaemonIntent, DaemonPhase, Reaction};
 pub use desk::{PermissionDesk, QuestionDesk};
 pub use error::{KapError, Refusal, Result};
 pub use frame::{KAP_EVENT, PROMPT_ADMITTED, RUN_FINISHED, RunFrame, kap_event};

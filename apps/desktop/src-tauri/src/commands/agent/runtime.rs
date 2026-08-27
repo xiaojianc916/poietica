@@ -10,8 +10,8 @@ use crate::error::{Error, Result};
 use crate::paths::attachments_root;
 use poietica_agent_persistence_native::{SessionCursor, SessionUsage};
 use poietica_agent_runtime_native::{
-    AgentClient, AgentConnection, AgentSpawn, KapError, LinkState, PermissionDesk, QuestionDesk,
-    Refusal, RunSlot, SessionBook, SessionEvent, connect,
+    AgentClient, AgentConnection, AgentSpawn, Daemon, DaemonIntent, KapError, LinkState,
+    PermissionDesk, QuestionDesk, Reaction, Refusal, RunSlot, SessionBook, SessionEvent, connect,
 };
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -96,6 +96,11 @@ pub struct AgentRuntime {
     pub(super) root: PathBuf,
     pub(super) journal: FrameJournal,
     connection: Mutex<Option<Connection>>,
+    /// 守着这个进程的那一位：意图与相位的唯一持有处。
+    ///
+    /// 意图的真相在 settings.json，这里只是它在进程内的那一份；相位从来只在
+    /// 这里，落盘会得到一份开机就过期的记载。
+    daemon: Mutex<Daemon>,
     /// 起一条连接这件事的排队处。
     ///
     /// 上面那把锁护的是"连接现在是谁"，护不住"谁正在把它建起来"：建连接要
@@ -160,6 +165,9 @@ impl AgentRuntime {
             root,
             journal: FrameJournal::new(handle)?,
             connection: Mutex::new(None),
+            /* 与 GeneralSettings::default 的 daemon 同一个值。第一次 settings_get
+            就会把盘上的意图对进来，那之前没有进程可守，两者不会分叉。 */
+            daemon: Mutex::new(Daemon::new(DaemonIntent::Running)),
             starting: tokio::sync::Mutex::new(()),
         })
     }
@@ -379,7 +387,7 @@ pub(super) async fn ensure_session(
     // browser_* 工具才有东西可接。没有端口或已有实例时它是空操作。
     crate::browser::ensure_live_kernel(app);
 
-    let spawn = outfit(app, &agent_id, working_directory)?;
+    let spawn = outfit(app, &agent_id, working_directory.clone())?;
 
     // The book that files frames under the session that names them belongs
     // to the connection, and the driver holds its own handle to it, so
@@ -405,6 +413,10 @@ pub(super) async fn ensure_session(
     let expired = Arc::clone(&lease);
     let runtime = app.clone();
 
+    /* 重起要用的两样东西在这里定影：进程死掉那一刻，连接已经不在了。 */
+    let watched_agent = agent_id.clone();
+    let watched_cwd = working_directory;
+
     async_runtime::spawn(async move {
         let outcome = driver.await;
 
@@ -412,9 +424,13 @@ pub(super) async fn ensure_session(
         if let Err(error) = runtime.state::<AgentRuntime>().expire(&expired) {
             log::error!("could not retire the ended agent connection: {error}");
         }
-        if let Err(error) = outcome {
-            log::error!("the agent session ended: {error}");
-        }
+
+        let reason = match outcome {
+            Ok(()) => "the local agent process exited".to_owned(),
+            Err(error) => error.to_string(),
+        };
+
+        keep_alive(&runtime, watched_agent, watched_cwd, reason).await;
     });
 
     let herald = app.clone();
@@ -454,6 +470,11 @@ pub(super) async fn ensure_session(
     }
 
     *lock(&state.connection)? = Some(kept);
+
+    /* 起进程的路只有这一条，所以「起来了」也只在这一处说。 */
+    if let Ok(mut daemon) = lock(&state.daemon) {
+        daemon.note_started();
+    }
 
     let live = Handle {
         client,
@@ -530,17 +551,92 @@ pub(super) fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> 
     }))
 }
 
-/// 取那条连接，一句话的功夫。
-///
-/// 这个结构此前叫 `Session`，而它自己的文档第一行写着「一条连接自己不是任何
-/// 人的对话」。会话在这个模块里是一个有精确含义的协议名词：一条连接上有很多
-/// 条，每条属于一个对话。把连接叫成会话，等于让每一次读到 `state.connection` 的
-/// 人都在脑子里转换一次。
-fn lock(connection: &Mutex<Option<Connection>>) -> Result<MutexGuard<'_, Option<Connection>>> {
-    connection
-        .lock()
+/// 拿一把本模块的锁。中毒即报错，不静默兜底。
+fn lock<T>(held: &Mutex<T>) -> Result<MutexGuard<'_, T>> {
+    held.lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))
 }
+
+/// 让守护进程与用户的意图对上。
+///
+/// 意图的真相在 settings.json，所以这个函数只从设置命令进来：它自己不读盘、不
+/// 缓存那个布尔值 —— 缓存就是第二份真相。
+pub async fn apply_daemon_intent(app: &AppHandle, running: bool) {
+    let intent = if running {
+        DaemonIntent::Running
+    } else {
+        DaemonIntent::Stopped
+    };
+
+    let state = app.state::<AgentRuntime>();
+
+    let reaction = match lock(&state.daemon) {
+        Ok(mut daemon) => daemon.set_intent(intent),
+        Err(error) => {
+            log::error!("could not read the daemon intent: {error}");
+            return;
+        }
+    };
+
+    if reaction == Reaction::Stop {
+        if let Err(error) = state.disconnect() {
+            log::warn!("could not stop the local agent daemon: {error}");
+        }
+    }
+}
+
+/// 进程没了之后，守护进程说该怎么办。
+///
+/// 只在这里问一次，也只在这里动手：重起走 ensure_session 那一条唯一管线，不另
+/// 开第二条起进程的路。等待期间用户把开关拨掉，醒来时意图已经是 Stopped，这一
+/// 次就什么都不做 —— 取消不需要第二套信号。
+async fn keep_alive(app: &AppHandle, agent_id: String, cwd: PathBuf, reason: String) {
+    let reaction = {
+        let state = app.state::<AgentRuntime>();
+
+        match lock(&state.daemon) {
+            Ok(mut daemon) => {
+                let reaction = daemon.note_exited(&reason);
+                log::info!("local agent daemon is now {:?}", daemon.phase());
+                reaction
+            }
+            Err(error) => {
+                log::error!("could not read the daemon phase: {error}");
+                return;
+            }
+        }
+    };
+
+    let Reaction::StartAfter(wait) = reaction else {
+        return;
+    };
+
+    tokio::time::sleep(wait).await;
+
+    let state = app.state::<AgentRuntime>();
+
+    let still_wanted = matches!(
+        lock(&state.daemon).map(|daemon| daemon.intent()),
+        Ok(DaemonIntent::Running)
+    );
+
+    if !still_wanted {
+        return;
+    }
+
+    let restarted = ensure_session(
+        app,
+        &state,
+        AgentLaunch { agent_id },
+        Some(cwd.to_string_lossy().into_owned()),
+    )
+    .await;
+
+    if let Err(error) = restarted {
+        log::warn!("the local agent daemon could not restart the process: {error}");
+    }
+}
+
 
 /// 落下当前锚会话的账，然后把这个 agent 名下过期的账逐笔冲销。
 ///

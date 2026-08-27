@@ -425,6 +425,20 @@ const GeneralSettings = memo(function GeneralSettings({
         />
       </SettingsGroup>
 
+      <SettingsGroup title="启动项">
+        <ToggleRow
+          checked={settings.general.daemon}
+          description="在后台守着本地 Agent 进程：意外退出时自动重起。关闭后它只在对话进行时存在"
+          label="守护进程"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              general: { ...current.general, daemon: checked },
+            }))
+          }}
+        />
+      </SettingsGroup>
+
       <SettingsGroup title="安全">
         <ToggleRow
           checked={settings.general.confirmBeforeDelete}

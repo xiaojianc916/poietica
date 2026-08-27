@@ -58,6 +58,9 @@ pub struct GeneralSettings {
     pub send_with_modifier: bool,
     pub confirm_before_delete: bool,
     pub notify_on_completion: bool,
+    /// 守着本地 agent 进程的那一个意图。相位不在这里：它是进程内的事实，
+    /// 落盘只会得到一份开机就过期的记载。
+    pub daemon: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
@@ -94,6 +97,7 @@ impl Default for GeneralSettings {
             send_with_modifier: false,
             confirm_before_delete: true,
             notify_on_completion: true,
+            daemon: true,
         }
     }
 }
@@ -128,7 +132,7 @@ impl Default for PrivacySettings {
 #[command]
 #[specta::specta]
 pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> {
-    (|| -> Result<AppSettings> {
+    let settings = (|| -> Result<AppSettings> {
         let store = app.store(settings_store(&app)?)?;
 
         /*
@@ -143,7 +147,13 @@ pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> 
             .and_then(|value| serde_json::from_value(value).ok())
             .unwrap_or_default())
     })()
-    .map_err(IpcError::from)
+    .map_err(IpcError::from)?;
+
+    /* 磁盘上那个布尔值只在这三处进程内生效，所以对账也只在这三处。 */
+    crate::commands::agent::runtime::apply_daemon_intent(&app, settings.general.daemon)
+        .await;
+
+    Ok(settings)
 }
 
 /// Persists the application settings.
@@ -155,13 +165,18 @@ pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> 
 #[command]
 #[specta::specta]
 pub async fn settings_set(app: AppHandle, settings: AppSettings) -> SettingsCommandResult<()> {
-    (|| -> Result<()> {
+    let saved = (|| -> Result<AppSettings> {
         let store = app.store(settings_store(&app)?)?;
         store.set("settings", serde_json::to_value(&settings)?);
         store.save()?;
-        Ok(())
+        Ok(settings)
     })()
-    .map_err(IpcError::from)
+    .map_err(IpcError::from)?;
+
+    /* 落盘先于对账：进程内的相位跟着已经成立的意图走，不跟着一次可能失败的写。 */
+    crate::commands::agent::runtime::apply_daemon_intent(&app, saved.general.daemon).await;
+
+    Ok(())
 }
 
 /// Restores the default application settings and persists them.
@@ -173,12 +188,17 @@ pub async fn settings_set(app: AppHandle, settings: AppSettings) -> SettingsComm
 #[command]
 #[specta::specta]
 pub async fn settings_reset(app: AppHandle) -> SettingsCommandResult<AppSettings> {
-    (|| -> Result<AppSettings> {
+    let defaults = (|| -> Result<AppSettings> {
         let defaults = AppSettings::default();
         let store = app.store(settings_store(&app)?)?;
         store.set("settings", serde_json::to_value(&defaults)?);
         store.save()?;
         Ok(defaults)
     })()
-    .map_err(IpcError::from)
+    .map_err(IpcError::from)?;
+
+    crate::commands::agent::runtime::apply_daemon_intent(&app, defaults.general.daemon)
+        .await;
+
+    Ok(defaults)
 }

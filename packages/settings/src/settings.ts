@@ -7,6 +7,8 @@ export interface GeneralSettings {
   readonly sendWithModifier: boolean
   readonly confirmBeforeDelete: boolean
   readonly notifyOnCompletion: boolean
+  /** 守着本地 agent 进程的那一个意图。相位归原生侧，不在设置里。 */
+  readonly daemon: boolean
 }
 
 export interface AppearanceSettings {
@@ -49,6 +51,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     sendWithModifier: false,
     confirmBeforeDelete: true,
     notifyOnCompletion: true,
+    daemon: true,
   },
   appearance: {
     density: 'comfortable',
