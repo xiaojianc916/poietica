@@ -61,3 +61,64 @@ pub async fn git_create_branch(root: String, branch: String) -> Result<GitBranch
         .map(GitBranches::from)
         .map_err(surfaced)
 }
+
+/// 一个文件此刻相对 HEAD 的处境。
+#[derive(Clone, Copy, Debug, Serialize, Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum GitChangeStatus {
+    Added,
+    Modified,
+    Deleted,
+    Untracked,
+    Conflicted,
+}
+
+/// 工作树里一处变更。path 是仓库根的相对路径。
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GitFileChange {
+    pub path: String,
+    pub status: GitChangeStatus,
+    pub staged: bool,
+}
+
+impl From<poietica_git_native::ChangeStatus> for GitChangeStatus {
+    fn from(status: poietica_git_native::ChangeStatus) -> Self {
+        match status {
+            poietica_git_native::ChangeStatus::Added => Self::Added,
+            poietica_git_native::ChangeStatus::Modified => Self::Modified,
+            poietica_git_native::ChangeStatus::Deleted => Self::Deleted,
+            poietica_git_native::ChangeStatus::Untracked => Self::Untracked,
+            poietica_git_native::ChangeStatus::Conflicted => Self::Conflicted,
+        }
+    }
+}
+
+impl From<poietica_git_native::FileChange> for GitFileChange {
+    fn from(change: poietica_git_native::FileChange) -> Self {
+        Self {
+            path: change.path,
+            status: change.status.into(),
+            staged: change.staged,
+        }
+    }
+}
+
+/// 问一个目录此刻的变更清单。不是 git 仓库、或机器没有 git，都是 None。
+#[command]
+#[specta::specta]
+pub async fn git_changes(root: String) -> Result<Option<Vec<GitFileChange>>, IpcError> {
+    poietica_git_native::changes(Path::new(&root))
+        .await
+        .map(|held| held.map(|list| list.into_iter().map(GitFileChange::from).collect()))
+        .map_err(surfaced)
+}
+
+/// 一个文件此刻相对 HEAD 的统一补丁。未跟踪文件没有基线，界面不会问到这里。
+#[command]
+#[specta::specta]
+pub async fn git_file_patch(root: String, path: String) -> Result<String, IpcError> {
+    poietica_git_native::patch(Path::new(&root), &path)
+        .await
+        .map_err(surfaced)
+}

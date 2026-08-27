@@ -1,53 +1,34 @@
-export interface BrowserTabView {
-  readonly id: number
-  readonly url: string | null
-  readonly title: string
-  readonly loading: boolean
-  readonly favicon: string | null
+import type {
+  BrowserPopupAction,
+  BrowserPopupRequest,
+  BrowserState,
+  BrowserTab,
+  BrowserViewportBounds,
+} from '@poietica/ipc'
+
+/*
+ * 宿主契约：本包需要原生宿主提供哪些动作。
+ *
+ * DTO 不在这里声明 —— 产地是 Rust，由 tauri-specta 生成进 @poietica/ipc。
+ * 这一层只把生成物摆成本包的词汇，消费者不必知道绑定住在哪个包里。
+ */
+
+export type {
+  BrowserPopupAction,
+  BrowserPopupRequest,
+  BrowserState,
+  BrowserTab,
+  BrowserViewportBounds,
 }
 
-export interface BrowserClosedTabView {
-  readonly url: string
-  readonly title: string
-}
+/** 浮层的脸。 */
+export type BrowserPopupKind = BrowserPopupRequest['kind']
 
-export interface BrowserHostView {
-  readonly tabs: readonly BrowserTabView[]
-  readonly activeTabId: number | null
-  readonly pickingTabId: number | null
-  readonly recentlyClosed: readonly BrowserClosedTabView[]
-}
-
-export type BrowserPopupKind = 'overflow' | 'tabs'
-
-export interface BrowserPopupPaneView {
-  readonly id: string
-  readonly title: string
-}
-
-export interface BrowserPopupRequest {
-  readonly kind: BrowserPopupKind
-  readonly theme: string
-  readonly panes: readonly BrowserPopupPaneView[]
-  readonly activePaneId: string | null
-}
-
-export interface BrowserPopupAction {
-  readonly action: 'select-pane' | 'close-pane' | 'select-tab' | 'close-tab' | 'reopen-closed'
-  readonly paneId: string | null
-  readonly tabId: number | null
-  readonly index: number | null
-}
-
-export interface BrowserViewportRect {
-  readonly x: number
-  readonly y: number
-  readonly width: number
-  readonly height: number
-}
+/** 浮层里列出的一格通道。 */
+export type BrowserPopupPaneView = BrowserPopupRequest['panes'][number]
 
 export interface BrowserHostPort {
-  readonly watch: (onState: (state: BrowserHostView) => void) => Promise<() => void>
+  readonly watch: (onState: (state: BrowserState) => void) => Promise<() => void>
   readonly watchPopupActions: (
     onAction: (action: BrowserPopupAction) => void,
   ) => Promise<() => void>
@@ -61,9 +42,9 @@ export interface BrowserHostPort {
   readonly print: (id: number) => Promise<void>
   readonly setElementPicker: (id: number, enabled: boolean) => Promise<void>
   readonly reopenClosed: (index: number) => Promise<void>
-  readonly setViewportBounds: (bounds: BrowserViewportRect) => Promise<void>
+  readonly setViewportBounds: (bounds: BrowserViewportBounds) => Promise<void>
   readonly setVisible: (visible: boolean) => Promise<void>
-  readonly openPopup: (request: BrowserPopupRequest, rect: BrowserViewportRect) => Promise<void>
+  readonly openPopup: (request: BrowserPopupRequest, rect: BrowserViewportBounds) => Promise<void>
   readonly dispatchPopupAction: (action: BrowserPopupAction) => Promise<void>
   readonly closePopup: () => Promise<void>
 }

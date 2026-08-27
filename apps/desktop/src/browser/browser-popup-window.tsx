@@ -1,10 +1,6 @@
 import '../app.css'
 
-import {
-  type BrowserHostView,
-  type BrowserPopupRequest,
-  BrowserPopupSurface,
-} from '@poietica/browser'
+import { type BrowserPopupRequest, BrowserPopupSurface, type BrowserState } from '@poietica/browser'
 import { warn } from '@poietica/core'
 import { readBrowserPopup } from '@poietica/ipc'
 import { useEffect, useState } from 'react'
@@ -19,7 +15,7 @@ function closePopup(): void {
 }
 
 function PopupWindow() {
-  const [host, setHost] = useState<BrowserHostView | null>(null)
+  const [host, setHost] = useState<BrowserState | null>(null)
   const [request, setRequest] = useState<BrowserPopupRequest | null>(null)
 
   useEffect(() => {

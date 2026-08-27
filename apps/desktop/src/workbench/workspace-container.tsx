@@ -243,7 +243,7 @@ export function WorkspaceContainer({
   /* 派发通道只有这一个入口：点开那一行，右侧那一格亮起来并停在这条通道上。 */
   const openDelegateChannel = useCallback(
     (agentId: string) => {
-      browserPanelStore.openPane(agentId)
+      browserPanelStore.openPane({ id: agentId, kind: 'delegate' })
 
       if (activeConversationId !== null) {
         workspaceLayoutStore.setBrowserThread(activeConversationId)

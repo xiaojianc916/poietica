@@ -1053,6 +1053,18 @@ async gitCreateBranch(root: string, branch: string) : Promise<GitBranches> {
     return await TAURI_INVOKE("git_create_branch", { root, branch });
 },
 /**
+ * 问一个目录此刻的变更清单。不是 git 仓库、或机器没有 git，都是 None。
+ */
+async gitChanges(root: string) : Promise<GitFileChange[] | null> {
+    return await TAURI_INVOKE("git_changes", { root });
+},
+/**
+ * 一个文件此刻相对 HEAD 的统一补丁。未跟踪文件没有基线，界面不会问到这里。
+ */
+async gitFilePatch(root: string, path: string) : Promise<string> {
+    return await TAURI_INVOKE("git_file_patch", { root, path });
+},
+/**
  * 渲染层进面板时拉一次的初始快照。之后靠事件。
  */
 async browserState() : Promise<BrowserState> {
@@ -2012,11 +2024,15 @@ summary: string; comment: string;
  */
 reportPath: string }
 export type BrowserPickSubmission = "attach" | "send"
-export type BrowserPopupAction = { action: BrowserPopupActionKind; paneId: string | null; tabId: number | null; index: number | null }
-export type BrowserPopupActionKind = "select-pane" | "close-pane" | "select-tab" | "close-tab" | "reopen-closed"
-export type BrowserPopupKind = "overflow" | "tabs"
+export type BrowserPopupAction = { action: BrowserPopupActionKind; paneId: string | null; tabId: number | null; index: number | null; paneKind: string | null }
+export type BrowserPopupActionKind = "select-pane" | "close-pane" | "select-tab" | "close-tab" | "reopen-closed" | "open-tab" | "open-pane"
+export type BrowserPopupKind = "new-tab" | "overflow" | "tabs"
 export type BrowserPopupPane = { id: string; title: string }
-export type BrowserPopupRequest = { kind: BrowserPopupKind; theme: string; panes: BrowserPopupPane[]; activePaneId: string | null }
+/**
+ * 加号菜单里可开的通道种类。字面量归渲染层，原生侧只转运。
+ */
+export type BrowserPopupPaneKind = { kind: string; label: string }
+export type BrowserPopupRequest = { kind: BrowserPopupKind; theme: string; panes: BrowserPopupPane[]; activePaneId: string | null; paneKinds: BrowserPopupPaneKind[] }
 /**
  * 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，
  * 增量协议换来的只是两侧各一份需要对账的账本。
@@ -2069,6 +2085,14 @@ export type GeneralSettings = { sendWithModifier: boolean; confirmBeforeDelete: 
  * 一个工作目录此刻的分支快照。branch 为空即 HEAD 分离，detachedAt 给出所在短号。
  */
 export type GitBranches = { branch: string | null; detachedAt: string | null; branches: string[] }
+/**
+ * 一个文件此刻相对 HEAD 的处境。
+ */
+export type GitChangeStatus = "added" | "modified" | "deleted" | "untracked" | "conflicted"
+/**
+ * 工作树里一处变更。path 是仓库根的相对路径。
+ */
+export type GitFileChange = { path: string; status: GitChangeStatus; staged: boolean }
 export type IpcError = { code: IpcErrorCode; message: string; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "permission-denied" | "persistence" | "plugin" | "asset" | "platform"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>

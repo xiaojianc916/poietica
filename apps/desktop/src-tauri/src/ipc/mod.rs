@@ -40,7 +40,7 @@ use crate::commands::{
         AutomationReschedule, AutomationRun, AutomationRunRecord,
     },
     environment::EnvironmentFile,
-    git::GitBranches,
+    git::{GitBranches, GitChangeStatus, GitFileChange},
     plugins::{
         ForeignPluginLedger, ForeignPluginRecord, PluginCommitRequest, PluginFetch, PluginPayload,
         PluginStaged,
@@ -145,6 +145,8 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::git::git_branches,
             crate::commands::git::git_switch_branch,
             crate::commands::git::git_create_branch,
+            crate::commands::git::git_changes,
+            crate::commands::git::git_file_patch,
             crate::browser::browser_state,
             crate::browser::browser_open_tab,
             crate::browser::browser_close_tab,
@@ -244,6 +246,8 @@ pub fn surface() -> Builder<Wry> {
         .typ::<ProviderProbeOutcome>()
         .typ::<UpdateRelease>()
         .typ::<GitBranches>()
+        .typ::<GitChangeStatus>()
+        .typ::<GitFileChange>()
         .typ::<BrowserPopupRequest>()
         .typ::<BrowserPopupAction>()
 }

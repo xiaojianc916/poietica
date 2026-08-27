@@ -3,11 +3,12 @@ import {
   DelegateChannelPane,
   useDelegateChannelNames,
 } from '@poietica/agent-ui'
-import { BrowserPanel, type DockPaneRenderers } from '@poietica/browser'
+import { BrowserPanel, type DockPaneOffer, type DockPaneRenderers } from '@poietica/browser'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from '@poietica/workspace'
-import { PanelRight } from 'lucide-react'
+import { GitBranch, PanelRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
+import { ReviewPane } from '../review/review-pane'
 import { browserPanelStore } from './browser-runtime'
 
 /*
@@ -17,6 +18,9 @@ import { browserPanelStore } from './browser-runtime'
  * 标签与页面归 browserPanelStore（宿主快照的投影）。这里是唯一把两者合成为
  * 「原生 webview 该不该可见」的地方 —— 否则「谁隐藏了 webview」就有两个答案。
  */
+
+/* 加号菜单能开的通道。网页那一行不在这张表里：它是宿主自带的那一格。 */
+const PANE_OFFERS: readonly DockPaneOffer[] = [{ kind: 'review', label: '审查' }]
 
 export function BrowserPanelToggle({ conversationId }: { readonly conversationId: string }) {
   const { browserThread } = useWorkspaceLayoutState()
@@ -99,17 +103,24 @@ export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
     busy.current = loading
   }, [state.host, layout.browserThread, conversationId])
 
-  /* 名字与内容都归 agent-ui：本格只管把它们摆进 dock。空态归 BrowserPanel。 */
+  /* 每种通道一个渲染器：委派通道归 agent-ui，审查归 review。空态归 BrowserPanel。 */
   const paneName = useDelegateChannelNames(conversationId)
 
   const panes = useMemo<DockPaneRenderers>(
     () => ({
-      body: (id) =>
-        conversationId === null ? null : (
-          <DelegateChannelPane agentId={id} conversationId={conversationId} />
-        ),
-      icon: <DelegateChannelIcon />,
-      name: paneName,
+      delegate: {
+        body: (id) =>
+          conversationId === null ? null : (
+            <DelegateChannelPane agentId={id} conversationId={conversationId} />
+          ),
+        icon: <DelegateChannelIcon />,
+        name: paneName,
+      },
+      review: {
+        body: () => <ReviewPane />,
+        icon: <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />,
+        name: () => '审查',
+      },
     }),
     [conversationId, paneName],
   )
@@ -117,6 +128,7 @@ export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
   return (
     <BrowserPanel
       layoutSignal={layout}
+      paneOffers={PANE_OFFERS}
       panes={panes}
       store={browserPanelStore}
       trailing={

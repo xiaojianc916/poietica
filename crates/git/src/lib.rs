@@ -16,6 +16,10 @@ use std::process::Output;
 use thiserror::Error;
 use tokio::process::Command;
 
+mod changes;
+
+pub use changes::{ChangeStatus, FileChange, changes, patch};
+
 /// GUI 宿主 spawn 控制台程序时，Windows 会给它开一个控制台窗口：选一次工作区
 /// 闪一排黑框。同一规则的另一份在 crates/agent-runtime/src/program.rs 的
 /// hide_console；crates 相互不依赖（AGENTS.md §3），不能借它的代码，所以各持
@@ -48,16 +52,21 @@ pub struct BranchSnapshot {
 
 /// 问一个目录的分支快照。不是 git 工作区、或机器上没有 git，都是 None：
 /// 这两种情况下这项能力都不存在，界面据此整个消失，不是错误。
-pub async fn snapshot(root: &Path) -> Result<Option<BranchSnapshot>, GitError> {
+/// git 在不在、这个目录是不是工作区。两者缺一，这项能力在此处就不存在。
+pub(crate) async fn inside_work_tree(root: &Path) -> Result<bool, GitError> {
     let probe = match run(root, &["rev-parse", "--is-inside-work-tree"]).await {
         Ok(output) => output,
         Err(GitError::Spawn(source)) if source.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(None);
+            return Ok(false);
         }
         Err(error) => return Err(error),
     };
 
-    if !probe.status.success() || line(&probe.stdout) != "true" {
+    Ok(probe.status.success() && line(&probe.stdout) == "true")
+}
+
+pub async fn snapshot(root: &Path) -> Result<Option<BranchSnapshot>, GitError> {
+    if !inside_work_tree(root).await? {
         return Ok(None);
     }
 
@@ -135,7 +144,7 @@ fn checked_name(branch: &str) -> Result<(), GitError> {
     Ok(())
 }
 
-async fn run(root: &Path, args: &[&str]) -> Result<Output, GitError> {
+pub(crate) async fn run(root: &Path, args: &[&str]) -> Result<Output, GitError> {
     let mut command = Command::new("git");
     command.arg("-C").arg(root).args(args);
 
@@ -148,7 +157,7 @@ async fn run(root: &Path, args: &[&str]) -> Result<Output, GitError> {
     Ok(command.output().await?)
 }
 
-fn expect_ok(output: Output) -> Result<Output, GitError> {
+pub(crate) fn expect_ok(output: Output) -> Result<Output, GitError> {
     if output.status.success() {
         return Ok(output);
     }

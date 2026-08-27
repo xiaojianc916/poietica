@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 
 import type { BrowserPanelStore } from './browser-panel-store'
 import { requestBrowserPopup } from './browser-popup'
-import type { BrowserHostView, BrowserTabView } from './browser-port'
+import type { BrowserPopupRequest, BrowserState, BrowserTab } from './browser-port'
 
 /*
  * 标签条与标签下拉。
@@ -15,13 +15,22 @@ import type { BrowserHostView, BrowserTabView } from './browser-port'
  * 浮层只能是另一个原生窗口。
  */
 
+/** 标签行上一格通道的样子。 */
+export interface DockPaneView {
+  readonly id: string
+  readonly name: string
+  readonly icon: ReactNode
+}
+
+/** 加号菜单里可开的通道种类。形状取自原生契约，不另声明一份。 */
+export type DockPaneOffer = BrowserPopupRequest['paneKinds'][number]
+
 interface BrowserTabStripProps {
-  readonly host: BrowserHostView
+  readonly host: BrowserState
   readonly actions: BrowserPanelStore['actions']
-  readonly paneIds: readonly string[]
+  readonly panes: readonly DockPaneView[]
+  readonly paneOffers: readonly DockPaneOffer[]
   readonly activePaneId: string | null
-  readonly paneIcon: ReactNode
-  readonly paneName: (id: string) => string
   readonly onSelectPane: (id: string | null) => void
   readonly onClosePane: (id: string) => void
   /** 行尾角位：宿主放面板开关。 */
@@ -32,9 +41,8 @@ export function BrowserTabStrip({
   host,
   actions,
   activePaneId,
-  paneIcon,
-  paneIds,
-  paneName,
+  paneOffers,
+  panes,
   onClosePane,
   onSelectPane,
   trailing,
@@ -48,30 +56,30 @@ export function BrowserTabStrip({
         className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
         style={{ scrollbarWidth: 'none' }}
       >
-        {paneIds.map((id) => (
+        {panes.map((pane) => (
           <div
             className={
               'group flex max-w-44 shrink-0 items-center rounded-md ' +
-              (id === activePaneId ? 'bg-current/10' : 'hover:bg-current/5')
+              (pane.id === activePaneId ? 'bg-current/10' : 'hover:bg-current/5')
             }
-            key={id}
+            key={pane.id}
           >
             <button
               className="flex min-w-0 items-center gap-1.5 py-1 pl-2 pr-1"
               onClick={() => {
-                onSelectPane(id)
+                onSelectPane(pane.id)
               }}
-              title={paneName(id)}
+              title={pane.name}
               type="button"
             >
-              {paneIcon}
-              <span className="min-w-0 truncate text-xs">{paneName(id)}</span>
+              {pane.icon}
+              <span className="min-w-0 truncate text-xs">{pane.name}</span>
             </button>
             <button
               aria-label="关闭标签页"
               className="mr-1 rounded p-0.5 opacity-0 hover:bg-current/10 group-hover:opacity-60 hover:opacity-100"
               onClick={() => {
-                onClosePane(id)
+                onClosePane(pane.id)
               }}
               type="button"
             >
@@ -117,10 +125,16 @@ export function BrowserTabStrip({
       </div>
 
       <button
+        aria-haspopup="menu"
         aria-label="新建标签页"
         className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100"
-        onClick={() => {
-          actions.openTab(null)
+        onClick={(event) => {
+          requestBrowserPopup(
+            actions.openPopup,
+            { activePaneId, kind: 'new-tab', paneKinds: [...paneOffers], panes: [] },
+            host,
+            event.currentTarget,
+          )
         }}
         type="button"
       >
@@ -135,9 +149,10 @@ export function BrowserTabStrip({
           requestBrowserPopup(
             actions.openPopup,
             {
-              kind: 'tabs',
-              panes: paneIds.map((id) => ({ id, title: paneName(id) })),
               activePaneId,
+              kind: 'tabs',
+              paneKinds: [],
+              panes: panes.map((pane) => ({ id: pane.id, title: pane.name })),
             },
             host,
             event.currentTarget,
@@ -155,7 +170,7 @@ export function BrowserTabStrip({
 }
 
 /* 标签的脸：装载中转圈，有站点图标就画它，否则地球。 */
-function TabIcon({ tab }: { readonly tab: BrowserTabView }) {
+function TabIcon({ tab }: { readonly tab: BrowserTab }) {
   if (tab.loading) {
     return <LoaderCircle aria-hidden className="size-3.5 shrink-0 animate-spin opacity-60" />
   }

@@ -10,8 +10,8 @@ import {
 
 import type { BrowserPanelStore } from './browser-panel-store'
 import { requestBrowserPopup } from './browser-popup'
-import type { BrowserHostView, BrowserTabView } from './browser-port'
-import { BrowserTabStrip } from './browser-tab-strip'
+import type { BrowserState, BrowserTab } from './browser-port'
+import { BrowserTabStrip, type DockPaneOffer } from './browser-tab-strip'
 
 /*
  * 浏览器面板（图一）。
@@ -22,24 +22,46 @@ import { BrowserTabStrip } from './browser-tab-strip'
  */
 
 /** 一格通道由谁描述：字形与名字进标签行，内容进主区。本包不解读 id。 */
-export interface DockPaneRenderers {
+export interface DockPaneRenderer {
   readonly icon: ReactNode
   readonly name: (id: string) => string
   readonly body: (id: string) => ReactNode
 }
 
+/** 每种通道一个渲染器，键就是 DockPane.kind。 */
+export type DockPaneRenderers = Readonly<Record<string, DockPaneRenderer>>
+
+function rendererOf(renderers: DockPaneRenderers, kind: string): DockPaneRenderer {
+  const renderer = renderers[kind]
+
+  if (renderer === undefined) {
+    throw new Error('dock 上没有 ' + kind + ' 通道的渲染器：接线漏了。')
+  }
+
+  return renderer
+}
+
 export interface BrowserPanelProps {
   readonly store: BrowserPanelStore
   readonly panes: DockPaneRenderers
+  /** 加号菜单可开的通道种类。 */
+  readonly paneOffers: readonly DockPaneOffer[]
   /** 标签条行尾的角位：宿主放面板开关，几何与宿主页头对齐。 */
   readonly trailing?: ReactNode
   /** 几何输入的指纹：变了就重新起跑视口对齐，内容不解读。 */
   readonly layoutSignal: unknown
 }
 
-export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPanelProps) {
+export function BrowserPanel({
+  layoutSignal,
+  paneOffers,
+  panes,
+  store,
+  trailing,
+}: BrowserPanelProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const host = state.host
+  const activePane = state.panes.find((pane) => pane.id === state.activePaneId) ?? null
   const activeTab = host?.tabs.find((tab) => tab.id === host.activeTabId) ?? null
 
   return (
@@ -63,12 +85,15 @@ export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPa
             host={host}
             onClosePane={store.closePane}
             onSelectPane={store.selectPane}
-            paneIcon={panes.icon}
-            paneIds={state.panes}
-            paneName={panes.name}
+            paneOffers={paneOffers}
+            panes={state.panes.map((pane) => {
+              const renderer = rendererOf(panes, pane.kind)
+
+              return { icon: renderer.icon, id: pane.id, name: renderer.name(pane.id) }
+            })}
             trailing={trailing}
           />
-          {state.activePaneId === null ? (
+          {activePane === null ? (
             <>
               <BrowserToolbar
                 actions={store.actions}
@@ -84,7 +109,9 @@ export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPa
             </>
           ) : (
             /* 通道是只读的：没有地址栏，也没有输入框。 */
-            <div className="min-h-0 flex-1 overflow-hidden">{panes.body(state.activePaneId)}</div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {rendererOf(panes, activePane.kind).body(activePane.id)}
+            </div>
           )}
         </>
       )}
@@ -93,9 +120,9 @@ export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPa
 }
 
 interface BrowserToolbarProps {
-  readonly activeTab: BrowserTabView | null
+  readonly activeTab: BrowserTab | null
   readonly actions: BrowserPanelStore['actions']
-  readonly host: BrowserHostView
+  readonly host: BrowserState
   readonly pickerActive: boolean
 }
 
@@ -165,7 +192,7 @@ function BrowserToolbar({ activeTab, actions, host, pickerActive }: BrowserToolb
         onClick={(event) => {
           requestBrowserPopup(
             actions.openPopup,
-            { kind: 'overflow', panes: [], activePaneId: null },
+            { activePaneId: null, kind: 'overflow', paneKinds: [], panes: [] },
             host,
             event.currentTarget,
           )
@@ -182,7 +209,7 @@ function AddressInput({
   activeTab,
   actions,
 }: {
-  readonly activeTab: BrowserTabView | null
+  readonly activeTab: BrowserTab | null
   readonly actions: BrowserPanelStore['actions']
 }) {
   const committed = activeTab?.url ?? ''

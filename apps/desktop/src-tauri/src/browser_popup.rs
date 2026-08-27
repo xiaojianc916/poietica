@@ -16,6 +16,7 @@ const MAX_POPUP_SIZE: f64 = 1_024.0;
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum BrowserPopupKind {
+    NewTab,
     Overflow,
     Tabs,
 }
@@ -34,6 +35,7 @@ pub struct BrowserPopupRequest {
     pub theme: String,
     pub panes: Vec<BrowserPopupPane>,
     pub active_pane_id: Option<String>,
+    pub pane_kinds: Vec<BrowserPopupPaneKind>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, specta::Type)]
@@ -44,6 +46,8 @@ pub enum BrowserPopupActionKind {
     SelectTab,
     CloseTab,
     ReopenClosed,
+    OpenTab,
+    OpenPane,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, specta::Type, tauri_specta::Event)]
@@ -53,6 +57,7 @@ pub struct BrowserPopupAction {
     pub pane_id: Option<String>,
     pub tab_id: Option<u32>,
     pub index: Option<u32>,
+    pub pane_kind: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -265,4 +270,12 @@ mod tests {
     fn oversized_geometry_is_rejected() {
         assert!(validate(geometry(MAX_POPUP_SIZE + 1.0, 300.0)).is_err());
     }
+}
+
+/// 加号菜单里可开的通道种类。字面量归渲染层，原生侧只转运。
+#[derive(Clone, Debug, Deserialize, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserPopupPaneKind {
+    pub kind: String,
+    pub label: String,
 }

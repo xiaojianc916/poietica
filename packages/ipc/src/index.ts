@@ -34,9 +34,13 @@ export {
   watchAutomations,
 } from './automations'
 export {
+  type BrowserClosedTab,
   type BrowserElementPicked,
   type BrowserPopupAction,
   type BrowserPopupRequest,
+  type BrowserState,
+  type BrowserTab,
+  type BrowserViewportBounds,
   browserDevtoolsEndpoint,
   browserTabBack,
   browserTabForward,
@@ -73,7 +77,15 @@ export {
   writeEnvironmentMcpConfig,
 } from './environment'
 export { throughIpc } from './error'
-export { type GitBranches, gitBranches, gitCreateBranch, gitSwitchBranch } from './git'
+export {
+  type GitBranches,
+  type GitFileChange,
+  gitBranches,
+  gitChanges,
+  gitCreateBranch,
+  gitFilePatch,
+  gitSwitchBranch,
+} from './git'
 export { resolveLauncher } from './launcher'
 export { readMcpEndpoint } from './mcp'
 export {

@@ -18,6 +18,7 @@ export const APPLICATION_FAILURE_CODES = [
   'THREAD_REOPEN_FAILED',
   'THREAD_MODES_NOT_KEPT',
   'GIT_BRANCH_OPERATION_FAILED',
+  'GIT_CHANGES_UNREADABLE',
   'UPDATE_DOWNLOAD_FAILED',
   'UNHANDLED_WINDOW_ERROR',
   'UNHANDLED_PROMISE_REJECTION',
@@ -250,6 +251,13 @@ export const APPLICATION_FAILURE_POLICIES = {
     userMessage: 'Git 分支操作失败',
     recovery: 'retry',
     scope: operationScope('git-branch-operation'),
+  },
+  /* 读不到变更清单：审查那一格自己说读取失败，控件不变灰，重进就再问一次。 */
+  GIT_CHANGES_UNREADABLE: {
+    impact: 'recoverable',
+    userMessage: 'Git 变更读取失败',
+    recovery: 'retry',
+    scope: operationScope('git-changes'),
   },
   /*
    * 更新没能下下来。

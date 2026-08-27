@@ -1,4 +1,6 @@
+export type { DockPaneRenderer } from './browser-panel'
 export { BrowserPanel, type DockPaneRenderers } from './browser-panel'
+export type { DockPane } from './browser-panel-store'
 export { type BrowserPanelStore, createBrowserPanelStore } from './browser-panel-store'
 export {
   BrowserPopupSurface,
@@ -7,10 +9,11 @@ export {
 } from './browser-popup'
 export type {
   BrowserHostPort,
-  BrowserHostView,
   BrowserPopupAction,
   BrowserPopupKind,
   BrowserPopupPaneView,
   BrowserPopupRequest,
-  BrowserViewportRect,
+  BrowserState,
+  BrowserViewportBounds,
 } from './browser-port'
+export type { DockPaneOffer, DockPaneView } from './browser-tab-strip'

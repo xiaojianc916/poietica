@@ -1,11 +1,10 @@
-import type { BrowserHostPort, BrowserPopupRequest } from '@poietica/browser'
+import type { BrowserHostPort } from '@poietica/browser'
 import {
   browserTabBack,
   browserTabForward,
   browserTabReload,
   closeBrowserPopup,
   closeBrowserTab,
-  type BrowserPopupRequest as NativeBrowserPopupRequest,
   navigateBrowserTab,
   openBrowserPopup,
   openBrowserTab,
@@ -20,26 +19,10 @@ import {
   watchBrowserState,
 } from '@poietica/ipc'
 
-function toNativeRequest(request: BrowserPopupRequest): NativeBrowserPopupRequest {
-  return {
-    kind: request.kind,
-    theme: request.theme,
-    panes: request.panes.map((pane) => ({ id: pane.id, title: pane.title })),
-    activePaneId: request.activePaneId,
-  }
-}
-
+/* 端口的每一格就是一条 IPC 命令：请求与动作两边同一份生成类型。 */
 export const browserHostPort: BrowserHostPort = {
   watch: watchBrowserState,
-  watchPopupActions: (onAction) =>
-    watchBrowserPopupActions((action) => {
-      onAction({
-        action: action.action,
-        paneId: action.paneId,
-        tabId: action.tabId,
-        index: action.index,
-      })
-    }),
+  watchPopupActions: watchBrowserPopupActions,
   openTab: openBrowserTab,
   closeTab: closeBrowserTab,
   selectTab: selectBrowserTab,
@@ -52,14 +35,7 @@ export const browserHostPort: BrowserHostPort = {
   reopenClosed: reopenClosedBrowserTab,
   setViewportBounds: setBrowserViewportBounds,
   setVisible: setBrowserVisible,
-  openPopup: (request, rect) =>
-    openBrowserPopup(toNativeRequest(request), rect.x, rect.y, rect.width, rect.height),
-  dispatchPopupAction: (action) =>
-    sendBrowserPopupAction({
-      action: action.action,
-      paneId: action.paneId,
-      tabId: action.tabId,
-      index: action.index,
-    }),
+  openPopup: (request, rect) => openBrowserPopup(request, rect.x, rect.y, rect.width, rect.height),
+  dispatchPopupAction: sendBrowserPopupAction,
   closePopup: closeBrowserPopup,
 }

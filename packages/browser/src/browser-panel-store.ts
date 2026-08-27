@@ -2,14 +2,20 @@ import { createExternalStore, warn } from '@poietica/core'
 
 import type {
   BrowserHostPort,
-  BrowserHostView,
   BrowserPopupRequest,
-  BrowserViewportRect,
+  BrowserState,
+  BrowserViewportBounds,
 } from './browser-port'
 
+/** 一格通道：kind 由宿主定义并据此查渲染器，id 在 dock 内唯一。 */
+export interface DockPane {
+  readonly kind: string
+  readonly id: string
+}
+
 export interface BrowserPanelState {
-  readonly host: BrowserHostView | null
-  readonly panes: readonly string[]
+  readonly host: BrowserState | null
+  readonly panes: readonly DockPane[]
   readonly activePaneId: string | null
 }
 
@@ -18,8 +24,8 @@ export interface BrowserPanelStore {
   readonly getSnapshot: () => BrowserPanelState
   readonly start: () => void
   readonly setVisible: (visible: boolean) => void
-  readonly reportViewport: (rect: BrowserViewportRect) => void
-  readonly openPane: (id: string) => void
+  readonly reportViewport: (rect: BrowserViewportBounds) => void
+  readonly openPane: (pane: DockPane) => void
   readonly closePane: (id: string) => void
   readonly selectPane: (id: string | null) => void
   readonly actions: {
@@ -33,17 +39,17 @@ export interface BrowserPanelStore {
     readonly print: (id: number) => void
     readonly setElementPicker: (id: number, enabled: boolean) => void
     readonly reopenClosed: (index: number) => void
-    readonly openPopup: (request: BrowserPopupRequest, rect: BrowserViewportRect) => void
+    readonly openPopup: (request: BrowserPopupRequest, rect: BrowserViewportBounds) => void
     readonly closePopup: () => void
   }
 }
 
 export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStore {
-  let host: BrowserHostView | null = null
+  let host: BrowserState | null = null
   let started = false
   let ensuredFirstTab = false
   let nativeVisible: boolean | null = null
-  let panes: readonly string[] = []
+  let panes: readonly DockPane[] = []
   let activePaneId: string | null = null
   let snapshot: BrowserPanelState = { host, panes, activePaneId }
 
@@ -61,27 +67,27 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
   }
 
   function selectPane(id: string | null): void {
-    if ((id !== null && !panes.includes(id)) || id === activePaneId) {
+    if ((id !== null && !panes.some((pane) => pane.id === id)) || id === activePaneId) {
       return
     }
     activePaneId = id
     publish()
   }
 
-  function openPane(id: string): void {
-    if (!panes.includes(id)) {
-      panes = [...panes, id]
+  function openPane(pane: DockPane): void {
+    if (!panes.some((held) => held.id === pane.id)) {
+      panes = [...panes, pane]
     }
-    activePaneId = id
+    activePaneId = pane.id
     publish()
   }
 
   function closePane(id: string): void {
-    if (!panes.includes(id)) {
+    if (!panes.some((pane) => pane.id === id)) {
       return
     }
-    panes = panes.filter((open) => open !== id)
-    activePaneId = activePaneId === id ? (panes.at(-1) ?? null) : activePaneId
+    panes = panes.filter((open) => open.id !== id)
+    activePaneId = activePaneId === id ? (panes.at(-1)?.id ?? null) : activePaneId
     publish()
   }
 
@@ -112,6 +118,12 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
             const index = action.index
             selectPane(null)
             run('reopen-closed', () => port.reopenClosed(index))
+          } else if (action.action === 'open-tab') {
+            selectPane(null)
+            run('open-tab', () => port.openTab(null))
+          } else if (action.action === 'open-pane' && action.paneKind !== null) {
+            /* 菜单开出来的通道一种一格：id 就是 kind，再点一次回到同一格。 */
+            openPane({ id: action.paneKind, kind: action.paneKind })
           }
         })
         .catch((cause: unknown) => {

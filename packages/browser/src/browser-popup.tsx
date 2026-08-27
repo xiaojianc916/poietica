@@ -22,11 +22,11 @@ import {
 
 import type {
   BrowserHostPort,
-  BrowserHostView,
   BrowserPopupAction,
   BrowserPopupRequest,
-  BrowserTabView,
-  BrowserViewportRect,
+  BrowserState,
+  BrowserTab,
+  BrowserViewportBounds,
 } from './browser-port'
 
 const TAB_ROW = 32
@@ -73,8 +73,15 @@ const OVERFLOW_ROWS: readonly OverflowRow[] = [
 
 export function browserPopupSize(
   request: Omit<BrowserPopupRequest, 'theme'>,
-  host: BrowserHostView,
+  host: BrowserState,
 ): { readonly width: number; readonly height: number } {
+  if (request.kind === 'new-tab') {
+    /* 网页一行，通道各一行。 */
+    const rows = request.paneKinds.length + 1
+
+    return { width: MENU_WIDTH, height: rows * MENU_ROW + SURFACE_PADDING * 2 }
+  }
+
   if (request.kind === 'overflow') {
     const content = OVERFLOW_ROWS.reduce(
       (total, row) => total + (row.kind === 'divider' ? MENU_DIVIDER : MENU_ROW),
@@ -99,9 +106,9 @@ export function browserPopupSize(
 }
 
 export function requestBrowserPopup(
-  open: (request: BrowserPopupRequest, rect: BrowserViewportRect) => void,
+  open: (request: BrowserPopupRequest, rect: BrowserViewportBounds) => void,
   request: Omit<BrowserPopupRequest, 'theme'>,
-  host: BrowserHostView,
+  host: BrowserState,
   trigger: HTMLElement,
 ): void {
   const bounds = trigger.getBoundingClientRect()
@@ -122,7 +129,7 @@ export function requestBrowserPopup(
 }
 
 interface FaceProps {
-  readonly host: BrowserHostView
+  readonly host: BrowserState
   readonly request: BrowserPopupRequest
   readonly port: BrowserHostPort
   readonly onDismiss: () => void
@@ -168,8 +175,21 @@ function moveMenuFocus(event: ReactKeyboardEvent<HTMLDivElement>): void {
   items[next]?.focus()
 }
 
+const POPUP_LABELS: Readonly<Record<BrowserPopupRequest['kind'], string>> = {
+  'new-tab': '新建标签页',
+  overflow: '更多操作',
+  tabs: '标签页列表',
+}
+
+const POPUP_FACES: Readonly<Record<BrowserPopupRequest['kind'], typeof OverflowFace>> = {
+  'new-tab': NewTabFace,
+  overflow: OverflowFace,
+  tabs: TabsFace,
+}
+
 export function BrowserPopupSurface({ request, ...face }: BrowserPopupSurfaceProps) {
-  const overflow = request.kind === 'overflow'
+  const menu = request.kind !== 'tabs'
+  const Face = POPUP_FACES[request.kind]
   const surface = useRef<HTMLDivElement>(null)
 
   /* 焦点先落进这张表面：窗口的"失焦即关闭"要成立，文档里必须真的有焦点。 */
@@ -179,18 +199,14 @@ export function BrowserPopupSurface({ request, ...face }: BrowserPopupSurfacePro
 
   return (
     <div
-      aria-label={overflow ? '更多操作' : '标签页列表'}
+      aria-label={POPUP_LABELS[request.kind]}
       className={`${popupSurfaceClassName} flex h-full flex-col p-1 text-sm`}
-      onKeyDown={overflow ? moveMenuFocus : undefined}
+      onKeyDown={menu ? moveMenuFocus : undefined}
       ref={surface}
-      role={overflow ? 'menu' : 'dialog'}
+      role={menu ? 'menu' : 'dialog'}
       tabIndex={-1}
     >
-      {overflow ? (
-        <OverflowFace {...face} request={request} />
-      ) : (
-        <TabsFace {...face} request={request} />
-      )}
+      <Face {...face} request={request} />
     </div>
   )
 }
@@ -265,6 +281,53 @@ function ZoomRow() {
         <RotateCcw aria-hidden className="size-4" />
       </ZoomStep>
     </div>
+  )
+}
+
+/* 加号菜单：网页一行，通道各一行。种类由宿主给，本包不认识它们的名字。 */
+function NewTabFace({ request, onDismiss, onAction }: FaceProps) {
+  return (
+    <>
+      <MenuRow
+        onSelect={() =>
+          run(
+            'open-tab',
+            () =>
+              onAction({
+                action: 'open-tab',
+                paneId: null,
+                paneKind: null,
+                tabId: null,
+                index: null,
+              }),
+            onDismiss,
+          )
+        }
+      >
+        网页
+      </MenuRow>
+      {request.paneKinds.map((offer) => (
+        <MenuRow
+          key={offer.kind}
+          onSelect={() =>
+            run(
+              'open-pane',
+              () =>
+                onAction({
+                  action: 'open-pane',
+                  paneId: null,
+                  paneKind: offer.kind,
+                  tabId: null,
+                  index: null,
+                }),
+              onDismiss,
+            )
+          }
+        >
+          {offer.label}
+        </MenuRow>
+      ))}
+    </>
   )
 }
 
@@ -364,6 +427,7 @@ function TabsFace({ host, request, port, onDismiss, onAction }: FaceProps) {
                   () =>
                     onAction({
                       action: 'select-pane',
+                      paneKind: null,
                       paneId: pane.id,
                       tabId: null,
                       index: null,
@@ -385,6 +449,7 @@ function TabsFace({ host, request, port, onDismiss, onAction }: FaceProps) {
                   () =>
                     onAction({
                       action: 'close-pane',
+                      paneKind: null,
                       paneId: pane.id,
                       tabId: null,
                       index: null,
@@ -417,6 +482,7 @@ function TabsFace({ host, request, port, onDismiss, onAction }: FaceProps) {
                     () =>
                       onAction({
                         action: 'select-tab',
+                        paneKind: null,
                         paneId: null,
                         tabId: tab.id,
                         index: null,
@@ -436,6 +502,7 @@ function TabsFace({ host, request, port, onDismiss, onAction }: FaceProps) {
                   run('close-tab', () =>
                     onAction({
                       action: 'close-tab',
+                      paneKind: null,
                       paneId: null,
                       tabId: tab.id,
                       index: null,
@@ -467,6 +534,7 @@ function TabsFace({ host, request, port, onDismiss, onAction }: FaceProps) {
                     () =>
                       onAction({
                         action: 'reopen-closed',
+                        paneKind: null,
                         paneId: null,
                         tabId: null,
                         index,
@@ -487,7 +555,7 @@ function TabsFace({ host, request, port, onDismiss, onAction }: FaceProps) {
   )
 }
 
-function TabIcon({ tab }: { readonly tab: BrowserTabView }) {
+function TabIcon({ tab }: { readonly tab: BrowserTab }) {
   if (tab.loading) {
     return <LoaderCircle aria-hidden className="size-3.5 shrink-0 animate-spin opacity-60" />
   }
