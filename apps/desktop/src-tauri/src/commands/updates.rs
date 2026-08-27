@@ -283,5 +283,5 @@ pub async fn update_relaunch(app: AppHandle) -> UpdateCommandResult<()> {
         .install(staged.bytes)
         .map_err(|error| plugin_failure(&error))?;
 
-    app.restart()
+    crate::bootstrap::shutdown::relaunch(&app)
 }

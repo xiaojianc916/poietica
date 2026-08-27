@@ -1,5 +1,6 @@
 use std::fmt;
 use std::path::PathBuf;
+use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 
 use futures::channel::{mpsc, oneshot};
 
@@ -150,7 +151,10 @@ pub(crate) enum Command {
         reply: oneshot::Sender<Result<()>>,
     },
 
-    Shutdown,
+    /// 退场：杀掉这条连接起的那个进程，杀完从收据上报一声。
+    ///
+    /// 收据是退出屏障唯一的凭据 —— 进程离场之后没有人能再替它收尸。
+    Shutdown(SyncSender<()>),
     /// Answers with the selectors that session is currently offering.
     Selectors {
         session_id: String,
@@ -384,9 +388,20 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// Ends every session and lets the agent process exit.
-    pub fn shutdown(&self) -> Result<()> {
-        self.send(Command::Shutdown)
+    /// 结束这条连接，并交回「它起的那个进程已经没了」的收据。
+    ///
+    /// 收据只有退出屏障会等：换 agent 时驱动器还活着，它自己会收尸。
+    ///
+    /// # Errors
+    ///
+    /// 驱动已退场时失败 —— 那种情况下它的子进程已经收掉了。
+    pub fn shutdown(&self) -> Result<Receiver<()>> {
+        /* 容量 1：驱动器报完就走，不为一个已经等到超时的收据挂住。 */
+        let (gone, receipt) = sync_channel(1);
+
+        self.send(Command::Shutdown(gone))?;
+
+        Ok(receipt)
     }
 
     /// Asks which selectors the session is offering.

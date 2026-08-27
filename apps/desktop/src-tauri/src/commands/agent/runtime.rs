@@ -14,7 +14,9 @@ use poietica_agent_runtime_native::{
 };
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 use tokio::task::LocalSet;
 use super::config::restate;
@@ -116,7 +118,15 @@ impl AgentRuntime {
     /// Fails when the connection lock is poisoned, or when the frame journal
     /// cannot be flushed.
     pub fn disconnect(&self) -> Result<()> {
-        retire(lock(&self.connection)?.take());
+        /* 顺序即不变量：先等它起的进程真的没了，再刷日志 —— 反过来的话，收尸
+           期间录下的帧排在刷新标记之后，正是退出时会丢的那一段。 */
+        const EXIT_GRACE: Duration = Duration::from_secs(5);
+
+        let gone = retire(lock(&self.connection)?.take());
+
+        if gone.is_some_and(|receipt| receipt.recv_timeout(EXIT_GRACE).is_err()) {
+            log::warn!("the agent process did not report its exit within {EXIT_GRACE:?}");
+        }
         self.journal.flush()?;
         Ok(())
     }
@@ -132,7 +142,7 @@ impl AgentRuntime {
                 None
             }
         };
-        retire(retired);
+        let _gone = retire(retired);
         Ok(())
     }
     /// Prepares the runtime without starting anything.
@@ -172,14 +182,11 @@ impl AgentRuntime {
 /// 于是 RunSlot::take 永远不会被调用。槽现在随连接一起走，所以收不干净只影响
 /// 这一条已经作废的连接 —— 此前它是全进程唯一的那一份，一次这样的退出会让
 /// 下一条连接的第一轮被误判为已有一轮在飞，而屏幕上那句话答的是另一个问题。
-fn retire(taken: Option<Connection>) {
-    let Some(gone) = taken else {
-        return;
-    };
+fn retire(taken: Option<Connection>) -> Option<Receiver<()>> {
+    let gone = taken?;
     gone.lease.close();
-    // The process is going away either way, so a driver that already
-    // stopped is not an error worth reporting.
-    let _ignored = gone.client.shutdown();
+    /* 驱动器已经停了就没有收据可等：它自己退场时已经收过尸。 */
+    let receipt = gone.client.shutdown().ok();
     if let Err(error) = gone
         .book
         .fail_active("agent 连接已断开，本轮已终止，请重试")
@@ -188,6 +195,8 @@ fn retire(taken: Option<Connection>) {
     }
     gone.desk.clear();
     gone.questions.clear();
+
+    receipt
 }
 /// What a command needs to know about the running session.
 ///
@@ -347,8 +356,7 @@ pub(super) async fn ensure_session(
         /* 换 agent：上一条连接先干净地退场，再起新的。两个 agent 同时常驻是
          * 下一刀的事（那要先让库里那一列的持有者补实）；而把 B 的话发给 A、并
          * 且记成 A 的，今天就是错的。 */
-        retire(lock(&state.connection)?.take());
-        state.journal.flush()?;
+        state.disconnect()?;
     }
     // The agent reads and writes relative to the directory the session was
     // created against, so the fallback has to be somewhere the user actually
@@ -441,7 +449,7 @@ pub(super) async fn ensure_session(
         book: book.clone(),
     };
     if !lease.is_open() {
-        retire(Some(kept));
+        let _gone = retire(Some(kept));
         return Err(translate(KapError::Refused(Refusal::Gone)));
     }
     *lock(&state.connection)? = Some(kept);
@@ -501,7 +509,7 @@ pub(super) fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> 
     if guard.as_ref().is_some_and(|live| !live.lease.is_open()) {
         let retired = guard.take();
         drop(guard);
-        retire(retired);
+        let _gone = retire(retired);
         return Ok(None);
     }
     Ok(guard.as_ref().map(|live| Handle {

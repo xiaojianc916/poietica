@@ -21,12 +21,26 @@ pub fn on_run_event(app: &AppHandle, event: RunEvent) {
         && !DRAINED.load(Ordering::Acquire)
     {
         api.prevent_exit();
-        drain(app, code.unwrap_or(0));
+        drain(app);
+        app.exit(code.unwrap_or(0));
     }
 }
 
 /// 排空并离场。幂等：第二次进来不做事，退出请求由屏障放行。
-pub fn drain(app: &AppHandle, code: i32) {
+/// 不问确认，排空之后离场。
+pub fn quit(app: &AppHandle) {
+    drain(app);
+    app.exit(0);
+}
+
+/// 装上更新之后重新启动：与退出共用同一次排空。
+pub fn relaunch(app: &AppHandle) -> ! {
+    drain(app);
+    app.restart()
+}
+
+/// 幂等排空：第二次进来什么都不做。
+fn drain(app: &AppHandle) {
     if DRAINED.swap(true, Ordering::AcqRel) {
         return;
     }
@@ -39,5 +53,5 @@ pub fn drain(app: &AppHandle, code: i32) {
         log::error!("shutdown: the agent connection did not retire: {error}");
     }
 
-    app.exit(code);
+
 }

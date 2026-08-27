@@ -95,7 +95,7 @@ fn request_termination(app: &AppHandle) {
 fn force_quit(app: &AppHandle) {
     log::warn!("tray: force quit requested; unsaved work is discarded");
 
-    super::shutdown::drain(app, 0);
+    super::shutdown::quit(app);
 }
 
 fn toggle_main(app: &AppHandle) {

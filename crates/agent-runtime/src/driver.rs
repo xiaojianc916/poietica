@@ -1057,7 +1057,14 @@ pub fn connect(
             tokio::select! {
                 cmd = commands_rx.next() => {
                     match cmd {
-                        None | Some(Command::Shutdown) => {
+                        Some(Command::Shutdown(gone)) => {
+                            kill_tree(&mut child).await;
+                            /* 收尸完成才报：屏障等的就是这一声。 */
+                            let _reported = gone.send(());
+                            break;
+                        }
+                        /* 命令端全没了：没人再要收据，收尸照做。 */
+                        None => {
                             kill_tree(&mut child).await;
                             break;
                         }
