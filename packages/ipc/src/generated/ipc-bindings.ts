@@ -1089,12 +1089,10 @@ async browserDevtoolsEndpoint() : Promise<string | null> {
     return await TAURI_INVOKE("browser_devtools_endpoint");
 },
 /**
- * 「选择网页元素加入聊天」：给标签装上拾取武装并注入拾取脚本。
- * 
- * 空白页没有内核实例，run_in_page 自然是空操作，什么也不会发生。
+ * 显式设置当前标签的元素选择模式；状态只归 BrowserHost。
  */
-async browserPickElement(id: number) : Promise<void> {
-    await TAURI_INVOKE("browser_pick_element", { id });
+async browserSetElementPicker(id: number, enabled: boolean) : Promise<void> {
+    await TAURI_INVOKE("browser_set_element_picker", { id, enabled });
 }
 }
 
@@ -1935,16 +1933,13 @@ export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: 
  * 最近关闭的一条，够画出下拉里的那一行。
  */
 export type BrowserClosedTab = { url: string; title: string }
-/**
- * 拾取结果：喂给渲染层，落进对话草稿。tab_id 取宿主闭包里的标签号，
- * 不信页面自报的任何身份。
- */
-export type BrowserElementPicked = { tabId: number; url: string; title: string; selector: string; text: string; html: string }
+export type BrowserElementPicked = { tabId: number; submission: BrowserPickSubmission; url: string; title: string; tagName: string; selector: string; role: string; accessibleName: string; text: string; html: string; styles: string; comment: string }
+export type BrowserPickSubmission = "attach" | "send"
 /**
  * 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，
  * 增量协议换来的只是两侧各一份需要对账的账本。
  */
-export type BrowserState = { tabs: BrowserTab[]; activeTabId: number | null; recentlyClosed: BrowserClosedTab[] }
+export type BrowserState = { tabs: BrowserTab[]; activeTabId: number | null; pickingTabId: number | null; recentlyClosed: BrowserClosedTab[] }
 /**
  * 一个标签在渲染层眼里的样子。url 缺席 = 空白页。
  */

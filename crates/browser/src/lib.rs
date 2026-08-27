@@ -5,6 +5,13 @@
 //! 这一层出现 —— 宿主接线归 src-tauri 的 browser.rs，本 crate 必须能在
 //! 没有窗口的进程里跑完全部单测。
 
+mod picker;
+
+pub use picker::{
+    PickOutcome, PickSubmission, PickedElement, Picker, PickerLease, decode_picker_callback,
+    is_picker_callback,
+};
+
 use std::collections::{HashMap, VecDeque};
 
 use base64::Engine as _;

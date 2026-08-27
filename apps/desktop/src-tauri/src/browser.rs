@@ -32,86 +32,8 @@ use crate::bootstrap::app::MAIN_WINDOW;
 /// 永远是外部 origin，remote 未声明即无 IPC —— 前缀只用于归属与调试。
 const LABEL_PREFIX: &str = "browser-";
 
-/// 拾取回传的哨兵地址。`.invalid` 是 RFC 2606 保留 TLD，永不解析；载荷全在
-/// query 里 —— 即使被取消的导航仍有请求发出（WebView2 已知行为），它也到不了
-/// 任何真实服务器。
-const PICK_SENTINEL: &str = "https://pick.poietica.invalid/";
-
-/// 注入页面的拾取脚本：hover 高亮、点击定案、Esc 取消。
-/// 回传走哨兵导航 —— 标签 webview 是外部 origin，结构性无 IPC，这是唯一
-/// 不开新信道、不放宽隔离的回传口。幂等：重复注入是空操作。
-/// 已知边界：iframe 里的元素只拾取到 iframe 本身。
-const PICKER_SCRIPT: &str = r"(() => {
-  if (window.__poieticaPicker) { return; }
-  window.__poieticaPicker = true;
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;'
-    + 'z-index:2147483647;pointer-events:none;display:none;'
-    + 'background:rgba(59,130,246,0.22);outline:2px solid rgba(59,130,246,0.9);';
-  let over = null;
-  const selectorFor = (start) => {
-    const parts = [];
-    let node = start;
-    while (node && node.nodeType === 1 && parts.length < 6) {
-      if (node.id) { parts.unshift('#' + CSS.escape(node.id)); break; }
-      let part = node.tagName.toLowerCase();
-      const parent = node.parentElement;
-      if (parent) {
-        const twins = Array.prototype.filter.call(parent.children, (child) => child.tagName === node.tagName);
-        if (twins.length > 1) { part += ':nth-of-type(' + (twins.indexOf(node) + 1) + ')'; }
-      }
-      parts.unshift(part);
-      node = parent;
-    }
-    return parts.join(' > ');
-  };
-  const cleanup = () => {
-    document.removeEventListener('mousemove', onMove, true);
-    document.removeEventListener('click', onClick, true);
-    document.removeEventListener('keydown', onKey, true);
-    overlay.remove();
-    delete window.__poieticaPicker;
-  };
-  const finish = (params) => {
-    cleanup();
-    location.href = 'https://pick.poietica.invalid/?' + params.toString();
-  };
-  const onMove = (event) => {
-    const el = document.elementFromPoint(event.clientX, event.clientY);
-    if (!el || el === over) { return; }
-    over = el;
-    const rect = el.getBoundingClientRect();
-    overlay.style.display = 'block';
-    overlay.style.left = rect.left + 'px';
-    overlay.style.top = rect.top + 'px';
-    overlay.style.width = rect.width + 'px';
-    overlay.style.height = rect.height + 'px';
-  };
-  const onClick = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const el = over || event.target;
-    const params = new URLSearchParams();
-    params.set('url', String(location.href).slice(0, 2000));
-    params.set('title', String(document.title).slice(0, 300));
-    params.set('selector', selectorFor(el).slice(0, 300));
-    params.set('text', (el.innerText || '').trim().slice(0, 1000));
-    params.set('html', String(el.outerHTML || '').slice(0, 4000));
-    finish(params);
-  };
-  const onKey = (event) => {
-    if (event.key !== 'Escape') { return; }
-    event.preventDefault();
-    event.stopPropagation();
-    const params = new URLSearchParams();
-    params.set('cancel', '1');
-    finish(params);
-  };
-  document.body.appendChild(overlay);
-  document.addEventListener('mousemove', onMove, true);
-  document.addEventListener('click', onClick, true);
-  document.addEventListener('keydown', onKey, true);
-})();";
+const PICKER_SCRIPT: &str = include_str!("browser-picker.js");
+const PICKER_CANCEL_SCRIPT: &str = "window.__poieticaElementPicker?.cancel();";
 
 /// 面板视口在主窗口客户区里的逻辑坐标。渲染层量 DOM，这里只收数。
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, specta::Type)]
@@ -149,6 +71,7 @@ pub struct BrowserClosedTab {
 pub struct BrowserState {
     pub tabs: Vec<BrowserTab>,
     pub active_tab_id: Option<u32>,
+    pub picking_tab_id: Option<u32>,
     pub recently_closed: Vec<BrowserClosedTab>,
 }
 
@@ -162,9 +85,7 @@ pub struct BrowserHost {
     /// CDP 端口。启动时抽一次，写进 WebView2 的环境参数；非 Windows 或
     /// 端口抽取失败时为 None，agent 操控面就不存在，浏览器本体不受影响。
     devtools_port: Option<u16>,
-    /// 拾取武装位：browser_pick_element 装上标签 id，该标签的下一次哨兵导航
-    /// 才被承认，用后即焚 —— 页面伪造哨兵导航时这里没武装，直接丢弃。
-    picking: Mutex<Option<u32>>,
+    picker: Mutex<poietica_browser_native::Picker>,
     /// 上一次真正下发给内核的摆放。相等就不再下发 —— 一次拖拽每帧都经过这里。
     placed: Mutex<HashMap<u32, Placement>>,
 }
@@ -205,10 +126,9 @@ impl BrowserHost {
     }
 
     fn snapshot(&self) -> BrowserState {
-        let tabs = lock(&self.tabs);
-
-        BrowserState {
-            tabs: tabs
+        let (tabs, active_tab_id, recently_closed) = {
+            let model = lock(&self.tabs);
+            let tabs = model
                 .entries()
                 .iter()
                 .map(|tab| BrowserTab {
@@ -216,17 +136,25 @@ impl BrowserHost {
                     url: tab.url.clone(),
                     title: tab.title.clone(),
                     loading: tab.loading,
-                    favicon: tabs.icon(tab.id).map(str::to_owned),
+                    favicon: model.icon(tab.id).map(str::to_owned),
                 })
-                .collect(),
-            active_tab_id: tabs.active_id(),
-            recently_closed: tabs
+                .collect();
+            let recently_closed = model
                 .recently_closed()
                 .map(|closed| BrowserClosedTab {
                     url: closed.url.clone(),
                     title: closed.title.clone(),
                 })
-                .collect(),
+                .collect();
+            (tabs, model.active_id(), recently_closed)
+        };
+        let picking_tab_id = lock(&self.picker).active_tab_id();
+
+        BrowserState {
+            tabs,
+            active_tab_id,
+            picking_tab_id,
+            recently_closed,
         }
     }
 }
@@ -348,92 +276,100 @@ fn note_loading(app: &AppHandle, id: u32, loading: bool) {
     publish(app);
 }
 
-/// 拾取结果：喂给渲染层，落进对话草稿。tab_id 取宿主闭包里的标签号，
-/// 不信页面自报的任何身份。
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum BrowserPickSubmission {
+    Attach,
+    Send,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
 pub struct BrowserElementPicked {
     pub tab_id: u32,
+    pub submission: BrowserPickSubmission,
     pub url: String,
     pub title: String,
+    pub tag_name: String,
     pub selector: String,
+    pub role: String,
+    pub accessible_name: String,
     pub text: String,
     pub html: String,
+    pub styles: String,
+    pub comment: String,
 }
 
-/// 字段长度的二次鉗制：拾取脚本已截过，这里不信它。按字符截，UTF-8 安全。
-fn clamp_chars(value: &str, limit: usize) -> String {
-    value.chars().take(limit).collect()
-}
-
-/// 解除一个标签的拾取武装。真实导航走这里；重复拾取由新武装覆盖。
-fn disarm_pick(app: &AppHandle, id: u32) {
-    let host = app.state::<BrowserHost>();
-    let mut picking = lock(&host.picking);
-
-    if *picking == Some(id) {
-        *picking = None;
-    }
-}
-
-/// 哨兵导航到站：验武装、拆 query、发事件。
-///
-/// 只认「browser_pick_element 之后该标签的第一次哨兵导航」，用后即焚 ——
-/// 没武装就是页面伪造，丢弃。字段经 url crate 的 query_pairs 自动百分号
-/// 解码，编解码零手搓（页面侧是浏览器原生 URLSearchParams）。
-fn finish_pick(app: &AppHandle, id: u32, target: &Url) {
-    let armed = {
+fn stop_picker(app: &AppHandle, tab_id: Option<u32>) -> bool {
+    let lease = {
         let host = app.state::<BrowserHost>();
-        let mut picking = lock(&host.picking);
-
-        if *picking == Some(id) {
-            *picking = None;
-            true
-        } else {
-            false
+        let mut picker = lock(&host.picker);
+        match tab_id {
+            Some(id) => picker.cancel(id),
+            None => picker.cancel_active(),
         }
     };
+    let Some(lease) = lease else {
+        return false;
+    };
+    let _ = run_in_page(app, lease.tab_id(), PICKER_CANCEL_SCRIPT);
+    true
+}
 
-    if !armed {
-        log::warn!("browser tab {id} offered a pick payload while unarmed; dropped");
+fn stop_picker_unless(app: &AppHandle, tab_id: u32) {
+    let active = lock(&app.state::<BrowserHost>().picker).active_tab_id();
+    if active.is_some() && active != Some(tab_id) {
+        stop_picker(app, None);
+    }
+}
+
+fn disarm_picker(app: &AppHandle, tab_id: u32) {
+    let host = app.state::<BrowserHost>();
+    let _ = lock(&host.picker).cancel(tab_id);
+}
+
+fn finish_pick(app: &AppHandle, tab_id: u32, target: &Url) {
+    let Some(outcome) = poietica_browser_native::decode_picker_callback(target) else {
+        log::warn!("browser tab {tab_id} returned an invalid picker payload");
+        return;
+    };
+    let accepted = {
+        let host = app.state::<BrowserHost>();
+        lock(&host.picker).finish(tab_id, outcome.token())
+    };
+    if !accepted {
+        log::warn!("browser tab {tab_id} returned a stale picker payload");
         return;
     }
 
-    let mut cancelled = false;
-    let mut url = String::new();
-    let mut title = String::new();
-    let mut selector = String::new();
-    let mut text = String::new();
-    let mut html = String::new();
-
-    for (key, value) in target.query_pairs() {
-        match key.as_ref() {
-            "cancel" => cancelled = true,
-            "url" => url = clamp_chars(&value, 2000),
-            "title" => title = clamp_chars(&value, 300),
-            "selector" => selector = clamp_chars(&value, 300),
-            "text" => text = clamp_chars(&value, 1000),
-            "html" => html = clamp_chars(&value, 4000),
-            _ => {}
+    if let poietica_browser_native::PickOutcome::Submitted {
+        submission,
+        element,
+        ..
+    } = outcome
+    {
+        let picked = BrowserElementPicked {
+            tab_id,
+            submission: match submission {
+                poietica_browser_native::PickSubmission::Attach => BrowserPickSubmission::Attach,
+                poietica_browser_native::PickSubmission::Send => BrowserPickSubmission::Send,
+            },
+            url: element.url,
+            title: element.title,
+            tag_name: element.tag_name,
+            selector: element.selector,
+            role: element.role,
+            accessible_name: element.accessible_name,
+            text: element.text,
+            html: element.html,
+            styles: element.styles,
+            comment: element.comment,
+        };
+        if let Err(error) = picked.emit(app) {
+            log::warn!("browser element pick was not delivered: {error}");
         }
     }
-
-    if cancelled {
-        return;
-    }
-
-    let picked = BrowserElementPicked {
-        tab_id: id,
-        url,
-        title,
-        selector,
-        text,
-        html,
-    };
-
-    if let Err(error) = picked.emit(app) {
-        log::warn!("browser element pick was not delivered: {error}");
-    }
+    publish(app);
 }
 
 /// 让「哪个 webview 可见」追上「哪个标签活动」。
@@ -531,13 +467,12 @@ fn drive(app: &AppHandle, id: u32, url: &Url) {
     .data_directory(profile)
     .on_navigation(move |target| {
         /* 哨兵导航是拾取回传，不是真的要去哪：吃掉它，页面原地不动。 */
-        if target.as_str().starts_with(PICK_SENTINEL) {
+        if poietica_browser_native::is_picker_callback(target) {
             finish_pick(&nav_handle, id, target);
             return false;
         }
 
-        /* 真实导航解除拾取武装：拾取脚本随旧文档一起消失了。 */
-        disarm_pick(&nav_handle, id);
+        disarm_picker(&nav_handle, id);
         note_url(&nav_handle, id, target.as_str());
         true
     })
@@ -604,6 +539,7 @@ pub async fn browser_state(app: AppHandle) -> BrowserState {
 #[command]
 #[specta::specta]
 pub async fn browser_open_tab(app: AppHandle, url: Option<String>) {
+    stop_picker(&app, None);
     let normalized = url
         .as_deref()
         .and_then(poietica_browser_native::normalize_address);
@@ -628,6 +564,7 @@ pub async fn browser_open_tab(app: AppHandle, url: Option<String>) {
 #[command]
 #[specta::specta]
 pub async fn browser_close_tab(app: AppHandle, id: u32) {
+    stop_picker(&app, Some(id));
     let closed = {
         let host = app.state::<BrowserHost>();
         let mut tabs = lock(&host.tabs);
@@ -656,6 +593,7 @@ pub async fn browser_close_tab(app: AppHandle, id: u32) {
 #[command]
 #[specta::specta]
 pub async fn browser_select_tab(app: AppHandle, id: u32) {
+    stop_picker_unless(&app, id);
     let changed = {
         let host = app.state::<BrowserHost>();
         let mut tabs = lock(&host.tabs);
@@ -682,6 +620,8 @@ pub async fn browser_navigate(app: AppHandle, id: u32, address: String) {
         return;
     };
 
+    stop_picker(&app, Some(id));
+
     let known = {
         let host = app.state::<BrowserHost>();
         let mut tabs = lock(&host.tabs);
@@ -702,40 +642,50 @@ pub async fn browser_navigate(app: AppHandle, id: u32, address: String) {
 #[command]
 #[specta::specta]
 pub async fn browser_back(app: AppHandle, id: u32) {
+    if stop_picker(&app, Some(id)) {
+        publish(&app);
+    }
     run_in_page(&app, id, "history.back()");
 }
 
 #[command]
 #[specta::specta]
 pub async fn browser_forward(app: AppHandle, id: u32) {
+    if stop_picker(&app, Some(id)) {
+        publish(&app);
+    }
     run_in_page(&app, id, "history.forward()");
 }
 
 #[command]
 #[specta::specta]
 pub async fn browser_reload(app: AppHandle, id: u32) {
+    if stop_picker(&app, Some(id)) {
+        publish(&app);
+    }
     run_in_page(&app, id, "location.reload()");
 }
 
-fn run_in_page(app: &AppHandle, id: u32, script: &'static str) {
+fn run_in_page(app: &AppHandle, id: u32, script: &str) -> bool {
     let webview = {
         let host = app.state::<BrowserHost>();
         lock(&host.webviews).get(&id).cloned()
     };
-
     let Some(webview) = webview else {
-        return;
+        return false;
     };
-
     if let Err(error) = webview.eval(script) {
-        log::warn!("browser tab {id} rejected {script}: {error}");
+        log::warn!("browser tab {id} rejected injected JavaScript: {error}");
+        return false;
     }
+    true
 }
 
 /// 重开最近关闭下拉里的第 index 条。
 #[command]
 #[specta::specta]
 pub async fn browser_reopen_closed(app: AppHandle, index: u32) {
+    stop_picker(&app, None);
     let reopened = {
         let host = app.state::<BrowserHost>();
         let mut tabs = lock(&host.tabs);
@@ -775,6 +725,9 @@ pub async fn browser_set_bounds(app: AppHandle, x: f64, y: f64, width: f64, heig
 #[command]
 #[specta::specta]
 pub async fn browser_set_visible(app: AppHandle, visible: bool) {
+    if !visible && stop_picker(&app, None) {
+        publish(&app);
+    }
     {
         let host = app.state::<BrowserHost>();
         *lock(&host.visible) = visible;
@@ -804,18 +757,34 @@ pub async fn browser_devtools_endpoint(app: AppHandle) -> Option<String> {
     app.state::<BrowserHost>().devtools_endpoint()
 }
 
-/// 「选择网页元素加入聊天」：给标签装上拾取武装并注入拾取脚本。
-///
-/// 空白页没有内核实例，run_in_page 自然是空操作，什么也不会发生。
+/// 显式设置当前标签的元素选择模式；状态只归 BrowserHost。
 #[command]
 #[specta::specta]
-pub async fn browser_pick_element(app: AppHandle, id: u32) {
-    {
-        let host = app.state::<BrowserHost>();
-        *lock(&host.picking) = Some(id);
+pub async fn browser_set_element_picker(app: AppHandle, id: u32, enabled: bool) {
+    if !enabled {
+        if stop_picker(&app, Some(id)) {
+            publish(&app);
+        }
+        return;
     }
 
-    run_in_page(&app, id, PICKER_SCRIPT);
+    let has_webview = lock(&app.state::<BrowserHost>().webviews).contains_key(&id);
+    if !has_webview {
+        return;
+    }
+
+    if let Some(previous) = lock(&app.state::<BrowserHost>().picker).cancel_active() {
+        let _ = run_in_page(&app, previous.tab_id(), PICKER_CANCEL_SCRIPT);
+    }
+    let lease = lock(&app.state::<BrowserHost>().picker).start(id);
+    let script = format!(
+        "{PICKER_SCRIPT}\nwindow.__poieticaElementPicker.start({});",
+        lease.token()
+    );
+    if !run_in_page(&app, id, &script) {
+        let _ = lock(&app.state::<BrowserHost>().picker).finish(id, lease.token());
+    }
+    publish(&app);
 }
 
 /// 把内核预热出来，让 CDP 端点上有页面可听。

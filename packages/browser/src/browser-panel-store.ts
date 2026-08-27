@@ -44,7 +44,7 @@ export interface BrowserPanelStore {
     readonly back: (id: number) => void
     readonly forward: (id: number) => void
     readonly reload: (id: number) => void
-    readonly pickElement: (id: number) => void
+    readonly setElementPicker: (id: number, enabled: boolean) => void
     readonly reopenClosed: (index: number) => void
     readonly openDevtools: (id: number) => void
     readonly openExternal: (url: string) => void
@@ -186,8 +186,8 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
       reload: (id) => {
         run('reload', () => port.reload(id))
       },
-      pickElement: (id) => {
-        run('pick-element', () => port.pickElement(id))
+      setElementPicker: (id, enabled) => {
+        run('set-element-picker', () => port.setElementPicker(id, enabled))
       },
       reopenClosed: (index) => {
         run('reopen-closed', () => port.reopenClosed(index))

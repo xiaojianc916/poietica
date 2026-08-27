@@ -74,6 +74,7 @@ export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPa
                 actions={store.actions}
                 activeTab={activeTab}
                 onOverlayChange={store.setOverlayOpen}
+                pickerActive={host.pickingTabId === activeTab?.id}
               />
               <Viewport
                 layoutSignal={layoutSignal}
@@ -94,10 +95,16 @@ export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPa
 interface BrowserToolbarProps {
   readonly activeTab: BrowserTabView | null
   readonly actions: BrowserPanelStore['actions']
+  readonly pickerActive: boolean
   readonly onOverlayChange: (open: boolean) => void
 }
 
-function BrowserToolbar({ activeTab, actions, onOverlayChange }: BrowserToolbarProps) {
+function BrowserToolbar({
+  activeTab,
+  actions,
+  pickerActive,
+  onOverlayChange,
+}: BrowserToolbarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const canDrive = activeTab !== null && activeTab.url !== null
 
@@ -158,15 +165,15 @@ function BrowserToolbar({ activeTab, actions, onOverlayChange }: BrowserToolbarP
 
       <AddressInput actions={actions} activeTab={activeTab} />
 
-      {/* 图二：拾取一个网页元素，结果落进对话草稿。空白页没得拾。 */}
       <ToolbarButton
         disabled={!canDrive}
-        label="选择网页元素加入聊天"
+        label={pickerActive ? '关闭元素选择' : '选择网页元素'}
         onClick={() => {
           if (activeTab !== null) {
-            actions.pickElement(activeTab.id)
+            actions.setElementPicker(activeTab.id, !pickerActive)
           }
         }}
+        pressed={pickerActive}
       >
         <Crosshair aria-hidden className="size-4" />
       </ToolbarButton>
@@ -332,16 +339,19 @@ function ToolbarButton({
   disabled,
   label,
   onClick,
+  pressed,
 }: {
   readonly children: ReactNode
   readonly disabled?: boolean
   readonly label: string
   readonly onClick: () => void
+  readonly pressed?: boolean
 }) {
   return (
     <button
       aria-label={label}
-      className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 enabled:hover:bg-current/10 enabled:hover:opacity-100 disabled:opacity-30"
+      aria-pressed={pressed}
+      className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 enabled:hover:bg-current/10 enabled:hover:opacity-100 aria-pressed:bg-current/10 aria-pressed:opacity-100 disabled:opacity-30"
       disabled={disabled}
       onClick={onClick}
       title={label}

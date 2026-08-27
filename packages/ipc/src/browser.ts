@@ -12,6 +12,7 @@ import { commands, events } from './generated/ipc-bindings'
 export type {
   BrowserClosedTab,
   BrowserElementPicked,
+  BrowserPickSubmission,
   BrowserState,
   BrowserTab,
 } from './generated/ipc-bindings'
@@ -93,9 +94,9 @@ export function browserDevtoolsEndpoint(): Promise<string | null> {
   return throughIpc(() => commands.browserDevtoolsEndpoint())
 }
 
-/** 图二的拾取：给标签注入拾取脚本并武装一次性的回传口。 */
-export function pickBrowserElement(id: number): Promise<void> {
-  return throughIpc(() => commands.browserPickElement(id))
+/** 显式开启或关闭元素选择；真实状态由 BrowserState.pickingTabId 返回。 */
+export function setBrowserElementPicker(id: number, enabled: boolean): Promise<void> {
+  return throughIpc(() => commands.browserSetElementPicker(id, enabled))
 }
 
 /** 拾取结果流。只挂监听 —— 没有「当前值」可拉，事件只在点下那一刻存在。 */

@@ -44,7 +44,7 @@ import { $createChipNode, ChipNode, samePromptChip } from './prompt-chip'
 /*
  * The composer input.
  *
- * 草稿的唯一真相是编辑器状态。React 这一侧只留两个投影 —— 整串正文（提交用）与
+ * 草稿的唯一真相是编辑器状态。React 这一侧只留两个投影 —— 整串正文（按钮状态用）与
  * 插入符前那一段字（斜杠过滤用）。附件与面板开合归这里，因为它们是这张卡的一
  * 部分。
  *
@@ -145,6 +145,7 @@ export function usePromptInputDraft(): PromptInputDraft {
 export interface PromptInputHandle {
   readonly setText: (text: string) => void
   readonly insertText: (text: string) => void
+  readonly insertTextAndSubmit: (text: string) => void
   readonly focus: () => void
 }
 
@@ -362,11 +363,19 @@ function PromptInputShell({
     [editor, focusEditor, rewindPalette],
   )
 
-  useImperativeHandle(ref, () => ({ setText, insertText, focus: focusEditor }), [
-    focusEditor,
-    insertText,
-    setText,
-  ])
+  const insertTextAndSubmit = useCallback(
+    (incoming: string) => {
+      insertText(incoming)
+      queueMicrotask(() => formRef.current?.requestSubmit())
+    },
+    [insertText],
+  )
+
+  useImperativeHandle(
+    ref,
+    () => ({ setText, insertText, insertTextAndSubmit, focus: focusEditor }),
+    [focusEditor, insertText, insertTextAndSubmit, setText],
+  )
 
   const addAssets = useCallback(
     (incoming: readonly ComposerAsset[]) => {
@@ -684,7 +693,8 @@ function PromptInputShell({
             onSubmit={(event) => {
               event.preventDefault()
 
-              const said = draftText.text.trim()
+              const projection = editor.getEditorState().read(readDraft)
+              const said = projection.text.trim()
 
               if (
                 !canSubmitDraft({
@@ -699,7 +709,7 @@ function PromptInputShell({
               const message: PromptInputMessage = {
                 text: said,
                 assets: attachments,
-                skills: draftText.skills,
+                skills: projection.skills,
                 configuration: [
                   ...carriedConfiguration,
                   ...pendingConfiguration.map(({ id, value }) => ({ id, value })),

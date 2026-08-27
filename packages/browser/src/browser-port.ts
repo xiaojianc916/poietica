@@ -24,6 +24,7 @@ export interface BrowserClosedTabView {
 export interface BrowserHostView {
   readonly tabs: readonly BrowserTabView[]
   readonly activeTabId: number | null
+  readonly pickingTabId: number | null
   readonly recentlyClosed: readonly BrowserClosedTabView[]
 }
 
@@ -45,8 +46,7 @@ export interface BrowserHostPort {
   readonly back: (id: number) => Promise<void>
   readonly forward: (id: number) => Promise<void>
   readonly reload: (id: number) => Promise<void>
-  /** 图二的拾取。结果不走这条口回来：宿主经事件流直送对话草稿。 */
-  readonly pickElement: (id: number) => Promise<void>
+  readonly setElementPicker: (id: number, enabled: boolean) => Promise<void>
   readonly reopenClosed: (index: number) => Promise<void>
   readonly setViewportBounds: (bounds: BrowserViewportRect) => Promise<void>
   readonly setVisible: (visible: boolean) => Promise<void>
