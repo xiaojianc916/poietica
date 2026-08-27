@@ -1932,7 +1932,7 @@ export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: 
  * 最近关闭的一条，够画出下拉里的那一行。
  */
 export type BrowserClosedTab = { url: string; title: string }
-export type BrowserElementPicked = { tabId: number; submission: BrowserPickSubmission; url: string; title: string; tagName: string; selector: string; role: string; accessibleName: string; text: string; html: string; styles: string; comment: string }
+export type BrowserElementPicked = { tabId: number; submission: BrowserPickSubmission; url: string; title: string; tagName: string; selector: string | null; role: string; ariaLabel: string; text: string; html: string; styles: string; componentName: string; sourceFile: string; sourceLine: number | null; sourceColumn: number | null; stack: string; styleChanges: string; comment: string; pickedAt: string }
 export type BrowserPickSubmission = "attach" | "send"
 /**
  * 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，

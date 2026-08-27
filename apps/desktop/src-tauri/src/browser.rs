@@ -32,7 +32,7 @@ use crate::bootstrap::app::MAIN_WINDOW;
 /// 永远是外部 origin，remote 未声明即无 IPC —— 前缀只用于归属与调试。
 const LABEL_PREFIX: &str = "browser-";
 
-const PICKER_SCRIPT: &str = include_str!("browser-picker.js");
+const PICKER_SCRIPT: &str = include_str!(concat!(env!("OUT_DIR"), "/element-picker.js"));
 const PICKER_CANCEL_SCRIPT: &str = "window.__poieticaElementPicker?.cancel();";
 
 /// 面板视口在主窗口客户区里的逻辑坐标。渲染层量 DOM，这里只收数。
@@ -291,13 +291,20 @@ pub struct BrowserElementPicked {
     pub url: String,
     pub title: String,
     pub tag_name: String,
-    pub selector: String,
+    pub selector: Option<String>,
     pub role: String,
-    pub accessible_name: String,
+    pub aria_label: String,
     pub text: String,
     pub html: String,
     pub styles: String,
+    pub component_name: String,
+    pub source_file: String,
+    pub source_line: Option<u32>,
+    pub source_column: Option<u32>,
+    pub stack: String,
+    pub style_changes: String,
     pub comment: String,
+    pub picked_at: String,
 }
 
 fn stop_picker(app: &AppHandle, tab_id: Option<u32>) -> bool {
@@ -359,11 +366,18 @@ fn finish_pick(app: &AppHandle, tab_id: u32, target: &Url) {
             tag_name: element.tag_name,
             selector: element.selector,
             role: element.role,
-            accessible_name: element.accessible_name,
+            aria_label: element.aria_label,
             text: element.text,
             html: element.html,
             styles: element.styles,
+            component_name: element.component_name,
+            source_file: element.source_file,
+            source_line: element.source_line,
+            source_column: element.source_column,
+            stack: element.stack,
+            style_changes: element.style_changes,
             comment: element.comment,
+            picked_at: element.picked_at,
         };
         if let Err(error) = picked.emit(app) {
             log::warn!("browser element pick was not delivered: {error}");
@@ -465,6 +479,7 @@ fn drive(app: &AppHandle, id: u32, url: &Url) {
         WebviewUrl::External(url.clone()),
     )
     .data_directory(profile)
+    .initialization_script(PICKER_SCRIPT)
     .on_navigation(move |target| {
         /* 哨兵导航是拾取回传，不是真的要去哪：吃掉它，页面原地不动。 */
         if poietica_browser_native::is_picker_callback(target) {
@@ -777,10 +792,7 @@ pub async fn browser_set_element_picker(app: AppHandle, id: u32, enabled: bool) 
         let _ = run_in_page(&app, previous.tab_id(), PICKER_CANCEL_SCRIPT);
     }
     let lease = lock(&app.state::<BrowserHost>().picker).start(id);
-    let script = format!(
-        "{PICKER_SCRIPT}\nwindow.__poieticaElementPicker.start({});",
-        lease.token()
-    );
+    let script = format!("window.__poieticaElementPicker.start({});", lease.token());
     if !run_in_page(&app, id, &script) {
         let _ = lock(&app.state::<BrowserHost>().picker).finish(id, lease.token());
     }

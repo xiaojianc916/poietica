@@ -6,6 +6,7 @@ const SELECTOR_LIMIT: usize = 2_000;
 const TEXT_LIMIT: usize = 2_000;
 const CONTEXT_LIMIT: usize = 4_000;
 const COMMENT_LIMIT: usize = 2_000;
+const STACK_LIMIT: usize = 8_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PickerLease {
@@ -18,6 +19,7 @@ impl PickerLease {
     pub fn tab_id(self) -> u32 {
         self.tab_id
     }
+
     #[must_use]
     pub fn token(self) -> u64 {
         self.token
@@ -79,13 +81,20 @@ pub struct PickedElement {
     pub url: String,
     pub title: String,
     pub tag_name: String,
-    pub selector: String,
+    pub selector: Option<String>,
     pub role: String,
-    pub accessible_name: String,
+    pub aria_label: String,
     pub text: String,
     pub html: String,
     pub styles: String,
+    pub component_name: String,
+    pub source_file: String,
+    pub source_line: Option<u32>,
+    pub source_column: Option<u32>,
+    pub stack: String,
+    pub style_changes: String,
     pub comment: String,
+    pub picked_at: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -131,13 +140,20 @@ pub fn decode_picker_callback(target: &Url) -> Option<PickOutcome> {
     let mut url = String::new();
     let mut title = String::new();
     let mut tag_name = String::new();
-    let mut selector = String::new();
+    let mut selector = None;
     let mut role = String::new();
-    let mut accessible_name = String::new();
+    let mut aria_label = String::new();
     let mut text = String::new();
     let mut html = String::new();
     let mut styles = String::new();
+    let mut component_name = String::new();
+    let mut source_file = String::new();
+    let mut source_line = None;
+    let mut source_column = None;
+    let mut stack = String::new();
+    let mut style_changes = String::new();
     let mut comment = String::new();
+    let mut picked_at = String::new();
 
     for (key, value) in target.query_pairs() {
         match key.as_ref() {
@@ -146,13 +162,23 @@ pub fn decode_picker_callback(target: &Url) -> Option<PickOutcome> {
             "url" => url = clamp(&value, URL_LIMIT),
             "title" => title = clamp(&value, TITLE_LIMIT),
             "tag" => tag_name = clamp(&value, 64),
-            "selector" => selector = clamp(&value, SELECTOR_LIMIT),
+            "selector" => {
+                let value = clamp(&value, SELECTOR_LIMIT);
+                selector = (!value.is_empty()).then_some(value);
+            }
             "role" => role = clamp(&value, 128),
-            "name" => accessible_name = clamp(&value, 1_000),
+            "ariaLabel" => aria_label = clamp(&value, 1_000),
             "text" => text = clamp(&value, TEXT_LIMIT),
             "html" => html = clamp(&value, CONTEXT_LIMIT),
             "styles" => styles = clamp(&value, CONTEXT_LIMIT),
+            "component" => component_name = clamp(&value, 300),
+            "sourceFile" => source_file = clamp(&value, SELECTOR_LIMIT),
+            "sourceLine" => source_line = value.parse::<u32>().ok(),
+            "sourceColumn" => source_column = value.parse::<u32>().ok(),
+            "stack" => stack = clamp(&value, STACK_LIMIT),
+            "styleChanges" => style_changes = clamp(&value, CONTEXT_LIMIT),
             "comment" => comment = clamp(&value, COMMENT_LIMIT),
+            "pickedAt" => picked_at = clamp(&value, 64),
             _ => {}
         }
     }
@@ -162,9 +188,13 @@ pub fn decode_picker_callback(target: &Url) -> Option<PickOutcome> {
         "cancel" => Some(PickOutcome::Cancelled { token }),
         value @ ("attach" | "send") => {
             let page = Url::parse(&url).ok()?;
-            if !matches!(page.scheme(), "http" | "https") || selector.is_empty() {
+            if !matches!(page.scheme(), "http" | "https")
+                || tag_name.is_empty()
+                || (selector.is_none() && html.is_empty())
+            {
                 return None;
             }
+
             Some(PickOutcome::Submitted {
                 token,
                 submission: if value == "send" {
@@ -178,11 +208,18 @@ pub fn decode_picker_callback(target: &Url) -> Option<PickOutcome> {
                     tag_name,
                     selector,
                     role,
-                    accessible_name,
+                    aria_label,
                     text,
                     html,
                     styles,
+                    component_name,
+                    source_file,
+                    source_line,
+                    source_column,
+                    stack,
+                    style_changes,
                     comment,
+                    picked_at,
                 },
             })
         }
@@ -192,11 +229,14 @@ pub fn decode_picker_callback(target: &Url) -> Option<PickOutcome> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::expect_used, reason = "测试输入必须能构造")]
+    #![allow(clippy::expect_used, reason = "test fixtures must be constructible")]
+
     use super::*;
 
-    fn callback(query: &str) -> Url {
-        Url::parse(&("https://pick.poietica.invalid/?".to_owned() + query)).expect("valid callback")
+    fn callback(pairs: &[(&str, &str)]) -> Url {
+        let mut url = Url::parse("https://pick.poietica.invalid/").expect("valid callback");
+        url.query_pairs_mut().extend_pairs(pairs);
+        url
     }
 
     #[test]
@@ -210,10 +250,19 @@ mod tests {
     }
 
     #[test]
-    fn callback_is_discriminated_and_bounded() {
-        let outcome = decode_picker_callback(&callback(
-            "token=9&submission=send&url=https%3A%2F%2Fexample.com%2F&selector=%23save&tag=button&html=%3Cbutton%3ESave%3C%2Fbutton%3E",
-        )).expect("valid payload");
+    fn callback_accepts_source_context_and_nullable_selector() {
+        let outcome = decode_picker_callback(&callback(&[
+            ("token", "9"),
+            ("submission", "send"),
+            ("url", "https://example.com/"),
+            ("tag", "button"),
+            ("html", "<button>Save</button>"),
+            ("component", "SaveButton"),
+            ("sourceFile", "/src/save-button.tsx"),
+            ("sourceLine", "42"),
+        ]))
+        .expect("valid payload");
+
         assert!(matches!(
             outcome,
             PickOutcome::Submitted {
@@ -225,7 +274,9 @@ mod tests {
 
     #[test]
     fn malformed_and_non_callback_urls_are_refused() {
-        assert!(decode_picker_callback(&callback("token=1&submission=send")).is_none());
+        assert!(
+            decode_picker_callback(&callback(&[("token", "1"), ("submission", "send")])).is_none()
+        );
         assert!(!is_picker_callback(
             &Url::parse("https://example.com/").expect("valid url")
         ));

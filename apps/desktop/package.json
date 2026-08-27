@@ -34,6 +34,7 @@
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-grab": "catalog:",
     "uuid": "catalog:"
   },
   "devDependencies": {

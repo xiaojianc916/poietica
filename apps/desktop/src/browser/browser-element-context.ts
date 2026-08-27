@@ -1,7 +1,7 @@
 import type { BrowserElementPicked } from '@poietica/ipc'
 
 function protect(value: string): string {
-  return value.replaceAll('</element_context>', '&lt;/element_context>')
+  return value.replace(/<\/element_context/giu, '&lt;/element_context')
 }
 
 function indented(value: string): string {
@@ -11,19 +11,33 @@ function indented(value: string): string {
     .join('\n')
 }
 
+function sourceLocation(picked: BrowserElementPicked): string {
+  if (picked.sourceFile === '') {
+    return ''
+  }
+  const line = picked.sourceLine === null ? '' : `:${String(picked.sourceLine)}`
+  const column = picked.sourceColumn === null ? '' : `:${String(picked.sourceColumn)}`
+  return picked.sourceFile + line + column
+}
+
 export function formatBrowserElementContext(picked: BrowserElementPicked): string {
   const tag = picked.tagName === '' ? 'element' : picked.tagName
-  const lines = [
-    '<element_context>',
-    `- <${tag}>:`,
-    `  url: ${protect(picked.url)}`,
-    `  selector: ${protect(picked.selector)}`,
-  ]
+  const label = picked.componentName === '' ? tag : picked.componentName
+  const location = sourceLocation(picked)
+  const heading =
+    location === '' ? `- <${protect(label)}>:` : `- <${protect(label)}> (${protect(location)}):`
+  const lines = ['<element_context>', heading, `  url: ${protect(picked.url)}`]
+  if (picked.selector !== null) {
+    lines.push(`  selector: ${protect(picked.selector)}`)
+  }
+  if (location !== '') {
+    lines.push(`  source: ${protect(location)}`)
+  }
   if (picked.role !== '') {
     lines.push(`  role: ${protect(picked.role)}`)
   }
-  if (picked.accessibleName !== '') {
-    lines.push(`  name: ${protect(picked.accessibleName)}`)
+  if (picked.ariaLabel !== '') {
+    lines.push(`  aria-label: ${protect(picked.ariaLabel)}`)
   }
   if (picked.text !== '') {
     lines.push(`  text: ${protect(picked.text)}`)
@@ -33,6 +47,12 @@ export function formatBrowserElementContext(picked: BrowserElementPicked): strin
   }
   if (picked.styles !== '') {
     lines.push('  styles:', indented(picked.styles))
+  }
+  if (picked.styleChanges !== '') {
+    lines.push('  changes:', indented(picked.styleChanges))
+  }
+  if (picked.stack !== '') {
+    lines.push('  component_stack:', indented(picked.stack))
   }
   lines.push('</element_context>')
   const comment = picked.comment.trim()
