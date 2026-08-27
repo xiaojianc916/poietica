@@ -14,7 +14,14 @@ import { appendUserMessage, applyRunEvent, createTimelineState } from '../timeli
  */
 
 function started(seq: number, prompt: string): RunEvent {
-  return { kind: 'prompt_admitted', admissionId: 'adm', seq, at: seq, sessionId: 'sess', prompt }
+  return {
+    kind: 'prompt_admitted',
+    admissionId: `adm-${prompt}`,
+    seq,
+    at: seq,
+    sessionId: 'sess',
+    prompt,
+  }
 }
 
 function spoke(seq: number, text: string): RunEvent {

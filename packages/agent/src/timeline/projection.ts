@@ -271,7 +271,8 @@ function withPrompt(
     return
   }
 
-  const id = `${namespace(draft)}said-${event.admissionId}`
+  /* 行的身份就是平台签发的 admissionId：目录按同一个号寻址。 */
+  const id = event.admissionId
 
   if (
     adoptQueuedPrompt(draft, id, prompt, shown, attached) ||
