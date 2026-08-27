@@ -73,7 +73,7 @@ export type FilePatch =
   | { readonly state: 'refused' }
 
 /** 一个文件此刻相对 HEAD 的补丁。清单换了（revision）补丁也旧了，重问。 */
-export function useFilePatch(root: string | null, path: string, revision: number): FilePatch {
+export function useFilePatch(root: string | null, path: string, _revision: number): FilePatch {
   const [held, setHeld] = useState<FilePatch>({ state: 'asking' })
 
   useEffect(() => {
@@ -102,7 +102,7 @@ export function useFilePatch(root: string | null, path: string, revision: number
     return () => {
       live = false
     }
-  }, [root, path, revision])
+  }, [root, path])
 
   return held
 }

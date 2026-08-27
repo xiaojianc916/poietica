@@ -1133,18 +1133,6 @@ async browserDevtoolsEndpoint() : Promise<string | null> {
  */
 async browserSetElementPicker(id: number, enabled: boolean) : Promise<void> {
     await TAURI_INVOKE("browser_set_element_picker", { id, enabled });
-},
-async openBrowserPopup(request: BrowserPopupRequest, x: number, y: number, width: number, height: number) : Promise<null> {
-    return await TAURI_INVOKE("open_browser_popup", { request, x, y, width, height });
-},
-async browserPopupState() : Promise<BrowserPopupRequest | null> {
-    return await TAURI_INVOKE("browser_popup_state");
-},
-async browserPopupDispatchAction(action: BrowserPopupAction) : Promise<null> {
-    return await TAURI_INVOKE("browser_popup_dispatch_action", { action });
-},
-async closeBrowserPopup() : Promise<null> {
-    return await TAURI_INVOKE("close_browser_popup");
 }
 }
 
@@ -1155,7 +1143,6 @@ export const events = __makeEvents__<{
 automationCatalogChanged: AutomationCatalogChanged,
 automationDue: AutomationDue,
 browserElementPicked: BrowserElementPicked,
-browserPopupAction: BrowserPopupAction,
 browserState: BrowserState,
 updateProgress: UpdateProgress,
 windowMaximized: WindowMaximized
@@ -1163,7 +1150,6 @@ windowMaximized: WindowMaximized
 automationCatalogChanged: "automation-catalog-changed",
 automationDue: "automation-due",
 browserElementPicked: "browser-element-picked",
-browserPopupAction: "browser-popup-action",
 browserState: "browser-state",
 updateProgress: "update-progress",
 windowMaximized: "window-maximized"
@@ -2024,15 +2010,6 @@ summary: string; comment: string;
  */
 reportPath: string }
 export type BrowserPickSubmission = "attach" | "send"
-export type BrowserPopupAction = { action: BrowserPopupActionKind; paneId: string | null; tabId: number | null; index: number | null; paneKind: string | null }
-export type BrowserPopupActionKind = "select-pane" | "close-pane" | "select-tab" | "close-tab" | "reopen-closed" | "open-tab" | "open-pane"
-export type BrowserPopupKind = "new-tab" | "overflow" | "tabs"
-export type BrowserPopupPane = { id: string; title: string }
-/**
- * 加号菜单里可开的通道种类。字面量归渲染层，原生侧只转运。
- */
-export type BrowserPopupPaneKind = { kind: string; label: string }
-export type BrowserPopupRequest = { kind: BrowserPopupKind; theme: string; panes: BrowserPopupPane[]; activePaneId: string | null; paneKinds: BrowserPopupPaneKind[] }
 /**
  * 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，
  * 增量协议换来的只是两侧各一份需要对账的账本。
@@ -2080,7 +2057,12 @@ export type ForeignPluginRecord = { pluginId: string;
  * 人当初给命令行的那一串地址。缺席表示那条记录没记，导入因此没有起点。
  */
 originalSource: string | null }
-export type GeneralSettings = { sendWithModifier: boolean; confirmBeforeDelete: boolean; notifyOnCompletion: boolean }
+export type GeneralSettings = { sendWithModifier: boolean; confirmBeforeDelete: boolean; notifyOnCompletion: boolean; 
+/**
+ * 守着本地 agent 进程的那一个意图。相位不在这里：它是进程内的事实，
+ * 落盘只会得到一份开机就过期的记载。
+ */
+daemon: boolean }
 /**
  * 一个工作目录此刻的分支快照。branch 为空即 HEAD 分离，detachedAt 给出所在短号。
  */

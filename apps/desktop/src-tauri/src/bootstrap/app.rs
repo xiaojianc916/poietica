@@ -199,7 +199,6 @@ pub fn build() -> tauri::Builder<Wry> {
              * 仍是懒创建的 —— 第一次导航或会话预热才碰内核。
              */
             let _browser = app.manage(crate::browser::BrowserHost::new());
-            let _browser_popup = app.manage(crate::browser_popup::BrowserPopupHost::default());
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;
 

@@ -1,17 +1,10 @@
-import { ArrowLeft, ArrowRight, Crosshair, Globe, MoreHorizontal, RotateCw } from 'lucide-react'
-import {
-  type MouseEvent,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react'
+import { ArrowLeft, ArrowRight, Crosshair, Globe, RotateCw } from 'lucide-react'
+import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
+import { BrowserOverflowMenu, type DockPaneOffer } from './browser-menu'
 import type { BrowserPanelStore } from './browser-panel-store'
-import { requestBrowserPopup } from './browser-popup'
-import type { BrowserState, BrowserTab } from './browser-port'
-import { BrowserTabStrip, type DockPaneOffer } from './browser-tab-strip'
+import type { BrowserTab } from './browser-port'
+import { BrowserTabStrip } from './browser-tab-strip'
 
 /*
  * 浏览器面板（图一）。
@@ -35,7 +28,7 @@ function rendererOf(renderers: DockPaneRenderers, kind: string): DockPaneRendere
   const renderer = renderers[kind]
 
   if (renderer === undefined) {
-    throw new Error('dock 上没有 ' + kind + ' 通道的渲染器：接线漏了。')
+    throw new Error(`dock 上没有 ${kind} 通道的渲染器：接线漏了。`)
   }
 
   return renderer
@@ -84,7 +77,10 @@ export function BrowserPanel({
             activePaneId={state.activePaneId}
             host={host}
             onClosePane={store.closePane}
+            onMenuChange={store.setMenu}
+            onOpenPane={store.openPaneKind}
             onSelectPane={store.selectPane}
+            openMenu={state.openMenu}
             paneOffers={paneOffers}
             panes={state.panes.map((pane) => {
               const renderer = rendererOf(panes, pane.kind)
@@ -98,7 +94,10 @@ export function BrowserPanel({
               <BrowserToolbar
                 actions={store.actions}
                 activeTab={activeTab}
-                host={host}
+                menuOpen={state.openMenu === 'overflow'}
+                onMenuOpenChange={(next) => {
+                  store.setMenu(next ? 'overflow' : null)
+                }}
                 pickerActive={host.pickingTabId === activeTab?.id}
               />
               <Viewport
@@ -122,11 +121,18 @@ export function BrowserPanel({
 interface BrowserToolbarProps {
   readonly activeTab: BrowserTab | null
   readonly actions: BrowserPanelStore['actions']
-  readonly host: BrowserState
+  readonly menuOpen: boolean
+  readonly onMenuOpenChange: (open: boolean) => void
   readonly pickerActive: boolean
 }
 
-function BrowserToolbar({ activeTab, actions, host, pickerActive }: BrowserToolbarProps) {
+function BrowserToolbar({
+  activeTab,
+  actions,
+  menuOpen,
+  onMenuOpenChange,
+  pickerActive,
+}: BrowserToolbarProps) {
   const canDrive = activeTab !== null && activeTab.url !== null
 
   return (
@@ -187,20 +193,21 @@ function BrowserToolbar({ activeTab, actions, host, pickerActive }: BrowserToolb
         <Crosshair aria-hidden className="size-4" />
       </ToolbarButton>
 
-      <ToolbarButton
-        label="更多操作"
-        onClick={(event) => {
-          requestBrowserPopup(
-            actions.openPopup,
-            { activePaneId: null, kind: 'overflow', paneKinds: [], panes: [] },
-            host,
-            event.currentTarget,
-          )
+      <BrowserOverflowMenu
+        canDrive={canDrive}
+        onOpenChange={onMenuOpenChange}
+        onOpenExternally={() => {
+          if (activeTab?.url != null) {
+            actions.openExternally(activeTab.url)
+          }
         }}
-        popup
-      >
-        <MoreHorizontal aria-hidden className="size-4" />
-      </ToolbarButton>
+        onPrint={() => {
+          if (activeTab !== null) {
+            actions.print(activeTab.id)
+          }
+        }}
+        open={menuOpen}
+      />
     </div>
   )
 }
@@ -270,19 +277,16 @@ function ToolbarButton({
   disabled,
   label,
   onClick,
-  popup,
   pressed,
 }: {
   readonly children: ReactNode
   readonly disabled?: boolean
   readonly label: string
-  readonly onClick: (event: MouseEvent<HTMLButtonElement>) => void
-  readonly popup?: boolean
+  readonly onClick: () => void
   readonly pressed?: boolean
 }) {
   return (
     <button
-      aria-haspopup={popup ? 'menu' : undefined}
       aria-label={label}
       aria-pressed={pressed}
       className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 enabled:hover:bg-current/10 enabled:hover:opacity-100 aria-pressed:bg-current/10 aria-pressed:opacity-100 disabled:opacity-30"

@@ -1,18 +1,15 @@
-import { ChevronDown, Globe, LoaderCircle, Plus, X } from 'lucide-react'
+import { Globe, LoaderCircle, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import type { BrowserPanelStore } from './browser-panel-store'
-import { requestBrowserPopup } from './browser-popup'
-import type { BrowserPopupRequest, BrowserState, BrowserTab } from './browser-port'
+import { BrowserNewTabMenu, BrowserTabsMenu, type DockPaneOffer } from './browser-menu'
+import type { BrowserMenuKind, BrowserPanelStore } from './browser-panel-store'
+import type { BrowserState, BrowserTab } from './browser-port'
 
 /*
  * 标签条与标签下拉。
  *
  * 一格通道与一个宿主标签在这里是同一种行：同样的选中态、同样的关闭键，也同样进
  * 下拉里的那一份清单 —— 清单只有一份，两个出口读的是同一批行。
- *
- * 标签下拉画在 browser-popup 窗口里：原生子 webview 永远盖过主窗口的 HTML，
- * 浮层只能是另一个原生窗口。
  */
 
 /** 标签行上一格通道的样子。 */
@@ -22,9 +19,6 @@ export interface DockPaneView {
   readonly icon: ReactNode
 }
 
-/** 加号菜单里可开的通道种类。形状取自原生契约，不另声明一份。 */
-export type DockPaneOffer = BrowserPopupRequest['paneKinds'][number]
-
 interface BrowserTabStripProps {
   readonly host: BrowserState
   readonly actions: BrowserPanelStore['actions']
@@ -33,6 +27,9 @@ interface BrowserTabStripProps {
   readonly activePaneId: string | null
   readonly onSelectPane: (id: string | null) => void
   readonly onClosePane: (id: string) => void
+  readonly onOpenPane: (kind: string) => void
+  readonly openMenu: BrowserMenuKind | null
+  readonly onMenuChange: (kind: BrowserMenuKind | null) => void
   /** 行尾角位：宿主放面板开关。 */
   readonly trailing?: ReactNode
 }
@@ -44,7 +41,10 @@ export function BrowserTabStrip({
   paneOffers,
   panes,
   onClosePane,
+  onMenuChange,
+  onOpenPane,
   onSelectPane,
+  openMenu,
   trailing,
 }: BrowserTabStripProps) {
   return (
@@ -124,44 +124,30 @@ export function BrowserTabStrip({
         })}
       </div>
 
-      <button
-        aria-haspopup="menu"
-        aria-label="新建标签页"
-        className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100"
-        onClick={(event) => {
-          requestBrowserPopup(
-            actions.openPopup,
-            { activePaneId, kind: 'new-tab', paneKinds: [...paneOffers], panes: [] },
-            host,
-            event.currentTarget,
-          )
+      <BrowserNewTabMenu
+        offers={paneOffers}
+        onOpenChange={(next) => {
+          onMenuChange(next ? 'new-tab' : null)
         }}
-        type="button"
-      >
-        <Plus aria-hidden className="size-4" />
-      </button>
+        onOpenPane={onOpenPane}
+        onOpenTab={() => {
+          actions.openTab(null)
+        }}
+        open={openMenu === 'new-tab'}
+      />
 
-      <button
-        aria-haspopup="menu"
-        aria-label="标签页列表"
-        className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100"
-        onClick={(event) => {
-          requestBrowserPopup(
-            actions.openPopup,
-            {
-              activePaneId,
-              kind: 'tabs',
-              paneKinds: [],
-              panes: panes.map((pane) => ({ id: pane.id, title: pane.name })),
-            },
-            host,
-            event.currentTarget,
-          )
+      <BrowserTabsMenu
+        activePaneId={activePaneId}
+        host={host}
+        onOpenChange={(next) => {
+          onMenuChange(next ? 'tabs' : null)
         }}
-        type="button"
-      >
-        <ChevronDown aria-hidden className="size-4" />
-      </button>
+        onReopenClosed={actions.reopenClosed}
+        onSelectPane={onSelectPane}
+        onSelectTab={actions.selectTab}
+        open={openMenu === 'tabs'}
+        panes={panes}
+      />
 
       {/* 行尾角位。px-1 + mr-1.5 = 右距 10px，与宿主页头的 --cp-inset 一致。 */}
       {trailing ? <div className="mr-1.5 shrink-0">{trailing}</div> : null}

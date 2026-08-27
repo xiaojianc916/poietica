@@ -3,26 +3,22 @@ import {
   browserTabBack,
   browserTabForward,
   browserTabReload,
-  closeBrowserPopup,
   closeBrowserTab,
   navigateBrowserTab,
-  openBrowserPopup,
   openBrowserTab,
+  openBrowserUrlExternally,
   printBrowserTab,
   reopenClosedBrowserTab,
   selectBrowserTab,
-  sendBrowserPopupAction,
   setBrowserElementPicker,
   setBrowserViewportBounds,
   setBrowserVisible,
-  watchBrowserPopupActions,
   watchBrowserState,
 } from '@poietica/ipc'
 
 /* 端口的每一格就是一条 IPC 命令：请求与动作两边同一份生成类型。 */
 export const browserHostPort: BrowserHostPort = {
   watch: watchBrowserState,
-  watchPopupActions: watchBrowserPopupActions,
   openTab: openBrowserTab,
   closeTab: closeBrowserTab,
   selectTab: selectBrowserTab,
@@ -35,7 +31,5 @@ export const browserHostPort: BrowserHostPort = {
   reopenClosed: reopenClosedBrowserTab,
   setViewportBounds: setBrowserViewportBounds,
   setVisible: setBrowserVisible,
-  openPopup: (request, rect) => openBrowserPopup(request, rect.x, rect.y, rect.width, rect.height),
-  dispatchPopupAction: sendBrowserPopupAction,
-  closePopup: closeBrowserPopup,
+  openExternally: openBrowserUrlExternally,
 }

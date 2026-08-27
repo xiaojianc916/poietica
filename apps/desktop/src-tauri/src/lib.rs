@@ -17,7 +17,6 @@ pub mod asset_protocol;
 mod attachments;
 pub mod bootstrap;
 pub mod browser;
-pub mod browser_popup;
 pub mod commands;
 pub mod diagnostics;
 pub mod error;

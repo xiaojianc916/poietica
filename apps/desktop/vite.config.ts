@@ -46,7 +46,6 @@ export default defineConfig({
     /* 浮层是第二个原生窗口，因此是第二份文档。 */
     rollupOptions: {
       input: {
-        'browser-popup': 'browser-popup.html',
         index: 'index.html',
       },
     },

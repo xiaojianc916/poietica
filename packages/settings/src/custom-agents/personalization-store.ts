@@ -104,7 +104,7 @@ export class PersonalizationStore {
     }
 
     /* 读不成 draft 的文件不进编辑器：那会用空草稿盖掉磁盘上的内容。 */
-    this.#failure = row.parsed === null ? relativePath + '：' + row.issue : null
+    this.#failure = row.parsed === null ? `${relativePath}：${row.issue}` : null
     this.#selection = row.parsed === null ? this.#selection : relativePath
     this.#removalArmed = false
     this.#commit()
@@ -142,7 +142,7 @@ export class PersonalizationStore {
     }
 
     const selectedPath = this.#selectedPath()
-    const relativePath = selectedPath ?? draft.name.trim() + '.md'
+    const relativePath = selectedPath ?? `${draft.name.trim()}.md`
 
     this.#busy = 'save'
     this.#failure = null

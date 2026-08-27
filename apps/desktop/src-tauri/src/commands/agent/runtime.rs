@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
-use tokio::task;
+use tokio::task::LocalSet;
 use super::config::restate;
 use super::dto::{AgentLaunch, AgentSessionEvent, reported_goal, reported_usage};
 use super::failure::translate;
@@ -382,25 +382,40 @@ pub(super) async fn ensure_session(
     /* 重起要用的两样东西在这里定影：进程死掉那一刻，连接已经不在了。 */
     let watched_agent = agent_id.clone();
     let watched_cwd = working_directory;
-    task::spawn_local(async move {
-        let outcome = driver.await;
-        expired.close();
-        if let Err(error) = runtime.state::<AgentRuntime>().expire(&expired) {
-            log::error!("could not retire the ended agent connection: {error}");
-        }
-        let reason = match outcome {
-            Ok(()) => "the local agent process exited".to_owned(),
-            Err(error) => error.to_string(),
-        };
-        keep_alive(&runtime, watched_agent, watched_cwd, reason).await;
-    });
     let herald = app.clone();
     let linked = book.clone();
-    task::spawn_local(async move {
-        let mut events = events;
-        while let Some(event) = events.next().await {
-            publish_session_event(&herald, &linked, event).await;
-        }
+    /* driver 与 events 都是 !Send（含本地流/通道），不能直接扔进多线程运行时。
+     * 这里在独立线程里跑一个单线程 tokio 运行时，配合 LocalSet 把两个任务托底。 */
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("agent background runtime");
+        let local = LocalSet::new();
+
+        let driver_task = local.spawn_local(async move {
+            let outcome = driver.await;
+            expired.close();
+            if let Err(error) = runtime.state::<AgentRuntime>().expire(&expired) {
+                log::error!("could not retire the ended agent connection: {error}");
+            }
+            let reason = match outcome {
+                Ok(()) => "the local agent process exited".to_owned(),
+                Err(error) => error.to_string(),
+            };
+            keep_alive(&runtime, watched_agent, watched_cwd, reason).await;
+        });
+
+        let events_task = local.spawn_local(async move {
+            let mut events = events;
+            while let Some(event) = events.next().await {
+                publish_session_event(&herald, &linked, event).await;
+            }
+        });
+
+        local.block_on(&rt, async move {
+            let _ = tokio::join!(driver_task, events_task);
+        });
     });
     /* 通道现在两头都说得出话：Canceled 是发送端没了，Err 是握手自己报的原因。 */
     let handshake = handshake

@@ -35,7 +35,7 @@ export interface PersonalizationSurfaceProps {
 export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
   const view = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 
-  useEffect(store.load, [store])
+  useEffect(store.load, [])
 
   const { busy, draft } = view
   const savable = busy === null && view.isDirty && view.validation === null

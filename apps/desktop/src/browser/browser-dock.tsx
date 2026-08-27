@@ -69,9 +69,9 @@ export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
   }, [])
 
   useEffect(() => {
-    /* 屏幕上是一条只读通道时，网页那一格不在场，原生 webview 必须让位。 */
-    browserPanelStore.setVisible(isDocked && state.activePaneId === null)
-  }, [isDocked, state.activePaneId])
+    /* 只读通道在场、或菜单浮层展开时，原生 webview 必须让位给 HTML。 */
+    browserPanelStore.setVisible(isDocked && state.activePaneId === null && state.openMenu === null)
+  }, [isDocked, state.activePaneId, state.openMenu])
 
   useEffect(() => {
     const held = layout.browserThread !== null

@@ -5,18 +5,11 @@ export type {
   BrowserClosedTab,
   BrowserElementPicked,
   BrowserPickSubmission,
-  BrowserPopupAction,
-  BrowserPopupRequest,
   BrowserState,
   BrowserTab,
 } from './generated/ipc-bindings'
 
-import type {
-  BrowserElementPicked,
-  BrowserPopupAction,
-  BrowserPopupRequest,
-  BrowserState,
-} from './generated/ipc-bindings'
+import type { BrowserElementPicked, BrowserState } from './generated/ipc-bindings'
 
 export interface BrowserViewportBounds {
   readonly x: number
@@ -34,14 +27,6 @@ export async function watchBrowserState(
 
   onState(await throughIpc(() => commands.browserState()))
   return unlisten
-}
-
-export function watchBrowserPopupActions(
-  onAction: (action: BrowserPopupAction) => void,
-): Promise<() => void> {
-  return events.browserPopupAction.listen((event) => {
-    onAction(event.payload)
-  })
 }
 
 export function openBrowserTab(url: string | null): Promise<void> {
@@ -96,28 +81,6 @@ export function openBrowserUrlExternally(url: string): Promise<void> {
 
 export function browserDevtoolsEndpoint(): Promise<string | null> {
   return throughIpc(() => commands.browserDevtoolsEndpoint())
-}
-
-export async function openBrowserPopup(
-  request: BrowserPopupRequest,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): Promise<void> {
-  await throughIpc(() => commands.openBrowserPopup(request, x, y, width, height))
-}
-
-export function readBrowserPopup(): Promise<BrowserPopupRequest | null> {
-  return throughIpc(() => commands.browserPopupState())
-}
-
-export async function sendBrowserPopupAction(action: BrowserPopupAction): Promise<void> {
-  await throughIpc(() => commands.browserPopupDispatchAction(action))
-}
-
-export async function closeBrowserPopup(): Promise<void> {
-  await throughIpc(() => commands.closeBrowserPopup())
 }
 
 export function setBrowserElementPicker(id: number, enabled: boolean): Promise<void> {
