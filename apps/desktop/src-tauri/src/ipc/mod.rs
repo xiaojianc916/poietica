@@ -149,7 +149,6 @@ pub fn surface() -> Builder<Wry> {
             crate::browser::browser_reopen_closed,
             crate::browser::browser_set_bounds,
             crate::browser::browser_set_visible,
-            crate::browser::browser_open_devtools,
             crate::browser::browser_devtools_endpoint,
             crate::browser::browser_set_element_picker,
             crate::browser_popup::open_browser_popup,

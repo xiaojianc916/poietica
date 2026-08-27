@@ -1,7 +1,24 @@
 import { warn } from '@poietica/core'
 import { popupSurfaceClassName } from '@poietica/ui'
-import { Globe, LoaderCircle, MessagesSquare, Search, X } from 'lucide-react'
-import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useMemo, useState } from 'react'
+import {
+  ChevronRight,
+  Globe,
+  LoaderCircle,
+  MessagesSquare,
+  Minus,
+  Plus,
+  RotateCcw,
+  Search,
+  X,
+} from 'lucide-react'
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import type {
   BrowserHostPort,
@@ -13,32 +30,72 @@ import type {
 } from './browser-port'
 
 const TAB_ROW = 32
-const MENU_ROW = 40
-const POPUP_MARGIN = 8
-const POPUP_CHROME = 24
+const MENU_ROW = 32
 const MENU_DIVIDER = 9
+const MENU_WIDTH = 288
+const SURFACE_PADDING = 4
+const POPUP_MARGIN = 8
 const SEARCH_ROW = 44
 const GROUP_LABEL = 24
 const TABS_MAX_HEIGHT = 384
 const GAP = 4
+
+type OverflowRow =
+  | { readonly kind: 'divider'; readonly id: string }
+  | { readonly kind: 'zoom'; readonly id: string }
+  | {
+      readonly kind: 'command'
+      readonly id: string
+      readonly label: string
+      readonly action?: 'print'
+      readonly disabled?: true
+      readonly submenu?: true
+    }
+
+/* 行清单是溢出菜单的唯一真相：窗口高度由它算出，加一行不用再改第二个数。 */
+const OVERFLOW_ROWS: readonly OverflowRow[] = [
+  { kind: 'command', id: 'find-in-page', label: '在页面中查找', disabled: true },
+  { kind: 'command', id: 'print', label: '打印', action: 'print' },
+  { kind: 'divider', id: 'after-print' },
+  { kind: 'zoom', id: 'zoom' },
+  { kind: 'divider', id: 'after-zoom' },
+  { kind: 'command', id: 'device-toolbar', label: '显示设备工具栏', disabled: true },
+  { kind: 'command', id: 'screenshot', label: '截取屏幕截图', disabled: true },
+  { kind: 'divider', id: 'after-capture' },
+  { kind: 'command', id: 'import-credentials', label: '导入 Cookie 和密码…' },
+  { kind: 'command', id: 'credentials', label: '密码和自动填充', submenu: true },
+  { kind: 'command', id: 'downloads', label: '下载' },
+  { kind: 'command', id: 'history', label: '历史记录' },
+  { kind: 'command', id: 'clear-browsing-data', label: '清除浏览数据' },
+  { kind: 'divider', id: 'after-data' },
+  { kind: 'command', id: 'settings', label: '浏览器设置' },
+]
 
 export function browserPopupSize(
   request: Omit<BrowserPopupRequest, 'theme'>,
   host: BrowserHostView,
 ): { readonly width: number; readonly height: number } {
   if (request.kind === 'overflow') {
+    const content = OVERFLOW_ROWS.reduce(
+      (total, row) => total + (row.kind === 'divider' ? MENU_DIVIDER : MENU_ROW),
+      0,
+    )
+
     return {
-      width: 360 + POPUP_MARGIN * 2,
-      height: MENU_ROW * 3 + MENU_DIVIDER + POPUP_CHROME,
+      width: MENU_WIDTH + POPUP_MARGIN * 2,
+      height: content + SURFACE_PADDING * 2 + POPUP_MARGIN * 2,
     }
   }
 
   const groups = host.recentlyClosed.length > 0 ? 2 : 1
   const openRows = Math.max(request.panes.length + host.tabs.length, 1)
   const rows = openRows + host.recentlyClosed.length
-  const natural = SEARCH_ROW + groups * GROUP_LABEL + rows * TAB_ROW + POPUP_CHROME
+  const natural = SEARCH_ROW + groups * GROUP_LABEL + rows * TAB_ROW + SURFACE_PADDING * 2
 
-  return { width: 352, height: Math.min(natural, TABS_MAX_HEIGHT) }
+  return {
+    width: 352 + POPUP_MARGIN * 2,
+    height: Math.min(natural, TABS_MAX_HEIGHT) + POPUP_MARGIN * 2,
+  }
 }
 
 export function requestBrowserPopup(
@@ -113,13 +170,21 @@ function moveMenuFocus(event: ReactKeyboardEvent<HTMLDivElement>): void {
 
 export function BrowserPopupSurface({ request, ...face }: BrowserPopupSurfaceProps) {
   const overflow = request.kind === 'overflow'
+  const surface = useRef<HTMLDivElement>(null)
+
+  /* 焦点先落进这张表面：窗口的"失焦即关闭"要成立，文档里必须真的有焦点。 */
+  useEffect(() => {
+    surface.current?.focus()
+  }, [])
 
   return (
     <div
       aria-label={overflow ? '更多操作' : '标签页列表'}
       className={`${popupSurfaceClassName} flex h-full flex-col p-1 text-sm`}
       onKeyDown={overflow ? moveMenuFocus : undefined}
+      ref={surface}
       role={overflow ? 'menu' : 'dialog'}
+      tabIndex={-1}
     >
       {overflow ? (
         <OverflowFace {...face} request={request} />
@@ -131,71 +196,113 @@ export function BrowserPopupSurface({ request, ...face }: BrowserPopupSurfacePro
 }
 
 function MenuRow({
-  autoFocus = false,
   children,
   disabled = false,
   onSelect,
+  submenu = false,
 }: {
-  readonly autoFocus?: boolean
   readonly children: ReactNode
   readonly disabled?: boolean
   readonly onSelect: () => void
+  readonly submenu?: boolean
 }) {
   return (
     <button
-      className="flex h-10 w-full shrink-0 items-center rounded-md px-4 text-left enabled:hover:bg-current/10 disabled:opacity-40"
+      className="flex w-full shrink-0 items-center gap-2 rounded-md px-3 text-left enabled:hover:bg-current/10 disabled:opacity-40"
       disabled={disabled}
       onClick={onSelect}
       role="menuitem"
+      style={{ height: MENU_ROW }}
       type="button"
     >
       <span className="min-w-0 flex-1 truncate">{children}</span>
+      {submenu ? <ChevronRight aria-hidden className="size-4 shrink-0 opacity-50" /> : null}
     </button>
   )
 }
 
 function MenuDivider() {
-  return <div className="mx-3 my-1 h-px shrink-0 bg-current/10" role="separator" />
+  return (
+    <div
+      className="mx-2 shrink-0 bg-current/10"
+      role="separator"
+      style={{ height: 1, marginBottom: 4, marginTop: 4 }}
+    />
+  )
+}
+
+function ZoomStep({ children, label }: { readonly children: ReactNode; readonly label: string }) {
+  return (
+    <button
+      aria-label={label}
+      className="flex size-6 shrink-0 items-center justify-center rounded enabled:hover:bg-current/10 disabled:opacity-40"
+      disabled
+      type="button"
+    >
+      {children}
+    </button>
+  )
+}
+
+/* 缩放行不是命令，是一个读数加三个控件；内核缩放能力还没接，控件先立在这里。 */
+function ZoomRow() {
+  return (
+    <div
+      aria-label="缩放"
+      className="flex w-full shrink-0 items-center gap-1 px-3"
+      role="group"
+      style={{ height: MENU_ROW }}
+    >
+      <span className="min-w-0 flex-1 truncate">缩放</span>
+      <ZoomStep label="缩小">
+        <Minus aria-hidden className="size-4" />
+      </ZoomStep>
+      <span className="w-10 shrink-0 text-center tabular-nums opacity-70">100%</span>
+      <ZoomStep label="放大">
+        <Plus aria-hidden className="size-4" />
+      </ZoomStep>
+      <ZoomStep label="重置缩放">
+        <RotateCcw aria-hidden className="size-4" />
+      </ZoomStep>
+    </div>
+  )
 }
 
 function OverflowFace({ host, port, onDismiss }: FaceProps) {
   const tab = host.tabs.find((candidate) => candidate.id === host.activeTabId) ?? null
-  const url = tab?.url ?? null
+  const printable = tab !== null && tab.url !== null
 
   return (
     <>
-      <MenuRow
-        autoFocus={url !== null}
-        disabled={url === null}
-        onSelect={() => {
-          if (tab !== null) {
-            run('print', () => port.print(tab.id), onDismiss)
-          }
-        }}
-      >
-        打印
-      </MenuRow>
-      <MenuDivider />
-      <MenuRow
-        disabled={url === null}
-        onSelect={() => {
-          if (url !== null) {
-            run('open-external', () => port.openExternal(url), onDismiss)
-          }
-        }}
-      >
-        在默认浏览器中打开
-      </MenuRow>
-      <MenuRow
-        disabled={url === null || tab === null}
-        onSelect={() => {
-          if (tab !== null) {
-            run('open-devtools', () => port.openDevtools(tab.id), onDismiss)
-          }
-        }}
-      >
-        打开调试工具
-      </MenuRow>
+      {OVERFLOW_ROWS.map((row) => {
+        if (row.kind === 'divider') {
+          return <MenuDivider key={row.id} />
+        }
+
+        if (row.kind === 'zoom') {
+          return <ZoomRow key={row.id} />
+        }
+
+        const prints = row.action === 'print'
+
+        return (
+          <MenuRow
+            disabled={prints ? !printable : (row.disabled ?? false)}
+            key={row.id}
+            onSelect={() => {
+              if (prints && tab !== null) {
+                run('print', () => port.print(tab.id), onDismiss)
+                return
+              }
+
+              onDismiss()
+            }}
+            submenu={row.submenu ?? false}
+          >
+            {row.label}
+          </MenuRow>
+        )
+      })}
     </>
   )
 }

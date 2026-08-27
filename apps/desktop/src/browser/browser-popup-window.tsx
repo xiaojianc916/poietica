@@ -67,13 +67,10 @@ function PopupWindow() {
         closePopup()
       }
     }
-    const onBlur = () => closePopup()
-
+    /* 失焦即关闭归窗口所有（browser_popup.rs 的 Focused(false)），这里不设第二份。 */
     window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('blur', onBlur)
     return () => {
       window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('blur', onBlur)
     }
   }, [])
 

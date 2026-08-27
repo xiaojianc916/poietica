@@ -33,8 +33,6 @@ export interface BrowserPanelStore {
     readonly print: (id: number) => void
     readonly setElementPicker: (id: number, enabled: boolean) => void
     readonly reopenClosed: (index: number) => void
-    readonly openDevtools: (id: number) => void
-    readonly openExternal: (url: string) => void
     readonly openPopup: (request: BrowserPopupRequest, rect: BrowserViewportRect) => void
     readonly closePopup: () => void
   }
@@ -173,8 +171,6 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
       setElementPicker: (id, enabled) =>
         run('set-element-picker', () => port.setElementPicker(id, enabled)),
       reopenClosed: (index) => run('reopen-closed', () => port.reopenClosed(index)),
-      openDevtools: (id) => run('open-devtools', () => port.openDevtools(id)),
-      openExternal: (url) => run('open-external', () => port.openExternal(url)),
       openPopup: (request, rect) => run('open-popup', () => port.openPopup(request, rect)),
       closePopup: () => run('close-popup', () => port.closePopup()),
     },

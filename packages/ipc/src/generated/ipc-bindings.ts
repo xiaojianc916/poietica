@@ -1079,12 +1079,6 @@ async browserSetVisible(visible: boolean) : Promise<void> {
     await TAURI_INVOKE("browser_set_visible", { visible });
 },
 /**
- * 「打开调试工具」：WebView2 的 DevTools 独立窗口。
- */
-async browserOpenDevtools(id: number) : Promise<void> {
-    await TAURI_INVOKE("browser_open_devtools", { id });
-},
-/**
  * 内核 CDP 端点，mcp.json 对账用。非 Windows 或端口没抽到时为 None。
  */
 async browserDevtoolsEndpoint() : Promise<string | null> {

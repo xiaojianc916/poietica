@@ -44,7 +44,6 @@ export {
   closeBrowserPopup,
   closeBrowserTab,
   navigateBrowserTab,
-  openBrowserDevtools,
   openBrowserPopup,
   openBrowserTab,
   openBrowserUrlExternally,

@@ -7,10 +7,8 @@ import {
   closeBrowserTab,
   type BrowserPopupRequest as NativeBrowserPopupRequest,
   navigateBrowserTab,
-  openBrowserDevtools,
   openBrowserPopup,
   openBrowserTab,
-  openBrowserUrlExternally,
   printBrowserTab,
   reopenClosedBrowserTab,
   selectBrowserTab,
@@ -54,8 +52,6 @@ export const browserHostPort: BrowserHostPort = {
   reopenClosed: reopenClosedBrowserTab,
   setViewportBounds: setBrowserViewportBounds,
   setVisible: setBrowserVisible,
-  openDevtools: openBrowserDevtools,
-  openExternal: openBrowserUrlExternally,
   openPopup: (request, rect) =>
     openBrowserPopup(toNativeRequest(request), rect.x, rect.y, rect.width, rect.height),
   dispatchPopupAction: (action) =>

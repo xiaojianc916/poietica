@@ -748,20 +748,6 @@ pub async fn browser_set_visible(app: AppHandle, visible: bool) {
     apply_layout(&app);
 }
 
-/// 「打开调试工具」：WebView2 的 DevTools 独立窗口。
-#[command]
-#[specta::specta]
-pub async fn browser_open_devtools(app: AppHandle, id: u32) {
-    let webview = {
-        let host = app.state::<BrowserHost>();
-        lock(&host.webviews).get(&id).cloned()
-    };
-
-    if let Some(webview) = webview {
-        webview.open_devtools();
-    }
-}
-
 /// 内核 CDP 端点，mcp.json 对账用。非 Windows 或端口没抽到时为 None。
 #[command]
 #[specta::specta]

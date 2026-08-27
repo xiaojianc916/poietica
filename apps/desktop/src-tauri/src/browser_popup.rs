@@ -59,6 +59,9 @@ pub struct BrowserPopupAction {
 #[derive(Debug, Default)]
 pub struct BrowserPopupHost {
     request: Mutex<Option<BrowserPopupRequest>>,
+    /// 浮层文档是否已经取过请求。取到之前窗口还没有画面，那段时间里的失焦是内核
+    /// 在交接焦点，不是用户要关闭它。
+    armed: std::sync::atomic::AtomicBool,
 }
 
 impl BrowserPopupHost {
@@ -75,6 +78,15 @@ impl BrowserPopupHost {
     fn replace(&self, request: BrowserPopupRequest) {
         *self.lock() = Some(request);
     }
+
+    fn arm(&self, armed: bool) {
+        self.armed.store(armed, std::sync::atomic::Ordering::Release);
+    }
+
+    fn armed(&self) -> bool {
+        self.armed.load(std::sync::atomic::Ordering::Acquire)
+    }
+
 
     fn take(&self) -> Option<BrowserPopupRequest> {
         self.lock().take()
@@ -210,6 +222,8 @@ pub async fn open_browser_popup(
     .parent(&main)
     .map_err(Error::from)?;
 
+    app.state::<BrowserPopupHost>().arm(false);
+    app.state::<BrowserPopupHost>().arm(false);
     app.state::<BrowserPopupHost>().replace(request);
 
     match builder.build() {
@@ -217,6 +231,7 @@ pub async fn open_browser_popup(
             let handle = app.clone();
             window.on_window_event(move |event| {
                 if matches!(event, WindowEvent::Focused(false))
+                    && handle.state::<BrowserPopupHost>().armed()
                     && let Err(error) = dismiss(&handle)
                 {
                     log::warn!("browser popup did not close after focus loss: {error}");
@@ -234,7 +249,14 @@ pub async fn open_browser_popup(
 #[tauri::command]
 #[specta::specta]
 pub async fn browser_popup_state(app: AppHandle) -> Option<BrowserPopupRequest> {
-    app.state::<BrowserPopupHost>().snapshot()
+    let request = app.state::<BrowserPopupHost>().snapshot();
+
+    /* 请求交出去的那一刻浮层才算立住，失焦关闭从这里开始生效。 */
+    if request.is_some() {
+        app.state::<BrowserPopupHost>().arm(true);
+    }
+
+    request
 }
 
 #[tauri::command]

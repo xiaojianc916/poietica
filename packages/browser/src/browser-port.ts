@@ -63,8 +63,6 @@ export interface BrowserHostPort {
   readonly reopenClosed: (index: number) => Promise<void>
   readonly setViewportBounds: (bounds: BrowserViewportRect) => Promise<void>
   readonly setVisible: (visible: boolean) => Promise<void>
-  readonly openDevtools: (id: number) => Promise<void>
-  readonly openExternal: (url: string) => Promise<void>
   readonly openPopup: (request: BrowserPopupRequest, rect: BrowserViewportRect) => Promise<void>
   readonly dispatchPopupAction: (action: BrowserPopupAction) => Promise<void>
   readonly closePopup: () => Promise<void>

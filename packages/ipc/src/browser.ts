@@ -90,10 +90,6 @@ export function setBrowserVisible(visible: boolean): Promise<void> {
   return throughIpc(() => commands.browserSetVisible(visible))
 }
 
-export function openBrowserDevtools(id: number): Promise<void> {
-  return throughIpc(() => commands.browserOpenDevtools(id))
-}
-
 export function openBrowserUrlExternally(url: string): Promise<void> {
   return throughIpc(() => commands.windowOpenExternalUrl(url))
 }
