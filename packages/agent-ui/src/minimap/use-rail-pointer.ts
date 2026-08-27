@@ -1,16 +1,14 @@
 import { useCallback } from 'react'
-import { railCentre, railWeight, railWindow } from './conversation-minimap-geometry'
+import { RAIL_PITCH_PX, railCentre, railWeight, railWindow } from './conversation-minimap-geometry'
 
 /** 指针从轨道朝内容那一侧探出多少就算进入。要调手感就调这一个数。 */
 const REACH_INWARD_PX = 28
 const REACH_OUTWARD_PX = 16
-const REACH_BLOCK_PX = 8
+const TRACK_CLASS = 'conversation-minimap__scroller'
 const TURN_CLASS = 'conversation-minimap__turn'
 const WEIGHT_VAR = '--cp-rail-weight'
 const CARD_Y_VAR = '--cp-rail-card-y'
 const AIMED_ATTRIBUTE = 'data-aimed'
-/** 低于这个权重不算「手底下那一根」。 */
-const AIMED_MIN_WEIGHT = 0.35
 /** 低于这个权重与静止无异，写平的 0。 */
 const EPSILON = 0.002
 interface Span {
@@ -18,14 +16,14 @@ interface Span {
   to: number
 }
 const EMPTY: Span = { from: 0, to: -1 }
-/** 朝内容那一侧是真边界，其余三边只是容差。 */
+/** 横向朝内容那一侧探出算数；纵向以可见轨道为界。 */
 function inReach(box: DOMRect, x: number, y: number): boolean {
   return (
     !Number.isNaN(x) &&
     x >= box.left - REACH_OUTWARD_PX &&
     x <= box.right + REACH_INWARD_PX &&
-    y >= box.top - REACH_BLOCK_PX &&
-    y <= box.bottom + REACH_BLOCK_PX
+    y >= box.top &&
+    y <= box.bottom
   )
 }
 /**
@@ -50,6 +48,8 @@ export function useRailPointer(
         return undefined
       }
       const bars = node.getElementsByClassName(TURN_CLASS) as HTMLCollectionOf<HTMLElement>
+      /* 命中盒是可见轨道：nav 铺满整栏，拿它当边界等于整栏都能命中。 */
+      const rails = node.getElementsByClassName(TRACK_CLASS) as HTMLCollectionOf<HTMLElement>
       /* 粗指针与减弱动效下不放大：内联自定义属性盖得过媒体查询，所以在这里退场，
        * 交给样式表的 ':hover' 与 ':focus-visible'。焦点那一路照常。 */
       const magnifies = !(
@@ -100,28 +100,36 @@ export function useRailPointer(
           place(next)
         }
       }
+      const clear = () => {
+        unpaint(painted.from, painted.to)
+        painted = EMPTY
+        pointed = -1
+        settle(true)
+      }
       const paint = () => {
         frame = 0
-        const railBox = node.getBoundingClientRect()
-        if (!magnifies || bars.length === 0 || !inReach(railBox, pointerX, pointerY)) {
-          unpaint(painted.from, painted.to)
-          painted = EMPTY
-          pointed = -1
-          settle(true)
-          return
-        }
+        const rail = rails[0]
         const first = bars[0]
-        if (first === undefined) {
+        if (!magnifies || rail === undefined || first === undefined) {
+          clear()
           return
         }
         /* 落点取自柱子自己的盒子：这个读数已经含了轨道的滚动位移。 */
         const anchor = pointerY - first.getBoundingClientRect().top
+        /* 指着第几根是包含判定：格高就是步距，格外没有「最近的一根」。 */
+        const aimed = Math.floor(anchor / RAIL_PITCH_PX)
+        if (
+          !inReach(rail.getBoundingClientRect(), pointerX, pointerY) ||
+          aimed < 0 ||
+          aimed >= bars.length
+        ) {
+          clear()
+          return
+        }
         const span = railWindow(anchor, bars.length)
         unpaint(painted.from, Math.min(painted.to, span.from - 1))
         unpaint(Math.max(painted.from, span.to + 1), painted.to)
         painted = span
-        let winner = -1
-        let best = AIMED_MIN_WEIGHT
         for (let index = span.from; index <= span.to; index += 1) {
           const bar = bars[index]
           if (bar === undefined) {
@@ -132,12 +140,8 @@ export function useRailPointer(
           if (bar.style.getPropertyValue(WEIGHT_VAR) !== next) {
             bar.style.setProperty(WEIGHT_VAR, next)
           }
-          if (weight > best) {
-            best = weight
-            winner = index
-          }
         }
-        pointed = winner
+        pointed = aimed
         settle(true)
       }
       const schedule = () => {
