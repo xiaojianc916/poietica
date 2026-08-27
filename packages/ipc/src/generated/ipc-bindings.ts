@@ -1092,6 +1092,18 @@ async browserDevtoolsEndpoint() : Promise<string | null> {
  */
 async browserSetElementPicker(id: number, enabled: boolean) : Promise<void> {
     await TAURI_INVOKE("browser_set_element_picker", { id, enabled });
+},
+/**
+ * 打开浮层。锚点与尺寸是主窗口客户区的逻辑坐标，与视口矩形同一套坐标系。
+ * 
+ * 每次打开都新建、关闭即销毁：菜单本来就是一次性表面，这样不必维护复用状态，
+ * 也让它永远是最后创建的那个原生表面。
+ */
+async openBrowserPopup(kind: string, theme: string, x: number, y: number, width: number, height: number) : Promise<void> {
+    await TAURI_INVOKE("open_browser_popup", { kind, theme, x, y, width, height });
+},
+async closeBrowserPopup() : Promise<void> {
+    await TAURI_INVOKE("close_browser_popup");
 }
 }
 

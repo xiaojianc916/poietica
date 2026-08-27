@@ -28,6 +28,9 @@ export interface BrowserHostView {
   readonly recentlyClosed: readonly BrowserClosedTabView[]
 }
 
+/** 浮层的两张面。原生侧不解读，原样带回浮层文档。 */
+export type BrowserPopupKind = 'overflow' | 'tabs'
+
 /** 面板视口在主窗口客户区里的逻辑坐标。 */
 export interface BrowserViewportRect {
   readonly x: number
@@ -52,4 +55,11 @@ export interface BrowserHostPort {
   readonly setVisible: (visible: boolean) => Promise<void>
   readonly openDevtools: (id: number) => Promise<void>
   readonly openExternal: (url: string) => Promise<void>
+  /** 浮层是另一个原生窗口；矩形用主窗口客户区逻辑坐标。 */
+  readonly openPopup: (
+    kind: BrowserPopupKind,
+    theme: string,
+    rect: BrowserViewportRect,
+  ) => Promise<void>
+  readonly closePopup: () => Promise<void>
 }

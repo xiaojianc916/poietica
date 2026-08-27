@@ -150,6 +150,8 @@ pub fn surface() -> Builder<Wry> {
             crate::browser::browser_open_devtools,
             crate::browser::browser_devtools_endpoint,
             crate::browser::browser_set_element_picker,
+            crate::browser_popup::open_browser_popup,
+            crate::browser_popup::close_browser_popup,
         ])
         .events(tauri_specta::collect_events![
             AutomationCatalogChanged,

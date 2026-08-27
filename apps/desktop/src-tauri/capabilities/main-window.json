@@ -1,6 +1,6 @@
 {
   "identifier": "main-window-capability",
-  "windows": ["main"],
+  "windows": ["main", "browser-popup"],
   "permissions": [
     "core:default",
     "core:window:allow-minimize",

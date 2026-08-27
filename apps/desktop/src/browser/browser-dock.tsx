@@ -27,7 +27,7 @@ export function BrowserPanelToggle({ conversationId }: { readonly conversationId
     <button
       aria-label={label}
       aria-pressed={held}
-      className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 aria-pressed:bg-current/10 aria-pressed:opacity-100 hover:bg-current/10 hover:opacity-100"
+      className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100"
       onClick={() => {
         workspaceLayoutStore.setBrowserThread(held ? null : conversationId)
       }}

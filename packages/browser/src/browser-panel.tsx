@@ -1,17 +1,16 @@
+import { ArrowLeft, ArrowRight, Crosshair, Globe, MoreHorizontal, RotateCw } from 'lucide-react'
 import {
-  ArrowLeft,
-  ArrowRight,
-  Crosshair,
-  ExternalLink,
-  Globe,
-  MoreHorizontal,
-  RotateCw,
-  Wrench,
-} from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+  type MouseEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 
 import type { BrowserPanelStore } from './browser-panel-store'
-import type { BrowserTabView } from './browser-port'
+import { requestBrowserPopup } from './browser-popup'
+import type { BrowserHostView, BrowserTabView } from './browser-port'
 import { BrowserTabStrip } from './browser-tab-strip'
 
 /*
@@ -74,6 +73,7 @@ export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPa
               <BrowserToolbar
                 actions={store.actions}
                 activeTab={activeTab}
+                host={host}
                 pickerActive={host.pickingTabId === activeTab?.id}
               />
               <Viewport
@@ -95,93 +95,80 @@ export function BrowserPanel({ store, panes, trailing, layoutSignal }: BrowserPa
 interface BrowserToolbarProps {
   readonly activeTab: BrowserTabView | null
   readonly actions: BrowserPanelStore['actions']
+  readonly host: BrowserHostView
   readonly pickerActive: boolean
 }
 
-function BrowserToolbar({ activeTab, actions, pickerActive }: BrowserToolbarProps) {
-  const [menuOpen, setMenuOpen] = useState(false)
+function BrowserToolbar({ activeTab, actions, host, pickerActive }: BrowserToolbarProps) {
   const canDrive = activeTab !== null && activeTab.url !== null
 
   return (
-    <>
-      <div className="relative flex h-10 shrink-0 items-center gap-1 border-b border-current/10 px-2">
-        {/* 装载中的不定式进度：内核只报 Started/Finished，画不出百分比，不假装。 */}
-        {activeTab?.loading === true ? (
-          <div
-            aria-hidden
-            className="absolute inset-x-0 -bottom-px h-0.5 animate-pulse bg-current/40"
-          />
-        ) : null}
-        <ToolbarButton
-          disabled={!canDrive}
-          label="后退"
-          onClick={() => {
-            if (activeTab !== null) {
-              actions.back(activeTab.id)
-            }
-          }}
-        >
-          <ArrowLeft aria-hidden className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          disabled={!canDrive}
-          label="前进"
-          onClick={() => {
-            if (activeTab !== null) {
-              actions.forward(activeTab.id)
-            }
-          }}
-        >
-          <ArrowRight aria-hidden className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          disabled={!canDrive}
-          label="刷新"
-          onClick={() => {
-            if (activeTab !== null) {
-              actions.reload(activeTab.id)
-            }
-          }}
-        >
-          <RotateCw aria-hidden className="size-4" />
-        </ToolbarButton>
-
-        <AddressInput actions={actions} activeTab={activeTab} />
-
-        <ToolbarButton
-          disabled={!canDrive}
-          label={pickerActive ? '关闭元素选择' : '选择网页元素'}
-          onClick={() => {
-            if (activeTab !== null) {
-              actions.setElementPicker(activeTab.id, !pickerActive)
-            }
-          }}
-          pressed={pickerActive}
-        >
-          <Crosshair aria-hidden className="size-4" />
-        </ToolbarButton>
-
-        <ToolbarButton
-          label="更多操作"
-          onClick={() => {
-            setMenuOpen((open) => !open)
-          }}
-          pressed={menuOpen}
-        >
-          <MoreHorizontal aria-hidden className="size-4" />
-        </ToolbarButton>
-      </div>
-
-      {menuOpen ? (
-        <OverflowMenu
-          actions={actions}
-          activeTab={activeTab}
-          onDismiss={() => {
-            setMenuOpen(false)
-          }}
+    <div className="relative flex h-10 shrink-0 items-center gap-1 border-b border-current/10 px-2">
+      {/* 装载中的不定式进度：内核只报 Started/Finished，画不出百分比，不假装。 */}
+      {activeTab?.loading === true ? (
+        <div
+          aria-hidden
+          className="absolute inset-x-0 -bottom-px h-0.5 animate-pulse bg-current/40"
         />
       ) : null}
-    </>
+      <ToolbarButton
+        disabled={!canDrive}
+        label="后退"
+        onClick={() => {
+          if (activeTab !== null) {
+            actions.back(activeTab.id)
+          }
+        }}
+      >
+        <ArrowLeft aria-hidden className="size-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        disabled={!canDrive}
+        label="前进"
+        onClick={() => {
+          if (activeTab !== null) {
+            actions.forward(activeTab.id)
+          }
+        }}
+      >
+        <ArrowRight aria-hidden className="size-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        disabled={!canDrive}
+        label="刷新"
+        onClick={() => {
+          if (activeTab !== null) {
+            actions.reload(activeTab.id)
+          }
+        }}
+      >
+        <RotateCw aria-hidden className="size-4" />
+      </ToolbarButton>
+
+      <AddressInput actions={actions} activeTab={activeTab} />
+
+      <ToolbarButton
+        disabled={!canDrive}
+        label={pickerActive ? '关闭元素选择' : '选择网页元素'}
+        onClick={() => {
+          if (activeTab !== null) {
+            actions.setElementPicker(activeTab.id, !pickerActive)
+          }
+        }}
+        pressed={pickerActive}
+      >
+        <Crosshair aria-hidden className="size-4" />
+      </ToolbarButton>
+
+      <ToolbarButton
+        label="更多操作"
+        onClick={(event) => {
+          requestBrowserPopup(actions.openPopup, 'overflow', host, event.currentTarget)
+        }}
+      >
+        <MoreHorizontal aria-hidden className="size-4" />
+      </ToolbarButton>
+    </div>
   )
 }
 
@@ -245,73 +232,6 @@ function AddressInput({
   )
 }
 
-interface OverflowMenuProps {
-  readonly activeTab: BrowserTabView | null
-  readonly actions: BrowserPanelStore['actions']
-  readonly onDismiss: () => void
-}
-
-/* 「…」菜单：两项，禁用态跟着「有没有真的页面」走。在流内展开 —— 原生子 webview
-   永远盖过主窗口 HTML，浮在它上面的东西看不见。 */
-function OverflowMenu({ activeTab, actions, onDismiss }: OverflowMenuProps) {
-  const url = activeTab?.url ?? null
-
-  return (
-    <div className="shrink-0 border-b border-current/10 p-1">
-      <MenuItem
-        disabled={url === null}
-        icon={<ExternalLink aria-hidden className="size-3.5" />}
-        onClick={() => {
-          if (url !== null) {
-            actions.openExternal(url)
-          }
-
-          onDismiss()
-        }}
-      >
-        在默认浏览器中打开
-      </MenuItem>
-      <MenuItem
-        disabled={url === null}
-        icon={<Wrench aria-hidden className="size-3.5" />}
-        onClick={() => {
-          if (activeTab !== null) {
-            actions.openDevtools(activeTab.id)
-          }
-
-          onDismiss()
-        }}
-      >
-        打开调试工具
-      </MenuItem>
-    </div>
-  )
-}
-
-function MenuItem({
-  children,
-  disabled,
-  icon,
-  onClick,
-}: {
-  readonly children: ReactNode
-  readonly disabled?: boolean
-  readonly icon: ReactNode
-  readonly onClick: () => void
-}) {
-  return (
-    <button
-      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs enabled:hover:bg-current/5 disabled:opacity-40"
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
-    >
-      {icon}
-      {children}
-    </button>
-  )
-}
-
 function ToolbarButton({
   children,
   disabled,
@@ -322,7 +242,7 @@ function ToolbarButton({
   readonly children: ReactNode
   readonly disabled?: boolean
   readonly label: string
-  readonly onClick: () => void
+  readonly onClick: (event: MouseEvent<HTMLButtonElement>) => void
   readonly pressed?: boolean
 }) {
   return (

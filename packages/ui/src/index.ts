@@ -20,6 +20,7 @@ export { ErrorState, InlineSpinner, LoadingState } from './feedback'
 export { integrationMarkFor } from './integration-mark'
 export { ArrowLeftIcon, GithubMark, PlayIcon } from './local-glyphs'
 export { PixelLoader } from './pixel-loader'
+export { popupSurfaceClassName } from './popup-surface'
 export {
   RegionSplitter,
   type SplitterActivity,

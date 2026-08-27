@@ -143,6 +143,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@poietica/core": "workspace:*",
+        "@poietica/ui": "workspace:*",
         "lucide-react": "catalog:",
       },
       "devDependencies": {

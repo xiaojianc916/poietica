@@ -94,6 +94,22 @@ export function browserDevtoolsEndpoint(): Promise<string | null> {
   return throughIpc(() => commands.browserDevtoolsEndpoint())
 }
 
+/** 浮层窗口：原生子 webview 盖过主窗口 HTML，只能另开一个原生窗来画。 */
+export function openBrowserPopup(
+  kind: string,
+  theme: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): Promise<void> {
+  return throughIpc(() => commands.openBrowserPopup(kind, theme, x, y, width, height))
+}
+
+export function closeBrowserPopup(): Promise<void> {
+  return throughIpc(() => commands.closeBrowserPopup())
+}
+
 /** 显式开启或关闭元素选择；真实状态由 BrowserState.pickingTabId 返回。 */
 export function setBrowserElementPicker(id: number, enabled: boolean): Promise<void> {
   return throughIpc(() => commands.browserSetElementPicker(id, enabled))

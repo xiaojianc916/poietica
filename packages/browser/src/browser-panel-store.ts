@@ -1,6 +1,11 @@
 import { createExternalStore, warn } from '@poietica/core'
 
-import type { BrowserHostPort, BrowserHostView, BrowserViewportRect } from './browser-port'
+import type {
+  BrowserHostPort,
+  BrowserHostView,
+  BrowserPopupKind,
+  BrowserViewportRect,
+} from './browser-port'
 
 /**
  * 宿主快照在渲染层这一侧的唯一投影。
@@ -43,6 +48,8 @@ export interface BrowserPanelStore {
     readonly reopenClosed: (index: number) => void
     readonly openDevtools: (id: number) => void
     readonly openExternal: (url: string) => void
+    readonly openPopup: (kind: BrowserPopupKind, theme: string, rect: BrowserViewportRect) => void
+    readonly closePopup: () => void
   }
 }
 
@@ -192,6 +199,12 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
       },
       openExternal: (url) => {
         run('open-external', () => port.openExternal(url))
+      },
+      openPopup: (kind, theme, rect) => {
+        run('open-popup', () => port.openPopup(kind, theme, rect))
+      },
+      closePopup: () => {
+        run('close-popup', () => port.closePopup())
       },
     },
   }

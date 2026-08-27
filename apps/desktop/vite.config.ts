@@ -43,6 +43,13 @@ export default defineConfig({
   // Build-time Tauri variables remain available here through process.env.
   envPrefix: ['VITE_'],
   build: {
+    /* 浮层是第二个原生窗口，因此是第二份文档。 */
+    rollupOptions: {
+      input: {
+        'browser-popup': 'browser-popup.html',
+        index: 'index.html',
+      },
+    },
     // Tauri v2 renamed these: TAURI_PLATFORM/TAURI_DEBUG are v1 names, and
     // reading them silently downgraded the target and killed debug sourcemaps.
     target: TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
