@@ -1,4 +1,5 @@
 export type { AgentConfigSnapshot, AgentConfigStore } from './agent-config-store'
+export type { CustomAgentStore } from './custom-agents/custom-agent-store'
 export type { KeybindingCatalog, KeybindingEntry } from './keymap/keybinding-catalog'
 export { type AppSettings, DEFAULT_APP_SETTINGS } from './settings'
 export type { SettingsStore } from './settings-store'

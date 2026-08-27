@@ -7,6 +7,7 @@ import { AppUpdateStore } from '@poietica/desktop-adapters'
 import type { PluginsViewModel } from '@poietica/plugins'
 import type {
   AgentConfigStore,
+  CustomAgentStore,
   KeybindingCatalog,
   KeybindingEntry,
   SettingsStore,
@@ -47,6 +48,7 @@ interface AppShellRuntime {
   readonly appUpdate: AppUpdateController
   readonly settings: SettingsStore
   readonly agentConfig: AgentConfigStore
+  readonly customAgents: CustomAgentStore
   readonly agent: DesktopAgentRuntime
   readonly attachments: AttachmentIntake
   readonly appVersion: () => Promise<string>
@@ -376,6 +378,7 @@ export function AppShell({ runtime }: AppShellProps) {
             appVersion={runtime.appVersion}
             capabilities={capabilities}
             commands={runtime.commands}
+            customAgentStore={runtime.customAgents}
             dataDirectory={runtime.dataDirectory}
             isSettingsOpen={isSettingsOpen && capabilities.settings}
             isWindowMaximized={isWindowMaximized}

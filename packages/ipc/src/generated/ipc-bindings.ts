@@ -657,6 +657,15 @@ async skillsSetEnabled(name: string, enabled: boolean) : Promise<null> {
 async skillsStage(fetch: PluginFetch) : Promise<SkillStaged> {
     return await TAURI_INVOKE("skills_stage", { fetch });
 },
+async customAgentsList() : Promise<CustomAgentCatalog> {
+    return await TAURI_INVOKE("custom_agents_list");
+},
+async customAgentsSave(request: CustomAgentSaveRequest) : Promise<CustomAgentFile> {
+    return await TAURI_INVOKE("custom_agents_save", { request });
+},
+async customAgentsRemove(request: CustomAgentRemoveRequest) : Promise<null> {
+    return await TAURI_INVOKE("custom_agents_remove", { request });
+},
 /**
  * Returns and consumes the previous native process crash report.
  * 
@@ -2021,6 +2030,10 @@ export type BrowserTab = { id: number; url: string | null; title: string; loadin
  * 站点图标的 data URL。缺席时渲染层画地球。
  */
 favicon: string | null }
+export type CustomAgentCatalog = { files: CustomAgentFile[]; issues: string[] }
+export type CustomAgentFile = { relativePath: string; absolutePath: string; document: string }
+export type CustomAgentRemoveRequest = { relativePath: string; expectedDocument: string }
+export type CustomAgentSaveRequest = { relativePath: string; document: string; expectedDocument: string | null }
 /**
  * 疏密同样是闭集，理由与 `ThemePreference` 逐字相同。
  */

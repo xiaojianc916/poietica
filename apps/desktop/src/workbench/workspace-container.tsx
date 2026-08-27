@@ -1,6 +1,11 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
 import { DelegateChannelContext, useRunningThreads } from '@poietica/agent-ui'
-import type { AgentConfigStore, KeybindingCatalog, SettingsStore } from '@poietica/settings'
+import type {
+  AgentConfigStore,
+  CustomAgentStore,
+  KeybindingCatalog,
+  SettingsStore,
+} from '@poietica/settings'
 import {
   SettingsContentRegion,
   SettingsNavigationRegion,
@@ -58,6 +63,7 @@ export interface WorkspaceContainerProps {
   readonly onSettingsClose: () => void
   readonly settingsStore: SettingsStore
   readonly agentConfigStore: AgentConfigStore
+  readonly customAgentStore: CustomAgentStore
   readonly keybindings: KeybindingCatalog
   readonly updateRow: ReactNode
   readonly isWindowMaximized: boolean
@@ -87,6 +93,7 @@ export function WorkspaceContainer({
   onSettingsClose,
   settingsStore,
   agentConfigStore,
+  customAgentStore,
   keybindings,
   updateRow,
   isWindowMaximized,
@@ -346,6 +353,7 @@ export function WorkspaceContainer({
     <SettingsProvider
       agentConfigStore={agentConfigStore}
       appVersion={appVersion}
+      customAgentStore={customAgentStore}
       dataDirectory={dataDirectory}
       isOpen={isSettingsOpen}
       keybindings={keybindings}

@@ -233,6 +233,7 @@
         "@poietica/ipc": "workspace:*",
         "@poietica/ui": "workspace:*",
         "lucide-react": "catalog:",
+        "yaml": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",

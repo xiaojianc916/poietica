@@ -28,6 +28,9 @@ use crate::commands::{
     agent_setup::install::{AgentInstallState, AgentInstallStatus},
     agent_setup::probe::ProviderProbeOutcome,
     agent_setup::profile::AgentConfigSnapshot,
+    custom_agents::{
+        CustomAgentCatalog, CustomAgentFile, CustomAgentRemoveRequest, CustomAgentSaveRequest,
+    },
     asset::{
         AssetFormat, AssetImportRequest, AssetRemoveRequest, AssetSessionCloseRequest,
         AssetSessionResult, AssetUploadRequest, AssetUploadResult,
@@ -111,6 +114,9 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::skills::skills_remove,
             crate::commands::skills::skills_set_enabled,
             crate::commands::skills::skills_stage,
+            crate::commands::custom_agents::custom_agents_list,
+            crate::commands::custom_agents::custom_agents_save,
+            crate::commands::custom_agents::custom_agents_remove,
             crate::commands::diagnostics::diagnostics_take_previous_crash,
             crate::commands::window::window_open_devtools,
             crate::commands::window::window_open_external_url,
@@ -223,6 +229,10 @@ pub fn surface() -> Builder<Wry> {
         .typ::<SkillRecord>()
         .typ::<SkillStaged>()
         .typ::<SkillCommitRequest>()
+        .typ::<CustomAgentCatalog>()
+        .typ::<CustomAgentFile>()
+        .typ::<CustomAgentSaveRequest>()
+        .typ::<CustomAgentRemoveRequest>()
         .typ::<NativeCrashReport>()
         .typ::<AppSettings>()
         .typ::<PrivacySettings>()

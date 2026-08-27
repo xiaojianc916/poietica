@@ -3,6 +3,7 @@ pub mod agent_setup;
 pub mod asset;
 pub mod automations;
 pub mod catalog_server;
+pub mod custom_agents;
 pub mod diagnostics;
 pub mod environment;
 pub mod git;

@@ -60,6 +60,15 @@ export {
   watchBrowserState,
 } from './browser'
 export {
+  type CustomAgentCatalog,
+  type CustomAgentFile,
+  type CustomAgentRemoveRequest,
+  type CustomAgentSaveRequest,
+  listCustomAgents,
+  removeCustomAgent,
+  saveCustomAgent,
+} from './custom-agents'
+export {
   readEnvironmentMcpConfig,
   writeEnvironmentMcpConfig,
 } from './environment'

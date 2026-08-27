@@ -12,7 +12,13 @@ import {
   readDataDirectory,
   type SettingsStore,
 } from '@poietica/desktop-adapters'
-import { writeWorkbenchSession } from '@poietica/ipc'
+import {
+  listCustomAgents,
+  removeCustomAgent,
+  saveCustomAgent,
+  writeWorkbenchSession,
+} from '@poietica/ipc'
+import type { CustomAgentStore } from '@poietica/settings'
 import type { WorkbenchSessionStore } from '@poietica/workspace'
 import {
   type CommandRegistry,
@@ -31,6 +37,7 @@ export interface ApplicationRuntime {
   readonly appUpdate: AppUpdateController
   readonly settings: SettingsStore
   readonly agentConfig: AgentConfigStore
+  readonly customAgents: CustomAgentStore
   readonly agent: DesktopAgentRuntime
   readonly attachments: AttachmentIntake
   /** 这个可执行文件自己的版本号。 */
@@ -59,6 +66,11 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   const appUpdate = createAppUpdateController()
   const settings = createDesktopSettingsStore()
   const agentConfig = createDesktopAgentConfigStore()
+  const customAgents: CustomAgentStore = {
+    load: listCustomAgents,
+    save: saveCustomAgent,
+    remove: removeCustomAgent,
+  }
 
   const attachments = createAttachmentIntake()
   const agent = createDesktopAgentRuntime({
@@ -83,6 +95,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     appUpdate,
     settings,
     agentConfig,
+    customAgents,
     agent,
     attachments,
     appVersion: readAppVersion,
