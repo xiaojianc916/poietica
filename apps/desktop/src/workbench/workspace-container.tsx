@@ -217,12 +217,13 @@ export function WorkspaceContainer({
   const assistant = useMemo(
     () =>
       createAssistantWiring({
+        customAgents: customAgentStore,
         /* 分叉出的对话就地打开：与点开列表里一条是同一个动作。 */
         onConversationForked: startConversation,
         onConversationStarted: startConversation,
         session: agentSession,
       }),
-    [agentSession, startConversation],
+    [agentSession, customAgentStore, startConversation],
   )
 
   /* AI 入口晋升时只换 threadId；非 AI 表面仍由工作区的统一宿主渲染。 */
@@ -353,7 +354,6 @@ export function WorkspaceContainer({
     <SettingsProvider
       agentConfigStore={agentConfigStore}
       appVersion={appVersion}
-      customAgentStore={customAgentStore}
       dataDirectory={dataDirectory}
       isOpen={isSettingsOpen}
       keybindings={keybindings}

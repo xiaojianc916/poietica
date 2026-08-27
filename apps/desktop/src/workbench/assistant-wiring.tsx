@@ -1,6 +1,11 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
 import { ComposerDrafts, ComposerDraftsContext, useAgentControls } from '@poietica/agent-ui'
 import { PluginsSurface } from '@poietica/plugins'
+import {
+  type CustomAgentStore,
+  PersonalizationStore,
+  PersonalizationSurface,
+} from '@poietica/settings'
 import type { SurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'
 import { AutomationsView } from '../automations/automations-view'
@@ -25,6 +30,7 @@ interface AssistantWiring {
  * 转手，终点那一格拿去在 effect 里接一次线 —— 而那根线本来就不该从渲染树上走。
  */
 interface AssistantWiringOptions {
+  readonly customAgents: CustomAgentStore
   /** 分叉出的对话开出来之后，去它那里 —— 与打开一条对话同一个动作。 */
   readonly onConversationForked: (threadId: string, title: string) => void
   readonly onConversationStarted: (threadId: string, title: string) => void
@@ -42,6 +48,7 @@ function ToolsSurface() {
 }
 
 export function createAssistantWiring({
+  customAgents,
   onConversationForked,
   onConversationStarted,
   session,
@@ -51,6 +58,9 @@ export function createAssistantWiring({
    * 页不丢字，重启之后本来就该是空的。两个入口共用这一本。
    */
   const drafts = new ComposerDrafts()
+
+  /* 子 Agent 目录的唯一真相，寿命与这份接线相同：离开这一格再回来，草稿与选中项还在。 */
+  const personalization = new PersonalizationStore(customAgents)
 
   const renderAssistant = (threadId?: string): ReactNode => (
     <ComposerDraftsContext value={drafts}>
@@ -75,6 +85,7 @@ export function createAssistantWiring({
       automations: () => <AutomationsView />,
 
       /* Tool 那一格。注册表里 tools 已经是 surface，漏掉这一条是编译错误。 */
+      personalization: () => <PersonalizationSurface store={personalization} />,
       tools: () => <ToolsSurface />,
     },
 

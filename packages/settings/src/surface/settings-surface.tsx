@@ -8,7 +8,6 @@ import {
   Info,
   Keyboard,
   ShieldCheck,
-  Sparkles,
   Sun,
   Unplug,
   Zap,
@@ -25,8 +24,6 @@ import {
   useState,
 } from 'react'
 import type { AgentConfigStore } from '../agent-config-store'
-import type { CustomAgentStore } from '../custom-agents/custom-agent-store'
-import { PersonalizationSettings } from '../custom-agents/personalization-settings'
 import type { KeybindingCatalog } from '../keymap/keybinding-catalog'
 import { KeymapSettings } from '../keymap/keymap-settings'
 import { ModelsSettings } from '../models/models-settings'
@@ -46,7 +43,6 @@ import './settings-surface.css'
 type SettingsSection =
   | 'general'
   | 'appearance'
-  | 'personalization'
   | 'archived'
   | 'models'
   | 'keymap'
@@ -77,7 +73,6 @@ interface SettingsSectionContext {
   readonly settings: AppSettings
   readonly controller: SettingsController
   readonly agentConfigStore: AgentConfigStore
-  readonly customAgentStore: CustomAgentStore
   readonly threads: ThreadsStore
   readonly keybindings: KeybindingCatalog
   readonly appVersion: () => Promise<string>
@@ -104,11 +99,6 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
     render: ({ controller, settings }) => (
       <AppearanceSettings controller={controller} settings={settings} />
     ),
-  },
-  personalization: {
-    label: '个性化',
-    icon: Sparkles,
-    render: ({ customAgentStore }) => <PersonalizationSettings store={customAgentStore} />,
   },
   archived: {
     label: '已归档',
@@ -158,7 +148,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
  * 标签仍然来自 SECTIONS，避免同一份文案出现两处。
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
-  ['general', 'appearance', 'personalization'],
+  ['general', 'appearance'],
   ['models', 'keymap', 'tools', 'usage', 'archived'],
   ['privacy', 'about'],
 ]
@@ -197,7 +187,6 @@ function useSettingsSurface(): SettingsSurfaceContextValue {
 export interface SettingsProviderProps {
   readonly store: SettingsStore
   readonly agentConfigStore: AgentConfigStore
-  readonly customAgentStore: CustomAgentStore
   readonly threads: ThreadsStore
   /**
    * 当前生效的快捷键，由组合根注入。
@@ -230,7 +219,6 @@ export interface SettingsProviderProps {
 export function SettingsProvider({
   store,
   agentConfigStore,
-  customAgentStore,
   threads,
   keybindings,
   appVersion,
@@ -260,7 +248,6 @@ export function SettingsProvider({
     () => ({
       controller,
       agentConfigStore,
-      customAgentStore,
       threads,
       keybindings,
       appVersion,
@@ -269,16 +256,7 @@ export function SettingsProvider({
       onSelect: setSection,
       onBack: controller.requestClose,
     }),
-    [
-      agentConfigStore,
-      appVersion,
-      controller,
-      customAgentStore,
-      dataDirectory,
-      keybindings,
-      section,
-      threads,
-    ],
+    [agentConfigStore, appVersion, controller, dataDirectory, keybindings, section, threads],
   )
 
   return <SettingsSurfaceContext value={value}>{children}</SettingsSurfaceContext>
@@ -303,16 +281,8 @@ export function SettingsNavigationRegion({ footer }: SettingsNavigationRegionPro
 }
 
 export function SettingsContentRegion() {
-  const {
-    controller,
-    agentConfigStore,
-    customAgentStore,
-    appVersion,
-    dataDirectory,
-    keybindings,
-    section,
-    threads,
-  } = useSettingsSurface()
+  const { controller, agentConfigStore, appVersion, dataDirectory, keybindings, section, threads } =
+    useSettingsSurface()
 
   return (
     <div aria-live="polite" className="settings-content">
@@ -343,7 +313,6 @@ export function SettingsContentRegion() {
 
             {SECTIONS[section].render({
               agentConfigStore,
-              customAgentStore,
               appVersion,
               controller,
               dataDirectory,

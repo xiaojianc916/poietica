@@ -38,6 +38,6 @@ description: Reviews code
 ---
 Review carefully.
 `
-    expect(() => parseAgentDocument('Bad Name.md', input)).toThrow('kebab‑case')
+    expect(() => parseAgentDocument('Bad Name.md', input)).toThrow('kebab-case')
   })
 })

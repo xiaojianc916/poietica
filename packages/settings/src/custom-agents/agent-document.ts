@@ -2,6 +2,7 @@ import { parse, stringify } from 'yaml'
 
 export type ToolMode = 'all' | 'allowlist' | 'none'
 export type DelegationMode = 'default' | 'all' | 'allowlist' | 'none'
+export type ModelPreference = 'session' | 'primary' | 'secondary'
 
 export interface CustomAgentDraft {
   readonly name: string
@@ -13,12 +14,12 @@ export interface CustomAgentDraft {
   readonly disallowedTools: string
   readonly delegationMode: DelegationMode
   readonly subagents: string
+  readonly modelPreference: ModelPreference
   readonly prompt: string
   readonly extras: Readonly<Record<string, unknown>>
 }
 
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-// 修复：单行正则，[\s\S]匹配任意字符，兼容CRLF/LF换行
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/
 
 const KNOWN = new Set([
@@ -29,6 +30,7 @@ const KNOWN = new Set([
   'tools',
   'disallowedTools',
   'subagents',
+  'model_preference',
 ])
 
 export function emptyAgentDraft(): CustomAgentDraft {
@@ -42,6 +44,7 @@ export function emptyAgentDraft(): CustomAgentDraft {
     disallowedTools: '',
     delegationMode: 'default',
     subagents: '',
+    modelPreference: 'session',
     prompt: '',
     extras: {},
   }
@@ -61,13 +64,13 @@ export function parseAgentDocument(relativePath: string, document: string): Cust
   if (!isRecord(value)) {
     throw new Error('frontmatter 顶层必须是对象')
   }
-  const fallback = relativePath.split('/').at(-1)?.replace(/.md$/, '') ?? ''
+  const fallback = relativePath.split('/').at(-1)?.replace(/\.md$/, '') ?? ''
   const name = optionalString(value['name']) ?? fallback
   const description = requiredString(value['description'], 'description')
   const prompt = body.trim()
 
   if (!NAME.test(name)) {
-    throw new Error('name 必须是 kebab‑case')
+    throw new Error('name 必须是 kebab-case')
   }
   if (!prompt) {
     throw new Error('system prompt 不能为空')
@@ -99,6 +102,7 @@ export function parseAgentDocument(relativePath: string, document: string): Cust
             ? 'none'
             : 'allowlist',
     subagents: rawSubagents?.filter((item) => item !== '*').join(', ') ?? '',
+    modelPreference: parseModelPreference(value['model_preference']),
     prompt,
     extras,
   }
@@ -106,7 +110,6 @@ export function parseAgentDocument(relativePath: string, document: string): Cust
 
 export function serializeAgentDocument(draft: CustomAgentDraft): string {
   const frontmatter: Record<string, unknown> = {
-    ...draft.extras,
     name: draft.name.trim(),
     description: draft.description.trim(),
   }
@@ -138,7 +141,13 @@ export function serializeAgentDocument(draft: CustomAgentDraft): string {
     frontmatter['subagents'] = []
   }
 
-  // 修复：使用 \n 转义，禁止源码物理换行
+  if (draft.modelPreference !== 'session') {
+    frontmatter['model_preference'] = draft.modelPreference
+  }
+
+  /* extras 放最后：已知键不会落进 extras，因此不存在覆盖。 */
+  Object.assign(frontmatter, draft.extras)
+
   return (
     '---\n' +
     stringify(frontmatter, { lineWidth: 0 }).trimEnd() +
@@ -150,7 +159,7 @@ export function serializeAgentDocument(draft: CustomAgentDraft): string {
 
 export function validateAgentDraft(draft: CustomAgentDraft): string | null {
   if (!NAME.test(draft.name.trim())) {
-    return '名称必须使用 kebab‑case，例如 code‑reviewer'
+    return '名称必须使用 kebab-case，例如 code-reviewer'
   }
   if (!draft.description.trim()) {
     return '任务描述不能为空'
@@ -165,6 +174,17 @@ export function validateAgentDraft(draft: CustomAgentDraft): string | null {
     return '可委派 Agent 列表不能为空'
   }
   return null
+}
+
+/* 与 Kimi 的 agent-file 解析器同义：只认 primary / secondary，其余显式拒绕。 */
+function parseModelPreference(value: unknown): ModelPreference {
+  if (value === undefined || value === null) {
+    return 'session'
+  }
+  if (value === 'primary' || value === 'secondary') {
+    return value
+  }
+  throw new Error('model_preference 必须是 primary 或 secondary')
 }
 
 function csv(value: string): string[] {

@@ -1,0 +1,359 @@
+/*
+ * 「个性化」表面。几何与动效令牌就地声明（只服务这一格），颜色一律走设计系统。
+ *
+ * 动效按频次定档：这一格偶尔进入，所以只有失败条与未保存点有过渡；列表行一天
+ * 要点很多次，因此只有颜色变化，没有位移与缩放。
+ */
+.personalization {
+  --pz-gutter: 20px;
+  --pz-radius: 10px;
+  --pz-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  background: var(--color-ground);
+}
+
+.personalization__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: var(--pz-gutter) var(--pz-gutter) 14px;
+}
+
+.personalization__head h1 {
+  margin: 0;
+  color: var(--ui-foreground);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.personalization__head p {
+  margin: 5px 0 0;
+  max-width: 62ch;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.personalization__head-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.personalization__alert {
+  margin: 0 var(--pz-gutter) 12px;
+  padding: 10px 12px;
+  border-radius: var(--pz-radius);
+  background: color-mix(in oklab, var(--ui-destructive) 12%, var(--color-background));
+  color: var(--ui-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+  transition:
+    opacity 150ms var(--pz-ease-out),
+    transform 150ms var(--pz-ease-out);
+}
+
+@starting-style {
+  .personalization__alert {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.personalization__body {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 0;
+  border-block-start: 1px solid var(--color-divider);
+}
+
+.personalization__rail {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  padding: 10px;
+  border-inline-end: 1px solid var(--color-divider);
+}
+
+/* 列表行一天要点很多次：只给颜色反馈，不给位移与缩放。 */
+.personalization__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.personalization__row-name {
+  grid-column: 1;
+  overflow: hidden;
+  color: var(--ui-foreground);
+  font-size: 12px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personalization__row-hint {
+  grid-column: 1;
+  overflow: hidden;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personalization__row[data-selected="true"] {
+  background: var(--ui-sidebar-accent);
+}
+
+.personalization__row:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .personalization__row:hover {
+    background: var(--ui-sidebar-accent);
+  }
+}
+
+.personalization__dot {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-primary);
+  transition:
+    opacity 150ms var(--pz-ease-out),
+    transform 150ms var(--pz-ease-out);
+}
+
+.personalization__dot[data-visible="false"] {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.personalization__dot[data-broken="true"] {
+  background: var(--ui-destructive);
+}
+
+.personalization__issue {
+  margin: 6px 4px 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.personalization__editor {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.personalization__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 14px 16px;
+  overflow-y: auto;
+  padding: var(--pz-gutter);
+}
+
+.personalization__field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.personalization__field--wide,
+.personalization__check {
+  grid-column: 1 / -1;
+}
+
+.personalization__field > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.personalization__field strong,
+.personalization__check strong {
+  color: var(--ui-foreground);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.personalization__field small,
+.personalization__check small {
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.personalization__field input,
+.personalization__field textarea {
+  width: 100%;
+  padding-inline: 10px;
+  border: 1px solid var(--color-divider);
+  border-radius: 8px;
+  background: var(--color-background);
+  color: var(--ui-foreground);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.personalization__field input {
+  min-height: var(--ui-control-height-sm);
+}
+
+.personalization__field textarea {
+  min-height: 220px;
+  padding-block: 9px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.personalization__field input:focus-visible,
+.personalization__field textarea:focus-visible {
+  border-color: var(--ui-ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ui-ring) 22%, transparent);
+}
+
+.personalization__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--pz-radius);
+  background: var(--color-background);
+  cursor: pointer;
+}
+
+.personalization__check input {
+  margin-block-start: 2px;
+  accent-color: var(--ui-primary);
+}
+
+.personalization__check span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.personalization__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px var(--pz-gutter);
+  border-block-start: 1px solid var(--color-divider);
+  background: var(--color-background);
+}
+
+.personalization__status {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+}
+
+.personalization__status span {
+  color: var(--ui-muted-foreground);
+}
+
+.personalization__status span.personalization__warning {
+  color: var(--ui-destructive);
+}
+
+.personalization__status code {
+  overflow: hidden;
+  color: var(--ui-foreground);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personalization__footer-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.personalization__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  border: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .personalization__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(110px, 24%) minmax(0, 1fr);
+  }
+
+  .personalization__rail {
+    border-block-end: 1px solid var(--color-divider);
+    border-inline-end: 0;
+  }
+
+  .personalization__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .personalization__footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* 减少动效：留下不透明度与颜色，去掉位移与缩放。 */
+@media (prefers-reduced-motion: reduce) {
+  .personalization__alert,
+  .personalization__dot,
+  .personalization__dot[data-visible="false"] {
+    transform: none;
+  }
+
+  .personalization__alert,
+  .personalization__dot {
+    transition-property: opacity;
+  }
+}

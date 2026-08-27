@@ -75,7 +75,7 @@ export const SURFACE_REGISTRY = {
     description: '实现Agent的个性化定制。',
     iconId: 'hat-glasses',
     navigationOrder: 3,
-    activation: { kind: 'planned' },
+    activation: { kind: 'surface' },
   },
 } as const satisfies Record<string, SurfaceDescriptor>
 
