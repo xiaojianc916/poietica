@@ -185,8 +185,33 @@ function spawnChannel(draft: Draft, event: KapFrame): void {
   }
 
   upsertToolCall(draft, parent, event.at, {
-    channel: { agentId, name: stringOf(payload, 'subagentName') ?? agentId },
+    channel: { agentId, name: spawnName(payload, agentId) },
   })
+}
+
+/**
+ * 这个子代理叫什么。
+ *
+ * description 是派发它的那一句给它起的名字，一个一个不同；subagentName 是它的档案名
+ * （上游 subagentRosterTracker 把它落成 subagent_type），一群同型子代理共用同一个词。
+ * 所以先读前者；退到后者时用群内序号把它们分开。
+ */
+function spawnName(payload: KapEventPayload, agentId: string): string {
+  const said = stringOf(payload, 'description')
+
+  if (said !== undefined) {
+    return said
+  }
+
+  const type = stringOf(payload, 'subagentName')
+
+  if (type === undefined) {
+    return agentId
+  }
+
+  const index = fieldOf(payload, 'swarmIndex')
+
+  return typeof index === 'number' ? `${type} ${index + 1}` : type
 }
 
 /*

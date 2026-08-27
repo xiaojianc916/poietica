@@ -68,3 +68,46 @@ export function sayToolLine(item: ToolLineSource): string | null {
 export function readToolLine(item: ToolLineSource): string {
   return sayToolLine(item) ?? item.title
 }
+
+/**
+ * 一类调用做了几次，一句话：收起时的汇总头。
+ *
+ * 一类一句，量词跟着这一类真正在数的东西走。中文不变复数，所以没有单复数分支。
+ */
+export function sayToolCount(kind: ToolKind, count: number): string {
+  switch (kind) {
+    case 'read':
+      return `阅读 ${count} 个文件`
+    case 'edit':
+      return `编辑 ${count} 处`
+    case 'write':
+      return `写入 ${count} 个文件`
+    case 'search':
+      return `搜索 ${count} 次`
+    case 'fetch':
+      return `抓取 ${count} 个网页`
+    case 'execute':
+      return `执行 ${count} 条命令`
+    case 'delegate':
+      return `派出 ${count} 个子代理`
+    case 'skill':
+      return `动用 ${count} 个技能`
+    case 'task':
+      return `推进 ${count} 项任务`
+    case 'todo':
+      return `更新 ${count} 次任务清单`
+    case 'plan':
+      return `修订 ${count} 次计划`
+    case 'goal':
+      return `立下 ${count} 个目标`
+    case 'other':
+      return `调用 ${count} 次外部工具`
+    default:
+      return unhandled(kind)
+  }
+}
+
+/* ToolKind 长出新的一档时这里是编译错误，不是一行空白。 */
+function unhandled(_kind: never): string {
+  return ''
+}

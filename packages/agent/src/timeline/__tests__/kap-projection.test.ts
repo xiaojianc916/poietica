@@ -489,6 +489,43 @@ describe('kap 投影', () => {
       { type: 'command', command: 'ls -la', language: 'bash' },
     ])
   })
+  it('通道的名字取派发那一句，退回档案名时按群内序号分开', () => {
+    const state = replayRunEvents(
+      kapTurn([
+        {
+          type: 'tool.call.started',
+          turnId: 1,
+          toolCallId: 'call_swarm',
+          name: 'AgentSwarm',
+          args: {},
+          display: { kind: 'agent_call', agent_name: 'swarm (2 subagents)', prompt: '复查改动' },
+        },
+        {
+          type: 'subagent.spawned',
+          parentToolCallId: 'call_swarm',
+          subagentId: 'agent-0',
+          subagentName: 'explore',
+          description: '复查 timeline 的改动',
+          swarmIndex: 0,
+          runInBackground: false,
+        },
+        {
+          type: 'subagent.spawned',
+          parentToolCallId: 'call_swarm',
+          subagentId: 'agent-1',
+          subagentName: 'explore',
+          swarmIndex: 1,
+          runInBackground: false,
+        },
+      ]),
+    )
+
+    expect(toolCalls(state)[0]?.channels).toStrictEqual([
+      { agentId: 'agent-0', name: '复查 timeline 的改动' },
+      { agentId: 'agent-1', name: 'explore 2' },
+    ])
+  })
+
   it('审批帧走共用词汇：归一化的 toolCall 把请求接回工具卡片', () => {
     const events: RunEvent[] = [
       {

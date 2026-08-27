@@ -7,7 +7,7 @@ import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon } from '../primitives/icons'
 import { type DiffFile, type DiffStat, diffStatOf } from '../semantics/file-diff'
 import { toDiffFilesOf } from '../semantics/tool-call-facets'
-import { readToolLine } from '../semantics/tool-intent'
+import { readToolLine, sayToolCount } from '../semantics/tool-intent'
 import { GroupTicker } from './group-ticker'
 import { ToolCallDiffStat, ToolKindIcon } from './tool-call-card'
 
@@ -20,51 +20,6 @@ import { ToolCallDiffStat, ToolKindIcon } from './tool-call-card'
  * 不是一张卡：与 ToolCallCard 同一个音量，外框、圆角与投影仍归 [data-surface]，
  * 戴它的是需要人回答的东西。
  */
-
-/**
- * 汇总那一句。
- *
- * 一类一句，量词跟着这一类真正在数的东西走。中文不变复数，所以没有单复数分支。
- */
-function describeToolGroup(plan: ToolGroupPlan): string {
-  const count = plan.members.length
-
-  switch (plan.kind) {
-    case 'read':
-      return `阅读 ${count} 个文件`
-    case 'edit':
-      return `编辑 ${count} 处`
-    case 'write':
-      return `写入 ${count} 个文件`
-    case 'search':
-      return `搜索 ${count} 次`
-    case 'fetch':
-      return `抓取 ${count} 个网页`
-    case 'execute':
-      return `执行 ${count} 条命令`
-    case 'delegate':
-      return `派出 ${count} 个子代理`
-    case 'skill':
-      return `动用 ${count} 个技能`
-    case 'task':
-      return `推进 ${count} 项任务`
-    case 'todo':
-      return `更新 ${count} 次任务清单`
-    case 'plan':
-      return `修订 ${count} 次计划`
-    case 'goal':
-      return `立下 ${count} 个目标`
-    case 'other':
-      return `调用 ${count} 次外部工具`
-    default:
-      return unhandled(plan.kind)
-  }
-}
-
-/* ToolKind 长出新的一档时这里是编译错误，不是一行空白。 */
-function unhandled(_kind: never): string {
-  return ''
-}
 
 /**
  * 正在跑的那一条要印的那句话。
@@ -123,7 +78,7 @@ export function ToolGroupCard({ isOpen, onToggle, plan, renderRow }: ToolGroupCa
    */
   const live = isOpen ? undefined : liveMemberOf(plan)
   const saying = live === undefined ? undefined : sayingOf(live)
-  const summary = describeToolGroup(plan)
+  const summary = sayToolCount(plan.kind, plan.members.length)
 
   return (
     <section className="timeline-group">

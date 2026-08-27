@@ -1,6 +1,7 @@
 import './flow-row.css'
 import './shimmer.css'
 import './tool-call.css'
+import './tool-group.css'
 
 import type { ToolCallTimelineItem } from '@poietica/agent'
 import { isDelegation } from '@poietica/agent'
@@ -23,7 +24,7 @@ import {
 } from '../primitives/icons'
 import { type DiffStat, diffStatOf } from '../semantics/file-diff'
 import { toDiffFilesOf } from '../semantics/tool-call-facets'
-import { readToolLine } from '../semantics/tool-intent'
+import { clampToLine, readToolLine, sayToolCount } from '../semantics/tool-intent'
 import { useDelegateChannel } from './delegate-channel-context'
 import { ToolCallPanels } from './tool-call-panels'
 
@@ -178,19 +179,63 @@ export function ToolCallCard({
 
   /* 派发的账目在它自己的通道里，这一行只是入口 —— 主转录不摊开子代理说的话。 */
   if (isDelegation(item)) {
+    const [only] = item.channels
+
+    /* 只派出一个：这一行本身就是那条通道的入口。 */
+    if (only !== undefined && item.channels.length === 1) {
+      return (
+        <section className="timeline-tool">
+          <ToolCallHeader
+            isChannel
+            isOpen={false}
+            item={item}
+            onToggle={() => {
+              openChannel(only.agentId)
+            }}
+            view={view}
+          />
+        </section>
+      )
+    }
+
+    /* 派出好几个：汇总头只管开合，进哪一条通道由成员那一行说。 */
     return (
-      <section className="timeline-tool">
-        <ToolCallHeader
-          isChannel
-          isOpen={false}
-          item={item}
-          onToggle={() => {
-            for (const channel of item.channels) {
-              openChannel(channel.agentId)
-            }
-          }}
-          view={view}
-        />
+      <section className="timeline-group">
+        <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
+          <ToolKindIcon kind={item.kind} />
+
+          <span className={cx('timeline-row__label', view.isRunning && 'timeline-shimmer')}>
+            {sayToolCount(item.kind, item.channels.length)}
+          </span>
+
+          <ChevronDownIcon
+            aria-hidden="true"
+            className="timeline-row__chevron disclosure__chevron"
+          />
+        </button>
+
+        <DisclosureBody isOpen={isOpen}>
+          <div className="timeline-group__members">
+            {item.channels.map((channel) => (
+              <div className="timeline-group__member" key={channel.agentId}>
+                <button
+                  className="timeline-row"
+                  onClick={() => {
+                    openChannel(channel.agentId)
+                  }}
+                  title={channel.name}
+                  type="button"
+                >
+                  <ToolKindIcon kind={item.kind} />
+
+                  <span className="timeline-row__label">
+                    {clampToLine(channel.name) ?? channel.name}
+                  </span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </DisclosureBody>
       </section>
     )
   }
