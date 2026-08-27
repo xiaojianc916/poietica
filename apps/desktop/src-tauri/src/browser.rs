@@ -288,23 +288,11 @@ pub enum BrowserPickSubmission {
 pub struct BrowserElementPicked {
     pub tab_id: u32,
     pub submission: BrowserPickSubmission,
-    pub url: String,
-    pub title: String,
-    pub tag_name: String,
-    pub selector: Option<String>,
-    pub role: String,
-    pub aria_label: String,
-    pub text: String,
-    pub html: String,
-    pub styles: String,
-    pub component_name: String,
-    pub source_file: String,
-    pub source_line: Option<u32>,
-    pub source_column: Option<u32>,
-    pub stack: String,
-    pub style_changes: String,
+    /// 一行身份，进提示词正文。
+    pub summary: String,
     pub comment: String,
-    pub picked_at: String,
+    /// 完整快照落在系统临时目录里的这份文件上；提示词只带路径。
+    pub report_path: String,
 }
 
 fn stop_picker(app: &AppHandle, tab_id: Option<u32>) -> bool {
@@ -355,32 +343,27 @@ fn finish_pick(app: &AppHandle, tab_id: u32, target: &Url) {
         ..
     } = outcome
     {
-        let picked = BrowserElementPicked {
-            tab_id,
-            submission: match submission {
-                poietica_browser_native::PickSubmission::Attach => BrowserPickSubmission::Attach,
-                poietica_browser_native::PickSubmission::Send => BrowserPickSubmission::Send,
-            },
-            url: element.url,
-            title: element.title,
-            tag_name: element.tag_name,
-            selector: element.selector,
-            role: element.role,
-            aria_label: element.aria_label,
-            text: element.text,
-            html: element.html,
-            styles: element.styles,
-            component_name: element.component_name,
-            source_file: element.source_file,
-            source_line: element.source_line,
-            source_column: element.source_column,
-            stack: element.stack,
-            style_changes: element.style_changes,
-            comment: element.comment,
-            picked_at: element.picked_at,
-        };
-        if let Err(error) = picked.emit(app) {
-            log::warn!("browser element pick was not delivered: {error}");
+        match crate::paths::write_element_report(&element.report) {
+            Ok(path) => {
+                let picked = BrowserElementPicked {
+                    tab_id,
+                    submission: match submission {
+                        poietica_browser_native::PickSubmission::Attach => {
+                            BrowserPickSubmission::Attach
+                        }
+                        poietica_browser_native::PickSubmission::Send => {
+                            BrowserPickSubmission::Send
+                        }
+                    },
+                    summary: element.summary,
+                    comment: element.comment,
+                    report_path: path.to_string_lossy().into_owned(),
+                };
+                if let Err(error) = picked.emit(app) {
+                    log::warn!("browser element pick was not delivered: {error}");
+                }
+            }
+            Err(error) => log::warn!("browser element report was not written: {error}"),
         }
     }
     publish(app);

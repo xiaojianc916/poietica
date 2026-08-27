@@ -190,34 +190,55 @@ const layoutGroups: readonly Group[] = [
   },
 ]
 
+const gap = 8
+
+type Context = Awaited<ReturnType<typeof getElementContext>>
+
 const css = [
   ':host{all:initial;color-scheme:light;--ink:#111827;--muted:#667085;--line:#e5e7eb;--accent:#2563eb;--surface:#fff;font:13px/1.4 Inter,ui-sans-serif,system-ui,sans-serif}',
   '*{box-sizing:border-box}',
   '.outline{position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #2563eb;background:rgba(37,99,235,.08);border-radius:3px}',
   '.badge{position:absolute;left:-2px;bottom:100%;max-width:280px;padding:3px 7px;border-radius:5px 5px 0 0;background:#2563eb;color:white;font:600 11px/1.3 ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-  '.panel{position:fixed;z-index:2147483647;width:min(380px,calc(100vw - 16px));max-height:min(680px,calc(100vh - 16px));display:none;flex-direction:column;border:1px solid rgba(17,24,39,.12);border-radius:14px;background:var(--surface);box-shadow:0 20px 60px rgba(15,23,42,.24);color:var(--ink);overflow:hidden}',
+  '.panel{position:fixed;z-index:2147483647;width:min(380px,calc(100vw - 16px));max-height:min(520px,calc(100vh - 16px));display:none;flex-direction:column;border:1px solid rgba(17,24,39,.12);border-radius:14px;background:var(--surface);box-shadow:0 20px 60px rgba(15,23,42,.24);color:var(--ink);overflow:hidden}',
   '.panel[data-open=true]{display:flex}',
-  '.head{display:flex;align-items:center;gap:8px;padding:12px;border-bottom:1px solid var(--line)}',
-  '.title{min-width:0;flex:1;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
   'button,input,select,textarea{font:inherit}',
   'button{border:0;background:transparent;color:inherit;cursor:pointer}',
-  '.icon{width:28px;height:28px;border-radius:7px;color:var(--muted)}.icon:hover{background:#f3f4f6;color:var(--ink)}',
   'textarea{width:calc(100% - 24px);min-height:74px;margin:12px 12px 8px;padding:10px 11px;resize:vertical;border:1px solid var(--line);border-radius:9px;outline:none;color:var(--ink);background:#fff}',
   'textarea:focus,input:focus,select:focus{border-color:#93b4ff;box-shadow:0 0 0 3px rgba(37,99,235,.12);outline:none}',
   '.tabs{display:grid;grid-template-columns:1fr 1fr;margin:0 12px;border-bottom:1px solid var(--line)}',
   '.tab{padding:9px;color:var(--muted);font-weight:600;border-bottom:2px solid transparent}.tab[aria-selected=true]{border-color:var(--accent);color:var(--accent)}',
-  '.body{overflow:auto;padding:4px 12px 12px}',
+  /* 限高并藏起滚动条：scrollbar-width 是 CSS Scrollbars Styling 的标准写法，
+     ::-webkit-scrollbar 兜住旧内核。overflow 保持 auto，滚动能力不受影响。 */
+  '.body{max-height:232px;overflow:auto;padding:4px 12px 12px;scrollbar-width:none}',
+  '.body::-webkit-scrollbar{width:0;height:0}',
   '.group{padding:10px 0;border-bottom:1px solid #f0f2f5}.group:last-child{border-bottom:0}',
   '.group h3{margin:0 0 8px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}',
   '.field{display:grid;grid-template-columns:92px minmax(0,1fr);align-items:center;gap:8px;margin:6px 0}',
   '.field span{color:#475467}',
   '.field input,.field select{width:100%;height:30px;border:1px solid var(--line);border-radius:7px;padding:0 8px;color:var(--ink);background:#fff}',
-  '.error{min-height:18px;padding:0 12px;color:#b42318;font-size:12px}',
-  '.code{display:none;margin:0 12px 10px;max-height:160px;overflow:auto;padding:9px;border-radius:8px;background:#111827;color:#e5e7eb;font:11px/1.45 ui-monospace,monospace;white-space:pre-wrap}.code[data-open=true]{display:block}',
-  '.foot{display:flex;align-items:center;gap:6px;padding:10px 12px;border-top:1px solid var(--line)}',
-  '.danger{color:#b42318}.spacer{flex:1}',
-  '.action{height:32px;padding:0 12px;border-radius:8px;font-weight:600}.action:hover{background:#f3f4f6}.primary{background:var(--accent);color:#fff}.primary:hover{background:#1d4ed8}',
+  '.status{min-height:18px;padding:0 12px;color:var(--muted);font-size:12px}',
+  '.status[data-tone=error]{color:#b42318}',
+  '.foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}',
+  '.action{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 16px;border-radius:9px;font-weight:600;transition:background .15s,border-color .15s,box-shadow .15s,transform .06s}',
+  '.action:active{transform:translateY(1px)}',
+  '.action:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(37,99,235,.35)}',
+  '.action[disabled]{opacity:.55;cursor:default;transform:none}',
+  '.attach{border:1px solid var(--line);background:#fff;color:#344054}.attach:hover:not([disabled]){background:#f9fafb;border-color:#d0d5dd}',
+  '.send{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(16,24,40,.08)}.send:hover:not([disabled]){background:#1d4ed8}',
 ].join('\n')
+
+const markup =
+  '<textarea aria-label="修改需求" placeholder="请描述你的修改需求"></textarea><div class="tabs" role="tablist" aria-label="编辑类别"><button class="tab" type="button" role="tab" data-tab="style" aria-selected="true">样式</button><button class="tab" type="button" role="tab" data-tab="layout" aria-selected="false">布局</button></div><div class="body"></div><div class="status" role="status"></div><div class="foot"><button class="action attach" type="button">附加</button><button class="action send" type="button">发送给 AI</button></div>'
+
+function clamp(value: number, low: number, high: number): number {
+  return Math.max(low, Math.min(value, Math.max(low, high)))
+}
+
+function sourceOf(context: Context): string {
+  return context.filePath === null
+    ? ''
+    : `${context.filePath}:${String(context.lineNumber ?? 1)}:${String(context.columnNumber ?? 1)}`
+}
 
 class ElementPicker implements PickerController {
   private token: number | null = null
@@ -227,15 +248,14 @@ class ElementPicker implements PickerController {
   private panel: HTMLElement | null = null
   private body: HTMLElement | null = null
   private comment: HTMLTextAreaElement | null = null
-  private error: HTMLElement | null = null
-  private code: HTMLElement | null = null
+  private status: HTMLElement | null = null
   private hovered: Element | null = null
   private selected: Element | null = null
   private tab: 'style' | 'layout' = 'style'
-  private context: ReturnType<typeof getElementContext> | null = null
+  private context: Promise<Context> | null = null
+  private busy = false
   private readonly baseline = new Map<string, Baseline>()
   private readonly changes = new Map<string, Change>()
-  private removed = false
 
   start(token: number): void {
     this.cancel()
@@ -244,25 +264,41 @@ class ElementPicker implements PickerController {
     document.addEventListener('pointermove', this.onPointerMove, true)
     document.addEventListener('click', this.onClick, true)
     document.addEventListener('keydown', this.onKeyDown, true)
+    window.addEventListener('scroll', this.onReflow, { capture: true, passive: true })
+    window.addEventListener('resize', this.onReflow)
   }
 
   cancel(): void {
-    document.removeEventListener('pointermove', this.onPointerMove, true)
-    document.removeEventListener('click', this.onClick, true)
-    document.removeEventListener('keydown', this.onKeyDown, true)
-    this.restore()
-    this.host?.remove()
+    this.teardown()
     this.host = null
     this.outline = null
+    this.badge = null
     this.panel = null
     this.body = null
     this.comment = null
-    this.error = null
-    this.code = null
+    this.status = null
     this.hovered = null
     this.selected = null
     this.context = null
     this.token = null
+    this.busy = false
+    this.baseline.clear()
+    this.changes.clear()
+  }
+
+  /** 唯一的监听清单。cancel 与提交前的拆台都走它。 */
+  private unbind(): void {
+    document.removeEventListener('pointermove', this.onPointerMove, true)
+    document.removeEventListener('click', this.onClick, true)
+    document.removeEventListener('keydown', this.onKeyDown, true)
+    window.removeEventListener('scroll', this.onReflow, true)
+    window.removeEventListener('resize', this.onReflow)
+  }
+
+  private teardown(): void {
+    this.unbind()
+    this.restore()
+    this.host?.remove()
   }
 
   private ensureUi(): void {
@@ -282,10 +318,8 @@ class ElementPicker implements PickerController {
     panel.className = 'panel'
     panel.dataset['open'] = 'false'
     panel.setAttribute('role', 'dialog')
-    panel.setAttribute('aria-modal', 'false')
     panel.setAttribute('aria-label', '编辑所选元素')
-    panel.innerHTML =
-      '<div class="head"><strong class="title">所选元素</strong><button class="icon code-toggle" type="button" aria-label="查看代码">&lt;/&gt;</button><button class="icon close" type="button" aria-label="关闭">×</button></div><textarea aria-label="修改需求" placeholder="请描述你的修改需求"></textarea><div class="tabs" role="tablist" aria-label="编辑类别"><button class="tab" type="button" role="tab" data-tab="style" aria-selected="true">样式</button><button class="tab" type="button" role="tab" data-tab="layout" aria-selected="false">布局</button></div><div class="body"></div><div class="error" role="status"></div><pre class="code"></pre><div class="foot"><button class="action danger remove" type="button">删除元素</button><button class="action reset" type="button">重置</button><span class="spacer"></span><button class="action attach" type="button">附加</button><button class="action primary send" type="button">发送给 AI</button></div>'
+    panel.innerHTML = markup
 
     root.append(style, outline, panel)
     document.documentElement.append(host)
@@ -295,13 +329,8 @@ class ElementPicker implements PickerController {
     this.panel = panel
     this.body = panel.querySelector('.body')
     this.comment = panel.querySelector('textarea')
-    this.error = panel.querySelector('.error')
-    this.code = panel.querySelector('.code')
+    this.status = panel.querySelector('.status')
 
-    panel.querySelector('.close')?.addEventListener('click', () => this.sendCancel())
-    panel.querySelector('.code-toggle')?.addEventListener('click', () => this.toggleCode())
-    panel.querySelector('.remove')?.addEventListener('click', () => this.removeSelected())
-    panel.querySelector('.reset')?.addEventListener('click', () => this.resetChanges())
     panel.querySelector('.attach')?.addEventListener('click', () => void this.submit('attach'))
     panel.querySelector('.send')?.addEventListener('click', () => void this.submit('send'))
     for (const button of panel.querySelectorAll<HTMLButtonElement>('[role=tab]')) {
@@ -343,17 +372,24 @@ class ElementPicker implements PickerController {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (this.isUiEvent(event)) {
+    if (this.isUiEvent(event) || event.key !== 'Escape') {
       return
     }
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      if (this.selected === null) {
-        this.sendCancel()
-      } else {
-        this.clearSelection()
-      }
+    event.preventDefault()
+    if (this.selected === null) {
+      this.sendCancel()
+    } else {
+      this.clearSelection()
     }
+  }
+
+  /** 页面滚动或窗口变形时，高亮与面板必须跟着元素走。 */
+  private readonly onReflow = (): void => {
+    if (this.selected === null) {
+      return
+    }
+    this.draw(this.selected)
+    this.position()
   }
 
   private isUiEvent(event: Event): boolean {
@@ -380,28 +416,24 @@ class ElementPicker implements PickerController {
 
   private select(element: Element): void {
     this.restore()
+    this.baseline.clear()
+    this.changes.clear()
     this.selected = element
     this.hovered = element
     this.context = getElementContext(element)
     this.draw(element)
     this.panel?.setAttribute('data-open', 'true')
-    this.positionPanel()
+    this.note('')
     this.selectTab('style')
     this.comment?.focus()
     void this.context.then(
       (context) => {
-        if (this.selected !== element) {
+        if (this.selected !== element || this.badge === null) {
           return
         }
-        const title = this.panel?.querySelector<HTMLElement>('.title')
-        if (title !== null && title !== undefined) {
-          title.textContent = context.componentName ?? element.tagName.toLowerCase()
-        }
-        if (this.badge !== null) {
-          this.badge.textContent = context.componentName ?? element.tagName.toLowerCase()
-        }
+        this.badge.textContent = context.componentName ?? element.tagName.toLowerCase()
       },
-      (cause: unknown) => this.showError(cause),
+      (cause: unknown) => this.fail(cause),
     )
   }
 
@@ -411,24 +443,27 @@ class ElementPicker implements PickerController {
     this.context = null
     this.changes.clear()
     this.baseline.clear()
-    this.removed = false
     this.panel?.setAttribute('data-open', 'false')
-    if (this.code !== null) {
-      this.code.dataset['open'] = 'false'
-    }
+    this.note('')
   }
 
-  private positionPanel(): void {
-    if (this.panel === null || this.selected === null) {
+  /** 先量真实尺寸再摆：下方放不下就翻上方，横向溢出就贴右缘，最后夹进视口。 */
+  private position(): void {
+    const panel = this.panel
+    if (panel === null || this.selected === null) {
       return
     }
-    const bounds = getElementBounds(this.selected)
-    const width = Math.min(380, window.innerWidth - 16)
-    const left = Math.max(8, Math.min(bounds.x, window.innerWidth - width - 8))
-    const below = bounds.y + bounds.height + 8
-    const top = below + 500 <= window.innerHeight ? below : Math.max(8, bounds.y - 508)
-    this.panel.style.left = `${left}px`
-    this.panel.style.top = `${top}px`
+    const anchor = getElementBounds(this.selected)
+    const rect = panel.getBoundingClientRect()
+    const below = anchor.y + anchor.height + gap
+    const room = window.innerHeight - below
+    const top = room >= rect.height || room >= anchor.y - gap ? below : anchor.y - rect.height - gap
+    const left =
+      anchor.x + rect.width > window.innerWidth - gap
+        ? anchor.x + anchor.width - rect.width
+        : anchor.x
+    panel.style.left = `${clamp(left, gap, window.innerWidth - rect.width - gap)}px`
+    panel.style.top = `${clamp(top, gap, window.innerHeight - rect.height - gap)}px`
   }
 
   private selectTab(tab: 'style' | 'layout'): void {
@@ -448,6 +483,7 @@ class ElementPicker implements PickerController {
     for (const group of groups) {
       this.body.append(this.renderGroup(group, computed))
     }
+    this.position()
   }
 
   private renderGroup(group: Group, computed: CSSStyleDeclaration): HTMLElement {
@@ -508,7 +544,7 @@ class ElementPicker implements PickerController {
       return
     }
     if (value !== '' && !CSS.supports(property, value)) {
-      this.showError(`无效的 CSS 值：${property}: ${value}`)
+      this.fail(`无效的 CSS 值：${property}: ${value}`)
       return
     }
     if (!this.baseline.has(property)) {
@@ -533,30 +569,9 @@ class ElementPicker implements PickerController {
       declaration.setProperty(property, value)
       this.changes.set(property, { previous: baseline.computed, value })
     }
-    this.showError('')
+    this.note('')
     this.draw(this.selected)
-    this.positionPanel()
-  }
-
-  private removeSelected(): void {
-    if (this.selected === null) {
-      return
-    }
-    this.removed = true
-    this.apply('display', 'none')
-    if (this.badge !== null) {
-      this.badge.textContent = '将删除所选元素'
-    }
-  }
-
-  private resetChanges(): void {
-    this.restore()
-    this.changes.clear()
-    this.baseline.clear()
-    this.removed = false
-    this.draw(this.selected)
-    this.positionPanel()
-    this.renderFields(this.tab === 'style' ? styleGroups : layoutGroups)
+    this.position()
   }
 
   private restore(): void {
@@ -572,75 +587,100 @@ class ElementPicker implements PickerController {
     }
   }
 
-  private styleChanges(): string {
-    const rows = Array.from(
-      this.changes,
-      ([property, change]) => `${property}: ${change.previous} -> ${change.value}`,
-    )
-    if (this.removed) {
-      rows.unshift('intent: remove selected element')
+  /** 面板上那两张表就是快照的定义：屏幕上看得见的每一项都进文件。 */
+  private snapshot(): string {
+    const selected = this.selected
+    if (selected === null) {
+      return ''
     }
-    return rows.join('\n')
+    const computed = getComputedStyle(selected)
+    const lines: string[] = []
+    for (const group of [...styleGroups, ...layoutGroups]) {
+      lines.push(`## ${group.title}`)
+      for (const field of group.fields) {
+        const value = computed.getPropertyValue(field.property).trim()
+        lines.push(`${field.label} (${field.property}): ${value}`)
+      }
+      lines.push('')
+    }
+    return lines.join('\n')
   }
 
-  private async toggleCode(): Promise<void> {
-    if (this.code === null || this.context === null) {
-      return
-    }
-    const opening = this.code.dataset['open'] !== 'true'
-    this.code.dataset['open'] = String(opening)
-    if (!opening) {
-      return
-    }
-    try {
-      const context = await this.context
-      const source =
-        context.filePath === null ? '' : `${context.filePath}:${String(context.lineNumber ?? 1)}`
-      this.code.textContent = [source, context.selector ?? '', context.htmlPreview]
-        .filter(Boolean)
-        .join('\n')
-    } catch (cause) {
-      this.showError(cause)
+  private edits(): string {
+    return Array.from(
+      this.changes,
+      ([property, change]) => `${property}: ${change.previous} -> ${change.value}`,
+    ).join('\n')
+  }
+
+  private summary(context: Context, selected: Element): string {
+    return [
+      context.componentName ?? selected.tagName.toLowerCase(),
+      context.selector ?? '',
+      sourceOf(context),
+      location.href,
+    ]
+      .filter(Boolean)
+      .join(' | ')
+  }
+
+  private compose(context: Context, selected: Element): string {
+    return [
+      '# 所选元素',
+      `page: ${document.title}`,
+      `url: ${location.href}`,
+      `tag: ${selected.tagName.toLowerCase()}`,
+      `component: ${context.componentName ?? ''}`,
+      `selector: ${context.selector ?? ''}`,
+      `source: ${sourceOf(context)}`,
+      `role: ${selected.getAttribute('role') ?? ''}`,
+      `aria-label: ${selected.getAttribute('aria-label') ?? ''}`,
+      `text: ${(selected.textContent ?? '').trim().slice(0, 2_000)}`,
+      '',
+      '# HTML',
+      context.htmlPreview,
+      '',
+      '# 组件栈',
+      context.stackString,
+      '',
+      '# 样式与布局',
+      this.snapshot(),
+      '# 本次改动',
+      this.edits(),
+    ].join('\n')
+  }
+
+  /** 提交在途时按钮失效：一次拾取只该产生一条提示词。 */
+  private arm(enabled: boolean): void {
+    for (const button of this.panel?.querySelectorAll<HTMLButtonElement>('.action') ?? []) {
+      button.disabled = !enabled
     }
   }
 
   private async submit(submission: 'attach' | 'send'): Promise<void> {
-    if (this.selected === null || this.context === null || this.token === null) {
+    const token = this.token
+    const selected = this.selected
+    const pending = this.context
+    if (this.busy || token === null || selected === null || pending === null) {
       return
     }
-    this.showError('正在收集组件上下文…')
+    this.busy = true
+    this.arm(false)
+    this.note('正在收集组件上下文…')
     try {
-      const selected = this.selected
-      const context = await this.context
+      const context = await pending
       const target = new URL(callbackUrl)
-      const put = (key: string, value: string | number | null): void => {
-        if (value !== null && value !== '') {
-          target.searchParams.set(key, String(value))
-        }
-      }
-      put('token', this.token)
-      put('submission', submission)
-      put('url', location.href)
-      put('title', document.title)
-      put('tag', selected.tagName.toLowerCase())
-      put('selector', context.selector)
-      put('role', selected.getAttribute('role'))
-      put('ariaLabel', selected.getAttribute('aria-label'))
-      put('text', (selected.textContent ?? '').trim().slice(0, 2_000))
-      put('html', context.htmlPreview)
-      put('styles', context.styles)
-      put('component', context.componentName)
-      put('sourceFile', context.filePath)
-      put('sourceLine', context.lineNumber)
-      put('sourceColumn', context.columnNumber)
-      put('stack', context.stackString)
-      put('styleChanges', this.styleChanges())
-      put('comment', this.comment?.value.trim() ?? '')
-      put('pickedAt', new Date().toISOString())
-      this.teardownForSubmission()
+      target.searchParams.set('token', String(token))
+      target.searchParams.set('submission', submission)
+      target.searchParams.set('summary', this.summary(context, selected))
+      target.searchParams.set('comment', this.comment?.value.trim() ?? '')
+      target.searchParams.set('report', this.compose(context, selected))
+      this.teardown()
       location.assign(target.toString())
     } catch (cause) {
-      this.showError(cause)
+      this.busy = false
+      this.arm(true)
+      this.fail(cause)
     }
   }
 
@@ -652,21 +692,21 @@ class ElementPicker implements PickerController {
     const target = new URL(callbackUrl)
     target.searchParams.set('token', String(this.token))
     target.searchParams.set('submission', 'cancel')
-    this.teardownForSubmission()
+    this.teardown()
     location.assign(target.toString())
   }
 
-  private teardownForSubmission(): void {
-    document.removeEventListener('pointermove', this.onPointerMove, true)
-    document.removeEventListener('click', this.onClick, true)
-    document.removeEventListener('keydown', this.onKeyDown, true)
-    this.restore()
-    this.host?.remove()
+  private note(message: string): void {
+    if (this.status !== null) {
+      this.status.dataset['tone'] = 'info'
+      this.status.textContent = message
+    }
   }
 
-  private showError(cause: unknown): void {
-    if (this.error !== null) {
-      this.error.textContent = cause instanceof Error ? cause.message : String(cause)
+  private fail(cause: unknown): void {
+    if (this.status !== null) {
+      this.status.dataset['tone'] = 'error'
+      this.status.textContent = cause instanceof Error ? cause.message : String(cause)
     }
   }
 }

@@ -1932,7 +1932,15 @@ export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: 
  * 最近关闭的一条，够画出下拉里的那一行。
  */
 export type BrowserClosedTab = { url: string; title: string }
-export type BrowserElementPicked = { tabId: number; submission: BrowserPickSubmission; url: string; title: string; tagName: string; selector: string | null; role: string; ariaLabel: string; text: string; html: string; styles: string; componentName: string; sourceFile: string; sourceLine: number | null; sourceColumn: number | null; stack: string; styleChanges: string; comment: string; pickedAt: string }
+export type BrowserElementPicked = { tabId: number; submission: BrowserPickSubmission; 
+/**
+ * 一行身份，进提示词正文。
+ */
+summary: string; comment: string; 
+/**
+ * 完整快照落在系统临时目录里的这份文件上；提示词只带路径。
+ */
+reportPath: string }
 export type BrowserPickSubmission = "attach" | "send"
 /**
  * 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，

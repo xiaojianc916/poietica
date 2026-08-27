@@ -74,6 +74,9 @@ const BROWSER_DIRECTORY: &str = "browser";
 /// 谁是谁的。
 const BROWSER_PROFILE_DIRECTORY: &str = "profile";
 
+/// 系统临时目录下本应用的一格。
+const SYSTEM_TEMP_DIRECTORY: &str = "poietica";
+
 /// 根解析一次就固定。它在进程存续期间不会变，而每条命令都要问它。
 static ROOT: OnceLock<PathBuf> = OnceLock::new();
 
@@ -414,4 +417,24 @@ pub fn browser_profile<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     fs::create_dir_all(&directory)?;
 
     Ok(directory)
+}
+
+/// 把一次元素拾取的完整快照写进系统临时目录，返回它的路径。
+///
+/// 落在系统临时目录而不是数据根的 tmp：这是交给 agent 读一次的中转物，
+/// 不是用户数据，不进备份，寿命由系统的临时目录回收策略管。
+///
+/// # Errors
+///
+/// 目录无法创建、或文件无法写入时返回错误。
+pub fn write_element_report(report: &str) -> Result<PathBuf> {
+    let directory = std::env::temp_dir().join(SYSTEM_TEMP_DIRECTORY);
+
+    fs::create_dir_all(&directory)?;
+
+    let path = directory.join(format!("element-{}.txt", Uuid::now_v7().simple()));
+
+    fs::write(&path, report)?;
+
+    Ok(path)
 }
