@@ -1,36 +1,59 @@
 import '../app.css'
 
-import { type BrowserHostView, type BrowserPopupKind, BrowserPopupSurface } from '@poietica/browser'
+import {
+  type BrowserHostView,
+  type BrowserPopupRequest,
+  BrowserPopupSurface,
+} from '@poietica/browser'
+import { warn } from '@poietica/core'
+import { readBrowserPopup } from '@poietica/ipc'
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import { browserHostPort } from './browser-runtime'
+import { browserHostPort } from './browser-host-port'
 
-/*
- * 浮层窗口的入口。
- *
- * 第二个文档不是第二份状态：标签快照仍来自宿主那条全量广播，动作仍走同一批命令。
- * 主题是已解析值，随开窗参数带过来 —— 这个文档没有设置流，不自己再解析一次。
- */
+function closePopup(): void {
+  void browserHostPort.closePopup().catch((cause: unknown) => {
+    warn('浏览器浮层无法关闭', { scope: 'browser-popup', cause })
+  })
+}
 
-const parameters = new URLSearchParams(window.location.search)
-const requestedKind = parameters.get('kind')
-const requestedTheme = parameters.get('theme')
-
-function PopupWindow({ kind }: { readonly kind: BrowserPopupKind }) {
+function PopupWindow() {
   const [host, setHost] = useState<BrowserHostView | null>(null)
+  const [request, setRequest] = useState<BrowserPopupRequest | null>(null)
 
   useEffect(() => {
     let release: (() => void) | null = null
     let dropped = false
 
-    void browserHostPort.watch(setHost).then((stop) => {
-      if (dropped) {
-        stop()
-      } else {
+    void (async () => {
+      try {
+        const stop = await browserHostPort.watch((state) => {
+          if (!dropped) {
+            setHost(state)
+          }
+        })
+        if (dropped) {
+          stop()
+          return
+        }
+
         release = stop
+        const next = await readBrowserPopup()
+        if (dropped) {
+          return
+        }
+        if (next === null) {
+          closePopup()
+          return
+        }
+        document.documentElement.dataset['theme'] = next.theme
+        setRequest(next)
+      } catch (cause) {
+        warn('浏览器浮层没有拿到初始化快照', { scope: 'browser-popup', cause })
+        closePopup()
       }
-    })
+    })()
 
     return () => {
       dropped = true
@@ -41,49 +64,39 @@ function PopupWindow({ kind }: { readonly kind: BrowserPopupKind }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        void browserHostPort.closePopup()
+        closePopup()
       }
     }
+    const onBlur = () => closePopup()
 
     window.addEventListener('keydown', onKeyDown)
-
+    window.addEventListener('blur', onBlur)
     return () => {
       window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('blur', onBlur)
     }
   }, [])
 
-  if (host === null) {
+  if (host === null || request === null) {
     return null
   }
 
   return (
-    <BrowserPopupSurface
-      host={host}
-      kind={kind}
-      onDismiss={() => {
-        void browserHostPort.closePopup()
-      }}
-      port={browserHostPort}
-    />
+    <div className="h-full p-2">
+      <BrowserPopupSurface
+        host={host}
+        onAction={browserHostPort.dispatchPopupAction}
+        onDismiss={closePopup}
+        port={browserHostPort}
+        request={request}
+      />
+    </div>
   )
 }
 
-function mount(): void {
-  const container = document.getElementById('popup')
-
-  if (container === null) {
-    throw new Error('Browser popup document is missing its mount point.')
-  }
-
-  if (requestedKind !== 'overflow' && requestedKind !== 'tabs') {
-    throw new Error('Browser popup was opened without a known surface kind.')
-  }
-
-  if (requestedTheme !== null) {
-    document.documentElement.dataset['theme'] = requestedTheme
-  }
-
-  createRoot(container).render(<PopupWindow kind={requestedKind} />)
+const container = document.getElementById('popup')
+if (container === null) {
+  throw new Error('Browser popup document is missing its mount point.')
 }
 
-mount()
+createRoot(container).render(<PopupWindow />)

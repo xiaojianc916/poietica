@@ -1,96 +1,152 @@
+import { warn } from '@poietica/core'
 import { popupSurfaceClassName } from '@poietica/ui'
-import { Globe, LoaderCircle, Search, X } from 'lucide-react'
-import { type ReactNode, useMemo, useState } from 'react'
+import { Globe, LoaderCircle, MessagesSquare, Search, X } from 'lucide-react'
+import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useMemo, useState } from 'react'
 
 import type {
   BrowserHostPort,
   BrowserHostView,
-  BrowserPopupKind,
+  BrowserPopupAction,
+  BrowserPopupRequest,
   BrowserTabView,
   BrowserViewportRect,
 } from './browser-port'
 
-/*
- * 浮层的两张面。
- *
- * 它们画在 browser-popup 窗口里 —— 页面是主窗口的原生子 webview，主窗口的 HTML
- * 盖不过它。这个包不认识窗口：宿主给快照与端口，浮层只画和调。
- */
-
-const ROW = 32
-const FRAME = 10
+const TAB_ROW = 32
+const MENU_ROW = 40
+const POPUP_MARGIN = 8
+const POPUP_CHROME = 24
+const MENU_DIVIDER = 9
 const SEARCH_ROW = 44
 const GROUP_LABEL = 24
-const TABS_MAX_HEIGHT = 360
+const TABS_MAX_HEIGHT = 384
 const GAP = 4
 
-/** 窗口尺寸由内容算出，算法只有这一份：宿主照它开窗，浮层照它铺满。 */
 export function browserPopupSize(
-  kind: BrowserPopupKind,
+  request: Omit<BrowserPopupRequest, 'theme'>,
   host: BrowserHostView,
 ): { readonly width: number; readonly height: number } {
-  if (kind === 'overflow') {
-    return { width: 300, height: 2 * ROW + FRAME }
+  if (request.kind === 'overflow') {
+    return {
+      width: 360 + POPUP_MARGIN * 2,
+      height: MENU_ROW * 3 + MENU_DIVIDER + POPUP_CHROME,
+    }
   }
 
   const groups = host.recentlyClosed.length > 0 ? 2 : 1
-  const rows = Math.max(host.tabs.length, 1) + host.recentlyClosed.length
-  const natural = SEARCH_ROW + groups * GROUP_LABEL + rows * ROW + FRAME
+  const openRows = Math.max(request.panes.length + host.tabs.length, 1)
+  const rows = openRows + host.recentlyClosed.length
+  const natural = SEARCH_ROW + groups * GROUP_LABEL + rows * TAB_ROW + POPUP_CHROME
 
-  return { width: 320, height: Math.min(natural, TABS_MAX_HEIGHT) }
+  return { width: 352, height: Math.min(natural, TABS_MAX_HEIGHT) }
 }
 
-/** 从触发按钮算出浮层窗口的位置，并请宿主开窗。锚点算法只有这一份。 */
 export function requestBrowserPopup(
-  open: (kind: BrowserPopupKind, theme: string, rect: BrowserViewportRect) => void,
-  kind: BrowserPopupKind,
+  open: (request: BrowserPopupRequest, rect: BrowserViewportRect) => void,
+  request: Omit<BrowserPopupRequest, 'theme'>,
   host: BrowserHostView,
   trigger: HTMLElement,
 ): void {
   const bounds = trigger.getBoundingClientRect()
-  const size = browserPopupSize(kind, host)
+  const size = browserPopupSize(request, host)
 
-  open(kind, document.documentElement.dataset['theme'] ?? 'light', {
-    x: Math.max(bounds.right - size.width, 0),
-    y: bounds.bottom + GAP,
-    width: size.width,
-    height: size.height,
-  })
+  open(
+    {
+      ...request,
+      theme: document.documentElement.dataset['theme'] ?? 'light',
+    },
+    {
+      x: Math.max(bounds.right - size.width + POPUP_MARGIN, -POPUP_MARGIN),
+      y: Math.max(bounds.bottom + GAP - POPUP_MARGIN, -POPUP_MARGIN),
+      width: size.width,
+      height: size.height,
+    },
+  )
 }
 
 interface FaceProps {
   readonly host: BrowserHostView
+  readonly request: BrowserPopupRequest
   readonly port: BrowserHostPort
   readonly onDismiss: () => void
+  readonly onAction: (action: BrowserPopupAction) => Promise<void>
 }
 
-export interface BrowserPopupSurfaceProps extends FaceProps {
-  readonly kind: BrowserPopupKind
+export type BrowserPopupSurfaceProps = FaceProps
+
+function run(operation: string, task: () => Promise<void>, after?: () => void): void {
+  void task()
+    .catch((cause: unknown) => {
+      warn(`浏览器浮层操作失败：${operation}`, { scope: 'browser-popup', cause })
+    })
+    .finally(after)
 }
 
-export function BrowserPopupSurface({ kind, ...face }: BrowserPopupSurfaceProps) {
+function moveMenuFocus(event: ReactKeyboardEvent<HTMLDivElement>): void {
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    return
+  }
+
+  const items = Array.from(
+    event.currentTarget.querySelectorAll<HTMLButtonElement>(
+      'button[role="menuitem"]:not(:disabled)',
+    ),
+  )
+  if (items.length === 0) {
+    return
+  }
+
+  event.preventDefault()
+  const current = items.indexOf(document.activeElement as HTMLButtonElement)
+  let next = 0
+
+  if (event.key === 'End') {
+    next = items.length - 1
+  } else if (event.key === 'ArrowUp') {
+    next = current <= 0 ? items.length - 1 : current - 1
+  } else if (event.key === 'ArrowDown') {
+    next = current >= items.length - 1 ? 0 : current + 1
+  }
+
+  items[next]?.focus()
+}
+
+export function BrowserPopupSurface({ request, ...face }: BrowserPopupSurfaceProps) {
+  const overflow = request.kind === 'overflow'
+
   return (
-    <div className={`${popupSurfaceClassName} flex h-full flex-col p-1 text-[13px]`}>
-      {kind === 'overflow' ? <OverflowFace {...face} /> : <TabsFace {...face} />}
+    <div
+      aria-label={overflow ? '更多操作' : '标签页列表'}
+      className={`${popupSurfaceClassName} flex h-full flex-col p-1 text-sm`}
+      onKeyDown={overflow ? moveMenuFocus : undefined}
+      role={overflow ? 'menu' : 'dialog'}
+    >
+      {overflow ? (
+        <OverflowFace {...face} request={request} />
+      ) : (
+        <TabsFace {...face} request={request} />
+      )}
     </div>
   )
 }
 
-/* 行的形状照图二：无字形、单行、32px、圆角 4px，禁用态只降不透明度。 */
 function MenuRow({
+  autoFocus = false,
   children,
   disabled = false,
   onSelect,
 }: {
+  readonly autoFocus?: boolean
   readonly children: ReactNode
   readonly disabled?: boolean
   readonly onSelect: () => void
 }) {
   return (
     <button
-      className="flex h-8 w-full shrink-0 items-center rounded-[4px] px-3 text-left enabled:hover:bg-current/10 disabled:opacity-40"
+      className="flex h-10 w-full shrink-0 items-center rounded-md px-4 text-left enabled:hover:bg-current/10 disabled:opacity-40"
       disabled={disabled}
       onClick={onSelect}
+      role="menuitem"
       type="button"
     >
       <span className="min-w-0 flex-1 truncate">{children}</span>
@@ -98,7 +154,10 @@ function MenuRow({
   )
 }
 
-/* 「…」菜单：禁用态跟着「有没有真的页面」走。 */
+function MenuDivider() {
+  return <div className="mx-3 my-1 h-px shrink-0 bg-current/10" role="separator" />
+}
+
 function OverflowFace({ host, port, onDismiss }: FaceProps) {
   const tab = host.tabs.find((candidate) => candidate.id === host.activeTabId) ?? null
   const url = tab?.url ?? null
@@ -106,25 +165,33 @@ function OverflowFace({ host, port, onDismiss }: FaceProps) {
   return (
     <>
       <MenuRow
+        autoFocus={url !== null}
+        disabled={url === null}
+        onSelect={() => {
+          if (tab !== null) {
+            run('print', () => port.print(tab.id), onDismiss)
+          }
+        }}
+      >
+        打印
+      </MenuRow>
+      <MenuDivider />
+      <MenuRow
         disabled={url === null}
         onSelect={() => {
           if (url !== null) {
-            void port.openExternal(url)
+            run('open-external', () => port.openExternal(url), onDismiss)
           }
-
-          onDismiss()
         }}
       >
         在默认浏览器中打开
       </MenuRow>
       <MenuRow
-        disabled={tab === null}
+        disabled={url === null || tab === null}
         onSelect={() => {
           if (tab !== null) {
-            void port.openDevtools(tab.id)
+            run('open-devtools', () => port.openDevtools(tab.id), onDismiss)
           }
-
-          onDismiss()
         }}
       >
         打开调试工具
@@ -137,20 +204,20 @@ function matches(title: string, url: string | null, needle: string): boolean {
   if (needle === '') {
     return true
   }
-
   return title.toLowerCase().includes(needle) || (url?.toLowerCase().includes(needle) ?? false)
 }
 
-function TabsFace({ host, port, onDismiss }: FaceProps) {
+function TabsFace({ host, request, port, onDismiss, onAction }: FaceProps) {
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
-
+  const panes = useMemo(
+    () => request.panes.filter((pane) => matches(pane.title, null, needle)),
+    [request.panes, needle],
+  )
   const openTabs = useMemo(
     () => host.tabs.filter((tab) => matches(tab.title, tab.url, needle)),
     [host.tabs, needle],
   )
-
-  /* 环里的序号就是宿主 reopen 的地址，过滤前先钉住，过滤后不重算。 */
   const closedTabs = useMemo(
     () =>
       host.recentlyClosed
@@ -165,11 +232,8 @@ function TabsFace({ host, port, onDismiss }: FaceProps) {
         <Search aria-hidden className="size-3.5 shrink-0 opacity-50" />
         <input
           aria-label="搜索标签页"
-          autoFocus
           className="w-full bg-transparent text-xs outline-none placeholder:opacity-50"
-          onChange={(event) => {
-            setQuery(event.target.value)
-          }}
+          onChange={(event) => setQuery(event.target.value)}
           placeholder="搜索标签页…"
           value={query}
         />
@@ -177,32 +241,109 @@ function TabsFace({ host, port, onDismiss }: FaceProps) {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <p className="px-3 pb-1 pt-2 text-[11px] opacity-50">打开的标签页</p>
-        {openTabs.map((tab) => (
-          <div className="group flex items-center rounded-[4px] hover:bg-current/10" key={tab.id}>
+        {panes.map((pane) => (
+          <div
+            className={
+              'group flex items-center rounded-md ' +
+              (request.activePaneId === pane.id ? 'bg-current/10' : 'hover:bg-current/10')
+            }
+            key={pane.id}
+          >
             <button
               className="flex h-8 min-w-0 flex-1 items-center gap-2 px-3"
-              onClick={() => {
-                void port.selectTab(tab.id)
-                onDismiss()
-              }}
+              onClick={() =>
+                run(
+                  'select-pane',
+                  () =>
+                    onAction({
+                      action: 'select-pane',
+                      paneId: pane.id,
+                      tabId: null,
+                      index: null,
+                    }),
+                  onDismiss,
+                )
+              }
               type="button"
             >
-              <TabIcon tab={tab} />
-              <span className="min-w-0 truncate text-xs">{tab.title}</span>
+              <MessagesSquare aria-hidden className="size-3.5 shrink-0 opacity-60" />
+              <span className="min-w-0 truncate text-xs">{pane.title}</span>
             </button>
             <button
               aria-label="关闭标签页"
               className="mr-1 rounded p-0.5 opacity-0 hover:bg-current/10 group-hover:opacity-60 hover:opacity-100"
-              onClick={() => {
-                void port.closeTab(tab.id)
-              }}
+              onClick={() =>
+                run(
+                  'close-pane',
+                  () =>
+                    onAction({
+                      action: 'close-pane',
+                      paneId: pane.id,
+                      tabId: null,
+                      index: null,
+                    }),
+                  onDismiss,
+                )
+              }
               type="button"
             >
               <X aria-hidden className="size-3" />
             </button>
           </div>
         ))}
-        {openTabs.length === 0 ? (
+
+        {openTabs.map((tab) => {
+          const active = request.activePaneId === null && tab.id === host.activeTabId
+          return (
+            <div
+              className={
+                'group flex items-center rounded-md ' +
+                (active ? 'bg-current/10' : 'hover:bg-current/10')
+              }
+              key={tab.id}
+            >
+              <button
+                className="flex h-8 min-w-0 flex-1 items-center gap-2 px-3"
+                onClick={() =>
+                  run(
+                    'select-tab',
+                    () =>
+                      onAction({
+                        action: 'select-tab',
+                        paneId: null,
+                        tabId: tab.id,
+                        index: null,
+                      }),
+                    onDismiss,
+                  )
+                }
+                type="button"
+              >
+                <TabIcon tab={tab} />
+                <span className="min-w-0 truncate text-xs">{tab.title}</span>
+              </button>
+              <button
+                aria-label="关闭标签页"
+                className="mr-1 rounded p-0.5 opacity-0 hover:bg-current/10 group-hover:opacity-60 hover:opacity-100"
+                onClick={() =>
+                  run('close-tab', () =>
+                    onAction({
+                      action: 'close-tab',
+                      paneId: null,
+                      tabId: tab.id,
+                      index: null,
+                    }),
+                  )
+                }
+                type="button"
+              >
+                <X aria-hidden className="size-3" />
+              </button>
+            </div>
+          )
+        })}
+
+        {panes.length + openTabs.length === 0 ? (
           <p className="px-3 py-1.5 text-xs opacity-50">没有匹配的标签页</p>
         ) : null}
 
@@ -211,12 +352,21 @@ function TabsFace({ host, port, onDismiss }: FaceProps) {
             <p className="px-3 pb-1 pt-2 text-[11px] opacity-50">最近关闭的标签页</p>
             {closedTabs.map(({ entry, index }) => (
               <button
-                className="flex h-8 w-full min-w-0 items-center gap-2 rounded-[4px] px-3 hover:bg-current/10"
+                className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-3 hover:bg-current/10"
                 key={entry.url + String(index)}
-                onClick={() => {
-                  void port.reopenClosed(index)
-                  onDismiss()
-                }}
+                onClick={() =>
+                  run(
+                    'reopen-closed',
+                    () =>
+                      onAction({
+                        action: 'reopen-closed',
+                        paneId: null,
+                        tabId: null,
+                        index,
+                      }),
+                    onDismiss,
+                  )
+                }
                 type="button"
               >
                 <Globe aria-hidden className="size-3.5 shrink-0 opacity-40" />
@@ -230,15 +380,12 @@ function TabsFace({ host, port, onDismiss }: FaceProps) {
   )
 }
 
-/* 标签的脸：装载中转圈，有站点图标就画它，否则地球。 */
 function TabIcon({ tab }: { readonly tab: BrowserTabView }) {
   if (tab.loading) {
     return <LoaderCircle aria-hidden className="size-3.5 shrink-0 animate-spin opacity-60" />
   }
-
   if (tab.favicon === null) {
     return <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
   }
-
   return <img alt="" className="size-3.5 shrink-0 rounded-sm" src={tab.favicon} />
 }

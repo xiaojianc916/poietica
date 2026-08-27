@@ -1057,6 +1057,9 @@ async browserForward(id: number) : Promise<void> {
 async browserReload(id: number) : Promise<void> {
     await TAURI_INVOKE("browser_reload", { id });
 },
+async browserPrint(id: number) : Promise<null> {
+    return await TAURI_INVOKE("browser_print", { id });
+},
 /**
  * 重开最近关闭下拉里的第 index 条。
  */
@@ -1093,17 +1096,17 @@ async browserDevtoolsEndpoint() : Promise<string | null> {
 async browserSetElementPicker(id: number, enabled: boolean) : Promise<void> {
     await TAURI_INVOKE("browser_set_element_picker", { id, enabled });
 },
-/**
- * 打开浮层。锚点与尺寸是主窗口客户区的逻辑坐标，与视口矩形同一套坐标系。
- * 
- * 每次打开都新建、关闭即销毁：菜单本来就是一次性表面，这样不必维护复用状态，
- * 也让它永远是最后创建的那个原生表面。
- */
-async openBrowserPopup(kind: string, theme: string, x: number, y: number, width: number, height: number) : Promise<void> {
-    await TAURI_INVOKE("open_browser_popup", { kind, theme, x, y, width, height });
+async openBrowserPopup(request: BrowserPopupRequest, x: number, y: number, width: number, height: number) : Promise<null> {
+    return await TAURI_INVOKE("open_browser_popup", { request, x, y, width, height });
 },
-async closeBrowserPopup() : Promise<void> {
-    await TAURI_INVOKE("close_browser_popup");
+async browserPopupState() : Promise<BrowserPopupRequest | null> {
+    return await TAURI_INVOKE("browser_popup_state");
+},
+async browserPopupDispatchAction(action: BrowserPopupAction) : Promise<null> {
+    return await TAURI_INVOKE("browser_popup_dispatch_action", { action });
+},
+async closeBrowserPopup() : Promise<null> {
+    return await TAURI_INVOKE("close_browser_popup");
 }
 }
 
@@ -1114,6 +1117,7 @@ export const events = __makeEvents__<{
 automationCatalogChanged: AutomationCatalogChanged,
 automationDue: AutomationDue,
 browserElementPicked: BrowserElementPicked,
+browserPopupAction: BrowserPopupAction,
 browserState: BrowserState,
 updateProgress: UpdateProgress,
 windowMaximized: WindowMaximized
@@ -1121,6 +1125,7 @@ windowMaximized: WindowMaximized
 automationCatalogChanged: "automation-catalog-changed",
 automationDue: "automation-due",
 browserElementPicked: "browser-element-picked",
+browserPopupAction: "browser-popup-action",
 browserState: "browser-state",
 updateProgress: "update-progress",
 windowMaximized: "window-maximized"
@@ -1954,6 +1959,11 @@ summary: string; comment: string;
  */
 reportPath: string }
 export type BrowserPickSubmission = "attach" | "send"
+export type BrowserPopupAction = { action: BrowserPopupActionKind; paneId: string | null; tabId: number | null; index: number | null }
+export type BrowserPopupActionKind = "select-pane" | "close-pane" | "select-tab" | "close-tab" | "reopen-closed"
+export type BrowserPopupKind = "overflow" | "tabs"
+export type BrowserPopupPane = { id: string; title: string }
+export type BrowserPopupRequest = { kind: BrowserPopupKind; theme: string; panes: BrowserPopupPane[]; activePaneId: string | null }
 /**
  * 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，
  * 增量协议换来的只是两侧各一份需要对账的账本。

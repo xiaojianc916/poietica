@@ -163,8 +163,14 @@ function BrowserToolbar({ activeTab, actions, host, pickerActive }: BrowserToolb
       <ToolbarButton
         label="更多操作"
         onClick={(event) => {
-          requestBrowserPopup(actions.openPopup, 'overflow', host, event.currentTarget)
+          requestBrowserPopup(
+            actions.openPopup,
+            { kind: 'overflow', panes: [], activePaneId: null },
+            host,
+            event.currentTarget,
+          )
         }}
+        popup
       >
         <MoreHorizontal aria-hidden className="size-4" />
       </ToolbarButton>
@@ -237,16 +243,19 @@ function ToolbarButton({
   disabled,
   label,
   onClick,
+  popup,
   pressed,
 }: {
   readonly children: ReactNode
   readonly disabled?: boolean
   readonly label: string
   readonly onClick: (event: MouseEvent<HTMLButtonElement>) => void
+  readonly popup?: boolean
   readonly pressed?: boolean
 }) {
   return (
     <button
+      aria-haspopup={popup ? 'menu' : undefined}
       aria-label={label}
       aria-pressed={pressed}
       className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 enabled:hover:bg-current/10 enabled:hover:opacity-100 aria-pressed:bg-current/10 aria-pressed:opacity-100 disabled:opacity-30"

@@ -12,6 +12,7 @@ use tauri::Wry;
 use tauri_specta::{Builder, ErrorHandlingMode};
 
 use crate::browser::{BrowserElementPicked, BrowserState};
+use crate::browser_popup::{BrowserPopupAction, BrowserPopupRequest};
 use crate::commands::{
     agent::dto::{
         AgentAnswerQuestionsRequest, AgentArchiveThreadRequest, AgentCapabilitiesRequest,
@@ -144,6 +145,7 @@ pub fn surface() -> Builder<Wry> {
             crate::browser::browser_back,
             crate::browser::browser_forward,
             crate::browser::browser_reload,
+            crate::browser::browser_print,
             crate::browser::browser_reopen_closed,
             crate::browser::browser_set_bounds,
             crate::browser::browser_set_visible,
@@ -151,12 +153,15 @@ pub fn surface() -> Builder<Wry> {
             crate::browser::browser_devtools_endpoint,
             crate::browser::browser_set_element_picker,
             crate::browser_popup::open_browser_popup,
+            crate::browser_popup::browser_popup_state,
+            crate::browser_popup::browser_popup_dispatch_action,
             crate::browser_popup::close_browser_popup,
         ])
         .events(tauri_specta::collect_events![
             AutomationCatalogChanged,
             AutomationDue,
             BrowserElementPicked,
+            BrowserPopupAction,
             BrowserState,
             UpdateProgress,
             WindowMaximized
@@ -226,4 +231,6 @@ pub fn surface() -> Builder<Wry> {
         .typ::<ProviderProbeOutcome>()
         .typ::<UpdateRelease>()
         .typ::<GitBranches>()
+        .typ::<BrowserPopupRequest>()
+        .typ::<BrowserPopupAction>()
 }

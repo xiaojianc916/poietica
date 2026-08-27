@@ -1,23 +1,22 @@
 import { throughIpc } from './error'
 import { commands, events } from './generated/ipc-bindings'
 
-/*
- * 内置浏览器的 IPC 面。
- *
- * DTO 一个字都不在这里声明：原生侧的 browser.rs 是权威，形状经由生成绑定过来。
- * 状态是原生侧广播的全量快照 —— 挂监听与「现在就看一眼」合成一个函数，顺序
- * 固定为先挂后拉，与 automations.ts 的 watch 同一条规矩。
- */
-
 export type {
   BrowserClosedTab,
   BrowserElementPicked,
   BrowserPickSubmission,
+  BrowserPopupAction,
+  BrowserPopupRequest,
   BrowserState,
   BrowserTab,
 } from './generated/ipc-bindings'
 
-import type { BrowserElementPicked, BrowserState } from './generated/ipc-bindings'
+import type {
+  BrowserElementPicked,
+  BrowserPopupAction,
+  BrowserPopupRequest,
+  BrowserState,
+} from './generated/ipc-bindings'
 
 export interface BrowserViewportBounds {
   readonly x: number
@@ -34,8 +33,15 @@ export async function watchBrowserState(
   })
 
   onState(await throughIpc(() => commands.browserState()))
-
   return unlisten
+}
+
+export function watchBrowserPopupActions(
+  onAction: (action: BrowserPopupAction) => void,
+): Promise<() => void> {
+  return events.browserPopupAction.listen((event) => {
+    onAction(event.payload)
+  })
 }
 
 export function openBrowserTab(url: string | null): Promise<void> {
@@ -66,6 +72,10 @@ export function browserTabReload(id: number): Promise<void> {
   return throughIpc(() => commands.browserReload(id))
 }
 
+export async function printBrowserTab(id: number): Promise<void> {
+  await throughIpc(() => commands.browserPrint(id))
+}
+
 export function reopenClosedBrowserTab(index: number): Promise<void> {
   return throughIpc(() => commands.browserReopenClosed(index))
 }
@@ -84,38 +94,40 @@ export function openBrowserDevtools(id: number): Promise<void> {
   return throughIpc(() => commands.browserOpenDevtools(id))
 }
 
-/** 图三「在默认浏览器中打开」：复用既有的 window 命令，协议白名单在原生侧。 */
 export function openBrowserUrlExternally(url: string): Promise<void> {
   return throughIpc(() => commands.windowOpenExternalUrl(url))
 }
 
-/** 内核 CDP 端点；非 Windows 或端口没抽到时为 null，mcp.json 对账用。 */
 export function browserDevtoolsEndpoint(): Promise<string | null> {
   return throughIpc(() => commands.browserDevtoolsEndpoint())
 }
 
-/** 浮层窗口：原生子 webview 盖过主窗口 HTML，只能另开一个原生窗来画。 */
-export function openBrowserPopup(
-  kind: string,
-  theme: string,
+export async function openBrowserPopup(
+  request: BrowserPopupRequest,
   x: number,
   y: number,
   width: number,
   height: number,
 ): Promise<void> {
-  return throughIpc(() => commands.openBrowserPopup(kind, theme, x, y, width, height))
+  await throughIpc(() => commands.openBrowserPopup(request, x, y, width, height))
 }
 
-export function closeBrowserPopup(): Promise<void> {
-  return throughIpc(() => commands.closeBrowserPopup())
+export function readBrowserPopup(): Promise<BrowserPopupRequest | null> {
+  return throughIpc(() => commands.browserPopupState())
 }
 
-/** 显式开启或关闭元素选择；真实状态由 BrowserState.pickingTabId 返回。 */
+export async function sendBrowserPopupAction(action: BrowserPopupAction): Promise<void> {
+  await throughIpc(() => commands.browserPopupDispatchAction(action))
+}
+
+export async function closeBrowserPopup(): Promise<void> {
+  await throughIpc(() => commands.closeBrowserPopup())
+}
+
 export function setBrowserElementPicker(id: number, enabled: boolean): Promise<void> {
   return throughIpc(() => commands.browserSetElementPicker(id, enabled))
 }
 
-/** 拾取结果流。只挂监听 —— 没有「当前值」可拉，事件只在点下那一刻存在。 */
 export function watchBrowserElementPicked(
   onPicked: (picked: BrowserElementPicked) => void,
 ): Promise<() => void> {

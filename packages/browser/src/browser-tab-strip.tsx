@@ -132,7 +132,16 @@ export function BrowserTabStrip({
         aria-label="标签页列表"
         className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100"
         onClick={(event) => {
-          requestBrowserPopup(actions.openPopup, 'tabs', host, event.currentTarget)
+          requestBrowserPopup(
+            actions.openPopup,
+            {
+              kind: 'tabs',
+              panes: paneIds.map((id) => ({ id, title: paneName(id) })),
+              activePaneId,
+            },
+            host,
+            event.currentTarget,
+          )
         }}
         type="button"
       >

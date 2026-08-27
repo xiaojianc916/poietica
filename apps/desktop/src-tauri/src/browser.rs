@@ -15,8 +15,8 @@
 //!     没有 remote 声明，外站 origin 在 Tauri 里调不动任何 IPC 命令；
 //!   · 空白页没有画面 —— 预热出的内核实例始终隐藏，新标签页由渲染层画。
 //!
-//! 命令都不返回 Result：与 commands/window.rs 同一条规矩 —— 界面动作打不动
-//! 内核不是调用方要接的错误，记进原生日志。
+//! 导航动作依靠状态快照自愈；需要系统表面的动作返回统一错误，调用方不得把
+//! “没有发生任何事”伪装成成功。
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -27,6 +27,7 @@ use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Url, WebviewUrl, c
 use tauri_specta::Event;
 
 use crate::bootstrap::app::MAIN_WINDOW;
+use crate::error::{Error, IpcError};
 
 /// 子 webview 的 label 前缀。capability 按窗口配给 "main"，但这些 webview
 /// 永远是外部 origin，remote 未声明即无 IPC —— 前缀只用于归属与调试。
@@ -662,6 +663,19 @@ pub async fn browser_reload(app: AppHandle, id: u32) {
         publish(&app);
     }
     run_in_page(&app, id, "location.reload()");
+}
+
+#[command]
+#[specta::specta]
+pub async fn browser_print(app: AppHandle, id: u32) -> Result<(), IpcError> {
+    let webview = {
+        let host = app.state::<BrowserHost>();
+        lock(&host.webviews).get(&id).cloned()
+    }
+    .ok_or_else(|| Error::NotFound("browser tab".to_owned()))?;
+
+    webview.eval("window.print()").map_err(Error::from)?;
+    Ok(())
 }
 
 fn run_in_page(app: &AppHandle, id: u32, script: &str) -> bool {

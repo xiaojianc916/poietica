@@ -8,6 +8,9 @@ export {
 export type {
   BrowserHostPort,
   BrowserHostView,
+  BrowserPopupAction,
   BrowserPopupKind,
+  BrowserPopupPaneView,
+  BrowserPopupRequest,
   BrowserViewportRect,
 } from './browser-port'

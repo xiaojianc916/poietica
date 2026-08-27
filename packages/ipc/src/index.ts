@@ -35,6 +35,8 @@ export {
 } from './automations'
 export {
   type BrowserElementPicked,
+  type BrowserPopupAction,
+  type BrowserPopupRequest,
   browserDevtoolsEndpoint,
   browserTabBack,
   browserTabForward,
@@ -46,12 +48,16 @@ export {
   openBrowserPopup,
   openBrowserTab,
   openBrowserUrlExternally,
+  printBrowserTab,
+  readBrowserPopup,
   reopenClosedBrowserTab,
   selectBrowserTab,
+  sendBrowserPopupAction,
   setBrowserElementPicker,
   setBrowserViewportBounds,
   setBrowserVisible,
   watchBrowserElementPicked,
+  watchBrowserPopupActions,
   watchBrowserState,
 } from './browser'
 export {
