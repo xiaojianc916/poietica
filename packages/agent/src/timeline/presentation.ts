@@ -99,14 +99,12 @@ const TURN_OF = new WeakMap<FeedRow, ConversationTurn>()
 const FEEDS = new WeakMap<TimelineState, Held>()
 
 interface Scan {
-  readonly answered: boolean
   readonly reply: string | undefined
 }
 
 interface Staged {
   readonly row: FeedRow
   readonly rowIndex: number
-  readonly answered: boolean
   readonly reply: string | undefined
 }
 
@@ -313,44 +311,16 @@ function firstLine(text: string): string {
   return stop < 0 ? trimmed : trimmed.slice(0, stop)
 }
 
-function leavesAMark(item: TimelineItem): boolean {
-  switch (item.type) {
-    case 'agent_text':
-    case 'agent_thought':
-      return item.text.length > 0
-    case 'tool_call':
-      return true
-    case 'plan':
-      return item.entries.length > 0
-    case 'question':
-      return item.resolution !== undefined
-    case 'error':
-    case 'inflight_prompt':
-    case 'link':
-    case 'permission':
-    case 'user_message':
-      return false
-  }
-}
-
 function scan(rows: readonly FeedRow[], from: number, until: number): Scan {
-  let answered = false
-
   for (let i = from; i < until; i += 1) {
     const item = rows[i]?.item
 
-    if (item === undefined || !leavesAMark(item)) {
-      continue
-    }
-
-    answered = true
-
-    if (item.type === 'agent_text') {
-      return { answered, reply: item.text.slice(0, PREVIEW) }
+    if (item?.type === 'agent_text') {
+      return { reply: item.text.slice(0, PREVIEW) }
     }
   }
 
-  return { answered, reply: undefined }
+  return { reply: undefined }
 }
 
 function groupIn(rows: readonly FeedRow[]): {
@@ -435,7 +405,7 @@ function stageIn(rows: readonly FeedRow[]): {
 
     const found = scan(rows, rowIndex + 1, marks[i + 1] ?? rows.length)
 
-    staged.push({ answered: found.answered, reply: found.reply, row, rowIndex })
+    staged.push({ reply: found.reply, row, rowIndex })
   }
 
   return { leading: scan(rows, 0, marks[0] ?? rows.length), staged }
@@ -635,7 +605,6 @@ function toTurn(row: FeedRow, rowIndex: number, reply: string | undefined): Conv
 
 /** 段尾那一问的应答可能落在后面的段里：往后扫，直到撞见下一个有提问的段。 */
 function carriedScan(segments: readonly Segment[], from: number): Scan | undefined {
-  let answered = false
   let reply: string | undefined
 
   for (let k = from; k < segments.length; k += 1) {
@@ -645,7 +614,6 @@ function carriedScan(segments: readonly Segment[], from: number): Scan | undefin
       continue
     }
 
-    answered = answered || next.leading.answered
     reply = reply ?? next.leading.reply
 
     if (next.staged.length > 0) {
@@ -653,7 +621,7 @@ function carriedScan(segments: readonly Segment[], from: number): Scan | undefin
     }
   }
 
-  return answered || reply !== undefined ? { answered, reply } : undefined
+  return reply === undefined ? undefined : { reply }
 }
 
 function flatStaged(segments: readonly Segment[], offsets: readonly number[]): readonly Staged[] {
@@ -678,7 +646,6 @@ function flatStaged(segments: readonly Segment[], offsets: readonly number[]): r
       const carried = i === segment.staged.length - 1 ? carriedScan(segments, s + 1) : undefined
 
       flat.push({
-        answered: one.answered || (carried?.answered ?? false),
         reply: one.reply ?? carried?.reply,
         row: one.row,
         rowIndex: start + one.rowIndex,
@@ -689,29 +656,9 @@ function flatStaged(segments: readonly Segment[], offsets: readonly number[]): r
   return flat
 }
 
-/** 没人应答的一问并进下一格，入口行号跟着它走。 */
+/** 一条用户消息就是一轮；回复缺席不会改变该轮的身份或入口。 */
 function turnsFrom(flat: readonly Staged[]): readonly ConversationTurn[] {
-  const built: ConversationTurn[] = []
-  let carried: number | undefined
-
-  for (let i = 0; i < flat.length; i += 1) {
-    const one = flat[i]
-
-    if (one === undefined) {
-      continue
-    }
-
-    if (!one.answered && i + 1 < flat.length) {
-      carried = carried ?? one.rowIndex
-
-      continue
-    }
-
-    built.push(toTurn(one.row, carried ?? one.rowIndex, one.reply))
-    carried = undefined
-  }
-
-  return built
+  return flat.map((one) => toTurn(one.row, one.rowIndex, one.reply))
 }
 
 function railOf(

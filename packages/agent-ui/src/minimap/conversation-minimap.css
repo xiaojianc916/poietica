@@ -1,382 +1,141 @@
-/*
- * The turn rail.
- *
- * It stands on the leading edge of the panel, over the scrollport and outside
- * it, so it never moves with the run. Its own metrics are the only numbers it
- * declares, and they are declared once, at the top: everything below is a
- * calc() over them and over the surface tokens.
- *
- * The fisheye is one multiplication. A hook writes a weight between 0 and 1
- * per bar; length is that weight interpolated between rest and gain. Thickness
- * is a constant and takes no part — see the note on --cp-rail-weight-line. No
- * script sets a pixel, so the resting geometry stays readable here.
- *
- * Every edge in this file lands on a whole pixel, and that is a chain, not a
- * property of any one declaration: the rail top is rounded, the pitch is a
- * multiple of four, and the bar sits at an integer offset inside its cell.
- * Centring a 3px mark in a 12px cell would put its edge on a half pixel, so
- * it is not centred — see the note on the bar.
- */
-/*
- * 一格的高度,也就是步距 —— 这里不留间距,所以两者是同一个数。
- *
- * 为什么必须是 4 的倍数:CSS 像素不是设备像素。Windows 的显示缩放是 25% 的
- * 整数倍,于是 1 CSS px 等于 k/4 个设备像素。步距曾经是 13,在 125% 下就是
- * 16.25 个设备像素 —— 每往下一格,横条的小数相位就挪 0.25,四格一循环。3px
- * 的横条在相位 .0 上摊成 4 行、在 .5 上摊成 5 行,于是同样的声明栅格化出深浅
- * 不同的两种横条,读作"初始粗细不一样"。150% 下更糙:19.5,隔一根变一次。
- *
- * 12 乘任何 k/4 都是整数,所有格子因此共用同一个相位 —— 未必都锐利,但一定
- * 都一样。这是这个数唯一的理由,改它之前先把上面这段读完。
- *
- * 顺带:12 比原先的 11 还大一点点,命中区更好按。
- */
 .conversation-minimap {
-  --cp-rail-hit: 12px;
-  --cp-rail-len: calc(var(--cp-rail-dpx) * 9);
-  --cp-rail-gain: 25px;
-  /*
-   * 厚度是常量，而且用设备像素定义：3 × dpx，永久是屏幕上的 3px。
-   *
-   * 不能用 CSS px 写死。Windows 的显示缩放是 25% 的整数倍，1 CSS px = k/4
-   * 个设备像素，3 CSS px 在 125% 下是 3.75、150% 下是 4.5、175% 下是 5.25 ——
-   * 栅格化摊成 4 到 5 行，首尾各带一条抗锯齿灰边，量出来就是「5px」。
-   * 3 × k/4 只在 k 为 4 的倍数（100%、200%）时是整数 —— 本文件为步距立的
-   * 那条规矩（见 --cp-rail-hit），厚度这最后一环自己也得遵守。dpx 按档位
-   * 在文件底部的媒体查询里改写；整数缩放下 3 CSS px 本就是整数个设备像素，
-   * 基态即真值，不用媒体查询。
-   *
-   * 厚度仍然不是通道：指针的远近由长度说，手底下是哪一根由 data-aimed 的
-   * 墨色说。一个通道说一件事。
-   */
-  --cp-rail-dpx: 1px;
-  --cp-rail-weight-line: calc(var(--cp-rail-dpx) * 3);
-  --cp-rail-ink-rest: #d2d3d3;
-  --cp-rail-ink-active: #767779;
-  --cp-rail-ink-aimed: #1a1c1f;
-  /* 从没有卡片到有卡片,等这么久。已经有卡片时换格不等 —— 门槛只翻一次。 */
-  --cp-rail-card-delay: 90ms;
-
-  /* 指针离开轨道后的宽限。擦边而过不该让卡片闪一下。 */
-  --cp-rail-card-leave: 60ms;
-
-  /*
-   * 轨道离面板上下边缘留多少。
-   *
-   * 这里原本借的是 --cp-pad-mid —— 那是排版留白,给的是内容与边框之间"读起来
-   * 舒服"的距离,而这里问的是另一件事:轨道不贴边就够了。借来的数当时看着合理,
-   * 代价是白削掉二十来个像素、少放将近两格。
-   *
-   * 它只在这里出现。此前 JS 那边还有一份副本,用来把可用高度折算成格数 —— 那条
-   * 线已经删了(格数只由轮数决定,由 RAIL_MAX_BARS 封顶),于是这个数不再需要第二处副本。
-   */
-  --cp-rail-inset: 2px;
+  --conversation-minimap-active: #1a1c1f;
+  --conversation-minimap-ink: #d2d3d3;
 
   position: absolute;
-  z-index: 2;
-  inset-block-start: 50%;
+  z-index: 3;
+  inset-block: 0;
   inset-inline-start: var(--cp-optical);
   display: flex;
-  flex-direction: column;
-  translate: 0 -50%;
-
-  /*
-   * 轨道不许长过面板。
-   *
-   * 总高是 12N,而 N 由并格封在 RAIL_MAX_BARS = 32(rail-groups.ts),所以总高
-   * 不超过 384px —— 窗口的 minHeight 是 600,常规尺寸下这条护栏不生效。留着它是
-   * 因为它是唯一的护栏:溢出该由样式表裁掉,而不是让脚本量一遍高度再反推格数。
-   */
-  max-block-size: calc(100% - var(--cp-rail-inset) * 2);
+  align-items: center;
+  inline-size: var(--conversation-minimap-track);
+  pointer-events: none;
 }
 
-/*
- * 整条轨道站在设备像素的整数上。
- *
- * inset-block-start: 50% 是相对父容器高度算的，父容器高度是奇数时它就落在
- * 半个像素上。这里必须对齐设备像素网格而不是 CSS 像素网格：杠的厚度恰是
- * 3 个设备像素，轨道顶边若落在半格上，整列杠的相位整体偏半格，每根杠的
- * 首尾两行都只被覆盖一半。取整的步长因此是 dpx；轨道比完美居中至多高出
- * 一个设备像素 —— 那个看不见，糊边看得见。
- *
- * @supports 是护栏而不是客套：round() 里放百分比需要较新的引擎，而这里是
- * 定位属性 —— 声明一旦无效被丢掉，inset-block-start 会退回 auto，轨道直接甩
- * 到容器顶上。包起来就只是不生效，退回现在的行为。
- */
-@supports (inset-block-start: round(down, 50%, 1px)) {
-  .conversation-minimap {
-    inset-block-start: round(down, 50%, var(--cp-rail-dpx));
-    translate: 0 calc(-1 * round(down, 50%, var(--cp-rail-dpx)));
-  }
+.conversation-minimap__scroller {
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-block-size: 50%;
+  padding-block: var(--conversation-minimap-padding);
+  pointer-events: auto;
+  scrollbar-color: var(--conversation-minimap-active) transparent;
+  scrollbar-width: thin;
 }
 
-/*
- * 一格的盒子,尺寸恒定。
- *
- * inline-size 是横条能达到的最大宽度。不写它的时候,列向 flex 的子项横向收缩
- * 包裹到内容宽度,而内容就是那根 9px→23px 逐帧变化的横条 —— 于是按钮自己每帧
- * 换宽度,挂在它 100% 上的卡片就跟着横向漂移 14px。那也是"逐帧测量卡片右边界"
- * 那条路走不通的根因:卡片到轨道的距离恒等于一个间距,量它回答的是另一个问题。
- *
- * 固定之后:卡片的左边界是一条真正不动的竖线;轨道整体的盒子不再逐帧改变尺寸,
- * 逐帧布局被关进单根横条内部;而卡片只在权重接近 1、横条已接近最大宽度时才
- * 可见,所以它最终停的位置几乎不变 —— 变的只是淡入过程中的那段漂移。
- *
- * 父级的 align-items 因此可以去掉:所有子项等宽,对齐无从谈起。
- */
-.conversation-minimap__turn {
-  --cp-rail-weight: 0;
-
+.conversation-minimap__track {
   position: relative;
+  inline-size: var(--conversation-minimap-track);
+}
+
+.conversation-minimap__list {
   display: flex;
-
-  /*
-   * 步距是契约,不是建议。
-   *
-   * 列向 flex 的子项默认可以收缩,而容器有 max-block-size —— 总高一旦超限,
-   * 每一格就被压成 10.63px 这类各不相同的小数,杠随之落在各不相同的亚像素
-   * 相位上,于是逐根的抗锯齿不一样,读作"有的粗有的细"。
-   *
-   * 而这不止是观感:rail-groups.ts 的 RAIL_PITCH_PX = 12 是几何模型的地基 ——
-   * railCentre() 按它算每格的中线,鱼眼和预览卡都读那个数。格子被压扁的那一刻
-   * 步距就不是 12 了,两处算出来的中线会一起偏。溢出该由并格吸收,那本来就是它
-   * 的职责。
-   */
-  flex-shrink: 0;
-
-  block-size: var(--cp-rail-hit);
-  inline-size: calc(var(--cp-rail-len) + var(--cp-rail-gain));
-  justify-content: flex-start;
-  border: 0;
+  flex-direction: column;
   padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.conversation-minimap__item {
+  display: contents;
+}
+
+.conversation-minimap__turn {
+  display: flex;
+  align-items: center;
+  inline-size: var(--conversation-minimap-track);
+  block-size: var(--conversation-minimap-pitch);
+  padding: 0;
+  border: 0;
+  outline: 0;
   background: transparent;
   cursor: pointer;
 }
 
-/*
- * 键盘焦点要看得见。
- *
- * 这里原本是 outline: none,替代品是一根 9×3px 的横条换个颜色 —— 按 WCAG 2.4.13
- * 的面积与对比度要求那不够,而专业软件(VS Code 的大纲、Xcode 的跳转列表)都画
- * 真环。用本文件已有的墨色,不引入新 token。
- */
-.conversation-minimap__turn:focus-visible {
-  border-radius: 3px;
-  outline: 2px solid var(--cp-rail-ink-aimed);
-  outline-offset: 2px;
+.conversation-minimap__bar,
+.conversation-minimap__active {
+  block-size: var(--conversation-minimap-line);
+  border-radius: 999px;
+  transform-origin: left center;
 }
 
-/*
- * The bar. One dimension answers the pointer and one does not: length travels
- * with the weight, thickness never moves. The transition is short enough that a
- * per-frame target still reads as one continuous pull rather than as steps.
- */
 .conversation-minimap__bar {
-  /*
-   * 杠在格子里的落点，必须落在设备像素的整数上。
-   *
-   * 这里原本靠父级的 align-items: center —— 偶数高的格子里居中一根奇数厚的
-   * 杠，偏移永远是半个像素，算术上无解；后来钉死在 4px，治的是 100% 下的
-   * CSS 像素网格。厚度改用设备像素定义之后，这条偏移也得落在同一个网格上：
-   * 厚度恰是 3 个设备像素，顶边再偏出半格，三行里仍有两行只被覆盖一半，
-   * 「5px」照样回来。
-   *
-   * 字面量 4px 是地板：4 × k/4 = k，它在任何缩放下都是整数个设备像素，
-   * 退路上也不糊。真值由下面的 round() 算 —— 取整的步长是 dpx，不是 1px。
-   */
-  align-self: flex-start;
-  margin-block-start: 4px;
-
-  block-size: var(--cp-rail-weight-line);
-  inline-size: calc(var(--cp-rail-len) + var(--cp-rail-weight) * var(--cp-rail-gain));
-  /*
-   * 直角。
-   *
-   * 这里原本是 border-radius: 1px —— 半径是这根条高度的三分之一，那个尺度上
-   * 读不出圆，只读得出四个角像素被四分之一圆覆盖了 π/4 ≈ 78.5% 的面积，各画
-   * 成一个七八成不透明的小方块。显示缩放不是 100% 时覆盖率还逐根不同，于是
-   * 四个角连深浅都不一致。这不是圆角，是四个抗锯齿残留。
-   *
-   * 一根 9×3 的标记，直角就是它该有的样子。
-   */
-  background: var(--cp-rail-ink-rest);
+  background: var(--conversation-minimap-ink);
   transition:
-    inline-size var(--cp-motion-swift) var(--cp-motion-ease),
-    background-color var(--cp-motion-swift) var(--cp-motion-ease);
+    width 100ms ease,
+    background-color 100ms ease;
 }
 
-/*
- * 字面量 4px 是地板，round() 是真值，与 inset-block-start 那处 @supports 是
- * 同一套做法。步长用 dpx：向下取整取到设备像素网格上，于是顶边压着设备
- * 像素的边界，三行设备像素行行走满，没有半透明的边。
- */
-@supports (margin-block-start: round(down, 1px, 1px)) {
-  .conversation-minimap__bar {
-    margin-block-start: round(
-      down,
-      calc((var(--cp-rail-hit) - var(--cp-rail-weight-line)) / 2),
-      var(--cp-rail-dpx)
-    );
-  }
-}
-
-/*
- * Three states, three inks, and they are separate rules because they answer
- * separate questions: where the reader is, where the pointer is, and where
- * everything else is. The read turn is derived from scroll position and there
- * is exactly one; the aimed turn is derived from the pointer and there is at
- * most one; it wins, because it is the thing under the hand.
- */
-.conversation-minimap__turn[aria-current] .conversation-minimap__bar {
-  background: var(--cp-rail-ink-active);
-}
-
-.conversation-minimap__turn[data-aimed] .conversation-minimap__bar,
 .conversation-minimap__turn:hover .conversation-minimap__bar,
 .conversation-minimap__turn:focus-visible .conversation-minimap__bar {
-  background: var(--cp-rail-ink-aimed);
+  background: var(--conversation-minimap-active);
 }
 
-/*
- * The preview card.
- *
- * A real element, not ::after, because it needs two rows (question + reply)
- * with distinct typography. It lives to the right of the bar, vertically
- * centred on the button's hit area — and now at a fixed horizontal position,
- * because the button it hangs off no longer changes width.
- *
- * Height model
- * ────────────
- * The question row is always exactly one line — any overflow is truncated with
- * an ellipsis, so its height is fixed at one line-height.
- *
- * The reply row's line-height is declared as a CSS custom property
- * (--cp-rail-card-line) and max-block-size is set to exactly three times that value.
- * Because max-block-size is an integer multiple of line-height, the overflow
- * clip always falls on a line boundary — a partial line is never visible.
- * When the reply is shorter than three lines the block shrinks naturally to
- * fit; when it is longer only three complete lines show.
- */
+.conversation-minimap__turn:focus-visible {
+  outline: 2px solid var(--conversation-minimap-active);
+  outline-offset: 1px;
+}
+
+.conversation-minimap__active {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  background: var(--conversation-minimap-active);
+  pointer-events: none;
+  transition:
+    transform 150ms ease,
+    width 100ms ease;
+}
+
 .conversation-minimap__card {
   position: absolute;
-  inset-block-start: 0;
   inset-inline-start: calc(100% + var(--cp-pad-mid));
-  translate: 0 calc(var(--cp-rail-card-y, 0px) - 50%);
-  inline-size: 220px;
-  overflow: hidden;
+  inline-size: min(240px, calc(100vw - 80px));
+  padding: 10px 12px;
+  border: 0;
   border-radius: var(--am-item);
-  padding: 6px 8px;
+  opacity: 0;
   background: var(--cp-surface);
   box-shadow: var(--am-shadow);
-  font-size: var(--cp-font-micro);
   color: var(--cp-ink);
-  text-align: start;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+  transition-delay: 100ms;
 }
 
 .conversation-minimap__card[data-shown] {
   opacity: 1;
-  transition:
-    opacity var(--cp-motion-swift) var(--cp-motion-ease),
-    translate var(--cp-motion-settle) var(--cp-motion-settle-ease);
 }
 
-/* Question: one line, bold, truncated. */
-.conversation-minimap__card-question {
+.conversation-minimap__card:not([data-shown]) {
+  transition-delay: 0ms;
+}
+
+.conversation-minimap__question,
+.conversation-minimap__reply {
+  display: -webkit-box;
+  overflow: hidden;
   margin: 0;
+  -webkit-box-orient: vertical;
+}
+
+.conversation-minimap__question {
   font-weight: 600;
-  line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
 }
 
-/*
- * Reply: up to three complete lines, never a partial one.
- *
- * --cp-rail-card-line is the sole source of truth for the line pitch here. Setting
- * max-block-size to exactly 3× that value means the clip is always a
- * line-boundary cut, regardless of how many characters the text contains.
- */
-.conversation-minimap__card-reply {
-  --cp-rail-card-line: 1.4em;
-
-  margin: 4px 0 0;
-  line-height: var(--cp-rail-card-line);
-  max-block-size: calc(var(--cp-rail-card-line) * 3);
-  overflow: hidden;
+.conversation-minimap__reply {
+  margin-block-start: 4px;
   color: var(--cp-ink-subtle);
-  white-space: pre-wrap;
-  word-break: break-word;
+  font-size: 0.875rem;
+  -webkit-line-clamp: 3;
 }
 
-/* 这一格代表几轮。数字用等宽字形,免得逐格跳动。 */
-.conversation-minimap__card-kicker {
-  margin: 0 0 2px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  color: var(--cp-ink-subtle);
-}
-
-/*
- * 减弱动效:关掉过渡本身。
- *
- * 这里原本写的是把 --cp-rail-weight 覆盖成 0 —— 而它的基态就是 0,所以那是把 0
- * 盖成 0,两条路径上都不做事:鱼眼在减弱动效下直接提前返回、根本不写内联值。
- * 真正没人管的是过渡,而同一个功能的另一份样式表(agent-activity-feed.css)在
- * 同样的媒体查询里写的就是 transition: none。按它统一。
- */
 @media (prefers-reduced-motion: reduce) {
   .conversation-minimap__bar,
-  .conversation-minimap__card,
-  .conversation-minimap__card[data-shown] {
+  .conversation-minimap__active,
+  .conversation-minimap__card {
     transition: none;
-  }
-}
-
-/*
- * dpx 的档位：一个设备像素折合多少 CSS px。
- *
- * 只有小数缩放需要改写 —— 整数缩放下 3 CSS px 本就是整数个设备像素，基态的
- * 1px 即真值。Windows 的预设里会让 3 CSS px 摊出小数的是这几档：125%、150%、
- * 175%、225%、250%、350%。没列到的自定义缩放退回基态，行为与改动前一致，
- * 不回归；格子高 12px 在所有 25% 档位上都是整数个设备像素（12 × k/4 = 3k），
- * 相位链条不受影响。
- */
-@media (resolution: 1.25dppx) {
-  .conversation-minimap {
-    --cp-rail-dpx: 0.8px;
-  }
-}
-
-@media (resolution: 1.5dppx) {
-  .conversation-minimap {
-    --cp-rail-dpx: 0.66666667px;
-  }
-}
-
-@media (resolution: 1.75dppx) {
-  .conversation-minimap {
-    --cp-rail-dpx: 0.57142857px;
-  }
-}
-
-@media (resolution: 2.25dppx) {
-  .conversation-minimap {
-    --cp-rail-dpx: 0.44444444px;
-  }
-}
-
-@media (resolution: 2.5dppx) {
-  .conversation-minimap {
-    --cp-rail-dpx: 0.4px;
-  }
-}
-
-@media (resolution: 3.5dppx) {
-  .conversation-minimap {
-    --cp-rail-dpx: 0.28571429px;
   }
 }

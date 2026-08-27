@@ -319,7 +319,7 @@ describe('presentation projection', () => {
     expect(feed.replyAt(1)?.text).toBe('答')
   })
 
-  it('carries an unanswered question into the next rail entry', () => {
+  it('keeps an unanswered user message as its own stable round', () => {
     const feed = selectPresentation(
       stateOf(
         [[said('s1', 1, 1)], [said('s2', 2, 2), spoke('a2', 2, 3)]],
@@ -331,9 +331,9 @@ describe('presentation projection', () => {
       AUTO,
     )
 
-    expect(feed.turns).toHaveLength(1)
-    expect(feed.turns[0]?.id).toBe('s2')
-    expect(feed.turns[0]?.rowIndex).toBe(0)
+    expect(feed.turns.map((turn) => turn.id)).toEqual(['s1', 's2'])
+    expect(feed.turns.map((turn) => turn.rowIndex)).toEqual([0, 1])
+    expect(feed.turns.map((turn) => turn.reply)).toEqual([undefined, '答'])
   })
 
   it('reports the row count and the tail of the conversation', () => {
@@ -379,6 +379,10 @@ describe('presentation projection', () => {
     expect(open.sealAt(0)?.turn).toBe(1)
     expect(shut.sealAt(1)).toBeUndefined()
     expect(open.sealAt(1)).toBeUndefined()
+    expect(shut.turns.map((turn) => turn.id)).toEqual(['s1', 's2'])
+    expect(shut.turns.map((turn) => turn.rowIndex)).toEqual([0, 1])
+    expect(shut.turns.map((turn) => turn.id)).toEqual(['s1', 's2'])
+    expect(shut.turns.map((turn) => turn.rowIndex)).toEqual([0, 1])
   })
 
   it('reads one turn out of the sample conversation', () => {
