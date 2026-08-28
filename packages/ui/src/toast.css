@@ -1,0 +1,33 @@
+/*
+ * 通知的出场与退场。
+ *
+ * 出场不需要状态：keyframes 在元素插入时自己开始。退场需要元素还在，所以由
+ * data-state="closed" 驱动，元素何时被移除由持有通知的 store 说。
+ */
+.ui-toast {
+  max-height: min(420px, calc(100dvh - 96px));
+  overflow: hidden;
+  animation: ui-toast-in var(--ui-duration-normal) var(--ui-ease-standard);
+}
+.ui-toast[data-state="closed"] {
+  animation: ui-toast-out var(--ui-duration-fast) var(--ui-ease-exit) forwards;
+}
+@keyframes ui-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+@keyframes ui-toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+/* 关掉动效不是关掉退场：时长压到 1ms，store 的时序不受影响。 */
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast,
+  .ui-toast[data-state="closed"] {
+    animation-duration: 1ms;
+  }
+}

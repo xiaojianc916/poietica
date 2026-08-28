@@ -59,6 +59,13 @@ export function normalizeFailureCause(cause: unknown): NormalizedCause {
     }
   }
 
+  const envelope = readEnvelopeMessage(cause)
+  if (envelope !== undefined) {
+    return {
+      name: 'IpcError',
+      message: normalizeText(envelope, MAX_MESSAGE_LENGTH),
+    }
+  }
   return {
     name: 'UnknownError',
     message: normalizeText(safeStringify(cause), MAX_MESSAGE_LENGTH),
@@ -176,6 +183,18 @@ function normalizeOptionalText(
   if (!value) {
     return undefined
   }
-
   return normalizeText(value, maximumLength)
+}
+/*
+ * 跨 IPC 回来的失败是一个信封，不是 Error：整封 stringify 会把 code 与
+ * recoverable 一起当成消息推上屏幕。正本是 src-tauri/src/error.rs 的 IpcError。
+ */
+function readEnvelopeMessage(cause: unknown): string | undefined {
+  if (typeof cause !== 'object' || cause === null) {
+    return undefined
+  }
+  const envelope = cause as { readonly code?: unknown; readonly message?: unknown }
+  return typeof envelope.code === 'string' && typeof envelope.message === 'string'
+    ? envelope.message
+    : undefined
 }

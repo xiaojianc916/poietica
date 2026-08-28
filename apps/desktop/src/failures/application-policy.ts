@@ -19,7 +19,9 @@ export const APPLICATION_FAILURE_CODES = [
   'THREAD_MODES_NOT_KEPT',
   'GIT_BRANCH_OPERATION_FAILED',
   'GIT_CHANGES_UNREADABLE',
+  'UPDATE_CHECK_FAILED',
   'UPDATE_DOWNLOAD_FAILED',
+  'UPDATE_INSTALL_FAILED',
   'UNHANDLED_WINDOW_ERROR',
   'UNHANDLED_PROMISE_REJECTION',
 ] as const
@@ -260,23 +262,32 @@ export const APPLICATION_FAILURE_POLICIES = {
     scope: operationScope('git-changes'),
   },
   /*
-   * 更新没能下下来。
+   * 检查、下载、安装是三件事，各自说自己那句。同一句"没能下载完成"盖住一次检查
+   * 失手，人看到的是一件他没做过的事失败了。
    *
-   * 不是"功能受限"：应用一切照旧，装着的这一版一个字节都没被改动，失手的只是
-   * 一次可以随时再来的下载。所以 impact 是 recoverable、recovery 是 retry，
-   * 作用域是一次操作而不是一个功能——feature 作用域会把控件变灰，而这里没有
-   * 任何控件需要变灰。
-   *
-   * 具体原因（网络、签名、更新源）不进这句话：它们在原生日志里，而脱敏之后
-   * 能说出口的那句是"插件操作失败"，对着用户说等于什么都没说。
+   * 三条都不是"功能受限"：装着的这一版一个字节都没被改动，没有任何控件需要变灰，
+   * 所以 impact 是 recoverable、作用域是一次操作。具体原因（网络、签名、更新源）
+   * 不进这些句子：它们在原生日志里，脱敏之后能出口的那句说不出所以然。
    */
+  /* 只出自人亲手要的那次检查：后台按节奏问的那条自己咽下去，离线是常态。 */
+  UPDATE_CHECK_FAILED: {
+    impact: 'recoverable',
+    userMessage: '没能连上更新服务，暂时问不到有没有新版本。',
+    recovery: 'dismiss',
+    scope: operationScope('check-update'),
+  },
   UPDATE_DOWNLOAD_FAILED: {
     impact: 'recoverable',
     userMessage: '更新没能下载完成，当前版本没有被改动。',
-
     recovery: 'retry',
-
     scope: operationScope('download-update'),
+  },
+  /* 那份字节已经被消耗，store 会退回 idle 让下一轮检查重新发现。 */
+  UPDATE_INSTALL_FAILED: {
+    impact: 'recoverable',
+    userMessage: '更新没能装上，当前版本没有被改动。',
+    recovery: 'retry',
+    scope: operationScope('install-update'),
   },
 
   /*

@@ -9,6 +9,8 @@ const CHECK_EVERY_MS = 6 * 60 * 60 * 1000
 /* 启动后不立刻检查：首屏还在装配，一个网络往返没有理由和它抢。 */
 const FIRST_CHECK_DELAY_MS = 30_000
 
+/** 三个动作，各自失败各自说：调用方按这个名字选文案。 */
+export type AppUpdateOperation = 'check-update' | 'download-update' | 'install-update'
 export type AppUpdateState =
   | { readonly phase: 'idle' }
   | { readonly phase: 'checking' }
@@ -43,7 +45,7 @@ export class AppUpdateStore {
 
   readonly #settings: SettingsStore
 
-  readonly #onFailure: (operation: string, cause: unknown) => void
+  readonly #onFailure: (operation: AppUpdateOperation, cause: unknown) => void
 
   #state: AppUpdateState = IDLE
 
@@ -56,7 +58,7 @@ export class AppUpdateStore {
   constructor(
     controller: AppUpdateController,
     settings: SettingsStore,
-    onFailure: (operation: string, cause: unknown) => void,
+    onFailure: (operation: AppUpdateOperation, cause: unknown) => void,
   ) {
     this.#controller = controller
     this.#settings = settings

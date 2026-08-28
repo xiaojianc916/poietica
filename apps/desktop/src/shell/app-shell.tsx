@@ -2,7 +2,11 @@ import type { SessionControlsFailureReport } from '@poietica/agent'
 import { AgentCapabilityStore } from '@poietica/agent'
 import type { AttachmentIntake } from '@poietica/agent-ui'
 import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/agent-ui'
-import type { AppUpdateController, MainWindowController } from '@poietica/desktop-adapters'
+import type {
+  AppUpdateController,
+  AppUpdateOperation,
+  MainWindowController,
+} from '@poietica/desktop-adapters'
 import { AppUpdateStore } from '@poietica/desktop-adapters'
 import type { PluginsViewModel } from '@poietica/plugins'
 import type {
@@ -26,9 +30,9 @@ import type { DesktopAgentRuntime } from '../assistant/agent-runtime'
 import { ThreadsProvider } from '../assistant/threads-provider'
 import { AutomationDispatcher } from '../automations/automation-runtime'
 import { useWindowChrome } from '../chrome/use-window-chrome'
-import { reportFailure } from '../failures/application-policy'
+import { type ApplicationFailureCode, reportFailure } from '../failures/application-policy'
 import { failureCoordinator } from '../failures/coordinator'
-import { UiFeedbackRegion } from '../feedback/ui-feedback'
+import { NoticeRegion } from '../failures/notice-region'
 import { PluginLoader, pluginStore } from '../plugins/plugin-runtime'
 import { UpdateCapsule } from '../updates/update-capsule'
 import { UpdateRow } from '../updates/update-row'
@@ -41,6 +45,12 @@ import { type AppCapabilities, WorkspaceContainer } from '../workbench/workspace
  * 里整个分支会被直接消掉；desktop-adapters 是适配层，不该知道自己被谁怎么打包。
  */
 const CHECKS_UPDATES = !import.meta.env.DEV
+/* 三个动作三句话：一次检查失手不该顶着「更新没能下载完成」上屏。 */
+const UPDATE_FAILURE_CODES = {
+  'check-update': 'UPDATE_CHECK_FAILED',
+  'download-update': 'UPDATE_DOWNLOAD_FAILED',
+  'install-update': 'UPDATE_INSTALL_FAILED',
+} as const satisfies Record<AppUpdateOperation, ApplicationFailureCode>
 
 interface AppShellRuntime {
   readonly workspace: WorkbenchSessionStore
@@ -122,7 +132,7 @@ export function AppShell({ runtime }: AppShellProps) {
   const [updates] = useState(
     () =>
       new AppUpdateStore(runtime.appUpdate, runtime.settings, (operation, cause) => {
-        reportFailure('UPDATE_DOWNLOAD_FAILED', { cause, operation, scope: 'app-update' })
+        reportFailure(UPDATE_FAILURE_CODES[operation], { cause, operation, scope: 'app-update' })
       }),
   )
 
@@ -403,7 +413,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
           <UpdateCapsule store={updates} />
 
-          <UiFeedbackRegion />
+          <NoticeRegion />
         </ThreadsProvider>
       </AgentControlsContext>
     </AttachmentIntakeContext>

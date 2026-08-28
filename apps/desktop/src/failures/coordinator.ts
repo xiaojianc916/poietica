@@ -38,8 +38,6 @@ export type NonTerminalFailureIncident = FailureIncident & {
 
 export interface PresentedFailure {
   readonly incident: NonTerminalFailureIncident
-
-  readonly noticeVisible: boolean
 }
 
 export interface TerminalFailureState {
@@ -109,19 +107,14 @@ export class FailureCoordinator {
     return this.reportNonTerminal(incident as NonTerminalFailureIncident)
   }
 
+  /* 销号只对一次操作的失败成立：降级的功能由控件变灰说话，没有通知可关。 */
   dismiss(incidentId: string): void {
     const operationIndex = this.operations.findIndex((entry) => entry.incident.id === incidentId)
-
-    if (operationIndex >= 0) {
-      this.operations.splice(operationIndex, 1)
-
-      this.publish()
+    if (operationIndex < 0) {
       return
     }
-
-    if (hideScopedNotice(this.degradedFeatures, incidentId)) {
-      this.publish()
-    }
+    this.operations.splice(operationIndex, 1)
+    this.publish()
   }
 
   resolveOperation(operation: string): void {
@@ -215,7 +208,7 @@ export class FailureCoordinator {
           throw new Error('Feature failure requires feature scope.')
         }
 
-        this.recordScoped(this.degradedFeatures, incident.scope.featureId, incident, true)
+        this.recordScoped(this.degradedFeatures, incident.scope.featureId, incident)
 
         break
     }
@@ -233,12 +226,7 @@ export class FailureCoordinator {
       this.operations.splice(existingIndex, 1)
     }
 
-    this.operations.push(
-      Object.freeze({
-        incident,
-        noticeVisible: true,
-      }),
-    )
+    this.operations.push(Object.freeze({ incident }))
 
     if (this.operations.length > MAX_OPERATION_FAILURES) {
       this.operations.splice(0, this.operations.length - MAX_OPERATION_FAILURES)
@@ -247,20 +235,10 @@ export class FailureCoordinator {
 
   private recordScoped(
     target: Map<string, PresentedFailure>,
-
     key: string,
-
     incident: NonTerminalFailureIncident,
-
-    noticeVisible: boolean,
   ): void {
-    target.set(
-      key,
-      Object.freeze({
-        incident,
-        noticeVisible,
-      }),
-    )
+    target.set(key, Object.freeze({ incident }))
   }
 
   private publish(): void {
@@ -315,27 +293,3 @@ export class FailureCoordinator {
 }
 
 export const failureCoordinator = new FailureCoordinator()
-
-function hideScopedNotice(
-  failures: Map<string, PresentedFailure>,
-
-  incidentId: string,
-): boolean {
-  for (const [key, entry] of failures) {
-    if (entry.incident.id !== incidentId) {
-      continue
-    }
-
-    failures.set(
-      key,
-      Object.freeze({
-        ...entry,
-        noticeVisible: false,
-      }),
-    )
-
-    return true
-  }
-
-  return false
-}
