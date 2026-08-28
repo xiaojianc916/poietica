@@ -16,10 +16,10 @@ use std::process::Output;
 use thiserror::Error;
 use tokio::process::Command;
 
-mod changes;
+mod review;
 mod watch;
 
-pub use changes::{ChangeStatus, FileChange, changes, patch};
+pub use review::{ChangeStatus, FileChange, ReviewSnapshot, commit_or_push, review};
 pub use watch::await_change;
 
 /// GUI 宿主 spawn 控制台程序时，Windows 会给它开一个控制台窗口：选一次工作区
@@ -90,6 +90,14 @@ pub async fn snapshot(root: &Path) -> Result<Option<BranchSnapshot>, GitError> {
         Some(line(&commit.stdout))
     };
 
+    Ok(Some(BranchSnapshot {
+        branch,
+        detached_at,
+        branches: local_branches(root).await?,
+    }))
+}
+/// 本地分支，按最近提交排序。分支快照与审查面读同一份，不各数一遍。
+pub(crate) async fn local_branches(root: &Path) -> Result<Vec<String>, GitError> {
     let refs = expect_ok(
         run(
             root,
@@ -102,19 +110,12 @@ pub async fn snapshot(root: &Path) -> Result<Option<BranchSnapshot>, GitError> {
         )
         .await?,
     )?;
-
-    let branches = String::from_utf8_lossy(&refs.stdout)
+    Ok(String::from_utf8_lossy(&refs.stdout)
         .lines()
         .map(str::trim)
         .filter(|held| !held.is_empty())
         .map(ToOwned::to_owned)
-        .collect();
-
-    Ok(Some(BranchSnapshot {
-        branch,
-        detached_at,
-        branches,
-    }))
+        .collect())
 }
 
 /// 检出一个已有分支，交还盘面上的新快照。

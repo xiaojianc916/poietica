@@ -73,11 +73,12 @@ export { throughIpc } from './error'
 export {
   type GitBranches,
   type GitFileChange,
+  type GitReview,
   gitAwaitChange,
   gitBranches,
-  gitChanges,
+  gitCommitOrPush,
   gitCreateBranch,
-  gitFilePatch,
+  gitReview,
   gitSwitchBranch,
 } from './git'
 export { resolveLauncher } from './launcher'

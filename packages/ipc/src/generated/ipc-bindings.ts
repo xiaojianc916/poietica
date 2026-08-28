@@ -1027,16 +1027,17 @@ async gitCreateBranch(root: string, branch: string) : Promise<GitBranches> {
     return await TAURI_INVOKE("git_create_branch", { root, branch });
 },
 /**
- * 问一个目录此刻的变更清单。不是 git 仓库、或机器没有 git，都是 None。
+ * 问一次审查面：分支、上游、清单与整份补丁。不是 git 仓库、或机器没有 git，
+ * 都是 None —— 界面据此整个隐藏这一格，这不是错误。
  */
-async gitChanges(root: string) : Promise<GitFileChange[] | null> {
-    return await TAURI_INVOKE("git_changes", { root });
+async gitReview(root: string, base: string, context: number, ignoreWhitespace: boolean) : Promise<GitReview | null> {
+    return await TAURI_INVOKE("git_review", { root, base, context, ignoreWhitespace });
 },
 /**
- * 一个文件此刻相对 HEAD 的统一补丁。未跟踪文件没有基线，界面不会问到这里。
+ * 提交或推送，成功即交回盘面上的新审查面 —— 界面不自己拼「操作后的世界」。
  */
-async gitFilePatch(root: string, path: string) : Promise<string> {
-    return await TAURI_INVOKE("git_file_patch", { root, path });
+async gitCommitOrPush(root: string, message: string, base: string, context: number, ignoreWhitespace: boolean) : Promise<GitReview> {
+    return await TAURI_INVOKE("git_commit_or_push", { root, message, base, context, ignoreWhitespace });
 },
 /**
  * 等这个工作树的下一次变化。true = 变了；false = 这一窗里没动，调用方再挂一次。
@@ -2054,9 +2055,13 @@ export type GitBranches = { branch: string | null; detachedAt: string | null; br
  */
 export type GitChangeStatus = "added" | "modified" | "deleted" | "untracked" | "conflicted"
 /**
- * 工作树里一处变更。path 是仓库根的相对路径。
+ * 工作树里一处变更。path 是仓库根的相对路径；加减行数由补丁自己数出。
  */
-export type GitFileChange = { path: string; status: GitChangeStatus; staged: boolean; additions: number; deletions: number }
+export type GitFileChange = { path: string; status: GitChangeStatus; staged: boolean }
+/**
+ * 审查那一格此刻要画的全部事实。
+ */
+export type GitReview = { branch: string | null; detachedAt: string | null; upstream: string | null; ahead: number; behind: number; branches: string[]; changes: GitFileChange[]; patch: string }
 export type IpcError = { code: IpcErrorCode; message: string; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "permission-denied" | "persistence" | "plugin" | "asset" | "platform"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>

@@ -73,15 +73,13 @@ pub enum GitChangeStatus {
     Conflicted,
 }
 
-/// 工作树里一处变更。path 是仓库根的相对路径。
+/// 工作树里一处变更。path 是仓库根的相对路径；加减行数由补丁自己数出。
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GitFileChange {
     pub path: String,
     pub status: GitChangeStatus,
     pub staged: bool,
-    pub additions: u32,
-    pub deletions: u32,
 }
 
 impl From<poietica_git_native::ChangeStatus> for GitChangeStatus {
@@ -102,28 +100,65 @@ impl From<poietica_git_native::FileChange> for GitFileChange {
             path: change.path,
             status: change.status.into(),
             staged: change.staged,
-            additions: change.additions,
-            deletions: change.deletions,
         }
     }
 }
 
-/// 问一个目录此刻的变更清单。不是 git 仓库、或机器没有 git，都是 None。
+/// 审查那一格此刻要画的全部事实。
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GitReview {
+    pub branch: Option<String>,
+    pub detached_at: Option<String>,
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
+    pub branches: Vec<String>,
+    pub changes: Vec<GitFileChange>,
+    pub patch: String,
+}
+impl From<poietica_git_native::ReviewSnapshot> for GitReview {
+    fn from(held: poietica_git_native::ReviewSnapshot) -> Self {
+        Self {
+            branch: held.branch,
+            detached_at: held.detached_at,
+            upstream: held.upstream,
+            ahead: held.ahead,
+            behind: held.behind,
+            branches: held.branches,
+            changes: held.changes.into_iter().map(GitFileChange::from).collect(),
+            patch: held.patch,
+        }
+    }
+}
+/// 问一次审查面：分支、上游、清单与整份补丁。不是 git 仓库、或机器没有 git，
+/// 都是 None —— 界面据此整个隐藏这一格，这不是错误。
 #[command]
 #[specta::specta]
-pub async fn git_changes(root: String) -> Result<Option<Vec<GitFileChange>>, IpcError> {
-    poietica_git_native::changes(Path::new(&root))
+pub async fn git_review(
+    root: String,
+    base: String,
+    context: u32,
+    ignore_whitespace: bool,
+) -> Result<Option<GitReview>, IpcError> {
+    poietica_git_native::review(Path::new(&root), &base, context, ignore_whitespace)
         .await
-        .map(|held| held.map(|list| list.into_iter().map(GitFileChange::from).collect()))
+        .map(|held| held.map(GitReview::from))
         .map_err(surfaced)
 }
-
-/// 一个文件此刻相对 HEAD 的统一补丁。未跟踪文件没有基线，界面不会问到这里。
+/// 提交或推送，成功即交回盘面上的新审查面 —— 界面不自己拼「操作后的世界」。
 #[command]
 #[specta::specta]
-pub async fn git_file_patch(root: String, path: String) -> Result<String, IpcError> {
-    poietica_git_native::patch(Path::new(&root), &path)
+pub async fn git_commit_or_push(
+    root: String,
+    message: String,
+    base: String,
+    context: u32,
+    ignore_whitespace: bool,
+) -> Result<GitReview, IpcError> {
+    poietica_git_native::commit_or_push(Path::new(&root), &message, &base, context, ignore_whitespace)
         .await
+        .map(GitReview::from)
         .map_err(surfaced)
 }
 

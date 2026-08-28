@@ -19,6 +19,7 @@ export const APPLICATION_FAILURE_CODES = [
   'THREAD_MODES_NOT_KEPT',
   'GIT_BRANCH_OPERATION_FAILED',
   'GIT_CHANGES_UNREADABLE',
+  'GIT_REVIEW_ACTION_FAILED',
   'UPDATE_CHECK_FAILED',
   'UPDATE_DOWNLOAD_FAILED',
   'UPDATE_INSTALL_FAILED',
@@ -260,6 +261,13 @@ export const APPLICATION_FAILURE_POLICIES = {
     userMessage: 'Git 变更读取失败',
     recovery: 'retry',
     scope: operationScope('git-changes'),
+  },
+  /* 提交或推送被 git 拒绝：理由原文走统一失败管线进 toast，面板不留错误副本。 */
+  GIT_REVIEW_ACTION_FAILED: {
+    impact: 'recoverable',
+    userMessage: 'Git 提交或推送失败',
+    recovery: 'retry',
+    scope: operationScope('git-review-action'),
   },
   /*
    * 检查、下载、安装是三件事，各自说自己那句。同一句"没能下载完成"盖住一次检查

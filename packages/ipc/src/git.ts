@@ -1,5 +1,10 @@
 import { throughIpc } from './error'
-import { commands, type GitBranches, type GitFileChange } from './generated/ipc-bindings'
+import {
+  commands,
+  type GitBranches,
+  type GitFileChange,
+  type GitReview,
+} from './generated/ipc-bindings'
 
 /*
  * 工作目录的 git 分支面。
@@ -9,7 +14,7 @@ import { commands, type GitBranches, type GitFileChange } from './generated/ipc-
  * 磁盘上的新真相。
  */
 
-export type { GitBranches, GitFileChange }
+export type { GitBranches, GitFileChange, GitReview }
 
 /** 问一个目录的分支快照。不是 git 仓库、或机器没有 git，都是 null。 */
 export function gitBranches(root: string): Promise<GitBranches | null> {
@@ -21,9 +26,14 @@ export function gitSwitchBranch(root: string, branch: string): Promise<GitBranch
   return throughIpc(() => commands.gitSwitchBranch(root, branch))
 }
 
-/** 问一个目录此刻的变更清单。不是 git 仓库、或机器没有 git，都是 null。 */
-export function gitChanges(root: string): Promise<GitFileChange[] | null> {
-  return throughIpc(() => commands.gitChanges(root))
+/** 问一次审查面：分支、上游、清单与整份补丁。不是 git 仓库就是 null。 */
+export function gitReview(
+  root: string,
+  base: string,
+  context: number,
+  ignoreWhitespace: boolean,
+): Promise<GitReview | null> {
+  return throughIpc(() => commands.gitReview(root, base, context, ignoreWhitespace))
 }
 
 /** 挂上原生监视，等这个目录的下一次变化。false = 这一窗里没动，再挂一次。 */
@@ -31,9 +41,15 @@ export function gitAwaitChange(root: string): Promise<boolean> {
   return throughIpc(() => commands.gitAwaitChange(root))
 }
 
-/** 一个文件此刻相对 HEAD 的统一补丁。 */
-export function gitFilePatch(root: string, path: string): Promise<string> {
-  return throughIpc(() => commands.gitFilePatch(root, path))
+/** 提交或推送，交回新的审查面。git 拒绝时抛出，理由原文透出。 */
+export function gitCommitOrPush(
+  root: string,
+  message: string,
+  base: string,
+  context: number,
+  ignoreWhitespace: boolean,
+): Promise<GitReview> {
+  return throughIpc(() => commands.gitCommitOrPush(root, message, base, context, ignoreWhitespace))
 }
 
 /** 创建并检出新分支，交回新快照。名字合法性由 git 判，拒绝理由原文透出。 */
