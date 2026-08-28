@@ -85,10 +85,10 @@
    */
   --ui-placeholder: var(--ui-palette-neutral-400);
 
-  --ui-accent: var(--ui-palette-neutral-200);
+  --ui-accent: #f2f2f3;
   --ui-accent-foreground: oklch(0.2 0.01 90);
 
-  --ui-popover: var(--ui-surface);
+  --ui-popover: #fffeff;
   --ui-popover-foreground: var(--ui-foreground);
 
   --ui-destructive: var(--ui-palette-red-500);

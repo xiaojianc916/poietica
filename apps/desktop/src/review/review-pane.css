@@ -1,0 +1,89 @@
+/*
+ * 审查那一格的取色与列几何。
+ *
+ * 差异底色、竖线与词级强调是这一格的产品取值，除这里没有第二个消费点，所以不
+ * 进设计系统。深色主题下同一批色相换成半透明，压在深底上才读得出来。
+ */
+.review-pane {
+  --review-added-fill: #cdebcd;
+  --review-added-edge: #4fa356;
+  --review-added-emphasis: #cbe8cd;
+  --review-removed-fill: #fad1c9;
+  --review-removed-edge: #e0674f;
+  --review-removed-emphasis: #f6ccc4;
+}
+
+:root[data-theme="dark"] .review-pane {
+  --review-added-fill: color-mix(in srgb, #4fa356 14%, transparent);
+  --review-added-emphasis: color-mix(in srgb, #4fa356 30%, transparent);
+  --review-removed-fill: color-mix(in srgb, #e0674f 14%, transparent);
+  --review-removed-emphasis: color-mix(in srgb, #e0674f 30%, transparent);
+}
+
+/* 上下文行留同宽的透明边：行首不因种类错位。 */
+.review-line {
+  border-inline-start: 2px solid transparent;
+}
+
+.review-line--added {
+  --review-line-emphasis: var(--review-added-emphasis);
+
+  border-inline-start-color: var(--review-added-edge);
+  background: var(--review-added-fill);
+}
+
+.review-line--removed {
+  --review-line-emphasis: var(--review-removed-emphasis);
+
+  border-inline-start-color: var(--review-removed-edge);
+  background: var(--review-removed-fill);
+}
+
+.review-line__emphasis {
+  background: var(--review-line-emphasis, transparent);
+}
+
+/*
+ * 文件树列的开合，与外壳侧栏同一条机制：列宽是注册过的 <length> 自定义属性，
+ * 插值归 CSS 引擎；收起是列宽归零、定宽底面被自己那一列裁掉，子树不卸载。
+ * 时长与曲线读外壳挂在根上的那一份，不另立一套。
+ */
+@property --review-tree-width {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+.review-pane {
+  transition: --review-tree-width var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+/* 拖动分隔条时不插值：指针给的是最终值，插值只会让列追着指针跑。 */
+.review-pane[data-splitter="drag"] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-pane {
+    transition: none;
+  }
+}
+
+.review-tree {
+  position: relative;
+  flex: 0 0 var(--review-tree-width);
+  min-width: 0;
+}
+
+.review-tree__clip {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+}
+
+/* 底面贴列的 inline-end：列收窄时从左侧被裁，内容不位移。 */
+.review-tree__surface {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+}

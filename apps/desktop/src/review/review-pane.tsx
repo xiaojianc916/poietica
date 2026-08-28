@@ -14,6 +14,11 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  File,
+  FileCode,
+  FileImage,
+  FileJson,
+  FileText,
   Folder,
   GitBranch,
   MoreHorizontal,
@@ -21,7 +26,14 @@ import {
   Search,
   X,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { useConversationWorkspaceRoot } from '../assistant/threads-context'
 import { type ChangeTreeFile, type ChangeTreeFolder, changeTreeRows } from './change-tree'
 import {
@@ -35,6 +47,8 @@ import {
   TREE_MIN,
 } from './review-store'
 import type { DiffBand, DiffRow, ReviewFile } from './unified-diff'
+
+import './review-pane.css'
 
 /*
  * 审查那一格：这条对话所在工作树的差异面。
@@ -55,16 +69,51 @@ const STATUS_MARKS: Readonly<Record<ChangeStatus, readonly [string, string]>> = 
   modified: ['M', 'text-amber-500'],
   untracked: ['?', 'text-sky-500'],
 }
-/* 种类由行模型说，不由行首字符说：所以正文里不留 +/- 那一列。 */
+/* 列宽走注册过的自定义属性，与外壳那一份同构。 */
+type ReviewStyle = CSSProperties & Record<`--${string}`, string>
+/* 种类由行模型说，不由行首字符说：所以正文里不留 +/- 那一列。取色在 review-pane.css。 */
 const TONES: Readonly<Record<DiffRow['kind'], string>> = {
-  added: 'border-emerald-500/40 bg-emerald-500/10',
-  context: 'border-transparent',
-  removed: 'border-rose-500/40 bg-rose-500/10',
+  added: 'review-line review-line--added',
+  context: 'review-line',
+  removed: 'review-line review-line--removed',
 }
-const EMPHASIS: Readonly<Record<DiffRow['kind'], string>> = {
-  added: 'bg-emerald-500/25',
-  context: '',
-  removed: 'bg-rose-500/25',
+/* 扩展名到字形：卡片行头与文件树读同一份表。 */
+const FILE_GLYPHS: Readonly<Record<string, typeof File>> = {
+  c: FileCode,
+  cjs: FileCode,
+  cpp: FileCode,
+  cs: FileCode,
+  css: FileCode,
+  gif: FileImage,
+  go: FileCode,
+  h: FileCode,
+  html: FileCode,
+  ico: FileImage,
+  java: FileCode,
+  jpeg: FileImage,
+  jpg: FileImage,
+  js: FileCode,
+  json: FileJson,
+  jsx: FileCode,
+  lock: FileJson,
+  log: FileText,
+  md: FileText,
+  mjs: FileCode,
+  png: FileImage,
+  ps1: FileCode,
+  py: FileCode,
+  rb: FileCode,
+  rs: FileCode,
+  sh: FileCode,
+  sql: FileCode,
+  svg: FileImage,
+  toml: FileJson,
+  ts: FileCode,
+  tsx: FileCode,
+  txt: FileText,
+  webp: FileImage,
+  yaml: FileJson,
+  yml: FileJson,
 }
 const SWITCHES: readonly {
   readonly name: ReviewSwitch
@@ -77,7 +126,7 @@ const SWITCHES: readonly {
   { name: 'hideWhitespace', off: '隐藏空白字符', on: '显示空白字符' },
 ]
 const ICON_CLASS =
-  'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100 aria-pressed:bg-current/10 aria-pressed:opacity-100'
+  'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100'
 const ROW_CLASS = 'min-w-0 flex-1 truncate text-xs'
 export function ReviewPane({ conversationId }: { readonly conversationId: string | null }) {
   const root = useConversationWorkspaceRoot(conversationId)
@@ -96,21 +145,23 @@ function Review({ root }: { readonly root: string }) {
   }
   const needle = state.query.trim().toLowerCase()
   const shown = reading.files.filter((file) => file.path.toLowerCase().includes(needle))
+  const treeColumn = state.treeOpen && reading.files.length > 0 ? state.treeWidth : 0
+  const style: ReviewStyle = { '--review-tree-width': `${String(treeColumn)}px` }
   return (
     <div
       className={cn(
-        'flex h-full min-h-0 flex-col',
+        'review-pane flex h-full min-h-0 flex-col',
         state.splitter === 'idle' ? null : 'select-none',
       )}
+      data-splitter={state.splitter}
+      style={style}
     >
       <Toolbar reading={reading} state={state} store={store} />
       <div className="flex min-h-0 flex-1">
         <div className="min-h-0 flex-1 overflow-y-auto">
           <Cards reading={reading} shown={shown} state={state} store={store} />
         </div>
-        {state.treeOpen && reading.files.length > 0 ? (
-          <Tree reading={reading} shown={shown} state={state} store={store} />
-        ) : null}
+        <Tree docked={treeColumn > 0} reading={reading} shown={shown} state={state} store={store} />
       </div>
     </div>
   )
@@ -156,7 +207,7 @@ function Toolbar({
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
-  const allFolded = reading.files.length > 0 && state.folded.size >= reading.files.length
+  const allOpen = reading.files.length > 0 && state.openFiles.size >= reading.files.length
   const head = reading.head ?? reading.detachedAt ?? 'HEAD'
   return (
     <div className="flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-2 border-b border-current/10 px-2.5">
@@ -178,12 +229,12 @@ function Toolbar({
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <Overflow state={state} store={store} />
         <IconButton
-          label={allFolded ? '展开全部差异' : '折叠全部差异'}
+          label={allOpen ? '折叠全部差异' : '展开全部差异'}
           onClick={() => {
-            store.setAllFolded(!allFolded)
+            store.setAllOpen(!allOpen)
           }}
         >
-          {allFolded ? (
+          {allOpen ? (
             <ChevronDown aria-hidden className="size-4" />
           ) : (
             <ChevronRight aria-hidden className="size-4" />
@@ -427,26 +478,27 @@ function Card({
   readonly store: ReviewStore
 }) {
   const status = reading.statuses.get(file.path)
-  const folded = state.folded.has(file.path)
+  const open = state.openFiles.has(file.path)
   return (
     <section className="border-b border-current/10" id={cardId(file.path)}>
       {/* 行头贴顶：长补丁滚起来也知道自己在哪个文件里。 */}
       <header className="group sticky top-0 z-10 flex h-7 items-center gap-2 bg-[var(--window-backing-surface)] px-2.5">
         <button
-          aria-expanded={!folded}
+          aria-expanded={open}
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
           onClick={() => {
-            store.toggleFold(file.path)
+            store.toggleFile(file.path)
           }}
           title={file.path}
           type="button"
         >
-          {folded ? (
-            <ChevronRight aria-hidden className="size-3.5 shrink-0 opacity-40" />
-          ) : (
+          {open ? (
             <ChevronDown aria-hidden className="size-3.5 shrink-0 opacity-40" />
+          ) : (
+            <ChevronRight aria-hidden className="size-3.5 shrink-0 opacity-40" />
           )}
           {status === undefined ? null : <Mark status={status} />}
+          <FileGlyph path={file.path} status={status} />
           <span className="min-w-0 truncate text-xs">{file.path}</span>
           <Tally additions={file.additions} deletions={file.deletions} />
         </button>
@@ -465,20 +517,20 @@ function Card({
             <Copy aria-hidden className="size-3.5" />
           </IconButton>
           <IconButton
-            label={folded ? '展开这个文件' : '折叠这个文件'}
+            label={open ? '折叠这个文件' : '展开这个文件'}
             onClick={() => {
-              store.toggleFold(file.path)
+              store.toggleFile(file.path)
             }}
           >
-            {folded ? (
-              <ChevronRight aria-hidden className="size-3.5" />
-            ) : (
+            {open ? (
               <ChevronDown aria-hidden className="size-3.5" />
+            ) : (
+              <ChevronRight aria-hidden className="size-3.5" />
             )}
           </IconButton>
         </div>
       </header>
-      {folded ? null : <Body file={file} state={state} store={store} />}
+      {open ? <Body file={file} state={state} store={store} /> : null}
     </section>
   )
 }
@@ -598,7 +650,7 @@ function rowKey(row: DiffRow): string {
 /* 单一行号槽 —— 统一视图里两列行号只有一列是答案。 */
 function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) {
   return (
-    <div className={cn('flex items-start border-l-2 pr-2.5', TONES[row.kind])}>
+    <div className={cn('flex items-start pr-2.5', TONES[row.kind])}>
       <span className="w-11 shrink-0 select-none pr-2 text-right tabular-nums opacity-30">
         {row.newLine ?? row.oldLine}
       </span>
@@ -607,7 +659,7 @@ function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) 
       >
         {row.text.lead}
         {row.text.middle === '' ? null : (
-          <span className={EMPHASIS[row.kind]}>{row.text.middle}</span>
+          <span className="review-line__emphasis">{row.text.middle}</span>
         )}
         {row.text.trail}
       </span>
@@ -616,11 +668,13 @@ function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) 
 }
 /* 右侧：变更文件树。筛选在顶，行按目录归并，左边缘拖着调宽。 */
 function Tree({
+  docked,
   reading,
   shown,
   state,
   store,
 }: {
+  readonly docked: boolean
   readonly reading: Ready
   readonly shown: readonly ReviewFile[]
   readonly state: ReviewState
@@ -628,72 +682,79 @@ function Tree({
 }) {
   const byPath = new Map(shown.map((file) => [file.path, file] as const))
   const rows = changeTreeRows([...byPath.keys()], state.collapsedFolders)
+  /* 收起只是列宽归零：子树不卸载，滚动位置与展开状态不随开合重建。 */
   return (
-    <aside
-      className={cn(
-        'relative flex shrink-0 flex-col border-l',
-        state.splitter === 'idle' ? 'border-current/10' : 'border-current/30',
-      )}
-      style={{ width: `${String(state.treeWidth)}px` }}
-    >
-      {/* 指针捕获与键盘微调都在这条条上，本格不重写一套拖拽。 */}
-      <RegionSplitter
-        edge="inline-end"
-        label="调整变更文件树宽度"
-        max={TREE_MAX}
-        min={TREE_MIN}
-        onActivity={store.setSplitter}
-        onCollapse={store.toggleTree}
-        onResize={store.setTreeWidth}
-        width={state.treeWidth}
-      />
-      <div className="flex shrink-0 items-center gap-2 border-b border-current/10 px-2 py-1.5">
-        <Search aria-hidden className="size-3.5 shrink-0 opacity-50" />
-        <input
-          aria-label="筛选文件"
-          className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:opacity-50"
-          onChange={(event) => {
-            store.setQuery(event.target.value)
-          }}
-          placeholder="筛选文件…"
-          value={state.query}
-        />
-        {state.query === '' ? null : (
-          <IconButton
-            label="清除筛选"
-            onClick={() => {
-              store.setQuery('')
-            }}
-          >
-            <X aria-hidden className="size-3.5" />
-          </IconButton>
-        )}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto py-1">
-        {rows.length === 0 ? (
-          <Note>没有匹配的文件。</Note>
-        ) : (
-          rows.map((row) =>
-            row.kind === 'folder' ? (
-              <FolderRow
-                collapsed={state.collapsedFolders.has(row.key)}
-                key={row.key}
-                row={row}
-                store={store}
-              />
+    <aside className="review-tree" inert={!docked}>
+      <div className="review-tree__clip">
+        <div
+          className={cn(
+            'review-tree__surface flex flex-col border-l',
+            state.splitter === 'idle' ? 'border-current/10' : 'border-current/30',
+          )}
+          style={{ width: `${String(state.treeWidth)}px` }}
+        >
+          <div className="flex shrink-0 items-center gap-2 border-b border-current/10 px-2 py-1.5">
+            <Search aria-hidden className="size-3.5 shrink-0 opacity-50" />
+            <input
+              aria-label="筛选文件"
+              className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:opacity-50"
+              onChange={(event) => {
+                store.setQuery(event.target.value)
+              }}
+              placeholder="筛选文件…"
+              value={state.query}
+            />
+            {state.query === '' ? null : (
+              <IconButton
+                label="清除筛选"
+                onClick={() => {
+                  store.setQuery('')
+                }}
+              >
+                <X aria-hidden className="size-3.5" />
+              </IconButton>
+            )}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto py-1">
+            {rows.length === 0 ? (
+              <Note>没有匹配的文件。</Note>
             ) : (
-              <FileRow
-                file={byPath.get(row.path)}
-                folded={state.folded.has(row.path)}
-                key={row.key}
-                row={row}
-                status={reading.statuses.get(row.path)}
-                store={store}
-              />
-            ),
-          )
-        )}
+              rows.map((row) =>
+                row.kind === 'folder' ? (
+                  <FolderRow
+                    collapsed={state.collapsedFolders.has(row.key)}
+                    key={row.key}
+                    row={row}
+                    store={store}
+                  />
+                ) : (
+                  <FileRow
+                    file={byPath.get(row.path)}
+                    key={row.key}
+                    open={state.openFiles.has(row.path)}
+                    row={row}
+                    status={reading.statuses.get(row.path)}
+                    store={store}
+                  />
+                ),
+              )
+            )}
+          </div>
+        </div>
       </div>
+      {/* 指针捕获与键盘微调都在这条条上，本格不重写一套拖拽。 */}
+      {docked ? (
+        <RegionSplitter
+          edge="inline-end"
+          label="调整变更文件树宽度"
+          max={TREE_MAX}
+          min={TREE_MIN}
+          onActivity={store.setSplitter}
+          onCollapse={store.toggleTree}
+          onResize={store.setTreeWidth}
+          width={state.treeWidth}
+        />
+      ) : null}
     </aside>
   )
 }
@@ -731,13 +792,13 @@ function FolderRow({
 }
 function FileRow({
   file,
-  folded,
+  open,
   row,
   status,
   store,
 }: {
   readonly file: ReviewFile | undefined
-  readonly folded: boolean
+  readonly open: boolean
   readonly row: ChangeTreeFile
   readonly status: ChangeStatus | undefined
   readonly store: ReviewStore
@@ -757,13 +818,13 @@ function FileRow({
       <button
         className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
         onClick={() => {
-          store.unfold(row.path)
+          store.openFile(row.path)
           document.getElementById(cardId(row.path))?.scrollIntoView({ block: 'start' })
         }}
         title={row.path}
         type="button"
       >
-        <Dot status={status} />
+        <FileGlyph path={row.path} status={status} />
         <span className="min-w-0 flex-1 truncate text-xs">{row.label}</span>
         {file === undefined ? null : (
           <Tally additions={file.additions} deletions={file.deletions} />
@@ -771,15 +832,15 @@ function FileRow({
       </button>
       <span className="shrink-0 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
         <IconButton
-          label={folded ? '展开这个文件' : '折叠这个文件'}
+          label={open ? '折叠这个文件' : '展开这个文件'}
           onClick={() => {
-            store.toggleFold(row.path)
+            store.toggleFile(row.path)
           }}
         >
-          {folded ? (
-            <ChevronRight aria-hidden className="size-3.5" />
-          ) : (
+          {open ? (
             <ChevronDown aria-hidden className="size-3.5" />
+          ) : (
+            <ChevronRight aria-hidden className="size-3.5" />
           )}
         </IconButton>
       </span>
@@ -794,12 +855,19 @@ function Mark({ status }: { readonly status: ChangeStatus }) {
   const [mark, tone] = STATUS_MARKS[status]
   return <span className={cn('shrink-0 font-mono text-[11px]', tone)}>{mark}</span>
 }
-function Dot({ status }: { readonly status: ChangeStatus | undefined }) {
-  if (status === undefined) {
-    return <span aria-hidden className="size-1.5 shrink-0" />
-  }
-  const [, tone] = STATUS_MARKS[status]
-  return <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full bg-current', tone)} />
+/* 形状认扩展名，颜色认 git 状态。 */
+function FileGlyph({
+  path,
+  status,
+}: {
+  readonly path: string
+  readonly status: ChangeStatus | undefined
+}) {
+  const dot = path.lastIndexOf('.')
+  const ext = dot > path.lastIndexOf('/') + 1 ? path.slice(dot + 1).toLowerCase() : ''
+  const Glyph = FILE_GLYPHS[ext] ?? File
+  const tone = status === undefined ? 'opacity-40' : STATUS_MARKS[status][1]
+  return <Glyph aria-hidden className={cn('size-3.5 shrink-0', tone)} />
 }
 function IconButton({
   children,

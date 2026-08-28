@@ -49,7 +49,7 @@ export interface ReviewState {
   readonly presentation: ReviewPresentation
   readonly base: string
   readonly query: string
-  readonly folded: ReadonlySet<string>
+  readonly openFiles: ReadonlySet<string>
   readonly collapsedFolders: ReadonlySet<string>
   readonly openGaps: ReadonlySet<string>
   readonly treeOpen: boolean
@@ -64,9 +64,9 @@ export interface ReviewStore {
   readonly start: () => () => void
   readonly setQuery: (value: string) => void
   readonly setBase: (ref: string) => void
-  readonly toggleFold: (path: string) => void
-  readonly unfold: (path: string) => void
-  readonly setAllFolded: (folded: boolean) => void
+  readonly toggleFile: (path: string) => void
+  readonly openFile: (path: string) => void
+  readonly setAllOpen: (open: boolean) => void
   readonly toggleFolder: (key: string) => void
   readonly toggleGap: (key: string) => void
   readonly toggleSwitch: (name: ReviewSwitch) => void
@@ -97,7 +97,7 @@ export function createReviewStore(root: string): ReviewStore {
   }
   let base = 'HEAD'
   let query = ''
-  let folded: ReadonlySet<string> = new Set<string>()
+  let openFiles: ReadonlySet<string> = new Set<string>()
   let collapsedFolders: ReadonlySet<string> = new Set<string>()
   let openGaps: ReadonlySet<string> = new Set<string>()
   let treeOpen = true
@@ -111,7 +111,7 @@ export function createReviewStore(root: string): ReviewStore {
       base,
       busy,
       collapsedFolders,
-      folded,
+      openFiles,
       openGaps,
       presentation,
       query,
@@ -216,6 +216,15 @@ export function createReviewStore(root: string): ReviewStore {
         })
     },
     getSnapshot: () => snapshot,
+    /* 树里点一行就是把这一格打开；已经开着就什么都不做。 */
+    openFile: (held) => {
+      if (openFiles.has(held)) {
+        return
+      }
+      mutate(() => {
+        openFiles = new Set(openFiles).add(held)
+      })
+    },
     refresh: () => {
       if (looping) {
         void load()
@@ -223,9 +232,9 @@ export function createReviewStore(root: string): ReviewStore {
       }
       loop()
     },
-    setAllFolded: (all) => {
+    setAllOpen: (all) => {
       mutate(() => {
-        folded =
+        openFiles =
           all && reading.phase === 'ready'
             ? new Set(reading.files.map((file) => file.path))
             : new Set<string>()
@@ -269,9 +278,9 @@ export function createReviewStore(root: string): ReviewStore {
       }
     },
     subscribe: store.subscribe,
-    toggleFold: (held) => {
+    toggleFile: (held) => {
       mutate(() => {
-        folded = flipped(folded, held)
+        openFiles = flipped(openFiles, held)
       })
     },
     toggleFolder: (key) => {
@@ -300,16 +309,6 @@ export function createReviewStore(root: string): ReviewStore {
         if (!treeOpen) {
           query = ''
         }
-      })
-    },
-    unfold: (held) => {
-      if (!folded.has(held)) {
-        return
-      }
-      mutate(() => {
-        const next = new Set(folded)
-        next.delete(held)
-        folded = next
       })
     },
   }

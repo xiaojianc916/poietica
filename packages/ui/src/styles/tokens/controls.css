@@ -3,6 +3,9 @@
   --ui-control-height-md: 2.25rem;
   --ui-control-height-lg: 2.5rem;
 
+  /* 菜单行不承担触控命中区，比表单控件矮一档（macOS 约 22、VS Code 26、Fluent 32）。 */
+  --ui-menu-row-height: 1.75rem;
+
   /*
    * 图标档位只声明 16 这一档。
    *
