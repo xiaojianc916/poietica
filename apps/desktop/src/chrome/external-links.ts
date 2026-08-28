@@ -1,4 +1,4 @@
-import { commands } from '@poietica/ipc/generated/ipc-bindings'
+import { commands } from '@poietica/contract'
 
 /**
  * 外链归系统浏览器。

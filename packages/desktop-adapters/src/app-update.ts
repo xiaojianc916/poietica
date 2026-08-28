@@ -1,9 +1,4 @@
-import {
-  commands,
-  events,
-  type UpdateProgress,
-  type UpdateRelease,
-} from '@poietica/ipc/generated/ipc-bindings'
+import { commands, events, type UpdateProgress, type UpdateRelease } from '@poietica/contract'
 
 export interface AppUpdateController {
   /** 有没有比当前版本更新的发布。没有则为 null。 */

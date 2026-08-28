@@ -1,5 +1,5 @@
+import { type AssetFormat, type AssetUploadResult, commands } from '@poietica/contract'
 import { throughIpc } from './error'
-import { type AssetFormat, type AssetUploadResult, commands } from './generated/ipc-bindings'
 
 /*
  * 资产会话：一批图片挂在一个令牌下面，关掉就一起释放。

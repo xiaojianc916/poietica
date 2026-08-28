@@ -1,8 +1,8 @@
+import type { McpEndpoint } from '@poietica/contract'
+import { commands } from '@poietica/contract'
 import { throughIpc } from './error'
-import type { McpEndpoint } from './generated/ipc-bindings'
-import { commands } from './generated/ipc-bindings'
 
-export type { McpEndpoint } from './generated/ipc-bindings'
+export type { McpEndpoint } from '@poietica/contract'
 
 /**
  * 本进程那台 MCP 服务器听在哪儿。

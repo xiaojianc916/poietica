@@ -1,4 +1,4 @@
-import { commands } from '@poietica/ipc/generated/ipc-bindings'
+import { commands } from '@poietica/contract'
 import type { SettingsStore } from '@poietica/settings'
 
 /*

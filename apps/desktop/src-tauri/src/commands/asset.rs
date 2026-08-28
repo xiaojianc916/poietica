@@ -12,9 +12,10 @@ use tauri::{State, async_runtime};
 use uuid::Uuid;
 
 use crate::asset_protocol::{AssetProtocolError, AssetProtocolRegistry, asset_protocol_url};
-use crate::error::{Error, IpcError};
+use crate::error::Error;
+use poietica_problem::Problem;
 
-type CommandResult<T> = Result<T, IpcError>;
+type CommandResult<T> = Result<T, Problem>;
 
 #[derive(Clone, Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -523,7 +524,7 @@ pub async fn asset_session_close(
     Ok(())
 }
 
-fn map_asset_error(error: AssetProtocolError) -> IpcError {
+fn map_asset_error(error: AssetProtocolError) -> Problem {
     let error = match error {
         AssetProtocolError::InvalidToken
         | AssetProtocolError::InvalidContentHash
@@ -556,6 +557,7 @@ mod tests {
     )]
 
     use super::*;
+    use poietica_problem::Code;
 
     #[test]
     fn content_hash_is_canonical_sha256() {
@@ -625,8 +627,10 @@ mod tests {
 
     #[test]
     fn asset_errors_do_not_expose_internal_details() {
-        let ipc = map_asset_error(AssetProtocolError::RegistryBudgetExceeded);
+        let problem = map_asset_error(AssetProtocolError::RegistryBudgetExceeded);
 
-        assert_eq!(ipc.message, "资源处理失败");
+        /* 过边界的只有一个码：句子归前端文案表，现场一条都不外带。 */
+        assert_eq!(problem.code, Code::AssetRejected);
+        assert!(problem.details.is_empty());
     }
 }

@@ -76,6 +76,7 @@ specta-typescript.workspace = true
 tauri-specta.workspace = true
 tokio.workspace = true
 poietica-plugin-host-native = { path = "../../../crates/plugin-host" }
+poietica-problem = { path = "../../../crates/problem" }
 poietica-update-native = { path = "../../../crates/update" }
 rmcp.workspace = true
 axum.workspace = true

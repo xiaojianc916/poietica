@@ -1,18 +1,18 @@
-import { throughIpc } from './error'
 import type {
   CustomAgentCatalog,
   CustomAgentFile,
   CustomAgentRemoveRequest,
   CustomAgentSaveRequest,
-} from './generated/ipc-bindings'
-import { commands } from './generated/ipc-bindings'
+} from '@poietica/contract'
+import { commands } from '@poietica/contract'
+import { throughIpc } from './error'
 
 export type {
   CustomAgentCatalog,
   CustomAgentFile,
   CustomAgentRemoveRequest,
   CustomAgentSaveRequest,
-} from './generated/ipc-bindings'
+} from '@poietica/contract'
 
 export function listCustomAgents(): Promise<CustomAgentCatalog> {
   return throughIpc(() => commands.customAgentsList())

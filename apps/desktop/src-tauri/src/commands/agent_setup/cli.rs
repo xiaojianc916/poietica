@@ -17,14 +17,15 @@
 //! 现算，不是用户输入；文档里没有密钥。
 
 use crate::commands::catalog_server::CatalogServer;
-use crate::error::{Error, IpcError, Result};
+use crate::error::{Error, Result};
+use poietica_problem::Problem;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, async_runtime, command};
 
 use super::profile::{agent_program, global_launch_env, global_provider_secret, launch_env};
 
-type AgentCliCommandResult<T> = std::result::Result<T, IpcError>;
+type AgentCliCommandResult<T> = std::result::Result<T, Problem>;
 
 const MAX_ARGS: usize = 16;
 const MAX_ARG_LEN: usize = 512;
@@ -235,19 +236,19 @@ pub async fn agent_cli_exec(
     app: AppHandle,
     request: AgentCliRequest,
 ) -> AgentCliCommandResult<AgentCliResult> {
-    validate(&request).map_err(IpcError::from)?;
+    validate(&request).map_err(Problem::from)?;
 
     // 程序与环境来自同一份档案。CLI 用哪个程序、往哪个 home 写 provider，
     // 都得与 kap 会话起来的那个进程一致 —— 两处各算一次，迟早算出两个。
-    let program = agent_program(&app, &request.agent_id).map_err(IpcError::from)?;
-    validate_program(&program).map_err(IpcError::from)?;
+    let program = agent_program(&app, &request.agent_id).map_err(Problem::from)?;
+    validate_program(&program).map_err(Problem::from)?;
 
     let env = if request.use_global_home {
         global_launch_env(&app, &request.agent_id)
     } else {
         launch_env(&app, &request.agent_id)
     }
-    .map_err(IpcError::from)?;
+    .map_err(Problem::from)?;
 
     // 裸名字不是一条可启动的路径：Windows 上包管理器装出来的是 kimi.CMD，
     // CreateProcess 只补 .exe、不读 PATHEXT，于是 Command::new("kimi") 直接
@@ -258,13 +259,13 @@ pub async fn agent_cli_exec(
     // PATHEXT，agents.json 里换成绝对路径也照样原样通过。
     let resolved = poietica_agent_runtime_native::resolve_program(&program)
         .map_err(|_searched| missing_program(&program))
-        .map_err(IpcError::from)?;
+        .map_err(Problem::from)?;
 
     // 密钥二选一：随请求带来的，或现在从全局配置取出 —— 不管哪种，都在 request
     // 被目录服务的 match 与闭包拆走之前落袋。
     let secret = match request.secret_from_global_provider {
         Some(provider_id) => {
-            global_provider_secret(&app, &request.agent_id, &provider_id).map_err(IpcError::from)?
+            global_provider_secret(&app, &request.agent_id, &provider_id).map_err(Problem::from)?
         }
         None => request.secret_value,
     };
@@ -276,7 +277,7 @@ pub async fn agent_cli_exec(
         Some(document) => Some(
             CatalogServer::start(document)
                 .map_err(|error| Error::Internal(format!("无法启动目录服务：{error}")))
-                .map_err(IpcError::from)?,
+                .map_err(Problem::from)?,
         ),
         None => None,
     };
@@ -319,7 +320,7 @@ pub async fn agent_cli_exec(
     })
     .await
     .map_err(|error| Error::Internal(error.to_string()))
-    .map_err(IpcError::from)?;
+    .map_err(Problem::from)?;
 
     // 「没装」是这里最常见的一种失败，也是用户自己能解决的那一种。其余的
     // io 错误可能带上系统路径，仍然走脱敏。
@@ -332,7 +333,7 @@ pub async fn agent_cli_exec(
                 Error::Internal(format!("无法启动 agent CLI：{error}"))
             }
         })
-        .map_err(IpcError::from)?;
+        .map_err(Problem::from)?;
 
     Ok(AgentCliResult {
         status: output.status.code().unwrap_or(-1),

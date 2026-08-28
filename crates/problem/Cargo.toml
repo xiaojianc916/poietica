@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 serde.workspace = true
+specta.workspace = true
 uuid.workspace = true
 
 [lints]

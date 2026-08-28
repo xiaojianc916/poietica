@@ -3,7 +3,8 @@ use specta::Type;
 use tauri::{AppHandle, command};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::error::{Error, IpcError};
+use crate::error::Error;
+use poietica_problem::Problem;
 
 const MAX_TABLE_EXPORT_BYTES: usize = 16 * 1024 * 1024;
 
@@ -54,9 +55,9 @@ impl TableExportFormat {
 /// 内容超过上限、保存对话框异常或文件写入失败时返回脱敏后的 IPC 错误。
 #[command]
 #[specta::specta]
-pub async fn table_export(app: AppHandle, request: TableExportRequest) -> Result<bool, IpcError> {
+pub async fn table_export(app: AppHandle, request: TableExportRequest) -> Result<bool, Problem> {
     if request.content.len() > MAX_TABLE_EXPORT_BYTES {
-        return Err(IpcError::from(Error::Validation(
+        return Err(Problem::from(Error::Validation(
             "table export exceeds the size limit".to_owned(),
         )));
     }
@@ -85,14 +86,14 @@ pub async fn table_export(app: AppHandle, request: TableExportRequest) -> Result
     };
 
     let path = picked.into_path().map_err(|cause| {
-        IpcError::from(Error::File(format!(
+        Problem::from(Error::File(format!(
             "the selected table export target is not a filesystem path: {cause}"
         )))
     })?;
 
     tokio::fs::write(path, request.content)
         .await
-        .map_err(|cause| IpcError::from(Error::Io(cause)))?;
+        .map_err(|cause| Problem::from(Error::Io(cause)))?;
 
     Ok(true)
 }

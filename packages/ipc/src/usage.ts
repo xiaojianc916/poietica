@@ -1,5 +1,5 @@
+import { commands, type UsageDay } from '@poietica/contract'
 import { throughIpc } from './error'
-import { commands, type UsageDay } from './generated/ipc-bindings'
 
 /*
  * Token 日账：只有读。

@@ -13,9 +13,10 @@ use tauri::{AppHandle, command};
 
 use crate::commands::agent_setup::profile::agent_home_directory;
 use crate::commands::plugins::{PluginFetch, staged_fetch, staging_root};
-use crate::error::{Error, IpcError, Result};
+use crate::error::{Error, Result};
+use poietica_problem::Problem;
 
-type SkillsCommandResult<T> = std::result::Result<T, IpcError>;
+type SkillsCommandResult<T> = std::result::Result<T, Problem>;
 
 const SKILLS_DIRECTORY: &str = "skills";
 
@@ -73,7 +74,7 @@ pub async fn skills_list(app: AppHandle) -> SkillsCommandResult<Vec<SkillRecord>
             })
             .collect())
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 取件到暂存区：与插件安装共用同一条管线（plugins.rs 的 staged_fetch），判据换成
@@ -97,7 +98,7 @@ pub async fn skills_stage(app: AppHandle, fetch: PluginFetch) -> SkillsCommandRe
         })
     })
     .await
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 认领：暂存里的技能根搬进 skills/<name>/。同名目录被原子换掉，重装即覆盖。
@@ -116,7 +117,7 @@ pub async fn skills_commit(app: AppHandle, request: SkillCommitRequest) -> Skill
         )
         .map_err(skill_failure)
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 丢掉一份暂存（安装取消或失败后的清理）。
@@ -129,7 +130,7 @@ pub async fn skills_discard(app: AppHandle, staging_id: String) -> SkillsCommand
 
         staging.discard().map_err(skill_failure)
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 卸载：删掉 skills/<name>/。目录不在视为成功，删除因此幂等。
@@ -137,7 +138,7 @@ pub async fn skills_discard(app: AppHandle, staging_id: String) -> SkillsCommand
 #[specta::specta]
 pub async fn skills_remove(app: AppHandle, name: String) -> SkillsCommandResult<()> {
     (|| -> Result<()> { host::remove_skill(&skills_root(&app)?, &name).map_err(skill_failure) })()
-        .map_err(IpcError::from)
+        .map_err(Problem::from)
 }
 
 /// 停用与启用：SKILL.md 与 SKILL.md.disabled 之间改名，正文不动。
@@ -151,5 +152,5 @@ pub async fn skills_set_enabled(
     (|| -> Result<()> {
         host::set_skill_enabled(&skills_root(&app)?, &name, enabled).map_err(skill_failure)
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }

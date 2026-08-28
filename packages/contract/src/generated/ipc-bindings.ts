@@ -2018,6 +2018,14 @@ export type BrowserTab = { id: number; url: string | null; title: string; loadin
  * 站点图标的 data URL。缺席时渲染层画地球。
  */
 favicon: string | null }
+/**
+ * 谁该负责。封闭九类，边界上不许另起分类。
+ */
+export type Category = "validation" | "configuration" | "permission" | "transport" | "protocol" | "persistence" | "integrity" | "cancelled" | "internal"
+/**
+ * 稳定错误码。一个码只对应一个原因；删码等于破坏契约。
+ */
+export type Code = "contractDecodeFailed" | "capabilityMissing" | "agentUnavailable" | "agentStartFailed" | "turnRejected" | "deliveryUnknown" | "permissionDenied" | "workspaceUnavailable" | "ledgerAppendFailed" | "ledgerCorrupted" | "cancelled" | "internal" | "requestInvalid" | "resourceMissing" | "fileUnavailable" | "settingsUnavailable" | "assetRejected" | "pluginRejected" | "agentRejected" | "gitRejected" | "hostFailed"
 export type CustomAgentCatalog = { files: CustomAgentFile[]; issues: string[] }
 export type CustomAgentFile = { relativePath: string; absolutePath: string; document: string }
 export type CustomAgentRemoveRequest = { relativePath: string; expectedDocument: string }
@@ -2026,6 +2034,12 @@ export type CustomAgentSaveRequest = { relativePath: string; document: string; e
  * 疏密同样是闭集，理由与 `ThemePreference` 逐字相同。
  */
 export type Density = "comfortable" | "compact"
+/**
+ * 一次失败的编号：日志、上报、界面引用同一个值。
+ * 
+ * v7 带时间前缀且单调，按字符串排序即按发生顺序，不必手写 ULID。
+ */
+export type DiagnosticId = string
 /**
  * 一份配置文件的现状：它在哪，以及它的正文。
  * 
@@ -2082,8 +2096,6 @@ export type GitFileChange = { path: string; status: GitChangeStatus; staged: boo
  * 审查那一格此刻要画的全部事实。
  */
 export type GitReview = { branch: string | null; detachedAt: string | null; upstream: string | null; ahead: number; behind: number; branches: string[]; changes: GitFileChange[]; patch: string }
-export type IpcError = { code: IpcErrorCode; message: string; recoverable: boolean }
-export type IpcErrorCode = "validation" | "not-found" | "permission-denied" | "persistence" | "plugin" | "asset" | "platform"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 /**
  * 服务器的落脚地址。渲染层照着它把这台服务器登记进 MCP 那一格。
@@ -2138,6 +2150,14 @@ export type PluginStaged = { stagingId: string;
  */
 manifestJson: string }
 export type PrivacySettings = { telemetry: boolean; crashReporting: boolean; updateCheck: boolean }
+/**
+ * 唯一允许跨越进程与语言边界的错误形状。
+ */
+export type Problem = { code: Code; category: Category; retryability: Retryability; 
+/**
+ * 文案键，不是句子：文案归前端目录。
+ */
+userMessageKey: string; diagnosticId: DiagnosticId; details: Partial<{ [key in string]: string }> }
 export type ProviderProbeOutcome = { verdict: ProviderProbeVerdict; 
 /**
  * HTTP 状态码。没有拿到响应时为 0。
@@ -2172,6 +2192,10 @@ export type ProviderProbeVerdict =
  * 超时、连不上、或其它状态码。关于密钥本身什么都不能下结论。
  */
 "unreachable"
+/**
+ * 能不能再来一次，以及由谁发起。
+ */
+export type Retryability = "no" | "afterDelay" | "afterUserAction"
 export type SkillCommitRequest = { stagingId: string; 
 /**
  * 落盘的目录名。渲染层从前言里读出，这一侧只验安全性。

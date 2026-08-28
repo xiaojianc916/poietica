@@ -12,10 +12,11 @@ use specta::Type;
 use tauri::{AppHandle, command};
 
 use crate::commands::agent_setup::profile::{agent_home_directory, own_home_directory};
-use crate::error::{Error, IpcError, Result};
+use crate::error::{Error, Result};
 use crate::paths::marketplace_catalog;
+use poietica_problem::Problem;
 
-type PluginsCommandResult<T> = std::result::Result<T, IpcError>;
+type PluginsCommandResult<T> = std::result::Result<T, Problem>;
 
 /// 一次下载最多接受这么多字节。没有上限，一个坏掉的直链就能把内存吃光；逐块累加
 /// 意味着服务器谎报 Content-Length 也没有用。
@@ -284,7 +285,7 @@ pub async fn plugins_list(app: AppHandle) -> PluginsCommandResult<Vec<PluginPayl
         found.sort_by(|left, right| left.plugin_id.cmp(&right.plugin_id));
         Ok(found)
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 用户在命令行上装的那些插件 —— 只读，一个字节都不写。
@@ -320,7 +321,7 @@ pub async fn plugins_foreign_list(
             .collect();
         Ok(Some(ForeignPluginLedger { location, plugins }))
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 #[command]
@@ -331,7 +332,7 @@ pub async fn plugins_stage(
 ) -> PluginsCommandResult<PluginStaged> {
     staged_fetch(&app, fetch, plugin_failure, finish_staging)
         .await
-        .map_err(IpcError::from)
+        .map_err(Problem::from)
 }
 
 /// 认领：副本进 managed/<id>/，然后往账本里记一条。
@@ -363,7 +364,7 @@ pub async fn plugins_commit(
             })
             .map_err(plugin_failure)
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 #[command]
@@ -374,7 +375,7 @@ pub async fn plugins_discard(app: AppHandle, staging_id: String) -> PluginsComma
             .and_then(host::Staging::discard)
             .map_err(plugin_failure)
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 卸载：账本里那一条去掉，托管副本一并删掉。
@@ -392,7 +393,7 @@ pub async fn plugins_remove(app: AppHandle, plugin_id: String) -> PluginsCommand
         }
         Ok(())
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 拨动整个插件。写的是 agent 会读的那一格，所以拨完在新会话里就是真的。
@@ -406,7 +407,7 @@ pub async fn plugins_set_enabled(
     ledger(&app)?
         .set_enabled(&plugin_id, enabled)
         .map_err(plugin_failure)
-        .map_err(IpcError::from)
+        .map_err(Problem::from)
 }
 
 /// 拨动某个插件带来的一台 MCP 服务器。
@@ -424,7 +425,7 @@ pub async fn plugins_set_mcp_enabled(
     ledger(&app)?
         .set_mcp_enabled(&plugin_id, &server, enabled)
         .map_err(plugin_failure)
-        .map_err(IpcError::from)
+        .map_err(Problem::from)
 }
 
 #[command]
@@ -433,7 +434,7 @@ pub async fn plugins_catalog_read(app: AppHandle) -> PluginsCommandResult<Option
     (|| -> Result<Option<String>> {
         host::read_optional(&marketplace_catalog(&app)?).map_err(plugin_failure)
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 拉一次市场目录，覆盖本地那一份，并把它交回去。
@@ -454,5 +455,5 @@ pub async fn plugins_catalog_refresh(app: AppHandle, url: String) -> PluginsComm
                 .map_err(plugin_failure)
                 .map(|()| contents)
         })
-        .map_err(IpcError::from)
+        .map_err(Problem::from)
 }

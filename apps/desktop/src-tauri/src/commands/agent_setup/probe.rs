@@ -26,13 +26,14 @@
 //!
 //! 这条命令不写任何东西。密钥随请求进来、发完即弃，不落盘、不进日志。
 
-use crate::error::{Error, IpcError};
+use crate::error::Error;
+use poietica_problem::Problem;
 use serde::Serialize;
 use specta::Type;
 use std::time::Duration;
 use tauri::command;
 
-type ProviderProbeCommandResult<T> = Result<T, IpcError>;
+type ProviderProbeCommandResult<T> = Result<T, Problem>;
 
 /// 一次探测最多等多久。这是一个保存动作的附属步骤，不是主线，宁可说「没能验证」
 /// 也不要让用户对着转圈等下去。
@@ -115,7 +116,7 @@ pub async fn provider_probe_key(
         .timeout(PROBE_TIMEOUT)
         .build()
         .map_err(|error| Error::Internal(format!("无法创建 HTTP 客户端：{error}")))
-        .map_err(IpcError::from)?;
+        .map_err(Problem::from)?;
 
     // 失败的原因刻意不外带：reqwest 的错误串里可能有代理地址一类的本机信息，而
     // 界面要说的那句话不需要它。这与 error.rs 那张脱敏表是同一条纪律。

@@ -7,6 +7,7 @@
 //! 只会安静地少一条绑定。
 
 pub mod export_bindings;
+pub mod problem;
 
 use tauri::Wry;
 use tauri_specta::{Builder, ErrorHandlingMode};

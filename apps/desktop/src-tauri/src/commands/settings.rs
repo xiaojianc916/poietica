@@ -1,11 +1,12 @@
-use crate::error::{IpcError, Result};
+use crate::error::Result;
 use crate::paths::settings_store;
+use poietica_problem::Problem;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, command};
 use tauri_plugin_store::StoreExt;
 
-type SettingsCommandResult<T> = std::result::Result<T, IpcError>;
+type SettingsCommandResult<T> = std::result::Result<T, Problem>;
 
 /// 颜色模式是一个闭集，不是一段自由文本。
 ///
@@ -147,7 +148,7 @@ pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> 
             .and_then(|value| serde_json::from_value(value).ok())
             .unwrap_or_default())
     })()
-    .map_err(IpcError::from)?;
+    .map_err(Problem::from)?;
 
     /* 磁盘上那个布尔值只在这三处进程内生效，所以对账也只在这三处。 */
     crate::commands::agent::runtime::apply_daemon_intent(&app, settings.general.daemon).await;
@@ -170,7 +171,7 @@ pub async fn settings_set(app: AppHandle, settings: AppSettings) -> SettingsComm
         store.save()?;
         Ok(settings)
     })()
-    .map_err(IpcError::from)?;
+    .map_err(Problem::from)?;
 
     /* 落盘先于对账：进程内的相位跟着已经成立的意图走，不跟着一次可能失败的写。 */
     crate::commands::agent::runtime::apply_daemon_intent(&app, saved.general.daemon).await;
@@ -194,7 +195,7 @@ pub async fn settings_reset(app: AppHandle) -> SettingsCommandResult<AppSettings
         store.save()?;
         Ok(defaults)
     })()
-    .map_err(IpcError::from)?;
+    .map_err(Problem::from)?;
 
     crate::commands::agent::runtime::apply_daemon_intent(&app, defaults.general.daemon).await;
 

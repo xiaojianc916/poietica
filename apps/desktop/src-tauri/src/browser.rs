@@ -27,7 +27,8 @@ use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Url, WebviewUrl, c
 use tauri_specta::Event;
 
 use crate::bootstrap::app::MAIN_WINDOW;
-use crate::error::{Error, IpcError};
+use crate::error::Error;
+use poietica_problem::Problem;
 
 /// 子 webview 的 label 前缀。capability 按窗口配给 "main"，但这些 webview
 /// 永远是外部 origin，remote 未声明即无 IPC —— 前缀只用于归属与调试。
@@ -667,7 +668,7 @@ pub async fn browser_reload(app: AppHandle, id: u32) {
 
 #[command]
 #[specta::specta]
-pub async fn browser_print(app: AppHandle, id: u32) -> Result<(), IpcError> {
+pub async fn browser_print(app: AppHandle, id: u32) -> Result<(), Problem> {
     let webview = {
         let host = app.state::<BrowserHost>();
         lock(&host.webviews).get(&id).cloned()

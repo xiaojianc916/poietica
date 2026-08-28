@@ -1,6 +1,6 @@
+import type { McpLauncher } from '@poietica/contract'
+import { commands } from '@poietica/contract'
 import { throughIpc } from './error'
-import type { McpLauncher } from './generated/ipc-bindings'
-import { commands } from './generated/ipc-bindings'
 
 export type { McpLauncher }
 

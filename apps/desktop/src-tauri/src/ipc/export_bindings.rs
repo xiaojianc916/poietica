@@ -7,7 +7,7 @@ use specta_typescript::Typescript;
 
 const OUTPUT_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../packages/ipc/src/generated/ipc-bindings.ts"
+    "/../../../packages/contract/src/generated/ipc-bindings.ts"
 );
 
 /// 导出渲染层消费的那一份 IPC DTO 面。

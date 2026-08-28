@@ -1,7 +1,8 @@
 //! 更新的原生一端：取清单、取载荷、校验、暂存、换装重启。
 //!
 //! 判据与编解码归 poietica-update-native；何时检查、怎么呈现归渲染层。
-use crate::error::{Error, IpcError};
+use crate::error::Error;
+use poietica_problem::Problem;
 use poietica_update_native as update;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -11,9 +12,9 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 use tauri::{AppHandle, Manager, command};
 use tauri_specta::Event;
-/// 命令面上的错误是 IpcError：Error 的变体带着路径与系统串，经 error.rs 那张脱敏表
+/// 命令面上的错误是 Problem：Error 的变体带着路径与系统串，经 error.rs 那张脱敏表
 /// 过一遍之后才是契约。
-type UpdateCommandResult<T> = Result<T, IpcError>;
+type UpdateCommandResult<T> = Result<T, Problem>;
 /// 客户端真正会去拉的那条地址。发布脚本读同一个文件，两边不可能各写各的。
 const MANIFEST_URL: &str = include_str!("../../updater/manifest.url");
 /// 发布签名的公钥：minisign 公钥文件的 base64。
@@ -135,7 +136,7 @@ impl Drop for DownloadGuard<'_> {
         }
     }
 }
-fn failure(reason: &str, cause: &dyn std::fmt::Display) -> IpcError {
+fn failure(reason: &str, cause: &dyn std::fmt::Display) -> Problem {
     log::warn!("update {reason}: {cause}");
     Error::Plugin("the update could not be completed".to_owned()).into()
 }

@@ -1,8 +1,8 @@
+import type { EnvironmentFile } from '@poietica/contract'
+import { commands } from '@poietica/contract'
 import { throughIpc } from './error'
-import type { EnvironmentFile } from './generated/ipc-bindings'
-import { commands } from './generated/ipc-bindings'
 
-export type { EnvironmentFile } from './generated/ipc-bindings'
+export type { EnvironmentFile } from '@poietica/contract'
 
 /*
  * 这个 agent 自己那份 mcp.json。路径由原生侧算，这一层不拼也不猜：受控 home 生效时

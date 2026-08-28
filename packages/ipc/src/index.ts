@@ -1,3 +1,4 @@
+export type { Problem } from '@poietica/problem'
 export {
   type AgentBridgeOptions,
   createAgentCapabilityBridge,

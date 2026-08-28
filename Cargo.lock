@@ -2945,6 +2945,7 @@ dependencies = [
  "poietica-browser-native",
  "poietica-git-native",
  "poietica-plugin-host-native",
+ "poietica-problem",
  "poietica-update-native",
  "reqwest 0.12.28",
  "rmcp",
@@ -3061,6 +3062,7 @@ name = "poietica-problem"
 version = "0.2.1"
 dependencies = [
  "serde",
+ "specta",
  "uuid",
 ]
 

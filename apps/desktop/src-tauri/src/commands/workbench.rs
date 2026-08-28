@@ -9,8 +9,8 @@
 
 use tauri::State;
 
-use crate::error::IpcError;
 use crate::local_index::{LocalIndex, on_index, persistence};
+use poietica_problem::Problem;
 
 /// 上一次关掉时工作台开着什么。第一次启动是 None。
 ///
@@ -21,12 +21,12 @@ use crate::local_index::{LocalIndex, on_index, persistence};
 #[specta::specta]
 pub async fn workbench_session_load(
     index: State<'_, LocalIndex>,
-) -> Result<Option<String>, IpcError> {
+) -> Result<Option<String>, Problem> {
     on_index(&index, |store| {
         store.workbench_session().map_err(persistence)
     })
     .await
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 记下工作台此刻开着什么。整份覆盖，不是增量。
@@ -39,10 +39,10 @@ pub async fn workbench_session_load(
 pub async fn workbench_session_save(
     index: State<'_, LocalIndex>,
     document: String,
-) -> Result<(), IpcError> {
+) -> Result<(), Problem> {
     on_index(&index, move |store| {
         store.set_workbench_session(&document).map_err(persistence)
     })
     .await
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }

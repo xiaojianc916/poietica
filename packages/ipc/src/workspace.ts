@@ -1,5 +1,5 @@
+import { commands } from '@poietica/contract'
 import { throughIpc } from './error'
-import { commands } from './generated/ipc-bindings'
 
 /*
  * 工作目录：让人挑一个。

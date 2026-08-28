@@ -5,8 +5,9 @@
 
 use tauri::{AppHandle, command};
 
-use crate::error::{IpcError, Result};
+use crate::error::Result;
 use crate::paths::data_root;
+use poietica_problem::Problem;
 
 /// 这台机器上，这个应用的数据根。
 ///
@@ -15,7 +16,7 @@ use crate::paths::data_root;
 /// 根目录无法解析或创建时返回错误。
 #[command]
 #[specta::specta]
-pub async fn storage_data_directory(app: AppHandle) -> std::result::Result<String, IpcError> {
+pub async fn storage_data_directory(app: AppHandle) -> std::result::Result<String, Problem> {
     (|| -> Result<String> { Ok(data_root(&app)?.to_string_lossy().into_owned()) })()
-        .map_err(IpcError::from)
+        .map_err(Problem::from)
 }

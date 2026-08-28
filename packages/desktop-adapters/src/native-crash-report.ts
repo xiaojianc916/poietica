@@ -1,8 +1,5 @@
+import { commands, type NativeCrashReport as GeneratedNativeCrashReport } from '@poietica/contract'
 import { throughIpc } from '@poietica/ipc'
-import {
-  commands,
-  type NativeCrashReport as GeneratedNativeCrashReport,
-} from '@poietica/ipc/generated/ipc-bindings'
 
 /**
  * Native crash report generated from the Rust IPC contract.

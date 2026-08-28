@@ -1,5 +1,6 @@
-use crate::error::{Error, IpcError, Result};
+use crate::error::{Error, Result};
 use crate::paths::automations_store;
+use poietica_problem::Problem;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::BTreeMap;
@@ -12,7 +13,7 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio::time::{Instant, MissedTickBehavior, interval_at};
 use uuid::Uuid;
 
-type AutomationsCommandResult<T> = std::result::Result<T, IpcError>;
+type AutomationsCommandResult<T> = std::result::Result<T, Problem>;
 
 /// 账本只留最近这么多次。再往前的正文仍在各自那条对话里。
 ///
@@ -258,7 +259,7 @@ pub async fn automations_create(
     app: AppHandle,
     creation: AutomationCreation,
 ) -> AutomationsCommandResult<AutomationCatalog> {
-    create(&app, creation).map_err(IpcError::from)
+    create(&app, creation).map_err(Problem::from)
 }
 
 /// Reads the persisted automations.
@@ -278,7 +279,7 @@ pub async fn automations_load(app: AppHandle) -> AutomationsCommandResult<Automa
 
         read_catalog(&store)
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// Creates or replaces one automation and returns the catalog as written.
@@ -317,7 +318,7 @@ pub async fn automations_upsert(
             None => automations.insert(0, saved),
         }
     })
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// Removes one automation and returns the catalog as written.
@@ -339,7 +340,7 @@ pub async fn automations_remove(
     mutate(&app, move |automations| {
         automations.retain(|candidate| candidate.id != id);
     })
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// Records one run and advances the schedule, returning the catalog as written.
@@ -381,7 +382,7 @@ pub async fn automations_record_run(
             existing.next_run_at = to;
         }
     })
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 一条自动化到期了。原生侧敲的那一下钟。
@@ -500,5 +501,5 @@ pub fn watch(app: &AppHandle) {
 #[command]
 #[specta::specta]
 pub async fn automations_sweep(app: AppHandle) -> AutomationsCommandResult<()> {
-    ring(&app).map_err(IpcError::from)
+    ring(&app).map_err(Problem::from)
 }

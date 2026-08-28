@@ -12,6 +12,7 @@
   "dependencies": {
     "@poietica/agent-catalog": "workspace:*",
     "@poietica/agent-ui": "workspace:*",
+    "@poietica/contract": "workspace:*",
     "@poietica/core": "workspace:*",
     "@poietica/ipc": "workspace:*",
     "@poietica/settings": "workspace:*",

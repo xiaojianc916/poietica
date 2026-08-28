@@ -1,5 +1,5 @@
+import { commands, events } from '@poietica/contract'
 import { throughIpc } from './error'
-import { commands, events } from './generated/ipc-bindings'
 
 export type {
   BrowserClosedTab,
@@ -7,9 +7,9 @@ export type {
   BrowserPickSubmission,
   BrowserState,
   BrowserTab,
-} from './generated/ipc-bindings'
+} from '@poietica/contract'
 
-import type { BrowserElementPicked, BrowserState } from './generated/ipc-bindings'
+import type { BrowserElementPicked, BrowserState } from '@poietica/contract'
 
 export interface BrowserViewportBounds {
   readonly x: number

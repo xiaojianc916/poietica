@@ -1,5 +1,5 @@
+import type { UpdateKind } from '@poietica/contract'
 import { createExternalStore } from '@poietica/core'
-import type { UpdateKind } from '@poietica/ipc/generated/ipc-bindings'
 import type { SettingsStore } from '@poietica/settings'
 import type { AppUpdateController } from './app-update'
 

@@ -22,6 +22,7 @@
         "@poietica/agent-ui": "workspace:*",
         "@poietica/automations": "workspace:*",
         "@poietica/browser": "workspace:*",
+        "@poietica/contract": "workspace:*",
         "@poietica/core": "workspace:*",
         "@poietica/desktop-adapters": "workspace:*",
         "@poietica/file-diff": "workspace:*",
@@ -162,6 +163,17 @@
         "react-dom": "catalog:",
       },
     },
+    "packages/contract": {
+      "name": "@poietica/contract",
+      "version": "0.1.0",
+      "dependencies": {
+        "@tauri-apps/api": "catalog:tauri",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/core": {
       "name": "@poietica/core",
       "version": "0.1.0",
@@ -179,6 +191,7 @@
       "dependencies": {
         "@poietica/agent-catalog": "workspace:*",
         "@poietica/agent-ui": "workspace:*",
+        "@poietica/contract": "workspace:*",
         "@poietica/core": "workspace:*",
         "@poietica/ipc": "workspace:*",
         "@poietica/settings": "workspace:*",
@@ -206,6 +219,8 @@
       "version": "0.1.0",
       "dependencies": {
         "@poietica/agent-contract": "workspace:*",
+        "@poietica/contract": "workspace:*",
+        "@poietica/problem": "workspace:*",
         "@tauri-apps/api": "catalog:tauri",
       },
       "devDependencies": {
@@ -235,6 +250,17 @@
       "peerDependencies": {
         "react": "catalog:",
         "react-dom": "catalog:",
+      },
+    },
+    "packages/problem": {
+      "name": "@poietica/problem",
+      "version": "0.1.0",
+      "dependencies": {
+        "@poietica/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
       },
     },
     "packages/settings": {
@@ -492,6 +518,8 @@
 
     "@poietica/browser": ["@poietica/browser@workspace:packages/browser"],
 
+    "@poietica/contract": ["@poietica/contract@workspace:packages/contract"],
+
     "@poietica/core": ["@poietica/core@workspace:packages/core"],
 
     "@poietica/desktop": ["@poietica/desktop@workspace:apps/desktop"],
@@ -503,6 +531,8 @@
     "@poietica/ipc": ["@poietica/ipc@workspace:packages/ipc"],
 
     "@poietica/plugins": ["@poietica/plugins@workspace:packages/plugins"],
+
+    "@poietica/problem": ["@poietica/problem@workspace:packages/problem"],
 
     "@poietica/settings": ["@poietica/settings@workspace:packages/settings"],
 

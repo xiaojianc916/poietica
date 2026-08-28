@@ -10,10 +10,10 @@
 
 | 事实 | 定义在 | 由谁执行 |
 | --- | --- | --- |
-| 包分层与依赖方向 | `tools/architecture/rules.config.mjs` | `bun run test:architecture` |
-| 包内目录命名禁用清单 | 同上 `forbiddenDirectoryNames` | 同上 |
+| 包分层与依赖方向 | `tools/architecture/layering.ts` | `bun run test:architecture` |
+| 包内目录命名禁用清单 | 同上 `FORBIDDEN_DIRECTORY_NAMES` | 同上 |
 | 依赖版本 | `package.json` 的 catalog | Bun |
-| IPC 契约 | Rust 类型，生成到 `packages/ipc/src/generated/` | `bun run ipc:check` |
+| IPC 契约 | Rust 类型，生成到 `packages/contract/src/generated/` | `bun run ipc:check` |
 | IPC 命令清单 | `apps/desktop/src-tauri/src/ipc/mod.rs` 的 surface()，唯一一份 | 同上 |
 | 磁盘布局 | `apps/desktop/src-tauri/src/paths.rs` | 运行时 |
 | 帧的形状 | `crates/agent-runtime/src/frame.rs` | serde + 测试 |
@@ -52,8 +52,8 @@ timeline 投影 → React。反向只有三条命令路：prompt / cancel / reso
 apps/desktop/src/        产品界面与应用编排（组合根：shell/app-shell.tsx）
 apps/desktop/src-tauri/  唯一的 Rust 组合根：建窗、注册命令、DTO 互转
 crates/                  native crate：互不依赖、不依赖 tauri、可 cargo test 单测
-packages/                TS 工作区包：分层由 rules.config.mjs 裁决，依赖单向向下
-tools/architecture/      机器执行的那部分架构
+packages/                TS 工作区包：分层由 layering.ts 裁决，依赖单向向下
+tools/architecture/      机器执行的那部分架构（入口 verify.ts）
 ```
 
 三条 TS 不变量：依赖只指向更低层（判据落在 package.json 边上）；只有
@@ -77,7 +77,7 @@ emit、宿主节拍（攒批、窗口、托盘）。
   state.json 的逻辑写死在通用归档命令里。
 - 常量单一产地。跨语言不得不复制时（如 IMAGE_OPENER），拷贝处必须注明正本
   的**当前**路径，正本移动时拷贝注释必须跟着改。
-- 生成物（packages/ipc/src/generated/）不手改；lockfile 不由重构脚本碰。
+- 生成物（packages/contract/src/generated/）不手改；lockfile 不由重构脚本碰。
 
 **拆分判据（出现任一才拆，行数本身不是理由）：**
 
@@ -173,7 +173,7 @@ allow。
 | `docs/adr/` | 已接受的技术决策及其理由 |
 | `docs/rfcs/` | 进行中的提案 |
 | `docs/runbooks/` | 开发、维护与运维流程 |
-| `tools/architecture/README.md` | 机器执行的那部分架构 |
+| `tools/architecture/verify.ts` | 机器执行的那部分架构（策略在 policies.ts，判据数据在 layering.ts） |
 
 # 代码质量
 你是一名奉行“偷懒哲学”的资深开发者。此处的偷懒=高效，绝非敷衍了事。

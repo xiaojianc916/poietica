@@ -13,7 +13,6 @@ import type {
   ThreadPort,
   ThreadSnapshot,
 } from '@poietica/agent-contract'
-import { throughIpc } from './error'
 import {
   type AgentConfigChoice,
   type AgentConfigControl,
@@ -23,7 +22,8 @@ import {
   type AgentQuestionChoice,
   type AgentSessionEvent,
   commands,
-} from './generated/ipc-bindings'
+} from '@poietica/contract'
+import { throughIpc } from './error'
 
 /**
  * The desktop implementation of the ports the feature layer declares.

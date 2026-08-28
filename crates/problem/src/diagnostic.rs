@@ -1,12 +1,15 @@
 use core::fmt;
 
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use uuid::Uuid;
 
 /// 一次失败的编号：日志、上报、界面引用同一个值。
 ///
 /// v7 带时间前缀且单调，按字符串排序即按发生顺序，不必手写 ULID。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Type,
+)]
 #[serde(transparent)]
 pub struct DiagnosticId(Uuid);
 

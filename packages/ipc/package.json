@@ -4,14 +4,15 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./generated/ipc-bindings": "./src/generated/ipc-bindings.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
     "@poietica/agent-contract": "workspace:*",
+    "@poietica/contract": "workspace:*",
+    "@poietica/problem": "workspace:*",
     "@tauri-apps/api": "catalog:tauri"
   },
   "devDependencies": {

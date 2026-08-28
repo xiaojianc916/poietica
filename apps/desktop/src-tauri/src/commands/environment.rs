@@ -28,9 +28,10 @@ use tauri::{AppHandle, command};
 use crate::commands::agent_setup::profile::{
     agent_mcp_config, agent_mcp_config_for_write, write_config_atomically,
 };
-use crate::error::{Error, IpcError, Result};
+use crate::error::{Error, Result};
+use poietica_problem::Problem;
 
-type EnvironmentCommandResult<T> = std::result::Result<T, IpcError>;
+type EnvironmentCommandResult<T> = std::result::Result<T, Problem>;
 
 /// 一份配置文件的现状：它在哪，以及它的正文。
 ///
@@ -69,7 +70,7 @@ pub async fn environment_mcp_config(app: AppHandle) -> EnvironmentCommandResult<
             contents: read_file(&path)?,
         })
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 改写受控 home 里那份 mcp.json，先比对再落盘。
@@ -113,5 +114,5 @@ pub async fn environment_mcp_config_write(
             contents: Some(contents),
         })
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }

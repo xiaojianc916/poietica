@@ -1,13 +1,8 @@
+import type { PluginFetch, SkillCommitRequest, SkillRecord, SkillStaged } from '@poietica/contract'
+import { commands } from '@poietica/contract'
 import { throughIpc } from './error'
-import type {
-  PluginFetch,
-  SkillCommitRequest,
-  SkillRecord,
-  SkillStaged,
-} from './generated/ipc-bindings'
-import { commands } from './generated/ipc-bindings'
 
-export type { SkillCommitRequest, SkillRecord, SkillStaged } from './generated/ipc-bindings'
+export type { SkillCommitRequest, SkillRecord, SkillStaged } from '@poietica/contract'
 
 /** 本机 skills/ 里装着哪些：一行一个目录，带启用状态与 SKILL.md 原文。 */
 export function listSkills(): Promise<SkillRecord[]> {

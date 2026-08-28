@@ -18,12 +18,13 @@
 //! 「哪些 provider 已配好」的权威因此是 agent，问它的 provider list，不是问
 //! 我们。
 
-use crate::error::{Error, IpcError, Result};
+use crate::error::{Error, Result};
 use crate::paths::{agent_home, agents_store};
 use poietica_agent_runtime_native::{
     alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
     usable_default_model,
 };
+use poietica_problem::Problem;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
@@ -34,7 +35,7 @@ use tauri::{AppHandle, Manager, command};
 use tauri_plugin_store::StoreExt;
 use toml_edit::DocumentMut;
 
-type AgentConfigCommandResult<T> = std::result::Result<T, IpcError>;
+type AgentConfigCommandResult<T> = std::result::Result<T, Problem>;
 
 const STORE_KEY: &str = "agentConfig";
 
@@ -569,7 +570,7 @@ pub async fn agent_config_get(app: AppHandle) -> AgentConfigCommandResult<AgentC
         let (config, issues) = read_config(&app)?;
         Ok(to_snapshot(config, issues))
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 每个已配置 provider 的密钥尾号：provider id → 密钥最后 5 个字符。
@@ -763,7 +764,7 @@ pub async fn agent_set_default_model(
 
         write_config_atomically(&path, &document.to_string())
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 /// 从用户自己那份 home 的 config.toml 里取出一家 provider 的完整密钥。
@@ -810,7 +811,7 @@ pub async fn agent_config_save_agents(
         save_config(&app, &config)?;
         Ok(to_snapshot(config, issues))
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 #[cfg(test)]

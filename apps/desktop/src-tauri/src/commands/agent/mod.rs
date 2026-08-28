@@ -14,7 +14,8 @@
 //! type: kap allows three decisions and one scope, and serde refuses anything
 //! else at this boundary before a desk or the wire ever sees it.
 
-use crate::error::IpcError;
+use poietica_problem::Problem;
+
 /*
  * 本模块不做 re-export：命令与 DTO 一律按定义它们的子模块引用。
  *
@@ -36,7 +37,7 @@ pub mod thread;
 pub mod toolkit;
 pub mod turn;
 
-type AgentCommandResult<T> = Result<T, IpcError>;
+type AgentCommandResult<T> = Result<T, Problem>;
 
 /// The event the renderer listens on to receive run frames.
 pub const AGENT_EVENT: &str = "ai-run-event";

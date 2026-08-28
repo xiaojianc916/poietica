@@ -1,4 +1,4 @@
-import { commands } from '@poietica/ipc/generated/ipc-bindings'
+import { commands } from '@poietica/contract'
 
 /**
  * 这台机器上，这个应用的数据落在哪。

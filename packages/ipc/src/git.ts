@@ -1,4 +1,3 @@
-import { throughIpc } from './error'
 import {
   commands,
   type GitBranches,
@@ -6,7 +5,8 @@ import {
   type GitCommitRequest,
   type GitFileChange,
   type GitReview,
-} from './generated/ipc-bindings'
+} from '@poietica/contract'
+import { throughIpc } from './error'
 
 /*
  * 工作目录的 git 分支面。

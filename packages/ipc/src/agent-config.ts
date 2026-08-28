@@ -1,4 +1,3 @@
-import { throughIpc } from './error'
 import {
   type AgentCliResult,
   type AgentConfigSnapshot,
@@ -7,7 +6,8 @@ import {
   type JsonValue,
   type AgentCliRequest as NativeAgentCliRequest,
   type ProviderProbeOutcome,
-} from './generated/ipc-bindings'
+} from '@poietica/contract'
+import { throughIpc } from './error'
 
 /*
  * 同一个 agent 的配置调用排成一列。

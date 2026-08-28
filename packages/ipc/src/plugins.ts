@@ -1,12 +1,12 @@
-import { throughIpc } from './error'
 import type {
   ForeignPluginLedger,
   PluginCommitRequest,
   PluginFetch,
   PluginPayload,
   PluginStaged,
-} from './generated/ipc-bindings'
-import { commands } from './generated/ipc-bindings'
+} from '@poietica/contract'
+import { commands } from '@poietica/contract'
+import { throughIpc } from './error'
 
 /*
  * DTO 一个字都不在这里重新声明：原生侧是契约的产地，这一层只把它转成 Promise 并让
@@ -19,7 +19,7 @@ export type {
   PluginFetch,
   PluginPayload,
   PluginStaged,
-} from './generated/ipc-bindings'
+} from '@poietica/contract'
 
 export function listPlugins(): Promise<PluginPayload[]> {
   return throughIpc(() => commands.pluginsList())

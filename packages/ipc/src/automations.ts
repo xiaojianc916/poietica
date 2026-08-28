@@ -1,5 +1,5 @@
+import { commands, events } from '@poietica/contract'
 import { throughIpc } from './error'
-import { commands, events } from './generated/ipc-bindings'
 
 /*
  * 自动化的读写。
@@ -23,14 +23,14 @@ export type {
   AutomationRun,
   AutomationRunOutcome,
   AutomationRunRecord,
-} from './generated/ipc-bindings'
+} from '@poietica/contract'
 
 import type {
   Automation,
   AutomationCatalog,
   AutomationCreation,
   AutomationRunRecord,
-} from './generated/ipc-bindings'
+} from '@poietica/contract'
 
 export function loadAutomations(): Promise<AutomationCatalog> {
   return throughIpc(() => commands.automationsLoad())

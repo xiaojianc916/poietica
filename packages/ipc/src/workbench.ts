@@ -1,5 +1,5 @@
+import { commands } from '@poietica/contract'
 import { throughIpc } from './error'
-import { commands } from './generated/ipc-bindings'
 
 /*
  * 工作台开着哪几格：运过去，运回来。

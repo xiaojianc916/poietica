@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use crate::category::Category;
 use crate::code::Code;
@@ -9,7 +10,7 @@ use crate::redaction::redact;
 use crate::retry::Retryability;
 
 /// 唯一允许跨越进程与语言边界的错误形状。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Problem {
     pub code: Code,

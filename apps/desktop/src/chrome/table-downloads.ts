@@ -1,4 +1,4 @@
-import { commands } from '@poietica/ipc/generated/ipc-bindings'
+import { commands } from '@poietica/contract'
 
 const CSV_DOWNLOAD_TITLE = '下载为 CSV'
 const MARKDOWN_DOWNLOAD_TITLE = '下载为 Markdown'

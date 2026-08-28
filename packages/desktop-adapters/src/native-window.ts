@@ -1,4 +1,4 @@
-import { commands, events } from '@poietica/ipc/generated/ipc-bindings'
+import { commands, events } from '@poietica/contract'
 import type { Window } from '@tauri-apps/api/window'
 
 export interface MainWindowController {

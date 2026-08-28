@@ -1,8 +1,9 @@
 use tauri::{AppHandle, command};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::error::{IpcError, Result};
+use crate::error::Result;
 use crate::paths::create_projectless_workspace;
+use poietica_problem::Problem;
 
 /// 请系统的文件夹选择器给出一个工作目录。人按了取消就是 None。
 ///
@@ -46,11 +47,11 @@ pub async fn workspace_pick_root(app: AppHandle) -> Option<String> {
 #[specta::specta]
 pub async fn workspace_create_projectless_root(
     app: AppHandle,
-) -> std::result::Result<String, IpcError> {
+) -> std::result::Result<String, Problem> {
     (|| -> Result<String> {
         Ok(create_projectless_workspace(&app)?
             .to_string_lossy()
             .into_owned())
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }

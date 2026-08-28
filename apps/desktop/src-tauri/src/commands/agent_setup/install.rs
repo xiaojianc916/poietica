@@ -38,9 +38,10 @@ use specta::Type;
 use tauri::{AppHandle, async_runtime, command};
 use tauri_plugin_store::StoreExt;
 
-use crate::error::{Error, IpcError, Result};
+use crate::error::{Error, Result};
 use crate::paths::agents_store;
 use poietica_agent_runtime_native::hide_console;
+use poietica_problem::Problem;
 
 use super::profile::{agent_install_spec, agent_program};
 
@@ -478,11 +479,11 @@ pub async fn agent_install_status(
     app: AppHandle,
     agent_id: String,
     force: bool,
-) -> std::result::Result<AgentInstallStatus, IpcError> {
+) -> std::result::Result<AgentInstallStatus, Problem> {
     async_runtime::spawn_blocking(move || compute(&app, &agent_id, force))
         .await
         .map_err(|error| Error::AgentCli(format!("安装状态没有查完：{error}")))?
-        .map_err(IpcError::from)
+        .map_err(Problem::from)
 }
 
 /// 安装或更新这个 agent 的运行时，完成后返回新的状态。
@@ -495,11 +496,11 @@ pub async fn agent_install_status(
 pub async fn agent_install_run(
     app: AppHandle,
     agent_id: String,
-) -> std::result::Result<AgentInstallStatus, IpcError> {
+) -> std::result::Result<AgentInstallStatus, Problem> {
     async_runtime::spawn_blocking(move || install(&app, &agent_id))
         .await
         .map_err(|error| Error::AgentCli(format!("安装没有跑完：{error}")))?
-        .map_err(IpcError::from)
+        .map_err(Problem::from)
 }
 
 #[cfg(test)]

@@ -1,11 +1,9 @@
 use tauri::AppHandle;
 
-use crate::{
-    diagnostics::{self, NativeCrashReport},
-    error::IpcError,
-};
+use crate::diagnostics::{self, NativeCrashReport};
+use poietica_problem::Problem;
 
-type DiagnosticsCommandResult<T> = Result<T, IpcError>;
+type DiagnosticsCommandResult<T> = Result<T, Problem>;
 
 /// Returns and consumes the previous native process crash report.
 ///

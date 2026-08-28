@@ -9,9 +9,10 @@ use specta::Type;
 use tauri::{AppHandle, command};
 
 use crate::commands::agent_setup::profile::agent_home_directory;
-use crate::error::{Error, IpcError, Result};
+use crate::error::{Error, Result};
+use poietica_problem::Problem;
 
-type CommandResult<T> = std::result::Result<T, IpcError>;
+type CommandResult<T> = std::result::Result<T, Problem>;
 const AGENTS_DIRECTORY: &str = "agents";
 
 #[derive(Debug, Serialize, Type)]
@@ -53,7 +54,7 @@ pub async fn custom_agents_list(app: AppHandle) -> CommandResult<CustomAgentCata
             list_custom_agents(&root).map_err(map_error)?,
         ))
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 #[command]
@@ -73,7 +74,7 @@ pub async fn custom_agents_save(
         .map_err(map_error)?;
         Ok(from_native_file(saved))
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 #[command]
@@ -87,7 +88,7 @@ pub async fn custom_agents_remove(
         delete_custom_agent(&root, &request.relative_path, &request.expected_document)
             .map_err(map_error)
     })()
-    .map_err(IpcError::from)
+    .map_err(Problem::from)
 }
 
 fn agents_root(app: &AppHandle) -> Result<PathBuf> {
