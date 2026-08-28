@@ -105,6 +105,9 @@ export function createReviewStore(root: string): ReviewStore {
   let busy = false
   let stopped = false
   let looping = false
+  /* 已着色的路径与当前代：换一批文件模型就都作废。 */
+  let painted: ReadonlySet<string> = new Set<string>()
+  let generation = 0
   function read(): ReviewState {
     return {
       base,
@@ -127,20 +130,34 @@ export function createReviewStore(root: string): ReviewStore {
     store.notify()
   }
   function project(): void {
+    generation += 1
+    painted = new Set<string>()
     reading = answer === null ? { phase: trouble } : ready(answer, presentation.wordDiff)
     tint()
   }
-  /* 着色是异步的：先发不带色的那一版，色到了换一次；快照被换过就丢掉迟到的那份。 */
+  /*
+   * 着色只画开着的文件：整批着色的代价随变更集走，屏幕上却只有开着的那几份。
+   * 异步回来时这一代还在就并进快照，过期的丢掉。
+   */
   function tint(): void {
     if (reading.phase !== 'ready') {
       return
     }
-    const held = reading
-    void paint(held.files).then((files) => {
-      if (stopped || reading !== held) {
+    const wanted = reading.files.filter(
+      (file) => openFiles.has(file.path) && !painted.has(file.path),
+    )
+    if (wanted.length === 0) {
+      return
+    }
+    const mine = generation
+    painted = new Set([...painted, ...wanted.map((file) => file.path)])
+    void paint(wanted).then((files) => {
+      const held = reading
+      if (stopped || mine !== generation || held.phase !== 'ready') {
         return
       }
-      reading = { ...held, files }
+      const byPath = new Map(files.map((file) => [file.path, file] as const))
+      reading = { ...held, files: held.files.map((file) => byPath.get(file.path) ?? file) }
       publish()
     })
   }
@@ -238,6 +255,7 @@ export function createReviewStore(root: string): ReviewStore {
       mutate(() => {
         openFiles = new Set(openFiles).add(held)
       })
+      tint()
     },
     refresh: () => {
       if (looping) {
@@ -253,6 +271,7 @@ export function createReviewStore(root: string): ReviewStore {
             ? new Set(reading.files.map((file) => file.path))
             : new Set<string>()
       })
+      tint()
     },
     setBase: (ref) => {
       if (ref === base) {
@@ -296,6 +315,7 @@ export function createReviewStore(root: string): ReviewStore {
       mutate(() => {
         openFiles = flipped(openFiles, held)
       })
+      tint()
     },
     toggleFolder: (key) => {
       mutate(() => {

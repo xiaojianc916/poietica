@@ -7,6 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   FileTypeMark,
+  GithubMark,
   RegionSplitter,
   Tooltip,
   TooltipContent,
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react'
 import {
   type CSSProperties,
+  memo,
   type ReactNode,
   useEffect,
   useMemo,
@@ -80,9 +82,9 @@ const SWITCHES: readonly {
 ]
 const ICON_CLASS =
   'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100'
-/* 行内动作小一档：行头只有 h-7，图标按钮压到 16px 才不与文件名争视觉重量。 */
+/* 行内动作：20px 盒子配 16px 字形，与工具栏同一个留白比例；字形尺寸由 --ui-icon 发放。 */
 const ROW_ICON_CLASS =
-  'flex size-4 shrink-0 items-center justify-center rounded opacity-60 hover:bg-current/10 hover:opacity-100'
+  'flex size-5 shrink-0 items-center justify-center rounded opacity-60 hover:bg-current/10 hover:opacity-100'
 const ROW_CLASS = 'min-w-0 flex-1 truncate text-xs'
 export function ReviewPane({ conversationId }: { readonly conversationId: string | null }) {
   const root = useConversationWorkspaceRoot(conversationId)
@@ -367,15 +369,11 @@ function Commit({
         className="ml-1 flex h-6 shrink-0 items-center gap-1 rounded-md border border-current/15 px-2 text-xs hover:bg-current/10 disabled:opacity-50"
         disabled={state.busy}
       >
-        <GitBranch aria-hidden className="size-3.5 opacity-60" />
+        <GithubMark className="opacity-60" />
         {state.busy ? '正在提交…' : '提交或推送'}
         <ChevronDown aria-hidden className="size-3 opacity-50" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-72">
-        <p className="flex items-center gap-1.5 px-2 pb-1 text-xs opacity-60">
-          <GitBranch aria-hidden className="size-3.5 shrink-0" />
-          <span className="min-w-0 truncate">{headLabel(reading)}</span>
-        </p>
         <div className="mx-1 mb-1 rounded-md border border-current/15 px-2 py-1.5">
           <textarea
             aria-label="提交信息"
@@ -401,7 +399,7 @@ function Commit({
             value={message}
           />
         </div>
-        <label className="mx-1 flex items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-current/10">
+        <label className="mx-1 flex items-center gap-2 px-1 py-1 text-xs">
           <input
             checked={stageAll}
             className="size-3 accent-current"
@@ -455,8 +453,10 @@ function Card({
   readonly store: ReviewStore
 }) {
   const open = state.openFiles.has(file.path)
+  /* 报一份估高：视口外的卡跳过绘制，没有估高滚动条会随视口推进跳动。 */
+  const style: ReviewStyle = { '--review-card-rows': String(open ? file.rows.length : 0) }
   return (
-    <section id={cardId(file.path)}>
+    <section className="review-card" id={cardId(file.path)} style={style}>
       {/* 整行给悬浮底色：这一行是一个可点的对象，指到哪里都该有回应。 */}
       <header className="group flex h-7 items-center gap-2 px-2.5 hover:bg-current/5">
         <button
@@ -482,7 +482,7 @@ function Card({
               void navigator.clipboard.writeText(file.path)
             }}
           >
-            <Copy aria-hidden className="size-3" />
+            <Copy aria-hidden />
           </IconButton>
           <IconButton
             dense
@@ -491,11 +491,7 @@ function Card({
               store.toggleFile(file.path)
             }}
           >
-            {open ? (
-              <ChevronDown aria-hidden className="size-3" />
-            ) : (
-              <ChevronRight aria-hidden className="size-3" />
-            )}
+            {open ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
           </IconButton>
         </div>
         {reading.staged.has(file.path) ? (
@@ -609,8 +605,11 @@ function Gap({
     </>
   )
 }
-/* 单一行号槽 —— 统一视图里两列行号只有一列是答案。 */
-function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) {
+/*
+ * 单一行号槽 —— 统一视图里两列行号只有一列是答案。
+ * memo：行不变就不重渲 —— 筛选输入与分隔条拖动每帧都换快照，与行无关。
+ */
+const Line = memo(function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) {
   return (
     <div className={cn('flex items-start pr-2.5', toneOf(row.kind))}>
       <span className="w-11 shrink-0 select-none pr-2 text-right tabular-nums opacity-30">
@@ -625,7 +624,7 @@ function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) 
       </span>
     </div>
   )
-}
+})
 /* 一段正文：颜色来自语法着色，底色来自词级差异，两者可以落在同一段上。 */
 function Piece({ piece }: { readonly piece: DiffPiece }) {
   const style: ReviewStyle | undefined =

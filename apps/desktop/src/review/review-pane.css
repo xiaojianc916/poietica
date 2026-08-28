@@ -96,3 +96,12 @@
   inset-block: 0;
   inset-inline-end: 0;
 }
+
+/*
+ * 视口外的卡跳过内部布局与绘制：代价随可见范围走，不随变更集走。
+ * 行高与行头高度在这里，所以估高也在这里；量到真值后 auto 换成记住的那一份。
+ */
+.review-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto calc(1.75rem + var(--review-card-rows, 0) * 1.25rem);
+}
