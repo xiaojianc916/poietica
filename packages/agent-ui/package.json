@@ -24,13 +24,13 @@
     "@streamdown/math": "catalog:",
     "@streamdown/mermaid": "catalog:",
     "@tanstack/react-virtual": "catalog:",
-    "diff": "catalog:",
     "katex": "catalog:",
     "lexical": "catalog:",
     "lucide-react": "catalog:",
     "motion": "catalog:",
     "streamdown": "catalog:",
-    "yet-another-react-lightbox": "catalog:"
+    "yet-another-react-lightbox": "catalog:",
+    "@poietica/file-diff": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

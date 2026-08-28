@@ -287,6 +287,7 @@ interface FieldProps {
 
 function Field({ label, hint, wide = false, children }: FieldProps) {
   return (
+    // biome-ignore lint/a11y/noLabelWithoutControl: children are always native form controls
     <label
       className={
         wide ? 'personalization__field personalization__field--wide' : 'personalization__field'

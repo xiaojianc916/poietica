@@ -75,7 +75,7 @@ const alternation = (values) => values.map(escapeForRegExp).join('|')
  * 是 package.json 的那一行，不是散在几十个源文件里的 import。
  */
 const layers = [
-  { name: 'foundations', packages: ['core', 'ui'] },
+  { name: 'foundations', packages: ['core', 'file-diff', 'ui'] },
   { name: 'protocol', packages: ['agent-contract'] },
   { name: 'domain', packages: ['agent', 'agent-catalog'] },
   { name: 'transport', packages: ['ipc'] },

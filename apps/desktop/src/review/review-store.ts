@@ -1,4 +1,5 @@
 import { createExternalStore } from '@poietica/core'
+import { type DiffFile, type DiffStat, diffStatOf, parseUnifiedPatch } from '@poietica/file-diff'
 import {
   type GitCommitIntent,
   type GitReview,
@@ -9,7 +10,6 @@ import {
 import type { SplitterActivity } from '@poietica/ui'
 import { reportFailure } from '../failures/application-policy'
 import { paint } from './syntax'
-import { type ReviewFile, reviewFiles } from './unified-diff'
 /*
  * 审查会话的唯一真相。
  *
@@ -35,12 +35,11 @@ export type ReviewReading =
       readonly ahead: number
       readonly behind: number
       readonly branches: readonly string[]
-      readonly files: readonly ReviewFile[]
+      readonly files: readonly DiffFile[]
       readonly staged: ReadonlySet<string>
-      readonly additions: number
-      readonly deletions: number
+      readonly stat: DiffStat
       /** 未暂存那一部分的加减行数：提交面板上那个勾选项管着的正是它。 */
-      readonly unstaged: { readonly additions: number; readonly deletions: number }
+      readonly unstaged: DiffStat
     }
 export interface ReviewState {
   readonly reading: ReviewReading
@@ -78,8 +77,10 @@ export interface ReviewStore {
 const TIGHT = 3
 /* 不折上限：一次把整份文件取回来，折叠带上的行数才是真数字而不是估计。 */
 const WHOLE = 100_000
-const APPLY_HEAD = "git apply --3way - <<'PATCH'\\n"
-const APPLY_TAIL = '\\nPATCH\\n'
+const APPLY_HEAD = "git apply --3way - <<'PATCH'\n"
+const APPLY_TAIL = '\nPATCH\n'
+/** 默认基准：工作区对 HEAD —— git diff 不带 revision 时比的就是这一档。 */
+export const WORKTREE_BASE = 'HEAD'
 /** 文件树的宽度区间：分隔条与 store 的收敛读同一份。 */
 export const TREE_MIN = 180
 export const TREE_MAX = 480
@@ -93,7 +94,7 @@ export function createReviewStore(root: string): ReviewStore {
     wordDiff: true,
     wrap: false,
   }
-  let base = 'HEAD'
+  let base = WORKTREE_BASE
   let query = ''
   let openFiles: ReadonlySet<string> = new Set<string>()
   let collapsedFolders: ReadonlySet<string> = new Set<string>()
@@ -326,17 +327,14 @@ export function createReviewStore(root: string): ReviewStore {
     },
   }
 }
+const NOTHING: DiffStat = { added: 0, removed: 0 }
 /* 清单是权威顺序，补丁按路径对上去；补丁里有而清单里没有的照实附在后面。 */
 function ready(held: GitReview, wordDiff: boolean): ReviewReading {
   const byPath = new Map(
-    reviewFiles(held.patch, wordDiff).map((file) => [file.path, file] as const),
+    parseUnifiedPatch(held.patch, wordDiff).map((file) => [file.path, file] as const),
   )
   const staged = new Set<string>()
-  const files: ReviewFile[] = []
-  let additions = 0
-  let deletions = 0
-  let unstagedAdditions = 0
-  let unstagedDeletions = 0
+  const files: DiffFile[] = []
   for (const change of held.changes) {
     if (change.staged) {
       staged.add(change.path)
@@ -345,32 +343,23 @@ function ready(held: GitReview, wordDiff: boolean): ReviewReading {
     byPath.delete(change.path)
   }
   files.push(...byPath.values())
-  for (const file of files) {
-    additions += file.additions
-    deletions += file.deletions
-    if (!staged.has(file.path)) {
-      unstagedAdditions += file.additions
-      unstagedDeletions += file.deletions
-    }
-  }
   return {
-    additions,
     ahead: held.ahead,
     behind: held.behind,
     branches: held.branches,
-    deletions,
     detachedAt: held.detachedAt,
     files,
     head: held.branch,
     phase: 'ready',
     staged,
-    unstaged: { additions: unstagedAdditions, deletions: unstagedDeletions },
+    stat: diffStatOf(files) ?? NOTHING,
+    unstaged: diffStatOf(files.filter((file) => !staged.has(file.path))) ?? NOTHING,
     upstream: held.upstream,
   }
 }
-/* 清单上有、补丁里没有（二进制、纯模式变更）：这一行照旧在，只是没有行可画。 */
-function blank(path: string): ReviewFile {
-  return { additions: 0, bands: [], binary: false, deletions: 0, patch: '', path }
+/* 清单上有、补丁里没有（纯模式变更）：这一行照旧在，只是没有行可画。 */
+function blank(path: string): DiffFile {
+  return { binary: false, path, rows: [], stat: NOTHING }
 }
 /* 推送不带说明；提交留空时按变更集自己生成一条 —— 确定性的，不牵进一次模型调用。 */
 function subjectFor(intent: GitCommitIntent, message: string, reading: ReviewReading): string {
@@ -383,7 +372,7 @@ function subjectFor(intent: GitCommitIntent, message: string, reading: ReviewRea
   }
   return reading.phase === 'ready' ? autoSubject(reading.files) : ''
 }
-function autoSubject(files: readonly ReviewFile[]): string {
+function autoSubject(files: readonly DiffFile[]): string {
   const paths = files.map((file) => file.path)
   const first = paths[0]
   if (first === undefined) {

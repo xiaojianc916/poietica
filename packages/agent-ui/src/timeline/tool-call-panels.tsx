@@ -1,4 +1,5 @@
 import type { ToolCallTimelineItem } from '@poietica/agent'
+import type { DiffFile, DiffRow, DiffRowKind } from '@poietica/file-diff'
 import { FileTypeMark } from '@poietica/ui'
 import {
   type CSSProperties,
@@ -11,7 +12,7 @@ import {
 } from 'react'
 
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
-import type { DiffFile, DiffRow, DiffRowKind } from '../semantics/file-diff'
+import { basename } from '../semantics/file-diff'
 import { toToolCallFacets } from '../semantics/tool-call-facets'
 import { Prose } from './prose'
 
@@ -206,8 +207,9 @@ function DiffViewport({
     </div>
   )
 }
-/** 一处改动：文件名一行，下面是它的行。行的分类与行号归 semantics/file-diff。 */
+/** 一处改动：文件名一行，下面是它的行。行的分类与行号归 @poietica/file-diff。 */
 function FileDiff({ file }: { readonly file: DiffFile }) {
+  const name = basename(file.path)
   const field = {
     '--cp-timeline-diff-field': fieldOf(file.rows),
     '--cp-timeline-diff-rows': String(file.rows.length),
@@ -216,8 +218,8 @@ function FileDiff({ file }: { readonly file: DiffFile }) {
   return (
     <div className="timeline-tool__file">
       <div className="timeline-tool__path" title={file.path}>
-        <FileTypeMark className="timeline-tool__path-icon" name={file.name} />
-        <span className="timeline-tool__path-name">{file.name}</span>
+        <FileTypeMark className="timeline-tool__path-icon" name={name} />
+        <span className="timeline-tool__path-name">{name}</span>
       </div>
 
       <DiffViewport field={field}>

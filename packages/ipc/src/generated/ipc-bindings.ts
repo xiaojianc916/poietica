@@ -118,7 +118,13 @@ async agentDismissQuestions(request: AgentDismissQuestionsRequest) : Promise<nul
  * 
  * # Errors
  * 
- * Fails when the session lock was poisoned.
+ * 它是 async 的，与 agent_cancel 同一条理由：收尸要等进程真的退场、还要收一次
+ * 帧日志的账，而同步命令跑在主线程上，那段时间窗口会停止应答。
+ * 
+ * # Errors
+ * 
+ * Fails when the session lock was poisoned, or when the frame journal could not
+ * be flushed.
  */
 async agentShutdown() : Promise<null> {
     return await TAURI_INVOKE("agent_shutdown");

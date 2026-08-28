@@ -1,6 +1,7 @@
 import type { ToolCallContent } from '@poietica/agent-contract'
+import { type DiffFile, type DiffStat, diffStatOf } from '@poietica/file-diff'
 
-import { type DiffFile, type DiffStat, diffStatOf, toDiffFiles, toDisplayPath } from './file-diff'
+import { toDiffFiles, toDisplayPath } from './file-diff'
 import { type ToolContentPart, toToolContentParts } from './tool-call-content'
 
 /**

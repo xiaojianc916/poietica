@@ -1,13 +1,5 @@
+import type { DiffFile, DiffPiece, DiffRow, DiffRowKind, PieceColor } from '@poietica/file-diff'
 import { type BundledLanguage, codeToTokensWithThemes } from 'shiki'
-import {
-  type DiffBand,
-  type DiffPiece,
-  type DiffRow,
-  type DiffRowKind,
-  type PieceColor,
-  type ReviewFile,
-  rowText,
-} from './unified-diff'
 
 /*
  * 语法着色。
@@ -40,10 +32,10 @@ const LANGUAGES: Readonly<Record<string, BundledLanguage>> = {
 type Lines = Awaited<ReturnType<typeof codeToTokensWithThemes>>
 type Token = Lines[number][number]
 /** 给每一行的片段染色；语法不认识的文件原样交回。 */
-export async function paint(files: readonly ReviewFile[]): Promise<readonly ReviewFile[]> {
+export async function paint(files: readonly DiffFile[]): Promise<readonly DiffFile[]> {
   return await Promise.all(files.map((file) => painted(file)))
 }
-async function painted(file: ReviewFile): Promise<ReviewFile> {
+async function painted(file: DiffFile): Promise<DiffFile> {
   const lang = languageOf(file.path)
   if (lang === null || file.binary) {
     return file
@@ -59,7 +51,7 @@ async function painted(file: ReviewFile): Promise<ReviewFile> {
       found.set(row, coloured(row.pieces, lines[line] ?? []))
     }
   }
-  return { ...file, bands: file.bands.map((band) => reband(band, found)) }
+  return { ...file, rows: repainted(file.rows, found) }
 }
 function languageOf(path: string): BundledLanguage | null {
   const dot = path.lastIndexOf('.')
@@ -68,17 +60,21 @@ function languageOf(path: string): BundledLanguage | null {
 }
 /* 一侧的完整正文：跳掉对侧独有的行，行序即文件序。 */
 function sideOf(
-  file: ReviewFile,
+  file: DiffFile,
   skip: DiffRowKind,
 ): { readonly rows: readonly DiffRow[]; readonly code: string } {
   const rows = rowsOf(file).filter((row) => row.kind !== skip)
-  return { code: rows.map((row) => rowText(row.pieces)).join('\n'), rows }
+  return { code: rows.map((row) => row.text).join('\n'), rows }
 }
 /* 折起来的行也算：语法状态不能因为折叠而断。 */
-function rowsOf(file: ReviewFile): readonly DiffRow[] {
+function rowsOf(file: DiffFile): readonly DiffRow[] {
   const found: DiffRow[] = []
-  for (const band of file.bands) {
-    found.push(...(band.kind === 'rows' ? band.rows : band.gap.rows))
+  for (const row of file.rows) {
+    if (row.kind === 'gap') {
+      found.push(...row.hidden)
+      continue
+    }
+    found.push(row)
   }
   return found
 }
@@ -114,21 +110,18 @@ function coloured(pieces: readonly DiffPiece[], line: readonly Token[]): readonl
   return found.length === 0 ? pieces : found
 }
 function colorOf(token: Token): PieceColor | null {
-  const light = token.variants.light?.color
-  const dark = token.variants.dark?.color
+  const light = token.variants['light']?.color
+  const dark = token.variants['dark']?.color
   return light === undefined || dark === undefined ? null : { dark, light }
-}
-function reband(band: DiffBand, found: ReadonlyMap<DiffRow, readonly DiffPiece[]>): DiffBand {
-  if (band.kind === 'gap') {
-    return { gap: { ...band.gap, rows: repainted(band.gap.rows, found) }, kind: 'gap' }
-  }
-  return { kind: 'rows', rows: repainted(band.rows, found) }
 }
 function repainted(
   rows: readonly DiffRow[],
   found: ReadonlyMap<DiffRow, readonly DiffPiece[]>,
 ): readonly DiffRow[] {
   return rows.map((row) => {
+    if (row.kind === 'gap') {
+      return { ...row, hidden: repainted(row.hidden, found) }
+    }
     const pieces = found.get(row)
     return pieces === undefined ? row : { ...row, pieces }
   })

@@ -24,6 +24,7 @@
         "@poietica/browser": "workspace:*",
         "@poietica/core": "workspace:*",
         "@poietica/desktop-adapters": "workspace:*",
+        "@poietica/file-diff": "workspace:*",
         "@poietica/ipc": "workspace:*",
         "@poietica/plugins": "workspace:*",
         "@poietica/settings": "workspace:*",
@@ -89,13 +90,13 @@
         "@poietica/agent": "workspace:*",
         "@poietica/agent-contract": "workspace:*",
         "@poietica/core": "workspace:*",
+        "@poietica/file-diff": "workspace:*",
         "@poietica/ui": "workspace:*",
         "@streamdown/cjk": "catalog:",
         "@streamdown/code": "catalog:",
         "@streamdown/math": "catalog:",
         "@streamdown/mermaid": "catalog:",
         "@tanstack/react-virtual": "catalog:",
-        "diff": "catalog:",
         "katex": "catalog:",
         "lexical": "catalog:",
         "lucide-react": "catalog:",
@@ -183,6 +184,17 @@
         "@poietica/settings": "workspace:*",
         "@tauri-apps/api": "catalog:tauri",
         "@tauri-apps/plugin-dialog": "catalog:tauri",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/file-diff": {
+      "name": "@poietica/file-diff",
+      "version": "0.1.0",
+      "dependencies": {
+        "diff": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -477,6 +489,8 @@
     "@poietica/desktop": ["@poietica/desktop@workspace:apps/desktop"],
 
     "@poietica/desktop-adapters": ["@poietica/desktop-adapters@workspace:packages/desktop-adapters"],
+
+    "@poietica/file-diff": ["@poietica/file-diff@workspace:packages/file-diff"],
 
     "@poietica/ipc": ["@poietica/ipc@workspace:packages/ipc"],
 

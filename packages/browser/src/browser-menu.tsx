@@ -167,20 +167,18 @@ export function BrowserTabsMenu({
       }}
       open={open}
     >
-      <div
-        className="mx-1 mb-1 flex items-center gap-2 rounded-md border border-divider px-2 py-1.5"
-        onKeyDown={(event) => {
-          if (!MENU_KEYS.has(event.key)) {
-            event.stopPropagation()
-          }
-        }}
-      >
+      <div className="mx-1 mb-1 flex items-center gap-2 rounded-md border border-divider px-2 py-1.5">
         <Search aria-hidden className="size-3.5 shrink-0 opacity-50" />
         <input
           aria-label="搜索标签页"
           className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:opacity-50"
           onChange={(event) => {
             setQuery(event.target.value)
+          }}
+          onKeyDown={(event) => {
+            if (!MENU_KEYS.has(event.key)) {
+              event.stopPropagation()
+            }
           }}
           placeholder="搜索标签页…"
           value={query}
@@ -282,10 +280,9 @@ function ZoomStep({ children, label }: { readonly children: ReactNode; readonly 
 
 function ZoomRow() {
   return (
-    <div
+    <fieldset
       aria-label="缩放"
       className="flex min-h-[var(--ui-control-height-sm)] items-center gap-1 px-2"
-      role="group"
     >
       <span className={labelClassName}>缩放</span>
       <ZoomStep label="缩小">
@@ -298,7 +295,7 @@ function ZoomRow() {
       <ZoomStep label="重置缩放">
         <RotateCcw aria-hidden className="size-3.5" />
       </ZoomStep>
-    </div>
+    </fieldset>
   )
 }
 

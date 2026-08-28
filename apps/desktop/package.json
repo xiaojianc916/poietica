@@ -36,7 +36,8 @@
     "react-dom": "catalog:",
     "react-grab": "catalog:",
     "shiki": "catalog:",
-    "uuid": "catalog:"
+    "uuid": "catalog:",
+    "@poietica/file-diff": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

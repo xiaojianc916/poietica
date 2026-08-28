@@ -5,6 +5,7 @@ import './tool-group.css'
 
 import type { ToolCallTimelineItem } from '@poietica/agent'
 import { isDelegation } from '@poietica/agent'
+import { type DiffStat, diffStatOf } from '@poietica/file-diff'
 import { cx } from '../primitives/class-names'
 import { DisclosureBody } from '../primitives/disclosure'
 import {
@@ -22,7 +23,6 @@ import {
   TerminalIcon,
   ToolIcon,
 } from '../primitives/icons'
-import { type DiffStat, diffStatOf } from '../semantics/file-diff'
 import { toDiffFilesOf } from '../semantics/tool-call-facets'
 import { clampToLine, readToolLine, sayToolCount } from '../semantics/tool-intent'
 import { useDelegateChannel } from './delegate-channel-context'

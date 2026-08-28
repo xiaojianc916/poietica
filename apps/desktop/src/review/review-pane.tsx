@@ -1,3 +1,4 @@
+import type { DiffFile, DiffPiece, DiffRow, DiffStat } from '@poietica/file-diff'
 import {
   cn,
   DropdownMenu,
@@ -12,6 +13,7 @@ import {
   TooltipTrigger,
 } from '@poietica/ui'
 import {
+  Check,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -40,8 +42,8 @@ import {
   type ReviewSwitch,
   TREE_MAX,
   TREE_MIN,
+  WORKTREE_BASE,
 } from './review-store'
-import type { DiffBand, DiffPiece, DiffRow, ReviewFile } from './unified-diff'
 
 import './review-pane.css'
 
@@ -60,10 +62,11 @@ const TROUBLE: Readonly<Record<'asking' | 'notARepository' | 'unreadable', strin
 /* 列宽走注册过的自定义属性，与外壳那一份同构。 */
 type ReviewStyle = CSSProperties & Record<`--${string}`, string>
 /* 种类由行模型说，不由行首字符说：所以正文里不留 +/- 那一列。取色在 review-pane.css。 */
-const TONES: Readonly<Record<DiffRow['kind'], string>> = {
-  added: 'review-line review-line--added',
-  context: 'review-line',
-  removed: 'review-line review-line--removed',
+function toneOf(kind: DiffRow['kind']): string {
+  if (kind === 'added') {
+    return 'review-line review-line--added'
+  }
+  return kind === 'removed' ? 'review-line review-line--removed' : 'review-line'
 }
 const SWITCHES: readonly {
   readonly name: ReviewSwitch
@@ -77,9 +80,9 @@ const SWITCHES: readonly {
 ]
 const ICON_CLASS =
   'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100'
-/* 行内动作小一档：行头只有 h-7，24px 的方块会顶到上下沿。 */
+/* 行内动作小一档：行头只有 h-7，图标按钮压到 16px 才不与文件名争视觉重量。 */
 const ROW_ICON_CLASS =
-  'flex size-5 shrink-0 items-center justify-center rounded opacity-60 hover:bg-current/10 hover:opacity-100'
+  'flex size-4 shrink-0 items-center justify-center rounded opacity-60 hover:bg-current/10 hover:opacity-100'
 const ROW_CLASS = 'min-w-0 flex-1 truncate text-xs'
 export function ReviewPane({ conversationId }: { readonly conversationId: string | null }) {
   const root = useConversationWorkspaceRoot(conversationId)
@@ -126,7 +129,7 @@ function Cards({
   store,
 }: {
   readonly reading: Ready
-  readonly shown: readonly ReviewFile[]
+  readonly shown: readonly DiffFile[]
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
@@ -150,6 +153,17 @@ function Cards({
     </>
   )
 }
+/* HEAD 不是分支名：分支在就印分支，分离时按 git 自己的说法印短号。 */
+function headLabel(reading: Ready): string {
+  if (reading.head !== null) {
+    return reading.head
+  }
+  return reading.detachedAt === null ? '未知 HEAD' : `分离于 ${reading.detachedAt}`
+}
+/* 基准是「跟谁比」：默认那一档比的是工作区与 HEAD，印成 HEAD 会被读成分支名。 */
+function baseLabel(base: string): string {
+  return base === WORKTREE_BASE ? '未提交的改动' : base
+}
 /* 一条工具条：比较基准、总计、更多操作、折叠、文件树、提交 —— 基准入口只有一个。 */
 function Toolbar({
   reading,
@@ -161,19 +175,18 @@ function Toolbar({
   readonly store: ReviewStore
 }) {
   const allOpen = reading.files.length > 0 && state.openFiles.size >= reading.files.length
-  const head = reading.head ?? reading.detachedAt ?? 'HEAD'
   return (
     <div className="flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-2 border-b border-current/10 px-2.5">
       <Bases base={state.base} reading={reading} store={store}>
         <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />
-        <span className="max-w-28 truncate text-xs">{head}</span>
-        <span aria-hidden className="text-xs opacity-40">
-          →
+        <span className="max-w-28 truncate text-xs">{headLabel(reading)}</span>
+        <span aria-hidden className="text-xs opacity-30">
+          ·
         </span>
-        <span className="max-w-28 truncate text-xs opacity-70">{state.base}</span>
+        <span className="max-w-28 truncate text-xs opacity-70">{baseLabel(state.base)}</span>
         <ChevronDown aria-hidden className="size-3 shrink-0 opacity-50" />
       </Bases>
-      <Tally additions={reading.additions} deletions={reading.deletions} />
+      <Tally stat={reading.stat} />
       {reading.ahead + reading.behind > 0 ? (
         <span className="shrink-0 font-mono text-[11px] tabular-nums opacity-50">
           ↑{reading.ahead} ↓{reading.behind}
@@ -213,11 +226,7 @@ function Bases({
   readonly store: ReviewStore
 }) {
   const refs = [
-    ...new Set([
-      'HEAD',
-      ...(reading.upstream === null ? [] : [reading.upstream]),
-      ...reading.branches,
-    ]),
+    ...new Set([...(reading.upstream === null ? [] : [reading.upstream]), ...reading.branches]),
   ]
   return (
     <DropdownMenu>
@@ -229,17 +238,19 @@ function Bases({
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-60">
         {/* 搜索态住在菜单内容里：菜单一关它随之卸载，不需要谁去清它。 */}
-        <BaseList base={base} refs={refs} store={store} />
+        <BaseList base={base} head={reading.head} refs={refs} store={store} />
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
 function BaseList({
   base,
+  head,
   refs,
   store,
 }: {
   readonly base: string
+  readonly head: string | null
   readonly refs: readonly string[]
   readonly store: ReviewStore
 }) {
@@ -265,7 +276,18 @@ function BaseList({
           value={needle}
         />
       </div>
-      <p className="px-2 pb-1 text-[11px] opacity-40">分支</p>
+      <p className="px-2 pb-1 text-[11px] opacity-40">比较基准</p>
+      <DropdownMenuItem
+        onClick={() => {
+          store.setBase(WORKTREE_BASE)
+        }}
+      >
+        <span className={ROW_CLASS}>未提交的改动</span>
+        {base === WORKTREE_BASE ? (
+          <Check aria-hidden className="size-3 shrink-0 opacity-60" />
+        ) : null}
+      </DropdownMenuItem>
+      <p className="px-2 pt-1.5 pb-1 text-[11px] opacity-40">分支</p>
       {shown.length === 0 ? (
         <p className="px-2 py-1 text-xs opacity-50">没有匹配的分支。</p>
       ) : (
@@ -277,7 +299,10 @@ function BaseList({
             }}
           >
             <span className={ROW_CLASS}>{ref}</span>
-            {ref === base ? <span className="shrink-0 text-[11px] opacity-50">当前</span> : null}
+            {ref === head ? (
+              <span className="shrink-0 text-[11px] opacity-40">当前分支</span>
+            ) : null}
+            {ref === base ? <Check aria-hidden className="size-3 shrink-0 opacity-60" /> : null}
           </DropdownMenuItem>
         ))
       )}
@@ -334,7 +359,6 @@ function Commit({
 }) {
   const [message, setMessage] = useState('')
   const [stageAll, setStageAll] = useState(true)
-  const head = reading.head ?? reading.detachedAt ?? 'HEAD'
   const canCommit = !state.busy && reading.files.length > 0 && (stageAll || reading.staged.size > 0)
   const canPush = !state.busy && (reading.ahead > 0 || reading.upstream === null)
   return (
@@ -350,7 +374,7 @@ function Commit({
       <DropdownMenuContent className="w-72">
         <p className="flex items-center gap-1.5 px-2 pb-1 text-xs opacity-60">
           <GitBranch aria-hidden className="size-3.5 shrink-0" />
-          <span className="min-w-0 truncate">{head}</span>
+          <span className="min-w-0 truncate">{headLabel(reading)}</span>
         </p>
         <div className="mx-1 mb-1 rounded-md border border-current/15 px-2 py-1.5">
           <textarea
@@ -387,7 +411,7 @@ function Commit({
             type="checkbox"
           />
           <span className="min-w-0 flex-1">包含未暂存的更改</span>
-          <Tally additions={reading.unstaged.additions} deletions={reading.unstaged.deletions} />
+          <Tally stat={reading.unstaged} />
         </label>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -425,7 +449,7 @@ function Card({
   state,
   store,
 }: {
-  readonly file: ReviewFile
+  readonly file: DiffFile
   readonly reading: Ready
   readonly state: ReviewState
   readonly store: ReviewStore
@@ -433,7 +457,8 @@ function Card({
   const open = state.openFiles.has(file.path)
   return (
     <section id={cardId(file.path)}>
-      <header className="group flex h-7 items-center gap-2 px-2.5">
+      {/* 整行给悬浮底色：这一行是一个可点的对象，指到哪里都该有回应。 */}
+      <header className="group flex h-7 items-center gap-2 px-2.5 hover:bg-current/5">
         <button
           aria-expanded={open}
           className="flex min-w-0 items-center gap-2 text-left"
@@ -445,7 +470,7 @@ function Card({
         >
           <FileTypeMark className="size-3.5 shrink-0" name={file.path} />
           <span className="min-w-0 truncate text-xs">{file.path}</span>
-          <Tally additions={file.additions} deletions={file.deletions} />
+          <Tally stat={file.stat} />
         </button>
         {/* 悬浮或键盘聚焦时才出现：行头默认只有事实。 */}
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
@@ -486,14 +511,14 @@ function Body({
   state,
   store,
 }: {
-  readonly file: ReviewFile
+  readonly file: DiffFile
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
   if (file.binary) {
     return <Note>二进制文件，没有可对比的文本。</Note>
   }
-  if (file.bands.length === 0) {
+  if (file.rows.length === 0) {
     return <Note>没有文本改动。</Note>
   }
   /* 不换行时这一格自己横滚：代码的缩进不能被折行改写。 */
@@ -504,58 +529,8 @@ function Body({
         state.presentation.wrap ? null : 'overflow-x-auto',
       )}
     >
-      {file.bands.map((band) => (
-        <Band
-          band={band}
-          key={bandKey(file.path, band)}
-          path={file.path}
-          state={state}
-          store={store}
-        />
-      ))}
+      <Rows path={file.path} rows={file.rows} state={state} store={store} />
     </div>
-  )
-}
-function bandKey(path: string, band: DiffBand): string {
-  if (band.kind === 'gap') {
-    return `${path}#${band.gap.id}`
-  }
-  const first = band.rows[0]
-  return `${path}@${first === undefined ? 'x' : rowKey(first)}`
-}
-function Band({
-  band,
-  path,
-  state,
-  store,
-}: {
-  readonly band: DiffBand
-  readonly path: string
-  readonly state: ReviewState
-  readonly store: ReviewStore
-}) {
-  const wrap = state.presentation.wrap
-  if (band.kind === 'rows') {
-    return <Rows rows={band.rows} wrap={wrap} />
-  }
-  const key = `${path}#${band.gap.id}`
-  const open = state.openGaps.has(key)
-  const label = `${String(band.gap.lines)} unmodified lines`
-  return (
-    <>
-      <GapBar
-        label={open ? `折叠 ${label}` : label}
-        onClick={
-          band.gap.rows.length === 0
-            ? undefined
-            : () => {
-                store.toggleGap(key)
-              }
-        }
-        open={open}
-      />
-      {open ? <Rows rows={band.gap.rows} wrap={wrap} /> : null}
-    </>
   )
 }
 /* rows 为空的带子展不开：那些行确实没取回来，按下去也无可显示。 */
@@ -581,25 +556,65 @@ function GapBar({
     </button>
   )
 }
-function Rows({ rows, wrap }: { readonly rows: readonly DiffRow[]; readonly wrap: boolean }) {
+/* 一串行：折叠带就地展开，展开出来的行与上下同在一条流里，列宽因此一致。 */
+function Rows({
+  path,
+  rows,
+  state,
+  store,
+}: {
+  readonly path: string
+  readonly rows: readonly DiffRow[]
+  readonly state: ReviewState
+  readonly store: ReviewStore
+}) {
+  const wrap = state.presentation.wrap
   return (
     <div className={wrap ? undefined : 'w-max min-w-full'}>
-      {rows.map((row) => (
-        <Line key={rowKey(row)} row={row} wrap={wrap} />
-      ))}
+      {rows.map((row) =>
+        row.kind === 'gap' ? (
+          <Gap key={row.at} path={path} row={row} state={state} store={store} />
+        ) : (
+          <Line key={row.at} row={row} wrap={wrap} />
+        ),
+      )}
     </div>
   )
 }
-/* 一份文件里唯一：删除行没有新行号，用旧行号加前缀，不与另两种撞。 */
-function rowKey(row: DiffRow): string {
-  return row.newLine === null ? `o${String(row.oldLine)}` : `n${String(row.newLine)}`
+/* 折叠带：补丁没带回来的行展不开，按钮就不给点。 */
+function Gap({
+  path,
+  row,
+  state,
+  store,
+}: {
+  readonly path: string
+  readonly row: DiffRow
+  readonly state: ReviewState
+  readonly store: ReviewStore
+}) {
+  const key = `${path}#${String(row.at)}`
+  const open = state.openGaps.has(key)
+  const label = `${String(row.lines)} unmodified lines`
+  return (
+    <>
+      <GapBar
+        label={open ? `折叠 ${label}` : label}
+        {...(row.hidden.length === 0 ? {} : { onClick: () => store.toggleGap(key) })}
+        open={open}
+      />
+      {open
+        ? row.hidden.map((held) => <Line key={held.at} row={held} wrap={state.presentation.wrap} />)
+        : null}
+    </>
+  )
 }
 /* 单一行号槽 —— 统一视图里两列行号只有一列是答案。 */
 function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) {
   return (
-    <div className={cn('flex items-start pr-2.5', TONES[row.kind])}>
+    <div className={cn('flex items-start pr-2.5', toneOf(row.kind))}>
       <span className="w-11 shrink-0 select-none pr-2 text-right tabular-nums opacity-30">
-        {row.newLine ?? row.oldLine}
+        {row.number}
       </span>
       <span
         className={wrap ? 'min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]' : 'whitespace-pre'}
@@ -635,7 +650,7 @@ function Tree({
   store,
 }: {
   readonly docked: boolean
-  readonly shown: readonly ReviewFile[]
+  readonly shown: readonly DiffFile[]
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
@@ -687,13 +702,7 @@ function Tree({
                     store={store}
                   />
                 ) : (
-                  <FileRow
-                    file={byPath.get(row.path)}
-                    key={row.key}
-                    open={state.openFiles.has(row.path)}
-                    row={row}
-                    store={store}
-                  />
+                  <FileRow file={byPath.get(row.path)} key={row.key} row={row} store={store} />
                 ),
               )
             )}
@@ -750,24 +759,21 @@ function FolderRow({
 }
 function FileRow({
   file,
-  open,
   row,
   store,
 }: {
-  readonly file: ReviewFile | undefined
-  readonly open: boolean
+  readonly file: DiffFile | undefined
   readonly row: ChangeTreeFile
   readonly store: ReviewStore
 }) {
   return (
-    <div
-      className="group flex items-center gap-1 py-1 pr-1 hover:bg-current/5"
+    <li
+      className="flex items-center gap-1 py-1 pr-2 hover:bg-current/5"
       draggable
       onDragStart={(event) => {
         event.dataTransfer.setData('text/plain', row.path)
         event.dataTransfer.effectAllowed = 'copy'
       }}
-      role="listitem"
       style={{ paddingInlineStart: `${String(8 + row.depth * 12)}px` }}
     >
       <button
@@ -781,26 +787,9 @@ function FileRow({
       >
         <FileTypeMark className="size-3.5 shrink-0" name={row.label} />
         <span className="min-w-0 flex-1 truncate text-xs">{row.label}</span>
-        {file === undefined ? null : (
-          <Tally additions={file.additions} deletions={file.deletions} />
-        )}
+        {file === undefined ? null : <Tally stat={file.stat} />}
       </button>
-      <span className="shrink-0 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
-        <IconButton
-          dense
-          label={open ? '折叠这个文件' : '展开这个文件'}
-          onClick={() => {
-            store.toggleFile(row.path)
-          }}
-        >
-          {open ? (
-            <ChevronDown aria-hidden className="size-3" />
-          ) : (
-            <ChevronRight aria-hidden className="size-3" />
-          )}
-        </IconButton>
-      </span>
-    </div>
+    </li>
   )
 }
 /* 树里点一行要能滚到对应的卡：id 由路径直接给，getElementById 不需要转义。 */
@@ -836,20 +825,14 @@ function IconButton({
   )
 }
 /* 两侧都写出来：删除专场也要看得见 +0，这是「数过了」与「没数」的区别。 */
-function Tally({
-  additions,
-  deletions,
-}: {
-  readonly additions: number
-  readonly deletions: number
-}) {
-  if (additions === 0 && deletions === 0) {
+function Tally({ stat }: { readonly stat: DiffStat }) {
+  if (stat.added === 0 && stat.removed === 0) {
     return null
   }
   return (
     <span className="flex shrink-0 items-center gap-1.5 font-mono text-[11px] tabular-nums">
-      <span className="text-emerald-500">+{additions}</span>
-      <span className="text-rose-500">−{deletions}</span>
+      <span className="text-emerald-500">+{stat.added}</span>
+      <span className="text-rose-500">−{stat.removed}</span>
     </span>
   )
 }
