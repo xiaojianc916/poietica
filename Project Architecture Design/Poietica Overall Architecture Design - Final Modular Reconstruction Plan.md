@@ -463,5 +463,6 @@ usage_totals          投影表（用量与配额），可从事件重建
 英文实际目录树与纯中文模块化目录树在下方子页面。
 
 [附录 A · 目标目录树（英文实际目录，含关键单文件）]
-
+Project Architecture Design\Appendix A - Target Directory Tree (Actual English Directories, Including Key Single Files).md
 [附录 B · 目标目录树（纯中文模块化语义）]
+Project Architecture Design\Appendix B - Target Directory Tree (Pure‑Chinese Modular Semantics).md
