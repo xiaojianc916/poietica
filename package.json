@@ -26,18 +26,18 @@
     "check:rust": "cargo fmt --all -- --check && bun run clippy && bun run test:rust && bun run ipc:check",
     "check:versions": "bun scripts/release/check-versions.mjs",
     "check:web": "biome ci . && bun tools/architecture/run.mjs && turbo run typecheck test --continue",
-    "clean": "bun scripts/clean.mjs",
+    "clean": "bun tools/dev/clean.ts",
     "clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
     "dev": "bun run --filter @poietica/desktop tauri:dev",
     "format": "biome format --write .",
     "ipc:check": "bun run ipc:generate && git diff --exit-code -- packages/ipc/src/generated/ipc-bindings.ts",
     "ipc:generate": "cargo run -p poietica --bin export-ipc-bindings",
-    "kap:spec": "bun tools/kap/spec-sync.mjs",
-    "kap:spec:check": "bun tools/kap/spec-sync.mjs --check",
+    "kap:spec": "bun tools/contract/kap-spec-sync.ts",
+    "kap:spec:check": "bun tools/contract/kap-spec-sync.ts --check",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "perf": "bun run --filter @poietica/tests perf",
-    "prepare": "bun scripts/git-hooks/install.mjs",
+    "prepare": "bun tools/dev/install-git-hooks.ts",
     "release": "bun scripts/release/release.mjs",
     "test": "turbo run test",
     "test:architecture": "bun tools/architecture/run.mjs",
@@ -58,7 +58,8 @@
     "packages": [
       "apps/*",
       "packages/*",
-      "tests"
+      "tests",
+      "tools"
     ],
     "catalog": {
       "@base-ui/react": "1.7.0",

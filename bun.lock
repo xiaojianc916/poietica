@@ -315,6 +315,14 @@
         "typescript": "catalog:",
       },
     },
+    "tools": {
+      "name": "@poietica/tools",
+      "version": "0.2.1",
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
   },
   "catalog": {
     "@base-ui/react": "1.7.0",
@@ -499,6 +507,8 @@
     "@poietica/settings": ["@poietica/settings@workspace:packages/settings"],
 
     "@poietica/tests": ["@poietica/tests@workspace:tests"],
+
+    "@poietica/tools": ["@poietica/tools@workspace:tools"],
 
     "@poietica/ui": ["@poietica/ui@workspace:packages/ui"],
 

@@ -4,9 +4,13 @@ members = [
   "apps/desktop/src-tauri",
   "crates/agent-runtime",
   "crates/browser",
+  "crates/conversation",
   "crates/git",
+  "crates/ledger",
   "crates/persistence",
   "crates/plugin-host",
+  "crates/problem",
+  "crates/time",
   "crates/update",
 ]
 default-members = [

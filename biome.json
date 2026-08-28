@@ -261,7 +261,13 @@
       }
     },
     {
-      "includes": ["scripts/**/*.mjs", "tests/**/*.mjs", "*.mjs", "tools/**/*.mjs"],
+      "includes": [
+        "scripts/**/*.mjs",
+        "tests/**/*.mjs",
+        "*.mjs",
+        "tools/**/*.mjs",
+        "tools/**/*.ts"
+      ],
       "linter": {
         "rules": {
           "correctness": {

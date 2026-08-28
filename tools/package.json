@@ -1,0 +1,13 @@
+{
+  "name": "@poietica/tools",
+  "version": "0.2.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}
