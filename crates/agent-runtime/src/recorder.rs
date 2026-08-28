@@ -35,6 +35,8 @@ pub struct RecordedEvent {
 /// 收的是帧本身，不是它的引用。每一个接收方都要留下这一帧 —— 攒批任务把它
 /// 推进通道，重播把它变成 JSON，测试把它存起来 —— 借来的一帧只能靠深拷贝
 /// 留下，而 RecordedEvent 里那棵 Value 是按 token 计价的。
+/// 它在 RunSlot 的锁内、驱动器的单线程运行时里被调用，所以契约是不阻塞：收下
+/// 或拒收当场答，false 的意思是这一帧没人接得住，位置也就不前进。
 pub type FrameSink = Box<dyn FnMut(RecordedEvent) -> bool + Send>;
 
 /// 一条会话上的序号线。
@@ -157,6 +159,8 @@ pub struct Recorder {
     questions: Vec<String>,
     /// 已 durable admission、尚未收到 main turn terminal 的数量。
     admitted: usize,
+    /// 这条会话上已经落过几道终帧。取消的宽限期拿它认自己那一轮。
+    ended: u64,
 }
 
 impl fmt::Debug for Recorder {
@@ -174,6 +178,7 @@ impl Recorder {
     pub fn new(session_id: String, seq: SeqLine, sink: FrameSink) -> Self {
         Self {
             admitted: 0,
+            ended: 0,
             frames: Frames::new(session_id, seq, sink),
             approvals: Vec::new(),
             questions: Vec::new(),
@@ -337,6 +342,7 @@ impl Recorder {
             stop_reason: stop_reason.to_owned(),
         });
         self.admitted = self.admitted.saturating_sub(1);
+        self.ended = self.ended.saturating_add(1);
     }
 
     /// Records that the run ended in a failure.
@@ -345,6 +351,7 @@ impl Recorder {
             message: message.to_owned(),
         });
         self.admitted = self.admitted.saturating_sub(1);
+        self.ended = self.ended.saturating_add(1);
     }
 
     fn note_resolution(&mut self, request_id: &str, decision: Decision) {
@@ -370,6 +377,11 @@ impl Recorder {
     /// 这条会话此刻有没有一轮在飞。终帧只在飞的那一轮上落一次。
     pub const fn is_running(&self) -> bool {
         self.admitted > 0
+    }
+
+    /// 已经落过的终帧数。它是一轮的身份：跨过它就是另一轮了。
+    pub const fn ended(&self) -> u64 {
+        self.ended
     }
 }
 

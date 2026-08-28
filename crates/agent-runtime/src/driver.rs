@@ -1112,6 +1112,8 @@ pub fn connect(
                             let http2 = http.clone();
                             let base2 = base_url.clone();
                             let book2 = book_clone.clone();
+                            /* 认下此刻在飞的那一轮：宽限期到时在飞的可能已经是下一轮。 */
+                            let aborted = book2.ended_count(&sid).ok().flatten();
                             tokio::spawn(async move {
                                 let result = abort_session(&http2, &base2, &sid).await;
                                 let accepted = result.is_ok();
@@ -1123,9 +1125,13 @@ pub fn connect(
                                     return;
                                 }
 
+                                let Some(aborted) = aborted else {
+                                    return;
+                                };
+
                                 tokio::time::sleep(CANCEL_GRACE).await;
 
-                                match book2.finish_turn(&sid, "cancelled") {
+                                match book2.finish_turn_since(&sid, "cancelled", aborted) {
                                     Ok(true) => log::warn!(
                                         "kap took the abort of {sid} but never ended the turn; closed locally"
                                     ),
@@ -1216,7 +1222,7 @@ pub fn connect(
                                 });
                                 if !recorded || !durable {
                                     let _sent = reply.send(Err(KapError::Transport {
-                                        message: "prompt admission was not durably recorded".to_owned(),
+                                        message: "the frame journal refused the prompt admission".to_owned(),
                                     }));
                                     continue;
                                 }

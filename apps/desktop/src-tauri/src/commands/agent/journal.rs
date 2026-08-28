@@ -1,4 +1,7 @@
-//! 单一帧日志管线：有界接收、批量持久化、持久化后发布。
+//! 单一帧日志管线：非阻塞接收、批量持久化、持久化后发布。
+//!
+//! 收帧那一步在 RunSlot 的锁内、驱动器的单线程运行时里被调用，所以它只许入队
+//! 或拒收：睡一下或等一个回执，停住的是整条 WS 链路。
 
 use std::collections::HashMap;
 use std::fmt;
@@ -7,7 +10,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync
 use std::time::{Duration, Instant};
 
 use poietica_agent_persistence_native::RecordedFrame;
-use poietica_agent_runtime_native::{FrameSink, PROMPT_ADMITTED, RecordedEvent};
+use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
 use serde_json::value::{RawValue, to_raw_value};
 use tauri::{AppHandle, Emitter, Manager, Runtime, async_runtime};
 use uuid::Uuid;
@@ -20,16 +23,14 @@ use super::AGENT_EVENT;
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 const FRAME_QUEUE_CAPACITY: usize = 4096;
 const FRAME_BATCH_LIMIT: usize = 256;
-const JOURNAL_SEND_TIMEOUT: Duration = Duration::from_secs(2);
-const JOURNAL_ACK_TIMEOUT: Duration = Duration::from_secs(30);
-const JOURNAL_POLL_INTERVAL: Duration = Duration::from_millis(2);
+const FLUSH_TIMEOUT: Duration = Duration::from_secs(5);
 const PIPELINE_STOPPED: &str = "the frame journal stopped";
 const PIPELINE_FAILED: &str = "the frame journal failed to persist accepted frames";
+const PIPELINE_BEHIND: &str = "the frame journal is too far behind to flush";
 
 struct PendingFrame {
     thread: Uuid,
     event: RecordedEvent,
-    committed: Option<SyncSender<bool>>,
 }
 
 enum JournalCommand {
@@ -40,7 +41,6 @@ enum JournalCommand {
 struct FrameBatch {
     thread: Uuid,
     frames: Vec<RecordedFrame>,
-    committed: Vec<SyncSender<bool>>,
 }
 
 #[derive(Clone)]
@@ -53,28 +53,6 @@ impl fmt::Debug for FrameJournal {
         formatter
             .debug_struct("FrameJournal")
             .finish_non_exhaustive()
-    }
-}
-
-fn send_before(
-    sender: &SyncSender<JournalCommand>,
-    mut command: JournalCommand,
-    timeout: Duration,
-) -> bool {
-    let deadline = Instant::now() + timeout;
-
-    loop {
-        match sender.try_send(command) {
-            Ok(()) => return true,
-            Err(TrySendError::Disconnected(_returned)) => return false,
-            Err(TrySendError::Full(returned)) => {
-                command = returned;
-                let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
-                    return false;
-                };
-                std::thread::sleep(remaining.min(JOURNAL_POLL_INTERVAL));
-            }
-        }
     }
 }
 
@@ -93,52 +71,41 @@ impl FrameJournal {
         Ok(Self { sender })
     }
 
+    /// 收帧：入队即答。拒收只有两种事实 —— 管线没了，或积压到顶。
     pub(super) fn sink(&self, thread: Uuid) -> FrameSink {
         let sender = self.sender.clone();
 
         Box::new(move |event| {
-            let durable = event.frame.kind() == PROMPT_ADMITTED;
-            let (committed, waiting) = sync_channel(0);
-            let receipt = durable.then_some(committed);
-            let command = JournalCommand::Frame(PendingFrame {
-                thread,
-                event,
-                committed: receipt,
-            });
-
-            if !send_before(&sender, command, JOURNAL_SEND_TIMEOUT) {
-                log::error!("{PIPELINE_STOPPED} before accepting a frame");
-                return false;
-            }
-            if !durable {
-                return true;
-            }
-
-            match waiting.recv_timeout(JOURNAL_ACK_TIMEOUT) {
-                Ok(committed) => committed,
-                Err(RecvTimeoutError::Timeout) => {
-                    log::error!("durable frame acknowledgement timed out");
+            match sender.try_send(JournalCommand::Frame(PendingFrame { thread, event })) {
+                Ok(()) => true,
+                Err(TrySendError::Full(_refused)) => {
+                    log::error!("the frame journal is {FRAME_QUEUE_CAPACITY} frames behind");
                     false
                 }
-                Err(RecvTimeoutError::Disconnected) => {
-                    log::error!("{PIPELINE_STOPPED} before acknowledging a durable frame");
+                Err(TrySendError::Disconnected(_refused)) => {
+                    log::error!("{PIPELINE_STOPPED} before accepting a frame");
                     false
                 }
             }
         })
     }
 
+    /// 退场前的收账：报出这条管线有没有咽下过落库失败。
+    ///
+    /// 它是唯一还会等的地方，所以调用它的命令必须是 async 的 —— 同步命令跑在
+    /// 主线程上（见 turn.rs 的 agent_shutdown）。
     pub(super) fn flush(&self) -> Result<()> {
         let (finished, waiting) = sync_channel(0);
-        if !send_before(
-            &self.sender,
-            JournalCommand::Flush(finished),
-            JOURNAL_SEND_TIMEOUT,
-        ) {
-            return Err(Error::Internal(PIPELINE_STOPPED.to_owned()));
-        }
+        self.sender
+            .try_send(JournalCommand::Flush(finished))
+            .map_err(|refused| match refused {
+                TrySendError::Full(_dropped) => Error::Internal(PIPELINE_BEHIND.to_owned()),
+                TrySendError::Disconnected(_dropped) => {
+                    Error::Internal(PIPELINE_STOPPED.to_owned())
+                }
+            })?;
 
-        match waiting.recv_timeout(JOURNAL_ACK_TIMEOUT) {
+        match waiting.recv_timeout(FLUSH_TIMEOUT) {
             Ok(true) => Ok(()),
             Ok(false) => Err(Error::Internal(PIPELINE_FAILED.to_owned())),
             Err(RecvTimeoutError::Timeout) => Err(Error::Internal(
@@ -221,7 +188,6 @@ fn batch_index(
     batches.push(FrameBatch {
         thread,
         frames: Vec::new(),
-        committed: Vec::new(),
     });
     indexes.insert(key, index);
     index
@@ -232,34 +198,20 @@ fn flush_frames<R: Runtime>(app: &AppHandle<R>, pending: Vec<PendingFrame>) -> b
     let mut indexes = HashMap::new();
     let mut complete = true;
 
-    for PendingFrame {
-        thread,
-        event,
-        committed,
-    } in pending
-    {
+    for PendingFrame { thread, event } in pending {
         let frame = match to_raw_value(&event) {
             Ok(frame) => frame,
             Err(error) => {
                 log::error!("a recorded frame could not be serialized: {error}");
-                if let Some(receipt) = committed {
-                    let _sent = receipt.send(false);
-                }
                 complete = false;
                 continue;
             }
         };
         let index = batch_index(&mut batches, &mut indexes, thread, &event.session_id);
         let Some(batch) = batches.get_mut(index) else {
-            if let Some(receipt) = committed {
-                let _sent = receipt.send(false);
-            }
             complete = false;
             continue;
         };
-        if let Some(receipt) = committed {
-            batch.committed.push(receipt);
-        }
         batch.frames.push(RecordedFrame {
             session_id: event.session_id,
             seq: event.seq,
@@ -301,16 +253,13 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) -> bool 
             }
             Err(error) => {
                 log::error!("persist agent event batch failed permanently: {error}");
-                for receipt in batch.committed {
-                    let _sent = receipt.send(false);
-                }
                 return false;
             }
         }
     };
 
     /* 撞号只说明这一批里某个位置库里已经有了；ON CONFLICT 按帧独立生效，其余帧
-       都已落库（run_events 的 record_frames）。收据据实报假，屏幕仍然收下这一批 ——
+       都已落库（run_events 的 record_frames）。屏幕仍然收下这一批 ——
        重复的 seq 由时间线自己的去重闸门丢掉，而扣下整批换来的是一段永久的空白。 */
     let accepted = refused == 0;
 
@@ -319,9 +268,6 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) -> bool 
     }
 
     let shown: Vec<&RawValue> = logged.iter().map(|frame| frame.frame.as_ref()).collect();
-    for receipt in batch.committed {
-        let _sent = receipt.send(accepted);
-    }
     if let Err(error) = app.emit(AGENT_EVENT, &shown) {
         log::warn!("emit agent event failed after persistence: {error}");
     }

@@ -69,7 +69,7 @@ impl SessionBook {
     /// Ends one turn on the agent's own terms, reporting whether one was open.
     pub fn finish_turn(&self, session_id: &str, stop_reason: &str) -> Result<bool> {
         match self.slot(session_id)? {
-            Some(slot) => Ok(close(&slot, Ending::Finished(stop_reason))),
+            Some(slot) => Ok(close(&slot, Ending::Finished(stop_reason), None)),
             None => Ok(false),
         }
     }
@@ -77,7 +77,35 @@ impl SessionBook {
     /// Ends one turn this machine has judged dead, reporting whether one was open.
     pub fn fail_turn(&self, session_id: &str, message: &str) -> Result<bool> {
         match self.slot(session_id)? {
-            Some(slot) => Ok(close(&slot, Ending::Failed(message))),
+            Some(slot) => Ok(close(&slot, Ending::Failed(message), None)),
+            None => Ok(false),
+        }
+    }
+
+    /// 这条会话已经落过几道终帧；没有槽就没有答案。
+    pub fn ended_count(&self, session_id: &str) -> Result<Option<u64>> {
+        let Some(slot) = self.slot(session_id)? else {
+            return Ok(None);
+        };
+
+        let mut ended = None;
+        slot.record(|recorder| ended = Some(recorder.ended()));
+
+        Ok(ended)
+    }
+
+    /// 收摊，但只收 since 那一刻还在飞的那一轮。
+    ///
+    /// 取消的宽限期是一个定时器，它到期时在飞的可能已经是下一轮：不认轮就会把人
+    /// 刚发出去的那一句判成 cancelled。
+    pub fn finish_turn_since(
+        &self,
+        session_id: &str,
+        stop_reason: &str,
+        since: u64,
+    ) -> Result<bool> {
+        match self.slot(session_id)? {
+            Some(slot) => Ok(close(&slot, Ending::Finished(stop_reason), Some(since))),
             None => Ok(false),
         }
     }
@@ -88,7 +116,7 @@ impl SessionBook {
         let mut failed = 0;
 
         for slot in slots {
-            if close(&slot, Ending::Failed(message)) {
+            if close(&slot, Ending::Failed(message), None) {
                 failed += 1;
             }
         }
@@ -149,12 +177,13 @@ enum Ending<'a> {
     Failed(&'a str),
 }
 
-/// 收摊：没答的作废，终帧殿后。不在飞的那一轮不收第二次。
-fn close(slot: &RunSlot, ending: Ending<'_>) -> bool {
+/// 收摊：没答的作废，终帧殿后。不在飞的那一轮不收第二次；since 给出时，只收那
+/// 一刻还在飞的那一轮。
+fn close(slot: &RunSlot, ending: Ending<'_>, since: Option<u64>) -> bool {
     let mut ended = false;
 
     slot.record(|recorder| {
-        if !recorder.is_running() {
+        if !recorder.is_running() || since.is_some_and(|mark| recorder.ended() != mark) {
             return;
         }
 
