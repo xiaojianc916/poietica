@@ -1,3 +1,9 @@
+#![allow(
+    clippy::get_unwrap,
+    clippy::unwrap_used,
+    reason = "a test proves itself by panicking, so a missing turn must fail the test"
+)]
+
 use poietica_conversation::event::{ConversationEvent, EventEnvelope};
 use poietica_conversation::identity::{Seq, ThreadId, TurnId};
 use poietica_conversation::projection::{ThreadView, project};

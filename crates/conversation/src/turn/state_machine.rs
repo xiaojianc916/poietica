@@ -58,6 +58,7 @@ impl TurnState {
         };
 
         match (self, signal) {
+            (Self::Admitted, TurnSignal::DeliveryStarted) => Ok(Self::Delivering),
             (Self::Delivering, TurnSignal::DeliveryAccepted)
             | (Self::AwaitingInteraction, TurnSignal::InteractionResolved) => Ok(Self::Streaming),
             (Self::Streaming, TurnSignal::InteractionRequested) => Ok(Self::AwaitingInteraction),

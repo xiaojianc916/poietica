@@ -1,3 +1,8 @@
+#![allow(
+    clippy::expect_used,
+    reason = "a test proves itself by panicking, so a failing ledger step must fail the test"
+)]
+
 use poietica_conversation::event::ConversationEvent;
 use poietica_conversation::identity::{Seq, ThreadId, TurnId};
 use poietica_conversation::ports::ConversationLedger;

@@ -1,3 +1,8 @@
+#![allow(
+    clippy::unwrap_used,
+    reason = "a test proves itself by panicking, so a rejected transition must fail the test"
+)]
+
 use poietica_conversation::turn::{
     CancelOrigin, DeliveryOutcome, DeliveryState, TurnCompletion, TurnSignal, TurnState,
 };

@@ -48,7 +48,7 @@ impl<C: WallClock> SqliteLedger<C> {
 }
 
 /// 领域只认 LedgerUnavailable；SQLite 的细节到这一层为止。
-fn unavailable(error: LedgerError) -> LedgerUnavailable {
+fn unavailable(error: &LedgerError) -> LedgerUnavailable {
     LedgerUnavailable {
         reason: error.to_string(),
     }
@@ -56,7 +56,7 @@ fn unavailable(error: LedgerError) -> LedgerUnavailable {
 
 impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
     fn admit(&self, admission: &Admission) -> Result<AdmissionDecision, LedgerUnavailable> {
-        admissions::admit(self, admission).map_err(unavailable)
+        admissions::admit(self, admission).map_err(|error| unavailable(&error))
     }
 
     fn append(
@@ -64,7 +64,7 @@ impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
         thread: &ThreadId,
         event: &ConversationEvent,
     ) -> Result<Seq, LedgerUnavailable> {
-        events::append(self, thread, event).map_err(unavailable)
+        events::append(self, thread, event).map_err(|error| unavailable(&error))
     }
 
     fn events_after(
@@ -72,11 +72,11 @@ impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
         thread: &ThreadId,
         after: Seq,
     ) -> Result<Vec<EventEnvelope>, LedgerUnavailable> {
-        events::after(self, thread, after).map_err(unavailable)
+        events::after(self, thread, after).map_err(|error| unavailable(&error))
     }
 
     fn delivery_state(&self, turn: &TurnId) -> Result<Option<DeliveryState>, LedgerUnavailable> {
-        outbox::state(self, turn).map_err(unavailable)
+        outbox::state(self, turn).map_err(|error| unavailable(&error))
     }
 
     fn record_delivery(
@@ -84,10 +84,10 @@ impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
         turn: &TurnId,
         outcome: DeliveryOutcome,
     ) -> Result<DeliveryState, LedgerUnavailable> {
-        outbox::record(self, turn, outcome).map_err(unavailable)
+        outbox::record(self, turn, outcome).map_err(|error| unavailable(&error))
     }
 
     fn unresolved_deliveries(&self) -> Result<Vec<Admission>, LedgerUnavailable> {
-        outbox::unresolved(self).map_err(unavailable)
+        outbox::unresolved(self).map_err(|error| unavailable(&error))
     }
 }
