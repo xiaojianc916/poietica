@@ -38,6 +38,16 @@ export function gitReview(
   return throughIpc(() => commands.gitReview(root, base, context, ignoreWhitespace))
 }
 
+/** 问一个文件的整份补丁：折叠带上的行由它带回来。 */
+export function gitFilePatch(
+  root: string,
+  base: string,
+  path: string,
+  ignoreWhitespace: boolean,
+): Promise<string> {
+  return throughIpc(() => commands.gitFilePatch(root, base, path, ignoreWhitespace))
+}
+
 /** 挂上原生监视，等这个目录的下一次变化。false = 这一窗里没动，再挂一次。 */
 export function gitAwaitChange(root: string): Promise<boolean> {
   return throughIpc(() => commands.gitAwaitChange(root))

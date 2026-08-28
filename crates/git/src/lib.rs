@@ -19,7 +19,9 @@ use tokio::process::Command;
 mod review;
 mod watch;
 
-pub use review::{ChangeStatus, CommitIntent, FileChange, ReviewSnapshot, commit, review};
+pub use review::{
+    ChangeStatus, CommitIntent, FileChange, ReviewSnapshot, commit, file_patch, review,
+};
 pub use watch::await_change;
 
 /// GUI 宿主 spawn 控制台程序时，Windows 会给它开一个控制台窗口：选一次工作区

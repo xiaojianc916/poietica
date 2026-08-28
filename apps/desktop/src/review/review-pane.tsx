@@ -14,15 +14,24 @@ import {
   TooltipTrigger,
 } from '@poietica/ui'
 import {
+  ArrowUp,
   Check,
   ChevronDown,
   ChevronRight,
   Copy,
   Folder,
+  FoldVertical,
   GitBranch,
+  type LucideIcon,
   MoreHorizontal,
   PanelRight,
+  Pilcrow,
+  RefreshCw,
   Search,
+  Type,
+  UnfoldVertical,
+  Upload,
+  WrapText,
   X,
 } from 'lucide-react'
 import {
@@ -72,13 +81,13 @@ function toneOf(kind: DiffRow['kind']): string {
 }
 const SWITCHES: readonly {
   readonly name: ReviewSwitch
+  readonly icon: LucideIcon
   readonly on: string
   readonly off: string
 }[] = [
-  { name: 'wrap', off: '启用自动换行', on: '禁用自动换行' },
-  { name: 'tightContext', off: '不加载完整文件', on: '加载完整文件' },
-  { name: 'wordDiff', off: '启用文字差异', on: '禁用文字差异' },
-  { name: 'hideWhitespace', off: '隐藏空白字符', on: '显示空白字符' },
+  { icon: WrapText, name: 'wrap', off: '启用自动换行', on: '禁用自动换行' },
+  { icon: Type, name: 'wordDiff', off: '启用文字差异', on: '禁用文字差异' },
+  { icon: Pilcrow, name: 'hideWhitespace', off: '隐藏空白字符', on: '显示空白字符' },
 ]
 const ICON_CLASS =
   'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100'
@@ -86,6 +95,8 @@ const ICON_CLASS =
 const ROW_ICON_CLASS =
   'flex size-5 shrink-0 items-center justify-center rounded opacity-60 hover:bg-current/10 hover:opacity-100'
 const ROW_CLASS = 'min-w-0 flex-1 truncate text-xs'
+/* 菜单行的前导字形：与工具条上那枚同一档尺寸与不透明度。 */
+const MENU_ICON_CLASS = 'size-3.5 shrink-0 opacity-60'
 export function ReviewPane({ conversationId }: { readonly conversationId: string | null }) {
   const root = useConversationWorkspaceRoot(conversationId)
   if (root === null) {
@@ -162,10 +173,6 @@ function headLabel(reading: Ready): string {
   }
   return reading.detachedAt === null ? '未知 HEAD' : `分离于 ${reading.detachedAt}`
 }
-/* 基准是「跟谁比」：默认那一档比的是工作区与 HEAD，印成 HEAD 会被读成分支名。 */
-function baseLabel(base: string): string {
-  return base === WORKTREE_BASE ? '未提交的改动' : base
-}
 /* 一条工具条：比较基准、总计、更多操作、折叠、文件树、提交 —— 基准入口只有一个。 */
 function Toolbar({
   reading,
@@ -182,10 +189,15 @@ function Toolbar({
       <Bases base={state.base} reading={reading} store={store}>
         <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />
         <span className="max-w-28 truncate text-xs">{headLabel(reading)}</span>
-        <span aria-hidden className="text-xs opacity-30">
-          ·
-        </span>
-        <span className="max-w-28 truncate text-xs opacity-70">{baseLabel(state.base)}</span>
+        {/* 默认那一档的名字菜单里就有，工具条不重复印一遍。 */}
+        {state.base === WORKTREE_BASE ? null : (
+          <>
+            <span aria-hidden className="text-xs opacity-30">
+              ·
+            </span>
+            <span className="max-w-28 truncate text-xs opacity-70">{state.base}</span>
+          </>
+        )}
         <ChevronDown aria-hidden className="size-3 shrink-0 opacity-50" />
       </Bases>
       <Tally stat={reading.stat} />
@@ -203,9 +215,9 @@ function Toolbar({
           }}
         >
           {allOpen ? (
-            <ChevronDown aria-hidden className="size-4" />
+            <FoldVertical aria-hidden className="size-4" />
           ) : (
-            <ChevronRight aria-hidden className="size-4" />
+            <UnfoldVertical aria-hidden className="size-4" />
           )}
         </IconButton>
         <IconButton label="变更文件树" onClick={store.toggleTree} pressed={state.treeOpen}>
@@ -320,6 +332,7 @@ function Overflow({ state, store }: { readonly state: ReviewState; readonly stor
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <DropdownMenuItem onClick={store.refresh}>
+          <RefreshCw aria-hidden className={MENU_ICON_CLASS} />
           <span className={ROW_CLASS}>刷新</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -330,6 +343,7 @@ function Overflow({ state, store }: { readonly state: ReviewState; readonly stor
               store.toggleSwitch(entry.name)
             }}
           >
+            <entry.icon aria-hidden className={MENU_ICON_CLASS} />
             <span className={ROW_CLASS}>
               {state.presentation[entry.name] ? entry.on : entry.off}
             </span>
@@ -343,6 +357,7 @@ function Overflow({ state, store }: { readonly state: ReviewState; readonly stor
             void navigator.clipboard.writeText(command)
           }}
         >
+          <Copy aria-hidden className={MENU_ICON_CLASS} />
           <span className={ROW_CLASS}>复制 git apply 命令</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -359,9 +374,8 @@ function Commit({
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
-  const [message, setMessage] = useState('')
-  const [stageAll, setStageAll] = useState(true)
-  const canCommit = !state.busy && reading.files.length > 0 && (stageAll || reading.staged.size > 0)
+  const canCommit =
+    !state.busy && reading.files.length > 0 && (state.stageAll || reading.staged.size > 0)
   const canPush = !state.busy && (reading.ahead > 0 || reading.upstream === null)
   return (
     <DropdownMenu>
@@ -379,13 +393,13 @@ function Commit({
             aria-label="提交信息"
             className="w-full resize-none bg-transparent text-xs outline-none placeholder:opacity-50"
             onChange={(event) => {
-              setMessage(event.target.value)
+              store.setDraft(event.target.value)
             }}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
                 event.preventDefault()
                 if (canCommit) {
-                  store.commit('commit', message, stageAll)
+                  store.commit('commit')
                 }
                 return
               }
@@ -396,15 +410,15 @@ function Commit({
             }}
             placeholder="提交信息（留空将自动生成）…"
             rows={3}
-            value={message}
+            value={state.draft}
           />
         </div>
         <label className="mx-1 flex items-center gap-2 px-1 py-1 text-xs">
           <input
-            checked={stageAll}
+            checked={state.stageAll}
             className="size-3 accent-current"
             onChange={(event) => {
-              setStageAll(event.target.checked)
+              store.setStageAll(event.target.checked)
             }}
             type="checkbox"
           />
@@ -415,26 +429,29 @@ function Commit({
         <DropdownMenuItem
           disabled={!canCommit}
           onClick={() => {
-            store.commit('commit', message, stageAll)
+            store.commit('commit')
           }}
         >
+          <Check aria-hidden className={MENU_ICON_CLASS} />
           <span className={ROW_CLASS}>提交</span>
           <span className="shrink-0 font-mono text-[11px] opacity-40">Ctrl+↵</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!canCommit}
           onClick={() => {
-            store.commit('commit-and-push', message, stageAll)
+            store.commit('commit-and-push')
           }}
         >
+          <ArrowUp aria-hidden className={MENU_ICON_CLASS} />
           <span className={ROW_CLASS}>提交并推送</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!canPush}
           onClick={() => {
-            store.commit('push', '', false)
+            store.commit('push')
           }}
         >
+          <Upload aria-hidden className={MENU_ICON_CLASS} />
           <span className={ROW_CLASS}>推送</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

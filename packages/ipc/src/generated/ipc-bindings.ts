@@ -1040,6 +1040,12 @@ async gitReview(root: string, base: string, context: number, ignoreWhitespace: b
     return await TAURI_INVOKE("git_review", { root, base, context, ignoreWhitespace });
 },
 /**
+ * 问一个文件的整份补丁：折叠带上的行由它带回来，取回时机由界面决定。
+ */
+async gitFilePatch(root: string, base: string, path: string, ignoreWhitespace: boolean) : Promise<string> {
+    return await TAURI_INVOKE("git_file_patch", { root, base, path, ignoreWhitespace });
+},
+/**
  * 提交或推送，成功即交回盘面上的新审查面 —— 界面不自己拼「操作后的世界」。
  */
 async gitCommit(request: GitCommitRequest) : Promise<GitReview> {

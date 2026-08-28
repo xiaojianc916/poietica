@@ -80,6 +80,7 @@ export {
   gitBranches,
   gitCommit,
   gitCreateBranch,
+  gitFilePatch,
   gitReview,
   gitSwitchBranch,
 } from './git'

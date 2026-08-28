@@ -5,6 +5,7 @@ import {
   type GitReview,
   gitAwaitChange,
   gitCommit,
+  gitFilePatch,
   gitReview,
 } from '@poietica/ipc'
 import type { SplitterActivity } from '@poietica/ui'
@@ -20,7 +21,6 @@ import { paint } from './syntax'
 /** 影响 git 问法的开关要重问，只影响推导的重推即可 —— 两组分开，不白跑进程往返。 */
 export interface ReviewPresentation {
   readonly wrap: boolean
-  readonly tightContext: boolean
   readonly wordDiff: boolean
   readonly hideWhitespace: boolean
 }
@@ -45,6 +45,9 @@ export interface ReviewState {
   readonly reading: ReviewReading
   readonly presentation: ReviewPresentation
   readonly base: string
+  /** 提交说明与「包含未暂存」的选择：归 store，提交成功即被消费掉。 */
+  readonly draft: string
+  readonly stageAll: boolean
   readonly query: string
   readonly openFiles: ReadonlySet<string>
   readonly collapsedFolders: ReadonlySet<string>
@@ -60,6 +63,8 @@ export interface ReviewStore {
   /** 起一条「问一次、等一次」的循环，返回停止函数：谁创建谁销毁。 */
   readonly start: () => () => void
   readonly setQuery: (value: string) => void
+  readonly setDraft: (value: string) => void
+  readonly setStageAll: (on: boolean) => void
   readonly setBase: (ref: string) => void
   readonly toggleFile: (path: string) => void
   readonly openFile: (path: string) => void
@@ -71,12 +76,11 @@ export interface ReviewStore {
   readonly setTreeWidth: (width: number) => void
   readonly setSplitter: (activity: SplitterActivity) => void
   readonly refresh: () => void
-  readonly commit: (intent: GitCommitIntent, message: string, stageAll: boolean) => void
+  readonly commit: (intent: GitCommitIntent) => void
   readonly applyCommand: () => string
 }
+/* 每次跳动只问 git 默认的三行上下文；整份文件由开着的那几份自己去取。 */
 const TIGHT = 3
-/* 不折上限：一次把整份文件取回来，折叠带上的行数才是真数字而不是估计。 */
-const WHOLE = 100_000
 const APPLY_HEAD = "git apply --3way - <<'PATCH'\n"
 const APPLY_TAIL = '\nPATCH\n'
 /** 默认基准：工作区对 HEAD —— git diff 不带 revision 时比的就是这一档。 */
@@ -90,11 +94,12 @@ export function createReviewStore(root: string): ReviewStore {
   let reading: ReviewReading = { phase: 'asking' }
   let presentation: ReviewPresentation = {
     hideWhitespace: false,
-    tightContext: false,
     wordDiff: true,
     wrap: false,
   }
   let base = WORKTREE_BASE
+  let draft = ''
+  let stageAll = true
   let query = ''
   let openFiles: ReadonlySet<string> = new Set<string>()
   let collapsedFolders: ReadonlySet<string> = new Set<string>()
@@ -105,20 +110,23 @@ export function createReviewStore(root: string): ReviewStore {
   let busy = false
   let stopped = false
   let looping = false
-  /* 已着色的路径与当前代：换一批文件模型就都作废。 */
-  let painted: ReadonlySet<string> = new Set<string>()
+  /* 已取回全文并着色的路径与当前代：换一批文件模型就都作废。 */
+  let enriched: ReadonlySet<string> = new Set<string>()
+  let filling = false
   let generation = 0
   function read(): ReviewState {
     return {
       base,
       busy,
       collapsedFolders,
+      draft,
       openFiles,
       openGaps,
       presentation,
       query,
       reading,
       splitter,
+      stageAll,
       treeOpen,
       treeWidth,
     }
@@ -131,35 +139,62 @@ export function createReviewStore(root: string): ReviewStore {
   }
   function project(): void {
     generation += 1
-    painted = new Set<string>()
-    reading = answer === null ? { phase: trouble } : ready(answer, presentation.wordDiff)
-    tint()
+    enriched = new Set<string>()
+    reading = answer === null ? { phase: trouble } : ready(answer)
+    enrich()
   }
   /*
-   * 着色只画开着的文件：整批着色的代价随变更集走，屏幕上却只有开着的那几份。
-   * 异步回来时这一代还在就并进快照，过期的丢掉。
+   * 开着的那几份才取全文、算词级差异、着色：清单每跳一次只带回三行上下文，画面上
+   * 要折叠带与颜色的只有开着的几份。一次一份地取，天然排队；属于过期那一代的回答丢掉。
    */
-  function tint(): void {
-    if (reading.phase !== 'ready') {
+  function enrich(): void {
+    if (filling) {
       return
     }
-    const wanted = reading.files.filter(
-      (file) => openFiles.has(file.path) && !painted.has(file.path),
-    )
-    if (wanted.length === 0) {
-      return
-    }
-    const mine = generation
-    painted = new Set([...painted, ...wanted.map((file) => file.path)])
-    void paint(wanted).then((files) => {
-      const held = reading
-      if (stopped || mine !== generation || held.phase !== 'ready') {
-        return
+    filling = true
+    void (async () => {
+      while (!stopped) {
+        const wanted = pending()
+        if (wanted === undefined) {
+          break
+        }
+        const mine = generation
+        enriched = new Set(enriched).add(wanted.path)
+        const whole = await widened(wanted)
+        const held = reading
+        if (whole === null || stopped || mine !== generation || held.phase !== 'ready') {
+          continue
+        }
+        reading = {
+          ...held,
+          files: held.files.map((file) => (file.path === whole.path ? whole : file)),
+        }
+        publish()
       }
-      const byPath = new Map(files.map((file) => [file.path, file] as const))
-      reading = { ...held, files: held.files.map((file) => byPath.get(file.path) ?? file) }
-      publish()
-    })
+      filling = false
+    })()
+  }
+  function pending(): DiffFile | undefined {
+    if (reading.phase !== 'ready') {
+      return undefined
+    }
+    return reading.files.find(
+      (file) => openFiles.has(file.path) && !file.binary && !enriched.has(file.path),
+    )
+  }
+  /* 取不回来就照旧画三行上下文那一份：下一次 git 跳动会重问，这里不空转重试。 */
+  async function widened(file: DiffFile): Promise<DiffFile | null> {
+    try {
+      const patch = await gitFilePatch(root, base, file.path, presentation.hideWhitespace)
+      const found = parseUnifiedPatch(patch, presentation.wordDiff).find(
+        (held) => held.path === file.path,
+      )
+      const [colored] = await paint([found ?? file])
+      return colored ?? null
+    } catch (cause: unknown) {
+      reportFailure('GIT_CHANGES_UNREADABLE', { cause, scope: 'review' })
+      return null
+    }
   }
   function mutate(change: () => void): void {
     change()
@@ -167,12 +202,7 @@ export function createReviewStore(root: string): ReviewStore {
   }
   async function load(): Promise<void> {
     try {
-      const held = await gitReview(
-        root,
-        base,
-        presentation.tightContext ? TIGHT : WHOLE,
-        presentation.hideWhitespace,
-      )
+      const held = await gitReview(root, base, TIGHT, presentation.hideWhitespace)
       if (stopped) {
         return
       }
@@ -216,7 +246,7 @@ export function createReviewStore(root: string): ReviewStore {
   return {
     applyCommand: () =>
       answer === null || answer.patch === '' ? '' : APPLY_HEAD + answer.patch + APPLY_TAIL,
-    commit: (intent, message, stageAll) => {
+    commit: (intent) => {
       if (busy) {
         return
       }
@@ -224,10 +254,10 @@ export function createReviewStore(root: string): ReviewStore {
       publish()
       void gitCommit({
         base,
-        context: presentation.tightContext ? TIGHT : WHOLE,
+        context: TIGHT,
         ignoreWhitespace: presentation.hideWhitespace,
         intent,
-        message: subjectFor(intent, message, reading),
+        message: subjectFor(intent, draft, reading),
         root,
         stageAll,
       })
@@ -235,6 +265,10 @@ export function createReviewStore(root: string): ReviewStore {
           (held) => {
             answer = held
             trouble = 'asking'
+            /* 说明随这次提交一起被消费；推送不带说明，失败时草稿留着不用重打。 */
+            if (intent !== 'push') {
+              draft = ''
+            }
           },
           (cause: unknown) => {
             reportFailure('GIT_REVIEW_ACTION_FAILED', { cause, scope: 'review' })
@@ -255,7 +289,7 @@ export function createReviewStore(root: string): ReviewStore {
       mutate(() => {
         openFiles = new Set(openFiles).add(held)
       })
-      tint()
+      enrich()
     },
     refresh: () => {
       if (looping) {
@@ -271,7 +305,7 @@ export function createReviewStore(root: string): ReviewStore {
             ? new Set(reading.files.map((file) => file.path))
             : new Set<string>()
       })
-      tint()
+      enrich()
     },
     setBase: (ref) => {
       if (ref === base) {
@@ -280,6 +314,11 @@ export function createReviewStore(root: string): ReviewStore {
       base = ref
       void load()
       publish()
+    },
+    setDraft: (value) => {
+      mutate(() => {
+        draft = value
+      })
     },
     setQuery: (value) => {
       mutate(() => {
@@ -292,6 +331,11 @@ export function createReviewStore(root: string): ReviewStore {
       }
       mutate(() => {
         splitter = activity
+      })
+    },
+    setStageAll: (on) => {
+      mutate(() => {
+        stageAll = on
       })
     },
     setTreeWidth: (width) => {
@@ -315,7 +359,7 @@ export function createReviewStore(root: string): ReviewStore {
       mutate(() => {
         openFiles = flipped(openFiles, held)
       })
-      tint()
+      enrich()
     },
     toggleFolder: (key) => {
       mutate(() => {
@@ -329,7 +373,7 @@ export function createReviewStore(root: string): ReviewStore {
     },
     toggleSwitch: (name) => {
       presentation = switched(presentation, name)
-      if (name === 'tightContext' || name === 'hideWhitespace') {
+      if (name === 'hideWhitespace') {
         void load()
       } else {
         project()
@@ -349,9 +393,10 @@ export function createReviewStore(root: string): ReviewStore {
 }
 const NOTHING: DiffStat = { added: 0, removed: 0 }
 /* 清单是权威顺序，补丁按路径对上去；补丁里有而清单里没有的照实附在后面。 */
-function ready(held: GitReview, wordDiff: boolean): ReviewReading {
+function ready(held: GitReview): ReviewReading {
+  /* 词级强调随整份文件按文件算：清单这一遍只要行与徽章。 */
   const byPath = new Map(
-    parseUnifiedPatch(held.patch, wordDiff).map((file) => [file.path, file] as const),
+    parseUnifiedPatch(held.patch, false).map((file) => [file.path, file] as const),
   )
   const staged = new Set<string>()
   const files: DiffFile[] = []
@@ -429,7 +474,6 @@ function flipped(held: ReadonlySet<string>, key: string): ReadonlySet<string> {
 function switched(held: ReviewPresentation, name: ReviewSwitch): ReviewPresentation {
   return {
     hideWhitespace: name === 'hideWhitespace' ? !held.hideWhitespace : held.hideWhitespace,
-    tightContext: name === 'tightContext' ? !held.tightContext : held.tightContext,
     wordDiff: name === 'wordDiff' ? !held.wordDiff : held.wordDiff,
     wrap: name === 'wrap' ? !held.wrap : held.wrap,
   }

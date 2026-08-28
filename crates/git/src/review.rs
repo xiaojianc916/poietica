@@ -49,6 +49,8 @@ pub struct ReviewSnapshot {
     /// 整棵工作树相对基准的统一补丁，未跟踪文件在尾部追加。
     pub patch: String,
 }
+/* 整份文件：unified 给到行数不可能达到的量级，折叠带上的行数才是真数字。 */
+const WHOLE: u32 = 100_000;
 const STATUS_ARGS: &[&str] = &[
     "status",
     "--porcelain=v2",
@@ -64,9 +66,7 @@ pub async fn review(
     context: u32,
     ignore_whitespace: bool,
 ) -> Result<Option<ReviewSnapshot>, GitError> {
-    if base.trim().is_empty() || base.starts_with('-') {
-        return Err(GitError::Refused(format!("无效的比较基准：{base}")));
-    }
+    checked("比较基准", base)?;
     if !inside_work_tree(root).await? {
         return Ok(None);
     }
@@ -91,8 +91,30 @@ pub async fn review(
     if held.branch.is_some() {
         held.detached_at = None;
     }
-    held.patch = patch(root, base, context, ignore_whitespace, &held.changes).await?;
+    held.patch = patch(root, base, context, ignore_whitespace, &held.changes, None).await?;
     Ok(Some(held))
+}
+/// 一个文件相对基准的整份补丁：折叠带上的行由它带回来，取回时机由界面决定。
+///
+/// 走的仍是审查面那条 patch，只把范围收到一个路径 —— 未跟踪文件照样与空文件比。
+pub async fn file_patch(
+    root: &Path,
+    base: &str,
+    path: &str,
+    ignore_whitespace: bool,
+) -> Result<String, GitError> {
+    checked("比较基准", base)?;
+    checked("路径", path)?;
+    let mut args = STATUS_ARGS.to_vec();
+    args.extend(["--", path]);
+    let listed = expect_ok(run(root, &args).await?)?;
+    let records = String::from_utf8_lossy(&listed.stdout);
+    let changes: Vec<FileChange> = records
+        .split('\0')
+        .filter(|record| !record.starts_with("# "))
+        .filter_map(entry)
+        .collect();
+    patch(root, base, WHOLE, ignore_whitespace, &changes, Some(path)).await
 }
 /// 一次提交动作的意图：三个动作三条路，界面不靠一个动作替人决定要不要联网。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -171,6 +193,13 @@ fn read_header(held: &mut ReviewSnapshot, header: &str) {
         _ => {}
     }
 }
+/* 只挡把参数读成命令行开关的那一类注入；其余交给 git 自己解释。 */
+fn checked(kind: &str, value: &str) -> Result<(), GitError> {
+    if value.trim().is_empty() || value.starts_with('-') {
+        return Err(GitError::Refused(format!("无效的{kind}：{value}")));
+    }
+    Ok(())
+}
 /* ab 表头是 +<领先> -<落后>：符号属于格式，数字才是答案。 */
 fn signed(field: &str) -> Option<u32> {
     field.get(1..)?.parse().ok()
@@ -183,6 +212,7 @@ async fn patch(
     context: u32,
     ignore_whitespace: bool,
     changes: &[FileChange],
+    only: Option<&str>,
 ) -> Result<String, GitError> {
     let unified = format!("--unified={context}");
     let mut text = String::new();
@@ -203,6 +233,9 @@ async fn patch(
         ];
         if ignore_whitespace {
             args.push("--ignore-all-space");
+        }
+        if let Some(scope) = only {
+            args.extend(["--", scope]);
         }
         text.push_str(&String::from_utf8_lossy(
             &expect_ok(run(root, &args).await?)?.stdout,

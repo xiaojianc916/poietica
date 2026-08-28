@@ -146,6 +146,19 @@ pub async fn git_review(
         .map(|held| held.map(GitReview::from))
         .map_err(surfaced)
 }
+/// 问一个文件的整份补丁：折叠带上的行由它带回来，取回时机由界面决定。
+#[command]
+#[specta::specta]
+pub async fn git_file_patch(
+    root: String,
+    base: String,
+    path: String,
+    ignore_whitespace: bool,
+) -> Result<String, IpcError> {
+    poietica_git_native::file_patch(Path::new(&root), &base, &path, ignore_whitespace)
+        .await
+        .map_err(surfaced)
+}
 /// 提交或推送，成功即交回盘面上的新审查面 —— 界面不自己拼「操作后的世界」。
 #[command]
 #[specta::specta]
