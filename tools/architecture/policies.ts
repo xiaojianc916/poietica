@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises'
+import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -495,6 +495,56 @@ export async function manifestScriptsResolve(
           detail: `${name} 指向不存在的 ${token}`,
         })
       }
+    }
+  }
+
+  return violations
+}
+
+/** 点名的脚本必须存在：manifest 之外，源码里 spawn 出去的路径同样是一处声明。 */
+const INVOKED_SCRIPT = /(?:apps|packages|tools)\/[\w./-]+\.(?:ts|tsx|mjs)/g
+
+export async function invokedScriptsResolve(root: string): Promise<Violation[]> {
+  const violations: Violation[] = []
+  const pending = ['tools']
+  const files: string[] = []
+
+  while (pending.length > 0) {
+    const current = pending.pop()
+
+    if (current === undefined) {
+      break
+    }
+
+    for (const entry of await readdir(path.join(root, current), { withFileTypes: true })) {
+      const child = `${current}/${entry.name}`
+
+      if (entry.isDirectory()) {
+        pending.push(child)
+        continue
+      }
+
+      if (child.endsWith('.ts')) {
+        files.push(child)
+      }
+    }
+  }
+
+  for (const file of files.sort()) {
+    const source = await readFile(path.join(root, file), 'utf8')
+
+    for (const match of source.matchAll(INVOKED_SCRIPT)) {
+      const named = match[0] ?? ''
+
+      if (named.length === 0 || (await present(path.join(root, named)))) {
+        continue
+      }
+
+      violations.push({
+        policy: 'invoked-scripts-resolve',
+        where: file,
+        detail: `点名了不存在的 ${named}`,
+      })
     }
   }
 

@@ -81,6 +81,7 @@ const violations: Violation[] = [
     tree.filter((directory) => directory.endsWith('/src/generated')),
   )),
   ...(await policy.manifestScriptsResolve(ROOT, scripted)),
+  ...(await policy.invokedScriptsResolve(ROOT)),
   ...(await policy.problemCopyIsComplete(ROOT, codeSource)),
 ]
 

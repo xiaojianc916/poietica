@@ -6,7 +6,7 @@
  * 增量的 fromHash 不会对不上。格式与哈希只有一个产出方：crates/update 的
  * poietica-update-payload。
  *
- *   bun scripts/release/manifest.mjs <installedExe> <outDir> <tag>
+ *   bun tools/release/manifest.ts <installedExe> <outDir> <tag>
  */
 import { Buffer } from 'node:buffer'
 import { spawnSync } from 'node:child_process'
@@ -14,22 +14,28 @@ import { readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
+type GithubRelease = {
+  tag_name: string
+  draft: boolean
+  assets: Array<{ name: string; browser_download_url: string }>
+}
+
 const ENDPOINT_FILE = 'apps/desktop/src-tauri/updater/manifest.url'
 const ENDPOINT_PATH = 'releases/latest/download/latest.json'
 /* 往回追三版：跨得越远的人越少，而每一条增量都要一次全量压缩。 */
 const PATCH_DEPTH = 3
 const [installedExe, outDir, tag] = process.argv.slice(2)
 if (!installedExe || !outDir || !tag) {
-  console.error('usage: bun scripts/release/manifest.mjs <installedExe> <outDir> <tag>')
+  console.error('usage: bun tools/release/manifest.ts <installedExe> <outDir> <tag>')
   process.exit(2)
 }
 const version = tag.replace(/^v/, '')
-function fail(message) {
+function fail(message: string): never {
   console.error(message)
   process.exit(1)
 }
 /** 载荷生成器的标准输出就是它的返回值：一行哈希。 */
-function produce(args) {
+function produce(args: readonly string[]): string {
   const produced = spawnSync(
     'cargo',
     [
@@ -51,7 +57,7 @@ function produce(args) {
   return produced.stdout.trim()
 }
 /** 签名交给 Tauri 官方签名器，仓库里不出现第二套 minisign 实现。 */
-async function sign(file) {
+async function sign(file: string): Promise<string> {
   const signed = spawnSync('bun', ['run', 'tauri', 'signer', 'sign', path.resolve(file)], {
     cwd: 'apps/desktop',
     encoding: 'utf8',
@@ -68,13 +74,13 @@ if (endpoint.origin !== 'https://github.com' || rest.join('/') !== ENDPOINT_PATH
   fail(`${ENDPOINT_FILE}: not a GitHub latest-release manifest endpoint`)
 }
 const base = `https://github.com/${owner}/${repo}`
-const assetUrl = (name) => `${base}/releases/download/${tag}/${name}`
+const assetUrl = (name: string): string => `${base}/releases/download/${tag}/${name}`
 const payloadName = `poietica-${version}.payload.zst`
 /** 上几版的载荷就是上几版的基线，从已发布的资产取，不在本地缓存里猜。 */
-async function baselines() {
-  const headers = { accept: 'application/vnd.github+json' }
-  if (process.env.GITHUB_TOKEN) {
-    headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`
+async function baselines(): Promise<Array<{ version: string; url: string }>> {
+  const headers: Record<string, string> = { accept: 'application/vnd.github+json' }
+  if (process.env['GITHUB_TOKEN']) {
+    headers['authorization'] = `Bearer ${process.env['GITHUB_TOKEN']}`
   }
   const listed = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=20`, {
     headers,
@@ -82,8 +88,8 @@ async function baselines() {
   if (!listed.ok) {
     fail(`could not list releases: ${listed.status}`)
   }
-  const found = []
-  for (const release of await listed.json()) {
+  const found: Array<{ version: string; url: string }> = []
+  for (const release of (await listed.json()) as GithubRelease[]) {
     if (release.tag_name === tag || release.draft) {
       continue
     }
@@ -100,7 +106,7 @@ async function baselines() {
   }
   return found
 }
-async function fetchTo(url, destination) {
+async function fetchTo(url: string, destination: string): Promise<void> {
   const response = await fetch(url, { redirect: 'follow' })
   if (!response.ok) {
     fail(`could not download ${url}: ${response.status}`)
@@ -109,7 +115,7 @@ async function fetchTo(url, destination) {
 }
 const full = path.join(outDir, payloadName)
 const payloadHash = produce(['full', installedExe, full])
-const patches = []
+const patches: Array<{ fromHash: string; url: string; signature: string }> = []
 for (const previous of await baselines()) {
   const basePayload = path.join(outDir, `baseline-${previous.version}.zst`)
   await fetchTo(previous.url, basePayload)

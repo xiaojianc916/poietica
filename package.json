@@ -24,7 +24,7 @@
     "build:web": "turbo run build",
     "check": "bun run check:web && bun run check:rust",
     "check:rust": "cargo fmt --all -- --check && bun run clippy && bun run test:rust && bun run ipc:check",
-    "check:versions": "bun scripts/release/check-versions.mjs",
+    "check:versions": "bun tools/release/check-versions.ts",
     "check:web": "biome ci . && bun tools/architecture/verify.ts && turbo run typecheck test --continue",
     "clean": "bun tools/dev/clean.ts",
     "clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
@@ -38,14 +38,14 @@
     "lint:fix": "biome check --write .",
     "perf": "bun run --filter @poietica/tests perf",
     "prepare": "bun tools/dev/install-git-hooks.ts",
-    "release": "bun scripts/release/release.mjs",
+    "release": "bun tools/release/release.ts",
     "test": "turbo run test",
     "test:architecture": "bun tools/architecture/verify.ts",
     "test:rust": "cargo test --workspace --all-features",
     "typecheck": "turbo run typecheck --continue",
-    "verify:channel": "bun scripts/release/verify-channel.mjs",
+    "verify:channel": "bun tools/release/verify-channel.ts",
     "verify:release": "bun run check:versions && bun run check && bun run audit && bun run audit:rust && bun run build:release",
-    "version:set": "bun scripts/release/set-version.mjs"
+    "version:set": "bun tools/release/set-version.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
