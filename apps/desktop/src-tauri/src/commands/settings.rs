@@ -150,8 +150,7 @@ pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> 
     .map_err(IpcError::from)?;
 
     /* 磁盘上那个布尔值只在这三处进程内生效，所以对账也只在这三处。 */
-    crate::commands::agent::runtime::apply_daemon_intent(&app, settings.general.daemon)
-        .await;
+    crate::commands::agent::runtime::apply_daemon_intent(&app, settings.general.daemon).await;
 
     Ok(settings)
 }
@@ -197,8 +196,7 @@ pub async fn settings_reset(app: AppHandle) -> SettingsCommandResult<AppSettings
     })()
     .map_err(IpcError::from)?;
 
-    crate::commands::agent::runtime::apply_daemon_intent(&app, defaults.general.daemon)
-        .await;
+    crate::commands::agent::runtime::apply_daemon_intent(&app, defaults.general.daemon).await;
 
     Ok(defaults)
 }

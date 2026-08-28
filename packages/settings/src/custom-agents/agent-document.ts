@@ -85,27 +85,29 @@ export function parseAgentDocument(relativePath: string, document: string): Cust
     description,
     whenToUse: optionalString(value['whenToUse']) ?? '',
     override: value['override'] === true,
-    toolMode:
-      rawTools === undefined || (rawTools.length === 1 && rawTools[0] === '*')
-        ? 'all'
-        : rawTools.length === 0
-          ? 'none'
-          : 'allowlist',
+    toolMode: rawTools === undefined ? 'all' : listMode(rawTools),
     tools: rawTools?.filter((item) => item !== '*').join(', ') ?? '',
     disallowedTools: stringList(value['disallowedTools'], 'disallowedTools')?.join(', ') ?? '',
-    delegationMode:
-      rawSubagents === undefined
-        ? 'default'
-        : rawSubagents.length === 1 && rawSubagents[0] === '*'
-          ? 'all'
-          : rawSubagents.length === 0
-            ? 'none'
-            : 'allowlist',
+    delegationMode: rawSubagents === undefined ? 'default' : listMode(rawSubagents),
     subagents: rawSubagents?.filter((item) => item !== '*').join(', ') ?? '',
     modelPreference: parseModelPreference(value['model_preference']),
     prompt,
     extras,
   }
+}
+
+/**
+ * 工具与委派清单共用的方言：['*'] 是全放行，空清单是什么都没有，其余按白名单。
+ * 缺席怎么解释（tools 缺是全放行，subagents 缺是默认）只有调用方知道。
+ */
+function listMode(raw: string[]): ToolMode {
+  if (raw.length === 1 && raw[0] === '*') {
+    return 'all'
+  }
+  if (raw.length === 0) {
+    return 'none'
+  }
+  return 'allowlist'
 }
 
 export function serializeAgentDocument(draft: CustomAgentDraft): string {

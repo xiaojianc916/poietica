@@ -422,7 +422,7 @@ pub async fn plugins_set_mcp_enabled(
     enabled: bool,
 ) -> PluginsCommandResult<()> {
     ledger(&app)?
-        .set_mcp_enabled(&plugin_id, server, enabled)
+        .set_mcp_enabled(&plugin_id, &server, enabled)
         .map_err(plugin_failure)
         .map_err(IpcError::from)
 }

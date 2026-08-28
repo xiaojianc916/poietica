@@ -3,8 +3,8 @@
     clippy::print_stdout,
     reason = "标准输出上那一行哈希就是这个程序的返回值，发布脚本读它"
 )]
-use std::fs;
 use poietica_update_native::{PayloadKind, decode, encode, hash};
+use std::fs;
 /// full  <exe> <out>                      写整包载荷，打印成品哈希
 /// patch <basePayload> <exe> <out>    写增量载荷，打印基线哈希
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,7 +25,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", hash(&baseline));
         }
         _unknown => {
-            return Err("usage: poietica-update-payload full <exe> <out> | patch <basePayload> <exe> <out>".into());
+            return Err(
+                "usage: poietica-update-payload full <exe> <out> | patch <basePayload> <exe> <out>"
+                    .into(),
+            );
         }
     }
     Ok(())

@@ -34,7 +34,9 @@ pub fn list_custom_agents(root: &Path) -> Result<CustomAgentCatalog, CustomAgent
     fs::create_dir_all(root)?;
     let mut catalog = CustomAgentCatalog::default();
     visit(root, root, &mut catalog)?;
-    catalog.files.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    catalog
+        .files
+        .sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
     Ok(catalog)
 }
 
@@ -45,10 +47,14 @@ pub fn save_custom_agent(
     expected_document: Option<&str>,
 ) -> Result<CustomAgentFile, CustomAgentFileError> {
     if document.trim().is_empty() {
-        return Err(CustomAgentFileError::Invalid("agent document must not be empty".to_owned()));
+        return Err(CustomAgentFileError::Invalid(
+            "agent document must not be empty".to_owned(),
+        ));
     }
     if document.len() as u64 > MAX_DOCUMENT_BYTES {
-        return Err(CustomAgentFileError::Invalid("agent document is larger than 512 KiB".to_owned()));
+        return Err(CustomAgentFileError::Invalid(
+            "agent document is larger than 512 KiB".to_owned(),
+        ));
     }
 
     fs::create_dir_all(root)?;
@@ -92,26 +98,37 @@ fn visit(
         let entry = entry?;
         let path = entry.path();
         let kind = entry.file_type()?;
-        let relative = path.strip_prefix(root).map_err(|_| {
-            CustomAgentFileError::Invalid("agent path escaped its root".to_owned())
-        })?;
+        let relative = path
+            .strip_prefix(root)
+            .map_err(|_| CustomAgentFileError::Invalid("agent path escaped its root".to_owned()))?;
         let label = relative.to_string_lossy().replace('\\', "/");
 
         if kind.is_symlink() {
-            catalog.issues.push(label + ": symbolic links are not editable");
+            catalog
+                .issues
+                .push(format!("{label}: symbolic links are not editable"));
             continue;
         }
         if kind.is_dir() {
             visit(root, &path, catalog)?;
             continue;
         }
-        if !kind.is_file() || path.extension().and_then(|value| value.to_str()) != Some("md") {
+        /* 只有常规文件可读：一根名叫 *.md 的 FIFO 会把这次扫描挂死，is_file() 恰好排除它。 */
+        #[allow(
+            clippy::filetype_is_file,
+            reason = "is_file() is the point: only a regular file may be read; !is_dir() would let a FIFO named *.md block the scan"
+        )]
+        let is_editable_markdown =
+            kind.is_file() && path.extension().and_then(|value| value.to_str()) == Some("md");
+        if !is_editable_markdown {
             continue;
         }
 
         let metadata = entry.metadata()?;
         if metadata.len() > MAX_DOCUMENT_BYTES {
-            catalog.issues.push(label + ": file is larger than 512 KiB");
+            catalog
+                .issues
+                .push(format!("{label}: file is larger than 512 KiB"));
             continue;
         }
 
@@ -121,7 +138,9 @@ fn visit(
                 absolute_path: path,
                 document,
             }),
-            Err(_) => catalog.issues.push(label + ": file could not be read as UTF-8"),
+            Err(_) => catalog
+                .issues
+                .push(format!("{label}: file could not be read as UTF-8")),
         }
     }
     Ok(())
@@ -153,9 +172,14 @@ fn resolve_file(root: &Path, relative_path: &str) -> Result<PathBuf, CustomAgent
     let canonical_root = root.canonicalize()?;
     let canonical_parent = parent.canonicalize()?;
     if !canonical_parent.starts_with(&canonical_root) {
-        return Err(CustomAgentFileError::Invalid("agent path escaped its root".to_owned()));
+        return Err(CustomAgentFileError::Invalid(
+            "agent path escaped its root".to_owned(),
+        ));
     }
-    if target.symlink_metadata().is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+    if target
+        .symlink_metadata()
+        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
         return Err(CustomAgentFileError::Invalid(
             "symbolic-link agent files are not editable".to_owned(),
         ));
@@ -211,10 +235,12 @@ Review carefully.
 
         delete_custom_agent(directory.path(), "reviewer.md", document)
             .expect("unchanged agent should delete");
-        assert!(list_custom_agents(directory.path())
-            .expect("catalog should reload")
-            .files
-            .is_empty());
+        assert!(
+            list_custom_agents(directory.path())
+                .expect("catalog should reload")
+                .files
+                .is_empty()
+        );
     }
 
     #[test]

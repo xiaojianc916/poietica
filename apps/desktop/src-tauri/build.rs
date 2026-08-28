@@ -1,3 +1,14 @@
+//! Bundles the element picker runtime for the browser panel.
+//!
+//! A build script's only way to fail the build is to abort its own process;
+//! panics here run on the developer's machine during compilation and never in
+//! the shipped app.
+#![allow(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a build script reports failure by panicking; it never runs in the shipped app"
+)]
+
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;
@@ -25,12 +36,11 @@ fn find_bun() -> PathBuf {
             let npmrc = PathBuf::from(&home).join(".npmrc");
             if let Ok(content) = std::fs::read_to_string(&npmrc) {
                 for line in content.lines() {
-                    if let Some((key, value)) = line.split_once('=') {
-                        if key.trim().eq_ignore_ascii_case("prefix") {
-                            candidates.push(
-                                PathBuf::from(value.trim()).join("node_modules/bun/bin/bun.exe"),
-                            );
-                        }
+                    if let Some((key, value)) = line.split_once('=')
+                        && key.trim().eq_ignore_ascii_case("prefix")
+                    {
+                        candidates
+                            .push(PathBuf::from(value.trim()).join("node_modules/bun/bin/bun.exe"));
                     }
                 }
             }
@@ -79,10 +89,9 @@ fn main() {
             )
         });
 
-    if !result.status.success() {
-        panic!(
-            "element picker bundle failed:\n{}",
-            String::from_utf8_lossy(&result.stderr)
-        );
-    }
+    assert!(
+        result.status.success(),
+        "element picker bundle failed:\n{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
 }

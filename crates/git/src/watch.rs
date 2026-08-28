@@ -16,7 +16,7 @@ use crate::GitError;
 
 /// 一次等待最多挂这么久。到点交回「没动」，由调用方决定还等不等 ——
 /// 永不返回的等待会把监视句柄留在无人认领的地方。
-const WINDOW: Duration = Duration::from_secs(60);
+const WINDOW: Duration = Duration::from_mins(1);
 
 /// 合流窗口：一次保存是多条事件，一次切分支是上千条。
 const QUIET: Duration = Duration::from_millis(300);

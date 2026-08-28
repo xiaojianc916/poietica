@@ -1657,7 +1657,7 @@ impl EventRouter {
                     match ended {
                         Ok(_) => prompts.turn_ended(session_id),
                         Err(error) => {
-                            log::error!("could not close the turn kap just ended: {error}")
+                            log::error!("could not close the turn kap just ended: {error}");
                         }
                     }
 

@@ -78,7 +78,7 @@ fn merge_delta(previous: &mut Value, current: &Value) -> bool {
     };
     payload.insert(
         "delta".to_owned(),
-        Value::String(previous_text + &current_text),
+        Value::String(format!("{previous_text}{current_text}")),
     );
 
     for field in ["seq", "at"] {
@@ -92,6 +92,10 @@ fn merge_delta(previous: &mut Value, current: &Value) -> bool {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used, reason = "a failed fixture must fail the test")]
+    #![allow(
+        clippy::indexing_slicing,
+        reason = "fixtures index JSON whose shape this file wrote itself"
+    )]
 
     use serde_json::{Value, json, value::to_raw_value};
 

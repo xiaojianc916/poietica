@@ -3,8 +3,8 @@
 //! 清单走 `git status --porcelain=v2 -z --branch`：v2 是 git 给机器读者定的稳定格式，
 //! 分支表头在同一次里带回 head、upstream 与 ahead/behind。补丁走一条 git diff，
 //! 加减行数由补丁自己数出 —— 徽章与画面同源，不存在第二个数法。
-use std::path::Path;
 use crate::{GitError, expect_ok, inside_work_tree, local_branches, run};
+use std::path::Path;
 /// 一个文件此刻的处境。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChangeStatus {
@@ -243,7 +243,9 @@ async fn patch(
     }
     for change in changes {
         if change.status == ChangeStatus::Untracked {
-            text.push_str(&untracked(root, unified.as_str(), ignore_whitespace, &change.path).await?);
+            text.push_str(
+                &untracked(root, unified.as_str(), ignore_whitespace, &change.path).await?,
+            );
         }
     }
     Ok(text)
@@ -323,6 +325,10 @@ fn decode_marks(marks: &str) -> Option<(ChangeStatus, bool)> {
 }
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::indexing_slicing,
+        reason = "fixtures index a Vec whose length the line just above asserts"
+    )]
     use super::{ChangeStatus, ReviewSnapshot, entry, read_header};
     fn blank() -> ReviewSnapshot {
         ReviewSnapshot {

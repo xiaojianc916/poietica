@@ -139,7 +139,7 @@ impl PluginLedger {
         self.write(&document)
     }
 
-    pub fn set_mcp_enabled(&self, plugin_id: &str, server: String, enabled: bool) -> Result<()> {
+    pub fn set_mcp_enabled(&self, plugin_id: &str, server: &str, enabled: bool) -> Result<()> {
         let mut document = self.read()?;
         let rows = entries_mut(&mut document)?;
         let at = index_of(rows, plugin_id)
@@ -147,7 +147,7 @@ impl PluginLedger {
         let row = entry_at(rows, at)?;
         let capabilities = object_at(row, "capabilities")?;
         let servers = object_at(capabilities, "mcpServers")?;
-        let state = object_at(servers, &server)?;
+        let state = object_at(servers, server)?;
         let _previous = state.insert("enabled".to_owned(), json!(enabled));
         self.write(&document)
     }

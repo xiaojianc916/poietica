@@ -121,7 +121,7 @@ impl FrameJournal {
 fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
     let mut deferred = None;
     /* 还没报出去的落库失败笔数。报一次清一次：一批失败是那一批的事实，不是这条
-       管线余生的事实 —— 常驻的假会让 disconnect 与换 agent 从此永远失败。 */
+    管线余生的事实 —— 常驻的假会让 disconnect 与换 agent 从此永远失败。 */
     let mut unreported = 0_usize;
 
     loop {
@@ -259,8 +259,8 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) -> bool 
     };
 
     /* 撞号只说明这一批里某个位置库里已经有了；ON CONFLICT 按帧独立生效，其余帧
-       都已落库（run_events 的 record_frames）。屏幕仍然收下这一批 ——
-       重复的 seq 由时间线自己的去重闸门丢掉，而扣下整批换来的是一段永久的空白。 */
+    都已落库（run_events 的 record_frames）。屏幕仍然收下这一批 ——
+    重复的 seq 由时间线自己的去重闸门丢掉，而扣下整批换来的是一段永久的空白。 */
     let accepted = refused == 0;
 
     if !accepted {

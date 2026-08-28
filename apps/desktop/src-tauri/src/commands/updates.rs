@@ -1,16 +1,16 @@
 //! 更新的原生一端：取清单、取载荷、校验、暂存、换装重启。
 //!
 //! 判据与编解码归 poietica-update-native；何时检查、怎么呈现归渲染层。
+use crate::error::{Error, IpcError};
+use poietica_update_native as update;
+use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
-use poietica_update_native as update;
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use tauri::{AppHandle, Manager, command};
 use tauri_specta::Event;
-use crate::error::{Error, IpcError};
 /// 命令面上的错误是 IpcError：Error 的变体带着路径与系统串，经 error.rs 那张脱敏表
 /// 过一遍之后才是契约。
 type UpdateCommandResult<T> = Result<T, IpcError>;
@@ -158,7 +158,9 @@ async fn baseline() -> UpdateCommandResult<Vec<u8>> {
     blocking(|| Ok(std::fs::read(std::env::current_exe()?)?)).await
 }
 fn sidecar(binary: &Path, suffix: &str) -> PathBuf {
-    let mut name = binary.file_name().map_or_else(OsString::new, OsString::from);
+    let mut name = binary
+        .file_name()
+        .map_or_else(OsString::new, OsString::from);
     name.push(".");
     name.push(suffix);
     binary.with_file_name(name)
@@ -238,7 +240,9 @@ pub async fn update_download(app: AppHandle, version: String) -> UpdateCommandRe
     match staging.begin(&version) {
         Begin::Ready => return Ok(()),
         Begin::Busy => {
-            return Err(Error::Validation("an update download is already in flight".to_owned()).into());
+            return Err(
+                Error::Validation("an update download is already in flight".to_owned()).into(),
+            );
         }
         Begin::Start => {}
     }

@@ -9,8 +9,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Manager, RunEvent};
 use tauri_plugin_window_state::AppHandleExt;
 
-use crate::commands::agent::runtime::AgentRuntime;
 use super::app::WINDOW_STATE_FLAGS;
+use crate::commands::agent::runtime::AgentRuntime;
 
 /// 排空完成位。落下之后事件循环才放行。
 static DRAINED: AtomicBool = AtomicBool::new(false);
@@ -52,6 +52,4 @@ fn drain(app: &AppHandle) {
     if let Err(error) = app.state::<AgentRuntime>().disconnect() {
         log::error!("shutdown: the agent connection did not retire: {error}");
     }
-
-
 }

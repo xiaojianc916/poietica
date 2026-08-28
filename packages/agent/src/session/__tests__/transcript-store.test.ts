@@ -233,10 +233,12 @@ describe('transcript store', () => {
 
   it('records a cancellation rejection instead of swallowing it', async () => {
     const { store, paint } = painted()
-    const { port } = fakePort(() => Promise.reject(new Error('stop refused')))
+    const { port, emit } = fakePort(() => Promise.reject(new Error('stop refused')))
 
     store.ensure(port)
     store.route('sess_a', 'thread_a')
+    /* 没在跑的轮次没有可取消的对象：先让一轮开起来，取消才到得了线路上。 */
+    emit([started(1, 'sess_a')], 'sess_a')
     store.cancel('thread_a')
     await Promise.resolve()
     await Promise.resolve()

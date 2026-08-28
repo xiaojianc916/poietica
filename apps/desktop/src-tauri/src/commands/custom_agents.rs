@@ -49,7 +49,9 @@ pub struct CustomAgentRemoveRequest {
 pub async fn custom_agents_list(app: AppHandle) -> CommandResult<CustomAgentCatalog> {
     (|| -> Result<CustomAgentCatalog> {
         let root = agents_root(&app)?;
-        Ok(from_native_catalog(list_custom_agents(&root).map_err(map_error)?))
+        Ok(from_native_catalog(
+            list_custom_agents(&root).map_err(map_error)?,
+        ))
     })()
     .map_err(IpcError::from)
 }
@@ -111,8 +113,8 @@ fn map_error(error: CustomAgentFileError) -> Error {
     match error {
         CustomAgentFileError::Invalid(message) => Error::Validation(message),
         CustomAgentFileError::Io(error) => Error::Io(error),
-        CustomAgentFileError::Conflict => Error::Persistence(
-            "Agent 文件已被其他窗口修改，请刷新后再试".to_owned(),
-        ),
+        CustomAgentFileError::Conflict => {
+            Error::Persistence("Agent 文件已被其他窗口修改，请刷新后再试".to_owned())
+        }
     }
 }

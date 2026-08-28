@@ -1,9 +1,9 @@
 //! 更新域：清单判读、载荷判定、签名与完整性校验、增量编解码。
 //!
 //! 不认识 tauri、不做 IO 编排、不知道界面。进程那一端在 apps/desktop。
-use std::io::{Read as _, Write};
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
+use std::io::{Read as _, Write};
 /// 载荷容器头。种类写进字节里，解码方不靠文件名猜。
 const MAGIC: &[u8] = b"POIEUP01";
 /// 参照前缀要全程可见，窗口就得盖住整份基线：2^27 = 128 MiB。

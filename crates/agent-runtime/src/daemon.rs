@@ -13,7 +13,7 @@ use crate::recorder::now_millis;
 const RESTART_TRIES: u32 = 5;
 
 /// 起来之后活满这么久就算健康，重试计数归零。只在退出时对账，不占一个定时器。
-const HEALTHY_RUN: Duration = Duration::from_secs(60);
+const HEALTHY_RUN: Duration = Duration::from_mins(1);
 
 /// 用户要的状态。真相在 settings.json 的 general.daemon，这里是它在进程内的投影。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

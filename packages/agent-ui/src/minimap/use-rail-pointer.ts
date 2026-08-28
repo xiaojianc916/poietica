@@ -106,6 +106,20 @@ export function useRailPointer(
         pointed = -1
         settle(true)
       }
+      /** 一段窗口内的柱子按各自权重上色；没变的写零次。 */
+      const paintWeights = (span: Span, anchor: number) => {
+        for (let index = span.from; index <= span.to; index += 1) {
+          const bar = bars[index]
+          if (bar === undefined) {
+            continue
+          }
+          const weight = railWeight(railCentre(index) - anchor)
+          const next = weight < EPSILON ? '0' : weight.toFixed(3)
+          if (bar.style.getPropertyValue(WEIGHT_VAR) !== next) {
+            bar.style.setProperty(WEIGHT_VAR, next)
+          }
+        }
+      }
       const paint = () => {
         frame = 0
         const rail = rails[0]
@@ -130,17 +144,7 @@ export function useRailPointer(
         unpaint(painted.from, Math.min(painted.to, span.from - 1))
         unpaint(Math.max(painted.from, span.to + 1), painted.to)
         painted = span
-        for (let index = span.from; index <= span.to; index += 1) {
-          const bar = bars[index]
-          if (bar === undefined) {
-            continue
-          }
-          const weight = railWeight(railCentre(index) - anchor)
-          const next = weight < EPSILON ? '0' : weight.toFixed(3)
-          if (bar.style.getPropertyValue(WEIGHT_VAR) !== next) {
-            bar.style.setProperty(WEIGHT_VAR, next)
-          }
-        }
+        paintWeights(span, anchor)
         pointed = aimed
         settle(true)
       }

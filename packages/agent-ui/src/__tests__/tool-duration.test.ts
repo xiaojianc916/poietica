@@ -24,9 +24,9 @@ describe('调用耗时', () => {
     expect(formatDuration(999)).toBeNull()
   })
 
-  it('秒档带一位小数,不足一秒的差别留得住', () => {
-    expect(formatDuration(1_240)).toBe(narrow('second', 1.2, 1))
-    expect(formatDuration(59_900)).toBe(narrow('second', 59.9, 1))
+  it('秒档取整,亚秒的零头不上屏', () => {
+    expect(formatDuration(1_240)).toBe(narrow('second', 1))
+    expect(formatDuration(59_900)).toBe(narrow('second', 59))
   })
 
   it('整秒不拖一个多余的小数点', () => {

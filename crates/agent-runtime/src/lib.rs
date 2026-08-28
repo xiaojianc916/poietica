@@ -49,13 +49,13 @@ pub use config::{
     ConfigChoice, ConfigControl, ConfigPurpose, GoalSnapshot, controls, goal_snapshot,
     selector_patch,
 };
-pub use custom_agent::{
-    CustomAgentCatalog, CustomAgentFile, CustomAgentFileError, delete_custom_agent,
-    list_custom_agents, save_custom_agent,
-};
 pub use credentials::{
     alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
     usable_default_model,
+};
+pub use custom_agent::{
+    CustomAgentCatalog, CustomAgentFile, CustomAgentFileError, delete_custom_agent,
+    list_custom_agents, save_custom_agent,
 };
 pub use daemon::{Daemon, DaemonIntent, DaemonPhase, Reaction};
 pub use desk::{PermissionDesk, QuestionDesk};

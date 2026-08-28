@@ -2,6 +2,11 @@
 //!
 //! 进程活多久 AgentRuntime 就活多久；连接比它短，换 agent 时整条换掉。会话册子
 //! 由驱动器交出来，路由帧和这里寻址读的是同一本。
+use super::config::restate;
+use super::dto::{AgentLaunch, AgentSessionEvent, reported_goal, reported_usage};
+use super::failure::translate;
+use super::journal::FrameJournal;
+use super::{AGENT_SESSION_EVENT, NO_SESSION_ID, POISONED};
 use crate::commands::agent_setup::profile::{
     agent_args, agent_data_home, agent_program, launch_env,
 };
@@ -19,11 +24,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 use tokio::task::LocalSet;
-use super::config::restate;
-use super::dto::{AgentLaunch, AgentSessionEvent, reported_goal, reported_usage};
-use super::failure::translate;
-use super::journal::FrameJournal;
-use super::{AGENT_SESSION_EVENT, NO_SESSION_ID, POISONED};
 /// The live connection, if one has been started.
 ///
 /// 它不持有对话。哪条对话握着哪个会话写在库里，而一条连接自己不是任何人的对话：
@@ -119,7 +119,7 @@ impl AgentRuntime {
     /// cannot be flushed.
     pub fn disconnect(&self) -> Result<()> {
         /* 顺序即不变量：先等它起的进程真的没了，再刷日志 —— 反过来的话，收尸
-           期间录下的帧排在刷新标记之后，正是退出时会丢的那一段。 */
+        期间录下的帧排在刷新标记之后，正是退出时会丢的那一段。 */
         const EXIT_GRACE: Duration = Duration::from_secs(5);
 
         let gone = retire(lock(&self.connection)?.take());
@@ -380,6 +380,15 @@ pub(super) async fn ensure_session(
     let slot = RunSlot::new();
     let desk = PermissionDesk::new();
     let questions = QuestionDesk::new();
+    /* 运行时先于 connect 构建：起不来就只走这条命令的错误路径，还没有进程需要
+     * 善后。build 失败只剩线程资源耗尽一种来路，日志收下细节即可。 */
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| {
+            log::error!("could not start the agent background runtime: {error}");
+            Error::Internal("the agent background runtime could not start".to_owned())
+        })?;
     let AgentConnection {
         client,
         handshake,
@@ -397,12 +406,8 @@ pub(super) async fn ensure_session(
     let herald = app.clone();
     let linked = book.clone();
     /* driver 与 events 都是 !Send（含本地流/通道），不能直接扔进多线程运行时。
-     * 这里在独立线程里跑一个单线程 tokio 运行时，配合 LocalSet 把两个任务托底。 */
+     * 这里在独立线程里跑上面那个单线程运行时，配合 LocalSet 把两个任务托底。 */
     std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("agent background runtime");
         let local = LocalSet::new();
 
         let driver_task = local.spawn_local(async move {
@@ -544,10 +549,10 @@ pub async fn apply_daemon_intent(app: &AppHandle, running: bool) {
             return;
         }
     };
-    if reaction == Reaction::Stop {
-        if let Err(error) = state.disconnect() {
-            log::warn!("could not stop the local agent daemon: {error}");
-        }
+    if reaction == Reaction::Stop
+        && let Err(error) = state.disconnect()
+    {
+        log::warn!("could not stop the local agent daemon: {error}");
     }
 }
 /// 进程没了之后，守护进程说该怎么办。

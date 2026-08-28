@@ -27,9 +27,6 @@ use crate::commands::{
     agent_setup::install::{AgentInstallState, AgentInstallStatus},
     agent_setup::probe::ProviderProbeOutcome,
     agent_setup::profile::AgentConfigSnapshot,
-    custom_agents::{
-        CustomAgentCatalog, CustomAgentFile, CustomAgentRemoveRequest, CustomAgentSaveRequest,
-    },
     asset::{
         AssetFormat, AssetImportRequest, AssetRemoveRequest, AssetSessionCloseRequest,
         AssetSessionResult, AssetUploadRequest, AssetUploadResult,
@@ -37,6 +34,9 @@ use crate::commands::{
     automations::{
         Automation, AutomationCatalog, AutomationCatalogChanged, AutomationCreation, AutomationDue,
         AutomationReschedule, AutomationRun, AutomationRunRecord,
+    },
+    custom_agents::{
+        CustomAgentCatalog, CustomAgentFile, CustomAgentRemoveRequest, CustomAgentSaveRequest,
     },
     environment::EnvironmentFile,
     git::{
