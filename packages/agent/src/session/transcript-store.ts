@@ -48,9 +48,8 @@ import type { TranscriptSink } from './transcript-sink'
  * 互相耦合（rename 同时写三张，forget 同时删三张），它们是一个对象的内部字段。
  *
  * 路由是一次查表，键是会话号：线路上每一帧都带着它（见 recorder.rs 的
- * RecordedEvent，每一种帧无一例外）。一条刚建出来的对话在开口之前没有会话号，
- * 它的号随 prompt 的答复回来，所以第一轮的帧一定跑在地址前面 —— 那一小段由
- * #unrouted 接着，地址一到整批折进去。许可窗口只有一个：有一次 prompt 在飞。
+ * RecordedEvent，每一种帧无一例外）。会话号随 prompt 的答复或打开的答复回来，
+ * 两条路都慢于帧，所以那一小段由 #unrouted 有界地接着，地址一到整批折进去。
  */
 
 /**
@@ -238,6 +237,17 @@ const NO_RUNNING: ReadonlySet<string> = new Set()
  */
 const HELD_CEILING = 64
 
+/**
+ * 地址还没到时，一条会话最多攒多少帧、最多攒几条会话。
+ *
+ * 帧已经落进本机帧日志（run_events），攒着只为不让屏幕缺一段。攒不下就丢最旧的
+ * 那一条会话：重开这条对话会从日志里重放回来，而无界地攒会让一条永远认不到主人
+ * 的会话把内存吃光。
+ */
+const UNROUTED_FRAME_CEILING = 512
+
+const UNROUTED_SESSION_CEILING = 32
+
 export class TranscriptStore implements TranscriptSink {
   readonly #paint: Paint
 
@@ -281,13 +291,10 @@ export class TranscriptStore implements TranscriptSink {
   /**
    * 地址还没到、先到了的帧，按会话攒着。
    *
-   * 会话号由原生侧在 prompt 的答复里给出，所以一条新对话第一轮的帧必然跑在地址
-   * 前面。攒着只在有一次 prompt 在飞时成立，地址一到就整批折进去。
+   * 会话号随 prompt 的答复（新对话）或打开的答复（重开一条还在跑的对话）回来，
+   * 两者都慢于帧。上界由 UNROUTED_* 两个数持有，地址一到就整批折进去。
    */
   #unrouted = new Map<string, RunEvent[]>()
-
-  /** 此刻有几次 prompt 在飞。它是「帧可以跑在地址前面」这条许可的唯一依据。 */
-  #opening = 0
 
   #submissions = new Map<string, PendingSubmission>()
 
@@ -359,6 +366,7 @@ export class TranscriptStore implements TranscriptSink {
 
     return new Promise<Terminal>((resolve) => {
       let off = () => {}
+      let seen = false
       const finish = (terminal: Terminal) => {
         off()
         resolve(terminal)
@@ -367,7 +375,20 @@ export class TranscriptStore implements TranscriptSink {
         const terminal = terminalOf(this.read(key).timeline.status)
         if (terminal !== null) {
           finish(terminal)
+
+          return
         }
+
+        const alive = this.#held.has(key)
+
+        /* 这条对话已经作废（forget）：它不会再有终局帧，等下去就是永远等。 */
+        if (seen && !alive) {
+          finish('cancelled')
+
+          return
+        }
+
+        seen = seen || alive
       }
 
       off = this.subscribe(key, settle)
@@ -655,7 +676,6 @@ export class TranscriptStore implements TranscriptSink {
       cancelSent: false,
     }
     this.#submissions.set(threadId, submission)
-    this.#opening += 1
 
     void (prepare?.() ?? Promise.resolve(true))
       .then((prepared) => {
@@ -683,12 +703,6 @@ export class TranscriptStore implements TranscriptSink {
       })
       .catch((cause: unknown) => {
         this.#fail(threadId, cause)
-      })
-      .finally(() => {
-        this.#opening -= 1
-        if (this.#opening === 0) {
-          this.#unrouted.clear()
-        }
       })
   }
 
@@ -947,14 +961,35 @@ export class TranscriptStore implements TranscriptSink {
     this.#trim(real)
   }
 
-  /* 重建不出来的那些：有人在看、在跑、有在飞的提交、或还有没折进去的帧。 */
+  /*
+   * 重建不出来的那些：有人在看、在跑、有在飞的提交、或还有没折进去的帧。
+   *
+   * 派发通道随派出它的那条对话一起回收（#evict），所以一条通道被人看着就等于它的
+   * 对话被人看着 —— 否则 #trim 会把一块正在屏幕上的子代理经过删掉。
+   */
   #pinned(key: string): boolean {
-    return (
+    if (
       this.#listeners.has(key) ||
       this.#submissions.has(key) ||
       this.#pending.has(key) ||
       this.#running.has(key)
-    )
+    ) {
+      return true
+    }
+
+    if (isDelegateKey(key)) {
+      return false
+    }
+
+    const prefix = delegateKey(key, '')
+
+    for (const listening of this.#listeners.keys()) {
+      if (listening.startsWith(prefix)) {
+        return true
+      }
+    }
+
+    return false
   }
 
   #trim(exempt: string): void {
@@ -1053,9 +1088,8 @@ export class TranscriptStore implements TranscriptSink {
   /*
    * 一批帧到了，交给它们的主人。整批共一个地址（见端口的 subscribe）。
    *
-   * 地址还没到就攒着，等 route 认领：新对话第一轮的会话号随 prompt 的答复才回来，
-   * 而那一轮的帧比答复早。有一次 prompt 在飞是攒的许可；一次都没有时的无主帧是真
-   * 的无主 —— 这条会话不是这一侧开的。
+   * 地址还没到就攒着，等 route 认领：会话号随 prompt 的答复或打开的答复回来，两者
+   * 都慢于帧。上界在明处（UNROUTED_*），挤掉的那些仍然在帧日志里。
    */
   #route(events: readonly RunEvent[], sessionId: string): void {
     const owner = this.#routes.get(sessionId)
@@ -1066,20 +1100,31 @@ export class TranscriptStore implements TranscriptSink {
       return
     }
 
-    if (this.#opening === 0) {
-      return
-    }
-
     const held = this.#unrouted.get(sessionId)
 
     if (held === undefined) {
-      this.#unrouted.set(sessionId, [...events])
+      /* 插入序即 LRU 序：满了丢最旧的那一条会话。 */
+      if (this.#unrouted.size >= UNROUTED_SESSION_CEILING) {
+        for (const oldest of this.#unrouted.keys()) {
+          this.#unrouted.delete(oldest)
+
+          if (this.#unrouted.size < UNROUTED_SESSION_CEILING) {
+            break
+          }
+        }
+      }
+
+      this.#unrouted.set(sessionId, events.slice(-UNROUTED_FRAME_CEILING))
 
       return
     }
 
     for (const event of events) {
       held.push(event)
+    }
+
+    if (held.length > UNROUTED_FRAME_CEILING) {
+      held.splice(0, held.length - UNROUTED_FRAME_CEILING)
     }
   }
 

@@ -65,9 +65,10 @@ impl SeqLine {
         self.0.load(Ordering::Acquire)
     }
 
-    /// 这个位置用掉了。
+    /// 这个位置用掉了。只前进不后退，与 resume 同一条规矩：一次盲写会把 resume
+    /// 接上去的号退回来，而退回来的帧撞上 run_events 的唯一键后会被静默丢掉。
     fn used(&self, seq: i64) {
-        self.0.store(seq.saturating_add(1), Ordering::Release);
+        let _previous = self.0.fetch_max(seq.saturating_add(1), Ordering::AcqRel);
     }
 
     /// 接着日志里记下的最后一个位置往下数。
