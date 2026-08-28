@@ -161,6 +161,10 @@ pub struct Recorder {
     admitted: usize,
     /// 这条会话上已经落过几道终帧。取消的宽限期拿它认自己那一轮。
     ended: u64,
+    /// 帧日志拒收过几帧。拒收即经过有洞，这一轮不能以正常结束收场。
+    lost: u64,
+    /// 落不下去的终帧。一轮的结束由帧说，所以它留着，下一次投递机会补上。
+    pending_end: Option<RunFrame>,
 }
 
 impl fmt::Debug for Recorder {
@@ -179,6 +183,8 @@ impl Recorder {
         Self {
             admitted: 0,
             ended: 0,
+            lost: 0,
+            pending_end: None,
             frames: Frames::new(session_id, seq, sink),
             approvals: Vec::new(),
             questions: Vec::new(),
@@ -193,6 +199,8 @@ impl Recorder {
         images: Vec<String>,
         skills: Vec<String>,
     ) -> bool {
+        self.settle_pending_end();
+
         let accepted = self.append_checked(RunFrame::PromptAdmitted {
             admission_id: admission_id.to_owned(),
             prompt: prompt.to_owned(),
@@ -337,19 +345,49 @@ impl Recorder {
     }
 
     /// Records that the run ended on the agent's terms.
+    ///
+    /// 经过有洞时落的是失败帧：屏幕上那条经过出自帧日志，缺了帧报不出正常结束。
     pub fn record_run_finished(&mut self, stop_reason: &str) {
-        self.append(RunFrame::RunFinished {
-            stop_reason: stop_reason.to_owned(),
-        });
-        self.admitted = self.admitted.saturating_sub(1);
-        self.ended = self.ended.saturating_add(1);
+        let ending = match self.lost {
+            0 => RunFrame::RunFinished {
+                stop_reason: stop_reason.to_owned(),
+            },
+            lost => RunFrame::RunFailed {
+                message: format!("the frame journal dropped {lost} frames of this turn"),
+            },
+        };
+
+        self.end_with(ending);
     }
 
     /// Records that the run ended in a failure.
     pub fn record_run_failed(&mut self, message: &str) {
-        self.append(RunFrame::RunFailed {
+        self.end_with(RunFrame::RunFailed {
             message: message.to_owned(),
         });
+    }
+
+    /// 终帧的唯一落点：落下去才算一轮结束。
+    fn end_with(&mut self, ending: RunFrame) {
+        self.pending_end = Some(ending);
+
+        self.settle_pending_end();
+    }
+
+    /// 补投上一次落不下去的终帧。它排在后来的帧之前：轮终是经过里的一个位置，
+    /// 不是一句可以迟到的旁白。
+    fn settle_pending_end(&mut self) {
+        let Some(ending) = self.pending_end.take() else {
+            return;
+        };
+
+        if !self.append_checked(ending.clone()) {
+            self.pending_end = Some(ending);
+
+            return;
+        }
+
+        self.lost = 0;
         self.admitted = self.admitted.saturating_sub(1);
         self.ended = self.ended.saturating_add(1);
     }
@@ -371,7 +409,11 @@ impl Recorder {
     }
 
     fn append(&mut self, frame: RunFrame) {
-        let _accepted = self.append_checked(frame);
+        self.settle_pending_end();
+
+        if !self.append_checked(frame) {
+            self.lost = self.lost.saturating_add(1);
+        }
     }
 
     /// 这条会话此刻有没有一轮在飞。终帧只在飞的那一轮上落一次。
@@ -425,8 +467,9 @@ mod tests {
 
     use std::sync::{Arc, Mutex};
 
-    use super::{Frames, RecordedEvent, SeqLine};
+    use super::{Frames, RecordedEvent, Recorder, SeqLine};
     use crate::frame::RunFrame;
+    use crate::link::LinkState;
 
     fn ending() -> RunFrame {
         RunFrame::RunFinished {
@@ -464,5 +507,54 @@ mod tests {
 
         assert_eq!(frames.shape(ending()).seq, 2, "投递之后位置才前进");
         assert_eq!(*seen.lock().expect("the sink is readable"), vec![1]);
+    }
+
+    /// 拒收不是丢弃：终帧留到日志跟上来，而丢过帧的一轮以失败收场。
+    #[test]
+    fn a_refused_ending_lands_once_the_journal_catches_up() {
+        let refusing = Arc::new(Mutex::new(false));
+        let gate = Arc::clone(&refusing);
+        let seen: Arc<Mutex<Vec<RunFrame>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&seen);
+
+        let mut recorder = Recorder::new(
+            "sess_beta".to_owned(),
+            SeqLine::new(),
+            Box::new(move |event: RecordedEvent| {
+                if gate.lock().is_ok_and(|closed| *closed) {
+                    return false;
+                }
+
+                if let Ok(mut held) = sink.lock() {
+                    held.push(event.frame);
+                }
+
+                true
+            }),
+        );
+
+        assert!(recorder.record_prompt_admitted("adm", "hi", Vec::new(), Vec::new()));
+
+        *refusing.lock().expect("the gate is writable") = true;
+        recorder.record_link(&LinkState::Recovered {
+            reason: "lost".to_owned(),
+        });
+        recorder.record_run_finished("end_turn");
+
+        assert!(recorder.is_running(), "终帧没落账，这一轮就还没结束");
+        assert_eq!(recorder.ended(), 0);
+
+        *refusing.lock().expect("the gate is writable") = false;
+        recorder.record_link(&LinkState::Recovered {
+            reason: "back".to_owned(),
+        });
+
+        assert!(!recorder.is_running());
+        assert_eq!(recorder.ended(), 1);
+        assert!(
+            seen.lock()
+                .is_ok_and(|held| matches!(held.get(1), Some(RunFrame::RunFailed { .. }))),
+            "丢过帧的一轮不能报正常结束"
+        );
     }
 }

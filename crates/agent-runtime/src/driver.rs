@@ -72,6 +72,12 @@ type WsSink = Arc<tokio::sync::Mutex<SplitSink<WsStream, Message>>>;
 /// 所以到期由本机把这一轮收摊，而不是让它永远停在"正在取消"。
 const CANCEL_GRACE: Duration = Duration::from_secs(10);
 
+/// 一帧控制帧的 ack 最多等多久。
+///
+/// 对端接下 TCP 却不说话时，裸等会让首连的握手与每一次重连各自永远停住 ——
+/// 屏幕上那一行既不 Recovered 也不 Severed。
+const ACK_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// 拨一条 WS。令牌走 Authorization 头，与 REST 同一条鉴权。
 async fn dial_ws(ws_url: &str, auth: &reqwest::header::HeaderValue) -> Result<WsStream> {
     let mut request = ws_url
@@ -97,26 +103,33 @@ async fn shake_hands(
     ws_rx: &mut SplitStream<WsStream>,
     stash: &mut Vec<Value>,
 ) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + ACK_TIMEOUT;
+
     loop {
-        match ws_rx.next().await {
-            Some(Ok(Message::Text(raw))) => {
+        match tokio::time::timeout_at(deadline, ws_rx.next()).await {
+            Ok(Some(Ok(Message::Text(raw)))) => {
                 if let Ok(frame) = serde_json::from_str::<Value>(&raw)
                     && frame.get("type").and_then(Value::as_str) == Some("server_hello")
                 {
                     break;
                 }
             }
-            Some(Err(error)) => {
+            Ok(Some(Err(error))) => {
                 return Err(KapError::Handshake {
                     message: error.to_string(),
                 });
             }
-            None => {
+            Ok(None) => {
                 return Err(KapError::Handshake {
                     message: "WS closed before server_hello".to_owned(),
                 });
             }
-            _ => {}
+            Err(_elapsed) => {
+                return Err(KapError::Handshake {
+                    message: "no server_hello arrived in time".to_owned(),
+                });
+            }
+            Ok(_) => {}
         }
     }
 
@@ -132,7 +145,16 @@ async fn shake_hands(
     Ok(())
 }
 
+/// 一次重连接回来的东西：补投的帧，以及 server 不再认的那几条会话。
+struct Relinked {
+    stash: Vec<Value>,
+    refused: Vec<String>,
+}
+
 /// 一次重连：拨、握手、把册子上每条会话按它读到的位置挂回去。
+///
+/// 单条会话没订上不是链路的事（归档、换纪元、server 侧已不在）：它进 refused，
+/// 链路照活；传输错才向上报。
 async fn redial(
     ws: &WsSink,
     ws_rx: &mut SplitStream<WsStream>,
@@ -140,7 +162,7 @@ async fn redial(
     auth: &reqwest::header::HeaderValue,
     book: &SessionBook,
     cursors: &HashMap<String, Cursor>,
-) -> Result<Vec<Value>> {
+) -> Result<Relinked> {
     let (sink, rx) = dial_ws(ws_url, auth).await?.split();
 
     /* 写端在锁后面，换的是锁里那一个：已经拿着 Arc 的那些任务不必知道链路换过。 */
@@ -151,20 +173,24 @@ async fn redial(
 
     shake_hands(ws, ws_rx, &mut stash).await?;
 
+    let mut refused: Vec<String> = Vec::new();
+
     for session_id in book.ids()? {
         let again = subscribe(ws, &session_id, cursors.get(&session_id)).await?;
 
-        wait_subscribe_ack(ws_rx, &again, &session_id, &mut stash).await?;
+        if !wait_subscribe_ack(ws_rx, &again, &session_id, &mut stash).await? {
+            refused.push(session_id);
+        }
     }
 
-    Ok(stash)
+    Ok(Relinked { stash, refused })
 }
 
 /// 把断了的链路接回来，并把进度报上去。
 ///
-/// 有界重试 + 指数退避，判据与退避都在 link.rs。交回 Some 是接上了（里面是
-/// 重连期间到达的帧），None 是到顶了 —— 那时链路态封成 Severed，这一轮的结局
-/// 仍由调用者按帧记下。
+/// 有界重试 + 指数退避，判据与退避都在 link.rs。交回 Some 是接上了（里面是重连
+/// 期间到达的帧，以及 server 不再认的那几条会话），None 是到顶了 —— 那时链路态
+/// 封成 Severed，这一轮的结局仍由调用者按帧记下。
 async fn relink(
     ws: &WsSink,
     ws_rx: &mut SplitStream<WsStream>,
@@ -174,7 +200,7 @@ async fn relink(
     cursors: &HashMap<String, Cursor>,
     events_tx: &mpsc::UnboundedSender<SessionEvent>,
     cause: &str,
-) -> Option<Vec<Value>> {
+) -> Option<Relinked> {
     let mut reason = cause.to_owned();
 
     for attempt in 1..=RELINK_TRIES {
@@ -190,10 +216,10 @@ async fn relink(
         tokio::time::sleep(wait).await;
 
         match redial(ws, ws_rx, ws_url, auth, book, cursors).await {
-            Ok(stash) => {
+            Ok(relinked) => {
                 let _sent = events_tx.unbounded_send(SessionEvent::Link(recovered(&reason)));
 
-                return Some(stash);
+                return Some(relinked);
             }
             Err(error) => {
                 log::warn!("kap WS relink {attempt}/{RELINK_TRIES} failed: {error}");
@@ -390,6 +416,32 @@ async fn kill_tree(child: &mut tokio::process::Child) {
     child.kill().await.ok();
 }
 
+/// 这条连接起的那个进程，谁起谁埋。
+///
+/// Drop 里补刀是为了不经过 Shutdown 的退场（握手失败、册子中毒、链路接不回来）：
+/// tokio 的 Child 不随句柄一起死，漏一次就在这台机器上留一个占着端口与 home 的
+/// kap server。
+struct Spawned(tokio::process::Child);
+
+impl Drop for Spawned {
+    fn drop(&mut self) {
+        /* Windows 上拉起的是转发脚本，server 是它的子进程：单杀它会把 server
+        漏下，与 kill_tree 同一个理由。Drop 里不能 await，收尸交给系统。 */
+        if cfg!(windows)
+            && let Some(pid) = self.0.id()
+        {
+            let mut reaper = std::process::Command::new("taskkill");
+
+            reaper.args(["/PID", &pid.to_string(), "/T", "/F"]);
+            hide_console(&mut reaper);
+
+            let _tree = reaper.spawn();
+        }
+
+        let _killed = self.0.start_kill();
+    }
+}
+
 // ── REST ───────────────────────────────────────────────────────────────────
 
 /// 取信封里的 data。业务成败在 code 里（0 为成功），HTTP 状态只管传输层
@@ -475,9 +527,11 @@ async fn wait_ack(
     id: &str,
     stash: &mut Vec<Value>,
 ) -> Result<Value> {
+    let deadline = tokio::time::Instant::now() + ACK_TIMEOUT;
+
     loop {
-        match ws_rx.next().await {
-            Some(Ok(Message::Text(raw))) => {
+        match tokio::time::timeout_at(deadline, ws_rx.next()).await {
+            Ok(Some(Ok(Message::Text(raw)))) => {
                 let Ok(frame) = serde_json::from_str::<Value>(&raw) else {
                     continue;
                 };
@@ -496,17 +550,22 @@ async fn wait_ack(
                     }),
                 };
             }
-            Some(Err(error)) => {
+            Ok(Some(Err(error))) => {
                 return Err(KapError::Handshake {
                     message: error.to_string(),
                 });
             }
-            None => {
+            Ok(None) => {
                 return Err(KapError::Handshake {
                     message: "WS closed before the ack arrived".to_owned(),
                 });
             }
-            _ => {}
+            Err(_elapsed) => {
+                return Err(KapError::Handshake {
+                    message: format!("control frame {id} was never acknowledged"),
+                });
+            }
+            Ok(_) => {}
         }
     }
 }
@@ -514,26 +573,19 @@ async fn wait_ack(
 /// 订阅的 ack 永远是 code 0：成败写在载荷的 accepted / not_found 里
 /// （contracts/kap/asyncapi.json 的 subscribe_ack）。
 /// 只看 code 就会把「这条会话没订上」当成订上了，然后一帧不来地等到超时。
+/// Ok(false) 是「这条会话没订上」，一条会话的事；Err 是这条链路的事。
 async fn wait_subscribe_ack(
     ws_rx: &mut SplitStream<WsStream>,
     id: &str,
     session_id: &str,
     stash: &mut Vec<Value>,
-) -> Result<()> {
+) -> Result<bool> {
     let payload = wait_ack(ws_rx, id, stash).await?;
 
-    let accepted = payload
+    Ok(payload
         .get("accepted")
         .and_then(Value::as_array)
-        .is_some_and(|ids| ids.iter().any(|entry| entry.as_str() == Some(session_id)));
-
-    if accepted {
-        return Ok(());
-    }
-
-    Err(KapError::Handshake {
-        message: format!("the server did not subscribe {session_id}: {payload}"),
-    })
+        .is_some_and(|ids| ids.iter().any(|entry| entry.as_str() == Some(session_id))))
 }
 
 /// 把一条会话挂到这条连接的事件流上，返回那一帧的 id。不在握手内联订阅：
@@ -793,6 +845,12 @@ impl PromptCoordinator {
             .send(PromptOwnerMessage::Submit(job));
     }
 
+    /// 这条会话没了，它的排队者跟着走：队列的事实在 agent 那侧，本地留一个没有
+    /// 对端的排队者只会攒住那几个没人来取的答复。
+    fn forget(&mut self, session_id: &str) {
+        let _stopped = self.owners.remove(session_id);
+    }
+
     fn turn_ended(&self, session_id: &str) {
         if let Some(owner) = self.owners.get(session_id) {
             owner.send(PromptOwnerMessage::TurnEnded);
@@ -842,13 +900,13 @@ pub fn connect(
             .stderr(std::process::Stdio::piped());
         hide_console(command.as_std_mut());
 
-        let mut child = command.spawn().map_err(|e| KapError::Spawn {
+        let mut child = Spawned(command.spawn().map_err(|e| KapError::Spawn {
             message: e.to_string(),
-        })?;
+        })?);
 
         // stderr 日志透传
         let diag_stderr = diagnostics.clone();
-        if let Some(stderr) = child.stderr.take() {
+        if let Some(stderr) = child.0.stderr.take() {
             tokio::spawn(async move {
                 use tokio::io::{AsyncBufReadExt, BufReader};
                 let mut lines = BufReader::new(stderr).lines();
@@ -875,7 +933,7 @@ pub fn connect(
             Err(error) => {
                 // 收尸再报：超时的根因多半写在 server 自己的 stderr 上（端口、
                 // 配置、崩溃），不带回来就只剩一句"没注册"。
-                kill_tree(&mut child).await;
+                kill_tree(&mut child.0).await;
 
                 let message = format!("{error}; server stderr: {}", diagnostics.tail());
 
@@ -995,13 +1053,27 @@ pub fn connect(
             }
         };
 
-        if let Err(error) =
-            wait_subscribe_ack(&mut ws_rx, &anchor_sub, &session_id, &mut stash).await
-        {
-            let _ = ready_tx.send(Err(KapError::Handshake {
-                message: error.to_string(),
-            }));
-            return Err(error);
+        /* 锚会话是这条连接自己的地址：它没订上，这条连接就没有能问话的会话。 */
+        match wait_subscribe_ack(&mut ws_rx, &anchor_sub, &session_id, &mut stash).await {
+            Ok(true) => {}
+            Ok(false) => {
+                let refused = KapError::Handshake {
+                    message: format!("the server did not subscribe the anchor {session_id}"),
+                };
+
+                let _ = ready_tx.send(Err(KapError::Handshake {
+                    message: refused.to_string(),
+                }));
+
+                return Err(refused);
+            }
+            Err(error) => {
+                let _ = ready_tx.send(Err(KapError::Handshake {
+                    message: error.to_string(),
+                }));
+
+                return Err(error);
+            }
         }
 
         let _ = ready_tx.send(Ok(Handshake {
@@ -1033,7 +1105,7 @@ pub fn connect(
         loop {
             /* 链路断了：先接回来再往下读。到顶了这一轮判死，连接退场。 */
             if let Some(reason) = severed.take() {
-                let Some(replay) = relink(
+                let Some(relinked) = relink(
                     &ws,
                     &mut ws_rx,
                     &ws_url,
@@ -1049,7 +1121,11 @@ pub fn connect(
                     break;
                 };
 
-                for envelope in replay {
+                for session_id in relinked.refused {
+                    router.forget(&session_id, "the server no longer serves this session");
+                }
+
+                for envelope in relinked.stash {
                     router.handle(&envelope);
                 }
             }
@@ -1058,14 +1134,14 @@ pub fn connect(
                 cmd = commands_rx.next() => {
                     match cmd {
                         Some(Command::Shutdown(gone)) => {
-                            kill_tree(&mut child).await;
+                            kill_tree(&mut child.0).await;
                             /* 收尸完成才报：屏障等的就是这一声。 */
                             let _reported = gone.send(());
                             break;
                         }
                         /* 命令端全没了：没人再要收据，收尸照做。 */
                         None => {
-                            kill_tree(&mut child).await;
+                            kill_tree(&mut child.0).await;
                             break;
                         }
 
@@ -1383,7 +1459,60 @@ impl EventRouter {
         self.prompts.submit(session_id, job);
     }
 
+    /// 这条会话在 server 侧没有了：在飞的那一轮判死，读点作废，本地不再留任何
+    /// 与它有关的所有权。链路与其余会话不受影响 —— 全仓只有这一处这条策略。
+    fn forget(&mut self, session_id: &str, reason: &str) {
+        log::warn!("kap no longer serves {session_id}: {reason}");
+
+        if let Err(error) = self.book.fail_turn(session_id, reason) {
+            log::error!("could not close the turn of a forgotten session: {error}");
+        }
+
+        let _dropped = self.cursors.remove(session_id);
+        let _stopped = self.owners.remove(session_id);
+        self.prompts.forget(session_id);
+
+        let _sent = self.events_tx.unbounded_send(SessionEvent::CursorLost {
+            session_id: session_id.to_owned(),
+        });
+
+        if let Err(error) = self.book.close(session_id) {
+            log::error!("could not drop a forgotten session: {error}");
+        }
+    }
+
     fn handle(&mut self, envelope: &Value) {
+        // 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …），
+        // 不是字符串 "session_event"：wsEventEnvelopeSchema 里 type 是 z.string()，
+        // sessionEventOperation 的 'session_event' 只是操作目录里那一条的名字。
+        //
+        // 判据：同时带 session_id、seq 和一个自带 type 的载荷，且两个 type 相等。
+        // 控制帧与系统帧就此排除 —— 系统 error 帧的载荷是 { code, msg, fatal }，
+        // 既没有 type 也没有 seq，不会被当成 agent 的 error 事件收进来。
+        let kind = envelope.get("type").and_then(Value::as_str).unwrap_or("");
+
+        // 订阅失败不写在 code 上：ack 永远回 0，落选的会话在载荷的 not_found 里。
+        // 异步订阅（新开 / 装载 / 分叉）的 ack 只到得了这里，落选按会话收摊。
+        if kind == "ack"
+            && let Some(missing) = envelope
+                .get("payload")
+                .and_then(|payload| payload.get("not_found"))
+                .and_then(Value::as_array)
+                .map(|ids| {
+                    ids.iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_owned)
+                        .collect::<Vec<String>>()
+                })
+            && !missing.is_empty()
+        {
+            for refused in missing {
+                self.forget(&refused, "the server refused to subscribe this session");
+            }
+
+            return;
+        }
+
         let Self {
             owners,
             book,
@@ -1396,38 +1525,21 @@ impl EventRouter {
             prompts,
         } = self;
 
-        // 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …），
-        // 不是字符串 "session_event"：wsEventEnvelopeSchema 里 type 是 z.string()，
-        // sessionEventOperation 的 'session_event' 只是操作目录里那一条的名字。
-        //
-        // 判据：同时带 session_id、seq 和一个自带 type 的载荷，且两个 type 相等。
-        // 控制帧与系统帧就此排除 —— 系统 error 帧的载荷是 { code, msg, fatal }，
-        // 既没有 type 也没有 seq，不会被当成 agent 的 error 事件收进来。
-        let kind = envelope.get("type").and_then(Value::as_str).unwrap_or("");
-
-        // 订阅失败不写在 code 上：ack 永远回 0，落选的会话在载荷的 not_found 里。
-        // 异步订阅（新开 / 装载 / 分叉）的 ack 只到得了这里。
-        if kind == "ack"
-            && let Some(missing) = envelope
-                .get("payload")
-                .and_then(|payload| payload.get("not_found"))
-                .and_then(Value::as_array)
-            && !missing.is_empty()
-        {
-            log::warn!("kap refused to subscribe: {missing:?}");
-            return;
-        }
-
         // kap 说这条会话的事件流断了（reason 枚举 buffer_overflow / session_recreated /
         // epoch_changed，见 contracts/kap/asyncapi.json 的 resync_required 载荷）：断点
         // 之后的帧不会再来，这一轮的经过补不齐。判死它 —— 补不回来的东西不该装作还在路上。
         if kind == "resync_required" {
-            let cut = envelope
+            let Some(cut) = envelope
                 .get("payload")
                 .and_then(|payload| payload.get("session_id"))
                 .or_else(|| envelope.get("session_id"))
                 .and_then(Value::as_str)
-                .unwrap_or_default();
+                .filter(|named| !named.is_empty())
+            else {
+                log::warn!("kap asked for a resync without naming a session");
+
+                return;
+            };
 
             let reason = envelope
                 .get("payload")
@@ -1501,7 +1613,6 @@ impl EventRouter {
         }
 
         match event_type {
-            // 轮次结束：收掉这一轮的记录器，没答的审批与没答的题都作废，终帧殿后。
             "event.session.work_changed" => {
                 /* work_changed 是会话活动投影，不是轮终错误通道。busy=false 只说明聚合已
                 空闲；正式结果由 main agent 的 turn.ended 携带。这里仅在聚合落定后推进
