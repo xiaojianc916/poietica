@@ -22,6 +22,7 @@ import {
   delegateKey,
   endsRun,
   isDelegateKey,
+  isSteerable,
   opensTurn,
   partitionByAgent,
   prependThreadEvents,
@@ -699,6 +700,14 @@ export class TranscriptStore implements TranscriptSink {
 
     let submission = this.#submissions.get(key)
     if (submission === undefined) {
+      /*
+       * 没在跑就没有可取消的轮次。建一条空账会把这一格永久钉住（#pinned 读
+       * #submissions），而那条账等不到任何终局帧来销它。
+       */
+      if (!isSteerable(this.#now(key).timeline.status)) {
+        return
+      }
+
       submission = {
         key,
         port,

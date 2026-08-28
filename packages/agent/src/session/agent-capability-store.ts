@@ -162,6 +162,10 @@ export class AgentCapabilityStore {
     this.#toolkitAt = null
     this.#toolkitAsked = undefined
     this.#alignedTo = undefined
+
+    /* 换一家就是换一个端口：上一家排着的改动当场作废，不许再发出去。 */
+    this.#inflight = Promise.resolve()
+
     this.#commit(EMPTY)
 
     /*
@@ -201,12 +205,15 @@ export class AgentCapabilityStore {
 
     this.#inflight = this.#inflight.then(async () => {
       /*
-       * 判据在出发前一刻现读。
-       *
-       * 队伍里的第二条命令是在第一条的答复到达之后才出发的，所以它读的是那张新表。
-       * 用闭包里的旧控件出发，等于拿一张已经作废的表当判据，而它带着的 purpose 会让
-       * 桌面那一侧往 default_model 写下一个 agent 已经不认的别名。
+       * 端口与判据都在出发前一刻现读：队伍里的第二条命令是在第一条的答复到达之后
+       * 才出发的，而这中间可能已经换过一家 agent，表也可能已经变了。用闭包里那张
+       * 旧表出发，它带着的 purpose 会让桌面那一侧往 default_model 写下一个已经
+       * 不属于当前这一家的别名。
        */
+      if (this.#source !== port) {
+        return
+      }
+
       const control = this.#held.controls.find((offered) => offered.id === controlId)
 
       if (control === undefined || control.current === value) {

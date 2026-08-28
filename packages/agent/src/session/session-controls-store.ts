@@ -312,8 +312,8 @@ export class SessionControlsStore {
       try {
         const offered = await config.select(threadId, controlId, value, input)
 
-        /* 号过期了，说明这一趟在飞的时候 agent 已经自己说过话，那张表更新。 */
-        if (order.isLatest(ticket)) {
+        /* 号过期，或这条对话已经作废（forget 换掉了它的 order）：这张表答的是过去。 */
+        if (this.#order.get(threadId) === order && order.isLatest(ticket)) {
           this.#remember(threadId, offered)
         }
       } catch (reason: unknown) {
@@ -326,7 +326,9 @@ export class SessionControlsStore {
          */
         this.#report?.changeFailed(reason)
 
-        await this.#reopen(threadId)
+        if (this.#order.get(threadId) === order) {
+          await this.#reopen(threadId)
+        }
       }
     })
 
@@ -353,6 +355,9 @@ export class SessionControlsStore {
       return
     }
 
+    /* 这一趟的归属。forget 换掉它之后，回来的答复属于一条已经不存在的对话。 */
+    const order = this.#orderOf(threadId)
+
     this.#asked.add(threadId)
     this.#transcripts?.opening(threadId)
 
@@ -366,6 +371,10 @@ export class SessionControlsStore {
     )
 
     const read = await snapshot
+    if (this.#order.get(threadId) !== order) {
+      return
+    }
+
     if (read.ok) {
       this.#snapshot(read.value)
     } else {
@@ -373,6 +382,10 @@ export class SessionControlsStore {
     }
 
     const opened = await activation
+    if (this.#order.get(threadId) !== order) {
+      return
+    }
+
     if (opened.ok) {
       this.opened(opened.value)
       return

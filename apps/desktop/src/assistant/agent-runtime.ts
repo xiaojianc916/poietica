@@ -118,14 +118,8 @@ export function createDesktopAgentRuntime(
   const stopConfig = options.config.subscribeConfigChanged(reloadSelection)
 
   const selectedAgent = async (): Promise<AgentDescriptor> => {
-    for (;;) {
-      const observed = pending
-      await observed
-
-      if (observed === pending) {
-        break
-      }
-    }
+    /* 等已发出的那一趟落地就够。自旋等「没有新一趟」会被连续的配置变更饿死。 */
+    await pending
 
     if (!selectionResolved) {
       throw new Error('The selected Agent profile could not be loaded.', {
@@ -192,22 +186,83 @@ export function createDesktopAgentRuntime(
       : await select(preferred.control, preferred.value)
   }
 
+  /*
+   * 一次改动生效之后的三件事，一处发生：模型别名落进 default_model、记下这一档
+   * Thinking、让新模型的档位收敛到用户的持久选择。
+   *
+   * 归属在写之前重验：往返期间设置页可能换过 agent，那时这个别名不属于现在这一家。
+   * 锚会话与对话内两条路共用这一条落账，不再各写一遍。
+   */
+  const commitSelection = async (
+    agentId: string,
+    controls: readonly SessionConfigControl[],
+    controlId: string,
+    value: string,
+    select: (
+      control: SessionConfigControl,
+      value: string,
+    ) => Promise<readonly SessionConfigControl[]>,
+  ): Promise<readonly SessionConfigControl[]> => {
+    const accepted = controls.find((control) => control.id === controlId)
+
+    if (accepted?.current !== value) {
+      return controls
+    }
+
+    if ((await selectedAgent()).id !== agentId) {
+      throw new Error('Agent selection changed before the configuration change completed.')
+    }
+
+    if (accepted.purpose === 'model') {
+      await options.config.saveDefaultModel(agentId, value)
+    }
+
+    thinking.remember(agentId, controls, controlId, value)
+
+    return alignThinking(agentId, controls, select)
+  }
+
+  /*
+   * 没设过默认模型时补一个，每家一次，且不挡住读表。
+   *
+   * 补种是一次配置写入，读表是一次会话读取：把前者的失败算进后者，一个坏掉的
+   * config.toml 会让整张选择器表变成「没连上 agent」。失败不算补过，下次再试。
+   */
+  const seeded = new Set<string>()
+
+  const seedDefaultModel = (agentId: string): void => {
+    if (seeded.has(agentId)) {
+      return
+    }
+
+    seeded.add(agentId)
+
+    void firstUsableModel(options.config, agentId)
+      .then(async (alias) => {
+        if (alias !== undefined) {
+          await options.config.saveDefaultModel(agentId, alias)
+        }
+      })
+      .catch((cause: unknown) => {
+        seeded.delete(agentId)
+
+        reportError('default model seeding failed', {
+          scope: 'agent-runtime',
+          operation: 'seed-default-model',
+          cause,
+        })
+      })
+  }
+
   const sessionConfig: SessionConfigPort = {
     subscribe: sessionConfigBridge.subscribe,
     select: async (threadId, configId, value, input) => {
-      const agent = await selectedAgent()
+      const agentId = (await selectedAgent()).id
       const controls = await sessionConfigBridge.select(threadId, configId, value, input)
-      const accepted = controls.find((control) => control.id === configId)
 
-      if (accepted?.current === value) {
-        if (accepted.purpose === 'model') {
-          await options.config.saveDefaultModel(agent.id, value)
-        }
-
-        thinking.remember(agent.id, controls, configId, value)
-      }
-
-      return controls
+      return commitSelection(agentId, controls, configId, value, (control, preferred) =>
+        sessionConfigBridge.select(threadId, control.id, preferred),
+      )
     },
   }
 
@@ -274,29 +329,22 @@ export function createDesktopAgentRuntime(
     const source: AgentCapabilityPort = {
       read: async () => {
         await currentAgent()
-        await seedDefaultModel(options.config, agentId)
-        const controls = await anchor.read()
+        seedDefaultModel(agentId)
 
-        return alignThinking(agentId, controls, (control, value) => anchor.select(control, value))
+        return alignThinking(agentId, await anchor.read(), (control, value) =>
+          anchor.select(control, value),
+        )
       },
       select: async (control, value) => {
         await currentAgent()
-        let controls = await anchor.select(control, value)
-        const accepted = controls.find((candidate) => candidate.id === control.id)
 
-        if (accepted?.current !== value) {
-          return controls
-        }
-
-        if (accepted.purpose === 'model') {
-          await options.config.saveDefaultModel(agentId, value)
-          controls = await anchor.read()
-        }
-
-        thinking.remember(agentId, controls, control.id, value)
-
-        return alignThinking(agentId, controls, (candidate, preferred) =>
-          anchor.select(candidate, preferred),
+        /* select 的答复就是权威表，不再回读：回读拿到的是这次写入之前的那一张。 */
+        return commitSelection(
+          agentId,
+          await anchor.select(control, value),
+          control.id,
+          value,
+          (candidate, preferred) => anchor.select(candidate, preferred),
         )
       },
       readToolkit: async (threadId) => {
@@ -343,16 +391,20 @@ export function createDesktopAgentRuntime(
 }
 
 /**
- * 没设过默认模型时，用这家 agent 报出的第一个可用别名补一个。
+ * 这家 agent 报出的第一个可用别名。
  *
- * 档案没声明清单查询就跳过：那一家的模型由它自己的运行时决定，问不了不是故障。
+ * 已经设过默认模型、或档案没声明清单查询，就没有答案：那一家的模型由它自己的
+ * 运行时决定，问不了不是故障。
  */
-async function seedDefaultModel(store: AgentConfigStore, agentId: string): Promise<void> {
+async function firstUsableModel(
+  store: AgentConfigStore,
+  agentId: string,
+): Promise<string | undefined> {
   const descriptor = requireAgent(agentId)
   const listArgs = descriptor.providerListArgs
 
   if (listArgs === undefined || (await store.loadDefaultModel(agentId)) !== null) {
-    return
+    return undefined
   }
 
   const outcome = await store.execCli({ agentId, args: [...listArgs] })
@@ -363,13 +415,7 @@ async function seedDefaultModel(store: AgentConfigStore, agentId: string): Promi
     throw new Error(said.length === 0 ? `agent 以 ${outcome.status} 退出。` : said)
   }
 
-  const snapshot = parseAgentProviderListOutput(outcome.stdout, descriptor.syntheticProviderId)
-
-  const first = snapshot.providers
-    .filter((provider) => provider.configured)
+  return parseAgentProviderListOutput(outcome.stdout, descriptor.syntheticProviderId)
+    .providers.filter((provider) => provider.configured)
     .flatMap((provider) => provider.models.map((model) => model.alias))[0]
-
-  if (first !== undefined) {
-    await store.saveDefaultModel(agentId, first)
-  }
 }

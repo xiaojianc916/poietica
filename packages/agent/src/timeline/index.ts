@@ -23,7 +23,7 @@ export type {
   TimelineState,
   ToolCallTimelineItem,
 } from './timeline-contract'
-export { endsRun, opensTurn } from './timeline-contract'
+export { endsRun, isSteerable, opensTurn } from './timeline-contract'
 export {
   activeScope,
   inflightPromptId,

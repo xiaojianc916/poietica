@@ -55,11 +55,11 @@ export function labelOf(
   return control.purpose === 'thought' ? label.charAt(0).toUpperCase() + label.slice(1) : label
 }
 
-/* `current ∈ choices` is enforced at the native adapter boundary. */
-function chosen(control: SessionConfigControl): string | undefined {
+/* 候选集里没有生效值时退回原文：一颗空白的胶囊说不出此刻在用什么。 */
+function chosen(control: SessionConfigControl): string {
   const inForce = control.choices.find((choice) => choice.value === control.current)
 
-  return inForce === undefined ? undefined : labelOf(control, inForce)
+  return inForce === undefined ? control.current : labelOf(control, inForce)
 }
 
 /**
@@ -77,7 +77,7 @@ export function sessionControlRows(
   controls: readonly SessionConfigControl[],
 ): readonly SessionConfigControl[] {
   return [...controls]
-    .filter((control) => ['model', 'thought', 'other'].includes(control.purpose))
+    .filter((control) => ORDER.includes(control.purpose))
     .sort((left, right) => rank(left.purpose) - rank(right.purpose))
 }
 

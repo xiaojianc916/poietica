@@ -186,7 +186,14 @@ function parseModels(input: unknown): {
   const models: AgentModelState[] = []
   const issues: string[] = []
 
-  for (const [alias, candidate] of Object.entries(raw).slice(0, MAX_MODELS)) {
+  const entries = Object.entries(raw)
+
+  /* 越过上限的那些也是一次跳过，与坏条目同一条规矩：说出来，不静默丢。 */
+  if (entries.length > MAX_MODELS) {
+    issues.push(`模型条目超过上限 ${String(MAX_MODELS)} 条，其余未载入。`)
+  }
+
+  for (const [alias, candidate] of entries.slice(0, MAX_MODELS)) {
     const model = parseModel(alias, candidate)
 
     if (model === undefined) {
@@ -255,7 +262,13 @@ export function parseAgentProviderList(
 
   const providers: AgentProviderState[] = []
 
-  for (const [id, candidate] of Object.entries(providerTable).slice(0, MAX_PROVIDERS)) {
+  const table = Object.entries(providerTable)
+
+  if (table.length > MAX_PROVIDERS) {
+    issues.push(`provider 条目超过上限 ${String(MAX_PROVIDERS)} 条，其余未载入。`)
+  }
+
+  for (const [id, candidate] of table.slice(0, MAX_PROVIDERS)) {
     const provider = parseProvider(id, candidate, parsedModels.models, syntheticProviderId)
 
     if (provider === undefined) {
