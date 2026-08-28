@@ -39,6 +39,15 @@
   background: var(--review-removed-fill);
 }
 
+/* 语法色由 shiki 给出，两套主题各一个值；选哪一套是样式的事，组件不问主题。 */
+.review-code {
+  color: var(--review-syntax-light);
+}
+
+:root[data-theme="dark"] .review-code {
+  color: var(--review-syntax-dark);
+}
+
 .review-line__emphasis {
   background: var(--review-line-emphasis, transparent);
 }

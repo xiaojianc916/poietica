@@ -5,6 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  FileTypeMark,
   RegionSplitter,
   Tooltip,
   TooltipContent,
@@ -14,11 +15,6 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
-  File,
-  FileCode,
-  FileImage,
-  FileJson,
-  FileText,
   Folder,
   GitBranch,
   MoreHorizontal,
@@ -37,7 +33,6 @@ import {
 import { useConversationWorkspaceRoot } from '../assistant/threads-context'
 import { type ChangeTreeFile, type ChangeTreeFolder, changeTreeRows } from './change-tree'
 import {
-  type ChangeStatus,
   createReviewStore,
   type ReviewReading,
   type ReviewState,
@@ -46,7 +41,7 @@ import {
   TREE_MAX,
   TREE_MIN,
 } from './review-store'
-import type { DiffBand, DiffRow, ReviewFile } from './unified-diff'
+import type { DiffBand, DiffPiece, DiffRow, ReviewFile } from './unified-diff'
 
 import './review-pane.css'
 
@@ -62,13 +57,6 @@ const TROUBLE: Readonly<Record<'asking' | 'notARepository' | 'unreadable', strin
   notARepository: '这个目录不是 git 仓库。',
   unreadable: '读不到 git 变更。',
 }
-const STATUS_MARKS: Readonly<Record<ChangeStatus, readonly [string, string]>> = {
-  added: ['A', 'text-emerald-500'],
-  conflicted: ['U', 'text-rose-500'],
-  deleted: ['D', 'text-rose-500'],
-  modified: ['M', 'text-amber-500'],
-  untracked: ['?', 'text-sky-500'],
-}
 /* 列宽走注册过的自定义属性，与外壳那一份同构。 */
 type ReviewStyle = CSSProperties & Record<`--${string}`, string>
 /* 种类由行模型说，不由行首字符说：所以正文里不留 +/- 那一列。取色在 review-pane.css。 */
@@ -76,44 +64,6 @@ const TONES: Readonly<Record<DiffRow['kind'], string>> = {
   added: 'review-line review-line--added',
   context: 'review-line',
   removed: 'review-line review-line--removed',
-}
-/* 扩展名到字形：卡片行头与文件树读同一份表。 */
-const FILE_GLYPHS: Readonly<Record<string, typeof File>> = {
-  c: FileCode,
-  cjs: FileCode,
-  cpp: FileCode,
-  cs: FileCode,
-  css: FileCode,
-  gif: FileImage,
-  go: FileCode,
-  h: FileCode,
-  html: FileCode,
-  ico: FileImage,
-  java: FileCode,
-  jpeg: FileImage,
-  jpg: FileImage,
-  js: FileCode,
-  json: FileJson,
-  jsx: FileCode,
-  lock: FileJson,
-  log: FileText,
-  md: FileText,
-  mjs: FileCode,
-  png: FileImage,
-  ps1: FileCode,
-  py: FileCode,
-  rb: FileCode,
-  rs: FileCode,
-  sh: FileCode,
-  sql: FileCode,
-  svg: FileImage,
-  toml: FileJson,
-  ts: FileCode,
-  tsx: FileCode,
-  txt: FileText,
-  webp: FileImage,
-  yaml: FileJson,
-  yml: FileJson,
 }
 const SWITCHES: readonly {
   readonly name: ReviewSwitch
@@ -127,6 +77,9 @@ const SWITCHES: readonly {
 ]
 const ICON_CLASS =
   'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100'
+/* 行内动作小一档：行头只有 h-7，24px 的方块会顶到上下沿。 */
+const ROW_ICON_CLASS =
+  'flex size-5 shrink-0 items-center justify-center rounded opacity-60 hover:bg-current/10 hover:opacity-100'
 const ROW_CLASS = 'min-w-0 flex-1 truncate text-xs'
 export function ReviewPane({ conversationId }: { readonly conversationId: string | null }) {
   const root = useConversationWorkspaceRoot(conversationId)
@@ -161,7 +114,7 @@ function Review({ root }: { readonly root: string }) {
         <div className="min-h-0 flex-1 overflow-y-auto">
           <Cards reading={reading} shown={shown} state={state} store={store} />
         </div>
-        <Tree docked={treeColumn > 0} reading={reading} shown={shown} state={state} store={store} />
+        <Tree docked={treeColumn > 0} shown={shown} state={state} store={store} />
       </div>
     </div>
   )
@@ -477,58 +430,52 @@ function Card({
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
-  const status = reading.statuses.get(file.path)
   const open = state.openFiles.has(file.path)
   return (
-    <section className="border-b border-current/10" id={cardId(file.path)}>
-      {/* 行头贴顶：长补丁滚起来也知道自己在哪个文件里。 */}
-      <header className="group sticky top-0 z-10 flex h-7 items-center gap-2 bg-[var(--window-backing-surface)] px-2.5">
+    <section id={cardId(file.path)}>
+      <header className="group flex h-7 items-center gap-2 px-2.5">
         <button
           aria-expanded={open}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          className="flex min-w-0 items-center gap-2 text-left"
           onClick={() => {
             store.toggleFile(file.path)
           }}
           title={file.path}
           type="button"
         >
-          {open ? (
-            <ChevronDown aria-hidden className="size-3.5 shrink-0 opacity-40" />
-          ) : (
-            <ChevronRight aria-hidden className="size-3.5 shrink-0 opacity-40" />
-          )}
-          {status === undefined ? null : <Mark status={status} />}
-          <FileGlyph path={file.path} status={status} />
+          <FileTypeMark className="size-3.5 shrink-0" name={file.path} />
           <span className="min-w-0 truncate text-xs">{file.path}</span>
           <Tally additions={file.additions} deletions={file.deletions} />
         </button>
-        {reading.staged.has(file.path) ? (
-          <span className="shrink-0 text-[11px] opacity-40">已暂存</span>
-        ) : null}
         {/* 悬浮或键盘聚焦时才出现：行头默认只有事实。 */}
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
           <IconButton
+            dense
             label="复制相对路径"
             onClick={() => {
               /* git 给的就是仓库根的相对路径；复制失败交给全局未处理拒绝那条策略。 */
               void navigator.clipboard.writeText(file.path)
             }}
           >
-            <Copy aria-hidden className="size-3.5" />
+            <Copy aria-hidden className="size-3" />
           </IconButton>
           <IconButton
+            dense
             label={open ? '折叠这个文件' : '展开这个文件'}
             onClick={() => {
               store.toggleFile(file.path)
             }}
           >
             {open ? (
-              <ChevronDown aria-hidden className="size-3.5" />
+              <ChevronDown aria-hidden className="size-3" />
             ) : (
-              <ChevronRight aria-hidden className="size-3.5" />
+              <ChevronRight aria-hidden className="size-3" />
             )}
           </IconButton>
         </div>
+        {reading.staged.has(file.path) ? (
+          <span className="ml-auto shrink-0 text-[11px] opacity-40">已暂存</span>
+        ) : null}
       </header>
       {open ? <Body file={file} state={state} store={store} /> : null}
     </section>
@@ -657,25 +604,37 @@ function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) 
       <span
         className={wrap ? 'min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]' : 'whitespace-pre'}
       >
-        {row.text.lead}
-        {row.text.middle === '' ? null : (
-          <span className="review-line__emphasis">{row.text.middle}</span>
-        )}
-        {row.text.trail}
+        {row.pieces.map((piece) => (
+          <Piece key={piece.at} piece={piece} />
+        ))}
       </span>
     </div>
+  )
+}
+/* 一段正文：颜色来自语法着色，底色来自词级差异，两者可以落在同一段上。 */
+function Piece({ piece }: { readonly piece: DiffPiece }) {
+  const style: ReviewStyle | undefined =
+    piece.color === null
+      ? undefined
+      : { '--review-syntax-dark': piece.color.dark, '--review-syntax-light': piece.color.light }
+  const tone = cn(
+    piece.color === null ? null : 'review-code',
+    piece.emphasis ? 'review-line__emphasis' : null,
+  )
+  return (
+    <span className={tone === '' ? undefined : tone} style={style}>
+      {piece.text}
+    </span>
   )
 }
 /* 右侧：变更文件树。筛选在顶，行按目录归并，左边缘拖着调宽。 */
 function Tree({
   docked,
-  reading,
   shown,
   state,
   store,
 }: {
   readonly docked: boolean
-  readonly reading: Ready
   readonly shown: readonly ReviewFile[]
   readonly state: ReviewState
   readonly store: ReviewStore
@@ -733,7 +692,6 @@ function Tree({
                     key={row.key}
                     open={state.openFiles.has(row.path)}
                     row={row}
-                    status={reading.statuses.get(row.path)}
                     store={store}
                   />
                 ),
@@ -794,13 +752,11 @@ function FileRow({
   file,
   open,
   row,
-  status,
   store,
 }: {
   readonly file: ReviewFile | undefined
   readonly open: boolean
   readonly row: ChangeTreeFile
-  readonly status: ChangeStatus | undefined
   readonly store: ReviewStore
 }) {
   return (
@@ -813,7 +769,6 @@ function FileRow({
       }}
       role="listitem"
       style={{ paddingInlineStart: `${String(8 + row.depth * 12)}px` }}
-      tabIndex={0}
     >
       <button
         className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
@@ -824,7 +779,7 @@ function FileRow({
         title={row.path}
         type="button"
       >
-        <FileGlyph path={row.path} status={status} />
+        <FileTypeMark className="size-3.5 shrink-0" name={row.label} />
         <span className="min-w-0 flex-1 truncate text-xs">{row.label}</span>
         {file === undefined ? null : (
           <Tally additions={file.additions} deletions={file.deletions} />
@@ -832,15 +787,16 @@ function FileRow({
       </button>
       <span className="shrink-0 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
         <IconButton
+          dense
           label={open ? '折叠这个文件' : '展开这个文件'}
           onClick={() => {
             store.toggleFile(row.path)
           }}
         >
           {open ? (
-            <ChevronDown aria-hidden className="size-3.5" />
+            <ChevronDown aria-hidden className="size-3" />
           ) : (
-            <ChevronRight aria-hidden className="size-3.5" />
+            <ChevronRight aria-hidden className="size-3" />
           )}
         </IconButton>
       </span>
@@ -851,31 +807,16 @@ function FileRow({
 function cardId(path: string): string {
   return `review:${path}`
 }
-function Mark({ status }: { readonly status: ChangeStatus }) {
-  const [mark, tone] = STATUS_MARKS[status]
-  return <span className={cn('shrink-0 font-mono text-[11px]', tone)}>{mark}</span>
-}
-/* 形状认扩展名，颜色认 git 状态。 */
-function FileGlyph({
-  path,
-  status,
-}: {
-  readonly path: string
-  readonly status: ChangeStatus | undefined
-}) {
-  const dot = path.lastIndexOf('.')
-  const ext = dot > path.lastIndexOf('/') + 1 ? path.slice(dot + 1).toLowerCase() : ''
-  const Glyph = FILE_GLYPHS[ext] ?? File
-  const tone = status === undefined ? 'opacity-40' : STATUS_MARKS[status][1]
-  return <Glyph aria-hidden className={cn('size-3.5 shrink-0', tone)} />
-}
 function IconButton({
   children,
+  dense = false,
   label,
   onClick,
   pressed,
 }: {
   readonly children: ReactNode
+  /** 行内动作用小一档。 */
+  readonly dense?: boolean
   readonly label: string
   readonly onClick: () => void
   readonly pressed?: boolean
@@ -885,7 +826,7 @@ function IconButton({
       <TooltipTrigger
         aria-label={label}
         aria-pressed={pressed}
-        className={ICON_CLASS}
+        className={dense ? ROW_ICON_CLASS : ICON_CLASS}
         onClick={onClick}
       >
         {children}

@@ -1,4 +1,5 @@
 import type { ToolCallTimelineItem } from '@poietica/agent'
+import { FileTypeMark } from '@poietica/ui'
 import {
   type CSSProperties,
   type ReactNode,
@@ -9,7 +10,6 @@ import {
   useState,
 } from 'react'
 
-import { FileTypeMark } from '../primitives/file-type-mark'
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
 import type { DiffFile, DiffRow, DiffRowKind } from '../semantics/file-diff'
 import { toToolCallFacets } from '../semantics/tool-call-facets'

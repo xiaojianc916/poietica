@@ -6,17 +6,23 @@
  * 里单测。
  */
 export type DiffRowKind = 'added' | 'context' | 'removed'
-/** 一行正文分三段：middle 是与对侧不同的那一截，两侧同文的收进 lead 与 trail。 */
-export interface DiffText {
-  readonly lead: string
-  readonly middle: string
-  readonly trail: string
+/** 两套主题各一个十六进制色：取哪一套由 review-pane.css 说。 */
+export interface PieceColor {
+  readonly light: string
+  readonly dark: string
+}
+/** 一行正文切成片段：emphasis 是与对侧不同的那一截，color 由 syntax 着色时填上。 */
+export interface DiffPiece {
+  readonly at: number
+  readonly text: string
+  readonly emphasis: boolean
+  readonly color: PieceColor | null
 }
 export interface DiffRow {
   readonly kind: DiffRowKind
   readonly oldLine: number | null
   readonly newLine: number | null
-  readonly text: DiffText
+  readonly pieces: readonly DiffPiece[]
 }
 /** 一段折起来的未改动行。rows 为空表示这一段没有随补丁取回，展不开。 */
 export interface DiffGap {
@@ -101,21 +107,21 @@ function file(lines: readonly string[], wordDiff: boolean): ReviewFile {
     if (!inHunk) {
       continue
     }
-    const text = plain(line.slice(1))
+    const pieces = plain(line.slice(1))
     if (line.startsWith('+')) {
-      items.push({ kind: 'added', newLine, oldLine: null, text })
+      items.push({ kind: 'added', newLine, oldLine: null, pieces })
       newLine += 1
       additions += 1
       continue
     }
     if (line.startsWith('-')) {
-      items.push({ kind: 'removed', newLine: null, oldLine, text })
+      items.push({ kind: 'removed', newLine: null, oldLine, pieces })
       oldLine += 1
       deletions += 1
       continue
     }
     if (line.startsWith(' ')) {
-      items.push({ kind: 'context', newLine, oldLine, text })
+      items.push({ kind: 'context', newLine, oldLine, pieces })
       oldLine += 1
       newLine += 1
     }
@@ -125,7 +131,6 @@ function file(lines: readonly string[], wordDiff: boolean): ReviewFile {
     bands: banded(wordDiff ? emphasised(items) : items),
     binary,
     deletions,
-    digest: digest(lines),
     patch: lines.join('\n'),
     path: target ?? source ?? headerPath(lines[0] ?? ''),
   }
@@ -143,19 +148,8 @@ function headerPath(header: string): string {
   const cut = header.lastIndexOf(' b/')
   return cut < 0 ? header.slice('diff --git '.length) : header.slice(cut + 3)
 }
-function plain(text: string): DiffText {
-  return { lead: text, middle: '', trail: '' }
-}
-/* 变更检测用的指纹，不是安全摘要：FNV-1a 32 位，同步、无依赖。 */
-function digest(lines: readonly string[]): string {
-  let hash = 0x811c_9dc5
-  for (const line of lines) {
-    for (let index = 0; index < line.length; index += 1) {
-      hash = Math.imul(hash ^ line.charCodeAt(index), 0x0100_0193)
-    }
-    hash = Math.imul(hash ^ 10, 0x0100_0193)
-  }
-  return (hash >>> 0).toString(36)
+function plain(text: string): readonly DiffPiece[] {
+  return [{ at: 0, color: null, emphasis: false, text }]
 }
 /* 等长的一段删除紧接一段新增才对得上行；不等长就不猜，整行算改动。 */
 function emphasised(items: readonly Item[]): readonly Item[] {
@@ -170,9 +164,9 @@ function emphasised(items: readonly Item[]): readonly Item[] {
       for (let offset = 0; offset < removed; offset += 1) {
         const before = held[index + offset] as DiffRow
         const after = held[index + removed + offset] as DiffRow
-        const narrowed = narrow(flat(before.text), flat(after.text))
-        held[index + offset] = { ...before, text: narrowed.before }
-        held[index + removed + offset] = { ...after, text: narrowed.after }
+        const narrowed = narrow(rowText(before.pieces), rowText(after.pieces))
+        held[index + offset] = { ...before, pieces: narrowed.before }
+        held[index + removed + offset] = { ...after, pieces: narrowed.after }
       }
     }
     index += removed + added - 1
@@ -190,14 +184,15 @@ function streak(items: readonly Item[], from: number, kind: DiffRowKind): number
   }
   return length
 }
-function flat(text: DiffText): string {
-  return text.lead + text.middle + text.trail
+/** 片段拼回整行正文：词级比较与语法着色读同一个。 */
+export function rowText(pieces: readonly DiffPiece[]): string {
+  return pieces.map((piece) => piece.text).join('')
 }
 /* 按词元切开取公共前后缀：中间那一截就是这两行真正不同的地方。 */
 function narrow(
   before: string,
   after: string,
-): { readonly before: DiffText; readonly after: DiffText } {
+): { readonly before: readonly DiffPiece[]; readonly after: readonly DiffPiece[] } {
   const left = before.match(TOKEN) ?? []
   const right = after.match(TOKEN) ?? []
   let head = 0
@@ -214,12 +209,22 @@ function narrow(
   }
   return { after: parted(right, head, tail), before: parted(left, head, tail) }
 }
-function parted(parts: readonly string[], head: number, tail: number): DiffText {
-  return {
-    lead: parts.slice(0, head).join(''),
-    middle: parts.slice(head, parts.length - tail).join(''),
-    trail: parts.slice(parts.length - tail).join(''),
+/* 空段不进列表：三段里通常只有一段有内容。 */
+function parted(parts: readonly string[], head: number, tail: number): readonly DiffPiece[] {
+  const lead = parts.slice(0, head).join('')
+  const middle = parts.slice(head, parts.length - tail).join('')
+  const trail = parts.slice(parts.length - tail).join('')
+  const found: DiffPiece[] = []
+  if (lead !== '') {
+    found.push({ at: 0, color: null, emphasis: false, text: lead })
   }
+  if (middle !== '') {
+    found.push({ at: lead.length, color: null, emphasis: true, text: middle })
+  }
+  if (trail !== '') {
+    found.push({ at: lead.length + middle.length, color: null, emphasis: false, text: trail })
+  }
+  return found
 }
 /* 长段未改动行折成一条带子：改动两侧各留 KEPT 行，其余收进 gap。 */
 function banded(items: readonly Item[]): readonly DiffBand[] {

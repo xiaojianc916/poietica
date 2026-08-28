@@ -1,7 +1,6 @@
 import { createExternalStore } from '@poietica/core'
 import {
   type GitCommitIntent,
-  type GitFileChange,
   type GitReview,
   gitAwaitChange,
   gitCommit,
@@ -9,6 +8,7 @@ import {
 } from '@poietica/ipc'
 import type { SplitterActivity } from '@poietica/ui'
 import { reportFailure } from '../failures/application-policy'
+import { paint } from './syntax'
 import { type ReviewFile, reviewFiles } from './unified-diff'
 /*
  * 审查会话的唯一真相。
@@ -17,7 +17,6 @@ import { type ReviewFile, reviewFiles } from './unified-diff'
  * 快照、一个发布点。补丁原文只存一份，文件模型由它推出来 —— 呈现开关变了重推一次，
  * 不各存一份互相同步。不认识 DOM 与 React，所以能在 Node 里单独跑。
  */
-export type ChangeStatus = GitFileChange['status']
 /** 影响 git 问法的开关要重问，只影响推导的重推即可 —— 两组分开，不白跑进程往返。 */
 export interface ReviewPresentation {
   readonly wrap: boolean
@@ -37,7 +36,6 @@ export type ReviewReading =
       readonly behind: number
       readonly branches: readonly string[]
       readonly files: readonly ReviewFile[]
-      readonly statuses: ReadonlyMap<string, ChangeStatus>
       readonly staged: ReadonlySet<string>
       readonly additions: number
       readonly deletions: number
@@ -129,6 +127,21 @@ export function createReviewStore(root: string): ReviewStore {
   }
   function project(): void {
     reading = answer === null ? { phase: trouble } : ready(answer, presentation.wordDiff)
+    tint()
+  }
+  /* 着色是异步的：先发不带色的那一版，色到了换一次；快照被换过就丢掉迟到的那份。 */
+  function tint(): void {
+    if (reading.phase !== 'ready') {
+      return
+    }
+    const held = reading
+    void paint(held.files).then((files) => {
+      if (stopped || reading !== held) {
+        return
+      }
+      reading = { ...held, files }
+      publish()
+    })
   }
   function mutate(change: () => void): void {
     change()
@@ -318,7 +331,6 @@ function ready(held: GitReview, wordDiff: boolean): ReviewReading {
   const byPath = new Map(
     reviewFiles(held.patch, wordDiff).map((file) => [file.path, file] as const),
   )
-  const statuses = new Map<string, ChangeStatus>()
   const staged = new Set<string>()
   const files: ReviewFile[] = []
   let additions = 0
@@ -326,7 +338,6 @@ function ready(held: GitReview, wordDiff: boolean): ReviewReading {
   let unstagedAdditions = 0
   let unstagedDeletions = 0
   for (const change of held.changes) {
-    statuses.set(change.path, change.status)
     if (change.staged) {
       staged.add(change.path)
     }
@@ -353,7 +364,6 @@ function ready(held: GitReview, wordDiff: boolean): ReviewReading {
     head: held.branch,
     phase: 'ready',
     staged,
-    statuses,
     unstaged: { additions: unstagedAdditions, deletions: unstagedDeletions },
     upstream: held.upstream,
   }

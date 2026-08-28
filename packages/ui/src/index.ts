@@ -17,6 +17,7 @@ export {
   DropdownMenuTrigger,
 } from './dropdown-menu'
 export { ErrorState, InlineSpinner, LoadingState } from './feedback'
+export { FileTypeMark } from './file-type-mark'
 export { integrationMarkFor } from './integration-mark'
 export { ArrowLeftIcon, GithubMark, PlayIcon } from './local-glyphs'
 export { PixelLoader } from './pixel-loader'
