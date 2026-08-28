@@ -1,11 +1,13 @@
 import { createExternalStore } from '@poietica/core'
 import {
+  type GitCommitIntent,
   type GitFileChange,
   type GitReview,
   gitAwaitChange,
-  gitCommitOrPush,
+  gitCommit,
   gitReview,
 } from '@poietica/ipc'
+import type { SplitterActivity } from '@poietica/ui'
 import { reportFailure } from '../failures/application-policy'
 import { type ReviewFile, reviewFiles } from './unified-diff'
 /*
@@ -39,6 +41,8 @@ export type ReviewReading =
       readonly staged: ReadonlySet<string>
       readonly additions: number
       readonly deletions: number
+      /** 未暂存那一部分的加减行数：提交面板上那个勾选项管着的正是它。 */
+      readonly unstaged: { readonly additions: number; readonly deletions: number }
     }
 export interface ReviewState {
   readonly reading: ReviewReading
@@ -46,10 +50,11 @@ export interface ReviewState {
   readonly base: string
   readonly query: string
   readonly folded: ReadonlySet<string>
+  readonly collapsedFolders: ReadonlySet<string>
   readonly openGaps: ReadonlySet<string>
-  /** 路径 → 当时的内容指纹。文件再变一次，指纹对不上，标记自己失效。 */
-  readonly viewed: ReadonlyMap<string, string>
-  readonly filesOpen: boolean
+  readonly treeOpen: boolean
+  readonly treeWidth: number
+  readonly splitter: SplitterActivity
   readonly busy: boolean
 }
 export interface ReviewStore {
@@ -60,13 +65,16 @@ export interface ReviewStore {
   readonly setQuery: (value: string) => void
   readonly setBase: (ref: string) => void
   readonly toggleFold: (path: string) => void
+  readonly unfold: (path: string) => void
   readonly setAllFolded: (folded: boolean) => void
+  readonly toggleFolder: (key: string) => void
   readonly toggleGap: (key: string) => void
   readonly toggleSwitch: (name: ReviewSwitch) => void
-  readonly toggleFiles: () => void
-  readonly setViewed: (path: string, viewed: boolean) => void
+  readonly toggleTree: () => void
+  readonly setTreeWidth: (width: number) => void
+  readonly setSplitter: (activity: SplitterActivity) => void
   readonly refresh: () => void
-  readonly commitOrPush: (message: string) => void
+  readonly commit: (intent: GitCommitIntent, message: string, stageAll: boolean) => void
   readonly applyCommand: () => string
 }
 const TIGHT = 3
@@ -74,6 +82,9 @@ const TIGHT = 3
 const WHOLE = 100_000
 const APPLY_HEAD = "git apply --3way - <<'PATCH'\\n"
 const APPLY_TAIL = '\\nPATCH\\n'
+/** 文件树的宽度区间：分隔条与 store 的收敛读同一份。 */
+export const TREE_MIN = 180
+export const TREE_MAX = 480
 export function createReviewStore(root: string): ReviewStore {
   let answer: GitReview | null = null
   let trouble: 'asking' | 'notARepository' | 'unreadable' = 'asking'
@@ -87,13 +98,28 @@ export function createReviewStore(root: string): ReviewStore {
   let base = 'HEAD'
   let query = ''
   let folded: ReadonlySet<string> = new Set<string>()
+  let collapsedFolders: ReadonlySet<string> = new Set<string>()
   let openGaps: ReadonlySet<string> = new Set<string>()
-  let viewed: ReadonlyMap<string, string> = new Map<string, string>()
-  let filesOpen = true
+  let treeOpen = true
+  let treeWidth = 240
+  let splitter: SplitterActivity = 'idle'
   let busy = false
   let stopped = false
+  let looping = false
   function read(): ReviewState {
-    return { base, busy, filesOpen, folded, openGaps, presentation, query, reading, viewed }
+    return {
+      base,
+      busy,
+      collapsedFolders,
+      folded,
+      openGaps,
+      presentation,
+      query,
+      reading,
+      splitter,
+      treeOpen,
+      treeWidth,
+    }
   }
   let snapshot = read()
   const store = createExternalStore<ReviewState>({ read: () => snapshot })
@@ -132,22 +158,48 @@ export function createReviewStore(root: string): ReviewStore {
     project()
     publish()
   }
+  /* 监视挂不上就没有下一次问，所以「刷新」能把这条循环接回来 —— 同一条，不是第二条。 */
+  function loop(): void {
+    if (looping) {
+      return
+    }
+    looping = true
+    void (async () => {
+      while (!stopped) {
+        await load()
+        if (stopped) {
+          break
+        }
+        try {
+          await gitAwaitChange(root)
+        } catch (cause: unknown) {
+          if (!stopped) {
+            reportFailure('GIT_CHANGES_UNREADABLE', { cause, scope: 'review' })
+          }
+          break
+        }
+      }
+      looping = false
+    })()
+  }
   return {
     applyCommand: () =>
       answer === null || answer.patch === '' ? '' : APPLY_HEAD + answer.patch + APPLY_TAIL,
-    commitOrPush: (message) => {
+    commit: (intent, message, stageAll) => {
       if (busy) {
         return
       }
       busy = true
       publish()
-      void gitCommitOrPush(
-        root,
-        message,
+      void gitCommit({
         base,
-        presentation.tightContext ? TIGHT : WHOLE,
-        presentation.hideWhitespace,
-      )
+        context: presentation.tightContext ? TIGHT : WHOLE,
+        ignoreWhitespace: presentation.hideWhitespace,
+        intent,
+        message: subjectFor(intent, message, reading),
+        root,
+        stageAll,
+      })
         .then(
           (held) => {
             answer = held
@@ -165,7 +217,11 @@ export function createReviewStore(root: string): ReviewStore {
     },
     getSnapshot: () => snapshot,
     refresh: () => {
-      void load()
+      if (looping) {
+        void load()
+        return
+      }
+      loop()
     },
     setAllFolded: (all) => {
       mutate(() => {
@@ -188,51 +244,39 @@ export function createReviewStore(root: string): ReviewStore {
         query = value
       })
     },
-    setViewed: (path, seen) => {
+    setSplitter: (activity) => {
+      if (activity === splitter) {
+        return
+      }
       mutate(() => {
-        const next = new Map(viewed)
-        const file =
-          reading.phase === 'ready' ? reading.files.find((held) => held.path === path) : undefined
-        if (seen && file !== undefined) {
-          next.set(path, file.digest)
-        } else {
-          next.delete(path)
-        }
-        viewed = next
+        splitter = activity
+      })
+    },
+    setTreeWidth: (width) => {
+      const next = Math.max(TREE_MIN, Math.min(TREE_MAX, Math.round(width)))
+      if (next === treeWidth) {
+        return
+      }
+      mutate(() => {
+        treeWidth = next
       })
     },
     start: () => {
       stopped = false
-      void (async () => {
-        while (!stopped) {
-          await load()
-          if (stopped) {
-            return
-          }
-          try {
-            await gitAwaitChange(root)
-          } catch (cause: unknown) {
-            /* 挂不上表就没有下一次问：说一次然后停 —— 不退化成静默轮询。 */
-            if (!stopped) {
-              reportFailure('GIT_CHANGES_UNREADABLE', { cause, scope: 'review' })
-            }
-            return
-          }
-        }
-      })()
+      loop()
       return () => {
         stopped = true
       }
     },
     subscribe: store.subscribe,
-    toggleFiles: () => {
+    toggleFold: (held) => {
       mutate(() => {
-        filesOpen = !filesOpen
+        folded = flipped(folded, held)
       })
     },
-    toggleFold: (path) => {
+    toggleFolder: (key) => {
       mutate(() => {
-        folded = flipped(folded, path)
+        collapsedFolders = flipped(collapsedFolders, key)
       })
     },
     toggleGap: (key) => {
@@ -249,6 +293,25 @@ export function createReviewStore(root: string): ReviewStore {
       }
       publish()
     },
+    toggleTree: () => {
+      mutate(() => {
+        treeOpen = !treeOpen
+        /* 筛选框随树一起消失：筛选条件不许留在看不见的地方继续生效。 */
+        if (!treeOpen) {
+          query = ''
+        }
+      })
+    },
+    unfold: (held) => {
+      if (!folded.has(held)) {
+        return
+      }
+      mutate(() => {
+        const next = new Set(folded)
+        next.delete(held)
+        folded = next
+      })
+    },
   }
 }
 /* 清单是权威顺序，补丁按路径对上去；补丁里有而清单里没有的照实附在后面。 */
@@ -261,6 +324,8 @@ function ready(held: GitReview, wordDiff: boolean): ReviewReading {
   const files: ReviewFile[] = []
   let additions = 0
   let deletions = 0
+  let unstagedAdditions = 0
+  let unstagedDeletions = 0
   for (const change of held.changes) {
     statuses.set(change.path, change.status)
     if (change.staged) {
@@ -273,6 +338,10 @@ function ready(held: GitReview, wordDiff: boolean): ReviewReading {
   for (const file of files) {
     additions += file.additions
     deletions += file.deletions
+    if (!staged.has(file.path)) {
+      unstagedAdditions += file.additions
+      unstagedDeletions += file.deletions
+    }
   }
   return {
     additions,
@@ -286,12 +355,50 @@ function ready(held: GitReview, wordDiff: boolean): ReviewReading {
     phase: 'ready',
     staged,
     statuses,
+    unstaged: { additions: unstagedAdditions, deletions: unstagedDeletions },
     upstream: held.upstream,
   }
 }
 /* 清单上有、补丁里没有（二进制、纯模式变更）：这一行照旧在，只是没有行可画。 */
 function blank(path: string): ReviewFile {
-  return { additions: 0, bands: [], binary: false, deletions: 0, digest: '', patch: '', path }
+  return { additions: 0, bands: [], binary: false, deletions: 0, patch: '', path }
+}
+/* 推送不带说明；提交留空时按变更集自己生成一条 —— 确定性的，不牵进一次模型调用。 */
+function subjectFor(intent: GitCommitIntent, message: string, reading: ReviewReading): string {
+  if (intent === 'push') {
+    return ''
+  }
+  const written = message.trim()
+  if (written !== '') {
+    return written
+  }
+  return reading.phase === 'ready' ? autoSubject(reading.files) : ''
+}
+function autoSubject(files: readonly ReviewFile[]): string {
+  const paths = files.map((file) => file.path)
+  const first = paths[0]
+  if (first === undefined) {
+    return ''
+  }
+  if (paths.length === 1) {
+    return `update ${first}`
+  }
+  const shared = commonFolder(paths)
+  const counted = `update ${String(paths.length)} files`
+  return shared === '' ? counted : `${counted} in ${shared}`
+}
+function commonFolder(paths: readonly string[]): string {
+  const parts = (paths[0] ?? '').split('/').slice(0, -1)
+  let depth = parts.length
+  for (const held of paths) {
+    const other = held.split('/').slice(0, -1)
+    let index = 0
+    while (index < depth && index < other.length && parts[index] === other[index]) {
+      index += 1
+    }
+    depth = index
+  }
+  return parts.slice(0, depth).join('/')
 }
 function flipped(held: ReadonlySet<string>, key: string): ReadonlySet<string> {
   const next = new Set(held)

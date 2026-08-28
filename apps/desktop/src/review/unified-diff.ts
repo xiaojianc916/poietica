@@ -35,8 +35,6 @@ export interface ReviewFile {
   readonly bands: readonly DiffBand[]
   /** 这一文件的补丁原文，「复制 git apply 命令」按它拼。 */
   readonly patch: string
-  /** 内容指纹：文件再变一次，已查看的标记自己失效。 */
-  readonly digest: string
 }
 /** 改动两侧各留这么多未改动行，多出来的折起来 —— 与 git 默认的 -U3 同一个数。 */
 const KEPT = 3
@@ -55,7 +53,7 @@ export function reviewFiles(patch: string, wordDiff: boolean): readonly ReviewFi
 function sections(patch: string): readonly (readonly string[])[] {
   const found: string[][] = []
   let open: string[] | null = null
-  for (const line of patch.split('\\n')) {
+  for (const line of patch.split('\n')) {
     if (line.startsWith('diff --git ')) {
       open = [line]
       found.push(open)
@@ -128,7 +126,7 @@ function file(lines: readonly string[], wordDiff: boolean): ReviewFile {
     binary,
     deletions,
     digest: digest(lines),
-    patch: lines.join('\\n'),
+    patch: lines.join('\n'),
     path: target ?? source ?? headerPath(lines[0] ?? ''),
   }
 }

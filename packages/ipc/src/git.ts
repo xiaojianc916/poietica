@@ -2,6 +2,8 @@ import { throughIpc } from './error'
 import {
   commands,
   type GitBranches,
+  type GitCommitIntent,
+  type GitCommitRequest,
   type GitFileChange,
   type GitReview,
 } from './generated/ipc-bindings'
@@ -14,7 +16,7 @@ import {
  * 磁盘上的新真相。
  */
 
-export type { GitBranches, GitFileChange, GitReview }
+export type { GitBranches, GitCommitIntent, GitCommitRequest, GitFileChange, GitReview }
 
 /** 问一个目录的分支快照。不是 git 仓库、或机器没有 git，都是 null。 */
 export function gitBranches(root: string): Promise<GitBranches | null> {
@@ -42,14 +44,8 @@ export function gitAwaitChange(root: string): Promise<boolean> {
 }
 
 /** 提交或推送，交回新的审查面。git 拒绝时抛出，理由原文透出。 */
-export function gitCommitOrPush(
-  root: string,
-  message: string,
-  base: string,
-  context: number,
-  ignoreWhitespace: boolean,
-): Promise<GitReview> {
-  return throughIpc(() => commands.gitCommitOrPush(root, message, base, context, ignoreWhitespace))
+export function gitCommit(request: GitCommitRequest): Promise<GitReview> {
+  return throughIpc(() => commands.gitCommit(request))
 }
 
 /** 创建并检出新分支，交回新快照。名字合法性由 git 判，拒绝理由原文透出。 */

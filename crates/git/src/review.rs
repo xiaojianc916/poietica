@@ -1,6 +1,6 @@
 //! 工作树此刻相对某个基准的审查面：一次问答交回分支、清单与整份补丁。
 //!
-//! 清单走 \`git status --porcelain=v2 -z --branch\`：v2 是 git 给机器读者定的稳定格式，
+//! 清单走 `git status --porcelain=v2 -z --branch`：v2 是 git 给机器读者定的稳定格式，
 //! 分支表头在同一次里带回 head、upstream 与 ahead/behind。补丁走一条 git diff，
 //! 加减行数由补丁自己数出 —— 徽章与画面同源，不存在第二个数法。
 use std::path::Path;
@@ -94,29 +94,43 @@ pub async fn review(
     held.patch = patch(root, base, context, ignore_whitespace, &held.changes).await?;
     Ok(Some(held))
 }
-/// 提交或推送：有改动就全部暂存并提交，随后推送。交回新的审查面。
-pub async fn commit_or_push(
+/// 一次提交动作的意图：三个动作三条路，界面不靠一个动作替人决定要不要联网。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CommitIntent {
+    Commit,
+    CommitAndPush,
+    Push,
+}
+
+/// 按意图暂存、提交、推送，交回新的审查面。
+pub async fn commit(
     root: &Path,
+    intent: CommitIntent,
     message: &str,
+    stage_all: bool,
     base: &str,
     context: u32,
     ignore_whitespace: bool,
 ) -> Result<ReviewSnapshot, GitError> {
     let held = refreshed(root, base, context, ignore_whitespace).await?;
-    if !held.changes.is_empty() {
+    if intent != CommitIntent::Push {
         let subject = message.trim();
         if subject.is_empty() {
             return Err(GitError::Refused("提交需要一条说明".to_owned()));
         }
-        expect_ok(run(root, &["add", "--all"]).await?)?;
+        if stage_all {
+            expect_ok(run(root, &["add", "--all"]).await?)?;
+        }
         expect_ok(run(root, &["commit", "--message", subject]).await?)?;
     }
-    let push: &[&str] = if held.upstream.is_some() {
-        &["push"]
-    } else {
-        &["push", "--set-upstream", "origin", "HEAD"]
-    };
-    expect_ok(run(root, push).await?)?;
+    if intent != CommitIntent::Commit {
+        let push: &[&str] = if held.upstream.is_some() {
+            &["push"]
+        } else {
+            &["push", "--set-upstream", "origin", "HEAD"]
+        };
+        expect_ok(run(root, push).await?)?;
+    }
     refreshed(root, base, context, ignore_whitespace).await
 }
 async fn refreshed(

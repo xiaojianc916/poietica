@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::command;
 
@@ -149,17 +149,48 @@ pub async fn git_review(
 /// 提交或推送，成功即交回盘面上的新审查面 —— 界面不自己拼「操作后的世界」。
 #[command]
 #[specta::specta]
-pub async fn git_commit_or_push(
-    root: String,
-    message: String,
-    base: String,
-    context: u32,
-    ignore_whitespace: bool,
-) -> Result<GitReview, IpcError> {
-    poietica_git_native::commit_or_push(Path::new(&root), &message, &base, context, ignore_whitespace)
-        .await
-        .map(GitReview::from)
-        .map_err(surfaced)
+pub async fn git_commit(request: GitCommitRequest) -> Result<GitReview, IpcError> {
+    poietica_git_native::commit(
+        Path::new(&request.root),
+        request.intent.into(),
+        &request.message,
+        request.stage_all,
+        &request.base,
+        request.context,
+        request.ignore_whitespace,
+    )
+    .await
+    .map(GitReview::from)
+    .map_err(surfaced)
+}
+/// 一次提交动作的意图。
+#[derive(Clone, Copy, Debug, Deserialize, Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum GitCommitIntent {
+    Commit,
+    CommitAndPush,
+    Push,
+}
+impl From<GitCommitIntent> for poietica_git_native::CommitIntent {
+    fn from(intent: GitCommitIntent) -> Self {
+        match intent {
+            GitCommitIntent::Commit => Self::Commit,
+            GitCommitIntent::CommitAndPush => Self::CommitAndPush,
+            GitCommitIntent::Push => Self::Push,
+        }
+    }
+}
+/// 一次提交动作的全部输入。
+#[derive(Clone, Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitRequest {
+    pub root: String,
+    pub intent: GitCommitIntent,
+    pub message: String,
+    pub stage_all: bool,
+    pub base: String,
+    pub context: u32,
+    pub ignore_whitespace: bool,
 }
 
 /// 等这个工作树的下一次变化。true = 变了；false = 这一窗里没动，调用方再挂一次。

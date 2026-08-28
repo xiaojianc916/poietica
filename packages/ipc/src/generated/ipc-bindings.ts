@@ -1036,8 +1036,8 @@ async gitReview(root: string, base: string, context: number, ignoreWhitespace: b
 /**
  * 提交或推送，成功即交回盘面上的新审查面 —— 界面不自己拼「操作后的世界」。
  */
-async gitCommitOrPush(root: string, message: string, base: string, context: number, ignoreWhitespace: boolean) : Promise<GitReview> {
-    return await TAURI_INVOKE("git_commit_or_push", { root, message, base, context, ignoreWhitespace });
+async gitCommit(request: GitCommitRequest) : Promise<GitReview> {
+    return await TAURI_INVOKE("git_commit", { request });
 },
 /**
  * 等这个工作树的下一次变化。true = 变了；false = 这一窗里没动，调用方再挂一次。
@@ -2054,6 +2054,14 @@ export type GitBranches = { branch: string | null; detachedAt: string | null; br
  * 一个文件此刻相对 HEAD 的处境。
  */
 export type GitChangeStatus = "added" | "modified" | "deleted" | "untracked" | "conflicted"
+/**
+ * 一次提交动作的意图。
+ */
+export type GitCommitIntent = "commit" | "commit-and-push" | "push"
+/**
+ * 一次提交动作的全部输入。
+ */
+export type GitCommitRequest = { root: string; intent: GitCommitIntent; message: string; stageAll: boolean; base: string; context: number; ignoreWhitespace: boolean }
 /**
  * 工作树里一处变更。path 是仓库根的相对路径；加减行数由补丁自己数出。
  */

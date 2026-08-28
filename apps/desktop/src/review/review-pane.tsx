@@ -5,13 +5,25 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  RegionSplitter,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@poietica/ui'
-import { ChevronDown, ChevronRight, GitBranch, MoreHorizontal, Search } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Folder,
+  GitBranch,
+  MoreHorizontal,
+  PanelRight,
+  Search,
+  X,
+} from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useConversationWorkspaceRoot } from '../assistant/threads-context'
+import { type ChangeTreeFile, type ChangeTreeFolder, changeTreeRows } from './change-tree'
 import {
   type ChangeStatus,
   createReviewStore,
@@ -19,13 +31,15 @@ import {
   type ReviewState,
   type ReviewStore,
   type ReviewSwitch,
+  TREE_MAX,
+  TREE_MIN,
 } from './review-store'
 import type { DiffBand, DiffRow, ReviewFile } from './unified-diff'
 
 /*
  * 审查那一格：这条对话所在工作树的差异面。
  *
- * 这里只画。清单、补丁、折叠、已查看、呈现开关都在 review-store 那一份快照里，
+ * 这里只画。清单、补丁、折叠、树宽、呈现开关都在 review-store 那一份快照里，
  * 组件不持有领域态，也不自己问 git。
  */
 type Ready = Extract<ReviewReading, { phase: 'ready' }>
@@ -83,29 +97,56 @@ function Review({ root }: { readonly root: string }) {
   const needle = state.query.trim().toLowerCase()
   const shown = reading.files.filter((file) => file.path.toLowerCase().includes(needle))
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div
+      className={cn(
+        'flex h-full min-h-0 flex-col',
+        state.splitter === 'idle' ? null : 'select-none',
+      )}
+    >
       <Toolbar reading={reading} state={state} store={store} />
-      <Comparison base={state.base} reading={reading} store={store} />
       <div className="flex min-h-0 flex-1">
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {reading.files.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
-              <p className="text-sm font-medium">尚无文件变更</p>
-              <p className="text-xs opacity-50">项目变更将显示在此处</p>
-            </div>
-          ) : (
-            shown.map((file) => (
-              <Card file={file} key={file.path} reading={reading} state={state} store={store} />
-            ))
-          )}
+          <Cards reading={reading} shown={shown} state={state} store={store} />
         </div>
-        {state.filesOpen && reading.files.length > 0 ? (
-          <Files reading={reading} shown={shown} state={state} store={store} />
+        {state.treeOpen && reading.files.length > 0 ? (
+          <Tree reading={reading} shown={shown} state={state} store={store} />
         ) : null}
       </div>
     </div>
   )
 }
+function Cards({
+  reading,
+  shown,
+  state,
+  store,
+}: {
+  readonly reading: Ready
+  readonly shown: readonly ReviewFile[]
+  readonly state: ReviewState
+  readonly store: ReviewStore
+}) {
+  if (reading.files.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
+        <p className="text-sm font-medium">尚无文件变更</p>
+        <p className="text-xs opacity-50">项目变更将显示在此处</p>
+      </div>
+    )
+  }
+  /* 筛选把主区筛空时也要说话：否则右边树在筛、左边一片空白没有理由。 */
+  if (shown.length === 0) {
+    return <Note>没有匹配的文件。</Note>
+  }
+  return (
+    <>
+      {shown.map((file) => (
+        <Card file={file} key={file.path} reading={reading} state={state} store={store} />
+      ))}
+    </>
+  )
+}
+/* 一条工具条：比较基准、总计、更多操作、折叠、文件树、提交 —— 基准入口只有一个。 */
 function Toolbar({
   reading,
   state,
@@ -116,14 +157,24 @@ function Toolbar({
   readonly store: ReviewStore
 }) {
   const allFolded = reading.files.length > 0 && state.folded.size >= reading.files.length
+  const head = reading.head ?? reading.detachedAt ?? 'HEAD'
   return (
     <div className="flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-2 border-b border-current/10 px-2.5">
       <Bases base={state.base} reading={reading} store={store}>
         <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />
-        <span className="text-xs">分支</span>
+        <span className="max-w-28 truncate text-xs">{head}</span>
+        <span aria-hidden className="text-xs opacity-40">
+          →
+        </span>
+        <span className="max-w-28 truncate text-xs opacity-70">{state.base}</span>
         <ChevronDown aria-hidden className="size-3 shrink-0 opacity-50" />
       </Bases>
       <Tally additions={reading.additions} deletions={reading.deletions} />
+      {reading.ahead + reading.behind > 0 ? (
+        <span className="shrink-0 font-mono text-[11px] tabular-nums opacity-50">
+          ↑{reading.ahead} ↓{reading.behind}
+        </span>
+      ) : null}
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <Overflow state={state} store={store} />
         <IconButton
@@ -138,40 +189,11 @@ function Toolbar({
             <ChevronRight aria-hidden className="size-4" />
           )}
         </IconButton>
-        <IconButton label="筛选文件" onClick={store.toggleFiles} pressed={state.filesOpen}>
-          <Search aria-hidden className="size-4" />
+        <IconButton label="变更文件树" onClick={store.toggleTree} pressed={state.treeOpen}>
+          <PanelRight aria-hidden className="size-4" />
         </IconButton>
         <Commit reading={reading} state={state} store={store} />
       </div>
-    </div>
-  )
-}
-/* 左边是检出的分支，右边是比较基准；点开就换基准，不在这里换分支。 */
-function Comparison({
-  base,
-  reading,
-  store,
-}: {
-  readonly base: string
-  readonly reading: Ready
-  readonly store: ReviewStore
-}) {
-  const head = reading.head ?? reading.detachedAt ?? 'HEAD'
-  return (
-    <div className="flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-1.5 border-b border-current/10 px-2.5">
-      <Bases base={base} reading={reading} store={store}>
-        <span className="max-w-32 truncate text-xs">{head}</span>
-        <span aria-hidden className="text-xs opacity-40">
-          →
-        </span>
-        <span className="max-w-32 truncate text-xs opacity-70">{base}</span>
-        <ChevronDown aria-hidden className="size-3 shrink-0 opacity-50" />
-      </Bases>
-      {reading.ahead + reading.behind > 0 ? (
-        <span className="shrink-0 font-mono text-[11px] tabular-nums opacity-50">
-          ↑{reading.ahead} ↓{reading.behind}
-        </span>
-      ) : null}
     </div>
   )
 }
@@ -201,8 +223,49 @@ function Bases({
       >
         {children}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-52">
-        {refs.map((ref) => (
+      <DropdownMenuContent className="w-60">
+        {/* 搜索态住在菜单内容里：菜单一关它随之卸载，不需要谁去清它。 */}
+        <BaseList base={base} refs={refs} store={store} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+function BaseList({
+  base,
+  refs,
+  store,
+}: {
+  readonly base: string
+  readonly refs: readonly string[]
+  readonly store: ReviewStore
+}) {
+  const [needle, setNeedle] = useState('')
+  const shown = refs.filter((ref) => ref.toLowerCase().includes(needle.trim().toLowerCase()))
+  return (
+    <>
+      <div className="mx-1 mb-1 flex items-center gap-1.5 rounded-md border border-current/15 px-2 py-1.5">
+        <Search aria-hidden className="size-3.5 shrink-0 opacity-50" />
+        <input
+          aria-label="搜索分支"
+          className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:opacity-50"
+          onChange={(event) => {
+            setNeedle(event.target.value)
+          }}
+          onKeyDown={(event) => {
+            /* 菜单把方向键与字母当导航；搜索框里它们是输入。 */
+            if (event.key !== 'Escape' && event.key !== 'Tab') {
+              event.stopPropagation()
+            }
+          }}
+          placeholder="搜索分支"
+          value={needle}
+        />
+      </div>
+      <p className="px-2 pb-1 text-[11px] opacity-40">分支</p>
+      {shown.length === 0 ? (
+        <p className="px-2 py-1 text-xs opacity-50">没有匹配的分支。</p>
+      ) : (
+        shown.map((ref) => (
           <DropdownMenuItem
             key={ref}
             onClick={() => {
@@ -212,9 +275,9 @@ function Bases({
             <span className={ROW_CLASS}>{ref}</span>
             {ref === base ? <span className="shrink-0 text-[11px] opacity-50">当前</span> : null}
           </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        ))
+      )}
+    </>
   )
 }
 function Overflow({ state, store }: { readonly state: ReviewState; readonly store: ReviewStore }) {
@@ -255,6 +318,7 @@ function Overflow({ state, store }: { readonly state: ReviewState; readonly stor
     </DropdownMenu>
   )
 }
+/* 提交、提交并推送、推送是三件事三条路：不再由一个动作替人决定要不要联网。 */
 function Commit({
   reading,
   state,
@@ -265,7 +329,10 @@ function Commit({
   readonly store: ReviewStore
 }) {
   const [message, setMessage] = useState('')
-  const dirty = reading.files.length > 0
+  const [stageAll, setStageAll] = useState(true)
+  const head = reading.head ?? reading.detachedAt ?? 'HEAD'
+  const canCommit = !state.busy && reading.files.length > 0 && (stageAll || reading.staged.size > 0)
+  const canPush = !state.busy && (reading.ahead > 0 || reading.upstream === null)
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -276,37 +343,73 @@ function Commit({
         {state.busy ? '正在提交…' : '提交或推送'}
         <ChevronDown aria-hidden className="size-3 opacity-50" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-64">
-        {dirty ? (
-          <div className="mx-1 mb-1 rounded-md border border-current/15 px-2 py-1.5">
-            <input
-              aria-label="提交说明"
-              className="w-full bg-transparent text-xs outline-none placeholder:opacity-50"
-              onChange={(event) => {
-                setMessage(event.target.value)
-              }}
-              onKeyDown={(event) => {
-                /* 菜单把方向键与字母当导航；说明框里它们是输入。 */
-                if (event.key !== 'Escape' && event.key !== 'Tab') {
-                  event.stopPropagation()
+      <DropdownMenuContent className="w-72">
+        <p className="flex items-center gap-1.5 px-2 pb-1 text-xs opacity-60">
+          <GitBranch aria-hidden className="size-3.5 shrink-0" />
+          <span className="min-w-0 truncate">{head}</span>
+        </p>
+        <div className="mx-1 mb-1 rounded-md border border-current/15 px-2 py-1.5">
+          <textarea
+            aria-label="提交信息"
+            className="w-full resize-none bg-transparent text-xs outline-none placeholder:opacity-50"
+            onChange={(event) => {
+              setMessage(event.target.value)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault()
+                if (canCommit) {
+                  store.commit('commit', message, stageAll)
                 }
-              }}
-              placeholder="提交说明"
-              value={message}
-            />
-          </div>
-        ) : null}
+                return
+              }
+              /* 菜单把方向键与字母当导航；说明框里它们是输入。 */
+              if (event.key !== 'Escape' && event.key !== 'Tab') {
+                event.stopPropagation()
+              }
+            }}
+            placeholder="提交信息（留空将自动生成）…"
+            rows={3}
+            value={message}
+          />
+        </div>
+        <label className="mx-1 flex items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-current/10">
+          <input
+            checked={stageAll}
+            className="size-3 accent-current"
+            onChange={(event) => {
+              setStageAll(event.target.checked)
+            }}
+            type="checkbox"
+          />
+          <span className="min-w-0 flex-1">包含未暂存的更改</span>
+          <Tally additions={reading.unstaged.additions} deletions={reading.unstaged.deletions} />
+        </label>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
-          disabled={state.busy || (dirty && message.trim() === '')}
+          disabled={!canCommit}
           onClick={() => {
-            store.commitOrPush(message)
+            store.commit('commit', message, stageAll)
           }}
         >
-          <span className={ROW_CLASS}>{dirty ? '提交或推送' : '推送'}</span>
+          <span className={ROW_CLASS}>提交</span>
+          <span className="shrink-0 font-mono text-[11px] opacity-40">Ctrl+↵</span>
         </DropdownMenuItem>
-        {/* 仓库里没有任何代码托管集成，所以这一项只能是禁用的，并把理由写清楚。 */}
-        <DropdownMenuItem disabled title="需要一个已配置的代码托管服务">
-          <span className={ROW_CLASS}>创建拉取请求</span>
+        <DropdownMenuItem
+          disabled={!canCommit}
+          onClick={() => {
+            store.commit('commit-and-push', message, stageAll)
+          }}
+        >
+          <span className={ROW_CLASS}>提交并推送</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={!canPush}
+          onClick={() => {
+            store.commit('push', '', false)
+          }}
+        >
+          <span className={ROW_CLASS}>推送</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -325,11 +428,10 @@ function Card({
 }) {
   const status = reading.statuses.get(file.path)
   const folded = state.folded.has(file.path)
-  const seen = file.digest !== '' && state.viewed.get(file.path) === file.digest
   return (
-    <section className="border-b border-current/10">
+    <section className="border-b border-current/10" id={cardId(file.path)}>
       {/* 行头贴顶：长补丁滚起来也知道自己在哪个文件里。 */}
-      <header className="sticky top-0 z-10 flex h-7 items-center gap-2 bg-[var(--window-backing-surface)] px-2.5">
+      <header className="group sticky top-0 z-10 flex h-7 items-center gap-2 bg-[var(--window-backing-surface)] px-2.5">
         <button
           aria-expanded={!folded}
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
@@ -351,17 +453,30 @@ function Card({
         {reading.staged.has(file.path) ? (
           <span className="shrink-0 text-[11px] opacity-40">已暂存</span>
         ) : null}
-        <label className="flex shrink-0 items-center gap-1.5 text-[11px] opacity-60 hover:opacity-100">
-          <input
-            checked={seen}
-            className="size-3 accent-current"
-            onChange={(event) => {
-              store.setViewed(file.path, event.target.checked)
+        {/* 悬浮或键盘聚焦时才出现：行头默认只有事实。 */}
+        <div className="flex shrink-0 items-center gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+          <IconButton
+            label="复制相对路径"
+            onClick={() => {
+              /* git 给的就是仓库根的相对路径；复制失败交给全局未处理拒绝那条策略。 */
+              void navigator.clipboard.writeText(file.path)
             }}
-            type="checkbox"
-          />
-          已标记为已查看
-        </label>
+          >
+            <Copy aria-hidden className="size-3.5" />
+          </IconButton>
+          <IconButton
+            label={folded ? '展开这个文件' : '折叠这个文件'}
+            onClick={() => {
+              store.toggleFold(file.path)
+            }}
+          >
+            {folded ? (
+              <ChevronRight aria-hidden className="size-3.5" />
+            ) : (
+              <ChevronDown aria-hidden className="size-3.5" />
+            )}
+          </IconButton>
+        </div>
       </header>
       {folded ? null : <Body file={file} state={state} store={store} />}
     </section>
@@ -499,7 +614,8 @@ function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) 
     </div>
   )
 }
-function Files({
+/* 右侧：变更文件树。筛选在顶，行按目录归并，左边缘拖着调宽。 */
+function Tree({
   reading,
   shown,
   state,
@@ -510,8 +626,27 @@ function Files({
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
+  const byPath = new Map(shown.map((file) => [file.path, file] as const))
+  const rows = changeTreeRows([...byPath.keys()], state.collapsedFolders)
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-l border-current/10">
+    <aside
+      className={cn(
+        'relative flex shrink-0 flex-col border-l',
+        state.splitter === 'idle' ? 'border-current/10' : 'border-current/30',
+      )}
+      style={{ width: `${String(state.treeWidth)}px` }}
+    >
+      {/* 指针捕获与键盘微调都在这条条上，本格不重写一套拖拽。 */}
+      <RegionSplitter
+        edge="inline-end"
+        label="调整变更文件树宽度"
+        max={TREE_MAX}
+        min={TREE_MIN}
+        onActivity={store.setSplitter}
+        onCollapse={store.toggleTree}
+        onResize={store.setTreeWidth}
+        width={state.treeWidth}
+      />
       <div className="flex shrink-0 items-center gap-2 border-b border-current/10 px-2 py-1.5">
         <Search aria-hidden className="size-3.5 shrink-0 opacity-50" />
         <input
@@ -523,24 +658,137 @@ function Files({
           placeholder="筛选文件…"
           value={state.query}
         />
+        {state.query === '' ? null : (
+          <IconButton
+            label="清除筛选"
+            onClick={() => {
+              store.setQuery('')
+            }}
+          >
+            <X aria-hidden className="size-3.5" />
+          </IconButton>
+        )}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto py-1">
-        {shown.length === 0 ? (
+        {rows.length === 0 ? (
           <Note>没有匹配的文件。</Note>
         ) : (
-          shown.map((file) => (
-            <div className="flex items-center gap-2 px-2.5 py-1" key={file.path}>
-              <Dot status={reading.statuses.get(file.path)} />
-              <span className="min-w-0 flex-1 truncate text-xs" title={file.path}>
-                {file.path}
-              </span>
-              <Tally additions={file.additions} deletions={file.deletions} />
-            </div>
-          ))
+          rows.map((row) =>
+            row.kind === 'folder' ? (
+              <FolderRow
+                collapsed={state.collapsedFolders.has(row.key)}
+                key={row.key}
+                row={row}
+                store={store}
+              />
+            ) : (
+              <FileRow
+                file={byPath.get(row.path)}
+                folded={state.folded.has(row.path)}
+                key={row.key}
+                row={row}
+                status={reading.statuses.get(row.path)}
+                store={store}
+              />
+            ),
+          )
         )}
       </div>
     </aside>
   )
+}
+function FolderRow({
+  collapsed,
+  row,
+  store,
+}: {
+  readonly collapsed: boolean
+  readonly row: ChangeTreeFolder
+  readonly store: ReviewStore
+}) {
+  return (
+    <button
+      aria-expanded={!collapsed}
+      className="flex w-full items-center gap-1.5 py-1 pr-2 text-left hover:bg-current/5"
+      onClick={() => {
+        store.toggleFolder(row.key)
+      }}
+      style={{ paddingInlineStart: `${String(8 + row.depth * 12)}px` }}
+      type="button"
+    >
+      {collapsed ? (
+        <ChevronRight aria-hidden className="size-3 shrink-0 opacity-40" />
+      ) : (
+        <ChevronDown aria-hidden className="size-3 shrink-0 opacity-40" />
+      )}
+      <Folder aria-hidden className="size-3.5 shrink-0 opacity-40" />
+      <span className="min-w-0 flex-1 truncate text-xs opacity-70">{row.label}</span>
+      <span className="shrink-0 font-mono text-[11px] tabular-nums opacity-30">
+        {row.paths.length}
+      </span>
+    </button>
+  )
+}
+function FileRow({
+  file,
+  folded,
+  row,
+  status,
+  store,
+}: {
+  readonly file: ReviewFile | undefined
+  readonly folded: boolean
+  readonly row: ChangeTreeFile
+  readonly status: ChangeStatus | undefined
+  readonly store: ReviewStore
+}) {
+  return (
+    <div
+      className="group flex items-center gap-1 py-1 pr-1 hover:bg-current/5"
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData('text/plain', row.path)
+        event.dataTransfer.effectAllowed = 'copy'
+      }}
+      role="listitem"
+      style={{ paddingInlineStart: `${String(8 + row.depth * 12)}px` }}
+      tabIndex={0}
+    >
+      <button
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+        onClick={() => {
+          store.unfold(row.path)
+          document.getElementById(cardId(row.path))?.scrollIntoView({ block: 'start' })
+        }}
+        title={row.path}
+        type="button"
+      >
+        <Dot status={status} />
+        <span className="min-w-0 flex-1 truncate text-xs">{row.label}</span>
+        {file === undefined ? null : (
+          <Tally additions={file.additions} deletions={file.deletions} />
+        )}
+      </button>
+      <span className="shrink-0 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+        <IconButton
+          label={folded ? '展开这个文件' : '折叠这个文件'}
+          onClick={() => {
+            store.toggleFold(row.path)
+          }}
+        >
+          {folded ? (
+            <ChevronRight aria-hidden className="size-3.5" />
+          ) : (
+            <ChevronDown aria-hidden className="size-3.5" />
+          )}
+        </IconButton>
+      </span>
+    </div>
+  )
+}
+/* 树里点一行要能滚到对应的卡：id 由路径直接给，getElementById 不需要转义。 */
+function cardId(path: string): string {
+  return `review:${path}`
 }
 function Mark({ status }: { readonly status: ChangeStatus }) {
   const [mark, tone] = STATUS_MARKS[status]
@@ -578,6 +826,7 @@ function IconButton({
     </Tooltip>
   )
 }
+/* 两侧都写出来：删除专场也要看得见 +0，这是「数过了」与「没数」的区别。 */
 function Tally({
   additions,
   deletions,
@@ -585,10 +834,13 @@ function Tally({
   readonly additions: number
   readonly deletions: number
 }) {
+  if (additions === 0 && deletions === 0) {
+    return null
+  }
   return (
     <span className="flex shrink-0 items-center gap-1.5 font-mono text-[11px] tabular-nums">
-      {additions > 0 ? <span className="text-emerald-500">+{additions}</span> : null}
-      {deletions > 0 ? <span className="text-rose-500">−{deletions}</span> : null}
+      <span className="text-emerald-500">+{additions}</span>
+      <span className="text-rose-500">−{deletions}</span>
     </span>
   )
 }
