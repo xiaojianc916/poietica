@@ -217,7 +217,7 @@ function normalizeTimestamp(timestamp: string): string {
   return new Date(parsed).toISOString()
 }
 
-function normalizeOptionalText(
+export function normalizeOptionalText(
   value: string | undefined,
   maximumLength: number,
 ): string | undefined {

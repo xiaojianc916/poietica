@@ -2,6 +2,7 @@ import {
   type DiagnosticLogEntry,
   formatDiagnosticLogs,
   getRecentLogEntries,
+  normalizeOptionalText,
   normalizeText,
   optionalProperty,
   redactText,
@@ -176,15 +177,6 @@ export function formatFailureDiagnostic(incident: {
     .join('\n')
 }
 
-function normalizeOptionalText(
-  value: string | undefined,
-  maximumLength: number,
-): string | undefined {
-  if (!value) {
-    return undefined
-  }
-  return normalizeText(value, maximumLength)
-}
 /*
  * 跨 IPC 回来的失败是一个信封，不是 Error：整封 stringify 会把 code 与
  * recoverable 一起当成消息推上屏幕。正本是 src-tauri/src/error.rs 的 Problem。

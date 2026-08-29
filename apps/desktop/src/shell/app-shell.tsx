@@ -1,23 +1,12 @@
 import type { SessionControlsFailureReport } from '@poietica/agent'
 import { AgentCapabilityStore } from '@poietica/agent'
-import type { AttachmentIntake } from '@poietica/agent-ui'
 import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/agent-ui'
-import type {
-  AppUpdateController,
-  AppUpdateOperation,
-  MainWindowController,
-} from '@poietica/desktop-adapters'
+import type { AppUpdateOperation, MainWindowController } from '@poietica/desktop-adapters'
 import { AppUpdateStore } from '@poietica/desktop-adapters'
 import type { PluginsViewModel } from '@poietica/plugins'
-import type {
-  AgentConfigStore,
-  CustomAgentStore,
-  KeybindingCatalog,
-  KeybindingEntry,
-  SettingsStore,
-} from '@poietica/settings'
+import type { KeybindingCatalog, KeybindingEntry } from '@poietica/settings'
 import { applyThemePreference } from '@poietica/ui'
-import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
+import type { CommandRegistry } from '@poietica/workspace'
 import {
   CommandPalette,
   formatKeybinding,
@@ -26,9 +15,9 @@ import {
 } from '@poietica/workspace'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { type ApplicationCommandContext, registerApplicationCommands } from '../app-commands'
-import type { DesktopAgentRuntime } from '../assistant/agent-runtime'
 import { ThreadsProvider } from '../assistant/threads-provider'
 import { AutomationDispatcher } from '../automations/automation-runtime'
+import type { ApplicationRuntime } from '../bootstrap/application'
 import { useWindowChrome } from '../chrome/use-window-chrome'
 import { type ApplicationFailureCode, reportFailure } from '../failures/application-policy'
 import { failureCoordinator } from '../failures/coordinator'
@@ -52,19 +41,8 @@ const UPDATE_FAILURE_CODES = {
   'install-update': 'UPDATE_INSTALL_FAILED',
 } as const satisfies Record<AppUpdateOperation, ApplicationFailureCode>
 
-interface AppShellRuntime {
-  readonly workspace: WorkbenchSessionStore
-  readonly commands: CommandRegistry
-  readonly mainWindow: MainWindowController
-  readonly appUpdate: AppUpdateController
-  readonly settings: SettingsStore
-  readonly agentConfig: AgentConfigStore
-  readonly customAgents: CustomAgentStore
-  readonly agent: DesktopAgentRuntime
-  readonly attachments: AttachmentIntake
-  readonly appVersion: () => Promise<string>
-  readonly dataDirectory: () => Promise<string>
-}
+/* 拆掉 runtime 是启动期的事，不属于界面：这里只把那一柄拿掉。 */
+type AppShellRuntime = Omit<ApplicationRuntime, 'dispose'>
 
 interface AppShellProps {
   readonly runtime: AppShellRuntime

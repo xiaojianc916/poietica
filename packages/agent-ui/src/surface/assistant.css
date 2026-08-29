@@ -34,13 +34,6 @@
   gap: var(--cp-mast-gap);
 }
 
-.assistant-masthead__mark {
-  display: block;
-  block-size: var(--cp-mark);
-  inline-size: var(--cp-mark);
-  object-fit: contain;
-}
-
 .assistant-masthead__title {
   margin: 0;
   font-size: var(--cp-font-title);
@@ -698,25 +691,6 @@
   flex-direction: column;
 }
 
-/* --- round 71: the provider mark --- */
-
-/*
- * The mark sits on the text baseline of its control, so it is sized in the
- * font of the toolbar rather than in pixels of its own.
- */
-.assistant-provider-icon {
-  block-size: 1.15em;
-  inline-size: 1.15em;
-  flex: 0 0 auto;
-  object-fit: contain;
-  user-select: none;
-}
-
-/* An unknown provider is quieter than a known one, and never invisible. */
-.assistant-provider-icon[data-fallback="true"] {
-  opacity: 0.75;
-}
-
 /* --- the picker stands with the tools, at the leading edge --- */
 
 /*
@@ -1109,62 +1083,6 @@
 
 .assistant-thread__glyph[data-pinned="true"] {
   color: var(--cp-ink);
-} /* --- 开场那枚标记 --- */
-
-/*
- * 同一张图，两个尺度。
- *
- * .assistant-provider-icon 在本文件里排在 .assistant-masthead__mark 之后，
- * 两者特异性相同，后来者胜——所以开场那枚标记必须自己提一档，否则它会缩成
- * 工具条里那个 1em。几何仍然只有 --cp-mark 一个来源。
- */
-.assistant-masthead__mark.assistant-provider-icon {
-  block-size: var(--cp-mark);
-  inline-size: var(--cp-mark);
-}
-
-/*
- * 还没有答案的那几帧。
- *
- * 尺寸全部来自上面那两条既有规则 —— 占位和真图是同一个类，所以它们本来就
- * 一样大，这里不再写第二份几何。只补一个 display：img 是替换元素，天生吃
- * block-size / inline-size；span 不是，不给它 display 就会塌成零高。
- *
- * 一笔都不画。
- *
- * 此前这里画一枚 currentcolor 压到 8% 的圆，说法是「软件确实还不知道对面是
- * 谁，界面就应该照实说」。可开场那一格有 --cp-mark 那么大，浅色主题下它落在
- * #e7e7e6 一带 —— 人看见的不是一句诚实的话，是一块几秒后凭空消失的灰饼，
- * 而它出现的位置正是厂商标记将要出现的位置。一个只在等待期间存在、且与最终
- * 内容形状相同的色块，读起来只会是「加载失败」或「画错了」。
- *
- * 那一格仍然占位：几何撤掉，答案到达时标题会向下弹一次，把一个色块换成一次
- * 跳版，更糟。所以留形不留墨 —— 真图到达时由下面的 assistant-mark-in 淡入，
- * 观感就是标记直接出现在一片本来就空着的地方。
- */
-.assistant-provider-icon[data-pending="true"] {
-  display: inline-block;
-  visibility: hidden;
-}
-
-/*
- * 占位是 span、真图是 img，标签不同，所以答案到达时 React 换的是节点本身，
- * 入场动画因此每条对话只播一次，不会跟着任何一帧转录重放。
- */
-svg.assistant-provider-icon {
-  animation: assistant-mark-in var(--cp-motion-swift) var(--cp-motion-ease) both;
-}
-
-@keyframes assistant-mark-in {
-  from {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  svg.assistant-provider-icon {
-    animation: none;
-  }
 }
 
 /*

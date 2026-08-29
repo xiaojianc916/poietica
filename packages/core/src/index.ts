@@ -2,6 +2,7 @@ export type { DiagnosticLogEntry } from './diagnostics/buffer'
 export {
   formatDiagnosticLogs,
   getRecentLogEntries,
+  normalizeOptionalText,
   normalizeText,
   redactText,
   safeStringify,
