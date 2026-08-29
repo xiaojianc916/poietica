@@ -61,7 +61,7 @@ export function BrowserTabStrip({
           <div
             className={
               'group flex max-w-44 shrink-0 items-center rounded-md ' +
-              (pane.id === activePaneId ? 'bg-current/10' : 'hover:bg-current/5')
+              (pane.id === activePaneId ? 'bg-current/[7.8%]' : 'hover:bg-current/5')
             }
             key={pane.id}
           >
@@ -95,7 +95,7 @@ export function BrowserTabStrip({
             <div
               className={
                 'group flex max-w-44 shrink-0 items-center rounded-md ' +
-                (active ? 'bg-current/10' : 'hover:bg-current/5')
+                (active ? 'bg-current/[7.8%]' : 'hover:bg-current/5')
               }
               key={tab.id}
             >

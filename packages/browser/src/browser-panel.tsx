@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Crosshair, Globe, RotateCw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Globe, MousePointerClick, RotateCw } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 import { BrowserOverflowMenu, type DockPaneOffer } from './browser-menu'
@@ -191,7 +191,7 @@ function BrowserToolbar({
         }}
         pressed={pickerActive}
       >
-        <Crosshair aria-hidden className="size-4" />
+        <MousePointerClick aria-hidden className="size-4" />
       </ToolbarButton>
 
       <BrowserOverflowMenu onOpenChange={onMenuOpenChange} open={menuOpen} />
