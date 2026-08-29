@@ -46,9 +46,7 @@ export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
         <div>
           <h1>自定义 Agent</h1>
 
-          <p>
-            写入受控 Kimi agents 目录。主代理在新会话中自动发现它们，并按「触发场景」决定何时委派。
-          </p>
+          <p>主代理在新会话中自动发现它们，并按「触发场景」决定何时委派。</p>
         </div>
 
         <div className="personalization__head-actions">

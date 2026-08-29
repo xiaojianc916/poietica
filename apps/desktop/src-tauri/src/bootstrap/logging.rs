@@ -20,6 +20,7 @@ const FOREIGN: &[&str] = &[
     "hyper",
     "hyper_util",
     "keyring_core",
+    "rmcp",
     "reqwest",
     "rustls",
 ];
