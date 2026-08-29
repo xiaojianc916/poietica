@@ -32,6 +32,7 @@ import { TabIcon } from './tab-icon'
 export interface DockPaneOffer {
   readonly kind: string
   readonly label: string
+  readonly icon: ReactNode
 }
 
 const triggerClassName =
@@ -106,6 +107,7 @@ export function BrowserNewTabMenu({
       open={open}
     >
       <DropdownMenuItem onClick={onOpenTab}>
+        <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
         <span className={labelClassName}>网页</span>
       </DropdownMenuItem>
       {offers.map((offer) => (
@@ -115,6 +117,7 @@ export function BrowserNewTabMenu({
             onOpenPane(offer.kind)
           }}
         >
+          {offer.icon}
           <span className={labelClassName}>{offer.label}</span>
         </DropdownMenuItem>
       ))}

@@ -20,7 +20,13 @@ import { browserPanelStore } from './browser-runtime'
  */
 
 /* 加号菜单能开的通道。网页那一行不在这张表里：它是宿主自带的那一格。 */
-const PANE_OFFERS: readonly DockPaneOffer[] = [{ kind: 'review', label: '审查' }]
+const PANE_OFFERS: readonly DockPaneOffer[] = [
+  {
+    icon: <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />,
+    kind: 'review',
+    label: '审查',
+  },
+]
 
 export function BrowserPanelToggle({ conversationId }: { readonly conversationId: string }) {
   const { browserThread } = useWorkspaceLayoutState()

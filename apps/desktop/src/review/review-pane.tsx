@@ -20,11 +20,11 @@ import {
   ChevronRight,
   Copy,
   Folder,
+  Folders,
   FoldVertical,
   GitBranch,
   type LucideIcon,
   MoreHorizontal,
-  PanelRight,
   Pilcrow,
   RefreshCw,
   Search,
@@ -221,7 +221,7 @@ function Toolbar({
           )}
         </IconButton>
         <IconButton label="变更文件树" onClick={store.toggleTree} pressed={state.treeOpen}>
-          <PanelRight aria-hidden className="size-4" />
+          <Folders aria-hidden className="size-4" />
         </IconButton>
         <Commit reading={reading} state={state} store={store} />
       </div>
@@ -718,7 +718,13 @@ function Tree({
                     store={store}
                   />
                 ) : (
-                  <FileRow file={byPath.get(row.path)} key={row.key} row={row} store={store} />
+                  <FileRow
+                    file={byPath.get(row.path)}
+                    key={row.key}
+                    row={row}
+                    state={state}
+                    store={store}
+                  />
                 ),
               )
             )}
@@ -776,10 +782,12 @@ function FolderRow({
 function FileRow({
   file,
   row,
+  state,
   store,
 }: {
   readonly file: DiffFile | undefined
   readonly row: ChangeTreeFile
+  readonly state: ReviewState
   readonly store: ReviewStore
 }) {
   return (
@@ -795,8 +803,11 @@ function FileRow({
       <button
         className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
         onClick={() => {
-          store.openFile(row.path)
-          document.getElementById(cardId(row.path))?.scrollIntoView({ block: 'start' })
+          const opening = !state.openFiles.has(row.path)
+          store.toggleFile(row.path)
+          if (opening) {
+            document.getElementById(cardId(row.path))?.scrollIntoView({ block: 'start' })
+          }
         }}
         title={row.path}
         type="button"
