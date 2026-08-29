@@ -770,6 +770,7 @@ export function PromptInputEditor({ placeholder }: { readonly placeholder: strin
             aria-label="消息"
             className="assistant-prompt-editor__input"
             data-slot="prompt-input-editor"
+            id="prompt-message"
             role={palette === null ? undefined : 'combobox'}
           />
         }

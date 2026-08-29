@@ -394,6 +394,7 @@ function Commit({
           <textarea
             aria-label="提交信息"
             className="w-full resize-none bg-transparent text-xs outline-none placeholder:opacity-50"
+            name="commit-message"
             onChange={(event) => {
               store.setDraft(event.target.value)
             }}
