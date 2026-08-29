@@ -1,4 +1,4 @@
-import { lastAtOrBefore } from '../threads/ordered-lookup'
+import { lastAtOrBefore } from '@poietica/agent'
 
 /**
  * 一行在滚动内容坐标里的起点。
@@ -30,7 +30,8 @@ export interface RowSpan {
  * 后者要用起点。答案本来就是查表查出来的那一项，掐掉起点再让调用方查第二次，
  * 是把一次读取拆成两次。
  *
- * 二分本身不在这里 —— 它与轮次导航用的是同一条判据，实现在 ordered-lookup。
+ * 二分本身不在这里 —— 它与轮次导航用的是同一条判据，实现在 @poietica/agent 的
+ * timeline/ordered-lookup。
  */
 export function rowAtAnchor<Span extends RowSpan>(
   spans: readonly Span[],

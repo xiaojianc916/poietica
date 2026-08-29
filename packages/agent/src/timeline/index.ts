@@ -6,6 +6,7 @@ export {
   isDelegation,
   partitionByAgent,
 } from './delegate-channel'
+export { lastAtOrBefore } from './ordered-lookup'
 export {
   type FeedRow,
   liveMemberOf,

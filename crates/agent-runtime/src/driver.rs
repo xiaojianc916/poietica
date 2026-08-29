@@ -25,6 +25,7 @@
 //! { code, msg, data, request_id }：业务成败看 code，不看 HTTP 状态。
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::future::Future;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -465,8 +466,16 @@ fn envelope_data(body: &Value) -> Result<Value> {
 }
 
 async fn get(http: &reqwest::Client, url: &str) -> Result<Value> {
-    let body: Value = http
-        .get(url)
+    send(http.get(url)).await
+}
+
+async fn post(http: &reqwest::Client, url: &str, body: &Value) -> Result<Value> {
+    send(http.post(url).json(body)).await
+}
+
+/// 发请求、解信封。get 与 post 只差请求的构造，收发与解包走同一条路。
+async fn send(builder: reqwest::RequestBuilder) -> Result<Value> {
+    let body: Value = builder
         .send()
         .await
         .map_err(|e| KapError::Transport {
@@ -481,22 +490,9 @@ async fn get(http: &reqwest::Client, url: &str) -> Result<Value> {
     envelope_data(&body)
 }
 
-async fn post(http: &reqwest::Client, url: &str, body: &Value) -> Result<Value> {
-    let body: Value = http
-        .post(url)
-        .json(body)
-        .send()
-        .await
-        .map_err(|e| KapError::Transport {
-            message: e.to_string(),
-        })?
-        .json()
-        .await
-        .map_err(|e| KapError::Transport {
-            message: e.to_string(),
-        })?;
-
-    envelope_data(&body)
+/// 命令处理的统一收尾：spawn 出去的工作无论成败，收据必回命令端。
+async fn settle<T>(reply: oneshot::Sender<Result<T>>, fut: impl Future<Output = Result<T>>) {
+    let _ = reply.send(fut.await);
 }
 
 // ── WS 控制帧 ──────────────────────────────────────────────────────────────
@@ -1153,16 +1149,14 @@ pub fn connect(
                             let http = http.clone();
                             let base = base_url.clone();
 
-                            tokio::spawn(async move {
-                                let _ = reply.send(
-                                    queue_action(
-                                        &http,
-                                        &format!("{base}/sessions/{sid}/prompts:steer"),
-                                        &json!({ "prompt_ids": prompt_ids }),
-                                    )
-                                    .await,
-                                );
-                            });
+                            tokio::spawn(settle(reply, async move {
+                                queue_action(
+                                    &http,
+                                    &format!("{base}/sessions/{sid}/prompts:steer"),
+                                    &json!({ "prompt_ids": prompt_ids }),
+                                )
+                                .await
+                            }));
                         }
 
                         Some(Command::AbortPrompt {
@@ -1173,16 +1167,14 @@ pub fn connect(
                             let http = http.clone();
                             let base = base_url.clone();
 
-                            tokio::spawn(async move {
-                                let _ = reply.send(
-                                    queue_action(
-                                        &http,
-                                        &format!("{base}/sessions/{sid}/prompts/{prompt_id}:abort"),
-                                        &json!({}),
-                                    )
-                                    .await,
-                                );
-                            });
+                            tokio::spawn(settle(reply, async move {
+                                queue_action(
+                                    &http,
+                                    &format!("{base}/sessions/{sid}/prompts/{prompt_id}:abort"),
+                                    &json!({}),
+                                )
+                                .await
+                            }));
                         }
                         Some(Command::Cancel { session_id: sid, reply }) => {
                             let http2 = http.clone();
@@ -1220,61 +1212,51 @@ pub fn connect(
                         }
 
                         Some(Command::NewSession { cwd: new_cwd, reply }) => {
-                            let http2 = http.clone();
-                            let base2 = base_url.clone();
-                            let book2 = book_clone.clone();
-                            let ws2 = Arc::clone(&ws);
-                            tokio::spawn(async move {
-                                let result =
-                                    open_session(&http2, &base2, &new_cwd, &book2, &ws2).await;
-                                let _ = reply.send(result);
-                            });
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            let book = book_clone.clone();
+                            let ws = Arc::clone(&ws);
+                            tokio::spawn(settle(reply, async move {
+                                open_session(&http, &base, &new_cwd, &book, &ws).await
+                            }));
                         }
 
                         Some(Command::LoadSession { session_id: sid, from, reply }) => {
-                            let http2 = http.clone();
-                            let base2 = base_url.clone();
-                            let book2 = book_clone.clone();
-                            let ws2 = Arc::clone(&ws);
-                            tokio::spawn(async move {
-                                let result =
-                                    load_session(&http2, &base2, &sid, from.as_ref(), &book2, &ws2)
-                                        .await;
-                                let _ = reply.send(result);
-                            });
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            let book = book_clone.clone();
+                            let ws = Arc::clone(&ws);
+                            tokio::spawn(settle(reply, async move {
+                                load_session(&http, &base, &sid, from.as_ref(), &book, &ws).await
+                            }));
                         }
 
                         Some(Command::ForkSession { session_id: src, drop_turns, reply }) => {
-                            let http2 = http.clone();
-                            let base2 = base_url.clone();
-                            let book2 = book_clone.clone();
-                            let ws2 = Arc::clone(&ws);
-                            tokio::spawn(async move {
-                                let result =
-                                    fork_session(&http2, &base2, &src, drop_turns, &book2, &ws2)
-                                        .await;
-                                let _ = reply.send(result);
-                            });
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            let book = book_clone.clone();
+                            let ws = Arc::clone(&ws);
+                            tokio::spawn(settle(reply, async move {
+                                fork_session(&http, &base, &src, drop_turns, &book, &ws).await
+                            }));
                         }
 
                         Some(Command::DeleteSession { session_id: sid, reply }) => {
                             // kap 没有硬删除，删除由 :archive 承接；本地索引同步移除。
-                            let http2 = http.clone();
-                            let base2 = base_url.clone();
-                            let book2 = book_clone.clone();
-                            tokio::spawn(async move {
-                                let result = archive_session(&http2, &base2, &sid, &book2).await;
-                                let _ = reply.send(result);
-                            });
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            let book = book_clone.clone();
+                            tokio::spawn(settle(reply, async move {
+                                archive_session(&http, &base, &sid, &book).await
+                            }));
                         }
 
                         Some(Command::Sessions { reply }) => {
-                            let http2 = http.clone();
-                            let base2 = base_url.clone();
-                            tokio::spawn(async move {
-                                let result = list_sessions(&http2, &base2).await;
-                                let _ = reply.send(result);
-                            });
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                list_sessions(&http, &base).await
+                            }));
                         }
 
                         Some(Command::Prompt { session_id: sid, text, attachments, skills, frames, reply }) => {
@@ -1309,51 +1291,46 @@ pub fn connect(
                         }
 
                         Some(Command::Skills { session_id: sid, reply }) => {
-                            let http2 = http.clone();
-                            let base2 = base_url.clone();
-                            tokio::spawn(async move {
-                                let result = list_skills(&http2, &base2, &sid).await;
-                                let _ = reply.send(result);
-                            });
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                list_skills(&http, &base, &sid).await
+                            }));
                         }
 
                         Some(Command::McpServers { reply }) => {
-                            let http2 = http.clone();
-                            let base2 = base_url.clone();
-                            tokio::spawn(async move {
-                                let result = list_mcp_servers(&http2, &base2).await;
-                                let _ = reply.send(result);
-                            });
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                list_mcp_servers(&http, &base).await
+                            }));
                         }
 
                         Some(Command::Selectors { session_id: sid, reply }) => {
-                            let http2 = http.clone();
-                            let base2 = base_url.clone();
-                            tokio::spawn(async move {
-                                let result = get_selectors(&http2, &base2, &sid)
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                get_selectors(&http, &base, &sid)
                                     .await
-                                    .map(|(offered, _goal)| offered);
-                                let _ = reply.send(result);
-                            });
+                                    .map(|(offered, _goal)| offered)
+                            }));
                         }
 
                         Some(Command::Goal { session_id: sid, reply }) => {
-                            let http2 = http.clone();
-                            let base2 = base_url.clone();
-                            tokio::spawn(async move {
-                                let _ = reply.send(fetch_goal(&http2, &base2, &sid).await);
-                            });
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                fetch_goal(&http, &base, &sid).await
+                            }));
                         }
 
                         Some(Command::Select { session_id: sid, config_id, value, input, reply }) => {
-                            let http2 = http.clone();
-                            let base2 = base_url.clone();
-                            tokio::spawn(async move {
-                                let result =
-                                    set_selector(&http2, &base2, &sid, &config_id, &value, input.as_deref())
-                                        .await;
-                                let _ = reply.send(result);
-                            });
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                set_selector(&http, &base, &sid, &config_id, &value, input.as_deref())
+                                    .await
+                            }));
                         }
                     }
                 }

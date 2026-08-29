@@ -1,3 +1,4 @@
+import { isRecord } from '@poietica/core'
 import { parse, stringify } from 'yaml'
 
 export type ToolMode = 'all' | 'allowlist' | 'none'
@@ -228,8 +229,4 @@ function requiredString(value: unknown, field: string): string {
     throw new Error(`${field} 不能为空`)
   }
   return parsed
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

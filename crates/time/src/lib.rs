@@ -1,11 +1,9 @@
 //! 可注入的时钟。没有任何地方直接读系统时间，时间相关的判断才可复现。
 
-pub mod monotonic;
 pub mod test_clock;
 pub mod wall_clock;
 
 use core::fmt;
-use core::time::Duration;
 
 use time::OffsetDateTime;
 
@@ -18,9 +16,4 @@ pub trait WallClock: fmt::Debug + Send + Sync {
 
         i64::try_from(millis).unwrap_or(i64::MAX)
     }
-}
-
-/// 流逝时间。只用于超时与预算，绝不用于打时间戳。
-pub trait MonotonicClock: fmt::Debug + Send + Sync {
-    fn elapsed(&self) -> Duration;
 }

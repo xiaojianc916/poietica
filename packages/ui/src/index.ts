@@ -29,7 +29,7 @@ export {
 export { Select, type SelectOption } from './select'
 export { Switch } from './switch'
 export { applyThemePreference } from './theme-controller'
-export { type ToastNotice, ToastRegion } from './toast'
+export { ToastRegion } from './toast'
 export {
   Tooltip,
   TooltipContent,

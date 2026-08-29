@@ -23,6 +23,7 @@ export {
   type NonTerminalFailureImpact,
   type TerminalFailureImpact,
 } from './failure-kernel'
+export { isRecord } from './is-record'
 export { optionalProperty } from './optional-property'
 export {
   createPreference,

@@ -48,6 +48,7 @@ export {
   delegationOf,
   inflightPromptId,
   isDelegation,
+  lastAtOrBefore,
   liveMemberOf,
   pendingPermission,
   pendingPermissionCall,

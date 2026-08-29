@@ -1,3 +1,4 @@
+import { lastAtOrBefore } from './ordered-lookup'
 import { isRenderable } from './renderable'
 import {
   isTerminal,
@@ -372,25 +373,11 @@ function saidAt(rows: readonly FeedRow[]): readonly TurnAt[] {
   return marks
 }
 
-/** 不晚于这一行的最后一问。段内升序，所以是一次二分。 */
+/** 不晚于这一行的最后一问。段内升序，二分见 ordered-lookup。 */
 function lastSaid(said: readonly TurnAt[], row: number): TurnAt | undefined {
-  let low = 0
-  let high = said.length - 1
-  let found: TurnAt | undefined
+  const at = lastAtOrBefore(said, (mark) => mark.row, row)
 
-  while (low <= high) {
-    const mid = (low + high) >>> 1
-    const mark = said[mid]
-
-    if (mark !== undefined && mark.row <= row) {
-      found = mark
-      low = mid + 1
-    } else {
-      high = mid - 1
-    }
-  }
-
-  return found
+  return at === -1 ? undefined : said[at]
 }
 
 /** 每一问的回复操作。起点仍问 answerStart：一个判据，两个读者。 */

@@ -1,4 +1,4 @@
-import { optionalProperty, safeStringify } from '@poietica/core'
+import { isRecord, optionalProperty, safeStringify } from '@poietica/core'
 import { reportFailure } from './application-policy'
 import { isBenignWindowError } from './benign-window-errors'
 import type { FailurePhase, TerminalFailureInput } from './terminal-policy'
@@ -217,10 +217,6 @@ function createError(name: string, message: string, stack?: string): Error {
   }
 
   return error
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
 }
 
 function readString(

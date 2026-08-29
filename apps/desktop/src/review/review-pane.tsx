@@ -1,3 +1,4 @@
+import { useCopy } from '@poietica/agent-ui'
 import type { DiffFile, DiffPiece, DiffRow, DiffStat } from '@poietica/file-diff'
 import {
   cn,
@@ -471,18 +472,9 @@ function Card({
   readonly store: ReviewStore
 }) {
   const open = state.openFiles.has(file.path)
-  const [copied, setCopied] = useState(false)
   /* 报一份估高：视口外的卡跳过绘制，没有估高滚动条会随视口推进跳动。 */
   const style: ReviewStyle = { '--review-card-rows': String(open ? file.rows.length : 0) }
-
-  useEffect(() => {
-    if (!copied) {
-      return
-    }
-
-    const timer = setTimeout(() => setCopied(false), 2200)
-    return () => clearTimeout(timer)
-  }, [copied])
+  const { copied, copy } = useCopy(file.path)
   return (
     <section className="review-card" id={cardId(file.path)} style={style}>
       {/* 整行给悬浮底色：这一行是一个可点的对象，指到哪里都该有回应。 */}
@@ -502,16 +494,7 @@ function Card({
         </button>
         {/* 悬浮或键盘聚焦时才出现：行头默认只有事实。 */}
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
-          <IconButton
-            dense
-            label={copied ? '已复制' : '复制相对路径'}
-            onClick={() => {
-              /* git 给的就是仓库根的相对路径；复制失败交给全局未处理拒绝那条策略。 */
-              void navigator.clipboard.writeText(file.path).then(() => {
-                setCopied(true)
-              })
-            }}
-          >
+          <IconButton dense label={copied ? '已复制' : '复制相对路径'} onClick={copy}>
             {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
           </IconButton>
           <IconButton

@@ -18,12 +18,12 @@ export const DAY = 86_400_000
 /**
  * 一个 narrow 的单位格式器。
  *
- * 小数位默认关掉：交进来的都是 Math.floor 过的整数，而 NumberFormat 默认允许三位
+ * 小数位关死：交进来的都是 Math.floor 过的整数，而 NumberFormat 默认允许三位
  * 小数 —— 那是一个只可能在将来某次改动里悄悄生效的口子。
  */
-export function narrowUnit(unit: string, maximumFractionDigits = 0): Intl.NumberFormat {
+export function narrowUnit(unit: string): Intl.NumberFormat {
   return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits,
+    maximumFractionDigits: 0,
     style: 'unit',
     unit,
     unitDisplay: 'narrow',

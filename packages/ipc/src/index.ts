@@ -35,7 +35,6 @@ export {
   watchAutomations,
 } from './automations'
 export {
-  type BrowserClosedTab,
   type BrowserElementPicked,
   type BrowserState,
   type BrowserTab,
