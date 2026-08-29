@@ -5,6 +5,7 @@
 pub mod connection;
 pub mod conversation;
 pub mod error;
+pub mod index;
 pub mod migrations;
 pub mod projection;
 

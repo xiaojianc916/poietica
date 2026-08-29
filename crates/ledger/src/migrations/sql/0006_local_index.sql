@@ -1,3 +1,8 @@
+-- 本机索引：这台机器上有过什么 —— 对话、附件、帧、工作台、用量、处置账。
+--
+-- 与 thread_projection（0005）的分界是可否重建：投影能从事件重算，
+-- 这里的标题、位置、归属是用户与本机的决定，没有事件能重建它们。
+
 -- 对话索引与本机事实的账本。
 --
 -- 对话内容不进库：历史由 agent 经 session/load 交还。附件字节归文件系统，
@@ -100,3 +105,30 @@ CREATE TABLE token_days (
     day    TEXT    PRIMARY KEY,
     tokens INTEGER NOT NULL
 ) STRICT;
+
+-- 会话累计的输入构成（kap usage.total 的三格），追加迁移：0001 已落盘的库
+-- 靠它补上这三列，老账上的存量从 0 记起，随下一份报告到达刷新。
+ALTER TABLE session_usage ADD COLUMN input_other          INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE session_usage ADD COLUMN input_cache_read     INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE session_usage ADD COLUMN input_cache_creation INTEGER NOT NULL DEFAULT 0;
+
+-- kap 的事件流，这台机器读到哪儿了。
+--
+-- 位置由 kap 签发（信封上的 seq，跨守护进程重启有效），纪元说明它属于哪一段流。
+-- 这不是日志：run_events 记的是这台机器留下的帧，一条对话一份、分叉时抄得走；
+-- 这里记的是那条流上的读点，一条会话一份，与对话无关。
+CREATE TABLE session_cursors (
+    session_id TEXT    PRIMARY KEY,
+    seq        INTEGER NOT NULL,
+    -- 空 = server 没报纪元。
+    epoch      TEXT,
+    at         TEXT    NOT NULL
+) STRICT;
+
+UPDATE run_events
+SET frame = json_set(
+    frame,
+    '$.kind', 'prompt_admitted',
+    '$.admissionId', 'imported:' || thread_id || ':' || session_id || ':' || seq
+)
+WHERE json_extract(frame, '$.kind') = 'run_started';

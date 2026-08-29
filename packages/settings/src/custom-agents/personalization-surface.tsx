@@ -286,8 +286,8 @@ interface FieldProps {
 }
 
 function Field({ label, hint, wide = false, children }: FieldProps) {
+  /* children 恒为原生表单控件，label 包裹是刻意的；规则看不见 prop 里的控件（豁免登记在 biome.json）。 */
   return (
-    // biome-ignore lint/a11y/noLabelWithoutControl: children are always native form controls
     <label
       className={
         wide ? 'personalization__field personalization__field--wide' : 'personalization__field'

@@ -1,4 +1,4 @@
-/* biome-ignore-all lint/complexity/noImportantStyles: Reduced-motion overrides must take precedence over component animation declarations. */
+/* 减弱动效必须压过组件动画声明，!important 是这条规则的语义本身（豁免登记在 biome.json）。 */
 
 @media (prefers-reduced-motion: reduce) {
   *,

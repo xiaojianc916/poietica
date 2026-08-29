@@ -36,9 +36,8 @@ export function useWorkbenchTabsBaselineGap({
 }: UseWorkbenchTabsBaselineGapOptions): void {
   /*
    * tabsGeometryKey 是变更信号，不是本 effect 读取的值：标签集合或任一标题变化都会改变标签
-   * 宽度，激活标签的区间随之改变，而纯位移不触发任何观察器。
+   * 宽度，激活标签的区间随之改变，而纯位移不触发任何观察器。（规则豁免登记在 biome.json。）
    */
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 删除会让激活标签改名后缺口停在旧区间
   useLayoutEffect(() => {
     const strip = stripRef.current
 

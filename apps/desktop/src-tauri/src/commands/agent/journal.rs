@@ -9,8 +9,8 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::time::{Duration, Instant};
 
-use poietica_agent_persistence_native::RecordedFrame;
 use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
+use poietica_ledger::index::RecordedFrame;
 use serde_json::value::{RawValue, to_raw_value};
 use tauri::{AppHandle, Emitter, Manager, Runtime, async_runtime};
 use uuid::Uuid;

@@ -50,10 +50,11 @@ built.
 ## Checking the host
 
 ```bash
-bun tools/architecture/run.mjs
+bun run check
 ```
 
-The script exits non-zero and prints the install command for anything missing.
+The checks exit non-zero on the first missing toolchain piece; each failure names
+the tool it wanted.
 
 ## First build is slow
 

@@ -11,7 +11,7 @@
 use rusqlite::OptionalExtension as _;
 
 use crate::error::Result;
-use crate::store::{AgentStore, now};
+use crate::index::store::{AgentStore, now};
 
 impl AgentStore {
     /// 上一次留下的那一份。从来没有存过就是 None。

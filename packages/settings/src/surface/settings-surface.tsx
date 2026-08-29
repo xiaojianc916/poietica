@@ -641,7 +641,7 @@ const AboutSettings = memo(function AboutSettings({
    * 版本号问的是这个可执行文件自己。
    *
    * 此前这里是写死的 "Version 0.1.0" —— 版本号的第四个真相来源，而
-   * scripts/release/check-versions.mjs 只对齐 package.json、Cargo.toml 与
+   * tools/release/check-versions.ts 只对齐 package.json、Cargo.toml 与
    * tauri.conf.json 那三个，扫不到一段 JSX 里的字符串。
    *
    * 读不出来就不写出一个数。一个说错了的版本号比一个没说出来的有害得多。

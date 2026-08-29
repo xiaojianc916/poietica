@@ -4,7 +4,7 @@ use rusqlite::OptionalExtension;
 use time::{Date, Duration as TimeDuration, OffsetDateTime};
 
 use crate::error::Result;
-use crate::store::AgentStore;
+use crate::index::store::AgentStore;
 
 /// 一条会话此刻的上下文占用，与它累计的输入构成。
 #[derive(Clone, Copy, Debug)]
@@ -151,11 +151,11 @@ impl AgentStore {
 mod tests {
     #![allow(clippy::expect_used, reason = "a broken test fixture must fail loudly")]
 
+    use poietica_time::test_clock::TestClock;
     use tempfile::TempDir;
     use time::{Date, Month};
 
-    use super::SessionUsage;
-    use crate::AgentStore;
+    use super::{AgentStore, SessionUsage};
 
     fn usage(used: i64) -> SessionUsage {
         SessionUsage {
@@ -170,7 +170,9 @@ mod tests {
     #[test]
     fn usage_day_is_injected_once_and_counter_resets_are_counted() {
         let root = TempDir::new().expect("temporary directory");
-        let mut store = AgentStore::open(&root.path().join("usage.sqlite3")).expect("store");
+        let clock = TestClock::at_unix_millis(1_700_000_000_000);
+        let mut store =
+            AgentStore::open(&root.path().join("usage.sqlite3"), &clock).expect("store");
         let day = Date::from_calendar_date(2026, Month::August, 27).expect("date");
         store
             .record_usage_on("session", usage(100), day)

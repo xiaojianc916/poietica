@@ -184,9 +184,8 @@ function HelpMenuItem({ label, icon: Icon, href, onClick }: HelpMenuItemProps) {
    *
    * 二、补一个 aria-label={label} 能不能过，文档没有直说；而它会用一个重复的
    *     串盖掉真正由 children 算出来的可访问名。为了过 lint 去改可访问性语义，
-   *     方向是反的。
+   *     方向是反的。（规则豁免登记在 biome.json overrides。）
    */
-  // biome-ignore lint/a11y/useAnchorContent: 链接文字由 DropdownMenuItem 注入，规则看不到组件边界另一侧
   const asLink = href === undefined ? {} : { render: <a href={href} rel="noreferrer" /> }
 
   return (

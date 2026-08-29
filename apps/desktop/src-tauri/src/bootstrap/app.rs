@@ -126,8 +126,11 @@ pub fn build() -> tauri::Builder<Wry> {
              * 而放在这里的收益是确定的：前端那一次等待只是一条 SELECT，不是
              * 一次时长不可预测的迁移。
              */
-            let database = paths::thread_database(handle)?;
-            let _index = app.manage(crate::local_index::LocalIndex::open(&database)?);
+            let database = paths::ledger_database(handle)?;
+            let _index = app.manage(crate::local_index::LocalIndex::open(
+                &database,
+                &poietica_time::wall_clock::SystemWallClock,
+            )?);
             let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
 
             /*

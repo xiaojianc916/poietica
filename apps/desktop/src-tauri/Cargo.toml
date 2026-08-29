@@ -39,7 +39,6 @@ time = { workspace = true, features = ["formatting", "parsing"] }
 toml_edit.workspace = true
 uuid.workspace = true
 poietica-agent-runtime-native = { path = "../../../crates/agent-runtime" }
-poietica-agent-persistence-native = { path = "../../../crates/persistence" }
 poietica-browser-native = { path = "../../../crates/browser" }
 poietica-git-native = { path = "../../../crates/git" }
 
@@ -75,8 +74,11 @@ specta.workspace = true
 specta-typescript.workspace = true
 tauri-specta.workspace = true
 tokio.workspace = true
+poietica-conversation = { path = "../../../crates/conversation" }
+poietica-ledger = { path = "../../../crates/ledger" }
 poietica-plugin-host-native = { path = "../../../crates/plugin-host" }
 poietica-problem = { path = "../../../crates/problem" }
+poietica-time = { path = "../../../crates/time" }
 poietica-update-native = { path = "../../../crates/update" }
 rmcp.workspace = true
 axum.workspace = true

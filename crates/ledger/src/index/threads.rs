@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::store::{AgentStore, now};
+use crate::index::store::{AgentStore, now};
 
 impl AgentStore {
     /// Creates a thread and returns its identifier.

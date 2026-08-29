@@ -31,8 +31,9 @@ use specta::Type;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager, command};
-use tauri_plugin_store::StoreExt;
+use std::sync::Arc;
+use tauri::{AppHandle, Manager, Wry, command};
+use tauri_plugin_store::{Store, StoreExt};
 use toml_edit::DocumentMut;
 
 type AgentConfigCommandResult<T> = std::result::Result<T, Problem>;
@@ -524,7 +525,7 @@ fn default_agent_id(app: &AppHandle) -> Result<String> {
 }
 
 fn read_config(app: &AppHandle) -> Result<(PersistedAgentConfig, Vec<String>)> {
-    let store = app.store(agents_store(app)?)?;
+    let store = open_store(app)?;
     let mut issues = Vec::new();
 
     let config = match store.get(STORE_KEY) {
@@ -550,10 +551,18 @@ fn to_snapshot(config: PersistedAgentConfig, issues: Vec<String>) -> AgentConfig
 }
 
 fn save_config(app: &AppHandle, config: &PersistedAgentConfig) -> Result<()> {
-    let store = app.store(agents_store(app)?)?;
+    let store = open_store(app)?;
     store.set(STORE_KEY, serde_json::to_value(config)?);
     store.save()?;
     Ok(())
+}
+
+/// agents.json 那个库。组合根已在启动时打开它；开库的手只在这一文件。
+///
+/// 安装检测的缓存表（installChecks 键）也住在这个文件里，由 install.rs 经这里
+/// 读写 —— agents.json 的每一次开库都从这一处出。
+pub(crate) fn open_store(app: &AppHandle) -> Result<Arc<Store<Wry>>> {
+    Ok(app.store(agents_store(app)?)?)
 }
 
 /// 读取完整配置快照。

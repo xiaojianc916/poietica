@@ -10,5 +10,5 @@ docs/
 ```
 
 架构文档只做解释。可执行的事实来源是
-`tools/architecture/rules.config.mjs`，由 `bun run test:architecture` 强制执行；
+`tools/architecture/layering.ts`，由 `bun run test:architecture` 强制执行；
 两者冲突时以配置为准，并同步修正文档。

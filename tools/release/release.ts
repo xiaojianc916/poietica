@@ -25,8 +25,8 @@ import { createInterface } from 'node:readline/promises'
 /*
  * SEMVER 与 bumped 不在这里重新写一遍。
  *
- * scripts/release/version.mjs 早就导出了它们，而且它那份是对的：bumped 先
- * split('-')[0] 再自增。上一版这里手抄了一份漏掉那一步的，当前版本一旦带预发布号
+ * tools/release/version.ts 导出了它们，而且它那份是对的：bumped 先
+ * split('-')[0] 再自增。手抄一份会漏掉那一步，版本一旦带预发布号
  * （0.2.0-beta.1），Number('0-beta') 是 NaN，菜单会给出 0.2.NaN。
  */
 import { bumped, SEMVER } from './version.ts'

@@ -199,3 +199,6 @@ dist-release/
 .perf
 
 .playwright-mcp
+
+.workbuddy/
+.workbuddy/memory

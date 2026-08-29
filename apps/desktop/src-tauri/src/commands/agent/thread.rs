@@ -5,8 +5,8 @@ use crate::attachments::forget_blob;
 use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::remove_projectless_workspace;
-use poietica_agent_persistence_native::{FrameCursor, FramePage, TitleSource};
 use poietica_agent_runtime_native::{PROMPT_ADMITTED, compact_history};
+use poietica_ledger::index::{FrameCursor, FramePage, TitleSource};
 use tauri::{AppHandle, State, async_runtime};
 
 use super::addressing::{Held, read_point, session_for};
@@ -226,7 +226,7 @@ fn located(cursor: &AgentFrameCursor) -> FrameCursor {
 }
 
 /// Restates one stored conversation in the shape the bindings carry.
-fn retitle(thread: poietica_agent_persistence_native::ThreadSummary) -> AgentThread {
+fn retitle(thread: poietica_ledger::index::ThreadSummary) -> AgentThread {
     AgentThread {
         thread_id: thread.id,
         session_id: thread.session_id,
@@ -244,9 +244,7 @@ fn retitle(thread: poietica_agent_persistence_native::ThreadSummary) -> AgentThr
 }
 
 /// 账本里那份读数与计数，收进线上那一格的宽度。
-fn reported(
-    recorded: poietica_agent_persistence_native::SessionUsage,
-) -> Result<AgentSessionUsage> {
+fn reported(recorded: poietica_ledger::index::SessionUsage) -> Result<AgentSessionUsage> {
     Ok(AgentSessionUsage {
         used: counted(recorded.used)?,
         size: counted(recorded.size)?,

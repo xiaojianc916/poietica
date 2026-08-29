@@ -10,8 +10,9 @@ use rusqlite::{Connection, ToSql};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
+use poietica_time::WallClock;
+
 use crate::error::Result;
-use crate::migrations::migrate;
 
 /// Owns the database.
 ///
@@ -36,9 +37,11 @@ impl AgentStore {
     /// # Errors
     ///
     /// Fails when the file cannot be opened or a migration is rejected.
-    pub fn open(path: &Path) -> Result<Self> {
+    pub fn open(path: &Path, clock: &dyn WallClock) -> Result<Self> {
         let mut connection = crate::connection::open(path)?;
-        migrate(&mut connection)?;
+
+        crate::migrations::apply(&mut connection, clock)?;
+
         Ok(Self { connection })
     }
 

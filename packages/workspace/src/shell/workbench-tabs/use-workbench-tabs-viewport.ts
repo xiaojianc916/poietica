@@ -81,8 +81,8 @@ export function useWorkbenchTabsViewport({
    *
    * Biome 把 hook 参数当作外层作用域值，所以把它报成多余依赖；同一个数组里的
    * activeTabId 来源完全相同却没有被报，区别只在于它在 effect 体内被读取过。
+   * （规则豁免登记在 biome.json。）
    */
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 删除会让激活标签在标签改名后停留在可视区外
   useEffect(() => {
     if (!activeTabId) {
       return

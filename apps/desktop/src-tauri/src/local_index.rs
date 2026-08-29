@@ -1,18 +1,14 @@
-//! 这台机器上那一个本地索引库。
+//! 这台机器上那一个账本库，以及它唯一的写者。
 //!
-//! 库归应用，不归任何一个子系统。store.rs 写着「A single writer is
-//! intentional.」，而此前那个唯一写者挂在 AgentRuntime 上，取用它的四个
-//! helper 都是 pub(super) —— 那句话因此只对 commands::agent 成立：第二个
-//! 子系统要用同一个库，除了再开一条连接没有别的路，而再开一条连接正是那句
-//! 话要禁止的事。库住在这里之后，那句话对整个进程成立。
-//!
-//! 迁移在窗口出现之前跑完（bootstrap/app.rs 的 setup），所以每一条命令拿到
-//! 的都是一个已经就绪的库，没有哪一次调用需要为「第一次」付钱。
+//! 库归应用，不归任何一个子系统：进程内只有这一条连接，写因此天然串行。
+//! 迁移在窗口出现之前跑完（bootstrap/app.rs 的 setup），命令拿到的总是就绪的库。
 
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use poietica_agent_persistence_native::{AgentStore, StoreError};
+use poietica_ledger::LedgerError;
+use poietica_ledger::index::AgentStore;
+use poietica_time::WallClock;
 use tauri::{State, async_runtime};
 use uuid::Uuid;
 
@@ -43,9 +39,11 @@ impl LocalIndex {
     /// # Errors
     ///
     /// 文件打不开、或某一条迁移被拒时返回错误。
-    pub fn open(path: &Path) -> Result<Self> {
+    pub fn open(path: &Path, clock: &dyn WallClock) -> Result<Self> {
         Ok(Self {
-            store: Arc::new(Mutex::new(AgentStore::open(path).map_err(persistence)?)),
+            store: Arc::new(Mutex::new(
+                AgentStore::open(path, clock).map_err(persistence)?,
+            )),
         })
     }
 }
@@ -91,7 +89,7 @@ where
 /// 理由随 Problem 的 reason 细节外传（ipc/problem.rs），这里同时落一条日志：库自己报的原因
 /// 只能落在日志里 —— 不写，这一层就是整条链路上唯一知道原因却什么都没说的地方。
 /// 折叠即记录，与 commands/agent/failure.rs 的 translate 同一条纪律。
-pub fn persistence(error: StoreError) -> Error {
+pub fn persistence(error: LedgerError) -> Error {
     log::error!("the local index rejected a statement: {error}");
 
     Error::Persistence(error.to_string())

@@ -29,7 +29,6 @@ export const CARGO_RINGS: readonly Ring[] = [
   {
     name: 'capability',
     members: [
-      'poietica-agent-persistence-native',
       'poietica-agent-runtime-native',
       'poietica-browser-native',
       'poietica-git-native',
@@ -54,7 +53,6 @@ export const HOST_AWARE_PACKAGES: readonly string[] = [
 
 /** 这些 crate 不许知道自己跑在 Tauri 里。 */
 export const HOST_AGNOSTIC_CRATES: readonly string[] = [
-  'poietica-agent-persistence-native',
   'poietica-agent-runtime-native',
   'poietica-browser-native',
   'poietica-conversation',

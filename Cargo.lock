@@ -2940,12 +2940,14 @@ dependencies = [
  "base64 0.22.1",
  "hex",
  "log",
- "poietica-agent-persistence-native",
  "poietica-agent-runtime-native",
  "poietica-browser-native",
+ "poietica-conversation",
  "poietica-git-native",
+ "poietica-ledger",
  "poietica-plugin-host-native",
  "poietica-problem",
+ "poietica-time",
  "poietica-update-native",
  "reqwest 0.12.28",
  "rmcp",
@@ -2970,20 +2972,6 @@ dependencies = [
  "time",
  "tokio",
  "toml_edit 0.22.27",
- "uuid",
-]
-
-[[package]]
-name = "poietica-agent-persistence-native"
-version = "0.2.1"
-dependencies = [
- "log",
- "rusqlite",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.19",
- "time",
  "uuid",
 ]
 
@@ -3038,11 +3026,16 @@ dependencies = [
 name = "poietica-ledger"
 version = "0.2.1"
 dependencies = [
+ "log",
  "poietica-conversation",
  "poietica-time",
  "rusqlite",
+ "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.19",
+ "time",
+ "uuid",
 ]
 
 [[package]]

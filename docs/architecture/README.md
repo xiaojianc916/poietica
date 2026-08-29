@@ -1,13 +1,14 @@
 # Architecture Overview
 
-分层与依赖方向的唯一事实来源是 `tools/architecture/rules.config.mjs`，
+分层与依赖方向的唯一事实来源是 `tools/architecture/layering.ts`，
 由 `bun run test:architecture` 在每次 CI 与提交前执行。本文只做解释，
 与配置不一致时以配置为准。
 
 ## TypeScript 包分层
 
 分层表、依赖方向、原生宿主白名单与目录命名的**唯一事实来源**是
-`tools/architecture/rules.config.mjs`，由 `bun run test:architecture` 执行。
+`tools/architecture/layering.ts`（判据在 `policies.ts` 与 `charters.ts`），
+由 `bun run test:architecture` 执行。
 
 这里不再重抄一份 —— 此前 README.md、AGENTS.md、本文件与
 tools/architecture/README.md 各存一份手抄表，四份互相矛盾（本文件曾把磁盘上
@@ -67,7 +68,7 @@ provider catalog list。
 
 ## 强制约束
 
-- 目录名必须等于 `@poietica/<目录名>`。
+- 包名由 `@poietica` 前缀加目录名构成：路径就是身份，不许两套叫法。
 - 新增包必须先在分层表中定层，否则架构检查抛错。
 - 跨包访问只走公开 exports，禁止 deep import 与跨包相对路径。
 - 每一类状态只能有一个权威来源与一条写入路径。

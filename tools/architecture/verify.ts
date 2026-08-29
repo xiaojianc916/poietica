@@ -6,6 +6,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import * as charter from './charters.ts'
 import { readImports } from './imports.ts'
 import type { Violation } from './policies.ts'
 import * as policy from './policies.ts'
@@ -83,6 +84,17 @@ const violations: Violation[] = [
   ...(await policy.manifestScriptsResolve(ROOT, scripted)),
   ...(await policy.invokedScriptsResolve(ROOT)),
   ...(await policy.problemCopyIsComplete(ROOT, codeSource)),
+  ...(await charter.preferencesHaveOneOwner(ROOT)),
+  ...(await charter.agentEventsAreDeclaredOnce(ROOT)),
+  ...(await charter.capabilitiesAreWiredAtTheRoot(ROOT)),
+  ...(await charter.designSystemOwnsItsTokens(ROOT)),
+  ...(await charter.windowSurfaceIsNamedOnce(ROOT)),
+  ...(await charter.noWildcardReExports(ROOT)),
+  ...(await charter.documentedScriptsExist(ROOT)),
+  ...(await charter.documentedPackagesExist(ROOT, workspaces)),
+  ...charter.workspaceNamesFollowTheirDirectory(workspaces),
+  ...(await charter.noTaskScopedGuards(ROOT)),
+  ...charter.domainCratesAreReachable(crates),
 ]
 
 if (violations.length === 0) {

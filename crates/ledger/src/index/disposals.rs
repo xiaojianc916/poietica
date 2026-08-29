@@ -7,7 +7,7 @@
 //! （桌面 seam 的 record_and_flush_disposals）。
 
 use crate::error::Result;
-use crate::store::{AgentStore, now};
+use crate::index::store::{AgentStore, now};
 
 impl AgentStore {
     /// 记一笔待送达的 session/delete。

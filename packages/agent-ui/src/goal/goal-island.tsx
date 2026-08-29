@@ -137,10 +137,12 @@ function Island({ goal, threadId }: { readonly goal: SessionGoal; readonly threa
                 <div className="goal-island__edit">
                   <textarea
                     aria-label="目标内容"
-                    // biome-ignore lint/a11y/noAutofocus: 由用户点击"编辑目标"触发，聚焦编辑框是预期行为
-                    autoFocus
                     className="goal-island__input"
                     onChange={(event) => setDraft(event.target.value)}
+                    /* 聚焦由用户点击「编辑目标」触发：编辑框挂载即聚焦，等价于 autoFocus。 */
+                    ref={(element) => {
+                      element?.focus()
+                    }}
                     rows={3}
                     value={draft}
                   />

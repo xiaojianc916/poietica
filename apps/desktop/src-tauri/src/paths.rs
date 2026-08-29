@@ -1,6 +1,6 @@
 //! 这个应用在磁盘上占了哪些位置 —— 唯一的声明处。
 //!
-//! 一个根，一个位置。settings.json、agents.json、automations.json、线程索引、
+//! 一个根，一个位置。settings.json、agents.json、automations.json、账本库、
 //! 附件字节、各 agent 的受控 home、日志与崩溃报告、临时中转与缓存，全都在它下面。用户要备份、
 //! 要搬机器、要把这个应用从磁盘上抹干净，需要知道的路径只有一条。
 //!
@@ -37,11 +37,11 @@ const SETTINGS_FILE: &str = "settings.json";
 const AGENTS_FILE: &str = "agents.json";
 const AUTOMATIONS_FILE: &str = "automations.json";
 
-/// 对话索引：有哪些对话、叫什么、握着谁的会话、挂着哪些附件。
+/// 账本：事件、准入、投递、游标，以及本机索引与投影表。全进程一个库文件。
 ///
-/// 不加密，也不存对话内容 —— 判据见 ADR 0012。库开在 WAL 模式下，所以磁盘上
-/// 实际是三个文件：这一个，加上同名的 -wal 与 -shm。备份必须三个一起。
-const THREAD_DATABASE: &str = "threads.sqlite3";
+/// 不加密，也不存对话内容。WAL 模式下磁盘上是三个文件：这一个加同名的 -wal
+/// 与 -shm，备份必须三个一起。
+const LEDGER_DATABASE: &str = "ledger.sqlite3";
 
 const LOG_DIRECTORY: &str = "logs";
 
@@ -149,13 +149,13 @@ pub fn automations_store<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     Ok(root(app)?.join(AUTOMATIONS_FILE))
 }
 
-/// 对话索引库的位置。
+/// 账本库的位置。
 ///
 /// # Errors
 ///
 /// 根目录无法解析或创建时返回错误。
-pub fn thread_database<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
-    Ok(root(app)?.join(THREAD_DATABASE))
+pub fn ledger_database<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    Ok(root(app)?.join(LEDGER_DATABASE))
 }
 
 /// 日志目录，创建后返回。

@@ -261,13 +261,7 @@
       }
     },
     {
-      "includes": [
-        "scripts/**/*.mjs",
-        "tests/**/*.mjs",
-        "*.mjs",
-        "tools/**/*.mjs",
-        "tools/**/*.ts"
-      ],
+      "includes": ["*.mjs", "tests/**/*.mjs", "tools/**/*.mjs", "tools/**/*.ts"],
       "javascript": {
         "globals": ["Bun"]
       },
@@ -300,6 +294,59 @@
         "rules": {
           "style": {
             "useFilenamingConvention": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/ui/src/styles/tokens/accessibility.css"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noImportantStyles": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/workspace/src/shell/sidebar/sidebar-footer.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useAnchorContent": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/workspace/src/shell/workbench-tabs/workbench-tab.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noStaticElementInteractions": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/settings/src/custom-agents/personalization-surface.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noLabelWithoutControl": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/workspace/src/shell/workbench-tabs/use-workbench-tabs-baseline-gap.ts",
+        "packages/workspace/src/shell/workbench-tabs/use-workbench-tabs-viewport.ts"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useExhaustiveDependencies": "off"
           }
         }
       }

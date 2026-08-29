@@ -1,7 +1,7 @@
 //! kap 的事件流，这台机器读到哪儿了。
 
 use crate::error::Result;
-use crate::store::{AgentStore, now};
+use crate::index::store::{AgentStore, now};
 
 /// 一条会话的事件流上，已经被这台机器读到的位置。
 ///

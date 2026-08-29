@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/generated/ipc-bindings.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit"

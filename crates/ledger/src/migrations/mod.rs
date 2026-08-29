@@ -26,6 +26,7 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "thread_projection",
         include_str!("sql/0005_thread_projection.sql"),
     ),
+    (6, "local_index", include_str!("sql/0006_local_index.sql")),
 ];
 
 pub fn apply(connection: &mut Connection, clock: &dyn WallClock) -> Result<(), LedgerError> {

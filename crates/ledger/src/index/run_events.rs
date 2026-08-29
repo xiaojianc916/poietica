@@ -5,7 +5,7 @@ use serde_json::value::RawValue;
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::store::AgentStore;
+use crate::index::store::AgentStore;
 
 /// 日志里的一帧，按它记下时的线上形状。
 #[derive(Debug)]

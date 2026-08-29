@@ -12,11 +12,11 @@ use crate::commands::agent_setup::profile::{
 };
 use crate::error::{Error, Result};
 use crate::paths::attachments_root;
-use poietica_agent_persistence_native::{SessionCursor, SessionUsage};
 use poietica_agent_runtime_native::{
     AgentClient, AgentConnection, AgentSpawn, Daemon, DaemonIntent, KapError, LinkState,
     PermissionDesk, QuestionDesk, Reaction, Refusal, RunSlot, SessionBook, SessionEvent, connect,
 };
+use poietica_ledger::index::{SessionCursor, SessionUsage};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;

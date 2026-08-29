@@ -2,7 +2,7 @@
 //!
 //! 三层的分工是清楚的，各自只做一件事：
 //!
-//! - 账本（`poietica_agent_persistence_native::attachments`）：哪条对话的第几轮
+//! - 账本（`poietica_ledger::index::attachments`）：哪条对话的第几轮
 //!   挂着哪个 hash。它不碰字节。
 //! - 字节（这里）：hash 到文件的映射，去重、原子落盘、遗忘。它不知道对话。
 //! - 送达（`asset_protocol`）：`poietica-asset://` 的 range 与缓存头。

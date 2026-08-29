@@ -20,4 +20,11 @@ pub enum LedgerError {
         recorded: String,
         expected: String,
     },
+    #[error("本机时区偏移不可用：{0}")]
+    LocalOffset(#[from] time::error::IndeterminateOffset),
+    #[error("时间戳无法格式化：{0}")]
+    Time(#[from] time::error::Format),
 }
+
+/// 这个 crate 的结果类型。SQLite 与时间格式的细节到 LedgerError 为止。
+pub type Result<T> = core::result::Result<T, LedgerError>;

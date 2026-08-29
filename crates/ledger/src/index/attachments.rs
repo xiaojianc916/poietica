@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::store::{AgentStore, now};
+use crate::index::store::{AgentStore, now};
 
 /// 一段被某条对话引用着的字节,交付它需要的全部。
 ///

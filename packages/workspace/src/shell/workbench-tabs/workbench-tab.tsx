@@ -48,9 +48,9 @@ export function WorkbenchTab({
    *
    * 捕获在越过拖拽阈值时才建立：捕获期间 mousedown 与 mouseup 都被重定向到捕获元素，click
    * 于是在这个没有 onClick 的容器上派发，内层的激活按钮与关闭按钮会双双收不到点击。
+   * （规则豁免登记在 biome.json overrides。）
    */
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: 这一层只承载几何与指针捕获会话，tablist 的可聚焦项必须是内层 role="tab" 按钮；给它一个交互 role 会多出一个假的 tab。
     <div
       className="chrome-workbench-tab"
       data-active={model.isActive ? 'true' : 'false'}
