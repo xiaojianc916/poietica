@@ -15,9 +15,8 @@ use std::time::{Duration, Instant};
 
 use poietica_agent_runtime_native::translate;
 use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
-use poietica_conversation::event::{ConversationEvent, EventEnvelope};
+use poietica_conversation::event::ConversationEvent;
 use poietica_conversation::ports::ConversationLedger;
-use serde_json::value::RawValue;
 use tauri::{AppHandle, Emitter, Manager, Runtime, async_runtime};
 
 use crate::error::{Error, Result};
@@ -264,39 +263,25 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) -> bool 
         }
     };
 
-    let shown: Vec<Box<RawValue>> = envelopes.iter().map(wire_frame).collect();
+    let shown = envelopes
+        .iter()
+        .map(|envelope| {
+            poietica_ledger::conversation::screen::screen_frame(
+                &envelope.session_id,
+                i64::try_from(envelope.seq.value()).unwrap_or(i64::MAX),
+                envelope.at,
+                &serde_json::to_string(&envelope.event)
+                    .unwrap_or_else(|_error| String::from("null")),
+            )
+        })
+        .collect::<serde_json::Result<Vec<_>>>()
+        .unwrap_or_default();
+
     if let Err(error) = app.emit(AGENT_EVENT, &shown) {
         log::warn!("emit agent event failed after persistence: {error}");
     }
 
     true
-}
-
-/// 信封 → 旧帧账的线上形状：{sessionId, seq, at, kind, ...}。
-fn wire_frame(envelope: &EventEnvelope) -> Box<RawValue> {
-    let mut object = match serde_json::to_value(&envelope.event) {
-        Ok(serde_json::Value::Object(fields)) => fields,
-        Ok(_) => serde_json::Map::new(),
-        Err(error) => {
-            log::error!("a conversation event could not be serialized: {error}");
-            serde_json::Map::new()
-        }
-    };
-
-    object.insert(
-        String::from("sessionId"),
-        serde_json::Value::String(envelope.session_id.clone()),
-    );
-    object.insert(
-        String::from("seq"),
-        serde_json::Value::from(envelope.seq.value()),
-    );
-    object.insert(String::from("at"), serde_json::Value::from(envelope.at));
-
-    // 序列化一个 serde_json::Map 不会失败；真失败时这一帧以 null 上屏，
-    // 而落账的那份 payload 仍是事实源 —— 下一帧重放会把屏幕补回来。
-    RawValue::from_string(serde_json::to_string(&object).unwrap_or_default())
-        .unwrap_or_else(|_| RawValue::from_string(String::from("null")).unwrap_or_default())
 }
 
 #[cfg(test)]

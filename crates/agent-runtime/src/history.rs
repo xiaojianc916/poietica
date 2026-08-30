@@ -1,4 +1,4 @@
-//! 历史页的无损流压缩。原始 run_events 仍是唯一事实源。
+//! 历史页的无损流压缩。事件账（conversation_events）是唯一事实源。
 
 use serde_json::{Value, value::RawValue, value::to_raw_value};
 

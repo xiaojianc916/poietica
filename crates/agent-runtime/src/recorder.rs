@@ -41,9 +41,8 @@ pub type FrameSink = Box<dyn FnMut(RecordedEvent) -> bool + Send>;
 
 /// 一条会话上的序号线。
 ///
-/// 位置按会话单调，不按轮次：界面用「seq 单调」去重，而同一条会话上的两轮之间
-/// 那道去重必须仍然成立。日志的唯一键也是它（run_events 的
-/// UNIQUE (thread_id, session_id, seq)），所以跨进程恢复时要 resume。
+/// 位置按会话单调，不按轮次：投递侧的局部计数。账本按对话发号
+/// （conversation_events 的 append），这里的号不进账。
 ///
 /// 它的家在会话槽（见 run_slot.rs）：一轮换一轮，位置接着数。
 #[derive(Clone, Debug)]
@@ -68,7 +67,8 @@ impl SeqLine {
     }
 
     /// 这个位置用掉了。只前进不后退，与 resume 同一条规矩：一次盲写会把 resume
-    /// 接上去的号退回来，而退回来的帧撞上 run_events 的唯一键后会被静默丢掉。
+    /// 接上去的号退回来会让同一帧以不同位置重复投递，账本按对话发号后这不是
+    /// 一道防线，只前进不后退保持成形与投递的两段式语义。
     fn used(&self, seq: i64) {
         let _previous = self.0.fetch_max(seq.saturating_add(1), Ordering::AcqRel);
     }
@@ -76,8 +76,7 @@ impl SeqLine {
     /// 接着日志里记下的最后一个位置往下数。
     ///
     /// 一条会话装载回来时号不变，而它的槽是这次连接新建的、从 1 开始。不接
-    /// 上去，新一轮的帧会撞上日志里已有的位置，被 run_events 的唯一键静默
-    /// 丢掉。只前进不后退。
+    /// 上去，新一轮的帧会以倒退的位置重复投递。只前进不后退。
     pub fn resume(&self, last: i64) {
         let _previous = self.0.fetch_max(last.saturating_add(1), Ordering::AcqRel);
     }

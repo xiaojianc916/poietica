@@ -91,7 +91,7 @@ impl AgentStore {
     /// 不在」的一瞬。
     ///
     /// 帧日志随分叉复制，并按 drop_turns 截到分叉那一轮为止：屏幕上那条时间
-    /// 线由本机日志重放（见 run_events.rs），而上下文由 agent 按同一个数回退，
+    /// 线由本机日志重放（见 conversation/screen.rs），而上下文由 agent 按同一个数回退，
     /// 两者因此止于同一处。附件链接一并复制 —— 字节是内容寻址的，多一条链接
     /// 指着它就够。三张表一次事务：半份分叉不该存在。
     ///
@@ -325,7 +325,7 @@ impl AgentStore {
             rusqlite::params![&thread],
         )?;
         transaction.execute(
-            "DELETE FROM run_events WHERE thread_id = ?1",
+            "DELETE FROM conversation_events WHERE thread_id = ?1",
             rusqlite::params![&thread],
         )?;
         transaction.execute(

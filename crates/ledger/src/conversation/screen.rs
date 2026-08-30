@@ -220,7 +220,7 @@ impl AgentStore {
 
         let frames = read
             .into_iter()
-            .map(|(session_id, seq, payload, at)| screen_json(&session_id, seq, at, &payload))
+            .map(|(session_id, seq, payload, at)| screen_frame(&session_id, seq, at, &payload))
             .collect::<serde_json::Result<Vec<_>>>()?;
 
         Ok(FramePage { frames, before })
@@ -274,7 +274,12 @@ impl AgentStore {
 /// 信封的格子并回载荷顶层：{sessionId, seq, at, kind, ...}。
 ///
 /// 实时流（journal 的发布）与重放（这里的读）用同一个构造，两边不会各说各话。
-fn screen_json(
+/// `payload` 是事件联合已序列化的那一份 —— 与账本 payload 列同形。
+///
+/// # Errors
+///
+/// 载荷不是合法 JSON 时失败；落账的那份来自同一联合的序列化，正常不会发生。
+pub fn screen_frame(
     session_id: &str,
     seq: i64,
     at: i64,

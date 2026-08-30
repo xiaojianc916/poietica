@@ -10,5 +10,5 @@ pub mod migrations;
 pub mod projection;
 
 pub use conversation::SqliteLedger;
-pub use conversation::screen::{FrameCursor, FramePage, TurnMark};
+pub use conversation::screen::{FrameCursor, FramePage, TurnMark, screen_frame};
 pub use error::LedgerError;

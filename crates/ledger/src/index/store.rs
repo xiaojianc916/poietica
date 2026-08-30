@@ -70,7 +70,7 @@ impl AgentStore {
     /// 一条写语句，走和读一样的那个语句缓存。
     ///
     /// 人的动作触发的单条写走这里；同一拍到达的一批写自己开事务
-    /// （run_events.rs 的 record_frames）。
+    /// （conversation/screen.rs 的分页读、journal 的批量追加）。
     ///
     /// # Errors
     ///
