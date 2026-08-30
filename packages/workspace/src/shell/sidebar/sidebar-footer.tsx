@@ -10,7 +10,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@poietica/ui'
+} from '@poietica/design-system'
 import { BookOpen, CircleQuestionMark, Code, Settings } from 'lucide-react'
 
 import type { ReactNode } from 'react'

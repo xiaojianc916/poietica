@@ -16,19 +16,19 @@
       "name": "@poietica/desktop",
       "version": "0.2.1",
       "dependencies": {
-        "@poietica/agent": "workspace:*",
         "@poietica/agent-catalog": "workspace:*",
         "@poietica/agent-contract": "workspace:*",
-        "@poietica/agent-ui": "workspace:*",
         "@poietica/automations": "workspace:*",
         "@poietica/browser": "workspace:*",
         "@poietica/contract": "workspace:*",
+        "@poietica/conversation": "workspace:*",
+        "@poietica/conversation-ui": "workspace:*",
+        "@poietica/design-system": "workspace:*",
         "@poietica/native-bridge": "workspace:*",
         "@poietica/plugins": "workspace:*",
         "@poietica/problem": "workspace:*",
         "@poietica/review": "workspace:*",
         "@poietica/settings": "workspace:*",
-        "@poietica/ui": "workspace:*",
         "@poietica/workspace": "workspace:*",
         "@streamdown/mermaid": "catalog:",
         "@tauri-apps/api": "catalog:tauri",
@@ -52,18 +52,6 @@
         "vite": "catalog:",
       },
     },
-    "packages/agent": {
-      "name": "@poietica/agent",
-      "version": "0.1.0",
-      "dependencies": {
-        "@poietica/agent-contract": "workspace:*",
-        "@poietica/workspace": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-        "typescript": "catalog:",
-      },
-    },
     "packages/agent-catalog": {
       "name": "@poietica/agent-catalog",
       "version": "0.1.0",
@@ -83,49 +71,14 @@
         "typescript": "catalog:",
       },
     },
-    "packages/agent-ui": {
-      "name": "@poietica/agent-ui",
-      "version": "0.1.0",
-      "dependencies": {
-        "@lexical/react": "catalog:",
-        "@poietica/agent": "workspace:*",
-        "@poietica/agent-contract": "workspace:*",
-        "@poietica/problem": "workspace:*",
-        "@poietica/review": "workspace:*",
-        "@poietica/ui": "workspace:*",
-        "@streamdown/cjk": "catalog:",
-        "@streamdown/code": "catalog:",
-        "@streamdown/math": "catalog:",
-        "@streamdown/mermaid": "catalog:",
-        "@tanstack/react-virtual": "catalog:",
-        "katex": "catalog:",
-        "lexical": "catalog:",
-        "lucide-react": "catalog:",
-        "motion": "catalog:",
-        "streamdown": "catalog:",
-        "yet-another-react-lightbox": "catalog:",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-        "@types/react": "catalog:",
-        "@types/react-dom": "catalog:",
-        "react": "catalog:",
-        "react-dom": "catalog:",
-        "typescript": "catalog:",
-      },
-      "peerDependencies": {
-        "react": "catalog:",
-        "react-dom": "catalog:",
-      },
-    },
     "packages/automations": {
       "name": "@poietica/automations",
       "version": "0.1.0",
       "dependencies": {
         "@poietica/agent-contract": "workspace:*",
+        "@poietica/design-system": "workspace:*",
         "@poietica/native-bridge": "workspace:*",
         "@poietica/problem": "workspace:*",
-        "@poietica/ui": "workspace:*",
         "croner": "10.0.1",
       },
       "devDependencies": {
@@ -145,9 +98,9 @@
       "name": "@poietica/browser",
       "version": "0.1.0",
       "dependencies": {
+        "@poietica/design-system": "workspace:*",
         "@poietica/native-bridge": "workspace:*",
         "@poietica/problem": "workspace:*",
-        "@poietica/ui": "workspace:*",
         "lucide-react": "catalog:",
       },
       "devDependencies": {
@@ -174,6 +127,76 @@
         "typescript": "catalog:",
       },
     },
+    "packages/conversation": {
+      "name": "@poietica/conversation",
+      "version": "0.1.0",
+      "dependencies": {
+        "@poietica/agent-contract": "workspace:*",
+        "@poietica/workspace": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/conversation-ui": {
+      "name": "@poietica/conversation-ui",
+      "version": "0.1.0",
+      "dependencies": {
+        "@lexical/react": "catalog:",
+        "@poietica/agent-contract": "workspace:*",
+        "@poietica/conversation": "workspace:*",
+        "@poietica/design-system": "workspace:*",
+        "@poietica/problem": "workspace:*",
+        "@poietica/review": "workspace:*",
+        "@streamdown/cjk": "catalog:",
+        "@streamdown/code": "catalog:",
+        "@streamdown/math": "catalog:",
+        "@streamdown/mermaid": "catalog:",
+        "@tanstack/react-virtual": "catalog:",
+        "katex": "catalog:",
+        "lexical": "catalog:",
+        "lucide-react": "catalog:",
+        "motion": "catalog:",
+        "streamdown": "catalog:",
+        "yet-another-react-lightbox": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "@types/react": "catalog:",
+        "@types/react-dom": "catalog:",
+        "react": "catalog:",
+        "react-dom": "catalog:",
+        "typescript": "catalog:",
+      },
+      "peerDependencies": {
+        "react": "catalog:",
+        "react-dom": "catalog:",
+      },
+    },
+    "packages/design-system": {
+      "name": "@poietica/design-system",
+      "version": "0.1.0",
+      "dependencies": {
+        "@base-ui/react": "catalog:",
+        "clsx": "catalog:",
+        "lucide-react": "catalog:",
+        "tailwind-merge": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "@types/react": "catalog:",
+        "@types/react-dom": "catalog:",
+        "react": "catalog:",
+        "react-dom": "catalog:",
+        "tailwindcss": "catalog:",
+        "typescript": "catalog:",
+      },
+      "peerDependencies": {
+        "react": "catalog:",
+        "react-dom": "catalog:",
+      },
+    },
     "packages/native-bridge": {
       "name": "@poietica/native-bridge",
       "version": "0.1.0",
@@ -194,9 +217,9 @@
       "version": "0.1.0",
       "dependencies": {
         "@poietica/agent-contract": "workspace:*",
+        "@poietica/design-system": "workspace:*",
         "@poietica/native-bridge": "workspace:*",
         "@poietica/problem": "workspace:*",
-        "@poietica/ui": "workspace:*",
         "valibot": "catalog:",
         "yaml": "catalog:",
       },
@@ -240,11 +263,11 @@
       "name": "@poietica/settings",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/agent": "workspace:*",
         "@poietica/agent-catalog": "workspace:*",
+        "@poietica/conversation": "workspace:*",
+        "@poietica/design-system": "workspace:*",
         "@poietica/native-bridge": "workspace:*",
         "@poietica/problem": "workspace:*",
-        "@poietica/ui": "workspace:*",
         "lucide-react": "catalog:",
         "yaml": "catalog:",
       },
@@ -259,35 +282,12 @@
         "react-dom": "catalog:",
       },
     },
-    "packages/ui": {
-      "name": "@poietica/ui",
-      "version": "0.1.0",
-      "dependencies": {
-        "@base-ui/react": "catalog:",
-        "clsx": "catalog:",
-        "lucide-react": "catalog:",
-        "tailwind-merge": "catalog:",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-        "@types/react": "catalog:",
-        "@types/react-dom": "catalog:",
-        "react": "catalog:",
-        "react-dom": "catalog:",
-        "tailwindcss": "catalog:",
-        "typescript": "catalog:",
-      },
-      "peerDependencies": {
-        "react": "catalog:",
-        "react-dom": "catalog:",
-      },
-    },
     "packages/workspace": {
       "name": "@poietica/workspace",
       "version": "0.1.0",
       "dependencies": {
+        "@poietica/design-system": "workspace:*",
         "@poietica/problem": "workspace:*",
-        "@poietica/ui": "workspace:*",
         "lucide-react": "catalog:",
         "valibot": "catalog:",
       },
@@ -308,8 +308,8 @@
       "name": "@poietica/tests",
       "version": "0.1.0",
       "devDependencies": {
-        "@poietica/agent": "workspace:*",
         "@poietica/agent-contract": "workspace:*",
+        "@poietica/conversation": "workspace:*",
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
@@ -479,19 +479,21 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.147.0", "https://registry.npmmirror.com/@oxc-project/types/-/types-0.147.0.tgz", {}, "sha512-IJ3s6ltHLp45S0bh7phkX+gJO7A1Wuz2EaqpAhb8WjqDwbzMiWKHhyyT42tskaWjEYXtHtVCPpnBJVT9+dcRLg=="],
 
-    "@poietica/agent": ["@poietica/agent@workspace:packages/agent"],
-
     "@poietica/agent-catalog": ["@poietica/agent-catalog@workspace:packages/agent-catalog"],
 
     "@poietica/agent-contract": ["@poietica/agent-contract@workspace:packages/agent-contract"],
-
-    "@poietica/agent-ui": ["@poietica/agent-ui@workspace:packages/agent-ui"],
 
     "@poietica/automations": ["@poietica/automations@workspace:packages/automations"],
 
     "@poietica/browser": ["@poietica/browser@workspace:packages/browser"],
 
     "@poietica/contract": ["@poietica/contract@workspace:packages/contract"],
+
+    "@poietica/conversation": ["@poietica/conversation@workspace:packages/conversation"],
+
+    "@poietica/conversation-ui": ["@poietica/conversation-ui@workspace:packages/conversation-ui"],
+
+    "@poietica/design-system": ["@poietica/design-system@workspace:packages/design-system"],
 
     "@poietica/desktop": ["@poietica/desktop@workspace:apps/desktop"],
 
@@ -508,8 +510,6 @@
     "@poietica/tests": ["@poietica/tests@workspace:tests"],
 
     "@poietica/tools": ["@poietica/tools@workspace:tools"],
-
-    "@poietica/ui": ["@poietica/ui@workspace:packages/ui"],
 
     "@poietica/workspace": ["@poietica/workspace@workspace:packages/workspace"],
 

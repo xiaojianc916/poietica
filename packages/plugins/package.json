@@ -13,7 +13,7 @@
   "dependencies": {
     "@poietica/agent-contract": "workspace:*",
     "@poietica/native-bridge": "workspace:*",
-    "@poietica/ui": "workspace:*",
+    "@poietica/design-system": "workspace:*",
     "valibot": "catalog:",
     "yaml": "catalog:",
     "@poietica/problem": "workspace:*"

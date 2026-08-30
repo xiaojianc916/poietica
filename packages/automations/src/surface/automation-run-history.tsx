@@ -1,5 +1,5 @@
+import { cn } from '@poietica/design-system'
 import type { Automation } from '@poietica/native-bridge'
-import { cn } from '@poietica/ui'
 
 import { describeMoment } from '../automation'
 

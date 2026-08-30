@@ -1,4 +1,4 @@
-import type { AttachmentIntake } from '@poietica/agent-ui'
+import type { AttachmentIntake } from '@poietica/conversation-ui'
 import {
   createMainWindowController,
   listCustomAgents,

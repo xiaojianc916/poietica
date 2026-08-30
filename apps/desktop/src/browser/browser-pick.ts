@@ -1,4 +1,4 @@
-import type { PromptInputHandle } from '@poietica/agent-ui'
+import type { PromptInputHandle } from '@poietica/conversation-ui'
 import { type BrowserElementPicked, watchBrowserElementPicked } from '@poietica/native-bridge'
 import { warn } from '@poietica/problem'
 import type { RefObject } from 'react'

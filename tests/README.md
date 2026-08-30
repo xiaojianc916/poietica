@@ -30,6 +30,6 @@
 ```bash
 bun run test                     # 全部工作区的 test 任务
 bun run test:architecture        # 正则架构规则
-bun run --filter @poietica/ui test
+bun run --filter @poietica/design-system test
 bun run --filter @poietica/tests test
 ```

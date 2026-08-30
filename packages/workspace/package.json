@@ -14,7 +14,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/ui": "workspace:*",
+    "@poietica/design-system": "workspace:*",
     "lucide-react": "catalog:",
     "valibot": "catalog:",
     "@poietica/problem": "workspace:*"

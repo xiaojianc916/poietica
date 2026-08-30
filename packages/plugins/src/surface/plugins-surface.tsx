@@ -1,6 +1,6 @@
 import type { AgentSkill } from '@poietica/agent-contract'
+import { Button, cn, Switch } from '@poietica/design-system'
 import { assertUnreachable } from '@poietica/problem'
-import { Button, cn, Switch } from '@poietica/ui'
 import { useState, useSyncExternalStore } from 'react'
 
 import { builtinServerRows, builtinSkillRows, groupRows, matches } from '../catalog/listing'

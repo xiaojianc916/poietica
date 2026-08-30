@@ -3,7 +3,7 @@ import {
   type AgentProviderPreset,
   agentCatalogCodec,
 } from '@poietica/agent-catalog'
-import { Button, InlineSpinner } from '@poietica/ui'
+import { Button, InlineSpinner } from '@poietica/design-system'
 import { useCallback, useEffect, useState } from 'react'
 import type { AgentConfigStore, ProviderKeyProbe } from '../agent-config-store'
 import { describeAgentCliFailure, describeAgentCliOutcome } from '../agent-install/agent-cli-text'

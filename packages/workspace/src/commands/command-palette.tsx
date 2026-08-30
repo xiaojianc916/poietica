@@ -1,4 +1,9 @@
-import { CommandMenu, type CommandMenuGroup, type CommandMenuItem, Dialog } from '@poietica/ui'
+import {
+  CommandMenu,
+  type CommandMenuGroup,
+  type CommandMenuItem,
+  Dialog,
+} from '@poietica/design-system'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { RegisteredCommand } from '../command-contract'
 import type { CommandRegistry } from '../command-registry'

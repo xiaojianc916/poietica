@@ -10,6 +10,7 @@ import type {
   SessionUsagePort,
   ThreadPort,
 } from '@poietica/agent-contract'
+import { createExternalStore, createPreference } from '@poietica/design-system'
 import {
   type AgentBridgeOptions,
   createAgentCapabilityBridge,
@@ -22,7 +23,6 @@ import {
 } from '@poietica/native-bridge'
 import { error as reportError } from '@poietica/problem'
 import type { AgentConfigStore } from '@poietica/settings'
-import { createExternalStore, createPreference } from '@poietica/ui'
 import { hostedMcpServersReady } from '../plugins/plugin-runtime'
 import { createThinkingPreference } from './thinking-preference'
 

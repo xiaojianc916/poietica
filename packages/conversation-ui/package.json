@@ -1,0 +1,47 @@
+{
+  "name": "@poietica/conversation-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test src",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@lexical/react": "catalog:",
+    "@poietica/conversation": "workspace:*",
+    "@poietica/agent-contract": "workspace:*",
+    "@poietica/problem": "workspace:*",
+    "@poietica/review": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@streamdown/cjk": "catalog:",
+    "@streamdown/code": "catalog:",
+    "@streamdown/math": "catalog:",
+    "@streamdown/mermaid": "catalog:",
+    "@tanstack/react-virtual": "catalog:",
+    "katex": "catalog:",
+    "lexical": "catalog:",
+    "lucide-react": "catalog:",
+    "motion": "catalog:",
+    "streamdown": "catalog:",
+    "yet-another-react-lightbox": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  }
+}

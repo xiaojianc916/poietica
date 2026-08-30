@@ -1,6 +1,7 @@
 /* 包的公开面。显式罗列而不是 export *：谁在用什么必须一眼可见。 */
 
 export type { Problem } from '@poietica/problem'
+export { throughIpc } from './error'
 export {
   type AgentBridgeOptions,
   createAgentCapabilityBridge,
@@ -10,12 +11,11 @@ export {
   createAgentThreadBridge,
   createAgentToolkitReader,
   shutdownAgent,
-} from './agent'
+} from './gateways/agent'
 export {
   type AgentConfigSnapshot,
   createAgentConfigBridge,
-} from './agent-config'
-export { readAppVersion } from './app-release'
+} from './gateways/agent-config'
 export {
   type AssetFormat,
   importAssets,
@@ -23,7 +23,7 @@ export {
   openAssetSession,
   removeAsset,
   uploadAsset,
-} from './asset'
+} from './gateways/asset'
 export {
   type Automation,
   type AutomationCatalog,
@@ -36,7 +36,7 @@ export {
   upsertAutomation,
   watchAutomationCatalog,
   watchAutomations,
-} from './automations'
+} from './gateways/automations'
 export {
   type BrowserElementPicked,
   type BrowserState,
@@ -58,7 +58,7 @@ export {
   setBrowserVisible,
   watchBrowserElementPicked,
   watchBrowserState,
-} from './browser'
+} from './gateways/browser'
 export {
   type CustomAgentCatalog,
   type CustomAgentFile,
@@ -67,13 +67,11 @@ export {
   listCustomAgents,
   removeCustomAgent,
   saveCustomAgent,
-} from './custom-agents'
-export { readDataDirectory } from './data-directory'
+} from './gateways/custom-agents'
 export {
   readEnvironmentMcpConfig,
   writeEnvironmentMcpConfig,
-} from './environment'
-export { throughIpc } from './error'
+} from './gateways/environment'
 export {
   type GitBranches,
   type GitCommitIntent,
@@ -87,17 +85,9 @@ export {
   gitFilePatch,
   gitReview,
   gitSwitchBranch,
-} from './git'
-export { resolveLauncher } from './launcher'
-export { readMcpEndpoint } from './mcp'
-export {
-  type NativeCrashReport,
-  takePreviousNativeCrashReport,
-} from './native-crash-report'
-export {
-  createMainWindowController,
-  type MainWindowController,
-} from './native-window'
+} from './gateways/git'
+export { resolveLauncher } from './gateways/launcher'
+export { readMcpEndpoint } from './gateways/mcp'
 export {
   commitPlugin,
   discardStagedPlugin,
@@ -109,7 +99,7 @@ export {
   setPluginEnabled,
   setPluginMcpEnabled,
   stagePlugin,
-} from './plugins'
+} from './gateways/plugins'
 export {
   commitSkill,
   discardStagedSkill,
@@ -118,10 +108,20 @@ export {
   type SkillRecord,
   setSkillEnabled,
   stageSkill,
-} from './skills'
-export { readTokenDays } from './usage'
-export { readWorkbenchSession, writeWorkbenchSession } from './workbench'
+} from './gateways/skills'
+export { readTokenDays } from './gateways/usage'
+export { readWorkbenchSession, writeWorkbenchSession } from './gateways/workbench'
 export {
   createProjectlessWorkspace,
   pickWorkspaceRoot,
-} from './workspace'
+} from './gateways/workspace'
+export { readAppVersion } from './platform/app-release'
+export { readDataDirectory } from './platform/data-directory'
+export {
+  type NativeCrashReport,
+  takePreviousNativeCrashReport,
+} from './platform/native-crash-report'
+export {
+  createMainWindowController,
+  type MainWindowController,
+} from './platform/native-window'

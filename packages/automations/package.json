@@ -13,7 +13,7 @@
   "dependencies": {
     "@poietica/agent-contract": "workspace:*",
     "@poietica/native-bridge": "workspace:*",
-    "@poietica/ui": "workspace:*",
+    "@poietica/design-system": "workspace:*",
     "croner": "10.0.1",
     "@poietica/problem": "workspace:*"
   },

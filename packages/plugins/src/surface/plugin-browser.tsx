@@ -1,4 +1,4 @@
-import { Button, Switch } from '@poietica/ui'
+import { Button, Switch } from '@poietica/design-system'
 import { useState } from 'react'
 
 import { groupRows, matches, publicPluginRows } from '../catalog/listing'

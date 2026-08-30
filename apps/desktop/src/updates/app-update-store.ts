@@ -1,6 +1,6 @@
 import type { UpdateKind } from '@poietica/contract'
+import { createExternalStore } from '@poietica/design-system'
 import type { SettingsStore } from '@poietica/settings'
-import { createExternalStore } from '@poietica/ui'
 import type { AppUpdateController } from './app-update'
 
 /* 检查节奏只有这一份：定时器跟着 store 活，六小时才真的是六小时。 */

@@ -11,10 +11,10 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/agent": "workspace:*",
+    "@poietica/conversation": "workspace:*",
     "@poietica/agent-catalog": "workspace:*",
     "@poietica/native-bridge": "workspace:*",
-    "@poietica/ui": "workspace:*",
+    "@poietica/design-system": "workspace:*",
     "lucide-react": "catalog:",
     "yaml": "catalog:",
     "@poietica/problem": "workspace:*"

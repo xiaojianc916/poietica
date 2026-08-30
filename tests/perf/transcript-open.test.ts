@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { applyRunEvents, replayThreadEvents, selectPresentation } from '@poietica/agent'
+import { applyRunEvents, replayThreadEvents, selectPresentation } from '@poietica/conversation'
 import { closedConversation, liveDelta, liveTurn } from './synthetic-conversation'
 
 /*

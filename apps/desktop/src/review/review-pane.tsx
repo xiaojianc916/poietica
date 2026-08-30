@@ -1,5 +1,4 @@
-import { useCopy } from '@poietica/agent-ui'
-import type { DiffFile, DiffPiece, DiffRow, DiffStat } from '@poietica/review'
+import { useCopy } from '@poietica/conversation-ui'
 import {
   cn,
   DropdownMenu,
@@ -13,7 +12,8 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@poietica/ui'
+} from '@poietica/design-system'
+import type { DiffFile, DiffPiece, DiffRow, DiffStat } from '@poietica/review'
 import {
   ArrowUp,
   Check,

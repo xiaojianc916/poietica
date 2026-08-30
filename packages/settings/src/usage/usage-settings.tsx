@@ -1,4 +1,4 @@
-import type { ThreadsStore } from '@poietica/agent'
+import type { ThreadsStore } from '@poietica/conversation'
 import { readTokenDays } from '@poietica/native-bridge'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { SegmentedControl, type SegmentedOption } from '../surface/segmented-control'

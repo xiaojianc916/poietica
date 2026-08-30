@@ -1,10 +1,10 @@
-import type { SessionControlsFailureReport } from '@poietica/agent'
-import { AgentCapabilityStore } from '@poietica/agent'
-import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/agent-ui'
+import type { SessionControlsFailureReport } from '@poietica/conversation'
+import { AgentCapabilityStore } from '@poietica/conversation'
+import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/conversation-ui'
+import { applyThemePreference } from '@poietica/design-system'
 import type { MainWindowController } from '@poietica/native-bridge'
 import type { PluginsViewModel } from '@poietica/plugins'
 import type { KeybindingCatalog, KeybindingEntry } from '@poietica/settings'
-import { applyThemePreference } from '@poietica/ui'
 import type { CommandRegistry } from '@poietica/workspace'
 import {
   CommandPalette,
@@ -31,7 +31,7 @@ import { type AppCapabilities, WorkspaceContainer } from '../workbench/workspace
 /*
  * 开发构建不检查更新：开发跑的版本号来自工作区，任何已发布版本都比它新，结果是
  * 每六小时提示一次一个装不上的更新。这个判断是构建期常量，放在模块级，生产构建
- * 里整个分支会被直接消掉；desktop-adapters 是适配层，不该知道自己被谁怎么打包。
+ * 里整个分支会被直接消掉；native-bridge 是适配层，不该知道自己被谁怎么打包。
  */
 const CHECKS_UPDATES = !import.meta.env.DEV
 /* 三个动作三句话：一次检查失手不该顶着「更新没能下载完成」上屏。 */

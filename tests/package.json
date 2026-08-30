@@ -9,7 +9,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "@poietica/agent": "workspace:*",
+    "@poietica/conversation": "workspace:*",
     "@poietica/agent-contract": "workspace:*",
     "@types/bun": "catalog:",
     "typescript": "catalog:"

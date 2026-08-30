@@ -1,4 +1,4 @@
-import { Button, Switch } from '@poietica/ui'
+import { Button, Switch } from '@poietica/design-system'
 import type { ReactNode } from 'react'
 
 import { describeInstallSource } from '../install-source'

@@ -1,4 +1,4 @@
-import { Button, Select, type SelectOption } from '@poietica/ui'
+import { Button, Select, type SelectOption } from '@poietica/design-system'
 import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useSyncExternalStore } from 'react'
 import type { CustomAgentDraft, DelegationMode, ModelPreference, ToolMode } from './agent-document'

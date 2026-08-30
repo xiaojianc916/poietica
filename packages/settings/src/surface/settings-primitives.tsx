@@ -1,4 +1,4 @@
-import { Switch } from '@poietica/ui'
+import { Switch } from '@poietica/design-system'
 import type { ReactNode } from 'react'
 
 /*

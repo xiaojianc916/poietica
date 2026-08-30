@@ -1,4 +1,4 @@
-import { Button, cn } from '@poietica/ui'
+import { Button, cn } from '@poietica/design-system'
 import { Copy, Minus, Square, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 

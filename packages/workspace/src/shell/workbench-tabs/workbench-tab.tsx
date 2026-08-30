@@ -1,4 +1,4 @@
-import { PixelLoader } from '@poietica/ui'
+import { PixelLoader } from '@poietica/design-system'
 import { X } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../workbench'

@@ -1,5 +1,5 @@
-import { groupByWorkspace, type ThreadsStore } from '@poietica/agent'
-import { Button, ConfirmationDialog, Select, type SelectOption } from '@poietica/ui'
+import { groupByWorkspace, type ThreadsStore } from '@poietica/conversation'
+import { Button, ConfirmationDialog, Select, type SelectOption } from '@poietica/design-system'
 import { ArchiveRestore, Search, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 import { SettingRow, SettingsGroup, SettingsPage } from './settings-primitives'

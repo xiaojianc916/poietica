@@ -1,5 +1,5 @@
+import { createPreference } from '@poietica/design-system'
 import { warn } from '@poietica/problem'
-import { createPreference } from '@poietica/ui'
 import { useSyncExternalStore } from 'react'
 import { SettingsGroup, ToggleRow } from './settings-primitives'
 
@@ -9,7 +9,7 @@ import { SettingsGroup, ToggleRow } from './settings-primitives'
  * 刻意不进 AppSettings：那张表与 src-tauri 的 AppSettings 逐字段镜像，Rust、
  * 默认值、迁移三处都要一起动，而这两项只属于渲染层的一个组件。
  *
- * 两项设置统一通过 @poietica/ui 的 createPreference 读写。写入完成后只发送
+ * 两项设置统一通过 @poietica/design-system 的 createPreference 读写。写入完成后只发送
  * 当前布尔快照，让同窗口内已经挂载的吉祥物立即采用；跳窗口变化由 Preference
  * 自己订阅。
  */

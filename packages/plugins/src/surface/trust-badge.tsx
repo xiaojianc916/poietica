@@ -1,4 +1,4 @@
-import { cn } from '@poietica/ui'
+import { cn } from '@poietica/design-system'
 
 import type { PluginTrustTier } from '../install-source'
 

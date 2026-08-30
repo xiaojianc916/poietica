@@ -1,4 +1,4 @@
-import { RegionSplitter } from '@poietica/ui'
+import { RegionSplitter } from '@poietica/design-system'
 import type { ReactNode } from 'react'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 import { workspaceLayoutStore } from './workspace-layout-store'

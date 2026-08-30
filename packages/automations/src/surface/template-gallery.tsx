@@ -1,4 +1,4 @@
-import { cn } from '@poietica/ui'
+import { cn } from '@poietica/design-system'
 import { useState } from 'react'
 
 import { describeSchedule } from '../automation'

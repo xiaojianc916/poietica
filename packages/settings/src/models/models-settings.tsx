@@ -1,5 +1,5 @@
 import { type AgentProfile, agentById, agentRoster } from '@poietica/agent-catalog'
-import { Select, type SelectOption } from '@poietica/ui'
+import { Select, type SelectOption } from '@poietica/design-system'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../agent-config-store'
 import { describeAgentCliFailure } from '../agent-install/agent-cli-text'

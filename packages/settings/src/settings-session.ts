@@ -1,4 +1,4 @@
-import { createExternalStore } from '@poietica/ui'
+import { createExternalStore } from '@poietica/design-system'
 import type { AppSettings } from './settings'
 import type { SettingsStore } from './settings-store'
 

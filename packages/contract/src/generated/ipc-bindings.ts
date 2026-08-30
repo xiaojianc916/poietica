@@ -339,7 +339,7 @@ async agentForkThread(request: AgentForkThreadRequest) : Promise<AgentThread> {
  * 收得下的格式清单。系统文件对话框的过滤器按它来。
  * 
  * 这条命令存在的唯一理由，是扩展名那张表不该有第二份。一个进程只问一次
- * （desktop-adapters 那侧缓存住），代价是一次本机往返，换掉的是一个漏改不
+ * （native-bridge 的 gateways 那侧缓存住），代价是一次本机往返，换掉的是一个漏改不
  * 报错的静默失败。
  */
 async assetFormats() : Promise<AssetFormat[]> {

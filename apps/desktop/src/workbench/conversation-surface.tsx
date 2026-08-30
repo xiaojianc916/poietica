@@ -9,7 +9,7 @@ import {
   useThreadSelectors,
   useThreadUsage,
   type WorkspacePickerProps,
-} from '@poietica/agent-ui'
+} from '@poietica/conversation-ui'
 import { useCallback, useEffect, useRef } from 'react'
 import { useThreadsActions } from '../assistant/threads-context'
 import { adoptBrowserPickTarget } from '../browser/browser-pick'
@@ -117,7 +117,7 @@ export function ConversationSurface({
    *
    * 入口那一格既没有对话也没有会话，它画的是这一家 agent 的表 —— 能力属于 agent,
    * 人想用哪个模型更是他自己的事，两者都不需要一条对话存在。进了对话之后画的是那条
-   * 会话自己的表（见 @poietica/agent 的 SessionControlsStore）：kap 的配置是会话级的,
+   * 会话自己的表（见 @poietica/conversation 的 SessionControlsStore）：kap 的配置是会话级的,
    * 一条会话选了什么说明不了另一条选了什么。
    *
    * 所以读、写、重试三样都按同一个 isNew 分岔。少分一样就够了：写恒发往

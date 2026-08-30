@@ -1,12 +1,12 @@
 import './app.css'
 
+import { applyThemePreference } from '@poietica/design-system'
 import {
   type NativeCrashReport,
   readWorkbenchSession,
   takePreviousNativeCrashReport,
 } from '@poietica/native-bridge'
 import { DEFAULT_APP_SETTINGS } from '@poietica/settings'
-import { applyThemePreference } from '@poietica/ui'
 import { mountReactApplication } from './bootstrap/react-root'
 import { installContextMenuGuard } from './chrome/context-menu-guard'
 import { installExternalLinks } from './chrome/external-links'

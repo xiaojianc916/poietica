@@ -1,4 +1,8 @@
-import { groupByWorkspace, type ThreadsStore, type ThreadWorkspaceList } from '@poietica/agent'
+import {
+  groupByWorkspace,
+  type ThreadsStore,
+  type ThreadWorkspaceList,
+} from '@poietica/conversation'
 import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react'
 
 /*

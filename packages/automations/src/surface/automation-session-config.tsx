@@ -1,5 +1,5 @@
 import type { SessionConfigControl, SessionConfigPurpose } from '@poietica/agent-contract'
-import { Select, type SelectOption } from '@poietica/ui'
+import { Select, type SelectOption } from '@poietica/design-system'
 import { useMemo } from 'react'
 
 /*
@@ -11,7 +11,7 @@ import { useMemo } from 'react'
  * 默认，新建时显示的就是它，保存下去的也是它。
  *
  * 一格都不是手写的：清单来自 useAgentControls（与输入框上那颗胶囊同一个产地），
- * 控件来自 @poietica/ui 的 Select（Base UI，自带勾号、键盘导航与宽度自适应）。
+ * 控件来自 @poietica/design-system 的 Select（Base UI，自带勾号、键盘导航与宽度自适应）。
  * 上一版在这里用 DropdownMenu + RadioGroup 手搓了一遍同样的东西，那是本仓库
  * 已经有的能力被重造了一次。
  *

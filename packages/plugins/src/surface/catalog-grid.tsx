@@ -1,5 +1,5 @@
+import { Button } from '@poietica/design-system'
 import { resolveLauncher } from '@poietica/native-bridge'
-import { Button } from '@poietica/ui'
 import { useState } from 'react'
 
 import { BUILTIN_SERVERS, mcpServerBody } from '../catalog/builtin'

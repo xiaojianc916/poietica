@@ -8,7 +8,7 @@ import {
   builtinAgentProviders,
   parseAgentProviderListOutput,
 } from '@poietica/agent-catalog'
-import { Button, InlineSpinner } from '@poietica/ui'
+import { Button, InlineSpinner } from '@poietica/design-system'
 import { LoaderCircle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigStore } from '../agent-config-store'

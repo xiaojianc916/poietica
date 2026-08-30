@@ -1,5 +1,5 @@
+import { createExternalStore } from '@poietica/design-system'
 import { warn } from '@poietica/problem'
-import { createExternalStore } from '@poietica/ui'
 
 import type { BrowserHostPort, BrowserState, BrowserViewportBounds } from './browser-port'
 

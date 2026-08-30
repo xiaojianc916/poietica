@@ -4,7 +4,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@poietica/ui'
+} from '@poietica/design-system'
 import {
   ChevronDown,
   ChevronRight,
@@ -23,7 +23,7 @@ import { TabIcon } from './tab-icon'
 /*
  * 面板三张菜单的唯一实现：加号、标签下拉、更多操作。
  *
- * 菜单是主文档里的 DOM，定位、碰撞翻转、键盘与 aria 归 @poietica/ui 的
+ * 菜单是主文档里的 DOM，定位、碰撞翻转、键盘与 aria 归 @poietica/design-system 的
  * DropdownMenu；展开期间原生子 webview 由 browser-dock 让位。行高读控件小号
  * 令牌、字号 text-xs —— 与标签条同一套量纲，量纲一律走类。
  */

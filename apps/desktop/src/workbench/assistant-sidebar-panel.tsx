@@ -1,5 +1,5 @@
-import { isProjectlessWorkspaceRoot } from '@poietica/agent'
-import { AssistantThreadList } from '@poietica/agent-ui'
+import { isProjectlessWorkspaceRoot } from '@poietica/conversation'
+import { AssistantThreadList } from '@poietica/conversation-ui'
 import { memo, useCallback, useMemo } from 'react'
 
 import { useThreadsActions, useThreadsList } from '../assistant/threads-context'

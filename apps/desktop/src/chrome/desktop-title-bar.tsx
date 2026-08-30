@@ -1,4 +1,4 @@
-import { Button } from '@poietica/ui'
+import { Button } from '@poietica/design-system'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from '@poietica/workspace'
 import { ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react'
 import type { ReactNode } from 'react'

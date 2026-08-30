@@ -1,4 +1,4 @@
-import { ToastRegion } from '@poietica/ui'
+import { ToastRegion } from '@poietica/design-system'
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { noticeStore } from './notices'
 /** 通知的唯一出口：store 说什么就画什么。 */

@@ -171,7 +171,7 @@ export async function capabilitiesAreWiredAtTheRoot(root: string): Promise<Viola
 /**
  * 设计令牌只有一个定义方；用它的人随便用，定义它的只能有一个。
  *
- * 令牌命名空间是 --ui-（packages/ui 里 170+ 处定义）。--cp- 不在此列：那是
+ * 令牌命名空间是 --ui-（packages/design-system 里 170+ 处定义）。--cp- 不在此列：那是
  * 组件局部派生量的命名空间（判例 ADR 0015 的 --cp-dock-clearance），产品布局
  * 尺寸不进全局令牌（ui-authority-boundaries.md 明文），定义权随组件走。
  */
@@ -179,7 +179,7 @@ export async function designSystemOwnsItsTokens(root: string): Promise<Violation
   const violations: Violation[] = []
 
   for (const file of await walk(root, ['apps', 'packages'], ['.css'])) {
-    if (file.startsWith('packages/ui/')) {
+    if (file.startsWith('packages/design-system/')) {
       continue
     }
 
@@ -190,7 +190,7 @@ export async function designSystemOwnsItsTokens(root: string): Promise<Violation
         violations.push({
           policy: 'design-system-token-authority',
           where: file,
-          detail: '令牌定义不归这里：定义在 packages/ui，别处只许 var() 引用',
+          detail: '令牌定义不归这里：定义在 packages/design-system，别处只许 var() 引用',
         })
         break
       }
@@ -249,7 +249,7 @@ export async function noWildcardReExports(root: string): Promise<Violation[]> {
 
   for (const file of await walk(root, ['apps', 'packages', 'tools'], ['.d.ts'])) {
     /* CSS 副作用导入的类型来源：全仓唯一被认可的模块通配声明（见该文件头）。 */
-    if (file === 'packages/ui/src/css.d.ts') {
+    if (file === 'packages/design-system/src/css.d.ts') {
       continue
     }
 

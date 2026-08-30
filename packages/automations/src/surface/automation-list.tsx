@@ -1,5 +1,5 @@
+import { ConfirmationDialog } from '@poietica/design-system'
 import type { Automation } from '@poietica/native-bridge'
-import { ConfirmationDialog } from '@poietica/ui'
 import { useState } from 'react'
 
 import { describeMoment, describeSchedule, latestRun } from '../automation'
@@ -24,7 +24,7 @@ export function AutomationList({ automations, loaded, onOpen, store }: Automatio
   /*
    * 待确认删除的那一条。删除不可撤销（定义与运行记录一起没），最后一道门
    * 是人说「确认」，不是行内那颗按钮直接落锤。对话框用全仓现成的那个
-   * （@poietica/ui 的 ConfirmationDialog），不为这里另搓一个。
+   * （@poietica/design-system 的 ConfirmationDialog），不为这里另搓一个。
    */
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null)
 

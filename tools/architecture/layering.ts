@@ -4,17 +4,17 @@ export type Ring = { readonly name: string; readonly members: readonly string[] 
 
 export const TYPESCRIPT_RINGS: readonly Ring[] = [
   { name: 'contract', members: ['@poietica/contract'] },
-  { name: 'foundation', members: ['@poietica/problem', '@poietica/ui'] },
+  { name: 'foundation', members: ['@poietica/problem', '@poietica/design-system'] },
   { name: 'protocol', members: ['@poietica/agent-contract'] },
   {
     name: 'domain',
-    members: ['@poietica/agent', '@poietica/agent-catalog', '@poietica/review'],
+    members: ['@poietica/conversation', '@poietica/agent-catalog', '@poietica/review'],
   },
   { name: 'adapter', members: ['@poietica/native-bridge'] },
   {
     name: 'feature',
     members: [
-      '@poietica/agent-ui',
+      '@poietica/conversation-ui',
       '@poietica/automations',
       '@poietica/browser',
       '@poietica/plugins',
@@ -69,7 +69,7 @@ export const HOST_AGNOSTIC_CRATES: readonly string[] = [
 
 /** 词汇与领域包里不许出现 UI 框架。 */
 export const FRAMEWORK_FREE_PACKAGES: readonly string[] = [
-  '@poietica/agent',
+  '@poietica/conversation',
   '@poietica/agent-catalog',
   '@poietica/contract',
   '@poietica/problem',

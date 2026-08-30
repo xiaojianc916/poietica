@@ -1,4 +1,4 @@
-import { applyThemePreference } from '@poietica/ui'
+import { applyThemePreference } from '@poietica/design-system'
 import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react'
 import type { AppSettings } from '../settings'
 import { createSettingsSession, type SettingsOperation } from '../settings-session'

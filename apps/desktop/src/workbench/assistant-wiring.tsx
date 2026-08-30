@@ -1,5 +1,5 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { ComposerDrafts, ComposerDraftsContext, useAgentControls } from '@poietica/agent-ui'
+import { ComposerDrafts, ComposerDraftsContext, useAgentControls } from '@poietica/conversation-ui'
 import { PluginsSurface } from '@poietica/plugins'
 import {
   type CustomAgentStore,

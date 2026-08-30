@@ -1,5 +1,11 @@
-import type { ThreadsStore } from '@poietica/agent'
-import { Button, ErrorState, LoadingState, Select, type SelectOption } from '@poietica/ui'
+import type { ThreadsStore } from '@poietica/conversation'
+import {
+  Button,
+  ErrorState,
+  LoadingState,
+  Select,
+  type SelectOption,
+} from '@poietica/design-system'
 import {
   Archive,
   ArrowLeft,

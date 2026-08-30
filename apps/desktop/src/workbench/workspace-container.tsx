@@ -1,5 +1,5 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { DelegateChannelContext, useRunningThreads } from '@poietica/agent-ui'
+import { DelegateChannelContext, useRunningThreads } from '@poietica/conversation-ui'
 import type {
   AgentConfigStore,
   CustomAgentStore,

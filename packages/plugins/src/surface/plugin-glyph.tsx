@@ -1,4 +1,4 @@
-import { cn, integrationMarkFor } from '@poietica/ui'
+import { cn, integrationMarkFor } from '@poietica/design-system'
 import { useState } from 'react'
 
 /* 认不出的条目与坏掉的资源退回彩色首字母：一个稳定的名字比一个空盒子好认。 */

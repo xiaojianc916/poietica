@@ -1,4 +1,4 @@
-import { Button } from '@poietica/ui'
+import { Button } from '@poietica/design-system'
 import { Download, LoaderCircle } from 'lucide-react'
 import { useSyncExternalStore } from 'react'
 import type { AppUpdateStore } from './app-update-store'

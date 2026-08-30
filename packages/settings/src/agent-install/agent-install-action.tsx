@@ -1,4 +1,4 @@
-import { Button, InlineSpinner } from '@poietica/ui'
+import { Button, InlineSpinner } from '@poietica/design-system'
 import type { AgentConfigStore } from '../agent-config-store'
 import { useAgentInstall } from './use-agent-install'
 

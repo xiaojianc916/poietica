@@ -30,7 +30,7 @@ primitive to have exactly one authority.
 - Feature packages may compose primitives but must not recreate generic dialog,
   menu, tooltip, select, combobox or toast interaction kernels.
 - Product-layout dimensions do not belong to global design-system tokens.
-- Public consumers import only from `@poietica/ui`.
+- Public consumers import only from `@poietica/design-system`.
 
 ## Migration rule
 

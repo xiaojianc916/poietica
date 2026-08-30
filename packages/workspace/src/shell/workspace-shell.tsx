@@ -1,4 +1,4 @@
-import { TooltipProvider } from '@poietica/ui'
+import { TooltipProvider } from '@poietica/design-system'
 
 import type { WorkspaceShellProps } from '../shell-contract'
 import { BrowserRegion } from './browser-region'

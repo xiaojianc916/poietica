@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@poietica/native-bridge": "workspace:*",
-    "@poietica/ui": "workspace:*",
+    "@poietica/design-system": "workspace:*",
     "lucide-react": "catalog:",
     "@poietica/problem": "workspace:*"
   },
