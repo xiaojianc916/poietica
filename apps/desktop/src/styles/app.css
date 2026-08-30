@@ -1,5 +1,7 @@
 @import "@poietica/design-system/styles.css";
-@import "tailwindcss" source("../../../");
+@import "tailwindcss" source("../../../../");
+@source "../../../../packages/*/src/**/*.{ts,tsx}";
+@source "../../../../apps/desktop/src/**/*.{ts,tsx}";
 
 /*
  * Streamdown ships utility classes inside its bundles.
