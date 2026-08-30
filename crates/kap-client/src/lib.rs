@@ -50,14 +50,22 @@ pub use interaction::question::{
     QuestionResponse,
 };
 pub use process::controlled_home::{
-    alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
-    usable_default_model,
+    alias_has_usable_credentials, alias_is_declared, secret_from_config, set_default_model,
+    tails_from_config, usable_default_model, write_config_atomically,
 };
 pub use process::custom_agents::{
     CustomAgentCatalog, CustomAgentFile, CustomAgentFileError, delete_custom_agent,
     list_custom_agents, save_custom_agent,
 };
 pub use process::daemon::{Daemon, DaemonIntent, DaemonPhase, Reaction};
+pub use process::install::{
+    InstallState, InstallStatus, PackageManager, first_semver, install_package, install_state_of,
+    latest_version, owner_of, preferred_manager, reported_version,
+};
+pub use process::profile::{
+    ControlledHome, InstallSpec, args_of, declared_env_of, home_var_of, install_spec_of,
+    is_npm_package_name, is_plain_directory_name, launch_env, own_home_of, program_of,
+};
 pub use process::program::{Launcher, hide_console, resolve_launcher, resolve_program};
 pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine};
 pub use run_slot::RunSlot;

@@ -1,20 +1,25 @@
-//! 一份 config.toml 的判读：provider 凭据与默认模型闸门。
+//! 一份 config.toml 的判读：provider 凭据与默认模型闸门，以及唯一的那条写回路。
 //!
 //! 判据不是这里定的，是上游 session/new 的闸门定的（npm @moonshot-ai/kimi-code 的
-//! kap server，`hasUsableConfiguredDefaultModel`；该 server 自述的契约快照钉在本仓
-//! contracts/kap）。这里是那道闸门在本地的逐字对照，
+//! kap server，`hasUsableConfiguredDefaultModel`）；这里是那道闸门在本地的逐字对照，
 //! 让界面在用户动手之前就能说出「这个模型能不能开会话」「哪家 provider 配了钥匙」，
 //! 而不是等 session/new 用一句 authRequired 事后揭晓。
 //!
-//! 住在这个 crate 而不是组合根：这些判断不需要 AppHandle/State 就写得出来
-//! （AGENTS.md §3 的薄封装判据），在这里它们有自己的单测。读 config.toml 只有一条路：
-//! `text.parse::<DocumentMut>()` —— 手写扫描已经在同一个文件上与 agent 各说一套过，
-//! 判例记在 `tails_from_config` 的文档里。
+//! 读 config.toml 只有一条路：`text.parse::<DocumentMut>()`。读一套、写一套
+//! 是两份迟早对不上的规则，而手写的那一套已经对不上过：「扫到第一个 `[` 就停」
+//! 认不出多行字符串里的方括号，`strip_prefix("api_key")` 认不出 `api_key_id` 不是
+//! `api_key`，单引号写的密钥它一律当没配。agent 自己读这份文件用的是真解析器。
 //!
-//! 密钥经过这里但不停留：`secret_from_config` 的返回值唯一的去处是注入子进程的环境变量。
+//! 密钥经过这里但不停留：`secret_from_config` 的返回值唯一的去处是注入子进程的
+//! 环境变量。
 
 use std::collections::BTreeMap;
+use std::io::Write;
+use std::path::Path;
+
 use toml_edit::{DocumentMut, Item, TableLike};
+
+use crate::error::{KapError, Result};
 
 /// 一份 config.toml 里那一家 provider 的表。
 ///
@@ -209,9 +214,126 @@ pub fn secret_from_config(text: &str, provider_id: &str) -> Option<String> {
     api_key_of(&text.parse::<DocumentMut>().ok()?, provider_id)
 }
 
+fn toolchain(message: String) -> KapError {
+    KapError::Toolchain { message }
+}
+
+/// 原子写回一份配置：先写同目录的临时文件，再 rename 覆盖。
+///
+/// 不直接截断原文件再写：agent 自己 watch 着它 —— 上游
+/// packages/agent-core-v2/src/app/config/configService.ts 在
+/// `documentStore.watch(CONFIG_SCOPE, this.configKey)` 的回调里直接 `void this.reload()`。
+/// 截断与写入之间那一瞬如果被读到，对方拿到的是一份残缺的 TOML，整份配置判为无效。
+///
+/// rename 在三个平台上都是覆盖语义，对 watcher 是一次事件而不是两次。
+pub fn write_config_atomically(path: &Path, text: &str) -> Result<()> {
+    let directory = path
+        .parent()
+        .ok_or_else(|| toolchain("配置文件没有父目录".to_owned()))?;
+
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| toolchain("配置文件没有文件名".to_owned()))?;
+
+    // 名字里带上进程号：一份崩溃残留的临时文件不该被下一次写入静默复用。
+    let temporary = directory.join(format!("{name}.poietica-{}", std::process::id()));
+
+    /*
+     * 落盘之后才 rename。std::fs::write 返回只说明字节进了页缓存 —— 那之后
+     * 掉电，文件系统可以先落 rename 的元数据、再落数据块，于是重启后
+     * config.toml 是零长度或半截的，agent 判整份配置无效。这个文件装着用户
+     * 的 API 密钥和默认模型，丢了要他重配一遍。
+     *
+     * 只 sync 文件本身，不 sync 目录：这一步管的是「rename 生效时数据一定
+     * 在盘上」，那是 sync_all 的职责；目录项本身丢了只是回到改动前，不会
+     * 留下一份坏文件。
+     */
+    let mut file = std::fs::File::create(&temporary)
+        .map_err(|error| toolchain(format!("建不了临时配置：{error}")))?;
+
+    file.write_all(text.as_bytes())
+        .map_err(|error| toolchain(format!("写不进临时配置：{error}")))?;
+
+    file.sync_all()
+        .map_err(|error| toolchain(format!("临时配置落盘失败：{error}")))?;
+
+    drop(file);
+
+    std::fs::rename(&temporary, path).map_err(|error| toolchain(format!("替换配置失败：{error}")))
+}
+
+/// 改写一份 config.toml 顶层的 `default_model`，写入前照上游闸门查两遍。
+///
+/// 为什么不借 agent 的 CLI：官方唯一会写这个键的出口是
+/// `provider catalog add --default-model`，而它的实现是先 removeProvider 再
+/// applyCatalogProvider —— 为「换掉一家 provider 的整份模型清单」设计的。理由写在
+/// 上游自己的注释里（packages/node-sdk/src/catalog.ts 逐字：setConfig 是
+/// 「a deep-merge patch that cannot delete keys」，所以换清单必须先删）。
+///
+/// 我们要做的是把一个标量改成另一个标量，不删任何键。那条约束与这里无关 —— 借它等于
+/// 每换一次默认模型就重建一次 provider，还得为此把这一家的密钥再交一次。
+///
+/// 改文件不需要重启 agent：它自己 watch 着这个文件，上游在自己的测试里就依赖这一点
+/// （packages/kap-server/test/modelCatalogCatalog.test.ts 逐字
+/// 「hand edits to config.toml only take effect after the file watcher reloads」）。
+/// 同一条注释也给出了唯一要防的竞态：「a write that starts from the pre-edit state
+/// would silently drop them」。会整份写回的只有走 CLI 的三件事（存密钥、删密钥、
+/// 一次性导入），界面上它们与这一格互斥，不会并发。
+///
+/// 第一遍闸门是别名在 `models` 表里，第二遍是它指向的 provider 手里真有非 OAuth
+/// 的凭据（`alias_has_usable_credentials`）。只查第一遍不够：上游闸门两步都过才放行，
+/// 一个在 `models` 表里、provider 却没配密钥的别名写下去不会当场失败，代价推迟到
+/// 下一次开会话时的 authRequired —— 用户看到的是一句与自己刚才的动作毫无关系的
+/// 登录要求。所以宁可在点下去的那一刻就拒绝，并说清是哪一家缺钥匙。
+///
+/// # Errors
+///
+/// 配置读不到、不是合法 TOML、别名不在 `models` 表里、那一家没有可用的非 OAuth
+/// 凭据，或写回失败时返回错误。
+pub fn set_default_model(path: &Path, agent_id: &str, alias: &str) -> Result<()> {
+    if alias.is_empty() {
+        return Err(KapError::Validation {
+            message: "默认模型不能为空".to_owned(),
+        });
+    }
+
+    let text = std::fs::read_to_string(path)
+        .map_err(|error| toolchain(format!("读不到 {agent_id} 自己的配置：{error}")))?;
+
+    let mut document = text
+        .parse::<DocumentMut>()
+        .map_err(|error| toolchain(format!("{agent_id} 的配置不是合法的 TOML：{error}")))?;
+
+    if !alias_is_declared(&document, alias) {
+        return Err(KapError::Validation {
+            message: format!("{agent_id} 的配置里没有 {alias} 这个模型"),
+        });
+    }
+
+    if !alias_has_usable_credentials(&document, alias) {
+        return Err(KapError::Validation {
+            message: format!("{alias} 这一家还没有可用的 API 密钥，选它会让下一次开会话被要求登录"),
+        });
+    }
+
+    /* 用 insert 而不是 `document["default_model"] = ...`。toml_edit 的 IndexMut
+    在键不存在时会自己插进去，所以那一行其实不会 panic —— 但那是要翻它的文档才
+    确认得到的隐性契约，而 Index 在 Rust 里的默认语义就是"越界即 panic"。改掉的
+    不是行为，是"每个读者都得自己去验一遍"这件事。 */
+    let _previous = document.insert("default_model", toml_edit::value(alias));
+
+    write_config_atomically(path, &document.to_string())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{secret_from_config, tails_from_config, usable_default_model};
+    #![allow(
+        clippy::expect_used,
+        reason = "a test proves itself by panicking, so a failed step must fail the test"
+    )]
+
+    use super::{secret_from_config, set_default_model, tails_from_config, usable_default_model};
 
     /// 上游闸门在意的每一格各占一段：正常密钥、单引号密钥、空白密钥、env 凭据、
     /// OAuth、缺 provider 的模型条目。
@@ -304,5 +426,35 @@ expires_at = 1
             Some("sk-abcde12345".to_owned())
         );
         assert_eq!(secret_from_config(CONFIG, "blank"), None);
+    }
+
+    /// 写回路整条走一遍：闸门拒绝的别名落不下去，闸门放行的别名原子替换
+    /// 且保留其余键。临时文件与 rename 都发生在真实目录里。
+    #[test]
+    fn set_default_model_writes_only_what_the_gate_allows() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("config.toml");
+        std::fs::write(&path, CONFIG).expect("seed config");
+
+        let rejected = set_default_model(&path, "kimi", "gone");
+        assert!(matches!(
+            rejected,
+            Err(crate::error::KapError::Validation { .. })
+        ));
+
+        let unlocked = set_default_model(&path, "kimi", "envy");
+        assert!(unlocked.is_ok());
+
+        let after = std::fs::read_to_string(&path).expect("reread config");
+        assert_eq!(usable_default_model(&after).as_deref(), Some("envy"));
+        assert_eq!(
+            secret_from_config(&after, "kimi").as_deref(),
+            Some("sk-abcde12345")
+        );
+        assert!(
+            !dir.path().join("config.toml.poietica-0").exists()
+                || std::fs::read_dir(dir.path())
+                    .is_ok_and(|entries| entries.filter_map(Result::ok).count() == 1)
+        );
     }
 }

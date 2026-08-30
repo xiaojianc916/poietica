@@ -32,6 +32,10 @@ KAP 协议适配：`generated/`（自 contracts/kap 快照生成，禁手改）�
 （session/）、帧的形状与翻译（frame.rs、translate.rs）、审批与提问两张桌子
 （interaction/）。
 
+process/ 里还住着 agent 工具链的判读：接入档案字段与 npm 包名闸门
+（profile.rs）、config.toml 的读判据与唯一写回路（controlled_home.rs）、
+运行时的包管理器归属与安装执行（install.rs）——全部不需要宿主类型，各有单测。
+
 - 依赖 `poietica-conversation` 与 `reqwest`、`tokio-tungstenite`、`futures`、
   `toml_edit`、`which` 等。
 - **不依赖 `tauri`**，可用普通 `cargo test` 单独测试。
@@ -81,9 +85,9 @@ git 命令适配：分支快照与切换、审查面的执行编排、工作树�
 
 ## 已知偏差
 
-`src-tauri/src/commands/` 下的 `agent/`、`agent_setup/profile.rs`、
-`agent_setup/install.rs` 远超"薄封装"的规模，业务分支尚未下沉到 native crate。
-这些偏差没有机器执行的闸门，只靠评审。
+（无。曾登记的 `agent_setup/profile.rs`、`agent_setup/install.rs` 超薄封装偏差已
+按 §3 判据收敛：档案判读、npm 包名闸门、config.toml 读写与包管理器安装执行住在
+`poietica-kap-client` 的 process/ 并有单测；宿主只剩 store 开库、路径与 DTO 互转。）
 
 上面「规则」一节的执行情况：不依赖 `tauri`、必须写
 `[lints] workspace = true` 由 `bun run test:architecture` 的

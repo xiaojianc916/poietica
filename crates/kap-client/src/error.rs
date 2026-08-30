@@ -59,6 +59,10 @@ pub enum KapError {
     /// 答给了单选题，或问的那一侧已经走了。
     #[error("the question answer was refused: {message}")]
     Question { message: String },
+    /// agent 工具链（config.toml 读写、包管理器）这一路的失败。message 是已经
+    /// 可以说给用户听的话 —— 带上下文、无敏感细节，宿主原样上屏。
+    #[error("{message}")]
+    Toolchain { message: String },
     /// A task panicked while holding one of this crate's locks.
     #[error("a lock was left held by a panicking task")]
     Poisoned,

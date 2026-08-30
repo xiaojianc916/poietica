@@ -12,6 +12,7 @@ poietica-conversation = { path = "../conversation" }
 futures.workspace = true
 log.workspace = true
 reqwest.workspace = true
+semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true

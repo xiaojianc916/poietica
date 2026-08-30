@@ -17,24 +17,27 @@
 //! 上游自己的范式也是一次性的：`KIMI_REGISTRY_API_KEY=...` kimi provider add ...
 //! 「哪些 provider 已配好」的权威因此是 agent，问它的 provider list，不是问
 //! 我们。
+//!
+//! 档案字段的判读、npm 包名闸门、config.toml 的读与写住在 `poietica-kap-client`
+//! 的 process/（profile.rs、controlled_home.rs）—— 那里的判据有自己的单测；这里
+//! 只剩三样宿主的事：开 agents.json 那个 store、按磁盘布局算路径、DTO 互转。
 
 use crate::error::{Error, Result};
 use crate::paths::{agent_home, agents_store};
 use poietica_kap_client::{
-    alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
-    usable_default_model,
+    KapError, args_of as profile_args_of, declared_env_of, home_var_of, install_spec_of,
+    launch_env as compose_launch_env, own_home_of, program_of, secret_from_config,
+    set_default_model, tails_from_config, usable_default_model,
 };
 use poietica_problem::Problem;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 use std::collections::BTreeMap;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, Wry, command};
 use tauri_plugin_store::{Store, StoreExt};
-use toml_edit::DocumentMut;
 
 type AgentConfigCommandResult<T> = std::result::Result<T, Problem>;
 
@@ -71,11 +74,20 @@ struct PersistedAgentConfig {
     default_agent_id: String,
 }
 
+/// crate 侧拒绝与工具链失败原样上屏；其余按 Display 折叠。
+fn surfaced(error: KapError) -> Error {
+    match error {
+        KapError::Toolchain { message } | KapError::Validation { message } => {
+            Error::AgentCli(message)
+        }
+        other => Error::AgentCli(other.to_string()),
+    }
+}
+
 /// 这个 agent 的接入档案。
 ///
-/// 此前 `launch_env_inner` 与 `agent_program` 各写一遍同样的 find、各写一句同样的
-/// 失败文案。各查一次迟早查出两种结果，各写一句迟早写出两种说法，而用户看到的是
-/// 哪一句取决于他先点了什么 —— 那种差异没有任何信息量。
+/// 查找只有这一处：CLI 用哪个程序、往哪个 home 写 provider、会话起哪个进程，
+/// 全部从这一份档案读。
 ///
 /// # Errors
 ///
@@ -90,41 +102,7 @@ fn profile_of(app: &AppHandle, agent_id: &str) -> Result<Value> {
         .ok_or_else(|| Error::AgentCli(format!("agents.json 里没有 {agent_id} 的接入档案")))
 }
 
-/// 一个纯粹的目录名：不是路径，也不能往上走。
-///
-/// 判据与 `validate_program` 同源 —— agents.json 是一个可以手改的文件，TS 侧那道
-/// 校验不在这个进程里，信它等于把校验交给了文本编辑器。这一格会被接在用户 home
-/// 后面去读文件，一个 `..` 或者一个分隔符就能把它带到别处。
-fn is_plain_directory_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= 64
-        && name != "."
-        && name != ".."
-        && !name.contains(['/', '\\', ':'])
-}
-
-/// 档案里声明的、这家 agent 自己那份 home 的目录名（用户 home 之下）。
-///
-/// 约定同 homeVar：只记名字，不记路径。缺失表示我们说不出这一家把配置放在哪，
-/// 那就不猜。
-fn own_home_of(agent: &Value) -> Option<String> {
-    agent
-        .get("ownHomeDirectory")
-        .and_then(Value::as_str)
-        .filter(|name| is_plain_directory_name(name))
-        .map(str::to_owned)
-}
-
 /// 受控 home：这家 agent 的配置文件在我们手上时，它在哪、认哪个变量名。
-#[derive(Debug)]
-struct ControlledHome {
-    /// 它认自己数据根目录的那个环境变量名。
-    variable: String,
-    /// 已经创建好的目录。
-    path: PathBuf,
-}
-
-/// 这家 agent 的配置文件归不归我们管。
 ///
 /// 判据只有一条：档案里声明了 homeVar。声明了，启动时我们就把这个目录设给它，
 /// 它读写的就是这里；没声明，那个变量我们不设，它去哪儿是它自己的事。
@@ -134,17 +112,17 @@ struct ControlledHome {
 /// homeVar 的 agent 把密钥写进它自己的 home，我们对着受控 home 那个空目录读，
 /// `agent_set_default_model` 甚至会在那里凭空造一个只有一行、它永远不会读的文件。
 /// 用户看到的是「填了两遍密钥，一发消息却说要登录」，与他刚做的任何一个动作都对
-/// 不上号。现在这个问题只有这一个答案处。
+/// 不上号。现在这个问题的判据与算式都在 crate 的 profile.rs，这里只是接线。
 fn controlled_home(
     app: &AppHandle,
     agent_id: &str,
     profile: &Value,
-) -> Result<Option<ControlledHome>> {
+) -> Result<Option<poietica_kap_client::ControlledHome>> {
     let Some(variable) = home_var_of(profile) else {
         return Ok(None);
     };
 
-    Ok(Some(ControlledHome {
+    Ok(Some(poietica_kap_client::ControlledHome {
         variable,
         path: agent_home(app, agent_id)?,
     }))
@@ -198,11 +176,6 @@ fn own_home(app: &AppHandle, agent_id: &str, profile: &Value) -> Result<PathBuf>
 /// config.toml、mcp.json、skills/ 都挂在它下面 —— 它们是同一个进程按同一个环境变量
 /// 找到的同一个目录，所以「家在哪」在这个仓里只能有一个答案。
 ///
-/// 此前只有 config.toml 有这个答案，mcp.json 另算了一条写死的 `~/.kimi-code`。受控
-/// home 一旦生效（`launch_env` 把 homeVar 设成 `agent_home`），那条路指向的文件不
-/// 参与任何一次会话，而界面照样把里面的服务器显示成「已配置」—— 与 `agent_key_tails`
-/// 上面记的那个故障是同一个。
-///
 /// # Errors
 ///
 /// 档案不存在、档案没说这家把配置放在哪、或用户 home 算不出来时返回错误。
@@ -227,48 +200,16 @@ fn agent_config_file(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
     Ok(agent_data_home(app, agent_id)?.join(CONFIG_FILE))
 }
 
-/// 读取某个 agent 声明的 home 环境变量名。
-///
-/// 约定同 secretVars：档案里的 homeVar 是一个字符串。缺失表示这个 agent 不
-/// 接受受控 home，启动时就不设这个变量。
-fn home_var_of(agent: &Value) -> Option<String> {
-    agent
-        .get("homeVar")
-        .and_then(Value::as_str)
-        .filter(|name| !name.is_empty())
-        .map(str::to_owned)
-}
-
-/// 档案里声明的非密文启动变量。
-///
-/// 约定同 secretVars：档案里的 env 是一张字符串表。值不是字符串的条目被丢弃
-/// 而不是让整次启动失败 —— 一个写坏的档案不该让 agent 起不来。
-fn declared_env_of(agent: &Value) -> BTreeMap<String, String> {
-    agent
-        .get("env")
-        .and_then(Value::as_object)
-        .map(|table| {
-            table
-                .iter()
-                .filter_map(|(name, value)| {
-                    value.as_str().map(|text| (name.clone(), text.to_owned()))
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 /// 启动这个 agent 的子进程时要设的环境变量。
 ///
 /// 只有非密文的启动变量。密钥不在这里：模式 B 下它们由 agent 自己的 CLI 写
-/// 进受控 home 里的配置文件，从不经过 ACP 的启动环境。
+/// 进受控 home 里的配置文件，从不经过启动环境。
 ///
 /// 档案不存在不再当作「没有变量要设」。
 ///
 /// 那样 homeVar 就不会被设上，agent 会安静地改用用户全局的 ~/.kimi-code，而受控
 /// home 是模式 B 的地基：provider 写到哪个 config.toml、CLI 与 kap 会话看不看得见
-/// 同一份配置，全靠它。从安装那天起它一直是这么静默降级的，因为在此之前没有任何
-/// 代码路径往 agents.json 里写过东西。
+/// 同一份配置，全靠它。
 pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String)>> {
     launch_env_inner(app, agent_id, true)
 }
@@ -292,95 +233,30 @@ fn launch_env_inner(
 ) -> Result<Vec<(String, String)>> {
     let profile = profile_of(app, agent_id)?;
 
-    // 档案声明的变量先进去，受控 home 后进去 —— 后者必须压过前者。用户在 env
-    // 里手写的 home 路径可能根本不存在，而 agent_home 交回来的目录是刚刚
-    // create_dir_all 出来的。
-    let mut env = declared_env_of(&profile);
+    let home = if controlled {
+        controlled_home(app, agent_id, &profile)?
+    } else {
+        None
+    };
 
-    if controlled && let Some(home) = controlled_home(app, agent_id, &profile)? {
-        let _replaced = env.insert(home.variable, home.path.to_string_lossy().into_owned());
-    }
-
-    Ok(env.into_iter().collect())
+    Ok(compose_launch_env(
+        &declared_env_of(&profile),
+        home.as_ref(),
+    ))
 }
 
 /// 档案里声明的安装方式。缺席表示这个 agent 不由我们管安装。
-#[derive(Debug)]
-pub struct AgentInstallSpec {
-    pub package_name: String,
-    pub version_args: Vec<String>,
-}
+///
+/// 判据与包名闸门在 crate 的 profile.rs（`install_spec_of`）。
+pub use poietica_kap_client::InstallSpec as AgentInstallSpec;
 
 /// 读出这个 agent 的安装声明。
-///
-/// 校验在渲染层的 valibot 模式里已经做过一次，但 agents.json 可以被手改，而这一格
-/// 会被交给全局安装 —— 所以包名的字符集在这里再判一次，判据与那边同一条。
 ///
 /// # Errors
 ///
 /// 读不到档案时返回错误。档案里没有 install 一格不是错误，是 Ok(None)。
 pub fn agent_install_spec(app: &AppHandle, agent_id: &str) -> Result<Option<AgentInstallSpec>> {
-    let profile = profile_of(app, agent_id)?;
-
-    let Some(install) = profile.get("install").and_then(Value::as_object) else {
-        return Ok(None);
-    };
-
-    let Some(package_name) = install
-        .get("packageName")
-        .and_then(Value::as_str)
-        .filter(|name| is_npm_package_name(name))
-    else {
-        return Ok(None);
-    };
-
-    let version_args = install
-        .get("versionArgs")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str().map(str::to_owned))
-                .collect::<Vec<String>>()
-        })
-        .filter(|args| !args.is_empty())
-        .unwrap_or_else(|| vec!["--version".to_owned()]);
-
-    Ok(Some(AgentInstallSpec {
-        package_name: package_name.to_owned(),
-        version_args,
-    }))
-}
-
-/// npm 名字里允许的字符：小写字母、数字、`.`、`_`、`-`。斜杠是结构，不进字符集。
-fn is_npm_name_glyph(glyph: char) -> bool {
-    glyph.is_ascii_lowercase() || glyph.is_ascii_digit() || "._-".contains(glyph)
-}
-
-/// 包名的一段（scope 或名字本体）：非空、不以 `.`/`_`/`-` 开头、字符集之内。
-///
-/// 开头字符的禁令有两个出处：npm 的命名规则不许以 `.` 或 `_` 起头；以 `-` 起头的
-/// token 会被包管理器的选项解析器读成旗标而不是包名 —— 这一格要拦的正是它。
-fn is_npm_package_segment(segment: &str) -> bool {
-    !segment.is_empty()
-        && !segment.starts_with(['.', '_', '-'])
-        && segment.chars().all(is_npm_name_glyph)
-}
-
-/// 会被交给包管理器全局安装的那个包名。
-///
-/// 形状取自 npm 的命名规则：`name` 或 `@scope/name`，长度上限 214。此前只判字符集，
-/// 于是 `--registry` 这种整串合法字符的旗标形态 token 也放行 —— 字符集判不住选项，
-/// 逐段的首字符判得住。
-fn is_npm_package_name(name: &str) -> bool {
-    if name.is_empty() || name.len() > 214 {
-        return false;
-    }
-
-    let body = name.strip_prefix('@').unwrap_or(name);
-    let expected = if name.starts_with('@') { 2 } else { 1 };
-
-    body.split('/').count() == expected && body.split('/').all(is_npm_package_segment)
+    Ok(install_spec_of(&profile_of(app, agent_id)?))
 }
 
 /// 这个 agent 的可执行文件。
@@ -397,15 +273,8 @@ fn is_npm_package_name(name: &str) -> bool {
 ///
 /// 当 `agent_id` 对应的配置缺失、无法读取，或其中没有可解析的程序路径时返回错误。
 pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
-    let profile = profile_of(app, agent_id)?;
-
-    let program = profile
-        .get("command")
-        .and_then(Value::as_str)
-        .filter(|text| !text.is_empty())
-        .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的接入档案里没有可执行文件")))?;
-
-    Ok(program.to_owned())
+    program_of(&profile_of(app, agent_id)?)
+        .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的接入档案里没有可执行文件")))
 }
 
 /// 这个 agent 的启动参数。
@@ -420,18 +289,7 @@ pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
 ///
 /// 读不到档案时返回错误。档案里没有 args 一格不是错误，是空表。
 pub fn agent_args(app: &AppHandle, agent_id: &str) -> Result<Vec<String>> {
-    let profile = profile_of(app, agent_id)?;
-
-    Ok(profile
-        .get("args")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default())
+    Ok(profile_args_of(&profile_of(app, agent_id)?))
 }
 
 /// 默认 agent 会去读的那份 mcp.json。
@@ -473,9 +331,6 @@ pub fn agent_mcp_config_for_write(app: &AppHandle) -> Result<PathBuf> {
 /// config.toml、mcp.json、skills/、plugins/ 都挂在它下面。插件仓库的位置因此不是
 /// 一条新的路径，是这一条的派生 —— 官方 data-locations 逐字把 plugins/installed.json
 /// 与 plugins/managed/ 列在 `$KIMI_CODE_HOME` 之下。
-///
-/// 取默认 agent，而不是「当前会话那一个」：Tool 面板不挂在任何一条会话上。等会话能
-/// 各自选 agent 时，这一格要跟着会话走。
 ///
 /// # Errors
 ///
@@ -588,17 +443,11 @@ pub async fn agent_config_get(app: AppHandle) -> AgentConfigCommandResult<AgentC
 /// 现算，而不是写时备忘（上一版的备忘方案对官方 CLI 配置的密钥永远失效）。读的是
 /// `agent_config_file`，也就是这家 agent 自己会去读的那一份，只此一份。
 ///
-/// 此前它在受控 home 的文件不在时退回用户全局 home。那是一份 agent 不会读的配置：
-/// 受控 home 一旦生效，全局那边的密钥再真也不参与任何一次会话，把它的尾号显示成
-/// 「已配置」正是「明明填过却说要登录」那类故障的另一个源头 —— `agent_default_model`
-/// 的注释早就拒绝了这条退路，两者此前判据不一致。何况那条退路里的 .kimi-code 是写死
-/// 的，接第二家 agent 时它会拿着 kimi 的目录去问别人的密钥。
-///
 /// 密钥本体不离开这个函数。
 ///
 /// # Errors
 ///
-/// 此命令不返回错误；任何一步失败都退成空表或更少的条目。
+/// 此命令不返回错误；任何一步失败都退成空表。
 #[command]
 #[specta::specta]
 pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<String, String> {
@@ -611,50 +460,14 @@ pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<Strin
         .unwrap_or_default()
 }
 
-/// 原子写回一份配置：先写同目录的临时文件，再 rename 覆盖。
+/// 原子写回一份配置。判据与实现在 crate 的 controlled_home.rs，这里只是入口
+/// （environment.rs 的 mcp.json 落盘走同一条路）。
 ///
-/// 不直接截断原文件再写：agent 自己 watch 着它 —— 上游
-/// packages/agent-core-v2/src/app/config/configService.ts 在
-/// `documentStore.watch(CONFIG_SCOPE, this.configKey)` 的回调里直接 `void this.reload()`。
-/// 截断与写入之间那一瞬如果被读到，对方拿到的是一份残缺的 TOML，整份配置判为无效。
+/// # Errors
 ///
-/// rename 在三个平台上都是覆盖语义，对 watcher 是一次事件而不是两次。
+/// 临时文件建不出、写不进、落不了盘，或 rename 失败时返回错误。
 pub(crate) fn write_config_atomically(path: &Path, text: &str) -> Result<()> {
-    let directory = path
-        .parent()
-        .ok_or_else(|| Error::Internal("配置文件没有父目录".to_owned()))?;
-
-    let name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| Error::Internal("配置文件没有文件名".to_owned()))?;
-
-    // 名字里带上进程号：一份崩溃残留的临时文件不该被下一次写入静默复用。
-    let temporary = directory.join(format!("{name}.poietica-{}", std::process::id()));
-
-    /*
-     * 落盘之后才 rename。std::fs::write 返回只说明字节进了页缓存 —— 那之后
-     * 掉电，文件系统可以先落 rename 的元数据、再落数据块，于是重启后
-     * config.toml 是零长度或半截的，agent 判整份配置无效。这个文件装着用户
-     * 的 API 密钥和默认模型,丢了要他重配一遍。
-     *
-     * 只 sync 文件本身，不 sync 目录：这一步管的是「rename 生效时数据一定
-     * 在盘上」，那是 sync_all 的职责；目录项本身丢了只是回到改动前，不会
-     * 留下一份坏文件。
-     */
-    let mut file = std::fs::File::create(&temporary)
-        .map_err(|error| Error::AgentCli(format!("建不了临时配置：{error}")))?;
-
-    file.write_all(text.as_bytes())
-        .map_err(|error| Error::AgentCli(format!("写不进临时配置：{error}")))?;
-
-    file.sync_all()
-        .map_err(|error| Error::AgentCli(format!("临时配置落盘失败：{error}")))?;
-
-    drop(file);
-
-    std::fs::rename(&temporary, path)
-        .map_err(|error| Error::AgentCli(format!("替换配置失败：{error}")))
+    poietica_kap_client::write_config_atomically(path, text).map_err(surfaced)
 }
 
 /// 受控 home 里那个真的能开会话的默认模型；没有就是 None。
@@ -665,16 +478,9 @@ pub(crate) fn write_config_atomically(path: &Path, text: &str) -> Result<()> {
 /// 「助手结束了一轮」里撞上它。
 ///
 /// 「有一个死别名」与「一个都没有」在这里是同一种答案，因为对闸门而言它们本来就是同一
-/// 件事。此前这一侧只判非空：写入时查两遍（在 `models` 表里、那一家有可用凭据），读回
-/// 时一遍都不查 —— 而让别名变死的动作根本不经过写入侧。删掉一家 provider 会连带删掉它
-/// 名下的模型条目，`default_model` 原地不动地指着一个不存在的东西，读回来仍是一个像模
-/// 像样的字符串，于是渲染层认定「已经选好了」，自动补齐那一路（ensureDefaultModel 的
-/// 第一行判的是 chosenModel === null）永远不会触发，代价推迟到用户下一次发消息时的
-/// Authentication required。
-///
-/// 读的是这家 agent 自己会去读的那一份（`agent_config_file`）：受控就是受控 home
-/// 那份，不受控就是它自己 home 那份。拿一份它不会读的配置来显示，等于报一个与会话
-/// 无关的值 —— `agent_key_tails` 现在与它同一个判据，此前不是。
+/// 件事：删掉一家 provider 会连带删掉它名下的模型条目，`default_model` 原地不动地
+/// 指着一个不存在的东西，读回来仍是一个像模像样的字符串，于是渲染层认定「已经选好了」，
+/// 自动补齐那一路永远不会触发，代价推迟到用户下一次发消息时的 Authentication required。
 ///
 /// 模型清单不从这里来 —— 那是对方 `provider list` 的输出。这里只补它的 json
 /// 分支唯一不给的那个标量。
@@ -695,39 +501,13 @@ pub async fn agent_default_model(app: AppHandle, agent_id: String) -> Option<Str
 
 /// 改写受控 home 里顶层的 `default_model`。
 ///
-/// 为什么不借 agent 的 CLI：官方唯一会写这个键的出口是
-/// `provider catalog add --default-model`，而它的实现是先 removeProvider 再
-/// applyCatalogProvider —— 为「换掉一家 provider 的整份模型清单」设计的。理由写在
-/// 上游自己的注释里（packages/node-sdk/src/catalog.ts 逐字：setConfig 是
-/// 「a deep-merge patch that cannot delete keys」，所以换清单必须先删）。
-///
-/// 我们要做的是把一个标量改成另一个标量，不删任何键。那条约束与这里无关 —— 借它等于
-/// 每换一次默认模型就重建一次 provider，还得为此把这一家的密钥再交一次。
-///
-/// 改文件不需要重启 agent：它自己 watch 着这个文件，上游在自己的测试里就依赖这一点
-/// （packages/kap-server/test/modelCatalogCatalog.test.ts 逐字
-/// 「hand edits to config.toml only take effect after the file watcher reloads」）。
-///
-/// 同一条注释也给出了唯一要防的竞态：「a write that starts from the pre-edit state
-/// would silently drop them」。会整份写回的只有走 CLI 的三件事（存密钥、删密钥、
-/// 一次性导入），界面上它们与这一格互斥，不会并发。
-///
-/// 写进去之前照上游闸门查两遍，不是一遍。
-///
-/// 第一遍是别名在 `models` 表里，第二遍是它指向的 provider 手里真有非 OAuth 的凭据
-/// （`alias_has_usable_credentials`）。只查第一遍不够：上游
-/// `hasUsableConfiguredDefaultModel` 两步都过才放行，所以一个在 `models` 表里、provider
-/// 却没配密钥的别名写下去不会当场失败，代价推迟到下一次开会话时的 authRequired ——
-/// 正是「模型选择器明明有得选，一发消息就说要登录」那个故障的另一条入口。
-///
-/// 推迟到那时才失败，用户看到的是一句与自己刚才的动作毫无关系的登录要求。所以宁可在
-/// 他点下去的那一刻就拒绝，并说清是哪一家缺钥匙。
+/// 为什么不借 agent 的 CLI、写入前为什么查两遍闸门：判据与实现在 crate 的
+/// `controlled_home::set_default_model`，那里有整条写回路的单测。
 ///
 /// # Errors
 ///
 /// 这家 agent 不受控、受控 home 算不出来、配置读不到、不是合法 TOML、别名不在
-/// `models` 表里、
-/// 那一家没有可用的非 OAuth 凭据，或写回失败时返回错误。
+/// `models` 表里、那一家没有可用的非 OAuth 凭据，或写回失败时返回错误。
 #[command]
 #[specta::specta]
 pub async fn agent_set_default_model(
@@ -736,42 +516,13 @@ pub async fn agent_set_default_model(
     alias: String,
 ) -> AgentConfigCommandResult<()> {
     (|| -> Result<()> {
-        if alias.is_empty() {
-            return Err(Error::AgentCli("默认模型不能为空".to_owned()));
-        }
-
         let Some(path) = controlled_config_file(&app, &agent_id)? else {
             return Err(Error::AgentCli(format!(
                 "{agent_id} 的配置文件不归 Poietica 管：它的档案没有声明受控 home 的变量名，写下去它也不会读"
             )));
         };
 
-        let text = std::fs::read_to_string(&path)
-            .map_err(|error| Error::AgentCli(format!("读不到 {agent_id} 自己的配置：{error}")))?;
-
-        let mut document = text.parse::<DocumentMut>().map_err(|error| {
-            Error::AgentCli(format!("{agent_id} 的配置不是合法的 TOML：{error}"))
-        })?;
-
-        if !alias_is_declared(&document, &alias) {
-            return Err(Error::AgentCli(format!(
-                "{agent_id} 的配置里没有 {alias} 这个模型"
-            )));
-        }
-
-        if !alias_has_usable_credentials(&document, &alias) {
-            return Err(Error::AgentCli(format!(
-                "{alias} 这一家还没有可用的 API 密钥，选它会让下一次开会话被要求登录"
-            )));
-        }
-
-        /* 用 insert 而不是 `document["default_model"] = ...`。toml_edit 的 IndexMut
-        在键不存在时会自己插进去，所以那一行其实不会 panic —— 但那是要翻它的文档才
-        确认得到的隐性契约，而 Index 在 Rust 里的默认语义就是"越界即 panic"。改掉的
-        不是行为，是"每个读者都得自己去验一遍"这件事。 */
-        let _previous = document.insert("default_model", toml_edit::value(alias));
-
-        write_config_atomically(&path, &document.to_string())
+        set_default_model(&path, &agent_id, &alias).map_err(surfaced)
     })()
     .map_err(Problem::from)
 }
@@ -779,9 +530,6 @@ pub async fn agent_set_default_model(
 /// 从用户自己那份 home 的 config.toml 里取出一家 provider 的完整密钥。
 ///
 /// 只为一次性导入服务：密钥从那份配置直达子进程的环境变量，全程不进渲染层。
-///
-/// 路径由 `own_config_file` 算，目录名来自档案。此前这里写死 .kimi-code，于是
-/// 「用户自己那份配置在哪」在这个文件里有两个说法，其中一个只对 kimi 成立。
 ///
 /// # Errors
 ///
@@ -821,56 +569,4 @@ pub async fn agent_config_save_agents(
         Ok(to_snapshot(config, issues))
     })()
     .map_err(Problem::from)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{is_npm_package_name, is_plain_directory_name};
-
-    #[test]
-    fn real_package_names_pass_the_gate() {
-        assert!(is_npm_package_name("lodash"));
-        assert!(is_npm_package_name("@moonshot-ai/kimi-code"));
-    }
-
-    #[test]
-    fn an_option_shaped_token_is_not_a_package_name() {
-        assert!(!is_npm_package_name("--registry"));
-        assert!(!is_npm_package_name("-g"));
-        assert!(!is_npm_package_name("@scope/-flag"));
-    }
-
-    #[test]
-    fn npm_forbids_leading_dots_and_underscores() {
-        assert!(!is_npm_package_name(".hidden"));
-        assert!(!is_npm_package_name("_private"));
-        assert!(!is_npm_package_name("@.scope/name"));
-    }
-
-    #[test]
-    fn the_charset_is_npm_lowercase() {
-        assert!(!is_npm_package_name("Lodash"));
-        assert!(!is_npm_package_name("pkg name"));
-        assert!(!is_npm_package_name("pkg;rm"));
-    }
-
-    #[test]
-    fn only_the_scoped_shape_may_contain_a_slash() {
-        assert!(!is_npm_package_name(""));
-        assert!(!is_npm_package_name("a/b"));
-        assert!(!is_npm_package_name("@a/b/c"));
-        assert!(!is_npm_package_name("@scope"));
-        assert!(!is_npm_package_name("@scope/"));
-    }
-
-    #[test]
-    fn a_directory_name_is_a_name_not_a_path() {
-        assert!(is_plain_directory_name(".kimi-code"));
-        assert!(!is_plain_directory_name(""));
-        assert!(!is_plain_directory_name("."));
-        assert!(!is_plain_directory_name(".."));
-        assert!(!is_plain_directory_name("a/b"));
-        assert!(!is_plain_directory_name("a\\b"));
-        assert!(!is_plain_directory_name("C:"));
-    }
 }
