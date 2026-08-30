@@ -32,6 +32,7 @@ import {
   TREE_MIN,
   WORKTREE_BASE,
 } from '@poietica/review'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   ArrowUp,
   Check,
@@ -58,12 +59,15 @@ import {
   type CSSProperties,
   memo,
   type ReactNode,
+  type RefObject,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react'
-import { paint } from './syntax'
+import { createDeriver } from './derive'
 
 import './review-pane.css'
 
@@ -113,11 +117,15 @@ export interface ReviewPaneProps {
 }
 
 export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
+  const deriver = useMemo(() => createDeriver(), [])
   const store = useMemo(
-    () => createReviewStore({ root, gateway, paint, report }),
-    [root, gateway, report],
+    () => createReviewStore({ root, derive: deriver.derive, gateway, report }),
+    [deriver, gateway, report, root],
   )
   useEffect(() => store.start(), [store])
+  /* worker 的生死跟着这一格：谁创建谁销毁。 */
+  useEffect(() => deriver.dispose(), [deriver])
+  const scroller = useRef<HTMLDivElement | null>(null)
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const reading = state.reading
   if (reading.phase !== 'ready') {
@@ -138,8 +146,8 @@ export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
     >
       <Toolbar reading={reading} state={state} store={store} />
       <div className="flex min-h-0 flex-1">
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <Cards reading={reading} shown={shown} state={state} store={store} />
+        <div className="min-h-0 flex-1 overflow-y-auto" ref={scroller}>
+          <Cards reading={reading} scroller={scroller} shown={shown} state={state} store={store} />
         </div>
         <Tree docked={treeColumn > 0} shown={shown} state={state} store={store} />
       </div>
@@ -148,11 +156,13 @@ export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
 }
 function Cards({
   reading,
+  scroller,
   shown,
   state,
   store,
 }: {
   readonly reading: Ready
+  readonly scroller: RefObject<HTMLDivElement | null>
   readonly shown: readonly DiffFile[]
   readonly state: ReviewState
   readonly store: ReviewStore
@@ -172,7 +182,14 @@ function Cards({
   return (
     <>
       {shown.map((file) => (
-        <Card file={file} key={file.path} reading={reading} state={state} store={store} />
+        <Card
+          file={file}
+          key={file.path}
+          reading={reading}
+          scroller={scroller}
+          state={state}
+          store={store}
+        />
       ))}
     </>
   )
@@ -473,11 +490,13 @@ function Commit({
 function Card({
   file,
   reading,
+  scroller,
   state,
   store,
 }: {
   readonly file: DiffFile
   readonly reading: Ready
+  readonly scroller: RefObject<HTMLDivElement | null>
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
@@ -521,16 +540,20 @@ function Card({
           <span className="ml-auto shrink-0 text-[11px] opacity-40">已暂存</span>
         ) : null}
       </header>
-      {open ? <Body file={file} state={state} store={store} /> : null}
+      {open ? <Body file={file} scroller={scroller} state={state} store={store} /> : null}
     </section>
   )
 }
+/* 超过这一规模走行虚拟化：小补丁直渲，不给小文件付测量税（opencode PR #35375 同款阈值）。 */
+const VIRTUAL_AFTER = 500
 function Body({
   file,
+  scroller,
   state,
   store,
 }: {
   readonly file: DiffFile
+  readonly scroller: RefObject<HTMLDivElement | null>
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
@@ -541,6 +564,7 @@ function Body({
     return <Note>没有文本改动。</Note>
   }
   /* 不换行时这一格自己横滚：代码的缩进不能被折行改写。 */
+  const wide = Math.max(file.stat.added, file.stat.removed) > VIRTUAL_AFTER
   return (
     <div
       className={cn(
@@ -548,7 +572,11 @@ function Body({
         state.presentation.wrap ? null : 'overflow-x-auto',
       )}
     >
-      <Rows path={file.path} rows={file.rows} state={state} store={store} />
+      {wide ? (
+        <VirtualRows file={file} scroller={scroller} state={state} store={store} />
+      ) : (
+        <Rows path={file.path} rows={file.rows} state={state} store={store} />
+      )}
     </div>
   )
 }
@@ -626,6 +654,150 @@ function Gap({
         ? row.hidden.map((held) => <Line key={held.at} row={held} wrap={state.presentation.wrap} />)
         : null}
     </>
+  )
+}
+/*
+ * 大文件的行带虚拟化：只挂视口附近的行，代价随可见范围走、不随变更集走。
+ * 折叠带展开的行也摊平成条目，展开一条万行折叠带不再是一次性挂万行 DOM。
+ */
+interface VirtualRowItem {
+  readonly bar: boolean
+  readonly key: string
+  readonly row: DiffRow
+}
+function spreadRows(
+  rows: readonly DiffRow[],
+  path: string,
+  openGaps: ReadonlySet<string>,
+): readonly VirtualRowItem[] {
+  const items: VirtualRowItem[] = []
+  for (const row of rows) {
+    if (row.kind !== 'gap') {
+      items.push({ bar: false, key: `${path}#${String(row.at)}`, row })
+      continue
+    }
+    const gapKey = `${path}#${String(row.at)}`
+    items.push({ bar: true, key: `${gapKey}#bar`, row })
+    if (openGaps.has(gapKey)) {
+      for (const held of row.hidden) {
+        items.push({ bar: false, key: `${gapKey}!${String(held.at)}`, row: held })
+      }
+    }
+  }
+  return items
+}
+/* 等宽字体里行宽只看字符数：不渲染也能算准横向滚动该给的宽度。 */
+function widestOf(rows: readonly DiffRow[]): number {
+  let width = 0
+  for (const row of rows) {
+    width = Math.max(width, row.text.length)
+    for (const held of row.hidden) {
+      width = Math.max(width, held.text.length)
+    }
+  }
+  return width
+}
+/* 虚拟带里的折叠带：只画那一条带，展开的行是它上下的独立条目。 */
+function VirtualGap({
+  path,
+  row,
+  state,
+  store,
+}: {
+  readonly path: string
+  readonly row: DiffRow
+  readonly state: ReviewState
+  readonly store: ReviewStore
+}) {
+  const key = `${path}#${String(row.at)}`
+  const open = state.openGaps.has(key)
+  const label = `${String(row.lines)} unmodified lines`
+  return (
+    <GapBar
+      label={open ? `折叠 ${label}` : label}
+      open={open}
+      {...(row.hidden.length === 0 ? {} : { onClick: () => store.toggleGap(key) })}
+    />
+  )
+}
+function VirtualRows({
+  file,
+  scroller,
+  state,
+  store,
+}: {
+  readonly file: DiffFile
+  readonly scroller: RefObject<HTMLDivElement | null>
+  readonly state: ReviewState
+  readonly store: ReviewStore
+}) {
+  const wrap = state.presentation.wrap
+  const host = useRef<HTMLDivElement | null>(null)
+  const items = useMemo(
+    () => spreadRows(file.rows, file.path, state.openGaps),
+    [file.path, file.rows, state.openGaps],
+  )
+  const widest = useMemo(() => widestOf(file.rows), [file.rows])
+  /* 上方卡片的开合会挪这份列表的原点：渲染一次测一次，窗口变宽再补一次。 */
+  const [origin, setOrigin] = useState(0)
+  useLayoutEffect(() => {
+    const hostEl = host.current
+    const scrollEl = scroller.current
+    if (hostEl === null || scrollEl === null) {
+      return
+    }
+    const measure = (): void => {
+      setOrigin(
+        hostEl.getBoundingClientRect().top -
+          scrollEl.getBoundingClientRect().top +
+          scrollEl.scrollTop,
+      )
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => {
+      window.removeEventListener('resize', measure)
+    }
+  })
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    estimateSize: () => 20,
+    getScrollElement: () => scroller.current,
+    getItemKey: (index: number) => items[index]?.key ?? index,
+    overscan: 12,
+    scrollMargin: origin,
+  })
+  return (
+    <div
+      className="review-rows--virtual"
+      ref={host}
+      style={{
+        height: virtualizer.getTotalSize(),
+        ...(wrap ? {} : { minWidth: `calc(${String(widest)}ch + 3.375rem)` }),
+      }}
+    >
+      {virtualizer.getVirtualItems().map((item) => {
+        const held = items[item.index]
+        if (held === undefined) {
+          return null
+        }
+        return (
+          <div
+            className="absolute inset-x-0 top-0"
+            data-index={item.index}
+            key={item.key}
+            ref={virtualizer.measureElement}
+            style={{ transform: `translateY(${String(item.start - origin)}px)` }}
+          >
+            {held.bar ? (
+              <VirtualGap path={file.path} row={held.row} state={state} store={store} />
+            ) : (
+              <Line row={held.row} wrap={wrap} />
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 /*

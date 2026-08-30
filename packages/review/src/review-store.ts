@@ -87,18 +87,22 @@ export const WORKTREE_BASE = 'HEAD'
 /** 文件树的宽度区间：分隔条与 store 的收敛读同一份。 */
 export const TREE_MIN = 180
 export const TREE_MAX = 480
-/** 语法着色由调用侧注入：领域不挑着色器，surfaces 的 review/ 用 shiki 实现它。 */
-export type ReviewPaint = (files: readonly DiffFile[]) => Promise<readonly DiffFile[]>
+/*
+ * 一份补丁全文到着色行模型的整条推导：解析、词级差异、语法着色都是纯 CPU，
+ * 在哪里跑由调用侧注入 —— surfaces 的 review/ 把它放进 Web Worker，主线程
+ * 只收结果（opencode 的同款判决：重解析进 worker）。
+ */
+export type ReviewDerive = (patch: string, wordDiff: boolean) => Promise<readonly DiffFile[]>
 
 export interface ReviewStoreOptions {
   readonly root: string
   readonly gateway: ReviewGateway
-  readonly paint: ReviewPaint
+  readonly derive: ReviewDerive
   readonly report: ReviewFailureReport
 }
 
 export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
-  const { gateway, paint, report } = options
+  const { gateway, derive, report } = options
   const { root } = options
   let answer: GitReview | null = null
   let trouble: 'asking' | 'notARepository' | 'unreadable' = 'asking'
@@ -125,6 +129,8 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
   let enriched: ReadonlySet<string> = new Set<string>()
   let filling = false
   let generation = 0
+  /* 清单解析按补丁原文去重：git 每跳一次就全量重解析一遍是白付的。 */
+  let listing: { patch: string; files: readonly DiffFile[] } = { patch: '', files: [] }
   function read(): ReviewState {
     return {
       base,
@@ -151,7 +157,11 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
   function project(): void {
     generation += 1
     enriched = new Set<string>()
-    reading = answer === null ? { phase: trouble } : ready(answer)
+    /* 词级强调随整份文件按文件算：清单这一遍只要行与徽章。 */
+    if (answer !== null && answer.patch !== listing.patch) {
+      listing = { files: parseUnifiedPatch(answer.patch, false), patch: answer.patch }
+    }
+    reading = answer === null ? { phase: trouble } : ready(answer, listing.files)
     enrich()
   }
   /*
@@ -197,11 +207,10 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
   async function widened(file: DiffFile): Promise<DiffFile | null> {
     try {
       const patch = await gateway.filePatch(root, base, file.path, presentation.hideWhitespace)
-      const found = parseUnifiedPatch(patch, presentation.wordDiff).find(
+      const found = (await derive(patch, presentation.wordDiff)).find(
         (held) => held.path === file.path,
       )
-      const [colored] = await paint([found ?? file])
-      return colored ?? null
+      return found ?? file
     } catch (cause: unknown) {
       report('GIT_CHANGES_UNREADABLE', { cause })
       return null
@@ -405,11 +414,8 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
 }
 const NOTHING: DiffStat = { added: 0, removed: 0 }
 /* 清单是权威顺序，补丁按路径对上去；补丁里有而清单里没有的照实附在后面。 */
-function ready(held: GitReview): ReviewReading {
-  /* 词级强调随整份文件按文件算：清单这一遍只要行与徽章。 */
-  const byPath = new Map(
-    parseUnifiedPatch(held.patch, false).map((file) => [file.path, file] as const),
-  )
+function ready(held: GitReview, parsed: readonly DiffFile[]): ReviewReading {
+  const byPath = new Map(parsed.map((file) => [file.path, file] as const))
   const staged = new Set<string>()
   const files: DiffFile[] = []
   for (const change of held.changes) {

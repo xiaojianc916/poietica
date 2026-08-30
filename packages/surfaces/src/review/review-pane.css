@@ -105,3 +105,11 @@
   content-visibility: auto;
   contain-intrinsic-size: auto calc(1.75rem + var(--review-card-rows, 0) * 1.25rem);
 }
+
+/*
+ * 虚拟化的行带：行绝对定位落位，总高由虚拟器撑起；横向宽度按最宽一行的
+ * 字符数由组件写 min-width，不依赖把行渲染出来才能量。
+ */
+.review-rows--virtual {
+  position: relative;
+}

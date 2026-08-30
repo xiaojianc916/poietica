@@ -7,7 +7,7 @@ export {
 } from './change-tree.ts'
 export type { ReviewFailureCode, ReviewFailureReport, ReviewGateway } from './review-gateway.ts'
 export type {
-  ReviewPaint,
+  ReviewDerive,
   ReviewPresentation,
   ReviewReading,
   ReviewState,
