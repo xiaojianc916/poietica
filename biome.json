@@ -299,7 +299,7 @@
       }
     },
     {
-      "includes": ["packages/ui/src/styles/tokens/accessibility.css"],
+      "includes": ["packages/design-system/src/styles/tokens/accessibility.css"],
       "linter": {
         "rules": {
           "complexity": {
