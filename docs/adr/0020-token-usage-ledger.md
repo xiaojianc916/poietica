@@ -13,7 +13,7 @@ agent 经 ACP 的 `usage_update` 报的是仪表值：这条会话此刻占了�
   时要显示的那一份，不再有第二处副本。
 - 回落按整笔计入：读数变小只可能来自上下文压缩，而压缩后整份上下文会被重新
   送进模型，与 Prometheus 对计数器重置的读法一致。
-- 载荷只在 `commands/agent/dto.rs` 解释一次，跨进程的形状由生成绑定给出，
+- 载荷只在 `ipc/commands/conversation/dto.rs` 解释一次，跨进程的形状由生成绑定给出，
   渲染侧不再手写校验。
 - 日历日取 `date('now','localtime')`，与渲染侧 `dayKeyOf` 的本地日历键同源。
 

@@ -7,7 +7,7 @@ use super::bridge::{
 };
 use super::lock;
 use super::picker_bridge::{disarm_picker, finish_pick};
-use crate::bootstrap::app::MAIN_WINDOW;
+use crate::window::MAIN_WINDOW;
 
 /// 子 webview 的 label 前缀。capability 按窗口配给 "main"，但这些 webview
 /// 永远是外部 origin，remote 未声明即无 IPC —— 前缀只用于归属与调试。

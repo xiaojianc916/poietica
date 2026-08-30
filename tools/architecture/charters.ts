@@ -81,13 +81,13 @@ async function holding(root: string, files: readonly string[], needle: string): 
 const PATHS = 'apps/desktop/src-tauri/src/paths.rs'
 
 /** 组合根开库：三个偏好库都在 setup 里打开。 */
-const COMPOSITION_ROOT = 'apps/desktop/src-tauri/src/bootstrap/app.rs'
+const COMPOSITION_ROOT = 'apps/desktop/src-tauri/src/composition.rs'
 
 /** 每个偏好库的命令面：开库归组合根，读写归它自己那一个文件。 */
 const STORE_FACES = [
-  { store: 'settings_store', face: 'apps/desktop/src-tauri/src/commands/settings.rs' },
-  { store: 'agents_store', face: 'apps/desktop/src-tauri/src/commands/agent_setup/profile.rs' },
-  { store: 'automations_store', face: 'apps/desktop/src-tauri/src/commands/automations.rs' },
+  { store: 'settings_store', face: 'apps/desktop/src-tauri/src/ipc/commands/settings.rs' },
+  { store: 'agents_store', face: 'apps/desktop/src-tauri/src/ipc/commands/cli/profile.rs' },
+  { store: 'automations_store', face: 'apps/desktop/src-tauri/src/ipc/commands/automation.rs' },
 ] as const
 
 /** 每个偏好库只有一个持有者：组合根开它，它自己的命令面读写，别人不碰。 */
@@ -114,7 +114,7 @@ export async function preferencesHaveOneOwner(root: string): Promise<Violation[]
 
 /** 事件名是一份契约，只允许有一个声明处。 */
 export async function agentEventsAreDeclaredOnce(root: string): Promise<Violation[]> {
-  const owner = 'apps/desktop/src-tauri/src/commands/agent/mod.rs'
+  const owner = 'apps/desktop/src-tauri/src/ipc/commands/conversation/mod.rs'
   const files = await rust(root)
   const violations: Violation[] = []
 
@@ -126,7 +126,7 @@ export async function agentEventsAreDeclaredOnce(root: string): Promise<Violatio
         violations.push({
           policy: 'agent-identity-single-subscription',
           where: file,
-          detail: `${name} 的声明处只允许是 commands/agent/mod.rs`,
+          detail: `${name} 的声明处只允许是 ipc/commands/conversation/mod.rs`,
         })
       }
     }
@@ -145,7 +145,7 @@ export async function agentEventsAreDeclaredOnce(root: string): Promise<Violatio
 
 /** 能力在组合根接线，别处不许自己往 Builder 上挂东西。 */
 export async function capabilitiesAreWiredAtTheRoot(root: string): Promise<Violation[]> {
-  const owner = 'apps/desktop/src-tauri/src/bootstrap/app.rs'
+  const owner = 'apps/desktop/src-tauri/src/composition.rs'
   const files = await rust(root)
   const violations: Violation[] = []
 
@@ -202,7 +202,7 @@ export async function designSystemOwnsItsTokens(root: string): Promise<Violation
 
 /** 窗口标签是一处声明，不许在调用点写字面量。 */
 export async function windowSurfaceIsNamedOnce(root: string): Promise<Violation[]> {
-  const owner = 'apps/desktop/src-tauri/src/bootstrap/app.rs'
+  const owner = 'apps/desktop/src-tauri/src/window/state.rs'
   const files = await rust(root)
   const violations: Violation[] = []
 
@@ -220,7 +220,8 @@ export async function windowSurfaceIsNamedOnce(root: string): Promise<Violation[
     violations.push({
       policy: 'window-surface-policy',
       where: owner,
-      detail: 'MAIN_WINDOW 的声明处必须唯一且落在组合根',
+      detail:
+        'MAIN_WINDOW 的声明处必须唯一且落在 window/state（组合根只消费，window 不得反向依赖组合根）',
     })
   }
 

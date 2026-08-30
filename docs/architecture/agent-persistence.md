@@ -21,7 +21,7 @@ are the ledger for them, keyed by content digest.
 ## The frame log
 
 `run_events` is append only. It is written in one place, the batching task in
-the desktop seam (`commands/agent/turn.rs`), which records a batch before it
+the desktop seam (`ipc/commands/conversation/turn.rs`), which records a batch before it
 emits it, and read in one place (`agent_open_thread`).
 
 `UNIQUE (thread_id, session_id, seq)` is the deduplication guarantee, and

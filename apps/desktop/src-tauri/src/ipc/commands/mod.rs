@@ -1,0 +1,14 @@
+pub mod asset;
+pub mod automation;
+pub mod cli;
+pub mod conversation;
+pub mod diagnostics;
+pub mod extension;
+pub mod git;
+pub mod launcher;
+pub mod ledger;
+pub mod settings;
+pub mod skills;
+pub mod updates;
+pub mod window;
+pub mod workspace;

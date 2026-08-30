@@ -14,18 +14,15 @@
 )]
 
 pub mod asset_protocol;
-mod attachments;
-pub mod bootstrap;
-pub mod commands;
+pub mod composition;
 pub mod diagnostics;
 pub mod error;
 pub mod ipc;
-pub mod local_index;
-pub mod mcp;
 pub mod paths;
+pub mod shutdown;
 pub mod webview;
+pub mod window;
 
-pub use bootstrap::app;
 pub use error::{Error, Result};
 
 /// Single composition root. Called from main.rs.
@@ -43,8 +40,8 @@ pub use error::{Error, Result};
     reason = "the desktop entry point cannot recover from a failed Tauri event loop"
 )]
 pub fn run() {
-    app::build()
+    composition::build()
         .build(tauri::generate_context!())
         .expect("failed to start poietica desktop")
-        .run(bootstrap::shutdown::on_run_event);
+        .run(shutdown::on_run_event);
 }
