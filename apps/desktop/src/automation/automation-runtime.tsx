@@ -5,12 +5,12 @@ import { automationGateway } from '@poietica/native-bridge'
 import { useEffect } from 'react'
 import { v7 as uuidv7 } from 'uuid'
 
-import { useThreadsActions } from './threads-context'
+import { useThreadsActions } from '../assistant/threads-context'
 
 /**
  * 自动化的进程级运行时。
  *
- * 一个进程一份，和 agent 会话、方言、对话列表同级（见 assistant/agent-runtime.ts）。
+ * 一个进程一份，和 agent 会话、方言、对话列表同级（见 entry/agent-runtime.ts）。
  */
 export const automationStore = createAutomationStore(automationGateway)
 
@@ -21,7 +21,7 @@ export interface AutomationDispatcherProps {
 /**
  * 「到期时做什么」的挂载点。
  *
- * 它不调度 —— 表在原生侧走（src-tauri 的 commands/automations.rs）。这里只做一件
+ * 它不调度 —— 表在原生侧走（src-tauri 的 ipc/commands/automation.rs）。这里只做一件
  * 事：把 dispatch 交给 store，并让那条订阅与应用同寿。挂在自动化那一格里的话，人
  * 切走标签页就没人接到期了 —— 而那正好是自动化唯一的意义所在。
  *

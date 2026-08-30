@@ -51,7 +51,7 @@ export interface AssistantSidebarPanelProps {
  * 高亮，其余时候这里应当一动不动。
  *
  * 「收起了哪些工作区」这份偏好在这里读。它有存储键、要跨窗口一致、一个进程只该
- * 有一份 —— 都是宿主的事实（application/ai/workspace-collapse），不是列表组件的
+ * 有一份 —— 都是宿主的事实（同目录 workspace-collapse.ts），不是列表组件的
  * 内部记忆。往下只交出一个集合和一个动作，而 toggleWorkspace 是模块函数，引用
  * 天生稳定，memo 这道门不会因为多接一根线而失效。
  */

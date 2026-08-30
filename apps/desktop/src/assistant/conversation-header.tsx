@@ -1,6 +1,6 @@
 import { GoalIsland } from '@poietica/conversation-ui'
-import { BrowserPanelToggle } from './browser-dock'
-import { useWorkspaceLayoutState } from './workspace-layout-store'
+import { BrowserPanelToggle } from '../browser/browser-dock'
+import { useWorkspaceLayoutState } from '../shell/workspace-layout-store'
 import './conversation-header.css'
 
 /*

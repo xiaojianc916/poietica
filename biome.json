@@ -289,6 +289,18 @@
       }
     },
     {
+      "includes": ["contracts/**/*.json"],
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "enabled": false
+      },
+      "assist": {
+        "enabled": false
+      }
+    },
+    {
       "includes": ["**/*.config.ts", "**/*.config.mjs", "**/*.d.ts", "**/*.generated.ts"],
       "linter": {
         "rules": {

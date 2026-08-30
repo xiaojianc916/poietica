@@ -1,7 +1,7 @@
 import { RegionSplitter } from '@poietica/design-system'
 import { WORKSPACE_LAYOUT } from '@poietica/workspace'
 import type { ReactNode } from 'react'
-import { workspaceLayoutStore } from './workspace-layout-store'
+import { workspaceLayoutStore } from '../shell/workspace-layout-store'
 
 export interface BrowserRegionProps {
   readonly isDocked: boolean

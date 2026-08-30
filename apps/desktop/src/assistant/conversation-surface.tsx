@@ -11,7 +11,7 @@ import {
   type WorkspacePickerProps,
 } from '@poietica/conversation-ui'
 import { useCallback, useEffect, useRef } from 'react'
-import { adoptBrowserPickTarget } from './browser-pick'
+import { adoptBrowserPickTarget } from '../browser/browser-pick'
 import { useThreadsActions } from './threads-context'
 
 /*

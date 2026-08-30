@@ -18,13 +18,14 @@ import type {
   WorkbenchTabViewModel,
 } from '@poietica/workspace'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { AssistantSidebarPanel } from '../assistant/assistant-sidebar-panel'
+import { createAssistantWiring } from '../assistant/assistant-wiring'
+import { ConversationHeader } from '../assistant/conversation-header'
+import { useThreadsActions } from '../assistant/threads-context'
+import { BrowserDock } from '../browser/browser-dock'
+import { browserPanelStore } from '../browser/browser-runtime'
 import { type ActiveTabSequence, DesktopTitleBar } from '../window/desktop-title-bar'
-import { AssistantSidebarPanel } from './assistant-sidebar-panel'
-import { createAssistantWiring } from './assistant-wiring'
-import { BrowserDock } from './browser-dock'
-import { browserPanelStore } from './browser-runtime'
 import { tabNeighbors } from './commands/app-commands'
-import { ConversationHeader } from './conversation-header'
 import {
   SidebarFooter,
   SurfaceHost,
@@ -35,7 +36,6 @@ import {
   workspaceLayoutStore,
 } from './index'
 import type { WorkspaceParts, WorkspaceShellActions } from './shell-contract'
-import { useThreadsActions } from './threads-context'
 
 /**
  * 运行期能力开关。

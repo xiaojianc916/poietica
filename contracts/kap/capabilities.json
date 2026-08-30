@@ -1,0 +1,15 @@
+{
+  "hello_capabilities": [
+    "compression",
+    "event_batching"
+  ],
+  "meta_capabilities": [
+    "file_upload",
+    "fs_query",
+    "mcp",
+    "tasks",
+    "terminal",
+    "websocket"
+  ],
+  "server_version": "0.39.1"
+}
