@@ -3019,11 +3019,11 @@ name = "poietica-git-adapter-native"
 version = "0.2.2"
 dependencies = [
  "notify",
+ "poietica-process-host",
  "poietica-review-native",
  "tempfile",
  "thiserror 2.0.19",
  "tokio",
- "which",
 ]
 
 [[package]]
@@ -3034,6 +3034,7 @@ dependencies = [
  "futures",
  "log",
  "poietica-conversation",
+ "poietica-process-host",
  "reqwest 0.12.28",
  "semver",
  "serde",
@@ -3044,7 +3045,6 @@ dependencies = [
  "tokio-tungstenite",
  "toml_edit 0.22.27",
  "uuid",
- "which",
 ]
 
 [[package]]
@@ -3070,6 +3070,13 @@ dependencies = [
  "serde",
  "specta",
  "uuid",
+]
+
+[[package]]
+name = "poietica-process-host"
+version = "0.2.2"
+dependencies = [
+ "which",
 ]
 
 [[package]]

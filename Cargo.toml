@@ -10,6 +10,7 @@ members = [
   "crates/kap-client",
   "crates/ledger",
   "crates/problem",
+  "crates/process-host",
   "crates/review",
   "crates/time",
   "crates/update",

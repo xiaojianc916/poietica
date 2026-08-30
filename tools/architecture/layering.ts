@@ -57,6 +57,7 @@ export const CARGO_RINGS: readonly Ring[] = [
       'poietica-git-adapter-native',
       'poietica-kap-client',
       'poietica-ledger',
+      'poietica-process-host',
       'poietica-update-native',
     ],
   },
@@ -82,6 +83,7 @@ export const HOST_AGNOSTIC_CRATES: readonly string[] = [
   'poietica-kap-client',
   'poietica-ledger',
   'poietica-problem',
+  'poietica-process-host',
   'poietica-review-native',
   'poietica-time',
 ]

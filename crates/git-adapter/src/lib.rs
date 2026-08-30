@@ -14,6 +14,7 @@
 use std::path::Path;
 use std::process::Output;
 
+use poietica_process_host::program::hide_console;
 use thiserror::Error;
 use tokio::process::Command;
 
@@ -25,13 +26,6 @@ pub use watch::await_change;
 
 /// 审查面的领域类型由 review 领域拥有；从这里转发，消费者不必两处 import。
 pub use poietica_review_native::{ChangeStatus, CommitIntent, FileChange, ReviewSnapshot};
-
-/// GUI 宿主 spawn 控制台程序时，Windows 会给它开一个控制台窗口：选一次工作区
-/// 闪一排黑框。同一规则的另一份在 crates/kap-client/src/process/program.rs 的
-/// hide_console；crates 相互不依赖（AGENTS.md §3），不能借它的代码，所以各持
-/// 一份 —— 它移动时这份注释跟着改。
-#[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// git 起不来，或它自己说了不。
 #[derive(Debug, Error)]
@@ -159,11 +153,8 @@ pub(crate) async fn run(root: &Path, args: &[&str]) -> Result<Output, GitError> 
     let mut command = Command::new("git");
     command.arg("-C").arg(root).args(args);
 
-    // 同一规则的第二份（第一份见文件头）：tokio 的 Command 直接暴露这个标志。
-    #[cfg(windows)]
-    {
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
+    // 桌面进程策略全仓一份：crates/process-host 的 hide_console。
+    hide_console(command.as_std_mut());
 
     Ok(command.output().await?)
 }
@@ -208,8 +199,9 @@ mod tests {
     }
 
     /// 机器上没有 git 时这些测试没有对象，直接返回 —— 能力缺席不是失败。
+    /// 探测与生产同产地：process-host 的 which 解析。
     fn git_available() -> bool {
-        which::which("git").is_ok()
+        poietica_process_host::program::resolve_program("git").is_ok()
     }
 
     async fn init_repo(root: &Path) {
