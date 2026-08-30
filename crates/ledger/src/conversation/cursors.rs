@@ -1,8 +1,7 @@
 use poietica_conversation::identity::{Seq, ThreadId};
 use poietica_time::WallClock;
-use rusqlite::{OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, params};
 
-use crate::conversation::SqliteLedger;
 use crate::error::LedgerError;
 
 /// KAP 续播位置：token 由网关给出，committed_seq 是本地已确认落盘的位置。
@@ -12,12 +11,8 @@ pub struct Cursor {
     pub committed_seq: Seq,
 }
 
-pub fn load<C: WallClock>(
-    ledger: &SqliteLedger<C>,
-    thread: &ThreadId,
-) -> Result<Option<Cursor>, LedgerError> {
-    let guard = ledger.guard()?;
-    let row: Option<(Option<String>, i64)> = guard
+pub fn load(connection: &Connection, thread: &ThreadId) -> Result<Option<Cursor>, LedgerError> {
+    let row: Option<(Option<String>, i64)> = connection
         .query_row(
             "SELECT token, committed_seq FROM kap_cursors WHERE thread_id = ?1",
             params![thread.as_str()],
@@ -31,14 +26,14 @@ pub fn load<C: WallClock>(
     }))
 }
 
-pub fn save<C: WallClock>(
-    ledger: &SqliteLedger<C>,
+/// 一条 upsert 原子成立，不需要自己的事务。
+pub fn save(
+    connection: &Connection,
+    clock: &dyn WallClock,
     thread: &ThreadId,
     cursor: &Cursor,
 ) -> Result<(), LedgerError> {
-    let guard = ledger.guard()?;
-
-    guard.execute(
+    connection.execute(
         "INSERT INTO kap_cursors (thread_id, token, committed_seq, updated_at_unix_ms)
          VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT (thread_id) DO UPDATE SET
@@ -49,7 +44,7 @@ pub fn save<C: WallClock>(
             thread.as_str(),
             cursor.token,
             i64::try_from(cursor.committed_seq.value()).unwrap_or(i64::MAX),
-            ledger.clock().now_unix_millis(),
+            clock.now_unix_millis(),
         ],
     )?;
 

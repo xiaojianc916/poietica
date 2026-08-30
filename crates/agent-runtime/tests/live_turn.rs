@@ -67,6 +67,7 @@ use poietica_agent_runtime_native::{
     QuestionDesk, RUN_FINISHED, RecordedEvent, RunFrame, RunSlot, connect,
 };
 use tempfile::TempDir;
+use uuid::Uuid;
 
 use frame_sink::Delivered;
 
@@ -282,6 +283,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
             setting("POIETICA_KAP_PROMPT", DEFAULT_PROMPT),
             Vec::new(),
             Vec::new(),
+            Uuid::new_v4().to_string(),
             frames,
         )
         .expect("the driver to accept the prompt");

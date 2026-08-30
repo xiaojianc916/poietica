@@ -1,5 +1,5 @@
 import type { AgentSkill } from '@poietica/agent-contract'
-import { assertUnreachable } from '@poietica/core'
+import { assertUnreachable } from '@poietica/problem'
 import { Button, cn, Switch } from '@poietica/ui'
 import { useState, useSyncExternalStore } from 'react'
 

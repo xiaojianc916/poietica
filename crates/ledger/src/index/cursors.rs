@@ -1,7 +1,7 @@
 //! kap 的事件流，这台机器读到哪儿了。
 
 use crate::error::Result;
-use crate::index::store::{AgentStore, now};
+use crate::index::store::AgentStore;
 
 /// 一条会话的事件流上，已经被这台机器读到的位置。
 ///
@@ -33,7 +33,7 @@ impl AgentStore {
                  seq = excluded.seq, epoch = excluded.epoch, at = excluded.at
              WHERE excluded.epoch IS NOT session_cursors.epoch
                 OR excluded.seq > session_cursors.seq",
-            rusqlite::params![session, cursor.seq, cursor.epoch, now()?],
+            rusqlite::params![session, cursor.seq, cursor.epoch, self.now()?],
         )
     }
 

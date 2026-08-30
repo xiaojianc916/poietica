@@ -1,17 +1,15 @@
 //! 图片的两条路：进去和出来。
 //!
-//! 进去是一句话带的图片落盘、过继进交付会话、交还给协议；出来是打开一条旧对话时
-//! 把存着的字节装回交付注册表。
+//! 进去是一句话带的图片落盘、过继进交付会话、把引用交还准入；出来是打开一条
+//! 旧对话时把存着的字节装回交付注册表。
+//!
+//! 协议载荷不在这里成形：投递时由网关按准入冻结的引用重建（gateway.rs 的
+//! materialise），首次投递与重投递走同一条路 —— 这里只落字节、记账、交引用。
 
-use crate::asset_protocol::{
-    AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry, asset_protocol_url,
-};
+use crate::asset_protocol::{AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry};
 use crate::attachments::{blob_path, store_bytes};
 use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, on_index, persistence};
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as BASE64;
-use poietica_agent_runtime_native::PromptAttachment;
 use poietica_ledger::index::ThreadAttachment;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -22,18 +20,6 @@ use uuid::Uuid;
 use super::dto::AgentPromptAsset;
 use super::runtime::AgentRuntime;
 use super::{IMAGE_TOO_LARGE, NO_READ, NO_SUCH_ASSET};
-
-/// 一句话里的图片落定之后的两份东西。
-///
-/// 同一批字节，两个去处，一次解码：协议要 base64 与地址那一份，账本只要摘要。
-/// 地址此前另立一个平行的 Vec，靠下标与前两者对齐 —— 三条平行序列，谁错位都
-/// 不会有人报错。现在它长在 PromptAttachment 上，一项一张图。
-pub(super) struct Kept {
-    /// 原样交给协议的那一份，每一项带着它自己的地址。
-    pub(super) carried: Vec<PromptAttachment>,
-    /// 记进账本的那些行。
-    pub(super) ledger: Vec<ThreadAttachment>,
-}
 
 /// 这条对话的交付会话，没有就开一个。
 ///
@@ -46,7 +32,7 @@ fn opened_session(assets: &AssetProtocolRegistry, session: &str) -> Result<()> {
     }
 }
 
-/// 一句话带的图片：落盘、过继进这条对话的交付会话，再交还给协议。
+/// 一句话带的图片：落盘、过继进这条对话的交付会话，把引用交还给准入。
 ///
 /// 字节从输入框那条资产会话搬过来，搬的是 Arc 不是内存（见 adopt）。它们在
 /// 用户放手的那一刻就已经在这个进程里了，所以这个函数不再解码任何东西 ——
@@ -54,12 +40,11 @@ fn opened_session(assets: &AssetProtocolRegistry, session: &str) -> Result<()> {
 /// webview、编码、跨 IPC 送过来的：一次读、一次编码、一次比原文大三分之一的
 /// 传输、一次解码，四份代价，只为把本机的一个文件交给本机的一个进程。
 ///
-/// 编码没有消失，它换了一侧：ACP 的 image content block 只认 base64，而 agent
-/// 是另一个进程。现在它发生在字节所在的这一侧，不再往返。
+/// base64 编码没有消失，它换了一侧：投递时网关从盘上把字节读回来再编码
+/// （KAP 的 image content block 只认 base64，而 agent 是另一个进程）。
 ///
-/// 整段仍在阻塞执行器上。落盘、SHA-256 与 base64 编码都要过一遍全部字节，
-/// 单张最大三十二兆，而这段代码一个 await 都没有 —— 与 commands/asset.rs 把
-/// 摘要挪走是同一条判据。
+/// 整段仍在阻塞执行器上。落盘与 SHA-256 都要过一遍全部字节，单张最大三十二兆，
+/// 而这段代码一个 await 都没有 —— 与 commands/asset.rs 把摘要挪走是同一条判据。
 ///
 /// 账本行仍然不在这里写：那要拿库的锁，而这里拿的是文件系统。一个函数一件事。
 pub(super) async fn keep_bytes(
@@ -67,19 +52,15 @@ pub(super) async fn keep_bytes(
     assets: AssetProtocolRegistry,
     session: String,
     attached: Vec<AgentPromptAsset>,
-) -> Result<Kept> {
+) -> Result<Vec<ThreadAttachment>> {
     if attached.is_empty() {
-        return Ok(Kept {
-            carried: Vec::new(),
-            ledger: Vec::new(),
-        });
+        return Ok(Vec::new());
     }
 
     async_runtime::spawn_blocking(move || {
         opened_session(&assets, &session)?;
 
-        let mut carried = Vec::with_capacity(attached.len());
-        let mut ledger = Vec::with_capacity(attached.len());
+        let mut rows = Vec::with_capacity(attached.len());
         for reference in attached {
             /* 取不到就不发。这一句带的图已经不在了，而静默少发一张比失败更坏：
             对面收到一句没有附件的话，屏幕上什么都不会说。 */
@@ -90,40 +71,15 @@ pub(super) async fn keep_bytes(
 
             let blob = store_bytes(&root, &bytes)?;
 
-            /* 地址先算：下一句把摘要交给账本，它就不再属于这里。 */
-            let url = asset_protocol_url(&session, &blob.hash).map_err(asset)?;
-
-            let prompt = if mime.starts_with("image/") {
-                PromptAttachment::Image {
-                    data: BASE64.encode(bytes.as_slice()),
-                    mime_type: mime.clone(),
-                    url: url.clone(),
-                }
-            } else if mime == "text/plain" {
-                let text = std::str::from_utf8(bytes.as_slice())
-                    .map_err(|_| Error::Validation("text attachments must be UTF-8".to_owned()))?
-                    .to_owned();
-                PromptAttachment::Text {
-                    text,
-                    url: url.clone(),
-                }
-            } else {
-                return Err(Error::Validation(format!(
-                    "unsupported prompt attachment type: {mime}"
-                )));
-            };
-
-            ledger.push(ThreadAttachment {
+            rows.push(ThreadAttachment {
                 hash: blob.hash,
-                mime: mime.clone(),
                 byte_size: i64::try_from(blob.byte_size)
                     .map_err(|_overflow| Error::Validation(IMAGE_TOO_LARGE.to_owned()))?,
+                mime,
             });
-
-            carried.push(prompt);
         }
 
-        Ok(Kept { carried, ledger })
+        Ok(rows)
     })
     .await
     .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?

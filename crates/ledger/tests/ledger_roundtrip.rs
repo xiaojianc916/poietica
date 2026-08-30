@@ -31,6 +31,7 @@ fn admission(thread: &ThreadId, turn: &TurnId) -> Admission {
         prompt: "draft the release notes".to_owned(),
         model: "kimi-k2".to_owned(),
         attachments: Vec::new(),
+        skills: Vec::new(),
         submitted_at_unix_millis: 1_700_000_000_000,
     }
 }
@@ -80,7 +81,12 @@ fn events_round_trip_and_projection_rebuilds() {
     assert_eq!(events.len(), 3);
 
     let view = project(&thread, &events);
-    let rebuilt = rebuild(&ledger, &thread).expect("rebuild projection");
+    let rebuilt = rebuild(
+        &ledger.guard().expect("the ledger lock"),
+        ledger.clock(),
+        &thread,
+    )
+    .expect("rebuild projection");
 
     assert_eq!(view, rebuilt);
     assert_eq!(

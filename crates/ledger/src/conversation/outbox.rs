@@ -1,19 +1,14 @@
 use poietica_conversation::identity::{ThreadId, TurnId};
 use poietica_conversation::turn::{Admission, DeliveryOutcome, DeliveryState};
 use poietica_time::WallClock;
-use rusqlite::{OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
-use crate::conversation::SqliteLedger;
 use crate::error::LedgerError;
 
 const STATE_COLUMN: &str = "delivery_outbox.state";
 
-pub fn state<C: WallClock>(
-    ledger: &SqliteLedger<C>,
-    turn: &TurnId,
-) -> Result<Option<DeliveryState>, LedgerError> {
-    let guard = ledger.guard()?;
-    let stored: Option<String> = guard
+pub fn state(connection: &Connection, turn: &TurnId) -> Result<Option<DeliveryState>, LedgerError> {
+    let stored: Option<String> = connection
         .query_row(
             "SELECT state FROM delivery_outbox WHERE turn_id = ?1",
             params![turn.as_str()],
@@ -28,14 +23,13 @@ pub fn state<C: WallClock>(
 }
 
 /// 状态迁移的规则只存在领域里；账本只把裁决结果写下来。
-pub fn record<C: WallClock>(
-    ledger: &SqliteLedger<C>,
+/// 事务由调用方开、由调用方提交。
+pub fn record(
+    transaction: &Transaction<'_>,
+    clock: &dyn WallClock,
     turn: &TurnId,
     outcome: DeliveryOutcome,
 ) -> Result<DeliveryState, LedgerError> {
-    let mut guard = ledger.guard()?;
-    let transaction = guard.transaction()?;
-
     let stored: String = transaction.query_row(
         "SELECT state FROM delivery_outbox WHERE turn_id = ?1",
         params![turn.as_str()],
@@ -61,19 +55,17 @@ pub fn record<C: WallClock>(
             turn.as_str(),
             next.as_stored(),
             i64::from(attempted),
-            ledger.clock().now_unix_millis(),
+            clock.now_unix_millis(),
         ],
     )?;
-    transaction.commit()?;
 
     Ok(next)
 }
 
 /// 「欠着」的定义只在这一条 SQL 里出现一次。
-pub fn unresolved<C: WallClock>(ledger: &SqliteLedger<C>) -> Result<Vec<Admission>, LedgerError> {
-    let guard = ledger.guard()?;
-    let mut statement = guard.prepare(
-        "SELECT a.turn_id, a.thread_id, a.prompt, a.model, a.attachments,
+pub fn unresolved(connection: &Connection) -> Result<Vec<Admission>, LedgerError> {
+    let mut statement = connection.prepare(
+        "SELECT a.turn_id, a.thread_id, a.prompt, a.model, a.attachments, a.skills,
                 a.submitted_at_unix_ms
            FROM delivery_outbox AS o
            JOIN turn_admissions AS a ON a.turn_id = o.turn_id
@@ -88,14 +80,15 @@ pub fn unresolved<C: WallClock>(ledger: &SqliteLedger<C>) -> Result<Vec<Admissio
             row.get::<_, String>(2)?,
             row.get::<_, String>(3)?,
             row.get::<_, String>(4)?,
-            row.get::<_, i64>(5)?,
+            row.get::<_, String>(5)?,
+            row.get::<_, i64>(6)?,
         ))
     })?;
 
     let mut admissions = Vec::new();
 
     for row in rows {
-        let (turn, thread, prompt, model, attachments, submitted) = row?;
+        let (turn, thread, prompt, model, attachments, skills, submitted) = row?;
 
         admissions.push(Admission {
             thread: ThreadId::new(thread),
@@ -103,6 +96,7 @@ pub fn unresolved<C: WallClock>(ledger: &SqliteLedger<C>) -> Result<Vec<Admissio
             prompt,
             model,
             attachments: serde_json::from_str(&attachments)?,
+            skills: serde_json::from_str(&skills)?,
             submitted_at_unix_millis: submitted,
         });
     }

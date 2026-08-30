@@ -4,10 +4,13 @@ export type Ring = { readonly name: string; readonly members: readonly string[] 
 
 export const TYPESCRIPT_RINGS: readonly Ring[] = [
   { name: 'contract', members: ['@poietica/contract'] },
-  { name: 'foundation', members: ['@poietica/core', '@poietica/file-diff', '@poietica/ui'] },
-  { name: 'protocol', members: ['@poietica/agent-contract', '@poietica/problem'] },
-  { name: 'domain', members: ['@poietica/agent', '@poietica/agent-catalog'] },
-  { name: 'transport', members: ['@poietica/ipc'] },
+  { name: 'foundation', members: ['@poietica/problem', '@poietica/ui'] },
+  { name: 'protocol', members: ['@poietica/agent-contract'] },
+  {
+    name: 'domain',
+    members: ['@poietica/agent', '@poietica/agent-catalog', '@poietica/review'],
+  },
+  { name: 'adapter', members: ['@poietica/native-bridge'] },
   {
     name: 'feature',
     members: [
@@ -19,19 +22,19 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
       '@poietica/workspace',
     ],
   },
-  { name: 'composition', members: ['@poietica/desktop-adapters'] },
   { name: 'application', members: ['@poietica/desktop'] },
 ]
 
 export const CARGO_RINGS: readonly Ring[] = [
   { name: 'vocabulary', members: ['poietica-problem', 'poietica-time'] },
-  { name: 'domain', members: ['poietica-conversation'] },
+  { name: 'domain', members: ['poietica-asset', 'poietica-conversation'] },
   {
     name: 'capability',
     members: [
       'poietica-agent-runtime-native',
       'poietica-browser-native',
       'poietica-git-native',
+      'poietica-kap-client',
       'poietica-ledger',
       'poietica-plugin-host-native',
       'poietica-update-native',
@@ -47,16 +50,17 @@ export const UNLAYERED_DIRECTORIES: readonly string[] = ['tests', 'tools']
 export const HOST_AWARE_PACKAGES: readonly string[] = [
   '@poietica/contract',
   '@poietica/desktop',
-  '@poietica/desktop-adapters',
-  '@poietica/ipc',
+  '@poietica/native-bridge',
 ]
 
 /** 这些 crate 不许知道自己跑在 Tauri 里。 */
 export const HOST_AGNOSTIC_CRATES: readonly string[] = [
   'poietica-agent-runtime-native',
   'poietica-browser-native',
+  'poietica-asset',
   'poietica-conversation',
   'poietica-git-native',
+  'poietica-kap-client',
   'poietica-ledger',
   'poietica-plugin-host-native',
   'poietica-problem',

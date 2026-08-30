@@ -1,24 +1,15 @@
 import type { AttachmentIntake } from '@poietica/agent-ui'
 import {
-  type AgentConfigStore,
-  type AppUpdateController,
-  createAppUpdateController,
-  createAttachmentIntake,
-  createDesktopAgentConfigStore,
-  createDesktopSettingsStore,
   createMainWindowController,
+  listCustomAgents,
   type MainWindowController,
   readAppVersion,
   readDataDirectory,
-  type SettingsStore,
-} from '@poietica/desktop-adapters'
-import {
-  listCustomAgents,
   removeCustomAgent,
   saveCustomAgent,
   writeWorkbenchSession,
-} from '@poietica/ipc'
-import type { CustomAgentStore } from '@poietica/settings'
+} from '@poietica/native-bridge'
+import type { AgentConfigStore, CustomAgentStore, SettingsStore } from '@poietica/settings'
 import type { WorkbenchSessionStore } from '@poietica/workspace'
 import {
   type CommandRegistry,
@@ -28,7 +19,11 @@ import {
 import { createDesktopAgentRuntime, type DesktopAgentRuntime } from '../assistant/agent-runtime'
 import { reportFailure } from '../failures/application-policy'
 import { failureCoordinator } from '../failures/coordinator'
+import { type AppUpdateController, createAppUpdateController } from '../updates/app-update'
 import { activeWorkspaceRoot } from '../workspace-root'
+import { createDesktopAgentConfigStore } from './agent-config-store'
+import { createAttachmentIntake } from './attachment-intake'
+import { createDesktopSettingsStore } from './settings-store'
 
 export interface ApplicationRuntime {
   readonly workspace: WorkbenchSessionStore

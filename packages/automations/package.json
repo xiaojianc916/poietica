@@ -12,10 +12,10 @@
   },
   "dependencies": {
     "@poietica/agent-contract": "workspace:*",
-    "@poietica/core": "workspace:*",
-    "@poietica/ipc": "workspace:*",
+    "@poietica/native-bridge": "workspace:*",
     "@poietica/ui": "workspace:*",
-    "croner": "10.0.1"
+    "croner": "10.0.1",
+    "@poietica/problem": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "catalog:",

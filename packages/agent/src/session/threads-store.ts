@@ -1,10 +1,10 @@
 import type { OpenedThread, ThreadPort, ThreadRecord } from '@poietica/agent-contract'
-import { normalizeWorkspaceRoot } from '@poietica/core'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import type { ThreadsList } from './thread-order'
 import { NO_ITEMS, ThreadProjection } from './thread-projection'
 import { forkNameOf, nameOf, shorten } from './thread-title'
+import { normalizeWorkspaceRoot } from './workspace-root'
 
 interface Held {
   readonly threads: readonly ThreadRecord[]

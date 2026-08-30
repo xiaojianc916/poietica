@@ -1,4 +1,4 @@
-import { assertUnreachable } from '@poietica/core'
+import { assertUnreachable } from '@poietica/problem'
 import * as v from 'valibot'
 import {
   type PluginInstallSource,

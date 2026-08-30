@@ -31,6 +31,7 @@ mod attachment;
 pub mod config;
 pub mod dto;
 mod failure;
+mod gateway;
 mod journal;
 pub mod runtime;
 pub mod thread;

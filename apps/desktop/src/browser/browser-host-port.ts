@@ -14,7 +14,7 @@ import {
   setBrowserViewportBounds,
   setBrowserVisible,
   watchBrowserState,
-} from '@poietica/ipc'
+} from '@poietica/native-bridge'
 
 /* 端口的每一格就是一条 IPC 命令：请求与动作两边同一份生成类型。 */
 export const browserHostPort: BrowserHostPort = {

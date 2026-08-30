@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/review.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"]
+}

@@ -1,5 +1,6 @@
 import './mascot.css'
-import { createPreference, warn } from '@poietica/core'
+import { warn } from '@poietica/problem'
+import { createPreference } from '@poietica/ui'
 import { memo, useEffect, useId, useRef, useState } from 'react'
 import { mountMascot } from './engine'
 import { BODY_D } from './expressions'
@@ -11,7 +12,7 @@ import { BODY_D } from './expressions'
  * 干净。动画状态的唯一真相在 engine.ts 的闭包里，这里不持有任何逐帧状态；
  * 上色全在 mascot.css，换主题不经过 JS。
  *
- * 开关（自动巡演 / 跟随指针）统一读 @poietica/core 的 createPreference。
+ * 开关（自动巡演 / 跟随指针）统一读 @poietica/ui 的 createPreference。
  * 同窗口的改动由设置面板的窗口事件送达，其他窗口的改动由 Preference 经
  * storage 事件送达 —— 两条路都直接落到引擎句柄。本组件只读不写：
  * 偏好的唯一写入者是设置面板。

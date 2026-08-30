@@ -1,5 +1,5 @@
 import type { ThreadRecord } from '@poietica/agent-contract'
-import { normalizeWorkspaceRoot, workspaceRootName } from '@poietica/core'
+import { normalizeWorkspaceRoot, workspaceRootName } from './workspace-root'
 
 /*
  * 会话列表的次序与分组，一份规则。

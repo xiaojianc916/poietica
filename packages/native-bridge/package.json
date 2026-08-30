@@ -1,0 +1,23 @@
+{
+  "name": "@poietica/native-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@poietica/agent-contract": "workspace:*",
+    "@poietica/contract": "workspace:*",
+    "@poietica/problem": "workspace:*",
+    "@tauri-apps/api": "catalog:tauri",
+    "@tauri-apps/plugin-dialog": "catalog:tauri"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}

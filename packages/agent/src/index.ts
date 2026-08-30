@@ -20,12 +20,15 @@ export {
   AgentCapabilityStore,
   describeFailure,
   groupByWorkspace,
+  isProjectlessWorkspaceRoot,
+  normalizeWorkspaceRoot,
   permissionControlOf,
   permissionPostureOf,
   permissionPosturesOf,
   SessionControlsStore,
   ThreadsStore,
   TranscriptStore,
+  workspaceRootName,
 } from './session'
 export type {
   FeedRow,

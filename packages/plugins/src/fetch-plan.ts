@@ -1,4 +1,4 @@
-import { assertUnreachable } from '@poietica/core'
+import { assertUnreachable } from '@poietica/problem'
 import type { GitHubSource, PluginInstallSource } from './install-source'
 
 /*

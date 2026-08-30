@@ -3,7 +3,6 @@ use poietica_conversation::projection::ThreadView;
 use poietica_time::WallClock;
 use rusqlite::{Connection, OptionalExtension, params};
 
-use crate::conversation::SqliteLedger;
 use crate::error::LedgerError;
 
 /// 侧栏要的一行。它是派生数据，删了也能从事件重算。
@@ -19,15 +18,16 @@ pub struct ThreadRow {
 const MAX_TITLE_CHARS: usize = 80;
 
 /// 忙不忙由投影算：有未终结的轮次就是忙。UI 不自己记一份。
-pub fn upsert<C: WallClock>(
-    ledger: &SqliteLedger<C>,
+/// 一条 upsert 原子成立，不需要自己的事务。
+pub fn upsert(
+    connection: &Connection,
+    clock: &dyn WallClock,
     view: &ThreadView,
 ) -> Result<(), LedgerError> {
-    let guard = ledger.guard()?;
     let busy = view.turns.values().any(|turn| !turn.state.is_finished());
-    let title = derive_title(&guard, &view.thread)?;
+    let title = derive_title(connection, &view.thread)?;
 
-    guard.execute(
+    connection.execute(
         "INSERT INTO thread_projection
              (thread_id, title, busy, last_seq, updated_at_unix_ms)
          VALUES (?1, ?2, ?3, ?4, ?5)
@@ -41,19 +41,15 @@ pub fn upsert<C: WallClock>(
             title,
             i64::from(busy),
             i64::try_from(view.last_seq.value()).unwrap_or(i64::MAX),
-            ledger.clock().now_unix_millis(),
+            clock.now_unix_millis(),
         ],
     )?;
 
     Ok(())
 }
 
-pub fn list<C: WallClock>(
-    ledger: &SqliteLedger<C>,
-    limit: u32,
-) -> Result<Vec<ThreadRow>, LedgerError> {
-    let guard = ledger.guard()?;
-    let mut statement = guard.prepare(
+pub fn list(connection: &Connection, limit: u32) -> Result<Vec<ThreadRow>, LedgerError> {
+    let mut statement = connection.prepare(
         "SELECT thread_id, title, busy, last_seq
            FROM thread_projection
           ORDER BY updated_at_unix_ms DESC

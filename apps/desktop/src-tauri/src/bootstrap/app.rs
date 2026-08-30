@@ -72,7 +72,7 @@ pub fn build() -> tauri::Builder<Wry> {
                 let registry = protocol_registry.clone();
 
                 async_runtime::spawn_blocking(move || {
-                    responder.respond(registry.response(&request));
+                    responder.respond(crate::asset_protocol::respond(&registry, &request));
                 });
             },
         )
@@ -129,7 +129,7 @@ pub fn build() -> tauri::Builder<Wry> {
             let database = paths::ledger_database(handle)?;
             let _index = app.manage(crate::local_index::LocalIndex::open(
                 &database,
-                &poietica_time::wall_clock::SystemWallClock,
+                poietica_time::wall_clock::SystemWallClock,
             )?);
             let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
 
@@ -201,7 +201,7 @@ pub fn build() -> tauri::Builder<Wry> {
              * 内置浏览器的标签宿主，进程级。new() 顺手抽好 CDP 端口；webview
              * 仍是懒创建的 —— 第一次导航或会话预热才碰内核。
              */
-            let _browser = app.manage(crate::browser::BrowserHost::new());
+            let _browser = app.manage(crate::webview::BrowserHost::new());
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;
 

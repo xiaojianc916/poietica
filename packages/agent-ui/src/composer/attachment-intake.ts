@@ -6,7 +6,7 @@ import { createContext, useContext } from 'react'
  * 这一层只声明端口，不认识 Tauri —— 收件靠的是原生能力（系统文件对话框、
  * 窗口级拖放、剪贴板），而那些能力属于组合层（见 rules.config.mjs 的
  * nativeAllowed：只有 desktop / desktop-adapters / ipc 三个包碰得到）。
- * 实现由 @poietica/desktop-adapters 装进来：这一层给出端口与装载点，装的是谁由
+ * 实现由 @poietica/native-bridge 装进来：这一层给出端口与装载点，装的是谁由
  * 组合层决定。本仓所有由原生实现的能力都是这个形状，不是第二套做法。
  *
  * 端口交回的是「资产」而不是 File：字节在用户放手的那一刻就已经进了原生的

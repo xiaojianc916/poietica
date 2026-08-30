@@ -1,7 +1,10 @@
 import './app.css'
 
-import { type NativeCrashReport, takePreviousNativeCrashReport } from '@poietica/desktop-adapters'
-import { readWorkbenchSession } from '@poietica/ipc'
+import {
+  type NativeCrashReport,
+  readWorkbenchSession,
+  takePreviousNativeCrashReport,
+} from '@poietica/native-bridge'
 import { DEFAULT_APP_SETTINGS } from '@poietica/settings'
 import { applyThemePreference } from '@poietica/ui'
 import { mountReactApplication } from './bootstrap/react-root'

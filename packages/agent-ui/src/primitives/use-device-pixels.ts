@@ -1,4 +1,4 @@
-import { createExternalStore } from '@poietica/core'
+import { createExternalStore } from '@poietica/ui'
 import { useCallback, useSyncExternalStore } from 'react'
 
 /**
@@ -20,7 +20,7 @@ import { useCallback, useSyncExternalStore } from 'react'
  * 的接口只有 useSyncExternalStore。用 useState 存一份副本,并发渲染下这一帧读到的与
  * 提交时刻的真实值可以不是同一个(tearing),而 useEffect 里的首次同步永远晚一帧。
  *
- * 而这条管线已经有了:@poietica/core 的 external-store 开篇那句「React 之外的
+ * 而这条管线已经有了:@poietica/ui 的 external-store 开篇那句「React 之外的
  * 数据源,接线只有这一种形状」说的就是这件事,threads/clock 用的正是它。
  *
  * dpr 是进程级的唯一事实,所以监听者也只有一个:每个使用点各持一份 state 与一个

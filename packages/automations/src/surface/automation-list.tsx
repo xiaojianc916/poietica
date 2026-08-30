@@ -1,4 +1,4 @@
-import type { Automation } from '@poietica/ipc'
+import type { Automation } from '@poietica/native-bridge'
 import { ConfirmationDialog } from '@poietica/ui'
 import { useState } from 'react'
 

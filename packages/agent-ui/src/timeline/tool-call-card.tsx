@@ -5,7 +5,7 @@ import './tool-group.css'
 
 import type { ToolCallTimelineItem } from '@poietica/agent'
 import { isDelegation } from '@poietica/agent'
-import { type DiffStat, diffStatOf } from '@poietica/file-diff'
+import { type DiffStat, diffStatOf } from '@poietica/review'
 import { cx } from '../primitives/class-names'
 import { DisclosureBody } from '../primitives/disclosure'
 import {

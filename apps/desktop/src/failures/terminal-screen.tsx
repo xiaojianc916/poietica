@@ -1,4 +1,4 @@
-import { createMainWindowController } from '@poietica/desktop-adapters'
+import { createMainWindowController } from '@poietica/native-bridge'
 import { CircleCheck as CheckCircle, Copy, RefreshCw as Refresh } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useWindowChrome } from '../chrome/use-window-chrome'

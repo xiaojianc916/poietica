@@ -1,20 +1,18 @@
 use poietica_conversation::event::{ConversationEvent, EventEnvelope};
 use poietica_conversation::identity::{Seq, ThreadId};
 use poietica_time::WallClock;
-use rusqlite::params;
+use rusqlite::{Connection, Transaction, params};
 
-use crate::conversation::SqliteLedger;
 use crate::error::LedgerError;
 
 /// seq 由账本分配：在同一个事务里取 max + 1，所以它在一条对话内单调无空洞。
-pub fn append<C: WallClock>(
-    ledger: &SqliteLedger<C>,
+/// 事务由调用方开、由调用方提交：这里的写与发件箱的状态迁移共享同一次提交。
+pub fn append(
+    transaction: &Transaction<'_>,
+    clock: &dyn WallClock,
     thread: &ThreadId,
     event: &ConversationEvent,
 ) -> Result<Seq, LedgerError> {
-    let mut guard = ledger.guard()?;
-    let transaction = guard.transaction()?;
-
     let last: Option<i64> = transaction.query_row(
         "SELECT MAX(seq) FROM conversation_events WHERE thread_id = ?1",
         params![thread.as_str()],
@@ -35,21 +33,19 @@ pub fn append<C: WallClock>(
             turn,
             event.kind(),
             payload,
-            ledger.clock().now_unix_millis(),
+            clock.now_unix_millis(),
         ],
     )?;
-    transaction.commit()?;
 
     Ok(seq)
 }
 
-pub fn after<C: WallClock>(
-    ledger: &SqliteLedger<C>,
+pub fn after(
+    connection: &Connection,
     thread: &ThreadId,
     after: Seq,
 ) -> Result<Vec<EventEnvelope>, LedgerError> {
-    let guard = ledger.guard()?;
-    let mut statement = guard.prepare(
+    let mut statement = connection.prepare(
         "SELECT seq, payload FROM conversation_events
           WHERE thread_id = ?1 AND seq > ?2
           ORDER BY seq",

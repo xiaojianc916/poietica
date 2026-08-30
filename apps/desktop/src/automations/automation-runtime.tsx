@@ -1,7 +1,7 @@
 import type { AgentSessionPort } from '@poietica/agent-contract'
 import { useSessionControlsActions, useTranscripts } from '@poietica/agent-ui'
 import { createAutomationStore, sessionConfigOf } from '@poietica/automations'
-import type { Automation } from '@poietica/ipc'
+import type { Automation } from '@poietica/native-bridge'
 import { useEffect } from 'react'
 import { v7 as uuidv7 } from 'uuid'
 

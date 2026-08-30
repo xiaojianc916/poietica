@@ -12,7 +12,6 @@ pub mod problem;
 use tauri::Wry;
 use tauri_specta::{Builder, ErrorHandlingMode};
 
-use crate::browser::{BrowserElementPicked, BrowserState};
 use crate::commands::{
     agent::dto::{
         AgentAnswerQuestionsRequest, AgentArchiveThreadRequest, AgentCapabilitiesRequest,
@@ -53,6 +52,7 @@ use crate::commands::{
     window::WindowMaximized,
 };
 use crate::diagnostics::NativeCrashReport;
+use crate::webview::{BrowserElementPicked, BrowserState};
 
 /// 这个应用的全部 IPC 命令与 DTO。
 ///
@@ -151,20 +151,20 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::git::git_file_patch,
             crate::commands::git::git_commit,
             crate::commands::git::git_await_change,
-            crate::browser::browser_state,
-            crate::browser::browser_open_tab,
-            crate::browser::browser_close_tab,
-            crate::browser::browser_select_tab,
-            crate::browser::browser_navigate,
-            crate::browser::browser_back,
-            crate::browser::browser_forward,
-            crate::browser::browser_reload,
-            crate::browser::browser_print,
-            crate::browser::browser_reopen_closed,
-            crate::browser::browser_set_bounds,
-            crate::browser::browser_set_visible,
-            crate::browser::browser_devtools_endpoint,
-            crate::browser::browser_set_element_picker,
+            crate::webview::bridge::browser_state,
+            crate::webview::bridge::browser_open_tab,
+            crate::webview::bridge::browser_close_tab,
+            crate::webview::bridge::browser_select_tab,
+            crate::webview::bridge::browser_navigate,
+            crate::webview::bridge::browser_back,
+            crate::webview::bridge::browser_forward,
+            crate::webview::bridge::browser_reload,
+            crate::webview::bridge::browser_print,
+            crate::webview::bridge::browser_reopen_closed,
+            crate::webview::bridge::browser_set_bounds,
+            crate::webview::bridge::browser_set_visible,
+            crate::webview::bridge::browser_devtools_endpoint,
+            crate::webview::bridge::browser_set_element_picker,
         ])
         .events(tauri_specta::collect_events![
             AutomationCatalogChanged,

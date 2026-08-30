@@ -1,4 +1,4 @@
-import { optionalProperty } from '@poietica/core'
+import { optionalProperty } from '@poietica/problem'
 import type { TerminalFailureIncident } from './coordinator'
 import { formatFailureDiagnostic } from './diagnostic'
 

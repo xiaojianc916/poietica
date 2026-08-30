@@ -22,7 +22,7 @@ X-Frame-Options/frame-ancestors 会把大多数站点挡在 iframe 外面。
 | --- | --- | --- |
 | `crates/browser` | 标签簿语义（纯逻辑，可脱离 UI 测试） | 只有宿主 |
 | `browser.rs`（宿主） | webview 实例、几何、可见性、DTO、事件 | 只有 IPC 命令层 |
-| `@poietica/ipc` | 生成绑定上的浏览器面 | 应用层 |
+| `@poietica/native-bridge` | 生成绑定上的浏览器面 | 应用层 |
 | `@poietica/browser` | 面板 UI 与面板状态店，只经端口说话 | 应用层 |
 | `apps/desktop` | 端口接线、dock 摆进对话表面 | 组合根 |
 

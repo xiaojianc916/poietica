@@ -1,4 +1,4 @@
-import type { Automation } from '@poietica/ipc'
+import type { Automation } from '@poietica/native-bridge'
 import { Cron } from 'croner'
 
 /**

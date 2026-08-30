@@ -8,7 +8,7 @@ import {
   redactText,
   safeStringify,
   sanitizeContext,
-} from '@poietica/core'
+} from '@poietica/problem'
 
 export interface FailureDiagnosticHint {
   readonly componentStack?: string | null

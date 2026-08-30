@@ -12,7 +12,7 @@ const SKIP = new Set([
   '.git',
   '.github',
   '.turbo',
-  'Project Architecture Design',
+  'Architecture',
   'coverage',
   'dist',
   'gen',

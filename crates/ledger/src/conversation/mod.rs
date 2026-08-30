@@ -14,6 +14,7 @@ use poietica_time::WallClock;
 use rusqlite::Connection;
 
 use crate::error::LedgerError;
+use crate::index::AgentStore;
 
 /// 时钟显式注入；连接由账本自己拥有，所以它也负责串行化。
 #[derive(Debug)]
@@ -47,7 +48,7 @@ impl<C: WallClock> SqliteLedger<C> {
     }
 }
 
-/// 领域只认 LedgerUnavailable；SQLite 的细节到这一层为止。
+/// 领域只看得见 LedgerUnavailable；SQLite 的细节到这一层为止。
 fn unavailable(error: &LedgerError) -> LedgerUnavailable {
     LedgerUnavailable {
         reason: error.to_string(),
@@ -56,7 +57,16 @@ fn unavailable(error: &LedgerError) -> LedgerUnavailable {
 
 impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
     fn admit(&self, admission: &Admission) -> Result<AdmissionDecision, LedgerUnavailable> {
-        admissions::admit(self, admission).map_err(|error| unavailable(&error))
+        let mut guard = self.guard().map_err(|error| unavailable(&error))?;
+        let transaction = guard
+            .transaction()
+            .map_err(|error| unavailable(&LedgerError::from(error)))?;
+        let decision = admissions::admit(&transaction, self.clock(), admission)
+            .map_err(|error| unavailable(&error))?;
+        transaction
+            .commit()
+            .map_err(|error| unavailable(&LedgerError::from(error)))?;
+        Ok(decision)
     }
 
     fn append(
@@ -64,7 +74,16 @@ impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
         thread: &ThreadId,
         event: &ConversationEvent,
     ) -> Result<Seq, LedgerUnavailable> {
-        events::append(self, thread, event).map_err(|error| unavailable(&error))
+        let mut guard = self.guard().map_err(|error| unavailable(&error))?;
+        let transaction = guard
+            .transaction()
+            .map_err(|error| unavailable(&LedgerError::from(error)))?;
+        let seq = events::append(&transaction, self.clock(), thread, event)
+            .map_err(|error| unavailable(&error))?;
+        transaction
+            .commit()
+            .map_err(|error| unavailable(&LedgerError::from(error)))?;
+        Ok(seq)
     }
 
     fn events_after(
@@ -72,11 +91,13 @@ impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
         thread: &ThreadId,
         after: Seq,
     ) -> Result<Vec<EventEnvelope>, LedgerUnavailable> {
-        events::after(self, thread, after).map_err(|error| unavailable(&error))
+        let guard = self.guard().map_err(|error| unavailable(&error))?;
+        events::after(&guard, thread, after).map_err(|error| unavailable(&error))
     }
 
     fn delivery_state(&self, turn: &TurnId) -> Result<Option<DeliveryState>, LedgerUnavailable> {
-        outbox::state(self, turn).map_err(|error| unavailable(&error))
+        let guard = self.guard().map_err(|error| unavailable(&error))?;
+        outbox::state(&guard, turn).map_err(|error| unavailable(&error))
     }
 
     fn record_delivery(
@@ -84,10 +105,86 @@ impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
         turn: &TurnId,
         outcome: DeliveryOutcome,
     ) -> Result<DeliveryState, LedgerUnavailable> {
-        outbox::record(self, turn, outcome).map_err(|error| unavailable(&error))
+        let mut guard = self.guard().map_err(|error| unavailable(&error))?;
+        let transaction = guard
+            .transaction()
+            .map_err(|error| unavailable(&LedgerError::from(error)))?;
+        let state = outbox::record(&transaction, self.clock(), turn, outcome)
+            .map_err(|error| unavailable(&error))?;
+        transaction
+            .commit()
+            .map_err(|error| unavailable(&LedgerError::from(error)))?;
+        Ok(state)
     }
 
     fn unresolved_deliveries(&self) -> Result<Vec<Admission>, LedgerUnavailable> {
-        outbox::unresolved(self).map_err(|error| unavailable(&error))
+        let guard = self.guard().map_err(|error| unavailable(&error))?;
+        outbox::unresolved(&guard).map_err(|error| unavailable(&error))
+    }
+}
+
+/// 同一条库上的另一份端口实现。
+///
+/// 进程里只有一条连接（local_index 的约定），所以组合根里的账本端口就是它：
+/// 领域的准入/发件箱与索引的读写共用一个写者，谁也不会绕过谁的锁。
+impl ConversationLedger for AgentStore {
+    fn admit(&self, admission: &Admission) -> Result<AdmissionDecision, LedgerUnavailable> {
+        let transaction = self
+            .unchecked_transaction()
+            .map_err(|error| unavailable(&error))?;
+        let decision = admissions::admit(&transaction, self.clock(), admission)
+            .map_err(|error| unavailable(&error))?;
+        transaction
+            .commit()
+            .map_err(|error| unavailable(&LedgerError::from(error)))?;
+        Ok(decision)
+    }
+
+    fn append(
+        &self,
+        thread: &ThreadId,
+        event: &ConversationEvent,
+    ) -> Result<Seq, LedgerUnavailable> {
+        let transaction = self
+            .unchecked_transaction()
+            .map_err(|error| unavailable(&error))?;
+        let seq = events::append(&transaction, self.clock(), thread, event)
+            .map_err(|error| unavailable(&error))?;
+        transaction
+            .commit()
+            .map_err(|error| unavailable(&LedgerError::from(error)))?;
+        Ok(seq)
+    }
+
+    fn events_after(
+        &self,
+        thread: &ThreadId,
+        after: Seq,
+    ) -> Result<Vec<EventEnvelope>, LedgerUnavailable> {
+        events::after(&self.connection, thread, after).map_err(|error| unavailable(&error))
+    }
+
+    fn delivery_state(&self, turn: &TurnId) -> Result<Option<DeliveryState>, LedgerUnavailable> {
+        outbox::state(&self.connection, turn).map_err(|error| unavailable(&error))
+    }
+
+    fn record_delivery(
+        &self,
+        turn: &TurnId,
+        outcome: DeliveryOutcome,
+    ) -> Result<DeliveryState, LedgerUnavailable> {
+        let transaction = self
+            .unchecked_transaction()
+            .map_err(|error| unavailable(&error))?;
+        let state = outbox::record(&transaction, self.clock(), turn, outcome)
+            .map_err(|error| unavailable(&error))?;
+        transaction
+            .commit()
+            .map_err(|error| unavailable(&LedgerError::from(error)))?;
+        Ok(state)
+    }
+
+    fn unresolved_deliveries(&self) -> Result<Vec<Admission>, LedgerUnavailable> {
+        outbox::unresolved(&self.connection).map_err(|error| unavailable(&error))
     }
 }

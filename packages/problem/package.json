@@ -7,10 +7,12 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --project tsconfig.json --noEmit"
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "bun test src"
   },
   "dependencies": {
-    "@poietica/contract": "workspace:*"
+    "@poietica/contract": "workspace:*",
+    "uuid": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

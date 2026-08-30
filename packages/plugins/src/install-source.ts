@@ -1,4 +1,4 @@
-import { assertUnreachable } from '@poietica/core'
+import { assertUnreachable } from '@poietica/problem'
 
 /*
  * 信任级别取自上游目录里那一列 tier。它是市场目录声明的事实，不从 URL 猜 ——

@@ -1,10 +1,9 @@
-import { warn } from '@poietica/core'
 import type {
   Automation,
   AutomationCatalog,
   AutomationReschedule,
   AutomationRun,
-} from '@poietica/ipc'
+} from '@poietica/native-bridge'
 import {
   createAutomation,
   loadAutomations,
@@ -13,14 +12,15 @@ import {
   upsertAutomation,
   watchAutomationCatalog,
   watchAutomations,
-} from '@poietica/ipc'
+} from '@poietica/native-bridge'
+import { warn } from '@poietica/problem'
 
 import { type AutomationDraft, nextRunAfter } from './automation'
 
 /**
  * 自动化的状态与调度。
  *
- * 落盘直接走 @poietica/ipc，不套一层可选注入的端口：可选参数的那种写法里，组合根
+ * 落盘直接走 @poietica/native-bridge，不套一层可选注入的端口：可选参数的那种写法里，组合根
  * 忘了注入，编译器不会提醒任何人，整条落盘链路就此静默失效。
  *
  * 屏幕上这份列表是盘上那份的投影，不是与它并行的第二份真相。每一次改动都发一条

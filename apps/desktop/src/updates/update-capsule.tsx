@@ -1,7 +1,7 @@
-import type { AppUpdateStore } from '@poietica/desktop-adapters'
 import { Button } from '@poietica/ui'
 import { Download, LoaderCircle } from 'lucide-react'
 import { useSyncExternalStore } from 'react'
+import type { AppUpdateStore } from './app-update-store'
 import { advance, hint, isBusy } from './update-phase'
 
 interface UpdateCapsuleProps {

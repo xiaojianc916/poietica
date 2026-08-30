@@ -1,6 +1,6 @@
 import type { ToolCallTimelineItem } from '@poietica/agent'
 
-import { basename } from '@poietica/file-diff'
+import { basename } from '@poietica/review'
 
 /**
  * 这次调用在做什么，一句话：卡片没展开的那一行，和审批带子上要签字的那一句。

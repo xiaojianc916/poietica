@@ -14,10 +14,11 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@lexical/react": "catalog:",
     "@poietica/agent": "workspace:*",
     "@poietica/agent-contract": "workspace:*",
-    "@poietica/core": "workspace:*",
-    "@lexical/react": "catalog:",
+    "@poietica/problem": "workspace:*",
+    "@poietica/review": "workspace:*",
     "@poietica/ui": "workspace:*",
     "@streamdown/cjk": "catalog:",
     "@streamdown/code": "catalog:",
@@ -29,8 +30,7 @@
     "lucide-react": "catalog:",
     "motion": "catalog:",
     "streamdown": "catalog:",
-    "yet-another-react-lightbox": "catalog:",
-    "@poietica/file-diff": "workspace:*"
+    "yet-another-react-lightbox": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

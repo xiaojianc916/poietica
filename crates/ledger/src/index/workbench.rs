@@ -11,7 +11,7 @@
 use rusqlite::OptionalExtension as _;
 
 use crate::error::Result;
-use crate::index::store::{AgentStore, now};
+use crate::index::store::AgentStore;
 
 impl AgentStore {
     /// 上一次留下的那一份。从来没有存过就是 None。
@@ -46,7 +46,7 @@ impl AgentStore {
              ON CONFLICT (slot) DO UPDATE SET
                document   = excluded.document,
                updated_at = excluded.updated_at",
-            rusqlite::params![document, now()?],
+            rusqlite::params![document, self.now()?],
         )
     }
 }

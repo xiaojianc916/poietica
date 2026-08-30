@@ -1,5 +1,5 @@
 import type { ThreadsStore } from '@poietica/agent'
-import { readTokenDays } from '@poietica/ipc'
+import { readTokenDays } from '@poietica/native-bridge'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { SegmentedControl, type SegmentedOption } from '../surface/segmented-control'
 import { SettingRow, SettingsGroup, SettingsPage } from '../surface/settings-primitives'

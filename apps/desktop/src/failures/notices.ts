@@ -1,4 +1,4 @@
-import { optionalProperty } from '@poietica/core'
+import { optionalProperty } from '@poietica/problem'
 import { type FailureCoordinator, failureCoordinator } from './coordinator'
 
 /* 同时在场的上限。挤出去的那几张已经在诊断日志里，不必再抢屏幕。 */

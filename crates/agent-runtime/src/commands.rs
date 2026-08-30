@@ -125,6 +125,9 @@ pub(crate) enum Command {
         attachments: Vec<PromptAttachment>,
         /// 与正文、附件同一次提交的 Skill。
         skills: Vec<PromptSkill>,
+        /// 投递的幂等键。快照的 SubmitPromptRequest 自带 prompt_id 一格：
+        /// 客户端报名，重试投递时 server 收过就不重复入列。
+        idempotency: String,
         /// 这条会话的帧交到哪里去。记录器由驱动器造：序号线在它的槽里。
         frames: FrameSink,
         /// kap 收下这句话时给的 prompt id。
@@ -320,6 +323,7 @@ impl AgentClient {
         text: String,
         attachments: Vec<PromptAttachment>,
         skills: Vec<PromptSkill>,
+        idempotency: String,
         frames: FrameSink,
     ) -> Result<oneshot::Receiver<Result<String>>> {
         let (reply, answer) = oneshot::channel();
@@ -329,6 +333,7 @@ impl AgentClient {
             text,
             attachments,
             skills,
+            idempotency,
             frames,
             reply,
         })?;

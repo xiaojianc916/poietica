@@ -39,7 +39,7 @@ impl LocalIndex {
     /// # Errors
     ///
     /// 文件打不开、或某一条迁移被拒时返回错误。
-    pub fn open(path: &Path, clock: &dyn WallClock) -> Result<Self> {
+    pub fn open(path: &Path, clock: impl WallClock + 'static) -> Result<Self> {
         Ok(Self {
             store: Arc::new(Mutex::new(
                 AgentStore::open(path, clock).map_err(persistence)?,

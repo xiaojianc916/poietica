@@ -14,10 +14,10 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/core": "workspace:*",
     "@poietica/ui": "workspace:*",
     "lucide-react": "catalog:",
-    "valibot": "catalog:"
+    "valibot": "catalog:",
+    "@poietica/problem": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "catalog:",

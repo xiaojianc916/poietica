@@ -1,4 +1,4 @@
-import { isRecord } from '@poietica/core'
+import { isRecord } from '@poietica/problem'
 import { parse, stringify } from 'yaml'
 
 export type ToolMode = 'all' | 'allowlist' | 'none'

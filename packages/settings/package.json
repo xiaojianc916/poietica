@@ -13,11 +13,11 @@
   "dependencies": {
     "@poietica/agent": "workspace:*",
     "@poietica/agent-catalog": "workspace:*",
-    "@poietica/core": "workspace:*",
-    "@poietica/ipc": "workspace:*",
+    "@poietica/native-bridge": "workspace:*",
     "@poietica/ui": "workspace:*",
     "lucide-react": "catalog:",
-    "yaml": "catalog:"
+    "yaml": "catalog:",
+    "@poietica/problem": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "catalog:",

@@ -57,6 +57,11 @@ use crate::session::{
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
 use crate::trace::{open_trace, trace};
+use poietica_kap_client::events::{
+    ClientFrame, ClientHelloCursorsValueStruct, ClientHelloStruct, PongStruct, ServerFrame,
+    SubscribeAckPayloadStruct, SubscribeStruct,
+};
+use poietica_kap_client::rest::RestEnvelope;
 
 /// 本进程与 kap server 之间的 WebSocket。
 type WsStream =
@@ -109,9 +114,10 @@ async fn shake_hands(
     loop {
         match tokio::time::timeout_at(deadline, ws_rx.next()).await {
             Ok(Some(Ok(Message::Text(raw)))) => {
-                if let Ok(frame) = serde_json::from_str::<Value>(&raw)
-                    && frame.get("type").and_then(Value::as_str) == Some("server_hello")
-                {
+                if matches!(
+                    poietica_kap_client::server_frame(&raw),
+                    Ok(ServerFrame::ServerHello { .. })
+                ) {
                     break;
                 }
             }
@@ -136,8 +142,15 @@ async fn shake_hands(
 
     let hello = send_frame(
         ws,
-        "client_hello",
-        json!({ "client_id": Uuid::new_v4().to_string() }),
+        ClientFrame::ClientHello {
+            id: Uuid::new_v4().to_string(),
+            payload: ClientHelloStruct {
+                client_id: Uuid::new_v4().to_string(),
+                subscriptions: None,
+                cursors: None,
+                agent_filter: None,
+            },
+        },
     )
     .await?;
 
@@ -445,23 +458,22 @@ impl Drop for Spawned {
 
 // ── REST ───────────────────────────────────────────────────────────────────
 
-/// 取信封里的 data。业务成败在 code 里（0 为成功），HTTP 状态只管传输层
-/// （kap-server/AGENTS.md 的信封约定）。字段一律 .get()：Value 的索引写法在
-/// clippy 的 indexing_slicing 下是硬错误，而这个仓把它开着。
+/// 取信封里的 data。信封形状由快照生成的 RestEnvelope 承载：业务成败在
+/// code 里（0 为成功），HTTP 状态只管传输层。data 在这里仍是 Value ——
+/// 各路由的类型化解码随路由消费一批批接上。
 fn envelope_data(body: &Value) -> Result<Value> {
-    let code = body.get("code").and_then(Value::as_i64).unwrap_or(-1);
+    let envelope: RestEnvelope =
+        serde_json::from_value(body.clone()).map_err(|error| KapError::Transport {
+            message: format!("the REST envelope does not fit the pinned contract: {error}"),
+        })?;
 
-    if code == 0 {
-        return Ok(body.get("data").cloned().unwrap_or_default());
+    if envelope.code == 0 {
+        return Ok(envelope.data.unwrap_or_default());
     }
 
     Err(KapError::Envelope {
-        code,
-        message: body
-            .get("msg")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_owned(),
+        code: envelope.code,
+        message: envelope.msg,
     })
 }
 
@@ -497,15 +509,21 @@ async fn settle<T>(reply: oneshot::Sender<Result<T>>, fut: impl Future<Output = 
 
 // ── WS 控制帧 ──────────────────────────────────────────────────────────────
 
-/// 发一帧控制帧，返回它的 id。kap 的控制面（subscribe / abort / pong…）都长
-/// 一个样：{ type, id, payload }（contracts/kap/asyncapi.json 的控制面操作）。
-async fn send_frame(ws: &WsSink, kind: &str, payload: Value) -> Result<String> {
-    let id = Uuid::new_v4().to_string();
-    let frame = json!({ "type": kind, "id": id, "payload": payload });
+/// 发一帧控制帧，返回它的 id。帧的形状由快照生成的 ClientFrame 成形，
+/// 这里只管上 wire。
+async fn send_frame(ws: &WsSink, frame: ClientFrame) -> Result<String> {
+    let id = match &frame {
+        ClientFrame::ClientHello { id, .. } | ClientFrame::Subscribe { id, .. } => id.clone(),
+        ClientFrame::Pong { .. } => String::new(),
+    };
 
     ws.lock()
         .await
-        .send(Message::Text(frame.to_string()))
+        .send(Message::Text(serde_json::to_string(&frame).map_err(
+            |e| KapError::Transport {
+                message: e.to_string(),
+            },
+        )?))
         .await
         .map_err(|e| KapError::Transport {
             message: e.to_string(),
@@ -528,20 +546,31 @@ async fn wait_ack(
     loop {
         match tokio::time::timeout_at(deadline, ws_rx.next()).await {
             Ok(Some(Ok(Message::Text(raw)))) => {
-                let Ok(frame) = serde_json::from_str::<Value>(&raw) else {
+                let frame = poietica_kap_client::server_frame(&raw);
+                let Ok(ServerFrame::Ack {
+                    id: answered,
+                    code,
+                    payload,
+                    ..
+                }) = frame
+                else {
+                    // 不是 ack 的帧原样进 stash：它们排在这条 ack 前面，属于事件流。
+                    if let Ok(frame) = serde_json::from_str::<Value>(&raw) {
+                        stash.push(frame);
+                    }
                     continue;
                 };
 
-                if frame.get("type").and_then(Value::as_str) != Some("ack")
-                    || frame.get("id").and_then(Value::as_str) != Some(id)
-                {
-                    stash.push(frame);
+                if answered != id {
+                    if let Ok(frame) = serde_json::from_str::<Value>(&raw) {
+                        stash.push(frame);
+                    }
                     continue;
                 }
 
-                return match frame.get("code").and_then(Value::as_i64) {
-                    Some(0) | None => Ok(frame.get("payload").cloned().unwrap_or_default()),
-                    Some(code) => Err(KapError::Handshake {
+                return match code {
+                    0 => Ok(payload),
+                    code => Err(KapError::Handshake {
                         message: format!("control frame {id} rejected with code {code}: {raw}"),
                     }),
                 };
@@ -577,11 +606,9 @@ async fn wait_subscribe_ack(
     stash: &mut Vec<Value>,
 ) -> Result<bool> {
     let payload = wait_ack(ws_rx, id, stash).await?;
+    let decoded: Option<SubscribeAckPayloadStruct> = serde_json::from_value(payload).ok();
 
-    Ok(payload
-        .get("accepted")
-        .and_then(Value::as_array)
-        .is_some_and(|ids| ids.iter().any(|entry| entry.as_str() == Some(session_id))))
+    Ok(decoded.is_some_and(|ack| ack.accepted.iter().any(|entry| entry == session_id)))
 }
 
 /// 把一条会话挂到这条连接的事件流上，返回那一帧的 id。不在握手内联订阅：
@@ -591,22 +618,31 @@ async fn wait_subscribe_ack(
 /// sessionCursorSchema）；接不下去时它回 resync_required，而不是默默从头来。新开
 /// 与分叉出来的会话没有读点：它们的流从这一刻才开始。
 async fn subscribe(ws: &WsSink, session_id: &str, from: Option<&Cursor>) -> Result<String> {
-    let payload = match from {
-        Some(Cursor {
-            seq,
-            epoch: Some(epoch),
-        }) => json!({
-            "session_ids": [session_id],
-            "cursors": { session_id: { "seq": seq, "epoch": epoch } },
-        }),
-        Some(Cursor { seq, epoch: None }) => json!({
-            "session_ids": [session_id],
-            "cursors": { session_id: { "seq": seq } },
-        }),
-        None => json!({ "session_ids": [session_id] }),
-    };
+    let cursors = from.map(|Cursor { seq, epoch }| {
+        [(
+            session_id.to_owned(),
+            ClientHelloCursorsValueStruct {
+                seq: *seq,
+                epoch: epoch.clone(),
+            },
+        )]
+        .into_iter()
+        .collect()
+    });
 
-    send_frame(ws, "subscribe", payload).await
+    send_frame(
+        ws,
+        ClientFrame::Subscribe {
+            id: Uuid::new_v4().to_string(),
+            payload: SubscribeStruct {
+                session_ids: vec![session_id.to_owned()],
+                cursors,
+                watch_fs: None,
+                agent_filter: None,
+            },
+        },
+    )
+    .await
 }
 
 // ── 会话状态 ───────────────────────────────────────────────────────────────
@@ -740,6 +776,7 @@ struct PromptJob {
     text: String,
     attachments: Vec<PromptAttachment>,
     skills: Vec<PromptSkill>,
+    idempotency: String,
     reply: oneshot::Sender<Result<String>>,
 }
 
@@ -782,6 +819,7 @@ impl PromptOwner {
                         &job.text,
                         &job.attachments,
                         &job.skills,
+                        &job.idempotency,
                     )
                     .await;
                     active = result.is_ok();
@@ -1259,10 +1297,10 @@ pub fn connect(
                             }));
                         }
 
-                        Some(Command::Prompt { session_id: sid, text, attachments, skills, frames, reply }) => {
+                        Some(Command::Prompt { session_id: sid, text, attachments, skills, idempotency, frames, reply }) => {
                             let held = book_clone.slot(&sid).ok().flatten();
                             if let Some(slot) = held {
-                                let admission_id = Uuid::new_v4().to_string();
+                                let admission_id = idempotency.clone();
                                 let shown = attachments.iter().map(|item| item.url().to_owned()).collect();
                                 let attached = skills.iter().map(|skill| skill.name.clone()).collect();
                                 if slot.attach(|| Recorder::new(sid.clone(), slot.seq(), frames)).is_err() {
@@ -1284,7 +1322,7 @@ pub fn connect(
                                     }));
                                     continue;
                                 }
-                                router.submit(&sid, PromptJob { text, attachments, skills, reply });
+                                router.submit(&sid, PromptJob { text, attachments, skills, idempotency, reply });
                             } else {
                                 let _sent = reply.send(Err(KapError::Refused(Refusal::UnknownSession)));
                             }
@@ -1345,22 +1383,24 @@ pub fn connect(
                         }
 
                         Some(Ok(Message::Text(raw))) => {
-                            if let Ok(v) = serde_json::from_str::<Value>(&raw) {
-                                if v.get("type").and_then(Value::as_str) == Some("ping") {
-                                    // kap 的心跳是应用层帧（契约快照 contracts/kap/
-                                    // asyncapi.json 的 ping/pong），与 tungstenite 的协议层
-                                    // Ping 是两回事 —— 两个都要答。
-                                    let nonce = v
-                                        .get("payload")
-                                        .and_then(|payload| payload.get("nonce"))
-                                        .cloned()
-                                        .unwrap_or_default();
-                                    send_frame(&ws, "pong", json!({ "nonce": nonce }))
-                                        .await
-                                        .ok();
-                                } else {
-                                    router.handle(&v);
-                                }
+                            // kap 的心跳是应用层帧（契约快照 contracts/kap/
+                            // asyncapi.json 的 ping/pong），与 tungstenite 的协议层
+                            // Ping 是两回事 —— 两个都要答。
+                            if let Ok(ServerFrame::Ping { payload, .. }) =
+                                poietica_kap_client::server_frame(&raw)
+                            {
+                                send_frame(
+                                    &ws,
+                                    ClientFrame::Pong {
+                                        payload: PongStruct {
+                                            nonce: payload.nonce,
+                                        },
+                                    },
+                                )
+                                .await
+                                .ok();
+                            } else if let Ok(v) = serde_json::from_str::<Value>(&raw) {
+                                router.handle(&v);
                             }
                         }
 
@@ -2013,10 +2053,8 @@ async fn fetch_and_record_questions(
 
 // ── 会话的 REST 辅助 ───────────────────────────────────────────────────────
 
-/// Prompt submission is intentionally single-attempt.
-///
-/// KAP assigns the prompt id, so this client has no idempotency key. Retrying a POST after an
-/// ambiguous transport failure could enqueue the same user action twice.
+/// 提交一句话。幂等键随载荷上 wire（快照的 SubmitPromptRequest.prompt_id）：
+/// 重试投递时 server 收过就不重复入列，所以 ambiguous 的传输失败可以重试。
 async fn submit_prompt(
     http: &reqwest::Client,
     base_url: &str,
@@ -2024,8 +2062,12 @@ async fn submit_prompt(
     text: &str,
     attachments: &[PromptAttachment],
     skills: &[PromptSkill],
+    idempotency: &str,
 ) -> Result<String> {
-    let body = prompt_body(text, attachments, skills)?;
+    let mut body = prompt_body(text, attachments, skills)?;
+    if let Some(fields) = body.as_object_mut() {
+        fields.insert("prompt_id".to_owned(), json!(idempotency));
+    }
     let url = format!("{base_url}/sessions/{session_id}/prompts");
     let data = post(http, &url, &body).await?;
 

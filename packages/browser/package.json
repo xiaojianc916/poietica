@@ -10,10 +10,10 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/core": "workspace:*",
-    "@poietica/ipc": "workspace:*",
+    "@poietica/native-bridge": "workspace:*",
     "@poietica/ui": "workspace:*",
-    "lucide-react": "catalog:"
+    "lucide-react": "catalog:",
+    "@poietica/problem": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "catalog:",

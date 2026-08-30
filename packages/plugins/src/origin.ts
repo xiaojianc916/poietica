@@ -1,4 +1,4 @@
-import { assertUnreachable } from '@poietica/core'
+import { assertUnreachable } from '@poietica/problem'
 
 /*
  * 一项能力是谁带来的。

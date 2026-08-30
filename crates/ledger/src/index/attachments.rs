@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::index::store::{AgentStore, now};
+use crate::index::store::AgentStore;
 
 /// 一段被某条对话引用着的字节,交付它需要的全部。
 ///
@@ -42,7 +42,7 @@ impl AgentStore {
         thread: Uuid,
         attachment: &ThreadAttachment,
     ) -> Result<()> {
-        let timestamp = now()?;
+        let timestamp = self.now()?;
         let transaction = self.connection.transaction()?;
 
         transaction.execute(

@@ -1,5 +1,5 @@
 import type { AgentSkill } from '@poietica/agent-contract'
-import type { SkillRecord } from '@poietica/ipc'
+import type { SkillRecord } from '@poietica/native-bridge'
 import { parse } from 'yaml'
 
 /*

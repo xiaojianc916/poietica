@@ -16,7 +16,6 @@
 pub mod asset_protocol;
 mod attachments;
 pub mod bootstrap;
-pub mod browser;
 pub mod commands;
 pub mod diagnostics;
 pub mod error;
@@ -24,6 +23,7 @@ pub mod ipc;
 pub mod local_index;
 pub mod mcp;
 pub mod paths;
+pub mod webview;
 
 pub use bootstrap::app;
 pub use error::{Error, Result};

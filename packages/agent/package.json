@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@poietica/agent-contract": "workspace:*",
-    "@poietica/core": "workspace:*"
+    "@poietica/workspace": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

@@ -1,4 +1,4 @@
-import { createExternalStore } from '@poietica/core'
+import { createExternalStore } from '@poietica/ui'
 import { useEffect, useId, useSyncExternalStore } from 'react'
 
 /*
@@ -16,7 +16,7 @@ import { useEffect, useId, useSyncExternalStore } from 'react'
  * 都是这么做的，没有一个是定周期轮询。
  *
  * 订阅那圈样板不在这个文件里：它是每个 React 外部数据源都要写一遍的东西，
- * 住在 @poietica/core 的 external-store。这个文件只负责「现在几点」和「下次
+ * 住在 @poietica/ui 的 external-store。这个文件只负责「现在几点」和「下次
  * 几点」。
  *
  * now 只在 fire() 里换一次。getSnapshot 必须是纯读，这是 useSyncExternalStore

@@ -1,5 +1,10 @@
 import type { GitBranchPickerProps } from '@poietica/agent-ui'
-import { type GitBranches, gitBranches, gitCreateBranch, gitSwitchBranch } from '@poietica/ipc'
+import {
+  type GitBranches,
+  gitBranches,
+  gitCreateBranch,
+  gitSwitchBranch,
+} from '@poietica/native-bridge'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reportFailure } from './failures/application-policy'
 

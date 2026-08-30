@@ -7,7 +7,7 @@
 //! （桌面 seam 的 record_and_flush_disposals）。
 
 use crate::error::Result;
-use crate::index::store::{AgentStore, now};
+use crate::index::store::AgentStore;
 
 impl AgentStore {
     /// 记一笔待送达的 session/delete。
@@ -23,7 +23,7 @@ impl AgentStore {
             "INSERT INTO session_disposals (session_id, agent_id, noted_at)
              VALUES (?1, ?2, ?3)
              ON CONFLICT (session_id) DO NOTHING",
-            rusqlite::params![session_id, agent_id, now()?],
+            rusqlite::params![session_id, agent_id, self.now()?],
         )?;
 
         Ok(())

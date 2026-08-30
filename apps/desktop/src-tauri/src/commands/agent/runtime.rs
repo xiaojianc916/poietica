@@ -2,15 +2,21 @@
 //!
 //! 进程活多久 AgentRuntime 就活多久；连接比它短，换 agent 时整条换掉。会话册子
 //! 由驱动器交出来，路由帧和这里寻址读的是同一本。
+use poietica_conversation::command::Conversation;
+use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
+use poietica_conversation::turn::DeliveryOutcome;
+
 use super::config::restate;
 use super::dto::{AgentLaunch, AgentSessionEvent, reported_goal, reported_usage};
 use super::failure::translate;
+use super::gateway;
 use super::journal::FrameJournal;
 use super::{AGENT_SESSION_EVENT, NO_SESSION_ID, POISONED};
 use crate::commands::agent_setup::profile::{
     agent_args, agent_data_home, agent_program, launch_env,
 };
 use crate::error::{Error, Result};
+use crate::local_index::on_index;
 use crate::paths::attachments_root;
 use poietica_agent_runtime_native::{
     AgentClient, AgentConnection, AgentSpawn, Daemon, DaemonIntent, KapError, LinkState,
@@ -24,6 +30,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 use tokio::task::LocalSet;
+use uuid::Uuid;
 /// The live connection, if one has been started.
 ///
 /// 它不持有对话。哪条对话握着哪个会话写在库里，而一条连接自己不是任何人的对话：
@@ -280,7 +287,7 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
             payload,
         } => {
             let index = app.state::<crate::local_index::LocalIndex>();
-            let recorded = crate::local_index::on_index(&index, move |store| {
+            let recorded = on_index(&index, move |store| {
                 store
                     .record_usage(&session_id, usage)
                     .map_err(crate::local_index::persistence)
@@ -293,7 +300,7 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
         }
         SessionEventPlan::Cursor { session_id, cursor } => {
             let index = app.state::<crate::local_index::LocalIndex>();
-            let recorded = crate::local_index::on_index(&index, move |store| {
+            let recorded = on_index(&index, move |store| {
                 store
                     .remember_cursor(&session_id, &cursor)
                     .map_err(crate::local_index::persistence)
@@ -306,7 +313,7 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
         }
         SessionEventPlan::CursorLost { session_id } => {
             let index = app.state::<crate::local_index::LocalIndex>();
-            let dropped = crate::local_index::on_index(&index, move |store| {
+            let dropped = on_index(&index, move |store| {
                 store
                     .forget_cursor(&session_id)
                     .map_err(crate::local_index::persistence)
@@ -368,7 +375,7 @@ pub(super) async fn ensure_session(
     };
     // 会话拉起前先把浏览器内核预热出来：CDP 端点上要有页面可听，agent 的
     // browser_* 工具才有东西可接。没有端口或已有实例时它是空操作。
-    crate::browser::ensure_live_kernel(app);
+    crate::webview::ensure_live_kernel(app);
     let spawn = outfit(app, &agent_id, working_directory.clone())?;
     // The book that files frames under the session that names them belongs
     // to the connection, and the driver holds its own handle to it, so
@@ -487,7 +494,104 @@ pub(super) async fn ensure_session(
     async_runtime::spawn(async move {
         record_and_flush_disposals(&ledger, courier, owner, serving, disposal_lease).await;
     });
+
+    /* 欠着的投递挂在握手成功之后排空：崩溃时停在那里的轮次，幂等键随载荷
+     * 上 wire，server 收过就不重复入列。 */
+    let herald = app.clone();
+    let drain_client = live.client.clone();
+    let drain_owner = live.agent_id.clone();
+    async_runtime::spawn(async move {
+        if let Err(error) = drain_pending_deliveries(&herald, drain_client, &drain_owner).await {
+            log::warn!("could not drain the pending deliveries: {error}");
+        }
+    });
     Ok(live)
+}
+
+/// 把发件箱里欠着的投递重新送一遍。
+///
+/// 会话地址在这里解析（线程索引才有它），只挑当前这个 agent 名下、还握着
+/// 会话的那些对话。解析不出的欠账留在线上：它们的主人下一次连上时再来。
+async fn drain_pending_deliveries(
+    app: &AppHandle,
+    client: AgentClient,
+    agent_id: &str,
+) -> Result<()> {
+    let index = app.state::<crate::local_index::LocalIndex>();
+    let runtime = app.state::<AgentRuntime>();
+    let owner = agent_id.to_owned();
+
+    /* 一趟读把两件事问齐：欠账清单，和它们各自的会话地址。 */
+    let owed = on_index(&index, move |store| {
+        let admissions = store
+            .unresolved_deliveries()
+            .map_err(|failure| Error::Internal(failure.to_string()))?;
+
+        let mut addressed = Vec::with_capacity(admissions.len());
+        for admission in admissions {
+            let Ok(thread) = Uuid::parse_str(admission.thread.as_str()) else {
+                log::warn!("a pending delivery names a thread that is not a uuid");
+                continue;
+            };
+            let holder = store
+                .thread(thread)
+                .map_err(crate::local_index::persistence)?;
+            let session = holder
+                .filter(|thread| thread.agent_id.as_deref() == Some(&owner))
+                .and_then(|thread| thread.session_id);
+
+            addressed.push((admission, session));
+        }
+
+        Ok(addressed)
+    })
+    .await?;
+
+    for (admission, session) in owed {
+        let Some(session) = session else {
+            continue;
+        };
+
+        let gateway = gateway::KapGateway {
+            client: client.clone(),
+            journal: runtime.journal.clone(),
+            attachments_root: runtime.attachments.clone(),
+        };
+        let delivery = PromptDelivery {
+            admission: admission.clone(),
+            session: session.clone(),
+        };
+
+        let outcome = on_index(&index, move |store| {
+            let conversation = Conversation::new(store, &gateway);
+
+            conversation
+                .redeliver(&delivery)
+                .map_err(|failure| Error::Internal(failure.to_string()))
+        })
+        .await?;
+
+        if let Some(receipt) = outcome.receipt {
+            /* 收据线在阻塞线程上等到裁决，账随后落那一格。 */
+            let turn = admission.turn.clone();
+            let settled = on_index(&index, move |store| {
+                let verdict = receipt.settle().unwrap_or(DeliveryOutcome::Indeterminate);
+
+                store
+                    .record_delivery(&turn, verdict)
+                    .map_err(|failure| Error::Internal(failure.to_string()))
+            })
+            .await;
+            if let Err(error) = settled {
+                log::warn!("could not record a redelivered turn's outcome: {error}");
+            }
+        }
+        if let Some(failure) = outcome.unresolved {
+            log::warn!("a pending delivery could not be sent: {failure}");
+        }
+    }
+
+    Ok(())
 }
 /// 这一家在这台机器上怎么起：argv、环境、它读写的那个家，一处算清。
 ///
@@ -622,7 +726,7 @@ async fn record_and_flush_disposals(
     let noted = {
         let owner = agent_id.clone();
         let born = anchor.clone();
-        crate::local_index::on_index(&index, move |store| {
+        on_index(&index, move |store| {
             store
                 .record_session_disposal(&born, &owner)
                 .map_err(crate::local_index::persistence)?;
@@ -656,7 +760,7 @@ async fn record_and_flush_disposals(
             log::warn!("a deferred session disposal was refused: {error}");
         }
         let delivered = session_id;
-        let discharged = crate::local_index::on_index(&index, move |store| {
+        let discharged = on_index(&index, move |store| {
             store
                 .discharge_session_disposal(&delivered)
                 .map_err(crate::local_index::persistence)

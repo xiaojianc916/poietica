@@ -1,15 +1,22 @@
 //! 一个轮次：发起、停止、回答权限、收摊。
 //!
 //! 帧不逐条发给界面 —— 攒一拍再交货，否则渲染进程被事件淹掉。
+//! 发起走领域管线：准入（冻结意图 + 欠一次投递）→ 网关投递 → 终局记账，
+//! 三步全在 command.rs 的 Conversation 里，这里只成形参数与安排收尾。
 
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
-use poietica_agent_runtime_native::{ConfigSelection, PromptSkill, apply_configurations};
-use tauri::{AppHandle, State, async_runtime};
+use poietica_agent_runtime_native::{ConfigSelection, apply_configurations};
+use poietica_conversation::command::Conversation;
+use poietica_conversation::identity::{ThreadId, TurnId};
+use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
+use poietica_conversation::turn::admission::Admission;
+use tauri::{AppHandle, Manager, State, async_runtime};
+use uuid::Uuid;
 
 use super::addressing::session_for;
-use super::attachment::{Kept, keep_bytes};
+use super::attachment::keep_bytes;
 use super::config::announce;
 use super::dto::{
     AgentAbortPromptRequest, AgentAnswerQuestionsRequest, AgentCancelRequest,
@@ -17,6 +24,7 @@ use super::dto::{
     AgentResolvePermissionRequest, AgentSteerRequest, answered, decided,
 };
 use super::failure::translate;
+use super::gateway::{KapGateway, attachment_reference};
 use super::runtime::{AgentRuntime, borrow, ensure_session};
 use super::{
     AgentCommandResult, IMAGE_OPENER, NO_CONVERSATION, NO_SESSION, NOTHING_TO_STOP, TITLE_CHARS,
@@ -54,7 +62,7 @@ pub async fn agent_prompt(
     let skills = request
         .skills
         .into_iter()
-        .map(|skill| PromptSkill {
+        .map(|skill| poietica_conversation::turn::SkillSpec {
             name: skill.name,
             args: skill.args,
         })
@@ -89,7 +97,7 @@ pub async fn agent_prompt(
         apply_configurations(
             &session.client,
             addressed.clone(),
-            configuration,
+            configuration.clone(),
             Some(text.clone()),
         )
         .await
@@ -125,7 +133,7 @@ pub async fn agent_prompt(
 
     /* 先落盘、铺进交付会话，再记账，最后才上路。顺序见 attachments.rs 的模块
     头：反过来会留下一条指着不存在字节的账，而那种残留不会自愈。 */
-    let Kept { carried, ledger } = keep_bytes(
+    let attachments = keep_bytes(
         state.attachments.clone(),
         assets.inner().clone(),
         thread_id.to_string(),
@@ -135,46 +143,91 @@ pub async fn agent_prompt(
 
     /* 一句话里的图写的是同一张表、属于同一句话：一次借用，一趟阻塞线程。逐张
     各走一次 `on_index`，就是各排一次线程池、各抢一次那把库锁。 */
-    on_index(&index, move |store| {
-        for attachment in ledger {
-            store
-                .remember_attachment(thread_id, &attachment)
-                .map_err(persistence)?;
-        }
+    on_index(&index, {
+        let attachments = attachments.clone();
+        move |store| {
+            for attachment in &attachments {
+                store
+                    .remember_attachment(thread_id, attachment)
+                    .map_err(persistence)?;
+            }
 
-        Ok(())
+            Ok(())
+        }
     })
     .await?;
 
-    let closing = app.clone();
-    let frames = state.journal.sink(thread_id);
+    /* 准入：意图在这里冻结（幂等键由本机签发），投递欠在发件箱上，随后由
+    领域把这一轮送到网关。落账先于上 wire —— 顺序即不变量。 */
+    let turn = TurnId::new(Uuid::new_v4().to_string());
+    let admission = Admission {
+        thread: ThreadId::new(thread_id.to_string()),
+        turn: turn.clone(),
+        prompt: text.clone(),
+        model: configuration
+            .iter()
+            .find(|selected| selected.id == "model")
+            .map(|selected| selected.value.clone())
+            .unwrap_or_default(),
+        attachments: attachments.iter().map(attachment_reference).collect(),
+        skills,
+        submitted_at_unix_millis: poietica_time::WallClock::now_unix_millis(
+            &poietica_time::wall_clock::SystemWallClock,
+        ),
+    };
+    let delivery = PromptDelivery {
+        admission,
+        session: addressed.clone(),
+    };
 
-    let answer = session
-        .client
-        .prompt(addressed.clone(), text, carried, skills, frames)
-        .map_err(translate)?;
+    let gateway = KapGateway {
+        client: session.client.clone(),
+        journal: state.journal.clone(),
+        attachments_root: state.attachments.clone(),
+    };
 
-    let client = session.client.clone();
-    let reported = addressed.clone();
+    let submit = on_index(&index, move |store| {
+        let conversation = Conversation::new(store, &gateway);
 
-    async_runtime::spawn(async move {
-        let outcome = answer.await;
+        conversation
+            .submit(&delivery)
+            .map_err(|failure| Error::Internal(failure.to_string()))
+    })
+    .await?;
 
-        match outcome {
-            // A turn that ends without a word looks, from the outside, exactly
-            // like a turn that never reached the agent. The stop reason is the
-            // account the agent gave, so it is written down even when nothing
-            // went wrong.
-            Ok(Ok(stop_reason)) => log::info!("the agent turn stopped: {stop_reason:?}"),
-            // Both of these were already recorded as a run_failed frame; the
-            // log entry here is for the developer, not for the interface.
-            Ok(Err(error)) => log::error!("the agent turn failed: {error}"),
-            Err(_dropped) => log::warn!("the agent turn ended without an answer"),
-        }
+    if let Some(failure) = submit.unresolved {
+        return Err(Error::Internal(failure.to_string()).into());
+    }
 
-        /* 一轮收尾，目标的轮次、用量与状态都变了：问一次 agent，别停在上一轮。 */
-        announce(&closing, &client, reported).await;
-    });
+    /* 终局记账：收据线在阻塞执行器上等到裁决，账本随后落那一格。 */
+    if let Some(receipt) = submit.receipt {
+        let closing = app.clone();
+        let client = session.client.clone();
+        let reported = addressed.clone();
+        let turn_for_settlement = turn.clone();
+
+        async_runtime::spawn(async move {
+            let settled = async_runtime::spawn_blocking(move || receipt.settle()).await;
+
+            if let Ok(Some(outcome)) = settled {
+                let index = closing.state::<LocalIndex>();
+                let recorded = on_index(&index, move |store| {
+                    store
+                        .record_delivery(&turn_for_settlement, outcome)
+                        .map_err(|failure| Error::Internal(failure.to_string()))
+                })
+                .await;
+                if let Err(error) = recorded {
+                    log::error!("could not record the delivery outcome: {error}");
+                }
+            } else {
+                log::warn!("the delivery receipt ended without a verdict");
+            }
+
+            /* 一轮收尾，目标的轮次、用量与状态都变了：问一次 agent，别停在上一轮。 */
+            announce(&closing, &client, reported).await;
+        });
+    }
 
     Ok(AgentPromptResult {
         session_id: addressed,

@@ -1,5 +1,3 @@
-import { createExternalStore } from '@poietica/core'
-import { type DiffFile, type DiffStat, diffStatOf, parseUnifiedPatch } from '@poietica/file-diff'
 import {
   type GitCommitIntent,
   type GitReview,
@@ -7,8 +5,10 @@ import {
   gitCommit,
   gitFilePatch,
   gitReview,
-} from '@poietica/ipc'
+} from '@poietica/native-bridge'
+import { type DiffFile, type DiffStat, diffStatOf, parseUnifiedPatch } from '@poietica/review'
 import type { SplitterActivity } from '@poietica/ui'
+import { createExternalStore } from '@poietica/ui'
 import { reportFailure } from '../failures/application-policy'
 import { paint } from './syntax'
 /*

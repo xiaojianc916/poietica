@@ -3,7 +3,7 @@ import type {
   CustomAgentFile,
   CustomAgentRemoveRequest,
   CustomAgentSaveRequest,
-} from '@poietica/ipc'
+} from '@poietica/native-bridge'
 
 export type {
   CustomAgentCatalog,

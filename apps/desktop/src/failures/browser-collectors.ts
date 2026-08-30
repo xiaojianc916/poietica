@@ -1,4 +1,4 @@
-import { isRecord, optionalProperty, safeStringify } from '@poietica/core'
+import { isRecord, optionalProperty, safeStringify } from '@poietica/problem'
 import { reportFailure } from './application-policy'
 import { isBenignWindowError } from './benign-window-errors'
 import type { FailurePhase, TerminalFailureInput } from './terminal-policy'

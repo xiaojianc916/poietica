@@ -9,9 +9,9 @@
  * 否则界面上的增删改与这一趟对账会在启动期互相抹掉。
  */
 
-import { warn } from '@poietica/core'
-import { browserDevtoolsEndpoint, resolveLauncher } from '@poietica/ipc'
+import { browserDevtoolsEndpoint, resolveLauncher } from '@poietica/native-bridge'
 import type { PluginStore } from '@poietica/plugins'
+import { warn } from '@poietica/problem'
 
 const SERVER_NAME = 'poietica-browser'
 

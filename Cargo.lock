@@ -2941,6 +2941,7 @@ dependencies = [
  "hex",
  "log",
  "poietica-agent-runtime-native",
+ "poietica-asset",
  "poietica-browser-native",
  "poietica-conversation",
  "poietica-git-native",
@@ -2982,6 +2983,7 @@ dependencies = [
  "dirs",
  "futures",
  "log",
+ "poietica-kap-client",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -2992,6 +2994,14 @@ dependencies = [
  "toml_edit 0.22.27",
  "uuid",
  "which",
+]
+
+[[package]]
+name = "poietica-asset"
+version = "0.2.1"
+dependencies = [
+ "hex",
+ "sha2",
 ]
 
 [[package]]
@@ -3020,6 +3030,15 @@ dependencies = [
  "thiserror 2.0.19",
  "tokio",
  "which",
+]
+
+[[package]]
+name = "poietica-kap-client"
+version = "0.2.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
 ]
 
 [[package]]

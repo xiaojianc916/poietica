@@ -1,4 +1,4 @@
-import { resolveLauncher } from '@poietica/ipc'
+import { resolveLauncher } from '@poietica/native-bridge'
 import { Button } from '@poietica/ui'
 import { useState } from 'react'
 

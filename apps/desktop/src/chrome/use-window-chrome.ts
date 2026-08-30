@@ -1,4 +1,4 @@
-import type { MainWindowController } from '@poietica/desktop-adapters'
+import type { MainWindowController } from '@poietica/native-bridge'
 import { useCallback, useEffect, useState } from 'react'
 import { reportFailure } from '../failures/application-policy'
 

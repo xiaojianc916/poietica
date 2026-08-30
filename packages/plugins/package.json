@@ -12,11 +12,11 @@
   },
   "dependencies": {
     "@poietica/agent-contract": "workspace:*",
-    "@poietica/core": "workspace:*",
-    "@poietica/ipc": "workspace:*",
+    "@poietica/native-bridge": "workspace:*",
     "@poietica/ui": "workspace:*",
     "valibot": "catalog:",
-    "yaml": "catalog:"
+    "yaml": "catalog:",
+    "@poietica/problem": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "catalog:",

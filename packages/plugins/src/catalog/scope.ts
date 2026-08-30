@@ -1,4 +1,4 @@
-import { assertUnreachable } from '@poietica/core'
+import { assertUnreachable } from '@poietica/problem'
 
 /* 一条名单来自哪里。trust 回答「谁为它背书」，与「谁拥有这条名单」正交。 */
 

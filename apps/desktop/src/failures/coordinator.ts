@@ -1,7 +1,7 @@
 /*
  * 一次失败的唯一去处。
  *
- * 严重级别是 impact 上的一格（见 @poietica/core 的 failure-kernel），不是两条
+ * 严重级别是 impact 上的一格（见 @poietica/problem 的 failure-kernel），不是两条
  * 管线：终止与非终止共用同一份快照、同一次去重、同一条诊断记录。这就是这个
  * 子系统只有一个目录的原因 —— 按严重级别切目录，切开的是同一台状态机。
  */
@@ -15,7 +15,7 @@ import {
   optionalProperty,
   error as reportDiagnosticError,
   type TerminalFailureImpact,
-} from '@poietica/core'
+} from '@poietica/problem'
 import {
   createFailureDiagnostic,
   type FailureDiagnostic,

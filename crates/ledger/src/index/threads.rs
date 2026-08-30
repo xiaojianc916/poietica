@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::index::store::{AgentStore, now};
+use crate::index::store::AgentStore;
 
 impl AgentStore {
     /// Creates a thread and returns its identifier.
@@ -23,7 +23,7 @@ impl AgentStore {
         title: &str,
         workspace_root: Option<&str>,
     ) -> Result<Uuid> {
-        let timestamp = now()?;
+        let timestamp = self.now()?;
 
         self.write(
             "INSERT INTO threads (id, title, created_at, updated_at, workspace_root)
@@ -113,7 +113,7 @@ impl AgentStore {
         turn_start: &str,
     ) -> Result<Uuid> {
         let id = Uuid::now_v7();
-        let timestamp = now()?;
+        let timestamp = self.now()?;
         let ceiling = self.turn_cut(source, drop_turns, turn_start)?;
 
         let transaction = self.connection.unchecked_transaction()?;
@@ -225,7 +225,7 @@ impl AgentStore {
     ///
     /// 语句被拒、或这条对话不存在时返回错误。
     pub fn record_prompt(&self, id: Uuid, title: &str) -> Result<()> {
-        let timestamp = now()?;
+        let timestamp = self.now()?;
 
         let _found: String = self
             .connection
@@ -285,7 +285,7 @@ impl AgentStore {
     /// 归档不是删除。标题、会话号、工作区、附件与帧日志全部保留，
     /// 这里只写一枚时间戳。取消归档把时间戳清空。
     pub fn set_archived(&self, id: Uuid, archived: bool) -> Result<()> {
-        let archived_at = if archived { Some(now()?) } else { None };
+        let archived_at = if archived { Some(self.now()?) } else { None };
 
         self.write(
             "UPDATE threads SET archived_at = ?2 WHERE id = ?1",

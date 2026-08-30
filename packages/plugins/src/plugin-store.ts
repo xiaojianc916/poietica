@@ -1,4 +1,3 @@
-import { assertUnreachable, warn } from '@poietica/core'
 import {
   commitPlugin,
   commitSkill,
@@ -18,7 +17,8 @@ import {
   stagePlugin,
   stageSkill,
   writeEnvironmentMcpConfig,
-} from '@poietica/ipc'
+} from '@poietica/native-bridge'
+import { assertUnreachable, warn } from '@poietica/problem'
 import { type PluginFetchPlan, planFetch } from './fetch-plan'
 import {
   describeInstallSource,

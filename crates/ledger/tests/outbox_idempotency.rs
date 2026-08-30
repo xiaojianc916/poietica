@@ -32,6 +32,7 @@ fn resubmitting_a_turn_never_owes_a_second_delivery() {
         prompt: "same intent".to_owned(),
         model: "kimi-k2".to_owned(),
         attachments: Vec::new(),
+        skills: Vec::new(),
         submitted_at_unix_millis: 1_700_000_000_000,
     };
 
@@ -63,6 +64,7 @@ fn settled_deliveries_do_not_roll_back() {
             prompt: "one turn".to_owned(),
             model: "kimi-k2".to_owned(),
             attachments: Vec::new(),
+            skills: Vec::new(),
             submitted_at_unix_millis: 1_700_000_000_000,
         })
         .expect("admit");

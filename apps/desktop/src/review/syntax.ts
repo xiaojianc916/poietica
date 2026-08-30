@@ -1,4 +1,4 @@
-import type { DiffFile, DiffPiece, DiffRow, DiffRowKind, PieceColor } from '@poietica/file-diff'
+import type { DiffFile, DiffPiece, DiffRow, DiffRowKind, PieceColor } from '@poietica/review'
 import { type BundledLanguage, codeToTokensWithThemes } from 'shiki'
 
 /*

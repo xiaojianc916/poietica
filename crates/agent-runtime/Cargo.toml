@@ -7,6 +7,8 @@ license.workspace = true
 publish = false
 
 [dependencies]
+poietica-kap-client = { path = "../kap-client" }
+
 dirs.workspace = true
 futures.workspace = true
 log.workspace = true

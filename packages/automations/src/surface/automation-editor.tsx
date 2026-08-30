@@ -1,5 +1,5 @@
 import type { SessionConfigControl } from '@poietica/agent-contract'
-import type { Automation } from '@poietica/ipc'
+import type { Automation } from '@poietica/native-bridge'
 import { ArrowLeftIcon, ConfirmationDialog, cn, PlayIcon } from '@poietica/ui'
 import { type ReactNode, useMemo, useState } from 'react'
 

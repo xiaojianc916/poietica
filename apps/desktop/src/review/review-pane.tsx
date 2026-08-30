@@ -1,5 +1,5 @@
 import { useCopy } from '@poietica/agent-ui'
-import type { DiffFile, DiffPiece, DiffRow, DiffStat } from '@poietica/file-diff'
+import type { DiffFile, DiffPiece, DiffRow, DiffStat } from '@poietica/review'
 import {
   cn,
   DropdownMenu,

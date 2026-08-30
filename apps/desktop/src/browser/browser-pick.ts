@@ -1,6 +1,6 @@
 import type { PromptInputHandle } from '@poietica/agent-ui'
-import { warn } from '@poietica/core'
-import { type BrowserElementPicked, watchBrowserElementPicked } from '@poietica/ipc'
+import { type BrowserElementPicked, watchBrowserElementPicked } from '@poietica/native-bridge'
+import { warn } from '@poietica/problem'
 import type { RefObject } from 'react'
 
 let target: RefObject<PromptInputHandle | null> | null = null

@@ -34,6 +34,7 @@
     "ipc:generate": "cargo run -p poietica --bin export-ipc-bindings",
     "kap:spec": "bun tools/contract/kap-spec-sync.ts",
     "kap:spec:check": "bun tools/contract/kap-spec-sync.ts --check",
+    "kap:generate": "bun tools/contract/generate-kap.ts",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "perf": "bun run --filter @poietica/tests perf",

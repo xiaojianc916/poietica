@@ -1,9 +1,9 @@
-import type { BrowserState, BrowserTab, BrowserViewportBounds } from '@poietica/ipc'
+import type { BrowserState, BrowserTab, BrowserViewportBounds } from '@poietica/native-bridge'
 
 /*
  * 宿主契约：本包需要原生宿主提供哪些动作。
  *
- * DTO 不在这里声明 —— 产地是 Rust，由 tauri-specta 生成进 @poietica/ipc。
+ * DTO 不在这里声明 —— 产地是 Rust，由 tauri-specta 生成进 @poietica/native-bridge。
  * 这一层只把生成物摆成本包的词汇，消费者不必知道绑定住在哪个包里。
  */
 

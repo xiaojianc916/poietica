@@ -171,8 +171,7 @@ mod tests {
     fn usage_day_is_injected_once_and_counter_resets_are_counted() {
         let root = TempDir::new().expect("temporary directory");
         let clock = TestClock::at_unix_millis(1_700_000_000_000);
-        let mut store =
-            AgentStore::open(&root.path().join("usage.sqlite3"), &clock).expect("store");
+        let mut store = AgentStore::open(&root.path().join("usage.sqlite3"), clock).expect("store");
         let day = Date::from_calendar_date(2026, Month::August, 27).expect("date");
         store
             .record_usage_on("session", usage(100), day)
