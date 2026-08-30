@@ -430,10 +430,12 @@ const present = async (target: string): Promise<boolean> => {
 export async function singleGeneratedContract(
   root: string,
   exportBindings: string,
-  rootManifest: string,
   generatedDirectories: readonly string[],
 ): Promise<Violation[]> {
   const violations: Violation[] = []
+  const gate = await readFile(path.join(root, 'tools/contract/check-generated.ts'), 'utf8').catch(
+    () => '',
+  )
 
   if (!(await present(path.join(root, CONTRACT_BINDINGS)))) {
     violations.push({
@@ -461,11 +463,17 @@ export async function singleGeneratedContract(
     })
   }
 
-  if (!rootManifest.includes(CONTRACT_BINDINGS)) {
+  if (gate === '') {
     violations.push({
       policy: 'single-generated-contract',
-      where: 'package.json',
-      detail: 'ipc:check 没盯着契约包的生成物',
+      where: 'tools/contract/check-generated.ts',
+      detail: '漂移门禁脚本不存在',
+    })
+  } else if (!gate.includes(CONTRACT_BINDINGS)) {
+    violations.push({
+      policy: 'single-generated-contract',
+      where: 'tools/contract/check-generated.ts',
+      detail: '门禁没盯着契约包的生成物',
     })
   }
 

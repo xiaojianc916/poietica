@@ -78,7 +78,6 @@ const violations: Violation[] = [
   ...(await policy.singleGeneratedContract(
     ROOT,
     exportBindings,
-    rootManifest,
     tree.filter((directory) => directory.endsWith('/src/generated')),
   )),
   ...(await policy.manifestScriptsResolve(ROOT, scripted)),
