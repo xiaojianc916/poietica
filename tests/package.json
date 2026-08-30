@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "perf": "bun test perf",
-    "test": "bun test unit",
+    "test": "bun test unit integration",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "devDependencies": {

@@ -3,9 +3,10 @@ import type { RunEvent } from '@poietica/conversation'
 /*
  * 合成会话。
  *
- * 帧的形状与 crates/kap-client/src/frame.rs 记下的一致，所以基线量的是真管线：
- * 同一批帧既走重放（打开一条对话），也走增量（模型吐字）。不需要任何 agent 进程，
- * 也不需要一条真实的超长对话。
+ * 帧的形状与 crates/kap-client/src/frame.rs 记下的一致（开轮是 prompt_admitted，
+ * seq 整条会话稠密递增，见 recorder.rs 的 SeqLine），所以基线量的是真管线：
+ * 同一批帧既走重放（打开一条对话），也走增量（模型吐字）。不需要任何 agent
+ * 进程，也不需要一条真实的超长对话。
  */
 
 export interface ConversationShape {
@@ -29,16 +30,17 @@ function filler(width: number, seed: number): string {
 export function closedConversation(shape: ConversationShape): readonly RunEvent[] {
   const events: RunEvent[] = []
   let at = 1_000
+  let seq = 0
 
   for (let turn = 1; turn <= shape.turns; turn += 1) {
-    let seq = 1
-
+    seq += 1
     at += 10
     events.push({
-      kind: 'run_started',
+      kind: 'prompt_admitted',
       seq,
       at,
       sessionId: 'sess_perf',
+      admissionId: `adm_${String(turn)}`,
       prompt: `第 ${String(turn)} 问：核对一遍构建命令与依赖表。`,
     })
 
@@ -92,15 +94,16 @@ export function closedConversation(shape: ConversationShape): readonly RunEvent[
 /**
  * 一轮正在跑的开头。
  *
- * seq 从一个远高于历史的号起算：每一轮的 seq 各自从一编，所以这样落下来的实时
- * 轮次不会撞上重放窗口的去重。
+ * seq 从一个远高于历史的号起算：重连之后是另一条会话、seq 从一重新编，落
+ * 下来的实时轮次不会撞上重放窗口的去重。
  */
 export function liveTurn(seq: number, at: number): RunEvent {
   return {
-    kind: 'run_started',
+    kind: 'prompt_admitted',
     seq,
     at,
     sessionId: 'sess_perf',
+    admissionId: 'adm_live',
     prompt: '最后一问：说明刚才的核对结果。',
   }
 }
