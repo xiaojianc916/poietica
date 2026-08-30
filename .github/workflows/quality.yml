@@ -97,9 +97,13 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
 
-      # 唯一同时具备 Bun 与 Rust 的 job，IPC 校验因此放这里，不写第二份 PowerShell。
+      # 唯一同时具备 Bun 与 Rust 的 job，契约漂移门禁因此放这里，不写第二份 PowerShell。
       - name: Verify generated IPC bindings
         run: bun run ipc:check
+
+      # KAP 生成物同受门禁：generated/ 只许生成器写，手改在这里变红。
+      - name: Verify generated KAP models
+        run: bun run kap:generated:check
 
       # turbo.json 中 build.dependsOn 已包含 typecheck，无需单独再跑一遍。
       - name: Build Windows desktop binary

@@ -11,7 +11,7 @@
  * 跑法：bun run kap:generate（package.json）。产出禁手改。
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -718,12 +718,16 @@ function emit(file: string, body: string): void {
 #![allow(clippy::large_enum_variant, reason = "the wire shapes are what the spec says; splitting them adds nothing")]
 `
   const target = join(outDir, file)
-  writeFileSync(target, `${header}\n${body}\n`)
+  /* 暂存-格式化-换名：格式化失败时目标文件原封不动，不留半份生成物。 */
+  const staged = `${target}.staged`
+  writeFileSync(staged, `${header}\n${body}\n`)
   // 生成物按仓库的 rustfmt 纪律走：写完即格式化，重复生成才是幂等的。
-  const formatted = Bun.spawnSync(['rustfmt', '--edition', '2024', target])
+  const formatted = Bun.spawnSync(['rustfmt', '--edition', '2024', staged])
   if (formatted.exitCode !== 0) {
+    rmSync(staged, { force: true })
     throw new Error(`rustfmt rejected ${file}: ${formatted.stderr.toString()}`)
   }
+  renameSync(staged, target)
   console.log(`wrote ${file}`)
 }
 
