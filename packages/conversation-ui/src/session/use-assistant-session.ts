@@ -3,19 +3,17 @@ import type {
   ApprovalAnswer,
   ApprovalScope,
   ChatStatus,
+  Interjection,
+  PermissionItem,
   PromptAsset,
   PromptConfiguration,
   PromptSkill,
   QuestionResponse,
-  TurnMark,
-} from '@poietica/agent-contract'
-import type {
-  Interjection,
-  PermissionItem,
   QuestionTimelineItem,
   TimelineState,
   ToolCallTimelineItem,
   Transcript,
+  TurnMark,
 } from '@poietica/conversation'
 import {
   activeScope,

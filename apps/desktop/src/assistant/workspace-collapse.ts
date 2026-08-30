@@ -1,4 +1,4 @@
-import { createPreference } from '@poietica/design-system'
+import { createPreference } from '@poietica/external-store'
 import { warn } from '@poietica/problem'
 import { useSyncExternalStore } from 'react'
 

@@ -3,7 +3,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
-import type { ChatStatus, PromptConfiguration, PromptSkill } from '@poietica/agent-contract'
+import type { ChatStatus, PromptConfiguration, PromptSkill } from '@poietica/conversation'
 import {
   $createParagraphNode,
   $createTextNode,

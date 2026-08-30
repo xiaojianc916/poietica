@@ -1,4 +1,4 @@
-import type { TurnMark } from '@poietica/agent-contract'
+import type { TurnMark } from '@poietica/conversation'
 import { selectIsBusy, selectPresentation } from '@poietica/conversation'
 import { type ReactNode, useCallback, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'

@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/automation.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts", "src/**/*.d.ts"]
+}

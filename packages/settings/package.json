@@ -11,22 +11,14 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/conversation": "workspace:*",
     "@poietica/agent-catalog": "workspace:*",
-    "@poietica/native-bridge": "workspace:*",
-    "@poietica/design-system": "workspace:*",
-    "lucide-react": "catalog:",
-    "yaml": "catalog:",
-    "@poietica/problem": "workspace:*"
+    "@poietica/contract": "workspace:*",
+    "@poietica/external-store": "workspace:*",
+    "@poietica/problem": "workspace:*",
+    "yaml": "catalog:"
   },
   "devDependencies": {
-    "@types/react": "catalog:",
-    "react": "catalog:",
     "@types/bun": "catalog:",
     "typescript": "catalog:"
-  },
-  "peerDependencies": {
-    "react": "catalog:",
-    "react-dom": "catalog:"
   }
 }

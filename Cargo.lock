@@ -2934,7 +2934,7 @@ dependencies = [
 
 [[package]]
 name = "poietica"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2978,7 +2978,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-agent-runtime-native"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "dirs",
  "futures",
@@ -2999,7 +2999,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-asset"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "hex",
  "sha2",
@@ -3007,7 +3007,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-browser-native"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "base64 0.22.1",
  "url",
@@ -3015,7 +3015,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-conversation"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "poietica-time",
  "serde",
@@ -3025,7 +3025,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-git-native"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "notify",
  "tempfile",
@@ -3036,7 +3036,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-kap-client"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -3045,7 +3045,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-ledger"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "log",
  "poietica-conversation",
@@ -3061,7 +3061,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-plugin-host-native"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "serde_json",
  "tempfile",
@@ -3073,7 +3073,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-problem"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "serde",
  "specta",
@@ -3082,14 +3082,14 @@ dependencies = [
 
 [[package]]
 name = "poietica-time"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "time",
 ]
 
 [[package]]
 name = "poietica-update-native"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "base64 0.22.1",
  "blake3",

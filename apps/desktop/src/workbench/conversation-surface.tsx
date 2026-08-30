@@ -1,4 +1,4 @@
-import type { AgentSessionPort } from '@poietica/agent-contract'
+import type { AgentSessionPort } from '@poietica/conversation'
 import {
   AssistantSurface,
   type GitBranchPickerProps,

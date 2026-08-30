@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { SessionConfigControl } from '@poietica/agent-contract'
+import type { SessionConfigControl } from '@poietica/conversation'
 import { activePromptConfiguration } from '../composer/composer-actions'
 import { canSubmitDraft } from '../composer/prompt-input'
 import { sessionControlRows } from '../composer/session-controls'

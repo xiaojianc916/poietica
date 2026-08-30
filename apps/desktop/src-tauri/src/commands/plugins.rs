@@ -32,7 +32,7 @@ const STAGING_DIRECTORY: &str = ".staging";
 
 /// 一次取用从哪里拿字节。
 ///
-/// GitHub 不在这里出现：把仓库地址变成归档 URL 是领域侧的判断，由 packages/plugins
+/// GitHub 不在这里出现：把仓库地址变成归档 URL 是领域侧的判断，由 packages/extension
 /// 的 planFetch 做，判不出来的（默认分支）当场就说判不出来。
 #[derive(Debug, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -439,7 +439,7 @@ pub async fn plugins_catalog_read(app: AppHandle) -> PluginsCommandResult<Option
 
 /// 拉一次市场目录，覆盖本地那一份，并把它交回去。
 ///
-/// 这条命令不判断该不该拉 —— 那个判断是 packages/plugins 的 shouldFetchOnOpen，
+/// 这条命令不判断该不该拉 —— 那个判断是 packages/extension 的 shouldFetchOnOpen，
 /// 属于状态机。这里只负责「拉了就覆盖」。
 #[command]
 #[specta::specta]

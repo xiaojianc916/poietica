@@ -1,4 +1,4 @@
-import type { RunEvent } from '@poietica/agent-contract'
+import type { RunEvent } from '../agent'
 import { apply, surelyIgnored } from './projection'
 import { isInFlight, isSteerable, opensTurn, type TimelineState } from './timeline-contract'
 import type { Draft } from './timeline-draft'

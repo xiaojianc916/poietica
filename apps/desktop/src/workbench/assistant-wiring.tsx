@@ -1,11 +1,8 @@
-import type { AgentSessionPort } from '@poietica/agent-contract'
+import type { AgentSessionPort } from '@poietica/conversation'
 import { ComposerDrafts, ComposerDraftsContext, useAgentControls } from '@poietica/conversation-ui'
-import { PluginsSurface } from '@poietica/plugins'
-import {
-  type CustomAgentStore,
-  PersonalizationStore,
-  PersonalizationSurface,
-} from '@poietica/settings'
+import { PluginsSurface } from '@poietica/extension-ui'
+import { type CustomAgentStore, PersonalizationStore } from '@poietica/settings'
+import { PersonalizationSurface } from '@poietica/settings-ui'
 import type { SurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'
 import { AutomationsView } from '../automations/automations-view'
@@ -38,7 +35,7 @@ interface AssistantWiringOptions {
 }
 
 /*
- * 扩展页在这里接上名册：技能表是 kap 名册的投影（见 @poietica/plugins 的 skill.ts），
+ * 扩展页在这里接上名册：技能表是 kap 名册的投影（见 @poietica/extension 的 skill.ts），
  * 名册唯一持有者是能力表 store，经 Context 读它交进去，不复制。
  */
 function ToolsSurface() {

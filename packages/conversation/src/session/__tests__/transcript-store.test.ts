@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { AgentSessionPort, RunEvent } from '@poietica/agent-contract'
+import type { AgentSessionPort, RunEvent } from '../../agent'
 import { TranscriptStore } from '../transcript-store'
 
 /* 一条假线路：帧从哪来不重要，重要的是它带着哪条会话号。 */

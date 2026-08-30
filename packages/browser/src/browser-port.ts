@@ -1,13 +1,21 @@
-import type { BrowserState, BrowserTab, BrowserViewportBounds } from '@poietica/native-bridge'
+import type { BrowserState, BrowserTab } from '@poietica/contract'
 
 /*
  * 宿主契约：本包需要原生宿主提供哪些动作。
  *
- * DTO 不在这里声明 —— 产地是 Rust，由 tauri-specta 生成进 @poietica/native-bridge。
+ * DTO 不在这里声明 —— 产地是 Rust，由 tauri-specta 生成进 @poietica/contract。
  * 这一层只把生成物摆成本包的词汇，消费者不必知道绑定住在哪个包里。
  */
 
-export type { BrowserState, BrowserTab, BrowserViewportBounds }
+export type { BrowserState, BrowserTab }
+
+/** 子 webview 在 dock 里该贴着哪块矩形：坐标与尺寸，单位 CSS 像素。 */
+export interface BrowserViewportBounds {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
 
 export interface BrowserHostPort {
   readonly watch: (onState: (state: BrowserState) => void) => Promise<() => void>

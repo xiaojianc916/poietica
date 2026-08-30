@@ -1,4 +1,4 @@
-import type { SessionConfigControl } from '@poietica/agent-contract'
+import type { SessionConfigControl } from '../agent'
 
 /*
  * 批准方式：这个产品对「agent 能自己动手到什么程度」的取值域。

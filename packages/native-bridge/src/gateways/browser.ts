@@ -1,6 +1,8 @@
+import type { BrowserViewportBounds } from '@poietica/browser'
 import { commands, events } from '@poietica/contract'
 import { throughIpc } from '../error'
 
+export type { BrowserViewportBounds } from '@poietica/browser'
 export type {
   BrowserClosedTab,
   BrowserElementPicked,
@@ -10,13 +12,6 @@ export type {
 } from '@poietica/contract'
 
 import type { BrowserElementPicked, BrowserState } from '@poietica/contract'
-
-export interface BrowserViewportBounds {
-  readonly x: number
-  readonly y: number
-  readonly width: number
-  readonly height: number
-}
 
 export async function watchBrowserState(
   onState: (state: BrowserState) => void,

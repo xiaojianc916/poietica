@@ -1,5 +1,8 @@
-import type { QuestionAnswerMethod, QuestionResponse } from '@poietica/agent-contract'
-import type { QuestionTimelineItem } from '@poietica/conversation'
+import type {
+  QuestionAnswerMethod,
+  QuestionResponse,
+  QuestionTimelineItem,
+} from '@poietica/conversation'
 import { ChevronLeft, ChevronRight, Circle, CircleCheck, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { answerOf, EMPTY_DRAFT, type QuestionDraft, responseOf } from './question-answer'

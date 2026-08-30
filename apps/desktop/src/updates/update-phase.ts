@@ -1,4 +1,4 @@
-import type { AppUpdateState, AppUpdateStore } from './app-update-store'
+import type { AppUpdateState, AppUpdateStore } from '@poietica/update'
 
 type Available = Extract<AppUpdateState, { readonly phase: 'available' }>
 /* 下行体量的两种量级，说给人听。 */

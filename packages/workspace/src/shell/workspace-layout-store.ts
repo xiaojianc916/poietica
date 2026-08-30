@@ -1,5 +1,5 @@
 import type { SplitterActivity } from '@poietica/design-system'
-import { createExternalStore, createPreference } from '@poietica/design-system'
+import { createExternalStore, createPreference } from '@poietica/external-store'
 import { warn } from '@poietica/problem'
 import { useSyncExternalStore } from 'react'
 import * as v from 'valibot'

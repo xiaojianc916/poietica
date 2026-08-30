@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { RunEvent } from '@poietica/agent-contract'
+import type { RunEvent } from '../../agent'
 import { agentStampOf } from '../kap-projection'
 import {
   type AgentTextItem,

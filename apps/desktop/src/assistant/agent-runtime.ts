@@ -9,8 +9,8 @@ import type {
   SessionConfigPort,
   SessionUsagePort,
   ThreadPort,
-} from '@poietica/agent-contract'
-import { createExternalStore, createPreference } from '@poietica/design-system'
+} from '@poietica/conversation'
+import { createExternalStore, createPreference } from '@poietica/external-store'
 import {
   type AgentBridgeOptions,
   createAgentCapabilityBridge,

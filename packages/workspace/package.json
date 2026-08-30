@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@poietica/design-system": "workspace:*",
+    "@poietica/external-store": "workspace:*",
     "lucide-react": "catalog:",
     "valibot": "catalog:",
     "@poietica/problem": "workspace:*"

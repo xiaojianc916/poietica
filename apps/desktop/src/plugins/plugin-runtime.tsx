@@ -1,4 +1,5 @@
-import { createPluginStore } from '@poietica/plugins'
+import { createPluginStore } from '@poietica/extension'
+import { extensionGateway } from '@poietica/native-bridge'
 import { useEffect } from 'react'
 import { reconcileAutomationsMcpServer } from '../automations/automations-mcp'
 import { reconcileBrowserMcpServer } from '../browser/browser-mcp'
@@ -23,6 +24,7 @@ import { reconcileBrowserMcpServer } from '../browser/browser-mcp'
 const MARKETPLACE_URL = 'https://code.kimi.com/kimi-code/plugins/marketplace.json'
 
 export const pluginStore = createPluginStore({
+  gateway: extensionGateway,
   marketplaceUrl: MARKETPLACE_URL,
   now: () => new Date().toISOString(),
 })

@@ -1,7 +1,11 @@
 import './permission-dock.css'
 
-import type { ApprovalAnswer, ApprovalScope } from '@poietica/agent-contract'
-import type { PermissionItem, ToolCallTimelineItem } from '@poietica/conversation'
+import type {
+  ApprovalAnswer,
+  ApprovalScope,
+  PermissionItem,
+  ToolCallTimelineItem,
+} from '@poietica/conversation'
 import { memo, useState } from 'react'
 import { clampToLine, sayToolLine } from '../semantics/tool-intent'
 

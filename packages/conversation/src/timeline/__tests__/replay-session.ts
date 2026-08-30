@@ -4,7 +4,7 @@ import type {
   AgentSessionPort,
   KapSessionId,
   RunEvent,
-} from '@poietica/agent-contract'
+} from '../../agent'
 
 /**
  * A session port that replays a recorded run.

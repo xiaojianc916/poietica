@@ -1,4 +1,4 @@
-import { createExternalStore } from '@poietica/design-system'
+import { createExternalStore } from '@poietica/external-store'
 import { warn } from '@poietica/problem'
 
 import type { BrowserHostPort, BrowserState, BrowserViewportBounds } from './browser-port'

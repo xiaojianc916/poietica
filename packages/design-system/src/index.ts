@@ -16,19 +16,12 @@ export {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './dropdown-menu'
-export { createExternalStore, type ExternalStore, type ExternalStoreSource } from './external-store'
 export { ErrorState, InlineSpinner, LoadingState } from './feedback'
 export { FileTypeMark } from './file-type-mark'
 export { integrationMarkFor } from './integration-mark'
 export { ArrowLeftIcon, GithubMark, PlayIcon } from './local-glyphs'
 export { PixelLoader } from './pixel-loader'
 export { popupSurfaceClassName } from './popup-surface'
-export {
-  createPreference,
-  type Preference,
-  type PreferenceFailure,
-  type PreferenceSource,
-} from './preference'
 export {
   RegionSplitter,
   type SplitterActivity,
@@ -43,3 +36,4 @@ export {
   TooltipProvider,
   TooltipTrigger,
 } from './tooltip'
+export { type CopyAction, useCopy } from './use-copy'

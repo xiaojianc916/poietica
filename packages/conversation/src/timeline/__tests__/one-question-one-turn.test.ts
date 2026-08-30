@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { RunEvent } from '@poietica/agent-contract'
+import type { RunEvent } from '../../agent'
 import { selectPresentation } from '../presentation'
 import { allItems, type TimelineState } from '../timeline-contract'
 import {

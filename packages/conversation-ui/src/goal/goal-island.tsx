@@ -1,4 +1,4 @@
-import type { SessionGoal } from '@poietica/agent-contract'
+import type { SessionGoal } from '@poietica/conversation'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 import { useSecond } from '../primitives/clock'

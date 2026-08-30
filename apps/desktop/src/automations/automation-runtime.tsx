@@ -1,7 +1,7 @@
-import type { AgentSessionPort } from '@poietica/agent-contract'
-import { createAutomationStore, sessionConfigOf } from '@poietica/automations'
+import { type Automation, createAutomationStore, sessionConfigOf } from '@poietica/automation'
+import type { AgentSessionPort } from '@poietica/conversation'
 import { useSessionControlsActions, useTranscripts } from '@poietica/conversation-ui'
-import type { Automation } from '@poietica/native-bridge'
+import { automationGateway } from '@poietica/native-bridge'
 import { useEffect } from 'react'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -12,7 +12,7 @@ import { useThreadsActions } from '../assistant/threads-context'
  *
  * 一个进程一份，和 agent 会话、方言、对话列表同级（见 assistant/agent-runtime.ts）。
  */
-export const automationStore = createAutomationStore()
+export const automationStore = createAutomationStore(automationGateway)
 
 export interface AutomationDispatcherProps {
   readonly session: AgentSessionPort
@@ -28,7 +28,7 @@ export interface AutomationDispatcherProps {
  * 必须挂在 ThreadsProvider 之内：一次运行要开出一条对话，而开对话的动作出自那个
  * provider。
  *
- * 注入在这里，不在 @poietica/automations 里：那一层不认识 agent，也不认识工作台。
+ * 注入在这里，不在 @poietica/automation 里：那一层不认识 agent，也不认识工作台。
  * 一次运行就是开出一条普通对话、把指令说进去 —— 说话与人按下发送键走的是同一条
  * 管线（TranscriptStore.send），自动化不另立一套执行器，也不另存一份运行日志。
  */

@@ -9,7 +9,7 @@
  * 那三条性质与它无关：那是 timeline-reducer 的承诺。
  */
 
-import type { KapStopReason, RunEvent, RunStatus, SessionLink } from '@poietica/agent-contract'
+import type { KapStopReason, RunEvent, RunStatus, SessionLink } from '../agent'
 import { applyKapFrame } from './kap-projection'
 import type { MessageImage, PermissionItem, QuestionTimelineItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { RunEvent } from '@poietica/agent-contract'
+import type { RunEvent } from '../../agent'
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/sample-run'
 import { allItems } from '../timeline-contract'
 import { applyRunEvent, createTimelineState, replayRunEvents } from '../timeline-reducer'

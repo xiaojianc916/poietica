@@ -1,4 +1,4 @@
-import type { AgentSessionPort } from '@poietica/agent-contract'
+import type { AgentSessionPort } from '@poietica/conversation'
 import { isProjectlessWorkspaceRoot, workspaceRootName } from '@poietica/conversation'
 import type { WorkspacePickerProps } from '@poietica/conversation-ui'
 import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/native-bridge'

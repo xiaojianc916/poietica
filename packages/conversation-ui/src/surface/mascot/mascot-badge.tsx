@@ -1,5 +1,5 @@
 import './mascot.css'
-import { createPreference } from '@poietica/design-system'
+import { createPreference } from '@poietica/external-store'
 import { warn } from '@poietica/problem'
 import { memo, useEffect, useId, useRef, useState } from 'react'
 import { mountMascot } from './engine'

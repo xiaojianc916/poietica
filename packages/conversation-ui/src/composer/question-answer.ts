@@ -4,7 +4,7 @@ import type {
   QuestionChoice,
   QuestionItem,
   QuestionResponse,
-} from '@poietica/agent-contract'
+} from '@poietica/conversation'
 
 /*
  * 面板上的一份草稿，怎么变成协议的一份答复。

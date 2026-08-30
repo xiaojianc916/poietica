@@ -3,7 +3,7 @@ import type {
   AgentToolkit,
   PermissionPosturePort,
   SessionConfigControl,
-} from '@poietica/agent-contract'
+} from '../agent'
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
 import { isPermissionPostureChange, pendingPostureAlignment } from './permission-posture'
@@ -14,7 +14,7 @@ import { isPermissionPostureChange, pendingPostureAlignment } from './permission
  * 只有一份状态：agent 上一次报回来的那张表，外加它上一次说不出话的理由。模型、
  * 模式、推理档位都在表里，一次答复整张换掉 —— 协议就是这么定义的：ACP 的
  * session/new 与 set_config 都回整张表，理由逐字是 changing one may add or remove
- * another（见 @poietica/agent-contract 的 config.ts）。
+ * another（见 ./agent 的 config.ts）。
  *
  * 所以这里没有"人选中了什么"的第二份记录。选中就是生效：拨动一个选择器就是往
  * agent 发一次 set_config，屏幕上的值一律来自它的答复。
@@ -239,7 +239,7 @@ export class AgentCapabilityStore {
         /*
          * 交出去的是整个控件。
          *
-         * 端口的签名就是这么定的，理由写在 @poietica/agent-contract 的 capability.ts：
+         * 端口的签名就是这么定的，理由写在 ./agent 的 capability.ts：
          * 桌面那一侧要靠 purpose 认出「模型那一格」才会去写 config.toml 的
          * default_model，而 id 是 agent 自己起的名字，协议没规定过。传一个字符串过去，
          * purpose 与 configId 一起读出 undefined —— 前者让换模型不再落盘，后者让命令

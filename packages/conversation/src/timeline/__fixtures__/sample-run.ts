@@ -1,4 +1,4 @@
-import type { RunEvent } from '@poietica/agent-contract'
+import type { RunEvent } from '../../agent'
 
 /**
  * 一轮手写的会话：思考、工具、回答、干净收尾。界面在任何 agent 进程存在之前就

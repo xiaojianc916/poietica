@@ -1,6 +1,6 @@
 import './permission-picker.css'
 
-import type { SessionConfigControl } from '@poietica/agent-contract'
+import type { SessionConfigControl } from '@poietica/conversation'
 import {
   permissionControlOf,
   permissionPostureOf,

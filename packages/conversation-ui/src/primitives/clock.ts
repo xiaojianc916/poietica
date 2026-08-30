@@ -1,4 +1,4 @@
-import { createExternalStore } from '@poietica/design-system'
+import { createExternalStore } from '@poietica/external-store'
 import { useEffect, useId, useSyncExternalStore } from 'react'
 
 /*

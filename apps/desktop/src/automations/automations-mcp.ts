@@ -10,8 +10,8 @@
  * 这一层只回答「自动化那台长什么样」。读—改—写交给插件 store：那份文件只有一个写者。
  */
 
+import type { PluginStore } from '@poietica/extension'
 import { readMcpEndpoint } from '@poietica/native-bridge'
-import type { PluginStore } from '@poietica/plugins'
 import { warn } from '@poietica/problem'
 
 const SERVER_NAME = 'poietica-automations'

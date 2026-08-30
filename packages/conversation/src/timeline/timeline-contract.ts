@@ -13,7 +13,7 @@ import type {
   ToolCallStatus,
   ToolCallUpdate,
   ToolKind,
-} from '@poietica/agent-contract'
+} from '../agent'
 
 /**
  * The timeline projection.

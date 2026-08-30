@@ -3,7 +3,7 @@ import type {
   AgentSkill,
   PromptConfiguration,
   SessionConfigControl,
-} from '@poietica/agent-contract'
+} from '@poietica/conversation'
 import type { ReactNode } from 'react'
 import { GOAL_CONTROL_ID } from '../goal/goal-control'
 import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'

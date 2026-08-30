@@ -11,6 +11,11 @@
   },
   "dependencies": {
     "@poietica/agent-contract": "workspace:*",
+    "@poietica/automation": "workspace:*",
+    "@poietica/browser": "workspace:*",
+    "@poietica/extension": "workspace:*",
+    "@poietica/review": "workspace:*",
+    "@poietica/update": "workspace:*",
     "@poietica/contract": "workspace:*",
     "@poietica/problem": "workspace:*",
     "@tauri-apps/api": "catalog:tauri",

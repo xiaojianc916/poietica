@@ -2,9 +2,10 @@ import type { SessionControlsFailureReport } from '@poietica/conversation'
 import { AgentCapabilityStore } from '@poietica/conversation'
 import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/conversation-ui'
 import { applyThemePreference } from '@poietica/design-system'
+import type { PluginsViewModel } from '@poietica/extension'
 import type { MainWindowController } from '@poietica/native-bridge'
-import type { PluginsViewModel } from '@poietica/plugins'
 import type { KeybindingCatalog, KeybindingEntry } from '@poietica/settings'
+import { type AppUpdateOperation, AppUpdateStore } from '@poietica/update'
 import type { CommandRegistry } from '@poietica/workspace'
 import {
   CommandPalette,
@@ -22,7 +23,6 @@ import { type ApplicationFailureCode, reportFailure } from '../failures/applicat
 import { failureCoordinator } from '../failures/coordinator'
 import { NoticeRegion } from '../failures/notice-region'
 import { PluginLoader, pluginStore } from '../plugins/plugin-runtime'
-import { type AppUpdateOperation, AppUpdateStore } from '../updates/app-update-store'
 import { UpdateCapsule } from '../updates/update-capsule'
 import { UpdateRow } from '../updates/update-row'
 import { ConversationCommands } from '../workbench/conversation-commands'
@@ -109,9 +109,17 @@ export function AppShell({ runtime }: AppShellProps) {
    */
   const [updates] = useState(
     () =>
-      new AppUpdateStore(runtime.appUpdate, runtime.settings, (operation, cause) => {
-        reportFailure(UPDATE_FAILURE_CODES[operation], { cause, operation, scope: 'app-update' })
-      }),
+      new AppUpdateStore(
+        runtime.appUpdate,
+        () =>
+          runtime.settings
+            .load()
+            .then((loaded) => loaded.privacy.updateCheck)
+            .catch(() => false),
+        (operation, cause) => {
+          reportFailure(UPDATE_FAILURE_CODES[operation], { cause, operation, scope: 'app-update' })
+        },
+      ),
   )
 
   /* 订阅与退订成对交给 effect，与 ThreadsStore.start 同一条纪律。 */

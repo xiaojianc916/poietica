@@ -1,5 +1,5 @@
-import type { SessionConfigControl } from '@poietica/agent-contract'
-import { createPreference, type Preference, type PreferenceFailure } from '@poietica/design-system'
+import type { SessionConfigControl } from '@poietica/conversation'
+import { createPreference, type Preference, type PreferenceFailure } from '@poietica/external-store'
 
 type ThinkingValues = Readonly<Record<string, string>>
 type ThinkingStorage = Pick<Preference<ThinkingValues>, 'read' | 'write'>

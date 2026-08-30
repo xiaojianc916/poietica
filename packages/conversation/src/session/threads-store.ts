@@ -1,4 +1,4 @@
-import type { OpenedThread, ThreadPort, ThreadRecord } from '@poietica/agent-contract'
+import type { OpenedThread, ThreadPort, ThreadRecord } from '../agent'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import type { ThreadsList } from './thread-order'

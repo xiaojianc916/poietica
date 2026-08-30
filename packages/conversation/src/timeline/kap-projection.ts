@@ -19,7 +19,7 @@ import type {
   ToolCallLocation,
   ToolCallStatus,
   ToolKind,
-} from '@poietica/agent-contract'
+} from '../agent'
 import { type DelegateChannel, isTerminal, type ToolCallTimelineItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import {

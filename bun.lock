@@ -14,21 +14,28 @@
     },
     "apps/desktop": {
       "name": "@poietica/desktop",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@poietica/agent-catalog": "workspace:*",
         "@poietica/agent-contract": "workspace:*",
-        "@poietica/automations": "workspace:*",
+        "@poietica/automation": "workspace:*",
+        "@poietica/automation-ui": "workspace:*",
         "@poietica/browser": "workspace:*",
+        "@poietica/browser-ui": "workspace:*",
         "@poietica/contract": "workspace:*",
         "@poietica/conversation": "workspace:*",
         "@poietica/conversation-ui": "workspace:*",
         "@poietica/design-system": "workspace:*",
+        "@poietica/extension": "workspace:*",
+        "@poietica/extension-ui": "workspace:*",
+        "@poietica/external-store": "workspace:*",
         "@poietica/native-bridge": "workspace:*",
-        "@poietica/plugins": "workspace:*",
         "@poietica/problem": "workspace:*",
         "@poietica/review": "workspace:*",
+        "@poietica/review-ui": "workspace:*",
         "@poietica/settings": "workspace:*",
+        "@poietica/settings-ui": "workspace:*",
+        "@poietica/update": "workspace:*",
         "@poietica/workspace": "workspace:*",
         "@streamdown/mermaid": "catalog:",
         "@tauri-apps/api": "catalog:tauri",
@@ -71,15 +78,26 @@
         "typescript": "catalog:",
       },
     },
-    "packages/automations": {
-      "name": "@poietica/automations",
+    "packages/automation": {
+      "name": "@poietica/automation",
+      "version": "0.1.0",
+      "dependencies": {
+        "@poietica/contract": "workspace:*",
+        "@poietica/problem": "workspace:*",
+        "croner": "10.0.1",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/automation-ui": {
+      "name": "@poietica/automation-ui",
       "version": "0.1.0",
       "dependencies": {
         "@poietica/agent-contract": "workspace:*",
+        "@poietica/automation": "workspace:*",
         "@poietica/design-system": "workspace:*",
-        "@poietica/native-bridge": "workspace:*",
-        "@poietica/problem": "workspace:*",
-        "croner": "10.0.1",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -98,9 +116,21 @@
       "name": "@poietica/browser",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/design-system": "workspace:*",
-        "@poietica/native-bridge": "workspace:*",
+        "@poietica/contract": "workspace:*",
+        "@poietica/external-store": "workspace:*",
         "@poietica/problem": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/browser-ui": {
+      "name": "@poietica/browser-ui",
+      "version": "0.1.0",
+      "dependencies": {
+        "@poietica/browser": "workspace:*",
+        "@poietica/design-system": "workspace:*",
         "lucide-react": "catalog:",
       },
       "devDependencies": {
@@ -147,6 +177,7 @@
         "@poietica/agent-contract": "workspace:*",
         "@poietica/conversation": "workspace:*",
         "@poietica/design-system": "workspace:*",
+        "@poietica/external-store": "workspace:*",
         "@poietica/problem": "workspace:*",
         "@poietica/review": "workspace:*",
         "@streamdown/cjk": "catalog:",
@@ -197,31 +228,30 @@
         "react-dom": "catalog:",
       },
     },
-    "packages/native-bridge": {
-      "name": "@poietica/native-bridge",
+    "packages/extension": {
+      "name": "@poietica/extension",
       "version": "0.1.0",
       "dependencies": {
         "@poietica/agent-contract": "workspace:*",
         "@poietica/contract": "workspace:*",
         "@poietica/problem": "workspace:*",
-        "@tauri-apps/api": "catalog:tauri",
-        "@tauri-apps/plugin-dialog": "catalog:tauri",
+        "valibot": "catalog:",
+        "yaml": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
     },
-    "packages/plugins": {
-      "name": "@poietica/plugins",
+    "packages/extension-ui": {
+      "name": "@poietica/extension-ui",
       "version": "0.1.0",
       "dependencies": {
         "@poietica/agent-contract": "workspace:*",
         "@poietica/design-system": "workspace:*",
+        "@poietica/extension": "workspace:*",
         "@poietica/native-bridge": "workspace:*",
         "@poietica/problem": "workspace:*",
-        "valibot": "catalog:",
-        "yaml": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -234,6 +264,34 @@
       "peerDependencies": {
         "react": "catalog:",
         "react-dom": "catalog:",
+      },
+    },
+    "packages/external-store": {
+      "name": "@poietica/external-store",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/native-bridge": {
+      "name": "@poietica/native-bridge",
+      "version": "0.1.0",
+      "dependencies": {
+        "@poietica/agent-contract": "workspace:*",
+        "@poietica/automation": "workspace:*",
+        "@poietica/browser": "workspace:*",
+        "@poietica/contract": "workspace:*",
+        "@poietica/extension": "workspace:*",
+        "@poietica/problem": "workspace:*",
+        "@poietica/review": "workspace:*",
+        "@poietica/update": "workspace:*",
+        "@tauri-apps/api": "catalog:tauri",
+        "@tauri-apps/plugin-dialog": "catalog:tauri",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
       },
     },
     "packages/problem": {
@@ -252,6 +310,9 @@
       "name": "@poietica/review",
       "version": "0.1.0",
       "dependencies": {
+        "@poietica/contract": "workspace:*",
+        "@poietica/design-system": "workspace:*",
+        "@poietica/external-store": "workspace:*",
         "diff": "catalog:",
       },
       "devDependencies": {
@@ -259,17 +320,51 @@
         "typescript": "catalog:",
       },
     },
+    "packages/review-ui": {
+      "name": "@poietica/review-ui",
+      "version": "0.1.0",
+      "dependencies": {
+        "@poietica/design-system": "workspace:*",
+        "@poietica/review": "workspace:*",
+        "lucide-react": "catalog:",
+        "shiki": "catalog:",
+      },
+      "devDependencies": {
+        "@types/react": "catalog:",
+        "react": "catalog:",
+        "typescript": "catalog:",
+      },
+      "peerDependencies": {
+        "react": "catalog:",
+      },
+    },
     "packages/settings": {
       "name": "@poietica/settings",
       "version": "0.1.0",
       "dependencies": {
         "@poietica/agent-catalog": "workspace:*",
+        "@poietica/contract": "workspace:*",
+        "@poietica/external-store": "workspace:*",
+        "@poietica/problem": "workspace:*",
+        "yaml": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/settings-ui": {
+      "name": "@poietica/settings-ui",
+      "version": "0.1.0",
+      "dependencies": {
+        "@poietica/agent-catalog": "workspace:*",
         "@poietica/conversation": "workspace:*",
         "@poietica/design-system": "workspace:*",
+        "@poietica/external-store": "workspace:*",
         "@poietica/native-bridge": "workspace:*",
         "@poietica/problem": "workspace:*",
+        "@poietica/settings": "workspace:*",
         "lucide-react": "catalog:",
-        "yaml": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -279,7 +374,18 @@
       },
       "peerDependencies": {
         "react": "catalog:",
-        "react-dom": "catalog:",
+      },
+    },
+    "packages/update": {
+      "name": "@poietica/update",
+      "version": "0.1.0",
+      "dependencies": {
+        "@poietica/contract": "workspace:*",
+        "@poietica/external-store": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
       },
     },
     "packages/workspace": {
@@ -287,6 +393,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@poietica/design-system": "workspace:*",
+        "@poietica/external-store": "workspace:*",
         "@poietica/problem": "workspace:*",
         "lucide-react": "catalog:",
         "valibot": "catalog:",
@@ -483,9 +590,13 @@
 
     "@poietica/agent-contract": ["@poietica/agent-contract@workspace:packages/agent-contract"],
 
-    "@poietica/automations": ["@poietica/automations@workspace:packages/automations"],
+    "@poietica/automation": ["@poietica/automation@workspace:packages/automation"],
+
+    "@poietica/automation-ui": ["@poietica/automation-ui@workspace:packages/automation-ui"],
 
     "@poietica/browser": ["@poietica/browser@workspace:packages/browser"],
+
+    "@poietica/browser-ui": ["@poietica/browser-ui@workspace:packages/browser-ui"],
 
     "@poietica/contract": ["@poietica/contract@workspace:packages/contract"],
 
@@ -497,19 +608,29 @@
 
     "@poietica/desktop": ["@poietica/desktop@workspace:apps/desktop"],
 
-    "@poietica/native-bridge": ["@poietica/native-bridge@workspace:packages/native-bridge"],
+    "@poietica/extension": ["@poietica/extension@workspace:packages/extension"],
 
-    "@poietica/plugins": ["@poietica/plugins@workspace:packages/plugins"],
+    "@poietica/extension-ui": ["@poietica/extension-ui@workspace:packages/extension-ui"],
+
+    "@poietica/external-store": ["@poietica/external-store@workspace:packages/external-store"],
+
+    "@poietica/native-bridge": ["@poietica/native-bridge@workspace:packages/native-bridge"],
 
     "@poietica/problem": ["@poietica/problem@workspace:packages/problem"],
 
     "@poietica/review": ["@poietica/review@workspace:packages/review"],
 
+    "@poietica/review-ui": ["@poietica/review-ui@workspace:packages/review-ui"],
+
     "@poietica/settings": ["@poietica/settings@workspace:packages/settings"],
+
+    "@poietica/settings-ui": ["@poietica/settings-ui@workspace:packages/settings-ui"],
 
     "@poietica/tests": ["@poietica/tests@workspace:tests"],
 
     "@poietica/tools": ["@poietica/tools@workspace:tools"],
+
+    "@poietica/update": ["@poietica/update@workspace:packages/update"],
 
     "@poietica/workspace": ["@poietica/workspace@workspace:packages/workspace"],
 

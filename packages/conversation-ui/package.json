@@ -20,6 +20,7 @@
     "@poietica/problem": "workspace:*",
     "@poietica/review": "workspace:*",
     "@poietica/design-system": "workspace:*",
+    "@poietica/external-store": "workspace:*",
     "@streamdown/cjk": "catalog:",
     "@streamdown/code": "catalog:",
     "@streamdown/math": "catalog:",

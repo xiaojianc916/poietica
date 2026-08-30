@@ -11,7 +11,7 @@ import type {
   RunStatus,
   ThreadHistory,
   TurnMark,
-} from '@poietica/agent-contract'
+} from '../agent'
 import type { TimelineState } from '../timeline'
 import {
   appendLocalError,

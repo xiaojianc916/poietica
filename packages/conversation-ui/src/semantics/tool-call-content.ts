@@ -1,4 +1,4 @@
-import type { ToolCallContent } from '@poietica/agent-contract'
+import type { ToolCallContent } from '@poietica/conversation'
 
 /**
  * The protocol envelope, flattened into things a card can draw.

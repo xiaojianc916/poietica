@@ -24,7 +24,7 @@
 
 - 依赖 `tempfile`、`thiserror`、`uuid`、`walkdir`、`zip`。
 - **不依赖 `tauri`**。
-- 不认识插件清单的内容。唯一解析器是 `packages/plugins` 的
+- 不认识插件清单的内容。唯一解析器是 `packages/extension` 的
   `decodePluginManifest`，原生再解析一遍就会有两套规则 —— 所以这个 crate 交出去
   的是路径与原文，命令层递上来的也是字节与路径。
 

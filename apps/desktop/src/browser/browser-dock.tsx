@@ -1,4 +1,4 @@
-import { BrowserPanel, type DockPaneOffer, type DockPaneRenderers } from '@poietica/browser'
+import { BrowserPanel, type DockPaneOffer, type DockPaneRenderers } from '@poietica/browser-ui'
 import {
   DelegateChannelIcon,
   DelegateChannelPane,
@@ -8,7 +8,7 @@ import { useWorkspaceLayoutState, workspaceLayoutStore } from '@poietica/workspa
 import { GitBranch, PanelRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
-import { ReviewPane } from '../review/review-pane'
+import { ConversationReviewPane } from '../review/review-pane'
 import { browserPanelStore } from './browser-runtime'
 
 /*
@@ -123,7 +123,7 @@ export function BrowserDock({ conversationId, isDocked }: BrowserDockProps) {
         name: paneName,
       },
       review: {
-        body: () => <ReviewPane conversationId={conversationId} />,
+        body: () => <ConversationReviewPane conversationId={conversationId} />,
         icon: <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />,
         name: () => '审查',
       },

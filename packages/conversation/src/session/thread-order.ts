@@ -1,4 +1,4 @@
-import type { ThreadRecord } from '@poietica/agent-contract'
+import type { ThreadRecord } from '../agent'
 import { normalizeWorkspaceRoot, workspaceRootName } from './workspace-root'
 
 /*

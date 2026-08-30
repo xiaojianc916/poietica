@@ -329,7 +329,7 @@
       }
     },
     {
-      "includes": ["packages/settings/src/custom-agents/personalization-surface.tsx"],
+      "includes": ["packages/settings-ui/src/personalization-surface.tsx"],
       "linter": {
         "rules": {
           "a11y": {

@@ -1,4 +1,4 @@
-import { AutomationsSurface } from '@poietica/automations'
+import { AutomationsSurface } from '@poietica/automation-ui'
 import { useAgentControls } from '@poietica/conversation-ui'
 
 import { automationStore } from './automation-runtime'
@@ -6,7 +6,7 @@ import { automationStore } from './automation-runtime'
 /**
  * 自动化那一格与 agent 可调项的交界。
  *
- * @poietica/automations 不认识 agent —— 它与 @poietica/conversation-ui 同层（见
+ * @poietica/automation-ui 不认识 agent —— 它与 @poietica/conversation-ui 同层（见
  * tools/architecture 的 layers 表），横向依赖只会是环的前身。所以「有哪些项可选、
  * 每一项当前是什么」由这一层读出来、当数据交下去，那一层只认识这份数据的形状。
  *

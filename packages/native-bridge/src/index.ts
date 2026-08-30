@@ -24,19 +24,7 @@ export {
   removeAsset,
   uploadAsset,
 } from './gateways/asset'
-export {
-  type Automation,
-  type AutomationCatalog,
-  type AutomationReschedule,
-  type AutomationRun,
-  createAutomation,
-  loadAutomations,
-  recordAutomationRun,
-  removeAutomation,
-  upsertAutomation,
-  watchAutomationCatalog,
-  watchAutomations,
-} from './gateways/automations'
+export { automationGateway } from './gateways/automations'
 export {
   type BrowserElementPicked,
   type BrowserState,
@@ -68,47 +56,21 @@ export {
   removeCustomAgent,
   saveCustomAgent,
 } from './gateways/custom-agents'
-export {
-  readEnvironmentMcpConfig,
-  writeEnvironmentMcpConfig,
-} from './gateways/environment'
+export { extensionGateway } from './gateways/extension'
 export {
   type GitBranches,
   type GitCommitIntent,
   type GitCommitRequest,
   type GitFileChange,
   type GitReview,
-  gitAwaitChange,
   gitBranches,
-  gitCommit,
   gitCreateBranch,
-  gitFilePatch,
-  gitReview,
   gitSwitchBranch,
+  reviewGateway,
 } from './gateways/git'
 export { resolveLauncher } from './gateways/launcher'
 export { readMcpEndpoint } from './gateways/mcp'
-export {
-  commitPlugin,
-  discardStagedPlugin,
-  listForeignPlugins,
-  listPlugins,
-  readPluginCatalog,
-  refreshPluginCatalog,
-  removePlugin,
-  setPluginEnabled,
-  setPluginMcpEnabled,
-  stagePlugin,
-} from './gateways/plugins'
-export {
-  commitSkill,
-  discardStagedSkill,
-  listSkills,
-  removeSkill,
-  type SkillRecord,
-  setSkillEnabled,
-  stageSkill,
-} from './gateways/skills'
+export { appUpdateController } from './gateways/update'
 export { readTokenDays } from './gateways/usage'
 export { readWorkbenchSession, writeWorkbenchSession } from './gateways/workbench'
 export {
@@ -117,6 +79,7 @@ export {
 } from './gateways/workspace'
 export { readAppVersion } from './platform/app-release'
 export { readDataDirectory } from './platform/data-directory'
+export { type FilePickerFilter, pickPaths, watchDroppedPaths } from './platform/dialog'
 export {
   type NativeCrashReport,
   takePreviousNativeCrashReport,
@@ -125,3 +88,4 @@ export {
   createMainWindowController,
   type MainWindowController,
 } from './platform/native-window'
+export { basename, homeDirectory } from './platform/paths'

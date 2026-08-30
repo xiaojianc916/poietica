@@ -1,4 +1,4 @@
-import type { ToolCallContent } from '@poietica/agent-contract'
+import type { ToolCallContent } from '@poietica/conversation'
 import { type DiffFile, type DiffStat, diffStatOf } from '@poietica/review'
 
 import { toDiffFiles, toDisplayPath } from './file-diff'
@@ -29,7 +29,7 @@ import { type ToolContentPart, toToolContentParts } from './tool-call-content'
  * JSON 的空白不承载语义（RFC 8259 §2），所以这不改数据，只改可读性。
  *
  * 这一层不认识 React，也不认识时间线的条目类型：入参按形状收，与 tool-call-content
- * 只依赖 @poietica/agent-contract 是同一条边界。
+ * 只依赖 @poietica/conversation 是同一条边界。
  */
 
 /** 画这两个面需要的全部原料；ToolCallTimelineItem 天然满足它。 */

@@ -11,7 +11,7 @@ import type {
   ThreadPort,
   ThreadRecord,
   ThreadSnapshot,
-} from '@poietica/agent-contract'
+} from '../agent'
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
@@ -76,7 +76,7 @@ export interface SessionControlsOptions {
  * 模型不在此列。它的持久位置是 agent 自己的 config.toml（default_model），由 agent
  * 开会话时读，这一层不碰。
  *
- * 下发按对话串行。ACP 规定改一项可能增删另一项（见 @poietica/agent-contract 的 config.ts，
+ * 下发按对话串行。ACP 规定改一项可能增删另一项（见 ./agent 的 config.ts，
  * 以及原生侧 commands.rs 的 select 文档），所以同一条会话上的两次改动必须分先后：
  * 后一次要用前一次的答复当判据。
  *

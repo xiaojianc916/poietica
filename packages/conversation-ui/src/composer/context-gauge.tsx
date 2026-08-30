@@ -1,6 +1,6 @@
 import './context-gauge.css'
 
-import type { SessionUsage } from '@poietica/agent-contract'
+import type { SessionUsage } from '@poietica/conversation'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@poietica/design-system'
 import { memo } from 'react'
 

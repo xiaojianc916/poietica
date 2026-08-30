@@ -1,6 +1,6 @@
 import './composer-palette.css'
 
-import type { PromptConfiguration } from '@poietica/agent-contract'
+import type { PromptConfiguration } from '@poietica/conversation'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
 import { CheckIcon } from '../primitives/icons'

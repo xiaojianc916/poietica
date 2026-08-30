@@ -1,4 +1,4 @@
-import type { ThreadRecord } from '@poietica/agent-contract'
+import type { ThreadRecord } from '../agent'
 import { byRecency, type ThreadListItem, workspaceIdOf } from './thread-order'
 import { nameOf } from './thread-title'
 

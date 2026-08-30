@@ -1,8 +1,8 @@
 import './reply-actions.css'
 
+import { useCopy } from '@poietica/design-system'
 import { Check, Copy, Split } from 'lucide-react'
 import { memo, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { useCopy } from '../primitives/use-copy'
 
 /*
  * 回复操作的指针意图宽限期。

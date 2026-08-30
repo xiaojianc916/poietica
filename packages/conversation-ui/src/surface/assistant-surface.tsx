@@ -1,6 +1,6 @@
 import './assistant.css'
 
-import type { AgentSessionPort, SessionConfigControl, SessionUsage } from '@poietica/agent-contract'
+import type { AgentSessionPort, SessionConfigControl, SessionUsage } from '@poietica/conversation'
 import { memo, type Ref, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { ComposerDraftKeyContext } from '../composer/composer-drafts'

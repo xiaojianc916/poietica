@@ -3,7 +3,6 @@ export { AttachmentIntakeContext } from './composer/attachment-intake'
 export { ComposerDrafts, ComposerDraftsContext } from './composer/composer-drafts'
 export type { PromptInputHandle } from './composer/prompt-input'
 export { GoalIsland } from './goal/goal-island'
-export { useCopy } from './primitives/use-copy'
 export { AgentControlsContext, useAgentControls } from './session/agent-controls-context'
 export {
   SessionControlsContext,

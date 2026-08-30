@@ -57,9 +57,10 @@ packages/                TS 工作区包：分层由 layering.ts 裁决，依赖
 tools/architecture/      机器执行的那部分架构（入口 verify.ts）
 ```
 
-三条 TS 不变量：依赖只指向更低层（判据落在 package.json 边上）；只有
-transport/composition/application 三层可碰 `@tauri-apps/*`；跨包只走公开
-exports。新包先定层，否则架构检查失败。
+三条 TS 不变量：依赖只指向更低层（判据落在 package.json 边上）；除生成物
+`@poietica/contract` 外只有 `@poietica/native-bridge` 可碰 `@tauri-apps/*`
+（判据是 layering.ts 的 HOST_AWARE_PACKAGES）；跨包只走公开 exports。新包
+先定层，否则架构检查失败。
 
 Rust 侧四元结构：每个 crate 拥有一块与宿主无关的能力；src-tauri 命令函数是
 薄封装。**薄的判据可执行：凡是不需要 AppHandle/State/Emitter 就能写出的逻辑，

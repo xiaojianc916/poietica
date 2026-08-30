@@ -1,4 +1,4 @@
-import { createExternalStore } from '@poietica/design-system'
+import { createExternalStore } from '@poietica/external-store'
 import { useCallback, useSyncExternalStore } from 'react'
 
 /**

@@ -6,10 +6,10 @@ import type {
   AgentSkill,
   ChatStatus,
   QuestionResponse,
+  QuestionTimelineItem,
   SessionConfigControl,
   SessionUsage,
-} from '@poietica/agent-contract'
-import type { QuestionTimelineItem } from '@poietica/conversation'
+} from '@poietica/conversation'
 import { memo, type Ref, useMemo } from 'react'
 import { AttachmentTray } from './attachment-tray'
 import {

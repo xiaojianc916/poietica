@@ -1,5 +1,6 @@
 import { normalizeWorkspaceRoot } from '@poietica/conversation'
-import { createPreference } from '@poietica/design-system'
+import { createPreference } from '@poietica/external-store'
+import { homeDirectory } from '@poietica/native-bridge'
 import { warn } from '@poietica/problem'
 import { useSyncExternalStore } from 'react'
 
@@ -55,11 +56,9 @@ export function useActiveWorkspaceRoot(): string | null {
 /*
  * 用户主目录 —— 没有记下目录的那些对话所在的工作区。
  *
- * 这是一个 OS 事实，不是一句文案：官方能力 @tauri-apps/api 的 path.homeDir()
- * 回答它，不手写 %USERPROFILE% / $HOME 猜测 —— 各自的边界情况是平台已经
- * 解决的问题。这一层是组合根，直连 @tauri-apps/* 名正言顺（架构规则
- * nativeAllowed）；动态 import 与 packages/ipc 的 agent.ts 同一个手法，
- * 非 Tauri 宿主里答案是 null，分组落回无名哨兵。
+ * 这是一个 OS 事实，不是一句文案：@poietica/native-bridge 的 homeDirectory()
+ * 转发官方能力回答它，不手写 %USERPROFILE% / $HOME 猜测 —— 各自的边界情况是
+ * 平台已经解决的问题。非 Tauri 宿主里答案是 null，分组落回无名哨兵。
  *
  * 与上面的 activeRoot 同一条管线：一次解析，进程里一个答案，落盘让第二次启动
  * 的第一帧就有值；首次解析落定后由 ThreadsProvider 等它再 refresh，不会先把
@@ -81,8 +80,7 @@ const home = createPreference<string | null>({
   },
 })
 
-const resolving: Promise<string | null> = import('@tauri-apps/api/path')
-  .then(({ homeDir }) => homeDir())
+const resolving: Promise<string | null> = homeDirectory()
   .then((dir) => {
     home.write(normalizeWorkspaceRoot(dir))
 

@@ -6,7 +6,7 @@ import type {
   SessionConfigReport,
   ThreadPort,
   ThreadSnapshot,
-} from '@poietica/agent-contract'
+} from '../../agent'
 
 import { SessionControlsStore } from '../session-controls-store'
 import type { TranscriptSink } from '../transcript-sink'

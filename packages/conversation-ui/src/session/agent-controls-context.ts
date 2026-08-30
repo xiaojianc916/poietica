@@ -1,5 +1,4 @@
-import type { AgentToolkit } from '@poietica/agent-contract'
-import type { AgentCapabilityStore, AgentControls } from '@poietica/conversation'
+import type { AgentCapabilityStore, AgentControls, AgentToolkit } from '@poietica/conversation'
 import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
 
 /*

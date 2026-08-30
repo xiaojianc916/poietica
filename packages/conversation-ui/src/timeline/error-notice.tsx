@@ -1,5 +1,5 @@
+import { useCopy } from '@poietica/design-system'
 import { CheckIcon, FailureIcon } from '../primitives/icons'
-import { useCopy } from '../primitives/use-copy'
 
 /**
  * 一次失败的运行，在它停下来的地方说一句。

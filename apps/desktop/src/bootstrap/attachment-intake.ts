@@ -1,13 +1,15 @@
 import type { AttachmentIntake, ComposerAsset } from '@poietica/conversation-ui'
 import {
   type AssetFormat,
+  basename,
   importAssets,
   listAssetFormats,
   openAssetSession,
+  pickPaths,
   removeAsset,
   uploadAsset,
+  watchDroppedPaths,
 } from '@poietica/native-bridge'
-import { basename as pathBasename } from '@tauri-apps/api/path'
 
 /*
  * 附件收件口的原生这一半。
@@ -54,7 +56,7 @@ export function createAttachmentIntake(): AttachmentIntake {
     const sessionToken = await composerSession()
     const [stored, filenames] = await Promise.all([
       importAssets(sessionToken, paths),
-      Promise.all(paths.map((path) => pathBasename(path))),
+      Promise.all(paths.map((path) => basename(path))),
     ])
 
     return stored.map((asset, index) => ({
@@ -70,14 +72,10 @@ export function createAttachmentIntake(): AttachmentIntake {
     async pick(multiple) {
       /* 两件事互不依赖，串着等没有理由。第二次起清单已经在手，这里就只剩
       模块加载那一下。 */
-      const [{ open }, formats] = await Promise.all([
-        import('@tauri-apps/plugin-dialog'),
-        knownFormats(),
-      ])
+      const formats = await knownFormats()
 
-      const picked = await open({
+      const picked = await pickPaths({
         multiple,
-        directory: false,
         filters: [...new Set(formats.map((format) => format.kind))].map((kind) => ({
           name: KIND_LABELS[kind] ?? kind,
           extensions: formats
@@ -90,7 +88,7 @@ export function createAttachmentIntake(): AttachmentIntake {
         return []
       }
 
-      return intake(Array.isArray(picked) ? picked : [picked])
+      return intake(picked)
     },
 
     watchDrop(onDropped) {
@@ -98,44 +96,37 @@ export function createAttachmentIntake(): AttachmentIntake {
       let stop: (() => void) | null = null
       let last = ''
 
-      void import('@tauri-apps/api/webview')
-        .then(({ getCurrentWebview }) =>
-          getCurrentWebview().onDragDropEvent((event) => {
-            if (event.payload.type !== 'drop') {
-              return
-            }
+      void watchDroppedPaths((paths) => {
+        /*
+         * 同一次拖放可能报两遍。
+         *
+         * 上游缺陷 tauri#14134：一次拖放触发两次 drop，paths 完全相同，
+         * 间隔几毫秒。不去重的后果不是多一张卡片（身份是内容摘要，输入框
+         * 那一侧会认出是同一张），而是白读一遍盘、白算一遍 SHA-256。
+         *
+         * 判据是这一批路径本身，而不是一个时间窗内的任意一次拖放：真的
+         * 连着拖两批不同的文件必须两批都收。窗口过后清掉，同一批文件再
+         * 拖一次仍然算数。
+         */
+        const signature = paths.join('\u0000')
 
-            /*
-             * 同一次拖放可能报两遍。
-             *
-             * 上游缺陷 tauri#14134：一次拖放触发两次 drop，paths 完全相同，
-             * 间隔几毫秒。不去重的后果不是多一张卡片（身份是内容摘要，输入框
-             * 那一侧会认出是同一张），而是白读一遍盘、白算一遍 SHA-256。
-             *
-             * 判据是这一批路径本身，而不是一个时间窗内的任意一次拖放：真的
-             * 连着拖两批不同的文件必须两批都收。窗口过后清掉，同一批文件再
-             * 拖一次仍然算数。
-             */
-            const signature = event.payload.paths.join('\u0000')
+        if (signature === last) {
+          return
+        }
 
-            if (signature === last) {
-              return
-            }
+        last = signature
 
-            last = signature
+        setTimeout(() => {
+          if (last === signature) {
+            last = ''
+          }
+        }, REPEAT_WINDOW)
 
-            setTimeout(() => {
-              if (last === signature) {
-                last = ''
-              }
-            }, REPEAT_WINDOW)
-
-            void intake(event.payload.paths).then(onDropped, () => {
-              /* 这一批一个都收不下（拖了个 .zip 进来）。屏幕上就是没有反应，
-              与加号那条路一致 —— 不为一次没进门的拖放弹一个报错。 */
-            })
-          }),
-        )
+        void intake(paths).then(onDropped, () => {
+          /* 这一批一个都收不下（拖了个 .zip 进来）。屏幕上就是没有反应，
+          与加号那条路一致 —— 不为一次没进门的拖放弹一个报错。 */
+        })
+      })
         .then((unlisten) => {
           if (cancelled) {
             unlisten()

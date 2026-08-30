@@ -1,4 +1,4 @@
-import type { FramePage, ThreadHistory } from '@poietica/agent-contract'
+import type { FramePage, ThreadHistory } from '../agent'
 
 /**
  * 转录那一侧，会话这一侧要用到的全部。

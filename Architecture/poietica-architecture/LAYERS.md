@@ -34,7 +34,19 @@
 
 ## 现状与目标的差距
 
-`layering.ts` 里现在是过渡态的环名（foundation / protocol / transport / feature / composition / application），目标态是 R0–R4。判据不变——**单向向下、同层无边、宿主 API 白名单**——变化的是成员归位。重构时以目标态为准，改完同步 `layering.ts` 与 `AGENTS.md` 的指针。
+`layering.ts` 已切到目标态环语义（contract / vocabulary / visual-vocabulary /
+agent-vocabulary / domain / adapter / surfaces / composition）。与目标 R0–R4 的
+已知偏差（登记在 `layering.ts` 头注释）：
+
+- `design-system` 单独成环且低于领域：`review`、`workspace` 的 store 持有
+  `SplitterActivity` 类型；
+- `agent-contract` / `agent-catalog` 是过渡的端口与档案词汇环，待并入各领域包后消失；
+- `workspace` 尚未拆出 `workspace-ui`；
+- `@poietica/desktop` 已退出宿主白名单：`native-bridge` 是全仓唯一
+  `@tauri-apps/*` 手写使用者。
+
+判据不变——**单向向下、同层无边、宿主 API 白名单**——收敛上述偏差时同步
+`layering.ts` 与 `AGENTS.md` 的指针。
 
 ## 中英对照
 

@@ -9,7 +9,7 @@
  * 意思归 kap-projection；哪一趟该开草稿、什么时候开段归 timeline-reducer。
  */
 
-import type { RunStatus } from '@poietica/agent-contract'
+import type { RunStatus } from '../agent'
 import type {
   AgentTextItem,
   AgentThoughtItem,

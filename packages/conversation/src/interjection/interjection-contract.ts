@@ -1,4 +1,4 @@
-import type { PromptAsset, PromptConfiguration, PromptSkill } from '@poietica/agent-contract'
+import type { PromptAsset, PromptConfiguration, PromptSkill } from '../agent'
 
 /** 一条还没上路的插话。 */
 export interface Interjection {
