@@ -125,12 +125,14 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
   let busy = false
   let stopped = false
   let looping = false
-  /* 已取回全文并着色的路径与当前代：换一批文件模型就都作废。 */
+  /* 当前代已持有全文模型的路径：新取的或沿用的都在内，推导只找剩下的。 */
   let enriched: ReadonlySet<string> = new Set<string>()
   let filling = false
   let generation = 0
   /* 清单解析按补丁原文去重：git 每跳一次就全量重解析一遍是白付的。 */
   let listing: { patch: string; files: readonly DiffFile[] } = { patch: '', files: [] }
+  /* 全文模型按清单指纹沿用：这一跳没动的文件不塌回三行上下文，也不再进推导重算一遍。 */
+  const wholeFiles = new Map<string, { key: string; file: DiffFile }>()
   function read(): ReviewState {
     return {
       base,
@@ -156,12 +158,29 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
   }
   function project(): void {
     generation += 1
-    enriched = new Set<string>()
     /* 词级强调随整份文件按文件算：清单这一遍只要行与徽章。 */
     if (answer !== null && answer.patch !== listing.patch) {
       listing = { files: parseUnifiedPatch(answer.patch, false), patch: answer.patch }
     }
-    reading = answer === null ? { phase: trouble } : ready(answer, listing.files)
+    if (answer === null) {
+      enriched = new Set<string>()
+      reading = { phase: trouble }
+      enrich()
+      return
+    }
+    /* 开着且清单指纹没变的文件沿用上一跳的全文模型：没动的那部分不闪也不重算。 */
+    const held = new Set<string>()
+    const files = listing.files.map((file) => {
+      const whole = wholeFiles.get(file.path)
+      if (whole === undefined || !openFiles.has(file.path) || whole.key !== fingerprintOf(file)) {
+        wholeFiles.delete(file.path)
+        return file
+      }
+      held.add(file.path)
+      return whole.file
+    })
+    enriched = held
+    reading = ready(answer, files)
     enrich()
   }
   /*
@@ -186,6 +205,8 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
         if (whole === null || stopped || mine !== generation || held.phase !== 'ready') {
           continue
         }
+        /* 记下这份全文模型对应的清单指纹：下一跳指纹没变就沿用，不再重算。 */
+        wholeFiles.set(wanted.path, { key: fingerprintOf(wanted), file: whole })
         reading = {
           ...held,
           files: held.files.map((file) => (file.path === whole.path ? whole : file)),
@@ -397,6 +418,10 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       if (name === 'hideWhitespace') {
         void load()
       } else {
+        /* 词级强调变了：沿用的全文模型是按旧开关切的，全部作废重推。 */
+        if (name === 'wordDiff') {
+          wholeFiles.clear()
+        }
         project()
       }
       publish()
@@ -413,6 +438,14 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
   }
 }
 const NOTHING: DiffStat = { added: 0, removed: 0 }
+/* 清单模型的指纹：行种、行号与正文。两跳一致即「这个文件没动」，全文模型可沿用。 */
+function fingerprintOf(file: DiffFile): string {
+  let key = `${String(file.stat.added)}/${String(file.stat.removed)}`
+  for (const row of file.rows) {
+    key += `${row.kind[0]}${row.number === null ? '' : String(row.number)}:${row.text}\n`
+  }
+  return key
+}
 /* 清单是权威顺序，补丁按路径对上去；补丁里有而清单里没有的照实附在后面。 */
 function ready(held: GitReview, parsed: readonly DiffFile[]): ReviewReading {
   const byPath = new Map(parsed.map((file) => [file.path, file] as const))

@@ -22,6 +22,7 @@ import {
   type DiffPiece,
   type DiffRow,
   type DiffStat,
+  type ReviewDerive,
   type ReviewFailureReport,
   type ReviewGateway,
   type ReviewReading,
@@ -60,6 +61,7 @@ import {
   memo,
   type ReactNode,
   type RefObject,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -67,7 +69,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { createDeriver } from './derive'
+import { createDeriver, type ReviewDeriver } from './derive'
 
 import './review-pane.css'
 
@@ -117,14 +119,30 @@ export interface ReviewPaneProps {
 }
 
 export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
-  const deriver = useMemo(() => createDeriver(), [])
+  /*
+   * worker 的生死跟着这一格：谁创建谁销毁。StrictMode 的模拟卸载会终止当时那个
+   * 实例，重挂或推导先到都按需再起一个，绝不留死线程，也不把 dispose 当成
+   * 挂载时要跑的事 —— 那一写法会当场杀掉 worker，高亮与展开从此全部失灵。
+   */
+  const holder = useRef<ReviewDeriver | null>(null)
+  useEffect(() => {
+    holder.current ??= createDeriver()
+    return () => {
+      holder.current?.dispose()
+      holder.current = null
+    }
+  }, [])
+  const derive = useCallback<ReviewDerive>((patch, wordDiff) => {
+    if (holder.current === null) {
+      holder.current = createDeriver()
+    }
+    return holder.current.derive(patch, wordDiff)
+  }, [])
   const store = useMemo(
-    () => createReviewStore({ root, derive: deriver.derive, gateway, report }),
-    [deriver, gateway, report, root],
+    () => createReviewStore({ root, derive, gateway, report }),
+    [derive, gateway, report, root],
   )
   useEffect(() => store.start(), [store])
-  /* worker 的生死跟着这一格：谁创建谁销毁。 */
-  useEffect(() => deriver.dispose(), [deriver])
   const scroller = useRef<HTMLDivElement | null>(null)
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const reading = state.reading
@@ -501,8 +519,10 @@ function Card({
   readonly store: ReviewStore
 }) {
   const open = state.openFiles.has(file.path)
-  /* 报一份估高：视口外的卡跳过绘制，没有估高滚动条会随视口推进跳动。 */
-  const style: ReviewStyle = { '--review-card-rows': String(open ? file.rows.length : 0) }
+  /* 报一份估高：视口外的卡跳过绘制，没有估高滚动条会随视口推进跳动。
+   * 行数按展开态算：折叠带展开的行也是这张卡此刻的真实高度。 */
+  const rows = open ? renderedRowsOf(file, state.openGaps) : 0
+  const style: ReviewStyle = { '--review-card-rows': String(rows) }
   const { copied, copy } = useCopy(file.path)
   return (
     <section className="review-card" id={cardId(file.path)} style={style}>
@@ -544,8 +564,36 @@ function Card({
     </section>
   )
 }
-/* 超过这一规模走行虚拟化：小补丁直渲，不给小文件付测量税（opencode PR #35375 同款阈值）。 */
+/*
+ * 超过这一规模走行虚拟化：小补丁直渲，不给小文件付测量税（opencode PR #35375 同款
+ * 判决与阈值）。规模按总行幅算 —— 折叠带里可展开的那些行也是潜在 DOM，否则
+ * 「改动很小、未改动段巨大」的文件走直渲路，一条折叠带展开就是一口气挂万行。
+ * opencode 同样不设每次展开的上限：全文已在手，展开多少都只渲染视口附近。
+ */
 const VIRTUAL_AFTER = 500
+/* 折叠带的身份：路径 + 它在行带里的位置。Gap、虚拟带与卡估高共用这一个产地。 */
+function gapKeyOf(path: string, at: number): string {
+  return `${path}#${String(at)}`
+}
+/* 潜在行幅：可见行加折叠带里可展开的那些 —— 判据与估高都从这一个数出发。 */
+function spanOf(file: DiffFile): number {
+  let span = file.rows.length
+  for (const row of file.rows) {
+    span += row.hidden.length
+  }
+  return span
+}
+/* 此刻要渲染的行数：展开的折叠带把 hidden 计入，收着的算一条。屏外卡的估高报它，
+ * 直渲与虚拟化两条路的真值都与它对齐，滚动条不随视口推进跳动。 */
+function renderedRowsOf(file: DiffFile, openGaps: ReadonlySet<string>): number {
+  let count = file.rows.length
+  for (const row of file.rows) {
+    if (row.kind === 'gap' && openGaps.has(gapKeyOf(file.path, row.at))) {
+      count += row.hidden.length
+    }
+  }
+  return count
+}
 function Body({
   file,
   scroller,
@@ -564,7 +612,7 @@ function Body({
     return <Note>没有文本改动。</Note>
   }
   /* 不换行时这一格自己横滚：代码的缩进不能被折行改写。 */
-  const wide = Math.max(file.stat.added, file.stat.removed) > VIRTUAL_AFTER
+  const wide = spanOf(file) > VIRTUAL_AFTER
   return (
     <div
       className={cn(
@@ -640,7 +688,7 @@ function Gap({
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
-  const key = `${path}#${String(row.at)}`
+  const key = gapKeyOf(path, row.at)
   const open = state.openGaps.has(key)
   const label = `${String(row.lines)} unmodified lines`
   return (
@@ -673,10 +721,10 @@ function spreadRows(
   const items: VirtualRowItem[] = []
   for (const row of rows) {
     if (row.kind !== 'gap') {
-      items.push({ bar: false, key: `${path}#${String(row.at)}`, row })
+      items.push({ bar: false, key: gapKeyOf(path, row.at), row })
       continue
     }
-    const gapKey = `${path}#${String(row.at)}`
+    const gapKey = gapKeyOf(path, row.at)
     items.push({ bar: true, key: `${gapKey}#bar`, row })
     if (openGaps.has(gapKey)) {
       for (const held of row.hidden) {
@@ -709,7 +757,7 @@ function VirtualGap({
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
-  const key = `${path}#${String(row.at)}`
+  const key = gapKeyOf(path, row.at)
   const open = state.openGaps.has(key)
   const label = `${String(row.lines)} unmodified lines`
   return (
