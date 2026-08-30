@@ -14,6 +14,8 @@ import { readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
+import { sign } from './sign.ts'
+
 type GithubRelease = {
   tag_name: string
   draft: boolean
@@ -55,18 +57,6 @@ function produce(args: readonly string[]): string {
     fail(`poietica-update-payload ${args.join(' ')} failed`)
   }
   return produced.stdout.trim()
-}
-/** 签名交给 Tauri 官方签名器，仓库里不出现第二套 minisign 实现。 */
-async function sign(file: string): Promise<string> {
-  const signed = spawnSync('bun', ['run', 'tauri', 'signer', 'sign', path.resolve(file)], {
-    cwd: 'apps/desktop',
-    encoding: 'utf8',
-  })
-  if (signed.status !== 0) {
-    console.error(signed.stderr)
-    fail(`signing ${file} failed`)
-  }
-  return (await readFile(`${file}.sig`, 'utf8')).trim()
 }
 const endpoint = new URL((await readFile(ENDPOINT_FILE, 'utf8')).trim())
 const [owner, repo, ...rest] = endpoint.pathname.split('/').filter(Boolean)

@@ -29,6 +29,7 @@ import { createInterface } from 'node:readline/promises'
  * split('-')[0] 再自增。手抄一份会漏掉那一步，版本一旦带预发布号
  * （0.2.0-beta.1），Number('0-beta') 是 NaN，菜单会给出 0.2.NaN。
  */
+import { sign } from './sign.ts'
 import { bumped, SEMVER } from './version.ts'
 
 const MAIN_BRANCH = 'main'
@@ -39,6 +40,8 @@ const BUNDLE_DIR = `${RELEASE_DIR}/bundle/nsis`
 /* 更新载荷的基线是安装器装出去的那个 exe，不是安装器自己（manifest.ts 的 argv 契约）。 */
 const RELEASE_EXE = `${RELEASE_DIR}/poietica.exe`
 const STAGE_DIR = 'dist-release'
+/* 客户端信任的公钥打在这里（自研 updater 读它），tauri.conf.json 里已经没有了。 */
+const PUBKEY_FILE = 'apps/desktop/src-tauri/updater/public.key'
 const PLACEHOLDER_PUBKEY = 'REPLACE_WITH_TAURI_SIGNER_PUBKEY'
 const TOTAL_STEPS = 10
 
@@ -301,9 +304,15 @@ async function preflight(): Promise<{ branch: string; current: string }> {
     throw new Abort('gh 尚未登录。请先运行：gh auth login')
   }
 
-  const conf = await readFile(CONF, 'utf8')
+  const pubkey = await readFile(PUBKEY_FILE, 'utf8').catch(() => null)
 
-  if (conf.includes(PLACEHOLDER_PUBKEY)) {
+  if (pubkey === null) {
+    throw new Abort(
+      `读不到 ${PUBKEY_FILE}。这个文件被 .gitignore 的 *.key 挡在版本控制外，新机器上要先从旧机器拷过来。`,
+    )
+  }
+
+  if (pubkey.includes(PLACEHOLDER_PUBKEY)) {
     throw new Abort(
       [
         'updater 公钥还是占位符。',
@@ -482,9 +491,17 @@ async function buildAndStage(
     )
   }
 
-  if (!files.includes(`${installer}.sig`)) {
-    throw new Abort(`缺少 ${installer}.sig。签名没有生成，检查私钥与密码是否正确。`)
-  }
+  /*
+   * 安装包签名自己出，不指望 bundler。
+   *
+   * CLI 的 sign_updaters 有两道闸：bundle.createUpdaterArtifacts 是 false（自研
+   * 更新通道不需要 Tauri 那份 .nsis.zip），plugins.updater 也随自研 updater 一起
+   * 删掉了，缺任何一个它都静默返回、连警告都没有。于是安装包和载荷、补丁一样，
+   * 交给官方签名器在这里签。
+   */
+  await sign(path.join(BUNDLE_DIR, installer)).catch(() => {
+    throw new Abort(`给安装包签名失败，检查 ${KEY_PATH} 与 ${PASS_PATH}。`)
+  })
 
   await mkdir(STAGE_DIR, { recursive: true })
 
