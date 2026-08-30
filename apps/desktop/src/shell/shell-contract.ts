@@ -1,6 +1,7 @@
+import type { SurfaceId, WorkbenchTabId, WorkbenchViewModel } from '@poietica/workspace'
 import type { WorkspaceParts } from './parts'
-import type { SurfaceId } from './surface-registry'
-import type { WorkbenchTabId, WorkbenchViewModel } from './workbench'
+
+export type { WorkspaceParts }
 
 /**
  * 工作台的动作表。

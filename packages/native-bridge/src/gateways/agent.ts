@@ -1,3 +1,13 @@
+import {
+  type AgentConfigChoice,
+  type AgentConfigControl,
+  type AgentGoal,
+  type AgentLaunch,
+  type AgentMcpServer,
+  type AgentQuestionChoice,
+  type AgentSessionEvent,
+  commands,
+} from '@poietica/contract'
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
@@ -12,17 +22,7 @@ import type {
   SessionUsagePort,
   ThreadPort,
   ThreadSnapshot,
-} from '@poietica/agent-contract'
-import {
-  type AgentConfigChoice,
-  type AgentConfigControl,
-  type AgentGoal,
-  type AgentLaunch,
-  type AgentMcpServer,
-  type AgentQuestionChoice,
-  type AgentSessionEvent,
-  commands,
-} from '@poietica/contract'
+} from '@poietica/conversation'
 import { throughIpc } from '../error'
 
 /**

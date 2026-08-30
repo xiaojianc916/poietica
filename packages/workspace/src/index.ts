@@ -1,19 +1,45 @@
-/* 包的公开面。显式罗列而不是 export *：谁在用什么必须一眼可见。 */
+/*
+ * 工作台领域的唯一出口：会话控制器、命令注册表、表面注册表、标签模型与布局
+ * 数学 —— 全是纯逻辑，没有 React（外壳与停靠视图住在 apps/desktop/src/shell）。
+ */
+
+export type { RegisteredCommand } from './command-contract'
 export { type CommandRegistry, createCommandRegistry } from './command-registry'
-export { CommandPalette } from './commands/command-palette'
-export { formatKeybinding, useCommandKeybindings } from './commands/keybinding'
-export type { WorkspaceParts } from './parts'
-export { SidebarFooter } from './shell/sidebar/sidebar-footer'
-export { WorkspaceSidebar } from './shell/sidebar/workspace-sidebar'
-export { SurfaceHost } from './shell/surface-host'
-export { WorkbenchTabs } from './shell/workbench-tabs/workbench-tabs'
-export { useWorkspaceLayoutState, workspaceLayoutStore } from './shell/workspace-layout-store'
-export { WorkspaceShell } from './shell/workspace-shell'
-export type { WorkspaceShellActions } from './shell-contract'
-export type { SurfaceRenderers } from './surface'
+export {
+  DEFAULT_SURFACE_ID,
+  describeSurface,
+  isReadySurfaceId,
+  isSurfaceId,
+  type ReadySurfaceId,
+  SURFACE_NAVIGATION_ORDER,
+  SURFACE_REGISTRY,
+  type SurfaceActivation,
+  type SurfaceDescriptor,
+  type SurfaceIconId,
+  type SurfaceId,
+} from './surface-registry'
 export type {
+  ConversationId,
+  OpenConversationRequest,
+  OpenSurfaceRequest,
   WorkbenchSessionStore,
+  WorkbenchSurfaceViewModel,
   WorkbenchTabId,
   WorkbenchTabViewModel,
+  WorkbenchViewModel,
 } from './workbench'
 export { createWorkbenchSessionController } from './workbench-session-controller'
+export type {
+  WorkbenchTabDragLayout,
+  WorkbenchTabKeyboardAction,
+  WorkbenchTabModelItem,
+  WorkbenchTabSlot,
+} from './workbench-tabs-model'
+export {
+  encodeWorkbenchTabDomId,
+  resolveWorkbenchTabAutoScrollVelocity,
+  resolveWorkbenchTabCloseTarget,
+  resolveWorkbenchTabDragLayout,
+  resolveWorkbenchTabKeyboardAction,
+} from './workbench-tabs-model'
+export { WORKSPACE_LAYOUT } from './workspace-layout'

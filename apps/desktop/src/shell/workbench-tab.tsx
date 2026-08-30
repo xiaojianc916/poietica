@@ -1,10 +1,10 @@
 import { PixelLoader } from '@poietica/design-system'
+import type { WorkbenchTabId, WorkbenchTabViewModel } from '@poietica/workspace'
+import { encodeWorkbenchTabDomId } from '@poietica/workspace'
 import { X } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
-import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../workbench'
-import { surfaceIcon } from '../surface-icons'
+import { surfaceIcon } from './surface-icons'
 import type { WorkbenchTabReorderBindings } from './use-workbench-tabs-interactions'
-import { encodeWorkbenchTabDomId } from './workbench-tabs-model'
 
 interface WorkbenchTabProps {
   readonly model: WorkbenchTabViewModel

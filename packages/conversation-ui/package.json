@@ -16,7 +16,6 @@
   "dependencies": {
     "@lexical/react": "catalog:",
     "@poietica/conversation": "workspace:*",
-    "@poietica/agent-contract": "workspace:*",
     "@poietica/problem": "workspace:*",
     "@poietica/review": "workspace:*",
     "@poietica/design-system": "workspace:*",

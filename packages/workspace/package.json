@@ -3,9 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "sideEffects": [
-    "**/*.css"
-  ],
   "exports": {
     ".": "./src/index.ts"
   },
@@ -14,22 +11,10 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/design-system": "workspace:*",
-    "@poietica/external-store": "workspace:*",
-    "lucide-react": "catalog:",
-    "valibot": "catalog:",
     "@poietica/problem": "workspace:*"
   },
   "devDependencies": {
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
     "@types/bun": "catalog:",
     "typescript": "catalog:"
-  },
-  "peerDependencies": {
-    "react": "catalog:",
-    "react-dom": "catalog:"
   }
 }

@@ -1,5 +1,5 @@
+import type { WorkbenchTabId } from '@poietica/workspace'
 import { type RefObject, useCallback, useEffect, useRef, type WheelEvent } from 'react'
-import type { WorkbenchTabId } from '../../workbench'
 
 const SCROLL_EDGE_PADDING = 4
 

@@ -16,9 +16,13 @@ import type {
   WorkbenchSessionStore,
   WorkbenchTabId,
   WorkbenchTabViewModel,
-  WorkspaceParts,
-  WorkspaceShellActions,
 } from '@poietica/workspace'
+import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { tabNeighbors } from '../app-commands'
+import { useThreadsActions } from '../assistant/threads-context'
+import { BrowserDock } from '../browser/browser-dock'
+import { browserPanelStore } from '../browser/browser-runtime'
+import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/desktop-title-bar'
 import {
   SidebarFooter,
   SurfaceHost,
@@ -27,13 +31,8 @@ import {
   WorkspaceShell,
   WorkspaceSidebar,
   workspaceLayoutStore,
-} from '@poietica/workspace'
-import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
-import { tabNeighbors } from '../app-commands'
-import { useThreadsActions } from '../assistant/threads-context'
-import { BrowserDock } from '../browser/browser-dock'
-import { browserPanelStore } from '../browser/browser-runtime'
-import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/desktop-title-bar'
+} from '../shell'
+import type { WorkspaceParts, WorkspaceShellActions } from '../shell/shell-contract'
 import { AssistantSidebarPanel } from './assistant-sidebar-panel'
 import { createAssistantWiring } from './assistant-wiring'
 import { ConversationHeader } from './conversation-header'

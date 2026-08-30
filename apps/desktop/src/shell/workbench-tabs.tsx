@@ -1,6 +1,6 @@
+import type { ConversationId, WorkbenchTabId, WorkbenchTabViewModel } from '@poietica/workspace'
 import { Plus } from 'lucide-react'
 import { useCallback, useMemo, useRef } from 'react'
-import type { ConversationId, WorkbenchTabId, WorkbenchTabViewModel } from '../../workbench'
 import { useWorkbenchTabsBaselineGap } from './use-workbench-tabs-baseline-gap'
 import { useWorkbenchTabsInteractions } from './use-workbench-tabs-interactions'
 import { useWorkbenchTabsViewport } from './use-workbench-tabs-viewport'

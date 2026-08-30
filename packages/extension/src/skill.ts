@@ -1,5 +1,4 @@
 import type { SkillRecord } from '@poietica/contract'
-import type { AgentSkill } from '@poietica/conversation'
 import { parse } from 'yaml'
 
 /*
@@ -81,6 +80,18 @@ export interface SkillRow {
   readonly source: string | undefined
 }
 
+/**
+ * 名册里一条技能的最小前提：这里只读这三个字段。
+ *
+ * 不直接引用会话领域的 AgentSkill —— 扩展域不依赖对话域；形状由调用侧
+ * （extension-ui 拿着名册）结构化地满足。
+ */
+export interface RosterSkill {
+  readonly name: string
+  readonly description: string
+  readonly source: string
+}
+
 /*
  * 名册与本机那一层并成一张表。
  *
@@ -90,7 +101,7 @@ export interface SkillRow {
  */
 export function skillRows(
   installed: readonly InstalledSkill[],
-  roster: readonly AgentSkill[],
+  roster: readonly RosterSkill[],
 ): readonly SkillRow[] {
   const reported = new Map(roster.map((skill) => [skill.name, skill] as const))
   const ours = new Set(installed.map((skill) => skill.name))

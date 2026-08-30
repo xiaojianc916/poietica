@@ -10,7 +10,6 @@
   },
   "devDependencies": {
     "@poietica/conversation": "workspace:*",
-    "@poietica/agent-contract": "workspace:*",
     "@types/bun": "catalog:",
     "typescript": "catalog:"
   }

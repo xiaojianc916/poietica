@@ -1,6 +1,5 @@
+import type { ReadySurfaceId } from '@poietica/workspace'
 import type { ReactNode } from 'react'
-
-import type { ReadySurfaceId } from './surface-registry'
 
 /**
  * 表面渲染扩展点。

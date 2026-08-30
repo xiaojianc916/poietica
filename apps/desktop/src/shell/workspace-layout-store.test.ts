@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { WORKSPACE_LAYOUT } from './workspace-layout'
+import { WORKSPACE_LAYOUT } from '@poietica/workspace'
 import { workspaceLayoutStore } from './workspace-layout-store'
 
 /*

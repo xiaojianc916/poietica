@@ -1,7 +1,7 @@
 import './sidebar-rows.css'
 
+import type { SurfaceId } from '@poietica/workspace'
 import type { ReactNode } from 'react'
-import type { SurfaceId } from '../../surface-registry'
 import { SidebarFooter } from './sidebar-footer'
 import { SidebarNav } from './sidebar-nav'
 

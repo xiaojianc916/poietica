@@ -10,9 +10,9 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/agent-contract": "workspace:*",
     "@poietica/automation": "workspace:*",
     "@poietica/browser": "workspace:*",
+    "@poietica/conversation": "workspace:*",
     "@poietica/extension": "workspace:*",
     "@poietica/review": "workspace:*",
     "@poietica/update": "workspace:*",

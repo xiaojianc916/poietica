@@ -1,5 +1,5 @@
-import type { SurfaceRenderers } from '../surface'
-import { describeSurface, isReadySurfaceId, type SurfaceId } from '../surface-registry'
+import { describeSurface, isReadySurfaceId, type SurfaceId } from '@poietica/workspace'
+import type { SurfaceRenderers } from './surface'
 import { surfaceIcon } from './surface-icons'
 
 export interface SurfaceHostProps {

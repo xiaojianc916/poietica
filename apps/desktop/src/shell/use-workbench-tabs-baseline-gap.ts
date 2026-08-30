@@ -1,5 +1,5 @@
+import type { WorkbenchTabId } from '@poietica/workspace'
 import { type RefObject, useLayoutEffect } from 'react'
-import type { WorkbenchTabId } from '../../workbench'
 
 interface UseWorkbenchTabsBaselineGapOptions {
   readonly stripRef: RefObject<HTMLDivElement | null>

@@ -35,13 +35,15 @@
 ## 现状与目标的差距
 
 `layering.ts` 已切到目标态环语义（contract / vocabulary / visual-vocabulary /
-agent-vocabulary / domain / adapter / surfaces / composition）。与目标 R0–R4 的
+agent-profiles / domain / adapter / surfaces / composition）。与目标 R0–R4 的
 已知偏差（登记在 `layering.ts` 头注释）：
 
-- `design-system` 单独成环且低于领域：`review`、`workspace` 的 store 持有
+- `design-system` 单独成环且低于领域：`review` 的 store 持有
   `SplitterActivity` 类型；
-- `agent-contract` / `agent-catalog` 是过渡的端口与档案词汇环，待并入各领域包后消失；
-- `workspace` 尚未拆出 `workspace-ui`；
+- agent 会话端口与词汇住在 `conversation` 的 `agent/` 目录（原过渡包
+  `agent-contract` 已删除）；`agent-catalog` 自成低环；
+- `workspace` 已拆分：领域（会话控制器/注册表/标签模型/布局数学）在包内且
+  零 React，外壳与停靠视图住在 `apps/desktop/src/shell`（组合根）；
 - `@poietica/desktop` 已退出宿主白名单：`native-bridge` 是全仓唯一
   `@tauri-apps/*` 手写使用者。
 

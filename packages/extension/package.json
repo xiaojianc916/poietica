@@ -11,8 +11,8 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/agent-contract": "workspace:*",
     "@poietica/contract": "workspace:*",
+    "@poietica/conversation": "workspace:*",
     "@poietica/problem": "workspace:*",
     "valibot": "catalog:",
     "yaml": "catalog:"

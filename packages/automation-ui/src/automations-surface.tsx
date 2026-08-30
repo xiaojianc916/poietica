@@ -1,4 +1,3 @@
-import type { SessionConfigControl } from '@poietica/agent-contract'
 import {
   type AutomationDraft,
   type AutomationStore,
@@ -7,6 +6,7 @@ import {
   draftOfTemplate,
   summarize,
 } from '@poietica/automation'
+import type { SessionConfigControl } from '@poietica/conversation'
 import { useMemo, useState, useSyncExternalStore } from 'react'
 
 import { AutomationEditor } from './automation-editor'

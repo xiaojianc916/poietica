@@ -1,4 +1,4 @@
-import type { RunEvent } from '@poietica/agent-contract'
+import type { RunEvent } from '@poietica/conversation'
 
 /*
  * 合成会话。

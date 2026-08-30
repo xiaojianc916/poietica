@@ -4,11 +4,10 @@ import {
   DelegateChannelPane,
   useDelegateChannelNames,
 } from '@poietica/conversation-ui'
-import { useWorkspaceLayoutState, workspaceLayoutStore } from '@poietica/workspace'
 import { GitBranch, PanelRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
-
 import { ConversationReviewPane } from '../review/review-pane'
+import { useWorkspaceLayoutState, workspaceLayoutStore } from '../shell/workspace-layout-store'
 import { browserPanelStore } from './browser-runtime'
 
 /*

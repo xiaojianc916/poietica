@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { WorkbenchTabId } from '../../workbench'
+import type { WorkbenchTabId } from './workbench'
 import {
   encodeWorkbenchTabDomId,
   resolveWorkbenchTabAutoScrollVelocity,

@@ -7,12 +7,6 @@ import type { MainWindowController } from '@poietica/native-bridge'
 import type { KeybindingCatalog, KeybindingEntry } from '@poietica/settings'
 import { type AppUpdateOperation, AppUpdateStore } from '@poietica/update'
 import type { CommandRegistry } from '@poietica/workspace'
-import {
-  CommandPalette,
-  formatKeybinding,
-  useCommandKeybindings,
-  workspaceLayoutStore,
-} from '@poietica/workspace'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { type ApplicationCommandContext, registerApplicationCommands } from '../app-commands'
 import { ThreadsProvider } from '../assistant/threads-provider'
@@ -27,6 +21,8 @@ import { UpdateCapsule } from '../updates/update-capsule'
 import { UpdateRow } from '../updates/update-row'
 import { ConversationCommands } from '../workbench/conversation-commands'
 import { type AppCapabilities, WorkspaceContainer } from '../workbench/workspace-container'
+import { CommandPalette, formatKeybinding, useCommandKeybindings } from './commands'
+import { workspaceLayoutStore } from './workspace-layout-store'
 
 /*
  * 开发构建不检查更新：开发跑的版本号来自工作区，任何已发布版本都比它新，结果是

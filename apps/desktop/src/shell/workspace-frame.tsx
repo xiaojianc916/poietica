@@ -1,5 +1,5 @@
+import { WORKSPACE_LAYOUT } from '@poietica/workspace'
 import type { CSSProperties, ReactNode } from 'react'
-import { WORKSPACE_LAYOUT } from './workspace-layout'
 import type { SplitterActivity, SplitterRegion } from './workspace-layout-store'
 
 import './workspace-shell.css'

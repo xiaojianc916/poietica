@@ -1,3 +1,12 @@
+import type { WorkbenchTabId, WorkbenchTabViewModel } from '@poietica/workspace'
+import {
+  resolveWorkbenchTabAutoScrollVelocity,
+  resolveWorkbenchTabCloseTarget,
+  resolveWorkbenchTabDragLayout,
+  resolveWorkbenchTabKeyboardAction,
+  type WorkbenchTabDragLayout,
+  type WorkbenchTabSlot,
+} from '@poietica/workspace'
 import {
   type KeyboardEvent,
   type PointerEvent,
@@ -7,15 +16,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../workbench'
-import {
-  resolveWorkbenchTabAutoScrollVelocity,
-  resolveWorkbenchTabCloseTarget,
-  resolveWorkbenchTabDragLayout,
-  resolveWorkbenchTabKeyboardAction,
-  type WorkbenchTabDragLayout,
-  type WorkbenchTabSlot,
-} from './workbench-tabs-model'
 
 /*
  * 重排是一次指针会话，不是 HTML5 拖放。拖放那套的缺陷不是调参能补的：落点只在标签本身

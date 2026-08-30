@@ -1,4 +1,4 @@
-import type { AgentSkill } from '@poietica/agent-contract'
+import type { AgentSkill } from '@poietica/conversation'
 import { Button, cn, Switch } from '@poietica/design-system'
 import {
   builtinServerRows,

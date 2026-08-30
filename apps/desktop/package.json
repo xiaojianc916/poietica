@@ -18,7 +18,6 @@
   "dependencies": {
     "@poietica/conversation": "workspace:*",
     "@poietica/agent-catalog": "workspace:*",
-    "@poietica/agent-contract": "workspace:*",
     "@poietica/automation": "workspace:*",
     "@poietica/automation-ui": "workspace:*",
     "@poietica/conversation-ui": "workspace:*",
@@ -45,6 +44,7 @@
     "react-dom": "catalog:",
     "react-grab": "catalog:",
     "shiki": "catalog:",
+    "valibot": "catalog:",
     "uuid": "catalog:"
   },
   "devDependencies": {

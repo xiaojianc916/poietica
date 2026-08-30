@@ -1,10 +1,10 @@
-import type { SessionConfigControl } from '@poietica/agent-contract'
 import {
   type Automation,
   type AutomationDraft,
   type AutomationStore,
   sameSessionConfig,
 } from '@poietica/automation'
+import type { SessionConfigControl } from '@poietica/conversation'
 import { ArrowLeftIcon, ConfirmationDialog, cn, PlayIcon } from '@poietica/design-system'
 import { type ReactNode, useMemo, useState } from 'react'
 import { AutomationRunHistory } from './automation-run-history'

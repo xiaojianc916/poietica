@@ -15,39 +15,30 @@ tools/architecture/README.md 各存一份手抄表，四份互相矛盾（本文
 不存在的 `test-kit` 列进 foundations，又漏掉一个真实存在的包），而唯一被
 执行的是那份配置。手抄表只会制造第二个真相。
 
-依赖只能指向更低层，同层互指必须在配置里逐条豁免。允许直连 `@tauri-apps/*` 的只有 `ipc`、
-`desktop-adapters` 与 `apps/desktop`。
+依赖只能指向更低层，同环互指一律禁止。允许直连 `@tauri-apps/*` 的只有生成物
+`@poietica/contract` 与 `@poietica/native-bridge`（判据是 layering.ts 的
+HOST_AWARE_PACKAGES）。
 
 ## 包边界的由来
 
 ### Wire 与领域模型的边界
 
-`agent-contract` 不以 transport 命名：它表达的是本产品的会话、线程、工具调用、
-审批和运行契约。只有 `kap.ts` 保存 KAP wire 直接给出的最小词汇；产品自己投影
-出来的工具调用形状放在 `tool-call.ts`，审批按钮放在 `permission.ts`。
+agent 会话的端口与线上词汇住在 `packages/conversation/src/agent/`：它表达的是
+本产品的会话、线程、工具调用、审批和运行契约，只有类型、没有实现——实现的唯一
+住所在 `@poietica/native-bridge`，由组合根注入。只有 `kap.ts` 保存 KAP wire
+直接给出的最小词汇；产品自己投影出来的工具调用形状放在 `tool-call.ts`，审批
+按钮放在 `permission.ts`。
 
 因此只有 wire-issued 标识和事件保留 `Kap*` 前缀。本地的 `ToolKind`、
 `ToolCallUpdate` 不冒充协议类型，也不提供旧名称别名。
 
-三份真实录像住在 `agent-contract/src/recordings/`，由 `./recordings` 子路径公开。它们
-证明的是「协议实际发出了什么」，不止一个包要靠它们证明自己的投影忠实 —— 所以它们跟
-协议走，不跟第一个读到它们的包走。把 wire 值收窄成 `RunEvent` 的那句 cast 曾在三个
-测试文件里各抄一遍，现在是 `asRunEvents` 一处。手写样本不在其中：它是插图不是证据，
-留在用得到它的包的 `__fixtures__/sample-run.ts` 里，而读它的替身已经从公共入口撤下 ——
-一个测试替身挂在主入口上、还把夹具当缺省参数，是产品代码通往 78KB 录像的一条边。
-
-`agent` 是 `agent-timeline` 与 `agent-session` 合并来的。这条边按历史切：
-`timeline/` 把 kap 事件投影成可渲染的时间线，`session/` 在它上面管线程、转录与
-可调项 —— 同一条管线的前后两段，前一段的类型就是后一段的输入。分成两个包唯一的
-产物是分层表里的一条同层豁免，而那条豁免的理由逐字写着「同一条管线的两段」：
-豁免本身就是「这道边界表达不了这条关系」的自白。工作区只有一个应用，它本来就同时
-依赖两侧，所以这道包边界从未决定过任何产物的字节数，只决定过谁能 import 谁。
-
-两侧的目录边界留在包内，而且比原来更硬：`timeline/` 至今一行 React 都没有。这件事
-此前靠一份没写 react 的 manifest 守着，现在由 `timeline-projection-stays-pure` 守着 ——
-后者连测试文件一起管，而 manifest 管不到 devDependencies 里已经装了 react 的包。Zed 的
-`acp_thread` 与 codex-rs 的 `thread-store` 是同一种摆法：投影与状态同住一处，纯的那
-一半靠目录隔开。
+`conversation` 内部的目录边界比包边界更硬：`timeline/` 把 kap 事件投影成可渲染
+的时间线，`session/` 在它上面管线程、转录与可调项，`agent/` 只有类型 ——
+同一条管线的前后两段，前一段的类型就是后一段的输入，目录就是它们之间的界。
+`timeline/` 至今一行 React 都没有，这件事由 layering.ts 的
+framework-free-vocabulary 守着（覆盖全部领域包，连测试文件一起管）。Zed 的
+`acp_thread` 与 codex-rs 的 `thread-store` 是同一种摆法：投影与状态同住一处，
+纯的那一半靠目录隔开。
 
 `agent-catalog` 是 `agent-registry` 与 `agent-providers` 合并来的。那条边按历史切，
 不按职责：两边都以 agentId 定址、都开了同名的每家子目录、注释互相引用对方的

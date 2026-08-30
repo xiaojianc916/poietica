@@ -1,7 +1,6 @@
+import { describeSurface, type SurfaceIconId, type SurfaceId } from '@poietica/workspace'
 import { AlarmClock, HatGlasses, Search, SquarePen, Unplug } from 'lucide-react'
 import type { ComponentType } from 'react'
-
-import { describeSurface, type SurfaceIconId, type SurfaceId } from '../surface-registry'
 
 /**
  * iconId 到组件的唯一映射。

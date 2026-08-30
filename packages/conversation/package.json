@@ -10,10 +10,7 @@
     "test": "bun test src",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
-  "dependencies": {
-    "@poietica/agent-contract": "workspace:*",
-    "@poietica/workspace": "workspace:*"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/bun": "catalog:",
     "typescript": "catalog:"

@@ -2,10 +2,10 @@
  * 分层表：环序即依赖方向 —— 只允许高环指向低环，同环之间不许有边。
  *
  * 环语义对齐目标态（Architecture/poietica-architecture/LAYERS.md 的 R0–R4）；
- * 与目标表的已知偏差，均登记在案：design-system 单独成环且低于领域（review 与
- * workspace 的 store 持有 SplitterActivity 类型）；agent-contract /
- * agent-catalog 作为端口与档案词汇单独成环，待并入各领域包后消失；workspace
- * 尚未拆出 workspace-ui。
+ * 与目标表的已知偏差，均登记在案：design-system 单独成环且低于领域（review 的
+ * store 持有 SplitterActivity 类型）。agent 会话端口与词汇住在 conversation 的
+ * agent/ 目录；agent-catalog 是纯数据档案，自成低环供各领域与表面消费；工作台
+ * 的外壳与停靠视图住在 apps/desktop/src/shell（组合根）。
  */
 
 export type Ring = { readonly name: string; readonly members: readonly string[] }
@@ -14,7 +14,7 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
   { name: 'contract', members: ['@poietica/contract'] },
   { name: 'vocabulary', members: ['@poietica/problem', '@poietica/external-store'] },
   { name: 'visual-vocabulary', members: ['@poietica/design-system'] },
-  { name: 'agent-vocabulary', members: ['@poietica/agent-contract', '@poietica/agent-catalog'] },
+  { name: 'agent-profiles', members: ['@poietica/agent-catalog'] },
   {
     name: 'domain',
     members: [
@@ -25,6 +25,7 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
       '@poietica/review',
       '@poietica/settings',
       '@poietica/update',
+      '@poietica/workspace',
     ],
   },
   { name: 'adapter', members: ['@poietica/native-bridge'] },
@@ -37,7 +38,6 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
       '@poietica/extension-ui',
       '@poietica/settings-ui',
       '@poietica/review-ui',
-      '@poietica/workspace',
     ],
   },
   { name: 'composition', members: ['@poietica/desktop'] },
@@ -89,7 +89,6 @@ export const FRAMEWORK_FREE_PACKAGES: readonly string[] = [
   '@poietica/contract',
   '@poietica/problem',
   '@poietica/external-store',
-  '@poietica/agent-contract',
   '@poietica/agent-catalog',
   '@poietica/conversation',
   '@poietica/automation',
@@ -98,6 +97,7 @@ export const FRAMEWORK_FREE_PACKAGES: readonly string[] = [
   '@poietica/review',
   '@poietica/settings',
   '@poietica/update',
+  '@poietica/workspace',
 ]
 
 export const FRAMEWORK_SPECIFIERS: readonly string[] = ['react', 'react-dom', 'react/jsx-runtime']

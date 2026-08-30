@@ -1,4 +1,4 @@
-import type { WorkbenchTabId } from '../../workbench'
+import type { WorkbenchTabId } from './workbench'
 
 export interface WorkbenchTabModelItem {
   readonly id: WorkbenchTabId

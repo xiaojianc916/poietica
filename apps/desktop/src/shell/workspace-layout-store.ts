@@ -1,10 +1,9 @@
 import type { SplitterActivity } from '@poietica/design-system'
 import { createExternalStore, createPreference } from '@poietica/external-store'
 import { warn } from '@poietica/problem'
+import { WORKSPACE_LAYOUT } from '@poietica/workspace'
 import { useSyncExternalStore } from 'react'
 import * as v from 'valibot'
-
-import { WORKSPACE_LAYOUT } from './workspace-layout'
 
 export type { SplitterActivity }
 

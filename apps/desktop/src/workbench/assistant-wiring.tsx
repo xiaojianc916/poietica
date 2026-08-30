@@ -3,10 +3,10 @@ import { ComposerDrafts, ComposerDraftsContext, useAgentControls } from '@poieti
 import { PluginsSurface } from '@poietica/extension-ui'
 import { type CustomAgentStore, PersonalizationStore } from '@poietica/settings'
 import { PersonalizationSurface } from '@poietica/settings-ui'
-import type { SurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'
 import { AutomationsView } from '../automations/automations-view'
 import { pluginStore } from '../plugins/plugin-runtime'
+import type { SurfaceRenderers } from '../shell/surface'
 import { AssistantPane } from './assistant-pane'
 
 /**
@@ -75,8 +75,8 @@ export function createAssistantWiring({
       ai: () => renderAssistant(),
 
       /*
-       * 自动化那一格。渲染器现在是全域 Record（见 @poietica/workspace 的
-       * surface.ts）：注册表里登记了 automations，这里就必须交出一条，
+       * 自动化那一格。渲染器现在是全域 Record（见 app shell 的 surface.ts）：
+       * 注册表里登记了 automations，这里就必须交出一条，
        * 漏掉是编译错误而不是一张空态图。
        */
       automations: () => <AutomationsView />,

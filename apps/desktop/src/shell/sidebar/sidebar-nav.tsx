@@ -1,5 +1,5 @@
 import { cn } from '@poietica/design-system'
-import { describeSurface, SURFACE_NAVIGATION_ORDER, type SurfaceId } from '../../surface-registry'
+import { describeSurface, SURFACE_NAVIGATION_ORDER, type SurfaceId } from '@poietica/workspace'
 import { type SurfaceIcon, surfaceIcon } from '../surface-icons'
 
 export interface SidebarNavProps {

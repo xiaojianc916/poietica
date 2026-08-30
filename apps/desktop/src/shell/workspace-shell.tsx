@@ -1,9 +1,8 @@
 import { TooltipProvider } from '@poietica/design-system'
-
-import type { WorkspaceShellProps } from '../shell-contract'
+import { encodeWorkbenchTabDomId } from '@poietica/workspace'
 import { BrowserRegion } from './browser-region'
+import type { WorkspaceShellProps } from './shell-contract'
 import { SidebarRegion } from './sidebar/sidebar-region'
-import { encodeWorkbenchTabDomId } from './workbench-tabs/workbench-tabs-model'
 import { WorkspaceFrame } from './workspace-frame'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layout-store'
 

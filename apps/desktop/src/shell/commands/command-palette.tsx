@@ -4,9 +4,8 @@ import {
   type CommandMenuItem,
   Dialog,
 } from '@poietica/design-system'
+import type { CommandRegistry, RegisteredCommand } from '@poietica/workspace'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import type { RegisteredCommand } from '../command-contract'
-import type { CommandRegistry } from '../command-registry'
 import { formatKeybinding } from './keybinding'
 
 /*

@@ -309,7 +309,7 @@
       }
     },
     {
-      "includes": ["packages/workspace/src/shell/sidebar/sidebar-footer.tsx"],
+      "includes": ["apps/desktop/src/shell/sidebar/sidebar-footer.tsx"],
       "linter": {
         "rules": {
           "a11y": {
@@ -319,7 +319,7 @@
       }
     },
     {
-      "includes": ["packages/workspace/src/shell/workbench-tabs/workbench-tab.tsx"],
+      "includes": ["apps/desktop/src/shell/workbench-tab.tsx"],
       "linter": {
         "rules": {
           "a11y": {
@@ -340,8 +340,8 @@
     },
     {
       "includes": [
-        "packages/workspace/src/shell/workbench-tabs/use-workbench-tabs-baseline-gap.ts",
-        "packages/workspace/src/shell/workbench-tabs/use-workbench-tabs-viewport.ts"
+        "apps/desktop/src/shell/use-workbench-tabs-baseline-gap.ts",
+        "apps/desktop/src/shell/use-workbench-tabs-viewport.ts"
       ],
       "linter": {
         "rules": {
