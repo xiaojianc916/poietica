@@ -1,6 +1,6 @@
 import { Menu } from '@base-ui/react/menu'
 import type { ComponentProps } from 'react'
-import { cn } from './class-names'
+import { cn } from '../class-names'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
 export const DropdownMenu = Menu.Root

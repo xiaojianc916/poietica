@@ -1,6 +1,6 @@
 import { Tooltip } from '@base-ui/react/tooltip'
 import type { ComponentProps } from 'react'
-import { cn } from './class-names'
+import { cn } from '../class-names'
 import { popupPositionerClassName } from './popup-surface'
 
 /*

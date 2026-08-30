@@ -1,5 +1,5 @@
 import type { ComponentPropsWithRef } from 'react'
-import { cn } from './class-names'
+import { cn } from '../class-names'
 
 /*
  * 变体表。不出这个文件：它是 Button 表达自己的方式，不是供人拼 class 的公共资产。

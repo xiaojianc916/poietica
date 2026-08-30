@@ -51,7 +51,7 @@
  * z-index（CSS Grid Layout「Z-axis Ordering」），所以压过主区不必脱离文档流。
  *
  * 厚度画在 border 上而不是 1px 宽的背景盒上：Chromium 把边框吸附到设备像素边界
- * （见 packages/design-system/src/styles/tokens/controls.css），非整数显示缩放下只有这一种
+ * （见 packages/design-system/src/tokens/controls.css），非整数显示缩放下只有这一种
  * 画法的设备像素数是确定的。
  *
  * 强调态读根节点的 data-splitter，不读 :hover / :active：拖拽走 setPointerCapture，

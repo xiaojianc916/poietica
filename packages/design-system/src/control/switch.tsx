@@ -1,6 +1,6 @@
 import { Switch as BaseSwitch } from '@base-ui/react/switch'
 import type { ComponentProps } from 'react'
-import { cn } from './class-names'
+import { cn } from '../class-names'
 
 export type SwitchSize = 'sm' | 'md'
 

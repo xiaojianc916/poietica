@@ -1,10 +1,12 @@
 /// <reference path="./css.d.ts" />
 
-export { Button } from './button'
+/* 包的公开面。显式罗列而不是 export *：谁在用什么必须一眼可见。 */
+
 export { cn } from './class-names'
-export { CommandMenu, type CommandMenuGroup, type CommandMenuItem } from './command-menu'
-export { ConfirmationDialog } from './confirmation-dialog'
-export { Dialog } from './dialog'
+export { Button } from './control/button'
+export { CommandMenu, type CommandMenuGroup, type CommandMenuItem } from './control/command-menu'
+export { ConfirmationDialog } from './control/confirmation-dialog'
+export { Dialog } from './control/dialog'
 export {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,25 +17,25 @@ export {
   DropdownMenuRadioItemIndicator,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from './dropdown-menu'
-export { ErrorState, InlineSpinner, LoadingState } from './feedback'
-export { FileTypeMark } from './file-type-mark'
-export { integrationMarkFor } from './integration-mark'
-export { ArrowLeftIcon, GithubMark, PlayIcon } from './local-glyphs'
-export { PixelLoader } from './pixel-loader'
-export { popupSurfaceClassName } from './popup-surface'
-export {
-  RegionSplitter,
-  type SplitterActivity,
-} from './region-splitter'
-export { Select, type SelectOption } from './select'
-export { Switch } from './switch'
-export { applyThemePreference } from './theme-controller'
-export { ToastRegion } from './toast'
+} from './control/dropdown-menu'
+export { ErrorState, InlineSpinner, LoadingState } from './control/feedback'
+export { popupSurfaceClassName } from './control/popup-surface'
+export { Select, type SelectOption } from './control/select'
+export { Switch } from './control/switch'
+export { ToastRegion } from './control/toast'
 export {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from './tooltip'
+} from './control/tooltip'
+export {
+  RegionSplitter,
+  type SplitterActivity,
+} from './layout/region-splitter'
+export { FileTypeMark } from './mark/file-type-mark'
+export { integrationMarkFor } from './mark/integration-mark'
+export { ArrowLeftIcon, GithubMark, PlayIcon } from './mark/local-glyphs'
+export { PixelLoader } from './mark/pixel-loader'
+export { applyThemePreference } from './theme/theme-controller'
 export { type CopyAction, useCopy } from './use-copy'

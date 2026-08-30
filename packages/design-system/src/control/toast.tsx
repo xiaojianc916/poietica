@@ -1,6 +1,6 @@
 import './toast.css'
 import { CircleAlert } from 'lucide-react'
-import { cn } from './class-names'
+import { cn } from '../class-names'
 export interface ToastNotice {
   readonly id: string
   readonly title: string

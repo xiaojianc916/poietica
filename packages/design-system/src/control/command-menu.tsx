@@ -1,6 +1,6 @@
 import { Combobox as BaseCombobox } from '@base-ui/react/combobox'
 import { Search } from 'lucide-react'
-import { cn } from './class-names'
+import { cn } from '../class-names'
 
 export interface CommandMenuItem {
   readonly value: string

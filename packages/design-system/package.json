@@ -8,7 +8,7 @@
   ],
   "exports": {
     ".": "./src/index.ts",
-    "./styles.css": "./src/styles/index.css"
+    "./styles.css": "./src/styles.css"
   },
   "scripts": {
     "test": "bun test src",

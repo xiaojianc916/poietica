@@ -7,7 +7,7 @@ const MIN_DWELL_MS = 4_000
 const MAX_DWELL_MS = 12_000
 const MS_PER_CHARACTER = 90
 /*
- * 退场动画时长。正本是 --ui-duration-fast（packages/design-system/src/styles/tokens/motion.css）。
+ * 退场动画时长。正本是 --ui-duration-fast（packages/design-system/src/tokens/motion.css）。
  */
 const CLOSING_MS = 120
 export type NoticePauseReason = 'hover' | 'hidden'

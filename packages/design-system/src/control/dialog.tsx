@@ -1,8 +1,8 @@
 import { Dialog as BaseDialog } from '@base-ui/react/dialog'
 import { X } from 'lucide-react'
 import { type ReactNode, useRef } from 'react'
+import { cn } from '../class-names'
 import { Button } from './button'
-import { cn } from './class-names'
 
 export interface DialogProps {
   readonly open: boolean
