@@ -2,7 +2,7 @@
 
 use crate::error::Error;
 use crate::local_index::LocalIndex;
-use poietica_agent_runtime_native::{AgentClient, ConfigControl, ConfigPurpose, select_config};
+use poietica_kap_client::{AgentClient, ConfigControl, ConfigPurpose, select_config};
 use tauri::{AppHandle, Emitter, State};
 
 use super::addressing::session_for;

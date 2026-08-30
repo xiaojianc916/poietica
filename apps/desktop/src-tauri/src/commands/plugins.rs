@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use poietica_plugin_host_native as host;
+use poietica_extension_native as extension;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, command};
@@ -108,7 +108,7 @@ pub struct ForeignPluginRecord {
 /// 这句话没有落点。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ForeignPluginLedger {
+pub struct ForeignPluginInventory {
     pub location: String,
     pub plugins: Vec<ForeignPluginRecord>,
 }
@@ -153,7 +153,7 @@ pub(crate) fn staging_root(app: &AppHandle) -> Result<PathBuf> {
 /// 标识符来自渲染层解码出来的清单，在拼路径的这一处验，而不是指望每个调用点自己
 /// 记得验 —— 这是唯一一个把它变成路径的地方。
 fn managed_directory(app: &AppHandle, plugin_id: &str) -> Result<PathBuf> {
-    if !host::is_safe_segment(plugin_id) {
+    if !extension::is_safe_segment(plugin_id) {
         return Err(Error::Validation(format!(
             "不是合法的插件标识符：{plugin_id}"
         )));
@@ -162,8 +162,8 @@ fn managed_directory(app: &AppHandle, plugin_id: &str) -> Result<PathBuf> {
     Ok(store_root(app)?.join(MANAGED_DIRECTORY).join(plugin_id))
 }
 
-fn ledger(app: &AppHandle) -> Result<host::PluginLedger> {
-    Ok(host::PluginLedger::new(record_file(app)?))
+fn ledger(app: &AppHandle) -> Result<extension::PluginInventory> {
+    Ok(extension::PluginInventory::new(record_file(app)?))
 }
 
 pub(crate) async fn download(url: &str) -> Result<Vec<u8>> {
@@ -192,7 +192,7 @@ pub(crate) async fn download(url: &str) -> Result<Vec<u8>> {
 /// 丢弃一份失败的暂存。丢弃本身再失败也不能盖掉真正的原因，所以只进日志。
 ///
 /// `discard` 拿走所有权：丢掉的那一份不该再被碰。
-pub(crate) fn discard_failed(staging: host::Staging) {
+pub(crate) fn discard_failed(staging: extension::Staging) {
     if let Err(cleanup) = staging.discard() {
         log::warn!("could not discard a failed staging directory: {cleanup}");
     }
@@ -207,19 +207,23 @@ pub(crate) async fn staged_fetch<T>(
     app: &AppHandle,
     fetch: PluginFetch,
     failure: impl Fn(String) -> Error,
-    locate: impl FnOnce(&host::Staging, Option<&str>) -> Result<T>,
+    locate: impl FnOnce(&extension::Staging, Option<&str>) -> Result<T>,
 ) -> Result<T> {
     let bytes = match &fetch {
         PluginFetch::Archive { url, .. } => Some(download(url).await?),
         PluginFetch::Directory { .. } => None,
     };
 
-    let staging =
-        host::Staging::create(&staging_root(app)?).map_err(|cause| failure(cause.to_string()))?;
+    let staging = extension::Staging::create(&staging_root(app)?)
+        .map_err(|cause| failure(cause.to_string()))?;
 
     let filled = match (&fetch, bytes.as_deref()) {
-        (PluginFetch::Directory { path }, _) => host::copy_tree(Path::new(path), staging.path()),
-        (PluginFetch::Archive { .. }, Some(payload)) => host::extract_zip(payload, staging.path()),
+        (PluginFetch::Directory { path }, _) => {
+            extension::copy_tree(Path::new(path), staging.path())
+        }
+        (PluginFetch::Archive { .. }, Some(payload)) => {
+            extension::extract_zip(payload, staging.path())
+        }
         (PluginFetch::Archive { url, .. }, None) => {
             return Err(failure(format!("no bytes for {url}")));
         }
@@ -245,11 +249,16 @@ pub(crate) async fn staged_fetch<T>(
 }
 
 /// 暂存目录填好了，读出清单原文交回去。读不出来就报错，丢弃由 staged_fetch 统一负责。
-fn finish_staging(staging: &host::Staging, subdirectory: Option<&str>) -> Result<PluginStaged> {
+fn finish_staging(
+    staging: &extension::Staging,
+    subdirectory: Option<&str>,
+) -> Result<PluginStaged> {
     let staging_id = staging.identifier().to_owned();
 
-    host::locate_root(staging.path(), subdirectory)
-        .and_then(|root| host::manifest_in(&root).ok_or(host::HostError::ManifestMissing))
+    extension::locate_root(staging.path(), subdirectory)
+        .and_then(|root| {
+            extension::manifest_in(&root).ok_or(extension::ExtensionError::ManifestMissing)
+        })
         .map_err(plugin_failure)
         .and_then(|manifest| fs::read_to_string(manifest).map_err(Error::from))
         .map(|manifest_json| PluginStaged {
@@ -269,7 +278,7 @@ pub async fn plugins_list(app: AppHandle) -> PluginsCommandResult<Vec<PluginPayl
     (|| -> Result<Vec<PluginPayload>> {
         let mut found = Vec::new();
         for entry in ledger(&app)?.installed().map_err(plugin_failure)? {
-            let manifest_json = host::manifest_in(&entry.root)
+            let manifest_json = extension::manifest_in(&entry.root)
                 .and_then(|path| fs::read_to_string(path).ok())
                 .unwrap_or_default();
             found.push(PluginPayload {
@@ -303,14 +312,14 @@ pub async fn plugins_list(app: AppHandle) -> PluginsCommandResult<Vec<PluginPayl
 #[specta::specta]
 pub async fn plugins_foreign_list(
     app: AppHandle,
-) -> PluginsCommandResult<Option<ForeignPluginLedger>> {
-    (|| -> Result<Option<ForeignPluginLedger>> {
+) -> PluginsCommandResult<Option<ForeignPluginInventory>> {
+    (|| -> Result<Option<ForeignPluginInventory>> {
         let Some(home) = own_home_directory(&app)? else {
             return Ok(None);
         };
         let path = home.join(PLUGINS_DIRECTORY).join(RECORD_FILE);
         let location = path.to_string_lossy().into_owned();
-        let plugins = host::PluginLedger::new(path)
+        let plugins = extension::PluginInventory::new(path)
             .references()
             .map_err(plugin_failure)?
             .into_iter()
@@ -319,7 +328,7 @@ pub async fn plugins_foreign_list(
                 original_source: entry.original_source,
             })
             .collect();
-        Ok(Some(ForeignPluginLedger { location, plugins }))
+        Ok(Some(ForeignPluginInventory { location, plugins }))
     })()
     .map_err(Problem::from)
 }
@@ -346,16 +355,16 @@ pub async fn plugins_commit(
     request: PluginCommitRequest,
 ) -> PluginsCommandResult<()> {
     (|| -> Result<()> {
-        let staging = host::Staging::open(&staging_root(&app)?, &request.staging_id)
+        let staging = extension::Staging::open(&staging_root(&app)?, &request.staging_id)
             .map_err(plugin_failure)?;
-        let root = host::locate_root(staging.path(), request.subdirectory.as_deref())
+        let root = extension::locate_root(staging.path(), request.subdirectory.as_deref())
             .map_err(plugin_failure)?;
         let destination = managed_directory(&app, &request.plugin_id)?;
         staging
             .promote(&root, &destination)
             .map_err(plugin_failure)?;
         ledger(&app)?
-            .upsert(host::PluginInstall {
+            .upsert(extension::PluginInstall {
                 plugin_id: request.plugin_id,
                 root: destination,
                 source: request.source,
@@ -371,8 +380,8 @@ pub async fn plugins_commit(
 #[specta::specta]
 pub async fn plugins_discard(app: AppHandle, staging_id: String) -> PluginsCommandResult<()> {
     (|| -> Result<()> {
-        host::Staging::open(&staging_root(&app)?, &staging_id)
-            .and_then(host::Staging::discard)
+        extension::Staging::open(&staging_root(&app)?, &staging_id)
+            .and_then(extension::Staging::discard)
             .map_err(plugin_failure)
     })()
     .map_err(Problem::from)
@@ -432,7 +441,7 @@ pub async fn plugins_set_mcp_enabled(
 #[specta::specta]
 pub async fn plugins_catalog_read(app: AppHandle) -> PluginsCommandResult<Option<String>> {
     (|| -> Result<Option<String>> {
-        host::read_optional(&marketplace_catalog(&app)?).map_err(plugin_failure)
+        extension::read_optional(&marketplace_catalog(&app)?).map_err(plugin_failure)
     })()
     .map_err(Problem::from)
 }
@@ -451,7 +460,7 @@ pub async fn plugins_catalog_refresh(app: AppHandle, url: String) -> PluginsComm
 
     fetched
         .and_then(|contents| {
-            host::write_atomic(&marketplace_catalog(&app)?, &contents)
+            extension::write_atomic(&marketplace_catalog(&app)?, &contents)
                 .map_err(plugin_failure)
                 .map(|()| contents)
         })

@@ -257,7 +257,7 @@ pub async fn agent_cli_exec(
     //
     // 这也是「路径不能写死」的答案：解析用的是运行这台机器的 PATH 与
     // PATHEXT，agents.json 里换成绝对路径也照样原样通过。
-    let resolved = poietica_agent_runtime_native::resolve_program(&program)
+    let resolved = poietica_kap_client::resolve_program(&program)
         .map_err(|_searched| missing_program(&program))
         .map_err(Problem::from)?;
 
@@ -310,7 +310,7 @@ pub async fn agent_cli_exec(
             command.env("no_proxy", "127.0.0.1,localhost");
         }
 
-        poietica_agent_runtime_native::hide_console(&mut command);
+        poietica_kap_client::hide_console(&mut command);
 
         if !request.secret_var.is_empty() && !secret.is_empty() {
             command.env(&request.secret_var, &secret);

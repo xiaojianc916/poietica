@@ -1,26 +1,59 @@
 # Rust Crate 分层
 
-工作区成员见根 `Cargo.toml`。四个 crate 加一个组合根，依赖单向向下。
+工作区成员见根 `Cargo.toml`。分层表的可执行裁决在
+`tools/architecture/layering.ts`（`bun run test:architecture`）；本页是人读副本。
 
-## crates/agent-runtime — `poietica-agent-runtime-native`
+## crates/problem — `poietica-problem`（词汇环）
 
-拥有 agent 进程的驱动：会话生命周期、运行槽、权限请求、帧编解码、
-事件记录与 stderr 归集。
+跨边界错误词汇：Problem 结构、分类、脱敏表。
 
-- 依赖 `reqwest`、`tokio-tungstenite`、`futures`、`serde`、`serde_json`、
-  `thiserror`、`uuid`、`which`。
+## crates/time — `poietica-time`（词汇环）
+
+注入式时钟：WallClock / TestClock。
+
+## crates/asset — `poietica-asset`（领域环）
+
+附件与内容寻址：摘要、格式判定表、资产注册表、处置顺序。
+
+## crates/conversation — `poietica-conversation`（领域环）
+
+会话领域：事件联合、轮次状态机、准入/投递/取消不变量、链路态词汇。
+无 IO、无运行时、无协议类型。
+
+## crates/review — `poietica-review-native`（领域环）
+
+审查面领域：变更清单、快照、提交意图，以及 porcelain v2 记录的纯解码。
+零依赖。
+
+## crates/kap-client — `poietica-kap-client`（适配环）
+
+KAP 协议适配：`generated/`（自 contracts/kap 快照生成，禁手改）、子进程与
+实例注册表（process/）、拨号握手重连（connection/）、REST 调用面与事件路由
+（session/）、帧的形状与翻译（frame.rs、translate.rs）、审批与提问两张桌子
+（interaction/）。
+
+- 依赖 `poietica-conversation` 与 `reqwest`、`tokio-tungstenite`、`futures`、
+  `toml_edit`、`which` 等。
 - **不依赖 `tauri`**，可用普通 `cargo test` 单独测试。
 
-## crates/persistence — `poietica-agent-persistence-native`
+## crates/ledger — `poietica-ledger`（适配环）
 
-拥有本地 SQLite 存储：连接管理、迁移、schema 与线程记录。
+本地 SQLite 账本：连接与事务、迁移（只追加）、追加/分页读、投影表。
 
-- 依赖 `rusqlite`、`serde`、`serde_json`、`time`、`uuid`、`log`。
+## crates/git-adapter — `poietica-git-adapter-native`（适配环）
+
+git 命令适配：分支快照与切换、审查面的执行编排、工作树监视（watch.rs）。
+外调 git CLI 而不是 libgit2 —— 分支状态的唯一真相是磁盘上的仓库，只有 git
+自己的回答永远与用户在终端里看到的一致。审查面的领域类型与 porcelain 解码
+在 `crates/review`，这里只执行与拼装。
+
+- 依赖 `poietica-review-native`、`thiserror`、`tokio`、`notify`。
 - **不依赖 `tauri`**。
 
-## crates/plugin-host — `poietica-plugin-host-native`
+## crates/extension — `poietica-extension-native`（适配环）
 
-拥有插件字节落到磁盘上的那一段：归档解压、目录拷贝、暂存区的开与认领、原子写。
+扩展（插件与技能）字节落到磁盘上的那一段：归档解压、目录拷贝、暂存区的开与
+认领、原子写、安装盘点（installed.json）。
 
 - 依赖 `tempfile`、`thiserror`、`uuid`、`walkdir`、`zip`。
 - **不依赖 `tauri`**。
@@ -28,14 +61,9 @@
   `decodePluginManifest`，原生再解析一遍就会有两套规则 —— 所以这个 crate 交出去
   的是路径与原文，命令层递上来的也是字节与路径。
 
-## crates/git — `poietica-git-native`
+## crates/browser、crates/update — `poietica-browser-native`、`poietica-update-native`（适配环）
 
-拥有对一个工作目录的 git 分支问答与操作：仓库检测、分支清单、切换、创建并检出。
-外调 git CLI 而不是 libgit2 —— 分支状态的唯一真相是磁盘上的仓库，只有 git 自己
-的回答永远与用户在终端里看到的一致。
-
-- 依赖 `thiserror`、`tokio`。
-- **不依赖 `tauri`**。
+内嵌浏览的拾取协议与发布通道的清单/签名判据。均**不依赖 `tauri`**。
 
 ## apps/desktop/src-tauri — `poietica`
 
@@ -44,7 +72,8 @@
 
 ## 规则
 
-- native crate 都不得依赖 `tauri`，也不得互相依赖。
+- native crate 都不得依赖 `tauri`；领域环（review、conversation、asset）之外
+  才允许依赖 IO。
 - 命令函数是薄封装，业务分支应下沉到 native crate。
 - 领域实体定义在 native crate，不在 `src-tauri`。
 - 每个 crate 都必须写 `[lints] workspace = true`，否则工作区的
@@ -56,8 +85,8 @@
 `agent_setup/install.rs` 远超"薄封装"的规模，业务分支尚未下沉到 native crate。
 这些偏差没有机器执行的闸门，只靠评审。
 
-上面「规则」一节的四条，目前有三条由 `bun run test:architecture` 的
-`native-crates-stay-host-agnostic` 执行：不依赖 `tauri`、互不依赖、必须写
-`[lints] workspace = true`。第四条「领域实体定义在 native crate，不在
-`src-tauri`」**没有机器执行** —— 它需要语义分析，不是正则或清单判得出来的，
-所以这里不假装它被守住了。「命令函数是薄封装」同理。
+上面「规则」一节的执行情况：不依赖 `tauri`、必须写
+`[lints] workspace = true` 由 `bun run test:architecture` 的
+`native-crates-stay-host-agnostic` 执行。「领域实体定义在 native crate，不在
+`src-tauri`」与「命令函数是薄封装」**没有机器执行** —— 它们需要语义分析，
+所以这里不假装它们被守住了。

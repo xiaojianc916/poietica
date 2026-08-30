@@ -38,10 +38,10 @@ thiserror.workspace = true
 time = { workspace = true, features = ["formatting", "parsing"] }
 toml_edit.workspace = true
 uuid.workspace = true
-poietica-agent-runtime-native = { path = "../../../crates/agent-runtime" }
+poietica-kap-client = { path = "../../../crates/kap-client" }
 poietica-asset = { path = "../../../crates/asset" }
 poietica-browser-native = { path = "../../../crates/browser" }
-poietica-git-native = { path = "../../../crates/git" }
+poietica-git-adapter-native = { path = "../../../crates/git-adapter" }
 
 # 除 opener 外，这份清单与 bootstrap/app.rs 里注册的插件一一对应。
 #
@@ -77,7 +77,7 @@ tauri-specta.workspace = true
 tokio.workspace = true
 poietica-conversation = { path = "../../../crates/conversation" }
 poietica-ledger = { path = "../../../crates/ledger" }
-poietica-plugin-host-native = { path = "../../../crates/plugin-host" }
+poietica-extension-native = { path = "../../../crates/extension" }
 poietica-problem = { path = "../../../crates/problem" }
 poietica-time = { path = "../../../crates/time" }
 poietica-update-native = { path = "../../../crates/update" }

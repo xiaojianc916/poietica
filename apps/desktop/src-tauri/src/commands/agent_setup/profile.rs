@@ -20,7 +20,7 @@
 
 use crate::error::{Error, Result};
 use crate::paths::{agent_home, agents_store};
-use poietica_agent_runtime_native::{
+use poietica_kap_client::{
     alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
     usable_default_model,
 };

@@ -22,7 +22,6 @@ import { tabNeighbors } from '../app-commands'
 import { useThreadsActions } from '../assistant/threads-context'
 import { BrowserDock } from '../browser/browser-dock'
 import { browserPanelStore } from '../browser/browser-runtime'
-import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/desktop-title-bar'
 import {
   SidebarFooter,
   SurfaceHost,
@@ -33,6 +32,7 @@ import {
   workspaceLayoutStore,
 } from '../shell'
 import type { WorkspaceParts, WorkspaceShellActions } from '../shell/shell-contract'
+import { type ActiveTabSequence, DesktopTitleBar } from '../window/desktop-title-bar'
 import { AssistantSidebarPanel } from './assistant-sidebar-panel'
 import { createAssistantWiring } from './assistant-wiring'
 import { ConversationHeader } from './conversation-header'

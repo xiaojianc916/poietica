@@ -10,11 +10,11 @@ use std::sync::mpsc;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use poietica_agent_runtime_native::{AgentClient, PromptAttachment, PromptSkill};
 use poietica_conversation::error::GatewayFailure;
 use poietica_conversation::ports::{AgentGateway, DeliveryReceipt, PromptDelivery};
 use poietica_conversation::turn::delivery::DeliveryOutcome;
 use poietica_conversation::turn::{Admission, AttachmentRef};
+use poietica_kap_client::{AgentClient, PromptAttachment, PromptSkill};
 use tauri::async_runtime;
 use uuid::Uuid;
 

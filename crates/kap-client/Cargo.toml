@@ -7,9 +7,24 @@ license.workspace = true
 publish = false
 
 [dependencies]
+poietica-conversation = { path = "../conversation" }
+
+futures.workspace = true
+log.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+toml_edit.workspace = true
+uuid.workspace = true
+which.workspace = true
+
+[dev-dependencies]
+# live_turn 集成测试用 home_dir() 定位这台机器上真实的 kimi home。
+dirs.workspace = true
 
 [lints]
 workspace = true

@@ -16,8 +16,8 @@ pub struct GitBranches {
     pub branches: Vec<String>,
 }
 
-impl From<poietica_git_native::BranchSnapshot> for GitBranches {
-    fn from(snapshot: poietica_git_native::BranchSnapshot) -> Self {
+impl From<poietica_git_adapter_native::BranchSnapshot> for GitBranches {
+    fn from(snapshot: poietica_git_adapter_native::BranchSnapshot) -> Self {
         Self {
             branch: snapshot.branch,
             detached_at: snapshot.detached_at,
@@ -28,7 +28,7 @@ impl From<poietica_git_native::BranchSnapshot> for GitBranches {
 
 /* git 的拒绝理由原样透出（error.rs 的 Git 变体），与 AgentCli 同一判据：
 本机 CLI 对本机用户说的话不是秘密，而是用户唯一拿得去修正的信息。 */
-fn surfaced(error: poietica_git_native::GitError) -> Problem {
+fn surfaced(error: poietica_git_adapter_native::GitError) -> Problem {
     Problem::from(Error::Git(error.to_string()))
 }
 
@@ -37,7 +37,7 @@ fn surfaced(error: poietica_git_native::GitError) -> Problem {
 #[command]
 #[specta::specta]
 pub async fn git_branches(root: String) -> Result<Option<GitBranches>, Problem> {
-    poietica_git_native::snapshot(Path::new(&root))
+    poietica_git_adapter_native::snapshot(Path::new(&root))
         .await
         .map(|held| held.map(GitBranches::from))
         .map_err(surfaced)
@@ -47,7 +47,7 @@ pub async fn git_branches(root: String) -> Result<Option<GitBranches>, Problem> 
 #[command]
 #[specta::specta]
 pub async fn git_switch_branch(root: String, branch: String) -> Result<GitBranches, Problem> {
-    poietica_git_native::switch(Path::new(&root), &branch)
+    poietica_git_adapter_native::switch(Path::new(&root), &branch)
         .await
         .map(GitBranches::from)
         .map_err(surfaced)
@@ -57,7 +57,7 @@ pub async fn git_switch_branch(root: String, branch: String) -> Result<GitBranch
 #[command]
 #[specta::specta]
 pub async fn git_create_branch(root: String, branch: String) -> Result<GitBranches, Problem> {
-    poietica_git_native::create(Path::new(&root), &branch)
+    poietica_git_adapter_native::create(Path::new(&root), &branch)
         .await
         .map(GitBranches::from)
         .map_err(surfaced)
@@ -83,20 +83,20 @@ pub struct GitFileChange {
     pub staged: bool,
 }
 
-impl From<poietica_git_native::ChangeStatus> for GitChangeStatus {
-    fn from(status: poietica_git_native::ChangeStatus) -> Self {
+impl From<poietica_git_adapter_native::ChangeStatus> for GitChangeStatus {
+    fn from(status: poietica_git_adapter_native::ChangeStatus) -> Self {
         match status {
-            poietica_git_native::ChangeStatus::Added => Self::Added,
-            poietica_git_native::ChangeStatus::Modified => Self::Modified,
-            poietica_git_native::ChangeStatus::Deleted => Self::Deleted,
-            poietica_git_native::ChangeStatus::Untracked => Self::Untracked,
-            poietica_git_native::ChangeStatus::Conflicted => Self::Conflicted,
+            poietica_git_adapter_native::ChangeStatus::Added => Self::Added,
+            poietica_git_adapter_native::ChangeStatus::Modified => Self::Modified,
+            poietica_git_adapter_native::ChangeStatus::Deleted => Self::Deleted,
+            poietica_git_adapter_native::ChangeStatus::Untracked => Self::Untracked,
+            poietica_git_adapter_native::ChangeStatus::Conflicted => Self::Conflicted,
         }
     }
 }
 
-impl From<poietica_git_native::FileChange> for GitFileChange {
-    fn from(change: poietica_git_native::FileChange) -> Self {
+impl From<poietica_git_adapter_native::FileChange> for GitFileChange {
+    fn from(change: poietica_git_adapter_native::FileChange) -> Self {
         Self {
             path: change.path,
             status: change.status.into(),
@@ -118,8 +118,8 @@ pub struct GitReview {
     pub changes: Vec<GitFileChange>,
     pub patch: String,
 }
-impl From<poietica_git_native::ReviewSnapshot> for GitReview {
-    fn from(held: poietica_git_native::ReviewSnapshot) -> Self {
+impl From<poietica_git_adapter_native::ReviewSnapshot> for GitReview {
+    fn from(held: poietica_git_adapter_native::ReviewSnapshot) -> Self {
         Self {
             branch: held.branch,
             detached_at: held.detached_at,
@@ -142,7 +142,7 @@ pub async fn git_review(
     context: u32,
     ignore_whitespace: bool,
 ) -> Result<Option<GitReview>, Problem> {
-    poietica_git_native::review(Path::new(&root), &base, context, ignore_whitespace)
+    poietica_git_adapter_native::review(Path::new(&root), &base, context, ignore_whitespace)
         .await
         .map(|held| held.map(GitReview::from))
         .map_err(surfaced)
@@ -156,7 +156,7 @@ pub async fn git_file_patch(
     path: String,
     ignore_whitespace: bool,
 ) -> Result<String, Problem> {
-    poietica_git_native::file_patch(Path::new(&root), &base, &path, ignore_whitespace)
+    poietica_git_adapter_native::file_patch(Path::new(&root), &base, &path, ignore_whitespace)
         .await
         .map_err(surfaced)
 }
@@ -164,7 +164,7 @@ pub async fn git_file_patch(
 #[command]
 #[specta::specta]
 pub async fn git_commit(request: GitCommitRequest) -> Result<GitReview, Problem> {
-    poietica_git_native::commit(
+    poietica_git_adapter_native::commit(
         Path::new(&request.root),
         request.intent.into(),
         &request.message,
@@ -185,7 +185,7 @@ pub enum GitCommitIntent {
     CommitAndPush,
     Push,
 }
-impl From<GitCommitIntent> for poietica_git_native::CommitIntent {
+impl From<GitCommitIntent> for poietica_git_adapter_native::CommitIntent {
     fn from(intent: GitCommitIntent) -> Self {
         match intent {
             GitCommitIntent::Commit => Self::Commit,
@@ -213,7 +213,7 @@ pub struct GitCommitRequest {
 #[command]
 #[specta::specta]
 pub async fn git_await_change(root: String) -> Result<bool, Problem> {
-    poietica_git_native::await_change(Path::new(&root))
+    poietica_git_adapter_native::await_change(Path::new(&root))
         .await
         .map_err(surfaced)
 }

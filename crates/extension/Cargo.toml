@@ -1,0 +1,19 @@
+[package]
+name = "poietica-extension-native"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+tempfile.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+walkdir.workspace = true
+zip.workspace = true
+
+[lints]
+workspace = true

@@ -169,7 +169,9 @@ function structField(
   const inner = typeOf(child, hint)
   const attrs = [`#[serde(rename = ${JSON.stringify(key)})]`]
   if (optional) {
-    attrs.push('#[serde(default)]')
+    // 序列化时缺席字段不上 wire：协议把它们声明为可选，显式 null 反而是
+    // 另一种形状。
+    attrs.push('#[serde(default, skip_serializing_if = "Option::is_none")]')
   }
   const ty = optional ? `Option<${inner}>` : inner
   const field = snake(key)
@@ -200,7 +202,7 @@ function oneOfVariant(
     const inner = typeOf(child, `${name}${label}${pascal(key)}`)
     const attrs = [`#[serde(rename = ${JSON.stringify(key)})]`]
     if (optional) {
-      attrs.push('#[serde(default)]')
+      attrs.push('#[serde(default, skip_serializing_if = "Option::is_none")]')
     }
     const ty = optional ? `Option<${inner}>` : inner
     const field = snake(key)
@@ -221,6 +223,8 @@ class RustEmitter {
   private readonly decls: string[] = []
   private readonly taken = new Set<string>()
   private readonly canonical = new Map<string, string>()
+  /** 每个已生成类型能否 derive(Default)：必填的 enum/choice 字段会挡住它。 */
+  private readonly defaultable = new Map<string, boolean>()
 
   private readonly spec: { components?: Schema }
 
@@ -297,6 +301,7 @@ class RustEmitter {
       resolve(this.spec, b),
     )
     const name = this.unique(`${hint}Choice`)
+    this.defaultable.set(name, false)
     const tag = RustEmitter.discriminatorOf(branches)
     const serdeTag = tag === null ? '#[serde(untagged)]' : `#[serde(tag = ${JSON.stringify(tag)})]`
 
@@ -326,18 +331,28 @@ class RustEmitter {
     }
 
     const name = this.unique(`${hint}Struct`)
-    const fields = Object.entries(properties).map(([key, child]) =>
-      structField(this.type.bind(this), child, key, `${hint}${pascal(key)}`, required),
-    )
+    const fields: string[] = []
+    let canDefault = true
+    for (const [key, child] of Object.entries(properties)) {
+      const inner = this.type(child, `${hint}${pascal(key)}`)
+      // 必填字段引用一个非 Default 类型（enum/choice 或自身不可 Default 的
+      // 结构）时，这个结构也派生不出 Default。
+      if (required.has(key) && child.nullable !== true && this.defaultable.get(inner) === false) {
+        canDefault = false
+      }
+      fields.push(structField(this.type.bind(this), child, key, `${hint}${pascal(key)}`, required))
+    }
 
+    this.defaultable.set(name, canDefault)
     this.decls.push(
-      `#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]\npub struct ${name} {\n${fields.join('\n')}\n}`,
+      `#[derive(Debug, Clone, PartialEq${canDefault ? ', Default' : ''}, serde::Serialize, serde::Deserialize)]\npub struct ${name} {\n${fields.join('\n')}\n}`,
     )
     return name
   }
 
   private stringEnum(schema: Schema, hint: string): string {
     const name = this.unique(`${hint}Enum`)
+    this.defaultable.set(name, false)
     const variants = (schema.enum as string[]).map((value) => {
       const label = pascal(value) || 'Blank'
       return `    #[serde(rename = ${JSON.stringify(value)})]
@@ -452,7 +467,7 @@ function generateEvents(): string {
         const inner = server.type(child, `Ack${pascal(key)}`)
         const ty = optional ? `Option<${inner}>` : inner
         const attrs = optional
-          ? `#[serde(rename = ${JSON.stringify(key)})] #[serde(default)]`
+          ? `#[serde(rename = ${JSON.stringify(key)})] #[serde(default, skip_serializing_if = "Option::is_none")]`
           : `#[serde(rename = ${JSON.stringify(key)})]`
         return `        ${attrs}\n        pub ${snake(key)}: ${ty},`
       })
@@ -475,7 +490,7 @@ function generateEvents(): string {
           const inner = server.type(child, `${pascal(messageName)}${pascal(key)}`)
           const attrs = [`#[serde(rename = ${JSON.stringify(key)})]`]
           if (optional) {
-            attrs.push('#[serde(default)]')
+            attrs.push('#[serde(default, skip_serializing_if = "Option::is_none")]')
           }
           const ty = optional ? `Option<${inner}>` : inner
           return `        ${attrs.join(' \n ')}\n        pub ${snake(key)}: ${ty},`
@@ -516,7 +531,7 @@ function generateEvents(): string {
       const inner = session.type(child, `SessionEvent${pascal(key)}`)
       const attrs = [`#[serde(rename = ${JSON.stringify(key)})]`]
       if (optional) {
-        attrs.push('#[serde(default)]')
+        attrs.push('#[serde(default, skip_serializing_if = "Option::is_none")]')
       }
       const ty = optional ? `Option<${inner}>` : inner
       return `    ${attrs.join(' ')}\n    pub ${snake(key)}: ${ty},`

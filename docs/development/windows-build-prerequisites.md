@@ -74,7 +74,7 @@ lower bound is `rust-version` under `[workspace.package]` in the root
 
 ## Running the live kap turn
 
-`cargo test -p poietica-agent-runtime-native --test live_turn -- --ignored` starts a
+`cargo test -p poietica-kap-client --test live_turn -- --ignored` starts a
 real Kimi Code kap server, so it needs one on the machine. It is not part of
 `cargo test` and nothing else in the repository depends on it.
 
@@ -89,7 +89,7 @@ Three prerequisites, in order:
 3. Loopback REST and WebSocket connections have to be allowed on this machine.
 
 The overrides the test reads are declared in
-`crates/agent-runtime/tests/live_turn.rs`:
+`crates/kap-client/tests/live_turn.rs`:
 
 - `POIETICA_KAP_PROGRAM`
 - `POIETICA_KAP_ARGS`

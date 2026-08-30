@@ -1,7 +1,7 @@
 import { reviewGateway } from '@poietica/native-bridge'
 import { ReviewPane } from '@poietica/review-ui'
 import { useConversationWorkspaceRoot } from '../assistant/threads-context'
-import { reportFailure } from '../failures/application-policy'
+import { reportFailure } from '../notice/application-policy'
 
 /*
  * 组合根的接线：从应用的会话上下文读出工作目录，把 git 网关与失败上报交进

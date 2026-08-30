@@ -1,7 +1,7 @@
 //! 把 agent 那侧的失败折进这个程序既有的错误面。
 
 use crate::error::Error;
-use poietica_agent_runtime_native::{KapError, Refusal};
+use poietica_kap_client::{KapError, Refusal};
 
 /// 这一侧自己判定的拒绝，说的话。
 ///

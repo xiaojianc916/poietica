@@ -3,7 +3,7 @@
  *
  * 它是一帧的载荷（frame.rs 的 RunFrame::LinkChanged），所以重放一条对话会原样
  * 再演一遍。判别式与字段名与原生侧的 LinkState 逐字相同
- * （crates/agent-runtime/src/link.rs）。
+ * （crates/kap-client/src/link.rs）。
  */
 export type SessionLink =
   | {

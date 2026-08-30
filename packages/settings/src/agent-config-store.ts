@@ -143,7 +143,7 @@ export interface AgentConfigStore {
    *
    * 它不是偏好，是开会话的前提：闸门函数 usable_default_model 第一条判的就是它在
    * 不在，别名还须在 models 表里、握着非 OAuth 凭据才认数
-   * （crates/agent-runtime/src/credentials.rs）。所以界面要能说出「现在是哪个」和
+   * （crates/kap-client/src/process/controlled_home.rs）。所以界面要能说出「现在是哪个」和
    * 「一个都没有」，而不是让用户从一次 Authentication required 里反推。
    */
   readonly loadDefaultModel: (agentId: string) => Promise<string | null>

@@ -23,46 +23,46 @@ pub enum ClientFrame {
     Pong { payload: PongStruct },
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ClientHelloCursorsValueStruct {
     #[serde(rename = "seq")]
     pub seq: i64,
     #[serde(rename = "epoch")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub epoch: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ClientHelloStruct {
     #[serde(rename = "client_id")]
     pub client_id: String,
     #[serde(rename = "subscriptions")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subscriptions: Option<Vec<String>>,
     #[serde(rename = "cursors")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursors: Option<std::collections::HashMap<String, ClientHelloCursorsValueStruct>>,
     #[serde(rename = "agent_filter")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_filter: Option<std::collections::HashMap<String, Vec<String>>>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct SubscribeStruct {
     #[serde(rename = "session_ids")]
     pub session_ids: Vec<String>,
     #[serde(rename = "cursors")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursors: Option<std::collections::HashMap<String, ClientHelloCursorsValueStruct>>,
     #[serde(rename = "watch_fs")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub watch_fs: Option<std::collections::HashMap<String, ClientHelloCursorsValueStruct>>,
     #[serde(rename = "agent_filter")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_filter: Option<std::collections::HashMap<String, Vec<String>>>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct PongStruct {
     #[serde(rename = "nonce")]
     pub nonce: String,
@@ -113,7 +113,7 @@ pub enum ServerFrame {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ServerHelloCapabilitiesStruct {
     #[serde(rename = "event_batching")]
     pub event_batching: bool,
@@ -121,14 +121,14 @@ pub struct ServerHelloCapabilitiesStruct {
     pub compression: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ServerHelloStruct {
     #[serde(rename = "ws_connection_id")]
     pub ws_connection_id: String,
     #[serde(rename = "protocol_version")]
     pub protocol_version: i64,
     #[serde(rename = "heartbeat_ms")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub heartbeat_ms: Option<i64>,
     #[serde(rename = "max_event_buffer_size")]
     pub max_event_buffer_size: i64,
@@ -136,7 +136,7 @@ pub struct ServerHelloStruct {
     pub capabilities: ServerHelloCapabilitiesStruct,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct PingStruct {
     #[serde(rename = "nonce")]
     pub nonce: String,
@@ -161,11 +161,11 @@ pub struct ResyncRequiredStruct {
     #[serde(rename = "current_seq")]
     pub current_seq: i64,
     #[serde(rename = "epoch")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub epoch: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ErrorStruct {
     #[serde(rename = "code")]
     pub code: i64,
@@ -174,36 +174,36 @@ pub struct ErrorStruct {
     #[serde(rename = "fatal")]
     pub fatal: bool,
     #[serde(rename = "request_id")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
     #[serde(rename = "details")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
 }
 
 /// 各类 ack 的载荷。客户端按发出去的那条请求挑模型解码。
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ClientHelloAckPayloadCursorsValueStruct {
     #[serde(rename = "seq")]
     pub seq: i64,
     #[serde(rename = "epoch")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub epoch: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ClientHelloAckPayloadStruct {
     #[serde(rename = "accepted_subscriptions")]
     pub accepted_subscriptions: Vec<String>,
     #[serde(rename = "resync_required")]
     pub resync_required: Vec<String>,
     #[serde(rename = "cursors")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursors: Option<std::collections::HashMap<String, ClientHelloAckPayloadCursorsValueStruct>>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct SubscribeAckPayloadStruct {
     #[serde(rename = "accepted")]
     pub accepted: Vec<String>,
@@ -212,17 +212,17 @@ pub struct SubscribeAckPayloadStruct {
     #[serde(rename = "resync_required")]
     pub resync_required: Vec<String>,
     #[serde(rename = "cursors")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursors: Option<std::collections::HashMap<String, ClientHelloAckPayloadCursorsValueStruct>>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct AbortAckPayloadStruct {
     #[serde(rename = "aborted")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub aborted: Option<bool>,
     #[serde(rename = "at_seq")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub at_seq: Option<i64>,
 }
 
@@ -232,16 +232,16 @@ pub struct SessionEventFrame {
     #[serde(rename = "seq")]
     pub seq: i64,
     #[serde(rename = "epoch")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub epoch: Option<String>,
     #[serde(rename = "volatile")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volatile: Option<bool>,
     #[serde(rename = "offset")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub offset: Option<i64>,
     #[serde(rename = "session_id")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(rename = "timestamp")]
     pub timestamp: String,

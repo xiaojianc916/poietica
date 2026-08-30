@@ -4,7 +4,7 @@
 //! 结果记到另一条对话头上，屏幕就会出现那条对话根本调不动的技能。thread_id
 //! 缺席（入口那一格还没有对话）才回落到连接自带的锚会话。
 
-use poietica_agent_runtime_native::{McpServer, McpStatus, Skill};
+use poietica_kap_client::{McpServer, McpStatus, Skill};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, State};

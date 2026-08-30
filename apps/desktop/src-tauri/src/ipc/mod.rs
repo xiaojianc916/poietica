@@ -43,8 +43,8 @@ use crate::commands::{
         GitBranches, GitChangeStatus, GitCommitIntent, GitCommitRequest, GitFileChange, GitReview,
     },
     plugins::{
-        ForeignPluginLedger, ForeignPluginRecord, PluginCommitRequest, PluginFetch, PluginPayload,
-        PluginStaged,
+        ForeignPluginInventory, ForeignPluginRecord, PluginCommitRequest, PluginFetch,
+        PluginPayload, PluginStaged,
     },
     settings::{AppSettings, PrivacySettings},
     skills::{SkillCommitRequest, SkillRecord, SkillStaged},
@@ -221,7 +221,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<crate::mcp::McpEndpoint>()
         .typ::<crate::commands::launcher::McpLauncher>()
         .typ::<EnvironmentFile>()
-        .typ::<ForeignPluginLedger>()
+        .typ::<ForeignPluginInventory>()
         .typ::<ForeignPluginRecord>()
         .typ::<PluginFetch>()
         .typ::<PluginStaged>()

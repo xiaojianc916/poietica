@@ -13,10 +13,10 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::time::{Duration, Instant};
 
-use poietica_agent_runtime_native::translate;
-use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
 use poietica_conversation::event::ConversationEvent;
 use poietica_conversation::ports::ConversationLedger;
+use poietica_kap_client::translate;
+use poietica_kap_client::{FrameSink, RecordedEvent};
 use tauri::{AppHandle, Emitter, Manager, Runtime, async_runtime};
 
 use crate::error::{Error, Result};

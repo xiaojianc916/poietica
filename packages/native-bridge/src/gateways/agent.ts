@@ -402,7 +402,7 @@ export function createAgentSessionUsageBridge({
  *
  * 两个动作走同一条会话：连接自带的锚会话。不新开会话、不写库、不碰任何 thread。
  * 模型、模式、推理档位同表来同表走 —— 改一项之后整张表重读一次（crates/
- * agent-runtime/src/driver.rs 的 set_selector：写完 profile 重跑一次
+ * kap-client/src/session/rest.rs 的 set_selector：写完 profile 重跑一次
  * get_selectors，status、/models 与 goal 一并重问），因为改一项可能增删另一项，
  * 所以这一层不拆表也不合表。
  *

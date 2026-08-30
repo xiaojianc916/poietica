@@ -1,6 +1,6 @@
 import type {
   EnvironmentFile,
-  ForeignPluginLedger,
+  ForeignPluginInventory,
   PluginCommitRequest,
   PluginFetch,
   PluginPayload,
@@ -30,7 +30,7 @@ export interface ExtensionGateway {
   readPluginCatalog(): Promise<string | null>
   refreshPluginCatalog(url: string): Promise<string>
   /** 用户自己家里那本账，只读。null 表示这台机器没有第二本账。 */
-  listForeignPlugins(): Promise<ForeignPluginLedger | null>
+  listForeignPlugins(): Promise<ForeignPluginInventory | null>
   listSkills(): Promise<SkillRecord[]>
   stageSkill(fetch: PluginFetch): Promise<SkillStaged>
   commitSkill(request: SkillCommitRequest): Promise<void>

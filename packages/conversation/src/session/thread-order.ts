@@ -36,7 +36,7 @@ export interface ThreadWorkspaceGroup {
    * 这个工作区叫什么，null 表示它的目录还没有被记下来。
    *
    * 没有名字不等于没有工作区：会话本来就是对着一个目录开的
-   * （agent-runtime 的 AgentSpawn.cwd 是必填的 PathBuf）。缺的是这个目录到
+   * （kap-client 的 AgentSpawn.cwd 是必填的 PathBuf）。缺的是这个目录到
    * 这一层的那条路，所以这一格如实说「不知道」，由视图决定不知道时画什么，
    * 而不是在这里编一个名字塞进去。
    */

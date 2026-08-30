@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use poietica_plugin_host_native as host;
+use poietica_extension_native as extension;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, command};
@@ -64,7 +64,7 @@ pub struct SkillCommitRequest {
 #[specta::specta]
 pub async fn skills_list(app: AppHandle) -> SkillsCommandResult<Vec<SkillRecord>> {
     (|| -> Result<Vec<SkillRecord>> {
-        Ok(host::scan_skills(&skills_root(&app)?)
+        Ok(extension::scan_skills(&skills_root(&app)?)
             .map_err(skill_failure)?
             .into_iter()
             .map(|skill| SkillRecord {
@@ -85,12 +85,12 @@ pub async fn skills_stage(app: AppHandle, fetch: PluginFetch) -> SkillsCommandRe
     staged_fetch(&app, fetch, skill_failure, |staging, subdirectory| {
         let staging_id = staging.identifier().to_owned();
 
-        let Ok(root) = host::locate_skill_root(staging.path(), subdirectory) else {
+        let Ok(root) = extension::locate_skill_root(staging.path(), subdirectory) else {
             return Err(skill_failure("这个来源里没有 SKILL.md，它不是一个技能目录"));
         };
 
         let skill_md =
-            fs::read_to_string(root.join(host::SKILL_FILENAME)).map_err(skill_failure)?;
+            fs::read_to_string(root.join(extension::SKILL_FILENAME)).map_err(skill_failure)?;
 
         Ok(SkillStaged {
             staging_id,
@@ -106,10 +106,10 @@ pub async fn skills_stage(app: AppHandle, fetch: PluginFetch) -> SkillsCommandRe
 #[specta::specta]
 pub async fn skills_commit(app: AppHandle, request: SkillCommitRequest) -> SkillsCommandResult<()> {
     (|| -> Result<()> {
-        let staging = host::Staging::open(&staging_root(&app)?, &request.staging_id)
+        let staging = extension::Staging::open(&staging_root(&app)?, &request.staging_id)
             .map_err(skill_failure)?;
 
-        host::install_skill(
+        extension::install_skill(
             staging,
             &skills_root(&app)?,
             &request.name,
@@ -126,7 +126,7 @@ pub async fn skills_commit(app: AppHandle, request: SkillCommitRequest) -> Skill
 pub async fn skills_discard(app: AppHandle, staging_id: String) -> SkillsCommandResult<()> {
     (|| -> Result<()> {
         let staging =
-            host::Staging::open(&staging_root(&app)?, &staging_id).map_err(skill_failure)?;
+            extension::Staging::open(&staging_root(&app)?, &staging_id).map_err(skill_failure)?;
 
         staging.discard().map_err(skill_failure)
     })()
@@ -137,8 +137,10 @@ pub async fn skills_discard(app: AppHandle, staging_id: String) -> SkillsCommand
 #[command]
 #[specta::specta]
 pub async fn skills_remove(app: AppHandle, name: String) -> SkillsCommandResult<()> {
-    (|| -> Result<()> { host::remove_skill(&skills_root(&app)?, &name).map_err(skill_failure) })()
-        .map_err(Problem::from)
+    (|| -> Result<()> {
+        extension::remove_skill(&skills_root(&app)?, &name).map_err(skill_failure)
+    })()
+    .map_err(Problem::from)
 }
 
 /// 停用与启用：SKILL.md 与 SKILL.md.disabled 之间改名，正文不动。
@@ -150,7 +152,7 @@ pub async fn skills_set_enabled(
     enabled: bool,
 ) -> SkillsCommandResult<()> {
     (|| -> Result<()> {
-        host::set_skill_enabled(&skills_root(&app)?, &name, enabled).map_err(skill_failure)
+        extension::set_skill_enabled(&skills_root(&app)?, &name, enabled).map_err(skill_failure)
     })()
     .map_err(Problem::from)
 }

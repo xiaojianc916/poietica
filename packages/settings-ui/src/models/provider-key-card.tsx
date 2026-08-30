@@ -150,7 +150,7 @@ export function ProviderKeyCard({
        * 只在配置里还没有 default_model 时，才随这次 catalog add 一起把它写掉。
        *
        * 为什么必须写：闸门函数 usable_default_model 对 default_model 缺席一律返回
-       * None（crates/agent-runtime/src/credentials.rs）。顶层没有这一行，配置里
+       * None（crates/kap-client/src/process/controlled_home.rs）。顶层没有这一行，配置里
        * 的 api_key 整条不算数，session/new 一律 authRequired。
        *
        * 为什么不无条件写：--default-model 是覆盖。已经配过一家、默认模型也选好了的人，

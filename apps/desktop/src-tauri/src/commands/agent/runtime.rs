@@ -18,7 +18,7 @@ use crate::commands::agent_setup::profile::{
 use crate::error::{Error, Result};
 use crate::local_index::on_index;
 use crate::paths::attachments_root;
-use poietica_agent_runtime_native::{
+use poietica_kap_client::{
     AgentClient, AgentConnection, AgentSpawn, Daemon, DaemonIntent, KapError, LinkState,
     PermissionDesk, QuestionDesk, Reaction, Refusal, RunSlot, SessionBook, SessionEvent, connect,
 };
@@ -779,7 +779,7 @@ mod tests {
         reason = "a failed variant assertion must fail the test loudly"
     )]
     use super::{SessionEventPlan, plan_session_event};
-    use poietica_agent_runtime_native::{SessionEvent, SessionUsageSnapshot};
+    use poietica_kap_client::{SessionEvent, SessionUsageSnapshot};
     #[test]
     fn usage_plan_is_process_independent() {
         let planned = plan_session_event(SessionEvent::Usage {

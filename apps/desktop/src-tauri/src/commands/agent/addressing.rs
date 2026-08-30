@@ -5,7 +5,7 @@
 
 use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
-use poietica_agent_runtime_native::{ConfigControl, Cursor};
+use poietica_kap_client::{ConfigControl, Cursor};
 use std::path::PathBuf;
 use tauri::State;
 use uuid::Uuid;

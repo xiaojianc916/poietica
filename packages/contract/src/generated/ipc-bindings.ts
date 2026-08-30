@@ -586,7 +586,7 @@ async pluginsDiscard(stagingId: string) : Promise<null> {
  * 
  * 家目录算不出来、账本读不动、不是合法 JSON，或里面没有 plugins 数组时返回错误。
  */
-async pluginsForeignList() : Promise<ForeignPluginLedger | null> {
+async pluginsForeignList() : Promise<ForeignPluginInventory | null> {
     return await TAURI_INVOKE("plugins_foreign_list");
 },
 /**
@@ -2053,7 +2053,7 @@ export type EnvironmentFile = { location: string; contents: string | null }
  * 形状与 `EnvironmentFile` 同源 —— 界面要说得出自己读的是哪个文件，否则「别处已装」
  * 这句话没有落点。
  */
-export type ForeignPluginLedger = { location: string; plugins: ForeignPluginRecord[] }
+export type ForeignPluginInventory = { location: string; plugins: ForeignPluginRecord[] }
 /**
  * 用户在命令行上装的一个插件，按他自己那个家里的账本读出来。
  * 

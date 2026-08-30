@@ -1,22 +1,84 @@
-//! KAP 协议形状的唯一 Rust 消费面。
+//! kap（Kimi Code 本地服务）的客户端：生成的协议模型、进程与链路、会话与帧。
 //!
 //! `generated/` 由 tools/contract/generate-kap.ts 从 contracts/kap 的快照生成，
 //! 禁手改；本 crate 其余部分只做信封语义与解码判据，不添加协议形状。
+//!
+//! Three rules shape this crate.
+//!
+//! A failure on this side is recorded and surfaced by the driver once the run
+//! ends; it is never reported back to the agent as if it were the agent's own.
+//!
+//! A session outlives a turn, and a connection outlives a session. The
+//! process is started once; sessions, prompts, cancellation and shutdown
+//! arrive afterwards as commands, and several of them may be in flight at
+//! once. One turn at a time is a rule of a session, not of a connection.
+//! Because the handlers live as long as the connection and a recorder lives
+//! only as long as one run, the two meet through a slot rather than by
+//! ownership.
+//!
+//! Asking a human is not a formality, and it is not one kind of ask. An
+//! approval is answered with one of kap's three decisions; a question group
+//! takes whatever its own multi_select and allow_other allow. They therefore
+//! wait at two desks, and a handler blocks on its own desk until a real answer
+//! arrives rather than inventing one.
 
 pub mod error;
 pub mod generated;
 
-pub use error::{DecodeError, EnvelopeError};
+mod connection;
+mod frame;
+mod history;
+mod interaction;
+mod link;
+mod process;
+mod recorder;
+mod run_slot;
+mod session;
+mod trace;
+pub mod translate;
 
-pub use generated::events;
-pub use generated::rest;
+pub use error::{DecodeError, EnvelopeError, KapError, Refusal, Result};
+
+pub use generated::{events, rest};
+
+pub use frame::{KAP_EVENT, PROMPT_ADMITTED, RUN_FINISHED, RunFrame, kap_event};
+pub use history::{ASSISTANT_DELTA, compact_history};
+pub use interaction::desk::{PermissionDesk, QuestionDesk};
+pub use interaction::permission::{Decision, Scope};
+pub use interaction::question::{
+    AnswerMethod, QuestionAnswer, QuestionGroup, QuestionItem, QuestionOption, QuestionOutcome,
+    QuestionResponse,
+};
+pub use process::controlled_home::{
+    alias_has_usable_credentials, alias_is_declared, secret_from_config, tails_from_config,
+    usable_default_model,
+};
+pub use process::custom_agents::{
+    CustomAgentCatalog, CustomAgentFile, CustomAgentFileError, delete_custom_agent,
+    list_custom_agents, save_custom_agent,
+};
+pub use process::daemon::{Daemon, DaemonIntent, DaemonPhase, Reaction};
+pub use process::program::{Launcher, hide_console, resolve_launcher, resolve_program};
+pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine};
+pub use run_slot::RunSlot;
+pub use session::driver::connect;
+pub use session::{
+    AgentClient, AgentConnection, AgentSpawn, ConfigChoice, ConfigControl, ConfigPurpose,
+    ConfigSelection, Cursor, GoalSnapshot, Handshake, McpServer, McpStatus, McpTransport,
+    OpenedSession, PromptAttachment, PromptSkill, SessionBook, SessionEntry, SessionEvent,
+    SessionEvents, SessionUsageSnapshot, Skill, apply_configurations, controls, goal_snapshot,
+    select_config, selector_patch,
+};
+
+/// 链路态的词汇住在领域那侧；这里只是转发，让消费者不必两处 import。
+pub use poietica_conversation::link::LinkState;
 
 /// 解一条 REST 应答信封。业务成败看 code（快照的约定），不看 HTTP 状态。
 ///
 /// 成功的 data 缺席即协议破坏；失败的 data 一律不解析（错误分支里它是 null）。
 pub fn envelope_data<T: serde::de::DeserializeOwned>(
     envelope: rest::RestEnvelope,
-) -> Result<T, EnvelopeError> {
+) -> std::result::Result<T, EnvelopeError> {
     if envelope.code != 0 {
         return Err(EnvelopeError::Refused {
             code: envelope.code,
@@ -28,7 +90,7 @@ pub fn envelope_data<T: serde::de::DeserializeOwned>(
 }
 
 /// 解一条 server 帧。未知 type 走这里报错，由调用方决定丢弃还是计数。
-pub fn server_frame(raw: &str) -> Result<events::ServerFrame, DecodeError> {
+pub fn server_frame(raw: &str) -> std::result::Result<events::ServerFrame, DecodeError> {
     serde_json::from_str(raw).map_err(DecodeError::from)
 }
 
@@ -42,7 +104,7 @@ mod tests {
 
     #[test]
     fn envelope_routes_by_code() {
-        let refused: Result<String, _> = envelope_data(rest::RestEnvelope {
+        let refused: std::result::Result<String, _> = envelope_data(rest::RestEnvelope {
             code: 40909,
             msg: "dismissed".to_owned(),
             data: None,

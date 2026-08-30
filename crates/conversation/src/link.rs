@@ -6,7 +6,7 @@
 //! 判别式与字段名就是线上形状：它作为 [`ConversationEvent::LinkChanged`]
 //! 的载荷落账（event.rs），重放一条对话就原样再演一遍。改判别式先改这里。
 //!
-//! 重连几次、等多久、什么错值得再试 —— 那套策略住在适配环（agent-runtime
+//! 重连几次、等多久、什么错值得再试 —— 那套策略住在适配环（kap-client
 //! 的 link.rs），这里只有状态本身。
 
 use serde::{Deserialize, Serialize};

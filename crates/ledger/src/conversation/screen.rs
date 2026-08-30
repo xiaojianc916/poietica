@@ -242,7 +242,7 @@ impl AgentStore {
     /// 倒数第 drop_turns 轮起点那一行的位置；分叉复制以它为上界（不含）。
     ///
     /// drop_turns 为 0、或这条对话没有那么多轮时交回 i64::MAX —— 整条都在分叉
-    /// 点之前。「哪一帧开一轮」由认识帧的那一侧回答（agent-runtime 的 frame.rs），
+    /// 点之前。「哪一帧开一轮」由认识帧的那一侧回答（kap-client 的 frame.rs），
     /// 判别式因此由调用方交进来：这一层只认 JSON 里那一格。
     ///
     /// # Errors

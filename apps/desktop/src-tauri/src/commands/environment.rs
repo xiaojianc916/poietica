@@ -20,7 +20,7 @@
 
 use std::path::Path;
 
-use poietica_plugin_host_native as host;
+use poietica_extension_native as extension;
 use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, command};
@@ -45,10 +45,10 @@ pub struct EnvironmentFile {
 }
 
 fn read_file(path: &Path) -> Result<Option<String>> {
-    match host::read_optional(path) {
+    match extension::read_optional(path) {
         Ok(contents) => Ok(contents),
         // 折回 Error::Io 保住原来的对外文案（public_message 表里的「文件操作失败」）。
-        Err(host::HostError::Io(cause)) => Err(Error::from(cause)),
+        Err(extension::ExtensionError::Io(cause)) => Err(Error::from(cause)),
         // read_optional 只做一次 read_to_string，其余变体到不了这里。
         Err(other) => Err(Error::Internal(other.to_string())),
     }

@@ -2,15 +2,15 @@
 resolver = "3"
 members = [
   "apps/desktop/src-tauri",
-  "crates/agent-runtime",
   "crates/asset",
   "crates/browser",
   "crates/conversation",
-  "crates/git",
+  "crates/extension",
+  "crates/git-adapter",
   "crates/kap-client",
   "crates/ledger",
-  "crates/plugin-host",
   "crates/problem",
+  "crates/review",
   "crates/time",
   "crates/update",
 ]
@@ -210,7 +210,7 @@ wildcard_dependencies = "deny"
 # panic 纪律：生产代码收紧，测试逐处豁免。
 #
 # 「逐处」是字面意思，不是省略说法：这里只把生产代码收紧，放开由每个测试作用域
-# 自己写一句 #![allow(clippy::expect_used, reason = "…")]（见 crates/agent-runtime
+# 自己写一句 #![allow(clippy::expect_used, reason = "…")]（见 crates/kap-client
 # 的 tests/recorder.rs 与 src/recorder.rs 的 mod tests）。
 #
 # 不在根上放一个 clippy.toml 开 allow-expect-in-tests：那个开关只认 #[cfg(test)]

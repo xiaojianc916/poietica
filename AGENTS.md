@@ -17,7 +17,7 @@
 | IPC 契约 | Rust 类型，生成到 `packages/contract/src/generated/` | `bun run ipc:check` |
 | IPC 命令清单 | `apps/desktop/src-tauri/src/ipc/mod.rs` 的 surface()，唯一一份 | 同上 |
 | 磁盘布局 | `apps/desktop/src-tauri/src/paths.rs` | 运行时 |
-| 帧的形状 | `crates/agent-runtime/src/frame.rs` | serde + 测试 |
+| 帧的形状 | `crates/kap-client/src/frame.rs` | serde + 测试 |
 
 **不要在文档里重抄任何一张表。** 手抄表制造第二个事实，第二个事实必然分叉。
 
@@ -39,10 +39,11 @@ agent 是 Kimi Code（TypeScript 版，`kimi web` 入口，见 ADR 0024/0025）�
 
 ## 2. 数据流（一句话验收）
 
-帧从 `kimi web` 子进程的 WebSocket 进 driver（kap：REST + session_event），经
-RunSlot → Recorder（会话内单调序号）→ FrameSink → 宿主 16ms 攒批 →
-run_events 落库 → Tauri event → transcript-store（按会话号路由到对话）→
-timeline 投影 → React。反向只有三条命令路：prompt / cancel / resolvePermission。
+帧从 `kimi web` 子进程的 WebSocket 进 kap-client 的 driver（session/driver.rs，
+kap：REST + session_event），经 RunSlot → Recorder（会话内单调序号）→ FrameSink
+→ 宿主 16ms 攒批 → run_events 落库 → Tauri event → transcript-store（按会话号
+路由到对话）→ timeline 投影 → React。反向只有三条命令路：prompt / cancel /
+resolvePermission。
 谁持有唯一真相：屏幕经过 = run_events；模型上下文 = agent；对话索引 = threads 表（单写者）；
 帧形状 = frame.rs；配置真身 = agent 受控 home 的 config.toml（由 agent 自己
 热重载，我们只经它的官方 CLI 写入）。
@@ -102,9 +103,10 @@ transcript-store.ts 的 held/alias/routes 互相耦合，rename 同写三张表�
 
 - **单一分发点**：一种帧/一种状态只允许一个 match/switch 主干；协议知识收在
   一处（TS 侧唯一认识 kap 帧的文件是 timeline/kap-projection.ts，Rust 侧是
-  frame.rs——别处出现协议判别即为泄漏）。
+  crates/kap-client/src/frame.rs——别处出现协议判别即为泄漏）。
 - **成形与投递两段式**：昂贵构造在锁外/号外完成，占号、上锁、发布只做最后一步
-  （判例：recorder.rs 的 shape/deliver，asset_protocol 的 materialise 后上锁）。
+  （判例：crates/kap-client/src/recorder.rs 的 shape/deliver，asset_protocol 的
+  materialise 后上锁）。
 - **错误一套面**：全仓一个 Error 枚举 + 一张脱敏表；对外文案与内部诊断分离，
   唯一透传例外（AgentCli）必须在变体文档里写明判据与理由。
 - **Debug 不打载荷**：任何可能携带大字节/密钥的类型，Debug 手写或字段跳过。

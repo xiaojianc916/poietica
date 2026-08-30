@@ -3,7 +3,7 @@ import type { RunEvent } from '@poietica/conversation'
 /*
  * 合成会话。
  *
- * 帧的形状与 crates/agent-runtime/src/frame.rs 记下的一致，所以基线量的是真管线：
+ * 帧的形状与 crates/kap-client/src/frame.rs 记下的一致，所以基线量的是真管线：
  * 同一批帧既走重放（打开一条对话），也走增量（模型吐字）。不需要任何 agent 进程，
  * 也不需要一条真实的超长对话。
  */

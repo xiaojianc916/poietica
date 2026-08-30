@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use poietica_agent_runtime_native::{
+use poietica_kap_client::{
     CustomAgentCatalog as NativeCatalog, CustomAgentFile as NativeFile, CustomAgentFileError,
     delete_custom_agent, list_custom_agents, save_custom_agent,
 };

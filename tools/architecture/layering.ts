@@ -45,16 +45,18 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
 
 export const CARGO_RINGS: readonly Ring[] = [
   { name: 'vocabulary', members: ['poietica-problem', 'poietica-time'] },
-  { name: 'domain', members: ['poietica-asset', 'poietica-conversation'] },
+  {
+    name: 'domain',
+    members: ['poietica-asset', 'poietica-conversation', 'poietica-review-native'],
+  },
   {
     name: 'capability',
     members: [
-      'poietica-agent-runtime-native',
       'poietica-browser-native',
-      'poietica-git-native',
+      'poietica-extension-native',
+      'poietica-git-adapter-native',
       'poietica-kap-client',
       'poietica-ledger',
-      'poietica-plugin-host-native',
       'poietica-update-native',
     ],
   },
@@ -72,15 +74,15 @@ export const HOST_AWARE_PACKAGES: readonly string[] = [
 
 /** 这些 crate 不许知道自己跑在 Tauri 里。 */
 export const HOST_AGNOSTIC_CRATES: readonly string[] = [
-  'poietica-agent-runtime-native',
   'poietica-browser-native',
   'poietica-asset',
   'poietica-conversation',
-  'poietica-git-native',
+  'poietica-extension-native',
+  'poietica-git-adapter-native',
   'poietica-kap-client',
   'poietica-ledger',
-  'poietica-plugin-host-native',
   'poietica-problem',
+  'poietica-review-native',
   'poietica-time',
 ]
 

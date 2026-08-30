@@ -38,7 +38,7 @@ use specta::Type;
 use tauri::{AppHandle, async_runtime, command};
 
 use crate::error::{Error, Result};
-use poietica_agent_runtime_native::hide_console;
+use poietica_kap_client::hide_console;
 use poietica_problem::Problem;
 
 use super::profile::{agent_install_spec, agent_program, open_store};
@@ -68,7 +68,7 @@ impl PackageManager {
     }
 
     fn resolved(self) -> Option<PathBuf> {
-        poietica_agent_runtime_native::resolve_program(self.program()).ok()
+        poietica_kap_client::resolve_program(self.program()).ok()
     }
 
     /// 装到一个具体版本，而不是把 latest 这个标签交回去。
@@ -311,7 +311,7 @@ fn compute(app: &AppHandle, agent_id: &str, force: bool) -> Result<AgentInstallS
     let program = agent_program(app, agent_id)?;
 
     /* 解析处只有一个：kap 会话与 provider CLI 起的也是它解析出的那份。 */
-    let Ok(resolved) = poietica_agent_runtime_native::resolve_program(&program) else {
+    let Ok(resolved) = poietica_kap_client::resolve_program(&program) else {
         return Ok(AgentInstallStatus {
             state: AgentInstallState::Missing,
             package_name: Some(spec.package_name),
@@ -389,12 +389,12 @@ fn install(app: &AppHandle, agent_id: &str) -> Result<AgentInstallStatus> {
      */
     let owner = agent_program(app, agent_id)
         .ok()
-        .and_then(|program| poietica_agent_runtime_native::resolve_program(&program).ok())
+        .and_then(|program| poietica_kap_client::resolve_program(&program).ok())
         .and_then(|resolved| owner_of(&resolved));
 
     if owner.is_none()
         && let Ok(program) = agent_program(app, agent_id)
-        && poietica_agent_runtime_native::resolve_program(&program).is_ok()
+        && poietica_kap_client::resolve_program(&program).is_ok()
     {
         return Err(Error::AgentCli(
             "这份运行时不是 bun、pnpm、npm 装的，请用你当初安装它的方式更新。".to_owned(),

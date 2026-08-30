@@ -7,7 +7,7 @@
 
 - 唯一 agent transport 是 kap 的 REST 与 WebSocket。
 - Kimi Code 由 `kimi web --no-open` 启动。
-- Rust `agent-runtime` 拥有进程、网络连接、取消与事件生命周期。
+- Rust `kap-client` 拥有进程、网络连接、取消与事件生命周期。
 - TypeScript 不直接访问 kap，只消费持久化后的 `RunFrame`。
 
 ## 启动与发现
@@ -51,7 +51,7 @@
 
 ## 本地事件管线
 
-    kap event -> driver -> RunSlot -> Recorder -> run_events
+    kap event -> session/router -> RunSlot -> Recorder -> run_events
               -> Tauri event -> transcript store -> kap projection -> React
 
 `run_events` 是一次运行的唯一事实来源：网络事件先落日志，再进渲染投影。

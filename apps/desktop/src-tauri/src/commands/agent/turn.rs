@@ -7,11 +7,11 @@
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
 use crate::local_index::{LocalIndex, conversation, on_index, persistence};
-use poietica_agent_runtime_native::{ConfigSelection, apply_configurations};
 use poietica_conversation::command::Conversation;
 use poietica_conversation::identity::{ThreadId, TurnId};
 use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
 use poietica_conversation::turn::admission::Admission;
+use poietica_kap_client::{ConfigSelection, apply_configurations};
 use tauri::{AppHandle, Manager, State, async_runtime};
 use uuid::Uuid;
 

@@ -19,8 +19,8 @@ import {
   createWorkbenchSessionController,
 } from '@poietica/workspace'
 import { createDesktopAgentRuntime, type DesktopAgentRuntime } from '../assistant/agent-runtime'
-import { reportFailure } from '../failures/application-policy'
-import { failureCoordinator } from '../failures/coordinator'
+import { reportFailure } from '../notice/application-policy'
+import { failureCoordinator } from '../notice/coordinator'
 import { activeWorkspaceRoot } from '../workspace-root'
 import { createDesktopAgentConfigStore } from './agent-config-store'
 import { createAttachmentIntake } from './attachment-intake'

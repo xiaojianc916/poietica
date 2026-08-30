@@ -2940,13 +2940,13 @@ dependencies = [
  "base64 0.22.1",
  "hex",
  "log",
- "poietica-agent-runtime-native",
  "poietica-asset",
  "poietica-browser-native",
  "poietica-conversation",
- "poietica-git-native",
+ "poietica-extension-native",
+ "poietica-git-adapter-native",
+ "poietica-kap-client",
  "poietica-ledger",
- "poietica-plugin-host-native",
  "poietica-problem",
  "poietica-time",
  "poietica-update-native",
@@ -2977,27 +2977,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "poietica-agent-runtime-native"
-version = "0.2.2"
-dependencies = [
- "dirs",
- "futures",
- "log",
- "poietica-conversation",
- "poietica-kap-client",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.19",
- "tokio",
- "tokio-tungstenite",
- "toml_edit 0.22.27",
- "uuid",
- "which",
-]
-
-[[package]]
 name = "poietica-asset"
 version = "0.2.2"
 dependencies = [
@@ -3024,10 +3003,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "poietica-git-native"
+name = "poietica-extension-native"
+version = "0.2.2"
+dependencies = [
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.19",
+ "uuid",
+ "walkdir",
+ "zip",
+]
+
+[[package]]
+name = "poietica-git-adapter-native"
 version = "0.2.2"
 dependencies = [
  "notify",
+ "poietica-review-native",
  "tempfile",
  "thiserror 2.0.19",
  "tokio",
@@ -3038,9 +3030,20 @@ dependencies = [
 name = "poietica-kap-client"
 version = "0.2.2"
 dependencies = [
+ "dirs",
+ "futures",
+ "log",
+ "poietica-conversation",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.19",
+ "tokio",
+ "tokio-tungstenite",
+ "toml_edit 0.22.27",
+ "uuid",
+ "which",
 ]
 
 [[package]]
@@ -3060,18 +3063,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "poietica-plugin-host-native"
-version = "0.2.2"
-dependencies = [
- "serde_json",
- "tempfile",
- "thiserror 2.0.19",
- "uuid",
- "walkdir",
- "zip",
-]
-
-[[package]]
 name = "poietica-problem"
 version = "0.2.2"
 dependencies = [
@@ -3079,6 +3070,10 @@ dependencies = [
  "specta",
  "uuid",
 ]
+
+[[package]]
+name = "poietica-review-native"
+version = "0.2.2"
 
 [[package]]
 name = "poietica-time"

@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use poietica_agent_runtime_native::{
+use poietica_kap_client::{
     AnswerMethod, Decision, QuestionAnswer, QuestionResponse, Scope, SessionUsageSnapshot,
 };
 use serde::{Deserialize, Serialize};
@@ -591,7 +591,7 @@ pub struct AgentDismissQuestionsRequest {
 /// 把界面报来的一组答复翻成运行时的域类型。
 ///
 /// 号原样搬：题号与选项号都是 kap 现编的，这一层不解析也不校验 —— 合不合这一组
-/// 题，由桌子对着它自己留下的那一组题判（agent-runtime 的 QuestionDesk::answer）。
+/// 题，由桌子对着它自己留下的那一组题判（kap-client 的 QuestionDesk::answer）。
 pub(super) fn answered(request: AgentAnswerQuestionsRequest) -> QuestionResponse {
     let mut answers = HashMap::new();
 
@@ -649,7 +649,7 @@ pub struct AgentGoal {
 
 /// 领域快照 -> 线上形状。数值按绑定能表达的宽度收窄，溢出即封顶。
 #[must_use]
-pub fn reported_goal(goal: poietica_agent_runtime_native::GoalSnapshot) -> AgentGoal {
+pub fn reported_goal(goal: poietica_kap_client::GoalSnapshot) -> AgentGoal {
     let narrow = |value: u64| u32::try_from(value).unwrap_or(u32::MAX);
 
     AgentGoal {

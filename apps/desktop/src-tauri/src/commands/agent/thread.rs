@@ -5,7 +5,7 @@ use crate::attachments::forget_blob;
 use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::remove_projectless_workspace;
-use poietica_agent_runtime_native::{PROMPT_ADMITTED, compact_history};
+use poietica_kap_client::{PROMPT_ADMITTED, compact_history};
 use poietica_ledger::conversation::screen::{FrameCursor, FramePage};
 use poietica_ledger::index::TitleSource;
 use tauri::{AppHandle, State, async_runtime};
@@ -585,8 +585,8 @@ pub async fn agent_thread_outline(
             .turn_marks(
                 id,
                 PROMPT_ADMITTED,
-                poietica_agent_runtime_native::KAP_EVENT,
-                poietica_agent_runtime_native::ASSISTANT_DELTA,
+                poietica_kap_client::KAP_EVENT,
+                poietica_kap_client::ASSISTANT_DELTA,
                 super::OUTLINE_PROMPT_CHARS,
                 super::OUTLINE_REPLY_CHARS,
             )
