@@ -4,15 +4,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::event::{ConversationEvent, EventEnvelope};
 use crate::identity::{Seq, ThreadId, TurnId};
-use crate::interaction::{InteractionId, InteractionRequest};
-use crate::tool_call::{ToolCallId, ToolOutcome};
-use crate::turn::state_machine::TurnState;
+use crate::turn::state_machine::{TurnCompletion, TurnState};
 
+/// 这一轮正等着的回答属于哪一类。请求与答复的配对键是 agent 签发的那一个号。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ToolView {
-    pub name: String,
-    pub outcome: Option<ToolOutcome>,
+pub enum OpenInteraction {
+    Permission,
+    Question,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,12 +19,6 @@ pub struct ToolView {
 pub struct TurnView {
     pub turn: TurnId,
     pub state: TurnState,
-    pub text: String,
-    pub reasoning: String,
-    pub tools: BTreeMap<ToolCallId, ToolView>,
-    pub open_interactions: BTreeMap<InteractionId, InteractionRequest>,
-    pub input_tokens: u64,
-    pub output_tokens: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,8 +28,10 @@ pub struct ThreadView {
     pub last_seq: Seq,
     pub turn_order: Vec<TurnId>,
     pub turns: BTreeMap<TurnId, TurnView>,
-    /// pin 住的契约不认识的事件数；缺口可见才能被补上。
-    pub unsupported_events: u64,
+    /// 还在等回答的交互，按 agent 签发的号。
+    pub open_interactions: BTreeMap<String, OpenInteraction>,
+    /// 本投影还没学会折的事件数；缺口可见才能被逐个补上。
+    pub unparsed_events: u64,
 }
 
 impl ThreadView {
@@ -46,7 +41,8 @@ impl ThreadView {
             last_seq: Seq::NONE,
             turn_order: Vec::new(),
             turns: BTreeMap::new(),
-            unsupported_events: 0,
+            open_interactions: BTreeMap::new(),
+            unparsed_events: 0,
         }
     }
 
@@ -54,62 +50,55 @@ impl ThreadView {
     pub fn apply(&mut self, envelope: &EventEnvelope) {
         self.last_seq = envelope.seq;
 
-        let Some(turn) = envelope.event.turn() else {
-            self.unsupported_events = self.unsupported_events.saturating_add(1);
-            return;
-        };
-
-        let view = self.ensure_turn(turn.clone());
-
         match &envelope.event {
-            ConversationEvent::TurnAdmitted { .. } => view.state = TurnState::Admitted,
-            ConversationEvent::AssistantText { text, .. } => {
-                view.state = TurnState::Streaming;
-                view.text.push_str(text);
+            ConversationEvent::TurnAdmitted { turn } => {
+                self.ensure_turn(turn.clone()).state = TurnState::Admitted;
             }
-            ConversationEvent::Reasoning { text, .. } => {
-                view.state = TurnState::Streaming;
-                view.reasoning.push_str(text);
+            ConversationEvent::PromptAdmitted { admission_id, .. } => {
+                self.ensure_turn(admission_id.clone()).state = TurnState::Admitted;
             }
-            ConversationEvent::ToolCallStarted { call, name, .. } => {
-                view.state = TurnState::Streaming;
-                view.tools.insert(
-                    call.clone(),
-                    ToolView {
-                        name: name.clone(),
-                        outcome: None,
-                    },
-                );
-            }
-            ConversationEvent::ToolCallFinished { call, outcome, .. } => {
-                if let Some(tool) = view.tools.get_mut(call) {
-                    tool.outcome = Some(*outcome);
-                }
-            }
-            ConversationEvent::InteractionRequested { request, .. } => {
-                view.state = TurnState::AwaitingInteraction;
-                view.open_interactions
-                    .insert(request.id().clone(), request.clone());
-            }
-            ConversationEvent::InteractionResolved { interaction, .. } => {
-                view.open_interactions.remove(interaction);
-                view.state = TurnState::Streaming;
-            }
-            ConversationEvent::UsageReported {
-                input_tokens,
-                output_tokens,
-                ..
-            } => {
-                view.input_tokens = view.input_tokens.saturating_add(*input_tokens);
-                view.output_tokens = view.output_tokens.saturating_add(*output_tokens);
-            }
-            ConversationEvent::TurnFinished { completion, .. } => {
-                view.open_interactions.clear();
+            ConversationEvent::RunFinished { turn, stop_reason } => {
+                let Some(turn) = turn else {
+                    return;
+                };
+                let view = self.ensure_turn(turn.clone());
                 view.state = TurnState::Finished {
-                    completion: completion.clone(),
+                    completion: completion_of(stop_reason),
                 };
             }
-            ConversationEvent::UnsupportedExternalEvent { .. } => {}
+            ConversationEvent::RunFailed { turn, message } => {
+                let Some(turn) = turn else {
+                    return;
+                };
+                let view = self.ensure_turn(turn.clone());
+                view.state = TurnState::Finished {
+                    completion: TurnCompletion::Failed {
+                        reason: message.clone(),
+                    },
+                };
+            }
+            ConversationEvent::PermissionRequested { request_id, .. } => {
+                self.open_interactions
+                    .insert(request_id.clone(), OpenInteraction::Permission);
+            }
+            ConversationEvent::QuestionsAsked { question_id, .. } => {
+                self.open_interactions
+                    .insert(question_id.clone(), OpenInteraction::Question);
+            }
+            ConversationEvent::PermissionResolved { request_id, .. }
+            | ConversationEvent::QuestionsResolved {
+                question_id: request_id,
+                ..
+            } => {
+                self.open_interactions.remove(request_id);
+            }
+            // 方言事件与本投影还不会折的事件：计数，不丢弃。逐个变体类型化的
+            // 迁移发生在 translate 层，每补一个这里就少一类。
+            ConversationEvent::KapEvent { .. }
+            | ConversationEvent::UnsupportedExternalEvent { .. } => {
+                self.unparsed_events = self.unparsed_events.saturating_add(1);
+            }
+            ConversationEvent::LinkChanged { .. } => {}
         }
     }
 
@@ -121,13 +110,18 @@ impl ThreadView {
         self.turns.entry(turn.clone()).or_insert_with(|| TurnView {
             turn,
             state: TurnState::Admitted,
-            text: String::new(),
-            reasoning: String::new(),
-            tools: BTreeMap::new(),
-            open_interactions: BTreeMap::new(),
-            input_tokens: 0,
-            output_tokens: 0,
         })
+    }
+}
+
+/// agent 报的停止原因 → 轮次终局。这一轮的状态机只认这三种收场。
+fn completion_of(stop_reason: &str) -> TurnCompletion {
+    match stop_reason {
+        "completed" => TurnCompletion::Completed,
+        "cancelled" => TurnCompletion::Cancelled,
+        reason => TurnCompletion::Failed {
+            reason: reason.to_owned(),
+        },
     }
 }
 

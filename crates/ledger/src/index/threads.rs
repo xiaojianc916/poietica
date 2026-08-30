@@ -143,11 +143,14 @@ impl AgentStore {
 
         transaction
             .prepare_cached(
-                "INSERT INTO run_events (thread_id, session_id, seq, at, frame)
-                 SELECT ?2, session_id, seq, at, frame
-                   FROM run_events
-                  WHERE thread_id = ?1 AND id < ?3
-                  ORDER BY id",
+                "INSERT INTO conversation_events
+                     (thread_id, seq, turn_id, kind, payload, recorded_at_unix_ms, session_id)
+                 SELECT ?2,
+                        ROW_NUMBER() OVER (ORDER BY seq),
+                        turn_id, kind, payload, recorded_at_unix_ms, session_id
+                   FROM conversation_events
+                  WHERE thread_id = ?1 AND seq < ?3
+                  ORDER BY seq",
             )?
             .execute(rusqlite::params![
                 source.to_string(),

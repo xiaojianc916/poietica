@@ -145,20 +145,8 @@ pub(super) async fn session_for(
             哪儿：位置由 kap 签发，报回去它才知道从哪一帧接着发。 */
             let from = read_point(index, &session_id).await?;
 
-            /* 序号线接上日志，而且必须接在订阅之前：装载会当场订阅，晚一步接
-            就让第一批帧从 1 数起，撞上日志里这条会话已经占着的位置，被
-            run_events 的唯一键静默丢掉。open 幂等，装载路径拿到的是同一个槽。 */
-            let resumed = session_id.clone();
-            let last_seq = on_index(index, move |store| {
-                store.last_seq(thread_id, &resumed).map_err(persistence)
-            })
-            .await?;
-
-            live.book
-                .open(&session_id)
-                .map_err(translate)?
-                .seq()
-                .resume(last_seq);
+            /* 装载会当场订阅；帧的位置由账本按对话发号，写路不再自报位置。 */
+            live.book.open(&session_id).map_err(translate)?;
 
             match live.client.load_session(session_id.clone(), from).await {
                 Ok(loaded) => {

@@ -6,9 +6,8 @@
 
 use std::time::Duration;
 
-use serde::Serialize;
-
 use crate::recorder::now_millis;
+use poietica_conversation::link::LinkState;
 
 /// 断了之后重连几次。第一次立刻拨，之后每失败一次退避一档。
 pub(crate) const RELINK_TRIES: u32 = 5;
@@ -16,32 +15,6 @@ pub(crate) const RELINK_TRIES: u32 = 5;
 /// 第一次失败之后等多久；之后翻倍，到 DELAY_CAP 封顶。
 const DELAY: Duration = Duration::from_millis(500);
 const DELAY_CAP: Duration = Duration::from_secs(8);
-
-/// 屏幕上那一格链路态。判别式与字段名就是线上形状；它作为 RunFrame::LinkChanged
-/// 的载荷落库（frame.rs），重放一条对话就原样再演一遍。改判别式先改这里。
-///
-/// 只说链路的事。「模型半天不说话」是这一轮的事，屏幕上由轮次封条的
-/// 秒表说，不从这里冒充一次断线。
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(
-    tag = "state",
-    rename_all = "snake_case",
-    rename_all_fields = "camelCase"
-)]
-pub enum LinkState {
-    /// 正在接回来：第几次、共几次、下一次什么时候、上一次为什么没成。
-    /// retry_at 等于此刻表示正在拨号，没有倒计时可读。
-    Retrying {
-        attempt: u32,
-        of: u32,
-        retry_at: i64,
-        reason: String,
-    },
-    /// 接回来了，以及这一轮是被什么打断的。
-    Recovered { reason: String },
-    /// 试到头了，接不回来。这一轮的结局由帧记，链路态只报自己。
-    Severed { attempts: u32, reason: String },
-}
 
 /// 第 attempt 次失败之后等多久。指数退避，封顶。
 ///

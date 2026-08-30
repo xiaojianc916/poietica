@@ -1,4 +1,8 @@
-//! 这台机器记下的帧。一条对话的时间线由它重放。
+//! 屏幕那条经过的读路：按轮分页、目录预览、分叉复制。
+//!
+//! 载荷就是事件联合的 JSON（kind 判别式在内），所以这里的查询只认 JSON 里
+//! 那一格 —— 与写路共用同一份事实。信封格子（sessionId/seq/at）在列上，
+//! 读回时并回载荷顶层，交出去的形状与旧帧账逐字节一致。
 
 use rusqlite::OptionalExtension;
 use serde_json::value::RawValue;
@@ -7,25 +11,12 @@ use uuid::Uuid;
 use crate::error::Result;
 use crate::index::store::AgentStore;
 
-/// 日志里的一帧，按它记下时的线上形状。
-#[derive(Debug)]
-pub struct RecordedFrame {
-    /// 帧属于哪条会话。
-    pub session_id: String,
-    /// 它在那条会话上的位置。
-    pub seq: i64,
-    /// 记下它的时刻，epoch 毫秒。
-    pub at: i64,
-    /// `RecordedEvent` 成形好的那一段 JSON：这一列存它，屏幕上也是它。
-    pub frame: Box<RawValue>,
-}
-
-/// 一页帧从哪儿往前读：表上那把唯一键 `(session_id, seq)`。
+/// 一页帧从哪儿往前读：表上那把位置键。
 #[derive(Clone, Debug)]
 pub struct FrameCursor {
     /// 位置属于哪条会话。
     pub session_id: String,
-    /// 它在那条会话上的位置。
+    /// 它在这次对话里的位置（账本发的号）。
     pub seq: i64,
 }
 
@@ -34,7 +25,7 @@ pub struct FrameCursor {
 pub struct TurnMark {
     /// 这一轮第一帧所在的会话。
     pub session_id: String,
-    /// 它在那条会话上的位置。
+    /// 它在这次对话里的位置。
     pub seq: i64,
     /// 本机签发的 durable admission identity；屏幕上那条用户消息用同一个号。
     pub admission_id: String,
@@ -45,58 +36,13 @@ pub struct TurnMark {
 /// 一页帧，按追加顺序；`before` 缺席就是前面没有了。
 #[derive(Debug)]
 pub struct FramePage {
-    /// 这一页的帧，各是 `RecordedEvent` 成形好的那一行 JSON。
+    /// 这一页的帧，各是重建好的线上 JSON。
     pub frames: Vec<Box<RawValue>>,
     /// 更早那一页从哪儿接着读。
     pub before: Option<FrameCursor>,
 }
 
 impl AgentStore {
-    /// 追加一批帧，一次提交。答的是这一批里有几帧库里已经有了。
-    ///
-    /// 一帧一次 execute 就是一帧一个事务：autocommit 会为每一条语句写一次 WAL
-    /// 提交记录、抢放一次写锁。一批帧是同一拍到达的同一件事，所以它们共用一次
-    /// 提交，语句也只 prepare 一次。
-    ///
-    /// 同一个位置只收一次。撞上的那一帧被库挡掉，笔数报出来 —— 它的意思是这条
-    /// 会话的序号线接错了（recorder.rs 的 SeqLine::resume），而咽下去的话，要到
-    /// 下一次打开这条对话才看得出少了帧。一帧撞车不牵连同一批的其余帧。
-    ///
-    /// # Errors
-    ///
-    /// 语句被拒时返回错误。
-    pub fn record_frames(&mut self, thread: Uuid, frames: &[RecordedFrame]) -> Result<usize> {
-        let thread = thread.to_string();
-        let batch = self.connection.transaction()?;
-        let mut refused = 0_usize;
-
-        {
-            let mut statement = batch.prepare_cached(
-                "INSERT INTO run_events (thread_id, session_id, seq, at, frame)
-                 VALUES (?1, ?2, ?3, ?4, ?5)
-                 ON CONFLICT (thread_id, session_id, seq) DO NOTHING",
-            )?;
-
-            for frame in frames {
-                let written = statement.execute(rusqlite::params![
-                    thread,
-                    frame.session_id,
-                    frame.seq,
-                    frame.at,
-                    frame.frame.get()
-                ])?;
-
-                if written == 0 {
-                    refused = refused.saturating_add(1);
-                }
-            }
-        }
-
-        batch.commit()?;
-
-        Ok(refused)
-    }
-
     /// 这条对话的一页完整轮次，按追加顺序交回。
     ///
     /// 游标只负责给出右边界；页宽按轮次计算。查询先用 prompt 帧定位最早边界，
@@ -122,10 +68,10 @@ impl AgentStore {
         let floor = self
             .connection
             .prepare_cached(
-                "SELECT id FROM run_events
-                 WHERE thread_id = ?1 AND id < ?2
-                   AND json_extract(frame, '$.kind') = ?3
-                 ORDER BY id DESC
+                "SELECT seq FROM conversation_events
+                 WHERE thread_id = ?1 AND seq < ?2
+                   AND json_extract(payload, '$.kind') = ?3
+                 ORDER BY seq DESC
                  LIMIT 1 OFFSET ?4",
             )?
             .query_row(
@@ -178,22 +124,22 @@ impl AgentStore {
     ) -> Result<Vec<TurnMark>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT t.session_id, t.seq,
-                    coalesce(json_extract(t.frame, '$.admissionId'), ''),
-                    substr(coalesce(json_extract(t.frame, '$.prompt'), ''), 1, ?5),
-                    (SELECT substr(json_extract(r.frame, '$.payload.delta'), 1, ?6)
-                       FROM run_events r
-                      WHERE r.thread_id = ?1 AND r.id > t.id
-                        AND r.id < coalesce((SELECT min(p.id) FROM run_events p
-                                              WHERE p.thread_id = ?1 AND p.id > t.id
-                                                AND json_extract(p.frame, '$.kind') = ?2), ?7)
-                        AND json_extract(r.frame, '$.kind') = ?3
-                        AND json_extract(r.frame, '$.payload.type') = ?4
-                        AND coalesce(json_extract(r.frame, '$.payload.agentId'), '') = ''
-                      ORDER BY r.id ASC
+                    coalesce(json_extract(t.payload, '$.admissionId'), ''),
+                    substr(coalesce(json_extract(t.payload, '$.prompt'), ''), 1, ?5),
+                    (SELECT substr(json_extract(r.payload, '$.payload.delta'), 1, ?6)
+                       FROM conversation_events r
+                      WHERE r.thread_id = ?1 AND r.seq > t.seq
+                        AND r.seq < coalesce((SELECT min(p.seq) FROM conversation_events p
+                                              WHERE p.thread_id = ?1 AND p.seq > t.seq
+                                                AND json_extract(p.payload, '$.kind') = ?2), ?7)
+                        AND json_extract(r.payload, '$.kind') = ?3
+                        AND json_extract(r.payload, '$.payload.type') = ?4
+                        AND coalesce(json_extract(r.payload, '$.payload.agentId'), '') = ''
+                      ORDER BY r.seq ASC
                       LIMIT 1)
-             FROM run_events t
-             WHERE t.thread_id = ?1 AND json_extract(t.frame, '$.kind') = ?2
-             ORDER BY t.id ASC",
+             FROM conversation_events t
+             WHERE t.thread_id = ?1 AND json_extract(t.payload, '$.kind') = ?2
+             ORDER BY t.seq ASC",
         )?;
 
         let marks = statement
@@ -233,18 +179,17 @@ impl AgentStore {
         let lower = floor.unwrap_or(0);
 
         let mut statement = self.connection.prepare_cached(
-            "SELECT session_id, seq, frame FROM run_events
-             WHERE thread_id = ?1 AND id >= ?2 AND id < ?3
-             ORDER BY id ASC",
+            "SELECT session_id, seq, payload, recorded_at_unix_ms FROM conversation_events
+             WHERE thread_id = ?1 AND seq >= ?2 AND seq < ?3
+             ORDER BY seq ASC",
         )?;
         let read = statement
             .query_map(rusqlite::params![thread_id, lower, ceiling], |row| {
                 Ok((
-                    FrameCursor {
-                        session_id: row.get(0)?,
-                        seq: row.get(1)?,
-                    },
+                    row.get::<_, Option<String>>(0)?.unwrap_or_default(),
+                    row.get::<_, i64>(1)?,
                     row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
                 ))
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -254,9 +199,9 @@ impl AgentStore {
                 .connection
                 .prepare_cached(
                     "SELECT EXISTS(
-                       SELECT 1 FROM run_events
-                       WHERE thread_id = ?1 AND id < ?2
-                         AND json_extract(frame, '$.kind') = ?3
+                       SELECT 1 FROM conversation_events
+                       WHERE thread_id = ?1 AND seq < ?2
+                         AND json_extract(payload, '$.kind') = ?3
                      )",
                 )?
                 .query_row(rusqlite::params![thread_id, floor, turn_start], |row| {
@@ -265,24 +210,26 @@ impl AgentStore {
             None => false,
         };
         let before = if has_more {
-            read.first().map(|(cursor, _)| cursor.clone())
+            read.first().map(|(session_id, seq, _, _)| FrameCursor {
+                session_id: session_id.clone(),
+                seq: *seq,
+            })
         } else {
             None
         };
 
-        Ok(FramePage {
-            frames: read
-                .into_iter()
-                .map(|(_, frame)| RawValue::from_string(frame))
-                .collect::<serde_json::Result<Vec<_>>>()?,
-            before,
-        })
+        let frames = read
+            .into_iter()
+            .map(|(session_id, seq, payload, at)| screen_json(&session_id, seq, at, &payload))
+            .collect::<serde_json::Result<Vec<_>>>()?;
+
+        Ok(FramePage { frames, before })
     }
 
-    /// 游标那一行在表上的编号。内部编号不出这个 crate，翻译只在这里。
+    /// 游标那一行的位置。内部编号不出这个 crate，翻译只在这里。
     fn frame_row(&self, thread: Uuid, cursor: &FrameCursor) -> Result<i64> {
         let mut statement = self.connection.prepare_cached(
-            "SELECT id FROM run_events
+            "SELECT seq FROM conversation_events
              WHERE thread_id = ?1 AND session_id = ?2 AND seq = ?3",
         )?;
 
@@ -292,28 +239,7 @@ impl AgentStore {
         )?)
     }
 
-    /// 这条对话上，这条会话已经用掉的最后一个位置；没有就是 0。
-    ///
-    /// 序号线活在内存里（agent-runtime 的 SeqLine），而这张表活过重启。会话
-    /// 装载回来时号不变、槽是新的，接不上就会撞上下面那道唯一键。
-    ///
-    /// # Errors
-    ///
-    /// 查询被拒时返回错误。
-    pub fn last_seq(&self, thread: Uuid, session: &str) -> Result<i64> {
-        let mut statement = self.connection.prepare_cached(
-            "SELECT coalesce(max(seq), 0) FROM run_events
-             WHERE thread_id = ?1 AND session_id = ?2",
-        )?;
-
-        Ok(
-            statement.query_row(rusqlite::params![thread.to_string(), session], |row| {
-                row.get(0)
-            })?,
-        )
-    }
-
-    /// 倒数第 drop_turns 轮起点那一行的编号；分叉复制以它为上界（不含）。
+    /// 倒数第 drop_turns 轮起点那一行的位置；分叉复制以它为上界（不含）。
     ///
     /// drop_turns 为 0、或这条对话没有那么多轮时交回 i64::MAX —— 整条都在分叉
     /// 点之前。「哪一帧开一轮」由认识帧的那一侧回答（agent-runtime 的 frame.rs），
@@ -328,9 +254,9 @@ impl AgentStore {
         }
 
         let mut statement = self.connection.prepare_cached(
-            "SELECT id FROM run_events
-             WHERE thread_id = ?1 AND json_extract(frame, '$.kind') = ?2
-             ORDER BY id DESC
+            "SELECT seq FROM conversation_events
+             WHERE thread_id = ?1 AND json_extract(payload, '$.kind') = ?2
+             ORDER BY seq DESC
              LIMIT 1 OFFSET ?3",
         )?;
 
@@ -343,6 +269,27 @@ impl AgentStore {
 
         Ok(found.unwrap_or(i64::MAX))
     }
+}
 
-    // 对话删除的多表事务由 threads.rs 单点持有。
+/// 信封的格子并回载荷顶层：{sessionId, seq, at, kind, ...}。
+///
+/// 实时流（journal 的发布）与重放（这里的读）用同一个构造，两边不会各说各话。
+fn screen_json(
+    session_id: &str,
+    seq: i64,
+    at: i64,
+    payload: &str,
+) -> serde_json::Result<Box<RawValue>> {
+    let mut object = match serde_json::from_str::<serde_json::Value>(payload)? {
+        serde_json::Value::Object(fields) => fields,
+        _ => serde_json::Map::new(),
+    };
+    object.insert(
+        String::from("sessionId"),
+        serde_json::Value::String(session_id.to_owned()),
+    );
+    object.insert(String::from("seq"), serde_json::Value::from(seq));
+    object.insert(String::from("at"), serde_json::Value::from(at));
+
+    RawValue::from_string(serde_json::to_string(&object)?)
 }

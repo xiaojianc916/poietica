@@ -1,7 +1,11 @@
-//! 单一帧日志管线：非阻塞接收、批量持久化、持久化后发布。
+//! 单一事件管线：非阻塞接收、批量落账、落账后发布。
 //!
 //! 收帧那一步在 RunSlot 的锁内、驱动器的单线程运行时里被调用，所以它只许入队
 //! 或拒收：睡一下或等一个回执，停住的是整条 WS 链路。
+//!
+//! 事件以领域联合（ConversationEvent）落 `conversation_events` —— 屏幕那条
+//! 经过的唯一账本；发布给界面的形状与旧帧账逐字节一致（sessionId/seq/at 由
+//! 信封并回载荷），所以重放与实时是同一串字节。
 
 use std::collections::HashMap;
 use std::fmt;
@@ -9,14 +13,15 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::time::{Duration, Instant};
 
+use poietica_agent_runtime_native::translate;
 use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
-use poietica_ledger::index::RecordedFrame;
-use serde_json::value::{RawValue, to_raw_value};
+use poietica_conversation::event::{ConversationEvent, EventEnvelope};
+use poietica_conversation::ports::ConversationLedger;
+use serde_json::value::RawValue;
 use tauri::{AppHandle, Emitter, Manager, Runtime, async_runtime};
-use uuid::Uuid;
 
 use crate::error::{Error, Result};
-use crate::local_index::{LocalIndex, on_index, persistence};
+use crate::local_index::{LocalIndex, on_index};
 
 use super::AGENT_EVENT;
 
@@ -29,8 +34,8 @@ const PIPELINE_FAILED: &str = "the frame journal failed to persist accepted fram
 const PIPELINE_BEHIND: &str = "the frame journal is too far behind to flush";
 
 struct PendingFrame {
-    thread: Uuid,
-    event: RecordedEvent,
+    thread: uuid::Uuid,
+    recorded: RecordedEvent,
 }
 
 enum JournalCommand {
@@ -39,8 +44,9 @@ enum JournalCommand {
 }
 
 struct FrameBatch {
-    thread: Uuid,
-    frames: Vec<RecordedFrame>,
+    thread: uuid::Uuid,
+    session: String,
+    events: Vec<ConversationEvent>,
 }
 
 #[derive(Clone)]
@@ -72,11 +78,14 @@ impl FrameJournal {
     }
 
     /// 收帧：入队即答。拒收只有两种事实 —— 管线没了，或积压到顶。
-    pub(super) fn sink(&self, thread: Uuid) -> FrameSink {
+    pub(super) fn sink(&self, thread: uuid::Uuid) -> FrameSink {
         let sender = self.sender.clone();
 
         Box::new(move |event| {
-            match sender.try_send(JournalCommand::Frame(PendingFrame { thread, event })) {
+            match sender.try_send(JournalCommand::Frame(PendingFrame {
+                thread,
+                recorded: event,
+            })) {
                 Ok(()) => true,
                 Err(TrySendError::Full(_refused)) => {
                     log::error!("the frame journal is {FRAME_QUEUE_CAPACITY} frames behind");
@@ -90,7 +99,7 @@ impl FrameJournal {
         })
     }
 
-    /// 退场前的收账：报出这条管线有没有咽下过落库失败。
+    /// 退场前的收账：报出这条管线有没有咽下过落账失败。
     ///
     /// 它是唯一还会等的地方，所以调用它的命令必须是 async 的 —— 同步命令跑在
     /// 主线程上（见 turn.rs 的 agent_shutdown）。
@@ -120,7 +129,7 @@ impl FrameJournal {
 
 fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
     let mut deferred = None;
-    /* 还没报出去的落库失败笔数。报一次清一次：一批失败是那一批的事实，不是这条
+    /* 还没报出去的落账失败笔数。报一次清一次：一批失败是那一批的事实，不是这条
     管线余生的事实 —— 常驻的假会让 disconnect 与换 agent 从此永远失败。 */
     let mut unreported = 0_usize;
 
@@ -175,8 +184,8 @@ fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
 
 fn batch_index(
     batches: &mut Vec<FrameBatch>,
-    indexes: &mut HashMap<(Uuid, String), usize>,
-    thread: Uuid,
+    indexes: &mut HashMap<(uuid::Uuid, String), usize>,
+    thread: uuid::Uuid,
     session_id: &str,
 ) -> usize {
     let key = (thread, session_id.to_owned());
@@ -187,7 +196,8 @@ fn batch_index(
     let index = batches.len();
     batches.push(FrameBatch {
         thread,
-        frames: Vec::new(),
+        session: session_id.to_owned(),
+        events: Vec::new(),
     });
     indexes.insert(key, index);
     index
@@ -198,26 +208,15 @@ fn flush_frames<R: Runtime>(app: &AppHandle<R>, pending: Vec<PendingFrame>) -> b
     let mut indexes = HashMap::new();
     let mut complete = true;
 
-    for PendingFrame { thread, event } in pending {
-        let frame = match to_raw_value(&event) {
-            Ok(frame) => frame,
-            Err(error) => {
-                log::error!("a recorded frame could not be serialized: {error}");
-                complete = false;
-                continue;
-            }
-        };
-        let index = batch_index(&mut batches, &mut indexes, thread, &event.session_id);
+    for PendingFrame { thread, recorded } in pending {
+        let index = batch_index(&mut batches, &mut indexes, thread, &recorded.session_id);
         let Some(batch) = batches.get_mut(index) else {
             complete = false;
             continue;
         };
-        batch.frames.push(RecordedFrame {
-            session_id: event.session_id,
-            seq: event.seq,
-            at: event.at,
-            frame,
-        });
+        batch
+            .events
+            .push(translate::conversation_event(&recorded.frame));
     }
 
     for batch in batches {
@@ -227,25 +226,32 @@ fn flush_frames<R: Runtime>(app: &AppHandle<R>, pending: Vec<PendingFrame>) -> b
     complete
 }
 
+/// 落账，然后把同一批按旧帧账的线上形状发给界面。
+///
+/// 发布形状 = 信封的格子（sessionId/seq/at）并回载荷顶层：实时与重放因此是
+/// 同一串字节，界面那一侧不需要知道账本换了表。
 fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) -> bool {
-    let logged = Arc::new(batch.frames);
+    let logged = Arc::new(batch);
     let mut delay = Duration::from_millis(50);
 
-    let refused = loop {
+    let envelopes = loop {
         let stored = Arc::clone(&logged);
-        let thread = batch.thread;
         let result = async_runtime::block_on(async {
             let index = app.state::<LocalIndex>();
             on_index(&index, move |store| {
                 store
-                    .record_frames(thread, stored.as_slice())
-                    .map_err(persistence)
+                    .append(
+                        &poietica_conversation::identity::ThreadId::new(stored.thread.to_string()),
+                        &stored.session,
+                        &stored.events,
+                    )
+                    .map_err(|failure| Error::Internal(failure.to_string()))
             })
             .await
         });
 
         match result {
-            Ok(refused) => break refused,
+            Ok(envelopes) => break envelopes,
             Err(error) if delay <= Duration::from_millis(400) => {
                 log::warn!("persist agent event batch failed; retrying: {error}");
                 std::thread::sleep(delay);
@@ -258,21 +264,39 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) -> bool 
         }
     };
 
-    /* 撞号只说明这一批里某个位置库里已经有了；ON CONFLICT 按帧独立生效，其余帧
-    都已落库（run_events 的 record_frames）。屏幕仍然收下这一批 ——
-    重复的 seq 由时间线自己的去重闸门丢掉，而扣下整批换来的是一段永久的空白。 */
-    let accepted = refused == 0;
-
-    if !accepted {
-        log::error!("the frame log already contained {refused} positions");
-    }
-
-    let shown: Vec<&RawValue> = logged.iter().map(|frame| frame.frame.as_ref()).collect();
+    let shown: Vec<Box<RawValue>> = envelopes.iter().map(wire_frame).collect();
     if let Err(error) = app.emit(AGENT_EVENT, &shown) {
         log::warn!("emit agent event failed after persistence: {error}");
     }
 
-    accepted
+    true
+}
+
+/// 信封 → 旧帧账的线上形状：{sessionId, seq, at, kind, ...}。
+fn wire_frame(envelope: &EventEnvelope) -> Box<RawValue> {
+    let mut object = match serde_json::to_value(&envelope.event) {
+        Ok(serde_json::Value::Object(fields)) => fields,
+        Ok(_) => serde_json::Map::new(),
+        Err(error) => {
+            log::error!("a conversation event could not be serialized: {error}");
+            serde_json::Map::new()
+        }
+    };
+
+    object.insert(
+        String::from("sessionId"),
+        serde_json::Value::String(envelope.session_id.clone()),
+    );
+    object.insert(
+        String::from("seq"),
+        serde_json::Value::from(envelope.seq.value()),
+    );
+    object.insert(String::from("at"), serde_json::Value::from(envelope.at));
+
+    // 序列化一个 serde_json::Map 不会失败；真失败时这一帧以 null 上屏，
+    // 而落账的那份 payload 仍是事实源 —— 下一帧重放会把屏幕补回来。
+    RawValue::from_string(serde_json::to_string(&object).unwrap_or_default())
+        .unwrap_or_else(|_| RawValue::from_string(String::from("null")).unwrap_or_default())
 }
 
 #[cfg(test)]

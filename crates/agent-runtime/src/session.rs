@@ -70,7 +70,7 @@ pub enum SessionEvent {
     CursorLost { session_id: String },
 
     /// 这条连接此刻的链路态。
-    Link(crate::link::LinkState),
+    Link(poietica_conversation::link::LinkState),
 }
 
 /// 一条会话此刻的上下文读数，与它累计的输入构成。

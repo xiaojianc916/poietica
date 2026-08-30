@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+poietica-conversation = { path = "../conversation" }
 poietica-kap-client = { path = "../kap-client" }
 
 dirs.workspace = true

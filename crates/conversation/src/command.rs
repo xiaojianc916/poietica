@@ -50,9 +50,10 @@ impl<'a> Conversation<'a> {
 
         self.ledger.append(
             &delivery.admission.thread,
-            &ConversationEvent::TurnAdmitted {
+            &delivery.session,
+            &[ConversationEvent::TurnAdmitted {
                 turn: delivery.admission.turn.clone(),
-            },
+            }],
         )?;
 
         self.dispatch(delivery)

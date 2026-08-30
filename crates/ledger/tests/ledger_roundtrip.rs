@@ -1,5 +1,6 @@
 #![allow(
     clippy::expect_used,
+    clippy::indexing_slicing,
     reason = "a test proves itself by panicking, so a failing ledger step must fail the test"
 )]
 
@@ -47,38 +48,31 @@ fn events_round_trip_and_projection_rebuilds() {
         AdmissionDecision::Admitted
     );
 
-    ledger
+    let envelopes = ledger
         .append(
             &thread,
-            &ConversationEvent::TurnAdmitted { turn: turn.clone() },
+            "session-1",
+            &[
+                ConversationEvent::TurnAdmitted { turn: turn.clone() },
+                ConversationEvent::RunFinished {
+                    turn: Some(turn.clone()),
+                    stop_reason: "completed".to_owned(),
+                },
+            ],
         )
-        .expect("append admitted");
-    ledger
-        .append(
-            &thread,
-            &ConversationEvent::AssistantText {
-                turn: turn.clone(),
-                text: "done".to_owned(),
-            },
-        )
-        .expect("append text");
-    let last = ledger
-        .append(
-            &thread,
-            &ConversationEvent::TurnFinished {
-                turn: turn.clone(),
-                completion: TurnCompletion::Completed,
-            },
-        )
-        .expect("append finished");
+        .expect("append");
 
-    assert_eq!(last, Seq::new(3));
+    assert_eq!(envelopes.len(), 2);
+    assert_eq!(envelopes[0].seq, Seq::new(1));
+    assert_eq!(envelopes[1].seq, Seq::new(2));
+    assert_eq!(envelopes[0].at, 1_700_000_000_000);
+    assert_eq!(envelopes[0].session_id, "session-1");
 
     let events = ledger
         .events_after(&thread, Seq::NONE)
         .expect("read events");
 
-    assert_eq!(events.len(), 3);
+    assert_eq!(events.len(), 2);
 
     let view = project(&thread, &events);
     let rebuilt = rebuild(

@@ -10,8 +10,8 @@ use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::error::{KapError, Result};
-use crate::link::LinkState;
 use crate::run_slot::RunSlot;
+use poietica_conversation::link::LinkState;
 
 /// The open sessions of one agent process, keyed by protocol session id.
 ///

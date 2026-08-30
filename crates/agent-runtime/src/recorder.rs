@@ -7,9 +7,9 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::frame::{RunFrame, prune};
-use crate::link::LinkState;
 use crate::permission::Decision;
 use crate::question::{QuestionGroup, QuestionOutcome};
+use poietica_conversation::link::LinkState;
 
 /// 一帧，已经成形，可以交出去了。
 ///
@@ -469,7 +469,7 @@ mod tests {
 
     use super::{Frames, RecordedEvent, Recorder, SeqLine};
     use crate::frame::RunFrame;
-    use crate::link::LinkState;
+    use poietica_conversation::link::LinkState;
 
     fn ending() -> RunFrame {
         RunFrame::RunFinished {

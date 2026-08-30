@@ -19,11 +19,14 @@ pub trait ConversationLedger {
     /// 幂等：同一 turn 再次提交只能得到 AlreadyAdmitted。
     fn admit(&self, admission: &Admission) -> Result<AdmissionDecision, LedgerUnavailable>;
 
+    /// 追加一批事件；账本按对话发号并盖时戳。答的是带位置的完整信封 ——
+    /// 上屏与重放用的是同一个形状。
     fn append(
         &self,
         thread: &ThreadId,
-        event: &ConversationEvent,
-    ) -> Result<Seq, LedgerUnavailable>;
+        session: &str,
+        events: &[ConversationEvent],
+    ) -> Result<Vec<EventEnvelope>, LedgerUnavailable>;
 
     fn events_after(
         &self,

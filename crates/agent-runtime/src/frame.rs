@@ -11,7 +11,7 @@
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::link::LinkState;
+use poietica_conversation::link::LinkState;
 
 /// 一轮的第一帧。
 pub const PROMPT_ADMITTED: &str = "prompt_admitted";

@@ -32,6 +32,16 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "admission_skills",
         include_str!("sql/0007_admission_skills.sql"),
     ),
+    (
+        8,
+        "screen_journal_merge",
+        include_str!("sql/0008_screen_journal_merge.sql"),
+    ),
+    (
+        9,
+        "run_events_retirement",
+        include_str!("sql/0009_run_events_retirement.sql"),
+    ),
 ];
 
 pub fn apply(connection: &mut Connection, clock: &dyn WallClock) -> Result<(), LedgerError> {

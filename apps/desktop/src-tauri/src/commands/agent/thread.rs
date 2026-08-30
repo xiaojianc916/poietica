@@ -6,7 +6,8 @@ use crate::error::{Error, Result};
 use crate::local_index::{LocalIndex, conversation, counted, on_index, persistence};
 use crate::paths::remove_projectless_workspace;
 use poietica_agent_runtime_native::{PROMPT_ADMITTED, compact_history};
-use poietica_ledger::index::{FrameCursor, FramePage, TitleSource};
+use poietica_ledger::conversation::screen::{FrameCursor, FramePage};
+use poietica_ledger::index::TitleSource;
 use tauri::{AppHandle, State, async_runtime};
 
 use super::addressing::{Held, read_point, session_for};

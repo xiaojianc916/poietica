@@ -2983,6 +2983,7 @@ dependencies = [
  "dirs",
  "futures",
  "log",
+ "poietica-conversation",
  "poietica-kap-client",
  "reqwest 0.12.28",
  "serde",
@@ -3018,6 +3019,7 @@ version = "0.2.1"
 dependencies = [
  "poietica-time",
  "serde",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 

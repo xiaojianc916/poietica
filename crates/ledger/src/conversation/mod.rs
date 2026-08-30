@@ -2,6 +2,7 @@ pub mod admissions;
 pub mod cursors;
 pub mod events;
 pub mod outbox;
+pub mod screen;
 
 use std::sync::{Mutex, MutexGuard};
 
@@ -72,18 +73,19 @@ impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
     fn append(
         &self,
         thread: &ThreadId,
-        event: &ConversationEvent,
-    ) -> Result<Seq, LedgerUnavailable> {
+        session: &str,
+        events: &[ConversationEvent],
+    ) -> Result<Vec<EventEnvelope>, LedgerUnavailable> {
         let mut guard = self.guard().map_err(|error| unavailable(&error))?;
         let transaction = guard
             .transaction()
             .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        let seq = events::append(&transaction, self.clock(), thread, event)
+        let envelopes = events::append(&transaction, self.clock(), thread, session, events)
             .map_err(|error| unavailable(&error))?;
         transaction
             .commit()
             .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        Ok(seq)
+        Ok(envelopes)
     }
 
     fn events_after(
@@ -143,17 +145,18 @@ impl ConversationLedger for AgentStore {
     fn append(
         &self,
         thread: &ThreadId,
-        event: &ConversationEvent,
-    ) -> Result<Seq, LedgerUnavailable> {
+        session: &str,
+        events: &[ConversationEvent],
+    ) -> Result<Vec<EventEnvelope>, LedgerUnavailable> {
         let transaction = self
             .unchecked_transaction()
             .map_err(|error| unavailable(&error))?;
-        let seq = events::append(&transaction, self.clock(), thread, event)
+        let envelopes = events::append(&transaction, self.clock(), thread, session, events)
             .map_err(|error| unavailable(&error))?;
         transaction
             .commit()
             .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        Ok(seq)
+        Ok(envelopes)
     }
 
     fn events_after(
