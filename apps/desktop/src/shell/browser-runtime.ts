@@ -1,7 +1,4 @@
 import { createBrowserPanelStore } from '@poietica/browser'
-
-import { browserHostPort } from './browser-host-port'
-
-export { browserHostPort } from './browser-host-port'
+import { browserHostPort } from '@poietica/native-bridge'
 
 export const browserPanelStore = createBrowserPanelStore(browserHostPort)

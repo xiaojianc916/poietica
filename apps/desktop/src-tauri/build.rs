@@ -64,7 +64,7 @@ fn find_bun() -> PathBuf {
 fn main() {
     tauri_build::build();
 
-    println!("cargo:rerun-if-changed=../src/browser/element-picker-runtime.ts");
+    println!("cargo:rerun-if-changed=../src/entry/element-picker-runtime.ts");
     println!("cargo:rerun-if-changed=../package.json");
     println!("cargo:rerun-if-changed=../../../bun.lock");
     println!("cargo:rerun-if-env-changed=BUN");
@@ -75,7 +75,7 @@ fn main() {
     let result = Command::new(&bun)
         .current_dir("..")
         .arg("build")
-        .arg("src/browser/element-picker-runtime.ts")
+        .arg("src/entry/element-picker-runtime.ts")
         .arg("--outfile")
         .arg(&output)
         .arg("--target=browser")

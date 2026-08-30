@@ -1,4 +1,4 @@
-import '../app.css'
+import '../styles/app.css'
 
 import { applyThemePreference } from '@poietica/design-system'
 import {
@@ -7,12 +7,12 @@ import {
   takePreviousNativeCrashReport,
 } from '@poietica/native-bridge'
 import { DEFAULT_APP_SETTINGS } from '@poietica/settings'
-import { mountReactApplication } from '../bootstrap/react-root'
 import { reportFatalIncident } from '../notice/terminal-policy'
 import { installContextMenuGuard } from '../window/context-menu-guard'
 import { installExternalLinks } from '../window/external-links'
 import { installScrollbarSize } from '../window/scrollbar-size'
 import { installTableDownloads } from '../window/table-downloads'
+import { mountReactApplication } from './mount'
 
 async function bootstrapApplication(): Promise<void> {
   installScrollbarSize()

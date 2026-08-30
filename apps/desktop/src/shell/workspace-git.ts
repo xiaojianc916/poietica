@@ -6,7 +6,7 @@ import {
   gitSwitchBranch,
 } from '@poietica/native-bridge'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { reportFailure } from './notice/application-policy'
+import { reportFailure } from '../notice/application-policy'
 
 /*
  * 当前工作目录的 git 分支快照，交给输入框下方那枚分支 chip。

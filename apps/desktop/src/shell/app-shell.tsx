@@ -8,20 +8,23 @@ import type { KeybindingCatalog, KeybindingEntry } from '@poietica/settings'
 import { type AppUpdateOperation, AppUpdateStore } from '@poietica/update'
 import type { CommandRegistry } from '@poietica/workspace'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { type ApplicationCommandContext, registerApplicationCommands } from '../app-commands'
-import { ThreadsProvider } from '../assistant/threads-provider'
-import { AutomationDispatcher } from '../automations/automation-runtime'
-import type { ApplicationRuntime } from '../bootstrap/application'
+import type { ApplicationRuntime } from '../entry/compose-runtime'
+import { PluginLoader, pluginStore } from '../entry/plugin-runtime'
 import { type ApplicationFailureCode, reportFailure } from '../notice/application-policy'
 import { failureCoordinator } from '../notice/coordinator'
 import { NoticeRegion } from '../notice/notice-region'
-import { PluginLoader, pluginStore } from '../plugins/plugin-runtime'
-import { UpdateCapsule } from '../updates/update-capsule'
-import { UpdateRow } from '../updates/update-row'
 import { useWindowChrome } from '../window/use-window-chrome'
-import { ConversationCommands } from '../workbench/conversation-commands'
-import { type AppCapabilities, WorkspaceContainer } from '../workbench/workspace-container'
+import { AutomationDispatcher } from './automation-runtime'
 import { CommandPalette, formatKeybinding, useCommandKeybindings } from './commands'
+import {
+  type ApplicationCommandContext,
+  registerApplicationCommands,
+} from './commands/app-commands'
+import { ConversationCommands } from './conversation-commands'
+import { ThreadsProvider } from './threads-provider'
+import { UpdateCapsule } from './update-capsule'
+import { UpdateRow } from './update-row'
+import { type AppCapabilities, WorkspaceContainer } from './workspace-container'
 import { workspaceLayoutStore } from './workspace-layout-store'
 
 /*
@@ -100,7 +103,7 @@ export function AppShell({ runtime }: AppShellProps) {
    *
    * useMemo 是性能优化，React 允许丢弃缓存重算；这个 store 有身份（start() 返回
    * 退订），丢一次缓存就多一个实例、多一份订阅，「一个进程一份」当场失效。
-   * runtime 由 bootstrap 造一次并作为 prop 传进来（见 bootstrap/react-root.tsx),
+   * runtime 由 bootstrap 造一次并作为 prop 传进来（见 entry/mount.tsx），
    * 原来的依赖数组本就永不变化，所以这是等价替换，且拿到了创建一次的保证。
    */
   const [updates] = useState(

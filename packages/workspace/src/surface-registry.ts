@@ -52,7 +52,7 @@ export const SURFACE_REGISTRY = {
     navigationOrder: 0,
     /*
      * 搜索是一个动作，不是一格页面：点它开那张命令面板，主区不动。
-     * 命令本身声明在组合根（apps/desktop/src/app-commands.ts），这里只指名。
+     * 命令本身声明在组合根（apps/desktop/src/shell/commands/app-commands.ts），这里只指名。
      */
     activation: { kind: 'command', commandId: 'application.toggle-command-palette' },
   },

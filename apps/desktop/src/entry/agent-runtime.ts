@@ -23,7 +23,7 @@ import {
 } from '@poietica/native-bridge'
 import { error as reportError } from '@poietica/problem'
 import type { AgentConfigStore } from '@poietica/settings'
-import { hostedMcpServersReady } from '../plugins/plugin-runtime'
+import { hostedMcpServersReady } from './plugin-runtime'
 import { createThinkingPreference } from './thinking-preference'
 
 interface DesktopAgentRuntimeOptions {

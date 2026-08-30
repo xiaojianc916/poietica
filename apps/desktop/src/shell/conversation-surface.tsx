@@ -11,8 +11,8 @@ import {
   type WorkspacePickerProps,
 } from '@poietica/conversation-ui'
 import { useCallback, useEffect, useRef } from 'react'
-import { useThreadsActions } from '../assistant/threads-context'
-import { adoptBrowserPickTarget } from '../browser/browser-pick'
+import { adoptBrowserPickTarget } from './browser-pick'
+import { useThreadsActions } from './threads-context'
 
 /*
  * 一格只画一条对话。

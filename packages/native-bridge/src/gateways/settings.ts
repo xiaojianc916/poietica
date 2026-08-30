@@ -11,7 +11,7 @@ import type { SettingsStore } from '@poietica/settings'
  * 契约由 bun run ipc:generate 从 Rust 单向生成：两侧对不上是 typecheck 阶段的错误，
  * 不是运行期的惊喜。
  */
-export function createDesktopSettingsStore(): SettingsStore {
+export function createSettingsStore(): SettingsStore {
   return {
     load() {
       return commands.settingsGet()

@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { FatalErrorHost } from '../notice/host'
 import { markReactFatalHostMounted, reportFatalIncident } from '../notice/terminal-policy'
 import { AppShell } from '../shell/app-shell'
-import { type ApplicationRuntime, createApplicationRuntime } from './application'
+import { type ApplicationRuntime, createApplicationRuntime } from './compose-runtime'
 
 /*
  * 一次 React 错误的上报口，只有这一个。

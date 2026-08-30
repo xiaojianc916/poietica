@@ -5,7 +5,7 @@ import { automationGateway } from '@poietica/native-bridge'
 import { useEffect } from 'react'
 import { v7 as uuidv7 } from 'uuid'
 
-import { useThreadsActions } from '../assistant/threads-context'
+import { useThreadsActions } from './threads-context'
 
 /**
  * 自动化的进程级运行时。

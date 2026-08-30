@@ -4,10 +4,10 @@ import { PluginsSurface } from '@poietica/extension-ui'
 import { type CustomAgentStore, PersonalizationStore } from '@poietica/settings'
 import { PersonalizationSurface } from '@poietica/settings-ui'
 import type { ReactNode } from 'react'
-import { AutomationsView } from '../automations/automations-view'
-import { pluginStore } from '../plugins/plugin-runtime'
-import type { SurfaceRenderers } from '../shell/surface'
+import { pluginStore } from '../entry/plugin-runtime'
 import { AssistantPane } from './assistant-pane'
+import { AutomationsView } from './automations-view'
+import type { SurfaceRenderers } from './surface'
 
 /**
  * AI 表面只有一个渲染出口。入口与真实对话只改变 threadId，依赖与 React 身份不换轨。

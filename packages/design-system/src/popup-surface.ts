@@ -8,7 +8,7 @@
  *
  * 阴影用 --ui-shadow-lg，不用 Tailwind 的 shadow-md / shadow-xl。
  *
- * 应用没有 @theme 重映射阴影刻度（见 apps/desktop/src/app.css 里那句裸的
+ * 应用没有 @theme 重映射阴影刻度（见 apps/desktop/src/styles/app.css 里那句裸的
  * @import "tailwindcss"），所以那两个类拿到的是 Tailwind 出厂值，与
  * shadows.css 是两套数。更要紧的是出厂值没有 [data-theme="dark"] 分支，
  * 暗色下不会从 16% 加深到 40%，浮层会糊进背景 —— Dialog 一直写的是

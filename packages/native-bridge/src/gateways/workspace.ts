@@ -9,7 +9,7 @@ import { throughIpc } from '../error'
  * 这一层调的是我们自己那条 workspace_pick_root，理由写在 commands/workspace.rs。
  *
  * 选完之后往哪儿放不是这一层的事。它不碰持久化，也不认识 activeWorkspaceRoot ——
- * 那份状态住在桌面应用里（apps/desktop/src/workspace-root.ts），这一层只把系统
+ * 那份状态住在桌面应用里（apps/desktop/src/entry/workspace-root.ts），这一层只把系统
  * 的回答运过来。
  */
 

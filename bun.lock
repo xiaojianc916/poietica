@@ -265,6 +265,7 @@
       "name": "@poietica/native-bridge",
       "version": "0.1.0",
       "dependencies": {
+        "@poietica/agent-catalog": "workspace:*",
         "@poietica/automation": "workspace:*",
         "@poietica/browser": "workspace:*",
         "@poietica/contract": "workspace:*",
@@ -272,6 +273,7 @@
         "@poietica/extension": "workspace:*",
         "@poietica/problem": "workspace:*",
         "@poietica/review": "workspace:*",
+        "@poietica/settings": "workspace:*",
         "@poietica/update": "workspace:*",
         "@tauri-apps/api": "catalog:tauri",
         "@tauri-apps/plugin-dialog": "catalog:tauri",

@@ -1,9 +1,9 @@
 import { parseAgentProfileSet, reconcileAgentProfiles } from '@poietica/agent-catalog'
+import type { AgentConfigSnapshot, AgentConfigStore } from '@poietica/settings'
 import {
   type AgentConfigSnapshot as AgentConfigSnapshotDto,
   createAgentConfigBridge,
-} from '@poietica/native-bridge'
-import type { AgentConfigSnapshot, AgentConfigStore } from '@poietica/settings'
+} from './agent-config'
 
 /*
  * agent 接入配置在桌面端的存储。
@@ -16,7 +16,7 @@ import type { AgentConfigSnapshot, AgentConfigStore } from '@poietica/settings'
  * 解析失败。它产生的 issues 与 Rust 侧报回的 issues 合并后一起交给界面，因为两者
  * 都是「配置里有东西没能用上」，没有理由只显示其中一半。
  */
-export function createDesktopAgentConfigStore(): AgentConfigStore {
+export function createAgentConfigStore(): AgentConfigStore {
   const bridge = createAgentConfigBridge()
 
   /*

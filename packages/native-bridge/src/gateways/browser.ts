@@ -1,4 +1,4 @@
-import type { BrowserViewportBounds } from '@poietica/browser'
+import type { BrowserHostPort, BrowserViewportBounds } from '@poietica/browser'
 import { commands, events } from '@poietica/contract'
 import { throughIpc } from '../error'
 
@@ -88,4 +88,22 @@ export function watchBrowserElementPicked(
   return events.browserElementPicked.listen((event) => {
     onPicked(event.payload)
   })
+}
+
+/* 端口的每一格就是一条 IPC 命令：请求与动作两边同一份生成类型。 */
+export const browserHostPort: BrowserHostPort = {
+  watch: watchBrowserState,
+  openTab: openBrowserTab,
+  closeTab: closeBrowserTab,
+  selectTab: selectBrowserTab,
+  navigate: navigateBrowserTab,
+  back: browserTabBack,
+  forward: browserTabForward,
+  reload: browserTabReload,
+  print: printBrowserTab,
+  setElementPicker: setBrowserElementPicker,
+  reopenClosed: reopenClosedBrowserTab,
+  setViewportBounds: setBrowserViewportBounds,
+  setVisible: setBrowserVisible,
+  openExternally: openBrowserUrlExternally,
 }

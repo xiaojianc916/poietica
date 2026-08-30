@@ -6,9 +6,9 @@ import {
 } from '@poietica/conversation-ui'
 import { GitBranch, PanelRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
-import { ConversationReviewPane } from '../review/review-pane'
-import { useWorkspaceLayoutState, workspaceLayoutStore } from '../shell/workspace-layout-store'
 import { browserPanelStore } from './browser-runtime'
+import { ConversationReviewPane } from './review-pane'
+import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layout-store'
 
 /*
  * 浏览器开关与浏览器 dock。

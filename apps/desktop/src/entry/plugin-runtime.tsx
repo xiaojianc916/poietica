@@ -1,8 +1,8 @@
 import { createPluginStore } from '@poietica/extension'
 import { extensionGateway } from '@poietica/native-bridge'
 import { useEffect } from 'react'
-import { reconcileAutomationsMcpServer } from '../automations/automations-mcp'
-import { reconcileBrowserMcpServer } from '../browser/browser-mcp'
+import { reconcileAutomationsMcpServer } from './automations-mcp'
+import { reconcileBrowserMcpServer } from './browser-mcp'
 
 /*
  * 市场目录在哪。

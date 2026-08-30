@@ -2,9 +2,9 @@ import { isProjectlessWorkspaceRoot } from '@poietica/conversation'
 import { AssistantThreadList } from '@poietica/conversation-ui'
 import { memo, useCallback, useMemo } from 'react'
 
-import { useThreadsActions, useThreadsList } from '../assistant/threads-context'
-import { toggleWorkspace, useCollapsedWorkspaces } from '../assistant/workspace-collapse'
-import { setActiveWorkspaceRoot } from '../workspace-root'
+import { setActiveWorkspaceRoot } from '../entry/workspace-root'
+import { useThreadsActions, useThreadsList } from './threads-context'
+import { toggleWorkspace, useCollapsedWorkspaces } from './workspace-collapse'
 
 /*
  * 侧栏的会话列表。

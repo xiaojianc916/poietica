@@ -4,10 +4,10 @@ import type { WorkspacePickerProps } from '@poietica/conversation-ui'
 import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/native-bridge'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { v7 as uuidv7 } from 'uuid'
-import { useThreadsActions, useThreadsList } from '../assistant/threads-context'
-import { useWorkspaceGit } from '../workspace-git'
-import { setActiveWorkspaceRoot, useActiveWorkspaceRoot } from '../workspace-root'
+import { setActiveWorkspaceRoot, useActiveWorkspaceRoot } from '../entry/workspace-root'
 import { ConversationSurface } from './conversation-surface'
+import { useThreadsActions, useThreadsList } from './threads-context'
+import { useWorkspaceGit } from './workspace-git'
 
 /*
  * 同一组件身份承载新对话入口与已打开的对话。入口晋升到同一个 threadId 时，

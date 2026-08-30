@@ -4,8 +4,8 @@ import { SessionControlsContext, TranscriptsContext } from '@poietica/conversati
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 
-import { defaultWorkspaceId, defaultWorkspaceReady } from '../workspace-root'
-import type { DesktopAgentRuntime } from './agent-runtime'
+import type { DesktopAgentRuntime } from '../entry/agent-runtime'
+import { defaultWorkspaceId, defaultWorkspaceReady } from '../entry/workspace-root'
 import { ThreadsContext } from './threads-context'
 
 /*

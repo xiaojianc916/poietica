@@ -141,7 +141,7 @@ export function createAgentConfigBridge(): AgentConfigBridge {
 
     /*
      * agents 是不透明 JSON —— Rust 侧把它声明成 JsonValue 就是这个意思，校验在
-     * @poietica/agent-registry。断言只发生在这一行，不外泄给任何调用方。
+     * @poietica/agent-catalog。断言只发生在这一行，不外泄给任何调用方。
      */
     saveAgents: (agents, defaultAgentId) =>
       throughIpc(() => commands.agentConfigSaveAgents(agents as JsonValue[], defaultAgentId)),

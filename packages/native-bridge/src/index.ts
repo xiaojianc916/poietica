@@ -16,6 +16,7 @@ export {
   type AgentConfigSnapshot,
   createAgentConfigBridge,
 } from './gateways/agent-config'
+export { createAgentConfigStore } from './gateways/agent-config-store'
 export {
   type AssetFormat,
   importAssets,
@@ -31,6 +32,7 @@ export {
   type BrowserTab,
   type BrowserViewportBounds,
   browserDevtoolsEndpoint,
+  browserHostPort,
   browserTabBack,
   browserTabForward,
   browserTabReload,
@@ -70,6 +72,7 @@ export {
 } from './gateways/git'
 export { resolveLauncher } from './gateways/launcher'
 export { readMcpEndpoint } from './gateways/mcp'
+export { createSettingsStore } from './gateways/settings'
 export { appUpdateController } from './gateways/update'
 export { readTokenDays } from './gateways/usage'
 export { readWorkbenchSession, writeWorkbenchSession } from './gateways/workbench'

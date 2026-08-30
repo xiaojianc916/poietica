@@ -1,7 +1,9 @@
 import type { AttachmentIntake } from '@poietica/conversation-ui'
 import {
   appUpdateController,
+  createAgentConfigStore,
   createMainWindowController,
+  createSettingsStore,
   listCustomAgents,
   type MainWindowController,
   readAppVersion,
@@ -18,13 +20,11 @@ import {
   createCommandRegistry,
   createWorkbenchSessionController,
 } from '@poietica/workspace'
-import { createDesktopAgentRuntime, type DesktopAgentRuntime } from '../assistant/agent-runtime'
 import { reportFailure } from '../notice/application-policy'
 import { failureCoordinator } from '../notice/coordinator'
-import { activeWorkspaceRoot } from '../workspace-root'
-import { createDesktopAgentConfigStore } from './agent-config-store'
+import { createDesktopAgentRuntime, type DesktopAgentRuntime } from './agent-runtime'
 import { createAttachmentIntake } from './attachment-intake'
-import { createDesktopSettingsStore } from './settings-store'
+import { activeWorkspaceRoot } from './workspace-root'
 
 export interface ApplicationRuntime {
   readonly workspace: WorkbenchSessionStore
@@ -60,8 +60,8 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   const commands = createCommandRegistry()
   const mainWindow = createMainWindowController()
   const appUpdate = appUpdateController
-  const settings = createDesktopSettingsStore()
-  const agentConfig = createDesktopAgentConfigStore()
+  const settings = createSettingsStore()
+  const agentConfig = createAgentConfigStore()
   const customAgents: CustomAgentStore = {
     load: listCustomAgents,
     save: saveCustomAgent,

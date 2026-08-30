@@ -1,7 +1,7 @@
 import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
 import { useEffect } from 'react'
 
-import { useThreadsList } from '../assistant/threads-context'
+import { useThreadsList } from './threads-context'
 
 /*
  * 会话进命令面板。
