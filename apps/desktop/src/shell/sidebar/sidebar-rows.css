@@ -2,7 +2,7 @@
  * 侧边栏导航行的绘制。
  *
  * 行的形状本身不在这里：它是设计系统的 --ui-row-* 一族，声明在
- * packages/ui/src/styles/tokens/rows.css。会话列表的行与这里的导航行是同一种
+ * packages/design-system/src/styles/tokens/rows.css。会话列表的行与这里的导航行是同一种
  * 行，而两者分属平级的特性包，所以那套令牌只能由基座持有 —— 从前它声明在下面
  * 那个 .workspace-sidebar 上，agent-ui 读得到纯属渲染树的巧合。
  *

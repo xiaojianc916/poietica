@@ -57,8 +57,8 @@ const AGENTS_DIRECTORY: &str = "agents";
 
 /// 无项目会话的工作目录根。
 ///
-/// 这个名字同时由 packages/core/src/workspace-root.ts 识别；复制处带着正本路径，
-/// 任一侧改名时必须同步修改。
+/// 这个名字同时由 packages/conversation/src/session/workspace-root.ts 识别；复制处
+/// 带着正本路径，任一侧改名时必须同步修改。
 const PROJECTLESS_DIRECTORY: &str = "projectless";
 
 /// 受控 home：agent 自己的 CLI 往这里写它自己的配置文件，由它自己热重载。
@@ -395,7 +395,7 @@ pub fn sweep_projectless_workspaces(snapshot: Vec<PathBuf>, referenced: &[String
 
 /// 这条路径的末段是不是本应用签发的无项目目录名。
 ///
-/// 判据与 packages/core/src/workspace-root.ts 的 isProjectlessWorkspaceRoot
+/// 判据与 packages/conversation/src/session/workspace-root.ts 的 isProjectlessWorkspaceRoot
 /// 是同一条：目录名是一个 UUID。任一侧改动时必须同步修改。
 fn projectless_identity(candidate: &Path) -> Option<Uuid> {
     candidate
