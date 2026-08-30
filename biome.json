@@ -341,7 +341,7 @@
       }
     },
     {
-      "includes": ["packages/settings-ui/src/personalization-surface.tsx"],
+      "includes": ["packages/surfaces/src/settings/personalization-surface.tsx"],
       "linter": {
         "rules": {
           "a11y": {

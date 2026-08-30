@@ -1,7 +1,7 @@
 import type { AgentSessionPort } from '@poietica/conversation'
 import { isProjectlessWorkspaceRoot, workspaceRootName } from '@poietica/conversation'
-import type { WorkspacePickerProps } from '@poietica/conversation-ui'
 import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/native-bridge'
+import type { WorkspacePickerProps } from '@poietica/surfaces'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { v7 as uuidv7 } from 'uuid'
 import { setActiveWorkspaceRoot, useActiveWorkspaceRoot } from '../entry/workspace-root'

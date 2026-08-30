@@ -1,10 +1,10 @@
-import type { GitBranchPickerProps } from '@poietica/conversation-ui'
 import {
   type GitBranches,
   gitBranches,
   gitCreateBranch,
   gitSwitchBranch,
 } from '@poietica/native-bridge'
+import type { GitBranchPickerProps } from '@poietica/surfaces'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reportFailure } from '../notice/problem-presentation'
 

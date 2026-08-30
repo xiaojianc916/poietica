@@ -1,6 +1,6 @@
 /*
  * 包的公开面。逐个具名导出：对外承诺了什么，读这一份文件就够。
- * 组件住在 @poietica/settings-ui；这里只有设置领域与端口。
+ * 组件住在 @poietica/surfaces 的 settings/；这里只有设置领域与端口。
  */
 
 export type {

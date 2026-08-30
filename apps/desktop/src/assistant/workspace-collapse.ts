@@ -5,8 +5,8 @@ import { useSyncExternalStore } from 'react'
 /*
  * 哪些工作区是收起来的。
  *
- * 住在应用层，不住在 conversation-ui 里。它是一份用户偏好：有存储键、有跨窗口语义、
- * 一个进程里只该有一份 —— 这三件事都是宿主的事实，而 conversation-ui 是一包展示组件。
+ * 住在应用层，不住在 surfaces 的 conversation/ 里。它是一份用户偏好：有存储键、有跨窗口语义、
+ * 一个进程里只该有一份 —— 这三件事都是宿主的事实，而 surfaces 的 conversation/ 是一包展示组件。
  * 列表只收一个集合和一个动作：展示组件不绑死模块级可变状态，因此同一份列表在
  * 一个进程里画两次不会互相打断，也能在没有 Web Storage 的环境里渲染。
  *

@@ -84,7 +84,7 @@ export interface SkillRow {
  * 名册里一条技能的最小前提：这里只读这三个字段。
  *
  * 不直接引用会话领域的 AgentSkill —— 扩展域不依赖对话域；形状由调用侧
- * （extension-ui 拿着名册）结构化地满足。
+ * （surfaces 的 extension/ 拿着名册）结构化地满足。
  */
 export interface RosterSkill {
   readonly name: string

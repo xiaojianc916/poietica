@@ -1,5 +1,4 @@
-import { AutomationsSurface } from '@poietica/automation-ui'
-import { useAgentControls } from '@poietica/conversation-ui'
+import { AutomationsSurface, useAgentControls } from '@poietica/surfaces'
 
 import { automationStore } from './automation-runtime'
 

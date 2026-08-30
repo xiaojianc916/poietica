@@ -9,7 +9,7 @@ import {
   useThreadSelectors,
   useThreadUsage,
   type WorkspacePickerProps,
-} from '@poietica/conversation-ui'
+} from '@poietica/surfaces'
 import { useCallback, useEffect, useRef } from 'react'
 import { adoptBrowserPickTarget } from '../browser/browser-pick'
 import { useThreadsActions } from './threads-context'

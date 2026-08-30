@@ -29,17 +29,8 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
   { name: 'adapter', members: ['@poietica/native-bridge'] },
   /* 表现基座：零仓内依赖，只被表现环消费；自成一环是因为同环禁边。 */
   { name: 'presentation-vocabulary', members: ['@poietica/design-system'] },
-  {
-    name: 'surfaces',
-    members: [
-      '@poietica/conversation-ui',
-      '@poietica/automation-ui',
-      '@poietica/browser-ui',
-      '@poietica/extension-ui',
-      '@poietica/settings-ui',
-      '@poietica/review-ui',
-    ],
-  },
+  /* 六域表面视图共一个包：域边界是包内目录，各域互不引用。 */
+  { name: 'surfaces', members: ['@poietica/surfaces'] },
   { name: 'composition', members: ['@poietica/desktop'] },
 ]
 

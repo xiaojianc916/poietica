@@ -1,5 +1,4 @@
 import type { AgentSessionPort } from '@poietica/conversation'
-import { DelegateChannelContext, useRunningThreads } from '@poietica/conversation-ui'
 import type {
   AgentConfigStore,
   CustomAgentStore,
@@ -7,10 +6,12 @@ import type {
   SettingsStore,
 } from '@poietica/settings'
 import {
+  DelegateChannelContext,
   SettingsContentRegion,
   SettingsNavigationRegion,
   SettingsProvider,
-} from '@poietica/settings-ui'
+  useRunningThreads,
+} from '@poietica/surfaces'
 import type {
   CommandRegistry,
   WorkbenchSessionStore,

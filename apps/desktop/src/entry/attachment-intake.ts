@@ -1,4 +1,3 @@
-import type { AttachmentIntake, ComposerAsset } from '@poietica/conversation-ui'
 import {
   type AssetFormat,
   basename,
@@ -10,6 +9,7 @@ import {
   uploadAsset,
   watchDroppedPaths,
 } from '@poietica/native-bridge'
+import type { AttachmentIntake, ComposerAsset } from '@poietica/surfaces'
 
 /*
  * 附件收件口的原生这一半。

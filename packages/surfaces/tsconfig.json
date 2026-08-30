@@ -1,7 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.cache/typescript/review-ui.tsbuildinfo"
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/surfaces.tsbuildinfo",
+    "types": ["bun", "react", "react-dom"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"]
 }

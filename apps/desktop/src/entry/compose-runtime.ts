@@ -1,4 +1,3 @@
-import type { AttachmentIntake } from '@poietica/conversation-ui'
 import {
   appUpdateController,
   createAgentConfigStore,
@@ -14,6 +13,7 @@ import {
 } from '@poietica/native-bridge'
 import { failureCoordinator } from '@poietica/problem'
 import type { AgentConfigStore, CustomAgentStore, SettingsStore } from '@poietica/settings'
+import type { AttachmentIntake } from '@poietica/surfaces'
 import type { AppUpdateController } from '@poietica/update'
 import type { WorkbenchSessionStore } from '@poietica/workspace'
 import {

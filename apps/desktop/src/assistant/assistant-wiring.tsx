@@ -1,8 +1,12 @@
 import type { AgentSessionPort } from '@poietica/conversation'
-import { ComposerDrafts, ComposerDraftsContext, useAgentControls } from '@poietica/conversation-ui'
-import { PluginsSurface } from '@poietica/extension-ui'
 import { type CustomAgentStore, PersonalizationStore } from '@poietica/settings'
-import { PersonalizationSurface } from '@poietica/settings-ui'
+import {
+  ComposerDrafts,
+  ComposerDraftsContext,
+  PersonalizationSurface,
+  PluginsSurface,
+  useAgentControls,
+} from '@poietica/surfaces'
 import type { ReactNode } from 'react'
 import { AutomationsView } from '../automation/automations-view'
 import { pluginStore } from '../entry/plugin-runtime'

@@ -1,9 +1,11 @@
-import { BrowserPanel, type DockPaneOffer, type DockPaneRenderers } from '@poietica/browser-ui'
 import {
+  BrowserPanel,
   DelegateChannelIcon,
   DelegateChannelPane,
+  type DockPaneOffer,
+  type DockPaneRenderers,
   useDelegateChannelNames,
-} from '@poietica/conversation-ui'
+} from '@poietica/surfaces'
 import { GitBranch, PanelRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { ConversationReviewPane } from '../assistant/review-pane'

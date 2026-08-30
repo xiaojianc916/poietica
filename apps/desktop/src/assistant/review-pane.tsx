@@ -1,5 +1,5 @@
 import { reviewGateway } from '@poietica/native-bridge'
-import { ReviewPane } from '@poietica/review-ui'
+import { ReviewPane } from '@poietica/surfaces'
 import { reportFailure } from '../notice/problem-presentation'
 import { useConversationWorkspaceRoot } from './threads-context'
 

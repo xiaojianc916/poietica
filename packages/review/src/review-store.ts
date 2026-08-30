@@ -6,7 +6,7 @@ import { type DiffFile, type DiffStat, diffStatOf, parseUnifiedPatch } from './u
 /*
  * 分隔条的交互态。领域不依赖表现层：这份联合与 design-system 的
  * RegionSplitter.SplitterActivity（packages/design-system/src/region-splitter.tsx）
- * 逐字相同 —— 正本在那里，这里注明；review-ui 把它的 onActivity 值原样递进来，
+ * 逐字相同 —— 正本在那里，这里注明；surfaces 的 review/ 把它的 onActivity 值原样递进来，
  * 结构化类型让两份同名同形联合天然相容。
  */
 export type SplitterActivity = 'idle' | 'hover' | 'drag'
@@ -87,7 +87,7 @@ export const WORKTREE_BASE = 'HEAD'
 /** 文件树的宽度区间：分隔条与 store 的收敛读同一份。 */
 export const TREE_MIN = 180
 export const TREE_MAX = 480
-/** 语法着色由调用侧注入：领域不挑着色器，review-ui 用 shiki 实现它。 */
+/** 语法着色由调用侧注入：领域不挑着色器，surfaces 的 review/ 用 shiki 实现它。 */
 export type ReviewPaint = (files: readonly DiffFile[]) => Promise<readonly DiffFile[]>
 
 export interface ReviewStoreOptions {
