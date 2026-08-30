@@ -34,12 +34,12 @@
 
 ## 现状与目标的差距
 
-`layering.ts` 已切到目标态环语义（contract / vocabulary / visual-vocabulary /
-agent-profiles / domain / adapter / surfaces / composition）。与目标 R0–R4 的
-已知偏差（登记在 `layering.ts` 头注释）：
+`layering.ts` 已切到目标态环语义（contract / vocabulary / agent-profiles /
+domain / adapter / presentation-vocabulary / surfaces / composition）。
+design-system 曾单独成环且低于领域（review 的 store 持有 SplitterActivity
+类型）——该类型已归 review 领域自持，design-system 现为表现基座环：零仓内
+依赖、只被表现环消费。与目标 R0–R4 的已知偏差（登记在 `layering.ts` 头注释）：
 
-- `design-system` 单独成环且低于领域：`review` 的 store 持有
-  `SplitterActivity` 类型；
 - agent 会话端口与词汇住在 `conversation` 的 `agent/` 目录（原过渡包
   `agent-contract` 已删除）；`agent-catalog` 自成低环；
 - `workspace` 已拆分：领域（会话控制器/注册表/标签模型/布局数学）在包内且

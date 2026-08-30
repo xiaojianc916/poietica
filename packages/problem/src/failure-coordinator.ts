@@ -1,10 +1,19 @@
 /*
  * 一次失败的唯一去处。
  *
- * 严重级别是 impact 上的一格（见 @poietica/problem 的 failure-kernel），不是两条
- * 管线：终止与非终止共用同一份快照、同一次去重、同一条诊断记录。这就是这个
- * 子系统只有一个目录的原因 —— 按严重级别切目录，切开的是同一台状态机。
+ * 严重级别是 impact 上的一格（见同包 failure-kernel），不是两条管线：终止与
+ * 非终止共用同一份快照、同一次去重、同一条诊断记录。住在词汇包里，因为它
+ * 不认识任何应用语义 —— 谁、何时、以什么文案上报，全由上层决定。
  */
+
+import { error as reportDiagnosticError } from './diagnostics/log.ts'
+import {
+  createFailureDiagnostic,
+  type FailureDiagnostic,
+  type FailureDiagnosticHint,
+  normalizeFailureCause,
+  sanitizeFailureContext,
+} from './failure-diagnostic.ts'
 import {
   type ClassifiedFailure,
   type ClassifiedFailureInput,
@@ -12,17 +21,9 @@ import {
   createFailureScopeKey,
   isTerminalFailureImpact,
   type NonTerminalFailureImpact,
-  optionalProperty,
-  error as reportDiagnosticError,
   type TerminalFailureImpact,
-} from '@poietica/problem'
-import {
-  createFailureDiagnostic,
-  type FailureDiagnostic,
-  type FailureDiagnosticHint,
-  normalizeFailureCause,
-  sanitizeFailureContext,
-} from './diagnostic'
+} from './failure-kernel.ts'
+import { optionalProperty } from './optional-property.ts'
 
 export interface FailureIncident extends ClassifiedFailure {
   readonly diagnostic: FailureDiagnostic

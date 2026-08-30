@@ -7,7 +7,7 @@ import {
   takePreviousNativeCrashReport,
 } from '@poietica/native-bridge'
 import { DEFAULT_APP_SETTINGS } from '@poietica/settings'
-import { reportFatalIncident } from '../notice/terminal-policy'
+import { reportFatalIncident } from '../notice/problem-presentation'
 import { installContextMenuGuard } from '../window/context-menu-guard'
 import { installExternalLinks } from '../window/external-links'
 import { installScrollbarSize } from '../window/scrollbar-size'

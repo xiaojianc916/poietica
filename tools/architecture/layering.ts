@@ -2,8 +2,7 @@
  * 分层表：环序即依赖方向 —— 只允许高环指向低环，同环之间不许有边。
  *
  * 环语义对齐目标态（Architecture/poietica-architecture/LAYERS.md 的 R0–R4）；
- * 与目标表的已知偏差，均登记在案：design-system 单独成环且低于领域（review 的
- * store 持有 SplitterActivity 类型）。agent 会话端口与词汇住在 conversation 的
+ * 与目标表的已知偏差，均登记在案：agent 会话端口与词汇住在 conversation 的
  * agent/ 目录；agent-catalog 是纯数据档案，自成低环供各领域与表面消费；工作台
  * 的外壳与停靠视图住在 apps/desktop/src/shell（组合根）。
  */
@@ -13,7 +12,6 @@ export type Ring = { readonly name: string; readonly members: readonly string[] 
 export const TYPESCRIPT_RINGS: readonly Ring[] = [
   { name: 'contract', members: ['@poietica/contract'] },
   { name: 'vocabulary', members: ['@poietica/problem', '@poietica/external-store'] },
-  { name: 'visual-vocabulary', members: ['@poietica/design-system'] },
   { name: 'agent-profiles', members: ['@poietica/agent-catalog'] },
   {
     name: 'domain',
@@ -29,6 +27,8 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
     ],
   },
   { name: 'adapter', members: ['@poietica/native-bridge'] },
+  /* 表现基座：零仓内依赖，只被表现环消费；自成一环是因为同环禁边。 */
+  { name: 'presentation-vocabulary', members: ['@poietica/design-system'] },
   {
     name: 'surfaces',
     members: [

@@ -13,6 +13,24 @@ export type { LogContext, LogLevel } from './diagnostics/log.ts'
 export { error, warn } from './diagnostics/log.ts'
 export { assertInvariant, assertUnreachable } from './errors.ts'
 export {
+  FailureCoordinator,
+  type FailureIncident,
+  type FailureSignal,
+  type FailureSnapshot,
+  failureCoordinator,
+  type NonTerminalFailureIncident,
+  type PresentedFailure,
+  type TerminalFailureIncident,
+  type TerminalFailureState,
+} from './failure-coordinator.ts'
+export {
+  type FailureDiagnostic,
+  type FailureDiagnosticHint,
+  formatFailureDiagnostic,
+  normalizeFailureCause,
+  sanitizeFailureContext,
+} from './failure-diagnostic.ts'
+export {
   type ClassifiedFailure,
   type ClassifiedFailureInput,
   createClassifiedFailure,

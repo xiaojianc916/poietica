@@ -4,11 +4,11 @@ import {
   getRecentLogEntries,
   normalizeOptionalText,
   normalizeText,
-  optionalProperty,
   redactText,
   safeStringify,
   sanitizeContext,
-} from '@poietica/problem'
+} from './diagnostics/buffer.ts'
+import { optionalProperty } from './optional-property.ts'
 
 export interface FailureDiagnosticHint {
   readonly componentStack?: string | null

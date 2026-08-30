@@ -1,6 +1,6 @@
 import type { MainWindowController } from '@poietica/native-bridge'
 import { useCallback, useEffect, useState } from 'react'
-import { reportFailure } from '../notice/application-policy'
+import { reportFailure } from '../notice/problem-presentation'
 
 interface WindowChrome {
   readonly isMaximized: boolean

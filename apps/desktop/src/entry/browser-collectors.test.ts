@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { isBenignWindowError } from './benign-window-errors'
+import { isBenignWindowError } from './browser-collectors'
 
 describe('window error policy', () => {
   it.each([

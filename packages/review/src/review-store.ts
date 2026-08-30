@@ -1,8 +1,15 @@
 import type { GitCommitIntent, GitReview } from '@poietica/contract'
-import type { SplitterActivity } from '@poietica/design-system'
 import { createExternalStore } from '@poietica/external-store'
 import type { ReviewFailureReport, ReviewGateway } from './review-gateway'
 import { type DiffFile, type DiffStat, diffStatOf, parseUnifiedPatch } from './unified-diff'
+
+/*
+ * 分隔条的交互态。领域不依赖表现层：这份联合与 design-system 的
+ * RegionSplitter.SplitterActivity（packages/design-system/src/region-splitter.tsx）
+ * 逐字相同 —— 正本在那里，这里注明；review-ui 把它的 onActivity 值原样递进来，
+ * 结构化类型让两份同名同形联合天然相容。
+ */
+export type SplitterActivity = 'idle' | 'hover' | 'drag'
 /*
  * 审查会话的唯一真相。
  *

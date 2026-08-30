@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { FailureCoordinator } from './coordinator'
+import { FailureCoordinator } from '@poietica/problem'
 import { NoticeStore, noticeDwellMs } from './notices'
 
 describe('屏幕上的失败通知', () => {

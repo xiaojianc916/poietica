@@ -1,6 +1,6 @@
 import { reviewGateway } from '@poietica/native-bridge'
 import { ReviewPane } from '@poietica/review-ui'
-import { reportFailure } from '../notice/application-policy'
+import { reportFailure } from '../notice/problem-presentation'
 import { useConversationWorkspaceRoot } from './threads-context'
 
 /*

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { FailureCoordinator } from './coordinator'
+import { FailureCoordinator } from './failure-coordinator.ts'
 
 describe('FailureCoordinator', () => {
   it('owns recoverable failures', () => {

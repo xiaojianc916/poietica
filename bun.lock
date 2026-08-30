@@ -300,7 +300,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@poietica/contract": "workspace:*",
-        "@poietica/design-system": "workspace:*",
         "@poietica/external-store": "workspace:*",
         "diff": "catalog:",
       },

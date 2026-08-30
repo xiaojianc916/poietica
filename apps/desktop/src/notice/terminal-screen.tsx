@@ -1,11 +1,11 @@
 import { createMainWindowController } from '@poietica/native-bridge'
+import type { TerminalFailureIncident } from '@poietica/problem'
 import { CircleCheck as CheckCircle, Copy, RefreshCw as Refresh } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useWindowChrome } from '../window/use-window-chrome'
 import { WindowControls } from '../window/window-controls'
 import errorRobotIllustration from './assets/error-robot.svg'
-import type { TerminalFailureIncident } from './coordinator'
-import { createTerminalFailureViewModel } from './terminal-view-model'
+import { createTerminalFailureViewModel } from './problem-presentation'
 
 export interface FatalErrorScreenProps {
   readonly incident: TerminalFailureIncident

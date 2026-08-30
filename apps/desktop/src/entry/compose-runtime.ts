@@ -12,6 +12,7 @@ import {
   saveCustomAgent,
   writeWorkbenchSession,
 } from '@poietica/native-bridge'
+import { failureCoordinator } from '@poietica/problem'
 import type { AgentConfigStore, CustomAgentStore, SettingsStore } from '@poietica/settings'
 import type { AppUpdateController } from '@poietica/update'
 import type { WorkbenchSessionStore } from '@poietica/workspace'
@@ -20,8 +21,7 @@ import {
   createCommandRegistry,
   createWorkbenchSessionController,
 } from '@poietica/workspace'
-import { reportFailure } from '../notice/application-policy'
-import { failureCoordinator } from '../notice/coordinator'
+import { reportFailure } from '../notice/problem-presentation'
 import { createDesktopAgentRuntime, type DesktopAgentRuntime } from './agent-runtime'
 import { createAttachmentIntake } from './attachment-intake'
 import { activeWorkspaceRoot } from './workspace-root'
