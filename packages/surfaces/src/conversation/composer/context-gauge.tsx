@@ -21,8 +21,9 @@ const RADIUS = 10
 const STROKE = 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-/* 明细卡是唯一的数字出处，所以给精确值：分组由 Intl 出，不手搓千分位。 */
+/* 分组与缩写都由 Intl 出，不手搓千分位与 K。 */
 const EXACT = new Intl.NumberFormat('en-US')
+const COMPACT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0, notation: 'compact' })
 const PERCENT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, style: 'percent' })
 
 /* 三档阈值：<75% 正常，75% 起提醒，90% 起该收，95% 起下一句可能塞不下。
@@ -102,9 +103,9 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
 
         <TooltipContent className="context-gauge__card" side="top" sideOffset={8}>
           <div className="context-gauge__row">
-            <span className="context-gauge__label">{percent}</span>
-            <span className="context-gauge__value">
-              {EXACT.format(usage.used)} / {EXACT.format(usage.size)}
+            <span className="context-gauge__percent">{percent}</span>
+            <span className="context-gauge__ratio">
+              {COMPACT.format(usage.used)} / {COMPACT.format(usage.size)}
             </span>
           </div>
 
@@ -116,26 +117,16 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
             />
           </div>
 
-          <div className="context-gauge__row context-gauge__row--detail">
-            <span className="context-gauge__label">剩余</span>
-            <span className="context-gauge__value">{EXACT.format(usage.size - usage.used)}</span>
-          </div>
-
-          <div className="context-gauge__row context-gauge__row--detail">
-            <span className="context-gauge__label">累计输入</span>
+          <div className="context-gauge__row context-gauge__row--section">
+            <span className="context-gauge__label">token</span>
             <span className="context-gauge__value">{EXACT.format(inputTotal)}</span>
           </div>
 
-          <div className="context-gauge__row context-gauge__row--detail">
+          <div className="context-gauge__row context-gauge__row--section">
             <span className="context-gauge__label">累计命中缓存</span>
             <span className="context-gauge__value">
               {EXACT.format(usage.inputCacheRead)} · {hitRate}
             </span>
-          </div>
-
-          <div className="context-gauge__row context-gauge__row--detail">
-            <span className="context-gauge__label">累计写入缓存</span>
-            <span className="context-gauge__value">{EXACT.format(usage.inputCacheCreation)}</span>
           </div>
         </TooltipContent>
       </Tooltip>

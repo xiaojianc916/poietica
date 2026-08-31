@@ -74,8 +74,10 @@
   gap: 16px;
 }
 
-.context-gauge__row--detail {
-  margin-top: 6px;
+.context-gauge__row--section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cp-hairline, rgb(0 0 0 / 8%));
 }
 
 .context-gauge__label {
@@ -86,10 +88,17 @@
   font-weight: 600;
 }
 
+.context-gauge__percent {
+  font-weight: 600;
+}
+
+.context-gauge__ratio {
+  color: var(--cp-ink-muted, rgb(0 0 0 / 55%));
+}
+
 .context-gauge__bar {
   height: 4px;
   margin-top: 8px;
-  margin-bottom: 8px;
   border-radius: 999px;
   background: var(--cp-hairline, rgb(0 0 0 / 8%));
   overflow: hidden;
