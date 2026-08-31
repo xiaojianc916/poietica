@@ -361,25 +361,23 @@ function AuxiliaryLauncher({
 }) {
   return (
     <section aria-labelledby="auxiliary-launcher-title" className="flex h-full min-h-0 flex-col">
-      <div className="flex h-8 shrink-0 items-center justify-end border-b border-current/10 pr-2.5">
-        {trailing}
-      </div>
-      <div className="m-auto w-full max-w-sm px-6">
+      <div className="flex h-8 shrink-0 items-center justify-end pr-2.5">{trailing}</div>
+      <div className="m-auto w-full max-w-xs px-6">
         <h2 className="text-center text-lg font-semibold" id="auxiliary-launcher-title">
           打开标签页
         </h2>
         <p className="mt-2 text-center text-sm text-muted-foreground">
           选择要在侧边面板中打开的标签。
         </p>
-        <div className="mt-6 grid gap-3">
+        <div className="mt-6 grid gap-2">
           {offers.map((offer) => (
             <button
-              className="flex min-h-14 items-center gap-4 rounded-xl bg-current/[4%] px-4 text-left hover:bg-current/[7%] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
+              className="flex min-h-10 items-center gap-3 rounded-lg bg-muted px-3 text-left hover:bg-current/[7%] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
               key={offer.kind}
               onClick={() => onOpen(offer.kind)}
               type="button"
             >
-              <span aria-hidden className="flex size-5 shrink-0 items-center justify-center">
+              <span aria-hidden className="flex size-4 shrink-0 items-center justify-center">
                 {offer.icon}
               </span>
               <span className="min-w-0">

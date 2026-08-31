@@ -161,14 +161,9 @@ pub fn ensure_live_kernel(app: &AppHandle) {
             .map(|tab| (tab.id, tab.url.clone()))
     };
 
-    /* 预热不开新标签、不换活动标签：它只是给已有的那一格配一台内核。 */
-    let (id, address) = if let Some(found) = target {
-        found
-    } else {
-        let host = app.state::<BrowserHost>();
-        let mut tabs = lock(&host.tabs);
-
-        (tabs.open(None), None)
+    /* 预热不开新标签：没有标签就没有要预热的东西。 */
+    let Some((id, address)) = target else {
+        return;
     };
 
     let Ok(url) = Url::parse(
