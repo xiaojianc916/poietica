@@ -259,7 +259,39 @@ const OPENROUTER: AgentProviderPreset = {
   ],
 }
 
-const PRESETS: readonly AgentProviderPreset[] = [DEEPSEEK, ZHIPU, MOONSHOT, OPENROUTER]
+/*
+ * TokenRouter
+ * 协议：openai。模型页逐字「兼容 OpenAI：/v1/chat/completions」，官方示例以 OpenAI SDK
+ *   直连（用户提供，2026-08-31）。
+ * base URL：官方示例逐字 https://api.tokenrouter.com/v1。
+ * 密钥：登录后控制台左侧 API Keys；控制台页在登录墙后没有可外链的稳定地址，指向官方
+ *   功能指南（2.6 一节讲 API Keys）。密钥不经探测（probe.rs 的白名单），保存即视为
+ *   已写入、未验证。
+ *
+ * z-ai/glm-5.3-free：模型页逐字（用户提供截图，2026-08-31）—— 免费（投入/产出均
+ *   0 美元/M tokens），「可用计算资源有限。服务稳定性及并发性无法保证」。平台自己的
+ *   /v1/models 要密钥，目录拿不到；上下文按上游 Z.ai 官方文档 GLM-5.3 逐字 1M
+ *   （docs.z.ai/guides/llm/glm-5.3，2026-08-31 取）—— 这一格缺席整条被丢，不能空。
+ * 思考：上游 GLM-5.3 恒开思考（low / high / max，不可关）；TokenRouter 未枚举档位，
+ *   thinking 不声明 —— 要完整档位走上面智谱直连那张卡。
+ */
+const TOKENROUTER: AgentProviderPreset = {
+  id: 'tokenrouter',
+  displayName: 'TokenRouter',
+  description: '填入 TokenRouter 密钥，一个账号调用平台聚合的全部模型',
+  wire: 'openai',
+  baseUrl: 'https://api.tokenrouter.com/v1',
+  apiKeysUrl: 'https://www.tokenrouter.com/docs/tokenrouter-feature-guide/',
+  models: [
+    {
+      id: 'z-ai/glm-5.3-free',
+      displayName: 'GLM 5.3 (free)',
+      maxContextSize: 1000000,
+    },
+  ],
+}
+
+const PRESETS: readonly AgentProviderPreset[] = [DEEPSEEK, ZHIPU, MOONSHOT, OPENROUTER, TOKENROUTER]
 
 /** 设置界面要显示的厂商，顺序即显示顺序。 */
 export function builtinAgentProviders(): readonly AgentProviderPreset[] {

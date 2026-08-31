@@ -24,7 +24,7 @@ import {
   type ApplicationCommandContext,
   registerApplicationCommands,
 } from './commands/app-commands'
-import { type AppCapabilities, WorkspaceContainer } from './workspace-container'
+import { WorkspaceContainer } from './workspace-container'
 import { workspaceLayoutStore } from './workspace-layout-store'
 
 /*
@@ -65,26 +65,11 @@ export function AppShell({ runtime }: AppShellProps) {
     failureCoordinator.getSnapshot,
   )
 
-  /*
-   * 降级判断只在这里派生一次，并且这次真的是稳定引用。
-   *
-   * 依赖是三个布尔，不是那张 Map：FailureCoordinator.publish() 每次都
-   * degradedFeatures: new Map(...)，而 publish 也走 recoverable 上报与 dismiss。
-   * 按 Map 的引用记忆化，等于任何一次与降级无关的失败都会换掉 capabilities,
-   * 把工作区容器下游的记忆化全部作废。
-   */
+  /* FailureCoordinator.publish() 每次都换新 Map：降级判定取布尔，不取 Map 引用。 */
   const degraded = failureSnapshot.degradedFeatures
 
   const canOpenSettings = !degraded.has('settings')
   const canOpenDeveloperTools = !degraded.has('developer-tools')
-
-  const capabilities = useMemo<AppCapabilities>(
-    () => ({
-      developerTools: canOpenDeveloperTools,
-      settings: canOpenSettings,
-    }),
-    [canOpenDeveloperTools, canOpenSettings],
-  )
 
   /*
    * 更新状态在这里落地，一个进程一份：菜单里那一行只是投影，菜单每次开合都是一次
@@ -131,17 +116,17 @@ export function AppShell({ runtime }: AppShellProps) {
   }, [runtime.workspace])
 
   const openSettings = useCallback(() => {
-    if (capabilities.settings) {
+    if (canOpenSettings) {
       setSettingsOpen(true)
     }
-  }, [capabilities.settings])
+  }, [canOpenSettings])
 
   const closeSettings = useCallback(() => {
     setSettingsOpen(false)
   }, [])
 
   const openDeveloperTools = useCallback(() => {
-    if (!capabilities.developerTools) {
+    if (!canOpenDeveloperTools) {
       return
     }
 
@@ -152,7 +137,7 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [capabilities.developerTools, runtime.mainWindow])
+  }, [canOpenDeveloperTools, runtime.mainWindow])
 
   const commandContext = useMemo<ApplicationCommandContext>(
     () => ({
@@ -351,11 +336,10 @@ export function AppShell({ runtime }: AppShellProps) {
             agentConfigStore={runtime.agentConfig}
             agentSession={runtime.agent.session}
             appVersion={runtime.appVersion}
-            capabilities={capabilities}
             commands={runtime.commands}
             customAgentStore={runtime.customAgents}
             dataDirectory={runtime.dataDirectory}
-            isSettingsOpen={isSettingsOpen && capabilities.settings}
+            isSettingsOpen={isSettingsOpen && canOpenSettings}
             isWindowMaximized={isWindowMaximized}
             keybindings={keybindings}
             onDeveloperToolsOpen={openDeveloperTools}

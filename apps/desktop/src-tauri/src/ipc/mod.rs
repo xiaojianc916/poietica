@@ -31,7 +31,7 @@ use commands::{
     cli::profile::AgentConfigSnapshot,
     conversation::capability::{
         AgentCapability, AgentCapabilityInstall, AgentCapabilityInstallRequest,
-        AgentCapabilityReport, AgentCapabilityState,
+        AgentCapabilityState,
     },
     conversation::custom_agents::{
         CustomAgentCatalog, CustomAgentFile, CustomAgentRemoveRequest, CustomAgentSaveRequest,
@@ -212,7 +212,6 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentCapabilityInstall>()
         .typ::<AgentCapabilityState>()
         .typ::<AgentCapability>()
-        .typ::<AgentCapabilityReport>()
         .typ::<AgentCapabilityInstallRequest>()
         .typ::<AgentRenameThreadRequest>()
         .typ::<AgentArchiveThreadRequest>()

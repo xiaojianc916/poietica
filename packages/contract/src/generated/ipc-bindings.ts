@@ -176,21 +176,13 @@ async agentToolkit(request: AgentToolkitRequest) : Promise<AgentToolkit> {
     return await TAURI_INVOKE("agent_toolkit", { request });
 },
 /**
- * 本机 kap 此刻报的能力清单。
- * 
- * # Errors
- * 
- * kap 拒绝或链路故障时失败。没有连接不是失败：那一刻没有人能回答。
+ * 读取 KAP 的应用级能力清单；连接不存在时按统一启动管线建立。
  */
-async agentCapabilityReport() : Promise<AgentCapabilityReport> {
+async agentCapabilityReport() : Promise<AgentCapability[]> {
     return await TAURI_INVOKE("agent_capability_report");
 },
 /**
- * 让本机 kap 装一项能力。跟随它的后台任务，落定后交回最终状态。
- * 
- * # Errors
- * 
- * 没有连接，或 kap 拒绝（含安装迟迟不落定）时失败。
+ * 启动或跟随 KAP 的幂等安装，连接不存在时先按统一管线建立。
  */
 async agentCapabilityInstall(request: AgentCapabilityInstallRequest) : Promise<AgentCapability> {
     return await TAURI_INVOKE("agent_capability_install", { request });
@@ -1242,16 +1234,12 @@ launch: AgentLaunch;
 cwd: string | null }
 export type AgentCapability = { id: string; pluginId: string | null; label: string; supported: boolean; state: AgentCapabilityState; install: AgentCapabilityInstall }
 /**
- * kap 持有的后台安装进度，原样投影。
+ * KAP 持有的后台安装进度，原样投影。
  */
 export type AgentCapabilityInstall = { running: boolean; step: string | null; percent: number | null; error: string | null }
 export type AgentCapabilityInstallRequest = { capabilityId: string }
 /**
- * 「没连上」与「连上了，它这么说」不是一件事，所以判别式在类型里。
- */
-export type AgentCapabilityReport = { kind: "unreachable" } | { kind: "reported"; capabilities: AgentCapability[] }
-/**
- * kap 对一项能力的就绪裁决，原样投影。
+ * KAP 对一项能力的就绪裁决，原样投影。
  */
 export type AgentCapabilityState = "notInstalled" | "partial" | "ready" | "unsupported"
 export type AgentCliRequest = { 

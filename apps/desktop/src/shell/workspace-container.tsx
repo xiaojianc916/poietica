@@ -47,18 +47,6 @@ import {
 } from './index'
 import type { WorkspaceParts, WorkspaceShellActions } from './shell-contract'
 
-/**
- * 运行期能力开关。
- *
- * 降级判断由 AppShell 从 failureCoordinator 派生一次，向下作为稳定引用传递；
- * UI 只把它映射成控件的 disabled，不在事件处理器里重复守卫——控件禁用之后
- * onClick 不会触发，那层守卫是死代码。
- */
-export interface AppCapabilities {
-  readonly settings: boolean
-  readonly developerTools: boolean
-}
-
 export interface WorkspaceContainerProps {
   readonly agentSession: AgentSessionPort
   readonly appVersion: () => Promise<string>
@@ -66,7 +54,6 @@ export interface WorkspaceContainerProps {
   readonly dataDirectory: () => Promise<string>
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
-  readonly capabilities: AppCapabilities
   readonly isSettingsOpen: boolean
   readonly onSettingsClose: () => void
   readonly settingsStore: SettingsStore
@@ -97,7 +84,6 @@ export function WorkspaceContainer({
   dataDirectory,
   workspace,
   commands,
-  capabilities,
   isSettingsOpen,
   onSettingsClose,
   settingsStore,

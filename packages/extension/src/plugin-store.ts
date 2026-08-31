@@ -590,7 +590,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   let capabilityReadQueued = false
 
   function queueCapabilityRead(): void {
-    if (capabilityReadQueued) return
+    if (capabilityReadQueued) {
+      return
+    }
 
     capabilityReadQueued = true
     queue = queue.then(readCapabilities).finally(() => {
