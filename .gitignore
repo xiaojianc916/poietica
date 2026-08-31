@@ -190,6 +190,8 @@ dev-output.txt
 .env.local
 trace.txt
 
+refactor.mjs
+
 dist-release/
 
 # performance profiles
