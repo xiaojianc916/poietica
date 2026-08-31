@@ -22,6 +22,7 @@ export { ErrorState, InlineSpinner, LoadingState } from './control/feedback'
 export { popupSurfaceClassName } from './control/popup-surface'
 export { Select, type SelectOption } from './control/select'
 export { Switch } from './control/switch'
+export { Tabs, TabsList, TabsPanel, TabsTab } from './control/tabs'
 export { ToastRegion } from './control/toast'
 export {
   Tooltip,

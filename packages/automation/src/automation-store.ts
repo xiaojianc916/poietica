@@ -47,9 +47,10 @@ interface AutomationsViewModel {
 export interface AutomationStore {
   readonly getSnapshot: () => AutomationsViewModel
   readonly subscribe: (listener: () => void) => () => void
-  readonly create: (draft: AutomationDraft) => void
+  /** 成功落盘返回 true；失败时编辑器保留草稿。 */
+  readonly create: (draft: AutomationDraft) => Promise<boolean>
   /** 改一条已有的。触发条件没变就不重排下一次运行。 */
-  readonly update: (id: string, draft: AutomationDraft) => void
+  readonly update: (id: string, draft: AutomationDraft) => Promise<boolean>
   readonly remove: (id: string) => void
   readonly setEnabled: (id: string, enabled: boolean) => void
   readonly runNow: (id: string) => void
@@ -104,19 +105,20 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
    * 失败时不动屏幕：这里没有需要回滚的乐观更新，屏幕上仍然是盘上那一份，人看到
    * 的就是这次确实没改成。但不吞掉 —— 交给可观测通道。
    */
-  function command(send: () => Promise<AutomationCatalog>): void {
+  async function command(send: () => Promise<AutomationCatalog>): Promise<boolean> {
     const settle = ticket()
 
-    void send()
-      .then((catalog) => {
-        settle(catalog.automations)
+    try {
+      const catalog = await send()
+      settle(catalog.automations)
+      return true
+    } catch (cause: unknown) {
+      warn('自动化没能写入磁盘，屏幕上仍是磁盘里那一份', {
+        scope: 'automations',
+        cause,
       })
-      .catch((cause: unknown) => {
-        warn('自动化没能写入磁盘，屏幕上仍是磁盘里那一份', {
-          scope: 'automations',
-          cause,
-        })
-      })
+      return false
+    }
   }
 
   function lookup(id: string): Automation | undefined {
@@ -132,7 +134,7 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
   function scheduleMissing(automations: readonly Automation[]): void {
     for (const automation of automations) {
       if (automation.enabled && automation.schedule !== null && automation.nextRunAt === null) {
-        command(() =>
+        void command(() =>
           gateway.upsert({
             ...automation,
             nextRunAt: nextRunAfter(automation.schedule, Date.now()),
@@ -203,7 +205,7 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
           }
         : { kind: 'keep' }
 
-    command(() => gateway.recordRun({ id: automation.id, run, reschedule }))
+    void command(() => gateway.recordRun({ id: automation.id, run, reschedule }))
   }
 
   return {
@@ -218,7 +220,7 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
     },
 
     create(draft) {
-      command(() =>
+      return command(() =>
         gateway.create({
           title: draft.title,
           prompt: draft.prompt,
@@ -229,14 +231,14 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
       )
     },
 
-    update(id, draft) {
+    async update(id, draft) {
       const current = lookup(id)
 
       if (current === undefined) {
-        return
+        return false
       }
 
-      command(() =>
+      return command(() =>
         gateway.upsert({
           ...current,
           title: draft.title,
@@ -259,7 +261,7 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
     },
 
     remove(id) {
-      command(() => gateway.remove(id))
+      void command(() => gateway.remove(id))
     },
 
     setEnabled(id, enabled) {
@@ -273,7 +275,7 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
        * 重新启用时下一次到期从此刻重新起算，不是接着那个早已过期的时刻 ——
        * 否则一停一开，人立刻挨一次补跑，那不是他按下开关时想要的。
        */
-      command(() =>
+      void command(() =>
         gateway.upsert({
           ...current,
           enabled,

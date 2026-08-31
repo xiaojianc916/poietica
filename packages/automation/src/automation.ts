@@ -126,37 +126,114 @@ export function scheduleProblem(schedule: string | null): ScheduleProblem | null
   return null
 }
 
-/** 新建时输入框里的那一段。「默认是每天九点」只写一处。 */
-export const DEFAULT_SCHEDULE = '0 9 * * *'
+/** 产品支持直接编辑的常见调度；通用 cron 仍由 croner 负责。 */
+export type CommonScheduleKind = 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'monthly'
+export type ScheduleKind = CommonScheduleKind | 'custom'
 
-/**
- * 界面上那几颗预设。
- *
- * 只是往输入框里填一段文字，不是第二份状态：表达式始终是唯一真相。它们存在
- * 的理由是 cron 原文对人不友好，而「每天九点」这种最常见的意图不该逼人先学
- * 一门语法 —— GitHub Actions 与 Vercel 的界面上摆的也是这个组合。
- */
-export const SCHEDULE_PRESETS: readonly {
-  readonly expression: string
-  readonly label: string
-}[] = [
-  { expression: '0 * * * *', label: '每小时' },
-  { expression: '0 9 * * *', label: '每天 09:00' },
-  { expression: '0 9 * * 1', label: '每周一 09:00' },
-  { expression: '0 9 1 * *', label: '每月 1 号 09:00' },
-]
+export const DEFAULT_SCHEDULE_TIME = '09:00'
 
-/**
- * 这条日程念出来是什么。
- *
- * 定时那一档念出来就是表达式原文。croner 的 JS 版没有 describe()，而自己写一个
- * cron 到人话的翻译器，等于把一整门语言的语义在这一层再实现一遍，还得跟着它的
- * 扩展语法一起腐烂。GitHub Actions、Vercel 与 Kubernetes 的界面上摆的也都是原文，
- * 旁边配一句「下一次是什么时候」—— 那一句由 describeMoment 负责，它比任何措辞
- * 都准，因为它算的是真的那个时刻。
- */
+interface CommonSchedule {
+  readonly kind: CommonScheduleKind
+  readonly time: string | null
+}
+
+const CLOCK_CRON = /^([0-5]?\d) ([01]?\d|2[0-3]) (\*|1) \* (\*|1-5|1)$/
+
+function commonScheduleOf(schedule: string | null): CommonSchedule | null {
+  if (schedule === '0 * * * *') {
+    return { kind: 'hourly', time: null }
+  }
+  if (schedule === null) {
+    return null
+  }
+
+  const match = CLOCK_CRON.exec(schedule)
+  if (match === null) {
+    return null
+  }
+
+  const [, minute, hour, dayOfMonth, dayOfWeek] = match
+  if (minute === undefined || hour === undefined) {
+    return null
+  }
+  const time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
+
+  if (dayOfMonth === '1' && dayOfWeek === '*') {
+    return { kind: 'monthly', time }
+  }
+  if (dayOfMonth !== '*') {
+    return null
+  }
+  if (dayOfWeek === '*') {
+    return { kind: 'daily', time }
+  }
+  if (dayOfWeek === '1-5') {
+    return { kind: 'weekdays', time }
+  }
+  if (dayOfWeek === '1') {
+    return { kind: 'weekly', time }
+  }
+  return null
+}
+
+export function scheduleKindOf(schedule: string | null): ScheduleKind | null {
+  return commonScheduleOf(schedule)?.kind ?? (schedule === null ? null : 'custom')
+}
+
+export function scheduleTimeOf(schedule: string | null): string | null {
+  return commonScheduleOf(schedule)?.time ?? null
+}
+
+function timeParts(time: string): { readonly hour: number; readonly minute: number } {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time)
+  if (match === null || match[1] === undefined || match[2] === undefined) {
+    throw new Error(`无效时间：${time}`)
+  }
+  return { hour: Number(match[1]), minute: Number(match[2]) }
+}
+
+export function scheduleFor(
+  kind: CommonScheduleKind,
+  time: string = DEFAULT_SCHEDULE_TIME,
+): string {
+  if (kind === 'hourly') {
+    return '0 * * * *'
+  }
+
+  const { hour, minute } = timeParts(time)
+  if (kind === 'daily') {
+    return [minute, hour, '*', '*', '*'].join(' ')
+  }
+  if (kind === 'weekdays') {
+    return [minute, hour, '*', '*', '1-5'].join(' ')
+  }
+  if (kind === 'weekly') {
+    return [minute, hour, '*', '*', '1'].join(' ')
+  }
+  return [minute, hour, '1', '*', '*'].join(' ')
+}
+
+export const DEFAULT_SCHEDULE = scheduleFor('daily')
+
+const SCHEDULE_LABEL: Record<Exclude<CommonScheduleKind, 'hourly'>, string> = {
+  daily: '每天',
+  weekdays: '每工作日',
+  weekly: '每周一',
+  monthly: '每月 1 号',
+}
+
 export function describeSchedule(schedule: string | null): string {
-  return schedule ?? '手动'
+  if (schedule === null) {
+    return '手动'
+  }
+  const kind = scheduleKindOf(schedule)
+  if (kind === null || kind === 'custom') {
+    return schedule
+  }
+  if (kind === 'hourly') {
+    return '每小时'
+  }
+  return `${SCHEDULE_LABEL[kind]} ${scheduleTimeOf(schedule) ?? DEFAULT_SCHEDULE_TIME}`
 }
 
 /**
@@ -212,7 +289,7 @@ export interface AutomationDraft {
 export const BLANK_DRAFT: AutomationDraft = {
   title: '',
   prompt: '',
-  schedule: DEFAULT_SCHEDULE,
+  schedule: null,
   sessionConfig: {},
 }
 
