@@ -1,4 +1,5 @@
 import type { AgentSessionPort } from '@poietica/conversation'
+import type { PluginStore } from '@poietica/extension'
 import { browserHostPort } from '@poietica/native-bridge'
 import type {
   AgentConfigStore,
@@ -72,6 +73,7 @@ export interface WorkspaceContainerProps {
   readonly settingsStore: SettingsStore
   readonly agentConfigStore: AgentConfigStore
   readonly customAgentStore: CustomAgentStore
+  readonly plugins: PluginStore
   readonly keybindings: KeybindingCatalog
   readonly updateRow: ReactNode
   readonly isWindowMaximized: boolean
@@ -102,6 +104,7 @@ export function WorkspaceContainer({
   settingsStore,
   agentConfigStore,
   customAgentStore,
+  plugins,
   keybindings,
   updateRow,
   isWindowMaximized,
@@ -373,6 +376,7 @@ export function WorkspaceContainer({
       isOpen={isSettingsOpen}
       keybindings={keybindings}
       onDismiss={onSettingsClose}
+      plugins={plugins}
       store={settingsStore}
       threads={threads}
     >

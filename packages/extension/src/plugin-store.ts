@@ -107,6 +107,7 @@ export interface StagedInstall {
 
 export interface RefusedInstall {
   readonly kind: 'refused'
+  readonly source: PluginInstallSource
   readonly reason: string
 }
 
@@ -564,9 +565,10 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     publish(flow === 'install' ? { install: state } : { skillInstall: state })
   }
 
-  function refuse(flow: InstallFlowKey, cause: unknown): void {
+  function refuse(flow: InstallFlowKey, source: PluginInstallSource, cause: unknown): void {
     publishFlow(flow, {
       kind: 'refused',
+      source,
       reason: cause instanceof Error ? cause.message : String(cause),
     })
   }
@@ -590,7 +592,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     const planning = planFetch(source)
 
     if (planning.kind === 'unplannable') {
-      publishFlow(flow, { kind: 'refused', reason: planning.reason })
+      publishFlow(flow, { kind: 'refused', source, reason: planning.reason })
 
       return
     }
@@ -608,7 +610,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       try {
         staged = await stage(plan)
       } catch (cause: unknown) {
-        refuse(flow, cause)
+        refuse(flow, source, cause)
 
         return
       }
@@ -624,7 +626,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       try {
         await accept(staged, subdirectory)
       } catch (cause: unknown) {
-        refuse(flow, cause)
+        refuse(flow, source, cause)
       }
     })
   }
@@ -817,6 +819,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
             await gateway.discardStagedPlugin(staged.stagingId)
             publishFlow('install', {
               kind: 'refused',
+              source,
               reason: decoded.diagnostics.map((entry) => entry.detail).join('; '),
             })
 
@@ -959,6 +962,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         publish({
           install: {
             kind: 'refused',
+            source,
             reason: cause instanceof Error ? cause.message : String(cause),
           },
         })

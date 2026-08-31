@@ -466,17 +466,6 @@
   inline-size: var(--settings-heat-swatch);
 }
 
-.settings-placeholder {
-  margin: 0;
-  padding: 24px 16px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--settings-surface);
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
 /* ---------------- 说明与筛选 ---------------- */
 
 /*

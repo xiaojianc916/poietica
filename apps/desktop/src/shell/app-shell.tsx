@@ -376,6 +376,7 @@ export function AppShell({ runtime }: AppShellProps) {
             onWindowClose={closeWindow}
             onWindowMaximize={maximizeWindow}
             onWindowMinimize={minimizeWindow}
+            plugins={pluginStore}
             settingsStore={runtime.settings}
             updateRow={<UpdateRow store={updates} />}
             workspace={runtime.workspace}

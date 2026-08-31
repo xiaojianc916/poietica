@@ -6,6 +6,7 @@ import {
   Select,
   type SelectOption,
 } from '@poietica/design-system'
+import type { PluginStore } from '@poietica/extension'
 import type {
   AgentConfigStore,
   AppSettings,
@@ -19,9 +20,9 @@ import {
   Cpu,
   Info,
   Keyboard,
+  Monitor,
   ShieldCheck,
   Sun,
-  Unplug,
   Zap,
 } from 'lucide-react'
 import {
@@ -35,6 +36,7 @@ import {
   useMemo,
   useState,
 } from 'react'
+import { ComputerUseSettings } from '../computer-use-settings'
 import { KeymapSettings } from '../keymap-settings'
 import { ModelsSettings } from '../models/models-settings'
 import { UsageSettings } from '../usage-settings'
@@ -54,7 +56,7 @@ type SettingsSection =
   | 'archived'
   | 'models'
   | 'keymap'
-  | 'tools'
+  | 'computer-use'
   | 'usage'
   | 'privacy'
   | 'about'
@@ -85,6 +87,7 @@ interface SettingsSectionContext {
   readonly keybindings: KeybindingCatalog
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
+  readonly plugins: PluginStore
 }
 
 interface SettingsSectionDescriptor {
@@ -123,12 +126,10 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
     icon: Keyboard,
     render: ({ keybindings }) => <KeymapSettings catalog={keybindings} />,
   },
-  tools: {
-    label: '插件',
-    icon: Unplug,
-    render: () => (
-      <SettingsPlaceholder description="插件、技能与 MCP 服务器的安装与管理尚未实现。" />
-    ),
+  'computer-use': {
+    label: '电脑控制',
+    icon: Monitor,
+    render: ({ plugins }) => <ComputerUseSettings store={plugins} />,
   },
   usage: {
     label: '用量',
@@ -157,7 +158,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
-  ['models', 'keymap', 'tools', 'usage', 'archived'],
+  ['models', 'keymap', 'computer-use', 'usage', 'archived'],
   ['privacy', 'about'],
 ]
 
@@ -175,6 +176,7 @@ interface SettingsSurfaceContextValue {
   readonly keybindings: KeybindingCatalog
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
+  readonly plugins: PluginStore
   readonly section: SettingsSection
   readonly onSelect: (section: SettingsSection) => void
   readonly onBack: () => void
@@ -195,6 +197,8 @@ function useSettingsSurface(): SettingsSurfaceContextValue {
 export interface SettingsProviderProps {
   readonly store: SettingsStore
   readonly agentConfigStore: AgentConfigStore
+  /** 插件账本的唯一持有者，由组合根注入：这个包不认识桌面传输层。 */
+  readonly plugins: PluginStore
   readonly threads: ThreadsStore
   /**
    * 当前生效的快捷键，由组合根注入。
@@ -227,6 +231,7 @@ export interface SettingsProviderProps {
 export function SettingsProvider({
   store,
   agentConfigStore,
+  plugins,
   threads,
   keybindings,
   appVersion,
@@ -256,6 +261,7 @@ export function SettingsProvider({
     () => ({
       controller,
       agentConfigStore,
+      plugins,
       threads,
       keybindings,
       appVersion,
@@ -264,7 +270,16 @@ export function SettingsProvider({
       onSelect: setSection,
       onBack: controller.requestClose,
     }),
-    [agentConfigStore, appVersion, controller, dataDirectory, keybindings, section, threads],
+    [
+      agentConfigStore,
+      appVersion,
+      controller,
+      dataDirectory,
+      keybindings,
+      plugins,
+      section,
+      threads,
+    ],
   )
 
   return <SettingsSurfaceContext value={value}>{children}</SettingsSurfaceContext>
@@ -289,8 +304,16 @@ export function SettingsNavigationRegion({ footer }: SettingsNavigationRegionPro
 }
 
 export function SettingsContentRegion() {
-  const { controller, agentConfigStore, appVersion, dataDirectory, keybindings, section, threads } =
-    useSettingsSurface()
+  const {
+    controller,
+    agentConfigStore,
+    appVersion,
+    dataDirectory,
+    keybindings,
+    plugins,
+    section,
+    threads,
+  } = useSettingsSurface()
 
   return (
     <div aria-live="polite" className="settings-content">
@@ -325,6 +348,7 @@ export function SettingsContentRegion() {
               controller,
               dataDirectory,
               keybindings,
+              plugins,
               settings: controller.settings,
               threads,
             })}
@@ -784,26 +808,5 @@ function ArchitecturePrinciple({ index, title, description }: ArchitecturePrinci
       <strong>{title}</strong>
       <p>{description}</p>
     </article>
-  )
-}
-
-interface SettingsPlaceholderProps {
-  readonly description: string
-}
-
-/*
- * 一个还没有实现的分组说自己还没有实现。
- *
- * 这里刻意不放能拨动的控件：写不进 AppSettings 的开关会让人以为设置生效了，
- * 比一句实话有害得多。
- *
- * 也刻意没有标题。分类标题由 SettingsContentRegion 从 SECTIONS 渲染，这里再画
- * 一个只会让同一句文案出现两遍、并且多出第二个来源。
- */
-function SettingsPlaceholder({ description }: SettingsPlaceholderProps) {
-  return (
-    <SettingsPage>
-      <p className="settings-placeholder">{description}</p>
-    </SettingsPage>
   )
 }

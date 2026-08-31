@@ -17,6 +17,12 @@ export {
   statusText,
 } from './catalog/listing'
 export { describeChannel } from './catalog/scope'
+export {
+  type ComputerUseView,
+  computerUseView,
+  KIMI_COMPUTER_USE,
+  KIMI_COMPUTER_USE_SOURCE,
+} from './computer-use'
 export type { ExtensionGateway } from './extension-gateway'
 export {
   describeInstallSource,
