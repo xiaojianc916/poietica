@@ -4,132 +4,18 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
+import { terminalTheme } from './terminal-theme'
 
 /*
- * 终端这一格。
- *
- * 屏幕由 xterm.js 画：VTE 解析、选区、滚动回卷、链接、无障碍与网格测量都是它的
- * 既有职责，手搓一份必漏边界。这个组件只做三件事 —— 把容器交给它、把字节两头对接、
- * 把量出来的网格报回原生侧。会话本体（PTY、子进程、回放）归原生侧，卸载不销毁。
+ * 终端这一格。屏幕由 xterm.js 画：VTE 解析、选区、滚动回卷与网格测量都是它的既有
+ * 职责。这个组件只做三件事 —— 把容器交给它、把字节两头对接、把量出来的网格报回
+ * 原生侧。会话本体（PTY、子进程、回放）归原生侧，卸载不销毁。
  */
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
 const FONT_SIZE = 12.5
 const SCROLLBACK = 10_000
 const ENCODER = new TextEncoder()
-
-/* ANSI 十六色，深浅两套同色相：各自在对面的底色上仍然读得清。 */
-type Ansi16 = readonly [
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-  string,
-]
-
-const ANSI_DARK: Ansi16 = [
-  '#1d1f21',
-  '#cc6666',
-  '#b5bd68',
-  '#f0c674',
-  '#81a2be',
-  '#b294bb',
-  '#8abeb7',
-  '#c5c8c6',
-  '#666666',
-  '#d54e53',
-  '#b9ca4a',
-  '#e7c547',
-  '#7aa6da',
-  '#c397d8',
-  '#70c0b1',
-  '#eaeaea',
-]
-const ANSI_LIGHT: Ansi16 = [
-  '#000000',
-  '#c82829',
-  '#718c00',
-  '#eab700',
-  '#4271ae',
-  '#8959a8',
-  '#3e999f',
-  '#c7c7c7',
-  '#8e908c',
-  '#c82829',
-  '#718c00',
-  '#eab700',
-  '#4271ae',
-  '#8959a8',
-  '#3e999f',
-  '#ffffff',
-]
-
-function channels(color: string): readonly number[] {
-  return (color.match(/\d+(?:\.\d+)?/g) ?? []).map(Number)
-}
-
-/* 底色的亮度决定用哪套 ANSI：主题换了这里跟着换，不另存一份主题状态。 */
-function isDark(background: readonly number[]): boolean {
-  const [red = 0, green = 0, blue = 0] = background
-
-  return (red * 299 + green * 587 + blue * 114) / 1000 < 128
-}
-
-function terminalTheme(element: HTMLElement) {
-  const computed = getComputedStyle(element)
-  const palette = isDark(channels(computed.backgroundColor)) ? ANSI_DARK : ANSI_LIGHT
-  const [
-    black,
-    red,
-    green,
-    yellow,
-    blue,
-    magenta,
-    cyan,
-    white,
-    brightBlack,
-    brightRed,
-    brightGreen,
-    brightYellow,
-    brightBlue,
-    brightMagenta,
-    brightCyan,
-    brightWhite,
-  ] = palette
-
-  return {
-    background: computed.backgroundColor,
-    black,
-    blue,
-    brightBlack,
-    brightBlue,
-    brightCyan,
-    brightGreen,
-    brightMagenta,
-    brightRed,
-    brightWhite,
-    brightYellow,
-    cursor: computed.color,
-    cyan,
-    foreground: computed.color,
-    green,
-    magenta,
-    red,
-    white,
-    yellow,
-  }
-}
 
 export interface TerminalPaneProps {
   readonly port: TerminalHostPort
@@ -149,6 +35,7 @@ export function TerminalPane({ port, root }: TerminalPaneProps) {
 
     const terminal = new Terminal({
       cursorBlink: true,
+      cursorStyle: 'bar',
       fontFamily: MONO,
       fontSize: FONT_SIZE,
       scrollback: SCROLLBACK,
@@ -158,14 +45,61 @@ export function TerminalPane({ port, root }: TerminalPaneProps) {
 
     terminal.loadAddon(fit)
     terminal.open(element)
-    fit.fit()
-    terminal.focus()
 
     let live = true
     let stopWatching: (() => void) | null = null
+    let attached = false
 
     const failed = (cause: unknown): void => {
       warn('终端这一格没接上', { cause, scope: 'terminal' })
+    }
+
+    const clipboardFailed = (cause: unknown): void => {
+      warn('剪贴板没换成', { cause, scope: 'terminal' })
+    }
+
+    /*
+     * 网格只有一个来源：容器量到的真实尺寸。量不到就不许 fit —— addon-fit 会把网格
+     * 钳到 2x1，拿这个尺寸开出来的 shell 是一片空白。订阅就位、尺寸量到、还没接上，
+     * 三件事凑齐才 attach，首个网格随 attach 一起过去。
+     */
+    const sync = (): void => {
+      if (!live || stopWatching === null) {
+        return
+      }
+
+      if (element.clientWidth === 0 || element.clientHeight === 0) {
+        return
+      }
+
+      fit.fit()
+
+      if (attached) {
+        return
+      }
+
+      attached = true
+      void port.attach(root, terminal.cols, terminal.rows).catch(failed)
+      terminal.focus()
+    }
+
+    /* 右键换剪贴板：有选区就复制，没选区就粘贴。xterm 在非 macOS 上不占右键。 */
+    const exchangeClipboard = (event: MouseEvent): void => {
+      event.preventDefault()
+
+      if (terminal.hasSelection()) {
+        const selection = terminal.getSelection()
+
+        terminal.clearSelection()
+        void navigator.clipboard.writeText(selection).catch(clipboardFailed)
+        return
+      }
+
+      void navigator.clipboard.readText().then((text) => {
+        if (text !== '') {
+          terminal.paste(text)
+        }
+      }, clipboardFailed)
     }
 
     const listeners = [
@@ -173,6 +107,10 @@ export function TerminalPane({ port, root }: TerminalPaneProps) {
         void port.write(root, ENCODER.encode(data)).catch(failed)
       }),
       terminal.onResize(({ cols, rows }) => {
+        if (!attached) {
+          return
+        }
+
         void port.resize(root, cols, rows).catch(failed)
       }),
     ]
@@ -198,20 +136,30 @@ export function TerminalPane({ port, root }: TerminalPaneProps) {
         }
 
         stopWatching = dispose
-
-        void port.attach(root, terminal.cols, terminal.rows).catch(failed)
+        sync()
       }, failed)
 
-    /* 拖宽与开合都只改容器尺寸：量在这里发生一次，网格由 fit 算。 */
-    const observer = new ResizeObserver(() => {
-      fit.fit()
-    })
+    const observer = new ResizeObserver(sync)
 
     observer.observe(element)
+
+    /* 明暗令牌换了，画布上的颜色得跟着换：data-theme 是主题的唯一开关。 */
+    const themes = new MutationObserver(() => {
+      terminal.options.theme = terminalTheme(element)
+    })
+
+    themes.observe(document.documentElement, {
+      attributeFilter: ['data-theme'],
+      attributes: true,
+    })
+
+    element.addEventListener('contextmenu', exchangeClipboard)
 
     return () => {
       live = false
       observer.disconnect()
+      themes.disconnect()
+      element.removeEventListener('contextmenu', exchangeClipboard)
       stopWatching?.()
 
       for (const listener of listeners) {

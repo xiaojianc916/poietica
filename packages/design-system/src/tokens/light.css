@@ -102,4 +102,29 @@
 
   --ui-info: var(--ui-palette-blue-500);
   --ui-info-foreground: oklch(0.99 0 0);
+
+  /*
+   * 同上，浅底那一套。背景落成 neutral-50 的十六进制值：那一档是 oklch，
+   * xterm 解析不了。
+   */
+  --terminal-background: #f8f8f8;
+  --terminal-foreground: #333333;
+  --terminal-cursor: #333333;
+  --terminal-selection: rgb(0 0 0 / 20%);
+  --terminal-ansi-black: #000000;
+  --terminal-ansi-red: #cd3131;
+  --terminal-ansi-green: #107c10;
+  --terminal-ansi-yellow: #949800;
+  --terminal-ansi-blue: #0451a5;
+  --terminal-ansi-magenta: #bc05bc;
+  --terminal-ansi-cyan: #0598bc;
+  --terminal-ansi-white: #555555;
+  --terminal-ansi-bright-black: #666666;
+  --terminal-ansi-bright-red: #cd3131;
+  --terminal-ansi-bright-green: #14ce14;
+  --terminal-ansi-bright-yellow: #b5ba00;
+  --terminal-ansi-bright-blue: #0451a5;
+  --terminal-ansi-bright-magenta: #bc05bc;
+  --terminal-ansi-bright-cyan: #0598bc;
+  --terminal-ansi-bright-white: #a5a5a5;
 }
