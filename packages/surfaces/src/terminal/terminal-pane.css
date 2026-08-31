@@ -1,0 +1,7 @@
+/*
+ * 内容离边的距离挂在 .xterm 上：addon-fit 量网格时减掉的正是这个元素自己的
+ * padding，内缩与网格因此是同一件事。
+ */
+.xterm {
+  padding: 6px 10px;
+}

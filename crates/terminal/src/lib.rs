@@ -102,7 +102,7 @@ struct Session {
     child: Box<dyn portable_pty::Child + Send + Sync>,
     replay: Arc<Mutex<Replay>>,
     stopped: Arc<AtomicBool>,
-    reader: Option<JoinHandle<()>>,
+    reader: JoinHandle<()>,
 }
 
 impl std::fmt::Debug for Session {
@@ -172,7 +172,7 @@ impl Session {
             child,
             replay,
             stopped,
-            reader: Some(pump),
+            reader: pump,
         })
     }
 
@@ -181,19 +181,19 @@ impl Session {
             .resize(size(cols, rows))
             .map_err(|error| TerminalError::Control(error.to_string()))
     }
-}
 
-impl Drop for Session {
-    /// 谁创建谁销毁：先让子进程收场，读线程才会从阻塞的 read 里醒过来。
-    fn drop(&mut self) {
+    /// 收场。主端是这条伪终端的最后一个持有者：放掉它读端才会 EOF，join 才有上界。
+    fn shutdown(self) {
         self.stopped.store(true, Ordering::Release);
 
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        let mut child = self.child;
+        let _ = child.kill();
 
-        if let Some(reader) = self.reader.take() {
-            let _ = reader.join();
-        }
+        drop(self.writer);
+        drop(self.master);
+
+        let _ = child.wait();
+        let _ = self.reader.join();
     }
 }
 
@@ -314,9 +314,16 @@ impl TerminalSessions {
             .resize(cols, rows)
     }
 
-    /// 关掉这条会话。Drop 收子进程与读线程。
+    /// 关掉这条会话。
     pub fn close(&self, key: &str) -> bool {
-        hold(&self.open).remove(key).is_some()
+        /* 摘除在表锁里，拆卸在锁外：等读线程醒过来的那段时间不该停掉整张表。 */
+        let Some(session) = hold(&self.open).remove(key) else {
+            return false;
+        };
+
+        session.shutdown();
+
+        true
     }
 }
 
@@ -365,5 +372,18 @@ mod tests {
             Err(TerminalError::Unknown(_))
         ));
         assert!(!sessions.close("key"));
+    }
+
+    #[test]
+    fn a_closed_session_can_be_attached_again() {
+        let sessions = TerminalSessions::default();
+        let sink: TerminalSink = Arc::new(|_, _| {});
+        let cwd = std::env::temp_dir();
+
+        assert!(sessions.attach("key", &cwd, 80, 24, &sink).is_ok());
+        assert!(sessions.close("key"));
+        /* 拆卸若留在表锁里等读线程，下面这句会挂住而不是通过。 */
+        assert!(sessions.attach("key", &cwd, 80, 24, &sink).is_ok());
+        assert!(sessions.close("key"));
     }
 }

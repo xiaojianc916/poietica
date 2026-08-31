@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
+import './terminal-pane.css'
 import { terminalTheme } from './terminal-theme'
 
 /*
@@ -51,7 +52,13 @@ export function TerminalPane({ port, root }: TerminalPaneProps) {
     let attached = false
 
     const failed = (cause: unknown): void => {
-      warn('终端这一格没接上', { cause, scope: 'terminal' })
+      warn('终端这一格出错了', { cause, scope: 'terminal' })
+    }
+
+    /* 接不上时格子里是一片空白，看不出是坏了还是在等：把结果写进格子。 */
+    const attachFailed = (cause: unknown): void => {
+      failed(cause)
+      terminal.write('\r\n[终端没能接上]\r\n')
     }
 
     const clipboardFailed = (cause: unknown): void => {
@@ -79,7 +86,7 @@ export function TerminalPane({ port, root }: TerminalPaneProps) {
       }
 
       attached = true
-      void port.attach(root, terminal.cols, terminal.rows).catch(failed)
+      void port.attach(root, terminal.cols, terminal.rows).catch(attachFailed)
       terminal.focus()
     }
 
@@ -137,7 +144,7 @@ export function TerminalPane({ port, root }: TerminalPaneProps) {
 
         stopWatching = dispose
         sync()
-      }, failed)
+      }, attachFailed)
 
     const observer = new ResizeObserver(sync)
 
