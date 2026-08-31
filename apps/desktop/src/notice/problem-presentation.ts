@@ -23,7 +23,6 @@ export const APPLICATION_FAILURE_CODES = [
   'WINDOW_STATE_QUERY_UNAVAILABLE',
   'WINDOW_STATE_SYNC_UNAVAILABLE',
   'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
-  'AGENT_SELECTION_UNAVAILABLE',
   'AGENT_CAPABILITIES_UNREADABLE',
   'AGENT_CONFIG_CHANGE_REJECTED',
   'SESSION_CONFIG_CHANGE_REJECTED',
@@ -147,31 +146,12 @@ export const APPLICATION_FAILURE_POLICIES = {
   },
 
   /*
-   * 没能读到 agent 现在给得出哪些选项：模型、模式、推理档位，同一次往返里一起来。
+   * 没能读到 agent 给得出哪些选项：模型、模式、推理档位，同一次往返里一起来。一次
+   * 往返失手不是功能没了，重进这一格会再问一次，所以 recovery 是 retry。
    *
-   * 此前这一路只写一条日志：选择器空着，屏幕上没有任何解释 —— 而 agent 的 stderr
-   * 恰恰说得出是哪一行配置坏了。一次往返失手不是功能没了，重进这一格就会再问一次，
-   * 所以 recovery 是 retry。
+   * 它还盖着「全新安装」：CLI 没装、密钥没填时，重试一万次结果一样。分开要新增一个
+   * 首次运行状态，在那之前这句话把人指向设置页 —— 那里说得出到底缺哪一样。
    */
-  /*
-   * 这一条还盖着一个它不该盖的情形：全新安装。
-   *
-   * 上面那段推理对"偶发失败"成立，对"从来没配过"完全不成立 —— 新电脑上
-   * agent CLI 没装、密钥没填，重试一万次结果一样，缺的不是运气，是一个还不
-   * 存在的前提。三种处境（没装 / 没配 / 真的失手）现在共用同一个错误码和
-   * 同一句话，而前两种根本不是错误，是"还没开始"。
-   *
-   * 分开它们要新增一个首次运行状态，不是改一句文案能做到的事。在那之前，
-   * 这句话至少要把人指向唯一能解决问题的地方 —— 设置页会说出真实的原因：
-   * 程序找不到、还是密钥没填。让人对着一句"没能读到"按重试，是最坏的一种。
-   */
-  AGENT_SELECTION_UNAVAILABLE: {
-    impact: 'recoverable',
-    userMessage: '无法读取当前 Agent 配置，暂时无法启动 Agent；修正配置后会自动恢复。',
-    recovery: 'retry',
-    scope: operationScope('load-agent-selection'),
-  },
-
   AGENT_CAPABILITIES_UNREADABLE: {
     impact: 'recoverable',
     userMessage: '没能读到可用的模型。到「设置 → 模型」看看 agent 装好了没有、密钥填了没有。',

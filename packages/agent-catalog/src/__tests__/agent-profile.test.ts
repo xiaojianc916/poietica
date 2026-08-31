@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { builtinAgentProfileSet, parseAgentProfile, parseAgentProfileSet } from '../agent-profile'
-import { agentById } from '../agents'
+import { parseAgentProfile } from '../agent-profile'
 
-/* 一份档案里现在只有用户自己的东西。 */
 const valid = {
   id: 'kimi',
   env: { NO_COLOR: '1' },
@@ -10,132 +8,38 @@ const valid = {
 }
 
 describe('parseAgentProfile', () => {
-  it('接受一个完整档案', () => {
-    const result = parseAgentProfile(valid)
+  it('接受一份只有用户那几格的档案', () => {
+    const parsed = parseAgentProfile(valid)
 
-    expect(result.ok).toBe(true)
+    expect(parsed.ok).toBe(true)
+  })
 
-    if (result.ok) {
-      expect(result.profile.env['NO_COLOR']).toBe('1')
-      expect(result.profile.defaultConfigOptions['brave_mode']).toBe(false)
-    }
+  it('接受 Windows 风格的工作目录', () => {
+    const parsed = parseAgentProfile({ ...valid, cwd: 'C:\\my notes' })
+
+    expect(parsed.ok).toBe(true)
   })
 
   it('拒绝不合法的 agent 标识', () => {
-    expect(parseAgentProfile({ ...valid, id: 'NOT AN ID' }).ok).toBe(false)
+    const parsed = parseAgentProfile({ ...valid, id: 'Kimi Code' })
+
+    expect(parsed.ok).toBe(false)
   })
 
   it('拒绝不合法的环境变量名', () => {
-    expect(parseAgentProfile({ ...valid, env: { 'not-an-env': '1' } }).ok).toBe(false)
+    const parsed = parseAgentProfile({ ...valid, env: { 'no-color': '1' } })
+
+    expect(parsed.ok).toBe(false)
   })
 
-  it('拒绝非字符串非布尔的会话配置值', () => {
-    expect(parseAgentProfile({ ...valid, defaultConfigOptions: { model: 3 } }).ok).toBe(false)
+  it('拒绝既不是字符串也不是布尔的会话配置值', () => {
+    const parsed = parseAgentProfile({ ...valid, defaultConfigOptions: { model: 3 } })
+
+    expect(parsed.ok).toBe(false)
   })
 
-  /*
-   * 回归护栏：「起哪个程序」只能有一个产地 —— 但产地不是靠解析时剥掉来保证的。
-   *
-   * 原生侧从这份档案里读：agent_program 读 command，agent_args 读 args，
-   * home_var_of 读 homeVar，own_home_of 读 ownHomeDirectory，agent_install_spec
-   * 读 install，declared_env_of 读 env。上一版把前四格从档案里删了，却没有改
-   * 那些函数，于是它们在结构上变成了死路 —— 屏幕上是「kimi 的接入档案里没有
-   * 可执行文件」，而受控 home 的那个变量从此再没有被设过一次。
-   *
-   * 所以这几格回到了档案里，但它们不属于用户：reconcileAgentProfiles 每次
-   * 都从描述符无条件盖回去（见下面那份 reconcile 测试的「手写的 command 活不过
-   * 一次对齐」）。解析这一层因此不再负责剥掉它们 —— 一个只在内存里存在半个函数
-   * 调用的值，谁都读不到。args 与 command 同一条规矩：原生侧的 agent_args 读它，
-   * 磁盘上带什么就进什么。
-   */
-  it('磁盘上的 args 与描述符那几格一起恒定在场', () => {
-    const result = parseAgentProfile({
-      ...valid,
-      command: 'kimi',
-      args: ['web', '--cwd', 'C:\\my notes'],
-    })
-
-    expect(result.ok).toBe(true)
-
-    if (result.ok) {
-      expect(Object.keys(result.profile).sort()).toEqual([
-        'args',
-        'command',
-        'cwd',
-        'defaultConfigOptions',
-        'env',
-        'homeVar',
-        'id',
-        'install',
-        'ownHomeDirectory',
-      ])
-      expect(result.profile.args).toEqual(['web', '--cwd', 'C:\\my notes'])
-    }
-  })
-})
-
-describe('parseAgentProfileSet', () => {
-  it('丢弃坏条目但保留好条目', () => {
-    const result = parseAgentProfileSet({
-      profiles: [valid, { id: 'BROKEN' }],
-      defaultProfileId: 'kimi',
-    })
-
-    expect(result.value.profiles).toHaveLength(1)
-    expect(result.issues).toHaveLength(1)
-  })
-
-  it('默认 agent 指向不存在的档案时回落到第一个', () => {
-    const result = parseAgentProfileSet({ profiles: [valid], defaultProfileId: 'ghost' })
-
-    expect(result.value.defaultProfileId).toBe('kimi')
-    expect(result.issues).toHaveLength(1)
-  })
-
-  it('完全无法解析时回退到内置档案', () => {
-    const result = parseAgentProfileSet(null)
-
-    expect(result.value.profiles).toEqual(builtinAgentProfileSet().profiles)
-    expect(result.fallback).toBe(true)
-  })
-
-  /*
-   * 每一台新电脑的第一次启动。磁盘上一条都没有不是配置出了问题，所以一条 issue
-   * 都不该有 —— 但 fallback 必须为真，调用方据此把内置档案物化到 agents.json，
-   * 否则原生侧按 agentId 去查永远查不到。
-   */
-  it('磁盘为空时回退且不报问题，但要求物化', () => {
-    const result = parseAgentProfileSet({ profiles: [], defaultProfileId: '' })
-
-    expect(result.value.profiles).toEqual(builtinAgentProfileSet().profiles)
-    expect(result.issues).toEqual([])
-    expect(result.fallback).toBe(true)
-  })
-
-  it('档案都在但全都用不了时，照实报问题', () => {
-    const result = parseAgentProfileSet({ profiles: [{ id: 'BROKEN' }] })
-
-    expect(result.fallback).toBe(true)
-    expect(result.issues.length).toBeGreaterThan(0)
-  })
-
-  it('磁盘上有可用档案时不要求物化', () => {
-    const result = parseAgentProfileSet({ profiles: [valid], defaultProfileId: 'kimi' })
-
-    expect(result.fallback).toBe(false)
-  })
-})
-
-describe('builtinAgentProfileSet', () => {
-  it('每一条都指向名单里真实存在的一家', () => {
-    const set = builtinAgentProfileSet()
-
-    expect(set.profiles.length).toBeGreaterThan(0)
-
-    for (const profile of set.profiles) {
-      expect(agentById(profile.id), profile.id).toBeDefined()
-    }
-
-    expect(set.profiles.some((profile) => profile.id === set.defaultProfileId)).toBe(true)
+  it('拒绝不是对象的东西', () => {
+    expect(parseAgentProfile(null).ok).toBe(false)
+    expect(parseAgentProfile('kimi').ok).toBe(false)
   })
 })

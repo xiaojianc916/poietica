@@ -11,7 +11,6 @@ import {
   saveCustomAgent,
   writeWorkbenchSession,
 } from '@poietica/native-bridge'
-import { failureCoordinator } from '@poietica/problem'
 import type { AgentConfigStore, CustomAgentStore, SettingsStore } from '@poietica/settings'
 import type { AttachmentIntake } from '@poietica/surfaces'
 import type { AppUpdateController } from '@poietica/update'
@@ -21,7 +20,6 @@ import {
   createCommandRegistry,
   createWorkbenchSessionController,
 } from '@poietica/workspace'
-import { reportFailure } from '../notice/problem-presentation'
 import { createDesktopAgentRuntime, type DesktopAgentRuntime } from './agent-runtime'
 import { createAttachmentIntake } from './attachment-intake'
 import { activeWorkspaceRoot } from './workspace-root'
@@ -72,16 +70,6 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   const agent = createDesktopAgentRuntime({
     config: agentConfig,
     cwd: activeWorkspaceRoot,
-    onSelectionFailure: (cause) => {
-      reportFailure('AGENT_SELECTION_UNAVAILABLE', {
-        scope: 'application-runtime',
-        operation: 'load-agent-selection',
-        cause,
-      })
-    },
-    onSelectionReady: () => {
-      failureCoordinator.resolveOperation('load-agent-selection')
-    },
   })
 
   return {

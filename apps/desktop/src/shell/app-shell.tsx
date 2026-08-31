@@ -52,13 +52,6 @@ export function AppShell({ runtime }: AppShellProps) {
 
   const [isSettingsOpen, setSettingsOpen] = useState(false)
 
-  /* 现在用哪一家 agent。能力表按它取，见下面那个 effect。 */
-  const agentId = useSyncExternalStore(
-    runtime.agent.subscribeAgent,
-    runtime.agent.getAgentId,
-    runtime.agent.getAgentId,
-  )
-
   const {
     isMaximized: isWindowMaximized,
     minimize: minimizeWindow,
@@ -295,13 +288,11 @@ export function AppShell({ runtime }: AppShellProps) {
   )
 
   /*
-   * 端口与重问的通知同源同寿，所以它们是同一个 effect 的一次装载与一次清理。
-   *
-   * 端口按「用哪一家 agent」建，设置页动过它的配置之后那张表就不再作数。装载几次
-   * 就退订几次，不可能配不平 —— 与 ThreadsStore.start 同一条纪律。
+   * 端口与重问的通知同源同寿，所以它们是同一个 effect 的一次装载与一次清理。装载
+   * 几次就退订几次，不可能配不平 —— 与 ThreadsStore.start 同一条纪律。
    */
   useEffect(() => {
-    const stop = agentControls.start(runtime.agent.capabilities(agentId))
+    const stop = agentControls.start(runtime.agent.capabilities())
 
     const stopWatchingConfig = runtime.agentConfig.subscribeConfigChanged(agentControls.refresh)
 
@@ -309,7 +300,7 @@ export function AppShell({ runtime }: AppShellProps) {
       stopWatchingConfig()
       stop()
     }
-  }, [agentControls, agentId, runtime.agent, runtime.agentConfig])
+  }, [agentControls, runtime.agent, runtime.agentConfig])
 
   /*
    * 技能写进 skills/ 之后（装、卸、开关），让名册重问一次：名册只回答这个会话装载了

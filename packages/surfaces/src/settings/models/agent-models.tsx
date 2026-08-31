@@ -1,9 +1,8 @@
 import {
-  type AgentCatalogCodec,
   type AgentModelState,
   type AgentProviderSnapshot,
-  agentById,
-  agentCatalogCodec,
+  agent,
+  agentCatalog,
   agentModelDisplayName,
   builtinAgentProviders,
   parseAgentProviderListOutput,
@@ -17,24 +16,10 @@ import { ProviderKeyCard } from './provider-key-card'
 import { useAgentProviders } from './use-agent-providers'
 
 /*
- * 一家 agent 的模型页。
+ * 这一家 agent 的模型页：它报回来的模型、它的密钥尾号、从全局配置探到的待导入清单、
+ * 正在删哪一行、搜索词、展开与否。
  *
- * 这里的每一格状态都只对一家 agent 成立：它报回来的模型、它的密钥尾号、从全局配置
- * 探到的待导入清单、正在删哪一行、搜索词、展开与否。换一家 agent，它们全部作废。
- *
- * 作废由 React 自己做：外壳以 key={agentId} 挂载这棵子树（官方文档 Preserving and
- * Resetting State 里 "Resetting state with a key" 的原样用法）。此前这些状态与外壳
- * 挤在一个组件里，换 agent 只改一个字符串，于是：
- *
- * - 在 A 上「导入配置」探出一份清单，切到 B，那条横幅仍在屏幕上；点「确认导入」时
- *   runImport 读的是当前的 agentId（B），喂的却是 A 的 globalSnapshot —— 把 A 的
- *   provider 导进 B；
- * - keyTails、confirmId、importNote 同理，都会跨 agent 留在屏幕上。
- *
- * 三套手写的「过期响应」防护也在这里退场两套：卡片里的 mounted ref 拦的是卸载，拦不住
- * 上面这些（那时组件根本没卸载）；外壳里的 active 标志同理。整棵子树重建之后，在飞的
- * 回执落在已卸载的树上，React 自己丢掉。留下的只有 keyTails 那一处 ignore 标志 ——
- * 它防的是同一棵树内两次往返的先后颠倒，key 管不到那件事。
+ * keyTails 那一处 active 标志防的是同一棵树内两次往返先后颠倒，不是「卸载后 setState」。
  */
 
 /*
@@ -62,24 +47,23 @@ interface ImportFailure {
  */
 async function importOne(input: {
   readonly agentId: string
-  readonly codec: AgentCatalogCodec
   readonly defaultModelId: string | undefined
   readonly provider: AgentProviderSnapshot['providers'][number]
   readonly registryKeyVar: string
   readonly store: AgentConfigStore
 }): Promise<ImportFailure | undefined> {
-  const { agentId, codec, defaultModelId, provider, registryKeyVar, store } = input
+  const { agentId, defaultModelId, provider, registryKeyVar, store } = input
 
   try {
     const outcome = await store.execCli({
       agentId,
-      args: codec.catalogAddArgs({
+      args: agentCatalog.catalogAddArgs({
         providerId: provider.id,
         ...(defaultModelId === undefined ? {} : { defaultModelId }),
         ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
       }),
       secretVar: registryKeyVar,
-      catalogDocument: codec.importDocument(provider),
+      catalogDocument: agentCatalog.importDocument(provider),
       secretFromGlobalProvider: provider.id,
     })
 
@@ -94,16 +78,10 @@ async function importOne(input: {
 export interface AgentModelsProps {
   readonly store: AgentConfigStore
   readonly agentId: string
-  /** 档案声明的注入变量名。缺席时不写入，而不是自己挑一个名字。 */
-  readonly registryKeyVar: string | undefined
+  /** 档案声明的注入变量名。 */
+  readonly registryKeyVar: string
 }
 
-/*
- * 这里只画随所选 agent 一起作废的东西 —— 那正是外壳用 key 圈起来的范围。
- *
- * 选 agent 的下拉与「智能体」那张卡都跨 agent，搬回外壳了：它们此前渲染在这棵子树
- * 里，而这棵子树正是它们自己按一下就会重建的那一棵。
- */
 export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps) {
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
@@ -146,32 +124,12 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
       return
     }
 
-    /* 问什么写在档案里。在这里再抄一遍，就是第二个迟早走样的说法。 */
-    const descriptor = agentById(agentId)
-
-    if (descriptor === undefined) {
-      setGlobalSnapshot(undefined)
-      setGlobalNote(`没有登记 ${agentId} 这个 agent 的接入档案。`)
-
-      return
-    }
-
-    /* 与 useAgentProviders 同一条判据：可选就是可选，缺席不发这次调用。 */
-    const listArgs = descriptor.providerListArgs
-
-    if (listArgs === undefined) {
-      setGlobalSnapshot(undefined)
-      setGlobalNote(`${descriptor.displayName} 没有声明查询模型清单的子命令。`)
-
-      return
-    }
-
     setProbing(true)
 
     void store
       .execCli({
         agentId,
-        args: [...listArgs],
+        args: [...agent.providerListArgs],
         useGlobalHome: true,
       })
       .then(
@@ -184,10 +142,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
             return
           }
 
-          const snapshot = parseAgentProviderListOutput(
-            outcome.stdout,
-            descriptor.syntheticProviderId,
-          )
+          const snapshot = parseAgentProviderListOutput(outcome.stdout, agent.syntheticProviderId)
           const usable = snapshot.providers.filter((provider) => !provider.synthetic)
 
           setGlobalSnapshot(usable.length > 0 ? { ...snapshot, providers: usable } : undefined)
@@ -221,22 +176,6 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
       return
     }
 
-    if (registryKeyVar === undefined) {
-      setImportNote('这个 agent 没有声明该往哪个环境变量注入密钥，无法导入。')
-      return
-    }
-
-    /*
-     * 目录写成什么形状归这一家的编解码器。缺席就是"说不出"，于是这次导入不发生 ——
-     * 与上面那条判据同构，也是我们对"这一家不支持"的统一处置。
-     */
-    const codec = agentCatalogCodec(agentId)
-
-    if (codec === undefined) {
-      setImportNote('这个 agent 没有声明该怎么写入 provider 目录，无法导入。')
-      return
-    }
-
     const usable = globalSnapshot.providers.filter((provider) => provider.configured)
 
     if (usable.length === 0) {
@@ -255,7 +194,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
      * 让最后一家赢，那是随机，不是选择。
      */
     const defaultModelOwner = usable.find(
-      (provider) => codec.defaultModelId(provider) !== undefined,
+      (provider) => agentCatalog.defaultModelId(provider) !== undefined,
     )
 
     setImporting(true)
@@ -268,9 +207,8 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
       for (const provider of usable) {
         const failure = await importOne({
           agentId,
-          codec,
           defaultModelId:
-            provider === defaultModelOwner ? codec.defaultModelId(provider) : undefined,
+            provider === defaultModelOwner ? agentCatalog.defaultModelId(provider) : undefined,
           provider,
           registryKeyVar,
           store,
@@ -495,12 +433,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
        * 但不能让它冒充这一刻的事实：刚按过刷新、刚删过一个 provider 的人，有权知道
        * 屏幕为什么没动。
        */}
-      {/*
-       * agent 自己报回来的配置问题，说在它的清单旁边。
-       *
-       * 此前它和 agents.json 的错误挤在「ACP Agent」那张卡的副标题里三选一 ——
-       * 两个来源、一个位置，谁盖住谁全看当时哪一个不是 null。
-       */}
+      {/* agent 自己报回来的配置问题，说在它的清单旁边。 */}
       {providerIssues !== null ? <p className="models-notice">{providerIssues}</p> : null}
 
       {providers.refreshError !== null ? (

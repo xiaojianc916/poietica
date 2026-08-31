@@ -1,6 +1,6 @@
 import {
   type AgentProviderSnapshot,
-  agentById,
+  agent,
   parseAgentProviderListOutput,
 } from '@poietica/agent-catalog'
 import type { AgentConfigStore } from '@poietica/settings'
@@ -15,12 +15,10 @@ import { describeAgentCliFailure, describeAgentCliOutcome } from '../agent-insta
  * 重新进入这一页时先摆上一次的快照，后台这一次往返回来后再换。它随进程退出
  * 消失，从来不是「真相」，所以不需要失效逻辑 —— 每次挂载都会真问一次。
  *
- * 缓存按 agentId 分键：换 agent 时看到的是它自己的上一份，不是上一家 agent 的。
- *
  * 「当前选中哪个模型」不在这里。那个要问 ACP 会话的 configOptions：它是会话级
  * 的，而且只有活着的会话才知道。两件事分属两条管线，合并会让其中一条撒谎。
  */
-const lastGood = new Map<string, AgentProviderSnapshot>()
+let lastGood: AgentProviderSnapshot | undefined
 
 export interface AgentProvidersState {
   readonly loading: boolean
@@ -33,10 +31,8 @@ export interface AgentProvidersState {
 }
 
 export function useAgentProviders(store: AgentConfigStore, agentId: string): AgentProvidersState {
-  const [loading, setLoading] = useState(() => !lastGood.has(agentId))
-  const [snapshot, setSnapshot] = useState<AgentProviderSnapshot | undefined>(() =>
-    lastGood.get(agentId),
-  )
+  const [loading, setLoading] = useState(() => lastGood === undefined)
+  const [snapshot, setSnapshot] = useState<AgentProviderSnapshot | undefined>(() => lastGood)
   const [error, setError] = useState<string | null>(null)
 
   /*
@@ -61,38 +57,10 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
     const stale = () => mine !== generation.current
 
     /*
-     * 问什么、以及哪个 id 是环境变量合成的保留条目，都写在 agent 的档案里。
-     * 这一层不认识任何一家 —— 与 provider-state 里那句是同一个理由。
-     */
-    const descriptor = agentById(agentId)
-
-    if (descriptor === undefined) {
-      setLoading(false)
-      setSnapshot(undefined)
-      setError(`没有登记 ${agentId} 这个 agent 的接入档案。`)
-
-      return
-    }
-
-    /*
-     * 这一家有没有这种查询，档案说了算 —— 契约里 providerListArgs 是可选的，
-     * 缺席就是「问不了」，不是「随便发一条命令试试」。
-     */
-    const listArgs = descriptor.providerListArgs
-
-    if (listArgs === undefined) {
-      setLoading(false)
-      setSnapshot(undefined)
-      setError(`${descriptor.displayName} 没有声明查询模型清单的子命令。`)
-
-      return
-    }
-
-    /*
      * 有缓存先摆缓存，后台再真问 —— 重新进入不再每次空等一次进程启动。
      * 没有缓存才进 loading：那是唯一一次「什么都还拿不出来」的等待。
      */
-    const cached = lastGood.get(agentId)
+    const cached = lastGood
 
     if (cached !== undefined) {
       setSnapshot(cached)
@@ -107,7 +75,7 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
     void store
       .execCli({
         agentId,
-        args: [...listArgs],
+        args: [...agent.providerListArgs],
       })
       .then(
         (outcome) => {
@@ -137,14 +105,14 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
             return
           }
 
-          const next = parseAgentProviderListOutput(outcome.stdout, descriptor.syntheticProviderId)
+          const next = parseAgentProviderListOutput(outcome.stdout, agent.syntheticProviderId)
 
           /*
            * 缓存写在作废判断之前。号过期只意味着这份回执无权改屏幕，不意味着数据
            * 是假的 —— 它是 agent 刚说的。写缓存与订阅是两件事，绑在一起会让一次
            * 已经付过进程启动代价的往返白跑。
            */
-          lastGood.set(agentId, next)
+          lastGood = next
 
           if (stale()) {
             return

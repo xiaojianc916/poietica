@@ -1,16 +1,19 @@
 /*
  * 这个包的唯一出口。
  *
- * 包内按 agentId 分文件，不按「契约 / 名单」分。这个形状是怎么来的，
- * 见 docs/architecture/README.md 的「包边界的由来」。
+ * 这台软件只接一家 agent，所以这里交出的是那一家本身，不是一张按 id 定址的名单：
+ * 「用哪一家」不是运行时状态，它在编译期就已经确定。
  */
 
-export type { AgentProfile } from './agent-profile'
-export { parseAgentProfileSet, reconcileAgentProfiles } from './agent-profile'
-export type { AgentDescriptor } from './agents'
-export { agentById, agentRoster } from './agents'
-export { agentCatalogCodec } from './catalog-codec'
-export type { AgentCatalogCodec } from './catalog-contract'
+export type { AgentDescriptor } from './agent-descriptor'
+export type {
+  AgentConfigOptionValue,
+  AgentProfile,
+  AgentProfileResolution,
+} from './agent-profile'
+export { parseAgentProfile, resolveAgentProfile } from './agent-profile'
+export { kimiCatalogCodec as agentCatalog } from './kimi/catalog'
+export { kimiCode as agent } from './kimi/descriptor'
 export { agentBareModelId, agentModelDisplayName } from './model-display'
 export type { AgentProviderPreset } from './provider-presets'
 export { builtinAgentProviderById, builtinAgentProviders } from './provider-presets'

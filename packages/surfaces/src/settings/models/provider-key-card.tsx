@@ -1,8 +1,4 @@
-import {
-  type AgentCatalogCodec,
-  type AgentProviderPreset,
-  agentCatalogCodec,
-} from '@poietica/agent-catalog'
+import { type AgentProviderPreset, agentCatalog } from '@poietica/agent-catalog'
 import { Button, InlineSpinner } from '@poietica/design-system'
 import type { AgentConfigStore, ProviderKeyProbe } from '@poietica/settings'
 import { useCallback, useEffect, useState } from 'react'
@@ -75,8 +71,8 @@ export interface ProviderKeyCardProps {
   readonly store: AgentConfigStore
   readonly agentId: string
   readonly provider: AgentProviderPreset
-  /** 档案声明的注入变量名。缺席时不写入，而不是自己挑一个名字。 */
-  readonly registryKeyVar: string | undefined
+  /** 档案声明的注入变量名。 */
+  readonly registryKeyVar: string
   readonly onSaved: () => void
 }
 
@@ -104,19 +100,13 @@ export function ProviderKeyCard({
   }, [])
 
   /*
-   * 这里没有「卸载后不 setState」那道守卫。
-   *
-   * React 18 起「卸载后 setState」不再是错误，那条警告本身已被官方删掉
-   * （facebook/react#22114）。而它真该防的那件事它也防不住：这张卡的 key 是
-   * provider id，换 agent 时组件不重建，于是在 A 上按下保存、立刻切到 B，回执会
-   * 落在 B 的界面上 —— 那一刻组件还挂着，任何按卸载判断的守卫都会放行。换 agent
-   * 的作废由外壳的 key={agentId} 整棵重建来做，见 AgentModels。
+   * 这里没有「卸载后不 setState」那道守卫：React 18 起它不再是错误，官方也删掉了那
+   * 条警告（facebook/react#22114）。
    */
 
   /*
    * 忙碌指示的唯一驱动是 busy，而 busy 只在 execCli 这一次真实往返期间为真：没有假进度、
-   * 没有最小展示时长、请求没发出去就一次都不转（变量名缺席、密钥为空都在 setBusy 之前
-   * return 了）。
+   * 没有最小展示时长、请求没发出去就一次都不转（密钥为空在 setBusy 之前 return 了）。
    *
    * 计时器只负责补一句话，不负责停动画。busy 落下时把它一并复位，否则下一次写入会带着
    * 上一次的「还在等」开场。
@@ -145,7 +135,7 @@ export function ProviderKeyCard({
    * 拿着这把钥匙去连。验证放在写入之后，等于验了也白验。
    */
   const write = useCallback(
-    (keyVar: string, secret: string, probe: ProviderKeyProbe, catalog: AgentCatalogCodec) => {
+    (keyVar: string, secret: string, probe: ProviderKeyProbe) => {
       /*
        * 只在配置里还没有 default_model 时，才随这次 catalog add 一起把它写掉。
        *
@@ -161,7 +151,7 @@ export function ProviderKeyCard({
         .loadDefaultModel(agentId)
         .catch(() => '')
         .then((existing) => {
-          const seed = existing === null ? catalog.presetDefaultModelId(provider) : undefined
+          const seed = existing === null ? agentCatalog.presetDefaultModelId(provider) : undefined
 
           let args: readonly string[]
 
@@ -170,7 +160,7 @@ export function ProviderKeyCard({
            * 显式的 undefined。
            */
           try {
-            args = catalog.catalogAddArgs({
+            args = agentCatalog.catalogAddArgs({
               providerId: provider.id,
               ...(seed === undefined ? {} : { defaultModelId: seed }),
               ...(provider.baseUrl === '' ? {} : { baseUrl: provider.baseUrl }),
@@ -187,7 +177,7 @@ export function ProviderKeyCard({
               args,
               secretVar: keyVar,
               secretValue: secret,
-              catalogDocument: catalog.catalogDocument([provider]),
+              catalogDocument: agentCatalog.catalogDocument([provider]),
             })
             .then(
               (outcome) => {
@@ -222,33 +212,9 @@ export function ProviderKeyCard({
    * 探测这条路自己抛了，同样按连不上处理：验证机制坏掉不能连累写入。
    */
   const submit = useCallback(() => {
-    if (registryKeyVar === undefined) {
-      setMessage('这个 agent 没有声明该往哪个环境变量注入密钥，无法从这里写入。')
-      return
-    }
-
     const secret = apiKey.trim()
 
     if (secret.length === 0) {
-      return
-    }
-
-    /*
-     * 早退之后 registryKeyVar 已经不是 undefined 了，但那次收窄未必跟得进下面的
-     * 闭包。落成一个本地 const，不指望编译器替我们记住。
-     */
-    const keyVar: string = registryKeyVar
-
-    /*
-     * 目录该写成什么形状，由这一家的编解码器说 —— 那是它的 CLI 的契约，不是通用事实。
-     *
-     * 缺席不是错误，是"这一家不从这里写目录"。处置与上面缺变量名那条完全同构：说出来，
-     * 不假装写了。收成本地 const 之后交给 write，不指望编译器把收窄带进闭包。
-     */
-    const catalog = agentCatalogCodec(agentId)
-
-    if (catalog === undefined) {
-      setMessage('这个 agent 没有声明该怎么写入 provider 目录，无法从这里写入。')
       return
     }
 
@@ -265,9 +231,9 @@ export function ProviderKeyCard({
         }
 
         setMessage(null)
-        write(keyVar, secret, probe, catalog)
+        write(registryKeyVar, secret, probe)
       })
-  }, [agentId, apiKey, provider, registryKeyVar, store, write])
+  }, [apiKey, provider, registryKeyVar, store, write])
 
   return (
     <div aria-busy={busy} className="models-card">

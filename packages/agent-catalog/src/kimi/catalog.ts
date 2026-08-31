@@ -1,4 +1,3 @@
-import type { AgentCatalogCodec } from '../catalog-contract'
 import { agentBareModelId, agentModelDisplayName } from '../model-display'
 import type { AgentProviderPreset } from '../provider-presets'
 import type { AgentProviderState } from '../provider-state'
@@ -6,14 +5,6 @@ import { kimiCatalogAddArgs } from './catalog-add'
 
 /*
  * Kimi Code 的 provider 目录编解码器。
- *
- * 这些函数此前住在 builtin-catalog.ts —— 一个名叫「内置厂商清单」的通用模块里。
- * 它们产出的却是一家的私有形状：判据是 @moonshot-ai/kosong 的 src/catalog.ts
- * 逐字读什么、handleCatalogAdd 逐字校验什么（原注释自己写着这两条）。
- *
- * 现在它属于这一家自己，而且只对外交出一样东西：下面那个 kimiCatalogCodec。函数名
- * 因此不再带 agentProvider / builtin 这类通用前缀 —— 在这个目录里它们本来就只可能是
- * kimi 的，前缀只会让人以为通用层能直接调它们（上一刀之前正是如此）。
  */
 
 /*
@@ -165,8 +156,8 @@ function presetDefaultModelId(preset: AgentProviderPreset): string | undefined {
   return preset.models.find((model) => model.maxContextSize !== undefined)?.id
 }
 
-/* 这一家对外的全部：一个编解码器。通用层从 catalog-codec.ts 按 agentId 取到它。 */
-export const kimiCatalogCodec: AgentCatalogCodec = {
+/* 这一家对外的全部：一个编解码器。 */
+export const kimiCatalogCodec = {
   catalogDocument,
   importDocument,
   defaultModelId,

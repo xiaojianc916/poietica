@@ -72,8 +72,8 @@ export interface ProviderKeyProbe {
 }
 
 export interface AgentConfigSnapshot {
-  readonly agents: readonly AgentProfile[]
-  readonly defaultAgentId: string
+  /** 这一家 agent 在这台机器上的接入档案。 */
+  readonly profile: AgentProfile
   /** 配置文件里被丢弃的坏条目。界面应该显示出来，而不是假装配置是干净的。 */
   readonly issues: readonly string[]
 }
@@ -119,10 +119,6 @@ export interface AgentInstallStatus {
  */
 export interface AgentConfigStore {
   readonly load: () => Promise<AgentConfigSnapshot>
-  readonly saveAgents: (args: {
-    readonly agents: readonly AgentProfile[]
-    readonly defaultAgentId: string
-  }) => Promise<AgentConfigSnapshot>
   readonly execCli: (invocation: AgentCliInvocation) => Promise<AgentCliOutcome>
   /*
    * 每个已配置 provider 的密钥尾号。只读现算：原生侧扫 agent 自己的 config.toml，
