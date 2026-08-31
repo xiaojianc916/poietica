@@ -121,7 +121,7 @@ pub fn surface() -> Builder<Wry> {
             commands::skills::skills_commit,
             commands::skills::skills_discard,
             commands::skills::skills_list,
-            commands::skills::skills_remove,
+            commands::skills::skills_trash,
             commands::skills::skills_set_enabled,
             commands::skills::skills_stage,
             commands::terminal::terminal_attach,

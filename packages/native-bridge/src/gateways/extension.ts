@@ -69,9 +69,9 @@ export const extensionGateway: ExtensionGateway = {
       await commands.skillsDiscard(stagingId)
     }),
 
-  removeSkill: (name) =>
+  trashSkill: (name) =>
     throughIpc(async () => {
-      await commands.skillsRemove(name)
+      await commands.skillsTrash(name)
     }),
 
   /* 停用与启用：原生侧在 SKILL.md 与 SKILL.md.disabled 之间改名。 */

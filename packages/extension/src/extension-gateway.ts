@@ -35,7 +35,7 @@ export interface ExtensionGateway {
   stageSkill(fetch: PluginFetch): Promise<SkillStaged>
   commitSkill(request: SkillCommitRequest): Promise<void>
   discardStagedSkill(stagingId: string): Promise<void>
-  removeSkill(name: string): Promise<void>
+  trashSkill(name: string): Promise<void>
   setSkillEnabled(name: string, enabled: boolean): Promise<void>
   /** 这个 agent 自己那份 mcp.json 的读与比对写。 */
   readEnvironmentMcpConfig(): Promise<EnvironmentFile>

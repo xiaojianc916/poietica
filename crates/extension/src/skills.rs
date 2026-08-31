@@ -1,21 +1,20 @@
-//! 技能目录的搬入、删除、列举与停用。
-//!
-//! 技能没有清单也没有账本：判据是 SKILL.md，落点是 skills/<name>/。这里只搬字节，
-//! 路径段在唯一拼接点验证，前言的语义归渲染层。
+//! Managed skill discovery and lifecycle operations.
 
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
+
+use walkdir::WalkDir;
 
 use crate::error::{ExtensionError, Result};
 use crate::layout::{DISABLED_SKILL_FILENAME, SKILL_FILENAME, locate_skill_root};
 use crate::staging::Staging;
 
-/// 一次列举最多报这么多行。扫描在命令线程上同步跑，目录再大也不该把它拖住。
 const SCAN_CAP: usize = 500;
-
-/// SKILL.md 读多少字节。前言在开头，正文由 CLI 自己读。
 const DOCUMENT_MAX_BYTES: u64 = 256 * 1024;
+const WALK_MAX_DEPTH: usize = 6;
+const WALK_MAX_FILES: u32 = 500;
 
 fn skill_directory(skills_root: &Path, name: &str) -> Result<PathBuf> {
     if !crate::layout::is_safe_segment(name) {
@@ -25,90 +24,120 @@ fn skill_directory(skills_root: &Path, name: &str) -> Result<PathBuf> {
     Ok(skills_root.join(name))
 }
 
-/// 盘上的一个技能目录。
 #[derive(Debug)]
 pub struct ScannedSkill {
-    /// 目录名，同时是它的身份。
     pub name: String,
-    /// SKILL.md 在（true），还是被改名成 SKILL.md.disabled（false）。
     pub enabled: bool,
-    /// SKILL.md 原文，截到 DOCUMENT_MAX_BYTES。
     pub document: String,
+    pub directory: PathBuf,
+    pub supporting_files: u32,
+    pub total_bytes: u64,
+    pub modified_at: Option<u64>,
 }
 
-/// skills/ 下的技能目录，按名字排序。两个判据文件都没有的目录不是技能。
 pub fn scan_skills(skills_root: &Path) -> Result<Vec<ScannedSkill>> {
+    let mut entries = fs::read_dir(skills_root)?.collect::<std::io::Result<Vec<_>>>()?;
+    entries.sort_by_key(fs::DirEntry::file_name);
+
     let mut found = Vec::new();
 
-    for entry in fs::read_dir(skills_root)?.flatten() {
-        if found.len() >= SCAN_CAP {
-            break;
+    for entry in entries.into_iter().take(SCAN_CAP) {
+        let directory = entry.path();
+        if !directory.is_dir() {
+            continue;
         }
 
-        let path = entry.path();
-
-        let Some(name) = path.file_name().and_then(|it| it.to_str()) else {
+        let Some(name) = directory.file_name().and_then(|value| value.to_str()) else {
             continue;
         };
 
-        let live = path.join(SKILL_FILENAME);
-        let parked = path.join(DISABLED_SKILL_FILENAME);
-        let enabled = live.is_file();
-
-        let document = if enabled {
-            live
+        let live = directory.join(SKILL_FILENAME);
+        let parked = directory.join(DISABLED_SKILL_FILENAME);
+        let (document_path, enabled) = if live.is_file() {
+            (live, true)
         } else if parked.is_file() {
-            parked
+            (parked, false)
         } else {
             continue;
         };
 
+        let (supporting_files, total_bytes) = measure(&directory)?;
+        let modified_at = fs::metadata(&document_path)
+            .and_then(|metadata| metadata.modified())
+            .ok()
+            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+            .map(|duration| duration.as_secs());
+
         found.push(ScannedSkill {
             name: name.to_owned(),
             enabled,
-            document: head(&document)?,
+            document: head(&document_path)?,
+            directory,
+            supporting_files,
+            total_bytes,
+            modified_at,
         });
     }
-
-    found.sort_by(|left, right| left.name.cmp(&right.name));
 
     Ok(found)
 }
 
-/// 停用与启用：SKILL.md 与 SKILL.md.disabled 之间改名，正文一个字节不动。
-///
-/// 已经在目标状态上就什么也不做 —— 幂等，且两个文件都在时谁也不覆盖。
 pub fn set_skill_enabled(skills_root: &Path, name: &str, enabled: bool) -> Result<()> {
     let directory = skill_directory(skills_root, name)?;
     let live = directory.join(SKILL_FILENAME);
     let parked = directory.join(DISABLED_SKILL_FILENAME);
-    let (from, to) = if enabled {
-        (parked, live)
-    } else {
-        (live, parked)
-    };
 
-    if to.is_file() || !from.is_file() {
+    if enabled {
+        if live.is_file() || !parked.is_file() {
+            return Ok(());
+        }
+        fs::rename(parked, live)?;
         return Ok(());
     }
 
-    fs::rename(from, to)?;
+    if !live.is_file() {
+        return Ok(());
+    }
+    if parked.is_file() {
+        fs::remove_file(&parked)?;
+    }
+    fs::rename(live, parked)?;
 
     Ok(())
 }
 
-/// 文件开头那一段。
 fn head(path: &Path) -> Result<String> {
     let mut bytes = Vec::new();
-
     fs::File::open(path)?
         .take(DOCUMENT_MAX_BYTES)
         .read_to_end(&mut bytes)?;
-
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// 认领：暂存里的技能根搬进 skills/<name>/。已存在的同名目录被原子换掉。
+fn measure(directory: &Path) -> Result<(u32, u64)> {
+    let mut files = 0_u32;
+    let mut bytes = 0_u64;
+
+    for entry in WalkDir::new(directory)
+        .follow_links(false)
+        .max_depth(WALK_MAX_DEPTH)
+    {
+        let entry = entry?;
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        files = files.saturating_add(1);
+        bytes = bytes.saturating_add(entry.metadata()?.len());
+
+        if files >= WALK_MAX_FILES {
+            break;
+        }
+    }
+
+    Ok((files.saturating_sub(1), bytes))
+}
+
 pub fn install_skill(
     staging: Staging,
     skills_root: &Path,
@@ -117,17 +146,49 @@ pub fn install_skill(
 ) -> Result<()> {
     let root = locate_skill_root(staging.path(), subdirectory)?;
     let destination = skill_directory(skills_root, name)?;
-
     staging.promote(&root, &destination)
 }
 
-/// 删掉一个技能目录。不在了视为成功：删除的语义是「之后它不在」。
-pub fn remove_skill(skills_root: &Path, name: &str) -> Result<()> {
+pub fn trash_skill(skills_root: &Path, name: &str) -> Result<()> {
     let target = skill_directory(skills_root, name)?;
-
-    if target.exists() {
-        fs::remove_dir_all(&target)?;
+    if !target.exists() {
+        return Ok(());
     }
 
-    Ok(())
+    trash::delete(&target).map_err(|error| ExtensionError::Trash(error.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::expect_used,
+        reason = "test fixtures must fail loudly when filesystem setup fails"
+    )]
+
+    use super::*;
+
+    #[test]
+    fn scan_reports_content_footprint_and_toggle_round_trips() {
+        let temporary = tempfile::tempdir().expect("temporary directory");
+        let skill = temporary.path().join("review");
+        fs::create_dir_all(&skill).expect("skill directory");
+        fs::write(
+            skill.join(SKILL_FILENAME),
+            "---\nname: review\ndescription: Review changes\n---\nInspect the diff.",
+        )
+        .expect("skill document");
+        fs::write(skill.join("checklist.md"), "tests\nerrors\n").expect("supporting file");
+
+        let catalog = scan_skills(temporary.path()).expect("scan");
+        assert_eq!(catalog.len(), 1);
+        assert_eq!(catalog[0].name, "review");
+        assert_eq!(catalog[0].supporting_files, 1);
+        assert!(catalog[0].total_bytes > 0);
+        assert!(catalog[0].modified_at.is_some());
+
+        set_skill_enabled(temporary.path(), "review", false).expect("disable");
+        assert!(skill.join(DISABLED_SKILL_FILENAME).is_file());
+        set_skill_enabled(temporary.path(), "review", true).expect("enable");
+        assert!(skill.join(SKILL_FILENAME).is_file());
+    }
 }

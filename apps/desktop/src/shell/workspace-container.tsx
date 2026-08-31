@@ -12,6 +12,7 @@ import {
   SettingsContentRegion,
   SettingsNavigationRegion,
   SettingsProvider,
+  useAgentControls,
   useRunningThreads,
 } from '@poietica/surfaces'
 import type {
@@ -106,6 +107,7 @@ export function WorkspaceContainer({
   )
 
   const threads = useThreadsActions()
+  const { toolkit } = useAgentControls()
   const [auxiliaryPanel] = useState(() => createAuxiliaryPanelStore(browserHostPort))
 
   /* 「哪条对话在跑」只订一次：标签条与侧栏读同一份。 */
@@ -361,6 +363,7 @@ export function WorkspaceContainer({
       keybindings={keybindings}
       onDismiss={onSettingsClose}
       plugins={plugins}
+      skillRoster={toolkit.skills}
       store={settingsStore}
       threads={threads}
     >

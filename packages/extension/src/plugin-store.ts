@@ -84,6 +84,8 @@ export interface PluginsViewModel {
   readonly install: InstallFlow
   /** 本机 skills/ 里装着的技能：装了哪些、开没开，这一格说了算。 */
   readonly ownedSkills: readonly InstalledSkill[]
+  /** 技能操作失败时保留原目录投影，并把原因交给界面。 */
+  readonly skillFailure: string | undefined
   /** 技能安装的进行时。没有确认步：一键装完，失败原因落在这里。 */
   readonly skillInstall: InstallFlow
   /** 首帧与「读完了确实一个都没装」不是同一件事，空态因此不会闪。 */
@@ -208,8 +210,9 @@ export interface PluginStore {
    * 正文留在盘上，所以停用不是删除。
    */
   readonly setSkillEnabled: (name: string, enabled: boolean) => void
-  /** 卸载：删掉 skills/<name>/。名单上有它的卡片会拨回「可安装」。 */
-  readonly removeInstalledSkill: (name: string) => void
+  /** 移到系统回收站，保留可恢复性。 */
+  readonly trashInstalledSkill: (name: string) => void
+  readonly retrySkills: () => void
 }
 
 interface PluginStoreOptions {
@@ -285,6 +288,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
     ownedSkills: [],
+    skillFailure: undefined,
     skillInstall: INSTALL_IDLE,
     loaded: false,
   }
@@ -442,6 +446,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   /* 技能装了什么，skills/ 目录说了算。前言在 skill.ts 解一次。 */
   async function rescanSkills(): Promise<void> {
     ownedSkills = readSkills(await gateway.listSkills())
+    publish({ skillFailure: undefined })
   }
 
   /*
@@ -704,6 +709,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           }),
           guard('技能目录读不出来', rescanSkills, () => {
             ownedSkills = []
+            publish({ skillFailure: '技能目录读取失败，请重试。' })
           }),
           guard('命令行上那本插件账读不出来', readForeign, () => {
             foreignRecords = []
@@ -950,25 +956,50 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     setSkillEnabled(name, enabled) {
-      commit(
-        '技能的开关没能落到磁盘上，界面因此不动',
-        async () => {
+      publish({ skillFailure: undefined })
+      queue = queue.then(async () => {
+        try {
           await gateway.setSkillEnabled(name, enabled)
           await rescanSkills()
-        },
-        republish,
-      )
+          republish()
+        } catch (cause: unknown) {
+          warn('技能的开关没能落到磁盘上，界面因此不动', { scope: 'plugins', cause })
+          publish({
+            skillFailure: cause instanceof Error ? cause.message : String(cause),
+          })
+        }
+      })
     },
 
-    removeInstalledSkill(name) {
-      commit(
-        '技能没能从目录里删掉，界面因此不动',
-        async () => {
-          await gateway.removeSkill(name)
+    trashInstalledSkill(name) {
+      publish({ skillFailure: undefined })
+      queue = queue.then(async () => {
+        try {
+          await gateway.trashSkill(name)
           await rescanSkills()
-        },
-        republish,
-      )
+          republish()
+        } catch (cause: unknown) {
+          warn('技能没能移到系统回收站，界面因此不动', { scope: 'plugins', cause })
+          publish({
+            skillFailure: cause instanceof Error ? cause.message : String(cause),
+          })
+        }
+      })
+    },
+
+    retrySkills() {
+      publish({ skillFailure: undefined })
+      queue = queue.then(async () => {
+        try {
+          await rescanSkills()
+          republish()
+        } catch (cause: unknown) {
+          warn('技能目录重读失败', { scope: 'plugins', cause })
+          publish({
+            skillFailure: cause instanceof Error ? cause.message : String(cause),
+          })
+        }
+      })
     },
 
     refreshCapabilities() {

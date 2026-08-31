@@ -39,6 +39,9 @@ pub enum ExtensionError {
     #[error("unsafe path segment")]
     UnsafeSegment,
 
+    #[error("trash operation failed: {0}")]
+    Trash(String),
+
     /// 认领了一个不存在的暂存目录。
     #[error("staging directory does not exist")]
     StagingMissing,

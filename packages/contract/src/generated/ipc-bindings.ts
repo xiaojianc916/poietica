@@ -638,40 +638,21 @@ async pluginsSetMcpEnabled(pluginId: string, server: string, enabled: boolean) :
 async pluginsStage(fetch: PluginFetch) : Promise<PluginStaged> {
     return await TAURI_INVOKE("plugins_stage", { fetch });
 },
-/**
- * 认领：暂存里的技能根搬进 skills/<name>/。同名目录被原子换掉，重装即覆盖。
- */
 async skillsCommit(request: SkillCommitRequest) : Promise<null> {
     return await TAURI_INVOKE("skills_commit", { request });
 },
-/**
- * 丢掉一份暂存（安装取消或失败后的清理）。
- */
 async skillsDiscard(stagingId: string) : Promise<null> {
     return await TAURI_INVOKE("skills_discard", { stagingId });
 },
-/**
- * 本机 skills/ 里装着哪些。启用状态与 SKILL.md 原文一并交回，界面不必再问第二遍。
- */
 async skillsList() : Promise<SkillRecord[]> {
     return await TAURI_INVOKE("skills_list");
 },
-/**
- * 卸载：删掉 skills/<name>/。目录不在视为成功，删除因此幂等。
- */
-async skillsRemove(name: string) : Promise<null> {
-    return await TAURI_INVOKE("skills_remove", { name });
+async skillsTrash(name: string) : Promise<null> {
+    return await TAURI_INVOKE("skills_trash", { name });
 },
-/**
- * 停用与启用：SKILL.md 与 SKILL.md.disabled 之间改名，正文不动。
- */
 async skillsSetEnabled(name: string, enabled: boolean) : Promise<null> {
     return await TAURI_INVOKE("skills_set_enabled", { name, enabled });
 },
-/**
- * 取件到暂存区：与插件安装共用同一条管线（plugins.rs 的 staged_fetch），判据换成
- * SKILL.md。
- */
 async skillsStage(fetch: PluginFetch) : Promise<SkillStaged> {
     return await TAURI_INVOKE("skills_stage", { fetch });
 },
@@ -2222,26 +2203,8 @@ export type ProviderProbeVerdict =
  * 能不能再来一次，以及由谁发起。
  */
 export type Retryability = "no" | "afterDelay" | "afterUserAction"
-export type SkillCommitRequest = { stagingId: string; 
-/**
- * 落盘的目录名。渲染层从前言里读出，这一侧只验安全性。
- */
-name: string; subdirectory: string | null }
-/**
- * 本机 skills/ 里的一个技能目录。
- */
-export type SkillRecord = { 
-/**
- * 目录名。停用、启用、卸载都按它寻址。
- */
-name: string; enabled: boolean; 
-/**
- * SKILL.md 原文。前言解析在渲染层只有一处。
- */
-document: string }
-/**
- * 已解到暂存区、等认领的一份。
- */
+export type SkillCommitRequest = { stagingId: string; name: string; subdirectory: string | null }
+export type SkillRecord = { name: string; enabled: boolean; document: string; path: string; supportingFiles: number; totalBytes: number; modifiedAt: number | null }
 export type SkillStaged = { stagingId: string; skillMd: string }
 export type TableExportFormat = "csv" | "markdown"
 export type TableExportRequest = { content: string; format: TableExportFormat }

@@ -80,6 +80,7 @@ blake3 = "1.8.2"
 hex = "0.4.3"
 sha2 = "0.10.9"
 tempfile = "3.20.0"
+trash = "5.2.6"
 walkdir = "2.5.0"
 zip = { version = "4.0.0", default-features = false, features = [
   "deflate", "time", "zstd",

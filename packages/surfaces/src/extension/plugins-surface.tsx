@@ -273,7 +273,7 @@ function skillRow(skill: SkillRow, store: PluginStore): ContributionRow {
             <>
               <Button
                 className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
-                onClick={() => store.removeInstalledSkill(directory)}
+                onClick={() => store.trashInstalledSkill(directory)}
                 size="xs"
                 variant="ghost"
               >

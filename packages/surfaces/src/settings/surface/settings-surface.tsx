@@ -6,7 +6,7 @@ import {
   Select,
   type SelectOption,
 } from '@poietica/design-system'
-import type { PluginStore } from '@poietica/extension'
+import type { PluginStore, RosterSkill } from '@poietica/extension'
 import type {
   AgentConfigStore,
   AppSettings,
@@ -21,6 +21,7 @@ import {
   Info,
   Keyboard,
   Monitor,
+  PackageOpen,
   ShieldCheck,
   Sun,
   Zap,
@@ -39,6 +40,7 @@ import {
 import { ComputerUseSettings } from '../computer-use-settings'
 import { KeymapSettings } from '../keymap-settings'
 import { ModelsSettings } from '../models/models-settings'
+import { SkillsSettings } from '../skills-settings'
 import { UsageSettings } from '../usage-settings'
 import { ArchivedChatsSettings } from './archived-chats-settings'
 import { MascotPrefsGroup } from './mascot-prefs'
@@ -55,6 +57,7 @@ type SettingsSection =
   | 'appearance'
   | 'archived'
   | 'models'
+  | 'skills'
   | 'keymap'
   | 'computer-use'
   | 'usage'
@@ -88,6 +91,7 @@ interface SettingsSectionContext {
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
   readonly plugins: PluginStore
+  readonly skillRoster: readonly RosterSkill[]
 }
 
 interface SettingsSectionDescriptor {
@@ -120,6 +124,11 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
     label: '模型',
     icon: Cpu,
     render: ({ agentConfigStore }) => <ModelsSettings store={agentConfigStore} />,
+  },
+  skills: {
+    label: '技能',
+    icon: PackageOpen,
+    render: ({ plugins, skillRoster }) => <SkillsSettings roster={skillRoster} store={plugins} />,
   },
   keymap: {
     label: '快捷键',
@@ -158,7 +167,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
-  ['models', 'keymap', 'computer-use', 'usage', 'archived'],
+  ['models', 'skills', 'keymap', 'computer-use', 'usage', 'archived'],
   ['privacy', 'about'],
 ]
 
@@ -177,6 +186,7 @@ interface SettingsSurfaceContextValue {
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
   readonly plugins: PluginStore
+  readonly skillRoster: readonly RosterSkill[]
   readonly section: SettingsSection
   readonly onSelect: (section: SettingsSection) => void
   readonly onBack: () => void
@@ -199,6 +209,8 @@ export interface SettingsProviderProps {
   readonly agentConfigStore: AgentConfigStore
   /** 插件账本的唯一持有者，由组合根注入：这个包不认识桌面传输层。 */
   readonly plugins: PluginStore
+  /** KAP 按当前会话报告的技能名册。 */
+  readonly skillRoster: readonly RosterSkill[]
   readonly threads: ThreadsStore
   /**
    * 当前生效的快捷键，由组合根注入。
@@ -232,6 +244,7 @@ export function SettingsProvider({
   store,
   agentConfigStore,
   plugins,
+  skillRoster,
   threads,
   keybindings,
   appVersion,
@@ -262,6 +275,7 @@ export function SettingsProvider({
       controller,
       agentConfigStore,
       plugins,
+      skillRoster,
       threads,
       keybindings,
       appVersion,
@@ -277,6 +291,7 @@ export function SettingsProvider({
       dataDirectory,
       keybindings,
       plugins,
+      skillRoster,
       section,
       threads,
     ],
@@ -311,13 +326,14 @@ export function SettingsContentRegion() {
     dataDirectory,
     keybindings,
     plugins,
+    skillRoster,
     section,
     threads,
   } = useSettingsSurface()
 
   return (
     <div aria-live="polite" className="settings-content">
-      <div className="settings-content__inner">
+      <div className="settings-content__inner" data-section={section}>
         <h2 className="settings-content__title">{SECTIONS[section].label}</h2>
 
         {controller.loading ? (
@@ -349,6 +365,7 @@ export function SettingsContentRegion() {
               dataDirectory,
               keybindings,
               plugins,
+              skillRoster,
               settings: controller.settings,
               threads,
             })}
