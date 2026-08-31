@@ -287,6 +287,43 @@ pub struct ListSessionsDataStruct {
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct SessionSnapshotDataInFlightTurnStruct {
+    #[serde(rename = "turn_id")]
+    pub turn_id: i64,
+    #[serde(rename = "assistant_text")]
+    pub assistant_text: String,
+    #[serde(rename = "thinking_text")]
+    pub thinking_text: String,
+    #[serde(rename = "running_tools")]
+    pub running_tools: Vec<CreateSessionDataPermissionRulesStruct>,
+    #[serde(rename = "current_prompt_id")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current_prompt_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct SessionSnapshotDataStruct {
+    #[serde(rename = "as_of_seq")]
+    pub as_of_seq: i64,
+    #[serde(rename = "epoch")]
+    pub epoch: String,
+    #[serde(rename = "session")]
+    pub session: CreateSessionDataStruct,
+    #[serde(rename = "messages")]
+    pub messages: ListSessionsDataStruct,
+    #[serde(rename = "in_flight_turn")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub in_flight_turn: Option<SessionSnapshotDataInFlightTurnStruct>,
+    #[serde(rename = "subagents")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subagents: Option<Vec<CreateSessionDataPermissionRulesStruct>>,
+    #[serde(rename = "pending_approvals")]
+    pub pending_approvals: Vec<CreateSessionDataPermissionRulesStruct>,
+    #[serde(rename = "pending_questions")]
+    pub pending_questions: Vec<CreateSessionDataPermissionRulesStruct>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct SessionStatusDataStruct {
     #[serde(rename = "busy")]
     pub busy: bool,

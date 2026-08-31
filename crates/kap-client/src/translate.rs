@@ -44,10 +44,14 @@ pub fn conversation_event(frame: &RunFrame) -> ConversationEvent {
             request_id,
             decision,
             scope,
+            selected_label,
+            feedback,
         } => ConversationEvent::PermissionResolved {
             request_id: request_id.clone(),
             decision: decision.clone(),
             scope: scope.clone(),
+            selected_label: selected_label.clone(),
+            feedback: feedback.clone(),
         },
         RunFrame::QuestionsAsked {
             question_id,
@@ -68,6 +72,9 @@ pub fn conversation_event(frame: &RunFrame) -> ConversationEvent {
             outcome: outcome.clone(),
             answers: answers.clone(),
             note: note.clone(),
+        },
+        RunFrame::SessionRecovered { snapshot } => ConversationEvent::SessionRecovered {
+            snapshot: snapshot.clone(),
         },
         RunFrame::LinkChanged { link } => ConversationEvent::LinkChanged { link: link.clone() },
         RunFrame::RunFinished { stop_reason } => ConversationEvent::RunFinished {

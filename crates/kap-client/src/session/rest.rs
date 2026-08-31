@@ -103,9 +103,24 @@ pub(crate) async fn submit_prompt(
     idempotency: &str,
 ) -> Result<String> {
     let mut body = prompt_body(text, attachments, skills)?;
-    body.prompt_id = Some(idempotency.to_owned());
+    let retryable = body.skills.is_none();
+    if retryable {
+        body.prompt_id = Some(idempotency.to_owned());
+    }
     let url = format!("{base_url}/sessions/{session_id}/prompts");
-    let data = post(http, &url, &body).await?;
+    let mut attempt = 0_u32;
+    let data = loop {
+        attempt = attempt.saturating_add(1);
+        match post(http, &url, &body).await {
+            Ok(data) => break data,
+            Err(KapError::Transport { message }) if retryable && attempt < 3 => {
+                log::warn!("ambiguous prompt submission {attempt}/3: {message}");
+                tokio::time::sleep(std::time::Duration::from_millis(200 * u64::from(attempt)))
+                    .await;
+            }
+            Err(error) => return Err(error),
+        }
+    };
 
     data.get("prompt_id")
         .and_then(Value::as_str)
@@ -162,6 +177,38 @@ fn prompt_body(
         skills: (!activations.is_empty()).then_some(activations),
         ..Default::default()
     })
+}
+
+/// 原子快照先由生成契约验证；调用方只消费水位与重建载荷。
+pub(crate) async fn session_snapshot(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+) -> Result<(Cursor, Value)> {
+    let data = get(http, &format!("{base_url}/sessions/{session_id}/snapshot")).await?;
+    let _: crate::generated::rest::SessionSnapshotDataStruct = serde_json::from_value(data.clone())
+        .map_err(|error| KapError::Transport {
+            message: format!("snapshot does not fit the pinned contract: {error}"),
+        })?;
+    let seq = data
+        .get("as_of_seq")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| KapError::Transport {
+            message: "snapshot has no as_of_seq".to_owned(),
+        })?;
+    let epoch = data
+        .get("epoch")
+        .and_then(Value::as_str)
+        .ok_or_else(|| KapError::Transport {
+            message: "snapshot has no epoch".to_owned(),
+        })?;
+    Ok((
+        Cursor {
+            seq,
+            epoch: Some(epoch.to_owned()),
+        },
+        data,
+    ))
 }
 
 /// 三条会话出生路（新开 / 装载 / 分叉）共用的激活序列。

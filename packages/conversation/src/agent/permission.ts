@@ -9,8 +9,13 @@ export type ApprovalDecision = 'approved' | 'rejected' | 'cancelled'
 /** 「这条会话都照此办理」。kap 只有这一个取值。 */
 export type ApprovalScope = 'session'
 
-/** 人能给出的那两个。cancelled 是没有人答时这一侧的收场，不是一次答复。 */
-export type ApprovalAnswer = Exclude<ApprovalDecision, 'cancelled'>
+/** 人提交的一次完整审批应答。 */
+export interface ApprovalAnswer {
+  readonly decision: Exclude<ApprovalDecision, 'cancelled'>
+  readonly scope?: ApprovalScope
+  readonly selectedLabel?: string
+  readonly feedback?: string
+}
 
 /**
  * 用户希望下一次会话采用的批准姿态。

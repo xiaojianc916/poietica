@@ -14,7 +14,7 @@
 
 mod frame_sink;
 
-use poietica_kap_client::{Decision, Recorder, Scope, kap_event};
+use poietica_kap_client::{ApprovalResponse, Decision, Recorder, Scope, kap_event};
 use serde_json::{Value, json};
 
 use frame_sink::{SESSION, recording, text_of};
@@ -103,8 +103,12 @@ fn a_permission_request_and_its_answer_are_two_frames() {
 
     recorder.record_permission_resolved_kap(
         &request_id,
-        Decision::Approved {
-            scope: Some(Scope::Session),
+        ApprovalResponse {
+            decision: Decision::Approved {
+                scope: Some(Scope::Session),
+            },
+            selected_label: None,
+            feedback: None,
         },
     );
 

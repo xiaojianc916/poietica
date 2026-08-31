@@ -1,6 +1,6 @@
 import type { ThreadId } from './address'
 import type { KapSessionId } from './kap'
-import type { ApprovalAnswer, ApprovalScope } from './permission'
+import type { ApprovalAnswer } from './permission'
 import type { QuestionResponse } from './question'
 import type { RunEvent } from './run'
 
@@ -115,11 +115,7 @@ export interface AgentSessionPort {
    * 词汇是 kap 的（approvalResponseSchema）：放行或拒绝，放行可以带上「这条
    * 会话都照此办理」。取消不在这里 —— 那是没有人回答时这一侧的收场。
    */
-  readonly resolvePermission: (
-    requestId: string,
-    decision: ApprovalAnswer,
-    scope?: ApprovalScope,
-  ) => Promise<void>
+  readonly resolvePermission: (requestId: string, answer: ApprovalAnswer) => Promise<void>
   /**
    * 一组题一次答齐。
    *

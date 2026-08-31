@@ -76,6 +76,10 @@ export type RunEvent =
       readonly decision: ApprovalDecision
       /** 「这条会话都照此办理」时在场。 */
       readonly scope?: ApprovalScope
+      /** 计划复审所选方案的协议 label；普通审批不出现。 */
+      readonly selectedLabel?: string
+      /** 给 agent 的可选留言。 */
+      readonly feedback?: string
     }
   | {
       readonly kind: 'questions_asked'
@@ -95,6 +99,13 @@ export type RunEvent =
       readonly answers: Readonly<Record<string, QuestionChoice>>
       /** 整组题的可选备注；没写就是空串。 */
       readonly note: string
+    }
+  | {
+      readonly kind: 'session_recovered'
+      readonly seq: number
+      readonly at: number
+      /** 恢复续接用的原子快照（frame.rs 的 RunFrame::SessionRecovered）。 */
+      readonly snapshot: Readonly<Record<string, unknown>>
     }
   | {
       readonly kind: 'link_changed'

@@ -98,7 +98,7 @@ impl ThreadView {
             | ConversationEvent::UnsupportedExternalEvent { .. } => {
                 self.unparsed_events = self.unparsed_events.saturating_add(1);
             }
-            ConversationEvent::LinkChanged { .. } => {}
+            ConversationEvent::LinkChanged { .. } | ConversationEvent::SessionRecovered { .. } => {}
         }
     }
 

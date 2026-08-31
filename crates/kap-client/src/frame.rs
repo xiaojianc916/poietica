@@ -65,6 +65,8 @@ pub enum RunFrame {
         /// 全部事实只有这一个家。
         skills: Vec<String>,
     },
+    /// snapshot 在原子水位上的在飞状态；只用于续接当前轮次。
+    SessionRecovered { snapshot: Value },
     /// kap server 推来的一帧会话事件。
     KapEvent {
         /// 事件帧的载荷，原始 JSON。信封的 type 就是它自己的 type。
@@ -92,6 +94,10 @@ pub enum RunFrame {
         /// 「这条会话都照此办理」时是 session；只此一次就不出现。
         #[serde(skip_serializing_if = "Option::is_none")]
         scope: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        selected_label: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        feedback: Option<String>,
     },
     /// agent 正卡在一组提问上。
     QuestionsAsked {
@@ -133,6 +139,7 @@ impl RunFrame {
     pub const fn kind(&self) -> &'static str {
         match self {
             Self::PromptAdmitted { .. } => PROMPT_ADMITTED,
+            Self::SessionRecovered { .. } => "session_recovered",
             Self::KapEvent { .. } => KAP_EVENT,
             Self::PermissionRequested { .. } => PERMISSION_REQUESTED,
             Self::PermissionResolved { .. } => PERMISSION_RESOLVED,

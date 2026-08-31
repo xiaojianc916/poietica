@@ -46,7 +46,7 @@ pub use history::{
     AGENT_FIELD, ASSISTANT_DELTA, DELTA_FIELD, MAIN_AGENT, TYPE_FIELD, compact_history,
 };
 pub use interaction::desk::{PermissionDesk, QuestionDesk};
-pub use interaction::permission::{Decision, Scope};
+pub use interaction::permission::{ApprovalResponse, Decision, Scope};
 pub use interaction::question::{
     AnswerMethod, QuestionAnswer, QuestionGroup, QuestionItem, QuestionOption, QuestionOutcome,
     QuestionResponse,

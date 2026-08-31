@@ -146,6 +146,12 @@ export function apply(draft: Draft, event: RunEvent): void {
     /* 一轮重连是一个条目：attempt 1 开张，接回来或试到头就封版，之后再断是下一轮
        的新条目。开张只认 attempt 1 —— 没有开着的一轮时，一句「接回来了」无处可落，
        丢掉它，屏幕上就不会冒出一行没有来由的「连接已恢复」。 */
+    /* 恢复机制帧：续接由原生侧的 resync 恢复路完成，屏幕上没有它的条目。
+       显式认下，实时与重放才是同一行为。 */
+    case 'session_recovered': {
+      return
+    }
+
     case 'link_changed': {
       applyLink(draft, event)
 

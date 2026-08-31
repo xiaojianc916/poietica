@@ -101,6 +101,8 @@ fn interactions_open_and_close_by_their_agent_issued_id() {
                 request_id: "approval-1".to_owned(),
                 decision: "approved".to_owned(),
                 scope: None,
+                selected_label: None,
+                feedback: None,
             },
         ),
     ];

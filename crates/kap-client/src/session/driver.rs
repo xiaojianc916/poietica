@@ -296,8 +296,7 @@ pub fn connect(
             questions.clone(),
             events_tx.clone(),
             http.clone(),
-            base_url.clone(),
-        );
+            base_url.clone(), Arc::clone(&ws));
 
         /* 每条会话最后读到的位置。重连按它续订：帧不重发，也不缺号。 */
 

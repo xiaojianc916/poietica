@@ -8,8 +8,10 @@ use serde_json::{Value, json};
 
 use super::book::SessionBook;
 use super::coordinator::{PromptCoordinator, PromptJob};
-use super::rest::{get, get_selectors, post};
+use super::rest::{get, get_selectors, post, session_snapshot};
 use super::{Cursor, SessionEvent, SessionUsageSnapshot};
+use crate::connection::handshake::subscribe;
+use crate::connection::socket::WsSink;
 use crate::frame::kap_event;
 use crate::generated::rest::{
     ResolveApprovalRequestDecisionEnum, ResolveApprovalRequestScopeEnum,
@@ -154,6 +156,8 @@ pub(crate) struct EventRouter {
     base_url: String,
     cursors: HashMap<String, Cursor>,
     prompts: PromptCoordinator,
+    ws: WsSink,
+    recoveries: HashMap<String, tokio::task::JoinHandle<()>>,
 }
 
 impl EventRouter {
@@ -164,6 +168,7 @@ impl EventRouter {
         events_tx: mpsc::UnboundedSender<SessionEvent>,
         http: reqwest::Client,
         base_url: String,
+        ws: WsSink,
     ) -> Self {
         let prompts = PromptCoordinator::new(http.clone(), base_url.clone(), book.clone());
         Self {
@@ -176,6 +181,8 @@ impl EventRouter {
             base_url,
             cursors: HashMap::new(),
             prompts,
+            ws,
+            recoveries: HashMap::new(),
         }
     }
 
@@ -251,6 +258,8 @@ impl EventRouter {
             base_url,
             cursors,
             prompts,
+            ws: _,
+            recoveries: _,
         } = self;
 
         // kap 说这条会话的事件流断了（reason 枚举 buffer_overflow / session_recreated /
@@ -275,29 +284,57 @@ impl EventRouter {
                 .and_then(Value::as_str)
                 .unwrap_or("unknown");
 
-            /* 读点从这一段流上接不下去了，所以它作废：留着它，下一次订阅只会再换
-            回一句 resync_required。 */
-            let _sent = events_tx.unbounded_send(SessionEvent::CursorLost {
-                session_id: cut.to_owned(),
+            log::warn!("kap cut the stream of {cut}: {reason}");
+
+            if self
+                .recoveries
+                .get(cut)
+                .is_some_and(|task| !task.is_finished())
+            {
+                return;
+            }
+            if let Some(task) = self.recoveries.remove(cut) {
+                task.abort();
+            }
+            let http = self.http.clone();
+            let base = self.base_url.clone();
+            let book = self.book.clone();
+            let ws = std::sync::Arc::clone(&self.ws);
+            let events = self.events_tx.clone();
+            let sid = cut.to_owned();
+            let owner = self.owners.entry(sid.clone()).or_insert_with(|| {
+                ReconcileOwner::spawn(
+                    sid.clone(),
+                    http.clone(),
+                    base.clone(),
+                    book.clone(),
+                    self.desk.clone(),
+                    self.questions.clone(),
+                )
             });
-
-            /* 这一段流接不下去了，链路上那个位置同样作废。 */
-            let _dropped = cursors.remove(cut);
-
-            if let Some(owner) = owners.get(cut) {
-                owner.reset();
-            }
-
-            match book.fail_turn(cut, &format!("the event stream was cut: {reason}")) {
-                Ok(true) => {}
-                Ok(false) => {
-                    log::warn!(
-                        "kap asked for a resync of a session with no turn in flight: {envelope}"
-                    );
+            owner.reset();
+            owner.poll();
+            let task = tokio::spawn(async move {
+                match session_snapshot(&http, &base, &sid).await {
+                    Ok((cursor, snapshot)) => {
+                        if let Ok(Some(slot)) = book.slot(&sid) {
+                            slot.record(|recorder| recorder.record_session_recovered(snapshot));
+                        }
+                        let _ = events.unbounded_send(SessionEvent::Cursor {
+                            session_id: sid.clone(),
+                            cursor: cursor.clone(),
+                        });
+                        if let Err(error) = subscribe(&ws, &sid, Some(&cursor)).await {
+                            let _ = book
+                                .fail_turn(&sid, &format!("snapshot resubscribe failed: {error}"));
+                        }
+                    }
+                    Err(error) => {
+                        let _ = book.fail_turn(&sid, &format!("snapshot recovery failed: {error}"));
+                    }
                 }
-                Err(error) => log::error!("could not close a turn whose stream was cut: {error}"),
-            }
-
+            });
+            self.recoveries.insert(cut.to_owned(), task);
             return;
         }
 
@@ -543,21 +580,22 @@ async fn fetch_and_record_approvals(
         tokio::spawn(async move {
             // 发送端被丢掉只有一种情形：这一轮已经结束了（turn.ended 把它从桌上
             // 放掉了）。那时这不再是我们该回答的问题 —— 什么都不发。
-            let Ok(decision) = answer_rx.await else {
+            let Ok(response) = answer_rx.await else {
                 return;
             };
 
             let answer = ResolveApprovalRequestStruct {
-                decision: match decision {
+                decision: match response.decision {
                     Decision::Approved { .. } => ResolveApprovalRequestDecisionEnum::Approved,
                     Decision::Rejected => ResolveApprovalRequestDecisionEnum::Rejected,
                     Decision::Cancelled => ResolveApprovalRequestDecisionEnum::Cancelled,
                 },
-                scope: decision
+                scope: response
+                    .decision
                     .scope()
                     .map(|_| ResolveApprovalRequestScopeEnum::Session),
-                feedback: None,
-                selected_label: None,
+                feedback: response.feedback.clone(),
+                selected_label: response.selected_label.clone(),
             };
 
             let url = format!("{base2}/sessions/{sid}/approvals/{approval_id}");
@@ -568,7 +606,7 @@ async fn fetch_and_record_approvals(
 
             if let Ok(Some(slot)) = book2.slot(&sid) {
                 slot.record(|recorder| {
-                    recorder.record_permission_resolved_kap(&approval_id, decision);
+                    recorder.record_permission_resolved_kap(&approval_id, response);
                 });
             }
         });

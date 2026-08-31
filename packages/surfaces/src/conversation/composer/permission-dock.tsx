@@ -2,6 +2,7 @@ import './permission-dock.css'
 
 import type {
   ApprovalAnswer,
+  ApprovalDecision,
   ApprovalScope,
   PermissionItem,
   ToolCallTimelineItem,
@@ -33,7 +34,7 @@ interface Answer {
   /** 只用来认「哪一颗正在提交」。 */
   readonly id: string
   readonly label: string
-  readonly decision: ApprovalAnswer
+  readonly decision: Exclude<ApprovalDecision, 'cancelled'>
   readonly scope?: ApprovalScope
   /** 主按钮，只有一颗。 */
   readonly lead?: true
@@ -84,7 +85,7 @@ export interface PermissionDockProps {
   readonly call: ToolCallTimelineItem | undefined
   /** 本段里还在等的一共几个。1 表示只有这一个，序号因此不出现。 */
   readonly waiting: number
-  readonly onResolve: (requestId: string, decision: ApprovalAnswer, scope?: ApprovalScope) => void
+  readonly onResolve: (requestId: string, answer: ApprovalAnswer) => void
 }
 
 export const PermissionDock = memo(function PermissionDock({
@@ -115,7 +116,10 @@ export const PermissionDock = memo(function PermissionDock({
    */
   const handleSelect = (answer: Answer) => {
     setSubmitted(answer.id)
-    onResolve(item.requestId, answer.decision, answer.scope)
+    onResolve(item.requestId, {
+      decision: answer.decision,
+      ...(answer.scope === undefined ? {} : { scope: answer.scope }),
+    })
   }
 
   /*

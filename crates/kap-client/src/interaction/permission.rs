@@ -1,9 +1,5 @@
-//! 审批的答复。
-//!
-//! 取值域是封闭的，而且是协议定的：decision 三个词，scope 一个词
-//! （protocol/approval.ts 的 approvalResponseSchema 与 approvalScopeSchema）。
-//! 所以这里是两个枚举，不是一张由这一侧合成、再由这一侧自己校验的选项表 ——
-//! kap 的审批请求里根本没有选项这个对象。
+//! 审批应答的领域模型。decision、scope、selected_label 与 feedback 共同构成
+//! KAP approvalResponse；桌面边界只传这一份，不另建影子状态。
 
 /// 「记住这个答复」的范围。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -31,6 +27,14 @@ pub enum Decision {
     Rejected,
     /// 没有人答，这一轮先结束了。
     Cancelled,
+}
+
+/// 一次完整的 KAP 审批应答。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ApprovalResponse {
+    pub decision: Decision,
+    pub selected_label: Option<String>,
+    pub feedback: Option<String>,
 }
 
 impl Decision {

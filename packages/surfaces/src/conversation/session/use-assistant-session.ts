@@ -1,7 +1,6 @@
 import type {
   AgentSessionPort,
   ApprovalAnswer,
-  ApprovalScope,
   ChatStatus,
   Interjection,
   PermissionItem,
@@ -82,11 +81,7 @@ export interface AssistantSession {
   readonly status: ChatStatus
   readonly send: (submission: AssistantSubmission) => void
   readonly cancel: () => void
-  readonly resolvePermission: (
-    requestId: string,
-    decision: ApprovalAnswer,
-    scope?: ApprovalScope,
-  ) => void
+  readonly resolvePermission: (requestId: string, answer: ApprovalAnswer) => void
   /** 答掉一整组题。答复形状就是协议自己的 QuestionResponse，不经权限请求。 */
   readonly answerQuestions: (response: QuestionResponse) => void
   /** 撤下一整组题。 */
@@ -209,8 +204,8 @@ export function useAssistantSession({
   }, [key, transcripts])
 
   const resolvePermission = useCallback(
-    (requestId: string, decision: ApprovalAnswer, scope?: ApprovalScope) => {
-      transcripts.resolvePermission(key, requestId, decision, scope)
+    (requestId: string, answer: ApprovalAnswer) => {
+      transcripts.resolvePermission(key, requestId, answer)
     },
     [key, transcripts],
   )

@@ -6,7 +6,8 @@
 use std::collections::HashMap;
 
 use poietica_kap_client::{
-    AnswerMethod, Decision, QuestionAnswer, QuestionResponse, Scope, SessionUsageSnapshot,
+    AnswerMethod, ApprovalResponse, Decision, QuestionAnswer, QuestionResponse, Scope,
+    SessionUsageSnapshot,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, value::RawValue};
@@ -110,19 +111,27 @@ pub struct AgentResolvePermissionRequest {
     pub decision: AgentApprovalDecision,
     /// 带上它就是「这条会话都照此办理」；只此一次时缺席。
     pub scope: Option<AgentApprovalScope>,
+    /// 计划复审所选方案的协议 label。
+    pub selected_label: Option<String>,
+    /// 给 agent 的可选留言。
+    pub feedback: Option<String>,
 }
 
 /// 把界面报来的答复翻成运行时的域类型。
 ///
 /// 没有校验可做：不合法的词在 serde 那一步就已经被拒掉了。
-pub(super) fn decided(request: &AgentResolvePermissionRequest) -> Decision {
-    match request.decision {
-        AgentApprovalDecision::Approved => Decision::Approved {
-            scope: request
-                .scope
-                .map(|AgentApprovalScope::Session| Scope::Session),
+pub(super) fn decided(request: &AgentResolvePermissionRequest) -> ApprovalResponse {
+    ApprovalResponse {
+        decision: match request.decision {
+            AgentApprovalDecision::Approved => Decision::Approved {
+                scope: request
+                    .scope
+                    .map(|AgentApprovalScope::Session| Scope::Session),
+            },
+            AgentApprovalDecision::Rejected => Decision::Rejected,
         },
-        AgentApprovalDecision::Rejected => Decision::Rejected,
+        selected_label: request.selected_label.clone(),
+        feedback: request.feedback.clone(),
     }
 }
 

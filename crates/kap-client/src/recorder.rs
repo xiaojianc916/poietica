@@ -7,7 +7,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::frame::{RunFrame, prune};
-use crate::interaction::permission::Decision;
+use crate::interaction::permission::{ApprovalResponse, Decision};
 use crate::interaction::question::{QuestionGroup, QuestionOutcome};
 use poietica_conversation::link::LinkState;
 
@@ -220,6 +220,11 @@ impl Recorder {
         self.append(frame);
     }
 
+    /// 记录原子快照，使重建仍经 RunFrame → FrameSink → run_events。
+    pub fn record_session_recovered(&mut self, snapshot: Value) {
+        self.append(RunFrame::SessionRecovered { snapshot });
+    }
+
     /// 记下这条连接此刻的链路态。它进这一轮的账，重开这条对话仍然看得见。
     pub fn record_link(&mut self, link: &LinkState) {
         self.append(RunFrame::LinkChanged { link: link.clone() });
@@ -262,8 +267,12 @@ impl Recorder {
     }
 
     /// Records the answer a kap approval was settled with.
-    pub fn record_permission_resolved_kap(&mut self, approval_id: &str, decision: Decision) {
-        self.note_resolution(approval_id, decision);
+    pub fn record_permission_resolved_kap(
+        &mut self,
+        approval_id: &str,
+        response: ApprovalResponse,
+    ) {
+        self.note_resolution(approval_id, response);
     }
 
     /// The requests this run is still waiting on.
@@ -281,7 +290,14 @@ impl Recorder {
         // 先取走再逐个记：每一次记录都会把它自己从清单里划掉，边遍历边改
         // 同一个 Vec 是借用检查器本来就不允许的事。
         for approval_id in std::mem::take(&mut self.approvals) {
-            self.record_permission_resolved_kap(&approval_id, Decision::Cancelled);
+            self.record_permission_resolved_kap(
+                &approval_id,
+                ApprovalResponse {
+                    decision: Decision::Cancelled,
+                    selected_label: None,
+                    feedback: None,
+                },
+            );
         }
 
         for question_id in std::mem::take(&mut self.questions) {
@@ -391,13 +407,18 @@ impl Recorder {
         self.ended = self.ended.saturating_add(1);
     }
 
-    fn note_resolution(&mut self, request_id: &str, decision: Decision) {
+    fn note_resolution(&mut self, request_id: &str, response: ApprovalResponse) {
         self.approvals.retain(|waiting| waiting != request_id);
 
         self.append(RunFrame::PermissionResolved {
             request_id: request_id.to_owned(),
-            decision: decision.on_wire().to_owned(),
-            scope: decision.scope().map(|scope| scope.on_wire().to_owned()),
+            decision: response.decision.on_wire().to_owned(),
+            scope: response
+                .decision
+                .scope()
+                .map(|scope| scope.on_wire().to_owned()),
+            selected_label: response.selected_label,
+            feedback: response.feedback,
         });
     }
 

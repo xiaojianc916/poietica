@@ -251,10 +251,15 @@ export function createAgentSessionPort({
       await throughIpc(() => commands.agentAbortPrompt({ threadId, promptId }))
     },
 
-    resolvePermission: async (requestId, decision, scope) => {
-      /* 线上「只此一次」是 null，端口那一侧是缺席 —— 转换只在这一层。 */
+    resolvePermission: async (requestId, answer) => {
       await throughIpc(() =>
-        commands.agentResolvePermission({ requestId, decision, scope: scope ?? null }),
+        commands.agentResolvePermission({
+          requestId,
+          decision: answer.decision,
+          scope: answer.scope ?? null,
+          selectedLabel: answer.selectedLabel ?? null,
+          feedback: answer.feedback ?? null,
+        }),
       )
     },
 

@@ -1665,7 +1665,15 @@ decision: AgentApprovalDecision;
 /**
  * 带上它就是「这条会话都照此办理」；只此一次时缺席。
  */
-scope: AgentApprovalScope | null }
+scope: AgentApprovalScope | null; 
+/**
+ * 计划复审所选方案的协议 label。
+ */
+selectedLabel: string | null; 
+/**
+ * 给 agent 的可选留言。
+ */
+feedback: string | null }
 /**
  * A change made in the interface.
  */

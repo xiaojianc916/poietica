@@ -561,6 +561,12 @@ const REST_ROUTES: RestRoute[] = [
   { method: 'get', path: '/api/v1/sessions', name: 'ListSessions', data: true },
   {
     method: 'get',
+    path: '/api/v1/sessions/{session_id}/snapshot',
+    name: 'SessionSnapshot',
+    data: true,
+  },
+  {
+    method: 'get',
     path: '/api/v1/sessions/{session_id}/status',
     name: 'SessionStatus',
     data: true,

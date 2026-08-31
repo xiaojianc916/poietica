@@ -39,6 +39,7 @@ pub struct TurnMark {
 ///
 /// 账本只知道载荷挂在 $.payload 下面；里面那几格叫什么、主代理的章是什么，
 /// 由认识 kap 方言的那一层交进来（kap-client 的 history）。
+#[derive(Debug)]
 pub struct ReplyRead<'a> {
     pub type_field: &'a str,
     pub payload_type: &'a str,

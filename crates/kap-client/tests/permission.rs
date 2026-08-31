@@ -9,7 +9,7 @@
 //! 的是不老实的几种：没人问过的请求、结束在前的轮次，以及答复本身在线上说的话。
 
 use futures::executor::block_on;
-use poietica_kap_client::{Decision, PermissionDesk, Scope};
+use poietica_kap_client::{ApprovalResponse, Decision, PermissionDesk, Scope};
 
 #[test]
 fn an_answer_reaches_the_waiting_handler() {
@@ -18,16 +18,24 @@ fn an_answer_reaches_the_waiting_handler() {
 
     desk.answer(
         "appr_1",
-        Decision::Approved {
-            scope: Some(Scope::Session),
+        ApprovalResponse {
+            decision: Decision::Approved {
+                scope: Some(Scope::Session),
+            },
+            selected_label: None,
+            feedback: None,
         },
     )
     .expect("the answer to land");
 
     assert_eq!(
         block_on(waiting).expect("an answer"),
-        Decision::Approved {
-            scope: Some(Scope::Session)
+        ApprovalResponse {
+            decision: Decision::Approved {
+                scope: Some(Scope::Session)
+            },
+            selected_label: None,
+            feedback: None
         },
         "作用域随答复一起交到等待的那一侧"
     );
@@ -38,7 +46,17 @@ fn an_answer_reaches_the_waiting_handler() {
 fn an_answer_to_an_unknown_request_is_refused() {
     let desk = PermissionDesk::new();
 
-    assert!(desk.answer("appr_404", Decision::Rejected).is_err());
+    assert!(
+        desk.answer(
+            "appr_404",
+            ApprovalResponse {
+                decision: Decision::Rejected,
+                selected_label: None,
+                feedback: None,
+            }
+        )
+        .is_err()
+    );
 }
 
 #[test]

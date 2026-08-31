@@ -1,7 +1,6 @@
 import type {
   AgentSessionPort,
   ApprovalAnswer,
-  ApprovalScope,
   FrameCursor,
   FramePage,
   PromptAsset,
@@ -815,19 +814,14 @@ export class TranscriptStore implements TranscriptSink {
   }
 
   /* 线路只有一条（#attachedTo），答复的地址不必由调用方再交一次 —— 与 cancel 同一个入口。 */
-  resolvePermission = (
-    key: string,
-    requestId: string,
-    decision: ApprovalAnswer,
-    scope?: ApprovalScope,
-  ): void => {
+  resolvePermission = (key: string, requestId: string, answer: ApprovalAnswer): void => {
     const port = this.#attachedTo
 
     if (port === null) {
       return
     }
 
-    port.resolvePermission(requestId, decision, scope).catch((cause: unknown) => {
+    port.resolvePermission(requestId, answer).catch((cause: unknown) => {
       this.note(key, describeFailure(cause))
     })
   }

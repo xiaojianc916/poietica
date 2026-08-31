@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use futures::channel::oneshot;
 
-use super::permission::Decision;
+use super::permission::ApprovalResponse;
 use super::question::{QuestionGroup, QuestionOutcome, QuestionResponse};
 use crate::error::{KapError, Result};
 
@@ -14,7 +14,7 @@ const HANDLER_GONE: &str = "the agent stopped waiting for that permission reques
 #[derive(Debug)]
 struct Waiting {
     /// Where the answer is delivered.
-    answer: oneshot::Sender<Decision>,
+    answer: oneshot::Sender<ApprovalResponse>,
 }
 
 /// The permission requests waiting for a human.
@@ -43,7 +43,7 @@ impl PermissionDesk {
     /// # Errors
     ///
     /// Fails when the desk was left locked by a panicking task.
-    pub fn wait_kap(&self, approval_id: &str) -> Result<oneshot::Receiver<Decision>> {
+    pub fn wait_kap(&self, approval_id: &str) -> Result<oneshot::Receiver<ApprovalResponse>> {
         let (answer, waiting) = oneshot::channel();
 
         let _replaced = self
@@ -63,14 +63,14 @@ impl PermissionDesk {
     ///
     /// Fails when the request is not outstanding, or when the agent has already
     /// stopped waiting.
-    pub fn answer(&self, request_id: &str, decision: Decision) -> Result<()> {
+    pub fn answer(&self, request_id: &str, response: ApprovalResponse) -> Result<()> {
         let Some(waiting) = self.lock()?.remove(request_id) else {
             return Err(refused(UNKNOWN_REQUEST));
         };
 
         waiting
             .answer
-            .send(decision)
+            .send(response)
             .map_err(|_gone| refused(HANDLER_GONE))
     }
 

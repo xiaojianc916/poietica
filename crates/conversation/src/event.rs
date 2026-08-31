@@ -54,6 +54,12 @@ pub enum ConversationEvent {
         /// 「这条会话都照此办理」时是 session；只此一次就不出现。
         #[serde(skip_serializing_if = "Option::is_none")]
         scope: Option<String>,
+        /// 计划复审所选方案的协议 label。
+        #[serde(skip_serializing_if = "Option::is_none")]
+        selected_label: Option<String>,
+        /// 给 agent 的可选留言。
+        #[serde(skip_serializing_if = "Option::is_none")]
+        feedback: Option<String>,
     },
     /// agent 正卡在一组提问上。
     QuestionsAsked {
@@ -71,6 +77,9 @@ pub enum ConversationEvent {
     },
     /// 这条连接此刻的链路态。它耽误的是这一轮，所以它进这一轮的账。
     LinkChanged { link: LinkState },
+    /// 快照恢复：resync 之后这一轮从原子水位续接。机制帧 —— 投影不落条目，
+    /// 落账是为了重放时说得清这段经过从哪儿接上的。
+    SessionRecovered { snapshot: Value },
     /// 这一轮按 agent 自己的说法结束了。
     RunFinished {
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -103,6 +112,7 @@ impl ConversationEvent {
                 turn: Some(turn), ..
             } => Some(turn),
             Self::KapEvent { .. }
+            | Self::SessionRecovered { .. }
             | Self::PermissionRequested { .. }
             | Self::PermissionResolved { .. }
             | Self::QuestionsAsked { .. }
@@ -120,6 +130,7 @@ impl ConversationEvent {
             Self::TurnAdmitted { .. } => "turn_admitted",
             Self::PromptAdmitted { .. } => "prompt_admitted",
             Self::KapEvent { .. } => "kap_event",
+            Self::SessionRecovered { .. } => "session_recovered",
             Self::PermissionRequested { .. } => "permission_requested",
             Self::PermissionResolved { .. } => "permission_resolved",
             Self::QuestionsAsked { .. } => "questions_asked",

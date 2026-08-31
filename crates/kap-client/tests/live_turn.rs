@@ -474,11 +474,7 @@ fn detail(frame: &RunFrame) -> String {
             _ => payload.to_string(),
         },
         RunFrame::PermissionRequested { title, .. } => title.clone(),
-        RunFrame::PermissionResolved {
-            request_id: _,
-            decision: _,
-            scope: _,
-        } => {
+        RunFrame::PermissionResolved { .. } => {
             panic!("PermissionResolved carries no payload, unreachable test branch")
         }
         RunFrame::QuestionsAsked { questions, .. } => questions.to_string(),
@@ -490,6 +486,7 @@ fn detail(frame: &RunFrame) -> String {
         } => {
             format!("outcome={outcome} answers={answers} note={note}")
         }
+        RunFrame::SessionRecovered { .. } => String::new(),
         RunFrame::RunFinished { stop_reason } => stop_reason.clone(),
         RunFrame::RunFailed { message } => message.clone(),
         RunFrame::LinkChanged { link } => serde_json::to_string(link).expect("link serializes"),
