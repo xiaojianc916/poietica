@@ -6,7 +6,7 @@ import { cx } from '../primitives/class-names'
 import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon, ThinkingIcon } from '../primitives/icons'
 import { useFollowEnd } from '../primitives/use-follow-end'
-import { readThoughtLine } from './thought-line'
+import { readThoughtLine } from '../semantics/thought-line'
 
 /**
  * 一段推理：一行字，落定之后点开是全文。
@@ -16,7 +16,7 @@ import { readThoughtLine } from './thought-line'
  * 之后印首行。点开的那一段是原文本身（pre-wrap）：推理是模型的自语，不是文档。
  *
  * 运行中这一行不是控件 —— 这是与 DeepSeek 有意分歧的一处（对照 deepseek-harness 的
- * packages/client/ui-conversation/src/client/chat/ReasoningRow.tsx，它始终 expandable）。
+ * packages/client/ui-chat/src/client/chat/ReasoningRow.tsx，它始终 expandable）。
  * 这里的行由虚拟器铺、挂着 measureElement：一个正在以帧率长高的抽屉会让末端锚定每帧补一
  * 次滚动增量，人一边读一边被往上拽；而那一格每帧在变，让它当按钮的可访问名等于让读屏的
  * 落脚点一直在动。所以运行中只有状态、没有开合入口，落定之后才交出按钮与箭头。

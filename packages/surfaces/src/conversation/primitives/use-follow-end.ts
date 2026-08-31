@@ -1,23 +1,27 @@
-import { useEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 
-/** 合并到第几帧写一次：token 比帧密，每帧写等于每帧强制一次回流。 */
+/* 三帧一次写：与 deepseek-harness 的 packages/client/ui-chat/src/client/chat/use-throttled-visual-update.ts 同一个数。 */
 const COALESCE_FRAMES = 3
 
 /**
- * 让一行字横向跟着末尾走：正在写的那一行，要看的恰好是最新那几个字。
+ * 把一格单行文本钉在它的末端。
  *
- * overflow: hidden 只收走用户的滚动手段，盒子仍是滚动容器，scrollLeft 照样生效。
+ * 位置归这里，动感归样式表：跟随中的那一格挂 data-follow-end，flow-row.css 在
+ * prefers-reduced-motion: no-preference 下给它 scroll-behavior: smooth。于是同一次赋值由
+ * 渲染器插值成从右往左的滑动，下一次赋值重定向进行中的那一次而不是重放它（CSSOM View：
+ * scrollLeft 的赋值按元素自身的 scroll-behavior 滚动）。手写补间会和它抢同一个属性。
  *
- * 已排期的那一帧只合并、不取消。取消式的写法在快流下一次也落不了地：每次渲染注册一帧，
- * 上一次渲染的清理先把它撤掉，于是 scrollLeft 从未被写过，行看着停在旧位置 —— 而字还在
- * 往右长。做法取自 deepseek-harness 的
- * packages/client/ui-conversation/src/client/chat/use-throttled-visual-update.ts。
+ * 不取消：每次渲染注册一帧、上一次渲染的清理先把它撤掉，快流下一帧也落不了地。排期中的
+ * 那一帧落地前重读意图 —— 落定与它之间隔着几帧，不重读就会把已经换成首行的那一格推到末端。
  */
 export function useFollowEnd<T extends HTMLElement>(isFollowing: boolean) {
   const ref = useRef<T | null>(null)
+  const following = useRef(isFollowing)
   const pending = useRef<number | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    following.current = isFollowing
+
     const element = ref.current
 
     if (element === null) {
@@ -49,20 +53,20 @@ export function useFollowEnd<T extends HTMLElement>(isFollowing: boolean) {
 
       const target = ref.current
 
-      if (target !== null) {
-        target.scrollLeft = target.scrollWidth - target.clientWidth
+      if (target === null) {
+        return
       }
+
+      target.scrollLeft = following.current ? target.scrollWidth - target.clientWidth : 0
     }
 
     pending.current = requestAnimationFrame(advance)
   })
 
-  /* 谁创建谁销毁：挂着的那一帧属于这个 hook 的整段寿命，只在卸载时撤。 */
-  useEffect(
+  useLayoutEffect(
     () => () => {
       if (pending.current !== null) {
         cancelAnimationFrame(pending.current)
-        pending.current = null
       }
     },
     [],

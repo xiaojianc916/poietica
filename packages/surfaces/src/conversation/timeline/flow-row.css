@@ -99,6 +99,13 @@ button.timeline-row:focus-visible {
   text-overflow: clip;
 }
 
+/* 跟随末端的位移由渲染器插值：滚到末端因此读成从右往左的滑动，不是一格一格地跳。 */
+@media (prefers-reduced-motion: no-preference) {
+  .timeline-row__label[data-follow-end] {
+    scroll-behavior: smooth;
+  }
+}
+
 /*
  * 点开之后的那段推理：原文本身，只按行断。
  *

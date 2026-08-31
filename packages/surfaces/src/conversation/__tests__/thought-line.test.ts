@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { readThoughtLine } from '../timeline/thought-line'
+import { readThoughtLine } from '../semantics/thought-line'
 
 /*
  * 这一格印的是原文里的那一行，不是它的 markdown 语义。任何过滤都会让它在模型写围栏、

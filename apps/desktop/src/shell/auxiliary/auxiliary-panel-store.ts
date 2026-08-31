@@ -117,8 +117,11 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
    * 标签条移到还在的那一段。整格空了才回到启动器 —— 关掉一格不该让另一格消失。
    */
   function resolved(): AuxiliaryFocus {
-    if (focus.kind === 'pane' && panes.some((pane) => pane.id === focus.id)) {
-      return focus
+    if (focus.kind === 'pane') {
+      const currentId = focus.id
+      if (panes.some((pane) => pane.id === currentId)) {
+        return focus
+      }
     }
 
     if (focus.kind === 'browser' && (host?.tabs.length ?? 0) > 0) {
