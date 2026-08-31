@@ -5,6 +5,33 @@
     reason = "the wire shapes are what the spec says; splitting them adds nothing"
 )]
 
+/// AsyncAPI channel address generated into a WebSocket URL builder.
+pub mod websocket {
+    #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+    #[error("invalid KAP websocket address: {0}")]
+    pub struct AddressError(String);
+
+    pub fn connect(base_url: &str) -> Result<url::Url, AddressError> {
+        let mut url = url::Url::parse(base_url).map_err(|error| AddressError(error.to_string()))?;
+        let scheme = match url.scheme() {
+            "http" | "ws" => "ws",
+            "https" | "wss" => "wss",
+            other => return Err(AddressError(format!("unsupported scheme {other}"))),
+        };
+        url.set_scheme(scheme)
+            .map_err(|()| AddressError("scheme cannot be changed".to_owned()))?;
+        url.set_query(None);
+        url.set_fragment(None);
+        {
+            let mut path = url
+                .path_segments_mut()
+                .map_err(|()| AddressError("base URL cannot carry path segments".to_owned()))?;
+            path.clear().extend(&["api", "v1", "ws"]);
+        }
+        Ok(url)
+    }
+}
+
 /// 客户端发往 server 的控制帧。
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type")]

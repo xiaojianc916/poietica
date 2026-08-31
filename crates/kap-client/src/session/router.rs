@@ -15,7 +15,7 @@ use crate::connection::socket::WsSink;
 use crate::frame::kap_event;
 use crate::generated::rest::{
     ResolveApprovalRequestDecisionEnum, ResolveApprovalRequestScopeEnum,
-    ResolveApprovalRequestStruct,
+    ResolveApprovalRequestStruct, routes,
 };
 use crate::interaction::desk::{PermissionDesk, QuestionDesk};
 use crate::interaction::permission::Decision;
@@ -527,9 +527,12 @@ async fn fetch_and_record_approvals(
     book: &SessionBook,
     desk: &PermissionDesk,
 ) {
-    let url = format!("{base_url}/sessions/{session_id}/approvals?status=pending");
+    let url = routes::list_approvals(base_url, session_id).map(|mut url| {
+        url.query_pairs_mut().append_pair("status", "pending");
+        url
+    });
 
-    let data = match get(http, &url).await {
+    let data = match get(http, url).await {
         Ok(data) => data,
         Err(error) => {
             log::warn!("could not list the pending approvals: {error}");
@@ -603,9 +606,9 @@ async fn fetch_and_record_approvals(
                 selected_label: response.selected_label.clone(),
             };
 
-            let url = format!("{base2}/sessions/{sid}/approvals/{approval_id}");
+            let url = routes::resolve_approval(&base2, &sid, &approval_id);
 
-            if let Err(error) = post(&http2, &url, &answer).await {
+            if let Err(error) = post(&http2, url, &answer).await {
                 log::warn!("could not deliver the approval answer: {error}");
             }
 
@@ -643,16 +646,16 @@ async fn settle_question(
 ) -> Result<(), String> {
     let (url, body) = match outcome {
         QuestionOutcome::Answered(response) => (
-            format!("{base_url}/sessions/{session_id}/questions/{question_id}"),
+            routes::answer_question(base_url, session_id, question_id),
             response.on_wire(),
         ),
         QuestionOutcome::Dismissed => (
-            format!("{base_url}/sessions/{session_id}/questions/{question_id}:dismiss"),
+            routes::dismiss_question(base_url, session_id, &format!("{question_id}:dismiss")),
             json!({}),
         ),
     };
 
-    match post(http, &url, &body).await {
+    match post(http, url, &body).await {
         Ok(_accepted) => Ok(()),
         Err(crate::error::KapError::Envelope { code, .. })
             if code == QUESTION_DISMISSED && matches!(outcome, QuestionOutcome::Dismissed) =>
@@ -675,9 +678,12 @@ async fn fetch_and_record_questions(
     book: &SessionBook,
     desk: &QuestionDesk,
 ) {
-    let url = format!("{base_url}/sessions/{session_id}/questions?status=pending");
+    let url = routes::list_questions(base_url, session_id).map(|mut url| {
+        url.query_pairs_mut().append_pair("status", "pending");
+        url
+    });
 
-    let data = match get(http, &url).await {
+    let data = match get(http, url).await {
         Ok(data) => data,
         Err(error) => {
             log::warn!("could not list the pending questions: {error}");

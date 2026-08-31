@@ -1,17 +1,13 @@
-//! Kimi 会话配置的唯一领域投影。
-//!
-//! status、model catalog 与 goal snapshot 在这里合成批准方式、计划、目标、蜂群、
-//! 模型和 Thinking。独立的上游状态保持独立；UI 不再反推或复制它们。
-
-use serde_json::Value;
+//! KAP 选择器 wire 模型到产品控制项的唯一领域投影。
 
 use crate::error::{KapError, Result};
 use crate::generated::rest::{
     CreateSessionRequestAgentConfigGoalControlEnum,
     CreateSessionRequestAgentConfigPermissionModeEnum, CreateSessionRequestAgentConfigStruct,
+    ListModelsDataItemsStruct, ListModelsDataStruct, SessionGoalDataStatusEnum,
+    SessionGoalDataStruct, SessionStatusDataStruct,
 };
 
-/// 界面上那三个词到 wire 上那三个词。PERMISSIONS 表管显示，这一句管上 wire。
 fn permission_mode_of(value: &str) -> Option<CreateSessionRequestAgentConfigPermissionModeEnum> {
     match value {
         "manual" => Some(CreateSessionRequestAgentConfigPermissionModeEnum::Manual),
@@ -64,25 +60,19 @@ struct ThinkingOffer {
 }
 
 #[must_use]
-pub fn controls(status: &Value, catalog: &Value, goal: &Value) -> Vec<ConfigControl> {
+pub fn controls(
+    status: &SessionStatusDataStruct,
+    catalog: &ListModelsDataStruct,
+    goal: Option<&SessionGoalDataStruct>,
+) -> Vec<ConfigControl> {
     let mut offered = Vec::new();
-    let current_model = status.get("model").and_then(Value::as_str).unwrap_or("");
-    let items = catalog
-        .get("items")
-        .and_then(Value::as_array)
-        .map(Vec::as_slice);
+    let current_model = status.model.as_deref().unwrap_or("");
 
-    if let Some(model) = model_control(current_model, items) {
+    if let Some(model) = model_control(current_model, &catalog.items) {
         offered.push(model);
     }
-    if let Some(thinking) = thinking_control(
-        status
-            .get("thinking_level")
-            .and_then(Value::as_str)
-            .unwrap_or(""),
-        current_model,
-        items,
-    ) {
+    if let Some(thinking) = thinking_control(&status.thinking_level, current_model, &catalog.items)
+    {
         offered.push(thinking);
     }
 
@@ -93,7 +83,7 @@ pub fn controls(status: &Value, catalog: &Value, goal: &Value) -> Vec<ConfigCont
         "只读分析并先产出计划",
         ConfigPurpose::Mode,
         false,
-        status.get("plan_mode").and_then(Value::as_bool) == Some(true),
+        status.plan_mode,
     ));
     offered.push(goal_control(goal));
     offered.push(toggle_control(
@@ -102,14 +92,11 @@ pub fn controls(status: &Value, catalog: &Value, goal: &Value) -> Vec<ConfigCont
         "并行调度子代理",
         ConfigPurpose::Other,
         false,
-        status.get("swarm_mode").and_then(Value::as_bool) == Some(true),
+        status.swarm_mode,
     ));
-
     offered
 }
 
-/// 一项选择写进 profile 的那一格：类型由快照生成，只带要改的字段，其余缺席
-/// 不上 wire。
 pub fn selector_patch(
     config_id: &str,
     value: &str,
@@ -124,15 +111,15 @@ pub fn selector_patch(
             thinking: Some(value.to_owned()),
             ..Default::default()
         }),
-        "permission" => match permission_mode_of(value) {
-            Some(mode) => Ok(CreateSessionRequestAgentConfigStruct {
-                permission_mode: Some(mode),
-                ..Default::default()
-            }),
-            None => Err(KapError::Validation {
-                message: format!("the session offers no control {config_id} with value {value}"),
-            }),
-        },
+        "permission" => permission_mode_of(value).map_or_else(
+            || invalid(config_id, value),
+            |mode| {
+                Ok(CreateSessionRequestAgentConfigStruct {
+                    permission_mode: Some(mode),
+                    ..Default::default()
+                })
+            },
+        ),
         "plan" if matches!(value, OFF | ON) => Ok(CreateSessionRequestAgentConfigStruct {
             plan_mode: Some(value == ON),
             ..Default::default()
@@ -164,13 +151,17 @@ pub fn selector_patch(
                 ..Default::default()
             })
         }
-        _ => Err(KapError::Validation {
-            message: format!("the session offers no control {config_id} with value {value}"),
-        }),
+        _ => invalid(config_id, value),
     }
 }
 
-fn permission_control(status: &Value) -> ConfigControl {
+fn invalid<T>(config_id: &str, value: &str) -> Result<T> {
+    Err(KapError::Validation {
+        message: format!("the session offers no control {config_id} with value {value}"),
+    })
+}
+
+fn permission_control(status: &SessionStatusDataStruct) -> ConfigControl {
     let mut choices: Vec<ConfigChoice> = PERMISSIONS
         .iter()
         .map(|(value, label)| ConfigChoice {
@@ -179,14 +170,10 @@ fn permission_control(status: &Value) -> ConfigControl {
             detail: None,
         })
         .collect();
-    let reported = status
-        .get("permission")
-        .and_then(Value::as_str)
-        .unwrap_or("manual");
+    let reported = status.permission.as_str();
     if current_not_offered(&choices, reported) {
         choices.push(choice(reported));
     }
-
     ConfigControl {
         id: "permission".to_owned(),
         label: "批准方式".to_owned(),
@@ -228,83 +215,81 @@ fn toggle_control(
     }
 }
 
-/// 目标模式此刻的全部事实，由 kap 的 `/sessions/{id}/goal` 投影而来。
-///
-/// 它不进 `ConfigControl`：那张表说的是「可以选什么」，而这些是「正在发生
-/// 什么」。两者同寿但不同义，塞进 `detail` 会让展示字段承担领域状态。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GoalSnapshot {
     pub objective: String,
     pub completion_criterion: Option<String>,
-    /// active / paused / blocked / complete，按 agent 的原话。
     pub status: String,
     pub turns_used: u64,
     pub tokens_used: u64,
-    /// agent 累计的运行时长；本机不另起第二个累加器。
     pub wall_clock_ms: u64,
 }
 
-/// 没有目标在跑时返回 None —— 缺席即关闭，不造一个空目标。
 #[must_use]
-pub fn goal_snapshot(goal: &Value) -> Option<GoalSnapshot> {
-    let objective = goal
-        .get("objective")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|text| !text.is_empty())?;
-
-    let counter = |key: &str| goal.get(key).and_then(Value::as_u64).unwrap_or(0);
-
+pub fn goal_snapshot(goal: Option<&SessionGoalDataStruct>) -> Option<GoalSnapshot> {
+    let goal = goal.filter(|goal| !goal.objective.trim().is_empty())?;
     Some(GoalSnapshot {
-        objective: objective.to_owned(),
-        completion_criterion: goal
-            .get("completionCriterion")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
-        status: goal
-            .get("status")
-            .and_then(Value::as_str)
-            .unwrap_or("active")
-            .to_owned(),
-        turns_used: counter("turnsUsed"),
-        tokens_used: counter("tokensUsed"),
-        wall_clock_ms: counter("wallClockMs"),
+        objective: goal.objective.trim().to_owned(),
+        completion_criterion: goal.completion_criterion.clone(),
+        status: goal_status(goal.status).to_owned(),
+        turns_used: count_of(goal.turns_used),
+        tokens_used: count_of(goal.tokens_used),
+        wall_clock_ms: count_of(goal.wall_clock_ms),
     })
 }
 
-fn goal_control(goal: &Value) -> ConfigControl {
-    let objective = goal
-        .get("objective")
-        .and_then(Value::as_str)
-        .map(str::to_owned);
+const fn goal_status(status: SessionGoalDataStatusEnum) -> &'static str {
+    match status {
+        SessionGoalDataStatusEnum::Active => "active",
+        SessionGoalDataStatusEnum::Paused => "paused",
+        SessionGoalDataStatusEnum::Blocked => "blocked",
+        SessionGoalDataStatusEnum::Complete => "complete",
+    }
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the range and integral checks make the float-to-counter conversion exact"
+)]
+fn count_of(value: f64) -> u64 {
+    if value.is_finite()
+        && value >= 0.0
+        && value.fract() == 0.0
+        // 上界是 2^64（u64 域外第一格）；这个十进制是它在 f64 的最短往返写法。
+        && value < 18_446_744_073_709_552_000.0
+    {
+        value as u64
+    } else {
+        0
+    }
+}
+
+fn goal_control(goal: Option<&SessionGoalDataStruct>) -> ConfigControl {
     toggle_control(
         "goal",
         "目标",
         "以当前草稿为目标持续推进",
         ConfigPurpose::Mode,
         true,
-        objective.is_some(),
+        goal.is_some_and(|goal| !goal.objective.trim().is_empty()),
     )
 }
 
-fn model_control(current: &str, items: Option<&[Value]>) -> Option<ConfigControl> {
+fn model_control(current: &str, items: &[ListModelsDataItemsStruct]) -> Option<ConfigControl> {
     if current.is_empty() {
         return None;
     }
     let mut choices: Vec<ConfigChoice> = items
-        .into_iter()
-        .flatten()
-        .filter_map(|item| {
-            let model = item.get("model").and_then(Value::as_str)?;
-            Some(ConfigChoice {
-                value: model.to_owned(),
-                label: item
-                    .get("display_name")
-                    .and_then(Value::as_str)
-                    .unwrap_or(model)
-                    .to_owned(),
-                detail: None,
-            })
+        .iter()
+        .map(|item| ConfigChoice {
+            value: item.model.clone(),
+            label: item
+                .display_name
+                .as_deref()
+                .unwrap_or(&item.model)
+                .to_owned(),
+            detail: None,
         })
         .collect();
     if current_not_offered(&choices, current) {
@@ -321,8 +306,12 @@ fn model_control(current: &str, items: Option<&[Value]>) -> Option<ConfigControl
     })
 }
 
-fn thinking_control(reported: &str, model: &str, items: Option<&[Value]>) -> Option<ConfigControl> {
-    let offer = thinking_offer(model, non_empty(reported), items?)?;
+fn thinking_control(
+    reported: &str,
+    model: &str,
+    items: &[ListModelsDataItemsStruct],
+) -> Option<ConfigControl> {
+    let offer = thinking_offer(model, non_empty(reported), items)?;
     Some(ConfigControl {
         id: "thinking".to_owned(),
         label: "Thinking".to_owned(),
@@ -334,27 +323,23 @@ fn thinking_control(reported: &str, model: &str, items: Option<&[Value]>) -> Opt
     })
 }
 
-fn thinking_offer(model: &str, reported: Option<&str>, items: &[Value]) -> Option<ThinkingOffer> {
-    let item = items
-        .iter()
-        .find(|item| item.get("model").and_then(Value::as_str) == Some(model))?;
-    let capabilities = item
-        .get("capabilities")
-        .and_then(Value::as_array)
-        .map_or(&[][..], Vec::as_slice);
+fn thinking_offer(
+    model: &str,
+    reported: Option<&str>,
+    items: &[ListModelsDataItemsStruct],
+) -> Option<ThinkingOffer> {
+    let item = items.iter().find(|item| item.model == model)?;
+    let capabilities = item.capabilities.as_deref().unwrap_or_default();
     let supports = capabilities
         .iter()
-        .any(|capability| matches!(capability.as_str(), Some("thinking" | "always_thinking")));
+        .any(|capability| matches!(capability.as_str(), "thinking" | "always_thinking"));
     let always = capabilities
         .iter()
-        .any(|capability| capability.as_str() == Some("always_thinking"));
+        .any(|capability| capability == "always_thinking");
     let mut choices = Vec::new();
 
-    if let Some(efforts) = item.get("support_efforts").and_then(Value::as_array) {
-        for effort in efforts {
-            let Some(value) = effort.as_str().and_then(non_empty) else {
-                continue;
-            };
+    for effort in item.support_efforts.as_deref().unwrap_or_default() {
+        if let Some(value) = non_empty(effort) {
             push_unique(&mut choices, thinking_choice(value));
         }
     }
@@ -365,8 +350,8 @@ fn thinking_offer(model: &str, reported: Option<&str>, items: &[Value]) -> Optio
         let current = reported
             .filter(|value| contains(&choices, value))
             .or_else(|| {
-                item.get("default_effort")
-                    .and_then(Value::as_str)
+                item.default_effort
+                    .as_deref()
                     .and_then(non_empty)
                     .filter(|value| contains(&choices, value))
             })
@@ -421,7 +406,6 @@ fn thinking_choice(value: &str) -> ConfigChoice {
         label.push_str(characters.as_str());
         label
     });
-
     ConfigChoice {
         value: value.to_owned(),
         label,
@@ -446,33 +430,66 @@ fn non_empty(value: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    // 与 tests/recorder.rs 顶上那一句同一条纪律、同一个理由（Cargo.toml lints
-    // 注释）：测试里的 expect 是响亮失败，豁免只写在测试作用域，不靠根配置放开。
-    #![allow(
-        clippy::expect_used,
-        reason = "a test proves itself by panicking, so a failed step must fail the test"
-    )]
+    #![allow(clippy::expect_used, reason = "failed fixtures must fail tests")]
+
+    use serde::de::DeserializeOwned;
+    use serde_json::{Value, json};
 
     use super::*;
-    use serde_json::json;
 
-    fn status(model: &str, thinking: &str) -> Value {
-        json!({
+    fn decode<T: DeserializeOwned>(value: Value) -> T {
+        serde_json::from_value(value).expect("fixture must fit the generated contract")
+    }
+
+    fn status(model: &str, thinking: &str) -> SessionStatusDataStruct {
+        decode(json!({
+            "busy": false,
             "model": model,
             "thinking_level": thinking,
             "permission": "manual",
             "plan_mode": false,
-            "swarm_mode": false
-        })
+            "swarm_mode": false,
+            "context_tokens": 0
+        }))
     }
 
-    fn catalog(model: &str, capabilities: &Value, efforts: &Value, default: &str) -> Value {
-        json!({ "items": [{
+    fn catalog(
+        model: &str,
+        capabilities: &Value,
+        efforts: &Value,
+        default_effort: &str,
+    ) -> ListModelsDataStruct {
+        decode(json!({ "items": [{
+            "provider": "test",
             "model": model,
+            "max_context_size": 1,
             "capabilities": capabilities,
             "support_efforts": efforts,
-            "default_effort": default
-        }] })
+            "default_effort": default_effort
+        }] }))
+    }
+
+    fn goal(objective: &str) -> SessionGoalDataStruct {
+        decode(json!({
+            "goalId": "goal-1",
+            "objective": objective,
+            "status": "active",
+            "turnsUsed": 0,
+            "tokensUsed": 0,
+            "wallClockMs": 0,
+            "budget": {
+                "tokenBudget": null,
+                "turnBudget": null,
+                "wallClockBudgetMs": null,
+                "remainingTokens": null,
+                "remainingTurns": null,
+                "remainingWallClockMs": null,
+                "tokenBudgetReached": false,
+                "turnBudgetReached": false,
+                "wallClockBudgetReached": false,
+                "overBudget": false
+            }
+        }))
     }
 
     #[test]
@@ -483,7 +500,7 @@ mod tests {
             &json!(["high", "max"]),
             "high",
         );
-        let thought = controls(&status("deepseek", "low"), &offered, &Value::Null)
+        let thought = controls(&status("deepseek", "low"), &offered, None)
             .into_iter()
             .find(|control| control.purpose == ConfigPurpose::Thought)
             .expect("Thinking control");
@@ -491,76 +508,74 @@ mod tests {
     }
 
     #[test]
-    fn optional_efforts_offer_off_with_display_labels() {
-        let offered = catalog(
+    fn optional_and_always_thinking_have_distinct_off_behavior() {
+        let optional = catalog(
             "deepseek",
             &json!(["thinking"]),
             &json!(["low", "high", "max"]),
             "high",
         );
-        let thought = controls(&status("deepseek", "high"), &offered, &Value::Null)
-            .into_iter()
-            .find(|control| control.purpose == ConfigPurpose::Thought)
-            .expect("Thinking control");
-        let values: Vec<_> = thought
-            .choices
-            .iter()
-            .map(|choice| choice.value.as_str())
-            .collect();
-        let labels: Vec<_> = thought
-            .choices
-            .iter()
-            .map(|choice| choice.label.as_str())
-            .collect();
-
-        assert_eq!(values, vec!["off", "low", "high", "max"]);
-        assert_eq!(labels, vec!["Off", "Low", "High", "Max"]);
-    }
-
-    #[test]
-    fn always_thinking_efforts_do_not_offer_off() {
-        let offered = catalog(
+        let always = catalog(
             "always",
             &json!(["always_thinking"]),
             &json!(["low", "high", "max"]),
             "high",
         );
-        let thought = controls(&status("always", "high"), &offered, &Value::Null)
+        let optional = controls(&status("deepseek", "high"), &optional, None)
             .into_iter()
             .find(|control| control.purpose == ConfigPurpose::Thought)
-            .expect("Thinking control");
-
-        assert!(thought.choices.iter().all(|choice| choice.value != OFF));
+            .expect("optional Thinking control");
+        let always = controls(&status("always", "high"), &always, None)
+            .into_iter()
+            .find(|control| control.purpose == ConfigPurpose::Thought)
+            .expect("always Thinking control");
+        let optional_pairs: Vec<_> = optional
+            .choices
+            .iter()
+            .map(|choice| (choice.value.as_str(), choice.label.as_str()))
+            .collect();
+        assert_eq!(
+            optional_pairs,
+            vec![
+                ("off", "Off"),
+                ("low", "Low"),
+                ("high", "High"),
+                ("max", "Max")
+            ]
+        );
+        assert!(always.choices.iter().all(|choice| choice.value != OFF));
     }
 
     #[test]
     fn boolean_and_unavailable_thinking_are_distinct() {
-        let boolean = json!({ "items": [{ "model": "boolean", "capabilities": ["thinking"] }] });
-        let unavailable = json!({ "items": [{ "model": "plain", "capabilities": [] }] });
-        let thought = controls(&status("boolean", "low"), &boolean, &Value::Null)
+        let boolean = catalog("boolean", &json!(["thinking"]), &json!([]), "");
+        let unavailable = catalog("plain", &json!([]), &json!([]), "");
+        let thought = controls(&status("boolean", "low"), &boolean, None)
             .into_iter()
             .find(|control| control.purpose == ConfigPurpose::Thought)
             .expect("boolean Thinking control");
         assert_eq!(thought.current, ON);
         assert!(
-            controls(&status("plain", "low"), &unavailable, &Value::Null)
+            controls(&status("plain", "low"), &unavailable, None)
                 .iter()
                 .all(|control| control.purpose != ConfigPurpose::Thought)
         );
     }
 
     #[test]
-    fn plan_goal_and_swarm_remain_independent() {
-        let status = json!({
+    fn plan_goal_swarm_and_permission_remain_independent() {
+        let status: SessionStatusDataStruct = decode(json!({
+            "busy": false,
             "model": "model",
             "thinking_level": "on",
             "permission": "yolo",
             "plan_mode": true,
-            "swarm_mode": true
-        });
-        let catalog = json!({ "items": [{ "model": "model", "capabilities": [] }] });
-        let goal = json!({ "objective": "修掉 flaky 测试", "status": "active" });
-        let offered = controls(&status, &catalog, &goal);
+            "swarm_mode": true,
+            "context_tokens": 0
+        }));
+        let catalog = catalog("model", &json!([]), &json!([]), "");
+        let goal = goal("修掉 flaky 测试");
+        let offered = controls(&status, &catalog, Some(&goal));
         for id in ["plan", "goal", "swarm"] {
             assert_eq!(
                 offered
@@ -597,8 +612,9 @@ mod tests {
             json!({ "goal_objective": "ship it" })
         );
         let cancel = selector_patch("goal", OFF, None).expect("cancel patch");
-        assert!(cancel.goal_control.is_some_and(|control| {
-            control == CreateSessionRequestAgentConfigGoalControlEnum::Cancel
-        }));
+        assert_eq!(
+            cancel.goal_control,
+            Some(CreateSessionRequestAgentConfigGoalControlEnum::Cancel)
+        );
     }
 }

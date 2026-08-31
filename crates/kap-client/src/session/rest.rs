@@ -1,8 +1,5 @@
-//! kap 的 REST 调用面：sessions / prompts / approvals / profile / goal。
-//!
-//! 信封约定 { code, msg, data, request_id }：业务成败看 code，不看 HTTP 状态
-//! （contracts/kap 的 openapi.json）。data 按生成类型解码；选择器面（status /
-//! models / goal）的 Value 归 config.rs。
+//! KAP REST 边界：生成路由负责地址，生成 wire 类型负责载荷。
+//! 信封只解一次，领域层不接触未验证的选择器数据。
 
 use std::path::Path;
 
@@ -11,6 +8,10 @@ use serde_json::{Value, json};
 use crate::connection::handshake::subscribe;
 use crate::connection::socket::WsSink;
 use crate::error::{KapError, Result};
+use crate::generated::rest::{
+    ClientConfigDataStruct, ListModelsDataStruct, SessionGoalDataStruct, SessionStatusDataStruct,
+    routes,
+};
 use crate::generated::rest::{
     CreateSessionDataStruct, CreateSessionRequestAgentConfigStruct,
     CreateSessionRequestMetadataStruct, CreateSessionRequestStruct,
@@ -32,8 +33,7 @@ use crate::session::{
     OpenedSession, Skill,
 };
 
-/// 取信封里的 data。信封的 code 判据只有一处：根上那个类型化的 envelope_data。
-/// data 在这里仍是 Value —— 各路由的类型化解码随路由消费一批批接上。
+/// 取信封里的 data；信封 code 只在这一处判定，路由随后解码生成类型。
 pub(crate) fn envelope_data(body: &Value) -> Result<Value> {
     let envelope: crate::generated::rest::RestEnvelope = serde_json::from_value(body.clone())
         .map_err(|error| KapError::Transport {
@@ -57,15 +57,21 @@ fn decoded<T: serde::de::DeserializeOwned>(data: Value, what: &str) -> Result<T>
     })
 }
 
-pub(crate) async fn get(http: &reqwest::Client, url: &str) -> Result<Value> {
+pub(crate) async fn get(http: &reqwest::Client, route: routes::Route) -> Result<Value> {
+    let url = route.map_err(|error| KapError::Transport {
+        message: error.to_string(),
+    })?;
     send(http.get(url)).await
 }
 
 pub(crate) async fn post<T: serde::Serialize>(
     http: &reqwest::Client,
-    url: &str,
+    route: routes::Route,
     body: &T,
 ) -> Result<Value> {
+    let url = route.map_err(|error| KapError::Transport {
+        message: error.to_string(),
+    })?;
     send(http.post(url).json(body)).await
 }
 
@@ -122,11 +128,11 @@ pub(crate) async fn submit_prompt(
     if retryable {
         body.prompt_id = Some(idempotency.to_owned());
     }
-    let url = format!("{base_url}/sessions/{session_id}/prompts");
+    let url = routes::submit_prompt(base_url, session_id);
     let mut attempt = 0_u32;
     let data = loop {
         attempt = attempt.saturating_add(1);
-        match post(http, &url, &body).await {
+        match post(http, url.clone(), &body).await {
             Ok(data) => break data,
             Err(KapError::Transport { message }) if retryable && attempt < 3 => {
                 log::warn!("ambiguous prompt submission {attempt}/3: {message}");
@@ -197,7 +203,7 @@ pub(crate) async fn session_snapshot(
     base_url: &str,
     session_id: &str,
 ) -> Result<(Cursor, Value)> {
-    let data = get(http, &format!("{base_url}/sessions/{session_id}/snapshot")).await?;
+    let data = get(http, routes::session_snapshot(base_url, session_id)).await?;
     let snapshot: SessionSnapshotDataStruct = decoded(data.clone(), "snapshot")?;
 
     Ok((
@@ -238,7 +244,7 @@ pub(crate) async fn open_session(
 ) -> Result<OpenedSession> {
     let data = post(
         http,
-        &format!("{base_url}/sessions"),
+        routes::create_session(base_url),
         &create_session_body(cwd),
     )
     .await?;
@@ -259,7 +265,7 @@ pub(crate) async fn load_session(
     book: &SessionBook,
     ws: &WsSink,
 ) -> Result<OpenedSession> {
-    get(http, &format!("{base_url}/sessions/{session_id}")).await?;
+    get(http, routes::get_session(base_url, session_id)).await?;
 
     activate(http, base_url, session_id, from, book, ws).await
 }
@@ -275,7 +281,7 @@ pub(crate) async fn fork_session(
     // 动作后缀路由：POST /sessions/{id}:fork（routes/action-suffix.ts）。
     let data = post(
         http,
-        &format!("{base_url}/sessions/{source_id}:fork"),
+        routes::fork_session(base_url, &format!("{source_id}:fork")),
         &json!({}),
     )
     .await?;
@@ -290,7 +296,7 @@ pub(crate) async fn fork_session(
     if drop_turns > 0 {
         post(
             http,
-            &format!("{base_url}/sessions/{id}:undo"),
+            routes::undo_session(base_url, &format!("{id}:undo")),
             &json!({ "count": drop_turns }),
         )
         .await?;
@@ -307,7 +313,7 @@ pub(crate) async fn archive_session(
 ) -> Result<()> {
     post(
         http,
-        &format!("{base_url}/sessions/{session_id}:archive"),
+        routes::archive_session(base_url, session_id),
         &json!({}),
     )
     .await?;
@@ -321,7 +327,7 @@ pub(crate) async fn list_sessions(
     http: &reqwest::Client,
     base_url: &str,
 ) -> Result<Vec<crate::session::SessionEntry>> {
-    let data = get(http, &format!("{base_url}/sessions")).await?;
+    let data = get(http, routes::list_sessions(base_url)).await?;
     let listed: ListSessionsDataStruct = decoded(data, "session list")?;
 
     Ok(listed
@@ -358,7 +364,7 @@ pub(crate) async fn list_skills(
     base_url: &str,
     session_id: &str,
 ) -> Result<Vec<Skill>> {
-    let data = get(http, &format!("{base_url}/sessions/{session_id}/skills")).await?;
+    let data = get(http, routes::list_skills(base_url, session_id)).await?;
     let listed: ListSkillsDataStruct = decoded(data, "skill list")?;
 
     Ok(listed
@@ -386,7 +392,7 @@ pub(crate) async fn list_mcp_servers(
     http: &reqwest::Client,
     base_url: &str,
 ) -> Result<Vec<McpServer>> {
-    let data = get(http, &format!("{base_url}/mcp/servers")).await?;
+    let data = get(http, routes::list_mcp_servers(base_url)).await?;
     let listed: ListMcpServersDataStruct = decoded(data, "MCP server list")?;
 
     listed
@@ -421,7 +427,7 @@ pub(crate) async fn list_capabilities(
     http: &reqwest::Client,
     base_url: &str,
 ) -> Result<Vec<Capability>> {
-    let data = get(http, &format!("{base_url}/capabilities")).await?;
+    let data = get(http, routes::list_capabilities(base_url)).await?;
     let listed: ListCapabilitiesDataStruct = decoded(data, "capability list")?;
 
     Ok(listed.capabilities.into_iter().map(capability_of).collect())
@@ -448,7 +454,7 @@ pub(crate) async fn install_capability(
     if !latest.install.running {
         let accepted = post(
             http,
-            &format!("{base_url}/capabilities/{capability_id}:install"),
+            routes::install_capability(base_url, &format!("{capability_id}:install")),
             &serde_json::json!({}),
         )
         .await?;
@@ -473,7 +479,7 @@ async fn get_capability(
     base_url: &str,
     capability_id: &str,
 ) -> Result<Capability> {
-    let data = get(http, &format!("{base_url}/capabilities/{capability_id}")).await?;
+    let data = get(http, routes::get_capability(base_url, capability_id)).await?;
 
     Ok(capability_of(decoded(data, "capability")?))
 }
@@ -524,23 +530,30 @@ fn capability_of(wire: ListCapabilitiesDataCapabilitiesStruct) -> Capability {
 /// 绑不上不在这里判死。握手一失败，界面连让用户改模型的地方都没有了；原因写进
 /// 日志，真回合会带着 agent 自己的原话失败（run_failed 的 message）。
 pub(crate) async fn ensure_model(http: &reqwest::Client, base_url: &str, session_id: &str) {
-    let status = match get(http, &format!("{base_url}/sessions/{session_id}/status")).await {
-        Ok(status) => status,
-        Err(error) => {
-            log::warn!("could not read the session's model: {error}");
-            return;
-        }
-    };
+    let status: SessionStatusDataStruct =
+        match get(http, routes::session_status(base_url, session_id))
+            .await
+            .and_then(|data| decoded(data, "session status"))
+        {
+            Ok(status) => status,
+            Err(error) => {
+                log::warn!("could not read the session's model: {error}");
+                return;
+            }
+        };
 
     if status
-        .get("model")
-        .and_then(Value::as_str)
+        .model
+        .as_deref()
         .is_some_and(|model| !model.is_empty())
     {
         return;
     }
 
-    let config = match get(http, &format!("{base_url}/config")).await {
+    let config: ClientConfigDataStruct = match get(http, routes::client_config(base_url))
+        .await
+        .and_then(|data| decoded(data, "client config"))
+    {
         Ok(config) => config,
         Err(error) => {
             log::warn!("could not read the default model: {error}");
@@ -549,8 +562,8 @@ pub(crate) async fn ensure_model(http: &reqwest::Client, base_url: &str, session
     };
 
     let Some(default_model) = config
-        .get("default_model")
-        .and_then(Value::as_str)
+        .default_model
+        .as_deref()
         .map(str::trim)
         .filter(|alias| !alias.is_empty())
     else {
@@ -562,7 +575,7 @@ pub(crate) async fn ensure_model(http: &reqwest::Client, base_url: &str, session
 
     if let Err(error) = post(
         http,
-        &format!("{base_url}/sessions/{session_id}/profile"),
+        routes::set_profile(base_url, session_id),
         &profile_body(CreateSessionRequestAgentConfigStruct {
             model: Some(default_model.to_owned()),
             ..Default::default()
@@ -581,7 +594,7 @@ pub(crate) async fn abort_session(
 ) -> Result<()> {
     post(
         http,
-        &format!("{base_url}/sessions/{session_id}:abort"),
+        routes::abort_session(base_url, &format!("{session_id}:abort")),
         &json!({}),
     )
     .await?;
@@ -594,9 +607,9 @@ pub(crate) async fn fetch_goal(
     base_url: &str,
     session_id: &str,
 ) -> Result<Option<GoalSnapshot>> {
-    let goal = get(http, &format!("{base_url}/sessions/{session_id}/goal")).await?;
-
-    Ok(goal_snapshot(&goal))
+    let data = get(http, routes::session_goal(base_url, session_id)).await?;
+    let goal: Option<SessionGoalDataStruct> = decoded(data, "session goal")?;
+    Ok(goal_snapshot(goal.as_ref()))
 }
 
 /// 选择器表与目标快照一趟取回：turn.ended 收尾两样都要，分开打就是同一轮里
@@ -606,10 +619,22 @@ pub(crate) async fn get_selectors(
     base_url: &str,
     session_id: &str,
 ) -> Result<(Vec<ConfigControl>, Option<GoalSnapshot>)> {
-    let status = get(http, &format!("{base_url}/sessions/{session_id}/status")).await?;
-    let catalog = get(http, &format!("{base_url}/models")).await?;
-    let goal = get(http, &format!("{base_url}/sessions/{session_id}/goal")).await?;
-    Ok((controls(&status, &catalog, &goal), goal_snapshot(&goal)))
+    let status: SessionStatusDataStruct = decoded(
+        get(http, routes::session_status(base_url, session_id)).await?,
+        "session status",
+    )?;
+    let catalog: ListModelsDataStruct = decoded(
+        get(http, routes::list_models(base_url)).await?,
+        "model catalog",
+    )?;
+    let goal: Option<SessionGoalDataStruct> = decoded(
+        get(http, routes::session_goal(base_url, session_id)).await?,
+        "session goal",
+    )?;
+    Ok((
+        controls(&status, &catalog, goal.as_ref()),
+        goal_snapshot(goal.as_ref()),
+    ))
 }
 
 pub(crate) async fn set_selector(
@@ -638,7 +663,7 @@ pub(crate) async fn set_selector(
     let patch = selector_patch(config_id, value, input)?;
     post(
         http,
-        &format!("{base_url}/sessions/{session_id}/profile"),
+        routes::set_profile(base_url, session_id),
         &profile_body(patch),
     )
     .await?;

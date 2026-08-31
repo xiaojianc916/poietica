@@ -1,12 +1,13 @@
 /**
  * KAP 协议模型的唯一生成器：contracts/kap 的快照 → crates/kap-client/src/generated。
  *
- * 快照是唯一事实；这里不添加、不修改任何协议形状，只做 JSON Schema → serde
- * 结构的机械翻译。客户端说了什么、听了什么，由本文件尾部的两份清单声明 ——
+ * 快照是唯一事实；这里不添加、不修改协议形状：JSON Schema 生成 serde 模型，
+ * OpenAPI/AsyncAPI 地址生成 URL 构造器。客户端说了什么、听了什么，由清单声明 ——
  * 协议里其余的消息是 kimi-code 的能力，本客户端不使用，生成它们就是死代码。
  *
- * 动作后缀（:fork / :undo / :install）在快照里由 {tail} 路由承接：清单按快照
- * 的路径写，写不出的路由生成即失败。
+ * 动作后缀在快照里由 {tail} 模板承接（如 :install）；server 实现但未自述的
+ * :fork / :undo / :abort（session 级）在清单里标 undeclared —— 只生成地址，
+ * 形状仍只出自快照。清单按快照的路径写，写不出的路由生成即失败。
  *
  * 跑法：bun run kap:generate（package.json）。产出禁手改。
  */
@@ -448,10 +449,52 @@ function specMessage(messages: Record<string, Schema>, name: string): Schema {
   return resolve(asyncapi, message)
 }
 
+function generateWebsocketRoute(): string {
+  const addresses = Object.values((asyncapi.channels ?? {}) as Record<string, Schema>)
+    .map((channel) => channel['address'])
+    .filter((address): address is string => typeof address === 'string')
+  const [address] = [...new Set(addresses)]
+  if (address === undefined || !address.startsWith('/')) {
+    throw new Error('asyncapi must expose exactly one absolute websocket channel address')
+  }
+  const segments = address
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => JSON.stringify(segment))
+  return [
+    '/// AsyncAPI channel address generated into a WebSocket URL builder.',
+    'pub mod websocket {',
+    '    #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]',
+    '    #[error("invalid KAP websocket address: {0}")]',
+    '    pub struct AddressError(String);',
+    '',
+    '    pub fn connect(base_url: &str) -> Result<url::Url, AddressError> {',
+    '        let mut url = url::Url::parse(base_url)',
+    '            .map_err(|error| AddressError(error.to_string()))?;',
+    '        let scheme = match url.scheme() {',
+    '            "http" | "ws" => "ws",',
+    '            "https" | "wss" => "wss",',
+    '            other => return Err(AddressError(format!("unsupported scheme {other}"))),',
+    '        };',
+    '        url.set_scheme(scheme)',
+    '            .map_err(|()| AddressError("scheme cannot be changed".to_owned()))?;',
+    '        url.set_query(None);',
+    '        url.set_fragment(None);',
+    '        {',
+    '            let mut path = url.path_segments_mut()',
+    '                .map_err(|()| AddressError("base URL cannot carry path segments".to_owned()))?;',
+    `            path.clear().extend(&[${segments.join(', ')}]);`,
+    '        }',
+    '        Ok(url)',
+    '    }',
+    '}',
+  ].join('\n')
+}
+
 function generateEvents(): string {
   const messages = specMessages()
 
-  const out: string[] = []
+  const out: string[] = [generateWebsocketRoute()]
 
   const client = new RustEmitter(asyncapi)
   const clientVariants = CLIENT_MESSAGES.map((messageName) => {
@@ -572,6 +615,8 @@ interface RestRoute {
   name: string
   request?: boolean
   data?: boolean
+  /** server 实现但 openapi 未自述（contracts/kap 0.39.1：session 的 :fork/:undo/:abort）；只生成地址，形状仍出自快照。 */
+  undeclared?: boolean
 }
 
 /** 客户端会走的路由。name 即生成类型的前缀；request/data 声明要生成哪一半。 */
@@ -652,7 +697,101 @@ const REST_ROUTES: RestRoute[] = [
   { method: 'post', path: '/api/v1/capabilities/{tail}', name: 'InstallCapability', data: true },
   { method: 'get', path: '/api/v1/sessions/{session_id}/goal', name: 'SessionGoal', data: true },
   { method: 'get', path: '/api/v1/models', name: 'ListModels', data: true },
+  { method: 'get', path: '/api/v1/meta', name: 'Meta' },
+  { method: 'get', path: '/api/v1/sessions/{session_id}', name: 'GetSession' },
+  { method: 'post', path: '/api/v1/sessions/{tail}', name: 'ForkSession', undeclared: true },
+  { method: 'post', path: '/api/v1/sessions/{tail}', name: 'UndoSession', undeclared: true },
+  { method: 'post', path: '/api/v1/sessions/{tail}', name: 'AbortSession', undeclared: true },
+  { method: 'post', path: '/api/v1/sessions/{session_id}/prompts/{tail}', name: 'AbortPrompt' },
+  {
+    method: 'post',
+    path: '/api/v1/sessions/{session_id}/questions/{tail}',
+    name: 'DismissQuestion',
+  },
 ]
+
+function routeParameters(path: string): string[] {
+  return [...new Set([...path.matchAll(/\{([a-zA-Z0-9_]+)\}/g)].map((match) => match[1] ?? ''))]
+}
+
+function generateRoutes(): string {
+  const functions = REST_ROUTES.map((route) => {
+    const parameters = routeParameters(route.path)
+    const signature = parameters.map((name) => `, ${snake(name)}: &str`).join('')
+    const bindings: string[] = []
+    const segments = route.path
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => {
+        const exact = /^\{([a-zA-Z0-9_]+)\}$/.exec(segment)
+        if (exact !== null) {
+          return snake(exact[1] ?? '')
+        }
+        const dynamic = /^(.*)\{([a-zA-Z0-9_]+)\}(.*)$/.exec(segment)
+        if (dynamic === null) {
+          return JSON.stringify(segment)
+        }
+        const parameter = snake(dynamic[2] ?? '')
+        const binding = `${parameter}_segment`
+        const escapeBraces = (text: string) => text.replaceAll('{', '{{').replaceAll('}', '}}')
+        bindings.push(
+          `        let ${binding} = format!(${JSON.stringify(
+            `${escapeBraces(dynamic[1] ?? '')}{${parameter}}${escapeBraces(dynamic[3] ?? '')}`,
+          )});`,
+        )
+        return `&${binding}`
+      })
+    return [
+      `    pub fn ${snake(route.name)}(base_url: &str${signature}) -> Route {`,
+      ...bindings,
+      `        build(base_url, &[${segments.join(', ')}])`,
+      '    }',
+    ].join('\n')
+  })
+
+  return [
+    '/// OpenAPI 路径模板生成的地址面；动态段由 url crate 逐段转义。',
+    'pub mod routes {',
+    '    #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]',
+    '    #[error("invalid KAP route: {0}")]',
+    '    pub struct RouteError(String);',
+    '',
+    '    pub type Route = Result<url::Url, RouteError>;',
+    '',
+    '    fn build(base_url: &str, segments: &[&str]) -> Route {',
+    '        let mut url = url::Url::parse(base_url)',
+    '            .map_err(|error| RouteError(error.to_string()))?;',
+    '        url.set_query(None);',
+    '        url.set_fragment(None);',
+    '        {',
+    '            let mut path = url.path_segments_mut()',
+    '                .map_err(|()| RouteError("base URL cannot carry path segments".to_owned()))?;',
+    '            path.clear().extend(segments);',
+    '        }',
+    '        Ok(url)',
+    '    }',
+    '',
+    functions.join('\n\n'),
+    '',
+    '    #[cfg(test)]',
+    '    mod tests {',
+    '        #![allow(clippy::expect_used, reason = "a rejected route must fail the test")]',
+    '',
+    '        use super::*;',
+    '',
+    '        #[test]',
+    '        fn dynamic_values_are_one_encoded_path_segment() {',
+    '            let url = get_capability("http://127.0.0.1:58627", "a/b?#")',
+    '                .expect("valid route");',
+    '            assert_eq!(',
+    '                url.as_str(),',
+    '                "http://127.0.0.1:58627/api/v1/capabilities/a%2Fb%3F%23"',
+    '            );',
+    '        }',
+    '    }',
+    '}',
+  ].join('\n')
+}
 
 function generateRest(): string {
   const rest = new RustEmitter(openapi)
@@ -660,6 +799,10 @@ function generateRest(): string {
   for (const route of REST_ROUTES) {
     const op = (openapi.paths as Record<string, Record<string, Schema>>)[route.path]?.[route.method]
     if (op === undefined) {
+      // undeclared 只放行纯地址路由；带形状的一律要求快照背书。
+      if (route.undeclared === true && route.request !== true && route.data !== true) {
+        continue
+      }
       throw new Error(`route not in spec: ${route.method.toUpperCase()} ${route.path}`)
     }
 
@@ -694,6 +837,7 @@ function generateRest(): string {
 
   const envelopeShape = successEnvelopeShape()
   return [
+    generateRoutes(),
     '/// REST 应答信封：每条路由的成功/错误分支共用同一组外格，data 各有模型。',
     envelopeShape,
     ...rest.declarations,

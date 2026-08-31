@@ -31,8 +31,8 @@ use crate::connection::handshake::{shake_hands, subscribe, wait_subscribe_ack};
 use crate::connection::reconnect::{fail_in_flight, relink};
 use crate::connection::socket::{WsSink, dial_ws, send_frame};
 use crate::error::{KapError, Refusal, Result};
-use crate::generated::events::{ClientFrame, PongStruct, ServerFrame};
-use crate::generated::rest::SteerPromptsRequestStruct;
+use crate::generated::events::{ClientFrame, PongStruct, ServerFrame, websocket};
+use crate::generated::rest::{SteerPromptsRequestStruct, routes};
 use crate::interaction::desk::{PermissionDesk, QuestionDesk};
 use crate::process::instance_registry::{dialable_host, discover_instance};
 use crate::process::program::{hide_console, resolve_program};
@@ -153,7 +153,7 @@ pub fn connect(
         // 3. 令牌已经在第 2 步读到：只有「认这份令牌的地址」才算发现成功。
 
         let dial = dialable_host(&host);
-        let base_url = format!("http://{dial}:{port}/api/v1");
+        let base_url = format!("http://{dial}:{port}");
 
         // 4. HTTP 客户端：令牌走 Authorization 头（kap 的全局 bearer 鉴权，
         //    kap-server/src/middleware/auth.ts）。
@@ -186,7 +186,7 @@ pub fn connect(
         //    workspace_id 至少给一个。
         let session = match post(
             &http,
-            &format!("{base_url}/sessions"),
+            routes::create_session(&base_url),
             &create_session_body(&cwd),
         )
         .await
@@ -219,9 +219,11 @@ pub fn connect(
         ensure_model(&http, &base_url, &session_id).await;
 
         // 6. WebSocket 握手。首连与重连走同一个 dial_ws / shake_hands。
-        let ws_url = format!("ws://{dial}:{port}/api/v1/ws");
+        let ws_url = websocket::connect(&base_url).map_err(|error| KapError::Transport {
+            message: error.to_string(),
+        })?;
 
-        let ws_stream = match dial_ws(&ws_url, &auth_header).await {
+        let ws_stream = match dial_ws(ws_url.as_str(), &auth_header).await {
             Ok(stream) => stream,
             Err(error) => {
                 let _ = ready_tx.send(Err(KapError::Handshake {
@@ -316,7 +318,7 @@ pub fn connect(
                 let Some(relinked) = relink(
                     &ws,
                     &mut ws_rx,
-                    &ws_url,
+                    ws_url.as_str(),
                     &auth_header,
                     &book_clone,
                     router.cursors(),
@@ -364,7 +366,7 @@ pub fn connect(
                             tokio::spawn(settle(reply, async move {
                                 post(
                                     &http,
-                                    &format!("{base}/sessions/{sid}/prompts:steer"),
+                                    routes::steer_prompts(&base, &sid),
                                     &SteerPromptsRequestStruct { prompt_ids },
                                 )
                                 .await
@@ -383,7 +385,7 @@ pub fn connect(
                             tokio::spawn(settle(reply, async move {
                                 post(
                                     &http,
-                                    &format!("{base}/sessions/{sid}/prompts/{prompt_id}:abort"),
+                                    routes::abort_prompt(&base, &sid, &format!("{prompt_id}:abort")),
                                     &serde_json::json!({}),
                                 )
                                 .await

@@ -12,6 +12,7 @@ use serde_json::Value;
 use tokio_tungstenite::tungstenite::http::header::AUTHORIZATION;
 
 use crate::error::{KapError, Result};
+use crate::generated::rest::routes;
 use crate::session::rest::envelope_data;
 
 #[derive(serde::Deserialize)]
@@ -35,10 +36,12 @@ impl InstanceDisk {
 /// /meta 走全局 bearer 鉴权（start.ts 挂的 createAuthHook），认了才回 code 0。
 /// 不能用 healthz —— 它在 defaultIsBypassed 的免鉴权名单里，谁都答得出来。
 async fn accepts_token(probe: &reqwest::Client, dial: &str, port: u16, token: &str) -> bool {
-    let url = format!("http://{dial}:{port}/api/v1/meta");
+    let Ok(url) = routes::meta(&format!("http://{dial}:{port}")) else {
+        return false;
+    };
 
     let Ok(response) = probe
-        .get(&url)
+        .get(url)
         .header(AUTHORIZATION, format!("Bearer {token}"))
         .send()
         .await

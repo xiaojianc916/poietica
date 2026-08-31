@@ -5,6 +5,181 @@
     reason = "the wire shapes are what the spec says; splitting them adds nothing"
 )]
 
+/// OpenAPI 路径模板生成的地址面；动态段由 url crate 逐段转义。
+pub mod routes {
+    #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+    #[error("invalid KAP route: {0}")]
+    pub struct RouteError(String);
+
+    pub type Route = Result<url::Url, RouteError>;
+
+    fn build(base_url: &str, segments: &[&str]) -> Route {
+        let mut url = url::Url::parse(base_url).map_err(|error| RouteError(error.to_string()))?;
+        url.set_query(None);
+        url.set_fragment(None);
+        {
+            let mut path = url
+                .path_segments_mut()
+                .map_err(|()| RouteError("base URL cannot carry path segments".to_owned()))?;
+            path.clear().extend(segments);
+        }
+        Ok(url)
+    }
+
+    pub fn create_session(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions"])
+    }
+
+    pub fn list_sessions(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions"])
+    }
+
+    pub fn session_snapshot(base_url: &str, session_id: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", session_id, "snapshot"])
+    }
+
+    pub fn session_status(base_url: &str, session_id: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", session_id, "status"])
+    }
+
+    pub fn client_config(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "config"])
+    }
+
+    pub fn set_profile(base_url: &str, session_id: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", session_id, "profile"])
+    }
+
+    pub fn list_approvals(base_url: &str, session_id: &str) -> Route {
+        build(
+            base_url,
+            &["api", "v1", "sessions", session_id, "approvals"],
+        )
+    }
+
+    pub fn resolve_approval(base_url: &str, session_id: &str, approval_id: &str) -> Route {
+        build(
+            base_url,
+            &[
+                "api",
+                "v1",
+                "sessions",
+                session_id,
+                "approvals",
+                approval_id,
+            ],
+        )
+    }
+
+    pub fn list_questions(base_url: &str, session_id: &str) -> Route {
+        build(
+            base_url,
+            &["api", "v1", "sessions", session_id, "questions"],
+        )
+    }
+
+    pub fn answer_question(base_url: &str, session_id: &str, tail: &str) -> Route {
+        build(
+            base_url,
+            &["api", "v1", "sessions", session_id, "questions", tail],
+        )
+    }
+
+    pub fn submit_prompt(base_url: &str, session_id: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", session_id, "prompts"])
+    }
+
+    pub fn steer_prompts(base_url: &str, session_id: &str) -> Route {
+        build(
+            base_url,
+            &["api", "v1", "sessions", session_id, "prompts:steer"],
+        )
+    }
+
+    pub fn archive_session(base_url: &str, session_id: &str) -> Route {
+        let session_id_segment = format!("{session_id}:archive");
+        build(base_url, &["api", "v1", "sessions", &session_id_segment])
+    }
+
+    pub fn list_skills(base_url: &str, session_id: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", session_id, "skills"])
+    }
+
+    pub fn list_mcp_servers(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "mcp", "servers"])
+    }
+
+    pub fn list_capabilities(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "capabilities"])
+    }
+
+    pub fn get_capability(base_url: &str, capability_id: &str) -> Route {
+        build(base_url, &["api", "v1", "capabilities", capability_id])
+    }
+
+    pub fn install_capability(base_url: &str, tail: &str) -> Route {
+        build(base_url, &["api", "v1", "capabilities", tail])
+    }
+
+    pub fn session_goal(base_url: &str, session_id: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", session_id, "goal"])
+    }
+
+    pub fn list_models(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "models"])
+    }
+
+    pub fn meta(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "meta"])
+    }
+
+    pub fn get_session(base_url: &str, session_id: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", session_id])
+    }
+
+    pub fn fork_session(base_url: &str, tail: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", tail])
+    }
+
+    pub fn undo_session(base_url: &str, tail: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", tail])
+    }
+
+    pub fn abort_session(base_url: &str, tail: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", tail])
+    }
+
+    pub fn abort_prompt(base_url: &str, session_id: &str, tail: &str) -> Route {
+        build(
+            base_url,
+            &["api", "v1", "sessions", session_id, "prompts", tail],
+        )
+    }
+
+    pub fn dismiss_question(base_url: &str, session_id: &str, tail: &str) -> Route {
+        build(
+            base_url,
+            &["api", "v1", "sessions", session_id, "questions", tail],
+        )
+    }
+
+    #[cfg(test)]
+    mod tests {
+        #![allow(clippy::expect_used, reason = "a rejected route must fail the test")]
+
+        use super::*;
+
+        #[test]
+        fn dynamic_values_are_one_encoded_path_segment() {
+            let url = get_capability("http://127.0.0.1:58627", "a/b?#").expect("valid route");
+            assert_eq!(
+                url.as_str(),
+                "http://127.0.0.1:58627/api/v1/capabilities/a%2Fb%3F%23"
+            );
+        }
+    }
+}
+
 /// REST 应答信封：每条路由的成功/错误分支共用同一组外格，data 各有模型。
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
