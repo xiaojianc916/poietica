@@ -477,7 +477,10 @@ pub(crate) async fn list_mcp_servers(
 }
 
 /// 本机 kap 报的能力清单。字段名钉在 contracts/kap 的快照上。
-pub(crate) async fn list_capabilities(http: &reqwest::Client, base_url: &str) -> crate::error::Result<Vec<crate::session::Capability>> {
+pub(crate) async fn list_capabilities(
+    http: &reqwest::Client,
+    base_url: &str,
+) -> Result<Vec<crate::session::Capability>> {
     let data = get(http, &format!("{base_url}/capabilities")).await?;
 
     capabilities_of(&data)
@@ -487,9 +490,10 @@ pub(crate) async fn list_capabilities(http: &reqwest::Client, base_url: &str) ->
 ///
 /// 轮询上限到了不算失败：交回此刻的进度，界面照实说还差哪一步。
 pub(crate) async fn install_capability(
-    http: &reqwest::Client, base_url: &str,
+    http: &reqwest::Client,
+    base_url: &str,
     capability_id: &str,
-) -> crate::error::Result<crate::session::Capability> {
+) -> Result<crate::session::Capability> {
     const POLL: std::time::Duration = std::time::Duration::from_millis(1_200);
     const ATTEMPTS: u32 = 50;
 
@@ -517,13 +521,13 @@ pub(crate) async fn install_capability(
         latest = pluck(&polled, capability_id);
     }
 
-    latest.ok_or_else(|| crate::error::KapError::Validation {
+    latest.ok_or_else(|| KapError::Validation {
         message: format!("kap 没有报告能力 {capability_id} 的状态"),
     })
 }
 
 /// 一条应答里那一项能力：单条与整列同一条解码路径。
-fn pluck(data: &serde_json::Value, capability_id: &str) -> Option<crate::session::Capability> {
+fn pluck(data: &Value, capability_id: &str) -> Option<crate::session::Capability> {
     if let Some(direct) = capability_of(data)
         && direct.id == capability_id
     {
@@ -536,25 +540,33 @@ fn pluck(data: &serde_json::Value, capability_id: &str) -> Option<crate::session
         .find(|listed| listed.id == capability_id)
 }
 
-fn capabilities_of(
-    data: &serde_json::Value,
-) -> crate::error::Result<Vec<crate::session::Capability>> {
-    let listed = data.get("capabilities").and_then(serde_json::Value::as_array).ok_or_else(|| crate::error::KapError::Validation {
-        message: "kap 的能力清单不是快照钉住的形状".to_owned(),
-    })?;
+fn capabilities_of(data: &Value) -> Result<Vec<crate::session::Capability>> {
+    let listed = data
+        .get("capabilities")
+        .and_then(Value::as_array)
+        .ok_or_else(|| KapError::Validation {
+            message: "kap 的能力清单不是快照钉住的形状".to_owned(),
+        })?;
 
     Ok(listed.iter().filter_map(capability_of).collect())
 }
 
-fn capability_of(raw: &serde_json::Value) -> Option<crate::session::Capability> {
+fn capability_of(raw: &Value) -> Option<crate::session::Capability> {
     let id = raw.get("id")?.as_str()?.to_owned();
-    let label = raw.get("displayName").and_then(serde_json::Value::as_str).unwrap_or(&id).to_owned();
+    let label = raw
+        .get("displayName")
+        .and_then(Value::as_str)
+        .unwrap_or(&id)
+        .to_owned();
 
     Some(crate::session::Capability {
-        supported: raw.get("supported").and_then(serde_json::Value::as_bool).unwrap_or(true),
+        supported: raw
+            .get("supported")
+            .and_then(Value::as_bool)
+            .unwrap_or(true),
         steps: raw
             .get("steps")
-            .and_then(serde_json::Value::as_array)
+            .and_then(Value::as_array)
             .map(|steps| steps.iter().map(step_of).collect())
             .unwrap_or_default(),
         id,
@@ -562,10 +574,18 @@ fn capability_of(raw: &serde_json::Value) -> Option<crate::session::Capability> 
     })
 }
 
-fn step_of(raw: &serde_json::Value) -> crate::session::CapabilityStep {
-    let id = raw.get("id").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned();
+fn step_of(raw: &Value) -> crate::session::CapabilityStep {
+    let id = raw
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
     let label = id.clone();
-    let state = raw.get("state").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned();
+    let state = raw
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
 
     crate::session::CapabilityStep {
         satisfied: matches!(state.as_str(), "ok"),
@@ -574,7 +594,6 @@ fn step_of(raw: &serde_json::Value) -> crate::session::CapabilityStep {
         state,
     }
 }
-
 
 /// 给这条会话绑上模型。
 ///

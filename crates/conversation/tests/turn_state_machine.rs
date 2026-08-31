@@ -72,3 +72,22 @@ fn unknown_delivery_can_still_settle() {
             .is_err()
     );
 }
+
+#[test]
+fn interaction_suspends_streaming_and_resumes_it() {
+    let awaiting = TurnState::Streaming
+        .apply(&TurnSignal::InteractionRequested)
+        .unwrap();
+
+    assert_eq!(awaiting, TurnState::AwaitingInteraction);
+    assert_eq!(
+        awaiting.apply(&TurnSignal::InteractionResolved).unwrap(),
+        TurnState::Streaming
+    );
+
+    // 卡在审批上的那一轮必须停得下来。
+    assert!(awaiting.apply(&CancelOrigin::User.signal()).is_ok());
+
+    // 恢复不是投递：等人回答时收不下 DeliveryAccepted。
+    assert!(awaiting.apply(&TurnSignal::DeliveryAccepted).is_err());
+}

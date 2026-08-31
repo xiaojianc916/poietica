@@ -595,3 +595,56 @@ export async function problemCopyIsComplete(
 
   return violations
 }
+
+/** 包只能 import 自己在 package.json 里声明过的 @poietica/*。 */
+export async function declaredDependenciesOnly(
+  root: string,
+  imports: readonly ImportRecord[],
+  workspaces: readonly Workspace[],
+): Promise<Violation[]> {
+  const declared = new Map<string, Set<string>>()
+
+  for (const workspace of workspaces) {
+    const manifest = JSON.parse(
+      await readFile(path.join(root, workspace.directory, 'package.json'), 'utf8'),
+    ) as {
+      dependencies?: Record<string, string>
+      devDependencies?: Record<string, string>
+      peerDependencies?: Record<string, string>
+    }
+
+    declared.set(
+      workspace.name,
+      new Set([
+        ...Object.keys(manifest.dependencies ?? {}),
+        ...Object.keys(manifest.devDependencies ?? {}),
+        ...Object.keys(manifest.peerDependencies ?? {}),
+      ]),
+    )
+  }
+
+  const violations: Violation[] = []
+
+  for (const record of imports) {
+    if (!scoped(record.specifier)) {
+      continue
+    }
+
+    const owner = ownerOf(record.file, workspaces)
+    const target = packageOf(record.specifier)
+
+    if (owner === undefined || owner.name === target) {
+      continue
+    }
+
+    if (!declared.get(owner.name)?.has(target)) {
+      violations.push({
+        policy: 'declared-dependencies-only',
+        where: record.file,
+        detail: `${owner.name} 没有声明 ${target}`,
+      })
+    }
+  }
+
+  return violations
+}

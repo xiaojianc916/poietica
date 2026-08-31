@@ -45,6 +45,7 @@ async function directories(root: string, from: readonly string[]): Promise<strin
 const workspaces = await readWorkspaces(ROOT)
 const crates = readCrates(ROOT)
 const imports = await readImports(ROOT, ['apps', 'packages'])
+const everyImport = await readImports(ROOT, ['apps', 'packages', 'tests', 'tools'])
 const tree = await directories(ROOT, ['apps', 'packages'])
 const rootManifest = await readFile(path.join(ROOT, 'package.json'), 'utf8')
 const exportBindings = await readFile(
@@ -67,6 +68,7 @@ const scripted = [
 const violations: Violation[] = [
   ...policy.everythingIsRegistered(workspaces, crates),
   ...policy.layerDirection(imports, workspaces),
+  ...(await policy.declaredDependenciesOnly(ROOT, everyImport, workspaces)),
   ...policy.noCycles(imports, workspaces),
   ...policy.publicEntryOnly(imports, workspaces),
   ...policy.relativeImportsStayHome(imports, workspaces),

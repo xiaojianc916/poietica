@@ -29,6 +29,9 @@ use commands::{
     cli::install::{AgentInstallState, AgentInstallStatus},
     cli::probe::ProviderProbeOutcome,
     cli::profile::AgentConfigSnapshot,
+    conversation::capability::{
+        AgentCapability, AgentCapabilityInstallRequest, AgentCapabilityReport, AgentCapabilityStep,
+    },
     conversation::custom_agents::{
         CustomAgentCatalog, CustomAgentFile, CustomAgentRemoveRequest, CustomAgentSaveRequest,
     },
@@ -40,9 +43,6 @@ use commands::{
         AgentPromptSkill, AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod,
         AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentSelectConfigRequest,
         AgentSessionEvent, AgentThreadRequest, AgentTurnMark,
-    },
-    conversation::capability::{
-        AgentCapability, AgentCapabilityInstallRequest, AgentCapabilityReport, AgentCapabilityStep,
     },
     conversation::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
     extension::{

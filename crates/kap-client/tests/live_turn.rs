@@ -474,9 +474,12 @@ fn detail(frame: &RunFrame) -> String {
             _ => payload.to_string(),
         },
         RunFrame::PermissionRequested { title, .. } => title.clone(),
-        RunFrame::PermissionResolved { .. } => {
-            panic!("PermissionResolved carries no payload, unreachable test branch")
-        }
+        RunFrame::PermissionResolved {
+            decision, scope, ..
+        } => match scope {
+            Some(scope) => format!("{decision} ({scope})"),
+            None => decision.clone(),
+        },
         RunFrame::QuestionsAsked { questions, .. } => questions.to_string(),
         RunFrame::QuestionsResolved {
             outcome,

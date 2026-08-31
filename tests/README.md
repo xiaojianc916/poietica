@@ -7,14 +7,12 @@
 
 - 各包内 `src/__tests__/`：该包自己的单元测试与契约测试。断言谁的行为，
   就住在谁的包里 —— 它随包一起被移动、被改名、被删除。
-- `tests/unit/architecture/`：仓库级不变量。目前是依赖图闸门：
-  任何包都不得 import 一个自己没有在 package.json 里声明的 `@poietica/*`。
-- `tools/architecture/`：图与元数据形态的架构规则（`layering.ts` 是判据数据，
-  `verify.ts` 是入口）。加一条规则等于加一个函数，不等于加一个脚本。
+- `tools/architecture/`：全部架构规则的唯一产地（`layering.ts` 是判据数据，
+  `policies.ts` 是规则，`verify.ts` 是入口）。加一条规则等于加一个函数。
+- `tests/integration/`：跨包不变量。`tests/perf/`：基准，只报数字不设时限。
 
-不要在 `tests/` 下新建只服务于某一次迁移的目录或守卫文件。
-架构闸门会主动拒绝 `check-*` 这类一次性守卫，理由同样适用于
-一次性的 `.test.ts`：它把一次迁移编码成文本快照，迁移结束后无声腐烂。
+架构规则不写成 `.test.ts`：它要遍历整个仓库，而一个 `it` 的失败面只有一条断言。
+规则进 `policies.ts`，由 `bun run test:architecture` 执行。
 
 ## 质量规则
 
@@ -29,7 +27,7 @@
 
 ```bash
 bun run test                     # 全部工作区的 test 任务
-bun run test:architecture        # 正则架构规则
+bun run test:architecture        # 架构规则闸门
 bun run --filter @poietica/design-system test
 bun run --filter @poietica/tests test
 ```

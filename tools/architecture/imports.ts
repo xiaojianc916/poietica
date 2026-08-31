@@ -16,6 +16,9 @@ const SKIP = new Set(['.turbo', 'coverage', 'dist', 'gen', 'node_modules', 'targ
 const visible = (code: string): string =>
   code.replace(/\bimport type /g, 'import ').replace(/\bexport type (\{|\*)/g, 'export $1')
 
+/** bun 1.4 的 scanImports 把首行 shebang 当语法错误，而 tools/ 下的脚本入口都是 `#!/usr/bin/env bun`。 */
+const unwrap = (code: string): string => code.replace(/^#!.*/, '')
+
 /** `<T>(x) => x` 在 tsx 下被当成标签开头，所以 loader 按扩展名给，不共用一份。 */
 const loaderOf = (file: string): 'ts' | 'tsx' => (file.endsWith('.tsx') ? 'tsx' : 'ts')
 
@@ -32,7 +35,7 @@ export async function readImports(root: string, roots: readonly string[]): Promi
     for (const file of await sources(path.join(root, directory))) {
       const code = await readFile(file, 'utf8')
 
-      for (const found of transpilers[loaderOf(file)].scanImports(visible(code))) {
+      for (const found of transpilers[loaderOf(file)].scanImports(visible(unwrap(code)))) {
         records.push({
           file: path.relative(root, file).split(path.sep).join('/'),
           specifier: found.path,

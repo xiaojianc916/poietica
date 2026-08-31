@@ -10,11 +10,11 @@ use specta::Type;
 use tauri::State;
 
 use super::AgentCommandResult;
+use super::NO_SESSION;
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow};
-use super::NO_SESSION;
 
-#[derive(Serialize, Type)]
+#[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCapabilityStep {
     pub id: String,
@@ -24,7 +24,7 @@ pub struct AgentCapabilityStep {
     pub satisfied: bool,
 }
 
-#[derive(Serialize, Type)]
+#[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCapability {
     pub id: String,
@@ -34,14 +34,14 @@ pub struct AgentCapability {
 }
 
 /// 「没连上」与「连上了，它这么说」不是一件事，所以判别式在类型里。
-#[derive(Serialize, Type)]
+#[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum AgentCapabilityReport {
     Unreachable,
     Reported { capabilities: Vec<AgentCapability> },
 }
 
-#[derive(Deserialize, Type)]
+#[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCapabilityInstallRequest {
     pub capability_id: String,
