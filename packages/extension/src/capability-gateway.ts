@@ -8,6 +8,6 @@ import type { AgentCapability, AgentCapabilityReport } from '@poietica/contract'
 
 export interface CapabilityGateway {
   readCapabilities(): Promise<AgentCapabilityReport>
-  /** 幂等：装过再装交回同一份进度。 */
+  /** 跟随已有后台任务，必要时启动安装，并在落定后返回最终状态。 */
   installCapability(capabilityId: string): Promise<AgentCapability>
 }

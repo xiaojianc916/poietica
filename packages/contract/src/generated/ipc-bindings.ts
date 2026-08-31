@@ -186,11 +186,11 @@ async agentCapabilityReport() : Promise<AgentCapabilityReport> {
     return await TAURI_INVOKE("agent_capability_report");
 },
 /**
- * 让本机 kap 装一项能力。幂等，交回它此刻的进度。
+ * 让本机 kap 装一项能力。跟随它的后台任务，落定后交回最终状态。
  * 
  * # Errors
  * 
- * 没有连接、kap 拒绝，或它装完仍不报这项能力时失败。
+ * 没有连接，或 kap 拒绝（含安装迟迟不落定）时失败。
  */
 async agentCapabilityInstall(request: AgentCapabilityInstallRequest) : Promise<AgentCapability> {
     return await TAURI_INVOKE("agent_capability_install", { request });
@@ -1234,17 +1234,20 @@ launch: AgentLaunch;
  * The working directory the session is created against.
  */
 cwd: string | null }
-export type AgentCapability = { id: string; label: string; supported: boolean; steps: AgentCapabilityStep[] }
+export type AgentCapability = { id: string; pluginId: string | null; label: string; supported: boolean; state: AgentCapabilityState; install: AgentCapabilityInstall }
+/**
+ * kap 持有的后台安装进度，原样投影。
+ */
+export type AgentCapabilityInstall = { running: boolean; step: string | null; percent: number | null; error: string | null }
 export type AgentCapabilityInstallRequest = { capabilityId: string }
 /**
  * 「没连上」与「连上了，它这么说」不是一件事，所以判别式在类型里。
  */
 export type AgentCapabilityReport = { kind: "unreachable" } | { kind: "reported"; capabilities: AgentCapability[] }
-export type AgentCapabilityStep = { id: string; label: string; 
 /**
- * kap 报的这一步状态原文。
+ * kap 对一项能力的就绪裁决，原样投影。
  */
-state: string; satisfied: boolean }
+export type AgentCapabilityState = "notInstalled" | "partial" | "ready" | "unsupported"
 export type AgentCliRequest = { 
 /**
  * 用于算出受控 home，也用于从档案里查出该执行哪个程序。

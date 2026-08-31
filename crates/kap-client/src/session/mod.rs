@@ -207,23 +207,33 @@ pub enum McpStatus {
     Error,
 }
 
-/// 本机 kap 报的一项能力。装到哪一步由它的步骤说，所以就绪度不是一个布尔。
-#[derive(Debug, Clone)]
-pub struct Capability {
-    pub id: String,
-    pub label: String,
-    pub supported: bool,
-    pub steps: Vec<CapabilityStep>,
+/// KAP 对一项能力的就绪裁决。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CapabilityReadiness {
+    NotInstalled,
+    Partial,
+    Ready,
+    Unsupported,
 }
 
-/// 一项能力里的一层：插件装没装、运行时装没装，各是一条。
-#[derive(Debug, Clone)]
-pub struct CapabilityStep {
+/// KAP 持有的后台安装状态。
+#[derive(Clone, Debug, PartialEq)]
+pub struct CapabilityInstall {
+    pub running: bool,
+    pub step: Option<String>,
+    pub percent: Option<f64>,
+    pub error: Option<String>,
+}
+
+/// 一项能力的领域投影；wire 形状由生成契约先行校验。
+#[derive(Clone, Debug, PartialEq)]
+pub struct Capability {
     pub id: String,
+    pub plugin_id: Option<String>,
     pub label: String,
-    /// kap 报的这一步状态原文。
-    pub state: String,
-    pub satisfied: bool,
+    pub supported: bool,
+    pub state: CapabilityReadiness,
+    pub install: CapabilityInstall,
 }
 
 #[derive(Debug, Clone)]

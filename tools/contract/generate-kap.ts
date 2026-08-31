@@ -623,6 +623,7 @@ const REST_ROUTES: RestRoute[] = [
   },
   { method: 'get', path: '/api/v1/sessions/{session_id}/skills', name: 'ListSkills', data: true },
   { method: 'get', path: '/api/v1/mcp/servers', name: 'ListMcpServers', data: true },
+  { method: 'get', path: '/api/v1/capabilities', name: 'ListCapabilities', data: true },
   { method: 'get', path: '/api/v1/sessions/{session_id}/goal', name: 'SessionGoal', data: true },
   { method: 'get', path: '/api/v1/models', name: 'ListModels', data: true },
 ]

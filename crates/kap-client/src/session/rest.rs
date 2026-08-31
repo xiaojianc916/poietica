@@ -13,7 +13,7 @@ use crate::connection::socket::WsSink;
 use crate::error::{KapError, Result};
 use crate::generated::rest::{
     CreateSessionRequestAgentConfigStruct, CreateSessionRequestMetadataStruct,
-    CreateSessionRequestStruct, SubmitPromptRequestContentChoice,
+    CreateSessionRequestStruct, ListCapabilitiesDataStruct, SubmitPromptRequestContentChoice,
     SubmitPromptRequestContentChoiceImageSourceChoice, SubmitPromptRequestSkillsStruct,
     SubmitPromptRequestStruct,
 };
@@ -476,123 +476,141 @@ pub(crate) async fn list_mcp_servers(
         .collect()
 }
 
-/// 本机 kap 报的能力清单。字段名钉在 contracts/kap 的快照上。
+/// 本机 KAP 报的能力清单。生成类型先验证 wire，随后才进入领域映射。
 pub(crate) async fn list_capabilities(
     http: &reqwest::Client,
     base_url: &str,
 ) -> Result<Vec<crate::session::Capability>> {
     let data = get(http, &format!("{base_url}/capabilities")).await?;
-
+    validate_capability_list(&data)?;
     capabilities_of(&data)
 }
 
-/// 请本机 kap 装一项能力。POST 幂等，进度靠再问一次。
-///
-/// 轮询上限到了不算失败：交回此刻的进度，界面照实说还差哪一步。
+const CAPABILITY_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(700);
+const CAPABILITY_POLL_ATTEMPTS: u32 = 260;
+
+/// 启动或跟随 KAP 的后台安装，直到它明确落定。
 pub(crate) async fn install_capability(
     http: &reqwest::Client,
     base_url: &str,
     capability_id: &str,
 ) -> Result<crate::session::Capability> {
-    const POLL: std::time::Duration = std::time::Duration::from_millis(1_200);
-    const ATTEMPTS: u32 = 50;
+    let mut latest = get_capability(http, base_url, capability_id).await?;
 
-    let accepted = post(
-        http,
-        &format!("{base_url}/capabilities/{capability_id}:install"),
-        &serde_json::json!({}),
-    )
-    .await?;
-
-    let mut latest = pluck(&accepted, capability_id);
-
-    for _attempt in 0..ATTEMPTS {
-        if latest
-            .as_ref()
-            .is_some_and(|capability| capability.steps.iter().all(|step| step.satisfied))
-        {
-            break;
-        }
-
-        tokio::time::sleep(POLL).await;
-
-        let polled = get(http, &format!("{base_url}/capabilities/{capability_id}")).await?;
-
-        latest = pluck(&polled, capability_id);
+    if latest.state == crate::session::CapabilityReadiness::Ready && !latest.install.running {
+        return Ok(latest);
     }
 
-    latest.ok_or_else(|| KapError::Validation {
-        message: format!("kap 没有报告能力 {capability_id} 的状态"),
+    if !latest.install.running {
+        let accepted = post(
+            http,
+            &format!("{base_url}/capabilities/{capability_id}:install"),
+            &serde_json::json!({}),
+        )
+        .await?;
+        validate_capability(&accepted)?;
+        latest = capability_of(&accepted)?;
+    }
+
+    for _ in 0..CAPABILITY_POLL_ATTEMPTS {
+        if !latest.install.running {
+            return Ok(latest);
+        }
+        tokio::time::sleep(CAPABILITY_POLL_INTERVAL).await;
+        latest = get_capability(http, base_url, capability_id).await?;
+    }
+
+    Err(KapError::Timeout {
+        message: format!("capability {capability_id} did not finish installing in time"),
     })
 }
 
-/// 一条应答里那一项能力：单条与整列同一条解码路径。
-fn pluck(data: &Value, capability_id: &str) -> Option<crate::session::Capability> {
-    if let Some(direct) = capability_of(data)
-        && direct.id == capability_id
-    {
-        return Some(direct);
-    }
+async fn get_capability(
+    http: &reqwest::Client,
+    base_url: &str,
+    capability_id: &str,
+) -> Result<crate::session::Capability> {
+    let data = get(http, &format!("{base_url}/capabilities/{capability_id}")).await?;
+    validate_capability(&data)?;
+    capability_of(&data)
+}
 
-    capabilities_of(data)
-        .ok()?
-        .into_iter()
-        .find(|listed| listed.id == capability_id)
+fn validate_capability_list(data: &Value) -> Result<()> {
+    serde_json::from_value::<ListCapabilitiesDataStruct>(data.clone())
+        .map(|_| ())
+        .map_err(|error| KapError::Transport {
+            message: format!("capability list does not fit the pinned contract: {error}"),
+        })
+}
+
+fn validate_capability(data: &Value) -> Result<()> {
+    validate_capability_list(&serde_json::json!({ "capabilities": [data.clone()] }))
 }
 
 fn capabilities_of(data: &Value) -> Result<Vec<crate::session::Capability>> {
     let listed = data
         .get("capabilities")
         .and_then(Value::as_array)
-        .ok_or_else(|| KapError::Validation {
-            message: "kap 的能力清单不是快照钉住的形状".to_owned(),
+        .ok_or_else(|| KapError::Transport {
+            message: "capability response has no capabilities array".to_owned(),
         })?;
-
-    Ok(listed.iter().filter_map(capability_of).collect())
+    listed.iter().map(capability_of).collect()
 }
 
-fn capability_of(raw: &Value) -> Option<crate::session::Capability> {
-    let id = raw.get("id")?.as_str()?.to_owned();
-    let label = raw
-        .get("displayName")
+fn required_str<'a>(raw: &'a Value, key: &str) -> Result<&'a str> {
+    raw.get(key)
         .and_then(Value::as_str)
-        .unwrap_or(&id)
-        .to_owned();
+        .ok_or_else(|| KapError::Transport {
+            message: format!("capability has no string {key}: {raw}"),
+        })
+}
 
-    Some(crate::session::Capability {
+fn capability_of(raw: &Value) -> Result<crate::session::Capability> {
+    let state = match required_str(raw, "state")? {
+        "not_installed" => crate::session::CapabilityReadiness::NotInstalled,
+        "partial" => crate::session::CapabilityReadiness::Partial,
+        "ready" => crate::session::CapabilityReadiness::Ready,
+        "unsupported" => crate::session::CapabilityReadiness::Unsupported,
+        other => {
+            return Err(KapError::Transport {
+                message: format!("capability has unknown state {other}"),
+            });
+        }
+    };
+    let install = raw.get("install").filter(|value| !value.is_null());
+
+    Ok(crate::session::Capability {
+        id: required_str(raw, "id")?.to_owned(),
+        plugin_id: raw
+            .get("pluginId")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        label: required_str(raw, "displayName")?.to_owned(),
         supported: raw
             .get("supported")
             .and_then(Value::as_bool)
-            .unwrap_or(true),
-        steps: raw
-            .get("steps")
-            .and_then(Value::as_array)
-            .map(|steps| steps.iter().map(step_of).collect())
-            .unwrap_or_default(),
-        id,
-        label,
-    })
-}
-
-fn step_of(raw: &Value) -> crate::session::CapabilityStep {
-    let id = raw
-        .get("id")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned();
-    let label = id.clone();
-    let state = raw
-        .get("state")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned();
-
-    crate::session::CapabilityStep {
-        satisfied: matches!(state.as_str(), "ok"),
-        id,
-        label,
+            .ok_or_else(|| KapError::Transport {
+                message: format!("capability has no boolean supported: {raw}"),
+            })?,
         state,
-    }
+        install: crate::session::CapabilityInstall {
+            running: install
+                .and_then(|value| value.get("running"))
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            step: install
+                .and_then(|value| value.get("step"))
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            percent: install
+                .and_then(|value| value.get("percent"))
+                .and_then(Value::as_f64),
+            error: install
+                .and_then(|value| value.get("error"))
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+        },
+    })
 }
 
 /// 给这条会话绑上模型。

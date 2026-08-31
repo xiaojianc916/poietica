@@ -1,107 +1,96 @@
 import type { AgentCapability, AgentCapabilityReport } from '@poietica/contract'
 import type { InstalledPlugin } from './installation'
 
-/**
- * 电脑控制在两本账里的名字。
- *
- * 能力号发给本机 kap，插件号回本机账本查开没开。两个都是稳定标识 —— 从哪取、装到哪，
- * 全由本机 kap 说，所以这里没有下载地址。
- */
-export const COMPUTER_USE = {
-  capabilityId: 'kimi-cu',
-  pluginId: 'kimi-cu-win',
-} as const
+export const COMPUTER_USE = { capabilityId: 'kimi-cu' } as const
 
-/** 问过本机 kap 之后的答复，加上「还没问」。 */
 export type CapabilityInventory = { readonly kind: 'unread' } | AgentCapabilityReport
-
 export const CAPABILITIES_UNREAD: CapabilityInventory = { kind: 'unread' }
 
-/** 一次能力安装的进行时。kap 的 :install 幂等，所以重试就是再点一次。 */
-export type CapabilityInstall =
+/** 只描述本地命令生命周期；安装事实属于 KAP。 */
+export type CapabilityCommand =
   | { readonly kind: 'idle' }
-  | { readonly kind: 'installing'; readonly capabilityId: string }
-  | { readonly kind: 'refused'; readonly capabilityId: string; readonly reason: string }
+  | { readonly kind: 'pending'; readonly capabilityId: string }
+  | { readonly kind: 'failed'; readonly capabilityId: string; readonly reason: string }
 
-export const CAPABILITY_INSTALL_IDLE: CapabilityInstall = { kind: 'idle' }
+export const CAPABILITY_COMMAND_IDLE: CapabilityCommand = { kind: 'idle' }
 
-export interface ComputerUseStep {
-  readonly label: string
-  readonly satisfied: boolean
-}
-
-/**
- * 屏幕上那一行的全部状态。
- *
- * 分层就绪度来自 kap 的步骤，开关来自本机账本；两样各有归属方，这里只投影，不合并成
- * 一个布尔 —— 插件装上了而运行时没装，正是那个布尔说不出来的状态。
- */
 export type ComputerUse =
   | { readonly kind: 'unread' }
   | { readonly kind: 'unreachable' }
   | { readonly kind: 'unlisted' }
   | { readonly kind: 'unsupported' }
   | { readonly kind: 'installing' }
-  | { readonly kind: 'refused'; readonly reason: string }
-  | { readonly kind: 'incomplete'; readonly steps: readonly ComputerUseStep[] }
+  | { readonly kind: 'failed'; readonly reason: string }
+  | { readonly kind: 'installable' }
   | {
-      readonly kind: 'ready'
-      readonly steps: readonly ComputerUseStep[]
-      /** 本机账本里那一条的开关；账本里没有它就是没有开关可拨。 */
-      readonly enabled: boolean | undefined
+      readonly kind: 'installed'
+      readonly pluginId: string
+      readonly enabled: boolean
+      readonly issue: string | undefined
     }
 
 interface ComputerUseInput {
   readonly capabilities: CapabilityInventory
-  readonly capabilityInstall: CapabilityInstall
+  readonly capabilityCommand: CapabilityCommand
   readonly plugins: readonly InstalledPlugin[]
 }
 
-function stepsOf(capability: AgentCapability): readonly ComputerUseStep[] {
-  return capability.steps.map((step) => ({ label: step.label, satisfied: step.satisfied }))
+function issueOf(capability: AgentCapability): string | undefined {
+  if (capability.install.error !== null) {
+    return capability.install.error
+  }
+  if (capability.state !== 'ready') {
+    return '插件已安装，但 Kimi 运行时尚未就绪。'
+  }
+  return undefined
 }
 
 export function computerUse(input: ComputerUseInput): ComputerUse {
-  const install = input.capabilityInstall
-  const mine = install.kind !== 'idle' && install.capabilityId === COMPUTER_USE.capabilityId
+  const command = input.capabilityCommand
+  const mine = command.kind !== 'idle' && command.capabilityId === COMPUTER_USE.capabilityId
+  const failure = mine && command.kind === 'failed' ? command.reason : undefined
 
-  if (mine && install.kind === 'refused') {
-    return { kind: 'refused', reason: install.reason }
-  }
-
-  if (mine && install.kind === 'installing') {
+  if (mine && command.kind === 'pending') {
     return { kind: 'installing' }
   }
-
   if (input.capabilities.kind === 'unread') {
-    return { kind: 'unread' }
+    return failure === undefined ? { kind: 'unread' } : { kind: 'failed', reason: failure }
   }
-
   if (input.capabilities.kind === 'unreachable') {
-    return { kind: 'unreachable' }
+    return failure === undefined ? { kind: 'unreachable' } : { kind: 'failed', reason: failure }
   }
 
-  const listed = input.capabilities.capabilities.find(
-    (capability) => capability.id === COMPUTER_USE.capabilityId,
+  const capability = input.capabilities.capabilities.find(
+    (item) => item.id === COMPUTER_USE.capabilityId,
   )
-
-  if (listed === undefined) {
+  if (capability === undefined) {
     return { kind: 'unlisted' }
   }
-
-  if (!listed.supported) {
+  if (!capability.supported || capability.state === 'unsupported') {
     return { kind: 'unsupported' }
   }
 
-  const steps = stepsOf(listed)
-
-  if (steps.some((step) => !step.satisfied)) {
-    return { kind: 'incomplete', steps }
+  const plugin =
+    capability.pluginId === null
+      ? undefined
+      : input.plugins.find((item) => item.pluginId === capability.pluginId)
+  if (plugin !== undefined) {
+    return {
+      kind: 'installed',
+      pluginId: plugin.pluginId,
+      enabled: plugin.enabled,
+      issue: issueOf(capability),
+    }
   }
 
-  return {
-    kind: 'ready',
-    steps,
-    enabled: input.plugins.find((plugin) => plugin.pluginId === COMPUTER_USE.pluginId)?.enabled,
+  if (failure !== undefined) {
+    return { kind: 'failed', reason: failure }
   }
+  if (capability.install.error !== null) {
+    return { kind: 'failed', reason: capability.install.error }
+  }
+  if (capability.install.running) {
+    return { kind: 'installing' }
+  }
+  return { kind: 'installable' }
 }

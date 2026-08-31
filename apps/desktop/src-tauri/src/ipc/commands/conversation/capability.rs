@@ -4,7 +4,7 @@
 //! 不比工作目录，从这里起的那一条会把整条连接钉在 home 上。
 
 use crate::error::Error;
-use poietica_kap_client::Capability;
+use poietica_kap_client::{Capability, CapabilityReadiness};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::State;
@@ -14,23 +14,35 @@ use super::NO_SESSION;
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow};
 
+/// kap 对一项能力的就绪裁决，原样投影。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentCapabilityStep {
-    pub id: String,
-    pub label: String,
-    /// kap 报的这一步状态原文。
-    pub state: String,
-    pub satisfied: bool,
+pub enum AgentCapabilityState {
+    NotInstalled,
+    Partial,
+    Ready,
+    Unsupported,
+}
+
+/// kap 持有的后台安装进度，原样投影。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentCapabilityInstall {
+    pub running: bool,
+    pub step: Option<String>,
+    pub percent: Option<f64>,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCapability {
     pub id: String,
+    pub plugin_id: Option<String>,
     pub label: String,
     pub supported: bool,
-    pub steps: Vec<AgentCapabilityStep>,
+    pub state: AgentCapabilityState,
+    pub install: AgentCapabilityInstall,
 }
 
 /// 「没连上」与「连上了，它这么说」不是一件事，所以判别式在类型里。
@@ -50,18 +62,21 @@ pub struct AgentCapabilityInstallRequest {
 fn reported(capability: Capability) -> AgentCapability {
     AgentCapability {
         id: capability.id,
+        plugin_id: capability.plugin_id,
         label: capability.label,
         supported: capability.supported,
-        steps: capability
-            .steps
-            .into_iter()
-            .map(|step| AgentCapabilityStep {
-                id: step.id,
-                label: step.label,
-                state: step.state,
-                satisfied: step.satisfied,
-            })
-            .collect(),
+        state: match capability.state {
+            CapabilityReadiness::NotInstalled => AgentCapabilityState::NotInstalled,
+            CapabilityReadiness::Partial => AgentCapabilityState::Partial,
+            CapabilityReadiness::Ready => AgentCapabilityState::Ready,
+            CapabilityReadiness::Unsupported => AgentCapabilityState::Unsupported,
+        },
+        install: AgentCapabilityInstall {
+            running: capability.install.running,
+            step: capability.install.step,
+            percent: capability.install.percent,
+            error: capability.install.error,
+        },
     }
 }
 
@@ -86,11 +101,11 @@ pub async fn agent_capability_report(
     })
 }
 
-/// 让本机 kap 装一项能力。幂等，交回它此刻的进度。
+/// 让本机 kap 装一项能力。跟随它的后台任务，落定后交回最终状态。
 ///
 /// # Errors
 ///
-/// 没有连接、kap 拒绝，或它装完仍不报这项能力时失败。
+/// 没有连接，或 kap 拒绝（含安装迟迟不落定）时失败。
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_capability_install(

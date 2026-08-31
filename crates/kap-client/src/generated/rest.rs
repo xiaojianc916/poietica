@@ -674,6 +674,12 @@ pub struct ListMcpServersDataStruct {
     pub servers: Vec<CreateSessionDataPermissionRulesStruct>,
 }
 
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ListCapabilitiesDataStruct {
+    #[serde(rename = "capabilities")]
+    pub capabilities: Vec<CreateSessionDataPermissionRulesStruct>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SessionGoalDataStatusEnum {
     #[serde(rename = "active")]

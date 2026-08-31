@@ -1,8 +1,8 @@
 import { assertUnreachable, warn } from '@poietica/problem'
 import {
   CAPABILITIES_UNREAD,
-  CAPABILITY_INSTALL_IDLE,
-  type CapabilityInstall,
+  CAPABILITY_COMMAND_IDLE,
+  type CapabilityCommand,
   type CapabilityInventory,
 } from './capability'
 import type { CapabilityGateway } from './capability-gateway'
@@ -79,7 +79,7 @@ export interface PluginsViewModel {
   /** 本机 kap 报的能力清单：某项能力装到哪一步，只有它说得出。 */
   readonly capabilities: CapabilityInventory
   /** 一次能力安装的进行时。 */
-  readonly capabilityInstall: CapabilityInstall
+  readonly capabilityCommand: CapabilityCommand
   readonly marketplace: MarketplaceState
   readonly install: InstallFlow
   /** 本机 skills/ 里装着的技能：装了哪些、开没开，这一格说了算。 */
@@ -279,7 +279,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     mcpServers: [],
     foreign: [],
     capabilities: CAPABILITIES_UNREAD,
-    capabilityInstall: CAPABILITY_INSTALL_IDLE,
+    capabilityCommand: CAPABILITY_COMMAND_IDLE,
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
     ownedSkills: [],
@@ -945,29 +945,37 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     installCapability(capabilityId) {
-      publish({ capabilityInstall: { kind: 'installing', capabilityId } })
+      publish({ capabilityCommand: { kind: 'pending', capabilityId } })
 
       queue = queue.then(async () => {
         try {
-          await options.capability.installCapability(capabilityId)
+          const settled = await options.capability.installCapability(capabilityId)
+          const capabilities =
+            snapshot.capabilities.kind === 'reported'
+              ? snapshot.capabilities.capabilities.some((item) => item.id === settled.id)
+                ? snapshot.capabilities.capabilities.map((item) =>
+                    item.id === settled.id ? settled : item,
+                  )
+                : [...snapshot.capabilities.capabilities, settled]
+              : [settled]
+
+          publish({ capabilities: { kind: 'reported', capabilities } })
+          await rescan()
+          publish({ capabilityCommand: CAPABILITY_COMMAND_IDLE })
+          republish()
         } catch (cause: unknown) {
+          await Promise.all([
+            guard('能力安装失败后无法重新读取状态', readCapabilities, () => {}),
+            guard('能力安装失败后无法重新读取插件账本', rescan, () => {}),
+          ])
+          republish()
           publish({
-            capabilityInstall: {
-              kind: 'refused',
+            capabilityCommand: {
+              kind: 'failed',
               capabilityId,
               reason: cause instanceof Error ? cause.message : String(cause),
             },
           })
-
-          return
-        }
-
-        publish({ capabilityInstall: CAPABILITY_INSTALL_IDLE })
-
-        try {
-          await readCapabilities()
-        } catch (cause: unknown) {
-          warn('能力装完了，清单读不回来', { scope: 'plugins', cause })
         }
       })
     },

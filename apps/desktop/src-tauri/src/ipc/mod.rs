@@ -30,7 +30,8 @@ use commands::{
     cli::probe::ProviderProbeOutcome,
     cli::profile::AgentConfigSnapshot,
     conversation::capability::{
-        AgentCapability, AgentCapabilityInstallRequest, AgentCapabilityReport, AgentCapabilityStep,
+        AgentCapability, AgentCapabilityInstall, AgentCapabilityInstallRequest,
+        AgentCapabilityReport, AgentCapabilityState,
     },
     conversation::custom_agents::{
         CustomAgentCatalog, CustomAgentFile, CustomAgentRemoveRequest, CustomAgentSaveRequest,
@@ -207,7 +208,8 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentMcpServer>()
         .typ::<AgentMcpStatus>()
         .typ::<AgentToolkit>()
-        .typ::<AgentCapabilityStep>()
+        .typ::<AgentCapabilityInstall>()
+        .typ::<AgentCapabilityState>()
         .typ::<AgentCapability>()
         .typ::<AgentCapabilityReport>()
         .typ::<AgentCapabilityInstallRequest>()

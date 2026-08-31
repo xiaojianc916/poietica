@@ -6,11 +6,10 @@
  */
 
 export {
-  type CapabilityInstall,
+  type CapabilityCommand,
   type CapabilityInventory,
   COMPUTER_USE,
   type ComputerUse,
-  type ComputerUseStep,
   computerUse,
 } from './capability'
 export type { CapabilityGateway } from './capability-gateway'

@@ -73,9 +73,9 @@ pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine};
 pub use run_slot::RunSlot;
 pub use session::driver::connect;
 pub use session::{
-    AgentClient, AgentConnection, AgentSpawn, Capability, CapabilityStep, ConfigChoice,
-    ConfigControl, ConfigPurpose, ConfigSelection, Cursor, GoalSnapshot, Handshake, McpServer,
-    McpStatus, McpTransport, OpenedSession, PromptAttachment, PromptSkill, SessionBook,
+    AgentClient, AgentConnection, AgentSpawn, Capability, CapabilityInstall, CapabilityReadiness,
+    ConfigChoice, ConfigControl, ConfigPurpose, ConfigSelection, Cursor, GoalSnapshot, Handshake,
+    McpServer, McpStatus, McpTransport, OpenedSession, PromptAttachment, PromptSkill, SessionBook,
     SessionEntry, SessionEvent, SessionEvents, SessionUsageSnapshot, Skill, apply_configurations,
     controls, goal_snapshot, select_config, selector_patch,
 };
