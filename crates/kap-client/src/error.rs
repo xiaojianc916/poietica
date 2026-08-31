@@ -32,8 +32,8 @@ pub enum KapError {
     /// The agent command could not be turned into a process.
     #[error("the agent command could not be started: {message}")]
     Spawn { message: String },
-    /// kap server 没能在规定时间内注册到实例目录。
-    #[error("kap server did not start in time: {message}")]
+    /// 等一件事等到了上限。message 自带主语 —— 这个变体不替调用点说它在等什么。
+    #[error("timed out: {message}")]
     Timeout { message: String },
     /// REST 或 WebSocket 层报了错。
     #[error("kap transport error: {message}")]

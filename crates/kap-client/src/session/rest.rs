@@ -1,8 +1,8 @@
 //! kap 的 REST 调用面：sessions / prompts / approvals / profile / goal。
 //!
 //! 信封约定 { code, msg, data, request_id }：业务成败看 code，不看 HTTP 状态
-//! （contracts/kap 的 openapi.json）。每个路由的类型化解码随路由消费一批批接上，
-//! 这里的 data 仍是 Value。
+//! （contracts/kap 的 openapi.json）。data 按生成类型解码；选择器面（status /
+//! models / goal）的 Value 归 config.rs。
 
 use std::path::Path;
 
@@ -12,17 +12,25 @@ use crate::connection::handshake::subscribe;
 use crate::connection::socket::WsSink;
 use crate::error::{KapError, Result};
 use crate::generated::rest::{
-    CreateSessionRequestAgentConfigStruct, CreateSessionRequestMetadataStruct,
-    CreateSessionRequestStruct, ListCapabilitiesDataCapabilitiesStruct, ListCapabilitiesDataStruct,
-    SubmitPromptRequestContentChoice, SubmitPromptRequestContentChoiceImageSourceChoice,
-    SubmitPromptRequestSkillsStruct, SubmitPromptRequestStruct,
+    CreateSessionDataStruct, CreateSessionRequestAgentConfigStruct,
+    CreateSessionRequestMetadataStruct, CreateSessionRequestStruct,
+    ListCapabilitiesDataCapabilitiesStateEnum, ListCapabilitiesDataCapabilitiesStruct,
+    ListCapabilitiesDataStruct, ListMcpServersDataServersStatusEnum,
+    ListMcpServersDataServersTransportEnum, ListMcpServersDataStruct, ListSessionsDataStruct,
+    ListSkillsDataSkillsSourceEnum, ListSkillsDataStruct, SessionSnapshotDataStruct,
+    SetProfileRequestStruct, SubmitPromptDataStruct, SubmitPromptRequestContentChoice,
+    SubmitPromptRequestContentChoiceImageSourceChoice, SubmitPromptRequestSkillsStruct,
+    SubmitPromptRequestStruct,
 };
 use crate::session::book::SessionBook;
 use crate::session::client::{PromptAttachment, PromptSkill};
 use crate::session::config::{
     ConfigControl, GoalSnapshot, controls, goal_snapshot, selector_patch,
 };
-use crate::session::{Cursor, McpServer, McpStatus, McpTransport, OpenedSession, Skill};
+use crate::session::{
+    Capability, CapabilityInstall, CapabilityReadiness, Cursor, McpServer, McpStatus, McpTransport,
+    OpenedSession, Skill,
+};
 
 /// 取信封里的 data。信封的 code 判据只有一处：根上那个类型化的 envelope_data。
 /// data 在这里仍是 Value —— 各路由的类型化解码随路由消费一批批接上。
@@ -39,6 +47,13 @@ pub(crate) fn envelope_data(body: &Value) -> Result<Value> {
         crate::error::EnvelopeError::Shape(error) => KapError::Transport {
             message: error.to_string(),
         },
+    })
+}
+
+/// 按快照类型读一条 data：字段名与形状的判据只有生成类型，没有第二条手挖的路。
+fn decoded<T: serde::de::DeserializeOwned>(data: Value, what: &str) -> Result<T> {
+    serde_json::from_value(data).map_err(|error| KapError::Transport {
+        message: format!("{what} does not fit the pinned contract: {error}"),
     })
 }
 
@@ -84,8 +99,8 @@ pub(crate) fn create_session_body(cwd: &Path) -> CreateSessionRequestStruct {
 /// POST /sessions/{id}/profile 的请求体：只带要改的那一格，其余缺席不上 wire。
 pub(crate) fn profile_body(
     patch: CreateSessionRequestAgentConfigStruct,
-) -> CreateSessionRequestStruct {
-    CreateSessionRequestStruct {
+) -> SetProfileRequestStruct {
+    SetProfileRequestStruct {
         agent_config: Some(patch),
         ..Default::default()
     }
@@ -122,12 +137,9 @@ pub(crate) async fn submit_prompt(
         }
     };
 
-    data.get("prompt_id")
-        .and_then(Value::as_str)
-        .map(str::to_owned)
-        .ok_or_else(|| KapError::Transport {
-            message: format!("no prompt_id in prompt response: {data}"),
-        })
+    let accepted: SubmitPromptDataStruct = decoded(data, "prompt submission")?;
+
+    Ok(accepted.prompt_id)
 }
 
 fn prompt_body(
@@ -186,26 +198,12 @@ pub(crate) async fn session_snapshot(
     session_id: &str,
 ) -> Result<(Cursor, Value)> {
     let data = get(http, &format!("{base_url}/sessions/{session_id}/snapshot")).await?;
-    let _: crate::generated::rest::SessionSnapshotDataStruct = serde_json::from_value(data.clone())
-        .map_err(|error| KapError::Transport {
-            message: format!("snapshot does not fit the pinned contract: {error}"),
-        })?;
-    let seq = data
-        .get("as_of_seq")
-        .and_then(Value::as_i64)
-        .ok_or_else(|| KapError::Transport {
-            message: "snapshot has no as_of_seq".to_owned(),
-        })?;
-    let epoch = data
-        .get("epoch")
-        .and_then(Value::as_str)
-        .ok_or_else(|| KapError::Transport {
-            message: "snapshot has no epoch".to_owned(),
-        })?;
+    let snapshot: SessionSnapshotDataStruct = decoded(data.clone(), "snapshot")?;
+
     Ok((
         Cursor {
-            seq,
-            epoch: Some(epoch.to_owned()),
+            seq: snapshot.as_of_seq,
+            epoch: Some(snapshot.epoch),
         },
         data,
     ))
@@ -245,15 +243,9 @@ pub(crate) async fn open_session(
     )
     .await?;
 
-    let id = data
-        .get("id")
-        .and_then(Value::as_str)
-        .ok_or_else(|| KapError::Transport {
-            message: format!("no session id in POST /sessions response: {data}"),
-        })?
-        .to_owned();
+    let opened: CreateSessionDataStruct = decoded(data, "created session")?;
 
-    activate(http, base_url, &id, None, book, ws).await
+    activate(http, base_url, &opened.id, None, book, ws).await
 }
 
 /// kap 的会话在 server 侧持久：装载 = 验存在 + 重新订阅。号在 server 侧也没了
@@ -288,13 +280,8 @@ pub(crate) async fn fork_session(
     )
     .await?;
 
-    let id = data
-        .get("id")
-        .and_then(Value::as_str)
-        .ok_or_else(|| KapError::Transport {
-            message: format!("no session id in fork response: {data}"),
-        })?
-        .to_owned();
+    let forked: CreateSessionDataStruct = decoded(data, "forked session")?;
+    let id = forked.id;
 
     // 分叉点。:fork 的请求体只有 title 与 metadata（kap-server 的
     // sessionForkSchema），没有分叉点这一格；能回退上下文的只有 :undo，它按用户
@@ -335,27 +322,15 @@ pub(crate) async fn list_sessions(
     base_url: &str,
 ) -> Result<Vec<crate::session::SessionEntry>> {
     let data = get(http, &format!("{base_url}/sessions")).await?;
+    let listed: ListSessionsDataStruct = decoded(data, "session list")?;
 
-    let items = data
-        .get("items")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-
-    Ok(items
-        .iter()
-        .filter_map(|item| {
-            let id = item.get("id").and_then(Value::as_str)?.to_owned();
-            let title = item.get("title").and_then(Value::as_str).map(str::to_owned);
-            let updated_at = item
-                .get("updated_at")
-                .and_then(Value::as_str)
-                .map(str::to_owned);
-            Some(crate::session::SessionEntry {
-                session_id: id,
-                title,
-                updated_at,
-            })
+    Ok(listed
+        .items
+        .into_iter()
+        .map(|item| crate::session::SessionEntry {
+            session_id: item.id,
+            title: (!item.title.is_empty()).then_some(item.title),
+            updated_at: item.updated_at.as_str().map(str::to_owned),
         })
         .collect())
 }
@@ -384,31 +359,27 @@ pub(crate) async fn list_skills(
     session_id: &str,
 ) -> Result<Vec<Skill>> {
     let data = get(http, &format!("{base_url}/sessions/{session_id}/skills")).await?;
-
-    let listed = data
-        .get("skills")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    let listed: ListSkillsDataStruct = decoded(data, "skill list")?;
 
     Ok(listed
-        .iter()
-        .filter_map(|item| {
-            Some(Skill {
-                name: item.get("name").and_then(Value::as_str)?.to_owned(),
-                description: item
-                    .get("description")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .to_owned(),
-                source: item
-                    .get("source")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .to_owned(),
-            })
+        .skills
+        .into_iter()
+        .map(|item| Skill {
+            name: item.name,
+            description: item.description,
+            source: skill_source(item.source).to_owned(),
         })
         .collect())
+}
+
+/// 技能来源的领域写法与 wire 同名；判别式在生成枚举里，这里只落成名字。
+const fn skill_source(source: ListSkillsDataSkillsSourceEnum) -> &'static str {
+    match source {
+        ListSkillsDataSkillsSourceEnum::Project => "project",
+        ListSkillsDataSkillsSourceEnum::User => "user",
+        ListSkillsDataSkillsSourceEnum::Extra => "extra",
+        ListSkillsDataSkillsSourceEnum::Builtin => "builtin",
+    }
 }
 
 pub(crate) async fn list_mcp_servers(
@@ -416,61 +387,30 @@ pub(crate) async fn list_mcp_servers(
     base_url: &str,
 ) -> Result<Vec<McpServer>> {
     let data = get(http, &format!("{base_url}/mcp/servers")).await?;
-    let listed = data
-        .get("servers")
-        .and_then(Value::as_array)
-        .ok_or_else(|| KapError::Transport {
-            message: "MCP response has no servers array".to_owned(),
-        })?;
+    let listed: ListMcpServersDataStruct = decoded(data, "MCP server list")?;
+
     listed
-        .iter()
+        .servers
+        .into_iter()
         .map(|item| {
-            let required = |key: &str| {
-                item.get(key)
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| KapError::Transport {
-                        message: format!("MCP server has no {key}: {item}"),
-                    })
-            };
-            let transport = match required("transport")? {
-                "stdio" => McpTransport::Stdio,
-                "http" => McpTransport::Http,
-                "sse" => McpTransport::Sse,
-                other => {
-                    return Err(KapError::Transport {
-                        message: format!("unknown MCP transport {other}"),
-                    });
-                }
-            };
-            let status = match required("status")? {
-                "connected" => McpStatus::Connected,
-                "connecting" => McpStatus::Connecting,
-                "disconnected" => McpStatus::Disconnected,
-                "error" => McpStatus::Error,
-                other => {
-                    return Err(KapError::Transport {
-                        message: format!("unknown MCP status {other}"),
-                    });
-                }
-            };
-            let count = item
-                .get("tool_count")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| KapError::Transport {
-                    message: format!("MCP server has no tool_count: {item}"),
-                })?;
             Ok(McpServer {
-                id: required("id")?.to_owned(),
-                name: required("name")?.to_owned(),
-                transport,
-                status,
-                tool_count: u32::try_from(count).map_err(|_| KapError::Transport {
-                    message: format!("MCP tool_count is too large: {count}"),
+                id: item.id,
+                name: item.name,
+                transport: match item.transport {
+                    ListMcpServersDataServersTransportEnum::Stdio => McpTransport::Stdio,
+                    ListMcpServersDataServersTransportEnum::Http => McpTransport::Http,
+                    ListMcpServersDataServersTransportEnum::Sse => McpTransport::Sse,
+                },
+                status: match item.status {
+                    ListMcpServersDataServersStatusEnum::Connected => McpStatus::Connected,
+                    ListMcpServersDataServersStatusEnum::Connecting => McpStatus::Connecting,
+                    ListMcpServersDataServersStatusEnum::Disconnected => McpStatus::Disconnected,
+                    ListMcpServersDataServersStatusEnum::Error => McpStatus::Error,
+                },
+                tool_count: u32::try_from(item.tool_count).map_err(|_| KapError::Transport {
+                    message: format!("MCP tool_count is out of range: {}", item.tool_count),
                 })?,
-                last_error: item
-                    .get("last_error")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned),
+                last_error: item.last_error,
             })
         })
         .collect()
@@ -480,24 +420,28 @@ pub(crate) async fn list_mcp_servers(
 pub(crate) async fn list_capabilities(
     http: &reqwest::Client,
     base_url: &str,
-) -> Result<Vec<crate::session::Capability>> {
+) -> Result<Vec<Capability>> {
     let data = get(http, &format!("{base_url}/capabilities")).await?;
-    validate_capability_list(&data)?;
-    capabilities_of(&data)
+    let listed: ListCapabilitiesDataStruct = decoded(data, "capability list")?;
+
+    Ok(listed.capabilities.into_iter().map(capability_of).collect())
 }
 
 const CAPABILITY_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(700);
-const CAPABILITY_POLL_ATTEMPTS: u32 = 260;
+/// 等待上限 10 分钟：上游光 Windows runtime 一步就给 180s（kimi-code 的
+/// WINDOWS_INSTALL_TIMEOUT_MS），之外还有下载、插件层与体检 —— 等短了会把还在
+/// 装的判成装失败。
+const CAPABILITY_POLL_ATTEMPTS: u32 = 600_000 / 700;
 
 /// 启动或跟随 KAP 的后台安装，直到它明确落定。
 pub(crate) async fn install_capability(
     http: &reqwest::Client,
     base_url: &str,
     capability_id: &str,
-) -> Result<crate::session::Capability> {
+) -> Result<Capability> {
     let mut latest = get_capability(http, base_url, capability_id).await?;
 
-    if latest.state == crate::session::CapabilityReadiness::Ready && !latest.install.running {
+    if latest.state == CapabilityReadiness::Ready && !latest.install.running {
         return Ok(latest);
     }
 
@@ -508,8 +452,7 @@ pub(crate) async fn install_capability(
             &serde_json::json!({}),
         )
         .await?;
-        validate_capability(&accepted)?;
-        latest = capability_of(&accepted)?;
+        latest = capability_of(decoded(accepted, "capability")?);
     }
 
     for _ in 0..CAPABILITY_POLL_ATTEMPTS {
@@ -521,7 +464,7 @@ pub(crate) async fn install_capability(
     }
 
     Err(KapError::Timeout {
-        message: format!("capability {capability_id} did not finish installing in time"),
+        message: format!("kap is still installing {capability_id}"),
     })
 }
 
@@ -529,92 +472,35 @@ async fn get_capability(
     http: &reqwest::Client,
     base_url: &str,
     capability_id: &str,
-) -> Result<crate::session::Capability> {
+) -> Result<Capability> {
     let data = get(http, &format!("{base_url}/capabilities/{capability_id}")).await?;
-    validate_capability(&data)?;
-    capability_of(&data)
+
+    Ok(capability_of(decoded(data, "capability")?))
 }
 
-fn validate_capability_list(data: &Value) -> Result<()> {
-    serde_json::from_value::<ListCapabilitiesDataStruct>(data.clone())
-        .map(|_| ())
-        .map_err(|error| KapError::Transport {
-            message: format!("capability list does not fit the pinned contract: {error}"),
-        })
-}
-
-fn validate_capability(data: &Value) -> Result<()> {
-    serde_json::from_value::<ListCapabilitiesDataCapabilitiesStruct>(data.clone())
-        .map(|_| ())
-        .map_err(|error| KapError::Transport {
-            message: format!("capability does not fit the pinned contract: {error}"),
-        })
-}
-
-fn capabilities_of(data: &Value) -> Result<Vec<crate::session::Capability>> {
-    let listed = data
-        .get("capabilities")
-        .and_then(Value::as_array)
-        .ok_or_else(|| KapError::Transport {
-            message: "capability response has no capabilities array".to_owned(),
-        })?;
-    listed.iter().map(capability_of).collect()
-}
-
-fn required_str<'a>(raw: &'a Value, key: &str) -> Result<&'a str> {
-    raw.get(key)
-        .and_then(Value::as_str)
-        .ok_or_else(|| KapError::Transport {
-            message: format!("capability has no string {key}: {raw}"),
-        })
-}
-
-fn capability_of(raw: &Value) -> Result<crate::session::Capability> {
-    let state = match required_str(raw, "state")? {
-        "not_installed" => crate::session::CapabilityReadiness::NotInstalled,
-        "partial" => crate::session::CapabilityReadiness::Partial,
-        "ready" => crate::session::CapabilityReadiness::Ready,
-        "unsupported" => crate::session::CapabilityReadiness::Unsupported,
-        other => {
-            return Err(KapError::Transport {
-                message: format!("capability has unknown state {other}"),
-            });
-        }
-    };
-    let install = raw.get("install").filter(|value| !value.is_null());
-
-    Ok(crate::session::Capability {
-        id: required_str(raw, "id")?.to_owned(),
-        plugin_id: raw
-            .get("pluginId")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
-        label: required_str(raw, "displayName")?.to_owned(),
-        supported: raw
-            .get("supported")
-            .and_then(Value::as_bool)
-            .ok_or_else(|| KapError::Transport {
-                message: format!("capability has no boolean supported: {raw}"),
-            })?,
-        state,
-        install: crate::session::CapabilityInstall {
-            running: install
-                .and_then(|value| value.get("running"))
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
-            step: install
-                .and_then(|value| value.get("step"))
-                .and_then(Value::as_str)
-                .map(str::to_owned),
-            percent: install
-                .and_then(|value| value.get("percent"))
-                .and_then(Value::as_f64),
-            error: install
-                .and_then(|value| value.get("error"))
-                .and_then(Value::as_str)
-                .map(str::to_owned),
+fn capability_of(wire: ListCapabilitiesDataCapabilitiesStruct) -> Capability {
+    Capability {
+        id: wire.id,
+        plugin_id: wire.plugin_id,
+        label: wire.display_name,
+        supported: wire.supported,
+        state: match wire.state {
+            ListCapabilitiesDataCapabilitiesStateEnum::NotInstalled => {
+                CapabilityReadiness::NotInstalled
+            }
+            ListCapabilitiesDataCapabilitiesStateEnum::Partial => CapabilityReadiness::Partial,
+            ListCapabilitiesDataCapabilitiesStateEnum::Ready => CapabilityReadiness::Ready,
+            ListCapabilitiesDataCapabilitiesStateEnum::Unsupported => {
+                CapabilityReadiness::Unsupported
+            }
         },
-    })
+        install: CapabilityInstall {
+            running: wire.install.running,
+            step: wire.install.step,
+            percent: wire.install.percent,
+            error: wire.install.error,
+        },
+    }
 }
 
 /// 给这条会话绑上模型。

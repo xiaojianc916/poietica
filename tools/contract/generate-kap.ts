@@ -5,8 +5,8 @@
  * 结构的机械翻译。客户端说了什么、听了什么，由本文件尾部的两份清单声明 ——
  * 协议里其余的消息是 kimi-code 的能力，本客户端不使用，生成它们就是死代码。
  *
- * 快照里没有的路由（:fork / :undo / :abort 等动作后缀）不在清单里：生成器的
- * 输入必须存在，这些路由的补齐随快照刷新（bun run kap:spec）一起回来。
+ * 动作后缀（:fork / :undo / :install）在快照里由 {tail} 路由承接：清单按快照
+ * 的路径写，写不出的路由生成即失败。
  *
  * 跑法：bun run kap:generate（package.json）。产出禁手改。
  */
@@ -643,6 +643,13 @@ const REST_ROUTES: RestRoute[] = [
   { method: 'get', path: '/api/v1/sessions/{session_id}/skills', name: 'ListSkills', data: true },
   { method: 'get', path: '/api/v1/mcp/servers', name: 'ListMcpServers', data: true },
   { method: 'get', path: '/api/v1/capabilities', name: 'ListCapabilities', data: true },
+  {
+    method: 'get',
+    path: '/api/v1/capabilities/{capability_id}',
+    name: 'GetCapability',
+    data: true,
+  },
+  { method: 'post', path: '/api/v1/capabilities/{tail}', name: 'InstallCapability', data: true },
   { method: 'get', path: '/api/v1/sessions/{session_id}/goal', name: 'SessionGoal', data: true },
   { method: 'get', path: '/api/v1/models', name: 'ListModels', data: true },
 ]
