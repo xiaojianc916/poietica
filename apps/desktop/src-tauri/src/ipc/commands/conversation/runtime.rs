@@ -152,9 +152,8 @@ impl AgentRuntime {
     }
     /// Prepares the runtime without starting anything.
     ///
-    /// Starting the agent process at boot would make every launch pay for a
-    /// feature the user may never open, so the process is spawned on the
-    /// first prompt instead.
+    /// Starting the agent process at boot would make every launch pay for an unused
+    /// feature, so the process is spawned by the first operation that needs the host.
     ///
     /// # Errors
     ///

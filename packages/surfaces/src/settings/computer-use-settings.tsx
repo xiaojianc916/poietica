@@ -1,16 +1,17 @@
 import { Button, Switch } from '@poietica/design-system'
 import { COMPUTER_USE, type ComputerUse, computerUse, type PluginStore } from '@poietica/extension'
 import { assertUnreachable } from '@poietica/problem'
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { SettingRow, SettingsGroup, SettingsPage } from './surface/settings-primitives'
 
 const LABEL = 'Kimi Computer Use'
 const UNREAD = '正在读取本机 Kimi 的安装状态…'
-const UNREACHABLE = '本机 Kimi 尚未连接，连接后即可安装。'
 const UNLISTED = '当前 Kimi 版本没有提供这项能力。'
 const UNSUPPORTED = '这台电脑不支持这项能力。'
 const INSTALLING = '正在安装 Kimi Computer Use…'
 const INSTALLABLE = '让它看屏幕、移动鼠标、敲键盘替你操作这台电脑。'
+const REPAIRABLE = '安装不完整，修复后即可使用。'
+const READY = '已就绪。'
 const ENABLED = '已开启。'
 const DISABLED = '已关闭。'
 
@@ -20,6 +21,11 @@ export interface ComputerUseSettingsProps {
 
 export function ComputerUseSettings({ store }: ComputerUseSettingsProps) {
   const state = computerUse(useSyncExternalStore(store.subscribe, store.getSnapshot))
+
+  useEffect(() => {
+    store.refreshCapabilities()
+  }, [store])
+
   return (
     <SettingsPage>
       <SettingsGroup>
@@ -35,8 +41,8 @@ function describe(state: ComputerUse): string {
   switch (state.kind) {
     case 'unread':
       return UNREAD
-    case 'unreachable':
-      return UNREACHABLE
+    case 'unavailable':
+      return `无法启动本机 Kimi：${state.reason}`
     case 'unlisted':
       return UNLISTED
     case 'unsupported':
@@ -47,10 +53,12 @@ function describe(state: ComputerUse): string {
       return `安装失败：${state.reason}`
     case 'installable':
       return INSTALLABLE
-    case 'installed': {
-      const verdict = state.enabled ? ENABLED : DISABLED
-      return state.issue === undefined ? verdict : `${verdict} ${state.issue}`
-    }
+    case 'repairable':
+      return REPAIRABLE
+    case 'ready':
+      return READY
+    case 'installed':
+      return state.enabled ? ENABLED : DISABLED
     default:
       return assertUnreachable(state)
   }
@@ -63,7 +71,14 @@ interface ControlProps {
 
 function Control({ state, store }: ControlProps) {
   switch (state.kind) {
+    case 'unavailable':
+      return (
+        <Button onClick={store.refreshCapabilities} size="xs" type="button" variant="soft">
+          重试
+        </Button>
+      )
     case 'installable':
+    case 'repairable':
     case 'failed':
       return (
         <Button
@@ -72,7 +87,7 @@ function Control({ state, store }: ControlProps) {
           type="button"
           variant="soft"
         >
-          {state.kind === 'installable' ? '安装' : '重试'}
+          {state.kind === 'installable' ? '安装' : state.kind === 'repairable' ? '修复' : '重试'}
         </Button>
       )
     case 'installing':
@@ -91,9 +106,9 @@ function Control({ state, store }: ControlProps) {
         />
       )
     case 'unread':
-    case 'unreachable':
     case 'unlisted':
     case 'unsupported':
+    case 'ready':
       return null
     default:
       return assertUnreachable(state)

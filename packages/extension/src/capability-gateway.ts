@@ -1,13 +1,8 @@
-import type { AgentCapability, AgentCapabilityReport } from '@poietica/contract'
+import type { AgentCapability } from '@poietica/contract'
 
-/*
- * 本机能力账本的端口：装到哪一步由本机 kap 说。
- *
- * DTO 不在这里声明 —— 产地是 Rust，经由生成绑定过来。
- */
-
+/* KAP 是能力就绪与安装的唯一事实源；连接生命周期由原生适配器处理。 */
 export interface CapabilityGateway {
-  readCapabilities(): Promise<AgentCapabilityReport>
+  readCapabilities(): Promise<readonly AgentCapability[]>
   /** 跟随已有后台任务，必要时启动安装，并在落定后返回最终状态。 */
   installCapability(capabilityId: string): Promise<AgentCapability>
 }

@@ -195,6 +195,8 @@ export interface PluginStore {
    * 这里不下载任何东西：取件、解压、装到哪，全在本机 kap 那一侧。
    */
   readonly installCapability: (capabilityId: string) => void
+  /** 重新读取 KAP 能力；连接不存在时由原生运行时建立。 */
+  readonly refreshCapabilities: () => void
   readonly refreshMarketplace: () => void
   /**
    * 装一个技能：取件、解压、按前言取名、落进 skills/<name>/。一键到底，无确认步 ——
@@ -573,7 +575,27 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
   /* 能力清单只有一个读者，也只有一个写者：这一格。 */
   async function readCapabilities(): Promise<void> {
-    publish({ capabilities: await options.capability.readCapabilities() })
+    try {
+      const capabilities = await options.capability.readCapabilities()
+
+      publish({ capabilities: { kind: 'reported', capabilities } })
+    } catch (cause: unknown) {
+      const reason = cause instanceof Error ? cause.message : String(cause)
+
+      warn('本机能力清单读取失败', { scope: 'plugins', cause })
+      publish({ capabilities: { kind: 'failed', reason } })
+    }
+  }
+
+  let capabilityReadQueued = false
+
+  function queueCapabilityRead(): void {
+    if (capabilityReadQueued) return
+
+    capabilityReadQueued = true
+    queue = queue.then(readCapabilities).finally(() => {
+      capabilityReadQueued = false
+    })
   }
 
   function publishFlow(flow: InstallFlowKey, state: InstallFlow): void {
@@ -688,9 +710,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
             environment = []
           }),
           loadCatalog(),
-          guard('本机能力清单读不出来', readCapabilities, () => {
-            publish({ capabilities: CAPABILITIES_UNREAD })
-          }),
+          readCapabilities(),
         ])
 
         /*
@@ -733,6 +753,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           )
 
           republish()
+          queueCapabilityRead()
         },
       )
     },
@@ -764,6 +785,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           )
 
           republish()
+          queueCapabilityRead()
         },
       )
     },
@@ -819,7 +841,10 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           await gateway.removePlugin(pluginId)
           await rescan()
         },
-        republish,
+        () => {
+          republish()
+          queueCapabilityRead()
+        },
       )
     },
 
@@ -944,6 +969,10 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       )
     },
 
+    refreshCapabilities() {
+      queueCapabilityRead()
+    },
+
     installCapability(capabilityId) {
       publish({ capabilityCommand: { kind: 'pending', capabilityId } })
 
@@ -965,7 +994,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           republish()
         } catch (cause: unknown) {
           await Promise.all([
-            guard('能力安装失败后无法重新读取状态', readCapabilities, () => {}),
+            readCapabilities(),
             guard('能力安装失败后无法重新读取插件账本', rescan, () => {}),
           ])
           republish()
@@ -1035,6 +1064,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       }
 
       republish()
+      queueCapabilityRead()
     })
   }
 }

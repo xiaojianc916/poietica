@@ -29,39 +29,61 @@ function installed(pluginId: string, enabled: boolean): InstalledPlugin {
 }
 
 describe('computerUse', () => {
-  it('shows install when the capability plugin is absent', () => {
-    expect(project(base)).toEqual({ kind: 'installable' })
+  it('uses KAP readiness as the installation truth', () => {
+    expect(project({ ...base, state: 'ready' })).toEqual({ kind: 'ready' })
+    expect(project({ ...base, state: 'notInstalled' }, [installed('kimi-cu-win', true)])).toEqual({
+      kind: 'installable',
+    })
   })
 
-  it('shows the ledger switch even when a disabled plugin makes capability partial', () => {
+  it('offers repair for a partial enabled installation', () => {
+    expect(project(base, [installed('kimi-cu-win', true)])).toEqual({ kind: 'repairable' })
+  })
+
+  it('keeps the official plugin switch for a disabled partial installation', () => {
     expect(project(base, [installed('kimi-cu-win', false)])).toEqual({
       kind: 'installed',
       pluginId: 'kimi-cu-win',
       enabled: false,
-      issue: '插件已安装，但 Kimi 运行时尚未就绪。',
     })
   })
 
-  it('uses the plugin id reported by KAP on every platform', () => {
+  it('uses the platform plugin id reported by KAP', () => {
     const mac = { ...base, pluginId: 'kimi-cu', state: 'ready' as const }
     expect(project(mac, [installed('kimi-cu', true)])).toEqual({
       kind: 'installed',
       pluginId: 'kimi-cu',
       enabled: true,
-      issue: undefined,
     })
   })
 
-  it('keeps the installation state stable while the command is pending', () => {
+  it('keeps installation stable while the command is pending', () => {
     expect(project(base, [], { kind: 'pending', capabilityId: 'kimi-cu' })).toEqual({
       kind: 'installing',
     })
   })
 
-  it('surfaces the KAP installation error and allows retry', () => {
+  it('surfaces connection and installation failures separately', () => {
+    expect(
+      computerUse({
+        capabilities: { kind: 'failed', reason: 'Kimi failed to start' },
+        capabilityCommand: CAPABILITY_COMMAND_IDLE,
+        plugins: [],
+      }),
+    ).toEqual({ kind: 'unavailable', reason: 'Kimi failed to start' })
     expect(project({ ...base, install: { ...base.install, error: 'runtime failed' } })).toEqual({
       kind: 'failed',
       reason: 'runtime failed',
     })
+  })
+
+  it('does not let an ambiguous command error override observed readiness', () => {
+    expect(
+      project({ ...base, state: 'ready' }, [], {
+        kind: 'failed',
+        capabilityId: 'kimi-cu',
+        reason: 'connection closed after acceptance',
+      }),
+    ).toEqual({ kind: 'ready' })
   })
 })

@@ -369,7 +369,7 @@ pub fn own_home_directory(app: &AppHandle) -> Result<Option<PathBuf>> {
 ///
 /// 空串当作没有：agents.json 里那一格的缺省值就是空串，拿它去查档案只会得到一句
 /// 「agents.json 里没有  的接入档案」。
-fn default_agent_id(app: &AppHandle) -> Result<String> {
+pub(crate) fn default_agent_id(app: &AppHandle) -> Result<String> {
     let (config, _issues) = read_config(app)?;
 
     if config.default_agent_id.is_empty() {
