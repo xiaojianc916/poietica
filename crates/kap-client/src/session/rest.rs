@@ -476,6 +476,106 @@ pub(crate) async fn list_mcp_servers(
         .collect()
 }
 
+/// 本机 kap 报的能力清单。字段名钉在 contracts/kap 的快照上。
+pub(crate) async fn list_capabilities(http: &reqwest::Client, base_url: &str) -> crate::error::Result<Vec<crate::session::Capability>> {
+    let data = get(http, &format!("{base_url}/capabilities")).await?;
+
+    capabilities_of(&data)
+}
+
+/// 请本机 kap 装一项能力。POST 幂等，进度靠再问一次。
+///
+/// 轮询上限到了不算失败：交回此刻的进度，界面照实说还差哪一步。
+pub(crate) async fn install_capability(
+    http: &reqwest::Client, base_url: &str,
+    capability_id: &str,
+) -> crate::error::Result<crate::session::Capability> {
+    const POLL: std::time::Duration = std::time::Duration::from_millis(1_200);
+    const ATTEMPTS: u32 = 50;
+
+    let accepted = post(
+        http,
+        &format!("{base_url}/capabilities/{capability_id}:install"),
+        &serde_json::json!({}),
+    )
+    .await?;
+
+    let mut latest = pluck(&accepted, capability_id);
+
+    for _attempt in 0..ATTEMPTS {
+        if latest
+            .as_ref()
+            .is_some_and(|capability| capability.steps.iter().all(|step| step.satisfied))
+        {
+            break;
+        }
+
+        tokio::time::sleep(POLL).await;
+
+        let polled = get(http, &format!("{base_url}/capabilities/{capability_id}")).await?;
+
+        latest = pluck(&polled, capability_id);
+    }
+
+    latest.ok_or_else(|| crate::error::KapError::Validation {
+        message: format!("kap 没有报告能力 {capability_id} 的状态"),
+    })
+}
+
+/// 一条应答里那一项能力：单条与整列同一条解码路径。
+fn pluck(data: &serde_json::Value, capability_id: &str) -> Option<crate::session::Capability> {
+    if let Some(direct) = capability_of(data)
+        && direct.id == capability_id
+    {
+        return Some(direct);
+    }
+
+    capabilities_of(data)
+        .ok()?
+        .into_iter()
+        .find(|listed| listed.id == capability_id)
+}
+
+fn capabilities_of(
+    data: &serde_json::Value,
+) -> crate::error::Result<Vec<crate::session::Capability>> {
+    let listed = data.get("capabilities").and_then(serde_json::Value::as_array).ok_or_else(|| crate::error::KapError::Validation {
+        message: "kap 的能力清单不是快照钉住的形状".to_owned(),
+    })?;
+
+    Ok(listed.iter().filter_map(capability_of).collect())
+}
+
+fn capability_of(raw: &serde_json::Value) -> Option<crate::session::Capability> {
+    let id = raw.get("id")?.as_str()?.to_owned();
+    let label = raw.get("displayName").and_then(serde_json::Value::as_str).unwrap_or(&id).to_owned();
+
+    Some(crate::session::Capability {
+        supported: raw.get("supported").and_then(serde_json::Value::as_bool).unwrap_or(true),
+        steps: raw
+            .get("steps")
+            .and_then(serde_json::Value::as_array)
+            .map(|steps| steps.iter().map(step_of).collect())
+            .unwrap_or_default(),
+        id,
+        label,
+    })
+}
+
+fn step_of(raw: &serde_json::Value) -> crate::session::CapabilityStep {
+    let id = raw.get("id").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned();
+    let label = id.clone();
+    let state = raw.get("state").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned();
+
+    crate::session::CapabilityStep {
+        satisfied: matches!(state.as_str(), "ok"),
+        id,
+        label,
+        state,
+    }
+}
+
+
 /// 给这条会话绑上模型。
 ///
 /// 新开的会话没有模型：POST /sessions 的 body 里就没有这一格

@@ -207,6 +207,25 @@ pub enum McpStatus {
     Error,
 }
 
+/// 本机 kap 报的一项能力。装到哪一步由它的步骤说，所以就绪度不是一个布尔。
+#[derive(Debug, Clone)]
+pub struct Capability {
+    pub id: String,
+    pub label: String,
+    pub supported: bool,
+    pub steps: Vec<CapabilityStep>,
+}
+
+/// 一项能力里的一层：插件装没装、运行时装没装，各是一条。
+#[derive(Debug, Clone)]
+pub struct CapabilityStep {
+    pub id: String,
+    pub label: String,
+    /// kap 报的这一步状态原文。
+    pub state: String,
+    pub satisfied: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct McpServer {
     pub id: String,

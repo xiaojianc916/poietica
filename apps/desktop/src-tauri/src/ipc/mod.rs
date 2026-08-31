@@ -41,6 +41,9 @@ use commands::{
         AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentSelectConfigRequest,
         AgentSessionEvent, AgentThreadRequest, AgentTurnMark,
     },
+    conversation::capability::{
+        AgentCapability, AgentCapabilityInstallRequest, AgentCapabilityReport, AgentCapabilityStep,
+    },
     conversation::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
     extension::{
         ForeignPluginInventory, ForeignPluginRecord, PluginCommitRequest, PluginFetch,
@@ -75,6 +78,8 @@ pub fn surface() -> Builder<Wry> {
             commands::conversation::config::agent_set_config_option,
             commands::conversation::config::agent_capabilities,
             commands::conversation::toolkit::agent_toolkit,
+            commands::conversation::capability::agent_capability_report,
+            commands::conversation::capability::agent_capability_install,
             commands::conversation::thread::agent_threads,
             commands::conversation::thread::agent_thread_snapshot,
             commands::conversation::thread::agent_open_thread,
@@ -202,6 +207,10 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentMcpServer>()
         .typ::<AgentMcpStatus>()
         .typ::<AgentToolkit>()
+        .typ::<AgentCapabilityStep>()
+        .typ::<AgentCapability>()
+        .typ::<AgentCapabilityReport>()
+        .typ::<AgentCapabilityInstallRequest>()
         .typ::<AgentRenameThreadRequest>()
         .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()

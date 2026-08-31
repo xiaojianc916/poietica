@@ -176,6 +176,26 @@ async agentToolkit(request: AgentToolkitRequest) : Promise<AgentToolkit> {
     return await TAURI_INVOKE("agent_toolkit", { request });
 },
 /**
+ * 本机 kap 此刻报的能力清单。
+ * 
+ * # Errors
+ * 
+ * kap 拒绝或链路故障时失败。没有连接不是失败：那一刻没有人能回答。
+ */
+async agentCapabilityReport() : Promise<AgentCapabilityReport> {
+    return await TAURI_INVOKE("agent_capability_report");
+},
+/**
+ * 让本机 kap 装一项能力。幂等，交回它此刻的进度。
+ * 
+ * # Errors
+ * 
+ * 没有连接、kap 拒绝，或它装完仍不报这项能力时失败。
+ */
+async agentCapabilityInstall(request: AgentCapabilityInstallRequest) : Promise<AgentCapability> {
+    return await TAURI_INVOKE("agent_capability_install", { request });
+},
+/**
  * Lists the stored conversations, newest first.
  * 
  * A read, and nothing but a read: the names come from the ranking in
@@ -1214,6 +1234,17 @@ launch: AgentLaunch;
  * The working directory the session is created against.
  */
 cwd: string | null }
+export type AgentCapability = { id: string; label: string; supported: boolean; steps: AgentCapabilityStep[] }
+export type AgentCapabilityInstallRequest = { capabilityId: string }
+/**
+ * 「没连上」与「连上了，它这么说」不是一件事，所以判别式在类型里。
+ */
+export type AgentCapabilityReport = { kind: "unreachable" } | { kind: "reported"; capabilities: AgentCapability[] }
+export type AgentCapabilityStep = { id: string; label: string; 
+/**
+ * kap 报的这一步状态原文。
+ */
+state: string; satisfied: boolean }
 export type AgentCliRequest = { 
 /**
  * 用于算出受控 home，也用于从档案里查出该执行哪个程序。

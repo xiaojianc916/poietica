@@ -5,7 +5,7 @@ use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use futures::channel::{mpsc, oneshot};
 
 use super::config::{ConfigControl, GoalSnapshot};
-use super::{Cursor, McpServer, OpenedSession, SessionEntry, Skill};
+use super::{Capability, Cursor, McpServer, OpenedSession, SessionEntry, Skill};
 use crate::error::{KapError, Refusal, Result};
 use crate::recorder::FrameSink;
 
@@ -110,6 +110,15 @@ pub(crate) enum Command {
     /// Kimi 当前进程检测到的 MCP server。
     McpServers {
         reply: oneshot::Sender<Result<Vec<McpServer>>>,
+    },
+    /// 本机 kap 报的能力清单。
+    Capabilities {
+        reply: oneshot::Sender<Result<Vec<Capability>>>,
+    },
+    /// 让本机 kap 装一项能力，交回它此刻的进度。
+    InstallCapability {
+        capability_id: String,
+        reply: oneshot::Sender<Result<Capability>>,
     },
     Prompt {
         /// The session this turn belongs to.
@@ -469,6 +478,39 @@ impl AgentClient {
     pub async fn mcp_servers(&self) -> Result<Vec<McpServer>> {
         let (reply, answer) = oneshot::channel();
         self.send(Command::McpServers { reply })?;
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
+    }
+
+    /// 本机 kap 报的能力清单：某项能力装到哪一步，只有它说得出。
+    ///
+    /// # Errors
+    ///
+    /// 连接已退场，或 kap 拒绝列举。
+    pub async fn capabilities(&self) -> Result<Vec<Capability>> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Capabilities { reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
+    }
+
+    /// 让本机 kap 装一项能力。幂等，交回它此刻的进度。
+    ///
+    /// # Errors
+    ///
+    /// 连接已退场，或 kap 拒绝安装。
+    pub async fn install_capability(&self, capability_id: String) -> Result<Capability> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::InstallCapability {
+            capability_id,
+            reply,
+        })?;
+
         answer
             .await
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?

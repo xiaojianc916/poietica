@@ -1,4 +1,11 @@
 import { assertUnreachable, warn } from '@poietica/problem'
+import {
+  CAPABILITIES_UNREAD,
+  CAPABILITY_INSTALL_IDLE,
+  type CapabilityInstall,
+  type CapabilityInventory,
+} from './capability'
+import type { CapabilityGateway } from './capability-gateway'
 import type { ExtensionGateway } from './extension-gateway'
 import { type PluginFetchPlan, planFetch } from './fetch-plan'
 import {
@@ -69,6 +76,10 @@ export interface PluginsViewModel {
    * 什么只有受控 home 那本账说得出来。
    */
   readonly foreign: readonly ForeignPlugin[]
+  /** 本机 kap 报的能力清单：某项能力装到哪一步，只有它说得出。 */
+  readonly capabilities: CapabilityInventory
+  /** 一次能力安装的进行时。 */
+  readonly capabilityInstall: CapabilityInstall
   readonly marketplace: MarketplaceState
   readonly install: InstallFlow
   /** 本机 skills/ 里装着的技能：装了哪些、开没开，这一格说了算。 */
@@ -178,6 +189,12 @@ export interface PluginStore {
   readonly cancelInstall: () => void
   /** 放弃在途的技能安装。技能没有确认步，所以这里只有「不要了」一个语义。 */
   readonly cancelSkillInstall: () => void
+  /**
+   * 请本机 kap 装一项能力。幂等，装到哪一步由它报回来。
+   *
+   * 这里不下载任何东西：取件、解压、装到哪，全在本机 kap 那一侧。
+   */
+  readonly installCapability: (capabilityId: string) => void
   readonly refreshMarketplace: () => void
   /**
    * 装一个技能：取件、解压、按前言取名、落进 skills/<name>/。一键到底，无确认步 ——
@@ -196,6 +213,8 @@ export interface PluginStore {
 interface PluginStoreOptions {
   /** 账本与暂存区的唯一写路。必填：组合根忘了注入编译器当场拦下。 */
   readonly gateway: ExtensionGateway
+  /** 本机能力账本的唯一读写路。 */
+  readonly capability: CapabilityGateway
   /**
    * 市场目录在哪。
    *
@@ -259,6 +278,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     plugins: [],
     mcpServers: [],
     foreign: [],
+    capabilities: CAPABILITIES_UNREAD,
+    capabilityInstall: CAPABILITY_INSTALL_IDLE,
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
     ownedSkills: [],
@@ -298,20 +319,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     }
   }
 
-  /*
-   * 背书来自目录，不来自安装动作本身。
-   *
-   * 比的是描述串：目录条目里的来源和账本里记下的那一串是两个结构相同、引用不同的
-   * 东西，用 === 比永远不等，所有插件都会掉进 third-party。
-   */
-  function listing(described: string | undefined) {
-    if (described === undefined) {
-      return undefined
-    }
-
-    return latestCatalog(snapshot.marketplace)?.entries.find(
-      (entry) => describeInstallSource(entry.source) === described,
-    )
+  /* 背书来自目录，按插件号判：展示串不是标识，它换一个写法就不等了。 */
+  function listing(pluginId: string) {
+    return latestCatalog(snapshot.marketplace)?.entries.find((entry) => entry.id === pluginId)
   }
 
   /*
@@ -321,7 +331,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    */
   function republish(): void {
     const plugins: readonly InstalledPlugin[] = scanned.map((entry) => {
-      const listed = listing(entry.originalSource)
+      const listed = listing(entry.pluginId)
 
       return {
         pluginId: entry.pluginId,
@@ -493,8 +503,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     )
   }
 
-  function trustOf(source: PluginInstallSource): PluginTrustTier {
-    return listing(describeInstallSource(source))?.trust ?? UNLISTED_TRUST
+  function trustOf(pluginId: string): PluginTrustTier {
+    return listing(pluginId)?.trust ?? UNLISTED_TRUST
   }
 
   /*
@@ -559,6 +569,11 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         ),
       })
     }
+  }
+
+  /* 能力清单只有一个读者，也只有一个写者：这一格。 */
+  async function readCapabilities(): Promise<void> {
+    publish({ capabilities: await options.capability.readCapabilities() })
   }
 
   function publishFlow(flow: InstallFlowKey, state: InstallFlow): void {
@@ -673,6 +688,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
             environment = []
           }),
           loadCatalog(),
+          guard('本机能力清单读不出来', readCapabilities, () => {
+            publish({ capabilities: CAPABILITIES_UNREAD })
+          }),
         ])
 
         /*
@@ -826,7 +844,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
             return
           }
 
-          const trust = trustOf(source)
+          const trust = trustOf(decoded.manifest.name)
 
           publishFlow('install', {
             kind: 'staged',
@@ -924,6 +942,34 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         },
         republish,
       )
+    },
+
+    installCapability(capabilityId) {
+      publish({ capabilityInstall: { kind: 'installing', capabilityId } })
+
+      queue = queue.then(async () => {
+        try {
+          await options.capability.installCapability(capabilityId)
+        } catch (cause: unknown) {
+          publish({
+            capabilityInstall: {
+              kind: 'refused',
+              capabilityId,
+              reason: cause instanceof Error ? cause.message : String(cause),
+            },
+          })
+
+          return
+        }
+
+        publish({ capabilityInstall: CAPABILITY_INSTALL_IDLE })
+
+        try {
+          await readCapabilities()
+        } catch (cause: unknown) {
+          warn('能力装完了，清单读不回来', { scope: 'plugins', cause })
+        }
+      })
     },
 
     /* 目录换了背书就可能变，所以拉完要再投一次。 */

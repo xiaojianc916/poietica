@@ -28,6 +28,7 @@ use poietica_problem::Problem;
  */
 mod addressing;
 mod attachment;
+pub mod capability;
 pub mod config;
 pub mod custom_agents;
 pub mod dto;

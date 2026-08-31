@@ -46,8 +46,8 @@ use crate::session::client::{AgentClient, Command};
 use crate::session::coordinator::PromptJob;
 use crate::session::rest::{
     abort_session, archive_session, create_session_body, ensure_model, fetch_goal, fork_session,
-    get_selectors, list_mcp_servers, list_sessions, list_skills, load_session, open_session, post,
-    set_selector,
+    get_selectors, install_capability, list_capabilities, list_mcp_servers, list_sessions,
+    list_skills, load_session, open_session, post, set_selector,
 };
 use crate::session::router::EventRouter;
 use crate::session::{AgentConnection, AgentSpawn, Handshake, SessionEvent, SessionEvents};
@@ -517,6 +517,22 @@ pub fn connect(
                             let base = base_url.clone();
                             tokio::spawn(settle(reply, async move {
                                 list_mcp_servers(&http, &base).await
+                            }));
+                        }
+
+                        Some(Command::Capabilities { reply }) => {
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                list_capabilities(&http, &base).await
+                            }));
+                        }
+
+                        Some(Command::InstallCapability { capability_id, reply }) => {
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                install_capability(&http, &base, &capability_id).await
                             }));
                         }
 

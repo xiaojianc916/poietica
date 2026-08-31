@@ -1,5 +1,5 @@
 import { commands } from '@poietica/contract'
-import type { ExtensionGateway } from '@poietica/extension'
+import type { CapabilityGateway, ExtensionGateway } from '@poietica/extension'
 import { throughIpc } from '../error'
 
 /*
@@ -92,4 +92,11 @@ export const extensionGateway: ExtensionGateway = {
    */
   writeEnvironmentMcpConfig: (expectedContents, contents) =>
     throughIpc(() => commands.environmentMcpConfigWrite(expectedContents, contents)),
+}
+
+/* 本机能力账本这一路：读一次清单，或者请它装一项。 */
+export const capabilityGateway: CapabilityGateway = {
+  readCapabilities: () => throughIpc(() => commands.agentCapabilityReport()),
+  installCapability: (capabilityId) =>
+    throughIpc(() => commands.agentCapabilityInstall({ capabilityId })),
 }

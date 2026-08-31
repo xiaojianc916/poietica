@@ -1,9 +1,9 @@
 import { Button, Switch } from '@poietica/design-system'
 import {
-  type ComputerUseView,
-  computerUseView,
-  KIMI_COMPUTER_USE,
-  KIMI_COMPUTER_USE_SOURCE,
+  COMPUTER_USE,
+  type ComputerUse,
+  type ComputerUseStep,
+  computerUse,
   type PluginStore,
 } from '@poietica/extension'
 import { assertUnreachable } from '@poietica/problem'
@@ -13,29 +13,36 @@ import { SettingRow, SettingsGroup, SettingsPage } from './surface/settings-prim
 /*
  * 电脑控制那一行。
  *
- * 状态与动作都落在 PluginStore 那一份账上，这里没有本地态，所以不存在「界面说开着、
- * 账本说关着」。关闭只拨插件总开关：官方能力面没有停用接口，而单台 MCP 的开关归扩展页，
- * 不在这里被悄悄改写。
- *
- * 这一行只覆盖插件层：本机运行时不在这份账里，所以文案不替它背书。
+ * 装到哪一步由本机 kap 说，开没开由本机账本说；这里两样都不留副本，也不自己下载任何
+ * 东西。文案不替运行时背书：还差哪一层就说哪一层。
  */
 
 const LABEL = 'Kimi Computer Use'
 
-const ABSENT = '装上官方插件 Kimi Computer Use，让它看屏幕、移动鼠标、敲键盘替你操作这台电脑。'
+const UNREAD = '正在问本机 Kimi 这项能力装到哪一步…'
 
-const ENABLED = '已开启：新开的会话会装载它；能不能真的动屏幕，还取决于本机运行时装没装。'
+const UNREACHABLE = '本机 Kimi 还没连上。开一条对话之后，这里会显示它装到哪一步。'
+
+const UNLISTED = '本机 Kimi 没有报告这项能力。'
+
+const UNSUPPORTED = '这台电脑不支持这项能力。'
+
+const INSTALLING = '正在让本机 Kimi 安装，装完这里会逐层显示就绪度…'
+
+const ENABLED = '已开启：新开的会话会装载它，屏幕、鼠标与键盘都归它。'
 
 const DISABLED = '已关闭：会话不装载它，也就碰不到屏幕、鼠标与键盘。'
 
-const PARTIAL = '已开启，但它带来的 MCP 服务器在扩展页被单独关掉了；再拨一次开关会一并打开。'
+const UNMANAGED = '已就绪。这一份不在本机账本里，所以这里没有开关。'
+
+const PITCH = '让它看屏幕、移动鼠标、敲键盘替你操作这台电脑。'
 
 export interface ComputerUseSettingsProps {
   readonly store: PluginStore
 }
 
 export function ComputerUseSettings({ store }: ComputerUseSettingsProps) {
-  const state = computerUseView(useSyncExternalStore(store.subscribe, store.getSnapshot))
+  const state = computerUse(useSyncExternalStore(store.subscribe, store.getSnapshot))
 
   return (
     <SettingsPage>
@@ -48,91 +55,82 @@ export function ComputerUseSettings({ store }: ComputerUseSettingsProps) {
   )
 }
 
-function describe(state: ComputerUseView): string {
-  switch (state.kind) {
-    case 'absent':
-      return ABSENT
-    case 'installing':
-      return '正在下载并解压官方插件…'
-    case 'confirming': {
-      const version = state.version === undefined ? '' : ` ${state.version}`
+function missing(steps: readonly ComputerUseStep[]): string {
+  return steps
+    .filter((step) => !step.satisfied)
+    .map((step) => step.label)
+    .join('、')
+}
 
-      return `要装的是官方插件 ${state.displayName}${version}。`
-    }
+function describe(state: ComputerUse): string {
+  switch (state.kind) {
+    case 'unread':
+      return UNREAD
+    case 'unreachable':
+      return UNREACHABLE
+    case 'unlisted':
+      return UNLISTED
+    case 'unsupported':
+      return UNSUPPORTED
+    case 'installing':
+      return INSTALLING
     case 'refused':
       return state.reason
-    case 'installed':
-      if (!state.enabled) {
-        return DISABLED
+    case 'incomplete':
+      return `还差：${missing(state.steps)}。${PITCH}`
+    case 'ready':
+      if (state.enabled === undefined) {
+        return UNMANAGED
       }
 
-      return state.needsEnabling.length === 0 ? ENABLED : PARTIAL
+      return state.enabled ? ENABLED : DISABLED
     default:
       return assertUnreachable(state)
   }
 }
 
 interface ControlProps {
-  readonly state: ComputerUseView
+  readonly state: ComputerUse
   readonly store: PluginStore
 }
 
 function Control({ state, store }: ControlProps) {
   switch (state.kind) {
-    case 'absent':
+    case 'incomplete':
     case 'refused':
       return (
         <Button
           onClick={() => {
-            store.beginInstall(KIMI_COMPUTER_USE_SOURCE)
+            store.installCapability(COMPUTER_USE.capabilityId)
           }}
           size="xs"
           type="button"
           variant="soft"
         >
-          {state.kind === 'absent' ? '安装' : '重试'}
+          {state.kind === 'incomplete' ? '安装' : '重试'}
         </Button>
       )
-    case 'installing':
-      return (
-        <Button onClick={store.cancelInstall} size="xs" type="button" variant="ghost">
-          取消
-        </Button>
-      )
-    case 'confirming':
-      return (
-        <>
-          <Button onClick={store.cancelInstall} size="xs" type="button" variant="ghost">
-            取消
-          </Button>
-
-          <Button onClick={store.confirmInstall} size="xs" type="button" variant="soft">
-            确认安装
-          </Button>
-        </>
-      )
-    case 'installed': {
-      const { needsEnabling } = state
+    case 'ready':
+      if (state.enabled === undefined) {
+        return null
+      }
 
       return (
         <Switch
           aria-label={LABEL}
           checked={state.enabled}
           onCheckedChange={(next) => {
-            store.setEnabled(KIMI_COMPUTER_USE.pluginId, next)
-
-            if (!next) {
-              return
-            }
-
-            for (const server of needsEnabling) {
-              store.setMcpServerEnabled(server.origin, server.name, true)
-            }
+            store.setEnabled(COMPUTER_USE.pluginId, next)
           }}
           size="sm"
         />
       )
-    }
+    case 'unread':
+    case 'unreachable':
+    case 'unlisted':
+    case 'unsupported':
+    case 'installing':
+      return null
     default:
       return assertUnreachable(state)
   }

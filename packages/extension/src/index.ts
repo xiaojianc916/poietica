@@ -5,6 +5,15 @@
  * 是这个包自己的事，外面只需要「装了什么、市场上有什么、界面长什么样」。
  */
 
+export {
+  type CapabilityInstall,
+  type CapabilityInventory,
+  COMPUTER_USE,
+  type ComputerUse,
+  type ComputerUseStep,
+  computerUse,
+} from './capability'
+export type { CapabilityGateway } from './capability-gateway'
 export { BUILTIN_SERVERS, mcpServerBody } from './catalog/builtin'
 export {
   builtinServerRows,
@@ -17,12 +26,6 @@ export {
   statusText,
 } from './catalog/listing'
 export { describeChannel } from './catalog/scope'
-export {
-  type ComputerUseView,
-  computerUseView,
-  KIMI_COMPUTER_USE,
-  KIMI_COMPUTER_USE_SOURCE,
-} from './computer-use'
 export type { ExtensionGateway } from './extension-gateway'
 export {
   describeInstallSource,

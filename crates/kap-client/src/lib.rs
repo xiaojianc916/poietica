@@ -73,11 +73,11 @@ pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine};
 pub use run_slot::RunSlot;
 pub use session::driver::connect;
 pub use session::{
-    AgentClient, AgentConnection, AgentSpawn, ConfigChoice, ConfigControl, ConfigPurpose,
-    ConfigSelection, Cursor, GoalSnapshot, Handshake, McpServer, McpStatus, McpTransport,
-    OpenedSession, PromptAttachment, PromptSkill, SessionBook, SessionEntry, SessionEvent,
-    SessionEvents, SessionUsageSnapshot, Skill, apply_configurations, controls, goal_snapshot,
-    select_config, selector_patch,
+    AgentClient, AgentConnection, AgentSpawn, Capability, CapabilityStep, ConfigChoice,
+    ConfigControl, ConfigPurpose, ConfigSelection, Cursor, GoalSnapshot, Handshake, McpServer,
+    McpStatus, McpTransport, OpenedSession, PromptAttachment, PromptSkill, SessionBook,
+    SessionEntry, SessionEvent, SessionEvents, SessionUsageSnapshot, Skill, apply_configurations,
+    controls, goal_snapshot, select_config, selector_patch,
 };
 
 /// 链路态的词汇住在领域那侧；这里只是转发，让消费者不必两处 import。

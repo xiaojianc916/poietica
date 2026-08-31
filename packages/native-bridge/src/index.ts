@@ -58,7 +58,7 @@ export {
   removeCustomAgent,
   saveCustomAgent,
 } from './gateways/custom-agents'
-export { extensionGateway } from './gateways/extension'
+export { capabilityGateway, extensionGateway } from './gateways/extension'
 export {
   type GitBranches,
   type GitCommitIntent,
