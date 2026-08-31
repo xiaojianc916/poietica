@@ -42,7 +42,9 @@ pub use error::{DecodeError, EnvelopeError, KapError, Refusal, Result};
 pub use generated::{events, rest};
 
 pub use frame::{KAP_EVENT, PROMPT_ADMITTED, RUN_FINISHED, RunFrame, kap_event};
-pub use history::{ASSISTANT_DELTA, compact_history};
+pub use history::{
+    AGENT_FIELD, ASSISTANT_DELTA, DELTA_FIELD, MAIN_AGENT, TYPE_FIELD, compact_history,
+};
 pub use interaction::desk::{PermissionDesk, QuestionDesk};
 pub use interaction::permission::{Decision, Scope};
 pub use interaction::question::{

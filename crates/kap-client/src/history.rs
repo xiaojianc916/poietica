@@ -5,6 +5,14 @@ use serde_json::{Value, value::RawValue, value::to_raw_value};
 /// 回复正文那一格：kap 事件载荷的 type。目录的答与这里的合并读同一个判别式。
 pub const ASSISTANT_DELTA: &str = "assistant.delta";
 
+/// 载荷里那三格的名字。账本按它们拼 JSON 路径，自己不认识方言。
+pub const TYPE_FIELD: &str = "type";
+pub const DELTA_FIELD: &str = "delta";
+pub const AGENT_FIELD: &str = "agentId";
+
+/// 主代理的路由章。缺席、空串与它同义 —— 三种都表示这不是子代理的字。
+pub const MAIN_AGENT: &str = "main";
+
 #[derive(PartialEq, Eq)]
 struct DeltaKey {
     session_id: String,
@@ -33,7 +41,7 @@ pub fn compact_history(frames: Vec<Box<RawValue>>) -> serde_json::Result<Vec<Box
 }
 
 fn delta(value: &Value) -> Option<(DeltaKey, String)> {
-    if value.get("kind")?.as_str()? != "kap_event" {
+    if value.get("kind")?.as_str()? != crate::frame::KAP_EVENT {
         return None;
     }
     let payload = value.get("payload")?.as_object()?;

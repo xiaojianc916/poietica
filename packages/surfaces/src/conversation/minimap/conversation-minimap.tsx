@@ -29,6 +29,7 @@ interface ConversationMinimapProps {
 }
 const INDEX_ATTRIBUTE = 'data-minimap-index'
 const UNNAMED = '未命名轮次'
+const NO_REPLY = '暂无文本回复'
 /** 事件落在哪一格上；落在轨道空白处答 -1。 */
 function indexOf(target: EventTarget | null): number {
   const tick =
@@ -161,7 +162,7 @@ function Rail({ activeId, marks, onSelect }: ConversationMinimapProps) {
         data-shown={mark === undefined ? undefined : ''}
       >
         <p className="conversation-minimap__card-question">{mark?.prompt.trim() || UNNAMED}</p>
-        <p className="conversation-minimap__card-reply">{mark?.reply?.trim() || '暂无文本回复'}</p>
+        <p className="conversation-minimap__card-reply">{mark?.reply?.trim() || NO_REPLY}</p>
       </div>
     </nav>
   )

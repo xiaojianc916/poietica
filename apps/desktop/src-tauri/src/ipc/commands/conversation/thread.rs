@@ -8,7 +8,7 @@ use crate::ipc::commands::ledger::local_index::{
 };
 use crate::paths::remove_projectless_workspace;
 use poietica_kap_client::{PROMPT_ADMITTED, compact_history};
-use poietica_ledger::conversation::screen::{FrameCursor, FramePage};
+use poietica_ledger::conversation::screen::{FrameCursor, FramePage, ReplyRead};
 use poietica_ledger::index::TitleSource;
 use tauri::{AppHandle, State, async_runtime};
 
@@ -588,7 +588,13 @@ pub async fn agent_thread_outline(
                 id,
                 PROMPT_ADMITTED,
                 poietica_kap_client::KAP_EVENT,
-                poietica_kap_client::ASSISTANT_DELTA,
+                &ReplyRead {
+                    type_field: poietica_kap_client::TYPE_FIELD,
+                    payload_type: poietica_kap_client::ASSISTANT_DELTA,
+                    text_field: poietica_kap_client::DELTA_FIELD,
+                    agent_field: poietica_kap_client::AGENT_FIELD,
+                    main_agent: poietica_kap_client::MAIN_AGENT,
+                },
                 super::OUTLINE_PROMPT_CHARS,
                 super::OUTLINE_REPLY_CHARS,
             )

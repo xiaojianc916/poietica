@@ -4,6 +4,8 @@
 //! 那一格 —— 与写路共用同一份事实。信封格子（sessionId/seq/at）在列上，
 //! 读回时并回载荷顶层，交出去的形状与旧帧账逐字节一致。
 
+use std::collections::HashMap;
+
 use rusqlite::OptionalExtension;
 use serde_json::value::RawValue;
 use uuid::Uuid;
@@ -31,6 +33,18 @@ pub struct TurnMark {
     pub admission_id: String,
     pub prompt: String,
     pub reply: Option<String>,
+}
+
+/// 目录里「答」那一段从哪儿读。
+///
+/// 账本只知道载荷挂在 $.payload 下面；里面那几格叫什么、主代理的章是什么，
+/// 由认识 kap 方言的那一层交进来（kap-client 的 history）。
+pub struct ReplyRead<'a> {
+    pub type_field: &'a str,
+    pub payload_type: &'a str,
+    pub text_field: &'a str,
+    pub agent_field: &'a str,
+    pub main_agent: &'a str,
 }
 
 /// 一页帧，按追加顺序；`before` 缺席就是前面没有了。
@@ -105,10 +119,9 @@ impl AgentStore {
 
     /// 这条对话的整本目录：一轮一行，按追加顺序。
     ///
-    /// 问出自开轮那一帧，答取这一轮里第一条正文 delta；两段都在库里按预览卡看得见
-    /// 的字数截断 —— 目录要的是那张卡上的两行，不是整段回答。子代理的 delta 不算。
-    ///
-    /// 判别式由调用方交进来：这一层只认 JSON 里那一格（与 turns_before 同一条规矩）。
+    /// 问出自开轮那一帧。答是这一轮里主代理说出的字，按 seq 接起来再截到预览卡
+    /// 装得下的字数 —— 一帧 delta 是一次流片（同一条判据见 history 的 compact_history），
+    /// 取一帧就只有几个字。子代理的字不进这张卡。
     ///
     /// # Errors
     ///
@@ -118,52 +131,84 @@ impl AgentStore {
         thread: Uuid,
         turn_start: &str,
         event_kind: &str,
-        delta_type: &str,
+        reply: &ReplyRead<'_>,
         prompt_chars: i64,
         reply_chars: i64,
     ) -> Result<Vec<TurnMark>> {
-        let mut statement = self.connection.prepare_cached(
+        let thread_id = thread.to_string();
+
+        let mut heads = self.connection.prepare_cached(
             "SELECT t.session_id, t.seq,
                     coalesce(json_extract(t.payload, '$.admissionId'), ''),
-                    substr(coalesce(json_extract(t.payload, '$.prompt'), ''), 1, ?5),
-                    (SELECT substr(json_extract(r.payload, '$.payload.delta'), 1, ?6)
-                       FROM conversation_events r
-                      WHERE r.thread_id = ?1 AND r.seq > t.seq
-                        AND r.seq < coalesce((SELECT min(p.seq) FROM conversation_events p
-                                              WHERE p.thread_id = ?1 AND p.seq > t.seq
-                                                AND json_extract(p.payload, '$.kind') = ?2), ?7)
-                        AND json_extract(r.payload, '$.kind') = ?3
-                        AND json_extract(r.payload, '$.payload.type') = ?4
-                        AND coalesce(json_extract(r.payload, '$.payload.agentId'), '') = ''
-                      ORDER BY r.seq ASC
-                      LIMIT 1)
+                    substr(coalesce(json_extract(t.payload, '$.prompt'), ''), 1, ?3)
              FROM conversation_events t
              WHERE t.thread_id = ?1 AND json_extract(t.payload, '$.kind') = ?2
              ORDER BY t.seq ASC",
         )?;
 
-        let marks = statement
+        let mut marks = heads
             .query_map(
-                rusqlite::params![
-                    thread.to_string(),
-                    turn_start,
-                    event_kind,
-                    delta_type,
-                    prompt_chars,
-                    reply_chars,
-                    i64::MAX
-                ],
+                rusqlite::params![thread_id, turn_start, prompt_chars],
                 |row| {
                     Ok(TurnMark {
                         session_id: row.get(0)?,
                         seq: row.get(1)?,
                         admission_id: row.get(2)?,
                         prompt: row.get(3)?,
-                        reply: row.get(4)?,
+                        reply: None,
                     })
                 },
             )?
             .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        /* 每一轮只取够填满预览卡的前几片：留下的片各至少一个字，所以取
+        reply_chars 片必然够。窗口函数与 fork_thread 的 ROW_NUMBER 同源。 */
+        let mut flakes = self.connection.prepare_cached(
+            "SELECT turn_seq, text FROM (
+               SELECT turn_seq, text,
+                      ROW_NUMBER() OVER (PARTITION BY turn_seq ORDER BY seq) AS rank
+                 FROM (
+                   SELECT (SELECT max(p.seq)
+                             FROM conversation_events p
+                            WHERE p.thread_id = ?1 AND p.seq <= r.seq
+                              AND json_extract(p.payload, '$.kind') = ?2) AS turn_seq,
+                          json_extract(r.payload, '$.payload.' || ?4) AS text,
+                          r.seq AS seq
+                     FROM conversation_events r
+                    WHERE r.thread_id = ?1
+                      AND json_extract(r.payload, '$.kind') = ?3
+                      AND json_extract(r.payload, '$.payload.' || ?5) = ?6
+                      AND coalesce(json_extract(r.payload, '$.payload.' || ?7), '') IN ('', ?8)
+                 )
+                WHERE turn_seq IS NOT NULL AND text IS NOT NULL AND text <> ''
+             )
+             WHERE rank <= ?9
+             ORDER BY turn_seq ASC, rank ASC",
+        )?;
+
+        let spoken = flakes
+            .query_map(
+                rusqlite::params![
+                    thread_id,
+                    turn_start,
+                    event_kind,
+                    reply.text_field,
+                    reply.type_field,
+                    reply.payload_type,
+                    reply.agent_field,
+                    reply.main_agent,
+                    reply_chars
+                ],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+            )?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        let budget = usize::try_from(reply_chars.max(0)).unwrap_or(usize::MAX);
+        let mut said = replies_of(&spoken, budget);
+
+        for mark in &mut marks {
+            mark.reply = said.remove(&mark.seq);
+        }
 
         Ok(marks)
     }
@@ -297,4 +342,62 @@ pub fn screen_frame(
     object.insert(String::from("at"), serde_json::Value::from(at));
 
     RawValue::from_string(serde_json::to_string(&object)?)
+}
+
+/// 每一轮的答：同一轮的流片按到达顺序接起来，接满预览卡就收手。
+///
+/// 截断按字符而不是字节：这一格装的是中文。行数由 CSS 的行高与 max-block-size
+/// 决定，库这边只保证字数够填满它。
+fn replies_of(rows: &[(i64, String)], budget: usize) -> HashMap<i64, String> {
+    let mut said: HashMap<i64, String> = HashMap::new();
+
+    if budget == 0 {
+        return said;
+    }
+
+    for (turn, text) in rows {
+        let held = said.entry(*turn).or_default();
+
+        if held.chars().count() >= budget {
+            continue;
+        }
+
+        held.push_str(text);
+    }
+
+    for text in said.values_mut() {
+        if text.chars().count() > budget {
+            *text = text.chars().take(budget).collect();
+        }
+    }
+
+    said
+}
+
+#[cfg(test)]
+mod tests {
+    use super::replies_of;
+
+    #[test]
+    fn a_turn_reply_is_every_flake_it_said_in_order() {
+        let rows = vec![
+            (10, "你".to_owned()),
+            (10, "好".to_owned()),
+            (10, "，世界".to_owned()),
+        ];
+
+        assert_eq!(
+            replies_of(&rows, 96).get(&10).map(String::as_str),
+            Some("你好，世界")
+        );
+    }
+
+    #[test]
+    fn the_budget_counts_characters_and_turns_do_not_bleed() {
+        let rows = vec![(1, "一二三四".to_owned()), (2, "五六".to_owned())];
+        let said = replies_of(&rows, 3);
+
+        assert_eq!(said.get(&1).map(String::as_str), Some("一二三"));
+        assert_eq!(said.get(&2).map(String::as_str), Some("五六"));
+    }
 }
