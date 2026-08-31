@@ -56,6 +56,7 @@ export function DelegateChannelPane({ agentId, conversationId }: DelegateChannel
         <p className="p-4 text-xs opacity-50">这条派发不在当前对话里。</p>
       ) : (
         <TranscriptView
+          dockClearance={null}
           isRestoring={false}
           lead={<UserMessage text={call.subject === '' ? call.title : call.subject} />}
           sessionKey={delegateKey(conversationId, agentId)}
