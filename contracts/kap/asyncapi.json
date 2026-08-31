@@ -283,7 +283,9 @@
                         "minLength": 1
                       }
                     },
-                    "required": ["seq"]
+                    "required": [
+                      "seq"
+                    ]
                   }
                 },
                 "agent_filter": {
@@ -300,10 +302,16 @@
                   }
                 }
               },
-              "required": ["client_id"]
+              "required": [
+                "client_id"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "client_hello_ack": {
@@ -362,14 +370,25 @@
                         "minLength": 1
                       }
                     },
-                    "required": ["seq"]
+                    "required": [
+                      "seq"
+                    ]
                   }
                 }
               },
-              "required": ["accepted_subscriptions", "resync_required"]
+              "required": [
+                "accepted_subscriptions",
+                "resync_required"
+              ]
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "subscribe": {
@@ -414,7 +433,9 @@
                         "minLength": 1
                       }
                     },
-                    "required": ["seq"]
+                    "required": [
+                      "seq"
+                    ]
                   }
                 },
                 "watch_fs": {
@@ -435,7 +456,9 @@
                         "type": "boolean"
                       }
                     },
-                    "required": ["paths"]
+                    "required": [
+                      "paths"
+                    ]
                   }
                 },
                 "agent_filter": {
@@ -452,10 +475,16 @@
                   }
                 }
               },
-              "required": ["session_ids"]
+              "required": [
+                "session_ids"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "subscribe_ack": {
@@ -520,14 +549,26 @@
                         "minLength": 1
                       }
                     },
-                    "required": ["seq"]
+                    "required": [
+                      "seq"
+                    ]
                   }
                 }
               },
-              "required": ["accepted", "not_found", "resync_required"]
+              "required": [
+                "accepted",
+                "not_found",
+                "resync_required"
+              ]
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "subscribe_v2": {
@@ -559,7 +600,12 @@
                   },
                   "additionalProperties": {
                     "type": "string",
-                    "enum": ["off", "turn", "block", "delta"]
+                    "enum": [
+                      "off",
+                      "turn",
+                      "block",
+                      "delta"
+                    ]
                   }
                 },
                 "transcript_since": {
@@ -574,10 +620,17 @@
                   }
                 }
               },
-              "required": ["session_id", "transcript"]
+              "required": [
+                "session_id",
+                "transcript"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "subscribe_v2_ack": {
@@ -642,14 +695,26 @@
                         "minLength": 1
                       }
                     },
-                    "required": ["seq"]
+                    "required": [
+                      "seq"
+                    ]
                   }
                 }
               },
-              "required": ["accepted", "not_found", "resync_required"]
+              "required": [
+                "accepted",
+                "not_found",
+                "resync_required"
+              ]
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "unsubscribe_v2": {
@@ -683,10 +748,16 @@
                   }
                 }
               },
-              "required": ["session_id"]
+              "required": [
+                "session_id"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "unsubscribe_v2_ack": {
@@ -751,14 +822,26 @@
                         "minLength": 1
                       }
                     },
-                    "required": ["seq"]
+                    "required": [
+                      "seq"
+                    ]
                   }
                 }
               },
-              "required": ["accepted", "not_found", "resync_required"]
+              "required": [
+                "accepted",
+                "not_found",
+                "resync_required"
+              ]
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "unsubscribe": {
@@ -786,10 +869,16 @@
                   }
                 }
               },
-              "required": ["session_ids"]
+              "required": [
+                "session_ids"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "unsubscribe_ack": {
@@ -854,14 +943,26 @@
                         "minLength": 1
                       }
                     },
-                    "required": ["seq"]
+                    "required": [
+                      "seq"
+                    ]
                   }
                 }
               },
-              "required": ["accepted", "not_found", "resync_required"]
+              "required": [
+                "accepted",
+                "not_found",
+                "resync_required"
+              ]
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "watch_fs_add": {
@@ -899,10 +1000,17 @@
                   "type": "boolean"
                 }
               },
-              "required": ["session_id", "paths"]
+              "required": [
+                "session_id",
+                "paths"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "watch_fs_add_ack": {
@@ -945,7 +1053,13 @@
               }
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "watch_fs_remove": {
@@ -980,10 +1094,17 @@
                   }
                 }
               },
-              "required": ["session_id", "paths"]
+              "required": [
+                "session_id",
+                "paths"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "watch_fs_remove_ack": {
@@ -1026,7 +1147,13 @@
               }
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "abort": {
@@ -1054,10 +1181,17 @@
                   "type": "string"
                 }
               },
-              "required": ["session_id", "prompt_id"]
+              "required": [
+                "session_id",
+                "prompt_id"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "abort_ack": {
@@ -1097,7 +1231,13 @@
               }
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "terminal_attach": {
@@ -1132,10 +1272,17 @@
                   "maximum": 9007199254740991
                 }
               },
-              "required": ["session_id", "terminal_id"]
+              "required": [
+                "session_id",
+                "terminal_id"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "terminal_attach_ack": {
@@ -1174,10 +1321,19 @@
                   "maximum": 9007199254740991
                 }
               },
-              "required": ["attached", "replayed"]
+              "required": [
+                "attached",
+                "replayed"
+              ]
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "terminal_detach": {
@@ -1207,10 +1363,17 @@
                   "minLength": 1
                 }
               },
-              "required": ["session_id", "terminal_id"]
+              "required": [
+                "session_id",
+                "terminal_id"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "terminal_detach_ack": {
@@ -1244,10 +1407,18 @@
                   "const": true
                 }
               },
-              "required": ["detached"]
+              "required": [
+                "detached"
+              ]
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "terminal_input": {
@@ -1280,10 +1451,18 @@
                   "type": "string"
                 }
               },
-              "required": ["session_id", "terminal_id", "data"]
+              "required": [
+                "session_id",
+                "terminal_id",
+                "data"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "terminal_input_ack": {
@@ -1317,10 +1496,18 @@
                   "const": true
                 }
               },
-              "required": ["accepted"]
+              "required": [
+                "accepted"
+              ]
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "terminal_resize": {
@@ -1360,10 +1547,19 @@
                   "maximum": 9007199254740991
                 }
               },
-              "required": ["session_id", "terminal_id", "cols", "rows"]
+              "required": [
+                "session_id",
+                "terminal_id",
+                "cols",
+                "rows"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "terminal_resize_ack": {
@@ -1397,10 +1593,18 @@
                   "const": true
                 }
               },
-              "required": ["resized"]
+              "required": [
+                "resized"
+              ]
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "terminal_close": {
@@ -1430,10 +1634,17 @@
                   "minLength": 1
                 }
               },
-              "required": ["session_id", "terminal_id"]
+              "required": [
+                "session_id",
+                "terminal_id"
+              ]
             }
           },
-          "required": ["type", "id", "payload"]
+          "required": [
+            "type",
+            "id",
+            "payload"
+          ]
         }
       },
       "terminal_close_ack": {
@@ -1467,10 +1678,18 @@
                   "const": true
                 }
               },
-              "required": ["closed"]
+              "required": [
+                "closed"
+              ]
             }
           },
-          "required": ["type", "id", "code", "msg", "payload"]
+          "required": [
+            "type",
+            "id",
+            "code",
+            "msg",
+            "payload"
+          ]
         }
       },
       "pong": {
@@ -1492,10 +1711,15 @@
                   "type": "string"
                 }
               },
-              "required": ["nonce"]
+              "required": [
+                "nonce"
+              ]
             }
           },
-          "required": ["type", "payload"]
+          "required": [
+            "type",
+            "payload"
+          ]
         }
       },
       "server_hello": {
@@ -1544,7 +1768,10 @@
                       "type": "boolean"
                     }
                   },
-                  "required": ["event_batching", "compression"]
+                  "required": [
+                    "event_batching",
+                    "compression"
+                  ]
                 }
               },
               "required": [
@@ -1555,7 +1782,11 @@
               ]
             }
           },
-          "required": ["type", "timestamp", "payload"]
+          "required": [
+            "type",
+            "timestamp",
+            "payload"
+          ]
         }
       },
       "ping": {
@@ -1580,10 +1811,16 @@
                   "type": "string"
                 }
               },
-              "required": ["nonce"]
+              "required": [
+                "nonce"
+              ]
             }
           },
-          "required": ["type", "timestamp", "payload"]
+          "required": [
+            "type",
+            "timestamp",
+            "payload"
+          ]
         }
       },
       "resync_required": {
@@ -1609,7 +1846,11 @@
                 },
                 "reason": {
                   "type": "string",
-                  "enum": ["buffer_overflow", "session_recreated", "epoch_changed"]
+                  "enum": [
+                    "buffer_overflow",
+                    "session_recreated",
+                    "epoch_changed"
+                  ]
                 },
                 "current_seq": {
                   "type": "integer",
@@ -1621,10 +1862,18 @@
                   "minLength": 1
                 }
               },
-              "required": ["session_id", "reason", "current_seq"]
+              "required": [
+                "session_id",
+                "reason",
+                "current_seq"
+              ]
             }
           },
-          "required": ["type", "timestamp", "payload"]
+          "required": [
+            "type",
+            "timestamp",
+            "payload"
+          ]
         }
       },
       "error": {
@@ -1661,10 +1910,18 @@
                 },
                 "details": {}
               },
-              "required": ["code", "msg", "fatal"]
+              "required": [
+                "code",
+                "msg",
+                "fatal"
+              ]
             }
           },
-          "required": ["type", "timestamp", "payload"]
+          "required": [
+            "type",
+            "timestamp",
+            "payload"
+          ]
         }
       },
       "session_event": {
@@ -1853,7 +2110,13 @@
                           "type": "string"
                         }
                       },
-                      "required": ["code", "message", "retryable", "type", "agentId"]
+                      "required": [
+                        "code",
+                        "message",
+                        "retryable",
+                        "type",
+                        "agentId"
+                      ]
                     },
                     {
                       "type": "object",
@@ -1872,7 +2135,11 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "message"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "message"
+                      ]
                     },
                     {
                       "type": "object",
@@ -1910,7 +2177,11 @@
                         },
                         "permission": {
                           "type": "string",
-                          "enum": ["manual", "yolo", "auto"]
+                          "enum": [
+                            "manual",
+                            "yolo",
+                            "auto"
+                          ]
                         },
                         "usage": {
                           "type": "object",
@@ -2002,7 +2273,9 @@
                                   "const": "idle"
                                 }
                               },
-                              "required": ["kind"]
+                              "required": [
+                                "kind"
+                              ]
                             },
                             {
                               "type": "object",
@@ -2024,7 +2297,13 @@
                                   "type": "number"
                                 }
                               },
-                              "required": ["kind", "turnId", "step", "stepId", "since"]
+                              "required": [
+                                "kind",
+                                "turnId",
+                                "step",
+                                "stepId",
+                                "since"
+                              ]
                             },
                             {
                               "type": "object",
@@ -2044,7 +2323,11 @@
                                 },
                                 "stream": {
                                   "type": "string",
-                                  "enum": ["assistant", "thinking", "tool_call"]
+                                  "enum": [
+                                    "assistant",
+                                    "thinking",
+                                    "tool_call"
+                                  ]
                                 },
                                 "toolCallId": {
                                   "type": "string"
@@ -2056,7 +2339,14 @@
                                   "type": "number"
                                 }
                               },
-                              "required": ["kind", "turnId", "step", "stepId", "stream", "since"]
+                              "required": [
+                                "kind",
+                                "turnId",
+                                "step",
+                                "stepId",
+                                "stream",
+                                "since"
+                              ]
                             },
                             {
                               "type": "object",
@@ -2081,7 +2371,14 @@
                                   "type": "number"
                                 }
                               },
-                              "required": ["kind", "turnId", "step", "toolCallId", "name", "since"]
+                              "required": [
+                                "kind",
+                                "turnId",
+                                "step",
+                                "toolCallId",
+                                "name",
+                                "since"
+                              ]
                             },
                             {
                               "type": "object",
@@ -2151,7 +2448,11 @@
                                   "type": "number"
                                 }
                               },
-                              "required": ["kind", "turnId", "since"]
+                              "required": [
+                                "kind",
+                                "turnId",
+                                "since"
+                              ]
                             },
                             {
                               "type": "object",
@@ -2168,7 +2469,11 @@
                                 },
                                 "reason": {
                                   "type": "string",
-                                  "enum": ["aborted", "max_steps", "error"]
+                                  "enum": [
+                                    "aborted",
+                                    "max_steps",
+                                    "error"
+                                  ]
                                 },
                                 "message": {
                                   "type": "string"
@@ -2177,7 +2482,12 @@
                                   "type": "number"
                                 }
                               },
-                              "required": ["kind", "turnId", "reason", "at"]
+                              "required": [
+                                "kind",
+                                "turnId",
+                                "reason",
+                                "at"
+                              ]
                             },
                             {
                               "type": "object",
@@ -2191,7 +2501,12 @@
                                 },
                                 "reason": {
                                   "type": "string",
-                                  "enum": ["completed", "cancelled", "failed", "blocked"]
+                                  "enum": [
+                                    "completed",
+                                    "cancelled",
+                                    "failed",
+                                    "blocked"
+                                  ]
                                 },
                                 "durationMs": {
                                   "type": "number"
@@ -2200,12 +2515,20 @@
                                   "type": "number"
                                 }
                               },
-                              "required": ["kind", "turnId", "reason", "at"]
+                              "required": [
+                                "kind",
+                                "turnId",
+                                "reason",
+                                "at"
+                              ]
                             }
                           ]
                         }
                       },
-                      "required": ["type", "agentId"]
+                      "required": [
+                        "type",
+                        "agentId"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2215,7 +2538,9 @@
                           "const": "agent.created"
                         }
                       },
-                      "required": ["type"]
+                      "required": [
+                        "type"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2225,7 +2550,9 @@
                           "const": "agent.disposed"
                         }
                       },
-                      "required": ["type"]
+                      "required": [
+                        "type"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2245,7 +2572,9 @@
                           "additionalProperties": {}
                         }
                       },
-                      "required": ["type"]
+                      "required": [
+                        "type"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2282,11 +2611,19 @@
                             },
                             "pending_interaction": {
                               "type": "string",
-                              "enum": ["none", "approval", "question"]
+                              "enum": [
+                                "none",
+                                "approval",
+                                "question"
+                              ]
                             },
                             "last_turn_reason": {
                               "type": "string",
-                              "enum": ["completed", "cancelled", "failed"]
+                              "enum": [
+                                "completed",
+                                "cancelled",
+                                "failed"
+                              ]
                             },
                             "archived": {
                               "type": "boolean"
@@ -2309,7 +2646,9 @@
                                   "minLength": 1
                                 }
                               },
-                              "required": ["cwd"],
+                              "required": [
+                                "cwd"
+                              ],
                               "additionalProperties": {}
                             },
                             "agent_config": {
@@ -2339,7 +2678,11 @@
                                 },
                                 "permission_mode": {
                                   "type": "string",
-                                  "enum": ["manual", "yolo", "auto"]
+                                  "enum": [
+                                    "manual",
+                                    "yolo",
+                                    "auto"
+                                  ]
                                 },
                                 "plan_mode": {
                                   "type": "boolean"
@@ -2355,10 +2698,16 @@
                                 },
                                 "goal_control": {
                                   "type": "string",
-                                  "enum": ["pause", "resume", "cancel"]
+                                  "enum": [
+                                    "pause",
+                                    "resume",
+                                    "cancel"
+                                  ]
                                 }
                               },
-                              "required": ["model"]
+                              "required": [
+                                "model"
+                              ]
                             },
                             "usage": {
                               "type": "object",
@@ -2440,7 +2789,9 @@
                                         "type": "string"
                                       }
                                     },
-                                    "required": ["kind"]
+                                    "required": [
+                                      "kind"
+                                    ]
                                   },
                                   "decision": {
                                     "type": "string",
@@ -2451,7 +2802,10 @@
                                   },
                                   "created_by": {
                                     "type": "string",
-                                    "enum": ["user", "agent"]
+                                    "enum": [
+                                      "user",
+                                      "agent"
+                                    ]
                                   }
                                 },
                                 "required": [
@@ -2490,7 +2844,10 @@
                           ]
                         }
                       },
-                      "required": ["type", "session"]
+                      "required": [
+                        "type",
+                        "session"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2504,7 +2861,10 @@
                           "minLength": 1
                         }
                       },
-                      "required": ["type", "workspace_id"]
+                      "required": [
+                        "type",
+                        "workspace_id"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2551,7 +2911,10 @@
                           ]
                         }
                       },
-                      "required": ["type", "workspace"]
+                      "required": [
+                        "type",
+                        "workspace"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2598,7 +2961,10 @@
                           ]
                         }
                       },
-                      "required": ["type", "workspace"]
+                      "required": [
+                        "type",
+                        "workspace"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2616,7 +2982,11 @@
                           "minLength": 1
                         }
                       },
-                      "required": ["type", "workspace_id", "root"]
+                      "required": [
+                        "type",
+                        "workspace_id",
+                        "root"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2633,14 +3003,25 @@
                         },
                         "pending_interaction": {
                           "type": "string",
-                          "enum": ["none", "approval", "question"]
+                          "enum": [
+                            "none",
+                            "approval",
+                            "question"
+                          ]
                         },
                         "last_turn_reason": {
                           "type": "string",
-                          "enum": ["completed", "cancelled", "failed"]
+                          "enum": [
+                            "completed",
+                            "cancelled",
+                            "failed"
+                          ]
                         }
                       },
-                      "required": ["type", "busy"]
+                      "required": [
+                        "type",
+                        "busy"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2674,7 +3055,11 @@
                           "minLength": 1
                         }
                       },
-                      "required": ["type", "status", "previous_status"]
+                      "required": [
+                        "type",
+                        "status",
+                        "previous_status"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2715,7 +3100,10 @@
                                     "type": "boolean"
                                   }
                                 },
-                                "required": ["type", "has_api_key"]
+                                "required": [
+                                  "type",
+                                  "has_api_key"
+                                ]
                               }
                             },
                             "default_provider": {
@@ -2786,7 +3174,11 @@
                           "additionalProperties": {}
                         }
                       },
-                      "required": ["type", "changedFields", "config"]
+                      "required": [
+                        "type",
+                        "changedFields",
+                        "config"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2807,11 +3199,16 @@
                                 "type": "string"
                               }
                             },
-                            "required": ["message"]
+                            "required": [
+                              "message"
+                            ]
                           }
                         }
                       },
-                      "required": ["type", "warnings"]
+                      "required": [
+                        "type",
+                        "warnings"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2844,7 +3241,12 @@
                                 "maximum": 9007199254740991
                               }
                             },
-                            "required": ["provider_id", "provider_name", "added", "removed"]
+                            "required": [
+                              "provider_id",
+                              "provider_name",
+                              "added",
+                              "removed"
+                            ]
                           }
                         },
                         "unchanged": {
@@ -2868,11 +3270,19 @@
                                 "minLength": 1
                               }
                             },
-                            "required": ["provider", "reason"]
+                            "required": [
+                              "provider",
+                              "reason"
+                            ]
                           }
                         }
                       },
-                      "required": ["type", "changed", "unchanged", "failed"]
+                      "required": [
+                        "type",
+                        "changed",
+                        "unchanged",
+                        "failed"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2891,13 +3301,24 @@
                         },
                         "state": {
                           "type": "string",
-                          "enum": ["Pending", "Activating", "Active", "Unloading", "Failed"]
+                          "enum": [
+                            "Pending",
+                            "Activating",
+                            "Active",
+                            "Unloading",
+                            "Failed"
+                          ]
                         },
                         "error": {
                           "type": "string"
                         }
                       },
-                      "required": ["type", "scope", "token", "state"]
+                      "required": [
+                        "type",
+                        "scope",
+                        "token",
+                        "state"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2907,7 +3328,9 @@
                           "const": "event.plugin.changed"
                         }
                       },
-                      "required": ["type"]
+                      "required": [
+                        "type"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2938,10 +3361,16 @@
                               "type": "string"
                             }
                           },
-                          "required": ["running"]
+                          "required": [
+                            "running"
+                          ]
                         }
                       },
-                      "required": ["type", "capability_id", "install"]
+                      "required": [
+                        "type",
+                        "capability_id",
+                        "install"
+                      ]
                     },
                     {
                       "type": "object",
@@ -2969,7 +3398,12 @@
                                 },
                                 "status": {
                                   "type": "string",
-                                  "enum": ["active", "paused", "blocked", "complete"]
+                                  "enum": [
+                                    "active",
+                                    "paused",
+                                    "blocked",
+                                    "complete"
+                                  ]
                                 },
                                 "turnsUsed": {
                                   "type": "number"
@@ -3093,11 +3527,19 @@
                           "properties": {
                             "kind": {
                               "type": "string",
-                              "enum": ["lifecycle", "completion"]
+                              "enum": [
+                                "lifecycle",
+                                "completion"
+                              ]
                             },
                             "status": {
                               "type": "string",
-                              "enum": ["active", "paused", "blocked", "complete"]
+                              "enum": [
+                                "active",
+                                "paused",
+                                "blocked",
+                                "complete"
+                              ]
                             },
                             "reason": {
                               "type": "string"
@@ -3115,17 +3557,32 @@
                                   "type": "number"
                                 }
                               },
-                              "required": ["turnsUsed", "tokensUsed", "wallClockMs"]
+                              "required": [
+                                "turnsUsed",
+                                "tokensUsed",
+                                "wallClockMs"
+                              ]
                             },
                             "actor": {
                               "type": "string",
-                              "enum": ["user", "model", "runtime", "system"]
+                              "enum": [
+                                "user",
+                                "model",
+                                "runtime",
+                                "system"
+                              ]
                             }
                           },
-                          "required": ["kind"]
+                          "required": [
+                            "kind"
+                          ]
                         }
                       },
-                      "required": ["type", "agentId", "snapshot"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "snapshot"
+                      ]
                     },
                     {
                       "type": "object",
@@ -3148,17 +3605,32 @@
                         },
                         "trigger": {
                           "type": "string",
-                          "enum": ["user-slash", "model-tool", "nested-skill"]
+                          "enum": [
+                            "user-slash",
+                            "model-tool",
+                            "nested-skill"
+                          ]
                         },
                         "skillPath": {
                           "type": "string"
                         },
                         "skillSource": {
                           "type": "string",
-                          "enum": ["project", "user", "extra", "builtin"]
+                          "enum": [
+                            "project",
+                            "user",
+                            "extra",
+                            "builtin"
+                          ]
                         }
                       },
-                      "required": ["type", "agentId", "activationId", "skillName", "trigger"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "activationId",
+                        "skillName",
+                        "trigger"
+                      ]
                     },
                     {
                       "type": "object",
@@ -3240,14 +3712,24 @@
                                       },
                                       "skillSource": {
                                         "type": "string",
-                                        "enum": ["project", "user", "extra", "builtin"]
+                                        "enum": [
+                                          "project",
+                                          "user",
+                                          "extra",
+                                          "builtin"
+                                        ]
                                       }
                                     },
-                                    "required": ["activationId", "skillName"]
+                                    "required": [
+                                      "activationId",
+                                      "skillName"
+                                    ]
                                   }
                                 }
                               },
-                              "required": ["kind"]
+                              "required": [
+                                "kind"
+                              ]
                             },
                             {
                               "type": "object",
@@ -3267,7 +3749,11 @@
                                 },
                                 "trigger": {
                                   "type": "string",
-                                  "enum": ["user-slash", "model-tool", "nested-skill"]
+                                  "enum": [
+                                    "user-slash",
+                                    "model-tool",
+                                    "nested-skill"
+                                  ]
                                 },
                                 "skillType": {
                                   "type": "string"
@@ -3277,10 +3763,20 @@
                                 },
                                 "skillSource": {
                                   "type": "string",
-                                  "enum": ["project", "user", "extra", "builtin"]
+                                  "enum": [
+                                    "project",
+                                    "user",
+                                    "extra",
+                                    "builtin"
+                                  ]
                                 }
                               },
-                              "required": ["kind", "activationId", "skillName", "trigger"]
+                              "required": [
+                                "kind",
+                                "activationId",
+                                "skillName",
+                                "trigger"
+                              ]
                             },
                             {
                               "type": "object",
@@ -3325,7 +3821,10 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["kind", "variant"]
+                              "required": [
+                                "kind",
+                                "variant"
+                              ]
                             },
                             {
                               "type": "object",
@@ -3336,13 +3835,19 @@
                                 },
                                 "phase": {
                                   "type": "string",
-                                  "enum": ["input", "output"]
+                                  "enum": [
+                                    "input",
+                                    "output"
+                                  ]
                                 },
                                 "isError": {
                                   "type": "boolean"
                                 }
                               },
-                              "required": ["kind", "phase"]
+                              "required": [
+                                "kind",
+                                "phase"
+                              ]
                             },
                             {
                               "type": "object",
@@ -3352,7 +3857,9 @@
                                   "const": "compaction_summary"
                                 }
                               },
-                              "required": ["kind"]
+                              "required": [
+                                "kind"
+                              ]
                             },
                             {
                               "type": "object",
@@ -3365,7 +3872,10 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["kind", "name"]
+                              "required": [
+                                "kind",
+                                "name"
+                              ]
                             },
                             {
                               "type": "object",
@@ -3392,7 +3902,12 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["kind", "taskId", "status", "notificationId"]
+                              "required": [
+                                "kind",
+                                "taskId",
+                                "status",
+                                "notificationId"
+                              ]
                             },
                             {
                               "type": "object",
@@ -3419,7 +3934,12 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["kind", "taskId", "status", "notificationId"]
+                              "required": [
+                                "kind",
+                                "taskId",
+                                "status",
+                                "notificationId"
+                              ]
                             },
                             {
                               "type": "object",
@@ -3464,7 +3984,10 @@
                                   "type": "number"
                                 }
                               },
-                              "required": ["kind", "count"]
+                              "required": [
+                                "kind",
+                                "count"
+                              ]
                             },
                             {
                               "type": "object",
@@ -3480,7 +4003,10 @@
                                   "type": "boolean"
                                 }
                               },
-                              "required": ["kind", "event"]
+                              "required": [
+                                "kind",
+                                "event"
+                              ]
                             },
                             {
                               "type": "object",
@@ -3493,7 +4019,9 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["kind"]
+                              "required": [
+                                "kind"
+                              ]
                             }
                           ]
                         },
@@ -3512,13 +4040,20 @@
                                 "properties": {
                                   "kind": {
                                     "type": "string",
-                                    "enum": ["image", "video", "audio"]
+                                    "enum": [
+                                      "image",
+                                      "video",
+                                      "audio"
+                                    ]
                                   },
                                   "fileId": {
                                     "type": "string"
                                   }
                                 },
-                                "required": ["kind", "fileId"]
+                                "required": [
+                                  "kind",
+                                  "fileId"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -3540,13 +4075,24 @@
                                     "type": "string"
                                   }
                                 },
-                                "required": ["kind", "name", "mediaType", "size", "path"]
+                                "required": [
+                                  "kind",
+                                  "name",
+                                  "mediaType",
+                                  "size",
+                                  "path"
+                                ]
                               }
                             ]
                           }
                         }
                       },
-                      "required": ["type", "agentId", "turnId", "origin"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "turnId",
+                        "origin"
+                      ]
                     },
                     {
                       "type": "object",
@@ -3566,7 +4112,12 @@
                         },
                         "reason": {
                           "type": "string",
-                          "enum": ["completed", "cancelled", "failed", "blocked"]
+                          "enum": [
+                            "completed",
+                            "cancelled",
+                            "failed",
+                            "blocked"
+                          ]
                         },
                         "error": {
                           "type": "object",
@@ -3710,7 +4261,11 @@
                               "$ref": "#/definitions/__schema0"
                             }
                           },
-                          "required": ["code", "message", "retryable"]
+                          "required": [
+                            "code",
+                            "message",
+                            "retryable"
+                          ]
                         },
                         "durationMs": {
                           "type": "number"
@@ -3727,7 +4282,12 @@
                           ]
                         }
                       },
-                      "required": ["type", "agentId", "turnId", "reason"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "turnId",
+                        "reason"
+                      ]
                     },
                     {
                       "type": "object",
@@ -3749,7 +4309,12 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "turnId", "step"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "turnId",
+                        "step"
+                      ]
                     },
                     {
                       "type": "object",
@@ -3829,7 +4394,12 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "turnId", "step"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "turnId",
+                        "step"
+                      ]
                     },
                     {
                       "type": "object",
@@ -3911,7 +4481,13 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "turnId", "step", "reason"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "turnId",
+                        "step",
+                        "reason"
+                      ]
                     },
                     {
                       "type": "object",
@@ -3930,7 +4506,12 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "turnId", "delta"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "turnId",
+                        "delta"
+                      ]
                     },
                     {
                       "type": "object",
@@ -3955,7 +4536,12 @@
                           "type": "boolean"
                         }
                       },
-                      "required": ["type", "agentId", "hookEvent", "content"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "hookEvent",
+                        "content"
+                      ]
                     },
                     {
                       "type": "object",
@@ -3974,7 +4560,12 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "turnId", "delta"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "turnId",
+                        "delta"
+                      ]
                     },
                     {
                       "type": "object",
@@ -3999,7 +4590,12 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "turnId", "toolCallId"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "turnId",
+                        "toolCallId"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4047,7 +4643,10 @@
                                   "const": "bash"
                                 }
                               },
-                              "required": ["kind", "command"]
+                              "required": [
+                                "kind",
+                                "command"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4058,7 +4657,13 @@
                                 },
                                 "operation": {
                                   "type": "string",
-                                  "enum": ["read", "write", "edit", "glob", "grep"]
+                                  "enum": [
+                                    "read",
+                                    "write",
+                                    "edit",
+                                    "glob",
+                                    "grep"
+                                  ]
                                 },
                                 "path": {
                                   "type": "string"
@@ -4076,7 +4681,11 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["kind", "operation", "path"]
+                              "required": [
+                                "kind",
+                                "operation",
+                                "path"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4098,7 +4707,12 @@
                                   "type": "number"
                                 }
                               },
-                              "required": ["kind", "path", "before", "after"]
+                              "required": [
+                                "kind",
+                                "path",
+                                "before",
+                                "after"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4114,7 +4728,10 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["kind", "query"]
+                              "required": [
+                                "kind",
+                                "query"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4130,7 +4747,10 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["kind", "url"]
+                              "required": [
+                                "kind",
+                                "url"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4149,7 +4769,11 @@
                                   "type": "boolean"
                                 }
                               },
-                              "required": ["kind", "agent_name", "prompt"]
+                              "required": [
+                                "kind",
+                                "agent_name",
+                                "prompt"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4165,7 +4789,10 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["kind", "skill_name"]
+                              "required": [
+                                "kind",
+                                "skill_name"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4186,11 +4813,17 @@
                                         "type": "string"
                                       }
                                     },
-                                    "required": ["title", "status"]
+                                    "required": [
+                                      "title",
+                                      "status"
+                                    ]
                                   }
                                 }
                               },
-                              "required": ["kind", "items"]
+                              "required": [
+                                "kind",
+                                "items"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4212,7 +4845,12 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["kind", "task_id", "status", "description"]
+                              "required": [
+                                "kind",
+                                "task_id",
+                                "status",
+                                "description"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4228,7 +4866,11 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["kind", "task_id", "task_description"]
+                              "required": [
+                                "kind",
+                                "task_id",
+                                "task_description"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4256,11 +4898,17 @@
                                         "type": "string"
                                       }
                                     },
-                                    "required": ["label", "description"]
+                                    "required": [
+                                      "label",
+                                      "description"
+                                    ]
                                   }
                                 }
                               },
-                              "required": ["kind", "plan"]
+                              "required": [
+                                "kind",
+                                "plan"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4277,10 +4925,17 @@
                                 },
                                 "mode": {
                                   "type": "string",
-                                  "enum": ["manual", "yolo"]
+                                  "enum": [
+                                    "manual",
+                                    "yolo"
+                                  ]
                                 }
                               },
-                              "required": ["kind", "objective", "mode"]
+                              "required": [
+                                "kind",
+                                "objective",
+                                "mode"
+                              ]
                             },
                             {
                               "type": "object",
@@ -4294,12 +4949,22 @@
                                 },
                                 "detail": {}
                               },
-                              "required": ["kind", "summary"]
+                              "required": [
+                                "kind",
+                                "summary"
+                              ]
                             }
                           ]
                         }
                       },
-                      "required": ["type", "agentId", "turnId", "toolCallId", "name", "args"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "turnId",
+                        "toolCallId",
+                        "name",
+                        "args"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4322,7 +4987,13 @@
                           "properties": {
                             "kind": {
                               "type": "string",
-                              "enum": ["stdout", "stderr", "progress", "status", "custom"]
+                              "enum": [
+                                "stdout",
+                                "stderr",
+                                "progress",
+                                "status",
+                                "custom"
+                              ]
                             },
                             "text": {
                               "type": "string"
@@ -4338,10 +5009,18 @@
                               "type": "boolean"
                             }
                           },
-                          "required": ["kind"]
+                          "required": [
+                            "kind"
+                          ]
                         }
                       },
-                      "required": ["type", "agentId", "turnId", "toolCallId", "update"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "turnId",
+                        "toolCallId",
+                        "update"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4361,7 +5040,13 @@
                           "properties": {
                             "kind": {
                               "type": "string",
-                              "enum": ["stdout", "stderr", "progress", "status", "custom"]
+                              "enum": [
+                                "stdout",
+                                "stderr",
+                                "progress",
+                                "status",
+                                "custom"
+                              ]
                             },
                             "text": {
                               "type": "string"
@@ -4377,13 +5062,20 @@
                               "type": "boolean"
                             }
                           },
-                          "required": ["kind"]
+                          "required": [
+                            "kind"
+                          ]
                         },
                         "taskId": {
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "commandId", "update"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "commandId",
+                        "update"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4402,7 +5094,12 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "commandId", "taskId"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "commandId",
+                        "taskId"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4424,7 +5121,12 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "commandId", "isError"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "commandId",
+                        "isError"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4450,7 +5152,13 @@
                           "type": "boolean"
                         }
                       },
-                      "required": ["type", "agentId", "turnId", "toolCallId", "output"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "turnId",
+                        "toolCallId",
+                        "output"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4464,13 +5172,22 @@
                         },
                         "reason": {
                           "type": "string",
-                          "enum": ["mcp.connected", "mcp.disconnected", "mcp.failed"]
+                          "enum": [
+                            "mcp.connected",
+                            "mcp.disconnected",
+                            "mcp.failed"
+                          ]
                         },
                         "serverName": {
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "reason", "serverName"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "reason",
+                        "serverName"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4490,7 +5207,10 @@
                             },
                             "transport": {
                               "type": "string",
-                              "enum": ["stdio", "http"]
+                              "enum": [
+                                "stdio",
+                                "http"
+                              ]
                             },
                             "status": {
                               "type": "string",
@@ -4510,10 +5230,19 @@
                               "type": "string"
                             }
                           },
-                          "required": ["name", "transport", "status", "toolCount"]
+                          "required": [
+                            "name",
+                            "transport",
+                            "status",
+                            "toolCount"
+                          ]
                         }
                       },
-                      "required": ["type", "agentId", "server"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "server"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4578,7 +5307,10 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "subagentId"]
+                      "required": [
+                        "type",
+                        "subagentId"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4594,7 +5326,11 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "subagentId", "reason"]
+                      "required": [
+                        "type",
+                        "subagentId",
+                        "reason"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4636,7 +5372,11 @@
                           "type": "number"
                         }
                       },
-                      "required": ["type", "subagentId", "resultSummary"]
+                      "required": [
+                        "type",
+                        "subagentId",
+                        "resultSummary"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4652,7 +5392,11 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "subagentId", "error"]
+                      "required": [
+                        "type",
+                        "subagentId",
+                        "error"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4666,13 +5410,20 @@
                         },
                         "trigger": {
                           "type": "string",
-                          "enum": ["manual", "auto"]
+                          "enum": [
+                            "manual",
+                            "auto"
+                          ]
                         },
                         "instruction": {
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "trigger"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "trigger"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4688,7 +5439,10 @@
                           "type": "number"
                         }
                       },
-                      "required": ["type", "agentId"]
+                      "required": [
+                        "type",
+                        "agentId"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4701,7 +5455,10 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId"]
+                      "required": [
+                        "type",
+                        "agentId"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4738,10 +5495,19 @@
                               "type": "number"
                             }
                           },
-                          "required": ["summary", "compactedCount", "tokensBefore", "tokensAfter"]
+                          "required": [
+                            "summary",
+                            "compactedCount",
+                            "tokensBefore",
+                            "tokensAfter"
+                          ]
                         }
                       },
-                      "required": ["type", "agentId", "result"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "result"
+                      ]
                     },
                     {
                       "type": "object",
@@ -4973,7 +5739,11 @@
                           ]
                         }
                       },
-                      "required": ["type", "agentId", "info"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "info"
+                      ]
                     },
                     {
                       "type": "object",
@@ -5205,7 +5975,11 @@
                           ]
                         }
                       },
-                      "required": ["type", "agentId", "info"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "info"
+                      ]
                     },
                     {
                       "type": "object",
@@ -5434,7 +6208,10 @@
                           ]
                         }
                       },
-                      "required": ["type", "info"]
+                      "required": [
+                        "type",
+                        "info"
+                      ]
                     },
                     {
                       "type": "object",
@@ -5663,7 +6440,10 @@
                           ]
                         }
                       },
-                      "required": ["type", "info"]
+                      "required": [
+                        "type",
+                        "info"
+                      ]
                     },
                     {
                       "type": "object",
@@ -5708,7 +6488,11 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "origin", "prompt"]
+                      "required": [
+                        "type",
+                        "origin",
+                        "prompt"
+                      ]
                     },
                     {
                       "type": "object",
@@ -5725,7 +6509,11 @@
                         },
                         "status": {
                           "type": "string",
-                          "enum": ["running", "queued", "blocked"]
+                          "enum": [
+                            "running",
+                            "queued",
+                            "blocked"
+                          ]
                         },
                         "content": {
                           "type": "array",
@@ -5742,7 +6530,10 @@
                                     "type": "string"
                                   }
                                 },
-                                "required": ["type", "text"]
+                                "required": [
+                                  "type",
+                                  "text"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -5761,7 +6552,12 @@
                                   },
                                   "input": {}
                                 },
-                                "required": ["type", "tool_call_id", "tool_name", "input"]
+                                "required": [
+                                  "type",
+                                  "tool_call_id",
+                                  "tool_name",
+                                  "input"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -5779,7 +6575,11 @@
                                     "type": "boolean"
                                   }
                                 },
-                                "required": ["type", "tool_call_id", "output"]
+                                "required": [
+                                  "type",
+                                  "tool_call_id",
+                                  "output"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -5806,7 +6606,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "url"]
+                                        "required": [
+                                          "kind",
+                                          "url"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -5824,7 +6627,11 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "media_type", "data"]
+                                        "required": [
+                                          "kind",
+                                          "media_type",
+                                          "data"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -5838,7 +6645,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "file_id"]
+                                        "required": [
+                                          "kind",
+                                          "file_id"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -5852,7 +6662,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "file_id"]
+                                        "required": [
+                                          "kind",
+                                          "file_id"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -5866,12 +6679,18 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "path"]
+                                        "required": [
+                                          "kind",
+                                          "path"
+                                        ]
                                       }
                                     ]
                                   }
                                 },
-                                "required": ["type", "source"]
+                                "required": [
+                                  "type",
+                                  "source"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -5898,7 +6717,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "url"]
+                                        "required": [
+                                          "kind",
+                                          "url"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -5916,7 +6738,11 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "media_type", "data"]
+                                        "required": [
+                                          "kind",
+                                          "media_type",
+                                          "data"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -5930,7 +6756,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "file_id"]
+                                        "required": [
+                                          "kind",
+                                          "file_id"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -5944,7 +6773,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "file_id"]
+                                        "required": [
+                                          "kind",
+                                          "file_id"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -5958,12 +6790,18 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "path"]
+                                        "required": [
+                                          "kind",
+                                          "path"
+                                        ]
                                       }
                                     ]
                                   }
                                 },
-                                "required": ["type", "source"]
+                                "required": [
+                                  "type",
+                                  "source"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -5993,7 +6831,9 @@
                                     "maximum": 9007199254740991
                                   }
                                 },
-                                "required": ["type"]
+                                "required": [
+                                  "type"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -6009,7 +6849,10 @@
                                     "type": "string"
                                   }
                                 },
-                                "required": ["type", "thinking"]
+                                "required": [
+                                  "type",
+                                  "thinking"
+                                ]
                               }
                             ]
                           }
@@ -6045,10 +6888,19 @@
                         },
                         "reason": {
                           "type": "string",
-                          "enum": ["completed", "failed", "blocked"]
+                          "enum": [
+                            "completed",
+                            "failed",
+                            "blocked"
+                          ]
                         }
                       },
-                      "required": ["type", "agentId", "promptId", "finishedAt"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "promptId",
+                        "finishedAt"
+                      ]
                     },
                     {
                       "type": "object",
@@ -6067,7 +6919,12 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "agentId", "promptId", "abortedAt"]
+                      "required": [
+                        "type",
+                        "agentId",
+                        "promptId",
+                        "abortedAt"
+                      ]
                     },
                     {
                       "type": "object",
@@ -6103,7 +6960,10 @@
                                     "type": "string"
                                   }
                                 },
-                                "required": ["type", "text"]
+                                "required": [
+                                  "type",
+                                  "text"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -6122,7 +6982,12 @@
                                   },
                                   "input": {}
                                 },
-                                "required": ["type", "tool_call_id", "tool_name", "input"]
+                                "required": [
+                                  "type",
+                                  "tool_call_id",
+                                  "tool_name",
+                                  "input"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -6140,7 +7005,11 @@
                                     "type": "boolean"
                                   }
                                 },
-                                "required": ["type", "tool_call_id", "output"]
+                                "required": [
+                                  "type",
+                                  "tool_call_id",
+                                  "output"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -6167,7 +7036,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "url"]
+                                        "required": [
+                                          "kind",
+                                          "url"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -6185,7 +7057,11 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "media_type", "data"]
+                                        "required": [
+                                          "kind",
+                                          "media_type",
+                                          "data"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -6199,7 +7075,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "file_id"]
+                                        "required": [
+                                          "kind",
+                                          "file_id"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -6213,7 +7092,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "file_id"]
+                                        "required": [
+                                          "kind",
+                                          "file_id"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -6227,12 +7109,18 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "path"]
+                                        "required": [
+                                          "kind",
+                                          "path"
+                                        ]
                                       }
                                     ]
                                   }
                                 },
-                                "required": ["type", "source"]
+                                "required": [
+                                  "type",
+                                  "source"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -6259,7 +7147,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "url"]
+                                        "required": [
+                                          "kind",
+                                          "url"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -6277,7 +7168,11 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "media_type", "data"]
+                                        "required": [
+                                          "kind",
+                                          "media_type",
+                                          "data"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -6291,7 +7186,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "file_id"]
+                                        "required": [
+                                          "kind",
+                                          "file_id"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -6305,7 +7203,10 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "file_id"]
+                                        "required": [
+                                          "kind",
+                                          "file_id"
+                                        ]
                                       },
                                       {
                                         "type": "object",
@@ -6319,12 +7220,18 @@
                                             "minLength": 1
                                           }
                                         },
-                                        "required": ["kind", "path"]
+                                        "required": [
+                                          "kind",
+                                          "path"
+                                        ]
                                       }
                                     ]
                                   }
                                 },
-                                "required": ["type", "source"]
+                                "required": [
+                                  "type",
+                                  "source"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -6354,7 +7261,9 @@
                                     "maximum": 9007199254740991
                                   }
                                 },
-                                "required": ["type"]
+                                "required": [
+                                  "type"
+                                ]
                               },
                               {
                                 "type": "object",
@@ -6370,7 +7279,10 @@
                                     "type": "string"
                                   }
                                 },
-                                "required": ["type", "thinking"]
+                                "required": [
+                                  "type",
+                                  "thinking"
+                                ]
                               }
                             ]
                           }
@@ -6400,12 +7312,20 @@
                       "type": "string"
                     }
                   },
-                  "required": ["agentId", "sessionId"]
+                  "required": [
+                    "agentId",
+                    "sessionId"
+                  ]
                 }
               ]
             }
           },
-          "required": ["type", "seq", "timestamp", "payload"],
+          "required": [
+            "type",
+            "seq",
+            "timestamp",
+            "payload"
+          ],
           "definitions": {
             "__schema0": {
               "type": "object",
@@ -6549,7 +7469,11 @@
                   "$ref": "#/definitions/__schema0"
                 }
               },
-              "required": ["code", "message", "retryable"]
+              "required": [
+                "code",
+                "message",
+                "retryable"
+              ]
             }
           }
         }
