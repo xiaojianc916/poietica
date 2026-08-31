@@ -148,24 +148,18 @@ impl Drop for ReconcileOwner {
 
 /// 有人在等人这一侧的答复吗。
 ///
-/// 会话状态那一帧是唯一同时报两条队列的地方（kap-server 的
-/// transport/ws/v1/events.ts：status 取 awaiting_approval / awaiting_question）。
-/// agent.status.updated 的 phase 报不出提问 —— services/legacyStatus/legacyStatus.ts
-/// 的 AgentPhase 只有 idle / running / streaming / tool_call / retrying /
-/// awaiting_approval / interrupted / ended，所以它只当审批的信号。
+/// 两条队列各有自己的到达事件：kap-server 的
+/// transport/ws/v1/sessionEventBroadcaster.ts 在 attachInteractions 里盯 pending
+/// 集合，新挂上来的按种类发 event.approval.requested / event.question.requested，
+/// 两者都是 durable、随读点重放。work_changed 的 pending_interaction 是重连之后的
+/// 对账信号（protocol/session.ts：none / approval / question）。
 fn awaits_person(event_type: &str, payload: &Value) -> bool {
     match event_type {
-        "event.session.status_changed" => matches!(
-            payload.get("status").and_then(Value::as_str),
-            Some("awaiting_approval" | "awaiting_question")
+        "event.approval.requested" | "event.question.requested" => true,
+        "event.session.work_changed" => matches!(
+            payload.get("pending_interaction").and_then(Value::as_str),
+            Some("approval" | "question")
         ),
-        "agent.status.updated" => {
-            payload
-                .get("phase")
-                .and_then(|phase| phase.get("kind"))
-                .and_then(Value::as_str)
-                == Some("awaiting_approval")
-        }
         _ => false,
     }
 }
@@ -558,8 +552,8 @@ async fn fetch_and_record_approvals(
             continue;
         };
 
-        // 同一个审批会随每一份 agent.status.updated 再报一次：桌上已经有了的
-        // 不记第二帧、不等第二份答案。
+        // 重连对账会把还挂着的审批再报一次：桌上已经有了的不记第二帧、不等第二
+        // 份答案。
         if pending.contains(&approval_id) {
             continue;
         }
@@ -723,8 +717,8 @@ async fn fetch_and_record_questions(
             continue;
         };
 
-        // 同一组题会随每一份 agent.status.updated 再报一次：桌上已经有了的不记
-        // 第二帧、不等第二份答案。
+        // 重连对账会把还挂着的题组再报一次：桌上已经有了的不记第二帧、不等第二
+        // 份答案。
         if pending.contains(&group.question_id) {
             continue;
         }
