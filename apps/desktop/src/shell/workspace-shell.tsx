@@ -1,6 +1,6 @@
 import { TooltipProvider } from '@poietica/design-system'
 import { encodeWorkbenchTabDomId } from '@poietica/workspace'
-import { BrowserRegion } from '../browser/browser-region'
+import { AuxiliaryRegion } from './auxiliary/auxiliary-region'
 import type { WorkspaceShellProps } from './shell-contract'
 import { SidebarRegion } from './sidebar/sidebar-region'
 import { WorkspaceFrame } from './workspace-frame'
@@ -14,11 +14,11 @@ import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layou
  * 布局意图与拖拽态属于 workspaceLayoutStore。
  */
 export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
-  const { sidebarOpen, sidebarWidth, browserWidth, splitter, splitterRegion } =
+  const { sidebarOpen, sidebarWidth, auxiliaryWidth, splitter, splitterRegion } =
     useWorkspaceLayoutState()
-  const { setSidebarOpen, setSidebarWidth, setBrowserThread, setBrowserWidth } =
+  const { setSidebarOpen, setSidebarWidth, setAuxiliaryThread, setAuxiliaryWidth } =
     workspaceLayoutStore
-  const dockBrowser = parts.browser.isDocked
+  const dockAuxiliary = parts.auxiliary.isDocked
 
   const activeTabDomId = encodeWorkbenchTabDomId(model.activeTabId)
 
@@ -31,25 +31,25 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
   return (
     <TooltipProvider delay={450}>
       <WorkspaceFrame
-        browser={
-          <BrowserRegion
-            isDocked={dockBrowser}
+        auxiliary={
+          <AuxiliaryRegion
+            isDocked={dockAuxiliary}
             onClose={() => {
-              setBrowserThread(null)
+              setAuxiliaryThread(null)
             }}
-            onResize={setBrowserWidth}
-            width={browserWidth}
+            onResize={setAuxiliaryWidth}
+            width={auxiliaryWidth}
           >
-            {parts.browser.content}
-          </BrowserRegion>
+            {parts.auxiliary.content}
+          </AuxiliaryRegion>
         }
-        browserColumnWidth={dockBrowser ? browserWidth : 0}
+        auxiliaryColumnWidth={dockAuxiliary ? auxiliaryWidth : 0}
         chrome={
           <header className="workspace-shell__chrome min-h-0 min-w-0 bg-chrome">
             {parts.chrome.content}
           </header>
         }
-        isBrowserDocked={dockBrowser}
+        isAuxiliaryDocked={dockAuxiliary}
         isSidebarDocked={sidebarOpen}
         main={
           <section

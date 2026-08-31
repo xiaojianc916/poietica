@@ -28,11 +28,11 @@ export interface WorkspaceFrameProps {
   readonly chrome: ReactNode
   readonly sidebar: ReactNode
   readonly main: ReactNode
-  readonly browser: ReactNode
+  readonly auxiliary: ReactNode
   readonly sidebarColumnWidth: number
-  readonly browserColumnWidth: number
+  readonly auxiliaryColumnWidth: number
   readonly isSidebarDocked: boolean
-  readonly isBrowserDocked: boolean
+  readonly isAuxiliaryDocked: boolean
   readonly splitter: SplitterActivity
   readonly splitterRegion: SplitterRegion
 }
@@ -52,24 +52,24 @@ export function WorkspaceFrame({
   chrome,
   sidebar,
   main,
-  browser,
+  auxiliary,
   sidebarColumnWidth,
-  browserColumnWidth,
+  auxiliaryColumnWidth,
   isSidebarDocked,
-  isBrowserDocked,
+  isAuxiliaryDocked,
   splitter,
   splitterRegion,
 }: WorkspaceFrameProps) {
   const style: WorkspaceStyle = {
     ...WORKSPACE_LAYOUT_STYLE,
     '--workspace-sidebar-column-width': `${sidebarColumnWidth}px`,
-    '--workspace-browser-column-width': `${browserColumnWidth}px`,
+    '--workspace-auxiliary-column-width': `${auxiliaryColumnWidth}px`,
   }
 
   return (
     <div
       className="workspace-shell relative grid h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground"
-      data-browser-docked={isBrowserDocked ? 'true' : 'false'}
+      data-auxiliary-docked={isAuxiliaryDocked ? 'true' : 'false'}
       data-sidebar-docked={isSidebarDocked ? 'true' : 'false'}
       data-splitter={splitter}
       data-splitter-region={splitterRegion}
@@ -79,11 +79,11 @@ export function WorkspaceFrame({
       {chrome}
       {sidebar}
       {main}
-      {browser}
+      {auxiliary}
       <div aria-hidden="true" className="workspace-shell__divider" />
       <div
         aria-hidden="true"
-        className="workspace-shell__divider workspace-shell__divider--browser"
+        className="workspace-shell__divider workspace-shell__divider--auxiliary"
       />
     </div>
   )

@@ -1,8 +1,9 @@
-import type { BrowserMenuKind, BrowserPanelStore, BrowserState } from '@poietica/browser'
+import type { BrowserState } from '@poietica/browser'
 import { X } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { BrowserNewTabMenu, BrowserTabsMenu, type DockPaneOffer } from './browser-menu'
-import { TabIcon } from './tab-icon'
+import type { KeyboardEvent, ReactNode } from 'react'
+import { AuxiliaryNewTabMenu, type AuxiliaryPaneOffer, AuxiliaryTabsMenu } from './auxiliary-menu'
+import type { AuxiliaryMenuKind, AuxiliaryPanelStore } from './auxiliary-panel-store'
+import { BrowserTabIcon } from './browser-tab-icon'
 
 /*
  * 标签条与标签下拉。
@@ -18,22 +19,26 @@ export interface DockPaneView {
   readonly icon: ReactNode
 }
 
-interface BrowserTabStripProps {
+interface AuxiliaryTabStripProps {
   readonly host: BrowserState
-  readonly actions: BrowserPanelStore['actions']
+  readonly actions: AuxiliaryPanelStore['actions']
   readonly panes: readonly DockPaneView[]
-  readonly paneOffers: readonly DockPaneOffer[]
+  readonly paneOffers: readonly AuxiliaryPaneOffer[]
   readonly activePaneId: string | null
   readonly onSelectPane: (id: string | null) => void
   readonly onClosePane: (id: string) => void
-  readonly onOpenPane: (kind: string) => void
-  readonly openMenu: BrowserMenuKind | null
-  readonly onMenuChange: (kind: BrowserMenuKind | null) => void
+  readonly onOpenPane: AuxiliaryPanelStore['openLauncherPane']
+  readonly openMenu: AuxiliaryMenuKind | null
+  readonly onMenuChange: (kind: AuxiliaryMenuKind | null) => void
   /** 行尾角位：宿主放面板开关。 */
   readonly trailing?: ReactNode
 }
 
-export function BrowserTabStrip({
+export const AUXILIARY_TABPANEL_ID = 'auxiliary-tabpanel'
+export const auxiliaryPaneTabId = (id: string) => `auxiliary-pane-${id}`
+export const auxiliaryBrowserTabId = (id: number) => `auxiliary-browser-${id}`
+
+export function AuxiliaryTabStrip({
   host,
   actions,
   activePaneId,
@@ -45,9 +50,34 @@ export function BrowserTabStrip({
   onSelectPane,
   openMenu,
   trailing,
-}: BrowserTabStripProps) {
+}: AuxiliaryTabStripProps) {
+  const moveTabFocus = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      return
+    }
+    const tabs = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    const current = tabs.indexOf(document.activeElement as HTMLButtonElement)
+    if (current < 0 || tabs.length === 0) {
+      return
+    }
+    event.preventDefault()
+    const next =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? tabs.length - 1
+          : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+    tabs[next]?.focus()
+    tabs[next]?.click()
+  }
+
   return (
-    <div className="flex h-8 shrink-0 items-center gap-1 border-b border-current/10 px-1">
+    <div
+      aria-label="辅助面板标签页"
+      className="flex h-8 shrink-0 items-center gap-1 border-b border-current/10 px-1"
+      onKeyDown={moveTabFocus}
+      role="tablist"
+    >
       {/* 行高与宿主页头一致（32px）：角位上的开关在开合两态间零位移。 */}
       {/* 原生横向滚动条占布局高度，会把 24px 的标签顶出 32px 的行；内联藏掉，
             不走类扫描与构建链。溢出导航：触控板横滑、Shift+滚轮、左端标签列表。 */}
@@ -64,10 +94,15 @@ export function BrowserTabStrip({
             key={pane.id}
           >
             <button
+              aria-controls={AUXILIARY_TABPANEL_ID}
+              aria-selected={pane.id === activePaneId}
               className="flex min-w-0 items-center gap-1.5 py-1 pl-2 pr-1"
+              id={auxiliaryPaneTabId(pane.id)}
               onClick={() => {
                 onSelectPane(pane.id)
               }}
+              role="tab"
+              tabIndex={pane.id === activePaneId ? 0 : -1}
               title={pane.name}
               type="button"
             >
@@ -98,14 +133,19 @@ export function BrowserTabStrip({
               key={tab.id}
             >
               <button
+                aria-controls={AUXILIARY_TABPANEL_ID}
+                aria-selected={active}
                 className="flex min-w-0 items-center gap-1.5 py-1 pl-2 pr-1"
+                id={auxiliaryBrowserTabId(tab.id)}
                 onClick={() => {
                   actions.selectTab(tab.id)
                 }}
+                role="tab"
+                tabIndex={active ? 0 : -1}
                 title={tab.url ?? tab.title}
                 type="button"
               >
-                <TabIcon tab={tab} />
+                <BrowserTabIcon tab={tab} />
                 <span className="min-w-0 truncate text-xs">{tab.title}</span>
               </button>
               <button
@@ -123,19 +163,16 @@ export function BrowserTabStrip({
         })}
       </div>
 
-      <BrowserNewTabMenu
+      <AuxiliaryNewTabMenu
         offers={paneOffers}
         onOpenChange={(next) => {
           onMenuChange(next ? 'new-tab' : null)
         }}
         onOpenPane={onOpenPane}
-        onOpenTab={() => {
-          actions.openTab(null)
-        }}
         open={openMenu === 'new-tab'}
       />
 
-      <BrowserTabsMenu
+      <AuxiliaryTabsMenu
         activePaneId={activePaneId}
         host={host}
         onOpenChange={(next) => {

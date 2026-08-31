@@ -60,20 +60,20 @@ describe('workspaceLayoutStore', () => {
     workspaceLayoutStore.setSidebarWidth(WORKSPACE_LAYOUT.sidebar.defaultWidth)
   })
 
-  it('浏览器只归一条对话，重复提交同一条不换引用', () => {
-    workspaceLayoutStore.setBrowserThread('thread-a')
+  it('辅助面板只归一条对话，重复提交同一条不换引用', () => {
+    workspaceLayoutStore.setAuxiliaryThread('thread-a')
 
     const bound = workspaceLayoutStore.getSnapshot()
 
-    expect(bound.browserThread).toBe('thread-a')
+    expect(bound.auxiliaryThread).toBe('thread-a')
 
-    workspaceLayoutStore.setBrowserThread('thread-a')
+    workspaceLayoutStore.setAuxiliaryThread('thread-a')
 
     expect(workspaceLayoutStore.getSnapshot()).toBe(bound)
 
-    workspaceLayoutStore.setBrowserThread(null)
+    workspaceLayoutStore.setAuxiliaryThread(null)
 
-    expect(workspaceLayoutStore.getSnapshot().browserThread).toBeNull()
+    expect(workspaceLayoutStore.getSnapshot().auxiliaryThread).toBeNull()
   })
 
   /* drag 不是吸收态：卡在粗线的那类回归就是从这里开始的。 */

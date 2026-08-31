@@ -1,4 +1,5 @@
 import type { AgentSessionPort } from '@poietica/conversation'
+import { browserHostPort } from '@poietica/native-bridge'
 import type {
   AgentConfigStore,
   CustomAgentStore,
@@ -18,14 +19,21 @@ import type {
   WorkbenchTabId,
   WorkbenchTabViewModel,
 } from '@poietica/workspace'
-import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { AssistantSidebarPanel } from '../assistant/assistant-sidebar-panel'
 import { createAssistantWiring } from '../assistant/assistant-wiring'
 import { ConversationHeader } from '../assistant/conversation-header'
 import { useThreadsActions } from '../assistant/threads-context'
-import { BrowserDock } from '../browser/browser-dock'
-import { browserPanelStore } from '../browser/browser-runtime'
 import { type ActiveTabSequence, DesktopTitleBar } from '../window/desktop-title-bar'
+import { AuxiliaryDock } from './auxiliary/auxiliary-dock'
+import { createAuxiliaryPanelStore } from './auxiliary/auxiliary-panel-store'
 import { tabNeighbors } from './commands/app-commands'
 import {
   SidebarFooter,
@@ -110,6 +118,7 @@ export function WorkspaceContainer({
   )
 
   const threads = useThreadsActions()
+  const [auxiliaryPanel] = useState(() => createAuxiliaryPanelStore(browserHostPort))
 
   /* 「哪条对话在跑」只订一次：标签条与侧栏读同一份。 */
   const runningThreadIds = useRunningThreads()
@@ -165,14 +174,14 @@ export function WorkspaceContainer({
   /* 侧栏高亮的那一行就是正在看的那一格：身份来自工作台，没有第二份状态。 */
   const activeConversationId =
     workbench.activeSurface.kind === 'conversation' ? workbench.activeSurface.threadId : null
-  const { browserThread } = useWorkspaceLayoutState()
+  const { auxiliaryThread } = useWorkspaceLayoutState()
 
   /*
-   * 浏览器在不在场，一处判定：它归 browserThread 那条对话，而那条对话此刻得真的
+   * 浏览器在不在场，一处判定：它归 auxiliaryThread 那条对话，而那条对话此刻得真的
    * 在屏幕上。停靠位与原生 webview 的可见性都读这一个布尔。
    */
-  const dockBrowser =
-    !isSettingsOpen && browserThread !== null && browserThread === activeConversationId
+  const dockAuxiliary =
+    !isSettingsOpen && auxiliaryThread !== null && auxiliaryThread === activeConversationId
 
   /*
    * 高亮只有一处：看着一条对话时，亮的是列表里那一行，导航不陪着亮 ——
@@ -243,13 +252,13 @@ export function WorkspaceContainer({
   /* 派发通道只有这一个入口：点开那一行，右侧那一格亮起来并停在这条通道上。 */
   const openDelegateChannel = useCallback(
     (agentId: string) => {
-      browserPanelStore.openPane({ id: agentId, kind: 'delegate' })
+      auxiliaryPanel.openDelegate(agentId)
 
       if (activeConversationId !== null) {
-        workspaceLayoutStore.setBrowserThread(activeConversationId)
+        workspaceLayoutStore.setAuxiliaryThread(activeConversationId)
       }
     },
-    [activeConversationId],
+    [activeConversationId, auxiliaryPanel],
   )
 
   const parts: WorkspaceParts = {
@@ -321,7 +330,7 @@ export function WorkspaceContainer({
         /*
          * 左列是对话（页头 + 画布），右侧是满高的浏览器 dock。dock 的标签
          * 条与页头同行高，开关在两者右角间交接座位，屏幕坐标不变。页头与
-         * 雾只在对话里出现；浏览器开合状态活在 browserPanelStore，一份，
+         * 雾只在对话里出现；辅助面板开合状态活在 auxiliaryPanel，一份，
          * 跨表面与设置往返不丢。
          */
         <div className="flex h-full min-h-0 min-w-0 flex-col">
@@ -339,10 +348,16 @@ export function WorkspaceContainer({
       label: isSettingsOpen ? '设置' : undefined,
     },
 
-    /* 浏览器是外壳的第三列，不是主区里的一块：开合走与侧栏同一条动画。 */
-    browser: {
-      content: <BrowserDock conversationId={activeConversationId} isDocked={dockBrowser} />,
-      isDocked: dockBrowser,
+    /* 辅助面板是外壳的第三列，不是主区里的一块：开合走与侧栏同一条动画。 */
+    auxiliary: {
+      content: (
+        <AuxiliaryDock
+          conversationId={activeConversationId}
+          isDocked={dockAuxiliary}
+          store={auxiliaryPanel}
+        />
+      ),
+      isDocked: dockAuxiliary,
     },
   }
 

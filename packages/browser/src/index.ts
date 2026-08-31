@@ -1,5 +1,3 @@
-export type { BrowserMenuKind, BrowserPanelState, DockPane } from './browser-panel-store'
-export { type BrowserPanelStore, createBrowserPanelStore } from './browser-panel-store'
 export type {
   BrowserHostPort,
   BrowserState,

@@ -1,13 +1,9 @@
-import {
-  alignViewport,
-  type BrowserPanelStore,
-  type BrowserTab,
-  type ViewportAlignment,
-} from '@poietica/browser'
+import { alignViewport, type BrowserTab, type ViewportAlignment } from '@poietica/browser'
 import { ArrowLeft, ArrowRight, Globe, MousePointerClick, RotateCw } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { BrowserOverflowMenu, type DockPaneOffer } from './browser-menu'
-import { BrowserTabStrip } from './browser-tab-strip'
+import { type AuxiliaryPaneOffer, BrowserOverflowMenu } from './auxiliary-menu'
+import type { AuxiliaryPaneKind, AuxiliaryPanelStore } from './auxiliary-panel-store'
+import { AuxiliaryTabStrip } from './auxiliary-tab-strip'
 
 /*
  * 浏览器面板（图一）。
@@ -18,16 +14,19 @@ import { BrowserTabStrip } from './browser-tab-strip'
  */
 
 /** 一格通道由谁描述：字形与名字进标签行，内容进主区。本包不解读 id。 */
-export interface DockPaneRenderer {
+export interface AuxiliaryPaneRenderer {
   readonly icon: ReactNode
   readonly name: (id: string) => string
   readonly body: (id: string) => ReactNode
 }
 
 /** 每种通道一个渲染器，键就是 DockPane.kind。 */
-export type DockPaneRenderers = Readonly<Record<string, DockPaneRenderer>>
+export type AuxiliaryPaneRenderers = Readonly<Record<AuxiliaryPaneKind, AuxiliaryPaneRenderer>>
 
-function rendererOf(renderers: DockPaneRenderers, kind: string): DockPaneRenderer {
+function rendererOf(
+  renderers: AuxiliaryPaneRenderers,
+  kind: AuxiliaryPaneKind,
+): AuxiliaryPaneRenderer {
   const renderer = renderers[kind]
 
   if (renderer === undefined) {
@@ -37,32 +36,40 @@ function rendererOf(renderers: DockPaneRenderers, kind: string): DockPaneRendere
   return renderer
 }
 
-export interface BrowserPanelProps {
-  readonly store: BrowserPanelStore
-  readonly panes: DockPaneRenderers
+export interface AuxiliaryPanelProps {
+  readonly store: AuxiliaryPanelStore
+  readonly panes: AuxiliaryPaneRenderers
   /** 加号菜单可开的通道种类。 */
-  readonly paneOffers: readonly DockPaneOffer[]
+  readonly paneOffers: readonly AuxiliaryPaneOffer[]
   /** 标签条行尾的角位：宿主放面板开关，几何与宿主页头对齐。 */
   readonly trailing?: ReactNode
   /** 几何输入的指纹：变了就重新起跑视口对齐，内容不解读。 */
   readonly layoutSignal: unknown
 }
 
-export function BrowserPanel({
+export function AuxiliaryPanel({
   layoutSignal,
   paneOffers,
   panes,
   store,
   trailing,
-}: BrowserPanelProps) {
+}: AuxiliaryPanelProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const host = state.host
   const activePane = state.panes.find((pane) => pane.id === state.activePaneId) ?? null
   const activeTab = host?.tabs.find((tab) => tab.id === host.activeTabId) ?? null
 
+  const showLauncher = activePane === null && (host?.tabs.length ?? 0) === 0
+
   return (
-    <aside aria-label="浏览器" className="flex h-full min-h-0 flex-col">
-      {host === null ? (
+    <aside aria-label="辅助面板" className="flex h-full min-h-0 flex-col">
+      {showLauncher ? (
+        <AuxiliaryLauncher
+          offers={paneOffers}
+          onOpen={store.openLauncherPane}
+          trailing={trailing}
+        />
+      ) : host === null ? (
         /*
          * 快照还没到（启动瞬间）或宿主没接上：如实说，不画一个假浏览器。
          * 角位照常在 —— 面板不能因为宿主哑了就收不起来。
@@ -75,20 +82,24 @@ export function BrowserPanel({
         </>
       ) : (
         <>
-          <BrowserTabStrip
+          <AuxiliaryTabStrip
             actions={store.actions}
             activePaneId={state.activePaneId}
             host={host}
             onClosePane={store.closePane}
             onMenuChange={store.setMenu}
-            onOpenPane={store.openPaneKind}
+            onOpenPane={store.openLauncherPane}
             onSelectPane={store.selectPane}
             openMenu={state.openMenu}
             paneOffers={paneOffers}
             panes={state.panes.map((pane) => {
               const renderer = rendererOf(panes, pane.kind)
 
-              return { icon: renderer.icon, id: pane.id, name: renderer.name(pane.id) }
+              return {
+                icon: renderer.icon,
+                id: pane.id,
+                name: renderer.name(pane.resourceId ?? pane.id),
+              }
             })}
             trailing={trailing}
           />
@@ -112,7 +123,7 @@ export function BrowserPanel({
           ) : (
             /* 通道是只读的：没有地址栏，也没有输入框。 */
             <div className="min-h-0 flex-1 overflow-hidden">
-              {rendererOf(panes, activePane.kind).body(activePane.id)}
+              {rendererOf(panes, activePane.kind).body(activePane.resourceId ?? activePane.id)}
             </div>
           )}
         </>
@@ -123,7 +134,7 @@ export function BrowserPanel({
 
 interface BrowserToolbarProps {
   readonly activeTab: BrowserTab | null
-  readonly actions: BrowserPanelStore['actions']
+  readonly actions: AuxiliaryPanelStore['actions']
   readonly menuOpen: boolean
   readonly onMenuOpenChange: (open: boolean) => void
   readonly pickerActive: boolean
@@ -206,7 +217,7 @@ function AddressInput({
   actions,
 }: {
   readonly activeTab: BrowserTab | null
-  readonly actions: BrowserPanelStore['actions']
+  readonly actions: AuxiliaryPanelStore['actions']
 }) {
   const committed = activeTab?.url ?? ''
   const [draft, setDraft] = useState(committed)
@@ -295,7 +306,7 @@ function Viewport({
   layoutSignal,
 }: {
   readonly showEmpty: boolean
-  readonly store: BrowserPanelStore
+  readonly store: AuxiliaryPanelStore
   readonly layoutSignal: unknown
 }) {
   const region = useRef<HTMLDivElement | null>(null)
@@ -336,5 +347,54 @@ function Viewport({
         </div>
       ) : null}
     </div>
+  )
+}
+
+function AuxiliaryLauncher({
+  offers,
+  onOpen,
+  trailing,
+}: {
+  readonly offers: readonly AuxiliaryPaneOffer[]
+  readonly onOpen: AuxiliaryPanelStore['openLauncherPane']
+  readonly trailing?: ReactNode
+}) {
+  return (
+    <section aria-labelledby="auxiliary-launcher-title" className="flex h-full min-h-0 flex-col">
+      <div className="flex h-8 shrink-0 items-center justify-end border-b border-current/10 pr-2.5">
+        {trailing}
+      </div>
+      <div className="m-auto w-full max-w-sm px-6">
+        <h2 className="text-center text-lg font-semibold" id="auxiliary-launcher-title">
+          打开标签页
+        </h2>
+        <p className="mt-2 text-center text-sm text-muted-foreground">
+          选择要在侧边面板中打开的标签。
+        </p>
+        <div className="mt-6 grid gap-3">
+          {offers.map((offer) => (
+            <button
+              className="flex min-h-14 items-center gap-4 rounded-xl bg-current/[4%] px-4 text-left hover:bg-current/[7%] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
+              key={offer.kind}
+              onClick={() => onOpen(offer.kind)}
+              type="button"
+            >
+              <span aria-hidden className="flex size-5 shrink-0 items-center justify-center">
+                {offer.icon}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{offer.label}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {offer.description}
+                </span>
+              </span>
+              {offer.availability === 'planned' ? (
+                <span className="ml-auto text-[11px] text-muted-foreground">待实现</span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
   )
 }

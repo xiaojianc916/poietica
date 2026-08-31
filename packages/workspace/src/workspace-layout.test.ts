@@ -24,6 +24,9 @@ const PIXEL_DIMENSION_TOKENS: readonly number[] = [
   WORKSPACE_LAYOUT.sidebar.minWidth,
   WORKSPACE_LAYOUT.sidebar.defaultWidth,
   WORKSPACE_LAYOUT.sidebar.maxWidth,
+  WORKSPACE_LAYOUT.auxiliary.minWidth,
+  WORKSPACE_LAYOUT.auxiliary.defaultWidth,
+  WORKSPACE_LAYOUT.auxiliary.maxWidth,
   WORKSPACE_LAYOUT.chrome.height,
 ]
 

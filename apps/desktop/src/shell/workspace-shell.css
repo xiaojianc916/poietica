@@ -12,7 +12,7 @@
   initial-value: 0px;
 }
 
-@property --workspace-browser-column-width {
+@property --workspace-auxiliary-column-width {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
@@ -22,14 +22,14 @@
   grid-template-columns:
     var(--workspace-sidebar-column-width)
     minmax(0, 1fr)
-    var(--workspace-browser-column-width);
+    var(--workspace-auxiliary-column-width);
   grid-template-rows: var(--chrome-height) minmax(0, 1fr);
   grid-template-areas:
     "chrome chrome chrome"
-    "sidebar main browser";
+    "sidebar main auxiliary";
   transition:
     --workspace-sidebar-column-width var(--workspace-layout-duration) var(--workspace-layout-ease),
-    --workspace-browser-column-width var(--workspace-layout-duration) var(--workspace-layout-ease);
+    --workspace-auxiliary-column-width var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
 /* 拖拽中不插值：宽度每帧都在变，补间只会让列追不上指针。 */
@@ -81,14 +81,14 @@
  * 基类，此处只剩格位一处差异。线从内容行起跨，不进页头行：页头那条横线是
  * chrome 行的家具，右侧不重复它（左侧竖线穿页头是侧栏专属形态）。
  */
-.workspace-shell__divider--browser {
+.workspace-shell__divider--auxiliary {
   grid-area: 2 / 2 / -1 / 3;
 }
 
 /* 各侧的线只随自己那侧的停靠位隐没：基类共享，:not 把两侧开关圈开。 */
 .workspace-shell[data-sidebar-docked="false"]
-.workspace-shell__divider:not(.workspace-shell__divider--browser),
-.workspace-shell[data-browser-docked="false"] .workspace-shell__divider--browser {
+.workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
+.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__divider--auxiliary {
   opacity: 0;
 }
 
@@ -97,35 +97,35 @@
  * 会把另一侧也点亮。键盘焦点读分隔条自己的 data-edge，同样只亮自己那根。
  */
 .workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
-.workspace-shell__divider:not(.workspace-shell__divider--browser),
+.workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
 .workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
-  .workspace-shell__divider:not(.workspace-shell__divider--browser),
+  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
 .workspace-shell[data-splitter="hover"][data-splitter-region="browser"]
-  .workspace-shell__divider--browser,
+  .workspace-shell__divider--auxiliary,
 .workspace-shell[data-splitter="drag"][data-splitter-region="browser"]
-  .workspace-shell__divider--browser,
+  .workspace-shell__divider--auxiliary,
 .workspace-shell:has(.workspace-region-splitter[data-edge="inline-start"]:focus-visible)
-  .workspace-shell__divider:not(.workspace-shell__divider--browser),
+  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
 .workspace-shell:has(.workspace-region-splitter[data-edge="inline-end"]:focus-visible)
-  .workspace-shell__divider--browser {
+  .workspace-shell__divider--auxiliary {
   border-inline-end-color: color-mix(in oklab, var(--color-foreground) 3%, var(--color-divider));
 }
 
 .workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
-  .workspace-shell__divider:not(.workspace-shell__divider--browser),
+  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
 .workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
-  .workspace-shell__divider:not(.workspace-shell__divider--browser),
+  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
 .workspace-shell[data-splitter="hover"][data-splitter-region="browser"]
-  .workspace-shell__divider--browser,
+  .workspace-shell__divider--auxiliary,
 .workspace-shell[data-splitter="drag"][data-splitter-region="browser"]
-  .workspace-shell__divider--browser {
+  .workspace-shell__divider--auxiliary {
   border-inline-end-width: calc(var(--ui-region-divider-width) * 2);
 }
 
 .workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
-  .workspace-shell__divider:not(.workspace-shell__divider--browser),
+  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
 .workspace-shell[data-splitter="hover"][data-splitter-region="browser"]
-  .workspace-shell__divider--browser {
+  .workspace-shell__divider--auxiliary {
   transition-delay: 0s, 0s, var(--workspace-divider-hover-delay);
 }
 
@@ -179,17 +179,17 @@
 }
 
 /* 浏览器列与侧栏同一套：定宽底面贴列的 inline-end 一侧，由自己那一列裁剪。 */
-.workspace-shell__browser {
+.workspace-shell__auxiliary {
   position: relative;
-  grid-area: browser;
+  grid-area: auxiliary;
 }
 
-.workspace-shell__browser-content {
+.workspace-shell__auxiliary-content {
   position: absolute;
   inset-block: 0;
   inset-inline-end: 0;
 }
 
-.workspace-shell[data-browser-docked="false"] .workspace-shell__browser {
+.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__auxiliary {
   pointer-events: none;
 }

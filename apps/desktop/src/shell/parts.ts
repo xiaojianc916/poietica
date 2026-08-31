@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
  * 位置是有限且由布局决定的，因此是一个封闭联合而不是任意字符串键：
  * 新增一个位置必须同时给出它在栅格里的坐标，类型会强制这件事被想到。
  */
-type WorkspacePartId = 'chrome' | 'sidebar' | 'main' | 'browser'
+type WorkspacePartId = 'chrome' | 'sidebar' | 'main' | 'auxiliary'
 
 export interface WorkspacePart {
   readonly content: ReactNode
@@ -20,13 +20,13 @@ export interface WorkspacePart {
 }
 
 /**
- * 浏览器那一格。
+ * 辅助面板那一格。
  *
- * 它比别的格多一个事实：在不在场。浏览器归开着它的那条对话（布局意图里的
- * browserThread），而那条对话此刻是不是在屏幕上只有组合根知道 —— 停靠与
+ * 它比别的格多一个事实：在不在场。辅助面板归开着它的那条对话（布局意图里的
+ * auxiliaryThread），而那条对话此刻是不是在屏幕上只有组合根知道 —— 停靠与
  * 原生 webview 的可见性因此读同一个布尔，不可能各说各话。
  */
-export interface WorkspaceBrowserPart extends WorkspacePart {
+export interface WorkspaceAuxiliaryPart extends WorkspacePart {
   readonly isDocked: boolean
 }
 
@@ -36,6 +36,6 @@ export interface WorkspaceBrowserPart extends WorkspacePart {
  * 每个停靠位都必须有内容：可选插槽在这张表里没有位置 —— 一个没有生产者的槽
  * 永远编译得过，而它的消费方要为一个不会出现的值一直留着分支。
  */
-export type WorkspaceParts = Record<Exclude<WorkspacePartId, 'browser'>, WorkspacePart> & {
-  readonly browser: WorkspaceBrowserPart
+export type WorkspaceParts = Record<Exclude<WorkspacePartId, 'auxiliary'>, WorkspacePart> & {
+  readonly auxiliary: WorkspaceAuxiliaryPart
 }

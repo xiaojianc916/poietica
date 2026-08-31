@@ -5,10 +5,6 @@
  */
 
 export { AutomationsSurface } from './automation/automations-surface'
-export type { DockPaneOffer } from './browser/browser-menu'
-export type { DockPaneRenderer, DockPaneRenderers } from './browser/browser-panel'
-export { BrowserPanel } from './browser/browser-panel'
-export type { DockPaneView } from './browser/browser-tab-strip'
 export type { AttachmentIntake, ComposerAsset } from './conversation/composer/attachment-intake'
 export { AttachmentIntakeContext } from './conversation/composer/attachment-intake'
 export { ComposerDrafts, ComposerDraftsContext } from './conversation/composer/composer-drafts'

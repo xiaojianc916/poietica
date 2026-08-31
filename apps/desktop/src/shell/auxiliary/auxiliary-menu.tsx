@@ -17,7 +17,8 @@ import {
   Search,
 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import { TabIcon } from './tab-icon'
+import type { AuxiliaryLauncherKind } from './auxiliary-panel-store'
+import { BrowserTabIcon } from './browser-tab-icon'
 
 /*
  * 面板三张菜单的唯一实现：加号、标签下拉、更多操作。
@@ -28,9 +29,11 @@ import { TabIcon } from './tab-icon'
  */
 
 /** 加号菜单里可开的通道种类，由宿主提供。 */
-export interface DockPaneOffer {
-  readonly kind: string
+export interface AuxiliaryPaneOffer {
+  readonly kind: AuxiliaryLauncherKind
   readonly label: string
+  readonly description: string
+  readonly availability: 'ready' | 'planned'
   readonly icon: ReactNode
 }
 
@@ -84,17 +87,15 @@ function matches(needle: string, title: string, url: string | null): boolean {
   return title.toLowerCase().includes(needle) || (url ?? '').toLowerCase().includes(needle)
 }
 
-export function BrowserNewTabMenu({
+export function AuxiliaryNewTabMenu({
   offers,
   onOpenChange,
   onOpenPane,
-  onOpenTab,
   open,
 }: {
-  readonly offers: readonly DockPaneOffer[]
+  readonly offers: readonly AuxiliaryPaneOffer[]
   readonly onOpenChange: (open: boolean) => void
-  readonly onOpenPane: (kind: string) => void
-  readonly onOpenTab: () => void
+  readonly onOpenPane: (kind: AuxiliaryLauncherKind) => void
   readonly open: boolean
 }) {
   return (
@@ -105,10 +106,6 @@ export function BrowserNewTabMenu({
       onOpenChange={onOpenChange}
       open={open}
     >
-      <DropdownMenuItem onClick={onOpenTab}>
-        <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
-        <span className={labelClassName}>网页</span>
-      </DropdownMenuItem>
       {offers.map((offer) => (
         <DropdownMenuItem
           key={offer.kind}
@@ -124,7 +121,7 @@ export function BrowserNewTabMenu({
   )
 }
 
-export function BrowserTabsMenu({
+export function AuxiliaryTabsMenu({
   activePaneId,
   host,
   onOpenChange,
@@ -210,7 +207,7 @@ export function BrowserTabsMenu({
               onSelectTab(tab.id)
             }}
           >
-            <TabIcon tab={tab} />
+            <BrowserTabIcon tab={tab} />
             <span className={labelClassName}>{tab.title}</span>
             {activePaneId === null && tab.id === host.activeTabId ? <CurrentMark /> : null}
           </DropdownMenuItem>

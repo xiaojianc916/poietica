@@ -1,35 +1,71 @@
+import type { BrowserHostPort, BrowserState, BrowserViewportBounds } from '@poietica/browser'
 import { createExternalStore } from '@poietica/external-store'
 import { warn } from '@poietica/problem'
 
-import type { BrowserHostPort, BrowserState, BrowserViewportBounds } from './browser-port'
+export type AuxiliaryLauncherKind = 'assistant' | 'review' | 'terminal' | 'browser'
+export type AuxiliaryPaneKind = Exclude<AuxiliaryLauncherKind, 'browser'> | 'delegate'
 
-/** 一格通道：kind 由宿主定义并据此查渲染器，id 在 dock 内唯一。 */
-export interface DockPane {
-  readonly kind: string
+export interface AuxiliaryPaneDescriptor {
+  readonly kind: AuxiliaryLauncherKind
+  readonly label: string
+  readonly description: string
+  readonly availability: 'ready' | 'planned'
+}
+
+export const AUXILIARY_LAUNCHER: readonly AuxiliaryPaneDescriptor[] = [
+  {
+    kind: 'assistant',
+    label: '辅助对话',
+    description: '',
+    availability: 'planned',
+  },
+  {
+    kind: 'review',
+    label: '审查',
+    description: '',
+    availability: 'ready',
+  },
+  {
+    kind: 'terminal',
+    label: '终端',
+    description: '',
+    availability: 'planned',
+  },
+  {
+    kind: 'browser',
+    label: '浏览器',
+    description: '',
+    availability: 'ready',
+  },
+]
+
+export interface AuxiliaryPane {
+  readonly kind: AuxiliaryPaneKind
   readonly id: string
+  readonly resourceId: string | null
 }
 
 /** 三个菜单的脸。同一时刻最多一个展开。 */
-export type BrowserMenuKind = 'new-tab' | 'tabs' | 'overflow'
+export type AuxiliaryMenuKind = 'new-tab' | 'tabs' | 'overflow'
 
-export interface BrowserPanelState {
+export interface AuxiliaryPanelState {
   readonly host: BrowserState | null
-  readonly panes: readonly DockPane[]
+  readonly panes: readonly AuxiliaryPane[]
   readonly activePaneId: string | null
-  readonly openMenu: BrowserMenuKind | null
+  readonly openMenu: AuxiliaryMenuKind | null
 }
 
-export interface BrowserPanelStore {
+export interface AuxiliaryPanelStore {
   readonly subscribe: (listen: () => void) => () => void
-  readonly getSnapshot: () => BrowserPanelState
-  readonly start: () => void
+  readonly getSnapshot: () => AuxiliaryPanelState
+  readonly start: () => () => void
   readonly setVisible: (visible: boolean) => void
   readonly reportViewport: (rect: BrowserViewportBounds) => void
-  readonly openPane: (pane: DockPane) => void
+  readonly openLauncherPane: (kind: AuxiliaryLauncherKind) => void
+  readonly openDelegate: (agentId: string) => void
   readonly closePane: (id: string) => void
   readonly selectPane: (id: string | null) => void
-  readonly openPaneKind: (kind: string) => void
-  readonly setMenu: (kind: BrowserMenuKind | null) => void
+  readonly setMenu: (kind: AuxiliaryMenuKind | null) => void
   readonly actions: {
     readonly openTab: (url: string | null) => void
     readonly closeTab: (id: number) => void
@@ -45,23 +81,27 @@ export interface BrowserPanelStore {
   }
 }
 
-export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStore {
+function failAlreadyStarted(): never {
+  throw new Error('AuxiliaryPanelStore.start() called while already started')
+}
+
+export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanelStore {
   let host: BrowserState | null = null
   let started = false
-  let ensuredFirstTab = false
+  let watchEpoch = 0
   let nativeVisible: boolean | null = null
-  let panes: readonly DockPane[] = []
+  let panes: readonly AuxiliaryPane[] = []
   let activePaneId: string | null = null
-  let openMenu: BrowserMenuKind | null = null
-  let snapshot: BrowserPanelState = { host, panes, activePaneId, openMenu }
+  let openMenu: AuxiliaryMenuKind | null = null
+  let snapshot: AuxiliaryPanelState = { host, panes, activePaneId, openMenu }
 
   function run(operation: string, task: () => Promise<void>): void {
     task().catch((cause: unknown) => {
-      warn(`浏览器宿主没接上这次操作：${operation}`, { scope: 'browser-panel', cause })
+      warn(`浏览器宿主没接上这次操作：${operation}`, { scope: 'auxiliary-panel', cause })
     })
   }
 
-  const store = createExternalStore<BrowserPanelState>({ read: () => snapshot })
+  const store = createExternalStore<AuxiliaryPanelState>({ read: () => snapshot })
 
   function publish(): void {
     snapshot = { host, panes, activePaneId, openMenu }
@@ -76,7 +116,7 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
     publish()
   }
 
-  function openPane(pane: DockPane): void {
+  function openPane(pane: AuxiliaryPane): void {
     if (!panes.some((held) => held.id === pane.id)) {
       panes = [...panes, pane]
     }
@@ -84,7 +124,7 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
     publish()
   }
 
-  function setMenu(kind: BrowserMenuKind | null): void {
+  function setMenu(kind: AuxiliaryMenuKind | null): void {
     if (kind === openMenu) {
       return
     }
@@ -93,9 +133,18 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
     publish()
   }
 
-  /* 菜单开出来的通道一种一格：id 就是 kind，再点一次回到同一格。 */
-  function openPaneKind(kind: string): void {
-    openPane({ id: kind, kind })
+  function openLauncherPane(kind: AuxiliaryLauncherKind): void {
+    if (kind === 'browser') {
+      selectPane(null)
+      run('open-tab', () => port.openTab(null))
+      return
+    }
+
+    openPane({ id: kind, kind, resourceId: null })
+  }
+
+  function openDelegate(agentId: string): void {
+    openPane({ id: `delegate:${agentId}`, kind: 'delegate', resourceId: agentId })
   }
 
   function closePane(id: string): void {
@@ -111,29 +160,53 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
     subscribe: store.subscribe,
     getSnapshot: () => snapshot,
 
-    start: (): void => {
+    start: (): (() => void) => {
       if (started) {
-        return
+        failAlreadyStarted()
       }
+
       started = true
+      const epoch = ++watchEpoch
+      let stopWatching: (() => void) | null = null
 
       void port
         .watch((state) => {
-          host = state
-
-          if (state.tabs.length === 0 && !ensuredFirstTab) {
-            ensuredFirstTab = true
-            run('open-first-tab', () => port.openTab(null))
-          } else if (state.tabs.length > 0) {
-            ensuredFirstTab = true
+          if (epoch !== watchEpoch) {
+            return
           }
-
+          host = state
           publish()
         })
-        .catch((cause: unknown) => {
-          started = false
-          warn('浏览器宿主的状态流没接上', { scope: 'browser-panel', cause })
-        })
+        .then(
+          (stop) => {
+            if (epoch !== watchEpoch) {
+              stop()
+              return
+            }
+            stopWatching = stop
+          },
+          (cause: unknown) => {
+            if (epoch !== watchEpoch) {
+              return
+            }
+            started = false
+            warn('浏览器宿主的状态流没接上', { scope: 'auxiliary-panel', cause })
+          },
+        )
+
+      return () => {
+        if (epoch !== watchEpoch) {
+          return
+        }
+        watchEpoch += 1
+        started = false
+        stopWatching?.()
+        stopWatching = null
+        if (nativeVisible === true) {
+          nativeVisible = false
+          run('hide-on-stop', () => port.setVisible(false))
+        }
+      }
     },
 
     setVisible: (visible): void => {
@@ -148,10 +221,10 @@ export function createBrowserPanelStore(port: BrowserHostPort): BrowserPanelStor
       run('set-bounds', () => port.setViewportBounds(rect))
     },
 
-    openPane,
+    openLauncherPane,
+    openDelegate,
     closePane,
     selectPane,
-    openPaneKind,
     setMenu,
 
     actions: {

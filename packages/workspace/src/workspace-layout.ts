@@ -21,8 +21,8 @@ export const WORKSPACE_LAYOUT = {
     defaultWidth: 280,
   },
 
-  /* 浏览器列贴窗口 inline-end 一侧，与侧栏同一条动画时间轴。 */
-  browser: {
+  /* 辅助列贴窗口 inline-end，一次只投影一个已登记面板。 */
+  auxiliary: {
     minWidth: 320,
     maxWidth: 800,
     defaultWidth: 420,
