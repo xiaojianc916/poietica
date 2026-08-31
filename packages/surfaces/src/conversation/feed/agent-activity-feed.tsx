@@ -2,7 +2,15 @@ import './agent-activity-feed.css'
 
 import type { Presentation } from '@poietica/conversation'
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
-import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { ChevronDownIcon } from '../primitives/icons'
 import { useDevicePixels } from '../primitives/use-device-pixels'
 import { geometryOf, keepGeometry } from './conversation-geometry'
@@ -66,6 +74,8 @@ export interface AgentActivityFeedProps {
   readonly rowRhythm: (index: number) => RowRhythm
   readonly renderRow: (index: number) => ReactNode
   readonly isBusy: boolean
+  /** 覆盖转录的输入区高度；null 表示首帧布局尚未落定。 */
+  readonly dockClearance: number | null
   /** 上面还有没有更早的一页。 */
   readonly hasEarlier: boolean
   /** 顶端快见底了。读不读、读几页归转录那一侧。 */
@@ -86,6 +96,7 @@ export interface AgentActivityFeedProps {
 export function AgentActivityFeed({
   conversation,
   disclosed,
+  dockClearance,
   estimateRow,
   feed,
   hasEarlier,
@@ -99,7 +110,6 @@ export function AgentActivityFeed({
   /** 滚动区的生命周期归这一个 state：装卸不再随任何 prop 变化而重做。 */
   const [viewport, setViewport] = useState<HTMLDivElement | null>(null)
   const transcriptRef = useRef<HTMLDivElement | null>(null)
-  const tailRef = useRef<HTMLDivElement | null>(null)
   const leadRef = useRef<HTMLDivElement | null>(null)
 
   /**
@@ -114,9 +124,6 @@ export function AgentActivityFeed({
    * 是 state 而不是 ref：虚拟器在渲染期读它。
    */
   const [scrollMargin, setScrollMargin] = useState<number | null>(null)
-
-  /** 转录之后那一段空间，交给 paddingEnd，于是末端只有一个定义。数值实测，不抄令牌。 */
-  const [tailSize, setTailSize] = useState<number | null>(null)
 
   /** 视线落在哪一行。null 是「还没读到过」，不是第 0 行。 */
   const [readingRow, setReadingRow] = useState<number | null>(null)
@@ -138,11 +145,8 @@ export function AgentActivityFeed({
   /* 几何只在挂载那一次被收走，所以只取一次。 */
   const [restored] = useState(() => geometryOf(conversation))
 
-  /*
-   * 两段几何各等一次 ResizeObserver。到齐之前不写位置、也不抬预留：写在半截几何上
-   * 就是开会话时那一串可见的跳动。
-   */
-  const settled = scrollMargin !== null && tailSize !== null
+  /* 两项都在布局阶段落定，错误的首帧几何不会上屏。 */
+  const settled = scrollMargin !== null && dockClearance !== null
 
   /*
    * 人点开抽屉的那一帧，末端锚定让位给起始锚定：那时要钉的是被点的那一行。
@@ -157,24 +161,25 @@ export function AgentActivityFeed({
     restored?.reading ?? null,
   )
 
-  /*
-   * 半格节奏在边框盒里（__row 的 padding-block），而量回来的就是边框盒，所以视口顶那条线
-   * 要按行的档位补一次。数字归样式表，两档各读一次：注册成 <length> 的自定义属性（见
-   * composer-metrics.css 的 @property）读回来才是像素。
-   */
-  const rowGap = useMemo(() => {
+  /* 这些令牌注册为 length，getComputedStyle 因而返回可直接相加的像素值。 */
+  const metrics = useMemo(() => {
     if (viewport === null) {
-      return { glyph: 0, prose: 0 }
+      return { dissolve: 0, glyph: 0, prose: 0 }
     }
 
     const style = getComputedStyle(viewport)
     const read = (token: string) => Number.parseFloat(style.getPropertyValue(token)) || 0
 
-    return { glyph: read('--cp-feed-glyph-row-gap'), prose: read('--cp-feed-prose-row-gap') }
+    return {
+      dissolve: read('--cp-dock-dissolve'),
+      glyph: read('--cp-feed-glyph-row-gap'),
+      prose: read('--cp-feed-prose-row-gap'),
+    }
   }, [viewport])
 
-  /** 这一行的内容顶比盒顶低多少。落点与锚定共用这一个定义。 */
-  const leadOf = (row: number) => rowGap[rowRhythm(row)]
+  /** 这一行的内容顶比盒顶低多少。 */
+  const leadOf = (row: number) => metrics[rowRhythm(row)]
+  const paddingEnd = dockClearance === null ? 0 : dockClearance + metrics.dissolve
 
   const virtualizer = useVirtualizer({
     /* 落点 = item.start - scrollPaddingStart：被揭示的行之上留一格行距。 */
@@ -186,7 +191,7 @@ export function AgentActivityFeed({
     /* 交出副本：这份会被虚拟器收走当自己的初值。空表与库默认等价。 */
     initialMeasurementsCache: restored === undefined ? [] : [...restored.rows],
     scrollMargin: scrollMargin ?? 0,
-    paddingEnd: tailSize ?? 0,
+    paddingEnd,
     overscan: settled ? OVERSCAN_SETTLED : OVERSCAN_COLD,
     /* 尾部锚定：前插不动眼前那一行，末端跟随只在人本来就在末端时发生。 */
     anchorTo: holding ? 'start' : 'end',
@@ -288,15 +293,7 @@ export function AgentActivityFeed({
     [conversation, virtualizer],
   )
 
-  /*
-   * 一个滚动区，一处装卸：监听、意图、尺寸通知同寿。
-   *
-   * 原生 scroll 不冒泡，所以监听挂在元素上而不写成 onScroll —— 后者会被任何一个后代
-   * 滚动容器叫醒。视线所在的行一帧读一次：一次滚轮派发几十个事件，读的是同一份布局。
-   *
-   * 尺寸变化走 ResizeObserver：流式输出撑高行、面板被拖窄、抽屉展开都改几何而不产生
-   * 滚动事件，它还一并覆盖不经过 React 的那些（图片解码、字体换页）。
-   */
+  /* 滚动、尺寸观察和阅读锚点共享滚动盒的生命周期。 */
   useLayoutEffect(() => {
     if (viewport === null) {
       return
@@ -351,20 +348,9 @@ export function AgentActivityFeed({
      * 尾部按边框盒观察不是可选项：它的高度整个来自 padding-block-end，而默认的
      * content-box 不因内边距变化派发，于是 paddingEnd 会一直停在冷启动那一测。
      */
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        /* 首块内容长高时转录跟着下移,而它自己的盒子没变,所以除尾部之外一律重算偏移。 */
-        if (entry.target !== tailRef.current && transcriptRef.current !== null) {
-          setScrollMargin(transcriptRef.current.offsetTop)
-        }
-
-        if (entry.target === tailRef.current) {
-          const [box] = entry.borderBoxSize
-
-          if (box !== undefined) {
-            setTailSize(box.blockSize)
-          }
-        }
+    const observer = new ResizeObserver(() => {
+      if (transcriptRef.current !== null) {
+        setScrollMargin(transcriptRef.current.offsetTop)
       }
 
       sync()
@@ -382,14 +368,6 @@ export function AgentActivityFeed({
 
     if (leadRef.current !== null) {
       observer.observe(leadRef.current)
-    }
-
-    if (tailRef.current !== null) {
-      const tail = tailRef.current
-
-      /* ResizeObserver 的首次通知可能晚于首帧；挂载时先同步读一次，避免假零值上屏。 */
-      setTailSize(tail.offsetHeight)
-      observer.observe(tail, { box: 'border-box' })
     }
 
     viewport.addEventListener('scroll', sync, { passive: true })
@@ -434,7 +412,10 @@ export function AgentActivityFeed({
   const activeRow = revealing ?? readingRow ?? Math.max(0, feed.count - 1)
 
   return (
-    <div className="agent-activity-feed">
+    <div
+      className="agent-activity-feed"
+      style={{ '--cp-dock-clearance': `${String(dockClearance ?? 0)}px` } as CSSProperties}
+    >
       <div className="agent-activity-feed__viewport" ref={setViewport}>
         {lead === undefined ? null : (
           <div className="agent-activity-feed__lead" ref={leadRef}>
@@ -473,8 +454,6 @@ export function AgentActivityFeed({
               </div>
             )
           })}
-          {/* 末端的清空距离，坐在 paddingEnd 预留出来的那块空间里；实测高度反过来就是它。 */}
-          <div className="agent-activity-feed__tail" ref={tailRef} />
         </div>
       </div>
 

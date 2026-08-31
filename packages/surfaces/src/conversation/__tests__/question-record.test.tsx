@@ -76,7 +76,7 @@ describe('落定的题', () => {
       />,
     )
 
-    expect(markup).toContain('assistant-outcome__answer')
+    expect(markup).toContain('assistant-question-record__answer')
     expect(markup).toContain('浅色')
     expect(markup).not.toContain('深色')
   })
@@ -90,7 +90,7 @@ describe('落定的题', () => {
       />,
     )
 
-    expect(markup).toContain('assistant-outcome__answer')
+    expect(markup).toContain('assistant-question-record__answer')
     expect(markup).toContain('跳过')
     expect(markup).not.toContain('data-answered="true"')
   })
@@ -118,7 +118,7 @@ describe('落定的题', () => {
     expect(dismissed).not.toContain('data-answered="true"')
   })
 
-  it('整组的备注只挂在最后一张卡上', () => {
+  it('整组共用一个外框，备注只挂在最后一题', () => {
     const markup = renderToStaticMarkup(
       <QuestionRecord
         item={group({
@@ -138,6 +138,8 @@ describe('落定的题', () => {
       />,
     )
 
+    expect(markup.match(/data-surface=""/g)).toHaveLength(1)
+    expect(markup.match(/assistant-question-record__item/g)).toHaveLength(2)
     expect(markup.match(/就按这个来。/g)).toHaveLength(1)
   })
 })

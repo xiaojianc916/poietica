@@ -1095,8 +1095,8 @@
  * 只在会话态浮。入口态输入框是居中的，浮起来会掉到底部 —— 两个静止态各挂
  * 各的版式，这是本文件既定的做法，不是为这次改动新开的分支。
  *
- * 最后一条消息不会被压住：末端由虚拟器的 paddingEnd 空出输入框那么高，
- * 数值由 dock-clearance 实测写进 --cp-dock-clearance。
+ * 最后一条消息不会被压住：useDockClearance 在绘制前实测输入区，并把数值
+ * 显式传给虚拟器的 paddingEnd。
  */
 .assistant-surface[data-phase="live"] .assistant-surface__dock {
   position: absolute;

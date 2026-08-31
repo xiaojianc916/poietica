@@ -125,32 +125,6 @@
 }
 
 /*
- * 转录的尾部。
- *
- * 末端那段让最后一行避开溶解带的清空距离。绝对定位，坐在转录框底部由 paddingEnd
- * 预留出来的那块空间里；它的实测高度反过来就是 paddingEnd。
- */
-.agent-activity-feed__tail {
-  position: absolute;
-  inset-block-end: 0;
-  inset-inline: 0;
-  /*
-   * 末端空出输入框那么高 —— 它现在盖在转录上。
-   *
-   * 这个数由 dock-clearance 实测写入。回退值是一格常规间距：入口态没有
-   * 转录，也就没有人写它，而一个读不到值的 var() 会让整条声明失效。
-   */
-  /*
-   * 输入框那么高，再加一段渐隐的长度。
-   *
-   * 后面这一段不是「看着松一点」挑出来的数：带子上沿之上那 --cp-dock-dissolve
-   * 是渐变区，最后一行若停在里面，滚到底时它的下半截是淡的。末端永远留一段清空
-   * 距离，滚到底时最后一行停在溶解带之外。
-   */
-  padding-block-end: calc(var(--cp-dock-clearance, var(--cp-gutter)) + var(--cp-dock-dissolve));
-}
-
-/*
  * 回到最新。
  *
  * 它不在滚动区里 —— 一枚把视口带回末端的控件不该跟着视口一起走。居中不用 transform:
@@ -162,7 +136,7 @@
  */
 .agent-activity-feed__to-latest {
   position: absolute;
-  inset-block-end: calc(var(--cp-dock-clearance, var(--cp-gutter)) + var(--cp-dock-dissolve));
+  inset-block-end: calc(var(--cp-dock-clearance) + var(--cp-dock-dissolve));
   inset-inline: 0;
   display: flex;
   align-items: center;

@@ -1,0 +1,48 @@
+.assistant-question-record {
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+  list-style: none;
+}
+
+.assistant-question-record__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.875rem 1rem;
+}
+
+/* 同一次提问共用外框；题间只用卡内发丝线分组。 */
+.assistant-question-record__item + .assistant-question-record__item {
+  border-block-start: var(--cp-px) solid var(--surface-rule);
+}
+
+.timeline-prose.assistant-question-record__prompt {
+  --cp-prose-flow: var(--ui-prose-flow-quiet);
+
+  margin: 0;
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--ui-prose-size-aux);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.timeline-prose.assistant-question-record__prompt :not(pre) > code {
+  background: var(--cp-hover);
+}
+
+.assistant-question-record__answer {
+  margin: 0;
+  color: var(--cp-ink);
+  font-size: var(--ui-prose-size);
+  font-weight: 500;
+  line-height: var(--ui-prose-line-height);
+  overflow-wrap: anywhere;
+}
+
+.assistant-question-record__note {
+  margin: 0;
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--ui-prose-size-meta);
+  line-height: var(--ui-line-height-tight);
+}

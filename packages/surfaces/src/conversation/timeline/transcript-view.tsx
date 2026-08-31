@@ -40,6 +40,7 @@ const NOTHING: Disclosure = { items: new Set(), seals: new Map() }
 
 export interface TranscriptViewProps {
   readonly sessionKey: string
+  readonly dockClearance: number | null
   readonly isRestoring: boolean
   /** 转录之前那一块常驻内容,交给滚动盒。 */
   readonly lead?: ReactNode
@@ -47,7 +48,13 @@ export interface TranscriptViewProps {
   readonly onFork?: ((dropTurns: number) => void) | undefined
 }
 
-export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: TranscriptViewProps) {
+export function TranscriptView({
+  dockClearance,
+  isRestoring,
+  lead,
+  onFork,
+  sessionKey,
+}: TranscriptViewProps) {
   const timeline = useAssistantTimeline(sessionKey)
   const hasEarlier = useAssistantHasEarlier(sessionKey)
   const outline = useAssistantOutline(sessionKey)
@@ -200,6 +207,7 @@ export function TranscriptView({ isRestoring, lead, onFork, sessionKey }: Transc
       <AgentActivityFeed
         conversation={sessionKey}
         disclosed={disclosure}
+        dockClearance={dockClearance}
         estimateRow={estimateRowAt}
         feed={feed}
         hasEarlier={hasEarlier}

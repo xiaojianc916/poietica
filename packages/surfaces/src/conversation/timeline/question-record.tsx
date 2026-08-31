@@ -1,13 +1,8 @@
+import './question-record.css'
+
 import type { QuestionTimelineItem } from '@poietica/conversation'
 import { describeAnswer } from '../composer/question-answer'
-import { OutcomeCard } from './outcome-card'
-
-/*
- * 一组落定的题：逐题一张卡。
- *
- * 还没结清的不上屏（renderable 是同一处判据）—— 它正长在输入框那张卡里。没答成
- * 的由来写成附注，不装成答案；整组的备注挂在最后一张卡上。
- */
+import { Prose } from './prose'
 
 const UNANSWERED = {
   dismissed: '这组题被撤下了。',
@@ -25,7 +20,7 @@ export function QuestionRecord({ item }: { readonly item: QuestionTimelineItem }
   const last = item.questions.length - 1
 
   return (
-    <>
+    <ol aria-label="提问结果" className="assistant-question-record" data-surface="">
       {item.questions.map((question, index) => {
         const answer = resolution.answers[question.id]
         const notes: string[] = []
@@ -33,25 +28,32 @@ export function QuestionRecord({ item }: { readonly item: QuestionTimelineItem }
         if (resolution.outcome !== 'answered') {
           notes.push(UNANSWERED[resolution.outcome])
         }
-
         if (index === last && resolution.note.length > 0) {
           notes.push(resolution.note)
         }
 
         const note = notes.join(' ')
+        const answered =
+          resolution.outcome === 'answered' && answer !== undefined && answer.kind !== 'skipped'
 
         return (
-          <OutcomeCard
-            answer={answer === undefined ? undefined : describeAnswer(question, answer)}
-            answered={
-              resolution.outcome === 'answered' && answer !== undefined && answer.kind !== 'skipped'
-            }
+          <li
+            className="assistant-question-record__item"
+            data-answered={answered ? 'true' : undefined}
             key={question.id}
-            note={note.length === 0 ? undefined : note}
-            prompt={question.question}
-          />
+          >
+            <Prose className="assistant-question-record__prompt" text={question.question} />
+
+            {answer === undefined ? null : (
+              <p className="assistant-question-record__answer">
+                {describeAnswer(question, answer)}
+              </p>
+            )}
+
+            {note.length === 0 ? null : <p className="assistant-question-record__note">{note}</p>}
+          </li>
         )
       })}
-    </>
+    </ol>
   )
 }

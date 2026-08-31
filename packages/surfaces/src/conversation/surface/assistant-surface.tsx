@@ -4,7 +4,7 @@ import type { AgentSessionPort, SessionConfigControl, SessionUsage } from '@poie
 import { memo, type Ref, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { ComposerDraftKeyContext } from '../composer/composer-drafts'
-import { measureDock } from '../composer/dock-clearance'
+import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
 import { useAgentToolkit } from '../session/agent-controls-context'
@@ -118,9 +118,6 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 既记下控件那一格，也把经过交给转录（#transcripts?.failed）—— 于是它和帧流
    * 里的失败长同一个样子，都是那条横线。
    */
-  /* 输入框盖在转录上，所以转录要知道它有多高。理由见 dock-clearance。 */
-  const dockRef = measureDock
-
   /*
    * 待答的那道题。
    *
@@ -169,6 +166,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   }
 
   const live = phase === 'live'
+  const clearance = useDockClearance(live)
 
   /* 这一格的草稿归哪个键：对话是它的 id，入口那一格全局只有一个。 */
   const draftKey = endpoint
@@ -262,6 +260,7 @@ export const AssistantSurface = memo(function AssistantSurface({
     >
       {live ? (
         <TranscriptView
+          dockClearance={clearance.value}
           isRestoring={assistant.isRestoring}
           onFork={onFork}
           sessionKey={assistant.key}
@@ -274,7 +273,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         </div>
       )}
 
-      <div className="assistant-surface__dock" ref={dockRef}>
+      <div className="assistant-surface__dock" ref={clearance.ref}>
         <ComposerDraftKeyContext value={draftKey}>{dock}</ComposerDraftKeyContext>
 
         {live || workspace === undefined ? null : (

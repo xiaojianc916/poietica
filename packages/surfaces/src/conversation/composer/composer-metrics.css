@@ -27,6 +27,12 @@
   initial-value: 0px;
 }
 
+@property --cp-dock-dissolve {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 [data-assistant-skin] {
   --cp-px: var(--ui-hairline);
 
