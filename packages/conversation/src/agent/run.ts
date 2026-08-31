@@ -142,4 +142,12 @@ export type RunEvent =
  * contract; neither may depend on the other. Collapsing RunStatus and the queue
  * into ChatStatus is an application decision and stays in useAssistantSession.
  */
-export type ChatStatus = 'ready' | 'submitted' | 'streaming' | 'queued' | 'cancelling' | 'error'
+export type ChatStatus =
+  | 'ready'
+  | 'submitted'
+  | 'streaming'
+  | 'queued'
+  | 'cancelling'
+  /** 人停下的那一轮留下的余态（RunStatus 的 cancelled）：这条对话还欠一次续接。 */
+  | 'interrupted'
+  | 'error'

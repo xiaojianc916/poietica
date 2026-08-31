@@ -266,6 +266,11 @@ export class SessionControlsStore {
     void this.#reopen(threadId)
   }
 
+  /** 续接被人停下的那一轮：重建这条对话的会话订阅，不开新一轮。 */
+  resume = (threadId: string): void => {
+    void this.#reopen(threadId)
+  }
+
   /**
    * 改这条对话的一项会话设置；答案就是改完之后的整张表。
    *

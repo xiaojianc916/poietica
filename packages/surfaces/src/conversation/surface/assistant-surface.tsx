@@ -55,6 +55,8 @@ export interface AssistantSurfaceProps {
   readonly controls: readonly SessionConfigControl[]
   readonly controlsFailure?: string | undefined
   readonly onSelectControl: (controlId: string, value: string, input?: string) => void
+  /** 续接被人停下的那一轮：重建这条会话的订阅，不开新一轮。 */
+  readonly onResume?: (() => void) | undefined
   /** 认领或改动失败之后重新问一次。 */
   readonly onRetryControls?: (() => void) | undefined
   /**
@@ -96,6 +98,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   git,
   isNew,
   onFork,
+  onResume,
   onRetryControls,
   onSelectControl,
   onUserMessage,
@@ -234,6 +237,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         onAnswerQuestions={assistant.answerQuestions}
         onCancel={assistant.cancel}
         onDismissQuestions={assistant.dismissQuestions}
+        onResume={onResume}
         onRetryControls={onRetryControls}
         onSelectControl={onSelectControl}
         onSubmit={submit}

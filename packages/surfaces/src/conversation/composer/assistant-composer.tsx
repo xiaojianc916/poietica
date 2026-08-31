@@ -47,6 +47,8 @@ export interface AssistantComposerProps {
   readonly status?: ChatStatus
   readonly onSubmit: (input: PromptInputMessage) => void
   readonly onCancel?: (() => void) | undefined
+  /** 续接被人停下的那一轮。空草稿时那颗键就是它。 */
+  readonly onResume?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
   readonly ref?: Ref<PromptInputHandle> | undefined
   /** 这条会话能用的技能，由 kap 报。 */
@@ -94,13 +96,20 @@ export interface AssistantComposerProps {
  */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  'controls' | 'controlsFailure' | 'onCancel' | 'onRetryControls' | 'onSelectControl' | 'usage'
+  | 'controls'
+  | 'controlsFailure'
+  | 'onCancel'
+  | 'onResume'
+  | 'onRetryControls'
+  | 'onSelectControl'
+  | 'usage'
 > & { readonly status: ChatStatus }
 
 function ComposerToolbar({
   controls,
   controlsFailure,
   onCancel,
+  onResume,
   onRetryControls,
   onSelectControl,
   status,
@@ -157,7 +166,7 @@ function ComposerToolbar({
 
       {/* 判据同源。「有没有东西可发」现在只从 PromptInput 自己那份草稿读，
           按钮与 onSubmit 看的是同一个所有者。 */}
-      <PromptInputSubmit onCancel={onCancel} status={status} />
+      <PromptInputSubmit onCancel={onCancel} onResume={onResume} status={status} />
     </PromptInputToolbar>
   )
 }

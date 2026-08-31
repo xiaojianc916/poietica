@@ -60,6 +60,7 @@ export {
   Paperclip as AttachIcon,
   Pencil as PencilIcon,
   Pin as PinIcon,
+  Play as ResumeIcon,
   Plus as PlusIcon,
   RefreshCw as ResetIcon,
   ScanSearch as ModelIcon,

@@ -160,6 +160,11 @@ export function ConversationSurface({
     sessionControls.retrySelectors(threadId)
   }, [isNew, retry, sessionControls, threadId])
 
+  /* 续接被人停下的那一轮：重建这条对话的会话订阅。入口那一格没有会话可续接。 */
+  const resume = useCallback(() => {
+    sessionControls.resume(threadId)
+  }, [sessionControls, threadId])
+
   /* 改一项，交给持有这张表的那一方：入口那格是锚会话，对话里是那条会话。 */
   const chooseControl = useCallback(
     (controlId: string, value: string, input?: string) => {
@@ -213,6 +218,7 @@ export function ConversationSurface({
       git={git}
       isNew={isNew}
       onFork={isNew ? undefined : fork}
+      onResume={isNew ? undefined : resume}
       onRetryControls={retryControls}
       onSelectControl={chooseControl}
       onUserMessage={userMessage}

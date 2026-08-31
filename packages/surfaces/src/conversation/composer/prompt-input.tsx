@@ -30,7 +30,7 @@ import {
   useState,
 } from 'react'
 import { cx } from '../primitives/class-names'
-import { AttachIcon, StopIcon, SubmitIcon } from '../primitives/icons'
+import { AttachIcon, ResumeIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
 import { type ComposerDraft, useComposerDraftKey, useComposerDrafts } from './composer-drafts'
 import {
@@ -793,11 +793,13 @@ export function PromptInputSubmit({
   className,
   disabled,
   onCancel,
+  onResume,
   status = 'ready',
   ...props
 }: Omit<ComponentProps<'button'>, 'onClick'> & {
   readonly status?: ChatStatus
   readonly onCancel?: (() => void) | undefined
+  readonly onResume?: (() => void) | undefined
 }) {
   /* 能不能发，由持有草稿的这一侧自己答。 */
   const draft = usePromptInputDraft()
@@ -806,18 +808,22 @@ export function PromptInputSubmit({
   const drafted = canSubmitDraft(draft)
   // 运行中照旧收字：有草稿就是发送（kap 排队），空草稿才是停止。
   const canCancel = running && !drafted
-  const Icon = canCancel || cancelling ? StopIcon : SubmitIcon
+  // 停下之后同一条规矩反过来：有草稿就是接着说，空草稿才是续接上一轮。
+  const canResume = status === 'interrupted' && !drafted
+  const Icon = canCancel || cancelling ? StopIcon : canResume ? ResumeIcon : SubmitIcon
 
   return (
     <button
       {...props}
-      aria-label={cancelling ? '正在停止' : canCancel ? '停止生成' : '发送'}
+      aria-label={
+        cancelling ? '正在停止' : canCancel ? '停止生成' : canResume ? '续接这一轮' : '发送'
+      }
       className={className}
       data-slot="prompt-input-submit"
       data-status={status}
-      disabled={cancelling || disabled === true || (!canCancel && !canSubmitDraft(draft))}
-      onClick={canCancel ? onCancel : undefined}
-      type={canCancel ? 'button' : 'submit'}
+      disabled={cancelling || disabled === true || (!canCancel && !canResume && !drafted)}
+      onClick={canCancel ? onCancel : canResume ? onResume : undefined}
+      type={canCancel || canResume ? 'button' : 'submit'}
     >
       <Icon aria-hidden="true" />
     </button>

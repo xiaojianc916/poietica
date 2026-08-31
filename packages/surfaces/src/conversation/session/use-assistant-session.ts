@@ -117,6 +117,8 @@ function toChatStatus(status: TimelineState['status']): ChatStatus {
       return 'submitted'
     case 'cancelling':
       return 'cancelling'
+    case 'cancelled':
+      return 'interrupted'
     case 'running':
     case 'awaiting_permission':
     case 'awaiting_question':
@@ -175,8 +177,9 @@ export function useAssistantSession({
   const isRestoring = useSlice(key, readRestoring)
   const inflight = useSlice(key, readInflight)
 
-  /* 忙不忙只有这一个产地：放行的拍子与出账簿的 isBusy 读的是同一个字。 */
-  const busy = running !== 'ready' && running !== 'error'
+  /* 忙不忙只有这一个产地：放行的拍子与出账簿的 isBusy 读的是同一个字。
+     正着列在飞的那几档：反着排除，ChatStatus 每多一档都会默认变成「忙」。 */
+  const busy = running === 'submitted' || running === 'streaming' || running === 'cancelling'
 
   /*
    * 接上帧流。就这一件事。
