@@ -322,7 +322,7 @@ export function SettingsContentRegion() {
 
         {controller.loading ? (
           <div className="settings-state">
-            <LoadingState label="正在读取本地设置…" />
+            <LoadingState label="正在加载设置…" />
           </div>
         ) : null}
 

@@ -24,6 +24,6 @@ export type {
 } from './custom-agents/custom-agent-store'
 export { PersonalizationStore } from './custom-agents/personalization-store'
 export type { KeybindingCatalog, KeybindingEntry } from './keymap/keybinding-catalog'
-export { type AppSettings, DEFAULT_APP_SETTINGS } from './settings'
+export type { AppSettings } from './settings'
 export { createSettingsSession, type SettingsOperation } from './settings-session'
 export type { SettingsStore } from './settings-store'

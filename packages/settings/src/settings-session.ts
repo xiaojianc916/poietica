@@ -30,6 +30,7 @@ interface SettingsSession {
 }
 
 const AUTO_SAVE_DELAY_MS = 350
+const LOAD_TIMEOUT_MS = 5_000
 
 const IDLE: SettingsSessionSnapshot = {
   status: 'idle',
@@ -47,6 +48,7 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
   let saveQueued = false
   let closeRequested = false
   let cancelScheduledSave: (() => void) | null = null
+  let cancelScheduledLoadTimeout: (() => void) | null = null
   let resetUpdaters: Array<(settings: AppSettings) => AppSettings> = []
 
   const external = createExternalStore<SettingsSessionSnapshot>({
@@ -87,8 +89,14 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
     cancelScheduledSave = null
   }
 
+  const cancelLoadTimeout = (): void => {
+    cancelScheduledLoadTimeout?.()
+    cancelScheduledLoadTimeout = null
+  }
+
   const finishClose = (): void => {
     cancelSaveTimer()
+    cancelLoadTimeout()
 
     active = false
     lifecycle += 1
@@ -194,6 +202,7 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
 
   const beginLoad = (): void => {
     cancelSaveTimer()
+    cancelLoadTimeout()
 
     const lifecycleAtStart = lifecycle
     const request = loadVersion + 1
@@ -204,12 +213,24 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
 
     publish('loading', 'load')
 
+    cancelScheduledLoadTimeout = options.schedule(() => {
+      cancelScheduledLoadTimeout = null
+
+      if (!active || lifecycle !== lifecycleAtStart || loadVersion !== request) {
+        return
+      }
+
+      loadVersion += 1
+      publish('error', 'load', '设置加载超时，请重试。')
+    }, LOAD_TIMEOUT_MS)
+
     void options.store.load().then(
       (settings) => {
         if (!active || lifecycle !== lifecycleAtStart || loadVersion !== request) {
           return
         }
 
+        cancelLoadTimeout()
         draft = settings
         persisted = settings
 
@@ -220,6 +241,7 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
           return
         }
 
+        cancelLoadTimeout()
         publish('error', 'load', getErrorMessage(cause))
       },
     )
@@ -369,6 +391,7 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
       loadVersion += 1
 
       cancelSaveTimer()
+      cancelLoadTimeout()
 
       closeRequested = false
       saveQueued = false

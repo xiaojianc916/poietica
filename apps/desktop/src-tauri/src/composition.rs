@@ -115,6 +115,11 @@ pub fn build() -> tauri::Builder<Wry> {
             let _managed =
                 app.manage(commands::conversation::runtime::AgentRuntime::new(app.handle())?);
 
+            let settings_app = handle.clone();
+            async_runtime::spawn(async move {
+                commands::settings::apply_startup_settings(&settings_app).await;
+            });
+
             /*
              * 启动杂务，一条路径：抹 tmp、备好 cache、清换装残留、拍无主目录快照、收幽灵行、回收无主目录。
              * 顺序即不变量：快照先于名单、收割先于名单，否则幽灵行占着的目录要等下一次启动。

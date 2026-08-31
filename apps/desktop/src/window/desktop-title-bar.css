@@ -38,6 +38,17 @@
  * 不经 JavaScript/IPC。子元素必须显式 no-drag，因为命中区域按元素矩形计算。
  * 对应的运行时能力由 tauri.conf.json 独占声明。
  */
+/* Interactive caption controls must never participate in native drag hit testing. */
+.desktop-window-controls {
+  position: relative;
+  z-index: 3;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-window-controls > * {
+  -webkit-app-region: no-drag;
+}
+
 .desktop-title-bar__drag-region {
   -webkit-app-region: drag;
 }

@@ -6,7 +6,6 @@ import {
   readWorkbenchSession,
   takePreviousNativeCrashReport,
 } from '@poietica/native-bridge'
-import { DEFAULT_APP_SETTINGS } from '@poietica/settings'
 import { reportFatalIncident } from '../notice/problem-presentation'
 import { installContextMenuGuard } from '../window/context-menu-guard'
 import { installExternalLinks } from '../window/external-links'
@@ -32,7 +31,7 @@ async function bootstrapApplication(): Promise<void> {
    * app-shell 再校一次，重复调用由 theme-controller 自己摘掉上一个 matchMedia
    * 监听。
    */
-  applyThemePreference(DEFAULT_APP_SETTINGS.theme)
+  applyThemePreference('system')
 
   /* 工作台恢复是首帧的输入：先读回再挂载，否则会先画默认标签再跳到上次状态。 */
   const restored = await readWorkbenchSession()

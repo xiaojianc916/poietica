@@ -1,118 +1,77 @@
 import { commands, events } from '@poietica/contract'
-import type { Window } from '@tauri-apps/api/window'
+import { isTauri } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow, type Window } from '@tauri-apps/api/window'
 
 export interface MainWindowController {
-  /** 呈现窗口。窗口以 visible: false 创建，呈现时机由渲染层决定。 */
   present(): Promise<void>
   minimize(): Promise<void>
   toggleMaximize(): Promise<void>
   isMaximized(): Promise<boolean>
-  /** 最大化态的变化。窗口是唯一真相，这里只收它播报的翻转。 */
   onMaximizedChanged(handler: (isMaximized: boolean) => void): Promise<() => void>
   openDeveloperTools(): Promise<void>
-  forceClose(): void
+  quit(): Promise<void>
   onCloseRequested(handler: () => void): Promise<() => void>
-  /** 托盘"退出程序"。与关闭按钮汇入同一条终止管线。 */
   onTerminationRequested(handler: () => void): Promise<() => void>
 }
 
 const MAIN_WINDOW_LABEL = 'main'
-
-/** 与 src-tauri/src/bootstrap/tray.rs 的 TERMINATION_REQUESTED_EVENT 对应。 */
 const TERMINATION_REQUESTED_EVENT = 'poietica://termination-requested'
+const mainWindow = resolveMainWindow()
 
-let mainWindow: Promise<Window> | undefined
-
-/* Tauri 的窗口模块在 webview 之外不可用，所以它留在静态依赖图之外；解析一次，整个进程复用。 */
-function getMainWindow(): Promise<Window> {
-  mainWindow ??= import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
-    const current = getCurrentWindow()
-
-    if (current.label !== MAIN_WINDOW_LABEL) {
-      throw new Error('The desktop runtime is bound to the "main" window only.')
-    }
-
-    return current
-  })
-
-  return mainWindow
+function resolveMainWindow(): Window | null {
+  if (!isTauri()) {
+    return null
+  }
+  const current = getCurrentWindow()
+  if (current.label !== MAIN_WINDOW_LABEL) {
+    throw new Error('The desktop runtime is bound to the "main" window only.')
+  }
+  return current
 }
 
-async function insideTauri(): Promise<boolean> {
-  const { isTauri } = await import('@tauri-apps/api/core')
-
-  return isTauri()
+function requireMainWindow(): Window {
+  if (mainWindow === null) {
+    throw new Error('The native window API is unavailable outside Tauri.')
+  }
+  return mainWindow
 }
 
 export function createMainWindowController(): MainWindowController {
   return {
     async present() {
-      const window = await getMainWindow()
-
+      const window = requireMainWindow()
       await window.show()
       await window.setFocus()
     },
 
-    async minimize() {
-      const window = await getMainWindow()
-
-      await window.minimize()
-    },
-
-    async toggleMaximize() {
-      const window = await getMainWindow()
-
-      await window.toggleMaximize()
-    },
-
-    async isMaximized() {
-      const window = await getMainWindow()
-
-      return window.isMaximized()
-    },
+    minimize: () => requireMainWindow().minimize(),
+    toggleMaximize: () => requireMainWindow().toggleMaximize(),
+    isMaximized: () => requireMainWindow().isMaximized(),
 
     onMaximizedChanged: (handler) =>
       events.windowMaximized.listen((event) => {
         handler(event.payload.isMaximized)
       }),
 
-    forceClose() {
-      /*
-       * 终止是有意的 fire-and-forget：渲染层可能在任何应答返回之前就消失了。
-       */
-      void getMainWindow()
-        .then((window) => window.destroy())
-        .catch(() => {
-          // 进程终止失败时没有可用的渲染层补救界面，不要弹一个内部重试框。
-        })
-    },
+    openDeveloperTools: () => commands.windowOpenDevtools(MAIN_WINDOW_LABEL),
+    quit: () => commands.applicationQuit(),
 
     async onCloseRequested(handler) {
-      if (!(await insideTauri())) {
+      if (mainWindow === null) {
         return () => {}
       }
-
-      const window = await getMainWindow()
-
-      return window.onCloseRequested((event) => {
+      return await mainWindow.onCloseRequested((event) => {
         event.preventDefault()
         handler()
       })
     },
 
     async onTerminationRequested(handler) {
-      if (!(await insideTauri())) {
+      if (mainWindow === null) {
         return () => {}
       }
-
-      const { listen } = await import('@tauri-apps/api/event')
-
-      return listen(TERMINATION_REQUESTED_EVENT, () => {
-        handler()
-      })
+      return await listen(TERMINATION_REQUESTED_EVENT, handler)
     },
-
-    // devtools 是唯一没有 JavaScript 对应物的窗口操作。命令名与参数都由生成绑定给出。
-    openDeveloperTools: () => commands.windowOpenDevtools(MAIN_WINDOW_LABEL),
   }
 }

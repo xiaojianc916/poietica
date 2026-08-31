@@ -57,7 +57,6 @@ import type { WorkspaceParts, WorkspaceShellActions } from './shell-contract'
 export interface AppCapabilities {
   readonly settings: boolean
   readonly developerTools: boolean
-  readonly windowControls: boolean
 }
 
 export interface WorkspaceContainerProps {
@@ -276,7 +275,6 @@ export function WorkspaceContainer({
           onClose={onWindowClose}
           onMaximize={onWindowMaximize}
           onMinimize={onWindowMinimize}
-          windowControlsDisabled={!capabilities.windowControls}
         >
           {isSettingsOpen ? null : (
             <WorkbenchTabs

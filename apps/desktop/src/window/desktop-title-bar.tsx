@@ -36,7 +36,6 @@ export interface DesktopTitleBarProps {
   readonly onMaximize: () => void
   readonly onClose: () => void
   readonly isMaximized: boolean
-  readonly windowControlsDisabled?: boolean
 }
 
 /**
@@ -70,7 +69,6 @@ export function DesktopTitleBar({
   onMaximize,
   onClose,
   isMaximized,
-  windowControlsDisabled = false,
 }: DesktopTitleBarProps) {
   /*
    * 侧栏开合是布局意图，store 是它唯一的所有者。此前这两件事由组合根订阅、
@@ -152,7 +150,6 @@ export function DesktopTitleBar({
       </div>
 
       <WindowControls
-        disabled={windowControlsDisabled}
         isMaximized={isMaximized}
         onClose={onClose}
         onMaximize={onMaximize}

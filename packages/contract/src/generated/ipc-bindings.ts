@@ -730,6 +730,12 @@ async diagnosticsTakePreviousCrash() : Promise<NativeCrashReport | null> {
     return await TAURI_INVOKE("diagnostics_take_previous_crash");
 },
 /**
+ * Renderer-facing application exit. Every exit entry converges on the drain barrier.
+ */
+async applicationQuit() : Promise<void> {
+    await TAURI_INVOKE("application_quit");
+},
+/**
  * 打开开发者工具。没有 `JavaScript` 对应物的两个窗口操作之一。
  * 
  * 渲染层需要的其余能力（show / hide / minimize / maximize / close / destroy /

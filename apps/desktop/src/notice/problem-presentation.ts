@@ -17,6 +17,7 @@ import { failureCoordinator, formatFailureDiagnostic, optionalProperty } from '@
 export const APPLICATION_FAILURE_CODES = [
   'WINDOW_MINIMIZE_UNAVAILABLE',
   'WINDOW_MAXIMIZE_UNAVAILABLE',
+  'WINDOW_CLOSE_UNAVAILABLE',
   'WINDOW_DRAG_UNAVAILABLE',
   'DEVELOPER_TOOLS_UNAVAILABLE',
   'SETTINGS_LOAD_FAILED',
@@ -53,7 +54,6 @@ export const DEGRADABLE_FEATURE_IDS = [
   'developer-tools',
   'settings',
   'window-close-coordination',
-  'window-controls',
   'window-dragging',
   'window-state-sync',
 ] as const
@@ -74,21 +74,24 @@ interface ApplicationFailurePolicy {
 
 export const APPLICATION_FAILURE_POLICIES = {
   WINDOW_MINIMIZE_UNAVAILABLE: {
-    impact: 'feature-degraded',
-    userMessage: '窗口最小化暂时不可用。',
-
-    recovery: 'disable-feature',
-
-    scope: featureScope('window-controls'),
+    impact: 'recoverable',
+    userMessage: '窗口最小化失败，可以重试。',
+    recovery: 'retry',
+    scope: operationScope('minimize-window'),
   },
 
   WINDOW_MAXIMIZE_UNAVAILABLE: {
-    impact: 'feature-degraded',
-    userMessage: '窗口最大化或还原暂时不可用。',
+    impact: 'recoverable',
+    userMessage: '窗口最大化或还原失败，可以重试。',
+    recovery: 'retry',
+    scope: operationScope('toggle-maximize-window'),
+  },
 
-    recovery: 'disable-feature',
-
-    scope: featureScope('window-controls'),
+  WINDOW_CLOSE_UNAVAILABLE: {
+    impact: 'recoverable',
+    userMessage: '应用未能退出，请重试或使用托盘中的强制退出。',
+    recovery: 'retry',
+    scope: operationScope('quit-application'),
   },
 
   WINDOW_DRAG_UNAVAILABLE: {

@@ -132,6 +132,7 @@ pub fn surface() -> Builder<Wry> {
             commands::conversation::custom_agents::custom_agents_save,
             commands::conversation::custom_agents::custom_agents_remove,
             commands::diagnostics::diagnostics_take_previous_crash,
+            crate::shutdown::application_quit,
             commands::window::window_open_devtools,
             commands::window::window_open_external_url,
             commands::settings::settings_get,

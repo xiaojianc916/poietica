@@ -123,6 +123,29 @@ impl Default for PrivacySettings {
     }
 }
 
+fn read_settings(app: &AppHandle) -> Result<AppSettings> {
+    let store = app.store(settings_store(app)?)?;
+
+    Ok(store
+        .get("settings")
+        .and_then(|value| serde_json::from_value(value).ok())
+        .unwrap_or_default())
+}
+
+/// Applies the persisted daemon intent without extending a renderer read request.
+pub async fn apply_startup_settings(app: &AppHandle) {
+    match read_settings(app) {
+        Ok(settings) => {
+            crate::ipc::commands::conversation::runtime::apply_daemon_intent(
+                app,
+                settings.general.daemon,
+            )
+            .await;
+        }
+        Err(error) => log::warn!("could not apply persisted runtime settings: {error}"),
+    }
+}
+
 /// Reads the persisted application settings.
 ///
 /// # Errors
@@ -133,28 +156,7 @@ impl Default for PrivacySettings {
 #[command]
 #[specta::specta]
 pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> {
-    let settings = (|| -> Result<AppSettings> {
-        let store = app.store(settings_store(&app)?)?;
-
-        /*
-         * 一份读不动的设置不是一次失败，是一次回退。
-         *
-         * 字段级容错由容器 default 兜住；这里兜的是整份 JSON 结构都不成立的
-         * 情况（手改坏了、上个大版本的形状）。专业设置面板在这一步给默认值并
-         * 让用户继续用，而不是把一个红条摆在所有开关前面。
-         */
-        Ok(store
-            .get("settings")
-            .and_then(|value| serde_json::from_value(value).ok())
-            .unwrap_or_default())
-    })()
-    .map_err(Problem::from)?;
-
-    /* 磁盘上那个布尔值只在这三处进程内生效，所以对账也只在这三处。 */
-    crate::ipc::commands::conversation::runtime::apply_daemon_intent(&app, settings.general.daemon)
-        .await;
-
-    Ok(settings)
+    read_settings(&app).map_err(Problem::from)
 }
 
 /// Persists the application settings.

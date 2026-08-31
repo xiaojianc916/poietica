@@ -6,14 +6,10 @@ interface WindowChrome {
   readonly isMaximized: boolean
   readonly minimize: () => void
   readonly toggleMaximize: () => void
+  readonly quit: () => void
 }
 
-/**
- * 窗口控制按钮需要的一切：当前是否最大化，以及两个动作。
- *
- * 关闭不在这里。正常界面的关闭要先过未保存确认，崩溃屏上那条流程所依赖的组件树
- * 已经不存在了——这是两种策略，不是同一个动作的两个参数，各自留在调用点。
- */
+/** Window state and actions exposed by the native window owner. */
 export function useWindowChrome(mainWindow: MainWindowController): WindowChrome {
   const isMaximized = useMaximizedState(mainWindow)
 
@@ -37,7 +33,17 @@ export function useWindowChrome(mainWindow: MainWindowController): WindowChrome 
     })
   }, [mainWindow])
 
-  return { isMaximized, minimize, toggleMaximize }
+  const quit = useCallback(() => {
+    void mainWindow.quit().catch((cause: unknown) => {
+      reportFailure('WINDOW_CLOSE_UNAVAILABLE', {
+        scope: 'window-chrome',
+        operation: 'quit-application',
+        cause,
+      })
+    })
+  }, [mainWindow])
+
+  return { isMaximized, minimize, toggleMaximize, quit }
 }
 
 /*

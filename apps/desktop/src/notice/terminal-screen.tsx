@@ -24,16 +24,7 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
    */
   const mainWindow = useMemo(() => createMainWindowController(), [])
 
-  const { isMaximized, minimize, toggleMaximize } = useWindowChrome(mainWindow)
-
-  /*
-   * 关闭走 forceClose 而不是 close。close 触发原生 CloseRequested，而应答它的
-   * 未保存确认对话框由已经卸载的 AppShell 渲染：一旦有监听器残留并
-   * preventDefault，窗口将永远关不掉。那条确认流程在崩溃屏上并不存在。
-   */
-  const closeWindow = () => {
-    mainWindow.forceClose()
-  }
+  const { isMaximized, minimize, toggleMaximize, quit } = useWindowChrome(mainWindow)
 
   const model = useMemo(
     () => createTerminalFailureViewModel(incident, additionalIncidentCount),
@@ -91,7 +82,7 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
 
         <WindowControls
           isMaximized={isMaximized}
-          onClose={closeWindow}
+          onClose={quit}
           onMaximize={toggleMaximize}
           onMinimize={minimize}
         />

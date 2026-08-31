@@ -56,6 +56,7 @@ export function AppShell({ runtime }: AppShellProps) {
     isMaximized: isWindowMaximized,
     minimize: minimizeWindow,
     toggleMaximize: maximizeWindow,
+    quit: closeWindow,
   } = useWindowChrome(runtime.mainWindow)
 
   const failureSnapshot = useSyncExternalStore(
@@ -76,15 +77,13 @@ export function AppShell({ runtime }: AppShellProps) {
 
   const canOpenSettings = !degraded.has('settings')
   const canOpenDeveloperTools = !degraded.has('developer-tools')
-  const canUseWindowControls = !degraded.has('window-controls')
 
   const capabilities = useMemo<AppCapabilities>(
     () => ({
       developerTools: canOpenDeveloperTools,
       settings: canOpenSettings,
-      windowControls: canUseWindowControls,
     }),
-    [canOpenDeveloperTools, canOpenSettings, canUseWindowControls],
+    [canOpenDeveloperTools, canOpenSettings],
   )
 
   /*
@@ -140,17 +139,6 @@ export function AppShell({ runtime }: AppShellProps) {
   const closeSettings = useCallback(() => {
     setSettingsOpen(false)
   }, [])
-
-  /*
-   * 关闭窗口就是关闭窗口。
-   *
-   * 此前这里要经过一个三态终止协调器，它唯一的存在理由是「退出前确认未保存的
-   * 工作」——文档域移除之后没有任何东西需要被确认，于是那台状态机连同它的
-   * 确认弹窗一起消失，不留一个恒返回 close-now 的空壳。
-   */
-  const closeWindow = useCallback(() => {
-    void runtime.mainWindow.forceClose()
-  }, [runtime.mainWindow])
 
   const openDeveloperTools = useCallback(() => {
     if (!capabilities.developerTools) {

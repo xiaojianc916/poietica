@@ -6,7 +6,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{AppHandle, Manager, RunEvent};
+use tauri::{AppHandle, Manager, RunEvent, command};
 use tauri_plugin_window_state::AppHandleExt;
 
 use crate::ipc::commands::conversation::runtime::AgentRuntime;
@@ -24,6 +24,13 @@ pub fn on_run_event(app: &AppHandle, event: RunEvent) {
         drain(app);
         app.exit(code.unwrap_or(0));
     }
+}
+
+/// Renderer-facing application exit. Every exit entry converges on the drain barrier.
+#[command]
+#[specta::specta]
+pub async fn application_quit(app: AppHandle) {
+    quit(&app);
 }
 
 /// 排空并离场。幂等：第二次进来不做事，退出请求由屏障放行。
