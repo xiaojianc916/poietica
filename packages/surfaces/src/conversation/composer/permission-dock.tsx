@@ -5,10 +5,9 @@ import type {
   ApprovalDecision,
   ApprovalScope,
   PermissionItem,
-  ToolCallTimelineItem,
 } from '@poietica/conversation'
 import { memo, useState } from 'react'
-import { clampToLine, sayToolLine } from '../semantics/tool-intent'
+import { sayToolLine } from '../semantics/tool-intent'
 
 /**
  * 要批准的那一件事，就在下一句话的正上方。
@@ -57,39 +56,14 @@ const ANSWERS: readonly Answer[] = [
   { id: 'reject', label: '拒绝', decision: 'rejected' },
 ]
 
-/**
- * 说不出意图时，把入参原样端上来。
- *
- * tool-intent 那一层的取舍是「宁可少说一句，不肯说错一句」，那对一张事后翻看的卡片
- * 是对的。这里相反：人正要为这一次调用签字，而一个只写着工具名的问题不能被回答。
- * 原文不是猜测 —— 它就是要被批准的那份入参。
- */
-function rawArgs(rawInput: unknown): string | null {
-  if (rawInput === undefined || rawInput === null) {
-    return null
-  }
-
-  try {
-    const text = typeof rawInput === 'string' ? rawInput : JSON.stringify(rawInput)
-
-    return text === undefined ? null : clampToLine(text)
-  } catch {
-    /* 认不出就不认，宁可只剩一个工具名，也不能印一句我们编的话。 */
-    return null
-  }
-}
-
 export interface PermissionDockProps {
   readonly item: PermissionItem
-  /** 请求指向的那次调用；带子印的字来自它。 */
-  readonly call: ToolCallTimelineItem | undefined
   /** 本段里还在等的一共几个。1 表示只有这一个，序号因此不出现。 */
   readonly waiting: number
   readonly onResolve: (requestId: string, answer: ApprovalAnswer) => void
 }
 
 export const PermissionDock = memo(function PermissionDock({
-  call,
   item,
   onResolve,
   waiting,
@@ -126,12 +100,9 @@ export const PermissionDock = memo(function PermissionDock({
    * 要批准的那件事本身。
    *
    * 工具名回答不了「要不要允许 Bash」。判据与工具卡片是同一条管线的两个出口
-   * （sayToolLine 说不出就交回 null），两处不会各说一套；说不出来退到入参原文，
-   * 再退才是工具名 —— 那时 agent 确实没说。
+   * （sayToolLine 说不出就交回 null），两处不会各说一套；说不出来才退到工具名。
    */
-  const spoken = call === undefined ? null : sayToolLine(call)
-
-  const said = spoken ?? rawArgs(call?.rawInput) ?? item.title
+  const said = sayToolLine(item) ?? item.title
 
   const isSubmitting = submitted !== undefined
 

@@ -11,7 +11,6 @@ import type {
   ToolCallContent,
   ToolCallLocation,
   ToolCallStatus,
-  ToolCallUpdate,
   ToolKind,
 } from '../agent'
 
@@ -197,8 +196,12 @@ export interface PlanItem extends TimelineEntry {
 export interface PermissionItem extends TimelineEntry {
   readonly type: 'permission'
   readonly requestId: string
+  /** 工具名。要批准的那件事说不出来时的最后一层退路。 */
   readonly title: string
-  readonly toolCall?: ToolCallUpdate
+  /** 要批准的那件事：由请求自带的 display 投出（kap-projection 的 requestedCall）。 */
+  readonly kind: ToolKind
+  readonly subject: string
+  readonly locations: readonly ToolCallLocation[]
   /** 缺席表示还在等人答；在场时就是 kap 记下的那个答复。 */
   readonly resolution?: {
     readonly decision: ApprovalDecision

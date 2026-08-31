@@ -245,10 +245,10 @@ impl Recorder {
 
         let title = approval_title(tool_name, item, tool_call_id);
 
-        // 帧是我们自己的契约，不是审批项的原文：界面要的三格在这里归一成
-        // camelCase —— toolCallId 是 pendingPermissionCall 反查工具卡片的键，
-        // rawInput 装审批项的显示提示（approvalRequestSchema 的
-        // tool_input_display）。其余格子是传输层的事，帧不留。
+        // 帧是我们自己的契约，不是审批项的原文：键归一成 camelCase，rawInput 装
+        // 审批项的显示提示（approvalRequestSchema 的 tool_input_display）——
+        // 要批准的那件事由投影从它落成三格，与工具卡片同一条判据
+        // （kap-projection 的 requestedCall）。
         let mut tool_call = json!({
             "toolCallId": tool_call_id,
             "title": title,

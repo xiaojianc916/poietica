@@ -8,7 +8,7 @@ import {
   type ErrorItem,
   type ToolCallTimelineItem,
 } from '../timeline-contract'
-import { activeScope, pendingPermission, pendingPermissionCall } from '../timeline-queries'
+import { activeScope, pendingPermission } from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'
 
 /**
@@ -526,7 +526,7 @@ describe('kap 投影', () => {
     ])
   })
 
-  it('审批帧走共用词汇：归一化的 toolCall 把请求接回工具卡片', () => {
+  it('审批帧走共用词汇：要批准的那件事由请求自带的 display 投在条目上', () => {
     const events: RunEvent[] = [
       {
         kind: 'prompt_admitted',
@@ -537,21 +537,9 @@ describe('kap 投影', () => {
         prompt: '跑一下测试',
       },
       {
-        kind: 'kap_event',
+        kind: 'permission_requested',
         seq: 2,
         at: 1010,
-        payload: {
-          type: 'tool.call.started',
-          turnId: 1,
-          toolCallId: 'call_9',
-          name: 'Bash',
-          args: { command: 'cargo test' },
-        },
-      },
-      {
-        kind: 'permission_requested',
-        seq: 3,
-        at: 1020,
         requestId: 'appr_9',
         toolCallId: 'call_9',
         title: 'Bash',
@@ -567,9 +555,10 @@ describe('kap 投影', () => {
     const waiting = pendingPermission(activeScope(state))
 
     expect(waiting?.requestId).toBe('appr_9')
-    /* 反查靠的是归一化后那个 camelCase 的 toolCallId。 */
-    expect(waiting?.toolCall?.toolCallId).toBe('call_9')
-    expect(pendingPermissionCall(activeScope(state))?.title).toBe('Bash')
+    /* 与工具卡片同一条判据（fromShape）：三格落在条目自己身上，不靠反查。 */
+    expect(waiting?.kind).toBe('execute')
+    expect(waiting?.subject).toBe('cargo test')
+    expect(waiting?.locations).toStrictEqual([])
   })
 })
 

@@ -109,7 +109,6 @@ export {
   lastAtOrBefore,
   liveMemberOf,
   pendingPermission,
-  pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
   replayThreadEvents,

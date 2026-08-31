@@ -11,7 +11,6 @@ import { useAgentToolkit } from '../session/agent-controls-context'
 import type { AssistantSubmission } from '../session/use-assistant-session'
 import {
   useAssistantPending,
-  useAssistantPendingCall,
   useAssistantPendingCount,
   useAssistantQuestion,
   useAssistantSession,
@@ -134,9 +133,6 @@ export const AssistantSurface = memo(function AssistantSurface({
   /* 还在等的一共几个。审批带恒显示最早那一个，所以变的只有分母。 */
   const waiting = useAssistantPendingCount(assistant.key)
 
-  /* 要批准的那件事本身，取自请求指向的那次调用。 */
-  const call = useAssistantPendingCall(assistant.key)
-
   /* 待答的那一组题。协议自己的通道，答复与撤下直走会话端口，不经权限请求。 */
   const question = useAssistantQuestion(assistant.key)
 
@@ -152,8 +148,8 @@ export const AssistantSurface = memo(function AssistantSurface({
       return null
     }
 
-    return { call, item: blocked, onResolve: assistant.resolvePermission, waiting }
-  }, [assistant.resolvePermission, blocked, call, waiting])
+    return { item: blocked, onResolve: assistant.resolvePermission, waiting }
+  }, [assistant.resolvePermission, blocked, waiting])
 
   const [phase, setPhase] = useState<'entry' | 'live'>(() => (isNew ? 'entry' : 'live'))
 

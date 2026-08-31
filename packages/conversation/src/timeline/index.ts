@@ -29,7 +29,6 @@ export {
   activeScope,
   inflightPromptId,
   pendingPermission,
-  pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
   selectIsBusy,

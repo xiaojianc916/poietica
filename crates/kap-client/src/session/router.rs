@@ -146,6 +146,30 @@ impl Drop for ReconcileOwner {
     }
 }
 
+/// 有人在等人这一侧的答复吗。
+///
+/// 会话状态那一帧是唯一同时报两条队列的地方（kap-server 的
+/// transport/ws/v1/events.ts：status 取 awaiting_approval / awaiting_question）。
+/// agent.status.updated 的 phase 报不出提问 —— services/legacyStatus/legacyStatus.ts
+/// 的 AgentPhase 只有 idle / running / streaming / tool_call / retrying /
+/// awaiting_approval / interrupted / ended，所以它只当审批的信号。
+fn awaits_person(event_type: &str, payload: &Value) -> bool {
+    match event_type {
+        "event.session.status_changed" => matches!(
+            payload.get("status").and_then(Value::as_str),
+            Some("awaiting_approval" | "awaiting_question")
+        ),
+        "agent.status.updated" => {
+            payload
+                .get("phase")
+                .and_then(|phase| phase.get("kind"))
+                .and_then(Value::as_str)
+                == Some("awaiting_approval")
+        }
+        _ => false,
+    }
+}
+
 pub(crate) struct EventRouter {
     owners: HashMap<String, ReconcileOwner>,
     book: SessionBook,
@@ -377,6 +401,23 @@ impl EventRouter {
             slot.record(|recorder| recorder.record_frame(frame));
         }
 
+        /* 有人在等人这一侧的答复。清单的权威在 REST，事件只是信号。 */
+        if awaits_person(event_type, payload) {
+            owners
+                .entry(session_id.to_owned())
+                .or_insert_with(|| {
+                    ReconcileOwner::spawn(
+                        session_id.to_owned(),
+                        http.clone(),
+                        base_url.to_owned(),
+                        book.clone(),
+                        desk.clone(),
+                        questions.clone(),
+                    )
+                })
+                .poll();
+        }
+
         match event_type {
             "event.session.work_changed" => {
                 /* work_changed 是会话活动投影，不是轮终错误通道。busy=false 只说明聚合已
@@ -472,36 +513,6 @@ impl EventRouter {
                             input_cache_creation: counter("inputCacheCreation"),
                         },
                     });
-                }
-
-                // 卡在人这一侧：审批清单与提问清单都不随事件来（phase 里那格
-                // approval 是 unknown），权威在 REST。
-                //
-                // 两个态都拉两张表。phase 是派生值，而它的优先级里审批高于提问
-                // （agent-core-v2 的 rw-model-design.md：先看有没有 approval，再看有
-                // 没有 question）。只在 awaiting_question 时去拉题，一旦同一条会话上
-                // 还挂着一个没答的审批，phase 就永远报 awaiting_approval —— 那组题
-                // 永远拉不到，agent 死等到轮次超时。反向同理。
-                let phase = payload
-                    .get("phase")
-                    .and_then(|phase| phase.get("kind"))
-                    .and_then(Value::as_str)
-                    .unwrap_or("");
-
-                if matches!(phase, "awaiting_approval" | "awaiting_question") {
-                    owners
-                        .entry(session_id.to_owned())
-                        .or_insert_with(|| {
-                            ReconcileOwner::spawn(
-                                session_id.to_owned(),
-                                http.clone(),
-                                base_url.to_owned(),
-                                book.clone(),
-                                desk.clone(),
-                                questions.clone(),
-                            )
-                        })
-                        .poll();
                 }
             }
 
@@ -688,7 +699,27 @@ async fn fetch_and_record_questions(
 
     for item in items {
         let Some(group) = QuestionGroup::from_wire(&item) else {
-            log::warn!("a pending question group could not be read: {item}");
+            /* 读不出的题组不能装作没来过：撤下它，agent 才不会在人这一侧死等到超时。 */
+            let Some(question_id) = item.get("question_id").and_then(Value::as_str) else {
+                log::error!("kap listed a pending question without an id: {item}");
+                continue;
+            };
+
+            log::error!("a pending question group does not fit the contract: {item}");
+
+            let http2 = http.clone();
+            let base2 = base_url.to_owned();
+            let sid = session_id.to_owned();
+            let qid = question_id.to_owned();
+
+            tokio::spawn(async move {
+                if let Err(error) =
+                    settle_question(&http2, &base2, &sid, &qid, &QuestionOutcome::Dismissed).await
+                {
+                    log::warn!("could not dismiss an unreadable question group: {error}");
+                }
+            });
+
             continue;
         };
 

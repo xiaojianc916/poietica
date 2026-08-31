@@ -21,6 +21,10 @@ function asked(requestId: string, turn: number): PermissionItem {
     at: 0,
     requestId,
     title: requestId,
+    /* 这里没有 display：三格填 requestedCall 的缺省，选择器只读号与 resolution。 */
+    kind: 'other',
+    subject: '',
+    locations: [],
   }
 }
 

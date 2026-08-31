@@ -753,6 +753,23 @@ function fromDisplay(display: unknown, said: string | undefined): ToolCallPatch 
   return { subject: said }
 }
 
+/**
+ * 审批请求自带的 display 投成那三格。
+ *
+ * 与工具卡片同一条判据（fromShape），缺省值也与 upsertToolCall 那一处相同。
+ */
+export function requestedCall(
+  display: unknown,
+): Pick<ToolCallTimelineItem, 'kind' | 'locations' | 'subject'> {
+  const patch = fromShape(display)
+
+  return {
+    kind: patch.kind ?? 'other',
+    locations: patch.locations ?? [],
+    subject: patch.subject ?? '',
+  }
+}
+
 function fromShape(display: unknown): ToolCallPatch {
   if (typeof display !== 'object' || display === null) {
     return {}

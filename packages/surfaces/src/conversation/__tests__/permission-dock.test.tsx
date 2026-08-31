@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { PermissionItem, ToolCallTimelineItem } from '@poietica/conversation'
+import type { PermissionItem } from '@poietica/conversation'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { PermissionDock } from '../composer/permission-dock'
 
@@ -19,41 +19,16 @@ function permission(overrides: Partial<PermissionItem> = {}): PermissionItem {
     turn: 0,
     requestId: 'request-1',
     title: 'write',
+    /* display 缺席时 requestedCall 落下的就是这三个缺省。 */
+    kind: 'other',
+    subject: '',
+    locations: [],
     ...overrides,
   }
 }
 
-/* 运行时由 pendingPermissionCall 按号取回条目；这里照同一形状造一条。 */
-function callOf(item: PermissionItem): ToolCallTimelineItem | undefined {
-  const asked = item.toolCall
-
-  if (asked === undefined) {
-    return undefined
-  }
-
-  return {
-    type: 'tool_call',
-    subject: '',
-    id: `tool-${asked.toolCallId}`,
-    turn: 1,
-    at: 0,
-    toolCallId: asked.toolCallId,
-    title: item.title,
-    kind: asked.kind ?? 'other',
-    status: asked.status ?? 'pending',
-    requestContent: [],
-    content: asked.content ?? [],
-    locations: asked.locations ?? [],
-    channels: [],
-    startedAt: 0,
-    ...(asked.rawInput === undefined ? {} : { rawInput: asked.rawInput }),
-  }
-}
-
 function render(item: PermissionItem, waiting = 1): string {
-  return renderToStaticMarkup(
-    <PermissionDock call={callOf(item)} item={item} onResolve={() => {}} waiting={waiting} />,
-  )
+  return renderToStaticMarkup(<PermissionDock item={item} onResolve={() => {}} waiting={waiting} />)
 }
 
 describe('审批带', () => {
@@ -90,34 +65,13 @@ describe('审批带', () => {
     expect(markup.match(/data-lead="true"/g)).toHaveLength(1)
   })
 
-  it('说得出要批准的那件事，不是只有一个工具名', () => {
+  it('印的是要批准的那件事，不是工具名', () => {
     /*
-     * kap 的审批项只带 tool_name 与 tool_input_display（rest-approval.ts 的
-     * toWireApproval），送到这里的 title 只剩 "Bash"。人要放行的是那条命令。
+     * kap 的审批请求自带 display，投成条目上的三格（kap-projection 的
+     * requestedCall）。人要放行的是那条命令，不是一个只写着 "Bash" 的问题。
      */
-    const markup = render(
-      permission({
-        title: 'Bash',
-        toolCall: { toolCallId: 'call-1', rawInput: { command: 'bun run check' } },
-      }),
-    )
+    const markup = render(permission({ title: 'Bash', kind: 'execute', subject: 'bun run check' }))
 
     expect(markup).toContain('bun run check')
-  })
-
-  it('认不出的入参形状，也要把原文端上来', () => {
-    /*
-     * tool-intent 认的那几个键是某一家 agent 的入参约定（见那个文件的头注释）。换
-     * 一家、或者同一家换一个工具，键名就不在表里 —— 那时候仍然不能只给一个工具名
-     * 让人签字。
-     */
-    const markup = render(
-      permission({
-        title: 'Bash',
-        toolCall: { toolCallId: 'call-2', rawInput: { shell: 'ls ~/.kimi/skills/ 2>&1' } },
-      }),
-    )
-
-    expect(markup).toContain('ls ~/.kimi/skills/')
   })
 })

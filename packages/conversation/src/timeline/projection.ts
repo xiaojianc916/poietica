@@ -10,7 +10,7 @@
  */
 
 import type { KapStopReason, RunEvent, RunStatus, SessionLink } from '../agent'
-import { applyKapFrame } from './kap-projection'
+import { applyKapFrame, requestedCall } from './kap-projection'
 import type { MessageImage, PermissionItem, QuestionTimelineItem } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import {
@@ -86,8 +86,8 @@ export function apply(draft: Draft, event: RunEvent): void {
         at: event.at,
         requestId: event.requestId,
         title: event.title,
-        /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
-        ...(event.toolCall === undefined ? {} : { toolCall: event.toolCall }),
+        /* 要批准的那件事由请求自带的 display 定，与工具卡片同一条投影。 */
+        ...requestedCall(event.toolCall?.rawInput),
       })
 
       return

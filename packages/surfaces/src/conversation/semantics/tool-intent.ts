@@ -48,9 +48,8 @@ type ToolLineSource = Pick<ToolCallTimelineItem, 'kind' | 'locations' | 'subject
 /**
  * 有动词就配文件名，没动词就转述主语；这一句说不出来就交回 null。
  *
- * 两个出口共用这一份判据，退法归各自的场景：卡片退回工具名（事后翻看，认得出是谁
- * 就够了），审批退到入参原文（人正要为这一次调用签字，一个只写着工具名的问题不能
- * 被回答）。
+ * 两个出口共用这一份判据，说不出来各自退到工具名 —— display 投不出主语，agent
+ * 就确实没有把那件事说清楚。
  */
 export function sayToolLine(item: ToolLineSource): string | null {
   const verb = VERB[item.kind]

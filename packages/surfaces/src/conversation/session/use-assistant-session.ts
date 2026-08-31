@@ -10,7 +10,6 @@ import type {
   QuestionResponse,
   QuestionTimelineItem,
   TimelineState,
-  ToolCallTimelineItem,
   Transcript,
   TurnMark,
 } from '@poietica/conversation'
@@ -20,7 +19,6 @@ import {
   InterjectionOutbox,
   inflightPromptId,
   pendingPermission,
-  pendingPermissionCall,
   pendingPermissionCount,
   pendingQuestion,
 } from '@poietica/conversation'
@@ -374,15 +372,6 @@ export function useAssistantPendingCount(key: string): number {
  */
 export function useAssistantQuestion(key: string): QuestionTimelineItem | undefined {
   return useSlice(key, readQuestion)
-}
-
-/* 请求只带一个号，要签字的原文在那条调用上。 */
-const readPendingCall = (transcript: Transcript): ToolCallTimelineItem | undefined =>
-  pendingPermissionCall(activeScope(transcript.timeline))
-
-/** 待答请求指向的那次调用；审批带照着它印字。 */
-export function useAssistantPendingCall(key: string): ToolCallTimelineItem | undefined {
-  return useSlice(key, readPendingCall)
 }
 
 /*
