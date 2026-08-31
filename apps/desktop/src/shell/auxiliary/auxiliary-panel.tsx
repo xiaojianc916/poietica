@@ -56,10 +56,13 @@ export function AuxiliaryPanel({
 }: AuxiliaryPanelProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const host = state.host
-  const activePane = state.panes.find((pane) => pane.id === state.activePaneId) ?? null
+  const { focus } = state
+  const activePane =
+    focus.kind === 'pane' ? (state.panes.find((pane) => pane.id === focus.id) ?? null) : null
   const activeTab = host?.tabs.find((tab) => tab.id === host.activeTabId) ?? null
 
-  const showLauncher = activePane === null && (host?.tabs.length ?? 0) === 0
+  /* 启动器是空态，不是回退态：还开着的标签不许被它盖掉。 */
+  const showLauncher = state.panes.length === 0 && (host?.tabs.length ?? 0) === 0
 
   return (
     <aside aria-label="辅助面板" className="flex h-full min-h-0 flex-col">
@@ -84,7 +87,7 @@ export function AuxiliaryPanel({
         <>
           <AuxiliaryTabStrip
             actions={store.actions}
-            activePaneId={state.activePaneId}
+            focus={focus}
             host={host}
             onClosePane={store.closePane}
             onMenuChange={store.setMenu}
@@ -363,12 +366,6 @@ function AuxiliaryLauncher({
     <section aria-labelledby="auxiliary-launcher-title" className="flex h-full min-h-0 flex-col">
       <div className="flex h-8 shrink-0 items-center justify-end pr-2.5">{trailing}</div>
       <div className="m-auto w-full max-w-xs px-6">
-        <h2 className="text-center text-lg font-semibold" id="auxiliary-launcher-title">
-          打开标签页
-        </h2>
-        <p className="mt-2 text-center text-sm text-muted-foreground">
-          选择要在侧边面板中打开的标签。
-        </p>
         <div className="mt-6 grid gap-2">
           {offers.map((offer) => (
             <button

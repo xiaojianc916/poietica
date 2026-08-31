@@ -48,10 +48,18 @@ export interface AuxiliaryPane {
 /** 三个菜单的脸。同一时刻最多一个展开。 */
 export type AuxiliaryMenuKind = 'new-tab' | 'tabs' | 'overflow'
 
+/**
+ * 面板此刻在看谁。一格通道与浏览器是同一条选择的两个取值：'browser' 只表示选择落在
+ * 宿主标签那一段上，不表示那一段有标签。
+ */
+export type AuxiliaryFocus =
+  | { readonly kind: 'pane'; readonly id: string }
+  | { readonly kind: 'browser' }
+
 export interface AuxiliaryPanelState {
   readonly host: BrowserState | null
   readonly panes: readonly AuxiliaryPane[]
-  readonly activePaneId: string | null
+  readonly focus: AuxiliaryFocus
   readonly openMenu: AuxiliaryMenuKind | null
 }
 
@@ -64,7 +72,8 @@ export interface AuxiliaryPanelStore {
   readonly openLauncherPane: (kind: AuxiliaryLauncherKind) => void
   readonly openDelegate: (agentId: string) => void
   readonly closePane: (id: string) => void
-  readonly selectPane: (id: string | null) => void
+  readonly selectPane: (id: string) => void
+  readonly selectBrowser: () => void
   readonly setMenu: (kind: AuxiliaryMenuKind | null) => void
   readonly actions: {
     readonly openTab: (url: string | null) => void
@@ -91,9 +100,9 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
   let watchEpoch = 0
   let nativeVisible: boolean | null = null
   let panes: readonly AuxiliaryPane[] = []
-  let activePaneId: string | null = null
+  let focus: AuxiliaryFocus = { kind: 'browser' }
   let openMenu: AuxiliaryMenuKind | null = null
-  let snapshot: AuxiliaryPanelState = { host, panes, activePaneId, openMenu }
+  let snapshot: AuxiliaryPanelState = { host, panes, focus, openMenu }
 
   function run(operation: string, task: () => Promise<void>): void {
     task().catch((cause: unknown) => {
@@ -103,16 +112,46 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
 
   const store = createExternalStore<AuxiliaryPanelState>({ read: () => snapshot })
 
+  /*
+   * 每次发布都把焦点落到实处：指向的通道被关掉、或宿主一格标签都不剩时，焦点顺着
+   * 标签条移到还在的那一段。整格空了才回到启动器 —— 关掉一格不该让另一格消失。
+   */
+  function resolved(): AuxiliaryFocus {
+    if (focus.kind === 'pane' && panes.some((pane) => pane.id === focus.id)) {
+      return focus
+    }
+
+    if (focus.kind === 'browser' && (host?.tabs.length ?? 0) > 0) {
+      return focus
+    }
+
+    const last = panes.at(-1)
+
+    return last === undefined ? { kind: 'browser' } : { kind: 'pane', id: last.id }
+  }
+
   function publish(): void {
-    snapshot = { host, panes, activePaneId, openMenu }
+    focus = resolved()
+    snapshot = { host, panes, focus, openMenu }
     store.notify()
   }
 
-  function selectPane(id: string | null): void {
-    if ((id !== null && !panes.some((pane) => pane.id === id)) || id === activePaneId) {
+  function selectPane(id: string): void {
+    if (focus.kind === 'pane' && focus.id === id) {
       return
     }
-    activePaneId = id
+    if (!panes.some((pane) => pane.id === id)) {
+      return
+    }
+    focus = { kind: 'pane', id }
+    publish()
+  }
+
+  function selectBrowser(): void {
+    if (focus.kind === 'browser') {
+      return
+    }
+    focus = { kind: 'browser' }
     publish()
   }
 
@@ -120,7 +159,7 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
     if (!panes.some((held) => held.id === pane.id)) {
       panes = [...panes, pane]
     }
-    activePaneId = pane.id
+    focus = { kind: 'pane', id: pane.id }
     publish()
   }
 
@@ -135,7 +174,7 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
 
   function openLauncherPane(kind: AuxiliaryLauncherKind): void {
     if (kind === 'browser') {
-      selectPane(null)
+      selectBrowser()
       run('open-tab', () => port.openTab(null))
       return
     }
@@ -152,7 +191,6 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
       return
     }
     panes = panes.filter((open) => open.id !== id)
-    activePaneId = activePaneId === id ? (panes.at(-1)?.id ?? null) : activePaneId
     publish()
   }
 
@@ -225,16 +263,17 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
     openDelegate,
     closePane,
     selectPane,
+    selectBrowser,
     setMenu,
 
     actions: {
       openTab: (url) => {
-        selectPane(null)
+        selectBrowser()
         run('open-tab', () => port.openTab(url))
       },
       closeTab: (id) => run('close-tab', () => port.closeTab(id)),
       selectTab: (id) => {
-        selectPane(null)
+        selectBrowser()
         run('select-tab', () => port.selectTab(id))
       },
       navigate: (id, address) => run('navigate', () => port.navigate(id, address)),

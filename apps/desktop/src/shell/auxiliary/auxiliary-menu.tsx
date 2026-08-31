@@ -17,7 +17,7 @@ import {
   Search,
 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import type { AuxiliaryLauncherKind } from './auxiliary-panel-store'
+import type { AuxiliaryFocus, AuxiliaryLauncherKind } from './auxiliary-panel-store'
 import { BrowserTabIcon } from './browser-tab-icon'
 
 /*
@@ -122,7 +122,7 @@ export function AuxiliaryNewTabMenu({
 }
 
 export function AuxiliaryTabsMenu({
-  activePaneId,
+  focus,
   host,
   onOpenChange,
   onReopenClosed,
@@ -131,7 +131,7 @@ export function AuxiliaryTabsMenu({
   open,
   panes,
 }: {
-  readonly activePaneId: string | null
+  readonly focus: AuxiliaryFocus
   readonly host: BrowserState
   readonly onOpenChange: (open: boolean) => void
   readonly onReopenClosed: (index: number) => void
@@ -197,7 +197,7 @@ export function AuxiliaryTabsMenu({
           >
             {pane.icon}
             <span className={labelClassName}>{pane.name}</span>
-            {pane.id === activePaneId ? <CurrentMark /> : null}
+            {focus.kind === 'pane' && focus.id === pane.id ? <CurrentMark /> : null}
           </DropdownMenuItem>
         ))}
         {shownTabs.map((tab) => (
@@ -209,7 +209,7 @@ export function AuxiliaryTabsMenu({
           >
             <BrowserTabIcon tab={tab} />
             <span className={labelClassName}>{tab.title}</span>
-            {activePaneId === null && tab.id === host.activeTabId ? <CurrentMark /> : null}
+            {focus.kind === 'browser' && tab.id === host.activeTabId ? <CurrentMark /> : null}
           </DropdownMenuItem>
         ))}
         {shownClosed.length > 0 ? <p className={groupClassName}>最近关闭的标签页</p> : null}

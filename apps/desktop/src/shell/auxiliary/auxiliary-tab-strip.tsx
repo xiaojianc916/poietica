@@ -2,7 +2,11 @@ import type { BrowserState } from '@poietica/browser'
 import { X } from 'lucide-react'
 import type { KeyboardEvent, ReactNode } from 'react'
 import { AuxiliaryNewTabMenu, type AuxiliaryPaneOffer, AuxiliaryTabsMenu } from './auxiliary-menu'
-import type { AuxiliaryMenuKind, AuxiliaryPanelStore } from './auxiliary-panel-store'
+import type {
+  AuxiliaryFocus,
+  AuxiliaryMenuKind,
+  AuxiliaryPanelStore,
+} from './auxiliary-panel-store'
 import { BrowserTabIcon } from './browser-tab-icon'
 
 /*
@@ -24,8 +28,8 @@ interface AuxiliaryTabStripProps {
   readonly actions: AuxiliaryPanelStore['actions']
   readonly panes: readonly DockPaneView[]
   readonly paneOffers: readonly AuxiliaryPaneOffer[]
-  readonly activePaneId: string | null
-  readonly onSelectPane: (id: string | null) => void
+  readonly focus: AuxiliaryFocus
+  readonly onSelectPane: (id: string) => void
   readonly onClosePane: (id: string) => void
   readonly onOpenPane: AuxiliaryPanelStore['openLauncherPane']
   readonly openMenu: AuxiliaryMenuKind | null
@@ -41,7 +45,7 @@ export const auxiliaryBrowserTabId = (id: number) => `auxiliary-browser-${id}`
 export function AuxiliaryTabStrip({
   host,
   actions,
-  activePaneId,
+  focus,
   paneOffers,
   panes,
   onClosePane,
@@ -85,44 +89,48 @@ export function AuxiliaryTabStrip({
         className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
         style={{ scrollbarWidth: 'none' }}
       >
-        {panes.map((pane) => (
-          <div
-            className={
-              'group flex max-w-44 shrink-0 items-center rounded-md ' +
-              (pane.id === activePaneId ? 'bg-current/[7.8%]' : 'hover:bg-current/5')
-            }
-            key={pane.id}
-          >
-            <button
-              aria-controls={AUXILIARY_TABPANEL_ID}
-              aria-selected={pane.id === activePaneId}
-              className="flex min-w-0 items-center gap-1.5 py-1 pl-2 pr-1"
-              id={auxiliaryPaneTabId(pane.id)}
-              onClick={() => {
-                onSelectPane(pane.id)
-              }}
-              role="tab"
-              tabIndex={pane.id === activePaneId ? 0 : -1}
-              title={pane.name}
-              type="button"
+        {panes.map((pane) => {
+          const active = focus.kind === 'pane' && focus.id === pane.id
+
+          return (
+            <div
+              className={
+                'group flex max-w-44 shrink-0 items-center rounded-md ' +
+                (active ? 'bg-current/[7.8%]' : 'hover:bg-current/5')
+              }
+              key={pane.id}
             >
-              {pane.icon}
-              <span className="min-w-0 truncate text-xs">{pane.name}</span>
-            </button>
-            <button
-              aria-label="关闭标签页"
-              className="mr-1 rounded p-0.5 opacity-0 hover:bg-current/10 group-hover:opacity-60 hover:opacity-100"
-              onClick={() => {
-                onClosePane(pane.id)
-              }}
-              type="button"
-            >
-              <X aria-hidden className="size-3" />
-            </button>
-          </div>
-        ))}
+              <button
+                aria-controls={AUXILIARY_TABPANEL_ID}
+                aria-selected={active}
+                className="flex min-w-0 items-center gap-1.5 py-1 pl-2 pr-1"
+                id={auxiliaryPaneTabId(pane.id)}
+                onClick={() => {
+                  onSelectPane(pane.id)
+                }}
+                role="tab"
+                tabIndex={active ? 0 : -1}
+                title={pane.name}
+                type="button"
+              >
+                {pane.icon}
+                <span className="min-w-0 truncate text-xs">{pane.name}</span>
+              </button>
+              <button
+                aria-label="关闭标签页"
+                className="mr-1 rounded p-0.5 opacity-0 hover:bg-current/10 group-hover:opacity-60 hover:opacity-100"
+                onClick={() => {
+                  onClosePane(pane.id)
+                }}
+                type="button"
+              >
+                <X aria-hidden className="size-3" />
+              </button>
+            </div>
+          )
+        })}
         {host.tabs.map((tab) => {
-          const active = activePaneId === null && tab.id === host.activeTabId
+          const active = focus.kind === 'browser' && tab.id === host.activeTabId
 
           return (
             <div
@@ -173,7 +181,7 @@ export function AuxiliaryTabStrip({
       />
 
       <AuxiliaryTabsMenu
-        activePaneId={activePaneId}
+        focus={focus}
         host={host}
         onOpenChange={(next) => {
           onMenuChange(next ? 'tabs' : null)

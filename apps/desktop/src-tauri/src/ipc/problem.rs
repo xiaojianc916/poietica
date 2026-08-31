@@ -40,16 +40,22 @@ fn code(error: &Error) -> Code {
     }
 }
 
-/// 只有这三个变体带着用户拿得去修正的理由；其余不外传现场。
+/// 带得出「用户拿得去修正的理由」的那几个变体；其余不外传现场。
+///
+/// 插件失败在列：那句原因说的是服务器答了什么、清单在不在、归档解不开
+/// （commands/extension.rs 的 plugin_failure），都是用户自己给的来源上的外部事实。
+/// 剥掉它，装不上就只剩「插件操作失败」一句，人无从下手。
 fn reason(error: &Error) -> Option<&str> {
     match error {
-        Error::AgentCli(reason) | Error::Git(reason) | Error::Persistence(reason) => Some(reason),
+        Error::AgentCli(reason)
+        | Error::Git(reason)
+        | Error::Persistence(reason)
+        | Error::Plugin(reason) => Some(reason),
         Error::Asset(_)
         | Error::File(_)
         | Error::Internal(_)
         | Error::Io(_)
         | Error::NotFound(_)
-        | Error::Plugin(_)
         | Error::SerdeJson(_)
         | Error::Store(_)
         | Error::Tauri(_)
@@ -83,6 +89,17 @@ mod tests {
         assert_eq!(
             problem.details.get("reason").map(String::as_str),
             Some("只允许 provider list")
+        );
+    }
+
+    #[test]
+    fn plugin_rejection_carries_its_reason() {
+        let problem = Problem::from(Error::Plugin("server answered 404 Not Found".to_owned()));
+
+        assert_eq!(problem.code, Code::PluginRejected);
+        assert_eq!(
+            problem.details.get("reason").map(String::as_str),
+            Some("server answered 404 Not Found")
         );
     }
 

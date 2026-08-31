@@ -77,8 +77,8 @@ export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDock
 
   useEffect(() => {
     /* 只读通道在场、或菜单浮层展开时，原生 webview 必须让位给 HTML。 */
-    store.setVisible(isDocked && state.activePaneId === null && state.openMenu === null)
-  }, [isDocked, state.activePaneId, state.openMenu, store.setVisible])
+    store.setVisible(isDocked && state.focus.kind === 'browser' && state.openMenu === null)
+  }, [isDocked, state.focus, state.openMenu, store.setVisible])
 
   useEffect(() => {
     const held = layout.auxiliaryThread !== null

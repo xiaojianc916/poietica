@@ -10,14 +10,14 @@ import type { PluginsViewModel } from './plugin-store'
  * PluginStore 是它在本进程里的唯一持有者。
  *
  * id 与归档地址钉在上游 kimi-code 的能力档案上（packages/agent-core-v2/src/app/
- * capability/entries/kimiCu.ts 的 Windows 那一档）。本仓 bundle 目标只有 nsis，
- * 所以这里不分平台。
+ * capability/entries/kimiCu.ts 的 Windows 那一档）：那一档的 zip 由 kimiCdnContentUrl
+ * 拼出，落在内容 CDN 上，与发行根 code.kimi.com/kimi-code 不是同一个 host。本仓
+ * bundle 目标只有 nsis，所以这里不分平台。
  */
 
 export const KIMI_COMPUTER_USE = {
   pluginId: 'kimi-cu-win',
-  archiveUrl:
-    'https://code.kimi.com/kimi-code/kimi-computer-use-windows/latest/kimi-cu-win-plugin.zip',
+  archiveUrl: 'https://cdn.kimi.com/kimi-computer-use-windows/latest/kimi-cu-win-plugin.zip',
 } as const
 
 export const KIMI_COMPUTER_USE_SOURCE: PluginInstallSource = {

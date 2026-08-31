@@ -16,13 +16,15 @@ import { SettingRow, SettingsGroup, SettingsPage } from './surface/settings-prim
  * 状态与动作都落在 PluginStore 那一份账上，这里没有本地态，所以不存在「界面说开着、
  * 账本说关着」。关闭只拨插件总开关：官方能力面没有停用接口，而单台 MCP 的开关归扩展页，
  * 不在这里被悄悄改写。
+ *
+ * 这一行只覆盖插件层：本机运行时不在这份账里，所以文案不替它背书。
  */
 
 const LABEL = 'Kimi Computer Use'
 
 const ABSENT = '装上官方插件 Kimi Computer Use，让它看屏幕、移动鼠标、敲键盘替你操作这台电脑。'
 
-const ENABLED = '已开启：新开的会话可以操作这台电脑的屏幕、鼠标与键盘。'
+const ENABLED = '已开启：新开的会话会装载它；能不能真的动屏幕，还取决于本机运行时装没装。'
 
 const DISABLED = '已关闭：会话不装载它，也就碰不到屏幕、鼠标与键盘。'
 
