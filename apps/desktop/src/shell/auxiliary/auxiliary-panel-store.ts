@@ -29,7 +29,7 @@ export const AUXILIARY_LAUNCHER: readonly AuxiliaryPaneDescriptor[] = [
     kind: 'terminal',
     label: '终端',
     description: '',
-    availability: 'planned',
+    availability: 'ready',
   },
   {
     kind: 'browser',

@@ -12,6 +12,7 @@ members = [
   "crates/problem",
   "crates/process-host",
   "crates/review",
+  "crates/terminal",
   "crates/time",
   "crates/update",
 ]
@@ -183,6 +184,10 @@ semver = "1"
 # 没有受控 home 时定位 agent 自己的 home（实例注册表与令牌都在那下面）：
 # 平台家目录解析是平台 API，手搓 %USERPROFILE%/$HOME 分支必然漏边界，交给 dirs。
 dirs = "6"
+
+# 伪终端是平台 API：Unix 的 openpty 与 Windows 的 ConPTY 各有一套边界条件，
+# 手搓必漏。portable-pty 是 WezTerm 抽出来的那一份，两个平台都由它兜。
+portable-pty = "0.9"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

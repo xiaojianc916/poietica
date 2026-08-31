@@ -9,6 +9,7 @@ pub mod launcher;
 pub mod ledger;
 pub mod settings;
 pub mod skills;
+pub mod terminal;
 pub mod updates;
 pub mod window;
 pub mod workspace;

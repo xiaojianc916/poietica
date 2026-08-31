@@ -46,3 +46,4 @@ export {
   SettingsProvider,
   type SettingsProviderProps,
 } from './settings/surface/settings-surface'
+export { TerminalPane, type TerminalPaneProps } from './terminal/terminal-pane'

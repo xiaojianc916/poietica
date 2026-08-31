@@ -1,6 +1,13 @@
 import { alignViewport, type BrowserTab, type ViewportAlignment } from '@poietica/browser'
 import { ArrowLeft, ArrowRight, Globe, MousePointerClick, RotateCw } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { type AuxiliaryPaneOffer, BrowserOverflowMenu } from './auxiliary-menu'
 import type { AuxiliaryPaneKind, AuxiliaryPanelStore } from './auxiliary-panel-store'
 import { AuxiliaryTabStrip } from './auxiliary-tab-strip'
@@ -18,6 +25,8 @@ export interface AuxiliaryPaneRenderer {
   readonly icon: ReactNode
   readonly name: (id: string) => string
   readonly body: (id: string) => ReactNode
+  /* 这一格被关掉时通道自己收尾。卸载只是换标签，关闭才是结束。 */
+  readonly release: (id: string) => void
 }
 
 /** 每种通道一个渲染器，键就是 DockPane.kind。 */
@@ -64,6 +73,20 @@ export function AuxiliaryPanel({
   /* 启动器是空态，不是回退态：还开着的标签不许被它盖掉。 */
   const showLauncher = state.panes.length === 0 && (host?.tabs.length ?? 0) === 0
 
+  /* 关一格是两件事：通道自己收尾，再从清单里去掉。入口只有这一个。 */
+  const closePane = useCallback(
+    (id: string) => {
+      const pane = state.panes.find((open) => open.id === id)
+
+      if (pane !== undefined) {
+        rendererOf(panes, pane.kind).release(pane.id)
+      }
+
+      store.closePane(id)
+    },
+    [panes, state.panes, store],
+  )
+
   return (
     <aside aria-label="辅助面板" className="flex h-full min-h-0 flex-col">
       {showLauncher ? (
@@ -89,7 +112,7 @@ export function AuxiliaryPanel({
             actions={store.actions}
             focus={focus}
             host={host}
-            onClosePane={store.closePane}
+            onClosePane={closePane}
             onMenuChange={store.setMenu}
             onOpenPane={store.openLauncherPane}
             onSelectPane={store.selectPane}
@@ -124,7 +147,7 @@ export function AuxiliaryPanel({
               />
             </>
           ) : (
-            /* 通道是只读的：没有地址栏，也没有输入框。 */
+            /* 浏览器那一格是只读的：没有地址栏；终端这一格自己收键盘。 */
             <div className="min-h-0 flex-1 overflow-hidden">
               {rendererOf(panes, activePane.kind).body(activePane.resourceId ?? activePane.id)}
             </div>

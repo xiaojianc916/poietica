@@ -6,6 +6,11 @@ import {
 import { GitBranch, Globe, MessageSquareText, PanelRight, SquareTerminal } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { ConversationReviewPane } from '../../assistant/review-pane'
+import {
+  ConversationTerminalPane,
+  releaseConversationTerminal,
+} from '../../assistant/terminal-pane'
+import { useConversationWorkspaceRoot } from '../../assistant/threads-context'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from '../workspace-layout-store'
 import type { AuxiliaryPaneOffer } from './auxiliary-menu'
 import { AuxiliaryPanel, type AuxiliaryPaneRenderers } from './auxiliary-panel'
@@ -113,6 +118,8 @@ export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDock
   /* 每种通道一个渲染器：委派通道归 agent-ui，审查归 review。空态归 AuxiliaryPanel。 */
   const paneName = useDelegateChannelNames(conversationId)
 
+  const terminalRoot = useConversationWorkspaceRoot(conversationId)
+
   const panes = useMemo<AuxiliaryPaneRenderers>(
     () => ({
       delegate: {
@@ -122,24 +129,30 @@ export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDock
           ),
         icon: <DelegateChannelIcon />,
         name: paneName,
+        release: () => undefined,
       },
       assistant: {
         body: () => <p className="p-4 text-xs text-muted-foreground">辅助对话尚未实现。</p>,
         icon: <PanelRight aria-hidden className="size-3.5" />,
         name: () => '辅助对话',
+        release: () => undefined,
       },
       terminal: {
-        body: () => <p className="p-4 text-xs text-muted-foreground">终端尚未实现。</p>,
-        icon: <PanelRight aria-hidden className="size-3.5" />,
+        body: () => <ConversationTerminalPane conversationId={conversationId} />,
+        icon: PANE_ICONS.terminal,
         name: () => '终端',
+        release: () => {
+          releaseConversationTerminal(terminalRoot)
+        },
       },
       review: {
         body: () => <ConversationReviewPane conversationId={conversationId} />,
         icon: <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />,
         name: () => '审查',
+        release: () => undefined,
       },
     }),
-    [conversationId, paneName],
+    [conversationId, paneName, terminalRoot],
   )
 
   return (

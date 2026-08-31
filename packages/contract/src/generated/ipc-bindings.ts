@@ -663,6 +663,30 @@ async skillsSetEnabled(name: string, enabled: boolean) : Promise<null> {
 async skillsStage(fetch: PluginFetch) : Promise<SkillStaged> {
     return await TAURI_INVOKE("skills_stage", { fetch });
 },
+/**
+ * 接上这个工作目录的终端；没有就开一条。回放经事件通道交回。
+ */
+async terminalAttach(root: string, cols: number, rows: number) : Promise<null> {
+    return await TAURI_INVOKE("terminal_attach", { root, cols, rows });
+},
+/**
+ * 渲染层的键入与粘贴。
+ */
+async terminalWrite(root: string, data: string) : Promise<null> {
+    return await TAURI_INVOKE("terminal_write", { root, data });
+},
+/**
+ * 渲染层量出来的网格。
+ */
+async terminalResize(root: string, cols: number, rows: number) : Promise<null> {
+    return await TAURI_INVOKE("terminal_resize", { root, cols, rows });
+},
+/**
+ * 关掉这一格：子进程与读线程随会话一起收场。已经关掉的键不是故障。
+ */
+async terminalClose(root: string) : Promise<void> {
+    await TAURI_INVOKE("terminal_close", { root });
+},
 async customAgentsList() : Promise<CustomAgentCatalog> {
     return await TAURI_INVOKE("custom_agents_list");
 },
@@ -1100,6 +1124,7 @@ automationCatalogChanged: AutomationCatalogChanged,
 automationDue: AutomationDue,
 browserElementPicked: BrowserElementPicked,
 browserState: BrowserState,
+terminalStreamed: TerminalStreamed,
 updateProgress: UpdateProgress,
 windowMaximized: WindowMaximized
 }>({
@@ -1107,6 +1132,7 @@ automationCatalogChanged: "automation-catalog-changed",
 automationDue: "automation-due",
 browserElementPicked: "browser-element-picked",
 browserState: "browser-state",
+terminalStreamed: "terminal-streamed",
 updateProgress: "update-progress",
 windowMaximized: "window-maximized"
 })
@@ -2191,6 +2217,14 @@ document: string }
 export type SkillStaged = { stagingId: string; skillMd: string }
 export type TableExportFormat = "csv" | "markdown"
 export type TableExportRequest = { content: string; format: TableExportFormat }
+/**
+ * 一段 PTY 字节，或一次退出。字节是 base64：Tauri 的事件与命令走 JSON。
+ */
+export type TerminalChunk = { kind: "output"; value: string } | { kind: "exited" }
+/**
+ * 播给渲染层的一跳。root 是会话键，也就是这条对话的工作目录。
+ */
+export type TerminalStreamed = { root: string; chunk: TerminalChunk }
 /**
  * 颜色模式是一个闭集，不是一段自由文本。
  * 

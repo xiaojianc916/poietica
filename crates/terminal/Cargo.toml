@@ -1,0 +1,16 @@
+[package]
+name = "poietica-terminal-native"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+# 伪终端是平台 API：Unix 的 openpty 与 Windows 的 ConPTY 各有一套边界条件。
+# portable-pty 是 WezTerm 抽出来的那一份，两个平台都由它兜。
+portable-pty.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

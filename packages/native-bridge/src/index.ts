@@ -73,6 +73,7 @@ export {
 export { resolveLauncher } from './gateways/launcher'
 export { readMcpEndpoint } from './gateways/mcp'
 export { createSettingsStore } from './gateways/settings'
+export { terminalHostPort } from './gateways/terminal'
 export { appUpdateController } from './gateways/update'
 export { readTokenDays } from './gateways/usage'
 export { readWorkbenchSession, writeWorkbenchSession } from './gateways/workbench'

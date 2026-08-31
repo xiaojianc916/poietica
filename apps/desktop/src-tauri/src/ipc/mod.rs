@@ -51,6 +51,7 @@ use commands::{
     },
     settings::{AppSettings, PrivacySettings},
     skills::{SkillCommitRequest, SkillRecord, SkillStaged},
+    terminal::{TerminalChunk, TerminalStreamed},
     updates::{UpdateProgress, UpdateRelease},
     workspace::environment::EnvironmentFile,
 };
@@ -117,6 +118,10 @@ pub fn surface() -> Builder<Wry> {
             commands::skills::skills_remove,
             commands::skills::skills_set_enabled,
             commands::skills::skills_stage,
+            commands::terminal::terminal_attach,
+            commands::terminal::terminal_write,
+            commands::terminal::terminal_resize,
+            commands::terminal::terminal_close,
             commands::conversation::custom_agents::custom_agents_list,
             commands::conversation::custom_agents::custom_agents_save,
             commands::conversation::custom_agents::custom_agents_remove,
@@ -172,6 +177,7 @@ pub fn surface() -> Builder<Wry> {
             AutomationDue,
             BrowserElementPicked,
             BrowserState,
+            TerminalStreamed,
             UpdateProgress,
             WindowMaximized
         ])
@@ -244,6 +250,8 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentInstallStatus>()
         .typ::<AgentCliResult>()
         .typ::<ProviderProbeOutcome>()
+        .typ::<TerminalChunk>()
+        .typ::<TerminalStreamed>()
         .typ::<UpdateRelease>()
         .typ::<GitBranches>()
         .typ::<GitChangeStatus>()

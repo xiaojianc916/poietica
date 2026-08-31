@@ -79,6 +79,7 @@ poietica-conversation = { path = "../../../crates/conversation" }
 poietica-ledger = { path = "../../../crates/ledger" }
 poietica-extension-native = { path = "../../../crates/extension" }
 poietica-problem = { path = "../../../crates/problem" }
+poietica-terminal-native = { path = "../../../crates/terminal" }
 poietica-time = { path = "../../../crates/time" }
 poietica-update-native = { path = "../../../crates/update" }
 rmcp.workspace = true
