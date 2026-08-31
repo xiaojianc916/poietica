@@ -9,16 +9,13 @@
 [data-assistant-skin] .context-gauge__trigger {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  width: var(--cp-control);
   height: var(--cp-control);
-  padding: 0 8px;
   border: none;
   border-radius: var(--cp-radius-item);
   background: transparent;
   color: var(--cp-ink-muted);
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  font-variant-numeric: tabular-nums;
   cursor: default;
 }
 

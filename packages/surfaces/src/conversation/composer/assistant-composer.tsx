@@ -143,26 +143,16 @@ function ComposerToolbar({
 
       <span className="assistant-toolbar__spacer" />
 
-      {/*
-        模型选择器站在右下这一簇，用量指示之前。
+      {/* 上下文余量在模型选择器左侧：先说这条会话还装得下多少，再说这一句由谁来答。 */}
+      <ContextGauge usage={usage} />
 
-        它挨着「发」，因为它说的正是这一句将被谁回答：ChatGPT、Claude、Cursor
-        都把它放在发送键这一侧。左下那一簇回答的是另一个问题——往这句话里加
-        什么。
-      */}
+      {/* 模型选择器挨着「发」：它说的正是这一句将被谁回答。 */}
       <SessionControls
         controls={controls}
         failure={controlsFailure}
         onRetry={onRetryControls}
         onSelect={onSelectControl}
       />
-
-      {/*
-        上下文余量站在发送键旁边：它说的是这条会话还装得下多少。数字全部由
-        agent 报（kap 的 agent.status.updated），组件只做除法 —— Codex 的
-        /status、Claude Code 的 context 指示都以 agent 报数为准。
-      */}
-      <ContextGauge usage={usage} />
 
       {/* 判据同源。「有没有东西可发」现在只从 PromptInput 自己那份草稿读，
           按钮与 onSubmit 看的是同一个所有者。 */}

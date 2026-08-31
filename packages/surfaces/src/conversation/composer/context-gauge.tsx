@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@poiet
 import { memo } from 'react'
 
 /*
- * 上下文用量胶囊：圆环进度 + 百分比常显，悬浮展开明细卡。
+ * 上下文用量胶囊：只常显圆环，数字全部在悬浮明细卡与无障碍名里。
  *
  * 数字全部来自 kap 的 agent.status.updated：此刻的上下文占用（used / size）
  * 与会话累计的三格输入计数（usage.total，协议形状见 contracts/kap 钉住的
@@ -21,8 +21,8 @@ const RADIUS = 10
 const STROKE = 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-/* K/M 是单位惯例，不是 locale 文本：40K 在任何界面语言里都该是 40K。 */
-const COMPACT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, notation: 'compact' })
+/* 明细卡是唯一的数字出处，所以给精确值：分组由 Intl 出，不手搓千分位。 */
+const EXACT = new Intl.NumberFormat('en-US')
 const PERCENT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, style: 'percent' })
 
 /* 三档阈值：<75% 正常，75% 起提醒，90% 起该收，95% 起下一句可能塞不下。
@@ -97,7 +97,6 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
           data-level={level}
           type="button"
         >
-          <span className="context-gauge__percent">{percent}</span>
           <Ring fraction={fraction} />
         </TooltipTrigger>
 
@@ -105,7 +104,7 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
           <div className="context-gauge__row">
             <span className="context-gauge__label">{percent}</span>
             <span className="context-gauge__value">
-              {COMPACT.format(usage.used)} / {COMPACT.format(usage.size)}
+              {EXACT.format(usage.used)} / {EXACT.format(usage.size)}
             </span>
           </div>
 
@@ -118,8 +117,25 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
           </div>
 
           <div className="context-gauge__row context-gauge__row--detail">
-            <span className="context-gauge__label">缓存命中率</span>
-            <span className="context-gauge__value">{hitRate}</span>
+            <span className="context-gauge__label">剩余</span>
+            <span className="context-gauge__value">{EXACT.format(usage.size - usage.used)}</span>
+          </div>
+
+          <div className="context-gauge__row context-gauge__row--detail">
+            <span className="context-gauge__label">累计输入</span>
+            <span className="context-gauge__value">{EXACT.format(inputTotal)}</span>
+          </div>
+
+          <div className="context-gauge__row context-gauge__row--detail">
+            <span className="context-gauge__label">累计命中缓存</span>
+            <span className="context-gauge__value">
+              {EXACT.format(usage.inputCacheRead)} · {hitRate}
+            </span>
+          </div>
+
+          <div className="context-gauge__row context-gauge__row--detail">
+            <span className="context-gauge__label">累计写入缓存</span>
+            <span className="context-gauge__value">{EXACT.format(usage.inputCacheCreation)}</span>
           </div>
         </TooltipContent>
       </Tooltip>
