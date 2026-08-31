@@ -281,9 +281,198 @@ pub struct CreateSessionDataStruct {
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ListSessionsDataStruct {
     #[serde(rename = "items")]
-    pub items: Vec<CreateSessionDataPermissionRulesStruct>,
+    pub items: Vec<CreateSessionDataStruct>,
     #[serde(rename = "has_more")]
     pub has_more: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum SessionSnapshotDataMessagesItemsRoleEnum {
+    #[serde(rename = "user")]
+    User,
+    #[serde(rename = "assistant")]
+    Assistant,
+    #[serde(rename = "tool")]
+    Tool,
+    #[serde(rename = "system")]
+    System,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind")]
+pub enum SessionSnapshotDataMessagesItemsContentChoiceImageSourceChoice {
+    #[serde(rename = "url")]
+    Url {
+        #[serde(rename = "url")]
+        url: String,
+        #[serde(rename = "id")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+    },
+    #[serde(rename = "base64")]
+    Base64 {
+        #[serde(rename = "media_type")]
+        media_type: String,
+        #[serde(rename = "data")]
+        data: String,
+    },
+    #[serde(rename = "file")]
+    File {
+        #[serde(rename = "file_id")]
+        file_id: String,
+    },
+    #[serde(rename = "session_media")]
+    SessionMedia {
+        #[serde(rename = "file_id")]
+        file_id: String,
+    },
+    #[serde(rename = "path")]
+    Path {
+        #[serde(rename = "path")]
+        path: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type")]
+pub enum SessionSnapshotDataMessagesItemsContentChoice {
+    #[serde(rename = "text")]
+    Text {
+        #[serde(rename = "text")]
+        text: String,
+    },
+    #[serde(rename = "tool_use")]
+    ToolUse {
+        #[serde(rename = "tool_call_id")]
+        tool_call_id: String,
+        #[serde(rename = "tool_name")]
+        tool_name: String,
+        #[serde(rename = "input")]
+        input: serde_json::Value,
+    },
+    #[serde(rename = "tool_result")]
+    ToolResult {
+        #[serde(rename = "tool_call_id")]
+        tool_call_id: String,
+        #[serde(rename = "output")]
+        output: serde_json::Value,
+        #[serde(rename = "is_error")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        is_error: Option<bool>,
+    },
+    #[serde(rename = "image")]
+    Image {
+        #[serde(rename = "source")]
+        source: SessionSnapshotDataMessagesItemsContentChoiceImageSourceChoice,
+    },
+    #[serde(rename = "video")]
+    Video {
+        #[serde(rename = "source")]
+        source: SessionSnapshotDataMessagesItemsContentChoiceImageSourceChoice,
+    },
+    #[serde(rename = "file")]
+    File {
+        #[serde(rename = "file_id")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        file_id: Option<String>,
+        #[serde(rename = "path")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        path: Option<String>,
+        #[serde(rename = "name")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
+        #[serde(rename = "media_type")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        media_type: Option<String>,
+        #[serde(rename = "size")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        size: Option<i64>,
+    },
+    #[serde(rename = "thinking")]
+    Thinking {
+        #[serde(rename = "thinking")]
+        thinking: String,
+        #[serde(rename = "signature")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SessionSnapshotDataMessagesItemsStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "session_id")]
+    pub session_id: String,
+    #[serde(rename = "role")]
+    pub role: SessionSnapshotDataMessagesItemsRoleEnum,
+    #[serde(rename = "content")]
+    pub content: Vec<SessionSnapshotDataMessagesItemsContentChoice>,
+    #[serde(rename = "created_at")]
+    pub created_at: serde_json::Value,
+    #[serde(rename = "prompt_id")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_id: Option<String>,
+    #[serde(rename = "parent_message_id")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_message_id: Option<String>,
+    #[serde(rename = "metadata")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct SessionSnapshotDataMessagesStruct {
+    #[serde(rename = "items")]
+    pub items: Vec<SessionSnapshotDataMessagesItemsStruct>,
+    #[serde(rename = "has_more")]
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum SessionSnapshotDataInFlightTurnRunningToolsLastProgressKindEnum {
+    #[serde(rename = "stdout")]
+    Stdout,
+    #[serde(rename = "stderr")]
+    Stderr,
+    #[serde(rename = "progress")]
+    Progress,
+    #[serde(rename = "status")]
+    Status,
+    #[serde(rename = "custom")]
+    Custom,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SessionSnapshotDataInFlightTurnRunningToolsLastProgressStruct {
+    #[serde(rename = "kind")]
+    pub kind: SessionSnapshotDataInFlightTurnRunningToolsLastProgressKindEnum,
+    #[serde(rename = "text")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(rename = "percent")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub percent: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct SessionSnapshotDataInFlightTurnRunningToolsStruct {
+    #[serde(rename = "tool_call_id")]
+    pub tool_call_id: String,
+    #[serde(rename = "name")]
+    pub name: String,
+    #[serde(rename = "args")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub args: Option<serde_json::Value>,
+    #[serde(rename = "description")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(rename = "display")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display: Option<serde_json::Value>,
+    #[serde(rename = "last_progress")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_progress: Option<SessionSnapshotDataInFlightTurnRunningToolsLastProgressStruct>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
@@ -295,10 +484,184 @@ pub struct SessionSnapshotDataInFlightTurnStruct {
     #[serde(rename = "thinking_text")]
     pub thinking_text: String,
     #[serde(rename = "running_tools")]
-    pub running_tools: Vec<CreateSessionDataPermissionRulesStruct>,
+    pub running_tools: Vec<SessionSnapshotDataInFlightTurnRunningToolsStruct>,
     #[serde(rename = "current_prompt_id")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub current_prompt_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum SessionSnapshotDataSubagentsKindEnum {
+    #[serde(rename = "subagent")]
+    Subagent,
+    #[serde(rename = "bash")]
+    Bash,
+    #[serde(rename = "tool")]
+    Tool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum SessionSnapshotDataSubagentsStatusEnum {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum SessionSnapshotDataSubagentsSubagentPhaseEnum {
+    #[serde(rename = "queued")]
+    Queued,
+    #[serde(rename = "working")]
+    Working,
+    #[serde(rename = "suspended")]
+    Suspended,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "failed")]
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SessionSnapshotDataSubagentsStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "session_id")]
+    pub session_id: String,
+    #[serde(rename = "kind")]
+    pub kind: SessionSnapshotDataSubagentsKindEnum,
+    #[serde(rename = "description")]
+    pub description: String,
+    #[serde(rename = "status")]
+    pub status: SessionSnapshotDataSubagentsStatusEnum,
+    #[serde(rename = "command")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+    #[serde(rename = "created_at")]
+    pub created_at: serde_json::Value,
+    #[serde(rename = "started_at")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<serde_json::Value>,
+    #[serde(rename = "completed_at")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<serde_json::Value>,
+    #[serde(rename = "output_preview")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_preview: Option<String>,
+    #[serde(rename = "output_bytes")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_bytes: Option<i64>,
+    #[serde(rename = "model")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(rename = "thinking_effort")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking_effort: Option<String>,
+    #[serde(rename = "agent_id")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    #[serde(rename = "subagent_type")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subagent_type: Option<String>,
+    #[serde(rename = "parent_tool_call_id")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_tool_call_id: Option<String>,
+    #[serde(rename = "run_in_background")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_in_background: Option<bool>,
+    #[serde(rename = "subagent_phase")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subagent_phase: Option<SessionSnapshotDataSubagentsSubagentPhaseEnum>,
+    #[serde(rename = "suspended_reason")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suspended_reason: Option<String>,
+    #[serde(rename = "swarm_index")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub swarm_index: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct SessionSnapshotDataPendingApprovalsStruct {
+    #[serde(rename = "approval_id")]
+    pub approval_id: String,
+    #[serde(rename = "session_id")]
+    pub session_id: String,
+    #[serde(rename = "turn_id")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<i64>,
+    #[serde(rename = "tool_call_id")]
+    pub tool_call_id: String,
+    #[serde(rename = "tool_name")]
+    pub tool_name: String,
+    #[serde(rename = "action")]
+    pub action: String,
+    #[serde(rename = "tool_input_display")]
+    pub tool_input_display: serde_json::Value,
+    #[serde(rename = "created_at")]
+    pub created_at: serde_json::Value,
+    #[serde(rename = "expires_at")]
+    pub expires_at: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct SessionSnapshotDataPendingQuestionsQuestionsOptionsStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "label")]
+    pub label: String,
+    #[serde(rename = "description")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct SessionSnapshotDataPendingQuestionsQuestionsStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "question")]
+    pub question: String,
+    #[serde(rename = "header")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub header: Option<String>,
+    #[serde(rename = "body")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    #[serde(rename = "options")]
+    pub options: Vec<SessionSnapshotDataPendingQuestionsQuestionsOptionsStruct>,
+    #[serde(rename = "multi_select")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub multi_select: Option<bool>,
+    #[serde(rename = "allow_other")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow_other: Option<bool>,
+    #[serde(rename = "other_label")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub other_label: Option<String>,
+    #[serde(rename = "other_description")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub other_description: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct SessionSnapshotDataPendingQuestionsStruct {
+    #[serde(rename = "question_id")]
+    pub question_id: String,
+    #[serde(rename = "session_id")]
+    pub session_id: String,
+    #[serde(rename = "turn_id")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<i64>,
+    #[serde(rename = "tool_call_id")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    #[serde(rename = "questions")]
+    pub questions: Vec<SessionSnapshotDataPendingQuestionsQuestionsStruct>,
+    #[serde(rename = "created_at")]
+    pub created_at: serde_json::Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
@@ -310,17 +673,17 @@ pub struct SessionSnapshotDataStruct {
     #[serde(rename = "session")]
     pub session: CreateSessionDataStruct,
     #[serde(rename = "messages")]
-    pub messages: ListSessionsDataStruct,
+    pub messages: SessionSnapshotDataMessagesStruct,
     #[serde(rename = "in_flight_turn")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub in_flight_turn: Option<SessionSnapshotDataInFlightTurnStruct>,
     #[serde(rename = "subagents")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub subagents: Option<Vec<CreateSessionDataPermissionRulesStruct>>,
+    pub subagents: Option<Vec<SessionSnapshotDataSubagentsStruct>>,
     #[serde(rename = "pending_approvals")]
-    pub pending_approvals: Vec<CreateSessionDataPermissionRulesStruct>,
+    pub pending_approvals: Vec<SessionSnapshotDataPendingApprovalsStruct>,
     #[serde(rename = "pending_questions")]
-    pub pending_questions: Vec<CreateSessionDataPermissionRulesStruct>,
+    pub pending_questions: Vec<SessionSnapshotDataPendingQuestionsStruct>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
@@ -418,9 +781,58 @@ pub struct ClientConfigDataStruct {
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct SetProfileRequestMetadataStruct {
+    #[serde(rename = "cwd")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SetProfileRequestPermissionRulesMatcherStruct {
+    #[serde(rename = "kind")]
+    pub kind: CreateSessionDataPermissionRulesMatcherKindEnum,
+    #[serde(rename = "value")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SetProfileRequestPermissionRulesStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "tool_name")]
+    pub tool_name: String,
+    #[serde(rename = "matcher")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub matcher: Option<SetProfileRequestPermissionRulesMatcherStruct>,
+    #[serde(rename = "decision")]
+    pub decision: CreateSessionDataPermissionRulesDecisionEnum,
+    #[serde(rename = "created_at")]
+    pub created_at: String,
+    #[serde(rename = "created_by")]
+    pub created_by: CreateSessionDataPermissionRulesCreatedByEnum,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct SetProfileRequestStruct {
+    #[serde(rename = "title")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(rename = "metadata")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<SetProfileRequestMetadataStruct>,
+    #[serde(rename = "agent_config")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_config: Option<CreateSessionRequestAgentConfigStruct>,
+    #[serde(rename = "permission_rules")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub permission_rules: Option<Vec<SetProfileRequestPermissionRulesStruct>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ListApprovalsDataStruct {
     #[serde(rename = "items")]
-    pub items: Vec<CreateSessionDataPermissionRulesStruct>,
+    pub items: Vec<SessionSnapshotDataPendingApprovalsStruct>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -452,6 +864,12 @@ pub struct ResolveApprovalRequestStruct {
     #[serde(rename = "selected_label")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_label: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ListQuestionsDataStruct {
+    #[serde(rename = "items")]
+    pub items: Vec<SessionSnapshotDataPendingQuestionsStruct>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -651,7 +1069,7 @@ pub struct SubmitPromptDataStruct {
     #[serde(rename = "status")]
     pub status: SubmitPromptDataStatusEnum,
     #[serde(rename = "content")]
-    pub content: Vec<SubmitPromptRequestContentChoice>,
+    pub content: Vec<SessionSnapshotDataMessagesItemsContentChoice>,
     #[serde(rename = "created_at")]
     pub created_at: serde_json::Value,
 }
@@ -663,21 +1081,187 @@ pub struct SteerPromptsRequestStruct {
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ArchiveSessionRequestStruct {
+    #[serde(rename = "title")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(rename = "metadata")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
+    #[serde(rename = "instruction")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instruction: Option<String>,
+    #[serde(rename = "count")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub count: Option<i64>,
+    #[serde(rename = "page_size")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ListSkillsDataSkillsSourceEnum {
+    #[serde(rename = "project")]
+    Project,
+    #[serde(rename = "user")]
+    User,
+    #[serde(rename = "extra")]
+    Extra,
+    #[serde(rename = "builtin")]
+    Builtin,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListSkillsDataSkillsStruct {
+    #[serde(rename = "name")]
+    pub name: String,
+    #[serde(rename = "description")]
+    pub description: String,
+    #[serde(rename = "path")]
+    pub path: String,
+    #[serde(rename = "source")]
+    pub source: ListSkillsDataSkillsSourceEnum,
+    #[serde(rename = "type")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<String>,
+    #[serde(rename = "disable_model_invocation")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ListSkillsDataStruct {
     #[serde(rename = "skills")]
-    pub skills: Vec<CreateSessionDataPermissionRulesStruct>,
+    pub skills: Vec<ListSkillsDataSkillsStruct>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ListMcpServersDataServersTransportEnum {
+    #[serde(rename = "stdio")]
+    Stdio,
+    #[serde(rename = "http")]
+    Http,
+    #[serde(rename = "sse")]
+    Sse,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ListMcpServersDataServersStatusEnum {
+    #[serde(rename = "connected")]
+    Connected,
+    #[serde(rename = "connecting")]
+    Connecting,
+    #[serde(rename = "disconnected")]
+    Disconnected,
+    #[serde(rename = "error")]
+    Error,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListMcpServersDataServersStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "name")]
+    pub name: String,
+    #[serde(rename = "transport")]
+    pub transport: ListMcpServersDataServersTransportEnum,
+    #[serde(rename = "status")]
+    pub status: ListMcpServersDataServersStatusEnum,
+    #[serde(rename = "last_error")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+    #[serde(rename = "tool_count")]
+    pub tool_count: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ListMcpServersDataStruct {
     #[serde(rename = "servers")]
-    pub servers: Vec<CreateSessionDataPermissionRulesStruct>,
+    pub servers: Vec<ListMcpServersDataServersStruct>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ListCapabilitiesDataCapabilitiesStateEnum {
+    #[serde(rename = "not_installed")]
+    NotInstalled,
+    #[serde(rename = "partial")]
+    Partial,
+    #[serde(rename = "ready")]
+    Ready,
+    #[serde(rename = "unsupported")]
+    Unsupported,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ListCapabilitiesDataCapabilitiesStepsStateEnum {
+    #[serde(rename = "ok")]
+    Ok,
+    #[serde(rename = "missing")]
+    Missing,
+    #[serde(rename = "failed")]
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListCapabilitiesDataCapabilitiesStepsStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "state")]
+    pub state: ListCapabilitiesDataCapabilitiesStepsStateEnum,
+    #[serde(rename = "detail")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    #[serde(rename = "optional")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub optional: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ListCapabilitiesDataCapabilitiesInstallStruct {
+    #[serde(rename = "running")]
+    pub running: bool,
+    #[serde(rename = "step")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step: Option<String>,
+    #[serde(rename = "percent")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub percent: Option<f64>,
+    #[serde(rename = "error")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(rename = "note")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListCapabilitiesDataCapabilitiesStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "pluginId")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
+    #[serde(rename = "displayName")]
+    pub display_name: String,
+    #[serde(rename = "description")]
+    pub description: String,
+    #[serde(rename = "supported")]
+    pub supported: bool,
+    #[serde(rename = "state")]
+    pub state: ListCapabilitiesDataCapabilitiesStateEnum,
+    #[serde(rename = "version")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(rename = "steps")]
+    pub steps: Vec<ListCapabilitiesDataCapabilitiesStepsStruct>,
+    #[serde(rename = "install")]
+    pub install: ListCapabilitiesDataCapabilitiesInstallStruct,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ListCapabilitiesDataStruct {
     #[serde(rename = "capabilities")]
-    pub capabilities: Vec<CreateSessionDataPermissionRulesStruct>,
+    pub capabilities: Vec<ListCapabilitiesDataCapabilitiesStruct>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -744,4 +1328,32 @@ pub struct SessionGoalDataStruct {
     #[serde(rename = "terminalReason")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terminal_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ListModelsDataItemsStruct {
+    #[serde(rename = "provider")]
+    pub provider: String,
+    #[serde(rename = "model")]
+    pub model: String,
+    #[serde(rename = "display_name")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(rename = "max_context_size")]
+    pub max_context_size: i64,
+    #[serde(rename = "capabilities")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<Vec<String>>,
+    #[serde(rename = "support_efforts")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub support_efforts: Option<Vec<String>>,
+    #[serde(rename = "default_effort")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_effort: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ListModelsDataStruct {
+    #[serde(rename = "items")]
+    pub items: Vec<ListModelsDataItemsStruct>,
 }

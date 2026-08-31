@@ -13,9 +13,9 @@ use crate::connection::socket::WsSink;
 use crate::error::{KapError, Result};
 use crate::generated::rest::{
     CreateSessionRequestAgentConfigStruct, CreateSessionRequestMetadataStruct,
-    CreateSessionRequestStruct, ListCapabilitiesDataStruct, SubmitPromptRequestContentChoice,
-    SubmitPromptRequestContentChoiceImageSourceChoice, SubmitPromptRequestSkillsStruct,
-    SubmitPromptRequestStruct,
+    CreateSessionRequestStruct, ListCapabilitiesDataCapabilitiesStruct, ListCapabilitiesDataStruct,
+    SubmitPromptRequestContentChoice, SubmitPromptRequestContentChoiceImageSourceChoice,
+    SubmitPromptRequestSkillsStruct, SubmitPromptRequestStruct,
 };
 use crate::session::book::SessionBook;
 use crate::session::client::{PromptAttachment, PromptSkill};
@@ -544,7 +544,11 @@ fn validate_capability_list(data: &Value) -> Result<()> {
 }
 
 fn validate_capability(data: &Value) -> Result<()> {
-    validate_capability_list(&serde_json::json!({ "capabilities": [data.clone()] }))
+    serde_json::from_value::<ListCapabilitiesDataCapabilitiesStruct>(data.clone())
+        .map(|_| ())
+        .map_err(|error| KapError::Transport {
+            message: format!("capability does not fit the pinned contract: {error}"),
+        })
 }
 
 fn capabilities_of(data: &Value) -> Result<Vec<crate::session::Capability>> {

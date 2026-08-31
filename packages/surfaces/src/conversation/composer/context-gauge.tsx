@@ -124,9 +124,7 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
 
           <div className="context-gauge__row context-gauge__row--section">
             <span className="context-gauge__label">累计命中缓存</span>
-            <span className="context-gauge__value">
-              {EXACT.format(usage.inputCacheRead)} · {hitRate}
-            </span>
+            <span className="context-gauge__value">{hitRate}</span>
           </div>
         </TooltipContent>
       </Tooltip>

@@ -155,6 +155,26 @@ function mergeAllOf(spec: { components?: Schema }, schema: Schema): Schema {
 const isStringEnum = (resolved: Schema): boolean =>
   Array.isArray(resolved.enum) && resolved.enum.every((value) => typeof value === 'string')
 
+/**
+ * 结构等价的判据：递归按键排序的规范文本。
+ *
+ * JSON.stringify 的数组第二参不是排序器，是逐层生效的键白名单（ECMA-262
+ * SerializeJSONObject 的 PropertyList）：拿它当判据会抹掉嵌套层的 properties /
+ * items / required，于是所有对象数组共用一个判据，后来的都复用最先生成的类型。
+ */
+function canonical(node: unknown): string {
+  if (Array.isArray(node)) {
+    return `[${node.map(canonical).join(',')}]`
+  }
+  if (typeof node === 'object' && node !== null) {
+    const entries = Object.entries(node as Record<string, unknown>)
+    entries.sort(([a], [b]) => (a < b ? -1 : 1))
+    const body = entries.map(([key, value]) => `${JSON.stringify(key)}:${canonical(value)}`)
+    return `{${body.join(',')}}`
+  }
+  return JSON.stringify(node) ?? 'null'
+}
+
 type TypeOf = (schema: Schema, hint: string) => string
 
 /** 一条 struct 字段：判别式之外的格子，按 required/nullable 决定可缺省。 */
@@ -239,7 +259,7 @@ class RustEmitter {
   /** 引用某 schema 的 Rust 类型；无名内联结构以 hint 命名。 */
   type(schema: Schema, hint: string): string {
     const resolved = resolve(this.spec, schema)
-    const key = JSON.stringify(resolved, Object.keys(resolved).sort())
+    const key = canonical(resolved)
     const known = this.canonical.get(key)
     if (known !== undefined) {
       return known
@@ -411,7 +431,6 @@ function wireEnum(name: string, doc: string, variants: WireVariant[]): string {
   return `/// ${doc}\n#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]\n#[serde(tag = "type")]\npub enum ${name} {\n${body}\n}`
 }
 
-/** asyncapi 组件表。消息清单里出现不认识的键就是快照坏了。 */
 /** asyncapi 组件表。消息清单里出现不认识的键就是快照坏了。 */
 function specMessages(): Record<string, Schema> {
   const messages = asyncapi.components?.messages

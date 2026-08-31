@@ -17,24 +17,14 @@ const fn refusal(reason: Refusal) -> &'static str {
 
 /// Folds an agent failure into the application's existing error surface.
 ///
-/// 分两路，因为两边的来源不同。这一侧判定的拒绝是本仓的字面量，原样上屏；agent
-/// 报回来的原因可能带路径或系统细节，仍然落到 `Internal` 的固定文案 —— 但先写进
-/// 日志。
-///
-/// 此前两路合一：七种互不相同的失败共用一句「应用操作失败」，且那个 message 在
-/// 这一行之后再没有任何地方留下过。原来的注释说「不给 agent 加变体，多一条 arm
-/// 就是新的泄漏口」，那句话把两件事混了 —— 泄漏来自把 native detail 当成
-/// `public_message` 原样返回，不来自多一个变体。
+/// 两路：本仓字面量的拒绝原样上屏；agent 报回来的原话先落日志再原样上屏 ——
+/// 桌面单机程序里屏幕前的人就是跑这个进程的人，确切的原话比好听的猜测有用。
 pub(super) fn translate(error: KapError) -> Error {
     match error {
         KapError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
         // The enum is non-exhaustive, so the wildcard arm is required.
         //
-        // 原样上屏，不换一句好听的。这是一个桌面单机程序：屏幕前的人就是跑这个
-        // 进程的人，agent 的回话对他不是秘密，是他唯一拿得去排查的东西。此前这
-        // 里折成一句「应用操作失败」，于是 "Authentication required" 只留在日志
-        // 里 —— 而上一版我把它换成了一句猜出来的「多半是还没登录」，那比不说更
-        // 坏：它用一个不确切的说法顶掉了一个确切的说法。
+        // agent 的回话是用户唯一拿得去排查的东西，不折成一句好听的。
         other => {
             log::error!("the agent request failed: {other}");
 
