@@ -231,11 +231,11 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
       )
     },
 
-    async update(id, draft) {
+    update(id, draft) {
       const current = lookup(id)
 
       if (current === undefined) {
-        return false
+        return Promise.resolve(false)
       }
 
       return command(() =>

@@ -1,4 +1,4 @@
-import type { SkillRecord } from '@poietica/contract'
+import type { AgentSkill, SkillRecord } from '@poietica/contract'
 import { parse } from 'yaml'
 
 export interface InstalledSkill {
@@ -150,8 +150,10 @@ export interface SkillRow {
   readonly directory: string | undefined
   readonly enabled: boolean
   readonly loaded: boolean
-  readonly source: string | undefined
-  readonly path: string | undefined
+  readonly source: string
+  readonly path: string
+  readonly project: string | undefined
+  readonly projectPath: string | undefined
   readonly body: string | undefined
   readonly type: string | undefined
   readonly whenToUse: string | undefined
@@ -162,66 +164,32 @@ export interface SkillRow {
   readonly issues: readonly string[]
 }
 
-export interface RosterSkill {
-  readonly name: string
-  readonly description: string
-  readonly source: string
-}
-
-export function skillRows(
-  installed: readonly InstalledSkill[],
-  roster: readonly RosterSkill[],
-): readonly SkillRow[] {
-  const reported = new Map(roster.map((skill) => [skill.name.toLocaleLowerCase(), skill] as const))
-  const ours = new Set(installed.map((skill) => skill.name.toLocaleLowerCase()))
-
-  const rows: SkillRow[] = installed.map((skill) => {
-    const report = reported.get(skill.name.toLocaleLowerCase())
-
-    return {
-      key: `managed:${skill.directory}`,
-      name: skill.name,
-      description: skill.description ?? text(report?.description),
-      directory: skill.directory,
-      enabled: skill.enabled,
-      loaded: report !== undefined,
-      source: undefined,
-      path: skill.path,
-      body: skill.body,
-      type: skill.type,
-      whenToUse: skill.whenToUse,
-      disableModelInvocation: skill.disableModelInvocation,
-      supportingFiles: skill.supportingFiles,
-      totalBytes: skill.totalBytes,
-      modifiedAt: skill.modifiedAt,
-      issues: skill.issues,
-    }
-  })
-
-  for (const skill of roster) {
-    if (ours.has(skill.name.toLocaleLowerCase())) {
-      continue
-    }
-
-    rows.push({
-      key: `${skill.source}:${skill.name.toLocaleLowerCase()}`,
-      name: skill.name,
-      description: text(skill.description),
-      directory: undefined,
-      enabled: true,
-      loaded: true,
-      source: skill.source,
-      path: undefined,
-      body: undefined,
-      type: undefined,
-      whenToUse: undefined,
-      disableModelInvocation: undefined,
-      supportingFiles: undefined,
-      totalBytes: undefined,
-      modifiedAt: undefined,
-      issues: [],
+/** One native snapshot in, one deterministic UI projection out. */
+export function skillRows(runtime: readonly AgentSkill[]): readonly SkillRow[] {
+  return runtime
+    .map((skill): SkillRow => {
+      const parsed = skill.document === null ? undefined : skillFrontmatter(skill.document)
+      return {
+        key: skill.id,
+        name: parsed?.name || skill.name,
+        description: parsed?.description ?? text(skill.description),
+        directory: skill.directory ?? undefined,
+        enabled: skill.enabled,
+        loaded: skill.loaded,
+        source: skill.source,
+        path: skill.path,
+        project: skill.project ?? undefined,
+        projectPath: skill.projectPath ?? undefined,
+        body: parsed?.body,
+        type: parsed?.type ?? skill.kind ?? undefined,
+        whenToUse: parsed?.whenToUse,
+        disableModelInvocation:
+          parsed?.disableModelInvocation ?? skill.disableModelInvocation ?? undefined,
+        supportingFiles: skill.supportingFiles ?? undefined,
+        totalBytes: skill.totalBytes ?? undefined,
+        modifiedAt: skill.modifiedAt ?? undefined,
+        issues: parsed?.issues ?? [],
+      }
     })
-  }
-
-  return rows.sort((left, right) => left.name.localeCompare(right.name))
+    .sort((left, right) => left.name.localeCompare(right.name))
 }

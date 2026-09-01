@@ -6,7 +6,7 @@ import {
   Select,
   type SelectOption,
 } from '@poietica/design-system'
-import type { PluginStore, RosterSkill } from '@poietica/extension'
+import type { PluginStore } from '@poietica/extension'
 import type {
   AgentConfigStore,
   AppSettings,
@@ -91,7 +91,6 @@ interface SettingsSectionContext {
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
   readonly plugins: PluginStore
-  readonly skillRoster: readonly RosterSkill[]
 }
 
 interface SettingsSectionDescriptor {
@@ -128,7 +127,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   skills: {
     label: '技能',
     icon: PackageOpen,
-    render: ({ plugins, skillRoster }) => <SkillsSettings roster={skillRoster} store={plugins} />,
+    render: ({ plugins }) => <SkillsSettings store={plugins} />,
   },
   keymap: {
     label: '快捷键',
@@ -186,7 +185,6 @@ interface SettingsSurfaceContextValue {
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
   readonly plugins: PluginStore
-  readonly skillRoster: readonly RosterSkill[]
   readonly section: SettingsSection
   readonly onSelect: (section: SettingsSection) => void
   readonly onBack: () => void
@@ -210,7 +208,6 @@ export interface SettingsProviderProps {
   /** 插件账本的唯一持有者，由组合根注入：这个包不认识桌面传输层。 */
   readonly plugins: PluginStore
   /** KAP 按当前会话报告的技能名册。 */
-  readonly skillRoster: readonly RosterSkill[]
   readonly threads: ThreadsStore
   /**
    * 当前生效的快捷键，由组合根注入。
@@ -244,7 +241,6 @@ export function SettingsProvider({
   store,
   agentConfigStore,
   plugins,
-  skillRoster,
   threads,
   keybindings,
   appVersion,
@@ -275,7 +271,6 @@ export function SettingsProvider({
       controller,
       agentConfigStore,
       plugins,
-      skillRoster,
       threads,
       keybindings,
       appVersion,
@@ -291,7 +286,6 @@ export function SettingsProvider({
       dataDirectory,
       keybindings,
       plugins,
-      skillRoster,
       section,
       threads,
     ],
@@ -326,7 +320,6 @@ export function SettingsContentRegion() {
     dataDirectory,
     keybindings,
     plugins,
-    skillRoster,
     section,
     threads,
   } = useSettingsSurface()
@@ -365,7 +358,6 @@ export function SettingsContentRegion() {
               dataDirectory,
               keybindings,
               plugins,
-              skillRoster,
               settings: controller.settings,
               threads,
             })}

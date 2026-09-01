@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@poietica/contract": "workspace:*",
-    "@poietica/conversation": "workspace:*",
     "@poietica/problem": "workspace:*",
     "valibot": "catalog:",
     "yaml": "catalog:"

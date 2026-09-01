@@ -77,8 +77,8 @@ export function PluginsSurface({ roster, store }: PluginsSurfaceProps) {
   const needle = needles[tab]
   const entries: readonly MarketplaceEntry[] = latestCatalog(view.marketplace)?.entries ?? []
 
-  /* 名册说有哪些，磁盘说我们这一层有哪些，并成一张表。 */
-  const skills = skillRows(view.ownedSkills, roster)
+  /* 名册说有哪些——含本机 skills/ 那一层（directory 非空即是），直接投影。 */
+  const skills = skillRows(roster)
 
   const counts: Record<TabId, number> = {
     plugins: view.plugins.length,

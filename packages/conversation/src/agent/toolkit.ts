@@ -18,11 +18,24 @@ export interface AgentMcpServer {
   readonly lastError?: string | undefined
 }
 
-/** 名册里的一条技能。 */
+/** 原生侧交付的一条技能；id 是展示身份，不是文件路径能力。 */
 export interface AgentSkill {
+  readonly id: string
   readonly name: string
   readonly description: string
   readonly source: string
+  readonly path: string
+  readonly project: string | null
+  readonly projectPath: string | null
+  readonly document: string | null
+  readonly directory: string | null
+  readonly enabled: boolean
+  readonly loaded: boolean
+  readonly kind: string | null
+  readonly disableModelInvocation: boolean | null
+  readonly supportingFiles: number | null
+  readonly totalBytes: number | null
+  readonly modifiedAt: number | null
 }
 
 /** 两张表一次问回：它们同属一条连接，分两次问就会有一刻只有一半。 */

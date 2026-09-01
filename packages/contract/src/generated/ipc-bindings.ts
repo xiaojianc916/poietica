@@ -1774,7 +1774,7 @@ inputCacheRead: number;
  * 累计输入里写入缓存的 token（kap usage.total.inputCacheCreation）。
  */
 inputCacheCreation: number }
-export type AgentSkill = { name: string; description: string; source: string }
+export type AgentSkill = { id: string; name: string; description: string; source: string; path: string; project: string | null; projectPath: string | null; document: string | null; directory: string | null; enabled: boolean; loaded: boolean; kind: string | null; disableModelInvocation: boolean | null; supportingFiles: number | null; totalBytes: number | null; modifiedAt: number | null }
 /**
  * 要并进这一轮的那几条排队提问。
  */
@@ -1856,14 +1856,7 @@ export type AgentTitleSource =
  */
 "manual"
 export type AgentToolkit = { skills: AgentSkill[]; mcpServers: AgentMcpServer[] }
-/**
- * 名册的请求：跟着一条对话走。
- */
-export type AgentToolkitRequest = { launch: AgentLaunch; cwd: string | null; 
-/**
- * 缺席才问连接自带的锚会话 —— 入口那一格还没有对话。
- */
-threadId: string | null }
+export type AgentToolkitRequest = { launch: AgentLaunch; cwd: string | null; threadId: string | null }
 /**
  * 目录里的一轮：地址、问的头一句、答的头几行。
  * 

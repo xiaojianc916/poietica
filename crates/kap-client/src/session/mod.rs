@@ -254,8 +254,11 @@ pub struct McpServer {
 pub struct Skill {
     pub name: String,
     pub description: String,
+    pub path: String,
     /// project / user / extra / builtin。
     pub source: String,
+    pub kind: Option<String>,
+    pub disable_model_invocation: Option<bool>,
 }
 
 /// A session the agent just opened, and the selectors it offers for it.

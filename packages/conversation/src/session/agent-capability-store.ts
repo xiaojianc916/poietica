@@ -35,23 +35,6 @@ const NO_CONTROLS: readonly SessionConfigControl[] = []
 /* 引用固定，#commit 才判得出「名册没变」。 */
 const NO_TOOLKIT: AgentToolkit = { skills: [], mcpServers: [] }
 
-/* agent 自带那一层的来源名，取自 kap 报的 skill descriptor。 */
-const AGENT_BUILTIN = 'builtin'
-
-/*
- * 名册说的是「人能在这里指名调用的技能」，所以 agent 自带那一层不进来：那些文件不在任何
- * 人装得动、卸得动的目录里，列出来就是往「装了哪些」里塞一批答不上来的行。滤在这里，因为
- * 这是名册唯一的持有者 —— agent 自己要调用它们照旧调用，我们不拦。
- */
-function roster(toolkit: AgentToolkit): AgentToolkit {
-  const names = new Set<string>()
-  const skills = toolkit.skills.filter(
-    (skill) => skill.source !== AGENT_BUILTIN && !names.has(skill.name) && names.add(skill.name),
-  )
-
-  return { ...toolkit, skills }
-}
-
 /** 屏幕上那一格：agent 报的整张表，以及它说不出话时的理由。 */
 export interface AgentControls {
   readonly controls: readonly SessionConfigControl[]
@@ -362,7 +345,7 @@ export class AgentCapabilityStore {
     void port.readToolkit(at).then(
       (toolkit) => {
         if (this.#source === port && this.#toolkitAt === at) {
-          this.#commit({ ...this.#held, toolkit: roster(toolkit) })
+          this.#commit({ ...this.#held, toolkit })
         }
       },
       (cause: unknown) => {

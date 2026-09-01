@@ -373,7 +373,10 @@ pub(crate) async fn list_skills(
         .map(|item| Skill {
             name: item.name,
             description: item.description,
+            path: item.path,
             source: skill_source(item.source).to_owned(),
+            kind: item.r#type,
+            disable_model_invocation: item.disable_model_invocation,
         })
         .collect())
 }

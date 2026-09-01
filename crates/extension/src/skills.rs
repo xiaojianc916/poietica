@@ -123,12 +123,10 @@ fn measure(directory: &Path) -> Result<(u32, u64)> {
         .max_depth(WALK_MAX_DEPTH)
     {
         let entry = entry?;
-        if !entry.file_type().is_file() {
-            continue;
+        if !entry.file_type().is_dir() {
+            files = files.saturating_add(1);
+            bytes = bytes.saturating_add(entry.metadata()?.len());
         }
-
-        files = files.saturating_add(1);
-        bytes = bytes.saturating_add(entry.metadata()?.len());
 
         if files >= WALK_MAX_FILES {
             break;
@@ -181,10 +179,11 @@ mod tests {
 
         let catalog = scan_skills(temporary.path()).expect("scan");
         assert_eq!(catalog.len(), 1);
-        assert_eq!(catalog[0].name, "review");
-        assert_eq!(catalog[0].supporting_files, 1);
-        assert!(catalog[0].total_bytes > 0);
-        assert!(catalog[0].modified_at.is_some());
+        let first = catalog.first().expect("the one scanned skill");
+        assert_eq!(first.name, "review");
+        assert_eq!(first.supporting_files, 1);
+        assert!(first.total_bytes > 0);
+        assert!(first.modified_at.is_some());
 
         set_skill_enabled(temporary.path(), "review", false).expect("disable");
         assert!(skill.join(DISABLED_SKILL_FILENAME).is_file());

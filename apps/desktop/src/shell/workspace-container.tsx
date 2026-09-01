@@ -107,7 +107,7 @@ export function WorkspaceContainer({
   )
 
   const threads = useThreadsActions()
-  const { toolkit } = useAgentControls()
+  const { adoptToolkit } = useAgentControls()
   const [auxiliaryPanel] = useState(() => createAuxiliaryPanelStore(browserHostPort))
 
   /* 「哪条对话在跑」只订一次：标签条与侧栏读同一份。 */
@@ -164,6 +164,11 @@ export function WorkspaceContainer({
   /* 侧栏高亮的那一行就是正在看的那一格：身份来自工作台，没有第二份状态。 */
   const activeConversationId =
     workbench.activeSurface.kind === 'conversation' ? workbench.activeSurface.threadId : null
+
+  /* Toolkit scope belongs to the active workspace identity, not to whichever child mounted last. */
+  useEffect(() => {
+    adoptToolkit(activeConversationId)
+  }, [activeConversationId, adoptToolkit])
   const { auxiliaryThread } = useWorkspaceLayoutState()
 
   /*
@@ -363,7 +368,6 @@ export function WorkspaceContainer({
       keybindings={keybindings}
       onDismiss={onSettingsClose}
       plugins={plugins}
-      skillRoster={toolkit.skills}
       store={settingsStore}
       threads={threads}
     >

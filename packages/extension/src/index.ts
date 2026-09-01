@@ -43,4 +43,4 @@ export {
   type PluginStore,
   type PluginsViewModel,
 } from './plugin-store'
-export { type RosterSkill, type SkillRow, skillRows } from './skill'
+export { type SkillRow, skillRows } from './skill'

@@ -8,11 +8,12 @@ import {
   Switch,
   useCopy,
 } from '@poietica/design-system'
-import { type PluginStore, type RosterSkill, type SkillRow, skillRows } from '@poietica/extension'
+import { type PluginStore, type SkillRow, skillRows } from '@poietica/extension'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, Check, Copy, PackageOpen, Search, Trash2 } from 'lucide-react'
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Streamdown } from 'streamdown'
+import { useAgentControls } from '../conversation/session/agent-controls-context'
 import 'streamdown/styles.css'
 import './skills-settings.css'
 
@@ -29,7 +30,7 @@ type LibraryRow =
 
 const SOURCE_LABELS: Record<Exclude<SourceFilter, 'all'>, string> = {
   managed: 'Poietica 管理',
-  project: '当前项目',
+  project: '项目',
   user: '用户目录',
   extra: '额外目录',
   builtin: 'Kimi 内置',
@@ -44,16 +45,16 @@ const SOURCE_ORDER: readonly Exclude<SourceFilter, 'all'>[] = [
 ]
 
 export interface SkillsSettingsProps {
-  readonly roster: readonly RosterSkill[]
   readonly store: PluginStore
 }
 
-export function SkillsSettings({ roster, store }: SkillsSettingsProps) {
+export function SkillsSettings({ store }: SkillsSettingsProps) {
   const view = useSyncExternalStore(store.subscribe, store.getSnapshot)
+  const { toolkit } = useAgentControls()
   const [query, setQuery] = useState('')
   const [source, setSource] = useState<SourceFilter>('all')
   const [selectedKey, setSelectedKey] = useState<string>()
-  const all = useMemo(() => skillRows(view.ownedSkills, roster), [roster, view.ownedSkills])
+  const all = useMemo(() => skillRows(toolkit.skills), [toolkit.skills])
   const filtered = useMemo(
     () =>
       all.filter((skill) => {
@@ -86,7 +87,7 @@ export function SkillsSettings({ roster, store }: SkillsSettingsProps) {
     overscan: 8,
   })
 
-  if (!view.loaded && roster.length === 0) {
+  if (!view.loaded && toolkit.skills.length === 0) {
     return <LoadingState label="正在扫描技能…" />
   }
 
@@ -144,32 +145,11 @@ export function SkillsSettings({ roster, store }: SkillsSettingsProps) {
                     ref={virtual.measureElement}
                     style={{ transform: `translateY(${item.start}px)` }}
                   >
-                    {row.kind === 'section' ? (
-                      <div className="skill-library__section">
-                        <span>{row.label}</span>
-                        <span>{row.count}</span>
-                      </div>
-                    ) : (
-                      <button
-                        aria-current={selected?.key === row.skill.key ? 'true' : undefined}
-                        className="skill-library__item"
-                        data-active={selected?.key === row.skill.key ? 'true' : 'false'}
-                        onClick={() => setSelectedKey(row.skill.key)}
-                        type="button"
-                      >
-                        <span className="skill-library__glyph">
-                          <PackageOpen aria-hidden="true" />
-                        </span>
-                        <span className="skill-library__item-copy">
-                          <span>
-                            <strong>{row.skill.name}</strong>
-                            {!row.skill.enabled ? <em>已停用</em> : null}
-                            {row.skill.issues.length > 0 ? <em data-invalid>无效</em> : null}
-                          </span>
-                          <small>{row.skill.description ?? sourceLabel(row.skill)}</small>
-                        </span>
-                      </button>
-                    )}
+                    <LibraryRowView
+                      onSelect={setSelectedKey}
+                      row={row}
+                      selected={row.kind === 'skill' && selected?.key === row.skill.key}
+                    />
                   </div>
                 )
               })}
@@ -205,9 +185,6 @@ export function SkillsSettings({ roster, store }: SkillsSettingsProps) {
 }
 
 function SkillDetail({ skill, store }: { readonly skill: SkillRow; readonly store: PluginStore }) {
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const path = skill.path ?? ''
-  const copy = useCopy(path)
   const autoInvocable = skill.type !== 'flow' && skill.disableModelInvocation !== true
 
   return (
@@ -239,63 +216,17 @@ function SkillDetail({ skill, store }: { readonly skill: SkillRow; readonly stor
         </div>
       ) : null}
 
-      <dl className="skill-detail__facts">
-        <Fact label="调用命令">
-          <code>/skill:{skill.name}</code>
-        </Fact>
-        <Fact label="调用方式">
-          <span>{autoInvocable ? '可手动调用，也可由模型调用' : '仅手动调用'}</span>
-        </Fact>
-        {skill.type ? (
-          <Fact label="类型">
-            <code>{skill.type}</code>
-          </Fact>
-        ) : null}
-        {skill.whenToUse ? <Fact label="适用场景">{skill.whenToUse}</Fact> : null}
-        {skill.path ? (
-          <Fact label="位置">
-            <code title={skill.path}>{skill.path}</code>
-          </Fact>
-        ) : null}
-        {skill.totalBytes !== undefined ? (
-          <Fact label="内容">
-            {skill.supportingFiles ?? 0} 个辅助文件 · {formatBytes(skill.totalBytes)}
-          </Fact>
-        ) : null}
-        {skill.modifiedAt !== undefined ? (
-          <Fact label="更新时间">
-            {new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(
-              new Date(skill.modifiedAt * 1000),
-            )}
-          </Fact>
-        ) : null}
-      </dl>
+      <SkillFacts autoInvocable={autoInvocable} skill={skill} />
 
       {skill.directory ? (
-        <div className="skill-detail__actions">
-          <Button
-            disabled={path === ''}
-            onClick={copy.copy}
-            size="xs"
-            type="button"
-            variant="outline"
-          >
-            {copy.copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-            {copy.copied ? '已复制' : '复制路径'}
-          </Button>
-          <Button
-            onClick={() => setConfirmingDelete(true)}
-            size="xs"
-            type="button"
-            variant="destructive"
-          >
-            <Trash2 aria-hidden="true" />
-            移到回收站
-          </Button>
-        </div>
+        <SkillActions directory={skill.directory} skill={skill} store={store} />
       ) : (
         <p className="skill-detail__readonly">
-          这个技能由 Kimi 的项目、额外目录或内置层提供；此处只展示运行时名册，不越权修改来源文件。
+          {skill.source === 'builtin'
+            ? '这是 Kimi 的内置虚拟 Skill；KAP 0.39.1 不发布其正文或物理文件，不能伪造打开、删除能力。'
+            : skill.body
+              ? '正文直接读取自上方实际路径；写操作仍只接受原生注册的受控副本。'
+              : 'Kimi 报告了实际路径，但本机未能读取该文件。请检查路径权限或文件是否已移动。'}
         </p>
       )}
 
@@ -305,6 +236,88 @@ function SkillDetail({ skill, store }: { readonly skill: SkillRow; readonly stor
           <Streamdown>{skill.body}</Streamdown>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function SkillFacts({
+  autoInvocable,
+  skill,
+}: {
+  readonly autoInvocable: boolean
+  readonly skill: SkillRow
+}) {
+  return (
+    <dl className="skill-detail__facts">
+      <Fact label="调用命令">
+        <code>/skill:{skill.name}</code>
+      </Fact>
+      <Fact label="调用方式">
+        <span>{autoInvocable ? '可手动调用，也可由模型调用' : '仅手动调用'}</span>
+      </Fact>
+      {skill.type ? (
+        <Fact label="类型">
+          <code>{skill.type}</code>
+        </Fact>
+      ) : null}
+      {skill.whenToUse ? <Fact label="适用场景">{skill.whenToUse}</Fact> : null}
+      {skill.project ? (
+        <Fact label="项目">
+          <code title={skill.projectPath}>{skill.project}</code>
+        </Fact>
+      ) : null}
+      <Fact label="位置">
+        <code title={skill.path}>{skill.path}</code>
+      </Fact>
+      {skill.totalBytes !== undefined ? (
+        <Fact label="内容">
+          {skill.supportingFiles ?? 0} 个辅助文件 · {formatBytes(skill.totalBytes)}
+        </Fact>
+      ) : null}
+      {skill.modifiedAt !== undefined ? (
+        <Fact label="更新时间">
+          {new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(
+            new Date(skill.modifiedAt * 1000),
+          )}
+        </Fact>
+      ) : null}
+    </dl>
+  )
+}
+
+function SkillActions({
+  directory,
+  skill,
+  store,
+}: {
+  readonly directory: string
+  readonly skill: SkillRow
+  readonly store: PluginStore
+}) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const copy = useCopy(skill.path ?? '')
+
+  return (
+    <div className="skill-detail__actions">
+      <Button
+        disabled={skill.path === undefined || skill.path === ''}
+        onClick={copy.copy}
+        size="xs"
+        type="button"
+        variant="outline"
+      >
+        {copy.copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+        {copy.copied ? '已复制' : '复制路径'}
+      </Button>
+      <Button
+        onClick={() => setConfirmingDelete(true)}
+        size="xs"
+        type="button"
+        variant="destructive"
+      >
+        <Trash2 aria-hidden="true" />
+        移到回收站
+      </Button>
 
       <ConfirmationDialog
         confirmLabel="移到回收站"
@@ -313,14 +326,53 @@ function SkillDetail({ skill, store }: { readonly skill: SkillRow; readonly stor
         onCancel={() => setConfirmingDelete(false)}
         onConfirm={() => {
           setConfirmingDelete(false)
-          if (skill.directory) {
-            store.trashInstalledSkill(skill.directory)
-          }
+          store.trashInstalledSkill(directory)
         }}
         open={confirmingDelete}
         title={`移除 ${skill.name}？`}
       />
     </div>
+  )
+}
+
+function LibraryRowView({
+  onSelect,
+  row,
+  selected,
+}: {
+  readonly onSelect: (key: string) => void
+  readonly row: LibraryRow
+  readonly selected: boolean
+}) {
+  if (row.kind === 'section') {
+    return (
+      <div className="skill-library__section">
+        <span>{row.label}</span>
+        <span>{row.count}</span>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      aria-current={selected ? 'true' : undefined}
+      className="skill-library__item"
+      data-active={selected ? 'true' : 'false'}
+      onClick={() => onSelect(row.skill.key)}
+      type="button"
+    >
+      <span className="skill-library__glyph">
+        <PackageOpen aria-hidden="true" />
+      </span>
+      <span className="skill-library__item-copy">
+        <span>
+          <strong>{row.skill.name}</strong>
+          {!row.skill.enabled ? <em>已停用</em> : null}
+          {row.skill.issues.length > 0 ? <em data-invalid>无效</em> : null}
+        </span>
+        <small>{row.skill.description ?? sourceLabel(row.skill)}</small>
+      </span>
+    </button>
   )
 }
 
@@ -344,7 +396,7 @@ function sourceOf(skill: SkillRow): Exclude<SourceFilter, 'all'> {
 }
 
 function sourceLabel(skill: SkillRow): string {
-  return SOURCE_LABELS[sourceOf(skill)]
+  return skill.project === undefined ? SOURCE_LABELS[sourceOf(skill)] : `项目 · ${skill.project}`
 }
 
 function sourceOptions(skills: readonly SkillRow[]): readonly SelectOption<SourceFilter>[] {
