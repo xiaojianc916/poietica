@@ -6,6 +6,7 @@ export type Manifest = {
   name?: string
   scripts?: Record<string, string>
   exports?: Record<string, string>
+  dependencies?: Record<string, string>
 }
 
 export type Workspace = {
@@ -95,7 +96,7 @@ export function readCrates(root: string): Crate[] {
   return parsed.packages.map((entry) => ({
     name: entry.name,
     dependencies: entry.dependencies
-      .filter((dependency) => dependency.kind === null || dependency.kind === undefined)
+      .filter((dependency) => dependency.kind !== 'dev')
       .map((dependency) => dependency.name),
   }))
 }

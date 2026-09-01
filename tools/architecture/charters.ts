@@ -3,7 +3,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import { UNLAYERED_DIRECTORIES } from './layering.ts'
+import { CARGO_RINGS, UNLAYERED_DIRECTORIES } from './layering.ts'
 import type { Violation } from './policies.ts'
 import type { Crate, Workspace } from './workspace.ts'
 
@@ -453,11 +453,87 @@ export function domainCratesAreReachable(crates: readonly Crate[]): Violation[] 
     }
   }
 
-  return ['poietica-conversation', 'poietica-ledger']
+  const required = CARGO_RINGS.filter((ring) => ring.name !== 'composition').flatMap((ring) => [
+    ...ring.members,
+  ])
+
+  return required
     .filter((name) => !seen.has(name))
     .map((name) => ({
       policy: 'domain-crates-are-reachable',
       where: name,
-      detail: '应用 crate 到不了它：领域没有调用方',
+      detail: '应用 crate 到不了它：能力没有生产调用方',
     }))
+}
+
+/** 进程级可变状态必须由组合根构造并持有。 */
+export async function processStateIsComposedAtRoot(root: string): Promise<Violation[]> {
+  const declarations = [
+    ['apps/desktop/src/automation/automation-runtime.tsx', 'export const automationStore ='],
+    ['apps/desktop/src/entry/plugin-runtime.tsx', 'export const pluginStore ='],
+    ['apps/desktop/src/entry/plugin-runtime.tsx', 'export const hostedMcpServersReady:'],
+    ['apps/desktop/src/shell/workspace-layout-store.ts', 'export const workspaceLayoutStore ='],
+    ['packages/problem/src/failure-coordinator.ts', 'export const failureCoordinator = new'],
+    [
+      'packages/native-bridge/src/platform/native-window.ts',
+      'const mainWindow = resolveMainWindow()',
+    ],
+  ] as const
+  const violations: Violation[] = []
+
+  for (const [file, declaration] of declarations) {
+    if ((await readFile(path.join(root, file), 'utf8')).includes(declaration)) {
+      violations.push({
+        policy: 'process-state-is-composed-at-root',
+        where: file,
+        detail: `进程级实例在组合根之外创建：${declaration}`,
+      })
+    }
+  }
+
+  return violations
+}
+
+/** 运行帧的生成契约不得退化成 JsonValue，再由 TS 守卫冒充完整联合。 */
+export async function runFrameWireStaysTyped(root: string): Promise<Violation[]> {
+  const probes = [
+    ['apps/desktop/src-tauri/src/ipc/commands/conversation/dto.rs', 'pub events: Vec<Value>'],
+    ['apps/desktop/src-tauri/src/ipc/commands/conversation/dto.rs', '#[specta(type = Vec<Value>)]'],
+    ['packages/native-bridge/src/gateways/agent.ts', 'events.filter(isRunEvent)'],
+  ] as const
+  const violations: Violation[] = []
+
+  for (const [file, needle] of probes) {
+    if ((await readFile(path.join(root, file), 'utf8')).includes(needle)) {
+      violations.push({
+        policy: 'run-frame-wire-stays-typed',
+        where: file,
+        detail: `运行帧边界退化：${needle}`,
+      })
+    }
+  }
+
+  return violations
+}
+
+/** Review watcher 必须是有所有者的订阅，不得以超时命令伪装推送。 */
+export async function reviewWatcherHasLease(root: string): Promise<Violation[]> {
+  const probes = [
+    ['apps/desktop/src-tauri/src/ipc/commands/git.rs', 'git_await_change'],
+    ['crates/git-adapter/src/watch.rs', 'const WINDOW:'],
+    ['packages/review/src/review-gateway.ts', 'awaitChange(root: string)'],
+  ] as const
+  const violations: Violation[] = []
+
+  for (const [file, needle] of probes) {
+    if ((await readFile(path.join(root, file), 'utf8')).includes(needle)) {
+      violations.push({
+        policy: 'review-watcher-has-lease',
+        where: file,
+        detail: `仍是问—等—重挂协议：${needle}`,
+      })
+    }
+  }
+
+  return violations
 }

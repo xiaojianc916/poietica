@@ -327,6 +327,44 @@ export function nativeAccessIsDeclared(
   return violations
 }
 
+/** 生成传输契约只允许桥消费；领域与组合层都不得认识它。 */
+export function transportContractIsAdapterPrivate(
+  imports: readonly ImportRecord[],
+  workspaces: readonly Workspace[],
+): Violation[] {
+  const allowed = new Set(['@poietica/contract', '@poietica/native-bridge'])
+  const violations: Violation[] = []
+
+  for (const workspace of workspaces) {
+    if (
+      !allowed.has(workspace.name) &&
+      workspace.manifest.dependencies?.['@poietica/contract'] !== undefined
+    ) {
+      violations.push({
+        policy: 'transport-contract-is-adapter-private',
+        where: `${workspace.directory}/package.json`,
+        detail: `${workspace.name} 在 manifest 中依赖传输契约`,
+      })
+    }
+  }
+
+  for (const record of imports) {
+    if (packageOf(record.specifier) !== '@poietica/contract') {
+      continue
+    }
+    const owner = ownerOf(record.file, workspaces)
+    if (owner !== undefined && !allowed.has(owner.name)) {
+      violations.push({
+        policy: 'transport-contract-is-adapter-private',
+        where: record.file,
+        detail: `${owner.name} 绕过领域端口直连传输契约`,
+      })
+    }
+  }
+
+  return violations
+}
+
 /** 词汇与领域包里不许出现 UI 框架。 */
 export function frameworkFreeVocabulary(
   imports: readonly ImportRecord[],

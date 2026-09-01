@@ -73,6 +73,7 @@ const violations: Violation[] = [
   ...policy.publicEntryOnly(imports, workspaces),
   ...policy.relativeImportsStayHome(imports, workspaces),
   ...policy.nativeAccessIsDeclared(imports, workspaces),
+  ...policy.transportContractIsAdapterPrivate(imports, workspaces),
   ...policy.frameworkFreeVocabulary(imports, workspaces),
   ...policy.crateDependencyDirection(crates),
   ...policy.cratesStayHostAgnostic(crates),
@@ -95,6 +96,9 @@ const violations: Violation[] = [
   ...(await charter.documentedPackagesExist(ROOT, workspaces)),
   ...charter.workspaceNamesFollowTheirDirectory(workspaces),
   ...(await charter.noTaskScopedGuards(ROOT)),
+  ...(await charter.processStateIsComposedAtRoot(ROOT)),
+  ...(await charter.runFrameWireStaysTyped(ROOT)),
+  ...(await charter.reviewWatcherHasLease(ROOT)),
   ...charter.domainCratesAreReachable(crates),
 ]
 
