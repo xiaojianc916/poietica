@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import type { TodoItem } from '@poietica/conversation'
-import { renderToStaticMarkup } from 'react-dom/server'
-import { TodoPanel, todoProgressLabel } from '../todo/todo-panel'
+import { todoProgressLabel } from '../todo/todo-panel'
 
 const todos: readonly TodoItem[] = [
   { title: '搭骨架', status: 'done' },
@@ -9,20 +8,16 @@ const todos: readonly TodoItem[] = [
   { title: '补测试', status: 'pending' },
 ]
 
-describe('todo panel', () => {
-  it('renders nothing for an empty list', () => {
-    expect(renderToStaticMarkup(<TodoPanel todos={[]} />)).toBe('')
+describe('todo progress label', () => {
+  it('joins per-status counts with en spaces around the separator', () => {
+    expect(todoProgressLabel(todos)).toBe('1 已完成\u2002·\u20021 进行中\u2002·\u20021 待处理')
   })
 
-  it('starts collapsed with the per-status summary visible', () => {
-    const markup = renderToStaticMarkup(<TodoPanel todos={todos} />)
-
-    expect(markup).toContain('1 已完成 · 1 进行中 · 1 待处理')
-    expect(markup).toContain('aria-expanded="false"')
-    expect(markup).not.toContain('搭骨架')
-  })
-
-  it('omits zero-count summary segments', () => {
+  it('omits zero-count segments', () => {
     expect(todoProgressLabel([{ title: '完成', status: 'done' }])).toBe('1 已完成')
+  })
+
+  it('says nothing about an empty list', () => {
+    expect(todoProgressLabel([])).toBe('')
   })
 })

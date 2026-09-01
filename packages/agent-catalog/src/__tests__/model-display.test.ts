@@ -19,8 +19,8 @@ describe('agentBareModelId', () => {
   })
 
   it('只剥开头那一段：模型 id 自己带的斜杠不动', () => {
-    expect(agentBareModelId('openrouter/moonshotai/kimi-k2', 'openrouter')).toBe(
-      'moonshotai/kimi-k2',
+    expect(agentBareModelId('tokenrouter/z-ai/glm-5.3-free', 'tokenrouter')).toBe(
+      'z-ai/glm-5.3-free',
     )
   })
 

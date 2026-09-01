@@ -42,4 +42,4 @@ export {
   resolveWorkbenchTabDragLayout,
   resolveWorkbenchTabKeyboardAction,
 } from './workbench-tabs-model'
-export { type AuxiliaryMode, resolveAuxiliaryMode, WORKSPACE_LAYOUT } from './workspace-layout'
+export { type PanelMode, resolvePanelMode, WORKSPACE_LAYOUT } from './workspace-layout'

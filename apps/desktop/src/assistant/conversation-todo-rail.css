@@ -1,0 +1,99 @@
+/*
+ * 会话区的内容行，和它右侧的任务面板列。
+ *
+ * 行是这一列存在的原因，两者同居一个文件。列宽只有一个来源：
+ * --conversation-todo-width 由 WORKSPACE_LAYOUT.todo.width 写成内联属性。
+ * 时长与曲线读外壳那一份，开合动画与两列同一条时间轴。
+ */
+.conversation-body {
+  position: relative;
+  display: flex;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
+.conversation-canvas {
+  position: relative;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
+/*
+ * 挤压态：这一列吃掉行里的一段宽度，面板定宽挂在列的 inline-end 边，由列自己
+ * 裁剪。补间只动列宽，面板本身不被压扁 —— 与外壳两列同一种画法。
+ */
+.conversation-todo {
+  position: relative;
+  flex: none;
+  inline-size: 0;
+  overflow: clip;
+  transition: inline-size var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+.conversation-todo[data-open="true"] {
+  inline-size: var(--conversation-todo-width);
+}
+
+.conversation-todo__panel {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: var(--conversation-todo-width);
+  max-inline-size: 100%;
+  border-inline-start: var(--ui-region-divider-width) solid var(--color-divider);
+  background: var(--cp-ground);
+}
+
+.conversation-todo__scrim {
+  display: none;
+}
+
+/* 覆盖态：同一段 DOM 提到画布之上，从右侧滑入，主区不再让位。 */
+.conversation-todo[data-mode="overlay"] {
+  position: absolute;
+  z-index: 3;
+  inset-block: 0;
+  inset-inline: 0;
+  inline-size: auto;
+  overflow: visible;
+  pointer-events: none;
+  transition: none;
+}
+
+.conversation-todo[data-mode="overlay"] .conversation-todo__scrim {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border: 0;
+  padding: 0;
+  background: rgb(0 0 0 / 12%);
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+.conversation-todo[data-mode="overlay"] .conversation-todo__panel {
+  box-shadow: -18px 0 40px rgb(0 0 0 / 14%);
+  pointer-events: auto;
+  transform: translateX(0);
+  transition: transform var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+.conversation-todo[data-mode="overlay"][data-open="false"] .conversation-todo__scrim {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.conversation-todo[data-mode="overlay"][data-open="false"] .conversation-todo__panel {
+  transform: translateX(100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-todo,
+  .conversation-todo .conversation-todo__scrim,
+  .conversation-todo .conversation-todo__panel {
+    transition: none;
+  }
+}

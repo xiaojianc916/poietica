@@ -1,98 +1,93 @@
-.todo-pane {
-  box-sizing: border-box;
+/*
+ * 待办清单的排版依据是 DeepSeek Harness 的 TodoPanel.module.css：13px 正文、
+ * 24px 标题行、10px 图文间距、8px 行距、16px 字形格、单行省略。那边 180px 的
+ * 列表上限在这里换成满高滚动 —— 它不再是输入框上方的一张卡，而是一列面板。
+ */
+.todo-panel {
+  display: flex;
   block-size: 100%;
-  overflow: auto;
-  padding: 12px;
+  min-block-size: 0;
+  flex-direction: column;
   background: var(--cp-ground);
   color: var(--cp-ink);
-}
-
-.todo-pane__empty {
-  display: grid;
-  block-size: 100%;
-  place-content: center;
-  justify-items: center;
-  gap: 8px;
-  color: var(--cp-ink-subtle);
-  font-size: 12px;
-}
-
-.todo-panel {
-  box-sizing: border-box;
-  inline-size: 100%;
-  overflow: hidden;
-  border: var(--cp-px) solid var(--cp-hairline);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--cp-ink) 4%, var(--cp-ground));
-}
-
-.todo-panel__body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 6px 12px;
+  font-size: 13px;
 }
 
 .todo-panel__header {
   display: flex;
-  inline-size: 100%;
+  block-size: var(--cp-control);
+  flex: none;
   align-items: center;
   gap: 10px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
+  padding-inline: var(--cp-inset);
 }
 
-.todo-panel__header:focus-visible {
-  border-radius: 6px;
-  outline: var(--cp-px) solid var(--cp-accent);
-  outline-offset: 2px;
-}
-
-.todo-panel__lead,
-.todo-panel__chevron,
-.todo-panel__glyph {
+.todo-panel__lead {
   display: grid;
   flex: none;
   place-items: center;
+  color: var(--cp-ink-subtle);
 }
 
-.todo-panel__lead,
-.todo-panel__chevron {
-  color: var(--cp-ink-muted);
+.todo-panel__lead svg {
+  block-size: 14px;
+  inline-size: 14px;
 }
 
 .todo-panel__title {
+  margin: 0;
   flex: none;
-  color: var(--cp-ink);
   font-size: 13px;
   font-weight: 500;
   line-height: 24px;
+  color: var(--cp-ink);
 }
 
 .todo-panel__progress {
   min-inline-size: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  color: var(--cp-ink-muted);
   font-size: 13px;
   font-weight: 400;
   line-height: 20px;
+  color: var(--cp-ink-subtle);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.todo-panel__close {
+  display: grid;
+  block-size: 20px;
+  inline-size: 20px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--cp-optical);
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.todo-panel__close:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.todo-panel__close svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
 .todo-panel__list {
   display: flex;
-  max-block-size: 180px;
+  min-block-size: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 8px;
   margin: 0;
-  padding: 0;
+  padding: 6px var(--cp-inset) 12px;
   overflow-y: auto;
   list-style: none;
 }
@@ -102,27 +97,41 @@
   min-inline-size: 0;
   align-items: center;
   gap: 10px;
-  color: var(--cp-ink-muted);
   font-size: 13px;
   line-height: 20px;
+  color: var(--cp-ink-muted);
+}
+
+/* 正在做的那一条提一档墨色：一眼看得出清单停在哪里。 */
+.todo-panel__item[data-status="in_progress"] {
+  color: var(--cp-ink);
 }
 
 .todo-panel__glyph {
+  display: grid;
   block-size: 16px;
   inline-size: 16px;
+  flex: none;
+  place-items: center;
 }
 
 .todo-panel__glyph--done {
   color: #2d9d5b;
 }
 
+.todo-panel__glyph--progress {
+  color: var(--cp-accent);
+  animation: todo-progress-spin 1s linear infinite;
+}
+
 .todo-panel__glyph--pending {
   color: var(--cp-ink-subtle);
 }
 
-.todo-panel__glyph--progress {
-  color: var(--cp-accent);
-  animation: todo-progress-spin 1s linear infinite;
+@keyframes todo-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .todo-panel__content {
@@ -132,10 +141,11 @@
   white-space: nowrap;
 }
 
-@keyframes todo-progress-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.todo-panel__empty {
+  margin: 0;
+  padding: 6px var(--cp-inset);
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-caption);
 }
 
 @media (prefers-reduced-motion: reduce) {

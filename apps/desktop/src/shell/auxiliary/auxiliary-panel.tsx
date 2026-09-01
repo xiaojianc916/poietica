@@ -50,19 +50,11 @@ export interface AuxiliaryPanelProps {
   readonly panes: AuxiliaryPaneRenderers
   /** 加号菜单可开的通道种类。 */
   readonly paneOffers: readonly AuxiliaryPaneOffer[]
-  /** 标签条行尾的角位：宿主放面板开关，几何与宿主页头对齐。 */
-  readonly trailing?: ReactNode
   /** 几何输入的指纹：变了就重新起跑视口对齐，内容不解读。 */
   readonly layoutSignal: unknown
 }
 
-export function AuxiliaryPanel({
-  layoutSignal,
-  paneOffers,
-  panes,
-  store,
-  trailing,
-}: AuxiliaryPanelProps) {
+export function AuxiliaryPanel({ layoutSignal, paneOffers, panes, store }: AuxiliaryPanelProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const host = state.host
   const { focus } = state
@@ -94,11 +86,7 @@ export function AuxiliaryPanel({
       id="workspace-auxiliary-panel"
     >
       {showLauncher ? (
-        <AuxiliaryLauncher
-          offers={paneOffers}
-          onOpen={store.openLauncherPane}
-          trailing={trailing}
-        />
+        <AuxiliaryLauncher offers={paneOffers} onOpen={store.openLauncherPane} />
       ) : (
         /* 非浏览器 pane 不依赖 BrowserHost。 */
         <>
@@ -121,7 +109,6 @@ export function AuxiliaryPanel({
                 name: renderer.name(pane.resourceId ?? pane.id),
               }
             })}
-            trailing={trailing}
           />
           {activePane === null ? (
             host === null ? (
@@ -378,15 +365,12 @@ function Viewport({
 function AuxiliaryLauncher({
   offers,
   onOpen,
-  trailing,
 }: {
   readonly offers: readonly AuxiliaryPaneOffer[]
   readonly onOpen: AuxiliaryPanelStore['openLauncherPane']
-  readonly trailing?: ReactNode
 }) {
   return (
-    <section aria-labelledby="auxiliary-launcher-title" className="flex h-full min-h-0 flex-col">
-      <div className="flex h-8 shrink-0 items-center justify-end pr-2.5">{trailing}</div>
+    <section aria-label="辅助面板启动器" className="flex h-full min-h-0 flex-col">
       <div className="m-auto w-full max-w-xs px-6">
         <div className="mt-6 grid gap-2">
           {offers.map((offer) => (

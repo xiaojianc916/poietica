@@ -33,6 +33,11 @@ export const WORKSPACE_LAYOUT = {
     defaultWidth: 420,
   },
 
+  /* 任务面板贴会话区 inline-end：定宽，不参与拖拽。 */
+  todo: {
+    width: 320,
+  },
+
   chrome: {
     height: 36,
   },
@@ -43,15 +48,14 @@ export const WORKSPACE_LAYOUT = {
   },
 } as const
 
-export type AuxiliaryMode = 'dock' | 'overlay'
+export type PanelMode = 'dock' | 'overlay'
 
-/** 只有主区能保住阅读下限时才让辅助列占布局；否则同一面板覆盖主区。 */
-export function resolveAuxiliaryMode(
-  viewportWidth: number,
-  sidebarWidth: number,
-  auxiliaryWidth: number,
-): AuxiliaryMode {
-  return viewportWidth - sidebarWidth - auxiliaryWidth >= WORKSPACE_LAYOUT.main.minWidth
-    ? 'dock'
-    : 'overlay'
+/**
+ * 一枚贴边面板是挤压还是覆盖。
+ *
+ * availableWidth 是它所在那一行的可用宽度：面板占的那一段算在里面，所以判据与
+ * 面板此刻开着还是关着无关，不存在开合互相触发的回路。两侧面板共用这一条。
+ */
+export function resolvePanelMode(availableWidth: number, panelWidth: number): PanelMode {
+  return availableWidth - panelWidth >= WORKSPACE_LAYOUT.main.minWidth ? 'dock' : 'overlay'
 }

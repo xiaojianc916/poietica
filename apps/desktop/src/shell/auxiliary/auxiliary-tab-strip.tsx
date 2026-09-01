@@ -26,7 +26,6 @@ interface AuxiliaryTabStripProps {
   readonly onOpenPane: AuxiliaryPanelStore['openLauncherPane']
   readonly openMenu: AuxiliaryMenuKind | null
   readonly onMenuChange: (kind: AuxiliaryMenuKind | null) => void
-  readonly trailing?: ReactNode
 }
 
 interface AuxiliaryTabProps {
@@ -140,7 +139,6 @@ export function AuxiliaryTabStrip({
   onOpenPane,
   onSelectPane,
   openMenu,
-  trailing,
 }: AuxiliaryTabStripProps) {
   return (
     <div className="flex h-8 shrink-0 items-center gap-1 border-b border-current/10 px-1">
@@ -206,8 +204,6 @@ export function AuxiliaryTabStrip({
         open={openMenu === 'tabs'}
         panes={panes}
       />
-
-      {trailing ? <div className="mr-1.5 shrink-0">{trailing}</div> : null}
     </div>
   )
 }

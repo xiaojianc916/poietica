@@ -33,6 +33,7 @@ import {
 import { AssistantSidebarPanel } from '../assistant/assistant-sidebar-panel'
 import { createAssistantWiring } from '../assistant/assistant-wiring'
 import { ConversationHeader } from '../assistant/conversation-header'
+import { ConversationTodoRail } from '../assistant/conversation-todo-rail'
 import { useThreadsActions } from '../assistant/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../window/desktop-title-bar'
 import { AuxiliaryDock } from './auxiliary/auxiliary-dock'
@@ -328,23 +329,24 @@ export function WorkspaceContainer({
         <SettingsContentRegion />
       ) : (
         /*
-         * 左列是对话（页头 + 画布），右侧是满高的浏览器 dock。dock 的标签
-         * 条与页头同行高，开关在两者右角间交接座位，屏幕坐标不变。页头与
-         * 雾只在对话里出现；辅助面板开合状态活在 auxiliaryPanel，一份，
-         * 跨表面与设置往返不丢。
+         * 会话区自上而下是页头与一行内容；内容行里左边是画布，右边是任务面板
+         * 那一列。页头恒在，两枚开关不换座位。辅助面板开合状态活在
+         * auxiliaryPanel，一份，跨表面与设置往返不丢。
          */
         <div className="flex h-full min-h-0 min-w-0 flex-col">
           {workbench.activeSurface.kind === 'conversation' ? (
-            <ConversationHeader
-              auxiliaryPanel={auxiliaryPanel}
-              conversationId={workbench.activeSurface.threadId}
-            />
+            <ConversationHeader conversationId={workbench.activeSurface.threadId} />
           ) : null}
-          <div className="relative min-h-0 min-w-0 flex-1">
+          <div className="conversation-body">
+            <div className="conversation-canvas">
+              {workbench.activeSurface.kind === 'conversation' ? (
+                <div className="conversation-veil" data-assistant-skin />
+              ) : null}
+              {surface}
+            </div>
             {workbench.activeSurface.kind === 'conversation' ? (
-              <div className="conversation-veil" data-assistant-skin />
+              <ConversationTodoRail threadId={workbench.activeSurface.threadId} />
             ) : null}
-            {surface}
           </div>
         </div>
       ),

@@ -1,28 +1,25 @@
+import type { TodoItem } from '@poietica/conversation'
+import { ListTodo, X } from 'lucide-react'
+import { useId } from 'react'
+import { useAssistantTodos } from '../session/use-assistant-session'
 import './todo-panel.css'
 
-import type { TodoItem, TodoStatus } from '@poietica/conversation'
-import { ChevronDown, ChevronUp, ListTodo } from 'lucide-react'
-import { useId, useState } from 'react'
-import { useAssistantTodos } from '../session/use-assistant-session'
-
-export interface TodoPanelProps {
-  readonly todos: readonly TodoItem[]
-}
-
-const STATUS_LABEL: Readonly<Record<TodoStatus, string>> = {
+const STATUS_LABEL = {
   done: '已完成',
   in_progress: '进行中',
   pending: '待处理',
-}
+} as const
 
+/** 关闭联合的兜底：状态由 kap 投影守卫，走到这里说明契约被绕过了。 */
 function unreachable(status: never): never {
-  throw new Error(`unreachable todo status: ${String(status)}`)
+  throw new Error(`未知的待办状态：${String(status)}`)
 }
 
+/* 三枚字形共用 14×14 画板（照搬 DeepSeek Harness 的 figma 尺寸），16px 格居中。 */
 function CompletedGlyph() {
   return (
     <svg
-      aria-hidden
+      aria-hidden="true"
       className="todo-panel__glyph--done"
       fill="none"
       height={14}
@@ -38,12 +35,13 @@ function CompletedGlyph() {
   )
 }
 
+/** 进行中：一圈渐隐的环，旋转交给 CSS。 */
 function ProgressGlyph() {
   const gradientId = useId()
 
   return (
     <svg
-      aria-hidden
+      aria-hidden="true"
       className="todo-panel__glyph--progress"
       fill="none"
       height={14}
@@ -68,10 +66,11 @@ function ProgressGlyph() {
   )
 }
 
+/** 待处理：虚线环，dash 2.4 2.4。 */
 function PendingGlyph() {
   return (
     <svg
-      aria-hidden
+      aria-hidden="true"
       className="todo-panel__glyph--pending"
       fill="none"
       height={14}
@@ -90,106 +89,91 @@ function PendingGlyph() {
   )
 }
 
-function StatusGlyph({ status }: { readonly status: TodoStatus }) {
+function StatusGlyph({ status }: { readonly status: TodoItem['status'] }) {
   switch (status) {
-    case 'done':
+    case 'done': {
       return <CompletedGlyph />
-    case 'in_progress':
+    }
+
+    case 'in_progress': {
       return <ProgressGlyph />
-    case 'pending':
+    }
+
+    case 'pending': {
       return <PendingGlyph />
-    default:
+    }
+
+    default: {
       return unreachable(status)
+    }
   }
 }
 
+/**
+ * 分状态计数，用 en space 包住间隔点（照搬 Harness：HTML 会吃掉连续的 ASCII
+ * 空格，要宽一点只能用宽空格）。为零的那一段不出现 —— 非空清单至少留一段。
+ */
 export function todoProgressLabel(todos: readonly TodoItem[]): string {
-  let done = 0
-  let active = 0
-  let pending = 0
-
-  for (const item of todos) {
-    if (item.status === 'done') {
-      done += 1
-    } else if (item.status === 'in_progress') {
-      active += 1
-    } else {
-      pending += 1
-    }
-  }
+  const done = todos.filter((item) => item.status === 'done').length
+  const active = todos.filter((item) => item.status === 'in_progress').length
+  const pending = todos.length - done - active
 
   return [
-    ...(done === 0 ? [] : [`${done} 已完成`]),
-    ...(active === 0 ? [] : [`${active} 进行中`]),
-    ...(pending === 0 ? [] : [`${pending} 待处理`]),
+    ...(done > 0 ? [`${done} ${STATUS_LABEL.done}`] : []),
+    ...(active > 0 ? [`${active} ${STATUS_LABEL.in_progress}`] : []),
+    ...(pending > 0 ? [`${pending} ${STATUS_LABEL.pending}`] : []),
   ].join(' · ')
 }
 
-export function TodoPanel({ todos }: TodoPanelProps) {
-  const [collapsed, setCollapsed] = useState(true)
-  const listId = useId()
-
-  if (todos.length === 0) {
-    return null
-  }
-
-  return (
-    <section aria-label="任务" className="todo-panel">
-      <div className="todo-panel__body">
-        <button
-          aria-controls={listId}
-          aria-expanded={!collapsed}
-          className="todo-panel__header"
-          onClick={() => {
-            setCollapsed((value) => !value)
-          }}
-          type="button"
-        >
-          <span aria-hidden className="todo-panel__lead">
-            <ListTodo size={14} strokeWidth={1.5} />
-          </span>
-          <span className="todo-panel__title">任务</span>
-          <span className="todo-panel__progress">{todoProgressLabel(todos)}</span>
-          <span aria-hidden className="todo-panel__chevron">
-            {collapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </span>
-        </button>
-
-        {collapsed ? null : (
-          <ul className="todo-panel__list" id={listId}>
-            {todos.map((item) => (
-              <li
-                aria-label={`${STATUS_LABEL[item.status]}：${item.title}`}
-                className="todo-panel__item"
-                data-status={item.status}
-                key={item.title}
-              >
-                <span aria-hidden className="todo-panel__glyph">
-                  <StatusGlyph status={item.status} />
-                </span>
-                <span className="todo-panel__content">{item.title}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
-  )
-}
-
-export function TodoPane({ threadId }: { readonly threadId: string }) {
+/**
+ * 这条对话的待办清单。
+ *
+ * 清单的唯一真相是 timeline 投影的 todos，这一层只订阅它 —— 没有本地副本，
+ * 也没有增删改：待办由 agent 的 todo_list 工具整表替换。几何归外面那一列，
+ * 这里只画内容。
+ */
+export function TodoPanel({
+  onClose,
+  threadId,
+}: {
+  readonly onClose: () => void
+  readonly threadId: string
+}) {
   const todos = useAssistantTodos(threadId)
 
   return (
-    <div className="todo-pane" data-assistant-skin>
+    <section aria-label="任务" className="todo-panel">
+      <header className="todo-panel__header">
+        <span aria-hidden className="todo-panel__lead">
+          <ListTodo />
+        </span>
+        <h2 className="todo-panel__title">任务</h2>
+        <span className="todo-panel__progress">{todoProgressLabel(todos)}</span>
+        <button
+          aria-label="关闭任务"
+          className="todo-panel__close"
+          onClick={onClose}
+          title="关闭任务"
+          type="button"
+        >
+          <X aria-hidden />
+        </button>
+      </header>
+
       {todos.length === 0 ? (
-        <div className="todo-pane__empty">
-          <ListTodo aria-hidden size={24} strokeWidth={1.25} />
-          <span>暂无任务</span>
-        </div>
+        <p className="todo-panel__empty">暂无任务</p>
       ) : (
-        <TodoPanel todos={todos} />
+        <ul className="todo-panel__list">
+          {todos.map((item) => (
+            <li className="todo-panel__item" data-status={item.status} key={item.title}>
+              <span aria-label={STATUS_LABEL[item.status]} className="todo-panel__glyph" role="img">
+                <StatusGlyph status={item.status} />
+              </span>
+              <span className="todo-panel__content">{item.title}</span>
+            </li>
+          ))}
+        </ul>
       )}
-    </div>
+    </section>
   )
 }

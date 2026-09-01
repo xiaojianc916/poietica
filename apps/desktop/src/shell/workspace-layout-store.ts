@@ -22,6 +22,8 @@ export interface WorkspaceLayoutState {
   /** 哪一条对话把浏览器开着。null = 没有对话开着它。 */
   readonly auxiliaryThread: string | null
   readonly auxiliaryWidth: number
+  /** 哪一条对话把任务面板开着。定宽，所以只有归属，没有宽度。 */
+  readonly todoThread: string | null
   readonly splitter: SplitterActivity
   readonly splitterRegion: SplitterRegion
 }
@@ -32,6 +34,7 @@ interface LayoutIntent {
   readonly sidebarWidth: number
   readonly auxiliaryThread: string | null
   readonly auxiliaryWidth: number
+  readonly todoThread: string | null
 }
 
 const { sidebar, auxiliary } = WORKSPACE_LAYOUT
@@ -41,6 +44,7 @@ const DEFAULT_INTENT: LayoutIntent = {
   sidebarWidth: sidebar.defaultWidth,
   auxiliaryThread: null,
   auxiliaryWidth: auxiliary.defaultWidth,
+  todoThread: null,
 }
 
 const clampTo = (bounds: { minWidth: number; maxWidth: number }) => (width: number) =>
@@ -58,6 +62,7 @@ const PersistedLayoutSchema = v.object({
   sidebarWidth: width(clampSidebarWidth, DEFAULT_INTENT.sidebarWidth),
   auxiliaryThread: v.fallback(v.nullable(v.string()), DEFAULT_INTENT.auxiliaryThread),
   auxiliaryWidth: width(clampAuxiliaryWidth, DEFAULT_INTENT.auxiliaryWidth),
+  todoThread: v.fallback(v.nullable(v.string()), DEFAULT_INTENT.todoThread),
 })
 
 const FAILURE = {
@@ -89,6 +94,7 @@ function publish(): void {
     next.sidebarWidth === snapshot.sidebarWidth &&
     next.auxiliaryThread === snapshot.auxiliaryThread &&
     next.auxiliaryWidth === snapshot.auxiliaryWidth &&
+    next.todoThread === snapshot.todoThread &&
     next.splitter === snapshot.splitter &&
     next.splitterRegion === snapshot.splitterRegion
   ) {
@@ -160,6 +166,11 @@ export const workspaceLayoutStore = {
   },
   setAuxiliaryWidth: (value: number): void => {
     settle({ ...intent, auxiliaryWidth: clampAuxiliaryWidth(value) })
+  },
+
+  /* 任务面板同样是归属：开着它的是这条对话，或者没有人。 */
+  setTodoThread: (threadId: string | null): void => {
+    settle({ ...intent, todoThread: threadId })
   },
 
   /* 两个区域各一个稳定引用：RegionSplitter 卸载时要靠它收回交互态。 */

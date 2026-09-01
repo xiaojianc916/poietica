@@ -1,4 +1,4 @@
-import { type AuxiliaryMode, resolveAuxiliaryMode, WORKSPACE_LAYOUT } from '@poietica/workspace'
+import { type PanelMode, resolvePanelMode, WORKSPACE_LAYOUT } from '@poietica/workspace'
 import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import type { SplitterActivity, SplitterRegion } from './workspace-layout-store'
 
@@ -24,9 +24,9 @@ const WORKSPACE_LAYOUT_STYLE: WorkspaceStyle = {
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
 }
 
-function useAuxiliaryMode(sidebarWidth: number, auxiliaryWidth: number) {
+function usePanelMode(sidebarWidth: number, auxiliaryWidth: number) {
   const root = useRef<HTMLDivElement | null>(null)
-  const [mode, setMode] = useState<AuxiliaryMode>('dock')
+  const [mode, setMode] = useState<PanelMode>('dock')
 
   useLayoutEffect(() => {
     const element = root.current
@@ -36,7 +36,7 @@ function useAuxiliaryMode(sidebarWidth: number, auxiliaryWidth: number) {
     }
 
     const measure = () => {
-      const next = resolveAuxiliaryMode(element.clientWidth, sidebarWidth, auxiliaryWidth)
+      const next = resolvePanelMode(element.clientWidth - sidebarWidth, auxiliaryWidth)
       setMode((current) => (current === next ? current : next))
     }
 
@@ -90,7 +90,7 @@ export function WorkspaceFrame({
   splitter,
   splitterRegion,
 }: WorkspaceFrameProps) {
-  const { mode: auxiliaryMode, root } = useAuxiliaryMode(sidebarColumnWidth, auxiliaryPanelWidth)
+  const { mode: auxiliaryMode, root } = usePanelMode(sidebarColumnWidth, auxiliaryPanelWidth)
 
   const style: WorkspaceStyle = {
     ...WORKSPACE_LAYOUT_STYLE,

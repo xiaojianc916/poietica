@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'bun:test'
-import { resolveAuxiliaryMode, WORKSPACE_LAYOUT } from './workspace-layout'
+import { resolvePanelMode, WORKSPACE_LAYOUT } from './workspace-layout'
 
 describe('WORKSPACE_LAYOUT', () => {
-  it('keeps the auxiliary pane from shrinking the main reading area', () => {
-    expect(resolveAuxiliaryMode(1340, 280, 420)).toBe('dock')
-    expect(resolveAuxiliaryMode(1339, 280, 420)).toBe('overlay')
-    expect(resolveAuxiliaryMode(1060, 0, 420)).toBe('dock')
+  it('keeps a rail panel from shrinking the main reading area', () => {
+    expect(resolvePanelMode(1060, 420)).toBe('dock')
+    expect(resolvePanelMode(1059, 420)).toBe('overlay')
+    expect(resolvePanelMode(960, WORKSPACE_LAYOUT.todo.width)).toBe('dock')
+    expect(resolvePanelMode(959, WORKSPACE_LAYOUT.todo.width)).toBe('overlay')
   })
 
   it('keeps the default sidebar width inside its bounds', () => {
@@ -14,6 +15,14 @@ describe('WORKSPACE_LAYOUT', () => {
     expect(minWidth).toBeLessThan(defaultWidth)
 
     expect(defaultWidth).toBeLessThan(maxWidth)
+  })
+
+  it('keeps the todo rail inside the auxiliary width range', () => {
+    const { todo, auxiliary } = WORKSPACE_LAYOUT
+
+    expect(todo.width).toBeGreaterThan(0)
+
+    expect(todo.width).toBeLessThanOrEqual(auxiliary.maxWidth)
   })
 
   it('keeps the default auxiliary width inside its bounds', () => {

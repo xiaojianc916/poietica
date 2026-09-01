@@ -1,26 +1,53 @@
-import { ConversationPanelControls } from '../shell/auxiliary/auxiliary-dock'
-import type { AuxiliaryPanelStore } from '../shell/auxiliary/auxiliary-panel-store'
-import { useWorkspaceLayoutState } from '../shell/workspace-layout-store'
+import { ListTodo, PanelRight } from 'lucide-react'
+import { useWorkspaceLayoutState, workspaceLayoutStore } from '../shell/workspace-layout-store'
 import './conversation-header.css'
 
+const controlClass =
+  'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100 aria-expanded:bg-current/10 aria-expanded:opacity-100'
+
 /*
- * 页头与辅助标签条共享同一组角位控制；面板打开后座位交给标签条，
- * 屏幕坐标不跳。开合只读 workspaceLayoutStore 这一份几何状态。
+ * 会话页头右角的两枚开关：任务面板与辅助面板。
+ *
+ * 它们只写 workspaceLayoutStore 的归属意图 —— 外壳几何的唯一所有者 —— 不认识
+ * 任何面板内部状态。座位固定在页头，面板开合不搬动它们。
  */
-export function ConversationHeader({
-  auxiliaryPanel,
-  conversationId,
-}: {
-  readonly auxiliaryPanel: AuxiliaryPanelStore
-  readonly conversationId: string
-}) {
-  const { auxiliaryThread } = useWorkspaceLayoutState()
+export function ConversationHeader({ conversationId }: { readonly conversationId: string }) {
+  const { auxiliaryThread, todoThread } = useWorkspaceLayoutState()
+  const todoOpen = todoThread === conversationId
+  const auxiliaryOpen = auxiliaryThread === conversationId
+  const todoLabel = todoOpen ? '收起任务' : '任务'
+  const auxiliaryLabel = auxiliaryOpen ? '收起辅助面板' : '打开辅助面板'
 
   return (
     <header className="conversation-header" data-assistant-skin>
-      {auxiliaryThread === conversationId ? null : (
-        <ConversationPanelControls conversationId={conversationId} store={auxiliaryPanel} />
-      )}
+      <div className="flex items-center gap-1">
+        <button
+          aria-controls="conversation-todo-panel"
+          aria-expanded={todoOpen}
+          aria-label={todoLabel}
+          className={controlClass}
+          onClick={() => {
+            workspaceLayoutStore.setTodoThread(todoOpen ? null : conversationId)
+          }}
+          title={todoLabel}
+          type="button"
+        >
+          <ListTodo aria-hidden className="size-4" />
+        </button>
+        <button
+          aria-controls="workspace-auxiliary-panel"
+          aria-expanded={auxiliaryOpen}
+          aria-label={auxiliaryLabel}
+          className={controlClass}
+          onClick={() => {
+            workspaceLayoutStore.setAuxiliaryThread(auxiliaryOpen ? null : conversationId)
+          }}
+          title={auxiliaryLabel}
+          type="button"
+        >
+          <PanelRight aria-hidden className="size-4" />
+        </button>
+      </div>
     </header>
   )
 }

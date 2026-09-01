@@ -219,7 +219,15 @@
   transition: opacity var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
-.workspace-shell[data-auxiliary-mode="overlay"] .workspace-shell__region-clip {
+/*
+ * 只提升辅助列自己的裁剪盒。
+ *
+ * 侧栏与它共用 .workspace-shell__region-clip：不圈定的话，窗口一窄侧栏就丢掉
+ * overflow: clip 漏到主区上，并且连自己的指针一起被关掉。
+ */
+.workspace-shell[data-auxiliary-mode="overlay"]
+  .workspace-shell__auxiliary
+  .workspace-shell__region-clip {
   overflow: visible;
   pointer-events: none;
 }

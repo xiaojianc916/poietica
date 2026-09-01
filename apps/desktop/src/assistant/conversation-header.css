@@ -1,8 +1,7 @@
 /*
  * 会话页头。挂 data-assistant-skin 取 AI 表面的令牌：底色与转录同一块地
  * （--cp-ground），页头是纸的一部分而不是另一条 chrome。高度一格控件行，
- * 28px 方钮上下各余 2px —— 要矮。行高与右距和浏览器 dock 标签条一致
- * （那边是 h-8 与 px-1 + mr-1.5 的字面量）：开关交接座位时坐标不变。
+ * 28px 方钮上下各余 2px —— 要矮。两枚开关恒在右角。
  */
 .conversation-header {
   display: flex;

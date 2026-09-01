@@ -215,46 +215,40 @@ const MOONSHOT: AgentProviderPreset = {
 }
 
 /*
- * OpenRouter
- * 协议：openai。官方 Quick Start 逐字 —— 「OpenRouter's API is OpenAI-compatible —
- *   most SDKs work by just swapping the base URL」。
- * base URL：官方文档的统一入口 https://openrouter.ai/api/v1。
- * 密钥：控制台 https://openrouter.ai/settings/keys。
+ * B.AI（b.ai）
+ * 协议：openai。接入参数没有官方参数表 —— docs.b.ai/llmservice 只有产品介绍页；
+ *   base URL 与模型名逐字取自第三方攻略 kelen.cc 2026-08-29（带可复现的 cURL 示例：
+ *   POST https://api.b.ai/v1/chat/completions，"model":"deepseek-v4-flash"，
+ *   Authorization: Bearer sk-xxx）。
+ * base URL：https://api.b.ai/v1。
+ * 密钥：B.AI LLM 服务控制台左侧「API」菜单 Create API Key；控制台在登录墙后没有
+ *   可外链的稳定地址，指向官方文档入口。
  *
- * stealth/ox-alpha：模型页 openrouter.ai/stealth/ox-alpha 与
- *   GET api/v1/models/stealth/ox-alpha/endpoints（2026-08-22 取）逐字 ——
- *   context_length 1048576、pricing 全 0、supported_parameters 含 reasoning 与
- *   reasoning_effort。档位取值 Low / High / Max 出自该模型设置界面的强度下拉
- *   （用户提供截图，2026-08-22），小写写入；下拉里没有关的一档，「能否整个关掉」
- *   无证据，toggle 不声明。
- *
- * 模型 id 自带一段斜杠（stealth/），别处按 provider/ 剥前缀时只剥第一段
- * （model-display.ts 的 bareModelId），剥完仍是原 id，来回无损；命令行参数白名单
- * （kimi/catalog-add.ts 的 ARG_PATTERN）本来就放行斜杠与冒号。
- *
- * z-ai/glm-5.2:free：GET api/v1/models/z-ai/glm-5.2:free/endpoints（2026-08-22 取）
- *   逐字 —— context_length 256000、pricing 全 0、supported_parameters 含 tools 与
- *   reasoning_effort。OpenRouter 未枚举档位取值，thinking 不声明；要完整档位走上面
- *   智谱直连那张卡。
+ * deepseek-v4-flash / deepseek-v4-flash-vision-exp：模型 id 与 DeepSeek 官方一致
+ *   （api-docs.deepseek.com 的 model 列表逐字）。b.ai 免费模型阵容（同一份攻略，
+ *   2026-08-29）逐字两条都在，上下文 1M（与上面 DeepSeek 直连那张卡同规格同出处）。
+ * 思考：模型本体有思考开关（DeepSeek 官方规格），但 b.ai 网关的 reasoning_effort
+ *   档位与 thinking 开关行为没有官方逐字证据 —— 同一份攻略还记录着 thinking 模式下
+ *   reasoning_content 必须回传的差异，说明网关与直连行为不一致。一格都不声明；
+ *   要完整思考档位走上面 DeepSeek 直连那张卡。
  */
-const OPENROUTER: AgentProviderPreset = {
-  id: 'openrouter',
-  displayName: 'OpenRouter',
-  description: '填入 OpenRouter 密钥，一个账号调用挂在上面的全部模型',
+const BAI: AgentProviderPreset = {
+  id: 'bai',
+  displayName: 'B.AI',
+  description: '填入 B.AI 密钥，一个账号调用平台聚合的全部模型',
   wire: 'openai',
-  baseUrl: 'https://openrouter.ai/api/v1',
-  apiKeysUrl: 'https://openrouter.ai/settings/keys',
+  baseUrl: 'https://api.b.ai/v1',
+  apiKeysUrl: 'https://docs.b.ai/llmservice/introduction/',
   models: [
     {
-      id: 'stealth/ox-alpha',
-      displayName: 'Ox Alpha',
-      maxContextSize: 1048576,
-      thinking: { efforts: ['low', 'high', 'max'] },
+      id: 'deepseek-v4-flash',
+      displayName: 'DeepSeek V4 Flash',
+      maxContextSize: 1000000,
     },
     {
-      id: 'z-ai/glm-5.2:free',
-      displayName: 'GLM 5.2 (free)',
-      maxContextSize: 256000,
+      id: 'deepseek-v4-flash-vision-exp',
+      displayName: 'DeepSeek V4 Flash Vision Exp',
+      maxContextSize: 1000000,
     },
   ],
 }
@@ -291,7 +285,7 @@ const TOKENROUTER: AgentProviderPreset = {
   ],
 }
 
-const PRESETS: readonly AgentProviderPreset[] = [DEEPSEEK, ZHIPU, MOONSHOT, OPENROUTER, TOKENROUTER]
+const PRESETS: readonly AgentProviderPreset[] = [DEEPSEEK, ZHIPU, MOONSHOT, BAI, TOKENROUTER]
 
 /** 设置界面要显示的厂商，顺序即显示顺序。 */
 export function builtinAgentProviders(): readonly AgentProviderPreset[] {
