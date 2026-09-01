@@ -58,6 +58,7 @@ export {
   removeCustomAgent,
   saveCustomAgent,
 } from './gateways/custom-agents'
+export { exportTable } from './gateways/export-table'
 export { capabilityGateway, extensionGateway } from './gateways/extension'
 export {
   type GitBranches,

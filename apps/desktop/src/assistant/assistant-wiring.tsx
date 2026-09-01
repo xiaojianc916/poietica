@@ -1,4 +1,6 @@
+import type { AutomationStore } from '@poietica/automation'
 import type { AgentSessionPort } from '@poietica/conversation'
+import type { PluginStore } from '@poietica/extension'
 import { type CustomAgentStore, PersonalizationStore } from '@poietica/settings'
 import {
   ComposerDrafts,
@@ -9,7 +11,6 @@ import {
 } from '@poietica/surfaces'
 import type { ReactNode } from 'react'
 import { AutomationsView } from '../automation/automations-view'
-import { pluginStore } from '../entry/plugin-runtime'
 import type { SurfaceRenderers } from '../shell/surface'
 import { AssistantPane } from './assistant-pane'
 
@@ -36,22 +37,27 @@ interface AssistantWiringOptions {
   readonly onConversationForked: (threadId: string, title: string) => void
   readonly onConversationStarted: (threadId: string, title: string) => void
   readonly session: AgentSessionPort
+  /** 进程级自动化表与插件名册，由组合根构造注入（见 entry/compose-runtime.ts）。 */
+  readonly automationStore: AutomationStore
+  readonly pluginStore: PluginStore
 }
 
 /*
  * 扩展页在这里接上名册：技能表是 kap 名册的投影（见 @poietica/extension 的 skill.ts），
  * 名册唯一持有者是能力表 store，经 Context 读它交进去，不复制。
  */
-function ToolsSurface() {
+function ToolsSurface({ store }: { store: PluginStore }) {
   const { toolkit } = useAgentControls()
 
-  return <PluginsSurface roster={toolkit.skills} store={pluginStore} />
+  return <PluginsSurface roster={toolkit.skills} store={store} />
 }
 
 export function createAssistantWiring({
+  automationStore,
   customAgents,
   onConversationForked,
   onConversationStarted,
+  pluginStore,
   session,
 }: AssistantWiringOptions): AssistantWiring {
   /*
@@ -83,11 +89,11 @@ export function createAssistantWiring({
        * 注册表里登记了 automations，这里就必须交出一条，
        * 漏掉是编译错误而不是一张空态图。
        */
-      automations: () => <AutomationsView />,
+      automations: () => <AutomationsView store={automationStore} />,
 
       /* Tool 那一格。注册表里 tools 已经是 surface，漏掉这一条是编译错误。 */
       personalization: () => <PersonalizationSurface store={personalization} />,
-      tools: () => <ToolsSurface />,
+      tools: () => <ToolsSurface store={pluginStore} />,
     },
 
     renderAssistant,

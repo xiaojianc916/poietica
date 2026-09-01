@@ -1,3 +1,4 @@
+import type { AutomationStore } from '@poietica/automation'
 import type { AgentSessionPort } from '@poietica/conversation'
 import type { PluginStore } from '@poietica/extension'
 import { browserHostPort } from '@poietica/native-bridge'
@@ -61,6 +62,8 @@ export interface WorkspaceContainerProps {
   readonly agentConfigStore: AgentConfigStore
   readonly customAgentStore: CustomAgentStore
   readonly plugins: PluginStore
+  /** 进程级自动化表，由组合根构造注入（见 entry/compose-runtime.ts）。 */
+  readonly automationStore: AutomationStore
   readonly keybindings: KeybindingCatalog
   readonly updateRow: ReactNode
   readonly isWindowMaximized: boolean
@@ -91,6 +94,7 @@ export function WorkspaceContainer({
   agentConfigStore,
   customAgentStore,
   plugins,
+  automationStore,
   keybindings,
   updateRow,
   isWindowMaximized,
@@ -221,13 +225,15 @@ export function WorkspaceContainer({
   const assistant = useMemo(
     () =>
       createAssistantWiring({
+        automationStore,
         customAgents: customAgentStore,
         /* 分叉出的对话就地打开：与点开列表里一条是同一个动作。 */
         onConversationForked: startConversation,
         onConversationStarted: startConversation,
+        pluginStore: plugins,
         session: agentSession,
       }),
-    [agentSession, customAgentStore, startConversation],
+    [agentSession, automationStore, customAgentStore, plugins, startConversation],
   )
 
   /* AI 入口晋升时只换 threadId；非 AI 表面仍由工作区的统一宿主渲染。 */

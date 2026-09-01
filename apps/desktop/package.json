@@ -20,7 +20,6 @@
     "@poietica/agent-catalog": "workspace:*",
     "@poietica/automation": "workspace:*",
     "@poietica/browser": "workspace:*",
-    "@poietica/contract": "workspace:*",
     "@poietica/external-store": "workspace:*",
     "@poietica/native-bridge": "workspace:*",
     "@poietica/extension": "workspace:*",

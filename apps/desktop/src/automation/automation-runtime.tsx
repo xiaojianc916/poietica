@@ -1,21 +1,15 @@
-import { type Automation, createAutomationStore, sessionConfigOf } from '@poietica/automation'
+import { type Automation, type AutomationStore, sessionConfigOf } from '@poietica/automation'
 import type { AgentSessionPort } from '@poietica/conversation'
-import { automationGateway } from '@poietica/native-bridge'
 import { useSessionControlsActions, useTranscripts } from '@poietica/surfaces'
 import { useEffect } from 'react'
 import { v7 as uuidv7 } from 'uuid'
 
 import { useThreadsActions } from '../assistant/threads-context'
 
-/**
- * 自动化的进程级运行时。
- *
- * 一个进程一份，和 agent 会话、方言、对话列表同级（见 entry/agent-runtime.ts）。
- */
-export const automationStore = createAutomationStore(automationGateway)
-
 export interface AutomationDispatcherProps {
   readonly session: AgentSessionPort
+  /** 进程级自动化 store，由组合根构造注入（见 entry/compose-runtime.ts）。 */
+  readonly store: AutomationStore
 }
 
 /**
@@ -32,7 +26,7 @@ export interface AutomationDispatcherProps {
  * 一次运行就是开出一条普通对话、把指令说进去 —— 说话与人按下发送键走的是同一条
  * 管线（TranscriptStore.send），自动化不另立一套执行器，也不另存一份运行日志。
  */
-export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
+export function AutomationDispatcher({ session, store }: AutomationDispatcherProps) {
   const controls = useSessionControlsActions()
   const threads = useThreadsActions()
   const transcripts = useTranscripts()
@@ -102,8 +96,8 @@ export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
       }
     }
 
-    return automationStore.start(dispatch)
-  }, [controls, session, threads, transcripts])
+    return store.start(dispatch)
+  }, [controls, session, store, threads, transcripts])
 
   return null
 }

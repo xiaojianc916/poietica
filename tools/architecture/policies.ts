@@ -548,7 +548,7 @@ export async function manifestScriptsResolve(
 }
 
 /** 点名的脚本必须存在：manifest 之外，源码里 spawn 出去的路径同样是一处声明。 */
-const INVOKED_SCRIPT = /(?:apps|packages|tools)\/[\w./-]+\.(?:ts|tsx|mjs)/g
+const INVOKED_SCRIPT = /(?:apps|packages|tools)\/[\w./-]+\.(?:tsx|ts|mjs)/g
 
 export async function invokedScriptsResolve(root: string): Promise<Violation[]> {
   const violations: Violation[] = []

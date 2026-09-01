@@ -1,4 +1,4 @@
-import { commands } from '@poietica/contract'
+import { exportTable } from '@poietica/native-bridge'
 
 const CSV_DOWNLOAD_TITLE = '下载为 CSV'
 const MARKDOWN_DOWNLOAD_TITLE = '下载为 Markdown'
@@ -117,7 +117,7 @@ export function installTableDownloads(): () => void {
 
     const content = contentFor(table, format)
 
-    void commands.tableExport({ content, format }).catch((cause: unknown) => {
+    void exportTable({ content, format }).catch((cause: unknown) => {
       console.error('[Poietica] Failed to export a table', cause)
       window.alert('表格下载失败，请重试。')
     })

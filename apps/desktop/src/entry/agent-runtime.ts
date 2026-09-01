@@ -22,12 +22,13 @@ import {
 } from '@poietica/native-bridge'
 import { error as reportError } from '@poietica/problem'
 import type { AgentConfigStore } from '@poietica/settings'
-import { hostedMcpServersReady } from './plugin-runtime'
 import { createThinkingPreference } from './thinking-preference'
 
 interface DesktopAgentRuntimeOptions {
   readonly config: AgentConfigStore
   readonly cwd: NonNullable<AgentBridgeOptions['cwd']>
+  /** mcp.json 对齐到本次启动端口的那趟对账，agent 起来前必须落定。 */
+  readonly mcpReady: Promise<void>
 }
 
 export interface DesktopAgentRuntime {
@@ -58,7 +59,7 @@ export function createDesktopAgentRuntime(
    * 所有会走到 ensure_session 的桥都经过这里，所以这一处就是全部。
    */
   const launchAgent = async () => {
-    await hostedMcpServersReady
+    await options.mcpReady
 
     return { agentId: agent.id }
   }

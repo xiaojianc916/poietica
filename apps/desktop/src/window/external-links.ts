@@ -1,4 +1,4 @@
-import { commands } from '@poietica/contract'
+import { openBrowserUrlExternally } from '@poietica/native-bridge'
 
 /**
  * 外链归系统浏览器。
@@ -74,7 +74,7 @@ export function installExternalLinks(): () => void {
     event.preventDefault()
     event.stopPropagation()
 
-    void commands.windowOpenExternalUrl(href).catch((cause: unknown) => {
+    void openBrowserUrlExternally(href).catch((cause: unknown) => {
       console.error('[Poietica] Failed to open an external link', cause)
     })
   }

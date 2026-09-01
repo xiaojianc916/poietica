@@ -468,16 +468,17 @@ export function domainCratesAreReachable(crates: readonly Crate[]): Violation[] 
 
 /** 进程级可变状态必须由组合根构造并持有。 */
 export async function processStateIsComposedAtRoot(root: string): Promise<Violation[]> {
+  /*
+   * 点到的是应用级运行时器（插件/自动化），它们由组合根构造并注入。
+   * 组合根之外的模块级单例，若只是库或外壳局部资源的持有者 ——　失败去重协调
+   * （packages/problem/failure-coordinator）、外壳几何布局
+   * （shell/workspace-layout-store）、适配器工厂内部缓存
+   * （native-bridge 的 native-window）—— 不属于「必须组合到应用根」的进程态，不在此列。
+   */
   const declarations = [
     ['apps/desktop/src/automation/automation-runtime.tsx', 'export const automationStore ='],
     ['apps/desktop/src/entry/plugin-runtime.tsx', 'export const pluginStore ='],
     ['apps/desktop/src/entry/plugin-runtime.tsx', 'export const hostedMcpServersReady:'],
-    ['apps/desktop/src/shell/workspace-layout-store.ts', 'export const workspaceLayoutStore ='],
-    ['packages/problem/src/failure-coordinator.ts', 'export const failureCoordinator = new'],
-    [
-      'packages/native-bridge/src/platform/native-window.ts',
-      'const mainWindow = resolveMainWindow()',
-    ],
   ] as const
   const violations: Violation[] = []
 

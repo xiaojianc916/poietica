@@ -15,7 +15,6 @@ export interface MainWindowController {
 }
 
 const MAIN_WINDOW_LABEL = 'main'
-const mainWindow = resolveMainWindow()
 
 function resolveMainWindow(): Window | null {
   if (!isTauri()) {
@@ -28,7 +27,7 @@ function resolveMainWindow(): Window | null {
   return current
 }
 
-function requireMainWindow(): Window {
+function requireMainWindow(mainWindow: Window | null): Window {
   if (mainWindow === null) {
     throw new Error('The native window API is unavailable outside Tauri.')
   }
@@ -36,16 +35,19 @@ function requireMainWindow(): Window {
 }
 
 export function createMainWindowController(): MainWindowController {
+  /* 句柄由工厂解析，不挂在模块级：窗口归属实例，不归属进程。 */
+  const mainWindow = resolveMainWindow()
+
   return {
     async present() {
-      const window = requireMainWindow()
+      const window = requireMainWindow(mainWindow)
       await window.show()
       await window.setFocus()
     },
 
-    minimize: () => requireMainWindow().minimize(),
-    toggleMaximize: () => requireMainWindow().toggleMaximize(),
-    isMaximized: () => requireMainWindow().isMaximized(),
+    minimize: () => requireMainWindow(mainWindow).minimize(),
+    toggleMaximize: () => requireMainWindow(mainWindow).toggleMaximize(),
+    isMaximized: () => requireMainWindow(mainWindow).isMaximized(),
 
     onMaximizedChanged: (handler) =>
       events.windowMaximized.listen((event) => {

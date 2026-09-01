@@ -13,7 +13,7 @@ import { ConversationCommands } from '../assistant/conversation-commands'
 import { ThreadsProvider } from '../assistant/threads-provider'
 import { AutomationDispatcher } from '../automation/automation-runtime'
 import type { ApplicationRuntime } from '../entry/compose-runtime'
-import { PluginLoader, pluginStore } from '../entry/plugin-runtime'
+import { PluginLoader } from '../entry/plugin-runtime'
 import { NoticeRegion } from '../notice/notice-region'
 import { type ApplicationFailureCode, reportFailure } from '../notice/problem-presentation'
 import { UpdateCapsule } from '../update/update-capsule'
@@ -285,8 +285,8 @@ export function AppShell({ runtime }: AppShellProps) {
   useEffect(() => {
     let seen: PluginsViewModel['ownedSkills'] | undefined
 
-    return pluginStore.subscribe(() => {
-      const owned = pluginStore.getSnapshot().ownedSkills
+    return runtime.pluginStore.subscribe(() => {
+      const owned = runtime.pluginStore.getSnapshot().ownedSkills
 
       if (seen !== undefined && owned !== seen) {
         agentControls.refresh()
@@ -294,7 +294,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
       seen = owned
     })
-  }, [agentControls])
+  }, [agentControls, runtime.pluginStore])
 
   /*
    * 目录一个进程一份，理由与上面两台 store 逐字相同：useState 的初始化函数给
@@ -321,10 +321,10 @@ export function AppShell({ runtime }: AppShellProps) {
            * ThreadsProvider 之内是硬要求：一次运行要开出一条对话，而开对话的动作出
            * 自这个 provider。
            */}
-          <AutomationDispatcher session={runtime.agent.session} />
+          <AutomationDispatcher session={runtime.agent.session} store={runtime.automationStore} />
 
           {/* 同样无渲染产出：让插件的装载与应用同寿。 */}
-          <PluginLoader />
+          <PluginLoader store={runtime.pluginStore} />
 
           {/*
           同样无渲染产出：把会话列表贡献进命令注册表，于是搜索框里第一组就是
@@ -336,6 +336,7 @@ export function AppShell({ runtime }: AppShellProps) {
             agentConfigStore={runtime.agentConfig}
             agentSession={runtime.agent.session}
             appVersion={runtime.appVersion}
+            automationStore={runtime.automationStore}
             commands={runtime.commands}
             customAgentStore={runtime.customAgents}
             dataDirectory={runtime.dataDirectory}
@@ -348,7 +349,7 @@ export function AppShell({ runtime }: AppShellProps) {
             onWindowClose={closeWindow}
             onWindowMaximize={maximizeWindow}
             onWindowMinimize={minimizeWindow}
-            plugins={pluginStore}
+            plugins={runtime.pluginStore}
             settingsStore={runtime.settings}
             updateRow={<UpdateRow store={updates} />}
             workspace={runtime.workspace}

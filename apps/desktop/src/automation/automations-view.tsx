@@ -1,6 +1,5 @@
+import type { AutomationStore } from '@poietica/automation'
 import { AutomationsSurface, useAgentControls } from '@poietica/surfaces'
-
-import { automationStore } from './automation-runtime'
 
 /**
  * 自动化那一格与 agent 可调项的交界。
@@ -15,8 +14,13 @@ import { automationStore } from './automation-runtime'
  * 只取表，不取 failure/retry：这一屏存的是「以后每次到期用什么」，它把人没动过的
  * 项落成 agent 此刻报的 current（见 AutomationEditor 的 resolve）。
  */
-export function AutomationsView() {
+export interface AutomationsViewProps {
+  /** 进程级自动化 store，由组合根构造注入（见 entry/compose-runtime.ts）。 */
+  readonly store: AutomationStore
+}
+
+export function AutomationsView({ store }: AutomationsViewProps) {
   const { controls } = useAgentControls()
 
-  return <AutomationsSurface controls={controls} store={automationStore} />
+  return <AutomationsSurface controls={controls} store={store} />
 }

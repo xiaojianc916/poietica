@@ -1,8 +1,13 @@
+import { type AutomationStore, createAutomationStore } from '@poietica/automation'
+import { createPluginStore, type PluginStore } from '@poietica/extension'
 import {
   appUpdateController,
+  automationGateway,
+  capabilityGateway,
   createAgentConfigStore,
   createMainWindowController,
   createSettingsStore,
+  extensionGateway,
   listCustomAgents,
   type MainWindowController,
   readAppVersion,
@@ -22,7 +27,23 @@ import {
 } from '@poietica/workspace'
 import { createDesktopAgentRuntime, type DesktopAgentRuntime } from './agent-runtime'
 import { createAttachmentIntake } from './attachment-intake'
+import { reconcileAutomationsMcpServer } from './automations-mcp'
+import { reconcileBrowserMcpServer } from './browser-mcp'
 import { activeWorkspaceRoot } from './workspace-root'
+
+/**
+ * 市场目录在哪。
+ *
+ * 官方那一个：上游 apps/kimi-code/src/constant/app.ts 里
+ * KIMI_CODE_PLUGIN_MARKETPLACE_URL = `${KIMI_CODE_CDN_BASE}/plugins/marketplace.json`，
+ * 而 KIMI_CODE_CDN_BASE 是 https://code.kimi.com/kimi-code；官方文档
+ * docs/{zh,en}/configuration/env-vars.md 把同一串逐字写在
+ * KIMI_CODE_PLUGIN_MARKETPLACE_URL 一节里。
+ *
+ * 不是仓库里那份 plugins/marketplace.json：那一份是源码检出时的兜底，条目写的是相对
+ * 本地路径，而且它不随发布走 —— 官方发布了什么，只有 CDN 上那一份说得准。
+ */
+const MARKETPLACE_URL = 'https://code.kimi.com/kimi-code/plugins/marketplace.json'
 
 export interface ApplicationRuntime {
   readonly workspace: WorkbenchSessionStore
@@ -34,6 +55,8 @@ export interface ApplicationRuntime {
   readonly customAgents: CustomAgentStore
   readonly agent: DesktopAgentRuntime
   readonly attachments: AttachmentIntake
+  readonly pluginStore: PluginStore
+  readonly automationStore: AutomationStore
   /** 这个可执行文件自己的版本号。 */
   readonly appVersion: () => Promise<string>
   /** 这台机器上，这个应用的数据落在哪。关于页面要如实说出它。 */
@@ -67,9 +90,28 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   }
 
   const attachments = createAttachmentIntake()
+
+  /*
+   * 两台受控 MCP 服务器在 mcp.json 里的条目，要在 agent 起来前对齐到本次启动的端口：
+   * kap 在进程起来那一刻读 mcp.json，读到上一次启动的端口就是「closed unexpectedly」。
+   * 在模块求值时出发，不等任何 effect。
+   */
+  const pluginStore = createPluginStore({
+    capability: capabilityGateway,
+    gateway: extensionGateway,
+    marketplaceUrl: MARKETPLACE_URL,
+    now: () => new Date().toISOString(),
+  })
+  const hostedMcpServersReady: Promise<void> = Promise.all([
+    reconcileAutomationsMcpServer(pluginStore),
+    reconcileBrowserMcpServer(pluginStore),
+  ]).then(() => undefined)
+  const automationStore = createAutomationStore(automationGateway)
+
   const agent = createDesktopAgentRuntime({
     config: agentConfig,
     cwd: activeWorkspaceRoot,
+    mcpReady: hostedMcpServersReady,
   })
 
   return {
@@ -82,6 +124,8 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     customAgents,
     agent,
     attachments,
+    pluginStore,
+    automationStore,
     appVersion: readAppVersion,
     dataDirectory: readDataDirectory,
 
