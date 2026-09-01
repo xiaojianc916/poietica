@@ -10,7 +10,7 @@ use poietica_kap_client::{
     SessionUsageSnapshot,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, value::RawValue};
+use serde_json::Value;
 use specta::Type;
 use tauri_specta::Event;
 
@@ -246,11 +246,89 @@ pub(super) fn reported_usage(usage: SessionUsageSnapshot) -> AgentSessionUsage {
     }
 }
 
-/// 一批已经落账、准备交给时间线的运行帧。
+/// Closed wire vocabulary. Opaque protocol payloads remain JSON, but an event envelope cannot.
+#[derive(Clone, Debug, Deserialize, Serialize, Type)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum AgentLinkState {
+    #[serde(rename_all = "camelCase")]
+    Retrying { attempt: u32, of: u32, retry_at: i64, reason: String },
+    #[serde(rename_all = "camelCase")]
+    Recovered { reason: String },
+    #[serde(rename_all = "camelCase")]
+    Severed { attempts: u32, reason: String },
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Type)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AgentRunFrame {
+    #[serde(rename_all = "camelCase")]
+    TurnAdmitted { turn: String },
+    #[serde(rename_all = "camelCase")]
+    PromptAdmitted { admission_id: String, prompt: Option<String>, images: Option<Vec<String>>, skills: Option<Vec<String>> },
+    #[serde(rename_all = "camelCase")]
+    KapEvent { payload: Value },
+    #[serde(rename_all = "camelCase")]
+    PermissionRequested { request_id: String, tool_call_id: Option<String>, title: String, tool_call: Value },
+    #[serde(rename_all = "camelCase")]
+    PermissionResolved { request_id: String, decision: String, scope: Option<String>, selected_label: Option<String>, feedback: Option<String> },
+    #[serde(rename_all = "camelCase")]
+    QuestionsAsked { question_id: String, tool_call_id: Option<String>, questions: Value },
+    #[serde(rename_all = "camelCase")]
+    QuestionsResolved { question_id: String, outcome: String, answers: Value, note: String },
+    #[serde(rename_all = "camelCase")]
+    SessionRecovered { snapshot: Value },
+    #[serde(rename_all = "camelCase")]
+    LinkChanged { link: AgentLinkState },
+    #[serde(rename_all = "camelCase")]
+    RunFinished { turn: Option<String>, stop_reason: String },
+    #[serde(rename_all = "camelCase")]
+    RunFailed { turn: Option<String>, message: String },
+    #[serde(rename_all = "camelCase")]
+    UnsupportedExternalEvent { raw_kind: String },
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunEvent {
+    pub session_id: String,
+    pub seq: u32,
+    pub at: i64,
+    #[serde(flatten)]
+    pub frame: AgentRunFrame,
+}
+
+impl From<poietica_conversation::event::EventEnvelope> for AgentRunEvent {
+    fn from(envelope: poietica_conversation::event::EventEnvelope) -> Self {
+        use poietica_conversation::event::ConversationEvent as Event;
+        use poietica_conversation::link::LinkState as Link;
+        let frame = match envelope.event {
+            Event::TurnAdmitted { turn } => AgentRunFrame::TurnAdmitted { turn: turn.to_string() },
+            Event::PromptAdmitted { admission_id, prompt, images, skills } => AgentRunFrame::PromptAdmitted { admission_id: admission_id.to_string(), prompt, images, skills },
+            Event::KapEvent { payload } => AgentRunFrame::KapEvent { payload },
+            Event::PermissionRequested { request_id, tool_call_id, title, tool_call } => AgentRunFrame::PermissionRequested { request_id, tool_call_id, title, tool_call },
+            Event::PermissionResolved { request_id, decision, scope, selected_label, feedback } => AgentRunFrame::PermissionResolved { request_id, decision, scope, selected_label, feedback },
+            Event::QuestionsAsked { question_id, tool_call_id, questions } => AgentRunFrame::QuestionsAsked { question_id, tool_call_id, questions },
+            Event::QuestionsResolved { question_id, outcome, answers, note } => AgentRunFrame::QuestionsResolved { question_id, outcome, answers, note },
+            Event::SessionRecovered { snapshot } => AgentRunFrame::SessionRecovered { snapshot },
+            Event::LinkChanged { link } => AgentRunFrame::LinkChanged { link: match link {
+                Link::Retrying { attempt, of, retry_at, reason } => AgentLinkState::Retrying { attempt, of, retry_at, reason },
+                Link::Recovered { reason } => AgentLinkState::Recovered { reason },
+                Link::Severed { attempts, reason } => AgentLinkState::Severed { attempts, reason },
+            } },
+            Event::RunFinished { turn, stop_reason } => AgentRunFrame::RunFinished { turn: turn.map(|value| value.to_string()), stop_reason },
+            Event::RunFailed { turn, message } => AgentRunFrame::RunFailed { turn: turn.map(|value| value.to_string()), message },
+            Event::UnsupportedExternalEvent { raw_kind } => AgentRunFrame::UnsupportedExternalEvent { raw_kind },
+        };
+        Self { session_id: envelope.session_id, seq: u32::try_from(envelope.seq.value()).map_or(u32::MAX, |value| value), at: envelope.at, frame }
+    }
+}
+
+/// A persisted batch; the outer session id makes its routing invariant explicit.
 #[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRunBatch {
-    pub events: Vec<Value>,
+    pub session_id: String,
+    pub events: Vec<AgentRunEvent>,
 }
 
 /// agent 主动报来的一件会话级状态。
@@ -355,17 +433,11 @@ pub struct AgentFrameCursor {
     pub seq: u32,
 }
 
-/// 一页完整轮次的 block 帧，以及更早那一页从哪儿接着读。
+/// A page of validated wire events and its earlier cursor.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentFramePage {
-    /// 这一页的帧，按追加顺序。库里那一段字节，未解析。
-    ///
-    /// specta 没有 `RawValue` 的 `Type`，线上形状因此由 `type` 明写 ——
-    /// 与 `Vec<Value>` 生成的绑定逐字相同。
-    #[specta(type = Vec<Value>)]
-    pub events: Vec<Box<RawValue>>,
-    /// 更早那一页的读取位置；缺席就是前面没有了。
+    pub events: Vec<AgentRunEvent>,
     pub before: Option<AgentFrameCursor>,
 }
 

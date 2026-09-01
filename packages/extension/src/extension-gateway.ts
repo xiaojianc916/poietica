@@ -8,7 +8,7 @@ import type {
   SkillCommitRequest,
   SkillRecord,
   SkillStaged,
-} from '@poietica/contract'
+} from './model'
 
 /*
  * 扩展与技能账本的端口：领域不认识 IPC，由组合根注入 native-bridge 的实现。

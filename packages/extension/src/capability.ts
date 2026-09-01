@@ -1,5 +1,5 @@
-import type { AgentCapability } from '@poietica/contract'
 import type { InstalledPlugin } from './installation'
+import type { AgentCapability } from './model'
 
 export const COMPUTER_USE = { capabilityId: 'kimi-cu' } as const
 

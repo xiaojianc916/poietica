@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@poietica/agent-catalog": "workspace:*",
-    "@poietica/contract": "workspace:*",
     "@poietica/external-store": "workspace:*",
     "@poietica/problem": "workspace:*",
     "yaml": "catalog:"

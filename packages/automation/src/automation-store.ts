@@ -1,13 +1,7 @@
-import type {
-  Automation,
-  AutomationCatalog,
-  AutomationReschedule,
-  AutomationRun,
-} from '@poietica/contract'
 import { warn } from '@poietica/problem'
-
 import { type AutomationDraft, nextRunAfter } from './automation'
 import type { AutomationGateway } from './automation-gateway'
+import type { Automation, AutomationCatalog, AutomationReschedule, AutomationRun } from './model'
 
 /**
  * 自动化的状态与调度。

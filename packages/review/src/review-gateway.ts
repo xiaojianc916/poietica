@@ -1,4 +1,4 @@
-import type { GitCommitIntent, GitCommitRequest, GitReview } from '@poietica/contract'
+import type { GitCommitIntent, GitCommitRequest, GitReview } from './model'
 
 /*
  * 审查会话需要宿主提供哪些 git 动作。DTO 不在这里声明 —— 产地是 Rust，经由生成
@@ -15,8 +15,8 @@ export interface ReviewGateway {
   ): Promise<GitReview | null>
   /** 某一份文件的全文补丁（开着的文件才取，带词级差异所需的全行）。 */
   filePatch(root: string, base: string, path: string, ignoreWhitespace: boolean): Promise<string>
-  /** 等下一次工作树跳动；false = 这一窗里没动，再挂一次。挂不上就没有下一次问。 */
-  awaitChange(root: string): Promise<boolean>
+  /** Acquire one native shared watcher lease. Releasing it cancels observation immediately. */
+  watch(root: string, onChange: () => void): Promise<() => Promise<void>>
   /** 提交或推送。回给提交之后的下一份快照。 */
   commit(request: GitCommitRequest): Promise<GitReview>
 }

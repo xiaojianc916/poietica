@@ -3,7 +3,7 @@ import type {
   AutomationCatalog,
   AutomationCreation,
   AutomationRunRecord,
-} from '@poietica/contract'
+} from './model'
 
 /**
  * 自动化账本的端口：领域不认识 IPC，由组合根注入 native-bridge 的实现。

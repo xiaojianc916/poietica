@@ -3,7 +3,7 @@ import type {
   CustomAgentFile,
   CustomAgentRemoveRequest,
   CustomAgentSaveRequest,
-} from '@poietica/contract'
+} from '../model'
 
 export type {
   CustomAgentCatalog,

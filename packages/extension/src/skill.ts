@@ -1,5 +1,5 @@
-import type { AgentSkill, SkillRecord } from '@poietica/contract'
 import { parse } from 'yaml'
+import type { AgentSkill, SkillRecord } from './model'
 
 export interface InstalledSkill {
   readonly directory: string

@@ -1,6 +1,5 @@
-import type { Problem } from '@poietica/contract'
-
 import { PROBLEM_COPY } from './copy.ts'
+import type { Problem } from './model'
 
 export type { Problem }
 

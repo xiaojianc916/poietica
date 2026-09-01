@@ -1,6 +1,6 @@
-import type { UpdateKind } from '@poietica/contract'
 import { createExternalStore } from '@poietica/external-store'
 import type { AppUpdateController } from './app-update-controller'
+import type { UpdateKind } from './model'
 
 /* 检查节奏只有这一份：定时器跟着 store 活，六小时才真的是六小时。 */
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000

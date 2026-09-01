@@ -7,6 +7,7 @@ import {
   type AgentMcpServer,
   type AgentQuestionChoice,
   type AgentRunBatch,
+  type AgentRunEvent,
   type AgentSessionEvent,
   commands,
   events,
@@ -43,53 +44,19 @@ import { throughIpc } from '../error'
  * and translates wire DTOs into domain ports.
  */
 
-function sessionIdOf(value: unknown): string | null {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+function runEventOf(event: AgentRunEvent): RunEvent | null {
+  if (event.kind === 'turn_admitted' || event.kind === 'unsupported_external_event') {
     return null
   }
-
-  const sessionId = Reflect.get(value, 'sessionId')
-  return typeof sessionId === 'string' ? sessionId : null
+  const { sessionId: _sessionId, ...frame } = event
+  return frame as RunEvent
 }
 
-/*
- * 线上原文 -> 端口词汇的唯一收窄点。
- *
- * 判别式清单由 RunEvent 联合穷举（Record 强制每个 kind 都在）：加一种帧，
- * 这里漏写会是编译错误。账本为忠实重放而留的机制帧（turn_admitted、
- * unsupported_external_event）不在屏幕词汇里，在这里落选 —— 词表边界在尽职，
- * 不是数据丢了。
- */
-const RUN_EVENT_KINDS = {
-  prompt_admitted: true,
-  kap_event: true,
-  permission_requested: true,
-  permission_resolved: true,
-  questions_asked: true,
-  questions_resolved: true,
-  session_recovered: true,
-  link_changed: true,
-  run_finished: true,
-  run_failed: true,
-} as const satisfies Record<RunEvent['kind'], true>
-
-function isRunEvent(value: unknown): value is RunEvent {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-
-  const kind = Reflect.get(value, 'kind')
-
-  return (
-    typeof kind === 'string' &&
-    kind in RUN_EVENT_KINDS &&
-    typeof Reflect.get(value, 'seq') === 'number' &&
-    typeof Reflect.get(value, 'at') === 'number'
-  )
-}
-
-function runEventsOf(events: readonly unknown[]): readonly RunEvent[] {
-  return events.filter(isRunEvent)
+function runEventsOf(events: readonly AgentRunEvent[]): readonly RunEvent[] {
+  return events.flatMap((event) => {
+    const translated = runEventOf(event)
+    return translated === null ? [] : [translated]
+  })
 }
 
 function framePageOf(page: AgentFramePage): FramePage {
@@ -240,22 +207,10 @@ export function createAgentSessionPort({
             receive(event.payload)
           }),
         (batch) => {
-          const events = runEventsOf(batch.events)
-          const first = events.at(0)
-
-          if (first === undefined) {
-            return
+          const translated = runEventsOf(batch.events)
+          if (translated.length > 0) {
+            listener(translated, batch.sessionId)
           }
-
-          const sessionId = sessionIdOf(first)
-          const oneSession = events.every((event) => sessionIdOf(event) === sessionId)
-
-          if (sessionId === null || !oneSession) {
-            onListenFailure?.(new TypeError('agent run batch has an invalid session envelope'))
-            return
-          }
-
-          listener(events, sessionId)
         },
         onListenFailure,
       ),

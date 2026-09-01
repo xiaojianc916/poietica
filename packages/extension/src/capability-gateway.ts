@@ -1,4 +1,4 @@
-import type { AgentCapability } from '@poietica/contract'
+import type { AgentCapability } from './model'
 
 /* KAP 是能力就绪与安装的唯一事实源；连接生命周期由原生适配器处理。 */
 export interface CapabilityGateway {

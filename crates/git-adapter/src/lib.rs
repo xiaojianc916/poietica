@@ -22,7 +22,7 @@ mod review;
 mod watch;
 
 pub use review::{commit, file_patch, review};
-pub use watch::await_change;
+pub use watch::WatchRegistry;
 
 /// 审查面的领域类型由 review 领域拥有；从这里转发，消费者不必两处 import。
 pub use poietica_review_native::{ChangeStatus, CommitIntent, FileChange, ReviewSnapshot};
@@ -41,6 +41,9 @@ pub enum GitError {
     /// 监视挂不上：平台句柄耗尽，或目录在挂之前就没了。
     #[error("无法监视工作目录：{0}")]
     Unwatchable(#[from] notify::Error),
+
+    #[error("无法解析工作目录：{0}")]
+    WatchRoot(std::io::Error),
 }
 
 /// 一个仓库此刻的分支快照。

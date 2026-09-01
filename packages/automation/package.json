@@ -11,7 +11,6 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/contract": "workspace:*",
     "@poietica/problem": "workspace:*",
     "croner": "10.0.1"
   },

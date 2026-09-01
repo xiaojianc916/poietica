@@ -2,7 +2,9 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::command;
+use std::sync::Arc;
+use tauri::{AppHandle, State, command};
+use tauri_specta::Event as _;
 
 use crate::error::Error;
 use poietica_problem::Problem;
@@ -207,13 +209,30 @@ pub struct GitCommitRequest {
     pub ignore_whitespace: bool,
 }
 
-/// 等这个工作树的下一次变化。true = 变了；false = 这一窗里没动，调用方再挂一次。
-///
-/// 监视与这一次调用同寿，谁创建谁销毁；界面因此不需要刷新按钮。
+/// A lease on the shared watcher for one canonical repository root.
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWatchLease { pub token: String, pub root: String }
+
+#[derive(Clone, Debug, Deserialize, tauri_specta::Event, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWorkingTreeChanged { pub root: String }
+
 #[command]
 #[specta::specta]
-pub async fn git_await_change(root: String) -> Result<bool, Problem> {
-    poietica_git_adapter_native::await_change(Path::new(&root))
-        .await
-        .map_err(surfaced)
+pub async fn git_watch_start(app: AppHandle, watches: State<'_, poietica_git_adapter_native::WatchRegistry>, root: String) -> Result<GitWatchLease, Problem> {
+    let token = uuid::Uuid::now_v7().to_string();
+    let emitter = app.clone();
+    let canonical = watches.acquire(Path::new(&root), token.clone(), Arc::new(move |changed| {
+        if let Err(error) = (GitWorkingTreeChanged { root: changed.to_string_lossy().into_owned() }).emit(&emitter) {
+            log::warn!("could not announce a working-tree change: {error}");
+        }
+    })).map_err(surfaced)?;
+    Ok(GitWatchLease { token, root: canonical.to_string_lossy().into_owned() })
+}
+
+#[command]
+#[specta::specta]
+pub async fn git_watch_stop(watches: State<'_, poietica_git_adapter_native::WatchRegistry>, token: String) -> Result<(), Problem> {
+    if watches.release(&token) { Ok(()) } else { Err(Error::Validation("unknown git watch lease".to_owned()).into()) }
 }

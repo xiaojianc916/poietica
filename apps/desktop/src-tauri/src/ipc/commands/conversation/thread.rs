@@ -17,7 +17,7 @@ use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
     AgentArchiveThreadRequest, AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFrameCursor,
-    AgentFramePage, AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest,
+    AgentFramePage, AgentOpenThreadRequest, AgentRunEvent, AgentOpenedThread, AgentPinThreadRequest,
     AgentRenameThreadRequest, AgentSessionUsage, AgentThread, AgentThreadRequest,
     AgentThreadSnapshot, AgentThreadTarget, AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD,
     reported_goal,
@@ -204,12 +204,15 @@ pub async fn agent_earlier_frames(
 ///
 /// 帧不解析：库里那一段字节原样交给绑定，读不成的一行在读库处就已经说过了。
 fn paged(page: FramePage) -> Result<AgentFramePage> {
-    Ok(AgentFramePage {
-        events: compact_history(page.frames).map_err(|error| {
-            Error::Internal(format!("could not compact transcript history: {error}"))
-        })?,
-        before: page.before.map(cursored).transpose()?,
-    })
+    let compacted = compact_history(page.frames).map_err(|error| {
+        Error::Internal(format!("could not compact transcript history: {error}"))
+    })?;
+    let events = compacted
+        .into_iter()
+        .map(|raw| serde_json::from_str::<AgentRunEvent>(raw.get()))
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|error| Error::Internal(format!("stored run event is invalid: {error}")))?;
+    Ok(AgentFramePage { events, before: page.before.map(cursored).transpose()? })
 }
 
 /// 库上那个位置，收进线上那一格的宽度。

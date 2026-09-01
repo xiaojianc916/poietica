@@ -77,6 +77,7 @@ pub fn build() -> tauri::Builder<Wry> {
         .manage(commands::updates::UpdateStaging::default())
         /* 终端会话表归进程：谁创建谁负责，命令只借用。 */
         .manage(commands::terminal::TerminalHost::default())
+        .manage(poietica_git_adapter_native::WatchRegistry::default())
         .invoke_handler(ipc.invoke_handler())
         .setup(move |app| {
             /* 日志比其余一切都早：出事时它是唯一的目击者，它只需要落点先算出来。 */

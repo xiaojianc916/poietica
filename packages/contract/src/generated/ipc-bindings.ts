@@ -1035,13 +1035,11 @@ async gitFilePatch(root: string, base: string, path: string, ignoreWhitespace: b
 async gitCommit(request: GitCommitRequest) : Promise<GitReview> {
     return await TAURI_INVOKE("git_commit", { request });
 },
-/**
- * 等这个工作树的下一次变化。true = 变了；false = 这一窗里没动，调用方再挂一次。
- * 
- * 监视与这一次调用同寿，谁创建谁销毁；界面因此不需要刷新按钮。
- */
-async gitAwaitChange(root: string) : Promise<boolean> {
-    return await TAURI_INVOKE("git_await_change", { root });
+async gitWatchStart(root: string) : Promise<GitWatchLease> {
+    return await TAURI_INVOKE("git_watch_start", { root });
+},
+async gitWatchStop(token: string) : Promise<null> {
+    return await TAURI_INVOKE("git_watch_stop", { token });
 },
 /**
  * 渲染层进面板时拉一次的初始快照。之后靠事件。
@@ -1125,6 +1123,7 @@ automationCatalogChanged: AutomationCatalogChanged,
 automationDue: AutomationDue,
 browserElementPicked: BrowserElementPicked,
 browserState: BrowserState,
+gitWorkingTreeChanged: GitWorkingTreeChanged,
 terminalStreamed: TerminalStreamed,
 terminationRequested: TerminationRequested,
 updateProgress: UpdateProgress,
@@ -1136,6 +1135,7 @@ automationCatalogChanged: "automation-catalog-changed",
 automationDue: "automation-due",
 browserElementPicked: "browser-element-picked",
 browserState: "browser-state",
+gitWorkingTreeChanged: "git-working-tree-changed",
 terminalStreamed: "terminal-streamed",
 terminationRequested: "termination-requested",
 updateProgress: "update-progress",
@@ -1430,20 +1430,9 @@ sessionId: string;
  */
 seq: number }
 /**
- * 一页完整轮次的 block 帧，以及更早那一页从哪儿接着读。
+ * A page of validated wire events and its earlier cursor.
  */
-export type AgentFramePage = { 
-/**
- * 这一页的帧，按追加顺序。库里那一段字节，未解析。
- * 
- * specta 没有 `RawValue` 的 `Type`，线上形状因此由 `type` 明写 ——
- * 与 `Vec<Value>` 生成的绑定逐字相同。
- */
-events: JsonValue[]; 
-/**
- * 更早那一页的读取位置；缺席就是前面没有了。
- */
-before: AgentFrameCursor | null }
+export type AgentFramePage = { events: AgentRunEvent[]; before: AgentFrameCursor | null }
 /**
  * 要把哪一段缺口读回来。
  */
@@ -1537,6 +1526,10 @@ export type AgentLaunch = {
  * 要启动的 agent。它决定受控 home 落在哪里。
  */
 agentId: string }
+/**
+ * Closed wire vocabulary. Opaque protocol payloads remain JSON, but an event envelope cannot.
+ */
+export type AgentLinkState = { state: "retrying"; attempt: number; of: number; retryAt: number; reason: string } | { state: "recovered"; reason: string } | { state: "severed"; attempts: number; reason: string }
 export type AgentMcpServer = { id: string; name: string; status: AgentMcpStatus; toolCount: number; lastError: string | null }
 export type AgentMcpStatus = "connected" | "connecting" | "disconnected" | "error"
 /**
@@ -1716,9 +1709,10 @@ selectedLabel: string | null;
  */
 feedback: string | null }
 /**
- * 一批已经落账、准备交给时间线的运行帧。
+ * A persisted batch; the outer session id makes its routing invariant explicit.
  */
-export type AgentRunBatch = { events: JsonValue[] }
+export type AgentRunBatch = { sessionId: string; events: AgentRunEvent[] }
+export type AgentRunEvent = ({ kind: "turn_admitted"; turn: string } | { kind: "prompt_admitted"; admissionId: string; prompt: string | null; images: string[] | null; skills: string[] | null } | { kind: "kap_event"; payload: JsonValue } | { kind: "permission_requested"; requestId: string; toolCallId: string | null; title: string; toolCall: JsonValue } | { kind: "permission_resolved"; requestId: string; decision: string; scope: string | null; selectedLabel: string | null; feedback: string | null } | { kind: "questions_asked"; questionId: string; toolCallId: string | null; questions: JsonValue } | { kind: "questions_resolved"; questionId: string; outcome: string; answers: JsonValue; note: string } | { kind: "session_recovered"; snapshot: JsonValue } | { kind: "link_changed"; link: AgentLinkState } | { kind: "run_finished"; turn: string | null; stopReason: string } | { kind: "run_failed"; turn: string | null; message: string } | { kind: "unsupported_external_event"; rawKind: string }) & { sessionId: string; seq: number; at: number }
 /**
  * A change made in the interface.
  */
@@ -2110,6 +2104,11 @@ export type GitFileChange = { path: string; status: GitChangeStatus; staged: boo
  * 审查那一格此刻要画的全部事实。
  */
 export type GitReview = { branch: string | null; detachedAt: string | null; upstream: string | null; ahead: number; behind: number; branches: string[]; changes: GitFileChange[]; patch: string }
+/**
+ * A lease on the shared watcher for one canonical repository root.
+ */
+export type GitWatchLease = { token: string; root: string }
+export type GitWorkingTreeChanged = { root: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 /**
  * 服务器的落脚地址。渲染层照着它把这台服务器登记进 MCP 那一格。

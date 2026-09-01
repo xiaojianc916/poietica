@@ -1,1 +1,1 @@
-export type { AppSettings } from '@poietica/contract'
+export type { AppSettings } from './model'

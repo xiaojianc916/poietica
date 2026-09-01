@@ -1,5 +1,5 @@
-import type { Automation } from '@poietica/contract'
 import { Cron } from 'croner'
+import type { Automation } from './model'
 
 /**
  * 自动化的纯函数层。

@@ -1,5 +1,5 @@
-import type { GitCommitIntent, GitReview } from '@poietica/contract'
 import { createExternalStore } from '@poietica/external-store'
+import type { GitCommitIntent, GitReview } from './model'
 import type { ReviewFailureReport, ReviewGateway } from './review-gateway'
 import { type DiffFile, type DiffStat, diffStatOf, parseUnifiedPatch } from './unified-diff'
 
@@ -124,9 +124,10 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
   let splitter: SplitterActivity = 'idle'
   let busy = false
   let stopped = true
-  let nextOwner = 0
-  let activeOwner: number | null = null
-  let loopOwner: number | null = null
+  let watchStop: (() => Promise<void>) | null = null
+  let active = false
+  let loading = false
+  let reloadQueued = false
   let loadRequest = 0
   /* 当前代已持有全文模型的路径：新取的或沿用的都在内，推导只找剩下的。 */
   let enriched: ReadonlySet<string> = new Set<string>()
@@ -268,33 +269,35 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
     project()
     publish()
   }
-  /* 监视挂不上就没有下一次问，所以「刷新」能把这条循环接回来 —— 同一条，不是第二条。 */
-  function loop(owner: number): void {
-    if (loopOwner === owner) {
+  function queueLoad(): void {
+    reloadQueued = true
+    if (loading) {
       return
     }
-
-    loopOwner = owner
+    loading = true
     void (async () => {
-      while (activeOwner === owner) {
+      while (active && reloadQueued) {
+        reloadQueued = false
         await load()
-        if (activeOwner !== owner) {
-          break
-        }
-        try {
-          await gateway.awaitChange(root)
-        } catch (cause: unknown) {
-          if (activeOwner === owner) {
-            report('GIT_CHANGES_UNREADABLE', { cause })
-          }
-          break
-        }
       }
-
-      if (loopOwner === owner) {
-        loopOwner = null
+    })().finally(() => {
+      loading = false
+    })
+  }
+  async function attachWatcher(): Promise<void> {
+    try {
+      const release = await gateway.watch(root, queueLoad)
+      if (!active) {
+        await release()
+        return
       }
-    })()
+      watchStop = release
+      queueLoad()
+    } catch (cause: unknown) {
+      if (active) {
+        report('GIT_CHANGES_UNREADABLE', { cause })
+      }
+    }
   }
   return {
     applyCommand: () =>
@@ -345,18 +348,7 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       })
       enrich()
     },
-    refresh: () => {
-      const owner = activeOwner
-      if (owner === null) {
-        return
-      }
-
-      if (loopOwner === owner) {
-        void load()
-        return
-      }
-      loop(owner)
-    },
+    refresh: queueLoad,
     setAllOpen: (all) => {
       mutate(() => {
         openFiles =
@@ -372,7 +364,7 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       }
       base = ref
       generation += 1
-      void load()
+      queueLoad()
       publish()
     },
     setDraft: (value) => {
@@ -408,25 +400,26 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       })
     },
     start: () => {
-      if (activeOwner !== null) {
+      if (active) {
         throw new Error('ReviewStore is already started.')
       }
-
-      nextOwner += 1
-      const owner = nextOwner
-      activeOwner = owner
+      active = true
       stopped = false
-      loop(owner)
-
+      void attachWatcher()
       return () => {
-        if (activeOwner !== owner) {
+        if (!active) {
           return
         }
-
-        activeOwner = null
+        active = false
         stopped = true
+        reloadQueued = false
         loadRequest += 1
         generation += 1
+        const release = watchStop
+        watchStop = null
+        if (release !== null) {
+          void release().catch((cause: unknown) => report('GIT_CHANGES_UNREADABLE', { cause }))
+        }
       }
     },
     subscribe: store.subscribe,
@@ -450,7 +443,7 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       presentation = switched(presentation, name)
       if (name === 'hideWhitespace') {
         generation += 1
-        void load()
+        queueLoad()
       } else {
         /* 词级强调变了：沿用的全文模型是按旧开关切的，全部作废重推。 */
         if (name === 'wordDiff') {

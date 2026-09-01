@@ -17,15 +17,13 @@ use poietica_conversation::event::ConversationEvent;
 use poietica_conversation::ports::ConversationLedger;
 use poietica_kap_client::translate;
 use poietica_kap_client::{FrameSink, RecordedEvent};
-use poietica_ledger::conversation::screen::screen_frame;
-use serde_json::Value;
 use tauri::{AppHandle, Manager, Runtime, async_runtime};
 use tauri_specta::Event as _;
 
 use crate::error::{Error, Result};
 use crate::ipc::commands::ledger::local_index::{LocalIndex, on_index};
 
-use super::dto::AgentRunBatch;
+use super::dto::{AgentRunBatch, AgentRunEvent};
 
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 const FRAME_QUEUE_CAPACITY: usize = 4096;
@@ -266,23 +264,13 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) -> bool 
         }
     };
 
-    let shown = envelopes
-        .iter()
-        .map(|envelope| {
-            let payload =
-                &serde_json::to_string(&envelope.event).unwrap_or_else(|_| String::from("null"));
-            screen_frame(
-                &envelope.session_id,
-                i64::try_from(envelope.seq.value()).unwrap_or(i64::MAX),
-                envelope.at,
-                payload,
-            )
-            .and_then(|raw| serde_json::from_str(raw.get()))
-        })
-        .collect::<serde_json::Result<Vec<Value>>>()
-        .unwrap_or_default();
-
-    if let Err(error) = (AgentRunBatch { events: shown }).emit(app) {
+    let shown = envelopes.into_iter().map(AgentRunEvent::from).collect();
+    if let Err(error) = (AgentRunBatch {
+        session_id: logged.session.clone(),
+        events: shown,
+    })
+    .emit(app)
+    {
         log::warn!("emit agent event failed after persistence: {error}");
     }
 

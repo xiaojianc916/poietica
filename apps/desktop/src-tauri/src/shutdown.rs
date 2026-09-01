@@ -56,6 +56,8 @@ fn drain(app: &AppHandle) {
         log::debug!("shutdown: could not save window state: {error}");
     }
 
+    app.state::<poietica_git_adapter_native::WatchRegistry>().clear();
+
     if let Err(error) = app.state::<AgentRuntime>().disconnect() {
         log::error!("shutdown: the agent connection did not retire: {error}");
     }

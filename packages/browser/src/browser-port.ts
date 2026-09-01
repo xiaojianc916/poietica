@@ -1,4 +1,4 @@
-import type { BrowserState, BrowserTab } from '@poietica/contract'
+import type { BrowserState, BrowserTab } from './model'
 
 /*
  * 宿主契约：本包需要原生宿主提供哪些动作。

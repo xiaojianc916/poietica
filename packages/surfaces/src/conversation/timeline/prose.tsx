@@ -17,6 +17,7 @@ import 'streamdown/styles.css'
 import { cx } from '../primitives/class-names'
 import { asIcon, CheckIcon, CopyIcon, DownloadIcon } from '../primitives/icons'
 import { DIAGRAM_RENDERER } from './diagram'
+import { ExportableTable } from './table-export'
 
 /*
  * 行内公式用一个美元号：模型输出的是 LaTeX 惯例，而上游默认只认 $$…$$。不认行内
@@ -89,6 +90,7 @@ const CODE_CAP = 'var(--cp-timeline-code-cap)'
 
 /* 表格纵向不封顶（理由在 timeline.css），显式关掉上游 300px 的默认值。 */
 const TABLE_CAP = 0
+const COMPONENTS = { table: ExportableTable }
 
 /*
  * 揭示按字，不按词。
@@ -129,6 +131,7 @@ export const Prose = memo(function Prose({ className, streaming = false, text }:
       animated={REVEAL}
       className={cx('timeline-prose', className)}
       codeBlockMaxHeight={CODE_CAP}
+      components={COMPONENTS}
       controls={CONTROLS}
       icons={ICONS}
       isAnimating={streaming}

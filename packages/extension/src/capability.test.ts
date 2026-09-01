@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
-import type { AgentCapability } from '@poietica/contract'
 import { CAPABILITY_COMMAND_IDLE, type CapabilityCommand, computerUse } from './capability'
 import type { InstalledPlugin } from './installation'
+import type { AgentCapability } from './model'
 
 const base: AgentCapability = {
   id: 'kimi-cu',

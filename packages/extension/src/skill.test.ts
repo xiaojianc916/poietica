@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentSkill, SkillRecord } from '@poietica/contract'
+import type { AgentSkill, SkillRecord } from './model'
 import { readSkills, skillFrontmatter, skillRows } from './skill'
 
 const record: SkillRecord = {

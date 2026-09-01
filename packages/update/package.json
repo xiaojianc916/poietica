@@ -10,7 +10,6 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/contract": "workspace:*",
     "@poietica/external-store": "workspace:*"
   },
   "devDependencies": {

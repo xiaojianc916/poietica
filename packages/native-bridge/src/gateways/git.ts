@@ -1,5 +1,6 @@
 import {
   commands,
+  events,
   type GitBranches,
   type GitCommitIntent,
   type GitCommitRequest,
@@ -47,8 +48,31 @@ export const reviewGateway: ReviewGateway = {
   filePatch: (root, base, path, ignoreWhitespace) =>
     throughIpc(() => commands.gitFilePatch(root, base, path, ignoreWhitespace)),
 
-  /* 挂上原生监视，等这个目录的下一次变化。 */
-  awaitChange: (root) => throughIpc(() => commands.gitAwaitChange(root)),
+  async watch(root, onChange) {
+    let canonical: string | null = null
+    let pending = false
+    const unlisten = await events.gitWorkingTreeChanged.listen((event) => {
+      if (canonical === null) {
+        pending = true
+      } else if (event.payload.root === canonical) {
+        onChange()
+      }
+    })
+    try {
+      const lease = await throughIpc(() => commands.gitWatchStart(root))
+      canonical = lease.root
+      if (pending) {
+        onChange()
+      }
+      return async () => {
+        unlisten()
+        await throughIpc(() => commands.gitWatchStop(lease.token))
+      }
+    } catch (cause) {
+      unlisten()
+      throw cause
+    }
+  },
 
   /* 提交或推送，交回新的审查面。git 拒绝时抛出，理由原文透出。 */
   commit: (request) => throughIpc(() => commands.gitCommit(request)),

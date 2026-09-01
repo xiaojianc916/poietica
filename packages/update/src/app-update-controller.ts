@@ -1,4 +1,4 @@
-import type { UpdateProgress, UpdateRelease } from '@poietica/contract'
+import type { UpdateProgress, UpdateRelease } from './model'
 
 /*
  * 更新的三步端口：领域不认识 IPC，实现住在 @poietica/native-bridge 的

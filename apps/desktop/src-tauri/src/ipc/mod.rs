@@ -42,7 +42,7 @@ use commands::{
         AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFramesUntilRequest, AgentGoal,
         AgentPinThreadRequest, AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult,
         AgentPromptSkill, AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod,
-        AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentRunBatch,
+        AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentRunBatch, AgentRunEvent,
         AgentSelectConfigRequest, AgentSessionEvent, AgentThreadRequest, AgentTurnMark,
     },
     conversation::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
@@ -51,7 +51,7 @@ use commands::{
         PluginPayload, PluginStaged,
     },
     git::{
-        GitBranches, GitChangeStatus, GitCommitIntent, GitCommitRequest, GitFileChange, GitReview,
+        GitBranches, GitChangeStatus, GitCommitIntent, GitCommitRequest, GitFileChange, GitReview, GitWatchLease, GitWorkingTreeChanged,
     },
     settings::{AppSettings, PrivacySettings},
     skills::{SkillCommitRequest, SkillRecord, SkillStaged},
@@ -163,7 +163,8 @@ pub fn surface() -> Builder<Wry> {
             commands::git::git_review,
             commands::git::git_file_patch,
             commands::git::git_commit,
-            commands::git::git_await_change,
+            commands::git::git_watch_start,
+            commands::git::git_watch_stop,
             crate::webview::bridge::browser_state,
             crate::webview::bridge::browser_open_tab,
             crate::webview::bridge::browser_close_tab,
@@ -189,7 +190,8 @@ pub fn surface() -> Builder<Wry> {
             TerminalStreamed,
             TerminationRequested,
             UpdateProgress,
-            WindowMaximized
+            WindowMaximized,
+            GitWorkingTreeChanged
         ])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptConfiguration>()
@@ -206,6 +208,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentConfigControl>()
         .typ::<AgentGoal>()
         .typ::<AgentRunBatch>()
+        .typ::<AgentRunEvent>()
         .typ::<AgentSessionEvent>()
         .typ::<AgentCapabilitiesRequest>()
         .typ::<AgentSelectConfigRequest>()
@@ -274,4 +277,6 @@ pub fn surface() -> Builder<Wry> {
         .typ::<GitCommitRequest>()
         .typ::<GitFileChange>()
         .typ::<GitReview>()
+        .typ::<GitWatchLease>()
+        .typ::<GitWorkingTreeChanged>()
 }
