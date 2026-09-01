@@ -24,6 +24,7 @@ use crate::interaction::question::{QuestionGroup, QuestionOutcome};
 #[derive(Clone)]
 enum ReconcileMessage {
     Poll,
+    RefreshQuestions,
     Reset,
     QuestionRequested(Value),
 }
@@ -31,6 +32,7 @@ enum ReconcileMessage {
 #[derive(Debug, Default, Eq, PartialEq)]
 struct ReconcileBatch {
     poll: bool,
+    refresh_questions: bool,
     reset: bool,
     questions: Vec<Value>,
 }
@@ -39,9 +41,11 @@ impl ReconcileBatch {
     fn push(&mut self, message: ReconcileMessage) {
         match message {
             ReconcileMessage::Poll => self.poll = true,
+            ReconcileMessage::RefreshQuestions => self.refresh_questions = true,
             ReconcileMessage::Reset => {
                 self.reset = true;
                 self.poll = false;
+                self.refresh_questions = false;
                 self.questions.clear();
             }
             ReconcileMessage::QuestionRequested(question) => self.questions.push(question),
@@ -96,6 +100,19 @@ impl ReconcileOwner {
                     state.reset(&desk, &questions);
                 }
 
+                if batch.refresh_questions {
+                    match session_snapshot(&http, &base_url, &session_id).await {
+                        Ok((_cursor, snapshot)) => {
+                            batch.questions.extend(snapshot_questions(&snapshot));
+                        }
+                        Err(error) => {
+                            log::error!(
+                                "could not refresh pending questions after subscription: {error}"
+                            );
+                        }
+                    }
+                }
+
                 for question in batch.questions {
                     record_question_request(
                         &http,
@@ -109,29 +126,15 @@ impl ReconcileOwner {
                 }
 
                 if batch.poll {
-                    let ReconcileState {
-                        pending_approvals,
-                        pending_questions,
-                    } = &mut state;
-
-                    futures::join!(
-                        fetch_and_record_approvals(
-                            &http,
-                            &base_url,
-                            &session_id,
-                            pending_approvals,
-                            &book,
-                            &desk,
-                        ),
-                        fetch_and_record_questions(
-                            &http,
-                            &base_url,
-                            &session_id,
-                            pending_questions,
-                            &book,
-                            &questions,
-                        ),
-                    );
+                    fetch_and_record_approvals(
+                        &http,
+                        &base_url,
+                        &session_id,
+                        &mut state.pending_approvals,
+                        &book,
+                        &desk,
+                    )
+                    .await;
                 }
             }
 
@@ -143,6 +146,10 @@ impl ReconcileOwner {
 
     fn poll(&self) {
         self.send(ReconcileMessage::Poll);
+    }
+
+    fn refresh_questions(&self) {
+        self.send(ReconcileMessage::RefreshQuestions);
     }
 
     fn reset(&self) {
@@ -166,20 +173,13 @@ impl Drop for ReconcileOwner {
     }
 }
 
-/// 有人在等人这一侧的答复吗。
-///
-/// 两条队列各有自己的到达事件：kap-server 的
-/// transport/ws/v1/sessionEventBroadcaster.ts 在 attachInteractions 里盯 pending
-/// 集合，新挂上来的按种类发 event.approval.requested / event.question.requested，
-/// 两者都是 durable、随读点重放。work_changed 的 pending_interaction 是重连之后的
-/// 对账信号（protocol/session.ts：none / approval / question）。
-fn awaits_person(event_type: &str, payload: &Value) -> bool {
+/// 审批仍由 REST 清单对账；提问只走 snapshot/event 共用的 ingest。
+fn awaits_approval(event_type: &str, payload: &Value) -> bool {
     match event_type {
         "event.approval.requested" => true,
-        "event.session.work_changed" => matches!(
-            payload.get("pending_interaction").and_then(Value::as_str),
-            Some("approval" | "question")
-        ),
+        "event.session.work_changed" => {
+            payload.get("pending_interaction").and_then(Value::as_str) == Some("approval")
+        }
         _ => false,
     }
 }
@@ -264,23 +264,47 @@ impl EventRouter {
         // 既没有 type 也没有 seq，不会被当成 agent 的 error 事件收进来。
         let kind = envelope.get("type").and_then(Value::as_str).unwrap_or("");
 
-        // 订阅失败不写在 code 上：ack 永远回 0，落选的会话在载荷的 not_found 里。
-        // 异步订阅（新开 / 装载 / 分叉）的 ack 只到得了这里，落选按会话收摊。
-        if kind == "ack"
-            && let Some(missing) = envelope
-                .get("payload")
-                .and_then(|payload| payload.get("not_found"))
-                .and_then(Value::as_array)
-                .map(|ids| {
-                    ids.iter()
-                        .filter_map(Value::as_str)
-                        .map(str::to_owned)
-                        .collect::<Vec<String>>()
-                })
-            && !missing.is_empty()
-        {
-            for refused in missing {
+        // An accepted subscription is the snapshot barrier: anything pending before it
+        // is in the snapshot; anything after it arrives as a durable event.
+        if kind == "ack" {
+            let session_ids = |key: &str| {
+                envelope
+                    .get("payload")
+                    .and_then(|payload| payload.get(key))
+                    .and_then(Value::as_array)
+                    .map(|ids| {
+                        ids.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_owned)
+                            .collect::<Vec<String>>()
+                    })
+                    .unwrap_or_default()
+            };
+
+            for refused in session_ids("not_found") {
                 self.forget(&refused, "the server refused to subscribe this session");
+            }
+
+            let http = self.http.clone();
+            let base_url = self.base_url.clone();
+            let book = self.book.clone();
+            let desk = self.desk.clone();
+            let questions = self.questions.clone();
+
+            for session_id in session_ids("accepted") {
+                self.owners
+                    .entry(session_id.clone())
+                    .or_insert_with(|| {
+                        ReconcileOwner::spawn(
+                            session_id,
+                            http.clone(),
+                            base_url.clone(),
+                            book.clone(),
+                            desk.clone(),
+                            questions.clone(),
+                        )
+                    })
+                    .refresh_questions();
             }
 
             return;
@@ -431,7 +455,7 @@ impl EventRouter {
                 .entry(session_id.to_owned())
                 .or_insert_with(owner)
                 .question_requested(payload.clone());
-        } else if awaits_person(event_type, payload) {
+        } else if awaits_approval(event_type, payload) {
             owners
                 .entry(session_id.to_owned())
                 .or_insert_with(owner)
@@ -692,40 +716,12 @@ async fn settle_question(
     }
 }
 
-/// agent 报它卡在人这一侧时，把这条会话挂着的题组逐个请上桌。
-///
-/// status=pending 是必填 query（rest-question.ts 的
-/// listPendingQuestionsQuerySchema），不带它服务器回 40001。
-async fn fetch_and_record_questions(
-    http: &reqwest::Client,
-    base_url: &str,
-    session_id: &str,
-    pending: &mut HashSet<String>,
-    book: &SessionBook,
-    desk: &QuestionDesk,
-) {
-    let url = routes::list_questions(base_url, session_id).map(|mut url| {
-        url.query_pairs_mut().append_pair("status", "pending");
-        url
-    });
-
-    let data = match get(http, url).await {
-        Ok(data) => data,
-        Err(error) => {
-            log::warn!("could not list the pending questions: {error}");
-            return;
-        }
-    };
-
-    let items = data
-        .get("items")
+fn snapshot_questions(snapshot: &Value) -> Vec<Value> {
+    snapshot
+        .get("pending_questions")
         .and_then(Value::as_array)
         .cloned()
-        .unwrap_or_default();
-
-    for item in items {
-        record_question_request(http, base_url, session_id, pending, book, desk, item);
-    }
+        .unwrap_or_default()
 }
 
 fn record_question_request(
@@ -737,74 +733,74 @@ fn record_question_request(
     desk: &QuestionDesk,
     item: Value,
 ) {
-        let Some(group) = QuestionGroup::from_wire(&item) else {
-            /* 读不出的题组不能装作没来过：撤下它，agent 才不会在人这一侧死等到超时。 */
-            let Some(question_id) = item.get("question_id").and_then(Value::as_str) else {
-                log::error!("kap listed a pending question without an id: {item}");
-                return;
-            };
-
-            log::error!("a pending question group does not fit the contract: {item}");
-
-            let http2 = http.clone();
-            let base2 = base_url.to_owned();
-            let sid = session_id.to_owned();
-            let qid = question_id.to_owned();
-
-            tokio::spawn(async move {
-                if let Err(error) =
-                    settle_question(&http2, &base2, &sid, &qid, &QuestionOutcome::Dismissed).await
-                {
-                    log::warn!("could not dismiss an unreadable question group: {error}");
-                }
-            });
-
+    let Some(group) = QuestionGroup::from_wire(&item) else {
+        /* 读不出的题组不能装作没来过：撤下它，agent 才不会在人这一侧死等到超时。 */
+        let Some(question_id) = item.get("question_id").and_then(Value::as_str) else {
+            log::error!("kap listed a pending question without an id: {item}");
             return;
         };
 
-        // 重连对账会把还挂着的题组再报一次：桌上已经有了的不记第二帧、不等第二
-        // 份答案。
-        if pending.contains(&group.question_id) {
-            return;
-        }
-
-        if let Ok(Some(slot)) = book.slot(session_id) {
-            slot.record(|recorder| recorder.record_questions_asked(&group));
-        }
-
-        let Ok(answer_rx) = desk.wait(group.clone()) else {
-            return;
-        };
-
-        let _inserted = pending.insert(group.question_id.clone());
+        log::error!("a pending question group does not fit the contract: {item}");
 
         let http2 = http.clone();
         let base2 = base_url.to_owned();
         let sid = session_id.to_owned();
-        let book2 = book.clone();
+        let qid = question_id.to_owned();
 
         tokio::spawn(async move {
-            // 发送端被丢掉只有一种情形：这一轮已经结束了（turn.ended 把它从桌上
-            // 放掉了）。那时这不再是我们该回答的问题 —— 什么都不发。
-            let Ok(outcome) = answer_rx.await else {
-                return;
-            };
-
-            let delivered =
-                match settle_question(&http2, &base2, &sid, &group.question_id, &outcome).await {
-                    Ok(()) => true,
-                    Err(error) => {
-                        log::warn!("could not deliver the question answer: {error}");
-                        false
-                    }
-                };
-
-            if let Ok(Some(slot)) = book2.slot(&sid) {
-                slot.record(|recorder| {
-                    recorder.record_questions_resolved(&group, &outcome, delivered);
-                });
+            if let Err(error) =
+                settle_question(&http2, &base2, &sid, &qid, &QuestionOutcome::Dismissed).await
+            {
+                log::warn!("could not dismiss an unreadable question group: {error}");
             }
         });
+
+        return;
+    };
+
+    // 重连对账会把还挂着的题组再报一次：桌上已经有了的不记第二帧、不等第二
+    // 份答案。
+    if pending.contains(&group.question_id) {
+        return;
+    }
+
+    if let Ok(Some(slot)) = book.slot(session_id) {
+        slot.record(|recorder| recorder.record_questions_asked(&group));
+    }
+
+    let Ok(answer_rx) = desk.wait(group.clone()) else {
+        return;
+    };
+
+    let _inserted = pending.insert(group.question_id.clone());
+
+    let http2 = http.clone();
+    let base2 = base_url.to_owned();
+    let sid = session_id.to_owned();
+    let book2 = book.clone();
+
+    tokio::spawn(async move {
+        // 发送端被丢掉只有一种情形：这一轮已经结束了（turn.ended 把它从桌上
+        // 放掉了）。那时这不再是我们该回答的问题 —— 什么都不发。
+        let Ok(outcome) = answer_rx.await else {
+            return;
+        };
+
+        let delivered =
+            match settle_question(&http2, &base2, &sid, &group.question_id, &outcome).await {
+                Ok(()) => true,
+                Err(error) => {
+                    log::warn!("could not deliver the question answer: {error}");
+                    false
+                }
+            };
+
+        if let Ok(Some(slot)) = book2.slot(&sid) {
+            slot.record(|recorder| {
+                recorder.record_questions_resolved(&group, &outcome, delivered);
+            });
+        }
+    });
 }
 
 #[cfg(test)]
@@ -822,29 +818,52 @@ mod tests {
     fn reconciliation_batch_preserves_reset_order() {
         let mut batch = ReconcileBatch::default();
         batch.push(ReconcileMessage::Poll);
-        batch.push(ReconcileMessage::Poll);
+        batch.push(ReconcileMessage::RefreshQuestions);
         batch.push(ReconcileMessage::Reset);
 
         assert_eq!(
             batch,
             ReconcileBatch {
                 poll: false,
+                refresh_questions: false,
                 reset: true,
                 questions: Vec::new(),
             }
         );
 
-        batch.push(ReconcileMessage::QuestionRequested(json!({ "question_id": "q1" })));
-        assert_eq!(batch.questions.len(), 1);
-
+        batch.push(ReconcileMessage::RefreshQuestions);
+        batch.push(ReconcileMessage::QuestionRequested(
+            json!({ "question_id": "q1" }),
+        ));
         batch.push(ReconcileMessage::Poll);
+
         assert_eq!(
             batch,
             ReconcileBatch {
                 poll: true,
+                refresh_questions: true,
                 reset: true,
                 questions: vec![json!({ "question_id": "q1" })],
             }
         );
+    }
+
+    #[test]
+    fn snapshot_is_the_recovery_source_for_pending_questions() {
+        let snapshot = json!({
+            "pending_questions": [
+                { "question_id": "q1" },
+                { "question_id": "q2" }
+            ]
+        });
+
+        assert_eq!(
+            snapshot_questions(&snapshot),
+            vec![
+                json!({ "question_id": "q1" }),
+                json!({ "question_id": "q2" })
+            ]
+        );
+        assert!(snapshot_questions(&json!({})).is_empty());
     }
 }
