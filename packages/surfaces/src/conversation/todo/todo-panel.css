@@ -1,13 +1,11 @@
-/*
- * 待办清单的排版依据是 DeepSeek Harness 的 TodoPanel.module.css：13px 正文、
- * 24px 标题行、10px 图文间距、8px 行距、16px 字形格、单行省略。那边 180px 的
- * 列表上限在这里换成满高滚动 —— 它不再是输入框上方的一张卡，而是一列面板。
- */
 .todo-panel {
   display: flex;
-  block-size: 100%;
-  min-block-size: 0;
+  min-inline-size: 0;
   flex-direction: column;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: 12px;
   background: var(--cp-ground);
   color: var(--cp-ink);
   font-size: 13px;
@@ -15,27 +13,42 @@
 
 .todo-panel__header {
   display: flex;
-  block-size: var(--cp-control);
-  flex: none;
+  min-block-size: 24px;
+  inline-size: 100%;
+  min-inline-size: 0;
   align-items: center;
   gap: 10px;
-  padding-inline: var(--cp-inset);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
 }
 
-.todo-panel__lead {
+.todo-panel__header:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: 2px;
+}
+
+.todo-panel__lead,
+.todo-panel__chevron {
   display: grid;
+  block-size: 16px;
+  inline-size: 16px;
   flex: none;
   place-items: center;
   color: var(--cp-ink-subtle);
 }
 
-.todo-panel__lead svg {
+.todo-panel__lead svg,
+.todo-panel__chevron svg {
   block-size: 14px;
   inline-size: 14px;
 }
 
 .todo-panel__title {
-  margin: 0;
   flex: none;
   font-size: 13px;
   font-weight: 500;
@@ -47,47 +60,22 @@
   min-inline-size: 0;
   flex: 1 1 auto;
   overflow: hidden;
+  color: var(--cp-ink-subtle);
   font-size: 13px;
   font-weight: 400;
   line-height: 20px;
-  color: var(--cp-ink-subtle);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.todo-panel__close {
-  display: grid;
-  block-size: 20px;
-  inline-size: 20px;
-  flex: none;
-  place-items: center;
-  border: 0;
-  border-radius: var(--cp-optical);
-  padding: 0;
-  background: transparent;
-  color: var(--cp-ink-muted);
-  cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.todo-panel__close:hover {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
-
-.todo-panel__close svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-}
-
 .todo-panel__list {
   display: flex;
-  min-block-size: 0;
-  flex: 1 1 auto;
+  max-block-size: 180px;
+  min-inline-size: 0;
   flex-direction: column;
   gap: 8px;
   margin: 0;
-  padding: 6px var(--cp-inset) 12px;
+  padding: 0;
   overflow-y: auto;
   list-style: none;
 }
@@ -97,12 +85,11 @@
   min-inline-size: 0;
   align-items: center;
   gap: 10px;
+  color: var(--cp-ink-muted);
   font-size: 13px;
   line-height: 20px;
-  color: var(--cp-ink-muted);
 }
 
-/* 正在做的那一条提一档墨色：一眼看得出清单停在哪里。 */
 .todo-panel__item[data-status="in_progress"] {
   color: var(--cp-ink);
 }
@@ -128,12 +115,6 @@
   color: var(--cp-ink-subtle);
 }
 
-@keyframes todo-progress-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .todo-panel__content {
   min-inline-size: 0;
   overflow: hidden;
@@ -143,9 +124,15 @@
 
 .todo-panel__empty {
   margin: 0;
-  padding: 6px var(--cp-inset);
   color: var(--cp-ink-subtle);
-  font-size: var(--cp-font-caption);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+@keyframes todo-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

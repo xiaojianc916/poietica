@@ -1,0 +1,81 @@
+.conversation-body {
+  position: relative;
+  display: flex;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
+.conversation-canvas {
+  position: relative;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
+.conversation-todo-popover {
+  position: relative;
+  flex: none;
+  inline-size: 0;
+  min-block-size: 0;
+  overflow: visible;
+  pointer-events: none;
+  transition: inline-size var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+.conversation-todo-popover[data-mode="dock"][data-open="true"] {
+  inline-size: calc(
+    var(--conversation-todo-width) +
+    var(--conversation-todo-gap) +
+    var(--conversation-todo-gap)
+  );
+}
+
+.conversation-todo-popover__surface {
+  position: absolute;
+  inset-block-start: var(--conversation-todo-gap);
+  inset-inline-end: var(--conversation-todo-gap);
+  inline-size: var(--conversation-todo-width);
+  max-block-size: calc(100% - var(--conversation-todo-gap) - var(--conversation-todo-gap));
+  overflow-y: auto;
+  border-radius: 12px;
+  box-shadow:
+    0 14px 36px rgb(0 0 0 / 16%),
+    0 2px 8px rgb(0 0 0 / 8%);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px) scale(0.985);
+  transform-origin: top right;
+  pointer-events: none;
+  transition:
+    opacity var(--workspace-layout-duration) var(--workspace-layout-ease),
+    transform var(--workspace-layout-duration) var(--workspace-layout-ease),
+    visibility 0s linear var(--workspace-layout-duration);
+}
+
+.conversation-todo-popover[data-open="true"] .conversation-todo-popover__surface {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+.conversation-todo-popover[data-mode="overlay"] {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  inline-size: auto;
+  transition: none;
+}
+
+.conversation-todo-popover[data-mode="overlay"] .conversation-todo-popover__surface {
+  max-inline-size: calc(100% - var(--conversation-todo-gap) - var(--conversation-todo-gap));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-todo-popover,
+  .conversation-todo-popover__surface {
+    transition: none;
+  }
+}

@@ -6,7 +6,7 @@ const controlClass =
   'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100 aria-expanded:bg-current/10 aria-expanded:opacity-100'
 
 /*
- * 会话页头右角的两枚开关：任务面板与辅助面板。
+ * 会话页头右角的两枚开关：独立任务弹窗与辅助面板。
  *
  * 它们只写 workspaceLayoutStore 的归属意图 —— 外壳几何的唯一所有者 —— 不认识
  * 任何面板内部状态。座位固定在页头，面板开合不搬动它们。
@@ -15,7 +15,7 @@ export function ConversationHeader({ conversationId }: { readonly conversationId
   const { auxiliaryThread, todoThread } = useWorkspaceLayoutState()
   const todoOpen = todoThread === conversationId
   const auxiliaryOpen = auxiliaryThread === conversationId
-  const todoLabel = todoOpen ? '收起任务' : '任务'
+  const todoLabel = todoOpen ? '关闭任务弹窗' : '打开任务弹窗'
   const auxiliaryLabel = auxiliaryOpen ? '收起辅助面板' : '打开辅助面板'
 
   return (
@@ -26,6 +26,7 @@ export function ConversationHeader({ conversationId }: { readonly conversationId
           aria-expanded={todoOpen}
           aria-label={todoLabel}
           className={controlClass}
+          id="conversation-todo-trigger"
           onClick={() => {
             workspaceLayoutStore.setTodoThread(todoOpen ? null : conversationId)
           }}

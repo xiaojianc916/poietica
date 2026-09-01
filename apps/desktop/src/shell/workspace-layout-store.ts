@@ -22,7 +22,7 @@ export interface WorkspaceLayoutState {
   /** 哪一条对话把浏览器开着。null = 没有对话开着它。 */
   readonly auxiliaryThread: string | null
   readonly auxiliaryWidth: number
-  /** 哪一条对话把任务面板开着。定宽，所以只有归属，没有宽度。 */
+  /** 哪一条对话把任务弹窗开着。 */
   readonly todoThread: string | null
   readonly splitter: SplitterActivity
   readonly splitterRegion: SplitterRegion
@@ -34,7 +34,6 @@ interface LayoutIntent {
   readonly sidebarWidth: number
   readonly auxiliaryThread: string | null
   readonly auxiliaryWidth: number
-  readonly todoThread: string | null
 }
 
 const { sidebar, auxiliary } = WORKSPACE_LAYOUT
@@ -44,7 +43,6 @@ const DEFAULT_INTENT: LayoutIntent = {
   sidebarWidth: sidebar.defaultWidth,
   auxiliaryThread: null,
   auxiliaryWidth: auxiliary.defaultWidth,
-  todoThread: null,
 }
 
 const clampTo = (bounds: { minWidth: number; maxWidth: number }) => (width: number) =>
@@ -62,7 +60,6 @@ const PersistedLayoutSchema = v.object({
   sidebarWidth: width(clampSidebarWidth, DEFAULT_INTENT.sidebarWidth),
   auxiliaryThread: v.fallback(v.nullable(v.string()), DEFAULT_INTENT.auxiliaryThread),
   auxiliaryWidth: width(clampAuxiliaryWidth, DEFAULT_INTENT.auxiliaryWidth),
-  todoThread: v.fallback(v.nullable(v.string()), DEFAULT_INTENT.todoThread),
 })
 
 const FAILURE = {
@@ -82,12 +79,13 @@ const persisted = createPreference<LayoutIntent>({
 
 /* 本模块只拥有用户意图，不拥有视口：意图一旦被环境覆盖就再也还原不回来。 */
 let intent = persisted.read()
+let todoThread: string | null = null
 let splitter: SplitterActivity = 'idle'
 let splitterRegion: SplitterRegion = 'sidebar'
-let snapshot: WorkspaceLayoutState = { ...intent, splitter, splitterRegion }
+let snapshot: WorkspaceLayoutState = { ...intent, todoThread, splitter, splitterRegion }
 
 function publish(): void {
-  const next: WorkspaceLayoutState = { ...intent, splitter, splitterRegion }
+  const next: WorkspaceLayoutState = { ...intent, todoThread, splitter, splitterRegion }
 
   if (
     next.sidebarOpen === snapshot.sidebarOpen &&
@@ -168,9 +166,13 @@ export const workspaceLayoutStore = {
     settle({ ...intent, auxiliaryWidth: clampAuxiliaryWidth(value) })
   },
 
-  /* 任务面板同样是归属：开着它的是这条对话，或者没有人。 */
+  /* 弹窗开合是瞬时界面状态，不写入跨启动布局偏好。 */
   setTodoThread: (threadId: string | null): void => {
-    settle({ ...intent, todoThread: threadId })
+    if (todoThread === threadId) {
+      return
+    }
+    todoThread = threadId
+    publish()
   },
 
   /* 两个区域各一个稳定引用：RegionSplitter 卸载时要靠它收回交互态。 */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { TodoItem } from '@poietica/conversation'
-import { todoProgressLabel } from '../todo/todo-panel'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { TodoListCard, todoProgressLabel } from '../todo/todo-panel'
 
 const todos: readonly TodoItem[] = [
   { title: '搭骨架', status: 'done' },
@@ -19,5 +20,14 @@ describe('todo progress label', () => {
 
   it('says nothing about an empty list', () => {
     expect(todoProgressLabel([])).toBe('')
+  })
+})
+
+describe('TodoListCard', () => {
+  it('starts as an accessible collapsed disclosure', () => {
+    const markup = renderToStaticMarkup(<TodoListCard todos={todos} />)
+    expect(markup).toContain('aria-expanded="false"')
+    expect(markup).toContain('1 已完成')
+    expect(markup).not.toContain('写组件')
   })
 })

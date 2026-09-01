@@ -33,7 +33,7 @@ import {
 import { AssistantSidebarPanel } from '../assistant/assistant-sidebar-panel'
 import { createAssistantWiring } from '../assistant/assistant-wiring'
 import { ConversationHeader } from '../assistant/conversation-header'
-import { ConversationTodoRail } from '../assistant/conversation-todo-rail'
+import { ConversationTodoPopover } from '../assistant/conversation-todo-popover'
 import { useThreadsActions } from '../assistant/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../window/desktop-title-bar'
 import { AuxiliaryDock } from './auxiliary/auxiliary-dock'
@@ -329,9 +329,8 @@ export function WorkspaceContainer({
         <SettingsContentRegion />
       ) : (
         /*
-         * 会话区自上而下是页头与一行内容；内容行里左边是画布，右边是任务面板
-         * 那一列。页头恒在，两枚开关不换座位。辅助面板开合状态活在
-         * auxiliaryPanel，一份，跨表面与设置往返不丢。
+         * 任务弹窗属于会话内容行；它只在宽屏预留空间，窄屏提升为覆盖层。
+         * AuxiliaryDock 仍是外壳第三列，两者没有 pane 或生命周期上的从属关系。
          */
         <div className="flex h-full min-h-0 min-w-0 flex-col">
           {workbench.activeSurface.kind === 'conversation' ? (
@@ -345,7 +344,7 @@ export function WorkspaceContainer({
               {surface}
             </div>
             {workbench.activeSurface.kind === 'conversation' ? (
-              <ConversationTodoRail threadId={workbench.activeSurface.threadId} />
+              <ConversationTodoPopover threadId={workbench.activeSurface.threadId} />
             ) : null}
           </div>
         </div>

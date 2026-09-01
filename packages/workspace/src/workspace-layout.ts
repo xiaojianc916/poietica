@@ -33,9 +33,10 @@ export const WORKSPACE_LAYOUT = {
     defaultWidth: 420,
   },
 
-  /* 任务面板贴会话区 inline-end：定宽，不参与拖拽。 */
+  /* 独立任务弹窗的卡片宽度与四周浮动间距。 */
   todo: {
     width: 320,
+    gap: 12,
   },
 
   chrome: {
