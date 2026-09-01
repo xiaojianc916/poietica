@@ -242,16 +242,6 @@ async agentEarlierFrames(request: AgentEarlierFramesRequest) : Promise<AgentFram
     return await TAURI_INVOKE("agent_earlier_frames", { request });
 },
 /**
- * 目录点名的那一轮到已载入那一段之间的缺口，一次读回来。
- * 
- * # Errors
- * 
- * 标识不是 UUID，位置指不到行，或库拒绝这次读取时失败。
- */
-async agentFramesUntil(request: AgentFramesUntilRequest) : Promise<AgentFramePage> {
-    return await TAURI_INVOKE("agent_frames_until", { request });
-},
-/**
  * 这条对话的整本目录，一轮一行。
  * 
  * 屏幕上的经过由 run_events 重放，目录因此也只能出自它：以内存窗口为定义域的
@@ -1433,18 +1423,6 @@ seq: number }
  * A page of validated wire events and its earlier cursor.
  */
 export type AgentFramePage = { events: AgentRunEvent[]; before: AgentFrameCursor | null }
-/**
- * 要把哪一段缺口读回来。
- */
-export type AgentFramesUntilRequest = { threadId: string; 
-/**
- * 从这一轮的第一帧起。
- */
-from: AgentFrameCursor; 
-/**
- * 读到这一帧之前为止 —— 它是此刻窗口里最早的那一帧。
- */
-before: AgentFrameCursor }
 /**
  * 目标模式此刻的事实，线上形状。
  */

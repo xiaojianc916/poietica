@@ -880,14 +880,3 @@ pub struct AgentTurnMark {
     pub prompt: String,
     pub reply: Option<String>,
 }
-
-/// 要把哪一段缺口读回来。
-#[derive(Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentFramesUntilRequest {
-    pub thread_id: String,
-    /// 从这一轮的第一帧起。
-    pub from: AgentFrameCursor,
-    /// 读到这一帧之前为止 —— 它是此刻窗口里最早的那一帧。
-    pub before: AgentFrameCursor,
-}

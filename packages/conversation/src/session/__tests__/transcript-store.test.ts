@@ -37,8 +37,8 @@ function fakePort(
   }
 }
 
-function started(seq: number, sessionId: string): RunEvent {
-  return { kind: 'prompt_admitted', admissionId: 'adm', seq, at: seq, sessionId, prompt: '在吗' }
+function started(seq: number, sessionId: string, admissionId = 'adm'): RunEvent {
+  return { kind: 'prompt_admitted', admissionId, seq, at: seq, sessionId, prompt: '在吗' }
 }
 
 /* 一段流式文本。 */
@@ -177,7 +177,6 @@ describe('transcript store', () => {
             before: null,
           })
         },
-        until: () => Promise.resolve({ events: [], before: null }),
         outline: () => Promise.resolve([]),
       },
     })
@@ -197,6 +196,81 @@ describe('transcript store', () => {
     expect(reads).toBe(1)
     expect(transcript.earlier).toBeNull()
     expect(items.filter((item) => item.type === 'user_message')).toHaveLength(2)
+  })
+
+  it('目录跳转复用有界分页器并吸收快速重入', async () => {
+    let releaseFirst: (() => void) | undefined
+    let calls = 0
+    let inFlight = 0
+    let maxInFlight = 0
+    const cursors: number[] = []
+    const pages = [
+      {
+        events: [started(5, 'sess_a', 'middle'), chunk(6, '中')],
+        before: { sessionId: 'sess_a', seq: 5 },
+      },
+      {
+        events: [started(1, 'sess_a', 'oldest'), chunk(2, '旧')],
+        before: null,
+      },
+    ]
+    const store = new TranscriptStore({
+      paint: () => {},
+      reads: {
+        earlier: async (_threadId, before) => {
+          const page = pages[calls]
+          if (page === undefined) {
+            throw new Error('unexpected extra history page')
+          }
+          calls += 1
+          cursors.push(before.seq)
+          inFlight += 1
+          maxInFlight = Math.max(maxInFlight, inFlight)
+          if (calls === 1) {
+            await new Promise<void>((resolve) => {
+              releaseFirst = resolve
+            })
+          }
+          inFlight -= 1
+          return page
+        },
+        outline: () => Promise.resolve([]),
+      },
+    })
+
+    store.adopt('thread_a', {
+      events: [started(9, 'sess_a', 'latest'), chunk(10, '新')],
+      before: { sessionId: 'sess_a', seq: 9 },
+    })
+
+    const first = store.revealTurn('thread_a', {
+      at: { sessionId: 'sess_a', seq: 5 },
+      admissionId: 'middle',
+      prompt: '中',
+      reply: null,
+    })
+    const second = store.revealTurn('thread_a', {
+      at: { sessionId: 'sess_a', seq: 1 },
+      admissionId: 'oldest',
+      prompt: '旧',
+      reply: null,
+    })
+
+    expect(second).toBe(first)
+    expect(store.read('thread_a').revealing).toBe('oldest')
+    releaseFirst?.()
+    await first
+
+    const transcript = store.read('thread_a')
+    const items = [
+      ...transcript.timeline.sealed.flatMap((page) => page.items),
+      ...transcript.timeline.active.items,
+    ]
+    expect(cursors).toEqual([9, 5])
+    expect(maxInFlight).toBe(1)
+    expect(transcript.reading).toBe(false)
+    expect(transcript.revealing).toBeNull()
+    expect(items.filter((item) => item.type === 'user_message')).toHaveLength(3)
   })
 
   it('cancels before the thread is prepared', async () => {

@@ -149,12 +149,6 @@ export interface ThreadPort {
    * 定义域是平台的帧日志，不是界面此刻载入了多少：目录的长度因此不随滚动伸缩。
    */
   readonly outline: (threadId: ThreadId) => Promise<readonly TurnMark[]>
-  /** 目录点名的那一轮到 `before` 之间的缺口，一次读回来。 */
-  readonly framesUntil: (
-    threadId: ThreadId,
-    from: FrameCursor,
-    before: FrameCursor,
-  ) => Promise<FramePage>
   /** Renames one. The name becomes the user's and outlives the agent's. */
   readonly rename?: (threadId: ThreadId, title: string) => Promise<void>
   readonly remove?: (threadId: ThreadId) => Promise<void>

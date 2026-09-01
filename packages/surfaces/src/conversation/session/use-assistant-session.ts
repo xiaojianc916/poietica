@@ -157,6 +157,8 @@ const readHasEarlier = (transcript: Transcript): boolean => transcript.earlier !
 /* 整本目录。引用只在库里那张表变过之后才换。 */
 const readOutline = (transcript: Transcript): readonly TurnMark[] => transcript.outline
 
+const readRevealTarget = (transcript: Transcript): string | null => transcript.revealing
+
 /*
  * 待答的那一道：倒扫，走到人说的上一句话为止（pendingPermission）。
  *
@@ -364,6 +366,11 @@ export function useAssistantHasEarlier(key: string): boolean {
 /** 这条对话的整本目录，一轮一行。 */
 export function useAssistantOutline(key: string): readonly TurnMark[] {
   return useSlice(key, readOutline)
+}
+
+/** 目录跳转正在补载的轮次。 */
+export function useAssistantRevealTarget(key: string): string | null {
+  return useSlice(key, readRevealTarget)
 }
 
 /**

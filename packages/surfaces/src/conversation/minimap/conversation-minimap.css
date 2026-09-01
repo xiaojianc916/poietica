@@ -119,6 +119,15 @@
 .conversation-minimap__turn:focus-visible .conversation-minimap__bar {
   background: var(--cp-rail-ink-aimed);
 }
+@keyframes conversation-minimap-busy {
+  to {
+    opacity: 0.35;
+  }
+}
+.conversation-minimap__turn[data-busy] .conversation-minimap__bar {
+  background: var(--cp-rail-ink-active);
+  animation: conversation-minimap-busy 900ms ease-in-out infinite alternate;
+}
 /*
  * 预览卡。问题恒一行，超出省略号；回复至多三整行 —— max-block-size 取行高的
  * 整数倍，裁切因此永远落在行边界上，不会露出半行。
@@ -173,6 +182,9 @@
   .conversation-minimap__card,
   .conversation-minimap__card[data-shown] {
     transition: none;
+  }
+  .conversation-minimap__turn[data-busy] .conversation-minimap__bar {
+    animation: none;
   }
 }
 /* dpx 档位：只有小数缩放需要改写，整数缩放下 3 CSS px 本就是整数个设备像素。 */

@@ -24,6 +24,7 @@ import { useRailPointer } from './use-rail-pointer'
 interface ConversationMinimapProps {
   /** 正在读的那一轮，按 id。 */
   readonly activeId: string | undefined
+  readonly busyId: string | null
   readonly marks: readonly TurnMark[]
   readonly onSelect: (mark: TurnMark) => void
 }
@@ -39,10 +40,12 @@ function indexOf(target: EventTarget | null): number {
 }
 const TickList = memo(function TickList({
   activeIndex,
+  busyId,
   marks,
   tabbable,
 }: {
   readonly activeIndex: number
+  readonly busyId: string | null
   readonly marks: readonly TurnMark[]
   readonly tabbable: number
 }) {
@@ -51,11 +54,13 @@ const TickList = memo(function TickList({
       {marks.map((mark, index) => (
         <li className="conversation-minimap__item" key={mark.admissionId}>
           <button
+            aria-busy={mark.admissionId === busyId || undefined}
             aria-current={index === activeIndex ? 'location' : undefined}
             aria-label={`第 ${String(index + 1)} 轮，共 ${String(marks.length)} 轮：${
               mark.prompt.trim() || UNNAMED
             }`}
             className="conversation-minimap__turn"
+            data-busy={mark.admissionId === busyId ? '' : undefined}
             data-minimap-index={index}
             tabIndex={index === tabbable ? 0 : -1}
             type="button"
@@ -153,7 +158,7 @@ function Rail({ activeId, marks, onSelect }: ConversationMinimapProps) {
           onKeyDown={handleKeyDown}
           ref={listRef}
         >
-          <TickList activeIndex={activeIndex} marks={marks} tabbable={tabbable} />
+          <TickList activeIndex={activeIndex} busyId={busyId} marks={marks} tabbable={tabbable} />
         </ol>
       </div>
       <div

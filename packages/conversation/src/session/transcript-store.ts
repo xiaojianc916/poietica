@@ -83,12 +83,13 @@ export interface Transcript {
   readonly outline: readonly TurnMark[]
   /** 正在往前读。 */
   readonly reading: boolean
+  /** 目录跳转正在补载的轮次；普通分页或空闲时为 null。 */
+  readonly revealing: string | null
 }
 
-/** 帧日志上的三次读取。由组合根注入，所以这台 store 脱离进程可测。 */
+/** 帧日志的有界分页与目录读取。由组合根注入，所以 store 脱离进程可测。 */
 export interface TranscriptReads {
   readonly earlier: (threadId: string, before: FrameCursor) => Promise<FramePage>
-  readonly until: (threadId: string, from: FrameCursor, before: FrameCursor) => Promise<FramePage>
   readonly outline: (threadId: string) => Promise<readonly TurnMark[]>
 }
 
@@ -119,6 +120,11 @@ interface PendingSubmission {
   cancelSent: boolean
 }
 
+interface HistoryLoad {
+  readonly targets: Map<string, TurnMark>
+  promise: Promise<void>
+}
+
 /* 引用固定，useSyncExternalStore 才判得出「没变」。 */
 const NO_MARKS: readonly TurnMark[] = []
 
@@ -136,6 +142,7 @@ const EMPTY: Transcript = {
   earlier: null,
   outline: NO_MARKS,
   reading: false,
+  revealing: null,
 }
 
 /*
@@ -261,6 +268,9 @@ export class TranscriptStore implements TranscriptSink {
   #waiting = false
 
   readonly #reads: TranscriptReads | undefined
+
+  /** 每条对话至多一个历史读取；目标可在读取期间追加。 */
+  #historyLoads = new Map<string, HistoryLoad>()
 
   constructor({ reads, paint = onNextPaint }: TranscriptStoreOptions = {}) {
     this.#paint = paint
@@ -433,6 +443,7 @@ export class TranscriptStore implements TranscriptSink {
 
   #evict(key: string): void {
     this.#releaseSubmission(key)
+    this.#historyLoads.delete(key)
     this.#held.delete(key)
     this.#pending.delete(key)
     this.#dirty.delete(key)
@@ -531,6 +542,7 @@ export class TranscriptStore implements TranscriptSink {
       earlier: page.before,
       outline: this.#now(threadId).outline,
       reading: false,
+      revealing: null,
     })
   }
 
@@ -554,49 +566,146 @@ export class TranscriptStore implements TranscriptSink {
 
   /* ================= 内部 ================= */
 
-  /** 向上读一页。 */
-  readEarlier = (key: string): Promise<void> =>
-    this.#pull(key, (read, from) => read.earlier(key, from))
+  /** 向上读一页；目录跳转也只使用这一个有界分页原语。 */
+  readEarlier = (key: string): Promise<void> => this.#readHistory(key)
 
-  /**
-   * 目录点名的那一轮，读到手上。
-   *
-   * 已经载入的那些不必读 —— 判据是投影认不认得这个号，那由界面问，因为行号是它的
-   * 定义域。这里只负责把缺口一次补齐：窗口因此始终是连着尾部的一段。
-   */
-  revealTurn = (key: string, mark: TurnMark): Promise<void> =>
-    this.#pull(key, (read, from) => read.until(key, mark.at, from))
+  revealTurn = (key: string, mark: TurnMark): Promise<void> => this.#readHistory(key, mark)
 
-  /** 往前读一段，落进转录。两条读法共用这一条路径。 */
-  async #pull(
-    real: string,
-    read: (reads: TranscriptReads, from: FrameCursor) => Promise<FramePage>,
-  ): Promise<void> {
+  #readHistory(real: string, target?: TurnMark): Promise<void> {
     const reads = this.#reads
     const opened = this.#now(real)
 
-    if (reads === undefined || opened.reading || opened.earlier === null) {
-      return
+    if (reads === undefined || opened.earlier === null) {
+      return Promise.resolve()
     }
 
-    this.#put(real, { ...opened, reading: true })
+    const running = this.#historyLoads.get(real)
 
-    try {
-      const page = await read(reads, opened.earlier)
+    if (running !== undefined) {
+      if (target !== undefined) {
+        const latest = this.#now(real)
+        if (!this.#hasTimelineItem(latest.timeline, target.admissionId)) {
+          running.targets.set(target.admissionId, target)
+          if (latest.revealing !== target.admissionId) {
+            this.#put(real, { ...latest, revealing: target.admissionId })
+          }
+        }
+      }
 
-      if (!this.#held.has(real)) {
+      return running.promise
+    }
+
+    const targets = new Map<string, TurnMark>()
+    if (target !== undefined && !this.#hasTimelineItem(opened.timeline, target.admissionId)) {
+      targets.set(target.admissionId, target)
+    }
+    if (target !== undefined && targets.size === 0) {
+      return Promise.resolve()
+    }
+
+    const load: HistoryLoad = { targets, promise: Promise.resolve() }
+    this.#historyLoads.set(real, load)
+    this.#put(real, {
+      ...opened,
+      reading: true,
+      revealing: target?.admissionId ?? null,
+    })
+
+    load.promise = this.#runHistoryLoad(real, load, target === undefined)
+      .catch((cause: unknown) => {
+        if (this.#historyLoads.get(real) !== load || !this.#held.has(real)) {
+          return
+        }
+        const latest = this.#now(real)
+        this.#put(real, { ...latest, timeline: noteOn(latest.timeline, cause, false) })
+      })
+      .finally(() => {
+        if (this.#historyLoads.get(real) !== load) {
+          return
+        }
+        this.#historyLoads.delete(real)
+        if (this.#held.has(real)) {
+          this.#put(real, { ...this.#now(real), reading: false, revealing: null })
+        }
+      })
+
+    return load.promise
+  }
+
+  async #runHistoryLoad(real: string, load: HistoryLoad, onePage: boolean): Promise<void> {
+    const reads = this.#reads
+    if (reads === undefined) {
+      return
+    }
+    let pages = onePage ? 1 : 0
+
+    for (;;) {
+      if (this.#historyLoads.get(real) !== load || !this.#held.has(real)) {
+        return
+      }
+
+      const current = this.#now(real)
+      this.#dropLoadedTargets(load, current.timeline)
+      if (pages === 0 && load.targets.size === 0) {
+        return
+      }
+      const before = current.earlier
+      if (before === null) {
+        if (load.targets.size > 0) {
+          throw new Error('目录指向的轮次不在历史中。')
+        }
+        return
+      }
+
+      const page = await reads.earlier(real, before)
+      if (this.#historyLoads.get(real) !== load || !this.#held.has(real)) {
         return
       }
 
       this.#prepend(real, page.events, page.before)
-    } catch (cause: unknown) {
-      const latest = this.#now(real)
-      this.#put(real, { ...latest, timeline: noteOn(latest.timeline, cause, false) })
-    } finally {
-      if (this.#held.has(real)) {
-        this.#put(real, { ...this.#now(real), reading: false })
+      this.#dropPageTargets(load, page.events)
+      pages = Math.max(0, pages - 1)
+
+      if (pages === 0 && load.targets.size === 0) {
+        return
+      }
+      if (page.before === null) {
+        throw new Error('目录指向的轮次不在历史中。')
+      }
+      if (page.before.sessionId === before.sessionId && page.before.seq === before.seq) {
+        throw new Error('历史分页游标没有前进。')
       }
     }
+  }
+
+  #dropLoadedTargets(load: HistoryLoad, timeline: TimelineState): void {
+    for (const admissionId of load.targets.keys()) {
+      if (this.#hasTimelineItem(timeline, admissionId)) {
+        load.targets.delete(admissionId)
+      }
+    }
+  }
+
+  #dropPageTargets(load: HistoryLoad, events: readonly RunEvent[]): void {
+    for (const event of events) {
+      if (event.kind !== 'prompt_admitted') {
+        continue
+      }
+      const target = load.targets.get(event.admissionId)
+      if (target?.at.seq === event.seq) {
+        load.targets.delete(event.admissionId)
+      }
+    }
+  }
+
+  #hasTimelineItem(timeline: TimelineState, id: string): boolean {
+    for (const page of timeline.sealed) {
+      if (page.items.some((item) => item.id === id)) {
+        return true
+      }
+    }
+
+    return timeline.active.items.some((item) => item.id === id)
   }
 
   /** 目录整本重读。它是派生视图，所以没有增量维护，也就没有可以脱节的缓存。 */
@@ -967,6 +1076,7 @@ export class TranscriptStore implements TranscriptSink {
       this.#listeners.has(key) ||
       this.#submissions.has(key) ||
       this.#pending.has(key) ||
+      this.#historyLoads.has(key) ||
       this.#running.has(key)
     ) {
       return true

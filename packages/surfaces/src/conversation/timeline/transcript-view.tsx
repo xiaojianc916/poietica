@@ -7,6 +7,7 @@ import { useTranscripts } from '../session/transcripts-context'
 import {
   useAssistantHasEarlier,
   useAssistantOutline,
+  useAssistantRevealTarget,
   useAssistantTimeline,
 } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
@@ -58,6 +59,7 @@ export function TranscriptView({
   const timeline = useAssistantTimeline(sessionKey)
   const hasEarlier = useAssistantHasEarlier(sessionKey)
   const outline = useAssistantOutline(sessionKey)
+  const revealTarget = useAssistantRevealTarget(sessionKey)
   const transcripts = useTranscripts()
 
   /* 视口只报「顶端快见底了」，读不读、读几页归 store。 */
@@ -155,46 +157,68 @@ export function TranscriptView({
   const estimateRowAt = useCallback((index: number) => estimateRowPx(feed.rowAt(index)), [feed])
   const rowRhythmAt = useCallback((index: number) => rowRhythmOf(feed.rowAt(index)), [feed])
 
-  /*
-   * 目录点了哪一轮。
-   *
-   * 地址是 admissionId：认得就直接落点，认不得就先把缺口读回来，再问一次同一个投影。
-   * 行号只在这一步出现，而且是问出来的，不是存着的。
-   */
+  /* admissionId 是落点；未产出可见行的轮次回退到最近可见轮次。 */
   const reveal = useCallback(
     (mark: TurnMark, toRow: (row: number) => void) => {
-      const rowOf = () =>
-        selectPresentation(transcripts.read(sessionKey).timeline, seals).rowOf(mark.admissionId)
-      const known = rowOf()
+      const landingOf = (allowNearest: boolean): number | undefined => {
+        const projection = selectPresentation(transcripts.read(sessionKey).timeline, seals)
+        const exact = projection.rowOf(mark.admissionId)
+        if (exact !== undefined || !allowNearest) {
+          return exact
+        }
+        const selected = outline.findIndex(
+          (candidate) => candidate.admissionId === mark.admissionId,
+        )
+        if (selected < 0) {
+          return undefined
+        }
+        for (let distance = 1; distance < outline.length; distance += 1) {
+          const earlier = outline[selected - distance]
+          if (earlier !== undefined) {
+            const row = projection.rowOf(earlier.admissionId)
+            if (row !== undefined) {
+              return row
+            }
+          }
+          const later = outline[selected + distance]
+          if (later !== undefined) {
+            const row = projection.rowOf(later.admissionId)
+            if (row !== undefined) {
+              return row
+            }
+          }
+        }
+        return undefined
+      }
 
+      const known = landingOf(false)
       if (known !== undefined) {
         toRow(known)
-
         return
       }
 
       void transcripts.revealTurn(sessionKey, mark).then(() => {
-        const landed = rowOf()
-
+        const landed = landingOf(true)
         if (landed !== undefined) {
           toRow(landed)
         }
       })
     },
-    [seals, sessionKey, transcripts],
+    [outline, seals, sessionKey, transcripts],
   )
 
   const overlay = useCallback(
     (port: FeedPort) => (
       <ConversationMinimap
         activeId={feed.turnIdAt(port.activeRow)}
+        busyId={revealTarget}
         marks={outline}
         onSelect={(mark) => {
           reveal(mark, port.scrollToRow)
         }}
       />
     ),
-    [feed, outline, reveal],
+    [feed, outline, reveal, revealTarget],
   )
 
   return (

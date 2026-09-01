@@ -39,11 +39,11 @@ use commands::{
     conversation::dto::{
         AgentAnswerQuestionsRequest, AgentArchiveThreadRequest, AgentCapabilitiesRequest,
         AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentDismissQuestionsRequest,
-        AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFramesUntilRequest, AgentGoal,
-        AgentPinThreadRequest, AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult,
-        AgentPromptSkill, AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod,
-        AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentRunBatch, AgentRunEvent,
-        AgentSelectConfigRequest, AgentSessionEvent, AgentThreadRequest, AgentTurnMark,
+        AgentEarlierFramesRequest, AgentForkThreadRequest, AgentGoal, AgentPinThreadRequest,
+        AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult, AgentPromptSkill,
+        AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod, AgentRenameThreadRequest,
+        AgentResolvePermissionRequest, AgentRunBatch, AgentRunEvent, AgentSelectConfigRequest,
+        AgentSessionEvent, AgentThreadRequest, AgentTurnMark,
     },
     conversation::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
     extension::{
@@ -86,7 +86,6 @@ pub fn surface() -> Builder<Wry> {
             commands::conversation::thread::agent_thread_snapshot,
             commands::conversation::thread::agent_open_thread,
             commands::conversation::thread::agent_earlier_frames,
-            commands::conversation::thread::agent_frames_until,
             commands::conversation::thread::agent_thread_outline,
             commands::conversation::thread::agent_rename_thread,
             commands::conversation::thread::agent_archive_thread,
@@ -225,7 +224,6 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()
         .typ::<AgentEarlierFramesRequest>()
-        .typ::<AgentFramesUntilRequest>()
         .typ::<AgentTurnMark>()
         .typ::<AgentForkThreadRequest>()
         .typ::<AgentPinThreadRequest>()

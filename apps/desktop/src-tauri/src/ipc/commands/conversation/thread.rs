@@ -624,28 +624,3 @@ pub async fn agent_thread_outline(
 
     Ok(listed)
 }
-
-/// 目录点名的那一轮到已载入那一段之间的缺口，一次读回来。
-///
-/// # Errors
-///
-/// 标识不是 UUID，位置指不到行，或库拒绝这次读取时失败。
-#[tauri::command]
-#[specta::specta]
-pub async fn agent_frames_until(
-    index: State<'_, LocalIndex>,
-    request: crate::ipc::commands::conversation::dto::AgentFramesUntilRequest,
-) -> AgentCommandResult<AgentFramePage> {
-    let id = conversation(&request.thread_id)?;
-    let from = located(&request.from);
-    let before = located(&request.before);
-
-    let frames = on_index(&index, move |store| {
-        store
-            .turns_until(id, &from, &before, PROMPT_ADMITTED)
-            .map_err(persistence)
-    })
-    .await?;
-
-    Ok(paged(frames)?)
-}

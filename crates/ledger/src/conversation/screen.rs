@@ -97,27 +97,6 @@ impl AgentStore {
         self.page(&thread_id, floor, ceiling, turn_start)
     }
 
-    /// 从这一轮的第一帧起，读到已经载入的那一帧之前为止。
-    ///
-    /// 目录点名的那一轮可能在窗口之外。缺口一次读回来，屏幕上因此仍然只有一段
-    /// 连着尾部的经过，而不是中间挖着洞的两段。
-    ///
-    /// # Errors
-    ///
-    /// 查询被拒，或两个位置在这条对话上指不到行时返回错误。
-    pub fn turns_until(
-        &self,
-        thread: Uuid,
-        from: &FrameCursor,
-        before: &FrameCursor,
-        turn_start: &str,
-    ) -> Result<FramePage> {
-        let floor = self.frame_row(thread, from)?;
-        let ceiling = self.frame_row(thread, before)?;
-
-        self.page(&thread.to_string(), Some(floor), ceiling, turn_start)
-    }
-
     /// 这条对话的整本目录：一轮一行，按追加顺序。
     ///
     /// 问出自开轮那一帧。答是这一轮里主代理说出的字，按 seq 接起来再截到预览卡
