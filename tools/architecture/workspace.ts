@@ -16,41 +16,58 @@ export type Workspace = {
 
 export type Crate = { readonly name: string; readonly dependencies: readonly string[] }
 
-const PARENTS = ['apps', 'packages']
-const SINGLES = ['tests', 'tools']
+type RootManifest = {
+  workspaces?: { packages?: string[] } | string[]
+}
 
-export async function readWorkspaces(root: string): Promise<Workspace[]> {
-  const directories = [...SINGLES]
+function workspacePatterns(manifest: RootManifest): string[] {
+  const configured = Array.isArray(manifest.workspaces)
+    ? manifest.workspaces
+    : manifest.workspaces?.packages
 
-  for (const parent of PARENTS) {
-    const entries = await readdir(path.join(root, parent), { withFileTypes: true })
-
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        directories.push(`${parent}/${entry.name}`)
-      }
-    }
+  if (configured === undefined || configured.length === 0) {
+    throw new Error('根 package.json 没有声明 workspaces')
   }
 
+  return configured
+}
+
+async function expandWorkspace(root: string, pattern: string): Promise<string[]> {
+  const normalized = pattern.replaceAll('\\', '/').replace(/\/$/, '')
+  if (!normalized.includes('*')) {
+    return [normalized]
+  }
+  if (!normalized.endsWith('/*') || normalized.slice(0, -2).includes('*')) {
+    throw new Error(`不支持的 workspace glob：${pattern}`)
+  }
+
+  const parent = normalized.slice(0, -2)
+  const entries = await readdir(path.join(root, parent), { withFileTypes: true })
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => `${parent}/${entry.name}`)
+}
+
+export async function readWorkspaces(root: string): Promise<Workspace[]> {
+  const rootManifest = JSON.parse(
+    await readFile(path.join(root, 'package.json'), 'utf8'),
+  ) as RootManifest
+  const expanded = await Promise.all(
+    workspacePatterns(rootManifest).map((pattern) => expandWorkspace(root, pattern)),
+  )
+  const directories = [...new Set(expanded.flat())].sort()
   const workspaces: Workspace[] = []
 
-  for (const directory of directories.sort()) {
-    const text = await readFile(path.join(root, directory, 'package.json'), 'utf8').catch(
-      () => null,
-    )
-
+  for (const directory of directories) {
+    const manifestPath = path.join(root, directory, 'package.json')
+    const text = await readFile(manifestPath, 'utf8').catch(() => null)
     if (text === null) {
-      continue
+      throw new Error(`workspace 没有 package.json：${directory}`)
     }
 
     const manifest = JSON.parse(text) as Manifest
-    const name = manifest.name
-
-    if (name === undefined) {
+    if (manifest.name === undefined) {
       throw new Error(`工作区缺少 name：${directory}`)
     }
-
-    workspaces.push({ name, directory, manifest })
+    workspaces.push({ name: manifest.name, directory, manifest })
   }
 
   return workspaces

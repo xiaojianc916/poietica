@@ -1,6 +1,7 @@
 import {
   type AgentConfigChoice,
   type AgentConfigControl,
+  type AgentFramePage,
   type AgentGoal,
   type AgentLaunch,
   type AgentMcpServer,
@@ -13,6 +14,7 @@ import {
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
+  FramePage,
   OpenedThread,
   QuestionChoice,
   RunEvent,
@@ -48,6 +50,50 @@ function sessionIdOf(value: unknown): string | null {
 
   const sessionId = Reflect.get(value, 'sessionId')
   return typeof sessionId === 'string' ? sessionId : null
+}
+
+/*
+ * 线上原文 -> 端口词汇的唯一收窄点。
+ *
+ * 判别式清单由 RunEvent 联合穷举（Record 强制每个 kind 都在）：加一种帧，
+ * 这里漏写会是编译错误。账本为忠实重放而留的机制帧（turn_admitted、
+ * unsupported_external_event）不在屏幕词汇里，在这里落选 —— 词表边界在尽职，
+ * 不是数据丢了。
+ */
+const RUN_EVENT_KINDS = {
+  prompt_admitted: true,
+  kap_event: true,
+  permission_requested: true,
+  permission_resolved: true,
+  questions_asked: true,
+  questions_resolved: true,
+  session_recovered: true,
+  link_changed: true,
+  run_finished: true,
+  run_failed: true,
+} as const satisfies Record<RunEvent['kind'], true>
+
+function isRunEvent(value: unknown): value is RunEvent {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+
+  const kind = Reflect.get(value, 'kind')
+
+  return (
+    typeof kind === 'string' &&
+    kind in RUN_EVENT_KINDS &&
+    typeof Reflect.get(value, 'seq') === 'number' &&
+    typeof Reflect.get(value, 'at') === 'number'
+  )
+}
+
+function runEventsOf(events: readonly unknown[]): readonly RunEvent[] {
+  return events.filter(isRunEvent)
+}
+
+function framePageOf(page: AgentFramePage): FramePage {
+  return { events: runEventsOf(page.events), before: page.before }
 }
 export interface AgentEventSourceOptions {
   /** Reports a transport failure; listening is best-effort by design. */
@@ -194,22 +240,22 @@ export function createAgentSessionPort({
             receive(event.payload)
           }),
         (batch) => {
-          const first = batch.events.at(0)
+          const events = runEventsOf(batch.events)
+          const first = events.at(0)
 
           if (first === undefined) {
             return
           }
 
           const sessionId = sessionIdOf(first)
-          const oneSession = batch.events.every((event) => sessionIdOf(event) === sessionId)
+          const oneSession = events.every((event) => sessionIdOf(event) === sessionId)
 
           if (sessionId === null || !oneSession) {
             onListenFailure?.(new TypeError('agent run batch has an invalid session envelope'))
             return
           }
 
-          /* codegen 把 events 拍成 JsonValue[]（dto.rs 的 events: Vec<Value>），运行时形状由协议保证。*/
-          listener(batch.events as unknown as readonly RunEvent[], sessionId)
+          listener(events, sessionId)
         },
         onListenFailure,
       ),
@@ -504,17 +550,17 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
       const snapshot = await throughIpc(() => commands.agentThreadSnapshot({ threadId }))
       return {
         thread: snapshot.thread,
-        frames: snapshot.frames,
+        frames: framePageOf(snapshot.frames),
         ...(snapshot.usage === null ? {} : { usage: snapshot.usage }),
       }
     },
     create: (threadId, workspaceRoot) => openTarget({ kind: 'create', threadId }, workspaceRoot),
     open: (threadId) => openTarget({ kind: 'existing', threadId }),
-    earlierFrames: (threadId, before) =>
-      throughIpc(() => commands.agentEarlierFrames({ threadId, before })),
+    earlierFrames: async (threadId, before) =>
+      framePageOf(await throughIpc(() => commands.agentEarlierFrames({ threadId, before }))),
     outline: (threadId) => throughIpc(() => commands.agentThreadOutline({ threadId })),
-    framesUntil: (threadId, from, before) =>
-      throughIpc(() => commands.agentFramesUntil({ threadId, from, before })),
+    framesUntil: async (threadId, from, before) =>
+      framePageOf(await throughIpc(() => commands.agentFramesUntil({ threadId, from, before }))),
     rename: async (threadId, title) => {
       await throughIpc(() => commands.agentRenameThread({ threadId, title }))
     },

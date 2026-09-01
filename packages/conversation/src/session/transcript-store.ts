@@ -483,8 +483,9 @@ export class TranscriptStore implements TranscriptSink {
   /**
    * 最新那一页经过到了。
    *
-   * 帧在这里从 unknown 收窄成 RunEvent，全程只有这一处，而且在明处：形状由
-   * frame.rs 定义，重放的帧与实时的帧走同一条重放函数。
+   * 到这一层的帧已经是 RunEvent：线上原文的收窄发生在桥（native-bridge 的
+   * gateways/agent.ts），形状由 frame.rs 定义，重放的帧与实时的帧走同一条
+   * 重放函数。
    *
    * 一页可以是空的，为什么空由 history 说明。两种损失走本地事故那条既有通道，
    * endsTurn 为假 —— 不是某一轮失败了，是这段经过没回来。
@@ -512,7 +513,7 @@ export class TranscriptStore implements TranscriptSink {
     }
 
     /* 后端交回的历史页已经按完整轮次对齐，并把连续 delta 压成 block。 */
-    const split = partitionByAgent(page.events as readonly RunEvent[])
+    const split = partitionByAgent(page.events)
 
     for (const [agentId, channel] of split.channels) {
       const key = delegateKey(threadId, agentId)
@@ -587,7 +588,7 @@ export class TranscriptStore implements TranscriptSink {
         return
       }
 
-      this.#prepend(real, page.events as readonly RunEvent[], page.before)
+      this.#prepend(real, page.events, page.before)
     } catch (cause: unknown) {
       const latest = this.#now(real)
       this.#put(real, { ...latest, timeline: noteOn(latest.timeline, cause, false) })

@@ -1,6 +1,7 @@
 import type { ThreadId } from './address'
 import type { SessionConfigControl } from './config'
 import type { SessionGoal } from './goal'
+import type { RunEvent } from './run'
 import type { SessionUsage } from './usage'
 
 /**
@@ -76,10 +77,10 @@ export interface FramePage {
   /**
    * 这一页的帧，按追加顺序。
    *
-   * unknown 是故意的：帧的形状由平台那一侧定义，这里不重新定义它，也不在这
-   * 一层校验 —— 与运行帧走同一条规矩。收窄只发生在转录 store 的入口一处。
+   * 帧的形状由 frame.rs 定义；从线上原文收窄成运行帧发生在桥
+   * （native-bridge 的 gateways/agent.ts），到这一层已经是端口词汇。
    */
-  readonly events: readonly unknown[]
+  readonly events: readonly RunEvent[]
   readonly before: FrameCursor | null
 }
 

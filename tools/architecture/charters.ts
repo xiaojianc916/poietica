@@ -117,22 +117,41 @@ export async function nativeEventsUseGeneratedSurface(root: string): Promise<Vio
   const surfacePath = 'apps/desktop/src-tauri/src/ipc/mod.rs'
   const generated = 'packages/contract/src/generated/ipc-bindings.ts'
   const surface = await readFile(path.join(root, surfacePath), 'utf8')
-  const declared = surface.match(/\.events\(tauri_specta::collect_events!\[([\s\S]*?)\]\)/)?.[1]
+  const generatedSource = await readFile(path.join(root, generated), 'utf8')
+  const block = surface.match(/\.events\(tauri_specta::collect_events!\[([\s\S]*?)\]\)/)?.[1]
   const violations: Violation[] = []
 
-  for (const event of ['AgentRunBatch', 'AgentSessionEvent']) {
-    if (declared?.includes(event)) {
-      continue
-    }
-
+  if (block === undefined) {
     violations.push({
       policy: 'native-events-use-generated-surface',
       where: surfacePath,
-      detail: `${event} 未进入 collect_events!`,
+      detail: '没有唯一可读的 collect_events! 清单',
     })
+  } else {
+    const events = [...block.matchAll(/(?:^|[,\s])([A-Z][A-Za-z0-9_]*)/g)].map((match) => match[1])
+    if (events.length === 0) {
+      violations.push({
+        policy: 'native-events-use-generated-surface',
+        where: surfacePath,
+        detail: 'collect_events! 为空',
+      })
+    }
+    for (const event of events) {
+      if (!generatedSource.includes(`export type ${event} =`)) {
+        violations.push({
+          policy: 'native-events-use-generated-surface',
+          where: generated,
+          detail: `${event} 没有生成类型`,
+        })
+      }
+    }
   }
 
-  const files = await walk(root, ['apps', 'packages'], ['.ts', '.tsx'])
+  const files = await walk(
+    root,
+    ['apps', 'packages'],
+    ['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx'],
+  )
   for (const file of await holding(root, files, '@tauri-apps/api/event')) {
     if (file === generated) {
       continue
