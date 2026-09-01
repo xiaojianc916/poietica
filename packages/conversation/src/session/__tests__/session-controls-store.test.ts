@@ -197,7 +197,6 @@ describe('一条对话的那张表', () => {
         }),
       earlierFrames: () => Promise.resolve({ events: [], before: null }),
       outline: () => Promise.resolve([]),
-      framesUntil: () => Promise.resolve({ events: [], before: null }),
     }
     const store = new SessionControlsStore({ port, transcripts })
 

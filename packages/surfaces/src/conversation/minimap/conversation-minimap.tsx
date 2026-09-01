@@ -72,7 +72,7 @@ const TickList = memo(function TickList({
     </>
   )
 })
-function Rail({ activeId, marks, onSelect }: ConversationMinimapProps) {
+function Rail({ activeId, busyId, marks, onSelect }: ConversationMinimapProps) {
   const activeIndex = Math.max(
     0,
     marks.findIndex((mark) => mark.admissionId === activeId),

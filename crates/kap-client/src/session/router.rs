@@ -113,7 +113,7 @@ impl ReconcileOwner {
                     }
                 }
 
-                for question in batch.questions {
+                for question in &batch.questions {
                     record_question_request(
                         &http,
                         &base_url,
@@ -731,9 +731,9 @@ fn record_question_request(
     pending: &mut HashSet<String>,
     book: &SessionBook,
     desk: &QuestionDesk,
-    item: Value,
+    item: &Value,
 ) {
-    let Some(group) = QuestionGroup::from_wire(&item) else {
+    let Some(group) = QuestionGroup::from_wire(item) else {
         /* 读不出的题组不能装作没来过：撤下它，agent 才不会在人这一侧死等到超时。 */
         let Some(question_id) = item.get("question_id").and_then(Value::as_str) else {
             log::error!("kap listed a pending question without an id: {item}");
