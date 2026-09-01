@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'bun:test'
-import { WORKSPACE_LAYOUT } from './workspace-layout'
+import { resolveAuxiliaryMode, WORKSPACE_LAYOUT } from './workspace-layout'
 
 describe('WORKSPACE_LAYOUT', () => {
+  it('keeps the auxiliary pane from shrinking the main reading area', () => {
+    expect(resolveAuxiliaryMode(1340, 280, 420)).toBe('dock')
+    expect(resolveAuxiliaryMode(1339, 280, 420)).toBe('overlay')
+    expect(resolveAuxiliaryMode(1060, 0, 420)).toBe('dock')
+  })
+
   it('keeps the default sidebar width inside its bounds', () => {
     const { minWidth, defaultWidth, maxWidth } = WORKSPACE_LAYOUT.sidebar
 

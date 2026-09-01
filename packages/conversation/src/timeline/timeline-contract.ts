@@ -173,6 +173,13 @@ export function isSteerable(status: RunStatus): boolean {
 }
 
 /** 计划里的一步。 */
+export type TodoStatus = 'pending' | 'in_progress' | 'done'
+
+export interface TodoItem {
+  readonly title: string
+  readonly status: TodoStatus
+}
+
 export interface PlanStep {
   readonly content: string
   readonly status: 'pending' | 'in_progress' | 'completed'
@@ -321,6 +328,8 @@ export interface TurnPage {
  */
 export interface TimelineState {
   readonly status: RunStatus
+  /** null means no successful TodoList replacement has been observed in the loaded range. */
+  readonly todos: readonly TodoItem[] | null
   /** 已封口的段，按轮次顺序。 */
   readonly sealed: readonly TurnPage[]
   /** 正在写的那一段：写入只发生在这里，复制的代价因此只与它的长度相关。 */

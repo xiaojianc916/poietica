@@ -20,7 +20,12 @@ import type {
   ToolCallStatus,
   ToolKind,
 } from '../agent'
-import { type DelegateChannel, isTerminal, type ToolCallTimelineItem } from './timeline-contract'
+import {
+  type DelegateChannel,
+  isTerminal,
+  type TodoItem,
+  type ToolCallTimelineItem,
+} from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import {
   appendChunk,
@@ -441,6 +446,21 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
   } else {
     draft.items[position] = next
   }
+
+  commitTodoList(draft, next)
+}
+
+/** 成功的整表替换才成为当前清单；失败调用保留上一份成功快照。 */
+function commitTodoList(draft: Draft, call: ToolCallTimelineItem): void {
+  if (call.kind !== 'todo' || call.status !== 'completed') {
+    return
+  }
+
+  const snapshot = call.requestContent.find((content) => content.type === 'todo')
+
+  if (snapshot !== undefined) {
+    draft.todos = snapshot.items
+  }
 }
 
 /** 同一个号只占一格：一帧重放两遍不会开出两条通道。 */
@@ -626,20 +646,26 @@ function skillOf(display: object): string {
   return args === '' ? name : `${name} ${args}`
 }
 
-/** 清单里的一项：状态只认上游那两个词，其余一律待办。 */
-function stepOf(item: object): {
-  readonly title: string
-  readonly status: 'done' | 'in_progress' | 'pending'
-} {
-  const status = Reflect.get(item, 'status')
-
-  return {
-    title: textOf(item, 'title'),
-    status: status === 'done' || status === 'in_progress' ? status : 'pending',
+/** Kimi 的 readTodoItems 语义：无效项被过滤，不伪造状态。 */
+function todoItemOf(value: unknown): TodoItem | null {
+  if (typeof value !== 'object' || value === null) {
+    return null
   }
+
+  const title = Reflect.get(value, 'title')
+  const status = Reflect.get(value, 'status')
+
+  if (
+    typeof title !== 'string' ||
+    (status !== 'done' && status !== 'in_progress' && status !== 'pending')
+  ) {
+    return null
+  }
+
+  return { title, status }
 }
 
-/** 那张任务清单。条目一个都认不出来就不占一格。 */
+/** 数组在场即是一份整表；空数组是明确清空，不等于字段缺席。 */
 function todoOf(display: object): ToolCallPatch {
   const items = Reflect.get(display, 'items')
 
@@ -647,11 +673,12 @@ function todoOf(display: object): ToolCallPatch {
     return {}
   }
 
-  const steps = items.flatMap((item: unknown) =>
-    typeof item === 'object' && item !== null ? [stepOf(item)] : [],
-  )
+  const steps = items.flatMap((item) => {
+    const parsed = todoItemOf(item)
+    return parsed === null ? [] : [parsed]
+  })
 
-  return steps.length === 0 ? {} : { requestContent: [{ type: 'todo', items: steps }] }
+  return { requestContent: [{ type: 'todo', items: steps }] }
 }
 
 /** 一段 markdown 散文（计划正文）。 */

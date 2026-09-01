@@ -16,6 +16,7 @@ import type {
   ErrorItem,
   TimelineItem,
   TimelineState,
+  TodoItem,
   TurnPage,
   TurnSpan,
   UserMessageItem,
@@ -23,6 +24,7 @@ import type {
 
 export interface Draft {
   status: RunStatus
+  todos: readonly TodoItem[] | null
   /** 已封口的段：只在换段时追加。 */
   sealed: readonly TurnPage[]
   /** 活动段的条目。写入只发生在这里。 */
@@ -67,6 +69,7 @@ export function draftOf(state: TimelineState): Draft {
 
   return {
     status: state.status,
+    todos: state.todos,
     sealed: state.sealed,
     items: state.active.items.slice(),
     /* 活动段是一份浅拷贝，下标与原来逐一对应，所以这张表直接接着用。 */
@@ -103,6 +106,7 @@ export function freeze(draft: Draft): TimelineState {
 
   const state: TimelineState = {
     status: draft.status,
+    todos: draft.todos,
     sealed: draft.sealed,
     active: { turn: draft.runIndex, items: draft.items },
     lastSeq: draft.lastSeq,

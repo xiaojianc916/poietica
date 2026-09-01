@@ -16,7 +16,7 @@ export interface DockPaneView {
 }
 
 interface AuxiliaryTabStripProps {
-  readonly host: BrowserState
+  readonly host: BrowserState | null
   readonly actions: AuxiliaryPanelStore['actions']
   readonly panes: readonly DockPaneView[]
   readonly paneOffers: readonly AuxiliaryPaneOffer[]
@@ -166,9 +166,9 @@ export function AuxiliaryTabStrip({
             title={pane.name}
           />
         ))}
-        {host.tabs.map((tab) => (
+        {(host?.tabs ?? []).map((tab) => (
           <AuxiliaryTab
-            active={focus.kind === 'browser' && tab.id === host.activeTabId}
+            active={focus.kind === 'browser' && tab.id === host?.activeTabId}
             icon={<BrowserTabIcon tab={tab} />}
             id={auxiliaryBrowserTabId(tab.id)}
             key={tab.id}

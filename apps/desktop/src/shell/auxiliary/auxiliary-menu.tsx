@@ -132,7 +132,7 @@ export function AuxiliaryTabsMenu({
   panes,
 }: {
   readonly focus: AuxiliaryFocus
-  readonly host: BrowserState
+  readonly host: BrowserState | null
   readonly onOpenChange: (open: boolean) => void
   readonly onReopenClosed: (index: number) => void
   readonly onSelectPane: (id: string) => void
@@ -147,8 +147,8 @@ export function AuxiliaryTabsMenu({
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
   const shownPanes = panes.filter((pane) => matches(needle, pane.name, null))
-  const shownTabs = host.tabs.filter((tab) => matches(needle, tab.title, tab.url))
-  const shownClosed = host.recentlyClosed
+  const shownTabs = (host?.tabs ?? []).filter((tab) => matches(needle, tab.title, tab.url))
+  const shownClosed = (host?.recentlyClosed ?? [])
     .map((closed, index) => ({ closed, index }))
     .filter((entry) => matches(needle, entry.closed.title, entry.closed.url))
 
@@ -209,7 +209,7 @@ export function AuxiliaryTabsMenu({
           >
             <BrowserTabIcon tab={tab} />
             <span className={labelClassName}>{tab.title}</span>
-            {focus.kind === 'browser' && tab.id === host.activeTabId ? <CurrentMark /> : null}
+            {focus.kind === 'browser' && tab.id === host?.activeTabId ? <CurrentMark /> : null}
           </DropdownMenuItem>
         ))}
         {shownClosed.length > 0 ? <p className={groupClassName}>最近关闭的标签页</p> : null}

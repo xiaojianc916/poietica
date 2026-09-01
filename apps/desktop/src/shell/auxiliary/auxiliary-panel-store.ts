@@ -3,7 +3,7 @@ import { createExternalStore } from '@poietica/external-store'
 import { warn } from '@poietica/problem'
 
 export type AuxiliaryLauncherKind = 'assistant' | 'review' | 'terminal' | 'browser'
-export type AuxiliaryPaneKind = Exclude<AuxiliaryLauncherKind, 'browser'> | 'delegate'
+export type AuxiliaryPaneKind = Exclude<AuxiliaryLauncherKind, 'browser'> | 'delegate' | 'todo'
 
 export interface AuxiliaryPaneDescriptor {
   readonly kind: AuxiliaryLauncherKind
@@ -70,6 +70,7 @@ export interface AuxiliaryPanelStore {
   readonly setVisible: (visible: boolean) => void
   readonly reportViewport: (rect: BrowserViewportBounds) => void
   readonly openLauncherPane: (kind: AuxiliaryLauncherKind) => void
+  readonly openTodo: () => void
   readonly openDelegate: (agentId: string) => void
   readonly closePane: (id: string) => void
   readonly selectPane: (id: string) => void
@@ -185,6 +186,10 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
     openPane({ id: kind, kind, resourceId: null })
   }
 
+  function openTodo(): void {
+    openPane({ id: 'todo', kind: 'todo', resourceId: null })
+  }
+
   function openDelegate(agentId: string): void {
     openPane({ id: `delegate:${agentId}`, kind: 'delegate', resourceId: agentId })
   }
@@ -263,6 +268,7 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
     },
 
     openLauncherPane,
+    openTodo,
     openDelegate,
     closePane,
     selectPane,

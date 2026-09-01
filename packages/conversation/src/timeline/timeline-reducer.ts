@@ -49,6 +49,7 @@ import {
 export function createTimelineState(): TimelineState {
   return {
     status: 'idle',
+    todos: null,
     sealed: [],
     active: { turn: 0, items: [] },
     lastSeq: 0,
@@ -105,6 +106,7 @@ export function prependThreadEvents(
 
   return {
     status: state.status,
+    todos: state.todos ?? earlier.todos,
     sealed: [
       ...earlier.sealed,
       ...(earlier.active.items.length === 0 ? [] : [earlier.active]),

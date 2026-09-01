@@ -24,6 +24,13 @@ export function AuxiliaryRegion({
 }: AuxiliaryRegionProps) {
   return (
     <div className="workspace-shell__auxiliary min-h-0 min-w-0 bg-background" inert={!isDocked}>
+      <button
+        aria-label="关闭辅助面板"
+        className="workspace-shell__auxiliary-scrim"
+        onClick={onClose}
+        tabIndex={-1}
+        type="button"
+      />
       <div className="workspace-shell__region-clip">
         <div
           className="workspace-shell__auxiliary-content min-h-0 overflow-hidden"

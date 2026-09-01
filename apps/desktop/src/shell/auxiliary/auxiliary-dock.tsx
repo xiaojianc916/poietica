@@ -1,9 +1,17 @@
 import {
   DelegateChannelIcon,
   DelegateChannelPane,
+  TodoPane,
   useDelegateChannelNames,
 } from '@poietica/surfaces'
-import { GitBranch, Globe, MessageSquareText, PanelRight, SquareTerminal } from 'lucide-react'
+import {
+  GitBranch,
+  Globe,
+  ListTodo,
+  MessageSquareText,
+  PanelRight,
+  SquareTerminal,
+} from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { ConversationReviewPane } from '../../assistant/review-pane'
 import {
@@ -40,24 +48,58 @@ const PANE_OFFERS: readonly AuxiliaryPaneOffer[] = AUXILIARY_LAUNCHER.map((entry
   icon: PANE_ICONS[entry.kind],
 }))
 
-export function AuxiliaryPanelToggle({ conversationId }: { readonly conversationId: string }) {
+const panelButtonClass =
+  'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100 aria-expanded:bg-current/10 aria-expanded:opacity-100'
+
+export function ConversationPanelControls({
+  conversationId,
+  store,
+}: {
+  readonly conversationId: string
+  readonly store: AuxiliaryPanelStore
+}) {
   const { auxiliaryThread } = useWorkspaceLayoutState()
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const held = auxiliaryThread === conversationId
-  const label = held ? '收起辅助面板' : '打开辅助面板'
+  const todoActive = held && state.focus.kind === 'pane' && state.focus.id === 'todo'
+  const todoLabel = todoActive ? '收起任务面板' : '打开任务面板'
+  const panelLabel = held ? '收起辅助面板' : '打开辅助面板'
 
   return (
-    <button
-      aria-label={label}
-      aria-pressed={held}
-      className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100"
-      onClick={() => {
-        workspaceLayoutStore.setAuxiliaryThread(held ? null : conversationId)
-      }}
-      title={label}
-      type="button"
-    >
-      <PanelRight aria-hidden className="size-4" />
-    </button>
+    <div className="flex items-center gap-1">
+      <button
+        aria-controls="workspace-auxiliary-panel"
+        aria-expanded={todoActive}
+        aria-label={todoLabel}
+        className={panelButtonClass}
+        onClick={() => {
+          if (todoActive) {
+            workspaceLayoutStore.setAuxiliaryThread(null)
+            return
+          }
+
+          store.openTodo()
+          workspaceLayoutStore.setAuxiliaryThread(conversationId)
+        }}
+        title={todoLabel}
+        type="button"
+      >
+        <ListTodo aria-hidden className="size-4" />
+      </button>
+      <button
+        aria-controls="workspace-auxiliary-panel"
+        aria-expanded={held}
+        aria-label={panelLabel}
+        className={panelButtonClass}
+        onClick={() => {
+          workspaceLayoutStore.setAuxiliaryThread(held ? null : conversationId)
+        }}
+        title={panelLabel}
+        type="button"
+      >
+        <PanelRight aria-hidden className="size-4" />
+      </button>
+    </div>
   )
 }
 
@@ -122,6 +164,15 @@ export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDock
 
   const panes = useMemo<AuxiliaryPaneRenderers>(
     () => ({
+      todo: {
+        body: () =>
+          conversationId === null ? null : (
+            <TodoPane key={conversationId} threadId={conversationId} />
+          ),
+        icon: <ListTodo aria-hidden className="size-3.5" />,
+        name: () => '任务',
+        release: () => undefined,
+      },
       delegate: {
         body: (id) =>
           conversationId === null ? null : (
@@ -162,7 +213,9 @@ export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDock
       panes={panes}
       store={store}
       trailing={
-        conversationId === null ? null : <AuxiliaryPanelToggle conversationId={conversationId} />
+        conversationId === null ? null : (
+          <ConversationPanelControls conversationId={conversationId} store={store} />
+        )
       }
     />
   )

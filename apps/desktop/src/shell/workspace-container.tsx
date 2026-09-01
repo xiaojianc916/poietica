@@ -335,7 +335,10 @@ export function WorkspaceContainer({
          */
         <div className="flex h-full min-h-0 min-w-0 flex-col">
           {workbench.activeSurface.kind === 'conversation' ? (
-            <ConversationHeader conversationId={workbench.activeSurface.threadId} />
+            <ConversationHeader
+              auxiliaryPanel={auxiliaryPanel}
+              conversationId={workbench.activeSurface.threadId}
+            />
           ) : null}
           <div className="relative min-h-0 min-w-0 flex-1">
             {workbench.activeSurface.kind === 'conversation' ? (

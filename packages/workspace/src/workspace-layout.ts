@@ -21,6 +21,11 @@ export const WORKSPACE_LAYOUT = {
     defaultWidth: 280,
   },
 
+  main: {
+    /* DeepSeek Harness 的内容列下限；低于它时辅助面板覆盖而不再挤压正文。 */
+    minWidth: 640,
+  },
+
   /* 辅助列贴窗口 inline-end，一次只投影一个已登记面板。 */
   auxiliary: {
     minWidth: 320,
@@ -37,3 +42,16 @@ export const WORKSPACE_LAYOUT = {
     layoutEase: [0.2, 0, 0, 1],
   },
 } as const
+
+export type AuxiliaryMode = 'dock' | 'overlay'
+
+/** 只有主区能保住阅读下限时才让辅助列占布局；否则同一面板覆盖主区。 */
+export function resolveAuxiliaryMode(
+  viewportWidth: number,
+  sidebarWidth: number,
+  auxiliaryWidth: number,
+): AuxiliaryMode {
+  return viewportWidth - sidebarWidth - auxiliaryWidth >= WORKSPACE_LAYOUT.main.minWidth
+    ? 'dock'
+    : 'overlay'
+}

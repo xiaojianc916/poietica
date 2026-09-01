@@ -453,14 +453,13 @@ describe('kap 投影', () => {
     expect(calls[0]?.requestContent).toStrictEqual([
       { type: 'command', command: 'bun run check', language: 'bash' },
     ])
-    /* 认不出的状态一律待办，与上游客户端同一条归一化。 */
+    /* 无效状态按 Kimi readTodoItems 的契约被过滤。 */
     expect(calls[1]?.requestContent).toStrictEqual([
       {
         type: 'todo',
         items: [
           { title: '建索引', status: 'done' },
           { title: '写投影', status: 'in_progress' },
-          { title: '补用例', status: 'pending' },
         ],
       },
     ])

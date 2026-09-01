@@ -22,6 +22,8 @@ export type {
   PlanItem,
   QuestionTimelineItem,
   TimelineState,
+  TodoItem,
+  TodoStatus,
   ToolCallTimelineItem,
 } from './timeline-contract'
 export { endsRun, isSteerable, opensTurn } from './timeline-contract'

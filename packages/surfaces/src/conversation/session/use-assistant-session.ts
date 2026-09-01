@@ -10,6 +10,7 @@ import type {
   QuestionResponse,
   QuestionTimelineItem,
   TimelineState,
+  TodoItem,
   Transcript,
   TurnMark,
 } from '@poietica/conversation'
@@ -137,6 +138,10 @@ const readInflight = (transcript: Transcript): string | undefined =>
 const readRestoring = (transcript: Transcript): boolean => transcript.restoring
 
 const readTimeline = (transcript: Transcript): TimelineState => transcript.timeline
+
+const EMPTY_LIST: readonly TodoItem[] = []
+const readTodos = (transcript: Transcript): readonly TodoItem[] =>
+  transcript.timeline.todos ?? EMPTY_LIST
 
 /* 上面还有没有更早的一页。布尔，所以前插与流式追加都叫不醒订阅者。 */
 const readHasEarlier = (transcript: Transcript): boolean => transcript.earlier !== null
@@ -331,6 +336,11 @@ export function useAssistantSession({
  */
 export function useAssistantTimeline(key: string): TimelineState {
   return useSlice(key, readTimeline)
+}
+
+/** 当前成功落账的整份任务清单；无清单时返回稳定空引用。 */
+export function useAssistantTodos(key: string): readonly TodoItem[] {
+  return useSlice(key, readTodos)
 }
 
 /** 这条对话上面还有没有更早的一页。 */

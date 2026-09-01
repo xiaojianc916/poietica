@@ -88,25 +88,19 @@ export function AuxiliaryPanel({
   )
 
   return (
-    <aside aria-label="辅助面板" className="flex h-full min-h-0 flex-col">
+    <aside
+      aria-label="辅助面板"
+      className="flex h-full min-h-0 flex-col"
+      id="workspace-auxiliary-panel"
+    >
       {showLauncher ? (
         <AuxiliaryLauncher
           offers={paneOffers}
           onOpen={store.openLauncherPane}
           trailing={trailing}
         />
-      ) : host === null ? (
-        /*
-         * 快照还没到（启动瞬间）或宿主没接上：如实说，不画一个假浏览器。
-         * 角位照常在 —— 面板不能因为宿主哑了就收不起来。
-         */
-        <>
-          <div className="flex h-8 items-center justify-end border-b border-current/10 pr-2.5">
-            {trailing}
-          </div>
-          <p className="p-4 text-xs opacity-50">浏览器宿主没有回应。</p>
-        </>
       ) : (
+        /* 非浏览器 pane 不依赖 BrowserHost。 */
         <>
           <AuxiliaryTabStrip
             actions={store.actions}
@@ -130,22 +124,27 @@ export function AuxiliaryPanel({
             trailing={trailing}
           />
           {activePane === null ? (
-            <>
-              <BrowserToolbar
-                actions={store.actions}
-                activeTab={activeTab}
-                menuOpen={state.openMenu === 'overflow'}
-                onMenuOpenChange={(next) => {
-                  store.setMenu(next ? 'overflow' : null)
-                }}
-                pickerActive={host.pickingTabId === activeTab?.id}
-              />
-              <Viewport
-                layoutSignal={layoutSignal}
-                showEmpty={activeTab === null || activeTab.url === null}
-                store={store}
-              />
-            </>
+            host === null ? (
+              /* 浏览器宿主缺席只影响浏览器正文。 */
+              <p className="p-4 text-xs opacity-50">浏览器宿主没有回应。</p>
+            ) : (
+              <>
+                <BrowserToolbar
+                  actions={store.actions}
+                  activeTab={activeTab}
+                  menuOpen={state.openMenu === 'overflow'}
+                  onMenuOpenChange={(next) => {
+                    store.setMenu(next ? 'overflow' : null)
+                  }}
+                  pickerActive={host.pickingTabId === activeTab?.id}
+                />
+                <Viewport
+                  layoutSignal={layoutSignal}
+                  showEmpty={activeTab === null || activeTab.url === null}
+                  store={store}
+                />
+              </>
+            )
           ) : (
             /* 浏览器那一格是只读的：没有地址栏；终端这一格自己收键盘。 */
             <div className="min-h-0 flex-1 overflow-hidden">

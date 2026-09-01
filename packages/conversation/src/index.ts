@@ -94,6 +94,8 @@ export type {
   Presentation,
   QuestionTimelineItem,
   TimelineState,
+  TodoItem,
+  TodoStatus,
   ToolCallTimelineItem,
   ToolGroupPlan,
   TurnSealPlan,
