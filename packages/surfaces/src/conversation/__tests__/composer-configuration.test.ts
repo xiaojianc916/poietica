@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 import type { SessionConfigControl } from '@poietica/conversation'
+import { sessionControlRows } from '../../composer/session-controls'
 import { activePromptConfiguration } from '../composer/composer-actions'
 import { canSubmitDraft } from '../composer/prompt-input'
-import { sessionControlRows } from '../composer/session-controls'
 
 function control(
   id: string,

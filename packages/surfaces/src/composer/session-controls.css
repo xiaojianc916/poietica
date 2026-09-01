@@ -1,0 +1,158 @@
+@import "./composer-metrics.css";
+
+/* Session configuration controls shared by every composer. */
+.assistant-model-select__label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.assistant-model-select__button {
+  display: inline-flex;
+  block-size: var(--cp-pill);
+
+  flex: none;
+  align-items: center;
+  border: 0;
+  border-radius: 9999px;
+  padding-inline: var(--cp-pill-trail);
+  background: transparent;
+  font-size: var(--cp-font-caption);
+  font-weight: 500;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-model-select__button:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.assistant-model-select__button[aria-expanded="true"] {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.assistant-model-select__button .assistant-model-select__label {
+  display: block;
+  min-inline-size: 0;
+  max-inline-size: 18ch;
+  overflow: hidden;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-model-select__button[data-empty="true"] {
+  color: var(--cp-ink-subtle);
+  cursor: default;
+}
+
+.assistant-config-menu__panel[data-assistant-skin],
+.assistant-config-menu__submenu[data-assistant-skin] {
+  min-inline-size: 184px;
+}
+
+[data-assistant-skin] .assistant-config-menu__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 6px 0 8px;
+  border: 0;
+  border-radius: var(--am-item);
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  text-align: start;
+  cursor: default;
+}
+
+[data-assistant-skin] .assistant-config-menu__row:hover,
+[data-assistant-skin] .assistant-config-menu__row[data-popup-open] {
+  background: var(--cp-hover);
+}
+
+[data-assistant-skin] .assistant-config-menu__row-label {
+  white-space: nowrap;
+}
+
+[data-assistant-skin] .assistant-config-menu__row-value {
+  margin-inline-start: auto;
+  overflow: hidden;
+  color: var(--cp-ink-subtle);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.assistant-config-menu__submenu[data-assistant-skin] {
+  min-inline-size: 200px;
+}
+
+[data-assistant-skin] .assistant-config-option {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 5px 26px 5px 8px;
+  border: 0;
+  border-radius: var(--am-item);
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  text-align: start;
+  cursor: default;
+}
+
+[data-assistant-skin] .assistant-config-option:hover,
+[data-assistant-skin] .assistant-config-option[data-highlighted] {
+  outline: none;
+  background: var(--cp-hover);
+}
+
+[data-assistant-skin] .assistant-config-option__label {
+  display: block;
+  font-size: var(--cp-font-caption);
+  line-height: 1.35;
+}
+
+[data-assistant-skin] .assistant-config-option__detail {
+  display: block;
+  margin-block-start: 1px;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+  line-height: 1.35;
+}
+
+[data-assistant-skin] .assistant-config-option__indicator {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 10px;
+  width: 4px;
+  height: 8px;
+  margin-block-start: -6px;
+  border-inline-end: calc(var(--ui-hairline) * 2) solid var(--cp-ink);
+  border-block-end: calc(var(--ui-hairline) * 2) solid var(--cp-ink);
+  transform: rotate(45deg);
+}
+
+[data-assistant-skin] {
+  --am-radius: 8px;
+  --am-item: 5px;
+  --am-pad: 4px;
+  --am-line: var(--ui-divider);
+
+  --am-shadow: var(--cp-lift-menu);
+}
+
+.assistant-menu-surface {
+  border: var(--ui-hairline) solid var(--am-line);
+  border-radius: var(--am-radius);
+  padding: var(--am-pad);
+  background: var(--cp-surface);
+  box-shadow: var(--am-shadow);
+}

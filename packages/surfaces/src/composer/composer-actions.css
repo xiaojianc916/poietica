@@ -1,3 +1,6 @@
+@import "./composer-metrics.css";
+
+/* Shared composer action controls. */
 .assistant-plus {
   display: inline-flex;
   block-size: var(--cp-pill);
@@ -56,7 +59,6 @@
   background: var(--cp-hairline);
 }
 
-/* 字形与叉同格叠放，切换不挪字。 */
 .assistant-mode-chip__icon {
   display: grid;
   flex: none;

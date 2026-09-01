@@ -5,6 +5,7 @@ import type {
   SessionConfigControl,
 } from '@poietica/conversation'
 import type { ReactNode } from 'react'
+import { isToggleControl } from '../../composer/session-controls'
 import { GOAL_CONTROL_ID } from '../goal/goal-control'
 import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
@@ -52,11 +53,6 @@ function insertRow(
     ...(detail === undefined || detail === '' ? {} : { detail }),
     action: { kind: 'insert', chip },
   }
-}
-
-export function isToggleControl(control: SessionConfigControl): boolean {
-  const values = new Set(control.choices.map((choice) => choice.value))
-  return values.size === 2 && values.has('off') && values.has('on')
 }
 
 export function activePromptConfiguration(

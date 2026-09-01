@@ -1,0 +1,86 @@
+@import "./composer-metrics.css";
+
+/* One visual frame shared by conversation and automation composers. */
+[data-slot="prompt-input"] {
+  position: relative;
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  flex-direction: column;
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: var(--cp-radius);
+  background: var(--cp-surface);
+  box-shadow: var(--cp-lift);
+  cursor: text;
+}
+
+[data-slot="prompt-input-body"] {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+.assistant-prompt-editor {
+  position: relative;
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+[data-slot="prompt-input-editor"] {
+  display: block;
+  min-block-size: var(--cp-editor-idle);
+  max-block-size: var(--cp-editor-max);
+  overflow-y: auto;
+  padding: var(--cp-pad-top) var(--cp-pad-x) 0;
+  font-family: inherit;
+  font-size: var(--cp-font);
+  line-height: var(--cp-line-ratio);
+  color: var(--cp-ink);
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+}
+
+.assistant-prompt-editor__placeholder {
+  position: absolute;
+  inset-block-start: var(--cp-pad-top);
+  inset-inline-start: var(--cp-pad-x);
+  color: var(--cp-placeholder);
+  pointer-events: none;
+  user-select: none;
+}
+
+[data-slot="prompt-input-toolbar"] {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  padding: var(--cp-pad-mid) var(--cp-inset) var(--cp-inset);
+}
+
+[data-slot="prompt-input-tools"] {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.assistant-toolbar__spacer {
+  flex: 1;
+}
+
+textarea[data-slot="prompt-input-editor"] {
+  inline-size: 100%;
+  border: 0;
+  resize: none;
+  background: transparent;
+  field-sizing: content;
+}
+
+textarea[data-slot="prompt-input-editor"]::placeholder {
+  color: var(--cp-placeholder);
+  opacity: 1;
+}

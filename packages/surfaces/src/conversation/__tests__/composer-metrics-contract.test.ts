@@ -23,7 +23,7 @@ const declOf = (css: string, name: string) => {
 }
 
 const metrics = stripComments(
-  readFileSync(new URL('../composer/composer-metrics.css', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../composer/composer-metrics.css', import.meta.url), 'utf8'),
 )
 
 describe('composer metrics contract', () => {

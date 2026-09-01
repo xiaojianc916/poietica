@@ -14,9 +14,8 @@ import {
   DropdownMenuRadioItemIndicator,
   DropdownMenuTrigger,
 } from '@poietica/design-system'
-import { Hand, type LucideIcon, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { Check, Hand, type LucideIcon, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { memo, useState } from 'react'
-import { CheckIcon } from '../primitives/icons'
 
 /*
  * 批准方式那颗胶囊，以及它打开的那一张。
@@ -139,7 +138,7 @@ export const PermissionPicker = memo(function PermissionPicker({
                 <span className="assistant-posture-menu__detail">{posture.detail}</span>
 
                 <DropdownMenuRadioItemIndicator className="assistant-posture-menu__tick">
-                  <CheckIcon aria-hidden="true" />
+                  <Check aria-hidden="true" />
                 </DropdownMenuRadioItemIndicator>
               </DropdownMenuRadioItem>
             )

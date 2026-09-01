@@ -1,4 +1,4 @@
-import './composer-actions.css'
+import '../../composer/composer-actions.css'
 import './question-panel.css'
 
 import type {
@@ -11,6 +11,8 @@ import type {
   SessionUsage,
 } from '@poietica/conversation'
 import { memo, type Ref, useMemo } from 'react'
+import { PermissionPicker } from '../../composer/permission-picker'
+import { SessionControls } from '../../composer/session-controls'
 import { AttachmentTray } from './attachment-tray'
 import {
   activePromptConfiguration,
@@ -20,7 +22,6 @@ import {
 } from './composer-actions'
 import { ContextGauge } from './context-gauge'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
-import { PermissionPicker } from './permission-picker'
 import type { PromptInputHandle, PromptInputMessage } from './prompt-input'
 import {
   PromptInput,
@@ -31,7 +32,6 @@ import {
   PromptInputTools,
 } from './prompt-input'
 import { QuestionPanel } from './question-panel'
-import { SessionControls } from './session-controls'
 
 /*
  * The composer, declared rather than driven.

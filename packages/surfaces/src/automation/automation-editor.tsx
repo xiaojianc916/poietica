@@ -1,3 +1,5 @@
+import '../composer/composer-frame.css'
+
 import {
   type Automation,
   type AutomationDraft,
@@ -212,17 +214,24 @@ export function AutomationEditor({
             </Field>
 
             <Field htmlFor="automation-prompt" label="指令">
-              <div className="overflow-hidden rounded-xl border border-divider bg-background focus-within:ring-2 focus-within:ring-ring">
-                <textarea
-                  className="min-h-48 w-full resize-y bg-transparent px-4 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-placeholder"
-                  id="automation-prompt"
-                  onChange={(event) => {
-                    setPrompt(event.target.value)
-                  }}
-                  placeholder="到期时发给 agent 的指令"
-                  value={prompt}
-                />
-                <div className="flex flex-wrap items-center gap-1 border-t border-divider/60 bg-sidebar-accent/20 px-2.5 py-2">
+              <div className="assistant-prompt-input" data-assistant-skin data-slot="prompt-input">
+                <div data-slot="prompt-input-body">
+                  <div className="assistant-prompt-editor">
+                    <textarea
+                      aria-label="指令"
+                      className="assistant-prompt-editor__input"
+                      data-slot="prompt-input-editor"
+                      id="automation-prompt"
+                      onChange={(event) => {
+                        setPrompt(event.target.value)
+                      }}
+                      placeholder="到期时发给 agent 的指令"
+                      value={prompt}
+                    />
+                  </div>
+                </div>
+
+                <div data-slot="prompt-input-toolbar">
                   <AutomationSessionConfig controls={controls} onChange={choose} value={picked} />
                 </div>
               </div>

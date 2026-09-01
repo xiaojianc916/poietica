@@ -1,3 +1,5 @@
+import './session-controls.css'
+
 import type { SessionConfigControl } from '@poietica/conversation'
 import {
   DropdownMenu,
@@ -10,7 +12,6 @@ import {
   Switch,
 } from '@poietica/design-system'
 import { Fragment, memo, useMemo, useState } from 'react'
-import { isToggleControl } from './composer-actions'
 
 /*
  * Everything the session lets us change, in one control.
@@ -28,6 +29,12 @@ import { isToggleControl } from './composer-actions'
  * Portal 与皮肤属性的职责不变：DropdownMenuContent 自带 portal，data-assistant-skin
  * 挂在弹层自身。
  */
+
+export function isToggleControl(control: SessionConfigControl): boolean {
+  const values = new Set(control.choices.map((choice) => choice.value))
+
+  return values.size === 2 && values.has('off') && values.has('on')
+}
 
 const UNAVAILABLE = '没连上 agent，点击重试'
 
