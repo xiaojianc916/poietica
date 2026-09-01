@@ -15,15 +15,12 @@ const READY = '已就绪。'
 const ENABLED = '已开启。'
 const DISABLED = '已关闭。'
 
-const POWERSHELL_INSTALLER_REQUIREMENT =
-  'Kimi Computer Use requires Windows PowerShell 5.1 or PowerShell 7'
-const POWERSHELL_INSTALLER_RECOVERY =
-  '安装失败：Windows PowerShell 缺少 Kimi 官方安装器所需命令，且未检测到 PowerShell 7。安装 PowerShell 7，重启 Poietica 后重试。'
+const FAILURE_PREFIX = '安装失败：'
 
 export function computerUseFailureDescription(reason: string): string {
-  return reason.startsWith(POWERSHELL_INSTALLER_REQUIREMENT)
-    ? POWERSHELL_INSTALLER_RECOVERY
-    : `安装失败：${reason}`
+  const detail = reason.trim().replace(/^(?:安装失败[：:]\s*)+/u, '')
+
+  return `${FAILURE_PREFIX}${detail === '' ? 'Kimi Code 未提供失败原因。' : detail}`
 }
 
 export interface ComputerUseSettingsProps {
