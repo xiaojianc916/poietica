@@ -1,5 +1,12 @@
 import type { BackgroundTaskItem, BackgroundTaskStatus, TodoItem } from '@poietica/conversation'
 import {
+  Accordion,
+  AccordionHeader,
+  AccordionItem,
+  AccordionPanel,
+  AccordionTrigger,
+} from '@poietica/design-system'
+import {
   Activity,
   CheckCircle2,
   ChevronRight,
@@ -32,9 +39,9 @@ export function todoProgressLabel(todos: readonly TodoItem[]): string {
   const active = todos.filter((item) => item.status === 'in_progress').length
   const pending = todos.length - done - active
   return [
-    ...(done > 0 ? [`${done} ${TASK_STATUS_LABEL.done}`] : []),
-    ...(active > 0 ? [`${active} ${TASK_STATUS_LABEL.in_progress}`] : []),
-    ...(pending > 0 ? [`${pending} ${TASK_STATUS_LABEL.pending}`] : []),
+    ...(done > 0 ? [[String(done), TASK_STATUS_LABEL.done].join(' ')] : []),
+    ...(active > 0 ? [[String(active), TASK_STATUS_LABEL.in_progress].join(' ')] : []),
+    ...(pending > 0 ? [[String(pending), TASK_STATUS_LABEL.pending].join(' ')] : []),
   ].join(' · ')
 }
 
@@ -43,9 +50,9 @@ export function backgroundTaskProgressLabel(tasks: readonly BackgroundTaskItem[]
   const completed = tasks.filter((task) => task.status === 'completed').length
   const interrupted = tasks.length - running - completed
   return [
-    ...(running > 0 ? [`${running} 运行中`] : []),
-    ...(completed > 0 ? [`${completed} 已完成`] : []),
-    ...(interrupted > 0 ? [`${interrupted} 已中断`] : []),
+    ...(running > 0 ? [[String(running), '运行中'].join(' ')] : []),
+    ...(completed > 0 ? [[String(completed), '已完成'].join(' ')] : []),
+    ...(interrupted > 0 ? [[String(interrupted), '已中断'].join(' ')] : []),
   ].join(' · ')
 }
 
@@ -69,35 +76,46 @@ function BackgroundStatusGlyph({ status }: { readonly status: BackgroundTaskStat
   return <CircleX aria-hidden className="todo-panel__glyph--failed" />
 }
 
-function DisclosureCard({
+function AccordionSection({
   children,
   icon,
   progress,
   title,
+  value,
 }: {
   readonly children: ReactNode
   readonly icon: ReactNode
   readonly progress: string
   readonly title: string
+  readonly value: 'todos' | 'background'
 }) {
   return (
-    <details className="todo-panel">
-      <summary className="todo-panel__header">
-        <span aria-hidden className="todo-panel__lead">
-          {icon}
-        </span>
-        <span className="todo-panel__title">{title}</span>
-        <span className="todo-panel__progress">{progress}</span>
-        <ChevronRight aria-hidden className="todo-panel__chevron" />
-      </summary>
-      {children}
-    </details>
+    <AccordionItem className="todo-panel__section" value={value}>
+      <AccordionHeader className="todo-panel__heading">
+        <AccordionTrigger className="todo-panel__header">
+          <span aria-hidden className="todo-panel__lead">
+            {icon}
+          </span>
+          <span className="todo-panel__title">{title}</span>
+          <span className="todo-panel__progress">{progress}</span>
+          <ChevronRight aria-hidden className="todo-panel__chevron" />
+        </AccordionTrigger>
+      </AccordionHeader>
+      <AccordionPanel className="todo-panel__body">
+        <div className="todo-panel__region">{children}</div>
+      </AccordionPanel>
+    </AccordionItem>
   )
 }
 
-export function TodoListCard({ todos }: { readonly todos: readonly TodoItem[] }) {
+function TodoListCard({ todos }: { readonly todos: readonly TodoItem[] }) {
   return (
-    <DisclosureCard icon={<ListTodo />} progress={todoProgressLabel(todos)} title="待办事项">
+    <AccordionSection
+      icon={<ListTodo />}
+      progress={todoProgressLabel(todos)}
+      title="待办事项"
+      value="todos"
+    >
       {todos.length === 0 ? (
         <p className="todo-panel__empty">暂无任务</p>
       ) : (
@@ -106,7 +124,7 @@ export function TodoListCard({ todos }: { readonly todos: readonly TodoItem[] })
             <li
               className="todo-panel__item"
               data-status={item.status}
-              key={`${String(index)}:${item.title}`}
+              key={[String(index), item.title].join(':')}
             >
               <span
                 aria-label={TASK_STATUS_LABEL[item.status]}
@@ -120,20 +138,17 @@ export function TodoListCard({ todos }: { readonly todos: readonly TodoItem[] })
           ))}
         </ul>
       )}
-    </DisclosureCard>
+    </AccordionSection>
   )
 }
 
-export function BackgroundTaskListCard({
-  tasks,
-}: {
-  readonly tasks: readonly BackgroundTaskItem[]
-}) {
+function BackgroundTaskListCard({ tasks }: { readonly tasks: readonly BackgroundTaskItem[] }) {
   return (
-    <DisclosureCard
+    <AccordionSection
       icon={<Activity />}
       progress={backgroundTaskProgressLabel(tasks)}
       title="后台任务"
+      value="background"
     >
       {tasks.length === 0 ? (
         <p className="todo-panel__empty">暂无后台任务</p>
@@ -156,17 +171,27 @@ export function BackgroundTaskListCard({
           ))}
         </ul>
       )}
-    </DisclosureCard>
+    </AccordionSection>
+  )
+}
+
+export function TaskPanelContent({
+  backgroundTasks,
+  todos,
+}: {
+  readonly backgroundTasks: readonly BackgroundTaskItem[]
+  readonly todos: readonly TodoItem[]
+}) {
+  return (
+    <Accordion className="todo-panel" defaultValue={[]}>
+      <TodoListCard todos={todos} />
+      <BackgroundTaskListCard tasks={backgroundTasks} />
+    </Accordion>
   )
 }
 
 export function TodoPanel({ threadId }: { readonly threadId: string }) {
   const todos = useAssistantTodos(threadId)
   const backgroundTasks = useAssistantBackgroundTasks(threadId)
-  return (
-    <div className="todo-panel-stack">
-      <TodoListCard todos={todos} />
-      <BackgroundTaskListCard tasks={backgroundTasks} />
-    </div>
-  )
+  return <TaskPanelContent backgroundTasks={backgroundTasks} todos={todos} />
 }

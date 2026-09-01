@@ -20,12 +20,12 @@ import type {
   ToolCallStatus,
   ToolKind,
 } from '../agent'
+import { kimiTodoItemsOf } from './kimi-todo'
 import {
   type BackgroundTaskItem,
   type BackgroundTaskStatus,
   type DelegateChannel,
   isTerminal,
-  type TodoItem,
   type ToolCallTimelineItem,
 } from './timeline-contract'
 import type { Draft } from './timeline-draft'
@@ -383,11 +383,18 @@ function applyToolFrame(draft: Draft, event: KapFrame): void {
 function toolPatch(payload: KapEventPayload): ToolCallPatch | null {
   switch (payload.type) {
     case 'tool.call.started': {
+      const name = stringOf(payload, 'name')
+      const rawInput = fieldOf(payload, 'args')
+      const todos = kimiTodoItemsOf(name, rawInput)
+
       return {
         status: 'in_progress',
-        rawInput: fieldOf(payload, 'args'),
+        rawInput,
         ...titleOf(payload),
         ...fromDisplay(fieldOf(payload, 'display'), stringOf(payload, 'description')),
+        ...(todos === undefined
+          ? {}
+          : { kind: 'todo', requestContent: [{ type: 'todo', items: todos }] }),
       }
     }
 
@@ -691,41 +698,6 @@ function skillOf(display: object): string {
   return args === '' ? name : `${name} ${args}`
 }
 
-/** Kimi 的 readTodoItems 语义：无效项被过滤，不伪造状态。 */
-function todoItemOf(value: unknown): TodoItem | null {
-  if (typeof value !== 'object' || value === null) {
-    return null
-  }
-
-  const title = Reflect.get(value, 'title')
-  const status = Reflect.get(value, 'status')
-
-  if (
-    typeof title !== 'string' ||
-    (status !== 'done' && status !== 'in_progress' && status !== 'pending')
-  ) {
-    return null
-  }
-
-  return { title, status }
-}
-
-/** 数组在场即是一份整表；空数组是明确清空，不等于字段缺席。 */
-function todoOf(display: object): ToolCallPatch {
-  const items = Reflect.get(display, 'items')
-
-  if (!Array.isArray(items)) {
-    return {}
-  }
-
-  const steps = items.flatMap((item) => {
-    const parsed = todoItemOf(item)
-    return parsed === null ? [] : [parsed]
-  })
-
-  return { requestContent: [{ type: 'todo', items: steps }] }
-}
-
 /** 一段 markdown 散文（计划正文）。 */
 function proseOf(text: string): ToolCallPatch {
   return text === '' ? {} : { requestContent: [{ type: 'prose', text }] }
@@ -881,7 +853,7 @@ function fromShape(display: unknown): ToolCallPatch {
     }
 
     case 'todo_list': {
-      return { kind: 'todo', ...todoOf(display) }
+      return { kind: 'todo' }
     }
 
     case 'task': {

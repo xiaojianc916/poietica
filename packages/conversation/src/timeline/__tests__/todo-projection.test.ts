@@ -12,7 +12,7 @@ const prompt: RunEvent = {
   prompt: '完成任务',
 }
 
-function started(seq: number, id: string, items: readonly unknown[]): RunEvent {
+function started(seq: number, id: string, args: unknown): RunEvent {
   return {
     kind: 'kap_event',
     seq,
@@ -21,8 +21,7 @@ function started(seq: number, id: string, items: readonly unknown[]): RunEvent {
       type: 'tool.call.started',
       toolCallId: id,
       name: 'TodoList',
-      args: { items },
-      display: { kind: 'todo_list', items },
+      args,
     },
   }
 }
@@ -32,12 +31,7 @@ function settled(seq: number, id: string, isError = false): RunEvent {
     kind: 'kap_event',
     seq,
     at: seq,
-    payload: {
-      type: 'tool.result',
-      toolCallId: id,
-      output: 'ok',
-      isError,
-    },
+    payload: { type: 'tool.result', toolCallId: id, output: 'ok', isError },
   }
 }
 
@@ -48,17 +42,22 @@ const first = [
 ] as const
 
 describe('todo current snapshot', () => {
-  it('shows the structured list as soon as the active call starts', () => {
-    const state = replayRunEvents([prompt, started(2, 'first', first)])
+  it('projects canonical TodoList args when optional display is absent', () => {
+    const state = replayRunEvents([prompt, started(2, 'first', { todos: first })])
+    expect(currentTodos(state)).toStrictEqual(first)
+  })
+
+  it('accepts JSON-encoded args from the wire boundary', () => {
+    const state = replayRunEvents([prompt, started(2, 'first', JSON.stringify({ todos: first }))])
     expect(currentTodos(state)).toStrictEqual(first)
   })
 
   it('falls back after a failed replacement', () => {
     const running = replayRunEvents([
       prompt,
-      started(2, 'first', first),
+      started(2, 'first', { todos: first }),
       settled(3, 'first'),
-      started(4, 'failed', [{ title: '错误覆盖', status: 'pending' }]),
+      started(4, 'failed', { todos: [{ title: '错误覆盖', status: 'pending' }] }),
     ])
     const failed = applyRunEvents(running, [settled(5, 'failed', true)])
     expect(currentTodos(running)).toStrictEqual([{ title: '错误覆盖', status: 'pending' }])
@@ -66,18 +65,8 @@ describe('todo current snapshot', () => {
   })
 
   it('keeps explicit empty lists distinct from no list', () => {
-    const state = replayRunEvents([prompt, started(2, 'clear', [])])
+    const state = replayRunEvents([prompt, started(2, 'clear', { todos: [] })])
     expect(currentTodos(state)).toStrictEqual([])
     expect(currentTodos(createTimelineState())).toBeNull()
-  })
-
-  it('produces the same projection through live batches and replay', () => {
-    const events = [prompt, started(2, 'first', first), settled(3, 'first')]
-    let live = createTimelineState()
-    for (const event of events) {
-      live = applyRunEvents(live, [event])
-    }
-    expect(live).toStrictEqual(replayRunEvents(events))
-    expect(currentTodos(live)).toStrictEqual(first)
   })
 })

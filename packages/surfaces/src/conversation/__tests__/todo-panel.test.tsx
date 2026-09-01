@@ -2,9 +2,8 @@ import { describe, expect, it } from 'bun:test'
 import type { BackgroundTaskItem, TodoItem } from '@poietica/conversation'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
-  BackgroundTaskListCard,
   backgroundTaskProgressLabel,
-  TodoListCard,
+  TaskPanelContent,
   todoProgressLabel,
 } from '../todo/todo-panel'
 
@@ -24,6 +23,7 @@ describe('task panel labels', () => {
   it('summarizes todo states', () => {
     expect(todoProgressLabel(todos)).toBe('1 已完成\u2002·\u20021 进行中\u2002·\u20021 待处理')
   })
+
   it('summarizes background lifecycle states', () => {
     expect(backgroundTaskProgressLabel(tasks)).toBe(
       '1 运行中\u2002·\u20021 已完成\u2002·\u20021 已中断',
@@ -31,13 +31,13 @@ describe('task panel labels', () => {
   })
 })
 
-describe('native disclosures', () => {
-  it('renders todo and background cards collapsed by default', () => {
-    const todoMarkup = renderToStaticMarkup(<TodoListCard todos={todos} />)
-    const taskMarkup = renderToStaticMarkup(<BackgroundTaskListCard tasks={tasks} />)
-    expect(todoMarkup).toContain('<details class="todo-panel">')
-    expect(taskMarkup).toContain('后台任务')
-    expect(todoMarkup).not.toContain(' open=""')
-    expect(taskMarkup).not.toContain(' open=""')
+describe('task accordion', () => {
+  it('renders both sections in one collapsed accordion', () => {
+    const markup = renderToStaticMarkup(<TaskPanelContent backgroundTasks={tasks} todos={todos} />)
+    expect(markup.match(/class="todo-panel"/g)).toHaveLength(1)
+    expect(markup.match(/aria-expanded="false"/g)).toHaveLength(2)
+    expect(markup).toContain('待办事项')
+    expect(markup).toContain('后台任务')
+    expect(markup).not.toContain('<details')
   })
 })

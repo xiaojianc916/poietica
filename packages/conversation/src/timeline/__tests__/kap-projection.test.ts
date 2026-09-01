@@ -410,7 +410,7 @@ describe('kap 投影', () => {
     expect(toolCalls(state)[0]).toMatchObject({ kind: 'other', subject: '更新任务清单' })
   })
 
-  it('命令、清单与计划都从 display 落进送出去那一面', () => {
+  it('命令与计划从 display、清单从已校验入参落进送出去那一面', () => {
     const state = replayRunEvents(
       kapTurn([
         {
@@ -425,16 +425,15 @@ describe('kap 投影', () => {
           type: 'tool.call.started',
           turnId: 1,
           toolCallId: 'call_t',
-          name: 'TodoWrite',
-          args: {},
-          display: {
-            kind: 'todo_list',
-            items: [
+          name: 'TodoList',
+          args: {
+            todos: [
               { title: '建索引', status: 'done' },
               { title: '写投影', status: 'in_progress' },
               { title: '补用例', status: 'whatever' },
             ],
           },
+          display: { kind: 'todo_list' },
         },
         {
           type: 'tool.call.started',

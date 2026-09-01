@@ -3,6 +3,13 @@
 /* 包的公开面。显式罗列而不是 export *：谁在用什么必须一眼可见。 */
 
 export { cn } from './class-names'
+export {
+  Accordion,
+  AccordionHeader,
+  AccordionItem,
+  AccordionPanel,
+  AccordionTrigger,
+} from './control/accordion'
 export { Button } from './control/button'
 export { CommandMenu, type CommandMenuGroup, type CommandMenuItem } from './control/command-menu'
 export { ConfirmationDialog } from './control/confirmation-dialog'

@@ -116,7 +116,7 @@ export interface ToolCallTimelineItem extends TimelineEntry {
    * 抽屉把整格 content 归给「交回来的那一面」—— 入参被画成了产出。两个面各有一格,
    * 就没有哪一格需要靠来源去猜它该画在哪边。
    *
-   * 唯一来源是 kap 的 display（kap-projection 的 fromDisplay）。
+   * 通用展示字段来自 kap display；Kimi TodoList 的清单正文只由 kimi-todo 从已校验入参投影。
    */
   readonly requestContent: readonly ToolCallContent[]
   /** agent 交回来的那一份：进度与产出。 */
