@@ -21,16 +21,18 @@ use crate::interaction::desk::{PermissionDesk, QuestionDesk};
 use crate::interaction::permission::Decision;
 use crate::interaction::question::{QuestionGroup, QuestionOutcome};
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum ReconcileMessage {
     Poll,
     Reset,
+    QuestionRequested(Value),
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
 struct ReconcileBatch {
     poll: bool,
     reset: bool,
+    questions: Vec<Value>,
 }
 
 impl ReconcileBatch {
@@ -40,7 +42,9 @@ impl ReconcileBatch {
             ReconcileMessage::Reset => {
                 self.reset = true;
                 self.poll = false;
+                self.questions.clear();
             }
+            ReconcileMessage::QuestionRequested(question) => self.questions.push(question),
         }
     }
 }
@@ -92,6 +96,18 @@ impl ReconcileOwner {
                     state.reset(&desk, &questions);
                 }
 
+                for question in batch.questions {
+                    record_question_request(
+                        &http,
+                        &base_url,
+                        &session_id,
+                        &mut state.pending_questions,
+                        &book,
+                        &questions,
+                        question,
+                    );
+                }
+
                 if batch.poll {
                     let ReconcileState {
                         pending_approvals,
@@ -133,6 +149,10 @@ impl ReconcileOwner {
         self.send(ReconcileMessage::Reset);
     }
 
+    fn question_requested(&self, question: Value) {
+        self.send(ReconcileMessage::QuestionRequested(question));
+    }
+
     fn send(&self, message: ReconcileMessage) {
         if self.messages.unbounded_send(message).is_err() {
             log::warn!("session reconciliation owner stopped unexpectedly");
@@ -155,7 +175,7 @@ impl Drop for ReconcileOwner {
 /// 对账信号（protocol/session.ts：none / approval / question）。
 fn awaits_person(event_type: &str, payload: &Value) -> bool {
     match event_type {
-        "event.approval.requested" | "event.question.requested" => true,
+        "event.approval.requested" => true,
         "event.session.work_changed" => matches!(
             payload.get("pending_interaction").and_then(Value::as_str),
             Some("approval" | "question")
@@ -395,20 +415,26 @@ impl EventRouter {
             slot.record(|recorder| recorder.record_frame(frame));
         }
 
-        /* 有人在等人这一侧的答复。清单的权威在 REST，事件只是信号。 */
-        if awaits_person(event_type, payload) {
+        let owner = || {
+            ReconcileOwner::spawn(
+                session_id.to_owned(),
+                http.clone(),
+                base_url.to_owned(),
+                book.clone(),
+                desk.clone(),
+                questions.clone(),
+            )
+        };
+
+        if event_type == "event.question.requested" {
             owners
                 .entry(session_id.to_owned())
-                .or_insert_with(|| {
-                    ReconcileOwner::spawn(
-                        session_id.to_owned(),
-                        http.clone(),
-                        base_url.to_owned(),
-                        book.clone(),
-                        desk.clone(),
-                        questions.clone(),
-                    )
-                })
+                .or_insert_with(owner)
+                .question_requested(payload.clone());
+        } else if awaits_person(event_type, payload) {
+            owners
+                .entry(session_id.to_owned())
+                .or_insert_with(owner)
                 .poll();
         }
 
@@ -698,11 +724,24 @@ async fn fetch_and_record_questions(
         .unwrap_or_default();
 
     for item in items {
+        record_question_request(http, base_url, session_id, pending, book, desk, item);
+    }
+}
+
+fn record_question_request(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+    pending: &mut HashSet<String>,
+    book: &SessionBook,
+    desk: &QuestionDesk,
+    item: Value,
+) {
         let Some(group) = QuestionGroup::from_wire(&item) else {
             /* 读不出的题组不能装作没来过：撤下它，agent 才不会在人这一侧死等到超时。 */
             let Some(question_id) = item.get("question_id").and_then(Value::as_str) else {
                 log::error!("kap listed a pending question without an id: {item}");
-                continue;
+                return;
             };
 
             log::error!("a pending question group does not fit the contract: {item}");
@@ -720,13 +759,13 @@ async fn fetch_and_record_questions(
                 }
             });
 
-            continue;
+            return;
         };
 
         // 重连对账会把还挂着的题组再报一次：桌上已经有了的不记第二帧、不等第二
         // 份答案。
         if pending.contains(&group.question_id) {
-            continue;
+            return;
         }
 
         if let Ok(Some(slot)) = book.slot(session_id) {
@@ -734,7 +773,7 @@ async fn fetch_and_record_questions(
         }
 
         let Ok(answer_rx) = desk.wait(group.clone()) else {
-            continue;
+            return;
         };
 
         let _inserted = pending.insert(group.question_id.clone());
@@ -766,7 +805,6 @@ async fn fetch_and_record_questions(
                 });
             }
         });
-    }
 }
 
 #[cfg(test)]
@@ -791,16 +829,21 @@ mod tests {
             batch,
             ReconcileBatch {
                 poll: false,
-                reset: true
+                reset: true,
+                questions: Vec::new(),
             }
         );
+
+        batch.push(ReconcileMessage::QuestionRequested(json!({ "question_id": "q1" })));
+        assert_eq!(batch.questions.len(), 1);
 
         batch.push(ReconcileMessage::Poll);
         assert_eq!(
             batch,
             ReconcileBatch {
                 poll: true,
-                reset: true
+                reset: true,
+                questions: vec![json!({ "question_id": "q1" })],
             }
         );
     }
