@@ -97,7 +97,7 @@ function DisclosureCard({
 
 export function TodoListCard({ todos }: { readonly todos: readonly TodoItem[] }) {
   return (
-    <DisclosureCard icon={<ListTodo />} progress={todoProgressLabel(todos)} title="任务">
+    <DisclosureCard icon={<ListTodo />} progress={todoProgressLabel(todos)} title="待办事项">
       {todos.length === 0 ? (
         <p className="todo-panel__empty">暂无任务</p>
       ) : (
