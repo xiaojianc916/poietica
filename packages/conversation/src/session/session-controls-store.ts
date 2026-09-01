@@ -48,6 +48,10 @@ export interface SessionControlsFailureReport {
   readonly openFailed: (cause: unknown) => void
 }
 
+export type SessionControlMutationResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly error: string }
+
 export interface SessionControlsOptions {
   readonly config?: SessionConfigPort | undefined
   readonly port?: ThreadPort | undefined
@@ -278,7 +282,12 @@ export class SessionControlsStore {
    * 落成持久意图。写在发出之前，与 default_model 同一条顺序（见 apps/desktop 的
    * agent-session.ts）：失手时盘上那份仍是用户上一次真的按下的那一颗。
    */
-  selectControl = (threadId: string, controlId: string, value: string, input?: string): void => {
+  selectControl = (
+    threadId: string,
+    controlId: string,
+    value: string,
+    input?: string,
+  ): Promise<SessionControlMutationResult> => {
     const control = this.#held.selectors.get(threadId)?.find((offered) => offered.id === controlId)
 
     if (control !== undefined && isPermissionPostureChange(control, value)) {
@@ -286,7 +295,7 @@ export class SessionControlsStore {
       this.#alignedTo.set(threadId, value)
     }
 
-    this.#dispatch(threadId, controlId, value, input)
+    return this.#dispatch(threadId, controlId, value, input)
   }
 
   /*
@@ -301,50 +310,46 @@ export class SessionControlsStore {
    * 一次改动失败不是那件事。这里向 agent 重问一次权威表，UI 因此回到真正生效的值，
    * 是权威回滚，不是本地猜一个旧值填回去。
    */
-  #dispatch(threadId: string, controlId: string, value: string, input?: string): void {
+  #dispatch(
+    threadId: string,
+    controlId: string,
+    value: string,
+    input?: string,
+  ): Promise<SessionControlMutationResult> {
     const config = this.#config
 
     if (config === undefined) {
-      return
+      return Promise.resolve({ ok: false, error: '会话配置不可用' })
     }
 
     const queued = this.#inflight.get(threadId) ?? Promise.resolve()
-
-    const run = queued.then(async () => {
+    const run = queued.then(async (): Promise<SessionControlMutationResult> => {
       const order = this.#orderOf(threadId)
       const ticket = order.issue()
 
       try {
         const offered = await config.select(threadId, controlId, value, input)
-
-        /* 号过期，或这条对话已经作废（forget 换掉了它的 order）：这张表答的是过去。 */
         if (this.#order.get(threadId) === order && order.isLatest(ticket)) {
           this.#remember(threadId, offered)
         }
+        return { ok: true }
       } catch (reason: unknown) {
-        /*
-         * 原因交出去，值交回权威。
-         *
-         * 这两件事不能互相顶替：向 agent 重问一次修得回屏幕上的值，修不回「为什么
-         * 被拒」—— 密钥过期、模型下线、参数不被接受，全都长成同一次静默的弹回。
-         * 这里不写进 selectorFailure，那一格说的是「这条对话连没连上 agent」。
-         */
         this.#report?.changeFailed(reason)
-
         if (this.#order.get(threadId) === order) {
           await this.#reopen(threadId)
         }
+        return { ok: false, error: describeFailure(reason) }
       }
     })
 
-    this.#inflight.set(threadId, run)
-
-    /* run 自己不会拒绝：上面那个 try 把两条路都收了。 */
-    void run.then(() => {
-      if (this.#inflight.get(threadId) === run) {
+    const tail = run.then(() => undefined)
+    this.#inflight.set(threadId, tail)
+    void tail.then(() => {
+      if (this.#inflight.get(threadId) === tail) {
         this.#inflight.delete(threadId)
       }
     })
+    return run
   }
 
   /*

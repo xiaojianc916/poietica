@@ -1,0 +1,110 @@
+.goal-bar__dock {
+  box-sizing: border-box;
+  inline-size: calc(100% - var(--cp-goal-bar-inset) * 2);
+  max-inline-size: var(--cp-goal-bar-max);
+  margin: 0 auto var(--cp-pad-mid);
+}
+
+.goal-bar {
+  box-sizing: border-box;
+  display: flex;
+  block-size: var(--cp-goal-bar-height);
+  inline-size: 100%;
+  align-items: center;
+  gap: var(--cp-goal-bar-gap);
+  padding: 4px 5px 4px 12px;
+  border: var(--cp-px) solid var(--cp-goal-bar-edge);
+  border-radius: var(--cp-goal-bar-radius);
+  background: var(--cp-goal-bar-surface);
+  color: var(--cp-goal-bar-primary);
+}
+
+.goal-bar__glyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--cp-goal-bar-tertiary);
+}
+
+.goal-bar__label {
+  flex: none;
+  color: var(--cp-goal-bar-primary);
+  font-size: var(--cp-goal-bar-font);
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.goal-bar__objective,
+.goal-bar__error {
+  min-inline-size: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: var(--cp-goal-bar-font);
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goal-bar__objective {
+  color: var(--cp-goal-bar-secondary);
+}
+
+.goal-bar__error {
+  color: var(--cp-goal-bar-error);
+  font-size: 12px;
+}
+
+.goal-bar__input {
+  min-inline-size: 0;
+  block-size: 26px;
+  flex: 1;
+  padding-inline: 8px;
+  border: var(--cp-px) solid var(--cp-goal-bar-input-edge);
+  border-radius: 6px;
+  background: var(--cp-ground);
+  color: var(--cp-goal-bar-primary);
+  font: inherit;
+  font-size: var(--cp-goal-bar-font);
+  line-height: 20px;
+  outline: none;
+}
+
+.goal-bar__input:focus-visible {
+  border-color: var(--cp-accent);
+  outline: var(--cp-px) solid var(--cp-accent);
+}
+
+.goal-bar__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--cp-goal-bar-gap);
+}
+
+.goal-bar__icon-button {
+  display: inline-flex;
+  block-size: var(--cp-goal-bar-action);
+  inline-size: var(--cp-goal-bar-action);
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--cp-goal-bar-tertiary);
+  cursor: pointer;
+}
+
+.goal-bar__icon-button:hover:not(:disabled) {
+  background: var(--cp-goal-bar-hover);
+  color: var(--cp-goal-bar-secondary);
+}
+
+.goal-bar__icon-button:focus-visible {
+  outline: var(--cp-px) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+.goal-bar__icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

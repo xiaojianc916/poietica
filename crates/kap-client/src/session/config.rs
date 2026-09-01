@@ -51,6 +51,8 @@ const PERMISSIONS: [(&str, &str); 3] = [
 ];
 const OFF: &str = "off";
 const ON: &str = "on";
+const PAUSE: &str = "pause";
+const RESUME: &str = "resume";
 const MAX_GOAL_OBJECTIVE_UTF16: usize = 4000;
 
 #[derive(Debug)]
@@ -130,6 +132,14 @@ pub fn selector_patch(
         }),
         "goal" if value == OFF => Ok(CreateSessionRequestAgentConfigStruct {
             goal_control: Some(CreateSessionRequestAgentConfigGoalControlEnum::Cancel),
+            ..Default::default()
+        }),
+        "goal" if value == PAUSE => Ok(CreateSessionRequestAgentConfigStruct {
+            goal_control: Some(CreateSessionRequestAgentConfigGoalControlEnum::Pause),
+            ..Default::default()
+        }),
+        "goal" if value == RESUME => Ok(CreateSessionRequestAgentConfigStruct {
+            goal_control: Some(CreateSessionRequestAgentConfigGoalControlEnum::Resume),
             ..Default::default()
         }),
         "goal" if value == ON => {
@@ -266,14 +276,46 @@ fn count_of(value: f64) -> u64 {
 }
 
 fn goal_control(goal: Option<&SessionGoalDataStruct>) -> ConfigControl {
-    toggle_control(
-        "goal",
-        "目标",
-        "以当前草稿为目标持续推进",
-        ConfigPurpose::Mode,
-        true,
-        goal.is_some_and(|goal| !goal.objective.trim().is_empty()),
-    )
+    let mut choices = vec![
+        ConfigChoice {
+            value: OFF.to_owned(),
+            label: "关闭".to_owned(),
+            detail: None,
+        },
+        ConfigChoice {
+            value: ON.to_owned(),
+            label: "目标".to_owned(),
+            detail: Some("以当前草稿为目标持续推进".to_owned()),
+        },
+    ];
+
+    if let Some(goal) = goal {
+        match goal.status {
+            SessionGoalDataStatusEnum::Active => choices.push(ConfigChoice {
+                value: PAUSE.to_owned(),
+                label: "暂停目标".to_owned(),
+                detail: None,
+            }),
+            SessionGoalDataStatusEnum::Paused | SessionGoalDataStatusEnum::Blocked => {
+                choices.push(ConfigChoice {
+                    value: RESUME.to_owned(),
+                    label: "恢复目标".to_owned(),
+                    detail: None,
+                });
+            }
+            SessionGoalDataStatusEnum::Complete => {}
+        }
+    }
+
+    ConfigControl {
+        id: "goal".to_owned(),
+        label: "目标".to_owned(),
+        detail: None,
+        purpose: ConfigPurpose::Mode,
+        applies_on_submit: true,
+        current: if goal.is_some() { ON } else { OFF }.to_owned(),
+        choices,
+    }
 }
 
 fn model_control(current: &str, items: &[ListModelsDataItemsStruct]) -> Option<ConfigControl> {
@@ -615,6 +657,88 @@ mod tests {
         assert_eq!(
             cancel.goal_control,
             Some(CreateSessionRequestAgentConfigGoalControlEnum::Cancel)
+        );
+        let pause = selector_patch("goal", PAUSE, None).expect("pause patch");
+        assert_eq!(
+            pause.goal_control,
+            Some(CreateSessionRequestAgentConfigGoalControlEnum::Pause)
+        );
+        let resume = selector_patch("goal", RESUME, None).expect("resume patch");
+        assert_eq!(
+            resume.goal_control,
+            Some(CreateSessionRequestAgentConfigGoalControlEnum::Resume)
+        );
+
+        let active_goal = goal("ship it");
+        let active_control = goal_control(Some(&active_goal));
+        assert!(
+            active_control
+                .choices
+                .iter()
+                .any(|choice| choice.value == PAUSE)
+        );
+        assert!(
+            active_control
+                .choices
+                .iter()
+                .all(|choice| choice.value != RESUME)
+        );
+
+        let mut paused_goal = goal("ship it");
+        paused_goal.status = SessionGoalDataStatusEnum::Paused;
+        let paused_control = goal_control(Some(&paused_goal));
+        assert!(
+            paused_control
+                .choices
+                .iter()
+                .any(|choice| choice.value == RESUME)
+        );
+        assert!(
+            paused_control
+                .choices
+                .iter()
+                .all(|choice| choice.value != PAUSE)
+        );
+        let pause = selector_patch("goal", PAUSE, None).expect("pause patch");
+        assert_eq!(
+            pause.goal_control,
+            Some(CreateSessionRequestAgentConfigGoalControlEnum::Pause)
+        );
+        let resume = selector_patch("goal", RESUME, None).expect("resume patch");
+        assert_eq!(
+            resume.goal_control,
+            Some(CreateSessionRequestAgentConfigGoalControlEnum::Resume)
+        );
+
+        let active_goal = goal("ship it");
+        let active_control = goal_control(Some(&active_goal));
+        assert!(
+            active_control
+                .choices
+                .iter()
+                .any(|choice| choice.value == PAUSE)
+        );
+        assert!(
+            active_control
+                .choices
+                .iter()
+                .all(|choice| choice.value != RESUME)
+        );
+
+        let mut paused_goal = goal("ship it");
+        paused_goal.status = SessionGoalDataStatusEnum::Paused;
+        let paused_control = goal_control(Some(&paused_goal));
+        assert!(
+            paused_control
+                .choices
+                .iter()
+                .any(|choice| choice.value == RESUME)
+        );
+        assert!(
+            paused_control
+                .choices
+                .iter()
+                .all(|choice| choice.value != PAUSE)
         );
     }
 }

@@ -1,3 +1,5 @@
 export const GOAL_CONTROL_ID = 'goal'
 export const GOAL_ENABLED = 'on'
 export const GOAL_DISABLED = 'off'
+export const GOAL_PAUSED = 'pause'
+export const GOAL_RESUMED = 'resume'

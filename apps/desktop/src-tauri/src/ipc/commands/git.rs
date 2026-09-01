@@ -212,27 +212,56 @@ pub struct GitCommitRequest {
 /// A lease on the shared watcher for one canonical repository root.
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct GitWatchLease { pub token: String, pub root: String }
+pub struct GitWatchLease {
+    pub token: String,
+    pub root: String,
+}
 
 #[derive(Clone, Debug, Deserialize, tauri_specta::Event, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct GitWorkingTreeChanged { pub root: String }
-
-#[command]
-#[specta::specta]
-pub async fn git_watch_start(app: AppHandle, watches: State<'_, poietica_git_adapter_native::WatchRegistry>, root: String) -> Result<GitWatchLease, Problem> {
-    let token = uuid::Uuid::now_v7().to_string();
-    let emitter = app.clone();
-    let canonical = watches.acquire(Path::new(&root), token.clone(), Arc::new(move |changed| {
-        if let Err(error) = (GitWorkingTreeChanged { root: changed.to_string_lossy().into_owned() }).emit(&emitter) {
-            log::warn!("could not announce a working-tree change: {error}");
-        }
-    })).map_err(surfaced)?;
-    Ok(GitWatchLease { token, root: canonical.to_string_lossy().into_owned() })
+pub struct GitWorkingTreeChanged {
+    pub root: String,
 }
 
 #[command]
 #[specta::specta]
-pub async fn git_watch_stop(watches: State<'_, poietica_git_adapter_native::WatchRegistry>, token: String) -> Result<(), Problem> {
-    if watches.release(&token) { Ok(()) } else { Err(Error::Validation("unknown git watch lease".to_owned()).into()) }
+pub async fn git_watch_start(
+    app: AppHandle,
+    watches: State<'_, poietica_git_adapter_native::WatchRegistry>,
+    root: String,
+) -> Result<GitWatchLease, Problem> {
+    let token = uuid::Uuid::now_v7().to_string();
+    let emitter = app.clone();
+    let canonical = watches
+        .acquire(
+            Path::new(&root),
+            token.clone(),
+            Arc::new(move |changed| {
+                if let Err(error) = (GitWorkingTreeChanged {
+                    root: changed.to_string_lossy().into_owned(),
+                })
+                .emit(&emitter)
+                {
+                    log::warn!("could not announce a working-tree change: {error}");
+                }
+            }),
+        )
+        .map_err(surfaced)?;
+    Ok(GitWatchLease {
+        token,
+        root: canonical.to_string_lossy().into_owned(),
+    })
+}
+
+#[command]
+#[specta::specta]
+pub async fn git_watch_stop(
+    watches: State<'_, poietica_git_adapter_native::WatchRegistry>,
+    token: String,
+) -> Result<(), Problem> {
+    if watches.release(&token) {
+        Ok(())
+    } else {
+        Err(Error::Validation("unknown git watch lease".to_owned()).into())
+    }
 }

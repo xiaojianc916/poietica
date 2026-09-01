@@ -1,4 +1,3 @@
-import { GoalIsland } from '@poietica/surfaces'
 import { AuxiliaryPanelToggle } from '../shell/auxiliary/auxiliary-dock'
 import { useWorkspaceLayoutState } from '../shell/workspace-layout-store'
 import './conversation-header.css'
@@ -17,7 +16,6 @@ export function ConversationHeader({ conversationId }: { readonly conversationId
 
   return (
     <header className="conversation-header" data-assistant-skin>
-      <GoalIsland threadId={conversationId} />
       {auxiliaryThread === conversationId ? null : (
         <AuxiliaryPanelToggle conversationId={conversationId} />
       )}

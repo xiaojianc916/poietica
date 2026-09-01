@@ -9,7 +9,6 @@ export type { AttachmentIntake, ComposerAsset } from './conversation/composer/at
 export { AttachmentIntakeContext } from './conversation/composer/attachment-intake'
 export { ComposerDrafts, ComposerDraftsContext } from './conversation/composer/composer-drafts'
 export type { PromptInputHandle } from './conversation/composer/prompt-input'
-export { GoalIsland } from './conversation/goal/goal-island'
 export {
   AgentControlsContext,
   useAgentControls,

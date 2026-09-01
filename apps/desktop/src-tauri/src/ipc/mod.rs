@@ -51,7 +51,8 @@ use commands::{
         PluginPayload, PluginStaged,
     },
     git::{
-        GitBranches, GitChangeStatus, GitCommitIntent, GitCommitRequest, GitFileChange, GitReview, GitWatchLease, GitWorkingTreeChanged,
+        GitBranches, GitChangeStatus, GitCommitIntent, GitCommitRequest, GitFileChange, GitReview,
+        GitWatchLease, GitWorkingTreeChanged,
     },
     settings::{AppSettings, PrivacySettings},
     skills::{SkillCommitRequest, SkillRecord, SkillStaged},

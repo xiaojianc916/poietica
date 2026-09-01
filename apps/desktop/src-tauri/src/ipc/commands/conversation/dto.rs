@@ -251,7 +251,12 @@ pub(super) fn reported_usage(usage: SessionUsageSnapshot) -> AgentSessionUsage {
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum AgentLinkState {
     #[serde(rename_all = "camelCase")]
-    Retrying { attempt: u32, of: u32, retry_at: i64, reason: String },
+    Retrying {
+        attempt: u32,
+        of: u32,
+        retry_at: i64,
+        reason: String,
+    },
     #[serde(rename_all = "camelCase")]
     Recovered { reason: String },
     #[serde(rename_all = "camelCase")]
@@ -264,25 +269,56 @@ pub enum AgentRunFrame {
     #[serde(rename_all = "camelCase")]
     TurnAdmitted { turn: String },
     #[serde(rename_all = "camelCase")]
-    PromptAdmitted { admission_id: String, prompt: Option<String>, images: Option<Vec<String>>, skills: Option<Vec<String>> },
+    PromptAdmitted {
+        admission_id: String,
+        prompt: Option<String>,
+        images: Option<Vec<String>>,
+        skills: Option<Vec<String>>,
+    },
     #[serde(rename_all = "camelCase")]
     KapEvent { payload: Value },
     #[serde(rename_all = "camelCase")]
-    PermissionRequested { request_id: String, tool_call_id: Option<String>, title: String, tool_call: Value },
+    PermissionRequested {
+        request_id: String,
+        tool_call_id: Option<String>,
+        title: String,
+        tool_call: Value,
+    },
     #[serde(rename_all = "camelCase")]
-    PermissionResolved { request_id: String, decision: String, scope: Option<String>, selected_label: Option<String>, feedback: Option<String> },
+    PermissionResolved {
+        request_id: String,
+        decision: String,
+        scope: Option<String>,
+        selected_label: Option<String>,
+        feedback: Option<String>,
+    },
     #[serde(rename_all = "camelCase")]
-    QuestionsAsked { question_id: String, tool_call_id: Option<String>, questions: Value },
+    QuestionsAsked {
+        question_id: String,
+        tool_call_id: Option<String>,
+        questions: Value,
+    },
     #[serde(rename_all = "camelCase")]
-    QuestionsResolved { question_id: String, outcome: String, answers: Value, note: String },
+    QuestionsResolved {
+        question_id: String,
+        outcome: String,
+        answers: Value,
+        note: String,
+    },
     #[serde(rename_all = "camelCase")]
     SessionRecovered { snapshot: Value },
     #[serde(rename_all = "camelCase")]
     LinkChanged { link: AgentLinkState },
     #[serde(rename_all = "camelCase")]
-    RunFinished { turn: Option<String>, stop_reason: String },
+    RunFinished {
+        turn: Option<String>,
+        stop_reason: String,
+    },
     #[serde(rename_all = "camelCase")]
-    RunFailed { turn: Option<String>, message: String },
+    RunFailed {
+        turn: Option<String>,
+        message: String,
+    },
     #[serde(rename_all = "camelCase")]
     UnsupportedExternalEvent { raw_kind: String },
 }
@@ -302,24 +338,103 @@ impl From<poietica_conversation::event::EventEnvelope> for AgentRunEvent {
         use poietica_conversation::event::ConversationEvent as Event;
         use poietica_conversation::link::LinkState as Link;
         let frame = match envelope.event {
-            Event::TurnAdmitted { turn } => AgentRunFrame::TurnAdmitted { turn: turn.to_string() },
-            Event::PromptAdmitted { admission_id, prompt, images, skills } => AgentRunFrame::PromptAdmitted { admission_id: admission_id.to_string(), prompt, images, skills },
+            Event::TurnAdmitted { turn } => AgentRunFrame::TurnAdmitted {
+                turn: turn.to_string(),
+            },
+            Event::PromptAdmitted {
+                admission_id,
+                prompt,
+                images,
+                skills,
+            } => AgentRunFrame::PromptAdmitted {
+                admission_id: admission_id.to_string(),
+                prompt,
+                images,
+                skills,
+            },
             Event::KapEvent { payload } => AgentRunFrame::KapEvent { payload },
-            Event::PermissionRequested { request_id, tool_call_id, title, tool_call } => AgentRunFrame::PermissionRequested { request_id, tool_call_id, title, tool_call },
-            Event::PermissionResolved { request_id, decision, scope, selected_label, feedback } => AgentRunFrame::PermissionResolved { request_id, decision, scope, selected_label, feedback },
-            Event::QuestionsAsked { question_id, tool_call_id, questions } => AgentRunFrame::QuestionsAsked { question_id, tool_call_id, questions },
-            Event::QuestionsResolved { question_id, outcome, answers, note } => AgentRunFrame::QuestionsResolved { question_id, outcome, answers, note },
+            Event::PermissionRequested {
+                request_id,
+                tool_call_id,
+                title,
+                tool_call,
+            } => AgentRunFrame::PermissionRequested {
+                request_id,
+                tool_call_id,
+                title,
+                tool_call,
+            },
+            Event::PermissionResolved {
+                request_id,
+                decision,
+                scope,
+                selected_label,
+                feedback,
+            } => AgentRunFrame::PermissionResolved {
+                request_id,
+                decision,
+                scope,
+                selected_label,
+                feedback,
+            },
+            Event::QuestionsAsked {
+                question_id,
+                tool_call_id,
+                questions,
+            } => AgentRunFrame::QuestionsAsked {
+                question_id,
+                tool_call_id,
+                questions,
+            },
+            Event::QuestionsResolved {
+                question_id,
+                outcome,
+                answers,
+                note,
+            } => AgentRunFrame::QuestionsResolved {
+                question_id,
+                outcome,
+                answers,
+                note,
+            },
             Event::SessionRecovered { snapshot } => AgentRunFrame::SessionRecovered { snapshot },
-            Event::LinkChanged { link } => AgentRunFrame::LinkChanged { link: match link {
-                Link::Retrying { attempt, of, retry_at, reason } => AgentLinkState::Retrying { attempt, of, retry_at, reason },
-                Link::Recovered { reason } => AgentLinkState::Recovered { reason },
-                Link::Severed { attempts, reason } => AgentLinkState::Severed { attempts, reason },
-            } },
-            Event::RunFinished { turn, stop_reason } => AgentRunFrame::RunFinished { turn: turn.map(|value| value.to_string()), stop_reason },
-            Event::RunFailed { turn, message } => AgentRunFrame::RunFailed { turn: turn.map(|value| value.to_string()), message },
-            Event::UnsupportedExternalEvent { raw_kind } => AgentRunFrame::UnsupportedExternalEvent { raw_kind },
+            Event::LinkChanged { link } => AgentRunFrame::LinkChanged {
+                link: match link {
+                    Link::Retrying {
+                        attempt,
+                        of,
+                        retry_at,
+                        reason,
+                    } => AgentLinkState::Retrying {
+                        attempt,
+                        of,
+                        retry_at,
+                        reason,
+                    },
+                    Link::Recovered { reason } => AgentLinkState::Recovered { reason },
+                    Link::Severed { attempts, reason } => {
+                        AgentLinkState::Severed { attempts, reason }
+                    }
+                },
+            },
+            Event::RunFinished { turn, stop_reason } => AgentRunFrame::RunFinished {
+                turn: turn.map(|value| value.to_string()),
+                stop_reason,
+            },
+            Event::RunFailed { turn, message } => AgentRunFrame::RunFailed {
+                turn: turn.map(|value| value.to_string()),
+                message,
+            },
+            Event::UnsupportedExternalEvent { raw_kind } => {
+                AgentRunFrame::UnsupportedExternalEvent { raw_kind }
+            }
         };
-        Self { session_id: envelope.session_id, seq: u32::try_from(envelope.seq.value()).map_or(u32::MAX, |value| value), at: envelope.at, frame }
+        Self {
+            session_id: envelope.session_id,
+            seq: u32::try_from(envelope.seq.value()).map_or(u32::MAX, |value| value),
+            at: envelope.at,
+            frame,
+        }
     }
 }
 

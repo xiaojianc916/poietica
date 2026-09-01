@@ -17,8 +17,8 @@ use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
     AgentArchiveThreadRequest, AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFrameCursor,
-    AgentFramePage, AgentOpenThreadRequest, AgentRunEvent, AgentOpenedThread, AgentPinThreadRequest,
-    AgentRenameThreadRequest, AgentSessionUsage, AgentThread, AgentThreadRequest,
+    AgentFramePage, AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest,
+    AgentRenameThreadRequest, AgentRunEvent, AgentSessionUsage, AgentThread, AgentThreadRequest,
     AgentThreadSnapshot, AgentThreadTarget, AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD,
     reported_goal,
 };
@@ -212,7 +212,10 @@ fn paged(page: FramePage) -> Result<AgentFramePage> {
         .map(|raw| serde_json::from_str::<AgentRunEvent>(raw.get()))
         .collect::<std::result::Result<Vec<_>, _>>()
         .map_err(|error| Error::Internal(format!("stored run event is invalid: {error}")))?;
-    Ok(AgentFramePage { events, before: page.before.map(cursored).transpose()? })
+    Ok(AgentFramePage {
+        events,
+        before: page.before.map(cursored).transpose()?,
+    })
 }
 
 /// 库上那个位置，收进线上那一格的宽度。

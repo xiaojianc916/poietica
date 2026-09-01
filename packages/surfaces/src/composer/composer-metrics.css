@@ -197,8 +197,22 @@
   --cp-pill-trail: 10px;
   --cp-pill-gap: var(--cp-control-gap);
   --cp-pill-label-max: 14ch;
-  --cp-goal-island-width: 360px;
-  --cp-goal-copy-lines: 3;
+  /* DeepSeek Harness GoalBar geometry and palette, owned by the composer metrics plane. */
+  --cp-goal-bar-max: 752px;
+  --cp-goal-bar-inset: 8px;
+  --cp-goal-bar-height: 36px;
+  --cp-goal-bar-radius: 12px;
+  --cp-goal-bar-gap: 10px;
+  --cp-goal-bar-action: 28px;
+  --cp-goal-bar-font: 13px;
+  --cp-goal-bar-surface: rgb(245 246 247);
+  --cp-goal-bar-edge: rgb(0 0 0 / 4%);
+  --cp-goal-bar-input-edge: rgb(0 0 0 / 10%);
+  --cp-goal-bar-primary: rgb(15 17 21);
+  --cp-goal-bar-secondary: rgb(21 21 23);
+  --cp-goal-bar-tertiary: rgb(129 133 140);
+  --cp-goal-bar-hover: rgb(38 49 72 / 6%);
+  --cp-goal-bar-error: rgb(236 19 19);
   --cp-pill-wash: 13%;
   --cp-pill-wash-hover: 19%;
 
@@ -465,4 +479,15 @@
   --cp-lift-menu:
     0 2px 4px color-mix(in srgb, var(--ui-foreground) 6%, transparent),
     0 12px 32px -8px color-mix(in srgb, var(--ui-foreground) 20%, transparent);
+}
+
+:root[data-theme="dark"] [data-assistant-skin] {
+  --cp-goal-bar-surface: rgb(53 54 56);
+  --cp-goal-bar-edge: rgb(255 255 255 / 6%);
+  --cp-goal-bar-input-edge: rgb(255 255 255 / 12%);
+  --cp-goal-bar-primary: rgb(249 250 251);
+  --cp-goal-bar-secondary: rgb(235 238 242);
+  --cp-goal-bar-tertiary: rgb(173 178 184);
+  --cp-goal-bar-hover: rgb(255 255 255 / 8%);
+  --cp-goal-bar-error: rgb(242 90 90);
 }

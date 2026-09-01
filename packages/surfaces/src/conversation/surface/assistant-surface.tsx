@@ -7,6 +7,7 @@ import { ComposerDraftKeyContext } from '../composer/composer-drafts'
 import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
+import { GoalBar } from '../goal/goal-bar'
 import { useAgentToolkit } from '../session/agent-controls-context'
 import type { AssistantSubmission } from '../session/use-assistant-session'
 import {
@@ -221,6 +222,8 @@ export const AssistantSurface = memo(function AssistantSurface({
    */
   const dock = (
     <div className="assistant-surface__composer">
+      {live ? <GoalBar threadId={endpoint} /> : null}
+
       <PromptQueue onEdit={edit} outbox={assistant.outbox} />
 
       <AssistantComposer
