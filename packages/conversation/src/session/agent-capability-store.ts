@@ -35,6 +35,13 @@ const NO_CONTROLS: readonly SessionConfigControl[] = []
 /* 引用固定，#commit 才判得出「名册没变」。 */
 const NO_TOOLKIT: AgentToolkit = { skills: [], mcpServers: [] }
 
+/* 内置 Skill 没有用户可管理的实体，只保留在端口返回值，不进入屏幕名册。 */
+function userVisibleToolkit(toolkit: AgentToolkit): AgentToolkit {
+  const skills = toolkit.skills.filter((skill) => skill.source !== 'builtin')
+
+  return skills.length === toolkit.skills.length ? toolkit : { ...toolkit, skills }
+}
+
 /** 屏幕上那一格：agent 报的整张表，以及它说不出话时的理由。 */
 export interface AgentControls {
   readonly controls: readonly SessionConfigControl[]
@@ -345,7 +352,7 @@ export class AgentCapabilityStore {
     void port.readToolkit(at).then(
       (toolkit) => {
         if (this.#source === port && this.#toolkitAt === at) {
-          this.#commit({ ...this.#held, toolkit })
+          this.#commit({ ...this.#held, toolkit: userVisibleToolkit(toolkit) })
         }
       },
       (cause: unknown) => {

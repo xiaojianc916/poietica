@@ -12,6 +12,25 @@ import { AgentCapabilityStore } from '../agent-capability-store'
 /* 名册不是这些用例的主角：给一个恒空的读法，让端口完整。 */
 const EMPTY_TOOLKIT: AgentToolkit = { skills: [], mcpServers: [] }
 
+const skill = (name: string, source: string): AgentToolkit['skills'][number] => ({
+  id: `skill:${name}`,
+  name,
+  description: name,
+  source,
+  path: `/${name}`,
+  project: null,
+  projectPath: null,
+  document: null,
+  directory: null,
+  enabled: true,
+  loaded: true,
+  kind: 'inline',
+  disableModelInvocation: null,
+  supportingFiles: null,
+  totalBytes: null,
+  modifiedAt: null,
+})
+
 const inert = (): (() => void) => () => undefined
 
 const control = (
@@ -288,6 +307,27 @@ describe('锚会话的那张表', () => {
     await settled()
 
     expect(written).toEqual(['yolo'])
+
+    stop()
+  })
+
+  it('内置 Skill 不进入用户可见名册', async () => {
+    const store = new AgentCapabilityStore()
+
+    const stop = store.start({
+      read: () => Promise.resolve(ON_OFF),
+      select: () => Promise.resolve(ON_OFF),
+      subscribe: inert,
+      readToolkit: () =>
+        Promise.resolve({
+          skills: [skill('check-kimi-code-docs', 'builtin'), skill('review', 'project')],
+          mcpServers: [],
+        }),
+    })
+
+    await settled()
+
+    expect(store.snapshot().toolkit.skills.map((entry) => entry.name)).toEqual(['review'])
 
     stop()
   })

@@ -12,7 +12,7 @@ import { type PluginStore, type SkillRow, skillRows } from '@poietica/extension'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, Check, Copy, PackageOpen, Search, Trash2 } from 'lucide-react'
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Streamdown } from 'streamdown'
+import { type ControlsConfig, Streamdown } from 'streamdown'
 import { useAgentControls } from '../conversation/session/agent-controls-context'
 import 'streamdown/styles.css'
 import './skills-settings.css'
@@ -29,20 +29,27 @@ type LibraryRow =
   | { readonly kind: 'skill'; readonly key: string; readonly skill: SkillRow }
 
 const SOURCE_LABELS: Record<Exclude<SourceFilter, 'all'>, string> = {
+  builtin: '内置',
   managed: 'Poietica 管理',
   project: '项目',
   user: '用户目录',
   extra: '额外目录',
-  builtin: 'Kimi 内置',
 }
 
 const SOURCE_ORDER: readonly Exclude<SourceFilter, 'all'>[] = [
+  'builtin',
   'managed',
   'project',
   'user',
   'extra',
-  'builtin',
 ]
+
+const SKILL_DOCUMENT_CONTROLS: ControlsConfig = {
+  code: { copy: true, download: false },
+  image: false,
+  mermaid: false,
+  table: false,
+}
 
 export interface SkillsSettingsProps {
   readonly store: PluginStore
@@ -222,18 +229,24 @@ function SkillDetail({ skill, store }: { readonly skill: SkillRow; readonly stor
         <SkillActions directory={skill.directory} skill={skill} store={store} />
       ) : (
         <p className="skill-detail__readonly">
-          {skill.source === 'builtin'
-            ? '这是 Kimi 的内置虚拟 Skill；KAP 0.39.1 不发布其正文或物理文件，不能伪造打开、删除能力。'
-            : skill.body
-              ? '正文直接读取自上方实际路径；写操作仍只接受原生注册的受控副本。'
-              : 'Kimi 报告了实际路径，但本机未能读取该文件。请检查路径权限或文件是否已移动。'}
+          {skill.body
+            ? ''
+            : 'Kimi 报告了实际路径，但本机未能读取该文件。请检查路径权限或文件是否已移动。'}
         </p>
       )}
 
       {skill.body ? (
         <div className="skill-detail__document">
           <span>SKILL.md</span>
-          <Streamdown>{skill.body}</Streamdown>
+          <Streamdown
+            className="skill-detail__prose"
+            controls={SKILL_DOCUMENT_CONTROLS}
+            lineNumbers={false}
+            mode="static"
+            tableMaxHeight={0}
+          >
+            {skill.body}
+          </Streamdown>
         </div>
       ) : null}
     </div>

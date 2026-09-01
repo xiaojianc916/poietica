@@ -360,11 +360,185 @@
   font-size: 9.5px;
 }
 
-.skill-detail__document > div {
+.skill-detail__prose {
+  --skill-document-bar: 28px;
+  --skill-document-control: 24px;
+
   margin-block-start: 10px;
   color: var(--ui-muted-foreground);
   font-size: 11.5px;
   line-height: 1.6;
+}
+
+.skill-detail__prose > :first-child {
+  margin-block-start: 0;
+}
+
+.skill-detail__prose :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 14px 5px;
+  color: var(--ui-foreground);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.skill-detail__prose h1 {
+  font-size: 18px;
+}
+
+.skill-detail__prose h2 {
+  font-size: 16px;
+}
+
+.skill-detail__prose :is(h3, h4, h5, h6) {
+  font-size: 13px;
+}
+
+.skill-detail__prose [data-streamdown="code-block"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0;
+  overflow: hidden;
+  inline-size: 100%;
+  margin-block: 12px 0;
+  padding: 0;
+  border: 1px solid var(--settings-divider);
+  border-radius: 8px;
+  background: transparent;
+}
+
+.skill-detail__prose [data-streamdown="code-block-header"],
+.skill-detail__prose
+  [data-streamdown="code-block"]
+  > :has(> [data-streamdown="code-block-actions"]) {
+  border-block-end: 1px solid var(--settings-divider);
+  background: var(--settings-field);
+}
+
+.skill-detail__prose [data-streamdown="code-block-header"] {
+  display: flex;
+  grid-area: 1 / 1;
+  align-items: center;
+  block-size: var(--skill-document-bar);
+  padding-inline: 10px;
+  color: var(--ui-muted-foreground);
+}
+
+.skill-detail__prose
+  [data-streamdown="code-block"]
+  > :has(> [data-streamdown="code-block-actions"]) {
+  position: static;
+  display: flex;
+  grid-area: 1 / 2;
+  align-items: center;
+  block-size: var(--skill-document-bar);
+  margin: 0;
+  padding-inline-end: 4px;
+  pointer-events: auto;
+}
+
+.skill-detail__prose [data-streamdown="code-block-actions"] {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  backdrop-filter: none;
+}
+
+.skill-detail__prose [data-streamdown="code-block-actions"] > button {
+  display: grid;
+  inline-size: var(--skill-document-control);
+  block-size: var(--skill-document-control);
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-muted-foreground);
+}
+
+.skill-detail__prose [data-streamdown="code-block-actions"] > button:hover {
+  background: var(--ui-sidebar-accent);
+  color: var(--ui-foreground);
+}
+
+.skill-detail__prose [data-streamdown="code-block-actions"] > button:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 1px;
+}
+
+.skill-detail__prose [data-streamdown="code-block-body"] {
+  grid-area: 2 / 1 / 3 / 3;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+.skill-detail__prose [data-streamdown="code-block-body"] pre {
+  margin: 0;
+  background: transparent;
+  tab-size: 2;
+}
+
+.skill-detail__prose [data-streamdown="code-block-body"] pre code > span {
+  display: block;
+}
+
+.skill-detail__prose [data-streamdown="table-wrapper"] {
+  display: block;
+  overflow: hidden;
+  margin-block: 12px 0;
+  padding: 0;
+  border: 1px solid var(--settings-divider);
+  border-radius: 8px;
+  background: transparent;
+}
+
+.skill-detail__prose [data-streamdown="table-wrapper"] > div:last-child {
+  overflow: auto hidden;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+}
+
+.skill-detail__prose [data-streamdown="table"] {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+}
+
+.skill-detail__prose [data-streamdown="table-header"] {
+  background: var(--settings-field);
+}
+
+.skill-detail__prose [data-streamdown="table-header-cell"] {
+  block-size: 30px;
+  padding: 0 10px;
+  font-size: inherit;
+  font-weight: 600;
+  text-align: start;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.skill-detail__prose [data-streamdown="table-cell"] {
+  padding: 7px 10px;
+  font-size: inherit;
+  vertical-align: top;
+}
+
+.skill-detail__prose [data-streamdown="table-header"] + [data-streamdown="table-body"],
+.skill-detail__prose
+  [data-streamdown="table-body"]
+  [data-streamdown="table-row"]
+  + [data-streamdown="table-row"] {
+  border-block-start: 1px solid var(--settings-divider);
 }
 
 @media (max-width: 900px) {
