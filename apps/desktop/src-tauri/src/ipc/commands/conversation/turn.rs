@@ -33,7 +33,7 @@ use super::{
 /// Starts a turn and returns as soon as it is under way.
 ///
 /// The answer to the prompt is not awaited here. Frames arrive on
-/// [`AGENT_EVENT`] as they are recorded, which is what the timeline consumes;
+/// the generated `AgentRunBatch` event as they are recorded, which is what the timeline consumes;
 /// blocking the caller until the agent stopped would defeat the point.
 ///
 /// # Errors

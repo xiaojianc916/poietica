@@ -9,7 +9,7 @@ export const commands = {
  * Starts a turn and returns as soon as it is under way.
  * 
  * The answer to the prompt is not awaited here. Frames arrive on
- * [`AGENT_EVENT`] as they are recorded, which is what the timeline consumes;
+ * the generated `AgentRunBatch` event as they are recorded, which is what the timeline consumes;
  * blocking the caller until the agent stopped would defeat the point.
  * 
  * # Errors
@@ -1119,19 +1119,25 @@ async browserSetElementPicker(id: number, enabled: boolean) : Promise<void> {
 
 
 export const events = __makeEvents__<{
+agentRunBatch: AgentRunBatch,
+agentSessionEvent: AgentSessionEvent,
 automationCatalogChanged: AutomationCatalogChanged,
 automationDue: AutomationDue,
 browserElementPicked: BrowserElementPicked,
 browserState: BrowserState,
 terminalStreamed: TerminalStreamed,
+terminationRequested: TerminationRequested,
 updateProgress: UpdateProgress,
 windowMaximized: WindowMaximized
 }>({
+agentRunBatch: "agent-run-batch",
+agentSessionEvent: "agent-session-event",
 automationCatalogChanged: "automation-catalog-changed",
 automationDue: "automation-due",
 browserElementPicked: "browser-element-picked",
 browserState: "browser-state",
 terminalStreamed: "terminal-streamed",
+terminationRequested: "termination-requested",
 updateProgress: "update-progress",
 windowMaximized: "window-maximized"
 })
@@ -1710,6 +1716,10 @@ selectedLabel: string | null;
  */
 feedback: string | null }
 /**
+ * 一批已经落账、准备交给时间线的运行帧。
+ */
+export type AgentRunBatch = { events: JsonValue[] }
+/**
  * A change made in the interface.
  */
 export type AgentSelectConfigRequest = { 
@@ -2209,6 +2219,13 @@ export type TerminalChunk = { kind: "output"; value: string } | { kind: "exited"
  * 播给渲染层的一跳。root 是会话键，也就是这条对话的工作目录。
  */
 export type TerminalStreamed = { root: string; chunk: TerminalChunk }
+/**
+ * 与渲染层之间唯一的退出契约。
+ * 
+ * 事件名随 tauri-specta 的注册面走（termination-requested），不再手写字符串：
+ * 手写的名字两侧没有东西校验它，改一端漏一端不会报错。
+ */
+export type TerminationRequested = null
 /**
  * 颜色模式是一个闭集，不是一段自由文本。
  * 

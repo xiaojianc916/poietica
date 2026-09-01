@@ -5,8 +5,10 @@ import {
   type AgentLaunch,
   type AgentMcpServer,
   type AgentQuestionChoice,
+  type AgentRunBatch,
   type AgentSessionEvent,
   commands,
+  events,
 } from '@poietica/contract'
 import type {
   AgentCapabilityPort,
@@ -35,31 +37,18 @@ import { throughIpc } from '../error'
  * 端口不在这一层重新声明一遍。ThreadPort / SessionConfigPort / AgentCapabilityPort
  * 就是下面几个工厂的返回类型，所以「桥」与「端口」是同一个名字下的同一样东西。
  *
- * Frame shapes are never redefined here: command payloads come from the
- * generated bindings, and frames are handed on exactly as recorded. Their
- * shape is fixed by frame.rs at compile time, so a schema on this side would
- * only add a third description of the protocol to keep in sync.
+ * Native events use the Rust-generated surface. This bridge owns listener lifetime
+ * and translates wire DTOs into domain ports.
  */
 
-/** The channel run frames are broadcast on. */
-const AGENT_EVENT = 'ai-run-event'
+function sessionIdOf(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return null
+  }
 
-/** 会话自己报来的状态走这一条：选择器表与用量。它不属于任何一轮。 */
-const AGENT_SESSION_EVENT = 'ai-session-event'
-
-/**
- * The envelope the native side broadcasts.
- *
- * 信封就是帧：判别式、位置、时刻与载荷平铺在同一层，会话号也在这一层 ——
- * 每一种帧无一例外都自报它（见原生侧 recorder.rs 的 RecordedEvent）。
- *
- * 线上一次带的是一批，不是一个。原生侧按屏幕的节拍攒帧（见 commands/agent/journal.rs），所以跨进程往返的次数不再随 agent 说得多快而涨。一批只属于一条
- * 会话，端口因此原样把整批交出去。
- */
-interface AgentEventEnvelope {
-  readonly sessionId: string
+  const sessionId = Reflect.get(value, 'sessionId')
+  return typeof sessionId === 'string' ? sessionId : null
 }
-
 export interface AgentEventSourceOptions {
   /** Reports a transport failure; listening is best-effort by design. */
   readonly onListenFailure?: (error: unknown) => void
@@ -101,16 +90,19 @@ export interface AgentBridgeOptions {
  * 两条通道共用它。这段拆解此前只服务于运行帧一条，而第二条通道到来时照抄一遍，
  * 就是第二处要各自修的地方。
  */
+type GeneratedEventListener<TPayload> = (
+  handler: (payload: TPayload) => void,
+) => Promise<() => void>
+
 function subscribeToEvent<TPayload>(
-  event: string,
+  listen: GeneratedEventListener<TPayload>,
   handler: (payload: TPayload) => void,
   onListenFailure?: (error: unknown) => void,
 ): () => void {
   let cancelled = false
   let stop: (() => void) | null = null
 
-  void import('@tauri-apps/api/event')
-    .then((module) => module.listen<TPayload>(event, (received) => handler(received.payload)))
+  void listen(handler)
     .then((unlisten) => {
       if (cancelled) {
         unlisten()
@@ -129,13 +121,12 @@ function subscribeToEvent<TPayload>(
     stop = null
   }
 }
-
 /* 会话事件由 Rust AgentSessionEvent 生成；这里仅按判别式分派到具名端口。 */
 
 /**
  * 一条通道，按判别式交给它的读者。
  *
- * 会话状态同走一条事件，与运行帧同走 AGENT_EVENT 是同一条规矩。
+ * 会话状态与运行帧都只走生成事件面。
  * 分派按判别式静态展开，不是一张可以注册任意名字的表 —— 每一个读者仍是一个具名端口。
  */
 function subscribeToSessionEvent<TKind extends AgentSessionEvent['kind']>(
@@ -144,7 +135,10 @@ function subscribeToSessionEvent<TKind extends AgentSessionEvent['kind']>(
   onListenFailure?: (error: unknown) => void,
 ): () => void {
   return subscribeToEvent<AgentSessionEvent>(
-    AGENT_SESSION_EVENT,
+    (receive) =>
+      events.agentSessionEvent.listen((event) => {
+        receive(event.payload)
+      }),
     (payload) => {
       if (payload.kind === kind) {
         handler(payload as Extract<AgentSessionEvent, { kind: TKind }>)
@@ -193,23 +187,32 @@ export function createAgentSessionPort({
   onListenFailure,
 }: AgentBridgeOptions & AgentEventSourceOptions): AgentSessionPort {
   return {
-    /* 帧原样交出去，不在这里再校验一遍：形状由 frame.rs 的 enum 在编译期定下，
-    这一侧再写一份运行期 schema 只会多出一个「协议新增字段即整轮判废」的故障模式。 */
     subscribe: (listener) =>
-      subscribeToEvent<readonly AgentEventEnvelope[]>(
-        AGENT_EVENT,
-        (payload) => {
-          /* 一拍的帧一起到，也一起交出去：一批只属于一条会话（见 recorder.rs
-          的 Frames::new），所以地址从头一帧上取一次就对整批成立。 */
-          const first = payload.at(0)
+      subscribeToEvent<AgentRunBatch>(
+        (receive) =>
+          events.agentRunBatch.listen((event) => {
+            receive(event.payload)
+          }),
+        (batch) => {
+          const first = batch.events.at(0)
 
-          if (first !== undefined) {
-            listener(payload as readonly RunEvent[], first.sessionId)
+          if (first === undefined) {
+            return
           }
+
+          const sessionId = sessionIdOf(first)
+          const oneSession = batch.events.every((event) => sessionIdOf(event) === sessionId)
+
+          if (sessionId === null || !oneSession) {
+            onListenFailure?.(new TypeError('agent run batch has an invalid session envelope'))
+            return
+          }
+
+          /* codegen 把 events 拍成 JsonValue[]（dto.rs 的 events: Vec<Value>），运行时形状由协议保证。*/
+          listener(batch.events as unknown as readonly RunEvent[], sessionId)
         },
         onListenFailure,
       ),
-
     prompt: async (request) => {
       const resolvedLaunch = await launch()
       const started = await throughIpc(() =>

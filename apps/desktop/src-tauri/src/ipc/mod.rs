@@ -15,7 +15,7 @@ use tauri_specta::{Builder, ErrorHandlingMode};
 
 use crate::diagnostics::crash_report::NativeCrashReport;
 use crate::webview::{BrowserElementPicked, BrowserState};
-use crate::window::WindowMaximized;
+use crate::window::{TerminationRequested, WindowMaximized};
 use commands::{
     asset::{
         AssetFormat, AssetImportRequest, AssetRemoveRequest, AssetSessionCloseRequest,
@@ -42,8 +42,8 @@ use commands::{
         AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFramesUntilRequest, AgentGoal,
         AgentPinThreadRequest, AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult,
         AgentPromptSkill, AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod,
-        AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentSelectConfigRequest,
-        AgentSessionEvent, AgentThreadRequest, AgentTurnMark,
+        AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentRunBatch,
+        AgentSelectConfigRequest, AgentSessionEvent, AgentThreadRequest, AgentTurnMark,
     },
     conversation::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
     extension::{
@@ -180,11 +180,14 @@ pub fn surface() -> Builder<Wry> {
             crate::webview::bridge::browser_set_element_picker,
         ])
         .events(tauri_specta::collect_events![
+            AgentRunBatch,
+            AgentSessionEvent,
             AutomationCatalogChanged,
             AutomationDue,
             BrowserElementPicked,
             BrowserState,
             TerminalStreamed,
+            TerminationRequested,
             UpdateProgress,
             WindowMaximized
         ])
@@ -202,6 +205,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentConfigChoice>()
         .typ::<AgentConfigControl>()
         .typ::<AgentGoal>()
+        .typ::<AgentRunBatch>()
         .typ::<AgentSessionEvent>()
         .typ::<AgentCapabilitiesRequest>()
         .typ::<AgentSelectConfigRequest>()

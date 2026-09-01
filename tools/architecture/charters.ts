@@ -112,37 +112,41 @@ export async function preferencesHaveOneOwner(root: string): Promise<Violation[]
   return violations
 }
 
-/** 事件名是一份契约，只允许有一个声明处。 */
-export async function agentEventsAreDeclaredOnce(root: string): Promise<Violation[]> {
-  const owner = 'apps/desktop/src-tauri/src/ipc/commands/conversation/mod.rs'
-  const files = await rust(root)
+/** 原生业务事件由 Rust surface 生成；应用代码只消费生成监听器。 */
+export async function nativeEventsUseGeneratedSurface(root: string): Promise<Violation[]> {
+  const surfacePath = 'apps/desktop/src-tauri/src/ipc/mod.rs'
+  const generated = 'packages/contract/src/generated/ipc-bindings.ts'
+  const surface = await readFile(path.join(root, surfacePath), 'utf8')
+  const declared = surface.match(/\.events\(tauri_specta::collect_events!\[([\s\S]*?)\]\)/)?.[1]
   const violations: Violation[] = []
 
-  for (const name of ['"ai-run-event"', '"ai-session-event"']) {
-    const hits = await holding(root, files, name)
-
-    for (const file of hits) {
-      if (file !== owner) {
-        violations.push({
-          policy: 'agent-identity-single-subscription',
-          where: file,
-          detail: `${name} 的声明处只允许是 ipc/commands/conversation/mod.rs`,
-        })
-      }
+  for (const event of ['AgentRunBatch', 'AgentSessionEvent']) {
+    if (declared?.includes(event)) {
+      continue
     }
 
-    if (!hits.includes(owner)) {
-      violations.push({
-        policy: 'agent-identity-single-subscription',
-        where: owner,
-        detail: `${name} 不在声明处：常量被搬走了，订阅方无从对齐`,
-      })
+    violations.push({
+      policy: 'native-events-use-generated-surface',
+      where: surfacePath,
+      detail: `${event} 未进入 collect_events!`,
+    })
+  }
+
+  const files = await walk(root, ['apps', 'packages'], ['.ts', '.tsx'])
+  for (const file of await holding(root, files, '@tauri-apps/api/event')) {
+    if (file === generated) {
+      continue
     }
+
+    violations.push({
+      policy: 'native-events-use-generated-surface',
+      where: file,
+      detail: '绕过了 Rust 生成的事件契约',
+    })
   }
 
   return violations
 }
-
 /** 能力在组合根接线，别处不许自己往 Builder 上挂东西。 */
 export async function capabilitiesAreWiredAtTheRoot(root: string): Promise<Violation[]> {
   const owner = 'apps/desktop/src-tauri/src/composition.rs'

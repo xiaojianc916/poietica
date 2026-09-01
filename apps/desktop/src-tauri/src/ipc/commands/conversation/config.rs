@@ -3,7 +3,8 @@
 use crate::error::Error;
 use crate::ipc::commands::ledger::local_index::LocalIndex;
 use poietica_kap_client::{AgentClient, ConfigControl, ConfigPurpose, select_config};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
+use tauri_specta::Event as _;
 
 use super::addressing::session_for;
 use super::dto::{
@@ -12,7 +13,7 @@ use super::dto::{
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
-use super::{AGENT_SESSION_EVENT, AgentCommandResult, NO_ANSWER, NO_SESSION};
+use super::{AgentCommandResult, NO_ANSWER, NO_SESSION};
 
 /// Changes one selector, on one session.
 ///
@@ -137,7 +138,7 @@ pub(super) async fn announce(app: &AppHandle, client: &AgentClient, session_id: 
         goal,
     };
 
-    if let Err(error) = app.emit(AGENT_SESSION_EVENT, event) {
+    if let Err(error) = event.emit(app) {
         log::warn!("emit the session state failed: {error}");
     }
 }

@@ -6,10 +6,13 @@
 //! 请求：渲染层收到后走与关闭按钮完全相同的确认流程，确认完再销毁窗口。关闭按钮
 //! 的拦截权同样归渲染层。
 
+use serde::{Deserialize, Serialize};
+use specta::Type;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_window_state::AppHandleExt;
+use tauri_specta::Event;
 
 use super::state::{MAIN_WINDOW, WINDOW_STATE_FLAGS};
 
@@ -20,7 +23,11 @@ const MENU_QUIT: &str = "poietica-tray-quit";
 const MENU_FORCE_QUIT: &str = "poietica-tray-force-quit";
 
 /// 与渲染层之间唯一的退出契约。
-pub const TERMINATION_REQUESTED_EVENT: &str = "poietica://termination-requested";
+///
+/// 事件名随 tauri-specta 的注册面走（termination-requested），不再手写字符串：
+/// 手写的名字两侧没有东西校验它，改一端漏一端不会报错。
+#[derive(Clone, Copy, Debug, Deserialize, Event, Serialize, Type)]
+pub struct TerminationRequested;
 
 /// Installs the tray icon and its menu. Called once from the composition root.
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
@@ -81,7 +88,7 @@ fn request_termination(app: &AppHandle) {
     // 先把窗口叫出来：确认对话框画在一个隐藏的窗口里等于没有对话框。
     show_main(app);
 
-    if let Err(error) = app.emit(TERMINATION_REQUESTED_EVENT, ()) {
+    if let Err(error) = TerminationRequested.emit(app) {
         log::warn!("tray: could not deliver the termination request: {error}");
     }
 

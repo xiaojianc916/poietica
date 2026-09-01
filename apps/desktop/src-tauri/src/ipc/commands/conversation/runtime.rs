@@ -11,7 +11,7 @@ use super::dto::{AgentLaunch, AgentSessionEvent, reported_goal, reported_usage};
 use super::failure::translate;
 use super::gateway;
 use super::journal::FrameJournal;
-use super::{AGENT_SESSION_EVENT, NO_SESSION_ID, POISONED};
+use super::{NO_SESSION_ID, POISONED};
 use crate::error::{Error, Result};
 use crate::ipc::commands::cli::profile::{agent_args, agent_data_home, agent_program, launch_env};
 use crate::ipc::commands::ledger::local_index::on_index;
@@ -26,7 +26,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
+use tauri::{AppHandle, Manager, Runtime, State, async_runtime};
+use tauri_specta::Event as _;
 use tokio::task::LocalSet;
 use uuid::Uuid;
 /// The live connection, if one has been started.
@@ -328,8 +329,10 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
             None
         }
     };
-    if let Some(payload) = payload {
-        let _ignored = app.emit(AGENT_SESSION_EVENT, &payload);
+    if let Some(payload) = payload
+        && let Err(error) = payload.emit(app)
+    {
+        log::warn!("emit the session state failed: {error}");
     }
 }
 /// Returns the running session, starting one if there is none.

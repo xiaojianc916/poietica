@@ -86,7 +86,7 @@ const violations: Violation[] = [
   ...(await policy.invokedScriptsResolve(ROOT)),
   ...(await policy.problemCopyIsComplete(ROOT, codeSource)),
   ...(await charter.preferencesHaveOneOwner(ROOT)),
-  ...(await charter.agentEventsAreDeclaredOnce(ROOT)),
+  ...(await charter.nativeEventsUseGeneratedSurface(ROOT)),
   ...(await charter.capabilitiesAreWiredAtTheRoot(ROOT)),
   ...(await charter.designSystemOwnsItsTokens(ROOT)),
   ...(await charter.windowSurfaceIsNamedOnce(ROOT)),

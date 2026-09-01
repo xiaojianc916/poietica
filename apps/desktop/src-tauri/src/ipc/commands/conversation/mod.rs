@@ -42,16 +42,6 @@ pub mod turn;
 
 type AgentCommandResult<T> = Result<T, Problem>;
 
-/// The event the renderer listens on to receive run frames.
-pub const AGENT_EVENT: &str = "ai-run-event";
-
-/// 会话自己报来的状态走这一条：选择器表与上下文用量。
-///
-/// 与 [`AGENT_EVENT`] 分开，因为它们说的不是一件事：那一条是某一轮里的一帧，
-/// 这一条不属于任何一轮。两种同走一条、判别式在载荷里 —— 与运行帧同走
-/// [`AGENT_EVENT`] 是同一条规矩。
-pub const AGENT_SESSION_EVENT: &str = "ai-session-event";
-
 /// How much of the first message stands in as a conversation name.
 const TITLE_CHARS: usize = 60;
 

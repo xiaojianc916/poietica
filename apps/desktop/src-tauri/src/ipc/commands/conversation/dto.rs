@@ -12,6 +12,7 @@ use poietica_kap_client::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, value::RawValue};
 use specta::Type;
+use tauri_specta::Event;
 
 /// 起一个 agent 进程要说清的那件事。
 ///
@@ -164,7 +165,7 @@ pub struct AgentCancelRequest {
 ///
 /// These are the categories the protocol defines. A category the agent
 /// invents beyond them arrives as other and is still shown.
-#[derive(Clone, Debug, Serialize, Type)]
+#[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentConfigPurpose {
     /// How tool approvals are decided.
@@ -180,7 +181,7 @@ pub enum AgentConfigPurpose {
 }
 
 /// One value a selector will accept.
-#[derive(Clone, Debug, Serialize, Type)]
+#[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfigChoice {
     /// The value sent back when this one is picked.
@@ -192,7 +193,7 @@ pub struct AgentConfigChoice {
 }
 
 /// One selector the running session offers.
-#[derive(Clone, Debug, Serialize, Type)]
+#[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfigControl {
     /// The identifier the agent answers to when the value is changed.
@@ -216,7 +217,7 @@ pub struct AgentConfigControl {
 /// kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量 —— 三格累计
 /// 计数同帧到达，恒为最新整份（usage.total）。按读数算增量的是账本
 /// （persistence 的 usage.rs），这一格只说现在。
-#[derive(Clone, Copy, Debug, Serialize, Type)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSessionUsage {
     /// 已占用的 token 数。
@@ -245,13 +246,20 @@ pub(super) fn reported_usage(usage: SessionUsageSnapshot) -> AgentSessionUsage {
     }
 }
 
+/// 一批已经落账、准备交给时间线的运行帧。
+#[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunBatch {
+    pub events: Vec<Value>,
+}
+
 /// agent 主动报来的一件会话级状态。
 ///
 /// 会话号是它唯一带得出的地址：帧里没有对话，反查由渲染层用「开这条会话时是
 /// 哪条对话」去做。它不出现在任何命令签名里，所以不进生成绑定 —— 事件不是命令。
 ///
 /// 内部标签，所以线上是一个判别联合：`{ kind: "selectors", … }`。
-#[derive(Clone, Debug, Serialize, Type)]
+#[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AgentSessionEvent {
     /// 那条会话上现在的整张选择器表。
@@ -645,7 +653,7 @@ const fn measured(method: AgentQuestionMethod) -> AnswerMethod {
 }
 
 /// 目标模式此刻的事实，线上形状。
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentGoal {
     pub objective: String,
