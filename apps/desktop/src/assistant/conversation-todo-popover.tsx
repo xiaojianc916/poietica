@@ -62,7 +62,7 @@ export function ConversationTodoPopover({ threadId }: { readonly threadId: strin
   return (
     <aside
       aria-hidden={!open}
-      aria-label="任务"
+      aria-label="任务与后台任务"
       className="conversation-todo-popover"
       data-assistant-skin
       data-open={open ? 'true' : 'false'}

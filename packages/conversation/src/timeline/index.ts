@@ -16,6 +16,8 @@ export {
   type TurnSealPlan,
 } from './presentation'
 export type {
+  BackgroundTaskItem,
+  BackgroundTaskStatus,
   LinkTimelineItem,
   MessageImage,
   PermissionItem,
@@ -29,6 +31,7 @@ export type {
 export { endsRun, isSteerable, opensTurn } from './timeline-contract'
 export {
   activeScope,
+  currentTodos,
   inflightPromptId,
   pendingPermission,
   pendingPermissionCount,

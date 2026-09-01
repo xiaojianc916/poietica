@@ -63,7 +63,7 @@ describe('pendingPermission', () => {
   it('不越过段边界：封口段里的请求不再交出', () => {
     const state: TimelineState = {
       status: 'awaiting_permission',
-      todos: null,
+      backgroundTasks: [],
       sealed: [{ turn: 0, items: [asked('old', 0)] }],
       active: { turn: 1, items: [asked('now', 1)] },
       lastSeq: 2,

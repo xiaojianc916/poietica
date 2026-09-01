@@ -4,6 +4,7 @@ import {
   type QuestionTimelineItem,
   type TimelineItem,
   type TimelineState,
+  type TodoItem,
 } from './timeline-contract'
 
 /**
@@ -156,6 +157,31 @@ export function pendingQuestion(scope: WaitingScope): QuestionTimelineItem | und
   }
 
   return first
+}
+
+export function currentTodos(state: TimelineState): readonly TodoItem[] | null {
+  const pages = [...state.sealed, state.active]
+  for (let pageIndex = pages.length - 1; pageIndex >= 0; pageIndex -= 1) {
+    const page = pages[pageIndex]
+    if (page === undefined) {
+      continue
+    }
+    for (let itemIndex = page.items.length - 1; itemIndex >= 0; itemIndex -= 1) {
+      const item = page.items[itemIndex]
+      if (item?.type !== 'tool_call' || item.kind !== 'todo' || item.status === 'failed') {
+        continue
+      }
+      const isLivePreview = item.turn === state.active.turn && selectIsBusy(state)
+      if (item.status !== 'completed' && !isLivePreview) {
+        continue
+      }
+      const snapshot = item.requestContent.find((content) => content.type === 'todo')
+      if (snapshot !== undefined) {
+        return snapshot.items
+      }
+    }
+  }
+  return null
 }
 
 export function selectIsBusy(state: TimelineState): boolean {

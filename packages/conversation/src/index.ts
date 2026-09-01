@@ -86,6 +86,8 @@ export {
   workspaceRootName,
 } from './session'
 export type {
+  BackgroundTaskItem,
+  BackgroundTaskStatus,
   FeedRow,
   LinkTimelineItem,
   MessageImage,
@@ -104,6 +106,7 @@ export {
   activeScope,
   applyRunEvents,
   channelNameOf,
+  currentTodos,
   delegateKey,
   delegationOf,
   inflightPromptId,

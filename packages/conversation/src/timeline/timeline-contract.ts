@@ -180,6 +180,20 @@ export interface TodoItem {
   readonly status: TodoStatus
 }
 
+export type BackgroundTaskStatus =
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'timed_out'
+  | 'killed'
+  | 'lost'
+
+export interface BackgroundTaskItem {
+  readonly taskId: string
+  readonly description: string
+  readonly status: BackgroundTaskStatus
+}
+
 export interface PlanStep {
   readonly content: string
   readonly status: 'pending' | 'in_progress' | 'completed'
@@ -328,8 +342,7 @@ export interface TurnPage {
  */
 export interface TimelineState {
   readonly status: RunStatus
-  /** null means no successful TodoList replacement has been observed in the loaded range. */
-  readonly todos: readonly TodoItem[] | null
+  readonly backgroundTasks: readonly BackgroundTaskItem[]
   /** 已封口的段，按轮次顺序。 */
   readonly sealed: readonly TurnPage[]
   /** 正在写的那一段：写入只发生在这里，复制的代价因此只与它的长度相关。 */

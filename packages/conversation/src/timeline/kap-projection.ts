@@ -21,6 +21,8 @@ import type {
   ToolKind,
 } from '../agent'
 import {
+  type BackgroundTaskItem,
+  type BackgroundTaskStatus,
   type DelegateChannel,
   isTerminal,
   type TodoItem,
@@ -77,6 +79,13 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
     case 'assistant.delta':
     case 'thinking.delta': {
       applyDelta(draft, event)
+
+      return
+    }
+
+    case 'background.task.started':
+    case 'background.task.terminated': {
+      applyBackgroundTask(draft, fieldOf(event.payload, 'info'))
 
       return
     }
@@ -304,6 +313,57 @@ function applyError(draft: Draft, event: KapFrame): void {
   })
 }
 
+const BACKGROUND_TASK_STATUSES: readonly BackgroundTaskStatus[] = [
+  'running',
+  'completed',
+  'failed',
+  'timed_out',
+  'killed',
+  'lost',
+]
+
+function isBackgroundTaskStatus(value: unknown): value is BackgroundTaskStatus {
+  return BACKGROUND_TASK_STATUSES.some((status) => status === value)
+}
+
+function applyBackgroundTask(draft: Draft, value: unknown): void {
+  if (typeof value !== 'object' || value === null) {
+    return
+  }
+
+  const taskId = Reflect.get(value, 'taskId')
+  if (typeof taskId !== 'string' || taskId === '') {
+    return
+  }
+
+  const position = draft.backgroundTasks.findIndex((task) => task.taskId === taskId)
+  if (Reflect.get(value, 'detached') === false) {
+    if (position >= 0) {
+      draft.backgroundTasks = draft.backgroundTasks.filter((task) => task.taskId !== taskId)
+    }
+    return
+  }
+
+  const description = Reflect.get(value, 'description')
+  const status = Reflect.get(value, 'status')
+  if (typeof description !== 'string' || description === '' || !isBackgroundTaskStatus(status)) {
+    return
+  }
+
+  const next: BackgroundTaskItem = { taskId, description, status }
+  const held = draft.backgroundTasks[position]
+  if (held?.description === description && held.status === status) {
+    return
+  }
+  if (position < 0) {
+    draft.backgroundTasks = [...draft.backgroundTasks, next]
+  } else {
+    draft.backgroundTasks = draft.backgroundTasks.map((task, index) =>
+      index === position ? next : task,
+    )
+  }
+}
+
 /** 三次到达认同一个 toolCallId：认不出来这一帧就不落账。 */
 function applyToolFrame(draft: Draft, event: KapFrame): void {
   const toolCallId = stringOf(event.payload, 'toolCallId')
@@ -445,21 +505,6 @@ function upsertToolCall(draft: Draft, toolCallId: string, at: number, patch: Too
     push(draft, next)
   } else {
     draft.items[position] = next
-  }
-
-  commitTodoList(draft, next)
-}
-
-/** 成功的整表替换才成为当前清单；失败调用保留上一份成功快照。 */
-function commitTodoList(draft: Draft, call: ToolCallTimelineItem): void {
-  if (call.kind !== 'todo' || call.status !== 'completed') {
-    return
-  }
-
-  const snapshot = call.requestContent.find((content) => content.type === 'todo')
-
-  if (snapshot !== undefined) {
-    draft.todos = snapshot.items
   }
 }
 

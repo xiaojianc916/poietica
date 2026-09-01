@@ -561,6 +561,42 @@ describe('kap 投影', () => {
   })
 })
 
+describe('background task projection', () => {
+  it('keeps lifecycle updates after the main turn has ended', () => {
+    const started = kapTurn([
+      {
+        type: 'background.task.started',
+        info: {
+          taskId: 'task-1',
+          description: '索引仓库',
+          status: 'running',
+          detached: true,
+        },
+      },
+    ])
+    const state = replayRunEvents([
+      ...started,
+      {
+        kind: 'kap_event',
+        seq: 4,
+        at: 3000,
+        payload: {
+          type: 'background.task.terminated',
+          info: {
+            taskId: 'task-1',
+            description: '索引仓库',
+            status: 'completed',
+            detached: true,
+          },
+        },
+      },
+    ])
+    expect(state.backgroundTasks).toStrictEqual([
+      { taskId: 'task-1', description: '索引仓库', status: 'completed' },
+    ])
+  })
+})
+
 describe('kap agent stamp', () => {
   it('keeps protocol routing knowledge in kap-projection', () => {
     const delegated: RunEvent = {

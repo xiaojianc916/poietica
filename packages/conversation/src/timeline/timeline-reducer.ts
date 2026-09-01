@@ -49,7 +49,7 @@ import {
 export function createTimelineState(): TimelineState {
   return {
     status: 'idle',
-    todos: null,
+    backgroundTasks: [],
     sealed: [],
     active: { turn: 0, items: [] },
     lastSeq: 0,
@@ -91,6 +91,25 @@ export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
  * status、lastSeq 与 runIndex 说的都是最新那一轮，而它在已加载的那一页里，
  * 所以这里一格都不动 —— 一批更早的帧没有资格宣告当前那一轮的状态。
  */
+function mergeBackgroundTasks(
+  earlier: TimelineState['backgroundTasks'],
+  later: TimelineState['backgroundTasks'],
+): TimelineState['backgroundTasks'] {
+  if (earlier.length === 0) {
+    return later
+  }
+  if (later.length === 0) {
+    return earlier
+  }
+
+  const laterById = new Map(later.map((task) => [task.taskId, task]))
+  const earlierIds = new Set(earlier.map((task) => task.taskId))
+  return [
+    ...earlier.map((task) => laterById.get(task.taskId) ?? task),
+    ...later.filter((task) => !earlierIds.has(task.taskId)),
+  ]
+}
+
 export function prependThreadEvents(
   state: TimelineState,
   events: readonly RunEvent[],
@@ -106,7 +125,7 @@ export function prependThreadEvents(
 
   return {
     status: state.status,
-    todos: state.todos ?? earlier.todos,
+    backgroundTasks: mergeBackgroundTasks(earlier.backgroundTasks, state.backgroundTasks),
     sealed: [
       ...earlier.sealed,
       ...(earlier.active.items.length === 0 ? [] : [earlier.active]),

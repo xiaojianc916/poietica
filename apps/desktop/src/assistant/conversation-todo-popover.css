@@ -4,6 +4,7 @@
   min-block-size: 0;
   min-inline-size: 0;
   flex: 1 1 auto;
+  container: conversation-body / inline-size;
 }
 
 .conversation-canvas {
@@ -15,6 +16,7 @@
 
 .conversation-todo-popover {
   position: relative;
+  z-index: 2;
   flex: none;
   inline-size: 0;
   min-block-size: 0;
@@ -23,12 +25,14 @@
   transition: inline-size var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
-.conversation-todo-popover[data-open="true"] {
-  inline-size: calc(
-    var(--conversation-todo-width) +
-    var(--conversation-todo-gap) +
-    var(--conversation-todo-gap)
-  );
+@container conversation-body (min-width: 900px) {
+  .conversation-todo-popover[data-open="true"] {
+    inline-size: calc(
+      var(--conversation-todo-width) +
+      var(--conversation-todo-gap) +
+      var(--conversation-todo-gap)
+    );
+  }
 }
 
 .conversation-todo-popover__surface {

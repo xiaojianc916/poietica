@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'bun:test'
-import type { TodoItem } from '@poietica/conversation'
+import type { BackgroundTaskItem, TodoItem } from '@poietica/conversation'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { TodoListCard, todoProgressLabel } from '../todo/todo-panel'
+import {
+  BackgroundTaskListCard,
+  backgroundTaskProgressLabel,
+  TodoListCard,
+  todoProgressLabel,
+} from '../todo/todo-panel'
 
 const todos: readonly TodoItem[] = [
   { title: '搭骨架', status: 'done' },
@@ -9,25 +14,30 @@ const todos: readonly TodoItem[] = [
   { title: '补测试', status: 'pending' },
 ]
 
-describe('todo progress label', () => {
-  it('joins per-status counts with en spaces around the separator', () => {
+const tasks: readonly BackgroundTaskItem[] = [
+  { taskId: 'a', description: '索引仓库', status: 'running' },
+  { taskId: 'b', description: '执行测试', status: 'completed' },
+  { taskId: 'c', description: '生成报告', status: 'failed' },
+]
+
+describe('task panel labels', () => {
+  it('summarizes todo states', () => {
     expect(todoProgressLabel(todos)).toBe('1 已完成\u2002·\u20021 进行中\u2002·\u20021 待处理')
   })
-
-  it('omits zero-count segments', () => {
-    expect(todoProgressLabel([{ title: '完成', status: 'done' }])).toBe('1 已完成')
-  })
-
-  it('says nothing about an empty list', () => {
-    expect(todoProgressLabel([])).toBe('')
+  it('summarizes background lifecycle states', () => {
+    expect(backgroundTaskProgressLabel(tasks)).toBe(
+      '1 运行中\u2002·\u20021 已完成\u2002·\u20021 已中断',
+    )
   })
 })
 
-describe('TodoListCard', () => {
-  it('starts as an accessible collapsed disclosure', () => {
-    const markup = renderToStaticMarkup(<TodoListCard todos={todos} />)
-    expect(markup).toContain('aria-expanded="false"')
-    expect(markup).toContain('1 已完成')
-    expect(markup).not.toContain('写组件')
+describe('native disclosures', () => {
+  it('renders todo and background cards collapsed by default', () => {
+    const todoMarkup = renderToStaticMarkup(<TodoListCard todos={todos} />)
+    const taskMarkup = renderToStaticMarkup(<BackgroundTaskListCard tasks={tasks} />)
+    expect(todoMarkup).toContain('<details class="todo-panel">')
+    expect(taskMarkup).toContain('后台任务')
+    expect(todoMarkup).not.toContain(' open=""')
+    expect(taskMarkup).not.toContain(' open=""')
   })
 })

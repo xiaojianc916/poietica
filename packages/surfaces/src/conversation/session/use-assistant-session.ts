@@ -1,6 +1,7 @@
 import type {
   AgentSessionPort,
   ApprovalAnswer,
+  BackgroundTaskItem,
   ChatStatus,
   Interjection,
   PermissionItem,
@@ -16,6 +17,7 @@ import type {
 } from '@poietica/conversation'
 import {
   activeScope,
+  currentTodos,
   describeFailure,
   InterjectionOutbox,
   inflightPromptId,
@@ -141,7 +143,13 @@ const readTimeline = (transcript: Transcript): TimelineState => transcript.timel
 
 const EMPTY_LIST: readonly TodoItem[] = []
 const readTodos = (transcript: Transcript): readonly TodoItem[] =>
-  transcript.timeline.todos ?? EMPTY_LIST
+  currentTodos(transcript.timeline) ?? EMPTY_LIST
+
+const EMPTY_BACKGROUND_TASKS: readonly BackgroundTaskItem[] = []
+const readBackgroundTasks = (transcript: Transcript): readonly BackgroundTaskItem[] =>
+  transcript.timeline.backgroundTasks.length === 0
+    ? EMPTY_BACKGROUND_TASKS
+    : transcript.timeline.backgroundTasks
 
 /* 上面还有没有更早的一页。布尔，所以前插与流式追加都叫不醒订阅者。 */
 const readHasEarlier = (transcript: Transcript): boolean => transcript.earlier !== null
@@ -338,9 +346,14 @@ export function useAssistantTimeline(key: string): TimelineState {
   return useSlice(key, readTimeline)
 }
 
-/** 当前成功落账的整份任务清单；无清单时返回稳定空引用。 */
+/** 当前工具调用携带的整份任务清单；失败时回退到上一份成功清单。 */
 export function useAssistantTodos(key: string): readonly TodoItem[] {
   return useSlice(key, readTodos)
+}
+
+/** 由 KAP 生命周期事件投影出的后台任务。 */
+export function useAssistantBackgroundTasks(key: string): readonly BackgroundTaskItem[] {
+  return useSlice(key, readBackgroundTasks)
 }
 
 /** 这条对话上面还有没有更早的一页。 */

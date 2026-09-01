@@ -332,10 +332,7 @@ export function WorkspaceContainer({
       content: isSettingsOpen ? (
         <SettingsContentRegion />
       ) : (
-        /*
-         * 任务弹窗属于会话内容行，辅助面板属于外壳第三列；两者始终参与布局，
-         * 不根据视口宽度切换成覆盖层。
-         */
+        /* 任务面板按会话容器宽度在停靠与覆盖之间切换。 */
         <div className="flex h-full min-h-0 min-w-0 flex-col">
           {workbench.activeSurface.kind === 'conversation' ? <ConversationHeader /> : null}
           <div className="conversation-body">

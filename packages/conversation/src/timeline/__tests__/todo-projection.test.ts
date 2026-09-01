@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import type { RunEvent } from '../../agent'
+import { currentTodos } from '../timeline-queries'
 import { applyRunEvents, createTimelineState, replayRunEvents } from '../timeline-reducer'
 
 const prompt: RunEvent = {
@@ -31,7 +32,12 @@ function settled(seq: number, id: string, isError = false): RunEvent {
     kind: 'kap_event',
     seq,
     at: seq,
-    payload: { type: 'tool.result', toolCallId: id, output: 'ok', isError },
+    payload: {
+      type: 'tool.result',
+      toolCallId: id,
+      output: 'ok',
+      isError,
+    },
   }
 }
 
@@ -42,46 +48,36 @@ const first = [
 ] as const
 
 describe('todo current snapshot', () => {
-  it('publishes a whole-list snapshot only after TodoList succeeds', () => {
-    const running = replayRunEvents([prompt, started(2, 'first', first)])
-    const completed = replayRunEvents([prompt, started(2, 'first', first), settled(3, 'first')])
-
-    expect(running.todos).toBeNull()
-    expect(completed.todos).toStrictEqual(first)
+  it('shows the structured list as soon as the active call starts', () => {
+    const state = replayRunEvents([prompt, started(2, 'first', first)])
+    expect(currentTodos(state)).toStrictEqual(first)
   })
 
-  it('does not let a failed replacement overwrite the last successful list', () => {
-    const state = replayRunEvents([
+  it('falls back after a failed replacement', () => {
+    const running = replayRunEvents([
       prompt,
       started(2, 'first', first),
       settled(3, 'first'),
       started(4, 'failed', [{ title: '错误覆盖', status: 'pending' }]),
-      settled(5, 'failed', true),
     ])
-
-    expect(state.todos).toStrictEqual(first)
+    const failed = applyRunEvents(running, [settled(5, 'failed', true)])
+    expect(currentTodos(running)).toStrictEqual([{ title: '错误覆盖', status: 'pending' }])
+    expect(currentTodos(failed)).toStrictEqual(first)
   })
 
-  it('distinguishes an explicit empty replacement from no observed list', () => {
-    const state = replayRunEvents([
-      prompt,
-      started(2, 'first', first),
-      settled(3, 'first'),
-      started(4, 'clear', []),
-      settled(5, 'clear'),
-    ])
-
-    expect(state.todos).toStrictEqual([])
+  it('keeps explicit empty lists distinct from no list', () => {
+    const state = replayRunEvents([prompt, started(2, 'clear', [])])
+    expect(currentTodos(state)).toStrictEqual([])
+    expect(currentTodos(createTimelineState())).toBeNull()
   })
 
-  it('produces the same snapshot through live batches and replay', () => {
+  it('produces the same projection through live batches and replay', () => {
     const events = [prompt, started(2, 'first', first), settled(3, 'first')]
     let live = createTimelineState()
-
     for (const event of events) {
       live = applyRunEvents(live, [event])
     }
-
     expect(live).toStrictEqual(replayRunEvents(events))
+    expect(currentTodos(live)).toStrictEqual(first)
   })
 })
