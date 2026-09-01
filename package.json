@@ -27,7 +27,7 @@
     "check:versions": "bun tools/release/check-versions.ts",
     "check:web": "biome ci . && bun tools/architecture/verify.ts && turbo run typecheck test --continue",
     "clean": "bun tools/dev/clean.ts",
-    "clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+    "clippy": "CARGO_INCREMENTAL=0 cargo clippy --workspace --all-targets --all-features -- -D warnings",
     "dev": "bun run --filter @poietica/desktop tauri:dev",
     "format": "biome format --write .",
     "ipc:check": "bun tools/contract/check-generated.ts",

@@ -7,11 +7,11 @@ import {
   AccordionTrigger,
 } from '@poietica/design-system'
 import {
-  Activity,
   CheckCircle2,
   ChevronRight,
   CircleDashed,
   CircleX,
+  LaptopMinimal,
   ListTodo,
   Loader2,
 } from 'lucide-react'
@@ -145,7 +145,7 @@ function TodoListCard({ todos }: { readonly todos: readonly TodoItem[] }) {
 function BackgroundTaskListCard({ tasks }: { readonly tasks: readonly BackgroundTaskItem[] }) {
   return (
     <AccordionSection
-      icon={<Activity />}
+      icon={<LaptopMinimal />}
       progress={backgroundTaskProgressLabel(tasks)}
       title="后台任务"
       value="background"
@@ -183,7 +183,7 @@ export function TaskPanelContent({
   readonly todos: readonly TodoItem[]
 }) {
   return (
-    <Accordion className="todo-panel" defaultValue={[]}>
+    <Accordion className="todo-panel" defaultValue={[]} multiple>
       <TodoListCard todos={todos} />
       <BackgroundTaskListCard tasks={backgroundTasks} />
     </Accordion>

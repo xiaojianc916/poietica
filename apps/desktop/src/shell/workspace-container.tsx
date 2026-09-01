@@ -19,6 +19,7 @@ import {
 import type {
   CommandRegistry,
   WorkbenchSessionStore,
+  WorkbenchSurfaceViewModel,
   WorkbenchTabId,
   WorkbenchTabViewModel,
 } from '@poietica/workspace'
@@ -83,6 +84,13 @@ export interface WorkspaceContainerProps {
  * 外壳因此既要知道有哪些区域、又要把区域内部要用的数据回传给组合根 ——
  * 那是把布局职责和接线职责搅在一起。
  */
+/** 这一格是 AI 助手（真实对话或新建入口）时，页头与背景皮肤才挂出来。 */
+function isAssistantChromeSurface(surface: WorkbenchSurfaceViewModel): boolean {
+  return (
+    surface.kind === 'conversation' || (surface.kind === 'surface' && surface.surfaceId === 'ai')
+  )
+}
+
 export function WorkspaceContainer({
   agentSession,
   appVersion,
@@ -169,6 +177,9 @@ export function WorkspaceContainer({
   /* 侧栏高亮的那一行就是正在看的那一格：身份来自工作台，没有第二份状态。 */
   const activeConversationId =
     workbench.activeSurface.kind === 'conversation' ? workbench.activeSurface.threadId : null
+
+  /* 新建入口也预留页头；晋升为真实对话时只挂控件，不再改变主区几何。 */
+  const showAssistantChrome = isAssistantChromeSurface(workbench.activeSurface)
 
   /* Toolkit scope belongs to the active workspace identity, not to whichever child mounted last. */
   useEffect(() => {
@@ -334,10 +345,10 @@ export function WorkspaceContainer({
       ) : (
         /* 任务面板按会话容器宽度在停靠与覆盖之间切换。 */
         <div className="flex h-full min-h-0 min-w-0 flex-col">
-          {workbench.activeSurface.kind === 'conversation' ? <ConversationHeader /> : null}
+          {showAssistantChrome ? <ConversationHeader /> : null}
           <div className="conversation-body">
             <div className="conversation-canvas">
-              {workbench.activeSurface.kind === 'conversation' ? (
+              {showAssistantChrome ? (
                 <div className="conversation-veil" data-assistant-skin />
               ) : null}
               {surface}
