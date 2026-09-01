@@ -1,5 +1,6 @@
 import { commands } from '@poietica/contract'
 import type { AppSettings, SettingsStore } from '@poietica/settings'
+import { throughIpc } from '../error'
 
 export function createSettingsStore(): SettingsStore {
   let current: AppSettings | undefined
@@ -15,35 +16,35 @@ export function createSettingsStore(): SettingsStore {
     }
 
     const startedAt = generation
-    pending = commands.settingsGet().then(
-      (loaded) => {
-        if (generation === startedAt) {
-          current = loaded
-        }
-        return current ?? loaded
-      },
-      (error: unknown) => {
-        throw error
-      },
-    )
+    const request = throughIpc(() => commands.settingsGet()).then((loaded) => {
+      if (generation === startedAt) {
+        current = loaded
+      }
 
-    void pending.finally(() => {
-      pending = undefined
+      return current ?? loaded
     })
-    return pending
+
+    pending = request
+    const clear = (): void => {
+      if (pending === request) {
+        pending = undefined
+      }
+    }
+    void request.then(clear, clear)
+    return request
   }
 
   return {
     load,
 
     async save(settings) {
-      await commands.settingsSet(settings)
+      await throughIpc(() => commands.settingsSet(settings))
       generation += 1
       current = settings
     },
 
     async reset() {
-      const settings = await commands.settingsReset()
+      const settings = await throughIpc(() => commands.settingsReset())
       generation += 1
       current = settings
       return settings

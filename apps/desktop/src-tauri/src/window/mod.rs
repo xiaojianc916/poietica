@@ -6,5 +6,5 @@ pub mod state;
 pub mod tray;
 
 pub use lifecycle::WindowMaximized;
-pub use tray::TerminationRequested;
 pub use state::{MAIN_WINDOW, WINDOW_STATE_FLAGS};
+pub use tray::TerminationRequested;

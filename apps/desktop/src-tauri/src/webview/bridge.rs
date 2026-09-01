@@ -43,9 +43,14 @@ pub struct BrowserClosedTab {
 
 /// 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，
 /// 增量协议换来的只是两侧各一份需要对账的账本。
+///
+/// revision 只用于消费端丢弃乱序到达的旧快照；u32 是绑定能表达的宽度
+/// （仓规：数值按绑定能表达的宽度收窄），42 亿次广播之后封顶不再变化，
+/// 后果与 u64 饱和相同。
 #[derive(Clone, Debug, Deserialize, Serialize, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
 pub struct BrowserState {
+    pub revision: u32,
     pub tabs: Vec<BrowserTab>,
     pub active_tab_id: Option<u32>,
     pub picking_tab_id: Option<u32>,
@@ -56,6 +61,7 @@ pub struct BrowserState {
 #[derive(Debug, Default)]
 
 pub struct BrowserHost {
+    revision: Mutex<u32>,
     pub(super) tabs: Mutex<poietica_browser_native::Tabs>,
     pub(super) webviews: Mutex<HashMap<u32, tauri::Webview>>,
     pub(super) bounds: Mutex<PanelBounds>,
@@ -104,6 +110,17 @@ impl BrowserHost {
     }
 
     fn snapshot(&self) -> BrowserState {
+        let revision = *lock(&self.revision);
+        self.snapshot_at(revision)
+    }
+
+    fn publish_snapshot(&self) -> BrowserState {
+        let mut revision = lock(&self.revision);
+        *revision = revision.saturating_add(1);
+        self.snapshot_at(*revision)
+    }
+
+    fn snapshot_at(&self, revision: u32) -> BrowserState {
         let (tabs, active_tab_id, recently_closed) = {
             let model = lock(&self.tabs);
             let tabs = model
@@ -129,6 +146,7 @@ impl BrowserHost {
         let picking_tab_id = lock(&self.picker).active_tab_id();
 
         BrowserState {
+            revision,
             tabs,
             active_tab_id,
             picking_tab_id,
@@ -139,7 +157,7 @@ impl BrowserHost {
 
 /// 每次变更后广播快照。发不出去只说明还没有订阅者，不是故障。
 pub(super) fn publish(app: &AppHandle) {
-    let state = app.state::<BrowserHost>().snapshot();
+    let state = app.state::<BrowserHost>().publish_snapshot();
 
     if let Err(error) = state.emit(app) {
         log::warn!("browser-state event could not be delivered: {error}");

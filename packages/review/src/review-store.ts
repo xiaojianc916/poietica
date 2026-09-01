@@ -123,8 +123,11 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
   let treeWidth = 240
   let splitter: SplitterActivity = 'idle'
   let busy = false
-  let stopped = false
-  let looping = false
+  let stopped = true
+  let nextOwner = 0
+  let activeOwner: number | null = null
+  let loopOwner: number | null = null
+  let loadRequest = 0
   /* 当前代已持有全文模型的路径：新取的或沿用的都在内，推导只找剩下的。 */
   let enriched: ReadonlySet<string> = new Set<string>()
   let filling = false
@@ -242,15 +245,20 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
     publish()
   }
   async function load(): Promise<void> {
+    loadRequest += 1
+    const request = loadRequest
+    const requestedBase = base
+    const ignoreWhitespace = presentation.hideWhitespace
+
     try {
-      const held = await gateway.review(root, base, TIGHT, presentation.hideWhitespace)
-      if (stopped) {
+      const held = await gateway.review(root, requestedBase, TIGHT, ignoreWhitespace)
+      if (stopped || request !== loadRequest) {
         return
       }
       answer = held
       trouble = held === null ? 'notARepository' : 'asking'
     } catch (cause: unknown) {
-      if (stopped) {
+      if (stopped || request !== loadRequest) {
         return
       }
       report('GIT_CHANGES_UNREADABLE', { cause })
@@ -261,27 +269,31 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
     publish()
   }
   /* 监视挂不上就没有下一次问，所以「刷新」能把这条循环接回来 —— 同一条，不是第二条。 */
-  function loop(): void {
-    if (looping) {
+  function loop(owner: number): void {
+    if (loopOwner === owner) {
       return
     }
-    looping = true
+
+    loopOwner = owner
     void (async () => {
-      while (!stopped) {
+      while (activeOwner === owner) {
         await load()
-        if (stopped) {
+        if (activeOwner !== owner) {
           break
         }
         try {
           await gateway.awaitChange(root)
         } catch (cause: unknown) {
-          if (!stopped) {
+          if (activeOwner === owner) {
             report('GIT_CHANGES_UNREADABLE', { cause })
           }
           break
         }
       }
-      looping = false
+
+      if (loopOwner === owner) {
+        loopOwner = null
+      }
     })()
   }
   return {
@@ -334,11 +346,16 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       enrich()
     },
     refresh: () => {
-      if (looping) {
+      const owner = activeOwner
+      if (owner === null) {
+        return
+      }
+
+      if (loopOwner === owner) {
         void load()
         return
       }
-      loop()
+      loop(owner)
     },
     setAllOpen: (all) => {
       mutate(() => {
@@ -354,6 +371,7 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
         return
       }
       base = ref
+      generation += 1
       void load()
       publish()
     },
@@ -390,10 +408,25 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       })
     },
     start: () => {
+      if (activeOwner !== null) {
+        throw new Error('ReviewStore is already started.')
+      }
+
+      nextOwner += 1
+      const owner = nextOwner
+      activeOwner = owner
       stopped = false
-      loop()
+      loop(owner)
+
       return () => {
+        if (activeOwner !== owner) {
+          return
+        }
+
+        activeOwner = null
         stopped = true
+        loadRequest += 1
+        generation += 1
       }
     },
     subscribe: store.subscribe,
@@ -416,6 +449,7 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
     toggleSwitch: (name) => {
       presentation = switched(presentation, name)
       if (name === 'hideWhitespace') {
+        generation += 1
         void load()
       } else {
         /* 词级强调变了：沿用的全文模型是按旧开关切的，全部作废重推。 */

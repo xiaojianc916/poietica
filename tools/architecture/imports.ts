@@ -3,7 +3,7 @@ import path from 'node:path'
 
 export type ImportRecord = { readonly file: string; readonly specifier: string }
 
-const EXTENSIONS = ['.ts', '.tsx']
+const EXTENSIONS = ['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']
 const SKIP = new Set(['.turbo', 'coverage', 'dist', 'gen', 'node_modules', 'target'])
 
 /**
@@ -19,13 +19,29 @@ const visible = (code: string): string =>
 /** bun 1.4 的 scanImports 把首行 shebang 当语法错误，而 tools/ 下的脚本入口都是 `#!/usr/bin/env bun`。 */
 const unwrap = (code: string): string => code.replace(/^#!.*/, '')
 
-/** `<T>(x) => x` 在 tsx 下被当成标签开头，所以 loader 按扩展名给，不共用一份。 */
-const loaderOf = (file: string): 'ts' | 'tsx' => (file.endsWith('.tsx') ? 'tsx' : 'ts')
+type SourceLoader = 'js' | 'jsx' | 'ts' | 'tsx'
+
+const loaderOf = (file: string): SourceLoader => {
+  switch (path.extname(file)) {
+    case '.jsx':
+      return 'jsx'
+    case '.tsx':
+      return 'tsx'
+    case '.cts':
+    case '.mts':
+    case '.ts':
+      return 'ts'
+    default:
+      return 'js'
+  }
+}
 
 export async function readImports(root: string, roots: readonly string[]): Promise<ImportRecord[]> {
   /* 两个 loader 各建一份：scanImports 的类型签名不收第二个参数，而 tsx 会把
   `<T>(x) => x` 当成标签；按扩展名挑解析器，运行时与类型都过。 */
   const transpilers = {
+    js: new Bun.Transpiler({ loader: 'js' }),
+    jsx: new Bun.Transpiler({ loader: 'jsx' }),
     ts: new Bun.Transpiler({ loader: 'ts' }),
     tsx: new Bun.Transpiler({ loader: 'tsx' }),
   }

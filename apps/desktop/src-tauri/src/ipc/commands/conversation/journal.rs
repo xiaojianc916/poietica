@@ -269,9 +269,15 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) -> bool 
     let shown = envelopes
         .iter()
         .map(|envelope| {
-            let payload = &serde_json::to_string(&envelope.event).unwrap_or_else(|_| String::from("null"));
-            screen_frame(&envelope.session_id, i64::try_from(envelope.seq.value()).unwrap_or(i64::MAX), envelope.at, payload)
-                .and_then(|raw| serde_json::from_str(raw.get()))
+            let payload =
+                &serde_json::to_string(&envelope.event).unwrap_or_else(|_| String::from("null"));
+            screen_frame(
+                &envelope.session_id,
+                i64::try_from(envelope.seq.value()).unwrap_or(i64::MAX),
+                envelope.at,
+                payload,
+            )
+            .and_then(|raw| serde_json::from_str(raw.get()))
         })
         .collect::<serde_json::Result<Vec<Value>>>()
         .unwrap_or_default();

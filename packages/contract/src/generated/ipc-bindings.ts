@@ -2018,8 +2018,12 @@ export type BrowserPickSubmission = "attach" | "send"
 /**
  * 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，
  * 增量协议换来的只是两侧各一份需要对账的账本。
+ * 
+ * revision 只用于消费端丢弃乱序到达的旧快照；u32 是绑定能表达的宽度
+ * （仓规：数值按绑定能表达的宽度收窄），42 亿次广播之后封顶不再变化，
+ * 后果与 u64 饱和相同。
  */
-export type BrowserState = { tabs: BrowserTab[]; activeTabId: number | null; pickingTabId: number | null; recentlyClosed: BrowserClosedTab[] }
+export type BrowserState = { revision: number; tabs: BrowserTab[]; activeTabId: number | null; pickingTabId: number | null; recentlyClosed: BrowserClosedTab[] }
 /**
  * 一个标签在渲染层眼里的样子。url 缺席 = 空白页。
  */

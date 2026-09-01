@@ -16,11 +16,22 @@ import type { BrowserElementPicked, BrowserState } from '@poietica/contract'
 export async function watchBrowserState(
   onState: (state: BrowserState) => void,
 ): Promise<() => void> {
+  let latestRevision = -1
+
+  const accept = (state: BrowserState): void => {
+    if (state.revision <= latestRevision) {
+      return
+    }
+
+    latestRevision = state.revision
+    onState(state)
+  }
+
   const unlisten = await events.browserState.listen((event) => {
-    onState(event.payload)
+    accept(event.payload)
   })
 
-  onState(await throughIpc(() => commands.browserState()))
+  accept(await throughIpc(() => commands.browserState()))
   return unlisten
 }
 

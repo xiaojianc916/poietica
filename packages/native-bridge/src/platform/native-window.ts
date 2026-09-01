@@ -1,6 +1,5 @@
 import { commands, events } from '@poietica/contract'
 import { isTauri } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow, type Window } from '@tauri-apps/api/window'
 
 export interface MainWindowController {
@@ -16,7 +15,6 @@ export interface MainWindowController {
 }
 
 const MAIN_WINDOW_LABEL = 'main'
-const TERMINATION_REQUESTED_EVENT = 'poietica://termination-requested'
 const mainWindow = resolveMainWindow()
 
 function resolveMainWindow(): Window | null {
@@ -71,7 +69,9 @@ export function createMainWindowController(): MainWindowController {
       if (mainWindow === null) {
         return () => {}
       }
-      return await listen(TERMINATION_REQUESTED_EVENT, handler)
+      return await events.terminationRequested.listen(() => {
+        handler()
+      })
     },
   }
 }

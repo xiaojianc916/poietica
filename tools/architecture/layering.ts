@@ -78,7 +78,9 @@ export const HOST_AGNOSTIC_CRATES: readonly string[] = [
   'poietica-problem',
   'poietica-process-host',
   'poietica-review-native',
+  'poietica-terminal-native',
   'poietica-time',
+  'poietica-update-native',
 ]
 
 /** 词汇与领域包里不许出现 UI 框架。 */

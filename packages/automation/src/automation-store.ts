@@ -65,6 +65,8 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
   /* 一条自动化同时只有一次运行在飞：慢的那次不会被下一个心跳重复点火。 */
   const inFlight = new Set<string>()
   let dispatch: AutomationDispatch | null = null
+  let nextOwner = 0
+  let activeOwner: number | null = null
 
   /*
    * 回程的排序。
@@ -293,6 +295,13 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
     },
 
     start(next) {
+      if (activeOwner !== null) {
+        throw new Error('AutomationStore is already started.')
+      }
+
+      nextOwner += 1
+      const owner = nextOwner
+      activeOwner = owner
       dispatch = next
 
       const settle = ticket()
@@ -304,10 +313,18 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
       void gateway
         .loadCatalog()
         .then((catalog) => {
+          if (stopped) {
+            return
+          }
+
           settle(catalog.automations)
           scheduleMissing(catalog.automations)
         })
         .catch((cause: unknown) => {
+          if (stopped) {
+            return
+          }
+
           warn('自动化列表读取失败', { scope: 'automations', cause })
           settle([])
         })
@@ -328,7 +345,9 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
 
       void gateway
         .watchDue((automation) => {
-          void fire(automation, 'schedule')
+          if (!stopped) {
+            void fire(automation, 'schedule')
+          }
         })
         .then(hold)
         .catch((cause: unknown) => {
@@ -338,6 +357,10 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
       /* 账本的写者不只有这里：原生侧写完就宣布，屏幕与日历跟着走。 */
       void gateway
         .watchCatalog((catalog) => {
+          if (stopped) {
+            return
+          }
+
           const settled = ticket()
 
           settled(catalog.automations)
@@ -349,6 +372,11 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
         })
 
       return () => {
+        if (activeOwner !== owner) {
+          return
+        }
+
+        activeOwner = null
         stopped = true
 
         for (const off of offs) {
