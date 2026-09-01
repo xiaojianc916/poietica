@@ -44,7 +44,6 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
           </AuxiliaryRegion>
         }
         auxiliaryColumnWidth={dockAuxiliary ? auxiliaryWidth : 0}
-        auxiliaryPanelWidth={auxiliaryWidth}
         chrome={
           <header className="workspace-shell__chrome min-h-0 min-w-0 bg-chrome">
             {parts.chrome.content}
@@ -68,6 +67,7 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
             </main>
           </section>
         }
+        mainControls={parts.main.controls}
         sidebar={
           <SidebarRegion
             isDocked={sidebarOpen}

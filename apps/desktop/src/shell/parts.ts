@@ -19,6 +19,11 @@ export interface WorkspacePart {
   readonly label?: string | undefined
 }
 
+/** 主区内容由组合根提供；控件由外壳摆放，以保持跨布局状态的 DOM 身份。 */
+export interface WorkspaceMainPart extends WorkspacePart {
+  readonly controls: ReactNode
+}
+
 /**
  * 辅助面板那一格。
  *
@@ -36,6 +41,10 @@ export interface WorkspaceAuxiliaryPart extends WorkspacePart {
  * 每个停靠位都必须有内容：可选插槽在这张表里没有位置 —— 一个没有生产者的槽
  * 永远编译得过，而它的消费方要为一个不会出现的值一直留着分支。
  */
-export type WorkspaceParts = Record<Exclude<WorkspacePartId, 'auxiliary'>, WorkspacePart> & {
+export type WorkspaceParts = Record<
+  Exclude<WorkspacePartId, 'main' | 'auxiliary'>,
+  WorkspacePart
+> & {
+  readonly main: WorkspaceMainPart
   readonly auxiliary: WorkspaceAuxiliaryPart
 }

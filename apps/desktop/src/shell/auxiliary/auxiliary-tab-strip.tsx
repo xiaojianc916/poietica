@@ -141,7 +141,7 @@ export function AuxiliaryTabStrip({
   openMenu,
 }: AuxiliaryTabStripProps) {
   return (
-    <div className="flex h-8 shrink-0 items-center gap-1 border-b border-current/10 px-1">
+    <div className="flex h-8 shrink-0 items-center gap-1 border-b border-current/10 pl-1 pr-10">
       <div
         aria-label="辅助面板标签页"
         className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"

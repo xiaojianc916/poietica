@@ -12,8 +12,8 @@ export interface AuxiliaryRegionProps {
 }
 
 /**
- * 辅助区域。与 SidebarRegion 镜像：定宽底面贴列的 inline-end 一侧，收起时列宽
- * 归零、内容被自己那一列裁掉，子树不卸载 —— 原生子 webview 不随开合销毁重建。
+ * 辅助区域始终是外壳第三列：收起时列宽归零、内容由本列裁剪，
+ * 子树与原生 webview 都不随开合销毁重建。
  */
 export function AuxiliaryRegion({
   isDocked,
@@ -24,13 +24,6 @@ export function AuxiliaryRegion({
 }: AuxiliaryRegionProps) {
   return (
     <div className="workspace-shell__auxiliary min-h-0 min-w-0 bg-background" inert={!isDocked}>
-      <button
-        aria-label="关闭辅助面板"
-        className="workspace-shell__auxiliary-scrim"
-        onClick={onClose}
-        tabIndex={-1}
-        type="button"
-      />
       <div className="workspace-shell__region-clip">
         <div
           className="workspace-shell__auxiliary-content min-h-0 overflow-hidden"

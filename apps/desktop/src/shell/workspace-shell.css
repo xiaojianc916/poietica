@@ -32,13 +32,40 @@
     --workspace-auxiliary-column-width var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
+/*
+ * 两枚会话控件是外壳栅格家具。辅助面板开合只移动主区边界：
+ * 辅助开关始终贴窗口右边，任务开关始终贴主区右边，DOM 不搬家。
+ */
+.workspace-shell__conversation-control {
+  z-index: 3;
+  grid-row: 2;
+  align-self: start;
+  justify-self: end;
+  margin-block-start: 0.25rem;
+  margin-inline-end: 0.75rem;
+}
+
+.workspace-shell__todo-toggle {
+  grid-column: 2;
+  transition: margin-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__todo-toggle {
+  margin-inline-end: 2.5rem;
+}
+
+.workspace-shell__auxiliary-toggle {
+  grid-column: 1 / -1;
+}
+
 /* 拖拽中不插值：宽度每帧都在变，补间只会让列追不上指针。 */
 .workspace-shell[data-splitter="drag"] {
   transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workspace-shell {
+  .workspace-shell,
+  .workspace-shell__todo-toggle {
     transition: none;
   }
 }
@@ -193,79 +220,4 @@
 
 .workspace-shell[data-auxiliary-docked="false"] .workspace-shell__auxiliary {
   pointer-events: none;
-}
-
-.workspace-shell__auxiliary-scrim {
-  display: none;
-}
-
-/* 覆盖态保留同一个面板 DOM，只把它从第三列提升到主区上方。 */
-.workspace-shell[data-auxiliary-mode="overlay"] .workspace-shell__auxiliary {
-  position: absolute;
-  z-index: 3;
-  grid-area: auto;
-  inset-block: var(--chrome-height) 0;
-  inset-inline: var(--workspace-sidebar-column-width) 0;
-}
-
-.workspace-shell[data-auxiliary-mode="overlay"] .workspace-shell__auxiliary-scrim {
-  position: absolute;
-  inset: 0;
-  display: block;
-  padding: 0;
-  border: 0;
-  background: rgb(0 0 0 / 12%);
-  opacity: 1;
-  transition: opacity var(--workspace-layout-duration) var(--workspace-layout-ease);
-}
-
-/*
- * 只提升辅助列自己的裁剪盒。
- *
- * 侧栏与它共用 .workspace-shell__region-clip：不圈定的话，窗口一窄侧栏就丢掉
- * overflow: clip 漏到主区上，并且连自己的指针一起被关掉。
- */
-.workspace-shell[data-auxiliary-mode="overlay"]
-  .workspace-shell__auxiliary
-  .workspace-shell__region-clip {
-  overflow: visible;
-  pointer-events: none;
-}
-
-.workspace-shell[data-auxiliary-mode="overlay"] .workspace-shell__auxiliary-content {
-  inline-size: min(var(--workspace-auxiliary-panel-width), 100%);
-  border-inline-start: var(--ui-region-divider-width) solid var(--color-divider);
-  background: var(--color-background);
-  box-shadow: -18px 0 40px rgb(0 0 0 / 14%);
-  pointer-events: auto;
-  transform: translateX(0);
-  transition: transform var(--workspace-layout-duration) var(--workspace-layout-ease);
-}
-
-.workspace-shell[data-auxiliary-mode="overlay"][data-auxiliary-docked="false"]
-  .workspace-shell__auxiliary-scrim {
-  opacity: 0;
-}
-
-.workspace-shell[data-auxiliary-mode="overlay"][data-auxiliary-docked="false"]
-  .workspace-shell__auxiliary-content {
-  transform: translateX(100%);
-}
-
-.workspace-shell[data-auxiliary-mode="overlay"] .workspace-shell__divider--auxiliary {
-  opacity: 0;
-}
-
-.workspace-shell[data-auxiliary-mode="overlay"]
-  .workspace-shell__auxiliary
-  > .workspace-region-splitter {
-  opacity: 0;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .workspace-shell[data-auxiliary-mode="overlay"] .workspace-shell__auxiliary-scrim,
-  .workspace-shell[data-auxiliary-mode="overlay"] .workspace-shell__auxiliary-content {
-    transition: none;
-  }
 }

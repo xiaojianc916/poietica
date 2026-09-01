@@ -1,5 +1,5 @@
-import { type PanelMode, resolvePanelMode, WORKSPACE_LAYOUT } from '@poietica/workspace'
-import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import { WORKSPACE_LAYOUT } from '@poietica/workspace'
+import type { CSSProperties, ReactNode } from 'react'
 import type { SplitterActivity, SplitterRegion } from './workspace-layout-store'
 
 import './workspace-shell.css'
@@ -24,42 +24,14 @@ const WORKSPACE_LAYOUT_STYLE: WorkspaceStyle = {
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
 }
 
-function usePanelMode(sidebarWidth: number, auxiliaryWidth: number) {
-  const root = useRef<HTMLDivElement | null>(null)
-  const [mode, setMode] = useState<PanelMode>('dock')
-
-  useLayoutEffect(() => {
-    const element = root.current
-
-    if (element === null) {
-      return undefined
-    }
-
-    const measure = () => {
-      const next = resolvePanelMode(element.clientWidth - sidebarWidth, auxiliaryWidth)
-      setMode((current) => (current === next ? current : next))
-    }
-
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-
-    return () => {
-      observer.disconnect()
-    }
-  }, [auxiliaryWidth, sidebarWidth])
-
-  return { mode, root } as const
-}
-
 export interface WorkspaceFrameProps {
   readonly chrome: ReactNode
   readonly sidebar: ReactNode
   readonly main: ReactNode
   readonly auxiliary: ReactNode
+  readonly mainControls: ReactNode
   readonly sidebarColumnWidth: number
   readonly auxiliaryColumnWidth: number
-  readonly auxiliaryPanelWidth: number
   readonly isSidebarDocked: boolean
   readonly isAuxiliaryDocked: boolean
   readonly splitter: SplitterActivity
@@ -82,37 +54,33 @@ export function WorkspaceFrame({
   sidebar,
   main,
   auxiliary,
+  mainControls,
   sidebarColumnWidth,
   auxiliaryColumnWidth,
-  auxiliaryPanelWidth,
   isSidebarDocked,
   isAuxiliaryDocked,
   splitter,
   splitterRegion,
 }: WorkspaceFrameProps) {
-  const { mode: auxiliaryMode, root } = usePanelMode(sidebarColumnWidth, auxiliaryPanelWidth)
-
   const style: WorkspaceStyle = {
     ...WORKSPACE_LAYOUT_STYLE,
     '--workspace-sidebar-column-width': `${sidebarColumnWidth}px`,
-    '--workspace-auxiliary-column-width': `${auxiliaryMode === 'dock' ? auxiliaryColumnWidth : 0}px`,
-    '--workspace-auxiliary-panel-width': `${auxiliaryPanelWidth}px`,
+    '--workspace-auxiliary-column-width': `${auxiliaryColumnWidth}px`,
   }
 
   return (
     <div
       className="workspace-shell relative grid h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground"
       data-auxiliary-docked={isAuxiliaryDocked ? 'true' : 'false'}
-      data-auxiliary-mode={auxiliaryMode}
       data-sidebar-docked={isSidebarDocked ? 'true' : 'false'}
       data-splitter={splitter}
       data-splitter-region={splitterRegion}
       data-ui-rows=""
-      ref={root}
       style={style}
     >
       {chrome}
       {sidebar}
+      {mainControls}
       {main}
       {auxiliary}
       <div aria-hidden="true" className="workspace-shell__divider" />

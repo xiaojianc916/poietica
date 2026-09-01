@@ -32,7 +32,7 @@ import {
 } from 'react'
 import { AssistantSidebarPanel } from '../assistant/assistant-sidebar-panel'
 import { createAssistantWiring } from '../assistant/assistant-wiring'
-import { ConversationHeader } from '../assistant/conversation-header'
+import { ConversationControls, ConversationHeader } from '../assistant/conversation-header'
 import { ConversationTodoPopover } from '../assistant/conversation-todo-popover'
 import { useThreadsActions } from '../assistant/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../window/desktop-title-bar'
@@ -325,17 +325,19 @@ export function WorkspaceContainer({
     },
 
     main: {
+      controls:
+        isSettingsOpen || activeConversationId === null ? null : (
+          <ConversationControls conversationId={activeConversationId} />
+        ),
       content: isSettingsOpen ? (
         <SettingsContentRegion />
       ) : (
         /*
-         * 任务弹窗属于会话内容行；它只在宽屏预留空间，窄屏提升为覆盖层。
-         * AuxiliaryDock 仍是外壳第三列，两者没有 pane 或生命周期上的从属关系。
+         * 任务弹窗属于会话内容行，辅助面板属于外壳第三列；两者始终参与布局，
+         * 不根据视口宽度切换成覆盖层。
          */
         <div className="flex h-full min-h-0 min-w-0 flex-col">
-          {workbench.activeSurface.kind === 'conversation' ? (
-            <ConversationHeader conversationId={workbench.activeSurface.threadId} />
-          ) : null}
+          {workbench.activeSurface.kind === 'conversation' ? <ConversationHeader /> : null}
           <div className="conversation-body">
             <div className="conversation-canvas">
               {workbench.activeSurface.kind === 'conversation' ? (

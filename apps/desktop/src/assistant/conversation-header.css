@@ -1,15 +1,10 @@
 /*
- * 会话页头。挂 data-assistant-skin 取 AI 表面的令牌：底色与转录同一块地
- * （--cp-ground），页头是纸的一部分而不是另一条 chrome。高度一格控件行，
- * 28px 方钮上下各余 2px —— 要矮。两枚开关恒在右角。
+ * 页头只保留会话内容区的固定高度与底色。控件由外壳栅格持有，
+ * 因此辅助面板开合不会改变它们的 React 身份。
  */
 .conversation-header {
-  display: flex;
   flex: none;
-  align-items: center;
-  justify-content: flex-end;
   block-size: var(--cp-control);
-  padding-inline: var(--cp-inset);
   background: var(--cp-ground);
 }
 

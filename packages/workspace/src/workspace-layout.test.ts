@@ -1,18 +1,7 @@
 import { describe, expect, it } from 'bun:test'
-import { resolvePanelMode, WORKSPACE_LAYOUT } from './workspace-layout'
+import { WORKSPACE_LAYOUT } from './workspace-layout'
 
 describe('WORKSPACE_LAYOUT', () => {
-  it('overlays a panel before it can shrink the main reading area', () => {
-    expect(resolvePanelMode(1060, 420)).toBe('dock')
-    expect(resolvePanelMode(1059, 420)).toBe('overlay')
-
-    const todoReserve = WORKSPACE_LAYOUT.todo.width + WORKSPACE_LAYOUT.todo.gap * 2
-    expect(resolvePanelMode(WORKSPACE_LAYOUT.main.minWidth + todoReserve, todoReserve)).toBe('dock')
-    expect(resolvePanelMode(WORKSPACE_LAYOUT.main.minWidth + todoReserve - 1, todoReserve)).toBe(
-      'overlay',
-    )
-  })
-
   it('keeps the default sidebar width inside its bounds', () => {
     const { minWidth, defaultWidth, maxWidth } = WORKSPACE_LAYOUT.sidebar
     expect(minWidth).toBeLessThan(defaultWidth)
