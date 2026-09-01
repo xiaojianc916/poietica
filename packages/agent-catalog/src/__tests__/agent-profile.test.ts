@@ -32,6 +32,12 @@ describe('parseAgentProfile', () => {
     expect(parsed.ok).toBe(false)
   })
 
+  it('接受需从子进程边界移除的继承变量', () => {
+    const parsed = parseAgentProfile({ ...valid, unsetEnv: ['PSModulePath'] })
+
+    expect(parsed.ok).toBe(true)
+  })
+
   it('拒绝既不是字符串也不是布尔的会话配置值', () => {
     const parsed = parseAgentProfile({ ...valid, defaultConfigOptions: { model: 3 } })
 

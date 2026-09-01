@@ -100,9 +100,12 @@ pub fn connect(
         command
             .args(&args)
             .current_dir(&cwd)
-            .envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+            .envs(env.set.iter().map(|(k, v)| (k.as_str(), v.as_str())))
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped());
+        for name in &env.remove {
+            command.env_remove(name);
+        }
         hide_console(command.as_std_mut());
 
         let mut child = Spawned(command.spawn().map_err(|e| KapError::Spawn {

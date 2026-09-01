@@ -14,6 +14,7 @@ const stored = {
   defaultConfigOptions: {},
   command: kimiCode.command,
   args: [...kimiCode.args],
+  unsetEnv: [...kimiCode.unsetEnv],
   homeVar: kimiCode.homeVar,
   ownHomeDirectory: kimiCode.ownHomeDirectory,
   install: {
@@ -49,9 +50,10 @@ describe('resolveAgentProfile', () => {
   })
 
   it('手写进磁盘的启动命令活不过一次解析', () => {
-    const resolved = resolveAgentProfile([{ ...stored, command: 'rm' }])
+    const resolved = resolveAgentProfile([{ ...stored, command: 'rm', unsetEnv: [] }])
 
     expect(resolved.profile.command).toBe(kimiCode.command)
+    expect(resolved.profile.unsetEnv).toEqual(kimiCode.unsetEnv)
     expect(resolved.materialize).toBe(true)
   })
 
@@ -88,6 +90,7 @@ describe('resolveAgentProfile', () => {
       'id',
       'install',
       'ownHomeDirectory',
+      'unsetEnv',
     ])
   })
 })

@@ -4,7 +4,7 @@
 //! 全部是纯函数，有自己的单测。agents.json 可以被手改，TS 侧那道校验不在这个
 //! 进程里 —— 凡是会被接去拼路径、交给全局安装的字段，判据在这里再立一遍。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use serde_json::Value;
@@ -25,6 +25,13 @@ pub struct ControlledHome {
     pub variable: String,
     /// 已经创建好的目录。
     pub path: PathBuf,
+}
+
+/// 子进程边界上完整的环境变更：显式设置，或显式停止继承。
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProcessEnvironment {
+    pub set: Vec<(String, String)>,
+    pub remove: Vec<String>,
 }
 
 /// 一个纯粹的目录名：不是路径，也不能往上走。
@@ -79,6 +86,34 @@ pub fn declared_env_of(agent: &Value) -> BTreeMap<String, String> {
         .unwrap_or_default()
 }
 
+fn is_process_environment_name(name: &str) -> bool {
+    if name.is_empty() || name.len() > 64 {
+        return false;
+    }
+
+    let mut glyphs = name.chars();
+    glyphs
+        .next()
+        .is_some_and(|first| first == '_' || first.is_ascii_alphabetic())
+        && glyphs.all(|glyph| glyph == '_' || glyph.is_ascii_alphanumeric())
+}
+
+/// 档案要求在子进程边界停止继承的环境变量。
+#[must_use]
+pub fn unset_env_of(agent: &Value) -> Vec<String> {
+    agent
+        .get("unsetEnv")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter(|name| is_process_environment_name(name))
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 /// 启动子进程的环境变量。
 ///
 /// 档案声明的先进去，受控 home 后进去 —— 后者必须压过前者：用户在 env 里手写
@@ -86,7 +121,8 @@ pub fn declared_env_of(agent: &Value) -> BTreeMap<String, String> {
 pub fn launch_env(
     declared: &BTreeMap<String, String>,
     controlled: Option<&ControlledHome>,
-) -> Vec<(String, String)> {
+    remove: &[String],
+) -> ProcessEnvironment {
     let mut env = declared.clone();
 
     if let Some(home) = controlled {
@@ -96,7 +132,10 @@ pub fn launch_env(
         );
     }
 
-    env.into_iter().collect()
+    ProcessEnvironment {
+        set: env.into_iter().collect(),
+        remove: remove.to_vec(),
+    }
 }
 
 /// 档案里声明的可执行文件。缺席或为空都交给调用方去说。
@@ -241,7 +280,8 @@ mod tests {
             "args": ["web", 3, "--no-open"],
             "homeVar": "KIMI_CODE_HOME",
             "ownHomeDirectory": ".kimi-code",
-            "env": { "A": "1", "B": 2 }
+            "env": { "A": "1", "B": 2 },
+            "unsetEnv": ["PSModulePath", 2]
         });
 
         assert_eq!(super::program_of(&agent).as_deref(), Some("kimi"));
@@ -257,6 +297,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![("A".to_owned(), "1".to_owned())]
         );
+        assert_eq!(super::unset_env_of(&agent), vec!["PSModulePath"]);
     }
 
     #[test]
@@ -269,8 +310,13 @@ mod tests {
             path: std::path::PathBuf::from("/受控/刚建好"),
         };
 
-        let env = super::launch_env(&declared, Some(&controlled));
+        let environment =
+            super::launch_env(&declared, Some(&controlled), &["PSModulePath".to_owned()]);
 
-        assert_eq!(env, vec![("HOME".to_owned(), "/受控/刚建好".to_owned())]);
+        assert_eq!(
+            environment.set,
+            vec![("HOME".to_owned(), "/受控/刚建好".to_owned())]
+        );
+        assert_eq!(environment.remove, vec!["PSModulePath"]);
     }
 }

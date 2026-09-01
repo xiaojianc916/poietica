@@ -19,6 +19,7 @@ export interface AgentProfile {
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
   readonly command?: string | undefined
   readonly args?: readonly string[] | undefined
+  readonly unsetEnv?: readonly string[] | undefined
   readonly homeVar?: string | undefined
   readonly ownHomeDirectory?: string | undefined
   readonly install?: Readonly<{ packageName: string; versionArgs: readonly string[] }> | undefined
@@ -39,6 +40,7 @@ export interface AgentProfileResolution {
 
 const ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/
 const ENV_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/
+const PROCESS_ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/
 const MAX_TEXT = 512
 const MAX_ENTRIES = 32
 
@@ -49,6 +51,7 @@ const DUPLICATE_ISSUE = '配置里有重复的 agent 档案，只保留了第一
 
 const text = v.pipe(v.string(), v.minLength(1), v.maxLength(MAX_TEXT))
 const envName = v.pipe(v.string(), v.regex(ENV_NAME_PATTERN))
+const processEnvName = v.pipe(v.string(), v.regex(PROCESS_ENV_NAME_PATTERN))
 
 const ProfileSchema = v.object({
   id: v.pipe(v.string(), v.regex(ID_PATTERN)),
@@ -57,6 +60,7 @@ const ProfileSchema = v.object({
   defaultConfigOptions: v.record(text, v.union([text, v.boolean()])),
   command: v.optional(text),
   args: v.optional(v.array(text)),
+  unsetEnv: v.optional(v.array(processEnvName)),
   homeVar: v.optional(envName),
   ownHomeDirectory: v.optional(text),
   install: v.optional(v.object({ packageName: text, versionArgs: v.array(text) })),
@@ -90,7 +94,8 @@ export function parseAgentProfile(input: unknown): AgentProfileParse {
 
   if (
     Object.keys(profile.env).length > MAX_ENTRIES ||
-    Object.keys(profile.defaultConfigOptions).length > MAX_ENTRIES
+    Object.keys(profile.defaultConfigOptions).length > MAX_ENTRIES ||
+    (profile.unsetEnv?.length ?? 0) > MAX_ENTRIES
   ) {
     return { ok: false, issue: PROFILE_ISSUE }
   }
@@ -107,6 +112,7 @@ function blankProfile(): AgentProfile {
     defaultConfigOptions: {},
     command: kimiCode.command,
     args: kimiCode.args,
+    unsetEnv: kimiCode.unsetEnv,
     homeVar: kimiCode.homeVar,
     ownHomeDirectory: kimiCode.ownHomeDirectory,
     install: kimiCode.install,
@@ -137,6 +143,7 @@ function projected(profile: AgentProfile): AgentProfile {
   const aligned =
     profile.command === kimiCode.command &&
     sameArgs(profile.args, kimiCode.args) &&
+    sameArgs(profile.unsetEnv, kimiCode.unsetEnv) &&
     profile.homeVar === kimiCode.homeVar &&
     profile.ownHomeDirectory === kimiCode.ownHomeDirectory &&
     sameInstall(profile.install, kimiCode.install)
@@ -147,6 +154,7 @@ function projected(profile: AgentProfile): AgentProfile {
         ...profile,
         command: kimiCode.command,
         args: kimiCode.args,
+        unsetEnv: kimiCode.unsetEnv,
         homeVar: kimiCode.homeVar,
         ownHomeDirectory: kimiCode.ownHomeDirectory,
         install: kimiCode.install,

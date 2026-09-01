@@ -25,9 +25,9 @@
 use crate::error::{Error, Result};
 use crate::paths::{agent_home, agents_store};
 use poietica_kap_client::{
-    KapError, args_of as profile_args_of, declared_env_of, home_var_of, install_spec_of,
-    launch_env as compose_launch_env, own_home_of, program_of, secret_from_config,
-    set_default_model, tails_from_config, usable_default_model,
+    KapError, ProcessEnvironment, args_of as profile_args_of, declared_env_of, home_var_of,
+    install_spec_of, launch_env as compose_launch_env, own_home_of, program_of, secret_from_config,
+    set_default_model, tails_from_config, unset_env_of, usable_default_model,
 };
 use poietica_problem::Problem;
 use serde::{Deserialize, Serialize};
@@ -210,7 +210,7 @@ fn agent_config_file(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
 /// 那样 homeVar 就不会被设上，agent 会安静地改用用户全局的 ~/.kimi-code，而受控
 /// home 是模式 B 的地基：provider 写到哪个 config.toml、CLI 与 kap 会话看不看得见
 /// 同一份配置，全靠它。
-pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String)>> {
+pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<ProcessEnvironment> {
     launch_env_inner(app, agent_id, true)
 }
 
@@ -222,7 +222,7 @@ pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String
 /// # Errors
 ///
 /// store 无法打开或档案不存在时返回错误。
-pub fn global_launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String)>> {
+pub fn global_launch_env(app: &AppHandle, agent_id: &str) -> Result<ProcessEnvironment> {
     launch_env_inner(app, agent_id, false)
 }
 
@@ -230,7 +230,7 @@ fn launch_env_inner(
     app: &AppHandle,
     agent_id: &str,
     controlled: bool,
-) -> Result<Vec<(String, String)>> {
+) -> Result<ProcessEnvironment> {
     let profile = profile_of(app, agent_id)?;
 
     let home = if controlled {
@@ -242,6 +242,7 @@ fn launch_env_inner(
     Ok(compose_launch_env(
         &declared_env_of(&profile),
         home.as_ref(),
+        &unset_env_of(&profile),
     ))
 }
 

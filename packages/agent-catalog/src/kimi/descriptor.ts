@@ -24,6 +24,8 @@ export const kimiCode = {
    * 浏览器（docs/en/reference/kimi-command.md 的 kimi web）。
    */
   args: ['web', '--no-open'],
+  // 让每个 PowerShell 版本按自己的 $PSHOME 重建模块路径，避免跨版本模块遮蔽。
+  unsetEnv: ['PSModulePath'],
   // apps/kimi-code/src/config/paths.ts 的 resolveKimiHome：
   // homeDir ?? process.env['KIMI_CODE_HOME'] ?? join(homedir(), '.kimi-code')。
   homeVar: 'KIMI_CODE_HOME',

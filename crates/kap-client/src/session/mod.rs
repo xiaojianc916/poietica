@@ -27,6 +27,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 
 use crate::error::Result;
+use crate::process::profile::ProcessEnvironment;
 
 /// How the agent process is started.
 #[derive(Clone, Debug)]
@@ -50,7 +51,7 @@ pub struct AgentSpawn {
     /// 只放非密文的启动变量，受控 home 的路径就是其一。密钥不走这里：模式 B
     /// 下它们由 agent 自己的 CLI 写进那个 home 里的配置文件。也不走参数 ——
     /// Windows 上任何用户都读得到别的进程的完整命令行。
-    pub env: Vec<(String, String)>,
+    pub env: ProcessEnvironment,
     /// 这家 agent 读写的那个家：实例注册表与 server.token 都在它下面。
     ///
     /// 由组合层算 —— 档案与受控 home 都归它。传输层不认识任何一家 agent 的

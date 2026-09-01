@@ -292,7 +292,14 @@ pub async fn agent_cli_exec(
 
         let mut command = std::process::Command::new(&resolved);
         command.args(&final_args);
-        command.envs(env);
+        command.envs(
+            env.set
+                .iter()
+                .map(|(name, value)| (name.as_str(), value.as_str())),
+        );
+        for name in &env.remove {
+            command.env_remove(name);
+        }
 
         // 目录服务绑在 127.0.0.1 上，而子进程继承了我们这个进程的全部环境变量，
         // 其中很可能有 HTTP_PROXY / HTTPS_PROXY / ALL_PROXY。

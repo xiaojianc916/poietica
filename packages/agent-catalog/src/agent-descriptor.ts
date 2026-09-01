@@ -44,6 +44,8 @@ export interface AgentDescriptor {
    */
   readonly command?: string | undefined
   readonly args?: readonly string[] | undefined
+  /** 启动 agent 前从继承环境中移除的变量名。 */
+  readonly unsetEnv?: readonly string[] | undefined
   /**
    * 受控 home 的环境变量名。
    *

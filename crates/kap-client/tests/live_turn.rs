@@ -64,7 +64,7 @@ use futures::channel::oneshot;
 use futures::executor::block_on;
 use poietica_kap_client::{
     AgentConnection, AgentSpawn, ConfigControl, KapError, PROMPT_ADMITTED, PermissionDesk,
-    QuestionDesk, RUN_FINISHED, RecordedEvent, RunFrame, RunSlot, connect,
+    ProcessEnvironment, QuestionDesk, RUN_FINISHED, RecordedEvent, RunFrame, RunSlot, connect,
 };
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -177,7 +177,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
             .map(str::to_owned)
             .collect(),
         cwd,
-        env: Vec::new(),
+        env: ProcessEnvironment::default(),
         home,
     };
 
