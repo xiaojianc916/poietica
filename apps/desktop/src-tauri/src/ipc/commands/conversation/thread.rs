@@ -4,7 +4,7 @@ use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::{Error, Result};
 use crate::ipc::commands::asset::attachments::forget_blob;
 use crate::ipc::commands::ledger::local_index::{
-    LocalIndex, conversation, counted, persistence, read_index, write_index,
+    LocalIndex, conversation, counted, persistence, read_index, read_index_background, write_index,
 };
 use crate::paths::remove_projectless_workspace;
 use poietica_kap_client::{PROMPT_ADMITTED, compact_history};
@@ -583,7 +583,7 @@ pub async fn agent_thread_outline(
     let id = conversation(&request.thread_id)?;
     let from_seq = i64::from(request.from_seq.unwrap_or(0));
 
-    let marks = read_index(&index, move |store| {
+    let marks = read_index_background(&index, move |store| {
         store
             .turn_marks(
                 id,

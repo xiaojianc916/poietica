@@ -30,7 +30,7 @@ interface DesktopAgentRuntimeOptions {
   readonly modelCatalog: ModelCatalogStore
   readonly cwd: NonNullable<AgentBridgeOptions['cwd']>
   /** mcp.json 对齐到本次启动端口的那趟对账，agent 起来前必须落定。 */
-  readonly mcpReady: Promise<void>
+  readonly mcpReady: () => Promise<void>
 }
 
 export interface DesktopAgentRuntime {
@@ -61,7 +61,7 @@ export function createDesktopAgentRuntime(
    * 所有会走到 ensure_session 的桥都经过这里，所以这一处就是全部。
    */
   const launchAgent = async () => {
-    await options.mcpReady
+    await options.mcpReady()
 
     return { agentId: agent.id }
   }

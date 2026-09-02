@@ -2,13 +2,28 @@ import { ComposerDrafts, ComposerDraftsContext, useAgentControls } from '@poieti
 import type { AutomationStore } from '@poietica/automation'
 import type { AgentSessionPort } from '@poietica/conversation'
 import type { PluginStore } from '@poietica/extension'
-import { PluginsSurface } from '@poietica/extension/ui'
 import { type CustomAgentStore, PersonalizationStore } from '@poietica/settings'
-import { PersonalizationSurface } from '@poietica/settings/ui'
-import type { ReactNode } from 'react'
-import { AutomationsView } from '../automation/automations-view'
+import { lazy, type ReactNode, Suspense } from 'react'
 import type { SurfaceRenderers } from '../shell/surface'
 import { AssistantPane } from './assistant-pane'
+
+const DeferredAutomationsView = lazy(() =>
+  import('../automation/automations-view').then(({ AutomationsView }) => ({
+    default: AutomationsView,
+  })),
+)
+const DeferredPersonalizationSurface = lazy(() =>
+  import('@poietica/settings/ui').then(({ PersonalizationSurface }) => ({
+    default: PersonalizationSurface,
+  })),
+)
+const DeferredPluginsSurface = lazy(() =>
+  import('@poietica/extension/ui').then(({ PluginsSurface }) => ({ default: PluginsSurface })),
+)
+
+function SurfaceLoading() {
+  return <p className="p-4 text-xs text-muted-foreground">正在加载…</p>
+}
 
 /**
  * AI 表面只有一个渲染出口。入口与真实对话只改变 threadId，依赖与 React 身份不换轨。
@@ -45,7 +60,11 @@ interface AssistantWiringOptions {
 function ToolsSurface({ store }: { store: PluginStore }) {
   const { toolkit } = useAgentControls()
 
-  return <PluginsSurface roster={toolkit.skills} store={store} />
+  return (
+    <Suspense fallback={<SurfaceLoading />}>
+      <DeferredPluginsSurface roster={toolkit.skills} store={store} />
+    </Suspense>
+  )
 }
 
 export function createAssistantWiring({
@@ -85,10 +104,18 @@ export function createAssistantWiring({
        * 注册表里登记了 automations，这里就必须交出一条，
        * 漏掉是编译错误而不是一张空态图。
        */
-      automations: () => <AutomationsView store={automationStore} />,
+      automations: () => (
+        <Suspense fallback={<SurfaceLoading />}>
+          <DeferredAutomationsView store={automationStore} />
+        </Suspense>
+      ),
 
       /* Tool 那一格。注册表里 tools 已经是 surface，漏掉这一条是编译错误。 */
-      personalization: () => <PersonalizationSurface store={personalization} />,
+      personalization: () => (
+        <Suspense fallback={<SurfaceLoading />}>
+          <DeferredPersonalizationSurface store={personalization} />
+        </Suspense>
+      ),
       tools: () => <ToolsSurface store={pluginStore} />,
     },
 

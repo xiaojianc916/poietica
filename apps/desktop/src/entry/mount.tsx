@@ -1,4 +1,4 @@
-import { TableExportProvider } from '@poietica/assistant'
+import { TableExportProvider } from '@poietica/assistant/table-export'
 import { exportTable } from '@poietica/native-bridge'
 import { StrictMode } from 'react'
 import { flushSync } from 'react-dom'

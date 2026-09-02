@@ -301,6 +301,8 @@ describe('transcript store', () => {
 
     store.opening('thread_a')
     store.opening('thread_a')
+    await Promise.resolve()
+
     expect(calls).toEqual([null])
     answers.shift()?.([first])
     await Promise.resolve()

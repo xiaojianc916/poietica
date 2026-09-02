@@ -74,6 +74,8 @@ export interface ApplicationRuntime {
   readonly dataDirectory: () => Promise<string>
   /** 最近若干天的 token 日账。与上面两个同源同层：账本只有原生侧那一份。 */
   readonly readTokenDays: typeof readTokenDays
+  /** Starts non-visual services once; agent launch awaits the same gate. */
+  readonly startBackgroundServices: () => void
   readonly dispose: () => Promise<void>
 }
 
@@ -125,22 +127,25 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
 
   const attachments = createAttachmentIntake()
 
-  /*
-   * 两台受控 MCP 服务器在 mcp.json 里的条目，要在 agent 起来前对齐到本次启动的端口：
-   * kap 在进程起来那一刻读 mcp.json，读到上一次启动的端口就是「closed unexpectedly」。
-   * 在模块求值时出发，不等任何 effect。
-   */
   const pluginStore = createPluginStore({
     capability: capabilityGateway,
     gateway: extensionGateway,
     marketplaceUrl: MARKETPLACE_URL,
     now: () => new Date().toISOString(),
   })
-  void pluginStore.start()
-  const hostedMcpServersReady: Promise<void> = Promise.all([
-    reconcileAutomationsMcpServer(pluginStore),
-    reconcileBrowserMcpServer(pluginStore),
-  ]).then(() => undefined)
+
+  /* First paint and agent launch share one idempotent gate; only agent launch waits for it. */
+  let backgroundServicesReady: Promise<void> | null = null
+  const ensureBackgroundServices = (): Promise<void> => {
+    if (backgroundServicesReady === null) {
+      backgroundServicesReady = Promise.all([
+        pluginStore.start(),
+        reconcileAutomationsMcpServer(pluginStore),
+        reconcileBrowserMcpServer(pluginStore),
+      ]).then(() => undefined)
+    }
+    return backgroundServicesReady
+  }
   const automationStore = createAutomationStore(automationGateway)
 
   const modelCatalog = new ModelCatalogStore(createModelCatalogPort(), agentDescriptor.id)
@@ -148,7 +153,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     config: agentConfig,
     modelCatalog,
     cwd: activeWorkspaceRoot,
-    mcpReady: hostedMcpServersReady,
+    mcpReady: ensureBackgroundServices,
   })
 
   return {
@@ -168,6 +173,9 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     appVersion: readAppVersion,
     dataDirectory: readDataDirectory,
     readTokenDays,
+    startBackgroundServices: () => {
+      void ensureBackgroundServices()
+    },
 
     async dispose() {
       if (disposed) {

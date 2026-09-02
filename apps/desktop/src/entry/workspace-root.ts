@@ -80,20 +80,26 @@ const home = createPreference<string | null>({
   },
 })
 
-const resolving: Promise<string | null> = homeDirectory()
+const cachedHome = home.read()
+const verifiedHome: Promise<string | null> = homeDirectory()
   .then((dir) => {
     home.write(normalizeWorkspaceRoot(dir))
-
     return home.read()
   })
-  .catch(() => null)
+  .catch(() => cachedHome)
+const resolving: Promise<string | null> =
+  cachedHome === null ? verifiedHome : Promise.resolve(cachedHome)
 
 /** 没有记下目录的对话落在哪个工作区；还没解析出来时落 thread-order 的哨兵。 */
 export function defaultWorkspaceId(): string | null {
   return home.read()
 }
 
-/** 主目录解析落定的那一刻。第一次启动的第一次列表读取等它。 */
+/** 冷启动等平台值；缓存命中立即可读，平台值仍在后台校准。 */
 export function defaultWorkspaceReady(): Promise<unknown> {
   return resolving
+}
+
+export function subscribeDefaultWorkspace(listener: () => void): () => void {
+  return home.subscribe(listener)
 }

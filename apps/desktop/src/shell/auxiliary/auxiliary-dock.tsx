@@ -11,13 +11,18 @@ import {
   type AuxiliaryPanelStore,
   type AuxiliaryPaneRenderers,
 } from '@poietica/auxiliary/panel'
+import { terminalHostPort } from '@poietica/native-bridge'
+import { warn } from '@poietica/problem'
 import { GitBranch, Globe, MessageSquareText, PanelRight, SquareTerminal } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
-import { ConversationReviewPane } from '../../assistant/review-pane'
 import {
-  ConversationTerminalPane,
-  releaseConversationTerminal,
-} from '../../assistant/terminal-pane'
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react'
 import { useConversationWorkspaceRoot } from '../../assistant/threads-context'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from '../workspace-layout-store'
 
@@ -40,6 +45,26 @@ const PANE_OFFERS: readonly AuxiliaryPaneOffer[] = AUXILIARY_LAUNCHER.map((entry
   ...entry,
   icon: PANE_ICONS[entry.kind],
 }))
+
+const DeferredReviewPane = lazy(() =>
+  import('../../assistant/review-pane').then(({ ConversationReviewPane }) => ({
+    default: ConversationReviewPane,
+  })),
+)
+const DeferredTerminalPane = lazy(() =>
+  import('../../assistant/terminal-pane').then(({ ConversationTerminalPane }) => ({
+    default: ConversationTerminalPane,
+  })),
+)
+
+function releaseTerminal(root: string | null): void {
+  if (root === null) {
+    return
+  }
+  void terminalHostPort.close(root).catch((cause: unknown) => {
+    warn('终端会话没能关掉', { cause, scope: 'terminal' })
+  })
+}
 
 interface AuxiliaryDockProps {
   readonly store: AuxiliaryPanelStore
@@ -118,15 +143,23 @@ export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDock
         release: () => undefined,
       },
       terminal: {
-        body: () => <ConversationTerminalPane conversationId={conversationId} />,
+        body: () => (
+          <Suspense fallback={<p className="p-4 text-xs opacity-50">正在加载终端…</p>}>
+            <DeferredTerminalPane conversationId={conversationId} />
+          </Suspense>
+        ),
         icon: PANE_ICONS.terminal,
         name: () => '终端',
         release: () => {
-          releaseConversationTerminal(terminalRoot)
+          releaseTerminal(terminalRoot)
         },
       },
       review: {
-        body: () => <ConversationReviewPane conversationId={conversationId} />,
+        body: () => (
+          <Suspense fallback={<p className="p-4 text-xs opacity-50">正在加载审查…</p>}>
+            <DeferredReviewPane conversationId={conversationId} />
+          </Suspense>
+        ),
         icon: <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />,
         name: () => '审查',
         release: () => undefined,

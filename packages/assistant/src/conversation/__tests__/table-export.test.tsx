@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { ExportableTable, TableExportProvider } from '../timeline/table-export'
+import { ExportableTable } from '../timeline/table-export'
+import { TableExportProvider } from '../timeline/table-export-context'
 
 describe('表格操作', () => {
   it('只呈现可用的 Markdown 复制与下载动作', () => {

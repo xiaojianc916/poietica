@@ -43,6 +43,10 @@ async function bootstrapApplication(): Promise<void> {
     console.error('[Poietica] Failed to present the main window', cause)
   })
 
+  requestAnimationFrame(() => {
+    runtime.startBackgroundServices()
+  })
+
   void reportPreviousNativeCrash()
 }
 

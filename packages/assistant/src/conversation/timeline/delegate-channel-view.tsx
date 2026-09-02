@@ -1,11 +1,15 @@
 import '../surface/assistant.css'
 
 import { channelNameOf, delegateKey, delegationOf } from '@poietica/conversation'
-import { useCallback } from 'react'
+import { lazy, Suspense, useCallback } from 'react'
 
 import { SwarmIcon } from '../primitives/icons'
 import { useAssistantTimeline } from '../session/use-assistant-session'
-import { TranscriptView } from './transcript-view'
+
+const DeferredTranscriptView = lazy(() =>
+  import('./transcript-view').then(({ TranscriptView }) => ({ default: TranscriptView })),
+)
+
 import { UserMessage } from './user-message'
 
 /*
@@ -55,12 +59,14 @@ export function DelegateChannelPane({ agentId, conversationId }: DelegateChannel
       {call === undefined ? (
         <p className="p-4 text-xs opacity-50">这条派发不在当前对话里。</p>
       ) : (
-        <TranscriptView
-          dockClearance={null}
-          isRestoring={false}
-          lead={<UserMessage text={call.subject === '' ? call.title : call.subject} />}
-          sessionKey={delegateKey(conversationId, agentId)}
-        />
+        <Suspense fallback={<p className="p-4 text-xs opacity-50">正在加载派发记录…</p>}>
+          <DeferredTranscriptView
+            dockClearance={null}
+            isRestoring={false}
+            lead={<UserMessage text={call.subject === '' ? call.title : call.subject} />}
+            sessionKey={delegateKey(conversationId, agentId)}
+          />
+        </Suspense>
       )}
     </section>
   )

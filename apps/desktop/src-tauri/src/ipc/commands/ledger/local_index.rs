@@ -1,4 +1,4 @@
-//! 应用账本的执行边界：一个 writer actor，一个独立只读 actor。
+//! 应用账本的执行边界：一个 writer actor，交互读取与后台读取各一个只读 actor。
 
 use std::fmt;
 use std::path::Path;
@@ -94,6 +94,7 @@ impl Drop for IndexActor {
 #[derive(Debug)]
 struct IndexActors {
     reader: IndexActor,
+    background_reader: IndexActor,
     writer: IndexActor,
 }
 
@@ -111,11 +112,16 @@ impl fmt::Debug for LocalIndex {
 impl LocalIndex {
     pub fn open(path: &Path, clock: impl WallClock + Clone + 'static) -> Result<Self> {
         let writer = AgentStore::open(path, clock.clone()).map_err(persistence)?;
-        let reader = AgentStore::open_read_only(path, clock).map_err(persistence)?;
+        let reader = AgentStore::open_read_only(path, clock.clone()).map_err(persistence)?;
+        let background_reader = AgentStore::open_read_only(path, clock).map_err(persistence)?;
 
         Ok(Self {
             actors: Arc::new(IndexActors {
                 reader: IndexActor::start("poietica-ledger-reader", reader)?,
+                background_reader: IndexActor::start(
+                    "poietica-ledger-background-reader",
+                    background_reader,
+                )?,
                 writer: IndexActor::start("poietica-ledger-writer", writer)?,
             }),
         })
@@ -142,6 +148,14 @@ where
     F: FnOnce(&mut AgentStore) -> Result<T> + Send + 'static,
 {
     dispatch(&index.actors.reader, work).await
+}
+
+pub async fn read_index_background<T, F>(index: &LocalIndex, work: F) -> Result<T>
+where
+    T: Send + 'static,
+    F: FnOnce(&mut AgentStore) -> Result<T> + Send + 'static,
+{
+    dispatch(&index.actors.background_reader, work).await
 }
 
 pub async fn write_index<T, F>(index: &LocalIndex, work: F) -> Result<T>
@@ -191,7 +205,7 @@ mod tests {
     use super::LocalIndex;
 
     #[test]
-    fn reads_and_writes_have_distinct_owners() {
+    fn read_lanes_and_writer_have_distinct_owners() {
         let path = std::env::temp_dir().join(format!("poietica-{}.sqlite3", Uuid::now_v7()));
         let index = LocalIndex::open(&path, SystemWallClock).expect("index");
         let reader = index
@@ -199,13 +213,20 @@ mod tests {
             .reader
             .call(|_store| Ok(thread::current().id()))
             .expect("reader");
+        let background_reader = index
+            .actors
+            .background_reader
+            .call(|_store| Ok(thread::current().id()))
+            .expect("background reader");
         let writer = index
             .actors
             .writer
             .call(|_store| Ok(thread::current().id()))
             .expect("writer");
 
+        assert_ne!(reader, background_reader);
         assert_ne!(reader, writer);
+        assert_ne!(background_reader, writer);
         drop(index);
         for suffix in ["", "-wal", "-shm"] {
             let _removed = remove_file(format!("{}{suffix}", path.display()));

@@ -1,23 +1,12 @@
 import { TerminalPane } from '@poietica/auxiliary/terminal-ui'
 import { terminalHostPort } from '@poietica/native-bridge'
-import { warn } from '@poietica/problem'
+/* Terminal teardown lives in the dock host, outside the Xterm chunk. */
 import { useConversationWorkspaceRoot } from './threads-context'
 
 /*
  * 组合根的接线：从会话上下文读出工作目录，把原生端口交进 @poietica/auxiliary 的
  * 那一份 TerminalPane。这里不裁决任何东西。
  */
-
-/** 这一格被关掉时收尾。卸载只是换标签，关闭才是结束这条 shell。 */
-export function releaseConversationTerminal(root: string | null): void {
-  if (root === null) {
-    return
-  }
-
-  void terminalHostPort.close(root).catch((cause: unknown) => {
-    warn('终端会话没能关掉', { cause, scope: 'terminal' })
-  })
-}
 
 export function ConversationTerminalPane({
   conversationId,

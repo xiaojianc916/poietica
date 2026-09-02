@@ -512,7 +512,10 @@ export class TranscriptStore implements TranscriptSink {
     }
 
     this.#put(threadId, { ...current, restoring: true })
-    void this.#readOutline(threadId)
+    /* The bounded snapshot owns the interactive read lane; the full outline follows. */
+    queueMicrotask(() => {
+      void this.#readOutline(threadId)
+    })
   }
 
   /**

@@ -1,7 +1,7 @@
 import './assistant.css'
 
 import type { AgentSessionPort, SessionConfigControl, SessionUsage } from '@poietica/conversation'
-import { memo, type Ref, useCallback, useMemo, useRef, useState } from 'react'
+import { lazy, memo, type Ref, Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { ComposerDraftKeyContext } from '../composer/composer-drafts'
 import { useDockClearance } from '../composer/dock-clearance'
@@ -18,7 +18,13 @@ import {
 } from '../session/use-assistant-session'
 import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branch-picker'
 import { WorkspacePicker, type WorkspacePickerProps } from '../threads/workspace-picker'
-import { TranscriptView } from '../timeline/transcript-view'
+
+const DeferredTranscriptView = lazy(() =>
+  import('../timeline/transcript-view').then(({ TranscriptView }) => ({
+    default: TranscriptView,
+  })),
+)
+
 import { MascotBadge } from './mascot/mascot-badge'
 import { PromptQueue } from './prompt-queue'
 
@@ -262,12 +268,14 @@ export const AssistantSurface = memo(function AssistantSurface({
       data-restoring={assistant.isRestoring ? 'true' : undefined}
     >
       {live ? (
-        <TranscriptView
-          dockClearance={clearance.value}
-          isRestoring={assistant.isRestoring}
-          onFork={onFork}
-          sessionKey={assistant.key}
-        />
+        <Suspense fallback={<p className="p-4 text-xs opacity-50">正在加载对话…</p>}>
+          <DeferredTranscriptView
+            dockClearance={clearance.value}
+            isRestoring={assistant.isRestoring}
+            onFork={onFork}
+            sessionKey={assistant.key}
+          />
+        </Suspense>
       ) : (
         <div className="assistant-surface__entry">
           <header className="assistant-masthead">

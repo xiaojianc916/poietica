@@ -5,7 +5,11 @@ import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 
 import type { DesktopAgentRuntime } from '../entry/agent-runtime'
-import { defaultWorkspaceId, defaultWorkspaceReady } from '../entry/workspace-root'
+import {
+  defaultWorkspaceId,
+  defaultWorkspaceReady,
+  subscribeDefaultWorkspace,
+} from '../entry/workspace-root'
 import { ThreadsContext } from './threads-context'
 
 /*
@@ -87,14 +91,24 @@ export function ThreadsProvider({ agent, children, report }: ThreadsProviderProp
      */
     const stopReports = controls.start()
 
-    /*
-     * 第一次启动，主目录还在解析（workspace-root 的 defaultWorkspaceReady）：
-     * 等它落定再读第一遍列表，没记下目录的存量一次就进对组，不会先落进
-     * 哨兵组再跳一次。缓存命中时这个 Promise 已经兑现，与原来同帧。
-     */
-    void defaultWorkspaceReady().then(() => store.refresh())
+    let active = true
+    let ready = false
+    const stopWorkspace = subscribeDefaultWorkspace(() => {
+      if (active && ready) {
+        store.refresh()
+      }
+    })
+    void defaultWorkspaceReady().then(() => {
+      if (!active) {
+        return
+      }
+      ready = true
+      store.refresh()
+    })
 
     return () => {
+      active = false
+      stopWorkspace()
       stopOpened()
       stopRemoved()
       stopReports()

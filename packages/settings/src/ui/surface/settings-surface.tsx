@@ -30,8 +30,10 @@ import {
 import {
   type ComponentType,
   createContext,
+  lazy,
   memo,
   type ReactNode,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -39,13 +41,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { ComputerUseSettings } from '../computer-use-settings'
-import { KeymapSettings } from '../keymap-settings'
-import { ModelsSettings } from '../models/models-settings'
-import { SkillsSettings } from '../skills-settings'
 import type { ReadTokenDays } from '../usage-activity'
-import { UsageSettings } from '../usage-settings'
-import { ArchivedChatsSettings } from './archived-chats-settings'
 import { MascotPrefsGroup } from './mascot-prefs'
 import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from './settings-primitives'
 import {
@@ -54,6 +50,29 @@ import {
   useSettingsController,
 } from './use-settings-controller'
 import './settings-surface.css'
+
+const DeferredArchivedChatsSettings = lazy(() =>
+  import('./archived-chats-settings').then(({ ArchivedChatsSettings }) => ({
+    default: ArchivedChatsSettings,
+  })),
+)
+const DeferredComputerUseSettings = lazy(() =>
+  import('../computer-use-settings').then(({ ComputerUseSettings }) => ({
+    default: ComputerUseSettings,
+  })),
+)
+const DeferredKeymapSettings = lazy(() =>
+  import('../keymap-settings').then(({ KeymapSettings }) => ({ default: KeymapSettings })),
+)
+const DeferredModelsSettings = lazy(() =>
+  import('../models/models-settings').then(({ ModelsSettings }) => ({ default: ModelsSettings })),
+)
+const DeferredSkillsSettings = lazy(() =>
+  import('../skills-settings').then(({ SkillsSettings }) => ({ default: SkillsSettings })),
+)
+const DeferredUsageSettings = lazy(() =>
+  import('../usage-settings').then(({ UsageSettings }) => ({ default: UsageSettings })),
+)
 
 type SettingsSection =
   | 'general'
@@ -125,13 +144,13 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   archived: {
     label: '已归档',
     icon: Archive,
-    render: ({ threads }) => <ArchivedChatsSettings threads={threads} />,
+    render: ({ threads }) => <DeferredArchivedChatsSettings threads={threads} />,
   },
   models: {
     label: '模型',
     icon: Cpu,
     render: ({ agentSettings, controller, modelCatalog, settings }) => (
-      <ModelsSettings
+      <DeferredModelsSettings
         hiddenModelAliases={settings.modelPicker.hiddenModelAliases}
         modelCatalog={modelCatalog}
         onModelVisibilityChange={(modelId, visible) => {
@@ -165,23 +184,23 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   skills: {
     label: '技能',
     icon: PackageOpen,
-    render: ({ plugins, skills }) => <SkillsSettings skills={skills} store={plugins} />,
+    render: ({ plugins, skills }) => <DeferredSkillsSettings skills={skills} store={plugins} />,
   },
   keymap: {
     label: '快捷键',
     icon: Keyboard,
-    render: ({ keybindings }) => <KeymapSettings catalog={keybindings} />,
+    render: ({ keybindings }) => <DeferredKeymapSettings catalog={keybindings} />,
   },
   'computer-use': {
     label: '电脑控制',
     icon: Monitor,
-    render: ({ plugins }) => <ComputerUseSettings store={plugins} />,
+    render: ({ plugins }) => <DeferredComputerUseSettings store={plugins} />,
   },
   usage: {
     label: '用量',
     icon: Zap,
     render: ({ readTokenDays, threads }) => (
-      <UsageSettings readTokenDays={readTokenDays} threads={threads} />
+      <DeferredUsageSettings readTokenDays={readTokenDays} threads={threads} />
     ),
   },
   privacy: {
@@ -444,19 +463,21 @@ export function SettingsContentRegion() {
               />
             ) : null}
 
-            {SECTIONS[section].render({
-              agentSettings,
-              appVersion,
-              controller,
-              dataDirectory,
-              keybindings,
-              modelCatalog,
-              plugins,
-              readTokenDays,
-              settings: controller.settings,
-              skills,
-              threads,
-            })}
+            <Suspense fallback={<LoadingState label="正在加载设置页…" />}>
+              {SECTIONS[section].render({
+                agentSettings,
+                appVersion,
+                controller,
+                dataDirectory,
+                keybindings,
+                modelCatalog,
+                plugins,
+                readTokenDays,
+                settings: controller.settings,
+                skills,
+                threads,
+              })}
+            </Suspense>
           </>
         ) : null}
       </div>
