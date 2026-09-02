@@ -1,5 +1,5 @@
+import { AssistantThreadList } from '@poietica/assistant'
 import { isProjectlessWorkspaceRoot } from '@poietica/conversation'
-import { AssistantThreadList } from '@poietica/surfaces'
 import { memo, useCallback, useMemo } from 'react'
 
 import { setActiveWorkspaceRoot } from '../entry/workspace-root'

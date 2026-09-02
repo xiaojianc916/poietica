@@ -1,14 +1,10 @@
+import { ComposerDrafts, ComposerDraftsContext, useAgentControls } from '@poietica/assistant'
 import type { AutomationStore } from '@poietica/automation'
 import type { AgentSessionPort } from '@poietica/conversation'
 import type { PluginStore } from '@poietica/extension'
+import { PluginsSurface } from '@poietica/extension/ui'
 import { type CustomAgentStore, PersonalizationStore } from '@poietica/settings'
-import {
-  ComposerDrafts,
-  ComposerDraftsContext,
-  PersonalizationSurface,
-  PluginsSurface,
-  useAgentControls,
-} from '@poietica/surfaces'
+import { PersonalizationSurface } from '@poietica/settings/ui'
 import type { ReactNode } from 'react'
 import { AutomationsView } from '../automation/automations-view'
 import type { SurfaceRenderers } from '../shell/surface'

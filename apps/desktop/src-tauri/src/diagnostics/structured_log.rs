@@ -23,6 +23,8 @@ const FOREIGN: &[&str] = &[
     "rmcp",
     "reqwest",
     "rustls",
+    "tracing",
+    "tungstenite",
 ];
 
 /// 日志落点。
@@ -51,7 +53,12 @@ pub fn plugin(directory: PathBuf) -> tauri_plugin_log::Builder {
 
     let mut builder = if cfg!(debug_assertions) {
         builder
-            .target(Target::new(TargetKind::Stdout))
+            // 终端只列值得停下来的：debug 及以下的账目（重连对账、握手指令这类）落盘
+            // 即可，不在终端刷屏。文件与 webview 仍是全量，过滤器只作用在 Stdout 这一个落点。
+            .target(
+                Target::new(TargetKind::Stdout)
+                    .filter(|metadata: &log::Metadata<'_>| metadata.level() > log::Level::Debug),
+            )
             .level(LevelFilter::Debug)
     } else {
         builder.level(LevelFilter::Info)

@@ -1,4 +1,6 @@
+import { DelegateChannelContext, useAgentControls, useRunningThreads } from '@poietica/assistant'
 import type { AutomationStore } from '@poietica/automation'
+import { createAuxiliaryPanelStore } from '@poietica/auxiliary/panel'
 import type { AgentSessionPort } from '@poietica/conversation'
 import type { PluginStore } from '@poietica/extension'
 import { browserHostPort } from '@poietica/native-bridge'
@@ -10,13 +12,11 @@ import type {
   SettingsStore,
 } from '@poietica/settings'
 import {
-  DelegateChannelContext,
   SettingsContentRegion,
   SettingsNavigationRegion,
   SettingsProvider,
-  useAgentControls,
-  useRunningThreads,
-} from '@poietica/surfaces'
+  type SettingsProviderProps,
+} from '@poietica/settings/ui'
 import type {
   CommandRegistry,
   WorkbenchSessionStore,
@@ -39,7 +39,6 @@ import { ConversationTodoPopover } from '../assistant/conversation-todo-popover'
 import { useThreadsActions } from '../assistant/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../window/desktop-title-bar'
 import { AuxiliaryDock } from './auxiliary/auxiliary-dock'
-import { createAuxiliaryPanelStore } from './auxiliary/auxiliary-panel-store'
 import { tabNeighbors } from './commands/app-commands'
 import {
   SidebarFooter,
@@ -57,6 +56,8 @@ export interface WorkspaceContainerProps {
   readonly appVersion: () => Promise<string>
   /** 数据目录。与版本号同源同层：关于页面上的两个事实出自同一条链。 */
   readonly dataDirectory: () => Promise<string>
+  /** Token 日账的读。与上面两个同源同层：用量页要的账只有原生侧那一份。 */
+  readonly readTokenDays: SettingsProviderProps['readTokenDays']
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
   readonly isSettingsOpen: boolean
@@ -98,6 +99,7 @@ export function WorkspaceContainer({
   agentSession,
   appVersion,
   dataDirectory,
+  readTokenDays,
   workspace,
   commands,
   isSettingsOpen,
@@ -124,7 +126,7 @@ export function WorkspaceContainer({
   )
 
   const threads = useThreadsActions()
-  const { adoptToolkit } = useAgentControls()
+  const { adoptToolkit, toolkit } = useAgentControls()
   const [auxiliaryPanel] = useState(() => createAuxiliaryPanelStore(browserHostPort))
 
   /* 「哪条对话在跑」只订一次：标签条与侧栏读同一份。 */
@@ -393,6 +395,8 @@ export function WorkspaceContainer({
       modelCatalog={modelCatalog}
       onDismiss={onSettingsClose}
       plugins={plugins}
+      readTokenDays={readTokenDays}
+      skills={toolkit.skills}
       store={settingsStore}
       threads={threads}
     >

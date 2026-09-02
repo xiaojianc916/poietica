@@ -1,8 +1,8 @@
-import type { BrowserHostPort, BrowserViewportBounds } from '@poietica/browser'
+import type { BrowserHostPort, BrowserViewportBounds } from '@poietica/auxiliary/browser'
 import { commands, events } from '@poietica/contract'
 import { throughIpc } from '../error'
 
-export type { BrowserViewportBounds } from '@poietica/browser'
+export type { BrowserViewportBounds } from '@poietica/auxiliary/browser'
 export type {
   BrowserClosedTab,
   BrowserElementPicked,

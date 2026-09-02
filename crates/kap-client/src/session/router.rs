@@ -235,7 +235,9 @@ impl EventRouter {
     /// 这条会话在 server 侧没有了：在飞的那一轮判死，读点作废，本地不再留任何
     /// 与它有关的所有权。链路与其余会话不受影响 —— 全仓只有这一处这条策略。
     pub(crate) fn forget(&mut self, session_id: &str, reason: &str) {
-        log::warn!("kap no longer serves {session_id}: {reason}");
+        /* 记成 debug：重连轮换里这是一句常态账目，判死的后果（CursorLost + fail_turn）
+        已经显式上桌，warn 只会让终端替它刷屏。文件仍是完整记录。 */
+        log::debug!("kap no longer serves {session_id}: {reason}");
 
         if let Err(error) = self.book.fail_turn(session_id, reason) {
             log::error!("could not close the turn of a forgotten session: {error}");

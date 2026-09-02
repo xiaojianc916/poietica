@@ -1,3 +1,4 @@
+import type { Launcher } from './catalog/builtin'
 import type {
   EnvironmentFile,
   ForeignPluginInventory,
@@ -43,4 +44,6 @@ export interface ExtensionGateway {
     expectedContents: string | null,
     contents: string,
   ): Promise<EnvironmentFile>
+  /** stdio 条目的启动式在这台机器上的解析。null = 没有那个程序：条目不该写进 mcp.json。 */
+  resolveLauncher(program: string): Promise<Launcher | null>
 }

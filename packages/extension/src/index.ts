@@ -13,7 +13,7 @@ export {
   computerUse,
 } from './capability'
 export type { CapabilityGateway } from './capability-gateway'
-export { BUILTIN_SERVERS, mcpServerBody } from './catalog/builtin'
+export { BUILTIN_SERVERS, type Launcher, mcpServerBody } from './catalog/builtin'
 export {
   builtinServerRows,
   builtinSkillRows,

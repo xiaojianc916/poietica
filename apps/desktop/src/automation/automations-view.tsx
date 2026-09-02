@@ -1,5 +1,6 @@
+import { useAgentControls } from '@poietica/assistant'
 import type { AutomationStore } from '@poietica/automation'
-import { AutomationsSurface, useAgentControls } from '@poietica/surfaces'
+import { AutomationsSurface } from '@poietica/automation/ui'
 
 /**
  * 自动化那一格与 agent 可调项的交界。

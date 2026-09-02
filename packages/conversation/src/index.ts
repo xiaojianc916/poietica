@@ -5,7 +5,7 @@
  * 渲染的时间线，interjection/ 持有待插话消息的顺序：纯函数与纯状态机，没有
  * React，能在 Node 里直接单测。session/ 在它上面管线程、转录、可调项与能力表。
  * 各段是同一条管线的前后半，边界留在包内的目录上；整个包不认识 React ——
- * hooks 与 Context 归 @poietica/surfaces 的 conversation/，这条边由架构检查守着。
+ * hooks 与 Context 归 @poietica/assistant 的 conversation/，这条边由架构检查守着。
  */
 
 export type {

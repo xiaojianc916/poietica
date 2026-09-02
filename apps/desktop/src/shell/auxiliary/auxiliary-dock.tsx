@@ -2,7 +2,15 @@ import {
   DelegateChannelIcon,
   DelegateChannelPane,
   useDelegateChannelNames,
-} from '@poietica/surfaces'
+} from '@poietica/assistant'
+import type { AuxiliaryPaneOffer } from '@poietica/auxiliary/panel'
+import {
+  AUXILIARY_LAUNCHER,
+  type AuxiliaryLauncherKind,
+  AuxiliaryPanel,
+  type AuxiliaryPanelStore,
+  type AuxiliaryPaneRenderers,
+} from '@poietica/auxiliary/panel'
 import { GitBranch, Globe, MessageSquareText, PanelRight, SquareTerminal } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { ConversationReviewPane } from '../../assistant/review-pane'
@@ -12,13 +20,6 @@ import {
 } from '../../assistant/terminal-pane'
 import { useConversationWorkspaceRoot } from '../../assistant/threads-context'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from '../workspace-layout-store'
-import type { AuxiliaryPaneOffer } from './auxiliary-menu'
-import { AuxiliaryPanel, type AuxiliaryPaneRenderers } from './auxiliary-panel'
-import {
-  AUXILIARY_LAUNCHER,
-  type AuxiliaryLauncherKind,
-  type AuxiliaryPanelStore,
-} from './auxiliary-panel-store'
 
 /*
  * 辅助面板开关与停靠位。

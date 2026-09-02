@@ -326,7 +326,7 @@ export class AgentCapabilityStore {
    * 失败落进快照，不只落进日志。
    *
    * 屏幕上那一格是可撤销的状态，不是一条记录：读不到时它要说出理由并且能被再试一次
-   * （见 @poietica/surfaces 的 conversation/ 的 session-controls.tsx，空表与失败是两种不同的画法）。
+   * （见 @poietica/assistant 的 conversation/ 的 session-controls.tsx，空表与失败是两种不同的画法）。
    */
   #note(cause: unknown): void {
     this.#commit({ ...this.#held, failure: describeFailure(cause) })

@@ -16,19 +16,18 @@
     "tauri:build:release": "tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.release.conf.json"
   },
   "dependencies": {
-    "@poietica/conversation": "workspace:*",
     "@poietica/agent-catalog": "workspace:*",
+    "@poietica/assistant": "workspace:*",
     "@poietica/automation": "workspace:*",
-    "@poietica/browser": "workspace:*",
+    "@poietica/auxiliary": "workspace:*",
+    "@poietica/conversation": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/extension": "workspace:*",
     "@poietica/external-store": "workspace:*",
     "@poietica/native-bridge": "workspace:*",
-    "@poietica/extension": "workspace:*",
     "@poietica/problem": "workspace:*",
-    "@poietica/review": "workspace:*",
     "@poietica/settings": "workspace:*",
-    "@poietica/surfaces": "workspace:*",
     "@poietica/update": "workspace:*",
-    "@poietica/design-system": "workspace:*",
     "@poietica/workspace": "workspace:*",
     "@streamdown/mermaid": "catalog:",
     "@tauri-apps/api": "catalog:tauri",
@@ -38,8 +37,8 @@
     "react-dom": "catalog:",
     "react-grab": "catalog:",
     "shiki": "catalog:",
-    "valibot": "catalog:",
-    "uuid": "catalog:"
+    "uuid": "catalog:",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

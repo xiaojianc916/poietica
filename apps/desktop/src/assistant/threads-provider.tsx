@@ -1,6 +1,6 @@
+import { SessionControlsContext, TranscriptsContext } from '@poietica/assistant'
 import type { SessionControlsFailureReport } from '@poietica/conversation'
 import { SessionControlsStore, ThreadsStore, TranscriptStore } from '@poietica/conversation'
-import { SessionControlsContext, TranscriptsContext } from '@poietica/surfaces'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 

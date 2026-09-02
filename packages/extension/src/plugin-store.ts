@@ -6,6 +6,7 @@ import {
   type CapabilityInventory,
 } from './capability'
 import type { CapabilityGateway } from './capability-gateway'
+import type { Launcher } from './catalog/builtin'
 import type { ExtensionGateway } from './extension-gateway'
 import { type PluginFetchPlan, planFetch } from './fetch-plan'
 import {
@@ -166,6 +167,8 @@ export interface PluginStore {
    * 整个换掉，所以「重装」与「改配置再装」是同一个动作。
    */
   readonly installEnvironmentServer: (name: string, body: Record<string, unknown>) => void
+  /** stdio 条目的启动式解析，内置名单的安装卡片要先把「没有那个程序」说出来。 */
+  readonly resolveLauncher: (program: string) => Promise<Launcher | null>
   /** 从 mcp.json 里删掉一台。名单上有它的卡片会拨回「可安装」，随时装得回来。 */
   readonly removeEnvironmentServer: (name: string) => void
   /**
@@ -802,6 +805,10 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       rewriteEnvironment('MCP 服务器没能写进 mcp.json，名单上那张卡片因此不动', (raw) =>
         upsertMcpServer(raw, name, body),
       )
+    },
+
+    resolveLauncher(program) {
+      return gateway.resolveLauncher(program)
     },
 
     removeEnvironmentServer(name) {

@@ -1,3 +1,4 @@
+import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/assistant'
 import type { SessionControlsFailureReport } from '@poietica/conversation'
 import { AgentCapabilityStore } from '@poietica/conversation'
 import { applyThemePreference } from '@poietica/design-system'
@@ -5,7 +6,6 @@ import type { PluginsViewModel } from '@poietica/extension'
 import type { MainWindowController } from '@poietica/native-bridge'
 import { failureCoordinator } from '@poietica/problem'
 import type { KeybindingCatalog, KeybindingEntry } from '@poietica/settings'
-import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/surfaces'
 import { type AppUpdateOperation, AppUpdateStore } from '@poietica/update'
 import type { CommandRegistry } from '@poietica/workspace'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
@@ -351,6 +351,7 @@ export function AppShell({ runtime }: AppShellProps) {
             onWindowMaximize={maximizeWindow}
             onWindowMinimize={minimizeWindow}
             plugins={runtime.pluginStore}
+            readTokenDays={runtime.readTokenDays}
             settingsStore={runtime.settings}
             updateRow={<UpdateRow store={updates} />}
             workspace={runtime.workspace}

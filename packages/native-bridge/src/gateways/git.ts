@@ -1,3 +1,4 @@
+import type { ReviewGateway } from '@poietica/auxiliary/review'
 import {
   commands,
   events,
@@ -7,7 +8,6 @@ import {
   type GitFileChange,
   type GitReview,
 } from '@poietica/contract'
-import type { ReviewGateway } from '@poietica/review'
 import { throughIpc } from '../error'
 
 /*
@@ -36,7 +36,7 @@ export function gitCreateBranch(root: string, branch: string): Promise<GitBranch
 }
 
 /*
- * 审查会话的 IPC 实现：实现 @poietica/review 的 ReviewGateway 端口，由组合根
+ * 审查会话的 IPC 实现：实现 @poietica/auxiliary/review 的 ReviewGateway 端口，由组合根
  * 注入 review-store。
  */
 export const reviewGateway: ReviewGateway = {

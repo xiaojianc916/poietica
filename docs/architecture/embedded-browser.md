@@ -12,7 +12,7 @@ X-Frame-Options/frame-ancestors 会把大多数站点挡在 iframe 外面。
 - 标签模型（开着谁、活动谁、最近关闭环、地址规范化）：`crates/browser` 的
   `Tabs`，唯一真相。
 - 原生 webview 实例表、几何、可见性：宿主 `browser.rs` 的 `BrowserHost`。
-- 面板开合与宽度：`@poietica/browser` 的 `browserPanelStore`，走偏好管线持久化。
+- 面板开合与宽度：`@poietica/auxiliary/browser` 的 `browserPanelStore`，走偏好管线持久化。
 - 页面内的导航历史：webview 内核自己的。宿主只转发 history.back()/forward()，
   不镜像一份。
 
@@ -23,7 +23,7 @@ X-Frame-Options/frame-ancestors 会把大多数站点挡在 iframe 外面。
 | `crates/browser` | 标签簿语义（纯逻辑，可脱离 UI 测试） | 只有宿主 |
 | `browser.rs`（宿主） | webview 实例、几何、可见性、DTO、事件 | 只有 IPC 命令层 |
 | `@poietica/native-bridge` | 生成绑定上的浏览器面 | 应用层 |
-| `@poietica/browser` | 面板 UI 与面板状态店，只经端口说话 | 应用层 |
+| `@poietica/auxiliary/browser` | 面板 UI 与面板状态店，只经端口说话 | 应用层 |
 | `apps/desktop` | 端口接线、dock 摆进对话表面 | 组合根 |
 
 ## 安全

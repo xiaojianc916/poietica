@@ -15,6 +15,7 @@ import {
   type MainWindowController,
   readAppVersion,
   readDataDirectory,
+  readTokenDays,
   removeCustomAgent,
   saveCustomAgent,
   writeWorkbenchSession,
@@ -71,6 +72,8 @@ export interface ApplicationRuntime {
   readonly appVersion: () => Promise<string>
   /** 这台机器上，这个应用的数据落在哪。关于页面要如实说出它。 */
   readonly dataDirectory: () => Promise<string>
+  /** 最近若干天的 token 日账。与上面两个同源同层：账本只有原生侧那一份。 */
+  readonly readTokenDays: typeof readTokenDays
   readonly dispose: () => Promise<void>
 }
 
@@ -164,6 +167,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     own,
     appVersion: readAppVersion,
     dataDirectory: readDataDirectory,
+    readTokenDays,
 
     async dispose() {
       if (disposed) {

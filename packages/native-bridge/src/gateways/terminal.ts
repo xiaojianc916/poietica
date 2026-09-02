@@ -1,5 +1,5 @@
+import type { TerminalHostPort } from '@poietica/auxiliary/terminal'
 import { commands, events } from '@poietica/contract'
-import type { TerminalHostPort } from '@poietica/terminal'
 import { throughIpc } from '../error'
 
 /*

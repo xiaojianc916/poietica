@@ -11,9 +11,9 @@ const workspace = (name: string, directory: string, dependencies = {}): Workspac
 test('manifest graph rejects an upward dependency without a source import', () => {
   const violations = manifestBoundaries([
     workspace('@poietica/conversation', 'packages/conversation', {
-      '@poietica/surfaces': 'workspace:*',
+      '@poietica/assistant': 'workspace:*',
     }),
-    workspace('@poietica/surfaces', 'packages/surfaces'),
+    workspace('@poietica/assistant', 'packages/assistant'),
   ])
   expect(violations.some((item) => item.policy === 'manifest-boundaries')).toBe(true)
 })

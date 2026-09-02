@@ -1,0 +1,44 @@
+{
+  "name": "@poietica/auxiliary",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    "./browser": "./src/browser/index.ts",
+    "./panel": "./src/panel/index.ts",
+    "./review": "./src/review/index.ts",
+    "./review-ui": "./src/review-ui/index.ts",
+    "./terminal": "./src/terminal/index.ts",
+    "./terminal-ui": "./src/terminal-ui/index.ts"
+  },
+  "scripts": {
+    "test": "bun test src",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@poietica/design-system": "workspace:*",
+    "@poietica/external-store": "workspace:*",
+    "@poietica/problem": "workspace:*",
+    "@tanstack/react-virtual": "catalog:",
+    "@xterm/addon-fit": "catalog:",
+    "@xterm/xterm": "catalog:",
+    "diff": "catalog:",
+    "lucide-react": "catalog:",
+    "shiki": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,5 +1,5 @@
+import { TableExportProvider } from '@poietica/assistant'
 import { exportTable } from '@poietica/native-bridge'
-import { TableExportProvider } from '@poietica/surfaces'
 import { StrictMode } from 'react'
 import { flushSync } from 'react-dom'
 import type { Root } from 'react-dom/client'

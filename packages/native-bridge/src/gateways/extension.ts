@@ -1,6 +1,7 @@
 import { commands } from '@poietica/contract'
 import type { CapabilityGateway, ExtensionGateway } from '@poietica/extension'
 import { throughIpc } from '../error'
+import { resolveLauncher } from './launcher'
 
 /*
  * 扩展与技能账本的 IPC 实现：实现 @poietica/extension 的 ExtensionGateway 端口，
@@ -92,6 +93,9 @@ export const extensionGateway: ExtensionGateway = {
    */
   writeEnvironmentMcpConfig: (expectedContents, contents) =>
     throughIpc(() => commands.environmentMcpConfigWrite(expectedContents, contents)),
+
+  /* stdio 启动器在不在，见 launcher.ts。McpLauncher 与领域的 Launcher 同形。 */
+  resolveLauncher,
 }
 
 /* 本机能力账本这一路：读一次清单，或者请它装一项。 */
