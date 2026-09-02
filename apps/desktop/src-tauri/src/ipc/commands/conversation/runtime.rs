@@ -14,7 +14,7 @@ use super::journal::FrameJournal;
 use super::{NO_SESSION_ID, POISONED};
 use crate::error::{Error, Result};
 use crate::ipc::commands::cli::profile::{agent_args, agent_data_home, agent_program, launch_env};
-use crate::ipc::commands::ledger::local_index::on_index;
+use crate::ipc::commands::ledger::local_index::{read_index, write_index};
 use crate::paths::attachments_root;
 use poietica_kap_client::{
     AgentClient, AgentConnection, AgentSpawn, Daemon, DaemonIntent, KapError, LinkState,
@@ -288,7 +288,7 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
             payload,
         } => {
             let index = app.state::<crate::ipc::commands::ledger::local_index::LocalIndex>();
-            let recorded = on_index(&index, move |store| {
+            let recorded = write_index(&index, move |store| {
                 store
                     .record_usage(&session_id, usage)
                     .map_err(crate::ipc::commands::ledger::local_index::persistence)
@@ -301,7 +301,7 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
         }
         SessionEventPlan::Cursor { session_id, cursor } => {
             let index = app.state::<crate::ipc::commands::ledger::local_index::LocalIndex>();
-            let recorded = on_index(&index, move |store| {
+            let recorded = write_index(&index, move |store| {
                 store
                     .remember_cursor(&session_id, &cursor)
                     .map_err(crate::ipc::commands::ledger::local_index::persistence)
@@ -314,7 +314,7 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
         }
         SessionEventPlan::CursorLost { session_id } => {
             let index = app.state::<crate::ipc::commands::ledger::local_index::LocalIndex>();
-            let dropped = on_index(&index, move |store| {
+            let dropped = write_index(&index, move |store| {
                 store
                     .forget_cursor(&session_id)
                     .map_err(crate::ipc::commands::ledger::local_index::persistence)
@@ -525,7 +525,7 @@ async fn drain_pending_deliveries(
     let owner = agent_id.to_owned();
 
     /* 一趟读把两件事问齐：欠账清单，和它们各自的会话地址。 */
-    let owed = on_index(&index, move |store| {
+    let owed = read_index(&index, move |store| {
         let admissions = store
             .unresolved_deliveries()
             .map_err(|failure| Error::Internal(failure.to_string()))?;
@@ -565,7 +565,7 @@ async fn drain_pending_deliveries(
             session: session.clone(),
         };
 
-        let outcome = on_index(&index, move |store| {
+        let outcome = write_index(&index, move |store| {
             let conversation = Conversation::new(store, &gateway);
 
             conversation
@@ -575,11 +575,19 @@ async fn drain_pending_deliveries(
         .await?;
 
         if let Some(receipt) = outcome.receipt {
-            /* 收据线在阻塞线程上等到裁决，账随后落那一格。 */
             let turn = admission.turn.clone();
-            let settled = on_index(&index, move |store| {
-                let verdict = receipt.settle().unwrap_or(DeliveryOutcome::Indeterminate);
-
+            let verdict = match async_runtime::spawn_blocking(move || {
+                receipt.settle().unwrap_or(DeliveryOutcome::Indeterminate)
+            })
+            .await
+            {
+                Ok(verdict) => verdict,
+                Err(_dropped) => {
+                    log::warn!("a redelivered turn's receipt task stopped");
+                    continue;
+                }
+            };
+            let settled = write_index(&index, move |store| {
                 store
                     .record_delivery(&turn, verdict)
                     .map_err(|failure| Error::Internal(failure.to_string()))
@@ -729,7 +737,7 @@ async fn record_and_flush_disposals(
     let noted = {
         let owner = agent_id.clone();
         let born = anchor.clone();
-        on_index(&index, move |store| {
+        write_index(&index, move |store| {
             store
                 .record_session_disposal(&born, &owner)
                 .map_err(crate::ipc::commands::ledger::local_index::persistence)?;
@@ -763,7 +771,7 @@ async fn record_and_flush_disposals(
             log::warn!("a deferred session disposal was refused: {error}");
         }
         let delivered = session_id;
-        let discharged = on_index(&index, move |store| {
+        let discharged = write_index(&index, move |store| {
             store
                 .discharge_session_disposal(&delivered)
                 .map_err(crate::ipc::commands::ledger::local_index::persistence)

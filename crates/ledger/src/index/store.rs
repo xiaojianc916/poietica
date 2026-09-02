@@ -13,13 +13,11 @@ use poietica_time::WallClock;
 
 use crate::error::Result;
 
-/// Owns the database.
+/// Owns one database connection.
 ///
-/// A single writer is intentional. The log is the contention point and its
-/// ordering is what everything else relies on, so serialising writes here is
-/// simpler and safer than reconciling interleaved sequence numbers later.
-/// 领域端口的实现（conversation/mod.rs）也落在同一个连接上：进程里只有这一条
-/// 库连接，准入与索引共用一个写者。
+/// LocalIndex gives the writable instance to one writer actor and opens a
+/// separate query-only instance for reads. Ordering therefore has one owner
+/// without cancelling WAL reader/writer concurrency.
 #[derive(Debug)]
 pub struct AgentStore {
     pub(crate) connection: Connection,
@@ -46,6 +44,14 @@ impl AgentStore {
         })
     }
 
+    /// 打开独立的只读连接。迁移只归 writer；query_only 由连接层强制。
+    pub fn open_read_only(path: &Path, clock: impl WallClock + 'static) -> Result<Self> {
+        Ok(Self {
+            connection: crate::connection::open_read_only(path)?,
+            clock: Box::new(clock),
+        })
+    }
+
     /// 民用时间戳，全部经过注入的时钟：测试里时间才可复现。
     pub(crate) fn now(&self) -> Result<String> {
         Ok(self.clock.now_utc().format(&Rfc3339)?)
@@ -57,8 +63,7 @@ impl AgentStore {
 
     /// 一段写事务。同一拍的多条写共用一次提交；调用方负责 commit。
     ///
-    /// unchecked：连接由 Mutex 串行化（local_index 的约定），编译期互斥借不到
-    /// 也没关系 —— 那把锁才是真正的写者判据。
+    /// unchecked：可写连接只归 writer actor，调用在该 actor 上串行执行。
     ///
     /// # Errors
     ///

@@ -26,17 +26,17 @@ pub fn conversation_event(frame: RunFrame) -> ConversationEvent {
             images: Some(images),
             skills: Some(skills),
         },
-        RunFrame::KapEvent { payload } => ConversationEvent::KapEvent { payload: payload },
+        RunFrame::KapEvent { payload } => ConversationEvent::KapEvent { payload },
         RunFrame::PermissionRequested {
             request_id,
             tool_call_id,
             title,
             tool_call,
         } => ConversationEvent::PermissionRequested {
-            request_id: request_id,
+            request_id,
             tool_call_id: Some(tool_call_id),
-            title: title,
-            tool_call: tool_call,
+            title,
+            tool_call,
         },
         RunFrame::PermissionResolved {
             request_id,
@@ -45,20 +45,20 @@ pub fn conversation_event(frame: RunFrame) -> ConversationEvent {
             selected_label,
             feedback,
         } => ConversationEvent::PermissionResolved {
-            request_id: request_id,
-            decision: decision,
-            scope: scope,
-            selected_label: selected_label,
-            feedback: feedback,
+            request_id,
+            decision,
+            scope,
+            selected_label,
+            feedback,
         },
         RunFrame::QuestionsAsked {
             question_id,
             tool_call_id,
             questions,
         } => ConversationEvent::QuestionsAsked {
-            question_id: question_id,
+            question_id,
             tool_call_id: Some(tool_call_id),
-            questions: questions,
+            questions,
         },
         RunFrame::QuestionsResolved {
             question_id,
@@ -66,22 +66,20 @@ pub fn conversation_event(frame: RunFrame) -> ConversationEvent {
             answers,
             note,
         } => ConversationEvent::QuestionsResolved {
-            question_id: question_id,
-            outcome: outcome,
-            answers: answers,
-            note: note,
+            question_id,
+            outcome,
+            answers,
+            note,
         },
-        RunFrame::SessionRecovered { snapshot } => {
-            ConversationEvent::SessionRecovered { snapshot: snapshot }
-        }
-        RunFrame::LinkChanged { link } => ConversationEvent::LinkChanged { link: link },
+        RunFrame::SessionRecovered { snapshot } => ConversationEvent::SessionRecovered { snapshot },
+        RunFrame::LinkChanged { link } => ConversationEvent::LinkChanged { link },
         RunFrame::RunFinished { stop_reason } => ConversationEvent::RunFinished {
             turn: None,
-            stop_reason: stop_reason,
+            stop_reason,
         },
         RunFrame::RunFailed { message } => ConversationEvent::RunFailed {
             turn: None,
-            message: message,
+            message,
         },
     }
 }

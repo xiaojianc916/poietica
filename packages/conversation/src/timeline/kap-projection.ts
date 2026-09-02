@@ -304,10 +304,7 @@ function kimiObject(value: unknown): Readonly<Record<string, unknown>> | undefin
     : undefined
 }
 
-function applyCompaction(draft: Draft, event: KapFrame): void {
-  const payload = event.payload
-  const agentId = stringOf(payload, 'agentId') ?? MAIN_AGENT
-  let position = -1
+function openCompactionIndex(draft: Draft, agentId: string): number {
   for (let index = draft.items.length - 1; index >= 0; index -= 1) {
     const item = draft.items[index]
     if (
@@ -316,10 +313,16 @@ function applyCompaction(draft: Draft, event: KapFrame): void {
       item.state !== 'completed' &&
       item.state !== 'cancelled'
     ) {
-      position = index
-      break
+      return index
     }
   }
+  return -1
+}
+
+function applyCompaction(draft: Draft, event: KapFrame): void {
+  const payload = event.payload
+  const agentId = stringOf(payload, 'agentId') ?? MAIN_AGENT
+  const position = openCompactionIndex(draft, agentId)
   const held = position < 0 ? undefined : draft.items[position]
   const current = held?.type === 'compaction' ? held : undefined
   const trigger = fieldOf(payload, 'trigger')

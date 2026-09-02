@@ -4,7 +4,9 @@
 //! 「本次连接认得的会话」，认不出就装载回来或重开。
 
 use crate::error::{Error, Result};
-use crate::ipc::commands::ledger::local_index::{LocalIndex, conversation, on_index, persistence};
+use crate::ipc::commands::ledger::local_index::{
+    LocalIndex, conversation, persistence, read_index, write_index,
+};
 use poietica_kap_client::{ConfigControl, Cursor};
 use std::path::PathBuf;
 use tauri::State;
@@ -22,7 +24,7 @@ pub(super) struct Held {
     /// 只有刚开出来的会话有：agent 在同一个答复里报了它。
     pub(super) offered: Option<Vec<ConfigControl>>,
     /// agent 那侧的上下文这一次恢复成了什么样。屏幕上那条经过与它无关 ——
-    /// 那一份由本机日志重放（见 run_events.rs）。
+    /// 那一份由本机日志重放（见 ledger/conversation/screen.rs）。
     pub(super) history: AgentHistory,
 }
 
@@ -36,7 +38,7 @@ pub(super) async fn read_point(
 ) -> Result<Option<Cursor>> {
     let asked = session_id.to_owned();
 
-    let stored = on_index(index, move |store| {
+    let stored = read_index(index, move |store| {
         store.cursor_of(&asked).map_err(persistence)
     })
     .await?;
@@ -87,7 +89,7 @@ pub(super) async fn session_for(
 ) -> Result<Held> {
     let thread_id = conversation(named)?;
 
-    let stored = on_index(index, move |store| {
+    let stored = read_index(index, move |store| {
         store.thread(thread_id).map_err(persistence)
     })
     .await?;
@@ -158,7 +160,7 @@ pub(super) async fn session_for(
                         let attached = session_id.clone();
                         let owner = live.agent_id.clone();
 
-                        on_index(index, move |store| {
+                        write_index(index, move |store| {
                             store
                                 .attach_session(thread_id, &attached, &owner)
                                 .map_err(persistence)
@@ -201,7 +203,7 @@ pub(super) async fn session_for(
         let attached = opened.session_id.clone();
         let owner = live.agent_id.clone();
 
-        on_index(index, move |store| {
+        write_index(index, move |store| {
             store
                 .attach_session(thread_id, &attached, &owner)
                 .map_err(persistence)
@@ -234,7 +236,7 @@ pub(super) async fn session_for(
         };
 
         if let Some((debtor, holder)) = owed {
-            let recorded = on_index(index, move |store| {
+            let recorded = write_index(index, move |store| {
                 store
                     .record_session_disposal(&debtor, &holder)
                     .map_err(persistence)

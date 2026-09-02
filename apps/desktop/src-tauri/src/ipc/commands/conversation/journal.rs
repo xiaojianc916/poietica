@@ -1,18 +1,10 @@
-//! 单一事件管线：非阻塞接收、批量落账、落账后发布。
-//!
-//! 收帧那一步在 RunSlot 的锁内、驱动器的单线程运行时里被调用，所以它只许入队
-//! 或拒收：睡一下或等一个回执，停住的是整条 WS 链路。
-//!
-//! 事件以领域联合（ConversationEvent）落 `conversation_events` —— 屏幕那条
-//! 经过的唯一账本；发布给界面的形状与旧帧账逐字节一致（sessionId/seq/at 由
-//! 信封并回载荷），所以重放与实时是同一串字节。
+//! 单一事件管线：非阻塞接收、批量落账、提交后发布。
 
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::time::{Duration, Instant};
 
-use poietica_conversation::event::ConversationEvent;
 use poietica_conversation::identity::ThreadId;
 use poietica_kap_client::translate;
 use poietica_kap_client::{FrameSink, RecordedEvent};
@@ -21,7 +13,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use tauri_specta::Event as _;
 
 use crate::error::{Error, Result};
-use crate::ipc::commands::ledger::local_index::{LocalIndex, on_index_worker};
+use crate::ipc::commands::ledger::local_index::{LocalIndex, write_index_worker};
 
 use super::dto::{AgentRunBatch, AgentRunEvent};
 
@@ -43,12 +35,6 @@ enum JournalCommand {
     Flush(SyncSender<bool>),
 }
 
-struct FrameBatch {
-    thread: ThreadId,
-    session: String,
-    events: Vec<ConversationEvent>,
-}
-
 #[derive(Clone)]
 pub(super) struct FrameJournal {
     sender: SyncSender<JournalCommand>,
@@ -66,32 +52,28 @@ impl FrameJournal {
     pub(super) fn new<R: Runtime>(app: &AppHandle<R>) -> Result<Self> {
         let (sender, receiver) = sync_channel(FRAME_QUEUE_CAPACITY);
         let worker = app.clone();
-
         let _journal = std::thread::Builder::new()
             .name("poietica-frame-journal".to_owned())
             .spawn(move || run(worker, receiver))
             .map_err(|error| {
                 Error::Internal(format!("could not start the frame journal: {error}"))
             })?;
-
         Ok(Self { sender })
     }
 
-    /// 收帧：入队即答。拒收只有两种事实 —— 管线没了，或积压到顶。
     pub(super) fn sink(&self, thread: uuid::Uuid) -> FrameSink {
         let sender = self.sender.clone();
-
         Box::new(move |event| {
             match sender.try_send(JournalCommand::Frame(PendingFrame {
                 thread,
                 recorded: event,
             })) {
                 Ok(()) => true,
-                Err(TrySendError::Full(_refused)) => {
+                Err(TrySendError::Full(_)) => {
                     log::error!("the frame journal is {FRAME_QUEUE_CAPACITY} frames behind");
                     false
                 }
-                Err(TrySendError::Disconnected(_refused)) => {
+                Err(TrySendError::Disconnected(_)) => {
                     log::error!("{PIPELINE_STOPPED} before accepting a frame");
                     false
                 }
@@ -99,21 +81,14 @@ impl FrameJournal {
         })
     }
 
-    /// 退场前的收账：报出这条管线有没有咽下过落账失败。
-    ///
-    /// 它是唯一还会等的地方，所以调用它的命令必须是 async 的 —— 同步命令跑在
-    /// 主线程上（见 turn.rs 的 agent_shutdown）。
     pub(super) fn flush(&self) -> Result<()> {
         let (finished, waiting) = sync_channel(0);
         self.sender
             .try_send(JournalCommand::Flush(finished))
             .map_err(|refused| match refused {
-                TrySendError::Full(_dropped) => Error::Internal(PIPELINE_BEHIND.to_owned()),
-                TrySendError::Disconnected(_dropped) => {
-                    Error::Internal(PIPELINE_STOPPED.to_owned())
-                }
+                TrySendError::Full(_) => Error::Internal(PIPELINE_BEHIND.to_owned()),
+                TrySendError::Disconnected(_) => Error::Internal(PIPELINE_STOPPED.to_owned()),
             })?;
-
         match waiting.recv_timeout(FLUSH_TIMEOUT) {
             Ok(true) => Ok(()),
             Ok(false) => Err(Error::Internal(PIPELINE_FAILED.to_owned())),
@@ -129,19 +104,15 @@ impl FrameJournal {
 
 fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
     let mut deferred = None;
-    /* 还没报出去的落账失败笔数。报一次清一次：一批失败是那一批的事实，不是这条
-    管线余生的事实 —— 常驻的假会让 disconnect 与换 agent 从此永远失败。 */
     let mut unreported = 0_usize;
-
     loop {
         let command = match deferred.take() {
             Some(command) => command,
             None => match receiver.recv() {
                 Ok(command) => command,
-                Err(_closed) => return,
+                Err(_) => return,
             },
         };
-
         match command {
             JournalCommand::Flush(done) => {
                 let _notified = done.send(unreported == 0);
@@ -151,12 +122,10 @@ fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
                 let deadline = Instant::now() + FRAME_INTERVAL;
                 let mut pending = vec![first];
                 let mut disconnected = false;
-
                 while pending.len() < FRAME_BATCH_LIMIT {
                     let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
                         break;
                     };
-
                     match receiver.recv_timeout(remaining) {
                         Ok(JournalCommand::Frame(frame)) => pending.push(frame),
                         Ok(other) => {
@@ -170,7 +139,6 @@ fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
                         }
                     }
                 }
-
                 if !flush_frames(&app, pending) {
                     unreported = unreported.saturating_add(1);
                 }
@@ -183,7 +151,7 @@ fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
 }
 
 fn batch_index(
-    batches: &mut Vec<FrameBatch>,
+    batches: &mut Vec<AppendBatch>,
     indexes: &mut HashMap<(uuid::Uuid, String), usize>,
     thread: uuid::Uuid,
     session_id: &str,
@@ -192,9 +160,8 @@ fn batch_index(
     if let Some(index) = indexes.get(&key) {
         return *index;
     }
-
     let index = batches.len();
-    batches.push(FrameBatch {
+    batches.push(AppendBatch {
         thread: ThreadId::new(thread.to_string()),
         session: session_id.to_owned(),
         events: Vec::new(),
@@ -206,48 +173,38 @@ fn batch_index(
 fn flush_frames<R: Runtime>(app: &AppHandle<R>, pending: Vec<PendingFrame>) -> bool {
     let mut batches = Vec::new();
     let mut indexes = HashMap::new();
-    let mut complete = true;
-
     for PendingFrame { thread, recorded } in pending {
         let index = batch_index(&mut batches, &mut indexes, thread, &recorded.session_id);
         let Some(batch) = batches.get_mut(index) else {
-            complete = false;
-            continue;
+            log::error!("the frame journal lost its batch index");
+            return false;
         };
         batch
             .events
             .push(translate::conversation_event(recorded.frame));
     }
-
-    let persisted = batches.is_empty() || persist_then_emit(app, batches);
-
-    complete && persisted
+    batches.is_empty() || persist_then_emit(app, batches)
 }
 
-/// 落账，然后把同一批按旧帧账的线上形状发给界面。
-///
-/// 发布形状 = 信封的格子（sessionId/seq/at）并回载荷顶层：实时与重放因此是
-/// 同一串字节，界面那一侧不需要知道账本换了表。
-fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batches: Vec<FrameBatch>) -> bool {
+fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, mut batches: Vec<AppendBatch>) -> bool {
     let mut delay = Duration::from_millis(50);
-
     let envelopes = loop {
-        let views = batches
-            .iter()
-            .map(|batch| AppendBatch {
-                thread: &batch.thread,
-                session: &batch.session,
-                events: &batch.events,
-            })
-            .collect::<Vec<_>>();
         let index = app.state::<LocalIndex>();
-        let result = on_index_worker(&index, |store| {
-            store
-                .append_batches(&views)
-                .map_err(|failure| Error::Internal(failure.to_string()))
+        let attempt = write_index_worker(&index, move |store| {
+            let outcome = store
+                .append_batches(&mut batches)
+                .map_err(|failure| Error::Internal(failure.to_string()));
+            Ok((batches, outcome))
         });
-
-        match result {
+        let (returned, outcome) = match attempt {
+            Ok(attempt) => attempt,
+            Err(error) => {
+                log::error!("the ledger writer stopped: {error}");
+                return false;
+            }
+        };
+        batches = returned;
+        match outcome {
             Ok(envelopes) => break envelopes,
             Err(error) if delay <= Duration::from_millis(400) => {
                 log::warn!("persist agent event batch failed; retrying: {error}");
@@ -265,19 +222,17 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batches: Vec<FrameBatch>) -
         log::error!("the ledger returned a different number of frame batches");
         return false;
     }
-
     for (batch, envelopes) in batches.into_iter().zip(envelopes) {
-        let shown = envelopes.into_iter().map(AgentRunEvent::from).collect();
+        let events = envelopes.into_iter().map(AgentRunEvent::from).collect();
         if let Err(error) = (AgentRunBatch {
             session_id: batch.session,
-            events: shown,
+            events,
         })
         .emit(app)
         {
             log::warn!("emit agent event failed after persistence: {error}");
         }
     }
-
     true
 }
 
@@ -285,14 +240,15 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batches: Vec<FrameBatch>) -
 mod tests {
     use std::collections::HashMap;
 
-    use super::{FrameBatch, batch_index};
+    use poietica_ledger::conversation::AppendBatch;
     use uuid::Uuid;
+
+    use super::batch_index;
 
     #[test]
     fn journal_groups_many_sessions_without_aliasing() {
-        let mut batches: Vec<FrameBatch> = Vec::new();
+        let mut batches: Vec<AppendBatch> = Vec::new();
         let mut indexes = HashMap::new();
-
         for index in 0..128_u128 {
             let thread = Uuid::from_u128(index.saturating_add(1));
             let session = format!("session-{index}");
@@ -300,7 +256,6 @@ mod tests {
             let second = batch_index(&mut batches, &mut indexes, thread, &session);
             assert_eq!(first, second);
         }
-
         assert_eq!(batches.len(), 128);
         assert_eq!(indexes.len(), 128);
     }

@@ -1,61 +1,65 @@
-use poietica_conversation::event::{ConversationEvent, EventEnvelope};
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
+
+use poietica_conversation::event::EventEnvelope;
 use poietica_conversation::identity::{Seq, ThreadId};
 use poietica_time::WallClock;
 use rusqlite::{Connection, Transaction, params};
 
+use super::AppendBatch;
 use crate::error::LedgerError;
 
-/// seq 由账本分配：在同一个事务里取 max + 1 顺序编下去，所以它在一条对话内
-/// 单调无空洞。事务由调用方开、由调用方提交：一批帧共用一次提交。
-/// 信封的 seq/at 由这里发给 —— 写路径不自报时间与位置。
-pub fn append(
+pub(super) type Stamp = (Seq, i64);
+
+pub(super) fn append(
     transaction: &Transaction<'_>,
     clock: &dyn WallClock,
-    thread: &ThreadId,
-    session: &str,
-    events: &[ConversationEvent],
-) -> Result<Vec<EventEnvelope>, LedgerError> {
-    let last: Option<i64> = transaction.query_row(
-        "SELECT MAX(seq) FROM conversation_events WHERE thread_id = ?1",
-        params![thread.as_str()],
-        |row| row.get(0),
+    batches: &[AppendBatch],
+) -> Result<Vec<Vec<Stamp>>, LedgerError> {
+    let mut next_by_thread = HashMap::<String, u64>::new();
+    let mut insert = transaction.prepare(
+        "INSERT INTO conversation_events
+             (thread_id, seq, turn_id, kind, payload, recorded_at_unix_ms, session_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
     )?;
+    let mut stamped = Vec::with_capacity(batches.len());
 
-    let mut next = u64::try_from(last.unwrap_or(0)).unwrap_or(0);
-    let at = clock.now_unix_millis();
-    let mut envelopes = Vec::with_capacity(events.len());
+    for batch in batches {
+        let next = match next_by_thread.entry(batch.thread.as_str().to_owned()) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                let last: Option<i64> = transaction.query_row(
+                    "SELECT MAX(seq) FROM conversation_events WHERE thread_id = ?1",
+                    params![batch.thread.as_str()],
+                    |row| row.get(0),
+                )?;
+                entry.insert(u64::try_from(last.unwrap_or(0)).unwrap_or(0))
+            }
+        };
+        let at = clock.now_unix_millis();
+        let mut batch_stamps = Vec::with_capacity(batch.events.len());
 
-    for event in events {
-        next = next.saturating_add(1);
-        let seq = Seq::new(next);
-        let payload = serde_json::to_string(event)?;
-        let turn = event.turn().map(|turn| turn.as_str().to_owned());
+        for event in &batch.events {
+            *next = next.saturating_add(1);
+            let seq = Seq::new(*next);
+            let payload = serde_json::to_string(event)?;
+            let turn = event.turn().map(|turn| turn.as_str().to_owned());
 
-        transaction.execute(
-            "INSERT INTO conversation_events
-                 (thread_id, seq, turn_id, kind, payload, recorded_at_unix_ms, session_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                thread.as_str(),
+            insert.execute(params![
+                batch.thread.as_str(),
                 i64::try_from(seq.value()).unwrap_or(i64::MAX),
                 turn,
                 event.kind(),
                 payload,
                 at,
-                session,
-            ],
-        )?;
-
-        envelopes.push(EventEnvelope {
-            thread: thread.clone(),
-            seq,
-            at,
-            session_id: session.to_owned(),
-            event: event.clone(),
-        });
+                batch.session,
+            ])?;
+            batch_stamps.push((seq, at));
+        }
+        stamped.push(batch_stamps);
     }
 
-    Ok(envelopes)
+    Ok(stamped)
 }
 
 pub fn after(
@@ -68,7 +72,6 @@ pub fn after(
           WHERE thread_id = ?1 AND seq > ?2
           ORDER BY seq",
     )?;
-
     let rows = statement.query_map(
         params![
             thread.as_str(),
@@ -83,22 +86,17 @@ pub fn after(
             ))
         },
     )?;
-
-    let mut events = Vec::new();
+    let mut found = Vec::new();
 
     for row in rows {
         let (seq, at, session_id, payload) = row?;
-
-        events.push(EventEnvelope {
+        found.push(EventEnvelope {
             thread: thread.clone(),
             seq: Seq::new(u64::try_from(seq).unwrap_or(0)),
             at,
-            // 0008 之前的领域事件（TurnAdmitted）没有会话可归属；重放按线程走，
-            // 缺席即是「这一格早于会话归属」的诚实说法。
             session_id: session_id.unwrap_or_default(),
             event: serde_json::from_str(&payload)?,
         });
     }
-
-    Ok(events)
+    Ok(found)
 }

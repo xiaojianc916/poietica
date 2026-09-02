@@ -4,7 +4,7 @@ use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::{Error, Result};
 use crate::ipc::commands::asset::attachments::forget_blob;
 use crate::ipc::commands::ledger::local_index::{
-    LocalIndex, conversation, counted, on_index, persistence,
+    LocalIndex, conversation, counted, persistence, read_index, write_index,
 };
 use crate::paths::remove_projectless_workspace;
 use poietica_kap_client::{PROMPT_ADMITTED, compact_history};
@@ -37,7 +37,7 @@ use super::{AgentCommandResult, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS, TURN_PA
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_threads(index: State<'_, LocalIndex>) -> AgentCommandResult<Vec<AgentThread>> {
-    let stored = on_index(&index, |store| store.list_threads().map_err(persistence)).await?;
+    let stored = read_index(&index, |store| store.list_threads().map_err(persistence)).await?;
 
     Ok(stored.into_iter().map(retitle).collect())
 }
@@ -50,7 +50,7 @@ pub async fn agent_thread_snapshot(
     request: AgentThreadRequest,
 ) -> AgentCommandResult<AgentThreadSnapshot> {
     let thread_id = conversation(&request.thread_id)?;
-    let (thread, usage, frames) = on_index(&index, move |store| {
+    let (thread, usage, frames) = read_index(&index, move |store| {
         let stored = store
             .thread(thread_id)
             .map_err(persistence)?
@@ -85,7 +85,7 @@ pub async fn agent_thread_snapshot(
 /// 不变，上下文因此回到 agent 手里。只有装载不回来（号在 server 侧也没了）
 /// 时才重开一条。
 ///
-/// 经过来自本机日志（run_events），不来自 agent 的装载重放：那批帧里没有
+/// 经过来自本机日志（conversation_events），不来自 agent 的装载重放：那批帧里没有
 /// prompt_admitted，段边界会整段塌掉，而回填只发生一次 —— 塌掉的形状会永久留在
 /// 日志里。agent 装载回来的是模型的上下文，让它自己续得上，不参与投影。
 ///
@@ -110,7 +110,7 @@ pub async fn agent_open_thread(
     let named = match request.target {
         AgentThreadTarget::Create { thread_id } => {
             let id = conversation(&thread_id)?;
-            on_index(&index, move |store| {
+            write_index(&index, move |store| {
                 store
                     .create_thread(id, FALLBACK_THREAD_TITLE, asked.as_deref())
                     .map(|_| ())
@@ -154,7 +154,7 @@ pub async fn agent_open_thread(
     它们共用一次借用：一趟阻塞线程、一次上锁、两条 prepare_cached。拆成两趟就
     是各排一次线程池、各抢一次那把库锁，而打开一条对话正是人点一下就要等的那
     条路径 —— turn.rs 里那批附件写入用的是同一条规矩。 */
-    let thread = on_index(&index, move |store| {
+    let thread = read_index(&index, move |store| {
         store
             .thread(thread_id)
             .map_err(persistence)?
@@ -176,7 +176,7 @@ pub async fn agent_open_thread(
 /// 这条对话更早的一页经过。
 ///
 /// 一次读回完整轮次；位置由上一页交回，连续文本流片在 IPC 前压成 block。
-/// 原始 run_events 不改写，仍是屏幕历史的唯一事实源。
+/// 原始 conversation_events 不改写，仍是屏幕历史的唯一事实源。
 ///
 /// # Errors
 ///
@@ -190,7 +190,7 @@ pub async fn agent_earlier_frames(
     let id = conversation(&request.thread_id)?;
     let before = located(&request.before);
 
-    let frames = on_index(&index, move |store| {
+    let frames = read_index(&index, move |store| {
         store
             .turns_before(id, Some(&before), PROMPT_ADMITTED, TURN_PAGE)
             .map_err(persistence)
@@ -202,16 +202,12 @@ pub async fn agent_earlier_frames(
 
 /// 一页帧与它的读取位置，收进线上那一格的宽度。
 ///
-/// 帧不解析：库里那一段字节原样交给绑定，读不成的一行在读库处就已经说过了。
+/// 类型化事件在这里压缩并映射到 IPC；序列化只发生在 Tauri 边界。
 fn paged(page: FramePage) -> Result<AgentFramePage> {
-    let compacted = compact_history(page.frames).map_err(|error| {
-        Error::Internal(format!("could not compact transcript history: {error}"))
-    })?;
-    let events = compacted
+    let events = compact_history(page.frames)
         .into_iter()
-        .map(|raw| serde_json::from_str::<AgentRunEvent>(raw.get()))
-        .collect::<std::result::Result<Vec<_>, _>>()
-        .map_err(|error| Error::Internal(format!("stored run event is invalid: {error}")))?;
+        .map(AgentRunEvent::from)
+        .collect();
     Ok(AgentFramePage {
         events,
         before: page.before.map(cursored).transpose()?,
@@ -288,7 +284,7 @@ pub async fn agent_rename_thread(
 
     let id = conversation(&request.thread_id)?;
 
-    on_index(&index, move |store| {
+    write_index(&index, move |store| {
         store.name_by_user(id, &title).map_err(persistence)
     })
     .await?;
@@ -306,16 +302,13 @@ pub async fn agent_archive_thread(
     let id = conversation(&request.thread_id)?;
     let archived = request.archived;
 
-    on_index(&index, move |store| {
-        store
-            .thread(id)
-            .map_err(persistence)?
-            .ok_or_else(|| Error::Validation("the conversation does not exist".to_owned()))
-            .map(|_| ())
-    })
-    .await?;
-
-    on_index(&index, move |store| {
+    write_index(&index, move |store| {
+        let exists = store.thread(id).map_err(persistence)?.is_some();
+        if !exists {
+            return Err(Error::Validation(
+                "the conversation does not exist".to_owned(),
+            ));
+        }
         store.set_archived(id, archived).map_err(persistence)
     })
     .await?;
@@ -354,7 +347,7 @@ pub async fn agent_delete_thread(
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
 
-    let stored = on_index(&index, move |store| store.thread(id).map_err(persistence)).await?;
+    let stored = read_index(&index, move |store| store.thread(id).map_err(persistence)).await?;
 
     /* 无项目目录与最后一条指着它的对话同寿（paths.rs 的
     create_projectless_workspace），回收凭的就是库里这一行字。 */
@@ -399,7 +392,7 @@ pub async fn agent_delete_thread(
     删行与扫孤儿共用一次借用。拆成两趟不只是多排一次线程池、多抢一次那把库
     锁：两次上锁之间那道缝里，别人读到的是「对话行没了、附件账还在」——一个
     谁都不该看见的中间态。 */
-    let (orphans, released) = on_index(&index, move |store| {
+    let (orphans, released) = write_index(&index, move |store| {
         /* 欠账与删行同一次借用落库：中间没有一道「行没了、账还没记」的缝。 */
         if let Some((session_id, owner)) = owed {
             store
@@ -490,7 +483,7 @@ pub async fn agent_fork_thread(
 
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
-    let stored = on_index(&index, move |store| {
+    let stored = read_index(&index, move |store| {
         store.thread(source).map_err(persistence)
     })
     .await?
@@ -528,7 +521,7 @@ pub async fn agent_fork_thread(
     let attached = forked.session_id;
     let owner = live.agent_id.clone();
 
-    let thread = on_index(&index, move |store| {
+    let thread = write_index(&index, move |store| {
         let id = store
             .fork_thread(
                 source,
@@ -565,7 +558,7 @@ pub async fn agent_pin_thread(
     let id = conversation(&request.thread_id)?;
     let pinned = request.pinned;
 
-    on_index(&index, move |store| {
+    write_index(&index, move |store| {
         store.set_pinned(id, pinned).map_err(persistence)
     })
     .await?;
@@ -575,7 +568,7 @@ pub async fn agent_pin_thread(
 
 /// 这条对话的整本目录，一轮一行。
 ///
-/// 屏幕上的经过由 run_events 重放，目录因此也只能出自它：以内存窗口为定义域的
+/// 屏幕上的经过由 conversation_events 重放，目录因此也只能出自它：以内存窗口为定义域的
 /// 目录会随载入量伸缩，而人要跳的那一轮往往还没载入。
 ///
 /// # Errors
@@ -589,7 +582,7 @@ pub async fn agent_thread_outline(
 ) -> AgentCommandResult<Vec<crate::ipc::commands::conversation::dto::AgentTurnMark>> {
     let id = conversation(&request.thread_id)?;
 
-    let marks = on_index(&index, move |store| {
+    let marks = read_index(&index, move |store| {
         store
             .turn_marks(
                 id,

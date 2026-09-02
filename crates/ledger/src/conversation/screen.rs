@@ -1,12 +1,12 @@
-//! 屏幕那条经过的读路：按轮分页、目录预览、分叉复制。
+//! 屏幕经过的读路：按轮分页、目录预览、分叉复制。
 //!
-//! kind 是事件表的类型列，协议细节留在 payload JSON；查询不重复解析已有列。
-//! 信封格子（sessionId/seq/at）在列上，读回时并回载荷顶层。
+//! 查询使用独立只读连接；payload 逐行解成领域事件，信封字段来自表列。
 
 use std::collections::HashMap;
 
+use poietica_conversation::event::{ConversationEvent, EventEnvelope};
+use poietica_conversation::identity::{Seq, ThreadId};
 use rusqlite::OptionalExtension;
-use serde_json::value::RawValue;
 use uuid::Uuid;
 
 use crate::error::Result;
@@ -50,8 +50,8 @@ pub struct ReplyRead<'a> {
 /// 一页帧，按追加顺序；`before` 缺席就是前面没有了。
 #[derive(Debug)]
 pub struct FramePage {
-    /// 这一页的帧，各是重建好的线上 JSON。
-    pub frames: Vec<Box<RawValue>>,
+    /// 这一页的类型化事件；只在 IPC 边界序列化一次。
+    pub frames: Vec<EventEnvelope>,
     /// 更早那一页从哪儿接着读。
     pub before: Option<FrameCursor>,
 }
@@ -208,16 +208,24 @@ impl AgentStore {
              WHERE thread_id = ?1 AND seq >= ?2 AND seq < ?3
              ORDER BY seq ASC",
         )?;
-        let read = statement
-            .query_map(rusqlite::params![thread_id, lower, ceiling], |row| {
-                Ok((
-                    row.get::<_, Option<String>>(0)?.unwrap_or_default(),
-                    row.get::<_, i64>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, i64>(3)?,
-                ))
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let (frames, first) = {
+            let mut rows = statement.query(rusqlite::params![thread_id, lower, ceiling])?;
+            let mut frames = Vec::new();
+            let mut first = None;
+
+            while let Some(row) = rows.next()? {
+                let session_id = row.get::<_, Option<String>>(0)?.unwrap_or_default();
+                let seq = row.get::<_, i64>(1)?;
+                let payload = row.get::<_, String>(2)?;
+                let at = row.get::<_, i64>(3)?;
+
+                if first.is_none() {
+                    first = Some((session_id.clone(), seq));
+                }
+                frames.push(screen_frame(thread_id, &session_id, seq, at, &payload)?);
+            }
+            (frames, first)
+        };
 
         let has_more = match floor {
             Some(floor) => self
@@ -235,18 +243,10 @@ impl AgentStore {
             None => false,
         };
         let before = if has_more {
-            read.first().map(|(session_id, seq, _, _)| FrameCursor {
-                session_id: session_id.clone(),
-                seq: *seq,
-            })
+            first.map(|(session_id, seq)| FrameCursor { session_id, seq })
         } else {
             None
         };
-
-        let frames = read
-            .into_iter()
-            .map(|(session_id, seq, payload, at)| screen_frame(&session_id, seq, at, &payload))
-            .collect::<serde_json::Result<Vec<_>>>()?;
 
         Ok(FramePage { frames, before })
     }
@@ -296,32 +296,25 @@ impl AgentStore {
     }
 }
 
-/// 信封的格子并回载荷顶层：{sessionId, seq, at, kind, ...}。
-///
-/// 实时流（journal 的发布）与重放（这里的读）用同一个构造，两边不会各说各话。
-/// `payload` 是事件联合已序列化的那一份 —— 与账本 payload 列同形。
+/// 把账本行还原成领域信封。载荷直接反序列化为封闭事件联合。
 ///
 /// # Errors
 ///
-/// 载荷不是合法 JSON 时失败；落账的那份来自同一联合的序列化，正常不会发生。
+/// 载荷不符合 ConversationEvent 契约时失败。
 pub fn screen_frame(
+    thread_id: &str,
     session_id: &str,
     seq: i64,
     at: i64,
     payload: &str,
-) -> serde_json::Result<Box<RawValue>> {
-    let mut object = match serde_json::from_str::<serde_json::Value>(payload)? {
-        serde_json::Value::Object(fields) => fields,
-        _ => serde_json::Map::new(),
-    };
-    object.insert(
-        String::from("sessionId"),
-        serde_json::Value::String(session_id.to_owned()),
-    );
-    object.insert(String::from("seq"), serde_json::Value::from(seq));
-    object.insert(String::from("at"), serde_json::Value::from(at));
-
-    RawValue::from_string(serde_json::to_string(&object)?)
+) -> serde_json::Result<EventEnvelope> {
+    Ok(EventEnvelope {
+        thread: ThreadId::new(thread_id.to_owned()),
+        seq: Seq::new(u64::try_from(seq).unwrap_or(0)),
+        at,
+        session_id: session_id.to_owned(),
+        event: serde_json::from_str::<ConversationEvent>(payload)?,
+    })
 }
 
 /// 每一轮的答：同一轮的流片按到达顺序接起来，接满预览卡就收手。
@@ -356,7 +349,29 @@ fn replies_of(rows: &[(i64, String)], budget: usize) -> HashMap<i64, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::replies_of;
+    #![allow(
+        clippy::expect_used,
+        reason = "a malformed replay fixture must fail the test"
+    )]
+
+    use poietica_conversation::event::ConversationEvent;
+    use poietica_conversation::identity::Seq;
+    use serde_json::json;
+
+    use super::{replies_of, screen_frame};
+
+    #[test]
+    fn replay_decodes_the_event_union_and_rejects_unknown_shapes() {
+        let payload = serde_json::to_string(&ConversationEvent::KapEvent {
+            payload: json!({ "type": "assistant.delta", "delta": "hello" }),
+        })
+        .expect("payload");
+        let frame = screen_frame("thread", "session", 7, 9, &payload).expect("frame");
+
+        assert_eq!(frame.seq, Seq::new(7));
+        assert!(matches!(frame.event, ConversationEvent::KapEvent { .. }));
+        assert!(screen_frame("thread", "session", 8, 10, "{}").is_err());
+    }
 
     #[test]
     fn a_turn_reply_is_every_flake_it_said_in_order() {

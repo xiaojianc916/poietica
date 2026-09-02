@@ -6,7 +6,9 @@
 
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
-use crate::ipc::commands::ledger::local_index::{LocalIndex, conversation, on_index, persistence};
+use crate::ipc::commands::ledger::local_index::{
+    LocalIndex, conversation, persistence, read_index, write_index,
+};
 use poietica_conversation::command::Conversation;
 use poietica_conversation::identity::{ThreadId, TurnId};
 use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
@@ -126,7 +128,7 @@ pub async fn agent_prompt(
     //
     // 库操作只有一条路。它在阻塞线程池上，所以这一次写不会停住这个运行时上
     // 别的东西 —— 包括 agent driver 的 future，它就在这里 spawn 的。
-    on_index(&index, move |store| {
+    write_index(&index, move |store| {
         store.record_prompt(thread_id, &opener).map_err(persistence)
     })
     .await?;
@@ -143,7 +145,7 @@ pub async fn agent_prompt(
 
     /* 一句话里的图写的是同一张表、属于同一句话：一次借用，一趟阻塞线程。逐张
     各走一次 `on_index`，就是各排一次线程池、各抢一次那把库锁。 */
-    on_index(&index, {
+    write_index(&index, {
         let attachments = attachments.clone();
         move |store| {
             for attachment in &attachments {
@@ -186,7 +188,7 @@ pub async fn agent_prompt(
         attachments_root: state.attachments.clone(),
     };
 
-    let submit = on_index(&index, move |store| {
+    let submit = write_index(&index, move |store| {
         let conversation = Conversation::new(store, &gateway);
 
         conversation
@@ -211,7 +213,7 @@ pub async fn agent_prompt(
 
             if let Ok(Some(outcome)) = settled {
                 let index = closing.state::<LocalIndex>();
-                let recorded = on_index(&index, move |store| {
+                let recorded = write_index(&index, move |store| {
                     store
                         .record_delivery(&turn_for_settlement, outcome)
                         .map_err(|failure| Error::Internal(failure.to_string()))
@@ -324,9 +326,7 @@ pub fn agent_dismiss_questions(
 /// 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `session_for` 会为一条
 /// 还没开过口的对话新开一个会话，那是纯副作用。
 ///
-/// 它是 async 的，因为它要读一次库。同步命令跑在主线程上，而一次库读可能要等
-/// 写锁，最长等满 `DEFAULT_BUSY_TIMEOUT`，窗口会在那段时间里停止应答
-/// （见 `on_index`）。
+/// 它是 async 的，因为寻址经独立 reader actor；等待不占用主线程。
 ///
 /// Cancellation is cooperative: the agent may still finish normally, and the
 /// recorded stop reason reports which of the two happened.
@@ -363,7 +363,7 @@ async fn held_session(
     missing: &str,
 ) -> AgentCommandResult<String> {
     let id = conversation(thread_id)?;
-    let stored = on_index(index, move |store| store.thread(id).map_err(persistence)).await?;
+    let stored = read_index(index, move |store| store.thread(id).map_err(persistence)).await?;
 
     stored
         .and_then(|thread| {

@@ -1,148 +1,116 @@
-//! 历史页的无损流压缩。事件账（conversation_events）是唯一事实源。
+//! 历史页的类型化流压缩。事件账是唯一事实源。
 
-use serde_json::{Value, value::RawValue, value::to_raw_value};
+use poietica_conversation::event::{ConversationEvent, EventEnvelope};
+use serde_json::Value;
 
-/// 回复正文那一格：kap 事件载荷的 type。目录的答与这里的合并读同一个判别式。
 pub const ASSISTANT_DELTA: &str = "assistant.delta";
-
-/// 载荷里那三格的名字。账本按它们拼 JSON 路径，自己不认识方言。
 pub const TYPE_FIELD: &str = "type";
 pub const DELTA_FIELD: &str = "delta";
 pub const AGENT_FIELD: &str = "agentId";
-
-/// 主代理的路由章。缺席、空串与它同义 —— 三种都表示这不是子代理的字。
 pub const MAIN_AGENT: &str = "main";
 
 #[derive(PartialEq, Eq)]
-struct DeltaKey {
-    session_id: String,
-    event_type: String,
-    agent_id: Option<String>,
+struct DeltaKey<'a> {
+    session_id: &'a str,
+    event_type: &'a str,
+    agent_id: Option<&'a str>,
 }
 
-pub fn compact_history(frames: Vec<Box<RawValue>>) -> serde_json::Result<Vec<Box<RawValue>>> {
-    let mut compacted = Vec::<Value>::with_capacity(frames.len());
-
-    for frame in frames {
-        let current = serde_json::from_str::<Value>(frame.get())?;
-        if compacted
-            .last_mut()
-            .is_some_and(|previous| merge_delta(previous, &current))
-        {
-            continue;
-        }
-        compacted.push(current);
-    }
-
-    compacted
-        .into_iter()
-        .map(|value| to_raw_value(&value))
-        .collect()
-}
-
-fn delta(value: &Value) -> Option<(DeltaKey, String)> {
-    if value.get("kind")?.as_str()? != crate::frame::KAP_EVENT {
+fn delta(frame: &EventEnvelope) -> Option<(DeltaKey<'_>, &str)> {
+    let ConversationEvent::KapEvent { payload } = &frame.event else {
         return None;
-    }
-    let payload = value.get("payload")?.as_object()?;
-    let event_type = payload.get("type")?.as_str()?;
+    };
+    let event_type = payload.get(TYPE_FIELD)?.as_str()?;
     if event_type != ASSISTANT_DELTA && event_type != "thinking.delta" {
         return None;
     }
-
     Some((
         DeltaKey {
-            session_id: value.get("sessionId")?.as_str()?.to_owned(),
-            event_type: event_type.to_owned(),
+            session_id: &frame.session_id,
+            event_type,
             agent_id: payload
-                .get("agentId")
+                .get(AGENT_FIELD)
                 .and_then(Value::as_str)
-                .filter(|agent| !agent.is_empty())
-                .map(str::to_owned),
+                .filter(|agent| !agent.is_empty()),
         },
-        payload.get("delta")?.as_str()?.to_owned(),
+        payload.get(DELTA_FIELD)?.as_str()?,
     ))
 }
 
-fn merge_delta(previous: &mut Value, current: &Value) -> bool {
-    let Some((previous_key, previous_text)) = delta(previous) else {
-        return false;
-    };
-    let Some((current_key, current_text)) = delta(current) else {
-        return false;
-    };
-    if previous_key != current_key {
-        return false;
-    }
-
-    let Some(previous_object) = previous.as_object_mut() else {
-        return false;
-    };
-    let Some(payload) = previous_object
-        .get_mut("payload")
-        .and_then(Value::as_object_mut)
-    else {
-        return false;
-    };
-    payload.insert(
-        "delta".to_owned(),
-        Value::String(format!("{previous_text}{current_text}")),
-    );
-
-    for field in ["seq", "at"] {
-        if let Some(value) = current.get(field) {
-            previous_object.insert(field.to_owned(), value.clone());
+pub fn compact_history(frames: Vec<EventEnvelope>) -> Vec<EventEnvelope> {
+    let mut compacted = Vec::new();
+    for frame in frames {
+        if compacted
+            .last_mut()
+            .is_some_and(|previous| merge_delta(previous, &frame))
+        {
+            continue;
         }
+        compacted.push(frame);
     }
+    compacted
+}
+
+fn merge_delta(previous: &mut EventEnvelope, current: &EventEnvelope) -> bool {
+    let compatible = match (delta(previous), delta(current)) {
+        (Some((previous, _)), Some((current, _))) => previous == current,
+        _ => false,
+    };
+    if !compatible {
+        return false;
+    }
+    let Some((_, current_text)) = delta(current) else {
+        return false;
+    };
+    let ConversationEvent::KapEvent { payload } = &mut previous.event else {
+        return false;
+    };
+    let Some(Value::String(previous_text)) = payload.get_mut(DELTA_FIELD) else {
+        return false;
+    };
+
+    previous_text.push_str(current_text);
+    previous.seq = current.seq;
+    previous.at = current.at;
     true
 }
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::expect_used, reason = "a failed fixture must fail the test")]
-    #![allow(
-        clippy::indexing_slicing,
-        reason = "fixtures index JSON whose shape this file wrote itself"
-    )]
-
-    use serde_json::{Value, json, value::to_raw_value};
+    use poietica_conversation::event::{ConversationEvent, EventEnvelope};
+    use poietica_conversation::identity::{Seq, ThreadId};
+    use serde_json::{Value, json};
 
     use super::compact_history;
 
-    fn event(
-        seq: i64,
-        event_type: &str,
-        text: &str,
-        agent: Option<&str>,
-    ) -> Box<serde_json::value::RawValue> {
-        let mut payload = json!({ "type": event_type, "delta": text });
-        if let Some(agent) = agent {
-            payload["agentId"] = Value::String(agent.to_owned());
+    fn event(seq: u64, event_type: &str, text: &str, agent: Option<&str>) -> EventEnvelope {
+        let payload = match agent {
+            Some(agent) => json!({ "type": event_type, "delta": text, "agentId": agent }),
+            None => json!({ "type": event_type, "delta": text }),
+        };
+        EventEnvelope {
+            thread: ThreadId::new("thread-a".to_owned()),
+            seq: Seq::new(seq),
+            at: i64::try_from(seq).unwrap_or(i64::MAX),
+            session_id: "session-a".to_owned(),
+            event: ConversationEvent::KapEvent { payload },
         }
-        to_raw_value(&json!({
-            "sessionId": "session-a",
-            "seq": seq,
-            "at": seq,
-            "kind": "kap_event",
-            "payload": payload,
-        }))
-        .expect("event")
     }
 
     #[test]
-    fn adjacent_text_deltas_become_one_history_block() {
+    fn adjacent_text_deltas_append_in_place() {
         let compacted = compact_history(vec![
             event(1, "assistant.delta", "a", None),
             event(2, "assistant.delta", "b", None),
             event(3, "assistant.delta", "c", None),
-        ])
-        .expect("compact");
-
+        ]);
         assert_eq!(compacted.len(), 1);
-        let value: Value = serde_json::from_str(compacted[0].get()).expect("value");
-        assert_eq!(value["payload"]["delta"], "abc");
-        assert_eq!(value["seq"], 3);
-        assert_eq!(value["at"], 3);
+        let text = compacted.first().and_then(|frame| match &frame.event {
+            ConversationEvent::KapEvent { payload } => payload.get("delta").and_then(Value::as_str),
+            _ => None,
+        });
+        assert_eq!(text, Some("abc"));
+        assert_eq!(compacted.first().map(|frame| frame.seq), Some(Seq::new(3)));
     }
 
     #[test]
@@ -152,9 +120,7 @@ mod tests {
             event(2, "thinking.delta", "b", None),
             event(3, "assistant.delta", "c", Some("sub-1")),
             event(4, "assistant.delta", "d", None),
-        ])
-        .expect("compact");
-
+        ]);
         assert_eq!(compacted.len(), 4);
     }
 }

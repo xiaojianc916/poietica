@@ -133,7 +133,7 @@ pub fn build() -> tauri::Builder<Wry> {
             async_runtime::spawn(async move {
                 let snapshotted = sweeper.clone();
 
-                let outcome = async {
+                let outcome: crate::error::Result<(usize, usize)> = async {
                     let snapshot = async_runtime::spawn_blocking(move || {
                         paths::reset_temp_directory(&snapshotted)?;
                         paths::cache_directory(&snapshotted)?;
@@ -150,25 +150,28 @@ pub fn build() -> tauri::Builder<Wry> {
 
                     let index = sweeper.state::<commands::ledger::local_index::LocalIndex>();
 
-                    commands::ledger::local_index::on_index(&index, move |store| {
-                        let harvested = store
-                            .harvest_ghost_threads(boundary)
-                            .map_err(commands::ledger::local_index::persistence)?;
-
-                        if snapshot.is_empty() {
-                            return Ok((harvested, 0));
-                        }
-
-                        let referenced = store
-                            .workspace_roots()
-                            .map_err(commands::ledger::local_index::persistence)?;
-
-                        Ok((
-                            harvested,
-                            paths::sweep_projectless_workspaces(snapshot, &referenced),
-                        ))
-                    })
-                    .await
+                    let needs_sweep = !snapshot.is_empty();
+                    let (harvested, referenced) =
+                        commands::ledger::local_index::write_index(&index, move |store| {
+                            let harvested = store
+                                .harvest_ghost_threads(boundary)
+                                .map_err(commands::ledger::local_index::persistence)?;
+                            let referenced = if needs_sweep {
+                                store
+                                    .workspace_roots()
+                                    .map_err(commands::ledger::local_index::persistence)?
+                            } else {
+                                Vec::new()
+                            };
+                            Ok((harvested, referenced))
+                        })
+                        .await?;
+                    let swept = if needs_sweep {
+                        paths::sweep_projectless_workspaces(snapshot, &referenced)
+                    } else {
+                        0
+                    };
+                    Ok((harvested, swept))
                 }
                 .await;
 

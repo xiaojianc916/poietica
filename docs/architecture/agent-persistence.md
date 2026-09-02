@@ -1,60 +1,45 @@
 # Agent persistence
 
-The crate `poietica-agent-persistence-native` at `crates/persistence` owns the
-local index: what this machine has seen. Schema is in `src/schema/`, and the
-migration list in `src/migrations.rs` is the only order that matters.
+## Ownership
 
-## What is stored here, and what is not
+The local SQLite file belongs to the application composition root. The append-only
+conversation_events table is the only source used to replay the visible transcript.
+The agent-side transcript remains model context and never feeds the screen projection.
 
-The transcript on screen is replayed from `run_events`. The agent keeps its own
-copy, but that one is the model's context: it is restored by `session/load` so
-the agent can carry on, and it never reaches a projection. The replay frames
-carry no `prompt_admitted`, so segment boundaries would collapse if they did.
+threads owns titles, pinning, workspace roots, archival state, and the agent/session
+address. Attachment bytes are content-addressed files; attachments and
+thread_attachments own their references.
 
-`threads` is authoritative rather than derived. Titles, pinning, workspace root
-and ownership are decisions a person or this machine made, and no log can
-rebuild them.
+## Write and read execution
 
-Attachment bytes live on the filesystem. `attachments` and `thread_attachments`
-are the ledger for them, keyed by content digest.
+LocalIndex opens the database and finishes migrations before the webview starts. It
+then gives the only writable AgentStore to poietica-ledger-writer and a query-only
+connection to poietica-ledger-reader. Every mutation, including frame append,
+admission, outbox, usage, cursor, disposal, workbench state, and reconciliation, is a
+writer job. Read commands use only the read actor.
 
-## The frame log
+The writer actor provides one total write order. The independent reader preserves
+SQLite WAL snapshot semantics, so a directory or transcript read cannot hold a
+process mutex needed by frame persistence. Both connections use SQLite NO_MUTEX;
+Rust ownership keeps each connection on one actor thread.
 
-`run_events` is append only. It is written in one place, the batching task in
-the desktop seam (`ipc/commands/conversation/turn.rs`), which records a batch before it
-emits it, and read in one place (`agent_open_thread`).
+## Frame pipeline
 
-`UNIQUE (thread_id, session_id, seq)` is the deduplication guarantee, and
-`record_frame` resolves it with `ON CONFLICT DO NOTHING`: a redelivered frame is
-refused by the database rather than by whichever caller happened to notice.
+A frame enters the bounded journal, is translated to ConversationEvent, and joins one
+transactional AppendBatch. The batch implementation queries the starting sequence
+once per thread, reuses one prepared INSERT, commits, and only then moves events into
+EventEnvelope values for IPC emission. A failed transaction leaves the owned events
+available for the journal retry loop.
 
-The key is per conversation, not per session. It was `(session_id, seq)` until
-migration 3, which meant a forked conversation could not copy the log it was
-forked from.
+Replay reads rows in order, deserializes each payload directly to ConversationEvent,
+compacts adjacent text deltas in place, converts to the generated IPC DTO, and lets
+Serde serialize once at the boundary. No generic JSON object is assembled and no raw
+JSON page is retained beside its decoded form.
 
-Because the key includes `seq`, the in-memory sequence line has to survive a
-restart. It does not on its own: a reloaded session keeps its identifier while
-its `RunSlot` is new and starts at one. `AgentStore::last_seq` reports the last
-recorded position and `SeqLine::resume` picks up after it, in `addressing.rs`,
-at the one place a stored session becomes a live address.
+## Invariants
 
-## Concurrency
-
-Write ahead logging lets the interface read a conversation while a run is being
-recorded. `connection.rs` reads back the mode the pragma actually settled on,
-because a read-only directory or a network share silently answers `delete`.
-
-Writes go through one connection (`AgentStore`, held by `LocalIndex`), because
-the log's ordering is what the rest of the system depends on. Readers wait up to
-`DEFAULT_BUSY_TIMEOUT`, five seconds, for the lock. Every call runs on a
-blocking thread: a command that waited for the lock on the main thread would
-stop the window from answering.
-
-## Encryption
-
-There is none. The database is opened with `rusqlite::Connection::open` and no
-key pragma, and the crate depends on neither SQLCipher nor a credential store.
-The reason is in `lib.rs`: what is kept here is an index, and seven columns of
-metadata protect nothing from anyone who can already read the agent's own
-plaintext transcript. Secrets never reach this file; they are written by the
-agent's own CLI into its managed home.
+- Commit succeeds before any frame is emitted.
+- One writer owns all mutations; there is no second write route.
+- Read connections are query-only.
+- Sequence numbers are allocated by the ledger transaction.
+- Actor channels close with LocalIndex; the final owner joins both threads.

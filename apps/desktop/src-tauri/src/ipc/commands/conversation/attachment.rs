@@ -9,7 +9,7 @@
 use crate::asset_protocol::{AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry};
 use crate::error::{Error, Result};
 use crate::ipc::commands::asset::attachments::{blob_path, store_bytes};
-use crate::ipc::commands::ledger::local_index::{LocalIndex, on_index, persistence};
+use crate::ipc::commands::ledger::local_index::{LocalIndex, persistence, read_index};
 use poietica_ledger::index::ThreadAttachment;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -100,7 +100,7 @@ pub(super) async fn deliver_attachments(
     assets: &State<'_, AssetProtocolRegistry>,
     thread_id: Uuid,
 ) -> Result<()> {
-    let ledger = on_index(index, move |store| {
+    let ledger = read_index(index, move |store| {
         store.attachments_of(thread_id).map_err(persistence)
     })
     .await?;

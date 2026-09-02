@@ -18,10 +18,36 @@ use crate::error::LedgerError;
 use crate::index::AgentStore;
 
 /// 同一次 journal flush 中一个会话的连续事件。
-pub struct AppendBatch<'a> {
-    pub thread: &'a ThreadId,
-    pub session: &'a str,
-    pub events: &'a [ConversationEvent],
+#[derive(Debug)]
+pub struct AppendBatch {
+    pub thread: ThreadId,
+    pub session: String,
+    pub events: Vec<ConversationEvent>,
+}
+
+fn finish_batches(
+    batches: &mut [AppendBatch],
+    stamps: Vec<Vec<events::Stamp>>,
+) -> Vec<Vec<EventEnvelope>> {
+    batches
+        .iter_mut()
+        .zip(stamps)
+        .map(|(batch, stamps)| {
+            let thread = batch.thread.clone();
+            let session_id = batch.session.clone();
+            std::mem::take(&mut batch.events)
+                .into_iter()
+                .zip(stamps)
+                .map(|(event, (seq, at))| EventEnvelope {
+                    thread: thread.clone(),
+                    seq,
+                    at,
+                    session_id: session_id.clone(),
+                    event,
+                })
+                .collect()
+        })
+        .collect()
 }
 
 /// 时钟显式注入；连接由账本自己拥有，所以它也负责串行化。
@@ -87,12 +113,19 @@ impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
         let transaction = guard
             .transaction()
             .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        let envelopes = events::append(&transaction, self.clock(), thread, session, events)
+        let mut batches = [AppendBatch {
+            thread: thread.clone(),
+            session: session.to_owned(),
+            events: events.to_vec(),
+        }];
+        let stamps = events::append(&transaction, self.clock(), &batches)
             .map_err(|error| unavailable(&error))?;
         transaction
             .commit()
             .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        Ok(envelopes)
+        Ok(finish_batches(&mut batches, stamps)
+            .pop()
+            .unwrap_or_default())
     }
 
     fn events_after(
@@ -136,37 +169,22 @@ impl AgentStore {
     /// 同一拍接受的所有会话批次共用一次提交；结果与输入批次一一对应。
     pub fn append_batches(
         &self,
-        batches: &[AppendBatch<'_>],
+        batches: &mut [AppendBatch],
     ) -> Result<Vec<Vec<EventEnvelope>>, LedgerUnavailable> {
         let transaction = self
             .unchecked_transaction()
             .map_err(|error| unavailable(&error))?;
-        let mut appended = Vec::with_capacity(batches.len());
-
-        for batch in batches {
-            appended.push(
-                events::append(
-                    &transaction,
-                    self.clock(),
-                    batch.thread,
-                    batch.session,
-                    batch.events,
-                )
-                .map_err(|error| unavailable(&error))?,
-            );
-        }
-
+        let stamps = events::append(&transaction, self.clock(), batches)
+            .map_err(|error| unavailable(&error))?;
         transaction
             .commit()
             .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        Ok(appended)
+        Ok(finish_batches(batches, stamps))
     }
 }
 
-/// 同一条库上的另一份端口实现。
-///
-/// 进程里只有一条连接（local_index 的约定），所以组合根里的账本端口就是它：
-/// 领域的准入/发件箱与索引的读写共用一个写者，谁也不会绕过谁的锁。
+/// 应用 writer actor 使用的领域端口实现。准入、发件箱、索引与帧追加
+/// 都在同一条写队列上取得总序。
 impl ConversationLedger for AgentStore {
     fn admit(&self, admission: &Admission) -> Result<AdmissionDecision, LedgerUnavailable> {
         let transaction = self
@@ -186,15 +204,13 @@ impl ConversationLedger for AgentStore {
         session: &str,
         events: &[ConversationEvent],
     ) -> Result<Vec<EventEnvelope>, LedgerUnavailable> {
-        let transaction = self
-            .unchecked_transaction()
-            .map_err(|error| unavailable(&error))?;
-        let envelopes = events::append(&transaction, self.clock(), thread, session, events)
-            .map_err(|error| unavailable(&error))?;
-        transaction
-            .commit()
-            .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        Ok(envelopes)
+        let mut batches = [AppendBatch {
+            thread: thread.clone(),
+            session: session.to_owned(),
+            events: events.to_vec(),
+        }];
+        let mut appended = self.append_batches(&mut batches)?;
+        Ok(appended.pop().unwrap_or_default())
     }
 
     fn events_after(

@@ -1,117 +1,214 @@
-//! 这台机器上那一个账本库，以及它唯一的写者。
-//!
-//! 库归应用，不归任何一个子系统：进程内只有这一条连接，写因此天然串行。
-//! 迁移在窗口出现之前跑完（bootstrap/app.rs 的 setup），命令拿到的总是就绪的库。
+//! 应用账本的执行边界：一个 writer actor，一个独立只读 actor。
 
+use std::fmt;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::mpsc::{Sender, channel, sync_channel};
+use std::thread::{self, JoinHandle};
 
 use poietica_ledger::LedgerError;
 use poietica_ledger::index::AgentStore;
 use poietica_time::WallClock;
-use tauri::{State, async_runtime};
 use uuid::Uuid;
 
 use crate::error::{Error, Result};
 
-const POISONED: &str = "the index lock was left locked by a panicking task";
-const NO_READ: &str = "the database read did not finish";
-
-/// 库里的一个计数，大到线上那一格装不下。
-///
-/// 到不了：四十亿条用户消息，或者一句话里四十亿张图。但静默截断不能接受，
-/// 所以它有一个说法。
+const ACTOR_STOPPED: &str = "the local index actor stopped";
+const RESPONSE_DROPPED: &str = "the local index actor dropped a response";
 const COUNT_TOO_LARGE: &str = "a stored count does not fit the wire";
 
-/// 这台机器上那一个索引库，以及它唯一的写者。
+type IndexJob = Box<dyn FnOnce(&mut AgentStore) + Send + 'static>;
+
+struct IndexActor {
+    label: &'static str,
+    sender: Option<Sender<IndexJob>>,
+    worker: Option<JoinHandle<()>>,
+}
+
+impl fmt::Debug for IndexActor {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("IndexActor")
+            .field("label", &self.label)
+            .finish_non_exhaustive()
+    }
+}
+
+impl IndexActor {
+    fn start(label: &'static str, mut store: AgentStore) -> Result<Self> {
+        let (sender, receiver) = channel::<IndexJob>();
+        let worker = thread::Builder::new()
+            .name(label.to_owned())
+            .spawn(move || {
+                while let Ok(job) = receiver.recv() {
+                    job(&mut store);
+                }
+            })
+            .map_err(|error| Error::Internal(format!("could not start {label}: {error}")))?;
+
+        Ok(Self {
+            label,
+            sender: Some(sender),
+            worker: Some(worker),
+        })
+    }
+
+    fn send(&self, job: IndexJob) -> Result<()> {
+        self.sender
+            .as_ref()
+            .ok_or_else(|| Error::Internal(ACTOR_STOPPED.to_owned()))?
+            .send(job)
+            .map_err(|_closed| Error::Internal(ACTOR_STOPPED.to_owned()))
+    }
+
+    fn call<T, F>(&self, work: F) -> Result<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&mut AgentStore) -> Result<T> + Send + 'static,
+    {
+        let (reply, answer) = sync_channel(1);
+        self.send(Box::new(move |store| {
+            let _sent = reply.send(work(store));
+        }))?;
+        answer
+            .recv()
+            .map_err(|_closed| Error::Internal(RESPONSE_DROPPED.to_owned()))?
+    }
+}
+
+impl Drop for IndexActor {
+    fn drop(&mut self) {
+        self.sender.take();
+        let Some(worker) = self.worker.take() else {
+            return;
+        };
+        if worker.thread().id() == thread::current().id() {
+            return;
+        }
+        if worker.join().is_err() {
+            log::error!("{} panicked while stopping", self.label);
+        }
+    }
+}
+
 #[derive(Debug)]
+struct IndexActors {
+    reader: IndexActor,
+    writer: IndexActor,
+}
+
+#[derive(Clone)]
 pub struct LocalIndex {
-    store: Arc<Mutex<AgentStore>>,
+    actors: Arc<IndexActors>,
+}
+
+impl fmt::Debug for LocalIndex {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_struct("LocalIndex").finish_non_exhaustive()
+    }
 }
 
 impl LocalIndex {
-    /// 打开库并把迁移跑完。
-    ///
-    /// 在 setup 里调用，不是第一次用到时才调用：工作台在第一帧之前就要读它，
-    /// 库无论如何都会在启动时被打开。放在这里，前端那一次等待只是一条 SELECT，
-    /// 而不是一次时长不可预测的迁移。
-    ///
-    /// # Errors
-    ///
-    /// 文件打不开、或某一条迁移被拒时返回错误。
-    pub fn open(path: &Path, clock: impl WallClock + 'static) -> Result<Self> {
+    pub fn open(path: &Path, clock: impl WallClock + Clone + 'static) -> Result<Self> {
+        let writer = AgentStore::open(path, clock.clone()).map_err(persistence)?;
+        let reader = AgentStore::open_read_only(path, clock).map_err(persistence)?;
+
         Ok(Self {
-            store: Arc::new(Mutex::new(
-                AgentStore::open(path, clock).map_err(persistence)?,
-            )),
+            actors: Arc::new(IndexActors {
+                reader: IndexActor::start("poietica-ledger-reader", reader)?,
+                writer: IndexActor::start("poietica-ledger-writer", writer)?,
+            }),
         })
     }
 }
 
-fn with_index<T, F>(shared: &Arc<Mutex<AgentStore>>, work: F) -> Result<T>
-where
-    F: FnOnce(&mut AgentStore) -> Result<T>,
-{
-    let mut store = shared
-        .lock()
-        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?;
-
-    work(&mut store)
-}
-
-/// 已经拥有专用阻塞线程的调用方直接执行，避免再次往阻塞线程池调度。
-pub(crate) fn on_index_worker<T, F>(index: &State<'_, LocalIndex>, work: F) -> Result<T>
-where
-    F: FnOnce(&mut AgentStore) -> Result<T>,
-{
-    with_index(&index.store, work)
-}
-
-/// 读或写这个库，不站在主线程上。
-///
-/// 不是 async 的命令跑在主线程上，而一次读可能要等写锁，最长等满
-/// DEFAULT_BUSY_TIMEOUT 才回来一行。放在主线程上，窗口在那段时间里停止应答：
-/// 侧栏不高亮、点击不落地，看起来是坏了而不是慢。
-///
-/// 两半是分开的：拿句柄要借管理态，干活要 'static。
-///
-/// # Errors
-///
-/// 锁被毒化、线程池把这段活丢了、或者这段活自己失败时返回错误。
-pub async fn on_index<T, F>(index: &State<'_, LocalIndex>, work: F) -> Result<T>
+async fn dispatch<T, F>(actor: &IndexActor, work: F) -> Result<T>
 where
     T: Send + 'static,
     F: FnOnce(&mut AgentStore) -> Result<T> + Send + 'static,
 {
-    let shared = Arc::clone(&index.store);
-
-    async_runtime::spawn_blocking(move || with_index(&shared, work))
+    let (reply, answer) = tokio::sync::oneshot::channel();
+    actor.send(Box::new(move |store| {
+        let _sent = reply.send(work(store));
+    }))?;
+    answer
         .await
-        .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?
+        .map_err(|_closed| Error::Internal(RESPONSE_DROPPED.to_owned()))?
 }
 
-/// 库说不行，说给上一层听的那一句。
-///
-/// 理由随 Problem 的 reason 细节外传（ipc/problem.rs），这里同时落一条日志：库自己报的原因
-/// 只能落在日志里 —— 不写，这一层就是整条链路上唯一知道原因却什么都没说的地方。
-/// 折叠即记录，与 commands/agent/failure.rs 的 translate 同一条纪律。
+pub async fn read_index<T, F>(index: &LocalIndex, work: F) -> Result<T>
+where
+    T: Send + 'static,
+    F: FnOnce(&mut AgentStore) -> Result<T> + Send + 'static,
+{
+    dispatch(&index.actors.reader, work).await
+}
+
+pub async fn write_index<T, F>(index: &LocalIndex, work: F) -> Result<T>
+where
+    T: Send + 'static,
+    F: FnOnce(&mut AgentStore) -> Result<T> + Send + 'static,
+{
+    dispatch(&index.actors.writer, work).await
+}
+
+pub(crate) fn write_index_worker<T, F>(index: &LocalIndex, work: F) -> Result<T>
+where
+    T: Send + 'static,
+    F: FnOnce(&mut AgentStore) -> Result<T> + Send + 'static,
+{
+    index.actors.writer.call(work)
+}
+
 pub fn persistence(error: LedgerError) -> Error {
     log::error!("the local index rejected a statement: {error}");
-
     Error::Persistence(error.to_string())
 }
 
-/// 库里的一个计数，缩成线上那一格。
-///
-/// 只有这一处做这件事。SQLite 交回来的一律是 i64，而这份 IPC 面上没有任何
-/// 一个 64 位整数 —— 边界在这里，不在别处。
 pub fn counted(value: i64) -> Result<u32> {
     u32::try_from(value).map_err(|_overflow| Error::Internal(COUNT_TOO_LARGE.to_owned()))
 }
 
-/// 读一个渲染层给过来的对话号。
 pub fn conversation(named: &str) -> Result<Uuid> {
     Uuid::parse_str(named).map_err(|_invalid| {
         Error::Validation("the conversation identifier is not a UUID".to_owned())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::expect_used,
+        reason = "a failed actor fixture must fail the test"
+    )]
+
+    use std::fs::remove_file;
+    use std::thread;
+
+    use poietica_time::wall_clock::SystemWallClock;
+    use uuid::Uuid;
+
+    use super::LocalIndex;
+
+    #[test]
+    fn reads_and_writes_have_distinct_owners() {
+        let path = std::env::temp_dir().join(format!("poietica-{}.sqlite3", Uuid::now_v7()));
+        let index = LocalIndex::open(&path, SystemWallClock).expect("index");
+        let reader = index
+            .actors
+            .reader
+            .call(|_store| Ok(thread::current().id()))
+            .expect("reader");
+        let writer = index
+            .actors
+            .writer
+            .call(|_store| Ok(thread::current().id()))
+            .expect("writer");
+
+        assert_ne!(reader, writer);
+        drop(index);
+        for suffix in ["", "-wal", "-shm"] {
+            let _removed = remove_file(format!("{}{suffix}", path.display()));
+        }
+    }
 }
