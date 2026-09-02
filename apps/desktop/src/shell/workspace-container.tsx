@@ -35,7 +35,10 @@ import {
 import { AssistantSidebarPanel } from '../assistant/assistant-sidebar-panel'
 import { createAssistantWiring } from '../assistant/assistant-wiring'
 import { ConversationControls, ConversationHeader } from '../assistant/conversation-header'
-import { ConversationTodoPopover } from '../assistant/conversation-todo-popover'
+import {
+  CONVERSATION_TODO_LAYOUT_STYLE,
+  ConversationTodoPopover,
+} from '../assistant/conversation-todo-popover'
 import { useThreadsActions } from '../assistant/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../window/desktop-title-bar'
 import { AuxiliaryDock } from './auxiliary/auxiliary-dock'
@@ -352,16 +355,16 @@ export function WorkspaceContainer({
         /* 任务面板按会话容器宽度在停靠与覆盖之间切换。 */
         <div className="flex h-full min-h-0 min-w-0 flex-col">
           {showAssistantChrome ? <ConversationHeader /> : null}
-          <div className="conversation-body">
+          <div className="conversation-body" style={CONVERSATION_TODO_LAYOUT_STYLE}>
             <div className="conversation-canvas">
               {showAssistantChrome ? (
                 <div className="conversation-veil" data-assistant-skin />
               ) : null}
               {surface}
+              {workbench.activeSurface.kind === 'conversation' ? (
+                <ConversationTodoPopover threadId={workbench.activeSurface.threadId} />
+              ) : null}
             </div>
-            {workbench.activeSurface.kind === 'conversation' ? (
-              <ConversationTodoPopover threadId={workbench.activeSurface.threadId} />
-            ) : null}
           </div>
         </div>
       ),

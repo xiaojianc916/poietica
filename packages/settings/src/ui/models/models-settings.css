@@ -65,6 +65,13 @@
   font-size: 12px;
   line-height: 1.45;
 }
+.models-row__meta {
+  flex: none;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+}
 .models-toolbar {
   position: relative;
   display: flex;
@@ -170,9 +177,13 @@
   gap: 12px;
 }
 .models-provider-workspace {
+  --models-provider-workspace-height: 560px;
+
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
-  min-block-size: 430px;
+  block-size: var(--models-provider-workspace-height);
+  min-block-size: 0;
+  overflow: hidden;
   border-radius: 12px;
   background: var(--models-surface);
 }
@@ -204,6 +215,7 @@
   color: var(--ui-muted-foreground);
   font-size: 12px;
 }
+.models-provider-panel::-webkit-scrollbar,
 .models-provider-rail__list::-webkit-scrollbar,
 .models-provider-models::-webkit-scrollbar,
 .models-editor::-webkit-scrollbar {
@@ -272,13 +284,17 @@
   font-size: 12px;
 }
 .models-provider-editor {
+  min-block-size: 0;
   min-inline-size: 0;
 }
 .models-provider-panel {
   display: flex;
-  min-block-size: 430px;
+  block-size: 100%;
+  min-block-size: 0;
   flex-direction: column;
+  overflow-y: auto;
   padding: 18px;
+  scrollbar-width: none;
 }
 .models-provider-header {
   display: flex;
@@ -326,6 +342,7 @@
 .models-provider-form {
   display: flex;
   min-block-size: 0;
+  flex: 1 1 auto;
   flex-direction: column;
 }
 .models-field {
@@ -379,7 +396,6 @@
 .models-provider-models,
 .models-editor {
   display: flex;
-  max-block-size: 260px;
   min-block-size: 88px;
   flex-direction: column;
   margin-block-start: 10px;
@@ -388,6 +404,12 @@
   border-radius: 10px;
   background: var(--models-field);
   scrollbar-width: none;
+}
+.models-provider-models {
+  max-block-size: 260px;
+}
+.models-editor {
+  flex: 1 1 auto;
 }
 .models-editor__header {
   position: sticky;
@@ -404,14 +426,24 @@
   color: var(--ui-foreground);
   font-size: 12px;
 }
-.models-editor__header span {
-  color: var(--ui-muted-foreground);
-  font-size: 10px;
-}
-.models-editor__header > div {
+.models-editor__title {
   display: flex;
+  min-inline-size: 0;
   flex-direction: column;
   gap: 2px;
+}
+.models-editor__title span {
+  overflow: hidden;
+  color: var(--ui-muted-foreground);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.models-editor__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
 }
 .models-provider-model {
   display: flex;
@@ -469,7 +501,12 @@
 }
 @media (max-width: 900px) {
   .models-provider-workspace {
+    block-size: auto;
     grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+  .models-provider-panel {
+    block-size: var(--models-provider-workspace-height);
   }
   .models-provider-rail {
     border-inline-end: 0;

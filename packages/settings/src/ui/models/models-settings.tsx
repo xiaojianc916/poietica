@@ -906,17 +906,24 @@ function ProviderForm({
       </Field>
       <div className="models-editor">
         <div className="models-editor__header">
-          <div>
+          <div className="models-editor__title">
             <strong>模型列表</strong>
+            <span aria-live="polite">{message}</span>
           </div>
-          <Button
-            onClick={() => setModels((value) => [...value, emptyModel()])}
-            size="xs"
-            type="button"
-            variant="soft"
-          >
-            <Plus aria-hidden="true" size={14} /> 添加模型
-          </Button>
+          <div className="models-editor__actions">
+            {disabled ? <InlineSpinner /> : null}
+            <Button disabled={disabled} size="xs" type="submit" variant="soft">
+              {disabled ? '正在保存…' : '保存'}
+            </Button>
+            <Button
+              onClick={() => setModels((value) => [...value, emptyModel()])}
+              size="xs"
+              type="button"
+              variant="soft"
+            >
+              <Plus aria-hidden="true" size={14} /> 添加模型
+            </Button>
+          </div>
         </div>
         {models.map((model) => (
           <div className="models-editor__row" key={model.key}>

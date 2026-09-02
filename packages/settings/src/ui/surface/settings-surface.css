@@ -660,10 +660,6 @@
   line-height: 1.5;
 }
 
-.settings-content__inner[data-section="models"] {
-  inline-size: min(100%, 840px);
-}
-
 @media (max-width: 900px) {
   .settings-content__inner {
     padding: 20px 18px 40px;

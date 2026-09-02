@@ -404,7 +404,13 @@ export function workspaceNamesFollowTheirDirectory(workspaces: readonly Workspac
 
 /** 只为一次任务活着的守卫：标记式技术债零容忍。 */
 export async function noTaskScopedGuards(root: string): Promise<Violation[]> {
-  const marks = ['TO' + 'DO', 'FIX' + 'ME', '@ts-expect-error', 'biome-ignore']
+  /* TODO/FIXME 按词匹配：作标识符子串（如 CONVERSATION_TODO_LAYOUT_STYLE）不是债务。 */
+  const WORD_MARKS: ReadonlyArray<{ label: string; re: RegExp }> = [
+    { label: 'TO' + 'DO', re: new RegExp('\\b' + 'TO' + 'DO' + '\\b') },
+    { label: 'FIX' + 'ME', re: new RegExp('\\b' + 'FIX' + 'ME' + '\\b') },
+  ]
+  /* 压制指令是精确串，无标识符歧义，保留全串匹配。 */
+  const LITERAL_MARKS = ['@ts-expect-error', 'biome-ignore']
   const violations: Violation[] = []
   const files = await walk(
     root,
@@ -419,7 +425,17 @@ export async function noTaskScopedGuards(root: string): Promise<Violation[]> {
 
     const source = await readFile(path.join(root, file), 'utf8')
 
-    for (const mark of marks) {
+    for (const { label, re } of WORD_MARKS) {
+      if (re.test(source)) {
+        violations.push({
+          policy: 'no-task-scoped-guards',
+          where: file,
+          detail: `留了 ${label} 形式的技术债`,
+        })
+      }
+    }
+
+    for (const mark of LITERAL_MARKS) {
       if (source.includes(mark)) {
         violations.push({
           policy: 'no-task-scoped-guards',

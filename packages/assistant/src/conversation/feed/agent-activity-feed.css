@@ -54,7 +54,15 @@
   overscroll-behavior: contain;
   contain: layout paint;
   padding-block-start: var(--cp-gutter);
-  padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
+  --assistant-feed-inline-padding: max(
+    var(--cp-gutter),
+    calc((100% - var(--assistant-surface-inline-end-clearance, 0px) - var(--cp-grid)) / 2)
+  );
+  padding-inline-start: var(--assistant-feed-inline-padding);
+  padding-inline-end: calc(
+    var(--assistant-feed-inline-padding) +
+    var(--assistant-surface-inline-end-clearance, 0px)
+  );
   /*
    * 给条留一条恒定的沟。
    *
@@ -137,7 +145,8 @@
 .agent-activity-feed__to-latest {
   position: absolute;
   inset-block-end: calc(var(--cp-dock-clearance) + var(--cp-dock-dissolve));
-  inset-inline: 0;
+  inset-inline-start: 0;
+  inset-inline-end: var(--assistant-surface-inline-end-clearance, 0px);
   display: flex;
   align-items: center;
   justify-content: center;

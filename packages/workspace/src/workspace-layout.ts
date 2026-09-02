@@ -28,7 +28,7 @@ export const WORKSPACE_LAYOUT = {
     defaultWidth: 420,
   },
 
-  /* 独立任务弹窗的卡片宽度与四周浮动间距。 */
+  /* 对话内任务浮层的卡片宽度与四周浮动间距。 */
   todo: {
     width: 320,
     gap: 12,

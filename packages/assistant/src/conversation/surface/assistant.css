@@ -585,13 +585,22 @@
  * 态存在。
  */
 .assistant-surface__dock {
+  --assistant-surface-inline-padding: max(
+    var(--cp-gutter),
+    round(
+      calc((100% - var(--assistant-surface-inline-end-clearance, 0px) - var(--cp-grid)) / 2),
+      var(--ui-hairline)
+    )
+  );
+
   position: relative;
   flex: none;
   min-inline-size: 0;
   padding-block: var(--cp-pad-mid) var(--cp-gutter);
-  padding-inline: max(
-    var(--cp-gutter),
-    round(calc((100% - var(--cp-grid)) / 2), var(--ui-hairline))
+  padding-inline-start: var(--assistant-surface-inline-padding);
+  padding-inline-end: calc(
+    var(--assistant-surface-inline-padding) +
+    var(--assistant-surface-inline-end-clearance, 0px)
   );
 }
 

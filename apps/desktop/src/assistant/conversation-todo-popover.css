@@ -1,3 +1,9 @@
+@property --assistant-surface-inline-end-clearance {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 .conversation-body {
   position: relative;
   display: flex;
@@ -12,22 +18,21 @@
   min-block-size: 0;
   min-inline-size: 0;
   flex: 1 1 auto;
+  transition: --assistant-surface-inline-end-clearance var(--workspace-layout-duration)
+    var(--workspace-layout-ease);
 }
 
 .conversation-todo-popover {
-  position: relative;
+  position: absolute;
   z-index: 2;
-  flex: none;
-  inline-size: 0;
+  inset: 0;
   min-block-size: 0;
-  overflow: visible;
   pointer-events: none;
-  transition: inline-size var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
 @container conversation-body (min-width: 900px) {
-  .conversation-todo-popover[data-open="true"] {
-    inline-size: calc(
+  .conversation-canvas:has(> .conversation-todo-popover[data-open="true"]) {
+    --assistant-surface-inline-end-clearance: calc(
       var(--conversation-todo-width) +
       var(--conversation-todo-gap) +
       var(--conversation-todo-gap)
@@ -63,7 +68,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .conversation-todo-popover,
+  .conversation-canvas,
   .conversation-todo-popover__surface {
     transition: none;
   }

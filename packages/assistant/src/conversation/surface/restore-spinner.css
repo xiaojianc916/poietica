@@ -10,7 +10,9 @@
 
 .restore-spinner {
   position: absolute;
-  inset: 0;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inset-inline-end: var(--assistant-surface-inline-end-clearance, 0px);
   z-index: 1;
   display: grid;
   place-items: center;
