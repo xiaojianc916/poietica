@@ -85,6 +85,17 @@ pub mod routes {
         )
     }
 
+    pub fn upload_file(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "files"])
+    }
+
+    pub fn generate_title(base_url: &str, session_id: &str) -> Route {
+        build(
+            base_url,
+            &["api", "v1", "sessions", session_id, "title", "generate"],
+        )
+    }
+
     pub fn submit_prompt(base_url: &str, session_id: &str) -> Route {
         build(base_url, &["api", "v1", "sessions", session_id, "prompts"])
     }
@@ -1102,6 +1113,49 @@ pub struct AnswerQuestionRequestStruct {
     #[serde(rename = "note")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct UploadFileDataStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "name")]
+    pub name: String,
+    #[serde(rename = "media_type")]
+    pub media_type: String,
+    #[serde(rename = "size")]
+    pub size: i64,
+    #[serde(rename = "created_at")]
+    pub created_at: serde_json::Value,
+    #[serde(rename = "expires_at")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum GenerateTitleRequestSourceEnum {
+    #[serde(rename = "user_prompts")]
+    UserPrompts,
+    #[serde(rename = "first_turn")]
+    FirstTurn,
+    #[serde(rename = "digest")]
+    Digest,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct GenerateTitleRequestStruct {
+    #[serde(rename = "force")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub force: Option<bool>,
+    #[serde(rename = "source")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<GenerateTitleRequestSourceEnum>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct GenerateTitleDataStruct {
+    #[serde(rename = "title")]
+    pub title: String,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

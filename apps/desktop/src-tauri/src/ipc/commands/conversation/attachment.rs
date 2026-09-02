@@ -76,6 +76,7 @@ pub(super) async fn keep_bytes(
                 byte_size: i64::try_from(blob.byte_size)
                     .map_err(|_overflow| Error::Validation(IMAGE_TOO_LARGE.to_owned()))?,
                 mime,
+                name: reference.filename,
             });
         }
 

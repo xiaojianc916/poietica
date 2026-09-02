@@ -11,7 +11,7 @@ import type { SessionUsage } from './usage'
  * taken from the opening message, and the placeholder shown before there was
  * anything to take a name from.
  */
-export type ThreadTitleSource = 'manual' | 'message' | 'fallback'
+export type ThreadTitleSource = 'manual' | 'generated' | 'message' | 'fallback'
 
 /** One conversation, as the platform reports it. */
 export interface ThreadRecord {

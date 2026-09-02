@@ -32,6 +32,8 @@ export interface PromptAsset {
   readonly sessionToken: string
   /** 它在那条会话里的令牌，也就是内容摘要。 */
   readonly assetToken: string
+  /** 原始文件名，随 prompt 送去原生侧落库与上传（attachments.name）。 */
+  readonly filename: string
 }
 
 export interface PromptSkill {

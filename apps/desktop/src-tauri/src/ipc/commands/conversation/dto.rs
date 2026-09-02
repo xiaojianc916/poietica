@@ -37,6 +37,7 @@ pub struct AgentPromptAsset {
     pub session_token: String,
     /// 它在那条会话里的令牌，也就是内容摘要。
     pub asset_token: String,
+    pub filename: String,
 }
 
 #[derive(Debug, Deserialize, Type)]
@@ -511,6 +512,8 @@ pub(super) const NO_THREAD: &str = "the conversation was created but could not b
 pub enum AgentTitleSource {
     /// Taken from the first thing the user said.
     Message,
+    /// Generated from the session transcript.
+    Generated,
     /// Shown before there was anything to take a name from.
     Fallback,
     /// The user typed it. Nothing derived replaces it.

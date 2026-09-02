@@ -10,6 +10,7 @@ import type { RowRhythm } from '../feed/agent-activity-feed'
 const RHYTHM: Record<FeedRow['item']['type'], RowRhythm> = {
   agent_text: 'prose',
   agent_thought: 'glyph',
+  compaction: 'glyph',
   error: 'prose',
   /* 与 permission 同理：它从不成行。 */
   inflight_prompt: 'prose',

@@ -12,6 +12,7 @@ import type { FeedRow } from '@poietica/conversation'
  */
 const ROW_PX: Record<Exclude<FeedRow['item']['type'], 'agent_text'>, number> = {
   agent_thought: 32,
+  compaction: 32,
   error: 96,
   /* 与 permission 同理：它从不成行，估不到。 */
   inflight_prompt: 0,

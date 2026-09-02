@@ -233,6 +233,7 @@ export function createAgentSessionPort({
           assets: request.assets.map((asset) => ({
             sessionToken: asset.sessionToken,
             assetToken: asset.assetToken,
+            filename: asset.filename,
           })),
           launch: resolvedLaunch,
           cwd: cwd?.() ?? null,

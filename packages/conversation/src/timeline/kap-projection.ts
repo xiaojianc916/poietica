@@ -110,6 +110,15 @@ export function applyKapFrame(draft: Draft, event: KapFrame): void {
       return
     }
 
+    case 'compaction.started':
+    case 'compaction.blocked':
+    case 'compaction.cancelled':
+    case 'compaction.completed': {
+      applyCompaction(draft, event)
+
+      return
+    }
+
     case 'error': {
       applyError(draft, event)
 
@@ -293,6 +302,71 @@ function kimiObject(value: unknown): Readonly<Record<string, unknown>> | undefin
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Readonly<Record<string, unknown>>)
     : undefined
+}
+
+function applyCompaction(draft: Draft, event: KapFrame): void {
+  const payload = event.payload
+  const agentId = stringOf(payload, 'agentId') ?? MAIN_AGENT
+  let position = -1
+  for (let index = draft.items.length - 1; index >= 0; index -= 1) {
+    const item = draft.items[index]
+    if (
+      item?.type === 'compaction' &&
+      item.agentId === agentId &&
+      item.state !== 'completed' &&
+      item.state !== 'cancelled'
+    ) {
+      position = index
+      break
+    }
+  }
+  const held = position < 0 ? undefined : draft.items[position]
+  const current = held?.type === 'compaction' ? held : undefined
+  const trigger = fieldOf(payload, 'trigger')
+  const instruction = stringOf(payload, 'instruction')
+  const result = kimiObject(fieldOf(payload, 'result'))
+  const numberOf = (key: string): number | undefined => {
+    const value = result === undefined ? undefined : Reflect.get(result, key)
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+  }
+  const tokensBefore = numberOf('tokensBefore')
+  const tokensAfter = numberOf('tokensAfter')
+  const state = payload.type.slice('compaction.'.length) as
+    | 'running'
+    | 'blocked'
+    | 'cancelled'
+    | 'completed'
+  const next = {
+    type: 'compaction' as const,
+    id: current?.id ?? `${namespace(draft)}compaction-${String(event.seq)}`,
+    turn: current?.turn ?? draft.runIndex,
+    at: current?.at ?? event.at,
+    agentId,
+    state,
+    ...(current?.trigger !== undefined
+      ? { trigger: current.trigger }
+      : trigger === 'manual' || trigger === 'auto'
+        ? /* as 断言去掉字面量新鲜度：否则该属性在对象字面量里宽化回 string。 */
+          { trigger: trigger as 'manual' | 'auto' }
+        : {}),
+    ...(current?.instruction !== undefined
+      ? { instruction: current.instruction }
+      : instruction === undefined
+        ? {}
+        : { instruction }),
+    ...(typeof fieldOf(payload, 'turnId') === 'number'
+      ? { turnId: fieldOf(payload, 'turnId') as number }
+      : current?.turnId === undefined
+        ? {}
+        : { turnId: current.turnId }),
+    ...(tokensBefore === undefined ? {} : { tokensBefore }),
+    ...(tokensAfter === undefined ? {} : { tokensAfter }),
+  }
+  if (position < 0) {
+    push(draft, next)
+  } else {
+    draft.items[position] = next
+  }
 }
 
 function applyError(draft: Draft, event: KapFrame): void {

@@ -242,6 +242,7 @@ fn retitle(thread: poietica_ledger::index::ThreadSummary) -> AgentThread {
         title: thread.title,
         title_source: match thread.title_source {
             TitleSource::Message => AgentTitleSource::Message,
+            TitleSource::Generated => AgentTitleSource::Generated,
             TitleSource::Fallback => AgentTitleSource::Fallback,
             TitleSource::Manual => AgentTitleSource::Manual,
         },

@@ -1432,7 +1432,7 @@ sessionToken: string;
 /**
  * 它在那条会话里的令牌，也就是内容摘要。
  */
-assetToken: string }
+assetToken: string; filename: string }
 export type AgentPromptConfiguration = { id: string; value: string }
 /**
  * A prompt, and how to start the agent if it is not running yet.
@@ -1708,6 +1708,10 @@ export type AgentTitleSource =
  * Taken from the first thing the user said.
  */
 "message" | 
+/**
+ * Generated from the session transcript.
+ */
+"generated" | 
 /**
  * Shown before there was anything to take a name from.
  */

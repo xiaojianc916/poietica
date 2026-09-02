@@ -272,6 +272,20 @@ export interface InflightPromptItem extends TimelineEntry {
   readonly settled?: true
 }
 
+/** poietica-refactor:compaction-media-title */
+export type CompactionState = 'running' | 'blocked' | 'cancelled' | 'completed'
+
+export interface CompactionTimelineItem extends TimelineEntry {
+  readonly type: 'compaction'
+  readonly agentId: string
+  readonly state: CompactionState
+  readonly trigger?: 'manual' | 'auto'
+  readonly instruction?: string
+  readonly turnId?: number
+  readonly tokensBefore?: number
+  readonly tokensAfter?: number
+}
+
 export interface ErrorItem extends TimelineEntry {
   readonly type: 'error'
   readonly message: string
@@ -287,6 +301,7 @@ export type TimelineItem =
   | QuestionTimelineItem
   | LinkTimelineItem
   | InflightPromptItem
+  | CompactionTimelineItem
   | ErrorItem
 
 /**

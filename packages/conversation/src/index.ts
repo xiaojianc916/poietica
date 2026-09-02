@@ -90,6 +90,8 @@ export {
 export type {
   BackgroundTaskItem,
   BackgroundTaskStatus,
+  CompactionState,
+  CompactionTimelineItem,
   FeedRow,
   LinkTimelineItem,
   MessageImage,

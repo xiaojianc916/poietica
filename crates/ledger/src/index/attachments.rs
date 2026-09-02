@@ -22,6 +22,7 @@ pub struct ThreadAttachment {
     /// 小写十六进制 SHA-256。它同时是资产协议里的 asset token。
     pub hash: String,
     pub mime: String,
+    pub name: String,
     pub byte_size: i64,
 }
 
@@ -46,12 +47,13 @@ impl AgentStore {
         let transaction = self.connection.transaction()?;
 
         transaction.execute(
-            "INSERT INTO attachments (hash, mime, byte_size, created_at)
-             VALUES (?1, ?2, ?3, ?4)
+            "INSERT INTO attachments (hash, mime, name, byte_size, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT (hash) DO NOTHING",
             rusqlite::params![
                 &attachment.hash,
                 &attachment.mime,
+                &attachment.name,
                 attachment.byte_size,
                 timestamp
             ],
@@ -79,7 +81,7 @@ impl AgentStore {
     /// 查询被拒时返回错误。
     pub fn attachments_of(&self, thread: Uuid) -> Result<Vec<ThreadAttachment>> {
         let mut statement = self.connection.prepare_cached(
-            "SELECT link.hash, blob.mime, blob.byte_size
+            "SELECT link.hash, blob.mime, blob.name, blob.byte_size
                FROM thread_attachments AS link
                JOIN attachments        AS blob ON blob.hash = link.hash
               WHERE link.thread_id = ?1
@@ -91,7 +93,8 @@ impl AgentStore {
                 Ok(ThreadAttachment {
                     hash: row.get(0)?,
                     mime: row.get(1)?,
-                    byte_size: row.get(2)?,
+                    name: row.get(2)?,
+                    byte_size: row.get(3)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

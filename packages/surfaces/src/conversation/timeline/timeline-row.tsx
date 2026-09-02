@@ -2,6 +2,7 @@ import './timeline.css'
 
 import type { FeedRow } from '@poietica/conversation'
 import { memo } from 'react'
+import { CompactionStatus } from './compaction-status'
 import { ErrorNotice } from './error-notice'
 import { LinkCard } from './link-card'
 import { PlanPanel } from './plan-panel'
@@ -69,6 +70,9 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
 
     case 'plan':
       return <PlanPanel entries={item.entries} />
+
+    case 'compaction':
+      return <CompactionStatus item={item} />
 
     case 'error':
       return <ErrorNotice message={item.message} />

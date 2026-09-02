@@ -18,6 +18,8 @@ export {
 export type {
   BackgroundTaskItem,
   BackgroundTaskStatus,
+  CompactionState,
+  CompactionTimelineItem,
   LinkTimelineItem,
   MessageImage,
   PermissionItem,

@@ -666,6 +666,14 @@ const REST_ROUTES: RestRoute[] = [
     name: 'AnswerQuestion',
     request: true,
   },
+  { method: 'post', path: '/api/v1/files', name: 'UploadFile', data: true },
+  {
+    method: 'post',
+    path: '/api/v1/sessions/{session_id}/title/generate',
+    name: 'GenerateTitle',
+    request: true,
+    data: true,
+  },
   {
     method: 'post',
     path: '/api/v1/sessions/{session_id}/prompts',

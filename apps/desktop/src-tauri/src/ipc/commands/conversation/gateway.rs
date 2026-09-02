@@ -88,7 +88,7 @@ impl KapGateway {
     fn materialise(
         &self,
         admission: &Admission,
-        session: &str,
+        _session: &str,
     ) -> Result<Vec<PromptAttachment>, String> {
         let mut carried = Vec::with_capacity(admission.attachments.len());
 
@@ -104,7 +104,7 @@ impl KapGateway {
                 Err(error) => return Err(error.to_string()),
             };
 
-            let url = asset_protocol_url(session, &reference.hash)
+            let url = asset_protocol_url(admission.thread.as_str(), &reference.hash)
                 .map_err(|error| format!("{error:?}"))?;
 
             let prompt = if reference.mime.starts_with("image/") {
