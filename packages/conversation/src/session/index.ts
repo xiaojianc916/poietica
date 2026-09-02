@@ -1,6 +1,7 @@
 export type { AgentControls } from './agent-capability-store'
 export { AgentCapabilityStore } from './agent-capability-store'
 export { describeFailure } from './describe-failure'
+export { projectVisibleModelChoices } from './model-choice-visibility'
 export {
   permissionControlOf,
   permissionPostureOf,

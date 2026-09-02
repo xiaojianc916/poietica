@@ -37,6 +37,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import { ComputerUseSettings } from '../computer-use-settings'
 import { KeymapSettings } from '../keymap-settings'
@@ -124,8 +125,26 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   models: {
     label: '模型',
     icon: Cpu,
-    render: ({ agentSettings, modelCatalog }) => (
-      <ModelsSettings modelCatalog={modelCatalog} store={agentSettings} />
+    render: ({ agentSettings, controller, modelCatalog, settings }) => (
+      <ModelsSettings
+        hiddenModelAliases={settings.modelPicker.hiddenModelAliases}
+        modelCatalog={modelCatalog}
+        onModelVisibilityChange={(modelId, visible) => {
+          controller.update((current) => {
+            const hidden = new Set(current.modelPicker.hiddenModelAliases)
+            if (visible) {
+              hidden.delete(modelId)
+            } else {
+              hidden.add(modelId)
+            }
+            return {
+              ...current,
+              modelPicker: { hiddenModelAliases: [...hidden].sort() },
+            }
+          })
+        }}
+        store={agentSettings}
+      />
     ),
   },
   skills: {
@@ -196,6 +215,16 @@ interface SettingsSurfaceContextValue {
 }
 
 const SettingsSurfaceContext = createContext<SettingsSurfaceContextValue | null>(null)
+const HiddenModelAliasesContext = createContext<readonly string[] | null>(null)
+const EMPTY_HIDDEN_MODEL_ALIASES: readonly string[] = Object.freeze([])
+
+export function useHiddenModelAliases(): readonly string[] {
+  const aliases = useContext(HiddenModelAliasesContext)
+  if (aliases === null) {
+    throw new Error('模型可见性必须渲染在 SettingsProvider 内部。')
+  }
+  return aliases
+}
 
 function useSettingsSurface(): SettingsSurfaceContextValue {
   const value = useContext(SettingsSurfaceContext)
@@ -273,6 +302,15 @@ export function SettingsProvider({
     store,
     onOpenChange: handleOpenChange,
   })
+  const persistedSettings = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getSnapshot,
+  )
+  const hiddenModelAliases =
+    controller.settings?.modelPicker.hiddenModelAliases ??
+    persistedSettings?.modelPicker.hiddenModelAliases ??
+    EMPTY_HIDDEN_MODEL_ALIASES
 
   const value = useMemo<SettingsSurfaceContextValue>(
     () => ({
@@ -301,7 +339,11 @@ export function SettingsProvider({
     ],
   )
 
-  return <SettingsSurfaceContext value={value}>{children}</SettingsSurfaceContext>
+  return (
+    <HiddenModelAliasesContext value={hiddenModelAliases}>
+      <SettingsSurfaceContext value={value}>{children}</SettingsSurfaceContext>
+    </HiddenModelAliasesContext>
+  )
 }
 
 export interface SettingsNavigationRegionProps {

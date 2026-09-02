@@ -1,16 +1,17 @@
-import type { AgentSessionPort } from '@poietica/conversation'
+import { type AgentSessionPort, projectVisibleModelChoices } from '@poietica/conversation'
 import {
   AssistantSurface,
   type GitBranchPickerProps,
   type PromptInputHandle,
   useAgentControls,
+  useHiddenModelAliases,
   useSessionControlsActions,
   useThreadSelectorFailure,
   useThreadSelectors,
   useThreadUsage,
   type WorkspacePickerProps,
 } from '@poietica/surfaces'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { adoptBrowserPickTarget } from '../browser/browser-pick'
 import { useThreadsActions } from './threads-context'
 
@@ -135,7 +136,12 @@ export function ConversationSurface({
     selectControl,
   } = useAgentControls()
 
-  const controls = isNew ? known : (offered ?? known)
+  const sourceControls = isNew ? known : (offered ?? known)
+  const hiddenModelAliases = useHiddenModelAliases()
+  const controls = useMemo(
+    () => projectVisibleModelChoices(sourceControls, hiddenModelAliases),
+    [hiddenModelAliases, sourceControls],
+  )
 
   const controlsFailure = isNew ? knownFailure : failure
 

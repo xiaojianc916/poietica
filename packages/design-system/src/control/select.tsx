@@ -102,7 +102,7 @@ const ITEM = cn(
   'rounded-[5px]',
   'outline-none',
   'transition-colors',
-  'data-[highlighted]:bg-[var(--ui-sidebar-accent)]',
+  'data-[highlighted]:bg-[var(--ui-popup-highlight)]',
   'data-[highlighted]:text-[var(--ui-foreground)]',
   'data-[disabled]:pointer-events-none',
   'data-[disabled]:opacity-50',

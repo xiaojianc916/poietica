@@ -88,8 +88,9 @@
   --ui-accent: #f2f2f3;
   --ui-accent-foreground: oklch(0.2 0.01 90);
 
-  --ui-popover: #fffeff;
+  --ui-popover: #ffffff;
   --ui-popover-foreground: var(--ui-foreground);
+  --ui-popup-highlight: #f0f0f0;
 
   --ui-destructive: var(--ui-palette-red-500);
   --ui-destructive-foreground: oklch(0.99 0 0);

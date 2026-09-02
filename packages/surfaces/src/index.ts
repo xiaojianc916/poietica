@@ -44,5 +44,6 @@ export {
   SettingsNavigationRegion,
   SettingsProvider,
   type SettingsProviderProps,
+  useHiddenModelAliases,
 } from './settings/surface/settings-surface'
 export { TerminalPane, type TerminalPaneProps } from './terminal/terminal-pane'

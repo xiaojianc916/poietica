@@ -6,6 +6,15 @@ export function createSettingsStore(): SettingsStore {
   let current: AppSettings | undefined
   let pending: Promise<AppSettings> | undefined
   let generation = 0
+  const listeners = new Set<() => void>()
+
+  const publish = (settings: AppSettings): void => {
+    generation += 1
+    current = settings
+    for (const listener of listeners) {
+      listener()
+    }
+  }
 
   const load = (): Promise<AppSettings> => {
     if (current !== undefined) {
@@ -18,12 +27,10 @@ export function createSettingsStore(): SettingsStore {
     const startedAt = generation
     const request = throughIpc(() => commands.settingsGet()).then((loaded) => {
       if (generation === startedAt) {
-        current = loaded
+        publish(loaded)
       }
-
       return current ?? loaded
     })
-
     pending = request
     const clear = (): void => {
       if (pending === request) {
@@ -35,18 +42,19 @@ export function createSettingsStore(): SettingsStore {
   }
 
   return {
+    getSnapshot: () => current,
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
     load,
-
     async save(settings) {
       await throughIpc(() => commands.settingsSet(settings))
-      generation += 1
-      current = settings
+      publish(settings)
     },
-
     async reset() {
       const settings = await throughIpc(() => commands.settingsReset())
-      generation += 1
-      current = settings
+      publish(settings)
       return settings
     },
   }

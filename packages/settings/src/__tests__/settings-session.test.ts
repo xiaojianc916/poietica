@@ -17,6 +17,7 @@ const INITIAL: AppSettings = {
     reduceMotion: false,
     messageTimestamps: true,
   },
+  modelPicker: { hiddenModelAliases: [] },
   privacy: {
     telemetry: false,
     crashReporting: true,
@@ -75,6 +76,11 @@ function manualScheduler() {
   }
 }
 
+const OBSERVABLE_STORE = {
+  getSnapshot: () => INITIAL,
+  subscribe: () => () => undefined,
+}
+
 async function settle(): Promise<void> {
   await Promise.resolve()
   await Promise.resolve()
@@ -92,6 +98,7 @@ describe('SettingsSession', () => {
     const scheduler = manualScheduler()
 
     const store: SettingsStore = {
+      ...OBSERVABLE_STORE,
       load: () => loaded.promise,
 
       save: (settings) => {
@@ -171,6 +178,7 @@ describe('SettingsSession', () => {
     const scheduler = manualScheduler()
 
     const store: SettingsStore = {
+      ...OBSERVABLE_STORE,
       load: async () => INITIAL,
 
       save: () => {
@@ -233,6 +241,7 @@ describe('SettingsSession', () => {
     const scheduler = manualScheduler()
 
     const store: SettingsStore = {
+      ...OBSERVABLE_STORE,
       load: async () => ({
         ...INITIAL,
         theme: 'dark',
@@ -280,6 +289,7 @@ describe('SettingsSession', () => {
     let attempts = 0
 
     const store: SettingsStore = {
+      ...OBSERVABLE_STORE,
       load: () => {
         attempts += 1
 
@@ -321,6 +331,7 @@ describe('SettingsSession', () => {
   it('turns a stalled load into a retryable error', () => {
     const scheduler = manualScheduler()
     const store: SettingsStore = {
+      ...OBSERVABLE_STORE,
       load: () => new Promise<AppSettings>(() => undefined),
       save: async () => undefined,
       reset: async () => INITIAL,

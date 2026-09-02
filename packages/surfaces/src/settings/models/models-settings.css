@@ -1,73 +1,33 @@
-/*
- * 设置 · 模型样式：单层，一个选择器只定义一次。
- *
- * 色值不在这一层定：.models-page 上的 --models-* 全是别名，指向 settings-surface.css
- * 的 --settings-*，后者再落到设计系统的语义令牌（--ui-card 等）—— 接暗色主题时
- * 这里一行都不用改。
- *
- * 分割线用 ::before 画而不是 border-block-start：要求是两侧内缩不接到底，
- * 边框做不到这件事。这里的 position 只作用于自己这一行，不参与外壳栅格。
- *
- * 控件尺寸也不在这一层：开关走 Switch 的 size 档位，下拉触发器的高宽与字号是
- * select.tsx 里固定的 TRIGGER 常量，都不经这里的 CSS 调。
- */
-
 .models-page {
-  /* 色值只有 settings-surface.css 一个来源，这里只做别名。 */
   --models-surface: var(--settings-surface);
   --models-divider: var(--settings-divider);
   --models-field: var(--settings-field);
-  --models-divider-inset: var(--settings-divider-inset);
-
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
-
-.models-notice {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--models-surface);
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-/* 带动作按钮的那一条：文字在左、按钮在右，按钮不出这个容器。 */
-.models-notice--bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 .models-block {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-
-.models-block__label {
+.models-block__label,
+.models-provider-rail__label {
   color: var(--ui-muted-foreground);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
 }
-
 .models-card {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 0;
   border-radius: 10px;
   background: var(--models-surface);
 }
-
 .models-card--list {
   padding-block: 10px;
 }
-
 .models-row {
   position: relative;
   display: flex;
@@ -76,90 +36,53 @@
   gap: 16px;
   padding: 11px 14px;
 }
-
 .models-row + .models-row::before {
   content: "";
   position: absolute;
-  inset-inline: var(--models-divider-inset);
+  inset-inline: 14px;
   inset-block-start: 0;
   block-size: 2px;
   background: var(--models-divider);
 }
-
-.models-row--compact,
-.models-row--field {
+.models-row--compact {
   padding-block: 8px;
 }
-
 .models-row__copy {
   display: flex;
+  min-inline-size: 0;
   flex-direction: column;
   gap: 2px;
-  min-inline-size: 0;
 }
-
 .models-row__copy strong,
 .models-row__name {
   color: var(--ui-foreground);
   font-size: 13px;
   font-weight: 550;
-  line-height: 1.3;
 }
-
 .models-row__copy p {
   margin: 0;
   color: var(--ui-muted-foreground);
   font-size: 12px;
   line-height: 1.45;
 }
-
-.models-row__control {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  /* 忙碌指示与按钮之间。单子元素的行不受影响。 */
-  gap: 8px;
-}
-
-.models-row__meta {
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  /* 等宽数字：上下文窗口那一列不该随数字宽度左右跳。 */
-  font-variant-numeric: tabular-nums;
-}
-
 .models-toolbar {
   position: relative;
   display: flex;
-  align-items: center;
   gap: 6px;
   padding: 0 14px 10px;
 }
-
 .models-toolbar::after {
   content: "";
   position: absolute;
-  inset-inline: var(--models-divider-inset);
+  inset-inline: 14px;
   inset-block-end: 0;
   block-size: 2px;
   background: var(--models-divider);
 }
-
 .models-list {
   display: flex;
   flex-direction: column;
 }
-
-.models-empty {
-  margin: 0;
-  padding: 18px 14px;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-}
-
-/* ---------------- 输入 ---------------- */
-
 .models-input {
   inline-size: 100%;
   min-block-size: 28px;
@@ -170,64 +93,29 @@
   background: var(--models-field);
   color: var(--ui-foreground);
   font-size: 12px;
-  line-height: 1.3;
+  outline: none;
 }
-
 .models-input::placeholder {
-  color: var(--ui-muted-foreground);
+  color: var(--ui-placeholder);
 }
-
-/*
- * 平台往输入框里塞的那几颗按钮。
- *
- * 密钥那一格的显隐眼睛不是我们画的 —— 本页的密码框全文只有一个 input，没有任何
- * state、没有任何 toggle。它来自 WebView2：Windows 上的 Tauri 跑的是 Edge 内核，
- * 而 Edge（且只有 Edge）为 input[type=password] 注入 ::-ms-reveal。同一批注入
- * 控件还有 Edge 的清除叉与 Chromium 的密码管理器按钮，它们共用一个病因，所以一起
- * 关掉，而不是等下一个冒出来再补一条。
- *
- * 关掉显隐不是少给了一个能力：密钥填完就提交、提交后立刻清空，从不回填，所以
- * 没有「看一眼存着的密钥」这回事 —— 那颗眼睛在这里从头到尾没有可看的东西。
- */
-/*
- * 四个一起，一行声明。
- *
- * 上面那段注释一直写着「它们共用一个病因，所以一起关掉」，而代码此前是两条规则、
- * 两套力度：::-ms-* 那条平写 display: none 且有效，::-webkit-* 那条多了一记
- * !important 外加五行永远不会被求值的声明。
- *
- * !important 不需要：作者样式表在层叠里本来就压过 UA 样式表，除非 UA 那条自己
- * 带 !important —— 紧邻的 ::-ms-* 规则已经就地证明了这一点。它是「我不确定，多
- * 打一拳」留下的。
- *
- * 后面那五行是死的：display: none 之后盒子根本不生成，visibility / pointer-events
- * / inline-size / block-size / margin 一条都不会参与计算。
- */
+.models-input:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
+}
+.models-input:disabled,
+.models-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.models-input--inline {
+  inline-size: min(100%, 320px);
+}
 .models-input::-ms-reveal,
 .models-input::-ms-clear,
 .models-input::-webkit-credentials-auto-fill-button,
 .models-input::-webkit-strong-password-auto-fill-button {
   display: none;
 }
-
-.models-input:focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: -2px;
-}
-
-.models-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.models-input--search {
-  flex: 1;
-}
-
-.models-input--inline {
-  inline-size: 200px;
-}
-
 .models-icon-button {
   flex: none;
   display: grid;
@@ -239,33 +127,14 @@
   background: transparent;
   color: var(--ui-muted-foreground);
   cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    color 120ms ease;
 }
-
-.models-icon-button:hover {
+.models-icon-button:hover:not(:disabled) {
   background: var(--models-divider);
   color: var(--ui-foreground);
 }
-
-.models-icon-button:focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: -2px;
-}
-
-/* 触发器高度与字号来自 select.tsx 固定的 TRIGGER 常量，这里只限制宽度上限。 */
-
-.models-select-trigger {
-  max-inline-size: 220px;
-}
-
-/* ---------------- 折叠与字段 ---------------- */
-
 .models-link {
   align-self: flex-start;
-  margin-inline: 14px;
-  margin-block-start: 8px;
+  margin: 8px 14px 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -273,109 +142,309 @@
   font-size: 12px;
   cursor: pointer;
 }
-
 .models-link:hover {
   text-decoration: underline;
 }
-
-.models-link:focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: 2px;
-}
-
-.models-keys {
-  display: flex;
-  flex-direction: column;
-}
-
-.models-keys__title {
+.models-empty,
+.models-provider-rail__empty {
   margin: 0;
-  padding-block: 8px;
-  color: var(--ui-foreground);
-  font-size: 13px;
-  font-weight: 550;
+  padding: 18px 14px;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
 }
-
-.models-keys__body {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding-block-start: 8px;
+.models-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--models-surface);
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
 }
-
-/*
- * 删除是这张设置页唯一的破坏性动作：悬停时整颗按钮换成设计系统的 destructive 色，
- * 与 soft 同一形状、不同语义。色值只有一个来源（--ui-destructive 语义 token），
- * 主题切换时跟着走。
- */
-.models-button-danger:hover:not(:disabled) {
-  background: var(--ui-destructive);
-  color: var(--ui-destructive-foreground);
-}
-
-.models-provider-form {
-  display: flex;
-  flex-direction: column;
-}
-
-.models-editor,
-.models-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-
-.models-editor__header {
+.models-notice--bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-
-.models-editor__row {
+.models-provider-workspace {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) 120px 28px;
-  gap: 8px;
-  align-items: center;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-block-size: 430px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--models-surface);
 }
-
-.models-preview__list {
+.models-provider-rail {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  min-block-size: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-inline-end: 1px solid var(--models-divider);
 }
-
-.models-preview__item {
-  padding: 4px 7px;
-  border-radius: 7px;
+.models-provider-rail__search {
+  flex: none;
+}
+.models-provider-rail__list {
+  display: flex;
+  min-block-size: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.models-provider-rail__list::-webkit-scrollbar {
+  display: none;
+}
+.models-provider-item,
+.models-provider-add {
+  display: flex;
+  inline-size: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ui-foreground);
+  text-align: start;
+  cursor: pointer;
+}
+.models-provider-item:hover,
+.models-provider-add:hover,
+.models-provider-item[data-active="true"],
+.models-provider-add[data-active="true"] {
   background: var(--models-field);
+}
+.models-provider-item__status {
+  inline-size: 7px;
+  block-size: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ui-warning);
+}
+.models-provider-item__status[data-status="connected"] {
+  background: var(--ui-success);
+}
+.models-provider-item__status[data-status="error"] {
+  background: var(--ui-destructive);
+}
+.models-provider-item__copy {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.models-provider-item__copy strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.models-provider-item__copy small {
+  color: var(--ui-muted-foreground);
+  font-size: 10px;
+}
+.models-provider-add {
+  flex: none;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+}
+.models-provider-editor {
+  min-inline-size: 0;
+}
+.models-provider-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-block-size: 100%;
+  padding: 18px;
+}
+.models-provider-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-block-end: 16px;
+}
+.models-provider-header h3 {
+  margin: 0;
+  color: var(--ui-foreground);
+  font-size: 16px;
+  font-weight: 620;
+}
+.models-provider-header p {
+  margin: 3px 0 0;
   color: var(--ui-muted-foreground);
   font-size: 11px;
 }
-
-.models-icon-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.models-button-danger:hover:not(:disabled) {
+  background: var(--ui-destructive);
+  color: var(--ui-destructive-foreground);
 }
-
+.models-provider-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.models-provider-facts > div {
+  min-inline-size: 0;
+  padding: 10px;
+  border-radius: 9px;
+  background: var(--models-field);
+}
+.models-provider-facts dt {
+  color: var(--ui-muted-foreground);
+  font-size: 10px;
+}
+.models-provider-facts dd {
+  overflow: hidden;
+  margin: 3px 0 0;
+  color: var(--ui-foreground);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.models-provider-form {
+  display: flex;
+  flex-direction: column;
+}
+.models-field {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 9px 0;
+  border-block-start: 1px solid var(--models-divider);
+}
+.models-field > span {
+  color: var(--ui-foreground);
+  font-size: 12px;
+  font-weight: 550;
+}
+.models-field > div {
+  display: flex;
+  justify-content: flex-end;
+}
+.models-provider-select {
+  inline-size: min(100%, 320px);
+}
+.models-provider-models,
+.models-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-block-start: 14px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--models-field);
+}
+.models-provider-models__header,
+.models-editor__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+.models-provider-models__header strong,
+.models-editor__header strong {
+  color: var(--ui-foreground);
+  font-size: 12px;
+}
+.models-provider-models__header span,
+.models-editor__header span {
+  color: var(--ui-muted-foreground);
+  font-size: 10px;
+}
+.models-editor__header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.models-provider-model {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 12px;
+  border-block-start: 1px solid var(--models-divider);
+}
+.models-provider-model > div {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.models-provider-model strong {
+  overflow: hidden;
+  color: var(--ui-foreground);
+  font-size: 12px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.models-provider-model small {
+  overflow: hidden;
+  color: var(--ui-muted-foreground);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.models-editor__row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(110px, 1fr) 100px 28px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-block-start: 1px solid var(--models-divider);
+}
+.models-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-block-size: 42px;
+  margin-block-start: 14px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--models-divider);
+}
+.models-actions > span {
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+}
+.models-actions > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 @media (max-width: 900px) {
-  .models-row {
-    flex-direction: column;
-    align-items: stretch;
+  .models-provider-workspace {
+    grid-template-columns: minmax(0, 1fr);
   }
-
-  .models-row__control {
-    justify-content: flex-start;
+  .models-provider-rail {
+    max-block-size: 220px;
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--models-divider);
   }
-
-  .models-select-trigger,
-  .models-input--inline {
+  .models-provider-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .models-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .models-field > div {
+    justify-content: stretch;
+  }
+  .models-input--inline,
+  .models-provider-select {
     inline-size: 100%;
-    max-inline-size: none;
   }
-
   .models-editor__row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }

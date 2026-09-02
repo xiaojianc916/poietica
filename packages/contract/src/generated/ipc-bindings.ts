@@ -1733,7 +1733,7 @@ at: AgentFrameCursor;
  * 本机签发的 durable admission identity。
  */
 admissionId: string; prompt: string; reply: string | null }
-export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; privacy: PrivacySettings }
+export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; modelPicker: ModelPickerSettings; privacy: PrivacySettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 /**
  * 一种收得下的格式，交给渲染层的那一面。
@@ -1983,6 +1983,7 @@ export type McpLauncher = { program: string; prefixArgs: string[] }
 export type ModelCatalogOperationDto = { kind: "snapshot" } | { kind: "create"; provider: ProviderInputDto } | { kind: "replace"; providerId: string; provider: ProviderReplacementDto } | { kind: "delete"; providerId: string } | { kind: "importCatalog"; catalogId: string; apiKey: string | null; baseUrl: string | null; id: string | null } | { kind: "importRegistry"; url: string; apiKey: string | null } | { kind: "setDefault"; modelId: string } | { kind: "patchConfig"; patch: JsonValue }
 export type ModelCatalogSnapshotDto = { providers: ProviderDto[]; models: ModelDto[]; catalog: CatalogProviderDto[]; defaultModel: string | null }
 export type ModelDto = { provider: string; model: string; displayName: string | null; maxContextSize: number; capabilities: string[] | null; supportEfforts: string[] | null; defaultEffort: string | null }
+export type ModelPickerSettings = { hiddenModelAliases: string[] }
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
 export type PluginCommitRequest = { stagingId: string; 
 /**

@@ -81,6 +81,7 @@ export {
   permissionControlOf,
   permissionPostureOf,
   permissionPosturesOf,
+  projectVisibleModelChoices,
   SessionControlsStore,
   ThreadsStore,
   TranscriptStore,

@@ -54,6 +54,7 @@
 
   --ui-popover: var(--ui-palette-dark-850);
   --ui-popover-foreground: var(--ui-palette-white);
+  --ui-popup-highlight: var(--ui-palette-dark-750);
 
   --ui-destructive: var(--ui-palette-red-400);
   --ui-destructive-foreground: var(--ui-palette-dark-1000);

@@ -50,6 +50,7 @@ pub struct AppSettings {
     pub language: String,
     pub general: GeneralSettings,
     pub appearance: AppearanceSettings,
+    pub model_picker: ModelPickerSettings,
     pub privacy: PrivacySettings,
 }
 
@@ -72,6 +73,12 @@ pub struct AppearanceSettings {
     pub message_timestamps: bool,
 }
 
+#[derive(Debug, Deserialize, Serialize, Type, Clone, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ModelPickerSettings {
+    pub hidden_model_aliases: Vec<String>,
+}
+
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PrivacySettings {
@@ -87,6 +94,7 @@ impl Default for AppSettings {
             language: "zh-CN".into(),
             general: GeneralSettings::default(),
             appearance: AppearanceSettings::default(),
+            model_picker: ModelPickerSettings::default(),
             privacy: PrivacySettings::default(),
         }
     }

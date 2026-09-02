@@ -24,7 +24,7 @@
  */
 export const popupSurfaceClassName = [
   'overflow-hidden',
-  'rounded-[8px] border border-divider',
+  'rounded-[10px] border border-divider',
   'bg-popover text-popover-foreground',
   'shadow-[0_0_0_0.5px_color-mix(in_srgb,var(--ui-foreground)_4%,transparent),0_1px_2px_color-mix(in_srgb,var(--ui-foreground)_6%,transparent),0_8px_24px_-8px_color-mix(in_srgb,var(--ui-foreground)_18%,transparent)]',
   'outline-none',
