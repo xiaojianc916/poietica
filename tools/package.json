@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bun test release",
+    "test": "bun test architecture release",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

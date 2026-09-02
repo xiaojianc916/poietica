@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 import * as charter from './charters.ts'
 import { readImports } from './imports.ts'
+import { manifestBoundaries } from './manifest-graph.ts'
 import type { Violation } from './policies.ts'
 import * as policy from './policies.ts'
 import { readCrates, readWorkspaces } from './workspace.ts'
@@ -26,7 +27,7 @@ async function directories(root: string, from: readonly string[]): Promise<strin
       break
     }
 
-    const entries = await readdir(path.join(root, current), { withFileTypes: true }).catch(() => [])
+    const entries = await readdir(path.join(root, current), { withFileTypes: true })
 
     for (const entry of entries) {
       if (!entry.isDirectory() || SKIP.has(entry.name)) {
@@ -67,6 +68,7 @@ const scripted = [
 
 const violations: Violation[] = [
   ...policy.everythingIsRegistered(workspaces, crates),
+  ...manifestBoundaries(workspaces),
   ...policy.layerDirection(imports, workspaces),
   ...(await policy.declaredDependenciesOnly(ROOT, everyImport, workspaces)),
   ...policy.noCycles(imports, workspaces),

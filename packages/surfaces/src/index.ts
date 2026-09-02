@@ -5,7 +5,6 @@
  */
 
 export { AutomationsSurface } from './automation/automations-surface'
-export type { AttachmentIntake, ComposerAsset } from './conversation/composer/attachment-intake'
 export { AttachmentIntakeContext } from './conversation/composer/attachment-intake'
 export { ComposerDrafts, ComposerDraftsContext } from './conversation/composer/composer-drafts'
 export type { PromptInputHandle } from './conversation/composer/prompt-input'

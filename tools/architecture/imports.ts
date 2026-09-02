@@ -74,7 +74,7 @@ async function sources(directory: string): Promise<string[]> {
       break
     }
 
-    const entries = await readdir(current, { withFileTypes: true }).catch(() => [])
+    const entries = await readdir(current, { withFileTypes: true })
 
     for (const entry of entries) {
       const child = path.join(current, entry.name)

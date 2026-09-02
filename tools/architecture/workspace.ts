@@ -7,6 +7,9 @@ export type Manifest = {
   scripts?: Record<string, string>
   exports?: Record<string, string>
   dependencies?: Record<string, string>
+  devDependencies?: Record<string, string>
+  optionalDependencies?: Record<string, string>
+  peerDependencies?: Record<string, string>
 }
 
 export type Workspace = {

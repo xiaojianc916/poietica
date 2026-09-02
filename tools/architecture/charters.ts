@@ -40,7 +40,7 @@ async function walk(
       break
     }
 
-    const entries = await readdir(path.join(root, current), { withFileTypes: true }).catch(() => [])
+    const entries = await readdir(path.join(root, current), { withFileTypes: true })
 
     for (const entry of entries) {
       if (SKIP.has(entry.name)) {
@@ -476,7 +476,7 @@ export async function processStateIsComposedAtRoot(root: string): Promise<Violat
    * （native-bridge 的 native-window）—— 不属于「必须组合到应用根」的进程态，不在此列。
    */
   const declarations = [
-    ['apps/desktop/src/automation/automation-runtime.tsx', 'export const automationStore ='],
+    ['apps/desktop/src/entry/automation-dispatcher.tsx', 'export const automationStore ='],
     ['apps/desktop/src/entry/plugin-runtime.tsx', 'export const pluginStore ='],
     ['apps/desktop/src/entry/plugin-runtime.tsx', 'export const hostedMcpServersReady:'],
   ] as const

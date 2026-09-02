@@ -1,3 +1,4 @@
+import type { AttachmentIntake, ComposerAsset } from '@poietica/conversation'
 import {
   type AssetFormat,
   basename,
@@ -9,7 +10,6 @@ import {
   uploadAsset,
   watchDroppedPaths,
 } from '@poietica/native-bridge'
-import type { AttachmentIntake, ComposerAsset } from '@poietica/surfaces'
 
 /*
  * 附件收件口的原生这一半。
@@ -147,18 +147,15 @@ export function createAttachmentIntake(): AttachmentIntake {
       }
     },
 
-    async paste(file) {
+    async paste(input) {
       const sessionToken = await composerSession()
-      const stored = await uploadAsset(
-        sessionToken,
-        new Uint8Array(await file.arrayBuffer()).toBase64(),
-      )
+      const stored = await uploadAsset(sessionToken, input.bytes.toBase64())
 
       return {
         sessionToken,
         assetToken: stored.assetToken,
         url: stored.source,
-        filename: file.name.length > 0 ? file.name : `pasted-${crypto.randomUUID()}`,
+        filename: input.filename.length > 0 ? input.filename : `pasted-${crypto.randomUUID()}`,
         mediaType: stored.contentType,
       }
     },

@@ -3,7 +3,12 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
-import type { ChatStatus, PromptConfiguration, PromptSkill } from '@poietica/conversation'
+import type {
+  ChatStatus,
+  ComposerAsset,
+  PromptConfiguration,
+  PromptSkill,
+} from '@poietica/conversation'
 import {
   $createParagraphNode,
   $createTextNode,
@@ -31,7 +36,7 @@ import {
 } from 'react'
 import { cx } from '../primitives/class-names'
 import { AttachIcon, ResumeIcon, StopIcon, SubmitIcon } from '../primitives/icons'
-import { type ComposerAsset, useAttachmentIntake } from './attachment-intake'
+import { useAttachmentIntake } from './attachment-intake'
 import { type ComposerDraft, useComposerDraftKey, useComposerDrafts } from './composer-drafts'
 import {
   ComposerPalette,
@@ -681,14 +686,22 @@ function PromptInputShell({
 
               event.preventDefault()
 
-              void intake.paste(pasted).then(
-                (asset) => {
-                  addAssets([asset])
-                },
-                () => {
-                  /* 收不下就是没多出一张卡片。 */
-                },
-              )
+              void pasted
+                .arrayBuffer()
+                .then((buffer) =>
+                  intake.paste({
+                    bytes: new Uint8Array(buffer),
+                    filename: pasted.name,
+                  }),
+                )
+                .then(
+                  (asset) => {
+                    addAssets([asset])
+                  },
+                  () => {
+                    /* 收不下就是没多出一张卡片。 */
+                  },
+                )
             }}
             onSubmit={(event) => {
               event.preventDefault()

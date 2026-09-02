@@ -1,6 +1,6 @@
+import type { ComposerAsset } from '@poietica/conversation'
 import type { SerializedEditorState } from 'lexical'
 import { createContext, useContext } from 'react'
-import type { ComposerAsset } from './attachment-intake'
 import type { PendingPromptConfiguration } from './prompt-input'
 
 /*

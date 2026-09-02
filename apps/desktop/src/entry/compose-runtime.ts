@@ -1,4 +1,5 @@
 import { type AutomationStore, createAutomationStore } from '@poietica/automation'
+import type { AttachmentIntake } from '@poietica/conversation'
 import { createPluginStore, type PluginStore } from '@poietica/extension'
 import {
   appUpdateController,
@@ -17,7 +18,6 @@ import {
   writeWorkbenchSession,
 } from '@poietica/native-bridge'
 import type { AgentConfigStore, CustomAgentStore, SettingsStore } from '@poietica/settings'
-import type { AttachmentIntake } from '@poietica/surfaces'
 import type { AppUpdateController } from '@poietica/update'
 import type { WorkbenchSessionStore } from '@poietica/workspace'
 import {
