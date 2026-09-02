@@ -15,7 +15,7 @@ import {
 import 'streamdown/styles.css'
 
 import { cx } from '../primitives/class-names'
-import { asIcon, CheckIcon, CopyIcon, DownloadIcon } from '../primitives/icons'
+import { asIcon, CheckIcon, CopyIcon } from '../primitives/icons'
 import { DIAGRAM_RENDERER } from './diagram'
 import { ExportableTable } from './table-export'
 
@@ -45,23 +45,14 @@ const PLUGINS: PluginConfig = { cjk, code, math: MATH, renderers: [DIAGRAM_RENDE
 const CONTROLS: ControlsConfig = {
   code: { copy: true, download: false },
   image: false,
-  table: { copy: true, download: true, fullscreen: false },
+  table: false,
 }
 
 /* 上游默认标签是英文，落在中文界面上是语言混用。只翻当前配置真的会显示的那些。 */
 const TRANSLATIONS: Partial<StreamdownTranslations> = {
   copied: '已复制',
   copyCode: '复制代码',
-  copyTable: '复制表格',
-  copyTableAsCsv: '复制为 CSV',
-  copyTableAsMarkdown: '复制为 Markdown',
-  copyTableAsTsv: '复制为 TSV',
-  downloadTable: '下载表格',
-  downloadTableAsCsv: '下载为 CSV',
-  downloadTableAsMarkdown: '下载为 Markdown',
   imageNotAvailable: '图片无法显示',
-  tableFormatCsv: 'CSV',
-  tableFormatMarkdown: 'Markdown',
 }
 
 /*
@@ -71,7 +62,6 @@ const TRANSLATIONS: Partial<StreamdownTranslations> = {
 const ICONS: Partial<IconMap> = {
   CheckIcon: asIcon(CheckIcon),
   CopyIcon: asIcon(CopyIcon),
-  DownloadIcon: asIcon(DownloadIcon),
 }
 
 /*

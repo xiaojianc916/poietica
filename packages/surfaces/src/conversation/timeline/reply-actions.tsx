@@ -103,7 +103,7 @@ const FORK = '从这一轮分叉'
 const FORK_OFF = '从这一轮分叉（不可用）'
 
 function Actions({ dropTurns, onFork, text }: ReplyActionsProps) {
-  const { copied, copy } = useCopy(text)
+  const { copied, copy } = useCopy()
   const CopyStateIcon = copied ? Check : Copy
 
   return (
@@ -112,7 +112,7 @@ function Actions({ dropTurns, onFork, text }: ReplyActionsProps) {
         aria-label={copied ? '已复制' : '复制回复'}
         className="timeline-reply-actions__button"
         data-copied={copied ? 'true' : undefined}
-        onClick={copy}
+        onClick={() => copy(text)}
         type="button"
       >
         <CopyStateIcon aria-hidden="true" />

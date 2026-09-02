@@ -12,10 +12,10 @@ const RESTORE_MS = 2200
 
 export interface CopyAction {
   readonly copied: boolean
-  readonly copy: () => void
+  readonly copy: (text: string) => void
 }
 
-export function useCopy(text: string): CopyAction {
+export function useCopy(): CopyAction {
   const [copied, setCopied] = useState(false)
   const restore = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -27,7 +27,7 @@ export function useCopy(text: string): CopyAction {
     [],
   )
 
-  const copy = useCallback(() => {
+  const copy = useCallback((text: string) => {
     void navigator.clipboard
       .writeText(text)
       .then(() => {
@@ -39,7 +39,7 @@ export function useCopy(text: string): CopyAction {
       .catch((cause: unknown) => {
         console.error('[Poietica] Clipboard write failed', cause)
       })
-  }, [text])
+  }, [])
 
   return { copied, copy }
 }

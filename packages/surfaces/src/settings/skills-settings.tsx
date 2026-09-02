@@ -308,19 +308,19 @@ function SkillActions({
   readonly store: PluginStore
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const copy = useCopy(skill.path ?? '')
+  const { copied, copy } = useCopy()
 
   return (
     <div className="skill-detail__actions">
       <Button
         disabled={skill.path === undefined || skill.path === ''}
-        onClick={copy.copy}
+        onClick={() => copy(skill.path ?? '')}
         size="xs"
         type="button"
         variant="outline"
       >
-        {copy.copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-        {copy.copied ? '已复制' : '复制路径'}
+        {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+        {copied ? '已复制' : '复制路径'}
       </Button>
       <Button
         onClick={() => setConfirmingDelete(true)}

@@ -10,13 +10,11 @@ import { reportFatalIncident } from '../notice/problem-presentation'
 import { installContextMenuGuard } from '../window/context-menu-guard'
 import { installExternalLinks } from '../window/external-links'
 import { installScrollbarSize } from '../window/scrollbar-size'
-import { installTableDownloads } from '../window/table-downloads'
 import { mountReactApplication } from './mount'
 
 async function bootstrapApplication(): Promise<void> {
   installScrollbarSize()
   installExternalLinks()
-  installTableDownloads()
   installContextMenuGuard()
 
   /*

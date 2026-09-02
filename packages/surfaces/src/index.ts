@@ -35,6 +35,7 @@ export {
   DelegateChannelPane,
   useDelegateChannelNames,
 } from './conversation/timeline/delegate-channel-view'
+export { TableExportProvider } from './conversation/timeline/table-export'
 export { TodoPanel } from './conversation/todo/todo-panel'
 export { PluginsSurface } from './extension/plugins-surface'
 export { ReviewPane, type ReviewPaneProps } from './review/review-pane'

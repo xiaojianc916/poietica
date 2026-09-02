@@ -15,7 +15,7 @@ export interface ErrorNoticeProps {
 }
 
 export function ErrorNotice({ message }: ErrorNoticeProps) {
-  const { copied, copy } = useCopy(message)
+  const { copied, copy } = useCopy()
 
   const Glyph = copied ? CheckIcon : FailureIcon
 
@@ -24,7 +24,7 @@ export function ErrorNotice({ message }: ErrorNoticeProps) {
       <button
         aria-label={copied ? '报错信息已复制' : '复制完整报错信息'}
         className="timeline-error__action"
-        onClick={copy}
+        onClick={() => copy(message)}
         type="button"
       >
         <Glyph aria-hidden="true" className="timeline-error__mark" />

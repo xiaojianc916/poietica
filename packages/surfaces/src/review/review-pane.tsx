@@ -523,7 +523,7 @@ function Card({
    * 行数按展开态算：折叠带展开的行也是这张卡此刻的真实高度。 */
   const rows = open ? renderedRowsOf(file, state.openGaps) : 0
   const style: ReviewStyle = { '--review-card-rows': String(rows) }
-  const { copied, copy } = useCopy(file.path)
+  const { copied, copy } = useCopy()
   return (
     <section className="review-card" id={cardId(file.path)} style={style}>
       {/* 整行给悬浮底色：这一行是一个可点的对象，指到哪里都该有回应。 */}
@@ -543,7 +543,11 @@ function Card({
         </button>
         {/* 悬浮或键盘聚焦时才出现：行头默认只有事实。 */}
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
-          <IconButton dense label={copied ? '已复制' : '复制相对路径'} onClick={copy}>
+          <IconButton
+            dense
+            label={copied ? '已复制' : '复制相对路径'}
+            onClick={() => copy(file.path)}
+          >
             {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
           </IconButton>
           <IconButton

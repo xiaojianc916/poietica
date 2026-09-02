@@ -1,3 +1,5 @@
+import { exportTable } from '@poietica/native-bridge'
+import { TableExportProvider } from '@poietica/surfaces'
 import { StrictMode } from 'react'
 import { flushSync } from 'react-dom'
 import type { Root } from 'react-dom/client'
@@ -6,6 +8,10 @@ import { FatalErrorHost } from '../notice/error-boundary'
 import { markReactFatalHostMounted, reportFatalIncident } from '../notice/problem-presentation'
 import { AppShell } from '../shell/app-shell'
 import { type ApplicationRuntime, createApplicationRuntime } from './compose-runtime'
+
+async function saveTable(content: string): Promise<void> {
+  await exportTable({ content, format: 'markdown' })
+}
 
 /*
  * 一次 React 错误的上报口，只有这一个。
@@ -101,9 +107,11 @@ export function mountReactApplication(
   flushSync(() => {
     root.render(
       <StrictMode>
-        <FatalErrorHost>
-          <AppShell runtime={runtime} />
-        </FatalErrorHost>
+        <TableExportProvider save={saveTable}>
+          <FatalErrorHost>
+            <AppShell runtime={runtime} />
+          </FatalErrorHost>
+        </TableExportProvider>
       </StrictMode>,
     )
   })
