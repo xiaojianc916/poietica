@@ -246,7 +246,7 @@ async agentEarlierFrames(request: AgentEarlierFramesRequest) : Promise<AgentFram
     return await TAURI_INVOKE("agent_earlier_frames", { request });
 },
 /**
- * 这条对话的整本目录，一轮一行。
+ * 这条对话的目录后缀，一轮一行；游标缺席时读取整本。
  * 
  * 屏幕上的经过由 conversation_events 重放，目录因此也只能出自它：以内存窗口为定义域的
  * 目录会随载入量伸缩，而人要跳的那一轮往往还没载入。
@@ -255,7 +255,7 @@ async agentEarlierFrames(request: AgentEarlierFramesRequest) : Promise<AgentFram
  * 
  * 标识不是 UUID，或库拒绝这次读取时失败。
  */
-async agentThreadOutline(request: AgentThreadRequest) : Promise<AgentTurnMark[]> {
+async agentThreadOutline(request: AgentThreadOutlineRequest) : Promise<AgentTurnMark[]> {
     return await TAURI_INVOKE("agent_thread_outline", { request });
 },
 /**
@@ -1679,6 +1679,14 @@ workspaceRoot: string | null;
  * 是否已经离开活动会话列表。
  */
 archived: boolean }
+/**
+ * A suffix read of the durable conversation outline.
+ */
+export type AgentThreadOutlineRequest = { threadId: string; 
+/**
+ * Inclusive prompt sequence; absent reads the complete outline.
+ */
+fromSeq: number | null }
 /**
  * A conversation an action applies to, and nothing else.
  */

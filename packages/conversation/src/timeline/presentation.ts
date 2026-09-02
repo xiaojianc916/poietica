@@ -89,6 +89,7 @@ const NO_REPLIES: ReadonlyMap<number, Reply> = new Map()
 const ROWS = new WeakMap<TimelineItem, FeedRow>()
 const SEGMENTS = new WeakMap<TurnPage, Segment>()
 const PREFIX = new WeakMap<readonly TurnPage[], Prefix>()
+const PREFIX_ROWS = new WeakMap<Prefix, ReadonlyMap<string, number>>()
 const FEEDS = new WeakMap<TimelineState, Held>()
 
 /** 一条提问到下一条提问之间的回复操作；它不拥有运行封条。 */
@@ -144,7 +145,12 @@ interface Prefix {
   readonly tailSpan: TurnSpan | undefined
   readonly segments: readonly Segment[]
   readonly offsets: readonly number[]
+  readonly trailingPrompts: readonly number[]
+  readonly precedingTurnIds: readonly (string | undefined)[]
   readonly count: number
+  readonly latestOwnMessage: string | null
+  readonly lastTurn: number | undefined
+  readonly lastTurnId: string | undefined
 }
 
 function toRow(item: TimelineItem, isStreamingTail: boolean, isInFlight: boolean): FeedRow {
@@ -566,28 +572,71 @@ function prefixOf(state: TimelineState, chosen: ReadonlyMap<number, boolean>): P
   const last = sealed.at(-1)
   const tailSpan = last === undefined ? undefined : spanOf(state.spans, last.turn)
   const kept = PREFIX.get(sealed)
-
   if (kept !== undefined && kept.chosen === chosen && kept.tailSpan === tailSpan) {
     return kept
   }
 
   const segments: Segment[] = []
   const offsets: number[] = []
+  const precedingTurnIds: (string | undefined)[] = []
   let count = 0
+  let latestOwnMessage: string | null = null
+  let lastTurn: number | undefined
+  let lastTurnId: string | undefined
 
   for (const page of sealed) {
     const segment = segmentOf(page, spanOf(state.spans, page.turn), false, chosen.get(page.turn))
-
     segments.push(segment)
     offsets.push(count)
+    precedingTurnIds.push(lastTurnId)
     count += segment.rows.length
+    latestOwnMessage = segment.ownMessage ?? latestOwnMessage
+    lastTurn = segment.rows.at(-1)?.item.turn ?? lastTurn
+    lastTurnId = segment.said.at(-1)?.id ?? lastTurnId
   }
 
-  const built: Prefix = { chosen, count, offsets, segments, tailSpan }
+  const trailingPrompts = new Array<number>(segments.length)
+  let promptsAfter = 0
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    trailingPrompts[index] = promptsAfter
+    promptsAfter += segments[index]?.prompts ?? 0
+  }
 
+  const built: Prefix = {
+    chosen,
+    count,
+    lastTurn,
+    lastTurnId,
+    latestOwnMessage,
+    offsets,
+    precedingTurnIds,
+    segments,
+    tailSpan,
+    trailingPrompts,
+  }
   PREFIX.set(sealed, built)
-
   return built
+}
+
+function prefixLocations(prefix: Prefix): ReadonlyMap<string, number> {
+  const kept = PREFIX_ROWS.get(prefix)
+  if (kept !== undefined) {
+    return kept
+  }
+
+  const rows = new Map<string, number>()
+  for (let index = 0; index < prefix.segments.length; index += 1) {
+    const segment = prefix.segments[index]
+    const offset = prefix.offsets[index]
+    if (segment === undefined || offset === undefined) {
+      continue
+    }
+    for (const [id, at] of segment.where) {
+      rows.set(id, offset + at)
+    }
+  }
+  PREFIX_ROWS.set(prefix, rows)
+  return rows
 }
 
 /**
@@ -599,146 +648,88 @@ export function selectPresentation(
 ): Presentation {
   const held = FEEDS.get(state)
   const running = selectIsBusy(state)
-
   if (held !== undefined && held.chosen === chosen) {
     return held.result
   }
 
   const prefix = prefixOf(state, chosen)
-  const segments = [...prefix.segments]
-  const offsets = [...prefix.offsets]
-  let count = prefix.count
-
   const activeSpan = spanOf(state.spans, state.active.turn)
   const tail = segmentOf(state.active, activeSpan, running, chosen.get(state.active.turn))
+  const count = prefix.count + tail.rows.length
 
-  segments.push(tail)
-  offsets.push(count)
-  count += tail.rows.length
-
-  /* 这一段之后整条对话还有几问。分叉点是倒数，而段自己只知道段内那一半。 */
-  const trailing: number[] = new Array<number>(segments.length).fill(0)
-
-  for (let s = segments.length - 2; s >= 0; s -= 1) {
-    trailing[s] = (trailing[s + 1] ?? 0) + (segments[s + 1]?.prompts ?? 0)
-  }
-
-  const seek = (
-    index: number,
-  ): { segment: Segment; at: number; place: number; trailing: number } | undefined => {
+  const seek = (index: number) => {
     if (index < 0 || index >= count) {
       return undefined
     }
+    if (index >= prefix.count) {
+      return {
+        at: index - prefix.count,
+        precedingTurnId: prefix.lastTurnId,
+        segment: tail,
+        trailing: 0,
+      }
+    }
 
     let low = 0
-    let high = offsets.length - 1
-
+    let high = prefix.offsets.length - 1
     while (low < high) {
       const mid = (low + high + 1) >> 1
-
-      if ((offsets[mid] ?? 0) <= index) {
+      if ((prefix.offsets[mid] ?? 0) <= index) {
         low = mid
       } else {
         high = mid - 1
       }
     }
-
-    const segment = segments[low]
-    const start = offsets[low]
-
-    return segment === undefined || start === undefined
-      ? undefined
-      : { at: index - start, place: low, segment, trailing: trailing[low] ?? 0 }
-  }
-
-  let latestOwnMessage: string | null = null
-  let lastTurn: number | undefined
-
-  for (let s = segments.length - 1; s >= 0; s -= 1) {
-    const segment = segments[s]
-
-    if (segment === undefined) {
-      continue
+    const segment = prefix.segments[low]
+    const start = prefix.offsets[low]
+    if (segment === undefined || start === undefined) {
+      return undefined
     }
-
-    if (lastTurn === undefined) {
-      lastTurn = segment.rows.at(-1)?.item.turn
-    }
-    if (latestOwnMessage === null) {
-      latestOwnMessage = segment.ownMessage
-    }
-
-    /* 两格都到手就停：后面的段不会再改这两个值。 */
-    if (lastTurn !== undefined && latestOwnMessage !== null) {
-      break
+    return {
+      at: index - start,
+      precedingTurnId: prefix.precedingTurnIds[low],
+      segment,
+      trailing: (prefix.trailingPrompts[low] ?? 0) + tail.prompts,
     }
   }
 
   const result: Presentation = {
     count,
+    latestOwnMessage: tail.ownMessage ?? prefix.latestOwnMessage,
+    lastTurn: tail.rows.at(-1)?.item.turn ?? prefix.lastTurn,
     groupAt: (index) => {
       const found = seek(index)
-
-      return found === undefined
-        ? undefined
-        : found.segment.groups.get(found.segment.rows[found.at]?.item.id ?? '')
+      return found?.segment.groups.get(found.segment.rows[found.at]?.item.id ?? '')
     },
-    lastTurn,
-    latestOwnMessage,
     replyAt: (index) => {
       const found = seek(index)
       const reply = found?.segment.replies.get(found.at)
-
       return found === undefined || reply === undefined
         ? undefined
         : { dropTurns: reply.after + found.trailing, text: reply.text }
     },
     rowAt: (index) => {
       const found = seek(index)
-
-      return found === undefined ? undefined : found.segment.rows[found.at]
+      return found?.segment.rows[found.at]
     },
     rowOf: (id) => {
-      for (let s = 0; s < segments.length; s += 1) {
-        const at = segments[s]?.where.get(id)
-
-        if (at !== undefined) {
-          return (offsets[s] ?? 0) + at
-        }
-      }
-
-      return undefined
+      const active = tail.where.get(id)
+      return active === undefined ? prefixLocations(prefix).get(id) : prefix.count + active
     },
     sealAt: (index) => {
       const found = seek(index)
-
-      return found === undefined ? undefined : found.segment.seals.get(found.at)
+      return found?.segment.seals.get(found.at)
     },
     turnIdAt: (index) => {
       const found = seek(index)
-
       if (found === undefined) {
         return undefined
       }
-
-      /* 这一段里没有问，就是上一段末尾那一问还在管着这几行。 */
-      for (let s = found.place; s >= 0; s -= 1) {
-        const mark = lastSaid(
-          segments[s]?.said ?? [],
-          s === found.place ? found.at : Number.MAX_SAFE_INTEGER,
-        )
-
-        if (mark !== undefined) {
-          return mark.id
-        }
-      }
-
-      return undefined
+      return lastSaid(found.segment.said, found.at)?.id ?? found.precedingTurnId
     },
   }
 
   FEEDS.set(state, { chosen, result })
-
   return result
 }
 

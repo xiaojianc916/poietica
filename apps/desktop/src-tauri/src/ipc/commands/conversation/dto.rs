@@ -630,6 +630,15 @@ pub struct AgentThreadRequest {
     pub thread_id: String,
 }
 
+/// A suffix read of the durable conversation outline.
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentThreadOutlineRequest {
+    pub thread_id: String,
+    /// Inclusive prompt sequence; absent reads the complete outline.
+    pub from_seq: Option<u32>,
+}
+
 /// 要分叉的对话，以及必要时怎样启动 agent。
 ///
 /// 带 launch 与 cwd，因为分叉的第一步可能要把 agent 起起来、把源会话装载成

@@ -144,11 +144,11 @@ export interface ThreadPort {
    */
   readonly earlierFrames: (threadId: ThreadId, before: FrameCursor) => Promise<FramePage>
   /**
-   * 这条对话的整本目录，一轮一行。
+   * 这条对话的目录后缀，一轮一行。
    *
-   * 定义域是平台的帧日志，不是界面此刻载入了多少：目录的长度因此不随滚动伸缩。
+   * fromSeq 是包含式 durable prompt sequence；null 读取整本。定义域始终是平台帧日志。
    */
-  readonly outline: (threadId: ThreadId) => Promise<readonly TurnMark[]>
+  readonly outline: (threadId: ThreadId, fromSeq: number | null) => Promise<readonly TurnMark[]>
   /** Renames one. The name becomes the user's and outlives the agent's. */
   readonly rename?: (threadId: ThreadId, title: string) => Promise<void>
   readonly remove?: (threadId: ThreadId) => Promise<void>

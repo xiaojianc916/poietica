@@ -139,8 +139,14 @@ export function AgentActivityFeed({
     earlier.current = { hasEarlier, onReachStart }
   }, [hasEarlier, onReachStart])
 
-  /* 身份是 id 不是序号：回填历史会让每一条换序号，用序号当锚点就落到别的条目上。 */
-  const getItemKey = useCallback((index: number) => feed.rowAt(index)?.item.id ?? index, [feed])
+  /* 虚拟器选项保持身份；ref 只提供这一帧最新的领域读模型。 */
+  const rowAccess = useRef({ estimateRow, feed })
+  rowAccess.current = { estimateRow, feed }
+  const getItemKey = useCallback(
+    (index: number) => rowAccess.current.feed.rowAt(index)?.item.id ?? index,
+    [],
+  )
+  const estimateItem = useCallback((index: number) => rowAccess.current.estimateRow(index), [])
 
   /* 几何只在挂载那一次被收走，所以只取一次。 */
   const [restored] = useState(() => geometryOf(conversation))
@@ -186,7 +192,7 @@ export function AgentActivityFeed({
     scrollPaddingStart: revealing === null ? 0 : leadOf(revealing),
     count: feed.count,
     getScrollElement: () => viewport,
-    estimateSize: estimateRow,
+    estimateSize: estimateItem,
     getItemKey,
     /* 交出副本：这份会被虚拟器收走当自己的初值。空表与库默认等价。 */
     initialMeasurementsCache: restored === undefined ? [] : [...restored.rows],

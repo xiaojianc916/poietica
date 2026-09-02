@@ -90,7 +90,7 @@ export interface Transcript {
 /** 帧日志的有界分页与目录读取。由组合根注入，所以 store 脱离进程可测。 */
 export interface TranscriptReads {
   readonly earlier: (threadId: string, before: FrameCursor) => Promise<FramePage>
-  readonly outline: (threadId: string) => Promise<readonly TurnMark[]>
+  readonly outline: (threadId: string, fromSeq: number | null) => Promise<readonly TurnMark[]>
 }
 
 export interface TranscriptStoreOptions {
@@ -123,6 +123,26 @@ interface PendingSubmission {
 interface HistoryLoad {
   readonly targets: Map<string, TurnMark>
   promise: Promise<void>
+}
+
+interface OutlineLoad {
+  stale: boolean
+  promise: Promise<void>
+}
+
+function mergeOutline(
+  current: readonly TurnMark[],
+  suffix: readonly TurnMark[],
+  fromSeq: number | null,
+): readonly TurnMark[] {
+  if (fromSeq === null) {
+    return suffix
+  }
+  const boundary = current.findIndex((mark) => mark.at.seq === fromSeq)
+  if (boundary < 0) {
+    throw new Error('目录增量游标不在当前目录中。')
+  }
+  return [...current.slice(0, boundary), ...suffix]
 }
 
 /* 引用固定，useSyncExternalStore 才判得出「没变」。 */
@@ -271,6 +291,9 @@ export class TranscriptStore implements TranscriptSink {
 
   /** 每条对话至多一个历史读取；目标可在读取期间追加。 */
   #historyLoads = new Map<string, HistoryLoad>()
+
+  /** 每条对话至多一个目录读取；在途失效只追读一次最新后缀。 */
+  #outlineLoads = new Map<string, OutlineLoad>()
 
   constructor({ reads, paint = onNextPaint }: TranscriptStoreOptions = {}) {
     this.#paint = paint
@@ -444,6 +467,7 @@ export class TranscriptStore implements TranscriptSink {
   #evict(key: string): void {
     this.#releaseSubmission(key)
     this.#historyLoads.delete(key)
+    this.#outlineLoads.delete(key)
     this.#held.delete(key)
     this.#pending.delete(key)
     this.#dirty.delete(key)
@@ -712,23 +736,58 @@ export class TranscriptStore implements TranscriptSink {
     return timeline.active.items.some((item) => item.id === id)
   }
 
-  /** 目录整本重读。它是派生视图，所以没有增量维护，也就没有可以脱节的缓存。 */
-  async #readOutline(real: string): Promise<void> {
+  /** 同一时刻只读一个目录；期间再失效，落地后再追一次最新后缀。 */
+  #readOutline(real: string): Promise<void> {
     const reads = this.#reads
-
     if (reads === undefined || isDelegateKey(real)) {
+      return Promise.resolve()
+    }
+
+    const running = this.#outlineLoads.get(real)
+    if (running !== undefined) {
+      running.stale = true
+      return running.promise
+    }
+
+    const load: OutlineLoad = { stale: false, promise: Promise.resolve() }
+    this.#outlineLoads.set(real, load)
+    load.promise = this.#runOutlineLoad(real, load).finally(() => {
+      if (this.#outlineLoads.get(real) === load) {
+        this.#outlineLoads.delete(real)
+      }
+    })
+    return load.promise
+  }
+
+  async #runOutlineLoad(real: string, load: OutlineLoad): Promise<void> {
+    const reads = this.#reads
+    if (reads === undefined) {
       return
     }
 
-    try {
-      const outline = await reads.outline(real)
+    while (this.#outlineLoads.get(real) === load && this.#held.has(real)) {
+      load.stale = false
+      const before = this.#now(real)
+      const fromSeq = before.outline.at(-1)?.at.seq ?? null
 
-      if (this.#held.has(real)) {
-        this.#put(real, { ...this.#now(real), outline })
+      try {
+        const suffix = await reads.outline(real, fromSeq)
+        if (this.#outlineLoads.get(real) !== load || !this.#held.has(real)) {
+          return
+        }
+        const latest = this.#now(real)
+        this.#put(real, { ...latest, outline: mergeOutline(latest.outline, suffix, fromSeq) })
+      } catch (cause: unknown) {
+        if (this.#outlineLoads.get(real) === load && this.#held.has(real)) {
+          const latest = this.#now(real)
+          this.#put(real, { ...latest, timeline: noteOn(latest.timeline, cause, false) })
+        }
+        return
       }
-    } catch (cause: unknown) {
-      const latest = this.#now(real)
-      this.#put(real, { ...latest, timeline: noteOn(latest.timeline, cause, false) })
+
+      if (!load.stale) {
+        return
+      }
     }
   }
 
@@ -1081,6 +1140,7 @@ export class TranscriptStore implements TranscriptSink {
       this.#submissions.has(key) ||
       this.#pending.has(key) ||
       this.#historyLoads.has(key) ||
+      this.#outlineLoads.has(key) ||
       this.#running.has(key)
     ) {
       return true

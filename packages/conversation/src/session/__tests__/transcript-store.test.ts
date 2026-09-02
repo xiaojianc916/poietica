@@ -273,6 +273,69 @@ describe('transcript store', () => {
     expect(items.filter((item) => item.type === 'user_message')).toHaveLength(3)
   })
 
+  it('coalesces outline invalidations into one suffix catch-up', async () => {
+    const calls: Array<number | null> = []
+    const answers: Array<(marks: readonly import('../../agent').TurnMark[]) => void> = []
+    const store = new TranscriptStore({
+      paint: () => {},
+      reads: {
+        earlier: () => Promise.reject(new Error('unused')),
+        outline: (_threadId, fromSeq) => {
+          calls.push(fromSeq)
+          return new Promise((resolve) => answers.push(resolve))
+        },
+      },
+    })
+    const first = {
+      admissionId: 'first',
+      at: { sessionId: 'sess_a', seq: 1 },
+      prompt: 'first',
+      reply: null,
+    } as const
+    const second = {
+      admissionId: 'second',
+      at: { sessionId: 'sess_a', seq: 5 },
+      prompt: 'second',
+      reply: 'done',
+    } as const
+
+    store.opening('thread_a')
+    store.opening('thread_a')
+    expect(calls).toEqual([null])
+    answers.shift()?.([first])
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(calls).toEqual([null, 1])
+    answers.shift()?.([{ ...first, reply: 'updated' }, second])
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(store.read('thread_a').outline).toEqual([{ ...first, reply: 'updated' }, second])
+  })
+
+  it('does not revive a forgotten transcript when an outline read fails', async () => {
+    let reject: ((cause: unknown) => void) | undefined
+    const store = new TranscriptStore({
+      paint: () => {},
+      reads: {
+        earlier: () => Promise.reject(new Error('unused')),
+        outline: () =>
+          new Promise((_resolve, fail) => {
+            reject = fail
+          }),
+      },
+    })
+
+    store.opening('thread_a')
+    store.forget('thread_a')
+    reject?.(new Error('late failure'))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(store.read('thread_a').outline).toEqual([])
+    expect(store.read('thread_a').timeline.active.items).toEqual([])
+  })
+
   it('cancels before the thread is prepared', async () => {
     const { store, paint } = painted()
     let release: ((ready: boolean) => void) | undefined

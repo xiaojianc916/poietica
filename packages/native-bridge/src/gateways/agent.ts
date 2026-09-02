@@ -514,7 +514,8 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
     open: (threadId) => openTarget({ kind: 'existing', threadId }),
     earlierFrames: async (threadId, before) =>
       framePageOf(await throughIpc(() => commands.agentEarlierFrames({ threadId, before }))),
-    outline: (threadId) => throughIpc(() => commands.agentThreadOutline({ threadId })),
+    outline: (threadId, fromSeq) =>
+      throughIpc(() => commands.agentThreadOutline({ threadId, fromSeq })),
     rename: async (threadId, title) => {
       await throughIpc(() => commands.agentRenameThread({ threadId, title }))
     },

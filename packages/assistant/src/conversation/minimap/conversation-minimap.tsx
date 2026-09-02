@@ -8,6 +8,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -73,9 +74,13 @@ const TickList = memo(function TickList({
   )
 })
 function Rail({ activeId, busyId, marks, onSelect }: ConversationMinimapProps) {
-  const activeIndex = Math.max(
-    0,
-    marks.findIndex((mark) => mark.admissionId === activeId),
+  const activeIndex = useMemo(
+    () =>
+      Math.max(
+        0,
+        marks.findIndex((mark) => mark.admissionId === activeId),
+      ),
+    [activeId, marks],
   )
   const [shown, setShown] = useState(-1)
   const [tabbable, setTabbable] = useState(0)

@@ -18,9 +18,9 @@ use super::config::restate;
 use super::dto::{
     AgentArchiveThreadRequest, AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFrameCursor,
     AgentFramePage, AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest,
-    AgentRenameThreadRequest, AgentRunEvent, AgentSessionUsage, AgentThread, AgentThreadRequest,
-    AgentThreadSnapshot, AgentThreadTarget, AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD,
-    reported_goal,
+    AgentRenameThreadRequest, AgentRunEvent, AgentSessionUsage, AgentThread,
+    AgentThreadOutlineRequest, AgentThreadRequest, AgentThreadSnapshot, AgentThreadTarget,
+    AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
@@ -566,7 +566,7 @@ pub async fn agent_pin_thread(
     Ok(())
 }
 
-/// 这条对话的整本目录，一轮一行。
+/// 这条对话的目录后缀，一轮一行；游标缺席时读取整本。
 ///
 /// 屏幕上的经过由 conversation_events 重放，目录因此也只能出自它：以内存窗口为定义域的
 /// 目录会随载入量伸缩，而人要跳的那一轮往往还没载入。
@@ -578,14 +578,16 @@ pub async fn agent_pin_thread(
 #[specta::specta]
 pub async fn agent_thread_outline(
     index: State<'_, LocalIndex>,
-    request: AgentThreadRequest,
+    request: AgentThreadOutlineRequest,
 ) -> AgentCommandResult<Vec<crate::ipc::commands::conversation::dto::AgentTurnMark>> {
     let id = conversation(&request.thread_id)?;
+    let from_seq = i64::from(request.from_seq.unwrap_or(0));
 
     let marks = read_index(&index, move |store| {
         store
             .turn_marks(
                 id,
+                from_seq,
                 PROMPT_ADMITTED,
                 poietica_kap_client::KAP_EVENT,
                 &ReplyRead {

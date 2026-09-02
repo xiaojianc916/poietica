@@ -108,6 +108,7 @@ impl AgentStore {
     pub fn turn_marks(
         &self,
         thread: Uuid,
+        from_seq: i64,
         turn_start: &str,
         event_kind: &str,
         reply: &ReplyRead<'_>,
@@ -119,15 +120,15 @@ impl AgentStore {
         let mut heads = self.connection.prepare_cached(
             "SELECT t.session_id, t.seq,
                     coalesce(json_extract(t.payload, '$.admissionId'), ''),
-                    substr(coalesce(json_extract(t.payload, '$.prompt'), ''), 1, ?3)
+                    substr(coalesce(json_extract(t.payload, '$.prompt'), ''), 1, ?4)
              FROM conversation_events t
-             WHERE t.thread_id = ?1 AND t.kind = ?2
+             WHERE t.thread_id = ?1 AND t.kind = ?2 AND t.seq >= ?3
              ORDER BY t.seq ASC",
         )?;
 
         let mut marks = heads
             .query_map(
-                rusqlite::params![thread_id, turn_start, prompt_chars],
+                rusqlite::params![thread_id, turn_start, from_seq, prompt_chars],
                 |row| {
                     Ok(TurnMark {
                         session_id: row.get(0)?,
@@ -149,20 +150,20 @@ impl AgentStore {
                         ORDER BY seq ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                       ) AS turn_seq
                  FROM conversation_events
-                WHERE thread_id = ?1
+                WHERE thread_id = ?1 AND seq >= ?3
              ), reply_flakes AS (
                SELECT turn_seq,
-                      json_extract(payload, '$.payload.' || ?4) AS text,
+                      json_extract(payload, '$.payload.' || ?5) AS text,
                       ROW_NUMBER() OVER (PARTITION BY turn_seq ORDER BY seq) AS rank
                  FROM ordered
                 WHERE turn_seq IS NOT NULL
-                  AND kind = ?3
-                  AND json_extract(payload, '$.payload.' || ?5) = ?6
-                  AND coalesce(json_extract(payload, '$.payload.' || ?7), '') IN ('', ?8)
+                  AND kind = ?4
+                  AND json_extract(payload, '$.payload.' || ?6) = ?7
+                  AND coalesce(json_extract(payload, '$.payload.' || ?8), '') IN ('', ?9)
              )
              SELECT turn_seq, text
                FROM reply_flakes
-              WHERE text IS NOT NULL AND text <> '' AND rank <= ?9
+              WHERE text IS NOT NULL AND text <> '' AND rank <= ?10
               ORDER BY turn_seq ASC, rank ASC",
         )?;
 
@@ -171,6 +172,7 @@ impl AgentStore {
                 rusqlite::params![
                     thread_id,
                     turn_start,
+                    from_seq,
                     event_kind,
                     reply.text_field,
                     reply.type_field,
