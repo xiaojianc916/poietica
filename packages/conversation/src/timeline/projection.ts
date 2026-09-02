@@ -25,7 +25,7 @@ import {
   sealTail,
   takeQueued,
 } from './timeline-draft'
-import { pendingPermission, pendingQuestion } from './timeline-queries'
+import { pendingInteractions } from './timeline-queries'
 
 /**
  * 这一帧一定会被丢掉吗。
@@ -406,13 +406,14 @@ function settleQuestion(
  * 请求到达与答复到达的两支都读它，抄成两份就会有两种「还在等」。
  */
 function stillWaiting(draft: Draft): RunStatus {
-  if (pendingPermission(draft) !== undefined) {
+  const pending = pendingInteractions(draft.items)
+
+  if (pending.permission !== undefined) {
     return 'awaiting_permission'
   }
 
-  return pendingQuestion(draft) === undefined ? 'running' : 'awaiting_question'
+  return pending.question === undefined ? 'running' : 'awaiting_question'
 }
-
 function finalStatus(stopReason: KapStopReason): RunStatus {
   switch (stopReason) {
     case 'completed':

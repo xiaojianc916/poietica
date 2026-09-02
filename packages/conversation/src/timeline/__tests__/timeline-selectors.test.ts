@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'bun:test'
 
+import type { RunEvent } from '../../agent'
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/sample-run'
 import { selectPresentation } from '../presentation'
 import type { InflightPromptItem } from '../timeline-contract'
-import { inflightPromptId, selectIsBusy, type WaitingScope } from '../timeline-queries'
+import {
+  activeScope,
+  inflightPromptId,
+  pendingQuestion,
+  selectIsBusy,
+  type WaitingScope,
+} from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'
 
 const NOTHING_FOLDED: ReadonlyMap<number, boolean> = new Map()
@@ -26,6 +33,58 @@ describe('timeline selectors', () => {
     const feed = selectPresentation(replayRunEvents(partial), NOTHING_FOLDED)
 
     expect(feed.rowAt(feed.count - 1)?.isStreamingTail).toBe(true)
+  })
+
+  it('projects a first question into the actionable waiting state', () => {
+    const asked: RunEvent[] = [
+      {
+        kind: 'prompt_admitted',
+        sessionId: 'sess_a',
+        admissionId: 'adm-question',
+        prompt: '请提问',
+        seq: 1,
+        at: 1,
+      },
+      {
+        kind: 'questions_asked',
+        questionId: 'group_1',
+        questions: [
+          {
+            id: 'q_0',
+            question: '选一个',
+            options: [
+              { id: 'opt_0_0', label: 'A' },
+              { id: 'opt_0_1', label: 'B' },
+            ],
+            multiSelect: false,
+            allowOther: true,
+          },
+        ],
+        seq: 2,
+        at: 2,
+      },
+    ]
+
+    const pending = replayRunEvents(asked)
+
+    expect(pending.status).toBe('awaiting_question')
+    expect(pendingQuestion(activeScope(pending))?.questionId).toBe('group_1')
+
+    const answered = replayRunEvents([
+      ...asked,
+      {
+        kind: 'questions_resolved',
+        questionId: 'group_1',
+        outcome: 'answered',
+        answers: { q_0: { kind: 'single', optionId: 'opt_0_0' } },
+        note: '',
+        seq: 3,
+        at: 3,
+      },
+    ])
+
+    expect(answered.status).toBe('running')
+    expect(pendingQuestion(activeScope(answered))).toBeUndefined()
   })
 
   /*

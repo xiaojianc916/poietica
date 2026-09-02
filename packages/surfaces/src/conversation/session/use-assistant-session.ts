@@ -84,9 +84,9 @@ export interface AssistantSession {
   readonly cancel: () => void
   readonly resolvePermission: (requestId: string, answer: ApprovalAnswer) => void
   /** 答掉一整组题。答复形状就是协议自己的 QuestionResponse，不经权限请求。 */
-  readonly answerQuestions: (response: QuestionResponse) => void
+  readonly answerQuestions: (response: QuestionResponse) => Promise<void>
   /** 撤下一整组题。 */
-  readonly dismissQuestions: (questionId: string) => void
+  readonly dismissQuestions: (questionId: string) => Promise<void>
   /** 待插话消息的出账簿：顺序、编辑与释放时机都归它。 */
   readonly outbox: InterjectionOutbox
   /** True while a conversation is still being fetched. */
@@ -227,16 +227,12 @@ export function useAssistantSession({
   )
 
   const answerQuestions = useCallback(
-    (response: QuestionResponse) => {
-      direct(note, () => session?.answerQuestions(response))
-    },
+    (response: QuestionResponse) => direct(note, () => session?.answerQuestions(response)),
     [note, session],
   )
 
   const dismissQuestions = useCallback(
-    (questionId: string) => {
-      direct(note, () => session?.dismissQuestions(questionId))
-    },
+    (questionId: string) => direct(note, () => session?.dismissQuestions(questionId)),
     [note, session],
   )
 
@@ -411,20 +407,28 @@ export function useAssistantQuestion(key: string): QuestionTimelineItem | undefi
  * 就结清），所以它们不经 store。唯一要兜的是送不出去：就地记进转录。缺会话就是
  * 没有地方可送 —— 那也是一次要记的失败，不是静默。
  */
-const direct = (note: (why: string) => void, ask: () => Promise<void> | void): void => {
+const direct = async (
+  note: (why: string) => void,
+  ask: () => Promise<void> | void,
+): Promise<void> => {
+  let sent: Promise<void> | void
+
   try {
-    const sent = ask()
-
-    if (sent === undefined) {
-      note(NO_SESSION)
-
-      return
-    }
-
-    void sent.catch((cause: unknown) => {
-      note(describeFailure(cause))
-    })
+    sent = ask()
   } catch (cause) {
     note(describeFailure(cause))
+    throw cause
+  }
+
+  if (sent === undefined) {
+    note(NO_SESSION)
+    throw new Error(NO_SESSION)
+  }
+
+  try {
+    await sent
+  } catch (cause) {
+    note(describeFailure(cause))
+    throw cause
   }
 }

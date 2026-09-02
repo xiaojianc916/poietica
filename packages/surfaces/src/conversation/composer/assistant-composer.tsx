@@ -71,9 +71,9 @@ export interface AssistantComposerProps {
    */
   readonly question?: QuestionTimelineItem | null | undefined
   /** 面板交出整组答复时走这里。 */
-  readonly onAnswerQuestions?: ((response: QuestionResponse) => void) | undefined
+  readonly onAnswerQuestions?: ((response: QuestionResponse) => Promise<void>) | undefined
   /** 人撤下整组题时走这里。 */
-  readonly onDismissQuestions?: ((questionId: string) => void) | undefined
+  readonly onDismissQuestions?: ((questionId: string) => Promise<void>) | undefined
   /**
    * 待答的那一次审批。
    *

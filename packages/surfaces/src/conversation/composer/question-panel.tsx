@@ -66,8 +66,8 @@ function keyIntentOf(
 
 export interface QuestionPanelProps {
   readonly item: QuestionTimelineItem
-  readonly onAnswer?: ((response: QuestionResponse) => void) | undefined
-  readonly onDismiss?: ((questionId: string) => void) | undefined
+  readonly onAnswer?: ((response: QuestionResponse) => Promise<void>) | undefined
+  readonly onDismiss?: ((questionId: string) => Promise<void>) | undefined
 }
 
 export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps) {
@@ -130,16 +130,31 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
     })
   }
 
+  const deliver = (action: () => Promise<void>) => {
+    setSent(true)
+    void Promise.resolve()
+      .then(action)
+      .catch(() => {
+        setSent(false)
+      })
+  }
+
   const send = (via: QuestionAnswerMethod) => {
     const response = responseOf(item, drafts, method ?? via, note)
 
-    if (response === undefined) {
+    if (response === undefined || onAnswer === undefined) {
       return
     }
 
-    /* 先记下「交出去了」：questions_resolved 帧到达之前，所有控件都不该再点得动。 */
-    setSent(true)
-    onAnswer?.(response)
+    deliver(() => onAnswer(response))
+  }
+
+  const dismiss = () => {
+    if (onDismiss === undefined) {
+      return
+    }
+
+    deliver(() => onDismiss(item.questionId))
   }
 
   /* 主按钮：不是最后一页就翻页；最后一页凑齐了才是「交出答复」。 */
@@ -201,7 +216,7 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
               aria-label="撤下这组题"
               className="assistant-question-panel__dismiss"
               disabled={sent}
-              onClick={() => onDismiss?.(item.questionId)}
+              onClick={dismiss}
               type="button"
             >
               <X size={14} />
