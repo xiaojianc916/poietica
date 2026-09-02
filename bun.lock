@@ -19,7 +19,6 @@
         "@poietica/agent-catalog": "workspace:*",
         "@poietica/automation": "workspace:*",
         "@poietica/browser": "workspace:*",
-        "@poietica/contract": "workspace:*",
         "@poietica/conversation": "workspace:*",
         "@poietica/design-system": "workspace:*",
         "@poietica/extension": "workspace:*",
@@ -69,7 +68,6 @@
       "name": "@poietica/automation",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/contract": "workspace:*",
         "@poietica/problem": "workspace:*",
         "croner": "10.0.1",
       },
@@ -82,7 +80,6 @@
       "name": "@poietica/browser",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/contract": "workspace:*",
         "@poietica/external-store": "workspace:*",
         "@poietica/problem": "workspace:*",
       },
@@ -137,7 +134,6 @@
       "name": "@poietica/extension",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/contract": "workspace:*",
         "@poietica/problem": "workspace:*",
         "valibot": "catalog:",
         "yaml": "catalog:",
@@ -182,7 +178,6 @@
       "name": "@poietica/problem",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/contract": "workspace:*",
         "uuid": "catalog:",
       },
       "devDependencies": {
@@ -194,7 +189,6 @@
       "name": "@poietica/review",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/contract": "workspace:*",
         "@poietica/external-store": "workspace:*",
         "diff": "catalog:",
       },
@@ -208,7 +202,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@poietica/agent-catalog": "workspace:*",
-        "@poietica/contract": "workspace:*",
         "@poietica/external-store": "workspace:*",
         "@poietica/problem": "workspace:*",
         "yaml": "catalog:",
@@ -275,7 +268,6 @@
       "name": "@poietica/update",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/contract": "workspace:*",
         "@poietica/external-store": "workspace:*",
       },
       "devDependencies": {
