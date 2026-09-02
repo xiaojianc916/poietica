@@ -12,10 +12,15 @@ use crate::session::rest::{delete, get, post, put};
 pub struct ProviderModelInput {
     pub model: String,
     pub max_context_size: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_output_size: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub support_efforts: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub adaptive_thinking: Option<bool>,
 }
 
@@ -24,19 +29,26 @@ pub struct ProviderInput {
     pub id: String,
     #[serde(rename = "type")]
     pub provider_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub default_model: Option<String>,
     pub models: Vec<ProviderModelInput>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ProviderReplacement {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub new_id: Option<String>,
     #[serde(rename = "type")]
     pub provider_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub default_model: Option<String>,
     pub models: Vec<ProviderModelInput>,
 }
@@ -44,14 +56,18 @@ pub struct ProviderReplacement {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CatalogImport {
     pub catalog_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RegistryImport {
     pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
 }
 

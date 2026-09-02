@@ -32,6 +32,8 @@ export interface SelectProps<TValue extends string = string> {
   readonly align?: 'start' | 'end'
   /** 触发器在所在版面里的宽度约束。面板与每一行的样式不对外开放。 */
   readonly className?: string
+  /** 触发器的 id，用于外部 <label htmlFor> 关联。 */
+  readonly id?: string
   readonly onValueChange: (value: TValue) => void
 }
 
@@ -132,6 +134,7 @@ export function Select<TValue extends string = string>({
   value,
   align = 'start',
   className,
+  id,
   onValueChange,
 }: SelectProps<TValue>) {
   return (
@@ -144,7 +147,12 @@ export function Select<TValue extends string = string>({
       }}
       value={value || null}
     >
-      <BaseSelect.Trigger aria-label={type} className={cn(TRIGGER, className)} type="button">
+      <BaseSelect.Trigger
+        aria-label={type}
+        className={cn(TRIGGER, className)}
+        id={id}
+        type="button"
+      >
         <BaseSelect.Value className={VALUE} placeholder={`选择${type}…`} />
 
         <BaseSelect.Icon>

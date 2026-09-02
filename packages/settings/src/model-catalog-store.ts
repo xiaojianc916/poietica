@@ -114,16 +114,25 @@ export class ModelCatalogStore {
   readonly #committed = new Set<() => void>()
   #snapshot = EMPTY
   #generation = 0
+  #loading: Promise<void> | null = null
   #dispose: (() => void) | null = null
+  #disposed = false
 
   constructor(port: ModelCatalogPort, agentId: string) {
     this.#port = port
     this.#agentId = agentId
     void port
       .subscribeInvalidation(() => void this.refresh())
-      .then((dispose) => {
-        this.#dispose = dispose
-      })
+      .then(
+        (dispose) => {
+          if (this.#disposed) {
+            dispose()
+            return
+          }
+          this.#dispose = dispose
+        },
+        () => undefined,
+      )
   }
 
   readonly getSnapshot = (): ModelCatalogSnapshot => this.#snapshot
@@ -139,10 +148,29 @@ export class ModelCatalogStore {
   }
 
   dispose(): void {
+    this.#disposed = true
+    this.#generation += 1
     this.#dispose?.()
     this.#dispose = null
     this.#listeners.clear()
     this.#committed.clear()
+  }
+
+  load = (): Promise<void> => {
+    if (this.#snapshot.data !== null) {
+      return Promise.resolve()
+    }
+    if (this.#loading !== null) {
+      return this.#loading
+    }
+    const pending = this.refresh()
+    this.#loading = pending
+    void pending.finally(() => {
+      if (this.#loading === pending) {
+        this.#loading = null
+      }
+    })
+    return pending
   }
 
   refresh = async (): Promise<void> => {
