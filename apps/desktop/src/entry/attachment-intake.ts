@@ -10,6 +10,7 @@ import {
   uploadAsset,
   watchDroppedPaths,
 } from '@poietica/native-bridge'
+import { warn } from '@poietica/problem'
 
 /*
  * 附件收件口的原生这一半。
@@ -122,9 +123,8 @@ export function createAttachmentIntake(): AttachmentIntake {
           }
         }, REPEAT_WINDOW)
 
-        void intake(paths).then(onDropped, () => {
-          /* 这一批一个都收不下（拖了个 .zip 进来）。屏幕上就是没有反应，
-          与加号那条路一致 —— 不为一次没进门的拖放弹一个报错。 */
+        void intake(paths).then(onDropped, (cause: unknown) => {
+          warn('拖放附件未能接收', { scope: 'attachment-intake', cause })
         })
       })
         .then((unlisten) => {
@@ -136,8 +136,8 @@ export function createAttachmentIntake(): AttachmentIntake {
 
           stop = unlisten
         })
-        .catch(() => {
-          /* 监听装不上，拖放就是不工作。别的路照常。 */
+        .catch((cause: unknown) => {
+          warn('拖放监听未能安装', { scope: 'attachment-intake', cause })
         })
 
       return () => {
@@ -163,7 +163,9 @@ export function createAttachmentIntake(): AttachmentIntake {
     discard(asset) {
       /* 有意的 fire-and-forget：放不掉一份暂存字节不该让移除按钮卡住，
       而这条会话在进程退出时整条作废。 */
-      void removeAsset(asset.sessionToken, asset.assetToken).catch(() => {})
+      void removeAsset(asset.sessionToken, asset.assetToken).catch((cause: unknown) => {
+        warn('暂存附件未能释放', { scope: 'attachment-intake', cause })
+      })
     },
   }
 }

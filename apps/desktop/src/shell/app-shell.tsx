@@ -13,7 +13,6 @@ import { ConversationCommands } from '../assistant/conversation-commands'
 import { ThreadsProvider } from '../assistant/threads-provider'
 import { AutomationDispatcher } from '../entry/automation-dispatcher'
 import type { ApplicationRuntime } from '../entry/compose-runtime'
-import { PluginLoader } from '../entry/plugin-runtime'
 import { NoticeRegion } from '../notice/notice-region'
 import { type ApplicationFailureCode, reportFailure } from '../notice/problem-presentation'
 import { UpdateCapsule } from '../update/update-capsule'
@@ -41,7 +40,7 @@ const UPDATE_FAILURE_CODES = {
 } as const satisfies Record<AppUpdateOperation, ApplicationFailureCode>
 
 /* 拆掉 runtime 是启动期的事，不属于界面：这里只把那一柄拿掉。 */
-type AppShellRuntime = Omit<ApplicationRuntime, 'dispose'>
+type AppShellRuntime = ApplicationRuntime
 
 interface AppShellProps {
   readonly runtime: AppShellRuntime
@@ -57,7 +56,7 @@ export function AppShell({ runtime }: AppShellProps) {
     minimize: minimizeWindow,
     toggleMaximize: maximizeWindow,
     quit: closeWindow,
-  } = useWindowChrome(runtime.mainWindow)
+  } = useWindowChrome(runtime.mainWindow, runtime.dispose)
 
   const failureSnapshot = useSyncExternalStore(
     failureCoordinator.subscribe,
@@ -321,10 +320,11 @@ export function AppShell({ runtime }: AppShellProps) {
            * ThreadsProvider 之内是硬要求：一次运行要开出一条对话，而开对话的动作出
            * 自这个 provider。
            */}
-          <AutomationDispatcher session={runtime.agent.session} store={runtime.automationStore} />
-
-          {/* 同样无渲染产出：让插件的装载与应用同寿。 */}
-          <PluginLoader store={runtime.pluginStore} />
+          <AutomationDispatcher
+            own={runtime.own}
+            session={runtime.agent.session}
+            store={runtime.automationStore}
+          />
 
           {/*
           同样无渲染产出：把会话列表贡献进命令注册表，于是搜索框里第一组就是

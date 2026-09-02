@@ -20,11 +20,15 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
 
   /*
    * 崩溃屏自己建 controller，不从 runtime 取：native-crash 那条启动路径上
-   * runtime 从未被创建，而这个 controller 不持状态，每个方法现取窗口。
+   * runtime 从未被创建，而这个 controller 不持状态，每个方法现取窗口。退出前也
+   * 没有可清理的应用资源，dispose 传空实现。
    */
   const mainWindow = useMemo(() => createMainWindowController(), [])
 
-  const { isMaximized, minimize, toggleMaximize, quit } = useWindowChrome(mainWindow)
+  const { isMaximized, minimize, toggleMaximize, quit } = useWindowChrome(
+    mainWindow,
+    async () => undefined,
+  )
 
   const model = useMemo(
     () => createTerminalFailureViewModel(incident, additionalIncidentCount),

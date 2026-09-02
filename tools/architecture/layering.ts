@@ -1,7 +1,7 @@
 /**
  * 分层表：环序即依赖方向 —— 只允许高环指向低环，同环之间不许有边。
  *
- * 环语义对齐目标态（Architecture/poietica-architecture/LAYERS.md 的 R0–R4）；
+ * 环语义以根 AGENTS.md §3 的单向依赖约束为准；
  * 与目标表的已知偏差，均登记在案：agent 会话端口与词汇住在 conversation 的
  * agent/ 目录；agent-catalog 是纯数据档案，自成低环供各领域与表面消费；工作台
  * 的外壳与停靠视图住在 apps/desktop/src/shell（组合根）。

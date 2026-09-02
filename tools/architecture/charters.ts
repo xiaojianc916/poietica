@@ -477,8 +477,6 @@ export async function processStateIsComposedAtRoot(root: string): Promise<Violat
    */
   const declarations = [
     ['apps/desktop/src/entry/automation-dispatcher.tsx', 'export const automationStore ='],
-    ['apps/desktop/src/entry/plugin-runtime.tsx', 'export const pluginStore ='],
-    ['apps/desktop/src/entry/plugin-runtime.tsx', 'export const hostedMcpServersReady:'],
   ] as const
   const violations: Violation[] = []
 

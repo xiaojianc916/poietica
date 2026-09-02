@@ -10,7 +10,10 @@ interface WindowChrome {
 }
 
 /** Window state and actions exposed by the native window owner. */
-export function useWindowChrome(mainWindow: MainWindowController): WindowChrome {
+export function useWindowChrome(
+  mainWindow: MainWindowController,
+  dispose: () => Promise<void>,
+): WindowChrome {
   const isMaximized = useMaximizedState(mainWindow)
 
   const minimize = useCallback(() => {
@@ -34,14 +37,16 @@ export function useWindowChrome(mainWindow: MainWindowController): WindowChrome 
   }, [mainWindow])
 
   const quit = useCallback(() => {
-    void mainWindow.quit().catch((cause: unknown) => {
-      reportFailure('WINDOW_CLOSE_UNAVAILABLE', {
-        scope: 'window-chrome',
-        operation: 'quit-application',
-        cause,
+    void dispose()
+      .then(() => mainWindow.quit())
+      .catch((cause: unknown) => {
+        reportFailure('WINDOW_CLOSE_UNAVAILABLE', {
+          scope: 'window-chrome',
+          operation: 'quit-application',
+          cause,
+        })
       })
-    })
-  }, [mainWindow])
+  }, [dispose, mainWindow])
 
   return { isMaximized, minimize, toggleMaximize, quit }
 }

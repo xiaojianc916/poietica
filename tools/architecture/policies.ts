@@ -649,6 +649,7 @@ export async function declaredDependenciesOnly(
       dependencies?: Record<string, string>
       devDependencies?: Record<string, string>
       peerDependencies?: Record<string, string>
+      optionalDependencies?: Record<string, string>
     }
 
     declared.set(
@@ -657,6 +658,7 @@ export async function declaredDependenciesOnly(
         ...Object.keys(manifest.dependencies ?? {}),
         ...Object.keys(manifest.devDependencies ?? {}),
         ...Object.keys(manifest.peerDependencies ?? {}),
+        ...Object.keys(manifest.optionalDependencies ?? {}),
       ]),
     )
   }

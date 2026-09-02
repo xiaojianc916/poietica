@@ -71,6 +71,10 @@ export async function readWorkspaces(root: string): Promise<Workspace[]> {
     if (manifest.name === undefined) {
       throw new Error(`工作区缺少 name：${directory}`)
     }
+    const duplicate = workspaces.find((workspace) => workspace.name === manifest.name)
+    if (duplicate !== undefined) {
+      throw new Error(`工作区重名：${manifest.name}（${duplicate.directory}、${directory}）`)
+    }
     workspaces.push({ name: manifest.name, directory, manifest })
   }
 

@@ -10,6 +10,7 @@ export interface AutomationDispatcherProps {
   readonly session: AgentSessionPort
   /** 进程级自动化 store，由组合根构造注入（见 entry/compose-runtime.ts）。 */
   readonly store: AutomationStore
+  readonly own: (dispose: () => void) => () => void
 }
 
 /**
@@ -26,7 +27,7 @@ export interface AutomationDispatcherProps {
  * 一次运行就是开出一条普通对话、把指令说进去 —— 说话与人按下发送键走的是同一条
  * 管线（TranscriptStore.send），自动化不另立一套执行器，也不另存一份运行日志。
  */
-export function AutomationDispatcher({ session, store }: AutomationDispatcherProps) {
+export function AutomationDispatcher({ own, session, store }: AutomationDispatcherProps) {
   const controls = useSessionControlsActions()
   const threads = useThreadsActions()
   const transcripts = useTranscripts()
@@ -96,8 +97,8 @@ export function AutomationDispatcher({ session, store }: AutomationDispatcherPro
       }
     }
 
-    return store.start(dispatch)
-  }, [controls, session, store, threads, transcripts])
+    return own(store.start(dispatch))
+  }, [controls, own, session, store, threads, transcripts])
 
   return null
 }

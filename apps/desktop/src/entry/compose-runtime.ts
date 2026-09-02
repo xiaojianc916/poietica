@@ -57,6 +57,7 @@ export interface ApplicationRuntime {
   readonly attachments: AttachmentIntake
   readonly pluginStore: PluginStore
   readonly automationStore: AutomationStore
+  readonly own: (dispose: () => void) => () => void
   /** 这个可执行文件自己的版本号。 */
   readonly appVersion: () => Promise<string>
   /** 这台机器上，这个应用的数据落在哪。关于页面要如实说出它。 */
@@ -65,6 +66,27 @@ export interface ApplicationRuntime {
 }
 
 export function createApplicationRuntime(restored: string | null): ApplicationRuntime {
+  const cleanups: Array<() => void> = []
+  let disposed = false
+  const own = (cleanup: () => void): (() => void) => {
+    if (disposed) {
+      cleanup()
+      return () => undefined
+    }
+    cleanups.push(cleanup)
+    let active = true
+    return () => {
+      if (!active) {
+        return
+      }
+      active = false
+      const index = cleanups.indexOf(cleanup)
+      if (index >= 0) {
+        cleanups.splice(index, 1)
+      }
+      cleanup()
+    }
+  }
   /*
    * 工作台的唯一真相在 threads.sqlite3 的 workbench_session 那一行；这里拿到的
    * 是它在这个渲染进程里的唯一投影。变一次写一次，整份覆盖。
@@ -102,6 +124,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     marketplaceUrl: MARKETPLACE_URL,
     now: () => new Date().toISOString(),
   })
+  void pluginStore.start()
   const hostedMcpServersReady: Promise<void> = Promise.all([
     reconcileAutomationsMcpServer(pluginStore),
     reconcileBrowserMcpServer(pluginStore),
@@ -126,10 +149,19 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     attachments,
     pluginStore,
     automationStore,
+    own,
     appVersion: readAppVersion,
     dataDirectory: readDataDirectory,
 
     async dispose() {
+      if (disposed) {
+        return
+      }
+      disposed = true
+      for (const cleanup of cleanups.splice(0).reverse()) {
+        cleanup()
+      }
+      pluginStore.stop()
       await agent.dispose()
     },
   }
