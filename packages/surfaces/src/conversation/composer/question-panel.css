@@ -1,18 +1,6 @@
 /*
- * 问答面板。
- *
- * 两件事：它是长出来的，以及它是一段话加一组选择。
- *
- * 「长出来」由外层那行 grid 负责——行高从 0fr 动到 1fr，中层裁掉溢出，高度因此
- * 是被内容顶开的。先占好位再淡入是另一回事，那看起来是浮现。
- *
- * 「一段话加一组选择」由留白负责。内容不贴外壳的角：外壳是输入框自己那一层，
- * 题面顶到它的左上角，读起来就像一句被挤出来的系统提示，而不是有人在问你。
- * 所以内边距写在这里，而不是指望父层顺手给。
- *
- * 选中与否由左侧那枚图标和背景色一起说，边框全程不参与——一圈变色的描边会把
- * 选项读成输入控件，而它是一个选择。同理，叉叉不带描边圈：它是一个动作，不是
- * 一个待填的位子。
+ * 问答面板只负责题面布局和交互反馈；共享按钮与 Tooltip 由 design-system 提供。
+ * 选中态由图标和背景表达，不使用描边。
  */
 
 .assistant-question-panel {
@@ -30,7 +18,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px 18px 14px;
+  padding: 16px 18px 10px;
   animation: assistant-question-page 140ms ease-out;
 }
 
@@ -60,45 +48,48 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .assistant-question-panel,
-  .assistant-question-panel__page {
-    animation: none;
-  }
-}
-
 .assistant-question-panel__head {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: 12px;
-  row-gap: 4px;
+  column-gap: 10px;
+  min-height: 24px;
+}
+
+.assistant-question-panel__count {
+  grid-column: 1;
+  justify-self: start;
+  min-width: 30px;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+  font-variant-numeric: tabular-nums;
+  text-align: start;
 }
 
 .assistant-question-panel__tag {
-  grid-column: 1;
-  grid-row: 1;
+  grid-column: 2;
   justify-self: start;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--cp-ink-subtle);
   font-size: var(--cp-font-micro);
   line-height: 1.4;
-  color: var(--cp-ink-subtle);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .assistant-question-panel__prompt {
-  grid-column: 1;
   margin: 0;
   font-size: var(--cp-font-label);
   font-weight: 500;
   line-height: var(--ui-prose-line-height);
 }
 
-.assistant-question-panel__nav {
-  grid-column: 2;
-  grid-row: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  align-self: center;
+.assistant-question-panel__body {
+  margin: 4px 0 0;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-caption);
+  line-height: var(--ui-prose-line-height);
 }
 
 .assistant-question-panel__arrow,
@@ -119,27 +110,21 @@
     color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
+.assistant-question-panel__dismiss {
+  grid-column: 3;
+  justify-self: end;
+}
+
 .assistant-question-panel__arrow:hover:not(:disabled),
 .assistant-question-panel__dismiss:hover:not(:disabled) {
   background: var(--cp-hover);
   color: inherit;
 }
 
-.assistant-question-panel__arrow:disabled {
-  opacity: 0.35;
+.assistant-question-panel__arrow:disabled,
+.assistant-question-panel__dismiss:disabled {
   cursor: default;
-}
-
-.assistant-question-panel__dismiss {
-  margin-left: 6px;
-}
-
-.assistant-question-panel__count {
-  min-width: 30px;
-  text-align: center;
-  font-size: var(--cp-font-micro);
-  font-variant-numeric: tabular-nums;
-  color: var(--cp-ink-subtle);
+  opacity: 0.35;
 }
 
 .assistant-question-panel__options {
@@ -160,16 +145,17 @@
   border: 0;
   border-radius: var(--cp-radius-item);
   background: transparent;
+  color: inherit;
   font: inherit;
   font-size: var(--cp-font-caption);
   line-height: var(--ui-line-height-normal);
   text-align: left;
-  color: inherit;
   cursor: pointer;
   transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.assistant-question-panel__option:hover:not(:disabled) {
+.assistant-question-panel__option:hover:not(:disabled):not([data-disabled="true"]),
+.assistant-question-panel__option--other:focus-within {
   background: var(--cp-hover);
 }
 
@@ -177,9 +163,22 @@
   background: color-mix(in srgb, var(--ui-foreground) 10%, transparent);
 }
 
-.assistant-question-panel__option:disabled {
-  opacity: 0.55;
+.assistant-question-panel__option:disabled,
+.assistant-question-panel__option[data-disabled="true"] {
   cursor: default;
+  opacity: 0.55;
+}
+
+.assistant-question-panel__option--other {
+  cursor: text;
+}
+
+.assistant-question-panel__key {
+  flex: none;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--ui-line-height-normal);
 }
 
 .assistant-question-panel__mark {
@@ -197,113 +196,78 @@
   min-width: 0;
 }
 
-.assistant-question-panel__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.assistant-question-panel__hint {
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-}
-
-.assistant-question-panel__advance {
-  padding: 7px 16px;
+.assistant-question-panel__other-input {
+  min-width: 0;
+  flex: 1;
+  padding: 0;
   border: 0;
-  border-radius: 999px;
-  background: var(--cp-accent);
-  color: var(--cp-accent-foreground);
+  outline: 0;
+  background: transparent;
+  color: inherit;
   font: inherit;
-  font-size: var(--cp-font-micro);
-  cursor: pointer;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.assistant-question-panel__advance.is-idle {
-  opacity: 0.55;
-}
-
-.assistant-question-panel__advance:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-/* 整组题面板新长出来的几格：题面正文、序号、自选、备注、动作排。 */
-
-.assistant-question-panel__body {
-  margin: 4px 0 0;
-  font-size: var(--cp-font-caption);
-  line-height: var(--ui-prose-line-height);
+.assistant-question-panel__other-input::placeholder {
   color: var(--cp-ink-subtle);
-}
-
-.assistant-question-panel__key {
-  flex: none;
-  font-size: var(--cp-font-micro);
-  line-height: var(--ui-line-height-normal);
-  color: var(--cp-ink-subtle);
-  font-variant-numeric: tabular-nums;
-}
-
-.assistant-question-panel__option[data-cursor="true"] {
-  outline: 1px solid var(--cp-accent);
-  outline-offset: 1px;
 }
 
 .assistant-question-panel__options[data-skipped="true"] {
   opacity: 0.45;
 }
 
-.assistant-question-panel__other,
+.assistant-question-panel__hint-inline {
+  margin: 6px 0 0;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+}
+
+.assistant-question-panel__tail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 18px 16px;
+}
+
 .assistant-question-panel__note {
   width: 100%;
   padding: 6px 8px;
-  font-size: var(--cp-font-label);
-  line-height: var(--ui-line-height-normal);
-  color: var(--ui-foreground);
-  background: transparent;
   border: 1px solid var(--cp-hover);
   border-radius: var(--cp-radius-item);
+  background: transparent;
+  color: var(--ui-foreground);
+  font-size: var(--cp-font-label);
+  line-height: var(--ui-line-height-normal);
 }
 
-.assistant-question-panel__other {
-  margin-top: 6px;
-}
-
-.assistant-question-panel__note {
-  margin-top: 8px;
-  font-size: var(--cp-font-micro);
-}
-
-.assistant-question-panel__other:focus,
-.assistant-question-panel__note:focus {
+.assistant-question-panel__note:focus-visible {
   outline: 1px solid var(--cp-accent);
+  outline-offset: 1px;
 }
 
-.assistant-question-panel__acts {
+.assistant-question-panel__foot {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
-.assistant-question-panel__skip {
-  padding: 2px 4px;
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-  background: none;
-  border: none;
-  cursor: pointer;
+.assistant-question-panel__nav,
+.assistant-question-panel__acts {
+  display: flex;
+  align-items: center;
 }
 
-.assistant-question-panel__skip:hover {
-  color: var(--ui-foreground);
+.assistant-question-panel__nav {
+  gap: 2px;
 }
 
-.assistant-question-panel__hint-inline {
-  margin: 6px 0 0;
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
+.assistant-question-panel__acts {
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-question-panel,
+  .assistant-question-panel__page {
+    animation: none;
+  }
 }
