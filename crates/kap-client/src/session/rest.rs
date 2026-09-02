@@ -51,7 +51,7 @@ pub(crate) fn envelope_data(body: &Value) -> Result<Value> {
 }
 
 /// 按快照类型读一条 data：字段名与形状的判据只有生成类型，没有第二条手挖的路。
-fn decoded<T: serde::de::DeserializeOwned>(data: Value, what: &str) -> Result<T> {
+pub(crate) fn decoded<T: serde::de::DeserializeOwned>(data: Value, what: &str) -> Result<T> {
     serde_json::from_value(data).map_err(|error| KapError::Transport {
         message: format!("{what} does not fit the pinned contract: {error}"),
     })
@@ -73,6 +73,44 @@ pub(crate) async fn post<T: serde::Serialize>(
         message: error.to_string(),
     })?;
     send(http.post(url).json(body)).await
+}
+
+pub(crate) async fn put<T: serde::Serialize>(
+    http: &reqwest::Client,
+    route: routes::Route,
+    body: &T,
+) -> Result<Value> {
+    let url = route.map_err(|error| KapError::Transport {
+        message: error.to_string(),
+    })?;
+    send(http.put(url).json(body)).await
+}
+
+pub(crate) async fn delete(http: &reqwest::Client, route: routes::Route) -> Result<()> {
+    let url = route.map_err(|error| KapError::Transport {
+        message: error.to_string(),
+    })?;
+    let response = http
+        .delete(url)
+        .send()
+        .await
+        .map_err(|error| KapError::Transport {
+            message: error.to_string(),
+        })?;
+    let status = response.status();
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| KapError::Transport {
+            message: error.to_string(),
+        })?;
+    if bytes.is_empty() && status.is_success() {
+        return Ok(());
+    }
+    let body: Value = serde_json::from_slice(&bytes).map_err(|error| KapError::Transport {
+        message: error.to_string(),
+    })?;
+    envelope_data(&body).map(|_| ())
 }
 
 /// 发请求、解信封。get 与 post 只差请求的构造，收发与解包走同一条路。

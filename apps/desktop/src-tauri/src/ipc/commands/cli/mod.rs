@@ -7,12 +7,6 @@
 //!
 //! 依赖单向：`super::conversation::runtime` 起连接之前向 `profile::launch_env` 要环境
 //! 变量；这一侧不认识会话，也不得反向引用 `super::conversation`。
-//!
-//! 分四个文件而不是一个，因为其中两条是各自封闭的白名单入口：`exec` 只放行
-//! provider 子命令，`install` 只放行一次全局安装。把后者并进前者，等于把一个
-//! 受控入口改成通用执行入口。
 
-pub mod exec;
 pub mod install;
-pub mod probe;
 pub mod profile;

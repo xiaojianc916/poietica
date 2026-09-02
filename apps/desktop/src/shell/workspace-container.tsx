@@ -3,9 +3,10 @@ import type { AgentSessionPort } from '@poietica/conversation'
 import type { PluginStore } from '@poietica/extension'
 import { browserHostPort } from '@poietica/native-bridge'
 import type {
-  AgentConfigStore,
+  AgentSettings,
   CustomAgentStore,
   KeybindingCatalog,
+  ModelCatalogStore,
   SettingsStore,
 } from '@poietica/settings'
 import {
@@ -61,7 +62,9 @@ export interface WorkspaceContainerProps {
   readonly isSettingsOpen: boolean
   readonly onSettingsClose: () => void
   readonly settingsStore: SettingsStore
-  readonly agentConfigStore: AgentConfigStore
+  readonly agentSettings: AgentSettings
+  /** 模型目录的唯一持有者，由组合根注入（见 entry/compose-runtime.ts）。 */
+  readonly modelCatalog: ModelCatalogStore
   readonly customAgentStore: CustomAgentStore
   readonly plugins: PluginStore
   /** 进程级自动化表，由组合根构造注入（见 entry/compose-runtime.ts）。 */
@@ -100,7 +103,8 @@ export function WorkspaceContainer({
   isSettingsOpen,
   onSettingsClose,
   settingsStore,
-  agentConfigStore,
+  agentSettings,
+  modelCatalog,
   customAgentStore,
   plugins,
   automationStore,
@@ -381,11 +385,12 @@ export function WorkspaceContainer({
    */
   return (
     <SettingsProvider
-      agentConfigStore={agentConfigStore}
+      agentSettings={agentSettings}
       appVersion={appVersion}
       dataDirectory={dataDirectory}
       isOpen={isSettingsOpen}
       keybindings={keybindings}
+      modelCatalog={modelCatalog}
       onDismiss={onSettingsClose}
       plugins={plugins}
       store={settingsStore}

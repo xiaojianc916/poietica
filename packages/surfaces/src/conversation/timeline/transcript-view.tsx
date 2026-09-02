@@ -1,4 +1,4 @@
-import type { TurnMark } from '@poietica/conversation'
+import type { Presentation, TurnMark } from '@poietica/conversation'
 import { selectIsBusy, selectPresentation } from '@poietica/conversation'
 import { type ReactNode, useCallback, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
@@ -38,6 +38,35 @@ interface Disclosure {
 
 /* 谁都没点过时共用同一份：状态的初值不该每次渲染换一个引用。 */
 const NOTHING: Disclosure = { items: new Set(), seals: new Map() }
+
+/** admissionId 未直接可见时，沿 outline 向两侧找最近可见轮次。 */
+function nearestLandingRow(
+  projection: Presentation,
+  outline: readonly TurnMark[],
+  admissionId: string,
+): number | undefined {
+  const selected = outline.findIndex((candidate) => candidate.admissionId === admissionId)
+  if (selected < 0) {
+    return undefined
+  }
+  for (let distance = 1; distance < outline.length; distance += 1) {
+    const earlier = outline[selected - distance]
+    if (earlier !== undefined) {
+      const row = projection.rowOf(earlier.admissionId)
+      if (row !== undefined) {
+        return row
+      }
+    }
+    const later = outline[selected + distance]
+    if (later !== undefined) {
+      const row = projection.rowOf(later.admissionId)
+      if (row !== undefined) {
+        return row
+      }
+    }
+  }
+  return undefined
+}
 
 export interface TranscriptViewProps {
   readonly sessionKey: string
@@ -166,29 +195,7 @@ export function TranscriptView({
         if (exact !== undefined || !allowNearest) {
           return exact
         }
-        const selected = outline.findIndex(
-          (candidate) => candidate.admissionId === mark.admissionId,
-        )
-        if (selected < 0) {
-          return undefined
-        }
-        for (let distance = 1; distance < outline.length; distance += 1) {
-          const earlier = outline[selected - distance]
-          if (earlier !== undefined) {
-            const row = projection.rowOf(earlier.admissionId)
-            if (row !== undefined) {
-              return row
-            }
-          }
-          const later = outline[selected + distance]
-          if (later !== undefined) {
-            const row = projection.rowOf(later.admissionId)
-            if (row !== undefined) {
-              return row
-            }
-          }
-        }
-        return undefined
+        return nearestLandingRow(projection, outline, mark.admissionId)
       }
 
       const known = landingOf(false)

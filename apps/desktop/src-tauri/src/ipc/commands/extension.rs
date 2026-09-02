@@ -3,8 +3,6 @@
 //! installed.json 的解释与写入由 plugin-host 独占；这里仅解析 IPC、组合路径、
 //! 推进暂存目录并把宿主类型映射成 IPC 类型。
 
-pub mod catalog_server;
-
 use std::fs;
 use std::path::{Path, PathBuf};
 

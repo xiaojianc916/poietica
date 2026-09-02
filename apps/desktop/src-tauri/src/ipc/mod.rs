@@ -25,9 +25,7 @@ use commands::{
         Automation, AutomationCatalog, AutomationCatalogChanged, AutomationCreation, AutomationDue,
         AutomationReschedule, AutomationRun, AutomationRunRecord,
     },
-    cli::exec::{AgentCliRequest, AgentCliResult},
     cli::install::{AgentInstallState, AgentInstallStatus},
-    cli::probe::ProviderProbeOutcome,
     cli::profile::AgentConfigSnapshot,
     conversation::capability::{
         AgentCapability, AgentCapabilityInstall, AgentCapabilityInstallRequest,
@@ -80,6 +78,7 @@ pub fn surface() -> Builder<Wry> {
             commands::conversation::config::agent_set_config_option,
             commands::conversation::config::agent_capabilities,
             commands::conversation::toolkit::agent_toolkit,
+            commands::conversation::model_catalog::agent_model_catalog,
             commands::conversation::capability::agent_capability_report,
             commands::conversation::capability::agent_capability_install,
             commands::conversation::thread::agent_threads,
@@ -139,14 +138,9 @@ pub fn surface() -> Builder<Wry> {
             commands::settings::settings_set,
             commands::settings::settings_reset,
             commands::cli::profile::agent_config_get,
-            commands::cli::profile::agent_default_model,
-            commands::cli::profile::agent_set_default_model,
-            commands::cli::profile::agent_key_tails,
             commands::cli::profile::agent_config_save_agents,
-            commands::cli::exec::agent_cli_exec,
             commands::cli::install::agent_install_status,
             commands::cli::install::agent_install_run,
-            commands::cli::probe::provider_probe_key,
             commands::updates::update_check,
             commands::updates::update_download,
             commands::updates::update_relaunch,
@@ -262,11 +256,8 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AppSettings>()
         .typ::<PrivacySettings>()
         .typ::<AgentConfigSnapshot>()
-        .typ::<AgentCliRequest>()
         .typ::<AgentInstallState>()
         .typ::<AgentInstallStatus>()
-        .typ::<AgentCliResult>()
-        .typ::<ProviderProbeOutcome>()
         .typ::<TerminalChunk>()
         .typ::<TerminalStreamed>()
         .typ::<UpdateRelease>()

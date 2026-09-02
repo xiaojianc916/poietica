@@ -639,11 +639,7 @@ export class TranscriptStore implements TranscriptSink {
     }
     let pages = onePage ? 1 : 0
 
-    for (;;) {
-      if (this.#historyLoads.get(real) !== load || !this.#held.has(real)) {
-        return
-      }
-
+    while (this.#isHistoryLoadActive(real, load)) {
       const current = this.#now(real)
       this.#dropLoadedTargets(load, current.timeline)
       if (pages === 0 && load.targets.size === 0) {
@@ -658,7 +654,7 @@ export class TranscriptStore implements TranscriptSink {
       }
 
       const page = await reads.earlier(real, before)
-      if (this.#historyLoads.get(real) !== load || !this.#held.has(real)) {
+      if (!this.#isHistoryLoadActive(real, load)) {
         return
       }
 
@@ -669,12 +665,20 @@ export class TranscriptStore implements TranscriptSink {
       if (pages === 0 && load.targets.size === 0) {
         return
       }
-      if (page.before === null) {
-        throw new Error('目录指向的轮次不在历史中。')
-      }
-      if (page.before.sessionId === before.sessionId && page.before.seq === before.seq) {
-        throw new Error('历史分页游标没有前进。')
-      }
+      this.#assertCursorAdvanced(before, page.before)
+    }
+  }
+
+  #isHistoryLoadActive(real: string, load: HistoryLoad): boolean {
+    return this.#historyLoads.get(real) === load && this.#held.has(real)
+  }
+
+  #assertCursorAdvanced(previous: FrameCursor, next: FrameCursor | null): void {
+    if (next === null) {
+      throw new Error('目录指向的轮次不在历史中。')
+    }
+    if (next.sessionId === previous.sessionId && next.seq === previous.seq) {
+      throw new Error('历史分页游标没有前进。')
     }
   }
 

@@ -264,6 +264,13 @@ impl EventRouter {
         // 既没有 type 也没有 seq，不会被当成 agent 的 error 事件收进来。
         let kind = envelope.get("type").and_then(Value::as_str).unwrap_or("");
 
+        if matches!(kind, "event.config.changed" | "event.model_catalog.changed") {
+            let _sent = self
+                .events_tx
+                .unbounded_send(SessionEvent::ModelCatalogChanged);
+            return;
+        }
+
         // An accepted subscription is the snapshot barrier: anything pending before it
         // is in the snapshot; anything after it arrives as a durable event.
         if kind == "ack" {

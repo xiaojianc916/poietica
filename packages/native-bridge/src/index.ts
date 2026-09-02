@@ -16,7 +16,7 @@ export {
   type AgentConfigSnapshot,
   createAgentConfigBridge,
 } from './gateways/agent-config'
-export { createAgentConfigStore } from './gateways/agent-config-store'
+export { createAgentSettings } from './gateways/agent-config-store'
 export {
   type AssetFormat,
   importAssets,
@@ -73,6 +73,7 @@ export {
 } from './gateways/git'
 export { resolveLauncher } from './gateways/launcher'
 export { readMcpEndpoint } from './gateways/mcp'
+export { createModelCatalogPort } from './gateways/model-catalog'
 export { createSettingsStore } from './gateways/settings'
 export { terminalHostPort } from './gateways/terminal'
 export { appUpdateController } from './gateways/update'

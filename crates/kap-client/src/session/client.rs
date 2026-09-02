@@ -8,6 +8,7 @@ use super::config::{ConfigControl, GoalSnapshot};
 use super::{Capability, Cursor, McpServer, OpenedSession, SessionEntry, Skill};
 use crate::error::{KapError, Refusal, Result};
 use crate::recorder::FrameSink;
+use crate::{ModelCatalogOperation, ModelCatalogSnapshot};
 
 /// 与一句话一起送出的附件。判别式决定协议内容块，文本不会伪装成图片。
 pub enum PromptAttachment {
@@ -163,6 +164,10 @@ pub(crate) enum Command {
         reply: oneshot::Sender<Result<()>>,
     },
 
+    ModelCatalog {
+        operation: ModelCatalogOperation,
+        reply: oneshot::Sender<Result<ModelCatalogSnapshot>>,
+    },
     /// 退场：杀掉这条连接起的那个进程，杀完从收据上报一声。
     ///
     /// 收据是退出屏障唯一的凭据 —— 进程离场之后没有人能再替它收尸。
@@ -511,6 +516,17 @@ impl AgentClient {
             reply,
         })?;
 
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
+    }
+
+    pub async fn model_catalog(
+        &self,
+        operation: ModelCatalogOperation,
+    ) -> Result<ModelCatalogSnapshot> {
+        let (reply, answer) = oneshot::channel();
+        self.send(Command::ModelCatalog { operation, reply })?;
         answer
             .await
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?

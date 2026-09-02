@@ -31,13 +31,5 @@ export const kimiCode = {
   homeVar: 'KIMI_CODE_HOME',
   // 同一行 resolveKimiHome 的最后一个回落，也就是没有受控 home 时它自己去的地方。
   ownHomeDirectory: '.kimi-code',
-  // docs/en/reference/kimi-command.md 的 provider catalog add：--api-key
-  // "Falls back to KIMI_REGISTRY_API_KEY if not provided"。我们从不给 --api-key，
-  // 所以走的一直是这条回落。
-  registryKeyVar: 'KIMI_REGISTRY_API_KEY',
-  // docs/en/reference/kimi-command.md：provider list --json 输出 providers / models 两张表。
-  providerListArgs: ['provider', 'list', '--json'],
-  // 上游用一个固定 id 把 KIMI_MODEL_API_KEY 之类的变量合成成一个 provider，落盘时剥掉。
-  syntheticProviderId: '__kimi_env__',
   install: { packageName: '@moonshot-ai/kimi-code', versionArgs: ['--version'] },
 } as const satisfies AgentDescriptor

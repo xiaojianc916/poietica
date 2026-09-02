@@ -5,9 +5,8 @@
 
 export type {
   AgentConfigSnapshot,
-  AgentConfigStore,
   AgentInstallStatus,
-  ProviderKeyProbe,
+  AgentSettings,
 } from './agent-config-store'
 export type {
   CustomAgentDraft,
@@ -24,6 +23,20 @@ export type {
 } from './custom-agents/custom-agent-store'
 export { PersonalizationStore } from './custom-agents/personalization-store'
 export type { KeybindingCatalog, KeybindingEntry } from './keymap/keybinding-catalog'
+export type {
+  CatalogModel,
+  CatalogProvider,
+  ModelCatalogData,
+  ModelCatalogOperation,
+  ModelCatalogPort,
+  ModelCatalogSnapshot,
+  ModelDescriptor,
+  ModelProvider,
+  ProviderInput,
+  ProviderModelInput,
+  ProviderReplacement,
+} from './model-catalog-store'
+export { ModelCatalogStore } from './model-catalog-store'
 export type { AppSettings } from './settings'
 export { createSettingsSession, type SettingsOperation } from './settings-session'
 export type { SettingsStore } from './settings-store'

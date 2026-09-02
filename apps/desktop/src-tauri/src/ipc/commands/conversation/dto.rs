@@ -468,6 +468,8 @@ pub enum AgentSessionEvent {
         session_id: String,
         usage: AgentSessionUsage,
     },
+    /// agent 侧的模型目录变了：provider、模型或默认模型的真身以它为准，读者作废重问。
+    ModelCatalogChanged,
 }
 
 /// A change made in the interface.

@@ -1,4 +1,4 @@
-import type { AgentConfigStore, AgentInstallStatus } from '@poietica/settings'
+import type { AgentInstallStatus, AgentSettings } from '@poietica/settings'
 import { useCallback, useEffect, useState } from 'react'
 import { describeAgentCliFailure } from './agent-cli-text'
 
@@ -48,7 +48,7 @@ function describeState(status: AgentInstallStatus | null): string | null {
   }
 }
 
-export function useAgentInstall(store: AgentConfigStore, agentId: string): AgentInstallView {
+export function useAgentInstall(store: AgentSettings, agentId: string): AgentInstallView {
   const [status, setStatus] = useState<AgentInstallStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

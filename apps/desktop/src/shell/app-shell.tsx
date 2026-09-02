@@ -333,8 +333,8 @@ export function AppShell({ runtime }: AppShellProps) {
           <ConversationCommands registry={runtime.commands} workspace={runtime.workspace} />
 
           <WorkspaceContainer
-            agentConfigStore={runtime.agentConfig}
             agentSession={runtime.agent.session}
+            agentSettings={runtime.agentConfig}
             appVersion={runtime.appVersion}
             automationStore={runtime.automationStore}
             commands={runtime.commands}
@@ -343,6 +343,7 @@ export function AppShell({ runtime }: AppShellProps) {
             isSettingsOpen={isSettingsOpen && canOpenSettings}
             isWindowMaximized={isWindowMaximized}
             keybindings={keybindings}
+            modelCatalog={runtime.modelCatalog}
             onDeveloperToolsOpen={openDeveloperTools}
             onSettingsClose={closeSettings}
             onSettingsOpen={openSettings}

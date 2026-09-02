@@ -273,6 +273,9 @@ fn plan_session_event(event: SessionEvent) -> SessionEventPlan {
             },
         },
         SessionEvent::CursorLost { session_id } => SessionEventPlan::CursorLost { session_id },
+        SessionEvent::ModelCatalogChanged => {
+            SessionEventPlan::Emit(AgentSessionEvent::ModelCatalogChanged)
+        }
         SessionEvent::Link(link) => SessionEventPlan::Link(link),
     }
 }

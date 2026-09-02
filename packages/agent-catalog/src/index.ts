@@ -12,10 +12,4 @@ export type {
   AgentProfileResolution,
 } from './agent-profile'
 export { parseAgentProfile, resolveAgentProfile } from './agent-profile'
-export { kimiCatalogCodec as agentCatalog } from './kimi/catalog'
 export { kimiCode as agent } from './kimi/descriptor'
-export { agentBareModelId, agentModelDisplayName } from './model-display'
-export type { AgentProviderPreset } from './provider-presets'
-export { builtinAgentProviderById, builtinAgentProviders } from './provider-presets'
-export type { AgentModelState, AgentProviderSnapshot } from './provider-state'
-export { parseAgentProviderListOutput } from './provider-state'

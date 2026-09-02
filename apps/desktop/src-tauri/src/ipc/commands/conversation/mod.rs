@@ -35,6 +35,7 @@ pub mod dto;
 mod failure;
 mod gateway;
 mod journal;
+pub mod model_catalog;
 pub mod runtime;
 pub mod thread;
 pub mod toolkit;

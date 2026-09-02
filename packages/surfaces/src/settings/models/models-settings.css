@@ -180,15 +180,14 @@
 /*
  * 平台往输入框里塞的那几颗按钮。
  *
- * 密钥那一格的显隐眼睛不是我们画的 —— models-fields.tsx 里 SubField 全文只有
- * 一个 input，没有任何 state、没有任何 toggle。它来自 WebView2：Windows 上的
- * Tauri 跑的是 Edge 内核，而 Edge（且只有 Edge）为 input[type=password] 注入
- * ::-ms-reveal。同一批注入控件还有 Edge 的清除叉与 Chromium 的密码管理器按钮，
- * 它们共用一个病因，所以一起关掉，而不是等下一个冒出来再补一条。
+ * 密钥那一格的显隐眼睛不是我们画的 —— 本页的密码框全文只有一个 input，没有任何
+ * state、没有任何 toggle。它来自 WebView2：Windows 上的 Tauri 跑的是 Edge 内核，
+ * 而 Edge（且只有 Edge）为 input[type=password] 注入 ::-ms-reveal。同一批注入
+ * 控件还有 Edge 的清除叉与 Chromium 的密码管理器按钮，它们共用一个病因，所以一起
+ * 关掉，而不是等下一个冒出来再补一条。
  *
- * 关掉显隐不是少给了一个能力：这一格填完就提交、提交后立刻清空（ProviderKeyCard
- * 里 setApiKey('')），密钥从不回填，所以没有「看一眼存着的密钥」这回事 ——
- * 那颗眼睛在这里从头到尾没有可看的东西。
+ * 关掉显隐不是少给了一个能力：密钥填完就提交、提交后立刻清空，从不回填，所以
+ * 没有「看一眼存着的密钥」这回事 —— 那颗眼睛在这里从头到尾没有可看的东西。
  */
 /*
  * 四个一起，一行声明。

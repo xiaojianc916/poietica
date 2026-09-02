@@ -80,10 +80,16 @@ pub enum SessionEvent {
     },
     /// 这条会话的事件流读到哪儿了。轮终报一次：一轮之内那些位置没有人会拿去
     /// 续订，而一帧写一次库正是持久层禁掉的事（persistence 的 record_frames）。
-    Cursor { session_id: String, cursor: Cursor },
+    Cursor {
+        session_id: String,
+        cursor: Cursor,
+    },
     /// 这条会话的读点作废了：kap 说那一段流断了（resync_required），接不下去。
-    CursorLost { session_id: String },
+    CursorLost {
+        session_id: String,
+    },
 
+    ModelCatalogChanged,
     /// 这条连接此刻的链路态。
     Link(poietica_conversation::link::LinkState),
 }

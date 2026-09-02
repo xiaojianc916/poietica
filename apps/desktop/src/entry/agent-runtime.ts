@@ -1,4 +1,4 @@
-import { agent, parseAgentProviderListOutput } from '@poietica/agent-catalog'
+import { agent } from '@poietica/agent-catalog'
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
@@ -21,11 +21,13 @@ import {
   shutdownAgent,
 } from '@poietica/native-bridge'
 import { error as reportError } from '@poietica/problem'
-import type { AgentConfigStore } from '@poietica/settings'
+import type { AgentSettings, ModelCatalogStore } from '@poietica/settings'
 import { createThinkingPreference } from './thinking-preference'
 
 interface DesktopAgentRuntimeOptions {
-  readonly config: AgentConfigStore
+  readonly config: AgentSettings
+  /** 模型与 provider 的目录口：默认模型的读写都走它，kap REST 是唯一真身。 */
+  readonly modelCatalog: ModelCatalogStore
   readonly cwd: NonNullable<AgentBridgeOptions['cwd']>
   /** mcp.json 对齐到本次启动端口的那趟对账，agent 起来前必须落定。 */
   readonly mcpReady: Promise<void>
@@ -131,7 +133,7 @@ export function createDesktopAgentRuntime(
     }
 
     if (accepted.purpose === 'model') {
-      await options.config.saveDefaultModel(agent.id, value)
+      await options.modelCatalog.mutate({ kind: 'setDefault', modelId: value })
     }
 
     thinking.remember(agent.id, controls, controlId, value)
@@ -154,10 +156,10 @@ export function createDesktopAgentRuntime(
 
     seeded = true
 
-    void firstUsableModel(options.config)
+    void firstUsableModel(options.modelCatalog)
       .then(async (alias) => {
         if (alias !== undefined) {
-          await options.config.saveDefaultModel(agent.id, alias)
+          await options.modelCatalog.mutate({ kind: 'setDefault', modelId: alias })
         }
       })
       .catch((cause: unknown) => {
@@ -274,24 +276,23 @@ export function createDesktopAgentRuntime(
   }
 }
 
-/** 这家 agent 报出的第一个可用别名。已经设过默认模型就没有答案。 */
-async function firstUsableModel(store: AgentConfigStore): Promise<string | undefined> {
-  if ((await store.loadDefaultModel(agent.id)) !== null) {
+/** 目录里第一个握着密钥的 provider 名下的第一个模型。已经设过默认模型就没有答案。 */
+async function firstUsableModel(catalog: ModelCatalogStore): Promise<string | undefined> {
+  await catalog.refresh()
+
+  const { data, error } = catalog.getSnapshot()
+
+  if (data === null) {
+    throw new Error(error ?? '模型目录读取失败。')
+  }
+
+  if (data.defaultModel !== null) {
     return undefined
   }
 
-  const outcome = await store.execCli({
-    agentId: agent.id,
-    args: [...agent.providerListArgs],
-  })
+  const keyed = new Set(
+    data.providers.filter((provider) => provider.hasApiKey).map((provider) => provider.id),
+  )
 
-  if (outcome.status !== 0) {
-    const said = outcome.stderr.trim()
-
-    throw new Error(said.length === 0 ? `agent 以 ${outcome.status} 退出。` : said)
-  }
-
-  return parseAgentProviderListOutput(outcome.stdout, agent.syntheticProviderId)
-    .providers.filter((provider) => provider.configured)
-    .flatMap((provider) => provider.models.map((model) => model.alias))[0]
+  return data.models.find((model) => keyed.has(model.provider))?.model
 }

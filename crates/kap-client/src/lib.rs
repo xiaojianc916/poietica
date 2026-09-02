@@ -24,6 +24,12 @@
 
 pub mod error;
 pub mod generated;
+mod model_catalog;
+pub use model_catalog::{
+    CatalogImport, CatalogModel, CatalogProvider, Model, ModelCatalogOperation,
+    ModelCatalogSnapshot, Provider, ProviderInput, ProviderModelInput, ProviderReplacement,
+    RegistryImport,
+};
 
 mod connection;
 mod frame;

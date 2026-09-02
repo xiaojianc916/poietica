@@ -1,5 +1,5 @@
 import { agent, resolveAgentProfile } from '@poietica/agent-catalog'
-import type { AgentConfigSnapshot, AgentConfigStore } from '@poietica/settings'
+import type { AgentConfigSnapshot, AgentSettings } from '@poietica/settings'
 import { createAgentConfigBridge } from './agent-config'
 
 /*
@@ -9,7 +9,7 @@ import { createAgentConfigBridge } from './agent-config'
  * agent 的档案。校验只能落在这里 —— agents.json 可以被手改，一个被改坏的档案不应该
  * 变成一次任意命令执行。怎么算由 resolveAgentProfile 说，这一层只负责读写。
  */
-export function createAgentConfigStore(): AgentConfigStore {
+export function createAgentSettings(): AgentSettings {
   const bridge = createAgentConfigBridge()
 
   /*
@@ -36,23 +36,10 @@ export function createAgentConfigStore(): AgentConfigStore {
       return { profile: resolved.profile, issues: [...dto.issues, ...resolved.issues] }
     },
 
-    /* 请求与结果两侧同名同类型，没有可翻译的东西，翻一遍只会多一个出错的地方。 */
-    execCli(invocation) {
-      return bridge.execCli(invocation)
-    },
-
-    loadKeyTails: (agentId) => bridge.loadKeyTails(agentId),
-
-    loadDefaultModel: (agentId) => bridge.loadDefaultModel(agentId),
-
-    saveDefaultModel: (agentId, alias) => bridge.saveDefaultModel(agentId, alias),
-
     loadInstallStatus: (agentId, options) =>
       bridge.loadInstallStatus(agentId, options?.force ?? false),
 
     runInstall: (agentId) => bridge.runInstall(agentId),
-
-    verifyProviderKey: ({ baseUrl, secret }) => bridge.verifyProviderKey(baseUrl, secret),
 
     notifyConfigChanged() {
       for (const listener of listeners) {

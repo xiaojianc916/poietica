@@ -176,6 +176,12 @@ async agentToolkit(request: AgentToolkitRequest) : Promise<AgentToolkit> {
     return await TAURI_INVOKE("agent_toolkit", { request });
 },
 /**
+ * 读或改这个 agent 的模型目录。写操作执行完，回答的仍是改后的整份快照。
+ */
+async agentModelCatalog(request: AgentModelCatalogRequest) : Promise<ModelCatalogSnapshotDto> {
+    return await TAURI_INVOKE("agent_model_catalog", { request });
+},
+/**
  * 读取 KAP 的应用级能力清单；连接不存在时按统一启动管线建立。
  */
 async agentCapabilityReport() : Promise<AgentCapability[]> {
@@ -781,59 +787,6 @@ async agentConfigGet() : Promise<AgentConfigSnapshot> {
     return await TAURI_INVOKE("agent_config_get");
 },
 /**
- * 受控 home 里那个真的能开会话的默认模型；没有就是 None。
- * 
- * 它不是一项偏好，是闸门。上游 `hasUsableConfiguredDefaultModel` 的第一行判的
- * 就是这个键：缺席时配置文件里的 `api_key` 整条不算数，session/new 一律
- * authRequired。界面必须能直接看见这件事，而不是等用户发出一条消息之后，在
- * 「助手结束了一轮」里撞上它。
- * 
- * 「有一个死别名」与「一个都没有」在这里是同一种答案，因为对闸门而言它们本来就是同一
- * 件事：删掉一家 provider 会连带删掉它名下的模型条目，`default_model` 原地不动地
- * 指着一个不存在的东西，读回来仍是一个像模像样的字符串，于是渲染层认定「已经选好了」，
- * 自动补齐那一路永远不会触发，代价推迟到用户下一次发消息时的 Authentication required。
- * 
- * 模型清单不从这里来 —— 那是对方 `provider list` 的输出。这里只补它的 json
- * 分支唯一不给的那个标量。
- * 
- * # Errors
- * 
- * 此命令不返回错误。路径算不出来、读不到文件、或文件里没有这个键，都是 None。
- */
-async agentDefaultModel(agentId: string) : Promise<string | null> {
-    return await TAURI_INVOKE("agent_default_model", { agentId });
-},
-/**
- * 改写受控 home 里顶层的 `default_model`。
- * 
- * 为什么不借 agent 的 CLI、写入前为什么查两遍闸门：判据与实现在 crate 的
- * `controlled_home::set_default_model`，那里有整条写回路的单测。
- * 
- * # Errors
- * 
- * 这家 agent 不受控、受控 home 算不出来、配置读不到、不是合法 TOML、别名不在
- * `models` 表里、那一家没有可用的非 OAuth 凭据，或写回失败时返回错误。
- */
-async agentSetDefaultModel(agentId: string, alias: string) : Promise<null> {
-    return await TAURI_INVOKE("agent_set_default_model", { agentId, alias });
-},
-/**
- * 每个已配置 provider 的密钥尾号：provider id → 密钥最后 5 个字符。
- * 
- * 尾号的事实就在 agent 自己的 config.toml 里，与「写经谁手」无关 —— 所以是读时
- * 现算，而不是写时备忘（上一版的备忘方案对官方 CLI 配置的密钥永远失效）。读的是
- * `agent_config_file`，也就是这家 agent 自己会去读的那一份，只此一份。
- * 
- * 密钥本体不离开这个函数。
- * 
- * # Errors
- * 
- * 此命令不返回错误；任何一步失败都退成空表。
- */
-async agentKeyTails(agentId: string) : Promise<Partial<{ [key in string]: string }>> {
-    return await TAURI_INVOKE("agent_key_tails", { agentId });
-},
-/**
  * 替换 agent 列表与默认 agent。
  * 
  * # Errors
@@ -842,22 +795,6 @@ async agentKeyTails(agentId: string) : Promise<Partial<{ [key in string]: string
  */
 async agentConfigSaveAgents(agents: JsonValue[], defaultAgentId: string) : Promise<AgentConfigSnapshot> {
     return await TAURI_INVOKE("agent_config_save_agents", { agents, defaultAgentId });
-},
-/**
- * 在白名单内调用 agent 的 CLI。
- * 
- * 凭据由调用方随这一次请求带上，经环境变量注入子进程。
- * 
- * 我们不保存它。agent 的 CLI 会把它写进 agent 自己的配置文件，那之后它与
- * Poietica 无关 —— 包括「配没配过」这个问题，答案也在那边。
- * 
- * # Errors
- * 
- * 参数未通过白名单校验、或子进程无法启动时返回错误。子进程本身以非零码退出
- * 不算错误 —— 那是调用方需要看到的结果，通过 status 与 stderr 返回。
- */
-async agentCliExec(request: AgentCliRequest) : Promise<AgentCliResult> {
-    return await TAURI_INVOKE("agent_cli_exec", { request });
 },
 /**
  * 当前这个 agent 装了没有、是不是最新。
@@ -881,20 +818,6 @@ async agentInstallStatus(agentId: string, force: boolean) : Promise<AgentInstall
  */
 async agentInstallRun(agentId: string) : Promise<AgentInstallStatus> {
     return await TAURI_INVOKE("agent_install_run", { agentId });
-},
-/**
- * 用刚收到的密钥向厂商验一次身份。
- * 
- * 不写任何配置。调用方在写入成功之后才调它，所以无论结论如何都不影响已经落盘的
- * 那份配置 —— 这条命令只决定界面上那一行说什么。
- * 
- * # Errors
- * 
- * 密钥为空时返回参数错误。网络层的任何失败都不是错误，而是一个 Unreachable 的
- * 结论 —— 「没连上」是这次探测的正常输出之一，不该让调用方去 catch。
- */
-async providerProbeKey(baseUrl: string, secret: string) : Promise<ProviderProbeOutcome> {
-    return await TAURI_INVOKE("provider_probe_key", { baseUrl, secret });
 },
 async updateCheck() : Promise<UpdateRelease | null> {
     return await TAURI_INVOKE("update_check");
@@ -1219,55 +1142,6 @@ export type AgentCapabilityInstallRequest = { capabilityId: string }
  * KAP 对一项能力的就绪裁决，原样投影。
  */
 export type AgentCapabilityState = "notInstalled" | "partial" | "ready" | "unsupported"
-export type AgentCliRequest = { 
-/**
- * 用于算出受控 home，也用于从档案里查出该执行哪个程序。
- */
-agentId: string; 
-/**
- * 完整的子命令序列，例如 `["provider", "list", "--json"]`。
- * 
- * 第一项是子命令名，`is_allowed` 看的就是它。
- * 
- * 可执行文件不在这里。它曾经在：渲染层报一个程序路径过来，而白名单只
- * 校验参数，于是 `{ command: 任意程序, args: ["provider", "list"] }` 会
- * 被放行执行。程序现在由 `agent_program` 从档案里取。
- */
-args: string[]; 
-/**
- * 要注入的凭据环境变量名。它不是秘密，只是个名字。
- * 
- * 缺席即不注入。此前它是必填，于是一次只读的 provider list 也得先声称自己
- * 带着凭据、再用一对空字符串把这句话收回去 —— 用 "" 编码「没有」，而 ""
- * 同时也是一个合法的变量名。
- */
-secretVar?: string; 
-/**
- * 凭据本身。只在内存里过一趟：注入子进程后随请求一起丢弃，不落盘、不进
- * 日志，也永远不上命令行（见 `FORBIDDEN_FLAGS`）。缺席即不注入。
- */
-secretValue?: string; 
-/**
- * api.json 形状的目录文档：只在 catalog add 时携带。它会被绑在一次性
- * loopback 服务上，经官方 --url 喂给对方的目录命令。
- */
-catalogDocument?: string | null; 
-/**
- * 读用户全局 home 而不是受控 home。只为一次性导入的只读探测（provider
- * list）使用；validate 会拒掉任何带着它的写操作。
- */
-useGlobalHome?: boolean; 
-/**
- * 从用户全局配置里取哪家 provider 的密钥来注入。只为一次性导入使用：
- * 密钥由原生侧从全局 config.toml 取出直达子进程，全程不进渲染层。
- * 与 `secret_value` 互斥（validate 会拒掉同带）。
- */
-secretFromGlobalProvider?: string | null }
-export type AgentCliResult = { 
-/**
- * 进程退出码。被信号终止时为 -1。
- */
-status: number; stdout: string; stderr: string }
 /**
  * One value a selector will accept.
  */
@@ -1510,6 +1384,7 @@ agentId: string }
 export type AgentLinkState = { state: "retrying"; attempt: number; of: number; retryAt: number; reason: string } | { state: "recovered"; reason: string } | { state: "severed"; attempts: number; reason: string }
 export type AgentMcpServer = { id: string; name: string; status: AgentMcpStatus; toolCount: number; lastError: string | null }
 export type AgentMcpStatus = "connected" | "connecting" | "disconnected" | "error"
+export type AgentModelCatalogRequest = { launch: AgentLaunch; cwd: string | null; operation: ModelCatalogOperationDto }
 /**
  * 要打开的对话，以及必要时怎样启动 agent。
  */
@@ -1727,7 +1602,11 @@ export type AgentSessionEvent =
 /**
  * 那条会话此刻的上下文用量。
  */
-{ kind: "usage"; sessionId: string; usage: AgentSessionUsage }
+{ kind: "usage"; sessionId: string; usage: AgentSessionUsage } | 
+/**
+ * agent 侧的模型目录变了：provider、模型或默认模型的真身以它为准，读者作废重问。
+ */
+{ kind: "modelCatalogChanged" }
 /**
  * 一条会话此刻占了多少上下文，以及它累计的输入构成。
  * 
@@ -2004,6 +1883,8 @@ export type BrowserTab = { id: number; url: string | null; title: string; loadin
  * 站点图标的 data URL。缺席时渲染层画地球。
  */
 favicon: string | null }
+export type CatalogModelDto = { id: string; name: string | null; maxContextSize: number; capabilities: string[] | null; reasoning: boolean }
+export type CatalogProviderDto = { id: string; name: string; wireType: string | null; guessed: boolean; needsBaseUrl: boolean; rejected: boolean; rejectReason: string | null; envKey: string | null; models: CatalogModelDto[] }
 /**
  * 谁该负责。封闭九类，边界上不许另起分类。
  */
@@ -2096,6 +1977,12 @@ export type McpEndpoint = { url: string }
  * 一条能直接交给启动器的启动式：程序在哪儿，前面还要垫哪些参数。
  */
 export type McpLauncher = { program: string; prefixArgs: string[] }
+/**
+ * 一次目录操作。判别式与 @poietica/settings 的 ModelCatalogOperation 一一对应。
+ */
+export type ModelCatalogOperationDto = { kind: "snapshot" } | { kind: "create"; provider: ProviderInputDto } | { kind: "replace"; providerId: string; provider: ProviderReplacementDto } | { kind: "delete"; providerId: string } | { kind: "importCatalog"; catalogId: string; apiKey: string | null; baseUrl: string | null; id: string | null } | { kind: "importRegistry"; url: string; apiKey: string | null } | { kind: "setDefault"; modelId: string } | { kind: "patchConfig"; patch: JsonValue }
+export type ModelCatalogSnapshotDto = { providers: ProviderDto[]; models: ModelDto[]; catalog: CatalogProviderDto[]; defaultModel: string | null }
+export type ModelDto = { provider: string; model: string; displayName: string | null; maxContextSize: number; capabilities: string[] | null; supportEfforts: string[] | null; defaultEffort: string | null }
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
 export type PluginCommitRequest = { stagingId: string; 
 /**
@@ -2149,40 +2036,10 @@ export type Problem = { code: Code; category: Category; retryability: Retryabili
  * 文案键，不是句子：文案归前端目录。
  */
 userMessageKey: string; diagnosticId: DiagnosticId; details: Partial<{ [key in string]: string }> }
-export type ProviderProbeOutcome = { verdict: ProviderProbeVerdict; 
-/**
- * HTTP 状态码。没有拿到响应时为 0。
- */
-status: number }
-/**
- * 探测的结论。
- * 
- * 刻意把「密钥不对」和「没能验证」分成两类，而不是笼统的成功/失败：把一次网络
- * 抖动渲染成「你的密钥错了」，比根本不验证更糟 —— 那是软件在撒谎，用户会去改一
- * 把本来是对的钥匙。只有 401 才落到 Rejected。
- */
-export type ProviderProbeVerdict = 
-/**
- * 那家接受了这把密钥。注意它不等于「能用」：余额、配额、以及这把密钥对某个
- * 具体模型的权限，都不在 /models 的回答范围内。
- */
-"accepted" | 
-/**
- * HTTP 401。密钥错、被吊销，或格式不对。
- */
-"rejected" | 
-/**
- * HTTP 403。密钥有效，但这个账号没有访问权限。
- */
-"forbidden" | 
-/**
- * 这家没有可用于校验的端点（404），或地址不在白名单里。不是失败。
- */
-"unsupported" | 
-/**
- * 超时、连不上、或其它状态码。关于密钥本身什么都不能下结论。
- */
-"unreachable"
+export type ProviderDto = { id: string; providerType: string; baseUrl: string | null; defaultModel: string | null; hasApiKey: boolean; status: string; models: string[] | null }
+export type ProviderInputDto = { id: string; providerType: string; apiKey: string | null; baseUrl: string | null; defaultModel: string | null; models: ProviderModelInputDto[] }
+export type ProviderModelInputDto = { model: string; maxContextSize: number; displayName: string | null; capabilities: string[] | null; maxOutputSize: number | null; supportEfforts: string[] | null; adaptiveThinking: boolean | null }
+export type ProviderReplacementDto = { newId: string | null; providerType: string; apiKey: string | null; baseUrl: string | null; defaultModel: string | null; models: ProviderModelInputDto[] }
 /**
  * 能不能再来一次，以及由谁发起。
  */

@@ -8,9 +8,10 @@ import {
 } from '@poietica/design-system'
 import type { PluginStore } from '@poietica/extension'
 import type {
-  AgentConfigStore,
+  AgentSettings,
   AppSettings,
   KeybindingCatalog,
+  ModelCatalogStore,
   SettingsStore,
 } from '@poietica/settings'
 import {
@@ -85,7 +86,8 @@ type GlyphComponent = ComponentType<{
 interface SettingsSectionContext {
   readonly settings: AppSettings
   readonly controller: SettingsController
-  readonly agentConfigStore: AgentConfigStore
+  readonly agentSettings: AgentSettings
+  readonly modelCatalog: ModelCatalogStore
   readonly threads: ThreadsStore
   readonly keybindings: KeybindingCatalog
   readonly appVersion: () => Promise<string>
@@ -122,7 +124,9 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   models: {
     label: '模型',
     icon: Cpu,
-    render: ({ agentConfigStore }) => <ModelsSettings store={agentConfigStore} />,
+    render: ({ agentSettings, modelCatalog }) => (
+      <ModelsSettings modelCatalog={modelCatalog} store={agentSettings} />
+    ),
   },
   skills: {
     label: '技能',
@@ -179,7 +183,8 @@ const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
  */
 interface SettingsSurfaceContextValue {
   readonly controller: SettingsController
-  readonly agentConfigStore: AgentConfigStore
+  readonly agentSettings: AgentSettings
+  readonly modelCatalog: ModelCatalogStore
   readonly threads: ThreadsStore
   readonly keybindings: KeybindingCatalog
   readonly appVersion: () => Promise<string>
@@ -204,7 +209,9 @@ function useSettingsSurface(): SettingsSurfaceContextValue {
 
 export interface SettingsProviderProps {
   readonly store: SettingsStore
-  readonly agentConfigStore: AgentConfigStore
+  readonly agentSettings: AgentSettings
+  /** 模型目录的唯一持有者，由组合根注入：模型页读写经 kap REST 落在 agent 进程。 */
+  readonly modelCatalog: ModelCatalogStore
   /** 插件账本的唯一持有者，由组合根注入：这个包不认识桌面传输层。 */
   readonly plugins: PluginStore
   /** KAP 按当前会话报告的技能名册。 */
@@ -239,7 +246,8 @@ export interface SettingsProviderProps {
 
 export function SettingsProvider({
   store,
-  agentConfigStore,
+  agentSettings,
+  modelCatalog,
   plugins,
   threads,
   keybindings,
@@ -269,7 +277,8 @@ export function SettingsProvider({
   const value = useMemo<SettingsSurfaceContextValue>(
     () => ({
       controller,
-      agentConfigStore,
+      agentSettings,
+      modelCatalog,
       plugins,
       threads,
       keybindings,
@@ -280,11 +289,12 @@ export function SettingsProvider({
       onBack: controller.requestClose,
     }),
     [
-      agentConfigStore,
+      agentSettings,
       appVersion,
       controller,
       dataDirectory,
       keybindings,
+      modelCatalog,
       plugins,
       section,
       threads,
@@ -315,10 +325,11 @@ export function SettingsNavigationRegion({ footer }: SettingsNavigationRegionPro
 export function SettingsContentRegion() {
   const {
     controller,
-    agentConfigStore,
+    agentSettings,
     appVersion,
     dataDirectory,
     keybindings,
+    modelCatalog,
     plugins,
     section,
     threads,
@@ -352,11 +363,12 @@ export function SettingsContentRegion() {
             ) : null}
 
             {SECTIONS[section].render({
-              agentConfigStore,
+              agentSettings,
               appVersion,
               controller,
               dataDirectory,
               keybindings,
+              modelCatalog,
               plugins,
               settings: controller.settings,
               threads,

@@ -34,6 +34,7 @@ use crate::error::{KapError, Refusal, Result};
 use crate::generated::events::{ClientFrame, PongStruct, ServerFrame, websocket};
 use crate::generated::rest::{SteerPromptsRequestStruct, routes};
 use crate::interaction::desk::{PermissionDesk, QuestionDesk};
+use crate::model_catalog::execute as execute_model_catalog;
 use crate::process::instance_registry::{dialable_host, discover_instance};
 use crate::process::program::{hide_console, resolve_program};
 use crate::process::stderr_probe::StderrLog;
@@ -538,6 +539,14 @@ pub fn connect(
                             let base = base_url.clone();
                             tokio::spawn(settle(reply, async move {
                                 install_capability(&http, &base, &capability_id).await
+                            }));
+                        }
+
+                        Some(Command::ModelCatalog { operation, reply }) => {
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                execute_model_catalog(&http, &base, operation).await
                             }));
                         }
 

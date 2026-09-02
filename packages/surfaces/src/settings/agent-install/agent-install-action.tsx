@@ -1,9 +1,9 @@
 import { Button, InlineSpinner } from '@poietica/design-system'
-import type { AgentConfigStore } from '@poietica/settings'
+import type { AgentSettings } from '@poietica/settings'
 import { useAgentInstall } from './use-agent-install'
 
 export interface AgentInstallActionProps {
-  readonly store: AgentConfigStore
+  readonly store: AgentSettings
   readonly agentId: string
 }
 

@@ -125,8 +125,41 @@ pub mod routes {
         build(base_url, &["api", "v1", "sessions", session_id, "goal"])
     }
 
+    pub fn list_providers(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "providers"])
+    }
+
+    pub fn create_provider(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "providers"])
+    }
+
+    pub fn replace_provider(base_url: &str, provider_id: &str) -> Route {
+        build(base_url, &["api", "v1", "providers", provider_id])
+    }
+
+    pub fn delete_provider(base_url: &str, provider_id: &str) -> Route {
+        build(base_url, &["api", "v1", "providers", provider_id])
+    }
+
+    pub fn provider_collection_action(base_url: &str, action: &str) -> Route {
+        let action_segment = format!("providers{action}");
+        build(base_url, &["api", "v1", &action_segment])
+    }
+
+    pub fn list_catalog_providers(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "catalog", "providers"])
+    }
+
     pub fn list_models(base_url: &str) -> Route {
         build(base_url, &["api", "v1", "models"])
+    }
+
+    pub fn set_default_model(base_url: &str, tail: &str) -> Route {
+        build(base_url, &["api", "v1", "models", tail])
+    }
+
+    pub fn update_client_config(base_url: &str) -> Route {
+        build(base_url, &["api", "v1", "config"])
     }
 
     pub fn meta(base_url: &str) -> Route {
@@ -1503,6 +1536,106 @@ pub struct SessionGoalDataStruct {
     #[serde(rename = "terminalReason")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terminal_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ListProvidersDataItemsStatusEnum {
+    #[serde(rename = "connected")]
+    Connected,
+    #[serde(rename = "error")]
+    Error,
+    #[serde(rename = "unconfigured")]
+    Unconfigured,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ListProvidersDataItemsStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "type")]
+    pub r#type: String,
+    #[serde(rename = "base_url")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    #[serde(rename = "default_model")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_model: Option<String>,
+    #[serde(rename = "has_api_key")]
+    pub has_api_key: bool,
+    #[serde(rename = "status")]
+    pub status: ListProvidersDataItemsStatusEnum,
+    #[serde(rename = "models")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ListProvidersDataStruct {
+    #[serde(rename = "items")]
+    pub items: Vec<ListProvidersDataItemsStruct>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ListCatalogProvidersDataItemsWireTypeEnum {
+    #[serde(rename = "kimi")]
+    Kimi,
+    #[serde(rename = "openai")]
+    Openai,
+    #[serde(rename = "openai_responses")]
+    OpenaiResponses,
+    #[serde(rename = "anthropic")]
+    Anthropic,
+    #[serde(rename = "google-genai")]
+    GoogleGenai,
+    #[serde(rename = "vertexai")]
+    Vertexai,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ListCatalogProvidersDataItemsModelsStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "name")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(rename = "max_context_size")]
+    pub max_context_size: i64,
+    #[serde(rename = "capabilities")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<Vec<String>>,
+    #[serde(rename = "reasoning")]
+    pub reasoning: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ListCatalogProvidersDataItemsStruct {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "name")]
+    pub name: String,
+    #[serde(rename = "wire_type")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wire_type: Option<ListCatalogProvidersDataItemsWireTypeEnum>,
+    #[serde(rename = "guessed")]
+    pub guessed: bool,
+    #[serde(rename = "needs_base_url")]
+    pub needs_base_url: bool,
+    #[serde(rename = "rejected")]
+    pub rejected: bool,
+    #[serde(rename = "reject_reason")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reject_reason: Option<String>,
+    #[serde(rename = "env_key")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub env_key: Option<String>,
+    #[serde(rename = "models")]
+    pub models: Vec<ListCatalogProvidersDataItemsModelsStruct>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ListCatalogProvidersDataStruct {
+    #[serde(rename = "items")]
+    pub items: Vec<ListCatalogProvidersDataItemsStruct>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]

@@ -1,3 +1,4 @@
+import { agent as agentDescriptor } from '@poietica/agent-catalog'
 import { type AutomationStore, createAutomationStore } from '@poietica/automation'
 import type { AttachmentIntake } from '@poietica/conversation'
 import { createPluginStore, type PluginStore } from '@poietica/extension'
@@ -5,8 +6,9 @@ import {
   appUpdateController,
   automationGateway,
   capabilityGateway,
-  createAgentConfigStore,
+  createAgentSettings,
   createMainWindowController,
+  createModelCatalogPort,
   createSettingsStore,
   extensionGateway,
   listCustomAgents,
@@ -17,7 +19,12 @@ import {
   saveCustomAgent,
   writeWorkbenchSession,
 } from '@poietica/native-bridge'
-import type { AgentConfigStore, CustomAgentStore, SettingsStore } from '@poietica/settings'
+import {
+  type AgentSettings,
+  type CustomAgentStore,
+  ModelCatalogStore,
+  type SettingsStore,
+} from '@poietica/settings'
 import type { AppUpdateController } from '@poietica/update'
 import type { WorkbenchSessionStore } from '@poietica/workspace'
 import {
@@ -51,7 +58,9 @@ export interface ApplicationRuntime {
   readonly mainWindow: MainWindowController
   readonly appUpdate: AppUpdateController
   readonly settings: SettingsStore
-  readonly agentConfig: AgentConfigStore
+  readonly agentConfig: AgentSettings
+  /** 模型目录的唯一持有者：默认模型、provider 与密钥的真身都在 agent 进程，这是它的投影。 */
+  readonly modelCatalog: ModelCatalogStore
   readonly customAgents: CustomAgentStore
   readonly agent: DesktopAgentRuntime
   readonly attachments: AttachmentIntake
@@ -104,7 +113,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   const mainWindow = createMainWindowController()
   const appUpdate = appUpdateController
   const settings = createSettingsStore()
-  const agentConfig = createAgentConfigStore()
+  const agentConfig = createAgentSettings()
   const customAgents: CustomAgentStore = {
     load: listCustomAgents,
     save: saveCustomAgent,
@@ -131,8 +140,10 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   ]).then(() => undefined)
   const automationStore = createAutomationStore(automationGateway)
 
+  const modelCatalog = new ModelCatalogStore(createModelCatalogPort(), agentDescriptor.id)
   const agent = createDesktopAgentRuntime({
     config: agentConfig,
+    modelCatalog,
     cwd: activeWorkspaceRoot,
     mcpReady: hostedMcpServersReady,
   })
@@ -144,6 +155,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     appUpdate,
     settings,
     agentConfig,
+    modelCatalog,
     customAgents,
     agent,
     attachments,
@@ -162,6 +174,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
         cleanup()
       }
       pluginStore.stop()
+      modelCatalog.dispose()
       await agent.dispose()
     },
   }

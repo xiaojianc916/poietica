@@ -2,8 +2,7 @@
  * 一个 agent 的档案长什么样。
  *
  * kap 只规定协议本身。协议之上每一家仍有自己的写法：用什么命令启动、受控 home
- * 认在哪个环境变量上、问模型清单用哪一串子命令。这些不是协议的漏洞，是协议留给
- * 实现的自由。
+ * 认在哪个环境变量上、运行时怎么装。这些不是协议的漏洞，是协议留给实现的自由。
  *
  * 档案就是把这份自由收成一张表。收法只有两种，判据只有一条：
  *
@@ -75,34 +74,5 @@ export interface AgentDescriptor {
    * 放在哪，那就不猜。
    */
   readonly ownHomeDirectory?: string | undefined
-  /**
-   * 从目录添加 provider 时，密钥该注入哪个环境变量。
-   *
-   * 密钥不能上命令行（Windows 上任何用户都读得到别的进程的完整命令行），所以只剩
-   * 环境变量一条路；而变量叫什么名字是各家自己的事：kimi-code 的 resolveApiKey
-   * 在 --api-key 缺席时回落 KIMI_REGISTRY_API_KEY。
-   *
-   * 各家不同的只是这个名字，通用层注入那一行对谁都一样，所以是声明。
-   * 缺席表示这一家不接受由我们代填密钥，界面就不给写入入口。
-   */
-  readonly registryKeyVar?: string | undefined
-  /**
-   * 问这一家要「已配置的 provider 与模型」时的完整子命令序列。
-   *
-   * 各家 CLI 的子命令名不同（kimi 是 provider list --json），而通用层拿它去
-   * 执行的那一行对谁都一样 —— 变的是值，所以是声明。
-   *
-   * 此前它是 provider 解析那一侧的一个模块常量（同包的 provider-state.ts），
-   * 也就是说通用层写死了一家的子命令名。缺席表示这一家没有这种查询，界面就
-   * 不给这个入口。
-   */
-  readonly providerListArgs?: readonly string[] | undefined
-  /**
-   * 由环境变量合成、不可编辑的那个保留 provider id。
-   *
-   * 它是各家自己的实现细节（kimi 是 __kimi_env__，落盘时会被剥掉），通用层只
-   * 需要知道「这一条不该给编辑与删除入口」。同样是值，所以是声明。
-   */
-  readonly syntheticProviderId?: string | undefined
   readonly install?: AgentInstall | undefined
 }
