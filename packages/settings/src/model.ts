@@ -12,7 +12,7 @@ export type AppSettings = {
   modelPicker: ModelPickerSettings
   privacy: PrivacySettings
 }
-export type ModelPickerSettings = { hiddenModelAliases: string[] }
+export type ModelPickerSettings = { hiddenModelAliases: string[]; providerOrder: string[] }
 export type CustomAgentCatalog = { files: CustomAgentFile[]; issues: string[] }
 export type CustomAgentFile = { relativePath: string; absolutePath: string; document: string }
 export type CustomAgentRemoveRequest = { relativePath: string; expectedDocument: string }

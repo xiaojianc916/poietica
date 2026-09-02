@@ -77,6 +77,7 @@ pub struct AppearanceSettings {
 #[serde(rename_all = "camelCase", default)]
 pub struct ModelPickerSettings {
     pub hidden_model_aliases: Vec<String>,
+    pub provider_order: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]

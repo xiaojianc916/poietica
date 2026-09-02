@@ -17,7 +17,7 @@ const INITIAL: AppSettings = {
     reduceMotion: false,
     messageTimestamps: true,
   },
-  modelPicker: { hiddenModelAliases: [] },
+  modelPicker: { hiddenModelAliases: [], providerOrder: [] },
   privacy: {
     telemetry: false,
     crashReporting: true,

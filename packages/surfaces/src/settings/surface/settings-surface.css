@@ -661,7 +661,7 @@
 }
 
 .settings-content__inner[data-section="models"] {
-  inline-size: min(100%, 960px);
+  inline-size: min(100%, 840px);
 }
 
 @media (max-width: 900px) {

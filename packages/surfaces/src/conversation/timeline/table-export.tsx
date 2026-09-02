@@ -1,3 +1,9 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@poietica/design-system'
 import { type ComponentProps, createContext, type ReactNode, useContext, useRef } from 'react'
 import {
   extractTableDataFromElement,
@@ -5,6 +11,7 @@ import {
   tableDataToCSV,
   tableDataToMarkdown,
 } from 'streamdown'
+import { DownloadIcon } from '../primitives/icons'
 
 export type TableExportFormat = 'csv' | 'markdown'
 export type SaveTable = (format: TableExportFormat, content: string) => Promise<void>
@@ -39,22 +46,20 @@ export function ExportableTable({ children, className, node: _node, ...props }: 
     >
       <div className="flex items-center justify-end gap-1">
         <TableCopyDropdown />
-        <button
-          aria-label="下载为 CSV"
-          disabled={save === null}
-          onClick={() => exportAs('csv')}
-          type="button"
-        >
-          CSV
-        </button>
-        <button
-          aria-label="下载为 Markdown"
-          disabled={save === null}
-          onClick={() => exportAs('markdown')}
-          type="button"
-        >
-          Markdown
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label="下载表格"
+            disabled={save === null}
+            title="下载表格"
+            type="button"
+          >
+            <DownloadIcon aria-hidden="true" size={14} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => exportAs('csv')}>CSV</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportAs('markdown')}>Markdown</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <div className="border-collapse overflow-x-auto overflow-y-auto rounded-md border border-border bg-background">
         <table

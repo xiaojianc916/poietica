@@ -3,7 +3,6 @@ import {
   Button,
   ConfirmationDialog,
   InlineSpinner,
-  SearchableSelect,
   Select,
   type SelectOption,
   Switch,
@@ -19,8 +18,10 @@ import type {
   ProviderInput,
   ProviderModelInput,
 } from '@poietica/settings'
-import { Plus, RotateCw, Trash2 } from 'lucide-react'
+import { Box, Eye, EyeOff, Plus, RotateCw, Trash2 } from 'lucide-react'
+import { Reorder } from 'motion/react'
 import {
+  type ComponentProps,
   type FormEvent,
   type ReactNode,
   useEffect,
@@ -51,14 +52,18 @@ export interface ModelsSettingsProps {
   readonly store: AgentSettings
   readonly modelCatalog: ModelCatalogStore
   readonly hiddenModelAliases: readonly string[]
+  readonly providerOrder: readonly string[]
   readonly onModelVisibilityChange: (modelId: string, visible: boolean) => void
+  readonly onProviderOrderChange: (providerIds: readonly string[]) => void
 }
 
 export function ModelsSettings({
   store,
   modelCatalog,
   hiddenModelAliases,
+  providerOrder,
   onModelVisibilityChange,
+  onProviderOrderChange,
 }: ModelsSettingsProps) {
   const [agentError, setAgentError] = useState<string | null>(null)
   useEffect(() => {
@@ -91,6 +96,8 @@ export function ModelsSettings({
       <ModelCatalogPanel
         hiddenModelAliases={hiddenModelAliases}
         onModelVisibilityChange={onModelVisibilityChange}
+        onProviderOrderChange={onProviderOrderChange}
+        providerOrder={providerOrder}
         store={modelCatalog}
       />
     </section>
@@ -100,11 +107,15 @@ export function ModelsSettings({
 function ModelCatalogPanel({
   store,
   hiddenModelAliases,
+  providerOrder,
   onModelVisibilityChange,
+  onProviderOrderChange,
 }: {
   readonly store: ModelCatalogStore
   readonly hiddenModelAliases: readonly string[]
+  readonly providerOrder: readonly string[]
   readonly onModelVisibilityChange: (modelId: string, visible: boolean) => void
+  readonly onProviderOrderChange: (providerIds: readonly string[]) => void
 }) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -153,8 +164,10 @@ function ModelCatalogPanel({
         disabled={snapshot.mutating}
         hiddenModelAliases={hiddenModelAliases}
         onModelVisibilityChange={onModelVisibilityChange}
+        onProviderOrderChange={onProviderOrderChange}
         onRemove={setRemoving}
         onRun={run}
+        providerOrder={providerOrder}
       />
       <ConfirmationDialog
         busy={snapshot.mutating}
@@ -286,29 +299,42 @@ function ProviderWorkspace({
   data,
   disabled,
   hiddenModelAliases,
+  providerOrder,
   onModelVisibilityChange,
+  onProviderOrderChange,
   onRemove,
   onRun,
 }: {
   readonly data: ModelCatalogData
   readonly disabled: boolean
   readonly hiddenModelAliases: readonly string[]
+  readonly providerOrder: readonly string[]
   readonly onModelVisibilityChange: (modelId: string, visible: boolean) => void
+  readonly onProviderOrderChange: (providerIds: readonly string[]) => void
   readonly onRemove: (providerId: string) => void
   readonly onRun: RunMutation
 }) {
-  const [selected, setSelected] = useState(data.providers[0]?.id ?? NEW_PROVIDER)
+  const providers = useMemo(
+    () => reconcileProviderOrder(data.providers, providerOrder),
+    [data.providers, providerOrder],
+  )
+  const [selected, setSelected] = useState(providers[0]?.id ?? NEW_PROVIDER)
   useEffect(() => {
-    if (selected !== NEW_PROVIDER && !data.providers.some((provider) => provider.id === selected)) {
-      setSelected(data.providers[0]?.id ?? NEW_PROVIDER)
+    if (selected !== NEW_PROVIDER && !providers.some((provider) => provider.id === selected)) {
+      setSelected(providers[0]?.id ?? NEW_PROVIDER)
     }
-  }, [data.providers, selected])
-  const provider = data.providers.find((candidate) => candidate.id === selected)
+  }, [providers, selected])
+  const provider = providers.find((candidate) => candidate.id === selected)
   return (
     <div className="models-block">
       <span className="models-block__label">供应商</span>
       <div className="models-provider-workspace">
-        <ProviderRail onSelect={setSelected} providers={data.providers} selected={selected} />
+        <ProviderRail
+          onOrderChange={onProviderOrderChange}
+          onSelect={setSelected}
+          providers={providers}
+          selected={selected}
+        />
         <section className="models-provider-editor">
           {provider === undefined ? (
             <NewProviderPanel
@@ -323,6 +349,7 @@ function ProviderWorkspace({
               data={data}
               disabled={disabled}
               hiddenModelAliases={hiddenModelAliases}
+              key={provider.id}
               onModelVisibilityChange={onModelVisibilityChange}
               onRemove={() => onRemove(provider.id)}
               provider={provider}
@@ -334,62 +361,102 @@ function ProviderWorkspace({
   )
 }
 
+function reconcileProviderOrder(
+  providers: readonly ModelProvider[],
+  preferred: readonly string[],
+): ModelProvider[] {
+  const remaining = new Map(providers.map((provider) => [provider.id, provider]))
+  const ordered: ModelProvider[] = []
+  for (const id of preferred) {
+    const provider = remaining.get(id)
+    if (provider !== undefined) {
+      ordered.push(provider)
+      remaining.delete(id)
+    }
+  }
+  for (const provider of providers) {
+    if (remaining.delete(provider.id)) {
+      ordered.push(provider)
+    }
+  }
+  return ordered
+}
+
 function ProviderRail({
   providers,
   selected,
   onSelect,
+  onOrderChange,
 }: {
   readonly providers: readonly ModelProvider[]
   readonly selected: string
   readonly onSelect: (id: string) => void
+  readonly onOrderChange: (providerIds: readonly string[]) => void
 }) {
-  const [query, setQuery] = useState('')
-  const needle = query.trim().toLowerCase()
-  const visible =
-    needle === ''
-      ? providers
-      : providers.filter(
-          (provider) =>
-            provider.id.toLowerCase().includes(needle) ||
-            provider.providerType.toLowerCase().includes(needle),
-        )
+  const ids = providers.map((provider) => provider.id)
+  const move = (id: string, offset: -1 | 1) => {
+    const from = ids.indexOf(id)
+    const to = Math.max(0, Math.min(ids.length - 1, from + offset))
+    if (from < 0 || from === to) {
+      return
+    }
+    const next = [...ids]
+    const [moved] = next.splice(from, 1)
+    if (moved === undefined) {
+      return
+    }
+    next.splice(to, 0, moved)
+    onOrderChange(next)
+  }
   return (
     <aside className="models-provider-rail">
-      <input
-        aria-label="搜索已配置供应商"
-        className="models-input models-provider-rail__search"
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="搜索供应商"
-        type="search"
-        value={query}
-      />
-      <span className="models-provider-rail__label">已配置</span>
-      <nav aria-label="已配置供应商" className="models-provider-rail__list">
-        {visible.length === 0 ? (
-          <span className="models-provider-rail__empty">没有匹配项</span>
-        ) : (
-          visible.map((provider) => (
+      <span className="models-provider-rail__label">供应商</span>
+      <Reorder.Group
+        aria-label="供应商顺序"
+        as="nav"
+        axis="y"
+        className="models-provider-rail__list"
+        layoutScroll
+        onReorder={(next) => onOrderChange(next)}
+        values={ids}
+      >
+        {providers.map((provider) => (
+          <Reorder.Item
+            as="div"
+            className="models-provider-order-item"
+            key={provider.id}
+            value={provider.id}
+            whileDrag={{ scale: 1.02 }}
+          >
             <button
+              aria-current={selected === provider.id ? 'page' : undefined}
+              aria-label={`${provider.id}，拖动或按 Alt 加上下方向键排序`}
               className="models-provider-item"
               data-active={selected === provider.id}
-              key={provider.id}
               onClick={() => onSelect(provider.id)}
+              onKeyDown={(event) => {
+                if (!event.altKey) {
+                  return
+                }
+                if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                  event.preventDefault()
+                  move(provider.id, event.key === 'ArrowUp' ? -1 : 1)
+                }
+              }}
               type="button"
             >
+              <Box aria-hidden="true" className="models-provider-item__icon" />
+              <strong>{provider.id}</strong>
               <span
                 aria-label={provider.status}
                 className="models-provider-item__status"
                 data-status={provider.status}
                 role="img"
               />
-              <span className="models-provider-item__copy">
-                <strong>{provider.id}</strong>
-                <small>{provider.providerType}</small>
-              </span>
             </button>
-          ))
-        )}
-      </nav>
+          </Reorder.Item>
+        ))}
+      </Reorder.Group>
       <button
         className="models-provider-add"
         data-active={selected === NEW_PROVIDER}
@@ -401,6 +468,20 @@ function ProviderRail({
       </button>
     </aside>
   )
+}
+
+function providerTypeLabel(value: string): string {
+  return PROVIDER_TYPES.find((option) => option.value === value)?.label ?? value
+}
+
+function providerStatusLabel(value: string): string {
+  if (value === 'connected') {
+    return '已配置'
+  }
+  if (value === 'error') {
+    return '配置异常'
+  }
+  return '未配置'
 }
 
 function ConfiguredProviderPanel({
@@ -423,58 +504,63 @@ function ConfiguredProviderPanel({
   return (
     <div className="models-provider-panel">
       <div className="models-provider-header">
-        <div>
+        <div className="models-provider-heading">
           <h3>{provider.id}</h3>
-          <p>{provider.baseUrl ?? provider.providerType}</p>
+          <span className="models-provider-status" data-status={provider.status}>
+            {providerStatusLabel(provider.status)}
+          </span>
         </div>
-        <Button
-          className="models-button-danger"
+        <button
+          aria-label={`删除供应商 ${provider.id}`}
+          className="models-icon-button models-button-danger"
           disabled={disabled}
           onClick={onRemove}
-          size="xs"
+          title="删除供应商"
           type="button"
-          variant="soft"
         >
-          <Trash2 aria-hidden="true" size={14} /> 删除
-        </Button>
+          <Trash2 aria-hidden="true" size={15} />
+        </button>
       </div>
-      <dl className="models-provider-facts">
-        <div>
-          <dt>协议</dt>
-          <dd>{provider.providerType}</dd>
-        </div>
-        <div>
-          <dt>API 密钥</dt>
-          <dd>{provider.hasApiKey ? '已配置' : '未配置'}</dd>
-        </div>
-        <div>
-          <dt>默认模型</dt>
-          <dd>{provider.defaultModel ?? '未设置'}</dd>
-        </div>
-      </dl>
-      <div className="models-provider-models">
-        <div className="models-provider-models__header">
-          <strong>模型</strong>
-          <span>控制是否出现在输入框</span>
-        </div>
-        {models.length === 0 ? (
-          <p className="models-empty">这个供应商还没有模型。</p>
-        ) : (
-          models.map((model) => (
-            <div className="models-provider-model" key={model.model}>
-              <div>
-                <strong>{model.displayName ?? model.model}</strong>
-                <small>{model.model}</small>
+      <div className="models-provider-form">
+        <Field htmlFor="configured-provider-base-url" label="Base URL">
+          <output className="models-readonly" id="configured-provider-base-url">
+            {provider.baseUrl ?? '使用协议默认地址'}
+          </output>
+        </Field>
+        <Field htmlFor="configured-provider-format" label="API 格式">
+          <output className="models-readonly" id="configured-provider-format">
+            {providerTypeLabel(provider.providerType)}
+          </output>
+        </Field>
+        <Field htmlFor="configured-provider-key" label="API Key">
+          <output className="models-readonly" id="configured-provider-key">
+            {provider.hasApiKey ? '••••••••••••••••' : '未配置'}
+          </output>
+        </Field>
+        <div className="models-provider-models">
+          <div className="models-provider-models__header">
+            <strong>模型列表</strong>
+            <span>控制是否出现在输入框</span>
+          </div>
+          {models.length === 0 ? (
+            <p className="models-empty">这个供应商还没有模型。</p>
+          ) : (
+            models.map((model) => (
+              <div className="models-provider-model" key={model.model}>
+                <div>
+                  <strong>{model.displayName ?? model.model}</strong>
+                  <small>{`${model.model} · ${TOKEN_FORMAT.format(model.maxContextSize)}`}</small>
+                </div>
+                <Switch
+                  aria-label={`在输入框中显示 ${model.displayName ?? model.model}`}
+                  checked={!hidden.has(model.model)}
+                  onCheckedChange={(visible) => onModelVisibilityChange(model.model, visible)}
+                  size="sm"
+                />
               </div>
-              <Switch
-                aria-label={`在输入框中显示 ${model.displayName ?? model.model}`}
-                checked={!hidden.has(model.model)}
-                onCheckedChange={(visible) => onModelVisibilityChange(model.model, visible)}
-                size="sm"
-              />
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
     </div>
   )
@@ -498,24 +584,22 @@ function NewProviderPanel({
     (provider) => !configured.has(provider.id) && !provider.rejected && provider.models.length > 0,
   )
   const options: SelectOption[] = [
-    ...catalog.map((provider) => ({ value: provider.id, label: provider.name })),
     { value: CUSTOM_PROVIDER, label: '自定义供应商' },
+    ...catalog.map((provider) => ({ value: provider.id, label: provider.name })),
   ]
-  const [selected, setSelected] = useState(options[0]?.value ?? CUSTOM_PROVIDER)
-  const value = options.some((option) => option.value === selected)
-    ? selected
-    : (options[0]?.value ?? CUSTOM_PROVIDER)
+  const [selected, setSelected] = useState(CUSTOM_PROVIDER)
+  const value = options.some((option) => option.value === selected) ? selected : CUSTOM_PROVIDER
   const provider = catalog.find((candidate) => candidate.id === value)
   return (
     <div className="models-provider-panel">
       <div className="models-provider-header">
-        <div>
-          <h3>添加供应商</h3>
-          <p>选择预置目录，或配置自定义 API。</p>
+        <div className="models-provider-heading">
+          <h3>{provider?.name ?? '自定义供应商'}</h3>
+          <span className="models-provider-status">未配置</span>
         </div>
       </div>
       <Field htmlFor="provider-source" label="供应商">
-        <SearchableSelect
+        <Select
           className="models-provider-select"
           data={options}
           id="provider-source"
@@ -563,11 +647,11 @@ function CatalogProviderForm({
     event.preventDefault()
     const localId = id.trim()
     if (localId === '') {
-      setMessage('请填写供应商 ID。')
+      setMessage('请填写供应商名称。')
       return
     }
     if (provider.needsBaseUrl && baseUrl.trim() === '') {
-      setMessage('这个目录项需要接口地址。')
+      setMessage('这个目录项需要 Base URL。')
       return
     }
     const ok = await onRun({
@@ -587,42 +671,43 @@ function CatalogProviderForm({
   }
   return (
     <form className="models-provider-form" onSubmit={(event) => void submit(event)}>
-      <Field htmlFor="catalog-provider-id" label="供应商 ID">
+      <Field htmlFor="catalog-provider-id" label="供应商名称">
         <input
-          className="models-input models-input--inline"
+          className="models-input"
           id="catalog-provider-id"
           onChange={(event) => setId(event.target.value)}
           required
           value={id}
         />
       </Field>
-      <Field htmlFor="catalog-provider-api-key" label="API 密钥">
+      <Field htmlFor="catalog-provider-base-url" label="Base URL">
         <input
+          className="models-input"
+          id="catalog-provider-base-url"
+          onChange={(event) => setBaseUrl(event.target.value)}
+          placeholder={provider.needsBaseUrl ? 'https://api.example.com/v1' : '留空使用默认地址'}
+          required={provider.needsBaseUrl}
+          type="url"
+          value={baseUrl}
+        />
+      </Field>
+      <Field htmlFor="catalog-provider-format" label="API 格式">
+        <output className="models-readonly" id="catalog-provider-format">
+          {providerTypeLabel(provider.wireType ?? 'openai')}
+        </output>
+      </Field>
+      <Field htmlFor="catalog-provider-api-key" label="API Key">
+        <SecretInput
           autoComplete="new-password"
-          className="models-input models-input--inline"
           id="catalog-provider-api-key"
           onChange={(event) => setApiKey(event.target.value)}
-          placeholder={`输入 ${provider.name} API 密钥`}
-          type="password"
+          placeholder={`输入 ${provider.name} API Key`}
           value={apiKey}
         />
       </Field>
-      {provider.needsBaseUrl ? (
-        <Field htmlFor="catalog-provider-base-url" label="接口地址">
-          <input
-            className="models-input models-input--inline"
-            id="catalog-provider-base-url"
-            onChange={(event) => setBaseUrl(event.target.value)}
-            placeholder="https://api.example.com/v1"
-            required
-            type="url"
-            value={baseUrl}
-          />
-        </Field>
-      ) : null}
       <div className="models-provider-models">
         <div className="models-provider-models__header">
-          <strong>模型</strong>
+          <strong>模型列表</strong>
           <span>默认全部显示，可按需关闭</span>
         </div>
         {provider.models.map((model) => (
@@ -713,7 +798,7 @@ function CustomProviderForm({
     const providerId = id.trim()
     const validation = validateModels(models)
     if (providerId === '') {
-      setMessage('请填写供应商 ID。')
+      setMessage('请填写供应商名称。')
       return
     }
     if (!validation.ok) {
@@ -735,9 +820,9 @@ function CustomProviderForm({
   }
   return (
     <form className="models-provider-form" onSubmit={(event) => void submit(event)}>
-      <Field htmlFor="custom-provider-id" label="供应商 ID">
+      <Field htmlFor="custom-provider-id" label="供应商名称">
         <input
-          className="models-input models-input--inline"
+          className="models-input"
           id="custom-provider-id"
           onChange={(event) => setId(event.target.value)}
           placeholder="my-provider"
@@ -745,30 +830,9 @@ function CustomProviderForm({
           value={id}
         />
       </Field>
-      <Field htmlFor="custom-provider-protocol" label="协议">
-        <Select
-          className="models-provider-select"
-          data={PROVIDER_TYPES}
-          id="custom-provider-protocol"
-          onValueChange={setProviderType}
-          type="协议"
-          value={providerType}
-        />
-      </Field>
-      <Field htmlFor="custom-provider-api-key" label="API 密钥">
+      <Field htmlFor="custom-provider-base-url" label="Base URL">
         <input
-          autoComplete="new-password"
-          className="models-input models-input--inline"
-          id="custom-provider-api-key"
-          onChange={(event) => setApiKey(event.target.value)}
-          placeholder="留空表示由协议自行认证"
-          type="password"
-          value={apiKey}
-        />
-      </Field>
-      <Field htmlFor="custom-provider-base-url" label="接口地址">
-        <input
-          className="models-input models-input--inline"
+          className="models-input"
           id="custom-provider-base-url"
           onChange={(event) => setBaseUrl(event.target.value)}
           placeholder="https://api.example.com/v1"
@@ -776,11 +840,30 @@ function CustomProviderForm({
           value={baseUrl}
         />
       </Field>
+      <Field htmlFor="custom-provider-protocol" label="API 格式">
+        <Select
+          className="models-provider-select"
+          data={PROVIDER_TYPES}
+          id="custom-provider-protocol"
+          onValueChange={setProviderType}
+          type="API 格式"
+          value={providerType}
+        />
+      </Field>
+      <Field htmlFor="custom-provider-api-key" label="API Key">
+        <SecretInput
+          autoComplete="new-password"
+          id="custom-provider-api-key"
+          onChange={(event) => setApiKey(event.target.value)}
+          placeholder="输入key..."
+          value={apiKey}
+        />
+      </Field>
       <div className="models-editor">
         <div className="models-editor__header">
           <div>
-            <strong>模型</strong>
-            <span>配置模型 ID、显示名与上下文</span>
+            <strong>模型列表</strong>
+            <span>模型 ID、显示名与上下文长度</span>
           </div>
           <Button
             onClick={() => setModels((current) => [...current, emptyModel()])}
@@ -837,6 +920,30 @@ function CustomProviderForm({
   )
 }
 
+type SecretInputProps = Omit<ComponentProps<'input'>, 'type'>
+function SecretInput({ className, disabled, ...props }: SecretInputProps) {
+  const [revealed, setRevealed] = useState(false)
+  return (
+    <span className="models-secret">
+      <input
+        {...props}
+        className={`models-input ${className ?? ''}`}
+        disabled={disabled}
+        type={revealed ? 'text' : 'password'}
+      />
+      <button
+        aria-label={revealed ? '隐藏 API Key' : '显示 API Key'}
+        className="models-secret__toggle"
+        disabled={disabled}
+        onClick={() => setRevealed((value) => !value)}
+        type="button"
+      >
+        {revealed ? <EyeOff aria-hidden="true" size={15} /> : <Eye aria-hidden="true" size={15} />}
+      </button>
+    </span>
+  )
+}
+
 function Field({
   label,
   htmlFor,
@@ -847,10 +954,10 @@ function Field({
   readonly children: ReactNode
 }) {
   return (
-    <label className="models-field" htmlFor={htmlFor}>
-      <span>{label}</span>
+    <div className="models-field">
+      <label htmlFor={htmlFor}>{label}</label>
       <div>{children}</div>
-    </label>
+    </div>
   )
 }
 function ActionRow({
@@ -866,7 +973,7 @@ function ActionRow({
       <div>
         {disabled ? <InlineSpinner /> : null}
         <Button disabled={disabled} size="xs" type="submit" variant="soft">
-          {disabled ? '正在保存…' : '保存到 agent'}
+          {disabled ? '正在保存…' : '保存'}
         </Button>
       </div>
     </div>

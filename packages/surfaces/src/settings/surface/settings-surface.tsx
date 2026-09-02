@@ -139,10 +139,20 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
             }
             return {
               ...current,
-              modelPicker: { hiddenModelAliases: [...hidden].sort() },
+              modelPicker: {
+                ...current.modelPicker,
+                hiddenModelAliases: [...hidden].sort(),
+              },
             }
           })
         }}
+        onProviderOrderChange={(providerOrder) => {
+          controller.update((current) => ({
+            ...current,
+            modelPicker: { ...current.modelPicker, providerOrder: [...providerOrder] },
+          }))
+        }}
+        providerOrder={settings.modelPicker.providerOrder}
         store={agentSettings}
       />
     ),
