@@ -30,8 +30,8 @@ agent 是 Kimi Code（TypeScript 版，`kimi web` 入口，见 ADR 0024/0025）�
 是常态而非特例。
 
 - **会话是唯一中心。** 任何能力不得绕过会话另立入口。
-- **屏幕上那条经过由本机帧日志出。** 每一帧先落 `run_events` 再上屏，重开一条
-  对话就是重放它（唯一键 `(thread_id, session_id, seq)`）。agent 那一份是模型
+- **屏幕上那条经过由本机帧日志出。** 每一帧先落 `conversation_events` 再上屏，重开一条
+  对话就是重放它（唯一键 `(thread_id, seq)`）。agent 那一份是模型
   的上下文，由 session/load 让它自己恢复，不参与投影。
 - **每一类状态有且只有一个所有者、一条写入路径。** 禁影子状态、禁兜底副本。
 - **用户主导。** AI 的改动可预览、可拒绝、可撤销；模型输出是不可信输入。
@@ -41,10 +41,10 @@ agent 是 Kimi Code（TypeScript 版，`kimi web` 入口，见 ADR 0024/0025）�
 
 帧从 `kimi web` 子进程的 WebSocket 进 kap-client 的 driver（session/driver.rs，
 kap：REST + session_event），经 RunSlot → Recorder（会话内单调序号）→ FrameSink
-→ 宿主 16ms 攒批 → run_events 落库 → Tauri event → transcript-store（按会话号
+→ 宿主 16ms 攒批 → conversation_events 落库 → Tauri event → transcript-store（按会话号
 路由到对话）→ timeline 投影 → React。反向只有三条命令路：prompt / cancel /
 resolvePermission。
-谁持有唯一真相：屏幕经过 = run_events；模型上下文 = agent；对话索引 = threads 表（单写者）；
+谁持有唯一真相：屏幕经过 = conversation_events；模型上下文 = agent；对话索引 = threads 表（单写者）；
 帧形状 = frame.rs；配置真身 = agent 受控 home 的 config.toml（由 agent 自己
 热重载，我们只经它的官方 CLI 写入）。
 

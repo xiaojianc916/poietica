@@ -220,7 +220,7 @@ impl Recorder {
         self.append(frame);
     }
 
-    /// 记录原子快照，使重建仍经 RunFrame → FrameSink → run_events。
+    /// 记录原子快照，使重建仍经 RunFrame → FrameSink → conversation_events。
     pub fn record_session_recovered(&mut self, snapshot: Value) {
         self.append(RunFrame::SessionRecovered { snapshot });
     }

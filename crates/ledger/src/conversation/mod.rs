@@ -17,6 +17,13 @@ use rusqlite::Connection;
 use crate::error::LedgerError;
 use crate::index::AgentStore;
 
+/// 同一次 journal flush 中一个会话的连续事件。
+pub struct AppendBatch<'a> {
+    pub thread: &'a ThreadId,
+    pub session: &'a str,
+    pub events: &'a [ConversationEvent],
+}
+
 /// 时钟显式注入；连接由账本自己拥有，所以它也负责串行化。
 #[derive(Debug)]
 pub struct SqliteLedger<C: WallClock> {
@@ -122,6 +129,37 @@ impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
     fn unresolved_deliveries(&self) -> Result<Vec<Admission>, LedgerUnavailable> {
         let guard = self.guard().map_err(|error| unavailable(&error))?;
         outbox::unresolved(&guard).map_err(|error| unavailable(&error))
+    }
+}
+
+impl AgentStore {
+    /// 同一拍接受的所有会话批次共用一次提交；结果与输入批次一一对应。
+    pub fn append_batches(
+        &self,
+        batches: &[AppendBatch<'_>],
+    ) -> Result<Vec<Vec<EventEnvelope>>, LedgerUnavailable> {
+        let transaction = self
+            .unchecked_transaction()
+            .map_err(|error| unavailable(&error))?;
+        let mut appended = Vec::with_capacity(batches.len());
+
+        for batch in batches {
+            appended.push(
+                events::append(
+                    &transaction,
+                    self.clock(),
+                    batch.thread,
+                    batch.session,
+                    batch.events,
+                )
+                .map_err(|error| unavailable(&error))?,
+            );
+        }
+
+        transaction
+            .commit()
+            .map_err(|error| unavailable(&LedgerError::from(error)))?;
+        Ok(appended)
     }
 }
 

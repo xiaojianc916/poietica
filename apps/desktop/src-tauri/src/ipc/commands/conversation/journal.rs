@@ -9,19 +9,19 @@
 
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::time::{Duration, Instant};
 
 use poietica_conversation::event::ConversationEvent;
-use poietica_conversation::ports::ConversationLedger;
+use poietica_conversation::identity::ThreadId;
 use poietica_kap_client::translate;
 use poietica_kap_client::{FrameSink, RecordedEvent};
-use tauri::{AppHandle, Manager, Runtime, async_runtime};
+use poietica_ledger::conversation::AppendBatch;
+use tauri::{AppHandle, Manager, Runtime};
 use tauri_specta::Event as _;
 
 use crate::error::{Error, Result};
-use crate::ipc::commands::ledger::local_index::{LocalIndex, on_index};
+use crate::ipc::commands::ledger::local_index::{LocalIndex, on_index_worker};
 
 use super::dto::{AgentRunBatch, AgentRunEvent};
 
@@ -44,7 +44,7 @@ enum JournalCommand {
 }
 
 struct FrameBatch {
-    thread: uuid::Uuid,
+    thread: ThreadId,
     session: String,
     events: Vec<ConversationEvent>,
 }
@@ -195,7 +195,7 @@ fn batch_index(
 
     let index = batches.len();
     batches.push(FrameBatch {
-        thread,
+        thread: ThreadId::new(thread.to_string()),
         session: session_id.to_owned(),
         events: Vec::new(),
     });
@@ -216,38 +216,35 @@ fn flush_frames<R: Runtime>(app: &AppHandle<R>, pending: Vec<PendingFrame>) -> b
         };
         batch
             .events
-            .push(translate::conversation_event(&recorded.frame));
+            .push(translate::conversation_event(recorded.frame));
     }
 
-    for batch in batches {
-        complete &= persist_then_emit(app, batch);
-    }
+    let persisted = batches.is_empty() || persist_then_emit(app, batches);
 
-    complete
+    complete && persisted
 }
 
 /// 落账，然后把同一批按旧帧账的线上形状发给界面。
 ///
 /// 发布形状 = 信封的格子（sessionId/seq/at）并回载荷顶层：实时与重放因此是
 /// 同一串字节，界面那一侧不需要知道账本换了表。
-fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) -> bool {
-    let logged = Arc::new(batch);
+fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batches: Vec<FrameBatch>) -> bool {
     let mut delay = Duration::from_millis(50);
 
     let envelopes = loop {
-        let stored = Arc::clone(&logged);
-        let result = async_runtime::block_on(async {
-            let index = app.state::<LocalIndex>();
-            on_index(&index, move |store| {
-                store
-                    .append(
-                        &poietica_conversation::identity::ThreadId::new(stored.thread.to_string()),
-                        &stored.session,
-                        &stored.events,
-                    )
-                    .map_err(|failure| Error::Internal(failure.to_string()))
+        let views = batches
+            .iter()
+            .map(|batch| AppendBatch {
+                thread: &batch.thread,
+                session: &batch.session,
+                events: &batch.events,
             })
-            .await
+            .collect::<Vec<_>>();
+        let index = app.state::<LocalIndex>();
+        let result = on_index_worker(&index, |store| {
+            store
+                .append_batches(&views)
+                .map_err(|failure| Error::Internal(failure.to_string()))
         });
 
         match result {
@@ -264,14 +261,21 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, batch: FrameBatch) -> bool 
         }
     };
 
-    let shown = envelopes.into_iter().map(AgentRunEvent::from).collect();
-    if let Err(error) = (AgentRunBatch {
-        session_id: logged.session.clone(),
-        events: shown,
-    })
-    .emit(app)
-    {
-        log::warn!("emit agent event failed after persistence: {error}");
+    if envelopes.len() != batches.len() {
+        log::error!("the ledger returned a different number of frame batches");
+        return false;
+    }
+
+    for (batch, envelopes) in batches.into_iter().zip(envelopes) {
+        let shown = envelopes.into_iter().map(AgentRunEvent::from).collect();
+        if let Err(error) = (AgentRunBatch {
+            session_id: batch.session,
+            events: shown,
+        })
+        .emit(app)
+        {
+            log::warn!("emit agent event failed after persistence: {error}");
+        }
     }
 
     true

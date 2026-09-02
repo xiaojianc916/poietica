@@ -1,8 +1,7 @@
 //! 屏幕那条经过的读路：按轮分页、目录预览、分叉复制。
 //!
-//! 载荷就是事件联合的 JSON（kind 判别式在内），所以这里的查询只认 JSON 里
-//! 那一格 —— 与写路共用同一份事实。信封格子（sessionId/seq/at）在列上，
-//! 读回时并回载荷顶层，交出去的形状与旧帧账逐字节一致。
+//! kind 是事件表的类型列，协议细节留在 payload JSON；查询不重复解析已有列。
+//! 信封格子（sessionId/seq/at）在列上，读回时并回载荷顶层。
 
 use std::collections::HashMap;
 
@@ -85,7 +84,7 @@ impl AgentStore {
             .prepare_cached(
                 "SELECT seq FROM conversation_events
                  WHERE thread_id = ?1 AND seq < ?2
-                   AND json_extract(payload, '$.kind') = ?3
+                   AND kind = ?3
                  ORDER BY seq DESC
                  LIMIT 1 OFFSET ?4",
             )?
@@ -122,7 +121,7 @@ impl AgentStore {
                     coalesce(json_extract(t.payload, '$.admissionId'), ''),
                     substr(coalesce(json_extract(t.payload, '$.prompt'), ''), 1, ?3)
              FROM conversation_events t
-             WHERE t.thread_id = ?1 AND json_extract(t.payload, '$.kind') = ?2
+             WHERE t.thread_id = ?1 AND t.kind = ?2
              ORDER BY t.seq ASC",
         )?;
 
@@ -144,26 +143,27 @@ impl AgentStore {
         /* 每一轮只取够填满预览卡的前几片：留下的片各至少一个字，所以取
         reply_chars 片必然够。窗口函数与 fork_thread 的 ROW_NUMBER 同源。 */
         let mut flakes = self.connection.prepare_cached(
-            "SELECT turn_seq, text FROM (
-               SELECT turn_seq, text,
+            "WITH ordered AS (
+               SELECT seq, kind, payload,
+                      MAX(CASE WHEN kind = ?2 THEN seq END) OVER (
+                        ORDER BY seq ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                      ) AS turn_seq
+                 FROM conversation_events
+                WHERE thread_id = ?1
+             ), reply_flakes AS (
+               SELECT turn_seq,
+                      json_extract(payload, '$.payload.' || ?4) AS text,
                       ROW_NUMBER() OVER (PARTITION BY turn_seq ORDER BY seq) AS rank
-                 FROM (
-                   SELECT (SELECT max(p.seq)
-                             FROM conversation_events p
-                            WHERE p.thread_id = ?1 AND p.seq <= r.seq
-                              AND json_extract(p.payload, '$.kind') = ?2) AS turn_seq,
-                          json_extract(r.payload, '$.payload.' || ?4) AS text,
-                          r.seq AS seq
-                     FROM conversation_events r
-                    WHERE r.thread_id = ?1
-                      AND json_extract(r.payload, '$.kind') = ?3
-                      AND json_extract(r.payload, '$.payload.' || ?5) = ?6
-                      AND coalesce(json_extract(r.payload, '$.payload.' || ?7), '') IN ('', ?8)
-                 )
-                WHERE turn_seq IS NOT NULL AND text IS NOT NULL AND text <> ''
+                 FROM ordered
+                WHERE turn_seq IS NOT NULL
+                  AND kind = ?3
+                  AND json_extract(payload, '$.payload.' || ?5) = ?6
+                  AND coalesce(json_extract(payload, '$.payload.' || ?7), '') IN ('', ?8)
              )
-             WHERE rank <= ?9
-             ORDER BY turn_seq ASC, rank ASC",
+             SELECT turn_seq, text
+               FROM reply_flakes
+              WHERE text IS NOT NULL AND text <> '' AND rank <= ?9
+              ORDER BY turn_seq ASC, rank ASC",
         )?;
 
         let spoken = flakes
@@ -226,7 +226,7 @@ impl AgentStore {
                     "SELECT EXISTS(
                        SELECT 1 FROM conversation_events
                        WHERE thread_id = ?1 AND seq < ?2
-                         AND json_extract(payload, '$.kind') = ?3
+                         AND kind = ?3
                      )",
                 )?
                 .query_row(rusqlite::params![thread_id, floor, turn_start], |row| {
@@ -268,7 +268,7 @@ impl AgentStore {
     ///
     /// drop_turns 为 0、或这条对话没有那么多轮时交回 i64::MAX —— 整条都在分叉
     /// 点之前。「哪一帧开一轮」由认识帧的那一侧回答（kap-client 的 frame.rs），
-    /// 判别式因此由调用方交进来：这一层只认 JSON 里那一格。
+    /// kind 值因此由调用方交进来；这一层只按账本列定位。
     ///
     /// # Errors
     ///
@@ -280,7 +280,7 @@ impl AgentStore {
 
         let mut statement = self.connection.prepare_cached(
             "SELECT seq FROM conversation_events
-             WHERE thread_id = ?1 AND json_extract(payload, '$.kind') = ?2
+             WHERE thread_id = ?1 AND kind = ?2
              ORDER BY seq DESC
              LIMIT 1 OFFSET ?3",
         )?;

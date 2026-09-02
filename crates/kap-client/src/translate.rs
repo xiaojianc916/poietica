@@ -13,7 +13,7 @@ use crate::frame::RunFrame;
 /// 一帧运行时事实 → 一条领域事件。字段名与载荷原样搬运：翻译不改写事实，
 /// 只换词汇表。
 #[must_use]
-pub fn conversation_event(frame: &RunFrame) -> ConversationEvent {
+pub fn conversation_event(frame: RunFrame) -> ConversationEvent {
     match frame {
         RunFrame::PromptAdmitted {
             admission_id,
@@ -21,24 +21,22 @@ pub fn conversation_event(frame: &RunFrame) -> ConversationEvent {
             images,
             skills,
         } => ConversationEvent::PromptAdmitted {
-            admission_id: TurnId::new(admission_id.clone()),
-            prompt: Some(prompt.clone()),
-            images: Some(images.clone()),
-            skills: Some(skills.clone()),
+            admission_id: TurnId::new(admission_id),
+            prompt: Some(prompt),
+            images: Some(images),
+            skills: Some(skills),
         },
-        RunFrame::KapEvent { payload } => ConversationEvent::KapEvent {
-            payload: payload.clone(),
-        },
+        RunFrame::KapEvent { payload } => ConversationEvent::KapEvent { payload: payload },
         RunFrame::PermissionRequested {
             request_id,
             tool_call_id,
             title,
             tool_call,
         } => ConversationEvent::PermissionRequested {
-            request_id: request_id.clone(),
-            tool_call_id: Some(tool_call_id.clone()),
-            title: title.clone(),
-            tool_call: tool_call.clone(),
+            request_id: request_id,
+            tool_call_id: Some(tool_call_id),
+            title: title,
+            tool_call: tool_call,
         },
         RunFrame::PermissionResolved {
             request_id,
@@ -47,20 +45,20 @@ pub fn conversation_event(frame: &RunFrame) -> ConversationEvent {
             selected_label,
             feedback,
         } => ConversationEvent::PermissionResolved {
-            request_id: request_id.clone(),
-            decision: decision.clone(),
-            scope: scope.clone(),
-            selected_label: selected_label.clone(),
-            feedback: feedback.clone(),
+            request_id: request_id,
+            decision: decision,
+            scope: scope,
+            selected_label: selected_label,
+            feedback: feedback,
         },
         RunFrame::QuestionsAsked {
             question_id,
             tool_call_id,
             questions,
         } => ConversationEvent::QuestionsAsked {
-            question_id: question_id.clone(),
-            tool_call_id: Some(tool_call_id.clone()),
-            questions: questions.clone(),
+            question_id: question_id,
+            tool_call_id: Some(tool_call_id),
+            questions: questions,
         },
         RunFrame::QuestionsResolved {
             question_id,
@@ -68,22 +66,22 @@ pub fn conversation_event(frame: &RunFrame) -> ConversationEvent {
             answers,
             note,
         } => ConversationEvent::QuestionsResolved {
-            question_id: question_id.clone(),
-            outcome: outcome.clone(),
-            answers: answers.clone(),
-            note: note.clone(),
+            question_id: question_id,
+            outcome: outcome,
+            answers: answers,
+            note: note,
         },
-        RunFrame::SessionRecovered { snapshot } => ConversationEvent::SessionRecovered {
-            snapshot: snapshot.clone(),
-        },
-        RunFrame::LinkChanged { link } => ConversationEvent::LinkChanged { link: link.clone() },
+        RunFrame::SessionRecovered { snapshot } => {
+            ConversationEvent::SessionRecovered { snapshot: snapshot }
+        }
+        RunFrame::LinkChanged { link } => ConversationEvent::LinkChanged { link: link },
         RunFrame::RunFinished { stop_reason } => ConversationEvent::RunFinished {
             turn: None,
-            stop_reason: stop_reason.clone(),
+            stop_reason: stop_reason,
         },
         RunFrame::RunFailed { message } => ConversationEvent::RunFailed {
             turn: None,
-            message: message.clone(),
+            message: message,
         },
     }
 }

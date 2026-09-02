@@ -72,4 +72,13 @@ describe('分批喂帧', () => {
     expect(one?.type === 'tool_call' && one.content).toHaveLength(2)
     expect(other?.type === 'tool_call' && other.content).toHaveLength(2)
   })
+
+  it('同一批的长文本逐字落成一条消息', () => {
+    const events = Array.from({ length: 4_096 }, (_, index) => spoke(index + 1, '甲乙丙丁'))
+    const state = applyRunEvents(createTimelineState(), events)
+    const item = allItems(state).at(0)
+
+    expect(allItems(state)).toHaveLength(1)
+    expect(item?.type === 'agent_text' && item.text).toBe('甲乙丙丁'.repeat(events.length))
+  })
 })

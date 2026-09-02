@@ -4,7 +4,7 @@
 //! 迁移在窗口出现之前跑完（bootstrap/app.rs 的 setup），命令拿到的总是就绪的库。
 
 use std::path::Path;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 
 use poietica_ledger::LedgerError;
 use poietica_ledger::index::AgentStore;
@@ -48,13 +48,23 @@ impl LocalIndex {
     }
 }
 
-/// 取那把锁，一条语句的功夫。
-///
-/// 绝不跨 await 持有：持有它的 future 不是 Send，而命令的 future 必须是。
-fn borrow(shared: &Arc<Mutex<AgentStore>>) -> Result<MutexGuard<'_, AgentStore>> {
-    shared
+fn with_index<T, F>(shared: &Arc<Mutex<AgentStore>>, work: F) -> Result<T>
+where
+    F: FnOnce(&mut AgentStore) -> Result<T>,
+{
+    let mut store = shared
         .lock()
-        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))
+        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?;
+
+    work(&mut store)
+}
+
+/// 已经拥有专用阻塞线程的调用方直接执行，避免再次往阻塞线程池调度。
+pub(crate) fn on_index_worker<T, F>(index: &State<'_, LocalIndex>, work: F) -> Result<T>
+where
+    F: FnOnce(&mut AgentStore) -> Result<T>,
+{
+    with_index(&index.store, work)
 }
 
 /// 读或写这个库，不站在主线程上。
@@ -75,13 +85,9 @@ where
 {
     let shared = Arc::clone(&index.store);
 
-    async_runtime::spawn_blocking(move || {
-        let mut store = borrow(&shared)?;
-
-        work(&mut store)
-    })
-    .await
-    .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?
+    async_runtime::spawn_blocking(move || with_index(&shared, work))
+        .await
+        .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?
 }
 
 /// 库说不行，说给上一层听的那一句。

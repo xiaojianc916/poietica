@@ -43,6 +43,8 @@ export interface Draft {
    * 认出同一句话的回声；这一格问「这一段有没有过问」，跨得过中间的产出。
    */
   promptLanded: boolean
+  /** 同一 reducer 批次内尚未物化的连续文本片；边界或封版前只 join 一次。 */
+  textTail: string[] | null
   /** 每一轮的两端。当轮恒是末尾那一条，见 markTurnStart。 */
   spans: readonly TurnSpan[]
   spansOwned: boolean
@@ -77,6 +79,7 @@ export function draftOf(state: TimelineState): Draft {
     lastSeq: state.lastSeq,
     runIndex: state.active.turn,
     promptLanded: false,
+    textTail: null,
     spans: state.spans,
     spansOwned: false,
   }
@@ -94,6 +97,8 @@ function writableSpans(draft: Draft): TurnSpan[] {
 const SETTLED: ReadonlySet<RunStatus> = new Set(['cancelled', 'completed', 'failed'])
 
 export function freeze(draft: Draft): TimelineState {
+  flushTextTail(draft)
+
   /* 轮次的终点由状态说了算，不由某一帧说了算：终帧没到过的运行（进程被杀、连接断）
      同样要收口，否则封条会永远停在「正在处理」。 */
   if (SETTLED.has(draft.status)) {
@@ -127,6 +132,8 @@ export function freeze(draft: Draft): TimelineState {
  * 空段不封：一轮的存在由 spans 记，没有条目的段只会在派生里占一个空位。
  */
 export function openSegment(draft: Draft): void {
+  flushTextTail(draft)
+
   if (draft.items.length > 0) {
     draft.sealed = [...draft.sealed, { turn: draft.runIndex, items: draft.items }]
   }
@@ -335,7 +342,26 @@ export function markFrame(draft: Draft, at: number): void {
   spans[spans.length - 1] = { ...open, lastFrameAt: at }
 }
 
+function flushTextTail(draft: Draft): void {
+  const chunks = draft.textTail
+
+  if (chunks === null) {
+    return
+  }
+
+  draft.textTail = null
+  const tail = draft.items.at(-1)
+
+  if (tail?.type !== 'agent_text' && tail?.type !== 'agent_thought') {
+    throw new Error('streaming text tail lost its owner')
+  }
+
+  draft.items[draft.items.length - 1] = { ...tail, text: tail.text + chunks.join('') }
+}
+
 export function sealTail(draft: Draft): void {
+  flushTextTail(draft)
+
   const tail = draft.items.at(-1)
 
   if (!tail) {
@@ -452,9 +478,8 @@ export function appendChunk(
   const tail = draft.items.at(-1)
 
   if (tail && tail.type === type && !tail.sealed && sameMessage(tail, chunk.message)) {
-    const grown: AgentTextItem | AgentThoughtItem = { ...tail, text: tail.text + chunk.text }
-
-    draft.items[draft.items.length - 1] = grown
+    draft.textTail ??= []
+    draft.textTail.push(chunk.text)
 
     return
   }

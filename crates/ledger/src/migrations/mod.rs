@@ -47,6 +47,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "attachment_names",
         include_str!("sql/0010_attachment_names.sql"),
     ),
+    (
+        11,
+        "conversation_event_kind_index",
+        include_str!("sql/0011_conversation_event_kind_index.sql"),
+    ),
 ];
 
 pub fn apply(connection: &mut Connection, clock: &dyn WallClock) -> Result<(), LedgerError> {
