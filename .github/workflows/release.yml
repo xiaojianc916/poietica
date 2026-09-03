@@ -49,11 +49,15 @@ jobs:
       - name: JavaScript dependency audit
         run: bun run audit
 
-      - name: Rust dependency policy
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25
+      # cargo-deny-action 是容器 action，只在 Linux 上可运行；发行在 windows-latest，
+      # 改用跨平台的 install-action 装二进制后直接跑 cargo deny，命令与 package.json 的 audit:rust 一致。
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b
         with:
-          command: check
-          arguments: --all-features
+          tool: cargo-deny
+
+      - name: Rust dependency policy
+        run: cargo deny check --all-features
 
       - name: Build signed draft release
         id: release

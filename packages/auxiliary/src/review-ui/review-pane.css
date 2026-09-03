@@ -5,12 +5,12 @@
  * 进设计系统。深色主题下同一批色相换成半透明，压在深底上才读得出来。
  */
 .review-pane {
-  --review-added-fill: #cdebcd;
-  --review-added-edge: #4fa356;
-  --review-added-emphasis: #cbe8cd;
-  --review-removed-fill: #fad1c9;
-  --review-removed-edge: #e0674f;
-  --review-removed-emphasis: #f6ccc4;
+  --review-added-fill: #d9e8de;
+  --review-added-edge: #1e8a3e;
+  --review-added-emphasis: #c6e4ca;
+  --review-removed-fill: #f4dcdc;
+  --review-removed-edge: #e03131;
+  --review-removed-emphasis: #f3caca;
 }
 
 :root[data-theme="dark"] .review-pane {

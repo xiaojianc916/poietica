@@ -60,11 +60,15 @@ jobs:
 
       # 只跑确定性子集。advisories 依赖外部数据库，会让无关 PR 随机变红，
       # 它属于 security.yml 的定时任务与发布门禁。
-      - name: Dependency policy
-        uses: EmbarkStudios/cargo-deny-action@v2
+      # cargo-deny-action 是容器 action，只在 Linux 上可运行；PR 门禁跑在
+      # windows-latest，改用跨平台的 install-action 装二进制后直接跑 cargo deny。
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b
         with:
-          command: check
-          arguments: --all-features bans licenses sources
+          tool: cargo-deny
+
+      - name: Dependency policy
+        run: cargo deny check --all-features bans licenses sources
 
   windows-desktop:
     name: Windows Desktop
