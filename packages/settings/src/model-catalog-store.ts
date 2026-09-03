@@ -192,7 +192,7 @@ export class ModelCatalogStore {
     const generation = ++this.#generation
     this.#publish({ ...this.#snapshot, mutating: true, error: null })
     try {
-      const data = await this.#port.execute(this.#agentId, operation)
+      const data = await this.#port.execute(this.#agentId, this.#declared(operation))
       this.#commit(generation, data)
     } catch (cause) {
       if (generation === this.#generation) {
@@ -204,6 +204,32 @@ export class ModelCatalogStore {
 
   setDefaultModel(modelId: string): Promise<void> {
     return this.mutate({ kind: 'setDefault', modelId })
+  }
+
+  /* provider 覆盖是整份替换：表单只填可编辑的三项，声明元数据从目录快照补回。 */
+  #declared(
+    operation: Exclude<ModelCatalogOperation, { readonly kind: 'snapshot' }>,
+  ): Exclude<ModelCatalogOperation, { readonly kind: 'snapshot' }> {
+    const declared = this.#snapshot.data?.models ?? []
+    if (operation.kind === 'create') {
+      return {
+        ...operation,
+        provider: {
+          ...operation.provider,
+          models: withDeclared(operation.provider.models, declared, operation.provider.id),
+        },
+      }
+    }
+    if (operation.kind === 'replace') {
+      return {
+        ...operation,
+        provider: {
+          ...operation.provider,
+          models: withDeclared(operation.provider.models, declared, operation.providerId),
+        },
+      }
+    }
+    return operation
   }
 
   #commit(generation: number, data: ModelCatalogData): void {
@@ -222,6 +248,34 @@ export class ModelCatalogStore {
       listener()
     }
   }
+}
+
+/* 目录快照是模型声明的唯一真相：表单没有的字段回填，不允许被覆盖写清空。 */
+function withDeclared(
+  models: readonly ProviderModelInput[],
+  declared: readonly ModelDescriptor[],
+  providerId: string,
+): readonly ProviderModelInput[] {
+  const source = new Map(
+    declared
+      .filter((entry) => entry.provider === providerId)
+      .map((entry) => [entry.model, entry] as const),
+  )
+  return models.map((model) => {
+    const found = source.get(model.model)
+    if (found === undefined) {
+      return model
+    }
+    return {
+      ...model,
+      ...(model.capabilities === undefined && found.capabilities !== null
+        ? { capabilities: found.capabilities }
+        : {}),
+      ...(model.supportEfforts === undefined && found.supportEfforts !== null
+        ? { supportEfforts: found.supportEfforts }
+        : {}),
+    }
+  })
 }
 
 function freezeData(data: ModelCatalogData): ModelCatalogData {

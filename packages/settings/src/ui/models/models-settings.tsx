@@ -662,7 +662,7 @@ function CatalogProviderForm({
       return
     }
     for (const model of provider.models) {
-      onModelVisibilityChange(`${localId}/${model.id}`, visible.has(model.id))
+      onModelVisibilityChange(model.id, visible.has(model.id))
     }
     onCreated(localId)
   }
@@ -738,7 +738,7 @@ const emptyModel = (): ModelDraft => ({
   key: crypto.randomUUID(),
   model: '',
   displayName: '',
-  maxContextSize: '128000',
+  maxContextSize: '',
 })
 function validateModels(
   models: readonly ModelDraft[],
