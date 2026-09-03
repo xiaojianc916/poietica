@@ -174,6 +174,10 @@ struct DeleteOutput {
     failure: Option<String>,
 }
 
+#[allow(
+    clippy::unused_async_trait_impl,
+    reason = "rmcp 的 tool_router 把同步 tool 包成 async trait 方法"
+)]
 #[tool_router(server_handler)]
 impl Ledger {
     #[tool(

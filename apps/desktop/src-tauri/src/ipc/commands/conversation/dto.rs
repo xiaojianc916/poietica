@@ -432,7 +432,7 @@ impl From<poietica_conversation::event::EventEnvelope> for AgentRunEvent {
         };
         Self {
             session_id: envelope.session_id,
-            seq: u32::try_from(envelope.seq.value()).map_or(u32::MAX, |value| value),
+            seq: u32::try_from(envelope.seq.value()).unwrap_or(u32::MAX),
             at: envelope.at,
             frame,
         }
