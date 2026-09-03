@@ -68,8 +68,12 @@ export function SearchableSelect<TValue extends string = string>({
                 placeholder={`搜索${type}`}
               />
             </div>
-            <Combobox.Empty className="px-3 py-5 text-center text-xs text-muted-foreground">
-              没有匹配项
+            {/*
+             * Empty 的根节点永远挂载（读屏播报用），有结果时只清空子节点。
+             * 间距必须写在子节点上 —— 写在根上会在有结果时留下一块空白。
+             */}
+            <Combobox.Empty className="text-center text-xs text-muted-foreground">
+              <p className="px-3 py-5">没有匹配项</p>
             </Combobox.Empty>
             <Combobox.List className="searchable-select__list grid max-h-64 gap-0.5 overflow-y-auto p-1 outline-none">
               {(option: SelectOption<TValue>) => (

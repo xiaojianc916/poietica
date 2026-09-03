@@ -7,7 +7,6 @@ use futures::{FutureExt, StreamExt};
 use serde_json::{Value, json};
 
 use super::book::SessionBook;
-use super::coordinator::{PromptCoordinator, PromptJob};
 use super::rest::{get, get_selectors, post, session_snapshot};
 use super::{Cursor, SessionEvent, SessionUsageSnapshot};
 use crate::connection::handshake::subscribe;
@@ -193,7 +192,6 @@ pub(crate) struct EventRouter {
     http: reqwest::Client,
     base_url: String,
     cursors: HashMap<String, Cursor>,
-    prompts: PromptCoordinator,
     ws: WsSink,
     recoveries: HashMap<String, tokio::task::JoinHandle<()>>,
 }
@@ -208,7 +206,6 @@ impl EventRouter {
         base_url: String,
         ws: WsSink,
     ) -> Self {
-        let prompts = PromptCoordinator::new(http.clone(), base_url.clone(), book.clone());
         Self {
             owners: HashMap::new(),
             book,
@@ -218,7 +215,6 @@ impl EventRouter {
             http,
             base_url,
             cursors: HashMap::new(),
-            prompts,
             ws,
             recoveries: HashMap::new(),
         }
@@ -226,10 +222,6 @@ impl EventRouter {
 
     pub(crate) fn cursors(&self) -> &HashMap<String, Cursor> {
         &self.cursors
-    }
-
-    pub(crate) fn submit(&mut self, session_id: &str, job: PromptJob) {
-        self.prompts.submit(session_id, job);
     }
 
     /// 这条会话在 server 侧没有了：在飞的那一轮判死，读点作废，本地不再留任何
@@ -245,7 +237,6 @@ impl EventRouter {
 
         let _dropped = self.cursors.remove(session_id);
         let _stopped = self.owners.remove(session_id);
-        self.prompts.forget(session_id);
 
         let _sent = self.events_tx.unbounded_send(SessionEvent::CursorLost {
             session_id: session_id.to_owned(),
@@ -328,7 +319,6 @@ impl EventRouter {
             http,
             base_url,
             cursors,
-            prompts,
             ws: _,
             recoveries: _,
         } = self;
@@ -514,7 +504,7 @@ impl EventRouter {
                     };
 
                     match ended {
-                        Ok(_) => prompts.turn_ended(session_id),
+                        Ok(_) => {}
                         Err(error) => {
                             log::error!("could not close the turn kap just ended: {error}");
                         }

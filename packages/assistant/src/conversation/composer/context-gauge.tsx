@@ -21,9 +21,12 @@ const RADIUS = 10
 const STROKE = 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-/* 分组与缩写都由 Intl 出，不手搓千分位与 K。 */
-const EXACT = new Intl.NumberFormat('en-US')
+/* 分组与缩写都由 Intl 出，不手搓千分位与 K。明细那行留一位小数：3,737,705 是 3.7M 不是 4M。 */
 const COMPACT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0, notation: 'compact' })
+const COMPACT_ONE_DECIMAL = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 1,
+  notation: 'compact',
+})
 const PERCENT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, style: 'percent' })
 
 /* 三档阈值：<75% 正常，75% 起提醒，90% 起该收，95% 起下一句可能塞不下。
@@ -119,7 +122,7 @@ export const ContextGauge = memo(function ContextGauge({ usage }: ContextGaugePr
 
           <div className="context-gauge__row context-gauge__row--section">
             <span className="context-gauge__label">token</span>
-            <span className="context-gauge__value">{EXACT.format(inputTotal)}</span>
+            <span className="context-gauge__value">{COMPACT_ONE_DECIMAL.format(inputTotal)}</span>
           </div>
 
           <div className="context-gauge__row context-gauge__row--section">

@@ -110,6 +110,8 @@ export const SessionControls = memo(function SessionControls({
   const [pane, setPane] = useState<string>(ROOT)
   const drilled = rows.find((control) => control.id === pane)
   const [firstRow] = rows
+  /* 全名展示（截断已放开），窄窗下仍被挤住时靠 title 兜底。 */
+  const currentLabel = firstRow === undefined ? UNAVAILABLE : chosen(model ?? firstRow)
 
   if (firstRow === undefined) {
     if (failure === undefined) {
@@ -139,8 +141,12 @@ export const SessionControls = memo(function SessionControls({
         }
       }}
     >
-      <DropdownMenuTrigger aria-label="会话设置" className="assistant-model-select__button">
-        <span className="assistant-model-select__label">{chosen(model ?? firstRow)}</span>
+      <DropdownMenuTrigger
+        aria-label="会话设置"
+        className="assistant-model-select__button"
+        title={currentLabel}
+      >
+        <span className="assistant-model-select__label">{currentLabel}</span>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent

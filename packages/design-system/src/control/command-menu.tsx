@@ -151,12 +151,18 @@ export function CommandMenu({
           </BaseCombobox.Group>
         ))}
 
-        <BaseCombobox.Empty
-          className={cn('grid min-h-28', 'place-content-center', 'gap-1 px-4', 'text-center')}
-        >
-          <span className={cn('text-sm font-medium', 'text-foreground')}>{emptyTitle}</span>
+        {/*
+         * Empty 的根节点永远挂载（读屏播报用），有结果时只清空子节点。
+         * 占位尺寸必须写在子节点上 —— 写在根上会在有结果时留下一块空白。
+         */}
+        <BaseCombobox.Empty className={cn('outline-none')}>
+          <span
+            className={cn('grid min-h-28', 'place-content-center', 'gap-1 px-4', 'text-center')}
+          >
+            <span className={cn('text-sm font-medium', 'text-foreground')}>{emptyTitle}</span>
 
-          <span className={cn('text-xs', 'text-muted-foreground')}>{emptyDescription}</span>
+            <span className={cn('text-xs', 'text-muted-foreground')}>{emptyDescription}</span>
+          </span>
         </BaseCombobox.Empty>
       </BaseCombobox.List>
     </BaseCombobox.Root>

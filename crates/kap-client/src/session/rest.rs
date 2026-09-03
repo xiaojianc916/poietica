@@ -13,13 +13,14 @@ use crate::generated::rest::{
     routes,
 };
 use crate::generated::rest::{
-    CreateSessionDataStruct, CreateSessionRequestAgentConfigStruct,
-    CreateSessionRequestMetadataStruct, CreateSessionRequestStruct,
-    ListCapabilitiesDataCapabilitiesStateEnum, ListCapabilitiesDataCapabilitiesStruct,
-    ListCapabilitiesDataStruct, ListMcpServersDataServersStatusEnum,
-    ListMcpServersDataServersTransportEnum, ListMcpServersDataStruct, ListSessionsDataStruct,
-    ListSkillsDataSkillsSourceEnum, ListSkillsDataStruct, SessionSnapshotDataStruct,
-    SetProfileRequestStruct, SubmitPromptDataStruct, SubmitPromptRequestContentChoice,
+    CreateSessionDataStruct, CreateSessionRequestAgentConfigGoalControlEnum,
+    CreateSessionRequestAgentConfigStruct, CreateSessionRequestMetadataStruct,
+    CreateSessionRequestStruct, ListCapabilitiesDataCapabilitiesStateEnum,
+    ListCapabilitiesDataCapabilitiesStruct, ListCapabilitiesDataStruct,
+    ListMcpServersDataServersStatusEnum, ListMcpServersDataServersTransportEnum,
+    ListMcpServersDataStruct, ListSessionsDataStruct, ListSkillsDataSkillsSourceEnum,
+    ListSkillsDataStruct, SessionSnapshotDataStruct, SetProfileRequestStruct,
+    SubmitPromptDataStruct, SubmitPromptRequestContentChoice,
     SubmitPromptRequestContentChoiceImageSourceChoice, SubmitPromptRequestSkillsStruct,
     SubmitPromptRequestStruct,
 };
@@ -678,6 +679,65 @@ pub(crate) async fn get_selectors(
     ))
 }
 
+async fn replace_existing_goal(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+    previous: &GoalSnapshot,
+    objective: &str,
+    create: CreateSessionRequestAgentConfigStruct,
+) -> Result<()> {
+    let cancel = profile_body(CreateSessionRequestAgentConfigStruct {
+        goal_control: Some(CreateSessionRequestAgentConfigGoalControlEnum::Cancel),
+        ..Default::default()
+    });
+
+    if let Err(cancel_error) = post(http, routes::set_profile(base_url, session_id), &cancel).await
+    {
+        match fetch_goal(http, base_url, session_id).await {
+            Ok(None) => {}
+            Ok(Some(observed)) if observed.objective == previous.objective => {
+                return Err(cancel_error);
+            }
+            Ok(Some(_)) | Err(_) => return Err(cancel_error),
+        }
+    }
+
+    match post(
+        http,
+        routes::set_profile(base_url, session_id),
+        &profile_body(create),
+    )
+    .await
+    {
+        Ok(_) => Ok(()),
+        Err(create_error) => {
+            if fetch_goal(http, base_url, session_id)
+                .await
+                .ok()
+                .flatten()
+                .is_some_and(|observed| observed.objective == objective.trim())
+            {
+                return Ok(());
+            }
+
+            let restore = selector_patch("goal", "on", Some(&previous.objective))?;
+            post(
+                http,
+                routes::set_profile(base_url, session_id),
+                &profile_body(restore),
+            )
+            .await
+            .map_err(|restore_error| KapError::Transport {
+                message: format!(
+                    "goal replacement failed: {create_error}; restoring the previous goal also failed: {restore_error}"
+                ),
+            })?;
+            Err(create_error)
+        }
+    }
+}
+
 pub(crate) async fn set_selector(
     http: &reqwest::Client,
     base_url: &str,
@@ -686,7 +746,7 @@ pub(crate) async fn set_selector(
     value: &str,
     input: Option<&str>,
 ) -> Result<Vec<ConfigControl>> {
-    let (current, _goal) = get_selectors(http, base_url, session_id).await?;
+    let (current, goal) = get_selectors(http, base_url, session_id).await?;
     let control = current
         .iter()
         .find(|control| control.id == config_id)
@@ -701,13 +761,28 @@ pub(crate) async fn set_selector(
             message: format!("control {config_id} does not offer {value}"),
         });
     }
+
     let patch = selector_patch(config_id, value, input)?;
-    post(
-        http,
-        routes::set_profile(base_url, session_id),
-        &profile_body(patch),
-    )
-    .await?;
+    if config_id == "goal" && value == "on" {
+        if let (Some(previous), Some(objective)) = (goal.as_ref(), input) {
+            replace_existing_goal(http, base_url, session_id, previous, objective, patch).await?;
+        } else {
+            post(
+                http,
+                routes::set_profile(base_url, session_id),
+                &profile_body(patch),
+            )
+            .await?;
+        }
+    } else {
+        post(
+            http,
+            routes::set_profile(base_url, session_id),
+            &profile_body(patch),
+        )
+        .await?;
+    }
+
     let (selectors, _goal) = get_selectors(http, base_url, session_id).await?;
     Ok(selectors)
 }

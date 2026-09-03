@@ -10,10 +10,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--cp-control);
-  height: var(--cp-control);
+  /* 悬浮贴着圆环：图标 16px 各留 4px，直径差 8 是偶数，居中不发虚。 */
+  width: calc(var(--cp-icon) + 8px);
+  height: calc(var(--cp-icon) + 8px);
   border: none;
-  border-radius: var(--cp-radius-item);
+  border-radius: 50%;
   background: transparent;
   color: var(--cp-ink-muted);
   cursor: default;

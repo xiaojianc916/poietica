@@ -10,7 +10,13 @@
 //! 需要事先约定端口。
 //!
 //! 不自带鉴权：rmcp 的 Streamable HTTP 服务器默认只接受回环 Host（用于挡住针对本机
-//! 服务的 DNS 重绑定），加上内核分配的端口，暴露面与 Figma 的本地服务器同级。
+//! 服务的 DNS 重绑定），加上内核分配的端口，暴露面与 Figma 的本地服务器同级.
+
+//! item 级的 allow 够不到 tool_router 宏展开生成的 trait impl，压在这里。
+#![allow(
+    clippy::unused_async_trait_impl,
+    reason = "rmcp 的 tool_router 把同步 tool 包成 async trait 方法"
+)]
 
 use std::collections::BTreeMap;
 use std::io;
@@ -174,10 +180,6 @@ struct DeleteOutput {
     failure: Option<String>,
 }
 
-#[allow(
-    clippy::unused_async_trait_impl,
-    reason = "rmcp 的 tool_router 把同步 tool 包成 async trait 方法"
-)]
 #[tool_router(server_handler)]
 impl Ledger {
     #[tool(

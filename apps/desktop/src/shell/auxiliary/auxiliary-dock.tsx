@@ -13,7 +13,7 @@ import {
 } from '@poietica/auxiliary/panel'
 import { terminalHostPort } from '@poietica/native-bridge'
 import { warn } from '@poietica/problem'
-import { GitBranch, Globe, MessageSquareText, PanelRight, SquareTerminal } from 'lucide-react'
+import { FileDiff, Globe, MessageSquareText, PanelRight, SquareTerminal } from 'lucide-react'
 import {
   lazy,
   type ReactNode,
@@ -36,7 +36,7 @@ import { useWorkspaceLayoutState, workspaceLayoutStore } from '../workspace-layo
 
 const PANE_ICONS: Readonly<Record<AuxiliaryLauncherKind, ReactNode>> = {
   assistant: <MessageSquareText aria-hidden className="size-3.5 shrink-0 opacity-60" />,
-  review: <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />,
+  review: <FileDiff aria-hidden className="size-3.5 shrink-0 opacity-60" />,
   terminal: <SquareTerminal aria-hidden className="size-3.5 shrink-0 opacity-60" />,
   browser: <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />,
 }
@@ -160,7 +160,7 @@ export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDock
             <DeferredReviewPane conversationId={conversationId} />
           </Suspense>
         ),
-        icon: <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />,
+        icon: PANE_ICONS.review,
         name: () => '审查',
         release: () => undefined,
       },

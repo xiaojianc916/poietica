@@ -6,7 +6,6 @@
 pub(crate) mod book;
 pub(crate) mod client;
 pub(crate) mod config;
-pub(crate) mod coordinator;
 pub(crate) mod driver;
 pub(crate) mod export;
 pub(crate) mod rest;

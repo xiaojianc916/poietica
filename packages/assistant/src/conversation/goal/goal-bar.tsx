@@ -20,6 +20,8 @@ export interface GoalBarPresentation {
   readonly toggle: GoalBarToggle
 }
 
+const ACTION_ERROR_LIFETIME_MS = 4_500
+
 const PRESENTATION: Record<SessionGoal['status'], GoalBarPresentation | null> = {
   active: { label: '进行中的目标', toggle: 'pause' },
   paused: { label: '已暂停的目标', toggle: 'resume' },
@@ -77,7 +79,6 @@ function GoalBarView({ goal, onClear, onEdit, onPause, onResume }: GoalBarViewPr
   const [draft, setDraft] = useState(goal.objective)
   const [pending, setPending] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [cleared, setCleared] = useState(false)
   const pendingRef = useRef(false)
 
   useEffect(() => {
@@ -86,6 +87,14 @@ function GoalBarView({ goal, onClear, onEdit, onPause, onResume }: GoalBarViewPr
     setActionError(null)
   }, [goal.objective])
 
+  useEffect(() => {
+    if (actionError === null) {
+      return undefined
+    }
+    const timer = setTimeout(() => setActionError(null), ACTION_ERROR_LIFETIME_MS)
+    return () => clearTimeout(timer)
+  }, [actionError])
+
   const runAction = useCallback(async (action: GoalAction) => {
     if (pendingRef.current) {
       return undefined
@@ -93,13 +102,20 @@ function GoalBarView({ goal, onClear, onEdit, onPause, onResume }: GoalBarViewPr
     pendingRef.current = true
     setPending(true)
     setActionError(null)
-    const result = await action()
-    pendingRef.current = false
-    setPending(false)
-    if (!result.ok) {
-      setActionError(result.error)
+    try {
+      const result = await action()
+      if (!result.ok) {
+        setActionError(result.error)
+      }
+      return result
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause)
+      setActionError(error)
+      return { ok: false, error }
+    } finally {
+      pendingRef.current = false
+      setPending(false)
     }
-    return result
   }, [])
 
   const commit = useCallback(async () => {
@@ -114,13 +130,10 @@ function GoalBarView({ goal, onClear, onEdit, onPause, onResume }: GoalBarViewPr
   }, [draft, onEdit, runAction])
 
   const clear = useCallback(async () => {
-    const result = await runAction(onClear)
-    if (result?.ok) {
-      setCleared(true)
-    }
+    await runAction(onClear)
   }, [onClear, runAction])
 
-  if (presentation === null || cleared) {
+  if (presentation === null) {
     return null
   }
 

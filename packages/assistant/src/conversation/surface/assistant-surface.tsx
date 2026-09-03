@@ -220,7 +220,6 @@ export const AssistantSurface = memo(function AssistantSurface({
       <PromptQueue onEdit={edit} outbox={assistant.outbox} />
 
       <AssistantComposer
-        agentStatusKey={live ? assistant.key : undefined}
         approval={approval}
         controls={controls}
         controlsFailure={controlsFailure}

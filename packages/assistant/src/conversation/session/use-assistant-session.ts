@@ -23,7 +23,6 @@ import {
   pendingInteractions,
 } from '@poietica/conversation'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { type AssistantActivity, assistantActivity } from './assistant-activity'
 import { useTranscripts } from './transcripts-context'
 
 /* 每个消费者只订阅最窄的稳定投影；完整 timeline 仅供 TranscriptView。
@@ -141,9 +140,6 @@ const readInflight = (transcript: Transcript): string | undefined =>
 const readRestoring = (transcript: Transcript): boolean => transcript.restoring
 
 const readTimeline = (transcript: Transcript): TimelineState => transcript.timeline
-const readActivity = (transcript: Transcript): AssistantActivity =>
-  assistantActivity(transcript.timeline, transcript.restoring)
-
 const EMPTY_LIST: readonly TodoItem[] = []
 const readTodos = (transcript: Transcript): readonly TodoItem[] =>
   currentTodos(transcript.timeline) ?? EMPTY_LIST
@@ -329,9 +325,6 @@ export function useAssistantSession({
 }
 
 /** 吉祥物只订阅稳定活动类别，不随流式文本帧重渲染。 */
-export function useAssistantActivity(key: string): AssistantActivity {
-  return useSlice(key, readActivity)
-}
 
 /** 完整 timeline 只供转录视图；这是唯一按帧重渲染的订阅。 */
 export function useAssistantTimeline(key: string): TimelineState {

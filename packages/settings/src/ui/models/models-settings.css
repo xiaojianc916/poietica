@@ -75,6 +75,7 @@
 .models-toolbar {
   position: relative;
   display: flex;
+  align-items: center;
   gap: 6px;
   padding: 0 14px 10px;
 }
