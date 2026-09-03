@@ -582,7 +582,12 @@ async fn reconcile_session_model(
         .as_deref()
         .map(str::trim)
         .filter(|alias| !alias.is_empty())
-        .filter(|alias| catalog.items.iter().any(|item| item.model.as_str() == *alias))
+        .filter(|alias| {
+            catalog
+                .items
+                .iter()
+                .any(|item| item.model.as_str() == *alias)
+        })
         .map(str::to_owned);
     let Some(default_model) = default_model else {
         log::warn!("the session model is absent from the catalog and no valid default exists");
