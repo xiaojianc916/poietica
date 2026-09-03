@@ -1,12 +1,13 @@
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU32};
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url, command};
 use tauri_specta::Event;
 
 use super::bounds::apply_layout;
-use super::child_view::{drive, run_in_page};
+use super::child_view::{drive, ensure_live_kernel, run_in_page};
 use super::picker_bridge::{stop_picker, stop_picker_unless};
 use super::{PICKER_CANCEL_SCRIPT, lock};
 use crate::error::Error;
@@ -64,6 +65,10 @@ pub struct BrowserHost {
     revision: Mutex<u32>,
     pub(super) tabs: Mutex<poietica_browser_native::Tabs>,
     pub(super) webviews: Mutex<HashMap<u32, tauri::Webview>>,
+    /// CDP 的保活 target；不进入用户标签模型与 BrowserState。
+    pub(super) standby: Mutex<Option<(tauri::Webview, Arc<Mutex<Option<u32>>>)>>,
+    pub(super) warming: AtomicBool,
+    pub(super) next_target: AtomicU32,
     pub(super) bounds: Mutex<PanelBounds>,
     pub(super) visible: Mutex<bool>,
     /// CDP 端口。启动时抽一次，写进 WebView2 的环境参数；非 Windows 或
@@ -322,6 +327,9 @@ pub async fn browser_close_tab(app: AppHandle, id: u32) {
         let host = app.state::<BrowserHost>();
         lock(&host.webviews).remove(&id)
     };
+
+    // 先补保活 target 再关闭最后一页，避免 CDP browser 随最后一个 target 退场。
+    ensure_live_kernel(&app);
 
     if let Some(webview) = removed
         && let Err(error) = webview.close()

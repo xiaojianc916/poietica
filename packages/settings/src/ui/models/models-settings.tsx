@@ -736,18 +736,29 @@ interface ModelDraft {
   readonly model: string
   readonly displayName: string
   readonly maxContextSize: string
-  readonly writeFields: Pick<
-    ProviderModelInput,
-    'capabilities' | 'maxOutputSize' | 'supportEfforts' | 'adaptiveThinking'
-  >
+  readonly thinkingCapability: 'thinking' | 'always_thinking' | null
+  readonly supportEfforts: string
+  readonly otherCapabilities: readonly string[]
+  readonly writeFields: Pick<ProviderModelInput, 'maxOutputSize' | 'adaptiveThinking'>
 }
 const emptyModel = (): ModelDraft => ({
   key: crypto.randomUUID(),
   model: '',
   displayName: '',
   maxContextSize: '',
+  thinkingCapability: null,
+  supportEfforts: '',
+  otherCapabilities: [],
   writeFields: {},
 })
+const parsedEfforts = (value: string): string[] => [
+  ...new Set(
+    value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  ),
+]
 function validateModels(
   models: readonly ModelDraft[],
 ): { ok: true; models: ProviderModelInput[] } | { ok: false; message: string } {
@@ -763,10 +774,22 @@ function validateModels(
       return { ok: false, message: `模型 ID 不能重复：${model}` }
     }
     seen.add(model)
+    const capabilities = [
+      ...draft.otherCapabilities,
+      ...(draft.thinkingCapability === null ? [] : [draft.thinkingCapability]),
+    ]
+    const efforts = parsedEfforts(draft.supportEfforts)
     result.push({
       model,
       maxContextSize,
       ...draft.writeFields,
+      ...(capabilities.length === 0 ? {} : { capabilities }),
+      ...(draft.thinkingCapability === null || efforts.length === 0
+        ? {}
+        : { supportEfforts: efforts }),
+      ...(draft.thinkingCapability === null
+        ? {}
+        : { adaptiveThinking: draft.writeFields.adaptiveThinking }),
       ...(draft.displayName.trim() === '' ? {} : { displayName: draft.displayName.trim() }),
     })
   }
@@ -875,10 +898,19 @@ function ProviderForm({
           model: modelIdForDraft(current.provider.id, model.model),
           displayName: model.displayName ?? '',
           maxContextSize: String(model.maxContextSize),
+          thinkingCapability: model.capabilities?.includes('always_thinking')
+            ? 'always_thinking'
+            : model.capabilities?.includes('thinking') ||
+                model.adaptiveThinking === true ||
+                (model.supportEfforts?.length ?? 0) > 0
+              ? 'thinking'
+              : null,
+          supportEfforts: model.supportEfforts?.join(', ') ?? '',
+          otherCapabilities: (model.capabilities ?? []).filter(
+            (capability) => capability !== 'thinking' && capability !== 'always_thinking',
+          ),
           writeFields: {
-            ...(model.capabilities === null ? {} : { capabilities: model.capabilities }),
             ...(model.maxOutputSize === null ? {} : { maxOutputSize: model.maxOutputSize }),
-            ...(model.supportEfforts === null ? {} : { supportEfforts: model.supportEfforts }),
             ...(model.adaptiveThinking === null
               ? {}
               : { adaptiveThinking: model.adaptiveThinking }),
@@ -1012,6 +1044,27 @@ function ProviderForm({
               required
               type="number"
               value={model.maxContextSize}
+            />
+            <div className="models-thinking-toggle">
+              <Switch
+                aria-label={`思考能力 ${model.model}`}
+                checked={model.thinkingCapability !== null}
+                onCheckedChange={(checked) =>
+                  updateModel(model.key, {
+                    thinkingCapability: checked ? (model.thinkingCapability ?? 'thinking') : null,
+                  })
+                }
+                size="sm"
+              />
+              <span>思考</span>
+            </div>
+            <input
+              aria-label={`思考强度 ${model.model}`}
+              className="models-input"
+              disabled={model.thinkingCapability === null}
+              onChange={(event) => updateModel(model.key, { supportEfforts: event.target.value })}
+              placeholder="low, medium, high"
+              value={model.supportEfforts}
             />
             <button
               aria-label="删除模型"
