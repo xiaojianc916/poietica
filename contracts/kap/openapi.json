@@ -3,7 +3,7 @@
   "info": {
     "title": "Kimi Code Server API",
     "description": "REST API for the Kimi Code local server. All JSON responses are wrapped in a uniform envelope `{ code, msg, data, request_id }`.",
-    "version": "0.39.1"
+    "version": "0.40.1"
   },
   "components": {
     "schemas": {}
@@ -4011,6 +4011,10 @@
                       "tower_mode": {
                         "type": "boolean"
                       },
+                      "tower_base": {
+                        "type": "string",
+                        "minLength": 1
+                      },
                       "goal_objective": {
                         "type": "string"
                       },
@@ -4155,6 +4159,10 @@
                                 },
                                 "tower_mode": {
                                   "type": "boolean"
+                                },
+                                "tower_base": {
+                                  "type": "string",
+                                  "minLength": 1
                                 },
                                 "goal_objective": {
                                   "type": "string"
@@ -4650,6 +4658,10 @@
                                       "tower_mode": {
                                         "type": "boolean"
                                       },
+                                      "tower_base": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
                                       "goal_objective": {
                                         "type": "string"
                                       },
@@ -5060,6 +5072,10 @@
                                 "tower_mode": {
                                   "type": "boolean"
                                 },
+                                "tower_base": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
                                 "goal_objective": {
                                   "type": "string"
                                 },
@@ -5459,6 +5475,10 @@
                                 "tower_mode": {
                                   "type": "boolean"
                                 },
+                                "tower_base": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
                                 "goal_objective": {
                                   "type": "string"
                                 },
@@ -5785,6 +5805,10 @@
                       "tower_mode": {
                         "type": "boolean"
                       },
+                      "tower_base": {
+                        "type": "string",
+                        "minLength": 1
+                      },
                       "goal_objective": {
                         "type": "string"
                       },
@@ -5995,6 +6019,10 @@
                                 },
                                 "tower_mode": {
                                   "type": "boolean"
+                                },
+                                "tower_base": {
+                                  "type": "string",
+                                  "minLength": 1
                                 },
                                 "goal_objective": {
                                   "type": "string"
@@ -6592,6 +6620,10 @@
                                       "tower_mode": {
                                         "type": "boolean"
                                       },
+                                      "tower_base": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
                                       "goal_objective": {
                                         "type": "string"
                                       },
@@ -7022,6 +7054,10 @@
                                 },
                                 "tower_mode": {
                                   "type": "boolean"
+                                },
+                                "tower_base": {
+                                  "type": "string",
+                                  "minLength": 1
                                 },
                                 "goal_objective": {
                                   "type": "string"
@@ -17486,6 +17522,227 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/add-dir": {
+      "post": {
+        "tags": [
+          "workspaces"
+        ],
+        "description": "Add an additional directory to the workspace",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "persist": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^wd_[a-z0-9._-]+_[0-9a-f]{12}$"
+            },
+            "in": "path",
+            "name": "workspace_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "project_root": {
+                              "type": "string"
+                            },
+                            "config_path": {
+                              "type": "string"
+                            },
+                            "additional_dirs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "persisted": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "project_root",
+                            "config_path",
+                            "additional_dirs",
+                            "persisted"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            40001
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            40409
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            40410
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/fs:browse": {
       "get": {
         "operationId": "fsBrowse",
@@ -21441,6 +21698,308 @@
         }
       }
     },
+    "/api/v1/sessions/{session_id}/file-history/changes": {
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "description": "List one turn's file changes from the turn-level file history",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "in": "query",
+            "name": "turn_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "session_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "changes": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "added",
+                                      "modified",
+                                      "deleted"
+                                    ]
+                                  },
+                                  "additions": {
+                                    "type": "number"
+                                  },
+                                  "deletions": {
+                                    "type": "number"
+                                  },
+                                  "binary": {
+                                    "type": "boolean"
+                                  },
+                                  "oversize": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "path",
+                                  "status",
+                                  "additions",
+                                  "deletions"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "recorded": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "changes",
+                            "enabled",
+                            "recorded"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            40401
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/file-history/content": {
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "description": "A file's content as captured at a turn's file-history checkpoint",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "in": "query",
+            "name": "turn_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "path",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "start",
+                "end"
+              ]
+            },
+            "in": "query",
+            "name": "phase",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "session_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "content": {
+                              "nullable": true,
+                              "type": "object",
+                              "properties": {
+                                "version": {
+                                  "type": "number"
+                                },
+                                "content": {
+                                  "type": "string"
+                                },
+                                "binary": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "version"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "content"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            40401
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{session_id}/terminals": {
       "get": {
         "tags": [
@@ -22588,6 +23147,10 @@
                                     "tower_mode": {
                                       "type": "boolean"
                                     },
+                                    "tower_base": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
                                     "goal_objective": {
                                       "type": "string"
                                     },
@@ -23709,6 +24272,10 @@
                                         "type": "string",
                                         "minLength": 1
                                       },
+                                      "triggerPromptId": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
                                       "ordinal": {
                                         "type": "integer",
                                         "minimum": -9007199254740991,
@@ -23896,52 +24463,138 @@
                                               "items": {
                                                 "oneOf": [
                                                   {
-                                                    "type": "object",
-                                                    "properties": {
-                                                      "kind": {
-                                                        "type": "string",
-                                                        "enum": [
-                                                          "text"
-                                                        ]
+                                                    "oneOf": [
+                                                      {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "kind": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "text"
+                                                            ]
+                                                          },
+                                                          "frameId": {
+                                                            "type": "string",
+                                                            "minLength": 1
+                                                          },
+                                                          "text": {
+                                                            "type": "string"
+                                                          },
+                                                          "attachmentIds": {
+                                                            "type": "array",
+                                                            "items": {
+                                                              "type": "string"
+                                                            }
+                                                          },
+                                                          "taskId": {
+                                                            "type": "string",
+                                                            "minLength": 1
+                                                          },
+                                                          "promptIds": {
+                                                            "type": "array",
+                                                            "items": {
+                                                              "type": "string"
+                                                            }
+                                                          },
+                                                          "role": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "assistant"
+                                                            ]
+                                                          },
+                                                          "origin": {
+                                                            "not": {}
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "kind",
+                                                          "frameId",
+                                                          "text",
+                                                          "role"
+                                                        ],
+                                                        "additionalProperties": false
                                                       },
-                                                      "frameId": {
-                                                        "type": "string",
-                                                        "minLength": 1
-                                                      },
-                                                      "role": {
-                                                        "type": "string",
-                                                        "enum": [
-                                                          "assistant",
-                                                          "user"
-                                                        ]
-                                                      },
-                                                      "text": {
-                                                        "type": "string"
-                                                      },
-                                                      "attachmentIds": {
-                                                        "type": "array",
-                                                        "items": {
-                                                          "type": "string"
-                                                        }
-                                                      },
-                                                      "taskId": {
-                                                        "type": "string",
-                                                        "minLength": 1
-                                                      },
-                                                      "promptIds": {
-                                                        "type": "array",
-                                                        "items": {
-                                                          "type": "string"
-                                                        }
+                                                      {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "kind": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "text"
+                                                            ]
+                                                          },
+                                                          "frameId": {
+                                                            "type": "string",
+                                                            "minLength": 1
+                                                          },
+                                                          "text": {
+                                                            "type": "string"
+                                                          },
+                                                          "attachmentIds": {
+                                                            "type": "array",
+                                                            "items": {
+                                                              "type": "string"
+                                                            }
+                                                          },
+                                                          "taskId": {
+                                                            "type": "string",
+                                                            "minLength": 1
+                                                          },
+                                                          "promptIds": {
+                                                            "type": "array",
+                                                            "items": {
+                                                              "type": "string"
+                                                            }
+                                                          },
+                                                          "role": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "user"
+                                                            ]
+                                                          },
+                                                          "origin": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                              "kind": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                  "user"
+                                                                ]
+                                                              },
+                                                              "skillActivations": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                  "type": "object",
+                                                                  "properties": {
+                                                                    "skillName": {
+                                                                      "type": "string"
+                                                                    },
+                                                                    "skillArgs": {
+                                                                      "type": "string"
+                                                                    }
+                                                                  },
+                                                                  "required": [
+                                                                    "skillName"
+                                                                  ],
+                                                                  "additionalProperties": false
+                                                                }
+                                                              }
+                                                            },
+                                                            "required": [
+                                                              "kind"
+                                                            ],
+                                                            "additionalProperties": false
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "kind",
+                                                          "frameId",
+                                                          "text",
+                                                          "role"
+                                                        ],
+                                                        "additionalProperties": false
                                                       }
-                                                    },
-                                                    "required": [
-                                                      "kind",
-                                                      "frameId",
-                                                      "role",
-                                                      "text"
-                                                    ],
-                                                    "additionalProperties": false
+                                                    ]
                                                   },
                                                   {
                                                     "type": "object",
@@ -25394,6 +26047,10 @@
                                                             "type": "string",
                                                             "minLength": 1
                                                           },
+                                                          "triggerPromptId": {
+                                                            "type": "string",
+                                                            "minLength": 1
+                                                          },
                                                           "ordinal": {
                                                             "type": "integer",
                                                             "minimum": -9007199254740991,
@@ -25581,52 +26238,138 @@
                                                                   "items": {
                                                                     "oneOf": [
                                                                       {
-                                                                        "type": "object",
-                                                                        "properties": {
-                                                                          "kind": {
-                                                                            "type": "string",
-                                                                            "enum": [
-                                                                              "text"
-                                                                            ]
+                                                                        "oneOf": [
+                                                                          {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                              "kind": {
+                                                                                "type": "string",
+                                                                                "enum": [
+                                                                                  "text"
+                                                                                ]
+                                                                              },
+                                                                              "frameId": {
+                                                                                "type": "string",
+                                                                                "minLength": 1
+                                                                              },
+                                                                              "text": {
+                                                                                "type": "string"
+                                                                              },
+                                                                              "attachmentIds": {
+                                                                                "type": "array",
+                                                                                "items": {
+                                                                                  "type": "string"
+                                                                                }
+                                                                              },
+                                                                              "taskId": {
+                                                                                "type": "string",
+                                                                                "minLength": 1
+                                                                              },
+                                                                              "promptIds": {
+                                                                                "type": "array",
+                                                                                "items": {
+                                                                                  "type": "string"
+                                                                                }
+                                                                              },
+                                                                              "role": {
+                                                                                "type": "string",
+                                                                                "enum": [
+                                                                                  "assistant"
+                                                                                ]
+                                                                              },
+                                                                              "origin": {
+                                                                                "not": {}
+                                                                              }
+                                                                            },
+                                                                            "required": [
+                                                                              "kind",
+                                                                              "frameId",
+                                                                              "text",
+                                                                              "role"
+                                                                            ],
+                                                                            "additionalProperties": false
                                                                           },
-                                                                          "frameId": {
-                                                                            "type": "string",
-                                                                            "minLength": 1
-                                                                          },
-                                                                          "role": {
-                                                                            "type": "string",
-                                                                            "enum": [
-                                                                              "assistant",
-                                                                              "user"
-                                                                            ]
-                                                                          },
-                                                                          "text": {
-                                                                            "type": "string"
-                                                                          },
-                                                                          "attachmentIds": {
-                                                                            "type": "array",
-                                                                            "items": {
-                                                                              "type": "string"
-                                                                            }
-                                                                          },
-                                                                          "taskId": {
-                                                                            "type": "string",
-                                                                            "minLength": 1
-                                                                          },
-                                                                          "promptIds": {
-                                                                            "type": "array",
-                                                                            "items": {
-                                                                              "type": "string"
-                                                                            }
+                                                                          {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                              "kind": {
+                                                                                "type": "string",
+                                                                                "enum": [
+                                                                                  "text"
+                                                                                ]
+                                                                              },
+                                                                              "frameId": {
+                                                                                "type": "string",
+                                                                                "minLength": 1
+                                                                              },
+                                                                              "text": {
+                                                                                "type": "string"
+                                                                              },
+                                                                              "attachmentIds": {
+                                                                                "type": "array",
+                                                                                "items": {
+                                                                                  "type": "string"
+                                                                                }
+                                                                              },
+                                                                              "taskId": {
+                                                                                "type": "string",
+                                                                                "minLength": 1
+                                                                              },
+                                                                              "promptIds": {
+                                                                                "type": "array",
+                                                                                "items": {
+                                                                                  "type": "string"
+                                                                                }
+                                                                              },
+                                                                              "role": {
+                                                                                "type": "string",
+                                                                                "enum": [
+                                                                                  "user"
+                                                                                ]
+                                                                              },
+                                                                              "origin": {
+                                                                                "type": "object",
+                                                                                "properties": {
+                                                                                  "kind": {
+                                                                                    "type": "string",
+                                                                                    "enum": [
+                                                                                      "user"
+                                                                                    ]
+                                                                                  },
+                                                                                  "skillActivations": {
+                                                                                    "type": "array",
+                                                                                    "items": {
+                                                                                      "type": "object",
+                                                                                      "properties": {
+                                                                                        "skillName": {
+                                                                                          "type": "string"
+                                                                                        },
+                                                                                        "skillArgs": {
+                                                                                          "type": "string"
+                                                                                        }
+                                                                                      },
+                                                                                      "required": [
+                                                                                        "skillName"
+                                                                                      ],
+                                                                                      "additionalProperties": false
+                                                                                    }
+                                                                                  }
+                                                                                },
+                                                                                "required": [
+                                                                                  "kind"
+                                                                                ],
+                                                                                "additionalProperties": false
+                                                                              }
+                                                                            },
+                                                                            "required": [
+                                                                              "kind",
+                                                                              "frameId",
+                                                                              "text",
+                                                                              "role"
+                                                                            ],
+                                                                            "additionalProperties": false
                                                                           }
-                                                                        },
-                                                                        "required": [
-                                                                          "kind",
-                                                                          "frameId",
-                                                                          "role",
-                                                                          "text"
-                                                                        ],
-                                                                        "additionalProperties": false
+                                                                        ]
                                                                       },
                                                                       {
                                                                         "type": "object",
@@ -26844,6 +27587,10 @@
                                                   "type": "string",
                                                   "minLength": 1
                                                 },
+                                                "triggerPromptId": {
+                                                  "type": "string",
+                                                  "minLength": 1
+                                                },
                                                 "ordinal": {
                                                   "type": "integer",
                                                   "minimum": -9007199254740991,
@@ -27220,52 +27967,138 @@
                                             "frame": {
                                               "oneOf": [
                                                 {
-                                                  "type": "object",
-                                                  "properties": {
-                                                    "kind": {
-                                                      "type": "string",
-                                                      "enum": [
-                                                        "text"
-                                                      ]
+                                                  "oneOf": [
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "text"
+                                                          ]
+                                                        },
+                                                        "frameId": {
+                                                          "type": "string",
+                                                          "minLength": 1
+                                                        },
+                                                        "text": {
+                                                          "type": "string"
+                                                        },
+                                                        "attachmentIds": {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          }
+                                                        },
+                                                        "taskId": {
+                                                          "type": "string",
+                                                          "minLength": 1
+                                                        },
+                                                        "promptIds": {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          }
+                                                        },
+                                                        "role": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "assistant"
+                                                          ]
+                                                        },
+                                                        "origin": {
+                                                          "not": {}
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "kind",
+                                                        "frameId",
+                                                        "text",
+                                                        "role"
+                                                      ],
+                                                      "additionalProperties": false
                                                     },
-                                                    "frameId": {
-                                                      "type": "string",
-                                                      "minLength": 1
-                                                    },
-                                                    "role": {
-                                                      "type": "string",
-                                                      "enum": [
-                                                        "assistant",
-                                                        "user"
-                                                      ]
-                                                    },
-                                                    "text": {
-                                                      "type": "string"
-                                                    },
-                                                    "attachmentIds": {
-                                                      "type": "array",
-                                                      "items": {
-                                                        "type": "string"
-                                                      }
-                                                    },
-                                                    "taskId": {
-                                                      "type": "string",
-                                                      "minLength": 1
-                                                    },
-                                                    "promptIds": {
-                                                      "type": "array",
-                                                      "items": {
-                                                        "type": "string"
-                                                      }
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "text"
+                                                          ]
+                                                        },
+                                                        "frameId": {
+                                                          "type": "string",
+                                                          "minLength": 1
+                                                        },
+                                                        "text": {
+                                                          "type": "string"
+                                                        },
+                                                        "attachmentIds": {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          }
+                                                        },
+                                                        "taskId": {
+                                                          "type": "string",
+                                                          "minLength": 1
+                                                        },
+                                                        "promptIds": {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string"
+                                                          }
+                                                        },
+                                                        "role": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "user"
+                                                          ]
+                                                        },
+                                                        "origin": {
+                                                          "type": "object",
+                                                          "properties": {
+                                                            "kind": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "user"
+                                                              ]
+                                                            },
+                                                            "skillActivations": {
+                                                              "type": "array",
+                                                              "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                  "skillName": {
+                                                                    "type": "string"
+                                                                  },
+                                                                  "skillArgs": {
+                                                                    "type": "string"
+                                                                  }
+                                                                },
+                                                                "required": [
+                                                                  "skillName"
+                                                                ],
+                                                                "additionalProperties": false
+                                                              }
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "kind"
+                                                          ],
+                                                          "additionalProperties": false
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "kind",
+                                                        "frameId",
+                                                        "text",
+                                                        "role"
+                                                      ],
+                                                      "additionalProperties": false
                                                     }
-                                                  },
-                                                  "required": [
-                                                    "kind",
-                                                    "frameId",
-                                                    "role",
-                                                    "text"
-                                                  ],
-                                                  "additionalProperties": false
+                                                  ]
                                                 },
                                                 {
                                                   "type": "object",

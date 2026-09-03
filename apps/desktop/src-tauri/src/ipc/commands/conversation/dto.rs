@@ -622,6 +622,14 @@ pub struct AgentRenameThreadRequest {
     pub title: String,
 }
 
+/// A conversation archive requested by the renderer.
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentExportThreadRequest {
+    pub thread_id: String,
+    pub launch: AgentLaunch,
+}
+
 /// A conversation an action applies to, and nothing else.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]

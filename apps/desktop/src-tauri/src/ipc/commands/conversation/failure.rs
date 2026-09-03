@@ -21,6 +21,7 @@ const fn refusal(reason: Refusal) -> &'static str {
 /// 桌面单机程序里屏幕前的人就是跑这个进程的人，确切的原话比好听的猜测有用。
 pub(super) fn translate(error: KapError) -> Error {
     match error {
+        KapError::Io(cause) => Error::Io(cause),
         KapError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
         // The enum is non-exhaustive, so the wildcard arm is required.
         //

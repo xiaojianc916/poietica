@@ -45,6 +45,7 @@ use crate::server_frame;
 use crate::session::book::SessionBook;
 use crate::session::client::{AgentClient, Command};
 use crate::session::coordinator::PromptJob;
+use crate::session::export::export_session;
 use crate::session::rest::{
     abort_session, archive_session, create_session_body, ensure_model, fetch_goal, fork_session,
     get_selectors, install_capability, list_capabilities, list_mcp_servers, list_sessions,
@@ -508,6 +509,14 @@ pub fn connect(
                             } else {
                                 let _sent = reply.send(Err(KapError::Refused(Refusal::UnknownSession)));
                             }
+                        }
+
+                        Some(Command::ExportSession { session_id: sid, destination, reply }) => {
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                export_session(&http, &base, &sid, &destination).await
+                            }));
                         }
 
                         Some(Command::Skills { session_id: sid, reply }) => {

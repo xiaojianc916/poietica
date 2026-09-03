@@ -149,6 +149,8 @@ export interface ThreadPort {
    * fromSeq 是包含式 durable prompt sequence；null 读取整本。定义域始终是平台帧日志。
    */
   readonly outline: (threadId: ThreadId, fromSeq: number | null) => Promise<readonly TurnMark[]>
+  /** Saves the agent-owned session archive to a user-selected destination. */
+  readonly export?: (threadId: ThreadId) => Promise<boolean>
   /** Renames one. The name becomes the user's and outlives the agent's. */
   readonly rename?: (threadId: ThreadId, title: string) => Promise<void>
   readonly remove?: (threadId: ThreadId) => Promise<void>

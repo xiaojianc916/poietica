@@ -37,11 +37,11 @@ use commands::{
     conversation::dto::{
         AgentAnswerQuestionsRequest, AgentArchiveThreadRequest, AgentCapabilitiesRequest,
         AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentDismissQuestionsRequest,
-        AgentEarlierFramesRequest, AgentForkThreadRequest, AgentGoal, AgentPinThreadRequest,
-        AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult, AgentPromptSkill,
-        AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod, AgentRenameThreadRequest,
-        AgentResolvePermissionRequest, AgentRunBatch, AgentRunEvent, AgentSelectConfigRequest,
-        AgentSessionEvent, AgentThreadRequest, AgentTurnMark,
+        AgentEarlierFramesRequest, AgentExportThreadRequest, AgentForkThreadRequest, AgentGoal,
+        AgentPinThreadRequest, AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult,
+        AgentPromptSkill, AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod,
+        AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentRunBatch, AgentRunEvent,
+        AgentSelectConfigRequest, AgentSessionEvent, AgentThreadRequest, AgentTurnMark,
     },
     conversation::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
     extension::{
@@ -82,6 +82,7 @@ pub fn surface() -> Builder<Wry> {
             commands::conversation::capability::agent_capability_install,
             commands::conversation::thread::agent_threads,
             commands::conversation::thread::agent_thread_snapshot,
+            commands::conversation::export::agent_export_thread,
             commands::conversation::thread::agent_open_thread,
             commands::conversation::thread::agent_earlier_frames,
             commands::conversation::thread::agent_thread_outline,
@@ -214,6 +215,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()
         .typ::<AgentEarlierFramesRequest>()
+        .typ::<AgentExportThreadRequest>()
         .typ::<AgentTurnMark>()
         .typ::<AgentForkThreadRequest>()
         .typ::<AgentPinThreadRequest>()

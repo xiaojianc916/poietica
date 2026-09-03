@@ -32,6 +32,7 @@ pub mod capability;
 pub mod config;
 pub mod custom_agents;
 pub mod dto;
+pub mod export;
 mod failure;
 mod gateway;
 mod journal;

@@ -326,6 +326,23 @@ export class ThreadsStore {
     }
   }
 
+  export = async (threadId: string): Promise<boolean> => {
+    const act = this.#port?.export
+
+    if (act === undefined) {
+      return false
+    }
+
+    try {
+      const saved = await act(threadId)
+      this.#commit({ failure: null })
+      return saved
+    } catch (reason) {
+      this.#commit({ failure: describeFailure(reason) })
+      return false
+    }
+  }
+
   remove = async (threadId: string): Promise<void> => {
     const act = this.#port?.remove
 

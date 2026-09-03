@@ -210,6 +210,9 @@ async agentThreads() : Promise<AgentThread[]> {
 async agentThreadSnapshot(request: AgentThreadRequest) : Promise<AgentThreadSnapshot> {
     return await TAURI_INVOKE("agent_thread_snapshot", { request });
 },
+async agentExportThread(request: AgentExportThreadRequest) : Promise<boolean> {
+    return await TAURI_INVOKE("agent_export_thread", { request });
+},
 /**
  * 打开一条对话：把最新那一页经过要回来。
  * 
@@ -1235,6 +1238,10 @@ threadId: string;
  * 上一页交回的读取位置。
  */
 before: AgentFrameCursor }
+/**
+ * A conversation archive requested by the renderer.
+ */
+export type AgentExportThreadRequest = { threadId: string; launch: AgentLaunch }
 /**
  * 要分叉的对话，以及必要时怎样启动 agent。
  * 

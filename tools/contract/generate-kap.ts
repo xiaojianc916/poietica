@@ -689,6 +689,12 @@ const REST_ROUTES: RestRoute[] = [
   },
   {
     method: 'post',
+    path: '/api/v1/sessions/{session_id}/export',
+    name: 'ExportSession',
+    request: true,
+  },
+  {
+    method: 'post',
     path: '/api/v1/sessions/{session_id}:archive',
     name: 'ArchiveSession',
     request: true,

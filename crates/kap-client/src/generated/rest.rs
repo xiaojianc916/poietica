@@ -107,6 +107,10 @@ pub mod routes {
         )
     }
 
+    pub fn export_session(base_url: &str, session_id: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", session_id, "export"])
+    }
+
     pub fn archive_session(base_url: &str, session_id: &str) -> Route {
         let session_id_segment = format!("{session_id}:archive");
         build(base_url, &["api", "v1", "sessions", &session_id_segment])
@@ -293,6 +297,9 @@ pub struct CreateSessionRequestAgentConfigStruct {
     #[serde(rename = "tower_mode")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tower_mode: Option<bool>,
+    #[serde(rename = "tower_base")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tower_base: Option<String>,
     #[serde(rename = "goal_objective")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub goal_objective: Option<String>,
@@ -365,6 +372,9 @@ pub struct CreateSessionDataAgentConfigStruct {
     #[serde(rename = "tower_mode")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tower_mode: Option<bool>,
+    #[serde(rename = "tower_base")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tower_base: Option<String>,
     #[serde(rename = "goal_objective")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub goal_objective: Option<String>,
@@ -1340,6 +1350,16 @@ pub struct SubmitPromptDataStruct {
 pub struct SteerPromptsRequestStruct {
     #[serde(rename = "prompt_ids")]
     pub prompt_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct ExportSessionRequestStruct {
+    #[serde(rename = "web_log")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_log: Option<String>,
+    #[serde(rename = "desktop")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desktop: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]

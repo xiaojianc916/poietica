@@ -63,6 +63,10 @@ pub enum KapError {
     /// 可以说给用户听的话 —— 带上下文、无敏感细节，宿主原样上屏。
     #[error("{message}")]
     Toolchain { message: String },
+    /// Writing an exported session to the selected destination failed.
+    #[error("session export file error: {0}")]
+    Io(#[from] std::io::Error),
+
     /// A task panicked while holding one of this crate's locks.
     #[error("a lock was left held by a panicking task")]
     Poisoned,

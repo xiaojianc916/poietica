@@ -100,11 +100,13 @@ ed25519-dalek = { version = "2.1.1", features = [
 
 # Observability
 
+mime = "0.3.17"
+
 # HTTP 客户端，全仓一份：厂商密钥探测、kap 的 REST 调用、更新清单与载荷下载都走它。
 #
 # rustls-tls 不带第二套 TLS；json 为 kap driver 而开。
 reqwest = { version = "0.12", default-features = false, features = [
-  "rustls-tls", "json", "multipart",
+  "rustls-tls", "json", "multipart", "stream",
 ] }
 
 # Tauri composition root

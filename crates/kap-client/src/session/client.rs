@@ -103,6 +103,11 @@ pub(crate) enum Command {
     Sessions {
         reply: oneshot::Sender<Result<Vec<SessionEntry>>>,
     },
+    ExportSession {
+        session_id: String,
+        destination: PathBuf,
+        reply: oneshot::Sender<Result<()>>,
+    },
     /// 这条会话能用的技能。
     Skills {
         session_id: String,
@@ -310,6 +315,21 @@ impl AgentClient {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::Sessions { reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
+    }
+
+    /// Streams a session archive to the selected destination.
+    pub async fn export_session(&self, session_id: String, destination: PathBuf) -> Result<()> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::ExportSession {
+            session_id,
+            destination,
+            reply,
+        })?;
 
         answer
             .await

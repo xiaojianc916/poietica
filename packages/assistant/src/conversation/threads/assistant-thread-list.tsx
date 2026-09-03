@@ -10,6 +10,7 @@ import {
 } from '@poietica/design-system'
 import {
   Archive,
+  Download,
   Pencil as Edit,
   ExternalLink,
   FolderClosed,
@@ -101,6 +102,7 @@ export interface AssistantThreadListProps {
   readonly onCreate: (workspaceId?: string) => void
   readonly onPin: (threadId: string, pinned: boolean) => void
   readonly onRename?: (threadId: string, title: string) => void
+  readonly onExport?: (threadId: string) => void
   readonly onArchive?: (threadId: string) => void
   readonly onOpenInNewTab?: (threadId: string) => void
 }
@@ -289,6 +291,7 @@ interface ThreadRowProps {
   readonly onBeginRename: (threadId: string) => void
   readonly onCommitRename: (threadId: string, title: string) => void
   readonly onCancelRename: () => void
+  readonly onExport?: ((threadId: string) => void) | undefined
   readonly onArchive?: ((threadId: string) => void) | undefined
   readonly onOpenInNewTab?: ((threadId: string) => void) | undefined
 }
@@ -312,6 +315,7 @@ const ThreadRow = memo(function ThreadRow({
   onBeginRename,
   onCommitRename,
   onCancelRename,
+  onExport,
   onArchive,
   onOpenInNewTab,
 }: ThreadRowProps) {
@@ -432,6 +436,18 @@ const ThreadRow = memo(function ThreadRow({
                       <span>重命名</span>
                     </DropdownMenuItem>
                   ) : null}
+
+                  {onExport === undefined ? null : (
+                    <DropdownMenuItem
+                      className="assistant-thread-menu__item"
+                      onClick={() => {
+                        onExport(thread.id)
+                      }}
+                    >
+                      <Download aria-hidden="true" />
+                      <span>导出会话</span>
+                    </DropdownMenuItem>
+                  )}
 
                   {onArchive === undefined ? null : (
                     <DropdownMenuItem
@@ -570,6 +586,7 @@ export function AssistantThreadList({
   onCreate,
   onPin,
   onRename,
+  onExport,
   onArchive,
   onOpenInNewTab,
 }: AssistantThreadListProps) {
@@ -692,6 +709,7 @@ export function AssistantThreadList({
       onBeginRename={beginRename}
       onCancelRename={cancelRename}
       onCommitRename={commitRename}
+      onExport={onExport}
       onOpenInNewTab={onOpenInNewTab}
       onPin={onPin}
       thread={thread}

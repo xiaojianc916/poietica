@@ -12,6 +12,7 @@ poietica-process-host = { path = "../process-host" }
 
 futures.workspace = true
 log.workspace = true
+mime.workspace = true
 reqwest.workspace = true
 semver.workspace = true
 serde.workspace = true
