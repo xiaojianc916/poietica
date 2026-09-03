@@ -16,13 +16,25 @@ import { warn } from '@poietica/problem'
 
 const SERVER_NAME = 'poietica-automations'
 
-/** 把 mcp.json 的自动化条目对齐到当前地址。失败只记日志，不打断启动。 */
+/** 把 mcp.json 的自动化条目对齐到当前地址，并确保失败时不遗留旧端口。 */
 export async function reconcileAutomationsMcpServer(store: PluginStore): Promise<void> {
   try {
     const url = (await readMcpEndpoint())?.url
 
     await store.reconcileHostedServer(SERVER_NAME, url === undefined ? null : { url })
   } catch (cause) {
-    warn('自动化 MCP 服务器的地址问不出来', { scope: 'automations-mcp', cause })
+    warn('自动化 MCP 服务器未能登记，正在移除可能过期的地址', {
+      scope: 'automations-mcp',
+      cause,
+    })
+
+    try {
+      await store.reconcileHostedServer(SERVER_NAME, null)
+    } catch (cleanupCause) {
+      throw new AggregateError(
+        [cause, cleanupCause],
+        '自动化 MCP 服务器既未能登记，也未能移除过期地址',
+      )
+    }
   }
 }

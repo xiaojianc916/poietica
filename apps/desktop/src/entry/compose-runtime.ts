@@ -150,14 +150,25 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   /* First paint and agent launch share one idempotent gate; only agent launch waits for it. */
   let backgroundServicesReady: Promise<void> | null = null
   const ensureBackgroundServices = (): Promise<void> => {
-    if (backgroundServicesReady === null) {
-      backgroundServicesReady = Promise.all([
-        pluginStore.start(),
+    if (backgroundServicesReady !== null) {
+      return backgroundServicesReady
+    }
+
+    const started = pluginStore.start().then(async () => {
+      await Promise.all([
         reconcileAutomationsMcpServer(pluginStore),
         reconcileBrowserMcpServer(pluginStore),
-      ]).then(() => undefined)
-    }
-    return backgroundServicesReady
+      ])
+    })
+
+    backgroundServicesReady = started
+    void started.catch(() => {
+      if (backgroundServicesReady === started) {
+        backgroundServicesReady = null
+      }
+    })
+
+    return started
   }
   const automationStore = createAutomationStore(automationGateway)
 

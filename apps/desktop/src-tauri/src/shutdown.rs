@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Manager, RunEvent, command};
 use tauri_plugin_window_state::AppHandleExt;
 
+use crate::ipc::commands::automation::mcp_server::AutomationMcpServer;
 use crate::ipc::commands::conversation::runtime::AgentRuntime;
 use crate::window::WINDOW_STATE_FLAGS;
 
@@ -62,4 +63,6 @@ fn drain(app: &AppHandle) {
     if let Err(error) = app.state::<AgentRuntime>().disconnect() {
         log::error!("shutdown: the agent connection did not retire: {error}");
     }
+
+    app.state::<AutomationMcpServer>().stop();
 }

@@ -818,29 +818,35 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     reconcileHostedServer(name, body) {
-      return commit(
-        '托管的那台 MCP 服务器的条目没能对上账',
-        async () => {
-          const file = await gateway.readEnvironmentMcpConfig()
+      const operation = queue.then(async () => {
+        const file = await gateway.readEnvironmentMcpConfig()
+        const current = mcpServerBodyInConfig(file.contents, name)
+        const aligned =
+          body === null
+            ? current === undefined
+            : current !== undefined && JSON.stringify(current) === JSON.stringify(body)
 
-          /* 保留人手写在这一条上的其余键：对账只负责地址那几格。 */
-          const next =
+        if (!aligned) {
+          const contents =
             body === null
               ? removeMcpServer(file.contents, name)
-              : upsertMcpServer(file.contents, name, {
-                  ...mcpServerBodyInConfig(file.contents, name),
-                  ...body,
-                })
+              : upsertMcpServer(file.contents, name, body)
 
-          if (next === file.contents) {
-            return
-          }
+          await gateway.writeEnvironmentMcpConfig(file.contents, contents)
+        }
 
-          await gateway.writeEnvironmentMcpConfig(file.contents, next)
-          await readEnvironment()
-        },
-        republish,
-      )
+        await readEnvironment()
+        republish()
+      })
+
+      queue = operation.catch((cause: unknown) => {
+        warn('本进程托管的 MCP 服务器没能与 mcp.json 对齐', {
+          scope: 'plugins',
+          cause,
+        })
+      })
+
+      return operation
     },
 
     /*

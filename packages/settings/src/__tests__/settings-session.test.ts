@@ -77,7 +77,7 @@ function manualScheduler() {
 }
 
 const OBSERVABLE_STORE = {
-  getSnapshot: () => INITIAL,
+  getSnapshot: () => undefined,
   subscribe: () => () => undefined,
 }
 
@@ -87,6 +87,29 @@ async function settle(): Promise<void> {
 }
 
 describe('SettingsSession', () => {
+  it('starts synchronously from an existing persisted snapshot', () => {
+    let loads = 0
+    const store: SettingsStore = {
+      ...OBSERVABLE_STORE,
+      getSnapshot: () => INITIAL,
+      load: async () => {
+        loads += 1
+        return INITIAL
+      },
+      save: async () => undefined,
+      reset: async () => INITIAL,
+    }
+    const session = createSettingsSession({
+      store,
+      schedule: manualScheduler().schedule,
+    })
+
+    session.start()
+
+    expect(session.getSnapshot()).toMatchObject({ status: 'ready', settings: INITIAL })
+    expect(loads).toBe(0)
+  })
+
   it('accepts edits during a save and persists the newest draft', async () => {
     const loaded = deferred<AppSettings>()
 

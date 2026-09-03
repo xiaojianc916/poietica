@@ -204,6 +204,15 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
     cancelSaveTimer()
     cancelLoadTimeout()
 
+    const cached = options.store.getSnapshot()
+
+    if (cached !== undefined) {
+      draft = cached
+      persisted = cached
+      publish('ready')
+      return
+    }
+
     const lifecycleAtStart = lifecycle
     const request = loadVersion + 1
 

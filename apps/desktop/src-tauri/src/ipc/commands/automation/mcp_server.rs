@@ -15,10 +15,11 @@
 use std::collections::BTreeMap;
 use std::io;
 use std::net::TcpListener as StdTcpListener;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use rmcp::handler::server::wrapper::{Json, Parameters};
-use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+use rmcp::transport::streamable_http_server::session::never::NeverSessionManager;
 use rmcp::transport::streamable_http_server::tower::{
     StreamableHttpServerConfig, StreamableHttpService,
 };
@@ -28,6 +29,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager, async_runtime, command};
 use tokio::net::TcpListener;
+use tokio::sync::oneshot;
 
 use crate::ipc::commands::automation::{
     Automation, AutomationCreation, create, mutate, open, read_catalog,
@@ -38,6 +40,40 @@ use crate::ipc::commands::automation::{
 #[serde(rename_all = "camelCase")]
 pub struct McpEndpoint {
     pub url: String,
+}
+
+/// 组合根持有的服务器资源：地址、存活状态和唯一关闭入口归同一个对象。
+pub struct AutomationMcpServer {
+    endpoint: McpEndpoint,
+    alive: Arc<AtomicBool>,
+    shutdown: Mutex<Option<oneshot::Sender<()>>>,
+}
+
+/// 关闭通道没有 Debug：只印地址与存活，不印它。
+impl std::fmt::Debug for AutomationMcpServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AutomationMcpServer")
+            .field("endpoint", &self.endpoint)
+            .field("alive", &self.alive.load(Ordering::Acquire))
+            .finish_non_exhaustive()
+    }
+}
+
+impl AutomationMcpServer {
+    pub fn stop(&self) {
+        self.alive.store(false, Ordering::Release);
+
+        match self.shutdown.lock() {
+            Ok(mut shutdown) => {
+                if let Some(shutdown) = shutdown.take() {
+                    let _ = shutdown.send(());
+                }
+            }
+            Err(_poisoned) => {
+                log::error!("the automation MCP shutdown channel was poisoned");
+            }
+        }
+    }
 }
 
 /// 工具的宿主。它只拿着 AppHandle —— 账本的真相在盘上，这里不留副本。
@@ -301,56 +337,69 @@ impl Ledger {
 /// # Errors
 ///
 /// 回环端口绑不上时返回错误。
-pub fn serve(app: &AppHandle) -> io::Result<()> {
+pub fn serve(app: &AppHandle) -> io::Result<AutomationMcpServer> {
     let socket = StdTcpListener::bind(("127.0.0.1", 0))?;
 
     socket.set_nonblocking(true)?;
 
     let address = socket.local_addr()?;
-
-    app.manage(McpEndpoint {
-        url: format!("http://{address}/mcp"),
-    });
-
+    let endpoint = McpEndpoint {
+        url: format!("{}://{address}/mcp", "http"),
+    };
+    let alive = Arc::new(AtomicBool::new(true));
+    let (shutdown, stopping) = oneshot::channel();
+    let server = AutomationMcpServer {
+        endpoint,
+        alive: Arc::clone(&alive),
+        shutdown: Mutex::new(Some(shutdown)),
+    };
     let app = app.clone();
 
     async_runtime::spawn(async move {
-        if let Err(cause) = listen(app, socket).await {
-            /*
-             * 服务器起不来只影响这一个能力，应用其余部分照常。为它中断启动，等于让
-             * 一个附加通道的故障拖垮整个进程。
-             */
+        let outcome = listen(app, socket, stopping).await;
+
+        alive.store(false, Ordering::Release);
+
+        if let Err(cause) = outcome {
             log::warn!("the automation MCP server stopped: {cause}");
         }
     });
 
-    Ok(())
+    Ok(server)
 }
 
-async fn listen(app: AppHandle, socket: StdTcpListener) -> io::Result<()> {
+async fn listen(
+    app: AppHandle,
+    socket: StdTcpListener,
+    stopping: oneshot::Receiver<()>,
+) -> io::Result<()> {
     let ledger = Ledger { app };
-    /*
-     * 配置走 Default 而不是结构体表达式：这个类型标了 non_exhaustive，定义 crate 之
-     * 外用结构体表达式构造是 E0639，带函数式更新语法也一样不行。要改字段时用它自己
-     * 的 with_* builder。默认值本来就只接受回环 Host。
-     */
+    /* CRUD tools have no session state or server-originated messages. Stateless JSON responses
+     * avoid owning an idle SSE channel; Streamable HTTP explicitly permits GET to return 405. */
     let service = StreamableHttpService::new(
         move || Ok(ledger.clone()),
-        Arc::new(LocalSessionManager::default()),
-        StreamableHttpServerConfig::default(),
+        Arc::new(NeverSessionManager::default()),
+        StreamableHttpServerConfig::default()
+            .with_legacy_session_mode(false)
+            .with_json_response(true),
     );
     let listener = TcpListener::from_std(socket)?;
 
-    axum::serve(listener, axum::Router::new().fallback_service(service)).await
+    axum::serve(listener, axum::Router::new().fallback_service(service))
+        .with_graceful_shutdown(async move {
+            let _ = stopping.await;
+        })
+        .await
 }
 
-/// Reports where the in-process MCP server is listening.
-///
-/// Returns None while the server failed to bind: the caller then simply has no
-/// built-in server to register, which is a state the UI can show.
+/// Reports the endpoint only while the owned server task is alive.
 #[command]
 #[specta::specta]
 pub async fn mcp_endpoint(app: AppHandle) -> Option<McpEndpoint> {
-    app.try_state::<McpEndpoint>()
-        .map(|state| state.inner().clone())
+    let server = app.try_state::<AutomationMcpServer>()?;
+
+    server
+        .alive
+        .load(Ordering::Acquire)
+        .then(|| server.endpoint.clone())
 }

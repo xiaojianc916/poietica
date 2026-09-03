@@ -547,10 +547,7 @@ async launcherResolve(program: string) : Promise<McpLauncher | null> {
     return await TAURI_INVOKE("launcher_resolve", { program });
 },
 /**
- * Reports where the in-process MCP server is listening.
- * 
- * Returns None while the server failed to bind: the caller then simply has no
- * built-in server to register, which is a state the UI can show.
+ * Reports the endpoint only while the owned server task is alive.
  */
 async mcpEndpoint() : Promise<McpEndpoint | null> {
     return await TAURI_INVOKE("mcp_endpoint");

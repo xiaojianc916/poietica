@@ -96,7 +96,8 @@ pub fn build() -> tauri::Builder<Wry> {
              * 一侧。谁创建谁负责 —— 这里创建，随进程结束。
              */
             commands::automation::watch(handle);
-            commands::automation::mcp_server::serve(handle)?;
+            let _automation_mcp =
+                app.manage(commands::automation::mcp_server::serve(handle)?);
 
             /*
              * 库在窗口出现之前打开，迁移在这里跑完。
