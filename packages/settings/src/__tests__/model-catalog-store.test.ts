@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test'
-import type { ModelCatalogData, ModelCatalogPort } from '../model-catalog-store'
+import type {
+  ModelCatalogData,
+  ModelCatalogOperation,
+  ModelCatalogPort,
+} from '../model-catalog-store'
 import { ModelCatalogStore } from '../model-catalog-store'
 
 const DATA: ModelCatalogData = {
@@ -50,52 +54,36 @@ describe('ModelCatalogStore', () => {
     expect(disposed).toBe(1)
   })
 
-  it('preserves model declarations by full alias', async () => {
-    const catalog: ModelCatalogData = {
-      ...DATA,
-      models: [
-        {
-          provider: 'tokenrouter',
-          model: 'tokenrouter/z-ai/glm-5.3-free',
-          displayName: 'GLM 5.3 (free)',
-          maxContextSize: 128000,
-          capabilities: ['thinking'],
-          supportEfforts: ['low', 'high'],
-          defaultEffort: 'high',
-        },
-      ],
+  it('forwards writes without deriving metadata from cached state', async () => {
+    const operation: ModelCatalogOperation = {
+      kind: 'replace',
+      providerId: 'tokenrouter',
+      provider: {
+        providerType: 'openai',
+        models: [
+          {
+            model: 'z-ai/glm-5.3-free',
+            maxContextSize: 128000,
+            capabilities: ['thinking'],
+            maxOutputSize: 65536,
+            supportEfforts: ['low', 'high'],
+            adaptiveThinking: true,
+          },
+        ],
+      },
     }
-    let written: unknown
+    const received: ModelCatalogOperation[] = []
     const port: ModelCatalogPort = {
       execute: async (_agentId, operation) => {
-        if (operation.kind === 'replace') {
-          written = operation.provider
-        }
-        return catalog
+        received.push(operation)
+        return DATA
       },
       subscribeInvalidation: async () => () => undefined,
     }
     const store = new ModelCatalogStore(port, 'kimi-code')
     await store.load()
-    await store.mutate({
-      kind: 'replace',
-      providerId: 'tokenrouter',
-      provider: {
-        providerType: 'openai',
-        models: [{ model: 'z-ai/glm-5.3-free', maxContextSize: 128000 }],
-      },
-    })
-    expect(written).toEqual({
-      providerType: 'openai',
-      models: [
-        {
-          model: 'z-ai/glm-5.3-free',
-          maxContextSize: 128000,
-          capabilities: ['thinking'],
-          supportEfforts: ['low', 'high'],
-        },
-      ],
-    })
+    await store.mutate(operation)
+    expect(received).toEqual([{ kind: 'snapshot' }, operation])
     store.dispose()
   })
 })

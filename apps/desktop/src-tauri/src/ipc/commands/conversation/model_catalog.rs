@@ -58,6 +58,7 @@ pub struct ProviderReplacementDto {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ModelCatalogOperationDto {
     Snapshot,
+    RefreshProviders,
     #[serde(rename_all = "camelCase")]
     Create {
         provider: ProviderInputDto,
@@ -113,7 +114,9 @@ pub struct ModelDto {
     pub display_name: Option<String>,
     pub max_context_size: u64,
     pub capabilities: Option<Vec<String>>,
+    pub max_output_size: Option<u64>,
     pub support_efforts: Option<Vec<String>>,
+    pub adaptive_thinking: Option<bool>,
     pub default_effort: Option<String>,
 }
 
@@ -180,6 +183,7 @@ pub async fn agent_model_catalog(
 fn into_operation(operation: ModelCatalogOperationDto) -> ModelCatalogOperation {
     match operation {
         ModelCatalogOperationDto::Snapshot => ModelCatalogOperation::Snapshot,
+        ModelCatalogOperationDto::RefreshProviders => ModelCatalogOperation::RefreshProviders,
         ModelCatalogOperationDto::Create { provider } => {
             ModelCatalogOperation::Create(provider.into())
         }
@@ -303,7 +307,9 @@ impl From<Model> for ModelDto {
             display_name: model.display_name,
             max_context_size: model.max_context_size,
             capabilities: model.capabilities,
+            max_output_size: model.max_output_size,
             support_efforts: model.support_efforts,
+            adaptive_thinking: model.adaptive_thinking,
             default_effort: model.default_effort,
         }
     }

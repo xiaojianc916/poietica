@@ -156,9 +156,11 @@ function ModelCatalogPanel({
       <ConfiguredModels
         data={snapshot.data}
         hiddenModelAliases={hiddenModelAliases}
-        loading={snapshot.loading}
+        loading={snapshot.loading || snapshot.mutating}
         onModelVisibilityChange={onModelVisibilityChange}
-        onRefresh={store.refresh}
+        onRefresh={() => {
+          void run({ kind: 'refreshProviders' })
+        }}
       />
       <ProviderWorkspace
         data={snapshot.data}
@@ -198,7 +200,7 @@ function ConfiguredModels({
 }: {
   readonly data: ModelCatalogData
   readonly loading: boolean
-  readonly onRefresh: () => Promise<void>
+  readonly onRefresh: () => void
   readonly hiddenModelAliases: readonly string[]
   readonly onModelVisibilityChange: (modelId: string, visible: boolean) => void
 }) {
@@ -233,10 +235,10 @@ function ConfiguredModels({
             value={query}
           />
           <button
-            aria-label="重新读取模型配置"
+            aria-label="从模型来源刷新元数据"
             className="models-icon-button"
             disabled={loading}
-            onClick={() => void onRefresh()}
+            onClick={onRefresh}
             type="button"
           >
             <RotateCw aria-hidden="true" size={16} strokeWidth={1.7} />
@@ -734,12 +736,17 @@ interface ModelDraft {
   readonly model: string
   readonly displayName: string
   readonly maxContextSize: string
+  readonly writeFields: Pick<
+    ProviderModelInput,
+    'capabilities' | 'maxOutputSize' | 'supportEfforts' | 'adaptiveThinking'
+  >
 }
 const emptyModel = (): ModelDraft => ({
   key: crypto.randomUUID(),
   model: '',
   displayName: '',
   maxContextSize: '',
+  writeFields: {},
 })
 function validateModels(
   models: readonly ModelDraft[],
@@ -759,6 +766,7 @@ function validateModels(
     result.push({
       model,
       maxContextSize,
+      ...draft.writeFields,
       ...(draft.displayName.trim() === '' ? {} : { displayName: draft.displayName.trim() }),
     })
   }
@@ -867,6 +875,14 @@ function ProviderForm({
           model: modelIdForDraft(current.provider.id, model.model),
           displayName: model.displayName ?? '',
           maxContextSize: String(model.maxContextSize),
+          writeFields: {
+            ...(model.capabilities === null ? {} : { capabilities: model.capabilities }),
+            ...(model.maxOutputSize === null ? {} : { maxOutputSize: model.maxOutputSize }),
+            ...(model.supportEfforts === null ? {} : { supportEfforts: model.supportEfforts }),
+            ...(model.adaptiveThinking === null
+              ? {}
+              : { adaptiveThinking: model.adaptiveThinking }),
+          },
         })),
   )
   const [message, setMessage] = useState<string | null>(null)

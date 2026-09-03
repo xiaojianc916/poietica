@@ -1986,9 +1986,9 @@ export type McpLauncher = { program: string; prefixArgs: string[] }
 /**
  * 一次目录操作。判别式与 @poietica/settings 的 ModelCatalogOperation 一一对应。
  */
-export type ModelCatalogOperationDto = { kind: "snapshot" } | { kind: "create"; provider: ProviderInputDto } | { kind: "replace"; providerId: string; provider: ProviderReplacementDto } | { kind: "delete"; providerId: string } | { kind: "importCatalog"; catalogId: string; apiKey: string | null; baseUrl: string | null; id: string | null } | { kind: "importRegistry"; url: string; apiKey: string | null } | { kind: "setDefault"; modelId: string } | { kind: "patchConfig"; patch: JsonValue }
+export type ModelCatalogOperationDto = { kind: "snapshot" } | { kind: "refreshProviders" } | { kind: "create"; provider: ProviderInputDto } | { kind: "replace"; providerId: string; provider: ProviderReplacementDto } | { kind: "delete"; providerId: string } | { kind: "importCatalog"; catalogId: string; apiKey: string | null; baseUrl: string | null; id: string | null } | { kind: "importRegistry"; url: string; apiKey: string | null } | { kind: "setDefault"; modelId: string } | { kind: "patchConfig"; patch: JsonValue }
 export type ModelCatalogSnapshotDto = { providers: ProviderDto[]; models: ModelDto[]; catalog: CatalogProviderDto[]; defaultModel: string | null }
-export type ModelDto = { provider: string; model: string; displayName: string | null; maxContextSize: number; capabilities: string[] | null; supportEfforts: string[] | null; defaultEffort: string | null }
+export type ModelDto = { provider: string; model: string; displayName: string | null; maxContextSize: number; capabilities: string[] | null; maxOutputSize: number | null; supportEfforts: string[] | null; adaptiveThinking: boolean | null; defaultEffort: string | null }
 export type ModelPickerSettings = { hiddenModelAliases: string[]; providerOrder: string[] }
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
 export type PluginCommitRequest = { stagingId: string; 

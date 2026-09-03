@@ -3,8 +3,7 @@ use serde_json::{Value, json};
 
 use crate::error::{KapError, Result};
 use crate::generated::rest::{
-    ClientConfigDataStruct, ListCatalogProvidersDataStruct, ListModelsDataStruct,
-    ListProvidersDataStruct, routes,
+    ClientConfigDataStruct, ListModelsDataStruct, ListProvidersDataStruct, routes,
 };
 use crate::session::rest::{delete, get, post, put};
 
@@ -74,6 +73,7 @@ pub struct RegistryImport {
 #[derive(Clone, Debug)]
 pub enum ModelCatalogOperation {
     Snapshot,
+    RefreshProviders,
     Create(ProviderInput),
     Replace {
         provider_id: String,
@@ -109,7 +109,9 @@ pub struct Model {
     pub display_name: Option<String>,
     pub max_context_size: u64,
     pub capabilities: Option<Vec<String>>,
+    pub max_output_size: Option<u64>,
     pub support_efforts: Option<Vec<String>>,
+    pub adaptive_thinking: Option<bool>,
     pub default_effort: Option<String>,
 }
 
@@ -158,6 +160,41 @@ where
     })
 }
 
+fn parse_catalog(raw: Value) -> Result<Vec<CatalogProvider>> {
+    if let Some(items) = raw.get("items") {
+        return projected(items.clone(), "model catalog");
+    }
+    projected(raw, "model catalog")
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderWriteFields {
+    max_output_size: Option<u64>,
+    adaptive_thinking: Option<bool>,
+}
+
+fn hydrate_provider_write_fields(models: &mut [Model], configured: Option<&Value>) -> Result<()> {
+    let Some(configured) = configured.and_then(Value::as_object) else {
+        return Ok(());
+    };
+    for model in models {
+        let Some(raw) = configured.get(&model.model) else {
+            continue;
+        };
+        let fields: ProviderWriteFields =
+            serde_json::from_value(raw.clone()).map_err(|error| KapError::Transport {
+                message: format!(
+                    "model {} has invalid provider write fields: {error}",
+                    model.model
+                ),
+            })?;
+        model.max_output_size = fields.max_output_size;
+        model.adaptive_thinking = fields.adaptive_thinking;
+    }
+    Ok(())
+}
+
 async fn snapshot(http: &reqwest::Client, base_url: &str) -> Result<ModelCatalogSnapshot> {
     let providers: ListProvidersDataStruct = serde_json::from_value(
         get(http, routes::list_providers(base_url)).await?,
@@ -165,28 +202,26 @@ async fn snapshot(http: &reqwest::Client, base_url: &str) -> Result<ModelCatalog
     .map_err(|error| KapError::Transport {
         message: error.to_string(),
     })?;
-    let models: ListModelsDataStruct = serde_json::from_value(
+    let listed_models: ListModelsDataStruct = serde_json::from_value(
         get(http, routes::list_models(base_url)).await?,
     )
     .map_err(|error| KapError::Transport {
         message: error.to_string(),
     })?;
-    let catalog: ListCatalogProvidersDataStruct =
-        serde_json::from_value(get(http, routes::list_catalog_providers(base_url)).await?)
-            .map_err(|error| KapError::Transport {
-                message: error.to_string(),
-            })?;
     let config: ClientConfigDataStruct = serde_json::from_value(
         get(http, routes::client_config(base_url)).await?,
     )
     .map_err(|error| KapError::Transport {
         message: error.to_string(),
     })?;
+    let catalog = parse_catalog(get(http, routes::list_catalog_providers(base_url)).await?)?;
+    let mut models: Vec<Model> = projected(listed_models.items, "models")?;
+    hydrate_provider_write_fields(&mut models, config.models.as_ref())?;
 
     Ok(ModelCatalogSnapshot {
         providers: projected(providers.items, "providers")?,
-        models: projected(models.items, "models")?,
-        catalog: projected(catalog.items, "provider catalog")?,
+        models,
+        catalog,
         default_model: config.default_model,
     })
 }
@@ -198,6 +233,14 @@ pub(crate) async fn execute(
 ) -> Result<ModelCatalogSnapshot> {
     match operation {
         ModelCatalogOperation::Snapshot => {}
+        ModelCatalogOperation::RefreshProviders => {
+            let _: Value = post(
+                http,
+                routes::provider_collection_action(base_url, ":refresh"),
+                &json!({}),
+            )
+            .await?;
+        }
         ModelCatalogOperation::Create(provider) => {
             post(http, routes::create_provider(base_url), &provider).await?;
         }
@@ -244,4 +287,38 @@ pub(crate) async fn execute(
         }
     }
     snapshot(http, base_url).await
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used, reason = "fixture failures must fail the test")]
+    use super::*;
+
+    #[test]
+    fn hydrate_provider_write_fields_keeps_fields_missing_from_models_route() {
+        let mut models = vec![Model {
+            provider: "tokenrouter".to_owned(),
+            model: "tokenrouter/z-ai/glm-5.3-free".to_owned(),
+            display_name: Some("GLM 5.3 (free)".to_owned()),
+            max_context_size: 131_072,
+            capabilities: Some(vec!["thinking".to_owned()]),
+            max_output_size: None,
+            support_efforts: Some(vec!["low".to_owned(), "high".to_owned()]),
+            adaptive_thinking: None,
+            default_effort: Some("high".to_owned()),
+        }];
+        let configured = json!({
+            "tokenrouter/z-ai/glm-5.3-free": {
+                "maxOutputSize": 65_536,
+                "adaptiveThinking": true
+            }
+        });
+
+        hydrate_provider_write_fields(&mut models, Some(&configured))
+            .expect("configured fields must hydrate");
+
+        let hydrated = models.first().expect("fixture has one model");
+        assert_eq!(hydrated.max_output_size, Some(65_536));
+        assert_eq!(hydrated.adaptive_thinking, Some(true));
+    }
 }

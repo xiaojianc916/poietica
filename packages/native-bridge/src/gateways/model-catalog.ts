@@ -48,6 +48,8 @@ function intoDto(operation: ModelCatalogOperation): ModelCatalogOperationDto {
   switch (operation.kind) {
     case 'snapshot':
       return { kind: 'snapshot' }
+    case 'refreshProviders':
+      return { kind: 'refreshProviders' }
     case 'create':
       return { kind: 'create', provider: inputDto(operation.provider) }
     case 'replace':
