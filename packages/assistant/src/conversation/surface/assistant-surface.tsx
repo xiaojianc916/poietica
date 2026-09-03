@@ -8,7 +8,7 @@ import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
 import { GoalBar } from '../goal/goal-bar'
-import { EmotionBall, ENTRY_EMOTION_IDS } from '../mascot/emotion-ball'
+import { EmotionBall, ENTRY_EMOTION_GROUPS } from '../mascot/emotion-ball'
 import { useAgentToolkit } from '../session/agent-controls-context'
 import type { AssistantSubmission } from '../session/use-assistant-session'
 import { useAssistantInteractions, useAssistantSession } from '../session/use-assistant-session'
@@ -209,8 +209,7 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 两个相位各挂各的东西,但输入框不属于任何一个相位:它是这一层的孩子,相位切换
    * 时它的 DOM 位置一个字都不变。于是草稿、附件、光标与焦点跨相位存活。
    *
-   * 它的每一个 prop 现在都是引用稳定的,而 AssistantComposer 是 memo 过的 ——
-   * 一轮对话里它至多重渲两次(ready→streaming→ready),不是每个 token 一次。
+   * 它的 prop 引用稳定，AssistantComposer 只随语义状态变化，不随 token 重渲染。
    */
   const dock = (
     <div className="assistant-surface__composer">
@@ -223,7 +222,6 @@ export const AssistantSurface = memo(function AssistantSurface({
         approval={approval}
         controls={controls}
         controlsFailure={controlsFailure}
-        isRestoring={assistant.isRestoring}
         mcpServers={mcpServers}
         onAnswerQuestions={assistant.answerQuestions}
         onCancel={assistant.cancel}
@@ -272,7 +270,7 @@ export const AssistantSurface = memo(function AssistantSurface({
               emotion="02"
               label="球球吉祥物，点击旋转"
               placement="entry"
-              tour={ENTRY_EMOTION_IDS}
+              tour={ENTRY_EMOTION_GROUPS}
             />
           </header>
         </div>

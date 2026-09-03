@@ -3,7 +3,7 @@
   "version": "0.2.2",
   "private": true,
   "description": "Poietica — a local-first AI agent desktop environment for thinking, describing, and creating.",
-  "license": "Apache-2.0",
+  "license": "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/xiaojianc916/poietica.git"

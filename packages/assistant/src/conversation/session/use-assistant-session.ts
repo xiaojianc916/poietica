@@ -23,27 +23,11 @@ import {
   pendingInteractions,
 } from '@poietica/conversation'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { type AssistantActivity, assistantActivity } from './assistant-activity'
 import { useTranscripts } from './transcripts-context'
 
-/*
- * 界面从 store 里读什么，以什么粒度读。
- *
- * store 每一拍都交出一个新的 Transcript 对象，所以「一条订阅读整份」等于让唯一的
- * 订阅者在流式期间以帧率重渲染，连同它挂着的整个输入框子树：草稿、附件、模型选择器、
- * 发送键，没有一个与转录内容有关。
- *
- * React 对 useSyncExternalStore 的保证是：快照 Object.is 相等就不重渲染。所以正确的
- * 形状不是「一条订阅 + 一堆 memo 去挡」，而是按字段各订一条，每条都交出一个能稳定
- * 比较的东西：
- *
- *   status     字符串字面量
- *   restoring  布尔
- *   timeline   转录本身 —— 只有真正画转录的那棵子树订它
- *   pending    条目引用，reducer 只在它被答复时才换
- *
- * 这不是四份数据，是同一份状态的四个投影，共用同一个订阅入口。
- */
-
+/* 每个消费者只订阅最窄的稳定投影；完整 timeline 仅供 TranscriptView。
+   其他投影返回字面量或 reducer 持有的引用，流式帧不会重渲染无关 UI。 */
 export interface AssistantSubmission {
   readonly text: string
   /**
@@ -157,6 +141,8 @@ const readInflight = (transcript: Transcript): string | undefined =>
 const readRestoring = (transcript: Transcript): boolean => transcript.restoring
 
 const readTimeline = (transcript: Transcript): TimelineState => transcript.timeline
+const readActivity = (transcript: Transcript): AssistantActivity =>
+  assistantActivity(transcript.timeline, transcript.restoring)
 
 const EMPTY_LIST: readonly TodoItem[] = []
 const readTodos = (transcript: Transcript): readonly TodoItem[] =>
@@ -342,12 +328,12 @@ export function useAssistantSession({
   }
 }
 
-/**
- * 转录本身。只有真正画它的那棵子树订这一条。
- *
- * 它是唯一一个以帧率变化的投影，所以它也是唯一一个以帧率重渲染的订阅者 ——
- * 这正是把它单独拎出来的全部理由。
- */
+/** 吉祥物只订阅稳定活动类别，不随流式文本帧重渲染。 */
+export function useAssistantActivity(key: string): AssistantActivity {
+  return useSlice(key, readActivity)
+}
+
+/** 完整 timeline 只供转录视图；这是唯一按帧重渲染的订阅。 */
 export function useAssistantTimeline(key: string): TimelineState {
   return useSlice(key, readTimeline)
 }

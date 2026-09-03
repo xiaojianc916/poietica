@@ -12,9 +12,9 @@ import type {
   SessionUsage,
 } from '@poietica/conversation'
 import { memo, type Ref, useMemo } from 'react'
-import { AGENT_EMOTION_LABELS, agentEmotionId } from '../mascot/agent-emotion'
+import { agentEmotion } from '../mascot/agent-emotion'
 import { EmotionBall } from '../mascot/emotion-ball'
-import { useAssistantTimeline } from '../session/use-assistant-session'
+import { useAssistantActivity } from '../session/use-assistant-session'
 import { AttachmentTray } from './attachment-tray'
 import {
   activePromptConfiguration,
@@ -46,7 +46,6 @@ import { QuestionPanel } from './question-panel'
 
 export interface AssistantComposerProps {
   readonly agentStatusKey?: string | undefined
-  readonly isRestoring?: boolean | undefined
   readonly placeholder?: string
   readonly status?: ChatStatus
   readonly onSubmit: (input: PromptInputMessage) => void
@@ -165,34 +164,16 @@ function ComposerToolbar({
   )
 }
 
-function AgentStatusBall({
-  restoring,
-  sessionKey,
-}: {
-  readonly restoring: boolean
-  readonly sessionKey: string
-}) {
-  const emotion = agentEmotionId(useAssistantTimeline(sessionKey), restoring)
+function AgentStatusBall({ sessionKey }: { readonly sessionKey: string }) {
+  const emotion = agentEmotion(useAssistantActivity(sessionKey))
 
-  return (
-    <EmotionBall
-      emotion={emotion}
-      label={`助手状态：${AGENT_EMOTION_LABELS[emotion]}`}
-      placement="agent"
-    />
-  )
+  return <EmotionBall emotion={emotion.id} label={`助手状态：${emotion.label}`} placement="agent" />
 }
 
-/*
- * 记住不重建。
- *
- * 上游的订阅粒度已经收窄，入参也全部引用稳定，这一层浅比较因此几乎总是命中：
- * 一轮对话里它至多重渲两次。
- */
+/* memo 只允许语义状态变化重渲染输入区；流式帧由状态球的稳定投影隔离。 */
 export const AssistantComposer = memo(function AssistantComposer({
   agentStatusKey,
   approval,
-  isRestoring = false,
   onAnswerQuestions,
   onDismissQuestions,
   mcpServers,
@@ -258,9 +239,7 @@ export const AssistantComposer = memo(function AssistantComposer({
         onSubmit={onSubmit}
         ref={ref}
       >
-        {agentStatusKey === undefined ? null : (
-          <AgentStatusBall restoring={isRestoring} sessionKey={agentStatusKey} />
-        )}
+        {agentStatusKey === undefined ? null : <AgentStatusBall sessionKey={agentStatusKey} />}
 
         {asking ? (
           /* 一组题一个面板：换了题组就该从第一题、空草稿、未交出重新开始，而这

@@ -1,110 +1,14 @@
 import './emotion-ball.css'
 
+import { error as reportError } from '@poietica/problem'
 import { memo, useCallback, useEffect, useRef } from 'react'
+import type { EmotionBallEngine, EmotionGroup } from './emotion-ball-runtime'
 
-export type EmotionId =
-  | '00'
-  | '01'
-  | '02'
-  | '03'
-  | '04'
-  | '05'
-  | '06'
-  | '07'
-  | '10'
-  | '11'
-  | '12'
-  | '13'
-  | '14'
-  | '15'
-  | '16'
-  | '17'
-  | '18'
-  | '19'
-  | '20'
-  | '21'
-  | '30'
-  | '31'
-  | '32'
-  | '33'
-  | '34'
-  | '35'
-  | '36'
-  | '37'
-  | '38'
-  | '39'
-  | '40'
-  | '41'
-
-export const ENTRY_EMOTION_IDS = [
-  '00',
-  '01',
-  '02',
-  '03',
-  '04',
-  '05',
-  '06',
-  '07',
-  '10',
-  '11',
-  '12',
-  '13',
-  '14',
-  '15',
-  '16',
-  '17',
-  '18',
-  '19',
-  '20',
-  '21',
-] as const satisfies readonly EmotionId[]
-
-interface EmotionBallEngine {
-  readonly setEmotion: (id: string) => boolean
-  readonly startTour: (ids: string[], interval: number) => void
-  readonly stopTour: () => void
-  readonly setActive: (active: boolean) => void
-  readonly setGaze: (x: number, y: number) => EmotionBallEngine
-  readonly clearGaze: () => EmotionBallEngine
-  readonly spin: (turns: number) => EmotionBallEngine
-  readonly destroy: () => void
-}
-
-interface EmotionBallRuntime {
-  readonly create: (
-    target: HTMLElement,
-    options: {
-      readonly autostart: boolean
-      readonly color: string
-      readonly emotion: string
-      readonly eyeColor: string
-      readonly idle: false
-      readonly label: string
-      readonly shape: 'blob'
-    },
-  ) => EmotionBallEngine
-}
-
-declare global {
-  interface Window {
-    EmotionBall?: EmotionBallRuntime
-  }
-}
+export const ENTRY_EMOTION_GROUPS = ['life', 'emotion'] as const satisfies readonly EmotionGroup[]
 
 const TOUR_INTERVAL_MS = 3200
 const HEX_BODY_FALLBACK = '#2783de'
 const HEX_EYE_FALLBACK = '#ffffff'
-
-async function loadRuntime(): Promise<EmotionBallRuntime> {
-  await import('./emotion-ball-runtime')
-
-  const runtime = window.EmotionBall
-  if (runtime === undefined) {
-    throw new Error('Aora Emotion Ball runtime did not initialize')
-  }
-
-  return runtime
-}
 
 function bindTheme(target: HTMLElement): void {
   const bodyStops = target.querySelectorAll('radialGradient > stop')
@@ -129,19 +33,20 @@ function bindTheme(target: HTMLElement): void {
   svg.removeAttribute('role')
 }
 
-function surfaceFailure(cause: unknown): void {
-  const error = cause instanceof Error ? cause : new Error(String(cause))
-  queueMicrotask(() => {
-    throw error
+function reportRuntimeFailure(cause: unknown): void {
+  const failure = cause instanceof Error ? cause : new Error(String(cause))
+  reportError('Aora Emotion Ball failed', {
+    scope: 'assistant.mascot',
+    reason: failure.message,
   })
 }
 
 export interface EmotionBallProps {
   readonly className?: string | undefined
-  readonly emotion: EmotionId
+  readonly emotion: string
   readonly label: string
   readonly placement: 'agent' | 'entry'
-  readonly tour?: readonly EmotionId[] | undefined
+  readonly tour?: readonly EmotionGroup[] | undefined
 }
 
 export const EmotionBall = memo(function EmotionBall({
@@ -170,17 +75,27 @@ export const EmotionBall = memo(function EmotionBall({
     let stop: (() => void) | undefined
 
     const start = async () => {
-      const runtime = await loadRuntime()
+      const { emotionBallRuntime } = await import('./emotion-ball-runtime')
+      const runtime = emotionBallRuntime()
       if (disposed) {
         return
       }
 
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+      const tourIds =
+        tour === undefined
+          ? undefined
+          : tour.flatMap((group) => runtime.config.list(group).map(({ id }) => id))
+      if (tourIds !== undefined && tourIds.length === 0) {
+        throw new Error('Aora Emotion Ball tour groups produced no emotions')
+      }
+
       const created = runtime.create(target, {
         autostart: !reducedMotion.matches,
         color: HEX_BODY_FALLBACK,
         emotion: currentEmotion.current,
         eyeColor: HEX_EYE_FALLBACK,
+        eyeScale: placement === 'agent' ? 1.5 : 1,
         idle: false,
         label: 'Aora Emotion Ball',
         shape: 'blob',
@@ -205,8 +120,8 @@ export const EmotionBall = memo(function EmotionBall({
         }
 
         created.setActive(true)
-        if (tour !== undefined && tour.length > 0) {
-          created.startTour([...tour], TOUR_INTERVAL_MS)
+        if (tourIds !== undefined) {
+          created.startTour(tourIds, TOUR_INTERVAL_MS)
         }
       }
 
@@ -262,7 +177,8 @@ export const EmotionBall = memo(function EmotionBall({
 
     void start().catch((cause: unknown) => {
       if (!disposed) {
-        surfaceFailure(cause)
+        target.replaceChildren()
+        reportRuntimeFailure(cause)
       }
     })
 
@@ -270,7 +186,7 @@ export const EmotionBall = memo(function EmotionBall({
       disposed = true
       stop?.()
     }
-  }, [tour])
+  }, [placement, tour])
 
   useEffect(() => {
     if (tour === undefined) {

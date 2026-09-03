@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { TimelineState } from '@poietica/conversation'
-import { type AgentEmotionId, agentEmotionId } from './agent-emotion'
+import { assistantActivity } from '../session/assistant-activity'
+import { type AgentEmotionId, agentEmotion } from './agent-emotion'
 
 const OUTPUT = {
   at: 1,
@@ -53,7 +54,11 @@ function timeline(
   }
 }
 
-describe('agentEmotionId', () => {
+function emotionId(state: TimelineState, restoring = false): AgentEmotionId {
+  return agentEmotion(assistantActivity(state, restoring)).id
+}
+
+describe('agent emotion projection', () => {
   test('covers every upstream agent state from the transcript truth', () => {
     const cases: readonly {
       expected: AgentEmotionId
@@ -75,12 +80,12 @@ describe('agentEmotionId', () => {
     ]
 
     for (const current of cases) {
-      expect(agentEmotionId(current.state, current.restoring ?? false)).toBe(current.expected)
+      expect(emotionId(current.state, current.restoring ?? false)).toBe(current.expected)
     }
   })
 
   test('uses the newest live activity inside a running turn', () => {
-    expect(agentEmotionId(timeline('running', [tool('search'), OUTPUT]), false)).toBe('39')
-    expect(agentEmotionId(timeline('running', [OUTPUT, COMPACTION]), false)).toBe('37')
+    expect(emotionId(timeline('running', [tool('search'), OUTPUT]))).toBe('39')
+    expect(emotionId(timeline('running', [OUTPUT, COMPACTION]))).toBe('37')
   })
 })

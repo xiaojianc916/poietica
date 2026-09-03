@@ -38,13 +38,10 @@
 .emotion-ball--agent {
   position: absolute;
   z-index: 2;
-  inset-block-start: -30px;
+  inset-block-start: 0;
   inset-inline-end: var(--cp-inset);
   block-size: 52px;
   inline-size: 52px;
   pointer-events: none;
-}
-
-[data-slot="prompt-input"]:has(> .emotion-ball--agent) [data-slot="prompt-input-editor"] {
-  padding-inline-end: calc(var(--cp-pad-x) + 36px);
+  transform: translateY(-100%);
 }
