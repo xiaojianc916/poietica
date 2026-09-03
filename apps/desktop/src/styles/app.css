@@ -20,11 +20,9 @@
  *
  * Platform-specific tokens may derive from the shared
  * design system, but they are not part of the shared
- * design-system API.
+ * design-system API. The theme runtime owns the window backing surface.
  */
 :root {
-  --window-backing-surface: var(--color-chrome);
-
   --desktop-window-control-hover: color-mix(in srgb, var(--color-foreground) 5%, transparent);
 
   --desktop-window-control-active: color-mix(in srgb, var(--color-foreground) 9%, transparent);

@@ -19,6 +19,9 @@ import type { ReactNode } from 'react'
 import { useAssistantBackgroundTasks, useAssistantTodos } from '../session/use-assistant-session'
 import './todo-panel.css'
 
+/** 一屏装得下的行数，与 todo-panel.css 的 max-block-size 同源：超过它就有东西在视野外。 */
+const VISIBLE_ROWS = 6
+
 const TASK_STATUS_LABEL = {
   done: '已完成',
   in_progress: '进行中',
@@ -79,18 +82,20 @@ function BackgroundStatusGlyph({ status }: { readonly status: BackgroundTaskStat
 function AccordionSection({
   children,
   icon,
+  more,
   progress,
   title,
   value,
 }: {
   readonly children: ReactNode
   readonly icon: ReactNode
+  readonly more: boolean
   readonly progress: string
   readonly title: string
   readonly value: 'todos' | 'background'
 }) {
   return (
-    <AccordionItem className="todo-panel__section" value={value}>
+    <AccordionItem className="todo-panel__section" data-more={more || undefined} value={value}>
       <AccordionHeader className="todo-panel__heading">
         <AccordionTrigger className="todo-panel__header">
           <span aria-hidden className="todo-panel__lead">
@@ -112,6 +117,7 @@ function TodoListCard({ todos }: { readonly todos: readonly TodoItem[] }) {
   return (
     <AccordionSection
       icon={<ListTodo />}
+      more={todos.length > VISIBLE_ROWS}
       progress={todoProgressLabel(todos)}
       title="待办事项"
       value="todos"
@@ -146,6 +152,7 @@ function BackgroundTaskListCard({ tasks }: { readonly tasks: readonly Background
   return (
     <AccordionSection
       icon={<LaptopMinimal />}
+      more={tasks.length > VISIBLE_ROWS}
       progress={backgroundTaskProgressLabel(tasks)}
       title="后台任务"
       value="background"

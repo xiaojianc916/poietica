@@ -23,6 +23,7 @@ export const APPLICATION_FAILURE_CODES = [
   'SETTINGS_LOAD_FAILED',
   'WINDOW_STATE_QUERY_UNAVAILABLE',
   'WINDOW_STATE_SYNC_UNAVAILABLE',
+  'WINDOW_SURFACE_SYNC_UNAVAILABLE',
   'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
   'AGENT_CAPABILITIES_UNREADABLE',
   'AGENT_CONFIG_CHANGE_REJECTED',
@@ -137,6 +138,13 @@ export const APPLICATION_FAILURE_POLICIES = {
     recovery: 'disable-feature',
 
     scope: featureScope('window-state-sync'),
+  },
+
+  WINDOW_SURFACE_SYNC_UNAVAILABLE: {
+    impact: 'recoverable',
+    userMessage: '窗口底色未能与当前主题同步，界面仍可继续使用。',
+    recovery: 'dismiss',
+    scope: operationScope('sync-window-surface'),
   },
 
   WINDOW_CLOSE_LISTENER_UNAVAILABLE: {

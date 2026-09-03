@@ -66,6 +66,7 @@ export interface WorkspaceContainerProps {
   readonly isSettingsOpen: boolean
   readonly onSettingsClose: () => void
   readonly settingsStore: SettingsStore
+  readonly onThemeChange: SettingsProviderProps['onThemeChange']
   readonly agentSettings: AgentSettings
   /** 模型目录的唯一持有者，由组合根注入（见 entry/compose-runtime.ts）。 */
   readonly modelCatalog: ModelCatalogStore
@@ -108,6 +109,7 @@ export function WorkspaceContainer({
   isSettingsOpen,
   onSettingsClose,
   settingsStore,
+  onThemeChange,
   agentSettings,
   modelCatalog,
   customAgentStore,
@@ -397,6 +399,7 @@ export function WorkspaceContainer({
       keybindings={keybindings}
       modelCatalog={modelCatalog}
       onDismiss={onSettingsClose}
+      onThemeChange={onThemeChange}
       plugins={plugins}
       readTokenDays={readTokenDays}
       skills={toolkit.skills}

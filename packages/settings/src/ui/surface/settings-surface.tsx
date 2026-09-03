@@ -319,6 +319,8 @@ export interface SettingsProviderProps {
   readonly skills: readonly AgentSkill[]
   /** 离开设置。控制器会先把尚未落盘的草稿刷完再回调，所以退出不会丢改动。 */
   readonly onDismiss: () => void
+  /** 主题预览进入应用唯一的主题管线，不由设置 UI 直接写文档。 */
+  readonly onThemeChange: (theme: AppSettings['theme']) => void
   /** 设置是否在场。会话只在打开时启动 —— 挂载不是开合信号。 */
   readonly isOpen: boolean
   readonly children: ReactNode
@@ -336,6 +338,7 @@ export function SettingsProvider({
   readTokenDays,
   skills,
   onDismiss,
+  onThemeChange,
   isOpen,
   children,
 }: SettingsProviderProps) {
@@ -354,6 +357,7 @@ export function SettingsProvider({
     open: isOpen,
     store,
     onOpenChange: handleOpenChange,
+    onThemeChange,
   })
   const persistedSettings = useSyncExternalStore(
     store.subscribe,

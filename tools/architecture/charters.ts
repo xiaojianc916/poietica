@@ -224,6 +224,124 @@ export async function designSystemOwnsItsTokens(root: string): Promise<Violation
   return violations
 }
 
+/** 从主题运行时源码读出某一 scheme 的预运行原生表面色。 */
+function surfaceColor(
+  source: string,
+  scheme: 'light' | 'dark',
+): readonly [number, number, number] | null {
+  const line = source.split('\n').find((candidate) => candidate.includes([scheme, ': ['].join('')))
+  const values = line?.match(/[0-9]+/g)?.map(Number)
+  const red = values?.[0]
+  const green = values?.[1]
+  const blue = values?.[2]
+
+  if (
+    red === undefined ||
+    green === undefined ||
+    blue === undefined ||
+    values?.[3] !== undefined ||
+    ![red, green, blue].every((value) => Number.isInteger(value) && value >= 0 && value <= 255)
+  ) {
+    return null
+  }
+
+  return [red, green, blue]
+}
+
+const toHex = (color: readonly [number, number, number]): string =>
+  ['#', color.map((value) => value.toString(16).padStart(2, '0')).join('')].join('')
+
+/** 主题表面与预运行底色、权限、唯一写入管线一致。 */
+async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
+  const violations: Violation[] = []
+  const themeOwner = 'apps/desktop/src/entry/theme-runtime.ts'
+  const themeSource = await readFile(path.join(root, themeOwner), 'utf8')
+  const light = surfaceColor(themeSource, 'light')
+  const dark = surfaceColor(themeSource, 'dark')
+
+  if (light === null || dark === null) {
+    violations.push({
+      policy: 'window-surface-policy',
+      where: themeOwner,
+      detail: '主题运行时必须声明可静态核对的 light/dark 原生表面色',
+    })
+    return violations
+  }
+
+  const configPath = 'apps/desktop/src-tauri/tauri.conf.json'
+  const config = JSON.parse(await readFile(path.join(root, configPath), 'utf8')) as {
+    app?: { windows?: Array<{ label?: string; backgroundColor?: string }> }
+  }
+  const configured = config.app?.windows?.find((window) => window.label === 'main')?.backgroundColor
+  if (configured?.toLowerCase() !== toHex(light)) {
+    violations.push({
+      policy: 'window-surface-policy',
+      where: configPath,
+      detail: '主窗口创建底色必须等于主题运行时的浅色表面',
+    })
+  }
+
+  const indexPath = 'apps/desktop/index.html'
+  const indexSource = await readFile(path.join(root, indexPath), 'utf8')
+  for (const [scheme, color] of [
+    ['light', light],
+    ['dark', dark],
+  ] as const) {
+    const declaration = ['--window-backing-surface: ', toHex(color), ';'].join('')
+    if (!indexSource.includes(declaration)) {
+      violations.push({
+        policy: 'window-surface-policy',
+        where: indexPath,
+        detail: [scheme, ' 的预运行表面与主题运行时不一致'].join(''),
+      })
+    }
+  }
+
+  const capabilityPath = 'apps/desktop/src-tauri/capabilities/main-window.json'
+  const capability = JSON.parse(await readFile(path.join(root, capabilityPath), 'utf8')) as {
+    permissions?: string[]
+  }
+  for (const permission of [
+    'core:window:allow-set-background-color',
+    'core:webview:allow-set-webview-background-color',
+  ]) {
+    if (!capability.permissions?.includes(permission)) {
+      violations.push({
+        policy: 'window-surface-policy',
+        where: capabilityPath,
+        detail: ['缺少主题表面同步权限：', permission].join(''),
+      })
+    }
+  }
+
+  const typeScriptFiles = await walk(root, ['apps', 'packages'], ['.ts', '.tsx'])
+  const themeWriters = await holding(root, typeScriptFiles, 'applyThemePreference(')
+  const allowedThemeWriters = new Set([
+    themeOwner,
+    'packages/design-system/src/theme/theme-controller.ts',
+  ])
+  for (const file of themeWriters) {
+    if (!allowedThemeWriters.has(file)) {
+      violations.push({
+        policy: 'window-surface-policy',
+        where: file,
+        detail: '主题写入必须经过应用主题运行时',
+      })
+    }
+  }
+  for (const file of allowedThemeWriters) {
+    if (!themeWriters.includes(file)) {
+      violations.push({
+        policy: 'window-surface-policy',
+        where: file,
+        detail: '主题唯一写入管线不完整',
+      })
+    }
+  }
+
+  return violations
+}
+
 /** 窗口标签是一处声明，不许在调用点写字面量。 */
 export async function windowSurfaceIsNamedOnce(root: string): Promise<Violation[]> {
   const owner = 'apps/desktop/src-tauri/src/window/state.rs'
@@ -248,6 +366,8 @@ export async function windowSurfaceIsNamedOnce(root: string): Promise<Violation[
         'MAIN_WINDOW 的声明处必须唯一且落在 window/state（组合根只消费，window 不得反向依赖组合根）',
     })
   }
+
+  violations.push(...(await themeSurfaceIsAligned(root)))
 
   return violations
 }

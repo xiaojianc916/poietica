@@ -1,7 +1,6 @@
 import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/assistant'
 import type { SessionControlsFailureReport } from '@poietica/conversation'
 import { AgentCapabilityStore } from '@poietica/conversation'
-import { applyThemePreference } from '@poietica/design-system'
 import type { PluginsViewModel } from '@poietica/extension'
 import type { MainWindowController } from '@poietica/native-bridge'
 import { failureCoordinator } from '@poietica/problem'
@@ -154,43 +153,6 @@ export function AppShell({ runtime }: AppShellProps) {
     () => registerApplicationCommands(runtime.commands, commandContext),
     [commandContext, runtime.commands],
   )
-
-  /*
-   * 主题在这里只校正，不建立。
-   *
-   * 建立在 main.tsx —— data-theme 缺席时设计系统令牌解成浅色，所以它必须早于
-   * 第一帧。这一趟是异步的，回来时第一帧早画完了：只有存下的选择与 system 不
-   * 同的人会看到一次切换，而那是两个都成立的状态之间的切换。删掉 main.tsx 那
-   * 一处会静默把冷启动的白闪带回来。
-   */
-  useEffect(() => {
-    let active = true
-
-    void runtime.settings.load().then(
-      (settings) => {
-        if (!active) {
-          return
-        }
-
-        applyThemePreference(settings.theme)
-      },
-      (cause: unknown) => {
-        if (!active) {
-          return
-        }
-
-        reportFailure('SETTINGS_LOAD_FAILED', {
-          scope: 'app-shell',
-          operation: 'load-settings',
-          cause,
-        })
-      },
-    )
-
-    return () => {
-      active = false
-    }
-  }, [runtime.settings])
 
   /*
    * 这一家 agent 提供哪些可调项，一个进程一份。
@@ -347,6 +309,7 @@ export function AppShell({ runtime }: AppShellProps) {
             onDeveloperToolsOpen={openDeveloperTools}
             onSettingsClose={closeSettings}
             onSettingsOpen={openSettings}
+            onThemeChange={runtime.theme.setPreference}
             onWindowClose={closeWindow}
             onWindowMaximize={maximizeWindow}
             onWindowMinimize={minimizeWindow}

@@ -119,6 +119,11 @@
   display: none;
 }
 
+/* 到顶了：列表下沿化开，说明下面还有。是一层雾，所以是遮罩，不是涂色。 */
+.todo-panel__section[data-more] .todo-panel__list {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 10px), rgb(0 0 0 / 35%));
+}
+
 .todo-panel__item {
   display: flex;
   min-inline-size: 0;

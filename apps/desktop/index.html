@@ -10,7 +10,7 @@
 
     <!--
       Native window, WebView and document surfaces must remain aligned.
-      See docs/adr/0001-opaque-window-surface.md.
+      See docs/adr/0036-theme-aligned-window-surface.md.
     -->
     <style id="window-backing-surface">
       :root {
@@ -142,7 +142,7 @@
 
       @media (prefers-color-scheme: dark) {
         :root {
-          --window-backing-surface: #18181b;
+          --window-backing-surface: #181818;
           --fatal-foreground: #f4f4f5;
           --fatal-muted: #a1a1aa;
           --fatal-border: #3f3f46;

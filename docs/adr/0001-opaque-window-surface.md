@@ -1,6 +1,7 @@
 # 0001. Opaque window surface for resize stability
 
-- Status: Accepted
+- Status: Superseded
+- Superseded by: [0036. Theme-aligned window surface](0036-theme-aligned-window-surface.md)
 - Date: 2026-07-22
 - Owners: Desktop application composition root
 
@@ -54,8 +55,8 @@ Poietica 使用 Tauri 2 承载 React 和 WebView2。
      `--window-backing-surface`。
    - 负责应用运行期的根表面。
 
-仓库通过 `tools/architecture/rules.config.mjs` 的 `window-surface-policy`
-验证三个层级与 WebView2 合成策略没有发生漂移。
+该决策当时意图由 `window-surface-policy` 验证；实际规则位于
+`tools/architecture/charters.ts`。主题化表面约束由 ADR 0036 接管。
 
 ## Explicitly rejected approaches
 

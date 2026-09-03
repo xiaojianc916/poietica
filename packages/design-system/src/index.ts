@@ -47,5 +47,10 @@ export { FileTypeMark } from './mark/file-type-mark'
 export { integrationMarkFor } from './mark/integration-mark'
 export { ArrowLeftIcon, GithubMark, PlayIcon } from './mark/local-glyphs'
 export { PixelLoader } from './mark/pixel-loader'
-export { applyThemePreference } from './theme/theme-controller'
+export {
+  applyThemePreference,
+  type ResolvedTheme,
+  type ThemePreference,
+  type ThemePreferenceBinding,
+} from './theme/theme-controller'
 export { type CopyAction, useCopy } from './use-copy'

@@ -1,4 +1,3 @@
-import { applyThemePreference } from '@poietica/design-system'
 import {
   type AppSettings,
   createSettingsSession,
@@ -25,12 +24,14 @@ interface UseSettingsControllerOptions {
   readonly open: boolean
   readonly store: SettingsStore
   readonly onOpenChange: (open: boolean) => void
+  readonly onThemeChange: (theme: AppSettings['theme']) => void
 }
 
 export function useSettingsController({
   open,
   store,
   onOpenChange,
+  onThemeChange,
 }: UseSettingsControllerOptions): SettingsController {
   const [session] = useState(() =>
     createSettingsSession({
@@ -55,11 +56,13 @@ export function useSettingsController({
 
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot)
 
+  const theme = snapshot.settings?.theme
+
   useLayoutEffect(() => {
-    if (snapshot.settings) {
-      applyThemePreference(snapshot.settings.theme)
+    if (theme !== undefined) {
+      onThemeChange(theme)
     }
-  }, [snapshot.settings])
+  }, [onThemeChange, theme])
 
   useEffect(() => {
     if (snapshot.status === 'closed') {

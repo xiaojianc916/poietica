@@ -33,10 +33,12 @@ import {
   createCommandRegistry,
   createWorkbenchSessionController,
 } from '@poietica/workspace'
+import { reportFailure } from '../notice/problem-presentation'
 import { createDesktopAgentRuntime, type DesktopAgentRuntime } from './agent-runtime'
 import { createAttachmentIntake } from './attachment-intake'
 import { reconcileAutomationsMcpServer } from './automations-mcp'
 import { reconcileBrowserMcpServer } from './browser-mcp'
+import { createThemeRuntime, type ThemeRuntime } from './theme-runtime'
 import { activeWorkspaceRoot } from './workspace-root'
 
 /**
@@ -57,6 +59,7 @@ export interface ApplicationRuntime {
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
   readonly mainWindow: MainWindowController
+  readonly theme: ThemeRuntime
   readonly appUpdate: AppUpdateController
   readonly settings: SettingsStore
   readonly agentConfig: AgentSettings
@@ -118,6 +121,16 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   const mainWindow = createMainWindowController()
   const appUpdate = createAppUpdateController()
   const settings = createSettingsStore()
+  const theme = createThemeRuntime({
+    mainWindow,
+    report: (cause) => {
+      reportFailure('WINDOW_SURFACE_SYNC_UNAVAILABLE', {
+        cause,
+        operation: 'sync-window-surface',
+        scope: 'application-runtime',
+      })
+    },
+  })
   const agentConfig = createAgentSettings()
   const customAgents: CustomAgentStore = {
     load: listCustomAgents,
@@ -160,6 +173,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     workspace,
     commands,
     mainWindow,
+    theme,
     appUpdate,
     settings,
     agentConfig,
@@ -182,6 +196,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
         return
       }
       disposed = true
+      theme.dispose()
       for (const cleanup of cleanups.splice(0).reverse()) {
         cleanup()
       }

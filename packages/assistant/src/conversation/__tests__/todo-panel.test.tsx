@@ -19,6 +19,14 @@ const tasks: readonly BackgroundTaskItem[] = [
   { taskId: 'c', description: '生成报告', status: 'failed' },
 ]
 
+const manyTasks: readonly BackgroundTaskItem[] = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(
+  (taskId, index) => ({
+    description: `后台任务${index + 1}`,
+    status: index % 2 === 0 ? 'completed' : 'running',
+    taskId,
+  }),
+)
+
 describe('task panel labels', () => {
   it('summarizes todo states', () => {
     expect(todoProgressLabel(todos)).toBe('1 已完成\u2002·\u20021 进行中\u2002·\u20021 待处理')
@@ -39,5 +47,15 @@ describe('task accordion', () => {
     expect(markup).toContain('待办事项')
     expect(markup).toContain('后台任务')
     expect(markup).not.toContain('<details')
+  })
+
+  it('marks lists taller than six rows as having more below', () => {
+    const crowded = renderToStaticMarkup(
+      <TaskPanelContent backgroundTasks={manyTasks} todos={todos} />,
+    )
+    expect(crowded).toContain('data-more="true"')
+
+    const roomy = renderToStaticMarkup(<TaskPanelContent backgroundTasks={tasks} todos={todos} />)
+    expect(roomy).not.toContain('data-more')
   })
 })

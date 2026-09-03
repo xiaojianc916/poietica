@@ -1,11 +1,16 @@
 import { TableExportProvider } from '@poietica/assistant/table-export'
+import type { ThemePreference } from '@poietica/design-system'
 import { exportTable } from '@poietica/native-bridge'
 import { StrictMode } from 'react'
 import { flushSync } from 'react-dom'
 import type { Root } from 'react-dom/client'
 import { createRoot } from 'react-dom/client'
 import { FatalErrorHost } from '../notice/error-boundary'
-import { markReactFatalHostMounted, reportFatalIncident } from '../notice/problem-presentation'
+import {
+  markReactFatalHostMounted,
+  reportFailure,
+  reportFatalIncident,
+} from '../notice/problem-presentation'
 import { AppShell } from '../shell/app-shell'
 import { type ApplicationRuntime, createApplicationRuntime } from './compose-runtime'
 
@@ -38,10 +43,10 @@ function reportReactError(input: {
   })
 }
 
-export function mountReactApplication(
+export async function mountReactApplication(
   container: HTMLElement,
   restored: string | null,
-): ApplicationRuntime {
+): Promise<ApplicationRuntime> {
   let runtime: ReturnType<typeof createApplicationRuntime>
 
   try {
@@ -60,6 +65,20 @@ export function mountReactApplication(
 
     throw error
   }
+
+  let theme: ThemePreference = 'system'
+
+  try {
+    theme = (await runtime.settings.load()).theme
+  } catch (cause: unknown) {
+    reportFailure('SETTINGS_LOAD_FAILED', {
+      cause,
+      operation: 'load-settings',
+      scope: 'application-runtime',
+    })
+  }
+
+  await runtime.theme.setPreference(theme)
 
   const root: Root = createRoot(container, {
     /* 被错误边界接住的那种。报告只挂这一条通道，边界不再自己报，否则一次崩溃记两笔。 */
