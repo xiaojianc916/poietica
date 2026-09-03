@@ -7,7 +7,7 @@
 **A local-first, AI-agent desktop environment for thinking, exploring, and creating.**
 
 [![Quality](https://github.com/xiaojianc916/poietica/actions/workflows/quality.yml/badge.svg)](https://github.com/xiaojianc916/poietica/actions/workflows/quality.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-2783DE?style=flat-square)](./LICENSE)
+[![License](https://img.shields.io/badge/license-see%20notices-2783DE?style=flat-square)](./THIRD_PARTY_NOTICES.md)
 [![Desktop](https://img.shields.io/badge/platform-desktop-46A171?style=flat-square)](https://v2.tauri.app/)
 [![Local first](https://img.shields.io/badge/data-local--first-D5803B?style=flat-square)](#why-local-first-matters)
 
@@ -219,7 +219,13 @@ bun run check
 
 ## License
 
-Poietica is released under the [Apache License 2.0](./LICENSE).
+Except for the third-party components identified in
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md), Poietica is released under the
+[Apache License 2.0](./LICENSE).
+
+The vendored Aora Emotion Ball is governed by its upstream Community License, not Apache-2.0.
+It is limited to non-commercial use; its ball-character visual design may never be used
+commercially. Distribution must retain the upstream license and notice.
 
 <div align="center">
 

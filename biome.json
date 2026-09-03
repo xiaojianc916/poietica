@@ -21,6 +21,7 @@
       "!**/benchmark-results",
       "!**/performance-results",
       "!**/*.min.js",
+      "!packages/assistant/vendor/aora-bot/emotion-ball/js/*.js",
       "!**/*.snap",
       "!**/*.svg"
     ],

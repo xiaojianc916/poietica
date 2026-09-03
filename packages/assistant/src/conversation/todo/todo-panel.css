@@ -112,6 +112,11 @@
   padding: 0;
   overflow-y: auto;
   list-style: none;
+  scrollbar-width: none;
+}
+
+.todo-panel__list::-webkit-scrollbar {
+  display: none;
 }
 
 .todo-panel__item {
@@ -145,24 +150,11 @@
   color: var(--cp-danger, #c74545);
 }
 
-.todo-panel__copy {
-  display: flex;
-  min-inline-size: 0;
-  flex: 1;
-  gap: 8px;
-}
-
 .todo-panel__content {
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.todo-panel__meta {
-  flex: none;
-  color: var(--cp-ink-subtle);
-  font-size: 12px;
 }
 
 .todo-panel__empty {

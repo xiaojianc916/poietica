@@ -1,0 +1,50 @@
+.emotion-ball {
+  position: relative;
+  display: block;
+  flex: none;
+  aspect-ratio: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.emotion-ball > svg {
+  display: block;
+  block-size: 100%;
+  inline-size: 100%;
+}
+
+.emotion-ball__body-highlight {
+  stop-color: color-mix(in srgb, var(--ui-primary) 78%, white);
+}
+
+.emotion-ball__body-base {
+  stop-color: var(--ui-primary);
+}
+
+.emotion-ball__body-shade {
+  stop-color: color-mix(in srgb, var(--ui-primary) 88%, black);
+}
+
+.emotion-ball__eye {
+  fill: var(--ui-primary-foreground);
+}
+
+.emotion-ball--entry {
+  cursor: pointer;
+}
+
+.emotion-ball--agent {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: -30px;
+  inset-inline-end: var(--cp-inset);
+  block-size: 52px;
+  inline-size: 52px;
+  pointer-events: none;
+}
+
+[data-slot="prompt-input"]:has(> .emotion-ball--agent) [data-slot="prompt-input-editor"] {
+  padding-inline-end: calc(var(--cp-pad-x) + 36px);
+}

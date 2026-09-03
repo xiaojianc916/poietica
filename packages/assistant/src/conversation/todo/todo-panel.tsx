@@ -163,10 +163,7 @@ function BackgroundTaskListCard({ tasks }: { readonly tasks: readonly Background
               >
                 <BackgroundStatusGlyph status={task.status} />
               </span>
-              <span className="todo-panel__copy">
-                <span className="todo-panel__content">{task.description}</span>
-                <span className="todo-panel__meta">{BACKGROUND_STATUS_LABEL[task.status]}</span>
-              </span>
+              <span className="todo-panel__content">{task.description}</span>
             </li>
           ))}
         </ul>

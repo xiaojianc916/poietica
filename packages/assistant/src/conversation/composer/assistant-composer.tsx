@@ -12,6 +12,9 @@ import type {
   SessionUsage,
 } from '@poietica/conversation'
 import { memo, type Ref, useMemo } from 'react'
+import { AGENT_EMOTION_LABELS, agentEmotionId } from '../mascot/agent-emotion'
+import { EmotionBall } from '../mascot/emotion-ball'
+import { useAssistantTimeline } from '../session/use-assistant-session'
 import { AttachmentTray } from './attachment-tray'
 import {
   activePromptConfiguration,
@@ -42,6 +45,8 @@ import { QuestionPanel } from './question-panel'
  */
 
 export interface AssistantComposerProps {
+  readonly agentStatusKey?: string | undefined
+  readonly isRestoring?: boolean | undefined
   readonly placeholder?: string
   readonly status?: ChatStatus
   readonly onSubmit: (input: PromptInputMessage) => void
@@ -160,6 +165,24 @@ function ComposerToolbar({
   )
 }
 
+function AgentStatusBall({
+  restoring,
+  sessionKey,
+}: {
+  readonly restoring: boolean
+  readonly sessionKey: string
+}) {
+  const emotion = agentEmotionId(useAssistantTimeline(sessionKey), restoring)
+
+  return (
+    <EmotionBall
+      emotion={emotion}
+      label={`助手状态：${AGENT_EMOTION_LABELS[emotion]}`}
+      placement="agent"
+    />
+  )
+}
+
 /*
  * 记住不重建。
  *
@@ -167,7 +190,9 @@ function ComposerToolbar({
  * 一轮对话里它至多重渲两次。
  */
 export const AssistantComposer = memo(function AssistantComposer({
+  agentStatusKey,
   approval,
+  isRestoring = false,
   onAnswerQuestions,
   onDismissQuestions,
   mcpServers,
@@ -233,6 +258,10 @@ export const AssistantComposer = memo(function AssistantComposer({
         onSubmit={onSubmit}
         ref={ref}
       >
+        {agentStatusKey === undefined ? null : (
+          <AgentStatusBall restoring={isRestoring} sessionKey={agentStatusKey} />
+        )}
+
         {asking ? (
           /* 一组题一个面板：换了题组就该从第一题、空草稿、未交出重新开始，而这
              正是 key 的用处，不是再加一个 effect 去复位几个 state。 */

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "sideEffects": [
-    "**/*.css"
+    "**/*.css",
+    "./vendor/aora-bot/emotion-ball/js/*.js"
   ],
   "exports": {
     ".": "./src/index.ts",

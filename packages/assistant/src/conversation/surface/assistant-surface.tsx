@@ -8,6 +8,7 @@ import { useDockClearance } from '../composer/dock-clearance'
 import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
 import { GoalBar } from '../goal/goal-bar'
+import { EmotionBall, ENTRY_EMOTION_IDS } from '../mascot/emotion-ball'
 import { useAgentToolkit } from '../session/agent-controls-context'
 import type { AssistantSubmission } from '../session/use-assistant-session'
 import { useAssistantInteractions, useAssistantSession } from '../session/use-assistant-session'
@@ -20,7 +21,6 @@ const DeferredTranscriptView = lazy(() =>
   })),
 )
 
-import { MascotBadge } from './mascot/mascot-badge'
 import { PromptQueue } from './prompt-queue'
 
 export interface AssistantSurfaceProps {
@@ -219,9 +219,11 @@ export const AssistantSurface = memo(function AssistantSurface({
       <PromptQueue onEdit={edit} outbox={assistant.outbox} />
 
       <AssistantComposer
+        agentStatusKey={live ? assistant.key : undefined}
         approval={approval}
         controls={controls}
         controlsFailure={controlsFailure}
+        isRestoring={assistant.isRestoring}
         mcpServers={mcpServers}
         onAnswerQuestions={assistant.answerQuestions}
         onCancel={assistant.cancel}
@@ -265,7 +267,13 @@ export const AssistantSurface = memo(function AssistantSurface({
       ) : (
         <div className="assistant-surface__entry">
           <header className="assistant-masthead">
-            <MascotBadge className="assistant-masthead__mascot" />
+            <EmotionBall
+              className="assistant-masthead__mascot"
+              emotion="02"
+              label="球球吉祥物，点击旋转"
+              placement="entry"
+              tour={ENTRY_EMOTION_IDS}
+            />
           </header>
         </div>
       )}
