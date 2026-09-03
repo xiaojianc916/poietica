@@ -2,6 +2,5 @@
 
 set -eu
 
-# 推送前的整仓门：类型与单测。快路径（biome、架构闸门）在 pre-commit 已经走过，
-# 这里只挡会把红的主分支推上去的那一类。
-bun run typecheck && bun run test
+# 推送前跑 CI 那条门禁本身，本地绿就等于 CI 绿。
+bun run check

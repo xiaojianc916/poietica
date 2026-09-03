@@ -19,11 +19,12 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # 纯 JS 检查放在 Linux；Windows 专用于原生桌面验证。
-  frontend:
-    name: Frontend
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+  # 门禁只有一条命令表：package.json 的 check。平台取发行平台 Windows，
+  # 发布工作流跑的是同一条命令，PR 因此不会漏过只在 Windows 上红的检查。
+  check:
+    name: Check
+    runs-on: windows-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -34,40 +35,28 @@ jobs:
       - name: Setup JS toolchain
         uses: ./.github/actions/setup-js
 
-      # 一条命令覆盖 biome ci（带 GitHub annotation）、架构规则、typecheck 与 bun test。
-      # CI 不维护第二份命令表：package.json 的 check:web 是唯一那一份。
-      - name: Web checks
-        run: bun run check:web
-
-      - name: Build web assets
-        run: bun run build:web
-
-  rust:
-    name: Rust
-    runs-on: windows-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
       - name: Install Rust
         run: rustup show # honours rust-toolchain.toml
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
 
-      - name: Format
-        run: cargo fmt --check
+      - name: Quality gate
+        run: bun run check
 
-      # Clippy 已覆盖编译，无需另跑 cargo check。
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Build web assets
+        run: bun run build:web
 
-      - name: Tests
-        run: cargo test --workspace --all-features
+  dependencies:
+    name: Dependencies
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # 只跑确定性子集。advisories 依赖外部数据库，会让无关 PR 随机变红，
       # 它属于 security.yml 的定时任务与发布门禁。
@@ -96,14 +85,6 @@ jobs:
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
-
-      # 唯一同时具备 Bun 与 Rust 的 job，契约漂移门禁因此放这里，不写第二份 PowerShell。
-      - name: Verify generated IPC bindings
-        run: bun run ipc:check
-
-      # KAP 生成物同受门禁：generated/ 只许生成器写，手改在这里变红。
-      - name: Verify generated KAP models
-        run: bun run kap:generated:check
 
       # turbo.json 中 build.dependsOn 已包含 typecheck，无需单独再跑一遍。
       - name: Build Windows desktop binary

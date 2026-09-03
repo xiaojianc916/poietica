@@ -46,7 +46,6 @@
     "test:rust": "cargo test --workspace --all-features",
     "typecheck": "turbo run typecheck --continue",
     "verify:channel": "bun tools/release/verify-channel.ts",
-    "verify:release": "bun run check:versions && bun run check && bun run audit && bun run audit:rust",
     "version:set": "bun tools/release/set-version.ts"
   },
   "devDependencies": {
