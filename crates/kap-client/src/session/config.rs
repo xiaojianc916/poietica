@@ -425,7 +425,6 @@ fn in_force(choices: &[ConfigChoice], reported: &str) -> Option<String> {
     choices
         .iter()
         .find(|choice| choice.value == reported)
-        
         .map(|choice| choice.value.clone())
 }
 
