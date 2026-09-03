@@ -10,12 +10,7 @@ import type { PromptInputHandle } from '../composer/prompt-input'
 import { GoalBar } from '../goal/goal-bar'
 import { useAgentToolkit } from '../session/agent-controls-context'
 import type { AssistantSubmission } from '../session/use-assistant-session'
-import {
-  useAssistantPending,
-  useAssistantPendingCount,
-  useAssistantQuestion,
-  useAssistantSession,
-} from '../session/use-assistant-session'
+import { useAssistantInteractions, useAssistantSession } from '../session/use-assistant-session'
 import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branch-picker'
 import { WorkspacePicker, type WorkspacePickerProps } from '../threads/workspace-picker'
 
@@ -125,20 +120,11 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 既记下控件那一格，也把经过交给转录（#transcripts?.failed）—— 于是它和帧流
    * 里的失败长同一个样子，都是那条横线。
    */
-  /*
-   * 待答的那道题。
-   *
-   * 「还在等的那一道必在本轮末尾」这条不变式的实现只有一处：选择器里的
-   * pendingPermission。这一层订阅它交回的那个条目本身：在被答复之前恒是同一个
-   * 引用，所以流式追加动不了这一层。提问不在这条通道上：它有自己的条目类型。
-   */
-  const blocked = useAssistantPending(assistant.key)
-
-  /* 还在等的一共几个。审批带恒显示最早那一个，所以变的只有分母。 */
-  const waiting = useAssistantPendingCount(assistant.key)
-
-  /* 待答的那一组题。协议自己的通道，答复与撤下直走会话端口，不经权限请求。 */
-  const question = useAssistantQuestion(assistant.key)
+  const {
+    permission: blocked,
+    permissionCount: waiting,
+    question,
+  } = useAssistantInteractions(assistant.key)
 
   /*
    * 待答的那一次审批。

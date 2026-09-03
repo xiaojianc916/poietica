@@ -1,5 +1,10 @@
 import { expect, test } from 'bun:test'
-import { applyRunEvents, replayThreadEvents, selectPresentation } from '@poietica/conversation'
+import {
+  applyRunEvents,
+  type Presentation,
+  replayThreadEvents,
+  selectPresentation,
+} from '@poietica/conversation'
 import { closedConversation, liveDelta, liveTurn } from './synthetic-conversation'
 
 /*
@@ -14,6 +19,7 @@ const CLOSED: ReadonlyMap<number, boolean> = new Map()
 
 const SHAPE = { deltas: 3, toolEvery: 5, width: 480 }
 const FRAMES = 40
+const VISIBLE_ROWS = 64
 const LIVE_SEQ = 1_000_000
 
 interface Sample {
@@ -21,10 +27,26 @@ interface Sample {
   readonly openMs: number
   readonly rows: number
   readonly msPerFrame: number
+  readonly visibleReads: number
 }
 
 function round(value: number): number {
   return Math.round(value * 1_000) / 1_000
+}
+
+function readVisible(projection: Presentation): number {
+  const start = Math.max(0, projection.count - VISIBLE_ROWS)
+  let reads = 0
+
+  for (let index = start; index < projection.count; index += 1) {
+    reads += projection.rowAt(index) === undefined ? 0 : 1
+    reads += projection.groupAt(index) === undefined ? 0 : 1
+    reads += projection.sealAt(index) === undefined ? 0 : 1
+    reads += projection.replyAt(index) === undefined ? 0 : 1
+    reads += projection.turnIdAt(index) === undefined ? 0 : 1
+  }
+
+  return reads
 }
 
 function sample(turns: number): Sample {
@@ -37,13 +59,14 @@ function sample(turns: number): Sample {
   state = applyRunEvents(state, [liveTurn(LIVE_SEQ, 9_000_000)])
 
   const streamedAt = performance.now()
+  let visibleReads = 0
 
   for (let frame = 0; frame < FRAMES; frame += 1) {
     state = applyRunEvents(state, [
       liveDelta(LIVE_SEQ + 1 + frame, 9_000_100 + frame, frame, SHAPE.width),
     ])
 
-    selectPresentation(state, CLOSED).rowAt(0)
+    visibleReads += readVisible(selectPresentation(state, CLOSED))
   }
 
   const msPerFrame = (performance.now() - streamedAt) / FRAMES
@@ -53,6 +76,7 @@ function sample(turns: number): Sample {
     openMs: round(openMs),
     rows: opened.count,
     msPerFrame: round(msPerFrame),
+    visibleReads,
   }
 }
 
@@ -79,4 +103,6 @@ test('打开超长会话并吐字，基准跑通并报出每帧代价', () => {
   /* 基准自己要成立的那一条：规模更大的那次条目更多。 */
   expect(small.rows).toBeGreaterThan(0)
   expect(large.rows).toBeGreaterThan(small.rows)
+  expect(small.visibleReads).toBeGreaterThan(0)
+  expect(large.visibleReads).toBeGreaterThan(0)
 })

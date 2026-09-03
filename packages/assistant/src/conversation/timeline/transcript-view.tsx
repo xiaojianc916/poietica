@@ -1,6 +1,6 @@
 import type { Presentation, TurnMark } from '@poietica/conversation'
 import { selectIsBusy, selectPresentation } from '@poietica/conversation'
-import { type ReactNode, useCallback, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useTranscripts } from '../session/transcripts-context'
@@ -11,7 +11,7 @@ import {
   useAssistantTimeline,
 } from '../session/use-assistant-session'
 import { RestoreSpinner } from '../surface/restore-spinner'
-import { estimateRowPx } from './row-estimate'
+import { createRowEstimator } from './row-estimate'
 import { rowRhythmOf } from './row-rhythm'
 import { TimelineSeat } from './timeline-seat'
 
@@ -148,6 +148,10 @@ export function TranscriptView({
    * 换引用，包了也永远不命中。
    */
   const feed = selectPresentation(timeline, seals)
+  const estimateRow = useMemo(() => {
+    void sessionKey
+    return createRowEstimator()
+  }, [sessionKey])
 
   /*
    * 一行的全部装饰按下标问，交给记忆化的行位。
@@ -183,7 +187,10 @@ export function TranscriptView({
   )
 
   /* 估高、节奏与渲染同源：类别知识都在这一层，滚动窗口只收三个按下标问的函数。 */
-  const estimateRowAt = useCallback((index: number) => estimateRowPx(feed.rowAt(index)), [feed])
+  const estimateRowAt = useCallback(
+    (index: number) => estimateRow(feed.rowAt(index)),
+    [estimateRow, feed],
+  )
   const rowRhythmAt = useCallback((index: number) => rowRhythmOf(feed.rowAt(index)), [feed])
 
   /* admissionId 是落点；未产出可见行的轮次回退到最近可见轮次。 */

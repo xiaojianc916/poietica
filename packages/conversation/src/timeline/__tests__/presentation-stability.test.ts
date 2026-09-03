@@ -65,6 +65,28 @@ describe('selectPresentation 的引用稳定性', () => {
     }
   })
 
+  it('运行中不物化回复操作，收口后文本保持完整', () => {
+    let state = applyRunEvents(createTimelineState(), [
+      asked(1),
+      spoke(2, '第一段'),
+      spoke(3, '第二段'),
+    ])
+    const running = selectPresentation(state, CLOSED)
+
+    for (let row = 0; row < running.count; row += 1) {
+      expect(running.replyAt(row)).toBeUndefined()
+    }
+
+    state = applyRunEvents(state, [finished(4)])
+    const settled = selectPresentation(state, CLOSED)
+    const replies = Array.from({ length: settled.count }, (_, row) => settled.replyAt(row)).filter(
+      (reply) => reply !== undefined,
+    )
+
+    expect(replies).toHaveLength(1)
+    expect(replies[0]?.text).toBe('第一段第二段')
+  })
+
   it('新一轮到达时视图变长，旧行仍是原来那一个', () => {
     const before = applyRunEvents(createTimelineState(), [asked(1), spoke(2, '好'), finished(3)])
     const rows = selectPresentation(before, CLOSED)

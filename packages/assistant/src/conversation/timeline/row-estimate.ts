@@ -39,25 +39,41 @@ const PROSE_LINE_PX = 24
 /* 下标越界：这一行不存在。类型联合已由上面那张表穷尽，这不是「未知类型」的估高。 */
 const MISSING_PX = 120
 
-/* 行数，不分配：估高要的是一个数，而按换行切分会为一篇长文本分配一份没人读的行表。 */
-function countLines(text: string): number {
-  let lines = 1
-
-  for (let cursor = text.indexOf('\n'); cursor >= 0; cursor = text.indexOf('\n', cursor + 1)) {
-    lines += 1
-  }
-
-  return lines
+interface ProseMeasurement {
+  readonly length: number
+  readonly lines: number
 }
 
-export function estimateRowPx(row: FeedRow | undefined): number {
-  const item = row?.item
+export type RowEstimator = (row: FeedRow | undefined) => number
 
-  if (item === undefined) {
-    return MISSING_PX
+/** 同一正文 id 只追加；每次估高只扫描本帧新增的后缀。 */
+export function createRowEstimator(): RowEstimator {
+  const measurements = new Map<string, ProseMeasurement>()
+
+  return (row) => {
+    const item = row?.item
+
+    if (item === undefined) {
+      return MISSING_PX
+    }
+    if (item.type !== 'agent_text') {
+      return ROW_PX[item.type]
+    }
+
+    const previous = measurements.get(item.id)
+    const appendFrom =
+      previous !== undefined && previous.length <= item.text.length ? previous.length : 0
+    let lines = appendFrom === 0 ? 1 : (previous?.lines ?? 1)
+
+    for (
+      let cursor = item.text.indexOf('\n', appendFrom);
+      cursor >= 0;
+      cursor = item.text.indexOf('\n', cursor + 1)
+    ) {
+      lines += 1
+    }
+
+    measurements.set(item.id, { length: item.text.length, lines })
+    return PROSE_BASE_PX + lines * PROSE_LINE_PX
   }
-
-  return item.type === 'agent_text'
-    ? PROSE_BASE_PX + countLines(item.text) * PROSE_LINE_PX
-    : ROW_PX[item.type]
 }

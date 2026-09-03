@@ -4,12 +4,11 @@ import type {
   BackgroundTaskItem,
   ChatStatus,
   Interjection,
-  PermissionItem,
+  PendingInteractions,
   PromptAsset,
   PromptConfiguration,
   PromptSkill,
   QuestionResponse,
-  QuestionTimelineItem,
   TimelineState,
   TodoItem,
   Transcript,
@@ -21,9 +20,7 @@ import {
   describeFailure,
   InterjectionOutbox,
   inflightPromptId,
-  pendingPermission,
-  pendingPermissionCount,
-  pendingQuestion,
+  pendingInteractions,
 } from '@poietica/conversation'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranscripts } from './transcripts-context'
@@ -99,12 +96,32 @@ export interface AssistantSession {
  * project 必须是模块级函数：它进 getSnapshot 的依赖数组，写成内联箭头就等于
  * 每次渲染换一个 getSnapshot，React 会当作快照可能变了。
  */
-function useSlice<TValue>(key: string, project: (transcript: Transcript) => TValue): TValue {
+type SliceEquality<TValue> = (left: TValue, right: TValue) => boolean
+
+const sameValue = <TValue>(left: TValue, right: TValue): boolean => Object.is(left, right)
+
+function useSlice<TValue>(
+  key: string,
+  project: (transcript: Transcript) => TValue,
+  equal: SliceEquality<TValue> = sameValue,
+): TValue {
   const transcripts = useTranscripts()
+  const held = useRef<{ readonly key: string; readonly value: TValue } | null>(null)
+  const read = useCallback(() => {
+    const next = project(transcripts.read(key))
+    const previous = held.current
+
+    if (previous !== null && previous.key === key && equal(previous.value, next)) {
+      return previous.value
+    }
+
+    held.current = { key, value: next }
+    return next
+  }, [equal, key, project, transcripts])
 
   return useSyncExternalStore(
     useCallback((onChange: () => void) => transcripts.subscribe(key, onChange), [transcripts, key]),
-    useCallback(() => project(transcripts.read(key)), [transcripts, key, project]),
+    read,
   )
 }
 
@@ -159,22 +176,13 @@ const readOutline = (transcript: Transcript): readonly TurnMark[] => transcript.
 
 const readRevealTarget = (transcript: Transcript): string | null => transcript.revealing
 
-/*
- * 待答的那一道：倒扫，走到人说的上一句话为止（pendingPermission）。
- *
- * 代价是这一轮的长度，不是整条对话的长度；而它交回的是转录里那个条目本身，
- * 所以在被答复之前恒是同一个引用 —— 订阅它的界面因此不会因为流式追加而醒。
- */
-const readPending = (transcript: Transcript): PermissionItem | undefined =>
-  pendingPermission(activeScope(transcript.timeline))
+const readPendingInteractions = (transcript: Transcript): PendingInteractions =>
+  pendingInteractions(activeScope(transcript.timeline))
 
-/* 同一趟扫描的另一格。交出的是数字，所以它比条目引用还稳。 */
-const readPendingCount = (transcript: Transcript): number =>
-  pendingPermissionCount(activeScope(transcript.timeline))
-
-/* 待答的那一组题：与待答的审批同一趟倒扫、同一条引用稳定纪律（pendingQuestion）。 */
-const readQuestion = (transcript: Transcript): QuestionTimelineItem | undefined =>
-  pendingQuestion(activeScope(transcript.timeline))
+const samePendingInteractions: SliceEquality<PendingInteractions> = (left, right) =>
+  left.permission === right.permission &&
+  left.permissionCount === right.permissionCount &&
+  left.question === right.question
 
 export function useAssistantSession({
   endpoint,
@@ -369,35 +377,9 @@ export function useAssistantRevealTarget(key: string): string | null {
   return useSlice(key, readRevealTarget)
 }
 
-/**
- * 这一轮此刻卡在哪一道权限请求上，没有就是 undefined。
- *
- * 交回条目本身：它的身份由 reducer 维护（答复到达时才就地替换那一条），所以
- * 订阅它不会被流式追加打扰。提问不在这条通道上 —— 它有自己的条目与选择器
- * （useAssistantQuestion）。
- */
-export function useAssistantPending(key: string): PermissionItem | undefined {
-  return useSlice(key, readPending)
-}
-
-/**
- * 这一轮此刻一共有几道权限请求在等。
- *
- * 审批带一次只显示最早那一个，所以它要的不是一叠请求，是一个分母 —— 交出
- * 数组就等于每一帧都换一个新引用，而这一层的全部意义就是不被叫醒。
- */
-export function useAssistantPendingCount(key: string): number {
-  return useSlice(key, readPendingCount)
-}
-
-/**
- * 这一轮此刻挂在哪一组题上，没有就是 undefined。
- *
- * 与 useAssistantPending 同一条引用稳定纪律：交回的是转录里那个条目本身，
- * 结清（resolution 落账）时才换引用，流式追加叫不醒订阅者。
- */
-export function useAssistantQuestion(key: string): QuestionTimelineItem | undefined {
-  return useSlice(key, readQuestion)
+/** 输入区的待答状态：一个稳定快照、一条订阅、一次领域扫描。 */
+export function useAssistantInteractions(key: string): PendingInteractions {
+  return useSlice(key, readPendingInteractions, samePendingInteractions)
 }
 
 /*

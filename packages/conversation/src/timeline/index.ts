@@ -35,6 +35,8 @@ export {
   activeScope,
   currentTodos,
   inflightPromptId,
+  type PendingInteractions,
+  pendingInteractions,
   pendingPermission,
   pendingPermissionCount,
   pendingQuestion,

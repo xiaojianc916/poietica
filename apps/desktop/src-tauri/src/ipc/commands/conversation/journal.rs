@@ -152,21 +152,27 @@ fn run<R: Runtime>(app: AppHandle<R>, receiver: Receiver<JournalCommand>) {
 
 fn batch_index(
     batches: &mut Vec<AppendBatch>,
-    indexes: &mut HashMap<(uuid::Uuid, String), usize>,
+    indexes: &mut HashMap<uuid::Uuid, HashMap<String, usize>>,
     thread: uuid::Uuid,
     session_id: &str,
 ) -> usize {
-    let key = (thread, session_id.to_owned());
-    if let Some(index) = indexes.get(&key) {
+    if let Some(index) = indexes
+        .get(&thread)
+        .and_then(|sessions| sessions.get(session_id))
+    {
         return *index;
     }
+
     let index = batches.len();
     batches.push(AppendBatch {
         thread: ThreadId::new(thread.to_string()),
         session: session_id.to_owned(),
         events: Vec::new(),
     });
-    indexes.insert(key, index);
+    indexes
+        .entry(thread)
+        .or_default()
+        .insert(session_id.to_owned(), index);
     index
 }
 
@@ -249,14 +255,15 @@ mod tests {
     fn journal_groups_many_sessions_without_aliasing() {
         let mut batches: Vec<AppendBatch> = Vec::new();
         let mut indexes = HashMap::new();
+        let thread = Uuid::from_u128(1);
         for index in 0..128_u128 {
-            let thread = Uuid::from_u128(index.saturating_add(1));
             let session = format!("session-{index}");
             let first = batch_index(&mut batches, &mut indexes, thread, &session);
             let second = batch_index(&mut batches, &mut indexes, thread, &session);
             assert_eq!(first, second);
         }
         assert_eq!(batches.len(), 128);
-        assert_eq!(indexes.len(), 128);
+        assert_eq!(indexes.len(), 1);
+        assert_eq!(indexes.get(&thread).map(HashMap::len), Some(128));
     }
 }

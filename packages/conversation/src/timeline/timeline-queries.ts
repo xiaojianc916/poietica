@@ -29,8 +29,8 @@ export function activeScope(state: TimelineState): WaitingScope {
   return { items: state.active.items, status: state.status }
 }
 
-/** 一次扫描给出最早的未结审批、审批总数和最早的未结题组。 */
-export function pendingInteractions(items: readonly TimelineItem[]): PendingInteractions {
+/** 一次扫描给出最早的未结审批、审批总数和最早的未结题组。不设状态闸：reducer 由它派生 status。 */
+export function scanPending(items: readonly TimelineItem[]): PendingInteractions {
   let permission: PermissionItem | undefined
   let permissionCount = 0
   let question: QuestionTimelineItem | undefined
@@ -56,30 +56,34 @@ export function pendingInteractions(items: readonly TimelineItem[]): PendingInte
   return { permission, permissionCount, question }
 }
 
-/** 终态中的旧条目不可再操作；活动态只展示最高优先级的审批。 */
-export function pendingPermission(scope: WaitingScope): PermissionItem | undefined {
-  if (scope.status !== 'awaiting_permission') {
-    return undefined
+/** 一次状态过滤、一次扫描，交出输入区需要的完整交互快照。 */
+export function pendingInteractions(scope: WaitingScope): PendingInteractions {
+  if (scope.status !== 'awaiting_permission' && scope.status !== 'awaiting_question') {
+    return NO_PENDING_INTERACTIONS
   }
 
-  return pendingInteractions(scope.items).permission
+  const found = scanPending(scope.items)
+  if (scope.status === 'awaiting_question') {
+    return found.question === undefined
+      ? NO_PENDING_INTERACTIONS
+      : { permission: undefined, permissionCount: 0, question: found.question }
+  }
+
+  return found
+}
+
+/** 终态中的旧条目不可再操作；活动态只展示最高优先级的审批。 */
+export function pendingPermission(scope: WaitingScope): PermissionItem | undefined {
+  return pendingInteractions(scope).permission
 }
 
 export function pendingPermissionCount(scope: WaitingScope): number {
-  if (scope.status !== 'awaiting_permission') {
-    return 0
-  }
-
-  return pendingInteractions(scope.items).permissionCount
+  return pendingInteractions(scope).permissionCount
 }
 
 /** 审批和题组并存时题组仍保留，但终态中的题组不再可操作。 */
 export function pendingQuestion(scope: WaitingScope): QuestionTimelineItem | undefined {
-  if (scope.status !== 'awaiting_permission' && scope.status !== 'awaiting_question') {
-    return undefined
-  }
-
-  return pendingInteractions(scope.items).question
+  return pendingInteractions(scope).question
 }
 
 export function currentTodos(state: TimelineState): readonly TodoItem[] | null {

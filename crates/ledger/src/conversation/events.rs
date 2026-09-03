@@ -16,7 +16,7 @@ pub(super) fn append(
     clock: &dyn WallClock,
     batches: &[AppendBatch],
 ) -> Result<Vec<Vec<Stamp>>, LedgerError> {
-    let mut next_by_thread = HashMap::<String, u64>::new();
+    let mut next_by_thread = HashMap::<&str, u64>::new();
     let mut insert = transaction.prepare(
         "INSERT INTO conversation_events
              (thread_id, seq, turn_id, kind, payload, recorded_at_unix_ms, session_id)
@@ -25,7 +25,7 @@ pub(super) fn append(
     let mut stamped = Vec::with_capacity(batches.len());
 
     for batch in batches {
-        let next = match next_by_thread.entry(batch.thread.as_str().to_owned()) {
+        let next = match next_by_thread.entry(batch.thread.as_str()) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let last: Option<i64> = transaction.query_row(

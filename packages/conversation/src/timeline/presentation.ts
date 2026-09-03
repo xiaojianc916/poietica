@@ -403,7 +403,7 @@ function stanzasIn(rows: readonly FeedRow[], running: boolean): readonly Stanza[
     plans.push({
       after: bounds.length - 1 - k,
       replyId: settled && tail !== undefined ? tail.item.id : undefined,
-      replyText: answer === undefined ? '' : speechFrom(rows, answer, until),
+      replyText: settled && answer !== undefined ? speechFrom(rows, answer, until) : '',
     })
   }
 
@@ -657,7 +657,7 @@ export function selectPresentation(
   const tail = segmentOf(state.active, activeSpan, running, chosen.get(state.active.turn))
   const count = prefix.count + tail.rows.length
 
-  const seek = (index: number) => {
+  const locate = (index: number) => {
     if (index < 0 || index >= count) {
       return undefined
     }
@@ -691,6 +691,18 @@ export function selectPresentation(
       segment,
       trailing: (prefix.trailingPrompts[low] ?? 0) + tail.prompts,
     }
+  }
+
+  let soughtIndex = -1
+  let sought = locate(-1)
+  const seek = (index: number): ReturnType<typeof locate> => {
+    if (index === soughtIndex) {
+      return sought
+    }
+
+    soughtIndex = index
+    sought = locate(index)
+    return sought
   }
 
   const result: Presentation = {

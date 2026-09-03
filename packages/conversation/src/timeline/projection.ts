@@ -25,7 +25,7 @@ import {
   sealTail,
   takeQueued,
 } from './timeline-draft'
-import { pendingInteractions } from './timeline-queries'
+import { scanPending } from './timeline-queries'
 
 /**
  * 这一帧一定会被丢掉吗。
@@ -406,7 +406,7 @@ function settleQuestion(
  * 请求到达与答复到达的两支都读它，抄成两份就会有两种「还在等」。
  */
 function stillWaiting(draft: Draft): RunStatus {
-  const pending = pendingInteractions(draft.items)
+  const pending = scanPending(draft.items)
 
   if (pending.permission !== undefined) {
     return 'awaiting_permission'
