@@ -777,6 +777,72 @@ function modelIdForDraft(providerId: string, alias: string): string {
   return alias.startsWith(prefix) ? alias.slice(prefix.length) : alias
 }
 
+function defaultModelOf(
+  models: readonly ProviderModelInput[],
+  current: ProviderFormCurrent | undefined,
+): string | undefined {
+  const [firstModel] = models
+  if (current === undefined) {
+    return firstModel?.model
+  }
+  const prefix = `${current.provider.id}/`
+  const configured = current.provider.defaultModel?.startsWith(prefix)
+    ? current.provider.defaultModel.slice(prefix.length)
+    : undefined
+  if (configured !== undefined && models.some((model) => model.model === configured)) {
+    return configured
+  }
+  return firstModel?.model
+}
+
+function providerDetailsOf(
+  providerType: string,
+  models: ProviderModelInput[],
+  defaultModel: string | undefined,
+  baseUrl: string,
+): {
+  readonly providerType: string
+  readonly models: ProviderModelInput[]
+  readonly defaultModel?: string
+  readonly baseUrl?: string
+} {
+  const trimmedBase = baseUrl.trim()
+  return {
+    providerType,
+    models,
+    ...(defaultModel === undefined ? {} : { defaultModel }),
+    ...(trimmedBase === '' ? {} : { baseUrl: trimmedBase }),
+  }
+}
+
+function saveProvider(args: {
+  readonly current: ProviderFormCurrent | undefined
+  readonly providerId: string
+  readonly details: ReturnType<typeof providerDetailsOf>
+  readonly secret: string
+  readonly onRun: RunMutation
+}): Promise<boolean> {
+  if (args.current === undefined) {
+    return args.onRun({
+      kind: 'create',
+      provider: {
+        id: args.providerId,
+        ...args.details,
+        ...(args.secret === '' ? {} : { apiKey: args.secret }),
+      },
+    })
+  }
+  return args.onRun({
+    kind: 'replace',
+    providerId: args.current.provider.id,
+    provider: {
+      ...args.details,
+      ...(args.providerId === args.current.provider.id ? {} : { newId: args.providerId }),
+      ...(args.secret === '' ? {} : { apiKey: args.secret }),
+    },
+  })
+}
+
 function ProviderForm({
   current,
   disabled,
@@ -822,41 +888,19 @@ function ProviderForm({
       return
     }
 
-    const currentPrefix = current === undefined ? null : `${current.provider.id}/`
-    const configuredDefault =
-      currentPrefix !== null && current?.provider.defaultModel?.startsWith(currentPrefix)
-        ? current.provider.defaultModel.slice(currentPrefix.length)
-        : null
-    const [firstModel] = validation.models
-    const defaultModel = validation.models.some((model) => model.model === configuredDefault)
-      ? (configuredDefault ?? undefined)
-      : firstModel?.model
-    const details = {
+    const details = providerDetailsOf(
       providerType,
-      models: validation.models,
-      ...(defaultModel === undefined ? {} : { defaultModel }),
-      ...(baseUrl.trim() === '' ? {} : { baseUrl: baseUrl.trim() }),
-    }
-    const secret = apiKey.trim()
-    const ok =
-      current === undefined
-        ? await onRun({
-            kind: 'create',
-            provider: {
-              id: providerId,
-              ...details,
-              ...(secret === '' ? {} : { apiKey: secret }),
-            },
-          })
-        : await onRun({
-            kind: 'replace',
-            providerId: current.provider.id,
-            provider: {
-              ...details,
-              ...(providerId === current.provider.id ? {} : { newId: providerId }),
-              ...(secret === '' ? {} : { apiKey: secret }),
-            },
-          })
+      validation.models,
+      defaultModelOf(validation.models, current),
+      baseUrl,
+    )
+    const ok = await saveProvider({
+      current,
+      providerId,
+      details,
+      secret: apiKey.trim(),
+      onRun,
+    })
 
     if (ok) {
       onSaved(providerId)

@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
 } from '@poietica/design-system'
 import { ChevronLeft, ChevronRight, Circle, CircleCheck, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { type RefObject, useEffect, useRef, useState } from 'react'
 import { answerOf, EMPTY_DRAFT, type QuestionDraft, responseOf } from './question-answer'
 
 /*
@@ -23,7 +23,8 @@ import { answerOf, EMPTY_DRAFT, type QuestionDraft, responseOf } from './questio
 /* 数字键覆盖协议选项和末尾的“其他”。 */
 const HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
 
-type QuestionOption = QuestionTimelineItem['questions'][number]['options'][number]
+type QuestionItem = QuestionTimelineItem['questions'][number]
+type QuestionOption = QuestionItem['options'][number]
 
 type KeyIntent =
   | { readonly kind: 'advance' }
@@ -68,6 +69,155 @@ function keyIntentOf(
   return { kind: 'pick', at, option, via: space ? 'space' : 'number_key' }
 }
 
+function togglePicked(picked: readonly string[], optionId: string): string[] {
+  return picked.includes(optionId)
+    ? picked.filter((held) => held !== optionId)
+    : [...picked, optionId]
+}
+
+/* 单选与自选互斥；多选允许普通选项与“其他”并立。 */
+function draftForPick(draft: QuestionDraft, optionId: string, multiSelect: boolean): QuestionDraft {
+  if (multiSelect) {
+    return { ...draft, skipped: false, picked: togglePicked(draft.picked, optionId) }
+  }
+  return {
+    ...draft,
+    skipped: false,
+    written: '',
+    picked: draft.picked.includes(optionId) ? [] : [optionId],
+  }
+}
+
+function draftForWrite(draft: QuestionDraft, text: string, multiSelect: boolean): QuestionDraft {
+  return {
+    ...draft,
+    skipped: false,
+    written: text,
+    ...(multiSelect ? {} : { picked: [] }),
+  }
+}
+
+function allAnswered(
+  questions: readonly QuestionItem[],
+  drafts: Readonly<Record<string, QuestionDraft>>,
+): boolean {
+  return questions.every(
+    (question) => answerOf(question, drafts[question.id] ?? EMPTY_DRAFT) !== undefined,
+  )
+}
+
+function useQuestionHotkeys(args: {
+  readonly sent: boolean
+  readonly current: QuestionItem
+  readonly cursor: number
+  readonly onAdvance: () => void
+  readonly onFocusOther: () => void
+  readonly onPick: (optionId: string, at: number, via: QuestionAnswerMethod) => void
+}): void {
+  const { sent, current, cursor, onAdvance, onFocusOther, onPick } = args
+  /* 监听绑定在题组生命周期内；文本输入由 keyIntentOf 排除。 */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const intent = sent
+        ? undefined
+        : keyIntentOf(event, current.options, cursor, current.allowOther)
+      if (intent === undefined) {
+        return
+      }
+      event.preventDefault()
+      if (intent.kind === 'advance') {
+        onAdvance()
+        return
+      }
+      if (intent.kind === 'focus_other') {
+        onFocusOther()
+        return
+      }
+      onPick(intent.option.id, intent.at, intent.via)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+}
+
+function QuestionOptionList({
+  current,
+  draft,
+  sent,
+  onPick,
+  onWrite,
+  onFocusOther,
+  otherInput,
+}: {
+  readonly current: QuestionItem
+  readonly draft: QuestionDraft
+  readonly sent: boolean
+  readonly onPick: (optionId: string, at: number) => void
+  readonly onWrite: (text: string) => void
+  readonly onFocusOther: () => void
+  readonly otherInput: RefObject<HTMLInputElement | null>
+}) {
+  const otherSelected = draft.written.trim().length > 0
+  const OtherMark = otherSelected ? CircleCheck : Circle
+  return (
+    <>
+      <div
+        className="assistant-question-panel__options"
+        data-skipped={draft.skipped ? 'true' : undefined}
+      >
+        {current.options.map((option, at) => {
+          const selected = draft.picked.includes(option.id)
+          const Mark = selected ? CircleCheck : Circle
+          return (
+            <button
+              aria-pressed={selected}
+              className="assistant-question-panel__option"
+              data-selected={selected ? 'true' : undefined}
+              disabled={sent}
+              key={option.id}
+              onClick={() => onPick(option.id, at)}
+              title={option.description}
+              type="button"
+            >
+              <span className="assistant-question-panel__key">{at + 1}</span>
+              <span className="assistant-question-panel__mark">
+                <Mark aria-hidden="true" size={16} />
+              </span>
+              <span className="assistant-question-panel__label">{option.label}</span>
+            </button>
+          )
+        })}
+        {current.allowOther === true ? (
+          <label
+            className="assistant-question-panel__option assistant-question-panel__option--other"
+            data-disabled={sent || draft.skipped ? 'true' : undefined}
+            data-selected={otherSelected ? 'true' : undefined}
+          >
+            <span className="assistant-question-panel__key">{current.options.length + 1}</span>
+            <span className="assistant-question-panel__mark">
+              <OtherMark aria-hidden="true" size={16} />
+            </span>
+            <span className="assistant-question-panel__label">{current.otherLabel ?? '其他'}</span>
+            <input
+              aria-label={current.otherLabel ?? '其他'}
+              className="assistant-question-panel__other-input"
+              disabled={sent || draft.skipped}
+              onChange={(event) => onWrite(event.target.value)}
+              onFocus={onFocusOther}
+              placeholder={current.otherDescription ?? '请输入…'}
+              ref={otherInput}
+              value={draft.written}
+            />
+          </label>
+        ) : null}
+      </div>
+      {current.multiSelect === true ? (
+        <p className="assistant-question-panel__hint-inline">可多选</p>
+      ) : null}
+    </>
+  )
+}
+
 export interface QuestionPanelProps {
   readonly item: QuestionTimelineItem
   readonly onAnswer?: ((response: QuestionResponse) => Promise<void>) | undefined
@@ -93,47 +243,20 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
 
   const draft = drafts[current.id] ?? EMPTY_DRAFT
   const lastPage = page >= total - 1
-  const otherSelected = draft.written.trim().length > 0
-  const OtherMark = otherSelected ? CircleCheck : Circle
-  const ready = questions.every(
-    (question) => answerOf(question, drafts[question.id] ?? EMPTY_DRAFT) !== undefined,
-  )
+  const ready = allAnswered(questions, drafts)
 
   const edit = (next: QuestionDraft) => {
     setDrafts((held) => ({ ...held, [current.id]: next }))
   }
 
-  /* 单选与自选互斥；多选允许普通选项与“其他”并立。 */
   const pick = (optionId: string, at: number, via: QuestionAnswerMethod) => {
     setCursor(at)
     setMethod(via)
-
-    if (current.multiSelect === true) {
-      edit({
-        ...draft,
-        skipped: false,
-        picked: draft.picked.includes(optionId)
-          ? draft.picked.filter((held) => held !== optionId)
-          : [...draft.picked, optionId],
-      })
-      return
-    }
-
-    edit({
-      ...draft,
-      skipped: false,
-      written: '',
-      picked: draft.picked.includes(optionId) ? [] : [optionId],
-    })
+    edit(draftForPick(draft, optionId, current.multiSelect === true))
   }
 
   const write = (text: string) => {
-    edit({
-      ...draft,
-      skipped: false,
-      written: text,
-      ...(current.multiSelect === true ? {} : { picked: [] }),
-    })
+    edit(draftForWrite(draft, text, current.multiSelect === true))
   }
 
   const deliver = (action: () => Promise<void>) => {
@@ -147,11 +270,9 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
 
   const send = (via: QuestionAnswerMethod) => {
     const response = responseOf(item, drafts, method ?? via, note)
-
     if (response === undefined || onAnswer === undefined) {
       return
     }
-
     deliver(() => onAnswer(response))
   }
 
@@ -159,20 +280,18 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
     if (onDismiss === undefined) {
       return
     }
-
     deliver(() => onDismiss(item.questionId))
   }
 
   const advance = (via: QuestionAnswerMethod) => {
-    if (lastPage) {
-      if (ready) {
-        send(via)
-      }
+    if (!lastPage) {
+      setPage(page + 1)
+      setCursor(0)
       return
     }
-
-    setPage(page + 1)
-    setCursor(0)
+    if (ready) {
+      send(via)
+    }
   }
 
   const turn = (delta: number) => {
@@ -180,36 +299,18 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
     setCursor(0)
   }
 
-  /* 监听绑定在题组生命周期内；文本输入由 keyIntentOf 排除。 */
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const intent = sent
-        ? undefined
-        : keyIntentOf(event, current.options, cursor, current.allowOther)
+  const focusOther = () => {
+    setCursor(current.options.length)
+    otherInput.current?.focus()
+  }
 
-      if (intent === undefined) {
-        return
-      }
-
-      event.preventDefault()
-
-      if (intent.kind === 'advance') {
-        advance('enter')
-        return
-      }
-
-      if (intent.kind === 'focus_other') {
-        setCursor(current.options.length)
-        otherInput.current?.focus()
-        return
-      }
-
-      pick(intent.option.id, intent.at, intent.via)
-    }
-
-    window.addEventListener('keydown', onKey)
-
-    return () => window.removeEventListener('keydown', onKey)
+  useQuestionHotkeys({
+    sent,
+    current,
+    cursor,
+    onAdvance: () => advance('enter'),
+    onFocusOther: focusOther,
+    onPick: (optionId, at, via) => pick(optionId, at, via),
   })
 
   return (
@@ -246,64 +347,15 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
             <p className="assistant-question-panel__body">{current.body}</p>
           )}
 
-          <div
-            className="assistant-question-panel__options"
-            data-skipped={draft.skipped ? 'true' : undefined}
-          >
-            {current.options.map((option, at) => {
-              const selected = draft.picked.includes(option.id)
-              const Mark = selected ? CircleCheck : Circle
-
-              return (
-                <button
-                  aria-pressed={selected}
-                  className="assistant-question-panel__option"
-                  data-selected={selected ? 'true' : undefined}
-                  disabled={sent}
-                  key={option.id}
-                  onClick={() => pick(option.id, at, 'click')}
-                  title={option.description}
-                  type="button"
-                >
-                  <span className="assistant-question-panel__key">{at + 1}</span>
-                  <span className="assistant-question-panel__mark">
-                    <Mark aria-hidden="true" size={16} />
-                  </span>
-                  <span className="assistant-question-panel__label">{option.label}</span>
-                </button>
-              )
-            })}
-
-            {current.allowOther === true ? (
-              <label
-                className="assistant-question-panel__option assistant-question-panel__option--other"
-                data-disabled={sent || draft.skipped ? 'true' : undefined}
-                data-selected={otherSelected ? 'true' : undefined}
-              >
-                <span className="assistant-question-panel__key">{current.options.length + 1}</span>
-                <span className="assistant-question-panel__mark">
-                  <OtherMark aria-hidden="true" size={16} />
-                </span>
-                <span className="assistant-question-panel__label">
-                  {current.otherLabel ?? '其他'}
-                </span>
-                <input
-                  aria-label={current.otherLabel ?? '其他'}
-                  className="assistant-question-panel__other-input"
-                  disabled={sent || draft.skipped}
-                  onChange={(event) => write(event.target.value)}
-                  onFocus={() => setCursor(current.options.length)}
-                  placeholder={current.otherDescription ?? '请输入…'}
-                  ref={otherInput}
-                  value={draft.written}
-                />
-              </label>
-            ) : null}
-          </div>
-
-          {current.multiSelect === true ? (
-            <p className="assistant-question-panel__hint-inline">可多选</p>
-          ) : null}
+          <QuestionOptionList
+            current={current}
+            draft={draft}
+            onFocusOther={() => setCursor(current.options.length)}
+            onPick={(optionId, at) => pick(optionId, at, 'click')}
+            onWrite={write}
+            otherInput={otherInput}
+            sent={sent}
+          />
         </div>
 
         <div className="assistant-question-panel__tail">

@@ -1,17 +1,8 @@
 #!/usr/bin/env bun
-/**
- * 版本的单一真相是 Cargo workspace。传入 tag 时，tag 也算一处声明。
- *
- * 少了 tag 这一条，v0.1.2 的 tag 可以发出一个内部版本号还是 0.1.1 的安装包：
- * 客户端装完之后仍然认为 latest.json 比自己新，于是无限提示更新。
- *
- *   bun tools/release/check-versions.ts [tag]
- */
-
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 
-import { workspaceVersion } from './version.ts'
+import { SEMVER, workspaceVersion } from './version.ts'
 
 type Read = (text: string) => string | undefined
 
@@ -34,20 +25,17 @@ const declared: Array<readonly [string, string | undefined]> = await Promise.all
 )
 
 const expected = declared[0]?.[1]
-
-if (expected === undefined) {
-  console.error('Could not read [workspace.package] version from Cargo.toml')
+if (expected === undefined || !SEMVER.test(expected)) {
+  console.error('Cargo.toml [workspace.package] does not contain a valid semantic version')
   process.exit(2)
 }
 
 const tag = process.argv[2]
-
 if (tag !== undefined) {
   declared.push([`tag ${tag}`, tag.replace(/^v/, '')])
 }
 
 let consistent = true
-
 for (const [label, version] of declared) {
   const matches = version === expected
   consistent = consistent && matches

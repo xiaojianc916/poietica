@@ -3,7 +3,10 @@ import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 
 const CONF = 'apps/desktop/src-tauri/tauri.conf.json'
-const PLATFORM = 'windows-x86_64-nsis'
+const PLATFORM = 'windows-x86_64'
+const ATTEMPTS = 18
+const RETRY_MS = 5_000
+
 type Artifact = { readonly url?: string; readonly signature?: string }
 export type Manifest = { readonly version?: string; readonly platforms?: Record<string, Artifact> }
 
@@ -16,7 +19,53 @@ export function channelFault(manifest: Manifest, tag: string): string | null {
   if (!artifact?.url || !artifact.signature) {
     return `${PLATFORM} is incomplete`
   }
+  try {
+    const url = new URL(artifact.url)
+    if (url.protocol !== 'https:' || !url.pathname.includes(`/releases/download/${tag}/`)) {
+      return `${PLATFORM} points outside release ${tag}`
+    }
+  } catch {
+    return `${PLATFORM} has an invalid URL`
+  }
   return null
+}
+
+const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+
+async function verify(endpoint: string, tag: string): Promise<Manifest> {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(endpoint, {
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15_000),
+      })
+      if (!response.ok) {
+        throw new Error(`${endpoint} answered ${response.status}`)
+      }
+      const manifest = (await response.json()) as Manifest
+      const fault = channelFault(manifest, tag)
+      if (fault) {
+        throw new Error(fault)
+      }
+      const url = manifest.platforms?.[PLATFORM]?.url as string
+      const artifact = await fetch(url, {
+        method: 'HEAD',
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15_000),
+      })
+      if (!artifact.ok) {
+        throw new Error(`${url} answered ${artifact.status}`)
+      }
+      return manifest
+    } catch (error) {
+      lastError = error
+      if (attempt < ATTEMPTS) {
+        await wait(RETRY_MS)
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError))
 }
 
 async function main(): Promise<void> {
@@ -31,20 +80,7 @@ async function main(): Promise<void> {
   if (!endpoint) {
     throw new Error('updater endpoint is missing')
   }
-  const response = await fetch(endpoint, { redirect: 'follow' })
-  if (!response.ok) {
-    throw new Error(`${endpoint} answered ${response.status}`)
-  }
-  const manifest = (await response.json()) as Manifest
-  const fault = channelFault(manifest, tag)
-  if (fault) {
-    throw new Error(fault)
-  }
-  const url = manifest.platforms?.[PLATFORM]?.url as string
-  const artifact = await fetch(url, { method: 'HEAD', redirect: 'follow' })
-  if (!artifact.ok) {
-    throw new Error(`${url} answered ${artifact.status}`)
-  }
+  const manifest = await verify(endpoint, tag)
   console.log(`update channel: ${manifest.version}, ${PLATFORM}`)
 }
 

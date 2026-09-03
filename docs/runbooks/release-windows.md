@@ -1,78 +1,62 @@
 # Runbook — Windows 发行
 
-面向的是"装到别人电脑上的 Poietica"，不是开发机上的 `bun run dev`。
+面向装到用户电脑上的 Poietica。发布只有一条路径：本地命令创建版本提交与 tag，
+GitHub Actions 构建、签名、验收并发布。
 
 ## 一次性设置
 
-### 1. 更新签名密钥（必做）
+### 更新签名密钥
 
 ```bash
 cd apps/desktop && bun run tauri signer generate -w $HOME/.tauri/poietica.key
 ```
 
-- 公钥填进 `apps/desktop/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`，替换
-  `REPLACE_WITH_TAURI_SIGNER_PUBKEY`。公钥不是密钥，入库。
-- 私钥与口令进仓库 secrets：`TAURI_SIGNING_PRIVATE_KEY`、
+- 公钥写入 `apps/desktop/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
+- 私钥与口令只存仓库 secrets：`TAURI_SIGNING_PRIVATE_KEY`、
   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
+- 私钥离线备份；遗失后，已安装客户端无法信任后续更新。
 
-> 这把私钥丢了，就再也无法给已安装的客户端推送更新 —— 它们只信任当前公钥。
-> 离线另存一份。
+### Authenticode 代码签名
 
-### 2. Authenticode 代码签名（决定 SmartScreen 是否拦人）
+未签名安装包会显示“未知发布者”。在 `tauri.release.conf.json` 的
+`bundle.windows` 中配置 Tauri v2 支持的 `certificateThumbprint` 或
+`signCommand`；更新签名与 Authenticode 是两套独立信任链，不能互相替代。
 
-未签名的安装包在别人电脑上会触发 SmartScreen"未知发布者"。Tauri v2 只认两种配置：
-
-- `bundle.windows.certificateThumbprint` —— 证书装在本机证书库时使用；
-- `bundle.windows.signCommand` —— 云签名（Azure Trusted Signing 等）时使用，
-  例如
-  `"signCommand": "artifact-signing-cli -e <endpoint> -a <account> -c <profile> -d Poietica %1"`。
-
-配置写进 `tauri.release.conf.json` 的 `bundle.windows`，只影响发布构建。
-
-> 历史遗留：此前 release workflow 里的 `TAURI_WINDOWS_CERTIFICATE` /
-> `TAURI_WINDOWS_CERTIFICATE_PASSWORD` 不被 Tauri v2 读取，填了也没有签名。已删除。
-
-## 发一个版本
+## 发布
 
 ```bash
-bun run version:set 0.2.0
-bun run check:versions
-git commit -am "release: 0.2.0"
-git tag v0.2.0
-git push origin main --tags
+bun release                       # 交互选择，默认 patch
+bun release minor                 # 也可用 patch / major
+bun release 0.3.0-rc.1 --no-wait  # 指定版本并在派发后返回
 ```
 
-Release workflow 会：preflight（拦占位公钥）→ 版本一致性 → `bun run check` 绿灯闸门 →
-依赖策略 → `bun run build:release` → 收集 `.exe` / `.sig` → 生成 `latest.json` →
-SHA256SUMS → 静默安装冒烟 + PE 子系统回归检查 → 建草稿 release。
+命令会确认主分支与干净工作区、同步远端、执行质量门禁、统一写入四处版本号，
+创建一个版本提交和 annotated tag，再用 `git push --atomic` 一次推送。默认继续等待
+Release workflow 完成；`--yes` 仅跳过确认，不跳过门禁。
 
-确认产物后手动 Publish。`latest.json` 通过
-`releases/latest/download/latest.json` 被已安装客户端读取，发布即生效。
+Release workflow 将 tag 与版本对表，执行测试及依赖审计，然后由官方
+`tauri-apps/tauri-action` 构建签名产物和 `latest.json`。Release 在安装冒烟与
+Windows GUI 子系统检查通过前保持 draft；通过后自动发布、标记 latest，并验证稳定更新端点。
+预发布版本会发布为 prerelease，但不会替换稳定更新端点。
 
-## 本地出一个安装包
+### 失败处理
 
-```bash
-bun run build:release          # target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
-```
-
-不带 updater 产物，也不需要签名密钥。
+- 原子推送前失败：命令删除自己创建的 tag/提交并恢复四个版本文件。
+- 原子推送后失败：远端版本不自动改写；在 Actions 查看或重跑同一工作流。
+- 已公开的版本号不复用；源码需要修正时发布下一个版本。
 
 ## 安装形态
 
-- 渠道：NSIS，`installMode: currentUser`，装到 `%LOCALAPPDATA%\Programs`，不需要 UAC。
-- MSI 已下线：它是 per-machine，与 NSIS 并存会在同一台机器上产生两份互不可见的
-  安装，且 updater 只能更新其中一份。企业分发若需要 MSI，应作为单独标注的渠道
-  另行构建，而不是与消费者安装包并排丢在同一个 release 里。
-- WebView2：`embedBootstrapper`，Windows 10 1803+ / Windows 11 通常已预装。
+- 渠道：NSIS，`installMode: currentUser`，不需要 UAC。
+- MSI 不与消费者 NSIS 渠道混发；企业渠道需要时独立设计。
+- WebView2 使用 `embedBootstrapper`。
 
-## 未决 —— 下一个 P0
+## 桌面验收
 
-agent 可执行文件目前由 `which` 从**终端用户的 PATH** 解析（见 workspace
-`Cargo.toml` 的 `which = "8"`），`tauri.conf.json` 里没有 `externalBin`。
-在一台没装过 Node / agent CLI 的干净 Windows 上，安装能成功、应用能启动、
-会话一条也跑不起来。
+浏览器测试不能覆盖原生交互。发布前按
+`docs/runbooks/desktop-release-checklist.md` 记录被测提交、操作系统与结果。
 
-两条正路，二选一，不要两条都留：
+## 独立的产品打包缺口
 
-1. `bundle.externalBin` 打 sidecar，随安装包分发，运行时优先解析 sidecar；
-2. 首启引导：检测缺失 → 明确告知缺什么 → 引导安装，失败时应用仍处于可解释状态。
+agent 可执行文件仍从终端用户 PATH 解析，安装包未携带 sidecar。该问题不属于发布
+编排本身；在解决前，干净 Windows 机器可能成功安装但无法启动 agent 会话。

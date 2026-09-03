@@ -1,25 +1,35 @@
 import { describe, expect, it } from 'bun:test'
-import { bumped, SEMVER, workspaceVersion } from '../version.ts'
+import { bumped, compareVersions, SEMVER, workspaceVersion } from '../version.ts'
 
 describe('bumped', () => {
   it('increments each segment independently', () => {
     expect(bumped('1.2.3')).toEqual({ major: '2.0.0', minor: '1.3.0', patch: '1.2.4' })
   })
 
-  it('strips a prerelease tail before incrementing', () => {
-    expect(bumped('0.2.2-rc.1').patch).toBe('0.2.3')
+  it('strips prerelease and build metadata before incrementing', () => {
+    expect(bumped('0.2.2-rc.1+build.7').patch).toBe('0.2.3')
   })
 })
 
 describe('SEMVER', () => {
-  it('accepts release and prerelease versions', () => {
+  it('accepts release, prerelease and build versions', () => {
     expect(SEMVER.test('0.2.2')).toBe(true)
-    expect(SEMVER.test('0.2.2-rc.1')).toBe(true)
+    expect(SEMVER.test('0.2.2-rc.1+build.7')).toBe(true)
   })
 
-  it('rejects partial or prefixed versions', () => {
+  it('rejects partial, prefixed and malformed versions', () => {
     expect(SEMVER.test('0.2')).toBe(false)
     expect(SEMVER.test('v0.2.2')).toBe(false)
+    expect(SEMVER.test('01.2.3')).toBe(false)
+    expect(SEMVER.test('1.2.3-..')).toBe(false)
+  })
+})
+
+describe('compareVersions', () => {
+  it('implements SemVer precedence', () => {
+    expect(compareVersions('1.0.0', '1.0.0-rc.1')).toBeGreaterThan(0)
+    expect(compareVersions('1.0.0-rc.10', '1.0.0-rc.2')).toBeGreaterThan(0)
+    expect(compareVersions('1.0.0+one', '1.0.0+two')).toBe(0)
   })
 })
 
