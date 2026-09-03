@@ -15,7 +15,7 @@ import { SEMVER } from './version.ts'
 const version = process.argv[2]
 
 if (!SEMVER.test(version ?? '')) {
-  console.error('usage: bun run version:set <semver>   e.g. bun run version:set 0.2.0')
+  console.error('用法：bun run version:set <语义化版本>，例如：bun run version:set 0.2.0')
   process.exit(2)
 }
 
@@ -34,13 +34,11 @@ for (const [file, pattern] of TARGETS) {
   const source = await readFile(file, 'utf8')
 
   if (!pattern.test(source)) {
-    console.error(`${file}: could not locate the version key`)
+    console.error(`${file}：找不到 version 键`)
     process.exit(2)
   }
 
   await writeFile(file, source.replace(pattern, `$1${version}$2`), 'utf8')
 }
 
-console.log(
-  `version set to ${version} in ${TARGETS.length} files; run bun run check:versions to confirm`,
-)
+console.log(`已写入版本 ${version}（${TARGETS.length} 个文件），再跑 bun run check:versions 确认`)

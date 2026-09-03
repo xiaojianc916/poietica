@@ -30,9 +30,11 @@ bun release minor                 # 也可用 patch / major
 bun release 0.3.0-rc.1 --no-wait  # 指定版本并在派发后返回
 ```
 
-命令会确认主分支与干净工作区、同步远端、执行质量门禁、统一写入四处版本号，
+命令只确认主分支与干净工作区、同步远端、统一写入四处版本号并做一致性检查，
 创建一个版本提交和 annotated tag，再用 `git push --atomic` 一次推送。默认继续等待
-Release workflow 完成；`--yes` 仅跳过确认，不跳过门禁。
+Release workflow 完成；`--yes` 仅跳过发布前确认。质量门禁（`bun run check`）、依赖
+审计、签名构建都在 CI 里跑，本地不再重复跑：推送前本地跑的那套和 CI 跑的是同一套，
+重复跑只是浪费时间。
 
 Release workflow 将 tag 与版本对表，执行测试及依赖审计，然后由官方
 `tauri-apps/tauri-action` 构建签名产物和 `latest.json`。Release 在安装冒烟与

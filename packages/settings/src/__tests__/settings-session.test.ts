@@ -92,9 +92,9 @@ describe('SettingsSession', () => {
     const store: SettingsStore = {
       ...OBSERVABLE_STORE,
       getSnapshot: () => INITIAL,
-      load: async () => {
+      load: () => {
         loads += 1
-        return INITIAL
+        return Promise.resolve(INITIAL)
       },
       save: async () => undefined,
       reset: async () => INITIAL,

@@ -41,7 +41,7 @@ async function verify(endpoint: string, tag: string): Promise<Manifest> {
         signal: AbortSignal.timeout(15_000),
       })
       if (!response.ok) {
-        throw new Error(`${endpoint} answered ${response.status}`)
+        throw new Error(`${endpoint} 返回了 ${response.status}`)
       }
       const manifest = (await response.json()) as Manifest
       const fault = channelFault(manifest, tag)
@@ -55,7 +55,7 @@ async function verify(endpoint: string, tag: string): Promise<Manifest> {
         signal: AbortSignal.timeout(15_000),
       })
       if (!artifact.ok) {
-        throw new Error(`${url} answered ${artifact.status}`)
+        throw new Error(`${url} 返回了 ${artifact.status}`)
       }
       return manifest
     } catch (error) {
@@ -71,17 +71,17 @@ async function verify(endpoint: string, tag: string): Promise<Manifest> {
 async function main(): Promise<void> {
   const tag = process.argv[2]
   if (!tag) {
-    throw new Error('usage: bun tools/release/verify-channel.ts <tag>')
+    throw new Error('用法：bun tools/release/verify-channel.ts <tag>')
   }
   const config = JSON.parse(await readFile(CONF, 'utf8')) as {
     plugins?: { updater?: { endpoints?: string[] } }
   }
   const endpoint = config.plugins?.updater?.endpoints?.[0]
   if (!endpoint) {
-    throw new Error('updater endpoint is missing')
+    throw new Error('tauri.conf.json 里没有 updater endpoint')
   }
   const manifest = await verify(endpoint, tag)
-  console.log(`update channel: ${manifest.version}, ${PLATFORM}`)
+  console.log(`更新通道正常：${manifest.version}（${PLATFORM}）`)
 }
 
 if (import.meta.main) {

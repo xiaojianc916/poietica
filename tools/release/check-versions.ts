@@ -26,7 +26,7 @@ const declared: Array<readonly [string, string | undefined]> = await Promise.all
 
 const expected = declared[0]?.[1]
 if (expected === undefined || !SEMVER.test(expected)) {
-  console.error('Cargo.toml [workspace.package] does not contain a valid semantic version')
+  console.error('Cargo.toml [workspace.package] 里没有合法的语义化版本号')
   process.exit(2)
 }
 
@@ -39,10 +39,10 @@ let consistent = true
 for (const [label, version] of declared) {
   const matches = version === expected
   consistent = consistent && matches
-  console.log(`${matches ? 'ok   ' : 'DRIFT'} ${label}: ${version ?? '(missing)'}`)
+  console.log(`${matches ? '通过  ' : '不一致'} ${label}：${version ?? '（缺失）'}`)
 }
 
 if (!consistent) {
-  console.error(`\nRelease version must be ${expected} everywhere.`)
+  console.error(`\n发布版本必须处处都是 ${expected}。`)
   process.exit(1)
 }

@@ -32,30 +32,30 @@ function line(argv: readonly string[]): string {
 function run(...argv: string[]): void {
   const [program, ...args] = argv
   if (!program) {
-    throw new ReleaseError('empty command')
+    throw new ReleaseError('空命令')
   }
   console.log(`$ ${line(argv)}`)
   const result = spawnSync(program, args, { stdio: 'inherit' })
   if (result.error) {
-    throw new ReleaseError(`${program}: ${result.error.message}`)
+    throw new ReleaseError(`${program}：${result.error.message}`)
   }
   if (result.status !== 0) {
-    throw new ReleaseError(`command exited with ${result.status ?? 'no status'}: ${line(argv)}`)
+    throw new ReleaseError(`命令失败（退出码 ${result.status ?? '未知'}）：${line(argv)}`)
   }
 }
 
 function output(...argv: string[]): string {
   const [program, ...args] = argv
   if (!program) {
-    throw new ReleaseError('empty command')
+    throw new ReleaseError('空命令')
   }
   const result = spawnSync(program, args, { encoding: 'utf8' })
   if (result.error) {
-    throw new ReleaseError(`${program}: ${result.error.message}`)
+    throw new ReleaseError(`${program}：${result.error.message}`)
   }
   if (result.status !== 0) {
     const detail = result.stderr.trim()
-    throw new ReleaseError([`command failed: ${line(argv)}`, detail].filter(Boolean).join('\n'))
+    throw new ReleaseError([`命令失败：${line(argv)}`, detail].filter(Boolean).join('\n'))
   }
   return result.stdout.trim()
 }
@@ -76,7 +76,7 @@ function tryRun(...argv: string[]): void {
   }
   const result = spawnSync(program, args, { stdio: 'inherit' })
   if (result.status !== 0) {
-    console.error(`rollback command failed: ${line(argv)}`)
+    console.error(`回滚命令失败：${line(argv)}`)
   }
 }
 
@@ -102,7 +102,7 @@ function rollback(): void {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     rollback()
-    console.error(`\n${signal}: release cancelled`)
+    console.error(`\n${signal}：已取消发布`)
     process.exit(130)
   })
 }
@@ -120,7 +120,7 @@ async function targetVersion(current: string, requested: string | undefined, yes
       ? 'patch'
       : (
           await reader().question(
-            `Version [patch ${next.patch}; minor ${next.minor}; major ${next.major}] (patch): `,
+            `发哪个版本？[patch ${next.patch}；minor ${next.minor}；major ${next.major}]（默认 patch）：`,
           )
         ).trim() || 'patch')
   const presets = new Map([
@@ -130,10 +130,10 @@ async function targetVersion(current: string, requested: string | undefined, yes
   ])
   const target = presets.get(input) ?? input
   if (!SEMVER.test(target)) {
-    throw new ReleaseError(`invalid semantic version: ${target}`)
+    throw new ReleaseError(`版本号不合法：${target}`)
   }
   if (compareVersions(target, current) <= 0) {
-    throw new ReleaseError(`target ${target} must be newer than ${current}`)
+    throw new ReleaseError(`目标版本 ${target} 必须比当前版本 ${current} 新`)
   }
   return target
 }
@@ -142,9 +142,9 @@ async function confirm(tag: string, yes: boolean): Promise<void> {
   if (yes) {
     return
   }
-  const answer = (await reader().question(`Publish ${tag} from main? [y/N] `)).trim().toLowerCase()
+  const answer = (await reader().question(`确认从 main 发布 ${tag}？[y/N] `)).trim().toLowerCase()
   if (answer !== 'y' && answer !== 'yes') {
-    throw new ReleaseError('release cancelled')
+    throw new ReleaseError('已取消发布')
   }
 }
 
@@ -172,16 +172,17 @@ async function findWorkflowRun(sha: string): Promise<string> {
     }
     await new Promise((resolve) => setTimeout(resolve, 2_000))
   }
-  throw new ReleaseError('release workflow did not appear within 90 seconds')
+  throw new ReleaseError('90 秒内没等到 release workflow 出现')
 }
 
 function printHelp(): void {
   console.log(
     [
-      'Usage: bun release [patch|minor|major|VERSION] [--yes] [--no-wait]',
+      '用法：bun release [patch|minor|major|版本号] [--yes] [--no-wait]',
       '',
-      'Creates one version commit and annotated tag, pushes both atomically,',
-      'then waits for the signed GitHub Actions release by default.',
+      '写一次版本号、打一个版本提交和附注 tag，原子推送到远端，',
+      '默认继续等待 GitHub Actions 上的签名 release 完成。',
+      '质量门禁（bun run check）、依赖审计、签名构建都在 CI 里跑，本地只做版本一致性检查。',
     ].join('\n'),
   )
 }
@@ -202,50 +203,45 @@ async function main(): Promise<void> {
     return
   }
   if (positionals.length > 1) {
-    throw new ReleaseError('expected at most one version argument')
+    throw new ReleaseError('最多只能指定一个版本参数')
   }
 
   const rootPackage = JSON.parse(await readFile('package.json', 'utf8')) as { name?: string }
   if (rootPackage.name !== 'poietica') {
-    throw new ReleaseError('run this command at the repository root')
+    throw new ReleaseError('请在仓库根目录运行')
   }
   output('git', '--version')
   output('bun', '--version')
   if (output('git', 'branch', '--show-current') !== MAIN_BRANCH) {
-    throw new ReleaseError(`releases must start from ${MAIN_BRANCH}`)
+    throw new ReleaseError(`发布必须从 ${MAIN_BRANCH} 分支出发`)
   }
   if (!clean()) {
-    throw new ReleaseError('the working tree must be clean')
+    throw new ReleaseError('工作区必须干净：先提交或暂存改动')
   }
 
-  console.log('Fetching origin and tags...')
+  console.log('正在同步 origin 与 tag……')
   run('git', 'fetch', '--prune', '--tags', 'origin')
   baseSha = output('git', 'rev-parse', 'HEAD')
   const remoteSha = output('git', 'rev-parse', `refs/remotes/origin/${MAIN_BRANCH}`)
   if (baseSha !== remoteSha) {
-    throw new ReleaseError(`local ${MAIN_BRANCH} must exactly match origin/${MAIN_BRANCH}`)
+    throw new ReleaseError(`本地 ${MAIN_BRANCH} 必须与 origin/${MAIN_BRANCH} 完全一致（先 pull）`)
   }
 
   const current = workspaceVersion(await readFile('Cargo.toml', 'utf8'))
   if (!current || !SEMVER.test(current)) {
-    throw new ReleaseError('Cargo.toml does not contain a valid workspace version')
+    throw new ReleaseError('Cargo.toml 里没有合法的 workspace 版本号')
   }
   const target = await targetVersion(current, positionals[0], values.yes === true)
   releaseTag = `v${target}`
   if (tryOutput('git', 'show-ref', '--verify', `refs/tags/${releaseTag}`) !== null) {
-    throw new ReleaseError(`tag already exists: ${releaseTag}`)
+    throw new ReleaseError(`tag 已存在：${releaseTag}`)
   }
   if (!values['no-wait']) {
     run('gh', 'auth', 'status')
   }
   await confirm(releaseTag, values.yes === true)
 
-  console.log('\nRunning the local quality gate...')
-  run('bun', 'run', 'check')
-  if (!clean()) {
-    throw new ReleaseError('the quality gate changed the working tree')
-  }
-
+  // 本地只做版本一致性检查：质量门禁与审计在 CI 里跑同一套，本地重复跑只是浪费时间。
   versionTouched = true
   run('bun', 'run', 'version:set', target)
   run('bun', 'run', 'check:versions', releaseTag)
@@ -256,7 +252,7 @@ async function main(): Promise<void> {
     (file) => !VERSION_FILES.includes(file as (typeof VERSION_FILES)[number]),
   )
   if (changed.length !== VERSION_FILES.length || unexpected.length > 0) {
-    throw new ReleaseError(`versioning changed unexpected files: ${changed.join(', ') || '(none)'}`)
+    throw new ReleaseError(`版本写入改动了意料之外的文件：${changed.join('、') || '（无）'}`)
   }
 
   run('git', 'add', '--', ...VERSION_FILES)
@@ -277,14 +273,14 @@ async function main(): Promise<void> {
   pushed = true
 
   if (values['no-wait']) {
-    console.log(`${releaseTag} dispatched; GitHub Actions owns build, signing and publication.`)
+    console.log(`${releaseTag} 已推送；构建、签名与发布由 GitHub Actions 接管。`)
     return
   }
 
   const runId = await findWorkflowRun(releaseSha)
   run('gh', 'run', 'watch', runId, '--exit-status')
   const url = output('gh', 'release', 'view', releaseTag, '--json', 'url', '--jq', '.url')
-  console.log(`Published ${releaseTag}: ${url}`)
+  console.log(`发布成功 ${releaseTag}：${url}`)
 }
 
 main()
@@ -292,7 +288,7 @@ main()
     rollback()
     console.error(error instanceof Error ? error.message : String(error))
     if (pushed) {
-      console.error('The remote commit and tag were kept; the CI run can be inspected or rerun.')
+      console.error('远端提交与 tag 已保留，去 Actions 里查看或重跑这次 CI。')
     }
     process.exitCode = 1
   })
