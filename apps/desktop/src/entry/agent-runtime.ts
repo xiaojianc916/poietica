@@ -60,8 +60,28 @@ export function createDesktopAgentRuntime(
    * 拉起 agent 之前先等 mcp.json 对齐到本次启动的端口：kap 在进程起来那一刻读它。
    * 所有会走到 ensure_session 的桥都经过这里，所以这一处就是全部。
    */
+  let metadataReady: Promise<void> | null = null
+
+  const ensureModelMetadata = async (): Promise<void> => {
+    const pending = metadataReady ?? options.modelCatalog.synchronizeMetadata()
+    metadataReady = pending
+    try {
+      await pending
+    } catch (cause: unknown) {
+      if (metadataReady === pending) {
+        metadataReady = null
+      }
+      reportError('model metadata synchronization failed', {
+        scope: 'agent-runtime',
+        operation: 'synchronize-model-metadata',
+        cause,
+      })
+    }
+  }
+
   const launchAgent = async () => {
     await options.mcpReady()
+    await ensureModelMetadata()
 
     return { agentId: agent.id }
   }

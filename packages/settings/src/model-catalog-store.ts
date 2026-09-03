@@ -1,3 +1,5 @@
+import { modelConfigPatch } from './model-metadata/models-dev'
+
 export interface ProviderModelInput {
   readonly model: string
   readonly maxContextSize: number
@@ -122,6 +124,7 @@ export class ModelCatalogStore {
   #snapshot = EMPTY
   #generation = 0
   #loading: Promise<void> | null = null
+  #metadataSync: Promise<void> | null = null
   #dispose: (() => void) | null = null
   #disposed = false
 
@@ -172,11 +175,12 @@ export class ModelCatalogStore {
     }
     const pending = this.refresh()
     this.#loading = pending
-    void pending.finally(() => {
+    const settle = () => {
       if (this.#loading === pending) {
         this.#loading = null
       }
-    })
+    }
+    void pending.then(settle, settle)
     return pending
   }
 
@@ -207,6 +211,39 @@ export class ModelCatalogStore {
       }
       throw cause
     }
+  }
+
+  synchronizeMetadata = (): Promise<void> => {
+    if (this.#metadataSync !== null) {
+      return this.#metadataSync
+    }
+    const pending = this.#synchronizeMetadata()
+    this.#metadataSync = pending
+    const settle = () => {
+      if (this.#metadataSync === pending) {
+        this.#metadataSync = null
+      }
+    }
+    void pending.then(settle, settle)
+    return pending
+  }
+
+  refreshFromSources = async (): Promise<void> => {
+    await this.mutate({ kind: 'refreshProviders' })
+    await this.synchronizeMetadata()
+  }
+
+  async #synchronizeMetadata(): Promise<void> {
+    await this.refresh()
+    const { data, error } = this.#snapshot
+    if (data === null || error !== null) {
+      throw new Error(error ?? 'Model catalog is unavailable.')
+    }
+    const models = modelConfigPatch(data)
+    if (Object.keys(models).length === 0) {
+      return
+    }
+    await this.mutate({ kind: 'patchConfig', patch: { models } })
   }
 
   setDefaultModel(modelId: string): Promise<void> {

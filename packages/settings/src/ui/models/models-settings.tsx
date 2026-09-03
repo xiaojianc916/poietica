@@ -159,7 +159,10 @@ function ModelCatalogPanel({
         loading={snapshot.loading || snapshot.mutating}
         onModelVisibilityChange={onModelVisibilityChange}
         onRefresh={() => {
-          void run({ kind: 'refreshProviders' })
+          setActionError(null)
+          void store.refreshFromSources().catch((cause: unknown) => {
+            setActionError(describeAgentCliFailure(cause, '模型元数据刷新失败，请重试。'))
+          })
         }}
       />
       <ProviderWorkspace
