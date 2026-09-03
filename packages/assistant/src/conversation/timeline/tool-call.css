@@ -63,7 +63,7 @@
  * 上下跑。滚动条是滚动容器的边缘，不是内容的边缘：两个轴归同一个盒子，横条才钉得住。
  * 上面那两个参照物也都是这么做的。
  *
- * 滚动条的样子归 packages/ui/src/styles/scrollbar.css 一处所有，这里不再声明。
+ * 滚动条的样子归 packages/design-system/src/scrollbar.css 一处所有，这里不再声明。
  */
 .timeline-tool__panel {
   max-block-size: var(--cp-timeline-output-max);

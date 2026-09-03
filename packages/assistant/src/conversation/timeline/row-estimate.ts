@@ -27,7 +27,7 @@ const ROW_PX: Record<Exclude<FeedRow['item']['type'], 'agent_text'>, number> = {
 /*
  * 正文按内容估：一句「好的」与一段两千行的回答不是同一个高度。
  *
- * 行高的正本在 packages/ui/src/styles/tokens/typography.css：--ui-prose-size
+ * 行高的正本在 packages/design-system/src/tokens/typography.css：--ui-prose-size
  *（0.875rem）× --ui-prose-line-height（1.65）= 23.1px，而 timeline.css 的
  * .timeline-prose 逐字消费这两个令牌。这里向上取整到 24，因此不小于一行的实际行盒。
  *

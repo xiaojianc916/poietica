@@ -5,7 +5,7 @@ import { type DiffFile, type DiffStat, diffStatOf, parseUnifiedPatch } from './u
 
 /*
  * 分隔条的交互态。领域不依赖表现层：这份联合与 design-system 的
- * RegionSplitter.SplitterActivity（packages/design-system/src/region-splitter.tsx）
+ * RegionSplitter.SplitterActivity（packages/design-system/src/layout/region-splitter.tsx）
  * 逐字相同 —— 正本在那里，这里注明；surfaces 的 review/ 把它的 onActivity 值原样递进来，
  * 结构化类型让两份同名同形联合天然相容。
  */

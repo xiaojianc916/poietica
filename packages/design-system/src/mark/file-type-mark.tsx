@@ -2,8 +2,9 @@
  * 文件类型的字形。通用 File 图标说不出这是 tsx 还是 rs，类型本身就是这一行要说的话。
  *
  * 字形取自 Material Icon Theme（MIT），与 opencode 同一套；那边把整套 SVG 收进仓库再由
- * vite-plugin-icons-spritesheet 生成雪碧图（packages/ui/vite.config.ts）。这里只用得到
- * 这十一种，内联省掉一个构建插件与一张近 1 MB 的图。后缀表是这个产品自己的知识，手写。
+ * vite-plugin-icons-spritesheet 生成雪碧图（opencode 仓的 packages/ui/vite.config.ts）。
+ * 这里只用得到这十一种，内联省掉一个构建插件与一张近 1 MB 的图。后缀表是这个产品自
+ * 己的知识，手写。
  */
 
 interface Mark {

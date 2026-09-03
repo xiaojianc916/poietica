@@ -104,7 +104,7 @@ export function workspaceNameOf(id: string): string | null {
 /**
  * 组内次序：固定的在前，其余按最近活动倒序。
  *
- * 与库那条 ORDER BY 同一条规则（crates/persistence/src/threads.rs 的
+ * 与库那条 ORDER BY 同一条规则（crates/ledger/src/index/threads.rs 的
  * list_threads：ORDER BY pinned DESC, updated_at DESC）。
  */
 // ISO-8601 定长串按字典序即时间序，与库那条 ORDER BY 的 BINARY 排序同一规则；

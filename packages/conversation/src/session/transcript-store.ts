@@ -54,7 +54,8 @@ import type { TranscriptSink } from './transcript-sink'
 /**
  * 一句话只有图片时，这条对话叫什么。
  *
- * 与 apps/desktop/src-tauri/src/commands/agent/mod.rs 的 IMAGE_OPENER 逐字相同：
+ * 与 apps/desktop/src-tauri/src/ipc/commands/conversation/mod.rs 的
+ * IMAGE_OPENER 逐字相同：
  * 那一处是权威（它写进库），这一处是它到达之前的乐观占位。两种语言共享不了
  * 一个常量，所以退而求其次 —— 只有一个地方定义规则，另一处标明自己是拷贝，
  * 并说得出正本在哪。

@@ -1,7 +1,8 @@
 /*
  * 受控 home 里 mcp.json 的 poietica-automations 条目，与本进程那台 MCP 服务器的对账。
  *
- * 端口由内核分配（apps/desktop/src-tauri/src/mcp.rs 的 serve），所以地址每次启动都不同：
+ * 端口由内核分配（apps/desktop/src-tauri/src/ipc/commands/automation/mcp_server.rs
+ * 的 serve），所以地址每次启动都不同：
  * 有地址就把条目对齐过去，没有地址就拆掉条目。
  *
  * 会话读的是 mcp.json，本应用没有第二条路把服务器挂进会话 —— 所以「本进程自己起着它」
