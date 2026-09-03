@@ -7,7 +7,6 @@
 
 export { PermissionPicker } from './permission-picker'
 export {
-  hasUnavailableThinking,
   isToggleControl,
   labelOf,
   SessionControls,

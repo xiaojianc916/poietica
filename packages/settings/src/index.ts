@@ -36,7 +36,7 @@ export type {
   ProviderModelInput,
   ProviderReplacement,
 } from './model-catalog-store'
-export { ModelCatalogStore } from './model-catalog-store'
+export { ModelCatalogStore, modelAlias } from './model-catalog-store'
 export type { AppSettings } from './settings'
 export { createSettingsSession, type SettingsOperation } from './settings-session'
 export type { SettingsStore } from './settings-store'

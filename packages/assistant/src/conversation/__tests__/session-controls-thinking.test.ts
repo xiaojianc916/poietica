@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { hasUnavailableThinking, labelOf } from '@poietica/composer'
+import { labelOf } from '@poietica/composer'
 import type { SessionConfigControl } from '@poietica/conversation'
-
-const MODEL: SessionConfigControl = {
-  id: 'model',
-  label: 'Model',
-  purpose: 'model',
-  current: 'plain',
-  choices: [{ value: 'plain', label: 'Plain' }],
-}
 
 const THINKING: SessionConfigControl = {
   id: 'thinking',
@@ -23,12 +15,6 @@ const THINKING: SessionConfigControl = {
 }
 
 describe('Thinking availability projection', () => {
-  it('shows the disabled no state only for a model without a Thought control', () => {
-    expect(hasUnavailableThinking([MODEL])).toBe(true)
-    expect(hasUnavailableThinking([MODEL, THINKING])).toBe(false)
-    expect(hasUnavailableThinking([])).toBe(false)
-  })
-
   it('title-cases offered Thinking values without manufacturing Default', () => {
     expect(THINKING.choices.map((choice) => labelOf(THINKING, choice))).toEqual([
       'Off',

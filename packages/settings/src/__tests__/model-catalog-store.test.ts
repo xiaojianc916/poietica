@@ -49,4 +49,53 @@ describe('ModelCatalogStore', () => {
     await Promise.resolve()
     expect(disposed).toBe(1)
   })
+
+  it('preserves model declarations by full alias', async () => {
+    const catalog: ModelCatalogData = {
+      ...DATA,
+      models: [
+        {
+          provider: 'tokenrouter',
+          model: 'tokenrouter/z-ai/glm-5.3-free',
+          displayName: 'GLM 5.3 (free)',
+          maxContextSize: 128000,
+          capabilities: ['thinking'],
+          supportEfforts: ['low', 'high'],
+          defaultEffort: 'high',
+        },
+      ],
+    }
+    let written: unknown
+    const port: ModelCatalogPort = {
+      execute: async (_agentId, operation) => {
+        if (operation.kind === 'replace') {
+          written = operation.provider
+        }
+        return catalog
+      },
+      subscribeInvalidation: async () => () => undefined,
+    }
+    const store = new ModelCatalogStore(port, 'kimi-code')
+    await store.load()
+    await store.mutate({
+      kind: 'replace',
+      providerId: 'tokenrouter',
+      provider: {
+        providerType: 'openai',
+        models: [{ model: 'z-ai/glm-5.3-free', maxContextSize: 128000 }],
+      },
+    })
+    expect(written).toEqual({
+      providerType: 'openai',
+      models: [
+        {
+          model: 'z-ai/glm-5.3-free',
+          maxContextSize: 128000,
+          capabilities: ['thinking'],
+          supportEfforts: ['low', 'high'],
+        },
+      ],
+    })
+    store.dispose()
+  })
 })

@@ -68,6 +68,10 @@ export interface ModelCatalogData {
   readonly defaultModel: string | null
 }
 
+export function modelAlias(providerId: string, modelId: string): string {
+  return `${providerId}/${modelId}`
+}
+
 export interface ModelCatalogSnapshot {
   readonly data: ModelCatalogData | null
   readonly loading: boolean
@@ -250,7 +254,7 @@ export class ModelCatalogStore {
   }
 }
 
-/* 目录快照是模型声明的唯一真相：表单没有的字段回填，不允许被覆盖写清空。 */
+/* Alias 是跨层模型身份；provider 内 model ID 只用于写请求。 */
 function withDeclared(
   models: readonly ProviderModelInput[],
   declared: readonly ModelDescriptor[],
@@ -262,7 +266,7 @@ function withDeclared(
       .map((entry) => [entry.model, entry] as const),
   )
   return models.map((model) => {
-    const found = source.get(model.model)
+    const found = source.get(modelAlias(providerId, model.model))
     if (found === undefined) {
       return model
     }

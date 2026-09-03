@@ -46,7 +46,7 @@ use crate::session::book::SessionBook;
 use crate::session::client::{AgentClient, Command};
 use crate::session::export::export_session;
 use crate::session::rest::{
-    abort_session, archive_session, create_session_body, ensure_model, fetch_goal, fork_session,
+    abort_session, archive_session, create_session_body, fetch_goal, fork_session,
     get_selectors, install_capability, list_capabilities, list_mcp_servers, list_sessions,
     list_skills, load_session, open_session, post, set_selector, submit_prompt,
 };
@@ -217,10 +217,6 @@ pub fn connect(
             }));
             return Err(handshake);
         };
-
-        // 5.5 绑模型。放在订阅之前：这是开会话的收尾，不是回合的一部分，
-        //     它引发的那几帧不该记进第一轮。
-        ensure_model(&http, &base_url, &session_id).await;
 
         // 6. WebSocket 握手。首连与重连走同一个 dial_ws / shake_hands。
         let ws_url = websocket::connect(&base_url).map_err(|error| KapError::Transport {

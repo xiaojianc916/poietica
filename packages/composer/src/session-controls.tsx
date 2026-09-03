@@ -69,17 +69,6 @@ function chosen(control: SessionConfigControl): string {
   return inForce === undefined ? control.current : labelOf(control, inForce)
 }
 
-/**
- * A model row without a Thought control means the exact model declares no
- * Thinking capability. The UI states that fact instead of inventing a choice.
- */
-export function hasUnavailableThinking(controls: readonly SessionConfigControl[]): boolean {
-  return (
-    controls.some((control) => control.purpose === 'model') &&
-    controls.every((control) => control.purpose !== 'thought')
-  )
-}
-
 export function sessionControlRows(
   controls: readonly SessionConfigControl[],
 ): readonly SessionConfigControl[] {
@@ -106,7 +95,6 @@ export const SessionControls = memo(function SessionControls({
   const rows = useMemo(() => sessionControlRows(controls), [controls])
 
   const model = useMemo(() => controls.find((control) => control.purpose === 'model'), [controls])
-  const showUnavailableThinking = hasUnavailableThinking(rows)
   const [pane, setPane] = useState<string>(ROOT)
   const drilled = rows.find((control) => control.id === pane)
   const [firstRow] = rows
@@ -200,13 +188,6 @@ export const SessionControls = memo(function SessionControls({
                   <span className="assistant-config-menu__row-value">{chosen(control)}</span>
                 </DropdownMenuItem>
               )}
-
-              {showUnavailableThinking && control.purpose === 'model' ? (
-                <DropdownMenuItem className="assistant-config-menu__row" disabled>
-                  <span className="assistant-config-menu__row-label">Thinking</span>
-                  <span className="assistant-config-menu__row-value">No</span>
-                </DropdownMenuItem>
-              ) : null}
             </Fragment>
           ))
         ) : (

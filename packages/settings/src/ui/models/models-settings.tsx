@@ -8,15 +8,16 @@ import {
   type SelectOption,
   Switch,
 } from '@poietica/design-system'
-import type {
-  AgentSettings,
-  CatalogProvider,
-  ModelCatalogData,
-  ModelCatalogOperation,
-  ModelCatalogStore,
-  ModelDescriptor,
-  ModelProvider,
-  ProviderModelInput,
+import {
+  type AgentSettings,
+  type CatalogProvider,
+  type ModelCatalogData,
+  type ModelCatalogOperation,
+  type ModelCatalogStore,
+  type ModelDescriptor,
+  type ModelProvider,
+  modelAlias,
+  type ProviderModelInput,
 } from '@poietica/settings'
 import { Box, Eye, EyeOff, Plus, RotateCw, Trash2 } from 'lucide-react'
 import { Reorder } from 'motion/react'
@@ -662,7 +663,7 @@ function CatalogProviderForm({
       return
     }
     for (const model of provider.models) {
-      onModelVisibilityChange(model.id, visible.has(model.id))
+      onModelVisibilityChange(modelAlias(localId, model.id), visible.has(model.id))
     }
     onCreated(localId)
   }

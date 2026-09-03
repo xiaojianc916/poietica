@@ -335,7 +335,11 @@ fn model_control(current: &str, items: &[ListModelsDataItemsStruct]) -> Option<C
         })
         .collect();
     if current_not_offered(&choices, current) {
-        choices.push(choice(current));
+        choices.push(ConfigChoice {
+            value: current.to_owned(),
+            label: "模型已不可用".to_owned(),
+            detail: Some(current.to_owned()),
+        });
     }
     Some(ConfigControl {
         id: "model".to_owned(),
@@ -531,6 +535,22 @@ mod tests {
                 "overBudget": false
             }
         }))
+    }
+
+    #[test]
+    fn orphaned_model_is_not_presented_as_its_alias() {
+        let offered = catalog("provider/live", &json!([]), &json!([]), "");
+        let model = controls(&status("provider/missing", "off"), &offered, None)
+            .into_iter()
+            .find(|control| control.purpose == ConfigPurpose::Model)
+            .expect("model control");
+        let orphan = model
+            .choices
+            .iter()
+            .find(|choice| choice.value == "provider/missing")
+            .expect("orphaned current model");
+        assert_eq!(orphan.label, "模型已不可用");
+        assert_eq!(orphan.detail.as_deref(), Some("provider/missing"));
     }
 
     #[test]

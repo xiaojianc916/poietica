@@ -266,8 +266,6 @@ async fn activate(
     book.open(session_id)?;
     subscribe(ws, session_id, from).await?;
 
-    ensure_model(http, base_url, session_id).await;
-
     Ok(OpenedSession {
         session_id: session_id.to_owned(),
         selectors: best_effort_selectors(http, base_url, session_id).await,
@@ -551,45 +549,22 @@ fn capability_of(wire: ListCapabilitiesDataCapabilitiesStruct) -> Capability {
     }
 }
 
-/// 给这条会话绑上模型。
-///
-/// 新开的会话没有模型：POST /sessions 的 body 里就没有这一格
-/// （createSessionRequestSchema 只收 title / metadata / workspace_id），服务器建完
-/// 会话回的 agent_config.model 是写死的空串（routes/sessions.ts 的 toWireSession）。
-/// 而 agent 走第一步就要模型，没有就是 [model.not_configured] Model not set —— 一句
-/// 话都答不出来，回合以 turn.ended reason=failed 收场。
-///
-/// 全局默认模型是 config 域的一个值（GET /config 的 default_model），会话不继承它：
-/// 绑上去是开会话这一方的活，kap 只给了 POST /sessions/{id}/profile 这一个入口
-/// （applySessionAgentConfig → IAgentProfileService.setModel，空串会被它跳过）。
-///
-/// 判据全部来自服务器：生效值问 status，默认值问 /config。本 crate 另有一条读
-/// config.toml 的路（process/controlled_home.rs），那是装配阶段判断「这个别名有没有
-/// 可用凭据」的本地对照，不是这里的依据 —— 同一件事有两个说法，迟早对不上。
-///
-/// 已经有模型的会话原样不动：装载与分叉带回来的选择是用户的，不是我们的。
-///
-/// 绑不上不在这里判死。握手一失败，界面连让用户改模型的地方都没有了；原因写进
-/// 日志，真回合会带着 agent 自己的原话失败（run_failed 的 message）。
-pub(crate) async fn ensure_model(http: &reqwest::Client, base_url: &str, session_id: &str) {
-    let status: SessionStatusDataStruct =
-        match get(http, routes::session_status(base_url, session_id))
-            .await
-            .and_then(|data| decoded(data, "session status"))
-        {
-            Ok(status) => status,
-            Err(error) => {
-                log::warn!("could not read the session's model: {error}");
-                return;
-            }
-        };
-
-    if status
+/// 当前模型不在目录时，只回落到仍有效的显式默认模型。
+async fn reconcile_session_model(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+    status: SessionStatusDataStruct,
+    catalog: &ListModelsDataStruct,
+) -> SessionStatusDataStruct {
+    let current_is_valid = status
         .model
         .as_deref()
-        .is_some_and(|model| !model.is_empty())
-    {
-        return;
+        .map(str::trim)
+        .filter(|alias| !alias.is_empty())
+        .is_some_and(|alias| catalog.items.iter().any(|item| item.model == alias));
+    if current_is_valid {
+        return status;
     }
 
     let config: ClientConfigDataStruct = match get(http, routes::client_config(base_url))
@@ -598,37 +573,47 @@ pub(crate) async fn ensure_model(http: &reqwest::Client, base_url: &str, session
     {
         Ok(config) => config,
         Err(error) => {
-            log::warn!("could not read the default model: {error}");
-            return;
+            log::warn!("could not reconcile the session model: {error}");
+            return status;
         }
     };
-
-    let Some(default_model) = config
+    let default_model = config
         .default_model
         .as_deref()
         .map(str::trim)
         .filter(|alias| !alias.is_empty())
-    else {
-        log::warn!(
-            "this kimi has no default model configured, so the session stays without one and every turn ends in model.not_configured"
-        );
-        return;
+        .filter(|alias| catalog.items.iter().any(|item| item.model.as_str() == *alias))
+        .map(str::to_owned);
+    let Some(default_model) = default_model else {
+        log::warn!("the session model is absent from the catalog and no valid default exists");
+        return status;
     };
 
     if let Err(error) = post(
         http,
         routes::set_profile(base_url, session_id),
         &profile_body(CreateSessionRequestAgentConfigStruct {
-            model: Some(default_model.to_owned()),
+            model: Some(default_model.clone()),
             ..Default::default()
         }),
     )
     .await
     {
-        log::warn!("could not set the session's model to {default_model}: {error}");
+        log::warn!("could not set the session model to {default_model}: {error}");
+        return status;
+    }
+
+    match get(http, routes::session_status(base_url, session_id))
+        .await
+        .and_then(|data| decoded(data, "session status"))
+    {
+        Ok(refreshed) => refreshed,
+        Err(error) => {
+            log::warn!("could not read the reconciled session model: {error}");
+            status
+        }
     }
 }
-
 pub(crate) async fn abort_session(
     http: &reqwest::Client,
     base_url: &str,
@@ -669,6 +654,7 @@ pub(crate) async fn get_selectors(
         get(http, routes::list_models(base_url)).await?,
         "model catalog",
     )?;
+    let status = reconcile_session_model(http, base_url, session_id, status, &catalog).await;
     let goal: Option<SessionGoalDataStruct> = decoded(
         get(http, routes::session_goal(base_url, session_id)).await?,
         "session goal",
