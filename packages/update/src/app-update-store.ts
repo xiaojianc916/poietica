@@ -1,6 +1,5 @@
 import { createExternalStore } from '@poietica/external-store'
 import type { AppUpdateController } from './app-update-controller'
-import type { UpdateKind } from './model'
 
 /* 检查节奏只有这一份：定时器跟着 store 活，六小时才真的是六小时。 */
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000
@@ -14,7 +13,7 @@ export type AppUpdateState =
   | { readonly phase: 'idle' }
   | { readonly phase: 'checking' }
   | { readonly phase: 'latest' }
-  | { readonly phase: 'available'; readonly kind: UpdateKind; readonly version: string }
+  | { readonly phase: 'available'; readonly version: string }
   | {
       readonly phase: 'downloading'
       readonly version: string
@@ -105,7 +104,7 @@ export class AppUpdateStore {
         return
       }
 
-      this.#commit({ phase: 'available', kind: release.kind, version: release.version })
+      this.#commit({ phase: 'available', version: release.version })
     }
 
     const first = window.setTimeout(() => {
@@ -155,7 +154,7 @@ export class AppUpdateStore {
           return
         }
 
-        this.#commit({ phase: 'available', kind: release.kind, version: release.version })
+        this.#commit({ phase: 'available', version: release.version })
       },
       (cause: unknown) => {
         this.#onFailure('check-update', cause)
@@ -172,7 +171,7 @@ export class AppUpdateStore {
       return
     }
 
-    const { kind, version } = current
+    const { version } = current
 
     this.#commit({ phase: 'downloading', version, percent: null })
 
@@ -188,7 +187,7 @@ export class AppUpdateStore {
           this.#onFailure('download-update', cause)
 
           /* 退回可点状态：这枚胶囊本身就是重试入口，下一轮检查会纠正版本。 */
-          this.#commit({ phase: 'available', kind, version })
+          this.#commit({ phase: 'available', version })
         },
       )
   }

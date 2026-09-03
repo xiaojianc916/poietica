@@ -36,7 +36,7 @@ export async function watchBrowserState(
 }
 
 export function openBrowserTab(url: string | null): Promise<void> {
-  return throughIpc(() => commands.browserOpenTab(url))
+  return throughIpc(() => commands.browserOpenTab(url)).then(() => undefined)
 }
 
 export function closeBrowserTab(id: number): Promise<void> {
@@ -48,7 +48,7 @@ export function selectBrowserTab(id: number): Promise<void> {
 }
 
 export function navigateBrowserTab(id: number, address: string): Promise<void> {
-  return throughIpc(() => commands.browserNavigate(id, address))
+  return throughIpc(() => commands.browserNavigate(id, address)).then(() => undefined)
 }
 
 export function browserTabBack(id: number): Promise<void> {

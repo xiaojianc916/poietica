@@ -3,10 +3,10 @@ import { type AutomationStore, createAutomationStore } from '@poietica/automatio
 import type { AttachmentIntake } from '@poietica/conversation'
 import { createPluginStore, type PluginStore } from '@poietica/extension'
 import {
-  appUpdateController,
   automationGateway,
   capabilityGateway,
   createAgentSettings,
+  createAppUpdateController,
   createMainWindowController,
   createModelCatalogPort,
   createSettingsStore,
@@ -116,7 +116,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   })
   const commands = createCommandRegistry()
   const mainWindow = createMainWindowController()
-  const appUpdate = appUpdateController
+  const appUpdate = createAppUpdateController()
   const settings = createSettingsStore()
   const agentConfig = createAgentSettings()
   const customAgents: CustomAgentStore = {
@@ -187,6 +187,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       }
       pluginStore.stop()
       modelCatalog.dispose()
+      await appUpdate.dispose()
       await agent.dispose()
     },
   }

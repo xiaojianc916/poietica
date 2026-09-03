@@ -1,35 +1,64 @@
-import { commands, events } from '@poietica/contract'
 import type { AppUpdateController } from '@poietica/update'
-import { throughIpc } from '../error'
+import { check, type DownloadEvent, type Update } from '@tauri-apps/plugin-updater'
 
-/*
- * 更新三步的 IPC 实现：实现 @poietica/update 的 AppUpdateController 端口，由
- * 组合根注入 store。进度走生成的事件面：事件名与 payload 类型都从 Rust 一次生成，
- * 改名即编译失败。版本随下载请求一起过去：由渲染层指定要哪一个，原生侧不再自己
- * 决定「最新」。
- */
+export function createAppUpdateController(): AppUpdateController {
+  let selected: Update | null = null
 
-export const appUpdateController: AppUpdateController = {
-  check: () => throughIpc(() => commands.updateCheck()),
-
-  async download(version, onProgress) {
-    const stopListening = await events.updateProgress.listen((event) => {
-      onProgress(event.payload)
-    })
-
-    try {
-      await throughIpc(() => commands.updateDownload(version))
-    } finally {
-      stopListening()
+  const release = async (): Promise<void> => {
+    const owned = selected
+    selected = null
+    if (owned !== null) {
+      await owned.close()
     }
-  },
+  }
 
-  async relaunch() {
-    /*
-     * 命令的成功值在 Rust 那边是 ()，导出到 TypeScript 就是 null。这个 null
-     * 不是契约的一部分，只是「没有返回值」的一种编码，所以在边界上吞掉，不让
-     * 它渗进端口。
-     */
-    await throughIpc(() => commands.updateRelaunch())
-  },
+  return {
+    async check() {
+      await release()
+      selected = await check()
+      return selected === null ? null : { version: selected.version, notes: selected.body ?? null }
+    },
+
+    async download(version, onProgress) {
+      if (selected === null || selected.version !== version) {
+        throw new Error('the selected update is no longer available')
+      }
+      let received = 0
+      let total: number | null = null
+      const progress = (event: DownloadEvent): void => {
+        if (event.event === 'Started') {
+          total = event.data.contentLength ?? null
+          onProgress({ percent: null })
+          return
+        }
+        if (event.event === 'Progress') {
+          received += event.data.chunkLength
+          onProgress({
+            percent:
+              total === null || total === 0
+                ? null
+                : Math.min(100, Math.floor((received / total) * 100)),
+          })
+          return
+        }
+        onProgress({ percent: 100 })
+      }
+      await selected.download(progress)
+    },
+
+    async relaunch() {
+      if (selected === null) {
+        throw new Error('no downloaded update is available')
+      }
+      const owned = selected
+      selected = null
+      try {
+        await owned.install({ restartAfterInstall: true })
+      } finally {
+        await owned.close().catch(() => undefined)
+      }
+    },
+
+    dispose: release,
+  }
 }

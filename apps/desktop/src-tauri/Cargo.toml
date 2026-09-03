@@ -67,6 +67,7 @@ tauri-plugin-log.workspace = true
 tauri-plugin-opener.workspace = true
 tauri-plugin-single-instance.workspace = true
 tauri-plugin-store.workspace = true
+tauri-plugin-updater.workspace = true
 tauri-plugin-window-state.workspace = true
 
 reqwest.workspace = true
@@ -81,7 +82,6 @@ poietica-extension-native = { path = "../../../crates/extension" }
 poietica-problem = { path = "../../../crates/problem" }
 poietica-terminal-native = { path = "../../../crates/terminal" }
 poietica-time = { path = "../../../crates/time" }
-poietica-update-native = { path = "../../../crates/update" }
 rmcp.workspace = true
 axum.workspace = true
 schemars.workspace = true

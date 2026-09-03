@@ -7,11 +7,12 @@ import { CARGO_RINGS, UNLAYERED_DIRECTORIES } from './layering.ts'
 import type { Violation } from './policies.ts'
 import type { Crate, Workspace } from './workspace.ts'
 
-/** 方案文档写的是目标形态，不是现状：它不参与"点名的东西必须存在"。 */
+/** 方案文档写的是目标形态、工作记忆是过程记录：都不参与"点名的东西必须存在"。 */
 const SKIP = new Set([
   '.git',
   '.github',
   '.turbo',
+  '.workbuddy',
   'Architecture',
   'coverage',
   'dist',

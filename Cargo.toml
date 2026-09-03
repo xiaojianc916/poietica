@@ -14,7 +14,6 @@ members = [
   "crates/review",
   "crates/terminal",
   "crates/time",
-  "crates/update",
 ]
 default-members = [
   "apps/desktop/src-tauri",
@@ -137,6 +136,7 @@ tauri-plugin-store = "2.3.0"
 tauri-plugin-global-shortcut = "2.3.0"
 tauri-plugin-notification = "2.3.0"
 tauri-plugin-window-state = "2.3.0"
+tauri-plugin-updater = "2.11.0"
 
 # IPC contract generation.
 #

@@ -817,15 +817,6 @@ async agentInstallStatus(agentId: string, force: boolean) : Promise<AgentInstall
 async agentInstallRun(agentId: string) : Promise<AgentInstallStatus> {
     return await TAURI_INVOKE("agent_install_run", { agentId });
 },
-async updateCheck() : Promise<UpdateRelease | null> {
-    return await TAURI_INVOKE("update_check");
-},
-async updateDownload(version: string) : Promise<null> {
-    return await TAURI_INVOKE("update_download", { version });
-},
-async updateRelaunch() : Promise<null> {
-    return await TAURI_INVOKE("update_relaunch");
-},
 /**
  * 最近 span 天的日账，由早到晚。没有账的日子不占行。
  * 
@@ -961,8 +952,8 @@ async browserState() : Promise<BrowserState> {
 /**
  * 开标签。不带地址就是空白页。
  */
-async browserOpenTab(url: string | null) : Promise<void> {
-    await TAURI_INVOKE("browser_open_tab", { url });
+async browserOpenTab(url: string | null) : Promise<null> {
+    return await TAURI_INVOKE("browser_open_tab", { url });
 },
 async browserCloseTab(id: number) : Promise<void> {
     await TAURI_INVOKE("browser_close_tab", { id });
@@ -973,8 +964,8 @@ async browserSelectTab(id: number) : Promise<void> {
 /**
  * 地址栏回车。规整不出 URL 就什么也不做 —— 这个地址栏只认 URL，不做搜索。
  */
-async browserNavigate(id: number, address: string) : Promise<void> {
-    await TAURI_INVOKE("browser_navigate", { id, address });
+async browserNavigate(id: number, address: string) : Promise<null> {
+    return await TAURI_INVOKE("browser_navigate", { id, address });
 },
 /**
  * 后退。历史归内核所有，这里只请求 —— 没有历史时它自然无事发生，
@@ -1037,7 +1028,6 @@ browserState: BrowserState,
 gitWorkingTreeChanged: GitWorkingTreeChanged,
 terminalStreamed: TerminalStreamed,
 terminationRequested: TerminationRequested,
-updateProgress: UpdateProgress,
 windowMaximized: WindowMaximized
 }>({
 agentRunBatch: "agent-run-batch",
@@ -1049,7 +1039,6 @@ browserState: "browser-state",
 gitWorkingTreeChanged: "git-working-tree-changed",
 terminalStreamed: "terminal-streamed",
 terminationRequested: "termination-requested",
-updateProgress: "update-progress",
 windowMaximized: "window-maximized"
 })
 
@@ -2082,18 +2071,6 @@ export type TerminationRequested = null
  * system 的 `ThemePreference` 是同一个集合，界面不必在每个调用点各自断言一次。
  */
 export type ThemePreference = "light" | "dark" | "system"
-/**
- * 契约上的投影：判定归更新域，这里只负责说给渲染层听。
- */
-export type UpdateKind = "patch" | "full"
-/**
- * 下载进度。percent 为 None 表示服务端没给长度。
- */
-export type UpdateProgress = { percent: number | null }
-/**
- * 一个可安装的新版本，以及这一次会走哪条路。
- */
-export type UpdateRelease = { version: string; notes: string | null; kind: UpdateKind }
 /**
  * 一天的账。日历日按本机时区算，键就是渲染层索引热力图的那一个。
  */

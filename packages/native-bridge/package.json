@@ -20,7 +20,8 @@
     "@poietica/settings": "workspace:*",
     "@poietica/update": "workspace:*",
     "@tauri-apps/api": "catalog:tauri",
-    "@tauri-apps/plugin-dialog": "catalog:tauri"
+    "@tauri-apps/plugin-dialog": "catalog:tauri",
+    "@tauri-apps/plugin-updater": "catalog:tauri"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

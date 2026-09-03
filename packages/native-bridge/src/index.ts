@@ -76,7 +76,7 @@ export { readMcpEndpoint } from './gateways/mcp'
 export { createModelCatalogPort } from './gateways/model-catalog'
 export { createSettingsStore } from './gateways/settings'
 export { terminalHostPort } from './gateways/terminal'
-export { appUpdateController } from './gateways/update'
+export { createAppUpdateController } from './gateways/update'
 export { readTokenDays } from './gateways/usage'
 export { readWorkbenchSession, writeWorkbenchSession } from './gateways/workbench'
 export {

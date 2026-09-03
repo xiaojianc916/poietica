@@ -275,11 +275,16 @@ pub(crate) async fn browser_state(app: AppHandle) -> BrowserState {
 /// 开标签。不带地址就是空白页。
 #[command]
 #[specta::specta]
-pub async fn browser_open_tab(app: AppHandle, url: Option<String>) {
+pub async fn browser_open_tab(app: AppHandle, url: Option<String>) -> Result<(), Problem> {
     stop_picker(&app, None);
-    let normalized = url
-        .as_deref()
-        .and_then(poietica_browser_native::normalize_address);
+    let normalized = match url.as_deref() {
+        Some(value) => Some(
+            poietica_browser_native::normalize_address(value).ok_or_else(|| {
+                Error::Validation("browser address is not a supported URL".to_owned())
+            })?,
+        ),
+        None => None,
+    };
 
     let id = {
         let host = app.state::<BrowserHost>();
@@ -296,6 +301,7 @@ pub async fn browser_open_tab(app: AppHandle, url: Option<String>) {
 
     apply_layout(&app);
     publish(&app);
+    Ok(())
 }
 
 #[command]
@@ -346,16 +352,11 @@ pub async fn browser_select_tab(app: AppHandle, id: u32) {
 /// 地址栏回车。规整不出 URL 就什么也不做 —— 这个地址栏只认 URL，不做搜索。
 #[command]
 #[specta::specta]
-pub async fn browser_navigate(app: AppHandle, id: u32, address: String) {
-    let Some(normalized) = poietica_browser_native::normalize_address(&address) else {
-        log::warn!("browser address was not a navigable url");
-        return;
-    };
-
-    let Ok(url) = Url::parse(&normalized) else {
-        log::warn!("browser address survived normalization but not parsing");
-        return;
-    };
+pub async fn browser_navigate(app: AppHandle, id: u32, address: String) -> Result<(), Problem> {
+    let normalized = poietica_browser_native::normalize_address(&address)
+        .ok_or_else(|| Error::Validation("browser address is not a supported URL".to_owned()))?;
+    let url = Url::parse(&normalized)
+        .map_err(|_| Error::Validation("browser address is not a valid URL".to_owned()))?;
 
     stop_picker(&app, Some(id));
 
@@ -366,12 +367,13 @@ pub async fn browser_navigate(app: AppHandle, id: u32, address: String) {
     };
 
     if !known {
-        return;
+        return Err(Error::NotFound("browser tab".to_owned()).into());
     }
 
     drive(&app, id, &url);
     apply_layout(&app);
     publish(&app);
+    Ok(())
 }
 
 /// 后退。历史归内核所有，这里只请求 —— 没有历史时它自然无事发生，

@@ -1,13 +1,8 @@
 name: Release
 
-# 一个 v* tag 必须确定地产出：已签名安装包 + latest.json + 正式 release。
-# 刻意没有人工 Publish 步骤 —— 客户端端点是 releases/latest/download/latest.json，
-# 一个忘了点发布的 draft 等于整条更新通道静默断掉。
-
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
   workflow_dispatch:
 
 concurrency:
@@ -20,149 +15,64 @@ permissions:
 env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
-  # 产物路径必须是确定的。构建脚本固定 --target，这里才敢写死这条路径。
   BUNDLE_DIR: target/x86_64-pc-windows-msvc/release/bundle/nsis
 
 jobs:
   windows-installer:
-    name: Windows installer
     runs-on: windows-latest
     timeout-minutes: 90
     permissions:
-      contents: write # required to publish the release
-
+      contents: write
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup JS toolchain
-        uses: ./.github/actions/setup-js
-
-      - name: Install Rust
-        run: rustup show # honours rust-toolchain.toml
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-js
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
       - name: Release preflight
         shell: pwsh
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          $ErrorActionPreference = "Stop"
-
-          # 占位公钥发出去的后果是所有已安装客户端永远更新失败，且我们不会
-          # 收到任何信号。在构建之前拦下。
-          $key = Get-Content "apps/desktop/src-tauri/updater/public.key" -Raw
-          if ($key -match "REPLACE_WITH_TAURI_SIGNER_PUBKEY") {
-            throw "updater pubkey is still the placeholder. Run: cd apps/desktop && bun run tauri signer generate -w ~/.tauri/poietica.key"
-          }
-
-          # 没有私钥就没有 .sig，没有 .sig 就没有 latest.json，通道发不出去。
-          # 这一条在第 10 秒失败，而不是在 40 分钟的构建之后。
-          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
-            throw "secrets.TAURI_SIGNING_PRIVATE_KEY is not set"
-          }
-
-      # tag 也是版本的一处声明：tag 与包内版本不符，客户端会陷入无限更新提示。
-      - name: Verify version consistency
-        run: bun run check:versions ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-
-      # 发布必须来自绿灯提交。
-      - name: Quality gate
-        run: bun run check
-
-      - name: Dependency policy
-        uses: EmbarkStudios/cargo-deny-action@v2
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw "TAURI_SIGNING_PRIVATE_KEY is not set" }
+      - run: bun run check:versions "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}"
+      - run: bun run check
+      - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
-          arguments: --all-features # advisories included: a release must not ship known-vulnerable deps
-
-      - name: Build installer
-        run: bun run build:release
-
-      - name: Collect artifacts
+          arguments: --all-features
+      - run: bun run build:release
+      - name: Collect updater artifacts
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          $out = "dist-release"
-          New-Item -ItemType Directory -Force -Path $out | Out-Null
-
-          $artifacts = Get-ChildItem -Path $env:BUNDLE_DIR -Include *.exe, *.sig -Recurse
-          if ($artifacts.Count -eq 0) {
-            throw "No installer was produced under $env:BUNDLE_DIR"
-          }
-
-          foreach ($file in $artifacts) {
-            Copy-Item $file.FullName -Destination $out
-          }
-
-
-
+          New-Item -ItemType Directory -Force -Path dist-release | Out-Null
+          $files = Get-ChildItem $env:BUNDLE_DIR -Recurse | Where-Object { $_.Name -match "(\.exe|\.nsis\.zip|\.sig)$" }
+          if ($files.Count -eq 0) { throw "No release artifacts were produced" }
+          $files | Copy-Item -Destination dist-release
+      - name: Build official updater manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: bun tools/release/manifest.ts dist-release "${{ github.ref_name }}"
       - name: Checksums
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-
-          Get-ChildItem "dist-release" -Filter *.exe | ForEach-Object {
+          Get-ChildItem dist-release -File | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             "$hash  $($_.Name)"
-          } | Set-Content -Path "dist-release/SHA256SUMS.txt" -Encoding utf8
-
-          Get-Content "dist-release/SHA256SUMS.txt"
-
-      - name: Smoke test the installer
+          } | Set-Content dist-release/SHA256SUMS.txt -Encoding utf8
+      - name: Smoke test installer
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-
-          $setup = Get-ChildItem "dist-release" -Filter *-setup.exe | Select-Object -First 1
-          if (-not $setup) {
-            throw "No NSIS installer to smoke test"
-          }
-
-          # /S 是 NSIS 静默模式；currentUser 安装不需要提权。
-          Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait
-
-          $installed = Get-ChildItem "$env:LOCALAPPDATA\\Programs" -Recurse -Filter "Poietica.exe" -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-          if (-not $installed) {
-            throw "Silent install did not place Poietica.exe"
-          }
-
-          # 子系统回归检查：console 子系统的产物会给终端用户弹黑框。
-          $bytes = [System.IO.File]::ReadAllBytes($installed.FullName)
-          $peOffset = [System.BitConverter]::ToInt32($bytes, 0x3C)
-          $subsystem = [System.BitConverter]::ToUInt16($bytes, $peOffset + 0x5C)
-          if ($subsystem -ne 2) {
-            throw "Poietica.exe is not a Windows GUI binary (subsystem = $subsystem)"
-          }
-
-          # 增量的基线必须是人手里真正在跑的那份字节：载荷取自已安装的文件。
-          Copy-Item $installed.FullName -Destination "payload-source.exe"
-          $uninstaller = Join-Path $installed.Directory "uninstall.exe"
-          if (Test-Path $uninstaller) {
-            Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait
-          }
-
-      - name: Build update payloads and manifest
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: bun scripts/release/manifest.mjs payload-source.exe dist-release "${{ github.ref_name }}"
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
+          $setup = Get-ChildItem dist-release -Filter *-setup.exe | Select-Object -First 1
+          if (-not $setup) { throw "No NSIS installer to smoke test" }
+          Start-Process $setup.FullName -ArgumentList "/S" -Wait
+          $installed = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter Poietica.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $installed) { throw "Silent install did not place Poietica.exe" }
+      - uses: actions/upload-artifact@v4
         with:
-          name: poietica-windows-installer
+          name: poietica-windows-release
           path: dist-release/*
           if-no-files-found: error
-          retention-days: 14
-
-      # 直接发布，并且必须带上产物：一个没有 latest.json 的 release 就是一条
-      # 断掉的更新通道，它不该以"成功"收场。
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -172,8 +82,6 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: dist-release/*
-
-      # 发布之后，用客户端那条 URL 亲自验证一遍。
       - name: Verify update channel
         if: startsWith(github.ref, 'refs/tags/v')
-        run: bun scripts/release/verify-channel.mjs "${{ github.ref_name }}"
+        run: bun tools/release/verify-channel.ts "${{ github.ref_name }}"

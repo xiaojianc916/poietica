@@ -32,8 +32,9 @@ X-Frame-Options/frame-ancestors 会把大多数站点挡在 iframe 外面。
 
 1. 子 webview 挂独立 profile（数据根 `browser/profile/`），与主界面的
    EBWebView 不共享 Cookie 与站点存储。
-2. capability 清单只圈 `main` 窗口的主 webview；面板里打开的页面没有任何
-   Tauri IPC 面可拿。
+2. capability 清单只圈 `main` 窗口的主 webview；面板里打开的 HTTP(S) 或本机
+   `file:` 页面没有任何 Tauri IPC 面可拿。地址栏只接受显式、本机、绝对 `file:` URL，
+   拒绝 UNC host 与裸路径。
 3. 主窗口 CSP 不为面板放宽 —— 页面根本不在主 webview 里渲染。
 
 ## agent 操控

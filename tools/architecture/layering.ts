@@ -44,7 +44,6 @@ export const CARGO_RINGS: readonly Ring[] = [
       'poietica-ledger',
       'poietica-process-host',
       'poietica-terminal-native',
-      'poietica-update-native',
     ],
   },
   { name: 'composition', members: ['poietica'] },
@@ -68,7 +67,6 @@ export const HOST_AGNOSTIC_CRATES: readonly string[] = [
   'poietica-review-native',
   'poietica-terminal-native',
   'poietica-time',
-  'poietica-update-native',
 ]
 export const FRAMEWORK_FREE_PACKAGES: readonly string[] = [
   '@poietica/contract',

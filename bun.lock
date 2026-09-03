@@ -217,7 +217,6 @@
       "name": "@poietica/extension",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/conversation": "workspace:*",
         "@poietica/design-system": "workspace:*",
         "@poietica/problem": "workspace:*",
         "valibot": "catalog:",
@@ -259,6 +258,7 @@
         "@poietica/update": "workspace:*",
         "@tauri-apps/api": "catalog:tauri",
         "@tauri-apps/plugin-dialog": "catalog:tauri",
+        "@tauri-apps/plugin-updater": "catalog:tauri",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -395,6 +395,7 @@
       "@tauri-apps/plugin-notification": "2.3.3",
       "@tauri-apps/plugin-process": "2.3.1",
       "@tauri-apps/plugin-shell": "2.3.5",
+      "@tauri-apps/plugin-updater": "2.11.0",
     },
   },
   "packages": {
@@ -661,6 +662,8 @@
     "@tauri-apps/cli-win32-x64-msvc": ["@tauri-apps/cli-win32-x64-msvc@2.11.4", "https://registry.npmmirror.com/@tauri-apps/cli-win32-x64-msvc/-/cli-win32-x64-msvc-2.11.4.tgz", { "os": "win32", "cpu": "x64" }, "sha512-+vDiqBIU5dMISg/wNvX3sF+ZHfgJGJ5T0AcO+EHNXV9GGAG+P5fzodlDXD3QdKCRgZxMoCm5PPvj3BqLNjBthw=="],
 
     "@tauri-apps/plugin-dialog": ["@tauri-apps/plugin-dialog@2.7.2", "https://registry.npmmirror.com/@tauri-apps/plugin-dialog/-/plugin-dialog-2.7.2.tgz", { "dependencies": { "@tauri-apps/api": "^2.11.0" } }, "sha512-pX0IGm1I3I6wc+zeKYcq1GSqogK6okCNX5fOdaNU5ab1AjGS6l1E5wFNjEb7meg7ZFSp0JUs+0jQGQNyOvLrsg=="],
+
+    "@tauri-apps/plugin-updater": ["@tauri-apps/plugin-updater@2.11.0", "https://registry.npmmirror.com/@tauri-apps/plugin-updater/-/plugin-updater-2.11.0.tgz", { "dependencies": { "@tauri-apps/api": "^2.11.0" } }, "sha512-AE36XkOoSna24G40jZMY15nzAnkXEPL/73tGoseGrtGOHuI/cZwWzHpZFLjKXDPgzYZ435z1gHu28LgrsBwIxQ=="],
 
     "@turbo/darwin-64": ["@turbo/darwin-64@2.10.11", "https://registry.npmmirror.com/@turbo/darwin-64/-/darwin-64-2.10.11.tgz", { "os": "darwin", "cpu": "x64" }, "sha512-v3R+1R/Ysozyo+p7Ri8MCIbndOvYt3DgPFrGLhrhQHfvyvbxyH3WyJj+A/2JTNmNleuAlh3JUyCV0iSVHIONTA=="],
 

@@ -55,7 +55,6 @@ use commands::{
     settings::{AppSettings, PrivacySettings},
     skills::{SkillCommitRequest, SkillRecord, SkillStaged},
     terminal::{TerminalChunk, TerminalStreamed},
-    updates::{UpdateProgress, UpdateRelease},
     workspace::environment::EnvironmentFile,
 };
 
@@ -141,9 +140,6 @@ pub fn surface() -> Builder<Wry> {
             commands::cli::profile::agent_config_save_agents,
             commands::cli::install::agent_install_status,
             commands::cli::install::agent_install_run,
-            commands::updates::update_check,
-            commands::updates::update_download,
-            commands::updates::update_relaunch,
             commands::ledger::usage::usage_token_days,
             commands::workspace::storage::storage_data_directory,
             commands::workspace::table::table_export,
@@ -183,7 +179,6 @@ pub fn surface() -> Builder<Wry> {
             BrowserState,
             TerminalStreamed,
             TerminationRequested,
-            UpdateProgress,
             WindowMaximized,
             GitWorkingTreeChanged
         ])
@@ -260,7 +255,6 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentInstallStatus>()
         .typ::<TerminalChunk>()
         .typ::<TerminalStreamed>()
-        .typ::<UpdateRelease>()
         .typ::<GitBranches>()
         .typ::<GitChangeStatus>()
         .typ::<GitCommitIntent>()

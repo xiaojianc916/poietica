@@ -226,37 +226,49 @@ impl Tabs {
     }
 }
 
-/// 把地址栏输入规整成可导航的 URL。
-///
-/// 规则与地址栏占位「粘贴或输入 URL」一致：只认 URL，不做搜索。
-/// 有 http/https 方案的原样收下；裸主机名补 https://；规整不出来返回 None。
+/// 把地址栏输入规整成可导航的 URL。显式 `file:` 只接受本机绝对路径；
+/// 裸主机名仍按公网 HTTPS、本机 HTTP 补全；公网候选的主机名必须带点，裸路径不补全。
 #[must_use]
 pub fn normalize_address(input: &str) -> Option<String> {
     let trimmed = input.trim();
-
     if trimmed.is_empty() {
         return None;
     }
 
-    let candidate = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
-        trimmed.to_owned()
-    } else if trimmed.contains(' ') {
+    if let Ok(parsed) = url::Url::parse(trimmed) {
+        if matches!(parsed.scheme(), "http" | "https") {
+            parsed.host()?;
+            return Some(parsed.into());
+        }
+        if parsed.scheme() == "file" {
+            if parsed.host_str().is_some() {
+                return None;
+            }
+            let path = parsed.to_file_path().ok()?;
+            return path.is_absolute().then(|| parsed.into());
+        }
+        if trimmed.contains("://") || trimmed.starts_with("file:") {
+            return None;
+        }
+    }
+
+    if trimmed.contains(' ') {
         return None;
-    } else if is_local_authority(trimmed) {
-        format!("http://{trimmed}")
-    } else if trimmed.contains('.') {
-        format!("https://{trimmed}")
+    }
+    let scheme = if is_local_authority(trimmed) {
+        "http"
     } else {
-        return None;
+        "https"
     };
-
+    let mut candidate = scheme.to_owned();
+    candidate.push_str("://");
+    candidate.push_str(trimmed);
     let parsed = url::Url::parse(&candidate).ok()?;
-
-    parsed.host()?;
-
+    if scheme == "https" && !parsed.host_str()?.contains('.') {
+        return None;
+    }
     Some(parsed.into())
 }
-
 /// 本机地址：开发服务器几乎不说 TLS，公网几乎只说 TLS。
 /// 判据只看权限部分的主机名，端口交给 url crate 解析。
 fn is_local_authority(input: &str) -> bool {
@@ -467,6 +479,9 @@ mod tests {
         );
         assert_eq!(normalize_address("what is rust"), None);
         assert_eq!(normalize_address(""), None);
+        assert!(normalize_address("file:///C:/tmp/example.html").is_some());
+        assert_eq!(normalize_address("file://server/share/example.html"), None);
+        assert_eq!(normalize_address("relative/example.html"), None);
     }
 
     #[test]

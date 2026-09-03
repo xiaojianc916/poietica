@@ -3,4 +3,3 @@
 export type { AppUpdateController, UpdateProgress, UpdateRelease } from './app-update-controller'
 export type { AppUpdateOperation, AppUpdateState } from './app-update-store'
 export { AppUpdateStore } from './app-update-store'
-export type { UpdateKind } from './model'

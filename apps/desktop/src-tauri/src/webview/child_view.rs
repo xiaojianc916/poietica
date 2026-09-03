@@ -53,46 +53,50 @@ pub(super) fn drive(app: &AppHandle, id: u32, url: &Url) {
     let load_handle = app.clone();
     let open_handle = app.clone();
 
-    let builder = WebviewBuilder::new(
-        format!("{LABEL_PREFIX}{id}"),
-        WebviewUrl::External(url.clone()),
-    )
-    .data_directory(profile)
-    .initialization_script(PICKER_SCRIPT)
-    .on_navigation(move |target| {
-        /* 哨兵导航是拾取回传，不是真的要去哪：吃掉它，页面原地不动。 */
-        if poietica_browser_native::is_picker_callback(target) {
-            finish_pick(&nav_handle, id, target);
-            return false;
-        }
+    let source = if url.scheme() == "file" {
+        WebviewUrl::CustomProtocol(url.clone())
+    } else {
+        WebviewUrl::External(url.clone())
+    };
+    let builder = WebviewBuilder::new(format!("{LABEL_PREFIX}{id}"), source)
+        .data_directory(profile)
+        .initialization_script(PICKER_SCRIPT)
+        .on_navigation(move |target| {
+            /* 哨兵导航是拾取回传，不是真的要去哪：吃掉它，页面原地不动。 */
+            if poietica_browser_native::is_picker_callback(target) {
+                finish_pick(&nav_handle, id, target);
+                return false;
+            }
 
-        disarm_picker(&nav_handle, id);
-        note_url(&nav_handle, id, target.as_str());
-        true
-    })
-    .on_document_title_changed(move |_webview, title| {
-        note_title(&title_handle, id, title.as_ref());
-    })
-    .on_page_load(move |_webview, payload| {
-        note_loading(
-            &load_handle,
-            id,
-            matches!(payload.event(), tauri::webview::PageLoadEvent::Started),
-        );
-    })
-    .on_new_window(move |target, _features| {
-        // 页面里的 window.open 收编成新标签。在这个回调里同步建 webview 会
-        // 在 Windows 上死锁（回调占着 WebView2 的线程），所以拒掉原生窗口，
-        // 异步把同一个地址开进标签条。
-        let handle = open_handle.clone();
-        let address = target.to_string();
+            disarm_picker(&nav_handle, id);
+            note_url(&nav_handle, id, target.as_str());
+            true
+        })
+        .on_document_title_changed(move |_webview, title| {
+            note_title(&title_handle, id, title.as_ref());
+        })
+        .on_page_load(move |_webview, payload| {
+            note_loading(
+                &load_handle,
+                id,
+                matches!(payload.event(), tauri::webview::PageLoadEvent::Started),
+            );
+        })
+        .on_new_window(move |target, _features| {
+            // 页面里的 window.open 收编成新标签。在这个回调里同步建 webview 会
+            // 在 Windows 上死锁（回调占着 WebView2 的线程），所以拒掉原生窗口，
+            // 异步把同一个地址开进标签条。
+            let handle = open_handle.clone();
+            let address = target.to_string();
 
-        tauri::async_runtime::spawn(async move {
-            browser_open_tab(handle, Some(address)).await;
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = browser_open_tab(handle, Some(address)).await {
+                    log::warn!("browser popup was rejected: {error:?}");
+                }
+            });
+
+            tauri::webview::NewWindowResponse::Deny
         });
-
-        tauri::webview::NewWindowResponse::Deny
-    });
 
     // CDP 端口是环境级参数：第一个 webview 创建时环境定型，之后同 profile
     // 的实例共用。默认的 msWebOOUI 关闭项要一并带上 —— additional_browser_args
