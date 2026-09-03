@@ -132,6 +132,7 @@ pub fn surface() -> Builder<Wry> {
             commands::diagnostics::diagnostics_take_previous_crash,
             crate::shutdown::application_quit,
             commands::window::window_open_devtools,
+            commands::window::window_set_surface,
             commands::window::window_open_external_url,
             commands::settings::settings_get,
             commands::settings::settings_set,

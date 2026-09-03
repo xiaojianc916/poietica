@@ -1,12 +1,37 @@
-use tauri::{AppHandle, Manager, command};
+use poietica_problem::Problem;
+use tauri::{AppHandle, Manager, command, utils::config::Color};
 
-/// 打开开发者工具。没有 `JavaScript` 对应物的两个窗口操作之一。
+use crate::{
+    error::{Error, Result},
+    window::{MAIN_WINDOW, WindowSurface},
+};
+
+/// 记录并应用主窗口的 native backing surface。
 ///
-/// 渲染层需要的其余能力（show / hide / minimize / maximize / close / destroy /
-/// `set_title`）都由 @tauri-apps/api/window 直接提供，权限在
-/// capabilities/main-window.json 里声明。此前它们各自被包成一条自定义命令，
-/// 其中 `window_destroy` 与 `window_open_devtools` 从未出现在 `invoke_handler` 里，
-/// 于是应用退出的第一跳每次都失败，靠渲染层的 catch 兜底才走得下去。
+/// 一条宿主命令承接 renderer 的主题投影；恢复路径读取同一状态，避免把窗口生命周期
+/// 建立在 renderer 是否仍能及时提交 IPC 上。
+#[command]
+#[specta::specta]
+pub async fn window_set_surface(
+    app: AppHandle,
+    red: u8,
+    green: u8,
+    blue: u8,
+) -> std::result::Result<(), Problem> {
+    (|| -> Result<()> {
+        let window = app
+            .get_webview_window(MAIN_WINDOW)
+            .ok_or_else(|| Error::NotFound("main window".to_owned()))?;
+
+        app.state::<WindowSurface>()
+            .set(&window, Color(red, green, blue, 255))?;
+
+        Ok(())
+    })()
+    .map_err(Problem::from)
+}
+
+/// 打开开发者工具。
 ///
 /// 窗口已经不在了就什么也不做 —— 一个关掉的窗口没有开发者工具可开，那不是故障。
 ///

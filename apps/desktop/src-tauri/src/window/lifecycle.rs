@@ -12,7 +12,7 @@ use tauri::{Manager, WebviewWindow, WindowEvent, async_runtime};
 use tauri_plugin_window_state::WindowExt;
 use tauri_specta::Event;
 
-use super::state::WINDOW_STATE_FLAGS;
+use super::{WindowSurface, state::WINDOW_STATE_FLAGS};
 
 /// 渲染层没能呈现时的兜底期限。
 const PRESENT_WATCHDOG: std::time::Duration = std::time::Duration::from_secs(8);
@@ -80,6 +80,10 @@ pub fn watch_maximized(window: &WebviewWindow) {
 /// 而每一次多余的状态变更都是一次窗口重新合成，WebView2 的表面还没提交时，那
 /// 一帧画出来的是窗口衬底 —— 用户看到的就是整窗闪一下。
 pub fn activate(window: &WebviewWindow) {
+    if let Err(error) = window.state::<WindowSurface>().reapply(window) {
+        log::warn!("could not reapply the main window surface: {error}");
+    }
+
     if window.is_minimized().unwrap_or(false)
         && let Err(error) = window.unminimize()
     {

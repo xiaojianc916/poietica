@@ -2,11 +2,11 @@ import { commands, events } from '@poietica/contract'
 import { isTauri } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow, type WebviewWindow } from '@tauri-apps/api/webviewWindow'
 
-export type WindowBackgroundColor = readonly [red: number, green: number, blue: number]
+export type WindowSurfaceColor = readonly [red: number, green: number, blue: number]
 
 export interface MainWindowController {
   present(): Promise<void>
-  setBackgroundColor(color: WindowBackgroundColor): Promise<void>
+  setSurfaceColor(color: WindowSurfaceColor): Promise<void>
   minimize(): Promise<void>
   toggleMaximize(): Promise<void>
   isMaximized(): Promise<boolean>
@@ -47,8 +47,9 @@ export function createMainWindowController(): MainWindowController {
       await window.setFocus()
     },
 
-    async setBackgroundColor([red, green, blue]) {
-      await requireMainWindow(mainWindow).setBackgroundColor([red, green, blue])
+    async setSurfaceColor([red, green, blue]) {
+      requireMainWindow(mainWindow)
+      await commands.windowSetSurface(red, green, blue)
     },
 
     minimize: () => requireMainWindow(mainWindow).minimize(),

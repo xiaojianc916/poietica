@@ -3,8 +3,10 @@
 
 pub mod lifecycle;
 pub mod state;
+pub mod surface;
 pub mod tray;
 
 pub use lifecycle::WindowMaximized;
 pub use state::{MAIN_WINDOW, WINDOW_STATE_FLAGS};
+pub use surface::WindowSurface;
 pub use tray::TerminationRequested;

@@ -297,24 +297,30 @@ async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
     }
   }
 
-  const capabilityPath = 'apps/desktop/src-tauri/capabilities/main-window.json'
-  const capability = JSON.parse(await readFile(path.join(root, capabilityPath), 'utf8')) as {
-    permissions?: string[]
-  }
-  for (const permission of [
-    'core:window:allow-set-background-color',
-    'core:webview:allow-set-webview-background-color',
-  ]) {
-    if (!capability.permissions?.includes(permission)) {
+  const hostSurfaceProbes = [
+    ['apps/desktop/src-tauri/src/window/surface.rs', 'pub struct WindowSurface'],
+    ['apps/desktop/src-tauri/src/window/lifecycle.rs', 'state::<WindowSurface>().reapply(window)'],
+    ['apps/desktop/src-tauri/src/ipc/mod.rs', 'commands::window::window_set_surface'],
+    ['packages/native-bridge/src/platform/native-window.ts', 'commands.windowSetSurface'],
+  ] as const
+  for (const [file, needle] of hostSurfaceProbes) {
+    if (!(await readFile(path.join(root, file), 'utf8')).includes(needle)) {
       violations.push({
         policy: 'window-surface-policy',
-        where: capabilityPath,
-        detail: ['缺少主题表面同步权限：', permission].join(''),
+        where: file,
+        detail: '窗口底色必须由宿主状态持有，并在恢复前重应用',
       })
     }
   }
 
   const typeScriptFiles = await walk(root, ['apps', 'packages'], ['.ts', '.tsx'])
+  for (const file of await holding(root, typeScriptFiles, '.setBackgroundColor(')) {
+    violations.push({
+      policy: 'window-surface-policy',
+      where: file,
+      detail: '渲染层绕过了宿主窗口底色命令',
+    })
+  }
   const themeWriters = await holding(root, typeScriptFiles, 'applyThemePreference(')
   const allowedThemeWriters = new Set([
     themeOwner,

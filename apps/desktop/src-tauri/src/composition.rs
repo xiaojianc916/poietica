@@ -7,7 +7,7 @@ use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
 use crate::diagnostics::structured_log;
 use crate::ipc::commands;
 use crate::paths;
-use crate::window::{MAIN_WINDOW, WINDOW_STATE_FLAGS, tray};
+use crate::window::{MAIN_WINDOW, WINDOW_STATE_FLAGS, WindowSurface, tray};
 
 pub fn build() -> tauri::Builder<Wry> {
     let started = std::time::Instant::now();
@@ -32,6 +32,7 @@ pub fn build() -> tauri::Builder<Wry> {
             },
         ))
         .manage(asset_protocol)
+        .manage(WindowSurface::default())
         /*
          * A synchronous protocol handler is invoked by the platform webview on
          * its own thread, which is the UI thread on Windows and macOS. Building

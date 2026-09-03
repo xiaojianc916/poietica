@@ -12,7 +12,7 @@ export interface ThemeRuntime {
 }
 
 interface ThemeRuntimeOptions {
-  readonly mainWindow: Pick<MainWindowController, 'setBackgroundColor'>
+  readonly mainWindow: Pick<MainWindowController, 'setSurfaceColor'>
   readonly report: (cause: unknown) => void
 }
 
@@ -35,7 +35,7 @@ export function createThemeRuntime({ mainWindow, report }: ThemeRuntimeOptions):
     document.documentElement.style.setProperty('--window-backing-surface', cssColor)
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', cssColor)
 
-    const update = nativeUpdates.then(() => mainWindow.setBackgroundColor(color))
+    const update = nativeUpdates.then(() => mainWindow.setSurfaceColor(color))
     nativeUpdates = update.catch((cause: unknown) => {
       report(cause)
     })

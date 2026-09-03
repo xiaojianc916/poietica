@@ -700,13 +700,7 @@ async applicationQuit() : Promise<void> {
     await TAURI_INVOKE("application_quit");
 },
 /**
- * 打开开发者工具。没有 `JavaScript` 对应物的两个窗口操作之一。
- * 
- * 渲染层需要的其余能力（show / hide / minimize / maximize / close / destroy /
- * `set_title`）都由 @tauri-apps/api/window 直接提供，权限在
- * capabilities/main-window.json 里声明。此前它们各自被包成一条自定义命令，
- * 其中 `window_destroy` 与 `window_open_devtools` 从未出现在 `invoke_handler` 里，
- * 于是应用退出的第一跳每次都失败，靠渲染层的 catch 兜底才走得下去。
+ * 打开开发者工具。
  * 
  * 窗口已经不在了就什么也不做 —— 一个关掉的窗口没有开发者工具可开，那不是故障。
  * 
@@ -718,6 +712,15 @@ async applicationQuit() : Promise<void> {
  */
 async windowOpenDevtools(label: string) : Promise<void> {
     await TAURI_INVOKE("window_open_devtools", { label });
+},
+/**
+ * 记录并应用主窗口的 native backing surface。
+ * 
+ * 一条宿主命令承接 renderer 的主题投影；恢复路径读取同一状态，避免把窗口生命周期
+ * 建立在 renderer 是否仍能及时提交 IPC 上。
+ */
+async windowSetSurface(red: number, green: number, blue: number) : Promise<null> {
+    return await TAURI_INVOKE("window_set_surface", { red, green, blue });
 },
 /**
  * 把一个外部 URL 交给系统默认浏览器。没有 `JavaScript` 对应物的两个之二。
