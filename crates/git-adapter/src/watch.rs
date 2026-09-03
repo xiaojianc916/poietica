@@ -4,8 +4,13 @@ use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::Duration;
+use tokio::runtime::Handle;
+use tokio::sync::mpsc;
+use tokio::time::timeout;
 
 type Announce = Arc<dyn Fn(PathBuf) + Send + Sync + 'static>;
+const QUIET_WINDOW: Duration = Duration::from_millis(120);
 struct Entry {
     // 只被持有，从不读取：Drop 掉它就停止 notify 订阅，运行期靠这个副作用维持。
     #[expect(
@@ -55,7 +60,16 @@ impl WatchRegistry {
             state.tokens.insert(token, canonical.clone());
             return Ok(canonical);
         }
+        let runtime =
+            Handle::try_current().map_err(|error| GitError::WatchRuntime(error.to_string()))?;
         let watched_root = canonical.clone();
+        let (pulses, receiver) = mpsc::channel(1);
+        let _announcer = runtime.spawn(announce_after_quiet(
+            receiver,
+            QUIET_WINDOW,
+            watched_root.clone(),
+            announce,
+        ));
         let mut watcher =
             notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
                 let Ok(event) = event else {
@@ -66,7 +80,7 @@ impl WatchRegistry {
                 {
                     return;
                 }
-                announce(watched_root.clone());
+                let _coalesced = pulses.try_send(());
             })?;
         watcher.watch(&canonical, RecursiveMode::Recursive)?;
         state
@@ -98,6 +112,24 @@ impl WatchRegistry {
     }
 }
 
+async fn announce_after_quiet(
+    mut pulses: mpsc::Receiver<()>,
+    quiet_window: Duration,
+    watched_root: PathBuf,
+    announce: Announce,
+) {
+    while pulses.recv().await.is_some() {
+        loop {
+            match timeout(quiet_window, pulses.recv()).await {
+                Ok(Some(())) => {}
+                Ok(None) => return,
+                Err(_) => break,
+            }
+        }
+        announce(watched_root.clone());
+    }
+}
+
 fn noteworthy(path: &Path) -> bool {
     let inside_git = path.components().any(|part| part.as_os_str() == ".git");
     !inside_git
@@ -108,12 +140,50 @@ fn noteworthy(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::noteworthy;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use tokio::sync::mpsc;
+    use tokio::time::timeout;
+
+    use super::{Announce, announce_after_quiet, noteworthy};
+
     #[test]
     fn git_internals_do_not_count_except_head() {
         assert!(noteworthy(Path::new("src/lib.rs")));
         assert!(noteworthy(Path::new(".git/HEAD")));
         assert!(noteworthy(Path::new(".git/index")));
+    }
+
+    #[tokio::test]
+    async fn event_burst_announces_once_after_quiet() {
+        let (pulses, receiver) = mpsc::channel(1);
+        let (observed, mut observations) = mpsc::unbounded_channel();
+        let announce: Announce = Arc::new(move |root| {
+            let _sent = observed.send(root);
+        });
+        let task = tokio::spawn(announce_after_quiet(
+            receiver,
+            Duration::from_millis(10),
+            PathBuf::from("repo"),
+            announce,
+        ));
+
+        assert!(pulses.try_send(()).is_ok());
+        let _coalesced = pulses.try_send(());
+        let first = timeout(Duration::from_millis(100), observations.recv()).await;
+        assert_eq!(first.ok().flatten(), Some(PathBuf::from("repo")));
+        assert!(
+            timeout(Duration::from_millis(30), observations.recv())
+                .await
+                .is_err()
+        );
+
+        drop(pulses);
+        assert!(matches!(
+            timeout(Duration::from_millis(100), task).await,
+            Ok(Ok(()))
+        ));
     }
 }

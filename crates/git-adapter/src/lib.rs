@@ -42,6 +42,9 @@ pub enum GitError {
     #[error("无法监视工作目录：{0}")]
     Unwatchable(#[from] notify::Error),
 
+    #[error("git 监视器没有可用的 Tokio 运行时：{0}")]
+    WatchRuntime(String),
+
     #[error("无法解析工作目录：{0}")]
     WatchRoot(std::io::Error),
 }
@@ -57,60 +60,72 @@ pub struct BranchSnapshot {
     pub branches: Vec<String>,
 }
 
-/// git 在不在、这个目录是不是工作区。两者缺一，这项能力在此处就不存在。
-pub(crate) async fn inside_work_tree(root: &Path) -> Result<bool, GitError> {
-    let probe = match run(root, &["rev-parse", "--is-inside-work-tree"]).await {
-        Ok(output) => output,
-        Err(GitError::Spawn(source)) if source.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(false);
-        }
-        Err(error) => return Err(error),
-    };
+const WORK_TREE_ARGS: &[&str] = &["rev-parse", "--is-inside-work-tree"];
+const LOCAL_BRANCH_ARGS: &[&str] = &[
+    "for-each-ref",
+    "refs/heads",
+    "--sort=-committerdate",
+    "--format=%(refname:short)",
+];
 
-    Ok(probe.status.success() && line(&probe.stdout) == "true")
+pub(crate) async fn repository_probe(root: &Path) -> Result<Output, GitError> {
+    run(root, WORK_TREE_ARGS).await
+}
+
+pub(crate) async fn branch_listing(root: &Path) -> Result<Output, GitError> {
+    run(root, LOCAL_BRANCH_ARGS).await
+}
+
+pub(crate) fn is_work_tree(probe: &Output) -> bool {
+    probe.status.success() && line(&probe.stdout) == "true"
+}
+
+pub(crate) fn git_missing(error: &GitError) -> bool {
+    matches!(
+        error,
+        GitError::Spawn(source) if source.kind() == std::io::ErrorKind::NotFound
+    )
 }
 
 /// 问一个目录的分支快照。不是工作区、或机器没有 git，都是 None：这项能力在
 /// 那里不存在，界面据此整个消失，不是错误。
 pub async fn snapshot(root: &Path) -> Result<Option<BranchSnapshot>, GitError> {
-    if !inside_work_tree(root).await? {
+    let queried = tokio::try_join!(
+        repository_probe(root),
+        run(root, &["branch", "--show-current"]),
+        branch_listing(root),
+    );
+    let (probe, head, refs) = match queried {
+        Ok(outputs) => outputs,
+        Err(error) if git_missing(&error) => return Ok(None),
+        Err(error) => return Err(error),
+    };
+
+    if !is_work_tree(&probe) {
         return Ok(None);
     }
 
-    let head = expect_ok(run(root, &["branch", "--show-current"]).await?)?;
+    let head = expect_ok(head)?;
     let name = line(&head.stdout);
     let branch = if name.is_empty() { None } else { Some(name) };
 
-    /* 分离 HEAD 才需要短号。刚 init 还没有提交时走不到这里 ——
-    show-current 在未诞生的分支上照样给出名字。 */
+    /* 分离 HEAD 才多问一次提交号；普通分支只需一轮并发查询。 */
     let detached_at = if branch.is_some() {
         None
     } else {
         let commit = expect_ok(run(root, &["rev-parse", "--short", "HEAD"]).await?)?;
-
         Some(line(&commit.stdout))
     };
 
     Ok(Some(BranchSnapshot {
         branch,
         detached_at,
-        branches: local_branches(root).await?,
+        branches: branches_from(refs)?,
     }))
 }
-/// 本地分支，按最近提交排序。分支快照与审查面读同一份，不各数一遍。
-pub(crate) async fn local_branches(root: &Path) -> Result<Vec<String>, GitError> {
-    let refs = expect_ok(
-        run(
-            root,
-            &[
-                "for-each-ref",
-                "refs/heads",
-                "--sort=-committerdate",
-                "--format=%(refname:short)",
-            ],
-        )
-        .await?,
-    )?;
+/// 解析已经取回的本地分支清单；查询时机由调用方统一编排。
+pub(crate) fn branches_from(refs: Output) -> Result<Vec<String>, GitError> {
+    let refs = expect_ok(refs)?;
     Ok(String::from_utf8_lossy(&refs.stdout)
         .lines()
         .map(str::trim)

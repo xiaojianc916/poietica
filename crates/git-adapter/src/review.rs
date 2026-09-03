@@ -5,17 +5,23 @@
 //! 加减行数由补丁自己数出 —— 徽章与画面同源，不存在第二个数法。
 //! porcelain 记录的解释在 crates/review 的纯解码里，这里只跑命令、拼快照。
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use futures::{StreamExt as _, stream};
 use poietica_review_native::{
     ChangeStatus, CommitIntent, FileChange, ReviewSnapshot, parse_entry, read_header,
 };
 
-use crate::{GitError, expect_ok, inside_work_tree, local_branches, run};
+use crate::{
+    GitError, branch_listing, branches_from, expect_ok, git_missing, is_work_tree,
+    repository_probe, run,
+};
 
 /* 整份文件：unified 给到行数不可能达到的量级，折叠带上的行数才是真数字。 */
 const WHOLE: u32 = 100_000;
+const UNTRACKED_CONCURRENCY: usize = 4;
 const STATUS_ARGS: &[&str] = &[
+    "--no-optional-locks",
     "status",
     "--porcelain=v2",
     "-z",
@@ -32,17 +38,30 @@ pub async fn review(
     ignore_whitespace: bool,
 ) -> Result<Option<ReviewSnapshot>, GitError> {
     checked("比较基准", base)?;
-    if !inside_work_tree(root).await? {
+    let queried = tokio::try_join!(
+        repository_probe(root),
+        run(root, STATUS_ARGS),
+        branch_listing(root),
+        base_exists(root, base),
+    );
+    let (probe, status, branches, base_exists) = match queried {
+        Ok(outputs) => outputs,
+        Err(error) if git_missing(&error) => return Ok(None),
+        Err(error) => return Err(error),
+    };
+
+    if !is_work_tree(&probe) {
         return Ok(None);
     }
-    let status = expect_ok(run(root, STATUS_ARGS).await?)?;
+
+    let status = expect_ok(status)?;
     let mut held = ReviewSnapshot {
         branch: None,
         detached_at: None,
         upstream: None,
         ahead: 0,
         behind: 0,
-        branches: local_branches(root).await?,
+        branches: branches_from(branches)?,
         changes: Vec::new(),
         patch: String::new(),
     };
@@ -56,7 +75,16 @@ pub async fn review(
     if held.branch.is_some() {
         held.detached_at = None;
     }
-    held.patch = patch(root, base, context, ignore_whitespace, &held.changes, None).await?;
+    held.patch = patch(
+        root,
+        base,
+        context,
+        ignore_whitespace,
+        &held.changes,
+        None,
+        base_exists,
+    )
+    .await?;
     Ok(Some(held))
 }
 
@@ -73,14 +101,24 @@ pub async fn file_patch(
     checked("路径", path)?;
     let mut args = STATUS_ARGS.to_vec();
     args.extend(["--", path]);
-    let listed = expect_ok(run(root, &args).await?)?;
+    let (listed, base_exists) = tokio::try_join!(run(root, &args), base_exists(root, base))?;
+    let listed = expect_ok(listed)?;
     let records = String::from_utf8_lossy(&listed.stdout);
     let changes: Vec<FileChange> = records
         .split('\0')
         .filter(|record| !record.starts_with("# "))
         .filter_map(parse_entry)
         .collect();
-    patch(root, base, WHOLE, ignore_whitespace, &changes, Some(path)).await
+    patch(
+        root,
+        base,
+        WHOLE,
+        ignore_whitespace,
+        &changes,
+        Some(path),
+        base_exists,
+    )
+    .await
 }
 
 /// 按意图暂存、提交、推送，交回新的审查面。
@@ -136,6 +174,13 @@ fn checked(kind: &str, value: &str) -> Result<(), GitError> {
 
 /// core.quotePath=false 让非 ASCII 路径原样出现在文件头，解析侧不需要第二份
 /// 反引号解码器。
+async fn base_exists(root: &Path, base: &str) -> Result<bool, GitError> {
+    Ok(run(root, &["rev-parse", "--verify", "--quiet", base])
+        .await?
+        .status
+        .success())
+}
+
 async fn patch(
     root: &Path,
     base: &str,
@@ -143,42 +188,80 @@ async fn patch(
     ignore_whitespace: bool,
     changes: &[FileChange],
     only: Option<&str>,
+    base_exists: bool,
 ) -> Result<String, GitError> {
     let unified = format!("--unified={context}");
-    let mut text = String::new();
-    if run(root, &["rev-parse", "--verify", "--quiet", base])
-        .await?
-        .status
-        .success()
-    {
-        let mut args = vec![
-            "-c",
-            "core.quotePath=false",
-            "diff",
+    let (tracked, untracked) = tokio::join!(
+        tracked_patch(
+            root,
             base,
-            "--no-color",
-            "--no-ext-diff",
-            "--no-renames",
             unified.as_str(),
-        ];
-        if ignore_whitespace {
-            args.push("--ignore-all-space");
-        }
-        if let Some(scope) = only {
-            args.extend(["--", scope]);
-        }
-        text.push_str(&String::from_utf8_lossy(
-            &expect_ok(run(root, &args).await?)?.stdout,
-        ));
-    }
-    for change in changes {
-        if change.status == ChangeStatus::Untracked {
-            text.push_str(
-                &untracked(root, unified.as_str(), ignore_whitespace, &change.path).await?,
-            );
-        }
+            ignore_whitespace,
+            only,
+            base_exists,
+        ),
+        untracked_patches(root, unified.as_str(), ignore_whitespace, changes),
+    );
+    let mut text = tracked?;
+    for addition in untracked? {
+        text.push_str(&addition);
     }
     Ok(text)
+}
+
+async fn tracked_patch(
+    root: &Path,
+    base: &str,
+    unified: &str,
+    ignore_whitespace: bool,
+    only: Option<&str>,
+    base_exists: bool,
+) -> Result<String, GitError> {
+    if !base_exists {
+        return Ok(String::new());
+    }
+
+    let mut args = vec![
+        "-c",
+        "core.quotePath=false",
+        "diff",
+        base,
+        "--no-color",
+        "--no-ext-diff",
+        "--no-renames",
+        unified,
+    ];
+    if ignore_whitespace {
+        args.push("--ignore-all-space");
+    }
+    if let Some(scope) = only {
+        args.extend(["--", scope]);
+    }
+    Ok(String::from_utf8_lossy(&expect_ok(run(root, &args).await?)?.stdout).into_owned())
+}
+
+async fn untracked_patches(
+    root: &Path,
+    unified: &str,
+    ignore_whitespace: bool,
+    changes: &[FileChange],
+) -> Result<Vec<String>, GitError> {
+    /* 管线里的 future 只带自有数据：借用条目的 future 过不了
+    command 宏的高阶 lifetime 边界（见 ipc/commands/git.rs）。 */
+    let pending: Vec<(PathBuf, String, String)> = changes
+        .iter()
+        .filter(|change| change.status == ChangeStatus::Untracked)
+        .map(|change| (root.to_path_buf(), unified.to_owned(), change.path.clone()))
+        .collect();
+    let completed = stream::iter(pending)
+        .map(|(root, unified, path)| async move {
+            untracked(&root, &unified, ignore_whitespace, &path).await
+        })
+        .buffered(UNTRACKED_CONCURRENCY)
+        .collect::<Vec<_>>()
+        .await;
+
+    completed.into_iter().collect()
 }
 
 /* 未跟踪文件没有基线，与空文件比。--no-index 蕴含 --exit-code：1 是「有差异」。 */

@@ -3124,6 +3124,7 @@ dependencies = [
 name = "poietica-git-adapter-native"
 version = "0.2.2"
 dependencies = [
+ "futures",
  "notify",
  "poietica-process-host",
  "poietica-review-native",
