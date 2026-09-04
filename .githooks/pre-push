@@ -1,6 +1,0 @@
-#!/usr/bin/env sh
-
-set -eu
-
-# 推送前跑 CI 那条门禁本身，本地绿就等于 CI 绿。
-bun run check
