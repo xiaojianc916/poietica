@@ -9,10 +9,6 @@ use crate::connection::handshake::subscribe;
 use crate::connection::socket::WsSink;
 use crate::error::{KapError, Result};
 use crate::generated::rest::{
-    ClientConfigDataStruct, ListModelsDataStruct, SessionGoalDataStruct, SessionStatusDataStruct,
-    routes,
-};
-use crate::generated::rest::{
     CreateSessionDataStruct, CreateSessionRequestAgentConfigGoalControlEnum,
     CreateSessionRequestAgentConfigStruct, CreateSessionRequestMetadataStruct,
     CreateSessionRequestStruct, ListCapabilitiesDataCapabilitiesStateEnum,
@@ -23,6 +19,9 @@ use crate::generated::rest::{
     SubmitPromptDataStruct, SubmitPromptRequestContentChoice,
     SubmitPromptRequestContentChoiceImageSourceChoice, SubmitPromptRequestSkillsStruct,
     SubmitPromptRequestStruct,
+};
+use crate::generated::rest::{
+    ListModelsDataStruct, SessionGoalDataStruct, SessionStatusDataStruct, routes,
 };
 use crate::session::book::SessionBook;
 use crate::session::client::{PromptAttachment, PromptSkill};
@@ -549,76 +548,33 @@ fn capability_of(wire: ListCapabilitiesDataCapabilitiesStruct) -> Capability {
     }
 }
 
-/// 当前模型不在目录时，只回落到仍有效的显式默认模型。
-async fn reconcile_session_model(
-    http: &reqwest::Client,
-    base_url: &str,
-    session_id: &str,
+/// Session state is observed, never repaired implicitly by a read path.
+fn validate_session_model(
     status: SessionStatusDataStruct,
     catalog: &ListModelsDataStruct,
-) -> SessionStatusDataStruct {
-    let current_is_valid = status
+) -> Result<SessionStatusDataStruct> {
+    let Some(model) = status
         .model
         .as_deref()
         .map(str::trim)
-        .filter(|alias| !alias.is_empty())
-        .is_some_and(|alias| catalog.items.iter().any(|item| item.model == alias));
-    if current_is_valid {
-        return status;
-    }
-
-    let config: ClientConfigDataStruct = match get(http, routes::client_config(base_url))
-        .await
-        .and_then(|data| decoded(data, "client config"))
-    {
-        Ok(config) => config,
-        Err(error) => {
-            log::warn!("could not reconcile the session model: {error}");
-            return status;
-        }
-    };
-    let default_model = config
-        .default_model
-        .as_deref()
-        .map(str::trim)
-        .filter(|alias| !alias.is_empty())
-        .filter(|alias| {
-            catalog
-                .items
-                .iter()
-                .any(|item| item.model.as_str() == *alias)
-        })
-        .map(str::to_owned);
-    let Some(default_model) = default_model else {
-        log::warn!("the session model is absent from the catalog and no valid default exists");
-        return status;
+        .filter(|model| !model.is_empty())
+    else {
+        return Err(KapError::Validation {
+            message: "the KAP session has no selected model; choose one explicitly".to_owned(),
+        });
     };
 
-    if let Err(error) = post(
-        http,
-        routes::set_profile(base_url, session_id),
-        &profile_body(CreateSessionRequestAgentConfigStruct {
-            model: Some(default_model.clone()),
-            ..Default::default()
-        }),
-    )
-    .await
-    {
-        log::warn!("could not set the session model to {default_model}: {error}");
-        return status;
+    if catalog.items.iter().any(|item| item.model == model) {
+        return Ok(status);
     }
 
-    match get(http, routes::session_status(base_url, session_id))
-        .await
-        .and_then(|data| decoded(data, "session status"))
-    {
-        Ok(refreshed) => refreshed,
-        Err(error) => {
-            log::warn!("could not read the reconciled session model: {error}");
-            status
-        }
-    }
+    Err(KapError::Validation {
+        message: format!(
+            "the KAP session model {model} is not in the current catalog; this read does not silently select a replacement"
+        ),
+    })
 }
+
 pub(crate) async fn abort_session(
     http: &reqwest::Client,
     base_url: &str,
@@ -659,7 +615,7 @@ pub(crate) async fn get_selectors(
         get(http, routes::list_models(base_url)).await?,
         "model catalog",
     )?;
-    let status = reconcile_session_model(http, base_url, session_id, status, &catalog).await;
+    let status = validate_session_model(status, &catalog)?;
     let goal: Option<SessionGoalDataStruct> = decoded(
         get(http, routes::session_goal(base_url, session_id)).await?,
         "session goal",

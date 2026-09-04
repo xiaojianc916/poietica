@@ -135,9 +135,9 @@ mod tests {
     }
 
     #[test]
-    fn session_event_envelope_decodes() {
+    fn session_event_routing_fields_decode_from_real_wire_shape() {
         let raw = r#"{
-            "type": "session_event",
+            "type": "assistant.delta",
             "seq": 12,
             "epoch": "e1",
             "volatile": false,
@@ -146,7 +146,7 @@ mod tests {
             "payload": { "type": "assistant.delta", "agentId": "main" }
         }"#;
         let frame: events::SessionEventFrame =
-            serde_json::from_str(raw).expect("session_event frame must decode");
+            serde_json::from_str(raw).expect("real KAP event routing fields must decode");
         assert_eq!(frame.seq, 12);
         assert_eq!(frame.session_id.as_deref(), Some("s1"));
     }

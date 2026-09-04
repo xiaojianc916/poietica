@@ -15,6 +15,30 @@ use crate::error::{KapError, Result};
 use crate::generated::rest::routes;
 use crate::session::rest::envelope_data;
 
+const PINNED_CAPABILITIES: &str = include_str!("../../../../contracts/kap/capabilities.json");
+
+fn pinned_server_version() -> Result<String> {
+    let manifest: Value =
+        serde_json::from_str(PINNED_CAPABILITIES).map_err(|error| KapError::Handshake {
+            message: format!("the embedded KAP capability manifest is invalid: {error}"),
+        })?;
+    manifest
+        .get("server_version")
+        .and_then(Value::as_str)
+        .filter(|version| !version.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| KapError::Handshake {
+            message: "the embedded KAP capability manifest has no server_version".to_owned(),
+        })
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum Probe {
+    Ready,
+    Refused,
+    Incompatible(String),
+}
+
 #[derive(serde::Deserialize)]
 struct InstanceDisk {
     host: String,
@@ -35,25 +59,39 @@ impl InstanceDisk {
 ///
 /// /meta 走全局 bearer 鉴权（start.ts 挂的 createAuthHook），认了才回 code 0。
 /// 不能用 healthz —— 它在 defaultIsBypassed 的免鉴权名单里，谁都答得出来。
-async fn accepts_token(probe: &reqwest::Client, dial: &str, port: u16, token: &str) -> bool {
+async fn probe_instance(
+    probe: &reqwest::Client,
+    dial: &str,
+    port: u16,
+    token: &str,
+    expected_version: &str,
+) -> Probe {
     let Ok(url) = routes::meta(&format!("http://{dial}:{port}")) else {
-        return false;
+        return Probe::Refused;
     };
-
     let Ok(response) = probe
         .get(url)
         .header(AUTHORIZATION, format!("Bearer {token}"))
         .send()
         .await
     else {
-        return false;
+        return Probe::Refused;
     };
-
     let Ok(body) = response.json::<Value>().await else {
-        return false;
+        return Probe::Refused;
     };
-
-    envelope_data(&body).is_ok()
+    let Ok(data) = envelope_data(&body) else {
+        return Probe::Refused;
+    };
+    let actual = data
+        .get("server_version")
+        .and_then(Value::as_str)
+        .unwrap_or("<missing>");
+    if actual == expected_version {
+        Probe::Ready
+    } else {
+        Probe::Incompatible(actual.to_owned())
+    }
 }
 
 /// 等到注册表出现本次拉起之后的条目、且那个地址认我们的令牌，返回
@@ -84,6 +122,7 @@ pub(crate) async fn discover_instance(
             message: e.to_string(),
         })?;
 
+    let expected_version = pinned_server_version()?;
     let mut refused: Vec<String> = Vec::new();
 
     loop {
@@ -121,13 +160,22 @@ pub(crate) async fn discover_instance(
                 {
                     let dial = dialable_host(&info.host);
 
-                    if accepts_token(&probe, &dial, info.port, &token).await {
-                        return Ok((info.host, info.port, token));
-                    }
-
                     let address = format!("{dial}:{}", info.port);
-                    if !refused.contains(&address) {
-                        refused.push(address);
+                    match probe_instance(&probe, &dial, info.port, &token, &expected_version).await
+                    {
+                        Probe::Ready => return Ok((info.host, info.port, token)),
+                        Probe::Incompatible(actual) => {
+                            return Err(KapError::Handshake {
+                                message: format!(
+                                    "incompatible Kimi Code server at {address}: expected {expected_version}, got {actual}"
+                                ),
+                            });
+                        }
+                        Probe::Refused => {
+                            if !refused.contains(&address) {
+                                refused.push(address);
+                            }
+                        }
                     }
                 }
             }

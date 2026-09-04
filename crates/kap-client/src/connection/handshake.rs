@@ -22,6 +22,20 @@ use crate::server_frame;
 /// 屏幕上那一行既不 Recovered 也不 Severed。
 pub(crate) const ACK_TIMEOUT: Duration = Duration::from_secs(10);
 
+const SUPPORTED_KAP_WS_PROTOCOL: i64 = 2;
+
+fn validate_protocol_version(version: i64) -> Result<()> {
+    if version == SUPPORTED_KAP_WS_PROTOCOL {
+        return Ok(());
+    }
+
+    Err(KapError::Handshake {
+        message: format!(
+            "unsupported KAP websocket protocol {version}; this build requires {SUPPORTED_KAP_WS_PROTOCOL}"
+        ),
+    })
+}
+
 /// server_hello → client_hello → ack。首连与重连共用这一条。
 pub(crate) async fn shake_hands(
     ws: &WsSink,
@@ -33,7 +47,8 @@ pub(crate) async fn shake_hands(
     loop {
         match tokio::time::timeout_at(deadline, ws_rx.next()).await {
             Ok(Some(Ok(Message::Text(raw)))) => {
-                if matches!(server_frame(&raw), Ok(ServerFrame::ServerHello { .. })) {
+                if let Ok(ServerFrame::ServerHello { payload, .. }) = server_frame(&raw) {
+                    validate_protocol_version(payload.protocol_version)?;
                     break;
                 }
             }
@@ -190,4 +205,16 @@ pub(crate) async fn subscribe(
         },
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_protocol_version;
+
+    #[test]
+    fn websocket_protocol_is_an_explicit_compatibility_gate() {
+        assert!(validate_protocol_version(2).is_ok());
+        assert!(validate_protocol_version(1).is_err());
+        assert!(validate_protocol_version(3).is_err());
+    }
 }
