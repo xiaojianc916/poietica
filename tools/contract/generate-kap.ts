@@ -5,9 +5,9 @@
  * OpenAPI/AsyncAPI 地址生成 URL 构造器。客户端说了什么、听了什么，由清单声明 ——
  * 协议里其余的消息是 kimi-code 的能力，本客户端不使用，生成它们就是死代码。
  *
- * 动作后缀在快照里由 {tail} 模板承接（如 :install）；server 实现但未自述的
- * :fork / :undo / :abort（session 级）在清单里标 undeclared —— 只生成地址，
- * 形状仍只出自快照。清单按快照的路径写，写不出的路由生成即失败。
+ * 动作后缀在快照里由 {tail} 模板承接（如 :install）；server 实现但未自述的动作
+ * 后缀路由在清单里标 undeclared —— 只生成地址，形状仍只出自快照。清单按快照的
+ * 路径写，写不出的路由生成即失败。
  *
  * 跑法：bun run kap:generate（package.json）。产出禁手改。
  */
@@ -615,7 +615,7 @@ interface RestRoute {
   name: string
   request?: boolean
   data?: boolean
-  /** server 实现但 openapi 未自述（contracts/kap 0.39.1：session 的 :fork/:undo/:abort）；只生成地址，形状仍出自快照。 */
+  /** server 实现但 openapi 未自述；只生成地址，带形状的一律要求快照背书。 */
   undeclared?: boolean
 }
 

@@ -23,6 +23,7 @@ use crate::generated::rest::{
 use crate::generated::rest::{
     ListModelsDataStruct, SessionGoalDataStruct, SessionStatusDataStruct, routes,
 };
+use crate::policy::{CAPABILITY_POLL_ATTEMPTS, CAPABILITY_POLL_INTERVAL};
 use crate::session::book::SessionBook;
 use crate::session::client::{PromptAttachment, PromptSkill};
 use crate::session::config::{
@@ -162,17 +163,14 @@ pub(crate) async fn submit_prompt(
     idempotency: &str,
 ) -> Result<String> {
     let mut body = prompt_body(text, attachments, skills)?;
-    let retryable = body.skills.is_none();
-    if retryable {
-        body.prompt_id = Some(idempotency.to_owned());
-    }
+    body.prompt_id = Some(idempotency.to_owned());
     let url = routes::submit_prompt(base_url, session_id);
     let mut attempt = 0_u32;
     let data = loop {
         attempt = attempt.saturating_add(1);
         match post(http, url.clone(), &body).await {
             Ok(data) => break data,
-            Err(KapError::Transport { message }) if retryable && attempt < 3 => {
+            Err(KapError::Transport { message }) if attempt < 3 => {
                 log::warn!("ambiguous prompt submission {attempt}/3: {message}");
                 tokio::time::sleep(std::time::Duration::from_millis(200 * u64::from(attempt)))
                     .await;
@@ -265,9 +263,11 @@ async fn activate(
     book.open(session_id)?;
     subscribe(ws, session_id, from).await?;
 
+    let (selectors, _goal) = get_selectors(http, base_url, session_id).await?;
+
     Ok(OpenedSession {
         session_id: session_id.to_owned(),
-        selectors: best_effort_selectors(http, base_url, session_id).await,
+        selectors,
     })
 }
 
@@ -377,23 +377,6 @@ pub(crate) async fn list_sessions(
         .collect())
 }
 
-/// 选择器表：生效值由 status 路由报，候选由 /models 目录报（config.rs 的
-/// controls 把两张表拼成一张）。新会话刚出生时表读不出来不是故障 —— 它下一
-/// 次被问（capabilities / open_thread）时会再读一次。
-async fn best_effort_selectors(
-    http: &reqwest::Client,
-    base_url: &str,
-    session_id: &str,
-) -> Vec<ConfigControl> {
-    match get_selectors(http, base_url, session_id).await {
-        Ok((offered, _goal)) => offered,
-        Err(error) => {
-            log::warn!("could not read the session's selectors: {error}");
-            Vec::new()
-        }
-    }
-}
-
 /// 这条会话能用的技能（rest-skill.ts 的 listSkillsResponseSchema）。
 pub(crate) async fn list_skills(
     http: &reqwest::Client,
@@ -471,12 +454,6 @@ pub(crate) async fn list_capabilities(
 
     Ok(listed.capabilities.into_iter().map(capability_of).collect())
 }
-
-const CAPABILITY_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(700);
-/// 等待上限 10 分钟：上游光 Windows runtime 一步就给 180s（kimi-code 的
-/// WINDOWS_INSTALL_TIMEOUT_MS），之外还有下载、插件层与体检 —— 等短了会把还在
-/// 装的判成装失败。
-const CAPABILITY_POLL_ATTEMPTS: u32 = 600_000 / 700;
 
 /// 启动或跟随 KAP 的后台安装，直到它明确落定。
 pub(crate) async fn install_capability(
@@ -746,8 +723,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bundled_skills_share_one_prompt_and_never_send_a_client_prompt_id() {
-        let body = prompt_body(
+    fn a_skill_prompt_carries_the_idempotency_key_like_every_other_prompt() {
+        let mut body = prompt_body(
             "review this",
             &[],
             &[PromptSkill {
@@ -756,8 +733,9 @@ mod tests {
             }],
         )
         .expect("prompt body");
+        body.prompt_id = Some("adm-1".to_owned());
         let wire = serde_json::to_value(&body).expect("wire body");
-        assert!(wire.get("prompt_id").is_none());
+        assert_eq!(wire.get("prompt_id").and_then(Value::as_str), Some("adm-1"));
         assert_eq!(
             wire.get("skills").and_then(Value::as_array).map(Vec::len),
             Some(1)

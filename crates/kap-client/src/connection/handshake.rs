@@ -16,10 +16,7 @@ use crate::generated::events::{
 };
 use crate::server_frame;
 
-/// 一帧控制帧的 ack 最多等多久。
-///
-/// 对端接下 TCP 却不说话时，裸等会让首连的握手与每一次重连各自永远停住 ——
-/// 屏幕上那一行既不 Recovered 也不 Severed。
+/// 一帧控制帧的 ack 最多等多久：对端接下 TCP 却不说话时，裸等会让握手永远停住。
 pub(crate) const ACK_TIMEOUT: Duration = Duration::from_secs(10);
 
 const SUPPORTED_KAP_WS_PROTOCOL: i64 = 2;

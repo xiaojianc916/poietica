@@ -31,11 +31,13 @@ pub use model_catalog::{
     RegistryImport,
 };
 
+mod compatibility;
 mod connection;
 mod frame;
 mod history;
 mod interaction;
 mod link;
+mod policy;
 mod process;
 mod recorder;
 mod run_slot;
@@ -122,15 +124,15 @@ mod tests {
     #[test]
     fn envelope_routes_by_code() {
         let refused: std::result::Result<String, _> = envelope_data(rest::RestEnvelope {
-            code: 40909,
-            msg: "dismissed".to_owned(),
+            code: 1,
+            msg: "refused".to_owned(),
             data: None,
             request_id: None,
             details: None,
         });
         assert!(matches!(
             refused,
-            Err(EnvelopeError::Refused { code: 40909, .. })
+            Err(EnvelopeError::Refused { code: 1, .. })
         ));
     }
 

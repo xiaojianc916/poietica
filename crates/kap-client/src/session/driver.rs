@@ -1,8 +1,9 @@
 //! kap 传输驱动器：起进程、开锚会话、握手、主循环收命令收事件。
 //!
 //! 进程模型：spawn "kimi web --no-open" → 等注册表出现本次拉起后的条目、且那个
-//! 地址认我们手里的 server.token（process/instance_registry）→ REST 开锚会话
-//! （rest.rs）→ WS client_hello + subscribe（connection/）→ 主循环收命令、收事件。
+//! 地址认我们手里的 server.token（process/instance_registry）→ /meta 兼容门禁
+//! （compatibility.rs）→ REST 开锚会话（rest.rs）→ WS client_hello + subscribe
+//! （connection/）→ 主循环收命令、收事件。
 //!
 //! 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …）：
 //! 信封是 { type, seq, session_id, timestamp, payload }，payload 里再带一份
@@ -27,6 +28,7 @@ use futures::{FutureExt, SinkExt, StreamExt};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::http::header::AUTHORIZATION;
 
+use crate::compatibility::require_pinned_capabilities;
 use crate::connection::handshake::{shake_hands, subscribe, wait_subscribe_ack};
 use crate::connection::reconnect::{fail_in_flight, relink};
 use crate::connection::socket::{WsSink, dial_ws, send_frame};
@@ -35,6 +37,7 @@ use crate::generated::events::{ClientFrame, PongStruct, ServerFrame, websocket};
 use crate::generated::rest::{SteerPromptsRequestStruct, routes};
 use crate::interaction::desk::{PermissionDesk, QuestionDesk};
 use crate::model_catalog::execute as execute_model_catalog;
+use crate::policy::CANCEL_GRACE;
 use crate::process::instance_registry::{dialable_host, discover_instance};
 use crate::process::program::{hide_console, resolve_program};
 use crate::process::stderr_probe::StderrLog;
@@ -53,13 +56,6 @@ use crate::session::rest::{
 use crate::session::router::EventRouter;
 use crate::session::{AgentConnection, AgentSpawn, Handshake, SessionEvent, SessionEvents};
 use crate::trace::{open_trace, trace};
-
-/// 取消被 kap 收下之后，等 turn.ended 的宽限期。
-///
-/// kap 的 :abort 是协作式的，不保证终帧一定回来（client.rs 的
-/// AgentClient::cancel）。屏幕上那条经过由帧日志出，没有终帧就没有终态 ——
-/// 所以到期由本机把这一轮收摊，而不是让它永远停在"正在取消"。
-const CANCEL_GRACE: Duration = Duration::from_secs(10);
 
 /// 命令处理的统一收尾：spawn 出去的工作无论成败，收据必回命令端。
 async fn settle<T>(reply: oneshot::Sender<Result<T>>, fut: impl Future<Output = Result<T>>) {
@@ -186,6 +182,14 @@ pub fn connect(
                 message: e.to_string(),
             })?;
 
+        // 兼容门禁：活着的 server 必须仍然认快照钉住的能力集（compatibility.rs）。
+        if let Err(error) = require_pinned_capabilities(&http, &base_url).await {
+            let _ = ready_tx.send(Err(KapError::Handshake {
+                message: error.to_string(),
+            }));
+            return Err(error);
+        }
+
         // 5. 建锚会话（REST）。sessionCreateSchema：metadata.cwd 与
         //    workspace_id 至少给一个。
         let session = match post(
@@ -248,10 +252,8 @@ pub fn connect(
 
         // 7. 注册槽 + 订阅锚会话
         if book_clone.adopt(&session_id, slot).is_err() {
-            let _ = ready_tx.send(Err(KapError::Handshake {
-                message: "session book is poisoned".into(),
-            }));
-            return Ok(());
+            let _ = ready_tx.send(Err(KapError::Poisoned));
+            return Err(KapError::Poisoned);
         }
 
         let anchor_sub = match subscribe(&ws, &session_id, None).await {

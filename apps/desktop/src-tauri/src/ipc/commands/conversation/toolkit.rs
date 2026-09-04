@@ -1,4 +1,3 @@
-//! skill-catalog-snapshot-v1
 //! Session-scoped toolkit snapshot. KAP owns effective precedence; native I/O enriches
 //! that same snapshot before it crosses IPC, so the renderer never merges inventories.
 
@@ -109,11 +108,11 @@ pub async fn agent_toolkit(
 
     let mut by_name = managed
         .into_iter()
-        .map(|skill| (skill.name.to_lowercase(), skill))
+        .map(|skill| (skill.name.clone(), skill))
         .collect::<HashMap<_, _>>();
     let mut skills = Vec::with_capacity(runtime.len() + by_name.len());
     for skill in runtime {
-        let owned = by_name.remove(&skill.name.to_lowercase());
+        let owned = by_name.remove(&skill.name);
         skills.push(restate_skill(skill, owned, requested_cwd.as_deref()));
     }
     skills.extend(by_name.into_values().map(restate_unloaded));
