@@ -38,6 +38,7 @@
     "kap:spec:check": "bun tools/contract/kap-spec-sync.ts --check",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
+    "latest-json": "bun tools/release/latest-json.ts",
     "models:update": "node tools/models/update-model-catalog.mjs",
     "perf": "bun run --filter @poietica/tests perf",
     "prepare": "bun tools/dev/install-git-hooks.ts",

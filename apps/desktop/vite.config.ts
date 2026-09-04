@@ -2,7 +2,6 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { customErrorDiagnosticsPlugin } from './vite-plugins/custom-error-diagnostics.ts'
-import { startupBoundaryPlugin } from './vite-plugins/startup-boundary.ts'
 
 /*
  * Tauri 在构建时注入这两个变量。process.env 的类型是索引签名，而仓库开了
@@ -15,7 +14,6 @@ export default defineConfig({
   plugins: [
     // 必须最先注册，确保捕获后续插件及 import-analysis 错误。
     customErrorDiagnosticsPlugin(),
-    startupBoundaryPlugin(),
     react(),
     tailwindcss(),
   ],

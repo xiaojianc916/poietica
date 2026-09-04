@@ -1,7 +1,7 @@
 # Runbook — Windows 发行
 
-面向装到用户电脑上的 Poietica。发布只有一条路径：本地命令创建版本提交与 tag，
-GitHub Actions 构建、签名、验收并发布。
+面向装到用户电脑上的 Poietica。发布只有一条路径：本机 `bun release` 构建、
+签名、上传、验通道，不经过 GitHub Actions。
 
 ## 一次性设置
 
@@ -12,9 +12,10 @@ cd apps/desktop && bun run tauri signer generate -w $HOME/.tauri/poietica.key
 ```
 
 - 公钥写入 `apps/desktop/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
-- 私钥与口令只存仓库 secrets：`TAURI_SIGNING_PRIVATE_KEY`、
-  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
-- 私钥离线备份；遗失后，已安装客户端无法信任后续更新。
+- 私钥与口令只存本机 `~/.tauri/poietica.key` 与 `~/.tauri/poietica.pass`（首次发布
+  时脚本会问一次并记住），另做离线备份；遗失后，已安装客户端无法信任后续更新。
+- 构建需要本机 Rust 工具链（`rustup show` 能读出 `rust-toolchain.toml` 的那套）。
+- 私钥永不进仓库、永不进 CI。
 
 ### Authenticode 代码签名
 
@@ -25,29 +26,26 @@ cd apps/desktop && bun run tauri signer generate -w $HOME/.tauri/poietica.key
 ## 发布
 
 ```bash
-bun release                       # 交互选择，默认 patch
-bun release minor                 # 也可用 patch / major
-bun release 0.3.0-rc.1 --no-wait  # 指定版本并在派发后返回
+bun release                # 交互选择，默认 patch
+bun release minor          # 也可用 patch / major / 具体版本号
+bun release 0.3.0 --yes    # 跳过确认（仍会交互问私钥密码，除非已记住）
 ```
 
-命令只确认主分支与干净工作区、同步远端、统一写入四处版本号并做一致性检查，
-创建一个版本提交和 annotated tag，再用 `git push --atomic` 一次推送。默认继续等待
-Release workflow 完成；`--yes` 仅跳过发布前确认。发布提交由 Quality workflow 执行
-唯一一次 `bun run check`；Release workflow 不再重复执行，只保留版本对表、依赖审计、
-签名构建与发布。
-
-Release workflow 将 tag 与版本对表并执行依赖审计，然后由官方
-`tauri-apps/tauri-action` 构建签名产物和 `latest.json`。Release 在安装冒烟与
-Windows GUI 子系统检查通过前保持 draft；通过后自动发布、标记 latest，并验证稳定更新端点。
-预发布版本会发布为 prerelease，但不会替换稳定更新端点。
+命令分十步：起飞前检查（主分支、干净工作区、远端同步、gh 登录、更新公钥、
+签名密钥）→ 选版本 → 可选完整门禁（`bun run check`，跑在写版本号之前，失败
+无需回滚）→ 统一写入四处版本号并一致性检查 → 清空构建目录 → 本地
+`build:release` 编译签名（十几分钟）→ 产物进 `dist-release` 并生成
+`latest.json` 与 `SHA256SUMS.txt` → 确认 → 版本提交 + annotated tag +
+push → `gh release create` 上传四个资产 → 用客户端真实访问的更新地址验通道。
+预发布（版本号带 `-`）发为 prerelease，不进稳定通道、不验通道。
 
 ### 失败处理
 
-- 原子推送前失败：命令删除自己创建的 tag/提交并恢复四个版本文件。
-- 原子推送后任一步失败或取消：Release workflow 的失败清理步骤撤回远端副作用。若版本
-  文件仍由本次发布拥有，则以 `git revert` 保留审计历史并恢复上一版本；随后原子删除 tag，
-  并删除对应 draft/已发布 Release。若后续版本已接管版本文件，只删除本次 tag/Release。
-- 回滚发生冲突、权限不足或并发 push 时明确失败，不 force 覆盖其他提交。
+- 版本提交推出去之前失败：四个版本文件签回原样，仓库干净如初。
+- 版本提交推出去之后失败：脚本问你要不要撤回；确认后按 release → 远端 tag →
+  本地 tag → 版本号提交的顺序收回，已上远端的提交用 `git revert`，还没上远端
+  的直接丢弃。拒绝撤回则保留现场手动处理。
+- 任何一步都不 force 覆盖他人提交。
 
 ## 安装形态
 

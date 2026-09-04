@@ -19,8 +19,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # 门禁只有一条命令表：package.json 的 check。平台取发行平台 Windows；
-  # Release workflow 不重复执行，只负责发行专属的签名、冒烟与发布。
+  # 门禁只有一条命令表：package.json 的 check。平台取发行平台 Windows。
+  # 发行走本机 bun release，不在 CI 里。
   check:
     name: Check
     runs-on: windows-latest
