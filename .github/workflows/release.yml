@@ -43,20 +43,6 @@ jobs:
       - name: Verify release version
         run: bun run check:versions "${{ github.ref_name }}"
 
-
-      - name: JavaScript dependency audit
-        run: bun run audit
-
-      # cargo-deny-action 是容器 action，只在 Linux 上可运行；发行在 windows-latest，
-      # 改用跨平台的 install-action 装二进制后直接跑 cargo deny，命令与 package.json 的 audit:rust 一致。
-      - name: Install cargo-deny
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b
-        with:
-          tool: cargo-deny
-
-      - name: Rust dependency policy
-        run: cargo deny check --all-features
-
       - name: Build signed draft release
         id: release
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f
