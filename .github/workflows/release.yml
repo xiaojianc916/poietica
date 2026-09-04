@@ -30,6 +30,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          # 回滚步骤要读 release 提交的父历史（diff-tree），浅克隆下取不到。
+          fetch-depth: 0
 
       - name: Setup JS toolchain
         uses: ./.github/actions/setup-js
@@ -42,6 +44,10 @@ jobs:
 
       - name: Verify release version
         run: bun run check:versions "${{ github.ref_name }}"
+
+      # catalog 是 gitignore 的生成物，干净检出里没有，构建前现拉。
+      - name: Generate model catalog
+        run: bun run models:update
 
       - name: Build signed draft release
         id: release

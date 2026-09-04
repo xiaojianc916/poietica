@@ -41,6 +41,10 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
 
+      # catalog 是 gitignore 的生成物，干净检出里没有，门禁前现拉。
+      - name: Generate model catalog
+        run: bun run models:update
+
       - name: Quality gate
         run: bun run check
 
@@ -89,6 +93,10 @@ jobs:
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
+
+      # catalog 是 gitignore 的生成物，干净检出里没有，构建前现拉。
+      - name: Generate model catalog
+        run: bun run models:update
 
       # turbo.json 中 build.dependsOn 已包含 typecheck，无需单独再跑一遍。
       - name: Build Windows desktop binary
