@@ -1088,7 +1088,6 @@ function ProviderForm({
           </div>
         ))}
       </div>
-      <ActionRow disabled={disabled} message={message} />
     </form>
   )
 }

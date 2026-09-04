@@ -76,7 +76,7 @@ describe('timeline selectors', () => {
         kind: 'questions_resolved',
         questionId: 'group_1',
         outcome: 'answered',
-        answers: { q_0: { kind: 'single', optionId: 'opt_0_0' } },
+        answers: [{ questionId: 'q_0', answer: { kind: 'single', optionId: 'opt_0_0' } }],
         note: '',
         seq: 3,
         at: 3,
@@ -85,6 +85,15 @@ describe('timeline selectors', () => {
 
     expect(answered.status).toBe('running')
     expect(pendingQuestion(activeScope(answered))).toBeUndefined()
+    const answeredQuestion = answered.active.items.find((item) => item.type === 'question')
+    expect(answeredQuestion?.type).toBe('question')
+    if (answeredQuestion?.type !== 'question') {
+      throw new Error('question was not projected')
+    }
+    expect(answeredQuestion.resolution?.answers['q_0']).toEqual({
+      kind: 'single',
+      optionId: 'opt_0_0',
+    })
   })
 
   /*

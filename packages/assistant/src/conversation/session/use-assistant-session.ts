@@ -235,8 +235,8 @@ export function useAssistantSession({
   const wired = useRef<{
     busy: boolean
     deliver: (said: Interjection) => void
-    merge: (promptId: string) => void
-  }>({ busy: false, deliver: () => undefined, merge: () => undefined })
+    merge: (promptId: string) => Promise<void>
+  }>({ busy: false, deliver: () => undefined, merge: () => Promise.resolve() })
 
   useEffect(() => {
     wired.current = {
@@ -253,7 +253,7 @@ export function useAssistantSession({
           threadId: endpoint,
         })
       },
-      merge: (promptId) => {
+      merge: async (promptId) => {
         if (session === undefined) {
           note(NO_SESSION)
 
@@ -262,11 +262,13 @@ export function useAssistantSession({
 
         /* 并轮是一次对账：这一轮已经收口时 kap 必然回绝（40402），而那一句要的终局
            已经成立 —— kap 自己会把它跑掉。只有轮次还在跑时的失败才是失败。 */
-        void session.steer(endpoint, [promptId]).catch((cause: unknown) => {
+        try {
+          await session.steer(endpoint, [promptId])
+        } catch (cause) {
           if (wired.current.busy) {
             note(describeFailure(cause))
           }
-        })
+        }
       },
     }
   }, [busy, endpoint, note, onUserMessage, prepare, session, transcripts])
@@ -278,13 +280,11 @@ export function useAssistantSession({
           wired.current.deliver(said)
         },
         isBusy: () => wired.current.busy,
-        merge: (promptId) => {
-          wired.current.merge(promptId)
-        },
+        merge: (promptId) => wired.current.merge(promptId),
       }),
   )
 
-  /* 这一轮收口了才放行：中途放一条出去，会把 agent 正在写的那一段从中间劈开。 */
+  /* 空闲边沿结清普通投递或并轮竞态；忙碌时的安全插入由 kap 调度器决定。 */
   useEffect(() => {
     if (!busy) {
       outbox.idle()

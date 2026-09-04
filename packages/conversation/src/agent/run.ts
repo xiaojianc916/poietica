@@ -1,7 +1,7 @@
 import type { KapEventPayload, KapSessionId, KapStopReason } from './kap'
 import type { SessionLink } from './link'
 import type { ApprovalDecision, ApprovalScope } from './permission'
-import type { QuestionChoice, QuestionItem } from './question'
+import type { QuestionAnswer, QuestionItem } from './question'
 import type { ToolCallUpdate } from './tool-call'
 
 export type RunStatus =
@@ -95,8 +95,8 @@ export type RunEvent =
       readonly at: number
       readonly questionId: string
       readonly outcome: QuestionOutcome
-      /** 题号到答复。跳过的题也在 —— 跳过一次也是答复。 */
-      readonly answers: Readonly<Record<string, QuestionChoice>>
+      /** 按提问顺序记录逐题答复；读模型在唯一投影入口按题号索引。 */
+      readonly answers: readonly QuestionAnswer[]
       /** 整组题的可选备注；没写就是空串。 */
       readonly note: string
     }

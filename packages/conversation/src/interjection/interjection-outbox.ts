@@ -11,23 +11,17 @@ interface Written {
 /**
  * 待插话消息的有序出账簿。
  *
- * 顺序、编辑占位、以及「什么时候放一条出去」都归它。kap 的 pending 只被
- * enqueue / shift / splice 动过，协议没有重排操作，所以顺序的真相必须留在这一侧；
- * 代价是这一侧要守住「同时最多一条未落定」，否则两边各有一份顺序。
- *
- * 放行只有一个判据：这一轮收口了，而且手上没有未落定的那一条 —— 轮次中途放一条
- * 出去，会把 agent 正在写的那一段从中间劈开。人按提交是唯一的例外：那是一次明说
- * 的插队，所以它也是唯一一条会去要求 kap 并轮的路径。
- *
- * 纯 TS：没有 React、没有 DOM、没有传输，所以它在 Node 里直接单测。
+ * 本地只拥有尚未交给 kap 的顺序与编辑占位。忙碌时消息立即提交，prompt.queued
+ * 返回身份后请求 kap 并入当前轮；安全插入边界由 kap 的 step 调度器决定。本层一次
+ * 只处理一条，等并轮请求落定后再放下一条，FIFO 不会分叉。
  */
 export class InterjectionOutbox {
   readonly #port: OutboxPort
   readonly #woken = new Set<() => void>()
   #state: OutboxState = EMPTY
   #serial = 0
-  /** 手上那条是插队放出去的：只有它要并进正在跑的这一轮。 */
-  #urged = false
+  /** 手上那条要并进正在运行的轮次。 */
+  #steering = false
   /** 已经要求并轮的那个号：一个号只说一次。 */
   #merged: string | undefined
 
@@ -132,31 +126,39 @@ export class InterjectionOutbox {
     })
   }
 
-  /** 提交：插到队首立刻放出去，并要求并进正在跑的这一轮。 */
+  /** 提到队首；没有在途消息时立即走统一投递路径。 */
   urge(id: string): void {
     this.arrange([id])
     this.#release(true)
   }
 
-  /**
-   * kap 收下了刚放出去那一条。
-   *
-   * 只有插队那一条要并轮，而且一个号只说一次：同一个号说第二遍时它已经不在 kap
-   * 的队里，那条命令必然被回绝（40402）。
-   */
+  /** kap 签发身份后请求并轮；请求落定即把所有权交给 kap，再处理下一句。 */
   claimed(promptId: string): void {
-    if (this.#state.inflight === undefined || !this.#urged || this.#merged === promptId) {
+    const inflight = this.#state.inflight
+
+    if (inflight === undefined || !this.#steering || this.#merged === promptId) {
       return
     }
 
     this.#merged = promptId
-    this.#port.merge(promptId)
+    const settle = (): void => {
+      if (this.#state.inflight !== inflight || this.#merged !== promptId) {
+        return
+      }
+
+      this.#steering = false
+      this.#merged = undefined
+      this.#write({ inflight: undefined })
+      this.#drain()
+    }
+
+    void this.#port.merge(promptId).then(settle, settle)
   }
 
   /** 这一轮收口了：手上那条落账，队里下一条可以走。 */
   idle(): void {
     if (this.#state.inflight !== undefined) {
-      this.#urged = false
+      this.#steering = false
       this.#merged = undefined
       this.#write({ inflight: undefined })
     }
@@ -164,13 +166,9 @@ export class InterjectionOutbox {
     this.#drain()
   }
 
-  /* 空闲才放行：轮次中途的停顿不是放行的时机。 */
+  /* 忙碌时提交并请求 steer；真正的插入边界由 kap 调度器裁决。 */
   #drain(): void {
-    if (this.#port.isBusy()) {
-      return
-    }
-
-    this.#release(false)
+    this.#release(this.#port.isBusy())
   }
 
   /**
@@ -178,7 +176,7 @@ export class InterjectionOutbox {
    *
    * 跳过正在改的那一条，而不是停在它前面 —— 停下来等于有人在改队首时整队都发不出去。
    */
-  #release(urged: boolean): void {
+  #release(steering: boolean): void {
     if (this.#state.inflight !== undefined) {
       return
     }
@@ -193,7 +191,7 @@ export class InterjectionOutbox {
     const queue = [...this.#state.queue]
 
     queue.splice(index, 1)
-    this.#urged = urged
+    this.#steering = steering
     this.#merged = undefined
     this.#write({ inflight: said, queue })
     this.#port.deliver(said)

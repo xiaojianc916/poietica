@@ -474,14 +474,33 @@
 .models-editor__row {
   display: grid;
   flex: none;
-  grid-template-columns: minmax(105px, 1fr) minmax(105px, 1fr) 92px minmax(72px, auto) minmax(
-      120px,
-      1fr
-    ) 28px;
+  grid-template-areas:
+    "model display remove"
+    "context thinking remove"
+    "effort effort remove";
+  grid-template-columns: repeat(2, minmax(0, 1fr)) 28px;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 10px;
   border-block-start: 1px solid var(--models-divider);
+}
+.models-editor__row > :nth-child(1) {
+  grid-area: model;
+}
+.models-editor__row > :nth-child(2) {
+  grid-area: display;
+}
+.models-editor__row > :nth-child(3) {
+  grid-area: context;
+}
+.models-editor__row > :nth-child(4) {
+  grid-area: thinking;
+}
+.models-editor__row > :nth-child(5) {
+  grid-area: effort;
+}
+.models-editor__row > :nth-child(6) {
+  grid-area: remove;
 }
 .models-thinking-toggle {
   display: flex;
@@ -524,6 +543,12 @@
     border-block-end: 1px solid var(--models-divider);
   }
   .models-editor__row {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "model remove"
+      "display remove"
+      "context remove"
+      "thinking remove"
+      "effort remove";
+    grid-template-columns: minmax(0, 1fr) 28px;
   }
 }

@@ -25,7 +25,10 @@ export interface OutboxState {
 export interface OutboxPort {
   /** 把这一条交给会话；转录记账在那一侧。 */
   readonly deliver: (said: Interjection) => void
-  /** 把 kap 已收下的那一条并进正在跑的这一轮。 */
-  readonly merge: (promptId: string) => void
+  /**
+   * 把 kap 已收下的那一条并进正在跑的这一轮。
+   * Promise 在协议调度器接纳或明确拒绝后落定；端口负责记录失败。
+   */
+  readonly merge: (promptId: string) => Promise<void>
   readonly isBusy: () => boolean
 }

@@ -128,7 +128,7 @@ export function apply(draft: Draft, event: RunEvent): void {
     case 'questions_resolved': {
       settleQuestion(draft, `${namespace(draft)}question-${event.questionId}`, {
         outcome: event.outcome,
-        answers: event.answers,
+        answers: indexQuestionAnswers(event.answers),
         note: event.note,
       })
 
@@ -383,6 +383,12 @@ function settlePermission(
   if (asked?.type === 'permission') {
     draft.items[position] = { ...asked, resolution }
   }
+}
+
+function indexQuestionAnswers(
+  answers: Extract<RunEvent, { readonly kind: 'questions_resolved' }>['answers'],
+): NonNullable<QuestionTimelineItem['resolution']>['answers'] {
+  return Object.fromEntries(answers.map(({ questionId, answer }) => [questionId, answer]))
 }
 
 function settleQuestion(
