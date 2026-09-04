@@ -55,7 +55,14 @@ import {
 } from './use-settings-controller'
 import './settings-surface.css'
 
-/* Settings sections ship with the first paint. */
+/*
+ * 设置界面外壳：分类导航与内容区两个格子、context 供应，外加通用/外观/隐私/
+ * 关于四个内联面板。首屏即带分类。
+ *
+ * 不拆（923 行）：分类的标签、图标与内容收在 SECTIONS 一张表里，缺任何一列
+ * 都是编译错误；内联面板都是 SettingsPanelProps 这一个契约的直接排列，拆出去
+ * 只会多出四个没有第二个读者的小文件。
+ */
 
 type SettingsSection =
   | 'general'

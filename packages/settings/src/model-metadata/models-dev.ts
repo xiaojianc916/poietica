@@ -128,76 +128,91 @@ export function modelConfigPatch(
     if (model === undefined) {
       continue
     }
-    const patch: Record<string, unknown> = {}
-    const rawName = model['name']
-    const name = typeof rawName === 'string' && rawName.length > 0 ? rawName : undefined
-    const limit = record(model['limit'])
-    const context = positiveInteger(limit?.['context'])
-    const output = positiveInteger(limit?.['output'])
-    const modalities = record(model['modalities'])
-    const rawInputs = modalities?.['input']
-    const inputs = Array.isArray(rawInputs) ? rawInputs : []
-    const thinking = thinkingOptions(model)
-    const supportsThinking =
-      model['reasoning'] === true || thinking.hasToggle || thinking.efforts.length > 0
-    const wire = providerTypes.get(current.provider)
-    const alwaysThinking =
-      supportsThinking &&
-      thinking.efforts.length > 0 &&
-      !thinking.hasToggle &&
-      !thinking.hasOff &&
-      wire !== 'anthropic' &&
-      wire !== 'kimi'
-
-    if (name !== undefined && name !== current.displayName) {
-      patch['displayName'] = name
-    }
-    if (context !== undefined && context !== current.maxContextSize) {
-      patch['maxContextSize'] = context
-    }
-    if (output !== undefined && output !== current.maxOutputSize) {
-      patch['maxOutputSize'] = output
-    }
-
-    const capabilities = new Set(current.capabilities ?? [])
-    if (inputs.includes('image')) {
-      capabilities.add('image_in')
-    }
-    if (inputs.includes('video')) {
-      capabilities.add('video_in')
-    }
-    if (inputs.includes('audio')) {
-      capabilities.add('audio_in')
-    }
-    if (model['tool_call'] === true) {
-      capabilities.add('tool_use')
-    }
-    if (model['dynamically_loaded_tools'] === true) {
-      capabilities.add('dynamically_loaded_tools')
-    }
-    if (alwaysThinking) {
-      capabilities.delete('thinking')
-      capabilities.add('always_thinking')
-    } else if (supportsThinking && !capabilities.has('always_thinking')) {
-      capabilities.add('thinking')
-    }
-    const nextCapabilities = sortedCapabilities(capabilities)
-    const currentCapabilities = sortedCapabilities(current.capabilities ?? [])
-    if (!sameValues(nextCapabilities, currentCapabilities)) {
-      patch['capabilities'] = nextCapabilities
-    }
-
-    if (
-      thinking.efforts.length > 0 &&
-      !sameValues(thinking.efforts, current.supportEfforts ?? [])
-    ) {
-      patch['supportEfforts'] = [...thinking.efforts]
-    }
-
+    const patch = modelPatch(model, current, providerTypes.get(current.provider))
     if (Object.keys(patch).length > 0) {
       result[current.model] = patch
     }
   }
 
   return result
+}
+
+function modelPatch(
+  model: UnknownRecord,
+  current: ModelLike,
+  wire: string | undefined,
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {}
+  const rawName = model['name']
+  const name = typeof rawName === 'string' && rawName.length > 0 ? rawName : undefined
+  const limit = record(model['limit'])
+  const context = positiveInteger(limit?.['context'])
+  const output = positiveInteger(limit?.['output'])
+  const modalities = record(model['modalities'])
+  const rawInputs = modalities?.['input']
+  const inputs = Array.isArray(rawInputs) ? rawInputs : []
+  const thinking = thinkingOptions(model)
+
+  if (name !== undefined && name !== current.displayName) {
+    patch['displayName'] = name
+  }
+  if (context !== undefined && context !== current.maxContextSize) {
+    patch['maxContextSize'] = context
+  }
+  if (output !== undefined && output !== current.maxOutputSize) {
+    patch['maxOutputSize'] = output
+  }
+
+  const nextCapabilities = mergedCapabilities(model, current, inputs, thinking, wire)
+  if (!sameValues(nextCapabilities, sortedCapabilities(current.capabilities ?? []))) {
+    patch['capabilities'] = nextCapabilities
+  }
+
+  if (thinking.efforts.length > 0 && !sameValues(thinking.efforts, current.supportEfforts ?? [])) {
+    patch['supportEfforts'] = [...thinking.efforts]
+  }
+
+  return patch
+}
+
+function mergedCapabilities(
+  model: UnknownRecord,
+  current: ModelLike,
+  inputs: readonly unknown[],
+  thinking: ReturnType<typeof thinkingOptions>,
+  wire: string | undefined,
+): string[] {
+  const capabilities = new Set(current.capabilities ?? [])
+  const modalityCapabilities = [
+    ['image', 'image_in'],
+    ['video', 'video_in'],
+    ['audio', 'audio_in'],
+  ] as const
+  for (const [input, capability] of modalityCapabilities) {
+    if (inputs.includes(input)) {
+      capabilities.add(capability)
+    }
+  }
+  if (model['tool_call'] === true) {
+    capabilities.add('tool_use')
+  }
+  if (model['dynamically_loaded_tools'] === true) {
+    capabilities.add('dynamically_loaded_tools')
+  }
+  const supportsThinking =
+    model['reasoning'] === true || thinking.hasToggle || thinking.efforts.length > 0
+  const alwaysThinking =
+    supportsThinking &&
+    thinking.efforts.length > 0 &&
+    !thinking.hasToggle &&
+    !thinking.hasOff &&
+    wire !== 'anthropic' &&
+    wire !== 'kimi'
+  if (alwaysThinking) {
+    capabilities.delete('thinking')
+    capabilities.add('always_thinking')
+  } else if (supportsThinking && !capabilities.has('always_thinking')) {
+    capabilities.add('thinking')
+  }
+  return sortedCapabilities(capabilities)
 }

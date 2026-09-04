@@ -49,6 +49,11 @@ import { type InstalledSkill, readSkills, skillFrontmatter } from './skill'
  *
  * 反过来的窗口是存在的，而且不由我们决定：官方文档逐字「Plugin changes apply after
  * /reload or in new sessions」。已经开着的那条会话不会自己更新。
+ *
+ * 不拆（1155 行）：各状态格子共享同一条串行写队列与同一个发布点，拆开后队列
+ * 的所有权就得跨文件协调；插件与技能两条安装流程共用 beginStagedInstall 一条
+ * 路径，差别只是参数；「先写 agent 会读的文件、写成才发布」这条顺序不变量
+ * 约束每一个动作，拆了就会在两处各养一份顺序。
  */
 
 /**

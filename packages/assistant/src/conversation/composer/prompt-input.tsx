@@ -55,6 +55,10 @@ import { $createChipNode, ChipNode, samePromptChip } from './prompt-chip'
  * 部分。
  *
  * 面板里的行有两种动作：命令落成一枚 chip，技能与模式是一次协议动作。
+ *
+ * 不拆（869 行）：附件、面板开合与命令面都经本文件的 context 向下交；键盘、
+ * 粘贴与提交是同一张卡的同一次交互流，拆开只会把 handoff 与 draftKey 的所有权
+ * 切到两处。
  */
 
 export interface PromptInputMessage {

@@ -74,9 +74,9 @@ describe('ModelCatalogStore', () => {
     }
     const received: ModelCatalogOperation[] = []
     const port: ModelCatalogPort = {
-      execute: async (_agentId, operation) => {
+      execute: (_agentId, operation) => {
         received.push(operation)
-        return DATA
+        return Promise.resolve(DATA)
       },
       subscribeInvalidation: async () => () => undefined,
     }

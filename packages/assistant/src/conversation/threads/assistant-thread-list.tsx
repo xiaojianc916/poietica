@@ -55,6 +55,10 @@ import { ThreadDisclosure } from './thread-disclosure'
  * 加号是入口，不是记录：它把「新建会话」那一格交给工作台去开或去激活，
  * 不在数据库里先造一条没人说过话的会话。它只长在组头上 —— 面板顶那一栏是
  * 工作目录本身（WorkspacePicker），不是这张列表的标题，新建跟着工作区走。
+ *
+ * 不拆（829 行）：列表、行与重命名场是同一格的三件 —— 行做成 memo 组件依赖
+ * 列表层回调保持稳定，重命名草稿住行里才不会每敲一个字重渲整张列表；三节
+ * 从同一份 painted 投影拆出，拆开就要三处各解析一遍时间。
  */
 
 export interface AssistantThreadSummary {

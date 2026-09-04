@@ -34,6 +34,14 @@ import { describeAgentCliFailure } from '../agent-install/agent-cli-text'
 import { AgentInstallAction } from '../agent-install/agent-install-action'
 import './models-settings.css'
 
+/*
+ * 「模型」设置页：已配置模型的可见性清单，与供应商工作区（轨道 + 新建/编辑表单）。
+ *
+ * 不拆（1147 行）：所有子组件共享 ModelCatalogPanel 的 run 通道与同一套错误
+ * 文案；表单的草稿类型、校验与提交构造（validateModels/saveProvider）是同一张
+ * 表单的两半，拆开就得导出一串只为彼此存在的中间类型。
+ */
+
 const COLLAPSED_MODEL_LIMIT = 8
 const NEW_PROVIDER = '__new_provider__'
 const CUSTOM_PROVIDER = '__custom_provider__'
@@ -754,6 +762,27 @@ const emptyModel = (): ModelDraft => ({
   otherCapabilities: [],
   writeFields: {},
 })
+const draftFromModel = (model: ModelDescriptor, providerId: string): ModelDraft => ({
+  key: crypto.randomUUID(),
+  model: modelIdForDraft(providerId, model.model),
+  displayName: model.displayName ?? '',
+  maxContextSize: String(model.maxContextSize),
+  thinkingCapability: model.capabilities?.includes('always_thinking')
+    ? 'always_thinking'
+    : model.capabilities?.includes('thinking') ||
+        model.adaptiveThinking === true ||
+        (model.supportEfforts?.length ?? 0) > 0
+      ? 'thinking'
+      : null,
+  supportEfforts: model.supportEfforts?.join(', ') ?? '',
+  otherCapabilities: (model.capabilities ?? []).filter(
+    (capability) => capability !== 'thinking' && capability !== 'always_thinking',
+  ),
+  writeFields: {
+    ...(model.maxOutputSize === null ? {} : { maxOutputSize: model.maxOutputSize }),
+    ...(model.adaptiveThinking === null ? {} : { adaptiveThinking: model.adaptiveThinking }),
+  },
+})
 const parsedEfforts = (value: string): string[] => [
   ...new Set(
     value
@@ -896,29 +925,7 @@ function ProviderForm({
   const [models, setModels] = useState<ModelDraft[]>(() =>
     current === undefined
       ? [emptyModel()]
-      : current.models.map((model) => ({
-          key: crypto.randomUUID(),
-          model: modelIdForDraft(current.provider.id, model.model),
-          displayName: model.displayName ?? '',
-          maxContextSize: String(model.maxContextSize),
-          thinkingCapability: model.capabilities?.includes('always_thinking')
-            ? 'always_thinking'
-            : model.capabilities?.includes('thinking') ||
-                model.adaptiveThinking === true ||
-                (model.supportEfforts?.length ?? 0) > 0
-              ? 'thinking'
-              : null,
-          supportEfforts: model.supportEfforts?.join(', ') ?? '',
-          otherCapabilities: (model.capabilities ?? []).filter(
-            (capability) => capability !== 'thinking' && capability !== 'always_thinking',
-          ),
-          writeFields: {
-            ...(model.maxOutputSize === null ? {} : { maxOutputSize: model.maxOutputSize }),
-            ...(model.adaptiveThinking === null
-              ? {}
-              : { adaptiveThinking: model.adaptiveThinking }),
-          },
-        })),
+      : current.models.map((model) => draftFromModel(model, current.provider.id)),
   )
   const [message, setMessage] = useState<string | null>(null)
   const updateModel = (key: string, change: Partial<ModelDraft>) =>

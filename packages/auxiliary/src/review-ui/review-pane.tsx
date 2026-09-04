@@ -78,6 +78,11 @@ import './review-pane.css'
  *
  * 这里只画。清单、补丁、折叠、树宽、呈现开关都在 review-store 那一份快照里，
  * 组件不持有领域态，也不自己问 git。
+ *
+ * 不拆（1098 行）：直渲与虚拟化是同一条行带呈现策略的两臂，分叉判据
+ * （spanOf 超过 VIRTUAL_AFTER）与两臂同居一处；gap 的身份、估高与展开计数
+ * 由 gapKeyOf/renderedRowsOf 单一产地发放，拆出虚拟化带只会把这份判据连同
+ * GapBar 变成跨文件导出，加一种行仍要改两处。
  */
 type Ready = Extract<ReviewReading, { phase: 'ready' }>
 const TROUBLE: Readonly<Record<'asking' | 'notARepository' | 'unreadable', string>> = {
