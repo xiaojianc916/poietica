@@ -5,7 +5,7 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 
-use crate::connection::handshake::subscribe;
+use crate::connection::handshake::{subscribe, unsubscribe};
 use crate::connection::socket::WsSink;
 use crate::error::{KapError, Result};
 use crate::generated::rest::{
@@ -131,14 +131,36 @@ async fn send(builder: reqwest::RequestBuilder) -> Result<Value> {
     envelope_data(&body)
 }
 
-/// POST /sessions 的请求体：sessionCreateSchema 只认 metadata.cwd 与 workspace_id。
-pub(crate) fn create_session_body(cwd: &Path) -> CreateSessionRequestStruct {
+/// POST /sessions 的请求体：模型在会话出生时定下，读路径不再替它选。
+pub(crate) fn create_session_body(cwd: &Path, model: &str) -> CreateSessionRequestStruct {
     CreateSessionRequestStruct {
         metadata: Some(CreateSessionRequestMetadataStruct {
             cwd: cwd.to_string_lossy().into_owned(),
         }),
+        agent_config: Some(CreateSessionRequestAgentConfigStruct {
+            model: Some(model.to_owned()),
+            ..Default::default()
+        }),
         ..Default::default()
     }
+}
+
+/// 目录里第一条可用模型。kap 的会话状态没有「稍后再选」这一格，出生就得带上；
+/// 之后换模型仍走 selector 的 model。
+pub(crate) async fn default_model(http: &reqwest::Client, base_url: &str) -> Result<String> {
+    let catalog: ListModelsDataStruct = decoded(
+        get(http, routes::list_models(base_url)).await?,
+        "model catalog",
+    )?;
+
+    catalog
+        .items
+        .into_iter()
+        .map(|item| item.model)
+        .find(|model| !model.trim().is_empty())
+        .ok_or_else(|| KapError::Validation {
+            message: "the running kap offers no model; add a provider first".to_owned(),
+        })
 }
 
 /// POST /sessions/{id}/profile 的请求体：只带要改的那一格，其余缺席不上 wire。
@@ -278,10 +300,11 @@ pub(crate) async fn open_session(
     book: &SessionBook,
     ws: &WsSink,
 ) -> Result<OpenedSession> {
+    let model = default_model(http, base_url).await?;
     let data = post(
         http,
         routes::create_session(base_url),
-        &create_session_body(cwd),
+        &create_session_body(cwd, &model),
     )
     .await?;
 
@@ -346,6 +369,7 @@ pub(crate) async fn archive_session(
     base_url: &str,
     session_id: &str,
     book: &SessionBook,
+    ws: &WsSink,
 ) -> Result<()> {
     post(
         http,
@@ -356,7 +380,7 @@ pub(crate) async fn archive_session(
 
     let _ = book.close(session_id);
 
-    Ok(())
+    unsubscribe(ws, session_id).await
 }
 
 pub(crate) async fn list_sessions(
@@ -525,47 +549,6 @@ fn capability_of(wire: ListCapabilitiesDataCapabilitiesStruct) -> Capability {
     }
 }
 
-/// Session state is observed, never repaired implicitly by a read path.
-fn validate_session_model(
-    status: SessionStatusDataStruct,
-    catalog: &ListModelsDataStruct,
-) -> Result<SessionStatusDataStruct> {
-    let Some(model) = status
-        .model
-        .as_deref()
-        .map(str::trim)
-        .filter(|model| !model.is_empty())
-    else {
-        return Err(KapError::Validation {
-            message: "the KAP session has no selected model; choose one explicitly".to_owned(),
-        });
-    };
-
-    if catalog.items.iter().any(|item| item.model == model) {
-        return Ok(status);
-    }
-
-    Err(KapError::Validation {
-        message: format!(
-            "the KAP session model {model} is not in the current catalog; this read does not silently select a replacement"
-        ),
-    })
-}
-
-pub(crate) async fn abort_session(
-    http: &reqwest::Client,
-    base_url: &str,
-    session_id: &str,
-) -> Result<()> {
-    post(
-        http,
-        routes::abort_session(base_url, &format!("{session_id}:abort")),
-        &json!({}),
-    )
-    .await?;
-    Ok(())
-}
-
 /// 读取目标真相；协议缺席与传输失败不能合并。
 pub(crate) async fn fetch_goal(
     http: &reqwest::Client,
@@ -592,7 +575,6 @@ pub(crate) async fn get_selectors(
         get(http, routes::list_models(base_url)).await?,
         "model catalog",
     )?;
-    let status = validate_session_model(status, &catalog)?;
     let goal: Option<SessionGoalDataStruct> = decoded(
         get(http, routes::session_goal(base_url, session_id)).await?,
         "session goal",

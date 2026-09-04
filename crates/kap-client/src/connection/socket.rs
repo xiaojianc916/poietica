@@ -43,7 +43,10 @@ pub(crate) async fn dial_ws(ws_url: &str, auth: &reqwest::header::HeaderValue) -
 /// 这里只管上 wire。
 pub(crate) async fn send_frame(ws: &WsSink, frame: ClientFrame) -> Result<String> {
     let id = match &frame {
-        ClientFrame::ClientHello { id, .. } | ClientFrame::Subscribe { id, .. } => id.clone(),
+        ClientFrame::ClientHello { id, .. }
+        | ClientFrame::Subscribe { id, .. }
+        | ClientFrame::Unsubscribe { id, .. }
+        | ClientFrame::Abort { id, .. } => id.clone(),
         ClientFrame::Pong { .. } => String::new(),
     };
 

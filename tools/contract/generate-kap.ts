@@ -397,12 +397,12 @@ class RustEmitter {
 
 // ── WS 控制面（asyncapi.json）───────────────────────────────────────────────
 
-/** 客户端会说的话。快照里其余消息（terminal、watch_fs、unsubscribe…）本客户端不用。 */
-const CLIENT_MESSAGES = ['client_hello', 'subscribe', 'pong'] as const
+/** 客户端会说的话。快照里其余消息（terminal、watch_fs）本客户端不用。 */
+const CLIENT_MESSAGES = ['client_hello', 'subscribe', 'unsubscribe', 'abort', 'pong'] as const
 
 /** 服务端会说的话；ack 的载荷按请求种类各自成模型，由客户端按关联的 id 挑。 */
 const SERVER_MESSAGES = ['server_hello', 'ping', 'resync_required', 'error'] as const
-const ACK_PAYLOADS = ['client_hello_ack', 'subscribe_ack', 'abort_ack'] as const
+const ACK_PAYLOADS = ['client_hello_ack', 'subscribe_ack'] as const
 
 interface Asyncapi {
   components?: { messages?: Record<string, Schema> }
@@ -723,7 +723,6 @@ const REST_ROUTES: RestRoute[] = [
   { method: 'get', path: '/api/v1/sessions/{session_id}', name: 'GetSession' },
   { method: 'post', path: '/api/v1/sessions/{tail}', name: 'ForkSession', undeclared: true },
   { method: 'post', path: '/api/v1/sessions/{tail}', name: 'UndoSession', undeclared: true },
-  { method: 'post', path: '/api/v1/sessions/{tail}', name: 'AbortSession', undeclared: true },
   { method: 'post', path: '/api/v1/sessions/{session_id}/prompts/{tail}', name: 'AbortPrompt' },
   {
     method: 'post',

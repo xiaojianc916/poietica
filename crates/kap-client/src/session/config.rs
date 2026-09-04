@@ -319,6 +319,7 @@ fn goal_control(goal: Option<&SessionGoalDataStruct>) -> ConfigControl {
 }
 
 fn model_control(current: &str, items: &[ListModelsDataItemsStruct]) -> Option<ConfigControl> {
+    /* 空是"没有选中",不是一个选项:没有哪一项能如实显示,索性不给. */
     if current.is_empty() {
         return None;
     }
@@ -341,13 +342,16 @@ fn model_control(current: &str, items: &[ListModelsDataItemsStruct]) -> Option<C
             detail: Some(current.to_owned()),
         });
     }
+    if choices.is_empty() {
+        return None;
+    }
     Some(ConfigControl {
         id: "model".to_owned(),
         label: "Model".to_owned(),
         detail: None,
         purpose: ConfigPurpose::Model,
         applies_on_submit: false,
-        current: in_force(&choices, current)?,
+        current: current.to_owned(),
         choices,
     })
 }

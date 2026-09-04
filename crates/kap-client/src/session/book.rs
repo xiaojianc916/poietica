@@ -94,6 +94,18 @@ impl SessionBook {
         Ok(ended)
     }
 
+    /// 在跑的那一句的 prompt_id；没有槽或没有在飞的轮次就没有答案。
+    pub fn current_prompt(&self, session_id: &str) -> Result<Option<String>> {
+        let Some(slot) = self.slot(session_id)? else {
+            return Ok(None);
+        };
+
+        let mut prompt = None;
+        slot.record(|recorder| prompt = recorder.current_prompt().map(str::to_owned));
+
+        Ok(prompt)
+    }
+
     /// 收摊，但只收 since 那一刻还在飞的那一轮。
     ///
     /// 取消的宽限期是一个定时器，它到期时在飞的可能已经是下一轮：不认轮就会把人
@@ -281,5 +293,29 @@ mod tests {
         assert!(matches!(book.finish_turn(NAME, "cancelled"), Ok(true)));
         assert!(matches!(book.finish_turn(NAME, "cancelled"), Ok(false)));
         assert!(matches!(book.fail_turn(NAME, "too late"), Ok(false)));
+    }
+
+    /// 点名要的是在飞的那一句：没开过的会话与空闲的会话都点不出名。
+    #[test]
+    fn cancel_names_the_running_prompt() {
+        let book = SessionBook::new();
+
+        assert!(matches!(book.current_prompt("missing"), Ok(None)));
+        assert!(book.open(NAME).is_ok());
+        assert!(matches!(book.current_prompt(NAME), Ok(None)));
+
+        let Some(slot) = book.slot(NAME).ok().flatten() else {
+            return;
+        };
+        let recorder = Recorder::new(NAME.to_owned(), slot.seq(), Box::new(|_event| true));
+
+        assert!(slot.attach(|| recorder).is_ok());
+        slot.record(|frames| {
+            frames.record_prompt_admitted("adm", "hi", Vec::new(), Vec::new());
+        });
+        assert!(matches!(book.current_prompt(NAME), Ok(Some(prompt)) if prompt == "adm"));
+
+        assert!(matches!(book.finish_turn(NAME, "cancelled"), Ok(true)));
+        assert!(matches!(book.current_prompt(NAME), Ok(None)));
     }
 }

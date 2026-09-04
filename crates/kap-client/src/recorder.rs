@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -156,8 +157,9 @@ pub struct Recorder {
     /// 与审批分两份记：轮终要放掉的是两类东西，而一张混着两类号的表说不清哪一个
     /// 该按哪一种方式作废。
     questions: Vec<String>,
-    /// 已 durable admission、尚未收到 main turn terminal 的数量。
-    admitted: usize,
+    /// 已 durable admission、尚未收到 main turn terminal 的 prompt id，按准入顺序。
+    /// 准入顺序就是运行顺序，所以队首是在跑的那一句 —— abort 点名要它。
+    in_flight: VecDeque<String>,
     /// 这条会话上已经落过几道终帧。取消的宽限期拿它认自己那一轮。
     ended: u64,
     /// 帧日志拒收过几帧。拒收即经过有洞，这一轮不能以正常结束收场。
@@ -180,7 +182,7 @@ impl Recorder {
     #[must_use]
     pub fn new(session_id: String, seq: SeqLine, sink: FrameSink) -> Self {
         Self {
-            admitted: 0,
+            in_flight: VecDeque::new(),
             ended: 0,
             lost: 0,
             pending_end: None,
@@ -191,6 +193,9 @@ impl Recorder {
     }
 
     /// Records that the run began, what was asked, and what went out with it.
+    ///
+    /// admission_id 同时是投递上 wire 的 prompt_id（ADR 0026：kap 原样认它），
+    /// 所以这一格既是帧的身份也是取消点名的依据。
     pub fn record_prompt_admitted(
         &mut self,
         admission_id: &str,
@@ -207,7 +212,7 @@ impl Recorder {
             skills,
         });
         if accepted {
-            self.admitted = self.admitted.saturating_add(1);
+            self.in_flight.push_back(admission_id.to_owned());
         }
         accepted
     }
@@ -403,7 +408,7 @@ impl Recorder {
         }
 
         self.lost = 0;
-        self.admitted = self.admitted.saturating_sub(1);
+        let _settled = self.in_flight.pop_front();
         self.ended = self.ended.saturating_add(1);
     }
 
@@ -437,8 +442,13 @@ impl Recorder {
     }
 
     /// 这条会话此刻有没有一轮在飞。终帧只在飞的那一轮上落一次。
-    pub const fn is_running(&self) -> bool {
-        self.admitted > 0
+    pub fn is_running(&self) -> bool {
+        !self.in_flight.is_empty()
+    }
+
+    /// 在跑的那一句的 prompt_id，没有在飞的轮次就没有答案。
+    pub fn current_prompt(&self) -> Option<&str> {
+        self.in_flight.front().map(String::as_str)
     }
 
     /// 已经落过的终帧数。它是一轮的身份：跨过它就是另一轮了。
@@ -576,5 +586,26 @@ mod tests {
                 .is_ok_and(|held| matches!(held.get(1), Some(RunFrame::RunFailed { .. }))),
             "丢过帧的一轮不能报正常结束"
         );
+    }
+
+    /// abort 点的是在跑的那一句：准入顺序就是运行顺序，落定一轮就让出队首。
+    #[test]
+    fn the_running_prompt_is_the_first_unsettled_admission() {
+        let mut recorder = Recorder::new(
+            "sess_gamma".to_owned(),
+            SeqLine::new(),
+            Box::new(|_event| true),
+        );
+
+        assert_eq!(recorder.current_prompt(), None);
+        assert!(recorder.record_prompt_admitted("first", "hi", Vec::new(), Vec::new()));
+        assert!(recorder.record_prompt_admitted("second", "again", Vec::new(), Vec::new()));
+        assert_eq!(recorder.current_prompt(), Some("first"));
+
+        recorder.record_run_finished("end_turn");
+        assert_eq!(recorder.current_prompt(), Some("second"));
+
+        recorder.record_run_finished("end_turn");
+        assert_eq!(recorder.current_prompt(), None);
     }
 }

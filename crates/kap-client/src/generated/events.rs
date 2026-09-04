@@ -46,6 +46,13 @@ pub enum ClientFrame {
         id: String,
         payload: SubscribeStruct,
     },
+    #[serde(rename = "unsubscribe")]
+    Unsubscribe {
+        id: String,
+        payload: UnsubscribeStruct,
+    },
+    #[serde(rename = "abort")]
+    Abort { id: String, payload: AbortStruct },
     #[serde(rename = "pong")]
     Pong { payload: PongStruct },
 }
@@ -96,6 +103,20 @@ pub struct SubscribeStruct {
     #[serde(rename = "agent_filter")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_filter: Option<std::collections::HashMap<String, Vec<String>>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct UnsubscribeStruct {
+    #[serde(rename = "session_ids")]
+    pub session_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct AbortStruct {
+    #[serde(rename = "session_id")]
+    pub session_id: String,
+    #[serde(rename = "prompt_id")]
+    pub prompt_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
@@ -250,16 +271,6 @@ pub struct SubscribeAckPayloadStruct {
     #[serde(rename = "cursors")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursors: Option<std::collections::HashMap<String, ClientHelloAckPayloadCursorsValueStruct>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
-pub struct AbortAckPayloadStruct {
-    #[serde(rename = "aborted")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub aborted: Option<bool>,
-    #[serde(rename = "at_seq")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub at_seq: Option<i64>,
 }
 
 /// 会话事件帧的信封：路由与去重读它，载荷原样穿过，translate 层接上后收口。
