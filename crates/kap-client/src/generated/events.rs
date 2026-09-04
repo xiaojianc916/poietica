@@ -51,8 +51,6 @@ pub enum ClientFrame {
         id: String,
         payload: UnsubscribeStruct,
     },
-    #[serde(rename = "abort")]
-    Abort { id: String, payload: AbortStruct },
     #[serde(rename = "pong")]
     Pong { payload: PongStruct },
 }
@@ -109,14 +107,6 @@ pub struct SubscribeStruct {
 pub struct UnsubscribeStruct {
     #[serde(rename = "session_ids")]
     pub session_ids: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
-pub struct AbortStruct {
-    #[serde(rename = "session_id")]
-    pub session_id: String,
-    #[serde(rename = "prompt_id")]
-    pub prompt_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]

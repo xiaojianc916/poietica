@@ -29,7 +29,7 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::http::header::AUTHORIZATION;
 
 use crate::compatibility::require_pinned_capabilities;
-use crate::connection::handshake::{abort, shake_hands, subscribe, wait_subscribe_ack};
+use crate::connection::handshake::{shake_hands, subscribe, wait_subscribe_ack};
 use crate::connection::reconnect::{fail_in_flight, relink};
 use crate::connection::socket::{WsSink, dial_ws, send_frame};
 use crate::error::{KapError, Refusal, Result};
@@ -49,9 +49,9 @@ use crate::session::book::SessionBook;
 use crate::session::client::{AgentClient, Command};
 use crate::session::export::export_session;
 use crate::session::rest::{
-    archive_session, create_session_body, default_model, fetch_goal, fork_session, get_selectors,
-    install_capability, list_capabilities, list_mcp_servers, list_sessions, list_skills,
-    load_session, open_session, post, set_selector, submit_prompt,
+    archive_session, create_session_body, ensure_session_model, fetch_goal, fork_session,
+    get_selectors, install_capability, list_capabilities, list_mcp_servers, list_sessions,
+    list_skills, load_session, open_session, post, set_selector, submit_prompt,
 };
 use crate::session::router::EventRouter;
 use crate::session::{AgentConnection, AgentSpawn, Handshake, SessionEvent, SessionEvents};
@@ -190,21 +190,11 @@ pub fn connect(
             return Err(error);
         }
 
-        // 5. 建锚会话（REST）：模型在出生时定下，读路径不再替它选。
-        let model = match default_model(&http, &base_url).await {
-            Ok(model) => model,
-            Err(error) => {
-                let _ = ready_tx.send(Err(KapError::Handshake {
-                    message: error.to_string(),
-                }));
-                return Err(error);
-            }
-        };
-
+        // 5. 建锚会话（REST）。create handler 不消费 agent_config；模型随后经 profile 绑定。
         let session = match post(
             &http,
             routes::create_session(&base_url),
-            &create_session_body(&cwd, &model),
+            &create_session_body(&cwd),
         )
         .await
         {
@@ -230,6 +220,13 @@ pub fn connect(
             }));
             return Err(handshake);
         };
+
+        if let Err(error) = ensure_session_model(&http, &base_url, &session_id).await {
+            let _ = ready_tx.send(Err(KapError::Handshake {
+                message: error.to_string(),
+            }));
+            return Err(error);
+        }
 
         // 6. WebSocket 握手。首连与重连走同一个 dial_ws / shake_hands。
         let ws_url = websocket::connect(&base_url).map_err(|error| KapError::Transport {
@@ -404,17 +401,18 @@ pub fn connect(
                             }));
                         }
                         Some(Command::Cancel { session_id: sid, reply }) => {
-                            let ws2 = Arc::clone(&ws);
+                            let http = http.clone();
+                            let base = base_url.clone();
                             let book2 = book_clone.clone();
-                            /* 认下此刻在飞的那一轮：宽限期到时在飞的可能已经是下一轮。 */
                             let aborted = book2.ended_count(&sid).ok().flatten();
-                            /* abort 点名在飞的那一句，没有在飞的就没有什么可点的。 */
-                            let prompt = book2.current_prompt(&sid).ok().flatten();
                             tokio::spawn(async move {
-                                let result = match prompt {
-                                    Some(prompt_id) => abort(&ws2, &sid, &prompt_id).await,
-                                    None => Ok(()),
-                                };
+                                let result = post(
+                                    &http,
+                                    routes::abort_session(&base, &format!("{sid}:abort")),
+                                    &serde_json::json!({}),
+                                )
+                                .await
+                                .map(|_| ());
                                 let accepted = result.is_ok();
                                 let _ = reply.send(result);
 

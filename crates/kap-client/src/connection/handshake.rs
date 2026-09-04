@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::connection::socket::{WsSink, WsStream, send_frame};
 use crate::error::{KapError, Result};
 use crate::generated::events::{
-    AbortStruct, ClientFrame, ClientHelloCursorsValueStruct, ClientHelloStruct, ServerFrame,
+    ClientFrame, ClientHelloCursorsValueStruct, ClientHelloStruct, ServerFrame,
     SubscribeAckPayloadStruct, SubscribeStruct, UnsubscribeStruct,
 };
 use crate::server_frame;
@@ -213,25 +213,6 @@ pub(crate) async fn unsubscribe(ws: &WsSink, session_id: &str) -> Result<()> {
             id: Uuid::new_v4().to_string(),
             payload: UnsubscribeStruct {
                 session_ids: vec![session_id.to_owned()],
-            },
-        },
-    )
-    .await
-    .map(|_id| ())
-}
-
-/// 取消在飞的那一轮：与事件同一条有序链路
-/// （contracts/kap/asyncapi.json 的 abort）。轮终仍由 turn.ended 说话。
-/// prompt_id 就是投递时的幂等键（ADR 0026）：调用方从在飞的那一轮上取，见
-/// SessionBook::current_prompt。
-pub(crate) async fn abort(ws: &WsSink, session_id: &str, prompt_id: &str) -> Result<()> {
-    send_frame(
-        ws,
-        ClientFrame::Abort {
-            id: Uuid::new_v4().to_string(),
-            payload: AbortStruct {
-                session_id: session_id.to_owned(),
-                prompt_id: prompt_id.to_owned(),
             },
         },
     )

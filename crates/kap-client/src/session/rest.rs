@@ -131,36 +131,93 @@ async fn send(builder: reqwest::RequestBuilder) -> Result<Value> {
     envelope_data(&body)
 }
 
-/// POST /sessions 的请求体：模型在会话出生时定下，读路径不再替它选。
-pub(crate) fn create_session_body(cwd: &Path, model: &str) -> CreateSessionRequestStruct {
+/// POST /sessions 只发送 create handler 实际消费的字段。
+pub(crate) fn create_session_body(cwd: &Path) -> CreateSessionRequestStruct {
     CreateSessionRequestStruct {
         metadata: Some(CreateSessionRequestMetadataStruct {
             cwd: cwd.to_string_lossy().into_owned(),
-        }),
-        agent_config: Some(CreateSessionRequestAgentConfigStruct {
-            model: Some(model.to_owned()),
-            ..Default::default()
         }),
         ..Default::default()
     }
 }
 
-/// 目录里第一条可用模型。kap 的会话状态没有「稍后再选」这一格，出生就得带上；
-/// 之后换模型仍走 selector 的 model。
+/// Kimi 配置的默认模型优先；目录首项只在配置未指定时兜底。
 pub(crate) async fn default_model(http: &reqwest::Client, base_url: &str) -> Result<String> {
+    let config = get(http, routes::client_config(base_url)).await?;
+    let _: crate::generated::rest::ClientConfigDataStruct =
+        decoded(config.clone(), "client configuration")?;
+    let configured = config
+        .get("default_model")
+        .and_then(Value::as_str)
+        .filter(|model| !model.trim().is_empty());
+
     let catalog: ListModelsDataStruct = decoded(
         get(http, routes::list_models(base_url)).await?,
         "model catalog",
     )?;
-
-    catalog
+    let offered: Vec<String> = catalog
         .items
         .into_iter()
         .map(|item| item.model)
-        .find(|model| !model.trim().is_empty())
+        .filter(|model| !model.trim().is_empty())
+        .collect();
+
+    if let Some(model) = configured
+        && offered.iter().any(|candidate| candidate == model)
+    {
+        return Ok(model.to_owned());
+    }
+
+    offered
+        .into_iter()
+        .next()
         .ok_or_else(|| KapError::Validation {
-            message: "the running kap offers no model; add a provider first".to_owned(),
+            message: "the running kap offers no model; configure a connected provider first"
+                .to_owned(),
         })
+}
+
+fn model_in_status(status: &Value) -> Option<&str> {
+    status
+        .pointer("/agent_config/model")
+        .or_else(|| status.pointer("/agentConfig/model"))
+        .or_else(|| status.get("model"))
+        .and_then(Value::as_str)
+        .filter(|model| !model.trim().is_empty())
+}
+
+/// 会话只有在 profile 已确认模型后才允许订阅或返回调用方。
+pub(crate) async fn ensure_session_model(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+) -> Result<()> {
+    let status = get(http, routes::session_status(base_url, session_id)).await?;
+    let _: SessionStatusDataStruct = decoded(status.clone(), "session status")?;
+    if model_in_status(&status).is_some() {
+        return Ok(());
+    }
+
+    let model = default_model(http, base_url).await?;
+    post(
+        http,
+        routes::set_profile(base_url, session_id),
+        &profile_body(CreateSessionRequestAgentConfigStruct {
+            model: Some(model.clone()),
+            ..Default::default()
+        }),
+    )
+    .await?;
+
+    let observed = get(http, routes::session_status(base_url, session_id)).await?;
+    let _: SessionStatusDataStruct = decoded(observed.clone(), "session status")?;
+    if model_in_status(&observed) == Some(model.as_str()) {
+        return Ok(());
+    }
+
+    Err(KapError::Validation {
+        message: format!("kap did not bind model {model} to session {session_id}"),
+    })
 }
 
 /// POST /sessions/{id}/profile 的请求体：只带要改的那一格，其余缺席不上 wire。
@@ -185,14 +242,17 @@ pub(crate) async fn submit_prompt(
     idempotency: &str,
 ) -> Result<String> {
     let mut body = prompt_body(text, attachments, skills)?;
-    body.prompt_id = Some(idempotency.to_owned());
+    let retryable = skills.is_empty();
+    if retryable {
+        body.prompt_id = Some(idempotency.to_owned());
+    }
     let url = routes::submit_prompt(base_url, session_id);
     let mut attempt = 0_u32;
     let data = loop {
         attempt = attempt.saturating_add(1);
         match post(http, url.clone(), &body).await {
             Ok(data) => break data,
-            Err(KapError::Transport { message }) if attempt < 3 => {
+            Err(KapError::Transport { message }) if retryable && attempt < 3 => {
                 log::warn!("ambiguous prompt submission {attempt}/3: {message}");
                 tokio::time::sleep(std::time::Duration::from_millis(200 * u64::from(attempt)))
                     .await;
@@ -282,6 +342,7 @@ async fn activate(
     book: &SessionBook,
     ws: &WsSink,
 ) -> Result<OpenedSession> {
+    ensure_session_model(http, base_url, session_id).await?;
     book.open(session_id)?;
     subscribe(ws, session_id, from).await?;
 
@@ -300,11 +361,10 @@ pub(crate) async fn open_session(
     book: &SessionBook,
     ws: &WsSink,
 ) -> Result<OpenedSession> {
-    let model = default_model(http, base_url).await?;
     let data = post(
         http,
         routes::create_session(base_url),
-        &create_session_body(cwd, &model),
+        &create_session_body(cwd),
     )
     .await?;
 
@@ -705,8 +765,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_skill_prompt_carries_the_idempotency_key_like_every_other_prompt() {
-        let mut body = prompt_body(
+    fn a_bundled_skill_prompt_omits_the_incompatible_prompt_id() {
+        let body = prompt_body(
             "review this",
             &[],
             &[PromptSkill {
@@ -715,9 +775,8 @@ mod tests {
             }],
         )
         .expect("prompt body");
-        body.prompt_id = Some("adm-1".to_owned());
         let wire = serde_json::to_value(&body).expect("wire body");
-        assert_eq!(wire.get("prompt_id").and_then(Value::as_str), Some("adm-1"));
+        assert!(wire.get("prompt_id").is_none());
         assert_eq!(
             wire.get("skills").and_then(Value::as_array).map(Vec::len),
             Some(1)

@@ -193,6 +193,10 @@ pub mod routes {
         build(base_url, &["api", "v1", "sessions", tail])
     }
 
+    pub fn abort_session(base_url: &str, tail: &str) -> Route {
+        build(base_url, &["api", "v1", "sessions", tail])
+    }
+
     pub fn abort_prompt(base_url: &str, session_id: &str, tail: &str) -> Route {
         build(
             base_url,
