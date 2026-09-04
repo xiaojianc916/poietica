@@ -34,6 +34,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { flushSync } from 'react-dom'
 import { cx } from '../primitives/class-names'
 import { AttachIcon, ResumeIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { useAttachmentIntake } from './attachment-intake'
@@ -151,6 +152,10 @@ export interface PromptInputHandle {
   readonly setText: (text: string) => void
   readonly insertText: (text: string) => void
   readonly insertTextAndSubmit: (text: string) => void
+  readonly attach: (
+    assets: readonly ComposerAsset[],
+    options?: { readonly text?: string; readonly submit?: boolean },
+  ) => void
   readonly focus: () => void
 }
 
@@ -376,12 +381,6 @@ function PromptInputShell({
     [insertText],
   )
 
-  useImperativeHandle(
-    ref,
-    () => ({ setText, insertText, insertTextAndSubmit, focus: focusEditor }),
-    [focusEditor, insertText, insertTextAndSubmit, setText],
-  )
-
   const addAssets = useCallback(
     (incoming: readonly ComposerAsset[]) => {
       setAttachments((current) => {
@@ -408,6 +407,35 @@ function PromptInputShell({
       })
     },
     [maxFiles, multiple],
+  )
+
+  const attach = useCallback(
+    (
+      incoming: readonly ComposerAsset[],
+      options: { readonly text?: string; readonly submit?: boolean } = {},
+    ) => {
+      flushSync(() => {
+        addAssets(incoming)
+      })
+
+      const text = options.text?.trim() ?? ''
+      if (text === '') {
+        focusEditor()
+      } else {
+        insertText(text)
+      }
+
+      if (options.submit === true) {
+        formRef.current?.requestSubmit()
+      }
+    },
+    [addAssets, focusEditor, insertText],
+  )
+
+  useImperativeHandle(
+    ref,
+    () => ({ setText, insertText, insertTextAndSubmit, attach, focus: focusEditor }),
+    [attach, focusEditor, insertText, insertTextAndSubmit, setText],
   )
 
   const removeAttachment = useCallback(

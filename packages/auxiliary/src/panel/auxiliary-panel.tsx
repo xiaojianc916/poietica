@@ -160,66 +160,80 @@ function BrowserToolbar({
   pickerActive,
 }: BrowserToolbarProps) {
   const canDrive = activeTab !== null && activeTab.url !== null
+  const [menuHeight, setMenuHeight] = useState(0)
 
   return (
-    <div className="relative flex h-10 shrink-0 items-center gap-1 border-b border-current/10 px-2">
-      {/* 装载中的不定式进度：内核只报 Started/Finished，画不出百分比，不假装。 */}
-      {activeTab?.loading === true ? (
+    <div className="shrink-0">
+      <div className="relative flex h-10 shrink-0 items-center gap-1 border-b border-current/10 px-2">
+        {/* 装载中的不定式进度：内核只报 Started/Finished，画不出百分比，不假装。 */}
+        {activeTab?.loading === true ? (
+          <div
+            aria-hidden
+            className="absolute inset-x-0 -bottom-px h-0.5 animate-pulse bg-current/40"
+          />
+        ) : null}
+        <ToolbarButton
+          disabled={!canDrive}
+          label="后退"
+          onClick={() => {
+            if (activeTab !== null) {
+              actions.back(activeTab.id)
+            }
+          }}
+        >
+          <ArrowLeft aria-hidden className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          disabled={!canDrive}
+          label="前进"
+          onClick={() => {
+            if (activeTab !== null) {
+              actions.forward(activeTab.id)
+            }
+          }}
+        >
+          <ArrowRight aria-hidden className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          disabled={!canDrive}
+          label="刷新"
+          onClick={() => {
+            if (activeTab !== null) {
+              actions.reload(activeTab.id)
+            }
+          }}
+        >
+          <RotateCw aria-hidden className="size-4" />
+        </ToolbarButton>
+
+        <AddressInput actions={actions} activeTab={activeTab} />
+
+        <ToolbarButton
+          disabled={!canDrive}
+          label={pickerActive ? '关闭元素选择' : '选择网页元素'}
+          onClick={() => {
+            if (activeTab !== null) {
+              actions.setElementPicker(activeTab.id, !pickerActive)
+            }
+          }}
+          pressed={pickerActive}
+        >
+          <MousePointerClick aria-hidden className="size-4" />
+        </ToolbarButton>
+
+        <BrowserOverflowMenu
+          onHeightChange={setMenuHeight}
+          onOpenChange={onMenuOpenChange}
+          open={menuOpen}
+        />
+      </div>
+      {menuOpen ? (
         <div
           aria-hidden
-          className="absolute inset-x-0 -bottom-px h-0.5 animate-pulse bg-current/40"
+          className="border-b border-current/10 bg-muted/30"
+          style={{ blockSize: menuHeight }}
         />
       ) : null}
-      <ToolbarButton
-        disabled={!canDrive}
-        label="后退"
-        onClick={() => {
-          if (activeTab !== null) {
-            actions.back(activeTab.id)
-          }
-        }}
-      >
-        <ArrowLeft aria-hidden className="size-4" />
-      </ToolbarButton>
-      <ToolbarButton
-        disabled={!canDrive}
-        label="前进"
-        onClick={() => {
-          if (activeTab !== null) {
-            actions.forward(activeTab.id)
-          }
-        }}
-      >
-        <ArrowRight aria-hidden className="size-4" />
-      </ToolbarButton>
-      <ToolbarButton
-        disabled={!canDrive}
-        label="刷新"
-        onClick={() => {
-          if (activeTab !== null) {
-            actions.reload(activeTab.id)
-          }
-        }}
-      >
-        <RotateCw aria-hidden className="size-4" />
-      </ToolbarButton>
-
-      <AddressInput actions={actions} activeTab={activeTab} />
-
-      <ToolbarButton
-        disabled={!canDrive}
-        label={pickerActive ? '关闭元素选择' : '选择网页元素'}
-        onClick={() => {
-          if (activeTab !== null) {
-            actions.setElementPicker(activeTab.id, !pickerActive)
-          }
-        }}
-        pressed={pickerActive}
-      >
-        <MousePointerClick aria-hidden className="size-4" />
-      </ToolbarButton>
-
-      <BrowserOverflowMenu onOpenChange={onMenuOpenChange} open={menuOpen} />
     </div>
   )
 }

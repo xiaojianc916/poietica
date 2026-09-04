@@ -70,6 +70,8 @@ export function createAttachmentIntake(): AttachmentIntake {
   }
 
   return {
+    import: intake,
+
     async pick(multiple) {
       /* 两件事互不依赖，串着等没有理由。第二次起清单已经在手，这里就只剩
       模块加载那一下。 */

@@ -1862,13 +1862,9 @@ export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: 
  * 最近关闭的一条，够画出下拉里的那一行。
  */
 export type BrowserClosedTab = { url: string; title: string }
-export type BrowserElementPicked = { tabId: number; submission: BrowserPickSubmission; 
+export type BrowserElementPicked = { tabId: number; submission: BrowserPickSubmission; elementType: string; comment: string; 
 /**
- * 一行身份，进提示词正文。
- */
-summary: string; comment: string; 
-/**
- * 完整快照落在系统临时目录里的这份文件上；提示词只带路径。
+ * 完整快照位于系统临时目录，并按附件管线交付。
  */
 reportPath: string }
 export type BrowserPickSubmission = "attach" | "send"

@@ -1,6 +1,6 @@
 import type { BrowserState } from '@poietica/auxiliary/browser'
 import { X } from 'lucide-react'
-import type { KeyboardEvent, ReactNode } from 'react'
+import { type KeyboardEvent, type ReactNode, useState } from 'react'
 import { AuxiliaryNewTabMenu, type AuxiliaryPaneOffer, AuxiliaryTabsMenu } from './auxiliary-menu'
 import type {
   AuxiliaryFocus,
@@ -140,70 +140,83 @@ export function AuxiliaryTabStrip({
   onSelectPane,
   openMenu,
 }: AuxiliaryTabStripProps) {
+  const [menuHeight, setMenuHeight] = useState(0)
+
   return (
-    <div className="flex h-8 shrink-0 items-center gap-1 border-b border-current/10 pl-1 pr-10">
-      <div
-        aria-label="辅助面板标签页"
-        className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
-        onKeyDown={moveTabFocus}
-        role="tablist"
-        style={{ scrollbarWidth: 'none' }}
-      >
-        {panes.map((pane) => (
-          <AuxiliaryTab
-            active={focus.kind === 'pane' && focus.id === pane.id}
-            icon={pane.icon}
-            id={auxiliaryPaneTabId(pane.id)}
-            key={pane.id}
-            onClose={() => {
-              onClosePane(pane.id)
-            }}
-            onSelect={() => {
-              onSelectPane(pane.id)
-            }}
-            title={pane.name}
-          />
-        ))}
-        {(host?.tabs ?? []).map((tab) => (
-          <AuxiliaryTab
-            active={focus.kind === 'browser' && tab.id === host?.activeTabId}
-            icon={<BrowserTabIcon tab={tab} />}
-            id={auxiliaryBrowserTabId(tab.id)}
-            key={tab.id}
-            onClose={() => {
-              actions.closeTab(tab.id)
-            }}
-            onSelect={() => {
-              actions.selectTab(tab.id)
-            }}
-            title={tab.title}
-          />
-        ))}
-      </div>
+    <div className="shrink-0">
+      <div className="flex h-8 shrink-0 items-center gap-1 border-b border-current/10 pl-1 pr-10">
+        <div
+          aria-label="辅助面板标签页"
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+          onKeyDown={moveTabFocus}
+          role="tablist"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          {panes.map((pane) => (
+            <AuxiliaryTab
+              active={focus.kind === 'pane' && focus.id === pane.id}
+              icon={pane.icon}
+              id={auxiliaryPaneTabId(pane.id)}
+              key={pane.id}
+              onClose={() => {
+                onClosePane(pane.id)
+              }}
+              onSelect={() => {
+                onSelectPane(pane.id)
+              }}
+              title={pane.name}
+            />
+          ))}
+          {(host?.tabs ?? []).map((tab) => (
+            <AuxiliaryTab
+              active={focus.kind === 'browser' && tab.id === host?.activeTabId}
+              icon={<BrowserTabIcon tab={tab} />}
+              id={auxiliaryBrowserTabId(tab.id)}
+              key={tab.id}
+              onClose={() => {
+                actions.closeTab(tab.id)
+              }}
+              onSelect={() => {
+                actions.selectTab(tab.id)
+              }}
+              title={tab.title}
+            />
+          ))}
+        </div>
 
-      <span className="contents" data-auxiliary-tab-fallback>
-        <AuxiliaryNewTabMenu
-          offers={paneOffers}
+        <span className="contents" data-auxiliary-tab-fallback>
+          <AuxiliaryNewTabMenu
+            offers={paneOffers}
+            onHeightChange={setMenuHeight}
+            onOpenChange={(next) => {
+              onMenuChange(next ? 'new-tab' : null)
+            }}
+            onOpenPane={onOpenPane}
+            open={openMenu === 'new-tab'}
+          />
+        </span>
+
+        <AuxiliaryTabsMenu
+          focus={focus}
+          host={host}
+          onHeightChange={setMenuHeight}
           onOpenChange={(next) => {
-            onMenuChange(next ? 'new-tab' : null)
+            onMenuChange(next ? 'tabs' : null)
           }}
-          onOpenPane={onOpenPane}
-          open={openMenu === 'new-tab'}
+          onReopenClosed={actions.reopenClosed}
+          onSelectPane={onSelectPane}
+          onSelectTab={actions.selectTab}
+          open={openMenu === 'tabs'}
+          panes={panes}
         />
-      </span>
-
-      <AuxiliaryTabsMenu
-        focus={focus}
-        host={host}
-        onOpenChange={(next) => {
-          onMenuChange(next ? 'tabs' : null)
-        }}
-        onReopenClosed={actions.reopenClosed}
-        onSelectPane={onSelectPane}
-        onSelectTab={actions.selectTab}
-        open={openMenu === 'tabs'}
-        panes={panes}
-      />
+      </div>
+      {openMenu === 'new-tab' || openMenu === 'tabs' ? (
+        <div
+          aria-hidden
+          className="border-b border-current/10 bg-muted/30"
+          style={{ blockSize: menuHeight }}
+        />
+      ) : null}
     </div>
   )
 }

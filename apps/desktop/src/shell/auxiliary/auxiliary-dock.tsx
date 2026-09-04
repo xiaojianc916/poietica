@@ -78,26 +78,13 @@ export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDock
   const layout = useWorkspaceLayoutState()
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 
-  /* 手动关过就静音，手动开恢复。会话内状态，不落盘。 */
-  const muted = useRef(false)
   const busy = useRef(false)
-  const wasHeld = useRef(layout.auxiliaryThread !== null)
 
   useEffect(() => store.start(), [store])
 
   useEffect(() => {
-    /* 只读通道在场、或菜单浮层展开时，原生 webview 必须让位给 HTML。 */
-    store.setVisible(isDocked && state.focus.kind === 'browser' && state.openMenu === null)
-  }, [isDocked, state.focus, state.openMenu, store.setVisible])
-
-  useEffect(() => {
-    const held = layout.auxiliaryThread !== null
-
-    if (held !== wasHeld.current) {
-      muted.current = wasHeld.current
-      wasHeld.current = held
-    }
-  }, [layout.auxiliaryThread])
+    store.setVisible(isDocked && state.focus.kind === 'browser')
+  }, [isDocked, state.focus, store.setVisible])
 
   /*
    * agent 在后台驱动浏览器时把面板亮出来：看「有地址的标签在装载」的 0→1 边沿。
@@ -107,18 +94,13 @@ export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDock
   useEffect(() => {
     const loading = state.host?.tabs.some((tab) => tab.loading && tab.url !== null) ?? false
 
-    if (
-      loading &&
-      !busy.current &&
-      !muted.current &&
-      layout.auxiliaryThread === null &&
-      conversationId !== null
-    ) {
+    if (loading && !busy.current && conversationId !== null) {
+      store.selectBrowser()
       workspaceLayoutStore.setAuxiliaryThread(conversationId)
     }
 
     busy.current = loading
-  }, [state.host, layout.auxiliaryThread, conversationId])
+  }, [conversationId, state.host, store])
 
   /* 每种通道一个渲染器：委派通道归 agent-ui，审查归 review。空态归 AuxiliaryPanel。 */
   const paneName = useDelegateChannelNames(conversationId)

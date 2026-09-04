@@ -3,6 +3,7 @@ import {
   type GitBranchPickerProps,
   type PromptInputHandle,
   useAgentControls,
+  useAttachmentIntake,
   useSessionControlsActions,
   useThreadSelectorFailure,
   useThreadSelectors,
@@ -55,16 +56,15 @@ export function ConversationSurface({
   workspace,
 }: ConversationSurfaceProps) {
   const threads = useThreadsActions()
-
-  /*
-   * 浏览器面板拾取的元素块落进哪个输入框：落进屏幕上这一格的。
-   *
-   * 工作台主区同一时刻只挂一个对话表面（workspace-container 的 surface 槽），
-   * 这里的认领就是唯一的认领；卸载即注销，拾取不会写进已离屏的格子。
-   */
+  const attachmentIntake = useAttachmentIntake()
   const composer = useRef<PromptInputHandle | null>(null)
 
-  useEffect(() => adoptBrowserPickTarget(composer), [])
+  useEffect(() => {
+    if (attachmentIntake === null) {
+      return undefined
+    }
+    return adoptBrowserPickTarget(composer, attachmentIntake)
+  }, [attachmentIntake])
 
   const sessionControls = useSessionControlsActions()
 

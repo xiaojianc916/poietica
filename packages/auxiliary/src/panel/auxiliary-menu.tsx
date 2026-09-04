@@ -16,7 +16,7 @@ import {
   RotateCcw,
   Search,
 } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import type { AuxiliaryFocus, AuxiliaryLauncherKind } from './auxiliary-panel-store'
 import { BrowserTabIcon } from './browser-tab-icon'
 
@@ -53,6 +53,7 @@ function MenuShell({
   className,
   icon,
   label,
+  onHeightChange,
   onOpenChange,
   open,
 }: {
@@ -60,15 +61,32 @@ function MenuShell({
   readonly className: string
   readonly icon: ReactNode
   readonly label: string
+  readonly onHeightChange: (height: number) => void
   readonly onOpenChange: (open: boolean) => void
   readonly open: boolean
 }) {
+  const popup = useRef<HTMLDivElement | null>(null)
+
+  useLayoutEffect(() => {
+    const element = popup.current
+    if (!open || element === null) {
+      onHeightChange(0)
+      return undefined
+    }
+
+    const report = () => onHeightChange(Math.ceil(element.getBoundingClientRect().height + 6))
+    report()
+    const observer = new ResizeObserver(report)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [onHeightChange, open])
+
   return (
     <DropdownMenu onOpenChange={onOpenChange} open={open}>
       <DropdownMenuTrigger aria-label={label} className={triggerClassName} title={label}>
         {icon}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={className}>
+      <DropdownMenuContent align="end" className={className} ref={popup}>
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -89,11 +107,13 @@ function matches(needle: string, title: string, url: string | null): boolean {
 
 export function AuxiliaryNewTabMenu({
   offers,
+  onHeightChange,
   onOpenChange,
   onOpenPane,
   open,
 }: {
   readonly offers: readonly AuxiliaryPaneOffer[]
+  readonly onHeightChange: (height: number) => void
   readonly onOpenChange: (open: boolean) => void
   readonly onOpenPane: (kind: AuxiliaryLauncherKind) => void
   readonly open: boolean
@@ -103,6 +123,7 @@ export function AuxiliaryNewTabMenu({
       className="min-w-40"
       icon={<Plus aria-hidden className="size-4" />}
       label="新建标签页"
+      onHeightChange={onHeightChange}
       onOpenChange={onOpenChange}
       open={open}
     >
@@ -124,6 +145,7 @@ export function AuxiliaryNewTabMenu({
 export function AuxiliaryTabsMenu({
   focus,
   host,
+  onHeightChange,
   onOpenChange,
   onReopenClosed,
   onSelectPane,
@@ -133,6 +155,7 @@ export function AuxiliaryTabsMenu({
 }: {
   readonly focus: AuxiliaryFocus
   readonly host: BrowserState | null
+  readonly onHeightChange: (height: number) => void
   readonly onOpenChange: (open: boolean) => void
   readonly onReopenClosed: (index: number) => void
   readonly onSelectPane: (id: string) => void
@@ -157,6 +180,7 @@ export function AuxiliaryTabsMenu({
       className="w-72"
       icon={<ChevronDown aria-hidden className="size-4" />}
       label="标签页列表"
+      onHeightChange={onHeightChange}
       onOpenChange={(next) => {
         if (!next) {
           setQuery('')
@@ -299,9 +323,11 @@ function ZoomRow() {
 }
 
 export function BrowserOverflowMenu({
+  onHeightChange,
   onOpenChange,
   open,
 }: {
+  readonly onHeightChange: (height: number) => void
   readonly onOpenChange: (open: boolean) => void
   readonly open: boolean
 }) {
@@ -310,6 +336,7 @@ export function BrowserOverflowMenu({
       className="w-64"
       icon={<MoreHorizontal aria-hidden className="size-4" />}
       label="更多操作"
+      onHeightChange={onHeightChange}
       onOpenChange={onOpenChange}
       open={open}
     >

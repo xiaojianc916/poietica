@@ -2,7 +2,7 @@ import './attachment-tray.css'
 
 import { useCallback, useMemo, useState } from 'react'
 import { ImageLightbox, type PreviewableImage } from '../media/image-lightbox'
-import { CloseIcon, FileIcon, SpinnerIcon } from '../primitives/icons'
+import { CloseIcon, ElementIcon, FileIcon, SpinnerIcon } from '../primitives/icons'
 import { usePromptInputActions, usePromptInputAttachments } from './prompt-input'
 
 /*
@@ -97,6 +97,31 @@ function AttachmentThumbnail({ filename, onOpen, src }: AttachmentThumbnailProps
   )
 }
 
+function ElementAttachment({
+  filename,
+  label,
+  onRemove,
+}: {
+  readonly filename: string
+  readonly label: string
+  readonly onRemove: () => void
+}) {
+  return (
+    <li className="assistant-prompt-chip composer-element-context" title={filename}>
+      <ElementIcon aria-hidden="true" className="assistant-prompt-chip__icon" />
+      <span>{label}</span>
+      <button
+        aria-label={`移除元素上下文 ${label}`}
+        className="composer-element-context__remove"
+        onClick={onRemove}
+        type="button"
+      >
+        <CloseIcon aria-hidden="true" />
+      </button>
+    </li>
+  )
+}
+
 export function AttachmentTray() {
   const attachments = usePromptInputAttachments()
   const { removeAttachment } = usePromptInputActions()
@@ -134,6 +159,19 @@ export function AttachmentTray() {
     <>
       <ul className="composer-tray" data-slot="composer-tray">
         {attachments.map((attachment) => {
+          if (attachment.context?.kind === 'browser-element') {
+            return (
+              <ElementAttachment
+                filename={attachment.filename}
+                key={attachment.assetToken}
+                label={attachment.context.label}
+                onRemove={() => {
+                  removeAttachment(attachment.assetToken)
+                }}
+              />
+            )
+          }
+
           const slide = slides.get(attachment.assetToken)
 
           return (

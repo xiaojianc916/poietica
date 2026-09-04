@@ -63,7 +63,12 @@ export type {
   ToolKind,
   TurnMark,
 } from './agent'
-export type { AttachmentIntake, AttachmentUpload, ComposerAsset } from './composer/attachment'
+export type {
+  AttachmentIntake,
+  AttachmentUpload,
+  ComposerAsset,
+  ComposerAssetContext,
+} from './composer/attachment'
 export type { Interjection } from './interjection'
 export { InterjectionOutbox } from './interjection'
 export type {

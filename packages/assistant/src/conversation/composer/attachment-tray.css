@@ -16,6 +16,37 @@
 }
 
 /* 删除键的定位祖先就是这一格；裁剪归里面那张脸，图要跟着圆角收边。 */
+.composer-element-context {
+  display: inline-flex;
+  min-block-size: var(--cp-target-min);
+  align-items: center;
+  gap: 3px;
+  padding-inline: 4px;
+}
+
+.composer-element-context__remove {
+  display: grid;
+  block-size: var(--cp-target-min);
+  inline-size: var(--cp-target-min);
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.65;
+}
+
+.composer-element-context__remove:hover,
+.composer-element-context__remove:focus-visible {
+  opacity: 1;
+}
+
+.composer-element-context__remove svg {
+  block-size: 12px;
+  inline-size: 12px;
+}
+
 .composer-tile {
   position: relative;
   flex: none;

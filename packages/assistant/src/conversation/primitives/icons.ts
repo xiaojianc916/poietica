@@ -57,6 +57,7 @@ export {
   Layers as ToolIcon,
   ListTodo as PlanIcon,
   LoaderCircle as SpinnerIcon,
+  MousePointerClick as ElementIcon,
   Paperclip as AttachIcon,
   Pencil as PencilIcon,
   Pin as PinIcon,

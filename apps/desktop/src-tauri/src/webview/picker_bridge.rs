@@ -20,10 +20,9 @@ pub enum BrowserPickSubmission {
 pub struct BrowserElementPicked {
     pub tab_id: u32,
     pub submission: BrowserPickSubmission,
-    /// 一行身份，进提示词正文。
-    pub summary: String,
+    pub element_type: String,
     pub comment: String,
-    /// 完整快照落在系统临时目录里的这份文件上；提示词只带路径。
+    /// 完整快照位于系统临时目录，并按附件管线交付。
     pub report_path: String,
 }
 
@@ -87,7 +86,7 @@ pub(super) fn finish_pick(app: &AppHandle, tab_id: u32, target: &Url) {
                             BrowserPickSubmission::Send
                         }
                     },
-                    summary: element.summary,
+                    element_type: element.element_type,
                     comment: element.comment,
                     report_path: path.to_string_lossy().into_owned(),
                 };

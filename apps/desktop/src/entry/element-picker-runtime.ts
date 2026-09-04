@@ -613,17 +613,6 @@ class ElementPicker implements PickerController {
     ).join('\n')
   }
 
-  private summary(context: Context, selected: Element): string {
-    return [
-      context.componentName ?? selected.tagName.toLowerCase(),
-      context.selector ?? '',
-      sourceOf(context),
-      location.href,
-    ]
-      .filter(Boolean)
-      .join(' | ')
-  }
-
   private compose(context: Context, selected: Element): string {
     return [
       '# 所选元素',
@@ -672,7 +661,7 @@ class ElementPicker implements PickerController {
       const target = new URL(callbackUrl)
       target.searchParams.set('token', String(token))
       target.searchParams.set('submission', submission)
-      target.searchParams.set('summary', this.summary(context, selected))
+      target.searchParams.set('elementType', selected.tagName.toLowerCase())
       target.searchParams.set('comment', this.comment?.value.trim() ?? '')
       target.searchParams.set('report', this.compose(context, selected))
       this.teardown()
