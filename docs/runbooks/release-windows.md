@@ -32,11 +32,11 @@ bun release 0.3.0-rc.1 --no-wait  # 指定版本并在派发后返回
 
 命令只确认主分支与干净工作区、同步远端、统一写入四处版本号并做一致性检查，
 创建一个版本提交和 annotated tag，再用 `git push --atomic` 一次推送。默认继续等待
-Release workflow 完成；`--yes` 仅跳过发布前确认。质量门禁（`bun run check`）、依赖
-审计、签名构建都在 CI 里跑，本地不再重复跑：推送前本地跑的那套和 CI 跑的是同一套，
-重复跑只是浪费时间。
+Release workflow 完成；`--yes` 仅跳过发布前确认。发布提交由 Quality workflow 执行
+唯一一次 `bun run check`；Release workflow 不再重复执行，只保留版本对表、依赖审计、
+签名构建与发布。
 
-Release workflow 将 tag 与版本对表，执行测试及依赖审计，然后由官方
+Release workflow 将 tag 与版本对表并执行依赖审计，然后由官方
 `tauri-apps/tauri-action` 构建签名产物和 `latest.json`。Release 在安装冒烟与
 Windows GUI 子系统检查通过前保持 draft；通过后自动发布、标记 latest，并验证稳定更新端点。
 预发布版本会发布为 prerelease，但不会替换稳定更新端点。
@@ -44,8 +44,10 @@ Windows GUI 子系统检查通过前保持 draft；通过后自动发布、标�
 ### 失败处理
 
 - 原子推送前失败：命令删除自己创建的 tag/提交并恢复四个版本文件。
-- 原子推送后失败：远端版本不自动改写；在 Actions 查看或重跑同一工作流。
-- 已公开的版本号不复用；源码需要修正时发布下一个版本。
+- 原子推送后任一步失败或取消：Release workflow 的失败清理步骤撤回远端副作用。若版本
+  文件仍由本次发布拥有，则以 `git revert` 保留审计历史并恢复上一版本；随后原子删除 tag，
+  并删除对应 draft/已发布 Release。若后续版本已接管版本文件，只删除本次 tag/Release。
+- 回滚发生冲突、权限不足或并发 push 时明确失败，不 force 覆盖其他提交。
 
 ## 安装形态
 

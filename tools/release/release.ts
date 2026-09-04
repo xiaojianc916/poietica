@@ -102,7 +102,11 @@ function rollback(): void {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     rollback()
-    console.error(`\n${signal}：已取消发布`)
+    console.error(
+      pushed
+        ? `\n${signal}：已停止本地等待；远端发布继续由 GitHub Actions 接管`
+        : `\n${signal}：已取消发布`,
+    )
     process.exit(130)
   })
 }
@@ -288,7 +292,7 @@ main()
     rollback()
     console.error(error instanceof Error ? error.message : String(error))
     if (pushed) {
-      console.error('远端提交与 tag 已保留，去 Actions 里查看或重跑这次 CI。')
+      console.error('远端回滚由 Release workflow 的失败清理步骤负责；失败详情见该步骤日志。')
     }
     process.exitCode = 1
   })

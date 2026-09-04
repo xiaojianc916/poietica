@@ -6,7 +6,7 @@ on:
       - "v*"
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 permissions:
@@ -43,8 +43,6 @@ jobs:
       - name: Verify release version
         run: bun run check:versions "${{ github.ref_name }}"
 
-      - name: Quality gate
-        run: bun run check
 
       - name: JavaScript dependency audit
         run: bun run audit
@@ -140,3 +138,90 @@ jobs:
       - name: Verify stable update channel
         if: ${{ !contains(github.ref_name, '-') }}
         run: bun tools/release/verify-channel.ts "${{ github.ref_name }}"
+
+      - name: Roll back failed release
+        if: ${{ failure() || cancelled() }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = $env:GITHUB_REF_NAME
+          $releaseSha = $env:GITHUB_SHA
+          $versionFiles = @(
+            "Cargo.toml",
+            "package.json",
+            "apps/desktop/package.json",
+            "apps/desktop/src-tauri/tauri.conf.json"
+          )
+
+          gh auth setup-git
+          if ($LASTEXITCODE -ne 0) { throw "Could not configure Git authentication" }
+          git fetch origin main --tags
+          if ($LASTEXITCODE -ne 0) { throw "Could not fetch origin/main" }
+          git switch --force-create release-rollback origin/main
+          if ($LASTEXITCODE -ne 0) { throw "Could not check out origin/main" }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config commit.gpgsign false
+
+          $releaseProbe = gh release view $tag --json url 2>&1
+          $releaseStatus = $LASTEXITCODE
+          $releaseExists = $releaseStatus -eq 0
+          if (-not $releaseExists -and "$releaseProbe" -notmatch "release not found|HTTP 404") {
+            throw "Could not inspect release ${tag}: $releaseProbe"
+          }
+
+          git merge-base --is-ancestor $releaseSha HEAD
+          $ancestorStatus = $LASTEXITCODE
+          if ($ancestorStatus -ne 0 -and $ancestorStatus -ne 1) {
+            throw "Could not inspect release ancestry"
+          }
+          $containsRelease = $ancestorStatus -eq 0
+          $needsRevert = $false
+
+          if ($containsRelease) {
+            git diff --quiet $releaseSha HEAD -- @versionFiles
+            $versionStatus = $LASTEXITCODE
+            if ($versionStatus -eq 0) {
+              $needsRevert = $true
+            } elseif ($versionStatus -eq 1) {
+              Write-Host "Version files moved past $tag; preserving the newer version owner"
+            } else {
+              throw "Could not compare current version files with $releaseSha"
+            }
+          } else {
+            Write-Host "origin/main no longer contains $releaseSha; no version revert is needed"
+          }
+
+          $updates = @()
+          if ($needsRevert) {
+            $subject = (git show --no-patch --format=%s $releaseSha).Trim()
+            if ($LASTEXITCODE -ne 0 -or $subject -ne "release: $tag") {
+              throw "Refusing to revert unexpected release commit $releaseSha"
+            }
+            $expected = @($versionFiles | Sort-Object)
+            $actual = @(git diff-tree --no-commit-id --name-only -r $releaseSha | Sort-Object)
+            if ($LASTEXITCODE -ne 0) { throw "Could not inspect $releaseSha" }
+            $difference = @(Compare-Object -ReferenceObject $expected -DifferenceObject $actual)
+            if ($difference.Count -ne 0) {
+              throw "Refusing to revert commit with unexpected files: $($actual -join ", ")"
+            }
+            git revert --no-edit $releaseSha
+            if ($LASTEXITCODE -ne 0) { throw "Could not revert release commit $releaseSha" }
+            $updates += "HEAD:refs/heads/main"
+          }
+
+          $remoteTag = @(git ls-remote --refs origin "refs/tags/$tag")
+          if ($LASTEXITCODE -ne 0) { throw "Could not inspect remote tag $tag" }
+          if ($remoteTag.Count -gt 0) { $updates += ":refs/tags/$tag" }
+
+          if ($updates.Count -gt 0) {
+            git push --atomic --no-verify origin @updates
+            if ($LASTEXITCODE -ne 0) { throw "Could not atomically roll back $tag" }
+          }
+          if ($releaseExists) {
+            gh release delete $tag --yes
+            if ($LASTEXITCODE -ne 0) { throw "Could not delete GitHub release $tag" }
+          }
+          Write-Host "Rolled back failed release $tag"
