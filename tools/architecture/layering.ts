@@ -15,6 +15,9 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
   {
     name: 'core-domain',
     members: [
+      '@poietica/browser',
+      '@poietica/review',
+      '@poietica/terminal',
       '@poietica/conversation',
       '@poietica/extension',
       '@poietica/update',
@@ -24,7 +27,7 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
   { name: 'composer', members: ['@poietica/composer'] },
   {
     name: 'vertical-feature',
-    members: ['@poietica/automation', '@poietica/settings', '@poietica/auxiliary'],
+    members: ['@poietica/automation', '@poietica/settings', '@poietica/workspace-panels'],
   },
   { name: 'adapter', members: ['@poietica/native-bridge'] },
   { name: 'assistant', members: ['@poietica/assistant'] },
@@ -109,4 +112,6 @@ export function ringOf(rings: readonly Ring[], member: string): number {
 
 export const DOMAIN_CONTRACT_IMPORTS: Readonly<Record<string, string>> = {
   '@poietica/automation': '@poietica/contract/automation',
+  '@poietica/browser': '@poietica/contract/browser',
+  '@poietica/review': '@poietica/contract/review',
 }

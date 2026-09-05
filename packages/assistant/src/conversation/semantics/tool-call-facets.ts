@@ -1,5 +1,5 @@
-import { type DiffFile, type DiffStat, diffStatOf } from '@poietica/auxiliary/review'
 import type { ToolCallContent } from '@poietica/conversation'
+import { type DiffFile, type DiffStat, diffStatOf } from '@poietica/review'
 
 import { toDiffFiles, toDisplayPath } from './file-diff'
 import { type ToolContentPart, toToolContentParts } from './tool-call-content'

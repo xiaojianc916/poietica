@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/generated/ipc-bindings.ts",
-    "./automation": "./src/automation.ts"
+    "./automation": "./src/automation.ts",
+    "./browser": "./src/browser.ts",
+    "./review": "./src/review.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit"

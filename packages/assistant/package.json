@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@lexical/react": "catalog:",
-    "@poietica/auxiliary": "workspace:*",
     "@poietica/composer": "workspace:*",
     "@poietica/conversation": "workspace:*",
     "@poietica/design-system": "workspace:*",
@@ -33,7 +32,8 @@
     "lucide-react": "catalog:",
     "motion": "catalog:",
     "streamdown": "catalog:",
-    "yet-another-react-lightbox": "catalog:"
+    "yet-another-react-lightbox": "catalog:",
+    "@poietica/review": "workspace:*"
   },
   "peerDependencies": {
     "react": "catalog:",

@@ -102,7 +102,7 @@ export async function readImports(root: string, roots: readonly string[]): Promi
   return records
 }
 
-async function sources(directory: string): Promise<string[]> {
+export async function sources(directory: string): Promise<string[]> {
   const found: string[] = []
   const pending = [directory]
 

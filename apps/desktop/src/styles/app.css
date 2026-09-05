@@ -3,17 +3,12 @@
 @source "../../../../packages/*/src/**/*.{ts,tsx}";
 @source "../../../../apps/desktop/src/**/*.{ts,tsx}";
 
-/*
- * Streamdown ships utility classes inside its bundles.
- *
- * Tailwind does not scan node_modules on its own, and this workspace uses
- * pnpm's isolated layout, so each package is named where it actually lives.
- */
-@source "../../../packages/conversation-ui/node_modules/streamdown/dist/*.js";
-@source "../../../packages/conversation-ui/node_modules/@streamdown/cjk/dist/*.js";
-@source "../../../packages/conversation-ui/node_modules/@streamdown/code/dist/*.js";
-@source "../../../packages/conversation-ui/node_modules/@streamdown/math/dist/*.js";
-@source "../../../packages/conversation-ui/node_modules/@streamdown/mermaid/dist/*.js";
+/* Dependency classes are scanned from the owning workspace installation. */
+@source "../../../../packages/assistant/node_modules/streamdown/dist/*.js";
+@source "../../../../packages/assistant/node_modules/@streamdown/cjk/dist/*.js";
+@source "../../../../packages/assistant/node_modules/@streamdown/code/dist/*.js";
+@source "../../../../packages/assistant/node_modules/@streamdown/math/dist/*.js";
+@source "../../../../packages/assistant/node_modules/@streamdown/mermaid/dist/*.js";
 
 /*
  * Desktop platform tokens.

@@ -1,8 +1,8 @@
 import './flow-row.css'
 import './tool-group.css'
 
-import { type DiffFile, type DiffStat, diffStatOf } from '@poietica/auxiliary/review'
 import { type FeedRow, liveMemberOf, type ToolGroupPlan } from '@poietica/conversation'
+import { type DiffFile, type DiffStat, diffStatOf } from '@poietica/review'
 import type { ReactNode } from 'react'
 import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon } from '../primitives/icons'

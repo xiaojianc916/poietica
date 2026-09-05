@@ -133,6 +133,11 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
     ...(frame.state === 'running' ? {} : { endedAt: stamp }),
   } satisfies ToolCallTimelineItem
 }
+const approvalDecision = (state: TranscriptInteraction['state']) =>
+  state === 'approved' ? 'approved' : state === 'rejected' ? 'rejected' : 'cancelled'
+const questionOutcome = (state: TranscriptInteraction['state']) =>
+  state === 'answered' ? 'answered' : state === 'dismissed' ? 'dismissed' : 'cancelled'
+
 function interactionOf(
   interaction: TranscriptInteraction,
   turn: number,
@@ -150,18 +155,7 @@ function interactionOf(
       kind: 'other',
       subject: '',
       locations: [],
-      ...(resolved
-        ? {
-            resolution: {
-              decision:
-                interaction.state === 'approved'
-                  ? 'approved'
-                  : interaction.state === 'rejected'
-                    ? 'rejected'
-                    : 'cancelled',
-            },
-          }
-        : {}),
+      ...(resolved ? { resolution: { decision: approvalDecision(interaction.state) } } : {}),
     }
   }
   const request =
@@ -181,16 +175,7 @@ function interactionOf(
     questions,
     ...(resolved
       ? {
-          resolution: {
-            outcome:
-              interaction.state === 'answered'
-                ? 'answered'
-                : interaction.state === 'dismissed'
-                  ? 'dismissed'
-                  : 'cancelled',
-            answers: {},
-            note: '',
-          },
+          resolution: { outcome: questionOutcome(interaction.state), answers: {}, note: '' },
         }
       : {}),
   }
@@ -199,6 +184,46 @@ const backgroundOf = (task: TranscriptTask): BackgroundTaskItem | null =>
   task.detached
     ? { taskId: task.taskId, description: task.description ?? task.taskId, status: task.state }
     : null
+
+const spanOf = (turn: TranscriptTurn, index: number): TurnSpan => ({
+  turn: index,
+  ...(turn.durationMs === undefined ? {} : { durationMs: Math.max(0, turn.durationMs) }),
+  ...(turn.startedAt === undefined ? {} : { startedAt: at(turn.startedAt) }),
+  ...(turn.endedAt === undefined ? {} : { endedAt: at(turn.endedAt) }),
+  lastFrameAt: at(turn.endedAt ?? turn.startedAt),
+})
+
+/* 待答的审批与提问挂在活动段：interactions 全局于轮次，而屏幕上它们
+出现在这条对话当前的尾部。 */
+const tailOf = (
+  pages: readonly TurnPage[],
+  interactions: AgentTranscriptSnapshot['interactions'],
+): TurnPage => {
+  const held = pages.at(-1)
+  if (held === undefined) {
+    return {
+      turn: 0,
+      items: interactions.map((interaction) => interactionOf(interaction, 0, Date.now())),
+    }
+  }
+  return {
+    ...held,
+    items: [
+      ...held.items,
+      ...interactions.map((interaction) => interactionOf(interaction, held.turn, Date.now())),
+    ],
+  }
+}
+
+const phaseOf = (snapshot: AgentTranscriptSnapshot, last: TranscriptTurn | undefined) => {
+  if (!snapshot.interactions.some((item) => item.state === 'pending')) {
+    return last === undefined ? 'idle' : statusOf(last.state)
+  }
+  const approval = snapshot.interactions.some(
+    (item) => item.state === 'pending' && item.interactionKind === 'approval',
+  )
+  return approval ? 'awaiting_permission' : 'awaiting_question'
+}
 
 export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineState {
   const turns = snapshot.items.filter((item): item is TranscriptTurn => item.kind === 'turn')
@@ -228,54 +253,15 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
       }
     }
     pages.push({ turn: index, items })
-    spans.push({
-      turn: index,
-      ...(turn.durationMs === undefined ? {} : { durationMs: Math.max(0, turn.durationMs) }),
-      ...(turn.startedAt === undefined ? {} : { startedAt: at(turn.startedAt) }),
-      ...(turn.endedAt === undefined ? {} : { endedAt: at(turn.endedAt) }),
-      lastFrameAt: at(turn.endedAt ?? turn.startedAt),
-    })
+    spans.push(spanOf(turn, index))
   }
-  const last = turns.at(-1)
-  /* 待答的审批与提问挂在活动段：interactions 全局于轮次，而屏幕上它们
-  出现在这条对话当前的尾部。 */
-  const held = pages[pages.length - 1]
-  const tail: TurnPage =
-    held === undefined
-      ? {
-          turn: 0,
-          items: snapshot.interactions.map((interaction) =>
-            interactionOf(interaction, 0, Date.now()),
-          ),
-        }
-      : {
-          ...held,
-          items: [
-            ...held.items,
-            ...snapshot.interactions.map((interaction) =>
-              interactionOf(interaction, held.turn, Date.now()),
-            ),
-          ],
-        }
-  const sealed = held === undefined ? [] : pages.slice(0, -1)
-  const pending = snapshot.interactions.some((item) => item.state === 'pending')
-  const pendingApproval = snapshot.interactions.some(
-    (item) => item.state === 'pending' && item.interactionKind === 'approval',
-  )
-  const status = pending
-    ? pendingApproval
-      ? 'awaiting_permission'
-      : 'awaiting_question'
-    : last === undefined
-      ? 'idle'
-      : statusOf(last.state)
   return {
-    status,
+    status: phaseOf(snapshot, turns.at(-1)),
     backgroundTasks: snapshot.tasks
       .map(backgroundOf)
       .filter((item): item is BackgroundTaskItem => item !== null),
-    sealed,
-    active: tail,
+    sealed: pages.length === 0 ? [] : pages.slice(0, -1),
+    active: tailOf(pages, snapshot.interactions),
     lastSeq: 0,
     spans,
   }

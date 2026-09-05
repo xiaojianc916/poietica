@@ -1,8 +1,8 @@
-import type { BrowserHostPort, BrowserViewportBounds } from '@poietica/auxiliary/browser'
+import type { BrowserHostPort, BrowserViewportBounds } from '@poietica/browser'
 import { commands, events } from '@poietica/contract'
 import { throughIpc } from '../error'
 
-export type { BrowserViewportBounds } from '@poietica/auxiliary/browser'
+export type { BrowserViewportBounds } from '@poietica/browser'
 export type {
   BrowserClosedTab,
   BrowserElementPicked,
@@ -31,8 +31,13 @@ export async function watchBrowserState(
     accept(event.payload)
   })
 
-  accept(await throughIpc(() => commands.browserState()))
-  return unlisten
+  try {
+    accept(await throughIpc(() => commands.browserState()))
+    return unlisten
+  } catch (cause) {
+    unlisten()
+    throw cause
+  }
 }
 
 export function openBrowserTab(url: string | null): Promise<void> {

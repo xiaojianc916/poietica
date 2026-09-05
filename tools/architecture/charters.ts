@@ -669,7 +669,7 @@ export async function reviewWatcherHasLease(root: string): Promise<Violation[]> 
   const probes = [
     ['apps/desktop/src-tauri/src/ipc/commands/git.rs', 'git_await_change'],
     ['crates/git-adapter/src/watch.rs', 'const WINDOW:'],
-    ['packages/auxiliary/src/review/review-gateway.ts', 'awaitChange(root: string)'],
+    ['packages/review/src/review-gateway.ts', 'awaitChange(root: string)'],
   ] as const
   const violations: Violation[] = []
 

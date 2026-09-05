@@ -19,7 +19,6 @@
     "@poietica/agent-catalog": "workspace:*",
     "@poietica/assistant": "workspace:*",
     "@poietica/automation": "workspace:*",
-    "@poietica/auxiliary": "workspace:*",
     "@poietica/conversation": "workspace:*",
     "@poietica/design-system": "workspace:*",
     "@poietica/extension": "workspace:*",
@@ -38,7 +37,10 @@
     "react-grab": "catalog:",
     "shiki": "catalog:",
     "uuid": "catalog:",
-    "valibot": "catalog:"
+    "valibot": "catalog:",
+    "@poietica/review": "workspace:*",
+    "@poietica/terminal": "workspace:*",
+    "@poietica/workspace-panels": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

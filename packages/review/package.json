@@ -1,0 +1,43 @@
+{
+  "name": "@poietica/review",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./surface": "./src/surface/index.ts"
+  },
+  "poietica": {
+    "headless": [
+      "."
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "bun test src"
+  },
+  "dependencies": {
+    "@poietica/contract": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/external-store": "workspace:*",
+    "@tanstack/react-virtual": "catalog:",
+    "diff": "catalog:",
+    "lucide-react": "catalog:",
+    "shiki": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:"
+  }
+}

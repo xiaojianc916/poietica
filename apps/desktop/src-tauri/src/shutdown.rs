@@ -1,10 +1,6 @@
-//! 退出屏障：进程只从这里离场。
-//!
-//! 排空的顺序归这里：窗口几何落盘 → agent 连接退场（送出 kap 的 shutdown 并刷
-//! 帧日志）→ 交还事件循环。托盘的强制退出与关掉最后一个窗口走同一次排空，所以
-//! 退出只有一条路径。谁创建谁销毁：这些东西都是组合根建的。
+//! Application-owned exit barrier. Completion means the drain has returned.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Once;
 
 use tauri::{AppHandle, Manager, RunEvent, command};
 use tauri_plugin_window_state::AppHandleExt;
@@ -13,13 +9,22 @@ use crate::ipc::commands::automation::mcp_server::AutomationMcpServer;
 use crate::ipc::commands::conversation::runtime::AgentRuntime;
 use crate::window::WINDOW_STATE_FLAGS;
 
-/// 排空完成位。落下之后事件循环才放行。
-static DRAINED: AtomicBool = AtomicBool::new(false);
+#[derive(Debug)]
+pub(crate) struct ShutdownBarrier {
+    drained: Once,
+}
 
-/// 事件循环的回调。退出请求先过屏障，排空之前不放行。
+impl Default for ShutdownBarrier {
+    fn default() -> Self {
+        Self {
+            drained: Once::new(),
+        }
+    }
+}
+
 pub fn on_run_event(app: &AppHandle, event: RunEvent) {
     if let RunEvent::ExitRequested { api, code, .. } = event
-        && !DRAINED.load(Ordering::Acquire)
+        && !app.state::<ShutdownBarrier>().drained.is_completed()
     {
         api.prevent_exit();
         drain(app);
@@ -34,35 +39,26 @@ pub async fn application_quit(app: AppHandle) {
     quit(&app);
 }
 
-/// 排空并离场。幂等：第二次进来不做事，退出请求由屏障放行。
-/// 不问确认，排空之后离场。
 pub fn quit(app: &AppHandle) {
     drain(app);
     app.exit(0);
 }
 
-/// 装上更新之后重新启动：与退出共用同一次排空。
 pub fn relaunch(app: &AppHandle) -> ! {
     drain(app);
     app.restart()
 }
 
-/// 幂等排空：第二次进来什么都不做。
 fn drain(app: &AppHandle) {
-    if DRAINED.swap(true, Ordering::AcqRel) {
-        return;
-    }
-
-    if let Err(error) = app.save_window_state(WINDOW_STATE_FLAGS) {
-        log::debug!("shutdown: could not save window state: {error}");
-    }
-
-    app.state::<poietica_git_adapter_native::WatchRegistry>()
-        .clear();
-
-    if let Err(error) = app.state::<AgentRuntime>().disconnect() {
-        log::error!("shutdown: the agent connection did not retire: {error}");
-    }
-
-    app.state::<AutomationMcpServer>().stop();
+    app.state::<ShutdownBarrier>().drained.call_once(|| {
+        if let Err(error) = app.save_window_state(WINDOW_STATE_FLAGS) {
+            log::debug!("shutdown: could not save window state: {error}");
+        }
+        app.state::<poietica_git_adapter_native::WatchRegistry>()
+            .clear();
+        if let Err(error) = app.state::<AgentRuntime>().disconnect() {
+            log::error!("shutdown: the agent connection did not retire: {error}");
+        }
+        app.state::<AutomationMcpServer>().stop();
+    });
 }

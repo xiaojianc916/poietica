@@ -120,7 +120,7 @@ export class TranscriptStore implements TranscriptSink {
     return () => this.#runningListeners.delete(listener)
   }
 
-  waitForTerminal = async (
+  waitForTerminal = (
     key: string,
     cancellation?: AbortSignal,
   ): Promise<'completed' | 'cancelled' | 'failed'> => {
@@ -129,7 +129,7 @@ export class TranscriptStore implements TranscriptSink {
     signal.throwIfAborted()
     const status = this.read(key).timeline.status
     if (terminal(status)) {
-      return status
+      return Promise.resolve(status)
     }
     return new Promise((resolve, reject) => {
       const off = this.subscribe(key, () => {

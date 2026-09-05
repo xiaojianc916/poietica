@@ -1,10 +1,10 @@
-import { TerminalPane } from '@poietica/auxiliary/terminal-ui'
 import { terminalHostPort } from '@poietica/native-bridge'
+import { TerminalPane } from '@poietica/terminal/surface'
 /* Terminal teardown lives in the dock host, outside the Xterm chunk. */
 import { useConversationWorkspaceRoot } from './threads-context'
 
 /*
- * 组合根的接线：从会话上下文读出工作目录，把原生端口交进 @poietica/auxiliary 的
+ * 组合根的接线：从会话上下文读出工作目录，把原生端口交进 @poietica/terminal/surface 的
  * 那一份 TerminalPane。这里不裁决任何东西。
  */
 

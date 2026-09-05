@@ -1,6 +1,6 @@
-import type { DiffFile, DiffRow, DiffRowKind } from '@poietica/auxiliary/review'
 import type { ToolCallTimelineItem } from '@poietica/conversation'
 import { FileTypeMark } from '@poietica/design-system'
+import type { DiffFile, DiffRow, DiffRowKind } from '@poietica/review'
 import {
   type CSSProperties,
   type ReactNode,
@@ -207,7 +207,7 @@ function DiffViewport({
     </div>
   )
 }
-/** 一处改动：文件名一行，下面是它的行。行的分类与行号归 @poietica/auxiliary/review。 */
+/** 一处改动：文件名一行，下面是它的行。行的分类与行号归 @poietica/review。 */
 function FileDiff({ file }: { readonly file: DiffFile }) {
   const name = basename(file.path)
   const field = {

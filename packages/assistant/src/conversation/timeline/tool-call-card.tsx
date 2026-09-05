@@ -3,9 +3,9 @@ import './shimmer.css'
 import './tool-call.css'
 import './tool-group.css'
 
-import { type DiffStat, diffStatOf } from '@poietica/auxiliary/review'
 import type { ToolCallTimelineItem } from '@poietica/conversation'
 import { isDelegation } from '@poietica/conversation'
+import { type DiffStat, diffStatOf } from '@poietica/review'
 import { cx } from '../primitives/class-names'
 import { DisclosureBody } from '../primitives/disclosure'
 import {

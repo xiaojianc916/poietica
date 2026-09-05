@@ -1,6 +1,5 @@
 import { DelegateChannelContext, useAgentControls, useRunningThreads } from '@poietica/assistant'
 import type { AutomationStore } from '@poietica/automation'
-import { createAuxiliaryPanelStore } from '@poietica/auxiliary/panel'
 import type { AgentSessionPort } from '@poietica/conversation'
 import type { PluginStore } from '@poietica/extension'
 import { browserHostPort } from '@poietica/native-bridge'
@@ -24,6 +23,7 @@ import type {
   WorkbenchTabId,
   WorkbenchTabViewModel,
 } from '@poietica/workspace'
+import { createAuxiliaryPanelStore } from '@poietica/workspace-panels'
 import {
   type ReactNode,
   useCallback,

@@ -33,6 +33,7 @@ pub fn build() -> tauri::Builder<Wry> {
         ))
         .manage(asset_protocol)
         .manage(WindowSurface::default())
+        .manage(crate::shutdown::ShutdownBarrier::default())
         /*
          * A synchronous protocol handler is invoked by the platform webview on
          * its own thread, which is the UI thread on Windows and macOS. Building

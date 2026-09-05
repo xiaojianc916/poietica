@@ -7,6 +7,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import * as charter from './charters.ts'
+import { fileGraph } from './file-graph.ts'
 import { readImports } from './imports.ts'
 import { manifestBoundaries } from './manifest-graph.ts'
 import type { Violation } from './policies.ts'
@@ -72,6 +73,7 @@ const violations: Violation[] = [
   ...policy.layerDirection(imports, workspaces),
   ...(await policy.declaredDependenciesOnly(ROOT, everyImport, workspaces)),
   ...policy.noCycles(imports, workspaces),
+  ...(await fileGraph(ROOT, workspaces)),
   ...policy.publicEntryOnly(imports, workspaces),
   ...policy.relativeImportsStayHome(imports, workspaces),
   ...policy.nativeAccessIsDeclared(imports, workspaces),

@@ -79,9 +79,9 @@ describe('TranscriptReplica ownership and recovery', () => {
     const replica = new TranscriptReplica(
       'session',
       transcriptPort({
-        catchUpTranscript: async (_session, agent, seq) => {
+        catchUpTranscript: (_session, agent, seq) => {
           reads += 1
-          return { agentId: agent, batches: [], latestSeq: seq, complete: true }
+          return Promise.resolve({ agentId: agent, batches: [], latestSeq: seq, complete: true })
         },
       }),
       () => undefined,
@@ -100,7 +100,7 @@ describe('TranscriptReplica ownership and recovery', () => {
     const replica = new TranscriptReplica(
       'session',
       transcriptPort({
-        readTranscript: async () => {
+        readTranscript: () => {
           entered.resolve()
           return answer.promise
         },
@@ -157,9 +157,9 @@ describe('TranscriptReplica ownership and recovery', () => {
           latestSeq: 8,
           complete: true,
         }),
-        readTranscript: async (_session, agent) => {
+        readTranscript: (_session, agent) => {
           heads += 1
-          return page(agent, 8)
+          return Promise.resolve(page(agent, 8))
         },
       }),
       () => undefined,
@@ -185,9 +185,9 @@ describe('TranscriptReplica ownership and recovery', () => {
               { attachmentId: 'historical', mediaType: 'text/plain' },
             ],
           }),
-        catchUpTranscript: async (_session, agent, seq) => {
+        catchUpTranscript: (_session, agent, seq) => {
           catches += 1
-          return { agentId: agent, batches: [], latestSeq: seq, complete: true }
+          return Promise.resolve({ agentId: agent, batches: [], latestSeq: seq, complete: true })
         },
       }),
       (_agent, snapshot) => published.push(snapshot),
@@ -248,7 +248,7 @@ describe('TranscriptStore lifecycle', () => {
     const entered = deferred<void>()
     const answer = deferred<{ sessionId: string }>()
     const port = sessionPort(transcriptPort(), {
-      prompt: async () => {
+      prompt: () => {
         entered.resolve()
         return answer.promise
       },

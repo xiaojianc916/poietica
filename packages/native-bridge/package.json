@@ -12,7 +12,6 @@
   "dependencies": {
     "@poietica/agent-catalog": "workspace:*",
     "@poietica/automation": "workspace:*",
-    "@poietica/auxiliary": "workspace:*",
     "@poietica/contract": "workspace:*",
     "@poietica/conversation": "workspace:*",
     "@poietica/extension": "workspace:*",
@@ -23,7 +22,10 @@
     "@tauri-apps/plugin-dialog": "catalog:tauri",
     "@tauri-apps/plugin-updater": "catalog:tauri",
     "@poietica/transcript": "workspace:*",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@poietica/browser": "workspace:*",
+    "@poietica/review": "workspace:*",
+    "@poietica/terminal": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
