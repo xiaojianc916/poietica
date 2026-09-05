@@ -58,25 +58,22 @@ impl AgentStore {
         Ok(found)
     }
 
-    /// Records which agent session a thread is holding, and whose it is.
-    ///
-    /// 两件事一起写，因为分开写就有一瞬间是号在而人不在，而那正是这一列要
-    /// 消灭的状态。这不只是这里的自觉：库上的 threads_session_needs_owner 把
-    /// 「写了号却不写主人」的行直接拒掉。
-    ///
-    /// `updated_at` is left alone. Reopening a conversation from a previous
-    /// run makes it take a fresh session, and a conversation last spoken in
-    /// a week ago is still a week old after being looked at. Touching the
-    /// column here sent whatever was opened to the top of the list, which
-    /// is the opposite of what opening it was for.
+    /// A conversation may acquire an identity, but acquisition cannot replace one.
     pub fn attach_session(&self, id: Uuid, session_id: &str, agent_id: &str) -> Result<()> {
-        self.write(
-            "UPDATE threads
+        let _attached: String = self
+            .connection
+            .prepare_cached(
+                "UPDATE threads
                 SET session_id = ?2, agent_id = ?3
-              WHERE id = ?1",
-            rusqlite::params![id.to_string(), session_id, agent_id],
-        )?;
-
+              WHERE id = ?1
+                AND ((session_id IS NULL AND agent_id IS NULL)
+                  OR (session_id = ?2 AND agent_id = ?3))
+              RETURNING id",
+            )?
+            .query_row(
+                rusqlite::params![id.to_string(), session_id, agent_id],
+                |row| row.get(0),
+            )?;
         Ok(())
     }
 

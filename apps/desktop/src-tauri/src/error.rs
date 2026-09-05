@@ -77,9 +77,9 @@ impl From<poietica_ledger::execution::IndexError> for Error {
     }
 }
 
-impl From<poietica_delivery::DeliveryError> for Error {
-    fn from(failure: poietica_delivery::DeliveryError) -> Self {
-        use poietica_delivery::DeliveryError;
+impl From<poietica_conversation_runtime::DeliveryError> for Error {
+    fn from(failure: poietica_conversation_runtime::DeliveryError) -> Self {
+        use poietica_conversation_runtime::DeliveryError;
         log::error!("conversation delivery failed: {failure}");
         match failure {
             DeliveryError::Index(error) => Self::from(error),
@@ -97,5 +97,25 @@ impl From<poietica_delivery::DeliveryError> for Error {
                 Self::Internal("无法完成投递记账；请保留现场并查看诊断日志。".to_owned())
             }
         }
+    }
+}
+
+impl From<poietica_asset::blob::BlobError> for Error {
+    fn from(error: poietica_asset::blob::BlobError) -> Self {
+        use poietica_asset::blob::BlobError;
+        match error {
+            BlobError::Io(cause) => Self::Io(cause),
+            BlobError::InvalidHash => Self::Validation("invalid attachment digest".to_owned()),
+            BlobError::Integrity | BlobError::Length => {
+                Self::Asset("attachment content could not be verified".to_owned())
+            }
+        }
+    }
+}
+
+impl From<poietica_conversation_runtime::journal::JournalError> for Error {
+    fn from(error: poietica_conversation_runtime::journal::JournalError) -> Self {
+        log::error!("conversation journal failed: {error}");
+        Self::Internal("the conversation journal is unavailable".to_owned())
     }
 }

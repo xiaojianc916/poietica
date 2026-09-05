@@ -4,7 +4,7 @@ use poietica_conversation::ports::{
     AgentGateway, ConversationLedger, DeliveryConfirmation, DeliveryReceipt, PromptDelivery,
 };
 use poietica_conversation::turn::{Admission, DeliveryState};
-use poietica_delivery::{DeliveryError, deliver};
+use poietica_conversation_runtime::{DeliveryError, deliver};
 use poietica_ledger::execution::{LocalIndex, read_index, write_index};
 use poietica_time::wall_clock::SystemWallClock;
 use std::error::Error;

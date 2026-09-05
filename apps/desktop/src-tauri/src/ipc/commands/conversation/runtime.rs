@@ -5,15 +5,17 @@
 
 use super::config::restate;
 use super::dto::{
-    AgentLaunch, AgentSessionEvent, AgentTranscriptEvent, reported_goal, reported_usage,
+    AgentLaunch, AgentRunBatch, AgentRunEvent, AgentSessionEvent, AgentTranscriptEvent,
+    reported_goal, reported_usage,
 };
 use super::failure::translate;
-use super::gateway;
-use super::journal::FrameJournal;
 use super::{NO_SESSION_ID, POISONED};
 use crate::error::{Error, Result};
 use crate::ipc::commands::cli::profile::{agent_args, agent_data_home, agent_program, launch_env};
 use crate::paths::attachments_root;
+use poietica_conversation_runtime::gateway;
+use poietica_conversation_runtime::journal::FrameJournal;
+use poietica_conversation_runtime::session::SessionResolver;
 use poietica_kap_client::{
     AgentClient, AgentConnection, AgentSpawn, Daemon, DaemonIntent, KapError, LinkState,
     PermissionDesk, QuestionDesk, Reaction, Refusal, RunSlot, SessionBook, SessionEvent, connect,
@@ -94,6 +96,8 @@ pub struct AgentRuntime {
     pub(super) attachments: PathBuf,
     pub(super) root: PathBuf,
     pub(super) journal: FrameJournal,
+    pub(super) sessions: SessionResolver,
+    closed: AtomicBool,
     connection: Mutex<Option<Connection>>,
     /// 守着这个进程的那一位：意图与相位的唯一持有处。
     ///
@@ -134,6 +138,32 @@ impl AgentRuntime {
         self.journal.flush()?;
         Ok(())
     }
+    pub fn shutdown(&self) -> Result<()> {
+        self.closed.store(true, Ordering::Release);
+        let intention = lock(&self.daemon).map(|mut daemon| {
+            let _reaction = daemon.set_intent(DaemonIntent::Stopped);
+        });
+        let disconnected = self.disconnect();
+        let journal = self.journal.close().map_err(Error::from);
+        let mut first = None;
+        for outcome in [intention, disconnected, journal] {
+            if let Err(error) = outcome {
+                log::error!("conversation shutdown failed: {error}");
+                if first.is_none() {
+                    first = Some(error);
+                }
+            }
+        }
+        first.map_or(Ok(()), Err)
+    }
+
+    fn ensure_open(&self) -> Result<()> {
+        if self.closed.load(Ordering::Acquire) {
+            return Err(translate(KapError::Refused(Refusal::Gone)));
+        }
+        Ok(())
+    }
+
     fn expire(&self, lease: &Arc<ConnectionLease>) -> Result<()> {
         let retired = {
             let mut connection = lock(&self.connection)?;
@@ -164,10 +194,23 @@ impl AgentRuntime {
         // so the process directory is a build location and never a place the user
         // keeps work.
         let root = handle.path().home_dir()?;
+        let publisher = handle.clone();
+        let index = handle
+            .state::<crate::ipc::commands::ledger::LocalIndex>()
+            .inner()
+            .clone();
+        let journal = FrameJournal::new(index, move |session_id, envelopes| {
+            let events = envelopes.into_iter().map(AgentRunEvent::from).collect();
+            if let Err(error) = (AgentRunBatch { session_id, events }).emit(&publisher) {
+                log::warn!("emit agent event failed after persistence: {error}");
+            }
+        })?;
         Ok(Self {
             attachments: attachments_root(handle)?,
             root,
-            journal: FrameJournal::new(handle)?,
+            journal,
+            sessions: SessionResolver::default(),
+            closed: AtomicBool::new(false),
             connection: Mutex::new(None),
             /* 与 GeneralSettings::default 的 daemon 同一个值。第一次 settings_get
              * 就会把盘上的意图对进来，那之前没有进程可守，两者不会分叉。 */
@@ -352,6 +395,7 @@ pub(super) async fn ensure_session(
     /* 起哪个 agent 是这个函数的第一件事，因为下面每一次「连接已经在了」都要
      * 拿它来问。此前它在函数中段才被解构出来，于是上面那两次检查只问了有没有
      * 连接 —— 换了 agent 之后，这一句话照旧发给上一个进程。 */
+    state.ensure_open()?;
     let AgentLaunch { agent_id } = launch;
     if let Some(live) = borrow(state)?
         && live.agent_id == agent_id
@@ -361,6 +405,7 @@ pub(super) async fn ensure_session(
     /* 闸前的那一次检查是快路：连接已经在了就不必排队。下面这一段要起进程、
      * 要等握手，两件都很贵，所以它们在闸里边做。 */
     let _gate = state.starting.lock().await;
+    state.ensure_open()?;
     /* 排在前面那位可能刚好把连接建起来了。这一次的"没有"是可信的：写
      * state.connection 的地方只有这个函数，而这一刻拿着闸的人只有一个。 */
     if let Some(live) = borrow(state)? {
@@ -467,11 +512,15 @@ pub(super) async fn ensure_session(
         questions: questions.clone(),
         book: book.clone(),
     };
-    if !lease.is_open() {
-        let _gone = retire(Some(kept));
-        return Err(translate(KapError::Refused(Refusal::Gone)));
+    {
+        let mut destination = lock(&state.connection)?;
+        if !lease.is_open() || state.closed.load(Ordering::Acquire) {
+            drop(destination);
+            let _gone = retire(Some(kept));
+            return Err(translate(KapError::Refused(Refusal::Gone)));
+        }
+        *destination = Some(kept);
     }
-    *lock(&state.connection)? = Some(kept);
     /* 起进程的路只有这一条，所以「起来了」也只在这一处说。 */
     if let Ok(mut daemon) = lock(&state.daemon) {
         daemon.note_started();
@@ -499,7 +548,27 @@ pub(super) async fn ensure_session(
     let serving = live.anchor.clone();
     let disposal_lease = Arc::clone(&lease);
     async_runtime::spawn(async move {
-        record_and_flush_disposals(&ledger, courier, owner, serving, disposal_lease).await;
+        let index = ledger.state::<crate::ipc::commands::ledger::LocalIndex>();
+        let outcome = poietica_conversation_runtime::disposal::discharge(
+            index.inner(),
+            &owner,
+            &serving,
+            |session| courier.delete_session(session),
+            || disposal_lease.is_open(),
+        )
+        .await;
+        match outcome {
+            Ok(failures) => {
+                for failure in failures {
+                    log::warn!(
+                        "session {} remains pending archive: {}",
+                        failure.session_id,
+                        failure.cause,
+                    );
+                }
+            }
+            Err(error) => log::warn!("could not update the session disposal ledger: {error}"),
+        }
     });
 
     // 握手后恢复当前 agent 的欠账；网关拒绝没有幂等依据的重放。
@@ -514,7 +583,7 @@ pub(super) async fn ensure_session(
             journal: runtime.journal.clone(),
             attachments_root: runtime.attachments.clone(),
         };
-        match poietica_delivery::recover(index.inner(), gateway, &drain_owner).await {
+        match poietica_conversation_runtime::recover(index.inner(), gateway, &drain_owner).await {
             Ok(failures) => {
                 for failure in failures {
                     log::warn!(
@@ -637,74 +706,6 @@ async fn keep_alive(app: &AppHandle, agent_id: String, cwd: PathBuf, reason: Str
     .await;
     if let Err(error) = restarted {
         log::warn!("the local agent daemon could not restart the process: {error}");
-    }
-}
-/// 落下当前锚会话的账，然后把这个 agent 名下过期的账逐笔冲销。
-///
-/// 处置账是「本地已经不认、agent 侧还留着」的会话清单（persistence 的
-/// disposals.rs）：离线删除、换号、上一条连接的锚、幽灵行收割都往里记，这
-/// 里是唯一的出账口。连接刚建好、还没有一轮在飞，删几条会话花的是没人等的
-/// 时间。
-///
-/// 送达即销账；agent 答了但拒绝也销 —— 拒绝只说明它自己早就不留着，重试不
-/// 会让它更认识这个号。只有连接断了（Refusal::Gone）才把余账原样留给下一次
-/// 连接。
-///
-/// 全程只写日志不报错：这是后台清账，任何一步失败都不该打断人正在做的事，
-/// 而账还在库里，下一次连接会再来。
-async fn record_and_flush_disposals(
-    app: &AppHandle,
-    client: AgentClient,
-    agent_id: String,
-    anchor: String,
-    lease: Arc<ConnectionLease>,
-) {
-    let index = app.state::<crate::ipc::commands::ledger::LocalIndex>();
-    let noted = {
-        let owner = agent_id.clone();
-        let born = anchor.clone();
-        write_index(&index, move |store| {
-            store
-                .record_session_disposal(&born, &owner)
-                .map_err(Error::from)?;
-            store.session_disposals(&owner).map_err(Error::from)
-        })
-        .await
-    };
-    let pending = match noted {
-        Ok(pending) => pending,
-        Err(error) => {
-            log::warn!("could not read the session disposal ledger: {error}");
-            return;
-        }
-    };
-    for session_id in pending {
-        if !lease.is_open() {
-            return;
-        }
-        /* 当前在役的锚不删，别的都是过期的账。 */
-        if session_id == anchor {
-            continue;
-        }
-        let outcome = client.delete_session(session_id.clone()).await;
-        if matches!(&outcome, Err(KapError::Refused(Refusal::Gone))) {
-            /* 连接没了，这一笔不销：余账留给下一次连接。 */
-            return;
-        }
-        if let Err(error) = outcome {
-            log::warn!("a deferred session disposal was refused: {error}");
-        }
-        let delivered = session_id;
-        let discharged = write_index(&index, move |store| {
-            store
-                .discharge_session_disposal(&delivered)
-                .map_err(Error::from)
-        })
-        .await;
-        if let Err(error) = discharged {
-            log::warn!("could not discharge a session disposal: {error}");
-            return;
-        }
     }
 }
 #[cfg(test)]

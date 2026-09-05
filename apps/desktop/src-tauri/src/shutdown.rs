@@ -56,7 +56,7 @@ fn drain(app: &AppHandle) {
         }
         app.state::<poietica_git_adapter_native::WatchRegistry>()
             .clear();
-        if let Err(error) = app.state::<AgentRuntime>().disconnect() {
+        if let Err(error) = app.state::<AgentRuntime>().shutdown() {
             log::error!("shutdown: the agent connection did not retire: {error}");
         }
         app.state::<AutomationMcpServer>().stop();

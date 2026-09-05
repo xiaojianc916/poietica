@@ -3,8 +3,6 @@
 //! The renderer provides bytes and MIME metadata. Native owns validation,
 //! content hashing, opaque delivery identities and protocol registration.
 
-pub mod attachments;
-
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};

@@ -33,3 +33,30 @@ pub(super) fn translate(error: KapError) -> Error {
         }
     }
 }
+
+impl From<poietica_conversation_runtime::session::SessionError<Error>> for Error {
+    fn from(error: poietica_conversation_runtime::session::SessionError<Error>) -> Self {
+        use poietica_conversation_runtime::session::SessionError;
+        match error {
+            SessionError::Catalog(cause) => cause,
+            SessionError::InvalidId => {
+                Self::Validation("invalid conversation identifier".to_owned())
+            }
+            SessionError::Missing => {
+                Self::NotFound("that conversation no longer exists".to_owned())
+            }
+            SessionError::WrongOwner => Self::Validation(
+                "该对话不属于当前 agent；请切回原 agent，或明确新建对话。".to_owned(),
+            ),
+            SessionError::Agent(cause) => translate(cause),
+            SessionError::RestoreCleanup { cause, cleanup } => {
+                log::error!("failed to release a failed session subscription: {cleanup}");
+                translate(cause)
+            }
+            SessionError::AttachCleanup { cause, cleanup } => {
+                log::error!("failed to archive an unbound newly created session: {cleanup}");
+                cause
+            }
+        }
+    }
+}

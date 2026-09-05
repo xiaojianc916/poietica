@@ -26,7 +26,6 @@ use poietica_problem::Problem;
  * __cmd__agent_prompt in agent；能搬全的只有 pub use turn::*，而 glob 让这个
  * 模块交出去的东西不可枚举。两条都不要：清单在 ipc::surface 一处，路径指向定义处。
  */
-mod addressing;
 mod attachment;
 pub mod capability;
 pub mod config;
@@ -34,8 +33,6 @@ pub mod custom_agents;
 pub mod dto;
 pub mod export;
 mod failure;
-mod gateway;
-mod journal;
 pub mod model_catalog;
 pub mod runtime;
 pub mod thread;

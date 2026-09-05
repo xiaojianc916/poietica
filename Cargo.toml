@@ -6,7 +6,7 @@ members = [
   "crates/automation",
   "crates/browser",
   "crates/conversation",
-  "crates/delivery",
+  "crates/conversation-runtime",
   "crates/extension",
   "crates/git-adapter",
   "crates/kap-client",

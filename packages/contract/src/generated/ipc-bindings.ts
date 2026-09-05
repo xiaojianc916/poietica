@@ -17,7 +17,7 @@ async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
  * 取消点名一条对话。kap 的取消是发给一条会话的一帧 abort（ws-control.ts），而一条对话持有一条会话 ——
  * 这条对应关系在打开这条对话时就写进了库（`attach_session`），提问走的也是它。
  * 
- * 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `session_for` 会为一条
+ * 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `SessionResolver::resolve` 会为一条
  * 还没开过口的对话新开一个会话，那是纯副作用。
  * 
  * 它是 async 的，因为寻址经独立 reader actor；等待不占用主线程。
@@ -205,23 +205,7 @@ async agentExportThread(request: AgentExportThreadRequest) : Promise<boolean> {
     return await TAURI_INVOKE("agent_export_thread", { request });
 },
 /**
- * 打开一条对话：把最新那一页经过要回来。
- * 
- * 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，`session_for`
- * 认出它存着的会话号不是本次连接开的，于是请 driver 把它订阅回来 —— 号
- * 不变，上下文因此回到 agent 手里。只有装载不回来（号在 server 侧也没了）
- * 时才重开一条。
- * 
- * 经过来自本机日志（conversation_events），不来自 agent 的装载重放：那批帧里没有
- * prompt_admitted，段边界会整段塌掉，而回填只发生一次 —— 塌掉的形状会永久留在
- * 日志里。agent 装载回来的是模型的上下文，让它自己续得上，不参与投影。
- * 
- * 三条路都在同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"。
- * 
- * # Errors
- * 
- * Fails when the agent cannot be started, when a turn is in flight on
- * the connection, or when the database rejects the write.
+ * Opens the stored identity and reads the agent-owned transcript; recovery does not replace identity.
  */
 async agentOpenThread(request: AgentOpenThreadRequest) : Promise<AgentOpenedThread> {
     return await TAURI_INVOKE("agent_open_thread", { request });
@@ -282,7 +266,7 @@ async agentArchiveThread(request: AgentArchiveThreadRequest) : Promise<null> {
  * 当场送达要两个前提：连接还活着、这条会话确实是这个 agent 的。凑不齐就先
  * 记进处置账 —— 不为此去起一个进程：删一条对话不该是拉起一个 agent 的理由。
  * 账由下一次对上这个 agent 的连接握手后冲销（runtime.rs 的
- * record_and_flush_disposals）。
+ * poietica_conversation_runtime::disposal::discharge）。
  * 
  * 无项目对话还占着一个应用替它签发的工作目录（paths.rs 的
  * create_projectless_workspace）。库里最后一条指着它的行删掉后，目录一并
@@ -308,26 +292,7 @@ async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_pin_thread", { request });
 },
 /**
- * 从一条对话的某一轮分叉出一条新对话，源对话原样不动。
- * 
- * 两侧按同一个 drop_turns 各切一刀：agent 那侧 :fork 复制、:undo 回退，这一侧
- * fork_thread 把本机日志与附件链接复制到那一轮为止（见 threads.rs）。屏幕由日志
- * 重放、上下文由 agent 持有，一个数决定两者，因此不会各说各话。
- * 
- * 寻址不走 session_for：那条规则在装载不成时会新开一条空会话并改写持有
- * 关系，对打开与提问那是正确的兜底，对分叉则是把「分叉」静默降级成「新
- * 建」。这里的规矩相反 —— 源会话必须原样变活（还不活就 session/load，号
- * 不变），变不活就明说失败，源对话的持有关系一个字都不改。
- * 
- * 新号、新行、日志与附件链接在同一次事务里落库（fork_thread：号与主人成
- * 对）。打开它走 agent_open_thread 那条已有的路，取经过只有一条管线：本机
- * 日志。
- * 
- * # Errors
- * 
- * Fails when the agent cannot be started, when the conversation has no
- * session this agent holds, or when the fork or the database write is
- * refused.
+ * Forks an existing agent-owned session without changing the source conversation.
  */
 async agentForkThread(request: AgentForkThreadRequest) : Promise<AgentThread> {
     return await TAURI_INVOKE("agent_fork_thread", { request });

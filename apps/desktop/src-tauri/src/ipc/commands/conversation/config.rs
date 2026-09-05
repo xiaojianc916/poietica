@@ -6,7 +6,6 @@ use poietica_kap_client::{AgentClient, ConfigControl, ConfigPurpose, select_conf
 use tauri::{AppHandle, State};
 use tauri_specta::Event as _;
 
-use super::addressing::session_for;
 use super::dto::{
     AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentConfigPurpose,
     AgentSelectConfigRequest, AgentSessionEvent, reported_goal,
@@ -48,7 +47,21 @@ pub async fn agent_set_config_option(
     } = request;
 
     let addressed = match thread_id.as_deref() {
-        Some(named) => session_for(&state, &index, &live, named).await?.session_id,
+        Some(named) => {
+            state
+                .sessions
+                .resolve(
+                    &index,
+                    &live.client,
+                    &live.book,
+                    &live.agent_id,
+                    &state.root,
+                    named,
+                )
+                .await
+                .map_err(Error::from)?
+                .session_id
+        }
         None => live.anchor.clone(),
     };
 

@@ -12,17 +12,24 @@ use poietica_conversation::turn::{Admission, AttachmentRef};
 use poietica_kap_client::{AgentClient, KapError, PromptAttachment, PromptSkill};
 use uuid::Uuid;
 
-use super::journal::FrameJournal;
-use crate::asset_protocol::asset_protocol_url;
-use crate::ipc::commands::asset::attachments::blob_path;
+use crate::journal::FrameJournal;
+use poietica_asset::asset_protocol_url;
+use poietica_asset::blob::read_blob;
 use poietica_ledger::index::ThreadAttachment;
 
 #[derive(Clone)]
-pub(super) struct KapGateway {
-    pub(super) client: AgentClient,
-    pub(super) journal: FrameJournal,
+pub struct KapGateway {
+    pub client: AgentClient,
+    pub journal: FrameJournal,
     /// 附件字节的根。投递时按摘要把字节读回来。
-    pub(super) attachments_root: PathBuf,
+    pub attachments_root: PathBuf,
+}
+
+// 连接句柄与帧日志可能携带大字节，Debug 只报结构不报字段。
+impl core::fmt::Debug for KapGateway {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.debug_struct("KapGateway").finish_non_exhaustive()
+    }
 }
 
 impl AgentGateway for KapGateway {
@@ -32,6 +39,9 @@ impl AgentGateway for KapGateway {
     }
 
     fn deliver(&self, delivery: &PromptDelivery) -> Result<DeliveryReceipt, GatewayFailure> {
+        self.journal
+            .check()
+            .map_err(|error| refusal(error.to_string()))?;
         let admission = &delivery.admission;
         let thread = Uuid::parse_str(admission.thread.as_str())
             .map_err(|error| refusal(format!("the thread id is not a uuid: {error}")))?;
@@ -81,15 +91,8 @@ impl KapGateway {
         let mut carried = Vec::with_capacity(admission.attachments.len());
 
         for reference in &admission.attachments {
-            let path = blob_path(&self.attachments_root, &reference.hash)
+            let bytes = read_blob(&self.attachments_root, &reference.hash)
                 .map_err(|error| error.to_string())?;
-            let bytes = match std::fs::read(&path) {
-                Ok(bytes) => bytes,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                    return Err("an attachment is missing; the prompt was not delivered".to_owned());
-                }
-                Err(error) => return Err(error.to_string()),
-            };
 
             let url = asset_protocol_url(admission.thread.as_str(), &reference.hash)
                 .map_err(|error| format!("{error:?}"))?;
@@ -119,7 +122,7 @@ impl KapGateway {
 }
 
 /// 账面行与准入冻结行同形的一次换算。
-pub(super) fn attachment_reference(entry: &ThreadAttachment) -> AttachmentRef {
+pub fn attachment_reference(entry: &ThreadAttachment) -> AttachmentRef {
     AttachmentRef {
         hash: entry.hash.clone(),
         mime: entry.mime.clone(),

@@ -1,8 +1,6 @@
-//! 附件与内容寻址资产：身份、格式判定与交付注册表。
-//!
-//! 字节的身份是 SHA-256 摘要；令牌是唯一入口，这里不认文件系统路径。
-//! HTTP 语义（Range/206 与状态码映射）归宿主的协议处理器。
+//! Asset formats, registration and content-addressed bytes.
 
+pub mod blob;
 pub mod formats;
 pub mod registry;
 

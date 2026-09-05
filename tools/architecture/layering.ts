@@ -38,16 +38,12 @@ export const CARGO_RINGS: readonly Ring[] = [
   { name: 'vocabulary', members: ['poietica-problem', 'poietica-time'] },
   {
     name: 'domain',
-    members: [
-      'poietica-asset',
-      'poietica-automation',
-      'poietica-conversation',
-      'poietica-review-native',
-    ],
+    members: ['poietica-automation', 'poietica-conversation', 'poietica-review-native'],
   },
   {
     name: 'capability',
     members: [
+      'poietica-asset',
       'poietica-browser-native',
       'poietica-extension-native',
       'poietica-git-adapter-native',
@@ -57,7 +53,7 @@ export const CARGO_RINGS: readonly Ring[] = [
       'poietica-terminal-native',
     ],
   },
-  { name: 'use-case', members: ['poietica-delivery'] },
+  { name: 'use-case', members: ['poietica-conversation-runtime'] },
   { name: 'composition', members: ['poietica'] },
 ]
 
@@ -67,7 +63,7 @@ export const HOST_AWARE_PACKAGES: readonly string[] = [
   '@poietica/native-bridge',
 ]
 export const HOST_AGNOSTIC_CRATES: readonly string[] = [
-  'poietica-delivery',
+  'poietica-conversation-runtime',
   'poietica-browser-native',
   'poietica-asset',
   'poietica-automation',

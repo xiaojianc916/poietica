@@ -70,9 +70,7 @@ impl DeliveryConfirmation {
     }
 }
 
-pub struct DeliveryReceipt(
-    std::pin::Pin<Box<dyn std::future::Future<Output = DeliveryConfirmation> + Send>>,
-);
+pub struct DeliveryReceipt(std::pin::Pin<Box<dyn Future<Output = DeliveryConfirmation> + Send>>);
 
 impl core::fmt::Debug for DeliveryReceipt {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -83,9 +81,7 @@ impl core::fmt::Debug for DeliveryReceipt {
 }
 
 impl DeliveryReceipt {
-    pub fn new(
-        future: impl std::future::Future<Output = DeliveryConfirmation> + Send + 'static,
-    ) -> Self {
+    pub fn new(future: impl Future<Output = DeliveryConfirmation> + Send + 'static) -> Self {
         Self(Box::pin(future))
     }
 

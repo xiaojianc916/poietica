@@ -14,7 +14,6 @@ use specta::Type;
 use tauri::{AppHandle, State, async_runtime};
 
 use super::AgentCommandResult;
-use super::addressing::session_for;
 use super::dto::AgentLaunch;
 use super::failure::translate;
 use super::runtime::{AgentRuntime, ensure_session};
@@ -89,7 +88,21 @@ pub async fn agent_toolkit(
     let requested_cwd = request.cwd.clone();
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
     let addressed = match request.thread_id.as_deref() {
-        Some(named) => session_for(&state, &index, &live, named).await?.session_id,
+        Some(named) => {
+            state
+                .sessions
+                .resolve(
+                    &index,
+                    &live.client,
+                    &live.book,
+                    &live.agent_id,
+                    &state.root,
+                    named,
+                )
+                .await
+                .map_err(crate::error::Error::from)?
+                .session_id
+        }
         None => live.anchor.clone(),
     };
 

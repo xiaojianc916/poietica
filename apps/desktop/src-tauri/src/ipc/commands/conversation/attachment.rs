@@ -8,8 +8,8 @@
 
 use crate::asset_protocol::{AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry};
 use crate::error::{Error, Result};
-use crate::ipc::commands::asset::attachments::{blob_path, store_bytes};
 use crate::ipc::commands::ledger::LocalIndex;
+use poietica_asset::blob::{blob_path, store_bytes};
 use poietica_ledger::execution::read_index;
 use poietica_ledger::index::ThreadAttachment;
 use std::collections::HashSet;

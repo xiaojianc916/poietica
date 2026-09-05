@@ -1,4 +1,4 @@
-//! 会话命令只处理宿主参数；投递执行与持久化收尾归 delivery 用例。
+//! Conversation IPC preparation; session acquisition and delivery execute in the conversation use case.
 
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
@@ -11,7 +11,6 @@ use poietica_ledger::execution::{read_index, write_index};
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
-use super::addressing::session_for;
 use super::attachment::keep_bytes;
 use super::config::announce;
 use super::dto::{
@@ -21,11 +20,11 @@ use super::dto::{
     AgentTranscriptOpsRequest, AgentTranscriptRequest, answered, decided,
 };
 use super::failure::translate;
-use super::gateway::{KapGateway, attachment_reference};
 use super::runtime::{AgentRuntime, borrow, ensure_session};
 use super::{
     AgentCommandResult, IMAGE_OPENER, NO_CONVERSATION, NO_SESSION, NOTHING_TO_STOP, TITLE_CHARS,
 };
+use poietica_conversation_runtime::gateway::{KapGateway, attachment_reference};
 
 /// 返回代理确认的提交身份，不等待模型完成。
 #[tauri::command]
@@ -77,7 +76,18 @@ pub async fn agent_prompt(
         .as_deref()
         .ok_or_else(|| Error::Validation(NO_CONVERSATION.to_owned()))?;
 
-    let held = session_for(&state, &index, &session, named).await?;
+    let held = state
+        .sessions
+        .resolve(
+            &index,
+            &session.client,
+            &session.book,
+            &session.agent_id,
+            &state.root,
+            named,
+        )
+        .await
+        .map_err(Error::from)?;
     let thread_id = held.thread_id;
     let addressed = held.session_id;
 
@@ -167,7 +177,7 @@ pub async fn agent_prompt(
         attachments_root: state.attachments.clone(),
     };
 
-    let prompt_id = poietica_delivery::deliver(index.inner(), gateway, delivery)
+    let prompt_id = poietica_conversation_runtime::deliver(index.inner(), gateway, delivery)
         .await?
         .ok_or_else(|| Error::Internal("a fresh admission was already settled".to_owned()))?;
     Ok(AgentPromptResult {
@@ -263,7 +273,7 @@ pub fn agent_dismiss_questions(
 /// 取消点名一条对话。kap 的取消是发给一条会话的一帧 abort（ws-control.ts），而一条对话持有一条会话 ——
 /// 这条对应关系在打开这条对话时就写进了库（`attach_session`），提问走的也是它。
 ///
-/// 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `session_for` 会为一条
+/// 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `SessionResolver::resolve` 会为一条
 /// 还没开过口的对话新开一个会话，那是纯副作用。
 ///
 /// 它是 async 的，因为寻址经独立 reader actor；等待不占用主线程。
@@ -295,7 +305,7 @@ pub async fn agent_cancel(
 /// 这条对话此刻握着的会话号。
 ///
 /// 持有者对不上就不给：会话号活在各自 agent 的命名空间里，把 A 的号发给 B，
-/// 动的可能是 B 的东西。与 session_for 和 agent_delete_thread 同一条规矩。
+/// 动的可能是 B 的东西。与 SessionResolver::resolve 和 agent_delete_thread 同一条规矩。
 async fn held_session(
     index: &State<'_, LocalIndex>,
     thread_id: &str,

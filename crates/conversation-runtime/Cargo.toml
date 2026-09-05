@@ -1,5 +1,5 @@
 [package]
-name = "poietica-delivery"
+name = "poietica-conversation-runtime"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,6 +7,10 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+base64.workspace = true
+log.workspace = true
+poietica-asset = { path = "../asset" }
+poietica-kap-client = { path = "../kap-client" }
 poietica-conversation = { path = "../conversation" }
 poietica-ledger = { path = "../ledger" }
 thiserror.workspace = true

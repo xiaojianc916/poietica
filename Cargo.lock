@@ -3048,7 +3048,7 @@ dependencies = [
  "poietica-automation",
  "poietica-browser-native",
  "poietica-conversation",
- "poietica-delivery",
+ "poietica-conversation-runtime",
  "poietica-extension-native",
  "poietica-git-adapter-native",
  "poietica-kap-client",
@@ -3089,6 +3089,8 @@ version = "0.3.1"
 dependencies = [
  "hex",
  "sha2",
+ "tempfile",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -3119,10 +3121,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "poietica-delivery"
+name = "poietica-conversation-runtime"
 version = "0.3.1"
 dependencies = [
+ "base64 0.22.1",
+ "log",
+ "poietica-asset",
  "poietica-conversation",
+ "poietica-kap-client",
  "poietica-ledger",
  "poietica-time",
  "tempfile",
