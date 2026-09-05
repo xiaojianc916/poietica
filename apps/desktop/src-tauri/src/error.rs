@@ -97,8 +97,7 @@ impl From<poietica_conversation_runtime::DeliveryError> for Error {
                 "投递结果未确认，请先核对会话；不要重复发送。仅支持幂等键的投递会自动恢复。"
                     .to_owned(),
             ),
-            DeliveryError::Domain(_)
-            | DeliveryError::Ledger(_)
+            DeliveryError::Ledger(_)
             | DeliveryError::MissingAdmission(_)
             | DeliveryError::Identity(_) => {
                 Self::Internal("无法完成投递记账；请保留现场并查看诊断日志。".to_owned())

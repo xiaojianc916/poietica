@@ -6,7 +6,7 @@
 
 use poietica_conversation::event::ConversationEvent;
 use poietica_conversation::identity::{Seq, ThreadId, TurnId};
-use poietica_conversation::ports::ConversationLedger;
+use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
 use poietica_conversation::projection::project;
 use poietica_conversation::turn::{Admission, AdmissionDecision, TurnCompletion, TurnState};
 use poietica_ledger::SqliteLedger;
@@ -44,7 +44,12 @@ fn events_round_trip_and_projection_rebuilds() {
     let turn = TurnId::new("turn-1".to_owned());
 
     assert_eq!(
-        ledger.admit(&admission(&thread, &turn)).expect("admit"),
+        ledger
+            .admit(&PromptDelivery {
+                admission: admission(&thread, &turn),
+                session: "session-1".to_owned()
+            })
+            .expect("admit"),
         AdmissionDecision::Admitted
     );
 
@@ -52,19 +57,15 @@ fn events_round_trip_and_projection_rebuilds() {
         .append(
             &thread,
             "session-1",
-            &[
-                ConversationEvent::TurnAdmitted { turn: turn.clone() },
-                ConversationEvent::RunFinished {
-                    turn: Some(turn.clone()),
-                    stop_reason: "completed".to_owned(),
-                },
-            ],
+            &[ConversationEvent::RunFinished {
+                turn: Some(turn.clone()),
+                stop_reason: "completed".to_owned(),
+            }],
         )
         .expect("append");
 
-    assert_eq!(envelopes.len(), 2);
-    assert_eq!(envelopes[0].seq, Seq::new(1));
-    assert_eq!(envelopes[1].seq, Seq::new(2));
+    assert_eq!(envelopes.len(), 1);
+    assert_eq!(envelopes[0].seq, Seq::new(2));
     assert_eq!(envelopes[0].at, 1_700_000_000_000);
     assert_eq!(envelopes[0].session_id, "session-1");
 

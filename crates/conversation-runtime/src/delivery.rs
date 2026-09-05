@@ -1,11 +1,10 @@
 //! 投递用例拥有准入、传输确认及恢复；数据库 actor 内不得调用网关。
 use crate::session::SessionResolver;
-use poietica_conversation::command::Conversation;
-use poietica_conversation::error::{DomainFailure, LedgerUnavailable};
+use poietica_conversation::error::LedgerUnavailable;
 use poietica_conversation::ports::{
     AgentGateway, ConversationLedger, DeliveryConfirmation, PromptDelivery,
 };
-use poietica_conversation::turn::AdmissionDecision;
+use poietica_conversation::turn::{AdmissionDecision, DeliveryState};
 use poietica_ledger::execution::{IndexError, LocalIndex, read_index, write_index};
 use uuid::Uuid;
 
@@ -13,8 +12,6 @@ use uuid::Uuid;
 pub enum DeliveryError {
     #[error(transparent)]
     Index(#[from] IndexError),
-    #[error(transparent)]
-    Domain(#[from] DomainFailure),
     #[error(transparent)]
     Ledger(#[from] LedgerUnavailable),
     #[error("admitted turn has no outbox entry: {0}")]
@@ -47,9 +44,9 @@ where
 {
     let requested = delivery.clone();
     let (decision, state) = write_index(index, move |store| {
-        let decision = Conversation::new(store)
+        let decision = store
             .admit(&requested)
-            .map_err(|error| E::from(DeliveryError::Domain(error)))?;
+            .map_err(|error| E::from(DeliveryError::Ledger(error)))?;
         let state = store
             .delivery_state(&requested.admission.turn)
             .map_err(|error| E::from(DeliveryError::Ledger(error)))?
@@ -62,6 +59,20 @@ where
     })
     .await?;
 
+    dispatch(index, gateway, delivery, decision, state).await
+}
+
+pub(crate) async fn dispatch<G, E>(
+    index: &LocalIndex<E>,
+    gateway: G,
+    delivery: PromptDelivery,
+    decision: AdmissionDecision,
+    state: DeliveryState,
+) -> Result<Option<String>, E>
+where
+    G: AgentGateway + Send + 'static,
+    E: From<IndexError> + From<DeliveryError> + Send + 'static,
+{
     if state.is_settled() {
         return Ok(None);
     }

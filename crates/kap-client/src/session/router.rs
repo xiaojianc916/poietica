@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 
 use super::book::SessionBook;
 use super::rest::{get, get_selectors, post, session_snapshot};
+use super::tasks::SessionTasks;
 use super::{Cursor, SessionEvent, SessionUsageSnapshot};
 use crate::connection::handshake::subscribe;
 use crate::connection::socket::WsSink;
@@ -82,9 +83,11 @@ impl ReconcileOwner {
         book: SessionBook,
         desk: PermissionDesk,
         questions: QuestionDesk,
+        tasks: &SessionTasks,
     ) -> Self {
         let (messages, mut incoming) = mpsc::unbounded();
-        let task = tokio::spawn(async move {
+        let background = tasks.clone();
+        let task = tasks.spawn(async move {
             let mut state = ReconcileState::default();
 
             while let Some(first) = incoming.next().await {
@@ -121,6 +124,7 @@ impl ReconcileOwner {
                         &book,
                         &questions,
                         question,
+                        &background,
                     );
                 }
 
@@ -132,6 +136,7 @@ impl ReconcileOwner {
                         &mut state.pending_approvals,
                         &book,
                         &desk,
+                        &background,
                     )
                     .await;
                 }
@@ -194,6 +199,7 @@ pub(crate) struct EventRouter {
     cursors: HashMap<String, Cursor>,
     ws: WsSink,
     recoveries: HashMap<String, tokio::task::JoinHandle<()>>,
+    tasks: SessionTasks,
 }
 
 impl EventRouter {
@@ -205,6 +211,7 @@ impl EventRouter {
         http: reqwest::Client,
         base_url: String,
         ws: WsSink,
+        tasks: SessionTasks,
     ) -> Self {
         Self {
             owners: HashMap::new(),
@@ -217,6 +224,7 @@ impl EventRouter {
             cursors: HashMap::new(),
             ws,
             recoveries: HashMap::new(),
+            tasks,
         }
     }
 
@@ -237,6 +245,9 @@ impl EventRouter {
 
         let _dropped = self.cursors.remove(session_id);
         let _stopped = self.owners.remove(session_id);
+        if let Some(task) = self.recoveries.remove(session_id) {
+            task.abort();
+        }
 
         let _sent = self.events_tx.unbounded_send(SessionEvent::CursorLost {
             session_id: session_id.to_owned(),
@@ -290,6 +301,7 @@ impl EventRouter {
             let book = self.book.clone();
             let desk = self.desk.clone();
             let questions = self.questions.clone();
+            let tasks = self.tasks.clone();
 
             for session_id in session_ids("accepted") {
                 self.owners
@@ -302,6 +314,7 @@ impl EventRouter {
                             book.clone(),
                             desk.clone(),
                             questions.clone(),
+                            &tasks,
                         )
                     })
                     .refresh_questions();
@@ -312,6 +325,7 @@ impl EventRouter {
 
         let Self {
             owners,
+            tasks,
             book,
             desk,
             questions,
@@ -410,11 +424,12 @@ impl EventRouter {
                     book.clone(),
                     self.desk.clone(),
                     self.questions.clone(),
+                    tasks,
                 )
             });
             owner.reset();
             owner.poll();
-            let task = tokio::spawn(async move {
+            let task = tasks.spawn(async move {
                 match session_snapshot(&http, &base, &sid).await {
                     Ok((cursor, snapshot)) => {
                         if let Ok(Some(slot)) = book.slot(&sid) {
@@ -466,6 +481,7 @@ impl EventRouter {
                 book.clone(),
                 desk.clone(),
                 questions.clone(),
+                tasks,
             )
         };
 
@@ -536,9 +552,15 @@ impl EventRouter {
                     let sid = session_id.to_owned();
                     let events2 = events_tx.clone();
 
-                    tokio::spawn(async move {
-                        let Ok((offered, goal)) = get_selectors(&http2, &base2, &sid).await else {
-                            return;
+                    tasks.spawn(async move {
+                        let (offered, goal) = match get_selectors(&http2, &base2, &sid).await {
+                            Ok(snapshot) => snapshot,
+                            Err(error) => {
+                                log::warn!(
+                                    "could not refresh selectors after turn completion: {error}"
+                                );
+                                return;
+                            }
                         };
 
                         let _sent = events2.unbounded_send(SessionEvent::Selectors {
@@ -595,6 +617,7 @@ async fn fetch_and_record_approvals(
     pending: &mut HashSet<String>,
     book: &SessionBook,
     desk: &PermissionDesk,
+    tasks: &SessionTasks,
 ) {
     let url = routes::list_approvals(base_url, session_id).map(|mut url| {
         url.query_pairs_mut().append_pair("status", "pending");
@@ -654,7 +677,7 @@ async fn fetch_and_record_approvals(
         let sid = session_id.to_owned();
         let book2 = book.clone();
 
-        tokio::spawn(async move {
+        tasks.spawn(async move {
             // 发送端被丢掉只有一种情形：这一轮已经结束了（turn.ended 把它从桌上
             // 放掉了）。那时这不再是我们该回答的问题 —— 什么都不发。
             let Ok(response) = answer_rx.await else {
@@ -751,6 +774,7 @@ fn record_question_request(
     book: &SessionBook,
     desk: &QuestionDesk,
     item: &Value,
+    tasks: &SessionTasks,
 ) {
     let Some(group) = QuestionGroup::from_wire(item) else {
         /* 读不出的题组不能装作没来过：撤下它，agent 才不会在人这一侧死等到超时。 */
@@ -766,7 +790,7 @@ fn record_question_request(
         let sid = session_id.to_owned();
         let qid = question_id.to_owned();
 
-        tokio::spawn(async move {
+        tasks.spawn(async move {
             if let Err(error) =
                 settle_question(&http2, &base2, &sid, &qid, &QuestionOutcome::Dismissed).await
             {
@@ -798,7 +822,7 @@ fn record_question_request(
     let sid = session_id.to_owned();
     let book2 = book.clone();
 
-    tokio::spawn(async move {
+    tasks.spawn(async move {
         // 发送端被丢掉只有一种情形：这一轮已经结束了（turn.ended 把它从桌上
         // 放掉了）。那时这不再是我们该回答的问题 —— 什么都不发。
         let Ok(outcome) = answer_rx.await else {

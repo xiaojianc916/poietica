@@ -122,16 +122,15 @@ pub fn build() -> tauri::Builder<Wry> {
                     }
                 },
             )?;
-            let runtime = crate::conversation::runtime::AgentRuntime::new(
-                handle.path().home_dir()?,
-                paths::attachments_root(handle)?,
-                journal,
+            let runtime = crate::conversation::runtime::compose(
+                handle, handle.path().home_dir()?, paths::attachments_root(handle)?,
+                index.clone(), journal,
             );
             let _index = app.manage(index.clone());
-            let _managed = app.manage(runtime);
+            let _managed = app.manage(std::sync::Arc::clone(&runtime));
             let _browser = app.manage(crate::webview::BrowserHost::new());
             let _automation_mcp = app.manage(crate::automation::mcp_server::serve(handle)?);
-            let automation = crate::automation::start(handle, index.clone());
+            let automation = crate::automation::start(handle, index.clone(), runtime);
             let may_reclaim = automation.available().is_ok();
             let _automations = app.manage(automation);
 

@@ -1,13 +1,10 @@
-//! Submission metadata and durable admission share one application use case.
+use crate::{DeliveryError, delivery::dispatch, gateway::attachment_reference};
 use poietica_conversation::identity::{ThreadId, TurnId};
 use poietica_conversation::ports::{AgentGateway, PromptDelivery};
 use poietica_conversation::turn::{Admission, SkillSpec};
 use poietica_ledger::execution::{IndexError, LocalIndex, write_index};
 use poietica_ledger::index::ThreadAttachment;
 use uuid::Uuid;
-
-use crate::DeliveryError;
-use crate::gateway::attachment_reference;
 
 pub const TITLE_CHARS: usize = 60;
 
@@ -23,62 +20,48 @@ pub struct Submission {
     pub submitted_at_unix_millis: i64,
 }
 
-/// Attachment bytes must be prepared before entering the submission use case.
-pub async fn submit<G, E>(
+pub async fn submit<G, E, F>(
     index: &LocalIndex<E>,
     gateway: G,
     request: Submission,
+    validate: F,
 ) -> Result<Option<String>, E>
 where
     G: AgentGateway + Send + 'static,
     E: From<IndexError> + From<DeliveryError> + Send + 'static,
+    F: FnOnce(&poietica_ledger::index::AgentStore) -> Result<(), poietica_ledger::LedgerError>
+        + Send
+        + 'static,
 {
-    let Submission {
-        thread,
-        session,
-        turn,
-        text,
-        model,
-        attachments,
-        skills,
-        submitted_at_unix_millis,
-    } = request;
-    let opener: String = if text.is_empty() {
+    let opener = if request.text.is_empty() {
         "[图片]".to_owned()
     } else {
-        text.chars().take(TITLE_CHARS).collect()
+        request.text.chars().take(TITLE_CHARS).collect()
     };
-    let references = attachments.iter().map(attachment_reference).collect();
-    // Writer serialization does not make these separate store operations one SQL transaction.
-    write_index(index, move |store| {
+    let delivery = PromptDelivery {
+        admission: Admission {
+            thread: ThreadId::new(request.thread.to_string()),
+            turn: request.turn,
+            prompt: request.text,
+            model: request.model,
+            attachments: request
+                .attachments
+                .iter()
+                .map(attachment_reference)
+                .collect(),
+            skills: request.skills,
+            submitted_at_unix_millis: request.submitted_at_unix_millis,
+        },
+        session: request.session,
+    };
+    let requested = delivery.clone();
+    let attached = request.attachments;
+    let (decision, state) = write_index(index, move |store| {
         store
-            .record_prompt(thread, &opener)
+            .admit_submission(&requested, &opener, &attached, validate)
             .map_err(IndexError::from)
-            .map_err(E::from)?;
-        for attachment in &attachments {
-            store
-                .remember_attachment(thread, attachment)
-                .map_err(IndexError::from)
-                .map_err(E::from)?;
-        }
-        Ok(())
+            .map_err(E::from)
     })
     .await?;
-    crate::deliver(
-        index,
-        gateway,
-        PromptDelivery {
-            admission: Admission {
-                thread: ThreadId::new(thread.to_string()),
-                turn,
-                prompt: text,
-                model,
-                attachments: references,
-                skills,
-                submitted_at_unix_millis,
-            },
-            session,
-        },
-    )
-    .await
+    dispatch(index, gateway, delivery, decision, state).await
 }

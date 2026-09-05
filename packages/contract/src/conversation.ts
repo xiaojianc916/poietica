@@ -1,1 +1,5 @@
-export type { AgentPromptResult } from './generated/ipc-bindings'
+export type {
+  AgentHistory,
+  AgentPromptResult,
+  AgentThread,
+} from './generated/ipc-bindings'

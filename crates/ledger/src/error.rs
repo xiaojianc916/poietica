@@ -2,6 +2,10 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum LedgerError {
+    #[error("a turn identity was reused with different frozen input: {turn_id}")]
+    AdmissionConflict { turn_id: String },
+    #[error("invalid submission: {0}")]
+    InvalidSubmission(String),
     #[error(transparent)]
     Automation(#[from] poietica_automation::AutomationError),
     #[error("SQLite 拒绝了操作：{0}")]

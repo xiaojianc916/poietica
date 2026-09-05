@@ -93,7 +93,13 @@ pub fn connect(
     let diagnostics = StderrLog::new();
     let traced = open_trace();
 
+    let stop = tokio_util::sync::CancellationToken::new();
+    let cancellation = stop.clone();
     let driver = async move {
+        let _connection_lifetime = cancellation.clone().drop_guard();
+        if cancellation.is_cancelled() {
+            return Err(KapError::Refused(Refusal::Gone));
+        }
         // 1. 启动 kimi web --no-open
         let spawned_at = now_millis();
         let mut command = tokio::process::Command::new(&resolved);
@@ -112,10 +118,13 @@ pub fn connect(
             message: e.to_string(),
         })?);
 
+        let tasks = super::tasks::SessionTasks::new(cancellation.clone());
+        let mut shutdown_reply = None;
+        let operation = async {
         // stderr 日志透传
         let diag_stderr = diagnostics.clone();
         if let Some(stderr) = child.0.stderr.take() {
-            tokio::spawn(async move {
+            tasks.spawn(async move {
                 use tokio::io::{AsyncBufReadExt, BufReader};
                 let mut lines = BufReader::new(stderr).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
@@ -141,7 +150,6 @@ pub fn connect(
             Err(error) => {
                 // 收尸再报：超时的根因多半写在 server 自己的 stderr 上（端口、
                 // 配置、崩溃），不带回来就只剩一句"没注册"。
-                kill_tree(&mut child.0).await;
 
                 let message = format!("{error}; server stderr: {}", diagnostics.tail());
 
@@ -318,7 +326,7 @@ pub fn connect(
             questions.clone(),
             events_tx.clone(),
             http.clone(),
-            base_url.clone(), Arc::clone(&ws));
+            base_url.clone(), Arc::clone(&ws), tasks.clone());
 
         /* 每条会话最后读到的位置。重连按它续订：帧不重发，也不缺号。 */
 
@@ -364,16 +372,11 @@ pub fn connect(
                 cmd = commands_rx.next() => {
                     match cmd {
                         Some(Command::Shutdown(gone)) => {
-                            kill_tree(&mut child.0).await;
-                            /* 收尸完成才报：屏障等的就是这一声。 */
-                            let _reported = gone.send(());
+                            shutdown_reply = Some(gone);
                             break;
                         }
                         /* 命令端全没了：没人再要收据，收尸照做。 */
-                        None => {
-                            kill_tree(&mut child.0).await;
-                            break;
-                        }
+                        None => break,
 
                         Some(Command::Steer {
                             session_id: sid,
@@ -383,7 +386,7 @@ pub fn connect(
                             let http = http.clone();
                             let base = base_url.clone();
 
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 post(
                                     &http,
                                     routes::steer_prompts(&base, &sid),
@@ -402,7 +405,7 @@ pub fn connect(
                             let http = http.clone();
                             let base = base_url.clone();
 
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 post(
                                     &http,
                                     routes::abort_prompt(&base, &sid, &format!("{prompt_id}:abort")),
@@ -417,7 +420,7 @@ pub fn connect(
                             let base = base_url.clone();
                             let book2 = book_clone.clone();
                             let aborted = book2.ended_count(&sid).ok().flatten();
-                            tokio::spawn(async move {
+                            tasks.spawn(async move {
                                 let result = post(
                                     &http,
                                     routes::abort_session(&base, &format!("{sid}:abort")),
@@ -457,7 +460,7 @@ pub fn connect(
                             let base = base_url.clone();
                             let book = book_clone.clone();
                             let ws = Arc::clone(&ws);
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 open_session(&http, &base, &new_cwd, &book, &ws).await
                             }));
                         }
@@ -467,7 +470,7 @@ pub fn connect(
                             let base = base_url.clone();
                             let book = book_clone.clone();
                             let ws = Arc::clone(&ws);
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 load_session(&http, &base, &sid, from.as_ref(), &book, &ws).await
                             }));
                         }
@@ -477,7 +480,7 @@ pub fn connect(
                             let base = base_url.clone();
                             let book = book_clone.clone();
                             let ws = Arc::clone(&ws);
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 fork_session(&http, &base, &src, drop_turns, &book, &ws).await
                             }));
                         }
@@ -488,7 +491,7 @@ pub fn connect(
                             let base = base_url.clone();
                             let book = book_clone.clone();
                             let ws = Arc::clone(&ws);
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 archive_session(&http, &base, &sid, &book, &ws).await
                             }));
                         }
@@ -496,7 +499,7 @@ pub fn connect(
                         Some(Command::Sessions { reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 list_sessions(&http, &base).await
                             }));
                         }
@@ -528,7 +531,7 @@ pub fn connect(
                                 }
                                 let http = http.clone();
                                 let base = base_url.clone();
-                                tokio::spawn(settle(reply, async move {
+                                tasks.spawn(settle(reply, async move {
                                     submit_prompt(
                                         &http,
                                         &base,
@@ -548,7 +551,7 @@ pub fn connect(
                         Some(Command::ExportSession { session_id: sid, destination, reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 export_session(&http, &base, &sid, &destination).await
                             }));
                         }
@@ -556,7 +559,7 @@ pub fn connect(
                         Some(Command::Skills { session_id: sid, reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 list_skills(&http, &base, &sid).await
                             }));
                         }
@@ -564,7 +567,7 @@ pub fn connect(
                         Some(Command::McpServers { reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 list_mcp_servers(&http, &base).await
                             }));
                         }
@@ -572,7 +575,7 @@ pub fn connect(
                         Some(Command::Capabilities { reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 list_capabilities(&http, &base).await
                             }));
                         }
@@ -580,7 +583,7 @@ pub fn connect(
                         Some(Command::InstallCapability { capability_id, reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 install_capability(&http, &base, &capability_id).await
                             }));
                         }
@@ -588,7 +591,7 @@ pub fn connect(
                         Some(Command::ModelCatalog { operation, reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 execute_model_catalog(&http, &base, operation).await
                             }));
                         }
@@ -596,7 +599,7 @@ pub fn connect(
                         Some(Command::Selectors { session_id: sid, reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 get_selectors(&http, &base, &sid)
                                     .await
                                     .map(|(offered, _goal)| offered)
@@ -606,7 +609,7 @@ pub fn connect(
                         Some(Command::Goal { session_id: sid, reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 fetch_goal(&http, &base, &sid).await
                             }));
                         }
@@ -614,7 +617,7 @@ pub fn connect(
                         Some(Command::ReadTranscript { session_id: sid, agent_id, before_turn, reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 read_transcript(&http, &base, &sid, &agent_id, before_turn.as_deref())
                                     .await
                             }));
@@ -623,7 +626,7 @@ pub fn connect(
                         Some(Command::CatchUpTranscript { session_id: sid, agent_id, since_seq, reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 catch_up_transcript(&http, &base, &sid, &agent_id, since_seq).await
                             }));
                         }
@@ -631,7 +634,7 @@ pub fn connect(
                         Some(Command::Select { session_id: sid, config_id, value, input, reply }) => {
                             let http = http.clone();
                             let base = base_url.clone();
-                            tokio::spawn(settle(reply, async move {
+                            tasks.spawn(settle(reply, async move {
                                 set_selector(&http, &base, &sid, &config_id, &value, input.as_deref())
                                     .await
                             }));
@@ -682,13 +685,28 @@ pub fn connect(
         }
 
         drop(router);
+        Ok(())
+        };
+        let outcome = tokio::select! {
+            result = operation => result,
+            () = cancellation.cancelled() => Err(KapError::Refused(Refusal::Gone)),
+        };
+        let stopped = kill_tree(&mut child.0).await;
+        tasks.shutdown().await;
         desk.clear();
         questions.clear();
-        Ok(())
+        stopped.map_err(|error| KapError::Transport {
+            message: format!("the agent process could not be reaped: {error}"),
+        })?;
+        if let Some(reply) = shutdown_reply {
+            let _sent = reply.send(());
+        }
+        outcome
     }
     .boxed();
 
     Ok(AgentConnection {
+        stop,
         book,
         client: AgentClient::new(commands_tx),
         handshake: ready_rx,

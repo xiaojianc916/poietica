@@ -9,9 +9,9 @@ use specta::Type;
 use tauri::{AppHandle, State};
 
 use super::AgentCommandResult;
-use super::dto::AgentLaunch;
 use super::failure::translate;
-use super::runtime::{AgentRuntime, Handle, ensure_session};
+use super::runtime::AgentRuntime;
+use poietica_conversation_runtime::connection::{Handle, Takeover};
 
 /// KAP 对一项能力的就绪裁决，原样投影。
 #[derive(Debug, Serialize, Type)]
@@ -77,7 +77,7 @@ async fn ensure_capability_host(
 ) -> crate::error::Result<Handle> {
     let agent_id = default_agent_id(app)?;
 
-    ensure_session(app, state, AgentLaunch { agent_id }, None).await
+    state.ensure(agent_id, None, Takeover::Replace).await
 }
 
 /// 读取 KAP 的应用级能力清单；连接不存在时按统一启动管线建立。

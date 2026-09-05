@@ -3,7 +3,7 @@ use crate::paths::settings_store;
 use poietica_problem::Problem;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{AppHandle, command};
+use tauri::{AppHandle, Manager, command};
 use tauri_plugin_store::StoreExt;
 
 type SettingsCommandResult<T> = std::result::Result<T, Problem>;
@@ -145,7 +145,13 @@ fn read_settings(app: &AppHandle) -> Result<AppSettings> {
 pub async fn apply_startup_settings(app: &AppHandle) {
     match read_settings(app) {
         Ok(settings) => {
-            crate::conversation::runtime::apply_daemon_intent(app, settings.general.daemon).await;
+            if let Err(error) = app
+                .state::<crate::conversation::runtime::AgentRuntime>()
+                .apply_daemon_intent(settings.general.daemon)
+                .await
+            {
+                log::error!("could not apply the daemon intent: {error}");
+            }
         }
         Err(error) => log::warn!("could not apply persisted runtime settings: {error}"),
     }
@@ -182,7 +188,10 @@ pub async fn settings_set(app: AppHandle, settings: AppSettings) -> SettingsComm
     .map_err(Problem::from)?;
 
     /* 落盘先于对账：进程内的相位跟着已经成立的意图走，不跟着一次可能失败的写。 */
-    crate::conversation::runtime::apply_daemon_intent(&app, saved.general.daemon).await;
+    app.state::<crate::conversation::runtime::AgentRuntime>()
+        .apply_daemon_intent(saved.general.daemon)
+        .await
+        .map_err(Problem::from)?;
 
     Ok(())
 }
@@ -205,7 +214,10 @@ pub async fn settings_reset(app: AppHandle) -> SettingsCommandResult<AppSettings
     })()
     .map_err(Problem::from)?;
 
-    crate::conversation::runtime::apply_daemon_intent(&app, defaults.general.daemon).await;
+    app.state::<crate::conversation::runtime::AgentRuntime>()
+        .apply_daemon_intent(defaults.general.daemon)
+        .await
+        .map_err(Problem::from)?;
 
     Ok(defaults)
 }

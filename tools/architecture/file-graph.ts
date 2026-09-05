@@ -65,6 +65,7 @@ function edgeOf(
   records: ReadonlyMap<string, SourceUnit>,
   host: ts.ModuleResolutionHost,
   resolveEntry: (specifier: string) => string | undefined,
+  boundary: (file: string, specifier: string, target: string) => void,
   reject: (policy: string, file: string, detail: string) => void,
 ): { readonly forbidden: string[]; readonly target?: string } {
   const specifier = record.specifier
@@ -104,6 +105,7 @@ function edgeOf(
     return { forbidden }
   }
   const target = canonicalOf(host, resolvedFile)
+  boundary(file, specifier, target)
   if (!record.typeOnly && testFile(target)) {
     reject('production-does-not-import-tests', file, specifier)
   }
@@ -119,6 +121,7 @@ function scanUnit(
   records: ReadonlyMap<string, SourceUnit>,
   host: ts.ModuleResolutionHost,
   resolveEntry: (specifier: string) => string | undefined,
+  boundary: (file: string, specifier: string, target: string) => void,
   reject: (policy: string, file: string, detail: string) => void,
 ): { readonly outgoing: Set<string>; readonly forbidden: string[] } {
   const outgoing = new Set<string>()
@@ -149,7 +152,7 @@ function scanUnit(
   }
   visit(ts.createSourceFile(file, unit.code, ts.ScriptTarget.Latest, true))
   for (const record of imports) {
-    const edge = edgeOf(file, record, unit, records, host, resolveEntry, reject)
+    const edge = edgeOf(file, record, unit, records, host, resolveEntry, boundary, reject)
     forbidden.push(...edge.forbidden)
     if (edge.target !== undefined) {
       outgoing.add(edge.target)
@@ -164,6 +167,7 @@ export function analyzeSourceFiles(
   host: ts.ModuleResolutionHost,
   headless: readonly string[] = [],
   entries: ReadonlyMap<string, Workspace> = new Map<string, Workspace>(),
+  boundary: (file: string, specifier: string, target: string) => void = () => {},
 ): Violation[] {
   const records = new Map(units.map((unit) => [canonicalOf(host, unit.file), unit]))
   const edges = new Map<string, Set<string>>()
@@ -183,7 +187,7 @@ export function analyzeSourceFiles(
     return target === undefined ? undefined : path.resolve(root, workspace.directory, target)
   }
   for (const [file, unit] of records) {
-    const scan = scanUnit(file, unit, records, host, resolveEntry, reject)
+    const scan = scanUnit(file, unit, records, host, resolveEntry, boundary, reject)
     edges.set(file, scan.outgoing)
     blocked.set(file, scan.forbidden)
   }

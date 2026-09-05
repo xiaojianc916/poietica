@@ -16,9 +16,10 @@ use tauri::{AppHandle, State, async_runtime};
 use super::AgentCommandResult;
 use super::dto::AgentLaunch;
 use super::failure::translate;
-use super::runtime::{AgentRuntime, ensure_session};
+use super::runtime::AgentRuntime;
 use crate::agent::profile::agent_home_directory;
 use crate::ledger::LocalIndex;
+use poietica_conversation_runtime::connection::Takeover;
 
 const DOCUMENT_MAX_BYTES: u64 = 256 * 1024;
 
@@ -86,17 +87,19 @@ pub async fn agent_toolkit(
     request: AgentToolkitRequest,
 ) -> AgentCommandResult<AgentToolkit> {
     let requested_cwd = request.cwd.clone();
-    let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
+    let live = state
+        .ensure(request.launch.agent_id, request.cwd, Takeover::Replace)
+        .await?;
     let addressed = match request.thread_id.as_deref() {
         Some(named) => {
             state
-                .sessions
+                .sessions()
                 .resolve(
                     &index,
                     &live.client,
                     &live.book,
                     &live.agent_id,
-                    &state.root,
+                    state.root(),
                     named,
                 )
                 .await

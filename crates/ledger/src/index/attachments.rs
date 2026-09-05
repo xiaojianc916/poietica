@@ -27,17 +27,6 @@ pub struct ThreadAttachment {
 }
 
 impl AgentStore {
-    /// 记下一段字节的存在,以及它挂在哪里。
-    ///
-    /// 两张表一次事务。分开写就会出现「链接指向一段不存在的字节」的中间态,
-    /// 而那正是回收逻辑会照着删的东西。
-    ///
-    /// 同一张图发第二次不是错误:摘要相同,`attachments` 那一行原样保留
-    /// (`ON CONFLICT DO NOTHING`),只多一条链接。这就是内容寻址省下的那份拷贝。
-    ///
-    /// # Errors
-    ///
-    /// 事务被拒时返回错误。
     pub fn remember_attachment(
         &mut self,
         thread: Uuid,
@@ -45,40 +34,11 @@ impl AgentStore {
     ) -> Result<()> {
         let timestamp = self.now()?;
         let transaction = self.connection.transaction()?;
-
-        transaction.execute(
-            "INSERT INTO attachments (hash, mime, name, byte_size, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT (hash) DO NOTHING",
-            rusqlite::params![
-                &attachment.hash,
-                &attachment.mime,
-                &attachment.name,
-                attachment.byte_size,
-                timestamp
-            ],
-        )?;
-
-        transaction.execute(
-            "INSERT INTO thread_attachments (thread_id, hash)
-             VALUES (?1, ?2)
-             ON CONFLICT (thread_id, hash) DO NOTHING",
-            rusqlite::params![thread.to_string(), &attachment.hash],
-        )?;
-
+        remember_in(&transaction, &timestamp, thread, attachment)?;
         transaction.commit()?;
-
         Ok(())
     }
 
-    /// 这条对话的全部附件,按它们出现的顺序。
-    ///
-    /// 顺序由 SQL 给,不由调用方再排一遍:认领方是顺着时间线往下走的,拿到
-    /// 一份已经同序的表就只需要走一趟。
-    ///
-    /// # Errors
-    ///
-    /// 查询被拒时返回错误。
     pub fn attachments_of(&self, thread: Uuid) -> Result<Vec<ThreadAttachment>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT link.hash, blob.mime, blob.name, blob.byte_size
@@ -143,4 +103,29 @@ impl AgentStore {
     }
 
     // 对话删除的多表事务由 threads.rs 单点持有。
+}
+
+pub(crate) fn remember_in(
+    transaction: &rusqlite::Transaction<'_>,
+    timestamp: &str,
+    thread: Uuid,
+    attachment: &ThreadAttachment,
+) -> Result<()> {
+    transaction.execute(
+        "INSERT INTO attachments (hash, mime, name, byte_size, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (hash) DO NOTHING",
+        rusqlite::params![
+            attachment.hash,
+            attachment.mime,
+            attachment.name,
+            attachment.byte_size,
+            timestamp
+        ],
+    )?;
+    transaction.execute(
+        "INSERT INTO thread_attachments (thread_id, hash)
+         VALUES (?1, ?2) ON CONFLICT (thread_id, hash) DO NOTHING",
+        rusqlite::params![thread.to_string(), attachment.hash],
+    )?;
+    Ok(())
 }

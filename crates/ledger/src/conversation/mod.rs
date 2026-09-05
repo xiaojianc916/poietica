@@ -1,4 +1,4 @@
-pub mod admissions;
+mod admissions;
 pub mod cursors;
 pub mod events;
 pub mod outbox;
@@ -9,7 +9,7 @@ use std::sync::{Mutex, MutexGuard};
 use poietica_conversation::error::LedgerUnavailable;
 use poietica_conversation::event::{ConversationEvent, EventEnvelope};
 use poietica_conversation::identity::{Seq, ThreadId, TurnId};
-use poietica_conversation::ports::ConversationLedger;
+use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
 use poietica_conversation::turn::{Admission, AdmissionDecision, DeliveryOutcome, DeliveryState};
 use poietica_time::WallClock;
 use rusqlite::Connection;
@@ -90,7 +90,7 @@ fn unavailable(error: &LedgerError) -> LedgerUnavailable {
 }
 
 impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
-    fn admit(&self, admission: &Admission) -> Result<AdmissionDecision, LedgerUnavailable> {
+    fn admit(&self, admission: &PromptDelivery) -> Result<AdmissionDecision, LedgerUnavailable> {
         let mut guard = self.guard().map_err(|error| unavailable(&error))?;
         let transaction = guard
             .transaction()
@@ -186,7 +186,7 @@ impl AgentStore {
 /// 应用 writer actor 使用的领域端口实现。准入、发件箱、索引与帧追加
 /// 都在同一条写队列上取得总序。
 impl ConversationLedger for AgentStore {
-    fn admit(&self, admission: &Admission) -> Result<AdmissionDecision, LedgerUnavailable> {
+    fn admit(&self, admission: &PromptDelivery) -> Result<AdmissionDecision, LedgerUnavailable> {
         let transaction = self
             .unchecked_transaction()
             .map_err(|error| unavailable(&error))?;
@@ -243,5 +243,132 @@ impl ConversationLedger for AgentStore {
 
     fn unresolved_deliveries(&self) -> Result<Vec<Admission>, LedgerUnavailable> {
         outbox::unresolved(&self.connection).map_err(|error| unavailable(&error))
+    }
+}
+
+impl AgentStore {
+    pub fn admit_submission<F>(
+        &self,
+        delivery: &PromptDelivery,
+        opener: &str,
+        attached: &[crate::index::ThreadAttachment],
+        validate: F,
+    ) -> Result<(AdmissionDecision, DeliveryState), LedgerError>
+    where
+        F: FnOnce(&Self) -> Result<(), LedgerError>,
+    {
+        let thread = uuid::Uuid::parse_str(delivery.admission.thread.as_str())
+            .map_err(|error| LedgerError::InvalidSubmission(error.to_string()))?;
+        let references = &delivery.admission.attachments;
+        if references.len() != attached.len()
+            || !references
+                .iter()
+                .zip(attached)
+                .all(|(reference, metadata)| {
+                    reference.hash == metadata.hash && reference.mime == metadata.mime
+                })
+        {
+            return Err(LedgerError::InvalidSubmission(
+                "attachment metadata does not match the frozen references".to_owned(),
+            ));
+        }
+        let timestamp = self.now()?;
+        let transaction = self.unchecked_transaction()?;
+        validate(self)?;
+        let decision = admissions::admit(&transaction, self.clock(), delivery)?;
+        if decision == AdmissionDecision::Admitted {
+            self.record_prompt(thread, opener)?;
+            for attachment in attached {
+                crate::index::attachments::remember_in(
+                    &transaction,
+                    &timestamp,
+                    thread,
+                    attachment,
+                )?;
+            }
+        }
+        let state = outbox::state(&transaction, &delivery.admission.turn)?.ok_or_else(|| {
+            LedgerError::InvalidSubmission("admission has no outbox row".to_owned())
+        })?;
+        transaction.commit()?;
+        Ok((decision, state))
+    }
+}
+
+#[cfg(test)]
+mod submission_tests {
+    #![allow(
+        clippy::expect_used,
+        reason = "transaction failures must fail their fixtures"
+    )]
+    use super::*;
+    use crate::index::ThreadAttachment;
+    use poietica_time::wall_clock::SystemWallClock;
+
+    #[test]
+    fn attachment_failure_rolls_back_the_entire_submission() {
+        let directory = tempfile::tempdir().expect("directory");
+        let store = AgentStore::open(&directory.path().join("index.sqlite3"), SystemWallClock)
+            .expect("store");
+        let thread = uuid::Uuid::new_v4();
+        store
+            .create_thread(thread, "新建对话", Some("/workspace"))
+            .expect("thread");
+        let before = store.thread(thread).expect("read").expect("exists");
+        store
+            .connection
+            .execute_batch(
+                "CREATE TRIGGER reject_link BEFORE INSERT ON thread_attachments
+             BEGIN SELECT RAISE(ABORT, 'reference unavailable'); END;",
+            )
+            .expect("trigger");
+        let attachment = ThreadAttachment {
+            hash: "a".repeat(64),
+            mime: "image/png".to_owned(),
+            name: "image.png".to_owned(),
+            byte_size: 4,
+        };
+        let mut admission = Admission {
+            thread: ThreadId::new(thread.to_string()),
+            turn: TurnId::new("rollback".to_owned()),
+            prompt: "hello".to_owned(),
+            model: String::new(),
+            attachments: Vec::new(),
+            skills: Vec::new(),
+            submitted_at_unix_millis: 1,
+        };
+        admission.attachments = serde_json::from_value(serde_json::json!([
+            {"hash": attachment.hash, "mime": attachment.mime}
+        ]))
+        .expect("attachment reference");
+        let request = PromptDelivery {
+            admission,
+            session: "session".to_owned(),
+        };
+        assert!(
+            store
+                .admit_submission(&request, "hello", &[attachment], |_| Ok(()))
+                .is_err()
+        );
+        let after = store.thread(thread).expect("read").expect("exists");
+        assert_eq!(after.title, before.title);
+        assert_eq!(
+            std::mem::discriminant(&after.title_source),
+            std::mem::discriminant(&before.title_source)
+        );
+        assert_eq!(after.updated_at, before.updated_at);
+        assert!(store.attachments_of(thread).expect("references").is_empty());
+        assert!(store.unresolved_deliveries().expect("outbox").is_empty());
+        assert!(
+            store
+                .events_after(&request.admission.thread, Seq::NONE)
+                .expect("events")
+                .is_empty()
+        );
+        let blobs: i64 = store
+            .connection
+            .query_row("SELECT COUNT(*) FROM attachments", [], |row| row.get(0))
+            .expect("blobs");
+        assert_eq!(blobs, 0);
     }
 }

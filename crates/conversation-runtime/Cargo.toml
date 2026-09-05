@@ -7,7 +7,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-poietica-automation = { path = "../automation" }
+tokio-util.workspace = true
 base64.workspace = true
 log.workspace = true
 poietica-asset = { path = "../asset" }

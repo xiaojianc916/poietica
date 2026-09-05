@@ -517,7 +517,7 @@ mod tests {
     fn cancellation_before_admission_is_a_durable_barrier() {
         use poietica_conversation::{
             identity::{ThreadId, TurnId},
-            ports::ConversationLedger,
+            ports::{ConversationLedger, PromptDelivery},
             turn::Admission,
         };
         let directory = tempfile::tempdir().expect("directory");
@@ -543,7 +543,14 @@ mod tests {
             skills: Vec::new(),
             submitted_at_unix_millis: 0,
         };
-        assert!(store.admit(&admission).is_err());
+        assert!(
+            store
+                .admit(&PromptDelivery {
+                    admission,
+                    session: "session-1".to_owned(),
+                })
+                .is_err()
+        );
         assert!(
             store
                 .delivery_state(&TurnId::new(run))

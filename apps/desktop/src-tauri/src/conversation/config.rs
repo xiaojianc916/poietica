@@ -11,8 +11,9 @@ use super::dto::{
     AgentSelectConfigRequest, AgentSessionEvent, reported_goal,
 };
 use super::failure::translate;
-use super::runtime::{AgentRuntime, borrow, ensure_session};
+use super::runtime::AgentRuntime;
 use super::{AgentCommandResult, NO_ANSWER, NO_SESSION};
+use poietica_conversation_runtime::connection::Takeover;
 
 /// Changes one selector, on one session.
 ///
@@ -37,7 +38,9 @@ pub async fn agent_set_config_option(
     index: State<'_, LocalIndex>,
     request: AgentSelectConfigRequest,
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
-    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let live = state
+        .current()?
+        .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
     let AgentSelectConfigRequest {
         thread_id,
@@ -49,13 +52,13 @@ pub async fn agent_set_config_option(
     let held = match thread_id.as_deref() {
         Some(named) => Some(
             state
-                .sessions
+                .sessions()
                 .resolve(
                     &index,
                     &live.client,
                     &live.book,
                     &live.agent_id,
-                    &state.root,
+                    state.root(),
                     named,
                 )
                 .await
@@ -80,11 +83,12 @@ pub async fn agent_set_config_option(
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_capabilities(
-    app: AppHandle,
     state: State<'_, AgentRuntime>,
     request: AgentCapabilitiesRequest,
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
-    let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
+    let live = state
+        .ensure(request.launch.agent_id, request.cwd, Takeover::Replace)
+        .await?;
 
     let answer = live.client.selectors(live.anchor).map_err(translate)?;
 

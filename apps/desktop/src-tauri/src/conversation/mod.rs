@@ -1,4 +1,4 @@
-//! Conversation host: connection ownership, wire conversion and platform resources.
+//! Conversation host: platform capabilities, wire conversion and command registration.
 
 use poietica_conversation_runtime::TITLE_CHARS;
 use poietica_problem::Problem;
@@ -21,7 +21,6 @@ type AgentCommandResult<T> = Result<T, Problem>;
 
 const NO_SESSION: &str = "no agent session is running";
 const POISONED: &str = "the agent session lock was left locked by a panicking task";
-const NO_SESSION_ID: &str = "the agent closed the connection before creating a session";
 const NO_ANSWER: &str = "the agent session ended before answering";
 const NO_READ: &str = "the database read did not finish";
 
@@ -58,5 +57,3 @@ const NOTHING_TO_STOP: &str = "that conversation is not running";
 /// 还没人开口的对话没有会话；会话在别的 agent 手里的，号发过去只会换回
 /// UnknownSession。两种都不该被静默降级成「新建一条空对话」。
 const NOTHING_TO_FORK: &str = "that conversation has no session this agent could fork";
-
-pub(crate) mod automation;

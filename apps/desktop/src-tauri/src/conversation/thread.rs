@@ -2,7 +2,7 @@
 
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::{Error, Result};
-use crate::ledger::{LocalIndex, conversation, counted};
+use crate::ledger::{LocalIndex, conversation};
 use crate::paths::remove_projectless_workspace;
 use poietica_asset::blob::forget_blob;
 use poietica_kap_client::PROMPT_ADMITTED;
@@ -19,8 +19,9 @@ use super::dto::{
     AgentTranscriptJson, FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
 };
 use super::failure::translate;
-use super::runtime::{AgentRuntime, borrow, ensure_session};
+use super::runtime::AgentRuntime;
 use super::{AgentCommandResult, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS};
+use poietica_conversation_runtime::connection::Takeover;
 use poietica_conversation_runtime::session::{SessionHistory, read_point};
 
 /// Lists the stored conversations, newest first.
@@ -72,14 +73,15 @@ pub async fn agent_thread_snapshot(
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_open_thread(
-    app: AppHandle,
     state: State<'_, AgentRuntime>,
     index: State<'_, LocalIndex>,
     assets: State<'_, AssetProtocolRegistry>,
     request: AgentOpenThreadRequest,
 ) -> AgentCommandResult<AgentOpenedThread> {
     let asked = request.cwd.clone();
-    let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
+    let live = state
+        .ensure(request.launch.agent_id, request.cwd, Takeover::Replace)
+        .await?;
 
     let named = match request.target {
         AgentThreadTarget::Create { thread_id } => {
@@ -97,13 +99,13 @@ pub async fn agent_open_thread(
     };
 
     let mut held = state
-        .sessions
+        .sessions()
         .resolve(
             &index,
             &live.client,
             &live.book,
             &live.agent_id,
-            &state.root,
+            state.root(),
             &named,
         )
         .await
@@ -201,13 +203,19 @@ fn retitle(thread: poietica_ledger::index::ThreadSummary) -> AgentThread {
 
 /// 账本里那份读数与计数，收进线上那一格的宽度。
 fn reported(recorded: poietica_ledger::index::SessionUsage) -> Result<AgentSessionUsage> {
-    Ok(AgentSessionUsage {
-        used: counted(recorded.used)?,
-        size: counted(recorded.size)?,
-        input_other: counted(recorded.input_other)?,
-        input_cache_read: counted(recorded.input_cache_read)?,
-        input_cache_creation: counted(recorded.input_cache_creation)?,
-    })
+    fn unsigned(value: i64) -> Result<u64> {
+        u64::try_from(value)
+            .map_err(|_| Error::Persistence("a stored usage counter is negative".to_owned()))
+    }
+    Ok(super::dto::reported_usage(
+        poietica_kap_client::SessionUsageSnapshot {
+            used: unsigned(recorded.used)?,
+            size: unsigned(recorded.size)?,
+            input_other: unsigned(recorded.input_other)?,
+            input_cache_read: unsigned(recorded.input_cache_read)?,
+            input_cache_creation: unsigned(recorded.input_cache_creation)?,
+        },
+    ))
 }
 
 /// Renames a conversation.
@@ -276,7 +284,7 @@ pub async fn agent_delete_thread(
     request: AgentThreadRequest,
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
-    let _lease = state.sessions.exclusive(id).await;
+    let _lease = state.sessions().exclusive(id).await;
 
     let stored = read_index(&index, move |store| store.thread(id).map_err(Error::from)).await?;
 
@@ -286,7 +294,7 @@ pub async fn agent_delete_thread(
         .as_ref()
         .and_then(|thread| thread.workspace_root.clone());
 
-    let live = borrow(&state)?;
+    let live = state.current()?;
 
     /* 号与主人成对拿走：库上的 threads_session_needs_owner 保证有号必有主，
     所以 zip 折不掉一笔真实的账。持有者对不上就不当场发 —— 会话号活在各自
@@ -346,7 +354,7 @@ pub async fn agent_delete_thread(
     .await?;
 
     /* 不 await：删几个文件不该让「删除对话」这个动作在屏幕上多停一会儿。 */
-    let root = state.attachments.clone();
+    let root = state.attachments().clone();
 
     let _detached = async_runtime::spawn_blocking(move || {
         for hash in orphans {
@@ -371,13 +379,12 @@ pub async fn agent_delete_thread(
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_fork_thread(
-    app: AppHandle,
     state: State<'_, AgentRuntime>,
     index: State<'_, LocalIndex>,
     request: AgentForkThreadRequest,
 ) -> AgentCommandResult<AgentThread> {
     let source = conversation(&request.thread_id)?;
-    let _lease = state.sessions.exclusive(source).await;
+    let _lease = state.sessions().exclusive(source).await;
 
     /* 名字是界面按规则算好的（thread-title.ts 的 forkNameOf）；这里只做与
     改名同一条防线：去空白、按上限截断、拒绝空名。 */
@@ -387,7 +394,9 @@ pub async fn agent_fork_thread(
         return Err(Error::Validation("the conversation name is empty".to_owned()).into());
     }
 
-    let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
+    let live = state
+        .ensure(request.launch.agent_id, request.cwd, Takeover::Replace)
+        .await?;
 
     let stored = read_index(&index, move |store| {
         store.thread(source).map_err(Error::from)

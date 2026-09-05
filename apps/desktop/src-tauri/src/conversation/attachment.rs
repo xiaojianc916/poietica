@@ -113,7 +113,7 @@ pub(super) async fn deliver_attachments(
         }
     }
 
-    let root = state.attachments.clone();
+    let root = state.attachments().clone();
 
     let entries = async_runtime::spawn_blocking(move || {
         let mut entries = Vec::with_capacity(wanted.len());

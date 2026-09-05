@@ -1,4 +1,5 @@
 //! Native execution ownership. The ledger is authoritative; the executor performs conversation operations.
+pub mod conversation;
 mod execution;
 mod scheduler;
 

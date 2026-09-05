@@ -1,7 +1,8 @@
 //! Host-independent conversation execution.
 
-pub mod automation;
+pub mod connection;
 mod delivery;
+mod events;
 mod submission;
 pub use submission::{Submission, TITLE_CHARS, submit};
 pub mod disposal;

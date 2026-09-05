@@ -12,12 +12,13 @@ use poietica_kap_client::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
-use tauri::{AppHandle, State};
+use tauri::State;
 
 use super::AgentCommandResult;
 use super::dto::AgentLaunch;
 use super::failure::translate;
-use super::runtime::{AgentRuntime, ensure_session};
+use super::runtime::AgentRuntime;
+use poietica_conversation_runtime::connection::Takeover;
 
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -165,11 +166,12 @@ pub struct AgentModelCatalogRequest {
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_model_catalog(
-    app: AppHandle,
     state: State<'_, AgentRuntime>,
     request: AgentModelCatalogRequest,
 ) -> AgentCommandResult<ModelCatalogSnapshotDto> {
-    let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
+    let live = state
+        .ensure(request.launch.agent_id, request.cwd, Takeover::Replace)
+        .await?;
 
     let snapshot = live
         .client

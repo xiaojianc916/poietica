@@ -6,7 +6,7 @@ use crate::turn::delivery::{DeliveryOutcome, DeliveryState};
 
 /// 一次投递的全部事实：冻结的意图，加上这一轮要去的会话地址。
 ///
-/// 会话号是协议命名空间里的事实，由寻址方（组合根，经账本投影）解析出来；
+/// 会话号是协议命名空间里的事实，由会话用例经账本解析出来；
 /// 领域只负责把它和意图一起递给网关。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PromptDelivery {
@@ -16,8 +16,8 @@ pub struct PromptDelivery {
 
 /// 账本：唯一真相的写入与读回。实现落在适配环，领域只认这个形状。
 pub trait ConversationLedger {
-    /// 幂等：同一 turn 再次提交只能得到 AlreadyAdmitted。
-    fn admit(&self, admission: &Admission) -> Result<AdmissionDecision, LedgerUnavailable>;
+    /// 相同冻结输入与 turn 幂等；准入、发件箱和准入事件一起提交。
+    fn admit(&self, delivery: &PromptDelivery) -> Result<AdmissionDecision, LedgerUnavailable>;
 
     /// 追加一批事件；账本按对话发号并盖时戳。答的是带位置的完整信封 ——
     /// 上屏与重放用的是同一个形状。

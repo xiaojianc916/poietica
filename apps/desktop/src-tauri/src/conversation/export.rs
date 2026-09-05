@@ -9,7 +9,8 @@ use super::AgentCommandResult;
 use super::NO_SUCH_CONVERSATION;
 use super::dto::AgentExportThreadRequest;
 use super::failure::translate;
-use super::runtime::{AgentRuntime, ensure_session};
+use super::runtime::AgentRuntime;
+use poietica_conversation_runtime::connection::Takeover;
 
 const NOTHING_TO_EXPORT: &str = "that conversation has no session owned by the selected agent";
 
@@ -60,7 +61,13 @@ pub async fn agent_export_thread(
         ))
     })?;
 
-    let live = ensure_session(&app, &state, request.launch, stored.workspace_root).await?;
+    let live = state
+        .ensure(
+            request.launch.agent_id,
+            stored.workspace_root,
+            Takeover::Replace,
+        )
+        .await?;
     live.client
         .export_session(session_id, destination)
         .await

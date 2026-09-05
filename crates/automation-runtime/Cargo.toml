@@ -7,6 +7,10 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+uuid.workspace = true
+thiserror.workspace = true
+poietica-conversation-runtime = { path = "../conversation-runtime" }
+poietica-kap-client = { path = "../kap-client" }
 poietica-automation = { path = "../automation" }
 poietica-conversation = { path = "../conversation" }
 poietica-ledger = { path = "../ledger" }
@@ -17,7 +21,6 @@ tokio-util.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-uuid.workspace = true
 
 [lints]
 workspace = true

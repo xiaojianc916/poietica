@@ -74,7 +74,7 @@ async fn submission_names_the_thread_and_links_its_attachments() -> TestResult {
         byte_size: 1,
     });
     assert_eq!(
-        submit(&index, gateway.clone(), submission)
+        submit(&index, gateway.clone(), submission, |_| Ok(()))
             .await?
             .as_deref(),
         Some("official-prompt")
@@ -115,7 +115,7 @@ async fn submission_preserves_a_user_title() -> TestResult {
             .map_err(DeliveryError::from)
     })
     .await?;
-    submit(&index, probe(), request(id, "another message")).await?;
+    submit(&index, probe(), request(id, "another message"), |_| Ok(())).await?;
     let row = read_index(&index, move |store| {
         store
             .thread(id)
@@ -134,9 +134,14 @@ async fn missing_thread_fails_before_transport() -> TestResult {
         LocalIndex::<DeliveryError>::open(&directory.path().join("ledger.db"), SystemWallClock)?;
     let gateway = probe();
     assert!(
-        submit(&index, gateway.clone(), request(Uuid::new_v4(), "hello"))
-            .await
-            .is_err()
+        submit(
+            &index,
+            gateway.clone(),
+            request(Uuid::new_v4(), "hello"),
+            |_| Ok(())
+        )
+        .await
+        .is_err()
     );
     assert_eq!(gateway.calls.load(Ordering::SeqCst), 0);
     Ok(())
@@ -162,7 +167,7 @@ async fn an_empty_acknowledgement_does_not_discharge_the_outbox() -> TestResult 
         ..probe()
     };
     assert!(matches!(
-        submit(&index, gateway, submission).await,
+        submit(&index, gateway, submission, |_| Ok(())).await,
         Err(DeliveryError::Indeterminate(_))
     ));
     let state = read_index(&index, move |store| {

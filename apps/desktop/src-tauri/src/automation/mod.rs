@@ -70,7 +70,11 @@ fn publish(app: &AppHandle, catalog: AutomationCatalog) -> bool {
     }
 }
 
-fn initialize(app: &AppHandle, index: &LocalIndex) -> Result<Runtime> {
+fn initialize(
+    app: &AppHandle,
+    index: &LocalIndex,
+    conversations: crate::conversation::runtime::AgentRuntime,
+) -> Result<Runtime> {
     let ownership = OpenOptions::new()
         .create(true)
         .truncate(false)
@@ -110,9 +114,14 @@ fn initialize(app: &AppHandle, index: &LocalIndex) -> Result<Runtime> {
     }
     drop(store);
     let publisher = app.clone();
+    let profiles = app.clone();
     Runtime::start(
         index.clone(),
-        crate::conversation::automation::AutomationExecutor::new(app.clone()),
+        poietica_automation_runtime::conversation::ConversationExecutor::new(
+            conversations,
+            index.clone(),
+            move || crate::agent::profile::default_agent_id(&profiles),
+        ),
         SystemWallClock,
         move |catalog| publish(&publisher, catalog),
         ownership,
@@ -120,8 +129,12 @@ fn initialize(app: &AppHandle, index: &LocalIndex) -> Result<Runtime> {
     .map_err(Error::from)
 }
 
-pub(crate) fn start(app: &AppHandle, index: LocalIndex) -> AutomationHost {
-    let (runtime, failure) = match initialize(app, &index) {
+pub(crate) fn start(
+    app: &AppHandle,
+    index: LocalIndex,
+    conversations: crate::conversation::runtime::AgentRuntime,
+) -> AutomationHost {
+    let (runtime, failure) = match initialize(app, &index, conversations) {
         Ok(runtime) => (Some(runtime), None),
         Err(error) => {
             log::error!(

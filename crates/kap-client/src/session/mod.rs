@@ -11,6 +11,7 @@ pub(crate) mod export;
 pub(crate) mod rest;
 pub(crate) mod router;
 pub(crate) mod selection;
+mod tasks;
 
 pub use book::SessionBook;
 pub use client::{AgentClient, PromptAttachment, PromptSkill};
@@ -159,6 +160,7 @@ impl fmt::Debug for SessionEvents {
 /// 交回一个未来，这个 crate 自己不推进它：谁来 spawn 由组合根决定，所以整个
 /// 程序里只有一处 spawn（commands/agent/runtime.rs）。
 pub struct AgentConnection {
+    pub stop: tokio_util::sync::CancellationToken,
     /// Sends prompts, cancellation and shutdown to the connection.
     pub client: AgentClient,
     /// The sessions of this connection, keyed by the name the agent gave

@@ -53,7 +53,8 @@ export const CARGO_RINGS: readonly Ring[] = [
       'poietica-terminal-native',
     ],
   },
-  { name: 'use-case', members: ['poietica-conversation-runtime', 'poietica-automation-runtime'] },
+  { name: 'conversation-execution', members: ['poietica-conversation-runtime'] },
+  { name: 'automation-execution', members: ['poietica-automation-runtime'] },
   { name: 'composition', members: ['poietica'] },
 ]
 

@@ -18,8 +18,9 @@ use super::dto::{
     AgentTranscriptOpsRequest, AgentTranscriptRequest, answered, decided,
 };
 use super::failure::translate;
-use super::runtime::{AgentRuntime, borrow, ensure_session};
+use super::runtime::AgentRuntime;
 use super::{AgentCommandResult, NO_CONVERSATION, NO_SESSION, NOTHING_TO_STOP};
+use poietica_conversation_runtime::connection::Takeover;
 use poietica_conversation_runtime::gateway::KapGateway;
 
 /// 返回代理确认的提交身份，不等待模型完成。
@@ -58,22 +59,24 @@ pub async fn agent_prompt(
             args: skill.args,
         })
         .collect();
-    let session = ensure_session(&app, &state, request.launch, request.cwd).await?;
+    let session = state
+        .ensure(request.launch.agent_id, request.cwd, Takeover::Replace)
+        .await?;
     let held = state
-        .sessions
+        .sessions()
         .resolve(
             &index,
             &session.client,
             &session.book,
             &session.agent_id,
-            &state.root,
+            state.root(),
             named,
         )
         .await
         .map_err(Error::from)?;
     let addressed = held.session_id.clone();
     let attachments = keep_bytes(
-        state.attachments.clone(),
+        state.attachments().clone(),
         assets.inner().clone(),
         held.thread_id.to_string(),
         attached,
@@ -92,8 +95,8 @@ pub async fn agent_prompt(
     }
     let gateway = KapGateway {
         client: session.client.clone(),
-        journal: state.journal.clone(),
-        attachments_root: state.attachments.clone(),
+        journal: state.journal().clone(),
+        attachments_root: state.attachments().clone(),
     };
     let prompt_id = poietica_conversation_runtime::submit(
         index.inner(),
@@ -114,6 +117,7 @@ pub async fn agent_prompt(
                 &poietica_time::wall_clock::SystemWallClock,
             ),
         },
+        |_| Ok(()),
     )
     .await?
     .ok_or_else(|| Error::Internal("a fresh admission was already settled".to_owned()))?;
@@ -138,7 +142,9 @@ pub fn agent_resolve_permission(
 ) -> AgentCommandResult<()> {
     /* 桌子归连接：一个答案只可能是这条连接问出来的那个问题的答案，而
     request_id 活在 agent 自己的命名空间里 —— 没有连接就没有问题可答。 */
-    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let live = state
+        .current()?
+        .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
     // Every failure here means the same thing to the interface: that answer no
     // longer applies to anything. The detail stays on this side of the wire.
@@ -170,7 +176,9 @@ pub fn agent_answer_questions(
 ) -> AgentCommandResult<()> {
     /* 桌子归连接，与回答审批同一条规矩：question_id 活在 agent 自己的命名空间
     里，没有连接就没有题可答。 */
-    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let live = state
+        .current()?
+        .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
     let question_id = request.question_id.clone();
 
@@ -197,7 +205,9 @@ pub fn agent_dismiss_questions(
     state: State<'_, AgentRuntime>,
     request: AgentDismissQuestionsRequest,
 ) -> AgentCommandResult<()> {
-    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let live = state
+        .current()?
+        .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
     live.questions
         .dismiss(&request.question_id)
@@ -230,7 +240,9 @@ pub async fn agent_cancel(
     index: State<'_, LocalIndex>,
     request: AgentCancelRequest,
 ) -> AgentCommandResult<()> {
-    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let live = state
+        .current()?
+        .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
     let addressed =
         held_session(&index, &request.thread_id, &live.agent_id, NOTHING_TO_STOP).await?;
 
@@ -280,7 +292,9 @@ pub async fn agent_steer(
     index: State<'_, LocalIndex>,
     request: AgentSteerRequest,
 ) -> AgentCommandResult<()> {
-    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let live = state
+        .current()?
+        .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
     let addressed = held_session(&index, &request.thread_id, &live.agent_id, NO_SESSION).await?;
 
     live.client
@@ -304,7 +318,9 @@ pub async fn agent_abort_prompt(
     index: State<'_, LocalIndex>,
     request: AgentAbortPromptRequest,
 ) -> AgentCommandResult<()> {
-    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let live = state
+        .current()?
+        .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
     let addressed = held_session(&index, &request.thread_id, &live.agent_id, NO_SESSION).await?;
 
     live.client
@@ -329,7 +345,7 @@ pub async fn agent_abort_prompt(
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> {
-    state.disconnect()?;
+    state.disconnect().await?;
 
     Ok(())
 }
@@ -348,7 +364,9 @@ pub async fn agent_transcript(
     state: State<'_, AgentRuntime>,
     request: AgentTranscriptRequest,
 ) -> AgentCommandResult<AgentTranscriptJson> {
-    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let live = state
+        .current()?
+        .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
     let json = live
         .client
@@ -372,7 +390,9 @@ pub async fn agent_transcript_ops(
     state: State<'_, AgentRuntime>,
     request: AgentTranscriptOpsRequest,
 ) -> AgentCommandResult<AgentTranscriptJson> {
-    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let live = state
+        .current()?
+        .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
     let json = live
         .client
