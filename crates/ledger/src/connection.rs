@@ -54,7 +54,7 @@ pub fn open_in_memory() -> Result<Connection, LedgerError> {
 }
 
 fn tune_writer(connection: &Connection) -> Result<(), LedgerError> {
-    connection.pragma_update(None, "synchronous", "NORMAL")?;
+    connection.pragma_update(None, "synchronous", "FULL")?;
     connection.pragma_update(None, "foreign_keys", true)?;
     connection.busy_timeout(BUSY_TIMEOUT)?;
     Ok(())

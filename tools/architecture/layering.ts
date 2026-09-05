@@ -53,7 +53,7 @@ export const CARGO_RINGS: readonly Ring[] = [
       'poietica-terminal-native',
     ],
   },
-  { name: 'use-case', members: ['poietica-conversation-runtime'] },
+  { name: 'use-case', members: ['poietica-conversation-runtime', 'poietica-automation-runtime'] },
   { name: 'composition', members: ['poietica'] },
 ]
 
@@ -63,6 +63,7 @@ export const HOST_AWARE_PACKAGES: readonly string[] = [
   '@poietica/native-bridge',
 ]
 export const HOST_AGNOSTIC_CRATES: readonly string[] = [
+  'poietica-automation-runtime',
   'poietica-conversation-runtime',
   'poietica-browser-native',
   'poietica-asset',

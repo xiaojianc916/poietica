@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum LedgerError {
+    #[error(transparent)]
+    Automation(#[from] poietica_automation::AutomationError),
     #[error("SQLite 拒绝了操作：{0}")]
     Sqlite(#[from] rusqlite::Error),
     #[error("无法准备账本目录：{0}")]

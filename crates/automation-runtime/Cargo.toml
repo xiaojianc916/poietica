@@ -1,27 +1,24 @@
 [package]
-name = "poietica-ledger"
+name = "poietica-automation-runtime"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-publish = false
 license.workspace = true
-repository.workspace = true
+publish.workspace = true
 
 [dependencies]
 poietica-automation = { path = "../automation" }
 poietica-conversation = { path = "../conversation" }
+poietica-ledger = { path = "../ledger" }
 poietica-time = { path = "../time" }
+futures.workspace = true
 log.workspace = true
-rusqlite.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
 tokio.workspace = true
-time.workspace = true
-uuid.workspace = true
+tokio-util.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+uuid.workspace = true
 
 [lints]
 workspace = true

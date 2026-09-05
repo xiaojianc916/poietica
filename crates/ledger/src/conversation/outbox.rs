@@ -70,6 +70,7 @@ pub fn unresolved(connection: &Connection) -> Result<Vec<Admission>, LedgerError
            FROM delivery_outbox AS o
            JOIN turn_admissions AS a ON a.turn_id = o.turn_id
           WHERE o.state IN ('pending', 'sent', 'unknown')
+            AND NOT EXISTS (SELECT 1 FROM automation_claims AS c WHERE c.run_id = a.turn_id)
           ORDER BY o.updated_at_unix_ms",
     )?;
 

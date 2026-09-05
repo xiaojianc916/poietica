@@ -8,6 +8,11 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+chrono.workspace = true
+chrono-tz.workspace = true
+croner.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
 serde.workspace = true
 specta.workspace = true
 time.workspace = true

@@ -23,6 +23,9 @@ workspace = true
 tauri-build.workspace = true
 
 [dependencies]
+poietica-automation-runtime = { path = "../../../crates/automation-runtime" }
+fs2.workspace = true
+iana-time-zone.workspace = true
 poietica-conversation-runtime = { path = "../../../crates/conversation-runtime" }
 # 渲染层送来的图片是 base64；字节要落盘就得解出来。这是标准做法里最没有
 # 争议的一件：手写一个 base64 解码器不会比它更快，只会多一处要自己维护的

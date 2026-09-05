@@ -5,6 +5,7 @@ use crate::error::LedgerError;
 
 /// 版本号、名字、SQL 一一对应。名字也校验：改名等于改已落盘数据的读法。
 const MIGRATIONS: &[(i64, &str, &str)] = &[
+    (12, "automation_execution", include_str!("sql/0012_automation_execution.sql")),
     (
         1,
         "conversation_events",
