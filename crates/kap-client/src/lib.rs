@@ -173,3 +173,6 @@ mod tests {
         assert_eq!(back, frame);
     }
 }
+
+mod completion;
+pub use completion::{PromptObservation, observe_prompt};

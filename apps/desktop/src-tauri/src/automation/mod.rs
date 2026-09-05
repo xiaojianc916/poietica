@@ -1,193 +1,274 @@
-//! Host storage and event delivery; catalog decisions belong to poietica-automation.
-pub mod mcp_server;
+pub(crate) mod mcp_server;
 
-use crate::error::{Error, Result};
-use crate::paths::automations_store;
-use poietica_automation::{Automation, AutomationCatalog, AutomationCreation, AutomationRunRecord};
+use crate::{
+    error::{Error, Result},
+    ledger::LocalIndex,
+    paths,
+};
+use fs2::FileExt;
+use poietica_automation::{
+    AutomationCatalog, AutomationCreation, AutomationError, AutomationUpdate, Command,
+    schedule::{self, SchedulePreview},
+};
+use poietica_automation_runtime::Runtime;
+use poietica_ledger::{
+    execution::{read_index, write_index},
+    index::AgentStore,
+};
 use poietica_problem::Problem;
 use poietica_time::{WallClock, wall_clock::SystemWallClock};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use specta::Type;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tauri::{AppHandle, Manager, Wry, async_runtime, command};
-use tauri_plugin_store::{Store, StoreExt};
+use std::fs::OpenOptions;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
-use time::format_description::well_known::Rfc3339;
-use tokio::time::{Instant, MissedTickBehavior, interval_at};
-use uuid::Uuid;
 
-type AutomationsCommandResult<T> = std::result::Result<T, Problem>;
-const TICK: Duration = Duration::from_secs(30);
-
-#[derive(Debug, Default)]
-pub struct AutomationCatalogAccess {
-    gate: Mutex<()>,
-}
-
-#[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]
+#[derive(Clone, Debug, Serialize, Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct AutomationCatalogChanged {
     pub catalog: AutomationCatalog,
 }
 
-#[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AutomationDue {
-    pub automation: Automation,
+#[derive(Debug)]
+pub(crate) struct AutomationHost {
+    index: LocalIndex,
+    runtime: Option<Runtime>,
+    failure: Option<String>,
+    accepting: AtomicBool,
 }
-
-fn open(app: &AppHandle) -> Result<Arc<Store<Wry>>> {
-    Ok(app.store(automations_store(app)?)?)
-}
-
-fn read_catalog(store: &Store<Wry>) -> Result<AutomationCatalog> {
-    let Some(value) = store.get("automations") else {
-        return Ok(AutomationCatalog::default());
-    };
-    match serde_json::from_value(value.clone()) {
-        Ok(catalog) => Ok(catalog),
-        Err(cause) => {
-            store.set("automations.corrupt", value);
-            store.delete("automations");
-            store.save()?;
-            Err(cause.into())
+impl AutomationHost {
+    fn available(&self) -> Result<&Runtime> {
+        if !self.accepting.load(Ordering::Acquire) {
+            return Err(AutomationError::Data("自动化宿主正在关闭".to_owned()).into());
+        }
+        self.runtime.as_ref().ok_or_else(|| {
+            AutomationError::Data(
+                self.failure
+                    .clone()
+                    .unwrap_or_else(|| "自动化宿主不可用".to_owned()),
+            )
+            .into()
+        })
+    }
+    pub(crate) fn stop(&self) -> std::io::Result<()> {
+        self.accepting.store(false, Ordering::Release);
+        match &self.runtime {
+            Some(runtime) => runtime.stop(),
+            None => Ok(()),
         }
     }
 }
 
-pub(crate) fn load_catalog(app: &AppHandle) -> Result<AutomationCatalog> {
-    let access = app.state::<AutomationCatalogAccess>();
-    let _guard = access
-        .gate
-        .lock()
-        .map_err(|_| Error::Internal("automation catalog access was poisoned".to_owned()))?;
-    let store = open(app)?;
-    read_catalog(&store)
+fn publish(app: &AppHandle, catalog: AutomationCatalog) {
+    if let Err(error) = (AutomationCatalogChanged { catalog }).emit(app) {
+        log::warn!("automation catalog notification failed after commit: {error}");
+    }
 }
 
-pub(crate) fn mutate(
-    app: &AppHandle,
-    edit: impl FnOnce(&mut AutomationCatalog),
-) -> Result<AutomationCatalog> {
-    let access = app.state::<AutomationCatalogAccess>();
-    let _guard = access
-        .gate
-        .lock()
-        .map_err(|_| Error::Internal("automation catalog access was poisoned".to_owned()))?;
-    let store = open(app)?;
-    let mut catalog = read_catalog(&store)?;
-    edit(&mut catalog);
-    let serialized = serde_json::to_value(&catalog)?;
-    let previous = store.get("automations");
-    store.set("automations", serialized);
-    if let Err(cause) = store.save() {
-        match previous {
-            Some(value) => store.set("automations", value),
-            None => {
-                store.delete("automations");
+fn initialize(app: &AppHandle, index: &LocalIndex) -> Result<Runtime> {
+    let ownership = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(paths::automation_lock(app)?)?;
+    FileExt::try_lock_exclusive(&ownership)
+        .map_err(|error| AutomationError::Data(format!("无法取得自动化执行权：{error}")))?;
+    // Bootstrap import finishes before the scheduler and workspace reclamation start.
+    let store = AgentStore::open(&paths::ledger_database(app)?, SystemWallClock)?;
+    if !store.automation_initialized()? {
+        let source = match std::fs::read_to_string(paths::automations_store(app)?) {
+            Ok(contents) => {
+                let document: serde_json::Value = serde_json::from_str(&contents)?;
+                let object = document.as_object().ok_or_else(|| {
+                    AutomationError::Data("automations.json 不是对象；原文件未修改".to_owned())
+                })?;
+                if !object.contains_key("automations") && object.contains_key("automations.corrupt")
+                {
+                    return Err(AutomationError::Data(
+                        "检测到保留的损坏目录；拒绝以空目录覆盖，原文件未修改".to_owned(),
+                    )
+                    .into());
+                }
+                object.get("automations").cloned()
             }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error.into()),
+        };
+        let zone = if source.is_some() {
+            iana_time_zone::get_timezone()
+                .map_err(|error| AutomationError::Data(format!("导入需要明确时区：{error}")))?
+        } else {
+            "UTC".to_owned()
+        };
+        store.import_automations(source, &zone)?;
+    }
+    drop(store);
+    let publisher = app.clone();
+    Runtime::start(
+        index.clone(),
+        crate::conversation::automation::AutomationExecutor::new(app.clone()),
+        SystemWallClock,
+        move |catalog| publish(&publisher, catalog),
+        ownership,
+    )
+    .map_err(Error::from)
+}
+
+pub(crate) fn start(app: &AppHandle, index: LocalIndex) -> AutomationHost {
+    let (runtime, failure) = match initialize(app, &index) {
+        Ok(runtime) => (Some(runtime), None),
+        Err(error) => {
+            log::error!(
+                "automation initialization failed without modifying the import source: {error}"
+            );
+            (None, Some(error.to_string()))
         }
-        return Err(cause.into());
+    };
+    AutomationHost {
+        index,
+        runtime,
+        failure,
+        accepting: AtomicBool::new(true),
     }
-    if let Err(cause) = (AutomationCatalogChanged {
-        catalog: catalog.clone(),
+}
+
+pub(crate) async fn load(app: &AppHandle) -> Result<AutomationCatalog> {
+    let host = app.state::<AutomationHost>();
+    host.available()?;
+    read_index(&host.index, |store| {
+        store.automation_catalog().map_err(Error::from)
     })
-    .emit(app)
-    {
-        log::warn!("could not announce the automation catalog: {cause}");
+    .await
+}
+
+pub(crate) async fn execute(app: &AppHandle, command: Command) -> Result<AutomationCatalog> {
+    let host = app.state::<AutomationHost>();
+    let runtime = host.available()?;
+    let root = match &command {
+        Command::Create(creation) => Some(&creation.workspace_root),
+        Command::Update(update) => Some(&update.creation.workspace_root),
+        _ => None,
+    };
+    if let Some(root) = root {
+        let metadata = tokio::fs::metadata(root)
+            .await
+            .map_err(|_| AutomationError::Workspace)?;
+        if !metadata.is_dir() {
+            return Err(AutomationError::Workspace.into());
+        }
     }
+    let catalog = write_index(&host.index, move |store| {
+        store.automation_command(command).map_err(Error::from)
+    })
+    .await?;
+    runtime.wake();
+    publish(app, catalog.clone());
     Ok(catalog)
 }
 
-pub(crate) fn create(app: &AppHandle, creation: AutomationCreation) -> Result<AutomationCatalog> {
-    let created_at = SystemWallClock
-        .now_utc()
-        .format(&Rfc3339)
-        .map_err(|cause| Error::Internal(cause.to_string()))?;
-    let id = Uuid::new_v4().to_string();
-    mutate(app, move |catalog| catalog.create(creation, id, created_at))
+pub(crate) async fn run(
+    app: &AppHandle,
+    id: String,
+    request_id: String,
+) -> Result<AutomationCatalog> {
+    let host = app.state::<AutomationHost>();
+    let runtime = host.available()?;
+    let agent = crate::agent::profile::default_agent_id(app)?;
+    let catalog = write_index(&host.index, move |store| {
+        store
+            .automation_manual(&id, &request_id, &agent)
+            .map_err(Error::from)
+    })
+    .await?;
+    runtime.wake();
+    publish(app, catalog.clone());
+    Ok(catalog)
 }
 
-#[command]
+#[tauri::command]
+#[specta::specta]
+pub async fn automations_load(app: AppHandle) -> std::result::Result<AutomationCatalog, Problem> {
+    load(&app).await.map_err(Problem::from)
+}
+#[tauri::command]
 #[specta::specta]
 pub async fn automations_create(
     app: AppHandle,
     creation: AutomationCreation,
-) -> AutomationsCommandResult<AutomationCatalog> {
-    create(&app, creation).map_err(Problem::from)
+) -> std::result::Result<AutomationCatalog, Problem> {
+    execute(&app, Command::Create(creation))
+        .await
+        .map_err(Problem::from)
 }
-
-#[command]
+#[tauri::command]
 #[specta::specta]
-pub async fn automations_load(app: AppHandle) -> AutomationsCommandResult<AutomationCatalog> {
-    load_catalog(&app).map_err(Problem::from)
-}
-
-#[command]
-#[specta::specta]
-pub async fn automations_upsert(
+pub async fn automations_update(
     app: AppHandle,
-    automation: Automation,
-) -> AutomationsCommandResult<AutomationCatalog> {
-    mutate(&app, move |catalog| catalog.upsert(automation)).map_err(Problem::from)
+    update: AutomationUpdate,
+) -> std::result::Result<AutomationCatalog, Problem> {
+    execute(&app, Command::Update(update))
+        .await
+        .map_err(Problem::from)
 }
-
-#[command]
+#[tauri::command]
+#[specta::specta]
+pub async fn automations_enable(
+    app: AppHandle,
+    id: String,
+    revision: u32,
+    enabled: bool,
+) -> std::result::Result<AutomationCatalog, Problem> {
+    execute(
+        &app,
+        Command::Enable {
+            id,
+            revision,
+            enabled,
+        },
+    )
+    .await
+    .map_err(Problem::from)
+}
+#[tauri::command]
 #[specta::specta]
 pub async fn automations_remove(
     app: AppHandle,
     id: String,
-) -> AutomationsCommandResult<AutomationCatalog> {
-    mutate(&app, move |catalog| catalog.remove(&id)).map_err(Problem::from)
+) -> std::result::Result<AutomationCatalog, Problem> {
+    execute(&app, Command::Remove { id })
+        .await
+        .map_err(Problem::from)
 }
-
-#[command]
+#[tauri::command]
 #[specta::specta]
-pub async fn automations_record_run(
+pub async fn automations_run(
     app: AppHandle,
-    record: AutomationRunRecord,
-) -> AutomationsCommandResult<AutomationCatalog> {
-    mutate(&app, move |catalog| catalog.record_run(record)).map_err(Problem::from)
+    id: String,
+    request_id: String,
+) -> std::result::Result<AutomationCatalog, Problem> {
+    run(&app, id, request_id).await.map_err(Problem::from)
 }
-
-fn ring(app: &AppHandle) -> Result<()> {
-    let now = SystemWallClock.now_utc();
-    for automation in load_catalog(app)?.automations {
-        match automation.is_due(now) {
-            Ok(false) => {}
-            Ok(true) => {
-                if let Err(cause) = (AutomationDue { automation }).emit(app) {
-                    log::warn!("could not announce a due automation: {cause}");
-                }
-            }
-            Err(cause) => {
-                log::warn!(
-                    "automation {} has an unreadable next run time: {cause}",
-                    automation.id
-                );
-            }
-        }
-    }
-    Ok(())
-}
-
-pub fn watch(app: &AppHandle) {
-    let app = app.clone();
-    async_runtime::spawn(async move {
-        let mut ticks = interval_at(Instant::now() + TICK, TICK);
-        ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        loop {
-            ticks.tick().await;
-            if let Err(cause) = ring(&app) {
-                log::warn!("could not read the automation catalog: {cause}");
-            }
-        }
-    });
-}
-
-#[command]
+#[tauri::command]
 #[specta::specta]
-pub async fn automations_sweep(app: AppHandle) -> AutomationsCommandResult<()> {
-    ring(&app).map_err(Problem::from)
+pub async fn automations_cancel(
+    app: AppHandle,
+    run_id: String,
+) -> std::result::Result<AutomationCatalog, Problem> {
+    execute(&app, Command::Cancel { run_id })
+        .await
+        .map_err(Problem::from)
+}
+#[tauri::command]
+#[specta::specta]
+pub fn automations_preview(
+    schedule: Option<String>,
+    time_zone: String,
+) -> std::result::Result<SchedulePreview, Problem> {
+    Ok(schedule::preview(
+        schedule.as_deref(),
+        &time_zone,
+        SystemWallClock.now_unix_millis(),
+    ))
 }

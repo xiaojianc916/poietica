@@ -947,5 +947,115 @@ function emit(file: string, body: string): void {
   console.log(`wrote ${file}`)
 }
 
+function generateCompletion(): string {
+  const route = '/api/v1/sessions/{session_id}/transcript'
+  const op = (openapi.paths as Record<string, Record<string, Schema>>)[route]?.['get']
+  if (op === undefined) {
+    throw new Error('transcript route missing from OpenAPI')
+  }
+  const envelope = resolve(openapi, jsonSchema((op['responses'] as Record<string, Schema>)['200']))
+  const cases = ((envelope.oneOf ?? [envelope]) as Schema[]).map((entry) => resolve(openapi, entry))
+  const success = cases.find((entry) => entry.properties?.['code']?.enum?.[0] === 0)
+  if (success?.properties?.['data'] === undefined) {
+    throw new Error('transcript success data missing')
+  }
+  const data = resolve(openapi, success.properties['data'])
+  const field = (schema: Schema, name: string): Schema => {
+    const found = resolve(openapi, schema).properties?.[name]
+    if (found === undefined) {
+      throw new Error(`missing completion evidence field: ${name}`)
+    }
+    return resolve(openapi, found)
+  }
+  const items = (schema: Schema): Schema => {
+    const resolved = resolve(openapi, schema)
+    if (resolved.type !== 'array' || resolved.items === undefined) {
+      throw new Error('expected evidence array')
+    }
+    return resolve(openapi, resolved.items)
+  }
+  const variants = (schema: Schema): Schema[] => {
+    const resolved = resolve(openapi, schema)
+    const branches = resolved.oneOf ?? resolved.anyOf
+    if (branches !== undefined) {
+      return branches.flatMap(variants)
+    }
+    return [resolved.allOf === undefined ? resolved : mergeAllOf(openapi, resolved)]
+  }
+  const pick = (schema: Schema, names: string[]): Schema => {
+    const resolved = resolve(openapi, schema)
+    const properties: Record<string, Schema> = {}
+    for (const name of names) {
+      properties[name] = field(resolved, name)
+    }
+    return {
+      type: 'object',
+      properties,
+      required: (resolved.required ?? []).filter((name) => names.includes(name)),
+    }
+  }
+  const evidenceItems = variants(items(field(data, 'items'))).map((branch) => {
+    const kind = discriminatorValue(branch, 'kind')
+    if (kind === undefined) {
+      throw new Error('transcript item has no kind')
+    }
+    if (kind !== 'turn') {
+      return pick(branch, ['kind'])
+    }
+    const turn = pick(branch, ['kind', 'turnId', 'triggerPromptId', 'state', 'endedAt', 'steps'])
+    const step = items(field(branch, 'steps'))
+    const frames = new Map<string, Schema>()
+    for (const frame of variants(items(field(step, 'frames')))) {
+      const tag = discriminatorValue(frame, 'kind')
+      if (tag === undefined) {
+        throw new Error('transcript frame has no kind')
+      }
+      const projected = pick(frame, tag === 'text' ? ['kind', 'promptIds'] : ['kind'])
+      const previous = frames.get(tag)
+      if (previous !== undefined && canonical(previous) !== canonical(projected)) {
+        throw new Error(`ambiguous frame evidence: ${tag}`)
+      }
+      frames.set(tag, projected)
+    }
+    if (!frames.has('text')) {
+      throw new Error('steering evidence is absent')
+    }
+    const steps = pick(step, ['frames'])
+    steps.properties!['frames'] = {
+      ...field(step, 'frames'),
+      items: { oneOf: [...frames.values()] },
+    }
+    turn.properties!['steps'] = { ...field(branch, 'steps'), items: steps }
+    return turn
+  })
+  const page = pick(data, ['agent_id', 'has_more', 'prompts', 'items'])
+  const prompts = field(data, 'prompts')
+  page.properties!['prompts'] = {
+    ...prompts,
+    items: pick(items(prompts), ['promptId', 'status', 'finishedAt', 'steeredAt']),
+  }
+  page.properties!['items'] = { ...field(data, 'items'), items: { oneOf: evidenceItems } }
+  for (const required of ['agent_id', 'has_more', 'items']) {
+    if (!page.required?.includes(required)) {
+      throw new Error(`required completion evidence became optional: ${required}`)
+    }
+  }
+  const emitter = new RustEmitter(openapi)
+  const type = emitter.type(page, 'Completion')
+  if (type !== 'CompletionStruct') {
+    throw new Error(`unexpected completion root type: ${type}`)
+  }
+  const promptList = page.required?.includes('prompts')
+    ? '&self.prompts'
+    : 'self.prompts.as_deref().unwrap_or_default()'
+  return (
+    emitter.declarations.join('\n\n') +
+    '\n\nimpl CompletionStruct {\n    pub fn prompts(&self) -> &[CompletionPromptsStruct] {\n        ' +
+    promptList +
+    '\n    }\n}\n'
+  )
+}
+
+emit('completion.rs', generateCompletion())
 emit('events.rs', generateEvents())
 emit('rest.rs', generateRest())

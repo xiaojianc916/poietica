@@ -56,9 +56,14 @@ fn drain(app: &AppHandle) {
         }
         app.state::<poietica_git_adapter_native::WatchRegistry>()
             .clear();
+        if let Err(error) = app.state::<AutomationMcpServer>().stop() {
+            log::error!("shutdown: automation MCP did not drain: {error}");
+        }
+        if let Err(error) = app.state::<crate::automation::AutomationHost>().stop() {
+            log::error!("shutdown: automation scheduler did not stop: {error}");
+        }
         if let Err(error) = app.state::<AgentRuntime>().shutdown() {
             log::error!("shutdown: the agent connection did not retire: {error}");
         }
-        app.state::<AutomationMcpServer>().stop();
     });
 }

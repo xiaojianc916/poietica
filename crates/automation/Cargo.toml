@@ -15,6 +15,7 @@ thiserror.workspace = true
 uuid.workspace = true
 serde.workspace = true
 specta.workspace = true
+schemars.workspace = true
 time.workspace = true
 
 [lints]

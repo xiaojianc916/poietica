@@ -58,3 +58,5 @@ const NOTHING_TO_STOP: &str = "that conversation is not running";
 /// 还没人开口的对话没有会话；会话在别的 agent 手里的，号发过去只会换回
 /// UnknownSession。两种都不该被静默降级成「新建一条空对话」。
 const NOTHING_TO_FORK: &str = "that conversation has no session this agent could fork";
+
+pub(crate) mod automation;

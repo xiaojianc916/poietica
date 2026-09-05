@@ -34,6 +34,7 @@ pub fn build() -> tauri::Builder<Wry> {
         .manage(asset_protocol)
         .manage(WindowSurface::default())
         .manage(crate::shutdown::ShutdownBarrier::default())
+        .manage(crate::workspace::environment::McpConfigAccess::default())
         /*
          * A synchronous protocol handler is invoked by the platform webview on
          * its own thread, which is the UI thread on Windows and macOS. Building
@@ -91,17 +92,6 @@ pub fn build() -> tauri::Builder<Wry> {
 
             app.store(paths::settings_store(handle)?)?;
             app.store(paths::agents_store(handle)?)?;
-            app.store(paths::automations_store(handle)?)?;
-
-            /*
-             * 自动化的表在这里起，进程级：闹钟不该活在会被隐藏、会被整页重载的那
-             * 一侧。谁创建谁负责 —— 这里创建，随进程结束。
-             */
-            let _automation_catalog =
-                app.manage(crate::automation::AutomationCatalogAccess::default());
-            crate::automation::watch(handle);
-            let _automation_mcp = app.manage(crate::automation::mcp_server::serve(handle)?);
-
             /*
              * 库在窗口出现之前打开，迁移在这里跑完。
              *
@@ -139,6 +129,9 @@ pub fn build() -> tauri::Builder<Wry> {
             );
             let _index = app.manage(index.clone());
             let _managed = app.manage(runtime);
+            let _browser = app.manage(crate::webview::BrowserHost::new());
+            let _automation_mcp = app.manage(crate::automation::mcp_server::serve(handle)?);
+            let _automations = app.manage(crate::automation::start(handle, index.clone()));
 
             let settings_app = handle.clone();
             async_runtime::spawn(async move {
@@ -155,11 +148,6 @@ pub fn build() -> tauri::Builder<Wry> {
                 }
             });
 
-            /*
-             * 内置浏览器的标签宿主，进程级。new() 顺手抽好 CDP 端口；webview
-             * 仍是懒创建的 —— 第一次导航或会话预热才碰内核。
-             */
-            let _browser = app.manage(crate::webview::BrowserHost::new());
             crate::diagnostics::crash_report::install(app.handle())?;
             tray::install(app.handle())?;
 

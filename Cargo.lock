@@ -3220,6 +3220,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "croner",
+ "schemars 1.2.2",
  "serde",
  "specta",
  "thiserror 2.0.19",

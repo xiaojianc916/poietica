@@ -1,377 +1,331 @@
-//! Exposes the application-owned catalog through the existing loopback MCP endpoint.
-
-//! item 级的 allow 够不到 tool_router 宏展开生成的 trait impl，压在这里。
-#![allow(
-    clippy::unused_async_trait_impl,
-    reason = "rmcp 的 tool_router 把同步 tool 包成 async trait 方法"
-)]
-
-use std::collections::BTreeMap;
-use std::io;
-use std::net::TcpListener as StdTcpListener;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-
-use rmcp::handler::server::wrapper::{Json, Parameters};
-use rmcp::transport::streamable_http_server::session::never::NeverSessionManager;
-use rmcp::transport::streamable_http_server::tower::{
-    StreamableHttpServerConfig, StreamableHttpService,
+use crate::error::{Error, Result};
+use axum::{
+    extract::{Request, State},
+    http::{HeaderMap, StatusCode, header},
+    middleware::{self, Next},
+    response::Response,
 };
-use rmcp::{tool, tool_router};
+use poietica_automation::{AutomationCatalog, AutomationCreation, AutomationUpdate, Command};
+use poietica_problem::Problem;
+use rmcp::{
+    handler::server::wrapper::Parameters,
+    model::CallToolResult,
+    tool, tool_router,
+    transport::streamable_http_server::{
+        StreamableHttpServerConfig, StreamableHttpService, session::never::NeverSessionManager,
+    },
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{AppHandle, Manager, async_runtime, command};
-use tokio::net::TcpListener;
+use std::future::IntoFuture;
+use std::net::TcpListener;
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
+use std::thread::JoinHandle;
+use std::time::Duration;
+use tauri::{AppHandle, Manager};
 use tokio::sync::oneshot;
 
-use crate::automation::{create, load_catalog, mutate};
-use poietica_automation::{Automation, AutomationCreation};
-
-/// 服务器的落脚地址。渲染层照着它把这台服务器登记进 MCP 那一格。
+const SERVER_NAME: &str = "poietica-automations";
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct McpEndpoint {
     pub url: String,
 }
 
-/// 组合根持有的服务器资源：地址、存活状态和唯一关闭入口归同一个对象。
-pub struct AutomationMcpServer {
-    endpoint: McpEndpoint,
-    alive: Arc<AtomicBool>,
-    shutdown: Mutex<Option<oneshot::Sender<()>>>,
+struct Access {
+    host: String,
+    authorization: String,
+}
+impl Access {
+    fn accepts(&self, headers: &HeaderMap) -> bool {
+        !headers.contains_key(header::ORIGIN)
+            && headers
+                .get(header::HOST)
+                .and_then(|value| value.to_str().ok())
+                == Some(self.host.as_str())
+            && headers
+                .get(header::AUTHORIZATION)
+                .and_then(|value| value.to_str().ok())
+                == Some(self.authorization.as_str())
+    }
+}
+async fn protect(
+    State(access): State<Arc<Access>>,
+    request: Request,
+    next: Next,
+) -> std::result::Result<Response, StatusCode> {
+    if !access.accepts(request.headers()) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    Ok(next.run(request).await)
 }
 
-/// 关闭通道没有 Debug：只印地址与存活，不印它。
+pub(crate) struct AutomationMcpServer {
+    endpoint: McpEndpoint,
+    access: Arc<Access>,
+    alive: Arc<AtomicBool>,
+    stopping: Mutex<Option<oneshot::Sender<()>>>,
+    worker: Mutex<Option<JoinHandle<std::io::Result<()>>>>,
+}
 impl std::fmt::Debug for AutomationMcpServer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AutomationMcpServer")
-            .field("endpoint", &self.endpoint)
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AutomationMcpServer")
             .field("alive", &self.alive.load(Ordering::Acquire))
             .finish_non_exhaustive()
     }
 }
-
 impl AutomationMcpServer {
-    pub fn stop(&self) {
+    pub(crate) fn stop(&self) -> std::io::Result<()> {
         self.alive.store(false, Ordering::Release);
-
-        match self.shutdown.lock() {
-            Ok(mut shutdown) => {
-                if let Some(shutdown) = shutdown.take() {
-                    let _ = shutdown.send(());
-                }
-            }
-            Err(_poisoned) => {
-                log::error!("the automation MCP shutdown channel was poisoned");
-            }
+        if let Some(signal) = self
+            .stopping
+            .lock()
+            .map_err(|_| std::io::Error::other("MCP stop ownership poisoned"))?
+            .take()
+        {
+            let _sent = signal.send(());
+        }
+        if let Some(worker) = self
+            .worker
+            .lock()
+            .map_err(|_| std::io::Error::other("MCP worker ownership poisoned"))?
+            .take()
+        {
+            worker
+                .join()
+                .map_err(|_| std::io::Error::other("MCP worker panicked"))??;
+        }
+        Ok(())
+    }
+    fn registration(&self) -> Result<serde_json::Value> {
+        if !self.alive.load(Ordering::Acquire) {
+            return Err(Error::AgentCli("自动化 MCP 服务不可用".to_owned()));
+        }
+        Ok(
+            serde_json::json!({"url":self.endpoint.url, "headers":{"Authorization":self.access.authorization}}),
+        )
+    }
+}
+impl Drop for AutomationMcpServer {
+    fn drop(&mut self) {
+        if let Err(error) = self.stop() {
+            log::error!("automation MCP shutdown failed: {error}");
         }
     }
 }
 
-/// 工具的宿主。它只拿着 AppHandle —— 账本的真相在盘上，这里不留副本。
 #[derive(Clone)]
 struct Ledger {
     app: AppHandle,
 }
-
-#[derive(Debug, Default, Deserialize, JsonSchema)]
-struct ListInput {}
-
-/// 递给模型的那一行。
-///
-/// 不直接把 Automation 递出去：runs 是几十条运行账目，对「有哪些自动化」这个问题
-/// 是纯噪音，而工具结果要占模型的上下文窗口。
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct AutomationView {
-    id: String,
-    title: String,
-    prompt: String,
-    /// crontab 表达式；缺席表示只在人手动触发时跑。
-    schedule: Option<String>,
-    enabled: bool,
-    next_run_at: Option<String>,
-}
-
-impl From<Automation> for AutomationView {
-    fn from(automation: Automation) -> Self {
-        Self {
-            id: automation.id,
-            title: automation.title,
-            prompt: automation.prompt,
-            schedule: automation.schedule,
-            enabled: automation.enabled,
-            next_run_at: automation.next_run_at,
-        }
-    }
-}
-
-/*
- * 失败写在结果里，不抛协议错误。
- *
- * MCP 规定工具执行失败属于结果的一部分，模型要能看见并据此改变下一步动作；协议层
- * 错误说的是「这次调用根本没成立」，两者不是一回事。读不出账本时把原因如实递给模
- * 型，比让它收到一个空列表当成「你没有自动化」要诚实。
- */
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct ListOutput {
-    automations: Vec<AutomationView>,
-    failure: Option<String>,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct CreateInput {
-    /// 列表里的名字，也是这条自动化开出来的那条对话的标题。
-    title: String,
-    /// 到期时发给 agent 的那句话。
-    prompt: String,
-    /// crontab 表达式；缺席表示只在人手动触发时跑。
-    schedule: Option<String>,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct UpdateInput {
-    /// 要改的那条的 id，取自 automation_list。
-    id: String,
-    title: String,
-    prompt: String,
-    /// crontab 表达式；null 表示改成只在手动触发时跑。
-    schedule: Option<String>,
-    enabled: bool,
-}
-
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct WriteOutput {
-    /// 写完之后那一行。日程刚被改动时 nextRunAt 暂缺，由应用排上。
-    automation: Option<AutomationView>,
-    failure: Option<String>,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-struct DeleteInput {
-    /// 要删掉的那条自动化的 id，取自 automation_list。
+#[derive(Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Identity {
     id: String,
 }
+#[derive(Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RunRequest {
+    id: String,
+    request_id: String,
+}
+#[derive(Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CancelRequest {
+    run_id: String,
+}
 
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-struct DeleteOutput {
-    /// 这次调用之前它是否还在。删一个已经不在的东西算成功，不算错。
-    existed: bool,
-    remaining: usize,
-    failure: Option<String>,
+fn answer(result: Result<AutomationCatalog>) -> std::result::Result<CallToolResult, String> {
+    let catalog = result.map_err(|error| {
+        let problem = Problem::from(error);
+        serde_json::to_string(&problem)
+            .unwrap_or_else(|failure| format!("could not encode automation problem: {failure}"))
+    })?;
+    serde_json::to_value(catalog)
+        .map(CallToolResult::structured)
+        .map_err(|error| error.to_string())
 }
 
 #[tool_router(server_handler)]
 impl Ledger {
     #[tool(
-        name = "automation_list",
-        description = "List the scheduled automations configured in this Poietica workspace."
+        name = "automations_list",
+        description = "Read automation definitions, revisions and native run states. A submission receipt is not completion."
     )]
-    fn list(&self, Parameters(ListInput {}): Parameters<ListInput>) -> Json<ListOutput> {
-        match self.rows() {
-            Ok(rows) => Json(ListOutput {
-                automations: rows.into_iter().map(AutomationView::from).collect(),
-                failure: None,
-            }),
-            Err(cause) => Json(ListOutput {
-                automations: Vec::new(),
-                failure: Some(cause),
-            }),
-        }
+    async fn list(&self) -> std::result::Result<CallToolResult, String> {
+        answer(super::load(&self.app).await)
     }
-
     #[tool(
-        name = "automation_create",
-        description = "Create one scheduled automation. schedule is a crontab expression; omit it for a manual-only automation."
+        name = "automations_create",
+        description = "Create an automation with an explicit absolute workspaceRoot and IANA timeZone. Cron is evaluated by the native scheduler."
     )]
-    fn create(
+    async fn create(
         &self,
-        Parameters(CreateInput {
-            title,
-            prompt,
-            schedule,
-        }): Parameters<CreateInput>,
-    ) -> Json<WriteOutput> {
-        let creation = AutomationCreation {
-            title,
-            prompt,
-            schedule,
-            session_config: BTreeMap::new(),
-            next_run_at: None,
-        };
-
-        match create(&self.app, creation) {
-            Ok(catalog) => Json(WriteOutput {
-                automation: catalog
-                    .automations
-                    .first()
-                    .cloned()
-                    .map(AutomationView::from),
-                failure: None,
-            }),
-            Err(cause) => Json(WriteOutput {
-                automation: None,
-                failure: Some(cause.to_string()),
-            }),
-        }
+        Parameters(creation): Parameters<AutomationCreation>,
+    ) -> std::result::Result<CallToolResult, String> {
+        answer(super::execute(&self.app, Command::Create(creation)).await)
     }
-
     #[tool(
-        name = "automation_update",
-        description = "Replace the title, prompt, schedule and enabled state of one automation. Run history is preserved."
+        name = "automations_update",
+        description = "Update a definition using its expectedRevision. An active execution retains its claimed input."
     )]
-    fn update(
+    async fn update(
         &self,
-        Parameters(UpdateInput {
-            id,
-            title,
-            prompt,
-            schedule,
-            enabled,
-        }): Parameters<UpdateInput>,
-    ) -> Json<WriteOutput> {
-        let mut written = None;
-
-        let outcome = mutate(&self.app, |catalog| {
-            written = catalog.edit_definition(&id, title, prompt, schedule, enabled);
-        });
-
-        match outcome {
-            Ok(_) if written.is_none() => Json(WriteOutput {
-                automation: None,
-                failure: Some("没有这条自动化".to_owned()),
-            }),
-            Ok(_) => Json(WriteOutput {
-                automation: written.map(AutomationView::from),
-                failure: None,
-            }),
-            Err(cause) => Json(WriteOutput {
-                automation: None,
-                failure: Some(cause.to_string()),
-            }),
-        }
+        Parameters(update): Parameters<AutomationUpdate>,
+    ) -> std::result::Result<CallToolResult, String> {
+        answer(super::execute(&self.app, Command::Update(update)).await)
     }
-
     #[tool(
-        name = "automation_delete",
-        description = "Delete one automation by its id. Deleting an automation that is already gone succeeds."
+        name = "automations_delete",
+        description = "Remove an automation definition and its bounded run list. Active or uncertain executions must first settle; conversation records are retained."
     )]
-    fn delete(
+    async fn delete(
         &self,
-        Parameters(DeleteInput { id }): Parameters<DeleteInput>,
-    ) -> Json<DeleteOutput> {
-        let existed = match self.rows() {
-            Ok(rows) => rows.iter().any(|candidate| candidate.id == id),
-            Err(cause) => {
-                return Json(DeleteOutput {
-                    existed: false,
-                    remaining: 0,
-                    failure: Some(cause),
-                });
-            }
-        };
-
-        match mutate(&self.app, move |catalog| catalog.remove(&id)) {
-            Ok(catalog) => Json(DeleteOutput {
-                existed,
-                remaining: catalog.automations.len(),
-                failure: None,
-            }),
-            Err(cause) => Json(DeleteOutput {
-                existed,
-                remaining: 0,
-                failure: Some(cause.to_string()),
-            }),
-        }
+        Parameters(request): Parameters<Identity>,
+    ) -> std::result::Result<CallToolResult, String> {
+        answer(super::execute(&self.app, Command::Remove { id: request.id }).await)
+    }
+    #[tool(
+        name = "automations_run",
+        description = "Queue one run. Supply a UUID requestId and reuse it if the command response is lost. The native ledger coalesces an already active run."
+    )]
+    async fn run(
+        &self,
+        Parameters(request): Parameters<RunRequest>,
+    ) -> std::result::Result<CallToolResult, String> {
+        answer(super::run(&self.app, request.id, request.request_id).await)
+    }
+    #[tool(
+        name = "automations_cancel",
+        description = "Persist cancellation intent for a runId. Only an official terminal observation confirms cancellation."
+    )]
+    async fn cancel(
+        &self,
+        Parameters(request): Parameters<CancelRequest>,
+    ) -> std::result::Result<CallToolResult, String> {
+        answer(
+            super::execute(
+                &self.app,
+                Command::Cancel {
+                    run_id: request.run_id,
+                },
+            )
+            .await,
+        )
     }
 }
 
-impl Ledger {
-    /// 走的是 tauri 命令那一侧同一个读口，不是第二套读法。
-    fn rows(&self) -> Result<Vec<Automation>, String> {
-        load_catalog(&self.app)
-            .map(|catalog| catalog.automations)
-            .map_err(|cause| cause.to_string())
-    }
-}
-
-/// 起服务器。绑定是同步的，地址在返回之前就已经登记好。
-///
-/// 先绑后登记再 spawn：调用方在 setup 里拿到 Ok 就意味着端点已经可查，渲染层不会
-/// 撞上一个「服务器还没起来」的空窗。
-///
-/// # Errors
-///
-/// 回环端口绑不上时返回错误。
-pub fn serve(app: &AppHandle) -> io::Result<AutomationMcpServer> {
-    let socket = StdTcpListener::bind(("127.0.0.1", 0))?;
-
+pub(crate) fn serve(app: &AppHandle) -> Result<AutomationMcpServer> {
+    let socket = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))?;
     socket.set_nonblocking(true)?;
-
     let address = socket.local_addr()?;
     let endpoint = McpEndpoint {
-        url: format!("{}://{address}/mcp", "http"),
+        url: format!("http://{address}/mcp"),
     };
-    let alive = Arc::new(AtomicBool::new(true));
-    let (shutdown, stopping) = oneshot::channel();
-    let server = AutomationMcpServer {
-        endpoint,
-        alive: Arc::clone(&alive),
-        shutdown: Mutex::new(Some(shutdown)),
-    };
-    let app = app.clone();
-
-    async_runtime::spawn(async move {
-        let outcome = listen(app, socket, stopping).await;
-
-        alive.store(false, Ordering::Release);
-
-        if let Err(cause) = outcome {
-            log::warn!("the automation MCP server stopped: {cause}");
-        }
+    let access = Arc::new(Access {
+        host: address.to_string(),
+        authorization: format!("Bearer {}", uuid::Uuid::new_v4()),
     });
-
-    Ok(server)
+    let alive = Arc::new(AtomicBool::new(true));
+    let worker_alive = Arc::clone(&alive);
+    let worker_access = Arc::clone(&access);
+    let ledger = Ledger { app: app.clone() };
+    let (stop, stopping) = oneshot::channel();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let worker = std::thread::Builder::new().name("poietica-automation-mcp".to_owned()).spawn(move || {
+        let result = runtime.block_on(async move {
+            let socket = tokio::net::TcpListener::from_std(socket)?;
+            let service = StreamableHttpService::new(move || Ok(ledger.clone()), Arc::new(NeverSessionManager::default()),
+                StreamableHttpServerConfig::default().with_legacy_session_mode(false).with_json_response(true));
+            let router = axum::Router::new().route_service("/mcp", service).layer(middleware::from_fn_with_state(worker_access, protect));
+            let (finish, finished) = oneshot::channel::<()>();
+            let server = axum::serve(socket, router).with_graceful_shutdown(async { let _finished = finished.await; }).into_future();
+            tokio::pin!(server);
+            tokio::select! {
+                result = &mut server => result,
+                _stopped = stopping => {
+                    let _sent = finish.send(());
+                    tokio::time::timeout(Duration::from_secs(5), server).await.map_err(|_| std::io::Error::other("MCP request drain timed out"))?
+                }
+            }
+        });
+        worker_alive.store(false, Ordering::Release);
+        if let Err(error) = &result { log::error!("automation MCP stopped: {error}"); }
+        result
+    })?;
+    Ok(AutomationMcpServer {
+        endpoint,
+        access,
+        alive,
+        stopping: Mutex::new(Some(stop)),
+        worker: Mutex::new(Some(worker)),
+    })
 }
 
-async fn listen(
-    app: AppHandle,
-    socket: StdTcpListener,
-    stopping: oneshot::Receiver<()>,
-) -> io::Result<()> {
-    let ledger = Ledger { app };
-    /* CRUD tools have no session state or server-originated messages. Stateless JSON responses
-     * avoid owning an idle SSE channel; Streamable HTTP explicitly permits GET to return 405. */
-    let service = StreamableHttpService::new(
-        move || Ok(ledger.clone()),
-        Arc::new(NeverSessionManager::default()),
-        StreamableHttpServerConfig::default()
-            .with_legacy_session_mode(false)
-            .with_json_response(true),
-    );
-    let listener = TcpListener::from_std(socket)?;
-
-    axum::serve(listener, axum::Router::new().fallback_service(service))
-        .with_graceful_shutdown(async move {
-            let _ = stopping.await;
-        })
-        .await
+pub(crate) fn configure(app: &AppHandle, contents: Option<&str>) -> Result<String> {
+    let server = app
+        .try_state::<AutomationMcpServer>()
+        .ok_or_else(|| Error::AgentCli("自动化 MCP 尚未启动".to_owned()))?;
+    let mut document: serde_json::Value = match contents {
+        Some(contents) => serde_json::from_str(contents)?,
+        None => serde_json::json!({}),
+    };
+    let object = document
+        .as_object_mut()
+        .ok_or_else(|| Error::AgentCli("mcp.json 必须是对象".to_owned()))?;
+    let servers = object
+        .entry("mcpServers")
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .ok_or_else(|| Error::AgentCli("mcpServers 必须是对象".to_owned()))?;
+    servers.insert(SERVER_NAME.to_owned(), server.registration()?);
+    Ok(serde_json::to_string_pretty(&document)? + "\n")
 }
 
-/// Reports the endpoint only while the owned server task is alive.
-#[command]
+#[tauri::command]
 #[specta::specta]
-pub async fn mcp_endpoint(app: AppHandle) -> Option<McpEndpoint> {
-    let server = app.try_state::<AutomationMcpServer>()?;
+pub fn mcp_endpoint(app: AppHandle) -> Option<McpEndpoint> {
+    app.try_state::<AutomationMcpServer>()
+        .filter(|server| server.alive.load(Ordering::Acquire))
+        .map(|server| server.endpoint.clone())
+}
 
-    server
-        .alive
-        .load(Ordering::Acquire)
-        .then(|| server.endpoint.clone())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn loopback_rebinding_and_browser_origins_are_rejected() {
+        let access = Access {
+            host: "127.0.0.1:56789".to_owned(),
+            authorization: "Bearer token".to_owned(),
+        };
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::HOST,
+            axum::http::HeaderValue::from_static("127.0.0.1:56789"),
+        );
+        headers.insert(
+            header::AUTHORIZATION,
+            axum::http::HeaderValue::from_static("Bearer token"),
+        );
+        assert!(access.accepts(&headers));
+        headers.insert(
+            header::ORIGIN,
+            axum::http::HeaderValue::from_static("https://example.com"),
+        );
+        assert!(!access.accepts(&headers));
+        headers.remove(header::ORIGIN);
+        headers.insert(
+            header::HOST,
+            axum::http::HeaderValue::from_static("example.com:56789"),
+        );
+        assert!(!access.accepts(&headers));
+    }
 }

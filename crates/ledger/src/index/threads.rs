@@ -357,12 +357,21 @@ impl AgentStore {
     ///
     /// Fails when the query is rejected.
     pub fn workspace_root_in_use(&self, workspace_root: &str) -> Result<bool> {
-        let held: i64 = self
+        let held: bool = self
             .connection
-            .prepare_cached("SELECT EXISTS (SELECT 1 FROM threads WHERE workspace_root = ?1)")?
+            .prepare_cached(
+                "SELECT EXISTS (
+                SELECT 1 FROM threads WHERE workspace_root = ?1
+                UNION ALL
+                SELECT 1 FROM automation_state, json_each(document, '$.automations') AS definition
+                    WHERE json_extract(definition.value, '$.workspaceRoot') = ?1
+                UNION ALL
+                SELECT 1 FROM automation_state, json_each(document, '$.executions') AS execution
+                    WHERE json_extract(execution.value, '$.workspaceRoot') = ?1
+            )",
+            )?
             .query_row(rusqlite::params![workspace_root], |row| row.get(0))?;
-
-        Ok(held != 0)
+        Ok(held)
     }
 
     /// 仍被引用的工作目录，每个一次。
@@ -375,14 +384,19 @@ impl AgentStore {
     /// Fails when the query is rejected.
     pub fn workspace_roots(&self) -> Result<Vec<String>> {
         let mut statement = self.connection.prepare_cached(
-            "SELECT DISTINCT workspace_root FROM threads WHERE workspace_root IS NOT NULL",
+            "SELECT workspace_root FROM threads WHERE workspace_root IS NOT NULL
+             UNION
+             SELECT json_extract(definition.value, '$.workspaceRoot')
+               FROM automation_state, json_each(document, '$.automations') AS definition
+              WHERE json_extract(definition.value, '$.workspaceRoot') IS NOT NULL
+             UNION
+             SELECT json_extract(execution.value, '$.workspaceRoot')
+               FROM automation_state, json_each(document, '$.executions') AS execution
+              WHERE json_extract(execution.value, '$.workspaceRoot') IS NOT NULL",
         )?;
-
-        let found = statement
+        Ok(statement
             .query_map([], |row| row.get(0))?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-
-        Ok(found)
+            .collect::<std::result::Result<Vec<_>, _>>()?)
     }
 
     /// 收割幽灵行：本次启动之前开的、没人说过一句话、也没人看得见的对话。

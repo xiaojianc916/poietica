@@ -10,8 +10,9 @@ pub mod export_bindings;
 pub mod problem;
 
 use poietica_automation::{
-    Automation, AutomationCatalog, AutomationCreation, AutomationReschedule, AutomationRun,
-    AutomationRunRecord,
+    Automation, AutomationCatalog, AutomationCreation, AutomationRun, AutomationRunOutcome,
+    AutomationUpdate,
+    schedule::{SchedulePreview, ScheduleProblem},
 };
 use tauri::Wry;
 use tauri_specta::{Builder, ErrorHandlingMode};
@@ -26,7 +27,7 @@ use crate::{
         AssetFormat, AssetImportRequest, AssetRemoveRequest, AssetSessionCloseRequest,
         AssetSessionResult, AssetUploadRequest, AssetUploadResult,
     },
-    automation::{AutomationCatalogChanged, AutomationDue},
+    automation::AutomationCatalogChanged,
     conversation::capability::{
         AgentCapability, AgentCapabilityInstall, AgentCapabilityInstallRequest,
         AgentCapabilityState,
@@ -74,7 +75,6 @@ pub fn surface() -> Builder<Wry> {
             crate::conversation::turn::agent_resolve_permission,
             crate::conversation::turn::agent_answer_questions,
             crate::conversation::turn::agent_dismiss_questions,
-            crate::conversation::turn::agent_shutdown,
             crate::conversation::config::agent_set_config_option,
             crate::conversation::config::agent_capabilities,
             crate::conversation::toolkit::agent_toolkit,
@@ -99,11 +99,13 @@ pub fn surface() -> Builder<Wry> {
             crate::asset::asset_remove,
             crate::asset::asset_session_close,
             crate::automation::automations_create,
+            crate::automation::automations_update,
+            crate::automation::automations_enable,
+            crate::automation::automations_run,
+            crate::automation::automations_cancel,
+            crate::automation::automations_preview,
             crate::automation::automations_load,
-            crate::automation::automations_upsert,
             crate::automation::automations_remove,
-            crate::automation::automations_record_run,
-            crate::automation::automations_sweep,
             crate::workspace::environment::environment_mcp_config,
             crate::workspace::environment::environment_mcp_config_write,
             crate::launcher::launcher_resolve,
@@ -178,7 +180,6 @@ pub fn surface() -> Builder<Wry> {
             AgentSessionEvent,
             AgentTranscriptEvent,
             AutomationCatalogChanged,
-            AutomationDue,
             BrowserElementPicked,
             BrowserState,
             TerminalStreamed,
@@ -231,12 +232,13 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AssetSessionCloseRequest>()
         .typ::<AutomationCatalogChanged>()
         .typ::<AutomationCreation>()
-        .typ::<AutomationDue>()
+        .typ::<AutomationUpdate>()
+        .typ::<AutomationRunOutcome>()
+        .typ::<SchedulePreview>()
+        .typ::<ScheduleProblem>()
         .typ::<AutomationRun>()
         .typ::<Automation>()
         .typ::<AutomationCatalog>()
-        .typ::<AutomationReschedule>()
-        .typ::<AutomationRunRecord>()
         .typ::<crate::automation::mcp_server::McpEndpoint>()
         .typ::<crate::launcher::McpLauncher>()
         .typ::<EnvironmentFile>()

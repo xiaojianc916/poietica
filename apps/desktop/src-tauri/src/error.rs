@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error(transparent)]
+    Automation(#[from] poietica_automation::AutomationError),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -63,8 +65,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 impl From<poietica_ledger::LedgerError> for Error {
     fn from(error: poietica_ledger::LedgerError) -> Self {
-        log::error!("the local index rejected a statement: {error}");
-        Self::Persistence(error.to_string())
+        match error {
+            poietica_ledger::LedgerError::Automation(cause) => Self::Automation(cause),
+            cause => {
+                log::error!("the local index rejected a statement: {cause}");
+                Self::Persistence(cause.to_string())
+            }
+        }
     }
 }
 

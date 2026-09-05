@@ -438,3 +438,7 @@ pub fn write_element_report(report: &str) -> Result<PathBuf> {
 
     Ok(path)
 }
+
+pub(crate) fn automation_lock(app: &AppHandle) -> Result<PathBuf> {
+    Ok(data_root(app)?.join("automation.lock"))
+}

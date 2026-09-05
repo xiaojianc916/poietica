@@ -16,6 +16,9 @@ impl From<&Error> for Problem {
     fn from(error: &Error) -> Self {
         let problem = Problem::new(code(error), DiagnosticId::issue());
 
+        if let Error::Automation(cause) = error {
+            return problem.with_detail("reason", cause.to_string());
+        }
         match reason(error) {
             Some(reason) => problem.with_detail("reason", reason),
             None => problem,
@@ -25,7 +28,12 @@ impl From<&Error> for Problem {
 
 fn code(error: &Error) -> Code {
     match error {
-        Error::Validation(_) => Code::RequestInvalid,
+        Error::Automation(poietica_automation::AutomationError::Missing) => Code::ResourceMissing,
+        Error::Automation(
+            poietica_automation::AutomationError::Uninitialized
+            | poietica_automation::AutomationError::Data(_),
+        ) => Code::LedgerAppendFailed,
+        Error::Automation(_) | Error::Validation(_) => Code::RequestInvalid,
         Error::NotFound(_) => Code::ResourceMissing,
         Error::Io(_) | Error::File(_) => Code::FileUnavailable,
         Error::Store(_) => Code::SettingsUnavailable,
@@ -51,7 +59,8 @@ fn reason(error: &Error) -> Option<&str> {
         | Error::Git(reason)
         | Error::Persistence(reason)
         | Error::Plugin(reason) => Some(reason),
-        Error::Asset(_)
+        Error::Automation(_)
+        | Error::Asset(_)
         | Error::File(_)
         | Error::Internal(_)
         | Error::Io(_)
