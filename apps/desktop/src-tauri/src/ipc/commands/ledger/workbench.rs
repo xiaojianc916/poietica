@@ -9,7 +9,8 @@
 
 use tauri::State;
 
-use crate::ipc::commands::ledger::local_index::{LocalIndex, persistence, read_index, write_index};
+use crate::ipc::commands::ledger::LocalIndex;
+use poietica_ledger::execution::{read_index, write_index};
 use poietica_problem::Problem;
 
 /// 上一次关掉时工作台开着什么。第一次启动是 None。
@@ -23,7 +24,7 @@ pub async fn workbench_session_load(
     index: State<'_, LocalIndex>,
 ) -> Result<Option<String>, Problem> {
     read_index(&index, |store| {
-        store.workbench_session().map_err(persistence)
+        store.workbench_session().map_err(crate::error::Error::from)
     })
     .await
     .map_err(Problem::from)
@@ -41,7 +42,9 @@ pub async fn workbench_session_save(
     document: String,
 ) -> Result<(), Problem> {
     write_index(&index, move |store| {
-        store.set_workbench_session(&document).map_err(persistence)
+        store
+            .set_workbench_session(&document)
+            .map_err(crate::error::Error::from)
     })
     .await
     .map_err(Problem::from)

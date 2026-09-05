@@ -16,12 +16,12 @@ use super::journal::FrameJournal;
 use super::{NO_SESSION_ID, POISONED};
 use crate::error::{Error, Result};
 use crate::ipc::commands::cli::profile::{agent_args, agent_data_home, agent_program, launch_env};
-use crate::ipc::commands::ledger::local_index::{read_index, write_index};
 use crate::paths::attachments_root;
 use poietica_kap_client::{
     AgentClient, AgentConnection, AgentSpawn, Daemon, DaemonIntent, KapError, LinkState,
     PermissionDesk, QuestionDesk, Reaction, Refusal, RunSlot, SessionBook, SessionEvent, connect,
 };
+use poietica_ledger::execution::{read_index, write_index};
 use poietica_ledger::index::{SessionCursor, SessionUsage};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -91,7 +91,7 @@ struct Connection {
 /// 上就放不进来。
 ///
 /// 库也不在这里。它是这台机器的东西，不是这个子系统的：工作台那一份与对话
-/// 索引同库，而工作台不归 agent 管。它归 commands::ledger::local_index。
+/// 索引同库，而工作台不归 agent 管。它归 commands::ledger。
 #[derive(Debug)]
 pub struct AgentRuntime {
     /// 附件字节的根。开机时解析一次：它是布局，不是某条命令的参数。
@@ -301,11 +301,9 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
             usage,
             payload,
         } => {
-            let index = app.state::<crate::ipc::commands::ledger::local_index::LocalIndex>();
+            let index = app.state::<crate::ipc::commands::ledger::LocalIndex>();
             let recorded = write_index(&index, move |store| {
-                store
-                    .record_usage(&session_id, usage)
-                    .map_err(crate::ipc::commands::ledger::local_index::persistence)
+                store.record_usage(&session_id, usage).map_err(Error::from)
             })
             .await;
             if let Err(error) = recorded {
@@ -314,11 +312,11 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
             payload.emit(app).map_err(|error| error.to_string())
         }
         SessionEventPlan::Cursor { session_id, cursor } => {
-            let index = app.state::<crate::ipc::commands::ledger::local_index::LocalIndex>();
+            let index = app.state::<crate::ipc::commands::ledger::LocalIndex>();
             let recorded = write_index(&index, move |store| {
                 store
                     .remember_cursor(&session_id, &cursor)
-                    .map_err(crate::ipc::commands::ledger::local_index::persistence)
+                    .map_err(Error::from)
             })
             .await;
             if let Err(error) = recorded {
@@ -327,11 +325,9 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
             Ok(())
         }
         SessionEventPlan::CursorLost { session_id } => {
-            let index = app.state::<crate::ipc::commands::ledger::local_index::LocalIndex>();
+            let index = app.state::<crate::ipc::commands::ledger::LocalIndex>();
             let dropped = write_index(&index, move |store| {
-                store
-                    .forget_cursor(&session_id)
-                    .map_err(crate::ipc::commands::ledger::local_index::persistence)
+                store.forget_cursor(&session_id).map_err(Error::from)
             })
             .await;
             if let Err(error) = dropped {
@@ -532,7 +528,7 @@ async fn drain_pending_deliveries(
     client: AgentClient,
     agent_id: &str,
 ) -> Result<()> {
-    let index = app.state::<crate::ipc::commands::ledger::local_index::LocalIndex>();
+    let index = app.state::<crate::ipc::commands::ledger::LocalIndex>();
     let runtime = app.state::<AgentRuntime>();
     let owner = agent_id.to_owned();
 
@@ -548,9 +544,7 @@ async fn drain_pending_deliveries(
                 log::warn!("a pending delivery names a thread that is not a uuid");
                 continue;
             };
-            let holder = store
-                .thread(thread)
-                .map_err(crate::ipc::commands::ledger::local_index::persistence)?;
+            let holder = store.thread(thread).map_err(Error::from)?;
             let session = holder
                 .filter(|thread| thread.agent_id.as_deref() == Some(&owner))
                 .and_then(|thread| thread.session_id);
@@ -745,17 +739,15 @@ async fn record_and_flush_disposals(
     anchor: String,
     lease: Arc<ConnectionLease>,
 ) {
-    let index = app.state::<crate::ipc::commands::ledger::local_index::LocalIndex>();
+    let index = app.state::<crate::ipc::commands::ledger::LocalIndex>();
     let noted = {
         let owner = agent_id.clone();
         let born = anchor.clone();
         write_index(&index, move |store| {
             store
                 .record_session_disposal(&born, &owner)
-                .map_err(crate::ipc::commands::ledger::local_index::persistence)?;
-            store
-                .session_disposals(&owner)
-                .map_err(crate::ipc::commands::ledger::local_index::persistence)
+                .map_err(Error::from)?;
+            store.session_disposals(&owner).map_err(Error::from)
         })
         .await
     };
@@ -786,7 +778,7 @@ async fn record_and_flush_disposals(
         let discharged = write_index(&index, move |store| {
             store
                 .discharge_session_disposal(&delivered)
-                .map_err(crate::ipc::commands::ledger::local_index::persistence)
+                .map_err(Error::from)
         })
         .await;
         if let Err(error) = discharged {

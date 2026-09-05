@@ -33,3 +33,15 @@ test('a TSX source and mixed type/value aliases retain their real meaning', () =
   expect(importsOf('fixture.tsx', source)).toEqual([{ file: 'fixture.tsx', specifier: './scope' }])
   expect(valueBindingsOf('fixture.tsx', source)).toEqual([{ specifier: './scope', name: 'Store' }])
 })
+
+test('marks only erased module edges as type-only', () => {
+  expect(importsOf('scope.ts', "import type { Shape } from './shape'")).toEqual([
+    { file: 'scope.ts', specifier: './shape', typeOnly: true },
+  ])
+  expect(importsOf('scope.ts', "export type { Shape } from './shape'")).toEqual([
+    { file: 'scope.ts', specifier: './shape', typeOnly: true },
+  ])
+  expect(importsOf('scope.ts', "const value = import('./shape')")).toEqual([
+    { file: 'scope.ts', specifier: './shape' },
+  ])
+})

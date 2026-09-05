@@ -6,7 +6,8 @@ use serde::Serialize;
 use specta::Type;
 use tauri::State;
 
-use crate::ipc::commands::ledger::local_index::{LocalIndex, counted, persistence, read_index};
+use crate::ipc::commands::ledger::{LocalIndex, counted};
+use poietica_ledger::execution::read_index;
 use poietica_problem::Problem;
 
 /// 一天的账。日历日按本机时区算，键就是渲染层索引热力图的那一个。
@@ -31,7 +32,9 @@ pub async fn usage_token_days(
     span: u32,
 ) -> Result<Vec<UsageDay>, Problem> {
     let recorded = read_index(&index, move |store| {
-        store.token_days(i64::from(span)).map_err(persistence)
+        store
+            .token_days(i64::from(span))
+            .map_err(crate::error::Error::from)
     })
     .await
     .map_err(Problem::from)?;

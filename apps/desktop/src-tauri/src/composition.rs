@@ -96,6 +96,7 @@ pub fn build() -> tauri::Builder<Wry> {
              * 自动化的表在这里起，进程级：闹钟不该活在会被隐藏、会被整页重载的那
              * 一侧。谁创建谁负责 —— 这里创建，随进程结束。
              */
+            let _automation_catalog = app.manage(commands::automation::AutomationCatalogAccess::default());
             commands::automation::watch(handle);
             let _automation_mcp =
                 app.manage(commands::automation::mcp_server::serve(handle)?);
@@ -110,7 +111,7 @@ pub fn build() -> tauri::Builder<Wry> {
              * 一次时长不可预测的迁移。
              */
             let database = paths::ledger_database(handle)?;
-            let _index = app.manage(commands::ledger::local_index::LocalIndex::open(
+            let _index = app.manage(commands::ledger::LocalIndex::open(
                 &database,
                 poietica_time::wall_clock::SystemWallClock,
             )?);
@@ -147,18 +148,18 @@ pub fn build() -> tauri::Builder<Wry> {
                         )
                     })??;
 
-                    let index = sweeper.state::<commands::ledger::local_index::LocalIndex>();
+                    let index = sweeper.state::<commands::ledger::LocalIndex>();
 
                     let needs_sweep = !snapshot.is_empty();
                     let (harvested, referenced) =
-                        commands::ledger::local_index::write_index(&index, move |store| {
+                        poietica_ledger::execution::write_index(&index, move |store| {
                             let harvested = store
                                 .harvest_ghost_threads(boundary)
-                                .map_err(commands::ledger::local_index::persistence)?;
+                                .map_err(crate::error::Error::from)?;
                             let referenced = if needs_sweep {
                                 store
                                     .workspace_roots()
-                                    .map_err(commands::ledger::local_index::persistence)?
+                                    .map_err(crate::error::Error::from)?
                             } else {
                                 Vec::new()
                             };

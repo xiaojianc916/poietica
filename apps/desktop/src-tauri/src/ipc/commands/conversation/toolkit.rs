@@ -19,7 +19,7 @@ use super::dto::AgentLaunch;
 use super::failure::translate;
 use super::runtime::{AgentRuntime, ensure_session};
 use crate::ipc::commands::cli::profile::agent_home_directory;
-use crate::ipc::commands::ledger::local_index::LocalIndex;
+use crate::ipc::commands::ledger::LocalIndex;
 
 const DOCUMENT_MAX_BYTES: u64 = 256 * 1024;
 

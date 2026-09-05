@@ -76,6 +76,7 @@ specta.workspace = true
 specta-typescript.workspace = true
 tauri-specta.workspace = true
 tokio.workspace = true
+poietica-automation = { path = "../../../crates/automation" }
 poietica-conversation = { path = "../../../crates/conversation" }
 poietica-ledger = { path = "../../../crates/ledger" }
 poietica-extension-native = { path = "../../../crates/extension" }

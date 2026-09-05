@@ -1,5 +1,4 @@
 import * as v from 'valibot'
-
 import {
   DEFAULT_SURFACE_ID,
   describeSurface,
@@ -16,6 +15,7 @@ import type {
   WorkbenchTabViewModel,
   WorkbenchViewModel,
 } from './workbench'
+import { createWorkbenchPersistence } from './workbench-persistence'
 
 type Entry = ConversationEntry | SurfaceEntry
 
@@ -355,26 +355,32 @@ export interface WorkbenchSessionOptions {
    * 的形状 —— 那是它自己定的。
    */
   readonly restored?: string | null
-  /**
-   * 每变一次样，把整份写回去。
-   *
-   * 不攒、不防抖。这些变化都是人点出来的（开一格、关一格、拖一下），不在任何
-   * 热路径上；而攒一会儿再写，崩在攒的那一刻丢掉的正是人刚做的那一下 —— 那就
-   * 是这次要修的毛病本身。
-   */
-  readonly persist?: (document: string) => void
+  /** Writes complete snapshots; the owner awaits flush before disposal. */
+  readonly persist?: (document: string) => void | Promise<void>
+  readonly onPersistenceError?: (cause: unknown) => void
 }
 
 export function createWorkbenchSessionController(
   options: WorkbenchSessionOptions = {},
-): WorkbenchSessionStore {
-  const { persist } = options
+): WorkbenchSessionStore & {
+  readonly flush: () => Promise<void>
+  readonly dispose: () => Promise<void>
+} {
+  const persistence =
+    options.persist === undefined
+      ? null
+      : createWorkbenchPersistence(options.persist, options.onPersistenceError)
+  let disposed = false
+  let disposing: Promise<void> | null = null
 
   let state = decode(options.restored)
   let snapshot = project(state)
   const listeners = new Set<() => void>()
 
   function commit(next: WorkbenchState): void {
+    if (disposed) {
+      throw new Error('Workbench session is disposed.')
+    }
     /* 同引用即无变化：不重新投影，不唤醒订阅者。 */
     if (next === state) {
       return
@@ -382,19 +388,30 @@ export function createWorkbenchSessionController(
 
     state = next
     snapshot = project(state)
+    persistence?.enqueue(encode(state))
 
     for (const listener of listeners) {
       listener()
     }
-
-    /* 先让屏幕跟上，再落盘：写是这一次变化的后果，不是它的前提。 */
-    persist?.(encode(state))
   }
 
   return {
+    flush: () => persistence?.flush() ?? Promise.resolve(),
+    dispose() {
+      if (disposing !== null) {
+        return disposing
+      }
+      disposed = true
+      listeners.clear()
+      disposing = persistence?.flush() ?? Promise.resolve()
+      return disposing
+    },
     getSnapshot: () => snapshot,
 
     subscribe(listener) {
+      if (disposed) {
+        throw new Error('Workbench session is disposed.')
+      }
       listeners.add(listener)
 
       return () => {

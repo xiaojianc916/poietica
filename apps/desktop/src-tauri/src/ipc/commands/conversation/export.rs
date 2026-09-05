@@ -2,9 +2,8 @@ use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::error::Error;
-use crate::ipc::commands::ledger::local_index::{
-    LocalIndex, conversation, persistence, read_index,
-};
+use crate::ipc::commands::ledger::{LocalIndex, conversation};
+use poietica_ledger::execution::read_index;
 
 use super::AgentCommandResult;
 use super::NO_SUCH_CONVERSATION;
@@ -24,7 +23,7 @@ pub async fn agent_export_thread(
 ) -> AgentCommandResult<bool> {
     let thread_id = conversation(&request.thread_id)?;
     let stored = read_index(&index, move |store| {
-        store.thread(thread_id).map_err(persistence)
+        store.thread(thread_id).map_err(Error::from)
     })
     .await?
     .ok_or_else(|| Error::NotFound(NO_SUCH_CONVERSATION.to_owned()))?;

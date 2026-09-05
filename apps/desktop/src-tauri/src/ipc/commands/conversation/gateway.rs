@@ -35,9 +35,7 @@ impl AgentGateway for KapGateway {
         let admission = &delivery.admission;
         let thread = Uuid::parse_str(admission.thread.as_str())
             .map_err(|error| refusal(format!("the thread id is not a uuid: {error}")))?;
-        let carried = self
-            .materialise(admission, &delivery.session)
-            .map_err(refusal)?;
+        let carried = self.materialise(admission).map_err(refusal)?;
         let skills = admission
             .skills
             .iter()
@@ -82,11 +80,7 @@ fn refusal(reason: String) -> GatewayFailure {
 
 impl KapGateway {
     /// Frozen attachments are all-or-nothing; never silently change a submitted prompt.
-    fn materialise(
-        &self,
-        admission: &Admission,
-        _session: &str,
-    ) -> Result<Vec<PromptAttachment>, String> {
+    fn materialise(&self, admission: &Admission) -> Result<Vec<PromptAttachment>, String> {
         let mut carried = Vec::with_capacity(admission.attachments.len());
 
         for reference in &admission.attachments {

@@ -1,7 +1,7 @@
 //! 会话给出的那些选择器，以及改动它们。
 
 use crate::error::Error;
-use crate::ipc::commands::ledger::local_index::LocalIndex;
+use crate::ipc::commands::ledger::LocalIndex;
 use poietica_kap_client::{AgentClient, ConfigControl, ConfigPurpose, select_config};
 use tauri::{AppHandle, State};
 use tauri_specta::Event as _;

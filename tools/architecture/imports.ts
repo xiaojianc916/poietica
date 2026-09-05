@@ -2,31 +2,55 @@ import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
 
-export type ImportRecord = { readonly file: string; readonly specifier: string }
+export type ImportRecord = {
+  readonly file: string
+  readonly specifier: string
+  readonly typeOnly?: true
+}
 export type ValueBinding = { readonly specifier: string; readonly name: string }
 
 const EXTENSIONS = ['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']
 const SKIP = new Set(['.turbo', 'coverage', 'dist', 'gen', 'node_modules', 'target'])
 
-/** Reads syntax without rewriting comments, strings, type imports, or shebangs. */
+/** Type-only edges are explicit; dynamic imports are always runtime edges. */
 export function importsOf(file: string, code: string): ImportRecord[] {
   const tree = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true)
   const records: ImportRecord[] = []
-  const capture = (node: ts.Node | undefined): void => {
+  const capture = (node: ts.Node | undefined, typeOnly = false): void => {
     if (node !== undefined && ts.isStringLiteralLike(node)) {
-      records.push({ file, specifier: node.text })
+      records.push(
+        typeOnly ? { file, specifier: node.text, typeOnly: true } : { file, specifier: node.text },
+      )
     }
   }
   const visit = (node: ts.Node): void => {
-    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
-      capture(node.moduleSpecifier)
+    if (ts.isImportDeclaration(node)) {
+      const clause = node.importClause
+      const bindings = clause?.namedBindings
+      const typeOnly =
+        clause?.isTypeOnly === true ||
+        (clause?.name === undefined &&
+          bindings !== undefined &&
+          ts.isNamedImports(bindings) &&
+          bindings.elements.length > 0 &&
+          bindings.elements.every((binding) => binding.isTypeOnly))
+      capture(node.moduleSpecifier, typeOnly)
+    } else if (ts.isExportDeclaration(node)) {
+      const clause = node.exportClause
+      const typeOnly =
+        node.isTypeOnly ||
+        (clause !== undefined &&
+          ts.isNamedExports(clause) &&
+          clause.elements.length > 0 &&
+          clause.elements.every((binding) => binding.isTypeOnly))
+      capture(node.moduleSpecifier, typeOnly)
     } else if (
       ts.isImportEqualsDeclaration(node) &&
       ts.isExternalModuleReference(node.moduleReference)
     ) {
-      capture(node.moduleReference.expression)
+      capture(node.moduleReference.expression, node.isTypeOnly)
     } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
-      capture(node.argument.literal)
+      capture(node.argument.literal, true)
     } else if (
       ts.isCallExpression(node) &&
       (node.expression.kind === ts.SyntaxKind.ImportKeyword ||

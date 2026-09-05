@@ -1,16 +1,4 @@
-//! 账本的 MCP 服务器。
-//!
-//! 为什么在进程内、而不是另起一个 stdio 子进程：账本是 tauri-plugin-store 的一个
-//! Store，带进程内缓存，只能经 AppHandle 拿到（见 commands::automation::open）。
-//! 子进程要读它就得再写一份存储格式的实现，并且和本进程的缓存赛跑 —— 那是第二份
-//! 真相。于是只剩本机回环上的 Streamable HTTP 这一个形状。
-//!
-//! 端口取 0 由内核分配：Figma 的桌面 MCP 服务器把地址钉死在 127.0.0.1:3845，端口
-//! 被别的进程占住时那个开关就整个失效。绑定之后把真实地址交给渲染层，任何一方都不
-//! 需要事先约定端口。
-//!
-//! 不自带鉴权：rmcp 的 Streamable HTTP 服务器默认只接受回环 Host（用于挡住针对本机
-//! 服务的 DNS 重绑定），加上内核分配的端口，暴露面与 Figma 的本地服务器同级.
+//! Exposes the application-owned catalog through the existing loopback MCP endpoint.
 
 //! item 级的 allow 够不到 tool_router 宏展开生成的 trait impl，压在这里。
 #![allow(
@@ -37,9 +25,8 @@ use tauri::{AppHandle, Manager, async_runtime, command};
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
-use crate::ipc::commands::automation::{
-    Automation, AutomationCreation, create, mutate, open, read_catalog,
-};
+use crate::ipc::commands::automation::{create, load_catalog, mutate};
+use poietica_automation::{Automation, AutomationCreation};
 
 /// 服务器的落脚地址。渲染层照着它把这台服务器登记进 MCP 那一格。
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
@@ -251,25 +238,8 @@ impl Ledger {
     ) -> Json<WriteOutput> {
         let mut written = None;
 
-        let outcome = mutate(&self.app, |automations| {
-            let Some(existing) = automations.iter_mut().find(|candidate| candidate.id == id) else {
-                return;
-            };
-
-            /*
-             * 日程动过、刚被启用、或者被停用，下一次到期就作废：重排是日历的事，
-             * 而日历在 packages/automations。留 None，持有方看到之后排上。
-             */
-            if existing.schedule != schedule || enabled != existing.enabled {
-                existing.next_run_at = None;
-            }
-
-            existing.title = title;
-            existing.prompt = prompt;
-            existing.schedule = schedule;
-            existing.enabled = enabled;
-
-            written = Some(existing.clone());
+        let outcome = mutate(&self.app, |catalog| {
+            written = catalog.edit_definition(&id, title, prompt, schedule, enabled);
         });
 
         match outcome {
@@ -307,9 +277,7 @@ impl Ledger {
             }
         };
 
-        match mutate(&self.app, move |automations| {
-            automations.retain(|candidate| candidate.id != id);
-        }) {
+        match mutate(&self.app, move |catalog| catalog.remove(&id)) {
             Ok(catalog) => Json(DeleteOutput {
                 existed,
                 remaining: catalog.automations.len(),
@@ -327,9 +295,7 @@ impl Ledger {
 impl Ledger {
     /// 走的是 tauri 命令那一侧同一个读口，不是第二套读法。
     fn rows(&self) -> Result<Vec<Automation>, String> {
-        let store = open(&self.app).map_err(|cause| cause.to_string())?;
-
-        read_catalog(&store)
+        load_catalog(&self.app)
             .map(|catalog| catalog.automations)
             .map_err(|cause| cause.to_string())
     }

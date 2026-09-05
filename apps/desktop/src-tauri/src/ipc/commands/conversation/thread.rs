@@ -3,11 +3,10 @@
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::{Error, Result};
 use crate::ipc::commands::asset::attachments::forget_blob;
-use crate::ipc::commands::ledger::local_index::{
-    LocalIndex, conversation, counted, persistence, read_index, write_index,
-};
+use crate::ipc::commands::ledger::{LocalIndex, conversation, counted};
 use crate::paths::remove_projectless_workspace;
 use poietica_kap_client::PROMPT_ADMITTED;
+use poietica_ledger::execution::{read_index, write_index};
 use poietica_ledger::index::TitleSource;
 use tauri::{AppHandle, State, async_runtime};
 
@@ -35,7 +34,7 @@ use super::{AgentCommandResult, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS};
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_threads(index: State<'_, LocalIndex>) -> AgentCommandResult<Vec<AgentThread>> {
-    let stored = read_index(&index, |store| store.list_threads().map_err(persistence)).await?;
+    let stored = read_index(&index, |store| store.list_threads().map_err(Error::from)).await?;
 
     Ok(stored.into_iter().map(retitle).collect())
 }
@@ -51,12 +50,12 @@ pub async fn agent_thread_snapshot(
     let (thread, usage) = read_index(&index, move |store| {
         let stored = store
             .thread(thread_id)
-            .map_err(persistence)?
+            .map_err(Error::from)?
             .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?;
         let usage = match stored.session_id.as_deref() {
             Some(session) => store
                 .session_usage(session)
-                .map_err(persistence)?
+                .map_err(Error::from)?
                 .map(reported)
                 .transpose()?,
             None => None,
@@ -105,7 +104,7 @@ pub async fn agent_open_thread(
                 store
                     .create_thread(id, FALLBACK_THREAD_TITLE, asked.as_deref())
                     .map(|_| ())
-                    .map_err(persistence)
+                    .map_err(Error::from)
             })
             .await?;
             thread_id
@@ -170,7 +169,7 @@ pub async fn agent_open_thread(
     let thread = read_index(&index, move |store| {
         store
             .thread(thread_id)
-            .map_err(persistence)?
+            .map_err(Error::from)?
             .map(retitle)
             .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))
     })
@@ -244,7 +243,7 @@ pub async fn agent_rename_thread(
     let id = conversation(&request.thread_id)?;
 
     write_index(&index, move |store| {
-        store.name_by_user(id, &title).map_err(persistence)
+        store.name_by_user(id, &title).map_err(Error::from)
     })
     .await?;
 
@@ -262,13 +261,13 @@ pub async fn agent_archive_thread(
     let archived = request.archived;
 
     write_index(&index, move |store| {
-        let exists = store.thread(id).map_err(persistence)?.is_some();
+        let exists = store.thread(id).map_err(Error::from)?.is_some();
         if !exists {
             return Err(Error::Validation(
                 "the conversation does not exist".to_owned(),
             ));
         }
-        store.set_archived(id, archived).map_err(persistence)
+        store.set_archived(id, archived).map_err(Error::from)
     })
     .await?;
 
@@ -306,7 +305,7 @@ pub async fn agent_delete_thread(
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
 
-    let stored = read_index(&index, move |store| store.thread(id).map_err(persistence)).await?;
+    let stored = read_index(&index, move |store| store.thread(id).map_err(Error::from)).await?;
 
     /* 无项目目录与最后一条指着它的对话同寿（paths.rs 的
     create_projectless_workspace），回收凭的就是库里这一行字。 */
@@ -356,21 +355,21 @@ pub async fn agent_delete_thread(
         if let Some((session_id, owner)) = owed {
             store
                 .record_session_disposal(&session_id, &owner)
-                .map_err(persistence)?;
+                .map_err(Error::from)?;
         }
 
-        store.delete_thread(id).map_err(persistence)?;
+        store.delete_thread(id).map_err(Error::from)?;
 
-        let orphans = store.unreferenced_attachments().map_err(persistence)?;
+        let orphans = store.unreferenced_attachments().map_err(Error::from)?;
 
         for hash in &orphans {
-            store.forget_attachment(hash).map_err(persistence)?;
+            store.forget_attachment(hash).map_err(Error::from)?;
         }
 
         /* 行删完才问引用：问的是「删掉这一行之后还有没有人指着那个目录」，
         问早了答案里包着自己。 */
         let released = match recorded_root {
-            Some(freed) if !store.workspace_root_in_use(&freed).map_err(persistence)? => {
+            Some(freed) if !store.workspace_root_in_use(&freed).map_err(Error::from)? => {
                 Some(freed)
             }
             _held_or_absent => None,
@@ -443,7 +442,7 @@ pub async fn agent_fork_thread(
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
     let stored = read_index(&index, move |store| {
-        store.thread(source).map_err(persistence)
+        store.thread(source).map_err(Error::from)
     })
     .await?
     .ok_or_else(|| Error::Validation(NOTHING_TO_FORK.to_owned()))?;
@@ -490,11 +489,11 @@ pub async fn agent_fork_thread(
                 drop_turns,
                 PROMPT_ADMITTED,
             )
-            .map_err(persistence)?;
+            .map_err(Error::from)?;
 
         store
             .thread(id)
-            .map_err(persistence)?
+            .map_err(Error::from)?
             .ok_or_else(|| Error::Validation(NO_THREAD.to_owned()))
     })
     .await?;
@@ -518,7 +517,7 @@ pub async fn agent_pin_thread(
     let pinned = request.pinned;
 
     write_index(&index, move |store| {
-        store.set_pinned(id, pinned).map_err(persistence)
+        store.set_pinned(id, pinned).map_err(Error::from)
     })
     .await?;
 

@@ -35,7 +35,12 @@ export const CARGO_RINGS: readonly Ring[] = [
   { name: 'vocabulary', members: ['poietica-problem', 'poietica-time'] },
   {
     name: 'domain',
-    members: ['poietica-asset', 'poietica-conversation', 'poietica-review-native'],
+    members: [
+      'poietica-asset',
+      'poietica-automation',
+      'poietica-conversation',
+      'poietica-review-native',
+    ],
   },
   {
     name: 'capability',
@@ -60,6 +65,7 @@ export const HOST_AWARE_PACKAGES: readonly string[] = [
 export const HOST_AGNOSTIC_CRATES: readonly string[] = [
   'poietica-browser-native',
   'poietica-asset',
+  'poietica-automation',
   'poietica-conversation',
   'poietica-extension-native',
   'poietica-git-adapter-native',
@@ -99,4 +105,8 @@ export const FORBIDDEN_DIRECTORY_NAMES: readonly string[] = [
 ]
 export function ringOf(rings: readonly Ring[], member: string): number {
   return rings.findIndex((ring) => ring.members.includes(member))
+}
+
+export const DOMAIN_CONTRACT_IMPORTS: Readonly<Record<string, string>> = {
+  '@poietica/automation': '@poietica/contract/automation',
 }

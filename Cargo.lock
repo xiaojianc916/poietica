@@ -3045,6 +3045,7 @@ dependencies = [
  "hex",
  "log",
  "poietica-asset",
+ "poietica-automation",
  "poietica-browser-native",
  "poietica-conversation",
  "poietica-extension-native",
@@ -3087,6 +3088,15 @@ version = "0.3.1"
 dependencies = [
  "hex",
  "sha2",
+]
+
+[[package]]
+name = "poietica-automation"
+version = "0.3.1"
+dependencies = [
+ "serde",
+ "specta",
+ "time",
 ]
 
 [[package]]
@@ -3169,6 +3179,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.19",
  "time",
+ "tokio",
  "uuid",
 ]
 

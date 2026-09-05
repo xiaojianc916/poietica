@@ -104,6 +104,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@poietica/composer": "workspace:*",
+        "@poietica/contract": "workspace:*",
         "@poietica/conversation": "workspace:*",
         "@poietica/design-system": "workspace:*",
         "@poietica/problem": "workspace:*",

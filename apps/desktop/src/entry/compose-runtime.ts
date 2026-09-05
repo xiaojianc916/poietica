@@ -105,17 +105,12 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     cleanups.push(release)
     return release
   }
-  /*
-   * 工作台的唯一真相在 threads.sqlite3 的 workbench_session 那一行；这里拿到的
-   * 是它在这个渲染进程里的唯一投影。变一次写一次，整份覆盖。
-   */
+  /* The controller owns current state; the database stores its recovery document. */
   const workspace = createWorkbenchSessionController({
     restored,
-    persist: (document) => {
-      void writeWorkbenchSession(document).catch((cause: unknown) => {
-        /* 写的是整份快照不是增量：这一次没写成，下一次变化会把它整个补上。 */
-        console.warn('[Poietica] 工作台会话未能存下', cause)
-      })
+    persist: writeWorkbenchSession,
+    onPersistenceError: (cause) => {
+      console.warn('[Poietica] 工作台会话未能存下', cause)
     },
   })
   const commands = createCommandRegistry()
@@ -309,6 +304,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
         automationLifetime.abort(new DOMException('Application stopped.', 'AbortError'))
         const cleanup = [
           ...cleanups.splice(0).reverse(),
+          workspace.dispose,
           conversation.dispose,
           updates.dispose,
           () => theme.dispose(),

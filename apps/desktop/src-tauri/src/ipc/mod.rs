@@ -10,6 +10,10 @@ pub mod commands;
 pub mod export_bindings;
 pub mod problem;
 
+use poietica_automation::{
+    Automation, AutomationCatalog, AutomationCreation, AutomationReschedule, AutomationRun,
+    AutomationRunRecord,
+};
 use tauri::Wry;
 use tauri_specta::{Builder, ErrorHandlingMode};
 
@@ -21,10 +25,7 @@ use commands::{
         AssetFormat, AssetImportRequest, AssetRemoveRequest, AssetSessionCloseRequest,
         AssetSessionResult, AssetUploadRequest, AssetUploadResult,
     },
-    automation::{
-        Automation, AutomationCatalog, AutomationCatalogChanged, AutomationCreation, AutomationDue,
-        AutomationReschedule, AutomationRun, AutomationRunRecord,
-    },
+    automation::{AutomationCatalogChanged, AutomationDue},
     cli::install::{AgentInstallState, AgentInstallStatus},
     cli::profile::AgentConfigSnapshot,
     conversation::capability::{

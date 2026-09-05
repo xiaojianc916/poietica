@@ -13,7 +13,8 @@ use tauri::{AppHandle, Manager, Runtime};
 use tauri_specta::Event as _;
 
 use crate::error::{Error, Result};
-use crate::ipc::commands::ledger::local_index::{LocalIndex, write_index_worker};
+use crate::ipc::commands::ledger::LocalIndex;
+use poietica_ledger::execution::write_index_worker;
 
 use super::dto::{AgentRunBatch, AgentRunEvent};
 
@@ -200,7 +201,7 @@ fn persist_then_emit<R: Runtime>(app: &AppHandle<R>, mut batches: Vec<AppendBatc
             let outcome = store
                 .append_batches(&mut batches)
                 .map_err(|failure| Error::Internal(failure.to_string()));
-            Ok((batches, outcome))
+            Ok::<_, Error>((batches, outcome))
         });
         let (returned, outcome) = match attempt {
             Ok(attempt) => attempt,

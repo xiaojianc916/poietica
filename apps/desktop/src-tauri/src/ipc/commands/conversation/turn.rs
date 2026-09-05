@@ -6,14 +6,13 @@
 
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
-use crate::ipc::commands::ledger::local_index::{
-    LocalIndex, conversation, persistence, read_index, write_index,
-};
+use crate::ipc::commands::ledger::{LocalIndex, conversation};
 use poietica_conversation::command::Conversation;
 use poietica_conversation::identity::{ThreadId, TurnId};
 use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
 use poietica_conversation::turn::admission::Admission;
 use poietica_kap_client::{ConfigSelection, apply_configurations};
+use poietica_ledger::execution::{read_index, write_index};
 use tauri::{AppHandle, Manager, State, async_runtime};
 use uuid::Uuid;
 
@@ -130,7 +129,7 @@ pub async fn agent_prompt(
     // 库操作只有一条路。它在阻塞线程池上，所以这一次写不会停住这个运行时上
     // 别的东西 —— 包括 agent driver 的 future，它就在这里 spawn 的。
     write_index(&index, move |store| {
-        store.record_prompt(thread_id, &opener).map_err(persistence)
+        store.record_prompt(thread_id, &opener).map_err(Error::from)
     })
     .await?;
 
@@ -152,7 +151,7 @@ pub async fn agent_prompt(
             for attachment in &attachments {
                 store
                     .remember_attachment(thread_id, attachment)
-                    .map_err(persistence)?;
+                    .map_err(Error::from)?;
             }
 
             Ok(())
@@ -364,7 +363,7 @@ async fn held_session(
     missing: &str,
 ) -> AgentCommandResult<String> {
     let id = conversation(thread_id)?;
-    let stored = read_index(index, move |store| store.thread(id).map_err(persistence)).await?;
+    let stored = read_index(index, move |store| store.thread(id).map_err(Error::from)).await?;
 
     stored
         .and_then(|thread| {

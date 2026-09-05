@@ -3,6 +3,7 @@
  * 文件读得出来的事实，而不是一次通配符展开的副作用。
  */
 
+export type { Automation } from '@poietica/contract/automation'
 export {
   type AutomationDraft,
   BLANK_DRAFT,
@@ -27,7 +28,6 @@ export {
 export type { AutomationGateway } from './automation-gateway'
 export type { AutomationDispatch } from './automation-store'
 export { type AutomationStore, createAutomationStore } from './automation-store'
-export type { Automation } from './model'
 export {
   AUTOMATION_CATEGORIES,
   AUTOMATION_TEMPLATES,

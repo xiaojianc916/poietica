@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import type { ImportRecord } from './imports.ts'
 import {
   CARGO_RINGS,
+  DOMAIN_CONTRACT_IMPORTS,
   FORBIDDEN_DIRECTORY_NAMES,
   FRAMEWORK_FREE_PACKAGES,
   FRAMEWORK_SPECIFIERS,
@@ -319,7 +320,7 @@ export function nativeAccessIsDeclared(
       violations.push({
         policy: 'native-access-is-declared',
         where: record.file,
-        detail: `${owner.name} 未登记为允许触碎原生层的包`,
+        detail: `${owner.name} 未登记为允许触碰原生层的包`,
       })
     }
   }
@@ -327,41 +328,43 @@ export function nativeAccessIsDeclared(
   return violations
 }
 
-/** 生成传输契约只允许桥消费；领域与组合层都不得认识它。 */
+/** Runtime transport stays private; declared domain contracts admit only erased type edges. */
 export function transportContractIsAdapterPrivate(
   imports: readonly ImportRecord[],
   workspaces: readonly Workspace[],
 ): Violation[] {
-  const allowed = new Set(['@poietica/contract', '@poietica/native-bridge'])
+  const runtimeConsumers = new Set(['@poietica/contract', '@poietica/native-bridge'])
   const violations: Violation[] = []
-
   for (const workspace of workspaces) {
     if (
-      !allowed.has(workspace.name) &&
+      !runtimeConsumers.has(workspace.name) &&
+      DOMAIN_CONTRACT_IMPORTS[workspace.name] === undefined &&
       workspace.manifest.dependencies?.['@poietica/contract'] !== undefined
     ) {
       violations.push({
         policy: 'transport-contract-is-adapter-private',
         where: `${workspace.directory}/package.json`,
-        detail: `${workspace.name} 在 manifest 中依赖传输契约`,
+        detail: 'Undeclared domain contract dependency.',
       })
     }
   }
-
   for (const record of imports) {
     if (packageOf(record.specifier) !== '@poietica/contract') {
       continue
     }
     const owner = ownerOf(record.file, workspaces)
-    if (owner !== undefined && !allowed.has(owner.name)) {
+    if (owner === undefined || runtimeConsumers.has(owner.name)) {
+      continue
+    }
+    const publicContract = DOMAIN_CONTRACT_IMPORTS[owner.name]
+    if (record.typeOnly !== true || record.specifier !== publicContract) {
       violations.push({
         policy: 'transport-contract-is-adapter-private',
         where: record.file,
-        detail: `${owner.name} 绕过领域端口直连传输契约`,
+        detail: 'Only the declared type-only domain contract may cross this boundary.',
       })
     }
   }
-
   return violations
 }
 

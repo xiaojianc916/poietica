@@ -60,3 +60,19 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<poietica_ledger::LedgerError> for Error {
+    fn from(error: poietica_ledger::LedgerError) -> Self {
+        log::error!("the local index rejected a statement: {error}");
+        Self::Persistence(error.to_string())
+    }
+}
+
+impl From<poietica_ledger::execution::IndexError> for Error {
+    fn from(error: poietica_ledger::execution::IndexError) -> Self {
+        match error {
+            poietica_ledger::execution::IndexError::Storage(cause) => Self::from(cause),
+            cause => Self::Internal(cause.to_string()),
+        }
+    }
+}
