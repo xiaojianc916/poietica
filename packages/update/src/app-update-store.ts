@@ -52,7 +52,9 @@ export class AppUpdateStore {
   readonly #store = createExternalStore<AppUpdateState>({ read: () => this.#state })
 
   /** 「已是最新」那句回话的收场计时器。相位由 #commit 一处写，它也在那里作废。 */
-  #clearing: number | null = null
+  #clearing: ReturnType<typeof globalThis.setTimeout> | null = null
+  #disposed = false
+  #stop: (() => void) | null = null
 
   constructor(
     controller: AppUpdateController,
@@ -75,6 +77,12 @@ export class AppUpdateStore {
    * 双次装载不会把它弄哑。要不要检查是调用方的决定，这里无条件执行。
    */
   start = (): (() => void) => {
+    if (this.#disposed) {
+      throw new Error('AppUpdateStore is disposed.')
+    }
+    if (this.#stop !== null) {
+      return this.#stop
+    }
     let active = true
 
     const check = async (): Promise<void> => {
@@ -107,19 +115,21 @@ export class AppUpdateStore {
       this.#commit({ phase: 'available', version: release.version })
     }
 
-    const first = window.setTimeout(() => {
+    const first = globalThis.setTimeout(() => {
       void check()
     }, FIRST_CHECK_DELAY_MS)
 
-    const repeat = window.setInterval(() => {
+    const repeat = globalThis.setInterval(() => {
       void check()
     }, CHECK_EVERY_MS)
 
-    return () => {
+    this.#stop = () => {
       active = false
-      window.clearTimeout(first)
-      window.clearInterval(repeat)
+      globalThis.clearTimeout(first)
+      globalThis.clearInterval(repeat)
+      this.#stop = null
     }
+    return this.#stop
   }
 
   /**
@@ -129,7 +139,19 @@ export class AppUpdateStore {
    * 安静（离线是常态），这一条必须回话 —— 没有新版本也是答案，所以它是一个相位。
    * 隐私设置管的是「自动去问」，一次点击本身就是这一次的同意。
    */
+  dispose = (): void => {
+    this.#disposed = true
+    this.#stop?.()
+    if (this.#clearing !== null) {
+      globalThis.clearTimeout(this.#clearing)
+      this.#clearing = null
+    }
+  }
+
   check = (): void => {
+    if (this.#disposed) {
+      return
+    }
     const phase = this.#state.phase
 
     if (phase === 'checking' || phase === 'downloading' || phase === 'ready') {
@@ -141,13 +163,13 @@ export class AppUpdateStore {
     void this.#controller.check().then(
       (release) => {
         /* 这中间相位可能已经被别的事推走了：还停在 checking 这句答复才算数。 */
-        if (this.#state !== CHECKING) {
+        if (this.#disposed || this.#state !== CHECKING) {
           return
         }
 
         if (release === null) {
           this.#commit(LATEST)
-          this.#clearing = window.setTimeout(() => {
+          this.#clearing = globalThis.setTimeout(() => {
             this.#commit(IDLE)
           }, LATEST_SHOWN_MS)
 
@@ -157,7 +179,9 @@ export class AppUpdateStore {
         this.#commit({ phase: 'available', version: release.version })
       },
       (cause: unknown) => {
-        this.#onFailure('check-update', cause)
+        if (!this.#disposed) {
+          this.#onFailure('check-update', cause)
+        }
         this.#commit(IDLE)
       },
     )
@@ -165,6 +189,9 @@ export class AppUpdateStore {
 
   /** 开始下载。相位本身就是那道闸：只有 available 能起步。 */
   download = (): void => {
+    if (this.#disposed) {
+      return
+    }
     const current = this.#state
 
     if (current.phase !== 'available') {
@@ -184,7 +211,9 @@ export class AppUpdateStore {
           this.#commit({ phase: 'ready', version })
         },
         (cause: unknown) => {
-          this.#onFailure('download-update', cause)
+          if (!this.#disposed) {
+            this.#onFailure('download-update', cause)
+          }
 
           /* 退回可点状态：这枚胶囊本身就是重试入口，下一轮检查会纠正版本。 */
           this.#commit({ phase: 'available', version })
@@ -194,12 +223,14 @@ export class AppUpdateStore {
 
   /** 装上并重启。正常路径上进程会在这之前就被接管。 */
   relaunch = (): void => {
-    if (this.#state.phase !== 'ready') {
+    if (this.#disposed || this.#state.phase !== 'ready') {
       return
     }
 
     void this.#controller.relaunch().catch((cause: unknown) => {
-      this.#onFailure('install-update', cause)
+      if (!this.#disposed) {
+        this.#onFailure('install-update', cause)
+      }
 
       /*
        * 安装失败即那份字节已经被消耗，原生侧的暂存态是空的：留在 ready 只会让下一
@@ -232,12 +263,12 @@ export class AppUpdateStore {
 
   #commit(next: AppUpdateState): void {
     /* 引用没变就不是变化：IDLE 是同一个对象，重复提交不该惊动订阅者。 */
-    if (next === this.#state) {
+    if (this.#disposed || next === this.#state) {
       return
     }
 
     if (this.#clearing !== null) {
-      window.clearTimeout(this.#clearing)
+      globalThis.clearTimeout(this.#clearing)
       this.#clearing = null
     }
 

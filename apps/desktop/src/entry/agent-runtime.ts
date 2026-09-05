@@ -55,6 +55,7 @@ export function createDesktopAgentRuntime(
   options: DesktopAgentRuntimeOptions,
 ): DesktopAgentRuntime {
   let disposed = false
+  let disposing: Promise<void> | null = null
 
   /*
    * 拉起 agent 之前先等 mcp.json 对齐到本次启动的端口：kap 在进程起来那一刻读它。
@@ -79,10 +80,17 @@ export function createDesktopAgentRuntime(
     }
   }
 
+  const requireActive = (): void => {
+    if (disposed) {
+      throw new DOMException('Agent runtime stopped.', 'AbortError')
+    }
+  }
   const launchAgent = async () => {
+    requireActive()
     await options.mcpReady()
+    requireActive()
     await ensureModelMetadata()
-
+    requireActive()
     return { agentId: agent.id }
   }
 
@@ -170,7 +178,7 @@ export function createDesktopAgentRuntime(
   let seeded = false
 
   const seedDefaultModel = (): void => {
-    if (seeded) {
+    if (disposed || seeded) {
       return
     }
 
@@ -178,11 +186,14 @@ export function createDesktopAgentRuntime(
 
     void firstUsableModel(options.modelCatalog)
       .then(async (alias) => {
-        if (alias !== undefined) {
+        if (!disposed && alias !== undefined) {
           await options.modelCatalog.mutate({ kind: 'setDefault', modelId: alias })
         }
       })
       .catch((cause: unknown) => {
+        if (disposed) {
+          return
+        }
         seeded = false
 
         reportError('default model seeding failed', {
@@ -276,22 +287,20 @@ export function createDesktopAgentRuntime(
     sessionUsage,
     permissionPosture,
     capabilities,
-    async dispose() {
-      if (disposed) {
-        return
+    dispose() {
+      if (disposing !== null) {
+        return disposing
       }
-
       disposed = true
-
-      try {
-        await shutdownAgent()
-      } catch (cause: unknown) {
+      disposing = shutdownAgent().catch((cause: unknown) => {
         reportError('agent shutdown failed', {
           scope: 'agent-runtime',
           operation: 'shutdown',
           cause,
         })
-      }
+        throw cause
+      })
+      return disposing
     },
   }
 }

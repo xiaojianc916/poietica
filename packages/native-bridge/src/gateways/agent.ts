@@ -26,13 +26,9 @@ import type {
   TranscriptCatchUp,
   TranscriptPage,
 } from '@poietica/conversation'
-import type { TranscriptOperation } from '@poietica/transcript'
-import {
-  transcriptOpsCatchupResponseSchema,
-  transcriptOpsPayloadSchema,
-  transcriptResponseSchema,
-} from '@poietica/transcript'
+import { transcriptOpsCatchupResponseSchema, transcriptResponseSchema } from '@poietica/transcript'
 import { throughIpc } from '../error'
+import { decodeTranscriptEvent } from './transcript-event'
 
 /**
  * The desktop implementation of the ports the feature layer declares.
@@ -101,7 +97,19 @@ function subscribeToEvent<TPayload>(
   let cancelled = false
   let stop: (() => void) | null = null
 
-  void listen(handler)
+  void Promise.resolve()
+    .then(() =>
+      listen((payload) => {
+        if (cancelled) {
+          return
+        }
+        try {
+          handler(payload)
+        } catch (cause) {
+          onListenFailure?.(cause)
+        }
+      }),
+    )
     .then((unlisten) => {
       if (cancelled) {
         unlisten()
@@ -111,7 +119,9 @@ function subscribeToEvent<TPayload>(
       stop = unlisten
     })
     .catch((error: unknown) => {
-      onListenFailure?.(error)
+      if (!cancelled) {
+        onListenFailure?.(error)
+      }
     })
 
   return () => {
@@ -209,27 +219,16 @@ export function createAgentSessionPort({
         subscribeToEvent<AgentTranscriptEvent>(
           (receive) => events.agentTranscriptEvent.listen((event) => receive(event.payload)),
           (wire) => {
-            const envelope = JSON.parse(wire.json) as { type?: unknown; payload?: unknown }
-            /* zod 推断的可选格带 | undefined，与 exactOptionalPropertyTypes 的
-          端口类型差一格；parse 已验证形状，这里按官方接口收口。 */
-            if (envelope.type === 'transcript.ops') {
-              const data = transcriptOpsPayloadSchema.parse(envelope.payload)
-              listener({
-                kind: 'ops',
-                sessionId: wire.sessionId,
-                agentId: data.agent_id,
-                seq: data.seq ?? 0,
-                ops: data.ops as readonly TranscriptOperation[],
-              })
+            const decoded = decodeTranscriptEvent(wire)
+            if (decoded.ok) {
+              listener(decoded.signal)
               return
             }
-            /* REST is the only full transcript snapshot source. */
+            onListenFailure?.(decoded.error)
             listener({
               kind: 'resync',
               sessionId: wire.sessionId,
-              reason: String(
-                (envelope.payload as { reason?: unknown } | undefined)?.reason ?? 'resync_required',
-              ),
+              reason: 'invalid transcript event',
             })
           },
           onListenFailure,

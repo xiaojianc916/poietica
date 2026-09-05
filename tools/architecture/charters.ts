@@ -2,7 +2,7 @@
 
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
-
+import { valueBindingsOf } from './imports.ts'
 import { CARGO_RINGS, UNLAYERED_DIRECTORIES } from './layering.ts'
 import type { Violation } from './policies.ts'
 import type { Crate, Workspace } from './workspace.ts'
@@ -609,30 +609,34 @@ export function domainCratesAreReachable(crates: readonly Crate[]): Violation[] 
     }))
 }
 
-/** 进程级可变状态必须由组合根构造并持有。 */
+/** JSX modules consume application owners through types and injected values. */
 export async function processStateIsComposedAtRoot(root: string): Promise<Violation[]> {
-  /*
-   * 点到的是应用级运行时器（插件/自动化），它们由组合根构造并注入。
-   * 组合根之外的模块级单例，若只是库或外壳局部资源的持有者 ——　失败去重协调
-   * （packages/problem/failure-coordinator）、外壳几何布局
-   * （shell/workspace-layout-store）、适配器工厂内部缓存
-   * （native-bridge 的 native-window）—— 不属于「必须组合到应用根」的进程态，不在此列。
-   */
-  const declarations = [
-    ['apps/desktop/src/entry/automation-dispatcher.tsx', 'export const automationStore ='],
-  ] as const
+  const owners = new Map<string, ReadonlySet<string>>([
+    [
+      '@poietica/conversation',
+      new Set(['TranscriptStore', 'ThreadsStore', 'SessionControlsStore', 'AgentCapabilityStore']),
+    ],
+    ['@poietica/update', new Set(['AppUpdateStore'])],
+    ['@poietica/automation', new Set(['createAutomationStore'])],
+    ['@poietica/extension', new Set(['createPluginStore'])],
+  ])
   const violations: Violation[] = []
-
-  for (const [file, declaration] of declarations) {
-    if ((await readFile(path.join(root, file), 'utf8')).includes(declaration)) {
-      violations.push({
-        policy: 'process-state-is-composed-at-root',
-        where: file,
-        detail: `进程级实例在组合根之外创建：${declaration}`,
-      })
+  const files = await walk(root, ['apps', 'packages'], ['.tsx'])
+  for (const file of files) {
+    if (file.includes('/__tests__/') || file.endsWith('.test.tsx') || file.endsWith('.spec.tsx')) {
+      continue
+    }
+    for (const binding of valueBindingsOf(file, await readFile(path.join(root, file), 'utf8'))) {
+      const declared = owners.get(binding.specifier)
+      if (declared !== undefined && (binding.name === '*' || declared.has(binding.name))) {
+        violations.push({
+          policy: 'process-state-is-composed-at-root',
+          where: file,
+          detail: `JSX must receive application stores from the composition root: ${binding.name}`,
+        })
+      }
     }
   }
-
   return violations
 }
 

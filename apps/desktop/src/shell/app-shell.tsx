@@ -1,19 +1,14 @@
 import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/assistant'
-import type { SessionControlsFailureReport } from '@poietica/conversation'
-import { AgentCapabilityStore } from '@poietica/conversation'
-import type { PluginsViewModel } from '@poietica/extension'
 import type { MainWindowController } from '@poietica/native-bridge'
 import { failureCoordinator } from '@poietica/problem'
 import type { KeybindingCatalog, KeybindingEntry } from '@poietica/settings'
-import { type AppUpdateOperation, AppUpdateStore } from '@poietica/update'
 import type { CommandRegistry } from '@poietica/workspace'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ConversationCommands } from '../assistant/conversation-commands'
 import { ThreadsProvider } from '../assistant/threads-provider'
-import { AutomationDispatcher } from '../entry/automation-dispatcher'
 import type { ApplicationRuntime } from '../entry/compose-runtime'
 import { NoticeRegion } from '../notice/notice-region'
-import { type ApplicationFailureCode, reportFailure } from '../notice/problem-presentation'
+import { reportFailure } from '../notice/problem-presentation'
 import { UpdateCapsule } from '../update/update-capsule'
 import { UpdateRow } from '../update/update-row'
 import { useWindowChrome } from '../window/use-window-chrome'
@@ -25,24 +20,8 @@ import {
 import { WorkspaceContainer } from './workspace-container'
 import { workspaceLayoutStore } from './workspace-layout-store'
 
-/*
- * 开发构建不检查更新：开发跑的版本号来自工作区，任何已发布版本都比它新，结果是
- * 每六小时提示一次一个装不上的更新。这个判断是构建期常量，放在模块级，生产构建
- * 里整个分支会被直接消掉；native-bridge 是适配层，不该知道自己被谁怎么打包。
- */
-const CHECKS_UPDATES = !import.meta.env.DEV
-/* 三个动作三句话：一次检查失手不该顶着「更新没能下载完成」上屏。 */
-const UPDATE_FAILURE_CODES = {
-  'check-update': 'UPDATE_CHECK_FAILED',
-  'download-update': 'UPDATE_DOWNLOAD_FAILED',
-  'install-update': 'UPDATE_INSTALL_FAILED',
-} as const satisfies Record<AppUpdateOperation, ApplicationFailureCode>
-
-/* 拆掉 runtime 是启动期的事，不属于界面：这里只把那一柄拿掉。 */
-type AppShellRuntime = ApplicationRuntime
-
 interface AppShellProps {
-  readonly runtime: AppShellRuntime
+  readonly runtime: ApplicationRuntime
 }
 
 export function AppShell({ runtime }: AppShellProps) {
@@ -69,41 +48,8 @@ export function AppShell({ runtime }: AppShellProps) {
   const canOpenSettings = !degraded.has('settings')
   const canOpenDeveloperTools = !degraded.has('developer-tools')
 
-  /*
-   * 更新状态在这里落地，一个进程一份：菜单里那一行只是投影，菜单每次开合都是一次
-   * 卸载重挂，状态不能待在它身上。
-   */
-  /*
-   * 用 useState 的初始化函数，不是 useMemo。
-   *
-   * useMemo 是性能优化，React 允许丢弃缓存重算；这个 store 有身份（start() 返回
-   * 退订），丢一次缓存就多一个实例、多一份订阅，「一个进程一份」当场失效。
-   * runtime 由 bootstrap 造一次并作为 prop 传进来（见 entry/mount.tsx），
-   * 原来的依赖数组本就永不变化，所以这是等价替换，且拿到了创建一次的保证。
-   */
-  const [updates] = useState(
-    () =>
-      new AppUpdateStore(
-        runtime.appUpdate,
-        () =>
-          runtime.settings
-            .load()
-            .then((loaded) => loaded.privacy.updateCheck)
-            .catch(() => false),
-        (operation, cause) => {
-          reportFailure(UPDATE_FAILURE_CODES[operation], { cause, operation, scope: 'app-update' })
-        },
-      ),
-  )
-
-  /* 订阅与退订成对交给 effect，与 ThreadsStore.start 同一条纪律。 */
-  useEffect(() => {
-    if (!CHECKS_UPDATES) {
-      return undefined
-    }
-
-    return updates.start()
-  }, [updates])
+  const updates = runtime.updates
+  const agentControls = runtime.conversation.capabilities
 
   const toggleCommandPalette = useCallback(() => {
     setCommandPaletteOpen((open) => !open)
@@ -154,113 +100,6 @@ export function AppShell({ runtime }: AppShellProps) {
     [commandContext, runtime.commands],
   )
 
-  /*
-   * 这一家 agent 提供哪些可调项，一个进程一份。
-   *
-   * useState 的初始化函数，不是 useMemo：useMemo 是性能优化，React 允许丢弃缓存
-   * 重算，而这台 store 有身份（start() 返回退订），丢一次缓存就多一个实例、多一份
-   * 订阅。理由与上面那台更新 store 逐字相同。
-   *
-   * 读不到和改不动分开报：一次被拒的改动顶着「没能读到可用的模型，去看看密钥填了
-   * 没有」上屏，唯一的效果是让人去检查一把本来就是对的钥匙。这两个回调是给日志与
-   * 降级用的；屏幕上那一格读的是 store 快照里的 failure，因为它要能被再试一次。
-   */
-  const [agentControls] = useState(
-    () =>
-      new AgentCapabilityStore({
-        posture: runtime.agent.permissionPosture,
-
-        report: {
-          readFailed: (cause) => {
-            reportFailure('AGENT_CAPABILITIES_UNREADABLE', {
-              scope: 'app-shell',
-              operation: 'read-capabilities',
-              cause,
-            })
-          },
-
-          changeFailed: (cause) => {
-            reportFailure('AGENT_CONFIG_CHANGE_REJECTED', {
-              scope: 'app-shell',
-              operation: 'change-capability',
-              cause,
-            })
-          },
-        },
-      }),
-  )
-
-  /*
-   * 会话那一侧的失败也走同一条上报路。
-   *
-   * 与上面那台能力表 store 的 report 是同一条规矩：屏幕上那一格读的是各自快照里的
-   * failure（它要能被再试一次），而「因为什么」到这里汇成降级与日志。同一件事在
-   * agent scope 与会话 scope 上不该有两套错误规则。
-   *
-   * 记忆化，因为它是 ThreadsProvider 的 prop：每次渲染换一个对象，等于每次都换掉
-   * 那棵子树的输入。reportFailure 是模块级函数，依赖为空。
-   */
-  const sessionControlsReport = useMemo<SessionControlsFailureReport>(
-    () => ({
-      changeFailed: (cause) => {
-        reportFailure('SESSION_CONFIG_CHANGE_REJECTED', {
-          scope: 'assistant',
-          operation: 'change-session-config',
-          cause,
-        })
-      },
-
-      openFailed: (cause) => {
-        reportFailure('THREAD_REOPEN_FAILED', {
-          scope: 'assistant',
-          operation: 'reopen-thread',
-          cause,
-        })
-      },
-    }),
-    [],
-  )
-
-  /*
-   * 端口与重问的通知同源同寿，所以它们是同一个 effect 的一次装载与一次清理。装载
-   * 几次就退订几次，不可能配不平 —— 与 ThreadsStore.start 同一条纪律。
-   */
-  useEffect(() => {
-    const stop = agentControls.start(runtime.agent.capabilities())
-
-    const stopWatchingConfig = runtime.agentConfig.subscribeConfigChanged(agentControls.refresh)
-
-    return () => {
-      stopWatchingConfig()
-      stop()
-    }
-  }, [agentControls, runtime.agent, runtime.agentConfig])
-
-  /*
-   * 技能写进 skills/ 之后（装、卸、开关），让名册重问一次：名册只回答这个会话装载了
-   * 没有，而写路径只改目录不改名册 —— 不重问，能力表就停在旧账上。
-   *
-   * 订的是快照里本机名单的引用：写失败不动名单，也就不触发重问。首扫那一次只记
-   * 基线 —— 名册自己的首读在 start() 里，不缺这一次。
-   */
-  useEffect(() => {
-    let seen: PluginsViewModel['ownedSkills'] | undefined
-
-    return runtime.pluginStore.subscribe(() => {
-      const owned = runtime.pluginStore.getSnapshot().ownedSkills
-
-      if (seen !== undefined && owned !== seen) {
-        agentControls.refresh()
-      }
-
-      seen = owned
-    })
-  }, [agentControls, runtime.pluginStore])
-
-  /*
-   * 目录一个进程一份，理由与上面两台 store 逐字相同：useState 的初始化函数给
-   * 的是"创建一次"的保证，useMemo 只是性能优化，React 允许丢弃缓存重算。
-   */
   const [keybindings] = useState(() => createKeybindingCatalog(runtime.commands))
 
   useCommandKeybindings(runtime.commands)
@@ -276,18 +115,7 @@ export function AppShell({ runtime }: AppShellProps) {
      */
     <AttachmentIntakeContext value={runtime.attachments}>
       <AgentControlsContext value={agentControls}>
-        <ThreadsProvider agent={runtime.agent} report={sessionControlsReport}>
-          {/*
-           * 无渲染产出，只是让「到期时做什么」与应用同寿；表本身在原生侧走。放在
-           * ThreadsProvider 之内是硬要求：一次运行要开出一条对话，而开对话的动作出
-           * 自这个 provider。
-           */}
-          <AutomationDispatcher
-            own={runtime.own}
-            session={runtime.agent.session}
-            store={runtime.automationStore}
-          />
-
+        <ThreadsProvider conversation={runtime.conversation}>
           {/*
           同样无渲染产出：把会话列表贡献进命令注册表，于是搜索框里第一组就是
           「聊天」。必须在 ThreadsProvider 之内 —— 它读的就是那份列表。

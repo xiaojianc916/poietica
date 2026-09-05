@@ -37,7 +37,7 @@ impl AgentGateway for KapGateway {
             .map_err(|error| refusal(format!("the thread id is not a uuid: {error}")))?;
         let carried = self
             .materialise(admission, &delivery.session)
-            .map_err(|error| refusal(error.clone()))?;
+            .map_err(refusal)?;
         let skills = admission
             .skills
             .iter()
@@ -81,10 +81,7 @@ fn refusal(reason: String) -> GatewayFailure {
 }
 
 impl KapGateway {
-    /// 把准入冻结的附件引用重建为协议载荷。
-    ///
-    /// 缺字节的那一张跳过而不挡整句：显示其余的部分与打开旧对话时的同一条
-    /// 规矩（attachment.rs 的 deliver_attachments），缺的那张由日志记账。
+    /// Frozen attachments are all-or-nothing; never silently change a submitted prompt.
     fn materialise(
         &self,
         admission: &Admission,
@@ -98,8 +95,7 @@ impl KapGateway {
             let bytes = match std::fs::read(&path) {
                 Ok(bytes) => bytes,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                    log::warn!("an attachment's bytes are missing at delivery: {reference:?}");
-                    continue;
+                    return Err("an attachment is missing; the prompt was not delivered".to_owned());
                 }
                 Err(error) => return Err(error.to_string()),
             };
@@ -119,8 +115,9 @@ impl KapGateway {
                     .to_owned();
                 PromptAttachment::Text { text, url }
             } else {
-                log::warn!("an attachment of this kind cannot be delivered: {reference:?}");
-                continue;
+                return Err(
+                    "an attachment type cannot be delivered; the prompt was not sent".to_owned(),
+                );
             };
 
             carried.push(prompt);

@@ -159,8 +159,9 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
      * 不该被一个装着函数的局部变量占着。
      */
     const invoke = dispatch
+    const owner = activeOwner
 
-    if (invoke === null || inFlight.has(automation.id)) {
+    if (owner === null || invoke === null || inFlight.has(automation.id)) {
       return
     }
 
@@ -170,38 +171,30 @@ export function createAutomationStore(gateway: AutomationGateway): AutomationSto
     let result: AutomationDispatchResult = { threadId: null, outcome: 'failed' }
 
     try {
-      result = await invoke(automation)
-    } catch (cause: unknown) {
-      warn('自动化这次没有跑起来', { scope: 'automations', cause })
+      try {
+        result = await invoke(automation)
+      } catch (cause: unknown) {
+        if (activeOwner === owner) {
+          warn('自动化这次没有跑起来', { scope: 'automations', cause })
+        }
+      }
+      if (activeOwner !== owner) {
+        return
+      }
+      const run: AutomationRun = {
+        threadId: result.threadId,
+        startedAt,
+        outcome: result.outcome,
+      }
+      const anchor = automation.nextRunAt
+      const reschedule: AutomationReschedule =
+        origin === 'schedule' && anchor !== null
+          ? { kind: 'advance', from: anchor, to: nextRunAfter(automation.schedule, Date.now()) }
+          : { kind: 'keep' }
+      await command(() => gateway.recordRun({ id: automation.id, run, reschedule }))
     } finally {
       inFlight.delete(automation.id)
     }
-
-    /* 运行结果只由 agent turn 的终帧决定；thread 创建不是成功。 */
-    const run: AutomationRun = {
-      threadId: result.threadId,
-      startedAt,
-      outcome: result.outcome,
-    }
-
-    /*
-     * from 只用来比对，不参与算下一次：cron 表达式自己就是相位，下一次落在哪里
-     * 与这一次跑了多久无关。
-     *
-     * 「运行期间日程有没有被人动过」这一问不在这里回答：这里手上只有一份可能已经
-     * 过时的副本，拿副本比副本等于没比。from 送过去，由持有真相的那一侧比对。
-     */
-    const anchor = automation.nextRunAt
-    const reschedule: AutomationReschedule =
-      origin === 'schedule' && anchor !== null
-        ? {
-            kind: 'advance',
-            from: anchor,
-            to: nextRunAfter(automation.schedule, Date.now()),
-          }
-        : { kind: 'keep' }
-
-    void command(() => gateway.recordRun({ id: automation.id, run, reschedule }))
   }
 
   return {

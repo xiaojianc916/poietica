@@ -54,6 +54,8 @@ export class ThreadsStore {
   readonly #port: ThreadPort | undefined
 
   #held: Held = EMPTY
+  #disposed = false
+  #revision = 0
 
   #listeners = new Set<() => void>()
 
@@ -105,6 +107,15 @@ export class ThreadsStore {
   constructor({ defaultWorkspaceId, port }: ThreadsStoreOptions) {
     this.#port = port
     this.#defaultWorkspaceId = defaultWorkspaceId
+  }
+
+  dispose = (): void => {
+    this.#disposed = true
+    this.#revision += 1
+    this.#listeners.clear()
+    this.#opened.clear()
+    this.#removed.clear()
+    this.#roots.clear()
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -162,6 +173,10 @@ export class ThreadsStore {
   standInTitle = (message: string): string => shorten(message)
 
   refresh = async (): Promise<void> => {
+    if (this.#disposed) {
+      return
+    }
+    const revision = ++this.#revision
     const port = this.#port
 
     if (port === undefined) {
@@ -172,6 +187,9 @@ export class ThreadsStore {
 
     try {
       const found = await port.list()
+      if (this.#disposed || revision !== this.#revision) {
+        return
+      }
 
       /* 平台认下的行自带工作目录，本地那份替身到此为止。 */
       for (const thread of found) {
@@ -180,6 +198,9 @@ export class ThreadsStore {
 
       this.#commit({ threads: found, failure: null, isLoading: false })
     } catch (reason) {
+      if (this.#disposed || revision !== this.#revision) {
+        return
+      }
       this.#commit({ failure: describeFailure(reason), isLoading: false })
     }
   }
@@ -198,7 +219,13 @@ export class ThreadsStore {
       return null
     }
 
+    if (this.#disposed) {
+      return null
+    }
     const opened = await port.create(threadId, workspaceRoot)
+    if (this.#disposed) {
+      return null
+    }
 
     if (opened.thread.threadId !== threadId) {
       throw new Error('The platform returned a different conversation identity.')
@@ -465,6 +492,9 @@ export class ThreadsStore {
   }
 
   #commit(patch: Partial<Held>): void {
+    if (this.#disposed) {
+      return
+    }
     const next: Held = { ...this.#held, ...patch }
 
     /*

@@ -62,38 +62,7 @@ export interface SessionControlsOptions {
   readonly usage?: SessionUsagePort | undefined
 }
 
-/**
- * 每条对话背后那个会话提供哪些可调项，以及每一项此刻生效的是什么。
- *
- * 权威只有一个，就是 agent。这里存的是它最近一次为那条会话报的原话：三条路
- * （open 的答复、set_config 的答复、agent 主动上报）汇进同一个 #remember，屏幕
- * 画的就是它。没有投影，没有影子值，也没有"显示值"与"实际值"两格 —— 那两格一旦
- * 分开，屏幕上写甲而会话里跑乙就成了合法状态。
- *
- * ACP 把配置定义成会话级的：session/new、session/load、session/set_config_option、
- * 以及 session/update 的 config_option_update 全部按 sessionId 寻址，而 session/new
- * 不带任何配置参数。所以"上次选的那个批准方式"不可能由协议自己带过来，只能由这一
- * 层在一张表到达时补发一次：补的值就是用户自己上次按下的那一颗（意图由
- * PermissionPosturePort 持有），同一个意图只补一次，agent 没提供的档位不补。
- *
- * 模型不在此列。它的持久位置是 agent 自己的 config.toml（default_model），由 agent
- * 开会话时读，这一层不碰。
- *
- * 下发按对话串行。ACP 规定改一项可能增删另一项（见 ./agent 的 config.ts，
- * 以及原生侧 commands.rs 的 select 文档），所以同一条会话上的两次改动必须分先后：
- * 后一次要用前一次的答复当判据。
- *
- * 串行管不到 agent 自己说话那一条。答复与推送是两条并发的到达，先后因此由
- * ArrivalOrder 定，而不由落地顺序定 —— 后发的那一问才是最新的问题，先回来的那
- * 张表答的是上一个。
- *
- * 依赖全部构造时交进来：端口、配置、批准意图、转录。这台 store 因此可以在没有任何
- * 进程单例的情况下被单独构造。
- *
- * 自己的订阅由 subscribe 交出去，不借别人那一条：一条对话的记录（名字、活动时间、
- * 置顶）和它背后那个会话是两份互不相交的状态，读者也是两批 —— 侧栏与标签读前者，
- * 输入框旁的选择器读后者。合用一条通知，代价是任何一侧变化都叫醒另一侧的全部读者。
- */
+/** Owns session controls and their command ordering; the agent remains authoritative. */
 export class SessionControlsStore {
   readonly #port: ThreadPort | undefined
 
@@ -110,6 +79,7 @@ export class SessionControlsStore {
   readonly #usage: SessionUsagePort | undefined
 
   #held: Held = EMPTY
+  #disposed = false
 
   /* 问过的对话不再问第二遍：重读是显式动作，不是渲染的副作用。 */
   #asked = new Set<string>()
@@ -160,26 +130,39 @@ export class SessionControlsStore {
     }
   }
 
-  /**
-   * 开始听 agent 自己说话，并交回停下来的办法。
-   *
-   * 订阅与退订成对地交给 effect，是 React 对这件事自己的答案：装载几次就订阅几次、
-   * 退订几次，不可能配不平。放在构造函数里则配不平 —— store 由 useState 造，开发
-   * 模式下的装载/卸载/再装载会把订阅退掉，而构造函数不会跑第二遍。
-   */
   start = (): (() => void) => {
-    const stop = this.#config?.subscribe((report) => {
-      this.#reported(report)
-    })
-
-    const stopUsage = this.#usage?.subscribe((report) => {
-      this.#usageReported(report)
-    })
-
-    return () => {
-      stop?.()
-      stopUsage?.()
+    if (this.#disposed) {
+      throw new Error('SessionControlsStore is disposed.')
     }
+    let active = true
+    const stop = this.#config?.subscribe((report) => {
+      if (active && !this.#disposed) {
+        this.#reported(report)
+      }
+    })
+    const stopUsage = this.#usage?.subscribe((report) => {
+      if (active && !this.#disposed) {
+        this.#usageReported(report)
+      }
+    })
+    return () => {
+      active = false
+      try {
+        stop?.()
+      } finally {
+        stopUsage?.()
+      }
+    }
+  }
+
+  dispose = (): void => {
+    this.#disposed = true
+    this.#asked.clear()
+    this.#inflight.clear()
+    this.#order.clear()
+    this.#alignedTo.clear()
+    this.#listeners.clear()
+    this.#held = EMPTY
   }
 
   /** 这条对话所持有的会话给出的选择器；从没拿到过就是 undefined。 */
@@ -204,6 +187,9 @@ export class SessionControlsStore {
    * 谁后不该被下游看见。
    */
   opened = (answer: OpenedThread): void => {
+    if (this.#disposed) {
+      return
+    }
     const threadId = answer.thread.threadId
 
     this.#hold(answer)
@@ -214,11 +200,6 @@ export class SessionControlsStore {
     this.#remember(threadId, answer.selectors, answer.goal)
   }
 
-  /**
-   * 这条对话不存在了。
-   *
-   * 按对话记的每一格都在这个文件里，所以作废它们的地方也只该有这一个。
-   */
   #snapshot(answer: ThreadSnapshot): void {
     const threadId = answer.thread.threadId
     if (answer.usage !== undefined && !this.#held.usage.has(threadId)) {
@@ -280,6 +261,9 @@ export class SessionControlsStore {
     value: string,
     input?: string,
   ): Promise<SessionControlMutationResult> => {
+    if (this.#disposed) {
+      return Promise.resolve({ ok: false, error: '会话已关闭' })
+    }
     const control = this.#held.selectors.get(threadId)?.find((offered) => offered.id === controlId)
 
     if (control !== undefined && isPermissionPostureChange(control, value)) {
@@ -314,9 +298,12 @@ export class SessionControlsStore {
       return Promise.resolve({ ok: false, error: '会话配置不可用' })
     }
 
+    const order = this.#orderOf(threadId)
     const queued = this.#inflight.get(threadId) ?? Promise.resolve()
     const run = queued.then(async (): Promise<SessionControlMutationResult> => {
-      const order = this.#orderOf(threadId)
+      if (this.#disposed || this.#order.get(threadId) !== order) {
+        return { ok: false, error: '会话已关闭' }
+      }
       const ticket = order.issue()
 
       try {
@@ -326,6 +313,9 @@ export class SessionControlsStore {
         }
         return { ok: true }
       } catch (reason: unknown) {
+        if (this.#disposed || this.#order.get(threadId) !== order) {
+          return { ok: false, error: '会话已关闭' }
+        }
         this.#report?.changeFailed(reason)
         if (this.#order.get(threadId) === order) {
           await this.#reopen(threadId)
@@ -351,6 +341,9 @@ export class SessionControlsStore {
    * 一张已经作废的表出发。
    */
   async #reopen(threadId: string): Promise<void> {
+    if (this.#disposed) {
+      return
+    }
     const port = this.#port
 
     if (port === undefined) {
@@ -520,6 +513,9 @@ export class SessionControlsStore {
    * 没变就不叫：两张表的引用相同意味着这次提交什么都没改，而每一声都是一次重画。
    */
   #commit(patch: Partial<Held>): void {
+    if (this.#disposed) {
+      return
+    }
     const next: Held = { ...this.#held, ...patch }
 
     if (

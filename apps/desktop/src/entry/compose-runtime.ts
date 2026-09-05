@@ -26,33 +26,29 @@ import {
   ModelCatalogStore,
   type SettingsStore,
 } from '@poietica/settings'
-import type { AppUpdateController } from '@poietica/update'
+import { AppUpdateStore } from '@poietica/update'
 import type { WorkbenchSessionStore } from '@poietica/workspace'
 import {
   type CommandRegistry,
   createCommandRegistry,
   createWorkbenchSessionController,
 } from '@poietica/workspace'
+import { v7 as uuidv7 } from 'uuid'
+import { createAutomationDispatch } from '../automation/dispatch'
 import { reportFailure } from '../notice/problem-presentation'
 import { createDesktopAgentRuntime, type DesktopAgentRuntime } from './agent-runtime'
 import { createAttachmentIntake } from './attachment-intake'
 import { reconcileAutomationsMcpServer } from './automations-mcp'
 import { reconcileBrowserMcpServer } from './browser-mcp'
+import { type ConversationRuntime, createConversationRuntime } from './conversation-runtime'
 import { createThemeRuntime, type ThemeRuntime } from './theme-runtime'
-import { activeWorkspaceRoot } from './workspace-root'
+import {
+  activeWorkspaceRoot,
+  defaultWorkspaceId,
+  defaultWorkspaceReady,
+  subscribeDefaultWorkspace,
+} from './workspace-root'
 
-/**
- * 市场目录在哪。
- *
- * 官方那一个：上游 apps/kimi-code/src/constant/app.ts 里
- * KIMI_CODE_PLUGIN_MARKETPLACE_URL = `${KIMI_CODE_CDN_BASE}/plugins/marketplace.json`，
- * 而 KIMI_CODE_CDN_BASE 是 https://code.kimi.com/kimi-code；官方文档
- * docs/{zh,en}/configuration/env-vars.md 把同一串逐字写在
- * KIMI_CODE_PLUGIN_MARKETPLACE_URL 一节里。
- *
- * 不是仓库里那份 plugins/marketplace.json：那一份是源码检出时的兜底，条目写的是相对
- * 本地路径，而且它不随发布走 —— 官方发布了什么，只有 CDN 上那一份说得准。
- */
 const MARKETPLACE_URL = 'https://code.kimi.com/kimi-code/plugins/marketplace.json'
 
 export interface ApplicationRuntime {
@@ -60,7 +56,9 @@ export interface ApplicationRuntime {
   readonly commands: CommandRegistry
   readonly mainWindow: MainWindowController
   readonly theme: ThemeRuntime
-  readonly appUpdate: AppUpdateController
+  readonly updates: AppUpdateStore
+  readonly conversation: ConversationRuntime
+  readonly start: () => void
   readonly settings: SettingsStore
   readonly agentConfig: AgentSettings
   /** 模型目录的唯一持有者：默认模型、provider 与密钥的真身都在 agent 进程，这是它的投影。 */
@@ -85,24 +83,27 @@ export interface ApplicationRuntime {
 export function createApplicationRuntime(restored: string | null): ApplicationRuntime {
   const cleanups: Array<() => void> = []
   let disposed = false
+  let started = false
+  let disposing: Promise<void> | null = null
   const own = (cleanup: () => void): (() => void) => {
     if (disposed) {
       cleanup()
       return () => undefined
     }
-    cleanups.push(cleanup)
     let active = true
-    return () => {
+    const release = () => {
       if (!active) {
         return
       }
       active = false
-      const index = cleanups.indexOf(cleanup)
+      const index = cleanups.indexOf(release)
       if (index >= 0) {
         cleanups.splice(index, 1)
       }
       cleanup()
     }
+    cleanups.push(release)
+    return release
   }
   /*
    * 工作台的唯一真相在 threads.sqlite3 的 workbench_session 那一行；这里拿到的
@@ -150,11 +151,18 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   /* First paint and agent launch share one idempotent gate; only agent launch waits for it. */
   let backgroundServicesReady: Promise<void> | null = null
   const ensureBackgroundServices = (): Promise<void> => {
+    if (disposed) {
+      return Promise.reject(new Error('Application runtime is disposed.'))
+    }
     if (backgroundServicesReady !== null) {
       return backgroundServicesReady
     }
 
     const started = pluginStore.start().then(async () => {
+      if (disposed) {
+        pluginStore.stop()
+        return
+      }
       await Promise.all([
         reconcileAutomationsMcpServer(pluginStore),
         reconcileBrowserMcpServer(pluginStore),
@@ -180,12 +188,97 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     mcpReady: ensureBackgroundServices,
   })
 
+  const conversation = createConversationRuntime({
+    session: agent.session,
+    threads: agent.threads,
+    config: agent.sessionConfig,
+    usage: agent.sessionUsage,
+    posture: agent.permissionPosture,
+    capabilities: agent.capabilities(),
+    workspace: {
+      read: defaultWorkspaceId,
+      ready: defaultWorkspaceReady,
+      subscribe: subscribeDefaultWorkspace,
+    },
+    report: {
+      session: {
+        changeFailed: (cause) => {
+          reportFailure('SESSION_CONFIG_CHANGE_REJECTED', { cause, scope: 'assistant' })
+        },
+        openFailed: (cause) => {
+          reportFailure('THREAD_REOPEN_FAILED', { cause, scope: 'assistant' })
+        },
+      },
+      capability: {
+        readFailed: (cause) => {
+          reportFailure('AGENT_CAPABILITIES_UNREADABLE', { cause, scope: 'assistant' })
+        },
+        changeFailed: (cause) => {
+          reportFailure('AGENT_CONFIG_CHANGE_REJECTED', { cause, scope: 'assistant' })
+        },
+      },
+      workspace: (cause) => {
+        reportFailure('THREAD_REOPEN_FAILED', { cause, scope: 'workspace-refresh' })
+      },
+    },
+  })
+  const updateCodes = {
+    'check-update': 'UPDATE_CHECK_FAILED',
+    'download-update': 'UPDATE_DOWNLOAD_FAILED',
+    'install-update': 'UPDATE_INSTALL_FAILED',
+  } as const
+  const updates = new AppUpdateStore(
+    appUpdate,
+    () => settings.load().then((loaded) => loaded.privacy.updateCheck),
+    (operation, cause) => {
+      reportFailure(updateCodes[operation], { cause, operation, scope: 'app-update' })
+    },
+  )
+  const automationLifetime = new AbortController()
+  const start = (): void => {
+    if (disposed) {
+      throw new Error('Application runtime is disposed.')
+    }
+    if (started) {
+      return
+    }
+    started = true
+    conversation.start()
+    own(agentConfig.subscribeConfigChanged(conversation.capabilities.refresh))
+    let seen = pluginStore.getSnapshot().ownedSkills
+    own(
+      pluginStore.subscribe(() => {
+        const current = pluginStore.getSnapshot().ownedSkills
+        if (current !== seen) {
+          seen = current
+          conversation.capabilities.refresh()
+        }
+      }),
+    )
+    own(
+      automationStore.start(
+        createAutomationDispatch({
+          session: agent.session,
+          threads: conversation.threads,
+          transcripts: conversation.transcripts,
+          createId: uuidv7,
+          signal: automationLifetime.signal,
+        }),
+      ),
+    )
+    if (!import.meta.env.DEV) {
+      own(updates.start())
+    }
+  }
+
   return {
     workspace,
     commands,
     mainWindow,
     theme,
-    appUpdate,
+    updates,
+    conversation,
+    start,
     settings,
     agentConfig,
     modelCatalog,
@@ -199,22 +292,43 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     dataDirectory: readDataDirectory,
     readTokenDays,
     startBackgroundServices: () => {
-      void ensureBackgroundServices()
+      void ensureBackgroundServices().catch((cause: unknown) => {
+        if (!disposed) {
+          reportFailure('AGENT_CAPABILITIES_UNREADABLE', { cause, scope: 'background-services' })
+        }
+      })
     },
 
-    async dispose() {
-      if (disposed) {
-        return
+    dispose() {
+      if (disposing !== null) {
+        return disposing
       }
       disposed = true
-      theme.dispose()
-      for (const cleanup of cleanups.splice(0).reverse()) {
-        cleanup()
-      }
-      pluginStore.stop()
-      modelCatalog.dispose()
-      await appUpdate.dispose()
-      await agent.dispose()
+      disposing = Promise.resolve().then(async () => {
+        const failures: unknown[] = []
+        automationLifetime.abort(new DOMException('Application stopped.', 'AbortError'))
+        const cleanup = [
+          ...cleanups.splice(0).reverse(),
+          conversation.dispose,
+          updates.dispose,
+          () => theme.dispose(),
+          () => pluginStore.stop(),
+          () => modelCatalog.dispose(),
+          () => appUpdate.dispose(),
+          () => agent.dispose(),
+        ]
+        for (const release of cleanup) {
+          try {
+            await release()
+          } catch (cause) {
+            failures.push(cause)
+          }
+        }
+        if (failures.length > 0) {
+          throw new AggregateError(failures, 'Application shutdown was incomplete.')
+        }
+      })
+      return disposing
     },
   }
 }
