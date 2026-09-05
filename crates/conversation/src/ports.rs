@@ -46,35 +46,50 @@ pub trait ConversationLedger {
     fn unresolved_deliveries(&self) -> Result<Vec<Admission>, LedgerUnavailable>;
 }
 
-/// agent 网关：把一轮送到它的会话地址。
-///
-/// 端口形状对准 KAP 的真实调用面（session + 文本 + 附件 + 技能 + 幂等键），
-/// 协议载荷的成形（内容块、skill 激活）是实现方自己的事 —— 领域只冻结意图
-/// 与指派地址。帧不走这里：连接自己的事件流是帧的家。取消不在端口里：它是
-/// 一条会话上的传输动作（与 steer 同族，随帧记账），不参与投递的持久化管线。
+/// 投递端口声明重放能力；没有幂等依据时禁止恢复任务再次发送。
 pub trait AgentGateway {
-    /// 送出一轮。Ok 时收据线在手里：终局（接受/拒绝/未知）由它带回来，
-    /// 等到的人负责 record_delivery。Err = 一个字节都没上 wire，记 rejected 安全。
+    fn can_replay(&self, delivery: &PromptDelivery) -> bool;
+    /// Err 仅表示尚未交给传输层；送出后的结果必须通过收据返回。
     fn deliver(&self, delivery: &PromptDelivery) -> Result<DeliveryReceipt, GatewayFailure>;
 }
 
-/// 一轮送出去之后回到手里的线。阻塞等终局只在专门的收尾任务上做。
-pub struct DeliveryReceipt(std::sync::mpsc::Receiver<DeliveryOutcome>);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeliveryConfirmation {
+    Accepted { prompt_id: String },
+    Rejected { reason: String },
+    Indeterminate { reason: String },
+}
+
+impl DeliveryConfirmation {
+    pub const fn outcome(&self) -> DeliveryOutcome {
+        match self {
+            Self::Accepted { .. } => DeliveryOutcome::Accepted,
+            Self::Rejected { .. } => DeliveryOutcome::Rejected,
+            Self::Indeterminate { .. } => DeliveryOutcome::Indeterminate,
+        }
+    }
+}
+
+pub struct DeliveryReceipt(
+    std::pin::Pin<Box<dyn std::future::Future<Output = DeliveryConfirmation> + Send>>,
+);
 
 impl core::fmt::Debug for DeliveryReceipt {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        formatter.debug_struct("DeliveryReceipt").finish()
+        formatter
+            .debug_struct("DeliveryReceipt")
+            .finish_non_exhaustive()
     }
 }
 
 impl DeliveryReceipt {
-    pub fn new(receiver: std::sync::mpsc::Receiver<DeliveryOutcome>) -> Self {
-        Self(receiver)
+    pub fn new(
+        future: impl std::future::Future<Output = DeliveryConfirmation> + Send + 'static,
+    ) -> Self {
+        Self(Box::pin(future))
     }
 
-    /// 终局。等待方先退场（连接没了、进程在退）时是 None —— 那正是 unknown：
-    /// 发出去没有等到裁决，重启后由 unresolved_deliveries 接上。
-    pub fn settle(self) -> Option<DeliveryOutcome> {
-        self.0.recv().ok()
+    pub async fn settle(self) -> DeliveryConfirmation {
+        self.0.await
     }
 }

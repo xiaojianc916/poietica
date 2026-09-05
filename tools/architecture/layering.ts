@@ -57,6 +57,7 @@ export const CARGO_RINGS: readonly Ring[] = [
       'poietica-terminal-native',
     ],
   },
+  { name: 'use-case', members: ['poietica-delivery'] },
   { name: 'composition', members: ['poietica'] },
 ]
 
@@ -66,6 +67,7 @@ export const HOST_AWARE_PACKAGES: readonly string[] = [
   '@poietica/native-bridge',
 ]
 export const HOST_AGNOSTIC_CRATES: readonly string[] = [
+  'poietica-delivery',
   'poietica-browser-native',
   'poietica-asset',
   'poietica-automation',
@@ -113,5 +115,6 @@ export function ringOf(rings: readonly Ring[], member: string): number {
 export const DOMAIN_CONTRACT_IMPORTS: Readonly<Record<string, string>> = {
   '@poietica/automation': '@poietica/contract/automation',
   '@poietica/browser': '@poietica/contract/browser',
+  '@poietica/conversation': '@poietica/contract/conversation',
   '@poietica/review': '@poietica/contract/review',
 }

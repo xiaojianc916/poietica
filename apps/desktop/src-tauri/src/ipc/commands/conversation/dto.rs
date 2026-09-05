@@ -81,8 +81,8 @@ pub struct AgentPromptRequest {
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptResult {
-    /// 这一轮发到了哪条会话。它的每一帧都带着同一个号。
     pub session_id: String,
+    pub prompt_id: String,
 }
 
 /// 人能给出的答复。

@@ -76,11 +76,16 @@ function edgeOf(
     forbidden.push(specifier)
   }
   const resolved = ts.resolveModuleName(specifier, file, unit.options, host).resolvedModule
-  if (resolved === undefined) {
+  let resolvedFile = resolved?.resolvedFileName
+  if (resolvedFile === undefined) {
     if (specifier.startsWith('.')) {
       const asset = fileURLToPath(new URL(specifier, pathToFileURL(file)))
       if (!host.fileExists(asset)) {
-        reject('resolved-file-dependencies', file, `Unresolved relative dependency: ${specifier}`)
+        reject(
+          'resolved-file-dependencies',
+          file,
+          ['Unresolved relative dependency:', specifier].join(' '),
+        )
       }
     } else if (specifier.startsWith('@poietica/')) {
       const entry = resolveEntry(specifier)
@@ -88,13 +93,17 @@ function edgeOf(
         reject(
           'resolved-file-dependencies',
           file,
-          `Unresolved workspace public entry: ${specifier}`,
+          ['Unresolved workspace public entry:', specifier].join(' '),
         )
+      } else {
+        resolvedFile = entry
       }
     }
+  }
+  if (resolvedFile === undefined) {
     return { forbidden }
   }
-  const target = canonicalOf(host, resolved.resolvedFileName)
+  const target = canonicalOf(host, resolvedFile)
   if (!record.typeOnly && testFile(target)) {
     reject('production-does-not-import-tests', file, specifier)
   }

@@ -11,7 +11,8 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/transcript": "workspace:*"
+    "@poietica/transcript": "workspace:*",
+    "@poietica/contract": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

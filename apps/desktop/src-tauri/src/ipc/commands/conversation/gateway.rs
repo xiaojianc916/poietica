@@ -1,21 +1,15 @@
-//! 领域 AgentGateway 端口在 KAP 上的实现。
-//!
-//! 端口形状与真实调用面在这里对上：准入里冻结的附件引用重建为协议内容块
-//! （字节在盘上，内容寻址就是为此 —— 首次投递与崩溃后的重投递走同一条路），
-//! 技能清单变换为 skill 激活，幂等键随载荷上 wire。帧不走网关：journal 在
-//! 这里把这条会话的监听交出去，那是连接自己的事。
+//! KAP 投递边界；附件构造与收据解码不运行在数据库 actor 内。
 
 use std::path::PathBuf;
-use std::sync::mpsc;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use poietica_conversation::error::GatewayFailure;
-use poietica_conversation::ports::{AgentGateway, DeliveryReceipt, PromptDelivery};
-use poietica_conversation::turn::delivery::DeliveryOutcome;
+use poietica_conversation::ports::{
+    AgentGateway, DeliveryConfirmation, DeliveryReceipt, PromptDelivery,
+};
 use poietica_conversation::turn::{Admission, AttachmentRef};
-use poietica_kap_client::{AgentClient, PromptAttachment, PromptSkill};
-use tauri::async_runtime;
+use poietica_kap_client::{AgentClient, KapError, PromptAttachment, PromptSkill};
 use uuid::Uuid;
 
 use super::journal::FrameJournal;
@@ -23,6 +17,7 @@ use crate::asset_protocol::asset_protocol_url;
 use crate::ipc::commands::asset::attachments::blob_path;
 use poietica_ledger::index::ThreadAttachment;
 
+#[derive(Clone)]
 pub(super) struct KapGateway {
     pub(super) client: AgentClient,
     pub(super) journal: FrameJournal,
@@ -31,6 +26,11 @@ pub(super) struct KapGateway {
 }
 
 impl AgentGateway for KapGateway {
+    fn can_replay(&self, delivery: &PromptDelivery) -> bool {
+        // Kimi 的 bundled skill 提交不接受 prompt_id，因此不能保证重发安全。
+        delivery.admission.skills.is_empty()
+    }
+
     fn deliver(&self, delivery: &PromptDelivery) -> Result<DeliveryReceipt, GatewayFailure> {
         let admission = &delivery.admission;
         let thread = Uuid::parse_str(admission.thread.as_str())
@@ -58,18 +58,15 @@ impl AgentGateway for KapGateway {
             )
             .map_err(|error| refusal(error.to_string()))?;
 
-        let (sender, receiver) = mpsc::channel();
-        async_runtime::spawn(async move {
-            let outcome = match answer.await {
-                Ok(Ok(_accepted)) => DeliveryOutcome::Accepted,
-                // server 当场拒收（带 code）是明确的拒绝；其余说不出成败。
-                Ok(Err(_refused)) => DeliveryOutcome::Rejected,
-                Err(_dropped) => DeliveryOutcome::Indeterminate,
-            };
-            let _sent = sender.send(outcome);
-        });
-
-        Ok(DeliveryReceipt::new(receiver))
+        Ok(DeliveryReceipt::new(async move {
+            match answer.await {
+                Ok(Ok(prompt_id)) => DeliveryConfirmation::Accepted { prompt_id },
+                Ok(Err(error)) => delivery_failure(&error),
+                Err(error) => DeliveryConfirmation::Indeterminate {
+                    reason: error.to_string(),
+                },
+            }
+        }))
     }
 }
 
@@ -126,5 +123,65 @@ pub(super) fn attachment_reference(entry: &ThreadAttachment) -> AttachmentRef {
     AttachmentRef {
         hash: entry.hash.clone(),
         mime: entry.mime.clone(),
+    }
+}
+
+// 只接受上游提交路由在入队之前明确报告的拒绝；内部错误及 ID 冲突不能证明未入队。
+fn delivery_failure(error: &KapError) -> DeliveryConfirmation {
+    let rejected = matches!(
+        error,
+        KapError::Validation { .. }
+            | KapError::Envelope {
+                code: 40_001 | 40_002 | 40_110
+                    ..=40_113 | 40_401 | 40_407 | 40_415 | 40_901 | 40_912,
+                ..
+            }
+    );
+    let reason = error.to_string();
+    if rejected {
+        DeliveryConfirmation::Rejected { reason }
+    } else {
+        DeliveryConfirmation::Indeterminate { reason }
+    }
+}
+
+#[cfg(test)]
+mod delivery_confirmation_tests {
+    use super::{DeliveryConfirmation, KapError, delivery_failure};
+
+    #[test]
+    fn transport_loss_does_not_discharge_the_outbox() {
+        for error in [
+            KapError::Transport {
+                message: "lost response".to_owned(),
+            },
+            KapError::Timeout {
+                message: "no acknowledgement".to_owned(),
+            },
+            KapError::Envelope {
+                code: 50_001,
+                message: "internal error".to_owned(),
+            },
+            KapError::Envelope {
+                code: 40_927,
+                message: "id already present".to_owned(),
+            },
+        ] {
+            assert!(matches!(
+                delivery_failure(&error),
+                DeliveryConfirmation::Indeterminate { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn explicit_admission_refusal_is_terminal() {
+        assert!(matches!(
+            delivery_failure(&KapError::Envelope {
+                code: 40_001,
+                message: "invalid request".to_owned()
+            }),
+            DeliveryConfirmation::Rejected { .. }
+        ));
     }
 }

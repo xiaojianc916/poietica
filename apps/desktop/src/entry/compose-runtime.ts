@@ -1,6 +1,7 @@
 import { agent as agentDescriptor } from '@poietica/agent-catalog'
 import { type AutomationStore, createAutomationStore } from '@poietica/automation'
 import type { AttachmentIntake } from '@poietica/conversation'
+import { type ConversationRuntime, createConversationRuntime } from '@poietica/conversation'
 import { createPluginStore, type PluginStore } from '@poietica/extension'
 import {
   automationGateway,
@@ -40,7 +41,6 @@ import { createDesktopAgentRuntime, type DesktopAgentRuntime } from './agent-run
 import { createAttachmentIntake } from './attachment-intake'
 import { reconcileAutomationsMcpServer } from './automations-mcp'
 import { reconcileBrowserMcpServer } from './browser-mcp'
-import { type ConversationRuntime, createConversationRuntime } from './conversation-runtime'
 import { createThemeRuntime, type ThemeRuntime } from './theme-runtime'
 import {
   activeWorkspaceRoot,

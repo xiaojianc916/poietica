@@ -217,6 +217,36 @@ export const AssistantSurface = memo(function AssistantSurface({
     <div className="assistant-surface__composer">
       {live ? <GoalBar threadId={endpoint} /> : null}
 
+      {assistant.notice !== null ? (
+        <p className="px-4 py-2 text-sm" role="alert">
+          {assistant.notice}
+        </p>
+      ) : null}
+      {assistant.submissions.length > 0 ? (
+        <ul aria-label="提交状态" className="space-y-2 px-4 py-2 text-sm">
+          {assistant.submissions.map((submission) => (
+            <li key={submission.id}>
+              <p className="whitespace-pre-wrap">{submission.text || '附件消息'}</p>
+              <p role="status">
+                {submission.phase === 'submitting'
+                  ? '提交中…'
+                  : submission.phase === 'accepted'
+                    ? '已接收，等待正文同步…'
+                    : '提交未完成；请先核对会话。'}
+              </p>
+              {submission.phase === 'failed' ? (
+                <button
+                  onClick={() => edit(submission.text)}
+                  title="仅取回文字；附件需重新选择。"
+                  type="button"
+                >
+                  取回文字
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <PromptQueue onEdit={edit} outbox={assistant.outbox} />
 
       <AssistantComposer

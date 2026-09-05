@@ -23,6 +23,7 @@ workspace = true
 tauri-build.workspace = true
 
 [dependencies]
+poietica-delivery = { path = "../../../crates/delivery" }
 # 渲染层送来的图片是 base64；字节要落盘就得解出来。这是标准做法里最没有
 # 争议的一件：手写一个 base64 解码器不会比它更快，只会多一处要自己维护的
 # 边界条件（填充、换行、URL 变体）。

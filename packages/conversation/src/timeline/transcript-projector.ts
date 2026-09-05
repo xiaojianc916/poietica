@@ -5,7 +5,7 @@ import type {
   TranscriptTask,
   TranscriptTurn,
 } from '@poietica/transcript'
-import type { QuestionItem, ToolCallContent, ToolKind } from '../agent'
+import type { QuestionItem, ToolCallContent, ToolKind, TurnMark } from '../agent'
 import type {
   BackgroundTaskItem,
   PermissionItem,
@@ -203,20 +203,28 @@ const tailOf = (
   if (held === undefined) {
     return {
       turn: 0,
-      items: interactions.map((interaction) => interactionOf(interaction, 0, Date.now())),
+      items: interactions.map((interaction) => interactionOf(interaction, 0, 0)),
     }
   }
   return {
     ...held,
     items: [
       ...held.items,
-      ...interactions.map((interaction) => interactionOf(interaction, held.turn, Date.now())),
+      ...interactions.map((interaction) => interactionOf(interaction, held.turn, 0)),
     ],
   }
 }
 
 const phaseOf = (snapshot: AgentTranscriptSnapshot, last: TranscriptTurn | undefined) => {
   if (!snapshot.interactions.some((item) => item.state === 'pending')) {
+    if (snapshot.prompts.some((prompt) => prompt.status === 'running')) {
+      return 'running'
+    }
+    if (
+      snapshot.prompts.some((prompt) => prompt.status === 'queued' || prompt.status === 'blocked')
+    ) {
+      return 'submitted'
+    }
     return last === undefined ? 'idle' : statusOf(last.state)
   }
   const approval = snapshot.interactions.some(
@@ -229,11 +237,7 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
   const turns = snapshot.items.filter((item): item is TranscriptTurn => item.kind === 'turn')
   const pages: TurnPage[] = []
   const spans: TurnSpan[] = []
-  for (let index = 0; index < turns.length; index += 1) {
-    const turn = turns[index]
-    if (turn === undefined) {
-      continue
-    }
+  for (const turn of turns) {
     const stamp = at(turn.startedAt)
     const items: TimelineItem[] =
       turn.prompt === undefined
@@ -242,18 +246,18 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
             {
               type: 'user_message',
               id: turn.triggerPromptId ?? turn.turnId,
-              turn: index,
+              turn: turn.ordinal,
               at: stamp,
               text: turn.prompt,
             },
           ]
     for (const step of turn.steps) {
       for (const frame of step.frames) {
-        items.push(frameOf(frame, index, at(step.startedAt) || stamp))
+        items.push(frameOf(frame, turn.ordinal, at(step.startedAt) || stamp))
       }
     }
-    pages.push({ turn: index, items })
-    spans.push(spanOf(turn, index))
+    pages.push({ turn: turn.ordinal, items })
+    spans.push(spanOf(turn, turn.ordinal))
   }
   return {
     status: phaseOf(snapshot, turns.at(-1)),
@@ -264,5 +268,69 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
     active: tailOf(pages, snapshot.interactions),
     lastSeq: 0,
     spans,
+  }
+}
+
+export const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[] =>
+  snapshot.items.flatMap((item) =>
+    item.kind === 'turn'
+      ? [
+          {
+            turnId: item.turnId,
+            admissionId: item.triggerPromptId ?? item.turnId,
+            prompt: item.prompt ?? '',
+            reply:
+              item.steps
+                .flatMap((step) => step.frames)
+                .filter((frame) => frame.kind === 'text' && frame.role === 'assistant')
+                .map((frame) => frame.text)
+                .join('\n\n') || null,
+          },
+        ]
+      : [],
+  )
+
+export function knownPromptIds(snapshot: AgentTranscriptSnapshot): ReadonlySet<string> {
+  const result = new Set(snapshot.prompts.map((prompt) => prompt.promptId))
+  for (const item of snapshot.items) {
+    if (item.kind === 'turn' && item.triggerPromptId !== undefined) {
+      result.add(item.triggerPromptId)
+    }
+  }
+  return result
+}
+
+export function promptOutcome(
+  snapshot: AgentTranscriptSnapshot,
+  promptId: string,
+): 'completed' | 'cancelled' | 'failed' | null {
+  const prompt = snapshot.prompts.find((entry) => entry.promptId === promptId)
+  if (prompt !== undefined) {
+    switch (prompt.status) {
+      case 'completed':
+        return 'completed'
+      case 'aborted':
+        return 'cancelled'
+      case 'failed':
+        return 'failed'
+      default:
+        return null
+    }
+  }
+  const turn = snapshot.items.findLast(
+    (item) => item.kind === 'turn' && item.triggerPromptId === promptId,
+  )
+  if (turn?.kind !== 'turn') {
+    return null
+  }
+  switch (turn.state) {
+    case 'completed':
+      return 'completed'
+    case 'cancelled':
+      return 'cancelled'
+    case 'failed':
+      return 'failed'
+    default:
+      return null
   }
 }

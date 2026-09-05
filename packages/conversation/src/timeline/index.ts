@@ -42,12 +42,5 @@ export {
   pendingQuestion,
   selectIsBusy,
 } from './timeline-queries'
-export {
-  appendLocalError,
-  appendUserMessage,
-  confirmRunCancellation,
-  createTimelineState,
-  rejectRunCancellation,
-  requestRunCancellation,
-} from './timeline-state'
+export { createTimelineState } from './timeline-state'
 export { projectTranscript } from './transcript-projector'

@@ -7,7 +7,8 @@
     ".": "./src/generated/ipc-bindings.ts",
     "./automation": "./src/automation.ts",
     "./browser": "./src/browser.ts",
-    "./review": "./src/review.ts"
+    "./review": "./src/review.ts",
+    "./conversation": "./src/conversation.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit"

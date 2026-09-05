@@ -58,6 +58,10 @@ export class TranscriptReplica {
     this.#publish = publish
   }
 
+  snapshot(agentId: string): AgentTranscriptSnapshot | undefined {
+    return this.#disposed ? undefined : this.#transcript.getAgent(agentId)?.snapshot()
+  }
+
   dispose(): void {
     this.#disposed = true
     this.#queues.clear()

@@ -56,9 +56,10 @@ test('automation submits configuration once and uses the actual conversation ide
         expect(request.text).toBe(automation.prompt)
         request.onUserMessage?.(request.threadId, request.text)
         calls.push('submit')
-        return Promise.resolve(true)
+        return Promise.resolve({ sessionId: 'session', promptId: 'official-prompt' })
       },
-      waitForTerminal: (id, cancellation) => {
+      waitForTerminal: (id, promptId, cancellation) => {
+        expect(promptId).toBe('official-prompt')
         expect(id).toBe('thread')
         expect(cancellation).toBe(signal)
         calls.push('wait')
@@ -87,7 +88,7 @@ test('a failed submission does not wait forever for a turn that never started', 
       noteUserMessage: () => undefined,
     },
     transcripts: {
-      send: () => Promise.resolve(false),
+      send: () => Promise.resolve(null),
       waitForTerminal: () => Promise.reject(new Error('Must not wait after failed submission.')),
     },
   })

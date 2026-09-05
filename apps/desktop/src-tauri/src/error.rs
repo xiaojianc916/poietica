@@ -76,3 +76,26 @@ impl From<poietica_ledger::execution::IndexError> for Error {
         }
     }
 }
+
+impl From<poietica_delivery::DeliveryError> for Error {
+    fn from(failure: poietica_delivery::DeliveryError) -> Self {
+        use poietica_delivery::DeliveryError;
+        log::error!("conversation delivery failed: {failure}");
+        match failure {
+            DeliveryError::Index(error) => Self::from(error),
+            DeliveryError::Rejected(_) => {
+                Self::AgentCli("消息未被代理接收，请检查会话后重试。".to_owned())
+            }
+            DeliveryError::Indeterminate(_) | DeliveryError::UnsafeReplay(_) => Self::AgentCli(
+                "投递结果未确认，请先核对会话；不要重复发送。仅支持幂等键的投递会自动恢复。"
+                    .to_owned(),
+            ),
+            DeliveryError::Domain(_)
+            | DeliveryError::Ledger(_)
+            | DeliveryError::MissingAdmission(_)
+            | DeliveryError::Identity(_) => {
+                Self::Internal("无法完成投递记账；请保留现场并查看诊断日志。".to_owned())
+            }
+        }
+    }
+}

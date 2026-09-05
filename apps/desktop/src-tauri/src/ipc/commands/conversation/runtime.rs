@@ -2,9 +2,6 @@
 //!
 //! 进程活多久 AgentRuntime 就活多久；连接比它短，换 agent 时整条换掉。会话册子
 //! 由驱动器交出来，路由帧和这里寻址读的是同一本。
-use poietica_conversation::command::Conversation;
-use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
-use poietica_conversation::turn::DeliveryOutcome;
 
 use super::config::restate;
 use super::dto::{
@@ -21,7 +18,7 @@ use poietica_kap_client::{
     AgentClient, AgentConnection, AgentSpawn, Daemon, DaemonIntent, KapError, LinkState,
     PermissionDesk, QuestionDesk, Reaction, Refusal, RunSlot, SessionBook, SessionEvent, connect,
 };
-use poietica_ledger::execution::{read_index, write_index};
+use poietica_ledger::execution::write_index;
 use poietica_ledger::index::{SessionCursor, SessionUsage};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,7 +28,6 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager, Runtime, State, async_runtime};
 use tauri_specta::Event as _;
 use tokio::task::LocalSet;
-use uuid::Uuid;
 /// The live connection, if one has been started.
 ///
 /// 它不持有对话。哪条对话握着哪个会话写在库里，而一条连接自己不是任何人的对话：
@@ -506,110 +502,34 @@ pub(super) async fn ensure_session(
         record_and_flush_disposals(&ledger, courier, owner, serving, disposal_lease).await;
     });
 
-    /* 欠着的投递挂在握手成功之后排空：崩溃时停在那里的轮次，幂等键随载荷
-     * 上 wire，server 收过就不重复入列。 */
+    // 握手后恢复当前 agent 的欠账；网关拒绝没有幂等依据的重放。
     let herald = app.clone();
     let drain_client = live.client.clone();
     let drain_owner = live.agent_id.clone();
     async_runtime::spawn(async move {
-        if let Err(error) = drain_pending_deliveries(&herald, drain_client, &drain_owner).await {
-            log::warn!("could not drain the pending deliveries: {error}");
+        let index = herald.state::<crate::ipc::commands::ledger::LocalIndex>();
+        let runtime = herald.state::<AgentRuntime>();
+        let gateway = gateway::KapGateway {
+            client: drain_client,
+            journal: runtime.journal.clone(),
+            attachments_root: runtime.attachments.clone(),
+        };
+        match poietica_delivery::recover(index.inner(), gateway, &drain_owner).await {
+            Ok(failures) => {
+                for failure in failures {
+                    log::warn!(
+                        "delivery {} remains unresolved: {}",
+                        failure.turn,
+                        failure.failure
+                    );
+                }
+            }
+            Err(error) => log::warn!("could not read the pending deliveries: {error}"),
         }
     });
     Ok(live)
 }
 
-/// 把发件箱里欠着的投递重新送一遍。
-///
-/// 会话地址在这里解析（线程索引才有它），只挑当前这个 agent 名下、还握着
-/// 会话的那些对话。解析不出的欠账留在线上：它们的主人下一次连上时再来。
-async fn drain_pending_deliveries(
-    app: &AppHandle,
-    client: AgentClient,
-    agent_id: &str,
-) -> Result<()> {
-    let index = app.state::<crate::ipc::commands::ledger::LocalIndex>();
-    let runtime = app.state::<AgentRuntime>();
-    let owner = agent_id.to_owned();
-
-    /* 一趟读把两件事问齐：欠账清单，和它们各自的会话地址。 */
-    let owed = read_index(&index, move |store| {
-        let admissions = store
-            .unresolved_deliveries()
-            .map_err(|failure| Error::Internal(failure.to_string()))?;
-
-        let mut addressed = Vec::with_capacity(admissions.len());
-        for admission in admissions {
-            let Ok(thread) = Uuid::parse_str(admission.thread.as_str()) else {
-                log::warn!("a pending delivery names a thread that is not a uuid");
-                continue;
-            };
-            let holder = store.thread(thread).map_err(Error::from)?;
-            let session = holder
-                .filter(|thread| thread.agent_id.as_deref() == Some(&owner))
-                .and_then(|thread| thread.session_id);
-
-            addressed.push((admission, session));
-        }
-
-        Ok(addressed)
-    })
-    .await?;
-
-    for (admission, session) in owed {
-        let Some(session) = session else {
-            continue;
-        };
-
-        let gateway = gateway::KapGateway {
-            client: client.clone(),
-            journal: runtime.journal.clone(),
-            attachments_root: runtime.attachments.clone(),
-        };
-        let delivery = PromptDelivery {
-            admission: admission.clone(),
-            session: session.clone(),
-        };
-
-        let outcome = write_index(&index, move |store| {
-            let conversation = Conversation::new(store, &gateway);
-
-            conversation
-                .redeliver(&delivery)
-                .map_err(|failure| Error::Internal(failure.to_string()))
-        })
-        .await?;
-
-        if let Some(receipt) = outcome.receipt {
-            let turn = admission.turn.clone();
-            let verdict = match async_runtime::spawn_blocking(move || {
-                receipt.settle().unwrap_or(DeliveryOutcome::Indeterminate)
-            })
-            .await
-            {
-                Ok(verdict) => verdict,
-                Err(_dropped) => {
-                    log::warn!("a redelivered turn's receipt task stopped");
-                    continue;
-                }
-            };
-            let settled = write_index(&index, move |store| {
-                store
-                    .record_delivery(&turn, verdict)
-                    .map_err(|failure| Error::Internal(failure.to_string()))
-            })
-            .await;
-            if let Err(error) = settled {
-                log::warn!("could not record a redelivered turn's outcome: {error}");
-            }
-        }
-        if let Some(failure) = outcome.unresolved {
-            log::warn!("a pending delivery could not be sent: {failure}");
-        }
-    }
-
-    Ok(())
-}
 /// 这一家在这台机器上怎么起：argv、环境、它读写的那个家，一处算清。
 ///
 /// 程序名与参数来自档案，起的是用户自己装的那个 CLI。受控 home 那个变量由

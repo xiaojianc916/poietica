@@ -3048,6 +3048,7 @@ dependencies = [
  "poietica-automation",
  "poietica-browser-native",
  "poietica-conversation",
+ "poietica-delivery",
  "poietica-extension-native",
  "poietica-git-adapter-native",
  "poietica-kap-client",
@@ -3115,6 +3116,19 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.19",
+]
+
+[[package]]
+name = "poietica-delivery"
+version = "0.3.1"
+dependencies = [
+ "poietica-conversation",
+ "poietica-ledger",
+ "poietica-time",
+ "tempfile",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

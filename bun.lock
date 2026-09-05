@@ -173,6 +173,7 @@
       "name": "@poietica/conversation",
       "version": "0.1.0",
       "dependencies": {
+        "@poietica/contract": "workspace:*",
         "@poietica/transcript": "workspace:*",
       },
       "devDependencies": {

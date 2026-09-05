@@ -1,19 +1,14 @@
-//! 一个轮次：发起、停止、回答权限、收摊。
-//!
-//! 帧不逐条发给界面 —— 攒一拍再交货，否则渲染进程被事件淹掉。
-//! 发起走领域管线：准入（冻结意图 + 欠一次投递）→ 网关投递 → 终局记账，
-//! 三步全在 command.rs 的 Conversation 里，这里只成形参数与安排收尾。
+//! 会话命令只处理宿主参数；投递执行与持久化收尾归 delivery 用例。
 
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
 use crate::ipc::commands::ledger::{LocalIndex, conversation};
-use poietica_conversation::command::Conversation;
 use poietica_conversation::identity::{ThreadId, TurnId};
-use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
+use poietica_conversation::ports::PromptDelivery;
 use poietica_conversation::turn::admission::Admission;
 use poietica_kap_client::{ConfigSelection, apply_configurations};
 use poietica_ledger::execution::{read_index, write_index};
-use tauri::{AppHandle, Manager, State, async_runtime};
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 use super::addressing::session_for;
@@ -32,16 +27,7 @@ use super::{
     AgentCommandResult, IMAGE_OPENER, NO_CONVERSATION, NO_SESSION, NOTHING_TO_STOP, TITLE_CHARS,
 };
 
-/// Starts a turn and returns as soon as it is under way.
-///
-/// The answer to the prompt is not awaited here. Frames arrive on
-/// the generated `AgentRunBatch` event as they are recorded, which is what the timeline consumes;
-/// blocking the caller until the agent stopped would defeat the point.
-///
-/// # Errors
-///
-/// Fails when the prompt is empty, the agent cannot be started, or the
-/// conversation's name cannot be written.
+/// 返回代理确认的提交身份，不等待模型完成。
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_prompt(
@@ -122,12 +108,7 @@ pub async fn agent_prompt(
         text.chars().take(TITLE_CHARS).collect()
     };
 
-    // 一句话记两件事：这条对话刚刚有活动，以及 —— 只有第一次 —— 它叫什么。
-    // 两个条件写在同一条语句里（见 record_prompt），所以这里每一轮都调，不
-    // 在这一侧判「是不是第一句」：那个判据的权威在库里，而它已经在守着了。
-    //
-    // 库操作只有一条路。它在阻塞线程池上，所以这一次写不会停住这个运行时上
-    // 别的东西 —— 包括 agent driver 的 future，它就在这里 spawn 的。
+    // 命名规则与活动时间由同一条数据库写入维护。
     write_index(&index, move |store| {
         store.record_prompt(thread_id, &opener).map_err(Error::from)
     })
@@ -143,8 +124,7 @@ pub async fn agent_prompt(
     )
     .await?;
 
-    /* 一句话里的图写的是同一张表、属于同一句话：一次借用，一趟阻塞线程。逐张
-    各走一次 `on_index`，就是各排一次线程池、各抢一次那把库锁。 */
+    // 一组附件共用一个 writer job。
     write_index(&index, {
         let attachments = attachments.clone();
         move |store| {
@@ -159,12 +139,11 @@ pub async fn agent_prompt(
     })
     .await?;
 
-    /* 准入：意图在这里冻结（幂等键由本机签发），投递欠在发件箱上，随后由
-    领域把这一轮送到网关。落账先于上 wire —— 顺序即不变量。 */
+    // 本机投递身份先落账；是否能安全重放由协议网关声明。
     let turn = TurnId::new(Uuid::new_v4().to_string());
     let admission = Admission {
         thread: ThreadId::new(thread_id.to_string()),
-        turn: turn.clone(),
+        turn,
         prompt: text.clone(),
         model: configuration
             .iter()
@@ -188,51 +167,12 @@ pub async fn agent_prompt(
         attachments_root: state.attachments.clone(),
     };
 
-    let submit = write_index(&index, move |store| {
-        let conversation = Conversation::new(store, &gateway);
-
-        conversation
-            .submit(&delivery)
-            .map_err(|failure| Error::Internal(failure.to_string()))
-    })
-    .await?;
-
-    if let Some(failure) = submit.unresolved {
-        return Err(Error::Internal(failure.to_string()).into());
-    }
-
-    /* 终局记账：收据线在阻塞执行器上等到裁决，账本随后落那一格。 */
-    if let Some(receipt) = submit.receipt {
-        let closing = app.clone();
-        let client = session.client.clone();
-        let reported = addressed.clone();
-        let turn_for_settlement = turn.clone();
-
-        async_runtime::spawn(async move {
-            let settled = async_runtime::spawn_blocking(move || receipt.settle()).await;
-
-            if let Ok(Some(outcome)) = settled {
-                let index = closing.state::<LocalIndex>();
-                let recorded = write_index(&index, move |store| {
-                    store
-                        .record_delivery(&turn_for_settlement, outcome)
-                        .map_err(|failure| Error::Internal(failure.to_string()))
-                })
-                .await;
-                if let Err(error) = recorded {
-                    log::error!("could not record the delivery outcome: {error}");
-                }
-            } else {
-                log::warn!("the delivery receipt ended without a verdict");
-            }
-
-            /* 一轮收尾，目标的轮次、用量与状态都变了：问一次 agent，别停在上一轮。 */
-            announce(&closing, &client, reported).await;
-        });
-    }
-
+    let prompt_id = poietica_delivery::deliver(index.inner(), gateway, delivery)
+        .await?
+        .ok_or_else(|| Error::Internal("a fresh admission was already settled".to_owned()))?;
     Ok(AgentPromptResult {
         session_id: addressed,
+        prompt_id,
     })
 }
 

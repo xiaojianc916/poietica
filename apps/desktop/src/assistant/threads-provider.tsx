@@ -1,6 +1,6 @@
 import { SessionControlsContext, TranscriptsContext } from '@poietica/assistant'
+import type { ConversationRuntime } from '@poietica/conversation'
 import type { ReactNode } from 'react'
-import type { ConversationRuntime } from '../entry/conversation-runtime'
 import { ThreadsContext } from './threads-context'
 
 export function ThreadsProvider({

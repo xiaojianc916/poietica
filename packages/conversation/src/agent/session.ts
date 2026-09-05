@@ -1,3 +1,4 @@
+import type { AgentPromptResult } from '@poietica/contract/conversation'
 import type { ThreadId } from './address'
 import type { ApprovalAnswer } from './permission'
 import type { QuestionResponse } from './question'
@@ -60,16 +61,7 @@ export interface AgentPromptRequest {
   readonly skills: readonly PromptSkill[]
 }
 
-/**
- * 这一轮发到了哪条会话。
- *
- * 一格，原生侧才说得出的事实。图片地址不从这里回来：它随这一轮的 prompt_admitted
- * 帧走，与那句话的文字同一条路（见 frame.rs 的 PromptAdmitted）。取消只需要点名一
- * 条对话，见下面的 cancel。
- */
-export interface AgentPromptHandle {
-  readonly sessionId: string
-}
+export type AgentPromptHandle = Readonly<AgentPromptResult>
 
 export interface AgentSessionPort {
   /** 官方 transcript 通道：屏幕上的经过与它的推进都从这里来。 */

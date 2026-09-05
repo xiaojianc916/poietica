@@ -2,13 +2,18 @@ import { describe, expect, test } from 'bun:test'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
 import { analyzeSourceFiles, type SourceUnit } from './file-graph.ts'
+import type { Workspace } from './workspace.ts'
 
 const options: ts.CompilerOptions = {
   module: ts.ModuleKind.ESNext,
   moduleResolution: ts.ModuleResolutionKind.Bundler,
   target: ts.ScriptTarget.ES2022,
 }
-function inspect(sources: Record<string, string>, headless: readonly string[] = []) {
+function inspect(
+  sources: Record<string, string>,
+  headless: readonly string[] = [],
+  entries: ReadonlyMap<string, Workspace> = new Map(),
+) {
   const root = path.resolve('fixture')
   const files = new Map(
     Object.entries(sources).map(([file, code]) => [path.resolve(root, file), code]),
@@ -23,6 +28,7 @@ function inspect(sources: Record<string, string>, headless: readonly string[] = 
     units,
     host,
     headless.map((file) => path.resolve(root, file)),
+    entries,
   )
 }
 
@@ -78,5 +84,60 @@ describe('production module graph', () => {
         ['index.ts'],
       ),
     ).toEqual([])
+  })
+})
+
+const workspaceEntries = new Map<string, Workspace>([
+  [
+    '@poietica/a',
+    {
+      name: '@poietica/a',
+      directory: 'a',
+      manifest: { name: '@poietica/a', exports: { '.': './index.ts' } },
+    },
+  ],
+  [
+    '@poietica/b',
+    {
+      name: '@poietica/b',
+      directory: 'b',
+      manifest: { name: '@poietica/b', exports: { '.': './index.ts' } },
+    },
+  ],
+])
+
+describe('workspace entries without installation links', () => {
+  test('resolved public exports participate in runtime cycles', () => {
+    const result = inspect(
+      {
+        'a/index.ts': "export { b } from '@poietica/b'; export const a = 1",
+        'b/index.ts': "export { a } from '@poietica/a'; export const b = 2",
+      },
+      [],
+      workspaceEntries,
+    )
+    expect(result.some((item) => item.policy === 'runtime-file-cycle')).toBe(true)
+  })
+  test('headless validation crosses a workspace public entry', () => {
+    const result = inspect(
+      {
+        'a/index.ts': "export { view } from '@poietica/b'",
+        'b/index.ts': "import { createElement } from 'react'; export const view = createElement",
+      },
+      ['a/index.ts'],
+      workspaceEntries,
+    )
+    expect(result.some((item) => item.policy === 'headless-public-entry')).toBe(true)
+  })
+  test('erased workspace type dependencies do not become runtime cycles', () => {
+    const result = inspect(
+      {
+        'a/index.ts': "import type { B } from '@poietica/b'; export type A = { b?: B }",
+        'b/index.ts': "import type { A } from '@poietica/a'; export type B = { a?: A }",
+      },
+      [],
+      workspaceEntries,
+    )
+    expect(result).toEqual([])
   })
 })

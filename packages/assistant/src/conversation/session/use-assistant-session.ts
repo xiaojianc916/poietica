@@ -19,7 +19,6 @@ import {
   currentTodos,
   describeFailure,
   InterjectionOutbox,
-  inflightPromptId,
   pendingInteractions,
 } from '@poietica/conversation'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
@@ -71,6 +70,8 @@ export interface AssistantSession {
   readonly outbox: InterjectionOutbox
   /** True while a conversation is still being fetched. */
   readonly isRestoring: boolean
+  readonly notice: string | null
+  readonly submissions: Transcript['submissions']
 }
 
 /*
@@ -131,13 +132,17 @@ function toChatStatus(status: TimelineState['status']): ChatStatus {
   }
 }
 
-const readStatus = (transcript: Transcript): ChatStatus => toChatStatus(transcript.timeline.status)
+const readStatus = (transcript: Transcript): ChatStatus => toChatStatus(transcript.status)
 
-/* kap 手上那条还没落定的号，至多一个。 */
+/* 最近一次已确认提交的身份，用于把本地插话关联到官方队列。 */
 const readInflight = (transcript: Transcript): string | undefined =>
-  inflightPromptId(activeScope(transcript.timeline))
+  transcript.promptId ?? undefined
 
 const readRestoring = (transcript: Transcript): boolean => transcript.restoring
+const readNotice = (transcript: Transcript): string | null =>
+  transcript.operation.kind === 'failed' ? transcript.operation.message : null
+const readSubmissions = (transcript: Transcript): Transcript['submissions'] =>
+  transcript.submissions
 
 const readTimeline = (transcript: Transcript): TimelineState => transcript.timeline
 const EMPTY_LIST: readonly TodoItem[] = []
@@ -178,6 +183,8 @@ export function useAssistantSession({
 
   const running = useSlice(key, readStatus)
   const isRestoring = useSlice(key, readRestoring)
+  const notice = useSlice(key, readNotice)
+  const submissions = useSlice(key, readSubmissions)
   const inflight = useSlice(key, readInflight)
 
   /* 忙不忙只有这一个产地：放行的拍子与出账簿的 isBusy 读的是同一个字。
@@ -198,7 +205,7 @@ export function useAssistantSession({
     transcripts.ensure(session)
   }, [session, transcripts])
 
-  /* 送不出去就地记进转录，与本地事故同一处写法。 */
+  /* 本地操作错误独立于官方正文。 */
   const note = useCallback(
     (why: string) => {
       transcripts.note(key, why)
@@ -242,7 +249,7 @@ export function useAssistantSession({
     wired.current = {
       busy,
       deliver: (said) => {
-        transcripts.send({
+        void transcripts.send({
           assets: said.assets,
           configuration: said.configuration,
           onUserMessage,
@@ -321,6 +328,8 @@ export function useAssistantSession({
     dismissQuestions,
     outbox,
     isRestoring,
+    notice,
+    submissions,
   }
 }
 

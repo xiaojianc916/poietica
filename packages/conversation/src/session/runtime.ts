@@ -1,16 +1,15 @@
-import {
-  type AgentCapabilityPort,
-  AgentCapabilityStore,
-  type AgentSessionPort,
-  type PermissionPosturePort,
-  type SessionConfigPort,
-  type SessionControlsFailureReport,
-  SessionControlsStore,
-  type SessionUsagePort,
-  type ThreadPort,
-  ThreadsStore,
-  TranscriptStore,
-} from '@poietica/conversation'
+import type {
+  AgentCapabilityPort,
+  AgentSessionPort,
+  PermissionPosturePort,
+  SessionConfigPort,
+  SessionUsagePort,
+  ThreadPort,
+} from '../agent'
+import { AgentCapabilityStore } from './agent-capability-store'
+import { type SessionControlsFailureReport, SessionControlsStore } from './session-controls-store'
+import { ThreadsStore } from './threads-store'
+import { TranscriptStore } from './transcript-store'
 
 type Dependencies = {
   readonly session: AgentSessionPort

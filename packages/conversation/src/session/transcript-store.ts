@@ -1,5 +1,6 @@
 import type { AgentTranscriptSnapshot } from '@poietica/transcript'
 import type {
+  AgentPromptHandle,
   AgentSessionPort,
   ApprovalAnswer,
   PromptAsset,
@@ -13,21 +14,60 @@ import type {
 } from '../agent'
 import type { TimelineState } from '../timeline'
 import {
-  appendLocalError,
-  appendUserMessage,
   createTimelineState,
   delegateAddress,
   delegateKey,
   projectTranscript,
-  rejectRunCancellation,
-  requestRunCancellation,
   selectIsBusy,
 } from '../timeline'
+import { knownPromptIds, outlineOf, promptOutcome } from '../timeline/transcript-projector'
 import { describeFailure } from './describe-failure'
 import { TranscriptReplica } from './transcript-replica'
 import type { TranscriptSink } from './transcript-sink'
 
+export interface PendingSubmission {
+  readonly id: number
+  readonly text: string
+  readonly submittedAt: number
+  readonly phase: 'submitting' | 'accepted' | 'failed'
+  readonly promptId: string | null
+}
+
+type ConversationOperation =
+  | { readonly kind: 'ready' }
+  | { readonly kind: 'cancelling' }
+  | { readonly kind: 'failed'; readonly message: string; readonly blocks: boolean }
+
+const ACTIVE_STATUSES: readonly RunStatus[] = [
+  'submitted',
+  'running',
+  'cancelling',
+  'awaiting_permission',
+  'awaiting_question',
+]
+
+function activityOf(transcript: Transcript): RunStatus {
+  const busy = selectIsBusy(transcript.timeline)
+  if (busy && transcript.operation.kind === 'cancelling') {
+    return 'cancelling'
+  }
+  if (busy) {
+    return transcript.timeline.status
+  }
+  if (transcript.submissions.some((entry) => entry.phase !== 'failed')) {
+    return 'submitted'
+  }
+  if (transcript.operation.kind === 'failed' && transcript.operation.blocks) {
+    return 'failed'
+  }
+  return transcript.timeline.status
+}
+
 export interface Transcript {
+  readonly status: RunStatus
+  readonly operation: ConversationOperation
+  readonly submissions: readonly PendingSubmission[]
+  readonly promptId: string | null
   readonly timeline: TimelineState
   readonly restoring: boolean
   readonly loaded: boolean
@@ -51,6 +91,10 @@ const MAIN_AGENT_ID = 'main'
 const PENDING_SIGNAL_LIMIT = 64
 const EMPTY: Transcript = {
   timeline: createTimelineState(),
+  status: 'idle',
+  operation: { kind: 'ready' },
+  submissions: [],
+  promptId: null,
   restoring: false,
   loaded: false,
   owned: false,
@@ -59,26 +103,6 @@ const EMPTY: Transcript = {
   reading: false,
   revealing: null,
 }
-const terminal = (status: RunStatus): status is 'completed' | 'cancelled' | 'failed' =>
-  status === 'completed' || status === 'cancelled' || status === 'failed'
-const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[] =>
-  snapshot.items.flatMap((item) =>
-    item.kind === 'turn'
-      ? [
-          {
-            turnId: item.turnId,
-            admissionId: item.triggerPromptId ?? item.turnId,
-            prompt: item.prompt ?? '',
-            reply:
-              item.steps
-                .flatMap((step) => step.frames)
-                .filter((frame) => frame.kind === 'text' && frame.role === 'assistant')
-                .map((frame) => frame.text)
-                .join('\n\n') || null,
-          },
-        ]
-      : [],
-  )
 const channelKey = (threadId: string, agentId: string): string =>
   agentId === MAIN_AGENT_ID ? threadId : delegateKey(threadId, agentId)
 const addressOf = (key: string): { readonly conversation: string; readonly agentId: string } =>
@@ -97,6 +121,7 @@ export class TranscriptStore implements TranscriptSink {
   #port: AgentSessionPort | null = null
   #off: (() => void) | null = null
   #disposed = false
+  #serial = 0
 
   constructor({ now = Date.now }: { readonly now?: () => number } = {}) {
     this.#now = now
@@ -122,32 +147,45 @@ export class TranscriptStore implements TranscriptSink {
 
   waitForTerminal = (
     key: string,
+    promptId: string,
     cancellation?: AbortSignal,
   ): Promise<'completed' | 'cancelled' | 'failed'> => {
-    const owned = this.#lifetime(addressOf(key).conversation).signal
+    if (promptId.length === 0) {
+      return Promise.reject(new Error('A terminal waiter requires an acknowledged prompt ID.'))
+    }
+    const address = addressOf(key)
+    const owned = this.#lifetime(address.conversation).signal
     const signal = cancellation === undefined ? owned : AbortSignal.any([owned, cancellation])
     signal.throwIfAborted()
-    const status = this.read(key).timeline.status
-    if (terminal(status)) {
-      return Promise.resolve(status)
+    const read = () => {
+      const snapshot = this.#owners.get(address.conversation)?.snapshot(address.agentId)
+      return snapshot === undefined ? null : promptOutcome(snapshot, promptId)
+    }
+    const immediate = read()
+    if (immediate !== null) {
+      return Promise.resolve(immediate)
     }
     return new Promise((resolve, reject) => {
-      const off = this.subscribe(key, () => {
-        const next = this.read(key).timeline.status
-        if (terminal(next)) {
-          off()
-          signal.removeEventListener('abort', aborted)
-          resolve(next)
-        }
-      })
+      let off: () => void = () => undefined
       const aborted = (): void => {
         off()
         signal.removeEventListener('abort', aborted)
         reject(signal.reason)
       }
+      const inspect = (): void => {
+        const outcome = read()
+        if (outcome !== null) {
+          off()
+          signal.removeEventListener('abort', aborted)
+          resolve(outcome)
+        }
+      }
+      off = this.subscribe(key, inspect)
       signal.addEventListener('abort', aborted, { once: true })
       if (signal.aborted) {
         aborted()
+      } else {
+        inspect()
       }
     })
   }
@@ -215,15 +253,10 @@ export class TranscriptStore implements TranscriptSink {
     }
   }
   failed = (key: string, cause: unknown, endsTurn = false): void => {
-    const current = this.read(key)
     this.#put(key, {
-      ...current,
+      ...this.read(key),
       restoring: false,
-      timeline: appendLocalError(current.timeline, {
-        message: describeFailure(cause),
-        at: this.#now(),
-        endsTurn,
-      }),
+      operation: { kind: 'failed', message: describeFailure(cause), blocks: endsTurn },
     })
   }
   forget = (threadId: string): void => {
@@ -288,18 +321,20 @@ export class TranscriptStore implements TranscriptSink {
     skills,
     text,
     threadId,
-  }: SendOptions): Promise<boolean> => {
+  }: SendOptions): Promise<AgentPromptHandle | null> => {
     const lifetime = this.#lifetime(threadId)
-    const current = this.read(threadId)
+    const submission: PendingSubmission = {
+      id: this.#serial++,
+      text,
+      submittedAt: this.#now(),
+      phase: 'submitting',
+      promptId: null,
+    }
     this.#put(threadId, {
-      ...current,
-      timeline: appendUserMessage(
-        current.timeline,
-        text,
-        this.#now(),
-        assets.length,
-        skills.map((skill) => skill.name),
-      ),
+      ...this.read(threadId),
+      operation: { kind: 'ready' },
+      promptId: null,
+      submissions: [...this.read(threadId).submissions, submission],
     })
     try {
       if (port === undefined) {
@@ -308,7 +343,7 @@ export class TranscriptStore implements TranscriptSink {
       this.ensure(port)
       const ready = await (prepare?.() ?? Promise.resolve(true))
       if (lifetime.signal.aborted) {
-        return false
+        return null
       }
       if (!ready) {
         throw new Error('无法开始新的对话。')
@@ -316,38 +351,65 @@ export class TranscriptStore implements TranscriptSink {
       onUserMessage?.(threadId, text)
       const handle = await port.prompt({ threadId, text, assets, configuration, skills })
       if (lifetime.signal.aborted) {
-        return false
+        return null
+      }
+      if (handle.promptId.length === 0) {
+        throw new Error('代理返回了没有提交身份的收据；请先核对会话，不要重复发送。')
       }
       const owner = this.#bind(handle.sessionId, threadId)
-      this.#flush(handle.sessionId)
-      if (!this.read(threadId).loaded) {
-        this.#observe(threadId, owner, owner.refresh(MAIN_AGENT_ID))
+      const current = this.read(threadId)
+      const remaining = current.submissions.filter((entry) => entry.id !== submission.id)
+      const snapshot = owner.snapshot(MAIN_AGENT_ID)
+      const visible = snapshot !== undefined && knownPromptIds(snapshot).has(handle.promptId)
+      const accepted: PendingSubmission = {
+        ...submission,
+        phase: 'accepted',
+        promptId: handle.promptId,
       }
-      return true
+      this.#put(threadId, {
+        ...current,
+        promptId: handle.promptId,
+        submissions: visible ? remaining : [...remaining, accepted],
+      })
+      this.#flush(handle.sessionId)
+      this.#observe(threadId, owner, owner.synchronize(MAIN_AGENT_ID))
+      return handle
     } catch (cause) {
       if (!lifetime.signal.aborted) {
-        this.failed(threadId, cause, true)
+        const current = this.read(threadId)
+        this.#put(threadId, {
+          ...current,
+          restoring: false,
+          operation: { kind: 'failed', message: describeFailure(cause), blocks: true },
+          submissions: current.submissions.map(
+            (entry): PendingSubmission =>
+              entry.id === submission.id ? { ...entry, phase: 'failed' } : entry,
+          ),
+        })
       }
-      return false
+      return null
     }
   }
 
   cancel = (key: string): void => {
     const port = this.#port
-    if (port === null || !selectIsBusy(this.read(key).timeline)) {
+    const current = this.read(key)
+    if (port === null || current.operation.kind === 'cancelling') {
+      return
+    }
+    if (!selectIsBusy(current.timeline)) {
+      if (current.submissions.some((entry) => entry.phase !== 'failed')) {
+        this.note(key, '消息仍在提交；确认接收后才能停止运行。')
+      }
       return
     }
     const thread = addressOf(key).conversation
     const lifetime = this.#lifetime(thread)
-    const current = this.read(key)
-    this.#put(key, { ...current, timeline: requestRunCancellation(current.timeline) })
+    this.#put(key, { ...current, operation: { kind: 'cancelling' } })
     void port.cancel(thread).catch((cause: unknown) => {
-      if (lifetime.signal.aborted) {
-        return
+      if (!lifetime.signal.aborted) {
+        this.failed(key, cause)
       }
-      this.note(key, describeFailure(cause))
-      const latest = this.read(key)
-      this.#put(key, { ...latest, timeline: rejectRunCancellation(latest.timeline) })
     })
   }
   resolvePermission = (key: string, requestId: string, answer: ApprovalAnswer): void => {
@@ -457,22 +519,32 @@ export class TranscriptStore implements TranscriptSink {
     const key = channelKey(thread, agentId)
     const current = this.read(key)
     const turns = snapshot.items.filter((item) => item.kind === 'turn')
+    const timeline = projectTranscript(snapshot)
+    const known = knownPromptIds(snapshot)
+    const remaining = current.submissions.filter(
+      (entry) => entry.promptId === null || !known.has(entry.promptId),
+    )
     this.#put(key, {
-      timeline: projectTranscript(snapshot),
+      ...current,
+      timeline,
       restoring: false,
       loaded: true,
       owned: true,
       earlier: snapshot.hasMoreOlder ? (turns[0]?.turnId ?? null) : null,
       outline: outlineOf(snapshot),
-      reading: current.reading,
-      revealing: current.revealing,
+      operation:
+        current.operation.kind === 'cancelling' && !selectIsBusy(timeline)
+          ? { kind: 'ready' }
+          : current.operation,
+      submissions:
+        remaining.length === current.submissions.length ? current.submissions : remaining,
     })
   }
   #put(key: string, next: Transcript): void {
     if (this.#disposed || this.#held.get(key) === next) {
       return
     }
-    this.#held.set(key, next)
+    this.#held.set(key, { ...next, status: activityOf(next) })
     this.#publishRunning()
     this.#fire(key)
   }
@@ -484,7 +556,7 @@ export class TranscriptStore implements TranscriptSink {
   #publishRunning(): void {
     const next = new Set<string>()
     for (const [key, value] of this.#held) {
-      if (selectIsBusy(value.timeline)) {
+      if (ACTIVE_STATUSES.includes(value.status)) {
         next.add(addressOf(key).conversation)
       }
     }

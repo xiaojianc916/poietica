@@ -75,12 +75,15 @@ export type { Interjection } from './interjection'
 export { InterjectionOutbox } from './interjection'
 export type {
   AgentControls,
+  PendingSubmission,
   SessionControlsFailureReport,
   ThreadWorkspaceList,
   Transcript,
 } from './session'
 export {
   AgentCapabilityStore,
+  type ConversationRuntime,
+  createConversationRuntime,
   describeFailure,
   groupByWorkspace,
   isProjectlessWorkspaceRoot,
@@ -116,10 +119,7 @@ export type {
 } from './timeline'
 export {
   activeScope,
-  appendLocalError,
-  appendUserMessage,
   channelNameOf,
-  confirmRunCancellation,
   createTimelineState,
   currentTodos,
   delegateKey,
@@ -133,8 +133,6 @@ export {
   pendingPermissionCount,
   pendingQuestion,
   projectTranscript,
-  rejectRunCancellation,
-  requestRunCancellation,
   selectIsBusy,
   selectPresentation,
 } from './timeline'

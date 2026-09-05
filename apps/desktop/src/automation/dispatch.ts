@@ -34,7 +34,11 @@ export function createAutomationDispatch(input: {
     if (!submitted) {
       return { threadId, outcome: 'failed' }
     }
-    const terminal = await input.transcripts.waitForTerminal(threadId, input.signal)
+    const terminal = await input.transcripts.waitForTerminal(
+      threadId,
+      submitted.promptId,
+      input.signal,
+    )
     return { threadId, outcome: terminal === 'completed' ? 'succeeded' : 'failed' }
   }
 }

@@ -278,7 +278,7 @@ export function createAgentSessionPort({
         }),
       )
 
-      return { sessionId: started.sessionId }
+      return started
     },
 
     cancel: async (threadId) => {

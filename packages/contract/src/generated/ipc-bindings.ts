@@ -6,16 +6,7 @@
 
 export const commands = {
 /**
- * Starts a turn and returns as soon as it is under way.
- * 
- * The answer to the prompt is not awaited here. Frames arrive on
- * the generated `AgentRunBatch` event as they are recorded, which is what the timeline consumes;
- * blocking the caller until the agent stopped would defeat the point.
- * 
- * # Errors
- * 
- * Fails when the prompt is empty, the agent cannot be started, or the
- * conversation's name cannot be written.
+ * 返回代理确认的提交身份，不等待模型完成。
  */
 async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
     return await TAURI_INVOKE("agent_prompt", { request });
@@ -1375,11 +1366,7 @@ cwd: string | null }
 /**
  * What the interface needs to follow the turn it just started.
  */
-export type AgentPromptResult = { 
-/**
- * 这一轮发到了哪条会话。它的每一帧都带着同一个号。
- */
-sessionId: string }
+export type AgentPromptResult = { sessionId: string; promptId: string }
 export type AgentPromptSkill = { name: string; args: string | null }
 /**
  * 一题一条答复，按题号点名。
