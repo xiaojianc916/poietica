@@ -1,11 +1,15 @@
-import type { AgentTranscriptSnapshot, TranscriptOperation } from '@poietica/transcript'
+import type {
+  AgentDescriptor,
+  AgentTranscriptSnapshot,
+  TranscriptOperation,
+} from '@poietica/transcript'
 
 export type TranscriptAgentId = string
 export type TranscriptTurnId = string
 
 export interface TranscriptPage extends AgentTranscriptSnapshot {
   readonly agentId: TranscriptAgentId
-  readonly agents: readonly { readonly agentId: string; readonly type?: string }[]
+  readonly agents: readonly AgentDescriptor[]
   readonly pendingInteractions: readonly string[]
   readonly seq: number
 }

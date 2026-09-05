@@ -1,4 +1,7 @@
-import { AgentTranscript, type AgentTranscriptSnapshot } from '@poietica/transcript'
+import {
+  type AgentTranscriptSnapshot,
+  TranscriptStore as OfficialTranscriptStore,
+} from '@poietica/transcript'
 import type {
   AgentSessionPort,
   ApprovalAnswer,
@@ -16,6 +19,8 @@ import {
   appendLocalError,
   appendUserMessage,
   createTimelineState,
+  delegateAddress,
+  delegateKey,
   projectTranscript,
   rejectRunCancellation,
   requestRunCancellation,
@@ -47,12 +52,16 @@ export interface SendOptions {
   readonly prepare?: (() => Promise<boolean>) | undefined
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
 }
-interface Owned {
-  readonly agent: AgentTranscript
+interface AgentFeed {
   seq: number
-  snapshot: AgentTranscriptSnapshot
   page: TranscriptPage | null
 }
+interface OwnedSession {
+  readonly sessionId: string
+  readonly transcript: OfficialTranscriptStore
+  readonly feeds: Map<string, AgentFeed>
+}
+const MAIN_AGENT_ID = 'main'
 const EMPTY: Transcript = {
   timeline: createTimelineState(),
   restoring: false,
@@ -93,16 +102,21 @@ const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[] =>
         ]
       : [],
   )
+const channelKey = (threadId: string, agentId: string): string =>
+  agentId === MAIN_AGENT_ID ? threadId : delegateKey(threadId, agentId)
+const addressOf = (key: string): { readonly conversation: string; readonly agentId: string } =>
+  delegateAddress(key) ?? { conversation: key, agentId: MAIN_AGENT_ID }
 
 export class TranscriptStore implements TranscriptSink {
   #held = new Map<string, Transcript>()
-  #owners = new Map<string, Owned>()
+  #owners = new Map<string, OwnedSession>()
   #routes = new Map<string, string>()
   #listeners = new Map<string, Set<() => void>>()
   #running = new Set<string>()
   #runningListeners = new Set<() => void>()
   #port: AgentSessionPort | null = null
   #off: (() => void) | null = null
+
   read = (key: string): Transcript => this.#held.get(key) ?? EMPTY
   subscribe = (key: string, listener: () => void): (() => void) => {
     const set = this.#listeners.get(key) ?? new Set()
@@ -118,9 +132,7 @@ export class TranscriptStore implements TranscriptSink {
   runningSnapshot = (): ReadonlySet<string> => this.#running
   subscribeRunning = (listener: () => void): (() => void) => {
     this.#runningListeners.add(listener)
-    return () => {
-      this.#runningListeners.delete(listener)
-    }
+    return () => this.#runningListeners.delete(listener)
   }
   waitForTerminal = (key: string): Promise<'completed' | 'cancelled' | 'failed'> => {
     const now = this.read(key).timeline.status
@@ -143,13 +155,12 @@ export class TranscriptStore implements TranscriptSink {
     }
     this.#off?.()
     this.#port = port
-    this.#off = port.transcript.subscribeTranscript((signal) => {
-      void this.#signal(signal)
-    })
+    this.#off = port.transcript.subscribeTranscript((signal) => void this.#signal(signal))
   }
   route = (sessionId: string, threadId: string): void => {
     this.#routes.set(sessionId, threadId)
-    void this.#refresh(threadId, sessionId, 'main')
+    this.#owner(threadId, sessionId)
+    void this.#refresh(threadId, sessionId, MAIN_AGENT_ID)
   }
   ownerOf = (sessionId: string): string | undefined => this.#routes.get(sessionId)
   opening = (threadId: string): void => {
@@ -165,9 +176,9 @@ export class TranscriptStore implements TranscriptSink {
       )
     }
   }
-  failed = (threadId: string, cause: unknown): void => {
-    const current = this.read(threadId)
-    this.#put(threadId, {
+  failed = (key: string, cause: unknown): void => {
+    const current = this.read(key)
+    this.#put(key, {
       ...current,
       restoring: false,
       timeline: appendLocalError(current.timeline, {
@@ -178,36 +189,46 @@ export class TranscriptStore implements TranscriptSink {
     })
   }
   forget = (threadId: string): void => {
-    this.#held.delete(threadId)
+    const keys = [...this.#held.keys()].filter(
+      (key) => key === threadId || delegateAddress(key)?.conversation === threadId,
+    )
+    for (const key of keys) {
+      this.#held.delete(key)
+      this.#fire(key)
+    }
     this.#owners.delete(threadId)
     for (const [session, owner] of this.#routes) {
       if (owner === threadId) {
         this.#routes.delete(session)
       }
     }
-    this.#fire(threadId)
     this.#publishRunning()
   }
-  readEarlier = async (threadId: string): Promise<void> => {
-    const current = this.read(threadId)
-    const session = [...this.#routes].find(([, owner]) => owner === threadId)?.[0]
+  readEarlier = async (key: string): Promise<void> => {
+    const address = addressOf(key)
+    const current = this.read(key)
+    const session = this.#sessionFor(address.conversation)
     if (session === undefined || current.earlier === null || this.#port === null) {
       return
     }
-    this.#put(threadId, { ...current, reading: true })
+    this.#put(key, { ...current, reading: true })
     try {
-      const page = await this.#port.transcript.readTranscript(session, 'main', current.earlier)
-      this.#install(threadId, page, true)
+      const page = await this.#port.transcript.readTranscript(
+        session,
+        address.agentId,
+        current.earlier,
+      )
+      this.#install(address.conversation, session, page, true)
     } finally {
-      this.#put(threadId, { ...this.read(threadId), reading: false, revealing: null })
+      this.#put(key, { ...this.read(key), reading: false, revealing: null })
     }
   }
-  revealTurn = async (threadId: string, mark: TurnMark): Promise<void> => {
+  revealTurn = async (key: string, mark: TurnMark): Promise<void> => {
     while (
-      this.read(threadId).earlier !== null &&
-      !this.read(threadId).outline.some((item) => item.turnId === mark.turnId)
+      this.read(key).earlier !== null &&
+      !this.read(key).outline.some((item) => item.turnId === mark.turnId)
     ) {
-      await this.readEarlier(threadId)
+      await this.readEarlier(key)
     }
   }
   send = ({
@@ -254,7 +275,8 @@ export class TranscriptStore implements TranscriptSink {
     }
     const current = this.read(key)
     this.#put(key, { ...current, timeline: requestRunCancellation(current.timeline) })
-    void port.cancel(key).catch((cause: unknown) => {
+    const threadId = addressOf(key).conversation
+    void port.cancel(threadId).catch((cause: unknown) => {
       this.note(key, describeFailure(cause))
       const latest = this.read(key)
       this.#put(key, { ...latest, timeline: rejectRunCancellation(latest.timeline) })
@@ -272,105 +294,148 @@ export class TranscriptStore implements TranscriptSink {
       timeline: appendLocalError(current.timeline, { message, at: Date.now(), endsTurn: false }),
     })
   }
+
   async #signal(signal: TranscriptSignal): Promise<void> {
     const thread = this.#routes.get(signal.sessionId)
     if (thread === undefined) {
       return
     }
+    const owner = this.#owner(thread, signal.sessionId)
     if (signal.kind === 'resync') {
-      await this.#refresh(thread, signal.sessionId, 'main')
+      const agents = owner.feeds.size === 0 ? [MAIN_AGENT_ID] : [...owner.feeds.keys()]
+      await Promise.all(agents.map((agentId) => this.#refresh(thread, signal.sessionId, agentId)))
       return
     }
-    const owned = this.#owners.get(thread)
-    if (owned === undefined || signal.seq !== owned.seq + 1 || signal.kind === 'reset') {
-      if (signal.kind === 'reset') {
-        const page = {
-          ...signal.snapshot,
-          agentId: signal.agentId,
-          agents: [],
-          pendingInteractions: [],
-          seq: signal.seq,
-        } satisfies TranscriptPage
-        this.#install(thread, page, false)
-        return
-      }
+    if (signal.kind === 'reset') {
+      const page = {
+        ...signal.snapshot,
+        agentId: signal.agentId,
+        agents: owner.transcript.agents(),
+        pendingInteractions: [],
+        seq: signal.seq,
+      } satisfies TranscriptPage
+      this.#install(thread, signal.sessionId, page, false)
+      return
+    }
+    const feed = owner.feeds.get(signal.agentId)
+    if (feed === undefined || signal.seq !== feed.seq + 1) {
       await this.#reconcile(thread, signal.sessionId, signal.agentId)
       return
     }
-    const result = owned.agent.receive(signal.ops)
+    const transcript = owner.transcript.ensureAgent(signal.agentId)
+    const result = transcript.receive(signal.ops)
     if (result.gap !== undefined) {
       await this.#refresh(thread, signal.sessionId, signal.agentId)
       return
     }
-    owned.seq = signal.seq
-    owned.snapshot = owned.agent.snapshot()
-    this.#publish(thread, owned)
+    feed.seq = signal.seq
+    this.#publish(thread, signal.agentId, owner, feed)
   }
-  async #reconcile(thread: string, session: string, agent: string): Promise<void> {
-    const owned = this.#owners.get(thread)
-    if (owned === undefined || this.#port === null) {
-      await this.#refresh(thread, session, agent)
+  async #reconcile(thread: string, session: string, agentId: string): Promise<void> {
+    const owner = this.#owner(thread, session)
+    const feed = owner.feeds.get(agentId)
+    if (feed === undefined || this.#port === null) {
+      await this.#refresh(thread, session, agentId)
       return
     }
-    const caught = await this.#port.transcript.catchUpTranscript(session, agent, owned.seq)
-    if (!caught.complete) {
-      await this.#refresh(thread, session, agent)
+    const caught = await this.#port.transcript.catchUpTranscript(session, agentId, feed.seq)
+    if (!caught.complete || caught.agentId !== agentId) {
+      await this.#refresh(thread, session, agentId)
       return
     }
+    const transcript = owner.transcript.ensureAgent(agentId)
     for (const batch of caught.batches) {
-      if (batch.seq !== owned.seq + 1) {
-        await this.#refresh(thread, session, agent)
+      if (batch.seq !== feed.seq + 1) {
+        await this.#refresh(thread, session, agentId)
         return
       }
-      const result = owned.agent.receive(batch.ops)
+      const result = transcript.receive(batch.ops)
       if (result.gap !== undefined) {
-        await this.#refresh(thread, session, agent)
+        await this.#refresh(thread, session, agentId)
         return
       }
-      owned.seq = batch.seq
+      feed.seq = batch.seq
     }
-    owned.snapshot = owned.agent.snapshot()
-    this.#publish(thread, owned)
+    this.#publish(thread, agentId, owner, feed)
   }
-  async #refresh(thread: string, session: string, agent: string): Promise<void> {
+  async #refresh(thread: string, session: string, agentId: string): Promise<void> {
     if (this.#port === null) {
       return
     }
+    const key = channelKey(thread, agentId)
     try {
-      this.#install(thread, await this.#port.transcript.readTranscript(session, agent), false)
+      const page = await this.#port.transcript.readTranscript(session, agentId)
+      if (page.agentId !== agentId) {
+        throw new Error('transcript response changed agent identity')
+      }
+      this.#install(thread, session, page, false)
     } catch (cause) {
-      this.failed(thread, cause)
+      this.failed(key, cause)
     }
   }
-  #install(thread: string, page: TranscriptPage, prepend: boolean): void {
-    const previous = this.#owners.get(thread)?.agent.snapshot()
+  #install(thread: string, session: string, page: TranscriptPage, prepend: boolean): void {
+    const owner = this.#owner(thread, session)
+    for (const descriptor of page.agents) {
+      owner.transcript.describeAgent(descriptor)
+    }
+    const transcript = owner.transcript.ensureAgent(
+      page.agentId,
+      owner.transcript.agents().find((agent) => agent.agentId === page.agentId),
+    )
+    const previous = owner.feeds.has(page.agentId) ? transcript.snapshot() : undefined
     const snapshot =
       prepend && previous !== undefined
-        ? { ...snapshotOf(page), items: [...page.items, ...previous.items] }
+        ? {
+            ...previous,
+            items: [...page.items, ...previous.items],
+            hasMoreOlder: page.hasMoreOlder ?? false,
+          }
         : snapshotOf(page)
-    const agent = new AgentTranscript(page.agentId)
-    const result = agent.receive([{ op: 'reset', agentId: page.agentId, snapshot }])
+    const result = transcript.receive([{ op: 'reset', agentId: page.agentId, snapshot }])
     if (result.gap !== undefined) {
       throw new Error('official reducer rejected a reset snapshot')
     }
-    const owned: Owned = { agent, seq: page.seq, snapshot: agent.snapshot(), page }
-    this.#owners.set(thread, owned)
-    this.#publish(thread, owned)
+    const feed: AgentFeed = { seq: page.seq, page }
+    owner.feeds.set(page.agentId, feed)
+    this.#publish(thread, page.agentId, owner, feed)
   }
-  #publish(thread: string, owned: Owned): void {
-    const timeline = projectTranscript(owned.snapshot)
-    const turns = owned.snapshot.items.filter((item) => item.kind === 'turn')
-    this.#put(thread, {
-      timeline,
+  #publish(thread: string, agentId: string, owner: OwnedSession, feed: AgentFeed): void {
+    const transcript = owner.transcript.getAgent(agentId)
+    if (transcript === undefined) {
+      throw new Error('official transcript store lost an agent')
+    }
+    const snapshot = transcript.snapshot()
+    const key = channelKey(thread, agentId)
+    const current = this.read(key)
+    const turns = snapshot.items.filter((item) => item.kind === 'turn')
+    this.#put(key, {
+      timeline: projectTranscript(snapshot),
       restoring: false,
       loaded: true,
       owned: true,
-      earlier: owned.agent.hasMoreOlder ? (turns[0]?.turnId ?? null) : null,
-      outline: outlineOf(owned.snapshot),
-      reading: this.read(thread).reading,
-      revealing: this.read(thread).revealing,
+      earlier: transcript.hasMoreOlder ? (turns[0]?.turnId ?? null) : null,
+      outline: outlineOf(snapshot),
+      reading: current.reading,
+      revealing: current.revealing,
     })
+    feed.page = feed.page === null ? null : { ...feed.page, ...snapshot }
     this.#publishRunning()
+  }
+  #owner(thread: string, session: string): OwnedSession {
+    const existing = this.#owners.get(thread)
+    if (existing !== undefined && existing.sessionId === session) {
+      return existing
+    }
+    const created: OwnedSession = {
+      sessionId: session,
+      transcript: new OfficialTranscriptStore(session),
+      feeds: new Map(),
+    }
+    this.#owners.set(thread, created)
+    return created
+  }
+  #sessionFor(thread: string): string | undefined {
+    return [...this.#routes].find(([, owner]) => owner === thread)?.[0]
   }
   #put(key: string, next: Transcript): void {
     this.#held.set(key, next)
@@ -382,9 +447,12 @@ export class TranscriptStore implements TranscriptSink {
     }
   }
   #publishRunning(): void {
-    const next = new Set(
-      [...this.#held].filter(([, value]) => selectIsBusy(value.timeline)).map(([key]) => key),
-    )
+    const next = new Set<string>()
+    for (const [key, value] of this.#held) {
+      if (selectIsBusy(value.timeline)) {
+        next.add(addressOf(key).conversation)
+      }
+    }
     if (next.size === this.#running.size && [...next].every((key) => this.#running.has(key))) {
       return
     }

@@ -17,8 +17,21 @@ export function delegateKey(conversation: string, agentId: string): string {
 }
 
 /** 这个键是一条通道，不是一条对话。与 delegateKey 同住一处。 */
+export interface DelegateAddress {
+  readonly conversation: string
+  readonly agentId: string
+}
+
+export function delegateAddress(key: string): DelegateAddress | null {
+  const mark = key.indexOf(CHANNEL_MARK)
+  if (mark <= 0 || mark === key.length - 1) {
+    return null
+  }
+  return { conversation: key.slice(0, mark), agentId: key.slice(mark + 1) }
+}
+
 export function isDelegateKey(key: string): boolean {
-  return key.includes(CHANNEL_MARK)
+  return delegateAddress(key) !== null
 }
 
 /** 开出过通道的调用就是一次派发。 */

@@ -1,5 +1,6 @@
 export {
   channelNameOf,
+  delegateAddress,
   delegateKey,
   delegationOf,
   isDelegateKey,

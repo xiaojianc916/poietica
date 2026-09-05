@@ -55,10 +55,7 @@ pub use interaction::question::{
     AnswerMethod, QuestionAnswer, QuestionGroup, QuestionItem, QuestionOption, QuestionOutcome,
     QuestionResponse,
 };
-pub use process::controlled_home::{
-    alias_has_usable_credentials, alias_is_declared, secret_from_config, set_default_model,
-    tails_from_config, usable_default_model, write_config_atomically,
-};
+pub use process::controlled_home::write_config_atomically;
 pub use process::custom_agents::{
     CustomAgentCatalog, CustomAgentFile, CustomAgentFileError, delete_custom_agent,
     list_custom_agents, save_custom_agent,
