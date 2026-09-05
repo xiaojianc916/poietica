@@ -18,7 +18,7 @@ use super::dto::{
     AgentArchiveThreadRequest, AgentForkThreadRequest, AgentOpenThreadRequest, AgentOpenedThread,
     AgentPinThreadRequest, AgentRenameThreadRequest, AgentSessionUsage, AgentThread,
     AgentThreadRequest, AgentThreadSnapshot, AgentThreadTarget, AgentTitleSource,
-    FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
+    AgentTranscriptJson, FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
@@ -120,23 +120,45 @@ pub async fn agent_open_thread(
         history,
     } = session_for(&state, &index, &live, &named).await?;
 
-    let goal = live
-        .client
-        .goal(session_id.clone())
-        .await
-        .map_err(translate)?
-        .map(reported_goal);
-    let offered = if let Some(offered) = offered {
-        offered
-    } else {
-        /* 本次运行已经为它开过会话：只有这一种情况需要把表再问一次。 */
-        let answer = live.client.selectors(session_id).map_err(translate)?;
+    let current_session = session_id.clone();
+    let offered_goal = async {
+        if let Some(offered) = offered {
+            let goal = live
+                .client
+                .goal(current_session.clone())
+                .await
+                .map_err(translate)?
+                .map(reported_goal);
+            return Ok::<_, Error>((offered, goal));
+        }
 
-        answer
-            .await
-            .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
-            .map_err(translate)?
+        let answer = live
+            .client
+            .selectors(current_session.clone())
+            .map_err(translate)?;
+        let (offered, goal) = tokio::try_join!(
+            async {
+                answer
+                    .await
+                    .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
+                    .map_err(translate)
+            },
+            async {
+                live.client
+                    .goal(current_session.clone())
+                    .await
+                    .map_err(translate)
+                    .map(|goal| goal.map(reported_goal))
+            },
+        )?;
+        Ok((offered, goal))
     };
+    let ((offered, goal), transcript) = tokio::try_join!(offered_goal, async {
+        live.client
+            .read_transcript(session_id.clone(), "main".to_owned(), None)
+            .await
+            .map_err(translate)
+    },)?;
 
     /* 列表故意漏掉还没有人开口的对话，而刚建的这一行正是那种，所以它只能
     单独读回来。判据现在是标题源，见 threads.rs 的 list_threads。
@@ -161,6 +183,9 @@ pub async fn agent_open_thread(
         selectors: offered.into_iter().map(restate).collect(),
         goal,
         history,
+        transcript: AgentTranscriptJson {
+            json: transcript.to_string(),
+        },
     })
 }
 

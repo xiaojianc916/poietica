@@ -26,11 +26,10 @@ import type {
   TranscriptCatchUp,
   TranscriptPage,
 } from '@poietica/conversation'
-import type { AgentTranscriptSnapshot, TranscriptOperation } from '@poietica/transcript'
+import type { TranscriptOperation } from '@poietica/transcript'
 import {
   transcriptOpsCatchupResponseSchema,
   transcriptOpsPayloadSchema,
-  transcriptResetPayloadSchema,
   transcriptResponseSchema,
 } from '@poietica/transcript'
 import { throughIpc } from '../error'
@@ -181,6 +180,24 @@ function questionChoiceOf(choice: QuestionChoice): AgentQuestionChoice {
  * 审批的答复词汇由类型定死（kap 的三个 decision 与一个 scope），一组题的合法性由
  * 原生侧对着被问的那一组判。
  */
+function transcriptPageOf(json: string): TranscriptPage {
+  const data = transcriptResponseSchema.parse(JSON.parse(json))
+  return {
+    agentId: data.agent_id,
+    items: data.items,
+    hasMoreOlder: data.has_more,
+    tasks: data.tasks,
+    interactions: data.interactions,
+    attachments: data.attachments,
+    todos: data.todos,
+    prompts: data.prompts,
+    meta: data.meta,
+    agents: data.agents,
+    pendingInteractions: data.pending_interactions,
+    seq: data.seq ?? 0,
+  } as TranscriptPage
+}
+
 export function createAgentSessionPort({
   launch,
   cwd,
@@ -206,20 +223,7 @@ export function createAgentSessionPort({
               })
               return
             }
-            if (envelope.type === 'transcript.reset') {
-              const data = transcriptResetPayloadSchema.parse(envelope.payload)
-              listener({
-                kind: 'reset',
-                sessionId: wire.sessionId,
-                agentId: data.agent_id,
-                seq: data.seq ?? 0,
-                snapshot: {
-                  ...data.snapshot,
-                  hasMoreOlder: data.has_more_older,
-                } as AgentTranscriptSnapshot,
-              })
-              return
-            }
+            /* REST is the only full transcript snapshot source. */
             listener({
               kind: 'resync',
               sessionId: wire.sessionId,
@@ -234,21 +238,7 @@ export function createAgentSessionPort({
         const wire = await throughIpc(() =>
           commands.agentTranscript({ sessionId, agentId, beforeTurn: beforeTurn ?? null }),
         )
-        const data = transcriptResponseSchema.parse(JSON.parse(wire.json))
-        return {
-          agentId: data.agent_id,
-          items: data.items,
-          hasMoreOlder: data.has_more,
-          tasks: data.tasks,
-          interactions: data.interactions,
-          attachments: data.attachments,
-          todos: data.todos,
-          prompts: data.prompts,
-          meta: data.meta,
-          agents: data.agents,
-          pendingInteractions: data.pending_interactions,
-          seq: data.seq ?? 0,
-        } as TranscriptPage
+        return transcriptPageOf(wire.json)
       },
       catchUpTranscript: async (sessionId, agentId, sinceSeq) => {
         const wire = await throughIpc(() =>
@@ -546,6 +536,7 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
       selectors: opened.selectors.map(controlOf),
       goal: goalOf(opened.goal),
       history: opened.history,
+      transcript: transcriptPageOf(opened.transcript.json),
     }
   }
 

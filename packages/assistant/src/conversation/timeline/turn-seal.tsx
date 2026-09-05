@@ -15,6 +15,8 @@ import { formatDuration } from '../semantics/duration'
 
 export interface TurnSealProps {
   readonly turn: number
+  /** 官方终态耗时；重启后的冷恢复不要求 startedAt 存在。 */
+  readonly durationMs: number | undefined
   /** 缺席表示这台机器没有记下这一轮的两端：不报耗时，也不空转秒表。 */
   readonly startedAt: number | undefined
   /** 日志记录到的终点，只负责耗时。 */
@@ -58,6 +60,7 @@ function elapsedOf(
  * 里那条 error 条目自己讲，它就在下面几行。
  */
 function Seal({
+  durationMs,
   endedAt,
   hasProcess,
   isOpen,
@@ -68,11 +71,9 @@ function Seal({
   turn,
 }: TurnSealProps) {
   const now = useSecond(isRunning)
-  const elapsed = elapsedOf(
-    startedAt,
-    endedAt,
-    isRunning ? Math.max(now, lastFrameAt ?? 0) : lastFrameAt,
-  )
+  const elapsed = isRunning
+    ? elapsedOf(startedAt, undefined, Math.max(now, lastFrameAt ?? 0))
+    : (durationMs ?? elapsedOf(startedAt, endedAt, lastFrameAt))
   const phase = isRunning ? '正在处理' : '已处理'
   /* 不足一秒不报（formatDuration 的判据）：那种轮次快到没有人来得及读。 */
   const duration = elapsed === undefined ? null : formatDuration(elapsed)

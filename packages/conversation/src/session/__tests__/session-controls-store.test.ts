@@ -17,6 +17,20 @@ import type { TranscriptSink } from '../transcript-sink'
 
 const THREAD = 'thread-1'
 const SESSION = 'session-1'
+const TRANSCRIPT: OpenedThread['transcript'] = {
+  agentId: 'main',
+  agents: [{ agentId: 'main', type: 'main' }],
+  pendingInteractions: [],
+  seq: 0,
+  items: [],
+  tasks: [],
+  interactions: [],
+  attachments: [],
+  todos: [],
+  prompts: [],
+  meta: {},
+  hasMoreOlder: false,
+}
 
 function routeSink(): TranscriptSink {
   const owners = new Map<string, string>()
@@ -79,6 +93,7 @@ const opened = (selectors: readonly SessionConfigControl[]): OpenedThread => ({
   selectors,
   goal: null,
   history: { state: 'fresh' },
+  transcript: TRANSCRIPT,
 })
 
 const snapshot = (): ThreadSnapshot => ({

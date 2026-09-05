@@ -578,6 +578,7 @@ pub struct AgentOpenedThread {
     pub selectors: Vec<AgentConfigControl>,
     pub goal: Option<AgentGoal>,
     pub history: AgentHistory,
+    pub transcript: AgentTranscriptJson,
 }
 
 /// A conversation the interface is renaming.

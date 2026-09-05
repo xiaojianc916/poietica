@@ -1369,7 +1369,7 @@ cwd: string | null }
 /**
  * The result of activating one conversation in the agent runtime.
  */
-export type AgentOpenedThread = { thread: AgentThread; selectors: AgentConfigControl[]; goal: AgentGoal | null; history: AgentHistory }
+export type AgentOpenedThread = { thread: AgentThread; selectors: AgentConfigControl[]; goal: AgentGoal | null; history: AgentHistory; transcript: AgentTranscriptJson }
 /**
  * A conversation being held at the top of the list, or released.
  */

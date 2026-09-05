@@ -9,7 +9,6 @@ import type {
   SessionUsagePort,
   SessionUsageReport,
   ThreadPort,
-  ThreadRecord,
   ThreadSnapshot,
 } from '../agent'
 import { ArrivalOrder } from './arrival-order'
@@ -207,7 +206,7 @@ export class SessionControlsStore {
   opened = (answer: OpenedThread): void => {
     const threadId = answer.thread.threadId
 
-    this.#hold(answer.thread)
+    this.#hold(answer)
     this.#asked.add(threadId)
     this.#transcripts?.history(threadId, answer.history)
 
@@ -408,11 +407,11 @@ export class SessionControlsStore {
    * 建立得起来的时刻。列表读回来的那些号不算：它们可能是上一次运行留下的，而推送
    * 只会来自活着的会话。
    */
-  #hold(thread: ThreadRecord): void {
-    const sessionId = thread.sessionId
+  #hold(answer: OpenedThread): void {
+    const sessionId = answer.thread.sessionId
 
     if (sessionId !== null) {
-      this.#transcripts?.route(sessionId, thread.threadId)
+      this.#transcripts?.route(sessionId, answer.thread.threadId, answer.transcript)
     }
   }
 

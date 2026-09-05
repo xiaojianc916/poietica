@@ -32,13 +32,7 @@ export type TranscriptSignal =
       readonly seq: number
       readonly ops: readonly TranscriptOperation[]
     }
-  | {
-      readonly kind: 'reset'
-      readonly sessionId: string
-      readonly agentId: string
-      readonly seq: number
-      readonly snapshot: AgentTranscriptSnapshot
-    }
+  /* Full snapshots are TranscriptPage values, never WS signals. */
   | { readonly kind: 'resync'; readonly sessionId: string; readonly reason: string }
 
 export interface TranscriptPort {

@@ -1,6 +1,7 @@
 import type { ThreadId } from './address'
 import type { SessionConfigControl } from './config'
 import type { SessionGoal } from './goal'
+import type { TranscriptPage } from './transcript'
 import type { SessionUsage } from './usage'
 
 /**
@@ -91,6 +92,8 @@ export interface OpenedThread {
   readonly selectors: readonly SessionConfigControl[]
   readonly goal: SessionGoal | null
   readonly history: ThreadHistory
+  /** REST baseline; subsequent changes arrive as ordered transcript ops. */
+  readonly transcript: TranscriptPage
 }
 
 /**

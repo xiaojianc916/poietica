@@ -143,18 +143,19 @@ pub(crate) fn create_session_body(cwd: &Path) -> CreateSessionRequestStruct {
 
 /// Kimi 配置的默认模型优先；目录首项只在配置未指定时兜底。
 pub(crate) async fn default_model(http: &reqwest::Client, base_url: &str) -> Result<String> {
-    let config = get(http, routes::client_config(base_url)).await?;
+    let (config, catalog): (Value, ListModelsDataStruct) =
+        tokio::try_join!(get(http, routes::client_config(base_url)), async {
+            decoded(
+                get(http, routes::list_models(base_url)).await?,
+                "model catalog",
+            )
+        },)?;
     let _: crate::generated::rest::ClientConfigDataStruct =
         decoded(config.clone(), "client configuration")?;
     let configured = config
         .get("default_model")
         .and_then(Value::as_str)
         .filter(|model| !model.trim().is_empty());
-
-    let catalog: ListModelsDataStruct = decoded(
-        get(http, routes::list_models(base_url)).await?,
-        "model catalog",
-    )?;
     let offered: Vec<String> = catalog
         .items
         .into_iter()
@@ -670,17 +671,29 @@ pub(crate) async fn get_selectors(
     base_url: &str,
     session_id: &str,
 ) -> Result<(Vec<ConfigControl>, Option<GoalSnapshot>)> {
-    let status: SessionStatusDataStruct = decoded(
-        get(http, routes::session_status(base_url, session_id)).await?,
-        "session status",
-    )?;
-    let catalog: ListModelsDataStruct = decoded(
-        get(http, routes::list_models(base_url)).await?,
-        "model catalog",
-    )?;
-    let goal: Option<SessionGoalDataStruct> = decoded(
-        get(http, routes::session_goal(base_url, session_id)).await?,
-        "session goal",
+    let (status, catalog, goal): (
+        SessionStatusDataStruct,
+        ListModelsDataStruct,
+        Option<SessionGoalDataStruct>,
+    ) = tokio::try_join!(
+        async {
+            decoded(
+                get(http, routes::session_status(base_url, session_id)).await?,
+                "session status",
+            )
+        },
+        async {
+            decoded(
+                get(http, routes::list_models(base_url)).await?,
+                "model catalog",
+            )
+        },
+        async {
+            decoded(
+                get(http, routes::session_goal(base_url, session_id)).await?,
+                "session goal",
+            )
+        },
     )?;
     Ok((
         controls(&status, &catalog, goal.as_ref()),

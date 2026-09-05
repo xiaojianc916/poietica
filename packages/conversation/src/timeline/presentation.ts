@@ -37,6 +37,7 @@ export interface ToolGroupPlan {
 /** 封条属于一次运行；身份直接使用 TurnPage 的权威段号。 */
 export interface TurnSealPlan {
   readonly turn: number
+  readonly durationMs: number | undefined
   readonly startedAt: number | undefined
   readonly endedAt: number | undefined
   /** 运行中的耗时以它为终点，所以秒表不会超过实际收帧的跨度。 */
@@ -454,11 +455,17 @@ function sealOf(
 ): TurnSealPlan | undefined {
   const asked = rows.some((row) => row.item.type === SAID)
 
-  if (!asked || (!bodyIn(rows, 0, rows.length) && span?.startedAt === undefined)) {
+  if (
+    !asked ||
+    (!bodyIn(rows, 0, rows.length) &&
+      span?.startedAt === undefined &&
+      span?.durationMs === undefined)
+  ) {
     return undefined
   }
 
   return {
+    durationMs: span?.durationMs,
     endedAt: span?.endedAt,
     hasProcess,
     isOpen,

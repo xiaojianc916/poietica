@@ -62,6 +62,7 @@ interface OwnedSession {
   readonly feeds: Map<string, AgentFeed>
 }
 const MAIN_AGENT_ID = 'main'
+const PENDING_SIGNAL_LIMIT = 64
 const EMPTY: Transcript = {
   timeline: createTimelineState(),
   restoring: false,
@@ -111,6 +112,7 @@ export class TranscriptStore implements TranscriptSink {
   #held = new Map<string, Transcript>()
   #owners = new Map<string, OwnedSession>()
   #routes = new Map<string, string>()
+  #pending = new Map<string, TranscriptSignal[]>()
   #listeners = new Map<string, Set<() => void>>()
   #running = new Set<string>()
   #runningListeners = new Set<() => void>()
@@ -155,12 +157,16 @@ export class TranscriptStore implements TranscriptSink {
     }
     this.#off?.()
     this.#port = port
-    this.#off = port.transcript.subscribeTranscript((signal) => void this.#signal(signal))
+    this.#off = port.transcript.subscribeTranscript((signal) => this.#accept(signal))
   }
-  route = (sessionId: string, threadId: string): void => {
-    this.#routes.set(sessionId, threadId)
-    this.#owner(threadId, sessionId)
-    void this.#refresh(threadId, sessionId, MAIN_AGENT_ID)
+  route = (sessionId: string, threadId: string, baseline: TranscriptPage): void => {
+    this.#bind(sessionId, threadId)
+    this.#install(threadId, sessionId, baseline, false)
+    const pending = this.#pending.get(sessionId) ?? []
+    this.#pending.delete(sessionId)
+    for (const signal of pending) {
+      this.#accept(signal)
+    }
   }
   ownerOf = (sessionId: string): string | undefined => this.#routes.get(sessionId)
   opening = (threadId: string): void => {
@@ -200,6 +206,7 @@ export class TranscriptStore implements TranscriptSink {
     for (const [session, owner] of this.#routes) {
       if (owner === threadId) {
         this.#routes.delete(session)
+        this.#pending.delete(session)
       }
     }
     this.#publishRunning()
@@ -264,7 +271,10 @@ export class TranscriptStore implements TranscriptSink {
         }
         onUserMessage?.(threadId, text)
         const handle = await port.prompt({ threadId, text, assets, configuration, skills })
-        this.route(handle.sessionId, threadId)
+        this.#bind(handle.sessionId, threadId)
+        if (!this.read(threadId).loaded) {
+          void this.#refresh(threadId, handle.sessionId, MAIN_AGENT_ID)
+        }
       })
       .catch((cause: unknown) => this.failed(threadId, cause))
   }
@@ -295,6 +305,31 @@ export class TranscriptStore implements TranscriptSink {
     })
   }
 
+  #accept(signal: TranscriptSignal): void {
+    if (this.#routes.has(signal.sessionId)) {
+      void this.#signal(signal)
+      return
+    }
+    const pending = this.#pending.get(signal.sessionId) ?? []
+    if (pending.some((item) => item.kind === 'resync')) {
+      return
+    }
+    if (signal.kind === 'resync' || pending.length >= PENDING_SIGNAL_LIMIT) {
+      this.#pending.set(signal.sessionId, [
+        {
+          kind: 'resync',
+          sessionId: signal.sessionId,
+          reason: signal.kind === 'resync' ? signal.reason : 'pending transcript buffer overflow',
+        },
+      ])
+      return
+    }
+    this.#pending.set(signal.sessionId, [...pending, signal])
+  }
+  #bind(sessionId: string, threadId: string): void {
+    this.#routes.set(sessionId, threadId)
+    this.#owner(threadId, sessionId)
+  }
   async #signal(signal: TranscriptSignal): Promise<void> {
     const thread = this.#routes.get(signal.sessionId)
     if (thread === undefined) {
@@ -306,17 +341,7 @@ export class TranscriptStore implements TranscriptSink {
       await Promise.all(agents.map((agentId) => this.#refresh(thread, signal.sessionId, agentId)))
       return
     }
-    if (signal.kind === 'reset') {
-      const page = {
-        ...signal.snapshot,
-        agentId: signal.agentId,
-        agents: owner.transcript.agents(),
-        pendingInteractions: [],
-        seq: signal.seq,
-      } satisfies TranscriptPage
-      this.#install(thread, signal.sessionId, page, false)
-      return
-    }
+    /* Full snapshots enter through route; WS only advances or invalidates them. */
     const feed = owner.feeds.get(signal.agentId)
     if (feed === undefined || signal.seq !== feed.seq + 1) {
       await this.#reconcile(thread, signal.sessionId, signal.agentId)

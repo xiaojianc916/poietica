@@ -291,35 +291,14 @@ export type TimelineItem =
   | ErrorItem
 
 /**
- * 一轮的两端。
- *
- * 起点是 prompt_admitted 那一帧的 at，终点在 run_finished / run_failed 落定时补上。有起点
- * 而缺终点，就是这一轮还在跑，所以不需要另一个布尔去说同一件事。
- *
- * 两端都取自日志里的 at（epoch 毫秒墙钟，原生侧 recorder.rs 的 now_millis 写下），
- * 不取本机时钟：同一份日志放两遍必须算出同一个耗时。performance.now() 的原点是每个
- * 进程各自的，与帧里的 at 不在同一条数轴上，所以它在这条链上不是一个可选项。
- *
- * 一条 span 首先是「这里有一轮」，其次才是「它花了多久」。段的存在由 turn 表达，耗时
- * 由两端表达，缺一端就是算不出 —— 算不出的耗时不显示，也绝不显示成 0s。
+ * 一轮的时间事实。终态耗时以 transcript 的 durationMs 为准；时间戳只负责
+ * 运行态推进。缺席表示上游没有提供，不反推、不伪造。
  */
 export interface TurnSpan {
   readonly turn: number
-  /**
-   * 这一轮发出去的时刻。缺席表示这台机器没有记下它。
-   *
-   * 缺席只有一个来源：本机帧日志之前的旧对话 —— 那些帧没有落进 run_events，两端因此
-   * 无从谈起。日志建立之后两端都在帧里，同一份日志放两遍算出同一个耗时。
-   * 「不知道」与「一瞬间」是两件事，屏幕上不许把前者画成后者。
-   */
+  readonly durationMs?: number
   readonly startedAt?: number
-  /** 有起点而缺终点，就是这一轮还在跑。 */
   readonly endedAt?: number
-  /**
-   * 这一轮最后一帧的时刻。
-   *
-   * 运行中的耗时以它为终点，两端因此同在日志域，秒表也不会超过实际收帧的跨度。
-   */
   readonly lastFrameAt?: number
 }
 

@@ -55,20 +55,19 @@ describe('TranscriptStore', () => {
     } satisfies AgentSessionPort
     const store = new TranscriptStore()
     store.ensure(port)
-    store.route('session-1', 'thread-1')
-    await Promise.resolve()
-    await Promise.resolve()
+    store.route('session-1', 'thread-1', page('main'))
     expect(store.read('thread-1').loaded).toBe(true)
     if (receive === undefined) {
       throw new Error('transcript listener was not installed')
     }
     receive({
-      kind: 'reset',
+      kind: 'ops',
       sessionId: 'session-1',
       agentId: 'worker-1',
-      seq: 0,
-      snapshot: emptySnapshot,
+      seq: 1,
+      ops: [],
     })
+    await Promise.resolve()
     await Promise.resolve()
     expect(store.read('thread-1').loaded).toBe(true)
     expect(store.read(delegateKey('thread-1', 'worker-1')).loaded).toBe(true)

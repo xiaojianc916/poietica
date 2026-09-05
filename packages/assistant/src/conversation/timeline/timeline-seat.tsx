@@ -69,6 +69,7 @@ export const TimelineSeat = memo(function TimelineSeat({
       {content}
       {seal === undefined ? null : (
         <TurnSeal
+          durationMs={seal.durationMs}
           endedAt={seal.endedAt}
           hasProcess={seal.hasProcess}
           isOpen={seal.isOpen}

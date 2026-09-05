@@ -10,6 +10,7 @@ describe('official transcript projection', () => {
           turnId: '1',
           ordinal: 1,
           state: 'completed',
+          durationMs: 12_500,
           origin: { kind: 'user' },
           prompt: 'hello',
           steps: [
@@ -33,6 +34,7 @@ describe('official transcript projection', () => {
       hasMoreOlder: false,
     })
     expect(state.status).toBe('completed')
+    expect(state.spans[0]?.durationMs).toBe(12_500)
     expect(state.active.items.map((item) => item.type)).toEqual(['user_message', 'agent_text'])
   })
 })

@@ -230,6 +230,7 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
     pages.push({ turn: index, items })
     spans.push({
       turn: index,
+      ...(turn.durationMs === undefined ? {} : { durationMs: Math.max(0, turn.durationMs) }),
       ...(turn.startedAt === undefined ? {} : { startedAt: at(turn.startedAt) }),
       ...(turn.endedAt === undefined ? {} : { endedAt: at(turn.endedAt) }),
       lastFrameAt: at(turn.endedAt ?? turn.startedAt),
