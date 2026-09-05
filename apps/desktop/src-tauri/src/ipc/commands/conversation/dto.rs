@@ -277,8 +277,6 @@ pub enum AgentRunFrame {
         skills: Option<Vec<String>>,
     },
     #[serde(rename_all = "camelCase")]
-    KapEvent { payload: Value },
-    #[serde(rename_all = "camelCase")]
     PermissionRequested {
         request_id: String,
         tool_call_id: Option<String>,
@@ -353,7 +351,6 @@ impl From<poietica_conversation::event::EventEnvelope> for AgentRunEvent {
                 images,
                 skills,
             },
-            Event::KapEvent { payload } => AgentRunFrame::KapEvent { payload },
             Event::PermissionRequested {
                 request_id,
                 tool_call_id,
@@ -543,34 +540,6 @@ pub struct AgentThread {
     pub archived: bool,
 }
 
-/// 一页帧从哪儿往前读。渲染层原样回传，不解释：它是库上那把唯一键。
-#[derive(Debug, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentFrameCursor {
-    /// 位置属于哪条会话。
-    pub session_id: String,
-    /// 它在那条会话上的位置。
-    pub seq: u32,
-}
-
-/// A page of validated wire events and its earlier cursor.
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentFramePage {
-    pub events: Vec<AgentRunEvent>,
-    pub before: Option<AgentFrameCursor>,
-}
-
-/// 要往前读的那条对话，以及从哪儿接着读。
-#[derive(Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentEarlierFramesRequest {
-    /// 往前读哪条对话。
-    pub thread_id: String,
-    /// 上一页交回的读取位置。
-    pub before: AgentFrameCursor,
-}
-
 /// 要打开或创建的对话。操作由判别式表达，不用可空 id 猜。
 #[derive(Debug, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -598,7 +567,6 @@ pub struct AgentOpenThreadRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AgentThreadSnapshot {
     pub thread: AgentThread,
-    pub frames: AgentFramePage,
     pub usage: Option<AgentSessionUsage>,
 }
 
@@ -638,13 +606,49 @@ pub struct AgentThreadRequest {
     pub thread_id: String,
 }
 
-/// A suffix read of the durable conversation outline.
+/// 一个 agent 的 transcript 页怎么读。
+///
+/// 载荷以 JSON 文本透传：契约钉在 vendored @poietica/transcript 的 schema，
+/// 校验发生在桥那一侧，这里不重抄第二份形状。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentThreadOutlineRequest {
-    pub thread_id: String,
-    /// Inclusive prompt sequence; absent reads the complete outline.
-    pub from_seq: Option<u32>,
+pub struct AgentTranscriptRequest {
+    pub session_id: String,
+    pub agent_id: String,
+    /// 往前读到哪一轮为止；缺席读最新一页。
+    pub before_turn: Option<String>,
+}
+
+/// 一个 agent 的 transcript 追赶怎么读。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTranscriptOpsRequest {
+    pub session_id: String,
+    pub agent_id: String,
+    /// 只取 seq 比它新的批次。
+    pub since_seq: i64,
+}
+
+/// transcript 通道的一帧：官方 transcript 事件原样 JSON。
+///
+/// `{ type: "transcript.ops" | "transcript.reset" | …, payload }` 的判别与
+/// 校验归渲染层（vendored schema）；这一侧只交会话地址与原文。
+#[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTranscriptEvent {
+    pub session_id: String,
+    /// 官方 transcript 事件的原文（含 type 与 payload）。
+    pub json: String,
+}
+
+/// 一条 transcript 读命令的答复：原样 JSON 文本。
+///
+/// 与 `AgentTranscriptEvent` 同一条规矩：形状由 vendored schema 说，这里是
+/// 透传壳。
+#[derive(Clone, Debug, Deserialize, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTranscriptJson {
+    pub json: String,
 }
 
 /// 要分叉的对话，以及必要时怎样启动 agent。
@@ -886,19 +890,4 @@ pub fn reported_goal(goal: poietica_kap_client::GoalSnapshot) -> AgentGoal {
         tokens_used: narrow(goal.tokens_used),
         wall_clock_ms: narrow(goal.wall_clock_ms),
     }
-}
-
-/// 目录里的一轮：地址、问的头一句、答的头几行。
-///
-/// 两段的字数在库里就截断了（mod.rs 的 OUTLINE_*）：目录要的是预览卡上看得见的
-/// 那两行，不是整段回答。
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentTurnMark {
-    /// 这一轮的第一帧在库上的位置。跳转与续读都认它。
-    pub at: AgentFrameCursor,
-    /// 本机签发的 durable admission identity。
-    pub admission_id: String,
-    pub prompt: String,
-    pub reply: Option<String>,
 }

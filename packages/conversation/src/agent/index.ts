@@ -16,7 +16,7 @@ export type {
   SessionConfigReport,
 } from './config'
 export type { SessionGoal, SessionGoalStatus } from './goal'
-export type { KapEventPayload, KapSessionId, KapStopReason, KapToolCallId } from './kap'
+export type { KapSessionId, KapStopReason, KapToolCallId } from './kap'
 export type { SessionLink } from './link'
 export type {
   ApprovalAnswer,
@@ -35,7 +35,6 @@ export type {
 export type {
   ChatStatus,
   QuestionOutcome,
-  RunEvent,
   RunStatus,
 } from './run'
 export type {
@@ -47,8 +46,6 @@ export type {
   PromptSkill,
 } from './session'
 export type {
-  FrameCursor,
-  FramePage,
   OpenedThread,
   ThreadHistory,
   ThreadPort,
@@ -64,4 +61,12 @@ export type {
   ToolKind,
 } from './tool-call'
 export type { AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit } from './toolkit'
+export type {
+  TranscriptAgentId,
+  TranscriptCatchUp,
+  TranscriptPage,
+  TranscriptPort,
+  TranscriptSignal,
+  TranscriptTurnId,
+} from './transcript'
 export type { SessionUsage, SessionUsagePort, SessionUsageReport } from './usage'

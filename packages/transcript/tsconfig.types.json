@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": false,
+    "inlineSources": false,
+    "incremental": false,
+    "rootDir": "src",
+    "outDir": "dist-types",
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/transcript-types.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"]
+}

@@ -22,7 +22,6 @@ function routeSink(): TranscriptSink {
   const owners = new Map<string, string>()
   return {
     opening: () => undefined,
-    adopt: () => undefined,
     history: () => undefined,
     failed: () => undefined,
     route: (sessionId, threadId) => {
@@ -84,7 +83,13 @@ const opened = (selectors: readonly SessionConfigControl[]): OpenedThread => ({
 
 const snapshot = (): ThreadSnapshot => ({
   thread: opened(WITH_LOW).thread,
-  frames: { events: [], before: null },
+  usage: {
+    used: 100,
+    size: 1000,
+    inputOther: 10,
+    inputCacheRead: 20,
+    inputCacheCreation: 5,
+  },
 })
 
 /* 让已经兑现的那些 then 跑完。这里没有计时器，所以不需要假时钟。 */
@@ -179,14 +184,8 @@ describe('一条对话的那张表', () => {
     expect(store.selectorsOf(THREAD)).toBeUndefined()
   })
 
-  it('本地快照不等待 agent 激活即可落入转录', async () => {
+  it('本地快照不等待 agent 激活即可落用量', async () => {
     let finishActivation: ((answer: OpenedThread) => void) | undefined
-    const adopted: string[] = []
-    const baseSink = routeSink()
-    const transcripts: TranscriptSink = {
-      ...baseSink,
-      adopt: (threadId) => adopted.push(threadId),
-    }
     const port: ThreadPort = {
       list: () => Promise.resolve([]),
       read: () => Promise.resolve(snapshot()),
@@ -195,16 +194,15 @@ describe('一条对话的那张表', () => {
         new Promise((resolve) => {
           finishActivation = resolve
         }),
-      earlierFrames: () => Promise.resolve({ events: [], before: null }),
-      outline: () => Promise.resolve([]),
     }
-    const store = new SessionControlsStore({ port, transcripts })
+    const store = new SessionControlsStore({ port, transcripts: routeSink() })
 
     store.adopt(THREAD)
     await settled()
 
-    expect(adopted).toEqual([THREAD])
+    /* 选择器表等激活答复；本地快照先到的只有用量。 */
     expect(store.selectorsOf(THREAD)).toBeUndefined()
+    expect(store.usageOf(THREAD)?.used).toBe(100)
 
     finishActivation?.(opened(WITH_LOW))
     await settled()

@@ -1,24 +1,20 @@
 import {
   type AgentConfigChoice,
   type AgentConfigControl,
-  type AgentFramePage,
   type AgentGoal,
   type AgentLaunch,
   type AgentMcpServer,
   type AgentQuestionChoice,
-  type AgentRunBatch,
-  type AgentRunEvent,
   type AgentSessionEvent,
+  type AgentTranscriptEvent,
   commands,
   events,
 } from '@poietica/contract'
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
-  FramePage,
   OpenedThread,
   QuestionChoice,
-  RunEvent,
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
@@ -27,7 +23,16 @@ import type {
   SessionUsagePort,
   ThreadPort,
   ThreadSnapshot,
+  TranscriptCatchUp,
+  TranscriptPage,
 } from '@poietica/conversation'
+import type { AgentTranscriptSnapshot, TranscriptOperation } from '@poietica/transcript'
+import {
+  transcriptOpsCatchupResponseSchema,
+  transcriptOpsPayloadSchema,
+  transcriptResetPayloadSchema,
+  transcriptResponseSchema,
+} from '@poietica/transcript'
 import { throughIpc } from '../error'
 
 /**
@@ -44,24 +49,6 @@ import { throughIpc } from '../error'
  * and translates wire DTOs into domain ports.
  */
 
-function runEventOf(event: AgentRunEvent): RunEvent | null {
-  if (event.kind === 'turn_admitted' || event.kind === 'unsupported_external_event') {
-    return null
-  }
-  const { sessionId: _sessionId, ...frame } = event
-  return frame as RunEvent
-}
-
-function runEventsOf(events: readonly AgentRunEvent[]): readonly RunEvent[] {
-  return events.flatMap((event) => {
-    const translated = runEventOf(event)
-    return translated === null ? [] : [translated]
-  })
-}
-
-function framePageOf(page: AgentFramePage): FramePage {
-  return { events: runEventsOf(page.events), before: page.before }
-}
 export interface AgentEventSourceOptions {
   /** Reports a transport failure; listening is best-effort by design. */
   readonly onListenFailure?: (error: unknown) => void
@@ -200,20 +187,82 @@ export function createAgentSessionPort({
   onListenFailure,
 }: AgentBridgeOptions & AgentEventSourceOptions): AgentSessionPort {
   return {
-    subscribe: (listener) =>
-      subscribeToEvent<AgentRunBatch>(
-        (receive) =>
-          events.agentRunBatch.listen((event) => {
-            receive(event.payload)
-          }),
-        (batch) => {
-          const translated = runEventsOf(batch.events)
-          if (translated.length > 0) {
-            listener(translated, batch.sessionId)
-          }
-        },
-        onListenFailure,
-      ),
+    transcript: {
+      subscribeTranscript: (listener) =>
+        subscribeToEvent<AgentTranscriptEvent>(
+          (receive) => events.agentTranscriptEvent.listen((event) => receive(event.payload)),
+          (wire) => {
+            const envelope = JSON.parse(wire.json) as { type?: unknown; payload?: unknown }
+            /* zod 推断的可选格带 | undefined，与 exactOptionalPropertyTypes 的
+          端口类型差一格；parse 已验证形状，这里按官方接口收口。 */
+            if (envelope.type === 'transcript.ops') {
+              const data = transcriptOpsPayloadSchema.parse(envelope.payload)
+              listener({
+                kind: 'ops',
+                sessionId: wire.sessionId,
+                agentId: data.agent_id,
+                seq: data.seq ?? 0,
+                ops: data.ops as readonly TranscriptOperation[],
+              })
+              return
+            }
+            if (envelope.type === 'transcript.reset') {
+              const data = transcriptResetPayloadSchema.parse(envelope.payload)
+              listener({
+                kind: 'reset',
+                sessionId: wire.sessionId,
+                agentId: data.agent_id,
+                seq: data.seq ?? 0,
+                snapshot: {
+                  ...data.snapshot,
+                  hasMoreOlder: data.has_more_older,
+                } as AgentTranscriptSnapshot,
+              })
+              return
+            }
+            listener({
+              kind: 'resync',
+              sessionId: wire.sessionId,
+              reason: String(
+                (envelope.payload as { reason?: unknown } | undefined)?.reason ?? 'resync_required',
+              ),
+            })
+          },
+          onListenFailure,
+        ),
+      readTranscript: async (sessionId, agentId, beforeTurn) => {
+        const wire = await throughIpc(() =>
+          commands.agentTranscript({ sessionId, agentId, beforeTurn: beforeTurn ?? null }),
+        )
+        const data = transcriptResponseSchema.parse(JSON.parse(wire.json))
+        return {
+          agentId: data.agent_id,
+          items: data.items,
+          hasMoreOlder: data.has_more,
+          tasks: data.tasks,
+          interactions: data.interactions,
+          attachments: data.attachments,
+          todos: data.todos,
+          prompts: data.prompts,
+          meta: data.meta,
+          agents: data.agents,
+          pendingInteractions: data.pending_interactions,
+          seq: data.seq ?? 0,
+        } as TranscriptPage
+      },
+      catchUpTranscript: async (sessionId, agentId, sinceSeq) => {
+        const wire = await throughIpc(() =>
+          commands.agentTranscriptOps({ sessionId, agentId, sinceSeq }),
+        )
+        const data = transcriptOpsCatchupResponseSchema.parse(JSON.parse(wire.json))
+        return {
+          agentId: data.agent_id,
+          batches: data.batches,
+          latestSeq: data.latest_seq,
+          complete: data.complete,
+        } as TranscriptCatchUp
+      },
+    },
     prompt: async (request) => {
       const resolvedLaunch = await launch()
       const started = await throughIpc(() =>
@@ -506,16 +555,11 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
       const snapshot = await throughIpc(() => commands.agentThreadSnapshot({ threadId }))
       return {
         thread: snapshot.thread,
-        frames: framePageOf(snapshot.frames),
         ...(snapshot.usage === null ? {} : { usage: snapshot.usage }),
       }
     },
     create: (threadId, workspaceRoot) => openTarget({ kind: 'create', threadId }, workspaceRoot),
     open: (threadId) => openTarget({ kind: 'existing', threadId }),
-    earlierFrames: async (threadId, before) =>
-      framePageOf(await throughIpc(() => commands.agentEarlierFrames({ threadId, before }))),
-    outline: (threadId, fromSeq) =>
-      throughIpc(() => commands.agentThreadOutline({ threadId, fromSeq })),
     export: async (threadId) =>
       throughIpc(async () => commands.agentExportThread({ threadId, launch: await launch() })),
     rename: async (threadId, title) => {

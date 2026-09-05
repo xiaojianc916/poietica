@@ -45,7 +45,9 @@ pub(crate) async fn send_frame(ws: &WsSink, frame: ClientFrame) -> Result<String
     let id = match &frame {
         ClientFrame::ClientHello { id, .. }
         | ClientFrame::Subscribe { id, .. }
-        | ClientFrame::Unsubscribe { id, .. } => id.clone(),
+        | ClientFrame::SubscribeV2 { id, .. }
+        | ClientFrame::Unsubscribe { id, .. }
+        | ClientFrame::UnsubscribeV2 { id, .. } => id.clone(),
         ClientFrame::Pong { .. } => String::new(),
     };
 

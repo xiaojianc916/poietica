@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@poietica/conversation": "workspace:*",
+    "@poietica/transcript": "workspace:*",
     "@types/bun": "catalog:",
     "typescript": "catalog:"
   }

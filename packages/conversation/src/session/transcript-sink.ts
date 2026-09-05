@@ -1,21 +1,9 @@
-import type { FramePage, ThreadHistory } from '../agent'
-
-/**
- * 转录那一侧，会话这一侧要用到的全部。
- *
- * 注入而不是 import 一个单例：实例由组合根造出来，测试因此塞得进一个假的，而
- * 「一个 store 订着一条线路」那道守卫也才是实例级而不是进程级的。窄到只剩这
- * 几句，是为了让那个假的写得出来。
- */
+import type { ThreadHistory } from '../agent'
 export interface TranscriptSink {
   readonly opening: (threadId: string) => void
-  readonly adopt: (threadId: string, page: FramePage) => void
   readonly history: (threadId: string, history: ThreadHistory) => void
   readonly failed: (threadId: string, cause: unknown) => void
-  /** 运行帧按会话号到达，而这一侧的一切按对话记：这是两者之间唯一的那张表。 */
   readonly route: (sessionId: string, threadId: string) => void
-  /** 从唯一归属表查询会话主人；调用方不得维护副本。 */
   readonly ownerOf: (sessionId: string) => string | undefined
-  /** 这条对话不存在了：转录连同指向它的路由一起作废。 */
   readonly forget: (threadId: string) => void
 }

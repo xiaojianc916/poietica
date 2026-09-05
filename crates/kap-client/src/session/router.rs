@@ -12,7 +12,6 @@ use super::rest::{get, get_selectors, post, session_snapshot};
 use super::{Cursor, SessionEvent, SessionUsageSnapshot};
 use crate::connection::handshake::subscribe;
 use crate::connection::socket::WsSink;
-use crate::frame::kap_event;
 use crate::generated::rest::{
     ResolveApprovalRequestDecisionEnum, ResolveApprovalRequestScopeEnum,
     ResolveApprovalRequestStruct, routes,
@@ -319,15 +318,51 @@ impl EventRouter {
             events_tx,
             http,
             base_url,
-            cursors,
+            cursors: _,
             ws: _,
             recoveries: _,
         } = self;
 
+        // 官方 transcript 通道（subscribe_v2 订的 per-agent 粒度流）：语义事件
+        // 原样转交宿主，不在本地帧日志过账 —— 重放由 agent 自己的 transcript 承担。
+        if matches!(kind, "transcript.ops" | "transcript.reset") {
+            let session_id = envelope
+                .get("session_id")
+                .and_then(Value::as_str)
+                .or_else(|| {
+                    envelope
+                        .pointer("/payload/session_id")
+                        .and_then(Value::as_str)
+                });
+            if let Some(session_id) = session_id {
+                let _sent = self.events_tx.unbounded_send(SessionEvent::Transcript {
+                    session_id: session_id.to_owned(),
+                    payload: envelope.clone(),
+                });
+            }
+            return;
+        }
+
         // kap 说这条会话的事件流断了（reason 枚举 buffer_overflow / session_recreated /
         // epoch_changed，见 contracts/kap/asyncapi.json 的 resync_required 载荷）：断点
         // 之后的帧不会再来，这一轮的经过补不齐。判死它 —— 补不回来的东西不该装作还在路上。
+        // transcript 通道同帧受累：转发 resync，让下游走全量刷新。
         if kind == "resync_required" {
+            if let Some(session_id) =
+                envelope
+                    .get("session_id")
+                    .and_then(Value::as_str)
+                    .or_else(|| {
+                        envelope
+                            .pointer("/payload/session_id")
+                            .and_then(Value::as_str)
+                    })
+            {
+                let _sent = self.events_tx.unbounded_send(SessionEvent::Transcript {
+                    session_id: session_id.to_owned(),
+                    payload: envelope.clone(),
+                });
+            }
             let Some(cut) = envelope
                 .get("payload")
                 .and_then(|payload| payload.get("session_id"))
@@ -418,25 +453,6 @@ impl EventRouter {
 
         if event_type != kind {
             return;
-        }
-
-        /* 链路读到哪儿了，按帧记。它必须是「真的消费过的最后一帧」：拿轮终那个落库
-        读点去续订，会让 kap 重发本轮已经记下的帧。 */
-        let _moved = cursors.insert(
-            session_id.to_owned(),
-            Cursor {
-                seq,
-                epoch: envelope
-                    .get("epoch")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned),
-            },
-        );
-
-        // 认下来的每一帧事件都成帧进录制器 —— 判据在上面，这里不再问第二遍。
-        if let Ok(Some(slot)) = book.slot(session_id) {
-            let frame = kap_event(payload.clone());
-            slot.record(|recorder| recorder.record_frame(frame));
         }
 
         let owner = || {

@@ -4,7 +4,6 @@ export {
   delegationOf,
   isDelegateKey,
   isDelegation,
-  partitionByAgent,
 } from './delegate-channel'
 export { lastAtOrBefore } from './ordered-lookup'
 export {
@@ -30,7 +29,7 @@ export type {
   TodoStatus,
   ToolCallTimelineItem,
 } from './timeline-contract'
-export { endsRun, isSteerable, opensTurn } from './timeline-contract'
+export { isSteerable } from './timeline-contract'
 export {
   activeScope,
   currentTodos,
@@ -45,12 +44,9 @@ export {
 export {
   appendLocalError,
   appendUserMessage,
-  applyRunEvents,
   confirmRunCancellation,
   createTimelineState,
-  prependThreadEvents,
   rejectRunCancellation,
-  replayRunEvents,
-  replayThreadEvents,
   requestRunCancellation,
-} from './timeline-reducer'
+} from './timeline-state'
+export { projectTranscript } from './transcript-projector'

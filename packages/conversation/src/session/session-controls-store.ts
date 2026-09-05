@@ -222,8 +222,6 @@ export class SessionControlsStore {
    */
   #snapshot(answer: ThreadSnapshot): void {
     const threadId = answer.thread.threadId
-    this.#transcripts?.adopt(threadId, answer.frames)
-
     if (answer.usage !== undefined && !this.#held.usage.has(threadId)) {
       this.#commit({ usage: withEntry(this.#held.usage, threadId, answer.usage) })
     }

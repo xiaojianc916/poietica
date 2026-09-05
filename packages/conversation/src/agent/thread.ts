@@ -1,7 +1,6 @@
 import type { ThreadId } from './address'
 import type { SessionConfigControl } from './config'
 import type { SessionGoal } from './goal'
-import type { RunEvent } from './run'
 import type { SessionUsage } from './usage'
 
 /**
@@ -66,33 +65,15 @@ export type ThreadHistory =
       readonly owner: string | null
     }
 
-/** 一页帧从哪儿往前读。平台发的位置，原样回传。 */
-export interface FrameCursor {
-  readonly sessionId: string
-  readonly seq: number
-}
-
-/** 一页帧，以及更早那一页从哪儿接着读；`before` 为 null 就是前面没有了。 */
-export interface FramePage {
-  /**
-   * 这一页的帧，按追加顺序。
-   *
-   * 帧的形状由 frame.rs 定义；从线上原文收窄成运行帧发生在桥
-   * （native-bridge 的 gateways/agent.ts），到这一层已经是端口词汇。
-   */
-  readonly events: readonly RunEvent[]
-  readonly before: FrameCursor | null
-}
-
 /**
- * 目录里的一轮：地址、问的头一句、答的头几行。
+ * 目录里的一轮：官方 transcript 索引里的一轮。
  *
- * 字数由平台按预览卡看得见的行数截断，所以这一层不再截第二遍。
+ * 问出自那一轮的 trigger prompt，答是它主代理回复的原文。定义域是 transcript
+ * 索引，不是本地帧日志。
  */
 export interface TurnMark {
-  /** 这一轮第一帧在库上的位置。跳转与续读都认它。 */
-  readonly at: FrameCursor
-  /** 屏幕上那条用户消息的身份，与这一格逐字相同。 */
+  readonly turnId: string
+  /** 本机签发的 durable admission identity。 */
   readonly admissionId: string
   readonly prompt: string
   readonly reply: string | null
@@ -101,7 +82,6 @@ export interface TurnMark {
 /** A local, bounded read-model snapshot. Reading it never starts an agent. */
 export interface ThreadSnapshot {
   readonly thread: ThreadRecord
-  readonly frames: FramePage
   readonly usage?: SessionUsage
 }
 
@@ -118,37 +98,26 @@ export interface OpenedThread {
  *
  * Opening one is opening an agent session: the two are created together,
  * so a tab always stands for something the agent knows about.
+ *
+ * 屏幕的经过不从这条端口来：它走 AgentSessionPort 的 transcript 通道。这里
+ * 只有对话本身的命脉 —— 列、开、名、档、删、顶、分叉。
  */
 export interface ThreadPort {
   readonly list: () => Promise<readonly ThreadRecord[]>
-  /** Reads the bounded local transcript snapshot without activating an agent. */
+  /** Reads the bounded local snapshot without activating an agent. */
   readonly read: (threadId: ThreadId) => Promise<ThreadSnapshot>
   /**
    * 打开一条对话：不点名就新开一条，点名就让那一条握住一个会话。
    *
    * 点开一条上次运行留下的对话也走这里。它存着的会话号在新的 agent 进程里不是
    * 活的，但那条会话仍在 agent 那侧：原生侧因此走 kap 的会话 load 动作把它装载
-   * 回来，号不变，上下文因此还在。此前这里写的是"开一个新的并改写持有关系" ——
-   * 那不是设计，那是一个把上下文丢掉、并且顺手覆盖掉旧号的 bug。
+   * 回来，号不变，上下文因此还在。
    *
    * 只有装载不回来（号在 server 侧也没了）才真的新开一条。三条路都在同一次
    * 答复里带回整张选择器表。
    */
   readonly create: (threadId: ThreadId, workspaceRoot?: string | null) => Promise<OpenedThread>
   readonly open: (threadId: ThreadId) => Promise<OpenedThread>
-  /**
-   * 这条对话更早的一页经过，从 `before` 那一帧往前数。
-   *
-   * 位置原样回传，这一层不解释它：它是平台那侧库上的键。轮次的对齐归转录
-   * store。平台交回的每页都从 prompt_admitted 开始，连续文本 delta 已压成 block。
-   */
-  readonly earlierFrames: (threadId: ThreadId, before: FrameCursor) => Promise<FramePage>
-  /**
-   * 这条对话的目录后缀，一轮一行。
-   *
-   * fromSeq 是包含式 durable prompt sequence；null 读取整本。定义域始终是平台帧日志。
-   */
-  readonly outline: (threadId: ThreadId, fromSeq: number | null) => Promise<readonly TurnMark[]>
   /** Saves the agent-owned session archive to a user-selected destination. */
   readonly export?: (threadId: ThreadId) => Promise<boolean>
   /** Renames one. The name becomes the user's and outlives the agent's. */
@@ -160,8 +129,7 @@ export interface ThreadPort {
    * 复制上下文再回退到分叉点，本机日志按同一个数截断，源对话原样不动。
    * 交回新对话的记录 —— 打开它走 open 那条已有的路。
    *
-   * title 由调用方按命名规则算好（thread-title 的 forkNameOf）交进来，落库
-   * 按用户起的名（manual）对待。dropTurns 是分叉点之后还有几轮，0 是最后一轮。
+   * dropTurns 是分叉点之后还有几轮，0 是最后一轮。
    */
   readonly fork?: (threadId: ThreadId, title: string, dropTurns: number) => Promise<ThreadRecord>
   /** Archives or restores a conversation without deleting its history. */

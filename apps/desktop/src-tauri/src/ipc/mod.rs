@@ -37,11 +37,12 @@ use commands::{
     conversation::dto::{
         AgentAnswerQuestionsRequest, AgentArchiveThreadRequest, AgentCapabilitiesRequest,
         AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentDismissQuestionsRequest,
-        AgentEarlierFramesRequest, AgentExportThreadRequest, AgentForkThreadRequest, AgentGoal,
-        AgentPinThreadRequest, AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult,
-        AgentPromptSkill, AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod,
-        AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentRunBatch, AgentRunEvent,
-        AgentSelectConfigRequest, AgentSessionEvent, AgentThreadRequest, AgentTurnMark,
+        AgentExportThreadRequest, AgentForkThreadRequest, AgentGoal, AgentPinThreadRequest,
+        AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult, AgentPromptSkill,
+        AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod, AgentRenameThreadRequest,
+        AgentResolvePermissionRequest, AgentRunBatch, AgentRunEvent, AgentSelectConfigRequest,
+        AgentSessionEvent, AgentThreadRequest, AgentTranscriptEvent, AgentTranscriptJson,
+        AgentTranscriptOpsRequest, AgentTranscriptRequest,
     },
     conversation::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
     extension::{
@@ -84,8 +85,8 @@ pub fn surface() -> Builder<Wry> {
             commands::conversation::thread::agent_thread_snapshot,
             commands::conversation::export::agent_export_thread,
             commands::conversation::thread::agent_open_thread,
-            commands::conversation::thread::agent_earlier_frames,
-            commands::conversation::thread::agent_thread_outline,
+            commands::conversation::turn::agent_transcript,
+            commands::conversation::turn::agent_transcript_ops,
             commands::conversation::thread::agent_rename_thread,
             commands::conversation::thread::agent_archive_thread,
             commands::conversation::thread::agent_delete_thread,
@@ -175,6 +176,7 @@ pub fn surface() -> Builder<Wry> {
         .events(tauri_specta::collect_events![
             AgentRunBatch,
             AgentSessionEvent,
+            AgentTranscriptEvent,
             AutomationCatalogChanged,
             AutomationDue,
             BrowserElementPicked,
@@ -214,11 +216,12 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentRenameThreadRequest>()
         .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()
-        .typ::<AgentEarlierFramesRequest>()
         .typ::<AgentExportThreadRequest>()
-        .typ::<AgentTurnMark>()
         .typ::<AgentForkThreadRequest>()
         .typ::<AgentPinThreadRequest>()
+        .typ::<AgentTranscriptRequest>()
+        .typ::<AgentTranscriptOpsRequest>()
+        .typ::<AgentTranscriptJson>()
         .typ::<AssetFormat>()
         .typ::<AssetSessionResult>()
         .typ::<AssetImportRequest>()

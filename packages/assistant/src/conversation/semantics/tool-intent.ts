@@ -4,8 +4,8 @@ import type { ToolCallTimelineItem } from '@poietica/conversation'
 /**
  * 这次调用在做什么，一句话：卡片没展开的那一行，和审批带子上要签字的那一句。
  *
- * 类别与主语由投影从 kap 的 display 定完（kap-projection.ts），这一层只挑动词、
- * 取文件名、按一行收口 —— 不读入参，不猜。
+ * 类别与主语由投影从 kap 的 display 定完（transcript-projector.ts），这一层
+ * 只挑动词、取文件名、按一行收口 —— 不读入参，不猜。
  */
 
 type ToolKind = ToolCallTimelineItem['kind']

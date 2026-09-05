@@ -14,9 +14,10 @@ use poietica_conversation::link::LinkState;
 
 /// 一帧，已经成形，可以交出去了。
 ///
-/// frame 就是界面读的那一份，也是装载一条旧会话时重播回来的那一份 —— 两者
-/// 由同一个 kap_event 做出来，所以重开一条对话与看着它发生不可能对不上。
-/// 会话号既在帧里也在这一层：帧是会话发生的事，投递也按同一个主语寻址。
+/// frame 就是账本读的那一份，也是装载一条旧会话时重播回来的那一份 —— 两者
+/// 由同一条成形路（frame.rs）做出来，所以重开一条对话与看着它发生不可能
+/// 对不上。会话号既在帧里也在这一层：帧是会话发生的事，投递也按同一个主语
+/// 寻址。
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordedEvent {
@@ -219,7 +220,7 @@ impl Recorder {
 
     /// 记下这一轮的一帧。
     ///
-    /// 收的是帧而不是某条协议的通知：成帧在协议侧做（frame.rs 的 kap_event），
+    /// 收的是帧而不是某条协议的通知：成帧在协议侧做（frame.rs 的 RunFrame），
     /// 此后共用这一条路。
     pub fn record_frame(&mut self, frame: RunFrame) {
         self.append(frame);
@@ -253,7 +254,7 @@ impl Recorder {
         // 帧是我们自己的契约，不是审批项的原文：键归一成 camelCase，rawInput 装
         // 审批项的显示提示（approvalRequestSchema 的 tool_input_display）——
         // 要批准的那件事由投影从它落成三格，与工具卡片同一条判据
-        // （kap-projection 的 requestedCall）。
+        // （transcript-projector 的 interactionOf）。
         let mut tool_call = json!({
             "toolCallId": tool_call_id,
             "title": title,

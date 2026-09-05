@@ -4,11 +4,10 @@ use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::{Error, Result};
 use crate::ipc::commands::asset::attachments::forget_blob;
 use crate::ipc::commands::ledger::local_index::{
-    LocalIndex, conversation, counted, persistence, read_index, read_index_background, write_index,
+    LocalIndex, conversation, counted, persistence, read_index, write_index,
 };
 use crate::paths::remove_projectless_workspace;
-use poietica_kap_client::{PROMPT_ADMITTED, compact_history};
-use poietica_ledger::conversation::screen::{FrameCursor, FramePage, ReplyRead};
+use poietica_kap_client::PROMPT_ADMITTED;
 use poietica_ledger::index::TitleSource;
 use tauri::{AppHandle, State, async_runtime};
 
@@ -16,15 +15,14 @@ use super::addressing::{Held, read_point, session_for};
 use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
-    AgentArchiveThreadRequest, AgentEarlierFramesRequest, AgentForkThreadRequest, AgentFrameCursor,
-    AgentFramePage, AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest,
-    AgentRenameThreadRequest, AgentRunEvent, AgentSessionUsage, AgentThread,
-    AgentThreadOutlineRequest, AgentThreadRequest, AgentThreadSnapshot, AgentThreadTarget,
-    AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
+    AgentArchiveThreadRequest, AgentForkThreadRequest, AgentOpenThreadRequest, AgentOpenedThread,
+    AgentPinThreadRequest, AgentRenameThreadRequest, AgentSessionUsage, AgentThread,
+    AgentThreadRequest, AgentThreadSnapshot, AgentThreadTarget, AgentTitleSource,
+    FALLBACK_THREAD_TITLE, NO_THREAD, reported_goal,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
-use super::{AgentCommandResult, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS, TURN_PAGE};
+use super::{AgentCommandResult, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS};
 
 /// Lists the stored conversations, newest first.
 ///
@@ -50,7 +48,7 @@ pub async fn agent_thread_snapshot(
     request: AgentThreadRequest,
 ) -> AgentCommandResult<AgentThreadSnapshot> {
     let thread_id = conversation(&request.thread_id)?;
-    let (thread, usage, frames) = read_index(&index, move |store| {
+    let (thread, usage) = read_index(&index, move |store| {
         let stored = store
             .thread(thread_id)
             .map_err(persistence)?
@@ -63,19 +61,12 @@ pub async fn agent_thread_snapshot(
                 .transpose()?,
             None => None,
         };
-        let frames = store
-            .turns_before(thread_id, None, PROMPT_ADMITTED, TURN_PAGE)
-            .map_err(persistence)?;
 
-        Ok((retitle(stored), usage, frames))
+        Ok((retitle(stored), usage))
     })
     .await?;
 
-    Ok(AgentThreadSnapshot {
-        thread,
-        frames: paged(frames)?,
-        usage,
-    })
+    Ok(AgentThreadSnapshot { thread, usage })
 }
 
 /// 打开一条对话：把最新那一页经过要回来。
@@ -171,63 +162,6 @@ pub async fn agent_open_thread(
         goal,
         history,
     })
-}
-
-/// 这条对话更早的一页经过。
-///
-/// 一次读回完整轮次；位置由上一页交回，连续文本流片在 IPC 前压成 block。
-/// 原始 conversation_events 不改写，仍是屏幕历史的唯一事实源。
-///
-/// # Errors
-///
-/// 标识不是 UUID，或库拒绝这次读取时失败。
-#[tauri::command]
-#[specta::specta]
-pub async fn agent_earlier_frames(
-    index: State<'_, LocalIndex>,
-    request: AgentEarlierFramesRequest,
-) -> AgentCommandResult<AgentFramePage> {
-    let id = conversation(&request.thread_id)?;
-    let before = located(&request.before);
-
-    let frames = read_index(&index, move |store| {
-        store
-            .turns_before(id, Some(&before), PROMPT_ADMITTED, TURN_PAGE)
-            .map_err(persistence)
-    })
-    .await?;
-
-    Ok(paged(frames)?)
-}
-
-/// 一页帧与它的读取位置，收进线上那一格的宽度。
-///
-/// 类型化事件在这里压缩并映射到 IPC；序列化只发生在 Tauri 边界。
-fn paged(page: FramePage) -> Result<AgentFramePage> {
-    let events = compact_history(page.frames)
-        .into_iter()
-        .map(AgentRunEvent::from)
-        .collect();
-    Ok(AgentFramePage {
-        events,
-        before: page.before.map(cursored).transpose()?,
-    })
-}
-
-/// 库上那个位置，收进线上那一格的宽度。
-fn cursored(cursor: FrameCursor) -> Result<AgentFrameCursor> {
-    Ok(AgentFrameCursor {
-        session_id: cursor.session_id,
-        seq: counted(cursor.seq)?,
-    })
-}
-
-/// 渲染层回传的那个位置，回到库上的形状。
-fn located(cursor: &AgentFrameCursor) -> FrameCursor {
-    FrameCursor {
-        session_id: cursor.session_id.clone(),
-        seq: i64::from(cursor.seq),
-    }
 }
 
 /// Restates one stored conversation in the shape the bindings carry.
@@ -564,59 +498,4 @@ pub async fn agent_pin_thread(
     .await?;
 
     Ok(())
-}
-
-/// 这条对话的目录后缀，一轮一行；游标缺席时读取整本。
-///
-/// 屏幕上的经过由 conversation_events 重放，目录因此也只能出自它：以内存窗口为定义域的
-/// 目录会随载入量伸缩，而人要跳的那一轮往往还没载入。
-///
-/// # Errors
-///
-/// 标识不是 UUID，或库拒绝这次读取时失败。
-#[tauri::command]
-#[specta::specta]
-pub async fn agent_thread_outline(
-    index: State<'_, LocalIndex>,
-    request: AgentThreadOutlineRequest,
-) -> AgentCommandResult<Vec<crate::ipc::commands::conversation::dto::AgentTurnMark>> {
-    let id = conversation(&request.thread_id)?;
-    let from_seq = i64::from(request.from_seq.unwrap_or(0));
-
-    let marks = read_index_background(&index, move |store| {
-        store
-            .turn_marks(
-                id,
-                from_seq,
-                PROMPT_ADMITTED,
-                poietica_kap_client::KAP_EVENT,
-                &ReplyRead {
-                    type_field: poietica_kap_client::TYPE_FIELD,
-                    payload_type: poietica_kap_client::ASSISTANT_DELTA,
-                    text_field: poietica_kap_client::DELTA_FIELD,
-                    agent_field: poietica_kap_client::AGENT_FIELD,
-                    main_agent: poietica_kap_client::MAIN_AGENT,
-                },
-                super::OUTLINE_PROMPT_CHARS,
-                super::OUTLINE_REPLY_CHARS,
-            )
-            .map_err(persistence)
-    })
-    .await?;
-
-    let mut listed = Vec::with_capacity(marks.len());
-
-    for mark in marks {
-        listed.push(crate::ipc::commands::conversation::dto::AgentTurnMark {
-            at: AgentFrameCursor {
-                session_id: mark.session_id,
-                seq: counted(mark.seq)?,
-            },
-            admission_id: mark.admission_id,
-            prompt: mark.prompt,
-            reply: mark.reply,
-        });
-    }
-
-    Ok(listed)
 }

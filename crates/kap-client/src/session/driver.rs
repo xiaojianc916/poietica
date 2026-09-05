@@ -29,7 +29,9 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::http::header::AUTHORIZATION;
 
 use crate::compatibility::require_pinned_capabilities;
-use crate::connection::handshake::{shake_hands, subscribe, wait_subscribe_ack};
+use crate::connection::handshake::{
+    shake_hands, subscribe, subscribe_transcript, wait_subscribe_ack,
+};
 use crate::connection::reconnect::{fail_in_flight, relink};
 use crate::connection::socket::{WsSink, dial_ws, send_frame};
 use crate::error::{KapError, Refusal, Result};
@@ -49,9 +51,10 @@ use crate::session::book::SessionBook;
 use crate::session::client::{AgentClient, Command};
 use crate::session::export::export_session;
 use crate::session::rest::{
-    archive_session, create_session_body, ensure_session_model, fetch_goal, fork_session,
-    get_selectors, install_capability, list_capabilities, list_mcp_servers, list_sessions,
-    list_skills, load_session, open_session, post, set_selector, submit_prompt,
+    archive_session, catch_up_transcript, create_session_body, ensure_session_model, fetch_goal,
+    fork_session, get_selectors, install_capability, list_capabilities, list_mcp_servers,
+    list_sessions, list_skills, load_session, open_session, post, read_transcript, set_selector,
+    submit_prompt,
 };
 use crate::session::router::EventRouter;
 use crate::session::{AgentConnection, AgentSpawn, Handshake, SessionEvent, SessionEvents};
@@ -293,6 +296,15 @@ pub fn connect(
 
                 return Err(error);
             }
+        }
+
+        /* transcript 流随锚会话一起挂上（subscribe_v2）：屏幕的经过从这一条来。 */
+        if let Err(error) = subscribe_transcript(&ws, &session_id, None).await {
+            let _ = ready_tx.send(Err(KapError::Handshake {
+                message: error.to_string(),
+            }));
+
+            return Err(error);
         }
 
         let _ = ready_tx.send(Ok(Handshake {
@@ -596,6 +608,23 @@ pub fn connect(
                             let base = base_url.clone();
                             tokio::spawn(settle(reply, async move {
                                 fetch_goal(&http, &base, &sid).await
+                            }));
+                        }
+
+                        Some(Command::ReadTranscript { session_id: sid, agent_id, before_turn, reply }) => {
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                read_transcript(&http, &base, &sid, &agent_id, before_turn.as_deref())
+                                    .await
+                            }));
+                        }
+
+                        Some(Command::CatchUpTranscript { session_id: sid, agent_id, since_seq, reply }) => {
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tokio::spawn(settle(reply, async move {
+                                catch_up_transcript(&http, &base, &sid, &agent_id, since_seq).await
                             }));
                         }
 

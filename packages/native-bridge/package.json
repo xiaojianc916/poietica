@@ -21,7 +21,9 @@
     "@poietica/update": "workspace:*",
     "@tauri-apps/api": "catalog:tauri",
     "@tauri-apps/plugin-dialog": "catalog:tauri",
-    "@tauri-apps/plugin-updater": "catalog:tauri"
+    "@tauri-apps/plugin-updater": "catalog:tauri",
+    "@poietica/transcript": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

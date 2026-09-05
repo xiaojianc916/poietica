@@ -2,12 +2,13 @@
 
 The feed is a projection, never a source of truth.
 
-    kap_event  ->  run event log  ->  reducer  ->  timeline  ->  selectors  ->  feed rows
+    transcript ops/reset  ->  transcript-store  ->  projectTranscript  ->  timeline  ->  selectors  ->  feed rows
 
 Rules that hold at every step:
 
-- The reducer is pure and replayable. Rendering a persisted run and watching a
-  live one execute the same code path.
+- The projection is pure and replayable. Rendering a persisted run and watching a
+  live one execute the same code path: incremental ops and a reset snapshot land
+  on the same timeline (see tests/integration/transcript-replay-equivalence.test.ts).
 - Entries are typed, not roles. A tool call is addressable by its tool call id
   because the protocol updates it by id.
 - The feed host owns scrolling and measurement only. Entry rendering is injected,

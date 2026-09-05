@@ -255,7 +255,7 @@ export const AssistantSurface = memo(function AssistantSurface({
       data-restoring={assistant.isRestoring ? 'true' : undefined}
     >
       {live ? (
-        <Suspense fallback={<p className="p-4 text-xs opacity-50">正在加载对话…</p>}>
+        <Suspense fallback={<p className="p-4 text-xs opacity-50" />}>
           <DeferredTranscriptView
             dockClearance={clearance.value}
             isRestoring={assistant.isRestoring}

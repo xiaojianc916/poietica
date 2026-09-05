@@ -636,12 +636,14 @@ export async function processStateIsComposedAtRoot(root: string): Promise<Violat
   return violations
 }
 
-/** 运行帧的生成契约不得退化成 JsonValue，再由 TS 守卫冒充完整联合。 */
+/** 运行帧不回到生成事件面：屏幕经过走官方 transcript 通道（JSON 透传 + vendored schema）。 */
 export async function runFrameWireStaysTyped(root: string): Promise<Violation[]> {
   const probes = [
     ['apps/desktop/src-tauri/src/ipc/commands/conversation/dto.rs', 'pub events: Vec<Value>'],
     ['apps/desktop/src-tauri/src/ipc/commands/conversation/dto.rs', '#[specta(type = Vec<Value>)]'],
     ['packages/native-bridge/src/gateways/agent.ts', 'events.filter(isRunEvent)'],
+    ['packages/native-bridge/src/gateways/agent.ts', 'agentRunBatch'],
+    ['packages/native-bridge/src/gateways/agent.ts', 'AgentFramePage'],
   ] as const
   const violations: Violation[] = []
 
@@ -650,7 +652,7 @@ export async function runFrameWireStaysTyped(root: string): Promise<Violation[]>
       violations.push({
         policy: 'run-frame-wire-stays-typed',
         where: file,
-        detail: `运行帧边界退化：${needle}`,
+        detail: `帧边界退化或旧帧面回流：${needle}`,
       })
     }
   }

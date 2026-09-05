@@ -1,9 +1,9 @@
 //! 运行时帧 → 会话领域事件的翻译。
 //!
 //! 帧的成形（frame.rs 的 RunFrame）是这台机器对一轮的判断；翻译把它们落到
-//! 领域的封闭联合上，账本从此只认联合。方言事件原样过账
-//! （[`ConversationEvent::KapEvent`]），它们的逐个类型化是 translate 层的
-//! 后续迁移 —— 每补一个变体，frame.rs 就少一种帧。
+//! 领域的封闭联合上，账本从此只认联合。kap 的语义事件不在这条路上过账：
+//! 屏幕经过改走官方 transcript 通道（router.rs 的 SessionEvent::Transcript），
+//! 这里只翻译协议不建模、而客户端必须记住的事实。
 
 use poietica_conversation::event::ConversationEvent;
 use poietica_conversation::identity::TurnId;
@@ -26,7 +26,6 @@ pub fn conversation_event(frame: RunFrame) -> ConversationEvent {
             images: Some(images),
             skills: Some(skills),
         },
-        RunFrame::KapEvent { payload } => ConversationEvent::KapEvent { payload },
         RunFrame::PermissionRequested {
             request_id,
             tool_call_id,

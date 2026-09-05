@@ -1,8 +1,7 @@
 import type { ThreadId } from './address'
-import type { KapSessionId } from './kap'
 import type { ApprovalAnswer } from './permission'
 import type { QuestionResponse } from './question'
-import type { RunEvent } from './run'
+import type { TranscriptPort } from './transcript'
 
 /**
  * The agent session port.
@@ -11,9 +10,8 @@ import type { RunEvent } from './run'
  * subprocess and every credential. This interface is the entire surface the UI
  * is allowed to know about.
  *
- * 历史不从这里来。一条对话的经过由持有它的 agent 在 session/load 期间重放，
- * 随打开这条对话的那次答复一起交回（见 thread.ts 的 OpenedThread.events）。
- * 这个端口只管正在发生的事。
+ * 屏幕经过从 transcript 端口来（官方 transcript 通道）；这个端口管的是正在
+ * 发生的对话：说、停、并队、答。
  */
 
 /**
@@ -70,29 +68,12 @@ export interface AgentPromptRequest {
  * 条对话，见下面的 cancel。
  */
 export interface AgentPromptHandle {
-  readonly sessionId: KapSessionId
+  readonly sessionId: string
 }
 
 export interface AgentSessionPort {
-  /**
-   * Emits one batch of run events with the session they all belong to; returns
-   * an unsubscribe function.
-   *
-   * 一批就是原生侧一拍里攒下的帧（见 commands/agent/turn.rs 的 batched）。一批
-   * 只属于一条会话：批随每一轮 prompt 新造，Frames::new 在造它的那一刻就把会话
-   * 号钉死了。所以地址对整批说一次就够，不必逐帧再说一遍。
-   *
-   * 地址是会话号，和 kap 事件信封上的 session_id 同一个主语。它由原生侧写在信封上
-   * （frame.rs 的 Envelope.session_id），六种帧无一例外，所以订阅者不必猜。
-   *
-   * 它先于帧存在：一条对话在打开的那一刻就握住了会话号（ThreadRecord.sessionId），
-   * 而帧是此后才发生的事。
-   *
-   * seq 按会话单调，所以按 seq 去重在两轮之间仍然成立。
-   */
-  readonly subscribe: (
-    listener: (events: readonly RunEvent[], sessionId: KapSessionId) => void,
-  ) => () => void
+  /** 官方 transcript 通道：屏幕上的经过与它的推进都从这里来。 */
+  readonly transcript: TranscriptPort
   readonly prompt: (request: AgentPromptRequest) => Promise<AgentPromptHandle>
   /**
    * 停掉这条对话上正在跑的那一轮。

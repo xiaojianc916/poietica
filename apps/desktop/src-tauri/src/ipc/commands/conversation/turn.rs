@@ -23,7 +23,8 @@ use super::config::announce;
 use super::dto::{
     AgentAbortPromptRequest, AgentAnswerQuestionsRequest, AgentCancelRequest,
     AgentDismissQuestionsRequest, AgentPromptRequest, AgentPromptResult,
-    AgentResolvePermissionRequest, AgentSteerRequest, answered, decided,
+    AgentResolvePermissionRequest, AgentSteerRequest, AgentTranscriptJson,
+    AgentTranscriptOpsRequest, AgentTranscriptRequest, answered, decided,
 };
 use super::failure::translate;
 use super::gateway::{KapGateway, attachment_reference};
@@ -444,4 +445,55 @@ pub async fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResul
     state.disconnect()?;
 
     Ok(())
+}
+
+/// 一个 agent 的 transcript 页，原样 JSON 文本。
+///
+/// 载荷的契约钉在 vendored @poietica/transcript 的 schema，校验在渲染层
+/// （native-bridge 的 transcript 端口）—— 这一层不重抄第二份形状。
+///
+/// # Errors
+///
+/// Fails when no agent session is running or the agent refuses the read.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_transcript(
+    state: State<'_, AgentRuntime>,
+    request: AgentTranscriptRequest,
+) -> AgentCommandResult<AgentTranscriptJson> {
+    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+
+    let json = live
+        .client
+        .read_transcript(request.session_id, request.agent_id, request.before_turn)
+        .await
+        .map_err(translate)?;
+
+    Ok(AgentTranscriptJson {
+        json: json.to_string(),
+    })
+}
+
+/// 一个 agent 的 transcript 追赶批次，原样 JSON 文本。
+///
+/// # Errors
+///
+/// Fails when no agent session is running or the agent refuses the read.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_transcript_ops(
+    state: State<'_, AgentRuntime>,
+    request: AgentTranscriptOpsRequest,
+) -> AgentCommandResult<AgentTranscriptJson> {
+    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+
+    let json = live
+        .client
+        .catch_up_transcript(request.session_id, request.agent_id, request.since_seq)
+        .await
+        .map_err(translate)?;
+
+    Ok(AgentTranscriptJson {
+        json: json.to_string(),
+    })
 }

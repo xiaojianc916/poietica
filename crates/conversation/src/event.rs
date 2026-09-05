@@ -6,10 +6,9 @@ use crate::link::LinkState;
 
 /// 能到达屏幕的一切，封闭在这一个类型里。两种语言都只从它生成自己的视图。
 ///
-/// 判别式与字段名就是账本上的线上形状：屏幕的方言解析（kap 载荷怎么折成条目）
-/// 此刻仍住在 TS 投影里，逐个变体类型化的迁移发生在 translate 层 —— 在那之前，
-/// 线上原文经 [`ConversationEvent::KapEvent`] 原样过账，重放一条对话与看着它
-/// 发生一字不差。
+/// 判别式与字段名就是账本上的线上形状。kap 的语义事件不走这条路：屏幕经过
+/// 由官方 transcript 通道直供，这里只落本机必须记住的事实（准入、审批、提问、
+/// 链路与轮终）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -34,10 +33,6 @@ pub enum ConversationEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         skills: Option<Vec<String>>,
     },
-    /// kap server 推来的一帧会话事件，线上原文原样过账。
-    ///
-    /// 这一层一个字段都不认识 —— 认识它的是投影它的那一层。
-    KapEvent { payload: Value },
     /// agent 正卡在一次授权请求上。
     PermissionRequested {
         request_id: String,
@@ -111,8 +106,7 @@ impl ConversationEvent {
             | Self::RunFailed {
                 turn: Some(turn), ..
             } => Some(turn),
-            Self::KapEvent { .. }
-            | Self::SessionRecovered { .. }
+            Self::SessionRecovered { .. }
             | Self::PermissionRequested { .. }
             | Self::PermissionResolved { .. }
             | Self::QuestionsAsked { .. }
@@ -129,7 +123,6 @@ impl ConversationEvent {
         match self {
             Self::TurnAdmitted { .. } => "turn_admitted",
             Self::PromptAdmitted { .. } => "prompt_admitted",
-            Self::KapEvent { .. } => "kap_event",
             Self::SessionRecovered { .. } => "session_recovered",
             Self::PermissionRequested { .. } => "permission_requested",
             Self::PermissionResolved { .. } => "permission_resolved",

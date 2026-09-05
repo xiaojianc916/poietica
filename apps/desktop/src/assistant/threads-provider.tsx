@@ -49,13 +49,9 @@ export function ThreadsProvider({ agent, children, report }: ThreadsProviderProp
   const [{ controls, store, transcripts }] = useState(() => {
     const port = agent.threads
 
-    /* 有界分页与目录读取由组合根注入，store 不接触进程端口。 */
-    const transcriptStore = new TranscriptStore({
-      reads: {
-        earlier: port.earlierFrames,
-        outline: port.outline,
-      },
-    })
+    /* 经过由 AgentSessionPort.transcript 直供（use-assistant-session 里
+    ensure(port) 接上）；这里只造 store，不再注入任何读取面。 */
+    const transcriptStore = new TranscriptStore()
 
     return {
       controls: new SessionControlsStore({

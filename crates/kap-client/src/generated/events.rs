@@ -51,6 +51,16 @@ pub enum ClientFrame {
         id: String,
         payload: UnsubscribeStruct,
     },
+    #[serde(rename = "subscribe_v2")]
+    SubscribeV2 {
+        id: String,
+        payload: SubscribeV2Struct,
+    },
+    #[serde(rename = "unsubscribe_v2")]
+    UnsubscribeV2 {
+        id: String,
+        payload: UnsubscribeV2Struct,
+    },
     #[serde(rename = "pong")]
     Pong { payload: PongStruct },
 }
@@ -107,6 +117,38 @@ pub struct SubscribeStruct {
 pub struct UnsubscribeStruct {
     #[serde(rename = "session_ids")]
     pub session_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum SubscribeV2TranscriptValueEnum {
+    #[serde(rename = "off")]
+    Off,
+    #[serde(rename = "turn")]
+    Turn,
+    #[serde(rename = "block")]
+    Block,
+    #[serde(rename = "delta")]
+    Delta,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct SubscribeV2Struct {
+    #[serde(rename = "session_id")]
+    pub session_id: String,
+    #[serde(rename = "transcript")]
+    pub transcript: std::collections::HashMap<String, SubscribeV2TranscriptValueEnum>,
+    #[serde(rename = "transcript_since")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transcript_since: Option<std::collections::HashMap<String, i64>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct UnsubscribeV2Struct {
+    #[serde(rename = "session_id")]
+    pub session_id: String,
+    #[serde(rename = "agent_ids")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]

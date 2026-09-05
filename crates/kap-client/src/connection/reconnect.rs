@@ -7,7 +7,9 @@ use futures::channel::mpsc;
 use futures::stream::SplitStream;
 use serde_json::Value;
 
-use crate::connection::handshake::{shake_hands, subscribe, wait_subscribe_ack};
+use crate::connection::handshake::{
+    shake_hands, subscribe, subscribe_transcript, wait_subscribe_ack,
+};
 use crate::connection::socket::{WsSink, WsStream, dial_ws};
 use crate::error::Result;
 use crate::link::{RELINK_TRIES, backoff, recovered, retrying, severed};
@@ -49,8 +51,12 @@ async fn redial(
         let again = subscribe(ws, &session_id, cursors.get(&session_id)).await?;
 
         if !wait_subscribe_ack(ws_rx, &again, &session_id, &mut stash).await? {
-            refused.push(session_id);
+            refused.push(session_id.clone());
         }
+
+        /* transcript 流随事件流一起重挂：不带读点，server 用 transcript.reset
+        从当前水位整发 —— 续订的 seq 不归这一层记。 */
+        subscribe_transcript(ws, &session_id, None).await?;
     }
 
     Ok(Relinked { stash, refused })

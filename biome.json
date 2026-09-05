@@ -11,6 +11,7 @@
       "!**/node_modules",
       "!**/.turbo",
       "!**/dist",
+      "!**/dist-types",
       "!**/build",
       "!**/coverage",
       "!**/target",
@@ -22,6 +23,8 @@
       "!**/performance-results",
       "!**/*.min.js",
       "!packages/assistant/vendor/aora-bot/emotion-ball/js/*.js",
+      "!packages/transcript/src",
+      "!packages/transcript/dist-types",
       "!**/*.snap",
       "!**/*.svg"
     ],

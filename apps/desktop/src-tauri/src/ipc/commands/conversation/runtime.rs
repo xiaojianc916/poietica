@@ -7,7 +7,9 @@ use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
 use poietica_conversation::turn::DeliveryOutcome;
 
 use super::config::restate;
-use super::dto::{AgentLaunch, AgentSessionEvent, reported_goal, reported_usage};
+use super::dto::{
+    AgentLaunch, AgentSessionEvent, AgentTranscriptEvent, reported_goal, reported_usage,
+};
 use super::failure::translate;
 use super::gateway;
 use super::journal::FrameJournal;
@@ -223,6 +225,7 @@ pub(super) struct Handle {
 }
 enum SessionEventPlan {
     Emit(AgentSessionEvent),
+    Transcript(AgentTranscriptEvent),
     Usage {
         session_id: String,
         usage: SessionUsage,
@@ -247,6 +250,13 @@ fn plan_session_event(event: SessionEvent) -> SessionEventPlan {
             session_id,
             selectors: controls.into_iter().map(restate).collect(),
             goal: goal.map(reported_goal),
+        }),
+        SessionEvent::Transcript {
+            session_id,
+            payload,
+        } => SessionEventPlan::Transcript(AgentTranscriptEvent {
+            session_id,
+            json: payload.to_string(),
         }),
         SessionEvent::Usage { session_id, usage } => {
             let reported = reported_usage(usage);
@@ -280,8 +290,12 @@ fn plan_session_event(event: SessionEvent) -> SessionEventPlan {
     }
 }
 async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: SessionEvent) {
-    let payload = match plan_session_event(event) {
-        SessionEventPlan::Emit(payload) => Some(payload),
+    let plan = plan_session_event(event);
+    let emitted = match plan {
+        SessionEventPlan::Emit(payload) => payload.emit(app).map_err(|error| error.to_string()),
+        SessionEventPlan::Transcript(payload) => {
+            payload.emit(app).map_err(|error| error.to_string())
+        }
         SessionEventPlan::Usage {
             session_id,
             usage,
@@ -297,7 +311,7 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
             if let Err(error) = recorded {
                 log::warn!("could not record the session usage: {error}");
             }
-            Some(payload)
+            payload.emit(app).map_err(|error| error.to_string())
         }
         SessionEventPlan::Cursor { session_id, cursor } => {
             let index = app.state::<crate::ipc::commands::ledger::local_index::LocalIndex>();
@@ -310,7 +324,7 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
             if let Err(error) = recorded {
                 log::warn!("could not record where the event stream was read to: {error}");
             }
-            None
+            Ok(())
         }
         SessionEventPlan::CursorLost { session_id } => {
             let index = app.state::<crate::ipc::commands::ledger::local_index::LocalIndex>();
@@ -323,18 +337,16 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
             if let Err(error) = dropped {
                 log::warn!("could not drop a cursor that no longer resumes: {error}");
             }
-            None
+            Ok(())
         }
         SessionEventPlan::Link(link) => {
             if let Err(error) = book.note_link(&link) {
                 log::warn!("could not record the link state: {error}");
             }
-            None
+            Ok(())
         }
     };
-    if let Some(payload) = payload
-        && let Err(error) = payload.emit(app)
-    {
+    if let Err(error) = emitted {
         log::warn!("emit the session state failed: {error}");
     }
 }

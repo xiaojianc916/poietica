@@ -5,8 +5,9 @@
 //! schema 在运行期抓出来的问题。
 //!
 //! 判别式与字段名由 serde 派生：kind 用 snake_case，字段用界面读的
-//! camelCase。线上形状就是契约：kap 的事件帧载荷原样进 KapEvent，
-//! 这一层一个字段都不认识，认识它的是投影它的那一层。
+//! camelCase。线上形状就是契约：kap 的语义事件走官方 transcript 通道
+//! （SessionEvent::Transcript），这一层只收协议不建模、而客户端必须记住的
+//! 事实。
 
 use serde::Serialize;
 use serde_json::Value;
@@ -15,8 +16,6 @@ use poietica_conversation::link::LinkState;
 
 /// 一轮的第一帧。
 pub const PROMPT_ADMITTED: &str = "prompt_admitted";
-/// kap server 推来的一帧会话事件。
-pub const KAP_EVENT: &str = "kap_event";
 /// agent 正卡在一次授权请求上。
 pub(crate) const PERMISSION_REQUESTED: &str = "permission_requested";
 /// 那次授权请求得到的答复。
@@ -37,8 +36,8 @@ pub(crate) const QUESTIONS_RESOLVED: &str = "questions_resolved";
 
 /// 一次运行里可能发生的事。
 ///
-/// KapEvent 承载 kap 的事件原文；其余变体是协议不建模、而客户端必须记住的
-/// 事实。每一种都带 seq 与 at（见 RecordedEvent），所以重放是确定的。
+/// 其余变体是协议不建模、而客户端必须记住的事实。每一种都带 seq 与 at
+/// （见 RecordedEvent），所以重放是确定的。
 #[derive(Clone, Debug, Serialize)]
 #[serde(
     tag = "kind",
@@ -67,11 +66,6 @@ pub enum RunFrame {
     },
     /// snapshot 在原子水位上的在飞状态；只用于续接当前轮次。
     SessionRecovered { snapshot: Value },
-    /// kap server 推来的一帧会话事件。
-    KapEvent {
-        /// 事件帧的载荷，原始 JSON。信封的 type 就是它自己的 type。
-        payload: Value,
-    },
     /// agent 正卡在一次授权请求上。
     PermissionRequested {
         /// 用来把请求与答复对起来的标识 —— kap 自己签发的 approval_id。
@@ -140,7 +134,6 @@ impl RunFrame {
         match self {
             Self::PromptAdmitted { .. } => PROMPT_ADMITTED,
             Self::SessionRecovered { .. } => "session_recovered",
-            Self::KapEvent { .. } => KAP_EVENT,
             Self::PermissionRequested { .. } => PERMISSION_REQUESTED,
             Self::PermissionResolved { .. } => PERMISSION_RESOLVED,
             Self::QuestionsAsked { .. } => QUESTIONS_ASKED,
@@ -173,13 +166,4 @@ pub(crate) fn prune(value: &mut Value) {
         }
         _ => {}
     }
-}
-
-/// 把 kap server 推来的一条事件载荷做成一帧。
-///
-/// 实时的一轮与装载期的重播都走这里，所以两边的帧一模一样 —— 一条对话重开
-/// 之后，与当时看着它发生，不可能有出入。驱动线与集成测试都从这里成帧，
-/// 不另造第二份。
-pub fn kap_event(payload: Value) -> RunFrame {
-    RunFrame::KapEvent { payload }
 }

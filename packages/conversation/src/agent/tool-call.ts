@@ -1,6 +1,6 @@
 import type { KapToolCallId } from './kap'
 
-/** 产品的工具类别：kap 的 display.kind 一档一映（packages/agent 的 kap-projection.ts）。 */
+/** 产品的工具类别：kap 的 display.kind 一档一映（timeline/transcript-projector.ts 的 kindOf）。 */
 export type ToolKind =
   | 'delegate'
   | 'edit'

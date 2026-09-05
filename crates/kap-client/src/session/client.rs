@@ -195,6 +195,21 @@ pub(crate) enum Command {
         session_id: String,
         reply: oneshot::Sender<Result<Option<GoalSnapshot>>>,
     },
+    /// 一个 agent 的 transcript 页（REST transcript，原样 JSON —— 契约钉在
+    /// vendored @poietica/transcript 的 schema，由桥那一侧校验）。
+    ReadTranscript {
+        session_id: String,
+        agent_id: String,
+        before_turn: Option<String>,
+        reply: oneshot::Sender<Result<serde_json::Value>>,
+    },
+    /// 一个 agent 的 transcript 追赶批次（REST transcript/ops）。
+    CatchUpTranscript {
+        session_id: String,
+        agent_id: String,
+        since_seq: i64,
+        reply: oneshot::Sender<Result<serde_json::Value>>,
+    },
 }
 
 /// A handle onto a live connection. Cheap to clone, safe to hold anywhere.
@@ -341,6 +356,56 @@ impl AgentClient {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::Goal { session_id, reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
+    }
+
+    /// 一个 agent 的 transcript 页，原样 JSON（契约见 `Command::ReadTranscript`）。
+    ///
+    /// # Errors
+    ///
+    /// Fails when the connection is gone or the agent refuses the read.
+    pub async fn read_transcript(
+        &self,
+        session_id: String,
+        agent_id: String,
+        before_turn: Option<String>,
+    ) -> Result<serde_json::Value> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::ReadTranscript {
+            session_id,
+            agent_id,
+            before_turn,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
+    }
+
+    /// 一个 agent 的 transcript 追赶批次，原样 JSON。
+    ///
+    /// # Errors
+    ///
+    /// Fails when the connection is gone or the agent refuses the read.
+    pub async fn catch_up_transcript(
+        &self,
+        session_id: String,
+        agent_id: String,
+        since_seq: i64,
+    ) -> Result<serde_json::Value> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::CatchUpTranscript {
+            session_id,
+            agent_id,
+            since_seq,
+            reply,
+        })?;
 
         answer
             .await

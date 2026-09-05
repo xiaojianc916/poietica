@@ -1,0 +1,52 @@
+import type { AgentTranscriptSnapshot, TranscriptOperation } from '@poietica/transcript'
+
+export type TranscriptAgentId = string
+export type TranscriptTurnId = string
+
+export interface TranscriptPage extends AgentTranscriptSnapshot {
+  readonly agentId: TranscriptAgentId
+  readonly agents: readonly { readonly agentId: string; readonly type?: string }[]
+  readonly pendingInteractions: readonly string[]
+  readonly seq: number
+}
+
+export interface TranscriptCatchUp {
+  readonly agentId: TranscriptAgentId
+  readonly batches: readonly {
+    readonly seq: number
+    readonly ops: readonly TranscriptOperation[]
+  }[]
+  readonly latestSeq: number
+  readonly complete: boolean
+}
+
+export type TranscriptSignal =
+  | {
+      readonly kind: 'ops'
+      readonly sessionId: string
+      readonly agentId: string
+      readonly seq: number
+      readonly ops: readonly TranscriptOperation[]
+    }
+  | {
+      readonly kind: 'reset'
+      readonly sessionId: string
+      readonly agentId: string
+      readonly seq: number
+      readonly snapshot: AgentTranscriptSnapshot
+    }
+  | { readonly kind: 'resync'; readonly sessionId: string; readonly reason: string }
+
+export interface TranscriptPort {
+  readonly subscribeTranscript: (listener: (signal: TranscriptSignal) => void) => () => void
+  readonly readTranscript: (
+    sessionId: string,
+    agentId: string,
+    beforeTurn?: string,
+  ) => Promise<TranscriptPage>
+  readonly catchUpTranscript: (
+    sessionId: string,
+    agentId: string,
+    sinceSeq: number,
+  ) => Promise<TranscriptCatchUp>
+}

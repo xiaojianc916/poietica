@@ -5,7 +5,7 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 
-use crate::connection::handshake::{subscribe, unsubscribe};
+use crate::connection::handshake::{subscribe, subscribe_transcript, unsubscribe};
 use crate::connection::socket::WsSink;
 use crate::error::{KapError, Result};
 use crate::generated::rest::{
@@ -345,6 +345,9 @@ async fn activate(
     ensure_session_model(http, base_url, session_id).await?;
     book.open(session_id)?;
     subscribe(ws, session_id, from).await?;
+    /* transcript 流与事件流同一次激活挂上：不带读点首订，server 用
+    transcript.reset 从当前水位整发。 */
+    subscribe_transcript(ws, session_id, None).await?;
 
     let (selectors, _goal) = get_selectors(http, base_url, session_id).await?;
 
@@ -352,6 +355,46 @@ async fn activate(
         session_id: session_id.to_owned(),
         selectors,
     })
+}
+
+/// 一条会话一个 agent 的 transcript 页（REST transcript，原样 JSON）。
+///
+/// 载荷不在这一层解：它的契约钉在 vendored @poietica/transcript 的 zod
+/// schema，由桥那一侧校验 —— 这里只管地址、信封与透传。
+pub(crate) async fn read_transcript(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+    agent_id: &str,
+    before_turn: Option<&str>,
+) -> Result<Value> {
+    let url = routes::session_transcript(base_url, session_id).map(|mut url| {
+        url.query_pairs_mut().append_pair("agent_id", agent_id);
+        if let Some(before) = before_turn {
+            url.query_pairs_mut().append_pair("before_turn", before);
+        }
+        url
+    });
+
+    get(http, url).await
+}
+
+/// 一条会话一个 agent 的追赶批次（REST transcript/ops，原样 JSON）。
+pub(crate) async fn catch_up_transcript(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+    agent_id: &str,
+    since_seq: i64,
+) -> Result<Value> {
+    let url = routes::session_transcript_ops(base_url, session_id).map(|mut url| {
+        url.query_pairs_mut()
+            .append_pair("agent_id", agent_id)
+            .append_pair("since_seq", &since_seq.to_string());
+        url
+    });
+
+    get(http, url).await
 }
 
 pub(crate) async fn open_session(

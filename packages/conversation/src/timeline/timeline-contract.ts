@@ -5,7 +5,6 @@ import type {
   QuestionChoice,
   QuestionItem,
   QuestionOutcome,
-  RunEvent,
   RunStatus,
   SessionLink,
   ToolCallContent,
@@ -45,12 +44,9 @@ interface TimelineEntry {
   /**
    * 它属于第几段。
    *
-   * 回放出来的段号是零或负数（最后一轮为 r0），实时开出来的为正。
-   *
-   * 人先说话时它与自己的答复同号：段在那一句话落账之前就开了（timeline-reducer
-   * 的 appendUserMessage 先 openSegment 再 push）。只有一种情形它记的是上一段的
-   * 号 —— 上一轮还在跑时插进来的那一句：那时不换段，因为换段会连 seq 窗口带 id
-   * 前缀一起换掉，在飞的工具调用会认不回自己那张卡。
+   * 段号由 transcript-projector 按官方 turn 顺序编出：sealed 段在前，活动段在尾。
+   * 回放出来的段号是零或负数（最后一轮为 r0）的旧约定已随帧投影一起退役，
+   * 这里只保留段归属本身。
    */
   readonly turn: number
   readonly at: number
@@ -140,16 +136,6 @@ export function isTerminal(status: ToolCallTimelineItem['status']): boolean {
   return status === 'completed' || status === 'failed'
 }
 
-/** 这一帧是否开一个新段。段由它划定，所以判据只住在这里。 */
-export function opensTurn(event: RunEvent): boolean {
-  return event.kind === 'prompt_admitted'
-}
-
-/** 这一帧是否收掉这一轮。与 opensTurn 成对：帧的形状只在这个包里认。 */
-export function endsRun(event: RunEvent): boolean {
-  return event.kind === 'run_finished' || event.kind === 'run_failed'
-}
-
 /** 这一轮还没落定：还会来帧，屏幕上还该转。 */
 export function isInFlight(status: RunStatus): boolean {
   return (
@@ -219,7 +205,7 @@ export interface PermissionItem extends TimelineEntry {
   readonly requestId: string
   /** 工具名。要批准的那件事说不出来时的最后一层退路。 */
   readonly title: string
-  /** 要批准的那件事：由请求自带的 display 投出（kap-projection 的 requestedCall）。 */
+  /** 要批准的那件事：由请求自带的 display 投出。 */
   readonly kind: ToolKind
   readonly subject: string
   readonly locations: readonly ToolCallLocation[]
@@ -340,9 +326,7 @@ export interface TurnSpan {
 /**
  * 一段轮次的条目，按到达顺序。
  *
- * 封口之后不再改写，跨帧按引用共享 —— 派生因此只重算活动的那一段。唯一的例外是
- * 下一轮认领它尾部那条排队提问（timeline-draft 的 takeQueued）：那一条本来就属于
- * 下一段。
+ * 封口之后不再改写，跨帧按引用共享 —— 派生因此只重算活动的那一段。
  */
 export interface TurnPage {
   readonly turn: number

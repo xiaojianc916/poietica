@@ -6,7 +6,10 @@ export type Ring = { readonly name: string; readonly members: readonly string[] 
 
 export const TYPESCRIPT_RINGS: readonly Ring[] = [
   { name: 'contract', members: ['@poietica/contract'] },
-  { name: 'vocabulary', members: ['@poietica/problem', '@poietica/external-store'] },
+  {
+    name: 'vocabulary',
+    members: ['@poietica/problem', '@poietica/external-store', '@poietica/transcript'],
+  },
   { name: 'design-system', members: ['@poietica/design-system'] },
   { name: 'agent-profiles', members: ['@poietica/agent-catalog'] },
   {

@@ -39,14 +39,19 @@ agent 是 Kimi Code（TypeScript 版，`kimi web` 入口，见 ADR 0024/0025）�
 
 ## 2. 数据流（一句话验收）
 
-帧从 `kimi web` 子进程的 WebSocket 进 kap-client 的 driver（session/driver.rs，
-kap：REST + session_event），经 RunSlot → Recorder（会话内单调序号）→ FrameSink
-→ 宿主 16ms 攒批 → conversation_events 落库 → Tauri event → transcript-store（按会话号
-路由到对话）→ timeline 投影 → React。反向只有三条命令路：prompt / cancel /
-resolvePermission。
-谁持有唯一真相：屏幕经过 = conversation_events；模型上下文 = agent；对话索引 = threads 表（单写者）；
-帧形状 = frame.rs；配置真身 = agent 受控 home 的 config.toml（由 agent 自己
-热重载，我们只经它的官方 CLI 写入）。
+屏幕经过走官方 transcript 通道：`kimi web` 子进程的 WebSocket 上 subscribe_v2
+（session/driver.rs）把 per-agent transcript 流引进来（transcript.ops / reset /
+resync_required），经 router → SessionEvent::Transcript → Tauri
+agentTranscriptEvent（原样 JSON）→ native-bridge 的 transcript 端口（vendored
+schema 校验）→ transcript-store（增量 ops / reset 快照 / REST catch-up 追赶）→
+projectTranscript 投影 → React。本机帧日志（conversation_events）只记协议不
+建模而客户端必须记住的事实（准入、审批、提问、链路、轮终）。反向的命令路：
+prompt / cancel / resolvePermission / transcript 两条读（agentTranscript 与
+agentTranscriptOps）。
+谁持有唯一真相：屏幕经过 = agent 的 transcript；模型上下文 = agent；对话索引 =
+threads 表（单写者）；transcript 线上形状 = vendored @poietica/transcript 的
+schema（packages/transcript）；本机帧形状 = frame.rs；配置真身 = agent 受控
+home 的 config.toml（由 agent 自己热重载，我们只经它的官方 CLI 写入）。
 
 ## 3. 宏观架构
 
@@ -102,8 +107,8 @@ transcript-store.ts 的 held/alias/routes 互相耦合，rename 同写三张表�
 ## 5. 微型架构条例（文件内部）
 
 - **单一分发点**：一种帧/一种状态只允许一个 match/switch 主干；协议知识收在
-  一处（TS 侧唯一认识 kap 帧的文件是 timeline/kap-projection.ts，Rust 侧是
-  crates/kap-client/src/frame.rs——别处出现协议判别即为泄漏）。
+  一处（TS 侧唯一认识官方 transcript 形状的文件是 timeline/transcript-projector.ts，
+  Rust 侧是 crates/kap-client/src/frame.rs——别处出现协议判别即为泄漏）。
 - **成形与投递两段式**：昂贵构造在锁外/号外完成，占号、上锁、发布只做最后一步
   （判例：crates/kap-client/src/recorder.rs 的 shape/deliver，asset_protocol 的
   materialise 后上锁）。

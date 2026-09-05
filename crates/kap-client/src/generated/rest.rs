@@ -34,6 +34,20 @@ pub mod routes {
         build(base_url, &["api", "v1", "sessions"])
     }
 
+    pub fn session_transcript(base_url: &str, session_id: &str) -> Route {
+        build(
+            base_url,
+            &["api", "v1", "sessions", session_id, "transcript"],
+        )
+    }
+
+    pub fn session_transcript_ops(base_url: &str, session_id: &str) -> Route {
+        build(
+            base_url,
+            &["api", "v1", "sessions", session_id, "transcript", "ops"],
+        )
+    }
+
     pub fn session_snapshot(base_url: &str, session_id: &str) -> Route {
         build(base_url, &["api", "v1", "sessions", session_id, "snapshot"])
     }

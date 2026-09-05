@@ -220,6 +220,35 @@ pub(crate) async fn unsubscribe(ws: &WsSink, session_id: &str) -> Result<()> {
     .map(|_id| ())
 }
 
+/// 把一条会话的 transcript 粒度流挂上这条连接（subscribe_v2，asyncapi.json）。
+///
+/// 粒度按 agent 声明：`*` 是默认档，逐 agent 的键盖过它。delta 是最细一档，
+/// 屏幕（块与流片都要）与追赶（REST catch-up）都吃得下；更粗的档会丢流片。
+/// `transcript_since` 只在对得上号的续订里带，否则 server 从头整发 —— 首订
+/// 就该整发。
+pub(crate) async fn subscribe_transcript(
+    ws: &WsSink,
+    session_id: &str,
+    since: Option<i64>,
+) -> Result<String> {
+    use crate::generated::events::{SubscribeV2Struct, SubscribeV2TranscriptValueEnum};
+
+    send_frame(
+        ws,
+        ClientFrame::SubscribeV2 {
+            id: Uuid::new_v4().to_string(),
+            payload: SubscribeV2Struct {
+                session_id: session_id.to_owned(),
+                transcript: [("*".to_owned(), SubscribeV2TranscriptValueEnum::Delta)]
+                    .into_iter()
+                    .collect(),
+                transcript_since: since.map(|seq| [("*".to_owned(), seq)].into_iter().collect()),
+            },
+        },
+    )
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::validate_protocol_version;

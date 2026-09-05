@@ -236,30 +236,27 @@ async agentOpenThread(request: AgentOpenThreadRequest) : Promise<AgentOpenedThre
     return await TAURI_INVOKE("agent_open_thread", { request });
 },
 /**
- * 这条对话更早的一页经过。
+ * 一个 agent 的 transcript 页，原样 JSON 文本。
  * 
- * 一次读回完整轮次；位置由上一页交回，连续文本流片在 IPC 前压成 block。
- * 原始 conversation_events 不改写，仍是屏幕历史的唯一事实源。
+ * 载荷的契约钉在 vendored @poietica/transcript 的 schema，校验在渲染层
+ * （native-bridge 的 transcript 端口）—— 这一层不重抄第二份形状。
  * 
  * # Errors
  * 
- * 标识不是 UUID，或库拒绝这次读取时失败。
+ * Fails when no agent session is running or the agent refuses the read.
  */
-async agentEarlierFrames(request: AgentEarlierFramesRequest) : Promise<AgentFramePage> {
-    return await TAURI_INVOKE("agent_earlier_frames", { request });
+async agentTranscript(request: AgentTranscriptRequest) : Promise<AgentTranscriptJson> {
+    return await TAURI_INVOKE("agent_transcript", { request });
 },
 /**
- * 这条对话的目录后缀，一轮一行；游标缺席时读取整本。
- * 
- * 屏幕上的经过由 conversation_events 重放，目录因此也只能出自它：以内存窗口为定义域的
- * 目录会随载入量伸缩，而人要跳的那一轮往往还没载入。
+ * 一个 agent 的 transcript 追赶批次，原样 JSON 文本。
  * 
  * # Errors
  * 
- * 标识不是 UUID，或库拒绝这次读取时失败。
+ * Fails when no agent session is running or the agent refuses the read.
  */
-async agentThreadOutline(request: AgentThreadOutlineRequest) : Promise<AgentTurnMark[]> {
-    return await TAURI_INVOKE("agent_thread_outline", { request });
+async agentTranscriptOps(request: AgentTranscriptOpsRequest) : Promise<AgentTranscriptJson> {
+    return await TAURI_INVOKE("agent_transcript_ops", { request });
 },
 /**
  * Renames a conversation.
@@ -1024,6 +1021,7 @@ async browserSetElementPicker(id: number, enabled: boolean) : Promise<void> {
 export const events = __makeEvents__<{
 agentRunBatch: AgentRunBatch,
 agentSessionEvent: AgentSessionEvent,
+agentTranscriptEvent: AgentTranscriptEvent,
 automationCatalogChanged: AutomationCatalogChanged,
 automationDue: AutomationDue,
 browserElementPicked: BrowserElementPicked,
@@ -1035,6 +1033,7 @@ windowMaximized: WindowMaximized
 }>({
 agentRunBatch: "agent-run-batch",
 agentSessionEvent: "agent-session-event",
+agentTranscriptEvent: "agent-transcript-event",
 automationCatalogChanged: "automation-catalog-changed",
 automationDue: "automation-due",
 browserElementPicked: "browser-element-picked",
@@ -1227,18 +1226,6 @@ export type AgentDismissQuestionsRequest = {
  */
 questionId: string }
 /**
- * 要往前读的那条对话，以及从哪儿接着读。
- */
-export type AgentEarlierFramesRequest = { 
-/**
- * 往前读哪条对话。
- */
-threadId: string; 
-/**
- * 上一页交回的读取位置。
- */
-before: AgentFrameCursor }
-/**
  * A conversation archive requested by the renderer.
  */
 export type AgentExportThreadRequest = { threadId: string; launch: AgentLaunch }
@@ -1275,22 +1262,6 @@ launch: AgentLaunch;
  * The working directory the session is created against.
  */
 cwd: string | null }
-/**
- * 一页帧从哪儿往前读。渲染层原样回传，不解释：它是库上那把唯一键。
- */
-export type AgentFrameCursor = { 
-/**
- * 位置属于哪条会话。
- */
-sessionId: string; 
-/**
- * 它在那条会话上的位置。
- */
-seq: number }
-/**
- * A page of validated wire events and its earlier cursor.
- */
-export type AgentFramePage = { events: AgentRunEvent[]; before: AgentFrameCursor | null }
 /**
  * 目标模式此刻的事实，线上形状。
  */
@@ -1559,7 +1530,7 @@ feedback: string | null }
  * A persisted batch; the outer session id makes its routing invariant explicit.
  */
 export type AgentRunBatch = { sessionId: string; events: AgentRunEvent[] }
-export type AgentRunEvent = ({ kind: "turn_admitted"; turn: string } | { kind: "prompt_admitted"; admissionId: string; prompt: string | null; images: string[] | null; skills: string[] | null } | { kind: "kap_event"; payload: JsonValue } | { kind: "permission_requested"; requestId: string; toolCallId: string | null; title: string; toolCall: JsonValue } | { kind: "permission_resolved"; requestId: string; decision: string; scope: string | null; selectedLabel: string | null; feedback: string | null } | { kind: "questions_asked"; questionId: string; toolCallId: string | null; questions: JsonValue } | { kind: "questions_resolved"; questionId: string; outcome: string; answers: JsonValue; note: string } | { kind: "session_recovered"; snapshot: JsonValue } | { kind: "link_changed"; link: AgentLinkState } | { kind: "run_finished"; turn: string | null; stopReason: string } | { kind: "run_failed"; turn: string | null; message: string } | { kind: "unsupported_external_event"; rawKind: string }) & { sessionId: string; seq: number; at: number }
+export type AgentRunEvent = ({ kind: "turn_admitted"; turn: string } | { kind: "prompt_admitted"; admissionId: string; prompt: string | null; images: string[] | null; skills: string[] | null } | { kind: "permission_requested"; requestId: string; toolCallId: string | null; title: string; toolCall: JsonValue } | { kind: "permission_resolved"; requestId: string; decision: string; scope: string | null; selectedLabel: string | null; feedback: string | null } | { kind: "questions_asked"; questionId: string; toolCallId: string | null; questions: JsonValue } | { kind: "questions_resolved"; questionId: string; outcome: string; answers: JsonValue; note: string } | { kind: "session_recovered"; snapshot: JsonValue } | { kind: "link_changed"; link: AgentLinkState } | { kind: "run_finished"; turn: string | null; stopReason: string } | { kind: "run_failed"; turn: string | null; message: string } | { kind: "unsupported_external_event"; rawKind: string }) & { sessionId: string; seq: number; at: number }
 /**
  * A change made in the interface.
  */
@@ -1676,14 +1647,6 @@ workspaceRoot: string | null;
  */
 archived: boolean }
 /**
- * A suffix read of the durable conversation outline.
- */
-export type AgentThreadOutlineRequest = { threadId: string; 
-/**
- * Inclusive prompt sequence; absent reads the complete outline.
- */
-fromSeq: number | null }
-/**
  * A conversation an action applies to, and nothing else.
  */
 export type AgentThreadRequest = { 
@@ -1694,7 +1657,7 @@ threadId: string }
 /**
  * A bounded local read-model snapshot. It never starts or restores an agent.
  */
-export type AgentThreadSnapshot = { thread: AgentThread; frames: AgentFramePage; usage: AgentSessionUsage | null }
+export type AgentThreadSnapshot = { thread: AgentThread; usage: AgentSessionUsage | null }
 /**
  * 要打开或创建的对话。操作由判别式表达，不用可空 id 猜。
  */
@@ -1725,20 +1688,42 @@ export type AgentTitleSource =
 export type AgentToolkit = { skills: AgentSkill[]; mcpServers: AgentMcpServer[] }
 export type AgentToolkitRequest = { launch: AgentLaunch; cwd: string | null; threadId: string | null }
 /**
- * 目录里的一轮：地址、问的头一句、答的头几行。
+ * transcript 通道的一帧：官方 transcript 事件原样 JSON。
  * 
- * 两段的字数在库里就截断了（mod.rs 的 OUTLINE_*）：目录要的是预览卡上看得见的
- * 那两行，不是整段回答。
+ * `{ type: "transcript.ops" | "transcript.reset" | …, payload }` 的判别与
+ * 校验归渲染层（vendored schema）；这一侧只交会话地址与原文。
  */
-export type AgentTurnMark = { 
+export type AgentTranscriptEvent = { sessionId: string; 
 /**
- * 这一轮的第一帧在库上的位置。跳转与续读都认它。
+ * 官方 transcript 事件的原文（含 type 与 payload）。
  */
-at: AgentFrameCursor; 
+json: string }
 /**
- * 本机签发的 durable admission identity。
+ * 一条 transcript 读命令的答复：原样 JSON 文本。
+ * 
+ * 与 `AgentTranscriptEvent` 同一条规矩：形状由 vendored schema 说，这里是
+ * 透传壳。
  */
-admissionId: string; prompt: string; reply: string | null }
+export type AgentTranscriptJson = { json: string }
+/**
+ * 一个 agent 的 transcript 追赶怎么读。
+ */
+export type AgentTranscriptOpsRequest = { sessionId: string; agentId: string; 
+/**
+ * 只取 seq 比它新的批次。
+ */
+sinceSeq: number }
+/**
+ * 一个 agent 的 transcript 页怎么读。
+ * 
+ * 载荷以 JSON 文本透传：契约钉在 vendored @poietica/transcript 的 schema，
+ * 校验发生在桥那一侧，这里不重抄第二份形状。
+ */
+export type AgentTranscriptRequest = { sessionId: string; agentId: string; 
+/**
+ * 往前读到哪一轮为止；缺席读最新一页。
+ */
+beforeTurn: string | null }
 export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; modelPicker: ModelPickerSettings; privacy: PrivacySettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 /**

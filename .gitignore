@@ -25,6 +25,8 @@ vite.config.*.timestamp-*
 # Build outputs
 dist/
 **/dist/
+dist-types/
+**/dist-types/
 build/
 **/build/
 out/

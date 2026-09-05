@@ -94,8 +94,7 @@ impl ThreadView {
             }
             // 方言事件与本投影还不会折的事件：计数，不丢弃。逐个变体类型化的
             // 迁移发生在 translate 层，每补一个这里就少一类。
-            ConversationEvent::KapEvent { .. }
-            | ConversationEvent::UnsupportedExternalEvent { .. } => {
+            ConversationEvent::UnsupportedExternalEvent { .. } => {
                 self.unparsed_events = self.unparsed_events.saturating_add(1);
             }
             ConversationEvent::LinkChanged { .. } | ConversationEvent::SessionRecovered { .. } => {}

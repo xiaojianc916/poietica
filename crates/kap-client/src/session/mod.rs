@@ -89,6 +89,10 @@ pub enum SessionEvent {
         session_id: String,
     },
 
+    Transcript {
+        session_id: String,
+        payload: serde_json::Value,
+    },
     ModelCatalogChanged,
     /// 这条连接此刻的链路态。
     Link(poietica_conversation::link::LinkState),

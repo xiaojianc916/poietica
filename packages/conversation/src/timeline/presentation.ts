@@ -564,8 +564,8 @@ function spanOf(spans: readonly TurnSpan[], turn: number): TurnSpan | undefined 
 /**
  * 已封口那一段的派生，一次算好跨帧用。
  *
- * sealed 是同一个数组直到换段（timeline-draft 的 openSegment），封口段不再改写，
- * 它们的 span 也不再改写 —— 只有末段那一条还可能被收口，所以命中时复核它。
+ * sealed 段封口之后不再改写，它们的 span 也不再改写 —— 只有末段那一条还可能
+ * 被收口，所以命中时复核它。
  */
 function prefixOf(state: TimelineState, chosen: ReadonlyMap<number, boolean>): Prefix {
   const sealed = state.sealed

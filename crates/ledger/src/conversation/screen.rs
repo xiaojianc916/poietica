@@ -99,8 +99,7 @@ impl AgentStore {
     /// 这条对话的整本目录：一轮一行，按追加顺序。
     ///
     /// 问出自开轮那一帧。答是这一轮里主代理说出的字，按 seq 接起来再截到预览卡
-    /// 装得下的字数 —— 一帧 delta 是一次流片（同一条判据见 history 的 compact_history），
-    /// 取一帧就只有几个字。子代理的字不进这张卡。
+    /// 装得下的字数，取一帧就只有几个字。子代理的字不进这张卡。
     ///
     /// # Errors
     ///
@@ -358,20 +357,25 @@ mod tests {
 
     use poietica_conversation::event::ConversationEvent;
     use poietica_conversation::identity::Seq;
-    use serde_json::json;
 
     use super::{replies_of, screen_frame};
 
     #[test]
     fn replay_decodes_the_event_union_and_rejects_unknown_shapes() {
-        let payload = serde_json::to_string(&ConversationEvent::KapEvent {
-            payload: json!({ "type": "assistant.delta", "delta": "hello" }),
+        let payload = serde_json::to_string(&ConversationEvent::PromptAdmitted {
+            admission_id: poietica_conversation::identity::TurnId::new("adm".to_owned()),
+            prompt: Some("你好".to_owned()),
+            images: None,
+            skills: None,
         })
         .expect("payload");
         let frame = screen_frame("thread", "session", 7, 9, &payload).expect("frame");
 
         assert_eq!(frame.seq, Seq::new(7));
-        assert!(matches!(frame.event, ConversationEvent::KapEvent { .. }));
+        assert!(matches!(
+            frame.event,
+            ConversationEvent::PromptAdmitted { .. }
+        ));
         assert!(screen_frame("thread", "session", 8, 10, "{}").is_err());
     }
 

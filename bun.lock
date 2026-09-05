@@ -185,6 +185,9 @@
     "packages/conversation": {
       "name": "@poietica/conversation",
       "version": "0.1.0",
+      "dependencies": {
+        "@poietica/transcript": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "catalog:",
         "typescript": "catalog:",
@@ -255,10 +258,12 @@
         "@poietica/extension": "workspace:*",
         "@poietica/problem": "workspace:*",
         "@poietica/settings": "workspace:*",
+        "@poietica/transcript": "workspace:*",
         "@poietica/update": "workspace:*",
         "@tauri-apps/api": "catalog:tauri",
         "@tauri-apps/plugin-dialog": "catalog:tauri",
         "@tauri-apps/plugin-updater": "catalog:tauri",
+        "zod": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -305,6 +310,17 @@
         "react-dom": "catalog:",
       },
     },
+    "packages/transcript": {
+      "name": "@poietica/transcript",
+      "version": "0.0.2-poietica.1",
+      "dependencies": {
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/update": {
       "name": "@poietica/update",
       "version": "0.1.0",
@@ -333,6 +349,7 @@
       "version": "0.1.0",
       "devDependencies": {
         "@poietica/conversation": "workspace:*",
+        "@poietica/transcript": "workspace:*",
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
@@ -383,6 +400,7 @@
     "vite": "8.2.2",
     "yaml": "2.9.0",
     "yet-another-react-lightbox": "3.32.2",
+    "zod": "4.3.6",
   },
   "catalogs": {
     "tauri": {
@@ -536,6 +554,8 @@
     "@poietica/tests": ["@poietica/tests@workspace:tests"],
 
     "@poietica/tools": ["@poietica/tools@workspace:tools"],
+
+    "@poietica/transcript": ["@poietica/transcript@workspace:packages/transcript"],
 
     "@poietica/update": ["@poietica/update@workspace:packages/update"],
 
@@ -1376,6 +1396,8 @@
     "yjs": ["yjs@13.6.32", "https://registry.npmmirror.com/yjs/-/yjs-13.6.32.tgz", { "dependencies": { "lib0": "^0.2.99" } }, "sha512-lfiJIIC4Xayt5ItynE407ehlE03pCjeOc4hkR4yxxvvNJ4kuiN25B0g+Qp8XagYz361LLL7DCzR5bvFJ81QKtQ=="],
 
     "yoctocolors": ["yoctocolors@2.2.0", "https://registry.npmmirror.com/yoctocolors/-/yoctocolors-2.2.0.tgz", {}, "sha512-xYqdZFUK/VYazNl/oCDYN+3WloWQwMfZxBoiNt6qNyk+xfOdi598muWE42rNZFp1kNOiqW936q5RhUdnpqElSg=="],
+
+    "zod": ["zod@4.3.6", "https://registry.npmmirror.com/zod/-/zod-4.3.6.tgz", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
 
     "zwitch": ["zwitch@2.0.4", "https://registry.npmmirror.com/zwitch/-/zwitch-2.0.4.tgz", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
 
