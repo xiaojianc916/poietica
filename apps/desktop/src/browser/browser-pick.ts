@@ -1,6 +1,9 @@
 import type { PromptInputHandle } from '@poietica/assistant'
 import type { AttachmentIntake, ComposerAsset } from '@poietica/conversation'
-import { type BrowserElementPicked, watchBrowserElementPicked } from '@poietica/native-bridge'
+import {
+  type BrowserElementPicked,
+  watchBrowserElementPicked,
+} from '@poietica/native-bridge/browser'
 import { warn } from '@poietica/problem'
 import type { RefObject } from 'react'
 

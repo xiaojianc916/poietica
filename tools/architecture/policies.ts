@@ -225,7 +225,7 @@ export function noCycles(
   return violations
 }
 
-/** 跨包只走公开入口：深路径必须是对方 exports 里白纸黑字写过的。 */
+/** 跨包只走 exports 声明的入口，包根与子路径同样检查。 */
 export function publicEntryOnly(
   imports: readonly ImportRecord[],
   workspaces: readonly Workspace[],
@@ -240,17 +240,13 @@ export function publicEntryOnly(
 
     const segments = record.specifier.split('/')
 
-    if (segments.length <= 2) {
-      continue
-    }
-
     const target = byName.get(packageOf(record.specifier))
 
     if (target === undefined) {
       continue
     }
 
-    const subpath = `./${segments.slice(2).join('/')}`
+    const subpath = segments.length === 2 ? '.' : `./${segments.slice(2).join('/')}`
 
     if (target.manifest.exports?.[subpath] === undefined) {
       violations.push({

@@ -1,4 +1,5 @@
 //! 投递用例拥有准入、传输确认及恢复；数据库 actor 内不得调用网关。
+use crate::session::SessionResolver;
 use poietica_conversation::command::Conversation;
 use poietica_conversation::error::{DomainFailure, LedgerUnavailable};
 use poietica_conversation::ports::{
@@ -80,6 +81,14 @@ where
             reason: failure.to_string(),
         },
     };
+    let confirmation = match confirmation {
+        DeliveryConfirmation::Accepted { prompt_id } if prompt_id.is_empty() => {
+            DeliveryConfirmation::Indeterminate {
+                reason: "the gateway acknowledged delivery without a prompt identity".to_owned(),
+            }
+        }
+        confirmed => confirmed,
+    };
     let outcome = confirmation.outcome();
     write_index(index, move |store| {
         store
@@ -101,6 +110,7 @@ pub async fn recover<G, E>(
     index: &LocalIndex<E>,
     gateway: G,
     agent_id: &str,
+    resolver: &SessionResolver,
 ) -> Result<Vec<RecoveryFailure<E>>, E>
 where
     G: AgentGateway + Clone + Send + 'static,
@@ -125,6 +135,7 @@ where
                 continue;
             }
         };
+        let _lease = resolver.exclusive(thread).await;
         let holder = match read_index(index, move |store| {
             store
                 .thread(thread)

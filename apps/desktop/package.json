@@ -13,7 +13,8 @@
     "typecheck:node": "tsc --project tsconfig.node.json --noEmit",
     "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "tauri:build:debug": "tauri build --target x86_64-pc-windows-msvc --debug --no-bundle",
-    "tauri:build:release": "tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.release.conf.json"
+    "tauri:build:release": "tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.release.conf.json",
+    "typecheck": "bun run typecheck:browser && bun run typecheck:node"
   },
   "dependencies": {
     "@poietica/agent-catalog": "workspace:*",

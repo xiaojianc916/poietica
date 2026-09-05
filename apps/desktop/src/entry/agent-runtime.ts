@@ -19,7 +19,7 @@ import {
   createAgentThreadBridge,
   createAgentToolkitReader,
   shutdownAgent,
-} from '@poietica/native-bridge'
+} from '@poietica/native-bridge/conversation'
 import { error as reportError } from '@poietica/problem'
 import type { AgentSettings, ModelCatalogStore } from '@poietica/settings'
 import { createThinkingPreference } from './thinking-preference'

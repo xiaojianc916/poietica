@@ -1,6 +1,6 @@
 import { TableExportProvider } from '@poietica/assistant/table-export'
 import type { ThemePreference } from '@poietica/design-system'
-import { exportTable } from '@poietica/native-bridge'
+import { exportTable } from '@poietica/native-bridge/workspace/table-export'
 import { StrictMode } from 'react'
 import { flushSync } from 'react-dom'
 import type { Root } from 'react-dom/client'
@@ -12,6 +12,7 @@ import {
   reportFatalIncident,
 } from '../notice/problem-presentation'
 import { AppShell } from '../shell/app-shell'
+import { WorkspaceRootsContext } from '../workspace/roots-context'
 import { type ApplicationRuntime, createApplicationRuntime } from './compose-runtime'
 
 async function saveTable(content: string): Promise<void> {
@@ -131,7 +132,9 @@ export async function mountReactApplication(
         <StrictMode>
           <TableExportProvider save={saveTable}>
             <FatalErrorHost>
-              <AppShell runtime={runtime} />
+              <WorkspaceRootsContext.Provider value={runtime.workspaceRoots}>
+                <AppShell runtime={runtime} />
+              </WorkspaceRootsContext.Provider>
             </FatalErrorHost>
           </TableExportProvider>
         </StrictMode>,

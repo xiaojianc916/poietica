@@ -1,15 +1,14 @@
 import type { AttachmentIntake, ComposerAsset } from '@poietica/conversation'
 import {
   type AssetFormat,
-  basename,
   importAssets,
   listAssetFormats,
   openAssetSession,
-  pickPaths,
   removeAsset,
   uploadAsset,
-  watchDroppedPaths,
-} from '@poietica/native-bridge'
+} from '@poietica/native-bridge/assets'
+import { pickPaths, watchDroppedPaths } from '@poietica/native-bridge/assets/dialog'
+import { basename } from '@poietica/native-bridge/workspace/paths'
 import { warn } from '@poietica/problem'
 
 /*

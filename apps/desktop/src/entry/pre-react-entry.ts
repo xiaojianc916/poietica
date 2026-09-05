@@ -76,7 +76,7 @@ function render(model: TerminalFailureViewModel): void {
   root.replaceChildren(screen)
 
   /* 窗口以 visible: false 创建，正常路径由 React 首帧呈现 —— 这条路径上没有 React。 */
-  void import('@poietica/native-bridge')
+  void import('@poietica/native-bridge/window')
     .then(({ createMainWindowController }) => createMainWindowController().present())
     .catch(reportWindowFailure)
 }

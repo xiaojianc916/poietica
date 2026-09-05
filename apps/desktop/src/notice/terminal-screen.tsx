@@ -1,4 +1,4 @@
-import { createMainWindowController } from '@poietica/native-bridge'
+import { createMainWindowController } from '@poietica/native-bridge/window'
 import type { TerminalFailureIncident } from '@poietica/problem'
 import { CircleCheck as CheckCircle, Copy, RefreshCw as Refresh } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'

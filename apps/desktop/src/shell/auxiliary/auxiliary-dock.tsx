@@ -3,7 +3,7 @@ import {
   DelegateChannelPane,
   useDelegateChannelNames,
 } from '@poietica/assistant'
-import { terminalHostPort } from '@poietica/native-bridge'
+import { terminalHostPort } from '@poietica/native-bridge/terminal'
 import { warn } from '@poietica/problem'
 import type { AuxiliaryPaneOffer } from '@poietica/workspace-panels'
 import {

@@ -4,7 +4,32 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    "./conversation": "./src/conversation/connection.ts",
+    "./agent/config": "./src/agent/configuration.ts",
+    "./agent/preferences": "./src/agent/preferences.ts",
+    "./agent/models": "./src/agent/models.ts",
+    "./agent/custom": "./src/agent/custom.ts",
+    "./agent/launcher": "./src/agent/launcher.ts",
+    "./assets": "./src/asset/transfer.ts",
+    "./automation": "./src/automation.ts",
+    "./browser": "./src/browser.ts",
+    "./extensions": "./src/extension/catalog.ts",
+    "./extensions/mcp": "./src/extension/mcp.ts",
+    "./review": "./src/review.ts",
+    "./terminal": "./src/terminal.ts",
+    "./settings": "./src/settings.ts",
+    "./update": "./src/update/controller.ts",
+    "./usage": "./src/usage.ts",
+    "./workspace/session": "./src/workspace/session.ts",
+    "./workspace": "./src/workspace/directories.ts",
+    "./workspace/table-export": "./src/workspace/table-export.ts",
+    "./update/version": "./src/update/version.ts",
+    "./workspace/data-directory": "./src/workspace/data-directory.ts",
+    "./assets/dialog": "./src/asset/dialog.ts",
+    "./diagnostics": "./src/diagnostics/crash-report.ts",
+    "./window": "./src/window.ts",
+    "./workspace/paths": "./src/workspace/paths.ts",
+    "./errors": "./src/ipc-error.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit"

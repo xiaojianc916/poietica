@@ -1,4 +1,4 @@
-import { openBrowserUrlExternally } from '@poietica/native-bridge'
+import { openBrowserUrlExternally } from '@poietica/native-bridge/browser'
 
 /**
  * 外链归系统浏览器。

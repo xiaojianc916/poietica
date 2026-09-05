@@ -5,8 +5,8 @@ use std::sync::Once;
 use tauri::{AppHandle, Manager, RunEvent, command};
 use tauri_plugin_window_state::AppHandleExt;
 
-use crate::ipc::commands::automation::mcp_server::AutomationMcpServer;
-use crate::ipc::commands::conversation::runtime::AgentRuntime;
+use crate::automation::mcp_server::AutomationMcpServer;
+use crate::conversation::runtime::AgentRuntime;
 use crate::window::WINDOW_STATE_FLAGS;
 
 #[derive(Debug)]

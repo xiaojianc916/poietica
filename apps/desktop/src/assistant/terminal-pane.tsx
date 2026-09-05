@@ -1,4 +1,4 @@
-import { terminalHostPort } from '@poietica/native-bridge'
+import { terminalHostPort } from '@poietica/native-bridge/terminal'
 import { TerminalPane } from '@poietica/terminal/surface'
 /* Terminal teardown lives in the dock host, outside the Xterm chunk. */
 import { useConversationWorkspaceRoot } from './threads-context'

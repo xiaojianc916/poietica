@@ -2,9 +2,9 @@ import '../styles/app.css'
 
 import {
   type NativeCrashReport,
-  readWorkbenchSession,
   takePreviousNativeCrashReport,
-} from '@poietica/native-bridge'
+} from '@poietica/native-bridge/diagnostics'
+import { readWorkbenchSession } from '@poietica/native-bridge/workspace/session'
 import { reportFatalIncident } from '../notice/problem-presentation'
 import { installContextMenuGuard } from '../window/context-menu-guard'
 import { installExternalLinks } from '../window/external-links'

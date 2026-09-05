@@ -4,7 +4,7 @@ import {
   type ThemePreference,
   type ThemePreferenceBinding,
 } from '@poietica/design-system'
-import type { MainWindowController } from '@poietica/native-bridge'
+import type { MainWindowController } from '@poietica/native-bridge/window'
 
 export interface ThemeRuntime {
   readonly setPreference: (preference: ThemePreference) => Promise<void>

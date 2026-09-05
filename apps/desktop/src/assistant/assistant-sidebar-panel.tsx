@@ -2,7 +2,7 @@ import { AssistantThreadList } from '@poietica/assistant'
 import { isProjectlessWorkspaceRoot } from '@poietica/conversation'
 import { memo, useCallback, useMemo } from 'react'
 
-import { setActiveWorkspaceRoot } from '../entry/workspace-root'
+import { useWorkspaceRoots } from '../workspace/roots-context'
 import { useThreadsActions, useThreadsList } from './threads-context'
 import { toggleWorkspace, useCollapsedWorkspaces } from './workspace-collapse'
 
@@ -75,6 +75,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   )
 
   /* 不点名工作区就是「当前那个」，点了名就先切过去 —— 见上面那段。 */
+  const { setActive: setActiveWorkspaceRoot } = useWorkspaceRoots()
   const create = useCallback(
     (workspaceId?: string) => {
       if (workspaceId !== undefined) {
@@ -83,7 +84,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
 
       onCreate()
     },
-    [onCreate],
+    [onCreate, setActiveWorkspaceRoot],
   )
 
   const activate = useCallback(

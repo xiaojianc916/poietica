@@ -1,5 +1,5 @@
 import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/assistant'
-import type { MainWindowController } from '@poietica/native-bridge'
+import type { MainWindowController } from '@poietica/native-bridge/window'
 import { failureCoordinator } from '@poietica/problem'
 import type { KeybindingCatalog, KeybindingEntry } from '@poietica/settings'
 import type { CommandRegistry } from '@poietica/workspace'

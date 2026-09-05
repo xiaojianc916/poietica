@@ -13,15 +13,27 @@
     reason = "async dispatches a command onto the async runtime; sync would run it on the main thread"
 )]
 
+pub mod agent;
+pub mod asset;
 pub mod asset_protocol;
+pub mod automation;
 pub mod composition;
+pub mod conversation;
 pub mod diagnostics;
 pub mod error;
+pub mod extension;
 pub mod ipc;
+pub mod launcher;
+pub mod ledger;
 pub mod paths;
+pub mod review;
+pub mod settings;
 pub mod shutdown;
+pub mod skills;
+pub mod terminal;
 pub mod webview;
 pub mod window;
+pub mod workspace;
 
 pub use error::{Error, Result};
 

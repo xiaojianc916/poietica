@@ -1,4 +1,4 @@
-import { reviewGateway } from '@poietica/native-bridge'
+import { reviewGateway } from '@poietica/native-bridge/review'
 import { ReviewPane, type ReviewPaneProps } from '@poietica/review/surface'
 import { reportFailure } from '../notice/problem-presentation'
 import { useConversationWorkspaceRoot } from './threads-context'

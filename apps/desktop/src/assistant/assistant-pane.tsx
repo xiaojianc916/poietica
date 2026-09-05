@@ -1,10 +1,10 @@
 import type { WorkspacePickerProps } from '@poietica/assistant'
 import type { AgentSessionPort } from '@poietica/conversation'
 import { isProjectlessWorkspaceRoot, workspaceRootName } from '@poietica/conversation'
-import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/native-bridge'
+import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/native-bridge/workspace'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { v7 as uuidv7 } from 'uuid'
-import { setActiveWorkspaceRoot, useActiveWorkspaceRoot } from '../entry/workspace-root'
+import { useActiveWorkspaceRoot, useWorkspaceRoots } from '../workspace/roots-context'
 import { ConversationSurface } from './conversation-surface'
 import { useThreadsActions, useThreadsList } from './threads-context'
 import { useWorkspaceGit } from './workspace-git'
@@ -29,6 +29,7 @@ export function AssistantPane({
   /* 只要动作。这一格一个字的会话状态都不读，此前却订着整份快照。 */
   const open = useThreadsActions().create
   const { groups } = useThreadsList()
+  const { setActive: setActiveWorkspaceRoot } = useWorkspaceRoots()
   const activeRoot = useActiveWorkspaceRoot()
 
   /* 分支 chip 的数据与动作；不是 git 仓库时为 undefined，chip 整个不渲染。 */
@@ -64,11 +65,11 @@ export function AssistantPane({
         setActiveWorkspaceRoot(picked)
       }
     })
-  }, [])
+  }, [setActiveWorkspaceRoot])
 
   const clearWorkspace = useCallback(() => {
     setActiveWorkspaceRoot(null)
-  }, [])
+  }, [setActiveWorkspaceRoot])
 
   const workspace = useMemo<Omit<WorkspacePickerProps, 'placement'>>(
     () => ({
@@ -78,7 +79,7 @@ export function AssistantPane({
       onChoose: setActiveWorkspaceRoot,
       onClear: clearWorkspace,
     }),
-    [browse, choices, clearWorkspace, current],
+    [browse, choices, clearWorkspace, current, setActiveWorkspaceRoot],
   )
 
   const [entry, setEntry] = useState(() => ({ threadId: uuidv7(), started: false }))

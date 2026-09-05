@@ -86,9 +86,9 @@ const COMPOSITION_ROOT = 'apps/desktop/src-tauri/src/composition.rs'
 
 /** 每个偏好库的命令面：开库归组合根，读写归它自己那一个文件。 */
 const STORE_FACES = [
-  { store: 'settings_store', face: 'apps/desktop/src-tauri/src/ipc/commands/settings.rs' },
-  { store: 'agents_store', face: 'apps/desktop/src-tauri/src/ipc/commands/cli/profile.rs' },
-  { store: 'automations_store', face: 'apps/desktop/src-tauri/src/ipc/commands/automation.rs' },
+  { store: 'settings_store', face: 'apps/desktop/src-tauri/src/settings.rs' },
+  { store: 'agents_store', face: 'apps/desktop/src-tauri/src/agent/profile.rs' },
+  { store: 'automations_store', face: 'apps/desktop/src-tauri/src/automation/mod.rs' },
 ] as const
 
 /** 每个偏好库只有一个持有者：组合根开它，它自己的命令面读写，别人不碰。 */
@@ -300,8 +300,8 @@ async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
   const hostSurfaceProbes = [
     ['apps/desktop/src-tauri/src/window/surface.rs', 'pub struct WindowSurface'],
     ['apps/desktop/src-tauri/src/window/lifecycle.rs', 'state::<WindowSurface>().reapply(window)'],
-    ['apps/desktop/src-tauri/src/ipc/mod.rs', 'commands::window::window_set_surface'],
-    ['packages/native-bridge/src/platform/native-window.ts', 'commands.windowSetSurface'],
+    ['apps/desktop/src-tauri/src/ipc/mod.rs', 'window::commands::window_set_surface'],
+    ['packages/native-bridge/src/window.ts', 'commands.windowSetSurface'],
   ] as const
   for (const [file, needle] of hostSurfaceProbes) {
     if (!(await readFile(path.join(root, file), 'utf8')).includes(needle)) {
@@ -643,11 +643,11 @@ export async function processStateIsComposedAtRoot(root: string): Promise<Violat
 /** 运行帧不回到生成事件面：屏幕经过走官方 transcript 通道（JSON 透传 + vendored schema）。 */
 export async function runFrameWireStaysTyped(root: string): Promise<Violation[]> {
   const probes = [
-    ['apps/desktop/src-tauri/src/ipc/commands/conversation/dto.rs', 'pub events: Vec<Value>'],
-    ['apps/desktop/src-tauri/src/ipc/commands/conversation/dto.rs', '#[specta(type = Vec<Value>)]'],
-    ['packages/native-bridge/src/gateways/agent.ts', 'events.filter(isRunEvent)'],
-    ['packages/native-bridge/src/gateways/agent.ts', 'agentRunBatch'],
-    ['packages/native-bridge/src/gateways/agent.ts', 'AgentFramePage'],
+    ['apps/desktop/src-tauri/src/conversation/dto.rs', 'pub events: Vec<Value>'],
+    ['apps/desktop/src-tauri/src/conversation/dto.rs', '#[specta(type = Vec<Value>)]'],
+    ['packages/native-bridge/src/conversation/connection.ts', 'events.filter(isRunEvent)'],
+    ['packages/native-bridge/src/conversation/connection.ts', 'agentRunBatch'],
+    ['packages/native-bridge/src/conversation/connection.ts', 'AgentFramePage'],
   ] as const
   const violations: Violation[] = []
 
@@ -667,7 +667,7 @@ export async function runFrameWireStaysTyped(root: string): Promise<Violation[]>
 /** Review watcher 必须是有所有者的订阅，不得以超时命令伪装推送。 */
 export async function reviewWatcherHasLease(root: string): Promise<Violation[]> {
   const probes = [
-    ['apps/desktop/src-tauri/src/ipc/commands/git.rs', 'git_await_change'],
+    ['apps/desktop/src-tauri/src/review.rs', 'git_await_change'],
     ['crates/git-adapter/src/watch.rs', 'const WINDOW:'],
     ['packages/review/src/review-gateway.ts', 'awaitChange(root: string)'],
   ] as const

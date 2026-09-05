@@ -1,26 +1,34 @@
 import { agent as agentDescriptor } from '@poietica/agent-catalog'
 import { type AutomationStore, createAutomationStore } from '@poietica/automation'
 import type { AttachmentIntake } from '@poietica/conversation'
-import { type ConversationRuntime, createConversationRuntime } from '@poietica/conversation'
-import { createPluginStore, type PluginStore } from '@poietica/extension'
 import {
-  automationGateway,
-  capabilityGateway,
-  createAgentSettings,
-  createAppUpdateController,
-  createMainWindowController,
-  createModelCatalogPort,
-  createSettingsStore,
-  extensionGateway,
+  type ConversationRuntime,
+  createConversationRuntime,
+  normalizeWorkspaceRoot,
+} from '@poietica/conversation'
+import { createPluginStore, type PluginStore } from '@poietica/extension'
+import { createPreference } from '@poietica/external-store'
+import {
   listCustomAgents,
-  type MainWindowController,
-  readAppVersion,
-  readDataDirectory,
-  readTokenDays,
   removeCustomAgent,
   saveCustomAgent,
-  writeWorkbenchSession,
-} from '@poietica/native-bridge'
+} from '@poietica/native-bridge/agent/custom'
+import { createModelCatalogPort } from '@poietica/native-bridge/agent/models'
+import { createAgentSettings } from '@poietica/native-bridge/agent/preferences'
+import { automationGateway } from '@poietica/native-bridge/automation'
+import { capabilityGateway, extensionGateway } from '@poietica/native-bridge/extensions'
+import { createSettingsStore } from '@poietica/native-bridge/settings'
+import { createAppUpdateController } from '@poietica/native-bridge/update'
+import { readAppVersion } from '@poietica/native-bridge/update/version'
+import { readTokenDays } from '@poietica/native-bridge/usage'
+import {
+  createMainWindowController,
+  type MainWindowController,
+} from '@poietica/native-bridge/window'
+import { readDataDirectory } from '@poietica/native-bridge/workspace/data-directory'
+import { homeDirectory } from '@poietica/native-bridge/workspace/paths'
+import { writeWorkbenchSession } from '@poietica/native-bridge/workspace/session'
+import { warn } from '@poietica/problem'
 import {
   type AgentSettings,
   type CustomAgentStore,
@@ -37,21 +45,17 @@ import {
 import { v7 as uuidv7 } from 'uuid'
 import { createAutomationDispatch } from '../automation/dispatch'
 import { reportFailure } from '../notice/problem-presentation'
+import { createWorkspaceRoots, type WorkspaceRoots } from '../workspace/roots'
 import { createDesktopAgentRuntime, type DesktopAgentRuntime } from './agent-runtime'
 import { createAttachmentIntake } from './attachment-intake'
 import { reconcileAutomationsMcpServer } from './automations-mcp'
 import { reconcileBrowserMcpServer } from './browser-mcp'
 import { createThemeRuntime, type ThemeRuntime } from './theme-runtime'
-import {
-  activeWorkspaceRoot,
-  defaultWorkspaceId,
-  defaultWorkspaceReady,
-  subscribeDefaultWorkspace,
-} from './workspace-root'
 
 const MARKETPLACE_URL = 'https://code.kimi.com/kimi-code/plugins/marketplace.json'
 
 export interface ApplicationRuntime {
+  readonly workspaceRoots: WorkspaceRoots
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
   readonly mainWindow: MainWindowController
@@ -81,6 +85,38 @@ export interface ApplicationRuntime {
 }
 
 export function createApplicationRuntime(restored: string | null): ApplicationRuntime {
+  const active = createPreference<string | null>({
+    key: 'poietica.workspace.activeRoot',
+    fallback: null,
+    decode: (raw) => (raw.length > 0 ? normalizeWorkspaceRoot(raw) : null),
+    encode: (value) => value,
+    onFailure: ({ stage, cause }) => {
+      warn(stage === 'read' ? '读不出工作目录偏好' : '写不进工作目录偏好', {
+        scope: 'workspace-root',
+        cause,
+      })
+    },
+  })
+  const home = createPreference<string | null>({
+    key: 'poietica.workspace.homeRoot',
+    fallback: null,
+    decode: (raw) => (raw.length > 0 ? normalizeWorkspaceRoot(raw) : null),
+    encode: (value) => value,
+    onFailure: ({ stage, cause }) => {
+      warn(stage === 'read' ? '读不出主目录偏好' : '写不进主目录偏好', {
+        scope: 'workspace-root',
+        cause,
+      })
+    },
+  })
+  const workspaceRoots = createWorkspaceRoots({
+    active,
+    home,
+    readHome: homeDirectory,
+    onHomeFailure: (cause) => {
+      warn('无法校准主目录', { scope: 'workspace-root', cause })
+    },
+  })
   const cleanups: Array<() => void> = []
   let disposed = false
   let started = false
@@ -179,7 +215,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   const agent = createDesktopAgentRuntime({
     config: agentConfig,
     modelCatalog,
-    cwd: activeWorkspaceRoot,
+    cwd: workspaceRoots.readActive,
     mcpReady: ensureBackgroundServices,
   })
 
@@ -191,9 +227,9 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     posture: agent.permissionPosture,
     capabilities: agent.capabilities(),
     workspace: {
-      read: defaultWorkspaceId,
-      ready: defaultWorkspaceReady,
-      subscribe: subscribeDefaultWorkspace,
+      read: workspaceRoots.readDefault,
+      ready: workspaceRoots.ready,
+      subscribe: workspaceRoots.subscribeDefault,
     },
     report: {
       session: {
@@ -238,6 +274,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       return
     }
     started = true
+    void workspaceRoots.start()
     conversation.start()
     own(agentConfig.subscribeConfigChanged(conversation.capabilities.refresh))
     let seen = pluginStore.getSnapshot().ownedSkills
@@ -267,6 +304,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   }
 
   return {
+    workspaceRoots,
     workspace,
     commands,
     mainWindow,
@@ -299,6 +337,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
         return disposing
       }
       disposed = true
+      workspaceRoots.dispose()
       disposing = Promise.resolve().then(async () => {
         const failures: unknown[] = []
         automationLifetime.abort(new DOMException('Application stopped.', 'AbortError'))

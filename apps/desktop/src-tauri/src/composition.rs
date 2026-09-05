@@ -2,10 +2,10 @@
 
 use tauri::{Manager, Wry, async_runtime};
 use tauri_plugin_store::StoreExt;
+use tauri_specta::Event as _;
 
 use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
 use crate::diagnostics::structured_log;
-use crate::ipc::commands;
 use crate::paths;
 use crate::window::{MAIN_WINDOW, WINDOW_STATE_FLAGS, WindowSurface, tray};
 
@@ -77,7 +77,7 @@ pub fn build() -> tauri::Builder<Wry> {
         )
         .plugin(tauri_plugin_dialog::init())
         /* 终端会话表归进程：谁创建谁负责，命令只借用。 */
-        .manage(commands::terminal::TerminalHost::default())
+        .manage(crate::terminal::TerminalHost::default())
         .manage(poietica_git_adapter_native::WatchRegistry::default())
         .invoke_handler(ipc.invoke_handler())
         .setup(move |app| {
@@ -97,10 +97,10 @@ pub fn build() -> tauri::Builder<Wry> {
              * 自动化的表在这里起，进程级：闹钟不该活在会被隐藏、会被整页重载的那
              * 一侧。谁创建谁负责 —— 这里创建，随进程结束。
              */
-            let _automation_catalog = app.manage(commands::automation::AutomationCatalogAccess::default());
-            commands::automation::watch(handle);
-            let _automation_mcp =
-                app.manage(commands::automation::mcp_server::serve(handle)?);
+            let _automation_catalog =
+                app.manage(crate::automation::AutomationCatalogAccess::default());
+            crate::automation::watch(handle);
+            let _automation_mcp = app.manage(crate::automation::mcp_server::serve(handle)?);
 
             /*
              * 库在窗口出现之前打开，迁移在这里跑完。
@@ -112,80 +112,46 @@ pub fn build() -> tauri::Builder<Wry> {
              * 一次时长不可预测的迁移。
              */
             let database = paths::ledger_database(handle)?;
-            let _index = app.manage(commands::ledger::LocalIndex::open(
+            let index = crate::ledger::LocalIndex::open(
                 &database,
                 poietica_time::wall_clock::SystemWallClock,
-            )?);
-            let _managed =
-                app.manage(commands::conversation::runtime::AgentRuntime::new(app.handle())?);
+            )?;
+            let publisher = handle.clone();
+            let journal = poietica_conversation_runtime::journal::FrameJournal::new(
+                index.clone(),
+                move |session_id, envelopes| {
+                    let events = envelopes
+                        .into_iter()
+                        .map(crate::conversation::dto::AgentRunEvent::from)
+                        .collect();
+                    if let Err(error) =
+                        (crate::conversation::dto::AgentRunBatch { session_id, events })
+                            .emit(&publisher)
+                    {
+                        log::warn!("emit agent event failed after persistence: {error}");
+                    }
+                },
+            )?;
+            let runtime = crate::conversation::runtime::AgentRuntime::new(
+                handle.path().home_dir()?,
+                paths::attachments_root(handle)?,
+                journal,
+            );
+            let _index = app.manage(index.clone());
+            let _managed = app.manage(runtime);
 
             let settings_app = handle.clone();
             async_runtime::spawn(async move {
-                commands::settings::apply_startup_settings(&settings_app).await;
+                crate::settings::apply_startup_settings(&settings_app).await;
             });
 
-            /*
-             * 启动杂务，一条路径：抹 tmp、备好 cache、拍无主目录快照、收幽灵行、回收无主目录。
-             * 顺序即不变量：快照先于名单、收割先于名单，否则幽灵行占着的目录要等下一次启动。
-             * 边界在此签发 —— 库已开、webview 还没执行脚本，它晚于每条遗留行、早于用户开出的第一条。
-             * 抹 tmp 也在这里：命令要等事件循环，而事件循环在 setup 返回之后才转。
-             */
+            // This boundary precedes the first conversation created by the renderer.
             let boundary = uuid::Uuid::now_v7();
             let sweeper = handle.clone();
-
             async_runtime::spawn(async move {
-                let snapshotted = sweeper.clone();
-
-                let outcome: crate::error::Result<(usize, usize)> = async {
-                    let snapshot = async_runtime::spawn_blocking(move || {
-                        paths::reset_temp_directory(&snapshotted)?;
-                        paths::cache_directory(&snapshotted)?;
-                        paths::projectless_workspaces(&snapshotted)
-                    })
-                    .await
-                    .map_err(|_dropped| {
-                        crate::error::Error::Internal(
-                            "the start-up housekeeping did not finish".to_owned(),
-                        )
-                    })??;
-
-                    let index = sweeper.state::<commands::ledger::LocalIndex>();
-
-                    let needs_sweep = !snapshot.is_empty();
-                    let (harvested, referenced) =
-                        poietica_ledger::execution::write_index(&index, move |store| {
-                            let harvested = store
-                                .harvest_ghost_threads(boundary)
-                                .map_err(crate::error::Error::from)?;
-                            let referenced = if needs_sweep {
-                                store
-                                    .workspace_roots()
-                                    .map_err(crate::error::Error::from)?
-                            } else {
-                                Vec::new()
-                            };
-                            Ok((harvested, referenced))
-                        })
-                        .await?;
-                    let swept = if needs_sweep {
-                        paths::sweep_projectless_workspaces(snapshot, &referenced)
-                    } else {
-                        0
-                    };
-                    Ok((harvested, swept))
-                }
-                .await;
-
-                match outcome {
-                    Ok((0, 0)) => {}
-                    Ok((harvested, swept)) => {
-                        log::info!(
-                            "start-up reconciliation: harvested {harvested} ghost conversations, reclaimed {swept} projectless directories"
-                        );
-                    }
-                    Err(error) => {
-                        log::warn!("could not reconcile leftover conversation state: {error}");
-                    }
+                if let Err(error) = crate::workspace::reconcile::run(sweeper, index, boundary).await
+                {
+                    log::warn!("could not reconcile leftover conversation state: {error}");
                 }
             });
 

@@ -139,24 +139,7 @@ async agentSetConfigOption(request: AgentSelectConfigRequest) : Promise<AgentCon
     return await TAURI_INVOKE("agent_set_config_option", { request });
 },
 /**
- * 这个 agent 提供哪些选择器。
- * 
- * 能力属于 agent，不属于某一轮对话 —— 模型清单在 ACP 里由 initialize 阶段的
- * 握手与 agent 自己的配置决定，一条会话只是从里面选了一个当前值。此前这张表
- * 只有两个出口，都要先有一个会话，而会话的归属要先有一条对话（`session_for`）：
- * 于是入口界面（还没有对话、也没有会话）在结构上不可能画出模型选择器，而渲染
- * 层只能拿上一次学到的表去缓存 —— 那是替一条不存在的取数路径打掩护。
- * 
- * 这里问的是锚会话：`connect()` 建立连接时本来就交回一个会话号，没有任何对话
- * 持有它。所以这条命令不新开会话、不写库、不碰任何 thread。
- * 
- * 它仍然会按需起进程：一个从没打开过助手的启动不该为此付钱，而一旦有人要看
- * 模型清单，进程就是要起的。
- * 
- * # Errors
- * 
- * Fails when the agent cannot be started, when a turn is in flight on the
- * connection, or when the agent refuses to report its selectors.
+ * Reads selectors from the connection anchor without creating a conversation.
  */
 async agentCapabilities(request: AgentCapabilitiesRequest) : Promise<AgentConfigControl[]> {
     return await TAURI_INVOKE("agent_capabilities", { request });
@@ -255,27 +238,7 @@ async agentArchiveThread(request: AgentArchiveThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_archive_thread", { request });
 },
 /**
- * Deletes a conversation, on this side and on the agent's.
- * 
- * 本地那一份是一行索引，一句 DELETE 就没了：这张表底下已经不挂任何东西。
- * 
- * 真正的那一份在 agent 手里。它存着这条对话的全文，此前从没有人告诉过它这条
- * 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。kap 没有
- * 硬删除，删除由 :archive 承接。
- * 
- * 当场送达要两个前提：连接还活着、这条会话确实是这个 agent 的。凑不齐就先
- * 记进处置账 —— 不为此去起一个进程：删一条对话不该是拉起一个 agent 的理由。
- * 账由下一次对上这个 agent 的连接握手后冲销（runtime.rs 的
- * poietica_conversation_runtime::disposal::discharge）。
- * 
- * 无项目对话还占着一个应用替它签发的工作目录（paths.rs 的
- * create_projectless_workspace）。库里最后一条指着它的行删掉后，目录一并
- * 回收：它与会话同寿，会话没了它就只是一个没人能再找到的空壳。
- * 
- * # Errors
- * 
- * Fails when the identifier is not a UUID or the database rejects the
- * deletes.
+ * Deletes local records and records any remote archive still owed.
  */
 async agentDeleteThread(request: AgentThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_delete_thread", { request });

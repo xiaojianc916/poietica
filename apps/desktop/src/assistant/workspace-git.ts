@@ -4,7 +4,7 @@ import {
   gitBranches,
   gitCreateBranch,
   gitSwitchBranch,
-} from '@poietica/native-bridge'
+} from '@poietica/native-bridge/review'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reportFailure } from '../notice/problem-presentation'
 

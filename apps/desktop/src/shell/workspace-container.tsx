@@ -2,7 +2,7 @@ import { DelegateChannelContext, useAgentControls, useRunningThreads } from '@po
 import type { AutomationStore } from '@poietica/automation'
 import type { AgentSessionPort } from '@poietica/conversation'
 import type { PluginStore } from '@poietica/extension'
-import { browserHostPort } from '@poietica/native-bridge'
+import { browserHostPort } from '@poietica/native-bridge/browser'
 import type {
   AgentSettings,
   CustomAgentStore,

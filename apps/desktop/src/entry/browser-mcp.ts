@@ -10,7 +10,8 @@
  */
 
 import type { PluginStore } from '@poietica/extension'
-import { browserDevtoolsEndpoint, resolveLauncher } from '@poietica/native-bridge'
+import { resolveLauncher } from '@poietica/native-bridge/agent/launcher'
+import { browserDevtoolsEndpoint } from '@poietica/native-bridge/browser'
 import { warn } from '@poietica/problem'
 
 const SERVER_NAME = 'poietica-browser'

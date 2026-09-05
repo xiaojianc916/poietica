@@ -1,4 +1,4 @@
-//! SQLite owns identity; the resolver only serializes each identity's acquisition.
+//! SQLite owns identity; a returned lease serializes the complete local session operation.
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -49,6 +49,7 @@ pub struct Held {
     pub session_id: String,
     pub offered: Option<Vec<ConfigControl>>,
     pub history: SessionHistory,
+    _lease: tokio::sync::OwnedMutexGuard<()>,
 }
 
 #[derive(Debug, Default)]
@@ -57,6 +58,11 @@ pub struct SessionResolver {
 }
 
 impl SessionResolver {
+    /// Acquires the same lane without creating or loading a remote session.
+    pub async fn exclusive(&self, thread: Uuid) -> tokio::sync::OwnedMutexGuard<()> {
+        self.lane(thread).await.lock_owned().await
+    }
+
     async fn lane(&self, thread: Uuid) -> Arc<Mutex<()>> {
         let mut lanes = self.lanes.lock().await;
         lanes.retain(|_, lane| lane.strong_count() > 0);
@@ -81,8 +87,7 @@ impl SessionResolver {
         E: Error + From<IndexError> + Send + 'static,
     {
         let thread_id = Uuid::parse_str(named).map_err(|_| SessionError::InvalidId)?;
-        let lane = self.lane(thread_id).await;
-        let _held = lane.lock().await;
+        let lease = self.exclusive(thread_id).await;
         let thread = read_index(index, move |store| {
             store
                 .thread(thread_id)
@@ -103,6 +108,7 @@ impl SessionResolver {
                     session_id,
                     offered: None,
                     history: SessionHistory::Live,
+                    _lease: lease,
                 });
             }
             let from = read_point(index, &session_id)
@@ -123,6 +129,7 @@ impl SessionResolver {
                 session_id,
                 offered: Some(loaded.selectors),
                 history: SessionHistory::Loaded,
+                _lease: lease,
             });
         }
 
@@ -151,6 +158,7 @@ impl SessionResolver {
             session_id: opened.session_id,
             offered: Some(opened.selectors),
             history: SessionHistory::Fresh,
+            _lease: lease,
         })
     }
 }
@@ -204,5 +212,51 @@ mod tests {
         let held = resolver.lane(Uuid::from_u128(100)).await;
         assert_eq!(resolver.lanes.lock().await.len(), 1);
         drop(held);
+    }
+}
+
+#[cfg(test)]
+mod operation_ownership_tests {
+    use super::{Held, SessionHistory, SessionResolver};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn the_returned_value_owns_the_operation_lane() {
+        let resolver = SessionResolver::default();
+        let thread = Uuid::from_u128(1);
+        let lane = resolver.lane(thread).await;
+        let held = Held {
+            thread_id: thread,
+            session_id: "session".to_owned(),
+            offered: None,
+            history: SessionHistory::Live,
+            _lease: resolver.exclusive(thread).await,
+        };
+        assert!(lane.try_lock().is_err());
+        drop(held);
+        assert!(lane.try_lock().is_ok());
+    }
+
+    #[tokio::test]
+    async fn cancelling_a_waiter_does_not_release_the_owner()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let resolver = Arc::new(SessionResolver::default());
+        let thread = Uuid::from_u128(2);
+        let held = resolver.exclusive(thread).await;
+        let waiter = {
+            let resolver = Arc::clone(&resolver);
+            tokio::spawn(async move { resolver.exclusive(thread).await })
+        };
+        tokio::task::yield_now().await;
+        waiter.abort();
+        assert!(waiter.await.is_err());
+        let lane = resolver.lane(thread).await;
+        assert!(lane.try_lock().is_err());
+        drop(held);
+        let next = tokio::time::timeout(Duration::from_secs(1), resolver.exclusive(thread)).await?;
+        drop(next);
+        Ok(())
     }
 }
