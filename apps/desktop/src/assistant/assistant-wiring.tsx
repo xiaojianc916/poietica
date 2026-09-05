@@ -106,7 +106,7 @@ export function createAssistantWiring({
        */
       automations: () => (
         <Suspense fallback={<SurfaceLoading />}>
-          <DeferredAutomationsView store={automationStore} />
+          <DeferredAutomationsView onOpenThread={onConversationStarted} store={automationStore} />
         </Suspense>
       ),
 

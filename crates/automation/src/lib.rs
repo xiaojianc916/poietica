@@ -324,8 +324,8 @@ impl AutomationState {
                         None
                     };
                 }
-                row.title = update.creation.title.trim().to_owned();
-                row.prompt = update.creation.prompt.trim().to_owned();
+                update.creation.title.trim().clone_into(&mut row.title);
+                update.creation.prompt.trim().clone_into(&mut row.prompt);
                 row.schedule = update.creation.schedule;
                 row.session_config = update.creation.session_config;
                 row.workspace_root = Some(update.creation.workspace_root);
@@ -395,6 +395,42 @@ impl AutomationState {
         Ok(())
     }
 
+    pub fn reconcile_schedules(&mut self, now: i64) -> Result<(), AutomationError> {
+        for row in self.automations.iter_mut().filter(|row| row.enabled) {
+            let valid = (|| -> Result<(), AutomationError> {
+                if row.schedule.is_none() {
+                    return Err(AutomationError::Data("手动任务不能启用周期计划".to_owned()));
+                }
+                let at = row.next_run_at.as_deref().ok_or_else(|| {
+                    AutomationError::Data("计划没有下一次运行，请重新保存日程".to_owned())
+                })?;
+                schedule::millis(at)?;
+                schedule::next_after(row.schedule.as_deref(), &row.time_zone, now)?;
+                if !row
+                    .workspace_root
+                    .as_deref()
+                    .is_some_and(|root| Path::new(root).is_absolute())
+                {
+                    return Err(AutomationError::Workspace);
+                }
+                if row.title.trim().is_empty() || row.prompt.trim().is_empty() {
+                    return Err(AutomationError::Empty);
+                }
+                Ok(())
+            })();
+            if let Err(error) = valid {
+                row.enabled = false;
+                row.next_run_at = None;
+                row.issue = Some(error.to_string());
+                row.revision = row
+                    .revision
+                    .checked_add(1)
+                    .ok_or(AutomationError::Conflict)?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn due(&self, now: i64) -> Result<Vec<(String, String)>, AutomationError> {
         let mut due = Vec::new();
         for row in &self.automations {
@@ -418,6 +454,15 @@ impl AutomationState {
             return Ok(false);
         }
         row.next_run_at = schedule::next_after(row.schedule.as_deref(), &row.time_zone, now)?;
+        row.issue = None;
+        if row.next_run_at.is_none() {
+            row.enabled = false;
+            row.issue = Some("日程已耗尽，没有后续运行时间".to_owned());
+            row.revision = row
+                .revision
+                .checked_add(1)
+                .ok_or(AutomationError::Conflict)?;
+        }
         Ok(true)
     }
 

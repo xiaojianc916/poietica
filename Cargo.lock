@@ -3232,7 +3232,6 @@ dependencies = [
 name = "poietica-automation-runtime"
 version = "0.3.1"
 dependencies = [
- "futures",
  "log",
  "poietica-automation",
  "poietica-conversation",
@@ -3269,6 +3268,7 @@ dependencies = [
  "base64 0.22.1",
  "log",
  "poietica-asset",
+ "poietica-automation",
  "poietica-conversation",
  "poietica-kap-client",
  "poietica-ledger",

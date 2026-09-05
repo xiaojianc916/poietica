@@ -358,38 +358,74 @@ async fn publish_session_event(app: &AppHandle, book: &SessionBook, event: Sessi
         log::warn!("emit the session state failed: {error}");
     }
 }
-/// Returns the running session, starting one if there is none.
 pub(super) async fn ensure_session(
     app: &AppHandle,
     state: &State<'_, AgentRuntime>,
     launch: AgentLaunch,
     cwd: Option<String>,
 ) -> Result<Handle> {
-    /* 起哪个 agent 是这个函数的第一件事，因为下面每一次「连接已经在了」都要
-     * 拿它来问。此前它在函数中段才被解构出来，于是上面那两次检查只问了有没有
-     * 连接 —— 换了 agent 之后，这一句话照旧发给上一个进程。 */
     state.ensure_open()?;
-    let AgentLaunch { agent_id } = launch;
     if let Some(live) = borrow(state)?
-        && live.agent_id == agent_id
+        && live.agent_id == launch.agent_id
     {
         return Ok(live);
     }
-    /* 闸前的那一次检查是快路：连接已经在了就不必排队。下面这一段要起进程、
-     * 要等握手，两件都很贵，所以它们在闸里边做。 */
-    let _gate = state.starting.lock().await;
+    let gate = state.starting.lock().await;
+    connect_session(app, state, launch.agent_id, cwd, &gate).await
+}
+
+pub(super) async fn ensure_automation_session(
+    app: &AppHandle,
+    state: &State<'_, AgentRuntime>,
+    launch: AgentLaunch,
+    cwd: Option<String>,
+) -> Result<Handle> {
+    let gate = state.starting.lock().await;
     state.ensure_open()?;
-    /* 排在前面那位可能刚好把连接建起来了。这一次的"没有"是可信的：写
-     * state.connection 的地方只有这个函数，而这一刻拿着闸的人只有一个。 */
+    if let Some(live) = borrow(state)? {
+        if live.agent_id != launch.agent_id {
+            return Err(poietica_automation::AutomationError::Data(
+                "另一代理正在使用连接；后台任务不会中断它".to_owned(),
+            )
+            .into());
+        }
+        return Ok(live);
+    }
+    connect_session(app, state, launch.agent_id, cwd, &gate).await
+}
+
+async fn connect_session(
+    app: &AppHandle,
+    state: &State<'_, AgentRuntime>,
+    agent_id: String,
+    cwd: Option<String>,
+    _gate: &tokio::sync::MutexGuard<'_, ()>,
+) -> Result<Handle> {
+    state.ensure_open()?;
     if let Some(live) = borrow(state)? {
         if live.agent_id == agent_id {
             return Ok(live);
         }
-        /* 换 agent：上一条连接先干净地退场，再起新的。两个 agent 同时常驻是
-         * 下一刀的事（那要先让库里那一列的持有者补实）；而把 B 的话发给 A、并
-         * 且记成 A 的，今天就是错的。 */
+        let index = app.state::<crate::ledger::LocalIndex>();
+        let serving = live.agent_id;
+        let owned = poietica_ledger::execution::read_index(&index, move |store| {
+            if !store.automation_initialized().map_err(Error::from)? {
+                return Ok(false);
+            }
+            Ok(store
+                .automation_state()
+                .map_err(Error::from)?
+                .executions
+                .values()
+                .any(|entry| entry.agent_id == serving))
+        })
+        .await?;
+        if owned {
+            return Err(poietica_automation::AutomationError::Busy.into());
+        }
         state.disconnect()?;
     }
+    crate::workspace::environment::prepare_mcp(app, &agent_id).await?;
     // The agent reads and writes relative to the directory the session was
     // created against, so the fallback has to be somewhere the user actually
     // keeps files. Asking the process where it is answers a different

@@ -1,55 +1,75 @@
-import { type Automation, describeMoment } from '@poietica/automation'
-import { cn } from '@poietica/design-system'
-
-/**
- * 这条自动化跑过的那些次。
- *
- * 账本只留最近若干条，上限由持有账本的那一侧决定；再往前的正文仍在各自那条对话
- * 里 —— 这一层不复述运行内容，会话才是唯一中心。
- *
- * 还不能点进那次对话：openConversation 在工作台的命令面上，这一层够不着。为了一
- * 块界面去拓宽组合根的签名，顺序是反的 —— 那一步单独做。
- */
+import { type Automation, describeMoment, isTerminal, RUN_LABELS } from '@poietica/automation'
 
 export interface AutomationRunHistoryProps {
   readonly runs: Automation['runs']
+  readonly title: string
+  readonly onOpenThread: (threadId: string, title: string) => void
+  readonly onCancel: (runId: string) => void
 }
 
-export function AutomationRunHistory({ runs }: AutomationRunHistoryProps) {
+export function AutomationRunHistory({
+  runs,
+  title,
+  onOpenThread,
+  onCancel,
+}: AutomationRunHistoryProps) {
   if (runs.length === 0) {
     return <p className="py-10 text-center text-xs text-muted-foreground">暂无运行历史</p>
   }
-
   return (
-    <ul className="divide-y divide-divider/60 overflow-hidden rounded-xl border border-divider bg-background">
-      {runs.map((run) => (
-        <li
-          className="flex items-center gap-3 px-4 py-2.5 text-xs"
-          key={run.startedAt + (run.threadId ?? '')}
-        >
-          {/* 圆点只画结果这一件事，颜色之外不承载信息，所以 aria-hidden：
-              旁边那两个字已经把同一件事说清楚了，读屏不必听两遍。 */}
-          <span
-            aria-hidden="true"
-            className={cn(
-              'size-1.5 shrink-0 rounded-full',
-              run.outcome === 'succeeded' ? 'bg-foreground/40' : 'bg-destructive',
+    <div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        这里只显示保留的最近运行记录；对话正文单独保留。
+      </p>
+      <ul className="divide-y divide-divider/60 overflow-hidden rounded-xl border border-divider bg-background">
+        {runs.map((run) => (
+          <li className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs" key={run.id}>
+            <span className={run.outcome === 'failed' ? 'text-destructive' : 'text-foreground'}>
+              {RUN_LABELS[run.outcome]}
+            </span>
+            {run.threadId === null ? (
+              <span className="text-muted-foreground">没有关联对话</span>
+            ) : (
+              <button
+                className="hover:underline"
+                onClick={() => {
+                  if (run.threadId !== null) {
+                    onOpenThread(run.threadId, title)
+                  }
+                }}
+                type="button"
+              >
+                打开对话
+              </button>
             )}
-          />
-
-          <span className={run.outcome === 'succeeded' ? '' : 'text-destructive'}>
-            {run.outcome === 'succeeded' ? '成功' : '失败'}
-          </span>
-
-          <span className="truncate text-muted-foreground">
-            {run.threadId === null ? '没有留下对话' : '留下了一条对话'}
-          </span>
-
-          <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
-            {describeMoment(run.startedAt)}
-          </span>
-        </li>
-      ))}
-    </ul>
+            <time
+              className="ml-auto text-muted-foreground"
+              dateTime={run.startedAt}
+              title={new Date(run.startedAt).toLocaleString()}
+            >
+              {describeMoment(run.startedAt)}
+            </time>
+            {!isTerminal(run.outcome) ? (
+              <button
+                className="rounded px-2 py-1 hover:bg-sidebar-accent"
+                disabled={run.outcome === 'cancelling'}
+                onClick={() => onCancel(run.id)}
+                type="button"
+              >
+                {run.outcome === 'cancelling' ? '等待停止确认' : '停止'}
+              </button>
+            ) : null}
+            {run.message ? (
+              <p className="w-full break-words text-muted-foreground">{run.message}</p>
+            ) : null}
+            {run.settledAt ? (
+              <p className="w-full text-muted-foreground">
+                结束于 {new Date(run.settledAt).toLocaleString()}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

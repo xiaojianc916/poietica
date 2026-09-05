@@ -18,7 +18,6 @@ import {
   createAgentSessionUsageBridge,
   createAgentThreadBridge,
   createAgentToolkitReader,
-  shutdownAgent,
 } from '@poietica/native-bridge/conversation'
 import { error as reportError } from '@poietica/problem'
 import type { AgentSettings, ModelCatalogStore } from '@poietica/settings'
@@ -55,7 +54,6 @@ export function createDesktopAgentRuntime(
   options: DesktopAgentRuntimeOptions,
 ): DesktopAgentRuntime {
   let disposed = false
-  let disposing: Promise<void> | null = null
 
   /*
    * 拉起 agent 之前先等 mcp.json 对齐到本次启动的端口：kap 在进程起来那一刻读它。
@@ -288,19 +286,9 @@ export function createDesktopAgentRuntime(
     permissionPosture,
     capabilities,
     dispose() {
-      if (disposing !== null) {
-        return disposing
-      }
       disposed = true
-      disposing = shutdownAgent().catch((cause: unknown) => {
-        reportError('agent shutdown failed', {
-          scope: 'agent-runtime',
-          operation: 'shutdown',
-          cause,
-        })
-        throw cause
-      })
-      return disposing
+      // Renderer teardown releases its own projections; native shutdown owns the agent process.
+      return Promise.resolve()
     },
   }
 }

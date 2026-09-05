@@ -1,27 +1,20 @@
 import { useAgentControls } from '@poietica/assistant'
 import type { AutomationStore } from '@poietica/automation'
 import { AutomationsSurface } from '@poietica/automation/ui'
-
-/**
- * 自动化那一格与 agent 可调项的交界。
- *
- * @poietica/automation-ui 不认识 agent —— 它与 @poietica/conversation-ui 同层（见
- * tools/architecture 的 layers 表），横向依赖只会是环的前身。所以「有哪些项可选、
- * 每一项当前是什么」由这一层读出来、当数据交下去，那一层只认识这份数据的形状。
- *
- * 必须是一个组件，不能写成 assistant-wiring 里那个箭头：surfaces 里的渲染器是被
- * SurfaceHost 当普通函数调用的，在里面调 hook 会挂到别人的 fiber 上。
- *
- * 只取表，不取 failure/retry：这一屏存的是「以后每次到期用什么」，它把人没动过的
- * 项落成 agent 此刻报的 current（见 AutomationEditor 的 resolve）。
- */
+import { pickWorkspaceRoot } from '@poietica/native-bridge/workspace'
 export interface AutomationsViewProps {
-  /** 进程级自动化 store，由组合根构造注入（见 entry/compose-runtime.ts）。 */
   readonly store: AutomationStore
+  readonly onOpenThread: (threadId: string, title: string) => void
 }
-
-export function AutomationsView({ store }: AutomationsViewProps) {
+export function AutomationsView({ store, onOpenThread }: AutomationsViewProps) {
   const { controls } = useAgentControls()
-
-  return <AutomationsSurface controls={controls} store={store} />
+  return (
+    <AutomationsSurface
+      controls={controls}
+      defaultTimeZone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+      onOpenThread={onOpenThread}
+      pickWorkspace={pickWorkspaceRoot}
+      store={store}
+    />
+  )
 }

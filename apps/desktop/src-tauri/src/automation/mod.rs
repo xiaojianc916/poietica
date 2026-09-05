@@ -38,7 +38,7 @@ pub(crate) struct AutomationHost {
     accepting: AtomicBool,
 }
 impl AutomationHost {
-    fn available(&self) -> Result<&Runtime> {
+    pub(crate) fn available(&self) -> Result<&Runtime> {
         if !self.accepting.load(Ordering::Acquire) {
             return Err(AutomationError::Data("自动化宿主正在关闭".to_owned()).into());
         }
@@ -60,9 +60,13 @@ impl AutomationHost {
     }
 }
 
-fn publish(app: &AppHandle, catalog: AutomationCatalog) {
-    if let Err(error) = (AutomationCatalogChanged { catalog }).emit(app) {
-        log::warn!("automation catalog notification failed after commit: {error}");
+fn publish(app: &AppHandle, catalog: AutomationCatalog) -> bool {
+    match (AutomationCatalogChanged { catalog }).emit(app) {
+        Ok(()) => true,
+        Err(error) => {
+            log::warn!("automation catalog notification failed after commit: {error}");
+            false
+        }
     }
 }
 

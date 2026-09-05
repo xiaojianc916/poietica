@@ -1,15 +1,6 @@
 import type { AutomationDraft } from './automation'
 
-/**
- * 模板画廊。
- *
- * 模板不是「预置的自动化」，它是一份草稿：添加之后落进列表，随时可改可删。
- * 分类是穷尽且互斥的，所以没有 Cursor 那种 Popular 页签 —— 那是一份人工挑选的
- * 子集，在一个只有六条内置模板的本地应用里，「精选」挑不出任何信息。
- */
-
 export const AUTOMATION_CATEGORIES = ['代码审查', '安全', '测试', '文档'] as const
-
 export type AutomationCategory = (typeof AUTOMATION_CATEGORIES)[number]
 
 export interface AutomationTemplate {
@@ -18,25 +9,19 @@ export interface AutomationTemplate {
   readonly title: string
   readonly description: string
   readonly prompt: string
-  /** crontab 表达式；null 就是手动。 */
   readonly schedule: string | null
 }
 
-/**
- * 模板摊成一份草稿。
- *
- * 会话设置留空：模板对模型没有意见。空表在编辑器里的意思是「显示 agent 此刻
- * 报的组合」，人按下保存，存进去的就是屏幕上那三颗胶囊 —— 所以模板不必替人
- * 猜一个模型名，也不会因此多出「未选择」这个第三态。
- *
- * 这一步在这里做，不在画廊组件里做：画廊知道的只有「人点了哪一张卡」。
- */
-export function draftOfTemplate(template: AutomationTemplate): AutomationDraft {
+export function draftOfTemplate(
+  template: AutomationTemplate,
+  context: Pick<AutomationDraft, 'workspaceRoot' | 'timeZone'>,
+): AutomationDraft {
   return {
     title: template.title,
     prompt: template.prompt,
     schedule: template.schedule,
     sessionConfig: {},
+    ...context,
   }
 }
 

@@ -14,7 +14,6 @@
     "./automation": "./src/automation.ts",
     "./browser": "./src/browser.ts",
     "./extensions": "./src/extension/catalog.ts",
-    "./extensions/mcp": "./src/extension/mcp.ts",
     "./review": "./src/review.ts",
     "./terminal": "./src/terminal.ts",
     "./settings": "./src/settings.ts",

@@ -17,7 +17,7 @@ impl From<&Error> for Problem {
         let problem = Problem::new(code(error), DiagnosticId::issue());
 
         if let Error::Automation(cause) = error {
-            return problem.with_detail("reason", cause.to_string());
+            return problem.with_detail("reason", &cause.to_string());
         }
         match reason(error) {
             Some(reason) => problem.with_detail("reason", reason),
@@ -28,17 +28,18 @@ impl From<&Error> for Problem {
 
 fn code(error: &Error) -> Code {
     match error {
-        Error::Automation(poietica_automation::AutomationError::Missing) => Code::ResourceMissing,
+        Error::Automation(poietica_automation::AutomationError::Missing) | Error::NotFound(_) => {
+            Code::ResourceMissing
+        }
         Error::Automation(
             poietica_automation::AutomationError::Uninitialized
             | poietica_automation::AutomationError::Data(_),
-        ) => Code::LedgerAppendFailed,
+        )
+        | Error::Persistence(_) => Code::LedgerAppendFailed,
         Error::Automation(_) | Error::Validation(_) => Code::RequestInvalid,
-        Error::NotFound(_) => Code::ResourceMissing,
         Error::Io(_) | Error::File(_) => Code::FileUnavailable,
         Error::Store(_) => Code::SettingsUnavailable,
         Error::SerdeJson(_) => Code::ContractDecodeFailed,
-        Error::Persistence(_) => Code::LedgerAppendFailed,
         Error::Asset(_) => Code::AssetRejected,
         Error::Plugin(_) => Code::PluginRejected,
         Error::AgentCli(_) => Code::AgentRejected,

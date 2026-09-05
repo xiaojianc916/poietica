@@ -1,4 +1,12 @@
-use crate::error::{Error, Result};
+#![allow(
+    unused_qualifications,
+    reason = "std::result::Result 的全路径是刻意的：rmcp 的 tool/tool_router 宏展开按作用域解析 `Result`，经 crate::error::Result 换名会编译失败"
+)]
+#![allow(
+    clippy::unused_async_trait_impl,
+    reason = "rmcp 的 tool_router 把同一个 tool 包成 async trait 方法"
+)]
+use crate::error::Error;
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, StatusCode, header},
@@ -16,8 +24,7 @@ use rmcp::{
     },
 };
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use specta::Type;
+use serde::Deserialize;
 use std::future::IntoFuture;
 use std::net::TcpListener;
 use std::sync::{
@@ -30,12 +37,6 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::oneshot;
 
 const SERVER_NAME: &str = "poietica-automations";
-#[derive(Clone, Debug, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct McpEndpoint {
-    pub url: String,
-}
-
 struct Access {
     host: String,
     authorization: String,
@@ -65,7 +66,7 @@ async fn protect(
 }
 
 pub(crate) struct AutomationMcpServer {
-    endpoint: McpEndpoint,
+    endpoint: String,
     access: Arc<Access>,
     alive: Arc<AtomicBool>,
     stopping: Mutex<Option<oneshot::Sender<()>>>,
@@ -81,6 +82,10 @@ impl std::fmt::Debug for AutomationMcpServer {
 }
 impl AutomationMcpServer {
     pub(crate) fn stop(&self) -> std::io::Result<()> {
+        let mut worker = self
+            .worker
+            .lock()
+            .map_err(|_| std::io::Error::other("MCP worker ownership poisoned"))?;
         self.alive.store(false, Ordering::Release);
         if let Some(signal) = self
             .stopping
@@ -90,24 +95,19 @@ impl AutomationMcpServer {
         {
             let _sent = signal.send(());
         }
-        if let Some(worker) = self
-            .worker
-            .lock()
-            .map_err(|_| std::io::Error::other("MCP worker ownership poisoned"))?
-            .take()
-        {
+        if let Some(worker) = worker.take() {
             worker
                 .join()
                 .map_err(|_| std::io::Error::other("MCP worker panicked"))??;
         }
         Ok(())
     }
-    fn registration(&self) -> Result<serde_json::Value> {
+    fn registration(&self) -> crate::error::Result<serde_json::Value> {
         if !self.alive.load(Ordering::Acquire) {
             return Err(Error::AgentCli("自动化 MCP 服务不可用".to_owned()));
         }
         Ok(
-            serde_json::json!({"url":self.endpoint.url, "headers":{"Authorization":self.access.authorization}}),
+            serde_json::json!({"url":self.endpoint, "headers":{"Authorization":self.access.authorization}}),
         )
     }
 }
@@ -140,7 +140,9 @@ struct CancelRequest {
     run_id: String,
 }
 
-fn answer(result: Result<AutomationCatalog>) -> std::result::Result<CallToolResult, String> {
+fn answer(
+    result: crate::error::Result<AutomationCatalog>,
+) -> std::result::Result<CallToolResult, String> {
     let catalog = result.map_err(|error| {
         let problem = Problem::from(error);
         serde_json::to_string(&problem)
@@ -220,13 +222,11 @@ impl Ledger {
     }
 }
 
-pub(crate) fn serve(app: &AppHandle) -> Result<AutomationMcpServer> {
+pub(crate) fn serve(app: &AppHandle) -> crate::error::Result<AutomationMcpServer> {
     let socket = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))?;
     socket.set_nonblocking(true)?;
     let address = socket.local_addr()?;
-    let endpoint = McpEndpoint {
-        url: format!("http://{address}/mcp"),
-    };
+    let endpoint = format!("http://{address}/mcp");
     let access = Arc::new(Access {
         host: address.to_string(),
         authorization: format!("Bearer {}", uuid::Uuid::new_v4()),
@@ -269,10 +269,17 @@ pub(crate) fn serve(app: &AppHandle) -> Result<AutomationMcpServer> {
     })
 }
 
-pub(crate) fn configure(app: &AppHandle, contents: Option<&str>) -> Result<String> {
+pub(crate) fn configure(app: &AppHandle, contents: Option<&str>) -> crate::error::Result<String> {
     let server = app
         .try_state::<AutomationMcpServer>()
         .ok_or_else(|| Error::AgentCli("自动化 MCP 尚未启动".to_owned()))?;
+    merge_registration(contents, server.registration()?)
+}
+
+fn merge_registration(
+    contents: Option<&str>,
+    registration: serde_json::Value,
+) -> crate::error::Result<String> {
     let mut document: serde_json::Value = match contents {
         Some(contents) => serde_json::from_str(contents)?,
         None => serde_json::json!({}),
@@ -285,16 +292,10 @@ pub(crate) fn configure(app: &AppHandle, contents: Option<&str>) -> Result<Strin
         .or_insert_with(|| serde_json::json!({}))
         .as_object_mut()
         .ok_or_else(|| Error::AgentCli("mcpServers 必须是对象".to_owned()))?;
-    servers.insert(SERVER_NAME.to_owned(), server.registration()?);
-    Ok(serde_json::to_string_pretty(&document)? + "\n")
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn mcp_endpoint(app: AppHandle) -> Option<McpEndpoint> {
-    app.try_state::<AutomationMcpServer>()
-        .filter(|server| server.alive.load(Ordering::Acquire))
-        .map(|server| server.endpoint.clone())
+    servers.insert(SERVER_NAME.to_owned(), registration);
+    let mut rendered = serde_json::to_string_pretty(&document)?;
+    rendered.push('\n');
+    Ok(rendered)
 }
 
 #[cfg(test)]
@@ -327,5 +328,27 @@ mod tests {
             axum::http::HeaderValue::from_static("example.com:56789"),
         );
         assert!(!access.accepts(&headers));
+    }
+
+    #[test]
+    fn builtin_credentials_are_overlaid_without_erasing_user_servers() -> crate::error::Result<()> {
+        let document = serde_json::json!({
+            "custom": {"preserved":true},
+            "mcpServers": {"user-server":{"command":"example"}, "poietica-automations":{"url":"http://127.0.0.1:1/mcp"}}
+        });
+        let builtin = serde_json::json!({"url":"http://127.0.0.1:2/mcp", "headers":{"Authorization":"Bearer secret"}});
+        let merged = merge_registration(Some(&document.to_string()), builtin.clone())?;
+        let parsed: serde_json::Value = serde_json::from_str(&merged)?;
+        let servers = format!("/mcpServers/{SERVER_NAME}");
+        assert_eq!(parsed.pointer(&servers), Some(&builtin));
+        assert_eq!(
+            parsed.pointer("/mcpServers/user-server"),
+            document.pointer("/mcpServers/user-server"),
+        );
+        assert_eq!(parsed.pointer("/custom"), document.pointer("/custom"));
+        assert_eq!(merge_registration(Some(&merged), builtin)?, merged);
+        assert!(merge_registration(Some("[]"), serde_json::json!({})).is_err());
+        assert!(merge_registration(Some("{\"mcpServers\":null}"), serde_json::json!({})).is_err());
+        Ok(())
     }
 }

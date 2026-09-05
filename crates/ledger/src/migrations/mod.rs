@@ -4,7 +4,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::error::LedgerError;
 
 /// 版本号、名字、SQL 一一对应。名字也校验：改名等于改已落盘数据的读法。
-/// 按数组顺序执行，新迁移必须追加到末尾（0012 的触发器引用 threads 表，先跑建表会挂）。
+/// Dependencies require append-only migration ordering.
 const MIGRATIONS: &[(i64, &str, &str)] = &[
     (
         1,
@@ -57,6 +57,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         12,
         "automation_execution",
         include_str!("sql/0012_automation_execution.sql"),
+    ),
+    (
+        13,
+        "automation_commands",
+        include_str!("sql/0013_automation_commands.sql"),
     ),
 ];
 

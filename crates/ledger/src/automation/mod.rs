@@ -67,7 +67,7 @@ impl AgentStore {
             state.apply(command, now, Uuid::new_v4().to_string())?;
             Ok(())
         })
-        .map(|(_, catalog)| catalog)
+        .map(|((), catalog)| catalog)
     }
 
     pub fn automation_manual(
@@ -86,31 +86,52 @@ impl AgentStore {
                 state,
                 id,
                 ClaimOrigin::Manual,
-                request,
+                &request,
                 agent_id,
                 now,
             )?;
             Ok(())
         })
-        .map(|(_, catalog)| catalog)
+        .map(|((), catalog)| catalog)
     }
 
     pub fn automation_sweep(&self, agent_id: &str, now: i64) -> Result<AutomationCatalog> {
         self.automation_transaction(|state, store| {
+            state.reconcile_schedules(now)?;
             for (id, at) in state.due(now)? {
                 claim(
                     store,
                     state,
                     &id,
                     ClaimOrigin::Scheduled(at),
-                    Uuid::new_v4().to_string(),
+                    &Uuid::new_v4().to_string(),
                     agent_id,
                     now,
                 )?;
             }
             Ok(())
         })
-        .map(|(_, catalog)| catalog)
+        .map(|((), catalog)| catalog)
+    }
+
+    pub fn automation_execution(&self, run_id: &str) -> Result<Option<Execution>> {
+        Ok(self
+            .automation_state()?
+            .executions
+            .into_values()
+            .find(|entry| entry.run.id == run_id))
+    }
+
+    pub fn automation_scheduler_issue(&self, message: &str) -> Result<()> {
+        let now = self.clock().now_unix_millis();
+        self.automation_transaction(|state, _| {
+            state.reconcile_schedules(now)?;
+            for row in state.automations.iter_mut().filter(|row| row.enabled) {
+                row.issue = Some(message.to_owned());
+            }
+            Ok(())
+        })
+        .map(|_| ())
     }
 
     pub fn automation_dispatch(&self, run_id: &str) -> Result<Option<Execution>> {
@@ -150,10 +171,11 @@ fn claim(
     state: &mut AutomationState,
     id: &str,
     origin: ClaimOrigin,
-    proposed: String,
+    proposed: &str,
     agent_id: &str,
     now: i64,
 ) -> Result<()> {
+    let request_id = matches!(&origin, ClaimOrigin::Manual).then(|| proposed.to_owned());
     let key = match &origin {
         ClaimOrigin::Manual => format!("manual:{id}:{proposed}"),
         ClaimOrigin::Scheduled(at) => format!("schedule:{id}:{at}"),
@@ -173,7 +195,7 @@ fn claim(
         return Ok(());
     }
     let reused: bool = store.connection.query_row(
-        "SELECT EXISTS (SELECT 1 FROM automation_claims WHERE run_id = ?1)",
+        "SELECT EXISTS (SELECT 1 FROM automation_claims WHERE run_id = ?1 OR request_id = ?1)",
         params![proposed],
         |row| row.get(0),
     )?;
@@ -184,7 +206,7 @@ fn claim(
     let Some(execution) = state.claim(
         id,
         origin,
-        proposed.clone(),
+        proposed.to_owned(),
         thread.to_string(),
         agent_id.to_owned(),
         now,
@@ -198,8 +220,8 @@ fn claim(
         store.name_by_user(thread, &title)?;
     }
     store.connection.execute(
-        "INSERT INTO automation_claims(command_key, run_id) VALUES (?1, ?2)",
-        params![key, execution.run.id],
+        "INSERT INTO automation_claims(command_key, run_id, request_id) VALUES (?1, ?2, ?3)",
+        params![key, execution.run.id, request_id],
     )?;
     Ok(())
 }
@@ -213,6 +235,7 @@ mod tests {
     use super::*;
     use poietica_automation::AutomationCreation;
     use poietica_time::test_clock::TestClock;
+    use std::collections::BTreeMap;
 
     fn open(path: &std::path::Path) -> AgentStore {
         let store = AgentStore::open(path, TestClock::at_unix_millis(0)).expect("store");
@@ -225,7 +248,7 @@ mod tests {
                 title: "Review".to_owned(),
                 prompt: "Inspect".to_owned(),
                 schedule: Some("* * * * *".to_owned()),
-                session_config: Default::default(),
+                session_config: BTreeMap::new(),
                 workspace_root: root.to_string_lossy().into_owned(),
                 time_zone: "UTC".to_owned(),
             }))
@@ -427,6 +450,105 @@ mod tests {
             store
                 .automation_transition(&request, AutomationRunOutcome::Queued, None)
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn coalesced_request_identities_remain_owned_after_reopening() {
+        let directory = tempfile::tempdir().expect("directory");
+        let file = directory.path().join("index.sqlite3");
+        let store = open(&file);
+        let first = definition(&store, directory.path());
+        let second = definition(&store, directory.path());
+        let run = Uuid::new_v4().to_string();
+        let coalesced = Uuid::new_v4().to_string();
+        store
+            .automation_manual(&first, &run, "agent")
+            .expect("claim");
+        store
+            .automation_manual(&first, &coalesced, "agent")
+            .expect("coalesce");
+        drop(store);
+        let store = open(&file);
+        store
+            .automation_manual(&first, &coalesced, "agent")
+            .expect("same command");
+        assert!(
+            store
+                .automation_manual(&second, &coalesced, "agent")
+                .is_err()
+        );
+        assert_eq!(store.automation_state().expect("state").executions.len(), 1);
+    }
+
+    #[test]
+    fn an_invalid_schedule_does_not_starve_an_independent_definition() {
+        let directory = tempfile::tempdir().expect("directory");
+        let store = open(&directory.path().join("index.sqlite3"));
+        let broken = definition(&store, directory.path());
+        let healthy = definition(&store, directory.path());
+        store
+            .automation_transaction(|state, _| {
+                state
+                    .automations
+                    .iter_mut()
+                    .find(|row| row.id == broken)
+                    .expect("row")
+                    .next_run_at = Some("not a timestamp".to_owned());
+                Ok(())
+            })
+            .expect("stored corruption");
+        store
+            .automation_sweep("agent", 60_000)
+            .expect("independent progress");
+        let state = store.automation_state().expect("state");
+        assert!(state.executions.contains_key(&healthy));
+        assert!(!state.executions.contains_key(&broken));
+        let row = state
+            .automations
+            .iter()
+            .find(|row| row.id == broken)
+            .expect("broken row");
+        assert!(!row.enabled);
+        assert!(row.issue.is_some());
+    }
+
+    #[test]
+    fn cancellation_before_admission_is_a_durable_barrier() {
+        use poietica_conversation::{
+            identity::{ThreadId, TurnId},
+            ports::ConversationLedger,
+            turn::Admission,
+        };
+        let directory = tempfile::tempdir().expect("directory");
+        let store = open(&directory.path().join("index.sqlite3"));
+        let id = definition(&store, directory.path());
+        let run = Uuid::new_v4().to_string();
+        store.automation_manual(&id, &run, "agent").expect("claim");
+        let execution = store
+            .automation_dispatch(&run)
+            .expect("dispatch")
+            .expect("owner");
+        store
+            .automation_command(Command::Cancel {
+                run_id: run.clone(),
+            })
+            .expect("cancel intent");
+        let admission = Admission {
+            thread: ThreadId::new(execution.thread_id().expect("thread").to_owned()),
+            turn: TurnId::new(run.clone()),
+            prompt: "Work".to_owned(),
+            model: String::new(),
+            attachments: Vec::new(),
+            skills: Vec::new(),
+            submitted_at_unix_millis: 0,
+        };
+        assert!(store.admit(&admission).is_err());
+        assert!(
+            store
+                .delivery_state(&TurnId::new(run))
+                .expect("outbox")
+                .is_none()
         );
     }
 }

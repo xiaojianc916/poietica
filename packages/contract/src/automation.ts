@@ -2,8 +2,9 @@ export type {
   Automation,
   AutomationCatalog,
   AutomationCreation,
-  AutomationReschedule,
   AutomationRun,
   AutomationRunOutcome,
-  AutomationRunRecord,
+  AutomationUpdate,
+  SchedulePreview,
+  ScheduleProblem,
 } from './generated/ipc-bindings'

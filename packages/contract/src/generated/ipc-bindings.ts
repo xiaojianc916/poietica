@@ -103,22 +103,6 @@ async agentDismissQuestions(request: AgentDismissQuestionsRequest) : Promise<nul
     return await TAURI_INVOKE("agent_dismiss_questions", { request });
 },
 /**
- * Ends the session and lets the agent process exit.
- * 
- * # Errors
- * 
- * 它是 async 的，与 agent_cancel 同一条理由：收尸要等进程真的退场、还要收一次
- * 帧日志的账，而同步命令跑在主线程上，那段时间窗口会停止应答。
- * 
- * # Errors
- * 
- * Fails when the session lock was poisoned, or when the frame journal could not
- * be flushed.
- */
-async agentShutdown() : Promise<null> {
-    return await TAURI_INVOKE("agent_shutdown");
-},
-/**
  * Changes one selector, on one session.
  * 
  * 点名一条对话就发往它握着的那个会话；不点名就发往连接自带的锚会话 —— 入口那一格
@@ -352,45 +336,30 @@ async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
 async automationsCreate(creation: AutomationCreation) : Promise<AutomationCatalog> {
     return await TAURI_INVOKE("automations_create", { creation });
 },
+async automationsUpdate(update: AutomationUpdate) : Promise<AutomationCatalog> {
+    return await TAURI_INVOKE("automations_update", { update });
+},
+async automationsEnable(id: string, revision: number, enabled: boolean) : Promise<AutomationCatalog> {
+    return await TAURI_INVOKE("automations_enable", { id, revision, enabled });
+},
+async automationsRun(id: string, requestId: string) : Promise<AutomationCatalog> {
+    return await TAURI_INVOKE("automations_run", { id, requestId });
+},
+async automationsCancel(runId: string) : Promise<AutomationCatalog> {
+    return await TAURI_INVOKE("automations_cancel", { runId });
+},
+async automationsPreview(schedule: string | null, timeZone: string) : Promise<SchedulePreview> {
+    return await TAURI_INVOKE("automations_preview", { schedule, timeZone });
+},
 async automationsLoad() : Promise<AutomationCatalog> {
     return await TAURI_INVOKE("automations_load");
-},
-async automationsUpsert(automation: Automation) : Promise<AutomationCatalog> {
-    return await TAURI_INVOKE("automations_upsert", { automation });
 },
 async automationsRemove(id: string) : Promise<AutomationCatalog> {
     return await TAURI_INVOKE("automations_remove", { id });
 },
-async automationsRecordRun(record: AutomationRunRecord) : Promise<AutomationCatalog> {
-    return await TAURI_INVOKE("automations_record_run", { record });
-},
-async automationsSweep() : Promise<null> {
-    return await TAURI_INVOKE("automations_sweep");
-},
-/**
- * 默认 agent 会去读的那份 mcp.json。
- * 
- * # Errors
- * 
- * 没有默认 agent、档案不存在、家目录算不出来，或文件存在却读不动时返回错误。
- */
 async environmentMcpConfig() : Promise<EnvironmentFile> {
     return await TAURI_INVOKE("environment_mcp_config");
 },
-/**
- * 改写受控 home 里那份 mcp.json，先比对再落盘。
- * 
- * expected_contents 是调用方这次读—改—写开始时读到的原文（文件不存在时是 None）。
- * 比不上就拒绝：领域层的改写是整份写回，两个写者并发时，后落盘的那份拿着更旧的
- * 原文，直接写会把前一次的改动静默抹掉。被拒的一方重读一遍再来，谁的改动都不丢。
- * 
- * 落盘走与 config.toml 同一条原子路径（`write_config_atomically`）：会话随时
- * 可能起来读它，残缺的半份文件不该有被读到的窗口。
- * 
- * # Errors
- * 
- * 这家 agent 不受控、正文不是合法 JSON、文件在比对后被别人改过、或写不进去时返回错误。
- */
 async environmentMcpConfigWrite(expectedContents: string | null, contents: string) : Promise<EnvironmentFile> {
     return await TAURI_INVOKE("environment_mcp_config_write", { expectedContents, contents });
 },
@@ -402,12 +371,6 @@ async environmentMcpConfigWrite(expectedContents: string | null, contents: strin
  */
 async launcherResolve(program: string) : Promise<McpLauncher | null> {
     return await TAURI_INVOKE("launcher_resolve", { program });
-},
-/**
- * Reports the endpoint only while the owned server task is alive.
- */
-async mcpEndpoint() : Promise<McpEndpoint | null> {
-    return await TAURI_INVOKE("mcp_endpoint");
 },
 async pluginsCatalogRead() : Promise<string | null> {
     return await TAURI_INVOKE("plugins_catalog_read");
@@ -880,7 +843,6 @@ agentRunBatch: AgentRunBatch,
 agentSessionEvent: AgentSessionEvent,
 agentTranscriptEvent: AgentTranscriptEvent,
 automationCatalogChanged: AutomationCatalogChanged,
-automationDue: AutomationDue,
 browserElementPicked: BrowserElementPicked,
 browserState: BrowserState,
 gitWorkingTreeChanged: GitWorkingTreeChanged,
@@ -892,7 +854,6 @@ agentRunBatch: "agent-run-batch",
 agentSessionEvent: "agent-session-event",
 agentTranscriptEvent: "agent-transcript-event",
 automationCatalogChanged: "automation-catalog-changed",
-automationDue: "automation-due",
 browserElementPicked: "browser-element-picked",
 browserState: "browser-state",
 gitWorkingTreeChanged: "git-working-tree-changed",
@@ -1601,15 +1562,13 @@ export type AssetUploadRequest = { sessionToken: string;
  */
 base64: string }
 export type AssetUploadResult = { assetToken: string; contentHash: string; source: string; byteLength: number; contentType: string }
-export type Automation = { id: string; title: string; prompt: string; schedule: string | null; enabled: boolean; createdAt: string; nextRunAt: string | null; sessionConfig?: Partial<{ [key in string]: string }>; runs: AutomationRun[] }
-export type AutomationCatalog = { version: number; automations: Automation[] }
+export type Automation = { id: string; title: string; prompt: string; schedule: string | null; enabled: boolean; createdAt: string; nextRunAt: string | null; sessionConfig: Partial<{ [key in string]: string }>; runs: AutomationRun[]; revision: number; workspaceRoot: string | null; timeZone: string; issue: string | null }
+export type AutomationCatalog = { revision: number; automations: Automation[] }
 export type AutomationCatalogChanged = { catalog: AutomationCatalog }
-export type AutomationCreation = { title: string; prompt: string; schedule: string | null; sessionConfig?: Partial<{ [key in string]: string }>; nextRunAt: string | null }
-export type AutomationDue = { automation: Automation }
-export type AutomationReschedule = { kind: "keep" } | { kind: "advance"; from: string; to: string | null }
-export type AutomationRun = { threadId: string | null; startedAt: string; outcome: AutomationRunOutcome }
-export type AutomationRunOutcome = "succeeded" | "failed"
-export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: AutomationReschedule }
+export type AutomationCreation = { title: string; prompt: string; schedule: string | null; sessionConfig: Partial<{ [key in string]: string }>; workspaceRoot: string; timeZone: string }
+export type AutomationRun = { id: string; threadId: string | null; scheduledFor: string | null; startedAt: string; settledAt: string | null; outcome: AutomationRunOutcome; message: string | null }
+export type AutomationRunOutcome = "queued" | "dispatching" | "running" | "cancelling" | "uncertain" | "succeeded" | "failed" | "cancelled"
+export type AutomationUpdate = { id: string; expectedRevision: number; creation: AutomationCreation; enabled: boolean }
 /**
  * 最近关闭的一条，够画出下拉里的那一行。
  */
@@ -1661,12 +1620,6 @@ export type Density = "comfortable" | "compact"
  * v7 带时间前缀且单调，按字符串排序即按发生顺序，不必手写 ULID。
  */
 export type DiagnosticId = string
-/**
- * 一份配置文件的现状：它在哪，以及它的正文。
- * 
- * 文件不在时 contents 是 None 而不是空串：一个空文件与一个不存在的文件，界面要
- * 说的话不一样。
- */
 export type EnvironmentFile = { location: string; contents: string | null }
 /**
  * 另一本账的现状：它在哪，以及里面有哪些插件。
@@ -1723,10 +1676,6 @@ export type GitReview = { branch: string | null; detachedAt: string | null; upst
 export type GitWatchLease = { token: string; root: string }
 export type GitWorkingTreeChanged = { root: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
-/**
- * 服务器的落脚地址。渲染层照着它把这台服务器登记进 MCP 那一格。
- */
-export type McpEndpoint = { url: string }
 /**
  * 一条能直接交给启动器的启动式：程序在哪儿，前面还要垫哪些参数。
  */
@@ -1799,6 +1748,8 @@ export type ProviderReplacementDto = { newId: string | null; providerType: strin
  * 能不能再来一次，以及由谁发起。
  */
 export type Retryability = "no" | "afterDelay" | "afterUserAction"
+export type SchedulePreview = { nextRunAt: string | null; problem: ScheduleProblem | null }
+export type ScheduleProblem = "unreadable" | "neverRuns" | "tooFrequent" | "timeZone"
 export type SkillCommitRequest = { stagingId: string; name: string; subdirectory: string | null }
 export type SkillRecord = { name: string; enabled: boolean; document: string; path: string; supportingFiles: number; totalBytes: number; modifiedAt: number | null }
 export type SkillStaged = { stagingId: string; skillMd: string }

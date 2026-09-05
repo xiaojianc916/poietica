@@ -43,12 +43,10 @@ import {
   createWorkbenchSessionController,
 } from '@poietica/workspace'
 import { v7 as uuidv7 } from 'uuid'
-import { createAutomationDispatch } from '../automation/dispatch'
 import { reportFailure } from '../notice/problem-presentation'
 import { createWorkspaceRoots, type WorkspaceRoots } from '../workspace/roots'
 import { createDesktopAgentRuntime, type DesktopAgentRuntime } from './agent-runtime'
 import { createAttachmentIntake } from './attachment-intake'
-import { reconcileAutomationsMcpServer } from './automations-mcp'
 import { reconcileBrowserMcpServer } from './browser-mcp'
 import { createThemeRuntime, type ThemeRuntime } from './theme-runtime'
 
@@ -194,10 +192,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
         pluginStore.stop()
         return
       }
-      await Promise.all([
-        reconcileAutomationsMcpServer(pluginStore),
-        reconcileBrowserMcpServer(pluginStore),
-      ])
+      await reconcileBrowserMcpServer(pluginStore)
     })
 
     backgroundServicesReady = started
@@ -209,7 +204,12 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
 
     return started
   }
-  const automationStore = createAutomationStore(automationGateway)
+  const automationStore = createAutomationStore(automationGateway, {
+    createId: uuidv7,
+    report: (operation, cause) => {
+      warn(operation, { scope: 'automation', cause })
+    },
+  })
 
   const modelCatalog = new ModelCatalogStore(createModelCatalogPort(), agentDescriptor.id)
   const agent = createDesktopAgentRuntime({
@@ -265,7 +265,6 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       reportFailure(updateCodes[operation], { cause, operation, scope: 'app-update' })
     },
   )
-  const automationLifetime = new AbortController()
   const start = (): void => {
     if (disposed) {
       throw new Error('Application runtime is disposed.')
@@ -287,17 +286,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
         }
       }),
     )
-    own(
-      automationStore.start(
-        createAutomationDispatch({
-          session: agent.session,
-          threads: conversation.threads,
-          transcripts: conversation.transcripts,
-          createId: uuidv7,
-          signal: automationLifetime.signal,
-        }),
-      ),
-    )
+    own(automationStore.start())
     if (!import.meta.env.DEV) {
       own(updates.start())
     }
@@ -340,7 +329,6 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       workspaceRoots.dispose()
       disposing = Promise.resolve().then(async () => {
         const failures: unknown[] = []
-        automationLifetime.abort(new DOMException('Application stopped.', 'AbortError'))
         const cleanup = [
           ...cleanups.splice(0).reverse(),
           workspace.dispose,

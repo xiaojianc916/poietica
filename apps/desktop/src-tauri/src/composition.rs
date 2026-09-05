@@ -131,7 +131,9 @@ pub fn build() -> tauri::Builder<Wry> {
             let _managed = app.manage(runtime);
             let _browser = app.manage(crate::webview::BrowserHost::new());
             let _automation_mcp = app.manage(crate::automation::mcp_server::serve(handle)?);
-            let _automations = app.manage(crate::automation::start(handle, index.clone()));
+            let automation = crate::automation::start(handle, index.clone());
+            let may_reclaim = automation.available().is_ok();
+            let _automations = app.manage(automation);
 
             let settings_app = handle.clone();
             async_runtime::spawn(async move {
@@ -142,6 +144,10 @@ pub fn build() -> tauri::Builder<Wry> {
             let boundary = uuid::Uuid::now_v7();
             let sweeper = handle.clone();
             async_runtime::spawn(async move {
+                if !may_reclaim {
+                    log::warn!("workspace reclamation skipped because automation ownership could not be initialized");
+                    return;
+                }
                 if let Err(error) = crate::workspace::reconcile::run(sweeper, index, boundary).await
                 {
                     log::warn!("could not reconcile leftover conversation state: {error}");

@@ -255,14 +255,16 @@ pub fn agent_mcp_config(app: &AppHandle) -> Result<PathBuf> {
 /// 没有默认 agent、档案不存在、或这家 agent 不受控时返回错误。
 pub fn agent_mcp_config_for_write(app: &AppHandle) -> Result<PathBuf> {
     let agent_id = default_agent_id(app)?;
-    let profile = profile_of(app, &agent_id)?;
+    controlled_mcp_config(app, &agent_id)?.ok_or_else(|| {
+        Error::AgentCli(format!(
+            "{agent_id} 没有受控 home；不会改写用户自己的 MCP 配置"
+        ))
+    })
+}
 
-    match controlled_home(app, &agent_id, &profile)? {
-        Some(home) => Ok(home.path.join(MCP_CONFIG_FILE)),
-        None => Err(Error::AgentCli(format!(
-            "{agent_id} 的 mcp.json 不归 Poietica 管：它的档案没有声明受控 home 的变量名，写下去它也不会读"
-        ))),
-    }
+pub(crate) fn controlled_mcp_config(app: &AppHandle, agent_id: &str) -> Result<Option<PathBuf>> {
+    let profile = profile_of(app, agent_id)?;
+    Ok(controlled_home(app, agent_id, &profile)?.map(|home| home.path.join(MCP_CONFIG_FILE)))
 }
 
 /// 默认 agent 那个家的目录本身。

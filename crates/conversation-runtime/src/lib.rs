@@ -1,5 +1,6 @@
 //! Host-independent conversation execution.
 
+pub mod automation;
 mod delivery;
 mod submission;
 pub use submission::{Submission, TITLE_CHARS, submit};

@@ -327,11 +327,6 @@ export function createAgentSessionPort({
   }
 }
 
-/** Ends the session and lets the agent process exit. */
-export async function shutdownAgent(): Promise<void> {
-  await throughIpc(() => commands.agentShutdown())
-}
-
 /*
  * 改一项会话设置，一个命令。
  *

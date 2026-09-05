@@ -109,7 +109,6 @@ pub fn surface() -> Builder<Wry> {
             crate::workspace::environment::environment_mcp_config,
             crate::workspace::environment::environment_mcp_config_write,
             crate::launcher::launcher_resolve,
-            crate::automation::mcp_server::mcp_endpoint,
             crate::extension::plugins_catalog_read,
             crate::extension::plugins_catalog_refresh,
             crate::extension::plugins_commit,
@@ -239,7 +238,6 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AutomationRun>()
         .typ::<Automation>()
         .typ::<AutomationCatalog>()
-        .typ::<crate::automation::mcp_server::McpEndpoint>()
         .typ::<crate::launcher::McpLauncher>()
         .typ::<EnvironmentFile>()
         .typ::<ForeignPluginInventory>()
