@@ -6,12 +6,14 @@ import type {
   PromptAsset,
   PromptConfiguration,
   PromptSkill,
+  QuestionResponse,
   RunStatus,
   ThreadHistory,
   TranscriptPage,
   TranscriptSignal,
   TurnMark,
 } from '../agent'
+import { InterjectionOutbox } from '../interjection'
 import type { TimelineState } from '../timeline'
 import {
   createTimelineState,
@@ -109,6 +111,7 @@ const addressOf = (key: string): { readonly conversation: string; readonly agent
   delegateAddress(key) ?? { conversation: key, agentId: MAIN_AGENT_ID }
 
 export class TranscriptStore implements TranscriptSink {
+  readonly #outboxes = new Map<string, InterjectionOutbox>()
   readonly #held = new Map<string, Transcript>()
   readonly #owners = new Map<string, TranscriptReplica>()
   readonly #routes = new Map<string, string>()
@@ -127,6 +130,60 @@ export class TranscriptStore implements TranscriptSink {
     this.#now = now
   }
 
+  outbox = (threadId: string): InterjectionOutbox => {
+    const lifetime = this.#lifetime(threadId)
+    const held = this.#outboxes.get(threadId)
+    if (held !== undefined) {
+      return held
+    }
+    const created = new InterjectionOutbox({
+      isBusy: () => ACTIVE_STATUSES.includes(this.read(threadId).status),
+      deliver: async (said, context) => {
+        lifetime.signal.throwIfAborted()
+        const receipt = await this.send({
+          ...said,
+          ...context,
+          threadId,
+          port: this.#port ?? undefined,
+        })
+        return receipt?.promptId ?? null
+      },
+      merge: async (promptId) => {
+        lifetime.signal.throwIfAborted()
+        const port = this.#port
+        if (port === null) {
+          throw new Error('这个界面还没有接上助手会话。')
+        }
+        await port.steer(threadId, [promptId])
+      },
+      failed: (cause) => {
+        if (!lifetime.signal.aborted) {
+          this.failed(threadId, cause)
+        }
+      },
+    })
+    this.#outboxes.set(threadId, created)
+    return created
+  }
+  answerQuestions = (key: string, response: QuestionResponse): Promise<void> =>
+    this.#command(key, (port) => port.answerQuestions(response))
+  dismissQuestions = (key: string, questionId: string): Promise<void> =>
+    this.#command(key, (port) => port.dismissQuestions(questionId))
+  async #command(key: string, perform: (port: AgentSessionPort) => Promise<void>): Promise<void> {
+    const lifetime = this.#lifetime(addressOf(key).conversation)
+    try {
+      const port = this.#port
+      if (port === null) {
+        throw new Error('这个界面还没有接上助手会话，答复没有送出去。')
+      }
+      await perform(port)
+    } catch (cause) {
+      if (!lifetime.signal.aborted) {
+        this.failed(key, cause)
+      }
+      throw cause
+    }
+  }
   read = (key: string): Transcript => this.#held.get(key) ?? EMPTY
   subscribe = (key: string, listener: () => void): (() => void) => {
     const listeners = this.#listeners.get(key) ?? new Set<() => void>()
@@ -214,6 +271,10 @@ export class TranscriptStore implements TranscriptSink {
     } finally {
       this.#off = null
       this.#port = null
+      for (const outbox of this.#outboxes.values()) {
+        outbox.dispose()
+      }
+      this.#outboxes.clear()
       for (const lifetime of this.#lifetimes.values()) {
         lifetime.abort(new DOMException('Conversation runtime stopped.', 'AbortError'))
       }
@@ -260,6 +321,8 @@ export class TranscriptStore implements TranscriptSink {
     })
   }
   forget = (threadId: string): void => {
+    this.#outboxes.get(threadId)?.dispose()
+    this.#outboxes.delete(threadId)
     this.#lifetimes.get(threadId)?.abort(new DOMException('Conversation released.', 'AbortError'))
     this.#lifetimes.delete(threadId)
     const owner = this.#owners.get(threadId)
@@ -454,7 +517,24 @@ export class TranscriptStore implements TranscriptSink {
       throw new Error('A transcript session already belongs to another conversation.')
     }
     if (previous !== undefined) {
-      this.forget(thread)
+      previous.dispose()
+      this.#owners.delete(thread)
+      this.#routes.delete(previous.sessionId)
+      this.#pending.delete(previous.sessionId)
+      for (const key of this.#held.keys()) {
+        if (key !== thread && addressOf(key).conversation === thread) {
+          this.#held.delete(key)
+          this.#fire(key)
+        }
+      }
+      const current = this.read(thread)
+      this.#put(thread, {
+        ...EMPTY,
+        submissions: current.submissions,
+        promptId: current.promptId,
+        operation: current.operation,
+        restoring: true,
+      })
     }
     this.#lifetime(thread)
     const owner: TranscriptReplica = new TranscriptReplica(

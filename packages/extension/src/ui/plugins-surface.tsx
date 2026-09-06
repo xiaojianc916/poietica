@@ -1,4 +1,6 @@
 import { Button, cn, Switch } from '@poietica/design-system'
+import { assertUnreachable } from '@poietica/problem'
+import { useState, useSyncExternalStore } from 'react'
 import {
   builtinServerRows,
   builtinSkillRows,
@@ -13,9 +15,7 @@ import {
   type ResolvedMcpServer,
   type SkillRow,
   skillRows,
-} from '@poietica/extension'
-import { assertUnreachable } from '@poietica/problem'
-import { useState, useSyncExternalStore } from 'react'
+} from '../index'
 import type { AgentSkill } from '../model'
 import { CatalogGrid } from './catalog-grid'
 import { ContributionList, type ContributionRow } from './contribution-list'

@@ -8,17 +8,6 @@ import {
   type SelectOption,
   Switch,
 } from '@poietica/design-system'
-import {
-  type AgentSettings,
-  type CatalogProvider,
-  type ModelCatalogData,
-  type ModelCatalogOperation,
-  type ModelCatalogStore,
-  type ModelDescriptor,
-  type ModelProvider,
-  modelAlias,
-  type ProviderModelInput,
-} from '@poietica/settings'
 import { Box, Eye, EyeOff, Plus, RotateCw, Trash2 } from 'lucide-react'
 import { Reorder } from 'motion/react'
 import {
@@ -30,6 +19,17 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
+import {
+  type AgentSettings,
+  type CatalogProvider,
+  type ModelCatalogData,
+  type ModelCatalogOperation,
+  type ModelCatalogStore,
+  type ModelDescriptor,
+  type ModelProvider,
+  modelAlias,
+  type ProviderModelInput,
+} from '../../index'
 import { describeAgentCliFailure } from '../agent-install/agent-cli-text'
 import { AgentInstallAction } from '../agent-install/agent-install-action'
 import './models-settings.css'

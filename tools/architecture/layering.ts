@@ -1,19 +1,22 @@
 /**
- * 环序即依赖方向：只允许高环指向低环，同环不连边。
- * 产品包按 bounded context 纵切；只有 FRAMEWORK_FREE_PACKAGES 保证无 UI。
+ * 层组控制宿主方向；同组领域边必须显式登记。
+ * 纯入口由传递文件图约束，纵切领域包可以包含独立视图入口。
  */
 export type Ring = { readonly name: string; readonly members: readonly string[] }
-
 export const TYPESCRIPT_RINGS: readonly Ring[] = [
   { name: 'contract', members: ['@poietica/contract'] },
   {
-    name: 'vocabulary',
-    members: ['@poietica/problem', '@poietica/external-store', '@poietica/transcript'],
+    name: 'foundation',
+    members: [
+      '@poietica/problem',
+      '@poietica/external-store',
+      '@poietica/transcript',
+      '@poietica/agent-catalog',
+      '@poietica/design-system',
+    ],
   },
-  { name: 'design-system', members: ['@poietica/design-system'] },
-  { name: 'agent-profiles', members: ['@poietica/agent-catalog'] },
   {
-    name: 'core-domain',
+    name: 'feature',
     members: [
       '@poietica/browser',
       '@poietica/review',
@@ -22,15 +25,11 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
       '@poietica/extension',
       '@poietica/update',
       '@poietica/workspace',
+      '@poietica/automation',
+      '@poietica/settings',
     ],
   },
-  { name: 'composer', members: ['@poietica/composer'] },
-  {
-    name: 'vertical-feature',
-    members: ['@poietica/automation', '@poietica/settings', '@poietica/workspace-panels'],
-  },
-  { name: 'adapter', members: ['@poietica/native-bridge'] },
-  { name: 'assistant', members: ['@poietica/assistant'] },
+  { name: 'integration', members: ['@poietica/native-bridge'] },
   { name: 'composition', members: ['@poietica/desktop'] },
 ]
 
@@ -85,10 +84,9 @@ export const FRAMEWORK_FREE_PACKAGES: readonly string[] = [
   '@poietica/problem',
   '@poietica/external-store',
   '@poietica/agent-catalog',
-  '@poietica/conversation',
   '@poietica/update',
-  '@poietica/workspace',
 ]
+
 export const FRAMEWORK_SPECIFIERS: readonly string[] = ['react', 'react-dom', 'react/jsx-runtime']
 export const FORBIDDEN_DIRECTORY_NAMES: readonly string[] = [
   'application',
@@ -115,4 +113,22 @@ export const DOMAIN_CONTRACT_IMPORTS: Readonly<Record<string, string>> = {
   '@poietica/browser': '@poietica/contract/browser',
   '@poietica/conversation': '@poietica/contract/conversation',
   '@poietica/review': '@poietica/contract/review',
+}
+
+const PEER_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
+  '@poietica/conversation': ['@poietica/review'],
+  '@poietica/workspace': ['@poietica/browser'],
+  '@poietica/automation': ['@poietica/conversation'],
+  '@poietica/settings': ['@poietica/conversation', '@poietica/extension'],
+}
+export function typeScriptDependencyAllowed(from: string, to: string): boolean {
+  const source = ringOf(TYPESCRIPT_RINGS, from)
+  const target = ringOf(TYPESCRIPT_RINGS, to)
+  if (source < 0 || target < 0) {
+    return false
+  }
+  if (target < source) {
+    return true
+  }
+  return source === target && (PEER_DEPENDENCIES[from]?.includes(to) ?? false)
 }

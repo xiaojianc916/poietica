@@ -1,4 +1,4 @@
-import { TodoPanel } from '@poietica/assistant'
+import { TodoPanel } from '@poietica/conversation/surface'
 import { WORKSPACE_LAYOUT } from '@poietica/workspace'
 import type { CSSProperties } from 'react'
 import { useWorkspaceLayoutState } from '../shell/workspace-layout-store'

@@ -13,6 +13,7 @@ import {
   HOST_AWARE_PACKAGES,
   ringOf,
   TYPESCRIPT_RINGS,
+  typeScriptDependencyAllowed,
   UNLAYERED_DIRECTORIES,
 } from './layering.ts'
 import type { Crate, Workspace } from './workspace.ts'
@@ -102,32 +103,26 @@ export function everythingIsRegistered(
 
   return violations
 }
-
-/** 只允许高环指向低环。 */
 export function layerDirection(
   imports: readonly ImportRecord[],
   workspaces: readonly Workspace[],
 ): Violation[] {
   const violations: Violation[] = []
   const names = new Set(workspaces.map((workspace) => workspace.name))
-
   for (const record of imports) {
     if (!scoped(record.specifier)) {
       continue
     }
-
     const target = packageOf(record.specifier)
     const owner = ownerOf(record.file, workspaces)
-
     if (!names.has(target)) {
       violations.push({
         policy: 'layer-direction',
         where: record.file,
-        detail: `引用了不存在的工作区 ${target}`,
+        detail: `Unknown workspace: ${target}`,
       })
       continue
     }
-
     if (
       owner === undefined ||
       UNLAYERED_DIRECTORIES.includes(owner.directory) ||
@@ -135,32 +130,14 @@ export function layerDirection(
     ) {
       continue
     }
-
-    const from = ringOf(TYPESCRIPT_RINGS, owner.name)
-    const to = ringOf(TYPESCRIPT_RINGS, target)
-
-    if (from < 0 || to < 0) {
-      continue
-    }
-
-    if (to === from) {
+    if (!typeScriptDependencyAllowed(owner.name, target)) {
       violations.push({
         policy: 'layer-direction',
         where: record.file,
-        detail: `${owner.name} 与 ${target} 同环，同环之间不许有边`,
-      })
-      continue
-    }
-
-    if (to > from) {
-      violations.push({
-        policy: 'layer-direction',
-        where: record.file,
-        detail: `${owner.name} 指向了更高的环 ${target}`,
+        detail: `${owner.name} cannot depend on ${target}`,
       })
     }
   }
-
   return violations
 }
 

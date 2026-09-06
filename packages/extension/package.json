@@ -31,5 +31,10 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "typescript": "catalog:"
+  },
+  "poietica": {
+    "headless": [
+      "."
+    ]
   }
 }

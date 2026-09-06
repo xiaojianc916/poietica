@@ -1,10 +1,10 @@
 import { failureCoordinator } from '@poietica/problem'
+import { installFatalCollectors } from '../notice/browser-collectors'
 import {
   createTerminalFailureViewModel,
   isReactFatalHostMounted,
   type TerminalFailureViewModel,
 } from '../notice/problem-presentation'
-import { installFatalCollectors } from './browser-collectors'
 
 /* 骨架在 index.html 里；只有插图地址必须由构建期解析，所以它留在这里。 */
 const illustrationUrl = new URL('../notice/assets/error-robot.svg', import.meta.url).href

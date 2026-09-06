@@ -1,3 +1,5 @@
+import { ConfirmationDialog } from '@poietica/design-system'
+import { useState } from 'react'
 import {
   type Automation,
   type AutomationStore,
@@ -6,9 +8,7 @@ import {
   describeSchedule,
   latestRun,
   RUN_LABELS,
-} from '@poietica/automation'
-import { ConfirmationDialog } from '@poietica/design-system'
-import { useState } from 'react'
+} from '../index'
 
 export interface AutomationListProps {
   readonly automations: readonly Automation[]
@@ -40,93 +40,16 @@ export function AutomationList({ automations, pending, onOpen, store }: Automati
             </tr>
           </thead>
           <tbody>
-            {automations.map((automation) => {
-              const run = latestRun(automation)
-              const active = activeRun(automation)
-              const busy = pending.some(
-                (key) => key.endsWith(`:${automation.id}`) || key === `cancel:${active?.id}`,
-              )
-              return (
-                <tr className="border-b border-divider/60" key={automation.id}>
-                  <td className="py-3 pr-4">
-                    <button
-                      className="block w-full truncate text-left font-medium hover:underline"
-                      onClick={() => onOpen(automation.id)}
-                      type="button"
-                    >
-                      {automation.title}
-                    </button>
-                    <p className="truncate text-muted-foreground">{automation.prompt}</p>
-                    <p
-                      className="truncate text-muted-foreground"
-                      title={automation.workspaceRoot ?? ''}
-                    >
-                      {automation.workspaceRoot ?? '需要选择工作目录'}
-                    </p>
-                    {automation.issue ? (
-                      <p className="mt-1 text-destructive">{automation.issue}</p>
-                    ) : null}
-                  </td>
-                  <td className="text-muted-foreground">
-                    {automation.schedule === null ? '仅手动' : automation.enabled ? '启用' : '停用'}
-                  </td>
-                  <td className="text-muted-foreground">
-                    <p>{describeSchedule(automation.schedule)}</p>
-                    <p>{automation.timeZone}</p>
-                    {automation.nextRunAt ? (
-                      <time
-                        dateTime={automation.nextRunAt}
-                        title={new Date(automation.nextRunAt).toLocaleString()}
-                      >
-                        下次 {describeMoment(automation.nextRunAt)}
-                      </time>
-                    ) : null}
-                  </td>
-                  <td className="text-muted-foreground">
-                    {run === null
-                      ? '未运行'
-                      : [RUN_LABELS[run.outcome], describeMoment(run.startedAt)].join(' · ')}
-                  </td>
-                  <td className="text-right">
-                    {active === null ? (
-                      <Action
-                        disabled={busy}
-                        label="运行"
-                        onClick={() => {
-                          void store.runNow(automation.id)
-                        }}
-                      />
-                    ) : (
-                      <Action
-                        disabled={busy || active.outcome === 'cancelling'}
-                        label={active.outcome === 'cancelling' ? '停止待确认' : '停止'}
-                        onClick={() => {
-                          void store.cancel(active.id)
-                        }}
-                      />
-                    )}
-                    {automation.schedule === null ? null : (
-                      <Action
-                        disabled={busy}
-                        label={automation.enabled ? '停用' : '启用'}
-                        onClick={() => {
-                          void store.setEnabled(
-                            automation.id,
-                            automation.revision,
-                            !automation.enabled,
-                          )
-                        }}
-                      />
-                    )}
-                    <Action
-                      disabled={busy || active !== null}
-                      label="删除"
-                      onClick={() => setDeleting(automation)}
-                    />
-                  </td>
-                </tr>
-              )
-            })}
+            {automations.map((automation) => (
+              <AutomationRow
+                automation={automation}
+                key={automation.id}
+                onDelete={setDeleting}
+                onOpen={onOpen}
+                pending={pending}
+                store={store}
+              />
+            ))}
           </tbody>
         </table>
       </div>
@@ -148,6 +71,97 @@ export function AutomationList({ automations, pending, onOpen, store }: Automati
         title="删除这条自动化？"
       />
     </>
+  )
+}
+
+function AutomationRow({
+  automation,
+  onDelete,
+  onOpen,
+  pending,
+  store,
+}: {
+  readonly automation: Automation
+  readonly onDelete: (automation: Automation) => void
+  readonly onOpen: (automationId: string) => void
+  readonly pending: readonly string[]
+  readonly store: AutomationStore
+}) {
+  const run = latestRun(automation)
+  const active = activeRun(automation)
+  const busy = pending.some(
+    (key) => key.endsWith(`:${automation.id}`) || key === `cancel:${active?.id}`,
+  )
+  return (
+    <tr className="border-b border-divider/60">
+      <td className="py-3 pr-4">
+        <button
+          className="block w-full truncate text-left font-medium hover:underline"
+          onClick={() => onOpen(automation.id)}
+          type="button"
+        >
+          {automation.title}
+        </button>
+        <p className="truncate text-muted-foreground">{automation.prompt}</p>
+        <p className="truncate text-muted-foreground" title={automation.workspaceRoot ?? ''}>
+          {automation.workspaceRoot ?? '需要选择工作目录'}
+        </p>
+        {automation.issue ? <p className="mt-1 text-destructive">{automation.issue}</p> : null}
+      </td>
+      <td className="text-muted-foreground">
+        {automation.schedule === null ? '仅手动' : automation.enabled ? '启用' : '停用'}
+      </td>
+      <td className="text-muted-foreground">
+        <p>{describeSchedule(automation.schedule)}</p>
+        <p>{automation.timeZone}</p>
+        {automation.nextRunAt ? (
+          <time
+            dateTime={automation.nextRunAt}
+            title={new Date(automation.nextRunAt).toLocaleString()}
+          >
+            下次 {describeMoment(automation.nextRunAt)}
+          </time>
+        ) : null}
+      </td>
+      <td className="text-muted-foreground">
+        {run === null
+          ? '未运行'
+          : [RUN_LABELS[run.outcome], describeMoment(run.startedAt)].join(' · ')}
+      </td>
+      <td className="text-right">
+        {active === null ? (
+          <Action
+            disabled={busy}
+            label="运行"
+            onClick={() => {
+              void store.runNow(automation.id)
+            }}
+          />
+        ) : (
+          <Action
+            disabled={busy || active.outcome === 'cancelling'}
+            label={active.outcome === 'cancelling' ? '停止待确认' : '停止'}
+            onClick={() => {
+              void store.cancel(active.id)
+            }}
+          />
+        )}
+        {automation.schedule === null ? null : (
+          <Action
+            disabled={busy}
+            label={automation.enabled ? '停用' : '启用'}
+            onClick={() => {
+              void store.setEnabled(automation.id, automation.revision, !automation.enabled)
+            }}
+          />
+        )}
+        <Action
+          disabled={busy || active !== null}
+          label="删除"
+          onClick={() => onDelete(automation)}
+        />
+      </td>
+    </tr>
   )
 }
 

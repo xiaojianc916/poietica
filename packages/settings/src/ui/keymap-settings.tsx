@@ -1,5 +1,5 @@
-import type { KeybindingCatalog, KeybindingEntry } from '@poietica/settings'
 import { useDeferredValue, useMemo, useState, useSyncExternalStore } from 'react'
+import type { KeybindingCatalog, KeybindingEntry } from '../index'
 import { SettingRow, SettingsGroup, SettingsPage } from './surface/settings-primitives'
 
 export interface KeymapSettingsProps {

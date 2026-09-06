@@ -1,219 +1,180 @@
-import type { Interjection, OutboxPort, OutboxState, Said } from './interjection-contract'
+import type {
+  Interjection,
+  OutboxPort,
+  OutboxState,
+  Said,
+  SubmissionContext,
+} from './interjection-contract'
 
-const EMPTY: OutboxState = { editing: undefined, inflight: undefined, queue: [] }
+const EMPTY: OutboxState = { queue: [], inflight: undefined, editing: undefined, paused: false }
 
-interface Written {
-  readonly queue?: readonly Interjection[]
-  readonly inflight?: Interjection | undefined
-  readonly editing?: string | undefined
-}
-
-/**
- * 待插话消息的有序出账簿。
- *
- * 本地只拥有尚未交给 kap 的顺序与编辑占位。忙碌时消息立即提交，prompt.queued
- * 返回身份后请求 kap 并入当前轮；安全插入边界由 kap 的 step 调度器决定。本层一次
- * 只处理一条，等并轮请求落定后再放下一条，FIFO 不会分叉。
- */
 export class InterjectionOutbox {
   readonly #port: OutboxPort
-  readonly #woken = new Set<() => void>()
+  readonly #listeners = new Set<() => void>()
+  readonly #contexts = new Map<string, SubmissionContext>()
   #state: OutboxState = EMPTY
   #serial = 0
-  /** 手上那条要并进正在运行的轮次。 */
-  #steering = false
-  /** 已经要求并轮的那个号：一个号只说一次。 */
-  #merged: string | undefined
+  #disposed = false
 
   constructor(port: OutboxPort) {
     this.#port = port
   }
-
-  subscribe = (onChange: () => void): (() => void) => {
-    this.#woken.add(onChange)
-
+  read = (): OutboxState => this.#state
+  subscribe = (listener: () => void): (() => void) => {
+    this.#active()
+    this.#listeners.add(listener)
     return () => {
-      this.#woken.delete(onChange)
+      this.#listeners.delete(listener)
     }
   }
-
-  read = (): OutboxState => this.#state
-
-  /**
-   * 人说了一句话。
-   *
-   * 有一条正在编辑就是改它，改完回原位；否则排到队尾。空闲时立刻上路，所以
-   * 不忙的时候队列根本不出现 —— 排队是插话的形态，不是发言的形态。
-   */
-  say(said: Said): void {
+  say = (said: Said, context: SubmissionContext = {}): void => {
+    this.#active()
     const editing = this.#state.editing
-
-    if (editing === undefined) {
-      this.#serial += 1
-
-      const id = `say-${String(this.#serial)}`
-
-      this.#write({ queue: [...this.#state.queue, { ...said, id, state: 'queued' }] })
-    } else {
-      this.#write({
-        editing: undefined,
-        queue: this.#state.queue.map((held) =>
-          held.id === editing ? { ...held, ...said, state: 'queued' as const } : held,
-        ),
-      })
+    const item: Interjection = {
+      ...said,
+      id: editing ?? `say-${String(++this.#serial)}`,
+      state: 'queued',
     }
-
+    this.#contexts.set(item.id, context)
+    const queue =
+      editing === undefined
+        ? [...this.#state.queue, item]
+        : this.#state.queue.map((entry) => (entry.id === editing ? item : entry))
+    this.#write({ queue, editing: undefined, paused: false })
     this.#drain()
   }
-
-  /** 整条顺序由界面交回，只认 id：拖动期间队首被放行也不会挪错人。 */
-  arrange(order: readonly string[]): void {
-    const held = new Map(this.#state.queue.map((item) => [item.id, item] as const))
-    const moved: Interjection[] = []
-
+  arrange = (order: readonly string[]): void => {
+    this.#active()
+    const remaining = new Map(this.#state.queue.map((item) => [item.id, item]))
+    const queue: Interjection[] = []
     for (const id of order) {
-      const item = held.get(id)
-
+      const item = remaining.get(id)
       if (item !== undefined) {
-        held.delete(id)
-        moved.push(item)
+        queue.push(item)
+        remaining.delete(id)
       }
     }
-
-    const queue = [...moved, ...held.values()]
-
+    queue.push(...remaining.values())
     if (queue.every((item, index) => item === this.#state.queue[index])) {
       return
     }
-
     this.#write({ queue })
   }
-
-  /** 正文回输入框，位置留着。一次只有一条在改。 */
-  checkout(id: string): Interjection | undefined {
-    const said = this.#state.queue.find((held) => held.id === id)
-
-    if (said === undefined) {
-      return undefined
+  checkout = (id: string): void => {
+    this.#active()
+    if (!this.#state.queue.some((item) => item.id === id)) {
+      return
     }
-
-    if (this.#state.editing === id) {
-      return said
-    }
-
-    this.#write({
-      editing: id,
-      queue: this.#state.queue.map((held) => ({
-        ...held,
-        state: held.id === id ? ('editing' as const) : ('queued' as const),
-      })),
+    const queue = this.#state.queue.map((item): Interjection => {
+      const state = item.id === id ? 'editing' : 'queued'
+      return item.state === state ? item : { ...item, state }
     })
-
-    return said
+    this.#write({ queue, editing: id })
   }
-
-  /** 不发这一句了。 */
-  drop(id: string): void {
-    const queue = this.#state.queue.filter((held) => held.id !== id)
-
+  drop = (id: string): void => {
+    this.#active()
+    const queue = this.#state.queue.filter((item) => item.id !== id)
     if (queue.length === this.#state.queue.length) {
       return
     }
-
-    this.#write({
-      queue,
-      ...(this.#state.editing === id ? { editing: undefined } : {}),
-    })
+    this.#contexts.delete(id)
+    this.#write({ queue, editing: this.#state.editing === id ? undefined : this.#state.editing })
   }
-
-  /** 提到队首；没有在途消息时立即走统一投递路径。 */
-  urge(id: string): void {
+  urge = (id: string): void => {
+    this.#active()
+    if (!this.#state.queue.some((item) => item.id === id && item.state === 'queued')) {
+      return
+    }
     this.arrange([id])
+    this.#write({ paused: false })
     this.#release(true)
   }
-
-  /** kap 签发身份后请求并轮；请求落定即把所有权交给 kap，再处理下一句。 */
-  claimed(promptId: string): void {
-    const inflight = this.#state.inflight
-
-    if (inflight === undefined || !this.#steering || this.#merged === promptId) {
+  dispose = (): void => {
+    if (this.#disposed) {
       return
     }
-
-    this.#merged = promptId
-    const settle = (): void => {
-      if (this.#state.inflight !== inflight || this.#merged !== promptId) {
+    this.#disposed = true
+    this.#contexts.clear()
+    this.#listeners.clear()
+    this.#write(EMPTY)
+  }
+  #active(): void {
+    if (this.#disposed) {
+      throw new Error('InterjectionOutbox is disposed.')
+    }
+  }
+  #drain(): void {
+    if (!this.#disposed && !this.#state.paused && this.#state.inflight === undefined) {
+      this.#release(this.#port.isBusy())
+    }
+  }
+  #release(steering: boolean): void {
+    if (this.#disposed || this.#state.paused || this.#state.inflight !== undefined) {
+      return
+    }
+    const item = this.#state.queue.find((entry) => entry.state === 'queued')
+    if (item === undefined) {
+      return
+    }
+    const context = this.#contexts.get(item.id)
+    if (context === undefined) {
+      throw new Error('Submission context is missing.')
+    }
+    this.#contexts.delete(item.id)
+    this.#write({
+      queue: this.#state.queue.filter((entry) => entry.id !== item.id),
+      inflight: item,
+    })
+    void this.#dispatch(item, context, steering)
+  }
+  async #dispatch(
+    item: Interjection,
+    context: SubmissionContext,
+    steering: boolean,
+  ): Promise<void> {
+    let accepted = false
+    try {
+      const promptId = await this.#port.deliver(item, context)
+      if (this.#disposed || this.#state.inflight !== item) {
         return
       }
-
-      this.#steering = false
-      this.#merged = undefined
-      this.#write({ inflight: undefined })
-      this.#drain()
+      if (promptId === null) {
+        return
+      }
+      if (promptId.length === 0) {
+        throw new Error('A delivery receipt requires a prompt ID.')
+      }
+      accepted = true
+      if (steering) {
+        await this.#port.merge(promptId)
+      }
+    } catch (cause) {
+      if (!this.#disposed && this.#state.inflight === item) {
+        this.#port.failed(cause)
+      }
+    } finally {
+      if (!this.#disposed && this.#state.inflight === item) {
+        // Acceptance transfers ownership; a failed steer must not replay the prompt.
+        this.#write({ inflight: undefined, paused: !accepted })
+        if (accepted) {
+          this.#drain()
+        }
+      }
     }
-
-    void this.#port.merge(promptId).then(settle, settle)
   }
-
-  /** 这一轮收口了：手上那条落账，队里下一条可以走。 */
-  idle(): void {
-    if (this.#state.inflight !== undefined) {
-      this.#steering = false
-      this.#merged = undefined
-      this.#write({ inflight: undefined })
-    }
-
-    this.#drain()
-  }
-
-  /* 忙碌时提交并请求 steer；真正的插入边界由 kap 调度器裁决。 */
-  #drain(): void {
-    this.#release(this.#port.isBusy())
-  }
-
-  /**
-   * 放一条出去：队里第一句还在排的话。
-   *
-   * 跳过正在改的那一条，而不是停在它前面 —— 停下来等于有人在改队首时整队都发不出去。
-   */
-  #release(steering: boolean): void {
-    if (this.#state.inflight !== undefined) {
-      return
-    }
-
-    const index = this.#state.queue.findIndex((held) => held.state === 'queued')
-    const said = this.#state.queue[index]
-
-    if (said === undefined) {
-      return
-    }
-
-    const queue = [...this.#state.queue]
-
-    queue.splice(index, 1)
-    this.#steering = steering
-    this.#merged = undefined
-    this.#write({ inflight: said, queue })
-    this.#port.deliver(said)
-  }
-
-  /* 唤醒的判据只有一条：真相真的变了。同一份状态再写一遍不唤醒 —— 订阅者读的
-  是这三格的引用，一次空唤醒就是一次谁都解释不了的重渲染。 */
-  #write(written: Written): void {
-    const next = { ...this.#state, ...written }
-
+  #write(patch: Partial<OutboxState>): void {
+    const next = { ...this.#state, ...patch }
     if (
       next.queue === this.#state.queue &&
       next.inflight === this.#state.inflight &&
-      next.editing === this.#state.editing
+      next.editing === this.#state.editing &&
+      next.paused === this.#state.paused
     ) {
       return
     }
-
     this.#state = next
-
-    for (const wake of this.#woken) {
-      wake()
+    for (const listener of this.#listeners) {
+      listener()
     }
   }
 }

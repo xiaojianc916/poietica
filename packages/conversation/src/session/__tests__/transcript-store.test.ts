@@ -511,3 +511,72 @@ describe('authoritative transcript projections', () => {
     store.dispose()
   })
 })
+
+describe('conversation-owned submission queues', () => {
+  test('views share an owner while conversations remain isolated', () => {
+    const store = new TranscriptStore()
+    const first = store.outbox('first')
+    const off = first.subscribe(() => undefined)
+    off()
+    expect(store.outbox('first')).toBe(first)
+    expect(store.outbox('second')).not.toBe(first)
+    store.forget('first')
+    expect(() => first.say({ text: 'late', assets: [], configuration: [], skills: [] })).toThrow(
+      'disposed',
+    )
+    expect(store.outbox('first')).not.toBe(first)
+    store.dispose()
+    expect(() => store.outbox('first')).toThrow('disposed')
+  })
+  test('session replacement retires the replica, not its conversation queue', () => {
+    const store = new TranscriptStore()
+    store.ensure(sessionPort(transcriptPort()))
+    const queue = store.outbox('thread')
+    store.route('session', 'thread', page())
+    store.route('replacement', 'thread', page())
+    expect(store.outbox('thread')).toBe(queue)
+    expect(store.ownerOf('session')).toBeUndefined()
+    expect(store.ownerOf('replacement')).toBe('thread')
+    store.dispose()
+  })
+  test('a forgotten delivery cannot dispatch the next queued message', async () => {
+    const entered = deferred<void>()
+    const receipt = deferred<AgentPromptHandle>()
+    const sent: string[] = []
+    const store = new TranscriptStore()
+    store.ensure(
+      sessionPort(transcriptPort(), {
+        prompt: (input) => {
+          sent.push(input.text)
+          entered.resolve()
+          return receipt.promise
+        },
+      }),
+    )
+    const queue = store.outbox('thread')
+    queue.say({ text: 'first', assets: [], configuration: [], skills: [] })
+    queue.say({ text: 'second', assets: [], configuration: [], skills: [] })
+    await entered.promise
+    store.forget('thread')
+    receipt.resolve({ sessionId: 'session', promptId: 'accepted' })
+    await receipt.promise
+    await Promise.resolve()
+    expect(sent).toEqual(['first'])
+    expect(store.ownerOf('session')).toBeUndefined()
+    store.dispose()
+  })
+  test('question failures are recorded by the domain and propagated to the caller', async () => {
+    const cause = new Error('Question was not dismissed')
+    const store = new TranscriptStore()
+    store.ensure(
+      sessionPort(transcriptPort(), {
+        dismissQuestions: async () => {
+          throw cause
+        },
+      }),
+    )
+    await expect(store.dismissQuestions('thread', 'question')).rejects.toBe(cause)
+    expect(store.read('thread').operation.kind).toBe('failed')
+    store.dispose()
+  })
+})

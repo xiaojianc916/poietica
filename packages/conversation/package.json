@@ -4,7 +4,12 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./surface": "./src/surface/index.ts",
+    "./composer": "./src/composer/controls.ts",
+    "./composer/frame.css": "./src/composer/composer-frame.css",
+    "./composer/actions.css": "./src/composer/composer-actions.css",
+    "./table-export": "./src/timeline/table-export-context.tsx"
   },
   "scripts": {
     "test": "bun test src",
@@ -12,10 +17,43 @@
   },
   "dependencies": {
     "@poietica/transcript": "workspace:*",
-    "@poietica/contract": "workspace:*"
+    "@poietica/contract": "workspace:*",
+    "@lexical/react": "catalog:",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/external-store": "workspace:*",
+    "@poietica/problem": "workspace:*",
+    "@streamdown/cjk": "catalog:",
+    "@streamdown/code": "catalog:",
+    "@streamdown/math": "catalog:",
+    "@streamdown/mermaid": "catalog:",
+    "@tanstack/react-virtual": "catalog:",
+    "katex": "catalog:",
+    "lexical": "catalog:",
+    "lucide-react": "catalog:",
+    "motion": "catalog:",
+    "streamdown": "catalog:",
+    "yet-another-react-lightbox": "catalog:",
+    "@poietica/review": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "sideEffects": [
+    "**/*.css",
+    "./vendor/aora-bot/emotion-ball/js/*.js"
+  ],
+  "poietica": {
+    "headless": [
+      "."
+    ]
   }
 }

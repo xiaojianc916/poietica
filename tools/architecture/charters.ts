@@ -254,7 +254,7 @@ const toHex = (color: readonly [number, number, number]): string =>
 /** 主题表面与预运行底色、权限、唯一写入管线一致。 */
 async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
   const violations: Violation[] = []
-  const themeOwner = 'apps/desktop/src/entry/theme-runtime.ts'
+  const themeOwner = 'apps/desktop/src/window/theme-runtime.ts'
   const themeSource = await readFile(path.join(root, themeOwner), 'utf8')
   const light = surfaceColor(themeSource, 'light')
   const dark = surfaceColor(themeSource, 'dark')
@@ -427,7 +427,9 @@ const tokens = (source: string): string[] =>
     .split(/[\s'"()[\],;:<>|]+/)
     .filter((token) => token.length > 0)
 
-const prose = (root: string): Promise<string[]> => walk(root, ['.'], ['.md'])
+// ADRs record historical decisions rather than the current dependency manifest.
+const prose = async (root: string): Promise<string[]> =>
+  (await walk(root, ['.'], ['.md'])).filter((file) => !file.startsWith('docs/adr/'))
 
 const present = async (target: string): Promise<boolean> => {
   try {

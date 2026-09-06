@@ -7,13 +7,6 @@ import {
   type SelectOption,
 } from '@poietica/design-system'
 import type { PluginStore } from '@poietica/extension'
-import type {
-  AgentSettings,
-  AppSettings,
-  KeybindingCatalog,
-  ModelCatalogStore,
-  SettingsStore,
-} from '@poietica/settings'
 import {
   Archive,
   ArrowLeft,
@@ -39,6 +32,13 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
+import type {
+  AgentSettings,
+  AppSettings,
+  KeybindingCatalog,
+  ModelCatalogStore,
+  SettingsStore,
+} from '../../index'
 import { ComputerUseSettings } from '../computer-use-settings'
 import { KeymapSettings } from '../keymap-settings'
 import { ModelsSettings } from '../models/models-settings'

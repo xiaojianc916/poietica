@@ -1,7 +1,7 @@
-import '@poietica/composer/actions.css'
-import { isToggleControl, PermissionPicker, SessionControls } from '@poietica/composer'
+import '@poietica/conversation/composer/actions.css'
 
 import type { SessionConfigControl } from '@poietica/conversation'
+import { isToggleControl, PermissionPicker, SessionControls } from '@poietica/conversation/composer'
 import {
   DropdownMenu,
   DropdownMenuContent,

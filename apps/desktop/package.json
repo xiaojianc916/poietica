@@ -18,9 +18,8 @@
   },
   "dependencies": {
     "@poietica/agent-catalog": "workspace:*",
-    "@poietica/assistant": "workspace:*",
-    "@poietica/automation": "workspace:*",
     "@poietica/conversation": "workspace:*",
+    "@poietica/automation": "workspace:*",
     "@poietica/design-system": "workspace:*",
     "@poietica/extension": "workspace:*",
     "@poietica/external-store": "workspace:*",
@@ -40,8 +39,7 @@
     "uuid": "catalog:",
     "valibot": "catalog:",
     "@poietica/review": "workspace:*",
-    "@poietica/terminal": "workspace:*",
-    "@poietica/workspace-panels": "workspace:*"
+    "@poietica/terminal": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

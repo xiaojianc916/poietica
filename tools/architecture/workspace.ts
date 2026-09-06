@@ -8,6 +8,7 @@ export type ExportTarget =
   | { readonly [condition: string]: ExportTarget | undefined }
 
 export type Manifest = {
+  poietica?: { headless?: readonly string[] }
   name?: string
   scripts?: Record<string, string>
   exports?: Record<string, ExportTarget>

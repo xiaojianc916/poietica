@@ -1,4 +1,4 @@
-import { parseUnifiedPatch } from '@poietica/review'
+import { parseUnifiedPatch } from '../index'
 import type { DeriveReply, DeriveRequest } from './derive-contract'
 import { paint } from './syntax'
 

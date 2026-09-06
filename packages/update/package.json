@@ -15,5 +15,10 @@
   "devDependencies": {
     "@types/bun": "catalog:",
     "typescript": "catalog:"
+  },
+  "poietica": {
+    "headless": [
+      "."
+    ]
   }
 }

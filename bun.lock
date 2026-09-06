@@ -17,7 +17,6 @@
       "version": "0.3.1",
       "dependencies": {
         "@poietica/agent-catalog": "workspace:*",
-        "@poietica/assistant": "workspace:*",
         "@poietica/automation": "workspace:*",
         "@poietica/conversation": "workspace:*",
         "@poietica/design-system": "workspace:*",
@@ -30,7 +29,6 @@
         "@poietica/terminal": "workspace:*",
         "@poietica/update": "workspace:*",
         "@poietica/workspace": "workspace:*",
-        "@poietica/workspace-panels": "workspace:*",
         "@streamdown/mermaid": "catalog:",
         "@tauri-apps/api": "catalog:tauri",
         "@tauri-apps/plugin-dialog": "catalog:tauri",
@@ -65,52 +63,14 @@
         "typescript": "catalog:",
       },
     },
-    "packages/assistant": {
-      "name": "@poietica/assistant",
-      "version": "0.1.0",
-      "dependencies": {
-        "@lexical/react": "catalog:",
-        "@poietica/composer": "workspace:*",
-        "@poietica/conversation": "workspace:*",
-        "@poietica/design-system": "workspace:*",
-        "@poietica/external-store": "workspace:*",
-        "@poietica/problem": "workspace:*",
-        "@poietica/review": "workspace:*",
-        "@streamdown/cjk": "catalog:",
-        "@streamdown/code": "catalog:",
-        "@streamdown/math": "catalog:",
-        "@streamdown/mermaid": "catalog:",
-        "@tanstack/react-virtual": "catalog:",
-        "katex": "catalog:",
-        "lexical": "catalog:",
-        "lucide-react": "catalog:",
-        "motion": "catalog:",
-        "streamdown": "catalog:",
-        "yet-another-react-lightbox": "catalog:",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-        "@types/react": "catalog:",
-        "@types/react-dom": "catalog:",
-        "react": "catalog:",
-        "react-dom": "catalog:",
-        "typescript": "catalog:",
-      },
-      "peerDependencies": {
-        "react": "catalog:",
-        "react-dom": "catalog:",
-      },
-    },
     "packages/automation": {
       "name": "@poietica/automation",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/composer": "workspace:*",
         "@poietica/contract": "workspace:*",
         "@poietica/conversation": "workspace:*",
         "@poietica/design-system": "workspace:*",
         "@poietica/problem": "workspace:*",
-        "croner": "10.0.1",
         "lucide-react": "catalog:",
       },
       "devDependencies": {
@@ -137,27 +97,6 @@
         "typescript": "catalog:",
       },
     },
-    "packages/composer": {
-      "name": "@poietica/composer",
-      "version": "0.1.0",
-      "dependencies": {
-        "@poietica/conversation": "workspace:*",
-        "@poietica/design-system": "workspace:*",
-        "lucide-react": "catalog:",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-        "@types/react": "catalog:",
-        "@types/react-dom": "catalog:",
-        "react": "catalog:",
-        "react-dom": "catalog:",
-        "typescript": "catalog:",
-      },
-      "peerDependencies": {
-        "react": "catalog:",
-        "react-dom": "catalog:",
-      },
-    },
     "packages/contract": {
       "name": "@poietica/contract",
       "version": "0.1.0",
@@ -173,12 +112,36 @@
       "name": "@poietica/conversation",
       "version": "0.1.0",
       "dependencies": {
+        "@lexical/react": "catalog:",
         "@poietica/contract": "workspace:*",
+        "@poietica/design-system": "workspace:*",
+        "@poietica/external-store": "workspace:*",
+        "@poietica/problem": "workspace:*",
+        "@poietica/review": "workspace:*",
         "@poietica/transcript": "workspace:*",
+        "@streamdown/cjk": "catalog:",
+        "@streamdown/code": "catalog:",
+        "@streamdown/math": "catalog:",
+        "@streamdown/mermaid": "catalog:",
+        "@tanstack/react-virtual": "catalog:",
+        "katex": "catalog:",
+        "lexical": "catalog:",
+        "lucide-react": "catalog:",
+        "motion": "catalog:",
+        "streamdown": "catalog:",
+        "yet-another-react-lightbox": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@types/react": "catalog:",
+        "@types/react-dom": "catalog:",
+        "react": "catalog:",
+        "react-dom": "catalog:",
         "typescript": "catalog:",
+      },
+      "peerDependencies": {
+        "react": "catalog:",
+        "react-dom": "catalog:",
       },
     },
     "packages/design-system": {
@@ -372,23 +335,12 @@
       "name": "@poietica/workspace",
       "version": "0.1.0",
       "dependencies": {
-        "@poietica/problem": "workspace:*",
-        "valibot": "catalog:",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-        "typescript": "catalog:",
-      },
-    },
-    "packages/workspace-panels": {
-      "name": "@poietica/workspace-panels",
-      "version": "0.0.0",
-      "dependencies": {
         "@poietica/browser": "workspace:*",
         "@poietica/design-system": "workspace:*",
         "@poietica/external-store": "workspace:*",
         "@poietica/problem": "workspace:*",
         "lucide-react": "catalog:",
+        "valibot": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -585,13 +537,9 @@
 
     "@poietica/agent-catalog": ["@poietica/agent-catalog@workspace:packages/agent-catalog"],
 
-    "@poietica/assistant": ["@poietica/assistant@workspace:packages/assistant"],
-
     "@poietica/automation": ["@poietica/automation@workspace:packages/automation"],
 
     "@poietica/browser": ["@poietica/browser@workspace:packages/browser"],
-
-    "@poietica/composer": ["@poietica/composer@workspace:packages/composer"],
 
     "@poietica/contract": ["@poietica/contract@workspace:packages/contract"],
 
@@ -624,8 +572,6 @@
     "@poietica/update": ["@poietica/update@workspace:packages/update"],
 
     "@poietica/workspace": ["@poietica/workspace@workspace:packages/workspace"],
-
-    "@poietica/workspace-panels": ["@poietica/workspace-panels@workspace:packages/workspace-panels"],
 
     "@preact/signals-core": ["@preact/signals-core@1.14.4", "https://registry.npmmirror.com/@preact/signals-core/-/signals-core-1.14.4.tgz", {}, "sha512-HNB6HYeYKhQbJ1aKl+YRjrS4+QWHLKX6qKoUsfS/m0vqzsVaEBiZiaKbG/e+NKk2ch5ALQr/ihWaMHxiCuuWHA=="],
 
@@ -940,8 +886,6 @@
     "commander": ["commander@8.3.0", "https://registry.npmmirror.com/commander/-/commander-8.3.0.tgz", {}, "sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww=="],
 
     "cose-base": ["cose-base@1.0.3", "https://registry.npmmirror.com/cose-base/-/cose-base-1.0.3.tgz", { "dependencies": { "layout-base": "^1.0.0" } }, "sha512-s9whTXInMSgAp/NVXVNuVxVKzGH2qck3aQlVHxDCdAEPgtMKwc4Wq6/QKhgdEdgbLSi9rBTAcPoRa6JpiG4ksg=="],
-
-    "croner": ["croner@10.0.1", "https://registry.npmmirror.com/croner/-/croner-10.0.1.tgz", {}, "sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g=="],
 
     "csstype": ["csstype@3.2.3", "https://registry.npmmirror.com/csstype/-/csstype-3.2.3.tgz", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
 

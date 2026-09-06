@@ -43,12 +43,12 @@ import {
   createWorkbenchSessionController,
 } from '@poietica/workspace'
 import { v7 as uuidv7 } from 'uuid'
+import { createDesktopAgentRuntime, type DesktopAgentRuntime } from '../assistant/agent-runtime'
+import { createAttachmentIntake } from '../assistant/attachment-intake'
+import { reconcileBrowserMcpServer } from '../browser/browser-mcp'
 import { reportFailure } from '../notice/problem-presentation'
+import { createThemeRuntime, type ThemeRuntime } from '../window/theme-runtime'
 import { createWorkspaceRoots, type WorkspaceRoots } from '../workspace/roots'
-import { createDesktopAgentRuntime, type DesktopAgentRuntime } from './agent-runtime'
-import { createAttachmentIntake } from './attachment-intake'
-import { reconcileBrowserMcpServer } from './browser-mcp'
-import { createThemeRuntime, type ThemeRuntime } from './theme-runtime'
 
 const MARKETPLACE_URL = 'https://code.kimi.com/kimi-code/plugins/marketplace.json'
 

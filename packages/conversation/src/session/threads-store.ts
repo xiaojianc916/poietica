@@ -109,43 +109,7 @@ export class ThreadsStore {
     const work = async (): Promise<void> => {
       do {
         this.#refreshAgain = false
-        const revision = this.#revision
-        try {
-          const found = await port.list()
-          if (this.#disposed) {
-            return
-          }
-          if (revision !== this.#revision) {
-            this.#refreshAgain = true
-            continue
-          }
-          const records = new Map(
-            [...this.#held.records].filter(([, record]) => record.titleSource === 'fallback'),
-          )
-          const seen = new Set<string>()
-          for (const record of found) {
-            if (seen.has(record.threadId)) {
-              throw new Error('The platform returned duplicate conversation identities.')
-            }
-            seen.add(record.threadId)
-            records.set(record.threadId, record)
-          }
-          this.#commit({
-            records,
-            intents: this.#confirmed(this.#held.intents, records),
-            isLoading: false,
-            failure: null,
-          })
-        } catch (reason) {
-          if (this.#disposed) {
-            return
-          }
-          if (revision !== this.#revision) {
-            this.#refreshAgain = true
-            continue
-          }
-          this.#commit({ isLoading: false, failure: describeFailure(reason) })
-        }
+        await this.#pull(port, this.#revision)
       } while (this.#refreshAgain && !this.#disposed)
     }
     const running = work().finally(() => {
@@ -155,6 +119,51 @@ export class ThreadsStore {
     })
     this.#refreshing = running
     return running
+  }
+
+  async #pull(port: ThreadPort, revision: number): Promise<void> {
+    try {
+      const found = await port.list()
+      if (this.#disposed) {
+        return
+      }
+      if (revision !== this.#revision) {
+        this.#refreshAgain = true
+        return
+      }
+      const records = this.#mergeRecords(found)
+      this.#commit({
+        records,
+        intents: this.#confirmed(this.#held.intents, records),
+        isLoading: false,
+        failure: null,
+      })
+    } catch (reason) {
+      if (this.#disposed) {
+        return
+      }
+      if (revision !== this.#revision) {
+        this.#refreshAgain = true
+        return
+      }
+      this.#commit({ isLoading: false, failure: describeFailure(reason) })
+    }
+  }
+
+  /** Listing replaces fallback titles wholesale and never touches local titles. */
+  #mergeRecords(found: readonly ThreadRecord[]): Map<string, ThreadRecord> {
+    const records = new Map(
+      [...this.#held.records].filter(([, record]) => record.titleSource === 'fallback'),
+    )
+    const seen = new Set<string>()
+    for (const record of found) {
+      if (seen.has(record.threadId)) {
+        throw new Error('The platform returned duplicate conversation identities.')
+      }
+      seen.add(record.threadId)
+      records.set(record.threadId, record)
+    }
+    return records
   }
 
   create = (threadId: string, workspaceRoot?: string): Promise<string | null> =>

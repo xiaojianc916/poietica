@@ -275,3 +275,70 @@ describe('resolved workspace ownership', () => {
     ).toEqual([])
   })
 })
+
+test('host integration cannot enter a view through a public path or alias', () => {
+  const root = path.resolve('fixture')
+  const conversation: Workspace = {
+    name: '@poietica/conversation',
+    directory: 'packages/conversation',
+    manifest: {
+      exports: { '.': './src/index.ts', './surface': './src/surface.ts' },
+      poietica: { headless: ['.'] },
+    },
+  }
+  const bridge: Workspace = {
+    name: '@poietica/native-bridge',
+    directory: 'packages/native-bridge',
+    manifest: { dependencies: { '@poietica/conversation': 'workspace:*' } },
+  }
+  const host: ts.ModuleResolutionHost = { fileExists: () => true, readFile: () => '' }
+  const policy = resolvedWorkspaceBoundaries(root, [conversation, bridge], host)
+  const from = path.resolve(root, nativeEntry)
+  const view = path.resolve(root, fixtureSource('conversation', 'surface.ts'))
+  for (const name of ['@poietica/conversation/surface', '#conversation-view']) {
+    expect(
+      policy(from, name, view, false).some((item) => item.policy === 'headless-host-dependency'),
+    ).toBe(true)
+  }
+  expect(
+    policy(from, '@poietica/conversation', path.resolve(root, conversationEntry), false),
+  ).toEqual([])
+})
+
+test('runtime graph follows source exports rather than stopping at declaration files', () => {
+  const root = path.resolve('fixture')
+  const records = new Map<string, string>([
+    [path.resolve(root, 'entry.ts'), "export { render } from '@poietica/rendering'"],
+    [path.resolve(root, 'rendering/index.d.ts'), 'export declare const render: unknown'],
+    [
+      path.resolve(root, 'rendering/index.ts'),
+      "import { createElement } from 'react'; export const render = createElement",
+    ],
+  ])
+  const host: ts.ModuleResolutionHost = {
+    fileExists: (file) => records.has(path.resolve(file)),
+    readFile: (file) => records.get(path.resolve(file)),
+  }
+  const configured = {
+    ...options,
+    baseUrl: root,
+    paths: { '@poietica/rendering': ['rendering/index.d.ts'] },
+  }
+  const units: SourceUnit[] = [...records].map(([file, code]) => ({
+    file,
+    code,
+    options: configured,
+  }))
+  const entries = new Map<string, Workspace>([
+    [
+      '@poietica/rendering',
+      {
+        name: '@poietica/rendering',
+        directory: 'rendering',
+        manifest: { exports: { '.': { types: './index.d.ts', default: './index.ts' } } },
+      },
+    ],
+  ])
+  const found = analyzeSourceFiles(root, units, host, [path.resolve(root, 'entry.ts')], entries)
+  expect(found.some((item) => item.policy === 'headless-public-entry')).toBe(true)
+})

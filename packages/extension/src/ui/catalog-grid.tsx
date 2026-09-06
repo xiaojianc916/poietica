@@ -1,4 +1,5 @@
 import { Button } from '@poietica/design-system'
+import { useState } from 'react'
 import {
   BUILTIN_SERVERS,
   type CatalogRow,
@@ -8,8 +9,7 @@ import {
   type PluginInstallSource,
   type RowGroup,
   statusText,
-} from '@poietica/extension'
-import { useState } from 'react'
+} from '../index'
 
 import { PluginGlyph } from './plugin-glyph'
 import { Section } from './section'

@@ -1,6 +1,10 @@
-import { ComposerDrafts, ComposerDraftsContext, useAgentControls } from '@poietica/assistant'
 import type { AutomationStore } from '@poietica/automation'
 import type { AgentSessionPort } from '@poietica/conversation'
+import {
+  ComposerDrafts,
+  ComposerDraftsContext,
+  useAgentControls,
+} from '@poietica/conversation/surface'
 import type { PluginStore } from '@poietica/extension'
 import { type CustomAgentStore, PersonalizationStore } from '@poietica/settings'
 import { lazy, type ReactNode, Suspense } from 'react'

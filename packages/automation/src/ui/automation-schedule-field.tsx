@@ -1,4 +1,12 @@
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@poietica/design-system'
+import { ChevronDown, Plus, X } from 'lucide-react'
+import { useState } from 'react'
+import {
   type CommonScheduleKind,
   DEFAULT_SCHEDULE,
   DEFAULT_SCHEDULE_TIME,
@@ -8,15 +16,7 @@ import {
   scheduleFor,
   scheduleKindOf,
   scheduleTimeOf,
-} from '@poietica/automation'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@poietica/design-system'
-import { ChevronDown, Plus, X } from 'lucide-react'
-import { useState } from 'react'
+} from '../index'
 
 const PROBLEMS: Record<ScheduleProblem, string> = {
   neverRuns: '这段日程没有未来的运行时间。',
@@ -91,6 +91,20 @@ export interface AutomationScheduleFieldProps {
   readonly onTimeZoneChange: (timeZone: string) => void
 }
 
+function statusText(preview: SchedulePreview | null, schedule: string | null): string {
+  if (preview === null) {
+    return '正在由原生调度器校验…'
+  }
+  if (schedule === null) {
+    return '仅手动运行'
+  }
+  const next = preview.nextRunAt ?? null
+  if (next === null) {
+    return '没有下一次运行'
+  }
+  return ['下一次：', new Date(next).toLocaleString('zh-CN'), '（本机时间）'].join('')
+}
+
 export function AutomationScheduleField({
   schedule,
   timeZone,
@@ -104,7 +118,6 @@ export function AutomationScheduleField({
   const time = scheduleTimeOf(schedule) ?? DEFAULT_SCHEDULE_TIME
   const problem = preview?.problem ?? null
   const feedback = error ?? (problem === null ? null : PROBLEMS[problem])
-  const next = preview?.nextRunAt ?? null
   function pick(next: ScheduleKind): void {
     setForceCustom(next === 'custom')
     onChange(next === 'custom' ? (schedule ?? DEFAULT_SCHEDULE) : scheduleFor(next, time))
@@ -176,14 +189,7 @@ export function AutomationScheduleField({
         id="automation-schedule-feedback"
         role={feedback === null ? 'status' : 'alert'}
       >
-        {feedback ??
-          (preview === null
-            ? '正在由原生调度器校验…'
-            : schedule === null
-              ? '仅手动运行'
-              : next === null
-                ? '没有下一次运行'
-                : ['下一次：', new Date(next).toLocaleString('zh-CN'), '（本机时间）'].join(''))}
+        {feedback ?? statusText(preview, schedule)}
       </p>
     </div>
   )

@@ -11,9 +11,9 @@ const workspace = (name: string, directory: string, dependencies = {}): Workspac
 test('manifest graph rejects an upward dependency without a source import', () => {
   const violations = manifestBoundaries([
     workspace('@poietica/conversation', 'packages/conversation', {
-      '@poietica/assistant': 'workspace:*',
+      '@poietica/native-bridge': 'workspace:*',
     }),
-    workspace('@poietica/assistant', 'packages/assistant'),
+    workspace('@poietica/native-bridge', 'packages/native-bridge'),
   ])
   expect(violations.some((item) => item.policy === 'manifest-boundaries')).toBe(true)
 })
@@ -24,4 +24,21 @@ test('manifest graph rejects cycles in unlayered workspaces', () => {
     workspace('@poietica/tests', 'tests', { '@poietica/tools': 'workspace:*' }),
   ])
   expect(violations.some((item) => item.policy === 'manifest-no-cycles')).toBe(true)
+})
+
+test('only declared peer-domain dependencies are admitted', () => {
+  expect(
+    manifestBoundaries([
+      workspace('@poietica/conversation', 'packages/conversation', {
+        '@poietica/review': 'workspace:*',
+      }),
+      workspace('@poietica/review', 'packages/review'),
+    ]),
+  ).toEqual([])
+  expect(
+    manifestBoundaries([
+      workspace('@poietica/review', 'packages/review', { '@poietica/terminal': 'workspace:*' }),
+      workspace('@poietica/terminal', 'packages/terminal'),
+    ]).some((item) => item.policy === 'manifest-boundaries'),
+  ).toBe(true)
 })

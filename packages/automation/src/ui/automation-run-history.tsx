@@ -1,4 +1,4 @@
-import { type Automation, describeMoment, isTerminal, RUN_LABELS } from '@poietica/automation'
+import { type Automation, describeMoment, isTerminal, RUN_LABELS } from '../index'
 
 export interface AutomationRunHistoryProps {
   readonly runs: Automation['runs']

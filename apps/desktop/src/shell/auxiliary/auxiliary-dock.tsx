@@ -2,17 +2,17 @@ import {
   DelegateChannelIcon,
   DelegateChannelPane,
   useDelegateChannelNames,
-} from '@poietica/assistant'
+} from '@poietica/conversation/surface'
 import { terminalHostPort } from '@poietica/native-bridge/terminal'
 import { warn } from '@poietica/problem'
-import type { AuxiliaryPaneOffer } from '@poietica/workspace-panels'
+import type { AuxiliaryPaneOffer } from '@poietica/workspace/panels'
 import {
   AUXILIARY_LAUNCHER,
   type AuxiliaryLauncherKind,
   AuxiliaryPanel,
   type AuxiliaryPanelStore,
   type AuxiliaryPaneRenderers,
-} from '@poietica/workspace-panels'
+} from '@poietica/workspace/panels'
 import { FileDiff, Globe, MessageSquareText, PanelRight, SquareTerminal } from 'lucide-react'
 import {
   lazy,

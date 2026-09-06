@@ -1,4 +1,4 @@
-import type { GitBranchPickerProps } from '@poietica/assistant'
+import type { GitBranchPickerProps } from '@poietica/conversation/surface'
 import {
   type GitBranches,
   gitBranches,

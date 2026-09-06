@@ -1,5 +1,5 @@
-import type { DiffFile, DiffPiece, DiffRow, DiffRowKind, PieceColor } from '@poietica/review'
 import { type BundledLanguage, codeToTokensWithThemes } from 'shiki'
+import type { DiffFile, DiffPiece, DiffRow, DiffRowKind, PieceColor } from '../index'
 
 /*
  * 语法着色。

@@ -1,5 +1,5 @@
-import type { PromptInputHandle } from '@poietica/assistant'
 import type { AttachmentIntake, ComposerAsset } from '@poietica/conversation'
+import type { PromptInputHandle } from '@poietica/conversation/surface'
 import {
   type BrowserElementPicked,
   watchBrowserElementPicked,

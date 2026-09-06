@@ -13,26 +13,6 @@ import {
   TooltipTrigger,
   useCopy,
 } from '@poietica/design-system'
-import {
-  type ChangeTreeFile,
-  type ChangeTreeFolder,
-  changeTreeRows,
-  createReviewStore,
-  type DiffFile,
-  type DiffPiece,
-  type DiffRow,
-  type DiffStat,
-  type ReviewDerive,
-  type ReviewFailureReport,
-  type ReviewGateway,
-  type ReviewReading,
-  type ReviewState,
-  type ReviewStore,
-  type ReviewSwitch,
-  TREE_MAX,
-  TREE_MIN,
-  WORKTREE_BASE,
-} from '@poietica/review'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   ArrowUp,
@@ -69,6 +49,26 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
+import {
+  type ChangeTreeFile,
+  type ChangeTreeFolder,
+  changeTreeRows,
+  createReviewStore,
+  type DiffFile,
+  type DiffPiece,
+  type DiffRow,
+  type DiffStat,
+  type ReviewDerive,
+  type ReviewFailureReport,
+  type ReviewGateway,
+  type ReviewReading,
+  type ReviewState,
+  type ReviewStore,
+  type ReviewSwitch,
+  TREE_MAX,
+  TREE_MIN,
+  WORKTREE_BASE,
+} from '../index'
 import { createDeriver, type ReviewDeriver } from './derive'
 
 import './review-pane.css'

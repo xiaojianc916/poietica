@@ -1,3 +1,4 @@
+import { type AgentSessionPort, projectVisibleModelChoices } from '@poietica/conversation'
 import {
   AssistantSurface,
   type GitBranchPickerProps,
@@ -9,8 +10,7 @@ import {
   useThreadSelectors,
   useThreadUsage,
   type WorkspacePickerProps,
-} from '@poietica/assistant'
-import { type AgentSessionPort, projectVisibleModelChoices } from '@poietica/conversation'
+} from '@poietica/conversation/surface'
 import { useHiddenModelAliases } from '@poietica/settings/ui'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { adoptBrowserPickTarget } from '../browser/browser-pick'

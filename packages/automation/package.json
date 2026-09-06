@@ -15,7 +15,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@poietica/composer": "workspace:*",
     "@poietica/conversation": "workspace:*",
     "@poietica/design-system": "workspace:*",
     "@poietica/problem": "workspace:*",
@@ -33,5 +32,10 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "typescript": "catalog:"
+  },
+  "poietica": {
+    "headless": [
+      "."
+    ]
   }
 }

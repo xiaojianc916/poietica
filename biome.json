@@ -22,7 +22,7 @@
       "!**/benchmark-results",
       "!**/performance-results",
       "!**/*.min.js",
-      "!packages/assistant/vendor/aora-bot/emotion-ball/js/*.js",
+      "!packages/conversation/vendor/aora-bot/emotion-ball/js/*.js",
       "!packages/transcript/src",
       "!packages/transcript/dist-types",
       "!**/*.snap",
@@ -246,7 +246,8 @@
           },
           "suspicious": {
             "noConsole": "off",
-            "noExplicitAny": "warn"
+            "noExplicitAny": "warn",
+            "useAwait": "off"
           }
         }
       }

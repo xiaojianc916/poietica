@@ -1,4 +1,4 @@
-import type { DiffFile } from '@poietica/review'
+import type { DiffFile } from '../index'
 
 export interface DeriveRequest {
   readonly id: number

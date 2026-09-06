@@ -1,12 +1,12 @@
+import { cn } from '@poietica/design-system'
+import { useState } from 'react'
 import {
   AUTOMATION_CATEGORIES,
   AUTOMATION_TEMPLATES,
   type AutomationCategory,
   type AutomationTemplate,
   describeSchedule,
-} from '@poietica/automation'
-import { cn } from '@poietica/design-system'
-import { useState } from 'react'
+} from '../index'
 
 /**
  * 从模板开始。

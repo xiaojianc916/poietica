@@ -1,5 +1,5 @@
-import type { AgentInstallStatus, AgentSettings } from '@poietica/settings'
 import { useCallback, useEffect, useState } from 'react'
+import type { AgentInstallStatus, AgentSettings } from '../../index'
 import { describeAgentCliFailure } from './agent-cli-text'
 
 /**

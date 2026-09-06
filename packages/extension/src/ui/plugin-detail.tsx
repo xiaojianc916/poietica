@@ -1,12 +1,12 @@
 import { Button, Switch } from '@poietica/design-system'
+import type { ReactNode } from 'react'
 import {
   describeInstallSource,
   type InstalledPlugin,
   type MarketplaceEntry,
   type PluginOrigin,
   type PluginStore,
-} from '@poietica/extension'
-import type { ReactNode } from 'react'
+} from '../index'
 import { PluginGlyph } from './plugin-glyph'
 import { TrustBadge } from './trust-badge'
 

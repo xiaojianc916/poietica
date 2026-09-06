@@ -1,10 +1,10 @@
+import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react'
 import {
   type AppSettings,
   createSettingsSession,
   type SettingsOperation,
   type SettingsStore,
-} from '@poietica/settings'
-import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react'
+} from '../../index'
 
 export type { SettingsOperation }
 

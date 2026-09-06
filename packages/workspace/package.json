@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./panels": "./src/panels/index.ts"
   },
   "scripts": {
     "test": "bun test src",
@@ -12,10 +13,30 @@
   },
   "dependencies": {
     "@poietica/problem": "workspace:*",
-    "valibot": "catalog:"
+    "valibot": "catalog:",
+    "@poietica/browser": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/external-store": "workspace:*",
+    "lucide-react": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "poietica": {
+    "headless": [
+      "."
+    ]
   }
 }

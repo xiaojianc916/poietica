@@ -10,7 +10,7 @@ import {
   UNLAYERED_DIRECTORIES,
 } from './layering.ts'
 import { layerDirection, type Violation } from './policies.ts'
-import type { ExportTarget, Manifest, Workspace } from './workspace.ts'
+import type { ExportTarget, Workspace } from './workspace.ts'
 
 export interface SourceUnit {
   readonly file: string
@@ -90,6 +90,52 @@ const metaUrlAssetOf = (node: ts.Node): string | null | undefined => {
   return target !== undefined && ts.isStringLiteralLike(target) ? target.text : null
 }
 
+/* 宿主框架绑定只属于壳层，workspace 代码一律不得触及。 */
+const forbiddenOf = (specifier: string): string[] => {
+  const forbidden: string[] = []
+  if (
+    FRAMEWORK_SPECIFIERS.some((name) => specifier === name || specifier.startsWith(`${name}/`)) ||
+    specifier.startsWith('@tauri-apps/')
+  ) {
+    forbidden.push(specifier)
+  }
+  return forbidden
+}
+
+/* 模块解析落空时的兜底：相对路径资产与 @poietica 公开入口，无法落实即拒绝。 */
+const fallbackFileOf = (
+  file: string,
+  specifier: string,
+  host: ts.ModuleResolutionHost,
+  resolveEntry: (specifier: string) => string | undefined,
+  reject: (policy: string, file: string, detail: string) => void,
+): string | undefined => {
+  if (specifier.startsWith('.')) {
+    const asset = fileURLToPath(new URL(specifier, pathToFileURL(file)))
+    if (!host.fileExists(asset)) {
+      reject(
+        'resolved-file-dependencies',
+        file,
+        ['Unresolved relative dependency:', specifier].join(' '),
+      )
+    }
+    return undefined
+  }
+  if (!specifier.startsWith('@poietica/')) {
+    return undefined
+  }
+  const entry = resolveEntry(specifier)
+  if (entry === undefined || !host.fileExists(entry)) {
+    reject(
+      'resolved-file-dependencies',
+      file,
+      ['Unresolved workspace public entry:', specifier].join(' '),
+    )
+    return undefined
+  }
+  return entry
+}
+
 function edgeOf(
   file: string,
   record: ImportRecord,
@@ -101,37 +147,25 @@ function edgeOf(
   reject: (policy: string, file: string, detail: string) => void,
 ): { readonly forbidden: string[]; readonly target?: string } {
   const specifier = record.specifier
-  const forbidden: string[] = []
-  if (
-    FRAMEWORK_SPECIFIERS.some((name) => specifier === name || specifier.startsWith(`${name}/`)) ||
-    specifier.startsWith('@tauri-apps/')
-  ) {
-    forbidden.push(specifier)
-  }
+  const forbidden = forbiddenOf(specifier)
   const resolved = ts.resolveModuleName(specifier, file, unit.options, host).resolvedModule
   let resolvedFile = resolved?.resolvedFileName
-  if (resolvedFile === undefined) {
-    if (specifier.startsWith('.')) {
-      const asset = fileURLToPath(new URL(specifier, pathToFileURL(file)))
-      if (!host.fileExists(asset)) {
-        reject(
-          'resolved-file-dependencies',
-          file,
-          ['Unresolved relative dependency:', specifier].join(' '),
-        )
+  if (
+    !record.typeOnly &&
+    declarationFile(resolvedFile ?? '') &&
+    specifier.startsWith('@poietica/')
+  ) {
+    const runtime = resolveEntry(specifier)
+    if (runtime !== undefined && !declarationFile(runtime)) {
+      if (!host.fileExists(runtime)) {
+        reject('resolved-file-dependencies', file, `Missing runtime export: ${specifier}`)
+        return { forbidden }
       }
-    } else if (specifier.startsWith('@poietica/')) {
-      const entry = resolveEntry(specifier)
-      if (entry === undefined || !host.fileExists(entry)) {
-        reject(
-          'resolved-file-dependencies',
-          file,
-          ['Unresolved workspace public entry:', specifier].join(' '),
-        )
-      } else {
-        resolvedFile = entry
-      }
+      resolvedFile = runtime
     }
+  }
+  if (resolvedFile === undefined) {
+    resolvedFile = fallbackFileOf(file, specifier, host, resolveEntry, reject)
   }
   if (resolvedFile === undefined) {
     return { forbidden }
@@ -338,6 +372,92 @@ function compilerOptions(root: string): (file: string) => ts.CompilerOptions {
   }
 }
 
+/* 跨 workspace 的实体边必须走公开入口。 */
+const bypassViolation = (
+  specifier: string,
+  where: string,
+  workspace: Workspace,
+  publicNames: readonly string[],
+): Violation | undefined => {
+  if (publicNames.length > 0 && !specifier.startsWith('.') && !path.isAbsolute(specifier)) {
+    return undefined
+  }
+  return {
+    policy: 'resolved-public-entry',
+    where,
+    detail: `${specifier} bypasses the public exports of ${workspace.name}`,
+  }
+}
+
+/* 仅 native-bridge 受限：host 集成只能消费目标的 headless 入口。 */
+const headlessViolation = (
+  from: Workspace,
+  to: Workspace,
+  where: string,
+  publicNames: readonly string[],
+): Violation | undefined => {
+  if (from.name !== '@poietica/native-bridge') {
+    return undefined
+  }
+  const entries = to.manifest.poietica?.headless
+  if (entries === undefined) {
+    return undefined
+  }
+  const allowed = entries.map((entry) => (entry === '.' ? to.name : to.name + entry.slice(1)))
+  if (publicNames.some((name) => allowed.includes(name))) {
+    return undefined
+  }
+  return {
+    policy: 'headless-host-dependency',
+    where,
+    detail: `Host integration must consume a headless entry of ${to.name}`,
+  }
+}
+
+const undeclaredViolation = (
+  from: Workspace,
+  to: Workspace,
+  where: string,
+): Violation | undefined => {
+  const manifest = from.manifest
+  const declared = [
+    manifest.dependencies,
+    manifest.devDependencies,
+    manifest.peerDependencies,
+    manifest.optionalDependencies,
+  ].some((section) => section?.[to.name] !== undefined)
+  if (declared) {
+    return undefined
+  }
+  return {
+    policy: 'resolved-declared-dependency',
+    where,
+    detail: `${from.name} has no declared dependency on ${to.name}`,
+  }
+}
+
+/* 契约类型是适配器私有的领域入口，不得作为传输面泄漏。 */
+const contractViolation = (
+  from: Workspace,
+  to: Workspace,
+  where: string,
+  typeOnly: boolean,
+  publicNames: readonly string[],
+): Violation | undefined => {
+  if (to.name !== '@poietica/contract' || HOST_AWARE_PACKAGES.includes(from.name)) {
+    return undefined
+  }
+  const allowed = DOMAIN_CONTRACT_IMPORTS[from.name]
+  if (typeOnly && allowed !== undefined && publicNames.includes(allowed)) {
+    return undefined
+  }
+  return {
+    policy: 'transport-contract-is-adapter-private',
+    where,
+    detail: 'A resolved contract edge must use the declared type-only domain entry.',
+  }
+}
+
 export function resolvedWorkspaceBoundaries(
   root: string,
   workspaces: readonly Workspace[],
@@ -386,6 +506,7 @@ export function resolvedWorkspaceBoundaries(
       return []
     }
     const where = path.relative(root, file).split(path.sep).join('/')
+    const publicNames = to.entries.get(canonicalOf(host, target)) ?? []
     const violations = layerDirection(
       [
         {
@@ -396,39 +517,15 @@ export function resolvedWorkspaceBoundaries(
       ],
       workspaces,
     )
-    const publicNames = to.entries.get(canonicalOf(host, target)) ?? []
-    if (publicNames.length === 0 || specifier.startsWith('.') || path.isAbsolute(specifier)) {
-      violations.push({
-        policy: 'resolved-public-entry',
-        where,
-        detail: `${specifier} bypasses the public exports of ${to.workspace.name}`,
-      })
-    }
-    const manifest = from.workspace.manifest
-    const declared = [
-      manifest.dependencies,
-      manifest.devDependencies,
-      manifest.peerDependencies,
-      manifest.optionalDependencies,
-    ].some((section) => section?.[to.workspace.name] !== undefined)
-    if (!declared) {
-      violations.push({
-        policy: 'resolved-declared-dependency',
-        where,
-        detail: `${from.workspace.name} has no declared dependency on ${to.workspace.name}`,
-      })
-    }
-    if (
-      to.workspace.name === '@poietica/contract' &&
-      !HOST_AWARE_PACKAGES.includes(from.workspace.name)
-    ) {
-      const allowed = DOMAIN_CONTRACT_IMPORTS[from.workspace.name]
-      if (!typeOnly || allowed === undefined || !publicNames.includes(allowed)) {
-        violations.push({
-          policy: 'transport-contract-is-adapter-private',
-          where,
-          detail: 'A resolved contract edge must use the declared type-only domain entry.',
-        })
+    const findings = [
+      bypassViolation(specifier, where, to.workspace, publicNames),
+      headlessViolation(from.workspace, to.workspace, where, publicNames),
+      undeclaredViolation(from.workspace, to.workspace, where),
+      contractViolation(from.workspace, to.workspace, where, typeOnly, publicNames),
+    ]
+    for (const finding of findings) {
+      if (finding !== undefined) {
+        violations.push(finding)
       }
     }
     return violations
@@ -450,9 +547,7 @@ export async function fileGraph(
   }
   const headless: string[] = []
   for (const workspace of workspaces) {
-    const manifest = workspace.manifest as Manifest & {
-      poietica?: { headless?: readonly string[] }
-    }
+    const manifest = workspace.manifest
     for (const entry of manifest.poietica?.headless ?? []) {
       const target = exportTarget(manifest.exports?.[entry])
       if (target === undefined) {

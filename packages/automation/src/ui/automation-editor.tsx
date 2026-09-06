@@ -1,12 +1,4 @@
-import '@poietica/composer/frame.css'
-import {
-  type Automation,
-  type AutomationDraft,
-  type AutomationStore,
-  activeRun,
-  type SchedulePreview,
-  sameSessionConfig,
-} from '@poietica/automation'
+import '@poietica/conversation/composer/frame.css'
 import type { SessionConfigControl } from '@poietica/conversation'
 import {
   ArrowLeftIcon,
@@ -20,6 +12,14 @@ import {
 } from '@poietica/design-system'
 import { warn } from '@poietica/problem'
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import {
+  type Automation,
+  type AutomationDraft,
+  type AutomationStore,
+  activeRun,
+  type SchedulePreview,
+  sameSessionConfig,
+} from '../index'
 import { AutomationRunHistory } from './automation-run-history'
 import { AutomationScheduleField } from './automation-schedule-field'
 import { AutomationSessionConfig } from './automation-session-config'
@@ -78,6 +78,154 @@ interface PreviewState {
   readonly error: string | null
 }
 
+function EditorDialogs({
+  automation,
+  confirmingBack,
+  confirmingDelete,
+  confirmingRevision,
+  onBack,
+  onKeepDraft,
+  setConfirmingBack,
+  setConfirmingDelete,
+  setConfirmingRevision,
+  store,
+}: {
+  readonly automation: Automation | null
+  readonly confirmingBack: boolean
+  readonly confirmingDelete: boolean
+  readonly confirmingRevision: boolean
+  readonly onBack: () => void
+  readonly onKeepDraft: () => void
+  readonly setConfirmingBack: (open: boolean) => void
+  readonly setConfirmingDelete: (open: boolean) => void
+  readonly setConfirmingRevision: (open: boolean) => void
+  readonly store: AutomationStore
+}) {
+  return (
+    <>
+      <ConfirmationDialog
+        confirmLabel="删除"
+        description="删除任务定义与保留的运行索引；已有对话内容仍然保留。活动运行必须先结束。"
+        destructive
+        onCancel={() => setConfirmingDelete(false)}
+        onConfirm={() => {
+          if (automation !== null) {
+            void store.remove(automation.id).then((removed) => {
+              if (removed) {
+                onBack()
+              }
+            })
+          }
+          setConfirmingDelete(false)
+        }}
+        open={confirmingDelete}
+        title="删除这条自动化？"
+      />
+      <ConfirmationDialog
+        confirmLabel="继续编辑"
+        description="草稿字段会在下一次保存时覆盖最新版本；此刻只更新版本基线，不自动写入。"
+        onCancel={() => setConfirmingRevision(false)}
+        onConfirm={() => {
+          onKeepDraft()
+          setConfirmingRevision(false)
+        }}
+        open={confirmingRevision}
+        title="用当前草稿编辑最新版本？"
+      />
+      <ConfirmationDialog
+        confirmLabel="放弃草稿"
+        description="尚未保存的字段不会写入任务。"
+        destructive
+        onCancel={() => setConfirmingBack(false)}
+        onConfirm={onBack}
+        open={confirmingBack}
+        title="放弃未保存的草稿？"
+      />
+    </>
+  )
+}
+
+function EditorHeader({
+  automation,
+  conflict,
+  dirty,
+  onBack,
+  onDelete,
+  ready,
+  saving,
+  store,
+}: {
+  readonly automation: Automation | null
+  readonly conflict: boolean
+  readonly dirty: boolean
+  readonly onBack: () => void
+  readonly onDelete: () => void
+  readonly ready: boolean
+  readonly saving: boolean
+  readonly store: AutomationStore
+}) {
+  const active = automation === null ? null : activeRun(automation)
+  return (
+    <header className="sticky top-0 z-10 bg-ground/95 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-8 py-5">
+        <div className="flex items-center gap-3">
+          <Button
+            aria-label="返回自动化列表"
+            disabled={saving}
+            onClick={onBack}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <ArrowLeftIcon className="size-4" />
+          </Button>
+          <TabsList aria-label="自动化编辑视图">
+            <TabsTab value="settings">设置</TabsTab>
+            <TabsTab value="runs">历史 · {automation?.runs.length ?? 0}</TabsTab>
+          </TabsList>
+        </div>
+        <div className="flex items-center gap-1">
+          {automation === null ? null : (
+            <>
+              <Button
+                disabled={saving || dirty || active !== null || conflict}
+                onClick={() => {
+                  void store.runNow(automation.id)
+                }}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <PlayIcon className="mr-1 size-3.5" />
+                运行已保存版本
+              </Button>
+              <Button
+                className="text-destructive"
+                disabled={saving || active !== null}
+                onClick={onDelete}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                删除
+              </Button>
+            </>
+          )}
+          <Button
+            className="rounded-lg bg-foreground text-ground hover:bg-foreground/90"
+            disabled={!ready || !dirty || saving || conflict}
+            form={FORM_ID}
+            size="sm"
+            type="submit"
+          >
+            {saving ? '保存中…' : automation === null ? '创建自动化' : '保存'}
+          </Button>
+        </div>
+      </div>
+    </header>
+  )
+}
+
 export function AutomationEditor({
   automation,
   controls,
@@ -122,7 +270,6 @@ export function AutomationEditor({
     workspaceRoot.trim() !== '' &&
     preview !== null &&
     preview.problem === null
-  const active = automation === null ? null : activeRun(automation)
 
   useEffect(() => {
     let disposed = false
@@ -192,71 +339,34 @@ export function AutomationEditor({
     }
   }
 
+  function requestBack(): void {
+    if (dirty) {
+      setConfirmingBack(true)
+    } else {
+      onBack()
+    }
+  }
+
+  function keepDraft(): void {
+    if (automation !== null) {
+      setRevision(automation.revision)
+    }
+  }
+
   return (
     <Tabs className="flex h-full flex-col overflow-y-auto bg-ground" defaultValue="settings">
-      <header className="sticky top-0 z-10 bg-ground/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-8 py-5">
-          <div className="flex items-center gap-3">
-            <Button
-              aria-label="返回自动化列表"
-              disabled={saving}
-              onClick={() => {
-                if (dirty) {
-                  setConfirmingBack(true)
-                } else {
-                  onBack()
-                }
-              }}
-              size="icon"
-              type="button"
-              variant="ghost"
-            >
-              <ArrowLeftIcon className="size-4" />
-            </Button>
-            <TabsList aria-label="自动化编辑视图">
-              <TabsTab value="settings">设置</TabsTab>
-              <TabsTab value="runs">历史 · {automation?.runs.length ?? 0}</TabsTab>
-            </TabsList>
-          </div>
-          <div className="flex items-center gap-1">
-            {automation === null ? null : (
-              <>
-                <Button
-                  disabled={saving || dirty || active !== null || conflict}
-                  onClick={() => {
-                    void store.runNow(automation.id)
-                  }}
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <PlayIcon className="mr-1 size-3.5" />
-                  运行已保存版本
-                </Button>
-                <Button
-                  className="text-destructive"
-                  disabled={saving || active !== null}
-                  onClick={() => setConfirmingDelete(true)}
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  删除
-                </Button>
-              </>
-            )}
-            <Button
-              className="rounded-lg bg-foreground text-ground hover:bg-foreground/90"
-              disabled={!ready || !dirty || saving || conflict}
-              form={FORM_ID}
-              size="sm"
-              type="submit"
-            >
-              {saving ? '保存中…' : automation === null ? '创建自动化' : '保存'}
-            </Button>
-          </div>
-        </div>
-      </header>
+      <EditorHeader
+        automation={automation}
+        conflict={conflict}
+        dirty={dirty}
+        onBack={requestBack}
+        onDelete={() => {
+          setConfirmingDelete(true)
+        }}
+        ready={ready}
+        saving={saving}
+        store={store}
+      />
       <div className="mx-auto w-full max-w-5xl px-8 pb-16 pt-4">
         {(localError ?? snapshot.error) ? (
           <p className="mb-4 text-sm text-destructive" role="alert">
@@ -381,45 +491,17 @@ export function AutomationEditor({
           />
         </TabsPanel>
       </div>
-      <ConfirmationDialog
-        confirmLabel="删除"
-        description="删除任务定义与保留的运行索引；已有对话内容仍然保留。活动运行必须先结束。"
-        destructive
-        onCancel={() => setConfirmingDelete(false)}
-        onConfirm={() => {
-          if (automation !== null) {
-            void store.remove(automation.id).then((removed) => {
-              if (removed) {
-                onBack()
-              }
-            })
-          }
-          setConfirmingDelete(false)
-        }}
-        open={confirmingDelete}
-        title="删除这条自动化？"
-      />
-      <ConfirmationDialog
-        confirmLabel="继续编辑"
-        description="草稿字段会在下一次保存时覆盖最新版本；此刻只更新版本基线，不自动写入。"
-        onCancel={() => setConfirmingRevision(false)}
-        onConfirm={() => {
-          if (automation !== null) {
-            setRevision(automation.revision)
-          }
-          setConfirmingRevision(false)
-        }}
-        open={confirmingRevision}
-        title="用当前草稿编辑最新版本？"
-      />
-      <ConfirmationDialog
-        confirmLabel="放弃草稿"
-        description="尚未保存的字段不会写入任务。"
-        destructive
-        onCancel={() => setConfirmingBack(false)}
-        onConfirm={onBack}
-        open={confirmingBack}
-        title="放弃未保存的草稿？"
+      <EditorDialogs
+        automation={automation}
+        confirmingBack={confirmingBack}
+        confirmingDelete={confirmingDelete}
+        confirmingRevision={confirmingRevision}
+        onBack={onBack}
+        onKeepDraft={keepDraft}
+        setConfirmingBack={setConfirmingBack}
+        setConfirmingDelete={setConfirmingDelete}
+        setConfirmingRevision={setConfirmingRevision}
+        store={store}
       />
     </Tabs>
   )

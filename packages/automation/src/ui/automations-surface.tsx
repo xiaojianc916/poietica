@@ -1,3 +1,5 @@
+import type { SessionConfigControl } from '@poietica/conversation'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import {
   type Automation,
   type AutomationDraft,
@@ -6,9 +8,7 @@ import {
   draftOf,
   draftOfTemplate,
   summarize,
-} from '@poietica/automation'
-import type { SessionConfigControl } from '@poietica/conversation'
-import { useMemo, useState, useSyncExternalStore } from 'react'
+} from '../index'
 import { AutomationEditor } from './automation-editor'
 import { AutomationList } from './automation-list'
 import { TemplateGallery } from './template-gallery'

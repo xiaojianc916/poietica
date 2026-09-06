@@ -1,4 +1,4 @@
-import type { DiffFile, ReviewDerive } from '@poietica/review'
+import type { DiffFile, ReviewDerive } from '../index'
 import type { DeriveReply, DeriveRequest } from './derive-contract'
 
 interface Waiting {

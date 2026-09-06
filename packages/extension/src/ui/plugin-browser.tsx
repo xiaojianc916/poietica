@@ -1,4 +1,5 @@
 import { Button, Switch } from '@poietica/design-system'
+import { useState } from 'react'
 import {
   describeInstallSource,
   type ForeignPlugin,
@@ -10,8 +11,7 @@ import {
   type PluginStore,
   parseInstallSource,
   publicPluginRows,
-} from '@poietica/extension'
-import { useState } from 'react'
+} from '../index'
 import { CatalogGrid } from './catalog-grid'
 import { ContributionList, type ContributionRow } from './contribution-list'
 import { Section } from './section'

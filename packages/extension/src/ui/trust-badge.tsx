@@ -1,6 +1,6 @@
 import { cn } from '@poietica/design-system'
 
-import type { PluginTrustTier } from '@poietica/extension'
+import type { PluginTrustTier } from '../index'
 
 /*
  * 信任档位是唯一决定「安装要不要人点头」的东西（requiresInstallConfirmation），

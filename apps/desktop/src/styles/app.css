@@ -4,11 +4,11 @@
 @source "../../../../apps/desktop/src/**/*.{ts,tsx}";
 
 /* Dependency classes are scanned from the owning workspace installation. */
-@source "../../../../packages/assistant/node_modules/streamdown/dist/*.js";
-@source "../../../../packages/assistant/node_modules/@streamdown/cjk/dist/*.js";
-@source "../../../../packages/assistant/node_modules/@streamdown/code/dist/*.js";
-@source "../../../../packages/assistant/node_modules/@streamdown/math/dist/*.js";
-@source "../../../../packages/assistant/node_modules/@streamdown/mermaid/dist/*.js";
+@source "../../../../packages/conversation/node_modules/streamdown/dist/*.js";
+@source "../../../../packages/conversation/node_modules/@streamdown/cjk/dist/*.js";
+@source "../../../../packages/conversation/node_modules/@streamdown/code/dist/*.js";
+@source "../../../../packages/conversation/node_modules/@streamdown/math/dist/*.js";
+@source "../../../../packages/conversation/node_modules/@streamdown/mermaid/dist/*.js";
 
 /*
  * Desktop platform tokens.

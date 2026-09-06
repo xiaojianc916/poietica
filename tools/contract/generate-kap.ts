@@ -982,7 +982,10 @@ function generateCompletion(): string {
     }
     return [resolved.allOf === undefined ? resolved : mergeAllOf(openapi, resolved)]
   }
-  const pick = (schema: Schema, names: string[]): Schema => {
+  const pick = (
+    schema: Schema,
+    names: string[],
+  ): Schema & { properties: Record<string, Schema> } => {
     const resolved = resolve(openapi, schema)
     const properties: Record<string, Schema> = {}
     for (const name of names) {
@@ -1021,20 +1024,20 @@ function generateCompletion(): string {
       throw new Error('steering evidence is absent')
     }
     const steps = pick(step, ['frames'])
-    steps.properties!['frames'] = {
+    steps.properties['frames'] = {
       ...field(step, 'frames'),
       items: { oneOf: [...frames.values()] },
     }
-    turn.properties!['steps'] = { ...field(branch, 'steps'), items: steps }
+    turn.properties['steps'] = { ...field(branch, 'steps'), items: steps }
     return turn
   })
   const page = pick(data, ['agent_id', 'has_more', 'prompts', 'items'])
   const prompts = field(data, 'prompts')
-  page.properties!['prompts'] = {
+  page.properties['prompts'] = {
     ...prompts,
     items: pick(items(prompts), ['promptId', 'status', 'finishedAt', 'steeredAt']),
   }
-  page.properties!['items'] = { ...field(data, 'items'), items: { oneOf: evidenceItems } }
+  page.properties['items'] = { ...field(data, 'items'), items: { oneOf: evidenceItems } }
   for (const required of ['agent_id', 'has_more', 'items']) {
     if (!page.required?.includes(required)) {
       throw new Error(`required completion evidence became optional: ${required}`)

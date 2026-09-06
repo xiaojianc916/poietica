@@ -14,8 +14,8 @@ primitive to have exactly one authority.
 
 | Capability | Authority |
 | --- | --- |
-| Semantic colors, typography, radii, shadows, focus, motion | `packages/ui` |
-| Reusable accessible interaction primitives | `packages/ui` |
+| Semantic colors, typography, radii, shadows, focus, motion | `packages/design-system` |
+| Reusable accessible interaction primitives | `packages/design-system` |
 | Workspace grid, sidebar and main-region layout | `packages/workspace` |
 | Settings content and settings workflow | `packages/settings` |
 | Native window chrome and Tauri-specific presentation | `apps/desktop` |

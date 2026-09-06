@@ -1,7 +1,7 @@
 import { warn } from '@poietica/problem'
-import type { TerminalHostPort } from '@poietica/terminal'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
+import type { TerminalHostPort } from '../index'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
 import './terminal-pane.css'

@@ -1,4 +1,4 @@
-import { TableExportProvider } from '@poietica/assistant/table-export'
+import { TableExportProvider } from '@poietica/conversation/table-export'
 import type { ThemePreference } from '@poietica/design-system'
 import { exportTable } from '@poietica/native-bridge/workspace/table-export'
 import { StrictMode } from 'react'
