@@ -19,6 +19,8 @@ import type {
   TurnSpan,
 } from '../timeline/timeline-contract'
 
+import { isInFlight } from '../timeline/timeline-contract'
+
 const at = (value?: string): number => (value === undefined ? 0 : Date.parse(value))
 const statusOf = (state: TranscriptTurn['state']): TimelineState['status'] =>
   state === 'queued'
@@ -86,16 +88,95 @@ const subjectOf = (display: unknown): string => {
   }
   return ''
 }
+interface InputSource {
+  readonly isUser: boolean
+  readonly label: string
+  readonly anchors: number | null
+}
+
+const USER_INPUT: InputSource = { isUser: true, label: '用户', anchors: 1 }
+const SOURCE_LABELS: Readonly<Record<TranscriptTurn['origin']['kind'], string>> = {
+  user: '用户来源',
+  cron: '定时任务',
+  task: '后台任务',
+  hook: '钩子触发',
+  compaction: '上下文压缩',
+  side: '旁路运行',
+  other: '其他来源',
+}
+
+const originField = (value: unknown, key: string): unknown =>
+  typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
+
+function sourceOfTurn(turn: TranscriptTurn): InputSource {
+  const { origin } = turn
+  const kind = originField(origin.payload, 'kind')
+  const slash =
+    (kind === 'skill_activation' || kind === 'plugin_command') &&
+    originField(origin.payload, 'trigger') === 'user-slash'
+  if (origin.kind === 'other' && slash) {
+    return USER_INPUT
+  }
+  if (origin.kind === 'user') {
+    if (kind === undefined || kind === 'user') {
+      return USER_INPUT
+    }
+    if (kind === 'shell_command') {
+      return {
+        isUser: originField(origin.payload, 'phase') === 'input',
+        label: '终端命令',
+        anchors: 0,
+      }
+    }
+    return { ...USER_INPUT, anchors: null }
+  }
+  return {
+    isUser: false,
+    label: SOURCE_LABELS[origin.kind],
+    anchors: origin.kind === 'other' ? null : 0,
+  }
+}
+
+function sourceOfFrame(frame: Extract<TranscriptFrame, { role: 'user' }>): InputSource {
+  if (frame.origin?.kind === 'user') {
+    return { ...USER_INPUT, anchors: (frame.promptIds?.length ?? 0) > 1 ? null : 1 }
+  }
+  return {
+    isUser: false,
+    label: frame.taskId === undefined ? '其他来源' : '后台任务',
+    anchors: frame.taskId === undefined ? null : 0,
+  }
+}
+
+function inputItem(
+  source: InputSource,
+  id: string,
+  turn: number,
+  stamp: number,
+  text: string,
+): TimelineItem {
+  const entry = { id, turn, at: stamp, text }
+  return source.isUser
+    ? { ...entry, type: 'user_message' }
+    : { ...entry, type: 'run_trigger', label: source.label }
+}
+
+const isSettled = (state: TranscriptTurn['state']): boolean =>
+  state === 'completed' || state === 'cancelled' || state === 'failed'
+
 function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineItem {
   if (frame.kind === 'text') {
-    return {
-      type: frame.role === 'user' ? 'user_message' : 'agent_text',
-      id: frame.frameId,
-      turn,
-      at: stamp,
-      text: frame.text,
-      ...(frame.role === 'assistant' ? { sealed: true } : {}),
-    } as TimelineItem
+    if (frame.role === 'assistant') {
+      return {
+        type: 'agent_text',
+        id: frame.frameId,
+        turn,
+        at: stamp,
+        text: frame.text,
+        sealed: true,
+      }
+    }
+    return inputItem(sourceOfFrame(frame), frame.frameId, turn, stamp, frame.text)
   }
   if (frame.kind === 'thinking') {
     return {
@@ -237,32 +318,92 @@ const phaseOf = (snapshot: AgentTranscriptSnapshot, last: TranscriptTurn | undef
 
 export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineState {
   const turns = snapshot.items.filter((item): item is TranscriptTurn => item.kind === 'turn')
+  const status = phaseOf(snapshot, turns.at(-1))
+  const busy =
+    isInFlight(status) ||
+    turns.some((turn) => !isSettled(turn.state)) ||
+    (snapshot.meta.activity !== undefined && snapshot.meta.activity !== 'idle')
   const pages: TurnPage[] = []
   const spans: TurnSpan[] = []
+  const facts: { opensWithAnchor: boolean; anchors: number | null }[] = []
   for (const turn of turns) {
     const stamp = at(turn.startedAt)
+    const source = sourceOfTurn(turn)
+    const hasInput = turn.prompt !== undefined || (turn.attachmentIds?.length ?? 0) > 0
+    const opening = hasInput ? source.anchors : source.isUser ? null : 0
+    let anchors = opening
     const items: TimelineItem[] =
-      turn.prompt === undefined
+      turn.prompt === undefined && source.isUser
         ? []
         : [
-            {
-              type: 'user_message',
-              id: turn.triggerPromptId ?? turn.turnId,
-              turn: turn.ordinal,
-              at: stamp,
-              text: turn.prompt,
-            },
+            inputItem(
+              source,
+              turn.triggerPromptId ?? turn.turnId,
+              turn.ordinal,
+              stamp,
+              turn.prompt ?? '',
+            ),
           ]
     for (const step of turn.steps) {
       for (const frame of step.frames) {
         items.push(frameOf(frame, turn.ordinal, at(step.startedAt) || stamp))
+        if (frame.kind === 'text' && frame.role === 'user') {
+          const count = sourceOfFrame(frame).anchors
+          anchors = anchors === null || count === null ? null : anchors + count
+        }
       }
     }
     pages.push({ turn: turn.ordinal, items })
+    facts.push({ opensWithAnchor: opening === 1, anchors })
     spans.push(spanOf(turn, turn.ordinal))
   }
+
+  // :undo removes a suffix ending at a user anchor, not at an arbitrary run.
+  let suffixAnchors = 0
+  let nextOpensWithAnchor = true
+  let uncertainty: string | null = null
+  let runIndex = pages.length - 1
+  for (const item of snapshot.items.toReversed()) {
+    if (item.kind !== 'turn') {
+      uncertainty = '包含压缩或其他边界标记，无法证明精确截断。'
+      continue
+    }
+    const page = pages[runIndex]
+    const fact = facts[runIndex]
+    if (page === undefined || fact === undefined) {
+      throw new Error('Transcript run projection is incomplete.')
+    }
+    const settled = isSettled(item.state)
+    const reason =
+      busy || !settled
+        ? '会话仍在运行或等待输入，暂不可分叉。'
+        : (uncertainty ??
+          (nextOpensWithAnchor ? null : '下一段不从用户撤销锚点开始，无法精确截到此处。'))
+    pages[runIndex] = {
+      ...page,
+      run: {
+        settled,
+        undoCount: reason === null ? suffixAnchors : null,
+        forkUnavailableReason: reason,
+      },
+    }
+    if (fact.anchors === null) {
+      uncertainty = '来源或撤销锚点信息不足，不能可靠计算分叉位置。'
+    } else {
+      suffixAnchors += fact.anchors
+    }
+    // conversation-runtime ForkThread.drop_turns is u32.
+    if (suffixAnchors > 0xffff_ffff) {
+      uncertainty = '撤销锚点计数超出平台支持范围。'
+    }
+    if (item.origin.kind === 'compaction') {
+      uncertainty = '不能跨越上下文压缩边界分叉。'
+    }
+    nextOpensWithAnchor = fact.opensWithAnchor
+    runIndex -= 1
+  }
   return {
-    status: phaseOf(snapshot, turns.at(-1)),
+    status,
     backgroundTasks: snapshot.tasks
       .map(backgroundOf)
       .filter((item): item is BackgroundTaskItem => item !== null),
@@ -275,7 +416,7 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
 
 export const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[] =>
   snapshot.items.flatMap((item) =>
-    item.kind === 'turn'
+    item.kind === 'turn' && sourceOfTurn(item).isUser
       ? [
           {
             turnId: item.turnId,

@@ -38,13 +38,7 @@ export interface MessageImage {
  */
 interface TimelineEntry {
   readonly id: TimelineItemId
-  /**
-   * 它属于第几段。
-   *
-   * 段号由 transcript-projector 按官方 turn 顺序编出：sealed 段在前，活动段在尾。
-   * 回放出来的段号是零或负数（最后一轮为 r0）的旧约定已随帧投影一起退役，
-   * 这里只保留段归属本身。
-   */
+  /** 官方运行的序号，不由用户气泡推断。 */
   readonly turn: number
   readonly at: number
 }
@@ -61,6 +55,12 @@ export interface UserMessageItem extends TimelineEntry {
   readonly images?: readonly MessageImage[]
   /** 这句话挂上的技能名，与图片同一条可选规矩。 */
   readonly skills?: readonly string[]
+}
+
+export interface RunTriggerItem extends TimelineEntry {
+  readonly type: 'run_trigger'
+  readonly label: string
+  readonly text: string
 }
 
 export interface AgentTextItem extends TimelineEntry {
@@ -276,6 +276,7 @@ export interface ErrorItem extends TimelineEntry {
 
 export type TimelineItem =
   | UserMessageItem
+  | RunTriggerItem
   | AgentTextItem
   | AgentThoughtItem
   | ToolCallTimelineItem
@@ -306,6 +307,12 @@ export interface TurnSpan {
  */
 export interface TurnPage {
   readonly turn: number
+  /** 缺席表示尚无官方运行事实，不能从消息反推。 */
+  readonly run?: {
+    readonly settled: boolean
+    readonly undoCount: number | null
+    readonly forkUnavailableReason: string | null
+  }
   readonly items: readonly TimelineItem[]
 }
 

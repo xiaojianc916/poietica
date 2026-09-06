@@ -44,13 +44,13 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
     rename: async (threadId, title) => {
       await throughIpc(() => commands.agentRenameThread({ threadId, title }))
     },
-    fork: async (threadId, title, dropTurns) => {
+    fork: async (threadId, title, undoCount) => {
       const resolvedLaunch = await launch()
       return throughIpc(() =>
         commands.agentForkThread({
           threadId,
           title,
-          dropTurns,
+          dropTurns: undoCount,
           launch: resolvedLaunch,
           cwd: cwd?.() ?? null,
         }),

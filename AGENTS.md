@@ -105,7 +105,7 @@ emit、宿主节拍（攒批、窗口、托盘）。
 ## 5. 微型架构条例（文件内部）
 
 - **单一分发点**：一种帧/一种状态只允许一个 match/switch 主干；协议知识收在
-  一处（TS 侧唯一认识官方 transcript 形状的文件是 timeline/transcript-projector.ts，
+  一处（TS 侧唯一认识官方 transcript 形状的文件是 transcript/transcript-projector.ts，
   Rust 侧是 crates/kap-client/src/frame.rs——别处出现协议判别即为泄漏）。
 - **成形与投递两段式**：昂贵构造在锁外/号外完成，占号、上锁、发布只做最后一步
   （判例：crates/kap-client/src/recorder.rs 的 shape/deliver，asset_protocol 的

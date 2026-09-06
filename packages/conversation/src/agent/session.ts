@@ -22,9 +22,9 @@ import type { TranscriptPort } from './transcript'
  * 在原生侧了，这里拿着的只是取得它的两个令牌。所以这个包不认识 File，不认识
  * base64，也不认识 object URL —— 那些都是浏览器的东西，不是协议的东西。
  *
- * 协议本身要的 base64 由持有字节的那一侧编（见 commands/agent/attachment.rs 的
- * keep_bytes）：agent 是另一个进程，那一份省不掉，但它不该在 webview 与原生之间
- * 往返一趟。
+ * 协议本身要的 base64 由持有字节的那一侧编（见 conversation/attachment.rs 的
+ * keep_bytes，位于 apps/desktop/src-tauri/src/）：agent 是另一个进程，那一份
+ * 省不掉，但它不该在 webview 与原生之间往返一趟。
  */
 export interface PromptAsset {
   /** 这张图挂在哪条资产会话下。 */

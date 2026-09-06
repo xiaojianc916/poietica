@@ -18,12 +18,13 @@ export interface TimelineSeatProps {
   readonly group: ToolGroupPlan | undefined
   readonly seal: TurnSealPlan | undefined
   readonly replyText: string | undefined
-  readonly replyDropTurns: number | undefined
+  readonly replyUndoCount: number | null | undefined
+  readonly replyForkReason: string | null | undefined
   /** 哪些抽屉开着；键是条目 id 与组 id。 */
   readonly open: ReadonlySet<string>
   readonly onToggle: (id: string) => void
   readonly onSealToggle: (turn: number, isOpen: boolean) => void
-  readonly onFork?: ((dropTurns: number) => void) | undefined
+  readonly onFork?: ((undoCount: number) => void) | undefined
 }
 
 export const TimelineSeat = memo(function TimelineSeat({
@@ -32,7 +33,8 @@ export const TimelineSeat = memo(function TimelineSeat({
   onSealToggle,
   onToggle,
   open,
-  replyDropTurns,
+  replyUndoCount,
+  replyForkReason,
   replyText,
   row,
   seal,
@@ -56,10 +58,15 @@ export const TimelineSeat = memo(function TimelineSeat({
     )
 
   const content =
-    replyDropTurns === undefined || replyText === undefined ? (
+    replyText === undefined ? (
       rendered
     ) : (
-      <ReplyActionHost dropTurns={replyDropTurns} onFork={onFork} text={replyText}>
+      <ReplyActionHost
+        forkUnavailableReason={replyForkReason ?? null}
+        onFork={onFork}
+        text={replyText}
+        undoCount={replyUndoCount ?? null}
+      >
         {rendered}
       </ReplyActionHost>
     )

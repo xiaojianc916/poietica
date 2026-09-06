@@ -9,14 +9,8 @@ import {
   type TurnPage,
   type TurnSpan,
 } from './timeline-contract'
-import { selectIsBusy } from './timeline-queries'
 
-/**
- * 转录的唯一投影：一段一次派生，屏幕按下标取行。
- *
- * TurnPage 是一次运行的权威边界：封条与过程折叠只按它计算。问题轨道仍按用户消息计算，
- * 但消息不能反过来伪造运行边界；插话与排队提问因此不会多造封条。
- */
+/** 运行负责收尾，用户消息只负责问题导航；撤销能力由协议投影提供。 */
 
 export interface FeedRow {
   readonly item: TimelineItem
@@ -43,15 +37,15 @@ export interface TurnSealPlan {
   /** 运行中的耗时以它为终点，所以秒表不会超过实际收帧的跨度。 */
   readonly lastFrameAt: number | undefined
   readonly hasProcess: boolean
-  /** 生命周期来自 TimelineState.status；时间戳只负责耗时。 */
+  /** 生命周期来自当前运行自己的终态；时间戳只负责耗时。 */
   readonly isRunning: boolean
   readonly isOpen: boolean
 }
 
 export interface ReplyActionPlan {
   readonly text: string
-  /** 这一问之后整条对话还有几问。分叉点就是它：0 是最后一轮。 */
-  readonly dropTurns: number
+  readonly undoCount: number | null
+  readonly forkUnavailableReason: string | null
 }
 
 /** 屏幕要的一切，按下标问。 */
@@ -70,12 +64,13 @@ export interface Presentation {
   readonly replyAt: (index: number) => ReplyActionPlan | undefined
 }
 
-/** 旁白不参与回复分段；有最终正文时仍随之前的过程一起折叠。 */
+/** 旁白不是助手正文；过程折叠按运行计算。 */
 const ASIDE: ReadonlySet<TimelineItem['type']> = new Set([
   'error',
   'link',
   'permission',
   'question',
+  'run_trigger',
 ])
 /* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
@@ -85,27 +80,13 @@ const LEAST = 2
 
 const NO_GROUPS: ReadonlyMap<string, ToolGroupPlan> = new Map()
 const NO_SEALS: ReadonlyMap<number, TurnSealPlan> = new Map()
-const NO_REPLIES: ReadonlyMap<number, Reply> = new Map()
+const NO_REPLIES: ReadonlyMap<number, ReplyActionPlan> = new Map()
 
 const ROWS = new WeakMap<TimelineItem, FeedRow>()
 const SEGMENTS = new WeakMap<TurnPage, Segment>()
 const PREFIX = new WeakMap<readonly TurnPage[], Prefix>()
 const PREFIX_ROWS = new WeakMap<Prefix, ReadonlyMap<string, number>>()
 const FEEDS = new WeakMap<TimelineState, Held>()
-
-/** 一条提问到下一条提问之间的回复操作；它不拥有运行封条。 */
-interface Stanza {
-  readonly replyId: TimelineItemId | undefined
-  readonly replyText: string
-  /** 段内这一问之后还有几问；跨段那一半由 selectPresentation 补齐。 */
-  readonly after: number
-}
-
-/** 段内的一份回复操作。绝对分叉点要跨段才算得出，这里只存段内那一半。 */
-interface Reply {
-  readonly text: string
-  readonly after: number
-}
 
 /** 一问的落点。行号相对本段。 */
 interface TurnAt {
@@ -116,16 +97,14 @@ interface TurnAt {
 /** 一次运行的全部派生。TurnPage 是缓存单位，也是封条的唯一所有者。 */
 interface Segment {
   readonly span: TurnSpan | undefined
-  /** 这一轮是否仍允许接收内容，由 TimelineState.status 唯一决定。 */
+  /** 来自本运行的官方生命周期，不受下一条排队消息影响。 */
   readonly running: boolean
   /** 人亲手定过的终止后开合；运行中不读取。 */
   readonly picked: boolean | undefined
   readonly rows: readonly FeedRow[]
   readonly groups: ReadonlyMap<string, ToolGroupPlan>
   readonly seals: ReadonlyMap<number, TurnSealPlan>
-  readonly replies: ReadonlyMap<number, Reply>
-  /** 这一段里有几问。分叉点的跨段偏移按它累加。 */
-  readonly prompts: number
+  readonly replies: ReadonlyMap<number, ReplyActionPlan>
   /** 段内每一问的落点，升序。 */
   readonly said: readonly TurnAt[]
   /** 条目 id -> 段内行号。封条落位与目录寻址共用这一份。 */
@@ -146,7 +125,6 @@ interface Prefix {
   readonly tailSpan: TurnSpan | undefined
   readonly segments: readonly Segment[]
   readonly offsets: readonly number[]
-  readonly trailingPrompts: readonly number[]
   readonly precedingTurnIds: readonly (string | undefined)[]
   readonly count: number
   readonly latestOwnMessage: string | null
@@ -201,7 +179,7 @@ function rowsOf(page: TurnPage, live: boolean): readonly FeedRow[] {
   return rows
 }
 
-/** 用户消息行的行号清单，升序。轮次边界与回复分段都从这一趟扫描取数。 */
+/** 用户消息只服务问题导航，不定义运行或撤销边界。 */
 function saidIn(rows: readonly FeedRow[]): readonly number[] {
   const said: number[] = []
 
@@ -212,13 +190,6 @@ function saidIn(rows: readonly FeedRow[]): readonly number[] {
   }
 
   return said
-}
-
-/** 每一轮的起点。段自己那一问在 0；插进来的那些各自成轮；-1 是无主的开头。 */
-function boundsIn(rows: readonly FeedRow[]): readonly number[] {
-  const out = saidIn(rows)
-
-  return out[0] === 0 ? out : [-1, ...out]
 }
 
 /**
@@ -251,7 +222,7 @@ function foldFrom(rows: readonly FeedRow[], frontier: number): readonly number[]
   for (let i = 0; i < frontier; i += 1) {
     const type = rows[i]?.item.type
 
-    if (type === undefined || type === SAID) {
+    if (type === undefined || type === SAID || (i === 0 && type === 'run_trigger')) {
       continue
     }
 
@@ -267,19 +238,6 @@ function bodyIn(rows: readonly FeedRow[], from: number, until: number): boolean 
     const type = rows[i]?.item.type
 
     if (type !== undefined && type !== SAID && !ASIDE.has(type)) {
-      return true
-    }
-  }
-
-  return false
-}
-
-/** 这一轮还有没有东西在动：有就先不给回复操作。 */
-function busyIn(rows: readonly FeedRow[], from: number, until: number): boolean {
-  for (let i = from; i < until; i += 1) {
-    const row = rows[i]
-
-    if (row !== undefined && (row.isStreamingTail || row.isInFlight)) {
       return true
     }
   }
@@ -387,30 +345,6 @@ function lastSaid(said: readonly TurnAt[], row: number): TurnAt | undefined {
   return at === -1 ? undefined : said[at]
 }
 
-/** 每一问的回复操作。起点仍问 answerStart：一个判据，两个读者。 */
-function stanzasIn(rows: readonly FeedRow[], running: boolean): readonly Stanza[] {
-  const bounds = boundsIn(rows)
-  const plans: Stanza[] = []
-
-  for (let k = 0; k < bounds.length; k += 1) {
-    const said = bounds[k] ?? -1
-    const until = bounds[k + 1] ?? rows.length
-    const from = said + 1
-    const answer = answerStart(rows, from, until)
-    const alive = running && k === bounds.length - 1
-    const tail = rows[until - 1]
-    const settled = !alive && !busyIn(rows, from, until) && answer !== undefined
-
-    plans.push({
-      after: bounds.length - 1 - k,
-      replyId: settled && tail !== undefined ? tail.item.id : undefined,
-      replyText: settled && answer !== undefined ? speechFrom(rows, answer, until) : '',
-    })
-  }
-
-  return plans
-}
-
 /** 可见行的行号索引：封条与回复操作都按它落位。 */
 function placesIn(rows: readonly FeedRow[]): ReadonlyMap<string, number> {
   const where = new Map<string, number>()
@@ -426,25 +360,34 @@ function placesIn(rows: readonly FeedRow[]): ReadonlyMap<string, number> {
   return where
 }
 
-/** 回复操作只落在留在屏幕上的那一行；被折叠掉的不出操作。 */
+/** 每个已终止运行最多一组操作，落在其最后一条可见助手正文上。 */
 function repliesIn(
-  plans: readonly Stanza[],
+  rows: readonly FeedRow[],
   where: ReadonlyMap<string, number>,
-): ReadonlyMap<number, Reply> {
-  const replies = new Map<number, Reply>()
-
-  for (const plan of plans) {
-    const at = plan.replyId === undefined ? undefined : where.get(plan.replyId)
-
-    if (at !== undefined) {
-      replies.set(at, { after: plan.after, text: plan.replyText })
-    }
+  run: TurnPage['run'],
+): ReadonlyMap<number, ReplyActionPlan> {
+  if (run?.settled !== true) {
+    return NO_REPLIES
   }
-
-  return replies.size === 0 ? NO_REPLIES : replies
+  const answer = answerStart(rows, 0, rows.length)
+  const tail = rows.findLast((row) => row.item.type === 'agent_text')
+  const at = tail === undefined ? undefined : where.get(tail.item.id)
+  if (answer === undefined || at === undefined) {
+    return NO_REPLIES
+  }
+  return new Map([
+    [
+      at,
+      {
+        text: speechFrom(rows, answer, rows.length),
+        undoCount: run.undoCount,
+        forkUnavailableReason: run.forkUnavailableReason,
+      },
+    ],
+  ])
 }
 
-/** 这一轮的封条：没有提问，或既无正文也无起点的一轮不出封条。 */
+/** 封条属于有内容或计时事实的官方运行，不要求先有用户气泡。 */
 function sealOf(
   page: TurnPage,
   span: TurnSpan | undefined,
@@ -453,10 +396,8 @@ function sealOf(
   isOpen: boolean,
   hasProcess: boolean,
 ): TurnSealPlan | undefined {
-  const asked = rows.some((row) => row.item.type === SAID)
-
   if (
-    !asked ||
+    page.run === undefined ||
     (!bodyIn(rows, 0, rows.length) &&
       span?.startedAt === undefined &&
       span?.durationMs === undefined)
@@ -488,11 +429,10 @@ function buildSegment(
   const process = foldFrom(all, answerStart(all, 0, all.length) ?? 0)
   const seal = sealOf(page, span, all, running, isOpen, process.length > 0)
   const hidden = isOpen || seal === undefined ? new Set<number>() : new Set(process)
-  const plans = stanzasIn(all, running)
   const grouped = groupIn(hidden.size === 0 ? all : all.filter((_, one) => !hidden.has(one)))
   const where = placesIn(grouped.rows)
-  const asked = all.find((row) => row.item.type === SAID)
-  const sealAt = asked === undefined ? undefined : where.get(asked.item.id)
+  const first = grouped.rows[0]
+  const sealAt = first === undefined ? undefined : where.get(first.item.id)
   const seals =
     seal === undefined || sealAt === undefined
       ? NO_SEALS
@@ -510,8 +450,7 @@ function buildSegment(
     groups: grouped.groups,
     ownMessage,
     picked,
-    prompts: all.reduce((n, row) => (row.item.type === SAID ? n + 1 : n), 0),
-    replies: repliesIn(plans, where),
+    replies: repliesIn(all, where, page.run),
     rows: grouped.rows,
     running,
     said: saidAt(grouped.rows),
@@ -592,7 +531,12 @@ function prefixOf(state: TimelineState, chosen: ReadonlyMap<number, boolean>): P
   let lastTurnId: string | undefined
 
   for (const page of sealed) {
-    const segment = segmentOf(page, spanOf(state.spans, page.turn), false, chosen.get(page.turn))
+    const segment = segmentOf(
+      page,
+      spanOf(state.spans, page.turn),
+      page.run?.settled === false,
+      chosen.get(page.turn),
+    )
     segments.push(segment)
     offsets.push(count)
     precedingTurnIds.push(lastTurnId)
@@ -600,13 +544,6 @@ function prefixOf(state: TimelineState, chosen: ReadonlyMap<number, boolean>): P
     latestOwnMessage = segment.ownMessage ?? latestOwnMessage
     lastTurn = segment.rows.at(-1)?.item.turn ?? lastTurn
     lastTurnId = segment.said.at(-1)?.id ?? lastTurnId
-  }
-
-  const trailingPrompts = new Array<number>(segments.length)
-  let promptsAfter = 0
-  for (let index = segments.length - 1; index >= 0; index -= 1) {
-    trailingPrompts[index] = promptsAfter
-    promptsAfter += segments[index]?.prompts ?? 0
   }
 
   const built: Prefix = {
@@ -619,7 +556,6 @@ function prefixOf(state: TimelineState, chosen: ReadonlyMap<number, boolean>): P
     precedingTurnIds,
     segments,
     tailSpan,
-    trailingPrompts,
   }
   PREFIX.set(sealed, built)
   return built
@@ -654,7 +590,7 @@ export function selectPresentation(
   chosen: ReadonlyMap<number, boolean>,
 ): Presentation {
   const held = FEEDS.get(state)
-  const running = selectIsBusy(state)
+  const running = state.active.run?.settled === false
   if (held !== undefined && held.chosen === chosen) {
     return held.result
   }
@@ -673,7 +609,6 @@ export function selectPresentation(
         at: index - prefix.count,
         precedingTurnId: prefix.lastTurnId,
         segment: tail,
-        trailing: 0,
       }
     }
 
@@ -696,7 +631,6 @@ export function selectPresentation(
       at: index - start,
       precedingTurnId: prefix.precedingTurnIds[low],
       segment,
-      trailing: (prefix.trailingPrompts[low] ?? 0) + tail.prompts,
     }
   }
 
@@ -722,10 +656,7 @@ export function selectPresentation(
     },
     replyAt: (index) => {
       const found = seek(index)
-      const reply = found?.segment.replies.get(found.at)
-      return found === undefined || reply === undefined
-        ? undefined
-        : { dropTurns: reply.after + found.trailing, text: reply.text }
+      return found?.segment.replies.get(found.at)
     },
     rowAt: (index) => {
       const found = seek(index)

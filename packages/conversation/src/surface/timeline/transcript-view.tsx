@@ -76,8 +76,8 @@ export interface TranscriptViewProps {
   readonly isRestoring: boolean
   /** 转录之前那一块常驻内容,交给滚动盒。 */
   readonly lead?: ReactNode
-  /** 从某一轮分叉；dropTurns 是这一轮之后还有几轮。缺席 = 平台没有这个动作。 */
-  readonly onFork?: ((dropTurns: number) => void) | undefined
+  /** 参数是协议用户撤销锚点数，不是运行数。缺席表示平台不提供分叉。 */
+  readonly onFork?: ((undoCount: number) => void) | undefined
 }
 
 export function TranscriptView({
@@ -158,7 +158,7 @@ export function TranscriptView({
   /*
    * 一行的全部装饰按下标问，交给记忆化的行位。
    *
-   * 封条始终挂在该运行第一条用户消息之后；过程行的显隐不会更换它的虚拟行 key、
+   * 封条挂在该运行第一条可见行之后；过程行的显隐不会更换它的虚拟行 key、
    * 估高类别或行内边距。
    */
   const renderRowAt = useCallback(
@@ -178,8 +178,9 @@ export function TranscriptView({
           onSealToggle={chooseTurn}
           onToggle={toggleOpen}
           open={items}
-          replyDropTurns={replyAction?.dropTurns}
+          replyForkReason={replyAction?.forkUnavailableReason}
           replyText={replyAction?.text}
+          replyUndoCount={replyAction?.undoCount}
           row={row}
           seal={feed.sealAt(index)}
         />

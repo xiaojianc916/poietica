@@ -253,7 +253,7 @@ export class ThreadsStore {
         listener(threadId)
       }
     })
-  fork = (threadId: string, dropTurns: number): Promise<string | null> =>
+  fork = (threadId: string, undoCount: number): Promise<string | null> =>
     this.#serial(threadId, async () => {
       const action = this.#port?.fork
       if (this.#disposed || action === undefined) {
@@ -261,7 +261,7 @@ export class ThreadsStore {
       }
       this.#revision += 1
       try {
-        const forked = await action(threadId, forkNameOf(this.titleOf(threadId)), dropTurns)
+        const forked = await action(threadId, forkNameOf(this.titleOf(threadId)), undoCount)
         if (this.#disposed) {
           return null
         }

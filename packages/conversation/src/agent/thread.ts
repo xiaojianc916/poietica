@@ -41,7 +41,8 @@ export interface ThreadPort {
   readonly export?: (threadId: ThreadId) => Promise<boolean>
   readonly rename?: (threadId: ThreadId, title: string) => Promise<void>
   readonly remove?: (threadId: ThreadId) => Promise<void>
-  readonly fork?: (threadId: ThreadId, title: string, dropTurns: number) => Promise<ThreadRecord>
+  /** undoCount counts protocol user anchors, not runs or rendered messages. */
+  readonly fork?: (threadId: ThreadId, title: string, undoCount: number) => Promise<ThreadRecord>
   readonly archive?: (threadId: ThreadId, archived: boolean) => Promise<void>
   readonly setPinned?: (threadId: ThreadId, pinned: boolean) => Promise<void>
 }
