@@ -3,9 +3,14 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from '@typescript/typescript6'
 import { type ImportRecord, importsOf, sources } from './imports.ts'
-import { FRAMEWORK_SPECIFIERS } from './layering.ts'
-import type { Violation } from './policies.ts'
-import type { Manifest, Workspace } from './workspace.ts'
+import {
+  DOMAIN_CONTRACT_IMPORTS,
+  FRAMEWORK_SPECIFIERS,
+  HOST_AWARE_PACKAGES,
+  UNLAYERED_DIRECTORIES,
+} from './layering.ts'
+import { layerDirection, type Violation } from './policies.ts'
+import type { ExportTarget, Manifest, Workspace } from './workspace.ts'
 
 export interface SourceUnit {
   readonly file: string
@@ -17,6 +22,33 @@ const testFile = (file: string): boolean =>
 const declarationFile = (file: string): boolean => /\.d\.[cm]?ts$/.test(file)
 const canonicalOf = (host: ts.ModuleResolutionHost, file: string): string =>
   path.resolve(host.realpath?.(file) ?? file)
+
+/* 条件对象里的每个字符串叶子都是一个公开目标（如 types 与 default 指向不同文件）。 */
+const exportTargets = (value: ExportTarget | undefined): string[] => {
+  if (value === undefined || typeof value === 'string') {
+    return value === undefined ? [] : [value]
+  }
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === 'string')
+  }
+  return Object.values(value).flatMap(exportTargets)
+}
+
+/* 需要单个文件时（如无安装链接的回退解析、headless 入口）优先取运行时条件。 */
+const exportTarget = (value: ExportTarget | undefined): string | undefined => {
+  if (value === undefined || typeof value === 'string') {
+    return value
+  }
+  if (Array.isArray(value)) {
+    return value.find((entry): entry is string => typeof entry === 'string')
+  }
+  return (
+    exportTarget(value['default']) ??
+    exportTarget(value['import']) ??
+    exportTarget(value['require']) ??
+    exportTargets(value).find((entry) => entry !== undefined)
+  )
+}
 
 const jsxMarker = (node: ts.Node): boolean =>
   ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)
@@ -65,7 +97,7 @@ function edgeOf(
   records: ReadonlyMap<string, SourceUnit>,
   host: ts.ModuleResolutionHost,
   resolveEntry: (specifier: string) => string | undefined,
-  boundary: (file: string, specifier: string, target: string) => void,
+  boundary: (file: string, specifier: string, target: string, typeOnly: boolean) => void,
   reject: (policy: string, file: string, detail: string) => void,
 ): { readonly forbidden: string[]; readonly target?: string } {
   const specifier = record.specifier
@@ -105,7 +137,7 @@ function edgeOf(
     return { forbidden }
   }
   const target = canonicalOf(host, resolvedFile)
-  boundary(file, specifier, target)
+  boundary(file, specifier, target, record.typeOnly === true)
   if (!record.typeOnly && testFile(target)) {
     reject('production-does-not-import-tests', file, specifier)
   }
@@ -121,7 +153,7 @@ function scanUnit(
   records: ReadonlyMap<string, SourceUnit>,
   host: ts.ModuleResolutionHost,
   resolveEntry: (specifier: string) => string | undefined,
-  boundary: (file: string, specifier: string, target: string) => void,
+  boundary: (file: string, specifier: string, target: string, typeOnly: boolean) => void,
   reject: (policy: string, file: string, detail: string) => void,
 ): { readonly outgoing: Set<string>; readonly forbidden: string[] } {
   const outgoing = new Set<string>()
@@ -167,7 +199,7 @@ export function analyzeSourceFiles(
   host: ts.ModuleResolutionHost,
   headless: readonly string[] = [],
   entries: ReadonlyMap<string, Workspace> = new Map<string, Workspace>(),
-  boundary: (file: string, specifier: string, target: string) => void = () => {},
+  boundary: (file: string, specifier: string, target: string, typeOnly: boolean) => void = () => {},
 ): Violation[] {
   const records = new Map(units.map((unit) => [canonicalOf(host, unit.file), unit]))
   const edges = new Map<string, Set<string>>()
@@ -183,7 +215,7 @@ export function analyzeSourceFiles(
       return undefined
     }
     const subpath = specifier.slice(name.length)
-    const target = workspace.manifest.exports?.[subpath === '' ? '.' : `.${subpath}`]
+    const target = exportTarget(workspace.manifest.exports?.[subpath === '' ? '.' : `.${subpath}`])
     return target === undefined ? undefined : path.resolve(root, workspace.directory, target)
   }
   for (const [file, unit] of records) {
@@ -306,6 +338,103 @@ function compilerOptions(root: string): (file: string) => ts.CompilerOptions {
   }
 }
 
+export function resolvedWorkspaceBoundaries(
+  root: string,
+  workspaces: readonly Workspace[],
+  host: ts.ModuleResolutionHost,
+): (file: string, specifier: string, target: string, typeOnly: boolean) => Violation[] {
+  const owners = workspaces
+    .map((workspace) => {
+      const entries = new Map<string, string[]>()
+      for (const [subpath, exported] of Object.entries(workspace.manifest.exports ?? {})) {
+        const name = subpath === '.' ? workspace.name : workspace.name + subpath.slice(1)
+        for (const target of exportTargets(exported)) {
+          const canonical = canonicalOf(host, path.resolve(root, workspace.directory, target))
+          const names = entries.get(canonical) ?? []
+          names.push(name)
+          entries.set(canonical, names)
+        }
+      }
+      return {
+        workspace,
+        directory: canonicalOf(host, path.resolve(root, workspace.directory)),
+        entries,
+      }
+    })
+    .sort((left, right) => right.directory.length - left.directory.length)
+  const ownerOf = (file: string) => {
+    const canonical = canonicalOf(host, file)
+    return owners.find((owner) => {
+      const relative = path.relative(owner.directory, canonical)
+      return (
+        relative !== '' &&
+        relative !== '..' &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative)
+      )
+    })
+  }
+  return (file, specifier, target, typeOnly) => {
+    const from = ownerOf(file)
+    const to = ownerOf(target)
+    if (
+      from === undefined ||
+      to === undefined ||
+      from === to ||
+      UNLAYERED_DIRECTORIES.includes(from.workspace.directory)
+    ) {
+      return []
+    }
+    const where = path.relative(root, file).split(path.sep).join('/')
+    const violations = layerDirection(
+      [
+        {
+          file: where,
+          specifier: to.workspace.name,
+          ...(typeOnly ? { typeOnly: true as const } : {}),
+        },
+      ],
+      workspaces,
+    )
+    const publicNames = to.entries.get(canonicalOf(host, target)) ?? []
+    if (publicNames.length === 0 || specifier.startsWith('.') || path.isAbsolute(specifier)) {
+      violations.push({
+        policy: 'resolved-public-entry',
+        where,
+        detail: `${specifier} bypasses the public exports of ${to.workspace.name}`,
+      })
+    }
+    const manifest = from.workspace.manifest
+    const declared = [
+      manifest.dependencies,
+      manifest.devDependencies,
+      manifest.peerDependencies,
+      manifest.optionalDependencies,
+    ].some((section) => section?.[to.workspace.name] !== undefined)
+    if (!declared) {
+      violations.push({
+        policy: 'resolved-declared-dependency',
+        where,
+        detail: `${from.workspace.name} has no declared dependency on ${to.workspace.name}`,
+      })
+    }
+    if (
+      to.workspace.name === '@poietica/contract' &&
+      !HOST_AWARE_PACKAGES.includes(from.workspace.name)
+    ) {
+      const allowed = DOMAIN_CONTRACT_IMPORTS[from.workspace.name]
+      if (!typeOnly || allowed === undefined || !publicNames.includes(allowed)) {
+        violations.push({
+          policy: 'transport-contract-is-adapter-private',
+          where,
+          detail: 'A resolved contract edge must use the declared type-only domain entry.',
+        })
+      }
+    }
+    return violations
+  }
+}
+
 export async function fileGraph(
   root: string,
   workspaces: readonly Workspace[],
@@ -325,7 +454,7 @@ export async function fileGraph(
       poietica?: { headless?: readonly string[] }
     }
     for (const entry of manifest.poietica?.headless ?? []) {
-      const target = manifest.exports?.[entry]
+      const target = exportTarget(manifest.exports?.[entry])
       if (target === undefined) {
         throw new Error(`Headless entry has no public export: ${workspace.name}:${entry}`)
       }
@@ -335,5 +464,17 @@ export async function fileGraph(
   const entries = new Map<string, Workspace>(
     workspaces.map((workspace) => [workspace.name, workspace] as const),
   )
-  return analyzeSourceFiles(root, units, ts.sys, headless, entries)
+  const policy = resolvedWorkspaceBoundaries(root, workspaces, ts.sys)
+  const boundaries: Violation[] = []
+  const graph = analyzeSourceFiles(
+    root,
+    units,
+    ts.sys,
+    headless,
+    entries,
+    (file, specifier, target, typeOnly) => {
+      boundaries.push(...policy(file, specifier, target, typeOnly))
+    },
+  )
+  return [...graph, ...boundaries]
 }

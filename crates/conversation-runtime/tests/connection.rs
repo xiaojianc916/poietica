@@ -95,3 +95,44 @@ async fn shutdown_is_idempotent_and_rejects_new_launches() {
     );
     assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
+
+#[tokio::test]
+async fn invalid_or_closed_commands_do_not_start_an_agent() {
+    use poietica_conversation::identity::TurnId;
+    use poietica_conversation_runtime::connection::{CommandError, Prompt};
+    use poietica_ledger::index::ThreadAttachment;
+    let directory = tempfile::tempdir().expect("directory");
+    let index = LocalIndex::<Failure>::open(
+        &directory.path().join("commands.sqlite3"), SystemWallClock,
+    ).expect("index");
+    let journal = FrameJournal::new(index.clone(), |_, _| {}).expect("journal");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let called = Arc::clone(&calls);
+    let runtime = Runtime::new(
+        directory.path().to_path_buf(), directory.path().join("attachments"), index, journal,
+        move |_| {
+            called.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { Err(Failure::Runtime(RuntimeError::Gone)) })
+        },
+        |_| {},
+    );
+    let prompt = |text: &str| Prompt {
+        agent_id: "agent".to_owned(), cwd: None, takeover: Takeover::Preserve,
+        thread_id: uuid::Uuid::from_u128(1), turn: TurnId::new("submission".to_owned()),
+        text: text.to_owned(), configuration: Vec::new(), assets: Vec::<ThreadAttachment>::new(),
+        skills: Vec::new(),
+    };
+    let result = runtime.prompt(
+        prompt("   "), |_thread, assets| std::future::ready(Ok::<_, Failure>(assets)), |_| Ok(()), || 1,
+    ).await;
+    assert!(matches!(result, Err(CommandError::EmptyPrompt)));
+    assert!(matches!(runtime.select_configuration(None, "model".to_owned(), "model".to_owned(), None).await,
+        Err(CommandError::MissingSession)));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    runtime.shutdown().expect("shutdown");
+    let result = runtime.prompt(
+        prompt("work"), |_thread, assets| std::future::ready(Ok::<_, Failure>(assets)), |_| Ok(()), || 1,
+    ).await;
+    assert!(matches!(result, Err(CommandError::Runtime(Failure::Runtime(RuntimeError::Gone)))));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}

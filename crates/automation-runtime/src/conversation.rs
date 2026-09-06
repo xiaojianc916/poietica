@@ -2,13 +2,11 @@
 use poietica_automation::{AutomationError, Execution};
 use poietica_conversation::identity::TurnId;
 use poietica_conversation_runtime::{
-    DeliveryError, Submission,
-    gateway::KapGateway,
-    journal::FrameJournal,
+    connection::{CommandError, Prompt},
     session::{Held, SessionError, SessionResolver},
 };
 use poietica_kap_client::{
-    AgentClient, ConfigSelection, KapError, PromptObservation, SessionBook, apply_configurations,
+    AgentClient, ConfigSelection, KapError, PromptObservation, SessionBook,
     observe_prompt,
 };
 use poietica_ledger::execution::{IndexError, LocalIndex, read_index};
@@ -18,8 +16,8 @@ use std::{error::Error, path::Path};
 pub enum ExecutionError<E: Error + 'static> {
     #[error("automation connection preparation failed: {0}")]
     Runtime(#[source] E),
-    #[error("automation delivery failed: {0}")]
-    Delivery(#[source] E),
+    #[error(transparent)]
+    Command(CommandError<E>),
     #[error("automation conversation persistence failed: {0}")]
     Persistence(#[source] E),
     #[error(transparent)]
@@ -28,8 +26,6 @@ pub enum ExecutionError<E: Error + 'static> {
     Agent(KapError),
     #[error(transparent)]
     Policy(AutomationError),
-    #[error("automation submission returned no receipt identity")]
-    MissingReceipt,
     #[error("no official session exists for this stop request")]
     MissingSession,
 }
@@ -41,13 +37,11 @@ struct ConversationExecution<'a, E> {
     book: &'a SessionBook,
     owner: &'a str,
     sessions: &'a SessionResolver,
-    journal: &'a FrameJournal,
-    attachments_root: &'a Path,
 }
 
 impl<E> ConversationExecution<'_, E>
 where
-    E: Error + From<IndexError> + From<DeliveryError> + Send + 'static,
+    E: Error + From<IndexError> + Send + 'static,
 {
     async fn resolve(&self, execution: &Execution) -> Result<Held, ExecutionError<E>> {
         if self.owner != execution.agent_id {
@@ -85,62 +79,6 @@ where
             }
             _ => Err(ExecutionError::Session(SessionError::WrongOwner)),
         }
-    }
-
-    async fn submit(&self, execution: &Execution) -> Result<String, ExecutionError<E>> {
-        let held = self.resolve(execution).await?;
-        let configuration: Vec<_> = execution
-            .session_config
-            .iter()
-            .map(|(id, value)| ConfigSelection {
-                id: id.clone(),
-                value: value.clone(),
-            })
-            .collect();
-        if !configuration.is_empty() {
-            apply_configurations(
-                self.client,
-                held.session_id.clone(),
-                configuration,
-                Some(execution.prompt.clone()),
-            )
-            .await
-            .map_err(ExecutionError::Agent)?;
-        }
-        let run = execution.run.id.clone();
-        let gateway = KapGateway {
-            client: self.client.clone(),
-            journal: self.journal.clone(),
-            attachments_root: self.attachments_root.to_path_buf(),
-        };
-        poietica_conversation_runtime::submit(
-            self.index,
-            gateway,
-            Submission {
-                thread: held.thread_id,
-                session: held.session_id.clone(),
-                turn: TurnId::new(execution.run.id.clone()),
-                text: execution.prompt.clone(),
-                model: execution
-                    .session_config
-                    .get("model")
-                    .cloned()
-                    .unwrap_or_default(),
-                attachments: Vec::new(),
-                skills: Vec::new(),
-                submitted_at_unix_millis: execution.submitted_at_unix_millis,
-            },
-            move |store| {
-                let owned = store.automation_execution(&run)?;
-                if owned.is_none_or(|owned| owned.cancel_requested) {
-                    return Err(AutomationError::Data("取消先于提交生效".to_owned()).into());
-                }
-                Ok(())
-            },
-        )
-        .await
-        .map_err(ExecutionError::Delivery)?
-        .ok_or(ExecutionError::MissingReceipt)
     }
 
     async fn inspect(&self, execution: &Execution) -> Result<PromptObservation, ExecutionError<E>> {
@@ -205,8 +143,6 @@ impl<E: RuntimeFailure, F> ConversationExecutor<E, F> {
             book: &live.book,
             owner: &live.agent_id,
             sessions: self.runtime.sessions(),
-            journal: self.runtime.journal(),
-            attachments_root: self.runtime.attachments(),
         }
     }
 }
@@ -219,10 +155,38 @@ where
     fn default_agent(&self) -> Result<String, Self::Failure> {
         (self.default_agent)().map_err(ExecutionError::Runtime)
     }
-    async fn submit(&self, execution: &Execution) -> Result<String, Self::Failure> {
-        let live = self.connection(execution).await?;
-        self.context(&live).submit(execution).await
+async fn submit(&self, execution: &Execution) -> Result<String, Self::Failure> {
+        let thread_id = uuid::Uuid::parse_str(
+            execution.thread_id().map_err(ExecutionError::Policy)?,
+        ).map_err(|_| ExecutionError::Session(SessionError::InvalidId))?;
+        let run = execution.run.id.clone();
+        let receipt = self.runtime.prompt(
+            Prompt {
+                agent_id: execution.agent_id.clone(),
+                cwd: Some(execution.workspace_root.clone()),
+                takeover: Takeover::Preserve,
+                thread_id,
+                turn: TurnId::new(execution.run.id.clone()),
+                text: execution.prompt.clone(),
+                configuration: execution.session_config.iter().map(|(id, value)| ConfigSelection {
+                    id: id.clone(), value: value.clone(),
+                }).collect(),
+                assets: Vec::<poietica_ledger::index::ThreadAttachment>::new(),
+                skills: Vec::new(),
+            },
+            |_thread, attached| std::future::ready(Ok::<_, E>(attached)),
+            move |store| {
+                let owned = store.automation_execution(&run)?;
+                if owned.is_none_or(|owned| owned.cancel_requested) {
+                    return Err(AutomationError::Data("取消先于提交生效".to_owned()).into());
+                }
+                Ok(())
+            },
+            || execution.submitted_at_unix_millis,
+        ).await.map_err(ExecutionError::Command)?;
+        Ok(receipt.prompt_id)
     }
+
     async fn inspect(&self, execution: &Execution) -> Result<Observation, Self::Failure> {
         let live = self.connection(execution).await?;
         Ok(match self.context(&live).inspect(execution).await? {

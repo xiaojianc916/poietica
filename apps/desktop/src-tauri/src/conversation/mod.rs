@@ -1,6 +1,5 @@
 //! Conversation host: platform capabilities, wire conversion and command registration.
 
-use poietica_conversation_runtime::TITLE_CHARS;
 use poietica_problem::Problem;
 
 // Registration addresses definitions so Tauri command macros remain addressable.

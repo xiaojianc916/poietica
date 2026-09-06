@@ -3,7 +3,7 @@ use poietica_conversation::identity::TurnId;
 use poietica_conversation::ports::{
     AgentGateway, ConversationLedger, DeliveryConfirmation, DeliveryReceipt, PromptDelivery,
 };
-use poietica_conversation_runtime::{DeliveryError, Submission, submit};
+use crate::{DeliveryError, submission::{Submission, submit}};
 use poietica_ledger::execution::{IndexError, LocalIndex, read_index, write_index};
 use poietica_ledger::index::ThreadAttachment;
 use poietica_time::wall_clock::SystemWallClock;

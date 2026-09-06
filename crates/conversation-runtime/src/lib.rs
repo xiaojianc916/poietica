@@ -1,13 +1,14 @@
 //! Host-independent conversation execution.
 
+pub mod catalog;
 pub mod connection;
 mod delivery;
 mod events;
 mod submission;
-pub use submission::{Submission, TITLE_CHARS, submit};
+pub use submission::TITLE_CHARS;
 pub mod disposal;
-pub mod gateway;
+mod gateway;
 pub mod journal;
 pub mod session;
 
-pub use delivery::{DeliveryError, RecoveryFailure, deliver, recover};
+pub use delivery::DeliveryError;

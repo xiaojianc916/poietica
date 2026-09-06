@@ -2,10 +2,15 @@ import { spawnSync } from 'node:child_process'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
+export type ExportTarget =
+  | string
+  | string[]
+  | { readonly [condition: string]: ExportTarget | undefined }
+
 export type Manifest = {
   name?: string
   scripts?: Record<string, string>
-  exports?: Record<string, string>
+  exports?: Record<string, ExportTarget>
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
   optionalDependencies?: Record<string, string>

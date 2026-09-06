@@ -18,11 +18,11 @@ use poietica_asset::blob::read_blob;
 use poietica_ledger::index::ThreadAttachment;
 
 #[derive(Clone)]
-pub struct KapGateway {
-    pub client: AgentClient,
-    pub journal: FrameJournal,
+pub(crate) struct KapGateway {
+    pub(crate) client: AgentClient,
+    pub(crate) journal: FrameJournal,
     /// 附件字节的根。投递时按摘要把字节读回来。
-    pub attachments_root: PathBuf,
+    pub(crate) attachments_root: PathBuf,
 }
 
 // 连接句柄与帧日志可能携带大字节，Debug 只报结构不报字段。
@@ -122,7 +122,7 @@ impl KapGateway {
 }
 
 /// 账面行与准入冻结行同形的一次换算。
-pub fn attachment_reference(entry: &ThreadAttachment) -> AttachmentRef {
+pub(crate) fn attachment_reference(entry: &ThreadAttachment) -> AttachmentRef {
     AttachmentRef {
         hash: entry.hash.clone(),
         mime: entry.mime.clone(),

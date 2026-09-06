@@ -27,13 +27,13 @@ pub enum DeliveryError {
 }
 
 #[derive(Debug)]
-pub struct RecoveryFailure<E> {
-    pub turn: String,
-    pub failure: E,
+pub(crate) struct RecoveryFailure<E> {
+    pub(crate) turn: String,
+    pub(crate) failure: E,
 }
 
 /// None 表示此前已经结清；只有本次确认带回官方 prompt ID。
-pub async fn deliver<G, E>(
+pub(crate) async fn deliver<G, E>(
     index: &LocalIndex<E>,
     gateway: G,
     delivery: PromptDelivery,
@@ -117,7 +117,7 @@ where
 }
 
 /// 只恢复当前 agent 拥有且仍有会话地址的欠账；一笔失败不阻止其他对话。
-pub async fn recover<G, E>(
+pub(crate) async fn recover<G, E>(
     index: &LocalIndex<E>,
     gateway: G,
     agent_id: &str,
@@ -179,3 +179,6 @@ where
     }
     Ok(failures)
 }
+
+#[cfg(test)]
+mod behavior;

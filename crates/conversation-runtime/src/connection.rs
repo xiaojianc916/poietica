@@ -1,3 +1,6 @@
+mod commands;
+pub use commands::{CommandError, Prompt, PromptReceipt};
+
 use crate::{
     DeliveryError,
     gateway::KapGateway,
@@ -500,7 +503,7 @@ impl<E: RuntimeFailure> Inner<E> {
                                 Err(error) => log::warn!("could not update the disposal ledger: {error}"),
                             }
                             let gateway = KapGateway { client: live.client.clone(), journal, attachments_root: attachments };
-                            match crate::recover(&maintenance_index, gateway, &live.agent_id, &sessions).await {
+                            match crate::delivery::recover(&maintenance_index, gateway, &live.agent_id, &sessions).await {
                                 Ok(failures) => for failure in failures {
                                     log::warn!("delivery {} remains unresolved: {}", failure.turn, failure.failure);
                                 },

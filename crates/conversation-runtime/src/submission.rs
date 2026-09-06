@@ -9,18 +9,18 @@ use uuid::Uuid;
 pub const TITLE_CHARS: usize = 60;
 
 #[derive(Debug)]
-pub struct Submission {
-    pub thread: Uuid,
-    pub session: String,
-    pub turn: TurnId,
-    pub text: String,
-    pub model: String,
-    pub attachments: Vec<ThreadAttachment>,
-    pub skills: Vec<SkillSpec>,
-    pub submitted_at_unix_millis: i64,
+pub(crate) struct Submission {
+    pub(crate) thread: Uuid,
+    pub(crate) session: String,
+    pub(crate) turn: TurnId,
+    pub(crate) text: String,
+    pub(crate) model: String,
+    pub(crate) attachments: Vec<ThreadAttachment>,
+    pub(crate) skills: Vec<SkillSpec>,
+    pub(crate) submitted_at_unix_millis: i64,
 }
 
-pub async fn submit<G, E, F>(
+pub(crate) async fn submit<G, E, F>(
     index: &LocalIndex<E>,
     gateway: G,
     request: Submission,
@@ -65,3 +65,8 @@ where
     .await?;
     dispatch(index, gateway, delivery, decision, state).await
 }
+
+#[cfg(test)]
+mod admission;
+#[cfg(test)]
+mod behavior;

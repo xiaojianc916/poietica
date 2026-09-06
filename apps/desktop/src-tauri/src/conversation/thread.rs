@@ -20,7 +20,7 @@ use super::dto::{
 };
 use super::failure::translate;
 use super::runtime::AgentRuntime;
-use super::{AgentCommandResult, NO_ANSWER, NOTHING_TO_FORK, TITLE_CHARS};
+use super::{AgentCommandResult, NO_ANSWER, NOTHING_TO_FORK};
 use poietica_conversation_runtime::connection::Takeover;
 use poietica_conversation_runtime::session::{SessionHistory, read_point};
 
@@ -40,33 +40,15 @@ pub async fn agent_threads(index: State<'_, LocalIndex>) -> AgentCommandResult<V
     Ok(stored.into_iter().map(retitle).collect())
 }
 
-/// Reads the bounded local transcript snapshot without starting an agent.
+/// Reads local conversation metadata and usage without starting an agent.
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_thread_snapshot(
     index: State<'_, LocalIndex>,
     request: AgentThreadRequest,
 ) -> AgentCommandResult<AgentThreadSnapshot> {
-    let thread_id = conversation(&request.thread_id)?;
-    let (thread, usage) = read_index(&index, move |store| {
-        let stored = store
-            .thread(thread_id)
-            .map_err(Error::from)?
-            .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?;
-        let usage = match stored.session_id.as_deref() {
-            Some(session) => store
-                .session_usage(session)
-                .map_err(Error::from)?
-                .map(reported)
-                .transpose()?,
-            None => None,
-        };
-
-        Ok((retitle(stored), usage))
-    })
-    .await?;
-
-    Ok(AgentThreadSnapshot { thread, usage })
+    let (thread, usage) = poietica_conversation_runtime::catalog::snapshot(&index, &request.thread_id).await?;
+    Ok(AgentThreadSnapshot { thread: retitle(thread), usage: usage.map(reported).transpose()? })
 }
 
 /// Opens the stored identity and reads the agent-owned transcript; recovery does not replace identity.
@@ -218,59 +200,29 @@ fn reported(recorded: poietica_ledger::index::SessionUsage) -> Result<AgentSessi
     ))
 }
 
-/// Renames a conversation.
-///
-/// The name is recorded as the user's, which outranks the opening message
-/// it replaces: that question has already been answered by the person who
-/// typed it.
-///
-/// # Errors
-///
-/// Fails when the identifier is not a UUID, the name is empty, or the
-/// database rejects the write.
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_rename_thread(
     index: State<'_, LocalIndex>,
     request: AgentRenameThreadRequest,
 ) -> AgentCommandResult<()> {
-    let title: String = request.title.trim().chars().take(TITLE_CHARS).collect();
-
-    if title.is_empty() {
-        return Err(Error::Validation("the conversation name is empty".to_owned()).into());
-    }
-
-    let id = conversation(&request.thread_id)?;
-
-    write_index(&index, move |store| {
-        store.name_by_user(id, &title).map_err(Error::from)
-    })
-    .await?;
-
+    poietica_conversation_runtime::catalog::change(
+        &index, &request.thread_id,
+        poietica_conversation_runtime::catalog::ThreadChange::Rename(request.title),
+    ).await?;
     Ok(())
 }
 
-/// Archives or restores a conversation.
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_archive_thread(
     index: State<'_, LocalIndex>,
     request: AgentArchiveThreadRequest,
 ) -> AgentCommandResult<()> {
-    let id = conversation(&request.thread_id)?;
-    let archived = request.archived;
-
-    write_index(&index, move |store| {
-        let exists = store.thread(id).map_err(Error::from)?.is_some();
-        if !exists {
-            return Err(Error::Validation(
-                "the conversation does not exist".to_owned(),
-            ));
-        }
-        store.set_archived(id, archived).map_err(Error::from)
-    })
-    .await?;
-
+    poietica_conversation_runtime::catalog::change(
+        &index, &request.thread_id,
+        poietica_conversation_runtime::catalog::ThreadChange::Archive(request.archived),
+    ).await?;
     Ok(())
 }
 
@@ -388,11 +340,8 @@ pub async fn agent_fork_thread(
 
     /* 名字是界面按规则算好的（thread-title.ts 的 forkNameOf）；这里只做与
     改名同一条防线：去空白、按上限截断、拒绝空名。 */
-    let title: String = request.title.trim().chars().take(TITLE_CHARS).collect();
-
-    if title.is_empty() {
-        return Err(Error::Validation("the conversation name is empty".to_owned()).into());
-    }
+    let title = poietica_conversation_runtime::catalog::checked_title(&request.title)
+        .map_err(Error::from)?;
 
     let live = state
         .ensure(request.launch.agent_id, request.cwd, Takeover::Replace)
@@ -458,25 +407,15 @@ pub async fn agent_fork_thread(
     Ok(retitle(thread))
 }
 
-/// Holds a conversation at the top of the list, or releases it.
-///
-/// # Errors
-///
-/// Fails when the identifier is not a UUID or the database rejects the
-/// write.
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_pin_thread(
     index: State<'_, LocalIndex>,
     request: AgentPinThreadRequest,
 ) -> AgentCommandResult<()> {
-    let id = conversation(&request.thread_id)?;
-    let pinned = request.pinned;
-
-    write_index(&index, move |store| {
-        store.set_pinned(id, pinned).map_err(Error::from)
-    })
-    .await?;
-
+    poietica_conversation_runtime::catalog::change(
+        &index, &request.thread_id,
+        poietica_conversation_runtime::catalog::ThreadChange::Pin(request.pinned),
+    ).await?;
     Ok(())
 }

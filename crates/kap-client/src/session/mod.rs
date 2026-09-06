@@ -155,10 +155,7 @@ impl fmt::Debug for SessionEvents {
     }
 }
 
-/// A connected session, before anything has been spawned onto a runtime.
-///
-/// 交回一个未来，这个 crate 自己不推进它：谁来 spawn 由组合根决定，所以整个
-/// 程序里只有一处 spawn（commands/agent/runtime.rs）。
+/// The connection owner drives this future and awaits its descendants on shutdown.
 pub struct AgentConnection {
     pub stop: tokio_util::sync::CancellationToken,
     /// Sends prompts, cancellation and shutdown to the connection.

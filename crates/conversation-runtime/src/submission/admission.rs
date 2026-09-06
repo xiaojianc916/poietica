@@ -8,7 +8,7 @@ use poietica_conversation::ports::{
     AgentGateway, DeliveryConfirmation, DeliveryReceipt, PromptDelivery,
 };
 use poietica_conversation::turn::SkillSpec;
-use poietica_conversation_runtime::{DeliveryError, Submission, submit};
+use crate::{DeliveryError, submission::{Submission, submit}};
 use poietica_ledger::execution::{IndexError, LocalIndex, write_index};
 use poietica_time::wall_clock::SystemWallClock;
 use std::sync::{

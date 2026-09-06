@@ -1,16 +1,15 @@
-//! Conversation IPC preparation; session acquisition and delivery execute in the conversation use case.
-
+//! Conversation commands translate wire values and supply platform assets.
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
 use crate::ledger::{LocalIndex, conversation};
 use poietica_conversation::identity::TurnId;
-use poietica_kap_client::{ConfigSelection, apply_configurations};
+use poietica_conversation_runtime::connection::{Prompt, Takeover};
+use poietica_kap_client::ConfigSelection;
 use poietica_ledger::execution::read_index;
-use tauri::{AppHandle, State};
+use tauri::State;
 use uuid::Uuid;
 
 use super::attachment::keep_bytes;
-use super::config::announce;
 use super::dto::{
     AgentAbortPromptRequest, AgentAnswerQuestionsRequest, AgentCancelRequest,
     AgentDismissQuestionsRequest, AgentPromptRequest, AgentPromptResult,
@@ -20,112 +19,43 @@ use super::dto::{
 use super::failure::translate;
 use super::runtime::AgentRuntime;
 use super::{AgentCommandResult, NO_CONVERSATION, NO_SESSION, NOTHING_TO_STOP};
-use poietica_conversation_runtime::connection::Takeover;
-use poietica_conversation_runtime::gateway::KapGateway;
 
-/// 返回代理确认的提交身份，不等待模型完成。
+/// Returns the agent's submission receipt without waiting for model completion.
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_prompt(
-    app: AppHandle,
     state: State<'_, AgentRuntime>,
-    index: State<'_, LocalIndex>,
     assets: State<'_, AssetProtocolRegistry>,
     request: AgentPromptRequest,
 ) -> AgentCommandResult<AgentPromptResult> {
-    let text = request.text.trim().to_owned();
-    let attached = request.assets;
-    if text.is_empty() && attached.is_empty() {
-        return Err(Error::Validation("the prompt is empty".to_owned()).into());
-    }
-    let named = request
-        .thread_id
-        .as_deref()
+    let named = request.thread_id.as_deref()
         .ok_or_else(|| Error::Validation(NO_CONVERSATION.to_owned()))?;
-    let _validated = conversation(named)?;
-    let configuration: Vec<ConfigSelection> = request
-        .configuration
-        .into_iter()
-        .map(|selected| ConfigSelection {
-            id: selected.id,
-            value: selected.value,
-        })
-        .collect();
-    let skills = request
-        .skills
-        .into_iter()
-        .map(|skill| poietica_conversation::turn::SkillSpec {
-            name: skill.name,
-            args: skill.args,
-        })
-        .collect();
-    let session = state
-        .ensure(request.launch.agent_id, request.cwd, Takeover::Replace)
-        .await?;
-    let held = state
-        .sessions()
-        .resolve(
-            &index,
-            &session.client,
-            &session.book,
-            &session.agent_id,
-            state.root(),
-            named,
-        )
-        .await
-        .map_err(Error::from)?;
-    let addressed = held.session_id.clone();
-    let attachments = keep_bytes(
-        state.attachments().clone(),
-        assets.inner().clone(),
-        held.thread_id.to_string(),
-        attached,
-    )
-    .await?;
-    if !configuration.is_empty() {
-        apply_configurations(
-            &session.client,
-            addressed.clone(),
-            configuration.clone(),
-            Some(text.clone()),
-        )
-        .await
-        .map_err(translate)?;
-        announce(&app, &session.client, addressed.clone()).await;
-    }
-    let gateway = KapGateway {
-        client: session.client.clone(),
-        journal: state.journal().clone(),
-        attachments_root: state.attachments().clone(),
-    };
-    let prompt_id = poietica_conversation_runtime::submit(
-        index.inner(),
-        gateway,
-        poietica_conversation_runtime::Submission {
-            thread: held.thread_id,
-            session: addressed.clone(),
+    let thread_id = conversation(named)?;
+    let root = state.attachments().clone();
+    let registry = assets.inner().clone();
+    let receipt = state.prompt(
+        Prompt {
+            agent_id: request.launch.agent_id,
+            cwd: request.cwd,
+            takeover: Takeover::Replace,
+            thread_id,
             turn: TurnId::new(Uuid::new_v4().to_string()),
-            text,
-            model: configuration
-                .iter()
-                .find(|selected| selected.id == "model")
-                .map(|selected| selected.value.clone())
-                .unwrap_or_default(),
-            attachments,
-            skills,
-            submitted_at_unix_millis: poietica_time::WallClock::now_unix_millis(
-                &poietica_time::wall_clock::SystemWallClock,
-            ),
+            text: request.text.trim().to_owned(),
+            configuration: request.configuration.into_iter().map(|selected| ConfigSelection {
+                id: selected.id, value: selected.value,
+            }).collect(),
+            assets: request.assets,
+            skills: request.skills.into_iter().map(|skill| poietica_conversation::turn::SkillSpec {
+                name: skill.name, args: skill.args,
+            }).collect(),
         },
+        move |thread, attached| keep_bytes(root, registry, thread.to_string(), attached),
         |_| Ok(()),
-    )
-    .await?
-    .ok_or_else(|| Error::Internal("a fresh admission was already settled".to_owned()))?;
-    drop(held);
-    Ok(AgentPromptResult {
-        session_id: addressed,
-        prompt_id,
-    })
+        || poietica_time::WallClock::now_unix_millis(
+            &poietica_time::wall_clock::SystemWallClock,
+        ),
+    ).await.map_err(Error::from)?;
+    Ok(AgentPromptResult { session_id: receipt.session_id, prompt_id: receipt.prompt_id })
 }
 
 /// Answers a permission request the agent is blocked on.

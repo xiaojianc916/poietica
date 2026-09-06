@@ -78,6 +78,7 @@ mod tests {
     // 注释）：测试里的 expect 是响亮失败，豁免只写在测试作用域，不靠根配置放开。
     #![allow(
         clippy::expect_used,
+        clippy::panic,
         reason = "a test proves itself by panicking, so a failed step must fail the test"
     )]
 
@@ -123,7 +124,7 @@ mod tests {
         });
 
         let Some(Command::Selectors { reply, .. }) = received.next().await else {
-            return;
+            panic!("expected a selector read before configuration selection");
         };
         reply
             .send(Ok(vec![control("goal", ConfigPurpose::Mode, "on")]))
@@ -137,7 +138,7 @@ mod tests {
             ..
         }) = received.next().await
         else {
-            return;
+            panic!("expected the selected configuration command");
         };
 
         assert_eq!(config_id, "goal");

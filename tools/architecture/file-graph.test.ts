@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
-import { analyzeSourceFiles, type SourceUnit } from './file-graph.ts'
+import { analyzeSourceFiles, resolvedWorkspaceBoundaries, type SourceUnit } from './file-graph.ts'
+import type { Violation } from './policies.ts'
 import type { Workspace } from './workspace.ts'
 
 const options: ts.CompilerOptions = {
@@ -139,5 +140,138 @@ describe('workspace entries without installation links', () => {
       workspaceEntries,
     )
     expect(result).toEqual([])
+  })
+})
+
+const resolvedEntries = new Map<string, Workspace>([
+  [
+    '@poietica/conversation',
+    {
+      name: '@poietica/conversation',
+      directory: 'packages/conversation',
+      manifest: {
+        name: '@poietica/conversation',
+        exports: { '.': './src/index.ts' },
+        dependencies: { '@poietica/contract': 'workspace:*' },
+      },
+    },
+  ],
+  [
+    '@poietica/native-bridge',
+    {
+      name: '@poietica/native-bridge',
+      directory: 'packages/native-bridge',
+      manifest: {
+        name: '@poietica/native-bridge',
+        exports: { '.': './src/index.ts' },
+        dependencies: { '@poietica/conversation': 'workspace:*' },
+      },
+    },
+  ],
+  [
+    '@poietica/contract',
+    {
+      name: '@poietica/contract',
+      directory: 'packages/contract',
+      manifest: {
+        name: '@poietica/contract',
+        exports: {
+          '.': './src/generated/ipc-bindings.ts',
+          './conversation': './src/conversation.ts',
+        },
+      },
+    },
+  ],
+])
+const fixtureSource = (domain: string, file: string) => ['packages', domain, 'src', file].join('/')
+const conversationEntry = fixtureSource('conversation', 'index.ts')
+const conversationPrivate = fixtureSource('conversation', 'private.ts')
+const nativeEntry = fixtureSource('native-bridge', 'index.ts')
+const wireEntry = fixtureSource('contract', 'generated/ipc-bindings.ts')
+const conversationContract = fixtureSource('contract', 'conversation.ts')
+function inspectResolved(sources: Record<string, string>, paths: Record<string, string[]>) {
+  const root = path.resolve('fixture')
+  const files = new Map(
+    Object.entries(sources).map(([file, text]) => [path.resolve(root, file), text]),
+  )
+  const host: ts.ModuleResolutionHost = {
+    fileExists: (file) => files.has(path.resolve(file)),
+    readFile: (file) => files.get(path.resolve(file)),
+  }
+  const units: SourceUnit[] = [...files].map(([file, text]) => ({
+    file,
+    code: text,
+    options: { ...options, baseUrl: root, paths },
+  }))
+  const policy = resolvedWorkspaceBoundaries(root, [...resolvedEntries.values()], host)
+  const boundaries: Violation[] = []
+  const graph = analyzeSourceFiles(
+    root,
+    units,
+    host,
+    [],
+    resolvedEntries,
+    (file, specifier, target, typeOnly) => {
+      boundaries.push(...policy(file, specifier, target, typeOnly))
+    },
+  )
+  return [...graph, ...boundaries]
+}
+
+describe('resolved workspace ownership', () => {
+  test('a paths alias cannot enter another package through a private source', () => {
+    const found = inspectResolved(
+      {
+        [nativeEntry]: "export { value } from '#conversation'",
+        [conversationPrivate]: 'export const value = 1',
+      },
+      { '#conversation': [conversationPrivate] },
+    )
+    expect(found.some((entry) => entry.policy === 'resolved-public-entry')).toBe(true)
+  })
+  test('an alias cannot hide an upward type dependency', () => {
+    const found = inspectResolved(
+      {
+        [conversationEntry]: "import type { Host } from '#host'; export type Input = Host",
+        [nativeEntry]: 'export type Host = { value: string }',
+      },
+      { '#host': [nativeEntry] },
+    )
+    expect(found.some((entry) => entry.policy === 'layer-direction')).toBe(true)
+    expect(found.some((entry) => entry.policy === 'resolved-declared-dependency')).toBe(true)
+  })
+  test('an alias to a declared downward public entry remains legal', () => {
+    expect(
+      inspectResolved(
+        {
+          [nativeEntry]: "export { value } from '#conversation'",
+          [conversationEntry]: 'export const value = 1',
+        },
+        { '#conversation': [conversationEntry] },
+      ),
+    ).toEqual([])
+  })
+  test('runtime transport cannot hide behind a contract alias', () => {
+    const found = inspectResolved(
+      {
+        [conversationEntry]: "export { commands } from '#wire'",
+        [wireEntry]: 'export const commands = {}',
+      },
+      { '#wire': [wireEntry] },
+    )
+    expect(found.some((entry) => entry.policy === 'transport-contract-is-adapter-private')).toBe(
+      true,
+    )
+  })
+  test('the declared type-only domain contract remains legal through an alias', () => {
+    expect(
+      inspectResolved(
+        {
+          [conversationEntry]: "import type { Thread } from '#thread'; export type Value = Thread",
+          [conversationContract]: 'export type Thread = { id: string }',
+        },
+        { '#thread': [conversationContract] },
+      ),
+    ).toEqual([])
   })
 })

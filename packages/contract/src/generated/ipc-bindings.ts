@@ -6,7 +6,7 @@
 
 export const commands = {
 /**
- * 返回代理确认的提交身份，不等待模型完成。
+ * Returns the agent's submission receipt without waiting for model completion.
  */
 async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
     return await TAURI_INVOKE("agent_prompt", { request });
@@ -102,28 +102,11 @@ async agentAnswerQuestions(request: AgentAnswerQuestionsRequest) : Promise<null>
 async agentDismissQuestions(request: AgentDismissQuestionsRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_dismiss_questions", { request });
 },
-/**
- * Changes one selector, on one session.
- * 
- * 点名一条对话就发往它握着的那个会话；不点名就发往连接自带的锚会话 —— 入口那一格
- * 没有对话可以点名，而它画着的正是锚会话报的那张表。两个地址一个命令：拆成两条
- * 命令就等于让同一件事有两条代码路径，而其中一条迟早会长出自己的行为。
- * 
- * The change applies to the session in flight, so nothing is restarted
- * and nothing is written to the agent configuration file. The answer is
- * the whole list as the agent reports it afterwards, because one change
- * may add or remove another selector.
- * 
- * # Errors
- * 
- * Fails when no session is running, when a turn is in flight, or when
- * the agent refuses the value.
- */
 async agentSetConfigOption(request: AgentSelectConfigRequest) : Promise<AgentConfigControl[]> {
     return await TAURI_INVOKE("agent_set_config_option", { request });
 },
 /**
- * Reads selectors from the connection anchor without creating a conversation.
+ * Reads the anchor without creating a conversation.
  */
 async agentCapabilities(request: AgentCapabilitiesRequest) : Promise<AgentConfigControl[]> {
     return await TAURI_INVOKE("agent_capabilities", { request });
@@ -163,7 +146,7 @@ async agentThreads() : Promise<AgentThread[]> {
     return await TAURI_INVOKE("agent_threads");
 },
 /**
- * Reads the bounded local transcript snapshot without starting an agent.
+ * Reads local conversation metadata and usage without starting an agent.
  */
 async agentThreadSnapshot(request: AgentThreadRequest) : Promise<AgentThreadSnapshot> {
     return await TAURI_INVOKE("agent_thread_snapshot", { request });
@@ -200,24 +183,9 @@ async agentTranscript(request: AgentTranscriptRequest) : Promise<AgentTranscript
 async agentTranscriptOps(request: AgentTranscriptOpsRequest) : Promise<AgentTranscriptJson> {
     return await TAURI_INVOKE("agent_transcript_ops", { request });
 },
-/**
- * Renames a conversation.
- * 
- * The name is recorded as the user's, which outranks the opening message
- * it replaces: that question has already been answered by the person who
- * typed it.
- * 
- * # Errors
- * 
- * Fails when the identifier is not a UUID, the name is empty, or the
- * database rejects the write.
- */
 async agentRenameThread(request: AgentRenameThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_rename_thread", { request });
 },
-/**
- * Archives or restores a conversation.
- */
 async agentArchiveThread(request: AgentArchiveThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_archive_thread", { request });
 },
@@ -227,14 +195,6 @@ async agentArchiveThread(request: AgentArchiveThreadRequest) : Promise<null> {
 async agentDeleteThread(request: AgentThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_delete_thread", { request });
 },
-/**
- * Holds a conversation at the top of the list, or releases it.
- * 
- * # Errors
- * 
- * Fails when the identifier is not a UUID or the database rejects the
- * write.
- */
 async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_pin_thread", { request });
 },
