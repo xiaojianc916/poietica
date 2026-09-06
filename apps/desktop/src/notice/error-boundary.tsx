@@ -43,6 +43,7 @@ export class FatalErrorBoundary extends Component<
 
 export interface FatalErrorHostProps {
   readonly children: ReactNode
+  readonly frame: (screen: ReactNode) => ReactNode
 }
 
 /*
@@ -50,7 +51,7 @@ export interface FatalErrorHostProps {
  * 没有终止失败时，它退回一层错误边界 —— 边界接住渲染错误只为了让树安静地
  * 停住，上报在 root 那一侧。
  */
-export function FatalErrorHost({ children }: FatalErrorHostProps) {
+export function FatalErrorHost({ children, frame }: FatalErrorHostProps) {
   const snapshot = useSyncExternalStore(
     failureCoordinator.subscribe,
     failureCoordinator.getSnapshot,
@@ -58,11 +59,11 @@ export function FatalErrorHost({ children }: FatalErrorHostProps) {
   )
 
   if (snapshot.terminal) {
-    return (
+    return frame(
       <FatalErrorScreen
         additionalIncidentCount={snapshot.terminal.additionalIncidentCount}
         incident={snapshot.terminal.incident}
-      />
+      />,
     )
   }
 

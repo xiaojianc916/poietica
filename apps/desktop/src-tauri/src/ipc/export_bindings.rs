@@ -26,7 +26,7 @@ const OUTPUT_PATH: &str = concat!(
     clippy::expect_used,
     reason = "a binding export that silently failed would ship a stale IPC surface"
 )]
-pub fn export_document_bindings() {
+pub fn export_ipc_bindings() {
     super::surface()
         .export(
             Typescript::default().bigint(BigIntExportBehavior::Number),

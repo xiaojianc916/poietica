@@ -146,7 +146,7 @@ pub async fn apply_startup_settings(app: &AppHandle) {
     match read_settings(app) {
         Ok(settings) => {
             if let Err(error) = app
-                .state::<crate::conversation::runtime::AgentRuntime>()
+                .state::<crate::conversation::AgentRuntime>()
                 .apply_daemon_intent(settings.general.daemon)
                 .await
             {
@@ -188,7 +188,7 @@ pub async fn settings_set(app: AppHandle, settings: AppSettings) -> SettingsComm
     .map_err(Problem::from)?;
 
     /* 落盘先于对账：进程内的相位跟着已经成立的意图走，不跟着一次可能失败的写。 */
-    app.state::<crate::conversation::runtime::AgentRuntime>()
+    app.state::<crate::conversation::AgentRuntime>()
         .apply_daemon_intent(saved.general.daemon)
         .await
         .map_err(Problem::from)?;
@@ -214,7 +214,7 @@ pub async fn settings_reset(app: AppHandle) -> SettingsCommandResult<AppSettings
     })()
     .map_err(Problem::from)?;
 
-    app.state::<crate::conversation::runtime::AgentRuntime>()
+    app.state::<crate::conversation::AgentRuntime>()
         .apply_daemon_intent(defaults.general.daemon)
         .await
         .map_err(Problem::from)?;

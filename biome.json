@@ -336,7 +336,7 @@
       }
     },
     {
-      "includes": ["apps/desktop/src/shell/workbench-tab.tsx"],
+      "includes": ["apps/desktop/src/shell/tabs/workbench-tab.tsx"],
       "linter": {
         "rules": {
           "a11y": {
@@ -357,8 +357,8 @@
     },
     {
       "includes": [
-        "apps/desktop/src/shell/use-workbench-tabs-baseline-gap.ts",
-        "apps/desktop/src/shell/use-workbench-tabs-viewport.ts"
+        "apps/desktop/src/shell/tabs/use-baseline-gap.ts",
+        "apps/desktop/src/shell/tabs/use-viewport.ts"
       ],
       "linter": {
         "rules": {

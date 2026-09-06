@@ -1,4 +1,4 @@
-import { type FailureCoordinator, failureCoordinator, optionalProperty } from '@poietica/problem'
+import { type FailureCoordinator, optionalProperty } from '@poietica/problem'
 
 /* 同时在场的上限。挤出去的那几张已经在诊断日志里，不必再抢屏幕。 */
 const MAX_VISIBLE = 3
@@ -28,14 +28,7 @@ interface Presence {
   handle: ReturnType<typeof setTimeout> | null
   closing: boolean
 }
-/**
- * 屏幕上那几张失败通知。
- *
- * 失败本身归 FailureCoordinator，这里只拥有「还在场吗、还剩多久」：一条通知走完
- * 停留时间就转入退场，退场结束后由 coordinator.dismiss 真正销号 —— 移除仍然只有
- * 那一条写路径。只有 recoverable 会到这里；feature-degraded 的去处是控件变灰
- * （见 shell/app-shell.tsx 的 capabilities），不是弹一张卡片。
- */
+
 export class NoticeStore {
   readonly #coordinator: FailureCoordinator
   readonly #presences = new Map<string, Presence>()
@@ -197,7 +190,7 @@ export class NoticeStore {
     }
   }
 }
-export const noticeStore = new NoticeStore(failureCoordinator)
+
 /* 第二行只在它真说了新东西时才有：与用户那句一样的诊断文本是噪音。 */
 function readDetail(incident: {
   readonly userMessage: string

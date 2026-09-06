@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager, RunEvent, command};
 use tauri_plugin_window_state::AppHandleExt;
 
 use crate::automation::mcp_server::AutomationMcpServer;
-use crate::conversation::runtime::AgentRuntime;
+use crate::conversation::AgentRuntime;
 use crate::window::WINDOW_STATE_FLAGS;
 
 #[derive(Debug)]

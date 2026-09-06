@@ -1,8 +1,3 @@
-/*
- * 失败呈现的唯一策略面：失败码 → 影响等级 / 文案 / 恢复动作 / 作用域，以及
- * 终止失败 → 致命屏视图模型。全表驱动、无业务分支；状态机与诊断在
- * @poietica/problem（failure-coordinator / failure-diagnostic），这里只做翻译。
- */
 import type {
   FailureImpact,
   FailureIncident,
@@ -30,6 +25,7 @@ export const APPLICATION_FAILURE_CODES = [
   'SESSION_CONFIG_CHANGE_REJECTED',
   'THREAD_REOPEN_FAILED',
   'THREAD_MODES_NOT_KEPT',
+  'WORKSPACE_PICK_FAILED',
   'GIT_BRANCH_OPERATION_FAILED',
   'GIT_CHANGES_UNREADABLE',
   'GIT_REVIEW_ACTION_FAILED',
@@ -42,15 +38,6 @@ export const APPLICATION_FAILURE_CODES = [
 
 export type ApplicationFailureCode = (typeof APPLICATION_FAILURE_CODES)[number]
 
-/**
- * The features this application knows how to lose.
- *
- * A degraded feature is a promise withdrawn: something the interface offered
- * a moment ago and cannot offer now. Listing them here means the set is
- * reviewable in one place, and that a policy cannot disable a feature nobody
- * ever declared — a typo would be a type error rather than a control that
- * silently never comes back.
- */
 export const DEGRADABLE_FEATURE_IDS = [
   'developer-tools',
   'settings',
@@ -156,13 +143,6 @@ export const APPLICATION_FAILURE_POLICIES = {
     scope: featureScope('window-close-coordination'),
   },
 
-  /*
-   * 没能读到 agent 给得出哪些选项：模型、模式、推理档位，同一次往返里一起来。一次
-   * 往返失手不是功能没了，重进这一格会再问一次，所以 recovery 是 retry。
-   *
-   * 它还盖着「全新安装」：CLI 没装、密钥没填时，重试一万次结果一样。分开要新增一个
-   * 首次运行状态，在那之前这句话把人指向设置页 —— 那里说得出到底缺哪一样。
-   */
   AGENT_CAPABILITIES_UNREADABLE: {
     impact: 'recoverable',
     userMessage: '没能读到可用的模型。到「设置 → 模型」看看 agent 装好了没有、密钥填了没有。',
@@ -171,18 +151,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     scope: operationScope('read-capabilities'),
   },
-  /*
-   * 这一次改动 agent 没接受。
-   *
-   * 与上面那条分开，因为它们要人做的事不一样：读不到多半是还没装好、密钥没填，
-   * 该去设置页；改不动说明表读得到、只是这一次没生效，去设置页什么也解决不了。
-   * 共用一句话的那段时间里，每一次改动失败都在说「密钥可能没填」，而密钥是好的。
-   *
-   * 不列原因：agent 拒绝的措辞是它自己的，脱敏之后剩不下能对人说的东西 —— 与
-   * 下面那条同一条规矩。屏幕已经退回它真在用的值，所以这句话只需要说清「没换成」。
-   *
-   * 作用域是一次操作而不是一个功能：选择器照常能用，没有任何控件需要变灰。
-   */
+
   AGENT_CONFIG_CHANGE_REJECTED: {
     impact: 'recoverable',
     userMessage: '这次改动没有生效，选择器已经退回 agent 正在用的值。可以再试一次。',
@@ -191,22 +160,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     scope: operationScope('change-capability'),
   },
-  /*
-   * 这一条对话的会话设置没换成。
-   *
-   * 与上面那条的区别不是严重程度，是作用域。那一条改的是这一家 agent 的默认值
-   * （落到 config.toml 的 default_model，此后每一条新对话都跟着变）；这一条改的
-   * 是一条对话背后那个会话（ACP 的 session/set_config_option，按 sessionId 寻址，
-   * 别的对话一个字节都不动）。同一句话盖两边，人会以为刚才那次失败的改动影响了
-   * 所有对话。
-   *
-   * 不列 agent 拒绝的措辞：那是它自己的话，脱敏之后剩不下能对人说的东西 —— 与下
-   * 面那条更新失败同一条规矩。屏幕上那颗胶囊已经退回它真在用的值（见
-   * SessionControlsStore.#dispatch 的 catch：向权威重问一次，不在本地猜一个旧值
-   * 填回去），所以这句话只需要说清「这条没换成」，以及它还能再试。
-   *
-   * 作用域是一次操作而不是一个功能：别的对话照常，没有任何控件需要变灰。
-   */
+
   SESSION_CONFIG_CHANGE_REJECTED: {
     impact: 'recoverable',
     userMessage: '这条对话的设置没有改成，选择器已经退回它正在用的值。可以再试一次。',
@@ -215,19 +169,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     scope: operationScope('change-session-config'),
   },
-  /*
-   * 这条对话没能重新连上。
-   *
-   * 不并进「没能读到可用的模型」那一条：后者说的是这一家 agent 装没装好、密钥填
-   * 没填，而这里是一条具体的对话握不住会话，别的对话可能好着。并进去就会把人送
-   * 去设置页检查一把本来就是对的钥匙。
-   *
-   * 屏幕上另有两处已经在说这件事：那一格的 selectorFailure（可以点重试），以及
-   * 转录那一侧报这条对话打不开。这一条走的是第三个用途 —— 日志与降级。三处同一
-   * 份原因，措辞各按各的用途。
-   *
-   * 作用域是一次操作：重试就在那一格上，没有功能需要变灰。
-   */
+
   THREAD_REOPEN_FAILED: {
     impact: 'recoverable',
     userMessage: '这条对话没能重新连上 agent。可以在设置那一格点重试。',
@@ -236,22 +178,20 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     scope: operationScope('reopen-thread'),
   },
-  /*
-   * 模式没能记住：目标与蜂群同存一格，所以说的是模式。
-   *
-   * 这一轮照常带着模式出发（真相在内存那一份），失手的只是它在下次启动时还在不在，
-   * 所以作用域是一次操作、不是一个功能：没有任何控件需要变灰。
-   */
+
   THREAD_MODES_NOT_KEPT: {
     impact: 'recoverable',
     userMessage: '这条对话的模式没能记住，重启后需要重新设置。',
     recovery: 'retry',
     scope: operationScope('keep-thread-modes'),
   },
-  /*
-   * Git 的拒绝理由通过统一失败管线直接进入全局 toast。菜单不持有错误副本，
-   * toast 负责限制视觉体量，诊断文本本身不在这里重写。
-   */
+
+  WORKSPACE_PICK_FAILED: {
+    impact: 'recoverable',
+    userMessage: '工作目录选择器未能打开，可以重试。',
+    recovery: 'retry',
+    scope: operationScope('pick-workspace'),
+  },
   GIT_BRANCH_OPERATION_FAILED: {
     impact: 'recoverable',
     userMessage: 'Git 分支操作失败',
@@ -272,14 +212,7 @@ export const APPLICATION_FAILURE_POLICIES = {
     recovery: 'retry',
     scope: operationScope('git-review-action'),
   },
-  /*
-   * 检查、下载、安装是三件事，各自说自己那句。同一句"没能下载完成"盖住一次检查
-   * 失手，人看到的是一件他没做过的事失败了。
-   *
-   * 三条都不是"功能受限"：装着的这一版一个字节都没被改动，没有任何控件需要变灰，
-   * 所以 impact 是 recoverable、作用域是一次操作。具体原因（网络、签名、更新源）
-   * 不进这些句子：它们在原生日志里，脱敏之后能出口的那句说不出所以然。
-   */
+
   /* 只出自人亲手要的那次检查：后台按节奏问的那条自己咽下去，离线是常态。 */
   UPDATE_CHECK_FAILED: {
     impact: 'recoverable',
@@ -301,14 +234,6 @@ export const APPLICATION_FAILURE_POLICIES = {
     scope: operationScope('install-update'),
   },
 
-  /*
-   * 运行期漏出来的异常与没人接的 rejection。
-   *
-   * 界面还在、状态还在，缺的只是某条路径上一个 catch。升成
-   * application-fatal 会用一块无法退出的错误屏换掉一棵完好的树 —— 那不是
-   * 失败的严重程度，是失败处置的错误。诊断照旧进日志，人看到的是一条
-   * 可关闭的通知。作用域是一次操作：没有任何控件需要变灰。
-   */
   UNHANDLED_WINDOW_ERROR: {
     impact: 'recoverable',
     userMessage: '有一处操作出错了，界面仍在正常运行。',
@@ -377,13 +302,6 @@ function featureScope(
   })
 }
 
-/*
- * 一次操作失手，不是一个功能没了。
- *
- * 可恢复的失败不许挂 application / native-process 作用域（见 kernel 的
- * validateFailurePolicy），而 feature 作用域会把它算进"降级的功能"里、让控件
- * 变灰 —— 那不是这里要的：选择器照常能用。
- */
 function operationScope(operation: string): (context: FailureReportContext) => FailureScope {
   return (_context) => ({
     kind: 'operation',
@@ -416,12 +334,6 @@ function readOptionalNumber(
 
   return typeof value === 'number' ? value : undefined
 }
-
-/*
- * ------------------------------------------------------------------
- * 终止失败：入口与致命屏视图模型
- * ------------------------------------------------------------------
- */
 
 export type FailureKind =
   | 'bootstrap'

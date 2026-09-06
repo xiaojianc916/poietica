@@ -9,7 +9,7 @@ use specta::Type;
 use tauri::{AppHandle, State};
 
 use super::AgentCommandResult;
-use super::runtime::AgentRuntime;
+use super::AgentRuntime;
 
 /// KAP 对一项能力的就绪裁决，原样投影。
 #[derive(Debug, Serialize, Type)]

@@ -1,4 +1,5 @@
 //! Desktop wire conversion and platform asset preparation.
+use super::AgentRuntime;
 use super::attachment::keep_bytes;
 use super::dto::{
     AgentAbortPromptRequest, AgentAnswerQuestionsRequest, AgentCancelRequest,
@@ -6,7 +7,6 @@ use super::dto::{
     AgentResolvePermissionRequest, AgentSteerRequest, AgentTranscriptJson,
     AgentTranscriptOpsRequest, AgentTranscriptRequest, answered, decided,
 };
-use super::runtime::AgentRuntime;
 use super::{AgentCommandResult, NO_CONVERSATION};
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;

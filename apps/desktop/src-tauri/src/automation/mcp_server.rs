@@ -160,7 +160,7 @@ impl Ledger {
         description = "Read automation definitions, revisions and native run states. A submission receipt is not completion."
     )]
     async fn list(&self) -> std::result::Result<CallToolResult, String> {
-        answer(super::load(&self.app).await)
+        answer(super::host::load(&self.app).await)
     }
     #[tool(
         name = "automations_create",
@@ -170,7 +170,7 @@ impl Ledger {
         &self,
         Parameters(creation): Parameters<AutomationCreation>,
     ) -> std::result::Result<CallToolResult, String> {
-        answer(super::execute(&self.app, Command::Create(creation)).await)
+        answer(super::host::execute(&self.app, Command::Create(creation)).await)
     }
     #[tool(
         name = "automations_update",
@@ -180,7 +180,7 @@ impl Ledger {
         &self,
         Parameters(update): Parameters<AutomationUpdate>,
     ) -> std::result::Result<CallToolResult, String> {
-        answer(super::execute(&self.app, Command::Update(update)).await)
+        answer(super::host::execute(&self.app, Command::Update(update)).await)
     }
     #[tool(
         name = "automations_delete",
@@ -190,7 +190,7 @@ impl Ledger {
         &self,
         Parameters(request): Parameters<Identity>,
     ) -> std::result::Result<CallToolResult, String> {
-        answer(super::execute(&self.app, Command::Remove { id: request.id }).await)
+        answer(super::host::execute(&self.app, Command::Remove { id: request.id }).await)
     }
     #[tool(
         name = "automations_run",
@@ -200,7 +200,7 @@ impl Ledger {
         &self,
         Parameters(request): Parameters<RunRequest>,
     ) -> std::result::Result<CallToolResult, String> {
-        answer(super::run(&self.app, request.id, request.request_id).await)
+        answer(super::host::run(&self.app, request.id, request.request_id).await)
     }
     #[tool(
         name = "automations_cancel",
@@ -211,7 +211,7 @@ impl Ledger {
         Parameters(request): Parameters<CancelRequest>,
     ) -> std::result::Result<CallToolResult, String> {
         answer(
-            super::execute(
+            super::host::execute(
                 &self.app,
                 Command::Cancel {
                     run_id: request.run_id,

@@ -14,8 +14,8 @@ use specta::Type;
 use tauri::{AppHandle, State, async_runtime};
 
 use super::AgentCommandResult;
+use super::AgentRuntime;
 use super::dto::AgentLaunch;
-use super::runtime::AgentRuntime;
 use crate::agent::profile::agent_home_directory;
 
 const DOCUMENT_MAX_BYTES: u64 = 256 * 1024;

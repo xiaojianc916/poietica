@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from '@typescript/typescript6'
+import { DESKTOP_HEADLESS, desktopBoundaries } from './desktop-boundaries.ts'
 import { type ImportRecord, importsOf, sources } from './imports.ts'
 import {
   DOMAIN_CONTRACT_IMPORTS,
@@ -545,7 +546,7 @@ export async function fileGraph(
       }
     }
   }
-  const headless: string[] = []
+  const headless: string[] = DESKTOP_HEADLESS.map((file) => path.join(root, file))
   for (const workspace of workspaces) {
     const manifest = workspace.manifest
     for (const entry of manifest.poietica?.headless ?? []) {
@@ -569,6 +570,7 @@ export async function fileGraph(
     entries,
     (file, specifier, target, typeOnly) => {
       boundaries.push(...policy(file, specifier, target, typeOnly))
+      boundaries.push(...desktopBoundaries(root, file, target))
     },
   )
   return [...graph, ...boundaries]

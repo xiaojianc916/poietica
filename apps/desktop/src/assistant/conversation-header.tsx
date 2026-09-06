@@ -1,5 +1,5 @@
 import { ListTodo, PanelRight } from 'lucide-react'
-import { useWorkspaceLayoutState, workspaceLayoutStore } from '../shell/workspace-layout-store'
+
 import './conversation-header.css'
 
 const controlClass =
@@ -10,14 +10,17 @@ export function ConversationHeader() {
   return <div aria-hidden="true" className="conversation-header" data-assistant-skin />
 }
 
-/**
- * 两枚控件始终处在同一个 React 树位置。辅助面板开合只改变栅格几何，
- * 不通过条件渲染搬运或重建按钮。
- */
-export function ConversationControls({ conversationId }: { readonly conversationId: string }) {
-  const { auxiliaryThread, todoThread } = useWorkspaceLayoutState()
-  const todoOpen = todoThread === conversationId
-  const auxiliaryOpen = auxiliaryThread === conversationId
+export function ConversationControls({
+  todoOpen,
+  auxiliaryOpen,
+  onToggleTodo,
+  onToggleAuxiliary,
+}: {
+  readonly todoOpen: boolean
+  readonly auxiliaryOpen: boolean
+  readonly onToggleTodo: () => void
+  readonly onToggleAuxiliary: () => void
+}) {
   const todoLabel = todoOpen ? '关闭任务弹窗' : '打开任务弹窗'
   const auxiliaryLabel = auxiliaryOpen ? '收起辅助面板' : '打开辅助面板'
 
@@ -32,9 +35,7 @@ export function ConversationControls({ conversationId }: { readonly conversation
           'workspace-shell__todo-toggle aria-expanded:bg-current/10 aria-expanded:opacity-100',
         ].join(' ')}
         id="conversation-todo-trigger"
-        onClick={() => {
-          workspaceLayoutStore.setTodoThread(todoOpen ? null : conversationId)
-        }}
+        onClick={onToggleTodo}
         title={todoLabel}
         type="button"
       >
@@ -45,9 +46,7 @@ export function ConversationControls({ conversationId }: { readonly conversation
         aria-expanded={auxiliaryOpen}
         aria-label={auxiliaryLabel}
         className={[controlClass, 'workspace-shell__auxiliary-toggle'].join(' ')}
-        onClick={() => {
-          workspaceLayoutStore.setAuxiliaryThread(auxiliaryOpen ? null : conversationId)
-        }}
+        onClick={onToggleAuxiliary}
         title={auxiliaryLabel}
         type="button"
       >

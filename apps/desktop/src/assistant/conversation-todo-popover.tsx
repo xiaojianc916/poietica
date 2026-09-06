@@ -1,7 +1,7 @@
 import { TodoPanel } from '@poietica/conversation/surface'
 import { WORKSPACE_LAYOUT } from '@poietica/workspace'
 import type { CSSProperties } from 'react'
-import { useWorkspaceLayoutState } from '../shell/workspace-layout-store'
+
 import './conversation-todo-popover.css'
 
 interface ConversationTodoLayoutStyle extends CSSProperties {
@@ -14,10 +14,13 @@ export const CONVERSATION_TODO_LAYOUT_STYLE: ConversationTodoLayoutStyle = {
   '--conversation-todo-gap': String(WORKSPACE_LAYOUT.todo.gap).concat('px'),
 }
 
-export function ConversationTodoPopover({ threadId }: { readonly threadId: string }) {
-  const { todoThread } = useWorkspaceLayoutState()
-  const open = todoThread === threadId
-
+export function ConversationTodoPopover({
+  threadId,
+  open,
+}: {
+  readonly threadId: string
+  readonly open: boolean
+}) {
   return (
     <aside
       aria-hidden={!open}

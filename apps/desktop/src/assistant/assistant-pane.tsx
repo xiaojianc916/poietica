@@ -1,18 +1,14 @@
 import type { AgentSessionPort } from '@poietica/conversation'
 import { isProjectlessWorkspaceRoot, workspaceRootName } from '@poietica/conversation'
 import type { WorkspacePickerProps } from '@poietica/conversation/surface'
-import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/native-bridge/workspace'
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { v7 as uuidv7 } from 'uuid'
+import { pickWorkspaceRoot } from '@poietica/native-bridge/workspace'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
+import { reportFailure } from '../notice/problem-presentation'
 import { useActiveWorkspaceRoot, useWorkspaceRoots } from '../workspace/roots-context'
 import { ConversationSurface } from './conversation-surface'
-import { useThreadsActions, useThreadsList } from './threads-context'
+import { useConversationEntry, useThreadsList } from './threads-context'
 import { useWorkspaceGit } from './workspace-git'
 
-/*
- * 同一组件身份承载新对话入口与已打开的对话。入口晋升到同一个 threadId 时，
- * ConversationSurface 不卸载；切到另一条对话时由 threadId key 重建会话局部状态。
- */
 export interface AssistantPaneProps {
   readonly onConversationForked: (threadId: string, title: string) => void
   readonly onConversationStarted: (threadId: string, title: string) => void
@@ -26,8 +22,6 @@ export function AssistantPane({
   session,
   threadId,
 }: AssistantPaneProps) {
-  /* 只要动作。这一格一个字的会话状态都不读，此前却订着整份快照。 */
-  const open = useThreadsActions().create
   const { groups } = useThreadsList()
   const { setActive: setActiveWorkspaceRoot } = useWorkspaceRoots()
   const activeRoot = useActiveWorkspaceRoot()
@@ -60,11 +54,15 @@ export function AssistantPane({
   )
 
   const browse = useCallback(() => {
-    void pickWorkspaceRoot().then((picked) => {
-      if (picked !== null) {
-        setActiveWorkspaceRoot(picked)
-      }
-    })
+    void pickWorkspaceRoot()
+      .then((picked) => {
+        if (picked !== null) {
+          setActiveWorkspaceRoot(picked)
+        }
+      })
+      .catch((cause: unknown) => {
+        reportFailure('WORKSPACE_PICK_FAILED', { cause, scope: 'assistant' })
+      })
   }, [setActiveWorkspaceRoot])
 
   const clearWorkspace = useCallback(() => {
@@ -82,51 +80,14 @@ export function AssistantPane({
     [browse, choices, clearWorkspace, current, setActiveWorkspaceRoot],
   )
 
-  const [entry, setEntry] = useState(() => ({ threadId: uuidv7(), started: false }))
-  const [previousThreadId, setPreviousThreadId] = useState<string | undefined>(threadId)
-  const creating = useRef<Promise<boolean> | null>(null)
-
-  if (threadId !== previousThreadId) {
-    setPreviousThreadId(threadId)
-
-    if (threadId === undefined && previousThreadId !== undefined) {
-      creating.current = null
-      setEntry({ threadId: uuidv7(), started: false })
-    }
-  }
-
+  const entryOwner = useConversationEntry()
+  const entry = useSyncExternalStore(
+    entryOwner.subscribe,
+    entryOwner.getSnapshot,
+    entryOwner.getSnapshot,
+  )
   const isEntry = threadId === undefined
   const activeThreadId = threadId ?? entry.threadId
-
-  const prepare = useCallback((): Promise<boolean> => {
-    const pending = creating.current
-    if (pending !== null) {
-      return pending
-    }
-
-    const created = (
-      activeRoot === null
-        ? createProjectlessWorkspace().then((root) => open(activeThreadId, root))
-        : open(activeThreadId, activeRoot)
-    ).then((opened) => {
-      const ready = opened !== null
-      if (ready) {
-        setEntry((current) =>
-          current.threadId === activeThreadId ? { ...current, started: true } : current,
-        )
-      }
-      return ready
-    })
-
-    creating.current = created
-    void created.catch(() => {
-      if (creating.current === created) {
-        creating.current = null
-      }
-    })
-
-    return created
-  }, [activeRoot, activeThreadId, open])
 
   return (
     <ConversationSurface
@@ -134,7 +95,7 @@ export function AssistantPane({
       isNew={isEntry && !entry.started}
       key={activeThreadId}
       onForked={isEntry ? undefined : onConversationForked}
-      onPrepare={isEntry ? prepare : undefined}
+      onPrepare={isEntry ? entryOwner.prepare : undefined}
       onStarted={onConversationStarted}
       session={session}
       threadId={activeThreadId}

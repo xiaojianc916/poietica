@@ -1,12 +1,8 @@
 import { agent as agentDescriptor } from '@poietica/agent-catalog'
-import { type AutomationStore, createAutomationStore } from '@poietica/automation'
-import type { AttachmentIntake } from '@poietica/conversation'
-import {
-  type ConversationRuntime,
-  createConversationRuntime,
-  normalizeWorkspaceRoot,
-} from '@poietica/conversation'
-import { createPluginStore, type PluginStore } from '@poietica/extension'
+import { createAutomationStore } from '@poietica/automation'
+import { createConversationRuntime, normalizeWorkspaceRoot } from '@poietica/conversation'
+import { ComposerDrafts } from '@poietica/conversation/surface'
+import { createPluginStore } from '@poietica/extension'
 import { createPreference } from '@poietica/external-store'
 import {
   listCustomAgents,
@@ -16,71 +12,39 @@ import {
 import { createModelCatalogPort } from '@poietica/native-bridge/agent/models'
 import { createAgentSettings } from '@poietica/native-bridge/agent/preferences'
 import { automationGateway } from '@poietica/native-bridge/automation'
+import { browserHostPort, watchBrowserElementPicked } from '@poietica/native-bridge/browser'
 import { capabilityGateway, extensionGateway } from '@poietica/native-bridge/extensions'
 import { createSettingsStore } from '@poietica/native-bridge/settings'
 import { createAppUpdateController } from '@poietica/native-bridge/update'
 import { readAppVersion } from '@poietica/native-bridge/update/version'
 import { readTokenDays } from '@poietica/native-bridge/usage'
-import {
-  createMainWindowController,
-  type MainWindowController,
-} from '@poietica/native-bridge/window'
+import { createMainWindowController } from '@poietica/native-bridge/window'
+import { createProjectlessWorkspace } from '@poietica/native-bridge/workspace'
 import { readDataDirectory } from '@poietica/native-bridge/workspace/data-directory'
 import { homeDirectory } from '@poietica/native-bridge/workspace/paths'
 import { writeWorkbenchSession } from '@poietica/native-bridge/workspace/session'
-import { warn } from '@poietica/problem'
-import {
-  type AgentSettings,
-  type CustomAgentStore,
-  ModelCatalogStore,
-  type SettingsStore,
-} from '@poietica/settings'
+import { failureCoordinator, warn } from '@poietica/problem'
+import { type CustomAgentStore, ModelCatalogStore, PersonalizationStore } from '@poietica/settings'
 import { AppUpdateStore } from '@poietica/update'
-import type { WorkbenchSessionStore } from '@poietica/workspace'
-import {
-  type CommandRegistry,
-  createCommandRegistry,
-  createWorkbenchSessionController,
-} from '@poietica/workspace'
+import { createCommandRegistry, createWorkbenchSessionController } from '@poietica/workspace'
+import { createAuxiliaryPanelStore } from '@poietica/workspace/panels'
 import { v7 as uuidv7 } from 'uuid'
-import { createDesktopAgentRuntime, type DesktopAgentRuntime } from '../assistant/agent-runtime'
+import { createDesktopAgentRuntime } from '../assistant/agent-runtime'
 import { createAttachmentIntake } from '../assistant/attachment-intake'
+import { createConversationEntry } from '../assistant/conversation-entry'
+import { createWorkspaceCollapse } from '../assistant/workspace-collapse'
 import { reconcileBrowserMcpServer } from '../browser/browser-mcp'
+import { createBrowserPickController } from '../browser/browser-pick'
+import { NoticeStore } from '../notice/notices'
 import { reportFailure } from '../notice/problem-presentation'
-import { createThemeRuntime, type ThemeRuntime } from '../window/theme-runtime'
-import { createWorkspaceRoots, type WorkspaceRoots } from '../workspace/roots'
+import { createWorkspaceLayoutPreference } from '../shell/layout/layout-preference'
+import { createWorkspaceLayoutStore } from '../shell/layout/layout-store'
+import { createThemeRuntime } from '../window/theme-runtime'
+import { createWorkspaceRoots } from '../workspace/roots'
+import type { ApplicationRuntime } from './runtime-contract'
+import { connectWorkbench } from './workbench-connections'
 
 const MARKETPLACE_URL = 'https://code.kimi.com/kimi-code/plugins/marketplace.json'
-
-export interface ApplicationRuntime {
-  readonly workspaceRoots: WorkspaceRoots
-  readonly workspace: WorkbenchSessionStore
-  readonly commands: CommandRegistry
-  readonly mainWindow: MainWindowController
-  readonly theme: ThemeRuntime
-  readonly updates: AppUpdateStore
-  readonly conversation: ConversationRuntime
-  readonly start: () => void
-  readonly settings: SettingsStore
-  readonly agentConfig: AgentSettings
-  /** 模型目录的唯一持有者：默认模型、provider 与密钥的真身都在 agent 进程，这是它的投影。 */
-  readonly modelCatalog: ModelCatalogStore
-  readonly customAgents: CustomAgentStore
-  readonly agent: DesktopAgentRuntime
-  readonly attachments: AttachmentIntake
-  readonly pluginStore: PluginStore
-  readonly automationStore: AutomationStore
-  readonly own: (dispose: () => void) => () => void
-  /** 这个可执行文件自己的版本号。 */
-  readonly appVersion: () => Promise<string>
-  /** 这台机器上，这个应用的数据落在哪。关于页面要如实说出它。 */
-  readonly dataDirectory: () => Promise<string>
-  /** 最近若干天的 token 日账。与上面两个同源同层：账本只有原生侧那一份。 */
-  readonly readTokenDays: typeof readTokenDays
-  /** Starts non-visual services once; agent launch awaits the same gate. */
-  readonly startBackgroundServices: () => void
-  readonly dispose: () => Promise<void>
-}
 
 export function createApplicationRuntime(restored: string | null): ApplicationRuntime {
   const active = createPreference<string | null>({
@@ -169,6 +133,19 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   }
 
   const attachments = createAttachmentIntake()
+  const layout = createWorkspaceLayoutStore(createWorkspaceLayoutPreference())
+  const composerDrafts = new ComposerDrafts()
+  const personalization = new PersonalizationStore(customAgents)
+  const auxiliaryPanel = createAuxiliaryPanelStore(browserHostPort)
+  const collapsedWorkspaces = createWorkspaceCollapse()
+  const notices = new NoticeStore(failureCoordinator)
+  const browserPick = createBrowserPickController({
+    intake: attachments,
+    watch: watchBrowserElementPicked,
+    report: (message, cause) => {
+      warn(message, { scope: 'browser-pick', cause })
+    },
+  })
 
   const pluginStore = createPluginStore({
     capability: capabilityGateway,
@@ -253,6 +230,12 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       },
     },
   })
+  const conversationEntry = createConversationEntry({
+    createId: uuidv7,
+    readRoot: workspaceRoots.readActive,
+    createProjectless: createProjectlessWorkspace,
+    open: conversation.threads.create,
+  })
   const updateCodes = {
     'check-update': 'UPDATE_CHECK_FAILED',
     'download-update': 'UPDATE_DOWNLOAD_FAILED',
@@ -275,6 +258,19 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     started = true
     void workspaceRoots.start()
     conversation.start()
+    own(notices.start())
+    own(auxiliaryPanel.start())
+    own(browserPick.start())
+    own(
+      connectWorkbench({
+        workspace,
+        conversation,
+        commands,
+        layout,
+        auxiliaryPanel,
+        conversationEntry,
+      }),
+    )
     own(agentConfig.subscribeConfigChanged(conversation.capabilities.refresh))
     let seen = pluginStore.getSnapshot().ownedSkills
     own(
@@ -293,6 +289,14 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   }
 
   return {
+    layout,
+    composerDrafts,
+    personalization,
+    auxiliaryPanel,
+    browserPick,
+    collapsedWorkspaces,
+    notices,
+    conversationEntry,
     workspaceRoots,
     workspace,
     commands,
@@ -331,6 +335,8 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
         const failures: unknown[] = []
         const cleanup = [
           ...cleanups.splice(0).reverse(),
+          layout.dispose,
+          conversationEntry.dispose,
           workspace.dispose,
           conversation.dispose,
           updates.dispose,

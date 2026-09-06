@@ -1,6 +1,8 @@
 //! 把 agent 那侧的失败折进这个程序既有的错误面。
 
+use super::POISONED;
 use crate::error::Error;
+use poietica_conversation_runtime::RuntimeError;
 use poietica_kap_client::{KapError, Refusal};
 
 /// 这一侧自己判定的拒绝，说的话。
@@ -112,6 +114,25 @@ impl From<poietica_conversation_runtime::catalog::CatalogError> for Error {
             }
             CatalogError::Missing => {
                 Self::NotFound("that conversation no longer exists".to_owned())
+            }
+        }
+    }
+}
+
+impl From<RuntimeError> for Error {
+    fn from(error: RuntimeError) -> Self {
+        match error {
+            RuntimeError::Agent(error) => translate(error),
+            RuntimeError::Gone => translate(KapError::Refused(Refusal::Gone)),
+            RuntimeError::Busy => Self::Automation(poietica_automation::AutomationError::Data(
+                "另一代理正在使用连接；后台任务不会中断它".to_owned(),
+            )),
+            RuntimeError::Poisoned => Self::Internal(POISONED.to_owned()),
+            error => {
+                log::error!("conversation lifecycle failed: {error}");
+                Self::Internal(
+                    "the conversation connection could not complete its lifecycle".to_owned(),
+                )
             }
         }
     }

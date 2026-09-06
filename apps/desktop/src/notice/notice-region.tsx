@@ -1,33 +1,26 @@
 import { ToastRegion } from '@poietica/design-system'
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
-import { noticeStore } from './notices'
-/** 通知的唯一出口：store 说什么就画什么。 */
-export function NoticeRegion() {
-  const notices = useSyncExternalStore(
-    noticeStore.subscribe,
-    noticeStore.getSnapshot,
-    noticeStore.getSnapshot,
-  )
-  useEffect(() => noticeStore.start(), [])
-  /* 窗口没露面时不烧停留时间：回来才开始读。 */
+import type { NoticeStore } from './notices'
+
+export function NoticeRegion({ store }: { readonly store: NoticeStore }) {
+  const notices = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   useEffect(() => {
     const sync = (): void => {
-      noticeStore.setPaused('hidden', document.hidden)
+      store.setPaused('hidden', document.hidden)
     }
     sync()
     document.addEventListener('visibilitychange', sync)
     return () => {
       document.removeEventListener('visibilitychange', sync)
     }
-  }, [])
-  const handleHoverChange = useCallback((hovering: boolean) => {
-    noticeStore.setPaused('hover', hovering)
-  }, [])
+  }, [store])
+  const handleHoverChange = useCallback(
+    (hovering: boolean) => {
+      store.setPaused('hover', hovering)
+    },
+    [store],
+  )
   return (
-    <ToastRegion
-      notices={notices}
-      onDismiss={noticeStore.dismiss}
-      onHoverChange={handleHoverChange}
-    />
+    <ToastRegion notices={notices} onDismiss={store.dismiss} onHoverChange={handleHoverChange} />
   )
 }

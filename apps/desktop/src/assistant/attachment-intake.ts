@@ -11,23 +11,6 @@ import { pickPaths, watchDroppedPaths } from '@poietica/native-bridge/assets/dia
 import { basename } from '@poietica/native-bridge/workspace/paths'
 import { warn } from '@poietica/problem'
 
-/*
- * 附件收件口的原生这一半。
- *
- * 三条进门的路，两条交路径、一条交字节，而交字节那一条只因为系统给不出路径：
- *
- *   拖放      onDragDropEvent → paths → asset_import
- *   加号      plugin-dialog 的 open() → paths → asset_import
- *   粘贴      File → base64 → asset_upload
- *
- * 前两条一个字节都不进 webview。第三条是剪贴板的物理事实：截图是一团没有
- * 名字也没有路径的 blob。
- *
- * 输入框那条资产会话是懒开的，一个进程一条：它是暂存区，一张图从被放进框里
- * 到被发出去（或被移掉）都挂在它下面。发出去之后由原生侧过继给这条对话的
- * 交付会话（asset_protocol 的 adopt，共用同一份内存），移掉就 removeAsset。
- */
-
 /* 种类在屏幕上叫什么。种类本身由原生那张表定义，这里只管翻译。 */
 const KIND_LABELS: Readonly<Record<string, string>> = { image: '图片', text: '文本' }
 
@@ -39,12 +22,28 @@ export function createAttachmentIntake(): AttachmentIntake {
   let offered: Promise<readonly AssetFormat[]> | undefined
 
   const composerSession = (): Promise<string> => {
-    opened ??= openAssetSession()
+    if (opened === undefined) {
+      const pending = openAssetSession()
+      opened = pending
+      void pending.catch(() => {
+        if (opened === pending) {
+          opened = undefined
+        }
+      })
+    }
     return opened
   }
 
   const knownFormats = (): Promise<readonly AssetFormat[]> => {
-    offered ??= listAssetFormats()
+    if (offered === undefined) {
+      const pending = listAssetFormats()
+      offered = pending
+      void pending.catch(() => {
+        if (offered === pending) {
+          offered = undefined
+        }
+      })
+    }
     return offered
   }
 
@@ -66,6 +65,12 @@ export function createAttachmentIntake(): AttachmentIntake {
       filename: filenames[index] ?? asset.assetToken,
       mediaType: asset.contentType,
     }))
+  }
+
+  const discard = (asset: ComposerAsset): void => {
+    void removeAsset(asset.sessionToken, asset.assetToken).catch((cause: unknown) => {
+      warn('暂存附件未能释放', { scope: 'attachment-intake', cause })
+    })
   }
 
   return {
@@ -97,19 +102,13 @@ export function createAttachmentIntake(): AttachmentIntake {
       let cancelled = false
       let stop: (() => void) | null = null
       let last = ''
+      let reset: ReturnType<typeof setTimeout> | undefined
 
       void watchDroppedPaths((paths) => {
-        /*
-         * 同一次拖放可能报两遍。
-         *
-         * 上游缺陷 tauri#14134：一次拖放触发两次 drop，paths 完全相同，
-         * 间隔几毫秒。不去重的后果不是多一张卡片（身份是内容摘要，输入框
-         * 那一侧会认出是同一张），而是白读一遍盘、白算一遍 SHA-256。
-         *
-         * 判据是这一批路径本身，而不是一个时间窗内的任意一次拖放：真的
-         * 连着拖两批不同的文件必须两批都收。窗口过后清掉，同一批文件再
-         * 拖一次仍然算数。
-         */
+        if (cancelled) {
+          return
+        }
+
         const signature = paths.join('\u0000')
 
         if (signature === last) {
@@ -118,15 +117,29 @@ export function createAttachmentIntake(): AttachmentIntake {
 
         last = signature
 
-        setTimeout(() => {
+        if (reset !== undefined) {
+          clearTimeout(reset)
+        }
+        reset = setTimeout(() => {
           if (last === signature) {
             last = ''
           }
         }, REPEAT_WINDOW)
 
-        void intake(paths).then(onDropped, (cause: unknown) => {
-          warn('拖放附件未能接收', { scope: 'attachment-intake', cause })
-        })
+        void intake(paths).then(
+          (assets) => {
+            if (cancelled) {
+              for (const asset of assets) {
+                discard(asset)
+              }
+              return
+            }
+            onDropped(assets)
+          },
+          (cause: unknown) => {
+            warn('拖放附件未能接收', { scope: 'attachment-intake', cause })
+          },
+        )
       })
         .then((unlisten) => {
           if (cancelled) {
@@ -143,6 +156,10 @@ export function createAttachmentIntake(): AttachmentIntake {
 
       return () => {
         cancelled = true
+        if (reset !== undefined) {
+          clearTimeout(reset)
+          reset = undefined
+        }
         stop?.()
         stop = null
       }
@@ -161,12 +178,6 @@ export function createAttachmentIntake(): AttachmentIntake {
       }
     },
 
-    discard(asset) {
-      /* 有意的 fire-and-forget：放不掉一份暂存字节不该让移除按钮卡住，
-      而这条会话在进程退出时整条作废。 */
-      void removeAsset(asset.sessionToken, asset.assetToken).catch((cause: unknown) => {
-        warn('暂存附件未能释放', { scope: 'attachment-intake', cause })
-      })
-    },
+    discard,
   }
 }

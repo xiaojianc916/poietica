@@ -88,7 +88,7 @@ const COMPOSITION_ROOT = 'apps/desktop/src-tauri/src/composition.rs'
 const STORE_FACES = [
   { store: 'settings_store', face: 'apps/desktop/src-tauri/src/settings.rs' },
   { store: 'agents_store', face: 'apps/desktop/src-tauri/src/agent/profile.rs' },
-  { store: 'automations_store', face: 'apps/desktop/src-tauri/src/automation/mod.rs' },
+  { store: 'automations_store', face: 'apps/desktop/src-tauri/src/automation/host.rs' },
 ] as const
 
 /** 每个偏好库只有一个持有者：组合根开它，它自己的命令面读写，别人不碰。 */
@@ -621,6 +621,9 @@ export async function processStateIsComposedAtRoot(root: string): Promise<Violat
     ['@poietica/update', new Set(['AppUpdateStore'])],
     ['@poietica/automation', new Set(['createAutomationStore'])],
     ['@poietica/extension', new Set(['createPluginStore'])],
+    ['@poietica/conversation/surface', new Set(['ComposerDrafts'])],
+    ['@poietica/settings', new Set(['PersonalizationStore'])],
+    ['@poietica/workspace/panels', new Set(['createAuxiliaryPanelStore'])],
   ])
   const violations: Violation[] = []
   const files = await walk(root, ['apps', 'packages'], ['.tsx'])

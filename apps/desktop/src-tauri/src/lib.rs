@@ -16,13 +16,13 @@
 pub mod agent;
 pub mod asset;
 pub mod asset_protocol;
-pub mod automation;
-pub mod composition;
+pub(crate) mod automation;
+pub(crate) mod composition;
 pub mod conversation;
 pub mod diagnostics;
 pub mod error;
 pub mod extension;
-pub mod ipc;
+pub(crate) mod ipc;
 pub mod launcher;
 pub mod ledger;
 pub mod paths;
@@ -36,6 +36,7 @@ pub mod window;
 pub mod workspace;
 
 pub use error::{Error, Result};
+pub use ipc::export_bindings::export_ipc_bindings;
 
 /// Single composition root. Called from main.rs.
 ///

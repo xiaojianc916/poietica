@@ -5,13 +5,16 @@ use poietica_problem::Problem;
 // Registration addresses definitions so Tauri command macros remain addressable.
 mod attachment;
 pub mod capability;
+pub(crate) mod composition;
 pub mod config;
+mod configuration;
 pub mod custom_agents;
 pub mod dto;
 pub mod export;
 mod failure;
 pub mod model_catalog;
-pub mod runtime;
+pub(crate) type AgentRuntime =
+    std::sync::Arc<poietica_conversation_runtime::Runtime<crate::error::Error>>;
 pub mod thread;
 pub mod toolkit;
 pub mod turn;

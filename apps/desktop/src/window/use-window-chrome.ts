@@ -1,6 +1,7 @@
 import type { MainWindowController } from '@poietica/native-bridge/window'
 import { useCallback, useEffect, useState } from 'react'
 import { reportFailure } from '../notice/problem-presentation'
+import { observeMaximizedState } from './maximized-state'
 
 interface WindowChrome {
   readonly isMaximized: boolean
@@ -48,70 +49,81 @@ export function useWindowChrome(
       })
   }, [dispose, mainWindow])
 
+  useTerminationRequests(mainWindow, quit)
   return { isMaximized, minimize, toggleMaximize, quit }
 }
 
-/*
- * 首帧问一次快照，此后只收窗口播报的翻转。
- *
- * 判定留在原生侧去抖（commands/window.rs 的 watch_maximized），过边界的只有真正的
- * 变化，所以这里没有并发的请求，也就不需要请求版本号去压竞态。
- */
 function useMaximizedState(mainWindow: MainWindowController): boolean {
   const [isMaximized, setMaximized] = useState(false)
+  useEffect(
+    () =>
+      observeMaximizedState(mainWindow, setMaximized, (stage, cause) => {
+        reportFailure(
+          stage === 'read' ? 'WINDOW_STATE_QUERY_UNAVAILABLE' : 'WINDOW_STATE_SYNC_UNAVAILABLE',
+          {
+            scope: 'window-chrome',
+            operation: stage === 'read' ? 'query-window-maximized' : 'watch-window-maximized',
+            cause,
+          },
+        )
+      }),
+    [mainWindow],
+  )
+  return isMaximized
+}
 
+function useTerminationRequests(
+  mainWindow: MainWindowController,
+  onCloseRequested: () => void,
+): void {
   useEffect(() => {
-    let active = true
-    let unsubscribe: (() => void) | undefined
-
-    void mainWindow.isMaximized().then(
-      (nextIsMaximized) => {
-        if (!active) {
-          return
-        }
-
-        setMaximized(nextIsMaximized)
+    const channels = [
+      {
+        operation: 'register-close-listener',
+        subscribe: () => mainWindow.onCloseRequested(onCloseRequested),
       },
-      (cause: unknown) => {
-        if (!active) {
-          return
-        }
-
-        reportFailure('WINDOW_STATE_QUERY_UNAVAILABLE', {
-          scope: 'window-chrome',
-          operation: 'query-window-maximized',
-          cause,
-        })
+      {
+        operation: 'register-tray-quit-listener',
+        subscribe: () => mainWindow.onTerminationRequested(onCloseRequested),
       },
-    )
+    ]
 
-    void mainWindow.onMaximizedChanged(setMaximized).then(
-      (nextUnsubscribe) => {
-        if (!active) {
-          nextUnsubscribe()
-          return
-        }
+    /* 兑现可能落在清理之后：那就地退订，别留一个悬空的监听。 */
+    let disposed = false
+    const disposers: Array<() => void> = []
 
-        unsubscribe = nextUnsubscribe
-      },
-      (cause: unknown) => {
-        if (!active) {
-          return
-        }
+    for (const channel of channels) {
+      void channel.subscribe().then(
+        (dispose) => {
+          if (disposed) {
+            dispose()
+            return
+          }
 
-        reportFailure('WINDOW_STATE_SYNC_UNAVAILABLE', {
-          scope: 'window-chrome',
-          operation: 'watch-window-maximized',
-          cause,
-        })
-      },
-    )
+          disposers.push(dispose)
+        },
+        (cause: unknown) => {
+          if (disposed) {
+            return
+          }
+
+          reportFailure('WINDOW_CLOSE_LISTENER_UNAVAILABLE', {
+            cause,
+            operation: channel.operation,
+            scope: 'app-shell',
+          })
+        },
+      )
+    }
 
     return () => {
-      active = false
-      unsubscribe?.()
-    }
-  }, [mainWindow])
+      disposed = true
 
-  return isMaximized
+      for (const dispose of disposers) {
+        dispose()
+      }
+
+      disposers.length = 0
+    }
+  }, [mainWindow, onCloseRequested])
 }

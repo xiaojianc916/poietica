@@ -18,8 +18,8 @@ use std::sync::Arc;
 use tauri::{State, async_runtime};
 use uuid::Uuid;
 
+use super::AgentRuntime;
 use super::dto::AgentPromptAsset;
-use super::runtime::AgentRuntime;
 use super::{IMAGE_TOO_LARGE, NO_READ, NO_SUCH_ASSET};
 
 /// 这条对话的交付会话，没有就开一个。

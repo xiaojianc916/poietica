@@ -15,8 +15,8 @@ use specta::Type;
 use tauri::State;
 
 use super::AgentCommandResult;
+use super::AgentRuntime;
 use super::dto::AgentLaunch;
-use super::runtime::AgentRuntime;
 
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]

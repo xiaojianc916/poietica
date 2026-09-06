@@ -4,5 +4,5 @@
 //! cargo run -p poietica --bin export-ipc-bindings
 
 fn main() {
-    poietica_desktop_lib::ipc::export_bindings::export_document_bindings();
+    poietica_desktop_lib::export_ipc_bindings();
 }
