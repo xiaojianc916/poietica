@@ -339,10 +339,7 @@ impl EventRouter {
 
         // 官方 transcript 通道（subscribe_v2 订的 per-agent 粒度流）：语义事件
         // 原样转交宿主，不在本地帧日志过账 —— 重放由 agent 自己的 transcript 承担。
-        if kind == "transcript.reset" {
-            return;
-        }
-        if kind == "transcript.ops" {
+        if matches!(kind, "transcript.reset" | "transcript.ops") {
             let session_id = envelope
                 .get("session_id")
                 .and_then(Value::as_str)

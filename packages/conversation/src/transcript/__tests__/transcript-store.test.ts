@@ -575,3 +575,361 @@ describe('conversation-owned submission queues', () => {
     store.dispose()
   })
 })
+
+describe('transcript recovery ownership', () => {
+  test('a reset retires pending reads and accepts a smaller cursor without clearing the view', async () => {
+    const entered = deferred<void>()
+    const recovering = deferred<void>()
+    const pending = deferred<TranscriptPage>()
+    const restored = deferred<TranscriptPage>()
+    let reads = 0
+    let catches = 0
+    const publications: AgentTranscriptSnapshot[] = []
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        readTranscript: () => {
+          reads += 1
+          if (reads === 1) {
+            entered.resolve()
+            return pending.promise
+          }
+          recovering.resolve()
+          return restored.promise
+        },
+        catchUpTranscript: async (_session, agent, seq) => {
+          catches += 1
+          return { agentId: agent, batches: [], latestSeq: seq, complete: true }
+        },
+      }),
+      (_agent, snapshot) => publications.push(snapshot),
+    )
+    const running = officialTurn('turn-1', 'prompt-1', 1, 'running')
+    const completed = { ...running, state: 'completed' as const }
+    replica.seed(page('main', 40, { items: [running] }))
+    const inFlight = replica.refresh('main')
+    await entered.promise
+    const reset = replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main' })
+    await recovering.promise
+    replica.seed(page('main', 80, { items: [running] }))
+    expect(replica.snapshot('main')?.items).toEqual([running])
+    restored.resolve(page('main', 2, { items: [completed] }))
+    await reset
+    await replica.receive(ops('main', 3))
+    pending.resolve(page('main', 99, { items: [running] }))
+    await inFlight
+    expect(replica.snapshot('main')?.items).toEqual([completed])
+    expect(publications).toHaveLength(2)
+    expect(reads).toBe(2)
+    expect(catches).toBe(0)
+    replica.dispose()
+  })
+
+  test('restores the loaded history boundary before publishing recovery', async () => {
+    const first = officialTurn('turn-1', 'prompt-1', 1)
+    const second = officialTurn('turn-2', 'prompt-2', 2)
+    const third = officialTurn('turn-3', 'prompt-3', 3)
+    const requests: (string | undefined)[] = []
+    const publications: AgentTranscriptSnapshot[] = []
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        readTranscript: async (_session, agent, before) => {
+          requests.push(before)
+          if (before === undefined) {
+            return page(agent, 1, { items: [third], hasMoreOlder: true })
+          }
+          if (before === third.turnId) {
+            return page(agent, 1, { items: [second], hasMoreOlder: true })
+          }
+          if (before === second.turnId) {
+            return page(agent, 1, { items: [first], hasMoreOlder: false })
+          }
+          throw new Error('Unexpected history boundary.')
+        },
+      }),
+      (_agent, snapshot) => publications.push(snapshot),
+    )
+    replica.seed(page('main', 40, { items: [first, second] }))
+    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main' })
+    expect(requests).toEqual([undefined, third.turnId, second.turnId])
+    expect(replica.snapshot('main')?.items).toEqual([first, second, third])
+    expect(publications).toHaveLength(2)
+    replica.dispose()
+  })
+
+  test('global recovery discovers agents from the refreshed authoritative roster', async () => {
+    const reads: string[] = []
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        readTranscript: async (_session, agent) => {
+          reads.push(agent)
+          return page(agent, 1)
+        },
+      }),
+      () => undefined,
+    )
+    replica.seed(page('main', 40, { agents: [{ agentId: 'main', type: 'main' }] }))
+    await replica.receive({ kind: 'resync', sessionId: 'session', reason: 'session_recreated' })
+    expect(reads).toEqual(['main', 'worker'])
+    expect(replica.snapshot('worker')).toBeDefined()
+    replica.dispose()
+  })
+
+  test('a smaller upstream watermark starts a fresh recovery owner', async () => {
+    let catches = 0
+    let heads = 0
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        catchUpTranscript: async (_session, agent) => {
+          catches += 1
+          return { agentId: agent, batches: [], latestSeq: 1, complete: false }
+        },
+        readTranscript: async (_session, agent) => {
+          heads += 1
+          return page(agent, 1)
+        },
+      }),
+      () => undefined,
+    )
+    replica.seed(page('main', 40))
+    await replica.synchronize('main')
+    await replica.receive(ops('main', 2))
+    expect(catches).toBe(1)
+    expect(heads).toBe(1)
+    replica.dispose()
+  })
+
+  test('opening snapshots cannot overwrite an already recovered generation', async () => {
+    const running = officialTurn('turn-1', 'prompt-1', 1, 'running')
+    const completed = { ...running, state: 'completed' as const }
+    let catches = 0
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        readTranscript: async (_session, agent) => page(agent, 1, { items: [completed] }),
+        catchUpTranscript: async (_session, agent, seq) => {
+          catches += 1
+          return { agentId: agent, batches: [], latestSeq: seq, complete: true }
+        },
+      }),
+      () => undefined,
+    )
+    replica.seed(page('main', 40, { items: [running] }))
+    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main' })
+    replica.seed(page('main', 99, { items: [running] }))
+    await replica.receive(ops('main', 2))
+    expect(replica.snapshot('main')?.items).toEqual([completed])
+    expect(catches).toBe(0)
+    replica.dispose()
+  })
+
+  test('watermark rollback propagates a failure from the successor recovery', async () => {
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        catchUpTranscript: async (_session, agent) => ({
+          agentId: agent,
+          batches: [],
+          latestSeq: 1,
+          complete: false,
+        }),
+        readTranscript: async () => {
+          throw new Error('Successor recovery unavailable.')
+        },
+      }),
+      () => undefined,
+    )
+    replica.seed(page('main', 40))
+    await expect(replica.synchronize('main')).rejects.toThrow('Successor recovery unavailable.')
+    replica.dispose()
+  })
+
+  test('a retired read failure cannot fail the recovered owner', async () => {
+    const entered = deferred<void>()
+    const release = deferred<void>()
+    let reads = 0
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        readTranscript: async (_session, agent) => {
+          reads += 1
+          if (reads === 1) {
+            entered.resolve()
+            await release.promise
+            throw new Error('Retired request failed.')
+          }
+          return page(agent, 1)
+        },
+      }),
+      () => undefined,
+    )
+    replica.seed(page('main', 40))
+    const pending = replica.refresh('main')
+    await entered.promise
+    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main' })
+    release.resolve()
+    await pending
+    expect(reads).toBe(2)
+    expect(replica.snapshot('main')).toBeDefined()
+    replica.dispose()
+  })
+
+  test('failed offset recovery never exposes an accepted prefix', async () => {
+    const committed = page('main', 4)
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        readTranscript: async () => {
+          throw new Error('Recovery unavailable.')
+        },
+      }),
+      () => undefined,
+    )
+    replica.seed(committed)
+    await expect(
+      replica.receive({
+        kind: 'ops',
+        sessionId: 'session',
+        agentId: 'main',
+        seq: 5,
+        ops: [
+          {
+            op: 'prompt.upsert',
+            prompt: {
+              promptId: 'target',
+              status: 'completed',
+              createdAt: '2026-01-01T00:00:00Z',
+            },
+          },
+          { op: 'append', target: { type: 'task', taskId: 'missing' }, offset: 10, text: 'gap' },
+        ],
+      }),
+    ).rejects.toThrow('Recovery unavailable.')
+    expect(replica.snapshot('main')?.prompts).toEqual(committed.prompts)
+    expect(replica.snapshot('main')?.tasks).toEqual(committed.tasks)
+    replica.dispose()
+  })
+
+  test('an incomplete catch-up cannot commit its prefix when the head request fails', async () => {
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        catchUpTranscript: async (_session, agent) => ({
+          agentId: agent,
+          latestSeq: 6,
+          complete: true,
+          batches: [
+            {
+              seq: 5,
+              ops: [
+                {
+                  op: 'prompt.upsert',
+                  prompt: {
+                    promptId: 'target',
+                    status: 'completed',
+                    createdAt: '2026-01-01T00:00:00Z',
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+        readTranscript: async () => {
+          throw new Error('Recovery unavailable.')
+        },
+      }),
+      () => undefined,
+    )
+    replica.seed(page('main', 4))
+    await expect(replica.synchronize('main')).rejects.toThrow('Recovery unavailable.')
+    expect(replica.snapshot('main')?.prompts).toEqual([])
+    replica.dispose()
+  })
+
+  test('non-advancing history fails without publishing a partial window', async () => {
+    const first = officialTurn('turn-1', 'prompt-1', 1)
+    const latest = officialTurn('turn-3', 'prompt-3', 3)
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        readTranscript: async (_session, agent) =>
+          page(agent, 1, { items: [latest], hasMoreOlder: true }),
+      }),
+      () => undefined,
+    )
+    replica.seed(page('main', 40, { items: [first] }))
+    await expect(
+      replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main' }),
+    ).rejects.toThrow('Transcript pagination did not advance.')
+    expect(replica.snapshot('main')?.items).toEqual([first])
+    replica.dispose()
+  })
+
+  test('empty live and catch-up batches advance the cursor without publishing', async () => {
+    const cursors: number[] = []
+    let published = 0
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        catchUpTranscript: async (_session, agent, seq) => {
+          cursors.push(seq)
+          return {
+            agentId: agent,
+            batches: [{ seq: seq + 1, ops: [] }],
+            latestSeq: seq + 1,
+            complete: true,
+          }
+        },
+      }),
+      () => {
+        published += 1
+      },
+    )
+    replica.seed(page('main', 4))
+    const seeded = published
+    await replica.receive(ops('main', 5))
+    await replica.synchronize('main')
+    await replica.receive(ops('main', 7))
+    expect(cursors).toEqual([5])
+    expect(published).toBe(seeded)
+    replica.dispose()
+  })
+
+  test('a subagent reset failure belongs to its subagent channel', async () => {
+    let receive: (signal: TranscriptSignal) => void = () => {
+      throw new Error('Not subscribed.')
+    }
+    const store = new TranscriptStore()
+    store.ensure(
+      sessionPort(
+        transcriptPort({
+          subscribeTranscript: (listener) => {
+            receive = listener
+            return () => undefined
+          },
+          readTranscript: async () => {
+            throw new Error('Worker recovery unavailable.')
+          },
+        }),
+      ),
+    )
+    store.route('session', 'thread', page())
+    const key = delegateKey('thread', 'worker')
+    const failed = new Promise<void>((resolve) => {
+      const off = store.subscribe(key, () => {
+        if (store.read(key).operation.kind === 'failed') {
+          off()
+          resolve()
+        }
+      })
+    })
+    receive({ kind: 'reset', sessionId: 'session', agentId: 'worker' })
+    await failed
+    expect(store.read('thread').operation.kind).toBe('ready')
+    expect(store.read(key).operation.kind).toBe('failed')
+    store.dispose()
+  })
+})

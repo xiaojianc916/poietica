@@ -545,7 +545,7 @@ export class TranscriptStore implements TranscriptSink {
     const owner = thread === undefined ? undefined : this.#owners.get(thread)
     if (thread !== undefined && owner !== undefined) {
       this.#observe(
-        signal.kind === 'ops' ? channelKey(thread, signal.agentId) : thread,
+        signal.kind === 'resync' ? thread : channelKey(thread, signal.agentId),
         owner,
         owner.receive(signal),
       )

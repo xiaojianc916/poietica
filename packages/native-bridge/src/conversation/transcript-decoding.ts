@@ -3,6 +3,7 @@ import type { TranscriptPage, TranscriptSignal } from '@poietica/conversation'
 import {
   type TranscriptOperation,
   transcriptOpsPayloadSchema,
+  transcriptResetPayloadSchema,
   transcriptResponseSchema,
 } from '@poietica/transcript'
 
@@ -10,7 +11,6 @@ type Decoded =
   | { readonly ok: true; readonly signal: TranscriptSignal }
   | { readonly ok: false; readonly error: Error }
 
-/** The native router forwards only transcript.ops and resync_required. */
 export function decodeTranscriptEvent(wire: AgentTranscriptEvent): Decoded {
   try {
     const envelope: unknown = JSON.parse(wire.json)
@@ -39,6 +39,13 @@ export function decodeTranscriptEvent(wire: AgentTranscriptEvent): Decoded {
           sessionId: wire.sessionId,
           reason: payload.reason,
         },
+      }
+    }
+    if (envelope.type === 'transcript.reset') {
+      const data = transcriptResetPayloadSchema.parse(envelope.payload)
+      return {
+        ok: true,
+        signal: { kind: 'reset', sessionId: wire.sessionId, agentId: data.agent_id },
       }
     }
     if (envelope.type !== 'transcript.ops') {

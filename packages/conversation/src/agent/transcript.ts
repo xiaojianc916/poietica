@@ -32,7 +32,8 @@ export type TranscriptSignal =
       readonly seq: number
       readonly ops: readonly TranscriptOperation[]
     }
-  /* Full snapshots are TranscriptPage values, never WS signals. */
+  /* Reset invalidates a cursor; REST supplies the populated history window. */
+  | { readonly kind: 'reset'; readonly sessionId: string; readonly agentId: string }
   | { readonly kind: 'resync'; readonly sessionId: string; readonly reason: string }
 
 export interface TranscriptPort {
