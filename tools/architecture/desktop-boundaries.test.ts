@@ -8,12 +8,16 @@ const root = path.resolve('/architecture-fixture')
 const file = (relative: string): string =>
   path.join(root, 'apps', 'desktop', 'src', relative).split(path.sep).join('/')
 
-test('composition is the only consumer that may connect all desktop domains', () => {
+test('the workbench consumes desktop domains without allowing reverse dependencies', () => {
   expect(
-    desktopBoundaries(root, file('entry/app-shell.tsx'), file('assistant/assistant-pane.tsx')),
+    desktopBoundaries(root, file('workbench/app-shell.tsx'), file('assistant/assistant-pane.tsx')),
   ).toEqual([])
   expect(
-    desktopBoundaries(root, file('shell/layout/workspace-shell.tsx'), file('entry/app-shell.tsx')),
+    desktopBoundaries(
+      root,
+      file('shell/layout/workspace-shell.tsx'),
+      file('workbench/app-shell.tsx'),
+    ),
   ).toHaveLength(1)
   expect(
     desktopBoundaries(
@@ -80,4 +84,28 @@ test('resolved aliases and erased imports cannot bypass desktop direction', () =
   )
   expect(findings).toHaveLength(1)
   expect(findings[0]?.policy).toBe('desktop-domain-direction')
+})
+
+test('workbench dependencies point down to leaf views and never to entry', () => {
+  expect(
+    desktopBoundaries(root, file('workbench/workspace.tsx'), file('workbench/auxiliary-dock.tsx')),
+  ).toEqual([])
+  expect(
+    desktopBoundaries(root, file('workbench/auxiliary-dock.tsx'), file('workbench/workspace.tsx')),
+  ).toHaveLength(1)
+  expect(
+    desktopBoundaries(
+      root,
+      file('workbench/runtime-contract.ts'),
+      file('entry/compose-runtime.ts'),
+      true,
+    ),
+  ).toHaveLength(1)
+})
+
+test('workbench JSX cannot acquire host implementations directly', () => {
+  const host = path.join(root, 'packages', 'native-bridge', 'src', 'review.ts')
+  expect(desktopBoundaries(root, file('workbench/review-pane.tsx'), host)).toHaveLength(1)
+  expect(desktopBoundaries(root, file('entry/compose-runtime.ts'), host)).toEqual([])
+  expect(desktopBoundaries(root, file('workbench/runtime-contract.ts'), host, true)).toEqual([])
 })

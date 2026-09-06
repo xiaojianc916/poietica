@@ -14,6 +14,9 @@ use poietica_automation::{
     AutomationUpdate,
     schedule::{SchedulePreview, ScheduleProblem},
 };
+use poietica_conversation_runtime::toolkit::{
+    AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit,
+};
 use tauri::Wry;
 use tauri_specta::{Builder, ErrorHandlingMode};
 
@@ -45,7 +48,6 @@ use crate::{
         AgentSessionEvent, AgentThreadRequest, AgentTranscriptEvent, AgentTranscriptJson,
         AgentTranscriptOpsRequest, AgentTranscriptRequest,
     },
-    conversation::toolkit::{AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit},
     extension::{
         ForeignPluginInventory, ForeignPluginRecord, PluginCommitRequest, PluginFetch,
         PluginPayload, PluginStaged,

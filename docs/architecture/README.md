@@ -46,3 +46,5 @@ ADRs retain historical decisions; this overview and executable policies describe
 
 See [UI authority](./ui-authority-boundaries.md), [Rust layers](./rust-layers.md),
 [conversation execution](./conversation-execution-ownership.md) and [window lifecycle](./window-lifecycle.md).
+
+See [layer ownership](./layer-ownership.md) for desktop composition and native conversation boundaries.

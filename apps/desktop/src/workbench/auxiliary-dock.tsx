@@ -3,7 +3,6 @@ import {
   DelegateChannelPane,
   useDelegateChannelNames,
 } from '@poietica/conversation/surface'
-import { terminalHostPort } from '@poietica/native-bridge/terminal'
 import { warn } from '@poietica/problem'
 import type { AuxiliaryPaneOffer } from '@poietica/workspace/panels'
 import {
@@ -17,6 +16,7 @@ import { FileDiff, Globe, MessageSquareText, PanelRight, SquareTerminal } from '
 import { lazy, type ReactNode, Suspense, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useConversationWorkspaceRoot } from '../assistant/threads-context'
 import { useWorkspaceLayoutState } from '../shell/layout/layout-context'
+import type { WorkbenchHost } from './runtime-contract'
 
 const PANE_ICONS: Readonly<Record<AuxiliaryLauncherKind, ReactNode>> = {
   assistant: <MessageSquareText aria-hidden className="size-3.5 shrink-0 opacity-60" />,
@@ -41,16 +41,17 @@ const DeferredTerminalPane = lazy(() =>
   })),
 )
 
-function releaseTerminal(root: string | null): void {
+function releaseTerminal(port: WorkbenchHost['terminal'], root: string | null): void {
   if (root === null) {
     return
   }
-  void terminalHostPort.close(root).catch((cause: unknown) => {
+  void port.close(root).catch((cause: unknown) => {
     warn('终端会话没能关掉', { cause, scope: 'terminal' })
   })
 }
 
 interface AuxiliaryDockProps {
+  readonly host: Pick<WorkbenchHost, 'review' | 'terminal'>
   readonly store: AuxiliaryPanelStore
   /** 面板所属的对话，不随隐藏期间的活动标签切换。 */
   readonly conversationId: string | null
@@ -58,7 +59,7 @@ interface AuxiliaryDockProps {
   readonly isDocked: boolean
 }
 
-export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDockProps) {
+export function AuxiliaryDock({ conversationId, isDocked, store, host }: AuxiliaryDockProps) {
   const layout = useWorkspaceLayoutState()
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 
@@ -91,19 +92,19 @@ export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDock
       terminal: {
         body: () => (
           <Suspense fallback={<p className="p-4 text-xs opacity-50">正在加载终端…</p>}>
-            <DeferredTerminalPane conversationId={conversationId} />
+            <DeferredTerminalPane conversationId={conversationId} port={host.terminal} />
           </Suspense>
         ),
         icon: PANE_ICONS.terminal,
         name: () => '终端',
         release: () => {
-          releaseTerminal(terminalRoot)
+          releaseTerminal(host.terminal, terminalRoot)
         },
       },
       review: {
         body: () => (
           <Suspense fallback={<p className="p-4 text-xs opacity-50">正在加载审查…</p>}>
-            <DeferredReviewPane conversationId={conversationId} />
+            <DeferredReviewPane conversationId={conversationId} gateway={host.review} />
           </Suspense>
         ),
         icon: PANE_ICONS.review,
@@ -111,7 +112,7 @@ export function AuxiliaryDock({ conversationId, isDocked, store }: AuxiliaryDock
         release: () => undefined,
       },
     }),
-    [conversationId, paneName, terminalRoot],
+    [conversationId, host.review, host.terminal, paneName, terminalRoot],
   )
 
   return (

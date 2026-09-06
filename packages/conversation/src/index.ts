@@ -1,7 +1,5 @@
 /** Public headless conversation API. React bindings use the surface entry. */
-/** Public headless conversation API. React bindings use the surface entry. */
 export type { AgentCapabilityPort } from './agent/capability'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type {
   SessionConfigChoice,
   SessionConfigControl,
@@ -9,20 +7,15 @@ export type {
   SessionConfigPurpose,
   SessionConfigReport,
 } from './agent/config'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type { SessionGoal, SessionGoalStatus } from './agent/goal'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type { KapSessionId, KapStopReason, KapToolCallId } from './agent/kap'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type { SessionLink } from './agent/link'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type {
   ApprovalAnswer,
   ApprovalDecision,
   ApprovalScope,
   PermissionPosturePort,
 } from './agent/permission'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type {
   QuestionAnswer,
   QuestionAnswerMethod,
@@ -31,9 +24,7 @@ export type {
   QuestionOption,
   QuestionResponse,
 } from './agent/question'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type { ChatStatus, QuestionOutcome, RunStatus } from './agent/run'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type {
   AgentPromptHandle,
   AgentPromptRequest,
@@ -42,7 +33,6 @@ export type {
   PromptConfiguration,
   PromptSkill,
 } from './agent/session'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type {
   OpenedThread,
   ThreadHistory,
@@ -51,7 +41,6 @@ export type {
   ThreadSnapshot,
   TurnMark,
 } from './agent/thread'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type {
   ToolCallContent,
   ToolCallLocation,
@@ -59,9 +48,7 @@ export type {
   ToolCallUpdate,
   ToolKind,
 } from './agent/tool-call'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type { AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit } from './agent/toolkit'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type {
   TranscriptAgentId,
   TranscriptCatchUp,
@@ -70,7 +57,6 @@ export type {
   TranscriptSignal,
   TranscriptTurnId,
 } from './agent/transcript'
-/** Public headless conversation API. React bindings use the surface entry. */
 export type { SessionUsage, SessionUsagePort, SessionUsageReport } from './agent/usage'
 export type {
   AttachmentIntake,

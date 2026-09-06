@@ -3,6 +3,7 @@ import type { AttachmentIntake, ComposerDrafts, ConversationRuntime } from '@poi
 import type { PluginStore } from '@poietica/extension'
 import type { readTokenDays } from '@poietica/native-bridge/usage'
 import type { MainWindowController } from '@poietica/native-bridge/window'
+import type { ReviewGateway } from '@poietica/review'
 import type {
   AgentSettings,
   CustomAgentStore,
@@ -10,6 +11,7 @@ import type {
   PersonalizationStore,
   SettingsStore,
 } from '@poietica/settings'
+import type { TerminalHostPort } from '@poietica/terminal'
 import type { AppUpdateStore } from '@poietica/update'
 import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
 import type { AuxiliaryPanelStore } from '@poietica/workspace/panels'
@@ -22,7 +24,14 @@ import type { WorkspaceLayoutStore } from '../shell/layout/layout-store'
 import type { ThemeRuntime } from '../window/theme-runtime'
 import type { WorkspaceRoots } from '../workspace/roots'
 
+export interface WorkbenchHost {
+  readonly review: ReviewGateway
+  readonly terminal: TerminalHostPort
+  readonly pickWorkspace: () => Promise<string | null>
+}
+
 export interface ApplicationRuntime {
+  readonly host: WorkbenchHost
   readonly layout: WorkspaceLayoutStore
   readonly composerDrafts: ComposerDrafts
   readonly personalization: PersonalizationStore

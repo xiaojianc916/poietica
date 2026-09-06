@@ -1,4 +1,3 @@
-import { reviewGateway } from '@poietica/native-bridge/review'
 import { ReviewPane, type ReviewPaneProps } from '@poietica/review/surface'
 import { useConversationWorkspaceRoot } from '../assistant/threads-context'
 import { reportFailure } from '../notice/problem-presentation'
@@ -10,8 +9,10 @@ const report: ReviewPaneProps['report'] = (code, context) => {
 
 export function ConversationReviewPane({
   conversationId,
+  gateway,
 }: {
   readonly conversationId: string | null
+  readonly gateway: ReviewPaneProps['gateway']
 }) {
   const root = useConversationWorkspaceRoot(conversationId)
 
@@ -19,5 +20,5 @@ export function ConversationReviewPane({
     return <p className="px-4 py-3 text-xs text-muted-foreground">这条对话没有工作目录。</p>
   }
 
-  return <ReviewPane gateway={reviewGateway} key={root} report={report} root={root} />
+  return <ReviewPane gateway={gateway} key={root} report={report} root={root} />
 }

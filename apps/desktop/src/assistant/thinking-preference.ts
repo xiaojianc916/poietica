@@ -9,7 +9,7 @@ interface PreferredThinking {
   readonly value: string
 }
 
-interface ThinkingPreference {
+export interface ThinkingPreference {
   readonly selection: (
     agentId: string,
     controls: readonly SessionConfigControl[],

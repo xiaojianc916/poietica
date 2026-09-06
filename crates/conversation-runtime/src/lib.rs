@@ -16,6 +16,7 @@ pub mod disposal;
 mod gateway;
 pub mod journal;
 mod session;
+pub mod toolkit;
 pub use session::{SessionError, SessionHistory};
 
 pub use delivery::DeliveryError;

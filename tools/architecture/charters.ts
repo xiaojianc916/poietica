@@ -655,9 +655,9 @@ export async function runFrameWireStaysTyped(root: string): Promise<Violation[]>
   const probes = [
     ['apps/desktop/src-tauri/src/conversation/dto.rs', 'pub events: Vec<Value>'],
     ['apps/desktop/src-tauri/src/conversation/dto.rs', '#[specta(type = Vec<Value>)]'],
-    ['packages/native-bridge/src/conversation/connection.ts', 'events.filter(isRunEvent)'],
-    ['packages/native-bridge/src/conversation/connection.ts', 'agentRunBatch'],
-    ['packages/native-bridge/src/conversation/connection.ts', 'AgentFramePage'],
+    ['packages/native-bridge/src/conversation/session.ts', 'events.filter(isRunEvent)'],
+    ['packages/native-bridge/src/conversation/session.ts', 'agentRunBatch'],
+    ['packages/native-bridge/src/conversation/session.ts', 'AgentFramePage'],
   ] as const
   const violations: Violation[] = []
 

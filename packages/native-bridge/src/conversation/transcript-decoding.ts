@@ -1,6 +1,10 @@
 import type { AgentTranscriptEvent } from '@poietica/contract'
-import type { TranscriptSignal } from '@poietica/conversation'
-import { type TranscriptOperation, transcriptOpsPayloadSchema } from '@poietica/transcript'
+import type { TranscriptPage, TranscriptSignal } from '@poietica/conversation'
+import {
+  type TranscriptOperation,
+  transcriptOpsPayloadSchema,
+  transcriptResponseSchema,
+} from '@poietica/transcript'
 
 type Decoded =
   | { readonly ok: true; readonly signal: TranscriptSignal }
@@ -72,4 +76,22 @@ export function decodeTranscriptEvent(wire: AgentTranscriptEvent): Decoded {
     // Do not put raw JSON, prompts, or schema input values into diagnostics.
     return { ok: false, error: new Error('Transcript event failed boundary validation.') }
   }
+}
+
+export function transcriptPageOf(json: string): TranscriptPage {
+  const data = transcriptResponseSchema.parse(JSON.parse(json))
+  return {
+    agentId: data.agent_id,
+    items: data.items,
+    hasMoreOlder: data.has_more,
+    tasks: data.tasks,
+    interactions: data.interactions,
+    attachments: data.attachments,
+    todos: data.todos,
+    prompts: data.prompts,
+    meta: data.meta,
+    agents: data.agents,
+    pendingInteractions: data.pending_interactions,
+    seq: data.seq ?? 0,
+  } as TranscriptPage
 }

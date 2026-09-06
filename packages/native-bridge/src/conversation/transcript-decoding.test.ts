@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { decodeTranscriptEvent } from './transcript-event'
+import { decodeTranscriptEvent } from './transcript-decoding'
 
 test('malformed data is isolated and does not prevent the next valid event', () => {
   expect(decodeTranscriptEvent({ sessionId: 'session', json: '{' }).ok).toBe(false)

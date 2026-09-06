@@ -19,3 +19,5 @@ pub use skills::{ScannedSkill, install_skill, scan_skills, set_skill_enabled, tr
 pub use source::{copy_tree, extract_zip};
 pub use staging::Staging;
 pub use text_file::{read_optional, write_atomic};
+
+pub use skills::read_skill_document;

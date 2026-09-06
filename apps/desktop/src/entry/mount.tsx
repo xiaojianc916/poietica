@@ -13,11 +13,11 @@ import {
   reportFatalIncident,
 } from '../notice/problem-presentation'
 import { WorkspaceLayoutContext } from '../shell/layout/layout-context'
+import { AppShell } from '../workbench/app-shell'
+import type { ApplicationRuntime } from '../workbench/runtime-contract'
 import { WorkspaceRootsContext } from '../workspace/roots-context'
-import { AppShell } from './app-shell'
 import { createApplicationRuntime } from './compose-runtime'
 import { FatalWindowFrame } from './fatal-window-frame'
-import type { ApplicationRuntime } from './runtime-contract'
 
 async function saveTable(content: string): Promise<void> {
   await exportTable({ content, format: 'markdown' })

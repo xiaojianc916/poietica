@@ -132,7 +132,11 @@ export class ModelCatalogStore {
     this.#port = port
     this.#agentId = agentId
     void port
-      .subscribeInvalidation(() => void this.refresh())
+      .subscribeInvalidation(() => {
+        if (!this.#disposed) {
+          void this.refresh()
+        }
+      })
       .then(
         (dispose) => {
           if (this.#disposed) {
@@ -141,32 +145,45 @@ export class ModelCatalogStore {
           }
           this.#dispose = dispose
         },
-        () => undefined,
+        (cause: unknown) => {
+          if (!this.#disposed) {
+            this.#publish({ ...this.#snapshot, error: describe(cause) })
+          }
+        },
       )
   }
 
   readonly getSnapshot = (): ModelCatalogSnapshot => this.#snapshot
 
   readonly subscribe = (listener: () => void): (() => void) => {
+    this.#requireActive()
     this.#listeners.add(listener)
     return () => this.#listeners.delete(listener)
   }
 
   readonly subscribeCommitted = (listener: () => void): (() => void) => {
+    this.#requireActive()
     this.#committed.add(listener)
     return () => this.#committed.delete(listener)
   }
 
   dispose(): void {
+    if (this.#disposed) {
+      return
+    }
     this.#disposed = true
     this.#generation += 1
-    this.#dispose?.()
+    const release = this.#dispose
     this.#dispose = null
     this.#listeners.clear()
     this.#committed.clear()
+    release?.()
   }
 
   load = (): Promise<void> => {
+    if (this.#disposed) {
+      return Promise.reject(stoppedCatalog())
+    }
     if (this.#snapshot.data !== null) {
       return Promise.resolve()
     }
@@ -185,6 +202,7 @@ export class ModelCatalogStore {
   }
 
   refresh = async (): Promise<void> => {
+    this.#requireActive()
     const generation = ++this.#generation
     this.#publish({ ...this.#snapshot, loading: true, error: null })
     try {
@@ -200,6 +218,7 @@ export class ModelCatalogStore {
   mutate = async (
     operation: Exclude<ModelCatalogOperation, { readonly kind: 'snapshot' }>,
   ): Promise<void> => {
+    this.#requireActive()
     const generation = ++this.#generation
     this.#publish({ ...this.#snapshot, mutating: true, error: null })
     try {
@@ -214,6 +233,9 @@ export class ModelCatalogStore {
   }
 
   synchronizeMetadata = (): Promise<void> => {
+    if (this.#disposed) {
+      return Promise.reject(stoppedCatalog())
+    }
     if (this.#metadataSync !== null) {
       return this.#metadataSync
     }
@@ -235,6 +257,7 @@ export class ModelCatalogStore {
 
   async #synchronizeMetadata(): Promise<void> {
     await this.refresh()
+    this.#requireActive()
     const { data, error } = this.#snapshot
     if (data === null || error !== null) {
       throw new Error(error ?? 'Model catalog is unavailable.')
@@ -248,6 +271,12 @@ export class ModelCatalogStore {
 
   setDefaultModel(modelId: string): Promise<void> {
     return this.mutate({ kind: 'setDefault', modelId })
+  }
+
+  #requireActive(): void {
+    if (this.#disposed) {
+      throw stoppedCatalog()
+    }
   }
 
   #commit(generation: number, data: ModelCatalogData): void {
@@ -279,4 +308,8 @@ function freezeData(data: ModelCatalogData): ModelCatalogData {
 
 function describe(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause)
+}
+
+function stoppedCatalog(): DOMException {
+  return new DOMException('Model catalog is disposed.', 'AbortError')
 }

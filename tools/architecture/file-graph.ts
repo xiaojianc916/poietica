@@ -11,6 +11,7 @@ import {
   HOST_AWARE_PACKAGES,
   UNLAYERED_DIRECTORIES,
 } from './layering.ts'
+import { nativeConversationBoundaries } from './native-conversation-boundaries.ts'
 import { layerDirection, type Violation } from './policies.ts'
 import type { ExportTarget, Workspace } from './workspace.ts'
 
@@ -581,9 +582,11 @@ export async function fileGraph(
     workspaces.map((workspace) => [workspace.name, workspace] as const),
   )
   const policy = resolvedWorkspaceBoundaries(root, workspaces, ts.sys)
-  const boundaries: Violation[] = units.flatMap((unit) =>
-    conversationBoundaries(root, unit.file, unit.file, true),
-  )
+  const boundaries: Violation[] = units.flatMap((unit) => [
+    ...conversationBoundaries(root, unit.file, unit.file, true),
+    ...desktopBoundaries(root, unit.file, unit.file, true),
+    ...nativeConversationBoundaries(root, unit.file, unit.file),
+  ])
   const graph = analyzeSourceFiles(
     root,
     units,
@@ -592,7 +595,8 @@ export async function fileGraph(
     entries,
     (file, specifier, target, typeOnly) => {
       boundaries.push(...policy(file, specifier, target, typeOnly))
-      boundaries.push(...desktopBoundaries(root, file, target))
+      boundaries.push(...desktopBoundaries(root, file, target, typeOnly))
+      boundaries.push(...nativeConversationBoundaries(root, file, target))
       boundaries.push(...conversationBoundaries(root, file, target, typeOnly))
     },
     (file) => conversationCore(root, file),

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./conversation": "./src/conversation/connection.ts",
+    "./conversation": "./src/conversation/index.ts",
     "./agent/config": "./src/agent/configuration.ts",
     "./agent/preferences": "./src/agent/preferences.ts",
     "./agent/models": "./src/agent/models.ts",
@@ -31,7 +31,8 @@
     "./errors": "./src/ipc-error.ts"
   },
   "scripts": {
-    "typecheck": "tsc --project tsconfig.json --noEmit"
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "bun test src"
   },
   "dependencies": {
     "@poietica/agent-catalog": "workspace:*",

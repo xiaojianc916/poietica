@@ -118,6 +118,7 @@ export function AppShell({ runtime }: AppShellProps) {
             commands={runtime.commands}
             composerDrafts={runtime.composerDrafts}
             dataDirectory={runtime.dataDirectory}
+            host={runtime.host}
             isSettingsOpen={isSettingsOpen && canOpenSettings}
             isWindowMaximized={isWindowMaximized}
             keybindings={keybindings}

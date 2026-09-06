@@ -71,7 +71,7 @@ pub fn scan_skills(skills_root: &Path) -> Result<Vec<ScannedSkill>> {
         found.push(ScannedSkill {
             name: name.to_owned(),
             enabled,
-            document: head(&document_path)?,
+            document: read_skill_document(&document_path)?,
             directory,
             supporting_files,
             total_bytes,
@@ -106,7 +106,7 @@ pub fn set_skill_enabled(skills_root: &Path, name: &str, enabled: bool) -> Resul
     Ok(())
 }
 
-fn head(path: &Path) -> Result<String> {
+pub fn read_skill_document(path: &Path) -> Result<String> {
     let mut bytes = Vec::new();
     fs::File::open(path)?
         .take(DOCUMENT_MAX_BYTES)
@@ -164,6 +164,17 @@ mod tests {
     )]
 
     use super::*;
+
+    #[test]
+    fn skill_document_reads_are_bounded() {
+        let temporary = tempfile::tempdir().expect("temporary directory");
+        let document = temporary.path().join(SKILL_FILENAME);
+        let limit = usize::try_from(DOCUMENT_MAX_BYTES).expect("document limit fits usize");
+        fs::write(&document, vec![b'x'; limit + 1]).expect("skill document");
+        let read = read_skill_document(&document).expect("bounded document");
+        assert_eq!(read.len(), limit);
+        assert!(read.bytes().all(|byte| byte == b'x'));
+    }
 
     #[test]
     fn scan_reports_content_footprint_and_toggle_round_trips() {

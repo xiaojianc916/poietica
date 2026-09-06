@@ -3268,12 +3268,17 @@ name = "poietica-conversation-runtime"
 version = "0.3.1"
 dependencies = [
  "base64 0.22.1",
+ "hex",
  "log",
  "poietica-asset",
  "poietica-conversation",
+ "poietica-extension-native",
  "poietica-kap-client",
  "poietica-ledger",
  "poietica-time",
+ "serde",
+ "sha2",
+ "specta",
  "tempfile",
  "thiserror 2.0.19",
  "tokio",

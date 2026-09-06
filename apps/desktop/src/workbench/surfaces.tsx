@@ -2,12 +2,11 @@ import type { AutomationStore } from '@poietica/automation'
 import type { AgentSessionPort, ComposerDrafts } from '@poietica/conversation'
 import { ComposerDraftsContext, useAgentControls } from '@poietica/conversation/surface'
 import type { PluginStore } from '@poietica/extension'
-import { pickWorkspaceRoot } from '@poietica/native-bridge/workspace'
 import type { PersonalizationStore } from '@poietica/settings'
-
 import { lazy, type ReactNode, Suspense } from 'react'
 import { AssistantPane } from '../assistant/assistant-pane'
 import type { SurfaceRenderers } from '../shell/surfaces/surface'
+import type { WorkbenchHost } from './runtime-contract'
 
 const DeferredAutomationsSurface = lazy(() =>
   import('@poietica/automation/ui').then(({ AutomationsSurface }) => ({
@@ -38,6 +37,7 @@ interface DesktopSurfaces {
 }
 
 interface DesktopSurfacesOptions {
+  readonly pickWorkspace: WorkbenchHost['pickWorkspace']
   readonly drafts: ComposerDrafts
   readonly personalization: PersonalizationStore
   /** 分叉出的对话开出来之后，去它那里 —— 与打开一条对话同一个动作。 */
@@ -60,6 +60,7 @@ function ToolsSurface({ store }: { store: PluginStore }) {
 }
 
 export function createDesktopSurfaces({
+  pickWorkspace,
   automationStore,
   drafts,
   personalization,
@@ -68,8 +69,6 @@ export function createDesktopSurfaces({
   pluginStore,
   session,
 }: DesktopSurfacesOptions): DesktopSurfaces {
-  /* 子 Agent 目录的唯一真相，寿命与这份接线相同：离开这一格再回来，草稿与选中项还在。 */
-
   const renderAssistant = (threadId?: string): ReactNode => (
     <ComposerDraftsContext value={drafts}>
       <AssistantPane
@@ -87,11 +86,14 @@ export function createDesktopSurfaces({
 
       automations: () => (
         <Suspense fallback={<SurfaceLoading />}>
-          <AutomationsView onOpenThread={onConversationStarted} store={automationStore} />
+          <AutomationsView
+            onOpenThread={onConversationStarted}
+            pickWorkspace={pickWorkspace}
+            store={automationStore}
+          />
         </Suspense>
       ),
 
-      /* Tool 那一格。注册表里 tools 已经是 surface，漏掉这一条是编译错误。 */
       personalization: () => (
         <Suspense fallback={<SurfaceLoading />}>
           <DeferredPersonalizationSurface store={personalization} />
@@ -105,17 +107,18 @@ export function createDesktopSurfaces({
 }
 
 interface AutomationsViewProps {
+  readonly pickWorkspace: WorkbenchHost['pickWorkspace']
   readonly store: AutomationStore
   readonly onOpenThread: (threadId: string, title: string) => void
 }
-function AutomationsView({ store, onOpenThread }: AutomationsViewProps) {
+function AutomationsView({ store, onOpenThread, pickWorkspace }: AutomationsViewProps) {
   const { controls } = useAgentControls()
   return (
     <DeferredAutomationsSurface
       controls={controls}
       defaultTimeZone={Intl.DateTimeFormat().resolvedOptions().timeZone}
       onOpenThread={onOpenThread}
-      pickWorkspace={pickWorkspaceRoot}
+      pickWorkspace={pickWorkspace}
       store={store}
     />
   )

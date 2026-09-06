@@ -48,9 +48,11 @@ import {
 import { useWorkspaceLayoutStore } from '../shell/layout/layout-context'
 import type { WorkspaceParts, WorkspaceShellActions } from '../shell/layout/shell-contract'
 import { AuxiliaryDock } from './auxiliary-dock'
+import type { WorkbenchHost } from './runtime-contract'
 import { createDesktopSurfaces } from './surfaces'
 
 export interface DesktopWorkspaceProps {
+  readonly host: WorkbenchHost
   readonly agentSession: AgentSessionPort
   readonly appVersion: () => Promise<string>
   /** 数据目录。与版本号同源同层：关于页面上的两个事实出自同一条链。 */
@@ -90,6 +92,7 @@ function isAssistantChromeSurface(surface: WorkbenchSurfaceViewModel): boolean {
 }
 
 export function DesktopWorkspace({
+  host,
   agentSession,
   appVersion,
   dataDirectory,
@@ -199,6 +202,7 @@ export function DesktopWorkspace({
   const desktopSurfaces = useMemo(
     () =>
       createDesktopSurfaces({
+        pickWorkspace: host.pickWorkspace,
         automationStore,
         drafts: composerDrafts,
         personalization,
@@ -208,7 +212,15 @@ export function DesktopWorkspace({
         pluginStore: plugins,
         session: agentSession,
       }),
-    [agentSession, automationStore, composerDrafts, personalization, plugins, startConversation],
+    [
+      agentSession,
+      automationStore,
+      composerDrafts,
+      host.pickWorkspace,
+      personalization,
+      plugins,
+      startConversation,
+    ],
   )
 
   /* AI 入口晋升时只换 threadId；非 AI 表面仍由工作区的统一宿主渲染。 */
@@ -345,6 +357,7 @@ export function DesktopWorkspace({
       content: (
         <AuxiliaryDock
           conversationId={auxiliaryThread}
+          host={host}
           isDocked={dockAuxiliary}
           store={auxiliaryPanel}
         />

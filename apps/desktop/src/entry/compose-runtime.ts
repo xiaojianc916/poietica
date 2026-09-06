@@ -17,12 +17,14 @@ import { createAgentSettings } from '@poietica/native-bridge/agent/preferences'
 import { automationGateway } from '@poietica/native-bridge/automation'
 import { browserHostPort, watchBrowserElementPicked } from '@poietica/native-bridge/browser'
 import { capabilityGateway, extensionGateway } from '@poietica/native-bridge/extensions'
+import { reviewGateway } from '@poietica/native-bridge/review'
 import { createSettingsStore } from '@poietica/native-bridge/settings'
+import { terminalHostPort } from '@poietica/native-bridge/terminal'
 import { createAppUpdateController } from '@poietica/native-bridge/update'
 import { readAppVersion } from '@poietica/native-bridge/update/version'
 import { readTokenDays } from '@poietica/native-bridge/usage'
 import { createMainWindowController } from '@poietica/native-bridge/window'
-import { createProjectlessWorkspace } from '@poietica/native-bridge/workspace'
+import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/native-bridge/workspace'
 import { readDataDirectory } from '@poietica/native-bridge/workspace/data-directory'
 import { homeDirectory } from '@poietica/native-bridge/workspace/paths'
 import { writeWorkbenchSession } from '@poietica/native-bridge/workspace/session'
@@ -32,7 +34,6 @@ import { AppUpdateStore } from '@poietica/update'
 import { createCommandRegistry, createWorkbenchSessionController } from '@poietica/workspace'
 import { createAuxiliaryPanelStore } from '@poietica/workspace/panels'
 import { v7 as uuidv7 } from 'uuid'
-import { createDesktopAgentRuntime } from '../assistant/agent-runtime'
 import { createAttachmentIntake } from '../assistant/attachment-intake'
 import { createConversationEntry } from '../assistant/conversation-entry'
 import { createWorkspaceCollapse } from '../assistant/workspace-collapse'
@@ -43,9 +44,10 @@ import { reportFailure } from '../notice/problem-presentation'
 import { createWorkspaceLayoutPreference } from '../shell/layout/layout-preference'
 import { createWorkspaceLayoutStore } from '../shell/layout/layout-store'
 import { createThemeRuntime } from '../window/theme-runtime'
+import { connectWorkbench } from '../workbench/connections'
+import type { ApplicationRuntime } from '../workbench/runtime-contract'
 import { createWorkspaceRoots } from '../workspace/roots'
-import type { ApplicationRuntime } from './runtime-contract'
-import { connectWorkbench } from './workbench-connections'
+import { createDesktopAgentRuntime } from './compose-agent'
 
 const MARKETPLACE_URL = 'https://code.kimi.com/kimi-code/plugins/marketplace.json'
 
@@ -193,7 +195,6 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
 
   const modelCatalog = new ModelCatalogStore(createModelCatalogPort(), agentDescriptor.id)
   const agent = createDesktopAgentRuntime({
-    config: agentConfig,
     modelCatalog,
     cwd: workspaceRoots.readActive,
     mcpReady: ensureBackgroundServices,
@@ -292,6 +293,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   }
 
   return {
+    host: { review: reviewGateway, terminal: terminalHostPort, pickWorkspace: pickWorkspaceRoot },
     layout,
     composerDrafts,
     personalization,
@@ -333,10 +335,17 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
         return disposing
       }
       disposed = true
-      workspaceRoots.dispose()
+      const failures: unknown[] = []
+      const agentStopped = agent.dispose()
+      try {
+        modelCatalog.dispose()
+      } catch (cause) {
+        failures.push(cause)
+      }
       disposing = Promise.resolve().then(async () => {
-        const failures: unknown[] = []
         const cleanup = [
+          () => agentStopped,
+          () => workspaceRoots.dispose(),
           ...cleanups.splice(0).reverse(),
           layout.dispose,
           conversationEntry.dispose,
@@ -345,9 +354,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
           updates.dispose,
           () => theme.dispose(),
           () => pluginStore.stop(),
-          () => modelCatalog.dispose(),
           () => appUpdate.dispose(),
-          () => agent.dispose(),
         ]
         for (const release of cleanup) {
           try {
