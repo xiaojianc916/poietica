@@ -1,10 +1,10 @@
+use crate::{DeliveryError, delivery::deliver};
 use poietica_conversation::error::GatewayFailure;
 use poietica_conversation::identity::{ThreadId, TurnId};
 use poietica_conversation::ports::{
     AgentGateway, ConversationLedger, DeliveryConfirmation, DeliveryReceipt, PromptDelivery,
 };
 use poietica_conversation::turn::{Admission, DeliveryState};
-use crate::{DeliveryError, delivery::deliver};
 use poietica_ledger::execution::{LocalIndex, read_index, write_index};
 use poietica_time::wall_clock::SystemWallClock;
 use std::error::Error;

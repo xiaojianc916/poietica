@@ -1,4 +1,4 @@
-use crate::connection::{RuntimeError, RuntimeFailure};
+use crate::{RuntimeError, RuntimeFailure};
 use poietica_kap_client::{SessionBook, SessionEvent, SessionUsageSnapshot};
 use poietica_ledger::execution::{IndexError, LocalIndex, write_index};
 use poietica_ledger::index::{SessionCursor, SessionUsage};

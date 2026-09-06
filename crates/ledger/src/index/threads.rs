@@ -303,27 +303,17 @@ impl AgentStore {
         Ok(())
     }
 
-    /// Deletes a conversation from the local index.
-    ///
-    /// 一行没了就是没了：这张表底下已经不挂任何东西。对话在 agent 那边的
-    /// 那一份由 session/delete 去删，两边各删各的一份，这里不越权。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the delete is rejected.
+    // Deletion must not commit without its remote archive intent.
     pub fn delete_thread(&self, id: Uuid) -> Result<()> {
-        /*
-         * 链接由这里解。
-         *
-         * 外键是开着的（connection.rs 的 pragma_update），但 schema 里那些
-         * REFERENCES 没有声明 ON DELETE，所以库只拦得住「指向不存在的行」，
-         * 不会替谁删子行。一个删除动作一个主人，清理写在这里。
-         *
-         * 字节不在这一步删：它可能还挂在别的对话上，这正是内容寻址的意义。
-         * 没人要的那些由 unreferenced_attachments 一次扫出来。
-         */
+        // Shared attachment bytes are reclaimed after their references are removed.
         let thread = id.to_string();
         let transaction = self.connection.unchecked_transaction()?;
+        if let Some((session, owner)) = self
+            .thread(id)?
+            .and_then(|row| row.session_id.zip(row.agent_id))
+        {
+            self.record_session_disposal(&session, &owner)?;
+        }
 
         transaction.execute(
             "DELETE FROM thread_attachments WHERE thread_id = ?1",
@@ -441,16 +431,11 @@ impl AgentStore {
 
         let mut harvested = 0;
 
-        for (id, session_id, agent_id) in ghosts {
+        for (id, _session_id, _agent_id) in ghosts {
             /* 库里的 id 都是本程序写下的 UUID；认不出的行宁可留着，也不误删。 */
             let Ok(parsed) = Uuid::parse_str(&id) else {
                 continue;
             };
-
-            /* 号与主人成对出现（threads_session_needs_owner），成对进账。 */
-            if let (Some(session_id), Some(agent_id)) = (&session_id, &agent_id) {
-                self.record_session_disposal(session_id, agent_id)?;
-            }
 
             self.delete_thread(parsed)?;
             harvested += 1;
@@ -565,5 +550,57 @@ impl FromSql for TitleSource {
             // row instead would take the whole sidebar down over one value.
             _ => Ok(Self::Fallback),
         }
+    }
+}
+
+#[cfg(test)]
+mod deletion_tests {
+    use super::AgentStore;
+    use poietica_time::wall_clock::SystemWallClock;
+    use std::error::Error;
+    use uuid::Uuid;
+
+    #[test]
+    fn deletion_and_archive_intent_commit_together_without_touching_another_thread()
+    -> Result<(), Box<dyn Error>> {
+        let directory = tempfile::tempdir()?;
+        let store = AgentStore::open(&directory.path().join("index.db"), SystemWallClock)?;
+        let id = Uuid::new_v4();
+        let retained = Uuid::new_v4();
+        store.create_thread(id, "conversation", Some("workspace"))?;
+        store.attach_session(id, "session", "agent")?;
+        store.create_thread(retained, "retained", Some("workspace"))?;
+        store.attach_session(retained, "retained-session", "agent")?;
+        store.delete_thread(id)?;
+        assert!(store.thread(id)?.is_none());
+        assert_eq!(
+            store.session_disposals("agent")?,
+            vec!["session".to_owned()]
+        );
+        assert_eq!(
+            store
+                .thread(retained)?
+                .and_then(|thread| thread.session_id)
+                .as_deref(),
+            Some("retained-session")
+        );
+        assert!(store.workspace_root_in_use("workspace")?);
+        store.delete_thread(id)?;
+        assert_eq!(store.session_disposals("agent")?.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn failed_deletion_rolls_back_its_archive_intent() -> Result<(), Box<dyn Error>> {
+        let directory = tempfile::tempdir()?;
+        let store = AgentStore::open(&directory.path().join("index.db"), SystemWallClock)?;
+        let id = Uuid::new_v4();
+        store.create_thread(id, "conversation", None)?;
+        store.attach_session(id, "session", "agent")?;
+        store.connection.execute_batch("CREATE TEMP TRIGGER reject_deletion BEFORE DELETE ON threads BEGIN SELECT RAISE(ABORT, 'blocked'); END;")?;
+        assert!(store.delete_thread(id).is_err());
+        assert!(store.thread(id)?.is_some());
+        assert!(store.session_disposals("agent")?.is_empty());
+        Ok(())
     }
 }

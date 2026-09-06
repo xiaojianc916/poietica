@@ -48,15 +48,21 @@ where
 {
     let id = Uuid::parse_str(named).map_err(|_| E::from(CatalogError::InvalidId))?;
     read_index(index, move |store| {
-        let thread = store.thread(id).map_err(IndexError::from).map_err(E::from)?
+        let thread = store
+            .thread(id)
+            .map_err(IndexError::from)
+            .map_err(E::from)?
             .ok_or_else(|| E::from(CatalogError::Missing))?;
         let usage = match thread.session_id.as_deref() {
-            Some(session) => store.session_usage(session)
-                .map_err(IndexError::from).map_err(E::from)?,
+            Some(session) => store
+                .session_usage(session)
+                .map_err(IndexError::from)
+                .map_err(E::from)?,
             None => None,
         };
         Ok((thread, usage))
-    }).await
+    })
+    .await
 }
 
 pub async fn change<E>(index: &LocalIndex<E>, named: &str, change: ThreadChange) -> Result<(), E>
@@ -65,7 +71,12 @@ where
 {
     let id = Uuid::parse_str(named).map_err(|_| E::from(CatalogError::InvalidId))?;
     write_index(index, move |store| {
-        if store.thread(id).map_err(IndexError::from).map_err(E::from)?.is_none() {
+        if store
+            .thread(id)
+            .map_err(IndexError::from)
+            .map_err(E::from)?
+            .is_none()
+        {
             return Err(E::from(CatalogError::Missing));
         }
         match change {
@@ -75,6 +86,11 @@ where
             }
             ThreadChange::Archive(archived) => store.set_archived(id, archived),
             ThreadChange::Pin(pinned) => store.set_pinned(id, pinned),
-        }.map_err(IndexError::from).map_err(E::from)
-    }).await
+        }
+        .map_err(IndexError::from)
+        .map_err(E::from)
+    })
+    .await
 }
+
+pub(crate) const FALLBACK_THREAD_TITLE: &str = "新建对话";

@@ -16,9 +16,7 @@ use tauri::State;
 
 use super::AgentCommandResult;
 use super::dto::AgentLaunch;
-use super::failure::translate;
 use super::runtime::AgentRuntime;
-use poietica_conversation_runtime::connection::Takeover;
 
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -169,15 +167,14 @@ pub async fn agent_model_catalog(
     state: State<'_, AgentRuntime>,
     request: AgentModelCatalogRequest,
 ) -> AgentCommandResult<ModelCatalogSnapshotDto> {
-    let live = state
-        .ensure(request.launch.agent_id, request.cwd, Takeover::Replace)
-        .await?;
-
-    let snapshot = live
-        .client
-        .model_catalog(into_operation(request.operation))
+    let snapshot = state
+        .model_catalog(
+            request.launch.agent_id,
+            request.cwd,
+            into_operation(request.operation),
+        )
         .await
-        .map_err(translate)?;
+        .map_err(crate::error::Error::from)?;
 
     Ok(into_snapshot(snapshot))
 }

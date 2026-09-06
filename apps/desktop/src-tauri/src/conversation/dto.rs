@@ -494,9 +494,6 @@ pub struct AgentCapabilitiesRequest {
     pub cwd: Option<String>,
 }
 
-/// The name a conversation carries before anything has named it.
-pub(super) const FALLBACK_THREAD_TITLE: &str = "新建对话";
-
 /// Reported when a thread was written but could not be read back.
 pub(super) const NO_THREAD: &str = "the conversation was created but could not be read back";
 

@@ -15,11 +15,8 @@ use tauri::{AppHandle, State, async_runtime};
 
 use super::AgentCommandResult;
 use super::dto::AgentLaunch;
-use super::failure::translate;
 use super::runtime::AgentRuntime;
 use crate::agent::profile::agent_home_directory;
-use crate::ledger::LocalIndex;
-use poietica_conversation_runtime::connection::Takeover;
 
 const DOCUMENT_MAX_BYTES: u64 = 256 * 1024;
 
@@ -83,33 +80,13 @@ pub struct AgentToolkitRequest {
 pub async fn agent_toolkit(
     app: AppHandle,
     state: State<'_, AgentRuntime>,
-    index: State<'_, LocalIndex>,
     request: AgentToolkitRequest,
 ) -> AgentCommandResult<AgentToolkit> {
     let requested_cwd = request.cwd.clone();
-    let live = state
-        .ensure(request.launch.agent_id, request.cwd, Takeover::Replace)
-        .await?;
-    let addressed = match request.thread_id.as_deref() {
-        Some(named) => {
-            state
-                .sessions()
-                .resolve(
-                    &index,
-                    &live.client,
-                    &live.book,
-                    &live.agent_id,
-                    state.root(),
-                    named,
-                )
-                .await
-                .map_err(crate::error::Error::from)?
-                .session_id
-        }
-        None => live.anchor.clone(),
-    };
-
-    let runtime = live.client.skills(addressed).await.map_err(translate)?;
+    let (runtime, servers) = state
+        .toolkit(request.launch.agent_id, request.cwd, request.thread_id)
+        .await
+        .map_err(crate::error::Error::from)?;
     let root = agent_home_directory(&app)
         .map_err(poietica_problem::Problem::from)?
         .join("skills");
@@ -134,7 +111,6 @@ pub async fn agent_toolkit(
     skills.extend(by_name.into_values().map(restate_unloaded));
     skills.sort_by_key(|skill| skill.name.to_lowercase());
 
-    let servers = live.client.mcp_servers().await.map_err(translate)?;
     Ok(AgentToolkit {
         skills,
         mcp_servers: servers.into_iter().map(restate_server).collect(),

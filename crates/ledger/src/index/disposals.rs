@@ -29,14 +29,7 @@ impl AgentStore {
         Ok(())
     }
 
-    /// 销一笔账。
-    ///
-    /// 送达即销；agent 答了但拒绝也销 —— 拒绝只说明它自己早就不留着这条
-    /// 会话，一笔永远送不达的账不是账，是每次连接都要重付的税。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the delete is rejected.
+    /// Removes an archive intent only after confirmed remote success.
     pub fn discharge_session_disposal(&self, session_id: &str) -> Result<()> {
         self.write(
             "DELETE FROM session_disposals WHERE session_id = ?1",

@@ -1,15 +1,13 @@
 //! Wire conversion for the connection-owned configuration use case.
-use crate::error::Error;
-use poietica_conversation_runtime::connection::Takeover;
-use poietica_kap_client::{ConfigControl, ConfigPurpose};
-use tauri::State;
+use super::AgentCommandResult;
 use super::dto::{
     AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentConfigPurpose,
     AgentSelectConfigRequest,
 };
-use super::failure::translate;
 use super::runtime::AgentRuntime;
-use super::{AgentCommandResult, NO_ANSWER};
+use crate::error::Error;
+use poietica_kap_client::{ConfigControl, ConfigPurpose};
+use tauri::State;
 
 #[tauri::command]
 #[specta::specta]
@@ -17,9 +15,15 @@ pub async fn agent_set_config_option(
     state: State<'_, AgentRuntime>,
     request: AgentSelectConfigRequest,
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
-    let controls = state.select_configuration(
-        request.thread_id, request.config_id, request.value, request.input,
-    ).await.map_err(Error::from)?;
+    let controls = state
+        .select_configuration(
+            request.thread_id,
+            request.config_id,
+            request.value,
+            request.input,
+        )
+        .await
+        .map_err(Error::from)?;
     Ok(controls.into_iter().map(restate).collect())
 }
 
@@ -30,11 +34,10 @@ pub async fn agent_capabilities(
     state: State<'_, AgentRuntime>,
     request: AgentCapabilitiesRequest,
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
-    let live = state.ensure(request.launch.agent_id, request.cwd, Takeover::Replace).await?;
-    let answer = live.client.selectors(live.anchor).map_err(translate)?;
-    let offered = answer.await
-        .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
-        .map_err(translate)?;
+    let offered = state
+        .configuration_for(request.launch.agent_id, request.cwd)
+        .await
+        .map_err(Error::from)?;
     Ok(offered.into_iter().map(restate).collect())
 }
 

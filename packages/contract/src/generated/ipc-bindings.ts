@@ -11,94 +11,21 @@ export const commands = {
 async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
     return await TAURI_INVOKE("agent_prompt", { request });
 },
-/**
- * Asks the agent to stop the turn running on one conversation.
- * 
- * 取消点名一条对话。kap 的取消是发给一条会话的一帧 abort（ws-control.ts），而一条对话持有一条会话 ——
- * 这条对应关系在打开这条对话时就写进了库（`attach_session`），提问走的也是它。
- * 
- * 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `SessionResolver::resolve` 会为一条
- * 还没开过口的对话新开一个会话，那是纯副作用。
- * 
- * 它是 async 的，因为寻址经独立 reader actor；等待不占用主线程。
- * 
- * Cancellation is cooperative: the agent may still finish normally, and the
- * recorded stop reason reports which of the two happened.
- * 
- * # Errors
- * 
- * Fails when that conversation holds no live session, when no session is
- * running, or when the driver has stopped.
- */
 async agentCancel(request: AgentCancelRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_cancel", { request });
 },
-/**
- * Merges queued prompts into the turn already running on one conversation.
- * 
- * 队列归 kap，号由 prompt.queued 带来，本机不留副本。与取消不同：这不中断在跑
- * 的那一轮，只把这几句话并进它的上下文。
- * 
- * # Errors
- * 
- * Fails when that conversation holds no live session, or when kap says those
- * prompts are no longer queued.
- */
 async agentSteer(request: AgentSteerRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_steer", { request });
 },
-/**
- * Drops one queued prompt without touching the running turn.
- * 
- * # Errors
- * 
- * Fails when that conversation holds no live session, or when kap no longer has
- * that prompt.
- */
 async agentAbortPrompt(request: AgentAbortPromptRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_abort_prompt", { request });
 },
-/**
- * Answers a permission request the agent is blocked on.
- * 
- * # Errors
- * 
- * Fails when the request is not outstanding, or when the agent has already
- * stopped waiting.
- */
 async agentResolvePermission(request: AgentResolvePermissionRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_resolve_permission", { request });
 },
-/**
- * Answers one group of questions the agent is blocked on.
- * 
- * 一组一次答齐。kap 的一组最多四题，问是一起问的，答也一起答 —— 逐题各发一次，
- * agent 会在中间那些时刻看到一组只答了一半的题。
- * 
- * 合不合这一组题由桌子判：被问的那一组题在它手上，不在这一侧。
- * 
- * # Errors
- * 
- * Fails when there is no live connection, when that group is not outstanding,
- * when an answer names a question or an option that was never asked, when a
- * single-choice question is answered with several options, or when the agent
- * has already stopped waiting.
- */
 async agentAnswerQuestions(request: AgentAnswerQuestionsRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_answer_questions", { request });
 },
-/**
- * Takes one group of questions off the desk without answering it.
- * 
- * 与「每一题都选跳过」不是一件事：跳过是五种答复之一，agent 收到的仍是一组答案；
- * 撤下是这一组作罢，走 kap 自己的 :dismiss 后缀。两件事对 agent 的意义不同，所以
- * 它们不共用一条命令。
- * 
- * # Errors
- * 
- * Fails when there is no live connection, when that group is not outstanding,
- * or when the agent has already stopped waiting.
- */
 async agentDismissQuestions(request: AgentDismissQuestionsRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_dismiss_questions", { request });
 },
@@ -132,54 +59,21 @@ async agentCapabilityReport() : Promise<AgentCapability[]> {
 async agentCapabilityInstall(request: AgentCapabilityInstallRequest) : Promise<AgentCapability> {
     return await TAURI_INVOKE("agent_capability_install", { request });
 },
-/**
- * Lists the stored conversations, newest first.
- * 
- * A read, and nothing but a read: the names come from the ranking in
- * [`TitleSource`], not from the agent's own session list.
- * 
- * # Errors
- * 
- * Fails when the database cannot be opened or read.
- */
 async agentThreads() : Promise<AgentThread[]> {
     return await TAURI_INVOKE("agent_threads");
 },
-/**
- * Reads local conversation metadata and usage without starting an agent.
- */
 async agentThreadSnapshot(request: AgentThreadRequest) : Promise<AgentThreadSnapshot> {
     return await TAURI_INVOKE("agent_thread_snapshot", { request });
 },
 async agentExportThread(request: AgentExportThreadRequest) : Promise<boolean> {
     return await TAURI_INVOKE("agent_export_thread", { request });
 },
-/**
- * Opens the stored identity and reads the agent-owned transcript; recovery does not replace identity.
- */
 async agentOpenThread(request: AgentOpenThreadRequest) : Promise<AgentOpenedThread> {
     return await TAURI_INVOKE("agent_open_thread", { request });
 },
-/**
- * 一个 agent 的 transcript 页，原样 JSON 文本。
- * 
- * 载荷的契约钉在 vendored @poietica/transcript 的 schema，校验在渲染层
- * （native-bridge 的 transcript 端口）—— 这一层不重抄第二份形状。
- * 
- * # Errors
- * 
- * Fails when no agent session is running or the agent refuses the read.
- */
 async agentTranscript(request: AgentTranscriptRequest) : Promise<AgentTranscriptJson> {
     return await TAURI_INVOKE("agent_transcript", { request });
 },
-/**
- * 一个 agent 的 transcript 追赶批次，原样 JSON 文本。
- * 
- * # Errors
- * 
- * Fails when no agent session is running or the agent refuses the read.
- */
 async agentTranscriptOps(request: AgentTranscriptOpsRequest) : Promise<AgentTranscriptJson> {
     return await TAURI_INVOKE("agent_transcript_ops", { request });
 },
@@ -189,18 +83,12 @@ async agentRenameThread(request: AgentRenameThreadRequest) : Promise<null> {
 async agentArchiveThread(request: AgentArchiveThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_archive_thread", { request });
 },
-/**
- * Deletes local records and records any remote archive still owed.
- */
 async agentDeleteThread(request: AgentThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_delete_thread", { request });
 },
 async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_pin_thread", { request });
 },
-/**
- * Forks an existing agent-owned session without changing the source conversation.
- */
 async agentForkThread(request: AgentForkThreadRequest) : Promise<AgentThread> {
     return await TAURI_INVOKE("agent_fork_thread", { request });
 },

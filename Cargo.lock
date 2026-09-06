@@ -3236,7 +3236,6 @@ dependencies = [
  "poietica-automation",
  "poietica-conversation",
  "poietica-conversation-runtime",
- "poietica-kap-client",
  "poietica-ledger",
  "poietica-time",
  "tempfile",

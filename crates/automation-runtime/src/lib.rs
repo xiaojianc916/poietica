@@ -38,3 +38,5 @@ pub trait Executor: Send + Sync + 'static {
         execution: &Execution,
     ) -> impl Future<Output = Result<(), Self::Failure>> + Send;
 }
+
+pub mod catalog;

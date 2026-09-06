@@ -1,45 +1,19 @@
+use super::{AgentCommandResult, dto::AgentExportThreadRequest, runtime::AgentRuntime};
+use crate::error::Error;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
-
-use crate::error::Error;
-use crate::ledger::{LocalIndex, conversation};
-use poietica_ledger::execution::read_index;
-
-use super::AgentCommandResult;
-use super::NO_SUCH_CONVERSATION;
-use super::dto::AgentExportThreadRequest;
-use super::failure::translate;
-use super::runtime::AgentRuntime;
-use poietica_conversation_runtime::connection::Takeover;
-
-const NOTHING_TO_EXPORT: &str = "that conversation has no session owned by the selected agent";
 
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_export_thread(
     app: AppHandle,
     state: State<'_, AgentRuntime>,
-    index: State<'_, LocalIndex>,
     request: AgentExportThreadRequest,
 ) -> AgentCommandResult<bool> {
-    let thread_id = conversation(&request.thread_id)?;
-    let stored = read_index(&index, move |store| {
-        store.thread(thread_id).map_err(Error::from)
-    })
-    .await?
-    .ok_or_else(|| Error::NotFound(NO_SUCH_CONVERSATION.to_owned()))?;
-
-    let session_id = stored
-        .session_id
-        .ok_or_else(|| Error::Validation(NOTHING_TO_EXPORT.to_owned()))?;
-    if stored
-        .agent_id
-        .as_deref()
-        .is_some_and(|owner| owner != request.launch.agent_id.as_str())
-    {
-        return Err(Error::Validation(NOTHING_TO_EXPORT.to_owned()).into());
-    }
-
+    let source = state
+        .prepare_export(request.launch.agent_id, &request.thread_id)
+        .await
+        .map_err(Error::from)?;
     let (answer, wait) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
@@ -61,17 +35,9 @@ pub async fn agent_export_thread(
         ))
     })?;
 
-    let live = state
-        .ensure(
-            request.launch.agent_id,
-            stored.workspace_root,
-            Takeover::Replace,
-        )
-        .await?;
-    live.client
-        .export_session(session_id, destination)
+    state
+        .export_thread(source, destination)
         .await
-        .map_err(translate)?;
-
+        .map_err(Error::from)?;
     Ok(true)
 }

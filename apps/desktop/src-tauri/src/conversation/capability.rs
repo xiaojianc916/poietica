@@ -9,9 +9,7 @@ use specta::Type;
 use tauri::{AppHandle, State};
 
 use super::AgentCommandResult;
-use super::failure::translate;
 use super::runtime::AgentRuntime;
-use poietica_conversation_runtime::connection::{Handle, Takeover};
 
 /// KAP 对一项能力的就绪裁决，原样投影。
 #[derive(Debug, Serialize, Type)]
@@ -71,15 +69,6 @@ fn reported(capability: Capability) -> AgentCapability {
     }
 }
 
-async fn ensure_capability_host(
-    app: &AppHandle,
-    state: &State<'_, AgentRuntime>,
-) -> crate::error::Result<Handle> {
-    let agent_id = default_agent_id(app)?;
-
-    state.ensure(agent_id, None, Takeover::Replace).await
-}
-
 /// 读取 KAP 的应用级能力清单；连接不存在时按统一启动管线建立。
 #[tauri::command]
 #[specta::specta]
@@ -87,8 +76,10 @@ pub async fn agent_capability_report(
     app: AppHandle,
     state: State<'_, AgentRuntime>,
 ) -> AgentCommandResult<Vec<AgentCapability>> {
-    let live = ensure_capability_host(&app, &state).await?;
-    let listed = live.client.capabilities().await.map_err(translate)?;
+    let listed = state
+        .capability_report(default_agent_id(&app)?)
+        .await
+        .map_err(crate::error::Error::from)?;
 
     Ok(listed.into_iter().map(reported).collect())
 }
@@ -101,12 +92,10 @@ pub async fn agent_capability_install(
     state: State<'_, AgentRuntime>,
     request: AgentCapabilityInstallRequest,
 ) -> AgentCommandResult<AgentCapability> {
-    let live = ensure_capability_host(&app, &state).await?;
-    let installed = live
-        .client
-        .install_capability(request.capability_id)
+    let installed = state
+        .capability_install(default_agent_id(&app)?, request.capability_id)
         .await
-        .map_err(translate)?;
+        .map_err(crate::error::Error::from)?;
 
     Ok(reported(installed))
 }

@@ -34,17 +34,16 @@ pub(super) fn translate(error: KapError) -> Error {
     }
 }
 
-impl From<poietica_conversation_runtime::session::SessionError<Error>> for Error {
-    fn from(error: poietica_conversation_runtime::session::SessionError<Error>) -> Self {
-        use poietica_conversation_runtime::session::SessionError;
+impl From<poietica_conversation_runtime::SessionError<Error>> for Error {
+    fn from(error: poietica_conversation_runtime::SessionError<Error>) -> Self {
+        use poietica_conversation_runtime::SessionError;
         match error {
             SessionError::Catalog(cause) => cause,
             SessionError::InvalidId => {
                 Self::Validation("invalid conversation identifier".to_owned())
             }
-            SessionError::Missing => {
-                Self::NotFound("that conversation no longer exists".to_owned())
-            }
+            SessionError::Unbound => Self::NotFound("该对话尚未建立 agent 会话".to_owned()),
+            SessionError::Missing => Self::NotFound(super::NO_SUCH_CONVERSATION.to_owned()),
             SessionError::WrongOwner => Self::Validation(
                 "该对话不属于当前 agent；请切回原 agent，或明确新建对话。".to_owned(),
             ),
@@ -61,22 +60,41 @@ impl From<poietica_conversation_runtime::session::SessionError<Error>> for Error
     }
 }
 
-impl From<poietica_conversation_runtime::connection::CommandError<Error>> for Error {
-    fn from(error: poietica_conversation_runtime::connection::CommandError<Error>) -> Self {
-        use poietica_conversation_runtime::connection::CommandError;
+impl From<poietica_conversation_runtime::CommandError<Error>> for Error {
+    fn from(error: poietica_conversation_runtime::CommandError<Error>) -> Self {
+        use poietica_conversation_runtime::CommandError;
         match error {
-            CommandError::Runtime(cause)
+            CommandError::Persistence(cause)
+            | CommandError::Runtime(cause)
             | CommandError::Attachments(cause)
             | CommandError::Delivery(cause) => cause,
             CommandError::Session(cause) => Self::from(cause),
             CommandError::Agent(cause) => translate(cause),
+            CommandError::Catalog(cause) => Self::from(cause),
+            CommandError::Interaction(cause) => Self::NotFound(cause.to_string()),
+            CommandError::ResponseClosed => Self::Internal(super::NO_ANSWER.to_owned()),
+            CommandError::Readback => Self::Internal(super::dto::NO_THREAD.to_owned()),
+            CommandError::ExportChanged => {
+                Self::NotFound("导出来源已变化，请重新打开对话后再导出".to_owned())
+            }
+            CommandError::BindingUncertain {
+                cause,
+                verification,
+            } => {
+                log::error!(
+                    "fork binding was not confirmed: {cause}; verification failed: {verification}"
+                );
+                Self::Persistence(
+                    "分叉结果尚未确认，请先刷新对话列表；未冒险清理远端会话".to_owned(),
+                )
+            }
             CommandError::EmptyPrompt => Self::Validation("the prompt is empty".to_owned()),
             CommandError::AttachmentSetChanged => Self::Asset(
                 "attachment preparation changed the submitted attachment set".to_owned(),
             ),
-            CommandError::MissingReceipt => Self::Internal(
-                "a fresh admission was already settled".to_owned(),
-            ),
+            CommandError::MissingReceipt => {
+                Self::Internal("a fresh admission was already settled".to_owned())
+            }
             CommandError::MissingSession => Self::NotFound(super::NO_SESSION.to_owned()),
         }
     }
@@ -86,9 +104,15 @@ impl From<poietica_conversation_runtime::catalog::CatalogError> for Error {
     fn from(error: poietica_conversation_runtime::catalog::CatalogError) -> Self {
         use poietica_conversation_runtime::catalog::CatalogError;
         match error {
-            CatalogError::InvalidId => Self::Validation("invalid conversation identifier".to_owned()),
-            CatalogError::EmptyTitle => Self::Validation("the conversation name is empty".to_owned()),
-            CatalogError::Missing => Self::NotFound("that conversation no longer exists".to_owned()),
+            CatalogError::InvalidId => {
+                Self::Validation("invalid conversation identifier".to_owned())
+            }
+            CatalogError::EmptyTitle => {
+                Self::Validation("the conversation name is empty".to_owned())
+            }
+            CatalogError::Missing => {
+                Self::NotFound("that conversation no longer exists".to_owned())
+            }
         }
     }
 }

@@ -1,5 +1,12 @@
-mod commands;
-pub use commands::{CommandError, Prompt, PromptReceipt};
+mod control;
+mod prompt;
+mod queries;
+mod threads;
+pub use control::SessionAction;
+pub use prompt::{CommandError, Prompt, PromptReceipt};
+pub use threads::{
+    DeletedThread, ExportSource, ForkThread, OpenThread, OpenedThread, ThreadTarget,
+};
 
 use crate::{
     DeliveryError,
@@ -80,13 +87,13 @@ pub struct LaunchRequest {
 }
 
 #[derive(Clone, Debug)]
-pub struct Handle {
-    pub client: AgentClient,
-    pub agent_id: String,
-    pub anchor: String,
-    pub desk: PermissionDesk,
-    pub questions: QuestionDesk,
-    pub book: SessionBook,
+struct Handle {
+    client: AgentClient,
+    agent_id: String,
+    anchor: String,
+    desk: PermissionDesk,
+    questions: QuestionDesk,
+    book: SessionBook,
 }
 
 struct Connection {
@@ -147,6 +154,23 @@ struct Inner<E: RuntimeFailure> {
     workers: Mutex<Vec<Worker>>,
 }
 
+/// Public use cases do not expose connection handles or identity machinery.
+///
+/// ```compile_fail
+/// use poietica_conversation_runtime::session::SessionResolver;
+/// ```
+///
+/// ```compile_fail
+/// use poietica_conversation_runtime::{Runtime, RuntimeFailure};
+/// fn bypass<E: RuntimeFailure>(runtime: &Runtime<E>) { let _ = runtime.current(); }
+/// ```
+///
+/// ```compile_fail
+/// use poietica_conversation_runtime::{Runtime, RuntimeFailure, Takeover};
+/// async fn bypass<E: RuntimeFailure>(runtime: &Runtime<E>) {
+///     let _ = runtime.ensure("agent".to_owned(), None, Takeover::Replace).await;
+/// }
+/// ```
 pub struct Runtime<E: RuntimeFailure> {
     inner: Arc<Inner<E>>,
 }
@@ -186,23 +210,23 @@ impl<E: RuntimeFailure> Runtime<E> {
             }),
         }
     }
-    pub fn root(&self) -> &PathBuf {
+    fn root(&self) -> &PathBuf {
         &self.inner.root
     }
     pub fn attachments(&self) -> &PathBuf {
         &self.inner.attachments
     }
-    pub fn journal(&self) -> &FrameJournal {
+    fn journal(&self) -> &FrameJournal {
         &self.inner.journal
     }
-    pub fn sessions(&self) -> &SessionResolver {
+    fn sessions(&self) -> &SessionResolver {
         &self.inner.sessions
     }
-    pub fn current(&self) -> Result<Option<Handle>, E> {
+    fn current(&self) -> Result<Option<Handle>, E> {
         let state = self.inner.state()?;
         Ok(state.connection.as_ref().and_then(Connection::handle))
     }
-    pub async fn ensure(
+    async fn ensure(
         &self,
         agent: String,
         cwd: Option<String>,
@@ -618,3 +642,6 @@ impl<E: RuntimeFailure> Inner<E> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

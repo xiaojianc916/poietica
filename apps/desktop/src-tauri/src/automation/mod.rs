@@ -10,11 +10,8 @@ use poietica_automation::{
     AutomationCatalog, AutomationCreation, AutomationError, AutomationUpdate, Command,
     schedule::{self, SchedulePreview},
 };
-use poietica_automation_runtime::Runtime;
-use poietica_ledger::{
-    execution::{read_index, write_index},
-    index::AgentStore,
-};
+use poietica_automation_runtime::{Runtime, catalog};
+use poietica_ledger::execution::write_index_worker;
 use poietica_problem::Problem;
 use poietica_time::{WallClock, wall_clock::SystemWallClock};
 use serde::Serialize;
@@ -84,8 +81,10 @@ fn initialize(
     FileExt::try_lock_exclusive(&ownership)
         .map_err(|error| AutomationError::Data(format!("无法取得自动化执行权：{error}")))?;
     // Bootstrap import finishes before the scheduler and workspace reclamation start.
-    let store = AgentStore::open(&paths::ledger_database(app)?, SystemWallClock)?;
-    if !store.automation_initialized()? {
+    let initialized = write_index_worker(index, |store| {
+        store.automation_initialized().map_err(Error::from)
+    })?;
+    if !initialized {
         let source = match std::fs::read_to_string(paths::automations_store(app)?) {
             Ok(contents) => {
                 let document: serde_json::Value = serde_json::from_str(&contents)?;
@@ -110,16 +109,16 @@ fn initialize(
         } else {
             "UTC".to_owned()
         };
-        store.import_automations(source, &zone)?;
+        write_index_worker(index, move |store| {
+            store.import_automations(source, &zone).map_err(Error::from)
+        })?;
     }
-    drop(store);
     let publisher = app.clone();
     let profiles = app.clone();
     Runtime::start(
         index.clone(),
         poietica_automation_runtime::conversation::ConversationExecutor::new(
             conversations,
-            index.clone(),
             move || crate::agent::profile::default_agent_id(&profiles),
         ),
         SystemWallClock,
@@ -154,33 +153,13 @@ pub(crate) fn start(
 pub(crate) async fn load(app: &AppHandle) -> Result<AutomationCatalog> {
     let host = app.state::<AutomationHost>();
     host.available()?;
-    read_index(&host.index, |store| {
-        store.automation_catalog().map_err(Error::from)
-    })
-    .await
+    catalog::load(&host.index).await
 }
 
 pub(crate) async fn execute(app: &AppHandle, command: Command) -> Result<AutomationCatalog> {
     let host = app.state::<AutomationHost>();
     let runtime = host.available()?;
-    let root = match &command {
-        Command::Create(creation) => Some(&creation.workspace_root),
-        Command::Update(update) => Some(&update.creation.workspace_root),
-        _ => None,
-    };
-    if let Some(root) = root {
-        let metadata = tokio::fs::metadata(root)
-            .await
-            .map_err(|_| AutomationError::Workspace)?;
-        if !metadata.is_dir() {
-            return Err(AutomationError::Workspace.into());
-        }
-    }
-    let catalog = write_index(&host.index, move |store| {
-        store.automation_command(command).map_err(Error::from)
-    })
-    .await?;
-    runtime.wake();
+    let catalog = catalog::execute(&host.index, runtime, command).await?;
     publish(app, catalog.clone());
     Ok(catalog)
 }
@@ -193,13 +172,7 @@ pub(crate) async fn run(
     let host = app.state::<AutomationHost>();
     let runtime = host.available()?;
     let agent = crate::agent::profile::default_agent_id(app)?;
-    let catalog = write_index(&host.index, move |store| {
-        store
-            .automation_manual(&id, &request_id, &agent)
-            .map_err(Error::from)
-    })
-    .await?;
-    runtime.wake();
+    let catalog = catalog::run(&host.index, runtime, id, request_id, agent).await?;
     publish(app, catalog.clone());
     Ok(catalog)
 }

@@ -1,4 +1,6 @@
-use poietica_conversation_runtime::catalog::{CatalogError, ThreadChange, change, checked_title, snapshot};
+use poietica_conversation_runtime::catalog::{
+    CatalogError, ThreadChange, change, checked_title, snapshot,
+};
 use poietica_ledger::execution::{IndexError, LocalIndex, write_index};
 use poietica_time::wall_clock::SystemWallClock;
 use std::error::Error;
@@ -18,11 +20,19 @@ async fn catalog_edits_share_the_persisted_identity() -> Result<(), Box<dyn Erro
     let index = LocalIndex::<Failure>::open(&directory.path().join("ledger.db"), SystemWallClock)?;
     let id = Uuid::new_v4();
     write_index(&index, move |store| {
-        store.create_thread(id, "conversation", None)
-            .map_err(IndexError::from).map_err(Failure::from)
-    }).await?;
+        store
+            .create_thread(id, "conversation", None)
+            .map_err(IndexError::from)
+            .map_err(Failure::from)
+    })
+    .await?;
     let named = id.to_string();
-    change(&index, &named, ThreadChange::Rename("  chosen title  ".to_owned())).await?;
+    change(
+        &index,
+        &named,
+        ThreadChange::Rename("  chosen title  ".to_owned()),
+    )
+    .await?;
     change(&index, &named, ThreadChange::Archive(true)).await?;
     change(&index, &named, ThreadChange::Pin(true)).await?;
     let (thread, usage) = snapshot(&index, &named).await?;
@@ -46,21 +56,33 @@ async fn missing_conversations_cannot_accept_any_catalog_edit() -> Result<(), Bo
         ThreadChange::Archive(true),
         ThreadChange::Pin(true),
     ] {
-        assert!(matches!(change(&index, &named, operation).await,
-            Err(Failure::Catalog(CatalogError::Missing))));
+        assert!(matches!(
+            change(&index, &named, operation).await,
+            Err(Failure::Catalog(CatalogError::Missing))
+        ));
     }
-    assert!(matches!(snapshot(&index, &named).await,
-        Err(Failure::Catalog(CatalogError::Missing))));
-    assert!(matches!(snapshot(&index, "not-an-identity").await,
-        Err(Failure::Catalog(CatalogError::InvalidId))));
+    assert!(matches!(
+        snapshot(&index, &named).await,
+        Err(Failure::Catalog(CatalogError::Missing))
+    ));
+    assert!(matches!(
+        snapshot(&index, "not-an-identity").await,
+        Err(Failure::Catalog(CatalogError::InvalidId))
+    ));
     Ok(())
 }
 
 #[test]
 fn title_policy_is_shared_by_edits_and_forks() -> Result<(), Box<dyn Error>> {
-    assert!(matches!(checked_title(" \n\t "), Err(CatalogError::EmptyTitle)));
+    assert!(matches!(
+        checked_title(" \n\t "),
+        Err(CatalogError::EmptyTitle)
+    ));
     assert_eq!(checked_title("  title  ")?, "title");
     let long = "界".repeat(poietica_conversation_runtime::TITLE_CHARS + 1);
-    assert_eq!(checked_title(&long)?.chars().count(), poietica_conversation_runtime::TITLE_CHARS);
+    assert_eq!(
+        checked_title(&long)?.chars().count(),
+        poietica_conversation_runtime::TITLE_CHARS
+    );
     Ok(())
 }

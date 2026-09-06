@@ -45,14 +45,3 @@ const IMAGE_TOO_LARGE: &str = "an attachment is too large";
 /// 真的到了，说明这一句带的图已经不在了 —— 那就不该假装它还在，静默少发一张
 /// 图比失败更坏，因为屏幕上什么都不会说。
 const NO_SUCH_ASSET: &str = "an attachment is no longer available";
-
-/// 要停的那条对话此刻没有会话可发。
-///
-/// 这不是兜底：会话是在打开这条对话时才握上的，查不到恰好是「没有什么可停的」。
-const NOTHING_TO_STOP: &str = "that conversation is not running";
-
-/// 分叉要有一条真实持有、且属于当前 agent 的会话。
-///
-/// 还没人开口的对话没有会话；会话在别的 agent 手里的，号发过去只会换回
-/// UnknownSession。两种都不该被静默降级成「新建一条空对话」。
-const NOTHING_TO_FORK: &str = "that conversation has no session this agent could fork";
