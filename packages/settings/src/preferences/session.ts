@@ -1,6 +1,7 @@
+import type { AppSettings } from '@poietica/contract/settings'
 import { createExternalStore } from '@poietica/external-store'
-import type { AppSettings } from './settings'
-import type { SettingsStore } from './settings-store'
+import { dequal as settingsEqual } from 'dequal'
+import type { SettingsStore } from './store'
 
 export type SettingsOperation = 'load' | 'save' | 'reset'
 
@@ -200,11 +201,11 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
     )
   }
 
-  const beginLoad = (): void => {
+  const beginLoad = (refresh = false): void => {
     cancelSaveTimer()
     cancelLoadTimeout()
 
-    const cached = options.store.getSnapshot()
+    const cached = refresh ? undefined : options.store.getSnapshot()
 
     if (cached !== undefined) {
       draft = cached
@@ -233,7 +234,7 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
       publish('error', 'load', '设置加载超时，请重试。')
     }, LOAD_TIMEOUT_MS)
 
-    void options.store.load().then(
+    void options.store.load({ refresh }).then(
       (settings) => {
         if (!active || lifecycle !== lifecycleAtStart || loadVersion !== request) {
           return
@@ -344,7 +345,7 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
     }
 
     if (snapshot.operation === 'load') {
-      beginLoad()
+      beginLoad(true)
       return
     }
 
@@ -423,34 +424,6 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
     retry,
     requestClose,
   }
-}
-
-function settingsEqual(left: AppSettings, right: AppSettings): boolean {
-  return valuesEqual(left, right)
-}
-
-function valuesEqual(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) {
-    return true
-  }
-
-  if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) {
-    return false
-  }
-
-  const leftRecord = left as Readonly<Record<string, unknown>>
-
-  const rightRecord = right as Readonly<Record<string, unknown>>
-
-  const leftKeys = Object.keys(leftRecord)
-  const rightKeys = Object.keys(rightRecord)
-
-  return (
-    leftKeys.length === rightKeys.length &&
-    leftKeys.every(
-      (key) => Object.hasOwn(rightRecord, key) && valuesEqual(leftRecord[key], rightRecord[key]),
-    )
-  )
 }
 
 function getErrorMessage(cause: unknown): string {

@@ -7,18 +7,18 @@ import {
 } from '@poietica/conversation'
 import { createPluginStore } from '@poietica/extension'
 import { createPreference } from '@poietica/external-store'
+import { createAgentConfigBridge } from '@poietica/native-bridge/agent/config'
 import {
   listCustomAgents,
   removeCustomAgent,
   saveCustomAgent,
 } from '@poietica/native-bridge/agent/custom'
 import { createModelCatalogPort } from '@poietica/native-bridge/agent/models'
-import { createAgentSettings } from '@poietica/native-bridge/agent/preferences'
 import { automationGateway } from '@poietica/native-bridge/automation'
 import { browserHostPort, watchBrowserElementPicked } from '@poietica/native-bridge/browser'
 import { capabilityGateway, extensionGateway } from '@poietica/native-bridge/extensions'
 import { reviewGateway } from '@poietica/native-bridge/review'
-import { createSettingsStore } from '@poietica/native-bridge/settings'
+import { createSettingsPersistence } from '@poietica/native-bridge/settings'
 import { terminalHostPort } from '@poietica/native-bridge/terminal'
 import { createAppUpdateController } from '@poietica/native-bridge/update'
 import { readAppVersion } from '@poietica/native-bridge/update/version'
@@ -28,8 +28,14 @@ import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/native-
 import { readDataDirectory } from '@poietica/native-bridge/workspace/data-directory'
 import { homeDirectory } from '@poietica/native-bridge/workspace/paths'
 import { writeWorkbenchSession } from '@poietica/native-bridge/workspace/session'
-import { failureCoordinator, warn } from '@poietica/problem'
-import { type CustomAgentStore, ModelCatalogStore, PersonalizationStore } from '@poietica/settings'
+import { failureCoordinator, ProblemError, warn } from '@poietica/problem'
+import {
+  type CustomAgentStore,
+  createAgentSettings,
+  createSettingsStore,
+  ModelCatalogStore,
+  PersonalizationStore,
+} from '@poietica/settings'
 import { AppUpdateStore } from '@poietica/update'
 import { createCommandRegistry, createWorkbenchSessionController } from '@poietica/workspace'
 import { createAuxiliaryPanelStore } from '@poietica/workspace/panels'
@@ -119,7 +125,15 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   const commands = createCommandRegistry()
   const mainWindow = createMainWindowController()
   const appUpdate = createAppUpdateController()
-  const settings = createSettingsStore()
+  const settings = createSettingsStore({
+    persistence: createSettingsPersistence(),
+    onApplicationProblem: (problem) => {
+      reportFailure('SETTINGS_APPLICATION_FAILED', {
+        cause: new ProblemError(problem),
+        scope: 'settings',
+      })
+    },
+  })
   const theme = createThemeRuntime({
     mainWindow,
     report: (cause) => {
@@ -130,7 +144,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       })
     },
   })
-  const agentConfig = createAgentSettings()
+  const agentConfig = createAgentSettings(createAgentConfigBridge())
   const customAgents: CustomAgentStore = {
     load: listCustomAgents,
     save: saveCustomAgent,
@@ -336,7 +350,6 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       }
       disposed = true
       const failures: unknown[] = []
-      const agentStopped = agent.dispose()
       try {
         modelCatalog.dispose()
       } catch (cause) {
@@ -344,7 +357,9 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       }
       disposing = Promise.resolve().then(async () => {
         const cleanup = [
-          () => agentStopped,
+          () => settings.dispose(),
+          () => agentConfig.dispose(),
+          () => agent.dispose(),
           () => workspaceRoots.dispose(),
           ...cleanups.splice(0).reverse(),
           layout.dispose,

@@ -13,6 +13,7 @@ import {
 } from './layering.ts'
 import { nativeConversationBoundaries } from './native-conversation-boundaries.ts'
 import { layerDirection, type Violation } from './policies.ts'
+import { settingsBoundaries, settingsCore } from './settings-boundaries.ts'
 import type { ExportTarget, Workspace } from './workspace.ts'
 
 export interface SourceUnit {
@@ -565,7 +566,9 @@ export async function fileGraph(
   const headless: string[] = [
     ...new Set([
       ...DESKTOP_HEADLESS.map((file) => path.join(root, file)),
-      ...units.filter((unit) => conversationCore(root, unit.file)).map((unit) => unit.file),
+      ...units
+        .filter((unit) => conversationCore(root, unit.file) || settingsCore(root, unit.file))
+        .map((unit) => unit.file),
     ]),
   ]
   for (const workspace of workspaces) {
@@ -586,6 +589,7 @@ export async function fileGraph(
     ...conversationBoundaries(root, unit.file, unit.file, true),
     ...desktopBoundaries(root, unit.file, unit.file, true),
     ...nativeConversationBoundaries(root, unit.file, unit.file),
+    ...settingsBoundaries(root, unit.file, unit.file),
   ])
   const graph = analyzeSourceFiles(
     root,
@@ -597,9 +601,10 @@ export async function fileGraph(
       boundaries.push(...policy(file, specifier, target, typeOnly))
       boundaries.push(...desktopBoundaries(root, file, target, typeOnly))
       boundaries.push(...nativeConversationBoundaries(root, file, target))
+      boundaries.push(...settingsBoundaries(root, file, target))
       boundaries.push(...conversationBoundaries(root, file, target, typeOnly))
     },
-    (file) => conversationCore(root, file),
+    (file) => conversationCore(root, file) || settingsCore(root, file),
   )
   return [...graph, ...boundaries]
 }

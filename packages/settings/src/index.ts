@@ -1,13 +1,11 @@
-/*
- * 包的公开面。逐个具名导出：对外承诺了什么，读这一份文件就够。
- * 组件住在 @poietica/settings/ui；这里只有设置领域与端口。
- */
-
+export type { AppSettings } from '@poietica/contract/settings'
 export type {
   AgentConfigSnapshot,
   AgentInstallStatus,
   AgentSettings,
-} from './agent-config-store'
+} from './agent-runtime/model'
+export type { AgentConfigurationRepository } from './agent-runtime/repository'
+export { createAgentSettings } from './agent-runtime/settings'
 export type {
   CustomAgentDraft,
   DelegationMode,
@@ -35,8 +33,9 @@ export type {
   ProviderInput,
   ProviderModelInput,
   ProviderReplacement,
-} from './model-catalog-store'
-export { ModelCatalogStore, modelAlias } from './model-catalog-store'
-export type { AppSettings } from './settings'
-export { createSettingsSession, type SettingsOperation } from './settings-session'
-export type { SettingsStore } from './settings-store'
+} from './model-catalog/model'
+export { modelAlias } from './model-catalog/model'
+export { ModelCatalogStore } from './model-catalog/store'
+export { createSettingsSession, type SettingsOperation } from './preferences/session'
+export type { ManagedSettingsStore, SettingsPersistence, SettingsStore } from './preferences/store'
+export { createSettingsStore } from './preferences/store'

@@ -406,38 +406,13 @@ async windowSetSurface(red: number, green: number, blue: number) : Promise<null>
 async windowOpenExternalUrl(url: string) : Promise<void> {
     await TAURI_INVOKE("window_open_external_url", { url });
 },
-/**
- * Reads the persisted application settings.
- * 
- * # Errors
- * 
- * Returns an error when the settings store cannot be opened. A store that
- * opens but holds a value of an older shape is not an error: it falls back to
- * defaults so the panel stays usable.
- */
 async settingsGet() : Promise<AppSettings> {
     return await TAURI_INVOKE("settings_get");
 },
-/**
- * Persists the application settings.
- * 
- * # Errors
- * 
- * Returns an error when the store cannot be opened, when the settings cannot
- * be serialized, or when the write does not reach disk.
- */
-async settingsSet(settings: AppSettings) : Promise<null> {
+async settingsSet(settings: AppSettings) : Promise<SettingsWriteResult> {
     return await TAURI_INVOKE("settings_set", { settings });
 },
-/**
- * Restores the default application settings and persists them.
- * 
- * # Errors
- * 
- * Returns an error when the store cannot be opened or the write does not
- * reach disk.
- */
-async settingsReset() : Promise<AppSettings> {
+async settingsReset() : Promise<SettingsWriteResult> {
     return await TAURI_INVOKE("settings_reset");
 },
 /**
@@ -1458,9 +1433,6 @@ export type CustomAgentCatalog = { files: CustomAgentFile[]; issues: string[] }
 export type CustomAgentFile = { relativePath: string; absolutePath: string; document: string }
 export type CustomAgentRemoveRequest = { relativePath: string; expectedDocument: string }
 export type CustomAgentSaveRequest = { relativePath: string; document: string; expectedDocument: string | null }
-/**
- * 疏密同样是闭集，理由与 `ThemePreference` 逐字相同。
- */
 export type Density = "comfortable" | "compact"
 /**
  * 一次失败的编号：日志、上报、界面引用同一个值。
@@ -1598,6 +1570,7 @@ export type ProviderReplacementDto = { newId: string | null; providerType: strin
 export type Retryability = "no" | "afterDelay" | "afterUserAction"
 export type SchedulePreview = { nextRunAt: string | null; problem: ScheduleProblem | null }
 export type ScheduleProblem = "unreadable" | "neverRuns" | "tooFrequent" | "timeZone"
+export type SettingsWriteResult = { settings: AppSettings; applicationProblem: Problem | null }
 export type SkillCommitRequest = { stagingId: string; name: string; subdirectory: string | null }
 export type SkillRecord = { name: string; enabled: boolean; document: string; path: string; supportingFiles: number; totalBytes: number; modifiedAt: number | null }
 export type SkillStaged = { stagingId: string; skillMd: string }
@@ -1618,12 +1591,6 @@ export type TerminalStreamed = { root: string; chunk: TerminalChunk }
  * 手写的名字两侧没有东西校验它，改一端漏一端不会报错。
  */
 export type TerminationRequested = null
-/**
- * 颜色模式是一个闭集，不是一段自由文本。
- * 
- * 写成枚举，生成的 `TypeScript` 就是 `"light" | "dark" | "system"`，与 design
- * system 的 `ThemePreference` 是同一个集合，界面不必在每个调用点各自断言一次。
- */
 export type ThemePreference = "light" | "dark" | "system"
 /**
  * 一天的账。日历日按本机时区算，键就是渲染层索引热力图的那一个。

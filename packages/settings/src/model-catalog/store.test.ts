@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import type {
-  ModelCatalogData,
-  ModelCatalogOperation,
-  ModelCatalogPort,
-} from '../model-catalog-store'
-import { ModelCatalogStore } from '../model-catalog-store'
+import type { ModelCatalogData, ModelCatalogOperation, ModelCatalogPort } from './model'
+import { ModelCatalogStore } from './store'
 
 const DATA: ModelCatalogData = {
   providers: [],

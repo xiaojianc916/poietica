@@ -86,7 +86,7 @@ const COMPOSITION_ROOT = 'apps/desktop/src-tauri/src/composition.rs'
 
 /** 每个偏好库的命令面：开库归组合根，读写归它自己那一个文件。 */
 const STORE_FACES = [
-  { store: 'settings_store', face: 'apps/desktop/src-tauri/src/settings.rs' },
+  { store: 'settings_store', face: 'apps/desktop/src-tauri/src/settings/storage.rs' },
   { store: 'agents_store', face: 'apps/desktop/src-tauri/src/agent/profile.rs' },
   { store: 'automations_store', face: 'apps/desktop/src-tauri/src/automation/host.rs' },
 ] as const

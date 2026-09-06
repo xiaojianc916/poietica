@@ -62,7 +62,6 @@ pub(crate) fn build() -> tauri::Builder<Wry> {
             /* 生成的事件面挂一次；命令面走 invoke_handler，两者同源。 */
             ipc.mount_events(app);
 
-            app.store(paths::settings_store(handle)?)?;
             app.store(paths::agents_store(handle)?)?;
 
             let database = paths::ledger_database(handle)?;
@@ -90,6 +89,14 @@ pub(crate) fn build() -> tauri::Builder<Wry> {
                 handle, handle.path().home_dir()?, paths::attachments_root(handle)?,
                 index.clone(), journal,
             );
+            let settings_runtime = std::sync::Arc::clone(&runtime);
+            let _settings = app.manage(crate::settings::SettingsService::new(
+                crate::settings::FileSettingsRepository::new(paths::settings_store(handle)?),
+                move |intent| {
+                    let runtime = std::sync::Arc::clone(&settings_runtime);
+                    async move { runtime.apply_daemon_intent(intent).await.map_err(poietica_problem::Problem::from) }
+                },
+            ));
             let _index = app.manage(index.clone());
             let _managed = app.manage(std::sync::Arc::clone(&runtime));
             let _browser = app.manage(crate::webview::BrowserHost::new());
@@ -100,7 +107,10 @@ pub(crate) fn build() -> tauri::Builder<Wry> {
 
             let settings_app = handle.clone();
             async_runtime::spawn(async move {
-                crate::settings::apply_startup_settings(&settings_app).await;
+                let settings = settings_app.state::<crate::settings::SettingsService>();
+                if let Err(problem) = settings.apply_startup().await {
+                    log::warn!("could not apply persisted runtime settings: {problem:?}");
+                }
             });
 
             // This boundary precedes the first conversation created by the renderer.

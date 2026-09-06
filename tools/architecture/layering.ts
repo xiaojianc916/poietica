@@ -113,6 +113,7 @@ export const DOMAIN_CONTRACT_IMPORTS: Readonly<Record<string, string>> = {
   '@poietica/browser': '@poietica/contract/browser',
   '@poietica/conversation': '@poietica/contract/conversation',
   '@poietica/review': '@poietica/contract/review',
+  '@poietica/settings': '@poietica/contract/settings',
 }
 
 const PEER_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {

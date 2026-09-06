@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
-import type { AppSettings } from '../settings'
-import { createSettingsSession } from '../settings-session'
-import type { SettingsStore } from '../settings-store'
+import type { AppSettings } from '@poietica/contract/settings'
+import { createSettingsSession } from './session'
+import type { SettingsStore } from './store'
 
 const INITIAL: AppSettings = {
   theme: 'system',

@@ -6,7 +6,6 @@
   "exports": {
     "./conversation": "./src/conversation/index.ts",
     "./agent/config": "./src/agent/configuration.ts",
-    "./agent/preferences": "./src/agent/preferences.ts",
     "./agent/models": "./src/agent/models.ts",
     "./agent/custom": "./src/agent/custom.ts",
     "./agent/launcher": "./src/agent/launcher.ts",

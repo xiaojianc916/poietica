@@ -16,6 +16,7 @@ export const APPLICATION_FAILURE_CODES = [
   'WINDOW_DRAG_UNAVAILABLE',
   'DEVELOPER_TOOLS_UNAVAILABLE',
   'SETTINGS_LOAD_FAILED',
+  'SETTINGS_APPLICATION_FAILED',
   'WINDOW_STATE_QUERY_UNAVAILABLE',
   'WINDOW_STATE_SYNC_UNAVAILABLE',
   'WINDOW_SURFACE_SYNC_UNAVAILABLE',
@@ -100,6 +101,12 @@ export const APPLICATION_FAILURE_POLICIES = {
     scope: featureScope('developer-tools'),
   },
 
+  SETTINGS_APPLICATION_FAILED: {
+    impact: 'recoverable',
+    userMessage: '设置已保存，但守护进程未能应用。重新切换守护进程设置或重启应用可再次应用。',
+    recovery: 'dismiss',
+    scope: operationScope('apply-settings'),
+  },
   SETTINGS_LOAD_FAILED: {
     impact: 'feature-degraded',
     userMessage: '设置读取失败，当前会话将使用默认设置。',

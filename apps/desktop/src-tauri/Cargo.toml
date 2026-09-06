@@ -23,6 +23,7 @@ workspace = true
 tauri-build.workspace = true
 
 [dependencies]
+tempfile.workspace = true
 poietica-automation-runtime = { path = "../../../crates/automation-runtime" }
 fs2.workspace = true
 iana-time-zone.workspace = true
@@ -91,6 +92,5 @@ rmcp.workspace = true
 axum.workspace = true
 schemars.workspace = true
 
-[dev-dependencies]
-tempfile.workspace = true
+
 

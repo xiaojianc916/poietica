@@ -1,10 +1,6 @@
 import { expect, test } from 'bun:test'
-import {
-  type ModelCatalogData,
-  type ModelCatalogOperation,
-  type ModelCatalogPort,
-  ModelCatalogStore,
-} from './model-catalog-store'
+import type { ModelCatalogData, ModelCatalogOperation, ModelCatalogPort } from './model'
+import { ModelCatalogStore } from './store'
 
 const empty: ModelCatalogData = { providers: [], models: [], catalog: [], defaultModel: null }
 const settle = (): Promise<void> =>

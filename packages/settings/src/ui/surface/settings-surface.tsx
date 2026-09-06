@@ -877,7 +877,7 @@ const AboutSettings = memo(function AboutSettings({
 
         <div>
           <dt>设置存储</dt>
-          <dd>Tauri Store</dd>
+          <dd>JSON（应用设置）与 Tauri Store（Agent 配置）</dd>
         </div>
 
         <div>
