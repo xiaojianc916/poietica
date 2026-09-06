@@ -6,8 +6,8 @@
 //! 一份清单两用是 tauri-specta 的范式：手抄第二份没有东西校验它，漏抄不报错，
 //! 只会安静地少一条绑定。
 
-pub mod export_bindings;
-pub mod problem;
+pub(crate) mod export_bindings;
+pub(crate) mod problem;
 
 use poietica_automation::{
     Automation, AutomationCatalog, AutomationCreation, AutomationRun, AutomationRunOutcome,
@@ -64,7 +64,7 @@ use crate::{
 ///
 /// Rust 侧的类型是权威，渲染层不得重新声明原生 DTO。
 #[must_use]
-pub fn surface() -> Builder<Wry> {
+pub(crate) fn surface() -> Builder<Wry> {
     Builder::<Wry>::new()
         .error_handling(ErrorHandlingMode::Throw)
         .commands(tauri_specta::collect_commands![

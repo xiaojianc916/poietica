@@ -17,7 +17,7 @@ use tauri_specta::Event;
 
 #[derive(Clone, Debug, Serialize, Type, Event)]
 #[serde(rename_all = "camelCase")]
-pub struct AutomationCatalogChanged {
+pub(crate) struct AutomationCatalogChanged {
     pub catalog: AutomationCatalog,
 }
 

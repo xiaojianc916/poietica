@@ -9,37 +9,37 @@ use tauri::AppHandle;
 
 #[tauri::command]
 #[specta::specta]
-pub async fn automations_load(app: AppHandle) -> std::result::Result<AutomationCatalog, Problem> {
+pub(crate) async fn automations_load(app: AppHandle) -> Result<AutomationCatalog, Problem> {
     load(&app).await.map_err(Problem::from)
 }
 #[tauri::command]
 #[specta::specta]
-pub async fn automations_create(
+pub(crate) async fn automations_create(
     app: AppHandle,
     creation: AutomationCreation,
-) -> std::result::Result<AutomationCatalog, Problem> {
+) -> Result<AutomationCatalog, Problem> {
     execute(&app, Command::Create(creation))
         .await
         .map_err(Problem::from)
 }
 #[tauri::command]
 #[specta::specta]
-pub async fn automations_update(
+pub(crate) async fn automations_update(
     app: AppHandle,
     update: AutomationUpdate,
-) -> std::result::Result<AutomationCatalog, Problem> {
+) -> Result<AutomationCatalog, Problem> {
     execute(&app, Command::Update(update))
         .await
         .map_err(Problem::from)
 }
 #[tauri::command]
 #[specta::specta]
-pub async fn automations_enable(
+pub(crate) async fn automations_enable(
     app: AppHandle,
     id: String,
     revision: u32,
     enabled: bool,
-) -> std::result::Result<AutomationCatalog, Problem> {
+) -> Result<AutomationCatalog, Problem> {
     execute(
         &app,
         Command::Enable {
@@ -53,42 +53,39 @@ pub async fn automations_enable(
 }
 #[tauri::command]
 #[specta::specta]
-pub async fn automations_remove(
+pub(crate) async fn automations_remove(
     app: AppHandle,
     id: String,
-) -> std::result::Result<AutomationCatalog, Problem> {
+) -> Result<AutomationCatalog, Problem> {
     execute(&app, Command::Remove { id })
         .await
         .map_err(Problem::from)
 }
 #[tauri::command]
 #[specta::specta]
-pub async fn automations_run(
+pub(crate) async fn automations_run(
     app: AppHandle,
     id: String,
     request_id: String,
-) -> std::result::Result<AutomationCatalog, Problem> {
+) -> Result<AutomationCatalog, Problem> {
     run(&app, id, request_id).await.map_err(Problem::from)
 }
 #[tauri::command]
 #[specta::specta]
-pub async fn automations_cancel(
+pub(crate) async fn automations_cancel(
     app: AppHandle,
     run_id: String,
-) -> std::result::Result<AutomationCatalog, Problem> {
+) -> Result<AutomationCatalog, Problem> {
     execute(&app, Command::Cancel { run_id })
         .await
         .map_err(Problem::from)
 }
 #[tauri::command]
 #[specta::specta]
-pub fn automations_preview(
-    schedule: Option<String>,
-    time_zone: String,
-) -> std::result::Result<SchedulePreview, Problem> {
-    Ok(schedule::preview(
+pub(crate) fn automations_preview(schedule: Option<String>, time_zone: String) -> SchedulePreview {
+    schedule::preview(
         schedule.as_deref(),
         &time_zone,
         SystemWallClock.now_unix_millis(),
-    ))
+    )
 }

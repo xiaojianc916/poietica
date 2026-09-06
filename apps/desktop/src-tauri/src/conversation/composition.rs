@@ -1,6 +1,5 @@
 use super::configuration::restate;
 use super::dto::{AgentSessionEvent, AgentTranscriptEvent, reported_goal, reported_usage};
-use super::failure::translate;
 use crate::agent::profile::{agent_args, agent_data_home, agent_program, launch_env};
 use crate::error::Error;
 use crate::ledger::LocalIndex;
@@ -15,7 +14,7 @@ use tauri_specta::Event as _;
 
 use super::AgentRuntime;
 
-pub fn compose(
+pub(crate) fn compose(
     app: &AppHandle,
     root: PathBuf,
     attachments: PathBuf,

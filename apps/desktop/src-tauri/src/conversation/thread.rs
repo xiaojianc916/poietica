@@ -5,7 +5,9 @@ use super::dto::{
     AgentThreadRequest, AgentThreadSnapshot, AgentThreadTarget, AgentTitleSource,
     AgentTranscriptJson, reported_goal,
 };
-use super::{AgentCommandResult, AgentRuntime, attachment::deliver_attachments, config::restate};
+use super::{
+    AgentCommandResult, AgentRuntime, attachment::deliver_attachments, configuration::restate,
+};
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::{Error, Result};
 use crate::ledger::LocalIndex;

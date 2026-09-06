@@ -9,7 +9,7 @@ use crate::diagnostics::structured_log;
 use crate::paths;
 use crate::window::{MAIN_WINDOW, WINDOW_STATE_FLAGS, WindowSurface, tray};
 
-pub fn build() -> tauri::Builder<Wry> {
+pub(crate) fn build() -> tauri::Builder<Wry> {
     let started = std::time::Instant::now();
     let asset_protocol = AssetProtocolRegistry::default();
     let protocol_registry = asset_protocol.clone();

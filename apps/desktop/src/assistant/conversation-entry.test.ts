@@ -51,9 +51,14 @@ test('concurrent preparation shares only its entry attempt and rejection release
   })
   const first = entry.prepare()
   expect(entry.prepare()).toBe(first)
-  const rejected = expect(first).rejects.toThrow('unavailable')
   attempt.reject(new Error('unavailable'))
-  await rejected
+  // rejects 在挂断言时 promise 仍 pending 会僵死（bun 1.4.1），用双参 then 取结果。
+  const failure = await first.then(
+    (): unknown => 'fulfilled',
+    (cause: unknown): unknown => cause,
+  )
+  expect(failure).toBeInstanceOf(Error)
+  expect((failure as Error).message).toBe('unavailable')
   expect(await entry.prepare()).toBe(true)
   expect(calls).toBe(2)
   entry.dispose()
