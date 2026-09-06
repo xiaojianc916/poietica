@@ -6,10 +6,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./surface": "./src/surface/index.ts",
-    "./composer": "./src/composer/controls.ts",
-    "./composer/frame.css": "./src/composer/composer-frame.css",
-    "./composer/actions.css": "./src/composer/composer-actions.css",
-    "./table-export": "./src/timeline/table-export-context.tsx"
+    "./composer": "./src/surface/composer/controls.ts",
+    "./composer/frame.css": "./src/surface/composer/composer-frame.css",
+    "./composer/actions.css": "./src/surface/composer/composer-actions.css",
+    "./table-export": "./src/surface/timeline/table-export-context.tsx"
   },
   "scripts": {
     "test": "bun test src",

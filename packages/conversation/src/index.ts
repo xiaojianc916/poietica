@@ -1,138 +1,137 @@
-/*
- * 这个包的唯一出口。
- *
- * agent/ 是会话端口与线上词汇（类型，无实现）。timeline/ 把官方 transcript 投影成
- * 可渲染的时间线，interjection/ 持有待插话消息的顺序：纯函数与纯状态机，没有
- * React，能在 Node 里直接单测。session/ 在它上面管线程、转录、可调项与能力表。
- * 各段是同一条管线的前后半，边界留在包内的目录上；整个包不认识 React ——
- * hooks 与 Context 归 packages/conversation/src/surface/（./surface 入口），这条边由架构检查守着。
- */
-
+/** Public headless conversation API. React bindings use the surface entry. */
+/** Public headless conversation API. React bindings use the surface entry. */
+export type { AgentCapabilityPort } from './agent/capability'
+/** Public headless conversation API. React bindings use the surface entry. */
 export type {
-  AgentCapabilityPort,
-  AgentMcpServer,
-  AgentMcpStatus,
-  AgentPromptHandle,
-  AgentPromptRequest,
-  AgentSessionPort,
-  AgentSkill,
-  AgentToolkit,
-  ApprovalAnswer,
-  ApprovalDecision,
-  ApprovalScope,
-  ChatStatus,
-  KapSessionId,
-  KapStopReason,
-  KapToolCallId,
-  OpenedThread,
-  PermissionPosturePort,
-  PromptAsset,
-  PromptConfiguration,
-  PromptSkill,
-  QuestionAnswer,
-  QuestionAnswerMethod,
-  QuestionChoice,
-  QuestionItem,
-  QuestionOption,
-  QuestionOutcome,
-  QuestionResponse,
-  RunStatus,
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
   SessionConfigPurpose,
   SessionConfigReport,
-  SessionGoal,
-  SessionGoalStatus,
-  SessionLink,
-  SessionUsage,
-  SessionUsagePort,
-  SessionUsageReport,
+} from './agent/config'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type { SessionGoal, SessionGoalStatus } from './agent/goal'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type { KapSessionId, KapStopReason, KapToolCallId } from './agent/kap'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type { SessionLink } from './agent/link'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type {
+  ApprovalAnswer,
+  ApprovalDecision,
+  ApprovalScope,
+  PermissionPosturePort,
+} from './agent/permission'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type {
+  QuestionAnswer,
+  QuestionAnswerMethod,
+  QuestionChoice,
+  QuestionItem,
+  QuestionOption,
+  QuestionResponse,
+} from './agent/question'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type { ChatStatus, QuestionOutcome, RunStatus } from './agent/run'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type {
+  AgentPromptHandle,
+  AgentPromptRequest,
+  AgentSessionPort,
+  PromptAsset,
+  PromptConfiguration,
+  PromptSkill,
+} from './agent/session'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type {
+  OpenedThread,
   ThreadHistory,
   ThreadPort,
   ThreadRecord,
   ThreadSnapshot,
+  TurnMark,
+} from './agent/thread'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type {
   ToolCallContent,
   ToolCallLocation,
   ToolCallStatus,
   ToolCallUpdate,
   ToolKind,
+} from './agent/tool-call'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type { AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit } from './agent/toolkit'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type {
   TranscriptAgentId,
   TranscriptCatchUp,
   TranscriptPage,
   TranscriptPort,
   TranscriptSignal,
   TranscriptTurnId,
-  TurnMark,
-} from './agent'
+} from './agent/transcript'
+/** Public headless conversation API. React bindings use the surface entry. */
+export type { SessionUsage, SessionUsagePort, SessionUsageReport } from './agent/usage'
 export type {
   AttachmentIntake,
   AttachmentUpload,
   ComposerAsset,
   ComposerAssetContext,
 } from './composer/attachment'
-export type { Interjection } from './interjection'
-export { InterjectionOutbox } from './interjection'
-export type {
-  AgentControls,
-  PendingSubmission,
-  SessionControlsFailureReport,
-  ThreadWorkspaceList,
-  Transcript,
-} from './session'
+export { ComposerDrafts } from './composer/drafts'
+export type { AgentControls } from './configuration/capability-store'
+export { AgentCapabilityStore } from './configuration/capability-store'
+export { projectVisibleModelChoices } from './configuration/model-choice-visibility'
 export {
-  AgentCapabilityStore,
-  type ConversationRuntime,
-  createConversationRuntime,
-  describeFailure,
-  groupByWorkspace,
-  isProjectlessWorkspaceRoot,
-  normalizeWorkspaceRoot,
   permissionControlOf,
   permissionPostureOf,
   permissionPosturesOf,
-  projectVisibleModelChoices,
-  SessionControlsStore,
-  ThreadsStore,
-  TranscriptStore,
+} from './configuration/permission-posture'
+export type { SessionControlsFailureReport } from './configuration/session-controls-store'
+export { SessionControlsStore } from './configuration/session-controls-store'
+export { describeFailure } from './failure'
+export type { Interjection } from './interjection/interjection-contract'
+export { InterjectionOutbox } from './interjection/interjection-outbox'
+export { type ConversationRuntime, createConversationRuntime } from './runtime'
+export type { ThreadWorkspaceList } from './threads/thread-order'
+export { groupByWorkspace } from './threads/thread-order'
+export { ThreadsStore } from './threads/threads-store'
+export {
+  isProjectlessWorkspaceRoot,
+  normalizeWorkspaceRoot,
   workspaceRootName,
-} from './session'
+} from './threads/workspace-root'
+export { channelNameOf, delegateKey, delegationOf, isDelegation } from './timeline/delegate-channel'
+export { lastAtOrBefore } from './timeline/ordered-lookup'
+export type { FeedRow, Presentation, ToolGroupPlan, TurnSealPlan } from './timeline/presentation'
+export { liveMemberOf, selectPresentation } from './timeline/presentation'
 export type {
   BackgroundTaskItem,
   BackgroundTaskStatus,
   CompactionState,
   CompactionTimelineItem,
-  FeedRow,
   LinkTimelineItem,
   MessageImage,
-  PendingInteractions,
   PermissionItem,
   PlanItem,
-  Presentation,
   QuestionTimelineItem,
   TimelineState,
   TodoItem,
   TodoStatus,
   ToolCallTimelineItem,
-  ToolGroupPlan,
-  TurnSealPlan,
-} from './timeline'
+} from './timeline/timeline-contract'
+export type { PendingInteractions } from './timeline/timeline-queries'
 export {
   activeScope,
-  channelNameOf,
-  createTimelineState,
   currentTodos,
-  delegateKey,
-  delegationOf,
   inflightPromptId,
-  isDelegation,
-  lastAtOrBefore,
-  liveMemberOf,
   pendingInteractions,
   pendingPermission,
   pendingPermissionCount,
   pendingQuestion,
-  projectTranscript,
   selectIsBusy,
-  selectPresentation,
-} from './timeline'
+} from './timeline/timeline-queries'
+export { createTimelineState } from './timeline/timeline-state'
+export { projectTranscript } from './transcript/transcript-projector'
+export type { PendingSubmission, Transcript } from './transcript/transcript-store'
+export { TranscriptStore } from './transcript/transcript-store'

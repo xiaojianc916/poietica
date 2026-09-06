@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { labelOf } from '../composer/controls'
-import type { SessionConfigControl } from '../index'
+import type { SessionConfigControl } from '../agent/config'
+import { labelOf } from '../surface/composer/controls'
 
 const THINKING: SessionConfigControl = {
   id: 'thinking',

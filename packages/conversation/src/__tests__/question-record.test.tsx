@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { QuestionTimelineItem } from '../index'
-import { QuestionRecord } from '../timeline/question-record'
+import { QuestionRecord } from '../surface/timeline/question-record'
+import type { QuestionTimelineItem } from '../timeline/timeline-contract'
 
 /*
  * 落定的题在转录里的样子。

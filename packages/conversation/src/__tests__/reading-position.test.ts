@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { type RowSpan, rowAtAnchor } from '../feed/reading-position'
+import { type RowSpan, rowAtAnchor } from '../surface/feed/reading-position'
 
 /*
  * 只有起点。行首尾相接,所以第二行的起点就是第一行的终点 —— 终点是推得出来的,

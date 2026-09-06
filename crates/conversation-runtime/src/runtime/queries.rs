@@ -36,7 +36,7 @@ impl<E: RuntimeFailure> Runtime<E> {
             Some(named) => Some(
                 self.sessions()
                     .resolve(
-                        &self.inner.index,
+                        &self.index,
                         &live.client,
                         &live.book,
                         SessionRequest {

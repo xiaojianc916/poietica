@@ -11,13 +11,22 @@ The agent owns accepted prompts and transcript facts. Official reducers project 
 A conversation queue outlives its views; forgetting the conversation disposes the queue.
 Uncertain delivery pauses automatic release instead of replaying an ambiguous command.
 
+## Conversation ownership
+
+Agent vocabulary is lower than configuration, thread indexing, transcript ownership and input drafts.
+Transcript replicas consume the official reducer; pure timeline projections do not own remote facts.
+React contexts, editor integration, DOM geometry and styles belong to the surface boundary.
+Runtime composition assembles owners; private module imports name leaf responsibilities rather than public aggregates.
+Each capability subscription has its own identity, even when a port object is reused.
+
 ## Dependencies
 
 tools/architecture/layering.ts declares layer groups and allowed peer-domain edges.
 Both manifest and source checks use that decision. Undeclared peer edges are forbidden.
 Cross-package access uses exports. Same-domain implementation uses relative module paths.
 The runtime file graph rejects cycles and opaque loads and follows headless entries transitively.
-Erased type-only file edges are not runtime cycles; package direction still applies to them.
+Erased type-only file edges are not runtime cycles. Package direction applies to them.
+Conversation core additionally rejects upward knowledge dependencies and cycles including type-only edges.
 Native integration consumes domain headless entries, including through compiler-resolved aliases.
 
 ## Composition and contracts

@@ -60,3 +60,25 @@ where
     runtime.wake();
     Ok(catalog)
 }
+
+pub async fn ensure_agent_replaceable<E>(index: &LocalIndex<E>, agent: String) -> Result<(), E>
+where
+    E: From<IndexError> + From<LedgerError> + From<AutomationError> + Send + 'static,
+{
+    let owned = read_index(index, move |store| {
+        if !store.automation_initialized().map_err(E::from)? {
+            return Ok(false);
+        }
+        Ok(store
+            .automation_state()
+            .map_err(E::from)?
+            .executions
+            .values()
+            .any(|entry| entry.agent_id == agent))
+    })
+    .await?;
+    if owned {
+        return Err(E::from(AutomationError::Busy));
+    }
+    Ok(())
+}

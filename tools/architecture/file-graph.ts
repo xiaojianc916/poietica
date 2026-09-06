@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from '@typescript/typescript6'
+import { conversationBoundaries, conversationCore } from './conversation-boundaries.ts'
 import { DESKTOP_HEADLESS, desktopBoundaries } from './desktop-boundaries.ts'
 import { type ImportRecord, importsOf, sources } from './imports.ts'
 import {
@@ -146,7 +147,7 @@ function edgeOf(
   resolveEntry: (specifier: string) => string | undefined,
   boundary: (file: string, specifier: string, target: string, typeOnly: boolean) => void,
   reject: (policy: string, file: string, detail: string) => void,
-): { readonly forbidden: string[]; readonly target?: string } {
+): { readonly forbidden: string[]; readonly target?: string; readonly dependency?: string } {
   const specifier = record.specifier
   const forbidden = forbiddenOf(specifier)
   const resolved = ts.resolveModuleName(specifier, file, unit.options, host).resolvedModule
@@ -176,10 +177,11 @@ function edgeOf(
   if (!record.typeOnly && testFile(target)) {
     reject('production-does-not-import-tests', file, specifier)
   }
-  if (!record.typeOnly && records.has(target) && !declarationFile(target)) {
-    return { forbidden, target }
+  const dependency = records.has(target) && !declarationFile(target) ? target : undefined
+  if (dependency === undefined) {
+    return { forbidden }
   }
-  return { forbidden }
+  return record.typeOnly ? { forbidden, dependency } : { forbidden, target, dependency }
 }
 
 function scanUnit(
@@ -190,8 +192,13 @@ function scanUnit(
   resolveEntry: (specifier: string) => string | undefined,
   boundary: (file: string, specifier: string, target: string, typeOnly: boolean) => void,
   reject: (policy: string, file: string, detail: string) => void,
-): { readonly outgoing: Set<string>; readonly forbidden: string[] } {
+): {
+  readonly outgoing: Set<string>
+  readonly dependencies: Set<string>
+  readonly forbidden: string[]
+} {
   const outgoing = new Set<string>()
+  const dependencies = new Set<string>()
   const forbidden: string[] = []
   const imports: ImportRecord[] = importsOf(file, unit.code)
   const visit = (node: ts.Node): void => {
@@ -224,8 +231,11 @@ function scanUnit(
     if (edge.target !== undefined) {
       outgoing.add(edge.target)
     }
+    if (edge.dependency !== undefined) {
+      dependencies.add(edge.dependency)
+    }
   }
-  return { outgoing, forbidden }
+  return { outgoing, dependencies, forbidden }
 }
 
 export function analyzeSourceFiles(
@@ -235,9 +245,11 @@ export function analyzeSourceFiles(
   headless: readonly string[] = [],
   entries: ReadonlyMap<string, Workspace> = new Map<string, Workspace>(),
   boundary: (file: string, specifier: string, target: string, typeOnly: boolean) => void = () => {},
+  knowledgeScope: (file: string) => boolean = () => false,
 ): Violation[] {
   const records = new Map(units.map((unit) => [canonicalOf(host, unit.file), unit]))
   const edges = new Map<string, Set<string>>()
+  const knowledgeEdges = new Map<string, Set<string>>()
   const blocked = new Map<string, string[]>()
   const violations: Violation[] = []
   const reject = (policy: string, file: string, detail: string): void => {
@@ -257,35 +269,38 @@ export function analyzeSourceFiles(
     const scan = scanUnit(file, unit, records, host, resolveEntry, boundary, reject)
     edges.set(file, scan.outgoing)
     blocked.set(file, scan.forbidden)
-  }
-  const visited = new Set<string>()
-  const active = new Set<string>()
-  const stack: string[] = []
-  const walk = (file: string): void => {
-    if (active.has(file)) {
-      const route = [...stack.slice(stack.indexOf(file)), file]
-      reject(
-        'runtime-file-cycle',
-        file,
-        route.map((item) => path.relative(root, item)).join(' -> '),
-      )
-      return
+    if (knowledgeScope(file)) {
+      knowledgeEdges.set(file, new Set([...scan.dependencies].filter(knowledgeScope)))
     }
-    if (visited.has(file)) {
-      return
-    }
-    active.add(file)
-    stack.push(file)
-    for (const target of edges.get(file) ?? []) {
-      walk(target)
-    }
-    stack.pop()
-    active.delete(file)
-    visited.add(file)
   }
-  for (const file of records.keys()) {
-    walk(file)
+  const detectCycles = (graph: ReadonlyMap<string, ReadonlySet<string>>, policy: string): void => {
+    const visited = new Set<string>()
+    const active = new Set<string>()
+    const stack: string[] = []
+    const walk = (file: string): void => {
+      if (active.has(file)) {
+        const route = [...stack.slice(stack.indexOf(file)), file]
+        reject(policy, file, route.map((item) => path.relative(root, item)).join(' -> '))
+        return
+      }
+      if (visited.has(file)) {
+        return
+      }
+      active.add(file)
+      stack.push(file)
+      for (const target of graph.get(file) ?? []) {
+        walk(target)
+      }
+      stack.pop()
+      active.delete(file)
+      visited.add(file)
+    }
+    for (const file of graph.keys()) {
+      walk(file)
+    }
   }
+  detectCycles(edges, 'runtime-file-cycle')
+  detectCycles(knowledgeEdges, 'core-file-dependency-cycle')
   for (const entry of headless) {
     const start = canonicalOf(host, entry)
     if (!records.has(start)) {
@@ -546,7 +561,12 @@ export async function fileGraph(
       }
     }
   }
-  const headless: string[] = DESKTOP_HEADLESS.map((file) => path.join(root, file))
+  const headless: string[] = [
+    ...new Set([
+      ...DESKTOP_HEADLESS.map((file) => path.join(root, file)),
+      ...units.filter((unit) => conversationCore(root, unit.file)).map((unit) => unit.file),
+    ]),
+  ]
   for (const workspace of workspaces) {
     const manifest = workspace.manifest
     for (const entry of manifest.poietica?.headless ?? []) {
@@ -561,7 +581,9 @@ export async function fileGraph(
     workspaces.map((workspace) => [workspace.name, workspace] as const),
   )
   const policy = resolvedWorkspaceBoundaries(root, workspaces, ts.sys)
-  const boundaries: Violation[] = []
+  const boundaries: Violation[] = units.flatMap((unit) =>
+    conversationBoundaries(root, unit.file, unit.file, true),
+  )
   const graph = analyzeSourceFiles(
     root,
     units,
@@ -571,7 +593,9 @@ export async function fileGraph(
     (file, specifier, target, typeOnly) => {
       boundaries.push(...policy(file, specifier, target, typeOnly))
       boundaries.push(...desktopBoundaries(root, file, target))
+      boundaries.push(...conversationBoundaries(root, file, target, typeOnly))
     },
+    (file) => conversationCore(root, file),
   )
   return [...graph, ...boundaries]
 }

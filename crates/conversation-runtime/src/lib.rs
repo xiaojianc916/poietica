@@ -1,12 +1,12 @@
-//! Host-independent conversation execution.
-
+mod connection;
+pub use connection::{LaunchRequest, RuntimeError, Takeover};
+/// Host-independent conversation execution.
 pub mod catalog;
 mod runtime;
 pub use poietica_kap_client::{ConfigSelection, PromptObservation};
 pub use runtime::{
-    CommandError, DeletedThread, ExportSource, ForkThread, LaunchRequest, OpenThread, OpenedThread,
-    Prompt, PromptReceipt, Runtime, RuntimeError, RuntimeFailure, SessionAction, Takeover,
-    ThreadTarget,
+    CommandError, DeletedThread, ExportSource, ForkThread, OpenThread, OpenedThread, Prompt,
+    PromptReceipt, Runtime, RuntimeFailure, SessionAction, ThreadTarget,
 };
 mod delivery;
 mod events;

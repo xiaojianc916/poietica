@@ -1,6 +1,5 @@
 import type { AutomationStore } from '@poietica/automation'
-import type { AttachmentIntake, ConversationRuntime } from '@poietica/conversation'
-import type { ComposerDrafts } from '@poietica/conversation/surface'
+import type { AttachmentIntake, ComposerDrafts, ConversationRuntime } from '@poietica/conversation'
 import type { PluginStore } from '@poietica/extension'
 import type { readTokenDays } from '@poietica/native-bridge/usage'
 import type { MainWindowController } from '@poietica/native-bridge/window'

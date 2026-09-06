@@ -2,9 +2,10 @@ import './prompt-queue.css'
 
 import { Reorder, useDragControls } from 'motion/react'
 import { memo, useCallback, useSyncExternalStore } from 'react'
-import type { Interjection, InterjectionOutbox } from '../index'
-import { CloseIcon, DragHandleIcon, ForwardIcon, PencilIcon } from '../primitives/icons'
-import { DRAG_SPRING } from '../primitives/motion'
+import type { Interjection } from '../interjection/interjection-contract'
+import type { InterjectionOutbox } from '../interjection/interjection-outbox'
+import { CloseIcon, DragHandleIcon, ForwardIcon, PencilIcon } from './primitives/icons'
+import { DRAG_SPRING } from './primitives/motion'
 
 /** 面板到顶的行数，与 --cp-queue-rows 同源：超过它就有东西在视野外。 */
 const VISIBLE_ROWS = 5

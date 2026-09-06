@@ -11,7 +11,8 @@ pub enum SessionAction {
 
 impl<E: RuntimeFailure> Runtime<E> {
     pub(super) fn require_live(&self) -> Result<Handle, CommandError<E>> {
-        self.current()
+        self.connection
+            .current()
             .map_err(CommandError::Runtime)?
             .ok_or(CommandError::MissingSession)
     }
@@ -51,7 +52,7 @@ impl<E: RuntimeFailure> Runtime<E> {
         action: SessionAction,
     ) -> Result<(), CommandError<E>> {
         let live = self.require_live()?;
-        let session = address(&self.inner.index, named, &live.agent_id)
+        let session = address(&self.index, named, &live.agent_id)
             .await
             .map_err(CommandError::Session)?
             .ok_or(CommandError::Session(SessionError::Unbound))?;
@@ -67,7 +68,7 @@ impl<E: RuntimeFailure> Runtime<E> {
         named: &str,
         prompt: &str,
     ) -> Result<PromptObservation, CommandError<E>> {
-        let Some(session) = address(&self.inner.index, named, &agent)
+        let Some(session) = address(&self.index, named, &agent)
             .await
             .map_err(CommandError::Session)?
         else {
@@ -89,7 +90,7 @@ impl<E: RuntimeFailure> Runtime<E> {
         named: &str,
         prompt: String,
     ) -> Result<(), CommandError<E>> {
-        let session = address(&self.inner.index, named, &agent)
+        let session = address(&self.index, named, &agent)
             .await
             .map_err(CommandError::Session)?
             .ok_or(CommandError::Session(SessionError::Unbound))?;

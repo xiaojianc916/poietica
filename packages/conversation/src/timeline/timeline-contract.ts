@@ -1,17 +1,14 @@
+import type { KapToolCallId } from '../agent/kap'
+import type { SessionLink } from '../agent/link'
+import type { ApprovalDecision, ApprovalScope } from '../agent/permission'
+import type { QuestionChoice, QuestionItem } from '../agent/question'
+import type { QuestionOutcome, RunStatus } from '../agent/run'
 import type {
-  ApprovalDecision,
-  ApprovalScope,
-  KapToolCallId,
-  QuestionChoice,
-  QuestionItem,
-  QuestionOutcome,
-  RunStatus,
-  SessionLink,
   ToolCallContent,
   ToolCallLocation,
   ToolCallStatus,
   ToolKind,
-} from '../agent'
+} from '../agent/tool-call'
 
 /**
  * The timeline projection.

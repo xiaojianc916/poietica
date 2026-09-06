@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { PermissionDock } from '../composer/permission-dock'
-import type { PermissionItem } from '../index'
+import { PermissionDock } from '../surface/composer/permission-dock'
+import type { PermissionItem } from '../timeline/timeline-contract'
 
 /*
  * 审批带是唯一会把 agent 卡住、非等用户点一下不可的界面，因此它显示错字的代价

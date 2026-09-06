@@ -1,7 +1,10 @@
 import { agent as agentDescriptor } from '@poietica/agent-catalog'
 import { createAutomationStore } from '@poietica/automation'
-import { createConversationRuntime, normalizeWorkspaceRoot } from '@poietica/conversation'
-import { ComposerDrafts } from '@poietica/conversation/surface'
+import {
+  ComposerDrafts,
+  createConversationRuntime,
+  normalizeWorkspaceRoot,
+} from '@poietica/conversation'
 import { createPluginStore } from '@poietica/extension'
 import { createPreference } from '@poietica/external-store'
 import {

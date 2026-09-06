@@ -5,7 +5,7 @@ import {
   railCentre,
   railWeight,
   railWindow,
-} from '../minimap/conversation-minimap-geometry'
+} from '../surface/minimap/conversation-minimap-geometry'
 
 describe('conversation minimap geometry', () => {
   it('peaks under the pointer and falls off symmetrically', () => {

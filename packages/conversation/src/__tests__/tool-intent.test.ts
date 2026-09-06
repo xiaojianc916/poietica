@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { readToolLine, sayToolLine } from '../semantics/tool-intent'
+import { readToolLine, sayToolLine } from '../surface/semantics/tool-intent'
 
 /*
  * 卡片那一行。

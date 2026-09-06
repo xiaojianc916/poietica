@@ -616,12 +616,17 @@ export async function processStateIsComposedAtRoot(root: string): Promise<Violat
   const owners = new Map<string, ReadonlySet<string>>([
     [
       '@poietica/conversation',
-      new Set(['TranscriptStore', 'ThreadsStore', 'SessionControlsStore', 'AgentCapabilityStore']),
+      new Set([
+        'TranscriptStore',
+        'ThreadsStore',
+        'SessionControlsStore',
+        'AgentCapabilityStore',
+        'ComposerDrafts',
+      ]),
     ],
     ['@poietica/update', new Set(['AppUpdateStore'])],
     ['@poietica/automation', new Set(['createAutomationStore'])],
     ['@poietica/extension', new Set(['createPluginStore'])],
-    ['@poietica/conversation/surface', new Set(['ComposerDrafts'])],
     ['@poietica/settings', new Set(['PersonalizationStore'])],
     ['@poietica/workspace/panels', new Set(['createAuxiliaryPanelStore'])],
   ])

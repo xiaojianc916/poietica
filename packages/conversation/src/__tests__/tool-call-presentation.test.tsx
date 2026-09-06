@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { LinkTimelineItem, ToolCallTimelineItem } from '../index'
-import { LinkCard } from '../timeline/link-card'
-import { ToolCallPanels } from '../timeline/tool-call-panels'
+import { LinkCard } from '../surface/timeline/link-card'
+import { ToolCallPanels } from '../surface/timeline/tool-call-panels'
+import type { LinkTimelineItem, ToolCallTimelineItem } from '../timeline/timeline-contract'
 
 describe('工具调用的产品呈现', () => {
   it('计划只显示渲染后的计划正文', () => {

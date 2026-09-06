@@ -1,6 +1,5 @@
 import type { AutomationStore } from '@poietica/automation'
-import type { AgentSessionPort } from '@poietica/conversation'
-import type { ComposerDrafts } from '@poietica/conversation/surface'
+import type { AgentSessionPort, ComposerDrafts } from '@poietica/conversation'
 import { ComposerDraftsContext, useAgentControls } from '@poietica/conversation/surface'
 import type { PluginStore } from '@poietica/extension'
 import { pickWorkspaceRoot } from '@poietica/native-bridge/workspace'

@@ -1,4 +1,4 @@
-import type { PromptAsset, PromptConfiguration, PromptSkill } from '../agent'
+import type { PromptAsset, PromptConfiguration, PromptSkill } from '../agent/session'
 
 export interface Interjection {
   readonly id: string

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { BackgroundTaskItem, TodoItem } from '../index'
 import {
   backgroundTaskProgressLabel,
   TaskPanelContent,
   todoProgressLabel,
-} from '../todo/todo-panel'
+} from '../surface/todo/todo-panel'
+import type { BackgroundTaskItem, TodoItem } from '../timeline/timeline-contract'
 
 const todos: readonly TodoItem[] = [
   { title: '搭骨架', status: 'done' },

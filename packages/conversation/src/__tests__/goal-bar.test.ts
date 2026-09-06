@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { goalBarPresentation } from '../goal/goal-bar'
+import { goalBarPresentation } from '../surface/goal/goal-bar'
 
 describe('goal bar presentation', () => {
   test('matches the visible DeepSeek Harness phase vocabulary and controls', () => {

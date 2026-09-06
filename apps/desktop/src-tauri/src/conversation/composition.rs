@@ -6,7 +6,6 @@ use crate::ledger::LocalIndex;
 use poietica_conversation_runtime::Runtime;
 use poietica_conversation_runtime::journal::FrameJournal;
 use poietica_kap_client::{AgentSpawn, SessionEvent};
-use poietica_ledger::execution::read_index;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::AppHandle;
@@ -34,21 +33,10 @@ pub(crate) fn compose(
             let index = authority.clone();
             Box::pin(async move {
                 if let Some(serving) = request.replacing {
-                    let owned = read_index(&index, move |store| {
-                        if !store.automation_initialized().map_err(Error::from)? {
-                            return Ok(false);
-                        }
-                        Ok(store
-                            .automation_state()
-                            .map_err(Error::from)?
-                            .executions
-                            .values()
-                            .any(|entry| entry.agent_id == serving))
-                    })
+                    poietica_automation_runtime::catalog::ensure_agent_replaceable::<Error>(
+                        &index, serving,
+                    )
                     .await?;
-                    if owned {
-                        return Err(poietica_automation::AutomationError::Busy.into());
-                    }
                 }
                 crate::workspace::environment::prepare_mcp(&app, &request.agent_id).await?;
                 crate::webview::ensure_live_kernel(&app);

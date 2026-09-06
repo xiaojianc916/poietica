@@ -61,7 +61,7 @@ async fn disconnect_invalidates_an_in_progress_preparation() {
         .expect("cancelled promptly")
         .expect("task");
     assert!(matches!(outcome, Err(Failure::Runtime(RuntimeError::Gone))));
-    assert!(runtime.current().expect("current").is_none());
+    assert!(runtime.connection.current().expect("current").is_none());
     runtime.shutdown().expect("shutdown");
 }
 #[tokio::test]

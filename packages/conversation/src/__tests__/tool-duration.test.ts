@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { formatDuration, HOUR, MINUTE, SECOND } from '../semantics/duration'
+import { formatDuration, HOUR, MINUTE, SECOND } from '../surface/semantics/duration'
 
 /*
  * 工具调用的耗时。

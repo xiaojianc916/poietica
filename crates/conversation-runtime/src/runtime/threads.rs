@@ -74,7 +74,7 @@ impl<E: RuntimeFailure> Runtime<E> {
             .map_err(CommandError::Runtime)?;
         if create {
             let _lease = self.sessions().exclusive(id).await;
-            write_index(&self.inner.index, move |store| {
+            write_index(&self.index, move |store| {
                 store
                     .create_thread(id, FALLBACK_THREAD_TITLE, cwd.as_deref())
                     .map_err(IndexError::from)
@@ -86,7 +86,7 @@ impl<E: RuntimeFailure> Runtime<E> {
         let mut held = self
             .sessions()
             .resolve(
-                &self.inner.index,
+                &self.index,
                 &live.client,
                 &live.book,
                 SessionRequest {
@@ -127,7 +127,7 @@ impl<E: RuntimeFailure> Runtime<E> {
                     .map_err(CommandError::Agent)
             },
         )?;
-        let thread = read_index(&self.inner.index, move |store| {
+        let thread = read_index(&self.index, move |store| {
             store.thread(id).map_err(IndexError::from).map_err(E::from)
         })
         .await
@@ -158,7 +158,7 @@ impl<E: RuntimeFailure> Runtime<E> {
         let held = self
             .sessions()
             .resolve(
-                &self.inner.index,
+                &self.index,
                 &live.client,
                 &live.book,
                 SessionRequest {
@@ -176,7 +176,7 @@ impl<E: RuntimeFailure> Runtime<E> {
             .await
             .map_err(CommandError::Agent)?;
         let id = bind_fork(
-            &self.inner.index,
+            &self.index,
             ForkBinding {
                 source,
                 title,
@@ -187,7 +187,7 @@ impl<E: RuntimeFailure> Runtime<E> {
             |session| live.client.delete_session(session),
         )
         .await?;
-        let thread = read_index(&self.inner.index, move |store| {
+        let thread = read_index(&self.index, move |store| {
             store.thread(id).map_err(IndexError::from).map_err(E::from)
         })
         .await
@@ -201,8 +201,8 @@ impl<E: RuntimeFailure> Runtime<E> {
         let id =
             Uuid::parse_str(named).map_err(|_| CommandError::Session(SessionError::InvalidId))?;
         let _lease = self.sessions().exclusive(id).await;
-        let live = self.current().map_err(CommandError::Runtime)?;
-        let (binding, root) = write_index(&self.inner.index, move |store| {
+        let live = self.connection.current().map_err(CommandError::Runtime)?;
+        let (binding, root) = write_index(&self.index, move |store| {
             let stored = store
                 .thread(id)
                 .map_err(IndexError::from)
@@ -225,7 +225,7 @@ impl<E: RuntimeFailure> Runtime<E> {
         {
             match live.client.delete_session(session.clone()).await {
                 Ok(()) => {
-                    if let Err(error) = write_index(&self.inner.index, move |store| {
+                    if let Err(error) = write_index(&self.index, move |store| {
                         store
                             .discharge_session_disposal(&session)
                             .map_err(IndexError::from)
@@ -244,7 +244,7 @@ impl<E: RuntimeFailure> Runtime<E> {
             }
         }
         // Cleanup failure does not undo a committed deletion.
-        let reclaimed = write_index(&self.inner.index, move |store| {
+        let reclaimed = write_index(&self.index, move |store| {
             let attachments = store
                 .unreferenced_attachments()
                 .map_err(IndexError::from)
@@ -291,7 +291,7 @@ impl<E: RuntimeFailure> Runtime<E> {
     ) -> Result<ExportSource, CommandError<E>> {
         let id =
             Uuid::parse_str(named).map_err(|_| CommandError::Session(SessionError::InvalidId))?;
-        let thread = read_index(&self.inner.index, move |store| {
+        let thread = read_index(&self.index, move |store| {
             store.thread(id).map_err(IndexError::from).map_err(E::from)
         })
         .await
@@ -318,7 +318,7 @@ impl<E: RuntimeFailure> Runtime<E> {
             .await
             .map_err(CommandError::Runtime)?;
         let _lease = self.sessions().exclusive(source.thread).await;
-        let current = address(&self.inner.index, &source.thread.to_string(), &source.owner)
+        let current = address(&self.index, &source.thread.to_string(), &source.owner)
             .await
             .map_err(CommandError::Session)?;
         if current.as_deref() != Some(source.session.as_str()) {

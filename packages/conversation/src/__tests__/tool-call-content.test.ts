@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { toToolContentParts } from '../semantics/tool-call-content'
+import { toToolContentParts } from '../surface/semantics/tool-call-content'
 
 /**
  * 工具卡片画什么。

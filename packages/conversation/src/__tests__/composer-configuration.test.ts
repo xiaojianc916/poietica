@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test'
-import { activePromptConfiguration } from '../composer/composer-actions'
-import { sessionControlRows } from '../composer/controls'
-import { canSubmitDraft } from '../composer/prompt-input'
-import type { SessionConfigControl } from '../index'
+import type { SessionConfigControl } from '../agent/config'
+import { canSubmitDraft } from '../composer/prompt'
+import { activePromptConfiguration } from '../surface/composer/composer-actions'
+import { sessionControlRows } from '../surface/composer/controls'
 
 function control(
   id: string,

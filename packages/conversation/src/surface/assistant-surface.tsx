@@ -1,22 +1,24 @@
 import './assistant.css'
 
 import { lazy, memo, type Ref, Suspense, useCallback, useMemo, useRef, useState } from 'react'
-import { AssistantComposer } from '../composer/assistant-composer'
-import { ComposerDraftKeyContext } from '../composer/composer-drafts'
-import { useDockClearance } from '../composer/dock-clearance'
-import type { PermissionDockProps } from '../composer/permission-dock'
-import type { PromptInputHandle } from '../composer/prompt-input'
-import { GoalBar } from '../goal/goal-bar'
-import type { AgentSessionPort, SessionConfigControl, SessionUsage } from '../index'
-import { EmotionBall, ENTRY_EMOTION_GROUPS } from '../mascot/emotion-ball'
-import { useAgentToolkit } from '../session/agent-controls-context'
-import type { AssistantSubmission } from '../session/use-assistant-session'
-import { useAssistantInteractions, useAssistantSession } from '../session/use-assistant-session'
-import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branch-picker'
-import { WorkspacePicker, type WorkspacePickerProps } from '../threads/workspace-picker'
+import type { SessionConfigControl } from '../agent/config'
+import type { AgentSessionPort } from '../agent/session'
+import type { SessionUsage } from '../agent/usage'
+import { AssistantComposer } from './composer/assistant-composer'
+import { useDockClearance } from './composer/dock-clearance'
+import { ComposerDraftKeyContext } from './composer/drafts-context'
+import type { PermissionDockProps } from './composer/permission-dock'
+import type { PromptInputHandle } from './composer/prompt-input'
+import { useAgentToolkit } from './configuration/agent-controls-context'
+import { GoalBar } from './goal/goal-bar'
+import { EmotionBall, ENTRY_EMOTION_GROUPS } from './mascot/emotion-ball'
+import { GitBranchPicker, type GitBranchPickerProps } from './threads/git-branch-picker'
+import { WorkspacePicker, type WorkspacePickerProps } from './threads/workspace-picker'
+import type { AssistantSubmission } from './transcript/use-assistant-session'
+import { useAssistantInteractions, useAssistantSession } from './transcript/use-assistant-session'
 
 const DeferredTranscriptView = lazy(() =>
-  import('../timeline/transcript-view').then(({ TranscriptView }) => ({
+  import('./timeline/transcript-view').then(({ TranscriptView }) => ({
     default: TranscriptView,
   })),
 )

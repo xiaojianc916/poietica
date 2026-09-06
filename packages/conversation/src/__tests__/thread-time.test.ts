@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { DAY, HOUR, MINUTE } from '../semantics/duration'
+import { DAY, HOUR, MINUTE } from '../surface/semantics/duration'
 import {
   datedGroupsOf,
   formatAbsolute,
@@ -8,7 +8,7 @@ import {
   instantsOf,
   nextChangeIn,
   paintedGroupsOf,
-} from '../threads/relative-time'
+} from '../surface/threads/relative-time'
 
 /*
  * 一个固定的本地时刻，远离午夜：期限那几条要跨过分钟与小时的边界，而不该

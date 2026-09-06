@@ -1,56 +1,15 @@
-use super::{Handle, Runtime, RuntimeFailure, Takeover};
+use super::failure::CommandError;
+use super::{Runtime, RuntimeFailure, Takeover};
 use crate::{
     gateway::KapGateway,
-    session::{SessionError, SessionMode, SessionRequest},
+    session::{SessionMode, SessionRequest},
     submission::{Submission, submit},
 };
 use poietica_conversation::{identity::TurnId, turn::SkillSpec};
-use poietica_kap_client::{
-    ConfigControl, ConfigSelection, KapError, SessionEvent, apply_configurations, select_config,
-};
+use poietica_kap_client::{ConfigSelection, apply_configurations};
 use poietica_ledger::{LedgerError, index::ThreadAttachment};
-use std::{error::Error, fmt, future::Future};
+use std::{fmt, future::Future};
 use uuid::Uuid;
-
-#[derive(Debug, thiserror::Error)]
-pub enum CommandError<E: Error + 'static> {
-    #[error("connection preparation failed: {0}")]
-    Runtime(#[source] E),
-    #[error(transparent)]
-    Session(SessionError<E>),
-    #[error("attachment preparation failed: {0}")]
-    Attachments(#[source] E),
-    #[error(transparent)]
-    Agent(KapError),
-    #[error("submission failed: {0}")]
-    Delivery(#[source] E),
-    #[error("the prompt is empty")]
-    EmptyPrompt,
-    #[error("attachment preparation changed the submitted attachment set")]
-    AttachmentSetChanged,
-    #[error("the submission returned no new receipt")]
-    MissingReceipt,
-    #[error("no agent session is running")]
-    MissingSession,
-    #[error(transparent)]
-    Catalog(crate::catalog::CatalogError),
-    #[error("conversation persistence failed: {0}")]
-    Persistence(#[source] E),
-    #[error(transparent)]
-    Interaction(KapError),
-    #[error("the agent dropped a response")]
-    ResponseClosed,
-    #[error("the committed conversation could not be read back")]
-    Readback,
-    #[error("the export source changed while choosing a destination")]
-    ExportChanged,
-    #[error("fork binding failed: {cause}; binding verification failed: {verification}")]
-    BindingUncertain {
-        #[source]
-        cause: E,
-        verification: E,
-    },
-}
 
 pub struct Prompt<A> {
     pub agent_id: String,
@@ -104,10 +63,9 @@ impl<E: RuntimeFailure> Runtime<E> {
             .map_err(CommandError::Runtime)?;
         let named = request.thread_id.to_string();
         let held = self
-            .inner
             .sessions
             .resolve(
-                &self.inner.index,
+                &self.index,
                 &live.client,
                 &live.book,
                 SessionRequest {
@@ -147,11 +105,11 @@ impl<E: RuntimeFailure> Runtime<E> {
         let gateway = KapGateway {
             client: live.client.clone(),
             journal: self.journal().clone(),
-            attachments_root: self.inner.attachments.clone(),
+            attachments_root: self.attachments.clone(),
         };
         // The lease spans configuration, durable admission and acknowledgement.
         let prompt_id = submit(
-            &self.inner.index,
+            &self.index,
             gateway,
             Submission {
                 thread: held.thread_id,
@@ -173,63 +131,5 @@ impl<E: RuntimeFailure> Runtime<E> {
             session_id,
             prompt_id,
         })
-    }
-
-    pub async fn select_configuration(
-        &self,
-        thread_id: Option<String>,
-        config_id: String,
-        value: String,
-        input: Option<String>,
-    ) -> Result<Vec<ConfigControl>, CommandError<E>> {
-        let live = self
-            .current()
-            .map_err(CommandError::Runtime)?
-            .ok_or(CommandError::MissingSession)?;
-        let held = match thread_id.as_deref() {
-            Some(named) => Some(
-                self.inner
-                    .sessions
-                    .resolve(
-                        &self.inner.index,
-                        &live.client,
-                        &live.book,
-                        SessionRequest {
-                            owner: &live.agent_id,
-                            default_root: self.root(),
-                            named,
-                            mode: SessionMode::CreateIfUnbound,
-                        },
-                    )
-                    .await
-                    .map_err(CommandError::Session)?,
-            ),
-            None => None,
-        };
-        let addressed = held
-            .as_ref()
-            .map_or_else(|| live.anchor.clone(), |held| held.session_id.clone());
-        let controls = select_config(&live.client, addressed.clone(), config_id, value, input)
-            .await
-            .map_err(CommandError::Agent)?;
-        self.announce(&live, addressed, controls.clone()).await;
-        drop(held);
-        Ok(controls)
-    }
-
-    async fn announce(&self, live: &Handle, session_id: String, controls: Vec<ConfigControl>) {
-        match live.client.goal(session_id.clone()).await {
-            Ok(goal) => (self.inner.publish)(SessionEvent::Selectors {
-                session_id,
-                controls,
-                goal,
-            }),
-            Err(error) => {
-                // Reporting failure does not undo an already accepted configuration.
-                log::warn!(
-                    "could not report the session goal after a configuration change: {error}"
-                );
-            }
-        }
     }
 }
