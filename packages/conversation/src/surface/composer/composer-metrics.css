@@ -6,9 +6,7 @@
  *   2. a number that can be derived MUST be derived;
  *   3. the skin and the motion hook consume tokens only.
  *
- * 颜色在这里只被命名,取值一律来自设计系统的语义令牌。此前这一节是一套写死
- * 的浅色私有色板,而主题控制器只做一件事:在 :root 上写 data-theme。两套系统
- * 没有交点,深色模式下这个界面因此整片保持浅色、文字保持黑色。
+ * 颜色在这里只被命名,取值一律来自设计系统的语义令牌。
  */
 
 /*
@@ -242,19 +240,11 @@
   --cp-ground: var(--ui-background);
 
   /*
-   * 咬在卡片上沿的那一格（审批带）。
-   *
-   * 相对地色兑 5% 墨，与「我」说的话那一格同一条式子（--cp-timeline-user-surface）
-   * —— 那里已经量过：浅色下解出 #ebebeb，与地色差 0.040 明度，一眼分得开又不至于
-   * 变成一个色块；深色下同一条式子把白色兑进去，它自动变亮而不是变暗，因为那时
-   * 地色已经是最暗的一层。
-   *
-   * 必须是一个实色，不能是一层半透明墨（--cp-hover 那种）：它上半段铺在地色上、
-   * 下半段压在卡面底下，两种底会把同一层墨兑成两个颜色。
-   *
-   * 名字按用途取，与 --cp-error-rule 同一条规矩：将来要单独调只改这一处。
+   * 咬在卡片上沿的那一格（审批带）：与「我」说的话同一个平面，读同一个令牌。
+   * 必须是实色 —— 它上半段铺在地色上、下半段压在卡面底下，半透明墨会被两种底
+   * 兑成两个颜色。
    */
-  --cp-shelf: color-mix(in oklab, var(--ui-foreground) 5%, var(--ui-background));
+  --cp-shelf: var(--ui-sunken);
 
   /* 悬停是一层墨,不是一个固定的灰:深色下它必须变亮而不是变暗。 */
   --cp-hover: color-mix(in srgb, var(--ui-foreground) 6%, transparent);
@@ -407,23 +397,8 @@
   /* 等宽字族没有理由自己再列一遍，设计系统已经定了。 */
   --cp-font-mono: var(--ui-font-mono);
 
-  /*
-   * 「我」说的话的底色。
-   *
-   * 基底是 --ui-background(#f8f8f8,chroma 为 0),气泡此前写死 #f5f5f5:两者
-   * 在 OKLab 上只差 0.009 的明度,等于没有边界 —— 而且那个 #f5f5f5 不是谁选
-   * 的,它是 var() 的兜底,因为这个 token 在本文件里从来没有被定义过。
-   *
-   * 现在不再挑一个十六进制,而是从基底自己推:兑 5% 墨色。浅色主题下落在
-   * #ebebeb,与基底相差 0.040 明度 —— 一眼分得开,又不至于变成一个色块。这里
-   * 没有下限钳制:同屏卡片的描边由 --ui-border 单独给,两者取值不同,但都
-   * 从令牌推出,各自跟随主题。深色主题下同一条式子把白色兑进 #191919,气泡
-   * 自动变亮而不是变暗。
-   *
-   * 用 oklab 而不是 srgb 插值:混出来的 chroma 只有 0.0005,是真中性灰;sRGB
-   * 插值在浅灰段容易泛出偏色。
-   */
-  --cp-timeline-user-surface: color-mix(in oklab, var(--ui-foreground) 5%, var(--ui-background));
+  /* 「我」说的话的底色：沉在地色上的那一格，取值在设计系统那一层。 */
+  --cp-timeline-user-surface: var(--ui-sunken);
 
   /* 抽屉:思考过程的开合,时长与曲线在这里定一次。 */
   --cp-motion-drawer: 260ms;

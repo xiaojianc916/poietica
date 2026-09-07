@@ -19,9 +19,17 @@
   --ui-chrome: var(--ui-palette-dark-950);
   --ui-ground: var(--ui-palette-dark-900);
 
+  /* 同一条式子把白色兑进去：深色下这一格自动变亮而不是变暗。 */
+  --ui-sunken: color-mix(in oklab, var(--ui-foreground) 5%, var(--ui-background));
+
   --ui-sidebar: var(--ui-palette-dark-950);
   --ui-sidebar-accent: var(--ui-palette-dark-700);
   --ui-sidebar-accent-foreground: var(--ui-palette-white);
+
+  /* 悬停与选中在深色下是一层墨而不是一个固定的灰：铺在什么底上跟着什么底走。 */
+  --ui-tab-active: color-mix(in srgb, var(--ui-foreground) 7.8%, transparent);
+  --ui-tab-hover: color-mix(in srgb, var(--ui-foreground) 5%, transparent);
+  --ui-control-hover: color-mix(in srgb, var(--ui-foreground) 10%, transparent);
 
   /*
    * 与 light.css 同构，相对基底（--ui-palette-dark-975）定档，同样保持

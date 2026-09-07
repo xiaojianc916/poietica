@@ -87,7 +87,7 @@ function AuxiliaryTab({ active, icon, id, onClose, onSelect, title }: AuxiliaryT
       aria-selected={active}
       className={
         'group flex max-w-44 shrink-0 items-center gap-1.5 rounded-md py-1 pl-2 pr-2 ' +
-        (active ? 'bg-current/[7.8%]' : 'hover:bg-current/5')
+        (active ? 'bg-tab-active' : 'hover:bg-tab-hover')
       }
       id={id}
       onClick={(event) => {

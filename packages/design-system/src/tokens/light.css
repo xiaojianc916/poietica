@@ -2,7 +2,7 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --ui-background: var(--ui-palette-neutral-50);
+  --ui-background: var(--ui-palette-white);
   --ui-foreground: var(--ui-palette-neutral-850);
   --ui-surface: var(--ui-palette-white);
   --ui-inverse-surface: #000000;
@@ -17,7 +17,10 @@
   --ui-card: #efefef;
   --ui-card-divider: #e7e7e7;
   --ui-chrome: var(--ui-palette-neutral-75);
-  --ui-ground: var(--ui-palette-neutral-50);
+  --ui-ground: var(--ui-palette-white);
+
+  /* 沉在地色上的一格：「我」说的话、审批带。一个平面一个值。 */
+  --ui-sunken: #f3f3f4;
 
   --ui-sidebar: var(--ui-palette-neutral-75);
   /*
@@ -25,11 +28,16 @@
    * 标题栏里贴着侧栏的那几个图标按钮，全部读这一个值：一列界面一个色阶，
    * 不允许第二份。深色主题的同名 token 在 dark.css，两边各自成立。
    */
-  --ui-sidebar-accent: #e6e6e6;
+  --ui-sidebar-accent: #e7e8e8;
   --ui-sidebar-accent-foreground: var(--ui-palette-neutral-900);
 
+  /* 标签页两档与图标钮悬停。浅色一律字面值，可用取色器逐一核对。 */
+  --ui-tab-active: #f4f4f4;
+  --ui-tab-hover: #f8f8f8;
+  --ui-control-hover: #e8e8e8;
+
   /*
-   * 三个角色，两套语境。值相对基底（--ui-palette-neutral-50）定。
+   * 三个角色，两套语境。值相对基底（--ui-background）定。
    *
    *   --ui-region-divider-color  窗格与区域分隔、按钮与输入框边框
    *   --ui-surface-frame         容器外框
@@ -56,7 +64,7 @@
    */
   --ui-region-divider-color: #e0e0e0;
   --ui-divider: var(--ui-region-divider-color);
-  --ui-divider-subtle: #f4f4f4;
+  --ui-divider-subtle: #f8f8f8;
   --ui-border: var(--ui-region-divider-color);
   --ui-surface-frame: #e4e4e4;
   --ui-surface-shadow: 0 1px 2px rgb(0 0 0 / 2%);
@@ -104,11 +112,8 @@
   --ui-info: var(--ui-palette-blue-500);
   --ui-info-foreground: oklch(0.99 0 0);
 
-  /*
-   * 同上，浅底那一套。背景落成 neutral-50 的十六进制值：那一档是 oklch，
-   * xterm 解析不了。
-   */
-  --terminal-background: #f8f8f8;
+  /* 同上，浅底那一套。跟着 --ui-background 走，只能写 hex：xterm 不认 oklch。 */
+  --terminal-background: #ffffff;
   --terminal-foreground: #333333;
   --terminal-cursor: #333333;
   --terminal-selection: rgb(0 0 0 / 20%);

@@ -71,8 +71,8 @@ const light = declarationsIn(tokensDir, 'light.css')
 const dark = declarationsIn(tokensDir, 'dark.css')
 const surface = declarationsIn(srcDir, 'surface.css')
 
-/* 基底取值来自 tokens/palette.css：neutral-50 ≈ #f8f8f8，dark-975 = #141414。 */
-const GROUND = { light: 0xf8, dark: 0x14 }
+/* 基底取值：light 是 --ui-palette-white，dark 是 --ui-palette-dark-975。 */
+const GROUND = { light: 0xff, dark: 0x14 }
 const THEMES = [
   ['light', light],
   ['dark', dark],
@@ -89,6 +89,10 @@ const REQUIRED = [
   '--ui-sidebar',
   '--ui-sidebar-accent',
   '--ui-sidebar-accent-foreground',
+  '--ui-sunken',
+  '--ui-tab-active',
+  '--ui-tab-hover',
+  '--ui-control-hover',
   '--ui-region-divider-color',
   '--ui-divider',
   '--ui-divider-subtle',

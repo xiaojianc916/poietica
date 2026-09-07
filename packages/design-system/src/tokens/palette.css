@@ -9,8 +9,6 @@
 :root {
   --ui-palette-white: oklch(1 0 0);
 
-  /* #f8f8f8 —— 主内容区基底色；中性灰，不带暖色偏移。 */
-  --ui-palette-neutral-50: oklch(0.9792 0 0);
   /*
    * #f3f3f3 —— 顶部栏与左侧侧边栏底色，同时是窗口衬底色。
    * 抄件：apps/desktop/src-tauri/tauri.conf.json → app.windows[0].backgroundColor。
@@ -21,7 +19,7 @@
   --ui-palette-neutral-150: oklch(0.945 0.005 90);
   --ui-palette-neutral-200: oklch(0.925 0.007 90);
   --ui-palette-neutral-300: oklch(0.84 0.006 90);
-  /* 占位符档。对 --ui-palette-neutral-50 底色约 3:1，比 500 整整淡一档。 */
+  /* 占位符档。对基底约 3:1，比 500 整整淡一档。 */
   --ui-palette-neutral-400: oklch(0.6 0.012 90);
   --ui-palette-neutral-500: oklch(0.47 0.012 90);
   --ui-palette-neutral-800: oklch(0.22 0.01 90);

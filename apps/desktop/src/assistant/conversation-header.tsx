@@ -3,7 +3,7 @@ import { ListTodo, PanelRight } from 'lucide-react'
 import './conversation-header.css'
 
 const controlClass =
-  'workspace-shell__conversation-control flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100'
+  'workspace-shell__conversation-control flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-control-hover hover:opacity-100'
 
 /** 会话页头只提供内容区的固定高度与底色；控件由外壳栅格定位。 */
 export function ConversationHeader() {
@@ -32,7 +32,7 @@ export function ConversationControls({
         aria-label={todoLabel}
         className={[
           controlClass,
-          'workspace-shell__todo-toggle aria-expanded:bg-current/10 aria-expanded:opacity-100',
+          'workspace-shell__todo-toggle aria-expanded:bg-control-hover aria-expanded:opacity-100',
         ].join(' ')}
         id="conversation-todo-trigger"
         onClick={onToggleTodo}

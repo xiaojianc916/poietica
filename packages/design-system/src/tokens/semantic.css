@@ -16,6 +16,10 @@
   --color-sidebar-accent: var(--ui-sidebar-accent);
   --color-sidebar-accent-foreground: var(--ui-sidebar-accent-foreground);
 
+  --color-tab-active: var(--ui-tab-active);
+  --color-tab-hover: var(--ui-tab-hover);
+  --color-control-hover: var(--ui-control-hover);
+
   --color-divider: var(--ui-divider);
   --color-border: var(--ui-border);
   --color-input: var(--ui-input);
