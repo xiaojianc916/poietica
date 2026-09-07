@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { LinkCard } from '../surface/timeline/link-card'
 import { ToolCallPanels } from '../surface/timeline/tool-call-panels'
+import { TurnSeal, type TurnSealProps } from '../surface/timeline/turn-seal'
 import type { LinkTimelineItem, ToolCallTimelineItem } from '../timeline/timeline-contract'
 
 describe('工具调用的产品呈现', () => {
@@ -54,5 +55,45 @@ describe('工具调用的产品呈现', () => {
 
     expect(markup).toContain('正在重新连接 4/5')
     expect(markup).not.toContain('后重试')
+  })
+})
+describe('运行封条的独立事实', () => {
+  const props: TurnSealProps = {
+    turn: 0,
+    durationMs: undefined,
+    startedAt: undefined,
+    endedAt: undefined,
+    lastFrameAt: undefined,
+    hasProcess: false,
+    isRunning: false,
+    isOpen: false,
+    onToggle: () => {},
+  }
+  it('无过程仍有封条和未知说明,但不是按钮', () => {
+    const markup = renderToStaticMarkup(<TurnSeal {...props} />)
+    expect(markup).toContain('已处理')
+    expect(markup).toContain('耗时未知')
+    expect(markup).not.toContain('<button')
+    expect(markup).not.toContain('aria-expanded')
+  })
+  it('冷恢复只有 durationMs 也显示时间,包含零与亚秒', () => {
+    for (const durationMs of [0, 500, 2500]) {
+      const markup = renderToStaticMarkup(<TurnSeal {...props} durationMs={durationMs} />)
+      expect(markup).not.toContain('耗时未知')
+    }
+  })
+  it('没有终点时不拿最后观察时间冒充总耗时', () => {
+    const markup = renderToStaticMarkup(<TurnSeal {...props} lastFrameAt={3000} startedAt={1000} />)
+    expect(markup).toContain('耗时未知')
+    const known = renderToStaticMarkup(<TurnSeal {...props} endedAt={3000} startedAt={1000} />)
+    expect(known).not.toContain('耗时未知')
+  })
+  it('有过程时展开状态来自同一投影,不要求计时存在', () => {
+    for (const isOpen of [false, true]) {
+      const markup = renderToStaticMarkup(<TurnSeal {...props} hasProcess isOpen={isOpen} />)
+      expect(markup).toContain(`aria-expanded="${String(isOpen)}"`)
+    }
+    const running = renderToStaticMarkup(<TurnSeal {...props} hasProcess isOpen isRunning />)
+    expect(running).not.toContain('<button')
   })
 })

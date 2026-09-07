@@ -12,8 +12,15 @@ import {
 
 /** 运行负责收尾，用户消息只负责问题导航；撤销能力由协议投影提供。 */
 
+/** 无开场条目时承载封条，不伪造聊天消息。 */
+interface RunAnchor {
+  readonly type: 'run_anchor'
+  readonly id: string
+  readonly turn: number
+}
+
 export interface FeedRow {
-  readonly item: TimelineItem
+  readonly item: TimelineItem | RunAnchor
   readonly isStreamingTail: boolean
   readonly isInFlight: boolean
 }
@@ -34,7 +41,7 @@ export interface TurnSealPlan {
   readonly durationMs: number | undefined
   readonly startedAt: number | undefined
   readonly endedAt: number | undefined
-  /** 运行中的耗时以它为终点，所以秒表不会超过实际收帧的跨度。 */
+  /** 最近可用的官方时间，不充当终态终点。 */
   readonly lastFrameAt: number | undefined
   readonly hasProcess: boolean
   /** 生命周期来自当前运行自己的终态；时间戳只负责耗时。 */
@@ -59,18 +66,17 @@ export interface Presentation {
   /** 这一行属于哪一问：那条用户消息的 id。 */
   readonly turnIdAt: (index: number) => string | undefined
   readonly groupAt: (index: number) => ToolGroupPlan | undefined
-  /** 画在这一行之前的封条：一轮的封条挂在它第一行可见内容的前面。 */
+  /** 该行之后的运行封条。 */
   readonly sealAt: (index: number) => TurnSealPlan | undefined
   readonly replyAt: (index: number) => ReplyActionPlan | undefined
 }
 
 /** 旁白不是助手正文；过程折叠按运行计算。 */
-const ASIDE: ReadonlySet<TimelineItem['type']> = new Set([
+const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set([
   'error',
   'link',
   'permission',
   'question',
-  'run_trigger',
 ])
 /* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
@@ -169,7 +175,19 @@ function rowsOf(page: TurnPage, live: boolean): readonly FeedRow[] {
     }
   }
 
+  if (
+    page.run !== undefined &&
+    rows[0]?.item.type !== 'user_message' &&
+    rows[0]?.item.type !== 'run_trigger'
+  ) {
+    rows.unshift({
+      item: { type: 'run_anchor', id: `run-anchor:${page.turn}`, turn: page.turn },
+      isStreamingTail: false,
+      isInFlight: false,
+    })
+  }
   const tail = rows.at(-1)
+
   const type = tail?.item.type
 
   if (live && tail !== undefined && (type === 'agent_text' || type === 'agent_thought')) {
@@ -192,37 +210,39 @@ function saidIn(rows: readonly FeedRow[]): readonly number[] {
   return said
 }
 
-/**
- * 最终回复的起点：末尾那串相邻正文的第一条；这一轮没说过话就没有起点。
- *
- * 折叠边界与回复取值同问这一处，屏幕上留下的与复制出去的因此恒等。
- */
+/** 只认末尾正文；不能越过工具或思考尾巴倒找答案。 */
 function answerStart(rows: readonly FeedRow[], from: number, until: number): number | undefined {
-  let first: number | undefined
-
-  for (let i = until - 1; i >= from; i -= 1) {
-    if (rows[i]?.item.type !== 'agent_text') {
-      if (first !== undefined) {
-        break
-      }
-
-      continue
+  let tail = until - 1
+  while (tail >= from) {
+    const type = rows[tail]?.item.type
+    if (type === undefined || !ASIDE.has(type)) {
+      break
     }
-
-    first = i
+    tail -= 1
   }
-
-  return first
+  if (rows[tail]?.item.type !== 'agent_text') {
+    return undefined
+  }
+  while (tail >= from && rows[tail]?.item.type === 'agent_text') {
+    tail -= 1
+  }
+  return tail + 1
 }
 
-/** 边界之前除用户消息外的全部内容。 */
+/** 输入、运行锚点与诊断保留可见，其余前缀是过程。 */
 function foldFrom(rows: readonly FeedRow[], frontier: number): readonly number[] {
   const out: number[] = []
 
   for (let i = 0; i < frontier; i += 1) {
     const type = rows[i]?.item.type
 
-    if (type === undefined || type === SAID || (i === 0 && type === 'run_trigger')) {
+    if (
+      type === undefined ||
+      type === SAID ||
+      type === 'run_anchor' ||
+      type === 'run_trigger' ||
+      ASIDE.has(type)
+    ) {
       continue
     }
 
@@ -230,19 +250,6 @@ function foldFrom(rows: readonly FeedRow[], frontier: number): readonly number[]
   }
 
   return out
-}
-
-/** 这一轮有没有正文；旁白不算正文。 */
-function bodyIn(rows: readonly FeedRow[], from: number, until: number): boolean {
-  for (let i = from; i < until; i += 1) {
-    const type = rows[i]?.item.type
-
-    if (type !== undefined && type !== SAID && !ASIDE.has(type)) {
-      return true
-    }
-  }
-
-  return false
 }
 
 function speechFrom(rows: readonly FeedRow[], from: number, until: number): string {
@@ -360,26 +367,20 @@ function placesIn(rows: readonly FeedRow[]): ReadonlyMap<string, number> {
   return where
 }
 
-/** 每个已终止运行最多一组操作，落在其最后一条可见助手正文上。 */
+/** 操作属于运行尾部，不属于某个正文节点。 */
 function repliesIn(
+  text: string,
   rows: readonly FeedRow[],
-  where: ReadonlyMap<string, number>,
   run: TurnPage['run'],
 ): ReadonlyMap<number, ReplyActionPlan> {
-  if (run?.settled !== true) {
-    return NO_REPLIES
-  }
-  const answer = answerStart(rows, 0, rows.length)
-  const tail = rows.findLast((row) => row.item.type === 'agent_text')
-  const at = tail === undefined ? undefined : where.get(tail.item.id)
-  if (answer === undefined || at === undefined) {
+  if (run?.settled !== true || text.length === 0 || rows.length === 0) {
     return NO_REPLIES
   }
   return new Map([
     [
-      at,
+      rows.length - 1,
       {
-        text: speechFrom(rows, answer, rows.length),
+        text,
         undoCount: run.undoCount,
         forkUnavailableReason: run.forkUnavailableReason,
       },
@@ -387,24 +388,17 @@ function repliesIn(
   ])
 }
 
-/** 封条属于有内容或计时事实的官方运行，不要求先有用户气泡。 */
+/** 运行事实拥有封条，计时与可折叠内容不决定准入。 */
 function sealOf(
   page: TurnPage,
   span: TurnSpan | undefined,
-  rows: readonly FeedRow[],
   running: boolean,
   isOpen: boolean,
   hasProcess: boolean,
 ): TurnSealPlan | undefined {
-  if (
-    page.run === undefined ||
-    (!bodyIn(rows, 0, rows.length) &&
-      span?.startedAt === undefined &&
-      span?.durationMs === undefined)
-  ) {
+  if (page.run === undefined) {
     return undefined
   }
-
   return {
     durationMs: span?.durationMs,
     endedAt: span?.endedAt,
@@ -425,9 +419,9 @@ function buildSegment(
 ): Segment {
   const all = rowsOf(page, running)
   const isOpen = running || (picked ?? false)
-  /* 没有起点就没有过程：一句话都没说出来的一轮整段留在屏幕上，不折叠。 */
-  const process = foldFrom(all, answerStart(all, 0, all.length) ?? 0)
-  const seal = sealOf(page, span, all, running, isOpen, process.length > 0)
+  const answer = answerStart(all, 0, all.length)
+  const process = foldFrom(all, answer ?? all.length)
+  const seal = sealOf(page, span, running, isOpen, process.length > 0)
   const hidden = isOpen || seal === undefined ? new Set<number>() : new Set(process)
   const grouped = groupIn(hidden.size === 0 ? all : all.filter((_, one) => !hidden.has(one)))
   const where = placesIn(grouped.rows)
@@ -450,7 +444,7 @@ function buildSegment(
     groups: grouped.groups,
     ownMessage,
     picked,
-    replies: repliesIn(all, where, page.run),
+    replies: repliesIn(speechFrom(all, answer ?? 0, all.length), grouped.rows, page.run),
     rows: grouped.rows,
     running,
     said: saidAt(grouped.rows),
@@ -484,7 +478,7 @@ function segmentOf(
   return built
 }
 
-/** spans 按轮次单调递增（openSpan 只追加），所以定位是二分，不建索引。 */
+/** spans 按官方运行序号有序。 */
 function spanOf(spans: readonly TurnSpan[], turn: number): TurnSpan | undefined {
   let low = 0
   let high = spans.length - 1

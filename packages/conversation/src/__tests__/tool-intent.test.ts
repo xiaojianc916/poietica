@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { readToolLine, sayToolLine } from '../surface/semantics/tool-intent'
+import { readToolLine, sayToolCount, sayToolLine } from '../surface/semantics/tool-intent'
 
 /*
  * 卡片那一行。
@@ -50,8 +50,13 @@ describe('工具调用那一行', () => {
     expect(readToolLine({ ...CALL, kind: 'todo', title: 'TodoList' })).toBe('更新任务清单')
   })
 
-  it('什么都说不出来就退回工具名,审批那一层拿到的是 null', () => {
-    expect(readToolLine({ ...CALL, subject: '   ' })).toBe('Bash')
+  it('等待命令参数时显示类别,审批不虚构主语', () => {
+    expect(readToolLine({ ...CALL, subject: '   ' })).toBe('执行命令')
     expect(sayToolLine({ ...CALL, subject: '   ' })).toBeNull()
   })
+})
+it('未识别类别不等于外部工具', () => {
+  expect(sayToolCount('other', 2)).toBe('调用 2 次工具')
+  expect(readToolLine({ ...CALL, kind: 'other', title: 'custom' })).toBe('custom')
+  expect(readToolLine({ ...CALL, kind: 'fetch' })).toBe('抓取网页')
 })

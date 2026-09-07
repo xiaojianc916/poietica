@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentTranscriptSnapshot, TranscriptFrame, TranscriptTurn } from '@poietica/transcript'
+import {
+  AgentTranscript,
+  type AgentTranscriptSnapshot,
+  foldWireRecordFacts,
+  groupMessagesIntoSnapshot,
+  type TranscriptFrame,
+  type TranscriptTurn,
+} from '@poietica/transcript'
 import { selectPresentation } from '../timeline/presentation'
 import { allItems } from '../timeline/timeline-contract'
 import { outlineOf, projectTranscript } from './transcript-projector'
@@ -221,5 +228,272 @@ describe('run origin, completion and undo boundaries', () => {
     const reset = projectTranscript(snapshotOf([runSample(3)]))
     expect(reset.sealed).toEqual([])
     expect(reset.active.run?.undoCount).toBe(0)
+  })
+})
+describe('tool identity and run presentation', () => {
+  test('known tools keep their category before display and after cold restoration', () => {
+    const samples = [
+      ['Bash', { command: 'pwd' }, { kind: 'command', command: 'pwd' }, 'execute', 'pwd'],
+      [
+        'Read',
+        { path: 'a.ts' },
+        { kind: 'file_io', operation: 'read', path: '/repo/a.ts' },
+        'read',
+        'a.ts',
+      ],
+      [
+        'Grep',
+        { pattern: 'needle' },
+        { kind: 'file_io', operation: 'grep', path: '/repo' },
+        'search',
+        'needle',
+      ],
+      [
+        'Glob',
+        { pattern: '*.ts' },
+        { kind: 'file_io', operation: 'glob', path: '/repo' },
+        'search',
+        '*.ts',
+      ],
+      [
+        'FetchURL',
+        { url: 'https://example.com' },
+        { kind: 'url_fetch', url: 'https://example.com' },
+        'fetch',
+        'https://example.com',
+      ],
+      [
+        'Skill',
+        { skill: 'review' },
+        { kind: 'skill_call', skill_name: 'review' },
+        'skill',
+        'review',
+      ],
+    ] as const
+    for (const [name, input, display, kind, subject] of samples) {
+      const frame = {
+        kind: 'tool',
+        frameId: 'call',
+        toolCallId: 'call',
+        name,
+        state: 'done',
+      } as const
+      for (const variant of [frame, { ...frame, input }, { ...frame, input, display }]) {
+        const state = projectTranscript(snapshotOf([runSample(0, undefined, [variant])]))
+        const tool = state.active.items.find((item) => item.type === 'tool_call')
+        expect(tool?.kind).toBe(kind)
+        if ('input' in variant) {
+          expect(tool?.subject).toBe(subject)
+          expect(tool?.requestContent.length).toBeGreaterThan(0)
+        }
+      }
+    }
+  })
+
+  test('view identity is authoritative, case-insensitive, and not a substring guess', () => {
+    const frames: TranscriptFrame[] = [
+      { kind: 'tool', frameId: 'a', toolCallId: 'a', name: 'bash', state: 'done' },
+      {
+        kind: 'tool',
+        frameId: 'b',
+        toolCallId: 'b',
+        name: 'custom',
+        view: 'Read',
+        state: 'done',
+        input: { path: 'a.ts' },
+      },
+      { kind: 'tool', frameId: 'c', toolCallId: 'c', name: 'ReadEverything', state: 'done' },
+    ]
+    const state = projectTranscript(snapshotOf([runSample(0, undefined, frames)]))
+    expect(
+      state.active.items.filter((item) => item.type === 'tool_call').map((item) => item.kind),
+    ).toEqual(['execute', 'read', 'other'])
+  })
+
+  test('a trailing tool is process; actions follow the visible run tail in both disclosure states', () => {
+    const frames: TranscriptFrame[] = [
+      { kind: 'text', frameId: 'intro', role: 'assistant', text: 'checking' },
+      { kind: 'tool', frameId: 'call', toolCallId: 'call', name: 'Read', state: 'done' },
+    ]
+    const state = projectTranscript(snapshotOf([runSample(0, undefined, frames)]))
+    for (const open of [false, true]) {
+      const feed = selectPresentation(state, new Map([[0, open]]))
+      expect(feed.sealAt(0)?.hasProcess).toBe(true)
+      expect(feed.replyAt(feed.count - 1)?.text).toBe('checking')
+      for (let index = 0; index < feed.count - 1; index += 1) {
+        expect(feed.replyAt(index)).toBeUndefined()
+      }
+      expect(feed.count).toBe(open ? 3 : 1)
+    }
+    const final = projectTranscript(
+      snapshotOf([
+        runSample(0, undefined, [
+          ...frames,
+          { kind: 'text', frameId: 'answer', role: 'assistant', text: 'done' },
+        ]),
+      ]),
+    )
+    const feed = selectPresentation(final, new Map())
+    expect(feed.count).toBe(2)
+    expect(feed.replyAt(1)?.text).toBe('done')
+  })
+
+  test('failure without final text still has an expandable process and visible error', () => {
+    const run = runSample(
+      0,
+      undefined,
+      [
+        { kind: 'thinking', frameId: 'thought', text: 'reasoning' },
+        { kind: 'tool', frameId: 'call', toolCallId: 'call', name: 'Read', state: 'error' },
+      ],
+      'failed',
+    )
+    const state = projectTranscript(snapshotOf([{ ...run, error: 'boom' }]))
+    const collapsed = selectPresentation(state, new Map())
+    expect(collapsed.sealAt(0)?.hasProcess).toBe(true)
+    expect(collapsed.rowAt(collapsed.count - 1)?.item).toMatchObject({
+      type: 'error',
+      message: 'boom',
+    })
+    const expanded = selectPresentation(state, new Map([[0, true]]))
+    expect(expanded.count).toBe(4)
+    expect(expanded.replyAt(expanded.count - 1)).toBeUndefined()
+  })
+
+  test('a trailing error is visible once and precedes reply actions', () => {
+    const run = runSample(
+      0,
+      undefined,
+      [
+        { kind: 'text', frameId: 'answer', role: 'assistant', text: 'answer' },
+        { kind: 'notice', frameId: 'error', level: 'error', message: 'boom' },
+      ],
+      'failed',
+    )
+    const state = projectTranscript(snapshotOf([{ ...run, error: 'boom' }]))
+    expect(allItems(state).filter((item) => item.type === 'error')).toHaveLength(1)
+    const feed = selectPresentation(state, new Map())
+    expect(feed.count).toBe(3)
+    expect(feed.sealAt(0)?.hasProcess).toBe(false)
+    expect(feed.replyAt(1)).toBeUndefined()
+    expect(feed.replyAt(2)?.text).toBe('answer')
+  })
+
+  test('a contentless, timeless official run retains a static seal without a fake message', () => {
+    const snapshot = snapshotOf([
+      {
+        kind: 'turn',
+        turnId: 'empty',
+        ordinal: 0,
+        state: 'failed',
+        origin: { kind: 'user' },
+        steps: [],
+      },
+    ])
+    const state = projectTranscript(snapshot)
+    expect(allItems(state)).toEqual([])
+    expect(state.spans).toEqual([{ turn: 0 }])
+    const feed = selectPresentation(state, new Map())
+    expect(feed.count).toBe(1)
+    expect(feed.rowAt(0)?.item.type).toBe('run_anchor')
+    expect(feed.sealAt(0)?.hasProcess).toBe(false)
+    expect(feed.replyAt(0)).toBeUndefined()
+  })
+
+  test('invalid timing is absent rather than converted into zero', () => {
+    const state = projectTranscript(
+      snapshotOf([
+        {
+          ...runSample(0),
+          startedAt: 'invalid',
+          endedAt: 'invalid',
+          durationMs: -1,
+        },
+      ]),
+    )
+    expect(state.spans).toEqual([{ turn: 0 }])
+    const zero = projectTranscript(snapshotOf([{ ...runSample(0), durationMs: 0 }]))
+    expect(zero.spans[0]?.durationMs).toBe(0)
+  })
+
+  test('official cold reconstruction and live operations retain the same visible meaning', () => {
+    const base = groupMessagesIntoSnapshot([
+      {
+        id: 'prompt',
+        role: 'user',
+        origin: { kind: 'user' },
+        content: [{ type: 'text', text: 'question' }],
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'checking' }],
+        toolCalls: [{ id: 'call', name: 'Read', arguments: JSON.stringify({ path: 'a.ts' }) }],
+      },
+      { role: 'tool', toolCallId: 'call', content: [{ type: 'text', text: 'result' }] },
+    ])
+    const cold = foldWireRecordFacts(
+      [
+        { type: 'turn.prompt', promptId: 'prompt', origin: { kind: 'user' }, time: 1000 },
+        {
+          type: 'turn.ended',
+          turnId: 0,
+          reason: 'failed',
+          error: { message: 'boom' },
+          durationMs: 2500,
+          time: 3500,
+        },
+      ],
+      base,
+    )
+    const live = new AgentTranscript('main')
+    for (const item of cold.items) {
+      if (item.kind !== 'turn') {
+        continue
+      }
+      const { steps, ...header } = item
+      live.receive([
+        { op: 'turn.upsert', turn: { ...header, startedAt: new Date(1000).toISOString() } },
+      ])
+      for (const step of steps) {
+        const { frames, ...stepHeader } = step
+        live.receive([{ op: 'step.upsert', turnId: item.turnId, step: stepHeader }])
+        for (const frame of frames) {
+          live.receive([
+            {
+              op: 'frame.upsert',
+              turnId: item.turnId,
+              stepId: step.stepId,
+              frame:
+                frame.kind === 'tool'
+                  ? {
+                      ...frame,
+                      display: { kind: 'file_io', operation: 'read', path: '/repo/a.ts' },
+                    }
+                  : frame,
+            },
+          ])
+        }
+      }
+    }
+    const restored = new AgentTranscript('main')
+    restored.receive([{ op: 'reset', agentId: 'main', snapshot: cold }])
+    const meaning = (snapshot: AgentTranscriptSnapshot, open: boolean) => {
+      const feed = selectPresentation(projectTranscript(snapshot), new Map([[0, open]]))
+      return Array.from({ length: feed.count }, (_, index) => {
+        const item = feed.rowAt(index)?.item
+        return {
+          type: item?.type,
+          kind: item?.type === 'tool_call' ? item.kind : undefined,
+          subject: item?.type === 'tool_call' ? item.subject : undefined,
+          process: feed.sealAt(index)?.hasProcess,
+          duration: feed.sealAt(index)?.durationMs,
+          reply: feed.replyAt(index)?.text,
+        }
+      })
+    }
+    for (const open of [false, true]) {
+      expect(meaning(restored.snapshot(), open)).toEqual(meaning(live.snapshot(), open))
+    }
+    expect(projectTranscript(restored.snapshot()).status).toBe('failed')
   })
 })

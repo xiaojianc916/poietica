@@ -5,14 +5,6 @@ import { TimelineRow } from './timeline-row'
 import { ToolGroupCard } from './tool-group-card'
 import { TurnSeal } from './turn-seal'
 
-/*
- * 一行连同它的装饰。
- *
- * memo 的全部意义在入参：行与两份计划由投影按段缓存、开合表与回调由转录那一层
- * 持有，所以模型吐字只重渲它改动的那一行，其余的行止步于一次浅比较。
- *
- * 回复操作拆成两个原始值收下 —— 投影每次都新建那个计划对象，收对象等于每帧都比不中。
- */
 export interface TimelineSeatProps {
   readonly row: FeedRow
   readonly group: ToolGroupPlan | undefined
@@ -20,7 +12,6 @@ export interface TimelineSeatProps {
   readonly replyText: string | undefined
   readonly replyUndoCount: number | null | undefined
   readonly replyForkReason: string | null | undefined
-  /** 哪些抽屉开着；键是条目 id 与组 id。 */
   readonly open: ReadonlySet<string>
   readonly onToggle: (id: string) => void
   readonly onSealToggle: (turn: number, isOpen: boolean) => void
@@ -42,38 +33,18 @@ export const TimelineSeat = memo(function TimelineSeat({
   const rowOf = (one: FeedRow) => (
     <TimelineRow isOpen={open.has(one.item.id)} onToggle={onToggle} row={one} />
   )
-
-  const rendered =
-    group === undefined ? (
-      rowOf(row)
-    ) : (
-      <ToolGroupCard
-        isOpen={open.has(group.id)}
-        onToggle={() => {
-          onToggle(group.id)
-        }}
-        plan={group}
-        renderRow={rowOf}
-      />
-    )
-
-  const content =
-    replyText === undefined ? (
-      rendered
-    ) : (
-      <ReplyActionHost
-        forkUnavailableReason={replyForkReason ?? null}
-        onFork={onFork}
-        text={replyText}
-        undoCount={replyUndoCount ?? null}
-      >
-        {rendered}
-      </ReplyActionHost>
-    )
-
-  return (
+  const content = (
     <>
-      {content}
+      {group === undefined ? (
+        rowOf(row)
+      ) : (
+        <ToolGroupCard
+          isOpen={open.has(group.id)}
+          onToggle={() => onToggle(group.id)}
+          plan={group}
+          renderRow={rowOf}
+        />
+      )}
       {seal === undefined ? null : (
         <TurnSeal
           durationMs={seal.durationMs}
@@ -88,5 +59,17 @@ export const TimelineSeat = memo(function TimelineSeat({
         />
       )}
     </>
+  )
+  return replyText === undefined ? (
+    content
+  ) : (
+    <ReplyActionHost
+      forkUnavailableReason={replyForkReason ?? null}
+      onFork={onFork}
+      text={replyText}
+      undoCount={replyUndoCount ?? null}
+    >
+      {content}
+    </ReplyActionHost>
   )
 })

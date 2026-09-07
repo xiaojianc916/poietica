@@ -19,9 +19,12 @@ const narrow = (unit: string, value: number, maximumFractionDigits = 0) =>
   }).format(value)
 
 describe('调用耗时', () => {
-  it('不足一秒不报,快到没人读得到的调用不闪那一下', () => {
-    expect(formatDuration(0)).toBeNull()
-    expect(formatDuration(999)).toBeNull()
+  it('零、亚秒与非法耗时分别表达', () => {
+    expect(formatDuration(0)).toBe(narrow('second', 0))
+    expect(formatDuration(999)).toBe(`<${narrow('second', 1)}`)
+    expect(formatDuration(-1)).toBeNull()
+    expect(formatDuration(Number.NaN)).toBeNull()
+    expect(formatDuration(Number.POSITIVE_INFINITY)).toBeNull()
   })
 
   it('秒档取整,亚秒的零头不上屏', () => {

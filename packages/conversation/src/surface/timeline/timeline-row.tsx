@@ -109,7 +109,8 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
     case 'question':
       return <QuestionRecord item={item} />
 
-    /* 审批与在飞的号都不成行（renderable 把它们挡在 feed 外）；这两支只为穷尽联合而存在。 */
+    /* 运行锚点只承载封条；审批与在飞身份不单独成行。 */
+    case 'run_anchor':
     case 'inflight_prompt':
     case 'permission':
       return null

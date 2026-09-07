@@ -28,11 +28,7 @@ import { clampToLine, readToolLine, sayToolCount } from '../semantics/tool-inten
 import { useDelegateChannel } from './delegate-channel-context'
 import { ToolCallPanels } from './tool-call-panels'
 
-/*
- * 十三档各自的字形。扳手只剩一个确切的意思：kap 没给 display。
- *
- * 末尾那道 never：协议长出新档时这里是编译错误，不是一枚沉默的扳手。
- */
+/** 类别来自统一投影，未知工具保留通用图标。 */
 export function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
   const className = 'timeline-row__icon'
 

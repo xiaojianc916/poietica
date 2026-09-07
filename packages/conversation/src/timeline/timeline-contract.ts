@@ -97,7 +97,7 @@ export interface ToolCallTimelineItem extends TimelineEntry {
   readonly toolCallId: KapToolCallId
   readonly title: string
   readonly kind: ToolKind
-  /** 这次调用的主语：命令、路径、查询、地址、任务书。由 display 定。 */
+  /** 调用主语由工具身份、结构化入参与展示信息单向投影。 */
   readonly subject: string
   /** 后台派发：它不占这一轮的前台。 */
   readonly isBackground?: true

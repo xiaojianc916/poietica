@@ -7,7 +7,7 @@ import type {
 } from '@poietica/transcript'
 import type { QuestionItem } from '../agent/question'
 import type { TurnMark } from '../agent/thread'
-import type { ToolCallContent, ToolKind } from '../agent/tool-call'
+import type { ToolCallContent } from '../agent/tool-call'
 import type {
   BackgroundTaskItem,
   PermissionItem,
@@ -20,8 +20,16 @@ import type {
 } from '../timeline/timeline-contract'
 
 import { isInFlight } from '../timeline/timeline-contract'
+import { describeKimiTool } from './kimi-tool'
 
-const at = (value?: string): number => (value === undefined ? 0 : Date.parse(value))
+function timeOf(value?: string): number | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+  const stamp = Date.parse(value)
+  return Number.isFinite(stamp) ? stamp : undefined
+}
+const at = (value?: string): number => timeOf(value) ?? 0
 const statusOf = (state: TranscriptTurn['state']): TimelineState['status'] =>
   state === 'queued'
     ? 'submitted'
@@ -32,62 +40,11 @@ const statusOf = (state: TranscriptTurn['state']): TimelineState['status'] =>
         : state === 'failed'
           ? 'failed'
           : 'completed'
-const TOOL_KINDS: Readonly<Record<string, ToolKind>> = {
-  command: 'execute',
-  diff: 'edit',
-  search: 'search',
-  url_fetch: 'fetch',
-  agent_call: 'delegate',
-  skill_call: 'skill',
-  todo_list: 'todo',
-  task: 'task',
-  task_stop: 'task',
-  plan_review: 'plan',
-  goal_start: 'goal',
-}
-const FILE_IO_KINDS: Readonly<Record<string, ToolKind>> = {
-  read: 'read',
-  write: 'write',
-  edit: 'edit',
-}
-const kindOf = (display: unknown): ToolKind => {
-  const kind =
-    typeof display === 'object' && display !== null ? Reflect.get(display, 'kind') : undefined
-  if (kind === 'file_io') {
-    const operation =
-      typeof display === 'object' && display !== null
-        ? Reflect.get(display, 'operation')
-        : undefined
-    return FILE_IO_KINDS[typeof operation === 'string' ? operation : ''] ?? 'search'
-  }
-  return TOOL_KINDS[typeof kind === 'string' ? kind : ''] ?? 'other'
-}
 const textContent = (value: unknown): readonly ToolCallContent[] =>
   typeof value === 'string' && value.length > 0
     ? [{ type: 'content', content: { type: 'text', text: value } }]
     : []
-const subjectOf = (display: unknown): string => {
-  if (typeof display !== 'object' || display === null) {
-    return ''
-  }
-  for (const key of [
-    'command',
-    'path',
-    'query',
-    'url',
-    'prompt',
-    'description',
-    'plan',
-    'objective',
-    'summary',
-  ]) {
-    const value = Reflect.get(display, key)
-    if (typeof value === 'string') {
-      return value
-    }
-  }
-  return ''
-}
+
 interface InputSource {
   readonly isUser: boolean
   readonly label: string
@@ -191,7 +148,7 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
   if (frame.kind === 'notice') {
     return { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message }
   }
-  const display = frame.display
+  const tool = describeKimiTool(frame)
   return {
     type: 'tool_call',
     id: frame.frameId,
@@ -199,11 +156,10 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
     at: stamp,
     toolCallId: frame.toolCallId,
     title: frame.name,
-    kind: kindOf(display),
-    subject: subjectOf(display),
+    ...tool,
     status:
       frame.state === 'running' ? 'in_progress' : frame.state === 'error' ? 'failed' : 'completed',
-    requestContent: textContent(frame.inputText),
+    requestContent: textContent(frame.inputText || JSON.stringify(frame.input, null, 2)),
     content: textContent(frame.error ?? frame.output),
     locations: [],
     channels: (frame.agentRefs ?? []).map((agent) => ({
@@ -268,13 +224,29 @@ const backgroundOf = (task: TranscriptTask): BackgroundTaskItem | null =>
     ? { taskId: task.taskId, description: task.description ?? task.taskId, status: task.state }
     : null
 
-const spanOf = (turn: TranscriptTurn, index: number): TurnSpan => ({
-  turn: index,
-  ...(turn.durationMs === undefined ? {} : { durationMs: Math.max(0, turn.durationMs) }),
-  ...(turn.startedAt === undefined ? {} : { startedAt: at(turn.startedAt) }),
-  ...(turn.endedAt === undefined ? {} : { endedAt: at(turn.endedAt) }),
-  lastFrameAt: at(turn.endedAt ?? turn.startedAt),
-})
+function spanOf(turn: TranscriptTurn, index: number): TurnSpan {
+  const startedAt = timeOf(turn.startedAt)
+  const endedAt = timeOf(turn.endedAt)
+  const durationMs = turn.durationMs
+  let lastFrameAt = endedAt ?? startedAt
+  for (const step of turn.steps) {
+    for (const value of [step.startedAt, step.endedAt]) {
+      const stamp = timeOf(value)
+      if (stamp !== undefined) {
+        lastFrameAt = Math.max(lastFrameAt ?? stamp, stamp)
+      }
+    }
+  }
+  return {
+    turn: index,
+    ...(durationMs !== undefined && Number.isFinite(durationMs) && durationMs >= 0
+      ? { durationMs }
+      : {}),
+    ...(startedAt === undefined ? {} : { startedAt }),
+    ...(endedAt === undefined ? {} : { endedAt }),
+    ...(lastFrameAt === undefined ? {} : { lastFrameAt }),
+  }
+}
 
 /* 待答的审批与提问挂在活动段：interactions 全局于轮次，而屏幕上它们
 出现在这条对话当前的尾部。 */
@@ -352,6 +324,19 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
           anchors = anchors === null || count === null ? null : anchors + count
         }
       }
+    }
+    if (
+      turn.error !== undefined &&
+      turn.error.length > 0 &&
+      !items.some((item) => item.type === 'error' && item.message === turn.error)
+    ) {
+      items.push({
+        type: 'error',
+        id: `turn-error:${turn.turnId}`,
+        turn: turn.ordinal,
+        at: timeOf(turn.endedAt) ?? stamp,
+        message: turn.error,
+      })
     }
     pages.push({ turn: turn.ordinal, items })
     facts.push({ opensWithAnchor: opening === 1, anchors })

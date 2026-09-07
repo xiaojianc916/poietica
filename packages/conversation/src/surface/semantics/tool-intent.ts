@@ -1,12 +1,7 @@
 import { basename } from '@poietica/review'
 import type { ToolCallTimelineItem } from '../../timeline/timeline-contract'
 
-/**
- * 这次调用在做什么，一句话：卡片没展开的那一行，和审批带子上要签字的那一句。
- *
- * 类别与主语由投影从 kap 的 display 定完（transcript-projector.ts），这一层
- * 只挑动词、取文件名、按一行收口 —— 不读入参，不猜。
- */
+/** 类别与主语归投影，这里只负责一行文案。 */
 
 type ToolKind = ToolCallTimelineItem['kind']
 
@@ -44,12 +39,6 @@ export function clampToLine(full: string): string | null {
 
 type ToolLineSource = Pick<ToolCallTimelineItem, 'kind' | 'locations' | 'subject' | 'title'>
 
-/**
- * 有动词就配文件名，没动词就转述主语；这一句说不出来就交回 null。
- *
- * 两个出口共用这一份判据，说不出来各自退到工具名 —— display 投不出主语，agent
- * 就确实没有把那件事说清楚。
- */
 export function sayToolLine(item: ToolLineSource): string | null {
   const verb = VERB[item.kind]
   const said = item.subject.trim()
@@ -62,9 +51,19 @@ export function sayToolLine(item: ToolLineSource): string | null {
   return clampToLine(tail === '' ? verb : `${verb} ${tail}`)
 }
 
-/** 卡片那一行：说不出来退回工具名 —— 那时 agent 确实没说。 */
+/** 等待参数时仍显示已知类别，未识别身份才显示原名。 */
 export function readToolLine(item: ToolLineSource): string {
-  return sayToolLine(item) ?? item.title
+  const said = sayToolLine(item)
+  if (said !== null) {
+    return said
+  }
+  if (item.kind === 'execute') {
+    return '执行命令'
+  }
+  if (item.kind === 'fetch') {
+    return '抓取网页'
+  }
+  return item.title || '调用工具'
 }
 
 /**
@@ -99,7 +98,7 @@ export function sayToolCount(kind: ToolKind, count: number): string {
     case 'goal':
       return `立下 ${count} 个目标`
     case 'other':
-      return `调用 ${count} 次外部工具`
+      return `调用 ${count} 次工具`
     default:
       return unhandled(kind)
   }
