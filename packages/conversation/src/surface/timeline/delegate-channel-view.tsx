@@ -1,15 +1,11 @@
 import '../assistant.css'
 
-import { lazy, Suspense, useCallback } from 'react'
+import { useCallback } from 'react'
 import { channelNameOf, delegateKey, delegationOf } from '../../timeline/delegate-channel'
 
 import { SwarmIcon } from '../primitives/icons'
 import { useAssistantTimeline } from '../transcript/use-assistant-session'
-
-const DeferredTranscriptView = lazy(() =>
-  import('./transcript-view').then(({ TranscriptView }) => ({ default: TranscriptView })),
-)
-
+import { TranscriptView } from './transcript-view'
 import { UserMessage } from './user-message'
 
 /*
@@ -59,14 +55,12 @@ export function DelegateChannelPane({ agentId, conversationId }: DelegateChannel
       {call === undefined ? (
         <p className="p-4 text-xs opacity-50">这条派发不在当前对话里。</p>
       ) : (
-        <Suspense fallback={<p className="p-4 text-xs opacity-50">正在加载派发记录…</p>}>
-          <DeferredTranscriptView
-            dockClearance={null}
-            isRestoring={false}
-            lead={<UserMessage text={call.subject === '' ? call.title : call.subject} />}
-            sessionKey={delegateKey(conversationId, agentId)}
-          />
-        </Suspense>
+        <TranscriptView
+          dockClearance={null}
+          isRestoring={false}
+          lead={<UserMessage text={call.subject === '' ? call.title : call.subject} />}
+          sessionKey={delegateKey(conversationId, agentId)}
+        />
       )}
     </section>
   )

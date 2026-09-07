@@ -69,24 +69,24 @@ describe('运行封条的独立事实', () => {
     isOpen: false,
     onToggle: () => {},
   }
-  it('无过程仍有封条和未知说明,但不是按钮', () => {
+  it('无过程仍有封条，只说阶段，不是按钮', () => {
     const markup = renderToStaticMarkup(<TurnSeal {...props} />)
     expect(markup).toContain('已处理')
-    expect(markup).toContain('耗时未知')
+    expect(markup).not.toMatch(/\d/)
     expect(markup).not.toContain('<button')
     expect(markup).not.toContain('aria-expanded')
   })
   it('冷恢复只有 durationMs 也显示时间,包含零与亚秒', () => {
     for (const durationMs of [0, 500, 2500]) {
       const markup = renderToStaticMarkup(<TurnSeal {...props} durationMs={durationMs} />)
-      expect(markup).not.toContain('耗时未知')
+      expect(markup).toMatch(/\d/)
     }
   })
   it('没有终点时不拿最后观察时间冒充总耗时', () => {
     const markup = renderToStaticMarkup(<TurnSeal {...props} lastFrameAt={3000} startedAt={1000} />)
-    expect(markup).toContain('耗时未知')
+    expect(markup).not.toMatch(/\d/)
     const known = renderToStaticMarkup(<TurnSeal {...props} endedAt={3000} startedAt={1000} />)
-    expect(known).not.toContain('耗时未知')
+    expect(known).toMatch(/\d/)
   })
   it('有过程时展开状态来自同一投影,不要求计时存在', () => {
     for (const isOpen of [false, true]) {

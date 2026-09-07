@@ -17,6 +17,7 @@ import type {
   ToolCallTimelineItem,
   TurnPage,
   TurnSpan,
+  UserMessageItem,
 } from '../timeline/timeline-contract'
 
 import { isInFlight } from '../timeline/timeline-contract'
@@ -47,23 +48,29 @@ const textContent = (value: unknown): readonly ToolCallContent[] =>
 
 interface InputSource {
   readonly isUser: boolean
-  readonly label: string
   readonly anchors: number | null
 }
 
-const USER_INPUT: InputSource = { isUser: true, label: '用户', anchors: 1 }
-const SOURCE_LABELS: Readonly<Record<TranscriptTurn['origin']['kind'], string>> = {
-  user: '用户来源',
-  cron: '定时任务',
-  task: '后台任务',
-  hook: '钩子触发',
-  compaction: '上下文压缩',
-  side: '旁路运行',
-  other: '其他来源',
-}
+const USER_INPUT: InputSource = { isUser: true, anchors: 1 }
 
 const originField = (value: unknown, key: string): unknown =>
   typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
+
+/** 技能激活由用户来源描述符携带（TranscriptUserOrigin.skillActivations）。 */
+function skillNamesOf(origin: unknown): readonly string[] {
+  const activations = originField(origin, 'skillActivations')
+  if (!Array.isArray(activations)) {
+    return []
+  }
+  const names: string[] = []
+  for (const activation of activations) {
+    const name = originField(activation, 'skillName')
+    if (typeof name === 'string' && name.length > 0) {
+      names.push(name)
+    }
+  }
+  return names
+}
 
 function sourceOfTurn(turn: TranscriptTurn): InputSource {
   const { origin } = turn
@@ -79,49 +86,45 @@ function sourceOfTurn(turn: TranscriptTurn): InputSource {
       return USER_INPUT
     }
     if (kind === 'shell_command') {
-      return {
-        isUser: originField(origin.payload, 'phase') === 'input',
-        label: '终端命令',
-        anchors: 0,
-      }
+      return { isUser: originField(origin.payload, 'phase') === 'input', anchors: 0 }
     }
     return { ...USER_INPUT, anchors: null }
   }
-  return {
-    isUser: false,
-    label: SOURCE_LABELS[origin.kind],
-    anchors: origin.kind === 'other' ? null : 0,
-  }
+  return { isUser: false, anchors: origin.kind === 'other' ? null : 0 }
 }
 
 function sourceOfFrame(frame: Extract<TranscriptFrame, { role: 'user' }>): InputSource {
   if (frame.origin?.kind === 'user') {
     return { ...USER_INPUT, anchors: (frame.promptIds?.length ?? 0) > 1 ? null : 1 }
   }
-  return {
-    isUser: false,
-    label: frame.taskId === undefined ? '其他来源' : '后台任务',
-    anchors: frame.taskId === undefined ? null : 0,
-  }
+  return { isUser: false, anchors: frame.taskId === undefined ? null : 0 }
 }
 
+/** 只有真的用户输入才成行；其它来源的运行不伪造消息气泡。 */
 function inputItem(
   source: InputSource,
   id: string,
   turn: number,
   stamp: number,
   text: string,
-): TimelineItem {
-  const entry = { id, turn, at: stamp, text }
+  skills: readonly string[],
+): UserMessageItem | null {
   return source.isUser
-    ? { ...entry, type: 'user_message' }
-    : { ...entry, type: 'run_trigger', label: source.label }
+    ? {
+        type: 'user_message',
+        id,
+        turn,
+        at: stamp,
+        text,
+        ...(skills.length === 0 ? {} : { skills }),
+      }
+    : null
 }
 
 const isSettled = (state: TranscriptTurn['state']): boolean =>
   state === 'completed' || state === 'cancelled' || state === 'failed'
 
-function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineItem {
+function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineItem | null {
   if (frame.kind === 'text') {
     if (frame.role === 'assistant') {
       return {
@@ -133,7 +136,14 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
         sealed: true,
       }
     }
-    return inputItem(sourceOfFrame(frame), frame.frameId, turn, stamp, frame.text)
+    return inputItem(
+      sourceOfFrame(frame),
+      frame.frameId,
+      turn,
+      stamp,
+      frame.text,
+      skillNamesOf(frame.origin),
+    )
   }
   if (frame.kind === 'thinking') {
     return {
@@ -304,21 +314,24 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
     const hasInput = turn.prompt !== undefined || (turn.attachmentIds?.length ?? 0) > 0
     const opening = hasInput ? source.anchors : source.isUser ? null : 0
     let anchors = opening
-    const items: TimelineItem[] =
-      turn.prompt === undefined && source.isUser
-        ? []
-        : [
-            inputItem(
-              source,
-              turn.triggerPromptId ?? turn.turnId,
-              turn.ordinal,
-              stamp,
-              turn.prompt ?? '',
-            ),
-          ]
+    const opened =
+      turn.prompt === undefined
+        ? null
+        : inputItem(
+            source,
+            turn.triggerPromptId ?? turn.turnId,
+            turn.ordinal,
+            stamp,
+            turn.prompt,
+            skillNamesOf(turn.origin.payload),
+          )
+    const items: TimelineItem[] = opened === null ? [] : [opened]
     for (const step of turn.steps) {
       for (const frame of step.frames) {
-        items.push(frameOf(frame, turn.ordinal, at(step.startedAt) || stamp))
+        const projected = frameOf(frame, turn.ordinal, at(step.startedAt) || stamp)
+        if (projected !== null) {
+          items.push(projected)
+        }
         if (frame.kind === 'text' && frame.role === 'user') {
           const count = sourceOfFrame(frame).anchors
           anchors = anchors === null || count === null ? null : anchors + count

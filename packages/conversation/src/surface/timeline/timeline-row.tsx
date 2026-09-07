@@ -40,22 +40,6 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
     case 'user_message':
       return <UserMessage images={item.images} skills={item.skills} text={item.text} />
 
-    case 'run_trigger':
-      return (
-        <details
-          className="timeline-run-trigger"
-          onToggle={(event) => {
-            if (event.currentTarget.open !== isOpen) {
-              onToggle(item.id)
-            }
-          }}
-          open={isOpen}
-        >
-          <summary>{item.label}</summary>
-          <p className="timeline-run-trigger__text">{item.text}</p>
-        </details>
-      )
-
     case 'agent_text':
       return <Prose className="timeline-message" streaming={row.isStreamingTail} text={item.text} />
 

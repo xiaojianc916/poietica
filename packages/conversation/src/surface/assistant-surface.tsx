@@ -1,6 +1,6 @@
 import './assistant.css'
 
-import { lazy, memo, type Ref, Suspense, useCallback, useMemo, useRef, useState } from 'react'
+import { memo, type Ref, useCallback, useMemo, useRef, useState } from 'react'
 import type { SessionConfigControl } from '../agent/config'
 import type { AgentSessionPort } from '../agent/session'
 import type { SessionUsage } from '../agent/usage'
@@ -12,18 +12,12 @@ import type { PromptInputHandle } from './composer/prompt-input'
 import { useAgentToolkit } from './configuration/agent-controls-context'
 import { GoalBar } from './goal/goal-bar'
 import { EmotionBall, ENTRY_EMOTION_GROUPS } from './mascot/emotion-ball'
+import { PromptQueue } from './prompt-queue'
 import { GitBranchPicker, type GitBranchPickerProps } from './threads/git-branch-picker'
 import { WorkspacePicker, type WorkspacePickerProps } from './threads/workspace-picker'
+import { TranscriptView } from './timeline/transcript-view'
 import type { AssistantSubmission } from './transcript/use-assistant-session'
 import { useAssistantInteractions, useAssistantSession } from './transcript/use-assistant-session'
-
-const DeferredTranscriptView = lazy(() =>
-  import('./timeline/transcript-view').then(({ TranscriptView }) => ({
-    default: TranscriptView,
-  })),
-)
-
-import { PromptQueue } from './prompt-queue'
 
 export interface AssistantSurfaceProps {
   /** 这一格从出生起持有的稳定对话标识。 */
@@ -287,14 +281,12 @@ export const AssistantSurface = memo(function AssistantSurface({
       data-restoring={assistant.isRestoring ? 'true' : undefined}
     >
       {live ? (
-        <Suspense fallback={<p className="p-4 text-xs opacity-50" />}>
-          <DeferredTranscriptView
-            dockClearance={clearance.value}
-            isRestoring={assistant.isRestoring}
-            onFork={onFork}
-            sessionKey={assistant.key}
-          />
-        </Suspense>
+        <TranscriptView
+          dockClearance={clearance.value}
+          isRestoring={assistant.isRestoring}
+          onFork={onFork}
+          sessionKey={assistant.key}
+        />
       ) : (
         <div className="assistant-surface__entry">
           <header className="assistant-masthead">

@@ -57,12 +57,6 @@ export interface UserMessageItem extends TimelineEntry {
   readonly skills?: readonly string[]
 }
 
-export interface RunTriggerItem extends TimelineEntry {
-  readonly type: 'run_trigger'
-  readonly label: string
-  readonly text: string
-}
-
 export interface AgentTextItem extends TimelineEntry {
   readonly type: 'agent_text'
   readonly text: string
@@ -276,7 +270,6 @@ export interface ErrorItem extends TimelineEntry {
 
 export type TimelineItem =
   | UserMessageItem
-  | RunTriggerItem
   | AgentTextItem
   | AgentThoughtItem
   | ToolCallTimelineItem

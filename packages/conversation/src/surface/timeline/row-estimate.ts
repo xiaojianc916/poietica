@@ -22,7 +22,6 @@ const ROW_PX: Record<Exclude<FeedRow['item']['type'], 'agent_text'>, number> = {
   question: 96,
   tool_call: 32,
   run_anchor: 32,
-  run_trigger: 32,
   user_message: 72,
 }
 

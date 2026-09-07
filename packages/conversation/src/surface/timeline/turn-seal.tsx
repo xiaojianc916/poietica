@@ -46,7 +46,7 @@ function Seal({
     : (durationMs ?? elapsedOf(startedAt, endedAt))
   const phase = isRunning ? '正在处理' : '已处理'
   const duration = elapsed === undefined ? null : formatDuration(elapsed)
-  const label = duration === null ? `${phase} · 耗时未知` : `${phase} ${duration}`
+  const label = duration === null ? phase : `${phase} ${duration}`
 
   if (isRunning || !hasProcess) {
     return (

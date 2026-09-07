@@ -65,22 +65,6 @@
   color: var(--cp-ink);
 }
 
-.timeline-run-trigger {
-  color: var(--cp-timeline-quiet-text);
-  font-size: var(--ui-prose-size-aux);
-}
-
-.timeline-run-trigger summary {
-  cursor: pointer;
-}
-
-.timeline-run-trigger__text {
-  margin: 0.5rem 0 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: var(--cp-ink);
-}
-
 .timeline-message {
   overflow-wrap: anywhere;
 }

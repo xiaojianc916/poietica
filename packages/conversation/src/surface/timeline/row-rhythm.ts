@@ -20,7 +20,6 @@ const RHYTHM: Record<FeedRow['item']['type'], RowRhythm> = {
   question: 'prose',
   tool_call: 'glyph',
   run_anchor: 'prose',
-  run_trigger: 'prose',
   user_message: 'prose',
 }
 

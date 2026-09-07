@@ -95,7 +95,7 @@ function repliesOf(snapshot: AgentTranscriptSnapshot) {
 }
 
 describe('run origin, completion and undo boundaries', () => {
-  test('retains non-user text without user bubbles or question marks', () => {
+  test('a non-user run has no input row and still carries its seal', () => {
     const origins: TranscriptTurn['origin'][] = [
       { kind: 'cron' },
       { kind: 'task', taskId: 'task' },
@@ -107,11 +107,35 @@ describe('run origin, completion and undo boundaries', () => {
     for (const [index, origin] of origins.entries()) {
       const snapshot = snapshotOf([runSample(index, origin)])
       const state = projectTranscript(snapshot)
-      expect(state.active.items[0]?.type).toBe('run_trigger')
-      expect(allItems(state).some((item) => item.type === 'user_message')).toBe(false)
+      expect(state.active.items.map((item) => item.type)).toEqual(['agent_text'])
       expect(outlineOf(snapshot)).toEqual([])
-      expect(state.active.items[0]).toMatchObject({ text: `prompt ${index}` })
+      const feed = selectPresentation(state, new Map())
+      expect(feed.rowAt(0)?.item.type).toBe('run_anchor')
+      expect(feed.sealAt(0)?.turn).toBe(index)
     }
+  })
+
+  test('a skill activation reaches the bubble from the transcript', () => {
+    const snapshot = snapshotOf([
+      runSample(
+        0,
+        { kind: 'user', payload: { kind: 'user', skillActivations: [{ skillName: 'review' }] } },
+        [
+          {
+            kind: 'text',
+            frameId: 'steer',
+            role: 'user',
+            origin: { kind: 'user', skillActivations: [{ skillName: 'plan' }] },
+            text: 'steer',
+          },
+        ],
+      ),
+    ])
+    const items = projectTranscript(snapshot).active.items
+    expect(items.map((item) => (item.type === 'user_message' ? item.skills : undefined))).toEqual([
+      ['review'],
+      ['plan'],
+    ])
   })
 
   test('role user alone is not evidence of a real user message', () => {
@@ -125,8 +149,6 @@ describe('run origin, completion and undo boundaries', () => {
     expect(projectTranscript(snapshot).active.items.map((item) => item.type)).toEqual([
       'user_message',
       'user_message',
-      'run_trigger',
-      'run_trigger',
     ])
   })
 

@@ -175,11 +175,7 @@ function rowsOf(page: TurnPage, live: boolean): readonly FeedRow[] {
     }
   }
 
-  if (
-    page.run !== undefined &&
-    rows[0]?.item.type !== 'user_message' &&
-    rows[0]?.item.type !== 'run_trigger'
-  ) {
+  if (page.run !== undefined && rows[0]?.item.type !== 'user_message') {
     rows.unshift({
       item: { type: 'run_anchor', id: `run-anchor:${page.turn}`, turn: page.turn },
       isStreamingTail: false,
@@ -236,13 +232,7 @@ function foldFrom(rows: readonly FeedRow[], frontier: number): readonly number[]
   for (let i = 0; i < frontier; i += 1) {
     const type = rows[i]?.item.type
 
-    if (
-      type === undefined ||
-      type === SAID ||
-      type === 'run_anchor' ||
-      type === 'run_trigger' ||
-      ASIDE.has(type)
-    ) {
+    if (type === undefined || type === SAID || type === 'run_anchor' || ASIDE.has(type)) {
       continue
     }
 

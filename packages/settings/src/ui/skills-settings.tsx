@@ -28,7 +28,7 @@ type LibraryRow =
     }
   | { readonly kind: 'skill'; readonly key: string; readonly skill: SkillRow }
 
-const SOURCE_LABELS: Record<Exclude<SourceFilter, 'all'>, string> = {
+const SKILL_SOURCE_TITLES: Record<Exclude<SourceFilter, 'all'>, string> = {
   builtin: '内置',
   managed: 'Poietica 管理',
   project: '项目',
@@ -415,7 +415,9 @@ function sourceOf(skill: SkillRow): Exclude<SourceFilter, 'all'> {
 }
 
 function sourceLabel(skill: SkillRow): string {
-  return skill.project === undefined ? SOURCE_LABELS[sourceOf(skill)] : `项目 · ${skill.project}`
+  return skill.project === undefined
+    ? SKILL_SOURCE_TITLES[sourceOf(skill)]
+    : `项目 · ${skill.project}`
 }
 
 function sourceOptions(skills: readonly SkillRow[]): readonly SelectOption<SourceFilter>[] {
@@ -429,7 +431,7 @@ function sourceOptions(skills: readonly SkillRow[]): readonly SelectOption<Sourc
     { value: 'all', label: `全部 · ${skills.length}` },
     ...SOURCE_ORDER.filter((source) => counts.has(source)).map((source) => ({
       value: source,
-      label: `${SOURCE_LABELS[source]} · ${counts.get(source) ?? 0}`,
+      label: `${SKILL_SOURCE_TITLES[source]} · ${counts.get(source) ?? 0}`,
     })),
   ]
 }
@@ -455,7 +457,7 @@ function buildRows(skills: readonly SkillRow[]): readonly LibraryRow[] {
     rows.push({
       kind: 'section',
       key: `section:${source}`,
-      label: SOURCE_LABELS[source],
+      label: SKILL_SOURCE_TITLES[source],
       count: group.length,
     })
     for (const skill of group) {
