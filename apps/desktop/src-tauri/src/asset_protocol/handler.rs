@@ -99,14 +99,14 @@ mod tests {
     ) -> String {
         let content_hash = hash(bytes);
 
+        let entry = AssetSessionSnapshotEntry::verify(
+            content_hash.clone(),
+            content_type.to_owned(),
+            Arc::new(bytes.to_vec()),
+        )
+        .expect("fixture identity");
         registry
-            .insert(
-                session,
-                &content_hash,
-                &content_hash,
-                content_type,
-                bytes.to_vec(),
-            )
+            .register(session, vec![entry])
             .expect("asset should register");
 
         content_hash
@@ -383,12 +383,10 @@ mod tests {
         let bytes = vec![1, 2, 3];
         let content_hash = hash(&bytes);
 
-        let result = registry.insert(
-            "session-1",
-            "different-token",
-            &content_hash,
-            "image/png",
-            bytes,
+        let result = AssetSessionSnapshotEntry::verify(
+            content_hash.to_uppercase(),
+            "image/png".to_owned(),
+            Arc::new(bytes),
         );
 
         assert_eq!(result, Err(AssetProtocolError::InvalidContentHash),);
@@ -407,12 +405,10 @@ mod tests {
 
         let declared = hash(&[1, 2, 3]);
 
-        let result = registry.insert(
-            "session-1",
-            &declared,
-            &declared,
-            "image/png",
-            vec![9, 9, 9],
+        let result = AssetSessionSnapshotEntry::verify(
+            declared,
+            "image/png".to_owned(),
+            Arc::new(vec![9, 9, 9]),
         );
 
         assert_eq!(result, Err(AssetProtocolError::InvalidContentHash));
@@ -636,8 +632,11 @@ mod tests {
             let bytes = vec![1];
             let content_hash = hash(&bytes);
 
-            let result =
-                registry.insert("session", &content_hash, &content_hash, content_type, bytes);
+            let result = AssetSessionSnapshotEntry::verify(
+                content_hash,
+                content_type.to_owned(),
+                Arc::new(bytes),
+            );
 
             assert_eq!(result, Err(AssetProtocolError::UnsupportedContentType),);
         }

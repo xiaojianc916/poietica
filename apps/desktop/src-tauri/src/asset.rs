@@ -1,19 +1,16 @@
-//! Native IPC boundary for document-session binary assets.
-//!
-//! The renderer provides bytes and MIME metadata. Native owns validation,
-//! content hashing, opaque delivery identities and protocol registration.
+//! IPC encoding, executor selection and redacted asset errors.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use specta::Type;
 use tauri::{State, async_runtime};
 use uuid::Uuid;
 
 use crate::error::Error;
 use poietica_asset::{
-    AssetProtocolError, AssetProtocolRegistry, FORMATS, asset_protocol_url, sniff,
+    AssetIntakeError, AssetProtocolError, AssetProtocolRegistry, FORMATS, ImportedAsset,
+    MAX_ASSET_BYTES, import_bytes, import_files,
 };
 use poietica_problem::Problem;
 
@@ -88,181 +85,69 @@ pub async fn asset_session_open(
     Ok(AssetSessionResult { session_token })
 }
 
-/// 剪贴板里的那一张图：解码、按文件头判类型、存进一条打开着的资产会话。
-///
-/// 这是渲染层唯一还能把字节交给原生的入口，而它只为剪贴板存在：截图是一团
-/// 没有名字也没有路径的 blob，系统给不出路径，所以它走不了 asset_import。
-/// 别的每一条进门的路（窗口拖放、系统文件对话框）交的都是路径，字节根本不
-/// 进 webview。
-///
-/// 内容类型不再由调用方声明。此前它是请求里的一格，而资产协议是带 nosniff
-/// 投递的：声明什么就照什么投，等于把 MIME 的决定权交给了渲染层，而渲染层
-/// 的 `File.type` 来自扩展名。判据与 asset_import 共用同一个 sniff，两条路
-/// 因此不可能分叉。
-///
-/// # Errors
-///
-/// Returns an error when the payload is not valid base64, when its bytes are
-/// not one of the deliverable image formats, when the payload length exceeds
-/// `u32`, when the registry rejects the asset, or when the asset protocol URL
-/// cannot be built — in that last case the stored asset is rolled back before
-/// the error is returned.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_upload(
     request: AssetUploadRequest,
     assets: State<'_, AssetProtocolRegistry>,
 ) -> CommandResult<AssetUploadResult> {
-    let AssetUploadRequest {
-        session_token,
-        base64,
-    } = request;
-
-    /*
-     * A command body runs on the async runtime's worker threads. Decoding,
-     * sniffing and hashing are all CPU-bound over up to MAX_ASSET_BYTES, so
-     * doing them here occupied a worker that every other pending command was
-     * queued behind, in a function that awaited nothing at all.
-     *
-     * The registry write stays on this thread because State cannot cross the
-     * boundary, and it is a short lock, not a scan.
-     */
-    let (content_hash, content_type, bytes) = async_runtime::spawn_blocking(move || {
-        let bytes = BASE64
-            .decode(base64.as_bytes())
-            .map_err(|_| Error::Validation("attachment is not valid base64".into()))?;
-
-        let content_type = sniff(&bytes)
-            .ok_or_else(|| Error::Validation("unsupported attachment format".into()))?;
-
-        let content_hash = hex::encode(Sha256::digest(&bytes));
-
-        Ok::<_, Error>((content_hash, content_type, bytes))
+    let registry = assets.inner().clone();
+    async_runtime::spawn_blocking(move || {
+        // Reject excessive transport allocation before asking the codec to decode.
+        if request.base64.len() > MAX_ASSET_BYTES.div_ceil(3) * 4 {
+            return Err(map_asset_error(AssetProtocolError::AssetTooLarge));
+        }
+        let bytes = BASE64.decode(request.base64.as_bytes()).map_err(|_| {
+            Problem::from(Error::Validation("attachment is not valid base64".into()))
+        })?;
+        import_bytes(&registry, &request.session_token, bytes)
+            .map(AssetUploadResult::from)
+            .map_err(map_intake_error)
     })
     .await
-    .map_err(|_| Error::Internal("asset hashing task failed".into()))??;
-
-    let byte_length =
-        u32::try_from(bytes.len()).map_err(|_| Error::Asset("asset length overflow".into()))?;
-
-    let asset_token = content_hash.clone();
-
-    assets
-        .insert(
-            &session_token,
-            &asset_token,
-            &content_hash,
-            content_type,
-            bytes,
-        )
-        .map_err(map_asset_error)?;
-
-    let source = match asset_protocol_url(&session_token, &asset_token) {
-        Ok(source) => source,
-        Err(error) => {
-            let _ = assets.remove(&session_token, &asset_token);
-
-            return Err(map_asset_error(error));
-        }
-    };
-
-    Ok(AssetUploadResult {
-        asset_token,
-        content_hash,
-        source,
-        byte_length,
-        content_type: content_type.to_owned(),
-    })
+    .map_err(|cause| {
+        log::warn!("asset ingestion task failed: {cause}");
+        Problem::from(Error::Internal("asset ingestion task failed".into()))
+    })?
 }
 
-/// Stores files the operating system handed us, named by path.
-///
-/// 字节不过 IPC。拖放与文件对话框交出来的都是路径，读盘因此发生在这一侧 ——
-/// 让渲染层先把文件读进 webview、编码、再送回来，是为一个不存在的前提付三份
-/// 代价（一次读、一次编码、一次比原文大三分之一的传输）。
-///
-/// 内容类型也由这里判定，判据是文件头而不是渲染层报的 `File.type` —— 后者来自
-/// 扩展名，把 .svg 改名成 .png 就能骗过去，而资产协议是带 nosniff 投递的。认不
-/// 出来的一律拒绝，白名单之外的格式在这一步就停住，不会走到界面上再报错。
-///
-/// # Errors
-///
-/// Returns an error when a file cannot be read, when its bytes are not one of
-/// the deliverable image formats, when the payload length exceeds `u32`, when
-/// the registry rejects the asset, or when the asset protocol URL cannot be
-/// built — in that last case the stored asset is rolled back first.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_import(
     request: AssetImportRequest,
     assets: State<'_, AssetProtocolRegistry>,
 ) -> CommandResult<Vec<AssetUploadResult>> {
-    let AssetImportRequest {
-        session_token,
-        paths,
-    } = request;
-
-    /*
-     * 读盘与哈希都是阻塞的，整批一次搬到阻塞执行器上 —— 与 asset_upload 里
-     * 那段说明同一个理由，不是第二套做法。注册表写入留在这条线程上：State
-     * 过不了边界，而那是一把短锁，不是一次扫描。
-     */
-    let read = async_runtime::spawn_blocking(move || {
-        paths
-            .into_iter()
-            .map(|path| {
-                let bytes = std::fs::read(&path)
-                    .map_err(|_| Error::NotFound("file could not be read".into()))?;
-
-                let content_type = sniff(&bytes)
-                    .ok_or_else(|| Error::Validation("unsupported attachment format".into()))?;
-
-                let content_hash = hex::encode(Sha256::digest(&bytes));
-
-                Ok((content_hash, content_type, bytes))
-            })
-            .collect::<Result<Vec<_>, Error>>()
+    let registry = assets.inner().clone();
+    async_runtime::spawn_blocking(move || {
+        import_files(&registry, &request.session_token, &request.paths)
+            .map(|items| items.into_iter().map(AssetUploadResult::from).collect())
+            .map_err(map_intake_error)
     })
     .await
-    .map_err(|_| Error::Internal("asset import task failed".into()))??;
+    .map_err(|cause| {
+        log::warn!("asset ingestion task failed: {cause}");
+        Problem::from(Error::Internal("asset ingestion task failed".into()))
+    })?
+}
 
-    let mut imported = Vec::with_capacity(read.len());
-
-    for (content_hash, content_type, bytes) in read {
-        let byte_length =
-            u32::try_from(bytes.len()).map_err(|_| Error::Asset("asset length overflow".into()))?;
-
-        let asset_token = content_hash.clone();
-
-        assets
-            .insert(
-                &session_token,
-                &asset_token,
-                &content_hash,
-                content_type,
-                bytes,
-            )
-            .map_err(map_asset_error)?;
-
-        let source = match asset_protocol_url(&session_token, &asset_token) {
-            Ok(source) => source,
-            Err(error) => {
-                let _ = assets.remove(&session_token, &asset_token);
-
-                return Err(map_asset_error(error));
-            }
-        };
-
-        imported.push(AssetUploadResult {
-            asset_token,
-            content_hash,
-            source,
-            byte_length,
-            content_type: content_type.to_owned(),
-        });
+impl From<ImportedAsset> for AssetUploadResult {
+    fn from(asset: ImportedAsset) -> Self {
+        Self {
+            asset_token: asset.content_hash.clone(),
+            content_hash: asset.content_hash,
+            source: asset.source,
+            byte_length: asset.byte_length,
+            content_type: asset.content_type,
+        }
     }
+}
 
-    Ok(imported)
+fn map_intake_error(error: AssetIntakeError) -> Problem {
+    log::warn!("asset ingestion failed: {error}");
+    match error {
+        AssetIntakeError::Protocol(cause) => map_asset_error(cause),
+        AssetIntakeError::Read(_) => Error::NotFound("file could not be read".into()).into(),
+    }
 }
 
 /// 一种收得下的格式，交给渲染层的那一面。
@@ -381,7 +266,9 @@ mod tests {
     )]
 
     use super::*;
+    use poietica_asset::sniff;
     use poietica_problem::Code;
+    use sha2::{Digest, Sha256};
 
     #[test]
     fn content_hash_is_canonical_sha256() {

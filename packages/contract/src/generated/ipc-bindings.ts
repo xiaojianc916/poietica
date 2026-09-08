@@ -113,48 +113,9 @@ async assetFormats() : Promise<AssetFormat[]> {
 async assetSessionOpen() : Promise<AssetSessionResult> {
     return await TAURI_INVOKE("asset_session_open");
 },
-/**
- * Stores files the operating system handed us, named by path.
- * 
- * 字节不过 IPC。拖放与文件对话框交出来的都是路径，读盘因此发生在这一侧 ——
- * 让渲染层先把文件读进 webview、编码、再送回来，是为一个不存在的前提付三份
- * 代价（一次读、一次编码、一次比原文大三分之一的传输）。
- * 
- * 内容类型也由这里判定，判据是文件头而不是渲染层报的 `File.type` —— 后者来自
- * 扩展名，把 .svg 改名成 .png 就能骗过去，而资产协议是带 nosniff 投递的。认不
- * 出来的一律拒绝，白名单之外的格式在这一步就停住，不会走到界面上再报错。
- * 
- * # Errors
- * 
- * Returns an error when a file cannot be read, when its bytes are not one of
- * the deliverable image formats, when the payload length exceeds `u32`, when
- * the registry rejects the asset, or when the asset protocol URL cannot be
- * built — in that last case the stored asset is rolled back first.
- */
 async assetImport(request: AssetImportRequest) : Promise<AssetUploadResult[]> {
     return await TAURI_INVOKE("asset_import", { request });
 },
-/**
- * 剪贴板里的那一张图：解码、按文件头判类型、存进一条打开着的资产会话。
- * 
- * 这是渲染层唯一还能把字节交给原生的入口，而它只为剪贴板存在：截图是一团
- * 没有名字也没有路径的 blob，系统给不出路径，所以它走不了 asset_import。
- * 别的每一条进门的路（窗口拖放、系统文件对话框）交的都是路径，字节根本不
- * 进 webview。
- * 
- * 内容类型不再由调用方声明。此前它是请求里的一格，而资产协议是带 nosniff
- * 投递的：声明什么就照什么投，等于把 MIME 的决定权交给了渲染层，而渲染层
- * 的 `File.type` 来自扩展名。判据与 asset_import 共用同一个 sniff，两条路
- * 因此不可能分叉。
- * 
- * # Errors
- * 
- * Returns an error when the payload is not valid base64, when its bytes are
- * not one of the deliverable image formats, when the payload length exceeds
- * `u32`, when the registry rejects the asset, or when the asset protocol URL
- * cannot be built — in that last case the stored asset is rolled back before
- * the error is returned.
- */
 async assetUpload(request: AssetUploadRequest) : Promise<AssetUploadResult> {
     return await TAURI_INVOKE("asset_upload", { request });
 },
