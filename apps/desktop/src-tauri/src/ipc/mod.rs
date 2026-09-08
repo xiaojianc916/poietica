@@ -70,6 +70,8 @@ pub(crate) fn surface() -> Builder<Wry> {
     Builder::<Wry>::new()
         .error_handling(ErrorHandlingMode::Throw)
         .commands(tauri_specta::collect_commands![
+            crate::library::library_pick,
+            crate::library::library_execute,
             crate::conversation::turn::agent_prompt,
             crate::conversation::turn::agent_cancel,
             crate::conversation::turn::agent_steer,

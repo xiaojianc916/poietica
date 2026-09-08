@@ -27,6 +27,7 @@ pub(crate) fn build() -> tauri::Builder<Wry> {
         .manage(asset_protocol)
         .manage(WindowSurface::default())
         .manage(crate::shutdown::ShutdownBarrier::default())
+        .manage(crate::library::LibraryHost::default())
         .manage(crate::workspace::environment::McpConfigAccess::default())
 
         .register_asynchronous_uri_scheme_protocol(

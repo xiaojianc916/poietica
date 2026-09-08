@@ -7,6 +7,7 @@ import {
 } from '@poietica/conversation'
 import { createPluginStore } from '@poietica/extension'
 import { createPreference } from '@poietica/external-store'
+import { LibraryController } from '@poietica/library'
 import { createAgentConfigBridge } from '@poietica/native-bridge/agent/config'
 import {
   listCustomAgents,
@@ -17,6 +18,7 @@ import { createModelCatalogPort } from '@poietica/native-bridge/agent/models'
 import { automationGateway } from '@poietica/native-bridge/automation'
 import { browserHostPort, watchBrowserElementPicked } from '@poietica/native-bridge/browser'
 import { capabilityGateway, extensionGateway } from '@poietica/native-bridge/extensions'
+import { libraryGateway, openLibraryLink } from '@poietica/native-bridge/library'
 import { reviewGateway } from '@poietica/native-bridge/review'
 import { createSettingsPersistence } from '@poietica/native-bridge/settings'
 import { terminalHostPort } from '@poietica/native-bridge/terminal'
@@ -153,6 +155,14 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     remove: removeCustomAgent,
   }
 
+  const library = new LibraryController(libraryGateway, (cause) =>
+    cause instanceof Error ? cause.message : String(cause),
+  )
+  const openLibraryUrl = (url: string): void => {
+    void openLibraryLink(url).catch((cause: unknown) =>
+      warn('无法打开资料链接', { scope: 'library', cause }),
+    )
+  }
   const attachments = createAttachmentIntake()
   const layout = createWorkspaceLayoutStore(createWorkspaceLayoutPreference())
   const composerDrafts = new ComposerDrafts()
@@ -334,7 +344,8 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     attachments,
     pluginStore,
     automationStore,
-    librarySurface: () => createElement(LibrarySurface),
+    librarySurface: () =>
+      createElement(LibrarySurface, { controller: library, openLink: openLibraryUrl }),
     own,
     appVersion: readAppVersion,
     dataDirectory: readDataDirectory,
@@ -360,6 +371,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       }
       disposing = Promise.resolve().then(async () => {
         const cleanup = [
+          () => library.dispose(),
           () => settings.dispose(),
           () => agentConfig.dispose(),
           () => agent.dispose(),

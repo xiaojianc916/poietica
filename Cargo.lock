@@ -3173,6 +3173,7 @@ dependencies = [
  "poietica-git-adapter-native",
  "poietica-kap-client",
  "poietica-ledger",
+ "poietica-library",
  "poietica-problem",
  "poietica-terminal-native",
  "poietica-time",
@@ -3352,6 +3353,19 @@ dependencies = [
  "time",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "poietica-library"
+version = "0.3.5"
+dependencies = [
+ "fs2",
+ "serde",
+ "specta",
+ "tempfile",
+ "thiserror 2.0.19",
+ "trash",
+ "walkdir",
 ]
 
 [[package]]

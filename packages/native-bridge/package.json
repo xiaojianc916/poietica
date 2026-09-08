@@ -27,7 +27,8 @@
     "./diagnostics": "./src/diagnostics/crash-report.ts",
     "./window": "./src/window.ts",
     "./workspace/paths": "./src/workspace/paths.ts",
-    "./errors": "./src/ipc-error.ts"
+    "./errors": "./src/ipc-error.ts",
+    "./library": "./src/library.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit",
@@ -49,7 +50,8 @@
     "zod": "catalog:",
     "@poietica/browser": "workspace:*",
     "@poietica/review": "workspace:*",
-    "@poietica/terminal": "workspace:*"
+    "@poietica/terminal": "workspace:*",
+    "@poietica/library": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

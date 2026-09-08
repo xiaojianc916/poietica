@@ -3,7 +3,7 @@
   "version": "0.3.5",
   "private": true,
   "description": "Poietica — a local-first AI agent desktop environment for thinking, describing, and creating.",
-  "license": "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
+  "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/xiaojianc916/poietica.git"

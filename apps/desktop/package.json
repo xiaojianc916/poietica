@@ -39,7 +39,11 @@
     "uuid": "catalog:",
     "valibot": "catalog:",
     "@poietica/review": "workspace:*",
-    "@poietica/terminal": "workspace:*"
+    "@poietica/terminal": "workspace:*",
+    "@poietica/library": "workspace:*",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
+    "rehype-highlight": "7.0.2"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

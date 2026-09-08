@@ -25,6 +25,7 @@ pub mod extension;
 pub(crate) mod ipc;
 pub mod launcher;
 pub mod ledger;
+pub(crate) mod library;
 pub mod paths;
 pub mod review;
 pub mod settings;

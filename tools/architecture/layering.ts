@@ -18,6 +18,7 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
   {
     name: 'feature',
     members: [
+      '@poietica/library',
       '@poietica/browser',
       '@poietica/review',
       '@poietica/terminal',
@@ -42,6 +43,7 @@ export const CARGO_RINGS: readonly Ring[] = [
   {
     name: 'capability',
     members: [
+      'poietica-library',
       'poietica-asset',
       'poietica-browser-native',
       'poietica-extension-native',
@@ -63,6 +65,7 @@ export const HOST_AWARE_PACKAGES: readonly string[] = [
   '@poietica/native-bridge',
 ]
 export const HOST_AGNOSTIC_CRATES: readonly string[] = [
+  'poietica-library',
   'poietica-automation-runtime',
   'poietica-conversation-runtime',
   'poietica-browser-native',
@@ -80,6 +83,7 @@ export const HOST_AGNOSTIC_CRATES: readonly string[] = [
   'poietica-time',
 ]
 export const FRAMEWORK_FREE_PACKAGES: readonly string[] = [
+  '@poietica/library',
   '@poietica/contract',
   '@poietica/problem',
   '@poietica/external-store',
@@ -109,6 +113,7 @@ export function ringOf(rings: readonly Ring[], member: string): number {
 }
 
 export const DOMAIN_CONTRACT_IMPORTS: Readonly<Record<string, string>> = {
+  '@poietica/library': '@poietica/contract/library',
   '@poietica/automation': '@poietica/contract/automation',
   '@poietica/browser': '@poietica/contract/browser',
   '@poietica/conversation': '@poietica/contract/conversation',

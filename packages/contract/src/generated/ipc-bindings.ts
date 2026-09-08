@@ -5,6 +5,12 @@
 
 
 export const commands = {
+async libraryPick() : Promise<LibraryCatalog | null> {
+    return await TAURI_INVOKE("library_pick");
+},
+async libraryExecute(root: string, request: LibraryRequest) : Promise<LibraryReply> {
+    return await TAURI_INVOKE("library_execute", { root, request });
+},
 /**
  * Returns the agent's submission receipt without waiting for model completion.
  */
@@ -1457,6 +1463,11 @@ export type GitReview = { branch: string | null; detachedAt: string | null; upst
 export type GitWatchLease = { token: string; root: string }
 export type GitWorkingTreeChanged = { root: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+export type LibraryCatalog = { root: string; entries: LibraryEntry[] }
+export type LibraryDocument = { path: string; content: string }
+export type LibraryEntry = { path: string; folder: boolean; name: string; parent: string; modified: string | null; bytes: string }
+export type LibraryReply = { kind: "catalog"; value: LibraryCatalog } | { kind: "document"; value: LibraryDocument } | { kind: "done" }
+export type LibraryRequest = { kind: "list"; query: string } | { kind: "read"; path: string } | { kind: "save"; path: string; expected: string; content: string } | { kind: "create"; path: string; content: string } | { kind: "folder"; path: string } | { kind: "trash"; path: string; expected: string }
 /**
  * 一条能直接交给启动器的启动式：程序在哪儿，前面还要垫哪些参数。
  */

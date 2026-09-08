@@ -23,6 +23,7 @@ workspace = true
 tauri-build.workspace = true
 
 [dependencies]
+poietica-library = { path = "../../../crates/library" }
 tempfile.workspace = true
 poietica-automation-runtime = { path = "../../../crates/automation-runtime" }
 fs2.workspace = true

@@ -12,6 +12,7 @@ members = [
   "crates/git-adapter",
   "crates/kap-client",
   "crates/ledger",
+  "crates/library",
   "crates/problem",
   "crates/process-host",
   "crates/review",
@@ -27,7 +28,7 @@ version = "0.3.5"
 edition = "2024"
 rust-version = "1.95"
 authors = ["Poietica Contributors"]
-license = "Apache-2.0"
+license = "AGPL-3.0-or-later"
 repository = "https://github.com/xiaojianc916/poietica"
 publish = false
 
