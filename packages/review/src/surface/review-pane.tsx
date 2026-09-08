@@ -19,8 +19,10 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronsUpDown,
+  ChevronUp,
   Copy,
-  Folder,
+  FileText,
   Folders,
   FoldVertical,
   GitBranch,
@@ -74,9 +76,8 @@ import { createDeriver, type ReviewDeriver } from './derive'
 import './review-pane.css'
 
 type Ready = Extract<ReviewReading, { phase: 'ready' }>
-const TROUBLE: Readonly<Record<'asking' | 'notARepository' | 'unreadable', string>> = {
-  asking: '正在读取变更…',
-  notARepository: '这个目录不是 git 仓库。',
+const TROUBLE: Readonly<Record<'asking' | 'unreadable', string>> = {
+  asking: '',
   unreadable: '读不到 git 变更。',
 }
 /* 列宽走注册过的自定义属性，与外壳那一份同构。 */
@@ -100,9 +101,10 @@ const SWITCHES: readonly {
 ]
 const ICON_CLASS =
   'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100'
-/* 行内动作：20px 盒子配 16px 字形，与工具栏同一个留白比例；字形尺寸由 --ui-icon 发放。 */
+/* 行内动作：20px 盒子配 16px 字形，与工具栏同一个留白比例；字形尺寸由 --ui-icon 发放。
+ * 悬浮底在 review-pane.css 的 .review-action，与卡头同源不同灰。 */
 const ROW_ICON_CLASS =
-  'flex size-5 shrink-0 items-center justify-center rounded opacity-60 hover:bg-current/10 hover:opacity-100'
+  'review-action flex size-5 shrink-0 items-center justify-center rounded opacity-60 hover:opacity-100'
 const ROW_CLASS = 'min-w-0 flex-1 truncate text-xs'
 /* 菜单行的前导字形：与工具条上那枚同一档尺寸与不透明度。 */
 const MENU_ICON_CLASS = 'size-3.5 shrink-0 opacity-60'
@@ -135,6 +137,17 @@ export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
   const scroller = useRef<HTMLDivElement | null>(null)
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const reading = state.reading
+  if (reading.phase === 'notARepository') {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+        <FileText aria-hidden className="size-8 opacity-30" />
+        <p className="text-sm font-medium">当前 workspace 不在 Git 仓库中</p>
+        <p className="text-xs opacity-50">
+          打开一个 Git 仓库目录后，这里会展示当前 workspace 作用域内的改动。
+        </p>
+      </div>
+    )
+  }
   if (reading.phase !== 'ready') {
     return <Note>{TROUBLE[reading.phase]}</Note>
   }
@@ -220,7 +233,7 @@ function Toolbar({
 }) {
   const allOpen = reading.files.length > 0 && state.openFiles.size >= reading.files.length
   return (
-    <div className="flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-2 border-b border-current/10 px-2.5">
+    <div className="review-rule flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-2 px-2.5">
       <Bases base={state.base} reading={reading} store={store}>
         <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />
         <span className="max-w-28 truncate text-xs">{headLabel(reading)}</span>
@@ -237,7 +250,7 @@ function Toolbar({
       </Bases>
       <Tally stat={reading.stat} />
       {reading.ahead + reading.behind > 0 ? (
-        <span className="shrink-0 font-mono text-[11px] tabular-nums opacity-50">
+        <span className="shrink-0 text-[11px] tabular-nums opacity-50">
           ↑{reading.ahead} ↓{reading.behind}
         </span>
       ) : null}
@@ -422,7 +435,7 @@ function Commit({
         {state.busy ? '正在提交…' : '提交或推送'}
         <ChevronDown aria-hidden className="size-3 opacity-50" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-72">
+      <DropdownMenuContent className="review-commit-menu w-72">
         <div className="mx-1 mb-1 rounded-md border border-current/15 px-2 py-1.5">
           <textarea
             aria-label="提交信息"
@@ -516,7 +529,7 @@ function Card({
   return (
     <section className="review-card" id={cardId(file.path)} style={style}>
       {/* 整行给悬浮底色：这一行是一个可点的对象，指到哪里都该有回应。 */}
-      <header className="group flex h-7 items-center gap-2 px-2.5 hover:bg-current/5">
+      <header className="group review-card__head flex h-7 items-center gap-2 px-2.5">
         <button
           aria-expanded={open}
           className="flex min-w-0 items-center gap-2 text-left"
@@ -537,7 +550,11 @@ function Card({
             label={copied ? '已复制' : '复制相对路径'}
             onClick={() => copy(file.path)}
           >
-            {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+            {copied ? (
+              <Check aria-hidden className="size-3.5" />
+            ) : (
+              <Copy aria-hidden className="size-3.5" />
+            )}
           </IconButton>
           <IconButton
             dense
@@ -611,52 +628,80 @@ function Body({
       {wide ? (
         <VirtualRows file={file} scroller={scroller} state={state} store={store} />
       ) : (
-        <Rows path={file.path} rows={file.rows} state={state} store={store} />
+        <Rows path={file.path} rows={file.rows} scroller={scroller} state={state} store={store} />
       )}
     </div>
   )
 }
+/* 折叠带的展开方向：首条藏着上面的行，末条藏着下面的行，中间的双向。 */
+type GapEdge = 'both' | 'down' | 'up'
+function gapEdgeOf(index: number, length: number): GapEdge {
+  if (length <= 1) {
+    return 'both'
+  }
+  if (index === 0) {
+    return 'up'
+  }
+  return index === length - 1 ? 'down' : 'both'
+}
+function gapChevronOf(edge: GapEdge): LucideIcon {
+  return edge === 'up' ? ChevronUp : edge === 'down' ? ChevronDown : ChevronsUpDown
+}
 /* rows 为空的带子展不开：那些行确实没取回来，按下去也无可显示。 */
 function GapBar({
+  barRef,
+  chevron: Chevron,
   label,
   onClick,
-  open,
 }: {
+  readonly barRef?: RefObject<HTMLDivElement | null>
+  readonly chevron: LucideIcon
   readonly label: string
   readonly onClick?: () => void
-  readonly open: boolean
 }) {
-  const Chevron = open ? ChevronDown : ChevronRight
+  /* 悬浮药丸：无上下边框，左右留白不贴边，相邻两条之间由外层的 py 隔开。 */
   return (
-    <button
-      className="flex w-full items-center gap-1.5 border-y border-current/10 bg-current/5 px-2.5 text-left text-[10px] opacity-50 enabled:hover:opacity-90"
-      disabled={onClick === undefined}
-      onClick={onClick}
-      type="button"
-    >
-      <Chevron aria-hidden className="size-3 shrink-0" />
-      {label}
-    </button>
+    <div className="px-2 py-1" ref={barRef}>
+      <button
+        className="review-gap flex w-full items-center gap-1.5 rounded-md px-2.5 py-0.5 text-left text-[10px] text-current/50 enabled:hover:text-current/90"
+        disabled={onClick === undefined}
+        onClick={onClick}
+        type="button"
+      >
+        <Chevron aria-hidden className="size-3 shrink-0" />
+        {label}
+      </button>
+    </div>
   )
 }
 /* 一串行：折叠带就地展开，展开出来的行与上下同在一条流里，列宽因此一致。 */
 function Rows({
   path,
   rows,
+  scroller,
   state,
   store,
 }: {
   readonly path: string
   readonly rows: readonly DiffRow[]
+  readonly scroller: RefObject<HTMLDivElement | null>
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
   const wrap = state.presentation.wrap
   return (
     <div className={wrap ? undefined : 'w-max min-w-full'}>
-      {rows.map((row) =>
+      {rows.map((row, index) =>
         row.kind === 'gap' ? (
-          <Gap key={row.at} path={path} row={row} state={state} store={store} />
+          <Gap
+            edge={gapEdgeOf(index, rows.length)}
+            key={row.at}
+            path={path}
+            row={row}
+            scroller={scroller}
+            state={state}
+            store={store}
+          />
         ) : (
           <Line key={row.at} row={row} wrap={wrap} />
         ),
@@ -664,31 +709,59 @@ function Rows({
     </div>
   )
 }
-/* 折叠带：补丁没带回来的行展不开，按钮就不给点。 */
+/* 折叠带：补丁没带回来的行展不开，按钮就不给点。上面的行展开在条带上方，
+ * 条带钉住不动：记住点按时条带的位置，画完把滚动差补回去，想看上面自己滑上去。 */
 function Gap({
+  edge,
   path,
   row,
+  scroller,
   state,
   store,
 }: {
+  readonly edge: GapEdge
   readonly path: string
   readonly row: DiffRow
+  readonly scroller: RefObject<HTMLDivElement | null>
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
   const key = gapKeyOf(path, row.at)
   const open = state.openGaps.has(key)
+  const barRef = useRef<HTMLDivElement | null>(null)
+  const anchor = useRef<number | null>(null)
+  useLayoutEffect(() => {
+    const bar = barRef.current
+    const scrollEl = scroller.current
+    if (anchor.current === null || bar === null || scrollEl === null) {
+      return
+    }
+    scrollEl.scrollTop += bar.getBoundingClientRect().top - anchor.current
+    anchor.current = null
+  })
   const label = `${String(row.lines)} unmodified lines`
+  const held = open
+    ? row.hidden.map((heldRow) => (
+        <Line key={heldRow.at} row={heldRow} wrap={state.presentation.wrap} />
+      ))
+    : null
   return (
     <>
+      {edge === 'up' ? held : null}
       <GapBar
+        barRef={barRef}
+        chevron={gapChevronOf(edge)}
         label={open ? `折叠 ${label}` : label}
-        {...(row.hidden.length === 0 ? {} : { onClick: () => store.toggleGap(key) })}
-        open={open}
+        {...(row.hidden.length === 0
+          ? {}
+          : {
+              onClick: () => {
+                anchor.current = barRef.current?.getBoundingClientRect().top ?? null
+                store.toggleGap(key)
+              },
+            })}
       />
-      {open
-        ? row.hidden.map((held) => <Line key={held.at} row={held} wrap={state.presentation.wrap} />)
-        : null}
+      {edge === 'up' ? null : held}
     </>
   )
 }
@@ -698,6 +771,7 @@ function Gap({
  */
 interface VirtualRowItem {
   readonly bar: boolean
+  readonly edge: GapEdge
   readonly key: string
   readonly row: DiffRow
 }
@@ -707,19 +781,19 @@ function spreadRows(
   openGaps: ReadonlySet<string>,
 ): readonly VirtualRowItem[] {
   const items: VirtualRowItem[] = []
-  for (const row of rows) {
+  rows.forEach((row, index) => {
     if (row.kind !== 'gap') {
-      items.push({ bar: false, key: gapKeyOf(path, row.at), row })
-      continue
+      items.push({ bar: false, edge: 'both', key: gapKeyOf(path, row.at), row })
+      return
     }
     const gapKey = gapKeyOf(path, row.at)
-    items.push({ bar: true, key: `${gapKey}#bar`, row })
+    items.push({ bar: true, edge: gapEdgeOf(index, rows.length), key: `${gapKey}#bar`, row })
     if (openGaps.has(gapKey)) {
       for (const held of row.hidden) {
-        items.push({ bar: false, key: `${gapKey}!${String(held.at)}`, row: held })
+        items.push({ bar: false, edge: 'both', key: `${gapKey}!${String(held.at)}`, row: held })
       }
     }
-  }
+  })
   return items
 }
 /* 等宽字体里行宽只看字符数：不渲染也能算准横向滚动该给的宽度。 */
@@ -733,13 +807,16 @@ function widestOf(rows: readonly DiffRow[]): number {
   }
   return width
 }
-/* 虚拟带里的折叠带：只画那一条带，展开的行是它上下的独立条目。 */
+/* 虚拟带里的折叠带：只画那一条带，展开的行是它下面的独立条目；
+ * 条目绝对定位，条带自己的偏移开展前后不变，所以天然钉在原地。 */
 function VirtualGap({
+  edge,
   path,
   row,
   state,
   store,
 }: {
+  readonly edge: GapEdge
   readonly path: string
   readonly row: DiffRow
   readonly state: ReviewState
@@ -750,8 +827,8 @@ function VirtualGap({
   const label = `${String(row.lines)} unmodified lines`
   return (
     <GapBar
+      chevron={gapChevronOf(edge)}
       label={open ? `折叠 ${label}` : label}
-      open={open}
       {...(row.hidden.length === 0 ? {} : { onClick: () => store.toggleGap(key) })}
     />
   )
@@ -826,7 +903,13 @@ function VirtualRows({
             style={{ transform: `translateY(${String(item.start - origin)}px)` }}
           >
             {held.bar ? (
-              <VirtualGap path={file.path} row={held.row} state={state} store={store} />
+              <VirtualGap
+                edge={held.edge}
+                path={file.path}
+                row={held.row}
+                state={state}
+                store={store}
+              />
             ) : (
               <Line row={held.row} wrap={wrap} />
             )}
@@ -891,13 +974,10 @@ function Tree({
     <aside className="review-tree" inert={!docked}>
       <div className="review-tree__clip">
         <div
-          className={cn(
-            'review-tree__surface flex flex-col border-l',
-            state.splitter === 'idle' ? 'border-current/10' : 'border-current/30',
-          )}
+          className="review-tree__surface flex flex-col"
           style={{ width: `${String(state.treeWidth)}px` }}
         >
-          <div className="flex shrink-0 items-center gap-2 border-b border-current/10 px-2 py-1.5">
+          <div className="review-rule flex shrink-0 items-center gap-2 px-2 py-1.5">
             <Search aria-hidden className="size-3.5 shrink-0 opacity-50" />
             <input
               aria-label="筛选文件"
@@ -908,7 +988,8 @@ function Tree({
               placeholder="筛选文件…"
               value={state.query}
             />
-            {state.query === '' ? null : (
+            {/* 清除键常占位：有字没字行高等一边高，不跳。 */}
+            <span className={state.query === '' ? 'invisible' : undefined}>
               <IconButton
                 label="清除筛选"
                 onClick={() => {
@@ -917,9 +998,9 @@ function Tree({
               >
                 <X aria-hidden className="size-3.5" />
               </IconButton>
-            )}
+            </span>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto py-1">
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
             {rows.length === 0 ? (
               <Note>没有匹配的文件。</Note>
             ) : (
@@ -961,6 +1042,35 @@ function Tree({
     </aside>
   )
 }
+/* 树缩进照抄 OpenCode file-tree-v2（packages/app/src/components/file-tree-v2.tsx）：
+ * 16px 一格；文件图标占掉箭头那一格，所以文件比同级目录少缩一格。 */
+const TREE_INDENT = 16
+function treePaddingStart(depth: number, folder: boolean): number {
+  if (folder || depth === 0) {
+    return 8 + depth * TREE_INDENT
+  }
+  return 8 + (depth - 1) * TREE_INDENT
+}
+/* 线落格中：与 file-tree-v2 的 guideLineStart 同式。 */
+function treeGuideStart(index: number): number {
+  return 8 + index * TREE_INDENT + 8
+}
+/* 引导线：与 file-tree-v2 的 GuideLines 同形 —— 绝对定位的 1px 竖线，
+ * 上下各探 2px 过行缝；显形规则在 CSS（平时藏起，树悬浮才出现）。 */
+function TreeGuides({ depth }: { readonly depth: number }) {
+  return (
+    <>
+      {Array.from({ length: depth }, (_, index) => (
+        <span
+          aria-hidden
+          className="tree-guide"
+          key={treeGuideStart(index)}
+          style={{ insetInlineStart: `${String(treeGuideStart(index))}px` }}
+        />
+      ))}
+    </>
+  )
+}
 function FolderRow({
   collapsed,
   row,
@@ -973,23 +1083,20 @@ function FolderRow({
   return (
     <button
       aria-expanded={!collapsed}
-      className="flex w-full items-center gap-1.5 py-1 pr-2 text-left hover:bg-current/5"
+      className="review-tree-row relative flex h-7 w-full items-center gap-1.5 rounded-md pr-2 text-left"
       onClick={() => {
         store.toggleFolder(row.key)
       }}
-      style={{ paddingInlineStart: `${String(8 + row.depth * 12)}px` }}
+      style={{ paddingInlineStart: `${String(treePaddingStart(row.depth, true))}px` }}
       type="button"
     >
+      <TreeGuides depth={row.depth} />
       {collapsed ? (
-        <ChevronRight aria-hidden className="size-3 shrink-0 opacity-40" />
+        <ChevronRight aria-hidden className="size-4 shrink-0 opacity-40" />
       ) : (
-        <ChevronDown aria-hidden className="size-3 shrink-0 opacity-40" />
+        <ChevronDown aria-hidden className="size-4 shrink-0 opacity-40" />
       )}
-      <Folder aria-hidden className="size-3.5 shrink-0 opacity-40" />
       <span className="min-w-0 flex-1 truncate text-xs opacity-70">{row.label}</span>
-      <span className="shrink-0 font-mono text-[11px] tabular-nums opacity-30">
-        {row.paths.length}
-      </span>
     </button>
   )
 }
@@ -1006,14 +1113,15 @@ function FileRow({
 }) {
   return (
     <li
-      className="flex items-center gap-1 py-1 pr-2 hover:bg-current/5"
+      className="review-tree-row relative flex h-7 items-center rounded-md pr-2"
       draggable
       onDragStart={(event) => {
         event.dataTransfer.setData('text/plain', row.path)
         event.dataTransfer.effectAllowed = 'copy'
       }}
-      style={{ paddingInlineStart: `${String(8 + row.depth * 12)}px` }}
+      style={{ paddingInlineStart: `${String(treePaddingStart(row.depth, false))}px` }}
     >
+      <TreeGuides depth={row.depth} />
       <button
         className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
         onClick={() => {
@@ -1026,6 +1134,7 @@ function FileRow({
         title={row.path}
         type="button"
       >
+        {row.depth === 0 ? null : <span aria-hidden className="w-4 shrink-0" />}
         <FileTypeMark className="size-3.5 shrink-0" name={row.label} />
         <span className="min-w-0 flex-1 truncate text-xs">{row.label}</span>
         {file === undefined ? null : <Tally stat={file.stat} />}
@@ -1071,7 +1180,7 @@ function Tally({ stat }: { readonly stat: DiffStat }) {
     return null
   }
   return (
-    <span className="flex shrink-0 items-center gap-1.5 font-mono text-[11px] tabular-nums">
+    <span className="flex shrink-0 items-center gap-1.5 text-[11px] tabular-nums">
       <span className="text-emerald-500">+{stat.added}</span>
       <span className="text-rose-500">−{stat.removed}</span>
     </span>

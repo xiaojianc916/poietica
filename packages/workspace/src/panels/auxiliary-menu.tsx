@@ -38,7 +38,7 @@ export interface AuxiliaryPaneOffer {
 }
 
 const triggerClassName =
-  'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100'
+  'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-launcher hover:opacity-100'
 
 /** 行里的标签位：一份，三张菜单共用。 */
 const labelClassName = 'min-w-0 flex-1 truncate text-xs'

@@ -5,11 +5,11 @@
  * 进设计系统。深色主题下同一批色相换成半透明，压在深底上才读得出来。
  */
 .review-pane {
-  --review-added-fill: #d9e8de;
-  --review-added-edge: #1e8a3e;
+  --review-added-fill: #e7f4e7;
+  --review-added-edge: #00a240;
   --review-added-emphasis: #c6e4ca;
-  --review-removed-fill: #f4dcdc;
-  --review-removed-edge: #e03131;
+  --review-removed-fill: #fbe6e2;
+  --review-removed-edge: #ba2522;
   --review-removed-emphasis: #f3caca;
 }
 
@@ -52,6 +52,82 @@
   background: var(--review-line-emphasis, transparent);
 }
 
+/* 提交菜单行的悬浮：产品指定的灰，只这一张菜单；深色沿用弹层高亮。 */
+.review-commit-menu [role="menuitem"][data-highlighted],
+.review-commit-menu [role="menuitem"]:focus {
+  background-color: #f2f3f3;
+}
+
+:root[data-theme="dark"] .review-commit-menu [role="menuitem"][data-highlighted],
+:root[data-theme="dark"] .review-commit-menu [role="menuitem"]:focus {
+  background-color: var(--ui-popup-highlight);
+}
+
+/* 横线：工具条与筛选行下缘，浅色 #ededed，深色沿用前景半透明。 */
+.review-rule {
+  border-bottom: 1px solid #ededed;
+}
+
+:root[data-theme="dark"] .review-rule {
+  border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* 引导线：抄 OpenCode file-tree-v2.css —— 1px 绝对线盖满行高并上下各探 2px 过缝，
+ * 平时藏起，整个树悬浮才显形（选择器挂在 .review-tree 上）。 */
+.tree-guide {
+  position: absolute;
+  top: 0;
+  margin-top: -2px;
+  height: calc(100% + 2px);
+  width: 1px;
+  pointer-events: none;
+  background: #f1f1f1;
+  opacity: 0;
+}
+
+.review-tree:hover .tree-guide {
+  opacity: 1;
+}
+
+:root[data-theme="dark"] .tree-guide {
+  background: color-mix(in srgb, #ffffff 14%, transparent);
+}
+
+/* 树行的悬浮：左右留白不贴边的小圆角药丸，与折叠带同一条语言。 */
+.review-tree-row:hover {
+  background: #f4f4f4;
+}
+
+:root[data-theme="dark"] .review-tree-row:hover {
+  background: color-mix(in srgb, #ffffff 5%, transparent);
+}
+
+/* 卡头与行内动作的悬浮底：浅色是产品指定的灰；深色沿用原来的前景半透明。 */
+.review-card__head:hover {
+  background: #f1f2f2;
+}
+
+:root[data-theme="dark"] .review-card__head:hover {
+  background: color-mix(in srgb, #ffffff 5%, transparent);
+}
+
+.review-action:hover {
+  background: #e4e6e6;
+}
+
+:root[data-theme="dark"] .review-action:hover {
+  background: color-mix(in srgb, #ffffff 10%, transparent);
+}
+
+/* 折叠带的底色：悬浮药丸只这一处取色，不跟随上面的增删色。 */
+.review-gap {
+  background: #f3f3f3;
+}
+
+:root[data-theme="dark"] .review-gap {
+  background: color-mix(in srgb, #ffffff 12%, transparent);
+}
+
 /*
  * 文件树列的开合，与外壳侧栏同一条机制：列宽是注册过的 <length> 自定义属性，
  * 插值归 CSS 引擎；收起是列宽归零、定宽底面被自己那一列裁掉，子树不卸载。
@@ -90,11 +166,21 @@
   overflow: clip;
 }
 
-/* 底面贴列的 inline-end：列收窄时从左侧被裁，内容不位移。 */
+/* 底面贴列的 inline-end：列收窄时从左侧被裁，内容不位移。
+ * 起始缘是与主区的那根线：浅色 #ededed，深色沿用前景半透明；拖动时加深。 */
 .review-tree__surface {
   position: absolute;
   inset-block: 0;
   inset-inline-end: 0;
+  border-inline-start: 1px solid #ededed;
+}
+
+:root[data-theme="dark"] .review-tree__surface {
+  border-inline-start-color: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.review-pane[data-splitter="drag"] .review-tree__surface {
+  border-inline-start-color: color-mix(in srgb, currentColor 30%, transparent);
 }
 
 /*

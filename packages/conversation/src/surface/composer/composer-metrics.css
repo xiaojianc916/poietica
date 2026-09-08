@@ -297,7 +297,7 @@
    * 按第一个消费者取名，会在第二个消费者出现时变成一道要靠人去维持的等式。
    *
    * 两个浓度，同一层墨，同一条式子 —— 与上面菜单那两级边界一字不差（那里已经
-   * 量过：浅色下 6.3% 解出 #efefef，12.5% 解出 #dfdfdf）。选中态因此比纸面重
+   * 量过：浅色下 3.1% 解出 #f7f7f7，12.5% 解出 #dfdfdf）。选中态因此比纸面重
    * 一档，而这一档的量是设计系统定的，不是在这里挑的。
    *
    * 不复用 --cp-menu-line / --cp-menu-edge：那两个名字说的是菜单卡片的内外边界，
@@ -308,7 +308,7 @@
    * ——与 --cp-shelf 踩过的是同一个坑。滑块反过来必须是半透明：它压在这张纸上，
    * 跟着纸走，才不会在换一套主题之后变成一条突兀的深线。
    */
-  --cp-timeline-drawer-surface: color-mix(in srgb, var(--ui-foreground) 6.3%, var(--ui-surface));
+  --cp-timeline-drawer-surface: color-mix(in srgb, var(--ui-foreground) 3.1%, var(--ui-surface));
   --cp-timeline-tabs-active: color-mix(in srgb, var(--ui-foreground) 12.5%, var(--ui-surface));
 
   /*

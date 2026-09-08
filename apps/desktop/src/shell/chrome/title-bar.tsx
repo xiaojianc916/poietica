@@ -6,7 +6,7 @@ import { useWorkspaceLayoutState, useWorkspaceLayoutStore } from '../layout/layo
 import './title-bar.css'
 
 const CHROME_BUTTON_CLASS =
-  'size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+  'size-[var(--titlebar-toggle-size)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
 
 export interface ActiveTabSequence {
   readonly canActivatePrevious: boolean

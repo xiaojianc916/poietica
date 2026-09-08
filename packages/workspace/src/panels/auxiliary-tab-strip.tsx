@@ -86,7 +86,7 @@ function AuxiliaryTab({ active, icon, id, onClose, onSelect, title }: AuxiliaryT
       aria-keyshortcuts="Delete"
       aria-selected={active}
       className={
-        'group flex max-w-44 shrink-0 items-center gap-1.5 rounded-md py-1 pl-2 pr-2 ' +
+        'flex min-w-24 max-w-44 shrink-0 items-center gap-1.5 rounded-md py-1 pl-2 pr-2 ' +
         (active ? 'bg-tab-active' : 'hover:bg-tab-hover')
       }
       id={id}
@@ -114,12 +114,12 @@ function AuxiliaryTab({ active, icon, id, onClose, onSelect, title }: AuxiliaryT
       title={title}
       type="button"
     >
-      <span aria-hidden className="relative size-3.5 shrink-0">
-        <span className="pointer-events-none absolute inset-0 transition-opacity group-hover:opacity-0">
+      <span aria-hidden className="auxiliary-tab-icon relative size-3.5 shrink-0">
+        <span className="auxiliary-tab-icon__glyph pointer-events-none absolute inset-0 transition-opacity">
           {icon}
         </span>
         <X
-          className="pointer-events-none absolute inset-0 size-3.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+          className="auxiliary-tab-icon__close pointer-events-none absolute inset-0 size-3.5 opacity-0 transition-opacity"
           data-close-tab
         />
       </span>
@@ -144,7 +144,7 @@ export function AuxiliaryTabStrip({
 
   return (
     <div className="shrink-0">
-      <div className="flex h-8 shrink-0 items-center gap-1 border-b border-current/10 pl-1 pr-10">
+      <div className="flex h-8 shrink-0 items-center gap-1 pl-1 pr-10">
         <div
           aria-label="辅助面板标签页"
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"

@@ -18,9 +18,11 @@
  */
 
 .desktop-title-bar__toggle-zone {
+  /* 三个图标按钮的盒子：比 sm 小一档，hover 范围跟着收，中线算法不变。 */
+  --titlebar-toggle-size: 1.75rem;
   --titlebar-toggle-lead: max(
     0px,
-    calc(var(--ui-row-icon-center) - var(--ui-control-height-sm) / 2)
+    calc(var(--ui-row-icon-center) - var(--titlebar-toggle-size) / 2)
   );
 
   display: flex;
@@ -29,7 +31,7 @@
   padding-inline-start: var(--titlebar-toggle-lead);
   inline-size: max(
     var(--workspace-sidebar-column-width, 0px),
-    calc(var(--titlebar-toggle-lead) * 2 + var(--ui-control-height-sm))
+    calc(var(--titlebar-toggle-lead) * 2 + var(--titlebar-toggle-size))
   );
 }
 

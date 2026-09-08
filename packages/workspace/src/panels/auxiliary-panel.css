@@ -1,0 +1,22 @@
+/*
+ * 浏览器面板壳的取色：工具栏下缘那根线只这一处取色。
+ * 深色沿用原来的前景半透明，不另立色。
+ */
+.auxiliary-toolbar {
+  border-bottom: 1px solid #ededed;
+}
+
+:root[data-theme="dark"] .auxiliary-toolbar {
+  border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* 标签页图标↔叉叉：只听图标那 14px 的悬浮，整行悬浮不触发。
+ * 关叉平时不收指针事件不行：点按目标得是它，onClick 才认得出要关标签。 */
+.auxiliary-tab-icon:hover .auxiliary-tab-icon__glyph {
+  opacity: 0;
+}
+
+.auxiliary-tab-icon:hover .auxiliary-tab-icon__close {
+  opacity: 1;
+  pointer-events: auto;
+}

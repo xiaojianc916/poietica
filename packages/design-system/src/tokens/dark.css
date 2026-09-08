@@ -52,6 +52,8 @@
   --ui-secondary-foreground: var(--ui-palette-white);
 
   --ui-muted: var(--ui-palette-dark-750);
+  /* 与 --ui-muted 同值：深色下启动器按钮保持现状。 */
+  --ui-launcher: var(--ui-palette-dark-750);
   --ui-muted-foreground: rgb(255 255 255 / 65%);
 
   /* 与浅色同构：比 muted 淡一档，对 --ui-ground 仍在 3:1 以上。 */

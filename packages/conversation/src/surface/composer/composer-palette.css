@@ -1,7 +1,7 @@
 /*
  * 面板的皮肤：贴着输入框卡片的上沿、与它同宽，向上展开。
  *
- * 令牌全部取自 composer-metrics.css。
+ * 令牌取自 composer-metrics.css，浅色面板两处字面值见文件尾。
  */
 
 .composer-palette {
@@ -106,4 +106,13 @@
 .composer-palette__tick svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
+}
+
+/* 浅色面板取设计字面值：纯白面板、浅灰悬停。深色仍走上面的令牌。 */
+:root[data-theme="light"] .composer-palette__panel {
+  background: #ffffff;
+}
+
+:root[data-theme="light"] .composer-palette__row[data-highlighted="true"] {
+  background: #f2f3f3;
 }

@@ -12,6 +12,8 @@ import { type AuxiliaryPaneOffer, BrowserOverflowMenu } from './auxiliary-menu'
 import type { AuxiliaryPaneKind, AuxiliaryPanelStore } from './auxiliary-panel-store'
 import { AuxiliaryTabStrip } from './auxiliary-tab-strip'
 
+import './auxiliary-panel.css'
+
 /*
  * 浏览器面板（图一）。
  *
@@ -164,7 +166,7 @@ function BrowserToolbar({
 
   return (
     <div className="shrink-0">
-      <div className="relative flex h-10 shrink-0 items-center gap-1 border-b border-current/10 px-2">
+      <div className="auxiliary-toolbar relative flex h-10 shrink-0 items-center gap-1 px-2">
         {/* 装载中的不定式进度：内核只报 Started/Finished，画不出百分比，不假装。 */}
         {activeTab?.loading === true ? (
           <div
@@ -315,7 +317,7 @@ function ToolbarButton({
     <button
       aria-label={label}
       aria-pressed={pressed}
-      className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 enabled:hover:bg-current/10 enabled:hover:opacity-100 aria-pressed:bg-current/10 aria-pressed:opacity-100 disabled:opacity-30"
+      className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 enabled:hover:bg-launcher enabled:hover:opacity-100 aria-pressed:bg-current/10 aria-pressed:opacity-100 disabled:opacity-30"
       disabled={disabled}
       onClick={onClick}
       title={label}
@@ -389,7 +391,7 @@ function AuxiliaryLauncher({
         <div className="mt-6 grid gap-2">
           {offers.map((offer) => (
             <button
-              className="flex min-h-10 items-center gap-3 rounded-lg bg-muted px-3 text-left hover:bg-current/[7%] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
+              className="flex min-h-10 items-center gap-3 rounded-lg bg-launcher px-3 text-left hover:bg-current/[7%] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
               key={offer.kind}
               onClick={() => onOpen(offer.kind)}
               type="button"
@@ -404,7 +406,7 @@ function AuxiliaryLauncher({
                 </span>
               </span>
               {offer.availability === 'planned' ? (
-                <span className="ml-auto text-[11px] text-muted-foreground">待实现</span>
+                <span className="ml-auto text-[11px] text-muted-foreground" />
               ) : null}
             </button>
           ))}

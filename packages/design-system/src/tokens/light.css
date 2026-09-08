@@ -20,7 +20,7 @@
   --ui-ground: var(--ui-palette-white);
 
   /* 沉在地色上的一格：「我」说的话、审批带。一个平面一个值。 */
-  --ui-sunken: #f3f3f4;
+  --ui-sunken: #f4f4f4;
 
   --ui-sidebar: var(--ui-palette-neutral-75);
   /*
@@ -78,6 +78,8 @@
   --ui-secondary-foreground: var(--ui-palette-neutral-800);
 
   --ui-muted: var(--ui-palette-neutral-100);
+  /* 辅助面板启动器四枚通道按钮的底色。 */
+  --ui-launcher: #f2f3f3;
   --ui-muted-foreground: var(--ui-palette-neutral-500);
 
   /*

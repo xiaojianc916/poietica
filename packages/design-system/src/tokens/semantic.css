@@ -33,6 +33,7 @@
 
   --color-muted: var(--ui-muted);
   --color-muted-foreground: var(--ui-muted-foreground);
+  --color-launcher: var(--ui-launcher);
 
   --color-placeholder: var(--ui-placeholder);
 
