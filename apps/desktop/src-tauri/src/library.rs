@@ -24,10 +24,17 @@ fn internal(error: impl std::fmt::Display) -> Problem {
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn library_pick(app: AppHandle, host: State<'_, LibraryHost>) -> Result<Option<LibraryCatalog>, Problem> {
+pub(crate) async fn library_pick(
+    app: AppHandle,
+    host: State<'_, LibraryHost>,
+) -> Result<Option<LibraryCatalog>, Problem> {
     let (answer, wait) = tokio::sync::oneshot::channel();
-    app.dialog().file().pick_folder(move |picked| { drop(answer.send(picked)); });
-    let Some(picked) = wait.await.map_err(internal)? else { return Ok(None); };
+    app.dialog().file().pick_folder(move |picked| {
+        drop(answer.send(picked));
+    });
+    let Some(picked) = wait.await.map_err(internal)? else {
+        return Ok(None);
+    };
     let path = PathBuf::from(picked.to_string());
     let host = host.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -35,19 +42,31 @@ pub(crate) async fn library_pick(app: AppHandle, host: State<'_, LibraryHost>) -
         let catalog = vault.catalog("").map_err(failure)?;
         *host.0.lock().map_err(internal)? = Some(vault);
         Ok(Some(catalog))
-    }).await.map_err(internal)?
+    })
+    .await
+    .map_err(internal)?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn library_execute(root: String, request: LibraryRequest, host: State<'_, LibraryHost>) -> Result<LibraryReply, Problem> {
+pub(crate) async fn library_execute(
+    root: String,
+    request: LibraryRequest,
+    host: State<'_, LibraryHost>,
+) -> Result<LibraryReply, Problem> {
     let host = host.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let selected = host.0.lock().map_err(internal)?;
-        let vault = selected.as_ref().ok_or_else(|| failure(LibraryError::Invalid("请先打开资料文件夹。".into())))?;
+        let vault = selected
+            .as_ref()
+            .ok_or_else(|| failure(LibraryError::Invalid("请先打开资料文件夹。".into())))?;
         if vault.identity() != root {
-            return Err(failure(LibraryError::Invalid("资料库已切换，本次请求未执行。".into())));
+            return Err(failure(LibraryError::Invalid(
+                "资料库已切换，本次请求未执行。".into(),
+            )));
         }
         vault.execute(request).map_err(failure)
-    }).await.map_err(internal)?
+    })
+    .await
+    .map_err(internal)?
 }

@@ -41,4 +41,3 @@ pub(crate) fn note_content_matches(path: &Path, expected_content: &str) -> Resul
     let bytes = read_existing_note_bytes(path)?;
     Ok(bytes == expected_content.as_bytes())
 }
-

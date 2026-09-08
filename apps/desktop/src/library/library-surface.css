@@ -58,8 +58,8 @@
   min-inline-size: 0;
   gap: 16px;
   padding: 24px 16px 16px;
-  background: var(--color-sidebar);
-  border-inline-end: 1px solid var(--color-divider);
+  background: var(--color-background);
+  border-inline-end: 1px solid #ededed;
 }
 .library-surface__brand {
   display: flex;
@@ -74,24 +74,55 @@
 .library-surface__brand svg {
   color: var(--color-primary);
 }
-.library-surface__location {
-  color: var(--color-muted-foreground);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* 打开资料文件夹：无边框幽灵按钮 */
+.library-surface__root {
+  justify-content: flex-start;
+  min-inline-size: 0;
+  min-block-size: 0;
+  block-size: 34px;
+  gap: 8px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-foreground);
 }
+.library-surface__root:hover:not(:disabled) {
+  background: var(--color-control-hover);
+}
+/* 搜索框：无边框、浅灰底、圆角 */
 .library-surface__search {
   display: flex;
+  align-items: center;
+  gap: 2px;
   min-inline-size: 0;
-  gap: 4px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 6px;
+  background: var(--color-muted);
 }
 .library-surface__search input {
+  flex: 1;
   inline-size: 100%;
   min-inline-size: 0;
-  border: 1px solid var(--color-input);
-  border-radius: 8px;
-  padding: 8px;
-  background: var(--color-background);
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
+}
+.library-surface__search button {
+  min-inline-size: 0;
+  min-block-size: 0;
+  inline-size: 28px;
+  block-size: 28px;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-muted-foreground);
+}
+.library-surface__search button:hover:not(:disabled) {
+  background: var(--color-control-hover);
+  color: var(--color-foreground);
 }
 .library-surface__actions {
   display: flex;
@@ -99,21 +130,14 @@
   gap: 8px;
   align-items: center;
 }
+/* 左侧操作按钮：无边框幽灵样式 */
 .library-surface__catalog .library-surface__actions {
   gap: 4px;
-}
-.library-surface__catalog .library-surface__actions button {
-  padding-inline: 8px;
 }
 .library-surface__import {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   position: relative;
-  min-block-size: 44px;
-  padding: 8px;
-  border: 1px solid var(--color-divider);
-  border-radius: 8px;
   overflow: hidden;
 }
 .library-surface__import:focus-within {
@@ -126,6 +150,23 @@
   inline-size: 100%;
   opacity: 0;
   cursor: pointer;
+}
+.library-surface__catalog .library-surface__actions button,
+.library-surface__catalog .library-surface__import {
+  justify-content: flex-start;
+  min-inline-size: 0;
+  min-block-size: 0;
+  block-size: 32px;
+  gap: 6px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-foreground);
+}
+.library-surface__catalog .library-surface__actions button:hover:not(:disabled),
+.library-surface__catalog .library-surface__import:hover {
+  background: var(--color-control-hover);
 }
 .library-surface__entries {
   flex: 1;
@@ -159,11 +200,6 @@
   padding: 16px 8px;
   color: var(--color-muted-foreground);
 }
-.library-surface__catalog-footer {
-  border-block-start: 1px solid var(--color-divider);
-  padding-block-start: 12px;
-  color: var(--color-muted-foreground);
-}
 .library-surface__reader {
   display: flex;
   flex-direction: column;
@@ -175,10 +211,10 @@
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
-  min-block-size: 72px;
-  padding: 12px 24px;
-  border-block-end: 1px solid var(--color-divider);
+  gap: 8px;
+  min-block-size: 44px;
+  padding: 4px 16px;
+  border-block-end: 1px solid #ededed;
 }
 .library-surface__identity {
   display: flex;
@@ -186,6 +222,71 @@
   gap: 8px;
   min-inline-size: 0;
   overflow-wrap: anywhere;
+}
+/* 工具栏图标按钮：无边框、小号、同尺寸 */
+.library-surface__toolbar .library-surface__actions button {
+  min-inline-size: 0;
+  min-block-size: 0;
+  inline-size: 28px;
+  block-size: 28px;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted-foreground);
+}
+.library-surface__toolbar .library-surface__actions button:hover:not(:disabled) {
+  background: var(--color-control-hover);
+  color: var(--color-foreground);
+}
+.library-surface__toolbar .library-surface__actions svg {
+  inline-size: 16px;
+  block-size: 16px;
+}
+/* 阅读 / 编辑滑块切换 */
+.library-surface__view {
+  position: relative;
+  display: inline-flex;
+  margin: 0;
+  margin-inline-end: 4px;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+  border-radius: 6px;
+  background: var(--color-muted);
+}
+.library-surface__view-thumb {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 50%;
+  border-radius: 6px;
+  background: var(--color-background);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  transition: transform 0.15s ease;
+}
+.library-surface__view-button {
+  position: relative;
+  min-inline-size: 0;
+  min-block-size: 0;
+  inline-size: 28px;
+  block-size: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted-foreground);
+}
+.library-surface__view-button[aria-pressed="true"] {
+  color: var(--color-foreground);
+}
+.library-surface__view .library-surface__view-button:hover:not(:disabled),
+.library-surface__view .library-surface__view-button[aria-pressed="true"] {
+  background: transparent;
+}
+.library-surface__view-button svg {
+  inline-size: 16px;
+  block-size: 16px;
 }
 .library-surface__error,
 .library-surface__form {
@@ -291,11 +392,6 @@
 .library-surface__empty h2 {
   font-size: 24px;
   color: var(--color-foreground);
-}
-.library-surface__status {
-  padding: 12px 24px;
-  border-block-start: 1px solid var(--color-divider);
-  color: var(--color-muted-foreground);
 }
 @container (max-width: 760px) {
   .library-surface__catalog {

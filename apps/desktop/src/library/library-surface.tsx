@@ -1,10 +1,13 @@
 import type { LibraryController, LibraryEntry } from '@poietica/library'
 import {
   BookOpen,
+  Eye,
+  FileOutput,
   FilePlus,
   FileText,
   FolderOpen,
   FolderPlus,
+  Pencil,
   Save,
   Search,
   Trash2,
@@ -153,9 +156,6 @@ export function LibrarySurface({
           <FolderOpen aria-hidden="true" />
           <span>{catalog ? '切换资料文件夹' : '打开资料文件夹'}</span>
         </button>
-        <p className="library-surface__location" title={catalog?.root}>
-          {catalog?.root ?? '本地文件 · 由你掌控'}
-        </p>
         <form
           className="library-surface__search"
           onSubmit={(event) => {
@@ -265,7 +265,6 @@ export function LibrarySurface({
             )
           ) : null}
         </nav>
-        <footer className="library-surface__catalog-footer">Markdown / TXT · 原文件保存</footer>
       </aside>
       <section aria-label="资料内容" className="library-surface__reader">
         <header className="library-surface__toolbar">
@@ -276,30 +275,51 @@ export function LibrarySurface({
           <div className="library-surface__actions">
             {state.document ? (
               <>
+                <fieldset aria-label="视图模式" className="library-surface__view">
+                  <span
+                    className="library-surface__view-thumb"
+                    style={{
+                      transform: mode === 'edit' ? 'translateX(100%)' : 'translateX(0)',
+                    }}
+                  />
+                  <button
+                    aria-label="阅读"
+                    aria-pressed={mode === 'read'}
+                    className="library-surface__view-button"
+                    onClick={() => setMode('read')}
+                    title="阅读"
+                    type="button"
+                  >
+                    <Eye aria-hidden="true" />
+                  </button>
+                  <button
+                    aria-label="编辑"
+                    aria-pressed={mode === 'edit'}
+                    className="library-surface__view-button"
+                    onClick={() => setMode('edit')}
+                    title="编辑"
+                    type="button"
+                  >
+                    <Pencil aria-hidden="true" />
+                  </button>
+                </fieldset>
                 <button
-                  aria-pressed={mode === 'read'}
-                  onClick={() => setMode('read')}
-                  type="button"
-                >
-                  阅读
-                </button>
-                <button
-                  aria-pressed={mode === 'edit'}
-                  onClick={() => setMode('edit')}
-                  type="button"
-                >
-                  编辑
-                </button>
-                <button
+                  aria-label="保存"
                   disabled={busy || !controller.dirty}
                   onClick={() => void controller.save()}
+                  title="保存"
                   type="button"
                 >
                   <Save aria-hidden="true" />
-                  保存
                 </button>
-                <button disabled={busy} onClick={() => begin('copy')} type="button">
-                  另存为
+                <button
+                  aria-label="另存为"
+                  disabled={busy}
+                  onClick={() => begin('copy')}
+                  title="另存为"
+                  type="button"
+                >
+                  <FileOutput aria-hidden="true" />
                 </button>
                 <button
                   aria-label="移至系统回收站"
@@ -398,15 +418,6 @@ export function LibrarySurface({
             <p>一侧整理，一侧阅读。选择资料后开始编辑。</p>
           </div>
         )}
-        <footer className="library-surface__status" role="status">
-          {busy
-            ? '正在处理…'
-            : controller.dirty
-              ? '有未保存更改 · Ctrl / ⌘ S 保存 · 切换文件前自动保存'
-              : state.document
-                ? '已保存到本地文件'
-                : '选择资料文件夹后开始'}
-        </footer>
       </section>
     </section>
   )
