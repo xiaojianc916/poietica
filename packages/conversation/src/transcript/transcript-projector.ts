@@ -298,75 +298,94 @@ const phaseOf = (snapshot: AgentTranscriptSnapshot, last: TranscriptTurn | undef
   return approval ? 'awaiting_permission' : 'awaiting_question'
 }
 
-export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineState {
-  const turns = snapshot.items.filter((item): item is TranscriptTurn => item.kind === 'turn')
-  const status = phaseOf(snapshot, turns.at(-1))
-  const busy =
-    isInFlight(status) ||
-    turns.some((turn) => !isSettled(turn.state)) ||
-    (snapshot.meta.activity !== undefined && snapshot.meta.activity !== 'idle')
-  const pages: TurnPage[] = []
-  const spans: TurnSpan[] = []
-  const facts: { opensWithAnchor: boolean; anchors: number | null }[] = []
-  for (const turn of turns) {
-    const stamp = at(turn.startedAt)
-    const source = sourceOfTurn(turn)
-    const hasInput = turn.prompt !== undefined || (turn.attachmentIds?.length ?? 0) > 0
-    const opening = hasInput ? source.anchors : source.isUser ? null : 0
-    let anchors = opening
-    const opened =
-      turn.prompt === undefined
-        ? null
-        : inputItem(
-            source,
-            turn.triggerPromptId ?? turn.turnId,
-            turn.ordinal,
-            stamp,
-            turn.prompt,
-            skillNamesOf(turn.origin.payload),
-          )
-    const items: TimelineItem[] = opened === null ? [] : [opened]
-    for (const step of turn.steps) {
-      for (const frame of step.frames) {
-        const projected = frameOf(frame, turn.ordinal, at(step.startedAt) || stamp)
-        if (projected !== null) {
-          items.push(projected)
-        }
-        if (frame.kind === 'text' && frame.role === 'user') {
-          const count = sourceOfFrame(frame).anchors
-          anchors = anchors === null || count === null ? null : anchors + count
-        }
+type TurnFact = { opensWithAnchor: boolean; anchors: number | null }
+
+function framesOf(
+  turn: TranscriptTurn,
+  stamp: number,
+): {
+  items: TimelineItem[]
+  userAnchors: number | null
+} {
+  const items: TimelineItem[] = []
+  let userAnchors: number | null = 0
+  for (const step of turn.steps) {
+    for (const frame of step.frames) {
+      const projected = frameOf(frame, turn.ordinal, at(step.startedAt) || stamp)
+      if (projected !== null) {
+        items.push(projected)
+      }
+      if (frame.kind === 'text' && frame.role === 'user') {
+        const count = sourceOfFrame(frame).anchors
+        userAnchors = userAnchors === null || count === null ? null : userAnchors + count
       }
     }
-    if (
-      turn.error !== undefined &&
-      turn.error.length > 0 &&
-      !items.some((item) => item.type === 'error' && item.message === turn.error)
-    ) {
-      items.push({
-        type: 'error',
-        id: `turn-error:${turn.turnId}`,
-        turn: turn.ordinal,
-        at: timeOf(turn.endedAt) ?? stamp,
-        message: turn.error,
-      })
-    }
-    pages.push({ turn: turn.ordinal, items })
-    facts.push({ opensWithAnchor: opening === 1, anchors })
-    spans.push(spanOf(turn, turn.ordinal))
   }
+  return { items, userAnchors }
+}
 
-  // :undo removes a suffix ending at a user anchor, not at an arbitrary run.
+function projectTurn(turn: TranscriptTurn): {
+  page: TurnPage
+  fact: TurnFact
+  span: TurnSpan
+} {
+  const stamp = at(turn.startedAt)
+  const source = sourceOfTurn(turn)
+  const hasInput = turn.prompt !== undefined || (turn.attachmentIds?.length ?? 0) > 0
+  const opening = hasInput ? source.anchors : source.isUser ? null : 0
+  const opened =
+    turn.prompt === undefined
+      ? null
+      : inputItem(
+          source,
+          turn.triggerPromptId ?? turn.turnId,
+          turn.ordinal,
+          stamp,
+          turn.prompt,
+          skillNamesOf(turn.origin.payload),
+        )
+  const frames = framesOf(turn, stamp)
+  const anchors =
+    frames.userAnchors === null || opening === null ? null : opening + frames.userAnchors
+  const items = [...(opened === null ? [] : [opened]), ...frames.items]
+  if (
+    turn.error !== undefined &&
+    turn.error.length > 0 &&
+    !items.some((item) => item.type === 'error' && item.message === turn.error)
+  ) {
+    items.push({
+      type: 'error',
+      id: `turn-error:${turn.turnId}`,
+      turn: turn.ordinal,
+      at: timeOf(turn.endedAt) ?? stamp,
+      message: turn.error,
+    })
+  }
+  return {
+    page: { turn: turn.ordinal, items },
+    fact: { opensWithAnchor: opening === 1, anchors },
+    span: spanOf(turn, turn.ordinal),
+  }
+}
+
+// :undo removes a suffix ending at a user anchor, not at an arbitrary run.
+function runBoundariesOf(
+  pages: readonly TurnPage[],
+  facts: readonly TurnFact[],
+  items: AgentTranscriptSnapshot['items'],
+  busy: boolean,
+): TurnPage[] {
+  const result = [...pages]
   let suffixAnchors = 0
   let nextOpensWithAnchor = true
   let uncertainty: string | null = null
-  let runIndex = pages.length - 1
-  for (const item of snapshot.items.toReversed()) {
+  let runIndex = result.length - 1
+  for (const item of items.toReversed()) {
     if (item.kind !== 'turn') {
       uncertainty = '包含压缩或其他边界标记，无法证明精确截断。'
       continue
     }
-    const page = pages[runIndex]
+    const page = result[runIndex]
     const fact = facts[runIndex]
     if (page === undefined || fact === undefined) {
       throw new Error('Transcript run projection is incomplete.')
@@ -377,7 +396,7 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
         ? '会话仍在运行或等待输入，暂不可分叉。'
         : (uncertainty ??
           (nextOpensWithAnchor ? null : '下一段不从用户撤销锚点开始，无法精确截到此处。'))
-    pages[runIndex] = {
+    result[runIndex] = {
       ...page,
       run: {
         settled,
@@ -400,13 +419,33 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
     nextOpensWithAnchor = fact.opensWithAnchor
     runIndex -= 1
   }
+  return result
+}
+
+export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineState {
+  const turns = snapshot.items.filter((item): item is TranscriptTurn => item.kind === 'turn')
+  const status = phaseOf(snapshot, turns.at(-1))
+  const busy =
+    isInFlight(status) ||
+    turns.some((turn) => !isSettled(turn.state)) ||
+    (snapshot.meta.activity !== undefined && snapshot.meta.activity !== 'idle')
+  const pages: TurnPage[] = []
+  const spans: TurnSpan[] = []
+  const facts: TurnFact[] = []
+  for (const turn of turns) {
+    const projected = projectTurn(turn)
+    pages.push(projected.page)
+    facts.push(projected.fact)
+    spans.push(projected.span)
+  }
+  const marked = runBoundariesOf(pages, facts, snapshot.items, busy)
   return {
     status,
     backgroundTasks: snapshot.tasks
       .map(backgroundOf)
       .filter((item): item is BackgroundTaskItem => item !== null),
-    sealed: pages.length === 0 ? [] : pages.slice(0, -1),
-    active: tailOf(pages, snapshot.interactions),
+    sealed: marked.length === 0 ? [] : marked.slice(0, -1),
+    active: tailOf(marked, snapshot.interactions),
     lastSeq: 0,
     spans,
   }

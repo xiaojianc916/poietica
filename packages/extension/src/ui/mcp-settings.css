@@ -1,0 +1,145 @@
+.mcp-settings {
+  display: grid;
+  gap: 20px;
+  min-inline-size: 0;
+  color: var(--ui-foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.mcp-settings__toolbar,
+.mcp-settings__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mcp-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.mcp-settings__actions > button {
+  min-block-size: 44px;
+  min-inline-size: 44px;
+}
+.mcp-settings__toolbar > input {
+  flex: 0 1 280px;
+}
+.mcp-settings input:not([type="checkbox"]),
+.mcp-settings select,
+.mcp-settings textarea {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 44px;
+  border: 1px solid var(--ui-divider);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--ui-background);
+  color: var(--ui-foreground);
+  font: inherit;
+}
+.mcp-settings textarea {
+  resize: vertical;
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mcp-settings :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+.mcp-settings :is(input, textarea)::placeholder {
+  color: var(--ui-muted-foreground);
+}
+.mcp-settings__hint,
+.mcp-settings__copy > span {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  overflow-wrap: anywhere;
+}
+.mcp-settings__empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 40px 24px;
+  border: 1px dashed var(--ui-divider);
+  border-radius: 12px;
+  text-align: center;
+}
+.mcp-settings__empty p {
+  margin: 0;
+}
+.mcp-settings__list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mcp-settings__row {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--ui-card);
+}
+.mcp-settings__copy {
+  display: grid;
+  flex: 1 1 220px;
+  gap: 4px;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.mcp-settings__error {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--ui-destructive);
+  border-radius: 8px;
+  color: var(--ui-destructive);
+  overflow-wrap: anywhere;
+}
+.mcp-settings__dialog {
+  max-inline-size: 760px;
+}
+.mcp-settings__editor {
+  padding: 0 24px 24px;
+}
+.mcp-settings fieldset,
+.mcp-settings__fields {
+  display: grid;
+  gap: 16px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mcp-settings fieldset[hidden] {
+  display: none;
+}
+.mcp-settings label {
+  display: grid;
+  gap: 6px;
+}
+.mcp-settings label.mcp-settings__check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-block-size: 44px;
+  overflow-wrap: anywhere;
+}
+.mcp-settings__check input {
+  inline-size: 18px;
+  block-size: 18px;
+}
+.mcp-settings__footer {
+  justify-content: flex-end;
+}
+@media (max-width: 480px) {
+  .mcp-settings__toolbar > input {
+    flex-basis: 100%;
+  }
+  .mcp-settings__editor {
+    padding-inline: 16px;
+  }
+}

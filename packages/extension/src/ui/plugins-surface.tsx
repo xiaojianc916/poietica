@@ -2,23 +2,20 @@ import { Button, cn, Switch } from '@poietica/design-system'
 import { assertUnreachable } from '@poietica/problem'
 import { useState, useSyncExternalStore } from 'react'
 import {
-  builtinServerRows,
   builtinSkillRows,
-  type ContributionOrigin,
-  describeOrigin,
   groupRows,
   latestCatalog,
   type MarketplaceEntry,
   matches,
   type PluginStore,
   type PluginsViewModel,
-  type ResolvedMcpServer,
   type SkillRow,
   skillRows,
 } from '../index'
 import type { AgentSkill } from '../model'
 import { CatalogGrid } from './catalog-grid'
 import { ContributionList, type ContributionRow } from './contribution-list'
+import { McpSettings } from './mcp-settings'
 import { PluginBrowser } from './plugin-browser'
 import { PluginDetail } from './plugin-detail'
 import { Section } from './section'
@@ -138,6 +135,7 @@ export function PluginsSurface({ roster, store }: PluginsSurfaceProps) {
             <input
               aria-label={`搜索${TABS[tab].label}`}
               className="h-9 min-w-0 flex-1 rounded-full bg-muted/60 px-4 text-[13px] outline-none ring-1 ring-transparent transition-[background-color,box-shadow] placeholder:text-muted-foreground/70 focus:bg-background focus:ring-foreground/10"
+              hidden={tab === 'mcp'}
               onChange={(event) => setNeedles({ ...needles, [tab]: event.target.value })}
               placeholder={`搜索${TABS[tab].label}`}
               value={needle}
@@ -146,7 +144,7 @@ export function PluginsSurface({ roster, store }: PluginsSurfaceProps) {
               技能那一格没有刷新按钮：名册由 agent 推着更新，装卸落定后组合根也会让
               它重问一轮。另外两格刷的是同一份市场目录，所以它们共用这一个。
             */}
-            {tab === 'skills' ? null : (
+            {tab !== 'plugins' ? null : (
               <Button onClick={() => store.refreshMarketplace()} size="sm" variant="ghost">
                 刷新名单
               </Button>
@@ -228,27 +226,8 @@ function TabBody({ entries, needle, onOpen, skills, store, tab, view }: TabBodyP
         </div>
       )
     }
-    case 'mcp': {
-      const rows = view.mcpServers
-        .map((server) => serverRow(server, store))
-        .filter((row) => matches(needle, row.title, row.detail, row.badge))
-
-      return (
-        <div className="pb-24">
-          <Section count={rows.length} title="已安装">
-            <ContributionList empty="这台机器上没有配置 MCP 服务器，插件也没有带来。" rows={rows} />
-          </Section>
-          <CatalogGrid
-            action={{
-              kind: 'server',
-              install: store.installEnvironmentServer,
-              resolveLauncher: store.resolveLauncher,
-            }}
-            groups={groupRows(builtinServerRows(view.mcpServers, needle))}
-          />
-        </div>
-      )
-    }
+    case 'mcp':
+      return <McpSettings store={store} />
     default:
       return assertUnreachable(tab)
   }
@@ -320,71 +299,4 @@ function describeSkillSource(source: string): string {
     default:
       return source
   }
-}
-
-/*
- * enabled 是这一台自己的开关，launchedBy 是「这一次谁会起它」。两个都要显示：插件整体关掉
- * 时这一台的开关不该被悄悄拨回去，但也不能让人以为它还在跑。
- *
- * mcp.json 里那些的开关与移除落回文件本身：enabled 与 CLI 拨的是同一格（缺席即开，
- * 官方语义），两边看到的永远是同一个答案。
- */
-function serverRow(server: ResolvedMcpServer, store: PluginStore): ContributionRow {
-  const { origin } = server
-
-  const toggle = (
-    <Switch
-      aria-label={`启用 ${server.name}`}
-      checked={server.enabled}
-      onCheckedChange={(next) => store.setMcpServerEnabled(origin, server.name, next)}
-      size="sm"
-    />
-  )
-
-  if (origin.kind === 'user') {
-    return {
-      key: `${origin.location}/${server.name}`,
-      title: server.name,
-      detail: `${origin.location} · ${server.enabled ? '会话开始时由命令行装载' : '已在配置里关闭'}`,
-      badge: describeOrigin(origin),
-      dimmed: !server.enabled,
-      trailing: (
-        <>
-          <Button
-            className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
-            onClick={() => store.removeEnvironmentServer(server.name)}
-            size="xs"
-            variant="ghost"
-          >
-            移除
-          </Button>
-          {toggle}
-        </>
-      ),
-    }
-  }
-
-  return {
-    key: `${describeOrigin(origin)}/${server.name}`,
-    title: server.name,
-    detail: detailOf(origin, server),
-    badge: describeOrigin(origin),
-    dimmed: !server.enabled,
-    trailing: toggle,
-  }
-}
-
-/*
- * 开着却不会装载只有一个原因：带来它的插件整体被关掉了。说出来，人才知道该去拨哪个开关。
- */
-function detailOf(origin: ContributionOrigin, server: ResolvedMcpServer): string {
-  if (!server.enabled) {
-    return '已关闭'
-  }
-
-  if (server.launchedBy === 'agent') {
-    return '会话开始时由命令行装载'
-  }
-
-  return origin.kind === 'plugin' ? '插件已关闭，这一台不会装载' : 'mcp.json 里这一条被关掉了'
 }

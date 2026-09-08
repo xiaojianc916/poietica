@@ -4,10 +4,42 @@ import {
   TranscriptStore as OfficialTranscriptStore,
   type TranscriptOperation,
 } from '@poietica/transcript'
-import type { TranscriptPage, TranscriptPort, TranscriptSignal } from '../agent/transcript'
+import type {
+  TranscriptCatchUp,
+  TranscriptPage,
+  TranscriptPort,
+  TranscriptSignal,
+} from '../agent/transcript'
 
 type Feed = { seq: number; valid: boolean; tail: Promise<void> }
 type Publish = (agentId: string, snapshot: AgentTranscriptSnapshot) => void
+
+/** Fold contiguous catch-up batches; any gap clears complete and stops folding. */
+function foldCatchUp(
+  caught: TranscriptCatchUp,
+  from: number,
+): { complete: boolean; cursor: number; operations: TranscriptOperation[] } {
+  let cursor = from
+  const operations: TranscriptOperation[] = []
+  let complete = caught.complete
+  if (complete) {
+    for (const batch of caught.batches) {
+      if (!Number.isSafeInteger(batch.seq) || batch.seq < 0) {
+        throw new Error('Transcript batch has an invalid sequence.')
+      }
+      if (batch.seq <= cursor) {
+        continue
+      }
+      if (batch.seq !== cursor + 1 || batch.seq > caught.latestSeq) {
+        complete = false
+        break
+      }
+      operations.push(...batch.ops)
+      cursor = batch.seq
+    }
+  }
+  return { complete, cursor, operations }
+}
 
 function mergeBy<T>(
   earlier: readonly T[],
@@ -242,31 +274,13 @@ export class TranscriptReplica {
       await this.#restart(agentId)
       return
     }
-    let cursor = feed.seq
-    const operations: TranscriptOperation[] = []
-    let complete = caught.complete
-    if (complete) {
-      for (const batch of caught.batches) {
-        if (!Number.isSafeInteger(batch.seq) || batch.seq < 0) {
-          throw new Error('Transcript batch has an invalid sequence.')
-        }
-        if (batch.seq <= cursor) {
-          continue
-        }
-        if (batch.seq !== cursor + 1 || batch.seq > caught.latestSeq) {
-          complete = false
-          break
-        }
-        operations.push(...batch.ops)
-        cursor = batch.seq
-      }
-    }
-    if (!complete || cursor !== caught.latestSeq) {
+    const folded = foldCatchUp(caught, feed.seq)
+    if (!folded.complete || folded.cursor !== caught.latestSeq) {
       feed.valid = false
       await this.#head(agentId, feed, caught.latestSeq)
       return
     }
-    if (!this.#apply(agentId, feed, cursor, operations)) {
+    if (!this.#apply(agentId, feed, folded.cursor, folded.operations)) {
       await this.#head(agentId, feed, caught.latestSeq)
     }
   }
@@ -296,28 +310,21 @@ export class TranscriptReplica {
     return true
   }
 
-  async #head(agentId: string, feed: Feed, minimumSeq = feed.seq): Promise<void> {
-    const visible = this.#transcript.getAgent(agentId)?.snapshot().items ?? []
-    const turns = visible.filter((item) => item.kind === 'turn')
-    const boundary = turns[0]
-    const head = await this.#read(agentId, feed, () =>
-      this.#port.readTranscript(this.sessionId, agentId),
-    )
-    if (head === undefined || !this.#owns(agentId, feed)) {
-      return
-    }
-    let page = head
-    this.#validate(page, agentId)
-    if (page.seq < minimumSeq) {
-      throw new Error('Recovery snapshot did not cover the observed transcript gap.')
-    }
-    // A reset can carry an empty tail; restore the visible window through REST instead.
-    while (page.hasMoreOlder) {
-      const loaded = page.items.filter((item) => item.kind === 'turn')
+  /** REST catch-up: read earlier pages until the loaded window covers the known boundary. */
+  async #coverBoundary(
+    agentId: string,
+    feed: Feed,
+    page: TranscriptPage,
+    visibleTurns: number,
+    boundaryOrdinal: number | undefined,
+  ): Promise<TranscriptPage | undefined> {
+    let current = page
+    while (current.hasMoreOlder) {
+      const loaded = current.items.filter((item) => item.kind === 'turn')
       const first = loaded[0]
       if (
-        loaded.length >= turns.length &&
-        (boundary === undefined || (first !== undefined && first.ordinal <= boundary.ordinal))
+        loaded.length >= visibleTurns &&
+        (boundaryOrdinal === undefined || (first !== undefined && first.ordinal <= boundaryOrdinal))
       ) {
         break
       }
@@ -328,13 +335,13 @@ export class TranscriptReplica {
         this.#port.readTranscript(this.sessionId, agentId, first.turnId),
       )
       if (earlier === undefined || !this.#owns(agentId, feed)) {
-        return
+        return undefined
       }
       this.#validate(earlier, agentId)
-      if (earlier.seq < page.seq) {
+      if (earlier.seq < current.seq) {
         throw new Error('Transcript history crossed a cursor reset.')
       }
-      const expanded: TranscriptPage = { ...page, ...olderSnapshot(earlier, page) }
+      const expanded: TranscriptPage = { ...current, ...olderSnapshot(earlier, current) }
       const next = expanded.items.find((item) => item.kind === 'turn')
       if (
         expanded.hasMoreOlder &&
@@ -342,11 +349,31 @@ export class TranscriptReplica {
       ) {
         throw new Error('Transcript pagination did not advance.')
       }
-      page = expanded
+      current = expanded
     }
-    if (this.#owns(agentId, feed)) {
-      this.#install(page, false, feed)
+    return current
+  }
+
+  async #head(agentId: string, feed: Feed, minimumSeq = feed.seq): Promise<void> {
+    const visible = this.#transcript.getAgent(agentId)?.snapshot().items ?? []
+    const turns = visible.filter((item) => item.kind === 'turn')
+    const boundary = turns[0]
+    const head = await this.#read(agentId, feed, () =>
+      this.#port.readTranscript(this.sessionId, agentId),
+    )
+    if (head === undefined || !this.#owns(agentId, feed)) {
+      return
     }
+    this.#validate(head, agentId)
+    if (head.seq < minimumSeq) {
+      throw new Error('Recovery snapshot did not cover the observed transcript gap.')
+    }
+    // A reset can carry an empty tail; restore the visible window through REST instead.
+    const page = await this.#coverBoundary(agentId, feed, head, turns.length, boundary?.ordinal)
+    if (page === undefined || !this.#owns(agentId, feed)) {
+      return
+    }
+    this.#install(page, false, feed)
   }
 
   #validate(page: TranscriptPage, agentId: string): void {

@@ -29,8 +29,10 @@ import {
   shouldFetchOnOpen,
 } from './marketplace'
 import {
+  addMcpServers,
   type DeclaredMcpServer,
   decodeMcpConfig,
+  type McpEntry,
   mcpServerBodyInConfig,
   removeMcpServer,
   setMcpServerEnabledInConfig,
@@ -75,6 +77,8 @@ export interface PluginsViewModel {
   readonly plugins: readonly InstalledPlugin[]
   /* 屏幕上那张 MCP 列表：内置的、这台机器上配好的、插件带来的，同一张表。 */
   readonly mcpServers: readonly ResolvedMcpServer[]
+  readonly mcpPending: number
+  readonly mcpFailure: string | undefined
   /**
    * 命令行上装过、这里没有的那些。
    *
@@ -175,7 +179,9 @@ export interface PluginStore {
   /** stdio 条目的启动式解析，内置名单的安装卡片要先把「没有那个程序」说出来。 */
   readonly resolveLauncher: (program: string) => Promise<Launcher | null>
   /** 从 mcp.json 里删掉一台。名单上有它的卡片会拨回「可安装」，随时装得回来。 */
-  readonly removeEnvironmentServer: (name: string) => void
+  readonly removeEnvironmentServer: (name: string) => Promise<boolean>
+  readonly addEnvironmentServers: (entries: readonly McpEntry[]) => Promise<boolean>
+  readonly refreshMcpServers: () => void
   /**
    * 本进程托管的那台服务器在 mcp.json 里的条目，对齐到当前地址；body 缺席就拆掉条目。
    *
@@ -282,7 +288,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   const listeners = new Set<() => void>()
 
   let scanned: readonly ScannedPlugin[] = []
-  /* 这个 agent 自己那份 mcp.json 里的服务器。读不出来就是空。 */
+  /* 最近一次成功读取的配置投影；读取失败不清空。 */
   let environment: readonly DeclaredMcpServer[] = []
   /* 另一本账里的那些。读不出来就是空 —— 那只意味着这句话说不出来，不意味着装了什么。 */
   let foreignRecords: readonly ForeignPlugin[] = []
@@ -290,6 +296,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   let snapshot: PluginsViewModel = {
     plugins: [],
     mcpServers: [],
+    mcpPending: 0,
+    mcpFailure: undefined,
     foreign: [],
     capabilities: CAPABILITIES_UNREAD,
     capabilityCommand: CAPABILITY_COMMAND_IDLE,
@@ -429,18 +437,16 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       return
     }
 
-    const decoded = decodeMcpConfig(
-      { kind: 'user', location: file.location },
-      JSON.parse(file.contents),
-    )
-
-    if (decoded.malformed) {
-      warn('这个 agent 的 mcp.json 不是预期的形状', {
-        scope: 'plugins',
-        location: file.location,
-      })
+    let document: unknown
+    try {
+      document = JSON.parse(file.contents)
+    } catch {
+      throw new Error('MCP 配置不是有效 JSON；未修改文件。')
     }
-
+    const decoded = decodeMcpConfig({ kind: 'user', location: file.location }, document)
+    if (decoded.malformed) {
+      throw new Error('MCP 配置结构无效；未修改文件。')
+    }
     environment = decoded.servers
   }
 
@@ -505,17 +511,39 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    * 落盘）：这条队列已经把本进程内的改写串成一串，比对挡的是进程外的写者 —— 终端里
    * 的 CLI 或人手改。写成之后就地重读再投影，屏幕上那份永远来自文件。
    */
-  function rewriteEnvironment(what: string, transform: (contents: string | null) => string): void {
-    commit(
-      what,
-      async () => {
-        const file = await gateway.readEnvironmentMcpConfig()
+  function performMcp(what: string, action: () => Promise<void>): Promise<boolean> {
+    publish({ mcpPending: snapshot.mcpPending + 1 })
+    const operation = queue.then(async () => {
+      publish({ mcpFailure: undefined })
+      try {
+        await action()
+        republish()
+        return true
+      } catch {
+        // 配置可能含密钥，不记录原文或第三方解析器的异常载荷。
+        warn(what, { scope: 'plugins' })
+        publish({ mcpFailure: what })
+        return false
+      } finally {
+        publish({ mcpPending: snapshot.mcpPending - 1 })
+      }
+    })
+    queue = operation.then(() => undefined)
+    return operation
+  }
 
-        await gateway.writeEnvironmentMcpConfig(file.contents, transform(file.contents))
-        await readEnvironment()
-      },
-      republish,
-    )
+  function rewriteEnvironment(
+    what: string,
+    transform: (contents: string | null) => string | null,
+  ): Promise<boolean> {
+    return performMcp(what, async () => {
+      const file = await gateway.readEnvironmentMcpConfig()
+      const contents = transform(file.contents)
+      if (contents !== null && contents !== file.contents) {
+        await gateway.writeEnvironmentMcpConfig(file.contents, contents)
+      }
+      await readEnvironment()
+    })
   }
 
   function trustOf(pluginId: string): PluginTrustTier {
@@ -722,8 +750,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           guard('命令行上那本插件账读不出来', readForeign, () => {
             foreignRecords = []
           }),
-          guard('这个 agent 的 mcp.json 读不出来', readEnvironment, () => {
-            environment = []
+          guard('MCP 配置读取失败', readEnvironment, () => {
+            publish({ mcpFailure: 'MCP 配置读取失败，请刷新重试；不会将失败当作空配置。' })
           }),
           loadCatalog(),
           readCapabilities(),
@@ -776,34 +804,16 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
     setMcpServerEnabled(target, server, enabled) {
       if (target.kind === 'user') {
-        rewriteEnvironment('MCP 服务器的开关没能写进 mcp.json，屏幕上仍是文件里那一份', (raw) =>
+        void rewriteEnvironment('MCP 开关保存失败，请刷新并检查配置或写入权限。', (raw) =>
           setMcpServerEnabledInConfig(raw, server, enabled),
         )
-
         return
       }
-
-      const { pluginId } = target
-
-      commit(
-        'MCP 服务器的开关没能写进 agent 的账本，屏幕上仍是账本里那一份',
-        () => gateway.setPluginMcpEnabled(pluginId, server, enabled),
-        () => {
-          scanned = scanned.map((entry) =>
-            entry.pluginId === pluginId
-              ? {
-                  ...entry,
-                  disabledMcpServers: enabled
-                    ? entry.disabledMcpServers.filter((name) => name !== server)
-                    : [...entry.disabledMcpServers, server],
-                }
-              : entry,
-          )
-
-          republish()
-          queueCapabilityRead()
-        },
-      )
+      void performMcp('插件 MCP 开关保存失败，请刷新重试。', async () => {
+        await gateway.setPluginMcpEnabled(target.pluginId, server, enabled)
+        await rescan()
+        queueCapabilityRead()
+      })
     },
 
     installEnvironmentServer(name, body) {
@@ -817,41 +827,39 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     removeEnvironmentServer(name) {
-      rewriteEnvironment('MCP 服务器没能从 mcp.json 里删掉，界面因此不动', (raw) =>
+      return rewriteEnvironment('删除 MCP 配置失败，请刷新并检查配置或写入权限。', (raw) =>
         removeMcpServer(raw, name),
       )
     },
 
-    reconcileHostedServer(name, body) {
-      const operation = queue.then(async () => {
-        const file = await gateway.readEnvironmentMcpConfig()
-        const current = mcpServerBodyInConfig(file.contents, name)
-        const aligned =
-          body === null
-            ? current === undefined
-            : current !== undefined && JSON.stringify(current) === JSON.stringify(body)
+    addEnvironmentServers(entries) {
+      const submitted = structuredClone(entries)
+      return rewriteEnvironment(
+        'MCP 保存失败：请检查同名配置、配置格式或写入权限，再刷新重试。',
+        (raw) => addMcpServers(raw, submitted),
+      )
+    },
 
-        if (!aligned) {
-          const contents =
-            body === null
-              ? removeMcpServer(file.contents, name)
-              : upsertMcpServer(file.contents, name, body)
-
-          await gateway.writeEnvironmentMcpConfig(file.contents, contents)
-        }
-
+    refreshMcpServers() {
+      void performMcp('MCP 配置读取失败，请检查文件或权限后重试。', async () => {
         await readEnvironment()
-        republish()
+        await rescan()
       })
+    },
 
-      queue = operation.catch((cause: unknown) => {
-        warn('本进程托管的 MCP 服务器没能与 mcp.json 对齐', {
-          scope: 'plugins',
-          cause,
-        })
+    async reconcileHostedServer(name, body) {
+      const saved = await rewriteEnvironment('应用托管的 MCP 配置未能对齐。', (contents) => {
+        const current = mcpServerBodyInConfig(contents, name)
+        if (body === null) {
+          return current === undefined ? contents : removeMcpServer(contents, name)
+        }
+        return current !== undefined && JSON.stringify(current) === JSON.stringify(body)
+          ? contents
+          : upsertMcpServer(contents, name, body)
       })
-
-      return operation
+      if (!saved) {
+        throw new Error('应用托管的 MCP 配置未能对齐。')
+      }
     },
 
     /*

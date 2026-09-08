@@ -7,6 +7,7 @@ import {
   type SelectOption,
 } from '@poietica/design-system'
 import type { PluginStore } from '@poietica/extension'
+import { McpSettings } from '@poietica/extension/ui'
 import {
   Archive,
   ArrowLeft,
@@ -16,6 +17,7 @@ import {
   Keyboard,
   Monitor,
   PackageOpen,
+  Plug,
   ShieldCheck,
   Sun,
   Zap,
@@ -70,6 +72,7 @@ type SettingsSection =
   | 'archived'
   | 'models'
   | 'skills'
+  | 'mcp'
   | 'keymap'
   | 'computer-use'
   | 'usage'
@@ -176,6 +179,11 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
     icon: PackageOpen,
     render: ({ plugins, skills }) => <SkillsSettings skills={skills} store={plugins} />,
   },
+  mcp: {
+    label: 'MCP',
+    icon: Plug,
+    render: ({ plugins }) => <McpSettings store={plugins} />,
+  },
   keymap: {
     label: '快捷键',
     icon: Keyboard,
@@ -215,7 +223,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
-  ['models', 'skills', 'keymap', 'computer-use', 'usage', 'archived'],
+  ['models', 'skills', 'mcp', 'keymap', 'computer-use', 'usage', 'archived'],
   ['privacy', 'about'],
 ]
 
