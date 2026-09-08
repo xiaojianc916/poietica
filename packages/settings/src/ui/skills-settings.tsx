@@ -1,4 +1,5 @@
 import type { AgentSkill } from '@poietica/conversation'
+import { Prose } from '@poietica/conversation/prose'
 import {
   Button,
   ConfirmationDialog,
@@ -13,8 +14,6 @@ import { type PluginStore, type SkillRow, skillRows } from '@poietica/extension'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { AlertTriangle, Check, Copy, PackageOpen, Search, Trash2 } from 'lucide-react'
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { type ControlsConfig, Streamdown } from 'streamdown'
-import 'streamdown/styles.css'
 import './skills-settings.css'
 
 type SourceFilter = 'all' | 'managed' | 'project' | 'user' | 'extra' | 'builtin'
@@ -44,21 +43,9 @@ const SOURCE_ORDER: readonly Exclude<SourceFilter, 'all'>[] = [
   'extra',
 ]
 
-const SKILL_DOCUMENT_CONTROLS: ControlsConfig = {
-  code: { copy: true, download: false },
-  image: false,
-  mermaid: false,
-  table: false,
-}
-
 export interface SkillsSettingsProps {
   readonly store: PluginStore
-  /**
-   * 这一家 agent 公布的技能名册，由组合根下传。
-   *
-   * 名册属于会话上下文，住在 assistant 环；本包在 vertical-feature 环，
-   * 环序禁止反向依赖，所以数据走 props 而不是 Context。
-   */
+  /** 技能名册由组合根注入，不在设置页另行读取。 */
   readonly skills: readonly AgentSkill[]
 }
 
@@ -242,17 +229,14 @@ function SkillDetail({ skill, store }: { readonly skill: SkillRow; readonly stor
       )}
 
       {skill.body ? (
-        <div className="skill-detail__document">
+        <div className="skill-detail__document" data-assistant-skin>
           <span>SKILL.md</span>
-          <Streamdown
+          <Prose
             className="skill-detail__prose"
-            controls={SKILL_DOCUMENT_CONTROLS}
-            lineNumbers={false}
+            codeBlockMaxHeight={400}
             mode="static"
-            tableMaxHeight={0}
-          >
-            {skill.body}
-          </Streamdown>
+            text={skill.body}
+          />
         </div>
       ) : null}
     </div>

@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./surface": "./src/surface/index.ts",
+    "./prose": "./src/surface/timeline/prose.tsx",
     "./composer": "./src/surface/composer/controls.ts",
     "./composer/frame.css": "./src/surface/composer/composer-frame.css",
     "./composer/actions.css": "./src/surface/composer/composer-actions.css",
