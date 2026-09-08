@@ -11,7 +11,7 @@ describe('工作区表面注册表', () => {
   it('导航顺序钉在这一行：进导航的表面增减或重排，这里必须跟着改', () => {
     expect([...SURFACE_NAVIGATION_ORDER]).toEqual([
       'search',
-      'tools',
+      'library',
       'automations',
       'personalization',
     ])

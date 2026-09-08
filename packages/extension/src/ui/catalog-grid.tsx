@@ -3,10 +3,8 @@ import { useState } from 'react'
 import {
   BUILTIN_SERVERS,
   type CatalogRow,
-  describeChannel,
   type Launcher,
   mcpServerBody,
-  type PluginInstallSource,
   type RowGroup,
   statusText,
 } from '../index'
@@ -14,29 +12,13 @@ import {
 import { PluginGlyph } from './plugin-glyph'
 import { Section } from './section'
 
-/*
- * 「发现」那一段：一组一个抬头，组内两列，超出前六条折起来。名单是几十条的量级，
- * 一次铺开人只会滚过去而不会读；折起的那几条没有被藏，按钮上写着还剩几条。
- *
- * 动作是一个判别联合，不是三个可缺席的回调。此前这里靠 onOpen / onInstallServer 是不是
- * undefined 反推「我现在是哪一格」—— 三态藏在两个可选属性里，技能格的调用处一次传两个
- * undefined，而加第四种用法时没有任何东西会报错。现在这一格是什么，写在类型上。
- */
-
 const VISIBLE = 6
 
-export type CatalogAction =
-  | {
-      readonly kind: 'plugin'
-      readonly install: (source: PluginInstallSource) => void
-      readonly open: (id: string) => void
-    }
-  | { readonly kind: 'skill'; readonly install: (source: PluginInstallSource) => void }
-  | {
-      readonly kind: 'server'
-      readonly install: (name: string, body: Record<string, unknown>) => void
-      readonly resolveLauncher: (program: string) => Promise<Launcher | null>
-    }
+interface CatalogAction {
+  readonly kind: 'server'
+  readonly install: (name: string, body: Record<string, unknown>) => void
+  readonly resolveLauncher: (program: string) => Promise<Launcher | null>
+}
 
 export interface CatalogGridProps {
   readonly groups: readonly RowGroup[]
@@ -99,17 +81,7 @@ function CatalogCard({ action, row }: CatalogCardProps) {
     <li className="group flex min-w-0 items-center gap-3.5 rounded-2xl px-3 py-3 transition-colors hover:bg-muted/60">
       <PluginGlyph displayName={row.displayName} id={row.id} size="md" />
       <div className="min-w-0 flex-1">
-        {action.kind === 'plugin' ? (
-          <button
-            className="block max-w-full truncate text-left text-sm font-medium hover:underline"
-            onClick={() => action.open(row.id)}
-            type="button"
-          >
-            {row.displayName}
-          </button>
-        ) : (
-          <span className="block truncate text-sm font-medium">{row.displayName}</span>
-        )}
+        <span className="block truncate text-sm font-medium">{row.displayName}</span>
         <span
           className="block truncate pt-0.5 text-[13px] text-muted-foreground"
           title={row.description}
@@ -120,45 +92,13 @@ function CatalogCard({ action, row }: CatalogCardProps) {
       {row.status.kind === 'installed' ? (
         <span className="shrink-0 text-[11px] text-muted-foreground">{statusText(row.status)}</span>
       ) : (
-        <CardAction action={action} row={row} />
+        <InstallServer
+          id={row.id}
+          onInstall={action.install}
+          resolveLauncher={action.resolveLauncher}
+        />
       )}
     </li>
-  )
-}
-
-/*
- * 右边那个动作。已装的一律不给按钮，只写状态 —— 按下去什么也不发生的按钮比没有按钮坏。
- * 卸载不在卡片上：装上的那一条会出现在上方「已安装」里，开关与移除都在那一行；公开名单
- * 的卡片只负责装回来，卸载之后它留在原处，状态拨回可安装。
- *
- * 来源那行小字悬停才浮出：它是给要判断「这是谁的东西」的人看的，不是每一行都要占的位。
- */
-function CardAction({ action, row }: CatalogCardProps) {
-  if (action.kind === 'server') {
-    return (
-      <InstallServer
-        id={row.id}
-        onInstall={action.install}
-        resolveLauncher={action.resolveLauncher}
-      />
-    )
-  }
-
-  const { source } = row
-
-  if (source === undefined) {
-    return null
-  }
-
-  return (
-    <div className="flex shrink-0 items-center gap-2">
-      <span className="text-[11px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-        {describeChannel(row.channel)}
-      </span>
-      <Button onClick={() => action.install(source)} size="xs" variant="soft">
-        安装
-      </Button>
-    </div>
   )
 }
 

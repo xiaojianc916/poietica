@@ -301,7 +301,7 @@ const DOCUMENT = v.object({
       }),
       v.object({
         kind: v.literal('surface'),
-        surfaceId: v.custom<SurfaceId>((value) => typeof value === 'string' && isSurfaceId(value)),
+        surfaceId: v.string(),
       }),
     ]),
   ),
@@ -312,16 +312,7 @@ function encode(state: WorkbenchState): string {
   return JSON.stringify({ entries: state.entries, activeIndex: state.activeIndex })
 }
 
-/**
- * 读回上一次那一份。读不懂就当没有。
- *
- * 整份要么全收要么全丢，不逐字段兜底 —— 与 workspace-layout-store 那份的取舍
- * 相反，理由也相反：那边每个字段都有一个说得通的默认值，而这里一格指向不认识
- * 的表面的标签，点开它只会是一个错误，比少一格更坏。
- *
- * 不抛。启动路径上没有人接得住，而「上次的标签页没了」不该升级成「这次打不
- * 开」。夹紧仍然交给 settle：界内不变量只有一处实现。
- */
+/** Unregistered surfaces are not restorable; unrelated conversation tabs remain valid. */
 function decode(document: string | null | undefined): WorkbenchState {
   if (document === null || document === undefined) {
     return INITIAL_STATE
@@ -341,7 +332,25 @@ function decode(document: string | null | undefined): WorkbenchState {
     return INITIAL_STATE
   }
 
-  return settle(read.output.entries, read.output.activeIndex)
+  const entries: Entry[] = []
+  const restoredIndex = normalizeActiveIndex(read.output.activeIndex)
+  let activeIndex = 0
+
+  for (const [index, entry] of read.output.entries.entries()) {
+    if (entry.kind === 'surface') {
+      if (!isSurfaceId(entry.surfaceId)) {
+        continue
+      }
+      entries.push({ kind: 'surface', surfaceId: entry.surfaceId })
+    } else {
+      entries.push(entry)
+    }
+    if (index < restoredIndex) {
+      activeIndex += 1
+    }
+  }
+
+  return settle(entries, activeIndex)
 }
 
 /* ── 工厂 ─────────────────────────────────────────────────────────── */

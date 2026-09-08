@@ -122,6 +122,7 @@ export function AppShell({ runtime }: AppShellProps) {
             isSettingsOpen={isSettingsOpen && canOpenSettings}
             isWindowMaximized={isWindowMaximized}
             keybindings={keybindings}
+            librarySurface={runtime.librarySurface}
             modelCatalog={runtime.modelCatalog}
             onDeveloperToolsOpen={openDeveloperTools}
             onSettingsClose={closeSettings}

@@ -1,7 +1,6 @@
 import type { AutomationStore } from '@poietica/automation'
 import type { AgentSessionPort, ComposerDrafts } from '@poietica/conversation'
 import { ComposerDraftsContext, useAgentControls } from '@poietica/conversation/surface'
-import type { PluginStore } from '@poietica/extension'
 import type { PersonalizationStore } from '@poietica/settings'
 import { lazy, type ReactNode, Suspense } from 'react'
 import { AssistantPane } from '../assistant/assistant-pane'
@@ -18,10 +17,6 @@ const DeferredPersonalizationSurface = lazy(() =>
     default: PersonalizationSurface,
   })),
 )
-const DeferredPluginsSurface = lazy(() =>
-  import('@poietica/extension/ui').then(({ PluginsSurface }) => ({ default: PluginsSurface })),
-)
-
 function SurfaceLoading() {
   return <p className="p-4 text-xs text-muted-foreground">正在加载…</p>
 }
@@ -40,23 +35,13 @@ interface DesktopSurfacesOptions {
   readonly pickWorkspace: WorkbenchHost['pickWorkspace']
   readonly drafts: ComposerDrafts
   readonly personalization: PersonalizationStore
+  /** 资料库表面是桌面领域，由组合根注入，工作台领域不认它。 */
+  readonly library: () => ReactNode
   /** 分叉出的对话开出来之后，去它那里 —— 与打开一条对话同一个动作。 */
   readonly onConversationForked: (threadId: string, title: string) => void
   readonly onConversationStarted: (threadId: string, title: string) => void
   readonly session: AgentSessionPort
-  /** 进程级自动化表与插件名册，由组合根构造注入（见 entry/compose-runtime.ts）。 */
   readonly automationStore: AutomationStore
-  readonly pluginStore: PluginStore
-}
-
-function ToolsSurface({ store }: { store: PluginStore }) {
-  const { toolkit } = useAgentControls()
-
-  return (
-    <Suspense fallback={<SurfaceLoading />}>
-      <DeferredPluginsSurface roster={toolkit.skills} store={store} />
-    </Suspense>
-  )
 }
 
 export function createDesktopSurfaces({
@@ -64,9 +49,9 @@ export function createDesktopSurfaces({
   automationStore,
   drafts,
   personalization,
+  library,
   onConversationForked,
   onConversationStarted,
-  pluginStore,
   session,
 }: DesktopSurfacesOptions): DesktopSurfaces {
   const renderAssistant = (threadId?: string): ReactNode => (
@@ -99,7 +84,7 @@ export function createDesktopSurfaces({
           <DeferredPersonalizationSurface store={personalization} />
         </Suspense>
       ),
-      tools: () => <ToolsSurface store={pluginStore} />,
+      library: () => library(),
     },
 
     renderAssistant,

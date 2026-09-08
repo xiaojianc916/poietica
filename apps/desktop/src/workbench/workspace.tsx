@@ -70,6 +70,8 @@ export interface DesktopWorkspaceProps {
   readonly modelCatalog: ModelCatalogStore
   readonly composerDrafts: ComposerDrafts
   readonly personalization: PersonalizationStore
+  /** 资料库表面渲染器，由组合根注入（见 entry/compose-runtime.ts）。 */
+  readonly librarySurface: () => ReactNode
   readonly auxiliaryPanel: AuxiliaryPanelStore
   readonly plugins: PluginStore
   /** 进程级自动化表，由组合根构造注入（见 entry/compose-runtime.ts）。 */
@@ -107,6 +109,7 @@ export function DesktopWorkspace({
   modelCatalog,
   composerDrafts,
   personalization,
+  librarySurface,
   auxiliaryPanel,
   plugins,
   automationStore,
@@ -206,10 +209,10 @@ export function DesktopWorkspace({
         automationStore,
         drafts: composerDrafts,
         personalization,
+        library: librarySurface,
         /* 分叉出的对话就地打开：与点开列表里一条是同一个动作。 */
         onConversationForked: startConversation,
         onConversationStarted: startConversation,
-        pluginStore: plugins,
         session: agentSession,
       }),
     [
@@ -217,8 +220,8 @@ export function DesktopWorkspace({
       automationStore,
       composerDrafts,
       host.pickWorkspace,
+      librarySurface,
       personalization,
-      plugins,
       startConversation,
     ],
   )

@@ -15,7 +15,7 @@
  * 写不出来。「搜索」是一个动作而不是一格页面，只有这个形状表达得了它。
  */
 
-export type SurfaceIconId = 'box' | 'clock' | 'message' | 'search' | 'hat-glasses'
+export type SurfaceIconId = 'book-open' | 'clock' | 'message' | 'search' | 'hat-glasses'
 
 export type SurfaceActivation =
   | { readonly kind: 'surface' }
@@ -56,10 +56,10 @@ export const SURFACE_REGISTRY = {
      */
     activation: { kind: 'command', commandId: 'application.toggle-command-palette' },
   },
-  tools: {
-    title: '插件',
-    description: '插件把技能与 MCP 服务器带进对话。装上、拨开，它们就生效。',
-    iconId: 'box',
+  library: {
+    title: '资料库',
+    description: '本地单人资料库，左侧浏览目录，右侧阅读内容。',
+    iconId: 'book-open',
     navigationOrder: 1,
     activation: { kind: 'surface' },
   },
@@ -120,13 +120,6 @@ export function isReadySurfaceId(id: SurfaceId): id is ReadySurfaceId {
   return READY_SURFACE_IDS.has(id)
 }
 
-/*
- * 导航次序由 navigationOrder 派生，不手工维护第二份数组。
- *
- * flatMap 而不是 filter + sort：filter 之后 TypeScript 并不知道 null 已经没了，
- * 于是上一版的比较器里挂着一个 ?? 0 —— 那是一段永远不会执行的兜底。
- * flatMap 就地收窄类型，兜底随之消失。
- */
 export const SURFACE_NAVIGATION_ORDER: readonly SurfaceId[] = (
   Object.keys(SURFACE_REGISTRY) as SurfaceId[]
 )

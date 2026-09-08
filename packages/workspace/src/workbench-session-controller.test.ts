@@ -37,11 +37,11 @@ describe('workbench session controller', () => {
 
     store.activateTab('surface:ai')
 
-    store.openSurface({ surfaceId: 'tools' })
+    store.openSurface({ surfaceId: 'library' })
 
     expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
       'surface:ai',
-      'surface:tools',
+      'surface:library',
       'conversation:thread-1',
     ])
   })
@@ -59,12 +59,12 @@ describe('workbench session controller', () => {
   it('selects the right adjacent tab after closing active', () => {
     const store = createWorkbenchSessionController()
 
-    store.openSurface({ surfaceId: 'tools' })
+    store.openSurface({ surfaceId: 'library' })
 
     store.openSurface({ surfaceId: 'search' })
 
-    store.activateTab('surface:tools')
-    store.closeTab('surface:tools')
+    store.activateTab('surface:library')
+    store.closeTab('surface:library')
 
     expect(store.getSnapshot().activeTabId).toBe('surface:search')
   })
@@ -72,9 +72,9 @@ describe('workbench session controller', () => {
   it('selects the left adjacent tab when closing the last tab', () => {
     const store = createWorkbenchSessionController()
 
-    store.openSurface({ surfaceId: 'tools' })
+    store.openSurface({ surfaceId: 'library' })
 
-    store.closeTab('surface:tools')
+    store.closeTab('surface:library')
 
     expect(store.getSnapshot().activeTabId).toBe('surface:ai')
   })
@@ -82,7 +82,7 @@ describe('workbench session controller', () => {
   it('moves tabs including the default surface tab', () => {
     const store = createWorkbenchSessionController()
 
-    store.openSurface({ surfaceId: 'tools' })
+    store.openSurface({ surfaceId: 'library' })
 
     store.openSurface({ surfaceId: 'search' })
 
@@ -91,7 +91,7 @@ describe('workbench session controller', () => {
     expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
       'surface:ai',
       'surface:search',
-      'surface:tools',
+      'surface:library',
     ])
 
     store.moveTab('surface:ai', 2)
@@ -128,5 +128,63 @@ describe('workbench session controller', () => {
       activeTabId: 'surface:ai',
       activeSurface: { kind: 'surface', surfaceId: 'ai' },
     })
+  })
+
+  it('restores the library as a singleton surface', () => {
+    const store = createWorkbenchSessionController({
+      restored: JSON.stringify({
+        entries: [{ kind: 'surface', surfaceId: 'library' }],
+        activeIndex: 0,
+      }),
+    })
+    store.openSurface({ surfaceId: 'library' })
+    expect(store.getSnapshot().tabs).toHaveLength(1)
+    expect(store.getSnapshot().activeSurface).toMatchObject({
+      surfaceId: 'library',
+      title: '资料库',
+    })
+  })
+
+  it.each([0, 1, 2])(
+    'preserves conversations around a removed surface at index %s',
+    (activeIndex) => {
+      const store = createWorkbenchSessionController({
+        restored: JSON.stringify({
+          entries: [
+            { kind: 'conversation', threadId: 'first', title: 'First' },
+            { kind: 'surface', surfaceId: 'unregistered-surface' },
+            { kind: 'conversation', threadId: 'second', title: 'Second' },
+          ],
+          activeIndex,
+        }),
+      })
+      expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
+        'conversation:first',
+        'conversation:second',
+      ])
+      expect(store.getSnapshot().activeTabId).toBe(
+        activeIndex === 0 ? 'conversation:first' : 'conversation:second',
+      )
+    },
+  )
+
+  it('returns to the entry when no registered surface remains', () => {
+    const store = createWorkbenchSessionController({
+      restored: JSON.stringify({
+        entries: [{ kind: 'surface', surfaceId: 'unregistered-surface' }],
+        activeIndex: 0,
+      }),
+    })
+    expect(store.getSnapshot().activeTabId).toBe('surface:ai')
+  })
+
+  it('still rejects malformed persisted entries', () => {
+    const store = createWorkbenchSessionController({
+      restored: JSON.stringify({
+        entries: [{ kind: 'surface', surfaceId: 42 }],
+        activeIndex: 0,
+      }),
+    })
+    expect(store.getSnapshot().activeTabId).toBe('surface:ai')
   })
 })

@@ -39,12 +39,14 @@ import {
 import { AppUpdateStore } from '@poietica/update'
 import { createCommandRegistry, createWorkbenchSessionController } from '@poietica/workspace'
 import { createAuxiliaryPanelStore } from '@poietica/workspace/panels'
+import { createElement } from 'react'
 import { v7 as uuidv7 } from 'uuid'
 import { createAttachmentIntake } from '../assistant/attachment-intake'
 import { createConversationEntry } from '../assistant/conversation-entry'
 import { createWorkspaceCollapse } from '../assistant/workspace-collapse'
 import { reconcileBrowserMcpServer } from '../browser/browser-mcp'
 import { createBrowserPickController } from '../browser/browser-pick'
+import { LibrarySurface } from '../library/library-surface'
 import { NoticeStore } from '../notice/notices'
 import { reportFailure } from '../notice/problem-presentation'
 import { createWorkspaceLayoutPreference } from '../shell/layout/layout-preference'
@@ -332,6 +334,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     attachments,
     pluginStore,
     automationStore,
+    librarySurface: () => createElement(LibrarySurface),
     own,
     appVersion: readAppVersion,
     dataDirectory: readDataDirectory,
