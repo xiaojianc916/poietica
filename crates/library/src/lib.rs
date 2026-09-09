@@ -15,7 +15,7 @@ use walkdir::WalkDir;
 
 mod table;
 
-pub use table::TableSheet;
+pub use table::{SheetFieldKind, TableSheet};
 
 /// 单份资料的读写上限。
 const MAX_DOCUMENT_BYTES: u64 = 16 * 1024 * 1024;
@@ -25,7 +25,15 @@ const MAX_ENTRIES: usize = 20_000;
 const LOCK_FILE: &str = ".poietica-library.lock";
 const UNTITLED_FOLDER: &str = "未命名文件夹";
 /// 新建表格落盘的初始表：空文件不是表，打开就得是一张可用的表。
+/// 列名即列类型，种子边车跟着写一份，见 create。
 const TABLE_SEED: &str = "标题,数字,单选,日期\n,,,\n,,,\n,,,\n,,,\n,,,\n";
+/// 新建表格的初始列类型，与 TABLE_SEED 的列名一一对应。
+const TABLE_SEED_KINDS: [SheetFieldKind; 4] = [
+    SheetFieldKind::Text,
+    SheetFieldKind::Number,
+    SheetFieldKind::Select,
+    SheetFieldKind::Date,
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -339,7 +347,11 @@ impl Vault {
     fn document(&self, path: &str) -> Result<LibraryDocument> {
         let (target, format) = self.file(path)?;
         let bytes = read_bytes(&target)?;
-        let version = fingerprint(&bytes);
+        let schema = match format {
+            LibraryFormat::Table => read_schema(&target)?,
+            _ => None,
+        };
+        let version = fingerprint_doc(&bytes, schema.as_deref().unwrap_or_default().as_bytes());
         let text = decode_text(bytes)?;
 
         Ok(LibraryDocument {
@@ -347,17 +359,22 @@ impl Vault {
             version,
             body: match format {
                 LibraryFormat::Markdown => LibraryBody::Markdown(text),
-                LibraryFormat::Table => LibraryBody::Table(table::decode(&text)?),
+                LibraryFormat::Table => LibraryBody::Table(decode_sheet(&text, schema.as_deref())?),
                 LibraryFormat::Page => LibraryBody::Page(text),
             },
         })
     }
 
     /// 先写临时文件再比对指纹最后原子替换：写失败不会留下半份文件。
+    /// 指纹叠加边车：只改列类型也算改动，顶掉别人的类型改动要报冲突。
     fn write(&self, path: &str, body: &LibraryBody, expected: &str) -> Result<LibraryDocument> {
         let _lock = self.lock()?;
         let (target, format) = self.file(path)?;
         let content = serialize(format, body)?;
+        let schema = match body {
+            LibraryBody::Table(sheet) => table::encode_kinds(&sheet.kinds),
+            _ => None,
+        };
         let holder = target
             .parent()
             .ok_or_else(|| LibraryError::Invalid("资料没有父目录。".to_owned()))?;
@@ -367,27 +384,38 @@ impl Vault {
             return Err(LibraryError::Invalid("资料是只读的，未写入。".to_owned()));
         }
 
+        let current = read_bytes(&target)?;
+        let current_schema = match format {
+            LibraryFormat::Table => read_schema(&target)?.unwrap_or_default(),
+            _ => String::new(),
+        };
+
+        if fingerprint_doc(&current, current_schema.as_bytes()) != expected {
+            return Err(LibraryError::Conflict);
+        }
+
         let mut prepared = NamedTempFile::new_in(holder)?;
 
         prepared.as_file().set_permissions(permissions)?;
         prepared.write_all(content.as_bytes())?;
         prepared.as_file().sync_all()?;
-
-        if fingerprint(&read_bytes(&target)?) != expected {
-            return Err(LibraryError::Conflict);
-        }
-
         prepared
             .persist(&target)
             .map_err(|error| LibraryError::Io(error.error))?;
+        write_schema(&target, schema.as_deref())?;
 
         Ok(LibraryDocument {
             path: path.to_owned(),
-            version: fingerprint(content.as_bytes()),
+            version: fingerprint_doc(
+                content.as_bytes(),
+                schema.as_deref().unwrap_or_default().as_bytes(),
+            ),
             body: match body {
                 LibraryBody::Markdown(_) => LibraryBody::Markdown(content),
                 LibraryBody::Page(_) => LibraryBody::Page(content),
-                LibraryBody::Table(_) => LibraryBody::Table(table::decode(&content)?),
+                LibraryBody::Table(_) => {
+                    LibraryBody::Table(decode_sheet(&content, schema.as_deref())?)
+                }
             },
         })
     }
@@ -402,6 +430,15 @@ impl Vault {
             .create_new(true)
             .open(&target)?
             .write_all(format.seed().as_bytes())?;
+
+        if format == LibraryFormat::Table {
+            let seed: Vec<Option<SheetFieldKind>> =
+                TABLE_SEED_KINDS.iter().map(|kind| Some(*kind)).collect();
+
+            if let Some(text) = table::encode_kinds(&seed) {
+                fs::write(schema_path(&target), text)?;
+            }
+        }
 
         self.relative(&target)
     }
@@ -446,13 +483,33 @@ impl Vault {
         }
 
         fs::rename(&source, &target)?;
+
+        if LibraryFormat::of(&source) == Some(LibraryFormat::Table) {
+            match fs::rename(schema_path(&source), schema_path(&target)) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                other => {
+                    other?;
+                }
+            }
+        }
+
         self.relative(&target)
     }
 
-    /// 进系统回收站，文件与文件夹同一条路径。
+    /// 进系统回收站，文件与文件夹同一条路径。表格先清边车：主文件已经进了
+    /// 回收站，边车再留着就是一份永远对不上的孤儿。
     fn trash(&self, path: &str) -> Result<()> {
         let _lock = self.lock()?;
         let target = self.path(path, false)?;
+
+        if LibraryFormat::of(&target) == Some(LibraryFormat::Table) {
+            match fs::remove_file(schema_path(&target)) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                other => {
+                    other?;
+                }
+            }
+        }
 
         trash::delete(target).map_err(|error| LibraryError::Invalid(error.to_string()))
     }
@@ -573,9 +630,71 @@ fn vacancy(holder: &Path, stem: &str, extension: Option<&str>) -> Result<PathBuf
     Err(LibraryError::Invalid("同名条目过多，未新建。".to_owned()))
 }
 
-/// 落盘字节的指纹。乐观并发只需要「变没变」，blake3 已在本工作区，不再引第二套摘要。
-fn fingerprint(bytes: &[u8]) -> String {
-    blake3::hash(bytes).to_hex().to_string()
+/// 边车文件名：表.csv → 表.schema.json。json 不在资料种类里，目录与搜索自然无视它。
+fn schema_path(target: &Path) -> PathBuf {
+    target.with_extension("schema.json")
+}
+
+/// 边车缺席是常态（老文件、导入的文件），只有其它读错误才算错。
+fn read_schema(target: &Path) -> Result<Option<String>> {
+    match fs::read_to_string(schema_path(target)) {
+        Ok(text) => Ok(Some(text)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(LibraryError::Io(error)),
+    }
+}
+
+/// 边车与主文件同一次落盘。None 表示没有指定的类型，旧边车顺手清掉。
+fn write_schema(target: &Path, schema: Option<&str>) -> Result<()> {
+    let path = schema_path(target);
+
+    match schema {
+        Some(text) => {
+            let holder = path
+                .parent()
+                .ok_or_else(|| LibraryError::Invalid("资料没有父目录。".to_owned()))?;
+            let mut prepared = NamedTempFile::new_in(holder)?;
+
+            if let Ok(permissions) = fs::metadata(&path).map(|metadata| metadata.permissions()) {
+                prepared.as_file().set_permissions(permissions)?;
+            }
+
+            prepared.write_all(text.as_bytes())?;
+            prepared.as_file().sync_all()?;
+            prepared
+                .persist(&path)
+                .map_err(|error| LibraryError::Io(error.error))?;
+            Ok(())
+        }
+        None => match fs::remove_file(&path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            other => other.map_err(LibraryError::Io),
+        },
+    }
+}
+
+/// CSV 解码后再把边车的类型按列对上：外部改过表头时多退少补，不报错。
+fn decode_sheet(text: &str, schema: Option<&str>) -> Result<TableSheet> {
+    let mut sheet = table::decode(text)?;
+    let mut kinds = table::decode_kinds(schema);
+
+    kinds.resize(sheet.header.len(), None);
+    sheet.kinds = kinds;
+
+    Ok(sheet)
+}
+
+/// 落盘内容的指纹。乐观并发只需要「变没变」，blake3 已在本工作区，不再引第二套摘要。
+/// 边车也在指纹里：只改列类型也算一次改动。
+fn fingerprint_doc(csv: &[u8], schema: &[u8]) -> String {
+    let mut hasher = blake3::Hasher::new();
+
+    for part in [csv, schema] {
+        hasher.update(&(part.len() as u64).to_le_bytes());
+        hasher.update(part);
+    }
+
+    hasher.finalize().to_hex().to_string()
 }
 
 fn read_bytes(path: &Path) -> Result<Vec<u8>> {
@@ -602,9 +721,7 @@ fn read_text(path: &Path) -> Result<String> {
 /// 正文形状必须与资料种类相符，序列化只在这里做一次。
 fn serialize(format: LibraryFormat, body: &LibraryBody) -> Result<String> {
     if body.format() != format {
-        return Err(LibraryError::Invalid(
-            "正文形状与资料种类不符。".to_owned(),
-        ));
+        return Err(LibraryError::Invalid("正文形状与资料种类不符。".to_owned()));
     }
 
     let content = match body {
@@ -626,11 +743,13 @@ mod tests {
     #![allow(
         clippy::expect_used,
         clippy::panic,
+        clippy::indexing_slicing,
         reason = "fixture failures must fail the test"
     )]
 
     use super::{
-        LibraryBody, LibraryError, LibraryFormat, LibraryReply, LibraryRequest, Vault,
+        LibraryBody, LibraryError, LibraryFormat, LibraryReply, LibraryRequest, SheetFieldKind,
+        TableSheet, Vault,
     };
     use std::fs;
 
@@ -657,6 +776,36 @@ mod tests {
                 })
                 .expect("create"),
         )
+    }
+
+    fn table(vault: &Vault) -> String {
+        placed(
+            vault
+                .execute(LibraryRequest::Create {
+                    parent: String::new(),
+                    format: LibraryFormat::Table,
+                })
+                .expect("create table"),
+        )
+    }
+
+    fn read(vault: &Vault, path: &str) -> super::LibraryDocument {
+        match vault
+            .execute(LibraryRequest::Read {
+                path: path.to_owned(),
+            })
+            .expect("read")
+        {
+            LibraryReply::Document(document) => document,
+            other => panic!("expected a document, got {other:?}"),
+        }
+    }
+
+    fn sheet_of(document: &super::LibraryDocument) -> TableSheet {
+        match &document.body {
+            LibraryBody::Table(sheet) => sheet.clone(),
+            other => panic!("expected a table, got {other:?}"),
+        }
     }
 
     #[test]
@@ -760,5 +909,86 @@ mod tests {
             }),
             Err(LibraryError::Invalid(_))
         ));
+    }
+
+    #[test]
+    fn fresh_tables_carry_seed_kinds_and_survive_a_save() {
+        let (_home, vault) = vault();
+        let path = table(&vault);
+        let opened = read(&vault, &path);
+
+        assert_eq!(
+            sheet_of(&opened).kinds,
+            [
+                SheetFieldKind::Text,
+                SheetFieldKind::Number,
+                SheetFieldKind::Select,
+                SheetFieldKind::Date,
+            ]
+            .into_iter()
+            .map(Some)
+            .collect::<Vec<_>>()
+        );
+
+        let mut sheet = sheet_of(&opened);
+
+        sheet.kinds = vec![Some(SheetFieldKind::Currency), None, None, None];
+
+        let LibraryReply::Document(saved) = vault
+            .execute(LibraryRequest::Save {
+                path: path.clone(),
+                expected: opened.version.clone(),
+                body: LibraryBody::Table(sheet),
+            })
+            .expect("save")
+        else {
+            panic!("expected a document")
+        };
+
+        assert_ne!(saved.version, opened.version);
+        assert_eq!(sheet_of(&saved).kinds[0], Some(SheetFieldKind::Currency));
+        assert_eq!(
+            sheet_of(&read(&vault, &path)).kinds[0],
+            Some(SheetFieldKind::Currency)
+        );
+    }
+
+    #[test]
+    fn tables_without_a_schema_fall_back_to_unspecified() {
+        let (home, vault) = vault();
+
+        fs::write(home.path().join("外部.csv"), "甲,乙\n1,2\n").expect("write source");
+
+        let opened = read(&vault, "外部.csv");
+
+        assert_eq!(sheet_of(&opened).kinds, vec![None, None]);
+    }
+
+    #[test]
+    fn renaming_a_table_moves_its_schema_and_trashing_cleans_it() {
+        let (home, vault) = vault();
+        let path = table(&vault);
+
+        assert!(home.path().join("未命名表格.schema.json").exists());
+
+        let moved = placed(
+            vault
+                .execute(LibraryRequest::Rename {
+                    path,
+                    name: "改名.csv".to_owned(),
+                })
+                .expect("rename"),
+        );
+
+        assert_eq!(moved, "改名.csv");
+        assert!(!home.path().join("未命名表格.schema.json").exists());
+        assert!(home.path().join("改名.schema.json").exists());
+
+        vault
+            .execute(LibraryRequest::Trash { path: moved })
+            .expect("trash");
+
+        assert!(!home.path().join("改名.csv").exists());
+        assert!(!home.path().join("改名.schema.json").exists());
     }
 }

@@ -26,7 +26,7 @@ export {
   DropdownMenuTrigger,
 } from './control/dropdown-menu'
 export { ErrorState, InlineSpinner, LoadingState } from './control/feedback'
-export { popupSurfaceClassName } from './control/popup-surface'
+export { popupPositionerClassName, popupSurfaceClassName } from './control/popup-surface'
 
 export { SearchableSelect } from './control/searchable-select'
 export { Select, type SelectOption } from './control/select'

@@ -1578,6 +1578,10 @@ export type Retryability = "no" | "afterDelay" | "afterUserAction"
 export type SchedulePreview = { nextRunAt: string | null; problem: ScheduleProblem | null }
 export type ScheduleProblem = "unreadable" | "neverRuns" | "tooFrequent" | "timeZone"
 export type SettingsWriteResult = { settings: AppSettings; applicationProblem: Problem | null }
+/**
+ * 列类型的唯一词汇（ADR 0043）。TS 侧经生成绑定引用，不手抄。
+ */
+export type SheetFieldKind = "text" | "number" | "currency" | "select" | "multiSelect" | "date" | "person" | "checkbox" | "link" | "email" | "phone" | "image" | "attachment"
 export type SkillCommitRequest = { stagingId: string; name: string; subdirectory: string | null }
 export type SkillRecord = { name: string; enabled: boolean; document: string; path: string; supportingFiles: number; totalBytes: number; modifiedAt: number | null }
 export type SkillStaged = { stagingId: string; skillMd: string }
@@ -1586,7 +1590,12 @@ export type TableExportRequest = { content: string; format: TableExportFormat }
 /**
  * 一张表。表头即字段名，每行按表头宽度对齐。
  */
-export type TableSheet = { header: string[]; rows: string[][] }
+export type TableSheet = { header: string[]; rows: string[][]; 
+/**
+ * 按列对齐的列类型。None 表示未指定，界面按列里的值推断。
+ * 类型只住在边车文件里（见 ADR 0043），CSV 本体保持纯表格。
+ */
+kinds: (SheetFieldKind | null)[] }
 /**
  * 一段 PTY 字节，或一次退出。字节是 base64：Tauri 的事件与命令走 JSON。
  */

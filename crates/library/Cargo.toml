@@ -13,6 +13,7 @@ workspace = true
 blake3.workspace = true
 csv.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 specta.workspace = true
 thiserror.workspace = true
 tempfile.workspace = true

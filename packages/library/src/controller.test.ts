@@ -125,7 +125,7 @@ describe('LibraryController', () => {
   })
 
   test('表格改动进撤销栈，保存只报版本号', async () => {
-    const sheet = { header: ['甲'], rows: [['一']] }
+    const sheet = { header: ['甲'], rows: [['一']], kinds: [null] }
     const { gateway, sent } = recorder([entry('表.csv', false)], (request) => ({
       kind: 'document',
       value: {
@@ -151,7 +151,7 @@ describe('LibraryController', () => {
       kind: 'save',
       path: '表.csv',
       expected: 'v1',
-      body: { kind: 'table', value: { header: ['甲'], rows: [['三']] } },
+      body: { kind: 'table', value: { header: ['甲'], rows: [['三']], kinds: [null] } },
     })
   })
 })

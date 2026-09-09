@@ -399,7 +399,7 @@ export function LibrarySurface({
     >
       <aside
         aria-label={ROOT_LABEL}
-        className="flex min-h-0 flex-col gap-3 border-divider border-r bg-background px-3 pt-5 pb-3"
+        className="flex min-h-0 flex-col gap-3 bg-[#f7f7f7] px-3 pt-5 pb-3"
       >
         <header className="flex items-center gap-2 px-1">
           <BookOpen aria-hidden="true" className="size-5 text-primary" />

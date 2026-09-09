@@ -28,8 +28,12 @@ export type {
 export {
   addField,
   addRow,
+  duplicateField,
+  duplicateRow,
   EMPTY_VIEW,
   fields,
+  insertField,
+  insertRows,
   moveField,
   nextFieldName,
   options,
@@ -39,5 +43,6 @@ export {
   renameField,
   retarget,
   setCell,
+  setKind,
   tintOf,
 } from './sheet'

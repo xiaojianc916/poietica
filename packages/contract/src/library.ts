@@ -6,5 +6,6 @@ export type {
   LibraryFormat,
   LibraryReply,
   LibraryRequest,
+  SheetFieldKind,
   TableSheet,
 } from './generated/ipc-bindings'
