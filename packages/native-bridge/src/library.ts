@@ -3,8 +3,8 @@ import type { LibraryGateway } from '@poietica/library'
 import { throughIpc } from './ipc-error'
 
 export const libraryGateway: LibraryGateway = {
-  pick: () => throughIpc(() => commands.libraryPick()),
-  execute: (root, request) => throughIpc(() => commands.libraryExecute(root, request)),
+  execute: (request) => throughIpc(() => commands.libraryExecute(request)),
+  importFile: (parent) => throughIpc(() => commands.libraryImport(parent)),
 }
 
 export const openLibraryLink = (url: string): Promise<void> =>

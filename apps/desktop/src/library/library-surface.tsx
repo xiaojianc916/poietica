@@ -1,71 +1,331 @@
-import type { LibraryController, LibraryEntry } from '@poietica/library'
+import {
+  Button,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@poietica/design-system'
+import type {
+  LibraryController,
+  LibraryEntry,
+  LibraryFormat,
+  LibraryState,
+} from '@poietica/library'
 import {
   BookOpen,
+  ChevronDown,
+  ChevronRight,
+  Code,
   Eye,
-  FileOutput,
-  FilePlus,
   FileText,
-  FolderOpen,
+  Folder,
   FolderPlus,
+  MoreHorizontal,
   Pencil,
+  Plus,
   Save,
   Search,
+  Table,
   Trash2,
   Upload,
 } from 'lucide-react'
-import { useId, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useMemo, useState, useSyncExternalStore } from 'react'
 import { MarkdownContent } from './markdown-content'
-import './library-surface.css'
 
-function LibraryDirectory({
-  entries,
+const ROOT_LABEL = '我的资料'
+
+/** 三种格式在界面上的读法，顺序就是新建菜单的顺序。 */
+const FORMATS = [
+  { format: 'markdown', label: '新建文档（.md）', Mark: FileText },
+  { format: 'table', label: '新建表格（.csv）', Mark: Table },
+  { format: 'page', label: '新建网页（.html）', Mark: Code },
+] as const satisfies readonly { format: LibraryFormat; label: string; Mark: typeof FileText }[]
+
+/** 一行条目能发出的全部意图。落点由点下去的那一行给出，不靠全局选中态推断。 */
+interface LibraryIntents {
+  readonly open: (path: string) => void
+  readonly create: (parent: string, format: LibraryFormat) => void
+  readonly folder: (parent: string) => void
+  readonly importFile: (parent: string) => void
+  readonly rename: (path: string, name: string) => void
+  readonly trash: (path: string) => void
+}
+
+function siblings(entries: readonly LibraryEntry[]): Map<string, LibraryEntry[]> {
+  const grouped = new Map<string, LibraryEntry[]>()
+
+  for (const entry of entries) {
+    const found = grouped.get(entry.parent)
+
+    if (found === undefined) {
+      grouped.set(entry.parent, [entry])
+    } else {
+      found.push(entry)
+    }
+  }
+
+  return grouped
+}
+
+function CreateMenu({
+  intents,
+  label,
   parent,
-  selected,
-  busy,
-  open,
 }: {
-  entries: readonly LibraryEntry[]
+  intents: LibraryIntents
+  label: string
   parent: string
-  selected: string | undefined
-  busy: boolean
-  open: (path: string) => void
 }) {
   return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={label}
+        className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+      >
+        <Plus aria-hidden="true" className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {FORMATS.map(({ format, label: title, Mark }) => (
+          <DropdownMenuItem key={format} onClick={() => intents.create(parent, format)}>
+            <Mark aria-hidden="true" className="size-4" />
+            {title}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => intents.folder(parent)}>
+          <FolderPlus aria-hidden="true" className="size-4" />
+          新建文件夹
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => intents.importFile(parent)}>
+          <Upload aria-hidden="true" className="size-4" />
+          导入文件
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function EntryRow({
+  depth,
+  entry,
+  intents,
+  opened,
+  renaming,
+  setRenaming,
+  tree,
+}: {
+  depth: number
+  entry: LibraryEntry
+  intents: LibraryIntents
+  opened: string | undefined
+  renaming: string | null
+  setRenaming: (path: string | null) => void
+  tree: Map<string, LibraryEntry[]>
+}) {
+  const [expanded, setExpanded] = useState(true)
+  const folder = entry.format === null
+  const Mark = folder
+    ? Folder
+    : (FORMATS.find((item) => item.format === entry.format)?.Mark ?? FileText)
+
+  if (renaming === entry.path) {
+    return (
+      <form
+        className="flex h-8 items-center px-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+
+          const value = new FormData(event.currentTarget).get('name')
+
+          setRenaming(null)
+
+          if (typeof value === 'string' && value.trim().length > 0) {
+            intents.rename(entry.path, value.trim())
+          }
+        }}
+        style={{ paddingLeft: 8 + depth * 12 }}
+      >
+        <input
+          aria-label="新名称"
+          className="min-w-0 flex-1 rounded border border-input bg-background px-1 py-0.5 text-sm outline-none"
+          defaultValue={entry.name}
+          name="name"
+          onBlur={() => setRenaming(null)}
+          ref={(node) => {
+            node?.select()
+          }}
+        />
+      </form>
+    )
+  }
+
+  return (
     <>
-      {entries
-        .filter((entry) => entry.parent === parent)
-        .map((entry) =>
-          entry.folder ? (
-            <details key={entry.path} open>
-              <summary className="library-surface__folder">
-                <FolderOpen aria-hidden="true" />
-                <span>{entry.name}</span>
-              </summary>
-              <div className="library-surface__children">
-                <LibraryDirectory
-                  busy={busy}
-                  entries={entries}
-                  open={open}
-                  parent={entry.path}
-                  selected={selected}
-                />
-              </div>
-            </details>
-          ) : (
-            <button
-              aria-current={entry.path === selected ? 'page' : undefined}
-              className="library-surface__entry"
-              disabled={busy}
-              key={entry.path}
-              onClick={() => open(entry.path)}
-              type="button"
-            >
-              <FileText aria-hidden="true" />
-              <span>{entry.name}</span>
-            </button>
-          ),
+      <div
+        className={cn(
+          'group flex h-8 items-center gap-1 rounded-md pr-1 text-sm hover:bg-accent',
+          entry.path === opened && 'bg-accent font-medium',
         )}
+        style={{ paddingLeft: 4 + depth * 12 }}
+      >
+        <button
+          className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left"
+          onClick={() => (folder ? setExpanded(!expanded) : intents.open(entry.path))}
+          type="button"
+        >
+          {folder ? (
+            expanded ? (
+              <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-muted-foreground"
+              />
+            )
+          ) : null}
+          <Mark aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+          <span className="truncate">{entry.name}</span>
+        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label="更多操作"
+            className="rounded p-0.5 text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100"
+          >
+            <MoreHorizontal aria-hidden="true" className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setRenaming(entry.path)}>
+              <Pencil aria-hidden="true" className="size-4" />
+              重命名
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => intents.trash(entry.path)}
+            >
+              <Trash2 aria-hidden="true" className="size-4" />
+              删除
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {folder ? (
+          <CreateMenu intents={intents} label={`在${entry.name}中新建`} parent={entry.path} />
+        ) : null}
+      </div>
+      {folder && expanded
+        ? (tree.get(entry.path) ?? []).map((child) => (
+            <EntryRow
+              depth={depth + 1}
+              entry={child}
+              intents={intents}
+              key={child.path}
+              opened={opened}
+              renaming={renaming}
+              setRenaming={setRenaming}
+              tree={tree}
+            />
+          ))
+        : null}
     </>
+  )
+}
+
+/** 右侧内容区：位置导航、读写切换与正文。 */
+function ContentPane({
+  controller,
+  mode,
+  openLink,
+  setMode,
+  state,
+}: {
+  controller: LibraryController
+  mode: 'read' | 'edit'
+  openLink: (url: string) => void
+  setMode: (mode: 'read' | 'edit') => void
+  state: LibraryState
+}) {
+  const opened = state.document
+  const trail = opened === null ? [] : opened.path.replaceAll('\\', '/').split('/')
+  const readable =
+    opened !== null &&
+    (state.entries.find((entry) => entry.path === opened.path)?.format ?? 'markdown') === 'markdown'
+
+  return (
+    <section aria-label="资料内容" className="flex min-h-0 flex-col">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-divider border-b px-4">
+        <nav aria-label="位置" className="flex min-w-0 flex-1 items-center gap-1 text-sm">
+          <span className="text-muted-foreground">{ROOT_LABEL}</span>
+          {trail.map((part, index) => (
+            <span
+              className="flex min-w-0 items-center gap-1"
+              key={trail.slice(0, index + 1).join('/')}
+            >
+              <span className="text-muted-foreground">/</span>
+              <span className="truncate">{part}</span>
+            </span>
+          ))}
+        </nav>
+        {state.busy ? <span className="text-muted-foreground text-xs">正在处理…</span> : null}
+        {opened === null ? null : (
+          <div className="flex items-center gap-1">
+            {readable ? (
+              <Button
+                aria-label={mode === 'read' ? '编辑' : '阅读'}
+                onClick={() => setMode(mode === 'read' ? 'edit' : 'read')}
+                size="icon"
+                variant="ghost"
+              >
+                {mode === 'read' ? (
+                  <Pencil aria-hidden="true" className="size-4" />
+                ) : (
+                  <Eye aria-hidden="true" className="size-4" />
+                )}
+              </Button>
+            ) : null}
+            <Button
+              aria-label="保存"
+              disabled={!controller.dirty}
+              onClick={() => void controller.save()}
+              size="icon"
+              variant="ghost"
+            >
+              <Save aria-hidden="true" className="size-4" />
+            </Button>
+          </div>
+        )}
+      </header>
+      {state.failure === null ? null : (
+        <div
+          className="flex items-center gap-3 border-divider border-b bg-muted px-4 py-2 text-sm"
+          role="alert"
+        >
+          <p className="min-w-0 flex-1">{state.failure}</p>
+          <Button onClick={controller.clearFailure} size="xs" variant="ghost">
+            关闭
+          </Button>
+        </div>
+      )}
+      {opened === null ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+          <BookOpen aria-hidden="true" className="size-8" />
+          <p className="text-sm">选一份资料开始，或从左侧新建。</p>
+        </div>
+      ) : readable && mode === 'read' ? (
+        <article className="mx-auto min-h-0 w-full max-w-3xl flex-1 overflow-y-auto px-8 py-6">
+          <MarkdownContent content={state.draft} onOpenLink={openLink} />
+        </article>
+      ) : (
+        <textarea
+          aria-label="资料源文"
+          className="min-h-0 flex-1 resize-none bg-transparent px-8 py-6 font-mono text-sm leading-relaxed outline-none"
+          onChange={(event) => controller.edit(event.target.value)}
+          spellCheck={false}
+          value={state.draft}
+        />
+      )}
+    </section>
   )
 }
 
@@ -81,344 +341,131 @@ export function LibrarySurface({
     controller.getSnapshot,
     controller.getSnapshot,
   )
-  const [query, setQuery] = useState('')
-  const [path, setPath] = useState('')
-  const [action, setAction] = useState<'create' | 'folder' | 'copy' | 'trash' | null>(null)
+  const [renaming, setRenaming] = useState<string | null>(null)
   const [mode, setMode] = useState<'read' | 'edit'>('read')
   const titleId = useId()
-  const filenameId = useId()
-  const [importFile, setImportFile] = useState<File | null>(null)
-  const catalog = state.catalog
-  const busy = state.busy
+  const tree = useMemo(() => siblings(state.entries), [state.entries])
+  const intents = useMemo<LibraryIntents>(
+    () => ({
+      open: (path) => {
+        void controller.open(path).then((opened) => {
+          if (opened) {
+            setMode('read')
+          }
+        })
+      },
+      create: (parent, format) => {
+        void controller.create(parent, format).then((made) => {
+          if (made) {
+            setMode('edit')
+          }
+        })
+      },
+      folder: (parent) => {
+        void controller.folder(parent)
+      },
+      importFile: (parent) => {
+        void controller.importFile(parent)
+      },
+      rename: (path, name) => {
+        void controller.rename(path, name)
+      },
+      trash: (path) => {
+        void controller.trash(path)
+      },
+    }),
+    [controller],
+  )
 
-  async function submitAction() {
-    let succeeded = false
-    if (action === 'trash') {
-      succeeded = await controller.trash()
-    } else if (action === 'folder') {
-      succeeded = await controller.folder(path)
-    } else if (action === 'copy') {
-      succeeded = await controller.saveCopy(path)
-    } else if (action === 'create') {
-      succeeded = importFile
-        ? await controller.import(path, async () => {
-            if (importFile.size > 16 * 1024 * 1024) {
-              throw new Error('导入文件超过 16 MiB。')
-            }
-            return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
-              await importFile.arrayBuffer(),
-            )
-          })
-        : await controller.create(path)
-    }
-    if (succeeded) {
-      setAction(null)
-      setPath('')
-      setImportFile(null)
-      setMode('edit')
-    }
-  }
+  useEffect(() => {
+    void controller.start()
+  }, [controller])
 
-  function begin(kind: 'create' | 'folder' | 'copy' | 'trash') {
-    setImportFile(null)
-    setAction(kind)
-    setPath('')
-  }
+  const opened = state.document
 
   return (
     <section
       aria-labelledby={titleId}
-      className="library-surface"
+      className="grid h-full min-h-0 grid-cols-[280px_minmax(0,1fr)] bg-ground text-foreground"
       onKeyDown={(event) => {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
           event.preventDefault()
-          if (!busy) {
-            void controller.save()
-          }
-        }
-        if (event.key === 'Escape' && !busy) {
-          setAction(null)
-          setImportFile(null)
+          void controller.save()
         }
       }}
     >
-      <aside aria-label="资料目录" className="library-surface__catalog">
-        <header className="library-surface__brand">
-          <BookOpen aria-hidden="true" />
-          <h1 id={titleId}>资料库</h1>
+      <aside
+        aria-label={ROOT_LABEL}
+        className="flex min-h-0 flex-col gap-3 border-divider border-r bg-background px-3 pt-5 pb-3"
+      >
+        <header className="flex items-center gap-2 px-1">
+          <BookOpen aria-hidden="true" className="size-5 text-primary" />
+          <h1 className="font-semibold text-base" id={titleId}>
+            资料库
+          </h1>
         </header>
-        <button
-          className="library-surface__root"
-          disabled={busy}
-          onClick={() => void controller.choose()}
-          type="button"
-        >
-          <FolderOpen aria-hidden="true" />
-          <span>{catalog ? '切换资料文件夹' : '打开资料文件夹'}</span>
-        </button>
-        <form
-          className="library-surface__search"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void controller.search(query)
-          }}
-        >
+        <div className="flex items-center gap-1.5 rounded-md bg-muted px-2">
+          <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
           <input
-            aria-label="搜索文件名和正文"
-            disabled={!catalog}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索文件名和正文"
+            aria-label="搜索资料名与正文"
+            className="min-w-0 flex-1 bg-transparent py-1.5 text-sm outline-none"
+            onChange={(event) => controller.search(event.target.value)}
+            placeholder="搜索"
             type="search"
-            value={query}
+            value={state.query}
           />
-          <button aria-label="执行搜索" disabled={!catalog || busy} title="搜索" type="submit">
-            <Search aria-hidden="true" />
-          </button>
-        </form>
-        <div className="library-surface__actions">
-          <button
-            disabled={!catalog || busy}
-            onClick={() => begin('create')}
-            title="新建资料"
-            type="button"
-          >
-            <FilePlus aria-hidden="true" />
-            新建
-          </button>
-          <button
-            disabled={!catalog || busy}
-            onClick={() => begin('folder')}
-            title="新建文件夹"
-            type="button"
-          >
-            <FolderPlus aria-hidden="true" />
-            文件夹
-          </button>
-          <label className="library-surface__import">
-            <Upload aria-hidden="true" />
-            导入
-            <input
-              accept=".md,.markdown,.txt"
-              aria-label="导入文本资料"
-              disabled={!catalog || busy}
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0]
-                if (file) {
-                  setImportFile(file)
-                  setPath(file.name)
-                  setAction('create')
-                }
-                event.currentTarget.value = ''
-              }}
-              type="file"
-            />
-          </label>
         </div>
-        <nav aria-label="本地资料" className="library-surface__entries">
-          {!catalog ? (
-            <p className="library-surface__hint">打开已有笔记文件夹，或选择一个空文件夹开始。</p>
-          ) : null}
-          {catalog?.entries.length === 0 ? (
-            <p className="library-surface__hint">
-              {state.query
-                ? '没有匹配的资料。清空搜索后可查看全部。'
-                : '这里还没有文本资料。新建或导入第一份。'}
+        <div className="flex items-center justify-between gap-1 px-1">
+          <span className="font-medium text-muted-foreground text-xs">{ROOT_LABEL}</span>
+          <CreateMenu intents={intents} label={`在${ROOT_LABEL}中新建`} parent="" />
+        </div>
+        <nav aria-label={ROOT_LABEL} className="min-h-0 flex-1 overflow-y-auto">
+          {state.entries.length === 0 ? (
+            <p className="px-2 py-1 text-muted-foreground text-xs leading-relaxed">
+              {state.query === '' ? '' : '没有匹配的资料。'}
             </p>
           ) : null}
-          {catalog ? (
-            state.query ? (
-              catalog.entries
-                .filter((entry) => !entry.folder)
+          {state.query === ''
+            ? (tree.get('') ?? []).map((entry) => (
+                <EntryRow
+                  depth={0}
+                  entry={entry}
+                  intents={intents}
+                  key={entry.path}
+                  opened={opened?.path}
+                  renaming={renaming}
+                  setRenaming={setRenaming}
+                  tree={tree}
+                />
+              ))
+            : state.entries
+                .filter((entry) => entry.format !== null)
                 .map((entry) => (
                   <button
-                    aria-current={entry.path === state.document?.path ? 'page' : undefined}
-                    className="library-surface__entry"
-                    disabled={busy}
+                    className={cn(
+                      'flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-left text-sm hover:bg-accent',
+                      entry.path === opened?.path && 'bg-accent font-medium',
+                    )}
                     key={entry.path}
-                    onClick={() => {
-                      void controller.open(entry.path).then((opened) => {
-                        if (opened) {
-                          setMode('read')
-                        }
-                      })
-                    }}
+                    onClick={() => intents.open(entry.path)}
                     type="button"
                   >
-                    <FileText aria-hidden="true" />
-                    <span>{entry.path}</span>
+                    <FileText
+                      aria-hidden="true"
+                      className="size-4 shrink-0 text-muted-foreground"
+                    />
+                    <span className="truncate">{entry.path}</span>
                   </button>
-                ))
-            ) : (
-              <LibraryDirectory
-                busy={busy}
-                entries={catalog.entries}
-                open={(path) => {
-                  void controller.open(path).then((opened) => {
-                    if (opened) {
-                      setMode('read')
-                    }
-                  })
-                }}
-                parent=""
-                selected={state.document?.path}
-              />
-            )
-          ) : null}
+                ))}
         </nav>
       </aside>
-      <section aria-label="资料内容" className="library-surface__reader">
-        <header className="library-surface__toolbar">
-          <div className="library-surface__identity">
-            <FileText aria-hidden="true" />
-            <strong>{state.document?.path ?? '我的资料'}</strong>
-          </div>
-          <div className="library-surface__actions">
-            {state.document ? (
-              <>
-                <fieldset aria-label="视图模式" className="library-surface__view">
-                  <span
-                    className="library-surface__view-thumb"
-                    style={{
-                      transform: mode === 'edit' ? 'translateX(100%)' : 'translateX(0)',
-                    }}
-                  />
-                  <button
-                    aria-label="阅读"
-                    aria-pressed={mode === 'read'}
-                    className="library-surface__view-button"
-                    onClick={() => setMode('read')}
-                    title="阅读"
-                    type="button"
-                  >
-                    <Eye aria-hidden="true" />
-                  </button>
-                  <button
-                    aria-label="编辑"
-                    aria-pressed={mode === 'edit'}
-                    className="library-surface__view-button"
-                    onClick={() => setMode('edit')}
-                    title="编辑"
-                    type="button"
-                  >
-                    <Pencil aria-hidden="true" />
-                  </button>
-                </fieldset>
-                <button
-                  aria-label="保存"
-                  disabled={busy || !controller.dirty}
-                  onClick={() => void controller.save()}
-                  title="保存"
-                  type="button"
-                >
-                  <Save aria-hidden="true" />
-                </button>
-                <button
-                  aria-label="另存为"
-                  disabled={busy}
-                  onClick={() => begin('copy')}
-                  title="另存为"
-                  type="button"
-                >
-                  <FileOutput aria-hidden="true" />
-                </button>
-                <button
-                  aria-label="移至系统回收站"
-                  disabled={busy}
-                  onClick={() => begin('trash')}
-                  title="移至系统回收站"
-                  type="button"
-                >
-                  <Trash2 aria-hidden="true" />
-                </button>
-              </>
-            ) : null}
-          </div>
-        </header>
-        {state.failure ? (
-          <div className="library-surface__error" role="alert">
-            <p>{state.failure}</p>
-            <button onClick={controller.clearFailure} type="button">
-              关闭提示
-            </button>
-          </div>
-        ) : null}
-        {action ? (
-          <form
-            className="library-surface__form"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void submitAction()
-            }}
-          >
-            {action === 'trash' ? (
-              <p>
-                将「{state.document?.path}」移至系统回收站？可在系统回收站恢复；保存失败时不会删除。
-              </p>
-            ) : (
-              <>
-                <label htmlFor={filenameId}>
-                  {action === 'folder'
-                    ? '新文件夹路径'
-                    : action === 'copy'
-                      ? '草稿另存路径'
-                      : importFile
-                        ? '导入到'
-                        : '新资料路径'}
-                  （相对于资料库）
-                </label>
-                <input
-                  disabled={busy}
-                  id={filenameId}
-                  onChange={(event) => setPath(event.target.value)}
-                  placeholder={action === 'folder' ? '阅读笔记' : '阅读笔记/想法.md'}
-                  required
-                  value={path}
-                />
-                <p>不会覆盖同名文件。父文件夹须已存在。</p>
-              </>
-            )}
-            <div className="library-surface__actions">
-              <button disabled={busy} type="submit">
-                {action === 'trash' ? '移至回收站' : '确定'}
-              </button>
-              <button
-                disabled={busy}
-                onClick={() => {
-                  setAction(null)
-                  setImportFile(null)
-                }}
-                type="button"
-              >
-                取消
-              </button>
-            </div>
-          </form>
-        ) : null}
-        {state.document ? (
-          <div className="library-surface__content">
-            {mode === 'edit' ? (
-              <textarea
-                aria-label="资料 Markdown 源文"
-                className="library-surface__editor"
-                onChange={(event) => controller.edit(event.target.value)}
-                readOnly={busy}
-                spellCheck={false}
-                value={state.draft}
-              />
-            ) : (
-              <article className="library-surface__document">
-                <MarkdownContent content={state.draft} onOpenLink={openLink} />
-              </article>
-            )}
-          </div>
-        ) : (
-          <div className="library-surface__empty">
-            <BookOpen aria-hidden="true" />
-            <h2>给想法一个安静的归处</h2>
-            <p>一侧整理，一侧阅读。选择资料后开始编辑。</p>
-          </div>
-        )}
-      </section>
+      <ContentPane
+        controller={controller}
+        mode={mode}
+        openLink={openLink}
+        setMode={setMode}
+        state={state}
+      />
     </section>
   )
 }

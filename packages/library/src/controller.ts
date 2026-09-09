@@ -1,17 +1,23 @@
 import type {
-  LibraryCatalog,
   LibraryDocument,
+  LibraryEntry,
+  LibraryFormat,
   LibraryReply,
   LibraryRequest,
 } from '@poietica/contract/library'
 
+/** 输入即时进真相，检索延后触发：一次按键不该换来一次全树遍历。 */
+const SEARCH_DELAY = 200
+
+/** 资料库的原生端口。根不在参数里：它归原生侧，渲染层无从指定。 */
 export interface LibraryGateway {
-  pick(): Promise<LibraryCatalog | null>
-  execute(root: string, request: LibraryRequest): Promise<LibraryReply>
+  readonly execute: (request: LibraryRequest) => Promise<LibraryReply>
+  /** 宿主弹出文件选择器并把选中文件复制进库；用户取消时返回 null。 */
+  readonly importFile: (parent: string) => Promise<LibraryReply | null>
 }
 
 export interface LibraryState {
-  readonly catalog: LibraryCatalog | null
+  readonly entries: readonly LibraryEntry[]
   readonly document: LibraryDocument | null
   readonly draft: string
   readonly query: string
@@ -19,19 +25,33 @@ export interface LibraryState {
   readonly failure: string | null
 }
 
+const EMPTY: LibraryState = {
+  entries: [],
+  document: null,
+  draft: '',
+  query: '',
+  busy: false,
+  failure: null,
+}
+
+/** ancestor 是不是 path 自己或它的祖先。两种分隔符都认：路径由原生侧签发。 */
+function within(ancestor: string, path: string): boolean {
+  return path === ancestor || path.startsWith(`${ancestor}/`) || path.startsWith(`${ancestor}\\`)
+}
+
+/**
+ * 资料库在渲染侧的唯一投影。
+ *
+ * 磁盘是真相，这里只是它的投影：每一次写入都发一条请求、拿到回复再重投影，
+ * 没有第二条写路径，也没有先改本地再同步的影子副本。
+ */
 export class LibraryController {
-  private state: LibraryState = {
-    catalog: null,
-    document: null,
-    draft: '',
-    query: '',
-    busy: false,
-    failure: null,
-  }
+  private state: LibraryState = EMPTY
   private readonly listeners = new Set<() => void>()
-  private allowTyping = true
+  private queue: Promise<unknown> = Promise.resolve()
+  private timer: ReturnType<typeof setTimeout> | null = null
+  private loaded = false
   private disposed = false
-  private pending: Promise<boolean> | null = null
 
   private readonly gateway: LibraryGateway
   private readonly describe: (cause: unknown) => string
@@ -42,26 +62,22 @@ export class LibraryController {
   }
 
   readonly getSnapshot = (): LibraryState => this.state
-  readonly subscribe = (receive: () => void): (() => void) => {
-    this.listeners.add(receive)
+
+  readonly subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+
     return () => {
-      this.listeners.delete(receive)
+      this.listeners.delete(listener)
     }
   }
 
-  private publish(change: Partial<LibraryState>): void {
-    this.state = { ...this.state, ...change }
-    for (const receive of this.listeners) {
-      receive()
-    }
-  }
-
+  /** 有没有未落盘的编辑。 */
   get dirty(): boolean {
     return this.state.document !== null && this.state.draft !== this.state.document.content
   }
 
   readonly edit = (draft: string): void => {
-    if (!this.disposed && this.allowTyping && this.state.document !== null) {
+    if (this.state.document !== null) {
       this.publish({ draft })
     }
   }
@@ -70,174 +86,188 @@ export class LibraryController {
     this.publish({ failure: null })
   }
 
-  private operation(run: () => Promise<void>, allowTyping = false): Promise<boolean> {
-    if (this.disposed || this.pending !== null) {
-      return Promise.resolve(false)
+  /** 首次进入资料库时装载目录，重复调用无副作用。 */
+  readonly start = (): Promise<boolean> => {
+    if (this.loaded) {
+      return Promise.resolve(true)
     }
-    this.allowTyping = allowTyping
-    this.publish({ busy: true, failure: null })
-    const pending = Promise.resolve()
-      .then(run)
-      .then(
-        () => true,
-        (cause: unknown) => {
-          this.publish({ failure: this.describe(cause) })
-          return false
-        },
-      )
-      .finally(() => {
-        this.pending = null
-        this.allowTyping = true
-        this.publish({ busy: false })
-      })
-    this.pending = pending
-    return pending
+
+    this.loaded = true
+
+    return this.operation(() => this.catalog())
   }
 
-  private async request(request: LibraryRequest): Promise<LibraryReply> {
-    const root = this.state.catalog?.root
-    if (root === undefined) {
-      throw new Error('请先打开资料文件夹。')
-    }
-    return this.gateway.execute(root, request)
-  }
+  readonly search = (query: string): void => {
+    this.publish({ query })
 
-  private async refresh(query = this.state.query): Promise<void> {
-    const reply = await this.request({ kind: 'list', query })
-    if (reply.kind !== 'catalog') {
-      throw new Error('资料库返回了错误的目录契约。')
+    if (this.timer !== null) {
+      clearTimeout(this.timer)
     }
-    this.publish({ catalog: reply.value, query })
-  }
 
-  private async saveDraft(): Promise<void> {
-    const document = this.state.document
-    if (!document || !this.dirty) {
-      return
-    }
-    const submitted = this.state.draft
-    const reply = await this.request({
-      kind: 'save',
-      path: document.path,
-      expected: document.content,
-      content: submitted,
-    })
-    if (reply.kind !== 'document') {
-      throw new Error('资料库返回了错误的保存契约。')
-    }
-    this.publish({ document: reply.value })
+    this.timer = setTimeout(() => {
+      this.timer = null
+      void this.operation(() => this.catalog())
+    }, SEARCH_DELAY)
   }
-
-  private async flush(): Promise<void> {
-    await this.saveDraft()
-    if (this.dirty) {
-      throw new Error('保存期间仍有输入；草稿已保留，请完成输入后再切换。')
-    }
-  }
-
-  readonly choose = (): Promise<boolean> =>
-    this.operation(async () => {
-      await this.flush()
-      const catalog = await this.gateway.pick()
-      if (catalog !== null && this.dirty) {
-        throw new Error('选择目录期间仍有输入，草稿已保留；请另存后继续。')
-      }
-      if (catalog !== null) {
-        this.publish({ catalog, document: null, draft: '', query: '' })
-      }
-    })
 
   readonly open = (path: string): Promise<boolean> =>
     this.operation(async () => {
-      await this.flush()
-      const reply = await this.request({ kind: 'read', path })
-      if (reply.kind !== 'document') {
-        throw new Error('资料库返回了错误的读取契约。')
-      }
-      this.publish({ document: reply.value, draft: reply.value.content })
+      await this.persist()
+
+      return this.read(path)
     })
 
-  readonly save = (): Promise<boolean> =>
-    this.operation(async () => {
-      await this.saveDraft()
-      await this.refresh()
-    }, true)
+  readonly save = (): Promise<boolean> => this.operation(async () => (await this.persist()) ?? {})
 
-  readonly search = (query: string): Promise<boolean> => this.operation(() => this.refresh(query))
-
-  readonly create = (path: string, content = ''): Promise<boolean> =>
+  readonly create = (parent: string, format: LibraryFormat): Promise<boolean> =>
     this.operation(async () => {
-      await this.flush()
-      const reply = await this.request({ kind: 'create', path, content })
-      if (reply.kind !== 'document') {
-        throw new Error('资料库返回了错误的新建契约。')
-      }
-      this.publish({ document: reply.value, draft: reply.value.content })
-      await this.refresh('')
+      await this.persist()
+
+      const placed = await this.place({ kind: 'create', parent, format })
+
+      return { ...(await this.catalog()), ...(await this.read(placed)) }
     })
 
-  readonly import = (path: string, read: () => Promise<string>): Promise<boolean> =>
+  readonly folder = (parent: string): Promise<boolean> =>
     this.operation(async () => {
-      await this.flush()
-      const content = await read()
-      const reply = await this.request({ kind: 'create', path, content })
-      if (reply.kind !== 'document') {
-        throw new Error('资料库返回了错误的导入契约。')
-      }
-      this.publish({ document: reply.value, draft: reply.value.content })
-      await this.refresh('')
+      await this.place({ kind: 'folder', parent })
+
+      return this.catalog()
     })
 
-  readonly saveCopy = (path: string): Promise<boolean> =>
+  readonly importFile = (parent: string): Promise<boolean> =>
     this.operation(async () => {
-      const content = this.state.draft
-      const reply = await this.request({ kind: 'create', path, content })
-      if (reply.kind !== 'document') {
-        throw new Error('资料库返回了错误的另存契约。')
+      const reply = await this.gateway.importFile(parent)
+
+      if (reply === null) {
+        return {}
       }
-      this.publish({ document: reply.value, draft: content })
-      await this.refresh('')
+      if (reply.kind !== 'placed') {
+        throw new Error(`资料库回复了 ${reply.kind}，期待 placed。`)
+      }
+
+      return { ...(await this.catalog()), ...(await this.read(reply.value)) }
     })
 
-  readonly folder = (path: string): Promise<boolean> =>
+  readonly rename = (path: string, name: string): Promise<boolean> =>
     this.operation(async () => {
-      const reply = await this.request({ kind: 'folder', path })
-      if (reply.kind !== 'done') {
-        throw new Error('资料库返回了错误的目录创建契约。')
-      }
-      await this.refresh('')
+      const placed = await this.place({ kind: 'rename', path, name })
+      const open = this.state.document
+      const moved = open !== null && within(path, open.path) ? await this.read(placed) : {}
+
+      return { ...(await this.catalog()), ...moved }
     })
 
-  readonly trash = (): Promise<boolean> =>
+  readonly trash = (path: string): Promise<boolean> =>
     this.operation(async () => {
-      await this.flush()
-      const document = this.state.document
-      if (!document) {
-        return
-      }
-      const reply = await this.request({
-        kind: 'trash',
-        path: document.path,
-        expected: document.content,
-      })
-      if (reply.kind !== 'done') {
-        throw new Error('资料库返回了错误的回收站契约。')
-      }
-      this.publish({ document: null, draft: '' })
-      await this.refresh()
+      await this.expect({ kind: 'trash', path }, 'done')
+
+      const open = this.state.document
+      const closed = open !== null && within(path, open.path) ? { document: null, draft: '' } : {}
+
+      return { ...(await this.catalog()), ...closed }
     })
 
+  /** 离开资料库前把草稿落盘，然后不再接受任何意图。 */
   readonly dispose = async (): Promise<void> => {
-    this.disposed = true
-    await this.pending
-    if (this.dirty) {
-      try {
-        await this.saveDraft()
-      } catch (cause) {
-        this.publish({ failure: this.describe(cause) })
-        throw cause
-      }
+    if (this.disposed) {
+      return
     }
+
+    if (this.timer !== null) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
+
+    await this.operation(async () => (await this.persist()) ?? {})
+
+    this.disposed = true
     this.listeners.clear()
+  }
+
+  private publish(next: Partial<LibraryState>): void {
+    this.state = { ...this.state, ...next }
+
+    for (const listener of this.listeners) {
+      listener()
+    }
+  }
+
+  /** 请求排队而不是被丢掉：连点两次新建应该得到两份文件，不是一份。 */
+  private operation(work: () => Promise<Partial<LibraryState>>): Promise<boolean> {
+    const queued = this.queue.then(() => this.perform(work))
+
+    this.queue = queued
+
+    return queued
+  }
+
+  private async perform(work: () => Promise<Partial<LibraryState>>): Promise<boolean> {
+    if (this.disposed) {
+      return false
+    }
+
+    this.publish({ busy: true, failure: null })
+
+    try {
+      const next = await work()
+
+      if (!this.disposed) {
+        this.publish({ ...next, busy: false })
+      }
+
+      return true
+    } catch (cause) {
+      if (!this.disposed) {
+        this.publish({ busy: false, failure: this.describe(cause) })
+      }
+
+      return false
+    }
+  }
+
+  /** 回复的 tag 到载荷的映射只在这里做一次。 */
+  private async expect<K extends LibraryReply['kind']>(
+    request: LibraryRequest,
+    kind: K,
+  ): Promise<Extract<LibraryReply, { kind: K }>> {
+    const reply = await this.gateway.execute(request)
+
+    if (reply.kind !== kind) {
+      throw new Error(`资料库回复了 ${reply.kind}，期待 ${kind}。`)
+    }
+
+    return reply as Extract<LibraryReply, { kind: K }>
+  }
+
+  private async catalog(): Promise<Partial<LibraryState>> {
+    const reply = await this.expect({ kind: 'list', query: this.state.query }, 'catalog')
+
+    return { entries: reply.value.entries }
+  }
+
+  private async read(path: string): Promise<Partial<LibraryState>> {
+    const reply = await this.expect({ kind: 'read', path }, 'document')
+
+    return { document: reply.value, draft: reply.value.content }
+  }
+
+  private async place(request: LibraryRequest): Promise<string> {
+    return (await this.expect(request, 'placed')).value
+  }
+
+  private async persist(): Promise<Partial<LibraryState> | null> {
+    const open = this.state.document
+
+    if (open === null || this.state.draft === open.content) {
+      return null
+    }
+
+    const reply = await this.expect(
+      { kind: 'save', path: open.path, expected: open.content, content: this.state.draft },
+      'document',
+    )
+
+    return { document: reply.value, draft: reply.value.content }
   }
 }

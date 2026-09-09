@@ -52,6 +52,9 @@ const TEMP_DIRECTORY: &str = "tmp";
 const CACHE_DIRECTORY: &str = "cache";
 const CRASH_REPORT_FILE: &str = "last-native-crash.json";
 const ATTACHMENTS_DIRECTORY: &str = "attachments";
+
+/// 资料库目录名。
+const LIBRARY_DIRECTORY: &str = "library";
 const MARKETPLACE_CATALOG_FILE: &str = "marketplace.json";
 const AGENTS_DIRECTORY: &str = "agents";
 
@@ -241,6 +244,19 @@ pub fn cache_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
 /// 根目录无法解析、或附件目录无法创建时返回错误。
 pub fn attachments_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     let directory = root(app)?.join(ATTACHMENTS_DIRECTORY);
+
+    fs::create_dir_all(&directory)?;
+
+    Ok(directory)
+}
+
+/// 资料库的根，创建后返回。位置不由用户选：资料是本应用的数据，跟着数据根走。
+///
+/// # Errors
+///
+/// 根目录无法解析、或资料目录无法创建时返回错误。
+pub fn library_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    let directory = root(app)?.join(LIBRARY_DIRECTORY);
 
     fs::create_dir_all(&directory)?;
 

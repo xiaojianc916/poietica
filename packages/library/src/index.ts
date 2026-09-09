@@ -2,6 +2,7 @@ export type {
   LibraryCatalog,
   LibraryDocument,
   LibraryEntry,
+  LibraryFormat,
   LibraryReply,
   LibraryRequest,
 } from '@poietica/contract/library'

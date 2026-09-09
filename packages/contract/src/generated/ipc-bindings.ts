@@ -5,11 +5,14 @@
 
 
 export const commands = {
-async libraryPick() : Promise<LibraryCatalog | null> {
-    return await TAURI_INVOKE("library_pick");
+async libraryExecute(request: LibraryRequest) : Promise<LibraryReply> {
+    return await TAURI_INVOKE("library_execute", { request });
 },
-async libraryExecute(root: string, request: LibraryRequest) : Promise<LibraryReply> {
-    return await TAURI_INVOKE("library_execute", { root, request });
+/**
+ * 选一份库外的文件复制进来。用户取消时返回 None。
+ */
+async libraryImport(parent: string) : Promise<LibraryReply | null> {
+    return await TAURI_INVOKE("library_import", { parent });
 },
 /**
  * Returns the agent's submission receipt without waiting for model completion.
@@ -337,7 +340,7 @@ async applicationQuit() : Promise<void> {
 /**
  * 打开开发者工具。
  * 
- * 窗口已经不在了就什么也不做 —— 一个关掉的窗口没有开发者工具可开，那不是故障。
+ * 目标 webview 不在了就什么也不做 —— 关掉的 webview 没有开发者工具可开，那不是故障。
  * 
  * 不返回 `Result`：每条路径都是 Ok(())，那个返回值到了生成绑定里只是一个渲染层
  * 必须接、且永远接到 null 的东西。
@@ -1463,11 +1466,35 @@ export type GitReview = { branch: string | null; detachedAt: string | null; upst
 export type GitWatchLease = { token: string; root: string }
 export type GitWorkingTreeChanged = { root: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
-export type LibraryCatalog = { root: string; entries: LibraryEntry[] }
+export type LibraryCatalog = { entries: LibraryEntry[] }
 export type LibraryDocument = { path: string; content: string }
-export type LibraryEntry = { path: string; folder: boolean; name: string; parent: string; modified: string | null; bytes: string }
-export type LibraryReply = { kind: "catalog"; value: LibraryCatalog } | { kind: "document"; value: LibraryDocument } | { kind: "done" }
-export type LibraryRequest = { kind: "list"; query: string } | { kind: "read"; path: string } | { kind: "save"; path: string; expected: string; content: string } | { kind: "create"; path: string; content: string } | { kind: "folder"; path: string } | { kind: "trash"; path: string; expected: string }
+export type LibraryEntry = { 
+/**
+ * 相对根的路径，也是这一行的身份。
+ */
+path: string; name: string; parent: string; 
+/**
+ * None 即文件夹：种类与「是不是文件夹」是同一个判别式。
+ */
+format: LibraryFormat | null; 
+/**
+ * 修改时间，Unix 秒。字符串是为了过 IPC 不被 f64 削精度。
+ */
+modified: string | null; bytes: string }
+/**
+ * 资料库认识的文件种类。扩展名与新建默认名只在 spec 里写一次。
+ */
+export type LibraryFormat = "markdown" | "table" | "page"
+export type LibraryReply = { kind: "catalog"; value: LibraryCatalog } | { kind: "document"; value: LibraryDocument } | 
+/**
+ * 新建、导入与重命名之后条目的落点，供界面选中它。
+ */
+{ kind: "placed"; value: string } | { kind: "done" }
+/**
+ * 渲染层能发出的全部请求。库外路径不在其中：导入的源文件由宿主的
+ * 文件选择器给出，渲染层无从指定库外的任何一个位置。
+ */
+export type LibraryRequest = { kind: "list"; query: string } | { kind: "read"; path: string } | { kind: "save"; path: string; expected: string; content: string } | { kind: "create"; parent: string; format: LibraryFormat } | { kind: "folder"; parent: string } | { kind: "rename"; path: string; name: string } | { kind: "trash"; path: string }
 /**
  * 一条能直接交给启动器的启动式：程序在哪儿，前面还要垫哪些参数。
  */

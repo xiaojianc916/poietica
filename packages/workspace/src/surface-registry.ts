@@ -58,7 +58,7 @@ export const SURFACE_REGISTRY = {
   },
   library: {
     title: '资料库',
-    description: '本地单人资料库，左侧浏览目录，右侧阅读内容。',
+    description: '应用自己保管的资料：新建或导入 Markdown、表格与网页。',
     iconId: 'book-open',
     navigationOrder: 1,
     activation: { kind: 'surface' },

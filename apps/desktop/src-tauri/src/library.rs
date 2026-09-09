@@ -1,72 +1,72 @@
-use poietica_library::{LibraryCatalog, LibraryError, LibraryReply, LibraryRequest, Vault};
-use poietica_problem::{Code, DiagnosticId, Problem};
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, State};
-use tauri_plugin_dialog::DialogExt;
+//! 资料库的宿主侧：把应用自己的资料根交给 Vault，并在导入时代用户打开系统文件选择器。
 
-#[derive(Debug, Default, Clone)]
-pub(crate) struct LibraryHost(Arc<Mutex<Option<Vault>>>);
+use std::path::PathBuf;
+
+use poietica_library::{LibraryError, LibraryReply, LibraryRequest, Vault};
+use poietica_problem::{Code, DiagnosticId, Problem};
+use tauri::AppHandle;
+use tauri_plugin_dialog::DialogExt;
 
 fn failure(error: LibraryError) -> Problem {
     let code = match &error {
         LibraryError::Conflict | LibraryError::Invalid(_) => Code::RequestInvalid,
-        LibraryError::Io(_) | LibraryError::Content(_) => Code::FileUnavailable,
+        LibraryError::Io(_) => Code::FileUnavailable,
     };
-    log::warn!("library operation failed: {error}");
+
+    log::warn!("library request failed: {error}");
+
     Problem::new(code, DiagnosticId::issue()).with_detail("reason", &error.to_string())
 }
 
 fn internal(error: impl std::fmt::Display) -> Problem {
     log::error!("library host failed: {error}");
+
     Problem::new(Code::Internal, DiagnosticId::issue())
 }
 
-#[tauri::command]
-#[specta::specta]
-pub(crate) async fn library_pick(
-    app: AppHandle,
-    host: State<'_, LibraryHost>,
-) -> Result<Option<LibraryCatalog>, Problem> {
-    let (answer, wait) = tokio::sync::oneshot::channel();
-    app.dialog().file().pick_folder(move |picked| {
-        drop(answer.send(picked));
-    });
-    let Some(picked) = wait.await.map_err(internal)? else {
-        return Ok(None);
-    };
-    let path = PathBuf::from(picked.to_string());
-    let host = host.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let vault = Vault::open(&path).map_err(failure)?;
-        let catalog = vault.catalog("").map_err(failure)?;
-        *host.0.lock().map_err(internal)? = Some(vault);
-        Ok(Some(catalog))
-    })
-    .await
-    .map_err(internal)?
+/// 资料库的根不由渲染层选、也不由渲染层传：它是本应用数据根下的一格。
+fn vault(app: &AppHandle) -> Result<Vault, Problem> {
+    let root = crate::paths::library_root(app).map_err(Problem::from)?;
+
+    Vault::open(&root).map_err(failure)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn library_execute(
-    root: String,
+    app: AppHandle,
     request: LibraryRequest,
-    host: State<'_, LibraryHost>,
 ) -> Result<LibraryReply, Problem> {
-    let host = host.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let selected = host.0.lock().map_err(internal)?;
-        let vault = selected
-            .as_ref()
-            .ok_or_else(|| failure(LibraryError::Invalid("请先打开资料文件夹。".into())))?;
-        if vault.identity() != root {
-            return Err(failure(LibraryError::Invalid(
-                "资料库已切换，本次请求未执行。".into(),
-            )));
-        }
-        vault.execute(request).map_err(failure)
+    tauri::async_runtime::spawn_blocking(move || vault(&app)?.execute(request).map_err(failure))
+        .await
+        .map_err(internal)?
+}
+
+/// 选一份库外的文件复制进来。用户取消时返回 None。
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn library_import(
+    app: AppHandle,
+    parent: String,
+) -> Result<Option<LibraryReply>, Problem> {
+    let (answer, picked) = tokio::sync::oneshot::channel();
+
+    app.dialog()
+        .file()
+        .add_filter("资料", &["md", "csv", "html"])
+        .pick_file(move |chosen| {
+            drop(answer.send(chosen));
+        });
+
+    let Some(chosen) = picked.await.map_err(internal)? else {
+        return Ok(None);
+    };
+    let source = PathBuf::from(chosen.to_string());
+    let placed = tauri::async_runtime::spawn_blocking(move || {
+        vault(&app)?.import(&parent, &source).map_err(failure)
     })
     .await
-    .map_err(internal)?
+    .map_err(internal)??;
+
+    Ok(Some(LibraryReply::Placed(placed)))
 }

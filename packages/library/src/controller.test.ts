@@ -1,82 +1,115 @@
 import { describe, expect, test } from 'bun:test'
-import type { LibraryCatalog, LibraryReply } from '@poietica/contract/library'
-import { LibraryController } from './controller'
+import type { LibraryEntry, LibraryReply, LibraryRequest } from '@poietica/contract/library'
+import { LibraryController, type LibraryGateway } from './controller'
 
-const catalog: LibraryCatalog = { root: '/notes', entries: [] }
-const document = { path: 'a.md', content: 'saved' }
-const describeError = (cause: unknown) => String(cause)
+function entry(path: string, folder: boolean): LibraryEntry {
+  const cut = path.lastIndexOf('/')
 
-describe('library document ownership', () => {
-  test('failed saves keep draft and prevent navigation', async () => {
-    const calls: string[] = []
-    const controller = new LibraryController(
-      {
-        pick: async () => catalog,
-        execute: async (_root, request): Promise<LibraryReply> => {
-          calls.push(request.kind)
-          if (request.kind === 'read') {
-            return { kind: 'document', value: document }
-          }
-          throw new Error('disk unavailable')
-        },
+  return {
+    path,
+    name: cut < 0 ? path : path.slice(cut + 1),
+    parent: cut < 0 ? '' : path.slice(0, cut),
+    format: folder ? null : 'markdown',
+    modified: null,
+    bytes: '0',
+  }
+}
+
+function recorder(
+  entries: readonly LibraryEntry[],
+  answer: (request: LibraryRequest) => LibraryReply,
+): { gateway: LibraryGateway; sent: LibraryRequest[] } {
+  const sent: LibraryRequest[] = []
+
+  return {
+    sent,
+    gateway: {
+      execute: (request) => {
+        sent.push(request)
+
+        return Promise.resolve(
+          request.kind === 'list'
+            ? { kind: 'catalog', value: { entries: [...entries] } }
+            : answer(request),
+        )
       },
-      describeError,
+      importFile: () => Promise.resolve(null),
+    },
+  }
+}
+
+const DOCUMENT: LibraryReply = { kind: 'document', value: { path: '未命名文档.md', content: '' } }
+
+describe('LibraryController', () => {
+  test('新建落在谁家由界面说了算', async () => {
+    const { gateway, sent } = recorder([entry('随笔', true)], (request) =>
+      request.kind === 'create' ? { kind: 'placed', value: '随笔/未命名文档.md' } : DOCUMENT,
     )
-    await controller.choose()
-    await controller.open('a.md')
-    controller.edit('draft')
-    expect(await controller.open('b.md')).toBe(false)
-    expect(calls).toEqual(['read', 'save'])
-    expect(controller.getSnapshot().draft).toBe('draft')
-    expect(controller.getSnapshot().document?.path).toBe('a.md')
+    const library = new LibraryController(gateway, String)
+
+    await library.start()
+    await library.create('随笔', 'markdown')
+
+    expect(sent.find((request) => request.kind === 'create')).toEqual({
+      kind: 'create',
+      parent: '随笔',
+      format: 'markdown',
+    })
   })
 
-  test('typing during save does not get replaced by the saved snapshot', async () => {
-    let finish: ((reply: LibraryReply) => void) | undefined
-    const controller = new LibraryController(
-      {
-        pick: async () => catalog,
-        execute: async (_root, request): Promise<LibraryReply> => {
-          if (request.kind === 'read') {
-            return { kind: 'document', value: document }
-          }
-          if (request.kind === 'list') {
-            return { kind: 'catalog', value: catalog }
-          }
-          return new Promise((resolve) => {
-            finish = resolve
-          })
-        },
-      },
-      describeError,
-    )
-    await controller.choose()
-    await controller.open('a.md')
-    controller.edit('first')
-    const saving = controller.save()
-    await Promise.resolve()
-    controller.edit('second')
-    if (!finish) {
-      throw new Error('save was not dispatched')
-    }
-    finish({ kind: 'document', value: { path: 'a.md', content: 'first' } })
-    expect(await saving).toBe(true)
-    expect(controller.getSnapshot().draft).toBe('second')
-    expect(controller.dirty).toBe(true)
+  test('连点两次新建得到两份，请求不被丢掉', async () => {
+    let made = 0
+    const { gateway } = recorder([], (request) => {
+      if (request.kind === 'create') {
+        made += 1
+
+        return { kind: 'placed', value: '未命名文档.md' }
+      }
+
+      return DOCUMENT
+    })
+    const library = new LibraryController(gateway, String)
+
+    await Promise.all([library.create('', 'markdown'), library.create('', 'markdown')])
+
+    expect(made).toBe(2)
   })
 
-  test('cancelling a folder chooser preserves the active document', async () => {
-    let choices = 0
-    const controller = new LibraryController(
-      {
-        pick: async () => (choices++ === 0 ? catalog : null),
-        execute: async (): Promise<LibraryReply> => ({ kind: 'document', value: document }),
-      },
-      describeError,
+  test('保存失败保留草稿并报告原因', async () => {
+    const { gateway } = recorder([entry('甲.md', false)], (request) => {
+      if (request.kind === 'save') {
+        throw new Error('已被改动')
+      }
+
+      return { kind: 'document', value: { path: '甲.md', content: '原文' } }
+    })
+    const library = new LibraryController(gateway, String)
+
+    await library.open('甲.md')
+    library.edit('改过的')
+
+    await library.save()
+
+    expect(library.getSnapshot().draft).toBe('改过的')
+    expect(library.getSnapshot().failure).not.toBeNull()
+  })
+
+  test('切换资料前先把草稿落盘', async () => {
+    const { gateway, sent } = recorder(
+      [entry('甲.md', false), entry('乙.md', false)],
+      (request) => ({
+        kind: 'document',
+        value: { path: request.kind === 'read' ? request.path : '甲.md', content: '原文' },
+      }),
     )
-    await controller.choose()
-    await controller.open('a.md')
-    await controller.choose()
-    expect(controller.getSnapshot().document).toEqual(document)
+    const library = new LibraryController(gateway, String)
+
+    await library.open('甲.md')
+    library.edit('改过的')
+
+    await library.open('乙.md')
+
+    expect(sent.filter((request) => request.kind === 'save')).toHaveLength(1)
+    expect(library.getSnapshot().document?.path).toBe('乙.md')
   })
 })
