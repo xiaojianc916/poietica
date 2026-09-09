@@ -210,3 +210,14 @@ body {
    */
   --desktop-scrollbar-thumb: #e4e4e5;
 }
+
+.library-editor .milkdown {
+  --crepe-color-background: transparent;
+  --crepe-color-on-background: inherit;
+  --crepe-font-default: inherit;
+  --crepe-font-title: inherit;
+}
+
+.library-editor .ProseMirror {
+  min-height: 60vh;
+}

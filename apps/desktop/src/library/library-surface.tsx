@@ -19,7 +19,6 @@ import {
   ChevronDown,
   ChevronRight,
   Code,
-  Eye,
   FileText,
   Folder,
   FolderPlus,
@@ -33,7 +32,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useState, useSyncExternalStore } from 'react'
-import { MarkdownContent } from './markdown-content'
+import { MarkdownEditor } from './markdown-editor'
 import { TableSurface } from './table-surface'
 
 const ROOT_LABEL = '我的资料'
@@ -234,24 +233,73 @@ function EntryRow({
   )
 }
 
-/** 右侧内容区：位置导航、读写切换与正文。 */
+/** Markdown 面：标题就是文件名，正文归块编辑器。 */
+function MarkdownPane({
+  controller,
+  name,
+  openLink,
+  path,
+  value,
+}: {
+  controller: LibraryController
+  name: string
+  openLink: (url: string) => void
+  path: string
+  value: string
+}) {
+  const dot = name.lastIndexOf('.')
+  const stem = dot > 0 ? name.slice(0, dot) : name
+  const suffix = dot > 0 ? name.slice(dot) : ''
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-3xl px-8 py-6">
+        <input
+          aria-label="标题"
+          className="w-full bg-transparent font-semibold text-3xl outline-none placeholder:text-muted-foreground"
+          defaultValue={stem}
+          onBlur={(event) => {
+            const next = event.target.value.trim()
+
+            if (next.length === 0 || next === stem) {
+              event.target.value = stem
+
+              return
+            }
+
+            void controller.save().then((saved) => {
+              if (saved) {
+                void controller.rename(path, `${next}${suffix}`)
+              }
+            })
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              event.currentTarget.blur()
+            }
+          }}
+          placeholder="请输入标题"
+        />
+        <MarkdownEditor initial={value} onChange={controller.editText} openLink={openLink} />
+      </div>
+    </div>
+  )
+}
+
+/** 右侧内容区：位置导航与正文。 */
 function ContentPane({
   controller,
-  mode,
   openLink,
-  setMode,
   state,
 }: {
   controller: LibraryController
-  mode: 'read' | 'edit'
   openLink: (url: string) => void
-  setMode: (mode: 'read' | 'edit') => void
   state: LibraryState
 }) {
   const opened = state.document
   const trail = opened === null ? [] : opened.path.replaceAll('\\', '/').split('/')
   const draft = state.draft
-  const readable = draft?.kind === 'markdown'
 
   return (
     <section aria-label="资料内容" className="flex min-h-0 flex-col">
@@ -271,20 +319,6 @@ function ContentPane({
         {state.busy ? <span className="text-muted-foreground text-xs">正在处理…</span> : null}
         {opened === null ? null : (
           <div className="flex items-center gap-1">
-            {readable ? (
-              <Button
-                aria-label={mode === 'read' ? '编辑' : '阅读'}
-                onClick={() => setMode(mode === 'read' ? 'edit' : 'read')}
-                size="icon"
-                variant="ghost"
-              >
-                {mode === 'read' ? (
-                  <Pencil aria-hidden="true" className="size-4" />
-                ) : (
-                  <Eye aria-hidden="true" className="size-4" />
-                )}
-              </Button>
-            ) : null}
             <Button
               aria-label="保存"
               disabled={!controller.dirty}
@@ -315,10 +349,15 @@ function ContentPane({
         </div>
       ) : draft.kind === 'table' ? (
         <TableSurface controller={controller} sheet={draft.value} view={state.view ?? EMPTY_VIEW} />
-      ) : draft.kind === 'markdown' && mode === 'read' ? (
-        <article className="mx-auto min-h-0 w-full max-w-3xl flex-1 overflow-y-auto px-8 py-6">
-          <MarkdownContent content={draft.value} onOpenLink={openLink} />
-        </article>
+      ) : draft.kind === 'markdown' && opened !== null ? (
+        <MarkdownPane
+          controller={controller}
+          key={opened.path}
+          name={trail.at(-1) ?? ''}
+          openLink={openLink}
+          path={opened.path}
+          value={draft.value}
+        />
       ) : (
         <textarea
           aria-label="资料源文"
@@ -345,24 +384,15 @@ export function LibrarySurface({
     controller.getSnapshot,
   )
   const [renaming, setRenaming] = useState<string | null>(null)
-  const [mode, setMode] = useState<'read' | 'edit'>('read')
   const titleId = useId()
   const tree = useMemo(() => siblings(state.entries), [state.entries])
   const intents = useMemo<LibraryIntents>(
     () => ({
       open: (path) => {
-        void controller.open(path).then((opened) => {
-          if (opened) {
-            setMode('read')
-          }
-        })
+        void controller.open(path)
       },
       create: (parent, format) => {
-        void controller.create(parent, format).then((made) => {
-          if (made) {
-            setMode('edit')
-          }
-        })
+        void controller.create(parent, format)
       },
       folder: (parent) => {
         void controller.folder(parent)
@@ -462,13 +492,7 @@ export function LibrarySurface({
                 ))}
         </nav>
       </aside>
-      <ContentPane
-        controller={controller}
-        mode={mode}
-        openLink={openLink}
-        setMode={setMode}
-        state={state}
-      />
+      <ContentPane controller={controller} openLink={openLink} state={state} />
     </section>
   )
 }
