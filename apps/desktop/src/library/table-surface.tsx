@@ -32,6 +32,7 @@ import {
   AlignJustify,
   ArrowUpDown,
   Calendar,
+  Check,
   ChevronDown,
   Filter,
   GripVertical,
@@ -57,12 +58,18 @@ import {
   testOptions,
 } from './condition-list'
 
-const ROW_HEIGHT: Record<RowHeight, string> = { short: 'h-9', medium: 'h-12', tall: 'h-16' }
+const ROW_HEIGHT: Record<RowHeight, string> = {
+  default: 'h-9',
+  medium: 'h-12',
+  relaxed: 'h-16',
+  wide: 'h-20',
+}
 
 const HEIGHTS: readonly { value: RowHeight; label: string }[] = [
-  { value: 'short', label: '矮' },
-  { value: 'medium', label: '中' },
-  { value: 'tall', label: '高' },
+  { value: 'default', label: '默认' },
+  { value: 'medium', label: '中等' },
+  { value: 'relaxed', label: '宽松' },
+  { value: 'wide', label: '超宽' },
 ]
 
 const KIND_MARK: Record<FieldKind, typeof Type> = {
@@ -483,13 +490,18 @@ function HeightPanel({ controller, view }: Omit<Shell, 'list' | 'sheet'>) {
     <div className="flex w-40 flex-col gap-0.5">
       {HEIGHTS.map((height) => (
         <Button
-          className={cn('justify-start', view.rowHeight === height.value && 'bg-accent')}
+          className="justify-between"
           key={height.value}
           onClick={() => controller.configure({ ...view, rowHeight: height.value })}
           size="xs"
           variant="ghost"
         >
-          {height.label}
+          <span className={cn(view.rowHeight === height.value && 'font-medium')}>
+            {height.label}
+          </span>
+          {view.rowHeight === height.value ? (
+            <Check aria-hidden="true" className="size-3.5 text-primary" />
+          ) : null}
         </Button>
       ))}
     </div>
@@ -556,6 +568,42 @@ function Row({
       ))}
       <div className="border-divider border-l" />
     </div>
+  )
+}
+
+/** 列头就是这一列的入口：改名走 revise，与字段管理面板同一条管线。 */
+function HeaderCell({ controller, item }: { controller: LibraryController; item: Shown }) {
+  const Mark = KIND_MARK[item.field.kind]
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="flex h-9 items-center gap-1.5 border-divider border-l px-3 text-left text-sm hover:bg-accent">
+        <Mark aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate">{item.field.name}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <form
+          className="flex w-56 flex-col gap-1.5"
+          onSubmit={(event) => {
+            event.preventDefault()
+
+            const value = new FormData(event.currentTarget).get('name')
+
+            if (typeof value === 'string' && value.trim().length > 0) {
+              controller.revise((sheet) => renameField(sheet, item.index, value.trim()))
+            }
+          }}
+        >
+          <span className="text-muted-foreground text-xs">列标题</span>
+          <input
+            aria-label="列标题"
+            className="h-7 rounded-md border border-input bg-background px-2 text-sm outline-none"
+            defaultValue={item.field.name}
+            name="name"
+          />
+        </form>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -642,19 +690,9 @@ export function TableSurface({
           style={{ gridTemplateColumns: columns }}
         >
           <div />
-          {shown.map((item) => {
-            const Mark = KIND_MARK[item.field.kind]
-
-            return (
-              <div
-                className="flex h-9 items-center gap-1.5 border-divider border-l px-3 text-sm"
-                key={item.key}
-              >
-                <Mark aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate">{item.field.name}</span>
-              </div>
-            )
-          })}
+          {shown.map((item) => (
+            <HeaderCell controller={controller} item={item} key={item.key} />
+          ))}
           <button
             aria-label="新增字段"
             className="flex items-center justify-center border-divider border-l text-muted-foreground hover:bg-accent"

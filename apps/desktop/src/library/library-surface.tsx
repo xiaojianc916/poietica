@@ -7,11 +7,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/design-system'
-import type {
-  LibraryController,
-  LibraryEntry,
-  LibraryFormat,
-  LibraryState,
+import {
+  EMPTY_VIEW,
+  type LibraryController,
+  type LibraryEntry,
+  type LibraryFormat,
+  type LibraryState,
 } from '@poietica/library'
 import {
   BookOpen,
@@ -33,6 +34,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useState, useSyncExternalStore } from 'react'
 import { MarkdownContent } from './markdown-content'
+import { TableSurface } from './table-surface'
 
 const ROOT_LABEL = '我的资料'
 
@@ -248,9 +250,8 @@ function ContentPane({
 }) {
   const opened = state.document
   const trail = opened === null ? [] : opened.path.replaceAll('\\', '/').split('/')
-  const readable =
-    opened !== null &&
-    (state.entries.find((entry) => entry.path === opened.path)?.format ?? 'markdown') === 'markdown'
+  const draft = state.draft
+  const readable = draft?.kind === 'markdown'
 
   return (
     <section aria-label="资料内容" className="flex min-h-0 flex-col">
@@ -307,22 +308,24 @@ function ContentPane({
           </Button>
         </div>
       )}
-      {opened === null ? (
+      {draft === null ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
           <BookOpen aria-hidden="true" className="size-8" />
           <p className="text-sm">选一份资料开始，或从左侧新建。</p>
         </div>
-      ) : readable && mode === 'read' ? (
+      ) : draft.kind === 'table' ? (
+        <TableSurface controller={controller} sheet={draft.value} view={state.view ?? EMPTY_VIEW} />
+      ) : draft.kind === 'markdown' && mode === 'read' ? (
         <article className="mx-auto min-h-0 w-full max-w-3xl flex-1 overflow-y-auto px-8 py-6">
-          <MarkdownContent content={state.draft} onOpenLink={openLink} />
+          <MarkdownContent content={draft.value} onOpenLink={openLink} />
         </article>
       ) : (
         <textarea
           aria-label="资料源文"
           className="min-h-0 flex-1 resize-none bg-transparent px-8 py-6 font-mono text-sm leading-relaxed outline-none"
-          onChange={(event) => controller.edit(event.target.value)}
+          onChange={(event) => controller.editText(event.target.value)}
           spellCheck={false}
-          value={state.draft}
+          value={draft.value}
         />
       )}
     </section>

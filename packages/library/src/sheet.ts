@@ -35,7 +35,7 @@ export interface Group {
   readonly field: number
 }
 
-export type RowHeight = 'short' | 'medium' | 'tall'
+export type RowHeight = 'default' | 'medium' | 'relaxed' | 'wide'
 
 export interface SheetView {
   readonly filters: readonly Condition[]
@@ -53,7 +53,7 @@ export const EMPTY_VIEW: SheetView = {
   groups: [],
   tints: [],
   hidden: [],
-  rowHeight: 'short',
+  rowHeight: 'default',
   find: '',
 }
 
