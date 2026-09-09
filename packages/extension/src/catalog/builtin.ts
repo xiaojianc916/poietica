@@ -59,7 +59,7 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
     group: '精选',
     homepage: 'https://context7.com',
     transport: { kind: 'http', url: 'https://mcp.context7.com/mcp' },
-    needs: '免费额度可直接用，提高速率上限需在 context7.com 取一把 key。',
+    needs: undefined,
     input: undefined,
   },
   {
@@ -79,7 +79,7 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
     group: '浏览器与自动化',
     homepage: 'https://github.com/microsoft/playwright-mcp',
     transport: { kind: 'stdio', command: 'npx', args: ['@playwright/mcp@latest'] },
-    needs: '需要本机有 Node 18+，首次运行会下载浏览器内核。',
+    needs: undefined,
     input: undefined,
   },
   {
@@ -89,7 +89,7 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
     group: '浏览器与自动化',
     homepage: 'https://github.com/ChromeDevTools/chrome-devtools-mcp',
     transport: { kind: 'stdio', command: 'npx', args: ['chrome-devtools-mcp@latest'] },
-    needs: '需要本机有 Node 18+ 与一个 Chrome。',
+    needs: undefined,
     input: undefined,
   },
   {

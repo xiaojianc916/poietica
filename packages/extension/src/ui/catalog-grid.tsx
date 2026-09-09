@@ -77,15 +77,16 @@ interface CatalogCardProps {
 }
 
 function CatalogCard({ action, row }: CatalogCardProps) {
+  /*
+   * 中间那列给了最小宽度而不是任由压扁：卡片变窄时动作区换到下一行，
+   * 名字与说明完整换行显示，不会被挤成一两个字加省略号。
+   */
   return (
-    <li className="group flex min-w-0 items-center gap-3.5 rounded-2xl px-3 py-3 transition-colors hover:bg-muted/60">
+    <li className="group flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-2 rounded-2xl px-3 py-3 transition-colors hover:bg-muted/60">
       <PluginGlyph displayName={row.displayName} id={row.id} size="md" />
-      <div className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{row.displayName}</span>
-        <span
-          className="block truncate pt-0.5 text-[13px] text-muted-foreground"
-          title={row.description}
-        >
+      <div className="min-w-36 flex-1">
+        <span className="block text-sm font-medium break-words">{row.displayName}</span>
+        <span className="block pt-0.5 text-[13px] break-words text-muted-foreground">
           {row.description}
         </span>
       </div>
@@ -154,12 +155,12 @@ function InstallServer({ id, onInstall, resolveLauncher }: InstallServerProps) {
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
+    <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2">
       {absent === undefined ? (
         server.input === undefined ? (
           server.needs === undefined ? null : (
             <span
-              className="max-w-40 truncate text-[11px] text-muted-foreground"
+              className="max-w-44 text-[11px] break-words text-muted-foreground"
               title={server.needs}
             >
               {server.needs}
@@ -168,7 +169,7 @@ function InstallServer({ id, onInstall, resolveLauncher }: InstallServerProps) {
         ) : (
           <input
             aria-label={server.input.label}
-            className="h-7 w-40 rounded-lg bg-muted/60 px-2.5 text-xs outline-none ring-1 ring-transparent transition-[background-color,box-shadow] focus:bg-background focus:ring-foreground/10"
+            className="h-7 w-40 max-w-full min-w-0 rounded-lg bg-muted/60 px-2.5 text-xs outline-none ring-1 ring-transparent transition-[background-color,box-shadow] focus:bg-background focus:ring-foreground/10"
             onChange={(event) => setFilled(event.target.value)}
             placeholder={server.input.placeholder}
             title={server.needs}
@@ -176,7 +177,7 @@ function InstallServer({ id, onInstall, resolveLauncher }: InstallServerProps) {
           />
         )
       ) : (
-        <span className="max-w-40 truncate text-[11px] text-destructive">{absent}</span>
+        <span className="max-w-44 text-[11px] break-words text-destructive">{absent}</span>
       )}
       <Button disabled={missing} onClick={install} size="xs" variant="soft">
         安装

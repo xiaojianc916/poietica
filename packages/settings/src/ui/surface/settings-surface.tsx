@@ -116,6 +116,8 @@ interface SettingsSectionContext {
 interface SettingsSectionDescriptor {
   readonly label: string
   readonly icon: GlyphComponent
+  /* 置顶标题由外壳统一渲染；内容自带大标题的分区（MCP）把它关掉，避免一大一小两个标题叠床架屋。 */
+  readonly hideTitle?: boolean
   readonly render: (context: SettingsSectionContext) => ReactNode
 }
 
@@ -182,6 +184,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   mcp: {
     label: 'MCP',
     icon: Plug,
+    hideTitle: true,
     render: ({ plugins }) => <McpSettings store={plugins} />,
   },
   keymap: {
@@ -441,7 +444,9 @@ export function SettingsContentRegion() {
   return (
     <div aria-live="polite" className="settings-content">
       <div className="settings-content__inner" data-section={section}>
-        <h2 className="settings-content__title">{SECTIONS[section].label}</h2>
+        {SECTIONS[section].hideTitle === true ? null : (
+          <h2 className="settings-content__title">{SECTIONS[section].label}</h2>
+        )}
 
         {controller.loading ? (
           <div className="settings-state">

@@ -17,6 +17,7 @@
   "dependencies": {
     "@poietica/design-system": "workspace:*",
     "@poietica/problem": "workspace:*",
+    "lucide-react": "catalog:",
     "valibot": "catalog:",
     "yaml": "catalog:"
   },

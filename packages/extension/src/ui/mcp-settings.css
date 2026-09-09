@@ -1,145 +1,575 @@
-.mcp-settings {
+.mcp {
   display: grid;
-  gap: 20px;
+  gap: 18px;
   min-inline-size: 0;
   color: var(--ui-foreground);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
 }
-.mcp-settings__toolbar,
-.mcp-settings__row {
+
+.mcp__title {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.mcp__muted {
+  color: var(--ui-muted-foreground);
+}
+
+.mcp__count {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.mcp__count .mcp__muted {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 第一行：作用域 pill ｜ MCP n …… 搜索框 */
+.mcp__filter {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+.mcp__divider {
+  inline-size: 1px;
+  block-size: 18px;
+  background: var(--ui-divider);
+}
+
+.mcp__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+  flex: 0 1 340px;
+  min-inline-size: 160px;
+  border: 1px solid var(--ui-divider);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: var(--ui-background);
+  color: var(--ui-muted-foreground);
+}
+
+.mcp__search svg {
+  flex-shrink: 0;
+}
+
+.mcp__search input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  padding: 8px 0;
+  background: transparent;
+  color: var(--ui-foreground);
+  font: inherit;
+  outline: none;
+}
+
+.mcp__search input::placeholder {
+  color: var(--ui-muted-foreground);
+}
+
+/* 作用域 pill：白底圆角描边，与设计稿同形 */
+.mcp__scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--ui-divider);
+  border-radius: 999px;
+  padding: 5px 11px;
+  background: var(--ui-background);
+  color: var(--ui-foreground);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mcp__scope:hover {
+  background: var(--ui-muted);
+}
+
+.mcp__scope:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+
+.mcp__scope-menu {
+  min-inline-size: 220px;
+}
+
+/* 第二行：已安装 n …… 省略 / 刷新 / 新建 */
+.mcp__installed {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-.mcp-settings__actions {
+
+.mcp__toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
-.mcp-settings__actions > button {
-  min-block-size: 44px;
-  min-inline-size: 44px;
-}
-.mcp-settings__toolbar > input {
-  flex: 0 1 280px;
-}
-.mcp-settings input:not([type="checkbox"]),
-.mcp-settings select,
-.mcp-settings textarea {
-  box-sizing: border-box;
-  inline-size: 100%;
-  min-inline-size: 0;
-  min-block-size: 44px;
+
+.mcp__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 30px;
+  block-size: 30px;
   border: 1px solid var(--ui-divider);
   border-radius: 8px;
-  padding: 10px 12px;
+  background: var(--ui-background);
+  color: var(--ui-foreground);
+  cursor: pointer;
+}
+
+.mcp__icon-btn:hover:not(:disabled) {
+  background: var(--ui-muted);
+}
+
+.mcp__icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.mcp__spin {
+  display: inline-flex;
+  animation: mcp-spin 1s linear infinite;
+}
+
+@keyframes mcp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 黑色主按钮：前景 / 背景 token 对调，浅色下是黑底白字，深色下反转 */
+.mcp__primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: var(--ui-foreground);
+  color: var(--ui-background);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mcp__primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.mcp__primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.mcp__primary--lg {
+  padding: 9px 16px;
+}
+
+.mcp__outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--ui-divider);
+  border-radius: 8px;
+  padding: 9px 16px;
   background: var(--ui-background);
   color: var(--ui-foreground);
   font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
 }
-.mcp-settings textarea {
-  resize: vertical;
-  font-family: ui-monospace, monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+
+.mcp__outline:hover:not(:disabled) {
+  background: var(--ui-muted);
 }
-.mcp-settings :is(input, select, textarea):focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: 2px;
+
+.mcp__text-btn {
+  border: 0;
+  background: transparent;
+  color: var(--ui-foreground);
+  font: inherit;
+  cursor: pointer;
+  padding: 6px 10px;
 }
-.mcp-settings :is(input, textarea)::placeholder {
-  color: var(--ui-muted-foreground);
+
+.mcp__text-btn:hover:not(:disabled) {
+  opacity: 0.7;
 }
-.mcp-settings__hint,
-.mcp-settings__copy > span {
-  margin: 0;
-  color: var(--ui-muted-foreground);
-  overflow-wrap: anywhere;
+
+.mcp__text-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
-.mcp-settings__empty {
+
+/* 空态：虚线大卡片 */
+.mcp__empty {
   display: grid;
   justify-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 40px 24px;
   border: 1px dashed var(--ui-divider);
   border-radius: 12px;
   text-align: center;
 }
-.mcp-settings__empty p {
-  margin: 0;
+
+.mcp__empty strong {
+  font-size: 15px;
+  font-weight: 600;
 }
-.mcp-settings__list {
+
+.mcp__empty p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+}
+
+.mcp__empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-block-start: 10px;
+}
+
+/* 服务器卡片：浅灰整行 */
+.mcp__cards {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.mcp-settings__row {
-  padding: 16px;
+
+.mcp-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
   border-radius: 12px;
   background: var(--ui-card);
 }
-.mcp-settings__copy {
+
+.mcp-card__icon {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.mcp-card__dot {
+  position: absolute;
+  inset-inline-end: -1px;
+  inset-block-end: -1px;
+  inline-size: 11px;
+  block-size: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--ui-card);
+  background: var(--ui-muted-foreground);
+}
+
+.mcp-card__dot[data-live="true"] {
+  background: var(--ui-success);
+}
+
+.mcp-card__copy {
   display: grid;
-  flex: 1 1 220px;
-  gap: 4px;
+  gap: 1px;
+  flex: 1;
   min-inline-size: 0;
   overflow-wrap: anywhere;
 }
-.mcp-settings__error {
+
+.mcp-card__copy strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mcp-card__copy span {
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+}
+
+.mcp-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mcp__group {
+  display: grid;
+  gap: 10px;
+}
+
+.mcp__group-title {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mcp__error {
   margin: 0;
-  padding: 12px;
+  padding: 10px 12px;
   border: 1px solid var(--ui-destructive);
   border-radius: 8px;
   color: var(--ui-destructive);
   overflow-wrap: anywhere;
 }
-.mcp-settings__dialog {
-  max-inline-size: 760px;
-}
-.mcp-settings__editor {
-  padding: 0 24px 24px;
-}
-.mcp-settings fieldset,
-.mcp-settings__fields {
-  display: grid;
+
+/* 新建页 */
+.mcp-create__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 16px;
+}
+
+.mcp-create__title {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   min-inline-size: 0;
+}
+
+.mcp-create__title .mcp__icon-btn {
+  margin-block-start: 3px;
+}
+
+.mcp-create__head p {
+  margin: 4px 0 0;
+}
+
+.mcp-create__tabs {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--ui-card);
+}
+
+.mcp-create__tab {
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 14px;
+  background: transparent;
+  color: var(--ui-muted-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mcp-create__tab[data-active="true"] {
+  background: var(--ui-background);
+  color: var(--ui-foreground);
+  box-shadow: var(--ui-shadow-xs);
+}
+
+.mcp-create__card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--ui-divider);
+  border-radius: 12px;
+  padding: 20px;
+  background: var(--ui-background);
+}
+
+.mcp-create__card fieldset {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.mcp-create__scope {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.mcp-create__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.mcp-create__footer .mcp__primary,
+.mcp-create__footer button[class*="Button"] {
+  min-inline-size: 72px;
+}
+
+/* 表单 */
+.mcp-form {
+  display: grid;
+  gap: 14px;
+}
+
+.mcp-form__row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mcp-form__scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-block-end: 2px;
+}
+
+.mcp-field {
+  display: grid;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.mcp-field--narrow input,
+.mcp-field--narrow select {
+  max-inline-size: 280px;
+}
+
+.mcp-field input,
+.mcp-field select,
+.mcp-field textarea {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+  border: 1px solid var(--ui-divider);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--ui-background);
+  color: var(--ui-foreground);
+  font: inherit;
+}
+
+.mcp-field textarea {
+  resize: vertical;
+}
+
+.mcp-field select:disabled {
+  opacity: 0.75;
+}
+
+.mcp-field :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 1px;
+}
+
+.mcp-field :is(input, textarea)::placeholder {
+  color: var(--ui-muted-foreground);
+}
+
+.mcp__code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  white-space: pre;
+}
+
+.mcp-form__collapsible {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ui-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mcp-form__chevron {
+  display: inline-flex;
+  color: var(--ui-muted-foreground);
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+
+.mcp-form__chevron--open {
+  transform: rotate(0deg);
+}
+
+/* JSON 导入勾选 */
+.mcp__checks {
+  display: grid;
+  gap: 4px;
   margin: 0;
   padding: 0;
   border: 0;
 }
-.mcp-settings fieldset[hidden] {
-  display: none;
+
+.mcp__checks legend {
+  padding: 0;
+  margin-block-end: 6px;
 }
-.mcp-settings label {
-  display: grid;
-  gap: 6px;
-}
-.mcp-settings label.mcp-settings__check {
+
+.mcp__check {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-block-size: 44px;
+  gap: 10px;
+  min-block-size: 34px;
   overflow-wrap: anywhere;
 }
-.mcp-settings__check input {
-  inline-size: 18px;
-  block-size: 18px;
+
+.mcp__check input {
+  inline-size: 16px;
+  block-size: 16px;
+  accent-color: var(--ui-foreground);
 }
-.mcp-settings__footer {
-  justify-content: flex-end;
-}
-@media (max-width: 480px) {
-  .mcp-settings__toolbar > input {
-    flex-basis: 100%;
+
+@media (max-width: 560px) {
+  .mcp__title {
+    font-size: 21px;
   }
-  .mcp-settings__editor {
-    padding-inline: 16px;
+
+  .mcp__filter {
+    flex-wrap: wrap;
+  }
+
+  .mcp__search {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .mcp-create__head {
+    flex-direction: column;
+  }
+
+  .mcp-create__card {
+    padding: 16px 12px;
+  }
+
+  .mcp-form__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mcp-form__scope {
+    justify-content: flex-start;
+  }
+
+  .mcp-field--narrow input,
+  .mcp-field--narrow select {
+    max-inline-size: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcp__spin {
+    animation: none;
   }
 }
