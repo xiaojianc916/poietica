@@ -106,7 +106,7 @@ fn force_quit(app: &AppHandle) {
 }
 
 fn toggle_main(app: &AppHandle) {
-    let Some(window) = app.get_webview_window(MAIN_WINDOW) else {
+    let Some(window) = app.get_window(MAIN_WINDOW) else {
         return;
     };
 
@@ -121,7 +121,7 @@ fn toggle_main(app: &AppHandle) {
 }
 
 pub(crate) fn show_main(app: &AppHandle) {
-    let Some(window) = app.get_webview_window(MAIN_WINDOW) else {
+    let Some(window) = app.get_window(MAIN_WINDOW) else {
         log::warn!("tray: main window is gone, nothing to show");
         return;
     };
@@ -130,7 +130,7 @@ pub(crate) fn show_main(app: &AppHandle) {
 }
 
 fn hide_main(app: &AppHandle) {
-    let Some(window) = app.get_webview_window(MAIN_WINDOW) else {
+    let Some(window) = app.get_window(MAIN_WINDOW) else {
         return;
     };
 

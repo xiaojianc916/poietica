@@ -20,7 +20,7 @@ pub async fn window_set_surface(
 ) -> std::result::Result<(), Problem> {
     (|| -> Result<()> {
         let window = app
-            .get_webview_window(MAIN_WINDOW)
+            .get_window(MAIN_WINDOW)
             .ok_or_else(|| Error::NotFound("main window".to_owned()))?;
 
         app.state::<WindowSurface>()
@@ -33,7 +33,7 @@ pub async fn window_set_surface(
 
 /// 打开开发者工具。
 ///
-/// 窗口已经不在了就什么也不做 —— 一个关掉的窗口没有开发者工具可开，那不是故障。
+/// 目标 webview 不在了就什么也不做 —— 关掉的 webview 没有开发者工具可开，那不是故障。
 ///
 /// 不返回 `Result`：每条路径都是 Ok(())，那个返回值到了生成绑定里只是一个渲染层
 /// 必须接、且永远接到 null 的东西。
@@ -43,8 +43,8 @@ pub async fn window_set_surface(
 #[command]
 #[specta::specta]
 pub async fn window_open_devtools(app: AppHandle, label: String) {
-    if let Some(window) = app.get_webview_window(&label) {
-        window.open_devtools();
+    if let Some(webview) = app.get_webview(&label) {
+        webview.open_devtools();
     }
 }
 

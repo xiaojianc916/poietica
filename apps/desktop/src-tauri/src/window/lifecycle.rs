@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{Manager, WebviewWindow, WindowEvent, async_runtime};
+use tauri::{Manager, Window, WindowEvent, async_runtime};
 use tauri_plugin_window_state::WindowExt;
 use tauri_specta::Event;
 
@@ -32,7 +32,7 @@ pub struct WindowMaximized {
 /// 回缓存 —— 这也是宁可调插件自己的恢复、而不是手写 set_position 的原因。
 ///
 /// 首次启动没有状态文件，恢复是空操作，此时生效的正是 center: true。
-pub fn restore_initial_geometry(window: &WebviewWindow) -> tauri::Result<()> {
+pub fn restore_initial_geometry(window: &Window) -> tauri::Result<()> {
     window.restore_state(WINDOW_STATE_FLAGS)?;
     constrain_to_visible_area(window);
 
@@ -44,7 +44,7 @@ pub fn restore_initial_geometry(window: &WebviewWindow) -> tauri::Result<()> {
 /// tao 只发 Resized，不发 Maximized，所以判定必须在这一侧做；去抖之后过边界的只有
 /// 真正的翻转。渲染层若改成在每次 Resized 上问一遍 is_maximized，缩放的每一帧就是
 /// 一次 IPC 往返加一次重渲 —— 而那正是拖拽期间不能抢的那条线程。
-pub fn watch_maximized(window: &WebviewWindow) {
+pub fn watch_maximized(window: &Window) {
     let emitter = window.clone();
     let broadcast = AtomicBool::new(window.is_maximized().unwrap_or(false));
 
@@ -79,7 +79,7 @@ pub fn watch_maximized(window: &WebviewWindow) {
 /// 尺寸」而不是空操作（Win32 ShowWindow），无条件发它会把最大化的窗口降下来；
 /// 而每一次多余的状态变更都是一次窗口重新合成，WebView2 的表面还没提交时，那
 /// 一帧画出来的是窗口衬底 —— 用户看到的就是整窗闪一下。
-pub fn activate(window: &WebviewWindow) {
+pub fn activate(window: &Window) {
     if let Err(error) = window.state::<WindowSurface>().reapply(window) {
         log::warn!("could not reapply the main window surface: {error}");
     }
@@ -104,7 +104,7 @@ pub fn activate(window: &WebviewWindow) {
 }
 
 /// 渲染层超时未呈现时，把窗口亮出来。
-pub fn present_watchdog(window: WebviewWindow) {
+pub fn present_watchdog(window: Window) {
     async_runtime::spawn(async move {
         tokio::time::sleep(PRESENT_WATCHDOG).await;
 
@@ -130,7 +130,7 @@ pub fn present_watchdog(window: WebviewWindow) {
 ///
 /// 这里只做约束，不做决定：几何本来就成立时它是空操作。最大化与全屏跳过，
 /// 那两种状态下的尺寸本来就等于显示器。
-fn constrain_to_visible_area(window: &WebviewWindow) {
+fn constrain_to_visible_area(window: &Window) {
     if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
         return;
     }

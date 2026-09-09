@@ -133,7 +133,7 @@ pub(crate) fn build() -> tauri::Builder<Wry> {
 
             /* 恢复几何、播报最大化态、挂呈现看门狗 —— 都归 window::lifecycle。 */
             let main_window = app
-                .get_webview_window(MAIN_WINDOW)
+                .get_window(MAIN_WINDOW)
                 .ok_or("tauri.conf.json 未声明 main 窗口")?;
 
             crate::window::lifecycle::restore_initial_geometry(&main_window)?;
