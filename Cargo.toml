@@ -54,6 +54,8 @@ tokio = { version = "1.45.1", features = [
 tokio-util = { version = "0.7.15", features = ["rt"] }
 
 # Serialization and validation
+# CSV 的引号、内嵌换行与转义（RFC 4180）不手搞：csv 是 Rust 侧的成熟实现。
+csv = "1.3"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 serde_with = "3.13.0"

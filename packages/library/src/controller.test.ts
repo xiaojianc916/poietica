@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { LibraryEntry, LibraryReply, LibraryRequest } from '@poietica/contract/library'
 import { LibraryController, type LibraryGateway } from './controller'
+import { setCell } from './sheet'
 
 function entry(path: string, folder: boolean): LibraryEntry {
   const cut = path.lastIndexOf('/')
@@ -38,7 +39,10 @@ function recorder(
   }
 }
 
-const DOCUMENT: LibraryReply = { kind: 'document', value: { path: '未命名文档.md', content: '' } }
+const DOCUMENT: LibraryReply = {
+  kind: 'document',
+  value: { path: '未命名文档.md', version: 'v1', body: { kind: 'markdown', value: '' } },
+}
 
 describe('LibraryController', () => {
   test('新建落在谁家由界面说了算', async () => {
@@ -81,16 +85,19 @@ describe('LibraryController', () => {
         throw new Error('已被改动')
       }
 
-      return { kind: 'document', value: { path: '甲.md', content: '原文' } }
+      return {
+        kind: 'document',
+        value: { path: '甲.md', version: 'v1', body: { kind: 'markdown', value: '原文' } },
+      }
     })
     const library = new LibraryController(gateway, String)
 
     await library.open('甲.md')
-    library.edit('改过的')
+    library.editText('改过的')
 
     await library.save()
 
-    expect(library.getSnapshot().draft).toBe('改过的')
+    expect(library.getSnapshot().draft).toEqual({ kind: 'markdown', value: '改过的' })
     expect(library.getSnapshot().failure).not.toBeNull()
   })
 
@@ -99,17 +106,52 @@ describe('LibraryController', () => {
       [entry('甲.md', false), entry('乙.md', false)],
       (request) => ({
         kind: 'document',
-        value: { path: request.kind === 'read' ? request.path : '甲.md', content: '原文' },
+        value: {
+          path: request.kind === 'read' ? request.path : '甲.md',
+          version: 'v1',
+          body: { kind: 'markdown', value: '原文' },
+        },
       }),
     )
     const library = new LibraryController(gateway, String)
 
     await library.open('甲.md')
-    library.edit('改过的')
+    library.editText('改过的')
 
     await library.open('乙.md')
 
     expect(sent.filter((request) => request.kind === 'save')).toHaveLength(1)
     expect(library.getSnapshot().document?.path).toBe('乙.md')
+  })
+
+  test('表格改动进撤销栈，保存只报版本号', async () => {
+    const sheet = { header: ['甲'], rows: [['一']] }
+    const { gateway, sent } = recorder([entry('表.csv', false)], (request) => ({
+      kind: 'document',
+      value: {
+        path: '表.csv',
+        version: request.kind === 'save' ? 'v2' : 'v1',
+        body: { kind: 'table', value: sheet },
+      },
+    }))
+    const library = new LibraryController(gateway, String)
+
+    await library.open('表.csv')
+    library.revise((current) => setCell(current, 0, 0, '二'), 'cell:0:0')
+    library.revise((current) => setCell(current, 0, 0, '三'), 'cell:0:0')
+    library.undo()
+
+    expect(library.getSnapshot().draft).toEqual({ kind: 'table', value: sheet })
+
+    library.redo()
+
+    await library.save()
+
+    expect(sent.find((request) => request.kind === 'save')).toEqual({
+      kind: 'save',
+      path: '表.csv',
+      expected: 'v1',
+      body: { kind: 'table', value: { header: ['甲'], rows: [['三']] } },
+    })
   })
 })

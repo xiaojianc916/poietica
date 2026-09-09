@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use poietica_library::{LibraryError, LibraryReply, LibraryRequest, Vault};
+use poietica_library::{LibraryError, LibraryFormat, LibraryReply, LibraryRequest, Vault};
 use poietica_problem::{Code, DiagnosticId, Problem};
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
@@ -53,7 +53,7 @@ pub(crate) async fn library_import(
 
     app.dialog()
         .file()
-        .add_filter("资料", &["md", "csv", "html"])
+        .add_filter("资料", &LibraryFormat::extensions())
         .pick_file(move |chosen| {
             drop(answer.send(chosen));
         });

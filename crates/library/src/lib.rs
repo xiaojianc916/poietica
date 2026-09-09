@@ -13,6 +13,10 @@ use std::time::UNIX_EPOCH;
 use tempfile::NamedTempFile;
 use walkdir::WalkDir;
 
+mod table;
+
+pub use table::TableSheet;
+
 /// 单份资料的读写上限。
 const MAX_DOCUMENT_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -20,6 +24,8 @@ const MAX_DOCUMENT_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_ENTRIES: usize = 20_000;
 const LOCK_FILE: &str = ".poietica-library.lock";
 const UNTITLED_FOLDER: &str = "未命名文件夹";
+/// 新建表格落盘的初始表：空文件不是表，打开就得是一张可用的表。
+const TABLE_SEED: &str = "标题,数字,单选,日期\n,,,\n,,,\n,,,\n,,,\n,,,\n";
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -46,12 +52,23 @@ impl LibraryFormat {
     const ALL: [Self; 3] = [Self::Markdown, Self::Table, Self::Page];
 
     /// 加一种格式：加 variant（编译器逼你补齐这里）并加进 ALL。
-    const fn spec(self) -> (&'static str, &'static str) {
+    const fn spec(self) -> (&'static str, &'static str, &'static str) {
         match self {
-            Self::Markdown => ("md", "未命名文档"),
-            Self::Table => ("csv", "未命名表格"),
-            Self::Page => ("html", "未命名网页"),
+            Self::Markdown => ("md", "未命名文档", ""),
+            Self::Table => ("csv", "未命名表格", TABLE_SEED),
+            Self::Page => ("html", "未命名网页", ""),
         }
+    }
+
+    /// 新建时写进去的初始内容。
+    const fn seed(self) -> &'static str {
+        self.spec().2
+    }
+
+    /// 导入过滤器与目录识别用同一份扩展名，不在宿主侧再抄一遍。
+    #[must_use]
+    pub fn extensions() -> [&'static str; 3] {
+        Self::ALL.map(Self::extension)
     }
 
     #[must_use]
@@ -94,11 +111,32 @@ pub struct LibraryCatalog {
     pub entries: Vec<LibraryEntry>,
 }
 
+/// 一份资料的正文。变体与文件种类一一对应，判别式只有这一个。
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(tag = "kind", content = "value", rename_all = "camelCase")]
+pub enum LibraryBody {
+    Markdown(String),
+    Table(TableSheet),
+    Page(String),
+}
+
+impl LibraryBody {
+    fn format(&self) -> LibraryFormat {
+        match self {
+            Self::Markdown(_) => LibraryFormat::Markdown,
+            Self::Table(_) => LibraryFormat::Table,
+            Self::Page(_) => LibraryFormat::Page,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryDocument {
     pub path: String,
-    pub content: String,
+    /// 落盘字节的指纹。保存时带回来做乐观并发比对，语义同 HTTP ETag。
+    pub version: String,
+    pub body: LibraryBody,
 }
 
 /// 渲染层能发出的全部请求。库外路径不在其中：导入的源文件由宿主的
@@ -115,7 +153,7 @@ pub enum LibraryRequest {
     Save {
         path: String,
         expected: String,
-        content: String,
+        body: LibraryBody,
     },
     Create {
         parent: String,
@@ -175,9 +213,9 @@ impl Vault {
             LibraryRequest::Save {
                 path,
                 expected,
-                content,
+                body,
             } => self
-                .write(&path, &content, &expected)
+                .write(&path, &body, &expected)
                 .map(LibraryReply::Document),
             LibraryRequest::Create { parent, format } => {
                 self.create(&parent, format).map(LibraryReply::Placed)
@@ -297,25 +335,29 @@ impl Vault {
         Ok(LibraryCatalog { entries })
     }
 
+    /// 种类决定正文形状，这个映射只在这里做一次。
     fn document(&self, path: &str) -> Result<LibraryDocument> {
-        let target = self.file(path)?;
+        let (target, format) = self.file(path)?;
+        let bytes = read_bytes(&target)?;
+        let version = fingerprint(&bytes);
+        let text = decode_text(bytes)?;
 
         Ok(LibraryDocument {
             path: path.to_owned(),
-            content: read_text(&target)?,
+            version,
+            body: match format {
+                LibraryFormat::Markdown => LibraryBody::Markdown(text),
+                LibraryFormat::Table => LibraryBody::Table(table::decode(&text)?),
+                LibraryFormat::Page => LibraryBody::Page(text),
+            },
         })
     }
 
-    /// 先写临时文件再比对现状最后原子替换：写失败不会留下半份文件。
-    fn write(&self, path: &str, content: &str, expected: &str) -> Result<LibraryDocument> {
-        if content.len() as u64 > MAX_DOCUMENT_BYTES {
-            return Err(LibraryError::Invalid(
-                "内容超过 16 MiB，未写入。".to_owned(),
-            ));
-        }
-
+    /// 先写临时文件再比对指纹最后原子替换：写失败不会留下半份文件。
+    fn write(&self, path: &str, body: &LibraryBody, expected: &str) -> Result<LibraryDocument> {
         let _lock = self.lock()?;
-        let target = self.file(path)?;
+        let (target, format) = self.file(path)?;
+        let content = serialize(format, body)?;
         let holder = target
             .parent()
             .ok_or_else(|| LibraryError::Invalid("资料没有父目录。".to_owned()))?;
@@ -331,7 +373,7 @@ impl Vault {
         prepared.write_all(content.as_bytes())?;
         prepared.as_file().sync_all()?;
 
-        if fs::read(&target)? != expected.as_bytes() {
+        if fingerprint(&read_bytes(&target)?) != expected {
             return Err(LibraryError::Conflict);
         }
 
@@ -341,7 +383,12 @@ impl Vault {
 
         Ok(LibraryDocument {
             path: path.to_owned(),
-            content: content.to_owned(),
+            version: fingerprint(content.as_bytes()),
+            body: match body {
+                LibraryBody::Markdown(_) => LibraryBody::Markdown(content),
+                LibraryBody::Page(_) => LibraryBody::Page(content),
+                LibraryBody::Table(_) => LibraryBody::Table(table::decode(&content)?),
+            },
         })
     }
 
@@ -353,7 +400,8 @@ impl Vault {
         OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(&target)?;
+            .open(&target)?
+            .write_all(format.seed().as_bytes())?;
 
         self.relative(&target)
     }
@@ -443,14 +491,14 @@ impl Vault {
         Ok(resolved)
     }
 
-    fn file(&self, relative: &str) -> Result<PathBuf> {
+    /// 资料文件连同它的种类：种类是正文形状的唯一判据，不在调用点二次判断。
+    fn file(&self, relative: &str) -> Result<(PathBuf, LibraryFormat)> {
         let resolved = self.path(relative, false)?;
 
-        if LibraryFormat::of(&resolved).is_none() || !resolved.is_file() {
-            return Err(LibraryError::Invalid("这不是一份资料文件。".to_owned()));
+        match LibraryFormat::of(&resolved) {
+            Some(format) if resolved.is_file() => Ok((resolved, format)),
+            _ => Err(LibraryError::Invalid("这不是一份资料文件。".to_owned())),
         }
-
-        Ok(resolved)
     }
 
     /// 落点目录。空串就是根。
@@ -525,8 +573,12 @@ fn vacancy(holder: &Path, stem: &str, extension: Option<&str>) -> Result<PathBuf
     Err(LibraryError::Invalid("同名条目过多，未新建。".to_owned()))
 }
 
-/// 一份资料的正文。三种格式都是文本格式，所以只接 UTF-8。
-fn read_text(path: &Path) -> Result<String> {
+/// 落盘字节的指纹。乐观并发只需要「变没变」，blake3 已在本工作区，不再引第二套摘要。
+fn fingerprint(bytes: &[u8]) -> String {
+    blake3::hash(bytes).to_hex().to_string()
+}
+
+fn read_bytes(path: &Path) -> Result<Vec<u8>> {
     let metadata = fs::metadata(path)?;
 
     if metadata.len() > MAX_DOCUMENT_BYTES {
@@ -535,8 +587,38 @@ fn read_text(path: &Path) -> Result<String> {
         ));
     }
 
-    String::from_utf8(fs::read(path)?)
-        .map_err(|_| LibraryError::Invalid("资料不是 UTF-8 文本。".to_owned()))
+    Ok(fs::read(path)?)
+}
+
+/// 三种格式都是文本格式，所以只接 UTF-8。
+fn decode_text(bytes: Vec<u8>) -> Result<String> {
+    String::from_utf8(bytes).map_err(|_| LibraryError::Invalid("资料不是 UTF-8 文本。".to_owned()))
+}
+
+fn read_text(path: &Path) -> Result<String> {
+    decode_text(read_bytes(path)?)
+}
+
+/// 正文形状必须与资料种类相符，序列化只在这里做一次。
+fn serialize(format: LibraryFormat, body: &LibraryBody) -> Result<String> {
+    if body.format() != format {
+        return Err(LibraryError::Invalid(
+            "正文形状与资料种类不符。".to_owned(),
+        ));
+    }
+
+    let content = match body {
+        LibraryBody::Markdown(text) | LibraryBody::Page(text) => text.clone(),
+        LibraryBody::Table(sheet) => table::encode(sheet)?,
+    };
+
+    if content.len() as u64 > MAX_DOCUMENT_BYTES {
+        return Err(LibraryError::Invalid(
+            "内容超过 16 MiB，未写入。".to_owned(),
+        ));
+    }
+
+    Ok(content)
 }
 
 #[cfg(test)]
@@ -547,7 +629,9 @@ mod tests {
         reason = "fixture failures must fail the test"
     )]
 
-    use super::{LibraryError, LibraryFormat, LibraryReply, LibraryRequest, Vault};
+    use super::{
+        LibraryBody, LibraryError, LibraryFormat, LibraryReply, LibraryRequest, Vault,
+    };
     use std::fs;
 
     fn vault() -> (tempfile::TempDir, Vault) {
@@ -647,7 +731,7 @@ mod tests {
             vault.execute(LibraryRequest::Save {
                 path,
                 expected: String::new(),
-                content: "我写的".to_owned(),
+                body: LibraryBody::Markdown("我写的".to_owned()),
             }),
             Err(LibraryError::Conflict)
         ));

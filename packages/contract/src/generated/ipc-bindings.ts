@@ -1466,8 +1466,16 @@ export type GitReview = { branch: string | null; detachedAt: string | null; upst
 export type GitWatchLease = { token: string; root: string }
 export type GitWorkingTreeChanged = { root: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+/**
+ * 一份资料的正文。变体与文件种类一一对应，判别式只有这一个。
+ */
+export type LibraryBody = { kind: "markdown"; value: string } | { kind: "table"; value: TableSheet } | { kind: "page"; value: string }
 export type LibraryCatalog = { entries: LibraryEntry[] }
-export type LibraryDocument = { path: string; content: string }
+export type LibraryDocument = { path: string; 
+/**
+ * 落盘字节的指纹。保存时带回来做乐观并发比对，语义同 HTTP ETag。
+ */
+version: string; body: LibraryBody }
 export type LibraryEntry = { 
 /**
  * 相对根的路径，也是这一行的身份。
@@ -1494,7 +1502,7 @@ export type LibraryReply = { kind: "catalog"; value: LibraryCatalog } | { kind: 
  * 渲染层能发出的全部请求。库外路径不在其中：导入的源文件由宿主的
  * 文件选择器给出，渲染层无从指定库外的任何一个位置。
  */
-export type LibraryRequest = { kind: "list"; query: string } | { kind: "read"; path: string } | { kind: "save"; path: string; expected: string; content: string } | { kind: "create"; parent: string; format: LibraryFormat } | { kind: "folder"; parent: string } | { kind: "rename"; path: string; name: string } | { kind: "trash"; path: string }
+export type LibraryRequest = { kind: "list"; query: string } | { kind: "read"; path: string } | { kind: "save"; path: string; expected: string; body: LibraryBody } | { kind: "create"; parent: string; format: LibraryFormat } | { kind: "folder"; parent: string } | { kind: "rename"; path: string; name: string } | { kind: "trash"; path: string }
 /**
  * 一条能直接交给启动器的启动式：程序在哪儿，前面还要垫哪些参数。
  */
@@ -1575,6 +1583,10 @@ export type SkillRecord = { name: string; enabled: boolean; document: string; pa
 export type SkillStaged = { stagingId: string; skillMd: string }
 export type TableExportFormat = "csv" | "markdown"
 export type TableExportRequest = { content: string; format: TableExportFormat }
+/**
+ * 一张表。表头即字段名，每行按表头宽度对齐。
+ */
+export type TableSheet = { header: string[]; rows: string[][] }
 /**
  * 一段 PTY 字节，或一次退出。字节是 base64：Tauri 的事件与命令走 JSON。
  */
