@@ -607,11 +607,17 @@ pub enum SessionSnapshotDataMessagesItemsContentChoice {
     Image {
         #[serde(rename = "source")]
         source: SessionSnapshotDataMessagesItemsContentChoiceImageSourceChoice,
+        #[serde(rename = "name")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
     },
     #[serde(rename = "video")]
     Video {
         #[serde(rename = "source")]
         source: SessionSnapshotDataMessagesItemsContentChoiceImageSourceChoice,
+        #[serde(rename = "name")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
     },
     #[serde(rename = "file")]
     File {
@@ -1248,11 +1254,17 @@ pub enum SubmitPromptRequestContentChoice {
     Image {
         #[serde(rename = "source")]
         source: SubmitPromptRequestContentChoiceImageSourceChoice,
+        #[serde(rename = "name")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
     },
     #[serde(rename = "video")]
     Video {
         #[serde(rename = "source")]
         source: SubmitPromptRequestContentChoiceImageSourceChoice,
+        #[serde(rename = "name")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
     },
     #[serde(rename = "file")]
     File {

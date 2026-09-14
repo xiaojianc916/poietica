@@ -28,6 +28,7 @@ export interface WorkspaceFrameProps {
   readonly auxiliaryColumnWidth: number
   readonly isSidebarDocked: boolean
   readonly isAuxiliaryDocked: boolean
+  readonly isAuxiliaryFullscreen: boolean
   readonly splitter: SplitterActivity
   readonly splitterRegion: SplitterRegion
 }
@@ -42,19 +43,25 @@ export function WorkspaceFrame({
   auxiliaryColumnWidth,
   isSidebarDocked,
   isAuxiliaryDocked,
+  isAuxiliaryFullscreen,
   splitter,
   splitterRegion,
 }: WorkspaceFrameProps) {
+  /* 全屏把 aux 列宽铺到「剩余全部」：main 的 1fr 被逐帧压到 0，主区随之让位。
+     两者都是 <length>，经 @property 插值过渡 —— 与侧边栏开合同一套机制。 */
   const style: WorkspaceStyle = {
     ...WORKSPACE_LAYOUT_STYLE,
     '--workspace-sidebar-column-width': `${sidebarColumnWidth}px`,
-    '--workspace-auxiliary-column-width': `${auxiliaryColumnWidth}px`,
+    '--workspace-auxiliary-column-width': isAuxiliaryFullscreen
+      ? `calc(100dvw - var(--workspace-sidebar-column-width))`
+      : `${auxiliaryColumnWidth}px`,
   }
 
   return (
     <div
       className="workspace-shell relative grid h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground"
       data-auxiliary-docked={isAuxiliaryDocked ? 'true' : 'false'}
+      data-auxiliary-fullscreen={isAuxiliaryFullscreen ? 'true' : 'false'}
       data-sidebar-docked={isSidebarDocked ? 'true' : 'false'}
       data-splitter={splitter}
       data-splitter-region={splitterRegion}

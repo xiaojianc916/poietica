@@ -112,6 +112,11 @@
   grid-area: 2 / 2 / -1 / 3;
 }
 
+/* 对话区与右侧栏的竖线单取 #ededed，比全局区域分隔线淡一档；深色主题不跟。 */
+:root:not([data-theme="dark"]) .workspace-shell__divider--auxiliary {
+  --color-divider: #ededed;
+}
+
 /* 各侧的线只随自己那侧的停靠位隐没：基类共享，:not 把两侧开关圈开。 */
 .workspace-shell[data-sidebar-docked="false"]
 .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
@@ -220,4 +225,20 @@
 
 .workspace-shell[data-auxiliary-docked="false"] .workspace-shell__auxiliary {
   pointer-events: none;
+}
+
+/*
+ * 辅助面板全屏占满主列+右栏，仍留左侧栏与页头。
+ * 栅格三列保持不动：列宽经 @property 插值逐帧过渡（见 workspace-frame），
+ * main 的 1fr 被压到 0、aux 列铺到剩余全部，视觉与侧边栏开合同一套时长曲线。
+ * 这里只收尾两件事：主区不残留、叠加在主区上的会话开关不浮在面板上方。
+ */
+.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__main,
+.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__conversation-control {
+  display: none;
+}
+
+/* 主/右栏的竖线画在主列末像素；主区没了它就成了停在面板左缘的孤线。 */
+.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__divider--auxiliary {
+  opacity: 0;
 }

@@ -3,7 +3,7 @@
   "info": {
     "title": "Kimi Code Server API",
     "description": "REST API for the Kimi Code local server. All JSON responses are wrapped in a uniform envelope `{ code, msg, data, request_id }`.",
-    "version": "0.40.1"
+    "version": "0.43.0"
   },
   "components": {
     "schemas": {}
@@ -8799,6 +8799,10 @@
                                   ]
                                 }
                               ]
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1
                             }
                           },
                           "required": [
@@ -8922,6 +8926,10 @@
                                   ]
                                 }
                               ]
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1
                             }
                           },
                           "required": [
@@ -10791,6 +10799,10 @@
                                                   "additionalProperties": false
                                                 }
                                               ]
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "minLength": 1
                                             }
                                           },
                                           "required": [
@@ -10920,6 +10932,10 @@
                                                   "additionalProperties": false
                                                 }
                                               ]
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "minLength": 1
                                             }
                                           },
                                           "required": [
@@ -11387,6 +11403,10 @@
                                             "additionalProperties": false
                                           }
                                         ]
+                                      },
+                                      "name": {
+                                        "type": "string",
+                                        "minLength": 1
                                       }
                                     },
                                     "required": [
@@ -11516,6 +11536,10 @@
                                             "additionalProperties": false
                                           }
                                         ]
+                                      },
+                                      "name": {
+                                        "type": "string",
+                                        "minLength": 1
                                       }
                                     },
                                     "required": [
@@ -11710,6 +11734,2168 @@
                           "type": "number",
                           "enum": [
                             40403
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/history": {
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "description": "Flat entity-message history of one agent timeline, cold-rebuilt from the persisted wire records (live sessions flush first). Messages are time-ordered and share the WS entity schemas. before_turn pages to older turns, after_step catches up newer than a step, page_size bounds the page (default 200, max 500). agent_id defaults to the main agent. Live sessions carry in_flight with the current streaming position",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "before_turn",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "after_step",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            },
+            "in": "query",
+            "name": "page_size",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "agent_id",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "session_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "messages": {
+                              "type": "array",
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": [
+                                          "turn"
+                                        ]
+                                      },
+                                      "session_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "agent_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "timestamp": {
+                                        "type": "number"
+                                      },
+                                      "turn_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "ordinal": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "running",
+                                          "completed"
+                                        ]
+                                      },
+                                      "origin": {
+                                        "oneOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "user"
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "cron"
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "task"
+                                                ]
+                                              },
+                                              "task_id": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              }
+                                            },
+                                            "required": [
+                                              "kind",
+                                              "task_id"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "hook"
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "compaction"
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "side"
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "goal"
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "other"
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        ]
+                                      },
+                                      "user_message_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "attachment_ids": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      },
+                                      "started_at": {},
+                                      "ended_at": {},
+                                      "usage": {
+                                        "type": "object",
+                                        "properties": {
+                                          "input_tokens": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "output_tokens": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "cached_tokens": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "cost": {
+                                            "type": "number",
+                                            "minimum": 0
+                                          }
+                                        },
+                                        "additionalProperties": false
+                                      },
+                                      "duration_ms": {
+                                        "type": "number",
+                                        "minimum": 0
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "session_id",
+                                      "agent_id",
+                                      "timestamp",
+                                      "turn_id",
+                                      "ordinal",
+                                      "status",
+                                      "origin"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": [
+                                          "step"
+                                        ]
+                                      },
+                                      "session_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "agent_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "timestamp": {
+                                        "type": "number"
+                                      },
+                                      "step_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "turn_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "ordinal": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "running",
+                                          "completed",
+                                          "interrupted",
+                                          "failed"
+                                        ]
+                                      },
+                                      "started_at": {},
+                                      "ended_at": {},
+                                      "usage": {
+                                        "type": "object",
+                                        "properties": {
+                                          "input_other": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "output": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "input_cache_read": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "input_cache_creation": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
+                                        },
+                                        "required": [
+                                          "input_other",
+                                          "output",
+                                          "input_cache_read",
+                                          "input_cache_creation"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "finish_reason": {
+                                        "type": "string"
+                                      },
+                                      "timing": {
+                                        "type": "object",
+                                        "properties": {
+                                          "llm_first_token_ms": {
+                                            "type": "number",
+                                            "minimum": 0
+                                          },
+                                          "llm_stream_duration_ms": {
+                                            "type": "number",
+                                            "minimum": 0
+                                          }
+                                        },
+                                        "additionalProperties": false
+                                      },
+                                      "retry": {
+                                        "type": "object",
+                                        "properties": {
+                                          "failed_attempt": {
+                                            "type": "integer",
+                                            "exclusiveMinimum": true,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "next_attempt": {
+                                            "type": "integer",
+                                            "exclusiveMinimum": true,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "max_attempts": {
+                                            "type": "integer",
+                                            "exclusiveMinimum": true,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "delay_ms": {
+                                            "type": "number",
+                                            "minimum": 0
+                                          },
+                                          "error_name": {
+                                            "type": "string"
+                                          },
+                                          "error_message": {
+                                            "type": "string"
+                                          },
+                                          "status_code": {
+                                            "type": "integer",
+                                            "minimum": -9007199254740991,
+                                            "maximum": 9007199254740991
+                                          }
+                                        },
+                                        "required": [
+                                          "failed_attempt",
+                                          "next_attempt",
+                                          "max_attempts",
+                                          "delay_ms",
+                                          "error_name",
+                                          "error_message"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "end_reason": {
+                                        "type": "string"
+                                      },
+                                      "end_message": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "session_id",
+                                      "agent_id",
+                                      "timestamp",
+                                      "step_id",
+                                      "turn_id",
+                                      "ordinal",
+                                      "status"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": [
+                                          "user"
+                                        ]
+                                      },
+                                      "session_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "agent_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "message_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "turn_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "unread",
+                                          "read"
+                                        ]
+                                      },
+                                      "timestamp": {
+                                        "type": "number"
+                                      },
+                                      "text": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "text",
+                                                "think",
+                                                "image",
+                                                "audio",
+                                                "video"
+                                              ]
+                                            },
+                                            "text": {
+                                              "type": "string"
+                                            },
+                                            "meta": {
+                                              "type": "object",
+                                              "additionalProperties": {}
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "text",
+                                            "meta"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "attachment_ids": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      },
+                                      "skill_activations": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "skill_name": {
+                                              "type": "string",
+                                              "minLength": 1
+                                            },
+                                            "skill_args": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "skill_name"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "origin": {
+                                        "oneOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "user"
+                                                ]
+                                              },
+                                              "cron_id": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "schedule": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "cron"
+                                                ]
+                                              },
+                                              "cron_id": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "schedule": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "task"
+                                                ]
+                                              },
+                                              "task_id": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "title": {
+                                                "type": "string"
+                                              },
+                                              "body": {
+                                                "type": "string"
+                                              },
+                                              "severity": {
+                                                "type": "string"
+                                              },
+                                              "type": {
+                                                "type": "string"
+                                              },
+                                              "source_kind": {
+                                                "type": "string"
+                                              },
+                                              "source_id": {
+                                                "type": "string"
+                                              },
+                                              "agent_id": {
+                                                "type": "string"
+                                              },
+                                              "raw": {}
+                                            },
+                                            "required": [
+                                              "kind",
+                                              "task_id",
+                                              "title",
+                                              "body"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "skill"
+                                                ]
+                                              },
+                                              "skill_name": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "args": {
+                                                "type": "string"
+                                              },
+                                              "trigger": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind",
+                                              "skill_name"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "session_id",
+                                      "agent_id",
+                                      "message_id",
+                                      "status",
+                                      "text"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": [
+                                          "assistant"
+                                        ]
+                                      },
+                                      "session_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "agent_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "timestamp": {
+                                        "type": "number"
+                                      },
+                                      "message_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "turn_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "step_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "streaming",
+                                          "completed"
+                                        ]
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "session_id",
+                                      "agent_id",
+                                      "timestamp",
+                                      "message_id",
+                                      "turn_id",
+                                      "step_id",
+                                      "status",
+                                      "text"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": [
+                                          "thinking"
+                                        ]
+                                      },
+                                      "session_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "agent_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "timestamp": {
+                                        "type": "number"
+                                      },
+                                      "message_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "turn_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "step_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "streaming",
+                                          "completed"
+                                        ]
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "session_id",
+                                      "agent_id",
+                                      "timestamp",
+                                      "message_id",
+                                      "turn_id",
+                                      "step_id",
+                                      "status",
+                                      "text"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": [
+                                          "tool_call"
+                                        ]
+                                      },
+                                      "session_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "agent_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "timestamp": {
+                                        "type": "number"
+                                      },
+                                      "tool_call_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "turn_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "step_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "name": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "view": {
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "running",
+                                          "done",
+                                          "error"
+                                        ]
+                                      },
+                                      "input": {},
+                                      "input_text": {
+                                        "type": "string"
+                                      },
+                                      "output": {},
+                                      "display": {},
+                                      "error": {
+                                        "type": "string"
+                                      },
+                                      "progress": {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "stdout",
+                                              "stderr",
+                                              "progress",
+                                              "status",
+                                              "custom"
+                                            ]
+                                          },
+                                          "text": {
+                                            "type": "string"
+                                          },
+                                          "percent": {
+                                            "type": "number"
+                                          },
+                                          "custom_kind": {
+                                            "type": "string"
+                                          },
+                                          "custom_data": {}
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "task_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "approval_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "todo_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "agent_refs": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "agent_id": {
+                                              "type": "string",
+                                              "minLength": 1
+                                            },
+                                            "role": {
+                                              "type": "string",
+                                              "enum": [
+                                                "child",
+                                                "member"
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "agent_id"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "session_id",
+                                      "agent_id",
+                                      "timestamp",
+                                      "tool_call_id",
+                                      "turn_id",
+                                      "step_id",
+                                      "name",
+                                      "status"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "compaction"
+                                            ]
+                                          },
+                                          "payload": {}
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "undo"
+                                            ]
+                                          },
+                                          "payload": {
+                                            "type": "object",
+                                            "properties": {
+                                              "removed_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string",
+                                                  "minLength": 1
+                                                }
+                                              }
+                                            },
+                                            "required": [
+                                              "removed_ids"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype",
+                                          "payload"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "clear"
+                                            ]
+                                          },
+                                          "payload": {
+                                            "type": "object",
+                                            "properties": {
+                                              "removed_ids": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string",
+                                                  "minLength": 1
+                                                }
+                                              }
+                                            },
+                                            "required": [
+                                              "removed_ids"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype",
+                                          "payload"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "goal"
+                                            ]
+                                          },
+                                          "payload": {}
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "plan.enter"
+                                            ]
+                                          },
+                                          "payload": {}
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "plan.exit"
+                                            ]
+                                          },
+                                          "payload": {}
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "plan.revision"
+                                            ]
+                                          },
+                                          "payload": {}
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "swarm.enter"
+                                            ]
+                                          },
+                                          "payload": {}
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "swarm.exit"
+                                            ]
+                                          },
+                                          "payload": {}
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "notice"
+                                            ]
+                                          },
+                                          "payload": {}
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "hook"
+                                            ]
+                                          },
+                                          "payload": {}
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "system"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "system_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "at": {},
+                                          "subtype": {
+                                            "type": "string",
+                                            "enum": [
+                                              "interruption"
+                                            ]
+                                          },
+                                          "payload": {}
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "system_id",
+                                          "subtype"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "interaction"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "interaction_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "status": {
+                                            "type": "string",
+                                            "enum": [
+                                              "pending",
+                                              "approved",
+                                              "rejected",
+                                              "cancelled",
+                                              "answered",
+                                              "dismissed"
+                                            ]
+                                          },
+                                          "tool_call_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "approval"
+                                            ]
+                                          },
+                                          "request": {
+                                            "type": "object",
+                                            "properties": {
+                                              "tool_name": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              },
+                                              "action": {
+                                                "type": "string"
+                                              },
+                                              "tool_input_display": {},
+                                              "expires_at": {}
+                                            },
+                                            "required": [
+                                              "tool_name",
+                                              "action"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          "response": {
+                                            "type": "object",
+                                            "properties": {
+                                              "decision": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "approved",
+                                                  "rejected",
+                                                  "cancelled"
+                                                ]
+                                              },
+                                              "scope": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "session"
+                                                ]
+                                              },
+                                              "feedback": {
+                                                "type": "string"
+                                              },
+                                              "selected_label": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "decision"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "interaction_id",
+                                          "status",
+                                          "kind"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "type": {
+                                            "type": "string",
+                                            "enum": [
+                                              "interaction"
+                                            ]
+                                          },
+                                          "session_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "agent_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "timestamp": {
+                                            "type": "number"
+                                          },
+                                          "interaction_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "status": {
+                                            "type": "string",
+                                            "enum": [
+                                              "pending",
+                                              "approved",
+                                              "rejected",
+                                              "cancelled",
+                                              "answered",
+                                              "dismissed"
+                                            ]
+                                          },
+                                          "tool_call_id": {
+                                            "type": "string",
+                                            "minLength": 1
+                                          },
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "question"
+                                            ]
+                                          },
+                                          "request": {
+                                            "type": "object",
+                                            "properties": {
+                                              "questions": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "id": {
+                                                      "type": "string",
+                                                      "minLength": 1
+                                                    },
+                                                    "question": {
+                                                      "type": "string"
+                                                    },
+                                                    "header": {
+                                                      "type": "string"
+                                                    },
+                                                    "body": {
+                                                      "type": "string"
+                                                    },
+                                                    "options": {
+                                                      "type": "array",
+                                                      "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                          "id": {
+                                                            "type": "string",
+                                                            "minLength": 1
+                                                          },
+                                                          "label": {
+                                                            "type": "string"
+                                                          },
+                                                          "description": {
+                                                            "type": "string"
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "id",
+                                                          "label"
+                                                        ],
+                                                        "additionalProperties": false
+                                                      }
+                                                    },
+                                                    "multi_select": {
+                                                      "type": "boolean"
+                                                    },
+                                                    "allow_other": {
+                                                      "type": "boolean"
+                                                    },
+                                                    "other_label": {
+                                                      "type": "string"
+                                                    },
+                                                    "other_description": {
+                                                      "type": "string"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "id",
+                                                    "question",
+                                                    "options"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              }
+                                            },
+                                            "required": [
+                                              "questions"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          "response": {
+                                            "type": "object",
+                                            "properties": {
+                                              "answers": {
+                                                "type": "object",
+                                                "additionalProperties": {
+                                                  "oneOf": [
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "single"
+                                                          ]
+                                                        },
+                                                        "option_id": {
+                                                          "type": "string",
+                                                          "minLength": 1
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "kind",
+                                                        "option_id"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "multi"
+                                                          ]
+                                                        },
+                                                        "option_ids": {
+                                                          "minItems": 1,
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string",
+                                                            "minLength": 1
+                                                          }
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "kind",
+                                                        "option_ids"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "other"
+                                                          ]
+                                                        },
+                                                        "text": {
+                                                          "type": "string"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "kind",
+                                                        "text"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "multi_with_other"
+                                                          ]
+                                                        },
+                                                        "option_ids": {
+                                                          "type": "array",
+                                                          "items": {
+                                                            "type": "string",
+                                                            "minLength": 1
+                                                          }
+                                                        },
+                                                        "other_text": {
+                                                          "type": "string"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "kind",
+                                                        "option_ids",
+                                                        "other_text"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    },
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string",
+                                                          "enum": [
+                                                            "skipped"
+                                                          ]
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "kind"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              "method": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "enter",
+                                                  "space",
+                                                  "number_key",
+                                                  "click"
+                                                ]
+                                              },
+                                              "note": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "answers"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "type",
+                                          "session_id",
+                                          "agent_id",
+                                          "timestamp",
+                                          "interaction_id",
+                                          "status",
+                                          "kind"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": [
+                                          "task"
+                                        ]
+                                      },
+                                      "session_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "agent_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "timestamp": {
+                                        "type": "number"
+                                      },
+                                      "task_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "shell",
+                                          "subagent",
+                                          "tool",
+                                          "other"
+                                        ]
+                                      },
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "running",
+                                          "completed",
+                                          "failed",
+                                          "timed_out",
+                                          "killed",
+                                          "lost"
+                                        ]
+                                      },
+                                      "detached": {
+                                        "type": "boolean"
+                                      },
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "child_agent_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "output_tail": {
+                                        "type": "string"
+                                      },
+                                      "started_at": {},
+                                      "ended_at": {},
+                                      "result_summary": {
+                                        "type": "string"
+                                      },
+                                      "error": {
+                                        "type": "string"
+                                      },
+                                      "state_reason": {
+                                        "type": "string"
+                                      },
+                                      "usage": {
+                                        "type": "object",
+                                        "properties": {
+                                          "input_other": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "output": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "input_cache_read": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "input_cache_creation": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
+                                        },
+                                        "required": [
+                                          "input_other",
+                                          "output",
+                                          "input_cache_read",
+                                          "input_cache_creation"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "thinking_effort": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "session_id",
+                                      "agent_id",
+                                      "timestamp",
+                                      "task_id",
+                                      "kind",
+                                      "status",
+                                      "detached",
+                                      "output_tail"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": [
+                                          "todo"
+                                        ]
+                                      },
+                                      "session_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "agent_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "timestamp": {
+                                        "type": "number"
+                                      },
+                                      "todo_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "items": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "title": {
+                                              "type": "string"
+                                            },
+                                            "status": {
+                                              "type": "string",
+                                              "enum": [
+                                                "pending",
+                                                "in_progress",
+                                                "done"
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "title",
+                                            "status"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "updated_at": {}
+                                    },
+                                    "required": [
+                                      "type",
+                                      "session_id",
+                                      "agent_id",
+                                      "timestamp",
+                                      "todo_id",
+                                      "items"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                ]
+                              }
+                            },
+                            "has_more": {
+                              "type": "boolean"
+                            },
+                            "in_flight": {
+                              "type": "object",
+                              "properties": {
+                                "turn_id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "step_id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              },
+                              "required": [
+                                "turn_id",
+                                "step_id"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "messages",
+                            "has_more"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            40001
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            40401
                           ]
                         },
                         "msg": {
@@ -14095,6 +16281,10 @@
                                                 "additionalProperties": false
                                               }
                                             ]
+                                          },
+                                          "name": {
+                                            "type": "string",
+                                            "minLength": 1
                                           }
                                         },
                                         "required": [
@@ -14224,6 +16414,10 @@
                                                 "additionalProperties": false
                                               }
                                             ]
+                                          },
+                                          "name": {
+                                            "type": "string",
+                                            "minLength": 1
                                           }
                                         },
                                         "required": [
@@ -14521,6 +16715,10 @@
                                                   "additionalProperties": false
                                                 }
                                               ]
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "minLength": 1
                                             }
                                           },
                                           "required": [
@@ -14650,6 +16848,10 @@
                                                   "additionalProperties": false
                                                 }
                                               ]
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "minLength": 1
                                             }
                                           },
                                           "required": [
@@ -14991,6 +17193,10 @@
                                   ]
                                 }
                               ]
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1
                             }
                           },
                           "required": [
@@ -15114,6 +17320,10 @@
                                   ]
                                 }
                               ]
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1
                             }
                           },
                           "required": [
@@ -15510,6 +17720,10 @@
                                             "additionalProperties": false
                                           }
                                         ]
+                                      },
+                                      "name": {
+                                        "type": "string",
+                                        "minLength": 1
                                       }
                                     },
                                     "required": [
@@ -15639,6 +17853,10 @@
                                             "additionalProperties": false
                                           }
                                         ]
+                                      },
+                                      "name": {
+                                        "type": "string",
+                                        "minLength": 1
                                       }
                                     },
                                     "required": [
@@ -15788,170 +18006,6 @@
                         "code": {
                           "type": "number",
                           "enum": [
-                            40110
-                          ]
-                        },
-                        "msg": {
-                          "type": "string"
-                        },
-                        "data": {
-                          "type": "string",
-                          "nullable": true,
-                          "enum": [
-                            null
-                          ]
-                        },
-                        "request_id": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "msg",
-                        "data",
-                        "request_id"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "number",
-                          "enum": [
-                            40111
-                          ]
-                        },
-                        "msg": {
-                          "type": "string"
-                        },
-                        "data": {
-                          "type": "string",
-                          "nullable": true,
-                          "enum": [
-                            null
-                          ]
-                        },
-                        "request_id": {
-                          "type": "string"
-                        },
-                        "details": {
-                          "nullable": true,
-                          "type": "object",
-                          "properties": {
-                            "provider_id": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "provider_id"
-                          ],
-                          "additionalProperties": false
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "msg",
-                        "data",
-                        "request_id"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "number",
-                          "enum": [
-                            40112
-                          ]
-                        },
-                        "msg": {
-                          "type": "string"
-                        },
-                        "data": {
-                          "type": "string",
-                          "nullable": true,
-                          "enum": [
-                            null
-                          ]
-                        },
-                        "request_id": {
-                          "type": "string"
-                        },
-                        "details": {
-                          "nullable": true,
-                          "type": "object",
-                          "properties": {
-                            "provider_id": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "provider_id"
-                          ],
-                          "additionalProperties": false
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "msg",
-                        "data",
-                        "request_id"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "number",
-                          "enum": [
-                            40113
-                          ]
-                        },
-                        "msg": {
-                          "type": "string"
-                        },
-                        "data": {
-                          "type": "string",
-                          "nullable": true,
-                          "enum": [
-                            null
-                          ]
-                        },
-                        "request_id": {
-                          "type": "string"
-                        },
-                        "details": {
-                          "nullable": true,
-                          "type": "object",
-                          "properties": {
-                            "model_id": {
-                              "type": "string"
-                            },
-                            "provider_id": {
-                              "type": "string"
-                            }
-                          },
-                          "additionalProperties": false
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "msg",
-                        "data",
-                        "request_id"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "number",
-                          "enum": [
                             40401
                           ]
                         },
@@ -16028,46 +18082,6 @@
                           "enum": [
                             null
                           ]
-                        },
-                        "request_id": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "msg",
-                        "data",
-                        "request_id"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "number",
-                          "enum": [
-                            40903
-                          ]
-                        },
-                        "msg": {
-                          "type": "string"
-                        },
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "aborted": {
-                              "type": "boolean",
-                              "enum": [
-                                false
-                              ]
-                            }
-                          },
-                          "required": [
-                            "aborted"
-                          ],
-                          "additionalProperties": false
                         },
                         "request_id": {
                           "type": "string"
@@ -16552,14 +18566,127 @@
                         "request_id"
                       ],
                       "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/remote-control": {
+      "get": {
+        "tags": [
+          "remote-control"
+        ],
+        "description": "Get the Remote Control tunnel status",
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "number",
+                      "enum": [
+                        0
+                      ]
                     },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "off",
+                            "starting",
+                            "on",
+                            "stopping"
+                          ]
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "device_id": {
+                          "type": "string"
+                        },
+                        "device_name": {
+                          "type": "string"
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "state"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "details": {}
+                  },
+                  "required": [
+                    "code",
+                    "msg",
+                    "data",
+                    "request_id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "remote-control"
+        ],
+        "description": "Start or stop the Remote Control tunnel",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
                     {
                       "type": "object",
                       "properties": {
                         "code": {
                           "type": "number",
                           "enum": [
-                            40903
+                            0
                           ]
                         },
                         "msg": {
@@ -16568,17 +18695,132 @@
                         "data": {
                           "type": "object",
                           "properties": {
-                            "aborted": {
-                              "type": "boolean",
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "state": {
+                              "type": "string",
                               "enum": [
-                                false
+                                "off",
+                                "starting",
+                                "on",
+                                "stopping"
                               ]
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "device_id": {
+                              "type": "string"
+                            },
+                            "device_name": {
+                              "type": "string"
+                            },
+                            "error": {
+                              "type": "string"
                             }
                           },
                           "required": [
-                            "aborted"
+                            "enabled",
+                            "state"
                           ],
                           "additionalProperties": false
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            40001
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            40928
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "request_id": {
+                          "type": "string"
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "msg",
+                        "data",
+                        "request_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            50001
+                          ]
+                        },
+                        "msg": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
                         },
                         "request_id": {
                           "type": "string"
@@ -21785,16 +24027,12 @@
                                 "additionalProperties": false
                               }
                             },
-                            "enabled": {
-                              "type": "boolean"
-                            },
                             "recorded": {
                               "type": "boolean"
                             }
                           },
                           "required": [
                             "changes",
-                            "enabled",
                             "recorded"
                           ],
                           "additionalProperties": false
@@ -23527,6 +25765,10 @@
                                                       "additionalProperties": false
                                                     }
                                                   ]
+                                                },
+                                                "name": {
+                                                  "type": "string",
+                                                  "minLength": 1
                                                 }
                                               },
                                               "required": [
@@ -23656,6 +25898,10 @@
                                                       "additionalProperties": false
                                                     }
                                                   ]
+                                                },
+                                                "name": {
+                                                  "type": "string",
+                                                  "minLength": 1
                                                 }
                                               },
                                               "required": [
@@ -24824,6 +27070,9 @@
                                                 },
                                                 "llmClientConsumeMs": {
                                                   "type": "number"
+                                                },
+                                                "llmClientBlockedMs": {
+                                                  "type": "number"
                                                 }
                                               },
                                               "additionalProperties": false
@@ -25523,52 +27772,6 @@
                                             "turnId",
                                             "step",
                                             "stepId",
-                                            "since"
-                                          ],
-                                          "additionalProperties": false
-                                        },
-                                        {
-                                          "type": "object",
-                                          "properties": {
-                                            "kind": {
-                                              "type": "string",
-                                              "enum": [
-                                                "streaming"
-                                              ]
-                                            },
-                                            "turnId": {
-                                              "type": "number"
-                                            },
-                                            "step": {
-                                              "type": "number"
-                                            },
-                                            "stepId": {
-                                              "type": "string"
-                                            },
-                                            "stream": {
-                                              "type": "string",
-                                              "enum": [
-                                                "assistant",
-                                                "thinking",
-                                                "tool_call"
-                                              ]
-                                            },
-                                            "toolCallId": {
-                                              "type": "string"
-                                            },
-                                            "toolName": {
-                                              "type": "string"
-                                            },
-                                            "since": {
-                                              "type": "number"
-                                            }
-                                          },
-                                          "required": [
-                                            "kind",
-                                            "turnId",
-                                            "step",
-                                            "stepId",
-                                            "stream",
                                             "since"
                                           ],
                                           "additionalProperties": false
@@ -26599,6 +28802,9 @@
                                                                     },
                                                                     "llmClientConsumeMs": {
                                                                       "type": "number"
+                                                                    },
+                                                                    "llmClientBlockedMs": {
+                                                                      "type": "number"
                                                                     }
                                                                   },
                                                                   "additionalProperties": false
@@ -27305,52 +29511,6 @@
                                                                 "kind": {
                                                                   "type": "string",
                                                                   "enum": [
-                                                                    "streaming"
-                                                                  ]
-                                                                },
-                                                                "turnId": {
-                                                                  "type": "number"
-                                                                },
-                                                                "step": {
-                                                                  "type": "number"
-                                                                },
-                                                                "stepId": {
-                                                                  "type": "string"
-                                                                },
-                                                                "stream": {
-                                                                  "type": "string",
-                                                                  "enum": [
-                                                                    "assistant",
-                                                                    "thinking",
-                                                                    "tool_call"
-                                                                  ]
-                                                                },
-                                                                "toolCallId": {
-                                                                  "type": "string"
-                                                                },
-                                                                "toolName": {
-                                                                  "type": "string"
-                                                                },
-                                                                "since": {
-                                                                  "type": "number"
-                                                                }
-                                                              },
-                                                              "required": [
-                                                                "kind",
-                                                                "turnId",
-                                                                "step",
-                                                                "stepId",
-                                                                "stream",
-                                                                "since"
-                                                              ],
-                                                              "additionalProperties": false
-                                                            },
-                                                            {
-                                                              "type": "object",
-                                                              "properties": {
-                                                                "kind": {
-                                                                  "type": "string",
-                                                                  "enum": [
                                                                     "tool_call"
                                                                   ]
                                                                 },
@@ -27883,6 +30043,9 @@
                                                       "type": "number"
                                                     },
                                                     "llmClientConsumeMs": {
+                                                      "type": "number"
+                                                    },
+                                                    "llmClientBlockedMs": {
                                                       "type": "number"
                                                     }
                                                   },
@@ -29074,52 +31237,6 @@
                                                             "turnId",
                                                             "step",
                                                             "stepId",
-                                                            "since"
-                                                          ],
-                                                          "additionalProperties": false
-                                                        },
-                                                        {
-                                                          "type": "object",
-                                                          "properties": {
-                                                            "kind": {
-                                                              "type": "string",
-                                                              "enum": [
-                                                                "streaming"
-                                                              ]
-                                                            },
-                                                            "turnId": {
-                                                              "type": "number"
-                                                            },
-                                                            "step": {
-                                                              "type": "number"
-                                                            },
-                                                            "stepId": {
-                                                              "type": "string"
-                                                            },
-                                                            "stream": {
-                                                              "type": "string",
-                                                              "enum": [
-                                                                "assistant",
-                                                                "thinking",
-                                                                "tool_call"
-                                                              ]
-                                                            },
-                                                            "toolCallId": {
-                                                              "type": "string"
-                                                            },
-                                                            "toolName": {
-                                                              "type": "string"
-                                                            },
-                                                            "since": {
-                                                              "type": "number"
-                                                            }
-                                                          },
-                                                          "required": [
-                                                            "kind",
-                                                            "turnId",
-                                                            "step",
-                                                            "stepId",
-                                                            "stream",
                                                             "since"
                                                           ],
                                                           "additionalProperties": false
@@ -31425,6 +33542,9 @@
                                       "enabled": {
                                         "type": "boolean"
                                       },
+                                      "deferred": {
+                                        "type": "boolean"
+                                      },
                                       "startupTimeoutMs": {
                                         "type": "integer",
                                         "minimum": 1,
@@ -31492,6 +33612,9 @@
                                       "enabled": {
                                         "type": "boolean"
                                       },
+                                      "deferred": {
+                                        "type": "boolean"
+                                      },
                                       "startupTimeoutMs": {
                                         "type": "integer",
                                         "minimum": 1,
@@ -31557,6 +33680,9 @@
                                         "minLength": 1
                                       },
                                       "enabled": {
+                                        "type": "boolean"
+                                      },
+                                      "deferred": {
                                         "type": "boolean"
                                       },
                                       "startupTimeoutMs": {
@@ -31764,6 +33890,9 @@
                       "enabled": {
                         "type": "boolean"
                       },
+                      "deferred": {
+                        "type": "boolean"
+                      },
                       "startupTimeoutMs": {
                         "type": "integer",
                         "minimum": 1,
@@ -31832,6 +33961,9 @@
                       "enabled": {
                         "type": "boolean"
                       },
+                      "deferred": {
+                        "type": "boolean"
+                      },
                       "startupTimeoutMs": {
                         "type": "integer",
                         "minimum": 1,
@@ -31898,6 +34030,9 @@
                         "minLength": 1
                       },
                       "enabled": {
+                        "type": "boolean"
+                      },
+                      "deferred": {
                         "type": "boolean"
                       },
                       "startupTimeoutMs": {
@@ -32020,6 +34155,9 @@
                                       "enabled": {
                                         "type": "boolean"
                                       },
+                                      "deferred": {
+                                        "type": "boolean"
+                                      },
                                       "startupTimeoutMs": {
                                         "type": "integer",
                                         "minimum": 1,
@@ -32087,6 +34225,9 @@
                                       "enabled": {
                                         "type": "boolean"
                                       },
+                                      "deferred": {
+                                        "type": "boolean"
+                                      },
                                       "startupTimeoutMs": {
                                         "type": "integer",
                                         "minimum": 1,
@@ -32152,6 +34293,9 @@
                                         "minLength": 1
                                       },
                                       "enabled": {
+                                        "type": "boolean"
+                                      },
+                                      "deferred": {
                                         "type": "boolean"
                                       },
                                       "startupTimeoutMs": {
@@ -32399,6 +34543,9 @@
                                     "enabled": {
                                       "type": "boolean"
                                     },
+                                    "deferred": {
+                                      "type": "boolean"
+                                    },
                                     "startupTimeoutMs": {
                                       "type": "integer",
                                       "minimum": 1,
@@ -32466,6 +34613,9 @@
                                     "enabled": {
                                       "type": "boolean"
                                     },
+                                    "deferred": {
+                                      "type": "boolean"
+                                    },
                                     "startupTimeoutMs": {
                                       "type": "integer",
                                       "minimum": 1,
@@ -32531,6 +34681,9 @@
                                       "minLength": 1
                                     },
                                     "enabled": {
+                                      "type": "boolean"
+                                    },
+                                    "deferred": {
                                       "type": "boolean"
                                     },
                                     "startupTimeoutMs": {
@@ -32769,6 +34922,9 @@
                       "enabled": {
                         "type": "boolean"
                       },
+                      "deferred": {
+                        "type": "boolean"
+                      },
                       "startupTimeoutMs": {
                         "type": "integer",
                         "minimum": 1,
@@ -32832,6 +34988,9 @@
                       "enabled": {
                         "type": "boolean"
                       },
+                      "deferred": {
+                        "type": "boolean"
+                      },
                       "startupTimeoutMs": {
                         "type": "integer",
                         "minimum": 1,
@@ -32893,6 +35052,9 @@
                         "minLength": 1
                       },
                       "enabled": {
+                        "type": "boolean"
+                      },
+                      "deferred": {
                         "type": "boolean"
                       },
                       "startupTimeoutMs": {
@@ -33019,6 +35181,9 @@
                                       "enabled": {
                                         "type": "boolean"
                                       },
+                                      "deferred": {
+                                        "type": "boolean"
+                                      },
                                       "startupTimeoutMs": {
                                         "type": "integer",
                                         "minimum": 1,
@@ -33086,6 +35251,9 @@
                                       "enabled": {
                                         "type": "boolean"
                                       },
+                                      "deferred": {
+                                        "type": "boolean"
+                                      },
                                       "startupTimeoutMs": {
                                         "type": "integer",
                                         "minimum": 1,
@@ -33151,6 +35319,9 @@
                                         "minLength": 1
                                       },
                                       "enabled": {
+                                        "type": "boolean"
+                                      },
+                                      "deferred": {
                                         "type": "boolean"
                                       },
                                       "startupTimeoutMs": {
@@ -33430,6 +35601,9 @@
                                       "enabled": {
                                         "type": "boolean"
                                       },
+                                      "deferred": {
+                                        "type": "boolean"
+                                      },
                                       "startupTimeoutMs": {
                                         "type": "integer",
                                         "minimum": 1,
@@ -33497,6 +35671,9 @@
                                       "enabled": {
                                         "type": "boolean"
                                       },
+                                      "deferred": {
+                                        "type": "boolean"
+                                      },
                                       "startupTimeoutMs": {
                                         "type": "integer",
                                         "minimum": 1,
@@ -33562,6 +35739,9 @@
                                         "minLength": 1
                                       },
                                       "enabled": {
+                                        "type": "boolean"
+                                      },
+                                      "deferred": {
                                         "type": "boolean"
                                       },
                                       "startupTimeoutMs": {
@@ -33810,6 +35990,9 @@
                           "enabled": {
                             "type": "boolean"
                           },
+                          "deferred": {
+                            "type": "boolean"
+                          },
                           "startupTimeoutMs": {
                             "type": "integer",
                             "minimum": 1,
@@ -33878,6 +36061,9 @@
                           "enabled": {
                             "type": "boolean"
                           },
+                          "deferred": {
+                            "type": "boolean"
+                          },
                           "startupTimeoutMs": {
                             "type": "integer",
                             "minimum": 1,
@@ -33944,6 +36130,9 @@
                             "minLength": 1
                           },
                           "enabled": {
+                            "type": "boolean"
+                          },
+                          "deferred": {
                             "type": "boolean"
                           },
                           "startupTimeoutMs": {
@@ -34335,6 +36524,9 @@
                                       "enabled": {
                                         "type": "boolean"
                                       },
+                                      "deferred": {
+                                        "type": "boolean"
+                                      },
                                       "startupTimeoutMs": {
                                         "type": "integer",
                                         "minimum": 1,
@@ -34402,6 +36594,9 @@
                                       "enabled": {
                                         "type": "boolean"
                                       },
+                                      "deferred": {
+                                        "type": "boolean"
+                                      },
                                       "startupTimeoutMs": {
                                         "type": "integer",
                                         "minimum": 1,
@@ -34467,6 +36662,9 @@
                                         "minLength": 1
                                       },
                                       "enabled": {
+                                        "type": "boolean"
+                                      },
+                                      "deferred": {
                                         "type": "boolean"
                                       },
                                       "startupTimeoutMs": {
@@ -35763,6 +37961,114 @@
           }
         }
       }
+    },
+    "/api/v1/sessions/{session_id}:delete": {
+      "post": {
+        "operationId": "runSessionDeleteAction",
+        "tags": [
+          "sessions"
+        ],
+        "description": "Run a session action",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "instruction": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "page_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "session_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session delete response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "deleted": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "required": [
+                        "deleted"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "stack": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "msg",
+                    "data",
+                    "request_id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "tags": [
@@ -35837,6 +38143,10 @@
     {
       "name": "files",
       "description": "File upload & download"
+    },
+    {
+      "name": "remote-control",
+      "description": "Remote Control tunnel"
     }
   ]
 }

@@ -196,7 +196,6 @@ pub(crate) async fn subscribe(
             payload: SubscribeStruct {
                 session_ids: vec![session_id.to_owned()],
                 cursors,
-                watch_fs: None,
                 agent_filter: None,
             },
         },

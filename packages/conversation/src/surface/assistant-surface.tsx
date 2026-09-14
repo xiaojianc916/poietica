@@ -218,19 +218,14 @@ export const AssistantSurface = memo(function AssistantSurface({
           {assistant.notice}
         </p>
       ) : null}
-      {assistant.submissions.length > 0 ? (
+      {assistant.submissions.some((submission) => submission.phase === 'failed') ? (
         <ul aria-label="提交状态" className="space-y-2 px-4 py-2 text-sm">
-          {assistant.submissions.map((submission) => (
-            <li key={submission.id}>
-              <p className="whitespace-pre-wrap">{submission.text || '附件消息'}</p>
-              <p role="status">
-                {submission.phase === 'submitting'
-                  ? '提交中…'
-                  : submission.phase === 'accepted'
-                    ? '已接收，等待正文同步…'
-                    : '提交未完成；请先核对会话。'}
-              </p>
-              {submission.phase === 'failed' ? (
+          {assistant.submissions
+            .filter((submission) => submission.phase === 'failed')
+            .map((submission) => (
+              <li key={submission.id}>
+                <p className="whitespace-pre-wrap">{submission.text || '附件消息'}</p>
+                <p role="status">提交未完成；请先核对会话。</p>
                 <button
                   onClick={() => edit(submission.text)}
                   title="仅取回文字；附件需重新选择。"
@@ -238,9 +233,8 @@ export const AssistantSurface = memo(function AssistantSurface({
                 >
                   取回文字
                 </button>
-              ) : null}
-            </li>
-          ))}
+              </li>
+            ))}
         </ul>
       ) : null}
       <PromptQueue onEdit={edit} outbox={assistant.outbox} />

@@ -1,7 +1,7 @@
 import type { BrowserState } from '@poietica/browser'
-import { X } from 'lucide-react'
+import { Maximize2, Minimize2, X } from 'lucide-react'
 import { type KeyboardEvent, type ReactNode, useState } from 'react'
-import { AuxiliaryNewTabMenu, type AuxiliaryPaneOffer, AuxiliaryTabsMenu } from './auxiliary-menu'
+import { AuxiliaryNewTabMenu, type AuxiliaryPaneOffer } from './auxiliary-menu'
 import type {
   AuxiliaryFocus,
   AuxiliaryMenuKind,
@@ -26,6 +26,9 @@ interface AuxiliaryTabStripProps {
   readonly onOpenPane: AuxiliaryPanelStore['openLauncherPane']
   readonly openMenu: AuxiliaryMenuKind | null
   readonly onMenuChange: (kind: AuxiliaryMenuKind | null) => void
+  /** 标签条里那枚全屏按钮：铺满主区+右栏，其余标签位不动。 */
+  readonly fullscreen: boolean
+  readonly onToggleFullscreen: () => void
 }
 
 interface AuxiliaryTabProps {
@@ -139,6 +142,8 @@ export function AuxiliaryTabStrip({
   onOpenPane,
   onSelectPane,
   openMenu,
+  fullscreen,
+  onToggleFullscreen,
 }: AuxiliaryTabStripProps) {
   const [menuHeight, setMenuHeight] = useState(0)
 
@@ -196,21 +201,22 @@ export function AuxiliaryTabStrip({
           />
         </span>
 
-        <AuxiliaryTabsMenu
-          focus={focus}
-          host={host}
-          onHeightChange={setMenuHeight}
-          onOpenChange={(next) => {
-            onMenuChange(next ? 'tabs' : null)
-          }}
-          onReopenClosed={actions.reopenClosed}
-          onSelectPane={onSelectPane}
-          onSelectTab={actions.selectTab}
-          open={openMenu === 'tabs'}
-          panes={panes}
-        />
+        <button
+          aria-expanded={fullscreen}
+          aria-label={fullscreen ? '退出全屏显示' : '全屏显示'}
+          className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 enabled:hover:bg-launcher enabled:hover:opacity-100 aria-expanded:bg-current/10 aria-expanded:opacity-100"
+          onClick={onToggleFullscreen}
+          title={fullscreen ? '退出全屏显示' : '全屏显示'}
+          type="button"
+        >
+          {fullscreen ? (
+            <Minimize2 aria-hidden className="size-4" />
+          ) : (
+            <Maximize2 aria-hidden className="size-4" />
+          )}
+        </button>
       </div>
-      {openMenu === 'new-tab' || openMenu === 'tabs' ? (
+      {openMenu === 'new-tab' ? (
         <div
           aria-hidden
           className="border-b border-current/10 bg-muted/30"

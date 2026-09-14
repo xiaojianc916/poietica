@@ -63,6 +63,17 @@
   background-color: var(--ui-popup-highlight);
 }
 
+/* 快捷键药丸：只这一张菜单用，不进设计系统。 */
+.review-commit-kbd {
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  padding: 2px 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  opacity: 0.6;
+}
+
 /* 横线：工具条与筛选行下缘，浅色 #ededed，深色沿用前景半透明。 */
 .review-rule {
   border-bottom: 1px solid #ededed;
@@ -100,6 +111,15 @@
 
 :root[data-theme="dark"] .review-tree-row:hover {
   background: color-mix(in srgb, #ffffff 5%, transparent);
+}
+
+/* 工具条按钮的悬浮：产品指定的灰；深色沿用前景半透明。 */
+.review-toolbar-action:hover {
+  background-color: #f2f3f3;
+}
+
+:root[data-theme="dark"] .review-toolbar-action:hover {
+  background-color: color-mix(in srgb, #ffffff 10%, transparent);
 }
 
 /* 卡头与行内动作的悬浮底：浅色是产品指定的灰；深色沿用原来的前景半透明。 */

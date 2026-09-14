@@ -287,6 +287,7 @@ fn prompt_body(
                     media_type: mime_type.clone(),
                     data: data.clone(),
                 },
+                name: None,
             }),
             PromptAttachment::Text { text, .. } => {
                 content.push(SubmitPromptRequestContentChoice::Text { text: text.clone() });

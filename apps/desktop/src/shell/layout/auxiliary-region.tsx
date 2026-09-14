@@ -5,6 +5,7 @@ import { useWorkspaceLayoutStore } from './layout-context'
 
 export interface AuxiliaryRegionProps {
   readonly isDocked: boolean
+  readonly fullscreen: boolean
   readonly width: number
   readonly onClose: () => void
   readonly onResize: (width: number) => void
@@ -13,6 +14,7 @@ export interface AuxiliaryRegionProps {
 
 export function AuxiliaryRegion({
   isDocked,
+  fullscreen,
   width,
   onClose,
   onResize,
@@ -25,13 +27,13 @@ export function AuxiliaryRegion({
       <div className="workspace-shell__region-clip">
         <div
           className="workspace-shell__auxiliary-content min-h-0 overflow-hidden"
-          style={{ width }}
+          style={{ width: fullscreen ? '100%' : width }}
         >
           {children}
         </div>
       </div>
 
-      {isDocked ? (
+      {isDocked && !fullscreen ? (
         <RegionSplitter
           edge="inline-end"
           label="调整辅助面板宽度"

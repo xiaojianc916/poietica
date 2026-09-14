@@ -9,11 +9,19 @@ import { WorkspaceFrame } from './workspace-frame'
 export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
   const workspaceLayoutStore = useWorkspaceLayoutStore()
 
-  const { sidebarOpen, sidebarWidth, auxiliaryWidth, splitter, splitterRegion } =
-    useWorkspaceLayoutState()
+  const {
+    sidebarOpen,
+    sidebarWidth,
+    auxiliaryWidth,
+    splitter,
+    splitterRegion,
+    auxiliaryFullscreen,
+  } = useWorkspaceLayoutState()
   const { setSidebarOpen, setSidebarWidth, setAuxiliaryThread, setAuxiliaryWidth } =
     workspaceLayoutStore
   const dockAuxiliary = parts.auxiliary.isDocked
+  /* 面板不在场时全屏同步失效：再次停靠前不继承上次的全屏态。 */
+  const auxiliaryFullscreenActive = auxiliaryFullscreen && dockAuxiliary
 
   const activeTabDomId = encodeWorkbenchTabDomId(model.activeTabId)
 
@@ -24,6 +32,7 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
       <WorkspaceFrame
         auxiliary={
           <AuxiliaryRegion
+            fullscreen={auxiliaryFullscreenActive}
             isDocked={dockAuxiliary}
             onClose={() => {
               setAuxiliaryThread(null)
@@ -41,6 +50,7 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
           </header>
         }
         isAuxiliaryDocked={dockAuxiliary}
+        isAuxiliaryFullscreen={auxiliaryFullscreenActive}
         isSidebarDocked={sidebarOpen}
         main={
           <section

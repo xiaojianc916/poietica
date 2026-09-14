@@ -90,24 +90,12 @@ pub struct ClientHelloStruct {
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
-pub struct SubscribeWatchFsValueStruct {
-    #[serde(rename = "paths")]
-    pub paths: Vec<String>,
-    #[serde(rename = "recursive")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub recursive: Option<bool>,
-}
-
-#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct SubscribeStruct {
     #[serde(rename = "session_ids")]
     pub session_ids: Vec<String>,
     #[serde(rename = "cursors")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursors: Option<std::collections::HashMap<String, ClientHelloCursorsValueStruct>>,
-    #[serde(rename = "watch_fs")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub watch_fs: Option<std::collections::HashMap<String, SubscribeWatchFsValueStruct>>,
     #[serde(rename = "agent_filter")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_filter: Option<std::collections::HashMap<String, Vec<String>>>,

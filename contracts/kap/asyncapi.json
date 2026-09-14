@@ -2,7 +2,7 @@
   "asyncapi": "3.1.0",
   "info": {
     "title": "Kimi Code WebSocket API",
-    "version": "0.40.1",
+    "version": "0.43.0",
     "description": "WebSocket protocol for Kimi Code daemon control frames, acknowledgements, system frames, and session event streaming."
   },
   "defaultContentType": "application/json",
@@ -52,18 +52,6 @@
         },
         "unsubscribe_ack": {
           "$ref": "#/components/messages/unsubscribe_ack"
-        },
-        "watch_fs_add": {
-          "$ref": "#/components/messages/watch_fs_add"
-        },
-        "watch_fs_add_ack": {
-          "$ref": "#/components/messages/watch_fs_add_ack"
-        },
-        "watch_fs_remove": {
-          "$ref": "#/components/messages/watch_fs_remove"
-        },
-        "watch_fs_remove_ack": {
-          "$ref": "#/components/messages/watch_fs_remove_ack"
         },
         "abort": {
           "$ref": "#/components/messages/abort"
@@ -145,12 +133,6 @@
           "$ref": "#/components/messages/unsubscribe"
         },
         {
-          "$ref": "#/components/messages/watch_fs_add"
-        },
-        {
-          "$ref": "#/components/messages/watch_fs_remove"
-        },
-        {
           "$ref": "#/components/messages/abort"
         },
         {
@@ -208,12 +190,6 @@
         },
         {
           "$ref": "#/components/messages/unsubscribe_ack"
-        },
-        {
-          "$ref": "#/components/messages/watch_fs_add_ack"
-        },
-        {
-          "$ref": "#/components/messages/watch_fs_remove_ack"
         },
         {
           "$ref": "#/components/messages/abort_ack"
@@ -435,29 +411,6 @@
                     },
                     "required": [
                       "seq"
-                    ]
-                  }
-                },
-                "watch_fs": {
-                  "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {
-                    "type": "object",
-                    "properties": {
-                      "paths": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "recursive": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "paths"
                     ]
                   }
                 },
@@ -954,197 +907,6 @@
                 "not_found",
                 "resync_required"
               ]
-            }
-          },
-          "required": [
-            "type",
-            "id",
-            "code",
-            "msg",
-            "payload"
-          ]
-        }
-      },
-      "watch_fs_add": {
-        "name": "watch_fs_add",
-        "title": "Watch Fs Add",
-        "summary": "Add filesystem watch paths for a subscribed session.",
-        "contentType": "application/json",
-        "payload": {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "watch_fs_add"
-            },
-            "id": {
-              "type": "string"
-            },
-            "payload": {
-              "type": "object",
-              "properties": {
-                "session_id": {
-                  "type": "string"
-                },
-                "runtime_id": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "paths": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "recursive": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "session_id",
-                "paths"
-              ]
-            }
-          },
-          "required": [
-            "type",
-            "id",
-            "payload"
-          ]
-        }
-      },
-      "watch_fs_add_ack": {
-        "name": "watch_fs_add.ack",
-        "title": "Watch Fs Add Ack",
-        "summary": "Acknowledgement for watch_fs_add.",
-        "contentType": "application/json",
-        "payload": {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "ack"
-            },
-            "id": {
-              "type": "string"
-            },
-            "code": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
-            },
-            "msg": {
-              "type": "string"
-            },
-            "payload": {
-              "type": "object",
-              "properties": {
-                "watched_paths": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "current_count": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 9007199254740991
-                }
-              }
-            }
-          },
-          "required": [
-            "type",
-            "id",
-            "code",
-            "msg",
-            "payload"
-          ]
-        }
-      },
-      "watch_fs_remove": {
-        "name": "watch_fs_remove",
-        "title": "Watch Fs Remove",
-        "summary": "Remove filesystem watch paths for a subscribed session.",
-        "contentType": "application/json",
-        "payload": {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "watch_fs_remove"
-            },
-            "id": {
-              "type": "string"
-            },
-            "payload": {
-              "type": "object",
-              "properties": {
-                "session_id": {
-                  "type": "string"
-                },
-                "runtime_id": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "paths": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              },
-              "required": [
-                "session_id",
-                "paths"
-              ]
-            }
-          },
-          "required": [
-            "type",
-            "id",
-            "payload"
-          ]
-        }
-      },
-      "watch_fs_remove_ack": {
-        "name": "watch_fs_remove.ack",
-        "title": "Watch Fs Remove Ack",
-        "summary": "Acknowledgement for watch_fs_remove.",
-        "contentType": "application/json",
-        "payload": {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "ack"
-            },
-            "id": {
-              "type": "string"
-            },
-            "code": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
-            },
-            "msg": {
-              "type": "string"
-            },
-            "payload": {
-              "type": "object",
-              "properties": {
-                "watched_paths": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "current_count": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 9007199254740991
-                }
-              }
             }
           },
           "required": [
@@ -2054,7 +1816,6 @@
                             "request.prompt_input_empty",
                             "prompt.id_conflict",
                             "prompt.not_found",
-                            "prompt.already_completed",
                             "session.busy",
                             "shell.git_bash_not_found",
                             "workspace.not_found",
@@ -2302,49 +2063,6 @@
                                 "turnId",
                                 "step",
                                 "stepId",
-                                "since"
-                              ]
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "kind": {
-                                  "type": "string",
-                                  "const": "streaming"
-                                },
-                                "turnId": {
-                                  "type": "number"
-                                },
-                                "step": {
-                                  "type": "number"
-                                },
-                                "stepId": {
-                                  "type": "string"
-                                },
-                                "stream": {
-                                  "type": "string",
-                                  "enum": [
-                                    "assistant",
-                                    "thinking",
-                                    "tool_call"
-                                  ]
-                                },
-                                "toolCallId": {
-                                  "type": "string"
-                                },
-                                "toolName": {
-                                  "type": "string"
-                                },
-                                "since": {
-                                  "type": "number"
-                                }
-                              },
-                              "required": [
-                                "kind",
-                                "turnId",
-                                "step",
-                                "stepId",
-                                "stream",
                                 "since"
                               ]
                             },
@@ -2859,6 +2577,23 @@
                         "type": {
                           "type": "string",
                           "const": "event.session.archived"
+                        },
+                        "workspace_id": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "workspace_id"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "event.session.deleted"
                         },
                         "workspace_id": {
                           "type": "string",
@@ -4216,7 +3951,6 @@
                                 "request.prompt_input_empty",
                                 "prompt.id_conflict",
                                 "prompt.not_found",
-                                "prompt.already_completed",
                                 "session.busy",
                                 "shell.git_bash_not_found",
                                 "workspace.not_found",
@@ -4381,6 +4115,9 @@
                           "type": "number"
                         },
                         "llmClientConsumeMs": {
+                          "type": "number"
+                        },
+                        "llmClientBlockedMs": {
                           "type": "number"
                         },
                         "providerFinishReason": {
@@ -6689,6 +6426,10 @@
                                         ]
                                       }
                                     ]
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1
                                   }
                                 },
                                 "required": [
@@ -6800,6 +6541,10 @@
                                         ]
                                       }
                                     ]
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1
                                   }
                                 },
                                 "required": [
@@ -7119,6 +6864,10 @@
                                         ]
                                       }
                                     ]
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1
                                   }
                                 },
                                 "required": [
@@ -7230,6 +6979,10 @@
                                         ]
                                       }
                                     ]
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1
                                   }
                                 },
                                 "required": [
@@ -7424,7 +7177,6 @@
                     "request.prompt_input_empty",
                     "prompt.id_conflict",
                     "prompt.not_found",
-                    "prompt.already_completed",
                     "session.busy",
                     "shell.git_bash_not_found",
                     "workspace.not_found",

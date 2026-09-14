@@ -163,7 +163,6 @@ mod tests {
                     .into_iter()
                     .collect(),
                 ),
-                watch_fs: None,
                 agent_filter: None,
             },
         };

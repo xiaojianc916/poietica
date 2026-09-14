@@ -54,9 +54,19 @@ export interface AuxiliaryPanelProps {
   readonly paneOffers: readonly AuxiliaryPaneOffer[]
   /** 几何输入的指纹：变了就重新起跑视口对齐，内容不解读。 */
   readonly layoutSignal: unknown
+  /** 全屏进出与状态由宿主外壳持有；这里只认当前值并转发给标签条。 */
+  readonly fullscreen: boolean
+  readonly onToggleFullscreen: () => void
 }
 
-export function AuxiliaryPanel({ layoutSignal, paneOffers, panes, store }: AuxiliaryPanelProps) {
+export function AuxiliaryPanel({
+  layoutSignal,
+  paneOffers,
+  panes,
+  store,
+  fullscreen,
+  onToggleFullscreen,
+}: AuxiliaryPanelProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const host = state.host
   const { focus } = state
@@ -95,11 +105,13 @@ export function AuxiliaryPanel({ layoutSignal, paneOffers, panes, store }: Auxil
           <AuxiliaryTabStrip
             actions={store.actions}
             focus={focus}
+            fullscreen={fullscreen}
             host={host}
             onClosePane={closePane}
             onMenuChange={store.setMenu}
             onOpenPane={store.openLauncherPane}
             onSelectPane={store.selectPane}
+            onToggleFullscreen={onToggleFullscreen}
             openMenu={state.openMenu}
             paneOffers={paneOffers}
             panes={state.panes.map((pane) => {

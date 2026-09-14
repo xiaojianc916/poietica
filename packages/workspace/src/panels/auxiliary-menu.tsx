@@ -1,4 +1,3 @@
-import type { BrowserState } from '@poietica/browser'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -6,22 +5,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/design-system'
-import {
-  ChevronDown,
-  ChevronRight,
-  Globe,
-  Minus,
-  MoreHorizontal,
-  Plus,
-  RotateCcw,
-  Search,
-} from 'lucide-react'
-import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
-import type { AuxiliaryFocus, AuxiliaryLauncherKind } from './auxiliary-panel-store'
-import { BrowserTabIcon } from './browser-tab-icon'
+import { ChevronRight, Minus, MoreHorizontal, Plus, RotateCcw } from 'lucide-react'
+import { type ReactNode, useLayoutEffect, useRef } from 'react'
+import type { AuxiliaryLauncherKind } from './auxiliary-panel-store'
 
 /*
- * 面板三张菜单的唯一实现：加号、标签下拉、更多操作。
+ * 面板两张菜单的唯一实现：加号、更多操作。标签下拉已让位给全屏按钮（标签条里）。
  *
  * 菜单是主文档里的 DOM，定位、碰撞翻转、键盘与 aria 归 @poietica/design-system 的
  * DropdownMenu；展开期间原生子 webview 由 browser-dock 让位。行高读控件小号
@@ -40,13 +29,8 @@ export interface AuxiliaryPaneOffer {
 const triggerClassName =
   'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-launcher hover:opacity-100'
 
-/** 行里的标签位：一份，三张菜单共用。 */
+/** 行里的标签位：一份，两张菜单共用。 */
 const labelClassName = 'min-w-0 flex-1 truncate text-xs'
-
-const groupClassName = 'px-2 pb-1 pt-1.5 text-[11px] opacity-50'
-
-/* 搜索框吃自己的按键；导航键留给菜单。 */
-const MENU_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'])
 
 function MenuShell({
   children,
@@ -93,18 +77,6 @@ function MenuShell({
   )
 }
 
-function CurrentMark() {
-  return <span className="shrink-0 text-[11px] opacity-50">当前</span>
-}
-
-function matches(needle: string, title: string, url: string | null): boolean {
-  if (needle === '') {
-    return true
-  }
-
-  return title.toLowerCase().includes(needle) || (url ?? '').toLowerCase().includes(needle)
-}
-
 export function AuxiliaryNewTabMenu({
   offers,
   onHeightChange,
@@ -138,120 +110,6 @@ export function AuxiliaryNewTabMenu({
           <span className={labelClassName}>{offer.label}</span>
         </DropdownMenuItem>
       ))}
-    </MenuShell>
-  )
-}
-
-export function AuxiliaryTabsMenu({
-  focus,
-  host,
-  onHeightChange,
-  onOpenChange,
-  onReopenClosed,
-  onSelectPane,
-  onSelectTab,
-  open,
-  panes,
-}: {
-  readonly focus: AuxiliaryFocus
-  readonly host: BrowserState | null
-  readonly onHeightChange: (height: number) => void
-  readonly onOpenChange: (open: boolean) => void
-  readonly onReopenClosed: (index: number) => void
-  readonly onSelectPane: (id: string) => void
-  readonly onSelectTab: (id: number) => void
-  readonly open: boolean
-  readonly panes: readonly {
-    readonly id: string
-    readonly name: string
-    readonly icon: ReactNode
-  }[]
-}) {
-  const [query, setQuery] = useState('')
-  const needle = query.trim().toLowerCase()
-  const shownPanes = panes.filter((pane) => matches(needle, pane.name, null))
-  const shownTabs = (host?.tabs ?? []).filter((tab) => matches(needle, tab.title, tab.url))
-  const shownClosed = (host?.recentlyClosed ?? [])
-    .map((closed, index) => ({ closed, index }))
-    .filter((entry) => matches(needle, entry.closed.title, entry.closed.url))
-
-  return (
-    <MenuShell
-      className="w-72"
-      icon={<ChevronDown aria-hidden className="size-4" />}
-      label="标签页列表"
-      onHeightChange={onHeightChange}
-      onOpenChange={(next) => {
-        if (!next) {
-          setQuery('')
-        }
-
-        onOpenChange(next)
-      }}
-      open={open}
-    >
-      <div className="mx-1 mb-1 flex items-center gap-2 rounded-md border border-divider px-2 py-1.5">
-        <Search aria-hidden className="size-3.5 shrink-0 opacity-50" />
-        <input
-          aria-label="搜索标签页"
-          className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:opacity-50"
-          onChange={(event) => {
-            setQuery(event.target.value)
-          }}
-          onKeyDown={(event) => {
-            if (!MENU_KEYS.has(event.key)) {
-              event.stopPropagation()
-            }
-          }}
-          placeholder="搜索标签页…"
-          value={query}
-        />
-      </div>
-
-      <div className="max-h-72 overflow-y-auto">
-        {shownPanes.length + shownTabs.length > 0 ? (
-          <p className={groupClassName}>打开的标签页</p>
-        ) : null}
-        {shownPanes.map((pane) => (
-          <DropdownMenuItem
-            key={pane.id}
-            onClick={() => {
-              onSelectPane(pane.id)
-            }}
-          >
-            {pane.icon}
-            <span className={labelClassName}>{pane.name}</span>
-            {focus.kind === 'pane' && focus.id === pane.id ? <CurrentMark /> : null}
-          </DropdownMenuItem>
-        ))}
-        {shownTabs.map((tab) => (
-          <DropdownMenuItem
-            key={tab.id}
-            onClick={() => {
-              onSelectTab(tab.id)
-            }}
-          >
-            <BrowserTabIcon tab={tab} />
-            <span className={labelClassName}>{tab.title}</span>
-            {focus.kind === 'browser' && tab.id === host?.activeTabId ? <CurrentMark /> : null}
-          </DropdownMenuItem>
-        ))}
-        {shownClosed.length > 0 ? <p className={groupClassName}>最近关闭的标签页</p> : null}
-        {shownClosed.map((entry) => (
-          <DropdownMenuItem
-            key={entry.closed.url}
-            onClick={() => {
-              onReopenClosed(entry.index)
-            }}
-          >
-            <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
-            <span className={labelClassName}>{entry.closed.title}</span>
-          </DropdownMenuItem>
-        ))}
-        {shownPanes.length + shownTabs.length + shownClosed.length === 0 ? (
-          <p className={groupClassName}>没有匹配的标签页</p>
-        ) : null}
-      </div>
     </MenuShell>
   )
 }

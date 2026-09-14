@@ -14,6 +14,8 @@ export interface WorkspaceLayoutState extends LayoutIntent {
   readonly todoThread: string | null
   readonly splitter: SplitterActivity
   readonly splitterRegion: SplitterRegion
+  /** 辅助面板铺满主区+右栏的瞬时态；不落盘，收起面板即失效（外壳据此判定）。 */
+  readonly auxiliaryFullscreen: boolean
 }
 export const DEFAULT_LAYOUT_INTENT: LayoutIntent = Object.freeze({
   sidebarOpen: true,
@@ -59,6 +61,7 @@ export function createWorkspaceLayoutStore(persisted: Preference<LayoutIntent>) 
     todoThread: null,
     splitter: 'idle',
     splitterRegion: 'sidebar',
+    auxiliaryFullscreen: false,
   })
   const store = createExternalStore({
     read: () => snapshot,
@@ -87,7 +90,8 @@ export function createWorkspaceLayoutStore(persisted: Preference<LayoutIntent>) 
       sameIntent(snapshot, next) &&
       snapshot.todoThread === next.todoThread &&
       snapshot.splitter === next.splitter &&
-      snapshot.splitterRegion === next.splitterRegion
+      snapshot.splitterRegion === next.splitterRegion &&
+      snapshot.auxiliaryFullscreen === next.auxiliaryFullscreen
     ) {
       return false
     }
@@ -145,6 +149,12 @@ export function createWorkspaceLayoutStore(persisted: Preference<LayoutIntent>) 
     },
     setTodoThread: (threadId: string | null): void => {
       commit({ todoThread: threadId })
+    },
+    setAuxiliaryFullscreen: (fullscreen: boolean): void => {
+      commit({ auxiliaryFullscreen: fullscreen })
+    },
+    toggleAuxiliaryFullscreen: (): void => {
+      commit({ auxiliaryFullscreen: !snapshot.auxiliaryFullscreen })
     },
     forgetThread: (threadId: string): void => {
       settle({

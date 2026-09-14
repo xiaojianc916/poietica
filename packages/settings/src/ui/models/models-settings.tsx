@@ -8,7 +8,7 @@ import {
   type SelectOption,
   Switch,
 } from '@poietica/design-system'
-import { Box, Eye, EyeOff, Plus, RotateCw, Trash2 } from 'lucide-react'
+import { Box, Eye, EyeOff, Pencil, Plus, RotateCw, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { Reorder } from 'motion/react'
 import {
   type ComponentProps,
@@ -48,7 +48,7 @@ const CUSTOM_PROVIDER = '__custom_provider__'
 const PROVIDER_TYPES: SelectOption[] = [
   { value: 'openai', label: 'OpenAI Chat' },
   { value: 'openai_responses', label: 'OpenAI Responses' },
-  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'anthropic', label: 'Anthropic Messages (/v1/messages)' },
   { value: 'kimi', label: 'Kimi' },
   { value: 'google-genai', label: 'Google GenAI' },
   { value: 'vertexai', label: 'Vertex AI' },
@@ -341,6 +341,7 @@ function ProviderWorkspace({
       <span className="models-block__label">供应商</span>
       <div className="models-provider-workspace">
         <ProviderRail
+          catalog={data.catalog}
           onOrderChange={onProviderOrderChange}
           onSelect={setSelected}
           providers={providers}
@@ -395,27 +396,38 @@ function reconcileProviderOrder(
 
 function ProviderRail({
   providers,
+  catalog,
   selected,
   onSelect,
   onOrderChange,
 }: {
   readonly providers: readonly ModelProvider[]
+  readonly catalog: readonly CatalogProvider[]
   readonly selected: string
   readonly onSelect: (id: string) => void
   readonly onOrderChange: (providerIds: readonly string[]) => void
 }) {
-  const [query, setQuery] = useState('')
   const ids = providers.map((provider) => provider.id)
-  const needle = query.trim().toLowerCase()
-  const visible =
-    needle === ''
-      ? providers
-      : providers.filter(
-          (provider) =>
-            provider.id.toLowerCase().includes(needle) ||
-            provider.providerType.toLowerCase().includes(needle),
-        )
-  const visibleIds = visible.map((provider) => provider.id)
+  /* 分组只看 id 是否命中内置目录：改过名的归入自定义，不另记血缘。 */
+  const catalogName = useMemo(
+    () => new Map(catalog.map((entry) => [entry.id, entry.name])),
+    [catalog],
+  )
+  const groups = useMemo(() => {
+    const ordered: { readonly label: string; readonly items: ModelProvider[] }[] = []
+    const byLabel = new Map<string, ModelProvider[]>()
+    for (const provider of providers) {
+      const label = catalogName.get(provider.id) ?? ''
+      let items = byLabel.get(label)
+      if (items === undefined) {
+        items = []
+        byLabel.set(label, items)
+        ordered.push({ label, items })
+      }
+      items.push(provider)
+    }
+    return ordered
+  }, [catalogName, providers])
   const move = (id: string, offset: -1 | 1) => {
     const from = ids.indexOf(id)
     const to = Math.max(0, Math.min(ids.length - 1, from + offset))
@@ -434,74 +446,75 @@ function ProviderRail({
     next.splice(to, 0, moved)
     onOrderChange(next)
   }
-  const reorderVisible = (nextVisible: string[]): void => {
-    const visibleSet = new Set(visibleIds)
+  /* 组内拖拽只重排本组：把新顺序缝回全局顺序的原位，别组不动。 */
+  const reorderGroup = (groupIds: readonly string[], next: readonly string[]): void => {
+    const group = new Set(groupIds)
     let index = 0
-
-    onOrderChange(ids.map((id) => (visibleSet.has(id) ? (nextVisible[index++] ?? id) : id)))
+    onOrderChange(ids.map((id) => (group.has(id) ? (next[index++] ?? id) : id)))
   }
 
   return (
     <aside className="models-provider-rail">
-      <input
-        aria-label="搜索已配置供应商"
-        className="models-input models-provider-rail__search"
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="搜索供应商"
-        type="search"
-        value={query}
-      />
-      <span className="models-provider-rail__label">已配置</span>
-      {visible.length === 0 ? (
-        <span className="models-provider-rail__empty">没有匹配项</span>
+      {providers.length === 0 ? (
+        <span className="models-provider-rail__empty">还没有供应商</span>
       ) : (
-        <Reorder.Group
-          aria-label="供应商顺序"
-          as="nav"
-          axis="y"
-          className="models-provider-rail__list"
-          layoutScroll
-          onReorder={reorderVisible}
-          values={visibleIds}
-        >
-          {visible.map((provider) => (
-            <Reorder.Item
-              as="div"
-              className="models-provider-order-item"
-              key={provider.id}
-              value={provider.id}
-              whileDrag={{ scale: 1.02 }}
-            >
-              <button
-                aria-current={selected === provider.id ? 'page' : undefined}
-                aria-label={`${provider.id}，拖动或按 Alt 加上下方向键排序`}
-                className="models-provider-item"
-                data-active={selected === provider.id}
-                onClick={() => onSelect(provider.id)}
-                onKeyDown={(event) => {
-                  if (!event.altKey) {
-                    return
-                  }
+        <div className="models-provider-rail__groups">
+          {groups.map((group) => {
+            const groupIds = group.items.map((provider) => provider.id)
+            return (
+              <div className="models-provider-group" key={group.label}>
+                <span className="models-provider-rail__label">{group.label}</span>
+                <Reorder.Group
+                  aria-label={`${group.label}供应商顺序`}
+                  as="nav"
+                  axis="y"
+                  className="models-provider-rail__list"
+                  layoutScroll
+                  onReorder={(next: string[]) => reorderGroup(groupIds, next)}
+                  values={groupIds}
+                >
+                  {group.items.map((provider) => (
+                    <Reorder.Item
+                      as="div"
+                      className="models-provider-order-item"
+                      key={provider.id}
+                      value={provider.id}
+                      whileDrag={{ scale: 1.02 }}
+                    >
+                      <button
+                        aria-current={selected === provider.id ? 'page' : undefined}
+                        aria-label={`${provider.id}，拖动或按 Alt 加上下方向键排序`}
+                        className="models-provider-item"
+                        data-active={selected === provider.id}
+                        onClick={() => onSelect(provider.id)}
+                        onKeyDown={(event) => {
+                          if (!event.altKey) {
+                            return
+                          }
 
-                  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-                    event.preventDefault()
-                    move(provider.id, event.key === 'ArrowUp' ? -1 : 1)
-                  }
-                }}
-                type="button"
-              >
-                <Box aria-hidden="true" className="models-provider-item__icon" />
-                <strong>{provider.id}</strong>
-                <span
-                  aria-label={provider.status}
-                  className="models-provider-item__status"
-                  data-status={provider.status}
-                  role="img"
-                />
-              </button>
-            </Reorder.Item>
-          ))}
-        </Reorder.Group>
+                          if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                            event.preventDefault()
+                            move(provider.id, event.key === 'ArrowUp' ? -1 : 1)
+                          }
+                        }}
+                        type="button"
+                      >
+                        <Box aria-hidden="true" className="models-provider-item__icon" />
+                        <strong>{provider.id}</strong>
+                        <span
+                          aria-label={provider.status}
+                          className="models-provider-item__status"
+                          data-status={provider.status}
+                          role="img"
+                        />
+                      </button>
+                    </Reorder.Item>
+                  ))}
+                </Reorder.Group>
+              </div>
+            )
+          })}
+        </div>
       )}
       <button
         className="models-provider-add"
@@ -522,7 +535,7 @@ function providerTypeLabel(value: string): string {
 
 function providerStatusLabel(value: string): string {
   if (value === 'connected') {
-    return '已配置'
+    return '已启用'
   }
   if (value === 'error') {
     return '配置异常'
@@ -546,12 +559,41 @@ function ConfiguredProviderPanel({
   readonly onSaved: (id: string) => void
 }) {
   const models = data.models.filter((model) => model.provider === provider.id)
+  const [editing, setEditing] = useState(false)
+  const [editKey, setEditKey] = useState(0)
+  const [name, setName] = useState(provider.id)
+  /* 取消即弃稿：form 按 key 重挂，名字也回滚到已存值。 */
+  const cancel = () => {
+    setName(provider.id)
+    setEditKey((key) => key + 1)
+    setEditing(false)
+  }
 
   return (
     <div className="models-provider-panel">
       <div className="models-provider-header">
         <div className="models-provider-heading">
-          <h3>{provider.id}</h3>
+          {editing ? (
+            <input
+              aria-label="供应商名称"
+              className="models-provider-nameinput"
+              onChange={(event) => setName(event.target.value)}
+              value={name}
+            />
+          ) : (
+            <>
+              <h3>{provider.id}</h3>
+              <button
+                aria-label={`编辑供应商 ${provider.id}`}
+                className="models-icon-button"
+                onClick={() => setEditing(true)}
+                title="编辑供应商"
+                type="button"
+              >
+                <Pencil aria-hidden="true" size={14} />
+              </button>
+            </>
+          )}
           <span className="models-provider-status" data-status={provider.status}>
             {providerStatusLabel(provider.status)}
           </span>
@@ -567,12 +609,81 @@ function ConfiguredProviderPanel({
           <Trash2 aria-hidden="true" size={15} />
         </button>
       </div>
-      <ProviderForm
-        current={{ models, provider }}
-        disabled={disabled}
-        onRun={onRun}
-        onSaved={onSaved}
-      />
+      {editing ? (
+        <ProviderForm
+          current={{ models, provider }}
+          disabled={disabled}
+          key={`${provider.id}:${String(editKey)}`}
+          name={name}
+          onCancel={cancel}
+          onRun={onRun}
+          onSaved={(id) => {
+            setEditing(false)
+            onSaved(id)
+          }}
+        />
+      ) : (
+        <ProviderView models={models} provider={provider} />
+      )}
+    </div>
+  )
+}
+
+/* 只读展示：读的是已存值，不读草稿；密钥只报有无，不出值。 */
+function ProviderView({
+  provider,
+  models,
+}: {
+  readonly provider: ModelProvider
+  readonly models: readonly ModelDescriptor[]
+}) {
+  const baseUrl = (provider.baseUrl ?? '').trim()
+  return (
+    <div className="models-provider-form">
+      <div className="models-field">
+        <span className="models-field__label">Base URL</span>
+        <div>
+          <output className="models-readonly">{baseUrl === '' ? '未设置' : baseUrl}</output>
+        </div>
+      </div>
+      <div className="models-field">
+        <span className="models-field__label">API 格式</span>
+        <div>
+          <output className="models-readonly">{providerTypeLabel(provider.providerType)}</output>
+        </div>
+      </div>
+      <div className="models-field">
+        <span className="models-field__label">API Key</span>
+        <div>
+          <output className="models-readonly">{provider.hasApiKey ? '••••••••' : '未配置'}</output>
+        </div>
+      </div>
+      <div className="models-model-list">
+        <span className="models-block__label">模型列表</span>
+        <div className="models-model-card">
+          {models.length === 0 ? (
+            <p className="models-empty">还没有模型。</p>
+          ) : (
+            models.map((model) => {
+              const badge = formatContextBadge(String(model.maxContextSize))
+              return (
+                <div className="models-model-entry" key={model.model}>
+                  <div className="models-model-row">
+                    <span className="models-model-idtext">
+                      {modelIdForDraft(provider.id, model.model)}
+                    </span>
+                    {badge === null ? null : (
+                      <span aria-hidden="true" className="models-model-badge">
+                        {badge}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -601,11 +712,22 @@ function NewProviderPanel({
   const [selected, setSelected] = useState(CUSTOM_PROVIDER)
   const value = options.some((option) => option.value === selected) ? selected : CUSTOM_PROVIDER
   const provider = catalog.find((candidate) => candidate.id === value)
+  const [name, setName] = useState(provider?.id ?? '')
+  /* 换来源就是一张新草稿：名字回到该来源的默认值。 */
+  useEffect(() => {
+    setName(provider?.id ?? '')
+  }, [provider?.id])
   return (
     <div className="models-provider-panel">
       <div className="models-provider-header">
         <div className="models-provider-heading">
-          <h3>{provider?.name ?? '自定义供应商'}</h3>
+          <input
+            aria-label="供应商名称"
+            className="models-provider-nameinput"
+            onChange={(event) => setName(event.target.value)}
+            placeholder="my-provider"
+            value={name}
+          />
           <span className="models-provider-status">未配置</span>
         </div>
       </div>
@@ -620,11 +742,18 @@ function NewProviderPanel({
         />
       </Field>
       {provider === undefined ? (
-        <ProviderForm disabled={disabled} key={value} onRun={onRun} onSaved={onCreated} />
+        <ProviderForm
+          disabled={disabled}
+          key={value}
+          name={name}
+          onRun={onRun}
+          onSaved={onCreated}
+        />
       ) : (
         <CatalogProviderForm
           disabled={disabled}
           key={provider.id}
+          name={name}
           onCreated={onCreated}
           onModelVisibilityChange={onModelVisibilityChange}
           onRun={onRun}
@@ -641,14 +770,15 @@ function CatalogProviderForm({
   onCreated,
   onModelVisibilityChange,
   onRun,
+  name,
 }: {
   readonly provider: CatalogProvider
   readonly disabled: boolean
   readonly onCreated: (id: string) => void
   readonly onModelVisibilityChange: (modelId: string, visible: boolean) => void
   readonly onRun: RunMutation
+  readonly name: string
 }) {
-  const [id, setId] = useState(provider.id)
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [visibleModels, setVisibleModels] = useState(() => provider.models.map((model) => model.id))
@@ -656,7 +786,7 @@ function CatalogProviderForm({
   const visible = new Set(visibleModels)
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const localId = id.trim()
+    const localId = name.trim()
     if (localId === '') {
       setMessage('请填写供应商名称。')
       return
@@ -682,15 +812,6 @@ function CatalogProviderForm({
   }
   return (
     <form className="models-provider-form" onSubmit={(event) => void submit(event)}>
-      <Field htmlFor="catalog-provider-id" label="供应商名称">
-        <input
-          className="models-input"
-          id="catalog-provider-id"
-          onChange={(event) => setId(event.target.value)}
-          required
-          value={id}
-        />
-      </Field>
       <Field htmlFor="catalog-provider-base-url" label="Base URL">
         <input
           className="models-input"
@@ -912,13 +1033,17 @@ function ProviderForm({
   disabled,
   onSaved,
   onRun,
+  onCancel,
+  name,
 }: {
   readonly current?: ProviderFormCurrent
   readonly disabled: boolean
   readonly onSaved: (id: string) => void
   readonly onRun: RunMutation
+  readonly onCancel?: () => void
+  /* 名字受控：标题栏那一行输入与这里是同一份值。 */
+  readonly name: string
 }) {
-  const [id, setId] = useState(current?.provider.id ?? '')
   const [providerType, setProviderType] = useState(current?.provider.providerType ?? 'openai')
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState(current?.provider.baseUrl ?? '')
@@ -932,9 +1057,16 @@ function ProviderForm({
     setModels((value) =>
       value.map((model) => (model.key === key ? { ...model, ...change } : model)),
     )
+  const addModel = () => {
+    const fresh = emptyModel()
+    setModels((value) => [...value, fresh])
+    return fresh.key
+  }
+  const removeModel = (key: string) =>
+    setModels((value) => value.filter((item) => item.key !== key))
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const providerId = id.trim()
+    const providerId = name.trim()
     const validation = validateModels(models)
 
     if (providerId === '') {
@@ -968,16 +1100,6 @@ function ProviderForm({
 
   return (
     <form className="models-provider-form" onSubmit={(event) => void submit(event)}>
-      <Field htmlFor="provider-form-id" label="供应商名称">
-        <input
-          className="models-input"
-          id="provider-form-id"
-          onChange={(event) => setId(event.target.value)}
-          placeholder="my-provider"
-          required
-          value={id}
-        />
-      </Field>
       <Field htmlFor="provider-form-base-url" label="Base URL">
         <input
           className="models-input"
@@ -1007,88 +1129,209 @@ function ProviderForm({
           value={apiKey}
         />
       </Field>
-      <div className="models-editor">
-        <div className="models-editor__header">
-          <div className="models-editor__title">
-            <strong>模型列表</strong>
-            <span aria-live="polite">{message}</span>
-          </div>
-          <div className="models-editor__actions">
-            {disabled ? <InlineSpinner /> : null}
-            <Button disabled={disabled} size="xs" type="submit" variant="soft">
-              {disabled ? '正在保存…' : '保存'}
-            </Button>
-            <Button
-              onClick={() => setModels((value) => [...value, emptyModel()])}
-              size="xs"
-              type="button"
-              variant="soft"
-            >
-              <Plus aria-hidden="true" size={14} /> 添加模型
-            </Button>
-          </div>
-        </div>
-        {models.map((model) => (
-          <div className="models-editor__row" key={model.key}>
-            <input
-              aria-label="模型 ID"
-              className="models-input"
-              onChange={(event) => updateModel(model.key, { model: event.target.value })}
-              placeholder="模型 ID"
-              required
-              value={model.model}
-            />
-            <input
-              aria-label="模型显示名"
-              className="models-input"
-              onChange={(event) => updateModel(model.key, { displayName: event.target.value })}
-              placeholder="显示名（可选）"
-              value={model.displayName}
-            />
-            <input
-              aria-label="上下文长度"
-              className="models-input"
-              min="1"
-              onChange={(event) => updateModel(model.key, { maxContextSize: event.target.value })}
-              placeholder="上下文"
-              required
-              type="number"
-              value={model.maxContextSize}
-            />
-            <div className="models-thinking-toggle">
-              <Switch
-                aria-label={`思考能力 ${model.model}`}
-                checked={model.thinkingCapability !== null}
-                onCheckedChange={(checked) =>
-                  updateModel(model.key, {
-                    thinkingCapability: checked ? (model.thinkingCapability ?? 'thinking') : null,
-                  })
-                }
-                size="sm"
-              />
-              <span>思考</span>
-            </div>
-            <input
-              aria-label={`思考强度 ${model.model}`}
-              className="models-input"
-              disabled={model.thinkingCapability === null}
-              onChange={(event) => updateModel(model.key, { supportEfforts: event.target.value })}
-              placeholder="low, medium, high"
-              value={model.supportEfforts}
-            />
-            <button
-              aria-label="删除模型"
-              className="models-icon-button"
-              disabled={models.length === 1}
-              onClick={() => setModels((value) => value.filter((item) => item.key !== model.key))}
-              type="button"
-            >
-              <Trash2 aria-hidden="true" size={15} />
-            </button>
-          </div>
-        ))}
-      </div>
+      <ModelListEditor
+        disabled={disabled}
+        message={message}
+        models={models}
+        onAdd={addModel}
+        onRemove={removeModel}
+        onUpdate={updateModel}
+        {...(onCancel === undefined ? {} : { onCancel })}
+      />
     </form>
+  )
+}
+
+/* 上下文徽标：1000000 报 1M，凑不整的按千分位原文。非法值不报，留给校验说话。 */
+function formatContextBadge(value: string): string | null {
+  const size = Number(value)
+  if (!Number.isSafeInteger(size) || size < 1) {
+    return null
+  }
+  if (size % 1_000_000 === 0) {
+    return `${String(size / 1_000_000)}M`
+  }
+  if (size % 1_000 === 0) {
+    return `${String(size / 1_000)}K`
+  }
+  return TOKEN_FORMAT.format(size)
+}
+
+/* 紧凑模型列表：行内只留 ID 与徽标，显示名/上下文走编辑区，思考走参数区。
+ * 保存语义不变：仍是整张表单一次提交，这里的按钮只是位置变了。 */
+function ModelListEditor({
+  models,
+  disabled,
+  message,
+  onUpdate,
+  onAdd,
+  onRemove,
+  onCancel,
+}: {
+  readonly models: readonly ModelDraft[]
+  readonly disabled: boolean
+  readonly message: string | null
+  readonly onUpdate: (key: string, change: Partial<ModelDraft>) => void
+  readonly onAdd: () => string
+  readonly onRemove: (key: string) => void
+  readonly onCancel?: () => void
+}) {
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
+  const toggle = (section: string) =>
+    setOpen((current) => {
+      const next = new Set(current)
+      if (next.has(section)) {
+        next.delete(section)
+      } else {
+        next.add(section)
+      }
+      return next
+    })
+  const remove = (key: string) => {
+    setOpen((current) => new Set([...current].filter((section) => !section.startsWith(`${key}:`))))
+    onRemove(key)
+  }
+  return (
+    <div className="models-model-list">
+      <span className="models-block__label">模型列表</span>
+      <div className="models-model-card">
+        {models.map((model, index) => {
+          const badge = formatContextBadge(model.maxContextSize)
+          const editId = `model-${model.key}-edit`
+          const tuneId = `model-${model.key}-tune`
+          const editOpen = open.has(`${model.key}:edit`)
+          const tuneOpen = open.has(`${model.key}:tune`)
+          const name = model.model.trim() === '' ? `模型 ${String(index + 1)}` : model.model
+          return (
+            <div className="models-model-entry" key={model.key}>
+              <div className="models-model-row">
+                <div className="models-model-idwrap">
+                  <input
+                    aria-label={`${name} ID`}
+                    className="models-input models-model-id"
+                    onChange={(event) => onUpdate(model.key, { model: event.target.value })}
+                    placeholder="模型 ID"
+                    required
+                    value={model.model}
+                  />
+                  {badge === null ? null : (
+                    <span aria-hidden="true" className="models-model-badge">
+                      {badge}
+                    </span>
+                  )}
+                </div>
+                <button
+                  aria-controls={tuneId}
+                  aria-expanded={tuneOpen}
+                  aria-label={`${name}参数`}
+                  className="models-icon-button"
+                  onClick={() => toggle(`${model.key}:tune`)}
+                  type="button"
+                >
+                  <SlidersHorizontal aria-hidden="true" size={15} />
+                </button>
+                <button
+                  aria-controls={editId}
+                  aria-expanded={editOpen}
+                  aria-label={`编辑${name}`}
+                  className="models-icon-button"
+                  onClick={() => toggle(`${model.key}:edit`)}
+                  type="button"
+                >
+                  <Pencil aria-hidden="true" size={15} />
+                </button>
+                <button
+                  aria-label={`删除${name}`}
+                  className="models-icon-button"
+                  disabled={models.length === 1}
+                  onClick={() => remove(model.key)}
+                  type="button"
+                >
+                  <Trash2 aria-hidden="true" size={15} />
+                </button>
+              </div>
+              {editOpen ? (
+                <div className="models-model-section" id={editId}>
+                  <input
+                    aria-label={`${name}显示名`}
+                    className="models-input"
+                    onChange={(event) => onUpdate(model.key, { displayName: event.target.value })}
+                    placeholder="显示名（可选）"
+                    value={model.displayName}
+                  />
+                  <input
+                    aria-label={`${name}上下文长度`}
+                    className="models-input"
+                    min="1"
+                    onChange={(event) =>
+                      onUpdate(model.key, { maxContextSize: event.target.value })
+                    }
+                    placeholder="上下文"
+                    required
+                    type="number"
+                    value={model.maxContextSize}
+                  />
+                </div>
+              ) : null}
+              {tuneOpen ? (
+                <div className="models-model-section" id={tuneId}>
+                  <div className="models-thinking-toggle">
+                    <Switch
+                      aria-label={`${name}思考能力`}
+                      checked={model.thinkingCapability !== null}
+                      onCheckedChange={(checked) =>
+                        onUpdate(model.key, {
+                          thinkingCapability: checked
+                            ? (model.thinkingCapability ?? 'thinking')
+                            : null,
+                        })
+                      }
+                      size="sm"
+                    />
+                    <span>思考</span>
+                  </div>
+                  <input
+                    aria-label={`${name}思考强度`}
+                    className="models-input"
+                    disabled={model.thinkingCapability === null}
+                    onChange={(event) =>
+                      onUpdate(model.key, { supportEfforts: event.target.value })
+                    }
+                    placeholder="low, medium, high"
+                    value={model.supportEfforts}
+                  />
+                </div>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+      <div className="models-model-footer">
+        <Button
+          onClick={() => {
+            const key = onAdd()
+            setOpen((current) => new Set(current).add(`${key}:edit`))
+          }}
+          size="xs"
+          type="button"
+          variant="soft"
+        >
+          <Plus aria-hidden="true" size={14} /> 添加模型
+        </Button>
+        <span aria-live="polite" className="models-model-message">
+          {message}
+        </span>
+        {disabled ? <InlineSpinner /> : null}
+        {onCancel === undefined ? null : (
+          <Button onClick={onCancel} size="xs" type="button" variant="ghost">
+            取消
+          </Button>
+        )}
+        <Button disabled={disabled} size="xs" type="submit" variant="soft">
+          {disabled ? '正在保存…' : '保存'}
+        </Button>
+      </div>
+    </div>
   )
 }
 

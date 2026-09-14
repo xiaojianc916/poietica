@@ -15,7 +15,7 @@ import {
 import { FileDiff, Globe, MessageSquareText, PanelRight, SquareTerminal } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useConversationWorkspaceRoot } from '../assistant/threads-context'
-import { useWorkspaceLayoutState } from '../shell/layout/layout-context'
+import { useWorkspaceLayoutState, useWorkspaceLayoutStore } from '../shell/layout/layout-context'
 import type { WorkbenchHost } from './runtime-contract'
 
 const PANE_ICONS: Readonly<Record<AuxiliaryLauncherKind, ReactNode>> = {
@@ -61,6 +61,7 @@ interface AuxiliaryDockProps {
 
 export function AuxiliaryDock({ conversationId, isDocked, store, host }: AuxiliaryDockProps) {
   const layout = useWorkspaceLayoutState()
+  const layoutStore = useWorkspaceLayoutStore()
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 
   useEffect(() => {
@@ -116,6 +117,13 @@ export function AuxiliaryDock({ conversationId, isDocked, store, host }: Auxilia
   )
 
   return (
-    <AuxiliaryPanel layoutSignal={layout} paneOffers={PANE_OFFERS} panes={panes} store={store} />
+    <AuxiliaryPanel
+      fullscreen={layout.auxiliaryFullscreen}
+      layoutSignal={layout}
+      onToggleFullscreen={layoutStore.toggleAuxiliaryFullscreen}
+      paneOffers={PANE_OFFERS}
+      panes={panes}
+      store={store}
+    />
   )
 }

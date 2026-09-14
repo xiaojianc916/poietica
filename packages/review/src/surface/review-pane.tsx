@@ -100,7 +100,7 @@ const SWITCHES: readonly {
   { icon: Pilcrow, name: 'hideWhitespace', off: '隐藏空白字符', on: '显示空白字符' },
 ]
 const ICON_CLASS =
-  'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-current/10 hover:opacity-100'
+  'review-toolbar-action flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:opacity-100'
 /* 行内动作：20px 盒子配 16px 字形，与工具栏同一个留白比例；字形尺寸由 --ui-icon 发放。
  * 悬浮底在 review-pane.css 的 .review-action，与卡头同源不同灰。 */
 const ROW_ICON_CLASS =
@@ -294,7 +294,7 @@ function Bases({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="比较基准"
-        className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 opacity-80 hover:bg-current/10 hover:opacity-100"
+        className="review-toolbar-action flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 opacity-80 hover:opacity-100"
       >
         {children}
       </DropdownMenuTrigger>
@@ -428,80 +428,94 @@ function Commit({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="ml-1 flex h-6 shrink-0 items-center gap-1 rounded-md border border-current/15 px-2 text-xs hover:bg-current/10 disabled:opacity-50"
+        className="review-toolbar-action ml-1 flex h-6 shrink-0 items-center gap-1 rounded-md border border-current/15 px-2 text-xs disabled:opacity-50"
         disabled={state.busy}
       >
         <GithubMark className="opacity-60" />
         {state.busy ? '正在提交…' : '提交或推送'}
         <ChevronDown aria-hidden className="size-3 opacity-50" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="review-commit-menu w-72">
-        <div className="mx-1 mb-1 rounded-md border border-current/15 px-2 py-1.5">
-          <textarea
-            aria-label="提交信息"
-            className="w-full resize-none bg-transparent text-xs outline-none placeholder:opacity-50"
-            name="commit-message"
-            onChange={(event) => {
-              store.setDraft(event.target.value)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-                event.preventDefault()
-                if (canCommit) {
-                  store.commit('commit')
-                }
-                return
-              }
-              /* 菜单把方向键与字母当导航；说明框里它们是输入。 */
-              if (event.key !== 'Escape' && event.key !== 'Tab') {
-                event.stopPropagation()
-              }
-            }}
-            placeholder="提交信息（留空将自动生成）…"
-            rows={3}
-            value={state.draft}
-          />
+      <DropdownMenuContent className="review-commit-menu w-80 rounded-2xl p-2">
+        {/* 分支只展示当前值：换基准走工具条那一个入口，这里不另开。 */}
+        <div className="flex items-center gap-1.5 px-3 pt-2 pb-1 text-sm font-medium">
+          <GitBranch aria-hidden className="size-4 shrink-0 opacity-60" />
+          <span className="min-w-0 flex-1 truncate">{headLabel(reading)}</span>
+          <ChevronDown aria-hidden className="size-3.5 shrink-0 opacity-50" />
         </div>
-        <label className="mx-1 flex items-center gap-2 px-1 py-1 text-xs">
+        {/* 无缝输入：无边框，靠弹层自己垫底。 */}
+        <textarea
+          aria-label="提交信息"
+          className="w-full resize-none bg-transparent px-3 py-2 text-sm outline-none placeholder:opacity-50"
+          name="commit-message"
+          onChange={(event) => {
+            store.setDraft(event.target.value)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+              event.preventDefault()
+              if (canCommit) {
+                store.commit('commit')
+              }
+              return
+            }
+            /* 菜单把方向键与字母当导航；说明框里它们是输入。 */
+            if (event.key !== 'Escape' && event.key !== 'Tab') {
+              event.stopPropagation()
+            }
+          }}
+          placeholder="提交信息（留空将自动生成）…"
+          rows={4}
+          value={state.draft}
+        />
+        <label className="flex cursor-default items-center gap-2 px-3 py-2 text-sm">
           <input
             checked={state.stageAll}
-            className="size-3 accent-current"
+            className="peer sr-only"
             onChange={(event) => {
               store.setStageAll(event.target.checked)
             }}
             type="checkbox"
           />
+          <span
+            aria-hidden
+            className="grid size-4 shrink-0 place-items-center rounded-full border border-current/30 peer-focus-visible:ring-2 peer-focus-visible:ring-ring"
+          >
+            {state.stageAll ? <Check aria-hidden className="size-3" /> : null}
+          </span>
           <span className="min-w-0 flex-1">包含未暂存的更改</span>
           <Tally stat={reading.unstaged} />
         </label>
         <DropdownMenuSeparator />
         <DropdownMenuItem
+          className="rounded-xl px-3"
           disabled={!canCommit}
           onClick={() => {
             store.commit('commit')
           }}
         >
           <GitCommitHorizontal aria-hidden className={MENU_ICON_CLASS} />
-          <span className={ROW_CLASS}>提交</span>
-          <span className="shrink-0 font-mono text-[11px] opacity-40">Ctrl+↵</span>
+          <span className="min-w-0 flex-1 truncate text-sm">提交</span>
+          <span className="review-commit-kbd">Ctrl+↵</span>
         </DropdownMenuItem>
         <DropdownMenuItem
+          className="rounded-xl px-3"
           disabled={!canCommit}
           onClick={() => {
             store.commit('commit-and-push')
           }}
         >
           <ArrowUp aria-hidden className={MENU_ICON_CLASS} />
-          <span className={ROW_CLASS}>提交并推送</span>
+          <span className="min-w-0 flex-1 truncate text-sm">提交并推送</span>
         </DropdownMenuItem>
         <DropdownMenuItem
+          className="rounded-xl px-3"
           disabled={!canPush}
           onClick={() => {
             store.commit('push')
           }}
         >
           <Upload aria-hidden className={MENU_ICON_CLASS} />
-          <span className={ROW_CLASS}>推送</span>
+          <span className="min-w-0 flex-1 truncate text-sm">推送</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
