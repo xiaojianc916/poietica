@@ -107,6 +107,18 @@
    */
   --ui-popup-divider: #ededed;
 
+  /*
+   * 划选高亮。浏览器那支默认蓝出自 UA 样式表，仓里对它没有任何定义，接管只有
+   * 一条路：显式声明的 ::selection（全仓唯一一份，在 selection.css）。
+   *
+   * 前景显式给值，不用 currentColor / inherit：那两个关键字在 color 上都等于
+   * 「继承父级」，选中一段带语法色的文字时字色会跟着父级走而不是原样保留，
+   * 是隐式行为。写字面档位，屏幕上是什么色就能核到什么色。深色主题的白字压不住
+   * 这个浅底，翻深的那一条在 dark.css。
+   */
+  --ui-selection-background: var(--ui-palette-blue-100);
+  --ui-selection-foreground: var(--ui-foreground);
+
   --ui-destructive: var(--ui-palette-red-500);
   --ui-destructive-foreground: oklch(0.99 0 0);
 

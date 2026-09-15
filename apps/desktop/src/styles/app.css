@@ -211,11 +211,21 @@ body {
   --desktop-scrollbar-thumb: #e4e4e5;
 }
 
+/*
+ * Crepe 自带一条 *::selection（底走 --crepe-color-selected），同一族令牌还兼作
+ * 工具栏按下态与选中节点的底，所以接回主题令牌，而不是跟它抢选择器。底之外还要
+ * 补字：深色下正文是白字，压在这个浅底上读不出来，而 Crepe 只声明了底。
+ */
 .library-editor .milkdown {
   --crepe-color-background: transparent;
   --crepe-color-on-background: inherit;
+  --crepe-color-selected: var(--ui-selection-background);
   --crepe-font-default: inherit;
   --crepe-font-title: inherit;
+}
+
+.library-editor .milkdown ::selection {
+  color: var(--ui-selection-foreground);
 }
 
 .library-editor .ProseMirror {

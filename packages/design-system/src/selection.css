@@ -1,0 +1,14 @@
+/*
+ * 划选高亮，全仓一份。
+ *
+ * 浏览器默认那支蓝出自 UA 样式表，仓里没有第二处定义过它 —— 想换只能在这里
+ * 接管一次。裸 ::selection 已经覆盖全部元素，按组件重设只会造出第二个产地。
+ *
+ * 已知例外两处，各自在自己的域里说明：Crepe 编辑器自己声明了一条 ::selection
+ * （覆盖写在 apps/desktop/src/styles/app.css），终端的高亮由 xterm 在 canvas
+ * 上自绘（走 --terminal-selection），不经过选择器。
+ */
+::selection {
+  background-color: var(--ui-selection-background);
+  color: var(--ui-selection-foreground);
+}

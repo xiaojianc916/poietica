@@ -68,6 +68,13 @@
   /* 与浅色同构：浮层内线比浮层外框淡一档。 */
   --ui-popup-divider: rgb(255 255 255 / 10%);
 
+  /*
+   * 底与浅色同一个值（指定色，不随主题走），字必须翻深：深色下正文是白字，而
+   * 高亮底是浅蓝，只换底等于把选中的字抹掉。
+   */
+  --ui-selection-background: var(--ui-palette-blue-100);
+  --ui-selection-foreground: var(--ui-palette-dark-900);
+
   --ui-destructive: var(--ui-palette-red-400);
   --ui-destructive-foreground: var(--ui-palette-dark-1000);
 

@@ -42,6 +42,11 @@
 
   --ui-palette-blue-500: oklch(0.55 0.19 255);
   --ui-palette-blue-400: #5e9fe8;
+  /*
+   * 划选高亮底，指定值。两主题共用同一个底，所以字色只能各自定
+   * （light.css 给 currentColor，dark.css 给深色）。
+   */
+  --ui-palette-blue-100: #c1e1ff;
 
   --ui-palette-red-500: oklch(0.56 0.22 28);
   --ui-palette-red-400: #e97366;
