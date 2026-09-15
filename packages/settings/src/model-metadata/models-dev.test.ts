@@ -75,4 +75,71 @@ describe('models.dev metadata projection', () => {
       ),
     ).toEqual({})
   })
+
+  it('resolves a provider whose id differs from the registry slug only by case', () => {
+    expect(
+      modelConfigPatch(
+        {
+          providers: [{ id: 'TokenRouter', providerType: 'openai' }],
+          models: [
+            {
+              provider: 'TokenRouter',
+              model: 'TokenRouter/z-ai/glm-5.3-free',
+              displayName: 'GLM 5.3 (free)',
+              maxContextSize: 128_000,
+              capabilities: ['thinking'],
+              maxOutputSize: null,
+              supportEfforts: null,
+            },
+          ],
+        },
+        registry,
+      ),
+    ).toEqual({
+      'TokenRouter/z-ai/glm-5.3-free': {
+        maxContextSize: 1_000_000,
+        maxOutputSize: 131_072,
+        capabilities: ['image_in', 'always_thinking', 'tool_use'],
+        supportEfforts: ['low', 'high', 'max'],
+      },
+    })
+  })
+
+  it('keeps the name the agent already shows instead of the registry spelling', () => {
+    const spelled = {
+      providers: {
+        tokenrouter: {
+          id: 'tokenrouter',
+          models: {
+            'z-ai/glm-5.3-free': {
+              id: 'z-ai/glm-5.3-free',
+              name: 'GLM-5.3 (free)',
+              limit: { context: 1_000_000 },
+            },
+          },
+        },
+      },
+      models: {},
+    }
+
+    expect(
+      modelConfigPatch(
+        {
+          providers: [provider],
+          models: [
+            {
+              provider: 'tokenrouter',
+              model: 'tokenrouter/z-ai/glm-5.3-free',
+              displayName: 'GLM 5.3 (free)',
+              maxContextSize: 1_000_000,
+              capabilities: null,
+              maxOutputSize: null,
+              supportEfforts: null,
+            },
+          ],
+        },
+        spelled,
+      ),
+    ).toEqual({})
+  })
 })

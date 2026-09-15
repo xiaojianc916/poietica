@@ -104,13 +104,36 @@ function thinkingOptions(model: UnknownRecord): {
   return { efforts, hasOff, hasToggle }
 }
 
+/*
+ * registry 的键是固定 slug（tokenrouter），而 provider id 与模型 id 都是用户
+ * 写的（TokenRouter）。精确查表在这一步静默落空，整条元数据链断掉，屏幕上看
+ * 不出原因——所以这里先认精确键，再退到大小写不敏感的匹配。
+ */
+function insensitiveLookup(table: UnknownRecord, key: string): UnknownRecord | undefined {
+  const exact = record(table[key])
+  if (exact !== undefined) {
+    return exact
+  }
+  const lowered = key.toLowerCase()
+  for (const [candidate, value] of Object.entries(table)) {
+    if (candidate.toLowerCase() === lowered) {
+      return record(value)
+    }
+  }
+  return undefined
+}
+
 function configuredModel(catalog: UnknownRecord, providerId: string, alias: string) {
   const providers = record(catalog['providers'])
-  const provider = record(providers?.[providerId])
-  const models = record(provider?.['models'])
+  const models = record(
+    providers === undefined ? undefined : insensitiveLookup(providers, providerId)?.['models'],
+  )
+  if (models === undefined) {
+    return undefined
+  }
   const prefix = `${providerId}/`
   const modelId = alias.startsWith(prefix) ? alias.slice(prefix.length) : alias
-  return record(models?.[modelId])
+  return insensitiveLookup(models, modelId)
 }
 
 export function modelConfigPatch(
@@ -153,7 +176,10 @@ function modelPatch(
   const inputs = Array.isArray(rawInputs) ? rawInputs : []
   const thinking = thinkingOptions(model)
 
-  if (name !== undefined && name !== current.displayName) {
+  /* 名字只补空，不覆写：registry 的 name 未必更好（"GLM 5.3 (free)" 会被换成
+     "GLM-5.3 (free)"），而这一步是自动跑的，改掉的是用户已经在看的那个名字。 */
+  const currentName = current.displayName?.trim() ?? ''
+  if (name !== undefined && currentName === '') {
     patch['displayName'] = name
   }
   if (context !== undefined && context !== current.maxContextSize) {
