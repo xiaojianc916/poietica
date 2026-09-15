@@ -23,15 +23,19 @@
    * --ui-row-icon-size 与 --ui-icon-size-sm 同为 16px 却各有所有者，不是重复：
    * 这一档要参与与 JS 像素中线的减法，所以它必须永远是像素；设计系统的档位不
    * 作这个承诺。两者同值是设计意图，不是可以合并的巧合。
+   *
+   * 内缩是悬停药丸两侧同一条缝：它既是导航容器的 padding-inline，又是下面
+   * --ui-row-lead 的减数，所以调大它只让药丸两端各退一步，图标位置不动。
    */
-  --ui-row-inset: 4px;
+  --ui-row-inset: 8px;
   --ui-row-trail: 8px;
   --ui-row-gap: 8px;
   --ui-row-icon-size: 16px;
 
-  /* 行高与圆角是纯粹的控件度量，它们的输入同在 :root，直接读既有标尺。 */
+  /* 行高与圆角是纯粹的控件度量，它们的输入同在 :root，直接读既有标尺。
+   * 圆角取 lg：32px 高的行上，sm 那一档只够把直角磨圆，读不出「一枚悬停的块」。 */
   --ui-row-height: var(--ui-control-height-sm);
-  --ui-row-radius: var(--ui-radius-sm);
+  --ui-row-radius: var(--ui-radius-lg);
 }
 
 /*

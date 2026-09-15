@@ -37,17 +37,26 @@
   background: var(--ui-sidebar);
 }
 
-/* 行几何与 SidebarNav 的 NavRow 同源，两种侧边栏的图标必须落在同一条竖线上。 */
+/*
+ * 行几何整族读设计系统的 --ui-row-*，与主侧栏的 .sidebar-nav-row 是同一批声明 ——
+ * 两种侧边栏的图标必须落在同一条竖线上，靠的是同一条前导内缩公式，不是两次对齐。
+ *
+ * 此前这里把公式重算了一遍：calc(中线 − 12px)，那个 12 是旧内缩 4px 下的 lead
+ * 字面值；内缩、圆角、行高、图标尺寸也各写各的。于是注释说着「同源」，改主侧栏
+ * 时这里一动不动。注意 --ui-row-lead 声明在 [data-ui-rows] 上，而设置导航正好
+ * 顶替的是 WorkspaceFrame 里的 sidebar 格子 —— 它必须留在那棵子树里，否则
+ * var() 解析失败会让 padding 静默退成 0。
+ */
 .settings-navigation__back,
 .settings-navigation__item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ui-row-gap);
   inline-size: 100%;
-  min-block-size: var(--ui-control-height-sm);
-  padding-inline: calc(var(--ui-row-icon-center, 24px) - 12px) 8px;
+  min-block-size: var(--ui-row-height);
+  padding-inline: var(--ui-row-lead) var(--ui-row-trail);
   border: 0;
-  border-radius: var(--ui-radius-md);
+  border-radius: var(--ui-row-radius);
   background: transparent;
   color: var(--ui-muted-foreground);
   font-size: 12px;
@@ -60,8 +69,8 @@
 }
 
 .settings-navigation__back {
-  margin-inline: 4px;
-  inline-size: calc(100% - 8px);
+  margin-inline: var(--ui-row-inset);
+  inline-size: calc(100% - 2 * var(--ui-row-inset));
 }
 
 .settings-navigation__back:hover,
@@ -83,8 +92,8 @@
 
 .settings-navigation__icon {
   flex: none;
-  inline-size: 16px;
-  block-size: 16px;
+  inline-size: var(--ui-row-icon-size);
+  block-size: var(--ui-row-icon-size);
 }
 
 .settings-navigation__scroll {
@@ -103,7 +112,7 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding-inline: 4px;
+  padding-inline: var(--ui-row-inset);
 }
 
 .settings-navigation__items + .settings-navigation__items {

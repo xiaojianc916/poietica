@@ -16,9 +16,11 @@
   cursor: pointer;
 }
 
+/* 悬停底读设计系统的中性高亮面（浅色 #f2f2f3），与批准方式那颗胶囊的悬停同色。
+   不读 --cp-menu-hover：那是弹层卡面上的悬停，压在输入框这张实色卡上要再兑一次底。 */
 .assistant-plus:hover,
 .assistant-plus[aria-expanded="true"] {
-  background: var(--cp-menu-hover);
+  background: var(--ui-accent);
   color: var(--cp-ink);
 }
 

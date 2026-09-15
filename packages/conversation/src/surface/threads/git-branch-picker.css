@@ -112,9 +112,11 @@
   color: var(--cp-ink-muted);
 }
 
+/* 高亮读弹层公共高亮令牌（DropdownMenuItem 基础类用的同一个），不读 --cp-hover：
+ * 后者是半透明墨，压在这张实色浮层上还要再兑一次底。 */
 .git-branch-picker__menu[data-assistant-skin] .git-branch-picker__item[data-highlighted] {
   outline: none;
-  background: var(--cp-hover);
+  background: var(--ui-popup-highlight);
 }
 
 .git-branch-picker__item-name {

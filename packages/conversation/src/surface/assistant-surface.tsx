@@ -9,6 +9,7 @@ import { useDockClearance } from './composer/dock-clearance'
 import { ComposerDraftKeyContext } from './composer/drafts-context'
 import type { PermissionDockProps } from './composer/permission-dock'
 import type { PromptInputHandle } from './composer/prompt-input'
+import { SwarmToggle } from './composer/swarm-toggle'
 import { useAgentToolkit } from './configuration/agent-controls-context'
 import { GoalBar } from './goal/goal-bar'
 import { EmotionBall, ENTRY_EMOTION_GROUPS } from './mascot/emotion-ball'
@@ -303,6 +304,9 @@ export const AssistantSurface = memo(function AssistantSurface({
             <WorkspacePicker {...workspace} placement="composer" />
 
             {git === undefined ? null : <GitBranchPicker {...git} />}
+
+            {/* 最右端：左边两枚说「在哪跑」，它说「这一句怎么跑」。 */}
+            <SwarmToggle controls={controls} onSelect={onSelectControl} />
           </div>
         )}
       </div>

@@ -25,13 +25,15 @@
     color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
+/* 悬停底读设计系统的中性高亮面（浅色 #f2f2f3），与工具条上那颗加号同色 ——
+   不读 --cp-hover：那是半透明墨，压在输入框这张实色卡上要再兑一次底。 */
 .assistant-model-select__button:hover {
-  background: var(--cp-hover);
+  background: var(--ui-accent);
   color: var(--cp-ink);
 }
 
 .assistant-model-select__button[aria-expanded="true"] {
-  background: var(--cp-hover);
+  background: var(--ui-accent);
   color: var(--cp-ink);
 }
 

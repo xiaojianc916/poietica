@@ -3,6 +3,7 @@ import type { SessionConfigControl } from '../agent/config'
 import { canSubmitDraft } from '../composer/prompt'
 import { activePromptConfiguration } from '../surface/composer/composer-actions'
 import { sessionControlRows } from '../surface/composer/controls'
+import { swarmControlOf } from '../surface/composer/swarm-toggle'
 
 function control(
   id: string,
@@ -24,7 +25,7 @@ function control(
 }
 
 describe('composer configuration transaction', () => {
-  it('does not expose permission in the model menu and keeps swarm independent', () => {
+  it('keeps permission and swarm out of the settings menu', () => {
     const model: SessionConfigControl = {
       id: 'model',
       label: 'Model',
@@ -32,13 +33,16 @@ describe('composer configuration transaction', () => {
       current: 'k3',
       choices: [{ value: 'k3', label: 'K3' }],
     }
+    const thinking = control('thinking', 'thought', 'medium')
     const permission = control('permission', 'permission', 'off')
     const swarm = control('swarm', 'other', 'off')
 
-    expect(sessionControlRows([permission, swarm, model]).map((item) => item.id)).toEqual([
-      'model',
-      'swarm',
-    ])
+    /* 批准方式是工具条上常显的胶囊，Swarm 是上下文栏右端的勾选（swarm-toggle）。 */
+    expect(sessionControlRows([permission, swarm, model, thinking]).map((item) => item.id)).toEqual(
+      ['model', 'thinking'],
+    )
+    expect(swarmControlOf([model, swarm])).toBe(swarm)
+    expect(swarmControlOf([model])).toBeUndefined()
   })
 
   it('carries active immediate modes without treating goal as already committed', () => {

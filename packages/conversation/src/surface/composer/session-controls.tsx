@@ -12,6 +12,7 @@ import {
 } from '@poietica/design-system'
 import { Fragment, memo, useMemo, useState } from 'react'
 import type { SessionConfigControl } from '../../agent/config'
+import { SWARM_CONTROL_ID } from './swarm-toggle'
 
 /*
  * Everything the session lets us change, in one control.
@@ -72,9 +73,14 @@ function chosen(control: SessionConfigControl): string {
 export function sessionControlRows(
   controls: readonly SessionConfigControl[],
 ): readonly SessionConfigControl[] {
-  return [...controls]
-    .filter((control) => ORDER.includes(control.purpose))
-    .sort((left, right) => rank(left.purpose) - rank(right.purpose))
+  return (
+    [...controls]
+      .filter((control) => ORDER.includes(control.purpose))
+      /* Swarm 不住在菜单里：它是上下文栏右端的一枚勾选（swarm-toggle.tsx）。
+       一个控制只有一个住处，搬走那一行在同一次改动里删掉。 */
+      .filter((control) => control.id !== SWARM_CONTROL_ID)
+      .sort((left, right) => rank(left.purpose) - rank(right.purpose))
+  )
 }
 
 export interface SessionControlsProps {

@@ -1,0 +1,97 @@
+/*
+ * 上下文栏最右端的那一枚 Swarm 勾选。
+ *
+ * 几何借栏里两个兄弟的那一套令牌（--cp-control / --cp-radius / --cp-inset /
+ * --cp-hover），所以它读起来是栏里的第三个控件而不是贴上去的第二样东西。
+ *
+ * margin-inline-start: auto 就是「站最右端」的全部实现：栏是 flex，项目与分支占
+ * 左、它占右，中间的留白归栏自己，不加第三个盒子。
+ */
+.swarm-toggle {
+  /*
+   * 勾选框自己的四格几何与三个实色。
+   *
+   * 框比 --cp-icon 小两像素：它要比栏里的字形收一圈，才读得出是一枚「勾选框」而
+   * 不是又一颗图标；勾与框同步缩，两侧留白因此不变。
+   *
+   * 三个颜色不是设计系统色板里的值，也不是任一语义令牌的混色 —— 它们是按产品直
+   * 接给的，所以只在这一个组件里命名一次，不冒充语义令牌。勾是压在那个实心面上的
+   * 反色：跟着框走，不跟着主题走。
+   */
+  --sw-box: calc(var(--cp-icon) - 2px);
+  --sw-check: calc(var(--cp-icon) - 6px);
+  --sw-corner: 5px;
+  --sw-edge: #e1e1e1;
+  --sw-fill: #494949;
+  --sw-knockout: #ffffff;
+
+  display: inline-flex;
+  block-size: var(--cp-control);
+  align-items: center;
+  gap: var(--cp-control-gap);
+  margin-inline-start: auto;
+  border: 0;
+  border-radius: var(--cp-radius);
+  padding-inline: var(--cp-inset);
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.swarm-toggle:hover {
+  background: var(--cp-hover);
+}
+
+.swarm-toggle:focus-visible {
+  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+/* 未选是一圈空边，选中是实心面加一个挖空的勾。 */
+.swarm-toggle__box {
+  display: grid;
+  block-size: var(--sw-box);
+  inline-size: var(--sw-box);
+  flex: none;
+  place-items: center;
+  border: var(--cp-px) solid var(--sw-edge);
+  border-radius: var(--sw-corner);
+  background: transparent;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    border-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/* 悬停时那圈边朝实心面靠一档：同一支混色，不另定一个灰。 */
+.swarm-toggle:hover .swarm-toggle__box {
+  border-color: color-mix(in srgb, var(--sw-fill) 30%, var(--sw-edge));
+}
+
+.swarm-toggle[aria-pressed="true"] .swarm-toggle__box {
+  border-color: var(--sw-fill);
+  background: var(--sw-fill);
+}
+
+.swarm-toggle__check {
+  block-size: var(--sw-check);
+  inline-size: var(--sw-check);
+  color: var(--sw-knockout);
+  opacity: 0;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.swarm-toggle[aria-pressed="true"] .swarm-toggle__check {
+  opacity: 1;
+}
+
+/* 名字来自 agent，可以长；长了在 chip 里断，不许把栏挤开。 */
+.swarm-toggle__label {
+  min-inline-size: 0;
+  max-inline-size: var(--cp-pill-label-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -308,6 +308,27 @@
 }
 
 /*
+ * 相邻两块底色之间必须留缝，缝宽与 .assistant-threads__list 的行距是同一条。
+ *
+ * 会涂底色的只有两种行：会话行（悬停／当前）与工作区组头（悬停）。而
+ * .assistant-threads__group 与 .thread-disclosure 都是裸的块级容器，子元素之间
+ * 一点缝都没有 —— 于是组头的悬停底会和下面第一行的当前底连成一整块，看着像
+ * 一个坏掉的高行。行与行之间本来就有 2px，所以只有「组头挨着第一行」这一处明显。
+ *
+ * 组与组之间是同一个缺陷的另一半：两个 group 是 .thread-disclosure 的兄弟，
+ * 上面那个组的最后一行挨着下面那个组的组头。同一条规则一起收掉。
+ *
+ * 收起时不留空：AnimatePresence 关闭后子树就不在 DOM 里了，flex 的 gap 只在
+ * 真有第二个子元素时才生效。
+ */
+.assistant-threads__group,
+.thread-disclosure {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--ui-hairline) * 2);
+}
+
+/*
  * 行高读侧边栏的行高，不读编排器的控件尺寸。
  *
  * 此前 block-size 是 --cp-control（输入框工具栏那一套），min-block-size 又是
@@ -1166,7 +1187,7 @@
 
 .workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-highlighted] {
   outline: none;
-  background: var(--cp-hover);
+  background: var(--ui-popup-highlight);
 }
 
 .workspace-picker__item-name {
@@ -1416,6 +1437,9 @@
  * - 指针离开菜单后不会清除。
  *
  * 当前项目的 data-current 只负责右侧勾号，不再额外绘制第二块背景。
+ *
+ * 高亮底色读弹层公共高亮令牌（DropdownMenuItem 基础类用的同一个），不读
+ * --cp-hover：后者是半透明墨，压在这张实色浮层上还要再兑一次底。
  */
 .workspace-picker__menu[data-assistant-skin]
 .workspace-picker__item[data-workspace-choice="true"][data-highlighted],
@@ -1430,7 +1454,7 @@
   .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-highlighted],
 .workspace-picker__menu[data-assistant-skin]
   .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-current="true"] {
-  background: var(--cp-hover);
+  background: var(--ui-popup-highlight);
 }
 
 /*
