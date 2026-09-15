@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react'
 import type { Presentation } from '../../timeline/presentation'
-import { ChevronDownIcon } from '../primitives/icons'
+import { ToLatestIcon } from '../primitives/icons'
 import { useDevicePixels } from '../primitives/use-device-pixels'
 import { geometryOf, keepGeometry } from './conversation-geometry'
 import { rowAtAnchor } from './reading-position'
@@ -477,7 +477,7 @@ export function AgentActivityFeed({
         onClick={travel}
         type="button"
       >
-        <ChevronDownIcon aria-hidden="true" />
+        <ToLatestIcon aria-hidden="true" />
       </button>
 
       {overlay === undefined ? null : overlay({ activeRow, scrollToRow: reveal })}

@@ -78,6 +78,25 @@
  */
 
 /*
+ * 面板里那一大段机器输出。
+ *
+ * 还是这个滚动容器、这份留白，只是内容换成了一串按行虚拟化的行盒
+ * （tool-output-lines.tsx）。所以行高与字号必须和围栏里的代码行一字不差 ——
+ * 它们是同一段输出，只因为长到三百行以上才换了画法，不该在交界处看出接缝。
+ * 这一对令牌就是 timeline.css 里 code-block-body 用的那一对。
+ *
+ * min-block-size 是给空行留的：一个没有内容的块不产生行盒，高度会是零，整列会
+ * 从那里开始错位 —— 而这串行盒的高度同时被 JS 那边的估值用着。
+ */
+.timeline-tool__output-line {
+  min-block-size: calc(var(--ui-prose-size-aux) * var(--ui-line-height-normal));
+  font-family: var(--cp-font-mono);
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-line-height-normal);
+  white-space: pre;
+}
+
+/*
  * 切换条自占一条窄带，它和下面那一面之间没有边界。
  *
  * 底色不在这里给 —— 带和面是同一张纸，纸色归 __body 一处声明。这一条只管留白。

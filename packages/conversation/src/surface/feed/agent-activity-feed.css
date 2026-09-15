@@ -140,7 +140,7 @@
  *
  * 落点在带子之上、溶解带之外:压进渐变里它自己会是淡的,而它是一个控件,不是内容。
  *
- * 实色面加一圈发丝边加一层浮层阴影 —— 与菜单同一档高度,因为它也脱离文档流浮在内容之上。
+ * 圆形白面加一圈发丝边,没有阴影:它按设计给的定稿走,不从别的浮层借高度。
  */
 .agent-activity-feed__to-latest {
   position: absolute;
@@ -154,10 +154,9 @@
   block-size: var(--cp-control);
   margin-inline: auto;
   appearance: none;
-  border: var(--cp-px) solid var(--cp-edge);
+  border: var(--cp-px) solid var(--cp-to-latest-edge);
   border-radius: 50%;
   background: var(--cp-surface);
-  box-shadow: var(--cp-lift-menu);
   color: var(--cp-ink);
   cursor: pointer;
   opacity: 0;

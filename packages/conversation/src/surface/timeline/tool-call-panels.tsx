@@ -13,8 +13,9 @@ import type { ToolCallTimelineItem } from '../../timeline/timeline-contract'
 
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
 import { basename } from '../semantics/file-diff'
-import { toToolCallFacets } from '../semantics/tool-call-facets'
+import { fencedBodyOf, toToolCallFacets } from '../semantics/tool-call-facets'
 import { Prose } from './prose'
+import { ToolOutputLines, VIRTUAL_ABOVE_LINES } from './tool-output-lines'
 
 /**
  * 抽屉里的那张纸。
@@ -49,15 +50,23 @@ function ToolPanel({
   readonly panel?: string
   readonly text: string
 }) {
+  const [viewport, setViewport] = useState<HTMLDivElement | null>(null)
+  const lines = fencedBodyOf(text)
+
   return (
     <div
       className="timeline-tool__panel"
       data-scrollable=""
+      ref={setViewport}
       {...(panel === undefined
         ? {}
         : { 'aria-labelledby': labelledBy, id: panel, role: 'tabpanel' })}
     >
-      <Prose className="timeline-tool__prose" text={text} />
+      {lines !== null && lines.length > VIRTUAL_ABOVE_LINES ? (
+        <ToolOutputLines lines={lines} viewport={viewport} />
+      ) : (
+        <Prose className="timeline-tool__prose" text={text} />
+      )}
     </div>
   )
 }

@@ -139,6 +139,19 @@
   background: color-mix(in srgb, #ffffff 10%, transparent);
 }
 
+/*
+ * 卡头的路径向前截断：末段（文件名）比前缀更能认出文件，所以裁前面、留后面。
+ * 省略号落到行首只有一条路 —— rtl 把行末缘翻到左边；text-align 用物理值补回对齐。
+ * 文本必须裹 <bdi>：否则 rtl 段落会把 .github 的首个点当行末中性字符甩到右边。
+ */
+.review-card__path {
+  direction: rtl;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 折叠带的底色：悬浮药丸只这一处取色，不跟随上面的增删色。 */
 .review-gap {
   background: #f3f3f3;

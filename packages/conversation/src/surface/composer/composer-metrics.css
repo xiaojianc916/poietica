@@ -290,6 +290,30 @@
   --cp-timeline-danger-text: var(--ui-destructive);
 
   /*
+   * 内联代码的底。
+   *
+   * 它此前借用上面那一档输出底 —— 4% 的墨，压在正文里几乎看不出边界；设计定稿
+   * 要一个实色，浅色下 #e9eaea。这里写字面值：9.25% 的墨兑出来是 #e9e9e9，
+   * 三个通道里差一个，兑不到定稿那个色。
+   *
+   * 不复用 --cp-timeline-output-surface：那个值还被页签、附件条、代码块抬头读着，
+   * 按用途自立一名，将来只调这一处。深色那一档在文件末尾的 dark 块里给。
+   */
+  --cp-timeline-inline-code-surface: #e9eaea;
+
+  /*
+   * 正文链接的墨。
+   *
+   * 它此前读 --cp-accent，也就是 --ui-primary（浅色 #006edc）—— 那一档还管着焦点环、
+   * 选中框、发送键等二十来处的边框与描边。定稿只调链接，所以按用途自立一名，
+   * 主色不动（与 --cp-timeline-danger-text 同一条规矩）。
+   *
+   * 浅色写字面值：定稿要的蓝比主色浅、彩度低一档，兑不出来。深色那一档在文件末尾
+   * 的 dark 块里给。
+   */
+  --cp-timeline-link-ink: #2e82d2;
+
+  /*
    * 工具抽屉展开之后的那张纸。
    *
    * 切换带、下面那一面、以及那一面上两根滚动条的轨道，是同一个平面。名字因此说的
@@ -445,6 +469,21 @@
    */
   --cp-edge: color-mix(in srgb, var(--ui-foreground) 9%, transparent);
 
+  /*
+   * 「回到最新」那一圈边。
+   *
+   * 它此前借用 --cp-edge。那一档是半透明墨，铺在什么底上就跟着什么底走 ——
+   * 而这块牌子落在滚动区之上，底下是转录内容，于是同一圈边在空对话里和在
+   * 一段代码块上量出来是两个颜色。设计定稿要的是一个恒定值：浅色下 #ececec。
+   * 8% 正是解出它的那一档（量过：7.5% 是 #ededed，8.5% 是 #ebebeb）。
+   *
+   * 按用途取名（与 --cp-error-rule、--cp-timeline-danger-text 同一条规矩）：
+   * 将来只调这一块，不会连带把输入框、卡片那一圈的边一起调了。
+   *
+   * 深色下跟着反转 —— 写死 #ececec 会在近黑面上画一整圈白边。
+   */
+  --cp-to-latest-edge: color-mix(in srgb, var(--ui-foreground) 8%, var(--cp-surface));
+
   /* 停靠在版面里的一张卡：输入框、悬停中的快捷入口。 */
   --cp-lift:
     0 2px 4px color-mix(in srgb, var(--ui-foreground) 4%, transparent),
@@ -457,6 +496,20 @@
 }
 
 :root[data-theme="dark"] [data-assistant-skin] {
+  /*
+   * 内联代码的底。浅色那一档是实色，这里不能跟着写死 —— 近黑卡面上铺 #e9eaea
+   * 就是一块白斑。改成白色兑面，浓度取与浅色同一个绝对差（22/255），解出 #363636。
+   */
+  --cp-timeline-inline-code-surface: color-mix(
+    in srgb,
+    var(--ui-foreground) 10%,
+    var(--cp-surface)
+  );
+  /*
+   * 正文链接的墨。按主色那一对（浅 #006edc → 深 #5e9fe8）的同一条式子推：
+   * 明度抬 0.139、彩度乘 0.68，解出 oklch(0.735 0.099 251) 即 #7aaee6。
+   */
+  --cp-timeline-link-ink: oklch(0.735 0.099 251);
   --cp-goal-bar-surface: rgb(53 54 56);
   --cp-goal-bar-edge: rgb(255 255 255 / 6%);
   --cp-goal-bar-input-edge: rgb(255 255 255 / 12%);

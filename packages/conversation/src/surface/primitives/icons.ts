@@ -39,6 +39,7 @@ export function asIcon(glyph: FunctionComponent<{ className?: string; size?: num
 }
 
 export {
+  ArrowDown as ToLatestIcon,
   ArrowUp as SubmitIcon,
   Atom as ThinkingIcon,
   BookOpenText as FileIcon,

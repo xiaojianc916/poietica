@@ -142,10 +142,13 @@
   translate: 0 calc(var(--cp-rail-card-y, 0px) - 50%);
   overflow: hidden;
   inline-size: 220px;
+  border: 1px solid #e2e2e2;
   border-radius: var(--am-item);
   padding: 6px 8px;
   background: var(--cp-surface);
-  box-shadow: var(--am-shadow);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 6%),
+    0 4px 12px rgb(0 0 0 / 8%);
   color: var(--cp-ink);
   font-size: var(--cp-font-micro);
   text-align: start;

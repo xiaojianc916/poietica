@@ -20,6 +20,7 @@ import './timeline.css'
 import { cx } from '../primitives/class-names'
 import { asIcon, CheckIcon, CopyIcon } from '../primitives/icons'
 import { DIAGRAM_RENDERER } from './diagram'
+import { ProseLink } from './prose-link'
 import { ExportableTable } from './table-export'
 
 /* 单美元号按公式处理；成对货币符号也可能被识别为公式。 */
@@ -47,7 +48,8 @@ const ICONS: Partial<IconMap> = {
 const LINK_SAFETY: LinkSafetyConfig = { enabled: false }
 const CODE_CAP = 'var(--cp-timeline-code-cap)'
 const TABLE_CAP = 0
-const COMPONENTS = { table: ExportableTable }
+/* 表格换成产品自己的导出控件；链接要带一枚显示地址的悬停提示。 */
+const COMPONENTS = { a: ProseLink, table: ExportableTable }
 
 /* 中文没有词间空格；按字揭示，并限制积压动画的时长。 */
 const REVEAL: AnimateOptions = {

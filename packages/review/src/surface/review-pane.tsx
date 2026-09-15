@@ -554,7 +554,9 @@ function Card({
           type="button"
         >
           <FileTypeMark className="size-3.5 shrink-0" name={file.path} />
-          <span className="min-w-0 truncate text-xs">{file.path}</span>
+          <span className="review-card__path min-w-0 text-xs">
+            <bdi>{file.path}</bdi>
+          </span>
           <Tally stat={file.stat} />
         </button>
         {/* 悬浮或键盘聚焦时才出现：行头默认只有事实。 */}

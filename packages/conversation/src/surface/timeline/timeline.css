@@ -211,9 +211,22 @@
   background: var(--cp-hairline);
 }
 
+/*
+ * 下划线取设计给的虚线，不用浏览器默认的实线。
+ *
+ * 墨色不读 --cp-accent（那是主色，管着二十来处的焦点环与描边），走正文链接自己的
+ * 一格 --cp-timeline-link-ink。
+ *
+ * 字重与断行也从这里给：链接不再由 streamdown 的类名着色排版，它那串类名换成了
+ * 这个组件（见 prose-link.tsx），落在这条链接上的外观由这一处说清。字重 500 与
+ * 断行分别是它原来那句 font-medium 与 wrap-anywhere，取值不变，只是换了产地。
+ */
 .timeline-prose a {
-  color: var(--cp-accent);
+  color: var(--cp-timeline-link-ink);
+  font-weight: 500;
+  overflow-wrap: anywhere;
   text-decoration: underline;
+  text-decoration-style: dashed;
   text-underline-offset: 0.15em;
   text-decoration-thickness: from-font;
 }
@@ -374,7 +387,7 @@
 .timeline-prose :not(pre) > code {
   padding: 0.0625rem 0.25rem;
   border-radius: 0.3125rem;
-  background: var(--cp-timeline-output-surface);
+  background: var(--cp-timeline-inline-code-surface);
   font-family: var(--cp-font-mono);
   font-size: 0.875em;
 }

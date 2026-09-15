@@ -28,6 +28,12 @@ import { type ToolContentPart, toToolContentParts } from './tool-call-content'
  * 产出走同一条判据：解析得动就按同样的两格重排，解析不动就原样。重排动的只有空白 ——
  * JSON 的空白不承载语义（RFC 8259 §2），所以这不改数据，只改可读性。
  *
+ * ## 不截断
+ *
+ * 这里此前按 64 KiB 截断长产出，截完补一句「内容过长」。那个上限和它想解决的事错配
+ * 了：它省的是「这一帧画多少」，赔进去的是字符本身。量改由抽屉自己接 —— 超过阈值的
+ * 产出按行虚拟化，见 tool-output-lines.tsx。
+ *
  * 这一层不认识 React，也不认识时间线的条目类型：入参按形状收，与 tool-call-content
  * 只依赖 @poietica/conversation 是同一条边界。
  */
@@ -51,15 +57,6 @@ export interface ToolCallFacets {
   /** 交回来的那一面，一段 markdown；什么都还没有就是 null。 */
   readonly response: string | null
 }
-
-/*
- * 一次调用能有多大：edit 与 write 类工具的入参里装着整份文件正文，抓页面的产出装着
- * 一整篇 DOM 文本。Shiki 的分词是线性的，但常数不小。64 KiB 之后按行截断。
- *
- * 这个上限与虚拟化不是一件事，两个都要：虚拟化省的是「这一帧要画多少」，它省的是
- * 「这段文本值不值得留在内存里被切成块」。
- */
-const CAP = 64 * 1024
 
 /** 缩进两格 —— JSON.stringify 的 space 参数，也是这个格式的通行排版。 */
 const INDENT = 2
@@ -89,16 +86,6 @@ function displayJson(value: unknown): string | undefined {
   return JSON.stringify(value, (_key: string, raw: unknown) => display(raw), INDENT)
 }
 
-function clamp(text: string): string {
-  if (text.length <= CAP) {
-    return text
-  }
-
-  const cut = text.lastIndexOf('\n', CAP)
-
-  return `${text.slice(0, cut > 0 ? cut : CAP)}\n…（内容过长，上面只是开头）`
-}
-
 /**
  * 围栏得比正文里最长的那串反引号还长一格。
  *
@@ -121,10 +108,34 @@ function railFor(body: string, floor: number): string {
 
 /** 一块带语言标注的围栏。info string 是 CommonMark 的官方语法，Shiki 认的就是它。 */
 function block(lang: string, body: string): string {
-  const text = clamp(body)
-  const rail = railFor(text, 3)
+  const rail = railFor(body, 3)
 
-  return `${rail}${lang}\n${text}\n${rail}`
+  return `${rail}${lang}\n${body}\n${rail}`
+}
+
+/**
+ * 一块围栏里的那些行；这份 markdown 不是「一整块围栏」就交回 null。
+ *
+ * block() 的逆运算，与它同住一个文件 —— 围栏长什么形状只有这一处知道。抽屉里那份
+ * 输出超过阈值时按行虚拟化（tool-output-lines.tsx），要的就是这些行；交回 null 表示
+ * 这一面不是一段机器输出（计划正文、勾选表、多段拼接都在此列），那时按 markdown 画。
+ */
+export function fencedBodyOf(markdown: string): readonly string[] | null {
+  const lines = markdown.split('\n')
+  const head = lines[0]
+  const tail = lines.at(-1)
+
+  if (head === undefined || lines.length < 2) {
+    return null
+  }
+
+  const open = /^(`{3,})/.exec(head)
+
+  if (open === null || tail !== open[1]) {
+    return null
+  }
+
+  return lines.slice(1, -1)
 }
 
 /**
@@ -245,7 +256,7 @@ function partMarkdown(part: Exclude<ToolContentPart, { type: 'diff' }>): string 
 
   if (part.type === 'prose') {
     /* 计划正文本来就是 markdown：包进围栏会把标题与列表连符号一起印出来。 */
-    return clamp(part.text)
+    return part.text
   }
 
   if (part.type === 'todo') {
