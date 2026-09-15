@@ -8,24 +8,30 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuRadioItemIndicator,
   DropdownMenuTrigger,
-  Switch,
 } from '@poietica/design-system'
-import { Fragment, memo, useMemo, useState } from 'react'
+import { Check, ChevronRight } from 'lucide-react'
+import { memo, useMemo, useState } from 'react'
 import type { SessionConfigControl } from '../../agent/config'
 import { SWARM_CONTROL_ID } from './swarm-toggle'
 
 /*
- * Everything the session lets us change, in one control.
+ * 这条会话的模型与思考档位：工具条上一颗胶囊，打开是一张卡。
  *
- * 单层弹窗、面板内换页：根页是每个可调维度一行（标签 + 当前值），点行把同一张
- * 弹层整页切换成该维度的取值列表 —— 与 deepseek-harness ModelSelect 的 root / model
- * / effort 同一个范式，不再使用悬停展开的级联子菜单。
+ * 屏幕上的值没有第二份。agent 报的那张表就是全部（control.current），点一下是
+ * 往它发一次改动，值由它的答复换掉 —— 滑轨因此受控，卡里不存档位。
  *
- * 弹层始终只有一张：面板的尺寸、边框、圆角、阴影与定位沿用既有类名与参数，换页
- * 不换壳。根行用 closeOnClick=false，因为那一行的职责是换页而不是提交；取值行显式
- * closeOnClick —— 点选即提交，提交即关闭，一次选择就是一个完成的任务。（Base UI
- * 的 Menu.RadioItem 默认 closeOnClick=false，不显式写出来弹层不会关。）Escape 在
- * 取值页先退回根页，再按一次才关闭；菜单关闭时页签复位，下次打开永远从根页开始。
+ * 卡只有一张，换的是卡里的页：根页是档位（蓝字档位名 + 模型名两行居中，下面
+ * 一条离散轨道），点档位那一行整页换成模型清单 —— 与 deepseek-harness
+ * ModelSelect 的 root / model 同一个范式，不再使用悬停展开的级联子菜单。档位
+ * 那一行用 closeOnClick=false，因为它的职责是换页而不是提交；清单里的取值行显式
+ * closeOnClick，点选即提交、提交即关闭。（Base UI 的 Menu.RadioItem 默认
+ * closeOnClick=false，不显式写出来弹层不会关。）Escape 在清单页先退回根页，再按
+ * 一次才关闭；菜单关闭时页签复位，下次打开永远从档位页开始。
+ *
+ * 这里只住得下 model 与 thought 两类：批准方式是工具条上常显的胶囊
+ * （permission-picker），计划、目标与 Swarm 各有各的住处（composer-actions 的
+ * 徽记与 swarm-toggle 的勾选）。sessionControlRows 仍然把 other 一并收进来，
+ * 只是今天没有第二位 other —— 多出来的一位会在卡里没有位置。
  *
  * Portal 与皮肤属性的职责不变：DropdownMenuContent 自带 portal，data-assistant-skin
  * 挂在弹层自身。
@@ -39,7 +45,8 @@ export function isToggleControl(control: SessionConfigControl): boolean {
 
 const UNAVAILABLE = '没连上 agent，点击重试'
 
-const ROOT = 'root'
+const LEVEL = 'level'
+const MODEL = 'model'
 
 const ORDER: readonly string[] = ['model', 'thought', 'other']
 
@@ -83,6 +90,37 @@ export function sessionControlRows(
   )
 }
 
+/*
+ * 档位在轨道上的落点。
+ *
+ * 轨道两端各留半个滑块，所以第一个与最后一个档位都停在轨道里；滑块中心、档位点、
+ * 填充终点是同一条式子 —— 三样东西分别算一次就会错位。
+ */
+function stopOffset(position: number, count: number): string {
+  const span = count - 1
+  const ratio = span > 0 ? position / span : 0
+
+  return `calc(var(--cp-model-thumb) / 2 + ${ratio} * (100% - var(--cp-model-thumb)))`
+}
+
+/* 指针落在哪一个档位上：比的是指针到各个档位点的实际距离，不是自己再算一遍几何。 */
+function stopAt(rail: HTMLElement, clientX: number): number {
+  let found = 0
+  let nearest = Number.POSITIVE_INFINITY
+
+  rail.querySelectorAll<HTMLElement>('[data-stop]').forEach((dot, index) => {
+    const box = dot.getBoundingClientRect()
+    const gap = Math.abs(clientX - (box.x + box.width / 2))
+
+    if (gap < nearest) {
+      nearest = gap
+      found = index
+    }
+  })
+
+  return found
+}
+
 export interface SessionControlsProps {
   readonly controls: readonly SessionConfigControl[]
   readonly failure?: string | undefined
@@ -99,15 +137,12 @@ export const SessionControls = memo(function SessionControls({
   onSelect,
 }: SessionControlsProps) {
   const rows = useMemo(() => sessionControlRows(controls), [controls])
+  const [pane, setPane] = useState<string>(LEVEL)
 
-  const model = useMemo(() => controls.find((control) => control.purpose === 'model'), [controls])
-  const [pane, setPane] = useState<string>(ROOT)
-  const drilled = rows.find((control) => control.id === pane)
-  const [firstRow] = rows
-  /* 全名展示（截断已放开），窄窗下仍被挤住时靠 title 兜底。 */
-  const currentLabel = firstRow === undefined ? UNAVAILABLE : chosen(model ?? firstRow)
+  const level = rows.find((control) => control.purpose === 'thought')
+  const model = rows.find((control) => control.purpose === 'model')
 
-  if (firstRow === undefined) {
+  if (level === undefined && model === undefined) {
     if (failure === undefined) {
       return null
     }
@@ -122,110 +157,210 @@ export const SessionControls = memo(function SessionControls({
         title={failure}
         type="button"
       >
-        <span className="assistant-model-select__label">{UNAVAILABLE}</span>
+        <span className="assistant-model-select__name">{UNAVAILABLE}</span>
       </button>
     )
   }
+
+  const name = model === undefined ? undefined : chosen(model)
+  const band = level === undefined ? undefined : chosen(level)
+  /* 全名展示（截断已放开），窄窗下仍被挤住时靠 title 兜底。 */
+  const summary = [name, band].filter((part) => part !== undefined).join('  ')
+
+  /* 没有档位控件时，卡里只剩模型清单这一页。 */
+  const listing = model !== undefined && (level === undefined || pane === MODEL)
+
+  const listPane =
+    model === undefined ? null : (
+      <div className="assistant-model-select__list-pane">
+        <span className="assistant-model-select__list-title">选择模型</span>
+
+        <DropdownMenuRadioGroup
+          onValueChange={(value) => {
+            if (value === model.current) {
+              return
+            }
+
+            onSelect(model.id, value)
+          }}
+          value={model.current}
+        >
+          {model.choices.map((choice) => (
+            <DropdownMenuRadioItem
+              className="assistant-model-select__item"
+              closeOnClick
+              key={choice.value}
+              value={choice.value}
+            >
+              <span className="assistant-model-select__item-name">{choice.label}</span>
+
+              <DropdownMenuRadioItemIndicator className="assistant-model-select__item-tick">
+                <Check aria-hidden="true" size={14} strokeWidth={2} />
+              </DropdownMenuRadioItemIndicator>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </div>
+    )
+
+  const bandPane =
+    level === undefined ? null : (
+      <div className="assistant-model-select__band-pane">
+        {/* 档位那一行整页换成模型清单；没有模型控件时它就只是一行字。 */}
+        {model === undefined ? (
+          <div className="assistant-model-select__head">
+            <span className="assistant-model-select__head-band">{band}</span>
+          </div>
+        ) : (
+          <DropdownMenuItem
+            className="assistant-model-select__head"
+            closeOnClick={false}
+            onClick={() => {
+              setPane(MODEL)
+            }}
+          >
+            <span className="assistant-model-select__head-band">
+              {band}
+
+              <ChevronRight
+                aria-hidden="true"
+                className="assistant-model-select__head-chevron"
+                size={12}
+                strokeWidth={2.5}
+              />
+            </span>
+
+            <span className="assistant-model-select__head-name">{name}</span>
+          </DropdownMenuItem>
+        )}
+
+        {rail(level, band ?? level.current, onSelect)}
+      </div>
+    )
 
   return (
     <DropdownMenu
       onOpenChange={(open) => {
         if (!open) {
-          setPane(ROOT)
+          setPane(LEVEL)
         }
       }}
     >
       <DropdownMenuTrigger
-        aria-label="会话设置"
+        aria-label="模型与思考档位"
         className="assistant-model-select__button"
-        title={currentLabel}
+        title={summary}
       >
-        <span className="assistant-model-select__label">{currentLabel}</span>
+        {name === undefined ? null : <span className="assistant-model-select__name">{name}</span>}
+
+        {band === undefined ? null : <span className="assistant-model-select__band">{band}</span>}
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
         align="end"
-        className="assistant-config-menu__panel assistant-menu-surface"
+        className="assistant-model-select__panel assistant-menu-surface"
         data-assistant-skin
         onKeyDown={(event) => {
-          if (event.key === 'Escape' && drilled !== undefined) {
-            /* 取值页的 Escape 是退回根页，不是关闭；根页的 Escape 仍归 Base UI。 */
+          if (event.key === 'Escape' && listing) {
+            /* 清单页的 Escape 是退回档位页，不是关闭；档位页的 Escape 仍归 Base UI。 */
             event.preventDefault()
             event.stopPropagation()
-            setPane(ROOT)
+            setPane(LEVEL)
           }
         }}
         side="top"
         sideOffset={6}
       >
-        {drilled === undefined ? (
-          rows.map((control) => (
-            <Fragment key={control.id}>
-              {isToggleControl(control) ? (
-                <DropdownMenuItem
-                  aria-checked={control.current === 'on'}
-                  className="assistant-config-menu__row"
-                  closeOnClick={false}
-                  onClick={() => {
-                    onSelect(control.id, control.current === 'on' ? 'off' : 'on')
-                  }}
-                  role="menuitemcheckbox"
-                >
-                  <span className="assistant-config-menu__row-label">{control.label}</span>
-
-                  <Switch
-                    aria-hidden="true"
-                    checked={control.current === 'on'}
-                    className="pointer-events-none ml-auto"
-                    size="sm"
-                    tabIndex={-1}
-                  />
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem
-                  className="assistant-config-menu__row"
-                  closeOnClick={false}
-                  onClick={() => {
-                    setPane(control.id)
-                  }}
-                >
-                  <span className="assistant-config-menu__row-label">{control.label}</span>
-
-                  <span className="assistant-config-menu__row-value">{chosen(control)}</span>
-                </DropdownMenuItem>
-              )}
-            </Fragment>
-          ))
-        ) : (
-          <DropdownMenuRadioGroup
-            onValueChange={(value) => {
-              if (value === drilled.current) {
-                return
-              }
-
-              onSelect(drilled.id, value)
-            }}
-            value={drilled.current}
-          >
-            {drilled.choices.map((choice) => (
-              <DropdownMenuRadioItem
-                className="assistant-config-option"
-                closeOnClick
-                key={choice.value}
-                value={choice.value}
-              >
-                <span className="assistant-config-option__label">{labelOf(drilled, choice)}</span>
-
-                {choice.detail === undefined ? null : (
-                  <span className="assistant-config-option__detail">{choice.detail}</span>
-                )}
-
-                <DropdownMenuRadioItemIndicator className="assistant-config-option__indicator" />
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        )}
+        {listing ? listPane : bandPane}
       </DropdownMenuContent>
     </DropdownMenu>
   )
 })
+
+/*
+ * 离散轨道。
+ *
+ * 指针全归底轨自己：点一下、按住横拖，都走 setPointerCapture 加「离得最近的那个档位」。
+ * 档位是离散的，所以一次横拖最多换这么多次档（每跨一格一次），这里不另做节流。档位点
+ * 那个 24px 命中区冒泡上来落到的也是底轨，所以「从点上起手拖」不会断。
+ *
+ * 原生 range 只剩键盘与 aria：指针一律穿透，滑块隐形（看得见的那颗是自己画的）。不这么
+ * 分，滑块就跟不上换档的动画 —— 原生滑块的落点是布局算出来的，位置一变就是跳。
+ *
+ * 方向键必须在输入框上止住：菜单也监听方向键并且 preventDefault，放它冒泡上去，
+ * 档位就一动不动。
+ */
+function rail(
+  control: SessionConfigControl,
+  band: string,
+  onSelect: (controlId: string, value: string) => void,
+) {
+  const count = control.choices.length
+  const at = Math.max(
+    0,
+    control.choices.findIndex((choice) => choice.value === control.current),
+  )
+
+  /* 同一个值不重发：方向键连按与横拖扫过都会走到这里。 */
+  const pick = (position: number) => {
+    const next = control.choices[position]
+
+    if (next === undefined || next.value === control.current) {
+      return
+    }
+
+    onSelect(control.id, next.value)
+  }
+
+  return (
+    <div
+      className="assistant-model-select__rail"
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture(event.pointerId)
+        /* 顺手把焦点交给输入框：点完接着按方向键微调，和点原生滑块时一样。 */
+        event.currentTarget.querySelector('input')?.focus()
+        pick(stopAt(event.currentTarget, event.clientX))
+      }}
+      onPointerMove={(event) => {
+        /* 捕获在 pointerup 时由浏览器自己放掉，所以这一条同时也是「还在拖」的判据。 */
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          pick(stopAt(event.currentTarget, event.clientX))
+        }
+      }}
+      style={{ backgroundSize: `${stopOffset(at, count)} 100%` }}
+    >
+      {control.choices.map((choice, position) => (
+        <span
+          className="assistant-model-select__dot"
+          data-passed={position <= at ? 'true' : 'false'}
+          data-stop=""
+          key={choice.value}
+        />
+      ))}
+
+      <span
+        className="assistant-model-select__thumb"
+        style={{ insetInlineStart: stopOffset(at, count) }}
+      />
+
+      <input
+        aria-label={control.label}
+        aria-valuetext={band}
+        className="assistant-model-select__input"
+        max={count - 1}
+        min={0}
+        onChange={(event) => {
+          pick(Number(event.target.value))
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') {
+            event.stopPropagation()
+          }
+        }}
+        step={1}
+        type="range"
+        value={at}
+      />
+    </div>
+  )
+}

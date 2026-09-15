@@ -1,44 +1,55 @@
 @import "./composer-metrics.css";
 
 /* Session configuration controls shared by every composer. */
-.assistant-model-select__label {
-  flex: 1;
-  white-space: nowrap;
-}
 
+/*
+ * 模型与思考档位选择器：工具条上一颗胶囊，打开是一张卡。
+ *
+ * 量度与配色是复刻参考稿的量过的值，住在 composer-metrics.css 的 --cp-model-*
+ * 一栏；这里只说它们怎么摆。轨道四层皮（底轨 / 填充 / 档位点 / 滑块）的定位关系
+ * 写在 session-controls.tsx 的 stopOffset 上 —— 三样东西分别算一次就会错位。
+ */
+
+/* ---------- 胶囊 ---------- */
+
+/*
+ * 静息是透明的，跟工具条里另外两枚胶囊一样：它是常显的一个控件，不是一段标记。
+ * 一层常驻的灰底会把它读成"已选中/已展开"，而这颗胶囊一直是被选中的那一个。
+ * 悬停与展开才铺 --ui-accent（浅色 #f2f2f3）—— 参考稿那张就是这个状态。
+ */
 .assistant-model-select__button {
   display: inline-flex;
-  block-size: var(--cp-pill);
+  block-size: var(--cp-model-pill);
+  max-inline-size: 100%;
 
   flex: none;
   align-items: center;
+  gap: var(--cp-model-pill-gap);
   border: 0;
   border-radius: 9999px;
-  padding-inline: var(--cp-pill-trail);
+  padding-inline: var(--cp-model-pill-pad);
   background: transparent;
-  font-size: var(--cp-font-caption);
-  font-weight: 500;
-  color: var(--cp-ink-muted);
+  font: inherit;
+  font-size: var(--cp-model-size);
+  font-weight: 400;
+  /* 这一格的颜色就是模型名那一段的墨；档位那一段在下面自己盖一档。 */
+  color: var(--cp-model-pill-ink);
   cursor: pointer;
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    color var(--cp-motion-swift) var(--cp-motion-ease);
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-/* 悬停底读设计系统的中性高亮面（浅色 #f2f2f3），与工具条上那颗加号同色 ——
-   不读 --cp-hover：那是半透明墨，压在输入框这张实色卡上要再兑一次底。 */
-.assistant-model-select__button:hover {
-  background: var(--ui-accent);
-  color: var(--cp-ink);
-}
-
+.assistant-model-select__button:hover,
 .assistant-model-select__button[aria-expanded="true"] {
   background: var(--ui-accent);
-  color: var(--cp-ink);
 }
 
-.assistant-model-select__button .assistant-model-select__label {
-  display: block;
+/*
+ * 行高必须装得下字形自己的盒子。这两格有 overflow: hidden（长名要靠省略号收尾），
+ * 行高一旦压到 1，'g' 那一捺与括号就都在行盒外面 —— 胶囊里显示的是模型名，看不全
+ * 就等于没说。1.35 与工具条另外两枚胶囊的行高同值。
+ */
+.assistant-model-select__name,
+.assistant-model-select__band {
   min-inline-size: 0;
   overflow: hidden;
   line-height: 1.35;
@@ -46,13 +57,281 @@
   white-space: nowrap;
 }
 
-.assistant-model-select__button[data-empty="true"] {
-  color: var(--cp-ink-subtle);
-  cursor: default;
+.assistant-model-select__band {
+  flex: none;
+  color: var(--cp-model-pill-level-ink);
 }
 
-.assistant-config-menu__panel[data-assistant-skin],
-.assistant-config-menu__submenu[data-assistant-skin] {
+.assistant-model-select__button[data-empty="true"] {
+  color: var(--cp-ink-subtle);
+}
+
+/* ---------- 卡 ---------- */
+
+/*
+ * 面板壳沿用工具条浮层的同一张脸（assistant-menu-surface）：底色共用一处。几何与那
+ * 一圈影是它自己的 —— 宽、圆角、边色、以及比浮层族轻一档的投影。内边距归每一页
+ * 自己，两页的留白不是同一个数。
+ */
+.assistant-model-select__panel[data-assistant-skin] {
+  inline-size: var(--cp-model-panel);
+  min-inline-size: 0;
+  max-inline-size: calc(100vw - 2 * var(--cp-gutter));
+  padding: 0;
+  border-color: var(--cp-model-panel-edge);
+  border-radius: var(--cp-model-panel-radius);
+  box-shadow: var(--cp-model-panel-lift);
+}
+
+/* 档位页：两行字加一条轨道。上沿窄一档、字与轨道之间宽一档，两个数都是量出来的。 */
+.assistant-model-select__band-pane {
+  display: grid;
+  gap: var(--cp-model-panel-gap);
+  padding: var(--cp-model-panel-lead) var(--cp-model-panel-pad) var(--cp-model-panel-pad);
+}
+
+/*
+ * 档位那一行。
+ *
+ * 两行字整块居中，不是逐行居中：目录里的模型名长短差得很远，逐行居中会让档位名
+ * 跟着左右跳。
+ *
+ * 箭头绝对定位在档位名之后。它不参与居中 —— 参与进去，整块就往右偏半个箭头，
+ * 上一版就是那样，档位名看着总是不在正中。
+ */
+[data-assistant-skin] .assistant-model-select__head {
+  display: grid;
+  justify-self: center;
+  justify-items: center;
+  /* 这一行是菜单里的一行，它带着菜单行的项目间距；两行字是同一行里的两行，不留缝。 */
+  gap: 0;
+  padding: var(--cp-model-head-pad);
+  border: 0;
+  border-radius: var(--cp-model-head-radius);
+  background: transparent;
+  font: inherit;
+  text-align: center;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+[data-assistant-skin] .assistant-model-select__head:hover,
+[data-assistant-skin] .assistant-model-select__head[data-highlighted] {
+  outline: none;
+  background: var(--ui-accent);
+}
+
+.assistant-model-select__head-band {
+  position: relative;
+  color: var(--cp-model-level-ink);
+  font-size: var(--cp-model-level-size);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.assistant-model-select__head-chevron {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 100%;
+  margin-inline-start: 4px;
+  color: var(--cp-model-quiet-ink);
+  transform: translateY(-50%);
+}
+
+.assistant-model-select__head-name {
+  color: var(--cp-model-name-ink);
+  font-size: var(--cp-model-name-size);
+  line-height: 1.2;
+}
+
+/* ---------- 轨道 ---------- */
+
+/*
+ * 底轨、填充、档位点、滑块四层。
+ *
+ * 填充是底轨自己的一层背景，不是另起一个元素 —— 圆头那一段只有这样才对：填充的盒子
+ * 只有半个滑块宽（14px），`border-radius: 9999px` 落在这么窄的盒子上会被按比例压成
+ * 7px，于是它的左端不是半径 12 的圆头，而是一段比滑块那道弧更靠外的弧；滑块滑到最左
+ * 时，轨道左上、左下各露出一弯蓝。背景层由底轨自己的 border-radius 裁切，露不出去。
+ *
+ * 填充的长度在这里过渡，滑块的位置在 __thumb 上过渡，两者读同一个时长与曲线：换一档
+ * 时它们是同一条动作的两半，各走各的就会看出错位。时长与曲线都是既有的令牌，不新定。
+ *
+ * 指针全部归这一层（原生输入一律穿透），所以拖动从档位点上起手也是通的。
+ */
+.assistant-model-select__rail {
+  position: relative;
+  display: flex;
+  block-size: var(--cp-model-rail);
+  align-items: center;
+  justify-content: space-between;
+  /* 两端各留半个滑块：滑块因此整块停在轨道里，档位点也跟着往里收半个。 */
+  padding-inline: calc(var(--cp-model-thumb) / 2);
+  border-radius: 9999px;
+  background-color: var(--cp-model-rail-face);
+  background-image: linear-gradient(var(--cp-model-rail-fill), var(--cp-model-rail-fill));
+  background-repeat: no-repeat;
+  /* background-size 由 rail() 逐档给出，与滑块的中心是同一条式子。 */
+  cursor: pointer;
+  touch-action: none;
+  transition: background-size var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/*
+ * 档位点。
+ *
+ * 点自己只有 4px，悬停够不着，所以给它一个透明命中区（::after），撑到设计系统的指针
+ * 目标下限。命中区不参与排布，档位点的中心因此还是 flex 算出来的那个位置。
+ *
+ * 自身 pointer-events: none、命中区 auto：悬停落在命中区上（点照样 :hover），而指针
+ * 按下时冒泡上来的是底轨，拖动不会因为起手在点上就断掉。
+ */
+.assistant-model-select__dot {
+  position: relative;
+  inline-size: var(--cp-model-rail-dot);
+  block-size: var(--cp-model-rail-dot);
+  flex: none;
+  margin-inline: calc(var(--cp-model-rail-dot) / -2);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--cp-ink) 26%, transparent);
+  pointer-events: none;
+  transition: scale var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-model-select__dot::after {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  inline-size: var(--cp-target-min);
+  block-size: var(--cp-target-min);
+  translate: -50% -50%;
+  border-radius: 50%;
+  content: "";
+  pointer-events: auto;
+}
+
+/* 悬停长一圈、挪开缩回去，两趟同一条时长。 */
+.assistant-model-select__dot:hover {
+  scale: 2;
+}
+
+/* 已越过的档位点长在填充上，那里要的是提亮而不是压深，所以是一层白墨。 */
+.assistant-model-select__dot[data-passed="true"] {
+  background: rgb(255 255 255 / 30%);
+}
+
+/*
+ * 滑块。
+ *
+ * 自己画的这一颗才跟得上左右滑动的动画：原生滑块的落点是布局算出来的，位置一变就是
+ * 跳，CSS 补不了间 —— 它在这一层里早已被藏起来（见下一条的 opacity）。
+ */
+.assistant-model-select__thumb {
+  position: absolute;
+  inset-block-start: 50%;
+  inline-size: var(--cp-model-thumb);
+  block-size: var(--cp-model-thumb);
+  translate: -50% -50%;
+  border: var(--cp-px) solid var(--cp-model-thumb-edge);
+  border-radius: 50%;
+  background: var(--cp-model-thumb-face);
+  box-shadow: var(--cp-model-thumb-lift);
+  pointer-events: none;
+  /* inset-inline-start 由 rail() 逐档给出。 */
+  transition: inset-inline-start var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/*
+ * 原生输入只剩键盘与 aria：指针一律穿透（拖动、点击都归底轨），滑块自己隐形。
+ *
+ * 不是 display: none 或 visibility: hidden 那种"藏"：它仍在无障碍树里，方向键、Home/End
+ * 与 aria-valuetext 照旧生效，:focus-visible 的焦点环也照旧画在轨道那一圈上。
+ */
+.assistant-model-select__input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  pointer-events: none;
+}
+
+.assistant-model-select__input:focus-visible {
+  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+  outline-offset: calc(var(--cp-px) * 2);
+}
+
+.assistant-model-select__input::-webkit-slider-runnable-track {
+  block-size: var(--cp-model-rail);
+  background: transparent;
+}
+
+.assistant-model-select__input::-webkit-slider-thumb {
+  appearance: none;
+  inline-size: var(--cp-model-thumb);
+  block-size: var(--cp-model-thumb);
+  /* 滑块比轨道高，负的偏移把它压回轨道的中线上。 */
+  margin-block-start: calc((var(--cp-model-rail) - var(--cp-model-thumb)) / 2);
+  opacity: 0;
+}
+
+/* ---------- 模型清单 ---------- */
+
+.assistant-model-select__list-pane {
+  display: grid;
+  padding: 6px var(--cp-model-panel-pad);
+}
+
+.assistant-model-select__list-title {
+  margin-block-end: 4px;
+  color: var(--cp-model-quiet-ink);
+  font-size: var(--cp-model-size);
+  line-height: 1.2;
+}
+
+/* 行比面板窄四格：字仍起在面板的留白上，底色往里收，四周才不顶着卡片边。 */
+[data-assistant-skin] .assistant-model-select__item {
+  display: flex;
+  min-block-size: var(--cp-model-item-row);
+  align-items: center;
+  gap: var(--cp-model-item-pad);
+  margin-inline: calc(-1 * var(--cp-model-item-pad));
+  padding-inline: var(--cp-model-item-pad);
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  background: transparent;
+  font: inherit;
+  font-size: var(--cp-model-size);
+  color: var(--cp-ink);
+}
+
+[data-assistant-skin] .assistant-model-select__item:hover,
+[data-assistant-skin] .assistant-model-select__item[data-highlighted] {
+  outline: none;
+  background: var(--ui-accent);
+}
+
+.assistant-model-select__item-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-model-select__item-tick {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin-inline-start: auto;
+  color: var(--cp-ink);
+}
+
+/* ---------- 与自动化编辑器共用的那一张 ---------- */
+
+.assistant-config-menu__panel[data-assistant-skin] {
   min-inline-size: 184px;
 }
 
@@ -80,65 +359,6 @@
 
 [data-assistant-skin] .assistant-config-menu__row-label {
   white-space: nowrap;
-}
-
-[data-assistant-skin] .assistant-config-menu__row-value {
-  margin-inline-start: auto;
-  overflow: hidden;
-  color: var(--cp-ink-subtle);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.assistant-config-menu__submenu[data-assistant-skin] {
-  min-inline-size: 200px;
-}
-
-[data-assistant-skin] .assistant-config-option {
-  position: relative;
-  display: block;
-  width: 100%;
-  min-height: 28px;
-  padding: 5px 26px 5px 8px;
-  border: 0;
-  border-radius: var(--am-item);
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  text-align: start;
-  cursor: default;
-}
-
-[data-assistant-skin] .assistant-config-option:hover,
-[data-assistant-skin] .assistant-config-option[data-highlighted] {
-  outline: none;
-  background: var(--cp-hover);
-}
-
-[data-assistant-skin] .assistant-config-option__label {
-  display: block;
-  font-size: var(--cp-font-caption);
-  line-height: 1.35;
-}
-
-[data-assistant-skin] .assistant-config-option__detail {
-  display: block;
-  margin-block-start: 1px;
-  color: var(--cp-ink-subtle);
-  font-size: var(--cp-font-micro);
-  line-height: 1.35;
-}
-
-[data-assistant-skin] .assistant-config-option__indicator {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-end: 10px;
-  width: 4px;
-  height: 8px;
-  margin-block-start: -6px;
-  border-inline-end: calc(var(--ui-hairline) * 2) solid var(--cp-ink);
-  border-block-end: calc(var(--ui-hairline) * 2) solid var(--cp-ink);
-  transform: rotate(45deg);
 }
 
 [data-assistant-skin] {

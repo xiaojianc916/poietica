@@ -214,6 +214,67 @@
   --cp-pill-wash: 13%;
   --cp-pill-wash-hover: 19%;
 
+  /*
+   * 模型与思考档位选择器，与上面那一节同源：也是参考稿量出来的值，也住在这张表
+   * 里 —— 它是这个平面上的一件控件，数字要么在这，要么不存在。截图是 150% 缩放
+   * 下的，下面每个数都是量到的设备像素除以 1.5。
+   *
+   * 三个数同源：面板 224 减去两侧留白 24 正好是轨道那 200。轨道两端各留半个滑块
+   * （14），所以档位点、滑块中心与填充终点是同一组位置，不各算各的。
+   *
+   * 色阶（面板边、轨道面、三档墨色、滑块面）在两套主题下取向相反，深色那一档在
+   * 文件末尾给；蓝不跟着主题走，它压在两套底上都成立。
+   */
+  --cp-model-panel: 224px;
+  --cp-model-panel-pad: 12px;
+  --cp-model-panel-lead: 8px;
+  --cp-model-panel-gap: 12px;
+  --cp-model-panel-radius: 16px;
+  --cp-model-panel-edge: #eaeae9;
+  /*
+   * 卡片那一圈影：比 --cp-lift-menu 轻一档。浮层族的投影是"浮起一张卡"，这张只比
+   * 工具条高一层，跟着那一档会把面板读成一块压下来的板子。
+   */
+  --cp-model-panel-lift: 0 1px 2px rgb(0 0 0 / 3%), 0 6px 16px -6px rgb(0 0 0 / 10%);
+  --cp-model-head-radius: 10px;
+  --cp-model-head-pad: 4px 6px;
+  --cp-model-pill: 28px;
+  --cp-model-pill-pad: 8px;
+  --cp-model-pill-gap: 8px;
+  /*
+   * 胶囊里两段字的墨。静息态没有底，两段就靠深浅分主次：模型名是主词，档位是它的
+   * 修饰。两个值取自参考稿的墨色分布（各自的平台上像素最多的那一色），不是从
+   * --cp-model-quiet-ink 派生的 —— 那一档是卡片里箭头与清单标题的墨，比这两段都重。
+   */
+  --cp-model-pill-ink: #61666b;
+  --cp-model-pill-level-ink: #adb2b8;
+  --cp-model-size: 14px;
+  --cp-model-level-size: 15px;
+  --cp-model-level-ink: #339cff;
+  --cp-model-name-size: 12px;
+  --cp-model-name-ink: #6a6b6d;
+  --cp-model-quiet-ink: #8d8e8f;
+  --cp-model-item-row: 29px;
+  --cp-model-item-pad: 8px;
+  --cp-model-rail: 24px;
+  --cp-model-rail-face: #e8e7e8;
+  --cp-model-rail-fill: #339cff;
+  --cp-model-rail-dot: 4px;
+  --cp-model-thumb: 28px;
+  --cp-model-thumb-face: #ffffff;
+  /*
+   * 滑块那一圈淡边。滑块比轨道高，压着的又常是卡片的白底 —— 没有这一圈，白滑块在
+   * 白卡上只剩"蓝条断了一截"。一层 8% 的墨压在什么底上就是什么底上的淡边，与卡片
+   * 外框同一档浓度。
+   */
+  --cp-model-thumb-edge: rgb(0 0 0 / 8%);
+  /*
+   * 滑块那一圈影。它比轨道高，盖着的又常是卡片的白底 —— 没有这一圈，白滑块压在白
+   * 卡上就只剩「蓝条断了一截」。参考稿量到的边在下方约 10%、上方约 4%，正是 1px
+   * 下偏移加 3px 模糊解出来的两个数。
+   */
+  --cp-model-thumb-lift: 0 1px 3px rgb(0 0 0 / 14%);
+
   --cp-menu-min: 168px;
   --cp-menu-min-wide: calc(var(--cp-menu-min) + 40px);
 
@@ -518,4 +579,18 @@
   --cp-goal-bar-tertiary: rgb(173 178 184);
   --cp-goal-bar-hover: rgb(255 255 255 / 8%);
   --cp-goal-bar-error: rgb(242 90 90);
+
+  /*
+   * 模型选择器的那几档灰。参考稿只有浅色那一套，这里按同一条关系翻过来：面板边与
+   * 轨道面是压在深底上的一层墨（压到哪一层就跟哪一层走），两档墨色是压在深底上的
+   * 白。滑块面与蓝不列在这 —— 滑块是挖空出来的那一块，两套主题下都是白的。
+   */
+  --cp-model-panel-edge: rgb(255 255 255 / 14%);
+  --cp-model-panel-lift: 0 1px 2px rgb(0 0 0 / 20%), 0 6px 16px -6px rgb(0 0 0 / 40%);
+  --cp-model-name-ink: rgb(255 255 255 / 58%);
+  --cp-model-quiet-ink: rgb(255 255 255 / 46%);
+  --cp-model-pill-ink: rgb(255 255 255 / 72%);
+  --cp-model-pill-level-ink: rgb(255 255 255 / 42%);
+  --cp-model-rail-face: rgb(255 255 255 / 14%);
+  --cp-model-thumb-lift: 0 1px 3px rgb(0 0 0 / 45%);
 }
