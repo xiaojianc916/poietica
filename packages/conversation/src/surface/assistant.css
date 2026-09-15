@@ -531,8 +531,7 @@
 }
 
 .assistant-thread-menu .assistant-thread-menu__separator {
-  block-size: var(--cp-px);
-  background: var(--cp-hairline);
+  border-block-start-color: var(--cp-hairline);
 }
 
 .assistant-thread-menu .assistant-thread-menu__meta {
@@ -1184,9 +1183,8 @@
 }
 
 .workspace-picker__menu[data-assistant-skin] .workspace-picker__separator {
-  block-size: var(--cp-px);
   margin: var(--am-pad) 8px;
-  background: var(--cp-hairline);
+  border-block-start-color: var(--cp-hairline);
 }
 
 /* composer workspace context bar */

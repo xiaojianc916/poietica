@@ -135,7 +135,6 @@
 }
 
 .git-branch-picker__menu[data-assistant-skin] .git-branch-picker__separator {
-  block-size: var(--cp-px);
   margin: var(--am-pad) 8px;
-  background: var(--cp-hairline);
+  border-block-start-color: var(--cp-hairline);
 }

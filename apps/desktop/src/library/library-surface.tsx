@@ -31,7 +31,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react'
-import { useEffect, useId, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { MarkdownEditor } from './markdown-editor'
 import { TableSurface } from './table-surface'
 
@@ -384,7 +384,6 @@ export function LibrarySurface({
     controller.getSnapshot,
   )
   const [renaming, setRenaming] = useState<string | null>(null)
-  const titleId = useId()
   const tree = useMemo(() => siblings(state.entries), [state.entries])
   const intents = useMemo<LibraryIntents>(
     () => ({
@@ -418,7 +417,7 @@ export function LibrarySurface({
 
   return (
     <section
-      aria-labelledby={titleId}
+      aria-label="资料库"
       className="grid h-full min-h-0 grid-cols-[280px_minmax(0,1fr)] bg-ground text-foreground"
       onKeyDown={(event) => {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
@@ -427,16 +426,7 @@ export function LibrarySurface({
         }
       }}
     >
-      <aside
-        aria-label={ROOT_LABEL}
-        className="flex min-h-0 flex-col gap-3 bg-white px-3 pt-5 pb-3"
-      >
-        <header className="flex items-center gap-2 px-1">
-          <BookOpen aria-hidden="true" className="size-5 text-primary" />
-          <h1 className="font-semibold text-base" id={titleId}>
-            资料库
-          </h1>
-        </header>
+      <aside aria-label={ROOT_LABEL} className="flex min-h-0 flex-col gap-3 bg-white px-3 py-3">
         <div className="flex items-center gap-1.5 rounded-md bg-muted px-2">
           <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
           <input

@@ -41,7 +41,7 @@ export function note(state: AppUpdateState): string | null {
     case 'checking':
       return null
     case 'latest':
-      return '未发现'
+      return '无更新项'
     case 'available':
       return '发现更新项'
     case 'downloading':

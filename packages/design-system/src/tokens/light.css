@@ -100,7 +100,12 @@
 
   --ui-popover: #ffffff;
   --ui-popover-foreground: var(--ui-foreground);
-  --ui-popup-highlight: #f0f0f0;
+  --ui-popup-highlight: #f2f2f3;
+  /*
+   * 浮层内部的分隔线。比浮层外框（border-divider）淡一档：外框是浮层的边界，
+   * 内线只是把两组菜单项隔开，同墨量会把一组菜单读成一叠等距平行线。
+   */
+  --ui-popup-divider: #ededed;
 
   --ui-destructive: var(--ui-palette-red-500);
   --ui-destructive-foreground: oklch(0.99 0 0);
