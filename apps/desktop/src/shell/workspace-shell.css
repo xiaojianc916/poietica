@@ -88,6 +88,8 @@
 .workspace-shell__divider {
   --workspace-divider-hover-delay: 50ms;
 
+  /* 定位只为给抓手当包含块：栅格项本来就是 static，加了它才收得住 ::after。 */
+  position: relative;
   z-index: 2;
   grid-area: 1 / 1 / -1 / 2;
   justify-self: end;
@@ -96,8 +98,35 @@
   pointer-events: none;
   transition:
     border-inline-end-color var(--workspace-layout-duration) ease,
-    opacity var(--workspace-layout-duration) ease,
-    border-inline-end-width 0s;
+    opacity var(--workspace-layout-duration) ease;
+}
+
+/*
+ * 抓手：拖拽与悬停时盖在竖线上的那一道。
+ *
+ * 墨色重一档、比静态线粗半档，向上向下连续渐隐回静态线的颜色与宽度 —— 中间
+ * 粗且深、两端细且浅，形状本身就是「这里能拖」。此前是整条加粗压深：一条等
+ * 宽的线变了色不构成形状，指针落在哪一行都读不出差别。
+ *
+ * 半档是量出来的：整档 2px 在 150% 缩放下是三倍墨宽，看着不再像一条线；只铺
+ * 中段又读成一枚斑点。1.5px 是这条线上站得住的最小粗细差。它是一层要渐隐的
+ * 墨，边缘发虚就是渐隐本身 —— 上面那条「厚度走 border 吸附设备像素」管的是
+ * 静态线，不是它。
+ *
+ * 画者是分隔线自己（::after），不是接指针的那根 hr。
+ */
+.workspace-shell__divider::after {
+  --workspace-divider-grip: color-mix(in oklab, var(--color-foreground) 22%, var(--color-divider));
+
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  /* 1.5px 压在那 1px 上，横向居中：两端各露 1/4 像素。 */
+  inset-inline-start: calc(-0.25 * var(--ui-region-divider-width));
+  inline-size: calc(var(--ui-region-divider-width) * 1.5);
+  background: linear-gradient(to bottom, transparent, var(--workspace-divider-grip), transparent);
+  opacity: 0;
+  transition: opacity var(--workspace-layout-duration) ease;
 }
 
 /*
@@ -143,22 +172,21 @@
   border-inline-end-color: color-mix(in oklab, var(--color-foreground) 3%, var(--color-divider));
 }
 
-.workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
-  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
+/* 拖拽中立刻浮现：指针已经按下去了，没有需要提防的擦边。 */
 .workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
-  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
-.workspace-shell[data-splitter="hover"][data-splitter-region="browser"]
-  .workspace-shell__divider--auxiliary,
+.workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
 .workspace-shell[data-splitter="drag"][data-splitter-region="browser"]
-  .workspace-shell__divider--auxiliary {
-  border-inline-end-width: calc(var(--ui-region-divider-width) * 2);
+  .workspace-shell__divider--auxiliary::after {
+  opacity: 1;
 }
 
+/* 悬停要够 50ms 才浮现，擦边划过不闪。 */
 .workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
-  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
+.workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
 .workspace-shell[data-splitter="hover"][data-splitter-region="browser"]
-  .workspace-shell__divider--auxiliary {
-  transition-delay: 0s, 0s, var(--workspace-divider-hover-delay);
+  .workspace-shell__divider--auxiliary::after {
+  opacity: 1;
+  transition-delay: var(--workspace-divider-hover-delay);
 }
 
 /*
