@@ -95,7 +95,7 @@ export function SkillsSettings({ skills, store }: SkillsSettingsProps) {
     <div className="skill-library">
       <section aria-label="技能库" className="skill-library__catalog">
         <div className="skill-library__tools">
-          <label className="skill-library__search">
+          <label className="settings-input settings-input--with-icon">
             <Search aria-hidden="true" />
             <input
               aria-label="搜索技能"

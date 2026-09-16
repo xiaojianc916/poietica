@@ -92,23 +92,18 @@
   display: flex;
   flex-direction: column;
 }
-.models-input,
 .models-readonly {
   inline-size: 100%;
   min-block-size: 32px;
   padding: 7px 10px;
-  border: 1px solid var(--models-divider);
+  border: 1px solid #e4e4e5;
   border-radius: 8px;
-  background: var(--models-field);
+  background: #fff;
   color: var(--ui-foreground);
   font-size: 12px;
   line-height: 1.3;
   outline: none;
 }
-.models-input::placeholder {
-  color: var(--ui-placeholder);
-}
-.models-input:focus-visible,
 .models-icon-button:focus-visible,
 .models-provider-item:focus-visible,
 .models-provider-add:focus-visible,
@@ -116,17 +111,10 @@
   outline: 2px solid var(--ui-ring);
   outline-offset: -2px;
 }
-.models-input:disabled,
 .models-icon-button:disabled,
 .models-secret__toggle:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-}
-.models-input::-ms-reveal,
-.models-input::-ms-clear,
-.models-input::-webkit-credentials-auto-fill-button,
-.models-input::-webkit-strong-password-auto-fill-button {
-  display: none;
 }
 .models-icon-button {
   flex: none;
@@ -409,7 +397,7 @@
   position: relative;
   display: block;
 }
-.models-secret .models-input {
+.models-secret .settings-input {
   padding-inline-end: 36px;
 }
 .models-secret__toggle {

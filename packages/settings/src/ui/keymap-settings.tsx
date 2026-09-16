@@ -36,7 +36,7 @@ export function KeymapSettings({ catalog }: KeymapSettingsProps) {
 
         <input
           aria-label="搜索快捷键"
-          className="settings-search"
+          className="settings-input"
           onChange={(event) => {
             setQuery(event.target.value)
           }}

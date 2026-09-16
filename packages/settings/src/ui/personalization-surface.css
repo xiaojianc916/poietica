@@ -213,38 +213,12 @@
   line-height: 1.45;
 }
 
-.personalization__field input,
-.personalization__field textarea {
-  width: 100%;
-  padding-inline: 10px;
-  border: 1px solid var(--color-divider);
-  border-radius: 8px;
-  background: var(--color-background);
-  color: var(--ui-foreground);
-  font: inherit;
-  font-size: 12px;
-  outline: none;
-  transition:
-    border-color 120ms ease,
-    box-shadow 120ms ease;
-}
-
-.personalization__field input {
-  min-height: var(--ui-control-height-sm);
-}
-
 .personalization__field textarea {
   min-height: 220px;
   padding-block: 9px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   line-height: 1.6;
   resize: vertical;
-}
-
-.personalization__field input:focus-visible,
-.personalization__field textarea:focus-visible {
-  border-color: var(--ui-ring);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ui-ring) 22%, transparent);
 }
 
 .personalization__check {

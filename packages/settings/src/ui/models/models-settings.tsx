@@ -239,7 +239,7 @@ function ConfiguredModels({
         <div className="models-toolbar">
           <input
             aria-label="搜索已配置模型"
-            className="models-input"
+            className="settings-input"
             onChange={(event) => setQuery(event.target.value)}
             placeholder="搜索模型"
             type="search"
@@ -814,7 +814,7 @@ function CatalogProviderForm({
     <form className="models-provider-form" onSubmit={(event) => void submit(event)}>
       <Field htmlFor="catalog-provider-base-url" label="Base URL">
         <input
-          className="models-input"
+          className="settings-input"
           id="catalog-provider-base-url"
           onChange={(event) => setBaseUrl(event.target.value)}
           placeholder={provider.needsBaseUrl ? 'https://api.example.com/v1' : '留空使用默认地址'}
@@ -1102,7 +1102,7 @@ function ProviderForm({
     <form className="models-provider-form" onSubmit={(event) => void submit(event)}>
       <Field htmlFor="provider-form-base-url" label="Base URL">
         <input
-          className="models-input"
+          className="settings-input"
           id="provider-form-base-url"
           onChange={(event) => setBaseUrl(event.target.value)}
           placeholder="https://api.example.com/v1"
@@ -1208,7 +1208,7 @@ function ModelListEditor({
                 <div className="models-model-idwrap">
                   <input
                     aria-label={`${name} ID`}
-                    className="models-input models-model-id"
+                    className="settings-input models-model-id"
                     onChange={(event) => onUpdate(model.key, { model: event.target.value })}
                     placeholder="模型 ID"
                     required
@@ -1254,14 +1254,14 @@ function ModelListEditor({
                 <div className="models-model-section" id={editId}>
                   <input
                     aria-label={`${name}显示名`}
-                    className="models-input"
+                    className="settings-input"
                     onChange={(event) => onUpdate(model.key, { displayName: event.target.value })}
                     placeholder="显示名（可选）"
                     value={model.displayName}
                   />
                   <input
                     aria-label={`${name}上下文长度`}
-                    className="models-input"
+                    className="settings-input"
                     min="1"
                     onChange={(event) =>
                       onUpdate(model.key, { maxContextSize: event.target.value })
@@ -1292,7 +1292,7 @@ function ModelListEditor({
                   </div>
                   <input
                     aria-label={`${name}思考强度`}
-                    className="models-input"
+                    className="settings-input"
                     disabled={model.thinkingCapability === null}
                     onChange={(event) =>
                       onUpdate(model.key, { supportEfforts: event.target.value })
@@ -1342,7 +1342,7 @@ function SecretInput({ className, disabled, ...props }: SecretInputProps) {
     <span className="models-secret">
       <input
         {...props}
-        className={`models-input ${className ?? ''}`}
+        className={`settings-input ${className ?? ''}`}
         disabled={disabled}
         type={revealed ? 'text' : 'password'}
       />

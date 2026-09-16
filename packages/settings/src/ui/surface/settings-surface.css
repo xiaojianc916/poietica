@@ -476,13 +476,6 @@
 
 /* ---------------- 说明与筛选 ---------------- */
 
-/*
- * 列表页顶部的一句说明加一个筛选框。
- *
- * 输入格的几何与 models-settings.css 的 .models-input 同源（28px 高、圆角 8、
- * --settings-field 填充、无描边、--ui-ring 内描焦点圈）：设置界面里的输入格只有
- * 一种长相。这里不写色值，只引语义令牌。
- */
 .settings-filter {
   display: flex;
   flex-direction: column;
@@ -496,26 +489,65 @@
   line-height: 1.45;
 }
 
-.settings-search {
+/*
+ * 设置界面唯一的输入框长相。
+ *
+ * 所有页的文本输入格都用这一个类：白底、1px #e4e4e5 描边、聚焦变 #339cff。
+ * 带图标的搜索框把这个类放在外层容器上，内部 input 透明无边框。
+ */
+.settings-input {
   inline-size: 100%;
-  min-block-size: 28px;
-  block-size: 28px;
-  padding-inline: 8px;
-  border: 0;
+  min-block-size: 32px;
+  padding: 7px 10px;
+  border: 1px solid #e4e4e5;
   border-radius: 8px;
-  background: var(--settings-field);
+  background: #fff;
   color: var(--ui-foreground);
   font-size: 12px;
   line-height: 1.3;
+  outline: none;
 }
 
-.settings-search::placeholder {
+.settings-input::placeholder {
+  color: var(--ui-placeholder);
+}
+
+.settings-input:focus-visible {
+  border-color: #339cff;
+  outline: none;
+}
+
+.settings-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* 带图标搜索框：外层承担输入框外观，内部 input 透明。 */
+.settings-input--with-icon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 10px;
+}
+
+.settings-input--with-icon > svg {
+  flex: none;
   color: var(--ui-muted-foreground);
 }
 
-.settings-search:focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: -2px;
+.settings-input--with-icon > input {
+  min-inline-size: 0;
+  inline-size: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.settings-input--with-icon:focus-within {
+  border-color: #339cff;
 }
 
 /*

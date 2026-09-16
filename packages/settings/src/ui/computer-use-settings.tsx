@@ -6,14 +6,14 @@ import { SettingRow, SettingsGroup, SettingsPage } from './surface/settings-prim
 
 const LABEL = 'Kimi Computer Use'
 const UNREAD = '正在读取本机 Kimi 的安装状态…'
-const UNLISTED = '当前 Kimi 版本没有提供这项能力。'
-const UNSUPPORTED = '这台电脑不支持这项能力。'
+const UNLISTED = '当前 Kimi 版本没有提供这项能力'
+const UNSUPPORTED = '这台电脑不支持这项能力'
 const INSTALLING = '正在安装 Kimi Computer Use…'
-const INSTALLABLE = '让它看屏幕、移动鼠标、敲键盘替你操作这台电脑。'
-const REPAIRABLE = '安装不完整，修复后即可使用。'
-const READY = '已就绪。'
-const ENABLED = '已开启。'
-const DISABLED = '已关闭。'
+const INSTALLABLE = '让它看屏幕、移动鼠标、敲键盘替你操作这台电脑'
+const REPAIRABLE = '安装不完整，修复后即可使用'
+const READY = '已就绪'
+const ENABLED = '已开启'
+const DISABLED = '已关闭'
 
 const FAILURE_PREFIX = '安装失败：'
 

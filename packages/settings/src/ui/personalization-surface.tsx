@@ -122,6 +122,7 @@ export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
           <div className="personalization__fields">
             <Field hint="kebab-case，作为 Agent 类型标识" label="名称">
               <input
+                className="settings-input"
                 onChange={(event) => store.edit({ name: event.target.value })}
                 value={draft.name}
               />
@@ -129,6 +130,7 @@ export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
 
             <Field hint="主代理何时应委派给它" label="触发场景">
               <input
+                className="settings-input"
                 onChange={(event) => store.edit({ whenToUse: event.target.value })}
                 value={draft.whenToUse}
               />
@@ -136,6 +138,7 @@ export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
 
             <Field hint="参与主代理的委派决策，必须具体" label="任务描述" wide>
               <input
+                className="settings-input"
                 onChange={(event) => store.edit({ description: event.target.value })}
                 value={draft.description}
               />
@@ -171,6 +174,7 @@ export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
             {draft.toolMode === 'allowlist' ? (
               <Field hint="逗号分隔；MCP 可用 mcp__server__*" label="工具白名单">
                 <input
+                  className="settings-input"
                   onChange={(event) => store.edit({ tools: event.target.value })}
                   value={draft.tools}
                 />
@@ -179,6 +183,7 @@ export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
 
             <Field hint="在白名单之后应用；例如 Bash" label="工具黑名单">
               <input
+                className="settings-input"
                 onChange={(event) => store.edit({ disallowedTools: event.target.value })}
                 value={draft.disallowedTools}
               />
@@ -187,6 +192,7 @@ export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
             {draft.delegationMode === 'allowlist' ? (
               <Field hint="逗号分隔；派发前由 Kimi 再校验一次" label="可委派 Agent">
                 <input
+                  className="settings-input"
                   onChange={(event) => store.edit({ subagents: event.target.value })}
                   value={draft.subagents}
                 />
@@ -208,6 +214,7 @@ export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
 
             <Field hint="最后一条消息应是交给调用方的完整、自包含结果" label="System prompt" wide>
               <textarea
+                className="settings-input"
                 onChange={(event) => store.edit({ prompt: event.target.value })}
                 rows={14}
                 value={draft.prompt}

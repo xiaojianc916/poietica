@@ -232,9 +232,9 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
         </SettingRow>
       </SettingsGroup>
 
-      <SettingsGroup title="筛选">
+      <SettingsGroup className="archived-chats__filter-group" title="筛选">
         <div className="archived-chats__toolbar">
-          <label className="archived-chats__search">
+          <label className="settings-input settings-input--with-icon">
             <Search aria-hidden="true" />
 
             <input
