@@ -2,8 +2,14 @@ import type { ThreadsStore } from '@poietica/conversation'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ActivityHeatmap } from './activity-heatmap'
 import { SegmentedControl, type SegmentedOption } from './surface/segmented-control'
-import { SettingRow, SettingsGroup, SettingsPage } from './surface/settings-primitives'
-import { type ReadTokenDays, spread, summarize, type ThreadActivity } from './usage-activity'
+import { SettingsGroup, SettingsPage } from './surface/settings-primitives'
+import {
+  formatTokens,
+  type ReadTokenDays,
+  spread,
+  summarize,
+  type ThreadActivity,
+} from './usage-activity'
 
 /*
  * 用量页。
@@ -25,25 +31,27 @@ const HEATMAP_WEEKS = 26
 /** 热力图那段日历，也是一次读回来的窗口：概览的两档都落在它里面。 */
 const LEDGER_DAYS = HEATMAP_WEEKS * 7
 
-/** 这一格还没有账可查时写它。0 的意思是「没用过」，而事实是「没记过」。 */
+/** 这一格还没有账可查时画它。0 的意思是「没用过」，而事实是「没记过」。 */
 const UNRECORDED = '—'
-
-/** 大数要分组，而分组规则是平台的事。 */
-const TOKENS = new Intl.NumberFormat()
 
 interface UsageMetric {
   readonly label: string
-  readonly value: string
+  /*
+   * 没有读数的那几格是 undefined，不是一个占位字符串：占位符由渲染那一侧给，
+   * 而且它得知道自己画的是占位符 —— 22px 的破折号加粗后是一根黑杠，会被读成
+   * 一个量出来的数。
+   */
+  readonly value: string | undefined
 }
 
 function metricsOf(overview: ThreadActivity, tokens: number | undefined): readonly UsageMetric[] {
   return [
-    { label: 'Token 用量', value: tokens === undefined ? UNRECORDED : TOKENS.format(tokens) },
+    { label: 'Token 用量', value: tokens === undefined ? undefined : formatTokens(tokens) },
     { label: '对话数', value: String(overview.threads) },
-    { label: '消息数量', value: UNRECORDED },
+    { label: '消息数量', value: undefined },
     { label: '活跃天数', value: String(overview.activeDays) },
     { label: '连续天数', value: String(overview.streak) },
-    { label: '最常用模型', value: UNRECORDED },
+    { label: '最常用模型', value: undefined },
   ]
 }
 
@@ -125,8 +133,8 @@ export function UsageSettings({ readTokenDays, threads }: UsageSettingsProps) {
         </p>
       )}
 
-      <SettingsGroup title="概览">
-        <SettingRow label="时间范围">
+      <SettingsGroup
+        headerAction={
           <SegmentedControl
             label="概览的时间范围"
             name="usage-span"
@@ -134,14 +142,20 @@ export function UsageSettings({ readTokenDays, threads }: UsageSettingsProps) {
             options={SPANS}
             value={span}
           />
-        </SettingRow>
-
+        }
+        title="概览"
+      >
         <div className="settings-metrics">
           {metricsOf(overview, tokens).map((metric) => (
             <article className="settings-metric" key={metric.label}>
               <p className="settings-metric__label">{metric.label}</p>
 
-              <strong className="settings-metric__value">{metric.value}</strong>
+              <strong
+                className="settings-metric__value"
+                data-unrecorded={metric.value === undefined ? 'true' : undefined}
+              >
+                {metric.value ?? UNRECORDED}
+              </strong>
             </article>
           ))}
         </div>

@@ -103,6 +103,35 @@ export function levelOf(count: number, busiest: number): number {
   return Math.max(1, Math.ceil((count / busiest) * 4))
 }
 
+const THOUSAND = 1_000
+const MILLION = 1_000_000
+
+/** 不到一千的数原样报，分组由平台给。 */
+const PLAIN = new Intl.NumberFormat('zh-CN')
+
+/*
+ * 大数报成 K / M：K 留一位小数，M 留两位，不到一千的原样报。
+ *
+ * 不用 Intl 的 compact：它的小数位是整份格式一个值（999 会被写成 999.0），单位也
+ * 由它自己挑（999_950 给的是 999.95K，十亿给的是 B）—— 这两条都不在这里的规则里。
+ *
+ * 上界要单独管：999_950 起写成 K 就是「1000.0K」，四位整数带一个小数，量级反而
+ * 读不出来。阈值取的是四舍五入到一位的进位点。
+ */
+export function formatTokens(count: number): string {
+  if (count < THOUSAND) {
+    return PLAIN.format(count)
+  }
+
+  const thousands = count / THOUSAND
+
+  if (thousands < 999.95) {
+    return `${thousands.toFixed(1)}K`
+  }
+
+  return `${(count / MILLION).toFixed(2)}M`
+}
+
 /** 把一串时刻按天点数。坏时刻算出来的键谁也匹配不上，自己就消失了。 */
 function countBy(times: readonly string[]): ReadonlyMap<string, number> {
   const counted = new Map<string, number>()

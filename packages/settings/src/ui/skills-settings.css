@@ -1,38 +1,43 @@
 /*
- * 技能清单：一张卡、一行一个技能、行内右侧是来源与开关。
+ * 技能清单：上面一行工具（搜索、来源筛选），下面一张卡，一行一个技能。
  *
- * 与其它设置页同一套面色与发丝线（--settings-* 由 settings-surface.css 给出），
- * 只多两样这一页独有的东西：行的前导字形，以及只在悬停/聚焦时露出的「更多操作」。
+ * 工具不进卡里：卡是「有哪些技能」这件事本身，搜索与筛选是在它上面做的事。与其它设置页
+ * 同一套面色与发丝线（--settings-* 由 settings-surface.css 给出），只多两样这一页独有的
+ * 东西：行的前导字形，以及只在悬停/聚焦时露出的「更多操作」。
  *
- * 卡跟着内容长，滚动交给设置页本身 —— 与通用页那张开关卡同一种形态：设置里没有
- * 第二个滚动条，也没有一屏装得下多少行这种前提。
+ * 卡跟着内容长，滚动交给设置页本身 —— 与通用页那张开关卡同一种形态：设置里没有第二个
+ * 滚动条，也没有一屏装得下多少行这种前提。
  */
+
+.skill-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skill-page__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.skill-page__tools > .settings-input {
+  min-inline-size: 0;
+  flex: 1;
+}
+
+.skill-page__filter {
+  flex: none;
+}
 
 .skill-list {
   display: flex;
   flex-direction: column;
+  padding-block: 6px;
   overflow: hidden;
   border: 1px solid var(--settings-frame);
   border-radius: 12px;
   background: var(--settings-surface);
-}
-
-.skill-list__tools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 12px 10px;
-  border-block-end: 1px solid var(--settings-divider);
-}
-
-.skill-list__source-filter {
-  flex: none;
-}
-
-.skill-list__rows {
-  display: flex;
-  flex-direction: column;
-  padding-block: 6px;
 }
 
 /*
@@ -144,10 +149,10 @@
   line-height: 1.4;
 }
 
-.skill-list__origin {
+.skill-list__switch {
+  display: grid;
   flex: none;
-  color: var(--ui-muted-foreground);
-  font-size: 11px;
+  place-items: center;
 }
 
 .skill-list__more {

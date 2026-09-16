@@ -94,8 +94,14 @@ export function SkillsSettings({ skills, store, openSkillDocument }: SkillsSetti
     }
   }, [focusedKey])
 
+  /*
+   * 打开一份文档不留痕。
+   *
+   * 高亮只属于两种当下：指针在那一行上（样式管），或键盘正在那一行上（这个状态）。点一下
+   * 就记一笔「上次点过它」，鼠标一走那一块灰还在，读起来就是一次卡住的悬停 —— 文档开在
+   * 右栏里，右栏自己会说是哪一份。
+   */
   const open = (skill: SkillRow) => {
-    setFocusedKey(skill.key)
     openSkillDocument(skill.key)
   }
 
@@ -104,16 +110,20 @@ export function SkillsSettings({ skills, store, openSkillDocument }: SkillsSetti
   }
 
   return (
-    <div className="skill-list">
+    <div className="skill-page">
       {view.skillFailure ? (
         <ErrorState message={view.skillFailure} onRetry={store.retrySkills} title="技能操作失败" />
       ) : null}
 
-      <div className="skill-list__tools">
+      <div className="skill-page__tools">
         <label className="settings-input settings-input--with-icon">
           <Search aria-hidden="true" />
           <input
             aria-label="搜索技能"
+            /* 键盘走位属于这一次键盘会话：焦点离开搜索框，那一块高亮就跟着撤掉。 */
+            onBlur={() => {
+              setFocusedKey(undefined)
+            }}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (filtered.length === 0) {
@@ -149,7 +159,7 @@ export function SkillsSettings({ skills, store, openSkillDocument }: SkillsSetti
         </label>
 
         <Select
-          className="skill-list__source-filter"
+          className="skill-page__filter"
           data={options}
           onValueChange={setSource}
           type="技能来源"
@@ -157,7 +167,7 @@ export function SkillsSettings({ skills, store, openSkillDocument }: SkillsSetti
         />
       </div>
 
-      <div className="skill-list__rows">
+      <div className="skill-list">
         {filtered.length === 0 ? (
           <p className="skill-list__empty">没有匹配的技能。</p>
         ) : (
@@ -238,10 +248,6 @@ function SkillListRow({
         </span>
       </button>
 
-      <span className="skill-list__origin" title={skill.projectPath ?? skill.path}>
-        {sourceLabel(skill)}
-      </span>
-
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${skill.name} 的更多操作`}
@@ -272,19 +278,33 @@ function SkillListRow({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* 开关只出现在写得了盘的那些上：其余技能的启停不由这一层说了算，画出来就是骗人。 */}
-      {skill.directory === undefined ? null : (
+      {/*
+       * 开关每一行都有，但只有写得了盘的那些拨得动。
+       *
+       * 别的技能启停不由这一层说了算：拨一下屏幕变了、盘上没变，那是在骗人。所以那些
+       * 画成禁用，并在悬停里说明为什么 —— 先把位置占住，等启停接上了再放开。
+       */}
+      <span className="skill-list__switch" title={toggleHint(skill)}>
         <Switch
           aria-label={`${skill.enabled ? '停用' : '启用'} ${skill.name}`}
           checked={skill.enabled}
+          disabled={skill.directory === undefined}
           onCheckedChange={(enabled) => {
-            store.setSkillEnabled(skill.directory ?? '', enabled)
+            if (skill.directory !== undefined) {
+              store.setSkillEnabled(skill.directory, enabled)
+            }
           }}
           size="sm"
         />
-      )}
+      </span>
     </div>
   )
+}
+
+function toggleHint(skill: SkillRow): string | undefined {
+  return skill.directory === undefined
+    ? '这个技能不由 Poietica 管理，在这里还拨不动。'
+    : `停用 ${skill.name}`
 }
 
 function sourceOf(skill: SkillRow): Exclude<SourceFilter, 'all'> {
@@ -297,10 +317,7 @@ function sourceOf(skill: SkillRow): Exclude<SourceFilter, 'all'> {
   return 'user'
 }
 
-function sourceLabel(skill: SkillRow): string {
-  return SOURCE_LABELS[sourceOf(skill)]
-}
-
+/* 来源筛选器上的读法：这一页只剩这一个地方说得出「这个技能是从哪来的」。 */
 function sourceOptions(skills: readonly SkillRow[]): readonly SelectOption<SourceFilter>[] {
   const counts = new Map<Exclude<SourceFilter, 'all'>, number>()
   for (const skill of skills) {

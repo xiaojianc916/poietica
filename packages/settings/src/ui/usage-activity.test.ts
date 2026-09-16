@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   busiestOf,
   dayKeyOf,
+  formatTokens,
   levelOf,
   shiftDays,
   spread,
@@ -74,5 +75,30 @@ describe('用量统计', () => {
     expect(levelOf(0, 4)).toBe(0)
     expect(levelOf(1, 4)).toBe(1)
     expect(levelOf(4, 4)).toBe(4)
+  })
+})
+
+describe('Token 数怎么报', () => {
+  it('不到一千原样报，不带档位', () => {
+    expect(formatTokens(0)).toBe('0')
+    expect(formatTokens(999)).toBe('999')
+  })
+
+  it('千位起用 K，留一位小数', () => {
+    expect(formatTokens(1_000)).toBe('1.0K')
+    expect(formatTokens(12_345)).toBe('12.3K')
+    expect(formatTokens(999_949)).toBe('999.9K')
+  })
+
+  it('百万起用 M，留两位小数', () => {
+    expect(formatTokens(1_000_000)).toBe('1.00M')
+    expect(formatTokens(65_387_174)).toBe('65.39M')
+    expect(formatTokens(70_322_477)).toBe('70.32M')
+  })
+
+  /* 进位那一格：1000.0K 是四位整数带一个小数，量级反而读不出来。 */
+  it('K 会进位成 1000.0K 时改用 M', () => {
+    expect(formatTokens(999_950)).toBe('1.00M')
+    expect(formatTokens(999_999)).toBe('1.00M')
   })
 })

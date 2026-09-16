@@ -273,30 +273,35 @@
  * 指标因此是同一张卡里的六格，分隔仍旧是那条内缩的发丝线，与 .settings-row 之间
  * 的分隔同一个来源。参考稿把它们画成六张浮起来的小卡，那是另一套皮肤。
  *
- * 时间范围那一行也在这张卡里，就在六格上面 —— 它只管概览，把它放进它所管的那张
- * 卡，是这层从属关系最短的说法。
+ * 时间范围不在这张卡里，挂在组标题那一行（SettingsGroup 的 headerAction）——
+ * 它只管概览这几个数，落在标题右侧，与它所管的那张卡挨着，又不占卡内一格。
  */
 
 /*
- * 轨与滑块的明暗都相对卡面兑出来：轨掺分隔线的灰，滑块掺前景的墨。
- * 两个主题各自成立 —— 浅色下两者都比白卡暗、深色下都比卡面亮，
- * 不靠任何一套主题专用的字面值。
+ * 轨与滑块都相对卡面兑出来：轨掺分隔线的灰，滑块就是卡面色本身。
+ * 选中项靠「从轨道里浮起来」表达，不靠加墨 —— 浅色下是白胶囊压在灰轨上，
+ * 深色下卡面比轨深，反过来仍然读得出来，两边都不需要主题专用的字面值。
+ *
+ * 轨的内缩用透明边框而不是 padding：绝对定位的包含块是内边距框，而栅格的列宽
+ * 算的是内容盒。padding 会把这两个基准错开，滑块就对不上档位；边框同时属于两者，
+ * 一个值把两处对齐。
  */
 .settings-segmented {
   position: relative;
   display: grid;
   grid-auto-columns: 1fr;
   grid-auto-flow: column;
-  border-radius: 8px;
+  border: 3px solid transparent;
+  border-radius: 999px;
   background: color-mix(in oklab, var(--ui-divider) 30%, var(--settings-surface));
 }
 
 /*
- * 滑块是一个独立的方块，不是给选中项加背景 —— 它要能从一档滑到另一档，位置本身
+ * 滑块是一个独立的胶囊，不是给选中项加背景 —— 它要能从一档滑到另一档，位置本身
  * 就是这个控件的状态。
  *
- * 选中滑块继续使用设计系统主色；本次只降低轨道背景的对比度。滑块不画边框或
- * 阴影，选中状态由它原有的主色和位置表达。
+ * 滑块取卡面色加一层 1 级投影：选中项比轨道亮一档，边界由投影给出而不是描边 ——
+ * 描边会把胶囊钉在轨道上，浮不起来。
  *
  * 位移走 inset-inline-start 而不是 translate：这一仓的排版全用逻辑属性，物理位移
  * 在从右往左的书写方向下会滑向反面。
@@ -307,8 +312,9 @@
 .settings-segmented__thumb {
   position: absolute;
   inset-block: 0;
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--ui-foreground) 8%, var(--settings-surface));
+  border-radius: 999px;
+  background: var(--settings-surface);
+  box-shadow: var(--ui-shadow-sm);
   transition: inset-inline-start var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
@@ -318,7 +324,7 @@
   align-items: center;
   justify-content: center;
   padding: 5px 12px;
-  border-radius: 8px;
+  border-radius: 999px;
   color: var(--ui-muted-foreground);
   font-size: 12px;
   white-space: nowrap;
@@ -401,6 +407,19 @@
   line-height: 1.3;
 }
 
+/*
+ * 没有读数的那一格画的是占位符，不是一个数。
+ *
+ * 颜色走设计系统里「这里还没有内容」那一档，不复用 muted-foreground —— light.css
+ * 写明这两者是不同的东西。字重退回常规：22px 的破折号在 550 下是一根黑杠，跟旁边
+ * 真量出来的数一样重，扫一眼分不出哪格是空的。字号不动，否则有无读数两态之间
+ * 行高会跳。
+ */
+.settings-metric__value[data-unrecorded="true"] {
+  color: var(--ui-placeholder);
+  font-weight: 400;
+}
+
 .settings-usage__panel {
   display: flex;
   flex-direction: column;
@@ -411,26 +430,32 @@
 /*
  * 热力图的五档。
  *
- * 设计系统里没有「热力档位」这种东西，所以这里声明一次：底色取分隔线的灰，满档
- * 是 --ui-info，中间三档由这两头调和。两头都是语义令牌，跟着主题走；调色板原语
- * 不在这里出现 —— palette.css 开头就写着功能包不得直接消费它们。
+ * 设计系统里没有「热力档位」这种东西，所以这里声明一次：底色是浅灰，满档是
+ * --ui-info，中间三档由这两头调和 —— 调和一律读 --settings-heat-0，改底色时
+ * 三档跟着走。满档是语义令牌，跟着主题走；调色板原语不在这里出现 —— palette.css
+ * 开头就写着功能包不得直接消费它们。
  *
- * 空格子用分隔线的灰而不是卡面色：一张还没有账可记的图，格子必须看得见，否则
- * 那不是「这段时间没有用量」，那是一片白。
+ * 空格子比卡面深一档而不是等于卡面色：一张还没有账可记的图，格子必须看得见，
+ * 否则那不是「这段时间没有用量」，那是一片白。
  *
  * 五个离散档而不是连续渐变：格子要能被一眼归类，不是被两两比较。
  */
 .settings-heatmap {
   --settings-heat-swatch: 10px;
-  --settings-heat-0: var(--ui-divider);
-  --settings-heat-1: color-mix(in oklch, var(--ui-info) 30%, var(--ui-divider));
-  --settings-heat-2: color-mix(in oklch, var(--ui-info) 55%, var(--ui-divider));
-  --settings-heat-3: color-mix(in oklch, var(--ui-info) 78%, var(--ui-divider));
+  --settings-heat-0: #f5f5f5;
+  --settings-heat-1: color-mix(in oklch, var(--ui-info) 30%, var(--settings-heat-0));
+  --settings-heat-2: color-mix(in oklch, var(--ui-info) 55%, var(--settings-heat-0));
+  --settings-heat-3: color-mix(in oklch, var(--ui-info) 78%, var(--settings-heat-0));
   --settings-heat-4: var(--ui-info);
 
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* 深色主题下 #f5f5f5 亮过满档，底色那一侧回到分隔线。 */
+:root[data-theme="dark"] .settings-heatmap {
+  --settings-heat-0: var(--ui-divider);
 }
 
 /*

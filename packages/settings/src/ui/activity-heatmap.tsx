@@ -1,7 +1,10 @@
+import { Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
+import { Fragment } from 'react'
 import {
   type ActivityDay,
   busiestOf,
   dateOf,
+  formatTokens,
   HEAT_LEVELS,
   levelOf,
   weekdayOf,
@@ -17,12 +20,15 @@ import {
  * 依赖一个都不装。kibo 那个组件按 shadcn registry 的办法分发，装它等于把它自己
  * 的一套排版连同源码拷进来，而这一页的排版要跟设置界面走。
  *
+ * 提示气泡走设计系统的 Tooltip，不用 title：原生提示的字体、配色、延时都不归我们
+ * 管，同一页里会出现两种气泡。全屏只有一条 TooltipProvider（workspace-shell），
+ * 延时不在这里写。
+ *
  * 第一列不一定从周一开始，所以第一格直接落到它该在的那一行，其余由 grid 按列
  * 往下排。空格子不进 DOM：那是几个不表示任何一天的方块。
  */
 
 const CELL_DATE = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' })
-const CELL_COUNT = new Intl.NumberFormat('zh-CN')
 
 /** 没有账可记的日子不弹提示：写「0 token」是在替一本空账下结论。 */
 function tooltipOf(day: ActivityDay): string | undefined {
@@ -30,7 +36,7 @@ function tooltipOf(day: ActivityDay): string | undefined {
     return undefined
   }
 
-  return `${CELL_DATE.format(dateOf(day.date))}：${CELL_COUNT.format(day.count)} token`
+  return `${CELL_DATE.format(dateOf(day.date))}：${formatTokens(day.count)} token`
 }
 
 export interface ActivityHeatmapProps {
@@ -43,15 +49,30 @@ export function ActivityHeatmap({ days }: ActivityHeatmapProps) {
   return (
     <div className="settings-heatmap">
       <div className="settings-heatmap__grid">
-        {days.map((day, index) => (
-          <span
-            className="settings-heatmap__cell"
-            data-level={levelOf(day.count, busiest)}
-            key={day.date}
-            style={index === 0 ? { gridRowStart: weekdayOf(day.date) + 1 } : undefined}
-            title={tooltipOf(day)}
-          />
-        ))}
+        {days.map((day, index) => {
+          const hint = tooltipOf(day)
+          const cell = (
+            <span
+              className="settings-heatmap__cell"
+              data-level={levelOf(day.count, busiest)}
+              style={index === 0 ? { gridRowStart: weekdayOf(day.date) + 1 } : undefined}
+            />
+          )
+
+          /*
+           * 没账可记的日子整格不装气泡，而不是装一个空气泡：Trigger 配一个没有
+           * Popup 的 Root 不在官方用法里，182 格全挂上去等于把一条没写进契约的
+           * 行为当成常态。
+           */
+          return hint === undefined ? (
+            <Fragment key={day.date}>{cell}</Fragment>
+          ) : (
+            <Tooltip key={day.date}>
+              <TooltipTrigger render={cell} />
+              <TooltipContent side="top">{hint}</TooltipContent>
+            </Tooltip>
+          )
+        })}
       </div>
 
       <p className="settings-heatmap__legend">
