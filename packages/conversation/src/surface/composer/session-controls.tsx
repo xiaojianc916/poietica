@@ -43,8 +43,6 @@ export function isToggleControl(control: SessionConfigControl): boolean {
   return values.size === 2 && values.has('off') && values.has('on')
 }
 
-const UNAVAILABLE = '没连上 agent，点击重试'
-
 const LEVEL = 'level'
 const MODEL = 'model'
 
@@ -123,17 +121,12 @@ function stopAt(rail: HTMLElement, clientX: number): number {
 
 export interface SessionControlsProps {
   readonly controls: readonly SessionConfigControl[]
-  readonly failure?: string | undefined
   readonly onSelect: (controlId: string, value: string) => void
-  /** 失败之后再打开一次；没有这个，失败就是一条死路。 */
-  readonly onRetry?: (() => void) | undefined
 }
 
 /** 入参只有 controls 会变，而这下面只有一张弹层加一个页签状态。 */
 export const SessionControls = memo(function SessionControls({
   controls,
-  failure,
-  onRetry,
   onSelect,
 }: SessionControlsProps) {
   const rows = useMemo(() => sessionControlRows(controls), [controls])
@@ -142,24 +135,9 @@ export const SessionControls = memo(function SessionControls({
   const level = rows.find((control) => control.purpose === 'thought')
   const model = rows.find((control) => control.purpose === 'model')
 
+  /* 没有控件可画就整个不画：连不上怎么说归输入区上沿那条提示（composer-notice.tsx）。 */
   if (level === undefined && model === undefined) {
-    if (failure === undefined) {
-      return null
-    }
-
-    return (
-      <button
-        aria-live="polite"
-        className="assistant-model-select__button"
-        data-empty="true"
-        data-failed="true"
-        onClick={onRetry}
-        title={failure}
-        type="button"
-      >
-        <span className="assistant-model-select__name">{UNAVAILABLE}</span>
-      </button>
-    )
+    return null
   }
 
   const name = model === undefined ? undefined : chosen(model)

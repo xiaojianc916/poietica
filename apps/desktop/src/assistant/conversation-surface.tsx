@@ -78,15 +78,11 @@ export function ConversationSurface({
 
   /* 名册按会话回答，所以它跟着这一格走：入口是锚会话，进了对话就是那条会话。 */
 
-  const retryControls = useCallback(() => {
-    if (isNew) {
-      retry()
-
-      return
-    }
-
-    sessionControls.retrySelectors(threadId)
-  }, [isNew, retry, sessionControls, threadId])
+  /* 交回这一趟的承诺：重试图标转多久由它说了算（见 ComposerNotice）。 */
+  const retryControls = useCallback(
+    () => (isNew ? retry() : sessionControls.retrySelectors(threadId)),
+    [isNew, retry, sessionControls, threadId],
+  )
 
   /* 改一项，交给持有这张表的那一方：入口那格是锚会话，对话里是那条会话。 */
   const chooseControl = useCallback(

@@ -154,6 +154,8 @@ export interface SkillRow {
   readonly path: string
   readonly project: string | undefined
   readonly projectPath: string | undefined
+  /** SKILL.md 的原文。正文（body）是它去掉 frontmatter 之后的一半，源码视图要的是整份。 */
+  readonly document: string | undefined
   readonly body: string | undefined
   readonly type: string | undefined
   readonly whenToUse: string | undefined
@@ -180,6 +182,7 @@ export function skillRows(runtime: readonly AgentSkill[]): readonly SkillRow[] {
         path: skill.path,
         project: skill.project ?? undefined,
         projectPath: skill.projectPath ?? undefined,
+        document: skill.document ?? undefined,
         body: parsed?.body,
         type: parsed?.type ?? skill.kind ?? undefined,
         whenToUse: parsed?.whenToUse,

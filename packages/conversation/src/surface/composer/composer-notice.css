@@ -1,0 +1,68 @@
+@import "./composer-metrics.css";
+
+/* 输入框上沿那条提示：卡外、与卡同宽、无边影。高度取 --cp-row（36px）。 */
+.assistant-notice {
+  box-sizing: border-box;
+  display: flex;
+  inline-size: 100%;
+  block-size: var(--cp-row);
+  align-items: center;
+  gap: var(--cp-control-gap);
+  margin-block-end: var(--cp-pad-mid);
+  padding-inline: var(--cp-inset);
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: var(--cp-notice-radius);
+  background: var(--cp-surface);
+  color: var(--cp-ink);
+  font-size: var(--cp-font-caption);
+}
+
+/* 与转录里那条失败横线同一种红。 */
+.assistant-notice__mark {
+  flex: none;
+  color: var(--ui-destructive);
+}
+
+/* 正文吃中间那一格：长句以省略号收尾，按钮留在右端。 */
+.assistant-notice__text {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 命中区是 WCAG 2.2 SC 2.5.8 的下限。 */
+.assistant-notice__retry {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--cp-target-min);
+  block-size: var(--cp-target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  background: none;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-notice__retry:hover:not(:disabled),
+.assistant-notice__retry:focus-visible {
+  background: var(--cp-overlay-hover);
+  color: var(--cp-ink);
+}
+
+/* 这一趟在飞：字形转起来，钮按不动。旋转复用 assistant.css 的 assistant-spin。 */
+.assistant-notice__retry[data-retrying="true"] {
+  cursor: default;
+}
+
+.assistant-notice__retry[data-retrying="true"] svg {
+  animation: assistant-spin 900ms linear infinite;
+}

@@ -91,13 +91,13 @@ export class AgentCapabilityStore {
       }
       unsubscribe = port.subscribe(() => {
         if (this.#binding === binding) {
-          this.refresh()
+          void this.refresh()
         }
       })
       if (!active || this.#binding !== binding) {
         unsubscribe()
       } else {
-        this.refresh()
+        void this.refresh()
       }
     } catch (cause: unknown) {
       try {
@@ -143,7 +143,7 @@ export class AgentCapabilityStore {
         this.#note(cause)
         this.#report?.changeFailed(cause)
         if (this.#binding === binding) {
-          this.refresh()
+          void this.refresh()
         }
       }
     })
@@ -157,14 +157,19 @@ export class AgentCapabilityStore {
     binding.toolkitRequest = undefined
     this.#loadToolkit(binding)
   }
-  refresh = (): void => {
+  /*
+   * 重读这一家的可调项。失败那一格不由这里清（由拿到表的 #adopt 清），所以点了重试
+   * 之后那句话会留到这一趟落地；交回的承诺决定那颗重试图标转多久。
+   */
+  refresh = (): Promise<void> => {
     const binding = this.#binding
     if (binding === undefined) {
-      return
+      return Promise.resolve()
     }
     binding.toolkitRequest = undefined
-    void this.#load(binding)
+    const loaded = this.#load(binding)
     this.#loadToolkit(binding)
+    return loaded
   }
   #adopt(binding: Binding, ticket: number, controls: readonly SessionConfigControl[]): void {
     if (this.#binding !== binding || !binding.order.isLatest(ticket)) {

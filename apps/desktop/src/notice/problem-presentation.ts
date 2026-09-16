@@ -152,7 +152,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
   AGENT_CAPABILITIES_UNREADABLE: {
     impact: 'recoverable',
-    userMessage: '没能读到可用的模型。到「设置 → 模型」看看 agent 装好了没有、密钥填了没有。',
+    userMessage: 'kimi code模型连接失败',
 
     recovery: 'retry',
 

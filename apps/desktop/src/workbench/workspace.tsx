@@ -26,7 +26,7 @@ import type {
   WorkbenchTabId,
   WorkbenchTabViewModel,
 } from '@poietica/workspace'
-import type { AuxiliaryPanelStore } from '@poietica/workspace/panels'
+import type { AuxiliaryPane, AuxiliaryPanelStore } from '@poietica/workspace/panels'
 import { type ReactNode, useCallback, useMemo, useSyncExternalStore } from 'react'
 import { AssistantSidebarPanel } from '../assistant/assistant-sidebar-panel'
 import { ConversationControls, ConversationHeader } from '../assistant/conversation-header'
@@ -91,6 +91,52 @@ function isAssistantChromeSurface(surface: WorkbenchSurfaceViewModel): boolean {
   return (
     surface.kind === 'conversation' || (surface.kind === 'surface' && surface.surfaceId === 'ai')
   )
+}
+
+/*
+ * 设置页在右栏那一格的归属键。
+ *
+ * 与对话的 threadId 同一张表里的另一个键：threadId 是 uuid，撞不上。
+ */
+const SETTINGS_AUXILIARY_OWNER = 'settings'
+
+interface AuxiliaryBinding {
+  /** 这一格归谁：对话是它的 threadId，设置页是设置自己那个键。 */
+  readonly owner: string | null
+  /** 浏览器那一段算不算这一格的。 */
+  readonly ownsBrowser: boolean
+  readonly docked: boolean
+}
+
+/*
+ * 右栏这一格的归属与在场。
+ *
+ * 设置页有自己那一格，与任何一条对话都不共用：在设置里点开的技能文档不会跑到对话的右栏里，
+ * 对话那边的标签页也不会跟到设置里来；浏览器那一段更是宿主全局的一份，设置页不认领它。
+ * 与布局里「哪条对话的右栏是开的」同一个道理 —— 状态按归属分账。
+ *
+ * 平时它跟着对话走：属于当前这条对话才停靠。设置打开时对话不在场，本来一律不出现 ——
+ * 技能文档那一格是唯一的例外，它恰恰是被设置页点开的，所以它出现时右栏就出现。
+ */
+function auxiliaryBinding(input: {
+  readonly activeConversationId: string | null
+  readonly auxiliaryThread: string | null
+  readonly isSettingsOpen: boolean
+  readonly panes: readonly AuxiliaryPane[]
+}): AuxiliaryBinding {
+  if (input.isSettingsOpen) {
+    return {
+      docked: input.panes.some((pane) => pane.kind === 'file'),
+      owner: SETTINGS_AUXILIARY_OWNER,
+      ownsBrowser: false,
+    }
+  }
+
+  return {
+    docked: input.auxiliaryThread !== null && input.auxiliaryThread === input.activeConversationId,
+    owner: input.auxiliaryThread,
+    ownsBrowser: true,
+  }
 }
 
 export function DesktopWorkspace({
@@ -178,8 +224,18 @@ export function DesktopWorkspace({
   const { auxiliaryThread, todoThread } = useWorkspaceLayoutState()
   const workspaceLayoutStore = useWorkspaceLayoutStore()
 
-  const dockAuxiliary =
-    !isSettingsOpen && auxiliaryThread !== null && auxiliaryThread === activeConversationId
+  const auxiliaryState = useSyncExternalStore(
+    auxiliaryPanel.subscribe,
+    auxiliaryPanel.getSnapshot,
+    auxiliaryPanel.getSnapshot,
+  )
+
+  const auxiliary = auxiliaryBinding({
+    activeConversationId,
+    auxiliaryThread,
+    isSettingsOpen,
+    panes: auxiliaryState.panes,
+  })
 
   const activeNavigationId =
     workbench.activeSurface.kind === 'surface' ? workbench.activeSurface.surfaceId : null
@@ -242,13 +298,22 @@ export function DesktopWorkspace({
   /* 派发通道只有这一个入口：点开那一行，右侧那一格亮起来并停在这条通道上。 */
   const openDelegateChannel = useCallback(
     (agentId: string) => {
-      auxiliaryPanel.openDelegate(agentId)
-
-      if (activeConversationId !== null) {
-        workspaceLayoutStore.setAuxiliaryThread(activeConversationId)
+      if (activeConversationId === null) {
+        return
       }
+
+      auxiliaryPanel.openDelegate(activeConversationId, agentId)
+      workspaceLayoutStore.setAuxiliaryThread(activeConversationId)
     },
     [activeConversationId, auxiliaryPanel, workspaceLayoutStore],
+  )
+
+  /* 技能文档落在设置那一格里：设置页只说要看的技能，开在哪一格是工作台的事。 */
+  const openSkillDocument = useCallback(
+    (skillId: string) => {
+      auxiliaryPanel.openFile(SETTINGS_AUXILIARY_OWNER, skillId)
+    },
+    [auxiliaryPanel],
   )
 
   const parts: WorkspaceParts = {
@@ -361,11 +426,16 @@ export function DesktopWorkspace({
         <AuxiliaryDock
           conversationId={auxiliaryThread}
           host={host}
-          isDocked={dockAuxiliary}
+          isDocked={auxiliary.docked}
+          owner={auxiliary.owner}
+          ownsBrowser={auxiliary.ownsBrowser}
+          skills={toolkit.skills}
           store={auxiliaryPanel}
         />
       ),
-      isDocked: dockAuxiliary,
+      isDocked: auxiliary.docked,
+      /* 设置里这一列只有文档格，收起它就是把文档格关掉；对话那一路仍旧收起右栏。 */
+      onClose: isSettingsOpen ? auxiliaryPanel.closeFilePanes : undefined,
     },
   }
 
@@ -379,6 +449,7 @@ export function DesktopWorkspace({
       modelCatalog={modelCatalog}
       onDismiss={onSettingsClose}
       onThemeChange={onThemeChange}
+      openSkillDocument={openSkillDocument}
       plugins={plugins}
       readTokenDays={readTokenDays}
       skills={toolkit.skills}

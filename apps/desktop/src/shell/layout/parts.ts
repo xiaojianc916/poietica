@@ -15,6 +15,13 @@ export interface WorkspaceMainPart extends WorkspacePart {
 
 export interface WorkspaceAuxiliaryPart extends WorkspacePart {
   readonly isDocked: boolean
+  /**
+   * 收起这一列时做什么。省略就是「不再属于任何对话」。
+   *
+   * 显式带上 undefined：exactOptionalPropertyTypes 下「?: () => void」不接受一个显式
+   * 传进来的 undefined，而组合根按当前布局决定给不给它，正是那种转发。
+   */
+  readonly onClose?: (() => void) | undefined
 }
 
 export type WorkspaceParts = Record<

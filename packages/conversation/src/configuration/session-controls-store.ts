@@ -235,10 +235,14 @@ export class SessionControlsStore {
     void this.#reopen(threadId)
   }
 
-  retrySelectors = (threadId: string): void => {
-    this.#commit({ selectorFailure: withoutEntry(this.#held.selectorFailure, threadId) })
-    void this.#reopen(threadId)
-  }
+  /*
+   * 再连一次。
+   *
+   * 失败那一格不在这里清 —— 唯一的清点是拿到权威表的 #remember。这条提示要留到这一趟
+   * 真的落地：连上被清掉，又失败被 #noteSelectorFailure 换掉。交回的承诺决定那颗重试
+   * 图标转多久。
+   */
+  retrySelectors = (threadId: string): Promise<void> => this.#reopen(threadId)
 
   /**
    * 改这条对话的一项会话设置；答案就是改完之后的整张表。

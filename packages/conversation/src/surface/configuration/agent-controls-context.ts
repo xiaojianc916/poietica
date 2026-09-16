@@ -24,7 +24,8 @@ export interface AgentControlsView extends AgentControls {
   /** 名册要按哪条会话读。入口那一格是 null。 */
   readonly adoptToolkit: (threadId: string | null) => void
   readonly selectControl: (controlId: string, value: string) => void
-  readonly retry: () => void
+  /** 重试；交回的承诺决定那颗图标转多久。 */
+  readonly retry: () => Promise<void>
 }
 
 export function useAgentControls(): AgentControlsView {

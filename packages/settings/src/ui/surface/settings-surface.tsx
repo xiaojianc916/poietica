@@ -111,6 +111,13 @@ interface SettingsSectionContext {
   /** 技能名册，由组合根下传：名册属于会话上下文，住在更高的 assistant 环。 */
   readonly skills: readonly AgentSkill[]
   readonly plugins: PluginStore
+  /**
+   * 看一个技能的 SKILL.md，落在哪一列由组合根决定。
+   *
+   * 与 readTokenDays 同一条理由：文档要去的那一列是工作台的右侧栏，而这个包
+   * 不认识工作台。设置页只交出「哪一个」。
+   */
+  readonly openSkillDocument: (skillId: string) => void
 }
 
 interface SettingsSectionDescriptor {
@@ -179,7 +186,9 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   skills: {
     label: '技能',
     icon: PackageOpen,
-    render: ({ plugins, skills }) => <SkillsSettings skills={skills} store={plugins} />,
+    render: ({ openSkillDocument, plugins, skills }) => (
+      <SkillsSettings openSkillDocument={openSkillDocument} skills={skills} store={plugins} />
+    ),
   },
   mcp: {
     label: 'MCP',
@@ -248,6 +257,7 @@ interface SettingsSurfaceContextValue {
   readonly readTokenDays: ReadTokenDays
   readonly skills: readonly AgentSkill[]
   readonly plugins: PluginStore
+  readonly openSkillDocument: (skillId: string) => void
   readonly section: SettingsSection
   readonly onSelect: (section: SettingsSection) => void
   readonly onBack: () => void
@@ -318,6 +328,8 @@ export interface SettingsProviderProps {
    * assistant 环，本包在 vertical-feature 环，环序禁止反向依赖。
    */
   readonly skills: readonly AgentSkill[]
+  /** 打开一个技能的 SKILL.md。与 skills 同源同层：两者说的都是同一份名册。 */
+  readonly openSkillDocument: (skillId: string) => void
   /** 离开设置。控制器会先把尚未落盘的草稿刷完再回调，所以退出不会丢改动。 */
   readonly onDismiss: () => void
   /** 主题预览进入应用唯一的主题管线，不由设置 UI 直接写文档。 */
@@ -338,6 +350,7 @@ export function SettingsProvider({
   dataDirectory,
   readTokenDays,
   skills,
+  openSkillDocument,
   onDismiss,
   onThemeChange,
   isOpen,
@@ -382,6 +395,7 @@ export function SettingsProvider({
       dataDirectory,
       readTokenDays,
       skills,
+      openSkillDocument,
       section,
       onSelect: setSection,
       onBack: controller.requestClose,
@@ -397,6 +411,7 @@ export function SettingsProvider({
       readTokenDays,
       section,
       skills,
+      openSkillDocument,
       threads,
     ],
   )
@@ -436,6 +451,7 @@ export function SettingsContentRegion() {
     modelCatalog,
     plugins,
     readTokenDays,
+    openSkillDocument,
     section,
     skills,
     threads,
@@ -477,6 +493,7 @@ export function SettingsContentRegion() {
               dataDirectory,
               keybindings,
               modelCatalog,
+              openSkillDocument,
               plugins,
               readTokenDays,
               settings: controller.settings,

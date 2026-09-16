@@ -23,6 +23,12 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
   /* 面板不在场时全屏同步失效：再次停靠前不继承上次的全屏态。 */
   const auxiliaryFullscreenActive = auxiliaryFullscreen && dockAuxiliary
 
+  const closeAuxiliary =
+    parts.auxiliary.onClose ??
+    (() => {
+      setAuxiliaryThread(null)
+    })
+
   const activeTabDomId = encodeWorkbenchTabDomId(model.activeTabId)
 
   const isTabPanel = parts.main.label === undefined
@@ -34,9 +40,7 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
           <AuxiliaryRegion
             fullscreen={auxiliaryFullscreenActive}
             isDocked={dockAuxiliary}
-            onClose={() => {
-              setAuxiliaryThread(null)
-            }}
+            onClose={closeAuxiliary}
             onResize={setAuxiliaryWidth}
             width={auxiliaryWidth}
           >

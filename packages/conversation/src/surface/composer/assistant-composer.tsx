@@ -54,9 +54,6 @@ export interface AssistantComposerProps {
   readonly mcpServers?: readonly AgentMcpServer[] | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
-  readonly controlsFailure?: string | undefined
-  /** 读失败之后重新问一次。 */
-  readonly onRetryControls?: (() => void) | undefined
   readonly onSelectControl: (controlId: string, value: string, input?: string) => void
   /** 这条会话最近报的上下文用量。缺席就不画那颗胶囊。 */
   readonly usage?: SessionUsage | undefined
@@ -93,21 +90,13 @@ export interface AssistantComposerProps {
  */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  | 'controls'
-  | 'controlsFailure'
-  | 'onCancel'
-  | 'onContinue'
-  | 'onRetryControls'
-  | 'onSelectControl'
-  | 'usage'
+  'controls' | 'onCancel' | 'onContinue' | 'onSelectControl' | 'usage'
 > & { readonly status: ChatStatus }
 
 function ComposerToolbar({
   controls,
-  controlsFailure,
   onCancel,
   onContinue,
-  onRetryControls,
   onSelectControl,
   status,
   usage,
@@ -144,12 +133,7 @@ function ComposerToolbar({
       <ContextGauge usage={usage} />
 
       {/* 模型选择器挨着「发」：它说的正是这一句将被谁回答。 */}
-      <SessionControls
-        controls={controls}
-        failure={controlsFailure}
-        onRetry={onRetryControls}
-        onSelect={onSelectControl}
-      />
+      <SessionControls controls={controls} onSelect={onSelectControl} />
 
       {/* 判据同源。「有没有东西可发」现在只从 PromptInput 自己那份草稿读，
           按钮与 onSubmit 看的是同一个所有者。 */}

@@ -172,6 +172,9 @@
   --cp-queue-rows: 5.5;
   --cp-queue-fade: calc(var(--cp-queue-row) / 2);
 
+  /* 输入框上沿那条提示（连不上 agent 时的那一句）：圆角比卡小一档，与 GoalBar 同档。 */
+  --cp-notice-radius: 12px;
+
   /*
    * 模式胶囊。
    *

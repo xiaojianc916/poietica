@@ -1,0 +1,208 @@
+/*
+ * 技能文档那一格。
+ *
+ * 这一列最窄 320px，所以横向的每一件东西都要能收：面包屑从中间塌、源码横向滚，
+ * 而文件名与 Preview/Source 永远留在原地 —— 它们是人在这格里找路的两块路牌。
+ */
+
+.skill-doc {
+  display: flex;
+  min-block-size: 0;
+  block-size: 100%;
+  flex-direction: column;
+  background: var(--ui-background);
+}
+
+.skill-doc__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  block-size: 34px;
+  padding-inline: 10px;
+  border-block-end: 1px solid var(--ui-card-divider);
+}
+
+.skill-doc__path {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* 中间几段可以塌，最后一段（文件名）不参与收缩。 */
+.skill-doc__crumb {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skill-doc__crumb:not([data-last])::after {
+  content: "›";
+  margin-inline-start: 5px;
+  opacity: 0.55;
+}
+
+.skill-doc__crumb[data-last] {
+  flex: none;
+  color: var(--ui-foreground);
+}
+
+.skill-doc__modes {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin: 0;
+  min-inline-size: 0;
+  padding: 2px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--ui-sunken);
+}
+
+.skill-doc__mode {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 5px;
+  outline: 0;
+  background: transparent;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.skill-doc__mode[aria-pressed="true"] {
+  background: var(--ui-background);
+  color: var(--ui-foreground);
+  box-shadow: var(--ui-shadow-xs);
+}
+
+.skill-doc__mode:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ui-ring);
+}
+
+.skill-doc__body {
+  min-block-size: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.skill-doc__missing {
+  margin: 0;
+  padding: 18px 14px;
+  color: var(--ui-muted-foreground);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+/* ---------------- Preview ---------------- */
+
+.skill-doc__preview {
+  padding: 12px 14px 28px;
+}
+
+.skill-doc__facts {
+  margin: 0;
+}
+
+.skill-doc__facts > div {
+  display: flex;
+  gap: 10px;
+  padding-block: 7px;
+  border-block-end: 1px solid var(--ui-card-divider);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.skill-doc__facts dt {
+  flex: none;
+  inline-size: 62px;
+  color: var(--ui-muted-foreground);
+}
+
+.skill-doc__facts dd {
+  min-inline-size: 0;
+  margin: 0;
+  color: var(--ui-foreground);
+  overflow-wrap: anywhere;
+}
+
+.skill-doc__facts code {
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+}
+
+.skill-doc__warning {
+  display: flex;
+  gap: 7px;
+  margin-block-start: 12px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--ui-destructive) 8%, transparent);
+  color: var(--ui-destructive);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.skill-doc__warning svg {
+  flex: none;
+  inline-size: 14px;
+}
+
+/* 排版归 Prose；这里只给它这一格的底色与间距。 */
+.skill-doc__preview[data-assistant-skin] {
+  --cp-timeline-output-surface: var(--ui-sunken);
+  --cp-hover: var(--ui-sidebar-accent);
+}
+
+.skill-doc__prose {
+  margin-block-start: 14px;
+  color: var(--ui-foreground);
+  overflow-wrap: anywhere;
+}
+
+.skill-doc__prose :not(pre) > code {
+  background: transparent;
+}
+
+/* ---------------- Source ---------------- */
+
+/*
+ * 两块 pre 并排：左列行号，右列正文。两块同一套字号与行高，所以第 n 行永远对齐。
+ *
+ * 行号那一列 sticky 贴左缘：长行横向滚动时它留在原处，正文从它右边滑过去。
+ * 底色用页面底，滑过去的内容才不会从行号底下透出来。
+ */
+.skill-doc__source {
+  display: flex;
+  gap: 10px;
+  padding-block: 10px;
+  font-family: var(--ui-font-mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+}
+
+.skill-doc__gutter {
+  position: sticky;
+  inset-inline-start: 0;
+  flex: none;
+  inline-size: 3.5em;
+  margin: 0;
+  padding-inline: 8px 4px;
+  background: var(--ui-background);
+  color: var(--ui-muted-foreground);
+  opacity: 0.6;
+  text-align: end;
+  user-select: none;
+}
+
+.skill-doc__text {
+  margin: 0;
+  padding-inline-end: 12px;
+  color: var(--ui-foreground);
+  white-space: pre;
+}

@@ -62,10 +62,6 @@
   color: var(--cp-model-pill-level-ink);
 }
 
-.assistant-model-select__button[data-empty="true"] {
-  color: var(--cp-ink-subtle);
-}
-
 /* ---------- 卡 ---------- */
 
 /*

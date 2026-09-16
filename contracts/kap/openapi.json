@@ -3,7 +3,7 @@
   "info": {
     "title": "Kimi Code Server API",
     "description": "REST API for the Kimi Code local server. All JSON responses are wrapped in a uniform envelope `{ code, msg, data, request_id }`.",
-    "version": "0.43.0"
+    "version": "0.43.1"
   },
   "components": {
     "schemas": {}
@@ -778,157 +778,127 @@
                                 "ok"
                               ]
                             },
-                            "summary": {
-                              "nullable": true,
+                            "quota": {
                               "type": "object",
                               "properties": {
-                                "name": {
-                                  "type": "string"
-                                },
-                                "window": {
+                                "usages": {
                                   "type": "object",
                                   "properties": {
-                                    "duration": {
+                                    "limit5h": {
+                                      "type": "object",
+                                      "properties": {
+                                        "usedRatio": {
+                                          "type": "number"
+                                        },
+                                        "resetAt": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "usedRatio"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    "limit7d": {
+                                      "type": "object",
+                                      "properties": {
+                                        "usedRatio": {
+                                          "type": "number"
+                                        },
+                                        "resetAt": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "usedRatio"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    "monthTotal": {
+                                      "type": "object",
+                                      "properties": {
+                                        "usedRatio": {
+                                          "type": "number"
+                                        },
+                                        "resetAt": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "usedRatio"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    "monthCode": {
+                                      "type": "object",
+                                      "properties": {
+                                        "usedRatio": {
+                                          "type": "number"
+                                        },
+                                        "resetAt": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "usedRatio"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "extraUsage": {
+                                  "nullable": true,
+                                  "type": "object",
+                                  "properties": {
+                                    "balanceCents": {
                                       "type": "integer",
                                       "minimum": -9007199254740991,
                                       "maximum": 9007199254740991
                                     },
-                                    "unit": {
-                                      "type": "string",
-                                      "enum": [
-                                        "minute",
-                                        "hour",
-                                        "day",
-                                        "week"
-                                      ]
+                                    "totalCents": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "monthlyChargeLimitEnabled": {
+                                      "type": "boolean"
+                                    },
+                                    "monthlyChargeLimitCents": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "monthlyUsedCents": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "currency": {
+                                      "type": "string"
                                     }
                                   },
                                   "required": [
-                                    "duration",
-                                    "unit"
+                                    "balanceCents",
+                                    "totalCents",
+                                    "monthlyChargeLimitEnabled",
+                                    "monthlyChargeLimitCents",
+                                    "monthlyUsedCents",
+                                    "currency"
                                   ],
                                   "additionalProperties": false
-                                },
-                                "used": {
-                                  "type": "integer",
-                                  "minimum": -9007199254740991,
-                                  "maximum": 9007199254740991
-                                },
-                                "limit": {
-                                  "type": "integer",
-                                  "minimum": -9007199254740991,
-                                  "maximum": 9007199254740991
-                                },
-                                "reset_at": {
-                                  "type": "string"
                                 }
                               },
                               "required": [
-                                "used",
-                                "limit"
-                              ],
-                              "additionalProperties": false
-                            },
-                            "limits": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "name": {
-                                    "type": "string"
-                                  },
-                                  "window": {
-                                    "type": "object",
-                                    "properties": {
-                                      "duration": {
-                                        "type": "integer",
-                                        "minimum": -9007199254740991,
-                                        "maximum": 9007199254740991
-                                      },
-                                      "unit": {
-                                        "type": "string",
-                                        "enum": [
-                                          "minute",
-                                          "hour",
-                                          "day",
-                                          "week"
-                                        ]
-                                      }
-                                    },
-                                    "required": [
-                                      "duration",
-                                      "unit"
-                                    ],
-                                    "additionalProperties": false
-                                  },
-                                  "used": {
-                                    "type": "integer",
-                                    "minimum": -9007199254740991,
-                                    "maximum": 9007199254740991
-                                  },
-                                  "limit": {
-                                    "type": "integer",
-                                    "minimum": -9007199254740991,
-                                    "maximum": 9007199254740991
-                                  },
-                                  "reset_at": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "used",
-                                  "limit"
-                                ],
-                                "additionalProperties": false
-                              }
-                            },
-                            "extra_usage": {
-                              "nullable": true,
-                              "type": "object",
-                              "properties": {
-                                "balance_cents": {
-                                  "type": "integer",
-                                  "minimum": -9007199254740991,
-                                  "maximum": 9007199254740991
-                                },
-                                "total_cents": {
-                                  "type": "integer",
-                                  "minimum": -9007199254740991,
-                                  "maximum": 9007199254740991
-                                },
-                                "monthly_charge_limit_enabled": {
-                                  "type": "boolean"
-                                },
-                                "monthly_charge_limit_cents": {
-                                  "type": "integer",
-                                  "minimum": -9007199254740991,
-                                  "maximum": 9007199254740991
-                                },
-                                "monthly_used_cents": {
-                                  "type": "integer",
-                                  "minimum": -9007199254740991,
-                                  "maximum": 9007199254740991
-                                },
-                                "currency": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "balance_cents",
-                                "total_cents",
-                                "monthly_charge_limit_enabled",
-                                "monthly_charge_limit_cents",
-                                "monthly_used_cents",
-                                "currency"
+                                "usages",
+                                "extraUsage"
                               ],
                               "additionalProperties": false
                             }
                           },
                           "required": [
                             "kind",
-                            "summary",
-                            "limits",
-                            "extra_usage"
+                            "quota"
                           ],
                           "additionalProperties": false
                         },

@@ -41,9 +41,15 @@ const WORKBENCH_EDGES: Readonly<Record<string, readonly string[]>> = {
   'connections.ts': [],
   'app-shell.tsx': ['runtime-contract.ts', 'workspace.tsx'],
   'workspace.tsx': ['runtime-contract.ts', 'surfaces.tsx', 'auxiliary-dock.tsx'],
-  'auxiliary-dock.tsx': ['runtime-contract.ts', 'review-pane.tsx', 'terminal-pane.tsx'],
+  'auxiliary-dock.tsx': [
+    'runtime-contract.ts',
+    'review-pane.tsx',
+    'terminal-pane.tsx',
+    'skill-document-pane.tsx',
+  ],
   'review-pane.tsx': [],
   'terminal-pane.tsx': [],
+  'skill-document-pane.tsx': [],
   'surfaces.tsx': ['runtime-contract.ts'],
 }
 export const DESKTOP_HEADLESS = [

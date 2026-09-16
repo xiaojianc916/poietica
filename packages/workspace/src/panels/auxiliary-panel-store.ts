@@ -3,7 +3,11 @@ import { createExternalStore } from '@poietica/external-store'
 import { warn } from '@poietica/problem'
 
 export type AuxiliaryLauncherKind = 'assistant' | 'review' | 'terminal' | 'browser'
-export type AuxiliaryPaneKind = Exclude<AuxiliaryLauncherKind, 'browser'> | 'delegate'
+/*
+ * delegate 与 file 不进 catalog 的 launcher：前者只响应主时间线的工具调用，后者只由
+ * 点开一份文档的人开出来。catalog 是「这里能开什么」的清单，不是全部通道种类的清单。
+ */
+export type AuxiliaryPaneKind = Exclude<AuxiliaryLauncherKind, 'browser'> | 'delegate' | 'file'
 
 export interface AuxiliaryPaneDescriptor {
   readonly kind: AuxiliaryLauncherKind
@@ -63,14 +67,53 @@ export interface AuxiliaryPanelState {
   readonly openMenu: AuxiliaryMenuKind | null
 }
 
+/**
+ * 一格里装的东西，按归属分账。
+ *
+ * 归属是一个键：对话用它的 threadId，设置页用只有它自己用的那个键。别处的标签页不跟过来，
+ * 本格的标签页也不会留在别处 —— 与「哪条对话的右栏是开的」同一条道理，两处状态互不串门。
+ */
+interface OwnedPanel {
+  readonly panes: readonly AuxiliaryPane[]
+  readonly focus: AuxiliaryFocus
+  readonly openMenu: AuxiliaryMenuKind | null
+}
+
+const EMPTY_PANEL: OwnedPanel = Object.freeze({
+  panes: [] as readonly AuxiliaryPane[],
+  focus: { kind: 'browser' } as AuxiliaryFocus,
+  openMenu: null,
+})
+
 export interface AuxiliaryPanelStore {
   readonly subscribe: (listen: () => void) => () => void
   readonly getSnapshot: () => AuxiliaryPanelState
   readonly start: () => () => void
   readonly setVisible: (visible: boolean) => void
+  /**
+   * 这一格此刻归谁。换归属就是换整格内容，快照跟着换。
+   *
+   * ownsBrowser 说的是浏览器那一段算不算这一格的。浏览器在宿主里只有一份（一个窗口一个
+   * 子 webview），不是每格一份：不认领它的格子，别处打开的标签页不会跟进来，也不会有
+   * 一格「选中浏览器」把别处的页面拽到眼前。由停靠方声明，与 setVisible 同一个位置。
+   */
+  readonly setOwner: (owner: string | null, ownsBrowser: boolean) => void
   readonly reportViewport: (rect: BrowserViewportBounds) => void
   readonly openLauncherPane: (kind: AuxiliaryLauncherKind) => void
-  readonly openDelegate: (agentId: string) => void
+  /**
+   * 开一格委派通道。
+   *
+   * 收归属而不是往「当前那一格」里塞：调用它的人刚刚才把这一格认领给某条对话，
+   * 而认领要等下一次渲染才传到面板上，靠当前归属会落进上一条对话的格子里。
+   */
+  readonly openDelegate: (owner: string, agentId: string) => void
+  /**
+   * 开一份文档。resourceId 是不透明的：本包只认它是一格的标识，内容由宿主的渲染器解读。
+   * 同一份文档第二次打开是聚焦，不是第二个标签。归属同上一条。
+   */
+  readonly openFile: (owner: string, resourceId: string) => void
+  /** 关掉本格里的所有文档格。设置里这一格只有文档，收起右栏就是关掉它们。 */
+  readonly closeFilePanes: () => void
   readonly closePane: (id: string) => void
   readonly selectPane: (id: string) => void
   readonly selectBrowser: () => void
@@ -99,10 +142,12 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
   let started = false
   let watchEpoch = 0
   let nativeVisible: boolean | null = null
-  let panes: readonly AuxiliaryPane[] = []
-  let focus: AuxiliaryFocus = { kind: 'browser' }
-  let openMenu: AuxiliaryMenuKind | null = null
-  let snapshot: AuxiliaryPanelState = { host, panes, focus, openMenu }
+  /* 每一格的归属键与内容。没有归属，就没有可投影的一格。 */
+  const panels = new Map<string, OwnedPanel>()
+  let owner: string | null = null
+  /* 当前这一格认不认领浏览器那一段。 */
+  let ownsBrowser = true
+  let snapshot: AuxiliaryPanelState = { host, ...EMPTY_PANEL }
 
   function run(operation: string, task: () => Promise<void>): void {
     task().catch((cause: unknown) => {
@@ -112,67 +157,116 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
 
   const store = createExternalStore<AuxiliaryPanelState>({ read: () => snapshot })
 
+  /* 本格此刻装着什么。归属缺席时是一格空面板，不是别处那一格。 */
+  function held(): OwnedPanel {
+    return owner === null ? EMPTY_PANEL : (panels.get(owner) ?? EMPTY_PANEL)
+  }
+
+  /* 写回本格再投影。归属缺席时无处可写。 */
+  function keep(next: OwnedPanel): void {
+    if (owner === null) {
+      return
+    }
+
+    panels.set(owner, next)
+    publish()
+  }
+
   /*
    * 每次发布都把焦点落到实处：指向的通道被关掉、或宿主一格标签都不剩时，焦点顺着
    * 标签条移到还在的那一段。整格空了才回到启动器 —— 关掉一格不该让另一格消失。
    */
-  function resolved(): AuxiliaryFocus {
-    if (focus.kind === 'pane') {
-      const currentId = focus.id
-      if (panes.some((pane) => pane.id === currentId)) {
-        return focus
+  function resolved(current: OwnedPanel, browser: BrowserState | null): AuxiliaryFocus {
+    if (current.focus.kind === 'pane') {
+      const currentId = current.focus.id
+      if (current.panes.some((pane) => pane.id === currentId)) {
+        return current.focus
       }
     }
 
-    if (focus.kind === 'browser' && (host?.tabs.length ?? 0) > 0) {
-      return focus
+    if (current.focus.kind === 'browser' && (browser?.tabs.length ?? 0) > 0) {
+      return current.focus
     }
 
-    const last = panes.at(-1)
+    const last = current.panes.at(-1)
 
     return last === undefined ? { kind: 'browser' } : { kind: 'pane', id: last.id }
   }
 
   function publish(): void {
-    focus = resolved()
-    snapshot = { host, panes, focus, openMenu }
+    const current = held()
+    /* 不认领浏览器的格子里，宿主那一段整个不在：标签页、地址栏、子 webview 都不投影。 */
+    const browser = ownsBrowser ? host : null
+    const focus = resolved(current, browser)
+    const settled = focus === current.focus ? current : { ...current, focus }
+
+    if (settled !== current && owner !== null) {
+      panels.set(owner, settled)
+    }
+
+    snapshot = {
+      host: browser,
+      panes: settled.panes,
+      focus: settled.focus,
+      openMenu: settled.openMenu,
+    }
     store.notify()
   }
 
   function selectPane(id: string): void {
-    if (focus.kind === 'pane' && focus.id === id) {
+    const current = held()
+
+    if (current.focus.kind === 'pane' && current.focus.id === id) {
       return
     }
-    if (!panes.some((pane) => pane.id === id)) {
+    if (!current.panes.some((pane) => pane.id === id)) {
       return
     }
-    focus = { kind: 'pane', id }
-    publish()
+
+    keep({ ...current, focus: { kind: 'pane', id } })
   }
 
   function selectBrowser(): void {
-    if (focus.kind === 'browser') {
+    const current = held()
+
+    /* 没有浏览器那一段的格子里，「选中浏览器」这件事不存在。 */
+    if (!ownsBrowser || current.focus.kind === 'browser') {
       return
     }
-    focus = { kind: 'browser' }
-    publish()
+
+    keep({ ...current, focus: { kind: 'browser' } })
   }
 
   function openPane(pane: AuxiliaryPane): void {
-    if (!panes.some((held) => held.id === pane.id)) {
-      panes = [...panes, pane]
-    }
-    focus = { kind: 'pane', id: pane.id }
-    publish()
-  }
-
-  function setMenu(kind: AuxiliaryMenuKind | null): void {
-    if (kind === openMenu) {
+    if (owner === null) {
       return
     }
 
-    openMenu = kind
-    publish()
+    write(owner, pane)
+  }
+
+  /* 往指定归属里开一格：归属不是当前这一格时只记账，不投影。 */
+  function write(target: string, pane: AuxiliaryPane): void {
+    const current = panels.get(target) ?? EMPTY_PANEL
+    const panes = current.panes.some((open) => open.id === pane.id)
+      ? current.panes
+      : [...current.panes, pane]
+
+    panels.set(target, { ...current, panes, focus: { kind: 'pane', id: pane.id } })
+
+    if (target === owner) {
+      publish()
+    }
+  }
+
+  function setMenu(kind: AuxiliaryMenuKind | null): void {
+    const current = held()
+
+    if (kind === current.openMenu) {
+      return
+    }
+
+    keep({ ...current, openMenu: kind })
   }
 
   function openLauncherPane(kind: AuxiliaryLauncherKind): void {
@@ -185,16 +279,33 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
     openPane({ id: kind, kind, resourceId: null })
   }
 
-  function openDelegate(agentId: string): void {
-    openPane({ id: `delegate:${agentId}`, kind: 'delegate', resourceId: agentId })
+  function openDelegate(target: string, agentId: string): void {
+    write(target, { id: `delegate:${agentId}`, kind: 'delegate', resourceId: agentId })
+  }
+
+  function openFile(target: string, resourceId: string): void {
+    write(target, { id: `file:${resourceId}`, kind: 'file', resourceId })
+  }
+
+  function closeFilePanes(): void {
+    const current = held()
+    const kept = current.panes.filter((pane) => pane.kind !== 'file')
+
+    if (kept.length === current.panes.length) {
+      return
+    }
+
+    keep({ ...current, panes: kept })
   }
 
   function closePane(id: string): void {
-    if (!panes.some((pane) => pane.id === id)) {
+    const current = held()
+
+    if (!current.panes.some((pane) => pane.id === id)) {
       return
     }
-    panes = panes.filter((open) => open.id !== id)
-    publish()
+
+    keep({ ...current, panes: current.panes.filter((open) => open.id !== id) })
   }
 
   return {
@@ -258,12 +369,24 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
       run('set-visible', () => port.setVisible(visible))
     },
 
+    setOwner: (next, browser): void => {
+      if (next === owner && browser === ownsBrowser) {
+        return
+      }
+
+      owner = next
+      ownsBrowser = browser
+      publish()
+    },
+
     reportViewport: (rect): void => {
       run('set-bounds', () => port.setViewportBounds(rect))
     },
 
     openLauncherPane,
     openDelegate,
+    openFile,
+    closeFilePanes,
     closePane,
     selectPane,
     selectBrowser,

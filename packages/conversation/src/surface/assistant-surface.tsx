@@ -5,6 +5,7 @@ import type { SessionConfigControl } from '../agent/config'
 import type { AgentSessionPort } from '../agent/session'
 import type { SessionUsage } from '../agent/usage'
 import { AssistantComposer } from './composer/assistant-composer'
+import { ComposerNotice } from './composer/composer-notice'
 import { useDockClearance } from './composer/dock-clearance'
 import { ComposerDraftKeyContext } from './composer/drafts-context'
 import type { PermissionDockProps } from './composer/permission-dock'
@@ -19,6 +20,9 @@ import { WorkspacePicker, type WorkspacePickerProps } from './threads/workspace-
 import { TranscriptView } from './timeline/transcript-view'
 import type { AssistantSubmission } from './transcript/use-assistant-session'
 import { useAssistantInteractions, useAssistantSession } from './transcript/use-assistant-session'
+
+/* 连不上 agent 时输入区上沿那一句；原文（controlsFailure）只做 title。 */
+const DISCONNECTED = '没连上 agent，点击重试'
 
 export interface AssistantSurfaceProps {
   /** 这一格从出生起持有的稳定对话标识。 */
@@ -51,10 +55,11 @@ export interface AssistantSurfaceProps {
    * 对话由上层持有。这一层只负责把它画出来。
    */
   readonly controls: readonly SessionConfigControl[]
+  /** 没能连上 agent 时那句话的原样；只做提示条的 title，正文是 DISCONNECTED。 */
   readonly controlsFailure?: string | undefined
   readonly onSelectControl: (controlId: string, value: string, input?: string) => void
-  /** 认领或改动失败之后重新问一次。 */
-  readonly onRetryControls?: (() => void) | undefined
+  /** 重新连一次。交回这一趟的承诺：重试图标转多久由它说了算。 */
+  readonly onRetryControls?: (() => void | Promise<void>) | undefined
   /**
    * 新对话入口即将使用的工作目录。
    *
@@ -240,16 +245,19 @@ export const AssistantSurface = memo(function AssistantSurface({
       ) : null}
       <PromptQueue onEdit={edit} outbox={assistant.outbox} />
 
+      {/* 连不上 agent：卡上沿一条提示，不在工具栏里冒充模型选择器。 */}
+      {controlsFailure === undefined ? null : (
+        <ComposerNotice detail={controlsFailure} message={DISCONNECTED} onRetry={onRetryControls} />
+      )}
+
       <AssistantComposer
         approval={approval}
         controls={controls}
-        controlsFailure={controlsFailure}
         mcpServers={mcpServers}
         onAnswerQuestions={assistant.answerQuestions}
         onCancel={assistant.cancel}
         onContinue={continueConversation}
         onDismissQuestions={assistant.dismissQuestions}
-        onRetryControls={onRetryControls}
         onSelectControl={onSelectControl}
         onSubmit={submit}
         question={question}
