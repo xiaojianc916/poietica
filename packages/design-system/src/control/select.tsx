@@ -60,7 +60,7 @@ const TRIGGER = cn(
   'disabled:cursor-not-allowed',
   'disabled:opacity-50',
   'h-[26px] gap-1 px-2 text-xs',
-  'w-auto max-w-full rounded-lg border-0 bg-transparent shadow-none hover:bg-accent data-[popup-open]:bg-accent',
+  'w-auto max-w-full rounded-lg border border-divider [--color-divider:var(--ui-card-divider)] bg-white hover:bg-[#f2f3f3] data-[popup-open]:bg-[#f2f3f3]',
 )
 
 const VALUE = cn('min-w-0 flex-1', 'truncate')
@@ -70,7 +70,7 @@ const VALUE = cn('min-w-0 flex-1', 'truncate')
  * 步进器与可搜索输入的记号。这里是有限离散值的弹出菜单，说的是「下面会展开一
  * 张列表」。
  */
-const ICON = cn('size-3.5', 'shrink-0', 'text-muted-foreground')
+const ICON = cn('size-3.5', 'shrink-0', 'text-muted-foreground/60')
 
 /*
  * 列表与分组合成一层。
@@ -102,7 +102,7 @@ const ITEM = cn(
   'rounded-[5px]',
   'outline-none',
   'transition-colors',
-  'data-[highlighted]:bg-[var(--ui-popup-highlight)]',
+  'data-[highlighted]:bg-[#f2f3f3]',
   'data-[highlighted]:text-[var(--ui-foreground)]',
   'data-[disabled]:pointer-events-none',
   'data-[disabled]:opacity-50',
@@ -168,7 +168,7 @@ export function Select<TValue extends string = string>({
           sideOffset={4}
         >
           <BaseSelect.Popup
-            className={popupSurfaceClassName}
+            className={cn(popupSurfaceClassName, '[--color-divider:#d1d3d3]')}
             style={{
               minInlineSize: `max(var(--anchor-width), ${POPUP_MIN_INLINE_SIZE})`,
               maxInlineSize: POPUP_MAX_INLINE_SIZE,

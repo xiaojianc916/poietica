@@ -1,0 +1,10 @@
+/*
+ * 技能市场卡片。
+ *
+ * 卡片 hover 时安装按钮同步高亮：按钮自身的 hover 是 bg-divider/70，
+ * 这里用 color-mix 复刻同一个效果，不依赖 Tailwind 的透明度修饰符
+ * （--color-divider 是完整色值而非 RGB 通道，/70 修饰符会失效）。
+ */
+.catalog-card:hover .catalog-card__install-btn:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-divider) 70%, transparent);
+}

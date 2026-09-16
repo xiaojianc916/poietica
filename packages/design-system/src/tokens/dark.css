@@ -9,13 +9,9 @@
   --ui-inverse-muted: rgb(255 255 255 / 68%);
   --ui-inverse-border: rgb(255 255 255 / 18%);
 
-  /*
-   * 页面上抬起的一张卡（设置分组、关于面板）。
-   * 和 --ui-surface 分开：浅色主题下这张卡比页面暗（下沉），深色下比页面
-   * 亮（抬起），极性相反，一个令牌表达不了两种关系。
-   */
-  --ui-card: var(--ui-palette-dark-900);
+  /* 卡面即页面底色（见 light.css 同名注释）；线与框沿用区域线那档墨量。 */
   --ui-card-divider: var(--ui-region-divider-color);
+  --ui-card-frame: var(--ui-surface-frame);
   --ui-chrome: var(--ui-palette-dark-950);
   --ui-ground: var(--ui-palette-dark-900);
 

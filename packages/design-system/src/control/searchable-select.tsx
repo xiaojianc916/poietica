@@ -38,7 +38,7 @@ export function SearchableSelect<TValue extends string = string>({
       <Combobox.Trigger
         aria-label={type}
         className={cn(
-          'flex h-[30px] w-full items-center justify-between gap-2 rounded-lg bg-surface px-2 text-xs text-foreground outline-none transition-colors hover:bg-[var(--ui-popup-highlight)] focus-visible:ring-2 focus-visible:ring-ring',
+          'flex h-[30px] w-full items-center justify-between gap-2 rounded-lg border border-divider [--color-divider:var(--ui-card-divider)] bg-white px-2 text-xs text-foreground outline-none transition-colors hover:bg-[#f2f3f3] focus-visible:ring-2 focus-visible:ring-ring',
           className,
         )}
         id={id}
@@ -46,14 +46,14 @@ export function SearchableSelect<TValue extends string = string>({
       >
         <Combobox.Value placeholder={`选择${type}…`} />
         <Combobox.Icon>
-          <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground" />
+          <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground/60" />
         </Combobox.Icon>
       </Combobox.Trigger>
       <Combobox.Portal>
         <Combobox.Positioner className={popupPositionerClassName} sideOffset={4}>
           <Combobox.Popup
             aria-label={`选择${type}`}
-            className={popupSurfaceClassName}
+            className={cn(popupSurfaceClassName, '[--color-divider:#d1d3d3]')}
             style={{
               minInlineSize: `max(var(--anchor-width), 240px)`,
               maxInlineSize: '320px',
@@ -78,7 +78,7 @@ export function SearchableSelect<TValue extends string = string>({
             <Combobox.List className="searchable-select__list grid max-h-64 gap-0.5 overflow-y-auto p-1 outline-none">
               {(option: SelectOption<TValue>) => (
                 <Combobox.Item
-                  className="flex min-h-8 cursor-default select-none items-center gap-2 rounded-[6px] px-2 text-xs outline-none transition-colors data-[highlighted]:bg-[var(--ui-popup-highlight)]"
+                  className="flex min-h-8 cursor-default select-none items-center gap-2 rounded-[6px] px-2 text-xs outline-none transition-colors data-[highlighted]:bg-[#f2f3f3]"
                   key={option.value}
                   value={option}
                 >

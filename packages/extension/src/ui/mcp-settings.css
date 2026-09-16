@@ -38,7 +38,7 @@
 .mcp__divider {
   inline-size: 1px;
   block-size: 18px;
-  background: var(--ui-divider);
+  background: var(--settings-divider);
 }
 
 .mcp__search {
@@ -48,7 +48,7 @@
   margin-inline-start: auto;
   flex: 0 1 340px;
   min-inline-size: 160px;
-  border: 1px solid var(--ui-divider);
+  border: 1px solid var(--settings-divider);
   border-radius: 10px;
   padding: 0 12px;
   background: var(--ui-background);
@@ -79,7 +79,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid var(--ui-divider);
+  border: 1px solid var(--settings-divider);
   border-radius: 999px;
   padding: 5px 11px;
   background: var(--ui-background);
@@ -122,7 +122,7 @@
   justify-content: center;
   inline-size: 30px;
   block-size: 30px;
-  border: 1px solid var(--ui-divider);
+  border: 1px solid var(--settings-divider);
   border-radius: 8px;
   background: var(--ui-background);
   color: var(--ui-foreground);
@@ -154,13 +154,16 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  height: 30px;
   border: 0;
   border-radius: 8px;
-  padding: 7px 12px;
+  padding: 0 12px;
   background: var(--ui-foreground);
   color: var(--ui-background);
   font: inherit;
+  font-size: 13px;
   font-weight: 500;
+  line-height: 1;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -175,6 +178,7 @@
 }
 
 .mcp__primary--lg {
+  height: auto;
   padding: 9px 16px;
 }
 
@@ -182,7 +186,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid var(--ui-divider);
+  border: 1px solid var(--settings-divider);
   border-radius: 8px;
   padding: 9px 16px;
   background: var(--ui-background);
@@ -220,7 +224,7 @@
   justify-items: center;
   gap: 6px;
   padding: 40px 24px;
-  border: 1px dashed var(--ui-divider);
+  border: 1px dashed var(--settings-divider);
   border-radius: 12px;
   text-align: center;
 }
@@ -243,22 +247,33 @@
   margin-block-start: 10px;
 }
 
-/* 服务器卡片：浅灰整行 */
+/* 服务器卡片：与设置界面同款白卡 —— 卡面即页面底色，边界由外框承担。 */
 .mcp__cards {
   display: grid;
-  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
+  border: 1px solid var(--ui-card-frame);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--ui-background);
 }
 
 .mcp-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 11px 16px;
-  border-radius: 12px;
-  background: var(--ui-card);
+}
+
+.mcp-card + .mcp-card::before {
+  content: "";
+  position: absolute;
+  inset-inline: 16px;
+  inset-block-start: 0;
+  block-size: 0;
+  border-block-start: 1px solid var(--ui-card-divider);
 }
 
 .mcp-card__icon {
@@ -274,7 +289,7 @@
   inline-size: 11px;
   block-size: 11px;
   border-radius: 50%;
-  border: 2px solid var(--ui-card);
+  border: 2px solid var(--ui-background);
   background: var(--ui-muted-foreground);
 }
 
@@ -333,17 +348,51 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  padding-block-start: 36px;
 }
 
 .mcp-create__title {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  flex-direction: column;
+  gap: 12px;
   min-inline-size: 0;
 }
 
-.mcp-create__title .mcp__icon-btn {
-  margin-block-start: 3px;
+.mcp-breadcrumb {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 12px 32px;
+  z-index: 1;
+}
+
+.mcp-breadcrumb__link {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  color: var(--ui-foreground);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.mcp-breadcrumb__link:hover {
+  background: var(--ui-sunken);
+}
+
+.mcp-breadcrumb__separator {
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+}
+
+.mcp-breadcrumb__current {
+  color: var(--ui-foreground);
+  font-weight: 500;
 }
 
 .mcp-create__head p {
@@ -356,7 +405,7 @@
   gap: 2px;
   border-radius: 999px;
   padding: 3px;
-  background: var(--ui-card);
+  background: var(--ui-sunken);
 }
 
 .mcp-create__tab {
@@ -378,7 +427,7 @@
 .mcp-create__card {
   display: grid;
   gap: 14px;
-  border: 1px solid var(--ui-divider);
+  border: 1px solid var(--settings-divider);
   border-radius: 12px;
   padding: 20px;
   background: var(--ui-background);
@@ -449,7 +498,7 @@
   box-sizing: border-box;
   inline-size: 100%;
   min-inline-size: 0;
-  border: 1px solid var(--ui-divider);
+  border: 1px solid var(--settings-divider);
   border-radius: 8px;
   padding: 8px 10px;
   background: var(--ui-background);

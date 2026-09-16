@@ -9,6 +9,7 @@
   block-size: calc(100vh - 146px);
   max-block-size: 760px;
   overflow: hidden;
+  border: 1px solid var(--settings-frame);
   border-radius: 12px;
   background: var(--settings-surface);
 }
@@ -59,7 +60,6 @@
 
 .skill-library__source {
   align-self: flex-start;
-  background: var(--settings-field);
 }
 
 .skill-library__list {

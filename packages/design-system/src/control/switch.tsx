@@ -16,13 +16,13 @@ export type SwitchProps = ComponentProps<typeof BaseSwitch.Root> & {
  * 所以尺寸只有这一张表，使用方通过 size 选择，不通过样式覆盖。
  */
 const ROOT_SIZE: Record<SwitchSize, string> = {
-  sm: 'h-[16px] w-[28px]',
-  md: 'h-[22px] w-[38px]',
+  sm: 'h-[18px] w-[32px]',
+  md: 'h-[24px] w-[42px]',
 }
 
 const THUMB_SIZE: Record<SwitchSize, string> = {
-  sm: 'size-3 data-[unchecked]:translate-x-[2px] data-[checked]:translate-x-[14px]',
-  md: 'size-4 data-[unchecked]:translate-x-[3px] data-[checked]:translate-x-[19px]',
+  sm: 'size-[14px] data-[unchecked]:translate-x-[2px] data-[checked]:translate-x-[16px]',
+  md: 'size-[18px] data-[unchecked]:translate-x-[3px] data-[checked]:translate-x-[21px]',
 }
 
 /**
@@ -58,7 +58,8 @@ export function Switch({ className, children, size = 'md', ...props }: SwitchPro
         'disabled:cursor-not-allowed',
         'disabled:opacity-45',
 
-        'data-[checked]:bg-primary',
+        /* 开启态这支亮蓝与主色（更深、偏紫）不是一支，只服务开关，写字面值。 */
+        'data-[checked]:bg-[#339cff]',
         'data-[unchecked]:bg-input/70',
 
         'motion-reduce:transition-none',
@@ -72,9 +73,6 @@ export function Switch({ className, children, size = 'md', ...props }: SwitchPro
           THUMB_SIZE[size],
           'rounded-full',
           'bg-background',
-          'shadow-[var(--ui-shadow-xs)]',
-          'ring-1',
-          'ring-black/5',
 
           'transition-transform',
           'duration-[var(--ui-duration-fast)]',

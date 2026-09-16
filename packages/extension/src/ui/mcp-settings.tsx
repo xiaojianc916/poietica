@@ -8,17 +8,7 @@ import {
   DropdownMenuTrigger,
   Switch,
 } from '@poietica/design-system'
-import {
-  ArrowLeft,
-  Check,
-  ChevronDown,
-  Download,
-  Ellipsis,
-  Monitor,
-  Plus,
-  RotateCw,
-  Search,
-} from 'lucide-react'
+import { Check, ChevronDown, Download, Monitor, Plus, RotateCw, Search } from 'lucide-react'
 import { type FormEvent, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { builtinServerRows, groupRows, matches } from '../catalog/listing'
 import { type McpEntry, mcpEntryFromForm, parseMcpImport } from '../mcp-config'
@@ -39,6 +29,12 @@ import './mcp-settings.css'
 
 type CreateTab = 'form' | 'json'
 
+/*
+ * 本应用自己托管的内置服务器：自动化引擎与浏览器 CDP 桥。
+ * 它们写进同一份 mcp.json，但删了就等于把应用的核心能力拆了，所以不允许删除。
+ */
+const BUILTIN_MANAGED_SERVERS = ['poietica-automations', 'poietica-browser'] as const
+
 export function McpSettings({ store }: { readonly store: PluginStore }) {
   const view = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const [needle, setNeedle] = useState('')
@@ -54,14 +50,10 @@ export function McpSettings({ store }: { readonly store: PluginStore }) {
   }
 
   const query = needle.trim()
-  const userServers = view.mcpServers.filter(
-    (server) => server.origin.kind === 'user' && matches(query, server.name, '个人 用户'),
-  )
-  const pluginServers = view.mcpServers.filter(
-    (server) =>
-      server.origin.kind === 'plugin' && matches(query, server.name, server.origin.pluginId),
-  )
-  const pluginGroups = groupPluginServers(pluginServers)
+  const installedServers = view.mcpServers.filter((server) => {
+    const keywords = server.origin.kind === 'plugin' ? server.origin.pluginId : '个人 用户'
+    return matches(query, server.name, keywords)
+  })
 
   return (
     <section aria-label="MCP 服务器管理" className="mcp">
@@ -85,21 +77,16 @@ export function McpSettings({ store }: { readonly store: PluginStore }) {
       </div>
 
       <div className="mcp__installed">
-        <span className="mcp__count">
-          已安装 <span className="mcp__muted">{userServers.length}</span>
-        </span>
+        <span className="mcp__count">已安装</span>
         <div className="mcp__toolbar">
-          <DropdownMenu>
-            <DropdownMenuTrigger aria-label="更多操作" className="mcp__icon-btn">
-              <Ellipsis aria-hidden="true" size={16} />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setTab('json')}>
-                <Download aria-hidden="true" size={15} />
-                导入 JSON
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <button
+            aria-label="导入 JSON"
+            className="mcp__icon-btn"
+            onClick={() => setTab('json')}
+            type="button"
+          >
+            <Download aria-hidden="true" size={14} />
+          </button>
           <button
             aria-label="刷新"
             className="mcp__icon-btn"
@@ -108,7 +95,7 @@ export function McpSettings({ store }: { readonly store: PluginStore }) {
             type="button"
           >
             <span className={busy ? 'mcp__spin' : undefined}>
-              <RotateCw aria-hidden="true" size={15} />
+              <RotateCw aria-hidden="true" size={14} />
             </span>
           </button>
           <button
@@ -133,12 +120,12 @@ export function McpSettings({ store }: { readonly store: PluginStore }) {
         <p className="mcp__muted" role="status">
           正在读取 MCP 配置…
         </p>
-      ) : query !== '' && userServers.length === 0 && pluginServers.length === 0 ? (
+      ) : query !== '' && installedServers.length === 0 ? (
         <div className="mcp__empty">
           <strong>没有匹配的 MCP 服务器</strong>
           <p>试试其他名称，或清空搜索。</p>
         </div>
-      ) : userServers.length === 0 && query === '' ? (
+      ) : installedServers.length === 0 && query === '' ? (
         <div className="mcp__empty">
           <strong>尚未安装 MCP 服务器</strong>
           <p>手动新建服务器，或导入已有配置。</p>
@@ -159,38 +146,23 @@ export function McpSettings({ store }: { readonly store: PluginStore }) {
         </div>
       ) : (
         <ul className="mcp__cards">
-          {userServers.map((server) => (
+          {installedServers.map((server) => (
             <ServerCard
               busy={busy}
-              key={`user/${server.name}`}
+              key={`${server.origin.kind}/${server.name}`}
               onRemove={() => setRemoving(server.name)}
               onToggle={(enabled) => store.setMcpServerEnabled(server.origin, server.name, enabled)}
-              removable
+              removable={
+                server.origin.kind === 'user' &&
+                !BUILTIN_MANAGED_SERVERS.includes(
+                  server.name as (typeof BUILTIN_MANAGED_SERVERS)[number],
+                )
+              }
               server={server}
             />
           ))}
         </ul>
       )}
-
-      {pluginGroups.map((group) => (
-        <div className="mcp__group" key={group.title}>
-          <h2 className="mcp__group-title">
-            {group.title} <span className="mcp__muted">{group.rows.length}</span>
-          </h2>
-          <ul className="mcp__cards">
-            {group.rows.map((server) => (
-              <ServerCard
-                busy={busy}
-                key={`plugin/${group.title}/${server.name}`}
-                onToggle={(enabled) =>
-                  store.setMcpServerEnabled(server.origin, server.name, enabled)
-                }
-                server={server}
-              />
-            ))}
-          </ul>
-        </div>
-      ))}
 
       <CatalogGrid
         action={{
@@ -224,26 +196,6 @@ export function McpSettings({ store }: { readonly store: PluginStore }) {
       />
     </section>
   )
-}
-
-/* 插件带来的服务器按插件号分组：同一家的收在一组里，组名就是插件号。 */
-function groupPluginServers(servers: readonly ResolvedMcpServer[]): readonly {
-  readonly title: string
-  readonly rows: readonly ResolvedMcpServer[]
-}[] {
-  const buckets = new Map<string, ResolvedMcpServer[]>()
-  for (const server of servers) {
-    if (server.origin.kind !== 'plugin') {
-      continue
-    }
-    const bucket = buckets.get(server.origin.pluginId)
-    if (bucket === undefined) {
-      buckets.set(server.origin.pluginId, [server])
-    } else {
-      bucket.push(server)
-    }
-  }
-  return [...buckets.entries()].map(([title, rows]) => ({ title, rows }))
 }
 
 /*
@@ -304,7 +256,14 @@ function ServerCard({
       </div>
       <div className="mcp-card__actions">
         {removable === true && onRemove !== undefined ? (
-          <Button disabled={busy} onClick={onRemove} size="xs" type="button" variant="ghost">
+          <Button
+            className="bg-[#f3f3f4] hover:bg-[#e8e8e8]"
+            disabled={busy}
+            onClick={onRemove}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
             删除
           </Button>
         ) : null}
@@ -334,14 +293,15 @@ function McpCreatePage({
     <section aria-label="新建 MCP 服务器" className="mcp">
       <div className="mcp-create__head">
         <div className="mcp-create__title">
-          <button
-            aria-label="返回 MCP 列表"
-            className="mcp__icon-btn"
-            onClick={onClose}
-            type="button"
-          >
-            <ArrowLeft aria-hidden="true" size={15} />
-          </button>
+          <nav aria-label="面包屑" className="mcp-breadcrumb">
+            <button className="mcp-breadcrumb__link" onClick={onClose} type="button">
+              MCP 服务器
+            </button>
+            <span aria-hidden="true" className="mcp-breadcrumb__separator">
+              ›
+            </span>
+            <span className="mcp-breadcrumb__current">新建 MCP 服务器</span>
+          </nav>
           <div>
             <h1 className="mcp__title">新建 MCP 服务器</h1>
             <p className="mcp__muted">填写新的 MCP 配置，保存后返回列表。</p>
@@ -586,7 +546,7 @@ function McpFields({ entry }: { readonly entry: McpEntry }) {
   const [transport, setTransport] = useState(
     String(body['transport'] ?? (body['command'] === undefined ? 'http' : 'stdio')),
   )
-  const [envOpen, setEnvOpen] = useState(true)
+  const [envOpen, setEnvOpen] = useState(false)
   const text = (key: string) =>
     typeof body[key] === 'string' || typeof body[key] === 'number' ? String(body[key]) : ''
   const json = (key: string, fallback: unknown) => JSON.stringify(body[key] ?? fallback, null, 2)
@@ -716,10 +676,6 @@ function McpFields({ entry }: { readonly entry: McpEntry }) {
           />
         ) : null}
       </div>
-      <p className="mcp__muted">
-        环境变量和请求头中的值会明文保存到 Agent 的 mcp.json。远程令牌优先填写 bearerTokenEnvVar
-        环境变量名；不要粘贴不必要的密钥。
-      </p>
     </div>
   )
 }

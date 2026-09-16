@@ -94,8 +94,8 @@
   position: absolute;
   inset-inline: var(--settings-divider-inset);
   inset-block-start: 0;
-  block-size: 2px;
-  background: var(--settings-divider);
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
 }
 
 .archived-chats__row-copy {
@@ -154,7 +154,7 @@
 
 .archived-chats__message {
   margin: 0;
-  border: 0;
+  border: 1px solid var(--settings-frame);
   border-radius: 10px;
   padding: 16px 14px;
   background: var(--settings-surface);

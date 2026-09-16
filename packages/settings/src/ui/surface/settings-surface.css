@@ -1,9 +1,9 @@
 /*
  * 设置界面样式：单层。一个选择器只在这里定义一次。
  *
- * 面板底色、2px 分割线与分割线两侧内缩，是整个设置界面的规则，不只是某一
- * 个分类。色值一律来自设计系统的语义令牌，本表只做命名，模型页等子样式表
- * 只做别名。
+ * 卡片是白卡：卡面即页面底色，边界由 1px 外框承担；卡内是 1px 分隔线、
+ * 两侧内缩，是整个设置界面的规则，不只是某一个分类。色值一律来自设计
+ * 系统的语义令牌，本表只做命名，模型页等子样式表只做别名。
  *
  * 分割线用 ::before 画而不是 border-block-start：要求是两侧内缩不接到底，
  * 边框做不到。这里的 position 只作用于行自身，不参与外壳栅格。
@@ -127,14 +127,19 @@
 
 .settings-content {
   /*
-   * 设置界面的三个面色，取值全部来自语义令牌，深浅两套主题各自给值。
+   * 设置界面的面色，取值全部来自语义令牌，深浅两套主题各自给值。
    * 子样式表（models-settings.css 等）只允许引用，不允许再写一遍色值。
+   *
+   * 输入格取 sunken 而不是 surface：卡面已与页面同白，白格放在白卡上
+   * 等于没有格；sunken 在浅色下压暗、深色下提亮，两个主题都看得见。
    */
-  --settings-surface: var(--ui-card);
+  --settings-surface: var(--ui-background);
+  --settings-frame: var(--ui-card-frame);
   --settings-divider: var(--ui-card-divider);
-  --settings-field: var(--ui-surface);
+  --settings-field: var(--ui-sunken);
   --settings-divider-inset: 14px;
 
+  position: relative;
   block-size: 100%;
   min-block-size: 0;
   overflow-y: auto;
@@ -190,7 +195,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 0;
+  border: 1px solid var(--settings-frame);
   border-radius: 10px;
   background: var(--settings-surface);
 }
@@ -209,8 +214,8 @@
   position: absolute;
   inset-inline: var(--settings-divider-inset);
   inset-block-start: 0;
-  block-size: 2px;
-  background: var(--settings-divider);
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
 }
 
 .settings-row__copy {
@@ -266,15 +271,9 @@
  */
 
 /*
- * 轨与滑块的明暗关系相对卡片定，不相对页面定。
- *
- * --ui-surface 在两个主题里都是比卡更抬起的那一层，--ui-card 是卡片本身，而这两
- * 层的极性在浅色与深色下是相反的（见 light.css / dark.css 里 --ui-card 那一段）。
- * 拿 field 当槽、card 当滑块，浅色下就成了「白槽 + 与卡同色的滑块」—— 滑块和它
- * 趴着的卡一个颜色，等于没有滑块。
- *
- * 槽取分隔线那一档：两个主题都把它定义成「在卡上看得见」，浅色压暗、深色提亮，
- * 各自成立。
+ * 轨与滑块的明暗都相对卡面兑出来：轨掺分隔线的灰，滑块掺前景的墨。
+ * 两个主题各自成立 —— 浅色下两者都比白卡暗、深色下都比卡面亮，
+ * 不靠任何一套主题专用的字面值。
  */
 .settings-segmented {
   position: relative;
@@ -352,8 +351,8 @@
   content: "";
   inset-inline: var(--settings-divider-inset);
   inset-block-start: 0;
-  block-size: 2px;
-  background: var(--settings-divider);
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
 }
 
 .settings-metric {
@@ -369,8 +368,8 @@
   content: "";
   inset-block: var(--settings-divider-inset);
   inset-inline-start: 0;
-  inline-size: 2px;
-  background: var(--settings-divider);
+  inline-size: 0;
+  border-inline-start: 1px solid var(--settings-divider);
 }
 
 .settings-metric:nth-child(n + 4)::after {
@@ -378,8 +377,8 @@
   content: "";
   inset-inline: var(--settings-divider-inset);
   inset-block-start: 0;
-  block-size: 2px;
-  background: var(--settings-divider);
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
 }
 
 .settings-metric__label {
@@ -535,12 +534,27 @@
 
 /* ---------------- 局部区块 ---------------- */
 
+/*
+ * 设置界面操作按钮（soft variant）。
+ *
+ * 设计系统的 soft variant 取 --ui-divider，这里按需求压到更浅的两档灰：
+ * 常态 #f3f3f4，悬停 #e8e8e8。作用域限定在 .settings-content 内带 bg-divider
+ * 的按钮，不碰左侧导航、outline variant 的重试按钮或其他界面。
+ */
+.settings-content button.bg-divider {
+  background-color: #f3f3f4;
+}
+
+.settings-content button.bg-divider:hover {
+  background-color: #e8e8e8;
+}
+
 .settings-about-card {
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 16px 14px;
-  border: 0;
+  border: 1px solid var(--settings-frame);
   border-radius: 10px;
   background: var(--settings-surface);
 }
@@ -576,7 +590,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 12px 14px;
-  border: 0;
+  border: 1px solid var(--settings-frame);
   border-radius: 10px;
   background: var(--settings-surface);
 }
@@ -607,7 +621,7 @@
   gap: 0;
   margin: 0;
   overflow: hidden;
-  border: 0;
+  border: 1px solid var(--settings-frame);
   border-radius: 10px;
   background: var(--settings-surface);
 }
@@ -626,8 +640,8 @@
   position: absolute;
   inset-inline: var(--settings-divider-inset);
   inset-block-start: 0;
-  block-size: 2px;
-  background: var(--settings-divider);
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
 }
 
 .settings-about-details dt {

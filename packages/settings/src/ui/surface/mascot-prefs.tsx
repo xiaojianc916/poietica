@@ -82,14 +82,14 @@ export function MascotPrefsGroup() {
     <SettingsGroup title="吉祥物">
       <ToggleRow
         checked={tour}
-        description="欢迎页的小家伙自动在各个场景之间巡演"
+        description="欢迎页的吉祥物自动在各个场景之间巡演"
         label="自动巡演"
         onChange={writeTour}
       />
 
       <ToggleRow
         checked={follow}
-        description="小家伙的目光与身体跟随鼠标指针"
+        description="吉祥物的目光与身体跟随鼠标指针"
         label="跟随指针"
         onChange={writeFollow}
       />

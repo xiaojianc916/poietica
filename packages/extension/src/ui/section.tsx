@@ -9,23 +9,21 @@ import type { ReactNode } from 'react'
 
 export interface SectionProps {
   readonly title: string
-  readonly count?: number | undefined
   readonly hint?: string | undefined
   readonly action?: ReactNode
   readonly children: ReactNode
 }
 
-export function Section({ action, children, count, hint, title }: SectionProps) {
+export function Section({ action, children, hint, title }: SectionProps) {
   return (
     <section className="pt-9">
       <div className="flex items-center gap-4 pb-4">
-        <div className="flex shrink-0 items-baseline gap-2">
-          <h2 className="text-[13px] font-medium">{title}</h2>
-          {count === undefined ? null : (
-            <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
-          )}
-        </div>
-        <span aria-hidden="true" className="h-px min-w-8 flex-1 bg-divider/70" />
+        <h2 className="shrink-0 text-[13px] font-medium">{title}</h2>
+        <span
+          aria-hidden="true"
+          className="h-0 min-w-8 flex-1 border-t"
+          style={{ borderColor: 'var(--ui-sunken)' }}
+        />
         {action === undefined ? null : <div className="shrink-0">{action}</div>}
       </div>
       {hint === undefined ? null : (

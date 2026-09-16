@@ -11,6 +11,7 @@ import {
 
 import { PluginGlyph } from './plugin-glyph'
 import { Section } from './section'
+import './catalog-grid.css'
 
 const VISIBLE = 6
 
@@ -59,7 +60,6 @@ function CatalogSection({ action, group }: CatalogSectionProps) {
           </Button>
         ) : undefined
       }
-      count={group.rows.length}
       title={group.title}
     >
       <ul className="grid grid-cols-1 gap-x-8 gap-y-1 md:grid-cols-2">
@@ -82,11 +82,11 @@ function CatalogCard({ action, row }: CatalogCardProps) {
    * 名字与说明完整换行显示，不会被挤成一两个字加省略号。
    */
   return (
-    <li className="group flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-2 rounded-2xl px-3 py-3 transition-colors hover:bg-muted/60">
+    <li className="catalog-card group flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-2 rounded-2xl px-3 py-3 transition-colors hover:bg-[#f3f3f4]">
       <PluginGlyph displayName={row.displayName} id={row.id} size="md" />
       <div className="min-w-36 flex-1">
         <span className="block text-sm font-medium break-words">{row.displayName}</span>
-        <span className="block pt-0.5 text-[13px] break-words text-muted-foreground">
+        <span className="block pt-0.5 text-[13px] truncate text-muted-foreground">
           {row.description}
         </span>
       </div>
@@ -179,7 +179,13 @@ function InstallServer({ id, onInstall, resolveLauncher }: InstallServerProps) {
       ) : (
         <span className="max-w-44 text-[11px] break-words text-destructive">{absent}</span>
       )}
-      <Button disabled={missing} onClick={install} size="xs" variant="soft">
+      <Button
+        className="catalog-card__install-btn"
+        disabled={missing}
+        onClick={install}
+        size="xs"
+        variant="soft"
+      >
         安装
       </Button>
     </div>

@@ -93,44 +93,6 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
     input: undefined,
   },
   {
-    id: 'github',
-    displayName: 'GitHub',
-    description: '仓库、议题、拉取请求与代码搜索，官方托管的远端服务器。',
-    group: '代码与协作',
-    homepage: 'https://github.com/github/github-mcp-server',
-    transport: { kind: 'http', url: 'https://api.githubcopilot.com/mcp/' },
-    needs: '要一枚 GitHub PAT，homepage 有申请入口。',
-    input: {
-      label: 'GitHub PAT',
-      placeholder: 'ghp_…',
-      required: true,
-      apply: (body, value) => ({ ...body, headers: { Authorization: `Bearer ${value}` } }),
-    },
-  },
-  {
-    id: 'filesystem',
-    displayName: 'Filesystem',
-    description: '在你圈定的目录里读写文件，越界一律拒绝。',
-    group: '本机能力',
-    homepage: 'https://github.com/modelcontextprotocol/servers',
-    transport: {
-      kind: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-filesystem'],
-    },
-    needs: '要指定允许它进的目录 —— 不指定它进不去任何地方。',
-    input: {
-      label: '允许访问的目录',
-      placeholder: '这台机器上的一个目录路径',
-      required: true,
-      /* 追加到启动式后面，不整个换掉：前缀里垫着解析出的启动器参数。 */
-      apply: (body, value) => ({
-        ...body,
-        args: [...(body['args'] as readonly string[]), value],
-      }),
-    },
-  },
-  {
     id: 'memory',
     displayName: 'Memory',
     description: '一张跨会话的知识图：把事实记下来，下一次接着用。',

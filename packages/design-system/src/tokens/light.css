@@ -11,11 +11,11 @@
   --ui-inverse-border: rgb(255 255 255 / 12%);
 
   /*
-   * 抬起的一张卡。浅色下它比页面暗，取值沿用设置界面此前写死的那两个
-   * 十六进制，所以浅色主题是零像素差；深色主题在 dark.css 里给。
+   * 设置卡片的卡内线与外框。卡片不再填灰：卡面即页面底色，边界由外框
+   * 承担，两者同色。曾经的填充色 --ui-card 随灰卡一起退役。
    */
-  --ui-card: #efefef;
-  --ui-card-divider: #e7e7e7;
+  --ui-card-divider: #ededed;
+  --ui-card-frame: #ededed;
   --ui-chrome: var(--ui-palette-neutral-75);
   --ui-ground: var(--ui-palette-white);
 

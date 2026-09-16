@@ -22,6 +22,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border: 1px solid var(--settings-frame);
   border-radius: 10px;
   background: var(--models-surface);
 }
@@ -166,6 +167,7 @@
 .models-notice {
   margin: 0;
   padding: 10px 12px;
+  border: 1px solid var(--settings-frame);
   border-radius: 10px;
   background: var(--models-surface);
   color: var(--ui-muted-foreground);
@@ -185,6 +187,7 @@
   block-size: var(--models-provider-workspace-height);
   min-block-size: 0;
   overflow: hidden;
+  border: 1px solid var(--settings-frame);
   border-radius: 12px;
   background: var(--models-surface);
 }
