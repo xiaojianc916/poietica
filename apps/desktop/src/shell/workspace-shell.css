@@ -146,6 +146,11 @@
   --color-divider: #ededed;
 }
 
+/* 右栏抓手再淡一档：基底已是更浅的 #ededed，墨量从基类的 22% 降到 14%。 */
+:root:not([data-theme="dark"]) .workspace-shell__divider--auxiliary::after {
+  --workspace-divider-grip: color-mix(in oklab, var(--color-foreground) 14%, #ededed);
+}
+
 /* 各侧的线只随自己那侧的停靠位隐没：基类共享，:not 把两侧开关圈开。 */
 .workspace-shell[data-sidebar-docked="false"]
 .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
@@ -161,9 +166,9 @@
 .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
 .workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
   .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
-.workspace-shell[data-splitter="hover"][data-splitter-region="browser"]
+.workspace-shell[data-splitter="hover"][data-splitter-region="auxiliary"]
   .workspace-shell__divider--auxiliary,
-.workspace-shell[data-splitter="drag"][data-splitter-region="browser"]
+.workspace-shell[data-splitter="drag"][data-splitter-region="auxiliary"]
   .workspace-shell__divider--auxiliary,
 .workspace-shell:has(.workspace-region-splitter[data-edge="inline-start"]:focus-visible)
   .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
@@ -175,7 +180,7 @@
 /* 拖拽中立刻浮现：指针已经按下去了，没有需要提防的擦边。 */
 .workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
 .workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
-.workspace-shell[data-splitter="drag"][data-splitter-region="browser"]
+.workspace-shell[data-splitter="drag"][data-splitter-region="auxiliary"]
   .workspace-shell__divider--auxiliary::after {
   opacity: 1;
 }
@@ -183,7 +188,7 @@
 /* 悬停要够 50ms 才浮现，擦边划过不闪。 */
 .workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
 .workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
-.workspace-shell[data-splitter="hover"][data-splitter-region="browser"]
+.workspace-shell[data-splitter="hover"][data-splitter-region="auxiliary"]
   .workspace-shell__divider--auxiliary::after {
   opacity: 1;
   transition-delay: var(--workspace-divider-hover-delay);

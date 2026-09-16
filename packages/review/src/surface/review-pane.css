@@ -200,20 +200,78 @@
 }
 
 /* 底面贴列的 inline-end：列收窄时从左侧被裁，内容不位移。
- * 起始缘是与主区的那根线：浅色 #ededed，深色沿用前景半透明；拖动时加深。 */
+ * 起始缘是与主区的那根线：浅色 #ededed，深色沿用前景半透明。 */
 .review-tree__surface {
   position: absolute;
   inset-block: 0;
   inset-inline-end: 0;
   border-inline-start: 1px solid #ededed;
+  transition: border-inline-start-color var(--workspace-layout-duration) ease;
 }
 
 :root[data-theme="dark"] .review-tree__surface {
   border-inline-start-color: color-mix(in srgb, currentColor 10%, transparent);
 }
 
+/*
+ * 左缘的抓手：与外壳 .workspace-shell__divider::after 同形 —— 一道上下渐隐、
+ * 中间 1.5px 的竖条。底色取本格 #ededed，所以比外壳那道（以全局分隔线为底）
+ * 更浅一档。hover 要够 50ms 才浮现，擦边划过不闪；drag 按下立刻浮现。
+ *
+ * 本元素带 1px inline-start 边框，padding-box 被它向右顶出 1px：inset 要多减
+ * 一个边框宽，抓手才压在线中心，否则线与抓手错开、在 150% 缩放下量成 3px。
+ */
+.review-tree__surface::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(-1.25 * var(--ui-region-divider-width));
+  inline-size: calc(var(--ui-region-divider-width) * 1.5);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, var(--color-foreground) 14%, #ededed),
+    transparent
+  );
+  opacity: 0;
+  transition: opacity var(--workspace-layout-duration) ease;
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] .review-tree__surface::after {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, #ffffff 12%, transparent),
+    transparent
+  );
+}
+
+/* 悬停：线轻轻加深一档，抓手 50ms 后浮现。 */
+.review-pane[data-splitter="hover"] .review-tree__surface {
+  border-inline-start-color: color-mix(in oklab, var(--color-foreground) 8%, #ededed);
+}
+
+.review-pane[data-splitter="hover"] .review-tree__surface::after {
+  opacity: 1;
+  transition-delay: 50ms;
+}
+
+:root[data-theme="dark"] .review-pane[data-splitter="hover"] .review-tree__surface {
+  border-inline-start-color: color-mix(in srgb, #ffffff 12%, transparent);
+}
+
+/* 拖拽：线色与悬停同档，抓手不等延迟立刻浮现。 */
 .review-pane[data-splitter="drag"] .review-tree__surface {
-  border-inline-start-color: color-mix(in srgb, currentColor 30%, transparent);
+  border-inline-start-color: color-mix(in oklab, var(--color-foreground) 8%, #ededed);
+}
+
+.review-pane[data-splitter="drag"] .review-tree__surface::after {
+  opacity: 1;
+}
+
+:root[data-theme="dark"] .review-pane[data-splitter="drag"] .review-tree__surface {
+  border-inline-start-color: color-mix(in srgb, #ffffff 12%, transparent);
 }
 
 /*

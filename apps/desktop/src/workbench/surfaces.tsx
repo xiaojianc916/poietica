@@ -1,6 +1,7 @@
 import type { AutomationStore } from '@poietica/automation'
 import type { AgentSessionPort, ComposerDrafts } from '@poietica/conversation'
 import { ComposerDraftsContext, useAgentControls } from '@poietica/conversation/surface'
+import { LoadingState } from '@poietica/design-system'
 import type { PersonalizationStore } from '@poietica/settings'
 import { lazy, type ReactNode, Suspense } from 'react'
 import { AssistantPane } from '../assistant/assistant-pane'
@@ -18,7 +19,7 @@ const DeferredPersonalizationSurface = lazy(() =>
   })),
 )
 function SurfaceLoading() {
-  return <p className="p-4 text-xs text-muted-foreground">正在加载…</p>
+  return <LoadingState label="Loading..." />
 }
 
 /**

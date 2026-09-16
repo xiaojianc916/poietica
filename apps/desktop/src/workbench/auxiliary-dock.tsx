@@ -3,6 +3,7 @@ import {
   DelegateChannelPane,
   useDelegateChannelNames,
 } from '@poietica/conversation/surface'
+import { LoadingState } from '@poietica/design-system'
 import { warn } from '@poietica/problem'
 import type { AuxiliaryPaneOffer } from '@poietica/workspace/panels'
 import {
@@ -92,7 +93,7 @@ export function AuxiliaryDock({ conversationId, isDocked, store, host }: Auxilia
       },
       terminal: {
         body: () => (
-          <Suspense fallback={<p className="p-4 text-xs opacity-50">正在加载终端…</p>}>
+          <Suspense fallback={<LoadingState label="Loading..." />}>
             <DeferredTerminalPane conversationId={conversationId} port={host.terminal} />
           </Suspense>
         ),
@@ -104,7 +105,7 @@ export function AuxiliaryDock({ conversationId, isDocked, store, host }: Auxilia
       },
       review: {
         body: () => (
-          <Suspense fallback={<p className="p-4 text-xs opacity-50">正在加载审查…</p>}>
+          <Suspense fallback={<LoadingState label="Loading..." />}>
             <DeferredReviewPane conversationId={conversationId} gateway={host.review} />
           </Suspense>
         ),
