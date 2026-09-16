@@ -11,12 +11,16 @@
   flex-direction: column;
   gap: 8px;
 }
-.models-block__label,
-.models-provider-rail__label {
+.models-block__label {
   color: var(--ui-muted-foreground);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
+}
+.models-required {
+  margin-inline-start: 2px;
+  color: var(--ui-destructive);
+  font-weight: 600;
 }
 .models-card {
   display: flex;
@@ -65,13 +69,6 @@
   font-size: 12px;
   line-height: 1.45;
 }
-.models-row__meta {
-  flex: none;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.45;
-}
 .models-toolbar {
   position: relative;
   display: flex;
@@ -90,22 +87,10 @@
   display: flex;
   flex-direction: column;
 }
-.models-readonly {
-  inline-size: 100%;
-  min-block-size: 32px;
-  padding: 7px 10px;
-  border: 1px solid #e4e4e5;
-  border-radius: 8px;
-  background: #fff;
-  color: var(--ui-foreground);
-  font-size: 12px;
-  line-height: 1.3;
-  outline: none;
-}
 .models-icon-button:focus-visible,
-.models-provider-item:focus-visible,
-.models-provider-add:focus-visible,
-.models-secret__toggle:focus-visible {
+.models-secret__toggle:focus-visible,
+.models-accordion-trigger:focus-visible,
+.models-catalog-row:focus-visible {
   outline: 2px solid var(--ui-ring);
   outline-offset: -2px;
 }
@@ -144,6 +129,9 @@
 .models-link:hover {
   text-decoration: underline;
 }
+.models-link--outside {
+  margin: -4px 0 0 14px;
+}
 .models-empty {
   margin: 0;
   padding: 18px 14px;
@@ -165,201 +153,218 @@
   justify-content: space-between;
   gap: 12px;
 }
-.models-provider-workspace {
-  --models-provider-workspace-height: 560px;
 
-  display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
-  block-size: var(--models-provider-workspace-height);
-  min-block-size: 0;
-  overflow: hidden;
-  border: 1px solid var(--settings-frame);
-  border-radius: 12px;
-  background: var(--models-surface);
-}
-.models-provider-rail {
+/* ── 供应商手风琴（动画复用 todo-panel：高度 + chevron 旋转） ─────── */
+
+.models-provider-head {
   display: flex;
-  min-block-size: 0;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border-inline-end: 1px solid var(--models-divider);
-}
-.models-provider-rail__groups {
-  display: flex;
-  min-block-size: 0;
-  flex: 1;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  overflow-y: auto;
-  scrollbar-width: none;
 }
-.models-provider-group {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: 4px;
+.models-accordion-item + .models-accordion-item {
+  border-block-start: 1px solid var(--models-divider);
 }
-.models-provider-rail__list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.models-accordion-header {
   margin: 0;
-  padding: 0;
-  overflow: visible;
 }
-.models-provider-rail__empty {
-  padding: 18px 10px;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-}
-.models-provider-panel::-webkit-scrollbar,
-.models-provider-rail__groups::-webkit-scrollbar,
-.models-provider-models::-webkit-scrollbar,
-.models-model-card::-webkit-scrollbar {
-  display: none;
-}
-.models-provider-order-item {
-  position: relative;
-  flex: none;
-  border-radius: 9px;
-  list-style: none;
-  cursor: grab;
-}
-.models-provider-order-item:active {
-  cursor: grabbing;
-}
-.models-provider-item,
-.models-provider-add {
+.models-accordion-trigger {
   display: flex;
   inline-size: 100%;
   align-items: center;
-  gap: 9px;
-  padding: 8px 9px;
-  border: 1px solid transparent;
-  border-radius: 9px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 0;
   background: transparent;
   color: var(--ui-foreground);
   text-align: start;
   cursor: pointer;
+  transition: background-color 140ms ease;
 }
-.models-provider-item:hover,
-.models-provider-add:hover,
-.models-provider-item[data-active="true"],
-.models-provider-add[data-active="true"] {
-  background: var(--models-field);
+.models-accordion-trigger:hover {
+  background: #f2f2f3;
 }
-.models-provider-item[data-active="true"],
-.models-provider-add[data-active="true"] {
-  border-color: var(--models-divider);
+.models-accordion-panel {
+  height: var(--accordion-panel-height);
+  overflow: hidden;
+  background: #ffffff;
+  border-block-start: 1px solid var(--models-divider);
+  transition: height 160ms ease-out;
 }
-.models-provider-item__icon {
-  inline-size: 17px;
-  block-size: 17px;
-  flex: none;
+.models-accordion-panel[data-starting-style],
+.models-accordion-panel[data-ending-style] {
+  height: 0;
 }
-.models-provider-item strong {
+.models-accordion-panel__inner {
+  padding: 14px;
+}
+.models-provider-summary {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 8px;
+}
+.models-provider-summary strong {
   min-inline-size: 0;
   overflow: hidden;
-  flex: 1;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.models-provider-item__status {
+.models-provider-pill {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid var(--models-divider);
+  border-radius: 999px;
+  color: var(--ui-muted-foreground);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.models-provider-dot {
   inline-size: 7px;
   block-size: 7px;
   flex: none;
   border-radius: 50%;
   background: color-mix(in srgb, currentColor 30%, transparent);
 }
-.models-provider-item__status[data-status="connected"] {
+.models-provider-dot[data-status="connected"] {
   background: var(--ui-success);
 }
-.models-provider-item__status[data-status="error"] {
+.models-provider-dot[data-status="error"] {
   background: var(--ui-destructive);
 }
-.models-provider-add {
+.models-provider-meta {
+  display: flex;
   flex: none;
+  align-items: center;
+  gap: 8px;
   color: var(--ui-muted-foreground);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
-.models-provider-editor {
-  min-block-size: 0;
-  min-inline-size: 0;
+.models-provider-chevron {
+  color: var(--ui-muted-foreground);
+  transition: transform 140ms ease;
 }
-.models-provider-panel {
+.models-accordion-trigger[data-panel-open] .models-provider-chevron {
+  transform: rotate(180deg);
+}
+
+/* ── 添加供应商面板 ─────────────────────────────────────────────────── */
+
+.models-add-tab {
   display: flex;
-  block-size: 100%;
-  min-block-size: 0;
   flex-direction: column;
-  overflow-y: auto;
-  padding: 18px;
-  scrollbar-width: none;
-}
-.models-provider-header {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-block-end: 12px;
-}
-.models-provider-heading {
-  display: flex;
-  min-inline-size: 0;
-  align-items: center;
   gap: 10px;
 }
-.models-provider-header h3 {
-  overflow: hidden;
-  margin: 0;
-  color: var(--ui-foreground);
-  font-size: 17px;
-  font-weight: 620;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.models-tab-panel {
+  padding-block-start: 12px;
 }
-/* 标题处内联改名：平时无框，聚焦才露底，与 h3 同字同尺寸。 */
-.models-provider-nameinput {
-  min-inline-size: 0;
-  inline-size: 12em;
-  max-inline-size: 100%;
-  padding: 0;
+.models-search-input {
+  border-radius: 10px;
+}
+.models-catalog-back {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 4px 6px;
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--ui-foreground);
-  font-size: 17px;
-  font-weight: 620;
-  outline: none;
-}
-.models-provider-nameinput:focus-visible {
-  background: var(--models-field);
-  outline: 2px solid var(--ui-ring);
-  outline-offset: 2px;
-}
-.models-provider-status {
-  flex: none;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--models-field);
   color: var(--ui-muted-foreground);
-  font-size: 10px;
+  font-size: 12px;
+  cursor: pointer;
 }
-.models-provider-status[data-status="connected"] {
-  background: var(--ui-success);
-  color: var(--ui-success-foreground);
+.models-catalog-back:hover {
+  color: var(--ui-foreground);
+  background: var(--models-field);
 }
-.models-provider-status[data-status="error"] {
-  background: color-mix(in oklab, var(--ui-destructive) 15%, transparent);
-  color: var(--ui-destructive);
+.models-form-footer--end {
+  justify-content: flex-end;
 }
-.models-button-danger:hover:not(:disabled) {
-  background: var(--ui-destructive);
-  color: var(--ui-destructive-foreground);
+.models-add-hint {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
 }
+.models-catalog-list {
+  display: flex;
+  flex-direction: column;
+  max-block-size: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--models-divider);
+  border-radius: 10px;
+  background: var(--models-surface);
+  scrollbar-width: none;
+}
+.models-catalog-list::-webkit-scrollbar {
+  display: none;
+}
+.models-catalog-row {
+  display: flex;
+  inline-size: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 0;
+  border-block-start: 1px solid var(--models-divider);
+  background: transparent;
+  color: var(--ui-foreground);
+  text-align: start;
+  cursor: pointer;
+}
+.models-catalog-row:first-child {
+  border-block-start: 0;
+}
+.models-catalog-row:hover:not(:disabled) {
+  background: #f2f2f3;
+}
+.models-catalog-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.models-catalog-row__main {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 8px;
+}
+.models-catalog-row__main strong {
+  min-inline-size: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.models-catalog-row__count {
+  flex: none;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.models-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-block-size: 36px;
+  margin-block-start: 4px;
+}
+.models-form-footer__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── 表单字段（沿用原设置页风格） ──────────────────────────────────── */
+
 .models-provider-form {
   display: flex;
   min-block-size: 0;
@@ -373,8 +378,7 @@
   gap: 6px;
   padding-block: 7px;
 }
-.models-field > label,
-.models-field > .models-field__label {
+.models-field > label {
   color: var(--ui-muted-foreground);
   font-size: 11px;
   font-weight: 550;
@@ -386,10 +390,6 @@
 .models-provider-select,
 .models-secret {
   inline-size: 100%;
-}
-.models-readonly {
-  display: block;
-  min-block-size: 32px;
 }
 .models-secret {
   position: relative;
@@ -415,165 +415,78 @@
 .models-secret__toggle:hover:not(:disabled) {
   color: var(--ui-foreground);
 }
-.models-provider-models {
-  display: flex;
-  min-block-size: 88px;
-  flex-direction: column;
-  margin-block-start: 10px;
-  overflow-y: auto;
-  border: 1px solid var(--models-divider);
-  border-radius: 10px;
-  background: var(--models-field);
-  scrollbar-width: none;
-}
-.models-provider-models {
-  max-block-size: 260px;
-}
-/* 紧凑模型卡：行内只留 ID 与徽标，编辑区/参数区行内展开。 */
+
+/* ── 模型列表编辑器（三列直填） ────────────────────────────────────── */
+
 .models-model-list {
   display: flex;
   min-block-size: 0;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-block-start: 10px;
 }
-.models-model-card {
+.models-model-grid {
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
   border: 1px solid var(--models-divider);
   border-radius: 10px;
-  background: var(--models-field);
-  scrollbar-width: none;
+  background: #ffffff;
 }
-.models-model-entry + .models-model-entry {
+.models-model-grid__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-block-end: 1px solid var(--models-divider);
+  background: var(--models-field);
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  font-weight: 550;
+}
+.models-model-grid__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+.models-model-grid__row + .models-model-grid__row {
   border-block-start: 1px solid var(--models-divider);
 }
-.models-model-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 8px 8px 10px;
-}
-.models-model-idwrap {
-  position: relative;
-  display: flex;
+.models-model-grid__row .settings-input {
   min-inline-size: 0;
-  flex: 1;
 }
-.models-model-id {
-  font-family: var(--font-mono);
-  padding-inline-end: 54px;
+.models-model-grid__add {
+  display: flex;
 }
-/* 只读行的 ID：与输入框同字同尺寸，对齐不跳。 */
-.models-model-idtext {
-  min-inline-size: 0;
-  flex: 1;
+.models-model-message {
   overflow: hidden;
-  color: var(--ui-foreground);
-  font-family: var(--font-mono);
-  font-size: 12px;
+  min-inline-size: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.models-model-badge {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-end: 8px;
-  transform: translateY(-50%);
-  border: 1px solid var(--models-divider);
-  border-radius: 999px;
-  padding: 1px 7px;
-  color: var(--ui-muted-foreground);
-  font-size: 10px;
-  pointer-events: none;
-}
-.models-model-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0 10px 10px;
 }
 .models-model-footer {
   display: flex;
   flex: none;
   align-items: center;
   gap: 8px;
-}
-.models-model-message {
-  overflow: hidden;
-  min-inline-size: 0;
-  flex: 1;
-  color: var(--ui-muted-foreground);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.models-provider-model {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 9px 12px;
-  border-block-start: 1px solid var(--models-divider);
-}
-.models-provider-model:first-child {
-  border-block-start: 0;
-}
-.models-provider-model > div {
-  display: flex;
-  min-inline-size: 0;
-  flex-direction: column;
-}
-.models-provider-model strong {
-  overflow: hidden;
-  color: var(--ui-foreground);
-  font-size: 12px;
-  font-weight: 550;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.models-thinking-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ui-muted-foreground);
-  font-size: 11px;
-}
-.models-actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-block-size: 42px;
-  margin-block-start: 10px;
+  margin-block-start: 4px;
   padding-block-start: 10px;
   border-block-start: 1px solid var(--models-divider);
 }
-.models-actions > span {
-  color: var(--ui-muted-foreground);
-  font-size: 11px;
+.models-model-footer__spacer {
+  flex: 1;
 }
-.models-actions > div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-@media (max-width: 900px) {
-  .models-provider-workspace {
-    block-size: auto;
-    grid-template-columns: minmax(0, 1fr);
-    overflow: visible;
-  }
-  .models-provider-panel {
-    block-size: var(--models-provider-workspace-height);
-  }
-  .models-provider-rail {
-    border-inline-end: 0;
-    border-block-end: 1px solid var(--models-divider);
+
+@media (prefers-reduced-motion: reduce) {
+  .models-accordion-panel,
+  .models-provider-chevron,
+  .models-accordion-trigger {
+    transition: none;
   }
 }
