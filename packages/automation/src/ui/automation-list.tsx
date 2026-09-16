@@ -22,7 +22,7 @@ export function AutomationList({ automations, pending, onOpen, store }: Automati
   if (automations.length === 0) {
     return (
       <p className="py-10 text-center text-xs text-muted-foreground">
-        还没有自动化。从下面的模板开始，或者新建一个。
+        还没有自动化。从下面的模板开始，或者新建一个
       </p>
     )
   }

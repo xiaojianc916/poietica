@@ -1,39 +1,53 @@
-import { useDeferredValue, useMemo, useState, useSyncExternalStore } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
+import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { KeybindingCatalog, KeybindingEntry } from '../index'
-import { SettingRow, SettingsGroup, SettingsPage } from './surface/settings-primitives'
+import { SettingsPage } from './surface/settings-primitives'
 
 export interface KeymapSettingsProps {
   readonly catalog: KeybindingCatalog
 }
 
 /*
- * 快捷键页读的是命令自己声明的那一份，不是第二张表。
+ * 快捷键页：搜索 + 可编辑列表。
  *
- * 这一页没有自己的样式表：卡片、行、分割线用的是 settings-primitives 那套排版
- * 词汇，和外观页、隐私页逐像素相同。此前它自建了一套描边卡片与键帽，等于同一
- * 个设置界面里有两种长相 —— 那正是这轮重构在收敛的那类问题。
+ * 编辑 / 删除是纯 UI 占位：状态留在组件本地，不写回命令注册表。
+ * 后端接入时把 setRows 换成真实的持久化调用即可。
  *
- * 不分类：分类的用途是在长列表里定位，而这一页顶上就是搜索框，两者解决同一个
- * 问题。命令面板需要分组，是因为它没有筛选之外的第二种导航方式。
- *
- * 还不可改写，所以这里不放输入框假装能改：一个拨得动却存不下的绑定比一句实话
- * 有害得多。可改写要先有冲突检测与持久化，那是下一批的事。
+ * 每行右侧是一个绑定列表：每个绑定自带编辑与删除；未分配的命令只显示
+ * 「未分配」+ 编辑入口。编辑态把胶囊换成「按下快捷键」输入框 + 取消。
  */
 export function KeymapSettings({ catalog }: KeymapSettingsProps) {
   const entries = useSyncExternalStore(catalog.subscribe, catalog.getSnapshot, catalog.getSnapshot)
 
-  const [query, setQuery] = useState('')
+  const [rows, setRows] = useState<readonly KeybindingEntry[]>(entries)
+  useEffect(() => {
+    setRows(entries)
+  }, [entries])
 
-  /* 搜索输入不该等列表重算：延后的是结果，不是光标。 */
+  const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query)
 
-  const visible = useMemo(() => filterEntries(entries, deferredQuery), [deferredQuery, entries])
+  /* 正在编辑的绑定：entryId + 绑定索引，-1 表示未分配命令的新增。 */
+  const [editing, setEditing] = useState<{
+    readonly entryId: string
+    readonly index: number
+  } | null>(null)
+
+  const visible = useMemo(() => filterRows(rows, deferredQuery), [deferredQuery, rows])
+
+  const removeBinding = (entryId: string, index: number) => {
+    setRows((current) =>
+      current.map((row) =>
+        row.id === entryId
+          ? { ...row, shortcuts: row.shortcuts.filter((_, i) => i !== index) }
+          : row,
+      ),
+    )
+  }
 
   return (
     <SettingsPage>
       <div className="settings-filter">
-        <p>快捷键由命令自身声明，暂不可改写。</p>
-
         <input
           aria-label="搜索快捷键"
           className="settings-input"
@@ -49,15 +63,102 @@ export function KeymapSettings({ catalog }: KeymapSettingsProps) {
       {visible.length === 0 ? (
         <p className="settings-placeholder">没有匹配的快捷键。</p>
       ) : (
-        <SettingsGroup>
+        <div className="settings-keymap-list">
           {visible.map((entry) => (
-            <SettingRow key={entry.id} label={entry.label}>
-              <kbd className="settings-shortcut">{entry.shortcut}</kbd>
-            </SettingRow>
+            <KeymapRow
+              editing={editing?.entryId === entry.id ? editing.index : null}
+              entry={entry}
+              key={entry.id}
+              onCancelEdit={() => setEditing(null)}
+              onDelete={removeBinding}
+              onStartEdit={(index) => setEditing({ entryId: entry.id, index })}
+            />
           ))}
-        </SettingsGroup>
+        </div>
       )}
     </SettingsPage>
+  )
+}
+
+interface KeymapRowProps {
+  readonly entry: KeybindingEntry
+  readonly editing: number | null
+  readonly onStartEdit: (index: number) => void
+  readonly onCancelEdit: () => void
+  readonly onDelete: (entryId: string, index: number) => void
+}
+
+function KeymapRow({ entry, editing, onStartEdit, onCancelEdit, onDelete }: KeymapRowProps) {
+  const hasBindings = entry.shortcuts.length > 0
+
+  return (
+    <div className="settings-keymap-row">
+      <div className="settings-keymap-row__copy">
+        <strong>{entry.label}</strong>
+        {entry.description ? <p>{entry.description}</p> : null}
+      </div>
+
+      <div className="settings-keymap-row__bindings">
+        {hasBindings ? (
+          entry.shortcuts.map((shortcut, index) =>
+            editing === index ? (
+              <BindingEditor key={`${entry.id}-editing`} onCancel={onCancelEdit} />
+            ) : (
+              <div className="settings-keymap-binding" key={shortcut}>
+                <kbd className="settings-keymap-binding__key">{shortcut}</kbd>
+                <button
+                  aria-label={`编辑 ${entry.label} 的快捷键`}
+                  className="settings-keymap-binding__icon"
+                  onClick={() => onStartEdit(index)}
+                  type="button"
+                >
+                  <Pencil size={14} strokeWidth={1.7} />
+                </button>
+                <button
+                  aria-label={`删除 ${entry.label} 的快捷键`}
+                  className="settings-keymap-binding__icon"
+                  onClick={() => onDelete(entry.id, index)}
+                  type="button"
+                >
+                  <Trash2 size={14} strokeWidth={1.7} />
+                </button>
+              </div>
+            ),
+          )
+        ) : editing === -1 ? (
+          <BindingEditor onCancel={onCancelEdit} />
+        ) : (
+          <div className="settings-keymap-binding">
+            <span className="settings-keymap-binding__unassigned">未分配</span>
+            <button
+              aria-label={`为 ${entry.label} 添加快捷键`}
+              className="settings-keymap-binding__icon"
+              onClick={() => onStartEdit(-1)}
+              type="button"
+            >
+              <Pencil size={14} strokeWidth={1.7} />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function BindingEditor({ onCancel }: { readonly onCancel: () => void }) {
+  return (
+    <div className="settings-keymap-binding">
+      <input
+        aria-label="按下快捷键"
+        className="settings-keymap-binding__input"
+        placeholder="按下快捷键"
+        readOnly
+        type="text"
+      />
+      <button className="settings-keymap-binding__cancel" onClick={onCancel} type="button">
+        取消
+      </button>
+    </div>
   )
 }
 
@@ -70,7 +171,7 @@ export function KeymapSettings({ catalog }: KeymapSettingsProps) {
  * 按键也参与匹配，而且匹配的是屏幕上那一串（'Ctrl+K'）：用户搜的是他看见的
  * 东西，不是逻辑写法 'Mod+K'。
  */
-function filterEntries(
+function filterRows(
   entries: readonly KeybindingEntry[],
   query: string,
 ): readonly KeybindingEntry[] {
@@ -81,6 +182,8 @@ function filterEntries(
   }
 
   return entries.filter((entry) =>
-    `${entry.label} ${entry.shortcut}`.toLocaleLowerCase().includes(needle),
+    `${entry.label} ${entry.description ?? ''} ${entry.shortcuts.join(' ')}`
+      .toLocaleLowerCase()
+      .includes(needle),
   )
 }

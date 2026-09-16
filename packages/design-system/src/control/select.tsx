@@ -168,7 +168,7 @@ export function Select<TValue extends string = string>({
           sideOffset={4}
         >
           <BaseSelect.Popup
-            className={cn(popupSurfaceClassName, '[--color-divider:#d1d3d3]')}
+            className={cn(popupSurfaceClassName, '[--color-divider:#e2e4e4]', 'shadow-none')}
             style={{
               minInlineSize: `max(var(--anchor-width), ${POPUP_MIN_INLINE_SIZE})`,
               maxInlineSize: POPUP_MAX_INLINE_SIZE,

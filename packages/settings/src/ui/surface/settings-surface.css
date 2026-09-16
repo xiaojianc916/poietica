@@ -182,6 +182,13 @@
   gap: 8px;
 }
 
+.settings-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .settings-group__header h3 {
   margin: 0;
   color: var(--ui-muted-foreground);
@@ -713,6 +720,146 @@
   color: var(--ui-muted-foreground);
   font-size: 12px;
   line-height: 1.5;
+}
+
+/* ---------------- 快捷键列表 ---------------- */
+
+/*
+ * 快捷键页的长列表：一张卡，行内分隔线与 .settings-row 同源。
+ *
+ * 与 .settings-group__surface 同一种边框圆角，但行结构不同——左侧是命令
+ * 文案，右侧是绑定列表（一列可能有多个绑定），所以不复用 SettingsGroup。
+ */
+.settings-keymap-list {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--settings-frame);
+  border-radius: 10px;
+  background: var(--settings-surface);
+}
+
+.settings-keymap-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 14px;
+}
+
+.settings-keymap-row + .settings-keymap-row::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
+}
+
+.settings-keymap-row__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.settings-keymap-row__copy strong {
+  color: var(--ui-foreground);
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.3;
+}
+
+.settings-keymap-row__copy p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-keymap-row__bindings {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.settings-keymap-binding {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-keymap-binding__key {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--ui-divider) 35%, var(--settings-surface));
+  color: var(--ui-foreground);
+  font-family: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.settings-keymap-binding__unassigned {
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+}
+
+.settings-keymap-binding__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-muted-foreground);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.settings-keymap-binding__icon:hover {
+  background: color-mix(in oklab, var(--ui-divider) 40%, var(--settings-surface));
+  color: var(--ui-foreground);
+}
+
+.settings-keymap-binding__icon:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
+}
+
+.settings-keymap-binding__input {
+  min-inline-size: 120px;
+  padding: 3px 10px;
+  border: 1px solid var(--ui-ring);
+  border-radius: 6px;
+  background: var(--settings-surface);
+  color: var(--ui-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.settings-keymap-binding__input::placeholder {
+  color: var(--ui-muted-foreground);
+}
+
+.settings-keymap-binding__cancel {
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-keymap-binding__cancel:hover {
+  color: var(--ui-foreground);
 }
 
 @media (max-width: 900px) {

@@ -179,9 +179,10 @@ function createKeybindingCatalog(registry: CommandRegistry): KeybindingCatalog {
         }
 
         next.push({
+          description: command.detail,
           id: command.id,
           label: command.label,
-          shortcut: formatKeybinding(command.shortcut),
+          shortcuts: [formatKeybinding(command.shortcut)],
         })
       }
 

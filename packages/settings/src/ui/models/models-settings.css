@@ -42,8 +42,7 @@
   position: absolute;
   inset-inline: 14px;
   inset-block-start: 0;
-  block-size: 1px;
-  background: var(--models-divider);
+  border-block-start: 1px solid var(--models-divider);
 }
 .models-row--compact {
   padding-block: 8px;
@@ -85,8 +84,7 @@
   position: absolute;
   inset-inline: 14px;
   inset-block-end: 0;
-  block-size: 1px;
-  background: var(--models-divider);
+  border-block-start: 1px solid var(--models-divider);
 }
 .models-list {
   display: flex;

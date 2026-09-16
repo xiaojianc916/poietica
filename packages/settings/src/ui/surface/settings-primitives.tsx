@@ -25,15 +25,18 @@ export interface SettingsGroupProps {
   /* 省略即不画表头：整页只有一张卡时，一个组标题是在复述页面标题。 */
   readonly title?: string
   readonly className?: string
+  /* 标题右侧的操作按钮，如"导入…""管理"入口；仅在有 title 时显示。 */
+  readonly headerAction?: ReactNode
   readonly children: ReactNode
 }
 
-export function SettingsGroup({ title, className, children }: SettingsGroupProps) {
+export function SettingsGroup({ title, className, headerAction, children }: SettingsGroupProps) {
   return (
     <section className={`settings-group${className ? ` ${className}` : ''}`}>
       {title === undefined ? null : (
         <header className="settings-group__header">
           <h3>{title}</h3>
+          {headerAction}
         </header>
       )}
 
