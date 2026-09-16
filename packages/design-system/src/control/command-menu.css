@@ -1,0 +1,11 @@
+/*
+ * 命令面板的列表不画滚动条：弹窗是短时浮层，内容靠键盘上下键翻，滚动条
+ * 只会在右侧占一条视觉重量。滚动能力保留，只是不画。
+ */
+.command-menu__list {
+  scrollbar-width: none;
+}
+
+.command-menu__list::-webkit-scrollbar {
+  display: none;
+}

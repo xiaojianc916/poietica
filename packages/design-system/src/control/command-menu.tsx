@@ -1,6 +1,7 @@
 import { Combobox as BaseCombobox } from '@base-ui/react/combobox'
-import { Search } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { cn } from '../class-names'
+import './command-menu.css'
 
 export interface CommandMenuItem {
   readonly value: string
@@ -8,6 +9,8 @@ export interface CommandMenuItem {
   /** 行尾那一小行灰字：同名的行靠它区分。 */
   readonly detail?: string
   readonly shortcut?: string
+  /** 行首图标：快捷操作用它区分动作，纯会话项不画。 */
+  readonly icon?: ReactNode
 }
 
 /**
@@ -87,16 +90,18 @@ export function CommandMenu({
       open
       value={null}
     >
-      <div className={cn('flex items-center gap-2', 'border-b border-divider', 'px-4')}>
-        <Search aria-hidden="true" className={cn('size-4 shrink-0', 'text-muted-foreground')} />
-
+      {/*
+       * 输入框不画放大镜、不画底部分隔线：占位符本身就是"搜索聊天"，
+       * 再叠一个图标和一条线只会把顶部压重。间距靠 padding 撑开。
+       */}
+      <div className={cn('px-5', 'py-4')}>
         <BaseCombobox.Input
           aria-label={ariaLabel}
           autoFocus
           className={cn(
-            'h-11 min-w-0 flex-1',
+            'h-8 w-full',
             'border-0 bg-transparent',
-            'px-0 text-sm',
+            'text-sm',
             'text-foreground',
             'outline-none shadow-none',
             'placeholder:text-placeholder',
@@ -106,12 +111,18 @@ export function CommandMenu({
       </div>
 
       <BaseCombobox.List
-        className={cn('max-h-96', 'overflow-y-auto', 'overscroll-contain', 'p-1.5 outline-none')}
+        className={cn(
+          'command-menu__list',
+          'max-h-[32rem]',
+          'overflow-y-auto',
+          'overscroll-contain',
+          'px-2 pb-2 outline-none',
+        )}
       >
         {groups.map((group) => (
           <BaseCombobox.Group className="mb-1 last:mb-0" key={group.id}>
             <BaseCombobox.GroupLabel
-              className={cn('px-2.5 py-1.5', 'text-xs', 'text-muted-foreground')}
+              className={cn('px-3 py-1.5', 'text-sm', 'text-muted-foreground')}
             >
               {group.title}
             </BaseCombobox.GroupLabel>
@@ -119,10 +130,10 @@ export function CommandMenu({
             {group.items.map((item) => (
               <BaseCombobox.Item
                 className={cn(
-                  'flex min-h-8',
+                  'flex min-h-10',
                   'w-full items-center',
-                  'gap-3 rounded-md',
-                  'px-2.5 text-left',
+                  'gap-3 rounded-lg',
+                  'px-3 text-left',
                   'text-sm outline-none',
                   'cursor-default select-none',
                   'data-[highlighted]:bg-accent',
@@ -131,6 +142,10 @@ export function CommandMenu({
                 key={item.value}
                 value={item.value}
               >
+                {item.icon === undefined ? null : (
+                  <span className={cn('shrink-0', 'text-muted-foreground')}>{item.icon}</span>
+                )}
+
                 <span className={cn('min-w-0 flex-1', 'truncate')}>{item.label}</span>
 
                 {item.detail === undefined ? null : (
@@ -142,7 +157,13 @@ export function CommandMenu({
                 )}
 
                 {item.shortcut === undefined ? null : (
-                  <kbd className={cn('shrink-0 text-xs', 'tabular-nums', 'text-muted-foreground')}>
+                  <kbd
+                    className={cn(
+                      'shrink-0 rounded-md bg-muted px-1.5 py-0.5',
+                      'text-xs tabular-nums',
+                      'text-muted-foreground',
+                    )}
+                  >
                     {item.shortcut}
                   </kbd>
                 )}
