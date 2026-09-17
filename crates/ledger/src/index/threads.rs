@@ -39,9 +39,8 @@ impl AgentStore {
     /// # Errors
     ///
     /// Fails when the query is rejected.
-    // 没被说过话的对话不进列表。判据此前是「有没有 runs 行」，而本地已经
-    // 不再记轮次。同一件事现在由名字回答：一条对话的名字取自它的第一句话
-    // （record_prompt），所以还挂着占位名的，就是还没有人开口的那一条。
+    // 没被说过话的对话不进列表：名字取自它的第一句话（record_prompt），所以
+    // 还挂着占位名的，就是还没有人开口的那一条。
     pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned,
@@ -85,17 +84,11 @@ impl AgentStore {
     ///
     /// 一条 INSERT … SELECT 完成复制与挂接：号与主人成对落下
     /// （threads_session_needs_owner 拒绝有号无主的行），中间不存在「行在而号
-    /// 不在」的一瞬。
-    ///
-    /// 帧日志随分叉复制，并按 drop_turns 截到分叉那一轮为止：屏幕上那条时间
-    /// 线由本机日志重放（见 conversation/screen.rs），而上下文由 agent 按同一个数回退，
-    /// 两者因此止于同一处。附件链接一并复制 —— 字节是内容寻址的，多一条链接
-    /// 指着它就够。三张表一次事务：半份分叉不该存在。
-    ///
-    /// prompts 一并抄走：附件按「从末尾对齐」的尺子认领（见
-    /// record_prompt），尺子的起点必须一致。updated_at 取现在 —— 分叉是此刻
-    /// 的活动，新对话要浮上列表。RETURNING 让「源不存在」当场成为错误，而
-    /// 不是零行的无声成功。
+    /// 不在」的一瞬。帧日志按 drop_turns 截到分叉那一轮为止，与 agent 按同一个
+    /// 数回退的上下文止于同一处；附件链接与 prompts 一并抄走 —— 附件按「从末尾
+    /// 对齐」的尺子认领（见 record_prompt），尺子的起点必须一致。三张表一次
+    /// 事务：半份分叉不该存在。updated_at 取现在，分叉是此刻的活动，新对话要浮
+    /// 上列表。RETURNING 让「源不存在」当场成为错误，而不是零行的无声成功。
     ///
     /// # Errors
     ///
@@ -171,11 +164,9 @@ impl AgentStore {
 
     /// Reads one conversation, whether or not anything has been said in it.
     ///
-    /// [`Self::list_threads`] leaves out a conversation with no runs,
-    /// because a list of conversations is a list of the ones that happened.
-    /// Reading back the conversation that was just created is a different
-    /// question, and asking the list it is deliberately absent from was how
-    /// opening one came to fail every single time.
+    /// [`Self::list_threads`] leaves out a conversation nobody has spoken in,
+    /// and that is deliberate — reading back one that was just created is a
+    /// different question, so it must not go through the list.
     ///
     /// # Errors
     ///
@@ -198,28 +189,21 @@ impl AgentStore {
 
     /// 记下这条对话刚被说了一句话。
     ///
-    /// 一句话是两个事实，而它们的频率不同：这条对话**刚刚有活动**，每一轮都
-    /// 成立；这条对话**叫什么**，只由第一句话回答一次。
+    /// 一句话是两个事实，频率不同：这条对话**刚刚有活动**，每一轮都成立；它
+    /// **叫什么**，只由第一句话回答一次。两个事实写进同一条语句、各带各的条件：
+    /// 时间无条件更新，名字只在还是 `fallback` 的时候写。合成一个条件就会让
+    /// 「在一条旧对话里继续说话」整条被拒、`updated_at` 一动不动 —— 而列表正是
+    /// 按它排序（见 `list_threads`），屏幕上的表现是刚说过话的对话不浮上来。
     ///
-    /// 此前它们共用一条 `WHERE title_source = 'fallback'`：那个条件是为第二个
-    /// 事实准备的，却把第一个也一并守掉了。于是在一条旧对话里继续说话，整条
-    /// 语句被拒，`updated_at` 一动不动 —— 而列表正是按它排序（见 `list_threads`
-    /// 的 `ORDER BY`）。屏幕上的表现是：刚说过话的对话不会浮上来，永远停在它
-    /// 第一句话的时间上。
-    ///
-    /// 两个事实因此写进同一条语句、各带各的条件：时间无条件更新，名字只在还
-    /// 没有名字的时候写。一次往返，一条写路径，没有第二处需要保持同步。
-    ///
-    /// 命名仍然只发生一次：后一轮的开场白改不动一条已经有名字的对话，用户手
-    /// 打的名字（`manual`）更不会被它顶掉。`list_threads` 用「标题源还是
-    /// fallback」判断有没有人开过口，这条语句让那个判据继续成立。
+    /// 命名仍然只发生一次：后一轮的开场白改不动一条已经有名字的对话，用户手打
+    /// 的名字（`manual`）更不会被它顶掉。`list_threads` 用「标题源还是 fallback」
+    /// 判断有没有人开过口，这条语句让那个判据继续成立。
     ///
     /// 不数第几句。附件按字节的哈希挂在对话上（见 attachments.rs）：一条对话
     /// 引用一段字节只有真假、没有次数，所以这里没有序号可返回。
     ///
-    /// `RETURNING` 只为一件事 —— 点名一条不存在的对话是错误，此前是无声成功：
-    /// 一条 `UPDATE` 影响零行不算失败，于是渲染层送来一个陌生的 id 时，这一轮
-    /// 被安静地记进了虚空。
+    /// `RETURNING` 只为一件事 —— 点名一条不存在的对话是错误，而不是零行的无声
+    /// 成功。
     ///
     /// # Errors
     ///
@@ -248,19 +232,6 @@ impl AgentStore {
                 |row| row.get(0),
             )?;
 
-        Ok(())
-    }
-
-    /// Names a conversation on the user's say-so.
-    ///
-    /// Recorded as its own source because it outranks the opening message it
-    /// replaces: someone has answered this question by hand, so nothing
-    /// derived from the text gets to answer it again.
-    pub fn name_generated(&self, id: Uuid, title: &str) -> Result<()> {
-        self.write(
-            "UPDATE threads SET title = ?2, title_source = ?3 WHERE id = ?1 AND title_source IN ('fallback', 'message')",
-            rusqlite::params![id.to_string(), title, TitleSource::Generated],
-        )?;
         Ok(())
     }
 
@@ -391,21 +362,17 @@ impl AgentStore {
 
     /// 收割幽灵行：本次启动之前开的、没人说过一句话、也没人看得见的对话。
     ///
-    /// agent_open_thread 先落行再开会话，而 list_threads 按标题源把还没
-    /// 开口的行滤掉 —— 于是「点开新对话又走掉」留下的是一行永远不进列表、
-    /// 也就永远没有删除按钮的账，外加 agent 侧一条真实存在的会话和一个占
-    /// 着的工作目录。行在这里删掉（走 delete_thread，附件链接与帧日志一
-    /// 并释放），会话号进处置账，由下一次连接送达 session/delete；目录随
-    /// 后由同一次启动对账的清扫回收（bootstrap/app.rs）。
+    /// agent_open_thread 先落行再开会话，而 list_threads 按标题源把还没开口的行
+    /// 滤掉 —— 「点开新对话又走掉」留下的是一行永远不进列表、也就永远没有删除
+    /// 按钮的账，外加 agent 侧一条真实存在的会话和一个占着的工作目录。行在这里
+    /// 删掉（走 delete_thread，附件链接与帧日志一并释放），会话号进处置账，由下
+    /// 一次连接送达 session/delete；目录随后由同一次启动对账的清扫回收
+    /// （workspace/reconcile.rs）。
     ///
-    /// before 是这一批的边界，由调用方在库打开之后、webview 执行任何脚
-    /// 本之前签发。少了它，「旧行」与「用户此刻正开着的新行」在库里长得一
-    /// 模一样 —— 标题源回答的是「进不进列表」，不是「还有没有人在用」。对
-    /// 账是后台任务，它跑到这一句时用户很可能已经点开了一条新对话，那一行
-    /// 会被当成幽灵删掉，随后第一句话撞上 record_prompt 的 RETURNING 零行。
-    ///
-    /// 边界是 UUIDv7 而不是时间戳：行 id 本来就是它，比较用同一把尺子，
-    /// 不引入第二种时间来源。
+    /// before 是这一批的边界，由调用方在库打开之后、webview 执行任何脚本之前签发。
+    /// 少了它，「旧行」与「用户此刻正开着的新行」在库里长得一模一样 —— 标题源回
+    /// 答的是「进不进列表」，不是「还有没有人在用」。边界是 UUIDv7 而不是时间戳：
+    /// 行 id 本来就是它，比较用同一把尺子，不引入第二种时间来源。
     ///
     /// # Errors
     ///
@@ -493,14 +460,9 @@ pub struct ThreadSummary {
 
 /// Where a thread name came from, in the order they outrank each other.
 ///
-/// Naming a conversation is this program's job. There was a fourth source
-/// above all of these, taken from the agent's own session list, on the
-/// reasoning that the agent is the authority on what its session is called.
-/// It is the authority on that, and that is a different question: the name
-/// is whatever the agent wrote in its own store when the session was
-/// created, and an agent under no obligation to ever revise it will not.
-/// Ranking it above what the user actually typed is how a list of
-/// conversations became a column of the words New Session.
+/// Naming a conversation is this program's job, not the agent's: an agent under
+/// no obligation to revise the name it wrote at session creation would leave a
+/// list of conversations reading as a column of the words New Session.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TitleSource {
@@ -518,9 +480,9 @@ pub enum TitleSource {
 impl TitleSource {
     /// The text this source is stored as.
     ///
-    /// One table, not two. serde's `rename_all` encodes the same three
-    /// spellings for the wire and the two happened to agree; two encodings of
-    /// one closed set is how they stop agreeing.
+    /// One table, not two: serde's `rename_all` encodes the same spellings for
+    /// the wire and the two happened to agree; two encodings of one closed set
+    /// is how they stop agreeing.
     const fn as_str(self) -> &'static str {
         match self {
             Self::Message => "message",
@@ -543,11 +505,8 @@ impl FromSql for TitleSource {
             "message" => Ok(Self::Message),
             "generated" => Ok(Self::Generated),
             "manual" => Ok(Self::Manual),
-            // Anything else is a row an older build wrote, and the only value
-            // that ever was is the deleted fourth source. It outranked the
-            // name the user typed; read back at the lowest rank the stored
-            // title still shows and no longer outranks anything. Refusing the
-            // row instead would take the whole sidebar down over one value.
+            // 认不出的值一律按最低的一档读：拒掉这一行会为了一格取值把整个侧栏
+            // 拖下去，而存下的标题照样显示。
             _ => Ok(Self::Fallback),
         }
     }

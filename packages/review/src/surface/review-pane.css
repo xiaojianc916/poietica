@@ -84,6 +84,15 @@
   border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
 }
 
+/*
+ * 筛选药丸的外框：浅色是产品指定的 #ededed（--ui-card-divider 的正身），
+ * 深色随令牌转成前景半透明，不用另写一套。
+ * 色写在类里而非 Tailwind 工具类 —— app.css 的无层级通配规则压过 utilities 层。
+ */
+.review-filter {
+  border: 1px solid var(--ui-card-divider);
+}
+
 /* 引导线：抄 OpenCode file-tree-v2.css —— 1px 绝对线盖满行高并上下各探 2px 过缝，
  * 平时藏起，整个树悬浮才显形（选择器挂在 .review-tree 上）。 */
 .tree-guide {
@@ -110,6 +119,18 @@
   background: #f4f4f4;
 }
 
+/*
+ * 变更徽章：方框里一个符号，三种处境同一个色，靠形状分。
+ *
+ * 色必须写在这里，不能写成 Tailwind 的边框色与文字色工具类：app.css 有一条
+ * 无层级的通配规则（把 border-color 钉到 --color-divider），无层级声明压过
+ * utilities 层，边框色在组件里根本改不动。本仓带颜色的边框一律走这条无层级的路。
+ */
+.review-mark {
+  color: #923b0f;
+  border-color: currentColor;
+}
+
 :root[data-theme="dark"] .review-tree-row:hover {
   background: color-mix(in srgb, #ffffff 5%, transparent);
 }
@@ -123,21 +144,13 @@
   background-color: color-mix(in srgb, #ffffff 10%, transparent);
 }
 
-/* 卡头与行内动作的悬浮底：浅色是产品指定的灰；深色沿用原来的前景半透明。 */
+/* 卡头的悬浮底：浅色是产品指定的灰；深色沿用原来的前景半透明。 */
 .review-card__head:hover {
   background: #f1f2f2;
 }
 
 :root[data-theme="dark"] .review-card__head:hover {
   background: color-mix(in srgb, #ffffff 5%, transparent);
-}
-
-.review-action:hover {
-  background: #e4e6e6;
-}
-
-:root[data-theme="dark"] .review-action:hover {
-  background: color-mix(in srgb, #ffffff 10%, transparent);
 }
 
 /*
@@ -262,6 +275,11 @@
 :root[data-theme="dark"] .review-pane[data-splitter="hover"] .review-tree__surface,
 :root[data-theme="dark"] .review-pane[data-splitter="drag"] .review-tree__surface {
   border-inline-start-color: color-mix(in srgb, #ffffff 12%, transparent);
+}
+
+/* 文件树的滚动条不要：列本来就窄，条一出现就压住行尾的增删数。 */
+.review-tree__scroll {
+  scrollbar-width: none;
 }
 
 /*

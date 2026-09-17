@@ -3,21 +3,15 @@
 //! 进程模型：spawn "kimi web --no-open" → 等注册表出现本次拉起后的条目、且那个
 //! 地址认我们手里的 server.token（process/instance_registry）→ /meta 兼容门禁
 //! （compatibility.rs）→ REST 开锚会话（rest.rs）→ WS client_hello + subscribe
-//! （connection/）→ 主循环收命令、收事件。
+//! （connection/）→ 主循环。
 //!
-//! 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …）：
-//! 信封是 { type, seq, session_id, timestamp, payload }，payload 里再带一份
-//! 同名 type、agentId 与 sessionId。没有哪一帧的 type 是 "session_event"：
-//! wire 上事件帧的 type 字段就是事件自己的类型名（契约快照钉在
-//! contracts/kap/asyncapi.json）。
-//!
-//! 数据流：
-//!   命令 → Command 枚举（client.rs）→ REST（rest.rs）或 WS 控制帧（connection/）
-//!   事件 → WS 事件帧 → router.rs → RecordedEvent → Tauri
+//! 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …）：信封是
+//! { type, seq, session_id, timestamp, payload }，payload 里再带一份同名 type、
+//! agentId 与 sessionId。契约快照钉在 contracts/kap/asyncapi.json。
 //!
 //! 协议事实来源是 MoonshotAI/kimi-code 的 packages/kap-server（routes/ 与
-//! protocol/ 两个目录），快照钉在 contracts/kap。信封约定
-//! { code, msg, data, request_id }：业务成败看 code，不看 HTTP 状态。
+//! protocol/ 两个目录）。信封约定 { code, msg, data, request_id }：业务成败看
+//! code，不看 HTTP 状态。
 
 use std::future::Future;
 use std::sync::Arc;

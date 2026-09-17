@@ -1,13 +1,13 @@
 //! One transactional import; the input is never rewritten or treated as live state.
 use crate::{LedgerError, index::AgentStore};
 use poietica_automation::{
-    Automation, AutomationError, AutomationRun, AutomationRunOutcome, AutomationState, schedule,
+    Automation, AutomationError, AutomationRun, AutomationRunOutcome, AutomationState,
+    is_absolute_root, schedule,
 };
 use rusqlite::{Transaction, TransactionBehavior, params};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
-use std::path::Path;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -76,7 +76,7 @@ impl AgentStore {
                     .and_then(|id| Uuid::parse_str(id).ok())
                     && let Some(thread) = self.thread(id)?
                     && let Some(candidate) = thread.workspace_root
-                    && Path::new(&candidate).is_absolute()
+                    && is_absolute_root(&candidate)
                 {
                     root = Some(candidate);
                     break;

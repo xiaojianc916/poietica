@@ -1,12 +1,12 @@
 //! 附件的账:哪条对话引用着哪几段字节。
 //!
 //! 字节本身不在这个 crate 里,也不在这个库文件里 —— 它们按摘要落在磁盘上,
-//! 由桌面层的资产协议交付(asset_protocol.rs)。这里只回答两个问题:某条对话
-//! 该显示哪些附件,以及哪些字节已经没有人要了。
+//! 由桌面层的资产协议交付(apps/desktop/src-tauri/src/asset_protocol/)。这里
+//! 只回答两个问题:某条对话该显示哪些附件,以及哪些字节已经没有人要了。
 //!
-//! 这与 lib.rs 那句「对话说过什么不在这里」并不矛盾。附件不是对话内容,是
-//! **这台机器上的用户自己的文件**:agent 收到的是一份 base64 副本,它没有义务
-//! 交还,多数 CLI 也确实不交还。归属清楚,存放的地方才清楚。
+//! 附件不是对话内容,是**这台机器上的用户自己的文件**:agent 收到的是一份
+//! base64 副本,它没有义务交还,多数 CLI 也确实不交还。归属清楚,存放的地方
+//! 才清楚。
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -27,18 +27,6 @@ pub struct ThreadAttachment {
 }
 
 impl AgentStore {
-    pub fn remember_attachment(
-        &mut self,
-        thread: Uuid,
-        attachment: &ThreadAttachment,
-    ) -> Result<()> {
-        let timestamp = self.now()?;
-        let transaction = self.connection.transaction()?;
-        remember_in(&transaction, &timestamp, thread, attachment)?;
-        transaction.commit()?;
-        Ok(())
-    }
-
     pub fn attachments_of(&self, thread: Uuid) -> Result<Vec<ThreadAttachment>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT link.hash, blob.mime, blob.name, blob.byte_size

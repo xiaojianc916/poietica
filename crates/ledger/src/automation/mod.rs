@@ -152,18 +152,6 @@ impl AgentStore {
         })
         .map(|_| ())
     }
-
-    pub fn automation_thread_busy(&self, thread_id: Uuid) -> Result<bool> {
-        if !self.automation_initialized()? {
-            return Ok(false);
-        }
-        let id = thread_id.to_string();
-        Ok(self
-            .automation_state()?
-            .executions
-            .values()
-            .any(|entry| entry.run.thread_id.as_deref() == Some(id.as_str())))
-    }
 }
 
 fn claim(

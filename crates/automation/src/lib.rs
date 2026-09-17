@@ -151,6 +151,12 @@ impl Execution {
     }
 }
 
+/// 工作目录必须是绝对路径：相对路径由谁解释取决于谁启动进程，这里定不了。
+#[must_use]
+pub fn is_absolute_root(root: &str) -> bool {
+    Path::new(root).is_absolute()
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AutomationState {
@@ -164,7 +170,7 @@ impl AutomationCreation {
         if self.title.trim().is_empty() || self.prompt.trim().is_empty() {
             return Err(AutomationError::Empty);
         }
-        if !Path::new(&self.workspace_root).is_absolute() {
+        if !is_absolute_root(&self.workspace_root) {
             return Err(AutomationError::Workspace);
         }
         let preview = schedule::preview(self.schedule.as_deref(), &self.time_zone, now);
@@ -176,6 +182,15 @@ impl AutomationCreation {
 }
 
 impl Automation {
+    /// 每次写入推一格版本；到顶是冲突，不是回绕。
+    fn bump(&mut self) -> Result<(), AutomationError> {
+        self.revision = self
+            .revision
+            .checked_add(1)
+            .ok_or(AutomationError::Conflict)?;
+        Ok(())
+    }
+
     #[must_use]
     pub fn creation(&self) -> AutomationCreation {
         AutomationCreation {
@@ -252,7 +267,7 @@ impl AutomationState {
                 || !runs.insert(execution.run.id.as_str())
                 || !active_threads.insert(thread)
                 || execution.agent_id.trim().is_empty()
-                || !Path::new(&execution.workspace_root).is_absolute()
+                || !is_absolute_root(&execution.workspace_root)
             {
                 return Err(AutomationError::Data(
                     "invalid execution ownership".to_owned(),
@@ -332,10 +347,7 @@ impl AutomationState {
                 row.time_zone = update.creation.time_zone;
                 row.enabled = enabled;
                 row.issue = None;
-                row.revision = row
-                    .revision
-                    .checked_add(1)
-                    .ok_or(AutomationError::Conflict)?;
+                row.bump()?;
             }
             Command::Enable {
                 id,
@@ -363,10 +375,7 @@ impl AutomationState {
                         None
                     };
                     row.enabled = enabled;
-                    row.revision = row
-                        .revision
-                        .checked_add(1)
-                        .ok_or(AutomationError::Conflict)?;
+                    row.bump()?;
                 }
             }
             Command::Remove { id } => {
@@ -406,11 +415,7 @@ impl AutomationState {
                 })?;
                 schedule::millis(at)?;
                 schedule::next_after(row.schedule.as_deref(), &row.time_zone, now)?;
-                if !row
-                    .workspace_root
-                    .as_deref()
-                    .is_some_and(|root| Path::new(root).is_absolute())
-                {
+                if !row.workspace_root.as_deref().is_some_and(is_absolute_root) {
                     return Err(AutomationError::Workspace);
                 }
                 if row.title.trim().is_empty() || row.prompt.trim().is_empty() {
@@ -422,10 +427,7 @@ impl AutomationState {
                 row.enabled = false;
                 row.next_run_at = None;
                 row.issue = Some(error.to_string());
-                row.revision = row
-                    .revision
-                    .checked_add(1)
-                    .ok_or(AutomationError::Conflict)?;
+                row.bump()?;
             }
         }
         Ok(())
@@ -458,10 +460,7 @@ impl AutomationState {
         if row.next_run_at.is_none() {
             row.enabled = false;
             row.issue = Some("日程已耗尽，没有后续运行时间".to_owned());
-            row.revision = row
-                .revision
-                .checked_add(1)
-                .ok_or(AutomationError::Conflict)?;
+            row.bump()?;
         }
         Ok(true)
     }
@@ -495,7 +494,7 @@ impl AutomationState {
         let workspace_root = row
             .workspace_root
             .clone()
-            .filter(|root| Path::new(root).is_absolute())
+            .filter(|root| is_absolute_root(root))
             .ok_or(AutomationError::Workspace)?;
         if row.title.trim().is_empty() || row.prompt.trim().is_empty() {
             return Err(AutomationError::Empty);

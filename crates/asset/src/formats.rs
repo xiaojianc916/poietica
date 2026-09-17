@@ -1,17 +1,15 @@
 //! 收得下的格式：一张表管文件头判定、Content-Type 与扩展名。
-//!
-//! 魔数、内容类型、扩展名长在一起，因为它们是同一条策略的三个面：拿什么判、
-//! 投递时写在 Content-Type 上的那个字符串、系统对话框里能被选中的名字。
-//! 加一种格式就是这里加一行，没有第二处要跟着改。
+
+use sha2::{Digest, Sha256};
 
 /// 一种收得下的格式。
 ///
-/// 文件头、内容类型、扩展名长在一起，因为它们是同一条策略的三个面：拿什么判、
-/// 投递时写在 Content-Type 上的那个字符串、系统对话框里能被选中的名字。
+/// 三个面长在一起，因为它们同属一条策略：拿什么判、投递时写在 Content-Type 上的
+/// 那个字符串、系统对话框里能被选中的名字。加一种格式就是这里加一行，没有第二处
+/// 要跟着改。
 ///
-/// 最后一样此前住在 TypeScript 里（曾为 desktop-adapters 的 IMAGE_EXTENSIONS，随包合并退役），靠
-/// 一句注释和这里保持一致。漏改哪一侧都不会报错，只会安静地坏：多在对话框那
-/// 侧，用户选得中却什么也不发生；多在这一侧，新格式等于没加。
+/// 扩展名必须与对话框那份名单一致，漏改哪一侧都不会报错，只会安静地坏：多在对话框
+/// 那侧，用户选得中却什么也不发生；多在这一侧，新格式等于没加。
 #[derive(Clone, Copy, Debug)]
 pub struct Format {
     pub kind: AssetKind,
@@ -149,8 +147,8 @@ pub const FORMATS: &[Format] = &[
 ///
 /// 用户导得进的那几种在上面 FORMATS 里，各有文件头判据；媒体与 PDF 只从 agent
 /// 产物与会话恢复路径进入注册表，没有文件头可嗅探，因此在这里只有类型没有行。
-/// 导入先经 FORMATS 嗅探、再过这张表（asset_protocol 的 validate_content_type
-/// 引用的就是它），两道门用的是同一份名单，不会一个放行一个拦下。
+/// 导入先经 FORMATS 嗅探、再过这张表（identity.rs 的 validate_content_type 引用的
+/// 就是它），两道门用的是同一份名单，不会一个放行一个拦下。
 const DELIVERABLE_CONTENT_TYPES: &[&str] = &[
     "image/png",
     "image/jpeg",
@@ -194,4 +192,9 @@ pub fn is_content_hash(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// 内容寻址用的摘要：小写十六进制 SHA-256。算身份与验完整性只走这一处。
+pub(crate) fn digest_hex(bytes: &[u8]) -> String {
+    hex::encode(Sha256::digest(bytes))
 }

@@ -1,18 +1,11 @@
 //! 官方 kap 的提问域：一组题、一组答复，以及答复合不合这组题。
 //!
 //! 契约事实来源是 kap-server 的 protocol/question.ts 与 routes/questions.ts。
-//! 三件事决定了这个模块的形状。
-//!
-//! 号是 server 现编的。题号 q_{i} 与选项号 opt_{i}_{j} 在每一次列举待答提问时
-//! 由 buildItem / buildOption 生成，所以这一侧不解析号、不重排号、也不从号里读
-//! 语义 —— 号原样往返。
-//!
-//! 一题的合法答复取决于它自己。multi_select 决定能不能多选，allow_other 决定能
-//! 不能写字，所以校验必须按题做，不能按组做。
-//!
-//! 线上与屏幕是两种渲染。wire 要 snake_case（option_id / other_text），帧要
-//! camelCase（界面读的那一份）。同一个类型两种渲染，各只有一处：derive 管帧，
-//! on_wire 管线上。
+//! 三件事决定了这个模块的形状：题号 q_{i} 与选项号 opt_{i}_{j} 由 server 每次列举
+//! 现编，所以这一侧不解析号、不重排号、不从号里读语义，号原样往返；一题的合法答复
+//! 取决于它自己（multi_select 管多选、allow_other 管写字），校验按题做不按组做；
+//! wire 要 snake_case、帧要 camelCase，同一个类型两种渲染各只有一处（derive 管帧，
+//! on_wire 管线上）。
 
 use std::collections::HashMap;
 
@@ -165,12 +158,7 @@ fn flag(value: &Value, key: &str) -> bool {
 }
 
 fn picked(option_ids: &[String]) -> Value {
-    Value::Array(
-        option_ids
-            .iter()
-            .map(|id| Value::String(id.clone()))
-            .collect(),
-    )
+    Value::from(option_ids.to_vec())
 }
 
 impl QuestionOption {

@@ -1,7 +1,5 @@
 use thiserror::Error;
 
-use crate::identity::{ThreadId, TurnId};
-
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum TurnError {
     #[error("信号 {signal} 在 {state} 状态下不合法")]
@@ -21,24 +19,4 @@ pub struct LedgerUnavailable {
 #[error("agent 网关拒绝了这一轮：{reason}")]
 pub struct GatewayFailure {
     pub reason: String,
-}
-
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum DomainFailure {
-    #[error(transparent)]
-    Ledger(#[from] LedgerUnavailable),
-    #[error(transparent)]
-    Turn(#[from] TurnError),
-}
-
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum InvariantViolation {
-    #[error("对话 {thread} 的事件 {seq} 没有排在 {previous} 之后")]
-    SeqNotMonotonic {
-        thread: ThreadId,
-        seq: u64,
-        previous: u64,
-    },
-    #[error("轮次 {turn} 在结束之后还产出了事件")]
-    EventAfterFinish { turn: TurnId },
 }

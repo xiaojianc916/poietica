@@ -1,4 +1,5 @@
 export type {
+  GitChangeStatus,
   GitCommitIntent,
   GitCommitRequest,
   GitFileChange,

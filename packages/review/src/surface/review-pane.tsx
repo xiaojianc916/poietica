@@ -1,3 +1,4 @@
+import type { GitChangeStatus } from '@poietica/contract/review'
 import {
   cn,
   DropdownMenu,
@@ -11,7 +12,6 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-  useCopy,
 } from '@poietica/design-system'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
@@ -28,8 +28,10 @@ import {
   GitBranch,
   GitCommitHorizontal,
   type LucideIcon,
+  Minus,
   MoreHorizontal,
   Pilcrow,
+  Plus,
   RefreshCw,
   Search,
   Type,
@@ -101,10 +103,6 @@ const SWITCHES: readonly {
 ]
 const ICON_CLASS =
   'review-toolbar-action flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:opacity-100'
-/* 行内动作：20px 盒子配 16px 字形，与工具栏同一个留白比例；字形尺寸由 --ui-icon 发放。
- * 悬浮底在 review-pane.css 的 .review-action，与卡头同源不同灰。 */
-const ROW_ICON_CLASS =
-  'review-action flex size-5 shrink-0 items-center justify-center rounded opacity-60 hover:opacity-100'
 const ROW_CLASS = 'min-w-0 flex-1 truncate text-xs'
 /* 菜单行的前导字形：与工具条上那枚同一档尺寸与不透明度。 */
 const MENU_ICON_CLASS = 'size-3.5 shrink-0 opacity-60'
@@ -202,14 +200,7 @@ function Cards({
   return (
     <>
       {shown.map((file) => (
-        <Card
-          file={file}
-          key={file.path}
-          reading={reading}
-          scroller={scroller}
-          state={state}
-          store={store}
-        />
+        <Card file={file} key={file.path} scroller={scroller} state={state} store={store} />
       ))}
     </>
   )
@@ -248,7 +239,7 @@ function Toolbar({
         )}
         <ChevronDown aria-hidden className="size-3 shrink-0 opacity-50" />
       </Bases>
-      <Tally stat={reading.stat} />
+      <Tally dense stat={reading.stat} />
       {reading.ahead + reading.behind > 0 ? (
         <span className="shrink-0 text-[11px] tabular-nums opacity-50">
           ↑{reading.ahead} ↓{reading.behind}
@@ -483,7 +474,7 @@ function Commit({
             {state.stageAll ? <Check aria-hidden className="size-3" /> : null}
           </span>
           <span className="min-w-0 flex-1">包含未暂存的更改</span>
-          <Tally stat={reading.unstaged} />
+          <Tally dense stat={reading.unstaged} />
         </label>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -523,13 +514,11 @@ function Commit({
 }
 function Card({
   file,
-  reading,
   scroller,
   state,
   store,
 }: {
   readonly file: DiffFile
-  readonly reading: Ready
   readonly scroller: RefObject<HTMLDivElement | null>
   readonly state: ReviewState
   readonly store: ReviewStore
@@ -539,52 +528,26 @@ function Card({
    * 行数按展开态算：折叠带展开的行也是这张卡此刻的真实高度。 */
   const rows = open ? renderedRowsOf(file, state.openGaps) : 0
   const style: ReviewStyle = { '--review-card-rows': String(rows) }
-  const { copied, copy } = useCopy()
   return (
     <section className="review-card" id={cardId(file.path)} style={style}>
-      {/* 整行给悬浮底色：这一行是一个可点的对象，指到哪里都该有回应。 */}
-      <header className="group review-card__head flex h-7 items-center gap-2 px-2.5">
+      {/* 整行给悬浮底色：这一行是一个可点的对象，指到哪里都该有回应。
+       * 底色是不贴边的圆角药丸，与树行同一条语言：margin 收出留白，padding 补回
+       * 原位的 10px —— 与工具条同一条内线，所以行内文字不因药丸移位。 */}
+      <header className="review-card__head mx-1.5 flex h-7 items-center gap-2 rounded-md px-1">
         <button
           aria-expanded={open}
-          className="flex min-w-0 items-center gap-2 text-left"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
           onClick={() => {
             store.toggleFile(file.path)
           }}
-          title={file.path}
           type="button"
         >
           <FileTypeMark className="size-3.5 shrink-0" name={file.path} />
-          <span className="review-card__path min-w-0 text-xs">
+          <span className="review-card__path min-w-0 text-sm">
             <bdi>{file.path}</bdi>
           </span>
           <Tally stat={file.stat} />
         </button>
-        {/* 悬浮或键盘聚焦时才出现：行头默认只有事实。 */}
-        <div className="flex shrink-0 items-center gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
-          <IconButton
-            dense
-            label={copied ? '已复制' : '复制相对路径'}
-            onClick={() => copy(file.path)}
-          >
-            {copied ? (
-              <Check aria-hidden className="size-3.5" />
-            ) : (
-              <Copy aria-hidden className="size-3.5" />
-            )}
-          </IconButton>
-          <IconButton
-            dense
-            label={open ? '折叠这个文件' : '展开这个文件'}
-            onClick={() => {
-              store.toggleFile(file.path)
-            }}
-          >
-            {open ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
-          </IconButton>
-        </div>
-        {reading.staged.has(file.path) ? (
-          <span className="ml-auto shrink-0 text-[11px] opacity-40">已暂存</span>
-        ) : null}
       </header>
       {open ? <Body file={file} scroller={scroller} state={state} store={store} /> : null}
     </section>
@@ -983,8 +946,10 @@ function Tree({
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
-  const byPath = new Map(shown.map((file) => [file.path, file] as const))
-  const rows = changeTreeRows([...byPath.keys()], state.collapsedFolders)
+  const rows = changeTreeRows(
+    shown.map((file) => file.path),
+    state.collapsedFolders,
+  )
   /* 收起只是列宽归零：子树不卸载，滚动位置与展开状态不随开合重建。 */
   return (
     <aside className="review-tree" inert={!docked}>
@@ -993,30 +958,35 @@ function Tree({
           className="review-tree__surface flex flex-col"
           style={{ width: `${String(state.treeWidth)}px` }}
         >
-          <div className="review-rule flex shrink-0 items-center gap-2 px-2 py-1.5">
-            <Search aria-hidden className="size-3.5 shrink-0 opacity-50" />
-            <input
-              aria-label="筛选文件"
-              className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:opacity-50"
-              onChange={(event) => {
-                store.setQuery(event.target.value)
-              }}
-              placeholder="筛选文件…"
-              value={state.query}
-            />
-            {/* 清除键常占位：有字没字行高等一边高，不跳。 */}
-            <span className={state.query === '' ? 'invisible' : undefined}>
-              <IconButton
-                label="清除筛选"
-                onClick={() => {
-                  store.setQuery('')
+          {/* 筛选是输入框而不是工具条：一条圆角药丸圈住图标与输入，与下面的树行
+           * 分开读。左内边距 8 + 8 让放大镜落在树行图标的竖线上；右侧留 8px 给
+           * 清除键 —— 再小它的方形悬浮底就顶出药丸的弧。 */}
+          <div className="flex shrink-0 px-2 py-2">
+            <div className="review-filter flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full pr-2 pl-2.5">
+              <Search aria-hidden className="size-3.5 shrink-0 text-placeholder" />
+              <input
+                aria-label="筛选文件"
+                className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-placeholder"
+                onChange={(event) => {
+                  store.setQuery(event.target.value)
                 }}
-              >
-                <X aria-hidden className="size-3.5" />
-              </IconButton>
-            </span>
+                placeholder="筛选文件…"
+                value={state.query}
+              />
+              {/* 清除键常占位：有字没字行高等一边高，不跳。 */}
+              <span className={state.query === '' ? 'invisible' : undefined}>
+                <IconButton
+                  label="清除筛选"
+                  onClick={() => {
+                    store.setQuery('')
+                  }}
+                >
+                  <X aria-hidden className="size-3.5" />
+                </IconButton>
+              </span>
+            </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
+          <div className="review-tree__scroll min-h-0 flex-1 overflow-y-auto px-2 py-1">
             {rows.length === 0 ? (
               <Note>没有匹配的文件。</Note>
             ) : (
@@ -1029,13 +999,7 @@ function Tree({
                     store={store}
                   />
                 ) : (
-                  <FileRow
-                    file={byPath.get(row.path)}
-                    key={row.key}
-                    row={row}
-                    state={state}
-                    store={store}
-                  />
+                  <FileRow key={row.key} row={row} state={state} store={store} />
                 ),
               )
             )}
@@ -1112,21 +1076,22 @@ function FolderRow({
       ) : (
         <ChevronDown aria-hidden className="size-4 shrink-0 opacity-40" />
       )}
-      <span className="min-w-0 flex-1 truncate text-xs opacity-70">{row.label}</span>
+      <span className="min-w-0 flex-1 truncate text-[13px] font-medium opacity-70">
+        {row.label}
+      </span>
     </button>
   )
 }
 function FileRow({
-  file,
   row,
   state,
   store,
 }: {
-  readonly file: DiffFile | undefined
   readonly row: ChangeTreeFile
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
+  const status = state.reading.phase === 'ready' ? state.reading.statuses.get(row.path) : undefined
   return (
     <li
       className="review-tree-row relative flex h-7 items-center rounded-md pr-2"
@@ -1147,13 +1112,12 @@ function FileRow({
             document.getElementById(cardId(row.path))?.scrollIntoView({ block: 'start' })
           }
         }}
-        title={row.path}
         type="button"
       >
         {row.depth === 0 ? null : <span aria-hidden className="w-4 shrink-0" />}
         <FileTypeMark className="size-3.5 shrink-0" name={row.label} />
         <span className="min-w-0 flex-1 truncate text-xs">{row.label}</span>
-        {file === undefined ? null : <Tally stat={file.stat} />}
+        {status === undefined ? null : <ChangeMark status={status} />}
       </button>
     </li>
   )
@@ -1162,16 +1126,43 @@ function FileRow({
 function cardId(path: string): string {
   return `review:${path}`
 }
+/* 一处变更的处境：方框里一个符号 —— 加号是新增、减号是删除、点是改写。
+ * 只认 git 清单说的 status，不从加减行数反推：+0 −1 是删掉一行的改写，不是删文件。
+ * 三种处境同一个色，靠形状分（色在 review-pane.css 的 .review-mark）。
+ * 目录不给徽章，目录不是 git 的变更单位。 */
+const MARK_LABELS: Readonly<Record<GitChangeStatus, string>> = {
+  added: '新增',
+  conflicted: '冲突',
+  deleted: '删除',
+  modified: '修改',
+  untracked: '未跟踪',
+}
+function ChangeMark({ status }: { readonly status: GitChangeStatus }) {
+  const label = MARK_LABELS[status]
+  return (
+    <span
+      aria-label={label}
+      className="review-mark flex size-4 shrink-0 items-center justify-center rounded-[4px] border"
+      role="img"
+      title={label}
+    >
+      {status === 'deleted' ? (
+        <Minus aria-hidden className="size-3" />
+      ) : status === 'added' || status === 'untracked' ? (
+        <Plus aria-hidden className="size-3" />
+      ) : (
+        <span aria-hidden className="size-1.25 rounded-full bg-current" />
+      )}
+    </span>
+  )
+}
 function IconButton({
   children,
-  dense = false,
   label,
   onClick,
   pressed,
 }: {
   readonly children: ReactNode
-  /** 行内动作用小一档。 */
-  readonly dense?: boolean
   readonly label: string
   readonly onClick: () => void
   readonly pressed?: boolean
@@ -1181,7 +1172,7 @@ function IconButton({
       <TooltipTrigger
         aria-label={label}
         aria-pressed={pressed}
-        className={dense ? ROW_ICON_CLASS : ICON_CLASS}
+        className={ICON_CLASS}
         onClick={onClick}
       >
         {children}
@@ -1190,13 +1181,26 @@ function IconButton({
     </Tooltip>
   )
 }
-/* 两侧都写出来：删除专场也要看得见 +0，这是「数过了」与「没数」的区别。 */
-function Tally({ stat }: { readonly stat: DiffStat }) {
+/* 两侧都写出来：删除专场也要看得见 +0，这是「数过了」与「没数」的区别。
+ * 默认跟着卡头正文走；工具条与提交面板旁边是 11–12px 的字，那两处传 dense 收一档。 */
+function Tally({
+  dense = false,
+  stat,
+}: {
+  /** 收一档。 */
+  readonly dense?: boolean
+  readonly stat: DiffStat
+}) {
   if (stat.added === 0 && stat.removed === 0) {
     return null
   }
   return (
-    <span className="flex shrink-0 items-center gap-1.5 text-[11px] tabular-nums">
+    <span
+      className={cn(
+        'flex shrink-0 items-center gap-1.5 tabular-nums',
+        dense ? 'text-[11px]' : 'text-[13px]',
+      )}
+    >
       <span className="text-emerald-500">+{stat.added}</span>
       <span className="text-rose-500">−{stat.removed}</span>
     </span>

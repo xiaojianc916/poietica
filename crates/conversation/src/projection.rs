@@ -26,7 +26,6 @@ pub struct TurnView {
 pub struct ThreadView {
     pub thread: ThreadId,
     pub last_seq: Seq,
-    pub turn_order: Vec<TurnId>,
     pub turns: BTreeMap<TurnId, TurnView>,
     /// 还在等回答的交互，按 agent 签发的号。
     pub open_interactions: BTreeMap<String, OpenInteraction>,
@@ -39,7 +38,6 @@ impl ThreadView {
         Self {
             thread,
             last_seq: Seq::NONE,
-            turn_order: Vec::new(),
             turns: BTreeMap::new(),
             open_interactions: BTreeMap::new(),
             unparsed_events: 0,
@@ -102,10 +100,6 @@ impl ThreadView {
     }
 
     fn ensure_turn(&mut self, turn: TurnId) -> &mut TurnView {
-        if !self.turns.contains_key(&turn) {
-            self.turn_order.push(turn.clone());
-        }
-
         self.turns.entry(turn.clone()).or_insert_with(|| TurnView {
             turn,
             state: TurnState::Admitted,

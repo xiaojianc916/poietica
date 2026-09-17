@@ -19,9 +19,5 @@ pub fn redact(key: &str, value: &str) -> String {
         return "[redacted]".to_owned();
     }
 
-    if value.chars().count() <= MAX_CHARS {
-        return value.to_owned();
-    }
-
     value.chars().take(MAX_CHARS).collect()
 }

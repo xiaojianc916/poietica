@@ -15,14 +15,8 @@ use crate::error::{KapError, Result};
 use crate::generated::rest::routes;
 use crate::session::rest::envelope_data;
 
-const PINNED_CAPABILITIES: &str = include_str!("../../../../contracts/kap/capabilities.json");
-
 fn pinned_server_version() -> Result<String> {
-    let manifest: Value =
-        serde_json::from_str(PINNED_CAPABILITIES).map_err(|error| KapError::Handshake {
-            message: format!("the embedded KAP capability manifest is invalid: {error}"),
-        })?;
-    manifest
+    crate::compatibility::pinned_manifest()?
         .get("server_version")
         .and_then(Value::as_str)
         .filter(|version| !version.is_empty())
@@ -96,11 +90,6 @@ async fn probe_instance(
 
 /// 等到注册表出现本次拉起之后的条目、且那个地址认我们的令牌，返回
 /// (host, port, token)。超时则报错。
-///
-/// 判据是「认令牌」而不是「文件存在」：start.ts 的第一件事就是 register，那时
-/// server 还没 listen，条目里的端口只是「要的那个」（DEFAULT_PORT 58627），端口
-/// 被占就 +1 往上走，绑上之后才回填。只信文件就会在这段窗口里拨到 58627 上的
-/// 别人身上 —— 上一次跑漏下的、或者另一个 home 起的 kimi —— 它拿 40101 顶回来。
 ///
 /// 令牌也在这里读：它是判据的一部分，而且首次启动时是 server 自己把它建出来的，
 /// 早读会读空。

@@ -59,8 +59,4 @@ impl Seq {
     pub fn value(self) -> u64 {
         self.0
     }
-    #[must_use]
-    pub fn successor(self) -> Self {
-        Self(self.0.saturating_add(1))
-    }
 }

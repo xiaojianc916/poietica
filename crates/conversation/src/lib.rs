@@ -5,7 +5,6 @@
 pub mod error;
 pub mod event;
 pub mod identity;
-pub mod invariants;
 pub mod link;
 pub mod ports;
 pub mod projection;

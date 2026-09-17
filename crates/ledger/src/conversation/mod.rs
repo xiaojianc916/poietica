@@ -1,5 +1,4 @@
 mod admissions;
-pub mod cursors;
 pub mod events;
 pub mod outbox;
 pub mod screen;

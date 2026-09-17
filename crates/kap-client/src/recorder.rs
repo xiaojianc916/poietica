@@ -68,19 +68,9 @@ impl SeqLine {
         self.0.load(Ordering::Acquire)
     }
 
-    /// 这个位置用掉了。只前进不后退，与 resume 同一条规矩：一次盲写会把 resume
-    /// 接上去的号退回来会让同一帧以不同位置重复投递，账本按对话发号后这不是
-    /// 一道防线，只前进不后退保持成形与投递的两段式语义。
+    /// 这个位置用掉了。只前进不后退：退回去会让同一帧以两个位置重复投递。
     fn used(&self, seq: i64) {
         let _previous = self.0.fetch_max(seq.saturating_add(1), Ordering::AcqRel);
-    }
-
-    /// 接着日志里记下的最后一个位置往下数。
-    ///
-    /// 一条会话装载回来时号不变，而它的槽是这次连接新建的、从 1 开始。不接
-    /// 上去，新一轮的帧会以倒退的位置重复投递。只前进不后退。
-    pub fn resume(&self, last: i64) {
-        let _previous = self.0.fetch_max(last.saturating_add(1), Ordering::AcqRel);
     }
 }
 
@@ -139,8 +129,8 @@ impl Frames {
 
 /// 一轮的记录者：决定此刻发生了哪一种事，然后把它做成一帧交出去。
 ///
-/// 它不写任何存储：帧交给 FrameSink，落库由收帧的那一侧做（桌面 seam 的
-/// commands/agent/turn.rs）。这一层因此不需要一个数据库就能测。
+/// 它不写任何存储：帧交给 FrameSink，落库由收帧的那一侧做
+/// （conversation-runtime 的 journal.rs）。这一层因此不需要一个数据库就能测。
 ///
 /// 剩下的那张表是这一轮自己的工作内存：谁在等答复。一轮结束它跟着走，
 /// 本来就不该活到下一次启动。
@@ -279,13 +269,6 @@ impl Recorder {
         response: ApprovalResponse,
     ) {
         self.note_resolution(approval_id, response);
-    }
-
-    /// The requests this run is still waiting on.
-    ///
-    /// 一轮结束时要从权限桌上放掉的就是这些。
-    pub fn outstanding_permissions(&self) -> &[String] {
-        &self.approvals
     }
 
     /// Settles every ask still outstanding when the turn ended.
@@ -489,8 +472,7 @@ pub(crate) fn now_millis() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    // 与 tests/recorder.rs 顶上那一句同一条纪律、同一个理由（Cargo.toml lints
-    // 注释）：测试作用域逐处写明带理由的 allow，不靠根配置一刀切。
+    // 测试作用域逐处写明带理由的 allow，不靠根配置一刀切（Cargo.toml lints 注释）。
     #![allow(
         clippy::expect_used,
         reason = "a test proves itself by panicking, so a failed step must fail the test"

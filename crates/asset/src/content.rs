@@ -5,7 +5,6 @@
 use crate::identity::{
     AssetProtocolError, MAX_ASSET_BYTES, validate_content_hash, validate_content_type,
 };
-use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -24,7 +23,7 @@ impl AssetSessionSnapshotEntry {
             crate::formats::sniff(&bytes).ok_or(AssetProtocolError::UnsupportedContentType)?;
         validate_content_type(content_type)?;
         Ok(Self {
-            content_hash: hex::encode(Sha256::digest(&bytes)),
+            content_hash: crate::formats::digest_hex(&bytes),
             content_type: content_type.to_owned(),
             bytes: Arc::new(bytes),
         })
@@ -40,7 +39,7 @@ impl AssetSessionSnapshotEntry {
         if bytes.len() > MAX_ASSET_BYTES {
             return Err(AssetProtocolError::AssetTooLarge);
         }
-        if hex::encode(Sha256::digest(bytes.as_slice())) != content_hash {
+        if crate::formats::digest_hex(bytes.as_slice()) != content_hash {
             return Err(AssetProtocolError::InvalidContentHash);
         }
         Ok(Self {

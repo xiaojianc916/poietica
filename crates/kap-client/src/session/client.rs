@@ -440,13 +440,9 @@ impl AgentClient {
         Ok(answer)
     }
 
-    /// Asks the agent to stop the turn in flight on one session.
-    ///
-    /// Cancellation is cooperative: the agent may still finish normally, and
-    /// the turn's own answer reports which of the two happened.
-    ///
-    /// 停哪一条必须说出来。一条连接上有多条会话，而它们可以同时在飞。
     /// 把排队的那几句并进正在跑的那一轮。不中断在跑的那一轮，这是它与 cancel 的分野。
+    ///
+    /// 停哪一条必须说出来：一条连接上有多条会话，而它们可以同时在飞。
     ///
     /// # Errors
     ///
@@ -484,6 +480,13 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
+    /// 停掉这条会话上正在跑的那一轮。
+    ///
+    /// 取消是协作式的：agent 也可能刚好正常跑完，轮终帧会报是哪一种。
+    ///
+    /// # Errors
+    ///
+    /// 驱动已退场时失败。
     pub async fn cancel(&self, session_id: String) -> Result<()> {
         let (reply, answer) = oneshot::channel();
         self.send(Command::Cancel { session_id, reply })?;

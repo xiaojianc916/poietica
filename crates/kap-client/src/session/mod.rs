@@ -40,8 +40,7 @@ pub struct AgentSpawn {
     ///
     /// 名字与参数分开存，因为拼成一行再切回来是有损的：POSIX 词法会把 Windows
     /// 路径里的反斜杠当成转义符吃掉，带空格的路径会被切断。Zed 的
-    /// `AgentServerCommand` 同样是 path/args/env 三元组，连跨进程的 protobuf
-    /// （crates/proto/proto/ai.proto）都不降级成字符串。
+    /// `AgentServerCommand` 同样是 path/args/env 三元组。
     pub program: String,
     /// 传给它的参数，逐个原样递给进程，不做任何引号或转义处理。
     pub args: Vec<String>,
@@ -203,13 +202,6 @@ pub struct Handshake {
 }
 
 #[derive(Debug, Clone)]
-pub enum McpTransport {
-    Stdio,
-    Http,
-    Sse,
-}
-
-#[derive(Debug, Clone)]
 pub enum McpStatus {
     Connected,
     Connecting,
@@ -250,7 +242,6 @@ pub struct Capability {
 pub struct McpServer {
     pub id: String,
     pub name: String,
-    pub transport: McpTransport,
     pub status: McpStatus,
     pub tool_count: u32,
     pub last_error: Option<String>,

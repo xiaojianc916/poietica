@@ -4,7 +4,7 @@
 //! 主人对得上的、声明过能力的连接，而删除发生的那一刻常常凑不齐三样 ——
 //! 离线删除、换号、锚会话退役、幽灵行收割，全是同一件事。这张表记的就是
 //! 欠下的那句话：一行一笔账，下一次对上这个 agent 的连接握手后冲销
-//! （桌面 seam 的 record_and_flush_disposals）。
+//! （conversation-runtime 的 disposal.rs）。
 
 use crate::error::Result;
 use crate::index::store::AgentStore;

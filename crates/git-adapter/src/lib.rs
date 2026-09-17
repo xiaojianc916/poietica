@@ -1,15 +1,14 @@
 //! 一个工作目录的 git 分支问答与操作。
 //!
 //! 分支状态的唯一真相是磁盘上的仓库，所以这里不缓存：每问一次就跑一次 git。
-//! 走 git CLI 而不是 libgit2 绑定，是这个场景的标杆做法 —— VS Code 内置的
-//! git 扩展与 JetBrains 的 git4idea 都外调 git 可执行文件：仓库可能带
-//! worktree、sparse、submodule 与自定义 hooks，只有 git 自己的解释永远与
-//! 用户在终端里看到的一致；libgit2 还会把一整个 C 库编进产物，换来的是
-//! 这里用不到的对象库读写。
+//! 走 git CLI 而不是 libgit2 绑定是这个场景的标杆做法（VS Code 内置 git 扩展与
+//! JetBrains git4idea 都外调 git 可执行文件）：仓库可能带 worktree、sparse、
+//! submodule 与自定义 hooks，只有 git 自己的解释与用户在终端里看到的一致；
+//! libgit2 还会把一整个 C 库编进产物，换来的是这里用不到的对象库读写。
 //!
-//! 边界：这个 crate 不认识 Tauri，也不判断「哪个目录允许被操作」—— 那是
-//! 命令层的事。它拿到路径与分支名，交还快照或 git 自己的拒绝理由。审查面
-//! 的领域类型与 porcelain 解码在 crates/review，这里只执行与拼装。
+//! 边界：这个 crate 不认识 Tauri，也不判断「哪个目录允许被操作」—— 那是命令层
+//! 的事。它拿到路径与分支名，交还快照或 git 自己的拒绝理由。审查面的领域类型与
+//! porcelain 解码在 crates/review，这里只执行与拼装。
 
 use std::path::Path;
 use std::process::Output;
@@ -152,10 +151,13 @@ pub async fn create(root: &Path, branch: &str) -> Result<BranchSnapshot, GitErro
 }
 
 /// 操作刚成功的目录突然不是仓库，只可能是外部世界在并发改它 —— 照实说。
+pub(crate) fn still_a_worktree<T>(found: Option<T>) -> Result<T, GitError> {
+    found.ok_or_else(|| GitError::Refused("这个目录已经不是 git 工作区".to_owned()))
+}
+
+/// 操作刚成功的目录突然不是仓库，只可能是外部世界在并发改它 —— 照实说。
 async fn refreshed(root: &Path) -> Result<BranchSnapshot, GitError> {
-    snapshot(root)
-        .await?
-        .ok_or_else(|| GitError::Refused("这个目录已经不是 git 工作区".to_owned()))
+    still_a_worktree(snapshot(root).await?)
 }
 
 /* 只挡把名字读成命令行开关的那一类注入；其余交给 git 自己的 check-ref-format。 */

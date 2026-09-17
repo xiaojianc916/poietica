@@ -365,8 +365,8 @@ impl Vault {
         })
     }
 
-    /// 先写临时文件再比对指纹最后原子替换：写失败不会留下半份文件。
-    /// 指纹叠加边车：只改列类型也算改动，顶掉别人的类型改动要报冲突。
+    /// 先读现状比对指纹，不符即冲突、一个字节都不动；相符才写临时文件再原子替换，
+    /// 所以写失败不会留下半份文件。指纹叠加边车：只改列类型也算改动。
     fn write(&self, path: &str, body: &LibraryBody, expected: &str) -> Result<LibraryDocument> {
         let _lock = self.lock()?;
         let (target, format) = self.file(path)?;
@@ -496,8 +496,7 @@ impl Vault {
         self.relative(&target)
     }
 
-    /// 进系统回收站，文件与文件夹同一条路径。表格先清边车：主文件已经进了
-    /// 回收站，边车再留着就是一份永远对不上的孤儿。
+    /// 进系统回收站，文件与文件夹同一条路径。表格先清边车，再送主文件。
     fn trash(&self, path: &str) -> Result<()> {
         let _lock = self.lock()?;
         let target = self.path(path, false)?;

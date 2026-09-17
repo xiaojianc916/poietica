@@ -14,12 +14,14 @@ use poietica_review_native::{
 
 use crate::{
     GitError, branch_listing, branches_from, expect_ok, git_missing, is_work_tree,
-    repository_probe, run,
+    repository_probe, run, still_a_worktree,
 };
 
 /* 整份文件：unified 给到行数不可能达到的量级，折叠带上的行数才是真数字。 */
 const WHOLE: u32 = 100_000;
 const UNTRACKED_CONCURRENCY: usize = 4;
+/// 让非 ASCII 路径原样出现在文件头，解析侧不需要第二份反引号解码器。
+const QUOTE_PATH_OFF: &str = "core.quotePath=false";
 const STATUS_ARGS: &[&str] = &[
     "--no-optional-locks",
     "status",
@@ -159,9 +161,7 @@ async fn refreshed(
     context: u32,
     ignore_whitespace: bool,
 ) -> Result<ReviewSnapshot, GitError> {
-    review(root, base, context, ignore_whitespace)
-        .await?
-        .ok_or_else(|| GitError::Refused("这个目录已经不是 git 工作区".to_owned()))
+    still_a_worktree(review(root, base, context, ignore_whitespace).await?)
 }
 
 /* 只挡把参数读成命令行开关的那一类注入；其余交给 git 自己解释。 */
@@ -172,8 +172,6 @@ fn checked(kind: &str, value: &str) -> Result<(), GitError> {
     Ok(())
 }
 
-/// core.quotePath=false 让非 ASCII 路径原样出现在文件头，解析侧不需要第二份
-/// 反引号解码器。
 async fn base_exists(root: &Path, base: &str) -> Result<bool, GitError> {
     Ok(run(root, &["rev-parse", "--verify", "--quiet", base])
         .await?
@@ -223,7 +221,7 @@ async fn tracked_patch(
 
     let mut args = vec![
         "-c",
-        "core.quotePath=false",
+        QUOTE_PATH_OFF,
         "diff",
         base,
         "--no-color",
@@ -247,7 +245,7 @@ async fn untracked_patches(
     changes: &[FileChange],
 ) -> Result<Vec<String>, GitError> {
     /* 管线里的 future 只带自有数据：借用条目的 future 过不了
-    command 宏的高阶 lifetime 边界（见 ipc/commands/git.rs）。 */
+    command 宏的高阶 lifetime 边界（见 apps/desktop/src-tauri/src/review.rs）。 */
     let pending: Vec<(PathBuf, String, String)> = changes
         .iter()
         .filter(|change| change.status == ChangeStatus::Untracked)
@@ -273,7 +271,7 @@ async fn untracked(
 ) -> Result<String, GitError> {
     let mut args = vec![
         "-c",
-        "core.quotePath=false",
+        QUOTE_PATH_OFF,
         "diff",
         "--no-index",
         "--no-color",

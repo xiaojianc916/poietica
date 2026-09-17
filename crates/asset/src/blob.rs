@@ -4,10 +4,10 @@ use std::fs;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
-use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
+use crate::formats::digest_hex;
 use crate::is_content_hash;
 
 const STAGING_DIRECTORY: &str = "tmp";
@@ -40,14 +40,14 @@ pub fn blob_path(root: &Path, hash: &str) -> Result<PathBuf, BlobError> {
 
 pub fn read_blob(root: &Path, hash: &str) -> Result<Vec<u8>, BlobError> {
     let bytes = fs::read(blob_path(root, hash)?)?;
-    if hex::encode(Sha256::digest(&bytes)) != hash {
+    if digest_hex(&bytes) != hash {
         return Err(BlobError::Integrity);
     }
     Ok(bytes)
 }
 
 pub fn store_bytes(root: &Path, bytes: &[u8]) -> Result<Blob, BlobError> {
-    let hash = hex::encode(Sha256::digest(bytes));
+    let hash = digest_hex(bytes);
     let byte_size = u64::try_from(bytes.len()).map_err(|_| BlobError::Length)?;
     let destination = blob_path(root, &hash)?;
     match fs::read(&destination) {

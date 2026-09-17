@@ -5,7 +5,7 @@ use crate::error::{KapError, Result};
 use crate::generated::rest::{
     ClientConfigDataStruct, ListModelsDataStruct, ListProvidersDataStruct, routes,
 };
-use crate::session::rest::{delete, get, post, put};
+use crate::session::rest::{decoded, delete, get, post, put};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ProviderModelInput {
@@ -196,24 +196,18 @@ fn hydrate_provider_write_fields(models: &mut [Model], configured: Option<&Value
 }
 
 async fn snapshot(http: &reqwest::Client, base_url: &str) -> Result<ModelCatalogSnapshot> {
-    let providers: ListProvidersDataStruct = serde_json::from_value(
+    let providers: ListProvidersDataStruct = decoded(
         get(http, routes::list_providers(base_url)).await?,
-    )
-    .map_err(|error| KapError::Transport {
-        message: error.to_string(),
-    })?;
-    let listed_models: ListModelsDataStruct = serde_json::from_value(
+        "provider list",
+    )?;
+    let listed_models: ListModelsDataStruct = decoded(
         get(http, routes::list_models(base_url)).await?,
-    )
-    .map_err(|error| KapError::Transport {
-        message: error.to_string(),
-    })?;
-    let config: ClientConfigDataStruct = serde_json::from_value(
+        "model list",
+    )?;
+    let config: ClientConfigDataStruct = decoded(
         get(http, routes::client_config(base_url)).await?,
-    )
-    .map_err(|error| KapError::Transport {
-        message: error.to_string(),
-    })?;
+        "client config",
+    )?;
     let catalog = parse_catalog(get(http, routes::list_catalog_providers(base_url)).await?)?;
     let mut models: Vec<Model> = projected(listed_models.items, "models")?;
     hydrate_provider_write_fields(&mut models, config.models.as_ref())?;

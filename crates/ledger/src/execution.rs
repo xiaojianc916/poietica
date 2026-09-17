@@ -117,7 +117,6 @@ impl Drop for IndexActor {
 #[derive(Debug)]
 struct IndexActors {
     reader: IndexActor,
-    background_reader: IndexActor,
     writer: IndexActor,
 }
 
@@ -139,16 +138,11 @@ impl<E> Clone for LocalIndex<E> {
 impl<E> LocalIndex<E> {
     pub fn open(path: &Path, clock: impl WallClock + Clone + 'static) -> Result<Self, IndexError> {
         let writer = AgentStore::open(path, clock.clone())?;
-        let reader = AgentStore::open_read_only(path, clock.clone())?;
-        let background_reader = AgentStore::open_read_only(path, clock)?;
+        let reader = AgentStore::open_read_only(path, clock)?;
         Ok(Self {
             error: PhantomData,
             actors: Arc::new(IndexActors {
                 reader: IndexActor::start("poietica-ledger-reader", reader)?,
-                background_reader: IndexActor::start(
-                    "poietica-ledger-background-reader",
-                    background_reader,
-                )?,
                 writer: IndexActor::start("poietica-ledger-writer", writer)?,
             }),
         })
@@ -180,15 +174,6 @@ where
     F: FnOnce(&mut AgentStore) -> Result<T, E> + Send + 'static,
 {
     dispatch(&index.actors.reader, work).await
-}
-
-pub async fn read_index_background<T, F, E>(index: &LocalIndex<E>, work: F) -> Result<T, E>
-where
-    T: Send + 'static,
-    E: From<IndexError> + Send + 'static,
-    F: FnOnce(&mut AgentStore) -> Result<T, E> + Send + 'static,
-{
-    dispatch(&index.actors.background_reader, work).await
 }
 
 pub async fn write_index<T, F, E>(index: &LocalIndex<E>, work: F) -> Result<T, E>
@@ -231,15 +216,8 @@ mod tests {
             Ok::<_, IndexError>(std::thread::current().id())
         };
         let reader = index.actors.reader.call(owner).expect("reader");
-        let background = index
-            .actors
-            .background_reader
-            .call(owner)
-            .expect("background");
         let writer = index.actors.writer.call(owner).expect("writer");
-        assert_ne!(reader, background);
         assert_ne!(reader, writer);
-        assert_ne!(writer, background);
     }
 
     #[test]

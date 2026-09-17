@@ -112,10 +112,8 @@ impl Launcher {
 
 /// 把一个裸名字解析成 mcp.json 的 stdio 条目能直接用的启动式；解不出就是 `None`。
 ///
-/// 写盘那一刻就把这台机器的平台事实固化下来，而不是把裸名留给下游进程碰运气 ——
-/// 上面 [`resolve_program`] 那条「CreateProcess 不读 PATHEXT」对起 MCP 子进程的
-/// 那一跳同样成立。缺程序不是这次调用的故障，是那台机器的现状，所以是 `None` 不是
-/// 错误。与 [`resolve_program`] 共用 which 这一个产地，两条路不许各查一遍。
+/// 写盘那一刻就把这台机器的平台事实固化下来，而不是把裸名留给下游进程碰运气。
+/// 缺程序不是这次调用的故障，是那台机器的现状，所以是 `None` 不是错误。
 pub fn resolve_launcher(program: &str) -> Option<Launcher> {
     which::which(program).ok().map(|path| Launcher::wrap(&path))
 }

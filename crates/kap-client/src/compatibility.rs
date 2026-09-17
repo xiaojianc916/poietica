@@ -14,11 +14,15 @@ use crate::session::rest::get;
 /// 钉住的能力集矩阵，由 tools/contract/kap-spec-sync.ts 从快照派生。
 const PINNED: &str = include_str!("../../../contracts/kap/capabilities.json");
 
-fn pinned_meta_capabilities() -> Result<Vec<String>> {
-    let matrix: Value = serde_json::from_str(PINNED).map_err(|error| KapError::Transport {
+/// 这张矩阵的唯一一处解析：能力集与 server 版本都从这里读。
+pub(crate) fn pinned_manifest() -> Result<Value> {
+    serde_json::from_str(PINNED).map_err(|error| KapError::Transport {
         message: format!("the pinned capability matrix is unreadable: {error}"),
-    })?;
+    })
+}
 
+fn pinned_meta_capabilities() -> Result<Vec<String>> {
+    let matrix = pinned_manifest()?;
     let declared = matrix
         .get("meta_capabilities")
         .and_then(Value::as_array)

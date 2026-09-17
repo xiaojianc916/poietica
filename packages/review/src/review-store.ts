@@ -1,4 +1,4 @@
-import type { GitCommitIntent, GitReview } from '@poietica/contract/review'
+import type { GitChangeStatus, GitCommitIntent, GitReview } from '@poietica/contract/review'
 import { createExternalStore } from '@poietica/external-store'
 import type { ReviewFailureReport, ReviewGateway } from './review-gateway'
 import { type DiffFile, type DiffStat, diffStatOf, parseUnifiedPatch } from './unified-diff'
@@ -25,6 +25,8 @@ export type ReviewReading =
       readonly files: readonly DiffFile[]
       readonly staged: ReadonlySet<string>
       readonly stat: DiffStat
+      /** 每一处变更相对基准的处境（新增/改写/删除…）；树上的徽章只认它。 */
+      readonly statuses: ReadonlyMap<string, GitChangeStatus>
       /** 未暂存那一部分的加减行数：提交面板上那个勾选项管着的正是它。 */
       readonly unstaged: DiffStat
     }
@@ -492,11 +494,13 @@ function fingerprintOf(file: DiffFile): string {
 function ready(held: GitReview, parsed: readonly DiffFile[]): ReviewReading {
   const byPath = new Map(parsed.map((file) => [file.path, file] as const))
   const staged = new Set<string>()
+  const statuses = new Map<string, GitChangeStatus>()
   const files: DiffFile[] = []
   for (const change of held.changes) {
     if (change.staged) {
       staged.add(change.path)
     }
+    statuses.set(change.path, change.status)
     files.push(byPath.get(change.path) ?? blank(change.path))
     byPath.delete(change.path)
   }
@@ -511,6 +515,7 @@ function ready(held: GitReview, parsed: readonly DiffFile[]): ReviewReading {
     phase: 'ready',
     staged,
     stat: diffStatOf(files) ?? NOTHING,
+    statuses,
     unstaged: diffStatOf(files.filter((file) => !staged.has(file.path))) ?? NOTHING,
     upstream: held.upstream,
   }

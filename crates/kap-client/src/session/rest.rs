@@ -13,10 +13,9 @@ use crate::generated::rest::{
     CreateSessionRequestAgentConfigStruct, CreateSessionRequestMetadataStruct,
     CreateSessionRequestStruct, ListCapabilitiesDataCapabilitiesStateEnum,
     ListCapabilitiesDataCapabilitiesStruct, ListCapabilitiesDataStruct,
-    ListMcpServersDataServersStatusEnum, ListMcpServersDataServersTransportEnum,
-    ListMcpServersDataStruct, ListSessionsDataStruct, ListSkillsDataSkillsSourceEnum,
-    ListSkillsDataStruct, SessionSnapshotDataStruct, SetProfileRequestStruct,
-    SubmitPromptDataStruct, SubmitPromptRequestContentChoice,
+    ListMcpServersDataServersStatusEnum, ListMcpServersDataStruct, ListSessionsDataStruct,
+    ListSkillsDataSkillsSourceEnum, ListSkillsDataStruct, SessionSnapshotDataStruct,
+    SetProfileRequestStruct, SubmitPromptDataStruct, SubmitPromptRequestContentChoice,
     SubmitPromptRequestContentChoiceImageSourceChoice, SubmitPromptRequestSkillsStruct,
     SubmitPromptRequestStruct,
 };
@@ -30,7 +29,7 @@ use crate::session::config::{
     ConfigControl, GoalSnapshot, controls, goal_snapshot, selector_patch,
 };
 use crate::session::{
-    Capability, CapabilityInstall, CapabilityReadiness, Cursor, McpServer, McpStatus, McpTransport,
+    Capability, CapabilityInstall, CapabilityReadiness, Cursor, McpServer, McpStatus,
     OpenedSession, Skill,
 };
 
@@ -419,8 +418,8 @@ pub(crate) async fn open_session(
 }
 
 /// kap 的会话在 server 侧持久：装载 = 验存在 + 重新订阅。号在 server 侧也没了
-/// 时，GET 的信封带非零 code，在这里变成 Err —— 调用侧据此走 Forgotten 路径
-/// （桌面 seam 的 addressing.rs）。
+/// 时，GET 的信封带非零 code，在这里变成 Err —— 调用侧据此把「agent 那边已经
+/// 没有这条会话」与其它失败分开（桌面 DTO 的 AgentHistoryLoss）。
 pub(crate) async fn load_session(
     http: &reqwest::Client,
     base_url: &str,
@@ -553,11 +552,6 @@ pub(crate) async fn list_mcp_servers(
             Ok(McpServer {
                 id: item.id,
                 name: item.name,
-                transport: match item.transport {
-                    ListMcpServersDataServersTransportEnum::Stdio => McpTransport::Stdio,
-                    ListMcpServersDataServersTransportEnum::Http => McpTransport::Http,
-                    ListMcpServersDataServersTransportEnum::Sse => McpTransport::Sse,
-                },
                 status: match item.status {
                     ListMcpServersDataServersStatusEnum::Connected => McpStatus::Connected,
                     ListMcpServersDataServersStatusEnum::Connecting => McpStatus::Connecting,
@@ -812,8 +806,7 @@ pub(crate) async fn set_selector(
 
 #[cfg(test)]
 mod tests {
-    // 与 tests/recorder.rs 顶上那一句同一条纪律、同一个理由（Cargo.toml lints
-    // 注释）：测试里的 expect 是响亮失败，豁免只写在测试作用域，不靠根配置放开。
+    // 测试里的 expect 是响亮失败，豁免只写在测试作用域，不靠根配置放开（Cargo.toml lints 注释）。
     #![allow(
         clippy::expect_used,
         reason = "a test proves itself by panicking, so a failed step must fail the test"

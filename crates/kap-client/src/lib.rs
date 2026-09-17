@@ -3,24 +3,10 @@
 //! `generated/` 由 tools/contract/generate-kap.ts 从 contracts/kap 的快照生成，
 //! 禁手改；本 crate 其余部分只做信封语义与解码判据，不添加协议形状。
 //!
-//! Three rules shape this crate.
-//!
-//! A failure on this side is recorded and surfaced by the driver once the run
-//! ends; it is never reported back to the agent as if it were the agent's own.
-//!
-//! A session outlives a turn, and a connection outlives a session. The
-//! process is started once; sessions, prompts, cancellation and shutdown
-//! arrive afterwards as commands, and several of them may be in flight at
-//! once. One turn at a time is a rule of a session, not of a connection.
-//! Because the handlers live as long as the connection and a recorder lives
-//! only as long as one run, the two meet through a slot rather than by
-//! ownership.
-//!
-//! Asking a human is not a formality, and it is not one kind of ask. An
-//! approval is answered with one of kap's three decisions; a question group
-//! takes whatever its own multi_select and allow_other allow. They therefore
-//! wait at two desks, and a handler blocks on its own desk until a real answer
-//! arrives rather than inventing one.
+//! 三条规矩：本侧的失败由驱动器在轮终记录并上报，不回敬给 agent 当成它自己的；
+//! 连接比会话长、会话比一轮长，而 handler 活得和连接一样久、recorder 只活一轮，
+//! 两者因此经一个 slot 相会而不是靠所有权；审批与题组各占一张桌子，handler 在
+//! 自己的桌子上等到真答案，不编一个。
 
 pub mod error;
 pub mod generated;
@@ -77,9 +63,9 @@ pub use session::driver::connect;
 pub use session::{
     AgentClient, AgentConnection, AgentSpawn, Capability, CapabilityInstall, CapabilityReadiness,
     ConfigChoice, ConfigControl, ConfigPurpose, ConfigSelection, Cursor, GoalSnapshot, Handshake,
-    McpServer, McpStatus, McpTransport, OpenedSession, PromptAttachment, PromptSkill, SessionBook,
-    SessionEntry, SessionEvent, SessionEvents, SessionUsageSnapshot, Skill, apply_configurations,
-    controls, goal_snapshot, select_config, selector_patch,
+    McpServer, McpStatus, OpenedSession, PromptAttachment, PromptSkill, SessionBook, SessionEntry,
+    SessionEvent, SessionEvents, SessionUsageSnapshot, Skill, apply_configurations, controls,
+    goal_snapshot, select_config, selector_patch,
 };
 
 /// 链路态的词汇住在领域那侧；这里只是转发，让消费者不必两处 import。

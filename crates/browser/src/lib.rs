@@ -2,8 +2,8 @@
 //!
 //! 这里只有状态与不变式：标签的次序、活动标签、关闭后的焦点迁移、最近关闭
 //! 的环、地址的规整。谁来渲染、谁来导航（WebView2、CDP、还是测试桩）不在
-//! 这一层出现 —— 宿主接线归 src-tauri 的 browser.rs，本 crate 必须能在
-//! 没有窗口的进程里跑完全部单测。
+//! 这一层出现 —— 宿主接线归 apps/desktop/src-tauri/src/webview/bridge.rs，
+//! 本 crate 必须能在没有窗口的进程里跑完全部单测。
 
 mod picker;
 
@@ -270,14 +270,12 @@ pub fn normalize_address(input: &str) -> Option<String> {
     Some(parsed.into())
 }
 /// 本机地址：开发服务器几乎不说 TLS，公网几乎只说 TLS。
-/// 判据只看权限部分的主机名，端口交给 url crate 解析。
+/// 只取权限部分的主机名，端口与路径在这里剥掉。
 fn is_local_authority(input: &str) -> bool {
-    let host = input
-        .split('/')
-        .next()
-        .unwrap_or(input)
+    let authority = input.split('/').next().unwrap_or(input);
+    let host = authority
         .rsplit_once(':')
-        .map_or(input, |(head, _)| head);
+        .map_or(authority, |(head, _)| head);
 
     host == "localhost" || host.parse::<std::net::IpAddr>().is_ok()
 }

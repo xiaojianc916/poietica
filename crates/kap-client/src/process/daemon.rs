@@ -69,11 +69,6 @@ impl Daemon {
     }
 
     #[must_use]
-    pub const fn intent(&self) -> DaemonIntent {
-        self.intent
-    }
-
-    #[must_use]
     pub const fn phase(&self) -> &DaemonPhase {
         &self.phase
     }
