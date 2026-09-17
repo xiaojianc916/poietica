@@ -11,6 +11,7 @@
   --review-removed-fill: #fbe6e2;
   --review-removed-edge: #ba2522;
   --review-removed-emphasis: #f3caca;
+  transition: --review-tree-width var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
 :root[data-theme="dark"] .review-pane {
@@ -172,10 +173,6 @@
   initial-value: 0px;
 }
 
-.review-pane {
-  transition: --review-tree-width var(--workspace-layout-duration) var(--workspace-layout-ease);
-}
-
 /* 拖动分隔条时不插值：指针给的是最终值，插值只会让列追着指针跑。 */
 .review-pane[data-splitter="drag"] {
   transition: none;
@@ -247,8 +244,9 @@
   );
 }
 
-/* 悬停：线轻轻加深一档，抓手 50ms 后浮现。 */
-.review-pane[data-splitter="hover"] .review-tree__surface {
+/* 悬停与拖拽同档线色；抓手 hover 等 50ms 再浮现，drag 按下即现。 */
+.review-pane[data-splitter="hover"] .review-tree__surface,
+.review-pane[data-splitter="drag"] .review-tree__surface {
   border-inline-start-color: color-mix(in oklab, var(--color-foreground) 8%, #ededed);
 }
 
@@ -257,19 +255,11 @@
   transition-delay: 50ms;
 }
 
-:root[data-theme="dark"] .review-pane[data-splitter="hover"] .review-tree__surface {
-  border-inline-start-color: color-mix(in srgb, #ffffff 12%, transparent);
-}
-
-/* 拖拽：线色与悬停同档，抓手不等延迟立刻浮现。 */
-.review-pane[data-splitter="drag"] .review-tree__surface {
-  border-inline-start-color: color-mix(in oklab, var(--color-foreground) 8%, #ededed);
-}
-
 .review-pane[data-splitter="drag"] .review-tree__surface::after {
   opacity: 1;
 }
 
+:root[data-theme="dark"] .review-pane[data-splitter="hover"] .review-tree__surface,
 :root[data-theme="dark"] .review-pane[data-splitter="drag"] .review-tree__surface {
   border-inline-start-color: color-mix(in srgb, #ffffff 12%, transparent);
 }

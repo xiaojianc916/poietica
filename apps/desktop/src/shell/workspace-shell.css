@@ -151,10 +151,11 @@
   --workspace-divider-grip: color-mix(in oklab, var(--color-foreground) 14%, #ededed);
 }
 
-/* 各侧的线只随自己那侧的停靠位隐没：基类共享，:not 把两侧开关圈开。 */
+/* :not 隔离两侧开关；辅助面板全屏时主列消失，其末像素上的分隔线也须隐藏。 */
 .workspace-shell[data-sidebar-docked="false"]
 .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
-.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__divider--auxiliary {
+.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__divider--auxiliary,
+.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__divider--auxiliary {
   opacity: 0;
 }
 
@@ -269,9 +270,4 @@
 .workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__main,
 .workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__conversation-control {
   display: none;
-}
-
-/* 主/右栏的竖线画在主列末像素；主区没了它就成了停在面板左缘的孤线。 */
-.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__divider--auxiliary {
-  opacity: 0;
 }

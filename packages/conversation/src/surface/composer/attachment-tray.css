@@ -91,6 +91,13 @@
   grid-auto-flow: row;
 }
 
+.composer-tile__spinner,
+.composer-tile__mark {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  color: var(--cp-ink-subtle);
+}
+
 .composer-tile__file .composer-tile__mark {
   grid-area: auto;
 }
@@ -113,13 +120,6 @@
 
 .composer-tile__image[data-state="ready"] {
   opacity: 1;
-}
-
-.composer-tile__spinner,
-.composer-tile__mark {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  color: var(--cp-ink-subtle);
 }
 
 .composer-tile__spinner {
