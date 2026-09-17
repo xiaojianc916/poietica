@@ -219,11 +219,6 @@ function Toolbar({
       <Bases base={state.base} reading={reading} store={store} />
       {/* 与卡头右侧那一处同档：整条工具条上只有这一对加减数，两处不一样大就是缺陷。 */}
       <Tally stat={reading.stat} />
-      {reading.ahead + reading.behind > 0 ? (
-        <span className="shrink-0 text-[11px] tabular-nums opacity-50">
-          ↑{reading.ahead} ↓{reading.behind}
-        </span>
-      ) : null}
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <Overflow state={state} store={store} />
         <IconButton
@@ -536,7 +531,11 @@ function Body({
     return <Note>二进制文件，没有可对比的文本。</Note>
   }
   if (file.rows.length === 0) {
-    return <Note>没有文本改动。</Note>
+    return (
+      <div className="review-empty flex h-11 items-center justify-center">
+        <span className="text-xs">无内容</span>
+      </div>
+    )
   }
   /* 不换行时这一格自己横滚：代码的缩进不能被折行改写。 */
   const wide = spanOf(file) > VIRTUAL_AFTER
@@ -1135,7 +1134,7 @@ function IconButton({
     </Tooltip>
   )
 }
-/* 两侧都写出来：删除专场也要看得见 +0，这是「数过了」与「没数」的区别。
+/* 两侧都写出来，0/0 也写：没有文本改动是一份数出来的结果，与「没数」不是一回事。
  * 默认跟着卡头正文走；工具条与提交面板旁边是 11–12px 的字，那两处传 dense 收一档。 */
 function Tally({
   dense = false,
@@ -1145,9 +1144,6 @@ function Tally({
   readonly dense?: boolean
   readonly stat: DiffStat
 }) {
-  if (stat.added === 0 && stat.removed === 0) {
-    return null
-  }
   return (
     <span
       className={cn(
