@@ -38,7 +38,7 @@ export function SearchableSelect<TValue extends string = string>({
       <Combobox.Trigger
         aria-label={type}
         className={cn(
-          'flex h-[30px] w-full items-center justify-between gap-2 rounded-lg border border-divider [--color-divider:var(--ui-card-divider)] bg-white px-2 text-xs text-foreground outline-none transition-colors hover:bg-[#f2f3f3] focus-visible:ring-2 focus-visible:ring-ring',
+          'flex h-[30px] w-full items-center justify-between gap-2 rounded-lg border border-divider [--color-divider:var(--ui-popover-trigger-frame)] bg-popover px-2 text-xs text-foreground outline-none transition-colors hover:bg-[var(--ui-popup-highlight)] focus-visible:ring-2 focus-visible:ring-ring',
           className,
         )}
         id={id}
@@ -53,7 +53,7 @@ export function SearchableSelect<TValue extends string = string>({
         <Combobox.Positioner className={popupPositionerClassName} sideOffset={4}>
           <Combobox.Popup
             aria-label={`选择${type}`}
-            className={cn(popupSurfaceClassName, '[--color-divider:#d1d3d3]')}
+            className={cn(popupSurfaceClassName, '[--color-divider:var(--ui-popover-frame)]')}
             style={{
               minInlineSize: `max(var(--anchor-width), 240px)`,
               maxInlineSize: '320px',

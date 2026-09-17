@@ -24,7 +24,13 @@ export interface SelectProps<TValue extends string = string> {
   readonly onValueChange: (value: TValue) => void
 }
 
-/* cn 靠后的类覆盖靠前的冲突类，调用点的 className 因此排在最后。 */
+/*
+ * cn 靠后的类覆盖靠前的冲突类，调用点的 className 因此排在最后。
+ *
+ * 触发器与展开的面板同属一个控件：底取 --ui-popover（收起与展开同色），框取
+ * --ui-popover-trigger-frame（比面板那圈轻一档）。两处都由令牌给值，不再写死
+ * 白底与浅色线。
+ */
 const TRIGGER = cn(
   'flex items-center justify-between',
   'text-left text-foreground',
@@ -35,7 +41,7 @@ const TRIGGER = cn(
   'disabled:cursor-not-allowed',
   'disabled:opacity-50',
   'h-[26px] gap-1 px-2 text-xs',
-  'w-auto max-w-full rounded-lg border border-divider [--color-divider:var(--ui-card-divider)] bg-white hover:bg-[#f2f3f3] data-[popup-open]:bg-[#f2f3f3]',
+  'w-auto max-w-full rounded-lg border border-divider [--color-divider:var(--ui-popover-trigger-frame)] bg-popover hover:bg-[var(--ui-popup-highlight)] data-[popup-open]:bg-[var(--ui-popup-highlight)]',
 )
 
 const VALUE = cn('min-w-0 flex-1', 'truncate')
@@ -71,7 +77,7 @@ const ITEM = cn(
   'rounded-[5px]',
   'outline-none',
   'transition-colors',
-  'data-[highlighted]:bg-[#f2f3f3]',
+  'data-[highlighted]:bg-[var(--ui-popup-highlight)]',
   'data-[highlighted]:text-[var(--ui-foreground)]',
   'data-[disabled]:pointer-events-none',
   'data-[disabled]:opacity-50',
@@ -133,7 +139,7 @@ export function Select<TValue extends string = string>({
           sideOffset={4}
         >
           <BaseSelect.Popup
-            className={cn(popupSurfaceClassName, '[--color-divider:#e2e4e4]')}
+            className={cn(popupSurfaceClassName, '[--color-divider:var(--ui-popover-frame)]')}
             style={{
               minInlineSize: `max(var(--anchor-width), ${POPUP_MIN_INLINE_SIZE})`,
               maxInlineSize: POPUP_MAX_INLINE_SIZE,

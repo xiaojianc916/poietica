@@ -1,0 +1,46 @@
+/*
+ * 确认对话框的两个页脚动作。
+ *
+ * 取消钮的底原先挂在 accent/55 上：浅色下兑出来是比对话框白底深一点的浅灰，深色
+ * 下同一句话兑出来的是贴着底色的深灰 —— 按钮整个消失。所以底自持一格：浅色那格
+ * 照原样写出（= accent 55% 兑在对话框底上，与改动前逐像素相同），深色另给。
+ *
+ * 危险动作深色下不铺满实色红：一层红墨压出底色、字留给红（浅色那枚实色红不动）。
+ * 两个浓度对着参考图量过：12% 压在 #2a2a2a 上得 #413231，与图上的 #403030 差 1～3 格。
+ */
+
+/*
+ * 对话框的框自己一格，且四边同宽同色。
+ *
+ * 深色下区域线那支半透明墨压在 #2a2a2a 上兑出 #4c4c4c，比对话框与遮罩的对比还
+ * 亮；页脚那条原本还有 !border-b-2 + foreground/20，兑出来 #555555 再加一个像素，
+ * 看上去就是底下糊了一道。两处都收掉，四边只剩这一条 #3a3a3a。
+ */
+:root[data-theme="dark"] .confirmation-dialog {
+  border-color: #3a3a3a;
+}
+
+.confirmation-dialog__cancel {
+  background-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-popover));
+}
+
+.confirmation-dialog__cancel:hover:not(:disabled) {
+  background-color: var(--ui-accent);
+}
+
+:root[data-theme="dark"] .confirmation-dialog__cancel {
+  background-color: #3b3b3b;
+}
+
+:root[data-theme="dark"] .confirmation-dialog__cancel:hover:not(:disabled) {
+  background-color: #454545;
+}
+
+:root[data-theme="dark"] .confirmation-dialog__destructive {
+  background-color: color-mix(in srgb, var(--ui-destructive) 12%, transparent);
+  color: var(--ui-destructive);
+}
+
+:root[data-theme="dark"] .confirmation-dialog__destructive:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--ui-destructive) 20%, transparent);
+}

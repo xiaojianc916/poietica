@@ -11,9 +11,10 @@
   --ui-inverse-border: rgb(255 255 255 / 12%);
 
   /*
-   * 设置卡片的卡内线与外框。卡片不再填灰：卡面即页面底色，边界由外框
-   * 承担，两者同色。曾经的填充色 --ui-card 随灰卡一起退役。
+   * 设置卡片的卡面、卡内线与外框。浅色下卡面即页面底色 —— 卡不填灰，边界由
+   * 外框承担，两者同色；深色下卡面比页面底色抬一档，值在 dark.css。
    */
+  --ui-card: var(--ui-palette-white);
   --ui-card-divider: #ededed;
   --ui-card-frame: #ededed;
   --ui-chrome: var(--ui-palette-neutral-75);
@@ -106,6 +107,12 @@
    * 内线只是把两组菜单项隔开，同墨量会把一组菜单读成一叠等距平行线。
    */
   --ui-popup-divider: #ededed;
+  /*
+   * 下拉族的两道框：收起态（触发器）跟卡片线同一档，展开的面板比它重一点，
+   * 收起与展开因此分得开。深色下两者都换成实色，见 dark.css。
+   */
+  --ui-popover-trigger-frame: var(--ui-card-divider);
+  --ui-popover-frame: #e2e4e4;
 
   /*
    * 划选高亮。浏览器那支默认蓝出自 UA 样式表，仓里对它没有任何定义，接管只有

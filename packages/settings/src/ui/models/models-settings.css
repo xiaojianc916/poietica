@@ -185,6 +185,11 @@
 .models-accordion-trigger:hover {
   background: #f2f2f3;
 }
+
+/* 深色下 hover 自成一格：卡面 #232323 上抬一档，浅色那两格在深色里是两块白。 */
+:root[data-theme="dark"] .models-accordion-trigger:hover {
+  background: #2e2e2e;
+}
 .models-accordion-panel {
   height: var(--accordion-panel-height);
   overflow: hidden;
@@ -195,6 +200,11 @@
 .models-accordion-panel[data-starting-style],
 .models-accordion-panel[data-ending-style] {
   height: 0;
+}
+
+/* 深色下展开的面与卡面同色：白底在深色里是一整块白板。 */
+:root[data-theme="dark"] .models-accordion-panel {
+  background: #232323;
 }
 .models-accordion-panel__inner {
   padding: 14px;
@@ -430,6 +440,11 @@
   border: 1px solid var(--models-divider);
   border-radius: 10px;
   background: #ffffff;
+}
+
+/* 同上：白底在深色里是一块白板，模型表跟着展开面走同一个值。 */
+:root[data-theme="dark"] .models-model-grid {
+  background: #232323;
 }
 .models-model-grid__header,
 .models-model-grid__row {

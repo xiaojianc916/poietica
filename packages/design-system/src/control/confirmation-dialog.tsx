@@ -1,5 +1,6 @@
 import { Button } from './button'
 import { Dialog } from './dialog'
+import './confirmation-dialog.css'
 
 /*
  * 定值就写成模块常量。
@@ -9,8 +10,8 @@ import { Dialog } from './dialog'
  * 数组再 join。本目录既有的形制是模块常量（itemClassName / popupClassName / BASE）。
  */
 const DIALOG_CLASS_NAME = [
+  'confirmation-dialog',
   '!max-w-[26rem]',
-  '!border-b-2 !border-b-foreground/20',
   '!shadow-[0_14px_30px_-22px_rgb(15_23_42_/_0.35)]',
 ].join(' ')
 
@@ -54,7 +55,7 @@ export function ConfirmationDialog({
       footer={
         <div className={FOOTER_CLASS_NAME}>
           <Button
-            className="bg-accent/55 px-3 hover:bg-accent"
+            className="confirmation-dialog__cancel px-3"
             disabled={busy}
             onClick={onCancel}
             type="button"
@@ -65,6 +66,7 @@ export function ConfirmationDialog({
 
           <Button
             aria-busy={busy || undefined}
+            className={destructive ? 'confirmation-dialog__destructive' : undefined}
             disabled={busy}
             onClick={onConfirm}
             type="button"

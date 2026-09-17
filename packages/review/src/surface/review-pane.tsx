@@ -27,10 +27,8 @@ import {
   FoldVertical,
   GitCommitHorizontal,
   type LucideIcon,
-  Minus,
   MoreHorizontal,
   Pilcrow,
-  Plus,
   RefreshCw,
   Search,
   Type,
@@ -1073,9 +1071,9 @@ function FileRow({
 function cardId(path: string): string {
   return `review:${path}`
 }
-/* 一处变更的处境：方框里一个符号 —— 加号是新增、减号是删除、点是改写。
+/* 一处变更的处境：新增是 U、删除是 D、改写是方框里一个点。
  * 只认 git 清单说的 status，不从加减行数反推：+0 −1 是删掉一行的改写，不是删文件。
- * 三种处境同一个色，靠形状分（色在 review-pane.css 的 .review-mark）。
+ * U 与 D 是裸字母（不带框），颜色按处境分：新增绿、删除红、改写橙；色在 review-pane.css。
  * 目录不给徽章，目录不是 git 的变更单位。 */
 const MARK_LABELS: Readonly<Record<GitChangeStatus, string>> = {
   added: '新增',
@@ -1090,13 +1088,21 @@ function ChangeMark({ status }: { readonly status: GitChangeStatus }) {
     <span
       aria-label={label}
       className="review-mark flex size-4 shrink-0 items-center justify-center rounded-[4px] border"
+      data-status={status}
       role="img"
       title={label}
     >
       {status === 'deleted' ? (
-        <Minus aria-hidden className="size-3" />
+        /* 同 U：字面 D 而不是图标 —— git 清单里 D 就是删除。 */
+        <span aria-hidden className="font-bold text-[13px] leading-none">
+          D
+        </span>
       ) : status === 'added' || status === 'untracked' ? (
-        <Plus aria-hidden className="size-3" />
+        /* 字面 U 而不是图标：git 清单里 U 就是「未跟踪」，字形本身即记号。
+         * U 与 D 这两支不加框（框在 CSS 里对它们收掉），所以字要自己够重。 */
+        <span aria-hidden className="font-bold text-[13px] leading-none">
+          U
+        </span>
       ) : (
         <span aria-hidden className="size-1.25 rounded-full bg-current" />
       )}

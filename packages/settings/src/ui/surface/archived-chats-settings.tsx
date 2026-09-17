@@ -227,6 +227,7 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
             type="button"
             variant="ghost"
           >
+            <Trash2 aria-hidden="true" />
             {deletingAll ? '正在删除…' : '全部删除'}
           </Button>
         </SettingRow>

@@ -98,15 +98,16 @@ export function McpSettings({ store }: { readonly store: PluginStore }) {
               <RotateCw aria-hidden="true" size={14} />
             </span>
           </button>
-          <button
-            className="mcp__primary"
+          <Button
             disabled={busy}
             onClick={() => setTab('form')}
+            size="sm"
             type="button"
+            variant="soft"
           >
             <Plus aria-hidden="true" size={13} />
             新建
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -406,7 +407,7 @@ function McpFormPage({
           </p>
         ) : null}
         <div className="mcp-create__footer">
-          <Button disabled={busy || !valid} type="submit" variant="default">
+          <Button disabled={busy || !valid} type="submit" variant="soft">
             {busy ? '保存中…' : '保存'}
           </Button>
           <button className="mcp__text-btn" disabled={busy} onClick={onClose} type="button">
@@ -530,6 +531,7 @@ function McpJsonPage({
           disabled={busy || selected.size === 0 || parseError !== null}
           onClick={save}
           type="button"
+          variant="soft"
         >
           {busy ? '保存中…' : '保存'}
         </Button>

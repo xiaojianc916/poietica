@@ -72,7 +72,11 @@ export function Switch({ className, children, size = 'md', ...props }: SwitchPro
           'pointer-events-none block',
           THUMB_SIZE[size],
           'rounded-full',
-          'bg-background',
+          /*
+           * 滑块不跟主题走，两色主题都是白的：深色下 --ui-background 是近黑，
+           * 读它会缩成轨道里的一个洞。
+           */
+          'bg-white',
 
           'transition-transform',
           'duration-[var(--ui-duration-fast)]',

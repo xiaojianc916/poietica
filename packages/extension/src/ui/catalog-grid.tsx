@@ -82,7 +82,7 @@ function CatalogCard({ action, row }: CatalogCardProps) {
    * 名字与说明完整换行显示，不会被挤成一两个字加省略号。
    */
   return (
-    <li className="catalog-card group flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-2 rounded-2xl px-3 py-3 transition-colors hover:bg-[#f3f3f4]">
+    <li className="catalog-card group flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-2 rounded-2xl px-3 py-3 transition-colors">
       <PluginGlyph displayName={row.displayName} id={row.id} />
       <div className="min-w-36 flex-1">
         <span className="block text-sm font-medium break-words">{row.displayName}</span>

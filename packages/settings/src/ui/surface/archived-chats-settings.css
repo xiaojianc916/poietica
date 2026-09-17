@@ -18,6 +18,7 @@
 }
 
 .archived-chats__delete-all {
+  gap: 6px;
   color: var(--ui-destructive);
   background: #fbeae9;
 }
@@ -25,6 +26,18 @@
 .archived-chats__delete-all:hover:not(:disabled) {
   background: #f9d5d4;
   color: var(--ui-destructive);
+}
+
+/*
+ * 深色下不铺浅粉：一层红墨压出底色，字留给红 —— 与行尾那枚删除图标同一个红。
+ * 浓度与确认对话框的危险按钮同档（12% / 20%），两处只有这一个产地。
+ */
+:root[data-theme="dark"] .archived-chats__delete-all {
+  background: color-mix(in srgb, var(--ui-destructive) 12%, transparent);
+}
+
+:root[data-theme="dark"] .archived-chats__delete-all:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ui-destructive) 20%, transparent);
 }
 
 .archived-chats__toolbar {
@@ -116,6 +129,7 @@
   gap: 6px;
 }
 
+.archived-chats__delete-all svg,
 .archived-chats__delete svg,
 .archived-chats__restore svg {
   inline-size: 14px;

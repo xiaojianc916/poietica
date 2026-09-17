@@ -17,7 +17,7 @@ interface ThemeRuntimeOptions {
 }
 
 const WINDOW_SURFACES = {
-  light: [243, 243, 243],
+  light: [255, 255, 255],
   dark: [24, 24, 24],
 } as const satisfies Readonly<Record<ResolvedTheme, readonly [number, number, number]>>
 

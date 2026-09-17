@@ -71,8 +71,8 @@ const light = declarationsIn(tokensDir, 'light.css')
 const dark = declarationsIn(tokensDir, 'dark.css')
 const surface = declarationsIn(srcDir, 'surface.css')
 
-/* 基底取值：light 是 --ui-palette-white，dark 是 --ui-palette-dark-975。 */
-const GROUND = { light: 0xff, dark: 0x14 }
+/* 基底取值：light 是 --ui-palette-white，dark 是 --ui-palette-dark-950。 */
+const GROUND = { light: 0xff, dark: 0x18 }
 const THEMES = [
   ['light', light],
   ['dark', dark],

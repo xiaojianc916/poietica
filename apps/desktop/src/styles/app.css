@@ -188,8 +188,9 @@ body {
  * viewport):那两个类已经在各自的特性样式表里声明过一批自定义属性,同名选择器
  * 分居两个文件会变成加载顺序说了算的隐性竞争。祖先没有这个问题。
  *
- * 下面几个是写死的十六进制,按指定取值,因此不随主题走 —— 与上面那个由前景色
- * color-mix 推出来的默认值不同,记在这里,免得下次被当成疏漏顺手"修正"。
+ * 下面几条是写死的十六进制,按指定取值,因此不随主题走 —— 与上面那个由前景色
+ * color-mix 推出来的默认值不同,记在这里,免得下次被当成疏漏顺手"修正"。深色另有
+ * 一对,在同节末尾把这几条逐条压回同一个值。
  */
 .workspace-shell__sidebar {
   /* 原生条没有悬停态，所以这里取原来那对里较实的一个。 */
@@ -211,6 +212,27 @@ body {
 .review-pane:hover,
 .assistant-surface:hover {
   --desktop-scrollbar-thumb: #e4e4e5;
+}
+
+/*
+ * 深色那一对：全应用一个值，不分区域。默认值（由前景色推出来的 24% 白）与上面
+ * 那几条浅色覆盖，在深色下都是几条白杠，所以这里把区域覆盖逐条压回同一个值 ——
+ * 区域自己声明的自定义属性压得过从 :root 继承来的，只能同选择器覆盖。
+ *
+ * 悬停同样只能挂在区域上（原生条没有自己的悬停态）：指针进这一片，这一片的条抬
+ * 一档；压在条上时区域同样是 :hover，所以条上也生效。
+ */
+:root[data-theme="dark"],
+:root[data-theme="dark"] .workspace-shell__sidebar,
+:root[data-theme="dark"] .review-pane,
+:root[data-theme="dark"] .assistant-surface {
+  --desktop-scrollbar-thumb: #2b2b2b;
+}
+
+:root[data-theme="dark"] .workspace-shell__sidebar:hover,
+:root[data-theme="dark"] .review-pane:hover,
+:root[data-theme="dark"] .assistant-surface:hover {
+  --desktop-scrollbar-thumb: #3c3c3c;
 }
 
 /*

@@ -426,7 +426,10 @@ export function LibrarySurface({
         }
       }}
     >
-      <aside aria-label={ROOT_LABEL} className="flex min-h-0 flex-col gap-3 bg-white px-3 py-3">
+      <aside
+        aria-label={ROOT_LABEL}
+        className="flex min-h-0 flex-col gap-3 bg-background px-3 py-3"
+      >
         <div className="flex items-center gap-1.5 rounded-md bg-muted px-2">
           <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
           <input

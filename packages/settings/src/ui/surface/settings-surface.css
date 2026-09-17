@@ -103,10 +103,10 @@
 
 .settings-content {
   /*
-   * 面色全部取语义令牌，子样式表只允许引用；输入格取 sunken 而非 surface，
-   * 在浅深两色主题下都与卡面拉开对比。
+   * 面色全部取语义令牌，子样式表只允许引用；输入格取 sunken 而非卡面，
+   * 与卡面拉开对比。
    */
-  --settings-surface: var(--ui-background);
+  --settings-surface: var(--ui-card);
   --settings-frame: var(--ui-card-frame);
   --settings-divider: var(--ui-card-divider);
   --settings-field: var(--ui-sunken);
@@ -431,10 +431,16 @@
 
 /* 全部设置页共用的输入框外观；带图标搜索框把本类放在外层容器上。 */
 .settings-input {
+  /*
+   * 框色自持一格，不读卡片线：深色下卡片线是半透明墨，压在输入格那层底上
+   * 兑出的灰与卡框同色，输入格就没有边界了。
+   */
+  --settings-input-border: #e4e4e5;
+
   inline-size: 100%;
   min-block-size: 32px;
   padding: 7px 10px;
-  border: 1px solid #e4e4e5;
+  border: 1px solid var(--settings-input-border);
   border-radius: 8px;
   background: #fff;
   color: var(--ui-foreground);
@@ -447,6 +453,7 @@
   color: var(--ui-placeholder);
 }
 
+/* 焦点态直接给 border-color，压过上面那条 border 里的框色。 */
 .settings-input:focus-visible {
   border-color: #339cff;
   outline: none;
@@ -455,6 +462,12 @@
 .settings-input:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+/* 深色下白底会连字一起吃掉：输入格比卡面再抬一档，框色也另给一格。 */
+:root[data-theme="dark"] .settings-input {
+  --settings-input-border: #4d4d4d;
+  background: #2c2c2c;
 }
 
 /* 带图标搜索框：外层承担输入框外观，内部 input 透明。 */
@@ -485,6 +498,16 @@
   border-color: #339cff;
 }
 
+/*
+ * 深色下焦点蓝改用 --ui-ring（#6e9ecc）：浅色那支 #339cff 压在深底上过亮，
+ * 而环与框本来就该是同一个蓝。两条焦点规则都得跟着走 —— 带图标的那个焦点
+ * 落在容器上，不是 input 自己。
+ */
+:root[data-theme="dark"] .settings-input:focus-visible,
+:root[data-theme="dark"] .settings-input--with-icon:focus-within {
+  border-color: var(--ui-ring);
+}
+
 /* ---------------- 局部区块 ---------------- */
 
 /* soft 按钮压浅两档灰，仅限 .settings-content 内带 bg-divider 的按钮。 */
@@ -494,6 +517,18 @@
 
 .settings-content button.bg-divider:hover {
   background-color: #e8e8e8;
+}
+
+/*
+ * 深色下 soft 按钮自成一档灰：它压在卡面上，得同时与卡面和输入格分开。
+ * 浅色那两格在深色里是两块白，只能各自另给。
+ */
+:root[data-theme="dark"] .settings-content button.bg-divider {
+  background-color: #2c2c2c;
+}
+
+:root[data-theme="dark"] .settings-content button.bg-divider:hover {
+  background-color: #353535;
 }
 
 .settings-about-card {

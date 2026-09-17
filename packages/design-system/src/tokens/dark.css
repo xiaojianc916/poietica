@@ -1,7 +1,7 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --ui-background: var(--ui-palette-dark-975);
+  --ui-background: var(--ui-palette-dark-950);
   --ui-foreground: var(--ui-palette-white);
   --ui-surface: var(--ui-palette-dark-850);
   --ui-inverse-surface: #000000;
@@ -9,37 +9,48 @@
   --ui-inverse-muted: rgb(255 255 255 / 68%);
   --ui-inverse-border: rgb(255 255 255 / 18%);
 
-  /* 卡面即页面底色（见 light.css 同名注释）；线与框沿用区域线那档墨量。 */
+  /*
+   * 卡面：比页面底色抬一档，卡因此浮在页面上而不是与它同色（浅色下这一格
+   * 就是页面底色本身，见 light.css 同名注释）；线与框沿用区域线那档墨量。
+   */
+  --ui-card: #232323;
   --ui-card-divider: var(--ui-region-divider-color);
   --ui-card-frame: var(--ui-surface-frame);
-  --ui-chrome: var(--ui-palette-dark-950);
-  --ui-ground: var(--ui-palette-dark-900);
+  --ui-chrome: var(--ui-palette-dark-850);
+  /* 独立界面的地色（资料库、自动化、个性化）：与页面底色同值 —— 浅色那边两格
+   * 都是纯白，深色下原来那一格比页面亮，整块界面看着像浮起来的卡片。 */
+  --ui-ground: var(--ui-palette-dark-950);
 
   /* 同一条式子把白色兑进去：深色下这一格自动变亮而不是变暗。 */
   --ui-sunken: color-mix(in oklab, var(--ui-foreground) 5%, var(--ui-background));
 
-  --ui-sidebar: var(--ui-palette-dark-950);
-  --ui-sidebar-accent: var(--ui-palette-dark-700);
+  --ui-sidebar: var(--ui-palette-dark-850);
+  /* 侧栏这一层唯一的压深色（浅色那格是 #e7e8e8）：底升到 #202020 后，原来的
+   * #252525 只剩 5 格差，选中行几乎看不出来。 */
+  --ui-sidebar-accent: #313131;
   --ui-sidebar-accent-foreground: var(--ui-palette-white);
 
-  /* 悬停与选中在深色下是一层墨而不是一个固定的灰：铺在什么底上跟着什么底走。 */
-  --ui-tab-active: color-mix(in srgb, var(--ui-foreground) 7.8%, transparent);
-  --ui-tab-hover: color-mix(in srgb, var(--ui-foreground) 5%, transparent);
+  /* 悬停与选中在深色下是一层墨而不是一个固定的灰：铺在什么底上跟着什么底走。
+   * 标签页两档例外，写字面值：辅助面板的底是 #181818，一层 5% 的墨兑出来与选中
+   * 那档只差 1 格，两者分不开。 */
+  --ui-tab-active: #222222;
+  --ui-tab-hover: #1e1e1e;
   --ui-control-hover: color-mix(in srgb, var(--ui-foreground) 10%, transparent);
 
   /*
-   * 与 light.css 同构，相对基底（--ui-palette-dark-975）定档，同样保持
+   * 与 light.css 同构，相对基底（--ui-palette-dark-950）定档，同样保持
    * 3～6 倍的对比度差。深色下绝对差比浅色略大、投影比浅色重：底色越暗，
    * 同样的差越难读出来。
    */
   --ui-region-divider-color: rgb(255 255 255 / 16%);
   --ui-divider: var(--ui-region-divider-color);
-  --ui-divider-subtle: #191919;
+  --ui-divider-subtle: #1d1d1d;
   --ui-border: var(--ui-region-divider-color);
   --ui-surface-frame: #2a2a2a;
   --ui-surface-shadow: 0 1px 2px rgb(0 0 0 / 18%);
   --ui-input: rgb(255 255 255 / 24%);
-  --ui-ring: var(--ui-palette-blue-400);
+  /* 焦点色：比主色淡一档的蓝，输入框的焦点边框与各控件的焦点环同一个值。 */
+  --ui-ring: #6e9ecc;
 
   --ui-primary: var(--ui-palette-blue-400);
   --ui-primary-foreground: var(--ui-palette-dark-1000);
@@ -48,8 +59,8 @@
   --ui-secondary-foreground: var(--ui-palette-white);
 
   --ui-muted: var(--ui-palette-dark-750);
-  /* 与 --ui-muted 同值：深色下启动器按钮保持现状。 */
-  --ui-launcher: var(--ui-palette-dark-750);
+  /* 辅助面板启动器四枚按钮的底色：比面板底 #181818 抬一档，不再跟 muted 同值。 */
+  --ui-launcher: #1f1f1f;
   --ui-muted-foreground: rgb(255 255 255 / 65%);
 
   /* 与浅色同构：比 muted 淡一档，对 --ui-ground 仍在 3:1 以上。 */
@@ -58,9 +69,19 @@
   --ui-accent: var(--ui-palette-dark-800);
   --ui-accent-foreground: var(--ui-palette-white);
 
-  --ui-popover: var(--ui-palette-dark-850);
+  /*
+   * 浮层与下拉触发器共用一张脸：比卡面再抬一档，触发器于是不会缩进卡里，
+   * 展开的面板也不会与它同色（浅色下这一格是纯白）。
+   */
+  --ui-popover: #2a2a2a;
   --ui-popover-foreground: var(--ui-palette-white);
-  --ui-popup-highlight: var(--ui-palette-dark-750);
+  --ui-popup-highlight: #3c3c3c;
+  /*
+   * 下拉族的两道框。这里写字面实色，不跟区域线那支半透明墨：半透明墨会跟着
+   * 底走，同一个控件收起与展开时会量出两个颜色。
+   */
+  --ui-popover-trigger-frame: #3b3b3b;
+  --ui-popover-frame: #3d3d3d;
   /* 与浅色同构：浮层内线比浮层外框淡一档。 */
   --ui-popup-divider: rgb(255 255 255 / 10%);
 

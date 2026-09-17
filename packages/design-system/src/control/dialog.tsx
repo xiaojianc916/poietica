@@ -99,8 +99,12 @@ export function Dialog({
               'flex-col overflow-hidden',
               'rounded-xl border',
               'border-divider',
-              'bg-background',
-              'text-foreground',
+              /*
+               * 与浮层同一张脸：对话框也是浮起来的一层，浅色下两者都是纯白，
+               * 深色下浮层那格比页面底色抬一档（见 tokens/dark.css）。
+               */
+              'bg-popover',
+              'text-popover-foreground',
               'shadow-[var(--ui-shadow-xl)] outline-none',
               'transition-[transform,scale,opacity]',
               'duration-[var(--ui-duration-normal)]',

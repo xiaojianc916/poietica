@@ -134,8 +134,15 @@
   opacity: 1;
 }
 
+/*
+ * 深色下必须给实色。
+ *
+ * 引导线每行一根，上下各探 2px 过缝，相邻两行的线因此在行缝处叠 2px。半透明的墨
+ * 叠起来会加倍（14% + 14% ≈ 26%），那条缝上就出现一串比线本身亮的 2px 小点 ——
+ * 看上去像线中间撒了芝麻。实色叠加仍是同一个颜色，缝照样过。
+ */
 :root[data-theme="dark"] .tree-guide {
-  background: color-mix(in srgb, #ffffff 14%, transparent);
+  background: #383838;
 }
 
 /* 树行的悬浮：左右留白不贴边的小圆角药丸，与折叠带同一条语言。 */
@@ -144,15 +151,49 @@
 }
 
 /*
- * 变更徽章：方框里一个符号，三种处境同一个色，靠形状分。
+ * 变更徽章：新增是 U、删除是 D，两个都是裸字母（不要框）；改写仍是方框里一个点。
  *
  * 色必须写在这里，不能写成 Tailwind 的边框色与文字色工具类：app.css 有一条
  * 无层级的通配规则（把 border-color 钉到 --color-divider），无层级声明压过
  * utilities 层，边框色在组件里根本改不动。本仓带颜色的边框一律走这条无层级的路。
+ *
+ * 颜色按处境分：新增绿、删除红、改写橙。
  */
 .review-mark {
   color: #923b0f;
   border-color: currentColor;
+}
+
+/* 裸字母那两支：框留着宽度、颜色透明，字仍居中在原来那个 16px 格里，
+ * 与相邻行的徽章对齐。 */
+.review-mark[data-status="added"],
+.review-mark[data-status="untracked"],
+.review-mark[data-status="deleted"] {
+  border-color: transparent;
+}
+
+.review-mark[data-status="added"],
+.review-mark[data-status="untracked"] {
+  color: #00a240;
+}
+
+.review-mark[data-status="deleted"] {
+  color: #ba2724;
+}
+
+/* 深色下那支深棕压在 #181818 上读不出来，换成产品给的亮橙；框跟字同色。 */
+:root[data-theme="dark"] .review-mark {
+  color: #ff8549;
+}
+
+/* 新增与删除另给一对：深色 #40c977 / #f9423e，浅色 #00a240 / #ba2724，都是指定值。 */
+:root[data-theme="dark"] .review-mark[data-status="added"],
+:root[data-theme="dark"] .review-mark[data-status="untracked"] {
+  color: #40c977;
+}
+
+:root[data-theme="dark"] .review-mark[data-status="deleted"] {
+  color: #f9423e;
 }
 
 :root[data-theme="dark"] .review-tree-row:hover {
@@ -217,7 +258,7 @@
 }
 
 :root[data-theme="dark"] .review-gap {
-  background: color-mix(in srgb, #ffffff 12%, transparent);
+  background: #2f2f2f;
 }
 
 /*
