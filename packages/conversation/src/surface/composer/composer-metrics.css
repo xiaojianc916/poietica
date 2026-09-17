@@ -55,7 +55,6 @@
   --cp-font: 16px;
   --cp-line-ratio: 1.625;
   --cp-line: calc(var(--cp-font) * var(--cp-line-ratio));
-  --cp-font-title: calc(var(--cp-font) + 10px);
   --cp-font-label: calc(var(--cp-font) - 2px);
   --cp-font-caption: calc(var(--cp-font) - 3px);
   --cp-font-micro: calc(var(--cp-font) - 4px);
@@ -190,8 +189,6 @@
    * 内边距是两个数而不是一个。前导是一枚圆形字形，后随是文字：圆形的光学重心
    * 比它的外接方框靠里，两侧给同一个数，圆那侧永远看着更宽。业界的 chip 一律
    * 前导紧、后随松，这不是偏好，是补偿。
-   *
-   * 底色浓度随字号一起定：字大了一档，washes 就得压一档，否则底色抢字。
    */
   --cp-pill: calc(var(--cp-control) - 6px);
   --cp-pill-lead: 6px;
@@ -214,8 +211,6 @@
   --cp-goal-bar-tertiary: rgb(129 133 140);
   --cp-goal-bar-hover: rgb(38 49 72 / 6%);
   --cp-goal-bar-error: rgb(236 19 19);
-  --cp-pill-wash: 13%;
-  --cp-pill-wash-hover: 19%;
 
   /*
    * 模型与思考档位选择器，与上面那一节同源：也是参考稿量出来的值，也住在这张表
@@ -459,10 +454,6 @@
    * 里，也在展开之后的 Request 那一面。
    *
    * 行与纸共用一个数：纸是这一行摊开的样子，两者不同宽就是两个东西。
-   *
-   * 32rem 不是在这里挑的，是这张表里既有的那一档 ——「我」说的那句话是 32rem，
-   * 报错摘要是 30rem，取宽的那一个：路径与 URL 的信息在尾部，截得越早，被省略号
-   * 吃掉的越是文件名。
    */
   --cp-timeline-tool-max: 38rem;
 

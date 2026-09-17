@@ -3,14 +3,7 @@ import { Check, ChevronDown } from 'lucide-react'
 import { cn } from '../class-names'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
-/**
- * 一项可选值。
- *
- * 类型参数让调用点把「这张表里只可能出现这几个字面量」说出来。设置页的颜色模式
- * 与语言各自是一个闭合联合，此前它们为了保住这个约束，只能声明成 [value, label]
- * 元组数组，再在渲染期转成这个形状 —— 同一份数据两种形状，转换每帧一次，末端还
- * 要一次 as 断言把类型接回去。有了参数，元组那一份就没有存在的理由。
- */
+/** 类型参数保留选项值的字面量联合，避免调用点转换形状或断言类型。 */
 export interface SelectOption<TValue extends string = string> {
   readonly value: TValue
   readonly label: string
@@ -19,13 +12,7 @@ export interface SelectOption<TValue extends string = string> {
 export interface SelectProps<TValue extends string = string> {
   /** 全部可选值。触发器上的标签与列表里的行都由它渲染，只有这一个产地。 */
   readonly data: readonly SelectOption<TValue>[]
-  /**
-   * 这个下拉在选什么。
-   *
-   * 一处声明，两处使用：占位文案是「选择{type}…」，触发器的可访问名也是它。此前
-   * 两个调用点都把同一个串分别喂给 type 与 aria-label 两个入口，没有任何东西保证
-   * 它们一致 —— 那不是两件事，是一件事被写了两遍。
-   */
+  /** 选项类型同时提供占位文案「选择{type}…」与触发器的可访问名，避免两者分叉。 */
   readonly type: string
   readonly value: TValue
   /** 面板沿触发器的哪一条边展开。值右对齐的行用 end，与触发器同一条边。 */
@@ -37,19 +24,7 @@ export interface SelectProps<TValue extends string = string> {
   readonly onValueChange: (value: TValue) => void
 }
 
-/*
- * 触发器只有一种形制。
- *
- * 此前这里是两张按档位与色调索引的表（sm|md × outline|plain），而全仓两个调用点
- * 都写 size="sm" tone="plain" —— md 与 outline 这两个默认值一次都没有被取到。一个
- * 从不切换的开关不是可配置性，是一条走不到的分支。它还带着连带成本：档位要在
- * render 期间同时到达触发器、面板与每一行，于是这个文件养了一个 React context，
- * 外加一个 useMemo 和一句「必须渲染在 Select 里」的运行时抛错。档位收成常量、
- * 组合结构收回来之后，那套东西一起没有了内容。
- *
- * 参数顺序照旧：cn 靠后的类在 Tailwind 冲突时压过靠前的，调用点传进来的
- * className 仍然排在最后。
- */
+/* cn 靠后的类覆盖靠前的冲突类，调用点的 className 因此排在最后。 */
 const TRIGGER = cn(
   'flex items-center justify-between',
   'text-left text-foreground',
@@ -72,13 +47,7 @@ const VALUE = cn('min-w-0 flex-1', 'truncate')
  */
 const ICON = cn('size-3.5', 'shrink-0', 'text-muted-foreground/60')
 
-/*
- * 列表与分组合成一层。
- *
- * Base UI 的 Select.Group 是给带组标题的分组用的（配 Select.GroupLabel）。两个
- * 调用点都只有一个组、都不带标题 —— 那不是分组，是一层只为了挂 gap 而存在的
- * div。间距落到列表本身，DOM 少一层，视觉不变。
- */
+/* 无分组标题，间距由列表承担，无需额外分组层。 */
 const LIST = cn(
   'max-h-64',
   'overflow-y-auto',
@@ -122,11 +91,7 @@ const POPUP_MAX_INLINE_SIZE = '220px'
 
 /**
  * Select is intended for finite, non-searchable option sets.
- *
- * 触发器、面板与每一行都在这里，不对外拆开：全仓两个调用点写出的是同一棵树，
- * 而各自把它包了一层同名同参的包装 —— 那正是把组合权交出去的代价。选项表由
- * data 一处供给，Select.Value 依据 { value, label } 自动取标签（官方行为，不必
- * 写 itemToStringLabel）。
+ * 选项表由 data 一处供给，Select.Value 依据 { value, label } 取标签，无需重复指定。
  */
 export function Select<TValue extends string = string>({
   data,

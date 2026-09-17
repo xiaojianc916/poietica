@@ -971,7 +971,6 @@ function ProviderForm({
   const addModel = () => {
     const fresh = emptyModel()
     setModels((value) => [...value, fresh])
-    return fresh.key
   }
   const removeModel = (key: string) =>
     setModels((value) => value.filter((item) => item.key !== key))
@@ -1079,7 +1078,7 @@ function ModelListEditor({
   readonly disabled: boolean
   readonly message: string | null
   readonly onUpdate: (key: string, change: Partial<ModelDraft>) => void
-  readonly onAdd: () => string
+  readonly onAdd: () => void
   readonly onRemove: (key: string) => void
   readonly onCancel?: () => void
   readonly onDelete?: () => void

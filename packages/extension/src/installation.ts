@@ -6,9 +6,7 @@ import type { PluginDiagnostic, PluginManifest } from './manifest'
  *
  * 「装了什么」的真相在 agent 家里那份账本，不在任何一个我们自己维护的地方。
  *
- * source 与 trust 不落盘。官方记录里只有 originalSource 这一串地址，背书是我们的
- * 概念 —— 读的时候拿它回目录里查，查不到就是没有背书。往人家的契约里塞我们的字段，
- * 换来的只有一份迟早被对方的写入抹掉的数据。
+ * source 与 trust 按 pluginId 从目录投影，不写入 agent 的账本，避免被其后续写入覆盖。
  *
  * 清单之外什么都不带。技能、命令、提示词是 CLI 在装载时自己读的东西 —— 官方 plugins
  * 文档里 skills 与 commands 是路径、systemPrompt 由运行时注入，我们再读一遍只会得到
@@ -24,7 +22,7 @@ export interface InstalledPlugin {
    */
   readonly pluginId: string
   readonly manifest: PluginManifest
-  /** 能在目录里查到这条来源时才有。查不到不代表没装，只代表没有背书。 */
+  /** 按 pluginId 查到的目录来源；缺失不代表未安装。 */
   readonly source: PluginInstallSource | undefined
   readonly trust: PluginTrustTier
   readonly enabled: boolean

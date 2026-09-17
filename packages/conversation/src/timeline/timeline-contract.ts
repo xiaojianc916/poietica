@@ -102,8 +102,6 @@ export interface ToolCallTimelineItem extends TimelineEntry {
    * 与 content 分开，因为它们是两个面。此前一次写入的 diff 也落在 content 里，而
    * 抽屉把整格 content 归给「交回来的那一面」—— 入参被画成了产出。两个面各有一格,
    * 就没有哪一格需要靠来源去猜它该画在哪边。
-   *
-   * 通用展示字段来自 kap display；Kimi TodoList 的清单正文只由 kimi-todo 从已校验入参投影。
    */
   readonly requestContent: readonly ToolCallContent[]
   /** agent 交回来的那一份：进度与产出。 */
@@ -136,17 +134,6 @@ export function isInFlight(status: RunStatus): boolean {
     status === 'awaiting_permission' ||
     status === 'awaiting_question'
   )
-}
-
-/**
- * 这一轮还接得住新指令：插话与取消都算。
- *
- * 比 isInFlight 少一档 cancelling —— 取消已经在路上，再取消一次没有第二个效果，
- * 而那一刻插进来的话属于正在收尾的这一轮。这一档差别此前没有名字，于是同一个
- * 集合在三处各抄一遍，抄漏一项不会有任何东西报警。
- */
-export function isSteerable(status: RunStatus): boolean {
-  return isInFlight(status) && status !== 'cancelling'
 }
 
 /** 计划里的一步。 */
@@ -249,7 +236,6 @@ export interface InflightPromptItem extends TimelineEntry {
   readonly settled?: true
 }
 
-/** poietica-refactor:compaction-media-title */
 export type CompactionState = 'running' | 'blocked' | 'cancelled' | 'completed'
 
 export interface CompactionTimelineItem extends TimelineEntry {

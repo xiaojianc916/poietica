@@ -98,12 +98,7 @@ export function createClassifiedFailure(input: ClassifiedFailureInput): Classifi
   const scopeKey = createFailureScopeKey(input.scope)
 
   return Object.freeze({
-    /*
-     * 身份就是 uuid v7：单调、无需协调、跨进程唯一。
-     * 之前用的是「时间戳 + 模块级计数器 + Math.random」—— 那个计数器在 HMR
-     * 或多份 bundle 实例下各自从 0 开始，它想保证的唯一性恰恰保证不了，
-     * 而同包 id.ts 早就在用 v7 解决同一个问题。
-     */
+    /* UUID v7 无需协调，避免 HMR 或多份 bundle 实例各自计数导致身份冲突。 */
     id: uuidv7(),
     fingerprint: [input.impact, input.code, scopeKey, input.technicalMessage].join('|'),
     impact: input.impact,
@@ -135,11 +130,7 @@ export function createFailureScopeKey(scope: FailureScope): string {
   }
 }
 
-/**
- * 违反这些规则的不是用户，是调用它的代码 —— 所以抛的是不变量错误，
- * 而不是同包 errors.ts 里为输入校验准备的校验错误，
- * 更不是之前那种没有 code、没有 context、无法被上层分类的裸 Error。
- */
+/** 策略违规是调用代码的程序错误，由 assertInvariant 当场阻止。 */
 function validateFailurePolicy(input: ClassifiedFailureInput): void {
   assertInvariant(input.code.trim().length > 0, 'Failure code must not be empty.')
 

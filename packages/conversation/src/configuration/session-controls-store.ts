@@ -273,7 +273,7 @@ export class SessionControlsStore {
   /*
    * 下发一次改动，排在这条对话自己的队伍后面。
    *
-   * 这是整个文件里唯一发出 set_config 的地方，而它只有一个调用者：用户点了选择器。
+   * 用户选择与 #align 自动对齐都经这里发出 set_config。
    *
    * 队列按对话分，不按连接分：两条对话各改各的互不相干，而同一条对话上的两次改动
    * 必须分先后 —— 后一次要用前一次的答复当判据。
@@ -426,8 +426,7 @@ export class SessionControlsStore {
   /*
    * agent 报来了一份用量。
    *
-   * 与 #reported 同一条到达路径、同一张反查表；但它没有 open/select 那两条路 ——
-   * 用量是 agent 主动推的，没有任何命令能把它问回来，所以也不参与 ArrivalOrder。
+   * 推送按会话归属更新；#reopen 的快照只补尚无用量的对话，不覆盖已有推送。
    */
   #usageReported(report: SessionUsageReport): void {
     const threadId = this.#transcripts?.ownerOf(report.sessionId)

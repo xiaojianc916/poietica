@@ -20,7 +20,6 @@
   border-radius: 9999px;
 
   padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
-  background: color-mix(in oklab, var(--pp-ink) var(--cp-pill-wash), var(--cp-surface));
   font: inherit;
   font-size: var(--cp-font-caption);
   font-weight: 400;
@@ -36,10 +35,6 @@
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
   flex: none;
-}
-
-.assistant-posture:hover {
-  background: var(--pp-hover);
 }
 
 .assistant-posture[data-alert] {

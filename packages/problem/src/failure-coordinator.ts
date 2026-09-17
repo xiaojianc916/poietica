@@ -209,7 +209,7 @@ export class FailureCoordinator {
           throw new Error('Feature failure requires feature scope.')
         }
 
-        this.recordScoped(this.degradedFeatures, incident.scope.featureId, incident)
+        this.degradedFeatures.set(incident.scope.featureId, Object.freeze({ incident }))
 
         break
     }
@@ -232,14 +232,6 @@ export class FailureCoordinator {
     if (this.operations.length > MAX_OPERATION_FAILURES) {
       this.operations.splice(0, this.operations.length - MAX_OPERATION_FAILURES)
     }
-  }
-
-  private recordScoped(
-    target: Map<string, PresentedFailure>,
-    key: string,
-    incident: NonTerminalFailureIncident,
-  ): void {
-    target.set(key, Object.freeze({ incident }))
   }
 
   private publish(): void {

@@ -50,7 +50,6 @@ export function ConfirmationDialog({
     <Dialog
       busy={busy}
       className={DIALOG_CLASS_NAME}
-      closeOnOverlayClick={!busy}
       description={description}
       footer={
         <div className={FOOTER_CLASS_NAME}>

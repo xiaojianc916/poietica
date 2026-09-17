@@ -34,13 +34,13 @@ const LABELS: Record<ScheduleKind, string> = {
   custom: '自定义',
 }
 
-const OPTIONS: readonly { readonly value: ScheduleKind; readonly label: string }[] = [
-  { value: 'hourly', label: '每小时' },
-  { value: 'daily', label: '每天' },
-  { value: 'weekdays', label: '每工作日' },
-  { value: 'weekly', label: '每周' },
-  { value: 'monthly', label: '每月' },
-  { value: 'custom', label: '自定义' },
+const OPTIONS: readonly ScheduleKind[] = [
+  'hourly',
+  'daily',
+  'weekdays',
+  'weekly',
+  'monthly',
+  'custom',
 ]
 
 function ScheduleMenu({
@@ -67,14 +67,14 @@ function ScheduleMenu({
         {empty ? null : <ChevronDown aria-hidden className="size-3.5 opacity-60" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-48">
-        {OPTIONS.map((option) => (
+        {OPTIONS.map((kind) => (
           <DropdownMenuItem
-            key={option.value}
+            key={kind}
             onClick={() => {
-              onPick(option.value)
+              onPick(kind)
             }}
           >
-            {option.label}
+            {LABELS[kind]}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

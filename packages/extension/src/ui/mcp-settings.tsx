@@ -234,7 +234,7 @@ function ServerCard({
   server,
 }: {
   readonly busy: boolean
-  readonly onRemove?: () => void
+  readonly onRemove: () => void
   readonly onToggle: (enabled: boolean) => void
   readonly removable?: boolean
   readonly server: ResolvedMcpServer
@@ -247,7 +247,7 @@ function ServerCard({
   return (
     <li className="mcp-card">
       <span className="mcp-card__icon">
-        <PluginGlyph displayName={server.name} id={server.name} size="md" />
+        <PluginGlyph displayName={server.name} id={server.name} />
         <i aria-hidden="true" className="mcp-card__dot" data-live={live ? 'true' : 'false'} />
       </span>
       <div className="mcp-card__copy">
@@ -255,7 +255,7 @@ function ServerCard({
         <span>{description}</span>
       </div>
       <div className="mcp-card__actions">
-        {removable === true && onRemove !== undefined ? (
+        {removable === true ? (
           <Button
             className="bg-[#f3f3f4] hover:bg-[#e8e8e8]"
             disabled={busy}

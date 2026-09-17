@@ -132,13 +132,6 @@ export class AppUpdateStore {
     return this.#stop
   }
 
-  /**
-   * 人亲手要一次检查。
-   *
-   * 与后台那条节奏问的是同一个 controller.check()，区别只在交代方式：后台保持
-   * 安静（离线是常态），这一条必须回话 —— 没有新版本也是答案，所以它是一个相位。
-   * 隐私设置管的是「自动去问」，一次点击本身就是这一次的同意。
-   */
   dispose = (): void => {
     this.#disposed = true
     this.#stop?.()
@@ -148,6 +141,10 @@ export class AppUpdateStore {
     }
   }
 
+  /**
+   * 手动检查必须回话，包括没有新版本；后台检查保持安静。
+   * 隐私设置只管自动检查，一次点击就是这一次的同意。
+   */
   check = (): void => {
     if (this.#disposed) {
       return

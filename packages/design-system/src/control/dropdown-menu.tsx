@@ -36,11 +36,11 @@ type DropdownMenuPopupProps = ComponentProps<typeof Menu.Popup> & {
 
 const popupClassName = cn(popupSurfaceClassName, 'min-w-32 p-1')
 
-function MenuPopup({
+export function DropdownMenuContent({
   align = 'start',
   className,
-  side,
-  sideOffset,
+  side = 'bottom',
+  sideOffset = 6,
   ...props
 }: DropdownMenuPopupProps) {
   return (
@@ -55,15 +55,6 @@ function MenuPopup({
       </Menu.Positioner>
     </Menu.Portal>
   )
-}
-
-/* 主菜单贴下沿。6 与 4 的差别是有意的：子菜单贴着父行展开，离得更近。 */
-export function DropdownMenuContent({
-  side = 'bottom',
-  sideOffset = 6,
-  ...props
-}: DropdownMenuPopupProps) {
-  return <MenuPopup side={side} sideOffset={sideOffset} {...props} />
 }
 
 /* 行高读 --ui-menu-row-height；py-1 只在标签折行时参与计算。 */

@@ -264,8 +264,6 @@ interface ScannedPlugin {
   readonly readable: boolean
   readonly enabled: boolean
   readonly installedAt: string | undefined
-  /** 人当初给的那一串地址；拿它回目录里查背书。 */
-  readonly originalSource: string | undefined
   readonly disabledMcpServers: readonly string[]
 }
 
@@ -398,7 +396,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       pluginId: payload.pluginId,
       enabled: payload.enabled,
       installedAt: payload.installedAt ?? undefined,
-      originalSource: payload.originalSource ?? undefined,
       disabledMcpServers: payload.disabledMcpServers,
     }
 
@@ -769,7 +766,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       queue = queue.then(async () => {
         /*
          * 只有从来没取过才自动拉一次，这条判据由 shouldFetchOnOpen 一个地方说了算，
-         * 而它要等 loadCatalog 落定才问得出来。背书是拿账本里的 originalSource 回目录
+         * 而它要等 loadCatalog 落定才问得出来。背书是拿账本里的 pluginId 回目录
          * 里查出来的，目录到了要再投一次 —— 但开一条对话不等这一趟网络。
          */
         if (shouldFetchOnOpen(snapshot.marketplace)) {

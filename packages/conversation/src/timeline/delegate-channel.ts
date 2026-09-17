@@ -30,10 +30,6 @@ export function delegateAddress(key: string): DelegateAddress | null {
   return { conversation: key.slice(0, mark), agentId: key.slice(mark + 1) }
 }
 
-export function isDelegateKey(key: string): boolean {
-  return delegateAddress(key) !== null
-}
-
 /** 开出过通道的调用就是一次派发。 */
 export function isDelegation(item: ToolCallTimelineItem): boolean {
   return item.channels.length > 0

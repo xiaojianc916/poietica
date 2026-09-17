@@ -34,13 +34,6 @@
   gap: var(--cp-mast-gap);
 }
 
-.assistant-masthead__title {
-  margin: 0;
-  font-size: var(--cp-font-title);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
 /*
  * 一次技能调用，就在这句话里。
  *
@@ -60,37 +53,6 @@
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
   flex: none;
-}
-
-.assistant-control--round,
-.assistant-control--ghost {
-  display: inline-grid;
-  block-size: var(--cp-control);
-  inline-size: var(--cp-control);
-  place-items: center;
-  border: 0;
-  border-radius: 9999px;
-  padding: var(--cp-optical);
-  background: transparent;
-  color: var(--cp-ink-muted);
-  cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.assistant-control--round {
-  border: var(--cp-px) solid var(--cp-hairline);
-}
-
-.assistant-control--round:hover,
-.assistant-control--ghost:hover {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
-
-.assistant-control--round svg,
-.assistant-control--ghost svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
 }
 
 [data-slot="prompt-input-submit"] {
@@ -156,22 +118,6 @@
 /*
  * 行几何全部来自设计系统的 --ui-row-* 一族：会话行与侧边栏上方五个导航行是
  * 同一种行，中线、内缩、行高、图标尺寸各只有一个所有者。
- *
- * 这一族令牌曾经声明在 workspace 的 .workspace-sidebar 上，本包读得到它们靠的
- * 是渲染树的巧合 —— 本包不依赖 workspace，两者同为特性层的平级包。现在它们在
- * 第 0 层，这条依赖是名正言顺的。
- *
- * 此前这里把「中线 − 内缩 − 图标半宽」重算了一遍，并且给中线补了 24px 兜底 ——
- * 那是 workspace-layout.ts 里 navIconCenter 的影子副本，上游改了它不会跟，两段
- * 于是各走一条线，而且不会报错。同时 padding 写了两遍，后一句把 --cp-pad-mid
- * 覆盖掉，那个值从来没生效过。
- *
- * 留下的那个令牌才是会话列表自己的事：行内操作按钮的尺寸。
- *
- * 底部渐隐的高度曾经也在这里，连同它那两条 [data-fade] 规则一起删了 —— 那段
- * 渐隐从来没有出现过。写它的注释说「由 use-scroll-fade 量出来写成 data-fade」，
- * 但 AssistantThreadList.tsx 里没有那个 hook、没有 ref，全文不出现 data-fade：
- * 属性没有人写，选择器一次都没命中过。注释描述的是一条从未接线的管线。
  */
 .assistant-threads {
   display: flex;
@@ -664,12 +610,6 @@
 }
 
 /*
- * 行尾那一格的状态已经并进上面 .assistant-thread 的那一条判定里，这里不再有
- * 第二处声明。此前这四条规则（外加上面的裸类名声明）是同一批属性的两个所有
- * 者，后者靠 [data-assistant-skin] 前缀压特异性 —— 那不是设计，那是打架。
- */
-
-/*
  * 入场与退场。
  *
  * Base UI 在 Popup 上发 data-open 与 data-closed 两个布尔属性。此前这两条规
@@ -753,13 +693,6 @@
   color: inherit;
   outline: none;
 }
-
-/*
- * 这里曾有三条规则：关掉重命名行的操作、关掉它的时间、关掉占位行的行尾。
- * 它们一次都没有命中过 —— JSX 里 isRenaming 分支只渲染 RenameField，占位行只
- * 渲染一个 __ghost，两者的 DOM 里根本没有 __trail 这个元素。删掉的是描述，
- * 不是行为。
- */
 
 /*
  * 图钉只负责居中，状态由字形本身表达。

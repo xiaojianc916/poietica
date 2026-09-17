@@ -83,7 +83,7 @@ function CatalogCard({ action, row }: CatalogCardProps) {
    */
   return (
     <li className="catalog-card group flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-2 rounded-2xl px-3 py-3 transition-colors hover:bg-[#f3f3f4]">
-      <PluginGlyph displayName={row.displayName} id={row.id} size="md" />
+      <PluginGlyph displayName={row.displayName} id={row.id} />
       <div className="min-w-36 flex-1">
         <span className="block text-sm font-medium break-words">{row.displayName}</span>
         <span className="block pt-0.5 text-[13px] truncate text-muted-foreground">
