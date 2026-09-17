@@ -1,7 +1,14 @@
 :root {
   --ui-font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-  --ui-font-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  /*
+   * 等宽只用系统自带那一档。
+   *
+   * 此前首选 "Cascadia Code"：它带连字与自己的一套字形（l 带尾、i 带衬线），
+   * 压在代码里读出来是「这个编辑器配了主题」，不是「这是一段代码」。换成三个
+   * 平台各自最普通的那一个 —— Windows 上解出 Consolas，macOS 上解出 SF Mono。
+   */
+  --ui-font-mono: Consolas, "SFMono-Regular", Menlo, "Liberation Mono", monospace;
 
   /*
    * Compact desktop chrome only.

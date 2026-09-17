@@ -2,7 +2,8 @@
  * 审查那一格的取色与列几何。
  *
  * 差异底色、竖线与词级强调是这一格的产品取值，除这里没有第二个消费点，所以不
- * 进设计系统。深色主题下同一批色相换成半透明，压在深底上才读得出来。
+ * 进设计系统。深色下底色是产品直接给的两个实色（压在地色上的一格）；词级强调
+ * 仍走半透明 —— 它要压在底色之上再叠一层。
  */
 .review-pane {
   --review-added-fill: #e7f4e7;
@@ -15,15 +16,20 @@
 }
 
 :root[data-theme="dark"] .review-pane {
-  --review-added-fill: color-mix(in srgb, #4fa356 14%, transparent);
+  --review-added-fill: #1f3124;
   --review-added-emphasis: color-mix(in srgb, #4fa356 30%, transparent);
-  --review-removed-fill: color-mix(in srgb, #e0674f 14%, transparent);
+  --review-removed-fill: #3b1f1a;
   --review-removed-emphasis: color-mix(in srgb, #e0674f 30%, transparent);
 }
 
-/* 上下文行留同宽的透明边：行首不因种类错位。 */
+/*
+ * 上下文行留同宽的透明边：行首不因种类错位。
+ *
+ * 宽度是产品在 150% 缩放下量出来的 6 个设备像素，折成 CSS 4px；写 6px 会画成
+ * 9 个，宽出一半。
+ */
 .review-line {
-  border-inline-start: 2px solid transparent;
+  border-inline-start: 4px solid transparent;
 }
 
 .review-line--added {
@@ -153,6 +159,11 @@
 /*
  * 变更徽章：新增是 U、删除是 D，两个都是裸字母（不要框）；改写仍是方框里一个点。
  *
+ * 外框用 box-shadow 画，不用 border：Chromium 对 border-width 另有一套吸附，量出来的
+ * 宽度与写进去的值对不上（1px 与 1.3333px 画出来一样宽，跨到 2px 又直接跳一档）；
+ * box-shadow 是照写的值画的，1.3333px 在 150% 缩放下就是屏幕上的 2 个设备像素
+ * （4/3 = 2 ÷ 1.5）。要动这个数，先量再改。
+ *
  * 色必须写在这里，不能写成 Tailwind 的边框色与文字色工具类：app.css 有一条
  * 无层级的通配规则（把 border-color 钉到 --color-divider），无层级声明压过
  * utilities 层，边框色在组件里根本改不动。本仓带颜色的边框一律走这条无层级的路。
@@ -160,16 +171,15 @@
  * 颜色按处境分：新增绿、删除红、改写橙。
  */
 .review-mark {
+  box-shadow: 0 0 0 1.3333px currentColor;
   color: #923b0f;
-  border-color: currentColor;
 }
 
-/* 裸字母那两支：框留着宽度、颜色透明，字仍居中在原来那个 16px 格里，
- * 与相邻行的徽章对齐。 */
+/* 裸字母那两支不要框：U 与 D 的字形自己就是记号，加一圈等于给字母描边。 */
 .review-mark[data-status="added"],
 .review-mark[data-status="untracked"],
 .review-mark[data-status="deleted"] {
-  border-color: transparent;
+  box-shadow: none;
 }
 
 .review-mark[data-status="added"],
@@ -252,13 +262,35 @@
   white-space: nowrap;
 }
 
-/* 折叠带的底色：悬浮药丸只这一处取色，不跟随上面的增删色。 */
+/*
+ * 折叠带的底色：悬浮药丸只这一处取色，不跟随上面的增删色。
+ */
 .review-gap {
   background: #f3f3f3;
 }
 
 :root[data-theme="dark"] .review-gap {
   background: #2f2f2f;
+}
+
+/*
+ * 折叠带的宽度参照，是主区而不是「最宽的那一行」。
+ *
+ * 不换行时行容器取 w-max（见 review-pane.tsx 的 Rows）：那是为了让增删底色铺满
+ * 整条横向滚动区，可折叠带 `w-full` 跟着它一起被撑到最宽行那么宽，右端就跑到主区
+ * 外面，被主区的 overflow 裁掉 —— 右圆角于是永远看不见（文件树一开、主区一窄更明显）。
+ *
+ * 主区因此当容器查询的参照物，折叠带改读 cqw；sticky 再把它钉在主区左缘，横向
+ * 滚动时它不跟着跑（否则往右滚一点，折叠带整条滑出视野）。
+ */
+.review-scroll {
+  container-type: inline-size;
+}
+
+.review-gap-row {
+  position: sticky;
+  inset-inline-start: 0;
+  inline-size: 100cqw;
 }
 
 /*

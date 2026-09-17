@@ -67,7 +67,7 @@ function NavRow({ label, icon: Icon, active = false, onClick }: NavRowProps) {
     <button
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'sidebar-nav-row text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground',
+        'sidebar-nav-row text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent',
         active && 'bg-sidebar-accent text-foreground',
       )}
       onClick={onClick}

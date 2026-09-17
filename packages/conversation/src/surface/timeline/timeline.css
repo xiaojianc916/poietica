@@ -28,6 +28,8 @@
   padding: var(--cp-timeline-pad);
   border-radius: var(--ui-radius-xl);
   background: var(--cp-timeline-user-surface);
+  /* 气泡里的字与回答同一档，不是继承来的默认灰。 */
+  color: var(--cp-timeline-body-ink);
 }
 
 .timeline-user__text {
@@ -65,7 +67,12 @@
   color: var(--cp-ink);
 }
 
+/*
+ * 正文的墨在这一层定，不在 Prose 里：回答是这张屏上最亮的一档，与「我」说的话
+ * 同一档（--cp-timeline-body-ink），两处不各写各的。
+ */
 .timeline-message {
+  color: var(--cp-timeline-body-ink);
   overflow-wrap: anywhere;
 }
 

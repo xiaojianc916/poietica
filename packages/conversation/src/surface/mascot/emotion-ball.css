@@ -7,6 +7,17 @@
   padding: 0;
   background: transparent;
   color: inherit;
+
+  /*
+   * 吉祥物的配色不跟主题。
+   *
+   * 它是这个产品的形象：深色下换成另一档蓝、眼睛翻成近黑，读起来就是另一个角色。
+   * 所以这里不读 --ui-primary / --ui-primary-foreground —— 那两个令牌的职责恰恰
+   * 是随主题走。下面这一档是浅色主题解出来的主色（正本在
+   * packages/design-system/src/tokens/light.css 的 --ui-primary），钉在这里，
+   * 两套主题同一套颜色。
+   */
+  --emotion-ball-body: oklch(0.55 0.19 255);
 }
 
 .emotion-ball > svg {
@@ -16,19 +27,20 @@
 }
 
 .emotion-ball__body-highlight {
-  stop-color: color-mix(in srgb, var(--ui-primary) 78%, white);
+  stop-color: color-mix(in srgb, var(--emotion-ball-body) 78%, white);
 }
 
 .emotion-ball__body-base {
-  stop-color: var(--ui-primary);
+  stop-color: var(--emotion-ball-body);
 }
 
 .emotion-ball__body-shade {
-  stop-color: color-mix(in srgb, var(--ui-primary) 88%, black);
+  stop-color: color-mix(in srgb, var(--emotion-ball-body) 88%, black);
 }
 
+/* 浅色主题的 --ui-primary-foreground：近白，同样不跟主题。 */
 .emotion-ball__eye {
-  fill: var(--ui-primary-foreground);
+  fill: oklch(0.99 0 0);
 }
 
 .emotion-ball--entry {

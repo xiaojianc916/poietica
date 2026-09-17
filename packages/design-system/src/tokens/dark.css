@@ -2,7 +2,12 @@
   color-scheme: dark;
 
   --ui-background: var(--ui-palette-dark-950);
-  --ui-foreground: var(--ui-palette-white);
+  /*
+   * 默认前景不是纯白：深色底上纯白是最高亮度，一段正文用它会把整屏读成
+   * "每个字都在喊"。这一档是产品定的灰白，所有没特意指定颜色的文字都走它
+   * （特意指定过的仍各自给值，如 --ui-sidebar-accent-foreground 仍是白）。
+   */
+  --ui-foreground: #c3c3c3;
   --ui-surface: var(--ui-palette-dark-850);
   --ui-inverse-surface: #000000;
   --ui-inverse-foreground: #f7f7f8;
@@ -74,7 +79,8 @@
    * 展开的面板也不会与它同色（浅色下这一格是纯白）。
    */
   --ui-popover: #2a2a2a;
-  --ui-popover-foreground: var(--ui-palette-white);
+  /* 与 light.css 同构：浮层上的字就是默认前景色，不另开一档白。 */
+  --ui-popover-foreground: var(--ui-foreground);
   --ui-popup-highlight: #3c3c3c;
   /*
    * 下拉族的两道框。这里写字面实色，不跟区域线那支半透明墨：半透明墨会跟着

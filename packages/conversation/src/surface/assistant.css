@@ -1108,7 +1108,7 @@
 
 .workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-highlighted] {
   outline: none;
-  background: var(--ui-popup-highlight);
+  background: var(--cp-menu-hover);
 }
 
 .workspace-picker__item-name {
@@ -1352,8 +1352,9 @@
  *
  * 当前项目的 data-current 只负责右侧勾号，不再额外绘制第二块背景。
  *
- * 高亮底色读弹层公共高亮令牌（DropdownMenuItem 基础类用的同一个），不读
- * --cp-hover：后者是半透明墨，压在这张实色浮层上还要再兑一次底。
+ * 高亮底色读菜单卡面那一档悬停（--cp-menu-hover），与权限弹窗、模型面板、分支
+ * 选择器的行同一个值，不读 --cp-hover：后者是半透明墨，压在这张实色浮层上还要
+ * 再兑一次底。
  */
 .workspace-picker__menu[data-assistant-skin]
 .workspace-picker__item[data-workspace-choice="true"][data-highlighted],
@@ -1368,7 +1369,7 @@
   .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-highlighted],
 .workspace-picker__menu[data-assistant-skin]
   .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-current="true"] {
-  background: var(--ui-popup-highlight);
+  background: var(--cp-menu-hover);
 }
 
 /*

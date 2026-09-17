@@ -15,7 +15,8 @@
 /*
  * 静息是透明的，跟工具条里另外两枚胶囊一样：它是常显的一个控件，不是一段标记。
  * 一层常驻的灰底会把它读成"已选中/已展开"，而这颗胶囊一直是被选中的那一个。
- * 悬停与展开才铺 --ui-accent（浅色 #f2f2f3）—— 参考稿那张就是这个状态。
+ * 悬停与展开才铺 --cp-input-hover（与加号、批准方式共用同一个名字）—— 参考稿
+ * 那张就是这个状态。
  */
 .assistant-model-select__button {
   display: inline-flex;
@@ -40,7 +41,7 @@
 
 .assistant-model-select__button:hover,
 .assistant-model-select__button[aria-expanded="true"] {
-  background: var(--ui-accent);
+  background: var(--cp-input-hover);
 }
 
 /*
@@ -113,7 +114,7 @@
 [data-assistant-skin] .assistant-model-select__head:hover,
 [data-assistant-skin] .assistant-model-select__head[data-highlighted] {
   outline: none;
-  background: var(--ui-accent);
+  background: var(--cp-menu-hover);
 }
 
 .assistant-model-select__head-band {
@@ -300,7 +301,7 @@
 [data-assistant-skin] .assistant-model-select__item:hover,
 [data-assistant-skin] .assistant-model-select__item[data-highlighted] {
   outline: none;
-  background: var(--ui-accent);
+  background: var(--cp-menu-hover);
 }
 
 .assistant-model-select__item-name {
@@ -359,10 +360,17 @@
   --am-shadow: var(--cp-lift-menu);
 }
 
+/*
+ * 工具条浮层族共用的那张脸。
+ *
+ * 边与面读菜单那一对（--cp-menu-edge / --cp-menu-face），与权限弹窗同源 —— 此前
+ * 这两格是 --ui-divider 与 --cp-surface，于是同一个输入卡上打开的两个弹窗量出两
+ * 种面色。几何（圆角、内边距）仍是它自己的。
+ */
 .assistant-menu-surface {
-  border: var(--ui-hairline) solid var(--am-line);
+  border: var(--ui-hairline) solid var(--cp-menu-edge);
   border-radius: var(--am-radius);
   padding: var(--am-pad);
-  background: var(--cp-surface);
+  background: var(--cp-menu-face);
   box-shadow: var(--am-shadow);
 }

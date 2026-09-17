@@ -217,11 +217,9 @@ export function AuxiliaryTabStrip({
         </button>
       </div>
       {openMenu === 'new-tab' ? (
-        <div
-          aria-hidden
-          className="border-b border-current/10 bg-muted/30"
-          style={{ blockSize: menuHeight }}
-        />
+        /* 只负责让位：它自己不许画边。画了就是标签条下面凭空多一条线，
+         * 而且高度是「菜单高 + 6」，那条线正好落在菜单下缘，看着像菜单漏出来的。 */
+        <div aria-hidden className="bg-muted/30" style={{ blockSize: menuHeight }} />
       ) : null}
     </div>
   )

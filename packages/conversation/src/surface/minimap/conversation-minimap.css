@@ -18,6 +18,8 @@
   --cp-rail-ink-rest: #d2d3d3;
   --cp-rail-ink-active: #767779;
   --cp-rail-ink-aimed: #1a1c1f;
+  --cp-rail-card-edge: #e2e2e2;
+  --cp-rail-card-face: var(--cp-surface);
   /* 轨道离面板上下边缘留多少。 */
   --cp-rail-inset: 2px;
   position: absolute;
@@ -142,10 +144,10 @@
   translate: 0 calc(var(--cp-rail-card-y, 0px) - 50%);
   overflow: hidden;
   inline-size: 220px;
-  border: 1px solid #e2e2e2;
+  border: 1px solid var(--cp-rail-card-edge);
   border-radius: var(--am-item);
   padding: 6px 8px;
-  background: var(--cp-surface);
+  background: var(--cp-rail-card-face);
   box-shadow:
     0 1px 2px rgb(0 0 0 / 6%),
     0 4px 12px rgb(0 0 0 / 8%);
@@ -190,6 +192,21 @@
     animation: none;
   }
 }
+/*
+ * 深色下的三档墨与卡片。
+ *
+ * 上面那三档是浅底上的取向：平常浅灰、读到的那根中灰、指着的那根近黑 —— 浅底上
+ * 最深的一根最跳。深底上这条关系反过来：指着的那根要给最亮的一档，否则等于把它
+ * 从轨道上擦掉。卡片同理，写死的浅色边与卡面档底色压在近黑上都不成立。
+ */
+:root[data-theme="dark"] .conversation-minimap {
+  --cp-rail-ink-rest: #464646;
+  --cp-rail-ink-active: #909090;
+  --cp-rail-ink-aimed: #dfdfdf;
+  --cp-rail-card-edge: #343434;
+  --cp-rail-card-face: #2c2c2c;
+}
+
 /* dpx 档位：只有小数缩放需要改写，整数缩放下 3 CSS px 本就是整数个设备像素。 */
 @media (resolution: 1.25dppx) {
   .conversation-minimap {

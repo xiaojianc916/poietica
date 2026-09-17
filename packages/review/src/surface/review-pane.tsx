@@ -162,7 +162,7 @@ export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
     >
       <Toolbar reading={reading} state={state} store={store} />
       <div className="flex min-h-0 flex-1">
-        <div className="min-h-0 flex-1 overflow-y-auto" ref={scroller}>
+        <div className="review-scroll min-h-0 flex-1 overflow-y-auto" ref={scroller}>
           <Cards reading={reading} scroller={scroller} shown={shown} state={state} store={store} />
         </div>
         <Tree docked={treeColumn > 0} shown={shown} state={state} store={store} />
@@ -543,7 +543,7 @@ function Body({
   return (
     <div
       className={cn(
-        'font-mono text-[11px] leading-5',
+        'font-mono text-[12px] leading-5',
         state.presentation.wrap ? null : 'overflow-x-auto',
       )}
     >
@@ -581,9 +581,10 @@ function GapBar({
   readonly label: string
   readonly onClick?: () => void
 }) {
-  /* 悬浮药丸：无上下边框，左右留白不贴边，相邻两条之间由外层的 py 隔开。 */
+  /* 悬浮药丸：无上下边框，左右留白不贴边，相邻两条之间由外层的 py 隔开。
+   * 外层另带 review-gap-row：宽度取主区（见 review-pane.css），不跟最宽行走。 */
   return (
-    <div className="px-2 py-1" ref={barRef}>
+    <div className="review-gap-row px-2 py-1" ref={barRef}>
       <button
         className="review-gap flex w-full items-center gap-1.5 rounded-md px-2.5 py-0.5 text-left text-[10px] text-current/50 enabled:hover:text-current/90"
         disabled={onClick === undefined}
@@ -1087,7 +1088,7 @@ function ChangeMark({ status }: { readonly status: GitChangeStatus }) {
   return (
     <span
       aria-label={label}
-      className="review-mark flex size-4 shrink-0 items-center justify-center rounded-[4px] border"
+      className="review-mark flex size-[13px] shrink-0 items-center justify-center rounded-[4px]"
       data-status={status}
       role="img"
       title={label}
@@ -1104,7 +1105,7 @@ function ChangeMark({ status }: { readonly status: GitChangeStatus }) {
           U
         </span>
       ) : (
-        <span aria-hidden className="size-1.25 rounded-full bg-current" />
+        <span aria-hidden className="size-[3px] rounded-full bg-current" />
       )}
     </span>
   )

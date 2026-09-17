@@ -45,6 +45,17 @@
   background: var(--cp-hover);
 }
 
+/*
+ * 深色下那圈边另给一档。
+ *
+ * 浅色档 #e1e1e1 是「压在浅灰栏底上的一圈边」，深色下它压在 #212121 的栏底上就是
+ * 一圈白光 —— 与 --cp-lift 在深色下变成光晕是同一个病：一个只对浅底成立的浓度。
+ * 深色下给 #2a2a2a，框仍在，只是不再发亮。
+ */
+:root[data-theme="dark"] .swarm-toggle {
+  --sw-edge: #333333;
+}
+
 .swarm-toggle:focus-visible {
   outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
   outline-offset: var(--cp-px);

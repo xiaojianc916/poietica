@@ -4,7 +4,6 @@
 .assistant-posture,
 .assistant-posture-menu {
   --pp-ink-alert: #e46620;
-  --pp-hover: #f2f2f3;
 }
 
 .assistant-posture {
@@ -55,13 +54,15 @@
   text-overflow: ellipsis;
 }
 
+/*
+ * 这一张的几何归它自己，边与面不写在这里 —— 它们已经是 .assistant-menu-surface
+ * （工具条浮层族共用那张脸）的两格，与模型面板、项目与分支选择器同源。
+ */
 .assistant-posture-menu[data-assistant-skin] {
   inline-size: 21rem;
   min-inline-size: 0;
   max-inline-size: calc(100vw - 2 * var(--cp-gutter));
   padding: var(--am-pad);
-  border-color: var(--cp-menu-edge);
-  background: var(--cp-menu-face);
 }
 
 [data-assistant-skin] .assistant-posture-menu__item {
@@ -81,10 +82,12 @@
   cursor: default;
 }
 
+/* 被指到的那一行：读菜单卡面那一档悬停（--cp-menu-hover），与模型面板、项目与分支
+   选择器的行同一个值。胶囊自己压在输入卡上，读输入卡那一档。 */
 [data-assistant-skin] .assistant-posture-menu__item:hover,
 [data-assistant-skin] .assistant-posture-menu__item[data-highlighted] {
   outline: none;
-  background: var(--pp-hover);
+  background: var(--cp-menu-hover);
 }
 
 [data-assistant-skin] .assistant-posture-menu__item[data-alert] {
@@ -133,5 +136,5 @@
 
 .assistant-posture:hover,
 .assistant-posture[data-popup-open] {
-  background: var(--pp-hover);
+  background: var(--cp-input-hover);
 }

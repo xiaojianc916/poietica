@@ -299,6 +299,21 @@
   --cp-ground: var(--ui-background);
 
   /*
+   * 输入卡自己的面与悬停底。
+   *
+   * 浅色下两者就是现状（--cp-surface 与 --ui-accent），零变化；深色下各自另给
+   * 一档，理由见文件末尾的 dark 块。分开命名是因为只有这张卡要那两档：
+   * --cp-surface 还铺在审批带、通知卡、附件格上。
+   *
+   * 悬停底收成一个名字：工具条上那三枚（加号、批准方式、模型）此前各写各的 ——
+   * 两处读设计系统的中性高亮面，批准方式那颗自己带一个值。三处本来就是同一块
+   * 底压在同一个面上，一个名字就够。
+   */
+  --cp-input-surface: var(--cp-surface);
+  --cp-input-hover: var(--ui-accent);
+  --cp-input-lift: var(--cp-lift);
+
+  /*
    * 咬在卡片上沿的那一格（审批带）：与「我」说的话同一个平面，读同一个令牌。
    * 必须是实色 —— 它上半段铺在地色上、下半段压在卡面底下，半透明墨会被两种底
    * 兑成两个颜色。
@@ -313,8 +328,7 @@
    *
    * 上面那一层是半透明墨,铺在什么底上就跟着什么底走;而浮层自己是实色(--cp-surface),
    * 半透明墨盖不住它,只能把它兑淡。--cp-shelf 与 --cp-timeline-drawer-surface 两段说明
-   * 已经把这一条写清楚过:实色面上要的是实色。式子与 --cp-menu-hover 同构,浓度沿用上面
-   * 那一档,所以两处悬停在感知上是同一下。
+   * 已经把这一条写清楚过:实色面上要的是实色。浓度沿用上面那一档,所以两处悬停在感知上是同一下。
    */
   --cp-overlay-hover: color-mix(in srgb, var(--ui-foreground) 6%, var(--cp-surface));
   --cp-hairline: var(--ui-divider-subtle);
@@ -330,7 +344,19 @@
   --cp-menu-face: color-mix(in srgb, var(--ui-foreground) 1.2%, var(--ui-surface));
   --cp-menu-edge: color-mix(in srgb, var(--ui-foreground) 9%, var(--ui-surface));
   --cp-menu-line: color-mix(in srgb, var(--ui-foreground) 6.3%, var(--ui-surface));
-  --cp-menu-hover: color-mix(in srgb, var(--ui-foreground) 6.7%, var(--cp-menu-face));
+
+  /*
+   * 菜单卡面上「被指到的那一行」。
+   *
+   * 它此前是一条式子（6.7% 的墨兑进卡面），而四张菜单里只有一张读它 —— 另外三张
+   * 各读设计系统的 --ui-accent 或 --ui-popup-highlight。深色下那几档互不相同
+   * （#383836 / #3c3c3c / 兑出来的 #323232），同一个动作在几个弹窗里有三种亮度。
+   *
+   * 现在写字面实色，几张菜单共用一个名字：浅色沿用设计系统那一档（#f2f2f3，与
+   * --ui-accent / --ui-popup-highlight 同值，零变化），深色由产品定 #2e2e2e ——
+   * 它压在 #232323 的卡面上只抬一档，说的是「这里被指到了」，不是「这里被选中了」。
+   */
+  --cp-menu-hover: #f2f2f3;
 
   /*
    * 时间线的颜色。
@@ -479,6 +505,15 @@
   /* 「我」说的话的底色：沉在地色上的那一格，取值在设计系统那一层。 */
   --cp-timeline-user-surface: var(--ui-sunken);
 
+  /*
+   * 正文与气泡里的字。
+   *
+   * 这两处要的是屏幕上最亮的那一档：一段回答是读者真正在读的东西，跟地色差
+   * 十五格才立得住；--ui-foreground 是默认那档，留给次要信息。浅色下两者都是
+   * --cp-ink，零变化。深色那一档在文件末尾给。
+   */
+  --cp-timeline-body-ink: var(--cp-ink);
+
   /* 抽屉:思考过程的开合,时长与曲线在这里定一次。 */
   --cp-motion-drawer: 260ms;
   --cp-motion-drawer-ease: var(--ui-ease-standard);
@@ -587,4 +622,43 @@
   --cp-model-pill-level-ink: rgb(255 255 255 / 42%);
   --cp-model-rail-face: rgb(255 255 255 / 14%);
   --cp-model-thumb-lift: 0 1px 3px rgb(0 0 0 / 45%);
+
+  /*
+   * 输入卡：面抬一档，悬停底跟着抬，影删掉。
+   *
+   * 面：--cp-surface 深色下是卡面档 #202020，压在页面底色 #181818 上只差两格，
+   * 输入框读起来像没画出来。抬到 #2a2a2a。
+   *
+   * 悬停底压在这张面上，一并抬到 #3b3b3b：跟着 --ui-accent（#383836）走的话，
+   * 它与卡面只差十来格，指针压上去几乎看不出。
+   *
+   * 影：--cp-lift 深色下换成黑墨（见下），但输入卡自己不要影 —— 它的面已经比地色
+   * 高两档，再压一圈暗边只会把它读成"浮在转录之上的一块板"。
+   */
+  --cp-input-surface: #2a2a2a;
+  --cp-input-hover: #3b3b3b;
+  --cp-input-lift: none;
+
+  --cp-menu-hover: #2e2e2e;
+
+  /*
+   * 正文与气泡的字：深色下要的是白。
+   *
+   * --ui-foreground 是 #c3c3c3（默认那档），而一段回答和用户自己说的话是屏幕上
+   * 唯一值得用最高亮度的东西 —— 与地色差十五格，读起来才是正文而不是一片灰。
+   */
+  --cp-timeline-body-ink: #ffffff;
+
+  /* 「我」的气泡底：比 --ui-sunken 再压一档，与 #181818 的地色拉出可见的一格。 */
+  --cp-timeline-user-surface: #222222;
+
+  /*
+   * 两圈影的墨。
+   *
+   * 浅色那两条式子（--cp-lift 与 --cp-lift-menu）拿 --ui-foreground 兑墨画影，
+   * 而那支墨深色下是白的 —— 同一条式子在深色下不是阴影，是一圈白光。深色下
+   * 换成黑墨，浓度抬到看得见为止（基底越暗，同样的墨越难读出来）。
+   */
+  --cp-lift: 0 2px 4px rgb(0 0 0 / 40%), 0 8px 16px -8px rgb(0 0 0 / 60%);
+  --cp-lift-menu: 0 2px 4px rgb(0 0 0 / 45%), 0 12px 32px -8px rgb(0 0 0 / 65%);
 }

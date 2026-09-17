@@ -9,8 +9,8 @@
   flex-direction: column;
   border: var(--cp-px) solid var(--cp-edge);
   border-radius: var(--cp-radius);
-  background: var(--cp-surface);
-  box-shadow: var(--cp-lift);
+  background: var(--cp-input-surface);
+  box-shadow: var(--cp-input-lift);
   cursor: text;
 }
 
